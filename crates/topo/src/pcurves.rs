@@ -154,6 +154,7 @@ use geom::Surface;
 use geom_brep::{
     ChartWindow, Pcurve, PcurveCache, PcurveCertifyError, PcurveFittedLane, chart_pcurve,
 };
+use geom_core::Tol;
 use geom_core::k_stats::decide;
 use geom_core::predicate::{Band, BandError};
 use geom_core::{Decide, Indeterminate, Margin, Real, Sign};
@@ -270,6 +271,10 @@ fn chart_mints<T: Real>(surface: &Surface<T>) -> bool {
         // (`Pcurve::IsoArc`). The placeholder mints nothing: it is not
         // a described surface.
         Surface::Nurbs(payload) => !payload.is_placeholder(),
+        // An approximating surface's chart is its fit's, and it is
+        // described by construction — there is no placeholder state to
+        // exclude, so it always mints.
+        Surface::Approx(_) => true,
     }
 }
 
@@ -297,9 +302,10 @@ pub fn pcurve_of<T: Decide>(
     }
     let (carrier, _, _) = half_edge_carrier(body, half_edge)?;
     let surface = half_edge_surface(body, half_edge)?;
-    if matches!(surface, Surface::Nurbs(_)) {
-        // The NURBS chart's images are description-driven (M6-3) —
-        // the iso derivation, not the closed-form harmonic table.
+    // A SPLINE chart's images are description-driven (M6-3) — the iso
+    // derivation, not the closed-form harmonic table. An approximating
+    // surface's chart IS its fit's, so it takes the same route.
+    if surface.spline_chart().is_some() {
         return nurbs_iso_derive(body, half_edge, &surface, band);
     }
     chart_pcurve(&carrier, &surface, band)
@@ -477,8 +483,12 @@ fn nurbs_iso_derive<T: Decide>(
     let span = t1 - t0;
     // The chart's OWN domain (doc above): `[0, 1]²` for a kernel-built
     // patch, the file's parameterization for an imported one.
-    let (cu0, cu1, cv0, cv1) = match surface {
-        Surface::Nurbs(payload) => {
+    // The catch-all is SPLIT: an approximating surface's domain is its
+    // FIT's knot domain, not the unit square — reading `[0,1]²` off a
+    // chart parameterized otherwise would place every derived image on
+    // the wrong rectangle.
+    let (cu0, cu1, cv0, cv1) = match surface.spline_chart() {
+        Some(payload) => {
             let (a, b) = payload.knots_u().domain();
             let (c, d) = payload.knots_v().domain();
             (
@@ -488,7 +498,7 @@ fn nurbs_iso_derive<T: Decide>(
                 T::from_f64(d),
             )
         }
-        _ => (T::zero(), T::one(), T::zero(), T::one()),
+        None => (T::zero(), T::one(), T::zero(), T::one()),
     };
     // A definite endpoint-side selection: which of the two candidate
     // chart values places the carrier's START on the surface. The
@@ -564,8 +574,8 @@ fn nurbs_iso_derive<T: Decide>(
             geom_brep::MappedCurve::PlacedSegment { .. }
             | geom_brep::MappedCurve::RevolvedPoint { .. },
         ) if matches!(carrier, geom::Curve3::Circle { .. }) => {
-            let geom::Surface::Nurbs(payload) = surface else {
-                return Err(refuse("an arc cap rim on a non-NURBS chart"));
+            let Some(payload) = surface.spline_chart() else {
+                return Err(refuse("an arc cap rim on a non-spline chart"));
             };
             let ku = payload.knots_u();
             let (d0, d1) = ku.domain();
@@ -774,7 +784,9 @@ fn azimuth_arm<T: Real>(surface: &Surface<T>, v: T) -> T {
             ..
         } => (major_radius + minor_radius * v.cos()).abs(),
         Surface::Cone { half_angle, .. } => (v * half_angle.sin()).abs(),
-        _ => T::one(),
+        // Non-periodic charts: the plane's parameters are metres, and
+        // both spline kinds' are the net's own — no azimuth to lever.
+        Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => T::one(),
     }
 }
 
@@ -816,7 +828,11 @@ fn azimuth_arm<T: Real>(surface: &Surface<T>, v: T) -> T {
 /// this the walk reports the wrap as a discontinuity: a symptom, not
 /// the cause.
 fn chart_u_period<T: Decide>(surface: &Surface<T>, band: Band) -> Option<T> {
-    let Surface::Nurbs(payload) = surface else {
+    // The `τ` default belongs to the AZIMUTH charts. A spline chart —
+    // the payload's or an approximating surface's fit — has whatever
+    // period its knot domain says, and only if the net actually closes;
+    // handing it `τ` would let the loop walk wrap a chart that does not.
+    let Some(payload) = surface.spline_chart() else {
         return Some(T::tau());
     };
     let (u0, u1) = payload.knots_u().domain();
@@ -843,7 +859,13 @@ fn polar_arm<T: Real>(surface: &Surface<T>) -> Option<T> {
     match *surface {
         Surface::Sphere { radius, .. } => Some(radius),
         Surface::Torus { minor_radius, .. } => Some(minor_radius),
-        _ => None,
+        // The second channel is a length on these charts (spline
+        // parameters included), so gaps in it are already metres.
+        Surface::Plane { .. }
+        | Surface::Cylinder { .. }
+        | Surface::Cone { .. }
+        | Surface::Nurbs(_)
+        | Surface::Approx(_) => None,
     }
 }
 
@@ -970,8 +992,8 @@ struct Walked<T: Real> {
 /// [`PcurveMintError`] — a certification refusal, a discontinuous or
 /// unclosed loop walk, or an escalated classification. Never a silent
 /// skip of a face the lane covers.
-pub fn mint_pcurves<T: Decide>(body: &mut Body<T>) -> Result<(), PcurveMintError> {
-    let band = Band::linear().map_err(PcurveMintError::Band)?;
+pub fn mint_pcurves<T: Decide>(body: &mut Body<T>, tol: Tol) -> Result<(), PcurveMintError> {
+    let band = Band::linear(tol).map_err(PcurveMintError::Band)?;
     // Start from empty. A body reaching this pass may have been carved
     // from a scratch clone that inherited rows for half-edges the
     // surgery killed (a `SecondaryMap` row outlives its key until the
@@ -1144,8 +1166,8 @@ fn walk_loop<T: Decide>(
     let mut first_entry: Option<geom_core::Point2<T>> = None;
     for he in cycle {
         let (carrier, t0, t1) = half_edge_carrier(body, he)?;
-        let base = if matches!(surface, Surface::Nurbs(_)) {
-            // NURBS charts derive from the edge's intensional
+        let base = if surface.spline_chart().is_some() {
+            // Spline charts derive from the edge's intensional
             // description (M6-3) — see `nurbs_iso_derive`.
             nurbs_iso_derive(body, he, surface, band)?
         } else {
@@ -1458,12 +1480,12 @@ pub fn validate_pcurves<T: PcurveFittedLane>(body: &Body<T>, band: Band) -> Vec<
 }
 
 #[cfg(test)]
-mod staleness_posture {
+pub(crate) mod staleness_posture {
     #![allow(clippy::expect_used)]
 
     /// Which of this module's three postures a mutation door holds.
     #[derive(Clone, Copy, Debug, PartialEq)]
-    enum Posture {
+    pub(crate) enum Posture {
         /// Clears and re-mints before returning. Read out of the
         /// source (a `mint_pcurves` call in the door's own body); an
         /// entry declares it only when the re-mint is one delegation
@@ -1477,46 +1499,29 @@ mod staleness_posture {
         Neither,
     }
 
-    /// **The convention at the top of this module, checked rather than
-    /// surveyed.** Every public mutation path into a [`crate::Body`] —
-    /// `pub fn` taking `&mut self`, plus the free functions taking
-    /// `&mut Body<T>` — either re-mints the map in its own body, which
-    /// this walk reads directly, or is declared below with its posture
-    /// and a note on that door.
+    /// `(door, posture, note)` — the doors that do NOT re-mint the
+    /// map in their own body. The reason a posture is SAFE lives once,
+    /// on the [`Posture`] variant; a note here says only what is
+    /// particular to this door.
     ///
-    /// **Why a test and not a list in prose.** A prose index has no way
-    /// to notice a door being added, and the previous one did not. This
-    /// goes red the day one lands unsorted, which is the rot the prose
-    /// could only describe.
-    ///
-    /// **What it checks, exactly.** Three failures, all mechanical: a
-    /// door that neither calls `mint_pcurves` nor appears below; a door
-    /// whose entry says anything but `Maintains` while its body calls
-    /// `mint_pcurves`; and an entry naming a door that no longer
-    /// exists.
-    ///
-    /// **What it does not check.** That a `Maintains` entry is TRUE. A
-    /// re-mint reached through a delegate is invisible to a source
-    /// read, so those two entries are taken at their word — the guard
-    /// establishes that every door is sorted and that no door has
-    /// silently started minting, not that each sort is correct. The
-    /// module docs' *"what the guard does NOT establish"* list carries
-    /// this and the rest of the blind spot: delegation, and everything
-    /// outside `topo/src`'s `&mut Body` surface.
-    #[test]
-    fn every_mutation_door_declares_its_pcurve_posture() {
+    /// Module-scoped rather than local to the guard so that
+    /// [`crate::review_m1_pr5_internal::the_two_door_tables_cover_the_same_surface`]
+    /// can read it. That row is the only other reader; this table
+    /// stays this guard's.
+    pub(crate) const DECLARED: &[(&str, Posture, &str)] = {
         use Posture::{Maintains, Neither, Transfers};
-
-        // `(door, posture, note)`. The reason a posture is SAFE lives
-        // once, on the `Posture` variant; a note here says only what is
-        // particular to this door — most often nothing beyond which
-        // family it belongs to.
-        const DECLARED: &[(&str, Posture, &str)] = &[
+        &[
             // ---- Maintains, one delegation away from the re-mint. ----
             (
                 "merge_coplanar_faces",
                 Maintains,
                 "calls `merge_coplanar_faces_declared`, which re-mints the staged result",
+            ),
+            (
+                "replace_face_offset",
+                Maintains,
+                "the one-face spelling of `replace_faces_offset`, which re-mints the clone \
+                 before adopting it",
             ),
             // ---- The pass itself. ----
             (
@@ -1539,12 +1544,20 @@ mod staleness_posture {
                 "graft_disjoint_all_keyed",
                 Transfers,
                 "remaps each row onto the transplanted half-edge's fresh key and DROPS any \
-                 row the graft walk did not reach, which is the staleness test itself",
+             row the graft walk did not reach, which is the staleness test itself",
             ),
             (
                 "graft_disjoint_all_onto_keyed",
                 Transfers,
                 "the graft — see `graft_disjoint_all_keyed`",
+            ),
+            (
+                "insert_void",
+                Transfers,
+                "the void-insertion door: reverts the cavity (rows keep their keys, going \
+             stale in CONTENT like any surgery) and grafts through `boolean::combine`, \
+             which remaps the transplanted rows onto fresh keys; both producers' final \
+             mint passes re-derive every row of the merged body",
             ),
             // ---- Neither: the primitives. Their stale rows are what
             // the tier-3 pcurve pass exists to catch. ----
@@ -1577,7 +1590,7 @@ mod staleness_posture {
                 "split_edge",
                 Neither,
                 "replaces one edge's geometry with two children — the one primitive that \
-                 makes a row stale in CONTENT rather than by key",
+             makes a row stale in CONTENT rather than by key",
             ),
             // ---- Neither: the caller's own row-level control of the
             // map, and writes the map is not keyed on. ----
@@ -1585,14 +1598,14 @@ mod staleness_posture {
                 "attach_pcurve",
                 Neither,
                 "writes ONE row the caller chose; every other row is untouched, and \
-                 certifying this one is the caller's",
+             certifying this one is the caller's",
             ),
             ("detach_pcurve", Neither, "drops ONE row the caller chose"),
             (
                 "set_face_surface",
                 Neither,
                 "a surface swap is content staleness the tier-3 pass re-certifies against, \
-                 not a key the map can lose",
+             not a key the map can lose",
             ),
             (
                 "set_edge_curve",
@@ -1611,30 +1624,69 @@ mod staleness_posture {
             ("clear_geom_sources", Neither, "GeomSource metadata"),
             ("set_null_face_pair", Neither, "null-face annotation"),
             ("clear_null_face_pair", Neither, "removes that annotation"),
-        ];
+        ]
+    };
 
+    /// **The convention at the top of this module, checked rather than
+    /// surveyed.** Every public mutation path into a [`crate::Body`] —
+    /// `pub fn` taking `&mut self`, plus the free functions taking
+    /// `&mut Body<T>` — either re-mints the map in its own body, which
+    /// this walk reads directly, or is declared below with its posture
+    /// and a note on that door.
+    ///
+    /// **Why a test and not a list in prose.** A prose index has no way
+    /// to notice a door being added, and the previous one did not. This
+    /// goes red the day one lands unsorted, which is the rot the prose
+    /// could only describe.
+    ///
+    /// **What it checks, exactly.** Three failures, all mechanical: a
+    /// door that neither calls `mint_pcurves` nor appears below; a door
+    /// whose entry says anything but `Maintains` while its body calls
+    /// `mint_pcurves`; and an entry naming a door that no longer
+    /// exists.
+    ///
+    /// **Where the door set comes from, and what it cannot see:**
+    /// [`crate::source_walk::mutation_doors`], shared with the tier-1
+    /// postcondition guard in [`crate::review_m1_pr5_internal`], which
+    /// walks the same population to ask a different question. That
+    /// function's docs carry the reason the two tables do not merge
+    /// and the whole inherited blind-spot list; this guard does not
+    /// restate either.
+    ///
+    /// **"Calls `mint_pcurves`" is a read of code, not of prose.** The
+    /// body arrives with comments and literals blanked. This guard
+    /// used a raw `body.contains`, and a planted door whose body only
+    /// *mentioned* `mint_pcurves(` in a comment was counted as
+    /// re-minting, in both this guard and the tier-1 one, both green.
+    ///
+    /// **What it does not check.** That a `Maintains` entry is TRUE. A
+    /// re-mint reached through a delegate is invisible to a source
+    /// read, so those two entries are taken at their word — the guard
+    /// establishes that every door is sorted and that no door has
+    /// silently started minting, not that each sort is correct. The
+    /// module docs' *"what the guard does NOT establish"* list carries
+    /// this and the rest of the blind spot: delegation, and everything
+    /// outside `topo/src`'s `&mut Body` surface. The full inherited
+    /// list is on [`crate::source_walk::mutation_doors`].
+    #[test]
+    fn every_mutation_door_declares_its_pcurve_posture() {
+        use Posture::Maintains;
         let mut minting: Vec<String> = Vec::new();
         let mut declared: Vec<&str> = Vec::new();
         let mut undeclared: Vec<String> = Vec::new();
         let mut mislabelled: Vec<String> = Vec::new();
 
-        for path in &crate::fixtures::crate_sources() {
-            let text = std::fs::read_to_string(path).expect("a readable source file");
-            for (name, params, body) in crate::fixtures::public_fns(&text) {
-                if !params.contains("&mut self") && !params.contains("&mut Body") {
-                    continue;
+        for door in crate::source_walk::mutation_doors() {
+            let entry = DECLARED.iter().find(|(n, _, _)| *n == door.name);
+            if door.code_contains("mint_pcurves(") {
+                if let Some((_, posture, _)) = entry.filter(|(_, p, _)| *p != Maintains) {
+                    mislabelled.push(format!("{} declared {posture:?}", door.name));
                 }
-                let entry = DECLARED.iter().find(|(n, _, _)| *n == name);
-                if body.contains("mint_pcurves(") {
-                    minting.push(name.to_string());
-                    if let Some((_, posture, _)) = entry.filter(|(_, p, _)| *p != Maintains) {
-                        mislabelled.push(format!("{name} declared {posture:?}"));
-                    }
-                } else if let Some((n, _, _)) = entry {
-                    declared.push(n);
-                } else {
-                    undeclared.push(format!("{}::{name}", path.display()));
-                }
+                minting.push(door.name);
+            } else if let Some((n, _, _)) = entry {
+                declared.push(n);
+            } else {
+                undeclared.push(door.site());
             }
         }
 
@@ -1658,11 +1710,28 @@ mod staleness_posture {
                  mutation path — it was renamed or deleted. Drop the entry.",
             );
         }
-        // A walk that found nothing would pass every assertion above.
+        // **Over-stripping is SILENT here**, which is why this pin is
+        // by name rather than a count. A door that stops reading as
+        // calling `mint_pcurves` does not red — it falls into the
+        // `else if let Some(entry)` arm and is accepted as declared.
+        // Only a door with no entry at all reds, and today exactly one
+        // door is classified by its body, so a lexing gap that erased
+        // the needle everywhere would leave this guard green over a
+        // surface it had stopped reading. The walk's own floor is
+        // upstream on `mutation_doors`; this is the needle's.
+        //
+        // **It is exactly one door wide, and that is the whole of it.**
+        // It does not cover the 36 `DECLARED` doors: those land in the
+        // same `else if` arm whether or not their needle survives, so a
+        // declared non-`Maintains` door that STARTS minting while its
+        // call is over-stripped would not reach `mislabelled`. Closing
+        // that needs a second oracle for "does this body call it",
+        // which a source read does not have.
         assert!(
-            declared.len() + minting.len() >= 30,
-            "the walk found {} door(s) — it is not reading the real surface",
-            declared.len() + minting.len(),
+            minting.iter().any(|n| n == "merge_coplanar_faces_declared"),
+            "`merge_coplanar_faces_declared` no longer reads as calling `mint_pcurves`. \
+             Either the door stopped re-minting — a finding, and its entry belongs below \
+             — or the source read lost the call.",
         );
         println!(
             "[pcurve posture] {} door(s): {} re-mint, {} declared",

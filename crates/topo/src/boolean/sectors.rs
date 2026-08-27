@@ -283,6 +283,138 @@ pub(super) fn side_code<T: Decide>(
     }
 }
 
+/// The **second-order lump** of a declared-`Tangent` sector pair
+/// (CONTACT-DESIGN C7/C12.2 at the boolean lump sites): first-order
+/// data ties along a tangency by definition, so the side a
+/// geometrically-ON sector is treated on descends one order — which
+/// side does the sector's face CURVE to, relative to the other face's
+/// material?
+///
+/// The margin is the existing second-order sector trilean's
+/// (`tangent_sector_order2{,_arm}`,
+/// [`geom_brep::enters_material_order2`]): the
+/// relative transverse curvature of the two carriers — the departing
+/// transverse curve's acceleration on the sector's carrier measured
+/// RELATIVE to the other carrier's own curving, signed against the
+/// other face's outward normal — as the displacement it induces at
+/// the sector's lever arm. Against a plane the partner curvature is
+/// zero and the margin is the departure's own normal curvature (the
+/// trilean's documented planar reading, reached bit-identically).
+/// The transverse direction comes from the DEV-1 closed-form locus
+/// ([`super::rest::tangent_locus`], the same rows the door's witness
+/// derivation runs): the descent exists exactly where the witness
+/// lane reaches, and nowhere else.
+///
+/// Verdicts: definitely curving into the other body's material ⇒
+/// `In`; definitely away ⇒ `Out`; an EXACT second-order zero is the
+/// isolated osculating point whose residue the verified declaration
+/// bridges (C4's #175 clause) — the pair is locally conformal to
+/// every order the kernel measures, and the declaration's verified
+/// opposed material sides make that the Eq. 15.3 ⁻ lump; an in-band
+/// margin escalates (an osculating pair is a sliver at this ε — F6).
+#[allow(clippy::too_many_arguments)]
+pub(super) fn tangent_lump<T: Decide>(
+    sector_surface: &geom::Surface<T>,
+    other_surface: &geom::Surface<T>,
+    other_outward: OutwardNormal<T>,
+    p: geom_core::Point3<T>,
+    op: super::BooleanOp,
+    on_side: Operand,
+    sector_face: FaceKey,
+    arm: T,
+    band: Band,
+) -> Result<SideCode, BooleanError> {
+    use super::rest::{TangentLocus, TangentLocusError, tangent_locus};
+    let locus_dir = match tangent_locus(sector_surface, other_surface, band) {
+        Ok(TangentLocus::Line { dir, .. }) => dir,
+        Err(TangentLocusError::Escalated(diag)) => return Err(BooleanError::Escalated { diag }),
+        // The sector pair read geometrically ON while the carriers are
+        // definitely apart or crossing: the same self-contradiction
+        // family as a coplanar sector with definitely-distinct planes.
+        Err(TangentLocusError::NotTangent { .. }) => {
+            return Err(BooleanError::ClassificationInvariant {
+                what: "declared-Tangent sector pair with definitely non-tangent carriers",
+            });
+        }
+        // Outside the DEV-1 closed-form lane no witness exists and no
+        // descent does either — the C5 typed refusal, same as every
+        // unopened arm.
+        Err(TangentLocusError::Unsupported { .. }) => {
+            return Err(BooleanError::CurvedBooleanUnsupported {
+                operand: on_side,
+                face: sector_face,
+                kind: geom_brep::SurfaceKind::of(sector_surface),
+            });
+        }
+    };
+    let n_ref = other_outward.vec();
+    // Transverse in-tangent-plane direction (the jet family's d̂ =
+    // n̂ × τ̂; quadratic consumption, so τ̂'s sign is immaterial).
+    let d_hat = n_ref.cross(locus_dir).normalize();
+    match tangent_relative_side(
+        sector_surface,
+        other_surface,
+        other_outward,
+        p,
+        d_hat,
+        arm,
+        band,
+    )? {
+        SideCode::In => Ok(SideCode::In),
+        SideCode::Out => Ok(SideCode::Out),
+        // The exact-zero osculating residue, bridged by the verified
+        // declaration (doc above): locally conformal with verified
+        // opposed senses IS the Eq. 15.3 ⁻ posture.
+        SideCode::On => Ok(super::tables::eq15_3_lump(
+            op,
+            on_side,
+            super::plane_eq::PlaneRelation::SameOpposite,
+        )),
+    }
+}
+
+/// **The per-direction second-order side** of a declared-`Tangent`
+/// sector pair: which side of the OTHER face's material does the
+/// sector's carrier lie on along direction `d` from the tie point —
+/// the relative graph-over-the-shared-tangent-plane acceleration
+/// `z″ = −d̂ᵀ(∇²F)d̂ / (∇F·n̂_ref)` differenced across the two
+/// carriers (the jet chain's own denominator-carries-the-sign
+/// construction), classified through the existing second-order
+/// trilean (rows `tangent_sector_order2{,_arm}`). `On` is the honest
+/// exact-zero: the direction rides the tangency locus (a curve on
+/// either carrier along it separates at no order this kernel
+/// measures) — the ON-direction machinery downstream adjudicates it,
+/// exactly as a first-order On flows to the recl edge engine.
+pub(super) fn tangent_relative_side<T: Decide>(
+    sector_surface: &geom::Surface<T>,
+    other_surface: &geom::Surface<T>,
+    other_outward: OutwardNormal<T>,
+    p: geom_core::Point3<T>,
+    d: Vec3<T>,
+    arm: T,
+    band: Band,
+) -> Result<SideCode, BooleanError> {
+    let n_ref = other_outward.vec();
+    let d_hat = d.normalize();
+    let graph_accel = |s: &geom::Surface<T>| {
+        let g = geom_brep::implicit_gradient(s, p);
+        T::zero() - geom_brep::implicit_hessian_form(s, p, d_hat) / g.dot(n_ref)
+    };
+    let rel_accel = graph_accel(sector_surface) - graph_accel(other_surface);
+    match geom_brep::enters_material_order2(
+        n_ref * rel_accel,
+        T::one(),
+        geom_brep::ReferenceNormal::of_face_outward(other_outward),
+        arm,
+        band,
+    ) {
+        Ok(EntersMaterial::Enters) => Ok(SideCode::In),
+        Ok(EntersMaterial::Exits) => Ok(SideCode::Out),
+        Ok(EntersMaterial::Tangent) => Ok(SideCode::On),
+        Err(diag) => Err(BooleanError::Escalated { diag }),
+    }
+}
+
 /// One potentially-intersecting sector pair with its four side codes
 /// (the `sectors[]` record, typed).
 #[derive(Clone, Copy, Debug)]
@@ -425,9 +557,10 @@ pub(super) fn pair_search<T: Decide>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use geom_core::Tol;
 
     fn band() -> Band {
-        Band::linear().unwrap()
+        Band::linear(Tol::witness()).unwrap()
     }
 
     /// The 15.7 sign resolution, mirror-pinned (F3): against a face
@@ -510,5 +643,180 @@ mod tests {
         // n_a=+z > 0 ⇒ Out; B's end (+x): On.
         assert_eq!(r.sa, (SideCode::On, SideCode::Out));
         assert_eq!(r.sb, (SideCode::Out, SideCode::On));
+    }
+
+    // -----------------------------------------------------------------
+    // The second-order Tangent lump (M9-3 PR-A item 4): three-outcome
+    // honest on the existing `tangent_sector_order2` rows, driven on
+    // raw carriers through the DEV-1 locus.
+    // -----------------------------------------------------------------
+
+    fn plate_top() -> geom::Surface<f64> {
+        crate::fixtures::plane_surface(
+            geom_core::Point3::new(0.0, 0.0, 1.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            Vec3::new(1.0, 0.0, 0.0),
+        )
+    }
+
+    /// A y-axis cylinder at height `zc`, radius `r`.
+    fn y_cyl(zc: f64, r: f64) -> geom::Surface<f64> {
+        geom::Surface::Cylinder {
+            origin: geom_core::Point3::new(2.0, 0.0, zc),
+            axis: Vec3::new(0.0, 1.0, 0.0),
+            radius: r,
+            u_ref: Vec3::new(0.0, 0.0, 1.0),
+        }
+    }
+
+    /// A cylinder resting ON a plate top (external tangency along the
+    /// ruling): the wall sector definitely curves AWAY from the
+    /// plate's material ⇒ Out; the mirrored question (the plate's
+    /// sector against the cylinder's material) is Out too.
+    #[test]
+    fn tangent_lump_external_tangency_is_out_both_ways() {
+        let b = band();
+        let p = geom_core::Point3::new(2.0, 0.5, 1.0);
+        // The plate top's outward normal at the touch: +z.
+        let plate_out = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
+        let lump = tangent_lump(
+            &y_cyl(1.5, 0.5),
+            &plate_top(),
+            plate_out,
+            p,
+            super::super::BooleanOp::Union,
+            Operand::B,
+            FaceKey::default(),
+            0.5,
+            b,
+        )
+        .unwrap();
+        assert_eq!(lump, SideCode::Out);
+        // The cylinder wall's outward normal at the bottom ruling: -z
+        // (radially away from the axis, solid wall).
+        let wall_out = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, -1.0), true);
+        let lump = tangent_lump(
+            &plate_top(),
+            &y_cyl(1.5, 0.5),
+            wall_out,
+            p,
+            super::super::BooleanOp::Union,
+            Operand::A,
+            FaceKey::default(),
+            0.5,
+            b,
+        )
+        .unwrap();
+        assert_eq!(lump, SideCode::Out);
+    }
+
+    /// Internal tangency with the sector INSIDE the other body's
+    /// material (a thin solid cylinder internally tangent inside a
+    /// fat one): the thin wall curves definitely INTO the fat one's
+    /// material ⇒ In.
+    #[test]
+    fn tangent_lump_nested_internal_tangency_is_in() {
+        let b = band();
+        // Fat solid cylinder r=0.5 about (x=2, z=1.5); thin r=0.25
+        // about (x=2, z=1.25); both touch z=1 at the shared ruling.
+        let p = geom_core::Point3::new(2.0, 0.5, 1.0);
+        let fat_out = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, -1.0), true);
+        let lump = tangent_lump(
+            &y_cyl(1.25, 0.25),
+            &y_cyl(1.5, 0.5),
+            fat_out,
+            p,
+            super::super::BooleanOp::Union,
+            Operand::A,
+            FaceKey::default(),
+            0.25,
+            b,
+        )
+        .unwrap();
+        assert_eq!(lump, SideCode::In);
+    }
+
+    /// Three-outcome honesty on the metered row: the SAME external
+    /// tangency at three lever arms — definite (Out), in-band
+    /// (escalates, an osculating pair is a sliver at this ε), and
+    /// exactly-zero displacement (the isolated osculating residue the
+    /// verified declaration bridges: the Eq. 15.3 minus-lump, In for
+    /// a Union A-sector).
+    #[test]
+    fn tangent_lump_is_three_outcome_honest_on_the_arm() {
+        let b = band();
+        let p = geom_core::Point3::new(2.0, 0.5, 1.0);
+        let plate_out = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
+        let run = |arm: f64| {
+            tangent_lump(
+                &y_cyl(1.5, 0.5),
+                &plate_top(),
+                plate_out,
+                p,
+                super::super::BooleanOp::Union,
+                Operand::A,
+                FaceKey::default(),
+                arm,
+                b,
+            )
+        };
+        // sagitta = kappa_rel * arm^2 / 2 = arm^2 (kappa_rel = 2
+        // here), so the arms are derived from the run's band and the
+        // three rows hold at every sampled ε.
+        assert_eq!(run(0.5).unwrap(), SideCode::Out);
+        let inband_arm = (b.zero() * b.escalate()).sqrt().sqrt();
+        match run(inband_arm) {
+            Err(BooleanError::Escalated { diag }) => {
+                assert_eq!(diag.predicate, Some("tangent_sector_order2"));
+            }
+            other => panic!("an in-band sagitta must escalate: {other:?}"),
+        }
+        let zero_arm = (b.zero() * 0.5).sqrt();
+        assert_eq!(run(zero_arm).unwrap(), SideCode::In);
+    }
+
+    /// The self-contradiction and out-of-lane arms stay typed: a
+    /// definitely-apart pair at the lump site is the classification
+    /// invariant family; a kind pair outside the DEV-1 lane keeps the
+    /// C5 typed refusal.
+    #[test]
+    fn tangent_lump_refuses_typed_off_the_lane() {
+        let b = band();
+        let p = geom_core::Point3::new(2.0, 0.5, 1.0);
+        let plate_out = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
+        match tangent_lump(
+            &y_cyl(2.5, 0.5),
+            &plate_top(),
+            plate_out,
+            p,
+            super::super::BooleanOp::Union,
+            Operand::A,
+            FaceKey::default(),
+            0.5,
+            b,
+        ) {
+            Err(BooleanError::ClassificationInvariant { .. }) => {}
+            other => panic!("definitely-apart carriers at a lump site: {other:?}"),
+        }
+        let sphere = geom::Surface::Sphere {
+            center: geom_core::Point3::new(2.0, 0.5, 2.0),
+            radius: 1.0,
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        match tangent_lump(
+            &sphere,
+            &plate_top(),
+            plate_out,
+            p,
+            super::super::BooleanOp::Union,
+            Operand::A,
+            FaceKey::default(),
+            0.5,
+            b,
+        ) {
+            Err(BooleanError::CurvedBooleanUnsupported { .. }) => {}
+            other => panic!("sphere tangency is outside the DEV-1 lane: {other:?}"),
+        }
     }
 }

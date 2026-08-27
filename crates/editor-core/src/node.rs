@@ -15,9 +15,8 @@ use topo::ContactClass;
 /// [`Node::payload_names`] and [`Node::rebind_payload_names`] must name
 /// the same variants — the read and the rewrite are one answer read two
 /// ways, and a variant one of them treats as nameless while the other
-/// rewrites it is a name that survives a `Rebind`. That agreement was
-/// held by hand and by a sentence saying so; it is held here instead,
-/// while both matches stay exhaustive: a new [`Node`] variant absent
+/// rewrites it is a name that survives a `Rebind`.
+/// Both matches stay exhaustive: a new [`Node`] variant absent
 /// from this list breaks both builds, and adding it to this list is one
 /// decision at one site.
 macro_rules! name_free_node {
@@ -419,6 +418,32 @@ pub enum PlacementRuleFault {
         /// The linear part's determinant.
         determinant: f64,
     },
+}
+
+// The ONE prose vocabulary for this fault set — every door that
+// renders a `PlacementRuleFault` (the evaluation backstop, the edit
+// door's rule arms) FORWARDS this rendering rather than restating the
+// fault in its own words.
+impl core::fmt::Display for PlacementRuleFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::CountSpelling => f.write_str(
+                "the placement rule and the count slot disagree about how many placements \
+                 there are",
+            ),
+            Self::NoPlacements => f.write_str(
+                "the placement list is empty — a group needs at least one placement, exactly \
+                 as a stepped rule needs a count of at least 1",
+            ),
+            Self::NonFiniteFrame { index } => {
+                write!(f, "placement {index} has a non-finite coordinate")
+            }
+            Self::ImproperFrame { index, determinant } => write!(
+                f,
+                "placement {index} is improper (mirroring): determinant {determinant}"
+            ),
+        }
+    }
 }
 
 impl PatternKind {
@@ -1033,7 +1058,7 @@ impl<P> Node<P> {
     /// duplicating it.
     ///
     /// The two must name the same variants; [`name_free_node`] is where
-    /// that agreement is held, rather than in this sentence.
+    /// that agreement is held.
     pub(crate) fn rebind_payload_names(&mut self, from: &StableName, to: &StableName) -> usize {
         fn rewrite(name: &mut StableName, from: &StableName, to: &StableName) -> usize {
             if name == from {

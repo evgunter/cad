@@ -136,6 +136,22 @@ pub use editor_core::{
     relative_freedom_components, solve_document,
 };
 
+// **The assembly at-rest gate** (A5): `assemble` gathers a document's
+// product, mints every solved mate's declaration into its contact
+// record set, and runs the kernel's own tier-3′ door over the two
+// together — the answer to "is this assembly valid at rest", which the
+// authoring vocabulary above can otherwise construct and not check.
+// `Assembly` is the validated result (body, names, certified records,
+// and one `MintedDeclaration` per mate); `AssemblyError` is the typed
+// refusal, and its arms are not interchangeable — a caller must tell a
+// verdict AGAINST the document (`AtRest`) from the declared
+// direction's frontier (`Uncertified`), which is what `AtRestFinding`
+// and `Attribution` carry per finding. `RefusedRef` says why a mate
+// reference named no product face.
+pub use editor_core::{
+    Assembly, AssemblyError, AtRestFinding, Attribution, MintedDeclaration, RefusedRef, assemble,
+};
+
 // Split and inline: the first-class
 // recorded refactorings. `split` cuts a closed node set out into a new
 // document (identity supplied by the caller — `DocumentId::derive` or
@@ -163,6 +179,19 @@ pub use editor_core::{
 // (`PinSites`). The store-facing convenience that computes the new
 // pin from disk is `workspace::update_to_store`.
 pub use editor_core::{PinMultiplicity, PinSites, UpdateError, mixed_pins, update_references};
+
+// The advisory-check registry (DISCIPLINES-DESIGN DS6) and its first
+// resident, the connectedness check. `run_checks` REPORTS, never
+// gates (the `mixed_pins` posture: nothing calls it from apply, load,
+// or evaluation); `enforce_checks` is the one refusing path, and the
+// CALLER chooses where to gate on it. Deliberately NOT in the prelude
+// (prelude membership is corpus-measured).
+// `subject_body` resolves a finding's (root, output_ix) attribution
+// back to the flagged body in the same evaluation.
+pub use editor_core::{
+    CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal, ChecksConfig, ChecksError,
+    ChecksReport, Severity, enforce_checks, run_checks, subject_body,
+};
 
 // The profile description node type and its document alias.
 pub use editor_core::{

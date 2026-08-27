@@ -18,6 +18,16 @@
 //! property the timings are evidence *about*, and it is cheap and
 //! deterministic to check.
 //!
+//! **Two rows, and only one of them is `#[ignore]`d.**
+//! [`rebuild_latency_manifest_pins_the_corpus_structure`] is an
+//! ordinary test: it checks the manifest pins and nothing else, costs
+//! no evaluation and no repeats, and therefore gates every PR through
+//! the nextest archive. [`rebuild_latency_table`] is the `#[ignore]`d
+//! REPORTING row — the wall-clock measurement, the [`EMIT`] artifact
+//! and the history comparison — run by its own scheduled job. Both
+//! check the pins, via the shared [`assert_manifest_pins`], so the
+//! reporting row cannot silently disagree with the gate.
+//!
 //! # Two files, split along the rot line
 //!
 //! Timings and structure used to share one committed file, and the
@@ -68,6 +78,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use editor_core::{CancelToken, EvalOptions, evaluate};
 
 use corpus::{cone, documents, eval, failures};
+use geom_core::Tol;
 
 /// The committed STRUCTURAL manifest, relative to the crate root.
 /// Machine-independent; carries no milliseconds.
@@ -139,6 +150,166 @@ fn spread_pct(median: f64, min: f64, max: f64) -> f64 {
     }
 }
 
+/// One document's ε-independent STRUCTURAL facts — the half of this
+/// file that is a gate.
+///
+/// `nodes` is the recipe's node count and `cone` is the size of the
+/// bump edit's downstream cone, derived from the DAG. **Neither reads
+/// a tolerance and neither evaluates any geometry**, so both are exact
+/// and machine-independent: no box, profile or ε can move them. That
+/// is why they gate on every PR while the milliseconds below do not.
+struct Structure {
+    name: &'static str,
+    about: &'static str,
+    nodes: usize,
+    cone: usize,
+}
+
+impl Row {
+    fn structure(&self) -> Structure {
+        Structure {
+            name: self.name,
+            about: self.about,
+            nodes: self.nodes,
+            cone: self.cone,
+        }
+    }
+}
+
+/// Derives [`Structure`] for every corpus document.
+///
+/// COSTS NO EVALUATION. `len()` reads the recipe, `bumped()` replays
+/// one edit through `apply`, and `cone()` is a single forward sweep
+/// over the node order — the whole corpus is milliseconds. The
+/// expensive thing in this file is [`measure`], and nothing here calls
+/// it.
+fn structures() -> Vec<Structure> {
+    documents()
+        .into_iter()
+        .map(|d| {
+            let bumped = d.bumped();
+            Structure {
+                name: d.name,
+                about: d.about,
+                nodes: d.len(),
+                cone: cone(&bumped, d.bump_root).len(),
+            }
+        })
+        .collect()
+}
+
+/// The committed structural manifest must COVER the corpus, AGREE
+/// with it, and carry no stale rows.
+///
+/// Shared by the gating row ([`rebuild_latency_manifest_pins_the_corpus_structure`])
+/// and the reporting row ([`rebuild_latency_table`]) so the two cannot
+/// drift: the table still fails on a structural mismatch when it runs,
+/// it is simply no longer the only place the pins are checked.
+fn assert_manifest_pins(rows: &[Structure]) {
+    let manifest = manifest();
+    let pinned = manifest
+        .get("documents")
+        .and_then(serde_json::Value::as_object);
+
+    // The manifest must at least COVER the corpus: a document with no
+    // manifest row is a bookkeeping bug, not a slow document.
+    let missing: Vec<_> = rows
+        .iter()
+        .map(|r| r.name)
+        .filter(|n| pinned.is_none_or(|d| !d.contains_key(*n)))
+        .collect();
+    assert!(
+        missing.is_empty(),
+        "the committed manifest has no row for {missing:?} — add it to {MANIFEST} \
+         (about / nodes / cone; no milliseconds live there)"
+    );
+
+    // ...and it must AGREE with the corpus. `nodes` and `cone` are
+    // exact and machine-independent, so a mismatch is a real change in
+    // a document's shape or in the cone derivation — never a slow box.
+    for r in rows {
+        let entry = pinned.and_then(|d| d.get(r.name));
+        let pin = |key: &str| {
+            entry
+                .and_then(|e| e.get(key))
+                .and_then(serde_json::Value::as_u64)
+        };
+        assert_eq!(
+            pin("nodes"),
+            Some(r.nodes as u64),
+            "{}: node count moved (manifest {:?}, measured {}) — update {MANIFEST} \
+             and say why in the PR body",
+            r.name,
+            pin("nodes"),
+            r.nodes
+        );
+        assert_eq!(
+            pin("cone"),
+            Some(r.cone as u64),
+            "{}: edit cone moved (manifest {:?}, measured {}) — update {MANIFEST} \
+             and say why in the PR body",
+            r.name,
+            pin("cone"),
+            r.cone
+        );
+    }
+
+    // Every manifest row must correspond to a live document, too: a
+    // stale key outlives the document it described and quietly stops
+    // pinning anything (M5 PR 12's die_fillet, deleted by hand).
+    if let Some(pinned) = pinned {
+        let stale: Vec<_> = pinned
+            .keys()
+            .filter(|k| !rows.iter().any(|r| r.name == k.as_str()))
+            .collect();
+        assert!(
+            stale.is_empty(),
+            "{MANIFEST} has rows for documents the corpus no longer registers: \
+             {stale:?} — delete them"
+        );
+    }
+
+    // `about` is prose and drifts silently; it is carried in the
+    // manifest for the reader, so only require that it EXISTS.
+    for r in rows {
+        assert!(
+            pinned
+                .and_then(|d| d.get(r.name))
+                .and_then(|e| e.get("about"))
+                .and_then(serde_json::Value::as_str)
+                .is_some_and(|s| !s.trim().is_empty()),
+            "{}: manifest row has no `about` — one line on what the document \
+             proves (measured description: {:?})",
+            r.name,
+            r.about
+        );
+    }
+}
+
+/// **The gating half of this file, and it is NOT `#[ignore]`d.**
+///
+/// The structural manifest pins — node counts, edit cones, coverage
+/// both ways, and a non-empty `about` — are this row's own claim (they
+/// are not a subset of `m4_pr8_corpus.rs`), and they are ε-independent
+/// AND clock-independent by construction: node counts and DAG cones do
+/// not read a tolerance and do not evaluate geometry. So they belong
+/// in the archive, on every PR, where a document that silently gains a
+/// node is caught BEFORE it merges.
+///
+/// Before the split they lived inside [`rebuild_latency_table`], which
+/// is `#[ignore]`d and therefore executed only by the dedicated
+/// reporting job — historically main pushes. A shape change was
+/// detectable after the merge, if at all. This row costs no
+/// evaluation and no wall-clock repeats, so gating it is free.
+///
+/// The timings stay where they were: [`rebuild_latency_table`] still
+/// checks the same pins when it runs, via the shared
+/// [`assert_manifest_pins`].
+#[test]
+fn rebuild_latency_manifest_pins_the_corpus_structure() {
+    assert_manifest_pins(&structures());
+}
+
 fn measure() -> Vec<Row> {
     let mut rows = Vec::new();
     for d in documents() {
@@ -169,6 +340,7 @@ fn measure() -> Vec<Row> {
                 Some(&prior),
                 &CancelToken::new(),
                 &EvalOptions::default(),
+                Tol::witness(),
             );
             incrs.push(t0.elapsed());
             // The COUNTED-REUSE assertion (not a timing gate).
@@ -333,9 +505,9 @@ fn emit(rows: &[Row], path: &str) {
 
 /// **`#[ignore]` BY DESIGN — this row is REPORTING, and the ε matrix
 /// paid for it 5×.** It is not a gate (see the module docs: no
-/// threshold, a slow row is a report), so the only thing the ε battery
-/// bought was ~18 s × 5 rows of wall clock printing a table nobody
-/// reads per-ε.
+/// threshold, a slow row is a report), so the ε battery bought only
+/// wall clock, printing a table nobody reads per-ε. The `#[ignore]`
+/// rests on the coverage argument below.
 ///
 /// INVARIANT: nothing is uncovered by ignoring it here. Its
 /// green-document and counted-reuse assertions are a strict subset of
@@ -348,9 +520,14 @@ fn emit(rows: &[Row], path: &str) {
 /// verbatim `incremental_recompute_reuses_the_cone_complement`, which
 /// again asserts that and more (green after the bump, `reused > 0`).
 /// Both are per-document loops over the same `documents()`. The
-/// structural manifest pins below are this row's OWN, and they are
-/// ε-independent by construction (node counts and DAG cones do not
-/// read a tolerance).
+/// structural manifest pins ARE this row's own — they are not covered
+/// anywhere else — which is exactly why they no longer live only here:
+/// they are ε-independent AND clock-independent by construction (node
+/// counts and DAG cones do not read a tolerance and evaluate no
+/// geometry), so they were split out into the unignored
+/// [`rebuild_latency_manifest_pins_the_corpus_structure`] and now gate
+/// every PR at no measurable cost. This row still checks them, through
+/// the same [`assert_manifest_pins`], so the two cannot drift.
 ///
 /// The table itself still runs: ci.yml's dedicated `rebuild latency
 /// (reporting)` job — and its mirror row in `local-scripts/ci-local.sh`
@@ -425,82 +602,8 @@ fn rebuild_latency_table() {
     println!("{out}");
 
     // --- the ε-independent structural pins (arithmetic, not clock) ---
-    let manifest = manifest();
-    let pinned = manifest
-        .get("documents")
-        .and_then(serde_json::Value::as_object);
-
-    // The manifest must at least COVER the corpus: a document with no
-    // manifest row is a bookkeeping bug, not a slow document.
-    let missing: Vec<_> = rows
-        .iter()
-        .map(|r| r.name)
-        .filter(|n| pinned.is_none_or(|d| !d.contains_key(*n)))
-        .collect();
-    assert!(
-        missing.is_empty(),
-        "the committed manifest has no row for {missing:?} — add it to {MANIFEST} \
-         (about / nodes / cone; no milliseconds live there)"
-    );
-
-    // ...and it must AGREE with the corpus. `nodes` and `cone` are
-    // exact and machine-independent, so a mismatch is a real change in
-    // a document's shape or in the cone derivation — never a slow box.
-    for r in &rows {
-        let entry = pinned.and_then(|d| d.get(r.name));
-        let pin = |key: &str| {
-            entry
-                .and_then(|e| e.get(key))
-                .and_then(serde_json::Value::as_u64)
-        };
-        assert_eq!(
-            pin("nodes"),
-            Some(r.nodes as u64),
-            "{}: node count moved (manifest {:?}, measured {}) — update {MANIFEST} \
-             and say why in the PR body",
-            r.name,
-            pin("nodes"),
-            r.nodes
-        );
-        assert_eq!(
-            pin("cone"),
-            Some(r.cone as u64),
-            "{}: edit cone moved (manifest {:?}, measured {}) — update {MANIFEST} \
-             and say why in the PR body",
-            r.name,
-            pin("cone"),
-            r.cone
-        );
-    }
-
-    // Every manifest row must correspond to a live document, too: a
-    // stale key outlives the document it described and quietly stops
-    // pinning anything (M5 PR 12's die_fillet, deleted by hand).
-    if let Some(pinned) = pinned {
-        let stale: Vec<_> = pinned
-            .keys()
-            .filter(|k| !rows.iter().any(|r| r.name == k.as_str()))
-            .collect();
-        assert!(
-            stale.is_empty(),
-            "{MANIFEST} has rows for documents the corpus no longer registers: \
-             {stale:?} — delete them"
-        );
-    }
-
-    // `about` is prose and drifts silently; it is carried in the
-    // manifest for the reader, so only require that it EXISTS.
-    for r in &rows {
-        assert!(
-            pinned
-                .and_then(|d| d.get(r.name))
-                .and_then(|e| e.get("about"))
-                .and_then(serde_json::Value::as_str)
-                .is_some_and(|s| !s.trim().is_empty()),
-            "{}: manifest row has no `about` — one line on what the document \
-             proves (measured description: {:?})",
-            r.name,
-            r.about
-        );
-    }
+    // Also checked, unignored, by
+    // `rebuild_latency_manifest_pins_the_corpus_structure` above — this
+    // call is what keeps the two rows from drifting apart.
+    assert_manifest_pins(&rows.iter().map(Row::structure).collect::<Vec<_>>());
 }

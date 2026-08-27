@@ -41,8 +41,7 @@ pub(crate) trait ControlPoint<T: Real>: Copy + Sub<Self, Output = Self::Offset> 
     /// Those two arms are therefore **unguardable by construction**:
     /// no public door reaches them, and a row could only fire them
     /// through a fake `ControlPoint` impl written to lie about
-    /// `CHANNELS` — which would test the fake, not the kernel. They are
-    /// unexecuted code, stated as such rather than left to be noticed.
+    /// `CHANNELS` — which would test the fake, not the kernel.
     fn channel(self, d: usize) -> T;
 
     /// `‖offset‖`.
@@ -61,7 +60,10 @@ impl<T: Real> ControlPoint<T> for Point2<T> {
         match d {
             0 => self.x,
             1 => self.y,
-            _ => unreachable!("plane control point has no channel {d}"),
+            _ => unreachable!(
+                "plane control point has no channel {d}: every caller in this crate \
+                 drives `channel` from `0..CHANNELS`"
+            ),
         }
     }
 
@@ -83,7 +85,10 @@ impl<T: Real> ControlPoint<T> for Point3<T> {
             0 => self.x,
             1 => self.y,
             2 => self.z,
-            _ => unreachable!("space control point has no channel {d}"),
+            _ => unreachable!(
+                "space control point has no channel {d}: every caller in this crate \
+                 drives `channel` from `0..CHANNELS`"
+            ),
         }
     }
 

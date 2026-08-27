@@ -24,6 +24,7 @@ mod fixture;
 
 use corpus::{body_of, cone, die_fillet, eval, failures};
 use editor_core::{CancelToken, EvalOptions, EvalOutcome, evaluate};
+use geom_core::Tol;
 
 /// A rounded box of side `L` at radius `r`: core + 6 slabs + 12
 /// quarter-cylinders + 8 octants (the octants summing to one ball).
@@ -64,7 +65,7 @@ fn die_fillet_evaluates_green_and_meters_the_closed_form() {
         "6 supports + 12 blends + 8 corners"
     );
 
-    let m = topo::mass_properties(body).expect("mass properties");
+    let m = topo::mass_properties(body, Tol::witness()).expect("mass properties");
     let (v, a) = rounded_box(die_fillet::L, die_fillet::R);
     assert!(
         (m.volume - v).abs() <= 1e-9 * v,
@@ -99,6 +100,7 @@ fn the_extrude_bump_recomputes_the_cone_and_the_fillet_needs_no_reselection() {
         Some(&full),
         &CancelToken::new(),
         &EvalOptions::default(),
+        Tol::witness(),
     );
     let bad = failures(&after);
     assert!(bad.is_empty(), "bumped die_fillet:\n{}", bad.join("\n"));
@@ -113,7 +115,7 @@ fn the_extrude_bump_recomputes_the_cone_and_the_fillet_needs_no_reselection() {
     // The stretched blank is still a rounded box, metered the same way.
     let body = body_of(&after, d.result.expect("head"));
     assert_eq!(topo::validate_closed(body), Ok(()), "closed after the bump");
-    let m = topo::mass_properties(body).expect("mass properties");
+    let m = topo::mass_properties(body, Tol::witness()).expect("mass properties");
     // L × L × L_BUMPED with radius R: the general rounded-box form
     // specialises to the cube one only when the box is a cube, so the
     // pin here is the cheap invariant — the bump grew the solid.
@@ -132,8 +134,8 @@ fn the_extrude_bump_recomputes_the_cone_and_the_fillet_needs_no_reselection() {
 #[test]
 fn die_fillet_round_trips_and_replays_identically() {
     let d = die_fillet::document();
-    let text = editor_core::save(&d.doc, &[]).expect("save");
-    let loaded = editor_core::load(&text).expect("load");
+    let text = editor_core::save(&d.doc, &[], Tol::witness()).expect("save");
+    let loaded = editor_core::load(&text, Tol::witness()).expect("load");
     assert!(loaded.doc.bit_eq(&d.doc), "round-trip bit identity");
     let before = eval::<f64>(&d.doc);
     let after = eval::<f64>(&loaded.doc);
@@ -162,6 +164,7 @@ fn an_inadmissible_radius_fails_the_node_typed() {
             slot: SlotId::Radius,
             expr: fixture::len(0.625),
         },
+        Tol::witness(),
     )
     .expect("radius edit applies")
     .doc;
@@ -173,6 +176,16 @@ fn an_inadmissible_radius_fails_the_node_typed() {
                 assert!(
                     text.contains("cannot certify"),
                     "the refusal must carry the kernel's own wording: {text}"
+                );
+                // The kernel's wording must survive the RENDER too, not
+                // just the variant. A caller who cannot match the enum
+                // — the Python bindings, whose exception carries a tag
+                // plus this string — has no other channel to the face,
+                // the margin and the recourse the kernel named.
+                let rendered = e.to_string();
+                assert!(
+                    rendered.ends_with(&text),
+                    "the node error's message must forward the kernel's own: {rendered}"
                 );
             }
             other => panic!("expected a typed Fillet refusal, got {other:?}"),

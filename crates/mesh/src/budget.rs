@@ -13,7 +13,9 @@
 //! recover — the trim box, the cell count the schedule actually built,
 //! the certified bounds the sizing read, the worst per-triangle
 //! certificate, and (when armed for it) the sampled deviation. One
-//! struct, handed over once per NURBS face, on the path that succeeds.
+//! struct, handed over once per NURBS face, however that face ended —
+//! a REFUSED face is measured too, because a certificate that failed
+//! on a mesh the lane then threw away has still failed.
 //!
 //! Not here: the CSV schema, the slack factors, the counterfactual
 //! schedules, the split optimizer, and the reading of any of it. Those
@@ -55,18 +57,18 @@
 //! the build. `live::arm` and `live::take` below are the armed half's,
 //! and a default build does not have them to link against.
 //!
-//! **Why the module is `pub` in both configurations, since the
-//! opposite was once argued here.** It used to be `pub(crate)` without
-//! the feature, on the reasoning that `pub` "would leave a permanently
-//! visible surface on the kernel crate whose only consumer is a
-//! diagnostic". That reasoning is answered rather than dropped: the
-//! surface is now two plain-data structs and two `const fn`s that
-//! answer "not in this build", and it is visible **because it is the
-//! contract** — `tools/tess-meter` reads [`FaceMeasure`] to derive
-//! every column of the budget CSV, and it must do so without the
-//! instrument compiled in or depending on it would turn the meter on
-//! for everything that depends on IT. The old objection was to
-//! exporting an *instrument*; what is exported is a *record type*.
+//! **The module is `pub` in both configurations because it is the
+//! contract**, not an instrument: `tools/tess-meter` reads
+//! [`FaceMeasure`] to derive every column of the budget CSV, and it
+//! must do so without the instrument compiled in — depending on it
+//! would turn the meter on for everything that depends on IT. What is
+//! exported unarmed is two plain-data structs and two `const fn`s that
+//! answer "not in this build".
+//!
+//! A measured face is therefore not a meshed face: the caller's own
+//! `tessellate` result says whether the body was built, and `take()`
+//! can carry rows for a body that refused. Every consumer in tree
+//! reads them after an `Ok`, so nothing downstream changes.
 //!
 //! Armed, nothing here runs in a normal tessellation: arming is
 //! thread-local (tessellation runs on the calling thread, so armed
@@ -97,6 +99,11 @@ pub struct CellMeasure {
     pub muv: f64,
     /// `sup ‖S_vv‖` over the cell.
     pub mvv: f64,
+    /// `sup ‖S_u‖` over the cell — the first-fundamental-form sample
+    /// the split selection's aspect cap reads (TESS-SPLIT).
+    pub mu1: f64,
+    /// `sup ‖S_v‖` over the cell.
+    pub mv1: f64,
     /// The `(h_u, h_v)` the cell's own bound admits at the face's
     /// sizing target — the schedule's input, reported rather than
     /// re-derived.
@@ -120,19 +127,43 @@ pub struct FaceMeasure {
     /// Grid cells the per-cell schedule actually built (`Σ nuc·nvc`
     /// over the clipped bands).
     pub grid_cells: usize,
+    /// Bands the schedule emitted.
+    pub bands: usize,
+    /// Bands whose step selection the 3-D aspect cap clamped — the
+    /// constraint-activity indicator's A-cap kind (TESS-SPLIT D-3).
+    pub cap_bands: usize,
+    /// Bands the malign-band snap projected onto the patch column
+    /// schedule with changed counts (either direction) — the
+    /// indicator's sliver/snap kind.
+    pub snap_bands: usize,
+    /// Max over bands of the emitted lattice's post-`ceil` spacing
+    /// ratio `s_u/s_v` — the quantity `SAFE_ASPECT` judges.
+    pub realized_aspect: f64,
     /// `sup ‖S_uu‖` of the whole-patch bound.
     pub muu: f64,
     /// `sup ‖S_uv‖` of the whole-patch bound.
     pub muv: f64,
     /// `sup ‖S_vv‖` of the whole-patch bound.
     pub mvv: f64,
+    /// `sup ‖S_u‖` of the whole-patch bound (the aspect cap's
+    /// first-fundamental-form sample).
+    pub mu1: f64,
+    /// `sup ‖S_v‖` of the whole-patch bound.
+    pub mv1: f64,
     /// The whole-patch bound's `(h_u, h_v)` at `delta_s`.
     pub patch_steps: (f64, f64),
     /// The analysis cells the per-cell bound reported (knot spans for
     /// the integral arm, refined cells for the rational one), in the
     /// order the assembly emits them.
     pub cells: Vec<CellMeasure>,
-    /// The largest per-triangle certificate the face emitted.
+    /// The largest per-triangle certificate of the attempt the face
+    /// exited on. **`0.0` can mean two things**: a genuinely tight
+    /// face, or one that refused before the emit pass ever ran (a
+    /// failed insert, an empty realised constraint, a self-touching
+    /// trim loop) and certified nothing — the caller's own
+    /// `tessellate` result is what separates them, and
+    /// [`Self::dev_samples`] is `0` in the second case whenever the
+    /// meter was armed for deviation.
     pub worst_cert: f64,
     /// The largest SAMPLED `|S − Π|`, or `f64::NAN` when the meter was
     /// not armed for deviation.
@@ -153,12 +184,16 @@ pub struct FaceMeasure {
     ///
     /// **Accumulated over every attempt the face made**, retries that
     /// were discarded included, unlike [`Self::worst_dev`] and
-    /// [`Self::dev_samples`], which describe the accepted attempt
-    /// only. A certificate that failed on a triangle the lane then
-    /// threw away has still failed.
+    /// [`Self::dev_samples`], which describe the attempt the face
+    /// exited on. A certificate that failed on a triangle the lane
+    /// then threw away has still failed — which is also why a face
+    /// that ends in a typed REFUSAL is handed over rather than
+    /// dropped: it is the likeliest carrier of a violating sample
+    /// there is, and its triangles are all discarded by definition.
     pub worst_ratio: f64,
     /// How many deviation samples [`Self::worst_dev`] is over, on the
-    /// ACCEPTED attempt (0 when not armed for deviation).
+    /// attempt the face exited on — the accepted one, or, for a
+    /// refusal, the one that lost (0 when not armed for deviation).
     /// [`Self::worst_ratio`] is over more than these — see there.
     pub dev_samples: u64,
 }
@@ -252,8 +287,8 @@ mod live {
         STATE.with(|s| s.borrow_mut().take().map(|st| st.faces).unwrap_or_default())
     }
 
-    /// The lane's one hand-off: this face's measurements, once, on the
-    /// path that kept its triangles.
+    /// The lane's one hand-off: this face's measurements, once,
+    /// whichever way the face ended.
     pub(crate) fn note_face(m: FaceMeasure) {
         STATE.with(|s| {
             if let Some(st) = s.borrow_mut().as_mut() {

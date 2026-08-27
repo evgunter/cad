@@ -22,6 +22,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use editor_core::{PersistError, REGENERATE_RECOURSE, SCHEMA_VERSION, load};
+use geom_core::Tol;
 
 /// The pre-bump bytes, kept verbatim as the refusal fixture (the file
 /// `m4_pr6_golden.rs` pinned as LIVE until this bump).
@@ -49,7 +50,7 @@ fn the_checked_in_v7_file_is_really_v7() {
 /// step that does not exist.
 #[test]
 fn v7_refuses_too_old() {
-    match load(V7) {
+    match load(V7, Tol::witness()) {
         Err(PersistError::SchemaTooOld {
             found,
             supported,
@@ -66,7 +67,7 @@ fn v7_refuses_too_old() {
 /// The recourse is the standing one — regenerate, never a shim.
 #[test]
 fn the_refusal_names_the_regenerate_recourse() {
-    let err = load(V7).expect_err("v7 refuses");
+    let err = load(V7, Tol::witness()).expect_err("v7 refuses");
     assert!(
         err.to_string().contains(REGENERATE_RECOURSE),
         "the refusal must carry the regenerate recourse: {err}"

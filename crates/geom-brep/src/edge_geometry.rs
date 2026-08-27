@@ -103,13 +103,21 @@ impl<T: Real> SketchSegment<T> {
     /// total — degenerate inputs yield degenerate data, caught by the
     /// caller's certification.
     ///
-    /// **Coverage note (review F3)**: the arc lane is currently
-    /// unreachable from any at-rest public body — extrude/revolve
-    /// outputs are post-prefer-intrinsic, so every edge a caller can
-    /// `split_edge` carries an `Intersection` description, never a
-    /// `MappedCurve` over an `Arc`. The formula is verified by unit
-    /// tests only; do not assume e2e coverage until PR 2 splits the
-    /// pre-upgrade states and exposes mapped arcs at rest.
+    /// **Coverage**: the arc lane runs end-to-end. Curved booleans and
+    /// the fillet verbs split revolve meridians mid-operation, before
+    /// the prefer-intrinsic pass can re-describe them, so a boolean
+    /// crossing insertion or a meridian split restricts a
+    /// `MappedCurve` over an `Arc` and re-certifies the result against
+    /// `carrier_matches_mapped_source`. Whole-body rows in `sweep`
+    /// exercise that path at both scalars; the formula's own unit
+    /// tests are the narrow check, not the only one.
+    ///
+    /// Each restriction re-derives the endpoints through
+    /// [`SketchSegment::eval`], so at `T = Interval` the sub-arc's
+    /// stored endpoints inherit that evaluation's enclosure width and
+    /// successive splits compound it — see `eval`'s anchoring note for
+    /// why the evaluation is written to keep that width at the
+    /// endpoints' own scale.
     pub fn restrict(&self, s0: T, s1: T) -> Self {
         match *self {
             SketchSegment::Line { .. } => SketchSegment::Line {
@@ -132,11 +140,31 @@ impl<T: Real> SketchSegment<T> {
     /// n̂ the left normal of the chord direction). Fixed orders as
     /// written (D9); total — degenerate data (coincident endpoints)
     /// yields poison values, caught by certification.
+    ///
+    /// **The rotation is anchored on `a`, not on the center**: the
+    /// evaluated form is `a + (R − I)·v` (v = a − center, R the
+    /// rotation by s·θ), which is the identity `center + R·v` over the
+    /// reals — the same locus, the same closed forms — but does not
+    /// mention `center` outside a factor that vanishes with the
+    /// rotation. `cos − 1` is spelled `−2·sin²(s·θ/2)` so it carries no
+    /// cancellation of its own. The center-anchored form adds and
+    /// subtracts `center`, and at `T = Interval` that cancellation does
+    /// not happen: the enclosure pays `width(center)` twice, and
+    /// `width(center)` itself carries the chord's relative width
+    /// amplified by the radius — a factor ∝ 1/sin(θ/2), unbounded for
+    /// short sub-arcs, which [`SketchSegment::restrict`] then stores
+    /// back into the endpoints so successive splits compound it. The
+    /// anchored form is exactly `width(a)` wide at s = 0 (R − I is
+    /// identically zero there), never wider than the center-anchored
+    /// form at s = 0, and tighter wherever `|s·θ|` is small, because
+    /// `|R − I| = 2·|sin(s·θ/2)|` scales the center's width down
+    /// instead of doubling it.
     pub fn eval(&self, s: T) -> Point2<T> {
         match *self {
             SketchSegment::Line { a, b } => a.lerp(b, s),
             SketchSegment::Arc { a, b, bulge } => {
                 let half = T::from_f64(0.5);
+                let two = T::from_f64(2.0);
                 let four = T::from_f64(4.0);
                 let chord = b - a;
                 let len = chord.norm();
@@ -146,9 +174,12 @@ impl<T: Real> SketchSegment<T> {
                 let apothem = len * (T::one() - bulge.powi(2)) / (four * bulge);
                 let center = mid + n * apothem;
                 let theta = four * bulge.atan();
-                let (sin, cos) = (s * theta).sin_cos();
+                let sin = (s * theta).sin();
+                // cos(s·θ) − 1, in the half-angle form that is exact at
+                // s = 0 and free of the 1 − cos cancellation.
+                let cos_m1 = -(two * (s * theta * half).sin().powi(2));
                 let v = a - center;
-                center + Vec2::new(v.x * cos - v.y * sin, v.x * sin + v.y * cos)
+                a + Vec2::new(v.x * cos_m1 - v.y * sin, v.x * sin + v.y * cos_m1)
             }
         }
     }
@@ -281,8 +312,11 @@ pub enum EdgeGeometry<T: Real> {
     /// Intrinsic: the connected component of the transverse intersection
     /// S₁ ∩ S₂ selected by `witness`. Transversality (normals linearly
     /// independent along the locus) is the validity precondition,
-    /// enforced at certification; the witness doubles as the marching
-    /// seed when numerical SSI arrives (M3+).
+    /// enforced at certification. The witness SELECTS the component
+    /// and nothing else: the marching rung mints its own
+    /// (`carrier(mid)`, from the fitted cache) and seeds from surviving
+    /// cell centres, so it consumes no witness from here —
+    /// `geom_brep::ssi::certify` states that contract in its own words.
     Intersection {
         /// The first surface (one of the edge's two adjacent faces'
         /// surfaces — coherence checked by the tier-3 validator).

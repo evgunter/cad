@@ -26,6 +26,7 @@ use editor_core::{
     evaluate, load, product, product_named, save,
 };
 use fixture::{desc, insert, len, square, step};
+use geom_core::Tol;
 
 /// The v6 bytes, kept verbatim as the clean break's refusal fixture
 /// (the ASM-ROOTS precedent: a break nobody can demonstrate is a break
@@ -47,8 +48,8 @@ struct StubStore {
 }
 
 impl StubStore {
-    fn insert(&mut self, doc: ProfileDoc) -> DocRef {
-        let pin = content_pin(&doc).expect("the pin computes");
+    fn insert(&mut self, doc: ProfileDoc, tol: Tol) -> DocRef {
+        let pin = content_pin(&doc, tol).expect("the pin computes");
         let id = doc.id();
         self.docs.insert(id, doc);
         DocRef { id, pin }
@@ -56,7 +57,7 @@ impl StubStore {
 }
 
 impl PartResolver for StubStore {
-    fn resolve(&self, doc_ref: &DocRef) -> Result<ProfileDoc, ResolveFailure> {
+    fn resolve(&self, doc_ref: &DocRef, _tol: Tol) -> Result<ProfileDoc, ResolveFailure> {
         let fail = |fault, message: &str| ResolveFailure {
             fault,
             message: message.to_string(),
@@ -71,7 +72,7 @@ impl PartResolver for StubStore {
             .docs
             .get(&doc_ref.id)
             .ok_or_else(|| fail(ResolveFault::Unresolved, "no such document"))?;
-        let found = content_pin(doc).expect("the pin computes");
+        let found = content_pin(doc, Tol::witness()).expect("the pin computes");
         if found != doc_ref.pin {
             return Err(fail(ResolveFault::PinMismatch, "the pin does not hold"));
         }
@@ -87,13 +88,13 @@ fn with_resolver(store: StubStore) -> EvalOptions {
 }
 
 fn run(doc: &ProfileDoc, opts: &EvalOptions) -> Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), opts)
+    evaluate::<f64>(doc, None, &CancelToken::new(), opts, Tol::witness())
 }
 
 /// A one-solid part document: a `side`-wide square extruded 1 tall,
 /// centered at `cx`.
 fn part(label: &str, cx: f64, side: f64) -> ProfileDoc {
-    let doc = ProfileDoc::empty(DocumentId::derive(label));
+    let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, profile) = insert(
         doc,
         Node::Profile(desc(
@@ -119,7 +120,7 @@ fn part(label: &str, cx: f64, side: f64) -> ProfileDoc {
 /// so no face of the boss is coincident with one of the plate's — the
 /// union is a genuine one-solid result with nothing declared.
 fn boolean_part(label: &str) -> ProfileDoc {
-    let doc = ProfileDoc::empty(DocumentId::derive(label));
+    let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let (doc, plate_p) = insert(
         doc,
         Node::Profile(desc(
@@ -189,7 +190,7 @@ fn two_solid_part(label: &str) -> ProfileDoc {
 
 /// An assembly document instantiating `refs`, in order, each a root.
 fn assembly(label: &str, refs: &[DocRef]) -> (ProfileDoc, Vec<RecipeNodeId>) {
-    let mut doc = ProfileDoc::empty(DocumentId::derive(label));
+    let mut doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
     let mut ids = Vec::new();
     for r in refs {
         let (next, id) = insert(doc, Node::instantiate_part(*r));
@@ -200,7 +201,9 @@ fn assembly(label: &str, refs: &[DocRef]) -> (ProfileDoc, Vec<RecipeNodeId>) {
 }
 
 fn volume(body: &topo::Body<f64>) -> f64 {
-    topo::mass_properties(body).expect("mass properties").volume
+    topo::mass_properties(body, Tol::witness())
+        .expect("mass properties")
+        .volume
 }
 
 fn part_fault(ev: &Evaluation<f64>, node: RecipeNodeId) -> PartFault {
@@ -231,7 +234,7 @@ fn min_x(body: &topo::Body<f64>) -> f64 {
 #[test]
 fn row1_two_instances_gather_into_a_two_solid_product() {
     let mut store = StubStore::default();
-    let doc_ref = store.insert(part("asm2a-r1-part", 0.0, 1.0));
+    let doc_ref = store.insert(part("asm2a-r1-part", 0.0, 1.0), Tol::witness());
     let opts = with_resolver(store);
 
     let (doc, ids) = assembly("asm2a-r1-asm", &[doc_ref, doc_ref]);
@@ -244,13 +247,13 @@ fn row1_two_instances_gather_into_a_two_solid_product() {
     );
 
     let ev = run(&doc, &opts);
-    let body = product(&doc, &ev).expect("the product gathers");
+    let body = product(&doc, &ev, Tol::witness()).expect("the product gathers");
     assert_eq!(body.solids().count(), 2, "one solid per instance");
 
     // The part's own product, for the volume comparison.
     let part_doc = part("asm2a-r1-part", 0.0, 1.0);
     let part_ev = run(&part_doc, &EvalOptions::default());
-    let part_body = product(&part_doc, &part_ev).expect("the part's product");
+    let part_body = product(&part_doc, &part_ev, Tol::witness()).expect("the part's product");
     assert_eq!(
         volume(&body).to_bits(),
         (2.0 * volume(&part_body)).to_bits(),
@@ -260,7 +263,7 @@ fn row1_two_instances_gather_into_a_two_solid_product() {
     // Solid order IS root order: the first root's solid sits at x = 0,
     // the second's at x = 5.
     let ev2 = run(&doc, &opts);
-    let body2 = product(&doc, &ev2).expect("the product gathers again");
+    let body2 = product(&doc, &ev2, Tol::witness()).expect("the product gathers again");
     assert_eq!(
         volume(&body).to_bits(),
         volume(&body2).to_bits(),
@@ -281,7 +284,7 @@ fn row1_two_instances_gather_into_a_two_solid_product() {
 #[test]
 fn row2_one_part_two_instances_one_evaluation() {
     let mut store = StubStore::default();
-    let doc_ref = store.insert(part("asm2a-r2-part", 0.0, 1.0));
+    let doc_ref = store.insert(part("asm2a-r2-part", 0.0, 1.0), Tol::witness());
     let opts = with_resolver(store);
     let (doc, ids) = assembly("asm2a-r2-asm", &[doc_ref, doc_ref, doc_ref]);
     let (doc, _) = step(
@@ -298,7 +301,10 @@ fn row2_one_part_two_instances_one_evaluation() {
         "three instances of one part evaluate it once"
     );
     assert_eq!(
-        product(&doc, &ev).expect("gathers").solids().count(),
+        product(&doc, &ev, Tol::witness())
+            .expect("gathers")
+            .solids()
+            .count(),
         3,
         "sharing the evaluation does not share the SOLIDS"
     );
@@ -306,8 +312,8 @@ fn row2_one_part_two_instances_one_evaluation() {
     // Two DISTINCT parts are two evaluations — the counter counts
     // references, not calls.
     let mut store = StubStore::default();
-    let a = store.insert(part("asm2a-r2-a", 0.0, 1.0));
-    let b = store.insert(part("asm2a-r2-b", 0.0, 2.0));
+    let a = store.insert(part("asm2a-r2-a", 0.0, 1.0), Tol::witness());
+    let b = store.insert(part("asm2a-r2-b", 0.0, 2.0), Tol::witness());
     let opts = with_resolver(store);
     let (doc, ids) = assembly("asm2a-r2-two", &[a, b]);
     let (doc, _) = step(
@@ -338,7 +344,7 @@ fn instance_names(ev: &Evaluation<f64>, node: RecipeNodeId) -> Vec<StableName> {
 #[test]
 fn row3_instance_qualified_names_are_distinct_and_resolve_to_their_own_copy() {
     let mut store = StubStore::default();
-    let doc_ref = store.insert(part("asm2a-r3-part", 0.0, 1.0));
+    let doc_ref = store.insert(part("asm2a-r3-part", 0.0, 1.0), Tol::witness());
     let opts = with_resolver(store);
     let (doc, ids) = assembly("asm2a-r3-asm", &[doc_ref, doc_ref]);
     let (doc, _) = step(
@@ -408,7 +414,7 @@ fn row3_instance_qualified_names_are_distinct_and_resolve_to_their_own_copy() {
 #[test]
 fn row3_instance_qualified_names_round_trip_persistence() {
     let mut store = StubStore::default();
-    let doc_ref = store.insert(part("asm2a-r3p-part", 0.0, 1.0));
+    let doc_ref = store.insert(part("asm2a-r3p-part", 0.0, 1.0), Tol::witness());
     let opts = with_resolver(store);
     let (doc, ids) = assembly("asm2a-r3p-asm", &[doc_ref]);
     let ev = run(&doc, &opts);
@@ -429,8 +435,8 @@ fn row3_instance_qualified_names_round_trip_persistence() {
             }),
         },
     );
-    let text = save(&doc, &[]).expect("saves");
-    let loaded = load(&text).expect("loads").doc;
+    let text = save(&doc, &[], Tol::witness()).expect("saves");
+    let loaded = load(&text, Tol::witness()).expect("loads").doc;
     assert!(
         loaded.appearance().keys().any(|k| *k == name),
         "an instance-qualified name survives the wire verbatim"
@@ -447,12 +453,12 @@ fn row3_instance_qualified_names_round_trip_persistence() {
 #[test]
 fn row4_set_placement_moves_undoes_and_refuses() {
     let mut store = StubStore::default();
-    let doc_ref = store.insert(part("asm2a-r4-part", 0.0, 1.0));
+    let doc_ref = store.insert(part("asm2a-r4-part", 0.0, 1.0), Tol::witness());
     let opts = with_resolver(store);
     let (doc, ids) = assembly("asm2a-r4-asm", &[doc_ref]);
 
     let before = run(&doc, &opts);
-    let before_body = product(&doc, &before).expect("gathers");
+    let before_body = product(&doc, &before, Tol::witness()).expect("gathers");
     assert!(doc.placement(ids[0]).is_identity_bits());
 
     let (moved, _) = step(
@@ -463,7 +469,7 @@ fn row4_set_placement_moves_undoes_and_refuses() {
         },
     );
     let after = run(&moved, &opts);
-    let after_body = product(&moved, &after).expect("gathers");
+    let after_body = product(&moved, &after, Tol::witness()).expect("gathers");
     assert_eq!(
         volume(&before_body).to_bits(),
         volume(&after_body).to_bits(),
@@ -489,6 +495,7 @@ fn row4_set_placement_moves_undoes_and_refuses() {
             node: ids[0],
             frame: mirror,
         },
+        Tol::witness(),
     ) {
         Err(e @ EditError::ImproperPlacement { node, determinant }) => {
             assert_eq!(node, ids[0]);
@@ -511,6 +518,7 @@ fn row4_set_placement_moves_undoes_and_refuses() {
             node: target,
             frame: Frame::translation([1.0, 0.0, 0.0]),
         },
+        Tol::witness(),
     ) {
         Err(EditError::PlacementOnNonInstance { node }) => assert_eq!(node, target),
         other => panic!("a non-instance target must refuse, got {other:?}"),
@@ -522,7 +530,7 @@ fn row4_set_placement_moves_undoes_and_refuses() {
 #[test]
 fn row4_deleting_an_instance_clears_its_placement() {
     let mut store = StubStore::default();
-    let doc_ref = store.insert(part("asm2a-r4d-part", 0.0, 1.0));
+    let doc_ref = store.insert(part("asm2a-r4d-part", 0.0, 1.0), Tol::witness());
     let _ = with_resolver(store);
     let (doc, ids) = assembly("asm2a-r4d-asm", &[doc_ref, doc_ref]);
     let (doc, _) = step(
@@ -561,11 +569,11 @@ fn row5a_no_resolver_refuses_typed() {
 #[test]
 fn row5b_stale_pin_refuses_at_evaluate() {
     let mut store = StubStore::default();
-    let doc_ref = store.insert(part("asm2a-r5b-part", 0.0, 1.0));
+    let doc_ref = store.insert(part("asm2a-r5b-part", 0.0, 1.0), Tol::witness());
     // The part document is edited AFTER the reference was pinned.
     let edited = part("asm2a-r5b-part", 0.0, 2.0);
     assert_ne!(
-        content_pin(&edited).expect("pins"),
+        content_pin(&edited, Tol::witness()).expect("pins"),
         doc_ref.pin,
         "the edit really moved the pin"
     );
@@ -591,7 +599,7 @@ fn row5b_stale_pin_refuses_at_evaluate() {
 #[test]
 fn row5c_epsilon_seam_refuses_typed() {
     let mut store = StubStore::default();
-    let doc_ref = store.insert(part("asm2a-r5c-part", 0.0, 1.0));
+    let doc_ref = store.insert(part("asm2a-r5c-part", 0.0, 1.0), Tol::witness());
     store.eps_seam.insert(doc_ref.id, ());
     let opts = with_resolver(store);
     let (doc, ids) = assembly("asm2a-r5c-asm", &[doc_ref]);
@@ -616,7 +624,7 @@ fn row5c_epsilon_seam_refuses_typed() {
 fn row5d_multi_solid_part_instantiates_since_asm_2b() {
     let mut store = StubStore::default();
     let part_doc = two_solid_part("asm2a-r5d-part");
-    let doc_ref = store.insert(part_doc.clone());
+    let doc_ref = store.insert(part_doc.clone(), Tol::witness());
     let opts = with_resolver(store);
     let (doc, ids) = assembly("asm2a-r5d-asm", &[doc_ref]);
     let ev = run(&doc, &opts);
@@ -629,13 +637,13 @@ fn row5d_multi_solid_part_instantiates_since_asm_2b() {
         },
         other => panic!("a multi-solid part instantiates since ASM-2B, got {other:?}"),
     }
-    let body = product(&doc, &ev).expect("the product gathers");
+    let body = product(&doc, &ev, Tol::witness()).expect("the product gathers");
     assert_eq!(body.solids().count(), 2);
 
     // The part's own product, for the volume comparison: one instance
     // at identity is the part, bit for bit.
     let part_ev = run(&part_doc, &EvalOptions::default());
-    let part_body = product(&part_doc, &part_ev).expect("the part's product");
+    let part_body = product(&part_doc, &part_ev, Tol::witness()).expect("the part's product");
     assert_eq!(
         volume(&body).to_bits(),
         volume(&part_body).to_bits(),
@@ -651,15 +659,15 @@ fn row5d_multi_solid_part_instantiates_since_asm_2b() {
 #[test]
 fn row6_the_assembly_pin_moves_exactly_when_its_content_does() {
     let mut store = StubStore::default();
-    let a = store.insert(part("asm2a-r6-part", 0.0, 1.0));
+    let a = store.insert(part("asm2a-r6-part", 0.0, 1.0), Tol::witness());
     let (doc, ids) = assembly("asm2a-r6-asm", &[a]);
-    let pin0 = content_pin(&doc).expect("pins");
+    let pin0 = content_pin(&doc, Tol::witness()).expect("pins");
 
     // A re-save of untouched content leaves the pin fixed.
-    let text = save(&doc, &[]).expect("saves");
-    let reloaded = load(&text).expect("loads").doc;
-    assert_eq!(content_pin(&reloaded).expect("pins"), pin0);
-    let again = save(&reloaded, &[]).expect("saves again");
+    let text = save(&doc, &[], Tol::witness()).expect("saves");
+    let reloaded = load(&text, Tol::witness()).expect("loads").doc;
+    assert_eq!(content_pin(&reloaded, Tol::witness()).expect("pins"), pin0);
+    let again = save(&reloaded, &[], Tol::witness()).expect("saves again");
     assert_eq!(text, again, "saves are byte-stable");
 
     // A placement moves it.
@@ -670,16 +678,16 @@ fn row6_the_assembly_pin_moves_exactly_when_its_content_does() {
             frame: Frame::translation([1.0, 0.0, 0.0]),
         },
     );
-    assert_ne!(content_pin(&moved).expect("pins"), pin0);
+    assert_ne!(content_pin(&moved, Tol::witness()).expect("pins"), pin0);
 
     // A pin-bump of the reference moves it too (the reference IS
     // content: Cargo.lock semantics).
     let bumped = DocRef {
-        pin: content_pin(&part("asm2a-r6-part", 0.0, 2.0)).expect("pins"),
+        pin: content_pin(&part("asm2a-r6-part", 0.0, 2.0), Tol::witness()).expect("pins"),
         ..a
     };
     let (rebound, _) = assembly("asm2a-r6-asm", &[bumped]);
-    assert_ne!(content_pin(&rebound).expect("pins"), pin0);
+    assert_ne!(content_pin(&rebound, Tol::witness()).expect("pins"), pin0);
 }
 
 /// Row 6 (memo half) — a placement edit MOVES the node's content key,
@@ -687,7 +695,7 @@ fn row6_the_assembly_pin_moves_exactly_when_its_content_does() {
 #[test]
 fn row6_placement_is_part_of_the_content_key() {
     let mut store = StubStore::default();
-    let doc_ref = store.insert(part("asm2a-r6k-part", 0.0, 1.0));
+    let doc_ref = store.insert(part("asm2a-r6k-part", 0.0, 1.0), Tol::witness());
     let opts = with_resolver(store);
     let (doc, ids) = assembly("asm2a-r6k-asm", &[doc_ref]);
     let first = run(&doc, &opts);
@@ -699,14 +707,26 @@ fn row6_placement_is_part_of_the_content_key() {
             frame: Frame::translation([4.0, 0.0, 0.0]),
         },
     );
-    let second = evaluate::<f64>(&moved, Some(&first), &CancelToken::new(), &opts);
+    let second = evaluate::<f64>(
+        &moved,
+        Some(&first),
+        &CancelToken::new(),
+        &opts,
+        Tol::witness(),
+    );
     assert_eq!(second.reused, 0, "the placement edit invalidates the memo");
-    let body = product(&moved, &second).expect("gathers");
+    let body = product(&moved, &second, Tol::witness()).expect("gathers");
     assert!((min_x(&body) - 3.5).abs() < 1e-12);
 
     // And a re-evaluation with NO edit reuses — and asks the seam
     // nothing at all (the lazy cache's whole point).
-    let third = evaluate::<f64>(&moved, Some(&second), &CancelToken::new(), &opts);
+    let third = evaluate::<f64>(
+        &moved,
+        Some(&second),
+        &CancelToken::new(),
+        &opts,
+        Tol::witness(),
+    );
     assert_eq!(third.reused, 1, "an unchanged instance is a memo hit");
     assert_eq!(
         third.part_evaluations, 0,
@@ -730,7 +750,7 @@ fn row7_v7_round_trips_and_v6_refuses() {
     // moved.
     assert_eq!(editor_core::SCHEMA_VERSION, 14);
     let mut store = StubStore::default();
-    let doc_ref = store.insert(part("asm2a-r7-part", 0.0, 1.0));
+    let doc_ref = store.insert(part("asm2a-r7-part", 0.0, 1.0), Tol::witness());
     let (doc, ids) = assembly("asm2a-r7-asm", &[doc_ref, doc_ref]);
     let (doc, _) = step(
         doc,
@@ -740,13 +760,13 @@ fn row7_v7_round_trips_and_v6_refuses() {
         },
     );
 
-    let text = save(&doc, &[]).expect("saves");
+    let text = save(&doc, &[], Tol::witness()).expect("saves");
     assert_eq!(
         text.lines().next(),
         Some(&format!("schema: {}", editor_core::SCHEMA_VERSION)[..]),
         "a fresh save carries the CURRENT version, whatever bumped it last"
     );
-    let loaded = load(&text).expect("loads").doc;
+    let loaded = load(&text, Tol::witness()).expect("loads").doc;
     assert!(loaded.bit_eq(&doc), "the placement round-trips bit for bit");
     assert_eq!(loaded.placements().len(), 1);
     assert!(
@@ -756,10 +776,14 @@ fn row7_v7_round_trips_and_v6_refuses() {
     assert!(
         matches!(loaded.node(ids[0]), Some(Node::InstantiatePart { doc_ref: r, .. }) if *r == doc_ref)
     );
-    assert_eq!(save(&loaded, &[]).expect("saves"), text, "byte-stable");
+    assert_eq!(
+        save(&loaded, &[], Tol::witness()).expect("saves"),
+        text,
+        "byte-stable"
+    );
 
     assert_eq!(V6.lines().next(), Some("schema: 6"));
-    match load(V6) {
+    match load(V6, Tol::witness()) {
         Err(PersistError::SchemaTooOld {
             found,
             supported,
@@ -781,7 +805,7 @@ fn row7_v7_round_trips_and_v6_refuses() {
 #[test]
 fn row7_the_validator_refuses_placement_states_the_edits_cannot_produce() {
     let mut store = StubStore::default();
-    let doc_ref = store.insert(part("asm2a-r7v-part", 0.0, 1.0));
+    let doc_ref = store.insert(part("asm2a-r7v-part", 0.0, 1.0), Tol::witness());
     let (doc, ids) = assembly("asm2a-r7v-asm", &[doc_ref]);
     // A second, NON-instance node, so the corrupted key below names a
     // live node and the diagnosis is the placement rule rather than an
@@ -802,7 +826,7 @@ fn row7_the_validator_refuses_placement_states_the_edits_cannot_produce() {
             frame: Frame::translation([1.0, 0.0, 0.0]),
         },
     );
-    let text = save(&doc, &[]).expect("saves");
+    let text = save(&doc, &[], Tol::witness()).expect("saves");
 
     // Re-key the placement row onto the profile node — a state no edit
     // door can produce.
@@ -811,7 +835,7 @@ fn row7_the_validator_refuses_placement_states_the_edits_cannot_produce() {
         &format!("\"placements\": {{\n      \"{}\"", other.0),
     );
     assert_ne!(corrupt, text, "the corruption really landed");
-    match load(&corrupt) {
+    match load(&corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::PlacementSite { node })) => {
             assert_eq!(node, other);
         }
@@ -828,8 +852,8 @@ fn row7_the_validator_refuses_placement_states_the_edits_cannot_produce() {
 fn the_named_gather_agrees_with_the_plain_one() {
     let doc = part("asm2a-gather", 0.0, 1.0);
     let ev = run(&doc, &EvalOptions::default());
-    let plain = product(&doc, &ev).expect("gathers");
-    let (named, table) = product_named(&doc, &ev).expect("gathers with names");
+    let plain = product(&doc, &ev, Tol::witness()).expect("gathers");
+    let (named, table) = product_named(&doc, &ev, Tol::witness()).expect("gathers with names");
     assert_eq!(volume(&plain).to_bits(), volume(&named).to_bits());
     let entities = named.faces().count() + named.edges().count() + named.vertices().count();
     assert_eq!(
@@ -866,7 +890,7 @@ struct CyclicStore {
 }
 
 impl PartResolver for CyclicStore {
-    fn resolve(&self, doc_ref: &DocRef) -> Result<ProfileDoc, ResolveFailure> {
+    fn resolve(&self, doc_ref: &DocRef, _tol: Tol) -> Result<ProfileDoc, ResolveFailure> {
         // Whichever is asked for, hand back a document that instantiates
         // the other one.
         let (here, there) = if *doc_ref == self.a {
@@ -874,7 +898,7 @@ impl PartResolver for CyclicStore {
         } else {
             (self.b, self.a)
         };
-        let doc = ProfileDoc::empty(here.id);
+        let doc = ProfileDoc::empty(here.id, Tol::witness());
         let (doc, _) = insert(doc, Node::instantiate_part(there));
         Ok(doc)
     }
@@ -938,12 +962,12 @@ fn r1_a_broken_part_names_its_failing_root_and_cause() {
     };
     let mut store = StubStore::default();
     let broken = {
-        let doc = ProfileDoc::empty(DocumentId::derive("asm2a-broken-part"));
+        let doc = ProfileDoc::empty(DocumentId::derive("asm2a-broken-part"), Tol::witness());
         let (doc, _) = insert(doc, Node::instantiate_part(missing));
         doc
     };
     let inner_root = broken.order()[0];
-    let doc_ref = store.insert(broken);
+    let doc_ref = store.insert(broken, Tol::witness());
     let opts = with_resolver(store);
 
     let (doc, ids) = assembly("asm2a-broken-asm", &[doc_ref]);
@@ -980,13 +1004,13 @@ fn r1_a_broken_part_names_its_failing_root_and_cause() {
 #[test]
 fn r1_part_evaluations_aggregates_through_nesting() {
     let mut store = StubStore::default();
-    let p = store.insert(part("asm2a-nest-p", 0.0, 1.0));
+    let p = store.insert(part("asm2a-nest-p", 0.0, 1.0), Tol::witness());
     let sub = {
-        let doc = ProfileDoc::empty(DocumentId::derive("asm2a-nest-b"));
+        let doc = ProfileDoc::empty(DocumentId::derive("asm2a-nest-b"), Tol::witness());
         let (doc, _) = insert(doc, Node::instantiate_part(p));
         doc
     };
-    let b = store.insert(sub);
+    let b = store.insert(sub, Tol::witness());
     let opts = with_resolver(store);
 
     let (doc, ids) = assembly("asm2a-nest-a", &[b]);
@@ -1017,7 +1041,7 @@ fn r1_part_evaluations_aggregates_through_nesting() {
 #[test]
 fn r1_both_sweep_strategies_agree_on_a_part_carrying_a_boolean() {
     let mut store = StubStore::default();
-    let doc_ref = store.insert(boolean_part("asm2a-sweep-part"));
+    let doc_ref = store.insert(boolean_part("asm2a-sweep-part"), Tol::witness());
     let resolver = with_resolver(store).resolver;
 
     let strategies = [
@@ -1034,7 +1058,7 @@ fn r1_both_sweep_strategies_agree_on_a_part_carrying_a_boolean() {
             };
             let (doc, _) = assembly("asm2a-sweep-asm", &[doc_ref]);
             let ev = run(&doc, &opts);
-            let body = product(&doc, &ev).expect("the product gathers");
+            let body = product(&doc, &ev, Tol::witness()).expect("the product gathers");
             volume(&body).to_bits()
         })
         .collect();

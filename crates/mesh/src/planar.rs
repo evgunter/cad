@@ -60,7 +60,8 @@
 //!   consecutive point pairs (left-to-right, wrapping), normalized.
 //!   Newell orients the normal so the walk is CCW about it, and by
 //!   interior-left the outer walk is CCW about the face's OUTWARD
-//!   normal — so this is the outward normal by construction;
+//!   normal — so this is the outward normal by construction (the
+//!   section below says on what);
 //! * **u** — toward the walk point farthest from the anchor (the
 //!   first such point in walk order on exact ties), shed of its
 //!   normal component and normalized; **v** = normal × u.
@@ -121,6 +122,31 @@
 //! so the slit's doubled traversal cancels and classification proceeds
 //! exactly as if the slit were absent — the same cancellation the
 //! even-odd crossing count used to get, now exact.
+//!
+//! # What "the outward normal by construction" rests on
+//!
+//! One rule, stated once in `topo::entity` and not restated here: by
+//! interior-left, a face's outer loop runs CCW about the face's
+//! **outward** normal. Newell orients its cross-sum so the walk is CCW
+//! about it, so the Newell normal of the outer walk IS the outward
+//! normal whenever the body honours the rule.
+//!
+//! **The S10 identity does not enter.** Outward = `sense_sign` · chart
+//! normal only relates the outward normal to a STORED chart, and
+//! [`chart_frame`] reads no chart — only walk indices and 3-D points.
+//! So the premise that S10 retired (*"a face's stored normal is the
+//! outward normal"*) is a different claim from this one, and its
+//! retirement does not reach here.
+//!
+//! **What checks the rule, and what does not.** A body whose stored
+//! `sense` disagrees with its stored winding violates it, and `topo`'s
+//! tier-3 validator refuses such a body by name (check 6,
+//! `LoopRoleInverted`). **This crate does not run that check and does
+//! not re-derive it** — tessellation does not re-validate, as
+//! [`chart_frame`] says in its own docs. So the honest statement is:
+//! the rule is ratified, its violation is *refusable* upstream, and
+//! the mesher assumes a body that has been through the door rather
+//! than certifying one that has not.
 
 use std::collections::HashMap;
 
@@ -311,6 +337,44 @@ fn triangulate_chart(
 
     let inside = classify_faces(&cdt, &crossings);
 
+    // WHAT MAKES #678's FAN INERT HERE: this lane's CDT holds the
+    // boundary polygons' vertices and nothing else, so there is no
+    // column for two entries sharing a mesh vertex to be fanned over.
+    // TWO checks, because one of them is not enough and a review of
+    // #887 showed exactly how.
+    //
+    // The first says every CDT vertex is accounted for in `meta`.
+    // `meta` grows only in the insertion pass above, guarded by
+    // `h.index() == meta.len()`, and `try_add_constraint` returns
+    // empty rather than inserting — so this reds for a vertex that
+    // arrived WITHOUT bookkeeping, which is the foreign-insertion
+    // case. It does NOT red for an interior grid added the way
+    // `trimmed` adds one (insert, then push to `meta`), and the
+    // comment that claimed it did was over-claiming: an interior grid
+    // is the likely edit, and it would arrive WITH bookkeeping.
+    //
+    // The second closes that: `meta` can never hold more entries than
+    // the boundary walk offered, so an interior point pushed into it
+    // pushes the count past the loops' own total. Together they say
+    // what the paragraph above says (D2 addendum row 5).
+    let boundary_entries: usize = loops.iter().map(Vec::len).sum();
+    debug_assert_eq!(
+        cdt.num_vertices(),
+        meta.len(),
+        "face {fk:?}: the planar CDT carries {} vertices for {} tracked ones — \
+         something other than the boundary walk inserted one",
+        cdt.num_vertices(),
+        meta.len()
+    );
+    debug_assert!(
+        meta.len() <= boundary_entries,
+        "face {fk:?}: {} tracked CDT vertices for {boundary_entries} boundary \
+         entries — this lane grew an interior point, and the duplicate-id skip \
+         below is `curved`'s pole-fan idiom without `curved`'s separation \
+         argument (#678)",
+        meta.len()
+    );
+
     // Emit the interior triangles.
     let mut triangles = Vec::new();
     for f in cdt.inner_faces() {
@@ -323,15 +387,14 @@ fn triangulate_chart(
             meta[vs[1].fix().index()],
             meta[vs[2].fix().index()],
         ];
-        // #678's sibling sweep (C10): the curved lane's identical
-        // idiom hid a silent non-manifold fan when a SINGLE interior
-        // grid column sat equidistant from two entries sharing one
-        // mesh vertex. Inert here, structurally: this lane inserts
-        // boundary polygon vertices ONLY — there is no interior grid
-        // at all — so there is no column to be equidistant from
-        // anything. The duplicate ids it does see are a slit's two
-        // traversals, which land at the SAME UV and dedupe to one CDT
-        // vertex (the `a == b` skip in the constraint pass above).
+        // A triangle with two corners on one mesh vertex is
+        // degenerate. Dropping it is `curved`'s idiom, and there it
+        // collapses a pole fan (#678); here the drop is all it is —
+        // the duplicate ids this lane sees are a slit's two
+        // traversals, at the SAME UV and deduped by spade to one CDT
+        // vertex, and there is no interior column for anything to fan
+        // over. That second half is asserted above, by the pair of
+        // checks and not by either alone.
         if ids[0] == ids[1] || ids[1] == ids[2] || ids[0] == ids[2] {
             continue; // slit-degenerate sliver
         }

@@ -4,14 +4,18 @@
 //! A *pure REST contact* is a mate whose interiors are DISJOINT and
 //! whose shared geometry lies entirely on both operands' boundaries:
 //! the contact region R is a union of coincident opposite-oriented
-//! face patches, and its boundary ∂R — the seam — runs along operand
-//! edges or across single faces, never through material. The chord
-//! joining ([`super::join`]) cannot complete such seams: at a REST
-//! site a germ direction lies in FOUR coincident planes (two per
-//! solid, coplanar via the declared rung), the two end records of one
-//! segment can resolve that ambiguity onto different face pairs, and
-//! the germ-identity match (face pairs agree) then never fires —
-//! today's typed `Join(UnpairedLooseEnds)` / `JoinDesync` refusals.
+//! face patches — on ANY carrier the ladder certifies (plane, sphere,
+//! cylinder; the C4 `Rest` inventory) — and its boundary ∂R — the
+//! seam — runs along operand edges or across single faces, never
+//! through material. The chord joining ([`super::join`]) cannot
+//! complete such seams: at a REST site a germ direction lies in FOUR
+//! coincident tangent planes (two per solid, cosurface via the
+//! declared rung), the two end records of one segment can resolve
+//! that ambiguity onto different face pairs, and the germ-identity
+//! match (face pairs agree) then never fires — the typed
+//! `Join(UnpairedLooseEnds)` / `JoinDesync` refusals (and, for
+//! curved-adjacent seams the join has no section arm for, its typed
+//! per-kind refusal).
 //!
 //! This lane replaces the chord/null-face machinery for exactly that
 //! frontier, **union only**, reached ONLY when (a) the op carries
@@ -60,9 +64,10 @@
 //!    contact patches are removed as interior and the seam edges are
 //!    fused to single result edges ([`super::zip::zip_seam`] for
 //!    pairs sharing nothing; the slit zip below for pairs adjacent
-//!    along already-fused seam runs). Glue order is a BFS over the
-//!    patch adjacency so every pair shares at most one contiguous
-//!    run; anything else refuses typed.
+//!    along already-fused seam runs — ONE run or several: a closed
+//!    cosurface band's last panel shares a run on each side, and the
+//!    band closure kills the later runs by the configuration each is
+//!    found in). Glue order is a BFS over the patch adjacency.
 //!
 //! The result passes the same output stages as every seamed boolean:
 //! declared coplanar merge, D6 edge descriptions, contact remapping
@@ -93,6 +98,7 @@ use crate::euler_ring::MekrSite;
 use crate::geometry::SurfaceKey;
 use crate::splitting::finish::single_solid;
 use crate::validate::decide;
+use geom_core::Tol;
 
 /// A kernel-bug-class desync inside the lane (after the frontier is
 /// positively identified) — same posture as the join's lockstep
@@ -140,6 +146,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds>(
     b_pristine: &Body<T>,
     decls: &BooleanDeclarations,
     band: Band,
+    tol: Tol,
 ) -> Result<Option<BooleanResult<T>>, BooleanError> {
     debug_assert_eq!(red.op, BooleanOp::Union);
     if decls.coincident_faces.is_empty() || red.null_pairs.is_empty() {
@@ -159,16 +166,34 @@ pub(super) fn try_rest_union<T: Decide + Bounds>(
         return Ok(None); // no opposite-oriented contact declared
     }
 
-    // Vertex correspondence across the mate, operand keys.
+    // Vertex correspondence across the mate, operand keys — record
+    // data end to end (F9): the segment end sites, EXTENDED by the
+    // reduction's own v-v contact records. A coincident vertex pair
+    // INTERIOR to the contact region (e.g. a peg-root rim vertex on
+    // the mating plane) has a v-v record but no crossing at its site,
+    // so no null pair and no segment names it — and the glue still
+    // fuses it when the interior curve network zips. Never geometric
+    // point matching.
     let mut vcorr: SecondaryMap<VertexKey, VertexKey> = SecondaryMap::new();
+    let mut correspond = |a: VertexKey, b: VertexKey| -> Option<()> {
+        match vcorr.get(a) {
+            Some(&prev) if prev != b => None, // mis-paired: not ours
+            _ => {
+                vcorr.insert(a, b);
+                Some(())
+            }
+        }
+    };
     for s in &segments {
         for (a, b) in [(s.a_u, s.b_u), (s.a_v, s.b_v)] {
-            match vcorr.get(a) {
-                Some(&prev) if prev != b => return Ok(None), // mis-paired: not ours
-                _ => {
-                    vcorr.insert(a, b);
-                }
+            if correspond(a, b).is_none() {
+                return Ok(None);
             }
+        }
+    }
+    for c in &red.contacts.vv {
+        if correspond(c.a, c.b).is_none() {
+            return Ok(None);
         }
     }
 
@@ -193,6 +218,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds>(
         &segments.iter().map(|s| (s.a_u, s.a_v)).collect::<Vec<_>>(),
         &a_rings,
         &mut a_fragments,
+        tol,
     )?;
     let Some(a_seam) = a_seam else {
         return Ok(None);
@@ -202,6 +228,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds>(
         &segments.iter().map(|s| (s.b_u, s.b_v)).collect::<Vec<_>>(),
         &b_rings,
         &mut b_fragments,
+        tol,
     )?;
     let Some(b_seam) = b_seam else {
         return Ok(None);
@@ -227,7 +254,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds>(
     let glue_order = bfs_order(&red.a, &a_patch, &a_seam)?;
     let mut body = red.a;
     let solid = single_solid(&body).map_err(|_| desync("REST lane: operand A not one solid"))?;
-    let graft = graft_solid(&mut body, solid, &red.b)?;
+    let graft = graft_solid(&mut body, solid, &red.b, tol)?;
 
     // Result-key views of the correspondence and the patch pairs.
     let mut vmap: SecondaryMap<VertexKey, VertexKey> = SecondaryMap::new();
@@ -252,25 +279,30 @@ pub(super) fn try_rest_union<T: Decide + Bounds>(
     };
 
     let mut vertex_merges: Vec<(VertexKey, VertexKey)> = Vec::new();
+    let mut interior: SecondaryMap<EdgeKey, ()> = SecondaryMap::new();
     let mut desc = Descendants::default();
     for &fa in &glue_order {
         let fb = fb_of(fa)?;
-        let shared = shared_run(&body, fa, fb)?;
-        let rep = if shared.is_empty() {
-            zip_seam(&mut body, fa, fb, &vmap)?
-        } else {
-            slit_zip(&mut body, fa, fb, &shared, &vmap)?
-        };
+        let rep = glue_pair(&mut body, fa, fb, &vmap, tol)?;
         desc.absorb_zip(&rep);
         vertex_merges.extend(rep.vertex_merges.iter().copied());
+        for &e in &rep.interior_edges {
+            interior.insert(e, ());
+        }
     }
 
     // The surviving seam: the A-side per-segment edges (the A arena IS
-    // the result arena; every ∂R segment survives the glue — only
-    // R-INTERIOR edges die, and those are never segments).
+    // the result arena). A segment INTERIOR to the contact region —
+    // an already-fused run a later glue consumed, e.g. the meridian
+    // seams of a closed cosurface band — legitimately dies with R's
+    // interior and is dropped here; a segment that died any other way
+    // is a lane desync.
     let mut seam_edges: Vec<EdgeKey> = Vec::new();
     for &e in &a_seam.per_segment {
         if body.get_edge(e).is_none() {
+            if interior.contains_key(e) {
+                continue;
+            }
             return Err(desync("REST lane: a seam segment edge did not survive"));
         }
         seam_edges.push(e);
@@ -281,10 +313,10 @@ pub(super) fn try_rest_union<T: Decide + Bounds>(
     let reduction_contacts = red.contacts;
     let declared_pairs = declared_surface_pairs(&body, a_pristine, b_pristine, decls, &graft);
     let merged = body
-        .merge_coplanar_faces_declared(&declared_pairs)
+        .merge_coplanar_faces_declared(&declared_pairs, tol)
         .map_err(BooleanError::Merge)?;
     desc.absorb_merge(&merged);
-    describe_minted_edges(&mut body, &seam_edges, &merged, band)?;
+    describe_minted_edges(&mut body, &seam_edges, &merged, band, tol)?;
     let mut contacts = remap_contacts(
         &body,
         &contacts,
@@ -301,7 +333,7 @@ pub(super) fn try_rest_union<T: Decide + Bounds>(
         &desc,
     );
     gate(&body)?;
-    volume_backstop(BooleanOp::Union, a_pristine, b_pristine, &body, band)?;
+    volume_backstop(BooleanOp::Union, a_pristine, b_pristine, &body, band, tol)?;
     let (graft_vertices, graft_edges, graft_faces) = graft_rows(&graft);
     let naming = BooleanNaming {
         a_keys: OperandKeys::Direct,
@@ -656,6 +688,19 @@ pub enum TangentLocusError {
 ///   tangent (the locus mints); Positive ⇒ definitely apart;
 ///   Negative ⇒ definitely crossing.
 ///
+/// **CONTRACT — the separation invariant** (consumed by the reduce
+/// sweep's declared-cover rung): every configuration this lane mints
+/// a locus for has each carrier wholly in ONE closed residual
+/// half-space of the other — a plane tangent to a cylinder has the
+/// whole cylinder on one side; each of two externally (or
+/// internally) tangent parallel cylinders is one-signed against the
+/// other — so an on-carrier edge under a verified declaration never
+/// crosses the partner surface. A new arm may NOT land here without
+/// restating its own residual-sign story: the coaxial
+/// cylinder×sphere circle arm's residuals are one-signed in OPPOSITE
+/// orientations per direction, which is exactly why it is blocked on
+/// that story (issue #974).
+///
 /// # Errors
 ///
 /// [`TangentLocusError`] — escalation, definite non-tangency, or a
@@ -860,7 +905,18 @@ fn verify_declared_pairs<T: Decide>(
 ) -> Result<RestSurfaces, BooleanError> {
     let mut a_rest: SecondaryMap<SurfaceKey, ()> = SecondaryMap::new();
     let mut b_rest: SecondaryMap<SurfaceKey, ()> = SecondaryMap::new();
-    for &FacePairDeclaration { a: fa, b: fb, .. } in &decls.coincident_faces {
+    for &FacePairDeclaration {
+        a: fa,
+        b: fb,
+        class,
+    } in &decls.coincident_faces
+    {
+        // Only the CONFORMAL class names REST-contact surfaces; a
+        // `Tangent` pair touches along a locus, was verified by its
+        // own C4 table at the front door, and licenses no patch.
+        if class != ContactClass::Rest {
+            continue;
+        }
         // The one flush-pair door ([`flush_pair_relation`]): oriented
         // sources, sense-folded descriptions, and the verification
         // arm all live inside it — shared with the LIB-SEL2 detector
@@ -986,6 +1042,7 @@ fn realize_seam<T: Decide>(
     segments: &[(VertexKey, VertexKey)],
     rings: &SecondaryMap<VertexKey, FaceKey>,
     fragments: &mut Vec<(FaceKey, FaceKey)>,
+    tol: Tol,
 ) -> Result<Option<SeamSet>, BooleanError> {
     let mut out = SeamSet {
         set: SecondaryMap::new(),
@@ -994,7 +1051,7 @@ fn realize_seam<T: Decide>(
     for &(u, v) in segments {
         let edge = match fan_edge_between(body, u, v)? {
             Some(e) => e,
-            None => match mint_chord(body, u, v, rings, fragments)? {
+            None => match mint_chord(body, u, v, rings, fragments, tol)? {
                 Some(e) => e,
                 None => return Ok(None),
             },
@@ -1049,6 +1106,7 @@ fn mint_chord<T: Decide>(
     v: VertexKey,
     rings: &SecondaryMap<VertexKey, FaceKey>,
     fragments: &mut Vec<(FaceKey, FaceKey)>,
+    tol: Tol,
 ) -> Result<Option<EdgeKey>, BooleanError> {
     let fu = incident_faces(body, u, rings)?;
     let fv = incident_faces(body, v, rings)?;
@@ -1078,7 +1136,7 @@ fn mint_chord<T: Decide>(
             let (lu, lv) = (loop_of(body, *hu)?, loop_of(body, *hv)?);
             if lu == lv {
                 let created = body
-                    .mef_chord(MefSite::Chords { he1: *hu, he2: *hv })
+                    .mef_chord(MefSite::Chords { he1: *hu, he2: *hv }, tol)
                     .map_err(|_| unsupported("seam chord mef refused on its host face"))?;
                 fragments.push((created.face, face));
                 created.edge
@@ -1089,7 +1147,7 @@ fn mint_chord<T: Decide>(
                     .ok_or_else(|| desync("REST lane: chord host face vanished"))?
                     .outer;
                 let (target, ring) = if lv == outer { (*hv, *hu) } else { (*hu, *hv) };
-                body.mekr_chord(MekrSite::Cycles { target, ring })
+                body.mekr_chord(MekrSite::Cycles { target, ring }, tol)
                     .map_err(|_| unsupported("seam chord mekr refused on its host face"))?
                     .edge
             }
@@ -1097,14 +1155,14 @@ fn mint_chord<T: Decide>(
         ([], [hv]) => {
             let ring = ring_loop_of(body, u)
                 .ok_or_else(|| unsupported("seam chord endpoint has no boundary presence"))?;
-            body.mekr_chord(MekrSite::EmptyRing { target: *hv, ring })
+            body.mekr_chord(MekrSite::EmptyRing { target: *hv, ring }, tol)
                 .map_err(|_| unsupported("seam chord mekr (pierce ring) refused"))?
                 .edge
         }
         ([hu], []) => {
             let ring = ring_loop_of(body, v)
                 .ok_or_else(|| unsupported("seam chord endpoint has no boundary presence"))?;
-            body.mekr_chord(MekrSite::EmptyRing { target: *hu, ring })
+            body.mekr_chord(MekrSite::EmptyRing { target: *hu, ring }, tol)
                 .map_err(|_| unsupported("seam chord mekr (pierce ring) refused"))?
                 .edge
         }
@@ -1266,15 +1324,6 @@ fn patch_faces<T: Decide>(
     if !found {
         return Ok(None);
     }
-    // Patch faces must be plain disks for the glue (outer cycle only).
-    for &f in &patch {
-        let fd = body
-            .get_face(f)
-            .ok_or_else(|| desync("REST lane: patch face vanished"))?;
-        if !fd.rings.is_empty() {
-            return Err(unsupported("contact patch face carries rings"));
-        }
-    }
     Ok(Some(patch))
 }
 
@@ -1361,9 +1410,11 @@ fn pair_patches<T: Decide>(
 }
 
 /// BFS glue order over the A-side patch adjacency (regions rooted in
-/// arena order): every pair glues while sharing at most one contiguous
-/// already-fused run with the glued set for star-shaped patch graphs;
-/// non-star sharing refuses typed at the slit zip.
+/// arena order): a pair sharing one contiguous already-fused run with
+/// the glued set takes the slit zip's fold; a pair sharing several
+/// (the closed cosurface band's last panel — a CYCLIC patch graph)
+/// takes the same zip's band closure, which kills the later runs by
+/// the configuration each is found in.
 fn bfs_order<T: Decide>(
     body: &Body<T>,
     patch: &[FaceKey],
@@ -1460,20 +1511,139 @@ fn shared_run<T: Decide>(
     Ok(ea.into_iter().filter(|e| eb_set.contains_key(*e)).collect())
 }
 
-/// Glues one patch pair adjacent along a single contiguous already-
-/// fused seam run: the run edges die (they are interior to R), the
+/// Glues one patch pair, rings included. A multiply-connected patch
+/// face's interior boundaries (rings — e.g. the peg-root rims inside
+/// a mating plane) are each their own antiparallel-congruent cycle
+/// pair across the mate: every ring on both sides is PROMOTED to a
+/// transient face first (`mfkrh`), the outer pair glues through the
+/// seam zip or the slit zip (as the already-fused runs dictate), and
+/// the promoted pairs then glue the same way — the same-shell
+/// `kfmrh` inside those glues is where the mate's genus bookkeeping
+/// lives (a filled through-peg's handle).
+fn glue_pair<T: Decide>(
+    body: &mut Body<T>,
+    fa: FaceKey,
+    fb: FaceKey,
+    vmap: &SecondaryMap<VertexKey, VertexKey>,
+    tol: Tol,
+) -> Result<ZipReport, BooleanError> {
+    let rings_of = |body: &Body<T>, f: FaceKey| -> Result<Vec<LoopKey>, BooleanError> {
+        Ok(body
+            .get_face(f)
+            .ok_or_else(|| desync("REST lane: glue face vanished"))?
+            .rings
+            .clone())
+    };
+    let mut ga: Vec<FaceKey> = Vec::new();
+    let mut gb: Vec<FaceKey> = Vec::new();
+    for r in rings_of(body, fa)? {
+        ga.push(
+            body.mfkrh(r, FaceSurface::Inherit)
+                .map_err(|_| desync("REST lane: ring promotion refused"))?
+                .face,
+        );
+    }
+    for r in rings_of(body, fb)? {
+        gb.push(
+            body.mfkrh(r, FaceSurface::Inherit)
+                .map_err(|_| desync("REST lane: ring promotion refused"))?
+                .face,
+        );
+    }
+    if ga.len() != gb.len() {
+        return Err(unsupported(
+            "patch pair carries differing interior-boundary counts",
+        ));
+    }
+    let shared = shared_run(body, fa, fb)?;
+    let mut report = if shared.is_empty() {
+        zip_seam(body, fa, fb, vmap, tol)?
+    } else {
+        slit_zip(body, fa, fb, &shared, vmap, tol)?
+    };
+    // Pair the promoted transients by exact antiparallel vertex-cycle
+    // congruence through the seam correspondence (the same test the
+    // patch pairing ran on the outers) and glue each pair.
+    let mut used: SecondaryMap<FaceKey, ()> = SecondaryMap::new();
+    for &da in &ga {
+        let starts = cycle_starts(body, da)?;
+        let mapped: Vec<VertexKey> = starts
+            .iter()
+            .map(|&v| {
+                vmap.get(v)
+                    .copied()
+                    .ok_or_else(|| unsupported("ring boundary vertex without a seam correspondent"))
+            })
+            .collect::<Result<_, _>>()?;
+        let n = mapped.len();
+        let mut matched = None;
+        'cand: for &db in &gb {
+            if used.contains_key(db) {
+                continue;
+            }
+            let bs = cycle_starts(body, db)?;
+            if bs.len() != n {
+                continue;
+            }
+            let Some(idx) = bs.iter().position(|&w| w == mapped[0]) else {
+                continue;
+            };
+            for (t, m) in mapped.iter().enumerate() {
+                if bs[(idx + n - (t % n)) % n] != *m {
+                    continue 'cand;
+                }
+            }
+            matched = Some(db);
+            break;
+        }
+        let Some(db) = matched else {
+            return Err(unsupported("ring cycles not congruent across the mate"));
+        };
+        used.insert(db, ());
+        let shared = shared_run(body, da, db)?;
+        let rep = if shared.is_empty() {
+            zip_seam(body, da, db, vmap, tol)?
+        } else {
+            slit_zip(body, da, db, &shared, vmap, tol)?
+        };
+        report
+            .vertex_merges
+            .extend(rep.vertex_merges.iter().copied());
+        report.seam_edges.extend(rep.seam_edges.iter().copied());
+        report
+            .interior_edges
+            .extend(rep.interior_edges.iter().copied());
+    }
+    Ok(report)
+}
+
+/// Glues one patch pair adjacent along ALREADY-FUSED seam runs: the
+/// run edges die (they are interior to the contact region R), the
 /// remaining coincident edge pairs fuse to the surviving A copies,
 /// the remaining coincident vertex pairs fuse, both faces die. The
 /// same loopglue scaffolding discipline as [`zip_seam`] (self-loop
 /// scaffolding edges between bitwise-coincident vertices, `kev`
 /// fusions, `kef` retirements), driven along the folded loop the run
 /// kef leaves behind.
+///
+/// **Multiple disjoint runs are the band-closure case** (a closed
+/// cosurface band's last panel shares a run on each side): the first
+/// run folds the mate in through `kef`; each later run's edges then
+/// lie WITHIN the folded face's own loops and are killed by the
+/// configuration each is found in — dangling (`kev`), doubled in one
+/// cycle (`kemr`, which mints a ring), or spanning two loops of the
+/// one face (`mfkrh`-then-`kef`, the kernel's own prescription for
+/// that shape). Every ring the kills leave behind is promoted to its
+/// own transient face (`mfkrh`) and zipped by the same folded-loop
+/// zipper that finishes the outer cycle — the genus drop of closing a
+/// band lives in those promotions, never in ad-hoc surgery.
 fn slit_zip<T: Decide>(
     body: &mut Body<T>,
     fa: FaceKey,
     fb: FaceKey,
     shared: &[EdgeKey],
     vmap: &SecondaryMap<VertexKey, VertexKey>,
+    tol: Tol,
 ) -> Result<ZipReport, BooleanError> {
     let corr = |what| BooleanError::ZipCorrespondence { what };
     let mut report = ZipReport::default();
@@ -1496,21 +1666,12 @@ fn slit_zip<T: Decide>(
         body.loop_cycle(first)
             .ok_or_else(|| desync("REST lane: slit loop not walkable"))
     };
-    let edge_of = |body: &Body<T>, he: HalfEdgeKey| -> Result<EdgeKey, BooleanError> {
-        Ok(body
-            .get_half_edge(he)
-            .ok_or_else(|| desync("REST lane: slit half no longer resolves"))?
-            .edge)
-    };
     let oa = cycle_halves(body, fa)?;
     let ob = cycle_halves(body, fb)?;
     if oa.len() != ob.len() {
         return Err(corr("slit-zip cycles differ in length"));
     }
     let shared_set: SecondaryMap<EdgeKey, ()> = shared.iter().map(|&e| (e, ())).collect();
-    // Single contiguous run in the fa cycle (and, symmetrically, fb —
-    // the same edge set, so contiguity there follows from the
-    // congruence the pairing verified).
     let flags: Vec<bool> = oa
         .iter()
         .map(|&he| Ok(shared_set.contains_key(edge_of(body, he)?)))
@@ -1520,17 +1681,28 @@ fn slit_zip<T: Decide>(
         return Err(unsupported("patch pair shares its whole boundary"));
     }
     let n = flags.len();
-    // Rotate so the run occupies a prefix: find i with flags[i] &&
-    // !flags[(i+n-1)%n].
+    // Rotate so a run occupies a prefix: find i with flags[i] &&
+    // !flags[(i+n-1)%n], then collect every maximal run in cycle
+    // order from there (deterministic — D9).
     let Some(start) = (0..n).find(|&i| flags[i] && !flags[(i + n - 1) % n]) else {
         return Err(unsupported("patch pair shares its whole boundary"));
     };
-    if (0..k).any(|t| !flags[(start + t) % n]) {
-        return Err(unsupported(
-            "patch pair shares a non-contiguous seam run with the glued set",
-        ));
+    let mut runs: Vec<Vec<HalfEdgeKey>> = Vec::new();
+    let mut t = 0;
+    while t < n {
+        let i = (start + t) % n;
+        if flags[i] {
+            let mut run = vec![oa[i]];
+            t += 1;
+            while t < n && flags[(start + t) % n] {
+                run.push(oa[(start + t) % n]);
+                t += 1;
+            }
+            runs.push(run);
+        } else {
+            t += 1;
+        }
     }
-    let run: Vec<HalfEdgeKey> = (0..k).map(|t| oa[(start + t) % n]).collect();
 
     let a_edges: SecondaryMap<EdgeKey, ()> = oa
         .iter()
@@ -1541,12 +1713,14 @@ fn slit_zip<T: Decide>(
         .map(|&he| Ok((edge_of(body, he)?, ())))
         .collect::<Result<_, BooleanError>>()?;
 
-    // ---- Kill the run: kef the first run edge from the fb side
+    // ---- Kill the first run: kef the first run edge from the fb side
     // (kills fb, merges the cycles into fa's folded loop); each
     // further run edge then dangles at a dead run-interior vertex —
     // kev it (the interior vertex dies with it, as R-interior
     // structure must). ----
+    let run = &runs[0];
     let first_run_edge = edge_of(body, run[0])?;
+    report.interior_edges.push(first_run_edge);
     let fb_half = {
         let ed = body
             .get_edge(first_run_edge)
@@ -1564,6 +1738,7 @@ fn slit_zip<T: Decide>(
         // The shared vertex with the previous (now dead) run edge is
         // this half's START (run halves run start→end along fa's
         // cycle; the previous edge ended where this one starts).
+        report.interior_edges.push(edge_of(body, he)?);
         let hd = body
             .get_half_edge(he)
             .ok_or_else(|| desync("REST lane: run half no longer resolves"))?;
@@ -1589,17 +1764,154 @@ fn slit_zip<T: Decide>(
             .map_err(|_| desync("REST lane: run kev refused"))?;
     }
 
-    // ---- The zipper along the folded loop, from the run's start
-    // fold vertex. ----
+    // ---- Later runs (the band closure): every edge now lies within
+    // the folded face's own loop set; kill each by the configuration
+    // it is found in. ----
+    for run in runs.iter().skip(1) {
+        for &he in run {
+            let e = edge_of(body, he)?;
+            report.interior_edges.push(e);
+            let ed = body
+                .get_edge(e)
+                .ok_or_else(|| desync("REST lane: band run edge no longer resolves"))?
+                .clone();
+            let (h, m) = (ed.he_plus, ed.he_minus);
+            let loop_of = |body: &Body<T>, half| -> Result<LoopKey, BooleanError> {
+                Ok(body
+                    .get_half_edge(half)
+                    .ok_or_else(|| desync("REST lane: band run half no longer resolves"))?
+                    .parent_loop)
+            };
+            let (lh, lm) = (loop_of(body, h)?, loop_of(body, m)?);
+            if lh == lm {
+                // Dangling (a valence-1 end) → kev that half; doubled
+                // deeper in the cycle → kemr (the split-off side
+                // becomes a ring, disposed below).
+                let dangle_half = {
+                    let valence = |body: &Body<T>, half| -> Result<usize, BooleanError> {
+                        let end = body
+                            .half_edge_end(half)
+                            .ok_or_else(|| desync("REST lane: band run half has no end"))?;
+                        let anchor = body
+                            .get_vertex(end)
+                            .and_then(|vd| vd.emanating)
+                            .ok_or_else(|| desync("REST lane: band run vertex lost its fan"))?;
+                        Ok(body
+                            .vertex_orbit(anchor)
+                            .ok_or_else(|| desync("REST lane: band run orbit not walkable"))?
+                            .len())
+                    };
+                    if valence(body, h)? == 1 {
+                        Some(h)
+                    } else if valence(body, m)? == 1 {
+                        Some(m)
+                    } else {
+                        None
+                    }
+                };
+                match dangle_half {
+                    Some(dh) => {
+                        body.kev(dh)
+                            .map_err(|_| desync("REST lane: band run kev refused"))?;
+                    }
+                    None => {
+                        body.kemr(h, m)
+                            .map_err(|_| desync("REST lane: band run kemr refused"))?;
+                    }
+                }
+            } else {
+                // Two loops of the ONE folded face: the kernel's own
+                // prescription — promote the ring, then kef from the
+                // promoted side (the remnant merges into the other
+                // loop; the transient face dies with the edge).
+                let fd = body
+                    .get_face(fa)
+                    .ok_or_else(|| desync("REST lane: folded face vanished"))?;
+                let ring_half = if fd.rings.contains(&lh) {
+                    h
+                } else if fd.rings.contains(&lm) {
+                    m
+                } else {
+                    return Err(unsupported(
+                        "band-closure run edge outside the folded face's loops",
+                    ));
+                };
+                let ring = loop_of(body, ring_half)?;
+                body.mfkrh(ring, FaceSurface::Inherit)
+                    .map_err(|_| desync("REST lane: band run mfkrh refused"))?;
+                body.kef(ring_half)
+                    .map_err(|_| desync("REST lane: band run kef refused"))?;
+            }
+        }
+    }
+
+    // ---- Dispose the rings the band kills left behind: promote each
+    // to a transient face and zip it with the same folded-loop zipper
+    // that finishes the outer cycle. ----
+    let mut ring_steps = 0usize;
+    loop {
+        ring_steps += 1;
+        if ring_steps > shared.len() + 2 {
+            return Err(desync("REST lane: band ring disposal did not terminate"));
+        }
+        let ring = body
+            .get_face(fa)
+            .ok_or_else(|| desync("REST lane: folded face vanished"))?
+            .rings
+            .first()
+            .copied();
+        let Some(ring) = ring else { break };
+        let created = body
+            .mfkrh(ring, FaceSurface::Inherit)
+            .map_err(|_| desync("REST lane: band ring mfkrh refused"))?;
+        zip_folded(
+            body,
+            created.face,
+            &a_edges,
+            &b_edges,
+            vmap,
+            &mut report,
+            tol,
+        )?;
+    }
+    zip_folded(body, fa, &a_edges, &b_edges, vmap, &mut report, tol)?;
+    Ok(report)
+}
+
+/// The edge of a half-edge (shared lookup for the zip family).
+fn edge_of<T: Decide>(body: &Body<T>, he: HalfEdgeKey) -> Result<EdgeKey, BooleanError> {
+    Ok(body
+        .get_half_edge(he)
+        .ok_or_else(|| desync("REST lane: slit half no longer resolves"))?
+        .edge)
+}
+
+/// The folded-loop zipper (the slit zip's finishing walk, shared with
+/// the band closure's promoted transient faces): the face's outer
+/// cycle holds interleaved a-side (surviving) and b-side (dying)
+/// copies; per fold one scaffolding `mef` + `kev` fuses the vertex
+/// pair and a `kef` retires the b copy, and the final coincident pair
+/// retires face and b copy together (the a copy survives as a seam
+/// edge, absorbed by the b-side neighbor's loop).
+fn zip_folded<T: Decide>(
+    body: &mut Body<T>,
+    face: FaceKey,
+    a_edges: &SecondaryMap<EdgeKey, ()>,
+    b_edges: &SecondaryMap<EdgeKey, ()>,
+    vmap: &SecondaryMap<VertexKey, VertexKey>,
+    report: &mut ZipReport,
+    tol: Tol,
+) -> Result<(), BooleanError> {
+    let corr = |what| BooleanError::ZipCorrespondence { what };
     let mut steps = 0usize;
-    let cap = oa.len() + ob.len() + 2;
+    let cap = 2 * (a_edges.len() + b_edges.len()) + 2;
     loop {
         steps += 1;
         if steps > cap {
             return Err(desync("REST lane: slit zipper did not terminate"));
         }
         let fd = body
-            .get_face(fa)
+            .get_face(face)
             .ok_or_else(|| desync("REST lane: slit face vanished mid-zip"))?;
         let LoopBoundary::Cycle { first } = body
             .get_loop(fd.outer)
@@ -1612,8 +1924,9 @@ fn slit_zip<T: Decide>(
             .loop_cycle(first)
             .ok_or_else(|| desync("REST lane: slit loop not walkable mid-zip"))?;
         if cycle.len() == 2 {
-            // The last coincident pair: kef the b copy from inside fa
-            // (fa dies with it; the a copy survives as the seam edge).
+            // The last coincident pair: kef the b copy from inside the
+            // face (the face dies with it; the a copy survives as the
+            // seam edge).
             let (e0, e1) = (edge_of(body, cycle[0])?, edge_of(body, cycle[1])?);
             let b_half = if b_edges.contains_key(e0) && a_edges.contains_key(e1) {
                 cycle[0]
@@ -1674,6 +1987,7 @@ fn slit_zip<T: Decide>(
             },
             geom_brep::EdgeCurveSpec::self_loop_circle_at(p),
             FaceSurface::Inherit,
+            tol,
         )?;
         body.kev(made.he_plus)
             .map_err(|_| desync("REST lane: slit fuse kev refused"))?;
@@ -1682,5 +1996,5 @@ fn slit_zip<T: Decide>(
         body.kef(hb)
             .map_err(|_| desync("REST lane: slit pair kef refused"))?;
     }
-    Ok(report)
+    Ok(())
 }

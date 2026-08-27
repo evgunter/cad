@@ -11,6 +11,7 @@
 
 use crate::{Body, MefSite, MevSite, validate};
 use geom_core::Point3;
+use geom_core::Tol;
 
 fn p(x: f64) -> Point3<f64> {
     Point3::new(x, 0.0, 0.0)
@@ -27,6 +28,7 @@ fn p(x: f64) -> Point3<f64> {
 /// is [g+, t1+, t2+, t3+, t4+].
 #[test]
 fn valence_five_fan_split_moves_the_clockwise_run() {
+    let tol = Tol::witness();
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(p(0.0)).unwrap();
     let g = body
@@ -35,6 +37,7 @@ fn valence_five_fan_split_moves_the_clockwise_run() {
                 r#loop: seed.r#loop,
             },
             p(1.0),
+            tol,
         )
         .unwrap();
     let strut = |body: &mut Body<f64>, x: f64| {
@@ -44,6 +47,7 @@ fn valence_five_fan_split_moves_the_clockwise_run() {
                 he2: g.he_plus,
             },
             p(x),
+            tol,
         )
         .unwrap()
     };
@@ -95,6 +99,7 @@ fn valence_five_fan_split_moves_the_clockwise_run() {
                 he2: g.he_plus,
             },
             p(9.0),
+            tol,
         )
         .unwrap();
     assert_eq!(validate(&body), Ok(()));
@@ -147,6 +152,7 @@ fn valence_five_fan_split_moves_the_clockwise_run() {
 /// half-edge's loop.
 #[test]
 fn cross_loop_fan_on_the_digon_pillow_stack() {
+    let tol = Tol::witness();
     // Build a closed solid with a valence-3 vertex whose three spokes
     // are in three different loops: the triangle "pillow" (two triangle
     // faces glued -- 1 mvfs + 2 mev + 1 mef gives the two-edge digon;
@@ -159,6 +165,7 @@ fn cross_loop_fan_on_the_digon_pillow_stack() {
                 r#loop: seed.r#loop,
             },
             Point3::new(1.0, 0.0, 0.0),
+            tol,
         )
         .unwrap();
     let bc = body
@@ -168,16 +175,20 @@ fn cross_loop_fan_on_the_digon_pillow_stack() {
                 he2: ab.he_minus,
             },
             Point3::new(0.5, 1.0, 0.0),
+            tol,
         )
         .unwrap();
     // Close the triangle: he1 = bc.he_minus (C->B), he2 = ab.he_plus
     // (A->B)... run [C->B, B->A) -- new edge C->A? start(he1)=C,
     // start(he2)=A: new edge C->A. Triangle lamina: two faces.
     let tri = body
-        .mef_chord(MefSite::Chords {
-            he1: bc.he_minus,
-            he2: ab.he_plus,
-        })
+        .mef_chord(
+            MefSite::Chords {
+                he1: bc.he_minus,
+                he2: ab.he_plus,
+            },
+            tol,
+        )
         .unwrap();
     assert_eq!(validate(&body), Ok(()));
 
@@ -226,6 +237,7 @@ fn cross_loop_fan_on_the_digon_pillow_stack() {
                 he2: ab.he_plus,
             },
             Point3::new(0.0, -1.0, 0.0),
+            tol,
         )
         .unwrap();
     assert_eq!(validate(&body), Ok(()));

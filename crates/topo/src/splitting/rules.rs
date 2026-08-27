@@ -283,7 +283,7 @@ pub(super) fn apply_rule_b(
 ///   arm over-estimates anything. That is refused, not measured.
 ///   `validate_closed`'s tier-2 check 1 rejects every empty loop, so a
 ///   validated operand cannot carry one; the boolean's own operand
-///   gates (`gate_operand_kinds`, `gate_maximal_faces`) do not run
+///   gates (`gate_operand_pairs`, `gate_maximal_faces`) do not run
 ///   that check, which is why the refusal is here rather than assumed.
 ///
 /// The refusal is [`SplitReduceError::CorruptOperand`], whose own doc
@@ -349,6 +349,7 @@ mod tests {
     use super::*;
     use crate::entity::HalfEdgeKey;
     use crate::splitting::SectorEntryKind;
+    use geom_core::Tol;
 
     fn entries(classes: &[PlaneSide]) -> Vec<SectorEntry> {
         classes
@@ -453,7 +454,7 @@ mod tests {
     /// vacuous, and it asserts that gap rather than just the maximum.
     #[test]
     fn an_isolated_ring_vertex_contributes_its_distance() {
-        let mut cube = crate::fixtures::ops_cube();
+        let mut cube = crate::fixtures::ops_cube(Tol::witness());
         // The BOTTOM face, whose own cycle stops at the far bottom
         // corner; the seed (top) face already reaches the body's
         // farthest vertex, which would make the row vacuous.

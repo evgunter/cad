@@ -45,6 +45,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Point3;
+use geom_core::Tol;
 use topo::{
     Body, EntityId, KemrResult, KfmrhResult, MefCreated, MefSite, MevCreated, MevSite, MvfsCreated,
     Provenance, validate, validate_closed,
@@ -76,18 +77,24 @@ fn build_holed_box(body: &mut Body<f64>) -> HoledBox {
     let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap(); // A
     ck(body);
     let mev = |body: &mut Body<f64>, site, x, y, z| {
-        let created = body.mev_line(site, pt(x, y, z)).unwrap();
+        let created = body.mev_line(site, pt(x, y, z), Tol::witness()).unwrap();
         assert_eq!(validate(body), Ok(()));
         created
     };
     let mef = |body: &mut Body<f64>, he1, he2| {
-        let created = body.mef_chord(MefSite::Chords { he1, he2 }).unwrap();
+        let created = body
+            .mef_chord(MefSite::Chords { he1, he2 }, Tol::witness())
+            .unwrap();
         assert_eq!(validate(body), Ok(()));
         created
     };
     let strut_at = |body: &mut Body<f64>, at, x, y, z| {
         let created = body
-            .mev_line(MevSite::Fan { he1: at, he2: at }, pt(x, y, z))
+            .mev_line(
+                MevSite::Fan { he1: at, he2: at },
+                pt(x, y, z),
+                Tol::witness(),
+            )
             .unwrap();
         assert_eq!(validate(body), Ok(()));
         created

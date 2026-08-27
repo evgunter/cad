@@ -57,15 +57,6 @@
 //! form (`Profile::new` then `Profile::validate`) the demo corpus
 //! wrote by hand at every scene.
 //!
-//! (Stated as a shape, not a count, on purpose. The previous wording
-//! said "six of the seven", which had been wrong since the `polygon`
-//! door was removed — a stale count in the sentence whose job is to
-//! say what is true. The shape is guarded:
-//! `the_authoring_seam_roster_is_what_the_crate_doc_claims` in
-//! `tests/all.rs` reads `authoring.rs` and fails if a seam is added
-//! or removed, or if a second one chains a follow-up kernel call, so
-//! this sentence cannot rot the same way twice.)
-//!
 //! **[`workspace`] is not that, deliberately.** It is a real
 //! subsystem: it scans a directory of save files, reads each one's
 //! `id:` header, refuses a duplicate id naming both claimants,
@@ -78,6 +69,22 @@
 //! and the filesystem are exactly what must stay out of it, so the
 //! layer allowed to hold them is this one. What it adds is I/O and
 //! identity — still no geometry and still no numerics.
+//!
+//! **[`tolerance`] is not that either**, and it is the third thing this
+//! section has to name. It re-exports `geom_core`'s ε vocabulary and
+//! adds three doors that *report* the run's committed ε and where it
+//! came from. Two of them — [`tolerance::report`] and
+//! [`tolerance::eps_source`] — **commit the ambient bootstrap as a side
+//! effect of being asked**, exactly as `Tolerance::get` does, so a
+//! program that later loads a document turns that load into a
+//! `ToleranceConflict` by having asked. That is the one place in this
+//! façade where calling a wrapper changes the run, and
+//! [`tolerance::committed_report`] is the door that does not; the
+//! module says so at each of the three. **So the section's *"no numeric
+//! behavior"* is true of the geometry and false of ε**: nothing here
+//! computes a number, and two doors here can decide which ε every later
+//! predicate is evaluated at. Stating that is the whole reason this
+//! module is named in a section about what the façade contains.
 //!
 //! [`validated`]: authoring::validated
 //!
@@ -109,17 +116,19 @@
 //! # A fifteen-line example
 //!
 //! ```
+//! use geom_core::Tol;
 //! use pncad::prelude::*;
 //!
+//! let tol = Tol::witness();
 //! let square: ClosedLoop<f64> = Open
 //!     .at(p2(0.0, 0.0))
-//!     .line_to(p2(1.0, 0.0))?
-//!     .line_to(p2(1.0, 1.0))?
-//!     .line_to(p2(0.0, 1.0))?
-//!     .line_to(Start)?;
-//! let profile = validated(SketchPlane::<f64>::xy(), vec![square.into()])?;
-//! let body = extrude(&profile, Extrusion::Distance(real(1.0)))?;
-//! let props = mass_properties(&body.body)?;
+//!     .line_to(p2(1.0, 0.0), tol)?
+//!     .line_to(p2(1.0, 1.0), tol)?
+//!     .line_to(p2(0.0, 1.0), tol)?
+//!     .line_to(Start, tol)?;
+//! let profile = validated(SketchPlane::<f64>::xy(), vec![square.into()], tol)?;
+//! let body = extrude(&profile, Extrusion::Distance(real(1.0)), tol)?;
+//! let props = mass_properties(&body.body, tol)?;
 //! assert!((props.volume - 1.0).abs() < 1e-12);
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```

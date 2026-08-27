@@ -44,7 +44,7 @@
 //! terms, print, or diff one; a `Fn(&StableName) -> bool` could do
 //! none of that.
 
-use geom_core::{Band, Decide};
+use geom_core::{Band, Decide, Tol};
 
 use crate::eval::{Evaluation, NodeResult};
 use crate::expr::ParamEnv;
@@ -647,12 +647,13 @@ pub fn select_where<T: Decide>(
     sel: &Selector,
     geom: &[GeomPred],
     params: &ParamEnv<T>,
+    tol: Tol,
 ) -> Result<Vec<StableName>, SelectRefusal> {
     let Some(NodeResult::Ok(value)) = ev.nodes.get(&node) else {
         return Ok(Vec::new());
     };
     let atoms = geompred::prepare(ev, geom, params)?;
-    let band = Band::linear().map_err(|_| SelectRefusal::Band)?;
+    let band = Band::linear(tol).map_err(|_| SelectRefusal::Band)?;
     let mut out: Vec<StableName> = Vec::new();
     for (name, entry) in value.name_table.iter() {
         if !sel.matches(name) {

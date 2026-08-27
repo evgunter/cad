@@ -12,6 +12,7 @@ mod revolve_common;
 use core::f64::consts::{FRAC_PI_8, PI};
 use profile::RawLoop;
 
+use geom_core::Tol;
 use geom_core::Vec2;
 use profile::{ProfileLoop, ProfileVertex};
 use revolve_common::*;
@@ -25,7 +26,7 @@ fn washer() -> ProfileLoop<f64> {
 fn vertex_across_the_axis_is_typed() {
     let lp = ProfileLoop::polygon([p2(-1.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(-1.0, 1.0)]);
     let vp = validated(vec![lp]);
-    let e = revolve(&vp, axis_y(), Revolution::Full).unwrap_err();
+    let e = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap_err();
     assert!(matches!(e, RevolveError::VertexCrossesAxis { .. }), "{e:?}");
 }
 
@@ -36,20 +37,26 @@ fn sliver_radius_is_typed() {
     let r = 3.0 * eps();
     let lp = ProfileLoop::polygon([p2(r, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(r, 1.0)]);
     let vp = validated(vec![lp]);
-    let e = revolve(&vp, axis_y(), Revolution::Full).unwrap_err();
+    let e = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap_err();
     assert!(matches!(e, RevolveError::SliverRadius { .. }), "{e:?}");
 }
 
 #[test]
 fn degenerate_and_sliver_and_poisoned_angles_are_typed() {
     let vp = validated(vec![washer()]);
-    let e = revolve(&vp, axis_y(), Revolution::Partial(0.0)).unwrap_err();
+    let e = revolve(&vp, axis_y(), Revolution::Partial(0.0), Tol::witness()).unwrap_err();
     assert!(matches!(e, RevolveError::DegenerateAngle), "{e:?}");
     // Sliver: θ·r_max in the band (r_max = 2).
-    let e = revolve(&vp, axis_y(), Revolution::Partial(1.5 * eps())).unwrap_err();
+    let e = revolve(
+        &vp,
+        axis_y(),
+        Revolution::Partial(1.5 * eps()),
+        Tol::witness(),
+    )
+    .unwrap_err();
     assert!(matches!(e, RevolveError::AngleEscalated { .. }), "{e:?}");
     // Poisoned angle: decides nothing, escalates loudly.
-    let e = revolve(&vp, axis_y(), Revolution::Partial(f64::NAN)).unwrap_err();
+    let e = revolve(&vp, axis_y(), Revolution::Partial(f64::NAN), Tol::witness()).unwrap_err();
     assert!(matches!(e, RevolveError::AngleEscalated { .. }), "{e:?}");
 }
 
@@ -57,7 +64,7 @@ fn degenerate_and_sliver_and_poisoned_angles_are_typed() {
 fn full_range_partial_angles_are_typed() {
     let vp = validated(vec![washer()]);
     for theta in [2.0 * PI, -2.0 * PI, 3.0 * PI] {
-        let e = revolve(&vp, axis_y(), Revolution::Partial(theta)).unwrap_err();
+        let e = revolve(&vp, axis_y(), Revolution::Partial(theta), Tol::witness()).unwrap_err();
         assert!(matches!(e, RevolveError::FullRangeAngle), "{theta}: {e:?}");
     }
 }
@@ -69,13 +76,13 @@ fn degenerate_and_poisoned_axes_are_typed() {
         origin: p2(0.0, 0.0),
         dir: Vec2::new(0.0, 0.0),
     };
-    let e = revolve(&vp, zero, Revolution::Full).unwrap_err();
+    let e = revolve(&vp, zero, Revolution::Full, Tol::witness()).unwrap_err();
     assert!(matches!(e, RevolveError::DegenerateAxis), "{e:?}");
     let poison = RevolveAxis {
         origin: p2(0.0, 0.0),
         dir: Vec2::new(f64::NAN, f64::NAN),
     };
-    let e = revolve(&vp, poison, Revolution::Full).unwrap_err();
+    let e = revolve(&vp, poison, Revolution::Full, Tol::witness()).unwrap_err();
     assert!(matches!(e, RevolveError::AxisEscalated { .. }), "{e:?}");
 }
 
@@ -85,13 +92,13 @@ fn isolated_axis_vertex_in_full_revolve_is_non_manifold() {
     // fully would pinch the boundary at that point.
     let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0)]);
     let vp = validated(vec![lp]);
-    let e = revolve(&vp, axis_y(), Revolution::Full).unwrap_err();
+    let e = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap_err();
     assert!(
         matches!(e, RevolveError::NonManifoldAxisContact { .. }),
         "{e:?}"
     );
     // The same profile revolves fine PARTIALLY (axis vertex ordinary).
-    let t = revolve(&vp, axis_y(), Revolution::Partial(1.0)).unwrap();
+    let t = revolve(&vp, axis_y(), Revolution::Partial(1.0), Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
 }
 
@@ -110,22 +117,13 @@ fn two_axis_runs_in_full_revolve_are_typed() {
         p2(0.0, 1.0),
     ]);
     let vp = validated(vec![lp]);
-    let e = revolve(&vp, axis_y(), Revolution::Full).unwrap_err();
+    let e = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap_err();
     assert!(matches!(e, RevolveError::MultipleAxisRuns { .. }), "{e:?}");
 }
 
-#[test]
-fn holed_full_revolve_is_typed() {
-    let hole = ProfileLoop::polygon([
-        p2(1.25, 0.25),
-        p2(1.75, 0.25),
-        p2(1.75, 0.75),
-        p2(1.25, 0.75),
-    ]);
-    let vp = validated(vec![washer(), hole]);
-    let e = revolve(&vp, axis_y(), Revolution::Full).unwrap_err();
-    assert!(matches!(e, RevolveError::FullRevolveHoles), "{e:?}");
-}
+// A full revolve of a holed profile no longer refuses: it builds the
+// hollow ring through the void-insertion door — `revolve_ring.rs` is
+// the acceptance suite (the washer-with-hole fixture lives there).
 
 #[test]
 fn axis_crossing_tube_is_an_unsupported_toroid() {
@@ -138,7 +136,7 @@ fn axis_crossing_tube_is_an_unsupported_toroid() {
         ProfileVertex::new(p2(0.5, 0.0), 0.0),
     ]);
     let vp = validated(vec![lp]);
-    let e = revolve(&vp, axis_y(), Revolution::Partial(1.0)).unwrap_err();
+    let e = revolve(&vp, axis_y(), Revolution::Partial(1.0), Tol::witness()).unwrap_err();
     assert!(matches!(e, RevolveError::UnsupportedToroid { .. }), "{e:?}");
 }
 
@@ -151,6 +149,6 @@ fn arc_interior_across_the_axis_is_typed() {
         ProfileVertex::new(p2(0.0, 1.0), 0.0),
     ]);
     let vp = validated(vec![lp]);
-    let e = revolve(&vp, axis_y(), Revolution::Partial(1.0)).unwrap_err();
+    let e = revolve(&vp, axis_y(), Revolution::Partial(1.0), Tol::witness()).unwrap_err();
     assert!(matches!(e, RevolveError::ArcCrossesAxis { .. }), "{e:?}");
 }

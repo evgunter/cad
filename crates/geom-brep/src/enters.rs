@@ -144,11 +144,10 @@ impl<T: Real> OutwardNormal<T> {
 /// INVARIANT: there is no conversion from this type to an
 /// [`OutwardNormal`], and that asymmetry is the point —
 /// [`enters_material`]'s face slot stays closed to a vector that was
-/// never given a sense. The widening the other way would be sound (a
-/// face's outward normal is a valid reference side) but is not
-/// written: nothing in the kernel asks [`enters_material_order2`]
-/// about a face, and an impl with no caller is machinery, not a
-/// contract.
+/// never given a sense. The widening the other way
+/// ([`ReferenceNormal::of_face_outward`]) is sound and one-way: a
+/// face's outward normal is a valid reference side, with the sense
+/// already folded in by the [`OutwardNormal`] constructor.
 #[derive(Clone, Copy, Debug)]
 pub struct ReferenceNormal<T: Real>(Vec3<T>);
 
@@ -159,6 +158,16 @@ impl<T: Real> ReferenceNormal<T> {
     #[must_use]
     pub fn of_split_plane(normal: Vec3<T>) -> Self {
         Self(normal)
+    }
+
+    /// A **face's outward normal** as the reference side: Above is
+    /// outside the face's material, Below is inside it. The sound
+    /// widening (the sense bit was folded in when the
+    /// [`OutwardNormal`] was minted); the reverse conversion stays
+    /// unwritten (type docs).
+    #[must_use]
+    pub fn of_face_outward(normal: OutwardNormal<T>) -> Self {
+        Self(normal.vec())
     }
 
     /// The reference normal as a plain vector — crate-internal, for
@@ -283,9 +292,10 @@ fn decide<T: Decide>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+    use geom_core::Tol;
 
     fn band() -> Band {
-        Band::linear().unwrap()
+        Band::linear(Tol::witness()).unwrap()
     }
 
     /// Mirror check (F3): on a face whose outward normal is −z (a

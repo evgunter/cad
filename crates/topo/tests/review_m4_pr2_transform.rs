@@ -10,6 +10,7 @@ mod common;
 use std::f64::consts::{FRAC_PI_2, FRAC_PI_3};
 
 use common::{describe_as_intersections, prism_z};
+use geom_core::Tol;
 use geom_core::{Affine3, Mat3, Vec3};
 use topo::{
     Body, TransformError, mass_properties, transform_rigid, validate, validate_closed,
@@ -23,7 +24,7 @@ fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
 fn tiers_ok(b: &Body<f64>) {
     assert_eq!(validate(b), Ok(()));
     assert_eq!(validate_closed(b), Ok(()));
-    assert_eq!(validate_geometric(b), Ok(()));
+    assert_eq!(validate_geometric(b, Tol::witness()), Ok(()));
 }
 
 /// R1b: a NaN or infinite TRANSLATION passes the linear rigidity door
@@ -37,7 +38,7 @@ fn non_finite_translation_is_refused_not_laundered() {
         Vec3::new(0.0, f64::INFINITY, 0.0),
         Vec3::new(0.0, 0.0, f64::NEG_INFINITY),
     ] {
-        match transform_rigid(&b, &Affine3::translation(t)) {
+        match transform_rigid(&b, &Affine3::translation(t), Tol::witness()) {
             Ok(out) => {
                 // If it slipped through, the result MUST still be a
                 // valid body — a NaN point cloud here is a laundering
@@ -67,7 +68,7 @@ fn non_finite_translation_is_refused_not_laundered() {
 /// refuse typed.
 #[test]
 fn near_rigid_door_band_behavior() {
-    let tol = geom_core::Tolerance::get();
+    let tol = geom_core::Tol::witness().get();
     let (eps, kesc) = (tol.eps, tol.eps * tol.k);
     let b = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
     let with_c0x = |s: f64| {
@@ -84,18 +85,18 @@ fn near_rigid_door_band_behavior() {
     // — decided Zero, must PASS (a real rotation matrix carries this
     // much noise). eps*1e-4 stays sub-band on every row while ≫ ulp.
     assert!(
-        transform_rigid(&b, &with_c0x(1.0 + eps * 1e-4)).is_ok(),
+        transform_rigid(&b, &with_c0x(1.0 + eps * 1e-4), Tol::witness()).is_ok(),
         "rounding-level orthonormality noise must not refuse"
     );
     // In-band defect (norm² between zero and escalate, geometric
     // mean of the edges): maybe-rigid is not rigid — typed NotRigid.
     let in_band = (eps * kesc).sqrt();
-    match transform_rigid(&b, &with_c0x(1.0 + in_band / 2.0)) {
+    match transform_rigid(&b, &with_c0x(1.0 + in_band / 2.0), Tol::witness()) {
         Err(TransformError::NotRigid { .. }) => {}
         other => panic!("in-band defect: expected NotRigid, got {other:?}"),
     }
     // Past escalate: definite, refused.
-    match transform_rigid(&b, &with_c0x(1.0 + kesc * 2.0)) {
+    match transform_rigid(&b, &with_c0x(1.0 + kesc * 2.0), Tol::witness()) {
         Err(TransformError::NotRigid { .. }) => {}
         other => panic!("definite defect: expected NotRigid, got {other:?}"),
     }
@@ -103,7 +104,7 @@ fn near_rigid_door_band_behavior() {
     // column: det −1 with perfect columns.
     let r = Mat3::rotation_about(Vec3::new(0.0, 0.0, 1.0), FRAC_PI_3);
     let refl = Mat3::from_cols(r.c0, r.c1, Vec3::zero() - r.c2);
-    match transform_rigid(&b, &Affine3::from_parts(refl, Vec3::zero())) {
+    match transform_rigid(&b, &Affine3::from_parts(refl, Vec3::zero()), Tol::witness()) {
         Err(TransformError::NotRigid { check }) => {
             assert_eq!(check, "transform_rigid_det_plus_one");
         }
@@ -121,8 +122,8 @@ fn transform_is_bit_deterministic() {
         Mat3::rotation_about(Vec3::new(1.0, 2.0, 3.0).normalize(), FRAC_PI_3),
         Vec3::new(0.1, -0.2, 0.3),
     );
-    let t1 = transform_rigid(&b, &map).unwrap();
-    let t2 = transform_rigid(&b, &map).unwrap();
+    let t1 = transform_rigid(&b, &map, Tol::witness()).unwrap();
+    let t2 = transform_rigid(&b, &map, Tol::witness()).unwrap();
     assert_eq!(
         arena_dump(&t1),
         arena_dump(&t2),
@@ -154,7 +155,7 @@ fn rotation_composition_keeps_witness_residuals_honest() {
             Mat3::rotation_about(axes[i % 4], FRAC_PI_3 + 0.01 * i as f64),
             Vec3::new(0.25, -0.5, 0.125),
         );
-        cur = match transform_rigid(&cur, &map) {
+        cur = match transform_rigid(&cur, &map, Tol::witness()) {
             Ok(t) => t,
             Err(e) => panic!("step {i}: typed refusal {e:?} — fail-loud but surprising"),
         };
@@ -183,11 +184,11 @@ fn long_thin_feature_transform_is_honest_either_way() {
         Mat3::rotation_about(Vec3::new(0.0, 0.0, 1.0), FRAC_PI_3),
         Vec3::zero(),
     );
-    match transform_rigid(&b, &map) {
+    match transform_rigid(&b, &map, Tol::witness()) {
         Ok(t) => {
             tiers_ok(&t);
-            let m0 = mass_properties(&b).unwrap();
-            let m1 = mass_properties(&t).unwrap();
+            let m0 = mass_properties(&b, Tol::witness()).unwrap();
+            let m1 = mass_properties(&t, Tol::witness()).unwrap();
             let rel = ((m1.volume - m0.volume) / m0.volume).abs();
             eprintln!("long-thin took the Ok path; rel volume drift {rel:e}");
             assert!(rel < 1e-9, "volume drifted rel {rel:e} under a rigid map");
@@ -216,7 +217,7 @@ fn extreme_scale_fires_the_certify_door_or_stays_valid() {
         Mat3::rotation_about(Vec3::new(0.0, 0.0, 1.0), FRAC_PI_3),
         Vec3::zero(),
     );
-    match transform_rigid(&b, &map) {
+    match transform_rigid(&b, &map, Tol::witness()) {
         Ok(t) => {
             eprintln!("1e9 scale took the Ok path");
             tiers_ok(&t);
@@ -262,7 +263,7 @@ fn keys_and_topology_are_bit_stable_under_rotation() {
         Mat3::rotation_about(Vec3::new(0.0, 1.0, 0.0), FRAC_PI_2),
         Vec3::new(-3.0, 7.0, 0.5),
     );
-    let t = transform_rigid(&b, &map).unwrap();
+    let t = transform_rigid(&b, &map, Tol::witness()).unwrap();
     let keys = |bb: &Body<f64>| {
         (
             bb.points()

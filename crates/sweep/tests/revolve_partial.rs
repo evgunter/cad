@@ -12,6 +12,7 @@ use core::f64::consts::{FRAC_PI_2, PI};
 use profile::RawLoop;
 
 use geom_brep::EdgeGeometry;
+use geom_core::Tol;
 use profile::ProfileLoop;
 use revolve_common::*;
 use sweep::{Revolution, RevolvedKind, revolve};
@@ -25,7 +26,7 @@ fn square() -> ProfileLoop<f64> {
 
 fn check_wedge(theta: f64) {
     let vp = validated(vec![square()]);
-    let t = revolve(&vp, axis_y(), Revolution::Partial(theta)).unwrap();
+    let t = revolve(&vp, axis_y(), Revolution::Partial(theta), Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
     // V6 E9 F5 R0 (2 shared axis vertices + 2 × 2 swept corners;
     // 4 chain + 3 copied chain + 2 latitude struts; 2 caps + 3 walls):
@@ -92,7 +93,7 @@ fn half_revolve_axis_edge_stays_conventional() {
     // dihedral is definitely smooth, so it keeps its conventional
     // MappedCurve description (the D2 split; tier 3 permits it).
     let vp = validated(vec![square()]);
-    let t = revolve(&vp, axis_y(), Revolution::Partial(PI)).unwrap();
+    let t = revolve(&vp, axis_y(), Revolution::Partial(PI), Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
     let RevolvedKind::Partial {
         start_meridians, ..
@@ -116,7 +117,13 @@ fn off_axis_wedge_with_hole_is_extrude_shaped() {
     let outer = ProfileLoop::polygon([p2(1.0, 0.0), p2(3.0, 0.0), p2(3.0, 2.0), p2(1.0, 2.0)]);
     let hole = ProfileLoop::polygon([p2(1.5, 0.5), p2(2.5, 0.5), p2(2.5, 1.5), p2(1.5, 1.5)]);
     let vp = validated(vec![outer, hole]);
-    let t = revolve(&vp, axis_y(), Revolution::Partial(FRAC_PI_2)).unwrap();
+    let t = revolve(
+        &vp,
+        axis_y(),
+        Revolution::Partial(FRAC_PI_2),
+        Tol::witness(),
+    )
+    .unwrap();
     assert_all_tiers(&t.body);
     // Wedge with a through-tunnel: genus 1 (v − e + f − r = 0 with
     // r = 2 cap rings): V16 E24 F10 R2.

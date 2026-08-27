@@ -201,9 +201,12 @@ fn ring<T: CertifiedEnclosure>(v: T) -> RingInterval {
 /// direction for a widening is the largest value the operand could
 /// stand for.
 ///
-/// Poison, and a bracket whose upper end is negative, yield poison
-/// through [`RingInterval::from_bounds`] (`−hi ≤ hi` fails), which then
-/// fails every downstream test rather than shrinking a box. Stated
+/// An operand that cannot certify is refused at the door and yields
+/// poison here; a bracket whose upper end is negative is admitted by the
+/// door and yields poison at [`RingInterval::from_bounds`] (`−hi ≤ hi`
+/// fails). Either way the pad fails every downstream test rather than
+/// shrinking a box, and the two refusals stay distinct because only one
+/// of them is about the operand's right to certify anything. Stated
 /// precisely because the weaker claim is the true one: a bracket that
 /// merely STRADDLES zero has `hi ≥ 0` and pads by its upper end, which
 /// is sound — it is only an entirely-negative radius that poisons.
@@ -219,6 +222,9 @@ fn dot3(a: [RingInterval; 3], b: [RingInterval; 3]) -> RingInterval {
     a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
 }
 
+/// (Component-for-component `offset_meters::cross`, which is the
+/// borrow-shaped twin one crate module over; noted at both sites so
+/// the duplication is a decision. A third consumer collapses them.)
 fn cross3(a: [RingInterval; 3], b: [RingInterval; 3]) -> [RingInterval; 3] {
     [
         a[1] * b[2] - a[2] * b[1],
@@ -294,7 +300,11 @@ pub(crate) fn implicit_enclosure<T: CertifiedBounds>(
             let w = [q[0] - a[0] * h, q[1] - a[1] * h, q[2] - a[2] * h];
             (norm_sq(w) - ring(radius).sqr()) / (two * ring(radius))
         }
-        Surface::Cone { .. } | Surface::Torus { .. } | Surface::Nurbs(_) => RingInterval::poison(),
+        // `Approx` with the no-enclosure group: the implicit forms this
+        // module encloses do not exist for a spline stand-in.
+        Surface::Cone { .. } | Surface::Torus { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
+            RingInterval::poison()
+        }
     }
 }
 
@@ -331,7 +341,11 @@ pub(crate) fn implicit_gradient_enclosure<T: CertifiedBounds>(
                 (q[2] - a[2] * h) / ring(radius),
             ]
         }
-        Surface::Cone { .. } | Surface::Torus { .. } | Surface::Nurbs(_) => poison,
+        // As the residual enclosure above: no implicit form, no
+        // gradient enclosure.
+        Surface::Cone { .. } | Surface::Torus { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
+            poison
+        }
     }
 }
 
@@ -858,6 +872,56 @@ mod tests {
         // Widest axis is x.
         assert!((l.x.hi() - 1.0).abs() < 1e-15 && (r.x.lo() - 1.0).abs() < 1e-15);
         assert!(l.width() < b.width());
+    }
+
+    /// **The two crossings agree with the door, whichever way it
+    /// answers.** `ring` destructures a refusal to poison and
+    /// `pad_interval` reads the bracket's upper end, so the door
+    /// beginning to REFUSE a value it used to hand over as a NaN bracket
+    /// takes a different branch through both of them. The `f64` lane is
+    /// where that is reachable without a feature: NaN is its poison, and
+    /// the door stops it here rather than leaving it to
+    /// `RingInterval::from_bounds`.
+    ///
+    /// **An infinite radius is a different case and deliberately not
+    /// poison** — ∞ is not `f64` poison (D4's Q1 residue), so the door
+    /// hands it over and `[−∞, ∞]` is what a pad of unbounded radius
+    /// honestly encloses. It is useless rather than wrong, and what
+    /// stops it is its width, downstream. The row pins the boundary
+    /// between the two so neither can drift into the other unnoticed.
+    #[test]
+    fn a_poisoned_f64_refuses_at_the_door_and_still_lands_on_poison() {
+        let origin = Point3::new(0.0, 0.0, 0.0);
+        let nan_pad = Box3::around(origin, f64::NAN);
+        assert!(
+            nan_pad.x.is_poison() && nan_pad.y.is_poison() && nan_pad.z.is_poison(),
+            "a NaN radius padded to {:?}",
+            nan_pad.x
+        );
+        let inf_pad = Box3::around(origin, f64::INFINITY);
+        assert_eq!(
+            (inf_pad.x.lo(), inf_pad.x.hi()),
+            (f64::NEG_INFINITY, f64::INFINITY),
+            "an infinite radius must enclose everything, not refuse"
+        );
+
+        let bad_centre = Box3::around(Point3::new(f64::NAN, 0.0, 0.0), 0.5);
+        assert!(bad_centre.x.is_poison(), "a NaN centre built a box");
+        assert!(
+            !bad_centre.y.is_poison(),
+            "the healthy coordinates must still build: poison is per-axis here"
+        );
+        let good = Box3::around(origin, 0.5);
+        assert!(
+            !good.x.is_poison() && good.x.contains(-0.5) && good.x.contains(0.5),
+            "the healthy pad must still build, or the row proves nothing: {:?}",
+            good.x
+        );
+        assert!(
+            good.x.width() < 1.5,
+            "the healthy pad widened to {:?}",
+            good.x
+        );
     }
 
     /// **The M6-2 seam requires the certified door.**

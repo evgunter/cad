@@ -4,7 +4,7 @@
 //! `split_edge` lane — with the conic crossing-root lane for
 //! circle/ellipse carriers.
 
-use geom_core::{Band, Decide, Margin, Sign};
+use geom_core::{Band, Decide, Margin, Sign, Tol};
 use slotmap::SecondaryMap;
 
 use super::{PlaneSide, SplitPlane, SplitReduceError};
@@ -20,8 +20,9 @@ use crate::validate::decide;
 /// here). Every other kind refuses typed, **citing its rung routing**
 /// (`CurvedBooleanUnsupported` retires per arm, never wholesale).
 /// Edge carriers: `Line`/`Circle`/`Ellipse` pass (the crossing and
-/// split lanes handle all three); `Nurbs` refuses typed (rung 3,
-/// unimplemented until SSI). Pre-existing null scaffolding refuses as
+/// split lanes handle all three); `Nurbs` refuses typed (a rung-3
+/// carrier in the input operand — the general rung is implemented, this
+/// gate has not retired). Pre-existing null scaffolding refuses as
 /// ever.
 pub(super) fn gate_operand<T: Decide>(body: &Body<T>) -> Result<(), SplitReduceError> {
     for (face_key, face) in body.faces() {
@@ -34,10 +35,15 @@ pub(super) fn gate_operand<T: Decide>(body: &Body<T>) -> Result<(), SplitReduceE
         let kind = geom_brep::SurfaceKind::of(surface);
         match kind {
             geom_brep::SurfaceKind::Plane | geom_brep::SurfaceKind::Cylinder => {}
+            // `Approx` refuses HERE, by kind, rather than passing as
+            // the spline its fit is: a split arm executed against the
+            // fit would cut the approximation, not the surface the
+            // modeller described.
             geom_brep::SurfaceKind::Cone
             | geom_brep::SurfaceKind::Sphere
             | geom_brep::SurfaceKind::Torus
-            | geom_brep::SurfaceKind::Nurbs => {
+            | geom_brep::SurfaceKind::Nurbs
+            | geom_brep::SurfaceKind::Approx => {
                 return Err(SplitReduceError::CurvedBooleanUnsupported {
                     face: face_key,
                     kind,
@@ -332,8 +338,9 @@ pub(super) fn insert_crossings<T: Decide>(
     plane: &SplitPlane<T>,
     sides: &mut SecondaryMap<VertexKey, PlaneSide>,
     on_vertices: &mut Vec<VertexKey>,
+    tol: Tol,
 ) -> Result<(), SplitReduceError> {
-    let band = geom_core::Band::linear()?;
+    let band = geom_core::Band::linear(tol)?;
     // Snapshot: splitting adds edges; only operand edges can cross (a
     // split child's remaining crossing is handled through the parent's
     // precomputed root list below).
@@ -395,7 +402,7 @@ pub(super) fn insert_crossings<T: Decide>(
             // Any refusal here (in practice the certification lane's
             // strict-row ResidualExceeded) gets the crossing site
             // attached; the typed Euler error stays nested whole.
-            let created = body.split_edge(target, t).map_err(|source| {
+            let created = body.split_edge(target, t, tol).map_err(|source| {
                 SplitReduceError::CrossingInsertion {
                     edge: target,
                     endpoints: (u, v),

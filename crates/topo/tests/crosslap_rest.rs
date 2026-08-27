@@ -30,6 +30,7 @@
 mod common;
 
 use common::{flush_declarations, prism_z};
+use geom_core::Tol;
 use topo::{
     BooleanError, BooleanResult, mass_properties, subtract, union, union_with, validate_geometric,
     validate_pseudomanifold,
@@ -49,7 +50,9 @@ fn notched_beams() -> (topo::Body<f64>, topo::Body<f64>) {
         0.25,
         0.75,
     );
-    let BooleanResult::Body(a) = subtract(&beam_a.body, &cut_a.body).expect("notch A") else {
+    let BooleanResult::Body(a) =
+        subtract(&beam_a.body, &cut_a.body, Tol::witness()).expect("notch A")
+    else {
         panic!("notch A yields a body");
     };
     let beam_b = prism_z::<f64>(
@@ -62,12 +65,16 @@ fn notched_beams() -> (topo::Body<f64>, topo::Body<f64>) {
         -0.25,
         0.25,
     );
-    let BooleanResult::Body(b) = subtract(&beam_b.body, &cut_b.body).expect("notch B") else {
+    let BooleanResult::Body(b) =
+        subtract(&beam_b.body, &cut_b.body, Tol::witness()).expect("notch B")
+    else {
         panic!("notch B yields a body");
     };
     for (label, notched) in [("A", &a), ("B", &b)] {
         assert_eq!(
-            mass_properties(&notched.body).unwrap().volume,
+            mass_properties(&notched.body, Tol::witness())
+                .unwrap()
+                .volume,
             BEAM_VOL - NOTCH_VOL,
             "notched beam {label}: exact dyadic volume"
         );
@@ -78,7 +85,9 @@ fn notched_beams() -> (topo::Body<f64>, topo::Body<f64>) {
 /// The glued union (the declared door), shared by the pins below.
 fn glued() -> topo::BooleanBody<f64> {
     let (a, b) = notched_beams();
-    match union_with(&a, &b, &flush_declarations(&a, &b)).expect("declared mate unions") {
+    match union_with(&a, &b, &flush_declarations(&a, &b), Tol::witness())
+        .expect("declared mate unions")
+    {
         BooleanResult::Body(body) => body,
         BooleanResult::Empty => panic!("mated union cannot be empty"),
     }
@@ -91,7 +100,7 @@ fn glued() -> topo::BooleanBody<f64> {
 #[test]
 fn undeclared_crosslap_refuses_at_the_coincidence_door() {
     let (a, b) = notched_beams();
-    match union(&a, &b) {
+    match union(&a, &b, Tol::witness()) {
         Err(BooleanError::UndeclaredCoincidence { .. }) => {}
         other => panic!("expected UndeclaredCoincidence, got {other:?}"),
     }
@@ -106,13 +115,17 @@ fn declared_crosslap_rest_union_builds() {
     let glued = glued();
     assert_eq!(glued.kind, topo::BooleanResultKind::Seamed);
     assert_eq!(
-        mass_properties(&glued.body).unwrap().volume,
+        mass_properties(&glued.body, Tol::witness()).unwrap().volume,
         2.0 * (BEAM_VOL - NOTCH_VOL),
         "exact dyadic volume additivity (disjoint interiors)"
     );
-    assert_eq!(validate_geometric(&glued.body), Ok(()), "tier 3");
     assert_eq!(
-        validate_pseudomanifold(&glued.body, &glued.contacts),
+        validate_geometric(&glued.body, Tol::witness()),
+        Ok(()),
+        "tier 3"
+    );
+    assert_eq!(
+        validate_pseudomanifold(&glued.body, &glued.contacts, Tol::witness()),
         Ok(()),
         "3′ with the surviving records"
     );
@@ -135,7 +148,7 @@ fn declared_crosslap_rest_union_builds() {
 #[test]
 fn declared_crosslap_union_exports_watertight() {
     let glued = glued();
-    let mesh = mesh::tessellate(&glued.body, 1e-2).expect("tessellate");
+    let mesh = mesh::tessellate(&glued.body, 1e-2, Tol::witness()).expect("tessellate");
     mesh::validate::check_mesh(&mesh).expect("watertight, consistently oriented");
     let v_mesh = mesh::validate::signed_volume(&mesh);
     let exact = 2.0 * (BEAM_VOL - NOTCH_VOL);
@@ -146,8 +159,12 @@ fn declared_crosslap_union_exports_watertight() {
     let mut stl = Vec::new();
     stl::write_binary(&mesh, &stl::BinaryOptions::default(), &mut stl).expect("STL row");
     assert!(!stl.is_empty());
-    let step = step_export::step_string(&glued.body, &step_export::StepOptions::default())
-        .expect("STEP row");
+    let step = step_export::step_string(
+        &glued.body,
+        &step_export::StepOptions::default(),
+        Tol::witness(),
+    )
+    .expect("STEP row");
     assert!(step.contains("ADVANCED_BREP_SHAPE_REPRESENTATION"));
 }
 
@@ -169,7 +186,7 @@ fn declared_crosslap_union_rerun_is_bit_identical() {
     assert_eq!(g1.naming.face_fragments_a, g2.naming.face_fragments_a);
     assert_eq!(g1.naming.face_fragments_b, g2.naming.face_fragments_b);
     let stl_of = |g: &topo::BooleanBody<f64>| {
-        let mesh = mesh::tessellate(&g.body, 1e-2).expect("tessellate");
+        let mesh = mesh::tessellate(&g.body, 1e-2, Tol::witness()).expect("tessellate");
         let mut buf = Vec::new();
         stl::write_binary(&mesh, &stl::BinaryOptions::default(), &mut buf).expect("stl");
         buf

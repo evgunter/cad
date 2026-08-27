@@ -134,8 +134,10 @@ pub fn implicit_residual<T: Real>(s: &Surface<T>, p: Point3<T>) -> T {
         }
         // STAYS poison after M5 PR 3 gave the variant a payload: a NURBS
         // carrier has no implicit form — foot-point machinery (C2.1,
-        // M5 PR 4) owns that story, not this module.
-        Surface::Nurbs(_) => poison(),
+        // M5 PR 4) owns that story, not this module. `Approx` joins it:
+        // the fit is a spline, and an offset description has no
+        // implicit form to inherit either.
+        Surface::Nurbs(_) | Surface::Approx(_) => poison(),
     }
 }
 
@@ -186,7 +188,10 @@ pub fn implicit_gradient<T: Real>(s: &Surface<T>, p: Point3<T>) -> Vec3<T> {
         // STAYS poison after M5 PR 3 gave the variant a payload: a NURBS
         // carrier has no implicit form — foot-point machinery (C2.1,
         // M5 PR 4) owns that story, not this module.
-        Surface::Nurbs(_) => poison_vec(),
+        // As `Nurbs`, and for the same reason one level in: an
+        // approximating surface's stand-in IS a spline, so it has no
+        // implicit form either — and its description has none to lend.
+        Surface::Nurbs(_) | Surface::Approx(_) => poison_vec(),
     }
 }
 
@@ -212,7 +217,9 @@ pub fn curvature_lever_arm<T: Real>(s: &Surface<T>, p: Point3<T>) -> T {
         // STAYS poison after M5 PR 3 gave the variant a payload: a NURBS
         // carrier has no implicit form — foot-point machinery (C2.1,
         // M5 PR 4) owns that story, not this module.
-        Surface::Nurbs(_) => poison(),
+        // As `Nurbs`: the stand-in is a spline, so no implicit form —
+        // and the offset description has no closed lever arm to lend.
+        Surface::Nurbs(_) | Surface::Approx(_) => poison(),
     }
 }
 
@@ -273,7 +280,9 @@ pub fn implicit_hessian_form<T: Real>(s: &Surface<T>, p: Point3<T>, d: Vec3<T>) 
             let d_perp2 = d.norm_squared() - d_ax.powi(2) - d_w.powi(2);
             (d_perp2 * (rho - major_radius) / rho + d_w.powi(2) + d_ax.powi(2)) / minor_radius
         }
-        Surface::Nurbs(_) => poison(),
+        // As `implicit_residual`: no implicit form, so no Hessian of
+        // one — for the spline fit or the description behind it.
+        Surface::Nurbs(_) | Surface::Approx(_) => poison(),
     }
 }
 
@@ -351,6 +360,47 @@ pub fn circle_residual_extremes<T: Real>(
     radius: T,
     u_ref: Vec3<T>,
 ) -> Option<(T, T)> {
+    let (c0, a1, a2) = circle_residual_harmonics(s, center, axis, radius, u_ref)?;
+    Some((c0 - a1 - a2, c0 + a1 + a2))
+}
+
+/// A bound on `|d²F/dθ²|` for [`implicit_residual`] composed with the
+/// same circle carrier — the curvature term an ARC-SCOPED clearance
+/// needs.
+///
+/// The composed residual is `c₀ + A₁cos(θ−φ₁) + A₂cos(2θ−φ₂)` (the
+/// second harmonic present only against a cylinder), so differentiating
+/// twice multiplies the harmonics by `1` and `4`: `|F″| ≤ A₁ + 4A₂`.
+/// With it, a smooth function's dip below its ENDPOINT CHORD is at most
+/// `|F″|max·Δθ²/8` — the same total-arithmetic bound the line row uses
+/// along a segment, and the reason an arc can clear where the whole
+/// circle it rides cannot.
+///
+/// `None` for the kinds without the closed harmonic form. Total
+/// arithmetic: poison in, poison out.
+#[must_use]
+pub fn circle_residual_curvature_bound<T: Real>(
+    s: &Surface<T>,
+    center: Point3<T>,
+    axis: Vec3<T>,
+    radius: T,
+    u_ref: Vec3<T>,
+) -> Option<T> {
+    let (_, a1, a2) = circle_residual_harmonics(s, center, axis, radius, u_ref)?;
+    Some(a1 + T::from_f64(4.0) * a2)
+}
+
+/// The composed residual's harmonic decomposition in RESIDUAL units:
+/// `(c₀, A₁, A₂)` of `c₀ + A₁cos(θ−φ₁) + A₂cos(2θ−φ₂)`. Both readers
+/// above are views of this one algebra, so the range and the curvature
+/// bound cannot drift apart.
+fn circle_residual_harmonics<T: Real>(
+    s: &Surface<T>,
+    center: Point3<T>,
+    axis: Vec3<T>,
+    radius: T,
+    u_ref: Vec3<T>,
+) -> Option<(T, T, T)> {
     let two = T::from_f64(2.0);
     let u = u_ref;
     let v = axis.cross(u_ref);
@@ -359,7 +409,7 @@ pub fn circle_residual_extremes<T: Real>(
         Surface::Plane { origin, normal, .. } => {
             let c0 = (center - origin).dot(normal);
             let a1 = radius * amp(u.dot(normal), v.dot(normal));
-            Some((c0 - a1, c0 + a1))
+            Some((c0, a1, T::zero()))
         }
         Surface::Sphere {
             center: sc,
@@ -372,10 +422,7 @@ pub fn circle_residual_extremes<T: Real>(
             let e = center - sc;
             let c0 = e.norm_squared() + radius.powi(2);
             let a1 = two * radius * amp(e.dot(u), e.dot(v));
-            Some((
-                (c0 - a1 - r.powi(2)) / (two * r),
-                (c0 + a1 - r.powi(2)) / (two * r),
-            ))
+            Some(((c0 - r.powi(2)) / (two * r), a1 / (two * r), T::zero()))
         }
         Surface::Cylinder {
             origin,
@@ -402,12 +449,13 @@ pub fn circle_residual_extremes<T: Real>(
             let a1 = two * radius * amp(e.dot(up), e.dot(vp));
             let a2 =
                 radius.powi(2) * amp((up.norm_squared() - vp.norm_squared()) / two, up.dot(vp));
-            Some((
-                (c0 - a1 - a2 - r.powi(2)) / (two * r),
-                (c0 + a1 + a2 - r.powi(2)) / (two * r),
-            ))
+            Some(((c0 - r.powi(2)) / (two * r), a1 / (two * r), a2 / (two * r)))
         }
-        Surface::Cone { .. } | Surface::Torus { .. } | Surface::Nurbs(_) => None,
+        // `Approx` joins the no-closed-form group: the fit is a spline
+        // and the description's offset locus has no harmonic residual.
+        Surface::Cone { .. } | Surface::Torus { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
+            None
+        }
     }
 }
 
@@ -423,7 +471,9 @@ pub(crate) fn seam_frame<T: Real>(
 ) -> Option<(Vec3<T>, Vec3<T>, Vec3<T>)> {
     let (anchor, axis, u_ref) = match *s {
         // Nurbs: no implicit/seam form (C2.1 foot points, M5 PR 4).
-        Surface::Plane { .. } | Surface::Nurbs(_) => return None,
+        // Approx: neither — its stand-in is a spline, and an offset
+        // description carries no axis to hang a seam frame on.
+        Surface::Plane { .. } | Surface::Nurbs(_) | Surface::Approx(_) => return None,
         Surface::Cylinder {
             origin,
             axis,
@@ -678,5 +728,266 @@ mod tests {
             u_ref: Vec3::unit_x(),
         };
         assert!(circle_residual_extremes(&torus, center, axis, radius, u_ref).is_none());
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod arc_clearance_tests {
+    use core::f64::consts::{PI, TAU};
+
+    use super::*;
+
+    /// One (surface, circle) pair the rows below sample.
+    struct Case {
+        name: &'static str,
+        surface: Surface<f64>,
+        center: Point3<f64>,
+        axis: Vec3<f64>,
+        radius: f64,
+        u_ref: Vec3<f64>,
+    }
+
+    fn case(
+        name: &'static str,
+        surface: Surface<f64>,
+        center: Point3<f64>,
+        axis: Vec3<f64>,
+        radius: f64,
+        u_ref: Vec3<f64>,
+    ) -> Case {
+        Case {
+            name,
+            surface,
+            center,
+            axis,
+            radius,
+            u_ref,
+        }
+    }
+
+    /// A spread of (surface, circle) pairs whose composed residual
+    /// exercises BOTH harmonics: the cylinder rows tilt the circle
+    /// against the wall axis, which is the only way `A₂` is nonzero,
+    /// and the plane/sphere rows pin the first-harmonic-only arms.
+    fn cases() -> Vec<Case> {
+        let z = Vec3::new(0.0, 0.0, 1.0);
+        let x = Vec3::new(1.0, 0.0, 0.0);
+        // A circle whose axis is tilted 45° from the wall's: the
+        // composed squared distance then has a genuine second harmonic.
+        let tilt = Vec3::new(0.0, 1.0, 1.0).normalize();
+        let tilt_u = Vec3::new(1.0, 0.0, 0.0);
+        let steep = Vec3::new(0.0, 3.0, 1.0).normalize();
+        vec![
+            case(
+                "cylinder, tilted circle (A2 large)",
+                Surface::Cylinder {
+                    origin: Point3::new(-1.0, 0.0, 0.0),
+                    axis: z,
+                    radius: 1.6,
+                    u_ref: x,
+                },
+                Point3::new(0.0, 0.0, 0.0),
+                tilt,
+                1.0,
+                tilt_u,
+            ),
+            case(
+                "cylinder, steeply tilted circle",
+                Surface::Cylinder {
+                    origin: Point3::new(0.4, -0.3, 0.0),
+                    axis: z,
+                    radius: 0.9,
+                    u_ref: x,
+                },
+                Point3::new(0.2, 0.1, 0.0),
+                steep,
+                1.3,
+                tilt_u,
+            ),
+            case(
+                "cylinder, coaxial circle (A2 = 0)",
+                Surface::Cylinder {
+                    origin: Point3::new(-1.0, 0.0, 0.0),
+                    axis: z,
+                    radius: 1.6,
+                    u_ref: x,
+                },
+                Point3::new(0.0, 0.0, 0.0),
+                z,
+                1.0,
+                x,
+            ),
+            case(
+                "sphere",
+                Surface::Sphere {
+                    center: Point3::new(-1.0, 0.0, 0.0),
+                    radius: 1.2,
+                    axis: z,
+                    u_ref: x,
+                },
+                Point3::new(0.0, 0.0, 0.0),
+                z,
+                1.0,
+                x,
+            ),
+            case(
+                "plane",
+                Surface::Plane {
+                    origin: Point3::new(0.0, 0.0, 0.1),
+                    normal: Vec3::new(0.3, 0.0, 1.0).normalize(),
+                    u_ref: x,
+                },
+                Point3::new(0.0, 0.0, 0.0),
+                z,
+                1.0,
+                x,
+            ),
+        ]
+    }
+
+    fn residual_at(
+        s: &Surface<f64>,
+        c: Point3<f64>,
+        axis: Vec3<f64>,
+        r: f64,
+        u: Vec3<f64>,
+        theta: f64,
+    ) -> f64 {
+        let v = axis.cross(u);
+        implicit_residual(s, c + u * (r * theta.cos()) + v * (r * theta.sin()))
+    }
+
+    /// **The curvature bound must ENCLOSE.** `|F″| ≤ A₁ + 4A₂` is what
+    /// licenses the arc's chord-dip clearance, and it is the one
+    /// constant in that computation whose only effect is to WIDEN
+    /// acceptance — too small and the boolean's circle row clears an
+    /// arc that meets the face.
+    ///
+    /// Sampled second differences are the oracle. **Planted-corruption
+    /// check**: replacing the `4.0` in
+    /// [`circle_residual_curvature_bound`] with `2.0` reds this row on
+    /// both tilted-cylinder cases (their `A₂` is the dominant term);
+    /// the coaxial, sphere and plane cases have `A₂ = 0` and cannot
+    /// see that constant at all, which is why the tilted rows are here.
+    #[test]
+    fn the_curvature_bound_encloses_the_sampled_second_derivative() {
+        const N: usize = 4096;
+        for Case {
+            name,
+            surface: s,
+            center: c,
+            axis,
+            radius: r,
+            u_ref: u,
+        } in cases()
+        {
+            let bound = circle_residual_curvature_bound(&s, c, axis, r, u).expect("closed form");
+            let h = TAU / N as f64;
+            let mut worst: f64 = 0.0;
+            for k in 0..N {
+                let t = k as f64 * h;
+                let f2 = (residual_at(&s, c, axis, r, u, t + h)
+                    - 2.0 * residual_at(&s, c, axis, r, u, t)
+                    + residual_at(&s, c, axis, r, u, t - h))
+                    / (h * h);
+                worst = worst.max(f2.abs());
+            }
+            assert!(
+                bound >= worst - 1e-6,
+                "{name}: |F''| bound {bound} under-encloses the sampled {worst}"
+            );
+        }
+    }
+
+    /// **The chord-dip lower bound must LOWER-bound the arc.** This is
+    /// the boolean circle row's accepting computation, verbatim: an arc
+    /// clears when `min(F(t0), F(t1)) − |F″|·Δθ²/8` is positive, so
+    /// that expression must never exceed the arc's true minimum. Every
+    /// span from a sliver to a full turn, on every case.
+    ///
+    /// The same `4.0 → 2.0` corruption reds this row too, and it is the
+    /// row that names the CONSEQUENCE: the bound would claim clearance
+    /// the arc does not have.
+    #[test]
+    fn the_chord_dip_bound_never_exceeds_the_arcs_true_minimum() {
+        const N: usize = 512;
+        for Case {
+            name,
+            surface: s,
+            center: c,
+            axis,
+            radius: r,
+            u_ref: u,
+        } in cases()
+        {
+            let f2 = circle_residual_curvature_bound(&s, c, axis, r, u).expect("closed form");
+            for span_steps in 1..=16 {
+                let span = TAU * f64::from(span_steps) / 16.0;
+                for start_steps in 0..8 {
+                    let t0 = TAU * f64::from(start_steps) / 8.0;
+                    let t1 = t0 + span;
+                    let claimed = residual_at(&s, c, axis, r, u, t0)
+                        .min(residual_at(&s, c, axis, r, u, t1))
+                        - f2 * span.powi(2) * 0.125;
+                    let mut truth = f64::INFINITY;
+                    for k in 0..=N {
+                        let t = t0 + span * k as f64 / N as f64;
+                        truth = truth.min(residual_at(&s, c, axis, r, u, t));
+                    }
+                    assert!(
+                        claimed <= truth + 1e-9,
+                        "{name}: span {span} from {t0}: chord-dip claims {claimed} \
+                         but the arc dips to {truth}"
+                    );
+                }
+            }
+        }
+    }
+
+    /// **The accepting direction EXISTS, and these are its numbers.**
+    /// A row that only checked soundness would stay green if the arc
+    /// bound were deleted, so this pins a configuration where the arc
+    /// decides and the carrier cannot: a unit circle about the origin
+    /// against a wall of radius 1.6 about `(−1, 0)`. The carrier dives
+    /// 0.8 m inside that wall near `θ = π`, so the whole-circle
+    /// enclosure straddles and refuses; the 60° arc from `θ = 0` stands
+    /// clear, and the chord-dip bound proves it.
+    #[test]
+    fn a_short_arc_clears_a_carrier_that_straddles() {
+        let s = Surface::Cylinder {
+            origin: Point3::new(-1.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 1.6,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let (c, axis, r, u) = (
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            1.0,
+            Vec3::new(1.0, 0.0, 0.0),
+        );
+        let (lo, hi) = circle_residual_extremes(&s, c, axis, r, u).expect("closed form");
+        let carrier_margin = lo.max(-hi);
+        assert!(
+            carrier_margin < 0.0,
+            "the carrier must straddle for this row to mean anything: {carrier_margin}"
+        );
+        let (t0, t1) = (0.0, PI / 3.0);
+        let f2 = circle_residual_curvature_bound(&s, c, axis, r, u).expect("closed form");
+        let dip = f2 * (t1 - t0).powi(2) * 0.125;
+        let r_u = residual_at(&s, c, axis, r, u, t0);
+        let r_v = residual_at(&s, c, axis, r, u, t1);
+        let arc_margin = (r_u.min(r_v) - dip).max(-(r_u.max(r_v) + dip));
+        assert!(
+            arc_margin > 1e-3,
+            "the arc must clear DEFINITELY, well outside any band: {arc_margin}"
+        );
+        // And the arc really is clear — the bound is not clearing a
+        // meeting.
+        for k in 0..=512 {
+            let t = t0 + (t1 - t0) * f64::from(k) / 512.0;
+            assert!(residual_at(&s, c, axis, r, u, t) > 0.0);
+        }
     }
 }

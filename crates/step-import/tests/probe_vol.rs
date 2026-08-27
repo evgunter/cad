@@ -2,6 +2,7 @@
 //! against the independently re-run oracle numbers.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use geom_core::Tol;
 use step_import::{ImportOptions, StepImport, import_step};
 
 /// (fixture, oracle volume mm3) — from MY OWN freecadcmd re-run on the
@@ -26,7 +27,7 @@ const REORACLE: [(&str, f64); 9] = [
 
 #[test]
 fn measured_relative_volume_agreement() {
-    let eps = geom_core::Tolerance::get().eps;
+    let eps = geom_core::Tol::witness().get().eps;
     let mut worst = 0.0f64;
     let mut compared = 0;
     for (name, oracle) in REORACLE {
@@ -40,7 +41,7 @@ fn measured_relative_volume_agreement() {
         // fixtures that reached a volume and holds those to the same
         // budget: a real assertion at every ε, rather than either a
         // failure on a documented refusal or a green tick for nothing.
-        let body = match import_step(&text, &ImportOptions::default()) {
+        let body = match import_step(&text, &ImportOptions::default(), Tol::witness()) {
             Ok(StepImport::Solid { body, .. }) => body,
             Ok(other) => panic!("{name}: a solid, got {other:?}"),
             Err(e) => {
@@ -51,7 +52,7 @@ fn measured_relative_volume_agreement() {
         // A body that DID import must still be measurable. "Imported,
         // but declines to compute a volume" is precisely the state the
         // periodic-band refusal exists to keep out of this corpus.
-        let v = topo::mass_properties(&body)
+        let v = topo::mass_properties(&body, Tol::witness())
             .unwrap_or_else(|e| panic!("{name}: imported but has no volume: {e:?}"))
             .volume
             * 1e9;

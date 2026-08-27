@@ -485,8 +485,16 @@ practice, p. 343).
   edge → cylinder patch; edges with a straight-line spine → cylinder;
   circular-arc spine with fixed profile orientation → torus patch;
   vertex ball → sphere patch; cone cases → cone/torus per
-  configuration. Where the spine is a general curve, the blend is a
-  canal surface, NOT exactly NURBS-representable in general (same
+  configuration (**the cone half of that last row belongs to the
+  VARIABLE-radius family, not the constant-radius one**: a
+  constant-radius rolling ball is the envelope of EQUAL spheres, whose
+  envelope over a line spine is a cylinder and over a circle spine a
+  torus; a cone is the envelope of spheres whose radius varies
+  linearly, i.e. the canal/frontier-(f) family below — or the
+  chamfer's ruled strip. Every constant-radius arm the kernel ships
+  mints a torus or a cylinder; VERBS-ARMS-2's coaxial-revolution
+  derivation is the check). Where the spine is a general curve, the
+  blend is a canal surface, NOT exactly NURBS-representable in general (same
   square-root obstruction as offsets — Q8's canonical case; Hoffmann
   §6.3.3's envelope formulation, Eqs. 6.7–6.9 p. 225, is the
   defining system: S = 0, ∂S/∂α₁ = 0, ∂S/∂α₂ = 0 over the
@@ -639,9 +647,10 @@ PR-plan line item, none re-ratifying anything):
 3. **`split_edge`/`EdgeCurveSpec::split_specs`**: NURBS carrier
    splitting = knot insertion (C11); conic splitting = parameter
    interval split (bounded like circles). The M3 restrict-a-bulge
-   machinery generalizes; the `MappedCurve` arc lane's coverage note
-   (unreachable-at-rest) gets revisited once curved booleans mint
-   split curved edges at rest.
+   machinery generalizes; the `MappedCurve` arc lane's old coverage
+   note (unreachable-at-rest) is retired — curved booleans and the
+   fillet verbs split mapped arcs mid-operation, so the lane is
+   exercised end-to-end by whole-body rows.
 4. **Census** (`topo::census`): stays planar-exact; the
    `CensusUnsupported` boundary text names the frontier explicitly.
    *(OQ5 has since CLOSED — the boundary text's target is now
@@ -724,7 +733,9 @@ for* — each an obligation on M5 code shape, none a new decision:
   near-coincident/near-tangent *operands* (C5, the envelope) should
   point at the explicit repair/adoption operation as the resolution —
   the `FullRevolveHoles` precedent: a standing rule whose error text
-  names the front door that does not exist yet.
+  names the front door that does not exist yet. (That precedent later
+  completed its own arc: VERBS-RING built the door the text pointed
+  at and retired the refusal.)
 - **Recognition's substrate.** D7 step 1 (NURBS-within-ε-of-analytic
   promotion) will want closest-analytic-fit machinery; C11's fitting
   stack and C9's enclosures are its substrate, and nothing more is
@@ -869,7 +880,8 @@ is its three-convex-edge case), `RunOutFeather` (radius decays to
 zero before the vertex; the blend fades into the sharp edge), plus
 corner-configuration tags for the N-edge / mixed-convexity vertex
 cases. Honest, actionable frontier error text (the `FullRevolveHoles`
-precedent: errors name the front door that does not exist yet), zero
+precedent — since retired by VERBS-RING, which built its door:
+errors name the front door that does not exist yet), zero
 constructor surface; the finer taxonomy (per-end assignment, setback
 parameters) is left to the post-M5 design that implements run-outs.
 
@@ -984,7 +996,7 @@ kernel-K half waits on the M5 exit K-snapshot (this flag's own
 trigger); the GUI-indistinguishability half is proposed there as a
 scale-relative document/editor-layer lint, not a kernel refusal.)*
 
-**T6 — Tessellation cost.** PERF-PLAN rank 1 (CDT quadratic) was
+**T6 — Tessellation cost.** PERF-PLAN §1.3's CDT entry was
 measured on analytic UV grids; trimmed NURBS faces raise point counts.
 CDT bulk-loading's trigger ("first real fine-δ export need, or corpus
 CDT dominance") very likely fires during M5 — noted so it is planned

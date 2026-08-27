@@ -22,8 +22,7 @@
 //!     audit's attribution block (`demos/README.md` carries it). If a
 //!     pinned failure starts working, add the cell AND extend the
 //!     attribution block per the audit's own instructions, in the
-//!     same change — the path the two onetime tessellation refusals
-//!     took when #284's mesh fix landed (below).
+//!     same change.
 //!
 //! The audit's import-status snapshot ("only 6 import today") predates
 //! the M7-5 band-seam re-mint (#252), which flipped
@@ -35,28 +34,11 @@
 //! file's Apache-2.0 entry follows the audit's explicit extension
 //! instructions.
 //!
-//! **The mesh-lane finding this unit surfaced** (2026-08-08; resolved
-//! by #284): two of the eight importable files — `1982_MPR121` and
-//! `328_2500mAh_battery` — imported first-class (census exact,
-//! volumes measurable) but refused the kernel's own tessellation with
-//! `TessellateError::Triangulation`, on PLAIN RECTANGULAR planar
-//! faces. Mechanism, diagnosed: the files' plane axes carry
-//! translator noise (components like `-3.2e-33` where an exact axis
-//! would have `0.0`), so the planar chart projection of a vertex that
-//! should project to exactly 0 landed at ~1e-67 — nonzero but BELOW
-//! spade 2.15.1's coordinate domain (`MIN_ALLOWED_VALUE` = 2⁻¹⁴² ≈
-//! 1.79e-43), and the CDT's `insert` refused the vertex. Own-corpus
-//! bodies never hit this because the kernel authors exact axes. The
-//! kernel-side fix (#284, `mesh::planar`'s module docs): the planar
-//! lane re-derives its chart frame per-face from the boundary itself
-//! (Newell normal + extent-aligned in-plane axes) instead of trusting
-//! the stored axes — well-conditioned by construction, no new
-//! tolerance, no value snapping. Both files are ordinary cells now.
-//!
 //! Usage: `cargo run --release -- <outdir>` (from `demos/wild/`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use pncad::geom_core::Tol;
 use pncad::mesh::validate::{check_mesh, signed_volume, triangle_count};
 use pncad::step_import::{ImportOptions, StepImport, import_step};
 use pncad::topo::Body;
@@ -82,13 +64,15 @@ struct Cell {
     delta_frac: f64,
 }
 
-/// **The pinned cell set: 6 cells.** Derivation (audit table +
-/// `wild.rs` + the tessellation record in the module docs): 13 wild
-/// fixtures − 4 stepcode (license-EXCLUDED, D2) = 9 render-OK, − 1
-/// typed import refusal (`b123d_nema17_bracket`, [`WILD_REFUSALS`])
-/// = **8** — the two onetime tessellation refusals joined the sheet
-/// when #284's boundary-derived chart frame landed. Any other
-/// outcome fails loudly below.
+/// **The pinned cell set.** Derivation (audit table + `wild.rs` + the
+/// tessellation record in the module docs): 13 wild fixtures − 4
+/// stepcode (license-EXCLUDED, D2) = 9 render-OK, − 1 typed import
+/// refusal (`b123d_nema17_bracket`, [`WILD_REFUSALS`]) = **8**.
+///
+/// The derivation's answer is stated once, as this array's own length:
+/// a cell added or dropped without re-deriving is a type error here,
+/// and every other drift fails loudly below. No count is written in
+/// prose a second time, because the second copy is the one that rots.
 const WILD_CELLS: [Cell; 8] = [
     Cell {
         fixture: "adafruit/64_Halfsize_Breadboard.step",
@@ -183,10 +167,10 @@ fn census(body: &Body<f64>) -> (usize, usize, usize, usize, usize, i64) {
 }
 
 /// Import + tessellate + export one cell; returns its manifest entry.
-fn run_cell(cell: &Cell, outdir: &str) -> String {
+fn run_cell(cell: &Cell, outdir: &str, tol: Tol) -> String {
     let name = cell.name;
     let text = fixture_text(cell.fixture);
-    let import = import_step(&text, &ImportOptions::default()).unwrap_or_else(|e| {
+    let import = import_step(&text, &ImportOptions::default(), tol).unwrap_or_else(|e| {
         panic!(
             "{name}: {} is a PINNED montage cell and must import; it refused: {e}. \
              The cell set drifted — reconcile WILD_CELLS with the license audit \
@@ -223,7 +207,7 @@ fn run_cell(cell: &Cell, outdir: &str) -> String {
     // whose hull bounds every NURBS patch). The wild has no closed
     // forms; the exact-vs-mesh volume row is the same end-to-end
     // sanity ribbon the tour prints.
-    let props = pncad::topo::mass_properties(&body)
+    let props = pncad::topo::mass_properties(&body, tol)
         .unwrap_or_else(|e| panic!("{name}: imported but has no volume: {e:?}"));
     let (lo, hi) = body.points().fold(
         ([f64::INFINITY; 3], [f64::NEG_INFINITY; 3]),
@@ -237,7 +221,7 @@ fn run_cell(cell: &Cell, outdir: &str) -> String {
     let diag = ((hi[0] - lo[0]).powi(2) + (hi[1] - lo[1]).powi(2) + (hi[2] - lo[2]).powi(2)).sqrt();
     assert!(diag.is_finite() && diag > 0.0, "{name}: degenerate bbox");
     let delta = diag * cell.delta_frac;
-    let mesh = pncad::mesh::tessellate(&body, delta)
+    let mesh = pncad::mesh::tessellate(&body, delta, tol)
         .unwrap_or_else(|e| panic!("{name}: tessellation at delta {delta:e} failed: {e:?}"));
     check_mesh(&mesh).unwrap_or_else(|e| panic!("{name}: check_mesh failed: {e:?}"));
     let v_mesh = signed_volume(&mesh);
@@ -266,10 +250,26 @@ fn run_cell(cell: &Cell, outdir: &str) -> String {
     std::fs::write(format!("{outdir}/{name}.stl"), &stl_buf).expect("write stl");
     println!("   [{name}] exported {name}.stl");
 
+    // The manifest entry, in the same field set the tour writes --
+    // `step` and `transparency` included, and written independently.
+    // The agreement is DELIBERATE AND UNENFORCED: no shared type, no
+    // crate depending on the tour, and nothing compares the two
+    // emitters. Two fields do not pay for that. What holds it
+    // together is that one reader (`demos/manifest.py`) walks both
+    // manifests and READS both keys rather than defaulting them, so a
+    // drift on either side fails the first render loudly instead of
+    // drawing something plausible.
+    //
+    // Both values are constant here, and neither is a placeholder. A
+    // wild cell has no STEP of its own: the fixture it imports is an
+    // INPUT, never written into `outdir`, so there is no file for a
+    // renderer to open -- `null` is the fact. And nothing in this
+    // corpus is about an interior, so every cell is opaque.
     format!(
         "  {{\"name\": \"{name}\", \"caption\": \"{}\", \"montage\": true, \"view\": \
          {{\"elev\": {}, \"azim\": {}, \"up\": \"{}\"}}, \"bodies\": \
-         [{{\"stl\": \"{name}.stl\", \"step\": null, \"color\": [{}, {}, {}]}}]}}",
+         [{{\"stl\": \"{name}.stl\", \"step\": null, \"color\": [{}, {}, {}], \
+         \"transparency\": 0}}]}}",
         cell.caption,
         cell.view.0,
         cell.view.1,
@@ -281,6 +281,9 @@ fn run_cell(cell: &Cell, outdir: &str) -> String {
 }
 
 fn main() {
+    // The montage is an entry point: it mints the run's tolerance
+    // witness once and hands it to every corpus body it builds.
+    let tol = Tol::witness();
     let outdir = std::env::args()
         .nth(1)
         .expect("usage: wild-montage <outdir>");
@@ -296,18 +299,40 @@ fn main() {
         "cell law: docs/WILD-CORPUS-LICENSES.md (render-OK only; stepcode/ EXCLUDED, untouched)"
     );
 
+    // Cell NAMES are the sheet's identity: each is an STL stem, a
+    // scene name and a PNG stem at once, so two cells sharing one
+    // would write one file twice and put the same body on the sheet
+    // under two captions — silently, and after the first STL had
+    // already been clobbered. Checked here, before any cell runs.
+    //
+    // There is no
+    // separate "every scene got a file" check, because with distinct
+    // names there is nothing left for one to catch: `run_cell` writes
+    // `{name}.stl` from the same field the manifest then names, and
+    // panics on a failed write. A second assertion there would be the
+    // equal-by-construction shape again, one line down.
+    for (i, cell) in WILD_CELLS.iter().enumerate() {
+        if let Some(other) = WILD_CELLS[..i].iter().find(|c| c.name == cell.name) {
+            panic!(
+                "two pinned cells share the scene name {:?} ({} and {}): the name is \
+                 the STL/PNG stem, so one would overwrite the other's export",
+                cell.name, other.fixture, cell.fixture
+            );
+        }
+    }
+
     let scenes: Vec<String> = WILD_CELLS
         .iter()
         .map(|cell| {
             println!("\n== {} ==", cell.fixture);
-            run_cell(cell, &outdir)
+            run_cell(cell, &outdir, tol)
         })
         .collect();
 
     // The pinned refusal row: still refusing, still the same class.
     println!();
     for (fixture, class) in WILD_REFUSALS {
-        match import_step(&fixture_text(fixture), &ImportOptions::default()) {
+        match import_step(&fixture_text(fixture), &ImportOptions::default(), tol) {
             Err(e) => {
                 let msg = e.to_string();
                 assert!(
@@ -324,11 +349,6 @@ fn main() {
         }
     }
 
-    assert_eq!(
-        scenes.len(),
-        WILD_CELLS.len(),
-        "every pinned cell must emit a scene"
-    );
     let json = format!("[\n{}\n]\n", scenes.join(",\n"));
     std::fs::write(format!("{outdir}/scenes.json"), json).expect("write scenes.json");
     println!(

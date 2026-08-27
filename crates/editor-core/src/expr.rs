@@ -247,7 +247,9 @@ impl UnitSym {
         // rather than `index out of bounds: the len is 6 ...`.
         let Some(row) = quantity::UNITS.get(usize::from(self.0)) else {
             unreachable!(
-                "display-unit code {} is not a row of quantity::UNITS ({} rows)",
+                "display-unit code {} is not a row of quantity::UNITS ({} rows), yet the \
+                 code is minted only by `from_def`, as a position in this very table, and \
+                 `UnitSym`'s field is private to this module",
                 self.0,
                 quantity::UNITS.len()
             )
@@ -950,6 +952,56 @@ pub enum EvalError {
     /// door's).
     NonFiniteResult,
 }
+
+// The human-readable rendering (LIB-DOORS F6 shape): each arm states
+// the PROBLEM and, where the fault has a lever, its one recourse. The
+// enum stays the machine contract; composing layers (the evaluation
+// service's `Expr` slot arm) FORWARD this rendering rather than
+// re-stating it.
+impl core::fmt::Display for EvalError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::UnknownParam(name) => write!(
+                f,
+                "parameter {:?} has no binding in the evaluation environment — declare \
+                 the document parameter or fix the reference",
+                name.0
+            ),
+            Self::ParamDimensionMismatch {
+                name,
+                expected,
+                found,
+            } => write!(
+                f,
+                "parameter {:?} is referenced as {expected:?} but bound as {found:?}",
+                name.0
+            ),
+            Self::CountExprInContinuousEval => f.write_str(
+                "a Count expression does not evaluate continuously — promote it \
+                 explicitly through count_to_scalar",
+            ),
+            Self::ContinuousExprInCountEval { found } => write!(
+                f,
+                "a {found:?} expression does not evaluate as a Count — counts are exact \
+                 and never inferred from a continuous value"
+            ),
+            Self::CountOverflow => {
+                f.write_str("exact Count arithmetic overflowed (a count never wraps)")
+            }
+            Self::CountToScalarOutOfRange(count) => write!(
+                f,
+                "count {count} is outside the exactly-promotable range — a promoted \
+                 count must fit i32 so its f64 embedding is exact"
+            ),
+            Self::NonFiniteResult => f.write_str(
+                "the evaluated result is not finite — the arithmetic overflowed or hit \
+                 a pole (1/0, 0/0); fix the expression or the values feeding it",
+            ),
+        }
+    }
+}
+
+impl core::error::Error for EvalError {}
 
 /// Evaluate a continuous expression to a raw `T` in kernel units —
 /// units erase at this boundary (GQ5). Generic over the scalar (spec

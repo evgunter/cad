@@ -18,9 +18,16 @@ use editor_core::{
     CancelToken, EntityKind, EvalOptions, Node, NodeErrorKind, NodeResult, ProfileDoc,
     RecipeNodeId, RoleSeg, StableName, evaluate,
 };
+use geom_core::Tol;
 
 fn eval(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default())
+    evaluate::<f64>(
+        doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    )
 }
 
 /// The plants build their own documents through the public authoring
@@ -31,7 +38,7 @@ fn planted(selection: Vec<StableName>) -> (ProfileDoc, RecipeNodeId) {
     let square =
         LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]).expect("finite");
     let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
-    let mut doc = ProfileDoc::empty_derived("m6_5_selection_refusals");
+    let mut doc = ProfileDoc::empty_derived("m6_5_selection_refusals", Tol::witness());
     for edit in [
         DocEdit::InsertNode {
             node: Node::Profile(ProfileProgram {
@@ -46,13 +53,16 @@ fn planted(selection: Vec<StableName>) -> (ProfileDoc, RecipeNodeId) {
             },
         },
     ] {
-        doc = apply(&doc, &edit).expect("the fixture builds").doc;
+        doc = apply(&doc, &edit, Tol::witness())
+            .expect("the fixture builds")
+            .doc;
     }
     let applied = apply(
         &doc,
         &DocEdit::InsertNode {
             node: Node::fillet(RecipeNodeId(1), len(0.125), selection),
         },
+        Tol::witness(),
     )
     .expect("the fillet inserts");
     let id = applied.record.minted.expect("a minted id");
@@ -66,9 +76,10 @@ fn symmetric_u() -> (ProfileDoc, RecipeNodeId) {
     use editor_core::{BooleanOp, Dimension, DocEdit, Expr, apply};
     use fixture::desc;
     let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
-    let mut doc = ProfileDoc::empty_derived("m6_5_selection_refusals");
+    let mut doc = ProfileDoc::empty_derived("m6_5_selection_refusals", Tol::witness());
     let insert = |doc: &ProfileDoc, node: Node<editor_core::ProfileProgram>| {
-        let a = apply(doc, &DocEdit::InsertNode { node }).expect("the fixture builds");
+        let a =
+            apply(doc, &DocEdit::InsertNode { node }, Tol::witness()).expect("the fixture builds");
         let id = a.record.minted.expect("a minted id");
         (a.doc, id)
     };
@@ -167,6 +178,7 @@ fn a_selection_naming_a_never_existed_node_refuses_at_edit_time() {
                 vec![rim(RecipeNodeId(99), 0)],
             ),
         },
+        Tol::witness(),
     ) {
         Err(EditError::DeclareNamesMissingNode { name }) => {
             assert_eq!(name.node, RecipeNodeId(99));
@@ -194,6 +206,7 @@ fn a_selection_naming_a_deleted_node_is_node_gone() {
                 distance: len(2.0),
             },
         },
+        Tol::witness(),
     )
     .expect("the spare extrude inserts");
     let spare_id = spare.record.minted.expect("a minted id");
@@ -202,12 +215,17 @@ fn a_selection_naming_a_deleted_node_is_node_gone() {
         &DocEdit::InsertNode {
             node: Node::fillet(RecipeNodeId(1), len(0.125), vec![rim(spare_id, 0)]),
         },
+        Tol::witness(),
     )
     .expect("the fillet inserts while the spare is live");
     let fillet = with_fillet.record.minted.expect("a minted id");
-    let after = apply(&with_fillet.doc, &DocEdit::DeleteNode { id: spare_id })
-        .expect("deleting a node a NAME references is allowed (N5)")
-        .doc;
+    let after = apply(
+        &with_fillet.doc,
+        &DocEdit::DeleteNode { id: spare_id },
+        Tol::witness(),
+    )
+    .expect("deleting a node a NAME references is allowed (N5)")
+    .doc;
     refuses(&after, fillet, |kind| match kind {
         NodeErrorKind::FilletSelectionResolve { error } => match error.as_ref() {
             ResolveError::NodeGone { name, edit } => {
@@ -292,6 +310,7 @@ fn a_tied_selection_name_refuses_ambiguous_with_its_witness() {
                 vec![tied.clone()],
             ),
         },
+        Tol::witness(),
     )
     .expect("the fillet inserts");
     let fillet = applied.record.minted.expect("a minted id");

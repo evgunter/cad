@@ -17,8 +17,9 @@ use test_utils::fuzz;
 /// its running minimum — it never asks where the pair came from — so
 /// the properties asserted below (the answer certifies; the reported
 /// count matches the reported steps; a ruled wall improves) hold for
-/// any seed, and this one is chosen only because it is the shape the
-/// kernel actually reports. The KERNEL-supplied steps are exercised
+/// any seed; this one keeps the RETIRED AM-GM shape as an arbitrary
+/// plausible seed (the kernel now reports the aspect-capped
+/// selection). The KERNEL-supplied steps are exercised
 /// end to end in `rows.rs`, which tessellates a real body and reads
 /// `mesh::budget`'s own `patch_steps` / `CellMeasure::steps`.
 fn bound(muu: f64, muv: f64, mvv: f64, delta_s: f64) -> Bound {
@@ -127,9 +128,19 @@ fn a_ruled_wall_pays_for_its_flat_direction() {
         "expected the ruled wall's split slack to be several-fold, got {:.2}x",
         lane / best
     );
+    // Asserted on the DIVISIONS, not on `h_u` itself. The objective is
+    // a step function of the aspect ratio, so which sample wins is a
+    // property of the scan's lattice: refining the scan moves the
+    // winning `h_u` between 1.02 and 0.34 while the answer improves,
+    // and an `h_u >= 1.0` line therefore reds on scans that are
+    // strictly better. What is stable — and what the finding is about
+    // — is that the cheapest split spends an order of magnitude fewer
+    // divisions on the flat direction than the lane does.
+    let (best_u, lane_u) = (divisions(1.0, hu), divisions(1.0, b.steps.0));
     assert!(
-        hu >= 1.0,
-        "the cheapest split should stop dividing the FLAT direction, got h_u = {hu:e}"
+        best_u * 10.0 <= lane_u,
+        "the cheapest split should barely divide the FLAT direction: \
+         {best_u} divisions against the lane's {lane_u}"
     );
 }
 
@@ -157,6 +168,8 @@ fn both_row_shapes_have_the_headers_width() {
             muu: 1.0,
             muv: 2.0,
             mvv: 3.0,
+            mu1: 1.5,
+            mv1: 2.5,
             cells: 6,
             grid_cells: 12.0,
             patch_cells: 20.0,
@@ -165,6 +178,10 @@ fn both_row_shapes_have_the_headers_width() {
             worst_cert: 1e-4,
             worst_dev: 5e-5,
             dev_samples: 7,
+            bands: 3,
+            cap_bands: 1,
+            snap_bands: 0,
+            realized_aspect: 4.2,
         }),
         ..plane
     };
@@ -187,8 +204,7 @@ fn both_row_shapes_have_the_headers_width() {
 ///
 /// It is a real pin and it is ugly: it parses Rust string
 /// continuations out of a sibling crate's `lib.rs`, and it breaks if
-/// that declaration is reformatted rather than changed. It replaces a
-/// comment asking a human to check, which could not break at all.
+/// that declaration is reformatted rather than changed.
 #[test]
 fn the_lints_expected_header_is_this_one() {
     let lint = include_str!("../../tess-lint/src/lib.rs");

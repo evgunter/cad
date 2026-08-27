@@ -1,24 +1,40 @@
 #!/usr/bin/env python3
-"""Strip FreeCAD's wall-clock metadata chunks from rendered PNGs.
+"""Strip FreeCAD's WALL-CLOCK and PATH metadata chunks from rendered PNGs.
 
 FreeCAD's `view.saveImage()` (demos/render_freecad.py) stamps the
-current time into every PNG it writes, so a re-render of unchanged
-geometry still shows up as a modified file in `git status`:
+current time, and the path it was asked to write, into every PNG — so a
+re-render of unchanged geometry still shows up as a modified file in
+`git status`, and the same pixels written to two paths are two
+different files:
 
   * a `tEXt` chunk keyed "Creation Time" — the wall clock, literally;
   * a `zTXt` chunk keyed "Description" — FreeCAD's MIBA XML, whose
     `<CreationDate>` makes even the *compressed* length wander by a
-    byte or two.
+    byte or two;
+  * a `tEXt` chunk keyed "Title" — the OUTPUT PATH the frame was
+    rendered to. It is deterministic, but it is a fact about the
+    invocation rather than about the image: it made a frame's bytes
+    depend on WHERE it was written, so the same pixels staged under one
+    directory name and published under another were not the same file.
+    Dropping it (Evan, 2026-08-22 — "we already erase some PNG metadata
+    so we can do the paths too") makes a frame comparable to any other
+    frame of the same pixels, whatever path produced it. That is what
+    lets a render be A/B-compared against a differently-routed one —
+    e.g. batched vs unbatched — with a byte difference meaning a
+    PIXEL difference and nothing else.
 
-Both are ancillary chunks (lowercase first letter = safe to drop; the
-image is bit-identical without them — verified by decoding the IDAT
+All three are ancillary chunks (lowercase first letter = safe to drop;
+the image is bit-identical without them — verified by decoding the IDAT
 stream on both sides of a strip). Removing them makes a re-render
 byte-reproducible, so a dirty `git status` after `./render.sh` means
 the *pixels* changed.
 
-Only those two chunks go; every other byte of the file — chunk order,
+Only those three chunks go; every other byte of the file — chunk order,
 IDAT framing, any other ancillary chunk (pHYs, sRGB, ...) — is carried
-through verbatim. Parsing is by the PNG chunk framing
+through verbatim. In particular the provenance signature
+(`demos/check_render_provenance.py` reads the `Author` and `Software`
+tEXt chunks) survives untouched: which renderer drew the pixels is
+still recorded in the file, only where it was told to put them is not. Parsing is by the PNG chunk framing
 (length/type/data/CRC), not by pattern matching on bytes, and every
 CRC is checked on the way in: a malformed file is refused, never
 silently rewritten.
@@ -48,6 +64,7 @@ SIGNATURE = b"\x89PNG\r\n\x1a\n"
 STAMP_CHUNKS = {
     (b"tEXt", b"Creation Time"),
     (b"zTXt", b"Description"),
+    (b"tEXt", b"Title"),
 }
 
 

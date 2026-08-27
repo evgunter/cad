@@ -23,10 +23,18 @@
 //!   full-period self-loop edge, two-half-edge loop. An ENUMERATION,
 //!   not a fuzzer: the shapes are the whole content and nothing is
 //!   sampled.
-//! - The **torn-body sweep** drives every operator that reaches
-//!   `link_half_edges` over every key of a randomly torn body. A
+//! - The **torn-body sweep** CALLS every operator that reaches
+//!   `link_half_edges` at every key of a randomly torn body. A
 //!   counterexample search: varying seed, counts on `CAD_FUZZ_EFFORT`,
 //!   monotone in the safe direction.
+//!
+//!   **Calling is not reaching, and the two rows now say which they
+//!   did.** Both print an exposure per operator, and both floor on how
+//!   many of `LINK_OPS` entered a mutation phase — the only place a
+//!   row-4 arm can fire. Measured, `kemr` enters one in NEITHER row: its
+//!   plan phase refuses on every input either row produces, so the arms
+//!   below it are attacked by nothing here. That gap is **S161 / D107**,
+//!   not a claim this file makes.
 //!
 //! # Why the sweep is release-only
 //!
@@ -64,6 +72,9 @@ use crate::body::Body;
 use crate::entity::{EntityId, HalfEdgeKey};
 use crate::euler::{EulerOpError, MefSite, MevSite};
 use crate::fixtures::{deep_snapshot, ops_cube};
+use geom_core::Tol;
+#[cfg(not(debug_assertions))]
+use test_utils::vacuity::Exposure;
 
 fn p(x: f64) -> Point3<f64> {
     Point3::new(x, 0.0, 0.0)
@@ -79,7 +90,7 @@ fn p(x: f64) -> Point3<f64> {
 /// same arena) rather than on the body under test: a `mev`/`kev` round
 /// trip anchored on a shared vertex rebinds `start` anchors and would
 /// perturb the fixture this helper is meant to leave alone.
-fn recycled_dead_half_edge(body: &mut Body<f64>) -> HalfEdgeKey {
+fn recycled_dead_half_edge(body: &mut Body<f64>, tol: Tol) -> HalfEdgeKey {
     let seed = body.mvfs(p(50.0)).unwrap();
     let seg = body
         .mev_line(
@@ -87,6 +98,7 @@ fn recycled_dead_half_edge(body: &mut Body<f64>) -> HalfEdgeKey {
                 r#loop: seed.r#loop,
             },
             p(51.0),
+            tol,
         )
         .unwrap();
     let dead = seg.he_plus;
@@ -109,10 +121,11 @@ fn recycled_dead_half_edge(body: &mut Body<f64>) -> HalfEdgeKey {
 /// succeeds, so the row cannot pass by refusing everything.
 #[test]
 fn split_edge_dangling_prev_of_he_minus_is_typed_and_atomic() {
-    let cube = ops_cube();
+    let tol = Tol::witness();
+    let cube = ops_cube(tol);
     let mut base = cube.body;
     let edge = cube.mevs[0].edge;
-    let recycled = recycled_dead_half_edge(&mut base);
+    let recycled = recycled_dead_half_edge(&mut base, tol);
     for dead in [HalfEdgeKey::default(), recycled] {
         let mut body = base.clone();
         let hm = body.get_edge(edge).unwrap().he_minus;
@@ -126,7 +139,7 @@ fn split_edge_dangling_prev_of_he_minus_is_typed_and_atomic() {
         );
         body.get_half_edge_mut(hm).unwrap().prev = dead;
         let before = deep_snapshot(&body);
-        let err = body.split_edge(edge, 0.5).unwrap_err();
+        let err = body.split_edge(edge, 0.5, tol).unwrap_err();
         assert_eq!(
             err,
             EulerOpError::StaleKey {
@@ -142,7 +155,7 @@ fn split_edge_dangling_prev_of_he_minus_is_typed_and_atomic() {
     }
     // Control: undamaged, the same call succeeds.
     let mut body = base;
-    let control = body.split_edge(edge, 0.5);
+    let control = body.split_edge(edge, 0.5, tol);
     assert!(control.is_ok(), "control split: {control:?}");
 }
 
@@ -154,6 +167,7 @@ fn split_edge_dangling_prev_of_he_minus_is_typed_and_atomic() {
 /// could not silently turn this into a walk test.
 #[test]
 fn kef_dangling_prev_of_he_is_typed_and_atomic() {
+    let tol = Tol::witness();
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(p(0.0)).unwrap();
     let seg = body
@@ -162,6 +176,7 @@ fn kef_dangling_prev_of_he_is_typed_and_atomic() {
                 r#loop: seed.r#loop,
             },
             p(1.0),
+            tol,
         )
         .unwrap();
     let strut = body
@@ -171,15 +186,19 @@ fn kef_dangling_prev_of_he_is_typed_and_atomic() {
                 he2: seg.he_minus,
             },
             p(2.0),
+            tol,
         )
         .unwrap();
     let split = body
-        .mef_chord(MefSite::Chords {
-            he1: seg.he_plus,
-            he2: strut.he_minus,
-        })
+        .mef_chord(
+            MefSite::Chords {
+                he1: seg.he_plus,
+                he2: strut.he_minus,
+            },
+            tol,
+        )
         .unwrap();
-    let recycled = recycled_dead_half_edge(&mut body);
+    let recycled = recycled_dead_half_edge(&mut body, tol);
     let base = body;
 
     let mut control = base.clone();
@@ -228,6 +247,7 @@ fn kef_dangling_prev_of_he_is_typed_and_atomic() {
 /// vacuously.
 #[test]
 fn split_edge_new_check_covers_every_coincidence_shape() {
+    let tol = Tol::witness();
     use core::f64::consts::PI;
 
     use crate::entity::EdgeKey;
@@ -237,8 +257,8 @@ fn split_edge_new_check_covers_every_coincidence_shape() {
         (
             "generic cube edge",
             0.5,
-            Box::new(|| {
-                let cube = ops_cube();
+            Box::new(move || {
+                let cube = ops_cube(tol);
                 let edge = cube.mevs[0].edge;
                 (cube.body, edge)
             }),
@@ -246,8 +266,8 @@ fn split_edge_new_check_covers_every_coincidence_shape() {
         (
             "strut: next(he_plus) == he_minus",
             0.5,
-            Box::new(|| {
-                let cube = ops_cube();
+            Box::new(move || {
+                let cube = ops_cube(tol);
                 let mut body = cube.body;
                 let anchor = cube.mevs[0].he_plus;
                 let strut = body
@@ -257,6 +277,7 @@ fn split_edge_new_check_covers_every_coincidence_shape() {
                             he2: anchor,
                         },
                         p(2.0),
+                        tol,
                     )
                     .unwrap();
                 (body, strut.edge)
@@ -265,7 +286,7 @@ fn split_edge_new_check_covers_every_coincidence_shape() {
         (
             "full-period self-loop edge (a one-half-edge loop each side)",
             PI,
-            Box::new(|| {
+            Box::new(move || {
                 let mut body = Body::<f64>::new();
                 let seed = body.mvfs(p(0.0)).unwrap();
                 let seg = body
@@ -274,13 +295,17 @@ fn split_edge_new_check_covers_every_coincidence_shape() {
                             r#loop: seed.r#loop,
                         },
                         p(1.0),
+                        tol,
                     )
                     .unwrap();
                 let circ = body
-                    .mef_chord(MefSite::Chords {
-                        he1: seg.he_minus,
-                        he2: seg.he_minus,
-                    })
+                    .mef_chord(
+                        MefSite::Chords {
+                            he1: seg.he_minus,
+                            he2: seg.he_minus,
+                        },
+                        tol,
+                    )
                     .unwrap();
                 (body, circ.edge)
             }),
@@ -288,7 +313,7 @@ fn split_edge_new_check_covers_every_coincidence_shape() {
         (
             "two-half-edge loop (segment: both halves in one loop)",
             0.5,
-            Box::new(|| {
+            Box::new(move || {
                 let mut body = Body::<f64>::new();
                 let seed = body.mvfs(p(0.0)).unwrap();
                 let seg = body
@@ -297,6 +322,7 @@ fn split_edge_new_check_covers_every_coincidence_shape() {
                             r#loop: seed.r#loop,
                         },
                         p(1.0),
+                        tol,
                     )
                     .unwrap();
                 (body, seg.edge)
@@ -306,7 +332,7 @@ fn split_edge_new_check_covers_every_coincidence_shape() {
     for (label, t, build) in shapes {
         let (mut control, edge) = build();
         assert!(
-            control.split_edge(edge, t).is_ok(),
+            control.split_edge(edge, t, tol).is_ok(),
             "{label}: control split must succeed"
         );
         let (mut body, edge) = build();
@@ -316,7 +342,7 @@ fn split_edge_new_check_covers_every_coincidence_shape() {
         let before = deep_snapshot(&body);
         // Not caught: a panic here IS the finding and should carry its
         // own message and backtrace.
-        let err = body.split_edge(edge, t).unwrap_err();
+        let err = body.split_edge(edge, t, tol).unwrap_err();
         assert_eq!(
             err,
             EulerOpError::StaleKey {
@@ -339,7 +365,7 @@ fn split_edge_new_check_covers_every_coincidence_shape() {
 /// way to ask a function whether it announces.
 #[test]
 fn link_half_edges_still_announces_rather_than_discards() {
-    let source = std::fs::read_to_string(crate::fixtures::src_root().join("euler.rs"))
+    let source = std::fs::read_to_string(crate::source_walk::src_root().join("euler.rs"))
         .expect("euler.rs must be readable");
     let at = source
         .find("pub(crate) fn link_half_edges(")
@@ -446,59 +472,114 @@ fn plant(body: &mut Body<f64>, tear: Tear, rng: &mut test_utils::fuzz::Rng, dead
     }
 }
 
-/// What a hammer pass observed. `oks` is the anti-vacuity measure that
-/// matters: an operator that returns `Ok` on a torn body RAN ITS
-/// MUTATION PHASE, which is the only place a row-4 `unreachable!` can
-/// fire. A sweep whose calls all died in a plan phase proves nothing
-/// about the arms under attack.
+/// The operators whose mutation phase **reaches
+/// [`crate::Body::link_half_edges`]**, and therefore the row-4 arms
+/// under attack: `kef`/`kev`/`kemr` (`euler_kill.rs`, `euler_ring.rs`),
+/// `mev_line`/`mef_chord` (`euler.rs`) and `split_edge` (`split.rs`).
+///
+/// **This is the list the floor counts over, and it is not the list the
+/// pass drives.** `mfkrh_plug` is driven and counted as evidence, but
+/// its mutation phase mints a face and touches no half-edge links, so a
+/// run that reached only it has reached none of the arms — which is
+/// exactly the run that made a floor on the total unfalsifiable here
+/// (`mfkrh`'s plan phase reads only `loop.face`, `face.outer`,
+/// `face.shell`, so it survives a fully nulled arena). An operator that
+/// cannot reach the arms cannot be evidence that the arms were reached.
 #[cfg(not(debug_assertions))]
-#[derive(Clone, Copy, Debug, Default)]
-struct Tally {
-    calls: usize,
-    oks: usize,
-}
+const LINK_OPS: [&str; 6] = ["kef", "kev", "kemr", "mev_line", "mef_chord", "split_edge"];
+
+/// Every operator the pass drives — [`LINK_OPS`] plus the one that does
+/// not reach the arms. Counted, printed, and deliberately absent from
+/// the floor.
+#[cfg(not(debug_assertions))]
+const OPS: [&str; 7] = [
+    "kef",
+    "kev",
+    "kemr",
+    "mev_line",
+    "mef_chord",
+    "split_edge",
+    "mfkrh_plug",
+];
 
 #[cfg(not(debug_assertions))]
-impl Tally {
-    fn merge(&mut self, other: Tally) {
-        self.calls += other.calls;
-        self.oks += other.oks;
-    }
+const CALLS: &str = "operator calls";
+
+/// A [`Tear`] kind's exposure category: a planting of that kind that
+/// actually changed the body.
+///
+/// **The floor the CALLS one cannot be.** An intact cube hammers to 438
+/// calls and reaches five operators, so 27 no-op plantings clear both
+/// other floors while sweeping nothing but intact cubes — a sweep with
+/// no corruption in it, which is the vacuity this row is most exposed
+/// to. Counted per KIND rather than per trial: a single draw may
+/// legitimately find no eligible entity for the kind it was asked to
+/// plant (measured, 26 of 27 trials land on a typical seed), so *every
+/// trial corrupted* is a claim about luck, while *every corruption
+/// shape was planted somewhere* is the claim the sweep's own docs make
+/// — [`TEARS`] is an enumeration, and every kind is meant to be
+/// exercised on every run.
+#[cfg(not(debug_assertions))]
+fn tear_landed(tear: Tear) -> String {
+    format!("tear landed: {tear:?}")
 }
 
-/// Drives every operator that reaches [`crate::Body::link_half_edges`]
-/// over every key of a torn body. Nothing is caught: in this profile
-/// the postcondition is compiled out, so a panic escaping here is a
-/// row-4 arm and it should fail the test with its own message.
+/// Calls every operator that reaches [`crate::Body::link_half_edges`]
+/// at every key of a torn body, and returns what the pass actually
+/// reached as an anti-vacuity exposure ([`test_utils::vacuity`]).
+///
+/// Nothing is caught: in this profile the postcondition is compiled out,
+/// so a panic escaping here is a row-4 arm and it should fail the test
+/// with its own message.
+///
+/// **What it counts, and why per operator.** [`CALLS`] is every operator
+/// driven at a key; each operator's own category counts the calls that
+/// returned `Ok`, i.e. that RAN THEIR MUTATION PHASE, which is the only
+/// place a row-4 `unreachable!` can fire. A pass whose calls all died in
+/// a plan phase proves nothing about the arms under attack.
+///
+/// Per operator, because a total does not distinguish *six operators
+/// exercised* from *one exercised and five refused at the door* — and on
+/// this fixture family that is not hypothetical: null every arena field
+/// of the spent destination and `mfkrh_plug` still returns `Ok` six
+/// times, so a floor on the total is one almost nothing can break.
+/// [`LINK_OPS`] is therefore what the floor counts over, and
+/// `mfkrh_plug` is not in it.
 #[cfg(not(debug_assertions))]
-fn hammer(body: &Body<f64>) -> Tally {
+fn hammer(body: &Body<f64>, tol: Tol) -> Exposure {
     use crate::entity::{EdgeKey, LoopKey};
     let halves: Vec<HalfEdgeKey> = body.half_edges().map(|(k, _)| k).collect();
     let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
     let loops: Vec<LoopKey> = body.loops().map(|(k, _)| k).collect();
-    let mut tally = Tally::default();
-    let mut note = |ok: bool| {
-        tally.calls += 1;
+    let mut census = Exposure::new("review_d18 hammer");
+    for op in OPS {
+        census.add(op, 0);
+    }
+    let mut note = |op: &str, ok: bool| {
+        census.note(CALLS);
         if ok {
-            tally.oks += 1;
+            census.note(op);
         }
     };
     for &he in &halves {
-        note(body.clone().kef(he).is_ok());
-        note(body.clone().kev(he).is_ok());
+        note("kef", body.clone().kef(he).is_ok());
+        note("kev", body.clone().kev(he).is_ok());
         note(
+            "mev_line",
             body.clone()
-                .mev_line(MevSite::Fan { he1: he, he2: he }, p(41.0))
+                .mev_line(MevSite::Fan { he1: he, he2: he }, p(41.0), tol)
                 .is_ok(),
         );
         note(
+            "mef_chord",
             body.clone()
-                .mef_chord(MefSite::Chords { he1: he, he2: he })
+                .mef_chord(MefSite::Chords { he1: he, he2: he }, tol)
                 .is_ok(),
         );
         for &other in halves.iter().take(4) {
-            note(body.clone().kemr(he, other).is_ok());
+            note("kemr", body.clone().kemr(he, other).is_ok());
             note(
+                "mev_line",
                 body.clone()
                     .mev_line(
                         MevSite::Fan {
@@ -506,34 +587,45 @@ fn hammer(body: &Body<f64>) -> Tally {
                             he2: other,
                         },
                         p(42.0),
+                        tol,
                     )
                     .is_ok(),
             );
             note(
+                "mef_chord",
                 body.clone()
-                    .mef_chord(MefSite::Chords {
-                        he1: he,
-                        he2: other,
-                    })
+                    .mef_chord(
+                        MefSite::Chords {
+                            he1: he,
+                            he2: other,
+                        },
+                        tol,
+                    )
                     .is_ok(),
             );
         }
     }
     for &edge in &edges {
         for t in [0.25, 0.5, 0.75] {
-            note(body.clone().split_edge(edge, t).is_ok());
+            note("split_edge", body.clone().split_edge(edge, t, tol).is_ok());
         }
     }
     for &l in &loops {
-        note(body.clone().mef_chord(MefSite::Lone { r#loop: l }).is_ok());
         note(
+            "mef_chord",
             body.clone()
-                .mev_line(MevSite::Lone { r#loop: l }, p(43.0))
+                .mef_chord(MefSite::Lone { r#loop: l }, tol)
                 .is_ok(),
         );
-        note(body.clone().mfkrh_plug(l).is_ok());
+        note(
+            "mev_line",
+            body.clone()
+                .mev_line(MevSite::Lone { r#loop: l }, p(43.0), tol)
+                .is_ok(),
+        );
+        note("mfkrh_plug", body.clone().mfkrh_plug(l).is_ok());
     }
-    tally
+    census
 }
 
 /// **The headline row.** Randomly torn bodies, every operator over
@@ -557,37 +649,77 @@ fn hammer(body: &Body<f64>) -> Tally {
 #[cfg(not(debug_assertions))]
 fn torn_bodies_never_reach_a_row_four_unreachable() {
     use test_utils::fuzz;
+    let tol = Tol::witness();
     let mut rng = fuzz::start("review_d18::torn_bodies_row_four");
     let trials = fuzz::scaled(3);
-    let mut tally = Tally::default();
+    let mut census = Exposure::new("review_d18 torn sweep");
     for trial in 0..trials {
         for tear in TEARS {
-            let cube = ops_cube();
+            let cube = ops_cube(tol);
             let mut body = cube.body;
-            let dead = recycled_dead_half_edge(&mut body);
+            let dead = recycled_dead_half_edge(&mut body, tol);
             // Compound the tears: one on the first pass, more as the
             // trial index rises, so single and multiple corruption both
-            // get exercised.
-            for _ in 0..=trial {
-                plant(&mut body, tear, &mut rng, dead);
-            }
+            // get exercised. Each planting is snapshotted individually,
+            // so the exposure says which KINDS landed rather than which
+            // trials did.
             let extra = TEARS[(rng.next_u64() as usize) % TEARS.len()];
-            plant(&mut body, extra, &mut rng, dead);
-            tally.merge(hammer(&body));
+            for kind in core::iter::repeat_n(tear, trial + 1).chain([extra]) {
+                let before = deep_snapshot(&body);
+                plant(&mut body, kind, &mut rng, dead);
+                if deep_snapshot(&body) != before {
+                    census.note(&tear_landed(kind));
+                }
+            }
+            census.merge(&hammer(&body, tol));
         }
     }
-    println!("[evidence] review_d18 torn sweep: {tally:?}");
-    assert!(
-        tally.calls > 1_000,
-        "sweep was vacuous: only {} operator calls — {}",
-        tally.calls,
-        fuzz::replay()
+    census.report();
+    // EVERY corruption shape must have landed somewhere: `plant` takes a
+    // `Tear` and a drawn key and can quietly become a no-op for a shape
+    // it no longer knows how to reach. Derived from `TEARS` rather than
+    // written out, so the floor cannot drift from the enumeration.
+    let landed: Vec<String> = TEARS.iter().map(|t| tear_landed(*t)).collect();
+    let landed: Vec<&str> = landed.iter().map(String::as_str).collect();
+    census.require_nonzero_among(
+        &landed,
+        TEARS.len(),
+        &format!(
+            "a corruption shape never landed on any body in the whole sweep, so the \
+             hammer below ran on bodies that shape had not torn — {}",
+            fuzz::replay()
+        ),
     );
-    assert!(
-        tally.oks > 0,
-        "no operator reached its mutation phase on a torn body, so no \
-         row-4 arm was ever in scope — {}",
-        fuzz::replay()
+    // The KEY ENUMERATION, and only that; the tear floor above carries
+    // the other half. Measured on an intact tree: 11907.
+    census.require(
+        CALLS,
+        1_001,
+        &format!(
+            "the key enumeration has collapsed — the bodies no longer present the \
+             half-edges, edges and loops this sweep hammers — {}",
+            fuzz::replay()
+        ),
+    );
+    // 4 of the 6 link-reaching operators, against 5 measured on an
+    // intact tree (`kemr` reaches none — S161).
+    //
+    // THE ONE OPERATOR OF SLACK IS DELIBERATE AND IS NOT A ROUNDING
+    // ERROR. Do not "fix" it to 5. At 5 the floor would be a coverage
+    // TARGET pinned to today's measurement, and the next legitimate
+    // change to a plan-phase precondition reds a row that is still
+    // attacking the arms perfectly well. At 4 a genuine loss — a second
+    // operator joining `kemr` at the door — reds it, which is the
+    // behaviour the row exists for, while the exposure line above
+    // reports the drop from 5 to 4 on every run for anyone reading.
+    census.require_nonzero_among(
+        &LINK_OPS,
+        4,
+        &format!(
+            "too few operators reached a mutation phase, so most of the arms under \
+             attack were never in scope and this green says nothing about them — {}",
+            fuzz::replay()
+        ),
     );
 }
 
@@ -606,13 +738,14 @@ fn torn_bodies_never_reach_a_row_four_unreachable() {
 #[test]
 #[cfg(not(debug_assertions))]
 fn a_spent_graft_destination_never_reaches_a_row_four_unreachable() {
-    let cube = ops_cube();
+    let tol = Tol::witness();
+    let cube = ops_cube(tol);
     let mut src = cube.body;
     src.get_half_edge_mut(cube.mevs[0].he_plus).unwrap().next = HalfEdgeKey::default();
-    let mut dst = ops_cube().body;
+    let mut dst = ops_cube(tol).body;
     let before = deep_snapshot(&dst);
     assert!(
-        crate::graft_disjoint_all_keyed(&mut dst, &src).is_err(),
+        crate::graft_disjoint_all_keyed(&mut dst, &src, tol).is_err(),
         "the torn source must refuse to graft"
     );
     assert_ne!(
@@ -621,10 +754,29 @@ fn a_spent_graft_destination_never_reaches_a_row_four_unreachable() {
         "this row only means something if the refusal really did leave \
          `dst` partially written; if the graft ever becomes atomic, retire it"
     );
-    let tally = hammer(&dst);
-    println!("[evidence] review_d18 spent-graft hammer: {tally:?}");
-    assert!(
-        tally.calls > 100,
-        "spent-destination hammer was vacuous: {tally:?}"
+    let census = hammer(&dst, tol);
+    census.report();
+    census.require(
+        CALLS,
+        101,
+        "the spent destination no longer presents the keys this row hammers; measured \
+         on an intact tree: 876",
+    );
+    // THE FLOOR THIS ROW EXISTS BEHIND, and the one its twin already
+    // had. A spent graft destination is more structurally damaged than
+    // a randomly torn cube, so it is the likelier of the two to have
+    // its calls refuse in a plan phase — the run that proves nothing
+    // about the arms under attack while passing green.
+    //
+    // 4 of the 6 link-reaching operators, against 5 measured on an
+    // intact tree (`kef` 24, `kev` 24, `mef_chord` 64, `mev_line` 60,
+    // `split_edge` 72; `kemr` 0 — S161). Not over the total, and not
+    // over `OPS`: see `LINK_OPS`. The one operator of slack is
+    // deliberate — see the twin row above for what it buys.
+    census.require_nonzero_among(
+        &LINK_OPS,
+        4,
+        "too few operators reached a mutation phase on the spent destination, so the \
+         arms under attack were never in scope and this green says nothing about them",
     );
 }

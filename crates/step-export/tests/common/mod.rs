@@ -2,10 +2,12 @@
 //! public profile/sweep/boolean APIs only (the same shapes as the M3
 //! STL review suites: bricks, the pocketed die, the corner-kiss
 //! assembly, the voided subtract).
-#![allow(dead_code)] // each consumer uses a subset
+#![allow(dead_code)] // loaded once per consumer; each uses a subset
+#![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Point2, Point3, Tolerance, Vec3};
+use geom_core::Tol;
+use geom_core::{Point2, Point3, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
 use sweep::{Extrusion, extrude};
@@ -13,7 +15,7 @@ use topo::{Body, BooleanResult, BooleanResultKind, subtract, union};
 
 fn validated(plane: SketchPlane<f64>, lp: ProfileLoop<f64>) -> ValidatedProfile<f64> {
     Profile::new(plane, vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap()
 }
 
@@ -35,6 +37,7 @@ pub fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
             lp,
         ),
         Extrusion::Distance(z.1 - z.0),
+        Tol::witness(),
     )
     .unwrap()
     .body
@@ -56,7 +59,7 @@ pub fn die(x0: f64, y0: f64, z0: f64) -> Body<f64> {
         (y0 + 0.25, y0 + 0.75),
         (z0 + 0.5, z0 + 1.5),
     );
-    let BooleanResult::Body(b) = subtract(&cube, &cutter).unwrap() else {
+    let BooleanResult::Body(b) = subtract(&cube, &cutter, Tol::witness()).unwrap() else {
         panic!("die subtract is a body");
     };
     b.body
@@ -67,7 +70,7 @@ pub fn die(x0: f64, y0: f64, z0: f64) -> Body<f64> {
 pub fn kiss_assembly() -> Body<f64> {
     let d1 = die(0.0, 0.0, 0.0);
     let d2 = die(1.0, 1.0, 1.0);
-    let BooleanResult::Body(assembly) = union(&d1, &d2).unwrap() else {
+    let BooleanResult::Body(assembly) = union(&d1, &d2, Tol::witness()).unwrap() else {
         panic!("kiss union is a body");
     };
     assert_eq!(assembly.body.shells().count(), 2, "two kissing shells");
@@ -79,7 +82,7 @@ pub fn kiss_assembly() -> Body<f64> {
 pub fn voided() -> Body<f64> {
     let a = brick((0.0, 3.0), (0.0, 3.0), (0.0, 3.0));
     let b = brick((1.0, 2.0), (1.0, 2.0), (1.0, 2.0));
-    let BooleanResult::Body(result) = subtract(&a, &b).unwrap() else {
+    let BooleanResult::Body(result) = subtract(&a, &b, Tol::witness()).unwrap() else {
         panic!("voided subtract is a body");
     };
     assert_eq!(result.kind, BooleanResultKind::Voided, "B inside A voids");
@@ -115,9 +118,9 @@ pub fn ball() -> Body<f64> {
         ProfileVertex::new(Point2::new(0.0, 1.0), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
-    revolve(&profile, revolve_y(), Revolution::Full)
+    revolve(&profile, revolve_y(), Revolution::Full, Tol::witness())
         .unwrap()
         .body
 }
@@ -134,9 +137,9 @@ pub fn cone() -> Body<f64> {
         Point2::new(0.0, 1.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
-    revolve(&profile, revolve_y(), Revolution::Full)
+    revolve(&profile, revolve_y(), Revolution::Full, Tol::witness())
         .unwrap()
         .body
 }
@@ -152,9 +155,9 @@ pub fn donut() -> Body<f64> {
         ProfileVertex::new(Point2::new(2.0, 0.5), 1.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
-    revolve(&profile, revolve_y(), Revolution::Full)
+    revolve(&profile, revolve_y(), Revolution::Full, Tol::witness())
         .unwrap()
         .body
 }
@@ -186,32 +189,35 @@ pub fn lily_lantern() -> Body<f64> {
     let r_mouth = (globe.powi(2) - mouth.powi(2)).sqrt();
     let lp = Open
         .at(Point2::new(0.0, top))
-        .line_to(Point2::new(r_top, top))
+        .line_to(Point2::new(r_top, top), Tol::witness())
         .unwrap()
         // The belly, on the globe's own carrier: past the equator, so
         // the sweep is the CLOCKWISE (descending-angle) one.
-        .arc_to(Center {
-            c: Point2::new(0.0, 0.0),
-            winding: ArcSweep::Cw,
-            p: Point2::new(r_mouth, -mouth),
-        })
+        .arc_to(
+            Center {
+                c: Point2::new(0.0, 0.0),
+                winding: ArcSweep::Cw,
+                p: Point2::new(r_mouth, -mouth),
+            },
+            Tol::witness(),
+        )
         .unwrap()
-        .line_to(Point2::new(lip_r, -mouth - lip_drop))
+        .line_to(Point2::new(lip_r, -mouth - lip_drop), Tol::witness())
         .unwrap()
-        .line_to(Point2::new(0.0, -mouth - lip_drop))
+        .line_to(Point2::new(0.0, -mouth - lip_drop), Tol::witness())
         .unwrap()
-        .line_to(Start)
+        .line_to(Start, Tol::witness())
         .unwrap()
         .loop_;
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
-    revolve(&profile, revolve_y(), Revolution::Full)
+    revolve(&profile, revolve_y(), Revolution::Full, Tol::witness())
         .unwrap()
         .body
 }
 
-/// A revolved washer: the rectangle [1,2]×[0,1] swept fully — genus 1,
+/// A revolved washer: the rectangle `[1,2]×[0,1]` swept fully — genus 1,
 /// two annuli and two full-2π cylinder walls. Its BORE wall and its
 /// under-side annulus both carry `sense: false` (S11), so this is the
 /// corpus's two-`.F.` body. Exact volume 3π.
@@ -224,9 +230,9 @@ pub fn washer() -> Body<f64> {
         Point2::new(1.0, 1.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
-    revolve(&profile, revolve_y(), Revolution::Full)
+    revolve(&profile, revolve_y(), Revolution::Full, Tol::witness())
         .unwrap()
         .body
 }
@@ -244,15 +250,17 @@ pub fn cut_cylinder() -> Body<f64> {
         ProfileVertex::new(Point2::new(1.0, 0.0), 1.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
-    let cylinder = extrude(&profile, Extrusion::Distance(2.5)).unwrap().body;
+    let cylinder = extrude(&profile, Extrusion::Distance(2.5), Tol::witness())
+        .unwrap()
+        .body;
     let phi: f64 = 0.3;
     let plane = SplitPlane {
         origin: Point3::new(0.0, 0.0, 1.25),
         normal: Vec3::new(phi.sin(), 0.0, phi.cos()),
     };
-    let result = split(&cylinder, &plane).unwrap();
+    let result = split(&cylinder, &plane, Tol::witness()).unwrap();
     let SplitPart::Body(above) = &result.above else {
         panic!("the above half carries material");
     };
@@ -276,6 +284,7 @@ pub fn boss_union() -> Body<f64> {
     let plate = extrude(
         &validated(SketchPlane::xy(), plate_loop),
         Extrusion::Distance(1.0),
+        Tol::witness(),
     )
     .unwrap()
     .body;
@@ -291,12 +300,12 @@ pub fn boss_union() -> Body<f64> {
     ]);
     let sketch = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.4)));
     let boss_profile = Profile::new(sketch, vec![boss_loop])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
-    let boss = extrude(&boss_profile, Extrusion::Distance(1.2))
+    let boss = extrude(&boss_profile, Extrusion::Distance(1.2), Tol::witness())
         .unwrap()
         .body;
-    let BooleanResult::Body(bb) = union(&plate, &boss).unwrap() else {
+    let BooleanResult::Body(bb) = union(&plate, &boss, Tol::witness()).unwrap() else {
         panic!("the boss union yields a body");
     };
     bb.body
@@ -317,9 +326,13 @@ pub fn notched() -> Body<f64> {
         ProfileVertex::new(Point2::new(2.0, 1.5), -b),
         ProfileVertex::new(Point2::new(0.0, 1.5), 0.0),
     ]);
-    extrude(&validated(SketchPlane::xy(), lp), Extrusion::Distance(1.0))
-        .unwrap()
-        .body
+    extrude(
+        &validated(SketchPlane::xy(), lp),
+        Extrusion::Distance(1.0),
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 /// S12's two-stub complement: a radius-0.35 cylindrical boss spanning
@@ -345,6 +358,7 @@ pub fn two_stub_complement() -> Body<f64> {
             ]),
         ),
         Extrusion::Distance(0.8),
+        Tol::witness(),
     )
     .unwrap()
     .body;
@@ -358,13 +372,14 @@ pub fn two_stub_complement() -> Body<f64> {
     let sketch = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, -0.2)));
     let boss = extrude(
         &Profile::new(sketch, vec![boss_loop])
-            .validate(Tolerance::get())
+            .validate(Tol::witness())
             .unwrap(),
         Extrusion::Distance(1.2),
+        Tol::witness(),
     )
     .unwrap()
     .body;
-    let BooleanResult::Body(stubs) = subtract(&boss, &plate).unwrap() else {
+    let BooleanResult::Body(stubs) = subtract(&boss, &plate, Tol::witness()).unwrap() else {
         panic!("boss minus plate is a body");
     };
     stubs.body
@@ -490,8 +505,8 @@ pub fn fixture_corpus() -> Vec<(&'static str, Body<f64>)> {
 /// The M5 PR 12 die blank: a unit cube with every edge blended at
 /// r = 0.12 — 6 shrunk planes, 12 quarter-cylinders, 8 sphere octants.
 pub fn filleted_die() -> Body<f64> {
-    let tol = geom_core::Tolerance::get();
-    let band = geom_core::Band::new(tol.eps, tol.k * tol.eps).expect("band");
+    let tol = geom_core::Tol::witness();
+    let band = geom_core::Band::new(tol.eps(), tol.k() * tol.eps()).expect("band");
     let lp = profile::ProfileLoop::polygon([
         Point2::new(0.0, 0.0),
         Point2::new(1.0, 0.0),
@@ -501,11 +516,11 @@ pub fn filleted_die() -> Body<f64> {
     let prof = profile::Profile::new(profile::SketchPlane::xy(), vec![lp])
         .validate(tol)
         .expect("the die's square");
-    let body = sweep::extrude(&prof, sweep::Extrusion::Distance(1.0))
+    let body = sweep::extrude(&prof, sweep::Extrusion::Distance(1.0), Tol::witness())
         .expect("the cube")
         .body;
     let edges: Vec<_> = body.edges().map(|(k, _)| k).collect();
-    sweep::fillet::build::fillet_edges(&body, &edges, 0.12, band)
+    sweep::fillet::build::fillet_edges(&body, &edges, 0.12, band, Tol::witness())
         .expect("the die blank")
         .body
 }
@@ -542,7 +557,7 @@ pub fn die_pips() -> Body<f64> {
             ProfileVertex::new(Point2::new(0.0, PIP_R), 0.0),
         ]);
         let vp = Profile::new(SketchPlane::xy(), vec![lp])
-            .validate(Tolerance::get())
+            .validate(Tol::witness())
             .unwrap();
         revolve(
             &vp,
@@ -551,6 +566,7 @@ pub fn die_pips() -> Body<f64> {
                 dir: geom_core::Vec2::new(0.0, 1.0),
             },
             Revolution::Full,
+            Tol::witness(),
         )
         .unwrap()
         .body
@@ -569,6 +585,7 @@ pub fn die_pips() -> Body<f64> {
                 topo::transform_rigid(
                     &b,
                     &Affine3::rotation_about_axis(origin, Vec3::new(1.0, 0.0, 0.0), PI),
+                    Tol::witness(),
                 )
                 .unwrap()
             }
@@ -580,10 +597,11 @@ pub fn die_pips() -> Body<f64> {
                     axis.normalize(),
                     y.dot(pole).clamp(-1.0, 1.0).acos(),
                 ),
+                Tol::witness(),
             )
             .unwrap()
         };
-        topo::transform_rigid(&placed, &Affine3::translation(c)).unwrap()
+        topo::transform_rigid(&placed, &Affine3::translation(c), Tol::witness()).unwrap()
     };
     // The classical 2-D pip layout of face value `n`, in units of
     // PIP_D about the face centre.
@@ -631,6 +649,7 @@ pub fn die_pips() -> Body<f64> {
             &poled(*c, *n),
             &topo::BooleanDeclarations::none(),
             SweepStrategy::Realized,
+            Tol::witness(),
         )
         .expect("the pip tool assembles")
         .body()
@@ -645,6 +664,7 @@ pub fn die_pips() -> Body<f64> {
         &tool,
         &topo::BooleanDeclarations::none(),
         SweepStrategy::Realized,
+        Tol::witness(),
     )
     .expect("the pips cut")
     .body()
@@ -671,8 +691,8 @@ pub fn census(body: &Body<f64>) -> (usize, usize, usize) {
 pub fn composed_die() -> Body<f64> {
     use sweep::fillet::build::fillet_edges;
 
-    let tol = Tolerance::get();
-    let band = geom_core::Band::new(tol.eps, tol.k * tol.eps).expect("band");
+    let tol = Tol::witness();
+    let band = geom_core::Band::new(tol.eps(), tol.k() * tol.eps()).expect("band");
     let (die_r, rim_r) = (0.12, 0.02);
     let pipped = die_pips();
     let box_edges: Vec<topo::EdgeKey> = pipped
@@ -685,7 +705,7 @@ pub fn composed_die() -> Body<f64> {
         })
         .map(|(k, _)| k)
         .collect();
-    let blanked = fillet_edges(&pipped, &box_edges, die_r, band)
+    let blanked = fillet_edges(&pipped, &box_edges, die_r, band, Tol::witness())
         .expect("the box edges blend in place")
         .body;
     let is_kind = |b: &Body<f64>, f: topo::FaceKey, want_plane: bool| -> bool {
@@ -716,7 +736,7 @@ pub fn composed_die() -> Body<f64> {
         })
         .map(|(k, _)| k)
         .collect();
-    fillet_edges(&blanked, &rims, rim_r, band)
+    fillet_edges(&blanked, &rims, rim_r, band, Tol::witness())
         .expect("the rims blend to torus bands")
         .body
 }
@@ -734,7 +754,7 @@ pub fn loft_prism() -> Body<f64> {
         quad(PRISM_TRAPEZOID),
         quad(PRISM_SQUARE),
     ];
-    sweep::loft_body::<f64>(&sections, &lofted_at_z(&[0.0, 1.0, 2.0]), 2)
+    sweep::loft_body::<f64>(&sections, &lofted_at_z(&[0.0, 1.0, 2.0]), 2, Tol::witness())
         .expect("shape (iii) loft builds")
         .body
 }
@@ -806,15 +826,13 @@ pub fn nonuniform_loft() -> Body<f64> {
     ];
     let places = lofted_at_z(&[0.0, 1.0, 3.0]);
     // The `t` the doc comment derives above, ASKED rather than
-    // re-derived (LIB-U5 deliverable 1). Two independent hand
-    // derivations of one kernel function used to live in this tree —
-    // this one and the tour's; both now pin against the door.
+    // re-derived (LIB-U5 deliverable 1).
     assert_eq!(
-        sweep::loft_parameters(&sections, &places, 2).expect("the sections skin"),
+        sweep::loft_parameters(&sections, &places, 2, Tol::witness()).expect("the sections skin"),
         vec![0.0, NONUNIFORM_T, 1.0],
         "the derived v-parameterization is no longer what the skin chose"
     );
-    sweep::loft_body::<f64>(&sections, &places, 2)
+    sweep::loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("the non-uniform loft builds")
         .body
 }
@@ -866,6 +884,7 @@ pub fn swept_elbow() -> Body<f64> {
         &path,
         9,
         3,
+        Tol::witness(),
     )
     .expect("the curved-path sweep body builds")
     .body

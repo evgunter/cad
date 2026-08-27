@@ -98,17 +98,18 @@ use spade::{ConstrainedDelaunayTriangulation, Point2 as SpadePoint, Triangulatio
 use topo::{Body, FaceKey};
 
 use crate::cert;
-use crate::chords::{ChordPass, ceil_count, sagitta_angle};
-use crate::curved::Tol;
+use crate::chords::ChordPass;
 use crate::nurbs_cert::{FaceBounds, NurbsCellGrid, NurbsFaceBound, face_bound, nurbs_cell_grid};
 use crate::planar::{classify_faces, edge_key, shoelace2};
+use crate::sizing::{SizingTols, ceil_count, sagitta_step};
 use crate::types::TessellateError;
 
-/// Retry budget for the grid-on-constraint rebuild (module docs).
-// 6 since TESS-SPAN (was 4): the same round budget now carries the
-// certificate-driven refinement retries beside the grid-on-constraint
-// drops (module docs); the bound stays what it always was — the
-// typed-refusal backstop, not a tuning knob.
+/// Retry budget for the rebuild loop (module docs).
+///
+/// One round budget covers both retry kinds — the grid-on-constraint
+/// drops and the certificate-driven refinement — and it is a
+/// typed-refusal backstop rather than a tuning knob: exhausting it
+/// raises [`TessellateError`], it never coarsens or accepts a mesh.
 const MAX_GRID_RETRIES: usize = 6;
 
 /// The per-chart data of the two constructing lanes (module docs):
@@ -162,7 +163,7 @@ pub(crate) fn tessellate_trimmed(
     surface: &Surface<f64>,
     chords: &ChordPass,
     positions: &mut Vec<Point3<f64>>,
-    tol: &Tol,
+    tol: &SizingTols,
     bounds: &mut FaceBounds,
 ) -> Result<Vec<[u32; 3]>, TessellateError> {
     let face = body
@@ -182,6 +183,13 @@ pub(crate) fn tessellate_trimmed(
             axis,
             radius,
         },
+        // An approximating surface takes the spline lane on its fit
+        // (there is no placeholder state to screen: it is certified by
+        // construction).
+        Surface::Approx(ref a) => Lane::Nurbs {
+            grid: nurbs_cell_grid(a.fit(), fk)?,
+            patch: face_bound(bounds, a.fit(), fk)?,
+        },
         Surface::Nurbs(ref payload) => {
             if payload.is_placeholder() {
                 // The mvfs "no description yet" state — the historical
@@ -195,6 +203,20 @@ pub(crate) fn tessellate_trimmed(
         }
         _ => return Err(trim_frontier(body, fk, face.outer)?),
     };
+    // NO CHART SINGULARITY REACHES THIS LANE, checked where the lane
+    // is chosen. The emit pass keeps `curved`'s duplicate-id skip
+    // without `curved`'s pole-fan hazard (#678) only because of this:
+    // a repeated boundary id here is never a pole pair. The fact is
+    // `walk`'s — `Chart::poles()` is empty for a cylinder and a NURBS
+    // face has no `Chart` at all — so it can move without a line
+    // changing in this file, which is exactly why it is asserted here
+    // rather than written down (D2 addendum row 5).
+    debug_assert!(
+        crate::walk::Chart::of(surface).is_none_or(|c| c.poles().is_empty()),
+        "face {fk:?}: the trimmed lane took a chart with a pole, so the \
+         duplicate-id skip in the emit pass may be collapsing a pole fan — see \
+         curved::pole_columns, issue #678"
+    );
 
     // The UV polygon: per half-edge, the pcurve evaluated at the
     // shared chord parameters (each traversal contributes all but its
@@ -222,19 +244,44 @@ pub(crate) fn tessellate_trimmed(
         v0 = v0.min(v);
         v1 = v1.max(v);
     }
-    let (mut candidates, nurbs_grid_cells) = match lane {
+    let (mut candidates, nurbs_stats) = match lane {
         Lane::Cylinder { radius, .. } => {
-            let hu = sagitta_angle(tol.delta_s, radius);
+            let hu = sagitta_step(tol.delta_s, radius);
             let nu = ceil_count(u1 - u0, hu)?;
             let nv = ceil_count(v1 - v0, radius * hu)?;
+            // The other half of #678's shape, checked where the count
+            // is: the fan needs ONE interior column between two
+            // boundary entries that share a mesh vertex, which is
+            // `nu == 2`. The only repeated id at two DISTINCT UVs in
+            // this lane is the full-2π seam double-traversal, and
+            // there `u1 - u0` is 2π against an `hu` the sagitta cap
+            // holds at ≤ π/4 — so the two never meet. Arithmetic, not
+            // an argument, and this is the line that says so.
+            //
+            // VACUOUS TODAY, and the search that says so was
+            // adversarial rather than incidental: across the suite's
+            // 19 trimmed-cylinder faces `nu` is 5, 16 or 50 and no
+            // polygon repeats an id apart, and the two conditions are
+            // arithmetically exclusive — `nu == 2` needs
+            // `u1 - u0 <= π/2`, a repeat-apart needs the full `2π`
+            // seam. Recorded as *searched for by a reviewer told what
+            // to look for and not found*, which survives someone
+            // adding a fixture in a way that *nothing in tree does
+            // this* does not.
+            debug_assert!(
+                nu != 2 || !id_repeats_apart(&polygon),
+                "face {fk:?}: a trim polygon repeats a mesh id at two UV locations \
+                 with a single interior column (nu = 2, nv = {nv}) — the shape \
+                 #678's non-manifold fan needs (curved::pole_columns)"
+            );
             (uniform_candidates((u0, u1), (v0, v1), nu, nv), None)
         }
         Lane::Nurbs {
             ref grid,
             ref patch,
         } => {
-            let (cand, cells) = per_cell_candidates(grid, patch, (u0, u1), (v0, v1), tol.delta_s)?;
-            (cand, Some(cells))
+            let (cand, stats) = per_cell_candidates(grid, patch, (u0, u1), (v0, v1), tol.delta_s)?;
+            (cand, Some(stats))
         }
     };
     // Grid candidates are a fixed, deduplicated, (v, u)-sorted list
@@ -258,7 +305,29 @@ pub(crate) fn tessellate_trimmed(
     // catch. So `worst_ratio` accumulates across attempts and is
     // handed over once, at the end.
     let (mut worst_ratio, mut ratio_samples) = (f64::NAN, 0u64);
+    // The CSV's deviation columns and the face's worst certificate.
+    // These describe ONE attempt — the one the face exits on — and are
+    // reset at the top of each; `worst_ratio` above deliberately is
+    // not. They live out here so the single hand-off below can read
+    // them whichever way the loop ends.
+    let (mut worst_dev, mut worst_dev_cert) = (f64::NAN, f64::NAN);
+    let (mut dev_samples, mut worst) = (0u64, 0.0f64);
+    // THE FACE'S ONE EXIT. Every path out of the retry loop lands
+    // here, so the measurement hand-off below is on all of them —
+    // including the two typed REFUSALS, which is the case the
+    // falsification accumulator above exists for. `None` after the
+    // loop is the retries-exhausted path.
+    let mut outcome: Option<Result<Vec<[u32; 3]>, TessellateError>> = None;
     'retry: for attempt in 0..=MAX_GRID_RETRIES {
+        // THIS ATTEMPT's columns, cleared at its FIRST line: a
+        // discarded attempt's triangles must not contribute to numbers
+        // that describe the mesh the face exits on, and every path out
+        // of this loop — including the ones that leave before the emit
+        // pass — reaches the hand-off below. (`worst_ratio` is
+        // deliberately not among them; see above.)
+        worst = 0.0;
+        (worst_dev, worst_dev_cert) = (f64::NAN, f64::NAN);
+        dev_samples = 0;
         let mut cdt: ConstrainedDelaunayTriangulation<SpadePoint<f64>> =
             ConstrainedDelaunayTriangulation::new();
         // Handle-index → (mesh id or grid candidate index, uv).
@@ -270,9 +339,10 @@ pub(crate) fn tessellate_trimmed(
         let mut meta: Vec<(f64, f64, Slot)> = Vec::new();
         let mut handles = Vec::with_capacity(polygon.len());
         for &(u, v, id) in &polygon {
-            let h = cdt
-                .insert(SpadePoint::new(u, v))
-                .map_err(|_| TessellateError::Triangulation { face: fk })?;
+            let Ok(h) = cdt.insert(SpadePoint::new(u, v)) else {
+                outcome = Some(Err(TessellateError::Triangulation { face: fk }));
+                break 'retry;
+            };
             if h.index() == meta.len() {
                 meta.push((u, v, Slot::Boundary(id)));
             }
@@ -282,9 +352,10 @@ pub(crate) fn tessellate_trimmed(
             if dropped.contains(&k) {
                 continue;
             }
-            let h = cdt
-                .insert(SpadePoint::new(u, v))
-                .map_err(|_| TessellateError::Triangulation { face: fk })?;
+            let Ok(h) = cdt.insert(SpadePoint::new(u, v)) else {
+                outcome = Some(Err(TessellateError::Triangulation { face: fk }));
+                break 'retry;
+            };
             if h.index() == meta.len() {
                 meta.push((u, v, Slot::Grid(k)));
             }
@@ -302,7 +373,8 @@ pub(crate) fn tessellate_trimmed(
             }
             let realised = cdt.try_add_constraint(a, b);
             if realised.is_empty() {
-                return Err(TessellateError::Triangulation { face: fk });
+                outcome = Some(Err(TessellateError::Triangulation { face: fk }));
+                break 'retry;
             }
             if realised.len() > 1 {
                 // Classify every intermediate vertex (a vertex of a
@@ -329,7 +401,9 @@ pub(crate) fn tessellate_trimmed(
                                 split_offender = true;
                             }
                             Slot::Boundary(_) => {
-                                return Err(TessellateError::SelfTouchingTrimLoop { face: fk });
+                                outcome =
+                                    Some(Err(TessellateError::SelfTouchingTrimLoop { face: fk }));
+                                break 'retry;
                             }
                         }
                     }
@@ -342,7 +416,8 @@ pub(crate) fn tessellate_trimmed(
         }
         if split_offender {
             if attempt == MAX_GRID_RETRIES {
-                return Err(TessellateError::Triangulation { face: fk });
+                outcome = Some(Err(TessellateError::Triangulation { face: fk }));
+                break 'retry;
             }
             continue 'retry;
         }
@@ -405,20 +480,17 @@ pub(crate) fn tessellate_trimmed(
         // observationally identical. It is what makes the meter cost
         // exactly nothing per triangle when it is disarmed, which is
         // every normal run.
+        // NURBS ONLY, and that is a coverage gap rather than a
+        // subtlety: `cert::cert_cylinder` certifies every cylinder
+        // triangle in BOTH lanes and no build samples one against it.
+        // Recorded as S236 (`docs/SMELL-SCAN-2026-08.md`) because
+        // closing it changes what a `FaceMeasure` means.
         let dev_samples_per_edge = if matches!(lane, Lane::Nurbs { .. }) {
             crate::budget::deviation_samples()
         } else {
             None
         };
         let mut triangles = Vec::new();
-        let mut worst: f64 = 0.0;
-        // The CSV's deviation columns. LOCAL to this attempt, so a
-        // retry's samples start over with them — a discarded attempt's
-        // triangles must not contribute to numbers that describe the
-        // mesh that was KEPT. (`worst_ratio` deliberately does not
-        // live here; see above.)
-        let (mut worst_dev, mut worst_dev_cert) = (f64::NAN, f64::NAN);
-        let mut dev_samples = 0u64;
         // CERT-DRIVEN REFINEMENT (TESS-SPAN; module docs): NURBS
         // triangles certifying above the per-face sizing target get
         // their UV centroid queued as a new candidate for the next
@@ -440,32 +512,23 @@ pub(crate) fn tessellate_trimmed(
                     Slot::Grid(c) => grid_ids[&c],
                 };
             }
-            // #678's sibling sweep (C10 makes it part of acceptance,
-            // not a follow-up). `curved`'s identical idiom hid a
-            // silent non-manifold fan: two boundary entries sharing
-            // one mesh vertex, far apart in u, with a SINGLE interior
-            // grid column equidistant from both, so the CDT fanned
-            // both over it and the identified edge was used four
-            // times. This lane is CLEAR of that shape, for two
-            // reasons rather than by measurement.
+            // A triangle with two corners on one mesh vertex is
+            // degenerate in 3-D. Dropping it is `curved`'s idiom, and
+            // there it collapses a pole fan (#678); here the drop is
+            // all it is, because neither ingredient of that fan
+            // reaches this lane — no chart singularity, and no
+            // repeated id at two UV locations with a single interior
+            // column between them.
             //
-            // 1. No chart singularity can reach here. The two
-            //    constructing lanes are cylinder and described NURBS
-            //    (module docs): `walk::Chart::poles()` is empty for a
-            //    cylinder, a NURBS face has no `Chart` at all, and a
-            //    conic trim on a cone/sphere/torus chart refuses typed
-            //    (`trim_frontier`). So a repeated `Slot::Boundary(id)`
-            //    is never a pole pair.
-            // 2. The only other source of one repeated id at two
-            //    DISTINCT UV locations is the full-2π seam
-            //    double-traversal, and there `uspan = 2π` against an
-            //    `hu` the sagitta cap holds at ≤ π/4, so `nu ≥ 8` —
-            //    `nu == 2` is unreachable, the same containment
-            //    argument `curved::pole_columns` records. A loop that
-            //    revisits a vertex puts both entries at the SAME UV,
-            //    where spade dedupes them to one CDT vertex; a
-            //    self-touch landing on a constraint instead refuses
-            //    typed (`SelfTouchingTrimLoop`).
+            // WHAT IS ASSERTED, AND WHERE THE COVER STOPS. The chart
+            // half is checked at the lane choice, which runs for BOTH
+            // lanes. The column half is checked at the cylinder arm's
+            // `nu`, and this emit pass also runs for NURBS — where
+            // there is no `nu`, because the candidates come from the
+            // cell grid rather than a uniform division, so the
+            // "single interior column" the fan needs has no analogue
+            // to test. That is the argument for the NURBS half, and it
+            // is an ARGUMENT: only the cylinder half is checked.
             if ids[0] == ids[1] || ids[1] == ids[2] || ids[0] == ids[2] {
                 continue; // boundary-degenerate sliver
             }
@@ -576,53 +639,93 @@ pub(crate) fn tessellate_trimmed(
             continue 'retry;
         }
         if worst.is_nan() || worst > tol.delta {
-            return Err(TessellateError::CertificateExceeded {
+            outcome = Some(Err(TessellateError::CertificateExceeded {
                 face: fk,
                 bound: worst,
                 requested: tol.delta,
-            });
-        }
-        // BUDGET METER (dead in normal runs): this face's
-        // measurements, handed over ONCE, on the path that kept its
-        // triangles — everything derivable downstream is derived
-        // downstream (`crate::budget`, issue #320 / TESS-SPAN). The
-        // certified bounds are the ones the sizing above already read;
-        // nothing is recomputed for the meter.
-        if crate::budget::armed()
-            && let (Some(grid_cells), Lane::Nurbs { grid, patch }) = (nurbs_grid_cells, &lane)
-        {
-            crate::budget::note_face(crate::budget::FaceMeasure {
-                face: fk,
-                u: (u0, u1),
-                v: (v0, v1),
-                delta_s: tol.delta_s,
-                grid_cells,
-                muu: patch.muu,
-                muv: patch.muv,
-                mvv: patch.mvv,
-                patch_steps: patch.grid_steps(tol.delta_s),
-                cells: grid
-                    .cells()
-                    .map(|c| crate::budget::CellMeasure {
-                        u: c.u,
-                        v: c.v,
-                        muu: c.bound.muu,
-                        muv: c.bound.muv,
-                        mvv: c.bound.mvv,
-                        steps: c.bound.grid_steps(tol.delta_s),
-                    })
-                    .collect(),
-                worst_cert: worst,
-                worst_dev,
-                worst_dev_cert,
-                worst_ratio,
-                dev_samples,
-            });
+            }));
+            break 'retry;
         }
         positions.extend(staged);
-        return Ok(triangles);
+        outcome = Some(Ok(triangles));
+        break 'retry;
     }
-    Err(TessellateError::Triangulation { face: fk })
+
+    // BUDGET METER (dead in normal runs): this face's measurements,
+    // handed over ONCE, however the face ENDED — everything derivable
+    // downstream is derived downstream (`crate::budget`, issue #320 /
+    // TESS-SPAN). The certified bounds are the ones the sizing above
+    // already read; nothing is recomputed for the meter.
+    //
+    // A refused face is measured too, and that is the point: the
+    // falsification `worst_ratio` carries is about every triangle this
+    // face TESSELLATED, and a face whose certificate was exceeded is
+    // the likeliest carrier of a violating sample there is. The other
+    // columns describe the attempt the face exited on — for a refusal
+    // that is the attempt that lost, which is the only mesh there was.
+    if crate::budget::armed()
+        && let (Some(stats), Lane::Nurbs { grid, patch }) = (nurbs_stats, &lane)
+    {
+        crate::budget::note_face(crate::budget::FaceMeasure {
+            face: fk,
+            u: (u0, u1),
+            v: (v0, v1),
+            delta_s: tol.delta_s,
+            grid_cells: stats.grid_cells,
+            bands: stats.bands,
+            cap_bands: stats.cap_bands,
+            snap_bands: stats.snap_bands,
+            realized_aspect: stats.realized_aspect,
+            muu: patch.muu,
+            muv: patch.muv,
+            mvv: patch.mvv,
+            mu1: patch.mu1,
+            mv1: patch.mv1,
+            patch_steps: patch.grid_steps(tol.delta_s),
+            cells: grid
+                .cells()
+                .map(|c| crate::budget::CellMeasure {
+                    u: c.u,
+                    v: c.v,
+                    muu: c.bound.muu,
+                    muv: c.bound.muv,
+                    mvv: c.bound.mvv,
+                    mu1: c.bound.mu1,
+                    mv1: c.bound.mv1,
+                    steps: c.bound.grid_steps(tol.delta_s),
+                })
+                .collect(),
+            worst_cert: worst,
+            worst_dev,
+            worst_dev_cert,
+            worst_ratio,
+            dev_samples,
+        });
+    }
+    // The retries-exhausted path leaves no verdict of its own.
+    outcome.unwrap_or(Err(TessellateError::Triangulation { face: fk }))
+}
+
+/// Whether any mesh id appears at two DIFFERENT UV locations in the
+/// trim polygon — the second ingredient of #678's non-manifold fan
+/// (`curved::pole_columns` carries the argument; the first ingredient
+/// is a single interior column between them).
+///
+/// **"Different" means what SPADE means by it**, which is why this
+/// compares `f64`s and not their bits. Spade's vertex lookup is
+/// `PartialEq` on `Point2<f64>` — plain `==` — so `-0.0` and `0.0`
+/// are ONE spade vertex and two bit patterns. A `to_bits` compare
+/// would report "apart" exactly where spade dedupes, which is this
+/// file's own complaint (an invariant restated in a spelling that
+/// disagrees with the module it is about) converted rather than
+/// closed. Two entries spade merges are one CDT vertex and cannot be
+/// fanned apart; two it keeps can.
+#[allow(clippy::float_cmp)]
+fn id_repeats_apart(polygon: &[(f64, f64, u32)]) -> bool {
+    let mut seen: HashMap<u32, (f64, f64)> = HashMap::new();
+    polygon
+        .iter()
+        .any(|&(u, v, id)| seen.insert(id, (u, v)).is_some_and(|p| p != (u, v)))
 }
 
 /// The uniform interior grid candidates of the cylinder lane: the trim
@@ -646,12 +749,13 @@ fn uniform_candidates(u: (f64, f64), v: (f64, f64), nu: usize, nv: usize) -> Vec
     cand
 }
 
-/// The NURBS lane's interior grid candidates (TESS-SPAN): a
-/// **per-v-band tensor** from the ONE shipped schedule derivation,
+/// The NURBS lane's interior grid candidates: a **per-v-band
+/// tensor** from the ONE shipped schedule derivation,
 /// [`crate::nurbs_cert::NurbsCellGrid::band_schedule`] — per-band
-/// `nuc × nvc` through the unchanged point-selection rule, with
-/// malign bands and their neighbours snapped to the whole-patch
-/// column count (the alignment argument lives there).
+/// `nuc × nvc` through the aspect-capped split selection
+/// (TESS-SPLIT), with malign bands and their neighbours projected
+/// onto the whole-patch column schedule (the alignment argument
+/// lives there).
 ///
 /// * Row lines land exactly on the band cuts (never through the lerp,
 ///   whose rounding would put two almost-coincident lines an ulp
@@ -677,11 +781,33 @@ fn per_cell_candidates(
     u: (f64, f64),
     v: (f64, f64),
     delta_s: f64,
-) -> Result<(Vec<(f64, f64)>, usize), TessellateError> {
+) -> Result<(Vec<(f64, f64)>, ScheduleStats), TessellateError> {
     let mut cand: Vec<(f64, f64)> = Vec::new();
-    let mut grid_cells = 0usize;
+    let mut stats = ScheduleStats {
+        grid_cells: 0,
+        bands: 0,
+        cap_bands: 0,
+        snap_bands: 0,
+        realized_aspect: f64::NAN,
+    };
+    let du = u.1 - u.0;
     for b in grid.band_schedule(*patch, u, v, delta_s)? {
-        grid_cells += b.nuc * b.nvc;
+        stats.grid_cells += b.nuc * b.nvc;
+        stats.bands += 1;
+        stats.cap_bands += usize::from(b.cap);
+        stats.snap_bands += usize::from(b.snapped);
+        // The emitted lattice's post-`ceil` parameter aspect `s_u/s_v`
+        // — the quantity SAFE_ASPECT judges — max over bands. The NaN
+        // seed means "no bands yet" and the first band overwrites it;
+        // every band's aspect is a finite positive ratio (nonempty
+        // extents over counts floored at one).
+        #[allow(clippy::cast_precision_loss)]
+        let aspect = (du / b.nuc as f64) / ((b.vb - b.va) / b.nvc as f64);
+        stats.realized_aspect = if stats.realized_aspect.is_nan() {
+            aspect
+        } else {
+            stats.realized_aspect.max(aspect)
+        };
         // Band-boundary indices reproduce the cut values EXACTLY.
         let at = |lo: f64, hi: f64, i: usize, n: usize| -> f64 {
             if i == 0 {
@@ -709,7 +835,28 @@ fn per_cell_candidates(
     }
     sort_candidates(&mut cand);
     cand.dedup();
-    Ok((cand, grid_cells))
+    Ok((cand, stats))
+}
+
+/// What one face's band schedule did, summarized for the budget meter
+/// (`crate::budget`): the cell count the lane sized, and the
+/// constraint-activity indicator TESS-SPLIT's spec demands — which
+/// bands the aspect cap clamped, which the malign snap projected, and the
+/// worst realized lattice aspect the emitted schedule carries. Nothing
+/// downstream can recover any of these (bands are not in the CSV, and
+/// the selection rule lives only in `nurbs_cert`).
+#[derive(Clone, Copy, Debug)]
+struct ScheduleStats {
+    /// `Σ nuc·nvc` over the clipped bands.
+    grid_cells: usize,
+    /// Bands in the schedule.
+    bands: usize,
+    /// Bands whose step selection the A cap clamped.
+    cap_bands: usize,
+    /// Bands the malign snap projected with changed counts.
+    snap_bands: usize,
+    /// Max over bands of the post-`ceil` spacing ratio `s_u/s_v`.
+    realized_aspect: f64,
 }
 
 /// Row-major candidate order: by `v`, then `u` (total order — the
@@ -852,4 +999,59 @@ fn trim_polygon(
         }
     }
     Ok(out)
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::id_repeats_apart;
+
+    /// The ingredient test #678's fan needs, pinned on its own: a mesh
+    /// id at two DIFFERENT UV locations is the thing that can be
+    /// fanned apart; the same id twice at the SAME location is one CDT
+    /// vertex after spade's dedup and cannot be.
+    ///
+    /// **Both edges of "different" are here**, because the helper's
+    /// only way to go quietly wrong is to disagree with spade about
+    /// which pairs are one vertex: an ulp apart at seam magnitude is
+    /// two spade vertices and must read APART, and `-0.0` against
+    /// `0.0` is one spade vertex and must not — the case a `to_bits`
+    /// spelling gets backwards, and the reason this compares `f64`s.
+    #[test]
+    fn a_repeat_at_one_uv_is_not_a_repeat_apart() {
+        let same = [(0.0, 0.0, 7u32), (1.0, 0.5, 8), (0.0, 0.0, 7)];
+        assert!(!id_repeats_apart(&same), "one location, one CDT vertex");
+
+        let apart = [(0.0, 0.0, 7u32), (1.0, 0.5, 8), (2.0, 0.0, 7)];
+        assert!(id_repeats_apart(&apart), "the seam double-traversal shape");
+
+        // An ulp at SEAM magnitude (2π), not at zero: an ulp of 0.0 is
+        // 5e-324, a subnormal no chart coordinate reaches, and pinning
+        // there would pin the wrong scale.
+        let seam = std::f64::consts::TAU;
+        let ulp = [
+            (0.0, 0.0, 7u32),
+            (1.0, 0.5, 8),
+            (f64::from_bits(seam.to_bits() + 1), 0.0, 7),
+            (seam, 0.0, 7),
+        ];
+        assert!(
+            id_repeats_apart(&ulp),
+            "an ulp apart at 2pi is two CDT vertices, so it is apart"
+        );
+
+        // The other edge: spade compares positions with `==`, and
+        // `-0.0 == 0.0`. One vertex, so NOT apart — a bitwise compare
+        // would say the opposite.
+        let signed_zero = [(0.0, 0.0, 7u32), (1.0, 0.5, 8), (-0.0, 0.0, 7)];
+        assert!(
+            !id_repeats_apart(&signed_zero),
+            "-0.0 and 0.0 are one spade vertex"
+        );
+
+        // No repeat at all, and distinct ids at one location (a
+        // self-touch) is not this shape either.
+        let none = [(0.0, 0.0, 7u32), (0.0, 0.0, 8), (2.0, 0.0, 9)];
+        assert!(!id_repeats_apart(&none), "distinct ids are not a repeat");
+    }
 }

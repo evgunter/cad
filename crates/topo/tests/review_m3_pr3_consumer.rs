@@ -8,6 +8,7 @@
 mod common;
 
 use common::prism;
+use geom_core::Tol;
 use geom_core::{Point3, Vec3};
 use topo::{
     Body, SplitError, SplitFinishError, SplitJoinError, SplitPart, SplitPlane, mass_properties,
@@ -100,7 +101,7 @@ fn carve_leaves_no_orphans_and_no_dangling_keys() {
         &[(0.0, 0.0), (4.0, 0.0), (4.0, 3.0), (2.0, 3.0), (0.0, 2.0)],
         1.0,
     );
-    let r = split(&fx.body, &plane_y(1.0)).unwrap();
+    let r = split(&fx.body, &plane_y(1.0), Tol::witness()).unwrap();
     audit_geometry(body_of(&r.above));
     audit_geometry(body_of(&r.below));
 
@@ -116,7 +117,7 @@ fn carve_leaves_no_orphans_and_no_dangling_keys() {
         (0.0, 2.0),
     ];
     let fx = prism::<f64>(notched, 1.0);
-    let r = split(&fx.body, &plane_y(1.0)).unwrap();
+    let r = split(&fx.body, &plane_y(1.0), Tol::witness()).unwrap();
     audit_geometry(body_of(&r.above));
     audit_geometry(body_of(&r.below));
 }
@@ -128,20 +129,20 @@ fn carve_leaves_no_orphans_and_no_dangling_keys() {
 fn tiny_real_sliver_not_wrongly_refused() {
     let h = 1.0e-4;
     let fx = prism::<f64>(&[(0.0, 0.0), (4.0, 0.0), (2.0, 1.0 + h)], 1.0);
-    let r = split(&fx.body, &plane_y(1.0)).unwrap();
+    let r = split(&fx.body, &plane_y(1.0), Tol::witness()).unwrap();
     let (above, below) = (body_of(&r.above), body_of(&r.below));
     assert_eq!(validate_closed(above), Ok(()));
     assert_eq!(validate_closed(below), Ok(()));
     // The sliver: a similar triangle scaled by h/(1+h) in both profile
     // axes, depth 1: V = (1/2)·4·(1+h)·(h/(1+h))² ≈ 2h²/(1+h).
-    let va = mass_properties(above).unwrap().volume;
+    let va = mass_properties(above, Tol::witness()).unwrap().volume;
     let expect = 2.0 * h * h / (1.0 + h);
     assert!(
         (va - expect).abs() <= 1e-6 * expect,
         "sliver volume {va} vs {expect}"
     );
     // And the section query agrees: one tiny positive-area polygon.
-    let s = plane_section(&fx.body, &plane_y(1.0)).unwrap();
+    let s = plane_section(&fx.body, &plane_y(1.0), Tol::witness()).unwrap();
     assert_eq!(s.polygons.len(), 1);
 }
 
@@ -153,7 +154,7 @@ fn tiny_real_sliver_not_wrongly_refused() {
 /// stage earlier — the test accepts either typed outcome.)
 #[test]
 fn in_band_section_escalates_typed_not_misclassified() {
-    let eps = geom_core::Tolerance::get().eps;
+    let eps = geom_core::Tol::witness().get().eps;
     let t = 5.0 * eps; // inside (ε, 10ε)
     let profile = [(2.0, 0.0), (2.0 + t, 0.0), (2.0 + t, 2.0), (2.0, 2.0)];
     let built = std::panic::catch_unwind(|| prism::<f64>(&profile, 1.0));
@@ -161,7 +162,7 @@ fn in_band_section_escalates_typed_not_misclassified() {
         eprintln!("in-band probe: fixture build refused at ε={eps}");
         return; // build-stage refusal: honest, earlier.
     };
-    match split(&fx.body, &plane_y(1.0)) {
+    match split(&fx.body, &plane_y(1.0), Tol::witness()) {
         Err(SplitError::Join(SplitJoinError::DegenerateSection { .. })) => {
             panic!("in-band sliver MISCLASSIFIED as zero-area tangency");
         }
@@ -181,12 +182,12 @@ fn vertex_only_contact_is_typed_empty() {
         origin: Point3::new(0.0, 0.0, 0.0),
         normal: Vec3::new(-1.0 / s3, -1.0 / s3, -1.0 / s3),
     };
-    let r = split(&fx.body, &plane).unwrap();
+    let r = split(&fx.body, &plane, Tol::witness()).unwrap();
     assert!(matches!(r.above, SplitPart::Empty));
     let below = body_of(&r.below);
     assert_eq!(validate_closed(below), Ok(()));
     assert_eq!(below.vertices().count(), fx.body.vertices().count());
-    let s = plane_section(&fx.body, &plane).unwrap();
+    let s = plane_section(&fx.body, &plane, Tol::witness()).unwrap();
     assert!(s.polygons.is_empty());
     assert!(s.u_ref.is_none());
 }
@@ -205,12 +206,15 @@ fn tier3_needs_upgrade_pass_consumers_lack() {
         &[(0.0, 0.0), (4.0, 0.0), (4.0, 3.0), (2.0, 3.0), (0.0, 2.0)],
         1.0,
     );
-    let r = split(&fx.body, &plane_y(1.0)).unwrap();
+    let r = split(&fx.body, &plane_y(1.0), Tol::witness()).unwrap();
     let above = body_of(&r.above);
     assert_eq!(validate_closed(above), Ok(()), "tier 2 at rest holds");
-    assert!(mass_properties(above).is_ok(), "mass props work");
+    assert!(
+        mass_properties(above, Tol::witness()).is_ok(),
+        "mass props work"
+    );
     assert_eq!(
-        validate_geometric(above),
+        validate_geometric(above, Tol::witness()),
         Ok(()),
         "tier 3 accepts split output as shipped (D6: native descriptions)"
     );
@@ -227,7 +231,7 @@ fn single_solid_gate_split_vs_section() {
     add_quad_prism(&mut body, 10.0);
     assert_eq!(body.solids().count(), 2);
     assert_eq!(validate_closed(&body), Ok(()));
-    let err = split(&body, &plane_y(1.0)).unwrap_err();
+    let err = split(&body, &plane_y(1.0), Tol::witness()).unwrap_err();
     assert!(
         matches!(
             err,
@@ -237,7 +241,7 @@ fn single_solid_gate_split_vs_section() {
     );
     // plane_section never reaches the finish gate: it quietly slices
     // BOTH solids (two polygons) — the gate asymmetry, witnessed.
-    let s = plane_section(&body, &plane_y(1.0)).unwrap();
+    let s = plane_section(&body, &plane_y(1.0), Tol::witness()).unwrap();
     assert_eq!(s.polygons.len(), 2);
 }
 
@@ -260,7 +264,7 @@ fn plane_section_winding_is_consistent() {
         (0.0, 2.0),
     ];
     let fx = prism::<f64>(notched, 1.0);
-    let s = plane_section(&fx.body, &plane_y(1.0)).unwrap();
+    let s = plane_section(&fx.body, &plane_y(1.0), Tol::witness()).unwrap();
     assert_eq!(s.polygons.len(), 3);
     let mut signs = Vec::new();
     for poly in &s.polygons {
@@ -289,7 +293,7 @@ fn add_quad_prism(body: &mut Body<f64>, x0: f64) {
     let top: Vec<Point3<f64>> = profile.iter().map(|p| c(p, 1.0)).collect();
     let n = 4;
     let line = EdgeCurveSpec::line_between;
-    let band = geom_core::Band::linear().unwrap();
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
     let plane = |corners: &[Point3<f64>]| geom_brep::newell_plane(corners, band).unwrap();
     let seed = body.mvfs(bot[0]).unwrap();
     let mut chain = vec![
@@ -299,6 +303,7 @@ fn add_quad_prism(body: &mut Body<f64>, x0: f64) {
             },
             bot[1],
             line(bot[0], bot[1]),
+            Tol::witness(),
         )
         .unwrap(),
     ];
@@ -309,6 +314,7 @@ fn add_quad_prism(body: &mut Body<f64>, x0: f64) {
                 MevSite::Fan { he1: at, he2: at },
                 bot[i],
                 line(bot[i - 1], bot[i]),
+                Tol::witness(),
             )
             .unwrap(),
         );
@@ -330,6 +336,7 @@ fn add_quad_prism(body: &mut Body<f64>, x0: f64) {
             },
             line(bot[n - 1], bot[0]),
             FaceSurface::New(plane(&rev)),
+            Tol::witness(),
         )
         .unwrap();
     let mut struts = Vec::new();
@@ -346,6 +353,7 @@ fn add_quad_prism(body: &mut Body<f64>, x0: f64) {
                 MevSite::Fan { he1: at, he2: at },
                 top[i],
                 line(bot[i], top[i]),
+                Tol::witness(),
             )
             .unwrap(),
         );
@@ -366,6 +374,7 @@ fn add_quad_prism(body: &mut Body<f64>, x0: f64) {
                 },
                 line(top[i], top[j]),
                 FaceSurface::New(plane(&[bot[i], bot[j], top[j], top[i]])),
+                Tol::witness(),
             )
             .unwrap();
         if i == 0 {

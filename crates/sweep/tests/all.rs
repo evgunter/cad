@@ -1,8 +1,13 @@
 //! Aggregated integration-test binary for `sweep`.
 //!
 //! Every `tests/*.rs` suite is included here VERBATIM via `#[path]`, so
-//! this one binary replaces what were 60 separate test targets. The files
-//! themselves are untouched: each keeps its own `//!` docs, its inner
+//! this one binary stands in for one test target per suite.
+//! The suite count is deliberately NOT restated in prose here:
+//! `every_suite_file_is_aggregated` below checks this file against the
+//! directory on every run, and a number written out beside it is a
+//! second, unchecked copy of a set the compiler already knows.
+//!
+//! The files themselves are untouched: each keeps its own `//!` docs, its inner
 //! attributes (`#![cfg(feature = "interval")]` and friends work as
 //! module-level attributes), and its own `mod <helper>;` lines — a
 //! `#[path]` module's child modules resolve against the DIRECTORY
@@ -30,6 +35,23 @@
 // the lint gate for every suite module included below.
 #![allow(clippy::duplicate_mod)]
 
+#[path = "offb_r1_loft_probes.rs"]
+mod offb_r1_loft_probes;
+#[path = "offc_r1_probes.rs"]
+mod offc_r1_probes;
+#[path = "offd2_r1_probes.rs"]
+mod offd2_r1_probes;
+#[path = "offd_r1_probes.rs"]
+mod offd_r1_probes;
+#[path = "verbs_offc_consumer.rs"]
+mod verbs_offc_consumer;
+#[path = "verbs_offd.rs"]
+mod verbs_offd;
+#[path = "verbs_shell.rs"]
+mod verbs_shell;
+
+#[path = "bitdump.rs"]
+mod bitdump;
 #[path = "extrude_acceptance.rs"]
 mod extrude_acceptance;
 #[path = "extrude_interval.rs"]
@@ -124,6 +146,14 @@ mod mass_props;
 mod mass_props_interval;
 #[path = "readback_doors.rs"]
 mod readback_doors;
+#[path = "review_arceval_r1_probes.rs"]
+mod review_arceval_r1_probes;
+#[path = "review_arms2_r1_probes.rs"]
+mod review_arms2_r1_probes;
+#[path = "review_arms3_r1_probes.rs"]
+mod review_arms3_r1_probes;
+#[path = "review_chamfer_r1_probes.rs"]
+mod review_chamfer_r1_probes;
 #[path = "review_d2_adv_probes.rs"]
 mod review_d2_adv_probes;
 #[path = "review_d2_recourse_at_the_site.rs"]
@@ -168,6 +198,8 @@ mod review_s11_adv;
 mod review_s12_adv;
 #[path = "review_s6_probe.rs"]
 mod review_s6_probe;
+#[path = "review_verbs_rim_lever_probes.rs"]
+mod review_verbs_rim_lever_probes;
 #[path = "revolve_ball.rs"]
 mod revolve_ball;
 #[path = "revolve_cone.rs"]
@@ -180,12 +212,48 @@ mod revolve_errors;
 mod revolve_interval;
 #[path = "revolve_partial.rs"]
 mod revolve_partial;
+#[path = "revolve_ring.rs"]
+mod revolve_ring;
 #[path = "revolve_washer.rs"]
 mod revolve_washer;
+#[path = "ring_r1_probes.rs"]
+mod ring_r1_probes;
 #[path = "s16_box_soundness.rs"]
 mod s16_box_soundness;
 #[path = "s49_census_jurisdiction.rs"]
 mod s49_census_jurisdiction;
+#[path = "verbs_arms1_annulus.rs"]
+mod verbs_arms1_annulus;
+#[path = "verbs_arms1_r1_probes.rs"]
+mod verbs_arms1_r1_probes;
+#[path = "verbs_arms2_arms.rs"]
+mod verbs_arms2_arms;
+#[path = "verbs_arms2_bud.rs"]
+mod verbs_arms2_bud;
+#[path = "verbs_arms3.rs"]
+mod verbs_arms3;
+#[path = "verbs_chamfer.rs"]
+mod verbs_chamfer;
+#[path = "verbs_cylcyl_probe.rs"]
+mod verbs_cylcyl_probe;
+#[path = "verbs_cylcyl_r1_review_probes.rs"]
+mod verbs_cylcyl_r1_review_probes;
+#[path = "verbs_cylcylb_r1_blinded_probes.rs"]
+mod verbs_cylcylb_r1_blinded_probes;
+#[path = "verbs_rim_closed_lever.rs"]
+mod verbs_rim_closed_lever;
+#[path = "verbs_rim_r1_probes.rs"]
+mod verbs_rim_r1_probes;
+#[path = "verbs_tubewall.rs"]
+mod verbs_tubewall;
+#[path = "verbs_tubewall_r1_fingerprint.rs"]
+mod verbs_tubewall_r1_fingerprint;
+#[path = "verbs_tubewall_r1_probes.rs"]
+mod verbs_tubewall_r1_probes;
+#[path = "verbs_tubewall_r2_probes.rs"]
+mod verbs_tubewall_r2_probes;
+#[path = "verbs_tubewall_r2_solidbits.rs"]
+mod verbs_tubewall_r2_solidbits;
 
 /// Guards the `autotests = false` hazard: a suite file added to `tests/`
 /// but not declared above would silently stop being compiled and run.
@@ -231,5 +299,17 @@ mod m8_4_intersection_iso;
 #[path = "m9_2_chart_region_loft.rs"]
 mod m9_2_chart_region_loft;
 
+#[path = "m9_3_wall_door.rs"]
+mod m9_3_wall_door;
+
+#[path = "m9_3_zip.rs"]
+mod m9_3_zip;
+
 #[path = "review_probes_m8_4.rs"]
 mod review_probes_m8_4;
+
+#[path = "r1_probes_m9_3.rs"]
+mod r1_probes_m9_3;
+
+#[path = "verbs_gate_r1_probes.rs"]
+mod verbs_gate_r1_probes;

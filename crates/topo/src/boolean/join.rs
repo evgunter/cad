@@ -105,7 +105,7 @@
 //! boolean intersection polygons are in general non-planar (§15.7);
 //! degenerate results are netted at the component stage instead.
 
-use geom_core::{Band, Decide, Margin};
+use geom_core::{Band, Decide, Margin, Sign};
 use slotmap::SecondaryMap;
 
 use super::{BooleanError, BooleanReduction, HalfGerm, Operand};
@@ -114,6 +114,7 @@ use crate::chord_join::{ChordJoiner, CutOutcome, SplitJoinError};
 use crate::entity::{EdgeKey, FaceKey, HalfEdgeKey, LoopKey, VertexKey};
 use crate::null::NullFacePair;
 use crate::validate::decide;
+use geom_core::Tol;
 
 /// One completed section-polygon **pair**: the 2-loop null face in
 /// each solid, with the loop roles as F9 data (IN copy = the loop
@@ -242,6 +243,7 @@ pub(super) fn bool_connect<T: Decide>(
     a_pristine: &Body<T>,
     b_pristine: &Body<T>,
     band: Band,
+    tol: Tol,
 ) -> Result<Connected, BooleanError> {
     let desync = |what| BooleanError::JoinDesync { what };
     let mut sa = SolidJoin::new(red, Operand::A, band);
@@ -335,10 +337,10 @@ pub(super) fn bool_connect<T: Decide>(
         match (&ga, &gb) {
             (Sf::Plane { .. }, Sf::Plane { .. }) => {
                 sa.joiner
-                    .join(&mut red.a, a1, a2, JoinLane::Planar)
+                    .join(&mut red.a, a1, a2, JoinLane::Planar, tol)
                     .map_err(BooleanError::Join)?;
                 sb.joiner
-                    .join(&mut red.b, b1, b2, JoinLane::Planar)
+                    .join(&mut red.b, b1, b2, JoinLane::Planar, tol)
                     .map_err(BooleanError::Join)?;
             }
             (Sf::Plane { origin, normal, .. }, Sf::Sphere { .. })
@@ -357,6 +359,7 @@ pub(super) fn bool_connect<T: Decide>(
                             window,
                             partner_key: &mut partner,
                         },
+                        tol,
                     )
                     .map_err(BooleanError::Join)?;
                 if let Some(k) = partner {
@@ -370,7 +373,7 @@ pub(super) fn bool_connect<T: Decide>(
                     plane_key: sb.aux_partner.get(&germ.a_face).copied(),
                 };
                 sb.joiner
-                    .join(&mut red.b, b1, b2, JoinLane::Split(&mut ctx))
+                    .join(&mut red.b, b1, b2, JoinLane::Split(&mut ctx), tol)
                     .map_err(BooleanError::Join)?;
                 if let Some(k) = ctx.plane_key {
                     sb.aux_partner.insert(germ.a_face, k);
@@ -386,7 +389,7 @@ pub(super) fn bool_connect<T: Decide>(
                     plane_key: sa.aux_partner.get(&germ.b_face).copied(),
                 };
                 sa.joiner
-                    .join(&mut red.a, a1, a2, JoinLane::Split(&mut ctx))
+                    .join(&mut red.a, a1, a2, JoinLane::Split(&mut ctx), tol)
                     .map_err(BooleanError::Join)?;
                 if let Some(k) = ctx.plane_key {
                     sa.aux_partner.insert(germ.b_face, k);
@@ -405,6 +408,7 @@ pub(super) fn bool_connect<T: Decide>(
                             window,
                             partner_key: &mut partner,
                         },
+                        tol,
                     )
                     .map_err(BooleanError::Join)?;
                 if let Some(k) = partner {
@@ -452,9 +456,9 @@ pub(super) fn bool_connect<T: Decide>(
     let mut resolved = Vec::with_capacity(completed.len());
     for c in completed {
         let (a_in_loop, a_out_loop) =
-            resolve_roles_geometric(&red.a, b_pristine, c.a_face, c.a_outer, c.a_ring, band)?;
+            resolve_roles_geometric(&red.a, b_pristine, c.a_face, c.a_outer, c.a_ring, band, tol)?;
         let (b_in_loop, b_out_loop) =
-            resolve_roles_geometric(&red.b, a_pristine, c.b_face, c.b_outer, c.b_ring, band)?;
+            resolve_roles_geometric(&red.b, a_pristine, c.b_face, c.b_outer, c.b_ring, band, tol)?;
         red.a.set_null_face_pair(
             c.a_face,
             NullFacePair::Boolean {
@@ -520,7 +524,6 @@ fn find_match<T: Decide>(
     sb: &SolidJoin,
     band: Band,
 ) -> Result<Option<Match>, BooleanError> {
-    use geom_core::Sign;
     let desync = |what| BooleanError::JoinDesync { what };
     let point_of = |he: HalfEdgeKey| -> Result<geom_core::Point3<T>, BooleanError> {
         let v = red
@@ -615,13 +618,21 @@ fn find_match<T: Decide>(
     Ok(best.map(|(_, m)| m))
 }
 
-/// The germ pair's section frame, when the pair is curved: the conic
-/// center and axis of the plane×cylinder section the germ line lies
-/// on. `None` for planar pairs (straight germ lines) and for the
-/// degenerate plane×cylinder outcomes whose loci ARE lines
-/// (ParallelLines/TangentLine). Section escalations propagate;
-/// non-escalation classification failures at match time are a desync
-/// (the germ was minted FROM this pair's crossing).
+/// The germ pair's section frame: the conic center and axis of the
+/// section the germ line lies on, or `None` when that locus is
+/// STRAIGHT — a plane×plane pair, and the degenerate plane×cylinder
+/// outcomes whose loci ARE lines (ParallelLines/TangentLine).
+///
+/// **`None` is a claim, not a default.** The caller reads it as "take
+/// the straight-chord facing test", so a pair whose section arm is not
+/// wired must refuse ([`BooleanError::GermFrameUnsupported`]) rather
+/// than fall through to it: falling through would mint a wrong chord
+/// silently for every pair the dispatch later admits. The pair match
+/// below is therefore EXHAUSTIVE over kinds by construction.
+///
+/// Section escalations propagate; non-escalation classification
+/// failures at match time are a desync (the germ was minted FROM this
+/// pair's crossing).
 #[allow(clippy::type_complexity)] // (conic center, conic axis) — one frame tuple
 fn germ_section_frame<T: Decide>(
     red: &BooleanReduction<T>,
@@ -637,17 +648,61 @@ fn germ_section_frame<T: Decide>(
     };
     let sa = surf(&red.a, germ.a_face)?;
     let sb = surf(&red.b, germ.b_face)?;
+    pair_section_frame(&sa, &sb, band).map_err(|e| match e {
+        FrameError::Escalated(diag) => BooleanError::Escalated { diag },
+        FrameError::Desync(what) => desync(what),
+        FrameError::NoArm => BooleanError::GermFrameUnsupported {
+            a_face: germ.a_face,
+            a_kind: geom_brep::SurfaceKind::of(&sa),
+            b_face: germ.b_face,
+            b_kind: geom_brep::SurfaceKind::of(&sb),
+        },
+    })
+}
+
+/// Why [`pair_section_frame`] could not name a frame. The keys and
+/// bodies live at the call site, so this carries none of them: the
+/// dispatch is a statement about the KIND PAIR alone.
+pub(super) enum FrameError {
+    /// A section predicate landed in the sliver band.
+    Escalated(geom_core::Indeterminate),
+    /// The classification contradicted the germ that was minted from
+    /// it — a lockstep failure, not a frontier.
+    Desync(&'static str),
+    /// The kind pair has no section arm at all.
+    NoArm,
+}
+
+/// **The pair-general section-frame dispatch**, keyed on the germ
+/// pair's two surface KINDS and nothing else — no bodies, no keys, so
+/// a lane widening the dispatch adds an arm here and every consumer
+/// inherits it.
+///
+/// `Ok(None)` means the locus is STRAIGHT and is only ever returned by
+/// an arm that PROVED it: the plane×plane pair (a line by
+/// construction), the two degenerate plane×cylinder outcomes whose loci
+/// are lines, and a cylinder pair whose AXES are parallel (its
+/// intersection is rulings, whatever the radii). A kind pair with no
+/// arm is [`FrameError::NoArm`] — never `None`, because the caller
+/// reads `None` as "run the straight-chord facing test" and would mint
+/// a wrong chord from it.
+#[allow(clippy::type_complexity)] // (conic center, conic axis) — one frame tuple
+pub(super) fn pair_section_frame<T: Decide>(
+    sa: &geom::Surface<T>,
+    sb: &geom::Surface<T>,
+    band: Band,
+) -> Result<Option<(geom_core::Point3<T>, geom_core::Vec3<T>)>, FrameError> {
     use geom::Surface as Sf;
-    let (plane_s, cyl_s, radius) = match (&sa, &sb) {
-        (Sf::Plane { .. }, Sf::Cylinder { radius, .. }) => (&sa, &sb, *radius),
-        (Sf::Cylinder { radius, .. }, Sf::Plane { .. }) => (&sb, &sa, *radius),
+    let (plane_s, cyl_s, radius) = match (sa, sb) {
+        (Sf::Plane { .. }, Sf::Cylinder { radius, .. }) => (sa, sb, *radius),
+        (Sf::Cylinder { radius, .. }, Sf::Plane { .. }) => (sb, sa, *radius),
         // The sphere germ pair (M5 S13): the C5 Circle's frame,
         // through THE table — same escalation plumbing.
         (Sf::Plane { .. }, Sf::Sphere { .. }) | (Sf::Sphere { .. }, Sf::Plane { .. }) => {
-            let (plane_s, sph_s) = if matches!(&sa, Sf::Plane { .. }) {
-                (&sa, &sb)
+            let (plane_s, sph_s) = if matches!(sa, Sf::Plane { .. }) {
+                (sa, sb)
             } else {
-                (&sb, &sa)
+                (sb, sa)
             };
             return match geom_brep::plane_sphere_section(plane_s, sph_s, band) {
                 Ok(geom_brep::PlaneSphereSection::Circle(geom::Curve3::Circle {
@@ -655,23 +710,62 @@ fn germ_section_frame<T: Decide>(
                     axis,
                     ..
                 })) => Ok(Some((center, axis))),
-                Ok(geom_brep::PlaneSphereSection::Circle(_)) => {
-                    Err(desync("plane×sphere classification carried a non-circle"))
-                }
+                Ok(geom_brep::PlaneSphereSection::Circle(_)) => Err(FrameError::Desync(
+                    "plane×sphere classification carried a non-circle",
+                )),
                 // A tangent POINT / empty gap under a minted germ is a
                 // touching configuration the reduction should not have
                 // paired — loud, typed.
                 Ok(
                     geom_brep::PlaneSphereSection::TangentPoint(_)
                     | geom_brep::PlaneSphereSection::Empty,
-                ) => Err(desync("germ pair's plane×sphere section is not a locus")),
-                Err(geom_brep::SectionError::Escalated(diag)) => {
-                    Err(BooleanError::Escalated { diag })
-                }
-                Err(_) => Err(desync("germ pair's section refused at match time")),
+                ) => Err(FrameError::Desync(
+                    "germ pair's plane×sphere section is not a locus",
+                )),
+                Err(geom_brep::SectionError::Escalated(diag)) => Err(FrameError::Escalated(diag)),
+                Err(_) => Err(FrameError::Desync(
+                    "germ pair's section refused at match time",
+                )),
             };
         }
-        _ => return Ok(None),
+        // The ONE structurally straight pair: a plane×plane section is
+        // a line, so "no frame" is a proof here rather than a default.
+        (Sf::Plane { .. }, Sf::Plane { .. }) => return Ok(None),
+        // **Cylinder×cylinder, and only its straight half.** Two walls
+        // with PARALLEL axes meet in rulings — lines — whatever their
+        // radii, so `None` here is proven by the axes alone and needs
+        // neither radius evidence nor a constructed section: the
+        // declared tangent-ruling pair the zip lane rests on is exactly
+        // this case. A non-parallel pair's locus is a space quartic (or
+        // the equal-radius bisector ellipses), never straight, so it
+        // has no frame this dispatch can name and takes the refusal.
+        //
+        // Metered at the larger radius: a bigger lever makes the
+        // parallelism margin harder to call Zero, so the error runs
+        // toward the refusal, never toward a wrong straight chord.
+        (
+            Sf::Cylinder {
+                axis: a1,
+                radius: r1,
+                ..
+            },
+            Sf::Cylinder {
+                axis: a2,
+                radius: r2,
+                ..
+            },
+        ) => {
+            return match decide(
+                "bool_germ_frame_axes_parallel",
+                Margin::levered(a1.cross(*a2).norm(), r1.max(*r2)),
+                band,
+            ) {
+                Ok(Sign::Zero) => Ok(None),
+                Ok(Sign::Positive | Sign::Negative) => Err(FrameError::NoArm),
+                Err(diag) => Err(FrameError::Escalated(diag)),
+            };
+        }
+        _ => return Err(FrameError::NoArm),
     };
     match geom_brep::plane_cylinder_section(plane_s, cyl_s, radius, band) {
         Ok(geom_brep::PlaneCylinderSection::Rim(geom::Curve3::Circle { center, axis, .. }))
@@ -684,9 +778,13 @@ fn germ_section_frame<T: Decide>(
             geom_brep::PlaneCylinderSection::ParallelLines { .. }
             | geom_brep::PlaneCylinderSection::TangentLine(_),
         ) => Ok(None),
-        Ok(_) => Err(desync("germ pair's section classification is not a locus")),
-        Err(geom_brep::SectionError::Escalated(diag)) => Err(BooleanError::Escalated { diag }),
-        Err(_) => Err(desync("germ pair's section refused at match time")),
+        Ok(_) => Err(FrameError::Desync(
+            "germ pair's section classification is not a locus",
+        )),
+        Err(geom_brep::SectionError::Escalated(diag)) => Err(FrameError::Escalated(diag)),
+        Err(_) => Err(FrameError::Desync(
+            "germ pair's section refused at match time",
+        )),
     }
 }
 
@@ -713,7 +811,6 @@ fn germs_face_each_other<T: Decide>(
     p2: geom_core::Point3<T>,
     band: Band,
 ) -> Result<bool, BooleanError> {
-    use geom_core::Sign;
     let escalate = |diag| BooleanError::Escalated { diag };
     match frame {
         None => {
@@ -764,7 +861,6 @@ fn loose_partners<T: Decide>(
     red: &BooleanReduction<T>,
     band: Band,
 ) -> Result<(LooseMap, LooseMap), BooleanError> {
-    use geom_core::Sign;
     let desync = |what| BooleanError::JoinDesync { what };
     let escalate = |diag| BooleanError::Escalated { diag };
     let point_of = |he: HalfEdgeKey| -> Result<geom_core::Point3<T>, BooleanError> {
@@ -923,7 +1019,7 @@ fn choose_roles<T: Decide>(
 /// Whether the prospective mef run `[h1 .. h2]` — the `next`-order arc
 /// from `h1` through `h2`, closed by the chord `end(h2) → start(h1)`
 /// (exactly the cycle the joiner's first `mef(Chords { he1: h1,
-/// he2: next(h2) })` walls off as the new face) — winds CCW around
+/// he2: next(h2, tol) })` walls off as the new face) — winds CCW around
 /// `face`'s outward normal: the orientation an island's new outer loop
 /// must have (the remainder ring anti-encloses iff the run encloses).
 ///
@@ -1287,6 +1383,7 @@ fn resolve_roles_geometric<T: Decide>(
     outer: LoopKey,
     ring: LoopKey,
     band: Band,
+    tol: Tol,
 ) -> Result<(LoopKey, LoopKey), BooleanError> {
     /// Which point of a region-loop half-edge anchors the probe.
     #[derive(Clone, Copy, PartialEq, Eq)]
@@ -1428,7 +1525,7 @@ fn resolve_roles_geometric<T: Decide>(
                                 continue;
                             }
                         }
-                        match super::solid_contain::point_in_solid(other_pristine, p, band)
+                        match super::solid_contain::point_in_solid(other_pristine, p, band, tol)
                             .map_err(BooleanError::Containment)?
                         {
                             super::solid_contain::SolidContainment::In => return Ok(Some(true)),
@@ -1532,4 +1629,119 @@ fn face_vertex_points<T: Decide>(
         }
     }
     Ok(out)
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod frame_dispatch_tests {
+    use geom_core::{Point3, Tol, Vec3};
+
+    use super::{FrameError, pair_section_frame};
+
+    fn band() -> geom_core::Band {
+        geom_core::Band::linear(Tol::witness()).expect("a linear band")
+    }
+
+    fn plane() -> geom::Surface<f64> {
+        geom::Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        }
+    }
+
+    fn cylinder(axis: Vec3<f64>) -> geom::Surface<f64> {
+        geom::Surface::Cylinder {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            axis,
+            radius: 1.0,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        }
+    }
+
+    fn sphere() -> geom::Surface<f64> {
+        geom::Surface::Sphere {
+            center: Point3::new(0.0, 0.0, 0.0),
+            radius: 2.0,
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        }
+    }
+
+    /// The trap, closed: a germ pair with no section arm must refuse,
+    /// never answer `None`. `None` is the straight-chord verdict, and
+    /// handing it to a curved pair mints a chord along a locus that is
+    /// not a line.
+    #[test]
+    fn a_pair_without_an_arm_refuses_and_never_answers_straight() {
+        let curved_pairs = [
+            // Crossing axes: the locus is a space quartic (or, at equal
+            // radii, the bisector ellipses) — never a line.
+            (
+                cylinder(Vec3::new(0.0, 0.0, 1.0)),
+                cylinder(Vec3::new(1.0, 0.0, 0.0)),
+            ),
+            (
+                cylinder(Vec3::new(0.0, 0.0, 1.0)),
+                cylinder(Vec3::new(0.0, 1.0, 1.0).normalize()),
+            ),
+            (cylinder(Vec3::new(0.0, 0.0, 1.0)), sphere()),
+            (sphere(), sphere()),
+        ];
+        for (a, b) in curved_pairs {
+            let got = pair_section_frame(&a, &b, band());
+            assert!(
+                matches!(got, Err(FrameError::NoArm)),
+                "a pair with no arm must refuse rather than default to the straight chord"
+            );
+        }
+    }
+
+    /// The one pair that EARNS the straight answer, and the wired
+    /// curved pairs that name a frame — so the row above is a
+    /// statement about missing arms, not about the dispatch refusing
+    /// everything.
+    #[test]
+    fn the_wired_pairs_keep_their_verdicts() {
+        assert!(
+            matches!(pair_section_frame(&plane(), &plane(), band()), Ok(None)),
+            "plane×plane is straight by construction"
+        );
+        // A plane cutting a cylinder square across its axis: the rim
+        // circle, whose frame is the section's own centre and axis.
+        assert!(
+            matches!(
+                pair_section_frame(&plane(), &cylinder(Vec3::new(0.0, 0.0, 1.0)), band()),
+                Ok(Some(_))
+            ),
+            "plane×cylinder names its conic frame"
+        );
+        // A plane containing the axis: the section is two rulings, a
+        // STRAIGHT locus that the arm proved rather than defaulted to.
+        assert!(
+            matches!(
+                pair_section_frame(&plane(), &cylinder(Vec3::new(1.0, 0.0, 0.0)), band()),
+                Ok(None)
+            ),
+            "the parallel-lines outcome is a proven straight locus"
+        );
+        assert!(
+            matches!(pair_section_frame(&plane(), &sphere(), band()), Ok(Some(_))),
+            "plane×sphere names its circle frame"
+        );
+        // Two walls with parallel axes meet in RULINGS, so the straight
+        // answer is proven by the axes alone — the declared
+        // tangent-ruling germ pair the zip lane rests on.
+        assert!(
+            matches!(
+                pair_section_frame(
+                    &cylinder(Vec3::new(0.0, 0.0, 1.0)),
+                    &cylinder(Vec3::new(0.0, 0.0, 1.0)),
+                    band()
+                ),
+                Ok(None)
+            ),
+            "a parallel-axis cylinder pair is a PROVEN straight locus"
+        );
+    }
 }

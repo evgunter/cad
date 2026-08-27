@@ -77,6 +77,7 @@ use crate::entity::{FaceKey, LoopBoundary};
 use crate::splitting::containment::{LoopContainment, PointInLoopError, SCHEDULE, point_in_loop};
 use crate::validate::decide;
 use geom::Surface;
+use geom_core::Tol;
 
 /// The trilean answer: is `q` in the solid's **material**?
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -107,10 +108,42 @@ pub enum PointInSolidError {
     ZeroVolumeBody,
     /// An in-plane loop test failed (nested typed error).
     Loop(PointInLoopError),
-    /// A face is not planar (F5) or not walkable.
+    /// A face is not walkable, or an entity it names is lost — an
+    /// arena claim about a body that is BROKEN.
+    ///
+    /// A healthy face whose surface KIND this door has no arm for is
+    /// [`Self::KindUnsupported`], never this: the two answers are
+    /// about different things, and reporting a cone as corruption
+    /// sends a reader to look for damage that is not there.
     CorruptFace {
         /// The face.
         face: FaceKey,
+    },
+    /// A healthy face whose surface KIND has no arm in the
+    /// CONTAINMENT door.
+    ///
+    /// `point_in_solid` is ray-parity against each face of the body
+    /// being classified against, so it needs a ray×surface crossing
+    /// count per kind: `Plane`, `Cylinder` (exact chart trim) and a
+    /// closed `Sphere` group have one, `Cone`, `Torus` and `Nurbs` do
+    /// not.
+    ///
+    /// **This door is BOX-BLIND on purpose and that is why the kind
+    /// still matters here.** The operand gate is pair-scoped — a face
+    /// whose box clears the other operand cannot enter a crossing, so
+    /// it does not gate the operation — but containment asks a
+    /// different question: a ray from the query point crosses the
+    /// WHOLE boundary, and a face out of reach of the cut is not out
+    /// of reach of the ray. So an operation the gate admits can still
+    /// meet this refusal downstream, and that boundary is the honest
+    /// one until the kind has a containment arm — **#1011**, where
+    /// the ray×cone quadratic, the ray×torus quartic and the chart
+    /// trims both need are scheduled.
+    KindUnsupported {
+        /// The face.
+        face: FaceKey,
+        /// Its kind — the row the arm is missing for.
+        kind: geom_brep::SurfaceKind,
     },
     /// A `Sphere` face belongs to a face group that is NOT closed on
     /// its own surface (M5 PR 9c): the sphere containment/pierce door
@@ -154,7 +187,24 @@ impl core::fmt::Display for PointInSolidError {
             Self::CorruptFace { face } => {
                 write!(
                     f,
-                    "point_in_solid: face {face:?} is not a walkable planar face"
+                    "point_in_solid: face {face:?} is not walkable, or an entity it \
+                     names is lost — this is an arena claim about a BROKEN body, not \
+                     about a surface kind"
+                )
+            }
+            Self::KindUnsupported { face, kind } => {
+                write!(
+                    f,
+                    "point_in_solid: face {face:?} is a {} and the containment door \
+                     has no ray-crossing arm for the kind. The body is HEALTHY; what \
+                     is missing is a capability. This door is deliberately box-blind \
+                     — a ray from the query point crosses the whole boundary, so a \
+                     face out of reach of the CUT is still in reach of the RAY, which \
+                     is why the pair-scoped operand gate admitting the operation does \
+                     not settle this. Recourse: express the operation so no cone or \
+                     torus face bounds the solid being classified against, or wait on \
+                     the containment arm for the kind",
+                    kind.name()
                 )
             }
             Self::PartialSphereFace { face } => {
@@ -195,7 +245,13 @@ pub(super) fn face_plane<T: Decide>(
         .ok_or(PointInSolidError::CorruptFace { face })?;
     match body.get_surface(f.surface) {
         Some(Surface::Plane { origin, normal, .. }) => Ok((*origin, *normal * f.sense_sign::<T>())),
-        _ => Err(PointInSolidError::CorruptFace { face }),
+        // A resolved non-plane is a CAPABILITY answer; only a surface
+        // key that does not resolve is corruption.
+        Some(s) => Err(PointInSolidError::KindUnsupported {
+            face,
+            kind: geom_brep::SurfaceKind::of(s),
+        }),
+        None => Err(PointInSolidError::CorruptFace { face }),
     }
 }
 
@@ -300,9 +356,10 @@ pub(super) fn closed_sphere_group<T: Decide>(body: &Body<T>, face: FaceKey) -> O
 }
 
 /// Resolves [`FaceGeo`]; kinds outside {Plane, Cylinder, Sphere}
-/// refuse as [`PointInSolidError::CorruptFace`] (per-arm, C12.1 — cone
-/// and torus walls have no wired arm), and a TRIMMED sphere face
-/// refuses as [`PointInSolidError::PartialSphereFace`].
+/// refuse as [`PointInSolidError::KindUnsupported`] (per-arm, C12.1 —
+/// cone and torus walls have no ray-crossing arm), and a TRIMMED
+/// sphere face as [`PointInSolidError::PartialSphereFace`]. Only a
+/// surface key that does not RESOLVE is corruption.
 fn face_geo<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -321,47 +378,7 @@ fn face_geo<T: Decide>(
             radius,
             u_ref,
         }) => {
-            let surf = body
-                .get_surface(f.surface)
-                .cloned()
-                .ok_or(PointInSolidError::CorruptFace { face })?;
-            let az = crate::chord_join::face_azimuth_window(body, &surf, face, band)
-                .ok()
-                .flatten()
-                .ok_or(PointInSolidError::CorruptFace { face })?;
-            // Height range from the outer cycle's vertices (exact for
-            // the iso-bounded wall class). Folded WITHOUT infinity
-            // seeds: an Interval scalar's ±∞ singleton is Ill and
-            // poisons every min/max through it (the MAJOR-1 root
-            // cause — the whole Interval boolean lane died on a NaN
-            // height range).
-            let mut h_range: Option<(T, T)> = None;
-            let LoopBoundary::Cycle { first } = body
-                .get_loop(f.outer)
-                .ok_or(PointInSolidError::CorruptFace { face })?
-                .boundary
-            else {
-                return Err(PointInSolidError::CorruptFace { face });
-            };
-            for he in body
-                .loop_cycle(first)
-                .ok_or(PointInSolidError::CorruptFace { face })?
-            {
-                let v = body
-                    .get_half_edge(he)
-                    .ok_or(PointInSolidError::CorruptFace { face })?
-                    .start;
-                let p = *body
-                    .get_vertex(v)
-                    .and_then(|v| body.get_point(v.point))
-                    .ok_or(PointInSolidError::CorruptFace { face })?;
-                let h = (p - origin).dot(axis);
-                h_range = Some(match h_range {
-                    None => (h, h),
-                    Some((lo, hi)) => (lo.min(h), hi.max(h)),
-                });
-            }
-            let h = h_range.ok_or(PointInSolidError::CorruptFace { face })?;
+            let (az, h) = cylinder_chart_trim(body, face, origin, axis, band)?;
             Ok(FaceGeo::Cylinder {
                 origin,
                 axis,
@@ -384,8 +401,83 @@ fn face_geo<T: Decide>(
             }),
             None => Err(PointInSolidError::PartialSphereFace { face }),
         },
-        _ => Err(PointInSolidError::CorruptFace { face }),
+        Some(s) => Err(PointInSolidError::KindUnsupported {
+            face,
+            kind: geom_brep::SurfaceKind::of(s),
+        }),
+        None => Err(PointInSolidError::CorruptFace { face }),
     }
+}
+
+/// **A cylinder wall face's exact chart trim**: the azimuth window
+/// from the outer cycle's closed-form chart images (the S9 machinery)
+/// and the height range from its boundary vertices.
+///
+/// The height fold takes NO infinity seed: an `Interval` scalar's ±∞
+/// singleton is `Ill` and poisons every min/max through it (the
+/// MAJOR-1 root cause — the whole Interval boolean lane died on a NaN
+/// height range).
+///
+/// **The premise, stated once for both readers**: the range is the
+/// face's own only for the ISO-BOUNDED wall class — rims are height
+/// iso-lines and meridians azimuth iso-lines, so the extremes of both
+/// chart coordinates lie on the boundary VERTICES. A wall bounded by a
+/// tilted section takes its height extreme in an edge's interior, and
+/// this rectangle then under-covers it. The face-level containment door
+/// ([`super::contain::curved_face_containment`]) checks the class
+/// before it reads this; the ray lane premises it from construction.
+///
+/// # Errors
+///
+/// [`PointInSolidError::CorruptFace`] for a face whose window or
+/// boundary cannot be resolved.
+#[allow(clippy::type_complexity)] // (azimuth window, height range) — one chart trim
+pub(super) fn cylinder_chart_trim<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    origin: Point3<T>,
+    axis: Vec3<T>,
+    band: Band,
+) -> Result<((T, T), (T, T)), PointInSolidError> {
+    let f = body
+        .get_face(face)
+        .ok_or(PointInSolidError::CorruptFace { face })?;
+    let surf = body
+        .get_surface(f.surface)
+        .cloned()
+        .ok_or(PointInSolidError::CorruptFace { face })?;
+    let az = crate::chord_join::face_azimuth_window(body, &surf, face, band)
+        .ok()
+        .flatten()
+        .ok_or(PointInSolidError::CorruptFace { face })?;
+    let mut h_range: Option<(T, T)> = None;
+    let LoopBoundary::Cycle { first } = body
+        .get_loop(f.outer)
+        .ok_or(PointInSolidError::CorruptFace { face })?
+        .boundary
+    else {
+        return Err(PointInSolidError::CorruptFace { face });
+    };
+    for he in body
+        .loop_cycle(first)
+        .ok_or(PointInSolidError::CorruptFace { face })?
+    {
+        let v = body
+            .get_half_edge(he)
+            .ok_or(PointInSolidError::CorruptFace { face })?
+            .start;
+        let p = *body
+            .get_vertex(v)
+            .and_then(|v| body.get_point(v.point))
+            .ok_or(PointInSolidError::CorruptFace { face })?;
+        let h = (p - origin).dot(axis);
+        h_range = Some(match h_range {
+            None => (h, h),
+            Some((lo, hi)) => (lo.min(h), hi.max(h)),
+        });
+    }
+    let h = h_range.ok_or(PointInSolidError::CorruptFace { face })?;
+    Ok((az, h))
 }
 
 /// Is the ON-WALL point `p` within the wall face's chart trim?
@@ -404,8 +496,20 @@ fn face_geo<T: Decide>(
 /// `sin(w/2)·δθ·r ≤ δθ·r` — conservative relative to the arc-length
 /// convention, escalating MORE near degenerate windows, never less).
 /// Height margins are metres directly, unchanged.
+///
+/// **THE cosine-window construction, and its three sites.** This
+/// argument — the guard that the window is narrower than a period, the
+/// `r̂·m̂ ≥ cos(w/2)` comparison, the `· radius` metering, and ledger
+/// row F8's deferred narrow-window fix — is one construction used
+/// three times, so a change to any of it is a change to all three:
+/// here (a wall face's azimuth trim, ray lane), in
+/// [`super::contain::point_on_arc`] (a rim ARC's own angular span,
+/// boundary walk), and in
+/// [`super::contain::curved_face_containment`] (the same period guard
+/// asked as a chart-form question, which is why its answer is `None`
+/// where this one escalates).
 #[allow(clippy::too_many_arguments)] // one internal lane, each a named datum
-fn point_on_wall_in_face<T: Decide>(
+pub(super) fn point_on_wall_in_face<T: Decide>(
     face: FaceKey,
     origin: Point3<T>,
     axis: Vec3<T>,
@@ -517,6 +621,7 @@ pub fn point_in_solid<T: Decide>(
     body: &Body<T>,
     q: Point3<T>,
     band: Band,
+    tol: Tol,
 ) -> Result<SolidContainment, PointInSolidError> {
     // Deterministic face sweep order (arena order).
     let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
@@ -593,7 +698,7 @@ pub fn point_in_solid<T: Decide>(
     // ---- Closest-hit ray sweep over the fixed schedule. ----
     for r in &SCHEDULE {
         let d = Vec3::new(T::from_f64(r[0]), T::from_f64(r[1]), T::from_f64(r[2])).normalize();
-        if let Some(verdict) = cast_ray(body, &faces, q, d, band)? {
+        if let Some(verdict) = cast_ray(body, &faces, q, d, band, tol)? {
             return Ok(verdict);
         }
         // graze: next schedule member
@@ -631,6 +736,7 @@ fn cast_ray<T: Decide>(
     q: Point3<T>,
     d: Vec3<T>,
     band: Band,
+    tol: Tol,
 ) -> Result<Option<SolidContainment>, PointInSolidError> {
     let mut best: Option<(T, Sign)> = None; // (advance, sign of d·n)
     // A candidate crossing (advance, outward sign), or a graze.
@@ -866,7 +972,7 @@ fn cast_ray<T: Decide>(
         Some((_, Sign::Positive)) => Ok(Some(SolidContainment::In)),
         Some((_, _)) => Ok(Some(SolidContainment::Out)),
         // No crossing: q is on the at-infinity side (module docs).
-        None => Ok(Some(at_infinity_side(body, faces, band)?)),
+        None => Ok(Some(at_infinity_side(body, faces, band, tol)?)),
     }
 }
 
@@ -881,9 +987,10 @@ fn at_infinity_side<T: Decide>(
     body: &Body<T>,
     faces: &[FaceKey],
     band: Band,
+    tol: Tol,
 ) -> Result<SolidContainment, PointInSolidError> {
     // Closed-form lane (M5 PR 11 lane split) — see `volume_backstop`.
-    let props = crate::props::mass_properties_closed_form(body, band).map_err(|_| {
+    let props = crate::props::mass_properties_closed_form(body, band, tol).map_err(|_| {
         PointInSolidError::CorruptFace {
             face: faces.first().copied().unwrap_or_default(),
         }

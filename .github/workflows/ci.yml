@@ -1,13 +1,71 @@
 name: CI
 
 on:
+  # `ready_for_review` IS LOAD-BEARING and is not in the default set —
+  # which is `[opened, synchronize, reopened]`, so naming any type at all
+  # means naming those three back. The draft skip (see the `filter` job)
+  # zeroes the RUN_* flags while a PR is a draft, and undrafting a PR
+  # pushes no commit: without this type a draft marked ready would carry
+  # the skipped run as its only run, and every gate would report green
+  # having executed nothing. With it, undrafting triggers a full run on
+  # the same head. A draft skip WITHOUT this line is not a saving, it is
+  # a hole.
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [main]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+
+# THE PUSH RUN CARRIES ONLY WHAT IS UNIQUE TO IT (2026-08-20, Evan's
+# authorisation; measured in docs/CI-MINUTES-2026-08.md, finding F3).
+#
+# A merge ran the whole gate a SECOND time: ~87 billed minutes on the
+# pull_request, then ~87 again on the push to main. The PR run tests
+# the MERGE-REF — main plus the branch — so with this repo's merge-only
+# rule the tree the push run re-tested was, in the ordinary case, the
+# tree the PR run had already tested.
+#
+# Auditing what a push run alone could do turned up exactly TWO things,
+# and both are WRITE SIDE-EFFECTS rather than gates:
+#
+#   * `rebuild-latency`'s "commit measurement to the timing history
+#     (main only)" step, appending to docs/perf-data/rebuild-latency/;
+#   * `renders`' `push_to`, which re-baselines the render cells.
+#
+# Neither can move onto the PR side, and the PUSH_TO note on the
+# `renders` job records the measurement that says why: a GITHUB_TOKEN
+# bot commit onto a PR branch becomes that PR's head, triggers no run
+# of its own, and strands every green check on the parent commit.
+#
+# So every OTHER job is gated to `pull_request` below, and a push to
+# main now runs `filter` + `rebuild-latency` + `renders`.
+# `cleanup-archives` is deliberately NOT gated: its `needs` (test,
+# test-interval) skip on a push, which skips it too — one mechanism
+# rather than two saying the same thing.
+#
+# WHAT THIS GIVES UP, AND WHY NOTHING PAIRS WITH IT. The commit that
+# actually lands on main is now never itself built or tested. When main
+# moves between a PR's last run and its merge — frequent here — that
+# exact combination went untested, and a semantic conflict between two
+# independently-green PRs surfaces at the NEXT PR's merge-ref rather
+# than at the merge that caused it.
+#
+# A scheduled full run on main was the obvious pairing and Evan DECLINED
+# it (2026-08-22): the next PR's merge-ref is main plus that branch, so
+# it tests the landed tree anyway — a scheduled run buys a second
+# discovery of the same fact, at the price of a full gate per period
+# whether or not anything landed.
+#
+# THE COST THAT REMAINS, stated rather than mitigated: the conflict
+# surfaces on an INNOCENT PR. Whoever opens the next PR gets the red,
+# and the tree they broke is not the tree they wrote — so read a
+# failure that has nothing to do with your diff as a landed conflict,
+# and look at what merged since your branch point. Anything that must
+# fail-fast on the landed tree belongs on the PR side of this line, not
+# restored to the push side.
 
 # BUILD ONCE PER COMPILE MODE (2026-08-03, Evan's ask: "compile the code
 # for each mode, then shard the tests"). The eps test rows run
@@ -60,8 +118,12 @@ concurrency:
 #
 #   MEASURED, PR #174 (all timings tier `all`, same 261-binary archive;
 #   PR #177 then collapsed 251 of those 263 binaries into 12 aggregators —
-#   see any crates/*/tests/all.rs header — so the per-binary constant now
-#   multiplies 24 binaries, not 263):
+#   see any crates/*/tests/all.rs header for the pattern — so the
+#   per-binary constant now multiplies one aggregated target per crate
+#   rather than 263. The count itself is NOT restated here:
+#   `scripts/gates/test-aggregation.sh` derives it from `cargo metadata`
+#   on every merge and prints it, and a number copied out beside a claim
+#   is a second, unchecked copy of something the tooling already knows):
 #     default build compile step   514 s -> 389 s  (-24%)
 #     interval build compile step  618 s -> 495 s  (-20%)
 #   The runner is 2 vCPU / 7 GB (`nproc` from the provenance step below —
@@ -72,10 +134,12 @@ concurrency:
 #
 # LINKER — mold RETIRED 2026-08-12. #174 adopted it on a -24%/-20% result
 # measured across 261 static links; that is the whole basis for it, and
-# the basis is gone. #179 and #387 took this workspace to 14 test targets
-# (`scripts/gates/test-aggregation.sh` asserts the count), so the
-# per-binary link constant mold attacks now multiplies 14, not 261. Two
-# independent readings say it no longer pays:
+# the basis is gone. #179 and #387 took this workspace to ONE test target
+# per crate — `scripts/gates/test-aggregation.sh` enforces that invariant
+# and prints the resulting total; it does not assert a particular number,
+# so no number is copied here — and the per-binary link constant mold
+# attacks now multiplies that handful, not 261. Two independent readings
+# say it no longer pays:
 #   * LOCAL, measured 2026-08-11 at today's target count:
 #     189 s baseline vs 186 s with mold — noise. That measurement is
 #     written up in docs/LOCAL-BUILD-PERF.md, which reverted mold locally
@@ -111,6 +175,12 @@ concurrency:
 # the local gate stays byte-for-byte equivalent in what it PROVES. The
 # mirror convention covers the matrix, not the runner's linker.
 env:
+  # sccache pin for the EXPERIMENT wired into the two build jobs below.
+  # LIVE — disable by setting the repo variable SCCACHE to "0". See
+  # .github/actions/install-sccache and docs/CI-MINUTES-2026-08.md F4.
+  # 0.16.0 is the version local-scripts/gate.sh already runs on the
+  # local gate box, so the trial and the local lane agree.
+  SCCACHE_VERSION: "0.16.0"
   NEXTEST_VERSION: "0.9.140"
   # maturin rides the same pattern as nextest: pinned here (single source
   # of truth), installed from the official GitHub-release prebuilt at the
@@ -124,6 +194,18 @@ env:
   # 2026-05-22, so it clears the >=2-week dependency age policy by
   # weeks.
   TY_VERSION: "0.0.39"
+  # ruff, the Python linter (see ruff.toml and scripts/check-python-lint.py).
+  # Same pattern as nextest/maturin: pinned here as the single source of
+  # truth, installed from the official GitHub-release prebuilt at the
+  # pinned URL — no third-party action. 0.16.1 was published 2026-07-30,
+  # so it is ~3 weeks old at adoption (2026-08-22) and clears the ~2-week
+  # dependency-age rule (memories/review-and-dependency-policy.md) with
+  # margin; 0.16.4 (2026-08-20) would not. CI-only tooling — ruff never
+  # enters any shipped build graph, which is the class that rule is
+  # lenient about. THE LOCAL HALF READS THIS PIN: check-python-lint.py
+  # parses this line out of this file, so a developer's ruff that differs
+  # from CI's is reported rather than trusted.
+  RUFF_VERSION: "0.16.1"
 
 # The toolchain (channel + rustfmt/clippy components) comes from
 # rust-toolchain.toml: the dtolnay step only bootstraps/updates rustup, and
@@ -181,6 +263,14 @@ jobs:
       run_interval_oracle: ${{ steps.classify.outputs.RUN_INTERVAL_ORACLE }}
       run_topo_release: ${{ steps.classify.outputs.RUN_TOPO_RELEASE }}
       run_k_lint: ${{ steps.classify.outputs.RUN_K_LINT }}
+      # The sampled matrix point (scripts/ci-filter.py, CONFIGURATION
+      # SAMPLING). Every compile-mode job reads `lane`; the two archive-run
+      # matrices read `eps`.
+      lane: ${{ steps.classify.outputs.LANE }}
+      eps: ${{ steps.classify.outputs.EPS }}
+      # The third sampled dimension (2026-08-22): which of `k-lint (gate)`'s
+      # five feature unifications this run gates. Only that job reads it.
+      klint_row: ${{ steps.classify.outputs.KLINT_ROW }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -196,7 +286,8 @@ jobs:
       # either tree as non-triggering (its _is_docs).
       - name: prune local-only tooling (hosted CI may not depend on it)
         run: rm -rf local-scripts .claude
-      - id: classify
+      - name: classify the change set
+        id: classify
         # RUSTUP_TOOLCHAIN=stable keeps this job off the pinned 1.97.0
         # download: the script only runs `cargo metadata --no-deps`, which
         # parses the workspace manifests and neither builds nor resolves the
@@ -205,6 +296,8 @@ jobs:
         # path is tier `all`, not a wrong answer.
         env:
           RUSTUP_TOOLCHAIN: stable
+          SEED: ${{ github.event.pull_request.head.sha || github.sha }}
+          DRAFT: ${{ github.event.pull_request.draft }}
         run: |
           # Always diff against the checkout's own first parent. On
           # pull_request the checkout is the test-merge commit, so HEAD^1
@@ -218,20 +311,198 @@ jobs:
           echo "changed files:"
           git diff --name-only "$BASE"...HEAD || true
           echo "classification:"
-          scripts/ci-filter.py --base "$BASE" | tee -a "$GITHUB_OUTPUT"
+          # THE SAMPLING SEED IS THE PR'S HEAD SHA, not the merge-ref HEAD
+          # this job is checked out at. The merge ref changes whenever main
+          # moves, so seeding on it would re-draw the matrix point under a
+          # branch that did not change — losing the "a re-run of the same
+          # commit picks the same point" property that is the whole reason
+          # the draw is seeded rather than random. `github.sha` is the
+          # fallback for the push trigger, which runs no sampled job today.
+          scripts/ci-filter.py --base "$BASE" --seed "$SEED" > filter.out
+          # DRAFT PRs SKIP THE GATE (2026-08-22, Evan's ask; F5 of the
+          # minutes audit, which called it "the largest single lever
+          # available" and left it as a policy decision).
+          #
+          # Expressed by zeroing the RUN_* flags rather than by an `if:` on
+          # twenty jobs: every job in this workflow except `docs-only` and
+          # `mirror` already gates on one of these outputs, so one rewrite
+          # here reaches all of them and cannot drift as jobs are added.
+          # `docs-only` deliberately still runs — it is the marker check,
+          # and a draft whose only check never reports cannot be read as
+          # "not yet gated" by anything looking at the PR.
+          #
+          # TIER and CARGO_SCOPE are deliberately NOT zeroed: they are
+          # descriptive, they are printed below, and no job acts on them
+          # without also gating on a RUN_* flag.
+          if [ "$DRAFT" = "true" ]; then
+            echo "draft PR: zeroing every RUN_* flag (the gate runs on ready-for-review)"
+            sed -i 's/^\(RUN_[A-Z_]*\)=true$/\1=false/' filter.out
+          fi
+          cat filter.out | tee -a "$GITHUB_OUTPUT"
 
+  # NO LOCAL MIRROR: a marker job with no check in it — it echoes the tier so
+  # a docs-only PR has a green required status. ci-local.sh prints the same two
+  # lines at its docs-tier exit and returns 0; there is nothing here to run.
   docs-only:
     name: docs-only ok
     runs-on: ubuntu-latest
     needs: filter
+    if: github.event_name == 'pull_request'
     steps:
       - run: echo "tier=${{ needs.filter.outputs.tier }} pkgs=${{ needs.filter.outputs.pkgs }}"
+
+  # A GATE MUST BE SITED WHERE IT CAN FIRE ON ITS OWN INPUTS (Evan,
+  # 2026-08-20). `discipline` below is `if: run_build == 'true'`, and a
+  # change set of only .md / memories/ / local-scripts/ / .claude/ is
+  # TIER=docs, so it does not run. That posture is deliberate and cheap
+  # docs CI stays — but it left two guards whose inputs are EXACTLY that
+  # change class unable to fire on it: the citation guard (prose in two
+  # crate headers, the K-REPORT runbook and the local half) and the gate
+  # roster (whose local half is local-scripts/ci-local.sh). They are
+  # sited here.
+  #
+  # THIS JOB HAS NO `if:`, so it runs on every tier — including the
+  # docs-only runs where every other job carrying one is skipped.
+  # (`filter` and `docs-only` also carry no `if:`; neither runs a check.)
+  # No toolchain, no cargo, no cache: greps and a stdlib python reader
+  # over the two CI halves, the workflow directory, and the citing files.
+  # Measured on three docs-tier runs: 8, 9 and 12 s wall clock, finishing
+  # before `filter`, so the added critical-path latency on a docs PR is
+  # zero and the cost is one extra billed job-minute.
+  #
+  # THIS IS THE ONE JOB THAT DOES NOT PRUNE local-only tooling, and the
+  # exception is the reason it exists: its subject IS the agreement
+  # between the hosted half and local-scripts/ci-local.sh, so it has to
+  # see both. Nothing here can be moved by a developer's machine — the
+  # tree is read, never sourced or executed.
+  # `scripts/check-ci-mirror-parity.py` checks that this stays exactly one job.
+  mirror:
+    name: CI half parity + gate wiring (every tier)
+    runs-on: ubuntu-latest
+    # NO `if:`, AND THAT IS ENFORCED — scripts/check-ci-mirror-parity.py
+    # requires this job to run on EVERY tier, and reds with S61's finding if
+    # it grows a condition. The reason is the same one that makes it the
+    # wrong thing to sample: its inputs are prose, documentation and
+    # local-scripts/ — the exact file classes that classify TIER=docs and
+    # skip every `if: run_build` job — so a condition here would stop it
+    # firing on the only change class that can break it.
+    #
+    # It is also the wrong thing to sample on its own merits, and the
+    # distinction is the rule for the sampling elsewhere in this file. The
+    # lane and ε draws rest on the sampled points agreeing almost always,
+    # and on a missed break PERSISTING: a test red at 1e-12 stays red in the
+    # tree, so a later draw still finds it. This job detects an ABSENCE — a
+    # check dropped from one half of CI, a gate sited where it cannot fire —
+    # and an absence leaves no future red for a later draw to catch. Sample
+    # the detector and the thing it detects merges silently, once.
+    #
+    # So it runs on every event, drafts and pushes to main included, for
+    # about one billed minute and no toolchain, cargo or cache.
+    steps:
+      - uses: actions/checkout@v4
+      - name: gate roster parity (both halves run every gate)
+        run: |
+          scripts/gates/gate-roster.sh --selftest
+          scripts/gates/gate-roster.sh
+      # Every check OUTSIDE scripts/gates/ is named by hand in both
+      # halves, so nothing detected a lost row on either side. Two
+      # separate enumerations of that population each missed a member,
+      # and the second was found by another track by accident — so the
+      # population is derived here rather than listed. It also checks
+      # THE SITING RULE ITSELF: without that, hollowing this job and
+      # moving these three steps back into `discipline` restores the
+      # exact state S61 recorded with nothing firing. Python, not bash:
+      # its subject is which job a step belongs to and whether that job
+      # carries an `if:`, and the bash version read that with a regex
+      # that could not see an uppercase job name.
+      - name: CI half parity (both halves name the same checks)
+        run: |
+          python3 scripts/check-ci-mirror-parity.py --selftest
+          python3 scripts/check-ci-mirror-parity.py
+      # THE FILTER'S OWN SELF-TEST, and it is sited here for a reason of
+      # its own rather than by association. `scripts/ci-filter.py` decides
+      # whether every `if: run_build` job below runs at all, and its `docs`
+      # branch is the one path in it that fails OPEN — a change set wrongly
+      # read as documentation skips the entire gate and reports green. A PR
+      # that widens that branch is a change to `scripts/ci-filter.py`, and
+      # the filter that classifies that PR is the WIDENED one out of the
+      # merge ref: a diff adding `scripts/` to `_is_docs` classifies itself
+      # as docs and skips the job that would have caught it. Sited here, in
+      # the job that carries no `if:`, the self-test runs on that PR anyway.
+      # No toolchain: the fixture ships a stub `cargo`, so this row is
+      # stdlib python and git — measured 2.9 s locally.
+      - name: change filter selftest (the docs tier fails open)
+        run: python3 scripts/ci-filter.py --selftest
+      # The claims in the tree about what CI does to probe-gated suites.
+      # Prose is this guard's input, so this is where it can fire.
+      - name: probe type-check loop citations
+        run: |
+          scripts/gates/probe-suite-census.sh --selftest
+          scripts/gates/probe-suite-census.sh --citations
+      # THE PYTHON LINTER RIDES THIS JOB, and the two properties that make
+      # this job what it is are exactly the two ruff needs.
+      #
+      #   1. NO PRUNE. `local-scripts/` holds Python files of its own
+      #      (including under review-lily/), and every other checked-out
+      #      job deletes that tree before it does anything. A linter sited
+      #      anywhere else would silently skip every one of them while its
+      #      config claimed the repo — the same defect, in the fix. The
+      #      populations are NOT written down here: the row prints them
+      #      ("checked all N tracked Python files"), derived from
+      #      `git ls-files`, which is the point of the whole script.
+      #   2. NO `if:`. A change to `local-scripts/*.py` or `review/*.py`
+      #      classifies TIER=docs (scripts/ci-filter.py's `_is_docs`), on
+      #      which every `if: run_build` job is skipped. Those files are
+      #      this check's own inputs, so siting it under an `if:` would
+      #      make it unable to fire on the change class it is about —
+      #      S61's defect. `check-ci-mirror-parity.py`'s TIER_BLIND list
+      #      names this invocation, so claim 7 now enforces the siting.
+      #
+      # BILLING: this job measures 8-12 s wall and already bills a whole
+      # minute (docs/CI-MINUTES-2026-08.md: per job, rounded UP). The
+      # install is a ~10 MB prebuilt and ruff over the tree is
+      # milliseconds, so the row lands inside the minute this job already
+      # costs. A standalone `python-lint` job would bill a second whole
+      # minute to do four seconds of work, and would also have to
+      # re-argue the prune exception that claim 6 keeps to exactly one
+      # job. The `python-suite` job is the other candidate and fails on
+      # both counts: it prunes local-scripts/, and it is
+      # `if: run_pncad_py`.
+      # Its own directory, added to PATH explicitly: this job installs no
+      # toolchain, so it may not assume ~/.cargo/bin exists the way the
+      # nextest and maturin steps do in jobs that set one up.
+      - name: install ruff (pinned, official prebuilt)
+        run: |
+          mkdir -p "$HOME/ruff-bin"
+          curl -LsSf "https://github.com/astral-sh/ruff/releases/download/$RUFF_VERSION/ruff-x86_64-unknown-linux-gnu.tar.gz" \
+            | tar zxf - -C "$HOME/ruff-bin" --strip-components=1 ruff-x86_64-unknown-linux-gnu/ruff
+          echo "$HOME/ruff-bin" >> "$GITHUB_PATH"
+      # REQUIRE_RUFF says out loud, where a reader of this workflow meets
+      # it, that a missing or wrong-versioned binary fails this job —
+      # the script's off-gate default is to skip loudly, which is right
+      # for a developer's box and wrong here.
+      #
+      # IT IS NOT WHAT MAKES THAT TRUE, and it is not left unchecked. A
+      # step-level `env:` line is four characters from gone, and a marker
+      # asserting a check nobody enforces is the exact defect this row
+      # closes; minting a fresh one inside the fix is not on. So: the
+      # script reads GITHUB_ACTIONS — set by the runner, not by us — to
+      # decide that a skip is forbidden, AND it fails if this declaration
+      # is missing or not "1". Delete the line and the job reds naming
+      # it; flip it to "0" and the job reds naming it; ruff runs required
+      # either way. `check-python-lint.py --selftest` plants both edits.
+      - name: python lint (ruff, every tracked .py and .pyi)
+        run: |
+          python3 scripts/check-python-lint.py --selftest
+          python3 scripts/check-python-lint.py
+        env:
+          REQUIRE_RUFF: "1"
 
   discipline:
     name: discipline (evaluation-code)
     runs-on: ubuntu-latest
     needs: filter
-    if: needs.filter.outputs.run_build == 'true'
+    if: github.event_name == 'pull_request' && needs.filter.outputs.run_build == 'true'
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
@@ -256,18 +527,11 @@ jobs:
       # local-scripts/ (this job deletes that tree).
       #
       # This job is the ONLY hand-written gate roster in the repo, and
-      # it is checked rather than trusted: local-scripts/ci-local.sh
-      # runs scripts/gates/ in a loop, so it has no list to drift, and
-      # the roster gate below fails unless ci.yml wires a step for every
-      # gate in that directory. Each step runs the gate's `--selftest`
-      # first — a guard that has never been shown to fire is not a
-      # guard, and the roster gate enforces that too. What it checks is
-      # WIRING, not execution: it is a grep, so a step disabled by an
-      # `if:` condition still satisfies it (see that script's header).
-      - name: gate roster parity (ci.yml names every gate)
-        run: |
-          scripts/gates/gate-roster.sh --selftest
-          scripts/gates/gate-roster.sh
+      # it is checked rather than trusted — but NOT here. The roster
+      # gate reads local-scripts/ci-local.sh, which this job deletes
+      # above, and its other input is a file class that classifies
+      # TIER=docs, on which this job does not run at all. It is sited in
+      # the `mirror` job, which runs on every tier and keeps that tree.
       - name: Bounds compound-bound allowlist (ratified 2026-07-29)
         run: |
           scripts/gates/bounds-allowlist.sh --selftest
@@ -280,6 +544,10 @@ jobs:
         run: |
           scripts/gates/no-ambient-env.sh --selftest
           scripts/gates/no-ambient-env.sh
+      - name: the tolerance witness is not an ambient read
+        run: |
+          scripts/gates/witness-not-ambient.sh --selftest
+          scripts/gates/witness-not-ambient.sh
       - name: kernel crates are serde-free
         run: |
           scripts/gates/kernel-serde-free.sh --selftest
@@ -315,7 +583,11 @@ jobs:
       # roster-enforced like its siblings, its `--selftest` proves the
       # guards fire, and the local half reaches it through the loop that
       # runs this whole directory instead of a hand-written mirror row.
-      - name: probe-suite census + citation guard
+      # The CITATION half is not here: its inputs are prose, and a change
+      # set of only prose classifies TIER=docs, so this job could not
+      # fire on the only change class that breaks it. It runs in
+      # `mirror`, as `--citations`.
+      - name: probe-suite census (crates + floor)
         run: |
           scripts/gates/probe-suite-census.sh --selftest
           scripts/gates/probe-suite-census.sh
@@ -405,11 +677,56 @@ jobs:
       - name: uv composer selftest (demos)
         run: python3 demos/compose_uv_montage.py --selftest
 
+      # The scene manifest has one reader, shared by both renderers,
+      # the montage composer and render.sh's scene lister. What its
+      # self-test pins is the part no render lane can fail on: the
+      # `view.up` convention, and that the display -> world direction
+      # is the derived inverse of the world -> display one rather than
+      # a second hand-written map. A camera that disagrees renders a
+      # plausible wrong picture. Same cheap-tripwire posture, stdlib
+      # only. Mirror: ci-local's "scene manifest reader (demos)" row.
+      - name: scene manifest reader selftest (demos)
+        run: python3 demos/manifest.py --selftest
+
+  # rustfmt, the rustdoc gate AND the wasm32 guard, in one job — and the
+  # job NAME says all three, because a name narrower than its contents
+  # is how a red run gets read as the wrong failure.
+  #
+  # rustfmt + rustdoc merged 2026-08-20 (minutes audit, #852): separately
+  # these billed two minutes to do ~50 s of work — 33 s and 46 s measured
+  # (run 32425890937), each rounded up, and most of each was the runner
+  # setup they now share.
+  #
+  # EACH KEEPS ITS OWN STEP, with the step names unchanged, because that
+  # is what a failure is read by: a red run still says `rustfmt` or
+  # `rustdoc (gate)`, matching the rows of the same names in
+  # local-scripts/ci-local.sh. None of the three is on the critical path,
+  # which is `build + archive (interval)` at ~88% of a ~13 min run, so the
+  # serialisation costs no wall-clock for the run as a whole. The measured
+  # figures live at the wasm32 step.
+  #
+  # NOT MERGED IN, deliberately: `discipline`, whose ~30 s buys nothing
+  # here and would eat the headroom this job keeps under its billing
+  # boundary; and
+  # `docs-only`, which carries no `if` because it is the green check a
+  # docs-tier run reports when every other job skips — the opposite
+  # condition to this job's.
+  #
+  # Merging rotates Swatinem/rust-cache's key (it hashes the job), so
+  # expect exactly one cold run after any change here and warm thereafter.
+  #
+  # WHY THESE THREE AND NOT SOME OTHER SET. All three are UNSCOPED
+  # workspace-wide ratchets: `cargo fmt --all`, doc-gate's fixed crate
+  # list, and a `--workspace` cross-compile. They do not read
+  # `cargo_scope`, so they behave identically in tier `all` and tier
+  # `closure` — which is what makes them shareable in one job at all.
+  # `clippy` is the counter-example and stays out: it IS the filter's
+  # per-closure row.
   fmt:
-    name: rustfmt
+    name: rustfmt + rustdoc (gate) + wasm32
     runs-on: ubuntu-latest
     needs: filter
-    if: needs.filter.outputs.run_build == 'true'
+    if: github.event_name == 'pull_request' && needs.filter.outputs.run_build == 'true'
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
@@ -424,14 +741,257 @@ jobs:
       - name: prune local-only tooling (hosted CI may not depend on it)
         run: rm -rf local-scripts .claude
       - uses: dtolnay/rust-toolchain@stable
+      # THE CACHE'S SCOPE IS THE RUSTDOC GATE'S OWN ROOT LIST (#921).
+      #
+      # `Swatinem/rust-cache` caches the target directories it is TOLD
+      # about, and its default is one: `./target`. The rustdoc gate below
+      # documents SEVEN cargo roots — the workspace plus the six the
+      # workspace excludes — and each of those six builds into a target
+      # directory of its own, under its own directory. Every one of them
+      # therefore compiled from nothing on EVERY run of this job,
+      # `demos/tour` and `demos/wild` rebuilding the whole kernel each
+      # time, while the workspace pass ran against a warm graph.
+      #
+      # MEASURED, hosted, 2 vCPU, warm cache with one kernel doc comment
+      # changed — the case a real PR is (run 32583370980, two jobs one
+      # input apart):
+      #
+      #   `scripts/doc-gate.sh`   67 s -> 33 s
+      #   whole job              136 s -> 99 s, i.e. 3 billed -> 2 billed
+      #
+      # The cache entry grows 155 MB -> 245 MB compressed, paid ONLY when
+      # the key rotates: a warm run logs "Cache up-to-date" and re-saves
+      # nothing. Restore costs ~4 s more. Write-up: F6 in
+      # docs/CI-MINUTES-2026-08.md.
+      #
+      # DERIVED, NOT COPIED, and that is the whole reason this step
+      # exists rather than a `workspaces:` roster written out below.
+      # scripts/doc-gate.sh's header argues at length that its root list
+      # must stay derived, because a root added to `workspace.exclude`
+      # and forgotten in a hand-kept copy is a tree nothing covers,
+      # reading as covered. A hand-kept copy HERE has the same shape one
+      # currency down: the forgotten root silently leaves the cache, and
+      # nothing says so. So the workflow asks the gate. `--print-roots`
+      # runs the same derivation the gate runs and prints `.` plus one
+      # directory per root outside the workspace.
+      #
+      # BEFORE rust-cache, which it has to be, since its output is that
+      # action's input. That is safe: the mode reads `git ls-files` and
+      # `cargo metadata --no-deps`, and `--no-deps` needs no registry
+      # index (checked under an empty CARGO_HOME), so nothing here
+      # depends on the `~/.cargo` this step precedes restoring.
+      - name: derive the cargo roots the rustdoc gate documents
+        id: doc-roots
+        # CAPTURED FIRST, THEN WRITTEN. Inline inside the block, a gate
+        # that died mid-list would leave an unterminated heredoc
+        # delimiter in $GITHUB_OUTPUT and the failure would be read as a
+        # malformed-output error rather than as the gate's own
+        # diagnosis. The assignment fails under `bash -e` before
+        # anything is appended.
+        run: |
+          roots=$(scripts/doc-gate.sh --print-roots)
+          {
+            echo 'roots<<DOC_GATE_ROOTS'
+            printf '%s\n' "$roots"
+            echo 'DOC_GATE_ROOTS'
+          } >> "$GITHUB_OUTPUT"
       - uses: Swatinem/rust-cache@v2
-      - run: cargo fmt --all --check
+        with:
+          workspaces: ${{ steps.doc-roots.outputs.roots }}
+      - name: rustfmt
+        run: cargo fmt --all --check
+      # RUSTDOC gate (#465): clippy is blind to rustdoc lints, so a doc
+      # comment can silently stop rendering with the gate green. The
+      # command and the flags live in scripts/doc-gate.sh — one
+      # implementation, called from here and from
+      # local-scripts/ci-local.sh, the ci-filter.py arrangement.
+      # NOT scoped by the filter, deliberately: it is a tree-wide
+      # ratchet over a derived root set, so scoping it to the change
+      # closure would trade the ratchet's meaning for no measurable
+      # time. It still respects the docs tier via this job's run_build.
+      #
+      # THE `--selftest` LINE IS PART OF THE GATE, not a nicety: the
+      # script's `-D warnings`, its `--document-private-items`, its
+      # `--bins --examples` invocation, its per-root feature choice and
+      # its loop over the cargo roots outside the workspace can each be
+      # dropped and leave it green over a broken tree. It is the same
+      # first line every scripts/gates/ gate gets, and although this
+      # script is NOT in that directory (its header says why),
+      # `gate-roster.sh` checks this wiring all the same — it names the
+      # path in OUTLIER_GATES, so deleting either of the two lines below
+      # reds that gate in both halves.
+      #
+      # Runs even when rustfmt failed: formatting and doc coverage are
+      # independent verdicts, and the matrix-free merge must not turn
+      # two findings into one. `!cancelled()` rather than `always()` so
+      # a cancelled run still stops here.
+      - name: rustdoc (gate)
+        if: '!cancelled()'
+        run: |
+          scripts/doc-gate.sh --selftest
+          scripts/doc-gate.sh
+
+      # WASM32 GUARD (#807), THE INTERVAL BUILD ONLY.
+      #
+      # docs/GUI-DESIGN.md §GQ6 and docs/GQ6-RESURVEY.md §4 both state, as
+      # a MEASURED fact that a ratified toolkit row rests on, that the
+      # kernel plus `editor-core` compiles to wasm32-unknown-unknown,
+      # `--features interval` included. Nothing re-took that reading:
+      # before this step no CI row named a wasm target at all, so a
+      # dependency bump could falsify the sentence with every other row
+      # green — a transitive crate growing a `std::os::unix`, `getrandom`
+      # or `mmap` path is enough, and the documents would still read as
+      # checked fact.
+      #
+      # ONE LEG, and it is the interval one. Evan's ruling, 2026-08-21:
+      # *"do add wasm cross compiling for the interval build only. the
+      # lint for having interval be purely additive suffices."* The
+      # default-features leg and a whole-workspace `wasm_js` leg were both
+      # dropped to that ruling. What each one guarded, and what now
+      # guards it, is written at both claim sites — a claim whose guard
+      # goes away needs a written reason where the claim is, not silence.
+      #
+      # WHY ONE LEG COVERS THE DEFAULT BUILD, i.e. why this is subsumption
+      # and not a narrowing. `--features interval` compiles a SUPERSET of
+      # what default features compile, for two independent reasons:
+      #
+      #   1. Cargo features are purely additive for the DEPENDENCY GRAPH.
+      #      Enabling a feature can add crates and features; it cannot
+      #      remove them. That is cargo's design, not this repo's.
+      #   2. `scripts/check-interval-cfg-additive.py` forbids any
+      #      `cfg(not(feature = "interval"))` under crates/*/{src,tests},
+      #      so no source in this repo compiles ONLY when the feature is
+      #      off. That gate runs in `discipline`, on the same code-tier
+      #      pull-request runs as this step — the premise is checked
+      #      wherever it is relied on.
+      #
+      # THE LINT'S OWN RESIDUAL IS NOW THIS GUARD'S RESIDUAL, and its
+      # header states it: the check is SYNTACTIC. It cannot see through a
+      # gated `mod` whose contents are non-additive, nor a gated impl of a
+      # trait with a blanket default method that an f64 path then calls.
+      # It narrows the hole; it does not close it. Read it there before
+      # relying on this comment.
+      #
+      # THE THIRD-PARTY HOLE, MEASURED 2026-08-21 — the one direction the
+      # subsumption above can fail, and it is outside the lint's scope
+      # because the lint reads only this repo's crates. Feature
+      # unification can ENABLE a feature on a shared third-party crate,
+      # and a crate carrying an internal `#[cfg(not(feature = "f"))]`
+      # block then compiles LESS of itself under `interval` than under
+      # default features. A wasm-hostile path living in such a block
+      # would be exercised by a default-features check and skipped here.
+      #
+      #   $ cargo tree --workspace --exclude pncad --exclude pncad-py \
+      #       --target wasm32-unknown-unknown -e features [--features interval]
+      #
+      #   Diffed between the two configurations: NOT ONE LINE present
+      #   under default features is absent under `--features interval`.
+      #   The entire delta is one duplicate-reachability marker.
+      #
+      # So the hole is UNOCCUPIED at this dependency set. That is a
+      # property of the current graph, not a theorem — RE-TAKE IT with the
+      # command above if this guard ever looks like it is missing
+      # something, and do not weaken the claim without re-taking it.
+      #
+      # (`interval-transcendentals` is already in the DEFAULT graph: it is
+      # an unconditional dependency of `geom-core`, and the feature gates
+      # the code that USES it rather than the edge. So this leg is not
+      # pulling in a subtree the default build lacks; it is adding this
+      # repo's gated source over the same crates. `inari`, `gmp` and `rug`
+      # appear in NEITHER graph — the gmp-backed oracle is a
+      # dev-dependency of a path dependency and never enters either.)
+      #
+      # WHAT IS NOW UNGUARDED, stated because §Q6's whole subject is
+      # claims nothing re-takes: the `pncad`/`pncad-py` façade under
+      # `--cfg getrandom_backend="wasm_js"`. GQ6-RESURVEY §4's third table
+      # row and its "verified fix" paragraph are a one-time reading again,
+      # and §4 now says so at the row. Same ruling, same reason.
+      #
+      # SITED IN THIS JOB, not in one of its own (Evan's earlier
+      # constraint: the guard must not add runner time). Actions bills PER
+      # JOB, ROUNDED UP TO THE MINUTE — docs/CI-MINUTES-2026-08.md — so
+      # billed minutes are the currency, not seconds.
+      #
+      # MEASURED, hosted (ubuntu-latest, 2 vCPU), tier `all`. TWO
+      # readings, and they do not agree on the billed cost — read both:
+      #
+      #   run 32452728742, COLD (this job's cache key had just rotated):
+      #     install 3 s + check 17 s = 20 s of guard. Job 64 s without,
+      #     84 s with. Both round to 2 billed minutes, so +0.
+      #   run 32452924083, WARM: install 2 s + check 11 s = 13 s of guard.
+      #     Job 53 s without, 66 s with. That is 1 billed minute without
+      #     and 2 with, so +1.
+      #
+      # SO THE BILLED COST IS 0 OR 1, NOT RELIABLY 0. This job's baseline
+      # STRADDLES the 60 s boundary — `rustdoc (gate)` alone swings 22-34 s
+      # between runs — so which side it lands on decides the guard's
+      # billed cost, and a warm run is the common case. Do not quote a
+      # flat +0 from here.
+      #
+      # A job of its own would pay set-up, checkout, toolchain and cache
+      # restore again (26 s measured on this workflow's light jobs), i.e.
+      # 39-46 s = 1 billed minute ALWAYS, plus a concurrent runner slot.
+      # So the step is 0 or 1 against a job's flat 1: never worse, and
+      # free on a cold run. That is the whole of the siting argument now —
+      # it is narrower than it was with three legs, and honestly so.
+      #
+      # WORTH KNOWING, because it is counter-intuitive: cutting this guard
+      # from three legs to one did NOT reduce its billed cost. With three
+      # legs the job was 103-110 s against a 61-62 s baseline — both sides
+      # over the boundary, so +0 on both readings. One leg is ~25 s
+      # cheaper in WALL-CLOCK and can be +1 in BILLED minutes. The two
+      # currencies disagree here; the ruling that chose one leg was about
+      # the interval build's coverage, not about this number.
+      #
+      # Locally, from an empty CARGO_TARGET_DIR on a 4-vCPU container, the
+      # same command is 23.5 s cold and 2.5 s warm.
+      #
+      # NOT on the critical path either way: the job finishes inside two
+      # minutes against `build + archive (interval)`, which is ~88% of a
+      # ~13 min run, so this is billed runner minutes and ZERO extra
+      # wall-clock for the run as a whole.
+      #
+      # This job rather than `clippy` because the guard is an UNSCOPED
+      # workspace-wide ratchet and so are this job's other two rows, while
+      # `clippy` runs `${{ needs.filter.outputs.cargo_scope }}` and is the
+      # filter's per-closure row — see this job's header.
+      #
+      # SITING (S61): the inputs are the kernel crates and the dependency
+      # graph, so the gate has to fire on the change that would break it.
+      # Cargo.toml and Cargo.lock are not `_is_docs` paths, so a dependency
+      # bump classifies TIER=all and this job runs. The only change class
+      # that skips it is a docs-tier one (`*.md`, `memories/`,
+      # `local-scripts/`, `.claude/`), none of which can move a wasm build
+      # — plus, since #852, a push to main, which runs no gate at all and
+      # is a property of the workflow rather than of this step's siting.
+      #
+      # `check`, NOT `build`: the guarded sentence is "compiles clean".
+      # This step runs no codegen and no linker, and therefore establishes
+      # nothing about whether a wasm artifact links, loads or runs — see
+      # the two caveats GQ6-RESURVEY §4 already flags (threads, and
+      # `mul_add` lowering).
+      #
+      # Target install goes through `rustup target add` rather than the
+      # toolchain action's `targets:` input on purpose: rust-toolchain.toml
+      # pins 1.97.0, and `rustup` resolves that directory override, so the
+      # std artifacts land on the toolchain cargo will actually use.
+      #
+      # `!cancelled()` on both, for this job's stated reason: a formatting
+      # or a rustdoc failure is a different verdict from a wasm one, and
+      # the matrix-free merge must not turn two findings into one.
+      - name: install the wasm32 target (pinned toolchain)
+        if: '!cancelled()'
+        run: rustup target add wasm32-unknown-unknown
+      - name: wasm32 check (kernel + editor-core, --features interval)
+        if: '!cancelled()'
+        run: cargo check --workspace --exclude pncad --exclude pncad-py --features interval --target wasm32-unknown-unknown
 
   clippy:
     name: clippy
     runs-on: ubuntu-latest
     needs: filter
-    if: needs.filter.outputs.run_build == 'true'
+    if: github.event_name == 'pull_request' && needs.filter.outputs.run_build == 'true'
+      && needs.filter.outputs.lane != 'interval'
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
@@ -454,47 +1014,31 @@ jobs:
       # cache entry.
       # Scoped by the filter: `--workspace` in tier `all`, an explicit
       # `-p <closure>` list in tier `closure`.
-      - run: cargo clippy ${{ needs.filter.outputs.cargo_scope }} --all-targets -- -D warnings
-
-  # RUSTDOC gate (#465): clippy is blind to rustdoc lints, so a doc
-  # comment can silently stop rendering with the gate green. The command,
-  # the flags, and the shrinking exclusion list all live in
-  # scripts/doc-gate.sh — one implementation, called by this job and by
-  # local-scripts/ci-local.sh, the ci-filter.py arrangement.
-  #
-  # NOT scoped by the filter, deliberately: the gate is a workspace-wide
-  # ratchet over a fixed crate set, and it runs in ~15 s cold, so scoping
-  # it to the change closure would trade the ratchet's meaning for no
-  # measurable time. It still respects the docs tier via run_build.
-  doc:
-    name: rustdoc (gate)
-    runs-on: ubuntu-latest
-    needs: filter
-    if: needs.filter.outputs.run_build == 'true'
-    steps:
-      - uses: actions/checkout@v4
-      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
-      # see the identical step in the clippy job for the full reasoning.
-      - name: prune local-only tooling (hosted CI may not depend on it)
-        run: rm -rf local-scripts .claude
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - run: scripts/doc-gate.sh
+      - name: clippy (default features)
+        run: cargo clippy ${{ needs.filter.outputs.cargo_scope }} --all-targets -- -D warnings
 
   # BUILD job, default features (see the build-once header comment above
   # the `env:` block). Compiles the scoped test binaries exactly once and
   # publishes them as a nextest archive; the `test` matrix below only RUNS.
+  #
+  # Only its doc-test step has a local mirror, and that is the whole of what
+  # this job checks beyond compiling: the archive is the hosted split itself —
+  # compiling once and shipping binaries to thin RUN jobs is what makes a
+  # matrix of runners cheap, while a local run has one machine and compiles
+  # inside each test row (`nextest_check`).
   build:
     name: build + archive (default)
     # BUILD_RUNNER (repo variable) — see the LINK/DEBUGINFO note above.
     # Unset today, so this is `ubuntu-latest` and nothing changes.
     runs-on: ${{ vars.BUILD_RUNNER || 'ubuntu-latest' }}
     needs: filter
-    if: needs.filter.outputs.run_build == 'true'
+    if: github.event_name == 'pull_request' && needs.filter.outputs.run_build == 'true'
+      && needs.filter.outputs.lane != 'interval'
     # OPT LEVEL — reverses the #52/#53 verdict, because both of its
     # premises expired. That decision ("blanket opt 2 is net-slower on
     # core-crate PRs") was measured when this workspace had 261 test
-    # binaries and compile dominated the run. #179/#387 took that to 14,
+    # binaries and compile dominated the run. #179/#387 took that to one
+    # per crate (`scripts/gates/test-aggregation.sh` prints the total),
     # and test EXECUTION is now ~79% of run wall (measured 2026-08-12:
     # compile jobs ~220 s of a ~1060 s critical path). Re-measured on the
     # same box, whole workspace, `--all-targets`:
@@ -537,6 +1081,10 @@ jobs:
     # always claimed. Anyone reading interval-vs-f64 runtime off an opt-0
     # CI leg is reading a flattered number.
     #
+    # (The three lines below still describe the opt-0/opt-2 pair, which is
+    # what they were measured for; see the 2026-08-25 block at the foot of
+    # this note for the level this job actually sets today.)
+    #
     # NOTE these supersede local-scripts/test-fast.sh's "75 s -> 4.9 s"
     # (15x, 2026-07-21, 807 tests) — the suite has since grown to 2791
     # tests and the ones added are less compute-bound, so that header is
@@ -553,6 +1101,110 @@ jobs:
     # keep their teeth — this is the same configuration
     # local-scripts/test-fast.sh has used locally since M6.
     #
+    # RE-ASKED UNDER CONFIGURATION SAMPLING (2026-08-22), because the
+    # verdict above rests on amortising ONE compile over TEN run legs and a
+    # sampled run has one. Evan's question was the right one — "if we run at
+    # one eps instead of 3 that's plausibly enough to shift the balance". It
+    # shifts it and does not cross it, in either lane, and the margin is
+    # wide enough that no new measurement was taken to say so.
+    #
+    # DERIVED FROM THE FIGURES DIRECTLY ABOVE, plus F2's default-shard
+    # execution times in docs/CI-MINUTES-2026-08.md. A sampled run pays one
+    # archive step and one full-suite row (two shards). Writing E for that
+    # row's opt-2 execution and r for the opt-0/opt-2 execution ratio, opt-2
+    # wins while E > (archive_2 - archive_0) / (r - 1):
+    #
+    #   default lane   r = 6.46   (the residue of "ten legs summed" once the
+    #                              four interval legs are removed: 769 s of
+    #                              opt-0 execution against ~119 s at opt-2)
+    #                  break-even at 56 s of execution; the row is ~119 s.
+    #                  One build + one row: 551 s at opt-2, 896 s at opt-0.
+    #   interval lane  r = 7.08   (2 x 828 s against 2 x 117 s)
+    #                  break-even at 78 s; the row is ~234 s.
+    #                  One build + one row: 839 s at opt-2, 1788 s at opt-0.
+    #
+    # So the default lane keeps about a 2x margin and the interval lane
+    # about 3x. THE INTERVAL LANE IS WHY THIS IS NOT CLOSE, and it is the
+    # lane that got MORE expensive to execute under sampling, not less: it
+    # now runs the whole suite rather than the interval-only difference, so
+    # the term opt-2 attacks grew at the same moment the leg count fell.
+    # The two changes point opposite ways and opt-2 wins both times.
+    #
+    # WHAT WOULD REOPEN IT: the default suite getting ~2x faster to execute,
+    # or a further cut to what a run executes. Re-take it with the same
+    # arithmetic, not a hunch — and note a knob change here rotates the
+    # rust-cache key and buys one cold rebuild, so a single run cannot
+    # settle it (the same trap this note's own header warns about).
+    #
+    # ============================================================
+    # NOW opt-level 1, NOT 2 (Evan, 2026-08-25). EVERYTHING ABOVE THIS LINE
+    # IS THE HISTORY OF A TWO-POINT COMPARISON, and the two points were the
+    # wrong ones.
+    #
+    # The whole argument above minimises `a + E` over a knob with four
+    # settings while only ever evaluating two of them, and those two sit at
+    # opposite extremes of BOTH terms. Nothing in this repository — #52/#53,
+    # #449, the census, this note, the calibration lane's first two samples —
+    # had ever measured, proposed or rejected `opt-level = 1`. It was not a
+    # considered omission; the question had not been asked. And the room was
+    # visible in the lane's own numbers: in the 2026-08-25 sample the build
+    # penalty opt-2 swallowed to buy its execution win (`a2 - a0` = 499 s) was
+    # more than twice the margin it won by (220 s).
+    #
+    # A three-arm sweep, each arm a clean build plus a full-suite run in this
+    # job's own environment (2026-08-25, 3489 tests, ALL THREE ARMS GREEN):
+    #
+    #   opt-0   build 143 s + execute 289 s = 432 s
+    #   opt-1   build 307 s + execute  60 s = 367 s      <- adopted
+    #   opt-2   build 427 s + execute  58 s = 485 s
+    #
+    # opt-1 keeps 97% of opt-2's execution speed (60 s against 58 s) for 58%
+    # of its build penalty (+164 s against +284 s over opt-0), and wins
+    # outright. Derived `r` = E0/E2 = 4.98, which reproduces the census's
+    # 4.95/4.99 almost exactly.
+    #
+    # AND THE SUITE IS GREEN AT THE LEVEL THIS NOW SETS, which is the only
+    # part of the above that is a correctness question rather than a cost
+    # one. All three arms above were green at 3489/3489; the flip was then
+    # re-checked on main as merged (3515 tests by then): 3515/3515 passed at
+    # opt-1, build 313 s, execute 62 s. That is expected rather than lucky —
+    # debug-assertions and overflow-checks do not move with opt-level and
+    # rustc does not enable fast-math at any of them — but "expected" is not
+    # evidence, so it was run.
+    #
+    # THE HONEST CAVEAT, AND IT IS THE SAME ONE THIS NOTE HAS MADE TWICE
+    # ALREADY: that sweep was taken on a 4-core AVX-512 guest, the same class
+    # as the census box and NOT this 2-vCPU runner. A ratio does not transfer
+    # between machines — the figures above are themselves a demonstration
+    # (3.24x local against 4.58x hosted; 2.29x local against 7.1x hosted). So
+    # this flip is made on evidence from a box the calibration lane explicitly
+    # distrusts, before a single opt-1 sample from the runner existed. That is
+    # a deliberate choice and the reason for it is that THE FASTEST WAY TO GET
+    # RUNNER DATA ON opt-1 IS TO RUN THE GATE ON opt-1: every PR now produces
+    # a real opt-1 archive step and a real opt-1 test row, and
+    # nightly.yml's calibration lane reads exactly those durations for free.
+    # The lane's measured arms are now opt-0 and opt-2, so reverting stays
+    # a measured decision rather than a guess.
+    #
+    # WHAT WOULD REVERSE IT: the lane reporting `opt-0` or `opt-2` on the
+    # runner, with margin, across more than one sample. Read
+    # docs/perf-data/opt-level/ before acting on any single one — the FIRST
+    # samples after this change are the least trustworthy, because this knob
+    # change rotates the rust-cache key here and the lane's opt-2 arm is
+    # building against a brand-new key of its own. Both of those buy one cold
+    # rebuild, which is the exact trap the paragraph directly above warns
+    # about.
+    #
+    # UNCHANGED BY THE FLIP: debug-assertions and overflow-checks are
+    # opt-level-independent, so fail-loud postconditions keep their teeth at 1
+    # exactly as at 2; the D9 bit-exactness pins hold at any opt level (the
+    # python-suite job's note says so — opt never moves rounding); k-lint
+    # still does NOT get this env, so the committed K sweep baselines keep the
+    # configuration they were produced under; and Cargo.toml's per-package
+    # opt-2 overrides for spade + mesh are untouched, since they cover the
+    # `cargo test`-driven jobs that do not set this env at all.
+    # ============================================================
+    #
     # Cargo.toml's per-package opt-2 overrides (spade + mesh) stay: they
     # cover the `cargo test`-driven jobs that do NOT set this env.
     #
@@ -567,8 +1219,18 @@ jobs:
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_STRIP: debuginfo
-      CARGO_PROFILE_DEV_OPT_LEVEL: "2"
-      CARGO_PROFILE_TEST_OPT_LEVEL: "2"
+      CARGO_PROFILE_DEV_OPT_LEVEL: "1"
+      CARGO_PROFILE_TEST_OPT_LEVEL: "1"
+      # sccache EXPERIMENT, ON (2026-08-20). The kill switch is the
+      # repo variable SCCACHE set to "0"; unset means enabled, so the
+      # trial runs without a variable needing to exist.
+      # cargo treats an EMPTY RUSTC_WRAPPER as "no wrapper", so the
+      # unset case is a genuine no-op rather than a broken command.
+      # Note this var is RUST*-prefixed, so Swatinem/rust-cache hashes
+      # it: flipping SCCACHE rotates the cache key and buys exactly one
+      # cold rebuild. That run is not the verdict — same trap the OPT
+      # LEVEL note above warns about.
+      RUSTC_WRAPPER: ${{ vars.SCCACHE != '0' && 'sccache' || '' }}
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
@@ -586,6 +1248,12 @@ jobs:
       # right for 261 test binaries and is not right for 14.
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
+      - name: install sccache (experiment; disable with vars.SCCACHE = '0')
+        if: vars.SCCACHE != '0'
+        uses: ./.github/actions/install-sccache
+        with:
+          version: ${{ env.SCCACHE_VERSION }}
+          lane: default
       - name: runner + linker provenance (for perf attribution)
         run: nproc && free -g | head -2 && ld --version | head -1
       - name: install cargo-nextest (pinned, official prebuilt)
@@ -597,6 +1265,14 @@ jobs:
       # the closure's test binaries, so the run rows need no re-scoping.
       - name: build test binaries + archive
         run: cargo nextest archive ${{ needs.filter.outputs.cargo_scope }} --archive-file nextest-default.tar.zst
+      # THE MEASUREMENT. Hit rate here is the whole question: the
+      # deps are already served by rust-cache, so a run that only
+      # hits on those has proved nothing. What would justify
+      # adopting this is hits on the WORKSPACE crates, on a warm
+      # run, against the archive step's own duration on main.
+      - name: sccache stats (experiment)
+        if: vars.SCCACHE != '0' && !cancelled()
+        run: sccache --show-stats
       # Upload right after the archive (the run legs still wait on the
       # whole job via `needs`): if a later step fails, the archive is
       # already up, so the failure can be investigated / re-run without
@@ -606,20 +1282,6 @@ jobs:
           name: nextest-default
           path: nextest-default.tar.zst
           retention-days: 1
-      # The default build's TEST NAME LIST — the left operand of the
-      # interval run legs' set difference (scripts/interval-only-
-      # selection.py; see the `test-interval` job). Listed from the same
-      # already-compiled targets the archive was built from, with the
-      # same scope, so it IS the archive's contents; listing is a
-      # metadata pass, not a build. A few KB, so it costs nothing
-      # against the artifact quota the cleanup job exists to protect.
-      - name: list archived tests (default features)
-        run: cargo nextest list ${{ needs.filter.outputs.cargo_scope }} --message-format json > nextest-list-default.json
-      - uses: actions/upload-artifact@v4
-        with:
-          name: nextest-list-default
-          path: nextest-list-default.json
-          retention-days: 1
       # Doc-tests DO NOT run under nextest (upstream design): this step
       # keeps them gated. The workspace has real doctests, including
       # compile_fail blocks that only the doctest runner exercises.
@@ -627,20 +1289,27 @@ jobs:
         run: cargo test --doc ${{ needs.filter.outputs.cargo_scope }}
 
   test:
-    name: test (eps = ${{ matrix.eps }}, ${{ matrix.shard }}/2)
+    name: test (eps = ${{ needs.filter.outputs.eps }}, ${{ matrix.shard }}/2)
     runs-on: ubuntu-latest
     needs: [filter, build]
-    if: needs.filter.outputs.run_build == 'true'
+    if: github.event_name == 'pull_request' && needs.filter.outputs.run_build == 'true'
+      && needs.filter.outputs.lane != 'interval'
     strategy:
       fail-fast: false
-      # THE BATTERY IS {default, 1e-6, 1e-12} (Evan's ruling, 2026-07-30):
-      # the two env rows straddle the compiled default (DEFAULT_EPS =
-      # 1e-9) three orders either side; the `default` row runs with the
-      # variable genuinely UNSET (an empty CAD_TOLERANCE_EPS is a parse
-      # error by design — tolerance.rs multi-ε contract — so the
-      # assignment rides the run line as a shell prefix, not `env:`).
+      # ONE ε ROW PER RUN, SAMPLED (2026-08-22 — scripts/ci-filter.py's
+      # CONFIGURATION SAMPLING note is the argument; this is the wiring).
+      # The battery is still {default, 1e-6, 1e-12} (Evan's ruling,
+      # 2026-07-30): the two env rows straddle the compiled default
+      # (DEFAULT_EPS = 1e-9) three orders either side, and the `default`
+      # row runs with the variable genuinely UNSET (an empty
+      # CAD_TOLERANCE_EPS is a parse error by design — tolerance.rs
+      # multi-ε contract — so the assignment rides the run line as a shell
+      # prefix, not `env:`). What changed is that a run gates ONE member
+      # of that battery rather than all three; repetition covers the rest.
       # All rows execute the SAME archived binaries: eps is runtime env,
-      # which is the whole point of building once.
+      # which is the whole point of building once, and it is also why
+      # sampling ε costs nothing on the build side — the saving is exactly
+      # the four run legs it stops billing.
       #
       # 2-way intra-row sharding (--partition count:*/2), adopted on
       # MEASURED numbers (#167 run 30838077811): unsharded, the
@@ -662,8 +1331,17 @@ jobs:
       # / k-lint) now select by `--test all -- <module>::` or by a nextest
       # `test(/^<module>::/)` expression, verified to match the old
       # per-binary test counts exactly.
+      # SHARDING SURVIVES THE ε CUT, and the arithmetic is the reason —
+      # the August audit's F2 declined this exact merge for the default
+      # legs and the ε cut does not reverse it. From the figures in
+      # docs/CI-MINUTES-2026-08.md (F2): the two shards are ~10 s setup +
+      # 63 s and 56 s of execution, so 2 billed minutes each; merged they
+      # are ~139 s, which is 3. That is ONE billed minute saved for ~66 s
+      # of added latency on a leg that, now that only one build job runs,
+      # sits directly behind it on the critical path. One minute of a
+      # ~60-minute run against ~9% of its wall clock is the wrong side of
+      # the trade, and it is worse on the interval lane (see that job).
       matrix:
-        eps: ["default", "1e-6", "1e-12"]
         shard: [1, 2]
     env:
       # Nothing compiles here: cargo only dispatches to cargo-nextest,
@@ -697,12 +1375,14 @@ jobs:
       # The eps assignment is an inline shell prefix (empty for the
       # `default` leg — see the matrix comment on why not `env:`).
       - name: run archived tests
-        run: ${{ matrix.eps != 'default' && format('CAD_TOLERANCE_EPS={0}', matrix.eps) || '' }} cargo nextest run --archive-file nextest-default.tar.zst --workspace-remap . --partition count:${{ matrix.shard }}/2
+        run: ${{ needs.filter.outputs.eps != 'default' && format('CAD_TOLERANCE_EPS={0}', needs.filter.outputs.eps) || '' }} cargo nextest run --archive-file nextest-default.tar.zst --workspace-remap . --partition count:${{ matrix.shard }}/2
 
   # THE RELEASE-PROFILE ROW. Three adversarial suites in `crates/topo` feed
   # tier-1-INVALID bodies to the Euler operators and are written about
   # RELEASE semantics; the archive matrix above is the dev profile at
-  # opt-2 with debug-assertions ON, so it cannot be what runs them.
+  # opt-1 with debug-assertions ON, so it cannot be what runs them. (The
+  # level moved from 2 on 2026-08-25; the point is unaffected, because what
+  # disqualifies the matrix is debug-assertions, which no opt level moves.)
   # `review_m1_pr2::release_corruption` splits its expectations on
   # `cfg(debug_assertions)` outright, so no single profile covers the
   # file; `review_m1_pr4`'s section 9 ("Release-mode garbage-in") is not
@@ -773,7 +1453,7 @@ jobs:
     name: corrupt input (release profile)
     runs-on: ubuntu-latest
     needs: filter
-    if: needs.filter.outputs.run_topo_release == 'true'
+    if: github.event_name == 'pull_request' && needs.filter.outputs.run_topo_release == 'true'
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL — see the full note on the `filter` job above.
@@ -786,6 +1466,18 @@ jobs:
         with:
           key: topo-release
       - name: corrupt-input suites, release profile
+        # DEBUG ASSERTIONS OFF, EXPLICITLY — this job's whole subject is
+        # the posture that SHIPS, and the shipping posture is
+        # debug-assertions off (`DESIGN.md`, "Before publishing"). The
+        # root `[profile.release]` turns them ON as a development
+        # measure, which would compile the three `cfg(not(debug_assertions))`
+        # rows below OUT of the only lane that runs them — silently
+        # deleting the coverage this job exists to provide. The count
+        # guard caught exactly that. Pinned here rather than inherited,
+        # so the job states which posture it tests instead of depending
+        # on a profile default that has now changed once.
+        env:
+          CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS: "false"
         run: |
           set -o pipefail
           cargo test --release -p topo --lib -- \
@@ -822,24 +1514,47 @@ jobs:
   # graph in the matrix. Owns the interval clippy pass and the interval
   # doc-tests (both need this graph compiled anyway), then archives the
   # test binaries for the `test-interval` matrix below.
+  #
+  # NO LOCAL MIRROR: the archive split, the same as `build` above and for the
+  # same reason — one machine locally, so nothing is archived and nothing is
+  # shipped. That is the part with no local half, and it is not the whole job:
+  # `list archived tests (interval)` IS reproduced locally, inside
+  # ci-local.sh's `interval_selection`, which computes both operands of the set
+  # difference in one function. Its marker cites `test-interval`, the job whose
+  # legs consume the selection, rather than this one, so the citation names
+  # where the listing is USED — which is why this job still reads as
+  # unmirrored and needs this line.
+  # The interval clippy and doc-test passes are not in this job; they are
+  # `lint-interval`, which the local half mirrors and cites.
   build-interval:
     name: build + archive (interval)
     # Same BUILD_RUNNER variable as the default build job; unset today.
     runs-on: ${{ vars.BUILD_RUNNER || 'ubuntu-latest' }}
     needs: filter
-    if: needs.filter.outputs.run_build == 'true'
+    if: github.event_name == 'pull_request' && needs.filter.outputs.run_build == 'true'
+      && needs.filter.outputs.lane != 'default'
     # Same link/debuginfo/opt knobs, same job-level-not-step-level
     # reasoning, as the default build job — see the LINK/DEBUGINFO and
     # OPT LEVEL notes there. This job is the run's critical path (its
     # archive feeds the longest test leg in the run), so it is the one
     # that most wants them: the interval lane's slowest leg was 828 s of
-    # pure execution, and opt-2 is aimed squarely at that.
+    # pure execution, and the opt-level knob is aimed squarely at that.
     env:
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_STRIP: debuginfo
-      CARGO_PROFILE_DEV_OPT_LEVEL: "2"
-      CARGO_PROFILE_TEST_OPT_LEVEL: "2"
+      CARGO_PROFILE_DEV_OPT_LEVEL: "1"
+      CARGO_PROFILE_TEST_OPT_LEVEL: "1"
+      # sccache EXPERIMENT, ON (2026-08-20). The kill switch is the
+      # repo variable SCCACHE set to "0"; unset means enabled, so the
+      # trial runs without a variable needing to exist.
+      # cargo treats an EMPTY RUSTC_WRAPPER as "no wrapper", so the
+      # unset case is a genuine no-op rather than a broken command.
+      # Note this var is RUST*-prefixed, so Swatinem/rust-cache hashes
+      # it: flipping SCCACHE rotates the cache key and buys exactly one
+      # cold rebuild. That run is not the verdict — same trap the OPT
+      # LEVEL note above warns about.
+      RUSTC_WRAPPER: ${{ vars.SCCACHE != '0' && 'sccache' || '' }}
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
@@ -875,6 +1590,12 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: interval
+      - name: install sccache (experiment; disable with vars.SCCACHE = '0')
+        if: vars.SCCACHE != '0'
+        uses: ./.github/actions/install-sccache
+        with:
+          version: ${{ env.SCCACHE_VERSION }}
+          lane: interval
       - name: runner + linker provenance (for perf attribution)
         run: nproc && free -g | head -2 && ld --version | head -1
       - name: install cargo-nextest (pinned, official prebuilt)
@@ -887,19 +1608,18 @@ jobs:
       # is the run's critical path (measured on #167): keep it lean.
       - name: build test binaries + archive (interval)
         run: cargo nextest archive ${{ needs.filter.outputs.cargo_scope }} --features interval --archive-file nextest-interval.tar.zst
+      # THE MEASUREMENT. Hit rate here is the whole question: the
+      # deps are already served by rust-cache, so a run that only
+      # hits on those has proved nothing. What would justify
+      # adopting this is hits on the WORKSPACE crates, on a warm
+      # run, against the archive step's own duration on main.
+      - name: sccache stats (experiment)
+        if: vars.SCCACHE != '0' && !cancelled()
+        run: sccache --show-stats
       - uses: actions/upload-artifact@v4
         with:
           name: nextest-interval
           path: nextest-interval.tar.zst
-          retention-days: 1
-      # The right operand of the run legs' set difference — see the
-      # matching step in the default build job.
-      - name: list archived tests (interval)
-        run: cargo nextest list ${{ needs.filter.outputs.cargo_scope }} --features interval --message-format json > nextest-list-interval.json
-      - uses: actions/upload-artifact@v4
-        with:
-          name: nextest-list-interval
-          path: nextest-list-interval.json
           retention-days: 1
 
   # The interval feature's clippy pass (the default clippy job
@@ -916,15 +1636,16 @@ jobs:
   #
   # Deliberately NOT inheriting build-interval's env: this job links no
   # test binaries, so mold buys nothing and its ~12 s apt install would
-  # cost more than it saves, and opt-level 2 would slow the compile with
-  # nothing executing at scale to pay it back. It keeps only the
+  # cost more than it saves, and the archive jobs' opt level would slow the
+  # compile with nothing executing at scale to pay it back. It keeps only the
   # debuginfo knobs, which are pure win. Its own rust-cache key follows
   # from the no-shared-key rule documented on build-interval.
   lint-interval:
     name: clippy + doc-tests (interval)
     runs-on: ubuntu-latest
     needs: filter
-    if: needs.filter.outputs.run_build == 'true'
+    if: github.event_name == 'pull_request' && needs.filter.outputs.run_build == 'true'
+      && needs.filter.outputs.lane != 'default'
     env:
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_DEBUG: line-tables-only
@@ -936,62 +1657,79 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: interval-lint
-      - run: cargo clippy ${{ needs.filter.outputs.cargo_scope }} --all-targets --features interval -- -D warnings
+      - name: clippy (interval)
+        run: cargo clippy ${{ needs.filter.outputs.cargo_scope }} --all-targets --features interval -- -D warnings
       - name: doc-tests (interval)
         run: cargo test --doc ${{ needs.filter.outputs.cargo_scope }} --features interval
 
-  # THESE LEGS RUN ONLY THE TESTS THE `interval` FEATURE ADDS (2026-08-13).
-  # Measured on run 31665082966: of the 2995 tests these legs executed,
-  # 214 are `#[cfg(feature = "interval")]`-gated — 168.7 cpu-s of coverage
-  # the default legs cannot have — and the other 2781 cost 4406.7 cpu-s,
-  # 42.0% of the run's whole 10482 cpu-s of test execution, re-running
-  # code the default legs had already run. Seven test binaries
-  # (step-import::all at 1919 cpu-s, step-export::all, mesh, mesh::all,
-  # stl::all, topo, geom-brep) contain ZERO interval-gated tests and were
-  # re-running in full.
+  # THIS LANE RUNS THE WHOLE SUITE, and that REVERSES the 2026-08-13
+  # interval-only selection rather than tuning it. The reversal is forced by
+  # the sampling above, and the reason is arithmetic, not taste.
   #
-  # Why that is sound: the feature is purely ADDITIVE. Every
-  # `#[cfg(feature = "interval")]` item in crates/*/src is an
-  # `impl ... for Interval`, a mod/use/type for `Interval`, or test-only
-  # code; there is no `cfg(not(feature = "interval"))` in the tree; and
-  # Rust has no specialization, so extra impls cannot move how the f64
-  # paths monomorphize. A test present in both builds therefore executes
-  # the same machine code in both. That premise is not left to prose —
-  # scripts/check-interval-cfg-additive.py GATES it in the `discipline`
-  # job and fails loudly the moment it stops holding. The two changes
-  # stand or fall together: if that gate ever fires, these legs go back
-  # to running the full suite.
+  # WHAT THE SELECTION WAS FOR. Measured on run 31665082966: of the 2995
+  # tests this lane executed, 214 are `#[cfg(feature = "interval")]`-gated
+  # and the other 2781 cost 4406.7 cpu-s re-running code the DEFAULT legs
+  # had already run in the same run. Dropping that overlap was free because
+  # the default legs were running alongside, every time.
   #
-  # The set is DERIVED, never declared: scripts/interval-only-selection.py
-  # diffs the two builds' `cargo nextest list` outputs, so no test can
-  # opt itself out, a test that stops being gated returns to the default
-  # legs automatically, and a newly gated one is picked up with no edit
-  # here. It fails closed — an empty difference, an unrecognised list
-  # shape, or any test present in the default build but NOT the interval
-  # one is an error, never a silently empty filter.
+  # THEY ARE NOT RUNNING ALONGSIDE ANY MORE. A sampled run draws one lane,
+  # so on an interval draw the default legs do not exist and that "already
+  # covered" 93% of the suite is covered by nothing. Keeping the selection
+  # would mean an interval-drawn run gated ~200 tests and called itself a
+  # gate. So the overlap comes back deliberately: ~234 s of execution
+  # (2 x the 117 s the pre-selection lane measured per shard at opt-2)
+  # against the ~22 billed minutes of default-lane build, test and clippy
+  # that the draw skipped. (That 117 s is an opt-2 reading and the tree moved
+  # to opt-1 on 2026-08-25. It is left as taken: the sweep behind that flip
+  # measured opt-1 execution within 3% of opt-2's, so the term this sentence
+  # weighs does not move enough to change what it concludes — and a figure
+  # re-stated without being re-taken is worse than a dated one.)
   #
-  # NOT reduced: the interval BUILD job still compiles the whole graph
-  # with the feature on and runs clippy and the doc-tests over it, so
-  # compile-side interval coverage is untouched. Only the re-execution
-  # of already-executed tests is dropped.
+  # `scripts/interval-only-selection.py` is NOT deleted: local-scripts/
+  # ci-local.sh still runs both lanes on one tree, where the overlap is the
+  # same pure waste it always was, and that is now the script's only caller.
+  #
+  # THE SOUNDNESS PREMISE IS UNCHANGED AND STILL GATED. The feature is
+  # purely ADDITIVE — every `#[cfg(feature = "interval")]` item in
+  # crates/*/src is an `impl ... for Interval`, a mod/use/type for
+  # `Interval`, or test-only code; there is no `cfg(not(feature =
+  # "interval"))` in the tree; and Rust has no specialization, so extra
+  # impls cannot move how the f64 paths monomorphize. A test present in both
+  # builds therefore executes the same machine code in both, which is what
+  # makes this lane a legitimate stand-in for the default one on the runs
+  # where it is drawn. That premise is not left to prose —
+  # scripts/check-interval-cfg-additive.py GATES it in the `discipline` job,
+  # on every code-tier run, and fails loudly the moment it stops holding.
   test-interval:
-    name: test (interval, eps = ${{ matrix.eps }}, ${{ matrix.shard }}/2)
+    name: test (interval, eps = ${{ needs.filter.outputs.eps }}, ${{ matrix.shard }}/2)
     runs-on: ubuntu-latest
-    # `build` joins `needs` for its test list only (a few KB). It
-    # finishes well before build-interval, which is the run's critical
-    # path, so this adds no wall-clock.
-    needs: [filter, build, build-interval]
-    if: needs.filter.outputs.run_build == 'true'
+    # `build` is GONE from `needs`, and that is the point of the rewrite
+    # above: this job's only cross-lane dependency was the default build's
+    # test list (the left operand of the retired set difference), and a
+    # sampled run does not run the default build at all.
+    needs: [filter, build-interval]
+    if: github.event_name == 'pull_request' && needs.filter.outputs.run_build == 'true'
+      && needs.filter.outputs.lane != 'default'
+    # ONE ε ROW, SAMPLED, AND SHARDED AGAIN. Both halves of that reverse
+    # the 2026-08-20 audit's collapse of this job, and both follow from the
+    # suite this lane now runs.
+    #
+    # The collapse was correct for what this job was then: four legs billing
+    # a minute each to execute 12-20 s of an interval-only selection. At the
+    # FULL suite the numbers are the other lane's, doubled — the
+    # pre-selection interval lane measured 117 s per shard at opt-2 (the OPT
+    # LEVEL note on the default build job, run 31668174443), so ~234 s
+    # unsharded. Unsharded that is 5 billed minutes against 6 for two
+    # shards: the same 1-minute saving the default lane declines, for ~117 s
+    # of added latency on the run's critical path rather than ~66. The
+    # sharding's original premise — "the unsharded leg is the run's slowest"
+    # — is true of this job again.
+    #
+    # The union of the two shards is exactly the row: nextest's count
+    # partition is applied deterministically within each binary.
     strategy:
       fail-fast: false
-      # One multi-ε row at interval type (D4 ¶1): the interval band test
-      # re-derives every assertion from the run's ε, so the 1e-6 row
-      # genuinely exercises a different band. Same archive both rows —
-      # eps is runtime env. `default` = env unset, and 2-way sharding —
-      # see the `test` matrix comments (the unsharded interval default
-      # leg measured 6.1 min of execution, the run's slowest).
       matrix:
-        eps: ["default", "1e-6"]
         shard: [1, 2]
     env:
       # Nothing compiles here (see the `test` job).
@@ -1016,50 +1754,27 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: nextest-interval
-      - uses: actions/download-artifact@v4
-        with:
-          name: nextest-list-default
-      - uses: actions/download-artifact@v4
-        with:
-          name: nextest-list-interval
-      # The set difference, computed here rather than in a job of its
-      # own: both lists are a few KB, so this costs a download and a
-      # millisecond. The script prints the counts it derived (and fails
-      # closed — see its header), so the log always records how many
-      # tests this leg selected and how many it skipped as already
-      # covered by the default legs.
-      - name: derive the interval-only test selection
-        run: scripts/interval-only-selection.py nextest-list-default.json nextest-list-interval.json > interval-selection.txt
-      # `--no-tests` is decided by the SELECTION, not passed blindly:
-      # nextest exits 4 on a zero-test run, which is exactly the alarm
-      # we want when a real filter matches nothing, and exactly wrong
-      # for the `none()` the script emits for a scope carrying no Rust
-      # tests at all (see its header — a pncad-py-only closure is the
-      # first). Conditioning on the literal keeps both behaviours: any
-      # other filter that selects nothing still fails this leg.
-      - name: run archived tests (interval-only)
-        run: |
-          selection=$(cat interval-selection.txt)
-          if [ "$selection" = "none()" ]; then
-            echo "scoped no-op: the selection is none(), so this leg runs 0 tests"
-            no_tests="--no-tests=pass"
-          else
-            no_tests=""
-          fi
-          ${{ matrix.eps != 'default' && format('CAD_TOLERANCE_EPS={0}', matrix.eps) || '' }} cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . --partition count:${{ matrix.shard }}/2 -E "$selection" $no_tests
+      # The whole archive, one sampled ε row, one shard — the same shape
+      # the default lane's run leg has, against the interval binaries.
+      # `default` means the variable genuinely UNSET (an empty
+      # CAD_TOLERANCE_EPS is a parse error by design — the tolerance.rs
+      # multi-ε contract), so that row is run with `env -u` rather than by
+      # assigning an empty string.
+      - name: run archived tests
+        run: ${{ needs.filter.outputs.eps != 'default' && format('CAD_TOLERANCE_EPS={0}', needs.filter.outputs.eps) || 'env -u CAD_TOLERANCE_EPS' }} cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . --partition count:${{ matrix.shard }}/2
       # M4 PR 6 D6.1, Interval member: the save/load/replay-identity row
       # at the certified interval scalar (already inside the full archive
       # run above; named here so the obligation is visible). One leg only
       # (default eps, shard 1), mirroring the pre-archive job, which ran
       # it once with no eps env.
       - name: persistence save/load/replay-identity (interval)
-        if: matrix.eps == 'default' && matrix.shard == 1 && needs.filter.outputs.run_editor_core == 'true'
+        if: matrix.shard == 1 && needs.filter.outputs.run_editor_core == 'true'
         run: "cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . -E 'binary_id(editor-core::all) & test(/^m4_pr6_roundtrip_interval::/)'"
       # M4 PR 8a D1, Interval member: the Band 4 corpus evaluates green
       # at the certified interval scalar (also inside the archive run
       # above; named here so the obligation is visible).
       - name: band 4 corpus (interval)
-        if: matrix.eps == 'default' && matrix.shard == 1 && needs.filter.outputs.run_editor_core == 'true'
+        if: matrix.shard == 1 && needs.filter.outputs.run_editor_core == 'true'
         run: "cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . -E 'binary_id(editor-core::all) & test(/^m4_pr8_corpus_interval::/)'"
 
   # The archives exist only to ferry binaries from the build jobs to the
@@ -1069,11 +1784,28 @@ jobs:
   # stragglers; this deletes the happy-path bulk immediately. On a FAILED
   # run the artifacts are deliberately kept (retention window) so failed
   # legs can be re-run without rebuilding.
+  # NO LOCAL MIRROR: it deletes the nextest archive artifacts this run
+  # uploaded, which exist only because the hosted halves of build and test are
+  # different jobs on different machines. A local run compiles and executes in
+  # one process and produces no artifact to clean up.
   cleanup-archives:
     name: delete nextest archives (green run)
     runs-on: ubuntu-latest
-    needs: [test, test-interval]
-    if: success()
+    # A SAMPLED RUN SKIPS ONE OF THESE TWO BY CONSTRUCTION, and a skipped
+    # `needs` skips the dependent job unless the condition says otherwise —
+    # which would have quietly stopped the cleanup and let a ~500 MB archive
+    # ride the retention window on every run. `always()` re-enables the job;
+    # the explicit result tests then restore what `success()` meant, keeping
+    # the archives on a FAILED run so failed legs can be re-run without
+    # rebuilding. `run_build` keeps the job off docs-tier runs, where there
+    # is nothing to delete and the round-up would still bill a minute.
+    needs: [filter, test, test-interval]
+    if: >-
+      always()
+      && needs.filter.outputs.run_build == 'true'
+      && needs.test.result != 'failure' && needs.test.result != 'cancelled'
+      && needs.test-interval.result != 'failure'
+      && needs.test-interval.result != 'cancelled'
     permissions:
       actions: write
     steps:
@@ -1093,22 +1825,38 @@ jobs:
     needs: filter
     # Tier `closure` never reaches this: interval-transcendentals/ is its
     # own workspace, so ANY change under it is tier `all`.
-    if: needs.filter.outputs.run_interval_backend == 'true'
+    if: github.event_name == 'pull_request' && needs.filter.outputs.run_interval_backend == 'true'
     # The `interval` feature's backend lives in its own workspace
     # (interval-transcendentals/), so the kernel's workspace rows never
     # build its tests. Its pad tripwire therefore had no CI at all until
-    # M5 PR 1's review asked for one — and that tripwire is what catches a
-    # dropped outward round, which the kernel's own lane-agreement tests
-    # provably cannot (both lanes share the round-to-nearest chain).
+    # M5 PR 1's review asked for one — and it catches what the kernel's
+    # own lane-agreement tests provably cannot, both lanes there sharing
+    # the round-to-nearest chain.
     #
-    # This row is deliberately the crate's DEFAULT feature set: unit
-    # tests, the edges sweep's oracle-free half, and review_fuzz_div's
-    # exact-rational division fuzz, which needs no oracle at all because
-    # it compares against u128 rational arithmetic. Without
+    # WHAT THIS ROW CATCHES, by direction, because the two are not the
+    # same job. A pad WIDENED: every operation, via pad_contract.rs,
+    # which bounds each endpoint's distance from the backend's own value
+    # by the derived pad — no oracle needed, since the comparison is
+    # against libm, not against truth. A pad DROPPED: division,
+    # multiplication and sqrt only, via review_fuzz_exact.rs, which
+    # computes the true value in exact u128 rational arithmetic.
+    #
+    # NOT `+` and `-`: their truth is exactly computable but not with a
+    # u128 comparator (aligning 2^1023 with 2^-1074 needs ~2100 bits),
+    # and mutating add_lo/add_hi to bare round-to-nearest leaves this
+    # whole row green — only certify_arith reds. NOT the seven
+    # transcendentals: their truth needs a multi-precision reference at
+    # all. Both belong to oracle-certify below, which fires on changes
+    # under interval-transcendentals/{src,tests}/, Cargo.toml or
+    # Cargo.lock (ci-filter.py's ORACLE_PATHS — four paths, not the whole
+    # directory: docs/ is NOT among them, so editing the derivation that
+    # sets PAD_ULPS does not by itself re-certify). That is a trigger
+    # set, not a convention.
+    #
+    # This row is deliberately the crate's DEFAULT feature set: without
     # `oracle-inari` there is no inari/gmp-mpfr-sys and no C toolchain in
-    # the graph, so the row takes seconds. The full differential lane
-    # (certify.rs, behind --features oracle-inari) stays a by-hand gate;
-    # see the crate README's "Certification" section.
+    # the graph, so it takes seconds. See the crate README's
+    # "Certification" section.
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
@@ -1165,7 +1913,7 @@ jobs:
     name: interval oracle (certify vs inari+MPFR)
     runs-on: ubuntu-latest
     needs: filter
-    if: needs.filter.outputs.run_interval_oracle == 'true'
+    if: github.event_name == 'pull_request' && needs.filter.outputs.run_interval_oracle == 'true'
     # inari's rounding primitives sit behind
     # cfg(all(target_feature = "avx", target_feature = "fma")) and it raises
     # a compile_error! without them. The repo sets no target-cpu floor
@@ -1212,40 +1960,12 @@ jobs:
           cargo test --release --features oracle-inari -- --nocapture
           echo "CASES_SECONDS=$((SECONDS - t0))"
 
-  watertight:
-    name: watertight (admesh)
-    runs-on: ubuntu-latest
-    needs: filter
-    # Root package `stl`: the acceptance example lives there and its
-    # (dev-)dependency graph is the whole profile -> sweep -> topo -> mesh
-    # chain this job exercises, so `stl in closure` is exactly the
-    # condition under which any of it can have moved.
-    if: needs.filter.outputs.run_stl == 'true'
-    steps:
-      - uses: actions/checkout@v4
-      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
-      # local-scripts/ (the local half of the tooling split) and .claude/
-      # (agent session config: the SessionStart hook that provisions a
-      # Claude Code on the web container, and its settings). Deleting both
-      # here means a workflow that grows a reference to either fails
-      # loudly on the very next run instead of silently coupling the gate
-      # to a developer's machine or to an agent's container.
-      # This is also what lets scripts/ci-filter.py treat changes under
-      # either tree as non-triggering (its _is_docs).
-      - name: prune local-only tooling (hosted CI may not depend on it)
-        run: rm -rf local-scripts .claude
-      # External STL verification (M2 PR 7): admesh 0.98.4 is
-      # apt-packaged; the check script accepts NO repair as success.
-      - name: install admesh
-        run: sudo apt-get update && sudo apt-get install -y admesh
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      # The example pre-flights our own validators (tier 1–3 incl. the
-      # +V invariant, check_mesh, signed_volume > 0) before writing.
-      - name: export acceptance STLs
-        run: cargo run -p stl --example export_acceptance -- target/stl-acceptance
-      - name: admesh check (watertight/manifold, no repair accepted)
-        run: scripts/check_admesh.sh target/stl-acceptance
+  # THE `watertight (admesh)` JOB STOOD HERE, AND HAS MOVED TO
+  # .github/workflows/nightly.yml (Evan, 2026-08-22). Its evidence is its own
+  # history: one solo red in 37 days of gate runs, and that one was a rustup
+  # outage rather than a mesh. It is a PERSISTENCE-detector — a non-manifold
+  # body stays non-manifold — so a nightly finds what this row would have
+  # found, a few hours later, at 1-2 billed minutes a day instead of per PR.
 
   step-import:
     name: step import (freecad)
@@ -1254,7 +1974,7 @@ jobs:
     # Root package `step-export`: this job builds nothing — it runs FreeCAD
     # over the committed fixtures under crates/step-export/tests/fixtures,
     # which are byte-golden against that crate's writer.
-    if: needs.filter.outputs.run_step_export == 'true'
+    if: github.event_name == 'pull_request' && needs.filter.outputs.run_step_export == 'true'
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
@@ -1324,7 +2044,7 @@ jobs:
     name: python suite (wheel + guide + north-star)
     runs-on: ubuntu-latest
     needs: filter
-    if: needs.filter.outputs.run_pncad_py == 'true'
+    if: github.event_name == 'pull_request' && needs.filter.outputs.run_pncad_py == 'true'
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
@@ -1376,9 +2096,8 @@ jobs:
       # the .pyi lattice's SIGNATURES, which the name-for-name stub
       # check deliberately does not look at. Pinned like maturin; this
       # step is where the row is MEASURED, so a fetch failure reds the
-      # job rather than passing quietly. `tests/test_ty.py` skips —
-      # loudly, naming the missing binary — only where no checker
-      # exists at all (the degraded local box U9S recorded).
+      # job rather than passing quietly, and `tests/test_ty.py` fails
+      # outright wherever no checker is present.
       - name: install ty (pinned, the static stub checker)
         run: |
           "$RUNNER_TEMP/py-ci-venv/bin/python" -m pip install "ty==$TY_VERSION"
@@ -1400,239 +2119,58 @@ jobs:
   # three run-only legs over one archive. D4 ¶1's multi-ε obligation is
   # unchanged — same three eps bands, same scoped test set.)
 
-  # M4 PR 6 spec D6: the three persistence obligations as NAMED gates
-  # (they also run inside the workspace rows; naming them keeps the
-  # contract visible and their failures attributable at a glance).
-  # ε battery {1e-6, 1e-12} per the 2026-07-30 ruling — the default-ε
-  # (1e-9) pass of these same test targets is inside the `test` job's
-  # workspace run, so no band is lost.
-  persistence:
-    name: persistence (eps = ${{ matrix.eps }})
-    runs-on: ubuntu-latest
-    needs: filter
-    if: needs.filter.outputs.run_editor_core == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        eps: ["1e-6", "1e-12"]
-    steps:
-      - uses: actions/checkout@v4
-      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
-      # local-scripts/ (the local half of the tooling split) and .claude/
-      # (agent session config: the SessionStart hook that provisions a
-      # Claude Code on the web container, and its settings). Deleting both
-      # here means a workflow that grows a reference to either fails
-      # loudly on the very next run instead of silently coupling the gate
-      # to a developer's machine or to an agent's container.
-      # This is also what lets scripts/ci-filter.py treat changes under
-      # either tree as non-triggering (its _is_docs).
-      - name: prune local-only tooling (hosted CI may not depend on it)
-        run: rm -rf local-scripts .claude
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      # D6.1 save/load/replay-identity + the D2 float property row +
-      # the committed golden v1 fixture (byte-exact freeze tripwire).
-      - name: save/load/replay-identity (D6.1) + float bits (D2) + golden v1
-        run: "cargo test -p editor-core --test all -- m4_pr6_roundtrip:: m4_pr6_floats:: m4_pr6_golden::"
-        env:
-          CAD_TOLERANCE_EPS: ${{ matrix.eps }}
-      # D6.2 ε-change diff (cross-process, goldened): the two probe
-      # children pin their OWN ε values — the matrix ε only hosts the
-      # orchestrating parent.
-      - name: eps-change diff goldened (D6.2)
-        run: "cargo test -p editor-core --test all -- m4_pr6_eps_diff::"
-        env:
-          CAD_TOLERANCE_EPS: ${{ matrix.eps }}
-      # D6.3 schema-version / corrupt-file refusal + the adopted
-      # adversarial probe suite (review pins) + token key-space pins.
-      - name: schema + corruption refusal (D6.3) + review probes
-        run: "cargo test -p editor-core --test all -- m4_pr6_refusal:: m4_pr6_review_probes:: profile_desc_key::"
-        env:
-          CAD_TOLERANCE_EPS: ${{ matrix.eps }}
+  # THE `persistence` AND `band 4 corpus` JOBS STOOD HERE, AND ARE
+  # DELETED (2026-08-22, Evan: "no need to make any special attempt to
+  # keep m4_pr8_corpus visible. just make it a normal test").
+  #
+  # WHAT THEY WERE. Two jobs that re-ran `m4_pr6_roundtrip::`,
+  # `m4_pr6_floats::`, `m4_pr6_golden::`, `m4_pr6_eps_diff::`, the D6.3
+  # schema/corruption rows and `m4_pr8_corpus::` at ε = 1e-6 AND 1e-12,
+  # under `cargo test -p editor-core`, so that those obligations were
+  # ATTRIBUTABLE at a glance from the checks list.
+  #
+  # WHY THEY WENT. Every one of those modules is an ordinary `#[test]`
+  # in the nextest archive and already runs in the `test` job — at the
+  # ε THIS RUN DREW. These jobs ran them at two fixed ε unconditionally,
+  # which is not extra coverage, it is the ε sampling defeated for those
+  # modules: the whole premise of the 2026-08-22 draw is that repetition
+  # covers the matrix, and a job pinning two of the three bands re-buys
+  # on every run what the draw was there to spread out. The ordering is
+  # the whole story — the ε-collapse landed 2026-08-20 and the sampling
+  # 2026-08-22, so this was a leftover rather than a decision.
+  #
+  # NO REPLACEMENT MECHANISM, deliberately: no filter expression, no
+  # named row, no doc pointer. "Attributability" was the only thing
+  # these jobs bought, and a test that fails names itself in nextest's
+  # output. `m4_pr6_eps_diff::` never needed the loop at all — it
+  # re-execs itself per ε (the only way two ε values can exist in one
+  # audit), so the outer 1e-6/1e-12 loop was redundant for it under any
+  # sampling regime.
+  #
+  # −4 billed minutes per code-tier PR run. The local half's
+  # `persist_*` / `corpus_eps` rows went with them; ci-local.sh runs
+  # every ε of the whole suite on one tree, so nothing is lost there
+  # either. The `(interval)` members of both families are NOT affected:
+  # they are named steps of the `test-interval` job and stay.
 
-  # M4 PR 8a spec D2 (M4-PLAN F8): rebuild-latency REPORTING. This job
-  # prints a per-document table (full rebuild + incremental recompute,
-  # median of 5) and diffs it against the newest entry in the timing
-  # history, docs/perf-data/rebuild-latency/. It is DELIBERATELY NOT A
-  # GATE on any timing number — instrumentation, not a contract;
-  # PERF-PLAN stays advisory. The assertions inside are the
-  # ε-independent structural ones (counted reuse, and the corpus
-  # manifest's nodes/cone pins), which are arithmetic, not wall clock.
+  # THE `rebuild latency (reporting)` JOB STOOD HERE, AND HAS MOVED TO
+  # .github/workflows/nightly.yml (2026-08-22). SPLIT, not cut:
   #
-  # THIS JOB IS THE CANONICAL PRODUCER of those numbers (2026-08-17).
-  # It used to be a developer workstation, via a CAD_LATENCY_BASELINE_
-  # REFRESH env var and a hand-committed baseline, and that arrangement
-  # disqualified itself: three refreshes disagreed by 90-98% on every
-  # row with contention ruled out, so docs/PERF-SCAN-2026-08.md §0 had
-  # to label every absolute-millisecond claim in the repo provisional.
-  # A runner is not a quiet box, but it is a REPRODUCIBLE box class,
-  # which is the property the workstation numbers lacked — and every
-  # entry now records its own environment block, so two entries that
-  # disagree can be compared rather than argued about. Same ruling
-  # render.yml carries for renders (#338: hosted is canonical).
+  #   * THE WALL-CLOCK TABLE went to the nightly, where a measurement lane
+  #     belongs. It was billing two minutes on every code-tier PR to print a
+  #     number no PR acts on — it is reporting, never a gate, and PERF-PLAN
+  #     stays advisory. That job keeps the append-only history commit and its
+  #     main-only guard, and gains a `workflow_dispatch` ref input so a
+  #     regression can be bisected on demand rather than only forward.
+  #   * THE STRUCTURAL PINS stayed on the PR side and got CHEAPER: counted
+  #     reuse and the corpus manifest's nodes/cone are exact, machine-
+  #     independent and ε-independent, so they are an ordinary non-`#[ignore]`d
+  #     `#[test]` in editor-core now, inside the nextest archive, gating every
+  #     PR at about zero marginal cost. That is MORE coverage than this job
+  #     gave them: it ran on `run_editor_core` only.
   #
-  # TWO OUTPUTS, DIFFERENT AUDIENCES:
-  #   * an ARTIFACT on every run (including PRs) — the numbers for the
-  #     change in front of you, downloadable without waiting for a
-  #     merge;
-  #   * a COMMITTED history entry on pushes to main ONLY — the durable
-  #     trend. Artifacts expire at 90 days; a question like "when did
-  #     die_composed get slower" outlives that, and the git history is
-  #     the only place in this repo that answers it.
-  #
-  # WHY MAIN ONLY. On a PR branch the entry would be that PR's own
-  # measurement, so the PR's `vs base` column would diff against
-  # itself and report nothing — the reporting row would structurally
-  # stop reporting. Writing only on main keeps every PR's diff honest
-  # (vs main's last hosted measurement) at the cost of nothing.
-  rebuild-latency:
-    name: rebuild latency (reporting)
-    runs-on: ubuntu-latest
-    needs: filter
-    if: needs.filter.outputs.run_editor_core == 'true'
-    permissions:
-      # Only for the history commit below, and only on main. Every
-      # other job in this workflow runs on the default read-only token;
-      # this is the one that writes, so it says so here rather than
-      # widening the whole workflow.
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
-      # local-scripts/ (the local half of the tooling split) and .claude/
-      # (agent session config: the SessionStart hook that provisions a
-      # Claude Code on the web container, and its settings). Deleting both
-      # here means a workflow that grows a reference to either fails
-      # loudly on the very next run instead of silently coupling the gate
-      # to a developer's machine or to an agent's container.
-      # This is also what lets scripts/ci-filter.py treat changes under
-      # either tree as non-triggering (its _is_docs).
-      - name: prune local-only tooling (hosted CI may not depend on it)
-        run: rm -rf local-scripts .claude
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      # `--ignored`: the test is `#[ignore]`d so the ε matrix stops
-      # paying for it 5× (it is reporting, and its green-document and
-      # counted-reuse assertions are a strict subset of the corpus
-      # row's — see the rustdoc on `rebuild_latency_table`). THIS job is
-      # the one that runs it, so the flag is what keeps the table alive.
-      # Same idiom as scripts/k_probe_sweep.sh.
-      #
-      # CAD_LATENCY_EMIT writes the measurement OUTSIDE the working
-      # tree, into RUNNER_TEMP. The test only ever writes the file it
-      # is told to; naming it and deciding whether it joins the history
-      # is this workflow's call, never the test's — so a local run with
-      # the var set cannot touch a committed path.
-      - name: per-document full-rebuild + incremental-recompute table
-        run: "cargo test -p editor-core --test all -- --ignored --nocapture m4_pr8_latency::"
-        env:
-          CAD_LATENCY_EMIT: ${{ runner.temp }}/rebuild-latency.json
-          CAD_LATENCY_COMMIT: ${{ github.sha }}
-          CAD_LATENCY_RUNNER: ${{ runner.os }}/${{ runner.arch }} ubuntu-latest
-      # Every run, PRs included. `if: always()` because the measurement
-      # is emitted BEFORE the structural assertions run: when a pin
-      # fails, this artifact is exactly what the next reader wants.
-      - name: upload measurement (artifact)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: rebuild-latency-${{ github.sha }}
-          path: ${{ runner.temp }}/rebuild-latency.json
-          if-no-files-found: warn
-      # THE AUTO-COMMIT. Main pushes only; see the header.
-      #
-      # NO RECURSION, TWO WAYS. Pushes made with the default
-      # GITHUB_TOKEN do not trigger workflow runs — that is GitHub's
-      # built-in guard and is what actually stops the loop here — and
-      # the commit subject carries [skip ci] as belt-and-braces in case
-      # this ever moves to a different token.
-      #
-      # DELIBERATELY NOT ADDED TO ci-filter.py's `_is_docs`. That
-      # allowlist is for paths hosted CI CANNOT read — the claim is
-      # proven by the prune step that deletes them — and CI does read
-      # this one (m4_pr8_latency.rs takes its `vs base` from the newest
-      # entry). So a hand-committed history file classifies TIER=all,
-      # which is the allowlist failing closed exactly as designed. The
-      # auto-commit below never reaches the filter at all, per the
-      # recursion note above.
-      #
-      # APPEND-ONLY, SO THE RACE IS NOT A CONFLICT. The filename
-      # carries this run's commit sha, so no two runs write the same
-      # path and no merge is ever needed. If main moved while we were
-      # measuring, the push is rejected; the retry re-syncs to the new
-      # main and re-lands the SAME new file on top. That re-commits an
-      # unpushed local commit — it never rewrites published history,
-      # which is what the repo's merge-only rule is about.
-      - name: commit measurement to the timing history (main only)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        env:
-          MEASUREMENT: ${{ runner.temp }}/rebuild-latency.json
-          SHA: ${{ github.sha }}
-        run: |
-          set -euo pipefail
-          test -f "$MEASUREMENT" || { echo "no measurement emitted"; exit 1; }
-          # <epoch>-<short-sha>.json — lexicographic sort == chronological.
-          stamp="$(date -u +%s)"
-          name="${stamp}-${SHA:0:7}.json"
-          dest="docs/perf-data/rebuild-latency/${name}"
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          for attempt in 1 2 3 4; do
-            # Re-sync to main. This also restores the local-only trees
-            # the prune step deleted, so the commit below can only ever
-            # contain the one new file.
-            # --depth=1: the checkout is shallow and this only needs
-            # main's TIP to commit onto; the server holds the ancestry,
-            # so the push is an ordinary fast-forward.
-            git fetch --depth=1 origin main
-            git reset --hard origin/main
-            mkdir -p docs/perf-data/rebuild-latency
-            cp "$MEASUREMENT" "$dest"
-            git add "$dest"
-            git commit -m "perf(ci): rebuild-latency measurement for ${SHA:0:7} [skip ci]"
-            if git push origin HEAD:main; then
-              echo "committed ${dest}"
-              exit 0
-            fi
-            echo "push rejected (main moved); retry ${attempt}"
-            sleep $((attempt * 4))
-          done
-          echo "could not land the measurement after 4 attempts" >&2
-          exit 1
-
-  # M4 PR 8a spec D1: the Band 4 corpus as a NAMED row (it also runs
-  # inside the workspace rows; naming it keeps the milestone's
-  # proof-of-vocabulary attributable at a glance).
-  # ε battery {1e-6, 1e-12} per the 2026-07-30 ruling — the default-ε
-  # (1e-9) pass of this corpus is inside the `test` job's workspace run.
-  corpus:
-    name: band 4 corpus (eps = ${{ matrix.eps }})
-    runs-on: ubuntu-latest
-    needs: filter
-    if: needs.filter.outputs.run_editor_core == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        eps: ["1e-6", "1e-12"]
-    steps:
-      - uses: actions/checkout@v4
-      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
-      # local-scripts/ (the local half of the tooling split) and .claude/
-      # (agent session config: the SessionStart hook that provisions a
-      # Claude Code on the web container, and its settings). Deleting both
-      # here means a workflow that grows a reference to either fails
-      # loudly on the very next run instead of silently coupling the gate
-      # to a developer's machine or to an agent's container.
-      # This is also what lets scripts/ci-filter.py treat changes under
-      # either tree as non-triggering (its _is_docs).
-      - name: prune local-only tooling (hosted CI may not depend on it)
-        run: rm -rf local-scripts .claude
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-      - name: evaluation, exact mass pins, counted reuse, vocabulary totality
-        run: "cargo test -p editor-core --test all -- --nocapture m4_pr8_corpus::"
-        env:
-          CAD_TOLERANCE_EPS: ${{ matrix.eps }}
+  # `run_editor_core` still has consumers (the two named `test-interval`
+  # steps), so the filter's plumbing for it stays.
 
   # Spec D3: the large-K fragility lint. A GATE — a flagged margin
   # fails this row (the tool exits 2 and prints the interpretation
@@ -1660,7 +2198,44 @@ jobs:
     # demos/tour (a path-dependent of nine members) and tools/k-lint, and
     # its probe sweep records margins from every kernel crate. So it runs
     # whenever anything builds at all.
-    if: needs.filter.outputs.run_k_lint == 'true'
+    if: github.event_name == 'pull_request' && needs.filter.outputs.run_k_lint == 'true'
+    #
+    # ONE OF FIVE FEATURE UNIFICATIONS PER RUN (2026-08-22, the same
+    # configuration-sampling ruling that draws the lane and the ε; the roster
+    # and the soundness argument are at `KLINT_ROWS` in scripts/ci-filter.py).
+    #
+    # WHY THIS JOB AND NOT A CACHE FIX. It bills 8-10 minutes — the third
+    # largest line item in the gate — and the cost is not one slow check: the
+    # steps below compile demos/tour and the kernel crates FIVE TIMES, once
+    # per unification, and the five share almost nothing. `--release` and dev
+    # are different profiles; `budget` and `probe` are opt-in features gated
+    # at a module boundary, so every crate that sees one carries a different
+    # fingerprint under it. No cache configuration collapses five distinct
+    # compilations into one — only running fewer of them does.
+    #
+    # EACH STEP CARRIES ITS OWN `if:` naming the row it belongs to, rather
+    # than a matrix: the rows are not interchangeable (two of them consume a
+    # CSV the step above them wrote), and a matrix would pay this job's setup
+    # and cache restore five times to run one row's worth of work.
+    # `klint_row == 'all'` is the no-seed spelling and runs everything; the
+    # hosted `filter` job always passes a seed, so it is the local half's
+    # value and a safety net rather than a live path here.
+    #
+    # SAID OUT LOUD, because two ratified review outcomes read on the steps
+    # below as UNCONDITIONAL and are now 1-in-5:
+    #   * MIN-1's per-triangle certificate falsifier, in `dev-budget`. The
+    #     step's own comment says making the row conditional "reopens a
+    #     ratified review outcome and must be said out loud" — this is that
+    #     sentence, and the falsifier now runs on an expected 1 run in 5
+    #     rather than on every build-triggering change.
+    #   * `crates/sweep/tests/k_report.rs` and docs/K-REPORT.md both say the
+    #     probe harness is type-checked and run "on every building merge".
+    #     With `dev-probe` sampled that is false in those four words. The
+    #     census gate greps for the STEP NAME, not for how often it runs, so
+    #     nothing reds — the sentences are simply owed a correction.
+    # Both are PERSISTENCE-detectors (a failed falsification, a probe suite
+    # that stopped compiling, stay broken until fixed), which is what makes
+    # the sampling sound; frequency is the only thing given up.
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
@@ -1676,9 +2251,19 @@ jobs:
         run: rm -rf local-scripts .claude
 
       - uses: dtolnay/rust-toolchain@stable
+      # ONE CACHE LANE PER PROFILE, keyed on the drawn row's first token.
+      # A `--release` artifact and a dev one share no fingerprint, so a
+      # single entry would be overwritten by whichever profile ran last and
+      # served cold to the other; two entries let each draw restore what a
+      # previous run of its own profile left. The features do NOT get lanes
+      # of their own: `budget` and `probe` are gated at a module boundary
+      # inside WORKSPACE crates, and Swatinem/rust-cache evicts workspace
+      # crates before saving, so what an entry actually holds is the
+      # third-party dependency graph — which the feature selection barely
+      # moves and the profile moves entirely.
       - uses: Swatinem/rust-cache@v2
         with:
-          key: k-lint
+          key: k-lint-${{ startsWith(needs.filter.outputs.klint_row, 'release') && 'release' || 'dev' }}
           workspaces: |
             .
             demos/tour
@@ -1693,24 +2278,79 @@ jobs:
       # (the wild-corpus montage generator) rides the same row for the
       # same reason.
       - name: demos tour fmt + clippy
+        if: contains(fromJSON('["dev-default", "all"]'), needs.filter.outputs.klint_row)
         run: cd demos/tour && cargo fmt --check && cargo clippy --all-targets -- -D warnings
       - name: demos wild fmt + clippy
+        if: contains(fromJSON('["dev-default", "all"]'), needs.filter.outputs.klint_row)
         run: cd demos/wild && cargo fmt --check && cargo clippy --all-targets -- -D warnings
+      # THE #99 ε PIN, ARMED. `--all-targets` above type-checks the test
+      # targets and runs none of them, so until this row landed nothing
+      # in any gate had ever EXECUTED an assertion under `demos/`. The
+      # pin spawns the tour three times (default ε, 1e-6, 1e-12).
+      #
+      # COST, AND IT IS NOT FREE. This row builds `demo-tour` in release
+      # at DEFAULT features. The tess-budget sweep below builds the same
+      # crate at `--features budget` — a different feature unification,
+      # so the two share nothing and this job now pays two release
+      # builds of the kernel where it paid one. The runs themselves are
+      # ~7 s (measured on the lane's own box, warm cargo registry); the
+      # build in front of them took 1m06 there from a cold target and
+      # the sweep's own comment below prices such a build at "tens of
+      # seconds" on a runner with this job's cache warm. Folding the
+      # pin into `--features budget` would share that build, and is
+      # rejected: it would arm the per-face meter inside the run this
+      # pin is about, so the tour under test would not be the tour that
+      # ships.
+      #
+      # ARMED — no longer scoped to the integration test. This row ran
+      # `--test eps_regression` alone while `--bin demo-tour`'s unit
+      # tests carried red rows (#782), and the widening was owed the
+      # moment #782 was decided. It is: TESS-SPLIT re-pinned
+      # `finding_13_tessellation_table_reproduces` against the shipped
+      # split schedule and posted the disposition, and every row of it
+      # is green. So the whole `demos/tour` suite runs here.
+      #
+      # WHAT THE WIDENING BUYS, and it is why the obligation was
+      # recorded rather than dropped: `lily.rs` keeps its frontier pins
+      # in TWO spellings, and only the tour-runtime one (`wall_probes`)
+      # was executable in the gate. The unit spelling includes
+      # `the_spine_curl_wall_re_measured`, which pins a typed
+      # `LoftError::ReversedStacking` from both sides — a frontier no
+      # other row touches — plus the lily's geometric claims (taper,
+      # roll, sepal tangency), `klein`'s wall-pair probes and both
+      # `verbs_gate_r1_probes` modules. All of that was dead code in
+      # the gate until this line.
+      #
+      # COST, MEASURED on the run that armed it (32973311618, this
+      # row's own draw): release build 2m11, then the bin's unit tests
+      # 0.21 s and the three-ε `eps_regression` tour runs 13.60 s. The
+      # bin's unit tests link against the crate this row already builds
+      # in release, so the widening pays a link plus ~14 s of running,
+      # not a sixth feature unification. (Those same unit tests cost
+      # ~412 s in the DEV profile — the finding-13 rows tessellate the
+      # lily at δ = 2e-3 — which is why this row is the release one and
+      # why widening the dev-default row instead would not have been
+      # free.)
+      - name: demos tour suite (the #99 ε pin + the tour's own probes)
+        if: contains(fromJSON('["release-default", "all"]'), needs.filter.outputs.klint_row)
+        run: cd demos/tour && cargo test --release
       - name: k-lint tool fmt + clippy + tests (incl. the #99 litmus)
+        if: contains(fromJSON('["dev-default", "all"]'), needs.filter.outputs.klint_row)
         run: cd tools/k-lint && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
-      # `cargo doc` here is the same stopgap #709 added to the
-      # tess-meter row below, for the same reason: `scripts/doc-gate.sh`
-      # covers workspace MEMBERS only, so this crate's prose — which
-      # carries the gate's own rules and its report legend — is outside
-      # it. The general hole (k-lint, demos/tour, demos/wild) is still
-      # open and is stated at the gate itself.
-      - name: tess-lint tool fmt + clippy + doc + tests (the three exit voices)
+      # NO `cargo doc` STEP HERE, and that is the fix rather than an
+      # omission: this crate's prose — which carries the gate's own
+      # rules and its report legend — was documented by a step #709
+      # hand-copied here and #738 copied again for tess-meter, one root
+      # at a time, with no shared home and nothing checking the copies.
+      # `scripts/doc-gate.sh` now iterates every cargo root outside the
+      # workspace, this one included, from a DERIVED list. Adding a
+      # third copy is never the answer to a fourth root.
+      - name: tess-lint tool fmt + clippy + tests (the three exit voices)
+        if: contains(fromJSON('["dev-default", "all"]'), needs.filter.outputs.klint_row)
         run: |
           cd tools/tess-lint
           cargo fmt --check
           cargo clippy --all-targets -- -D warnings
-          RUSTDOCFLAGS="-D warnings -A rustdoc::private_intra_doc_links" \
-            cargo doc --no-deps --document-private-items
           cargo test
       # The meter's CONSUMER half: the CSV schema, the counterfactual
       # schedules and the split optimizer, which is where they live now
@@ -1718,21 +2358,18 @@ jobs:
       # tests are the derivations' tests — the split optimizer's answer
       # against the certificate it claims to satisfy, and the row
       # shapes' agreement about their width.
-      # `cargo doc` too, as the tess-lint row above now also does.
-      # `scripts/doc-gate.sh` is `cargo doc --workspace` and the root
-      # manifest excludes `tools/`, so this crate's ~1,050 lines of
-      # prose — the slack factors, the anisotropy caveat, the boundary
-      # rule — are outside that gate. Documenting them here is a
-      # stopgap for THIS crate; the same hole still covers `k-lint`,
-      # `demos/tour` and `demos/wild`, and is stated at the gate
-      # itself.
-      - name: tess-meter tool fmt + clippy + doc + tests
+      # No `cargo doc` step here either, for the reason given at the
+      # tess-lint row above. This crate's ~1,050 lines of prose — the
+      # slack factors, the anisotropy caveat, the boundary rule — moved
+      # out of `crates/mesh/src/budget.rs` in #709 and went from covered
+      # to uncovered BY MOVING; the rustdoc gate reads them now because
+      # it reads every cargo root, not because this row remembers to.
+      - name: tess-meter tool fmt + clippy + tests
+        if: contains(fromJSON('["dev-default", "all"]'), needs.filter.outputs.klint_row)
         run: |
           cd tools/tess-meter
           cargo fmt --check
           cargo clippy --all-targets -- -D warnings
-          RUSTDOCFLAGS="-D warnings -A rustdoc::private_intra_doc_links" \
-            cargo doc --no-deps --document-private-items
           cargo test
       # THE METER'S KERNEL HALF, and the per-triangle certificate
       # falsifier with it. `mesh::budget` is gated at its module
@@ -1757,6 +2394,7 @@ jobs:
       # dropping it, stops the falsifier running — that reopens a
       # ratified review outcome and must be said out loud.
       - name: mesh budget meter + certificate falsifier (feature = budget)
+        if: contains(fromJSON('["dev-budget", "all"]'), needs.filter.outputs.klint_row)
         run: |
           cargo clippy -p mesh --all-targets --features budget -- -D warnings
           cargo test -p mesh --features budget
@@ -1819,8 +2457,10 @@ jobs:
       # baseline still carries it); re-cutting the baseline runs the
       # script without this flag.
       - name: tessellation-budget sweep (every tour scene, per face)
+        if: contains(fromJSON('["release-budget", "all"]'), needs.filter.outputs.klint_row)
         run: scripts/tess_budget_sweep.sh target/tess-budget-fresh.csv --sizing-only
       - name: tessellation-budget lint (gate — a grown budget fails this row)
+        if: contains(fromJSON('["release-budget", "all"]'), needs.filter.outputs.klint_row)
         run: |
           cd tools/tess-lint && cargo run -- \
             ../../target/tess-budget-fresh.csv \
@@ -1828,10 +2468,11 @@ jobs:
       # THE PROBE TEST SURFACE. `probe` is an opt-in feature, so a
       # `tests/*.rs` behind `#![cfg(feature = "probe")]` is invisible to
       # every default row in this file: it can rot into a build error, or
-      # out of existence, with the whole matrix green. Sixteen such
-      # suites exist across five crates and only editor-core's two were
-      # ever compiled — as a side effect of the sweep below, not by
-      # anything that meant to.
+      # out of existence, with the whole matrix green. Before this loop
+      # the only ones ever compiled were `editor-core`'s, as a side
+      # effect of the sweep below rather than by anything that meant to.
+      # How many there are is not written here: the census gate derives
+      # the tally every merge and prints it per crate.
       #
       # WHY HERE AND NOT IN A JOB OF ITS OWN, which is the shape
       # `release-corruption` above would suggest. That job is separate
@@ -1887,6 +2528,7 @@ jobs:
       # None of the link is waste: `scripts/k_probe_sweep.sh` runs
       # `--test all` on the next step but one, and this primes it.
       - name: compile and list every probe-gated test target
+        if: contains(fromJSON('["dev-probe", "all"]'), needs.filter.outputs.klint_row)
         run: |
           set -euo pipefail
           crates=$(scripts/gates/probe-suite-census.sh --crates)
@@ -1902,9 +2544,30 @@ jobs:
       # rides beside the linted CSV rather than inside it. A type-check
       # would not have caught what that harness actually did: it compiled
       # perfectly and panicked, unnoticed, for 26 days.
+      #
+      # IT ALSO RUNS THE DEFAULT SELECTION, once per rostered suite and
+      # outside the ε loop, and FLOORS WHAT IT RAN. `--ignored` runs only
+      # `#[ignore]`d tests, so every plain `#[test]` in a probe suite was
+      # unreachable from this job — including one inside a module the
+      # sweep already named. Once and not per ε because the property
+      # those tests assert (one-sided greenness at `Probe`) is already
+      # swept at three ε by the dump's own `run_doc`; what the default
+      # selection adds is that the bodies execute, and the count of
+      # `#[ignore]`d tests they skipped.
+      #
+      # THE FLOOR (`probe-suite-census.sh --check-executed`, called by the
+      # script) reads the runner's own passed and ignored counts, never
+      # which suites a filter could have matched: a filter naming a suite
+      # of plain `#[test]`s selects the module and runs none of it, so
+      # reachability and execution are different questions here. The
+      # skipped count is what closes the set — it must equal what the
+      # `--ignored` half ran, so a suite cannot grow a test no selection
+      # reaches.
       - name: K-telemetry probe sweep (corpus + M2 corpus + demo scenes, 3 eps rows)
+        if: contains(fromJSON('["dev-probe", "all"]'), needs.filter.outputs.klint_row)
         run: scripts/k_probe_sweep.sh target/k-fresh
       - name: large-K lint (gate — a flagged margin fails this row)
+        if: contains(fromJSON('["dev-probe", "all"]'), needs.filter.outputs.klint_row)
         run: |
           cd tools/k-lint && cargo run -- \
             ../../target/k-fresh/k-eps-1e-6.csv \
@@ -1923,8 +2586,9 @@ jobs:
   # re-baselining itself; see the note where it stood.)
   #
   # It is free in wall clock. The lanes finish in ~150 s against this
-  # workflow's ~460 s critical path (the test shards), so they cost
-  # runner minutes and nothing else, and only on the same condition
+  # workflow's ~460 s critical path (the test shards) — and since the
+  # 2026-08-22 lane merges they do it in two jobs rather than five, so they
+  # cost fewer runner minutes and nothing else, and only on the same condition
   # `k-lint` uses — a render depends on the whole kernel, so "whenever
   # anything builds at all" is the right trigger for it too.
   #
@@ -1946,6 +2610,12 @@ jobs:
   # runner's core count) rather than restated here: this job renders the
   # canonical frames, so it must not be the place a second opinion about
   # how they are produced can creep in.
+  # NO LOCAL MIRROR: a caller with no steps of its own. It hands render.yml
+  # its lanes, and each of THAT file's jobs says at its own key whether it has
+  # a local half — `scene-inputs` does and is cited, `montage` says why it
+  # cannot. One reason written here would have to be true of both, and the
+  # FreeCAD one is true of `montage` alone: the local half already runs the
+  # renderer-free lanes' work through `uv sheet drift (demos)`.
   renders:
     name: render lanes
     needs: filter

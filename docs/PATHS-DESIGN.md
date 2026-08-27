@@ -567,12 +567,21 @@ DECLARATION — a single TRANSITION TABLE, one row per
 (state, verb, kernel fn, next state), macro-expanded (the
 point_state precedent) into all four artifacts: the typed
 method, the driver match arm, the Step variant, and the tag
-entry. Nothing is written twice, so nothing can drift: a
-missing row is missing EVERYWHERE consistently and loudly; an
-inconsistent pair is unwritable because there is no second
-place to write it. The round-9 exhaustiveness pressure rides
-the same table for free (wire enum, replay arms, tags enumerate
-its rows by construction). The V2 drift-proofing differential
+entry. None of those four is written twice, so no two of them
+can drift: a missing row is missing from all four, consistently
+and loudly; an inconsistent pair is unwritable because there is
+no second place to write it. All four are inside `profile`;
+what the table does not reach is at the head of
+`transition_table!`. **The round-9 exhaustiveness pressure does
+NOT ride the same table, and this sentence used to say it did**
+(smell-scan S195, corrected by #836): that pressure is over the
+ARC-MODE enum `ArcData`, the table is over the VERB vocabulary,
+and the three sites round 9 names as matching `ArcData`
+exhaustively — the replay driver's arc dispatchers, the persist
+wire, the tag map — are hand-written, none of them expanded
+from a row. The pressure is real at each of those matches; it
+is bought by hand at every site rather than projected from one
+declaration. The V2 drift-proofing differential
 census RETIRES to one smoke row (it becomes a tautology). The
 entry signatures genuinely differ (typed method vs step data),
 which is why the unification lives at the DECLARATION level —
@@ -684,7 +693,11 @@ lattice doors and plain `fillet(r)` never carry it. MEASURED
 (2026-08-12): every scalar that drives an authoring chain (f64,
 Interval, Probe) implements Bounds; Dual reaches profiles only
 by lifting lowered ProfileLoop data. The bound is free in
-practice either way.
+practice either way. That last sentence is **guarded by the
+compiler** (§Q6) and needs no register: the obligation is a trait
+bound, so a scalar that stopped satisfying it fails to build at
+every arc-involving call site rather than falsifying this
+paragraph quietly.
 
 **Honest residuals:** (a) a generic motif that fillets off a
 RECEIVED tip of unknown leg kind cannot be written — the caller
@@ -882,11 +895,13 @@ and the angle slot bound.
    construction; otherwise move the geometry (or lower the
    tolerance)". The margin rides the payload as data; the message
    never forks on exactly-on vs in-band. Within ε_input of the
-   REVERSE direction refuses as a cusp (reverse-tangent class):
-   no declaration door exists — the kernel's material-wedge
-   invariant refuses cusp wedges in any solid built from such a
-   profile; the refusal names #131 (the tabled higher-level
-   question) as the front door that does not exist yet.
+   REVERSE direction refuses as a cusp (reverse-tangent class).
+   Declared cusps are legal kernel geometry (D1 tier 3's declared
+   second-order wedge arm; #131 ruled 2026-08-23), but the
+   authoring door — a cusp analogue of `.tangent()` that authors
+   the reverse-tangent junction exactly and emits the declaration
+   — is unbuilt (#941); until it ships the junction refuses, and
+   the refusal names the absent verb.
 2. **No tangency without declaration**: tangency enters only via
    `.tangent()` or fillet construction; the lowering emits the
    declared flags — declaration by construction, never inference.
@@ -963,7 +978,9 @@ runtime but unreachable through the surface.
 Decided during review (details in #124): mixed authoring is OUT —
 a loop is authored either in the algebra or as a raw vertex+bulge
 chain, never both (representation uniqueness); declared cusps are
-TABLED to #131 with cusps refused here; there is no
+legal at the kernel (#131 ruled into D1 tier 3's declared
+second-order wedge arm) with the authoring verb banked at #941 —
+cusps refuse here until it ships; there is no
 path-concatenation operator (builder functions instead).
 
 **PQ4 — mid-carrier seams: DECIDED (Evan, in-session,

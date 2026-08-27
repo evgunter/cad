@@ -31,6 +31,7 @@ Regenerate with `python3 generate.py <dir>`; the outputs are committed
 so the test row does not need a Python interpreter.
 """
 import math
+import sys
 
 R, H = 10.0, 20.0
 XC = 3.0                      # the flat's offset from the axis
@@ -88,11 +89,9 @@ def fmt(v):
 
 def build(split=False):
     s = Step()
-    out = []
     # --- boilerplate ------------------------------------------------
     s.add("APPLICATION_PROTOCOL_DEFINITION('international standard','automotive_design',2000,#2)")
     s.add("APPLICATION_CONTEXT('core data for automotive mechanical design processes')")
-    sdr = s.n + 1
     s.add("SHAPE_DEFINITION_REPRESENTATION(#4,#10)")
     s.add("PRODUCT_DEFINITION_SHAPE('','',#5)")
     s.add("PRODUCT_DEFINITION('design','',#6,#9)")
@@ -132,8 +131,10 @@ def build(split=False):
     pos = {}   # vertex name -> 3-D point, for line directions
     if split:
         pos["M0"] = P(R, -TC, H / 2.0)
-    pos["P0"] = P(R, -TC, 0); pos["P1"] = P(R, TC, 0)
-    pos["P2"] = P(R, -TC, H); pos["P3"] = P(R, TC, H)
+    pos["P0"] = P(R, -TC, 0)
+    pos["P1"] = P(R, TC, 0)
+    pos["P2"] = P(R, -TC, H)
+    pos["P3"] = P(R, TC, H)
 
     # --- edges ------------------------------------------------------
     E = {}
@@ -174,15 +175,13 @@ def build(split=False):
     def cyl(r):
         return s.add("CYLINDRICAL_SURFACE('',#%d,%s)" % (s.ax2((0, 0, 0), (0, 0, 1), (1, 0, 0)), num(r)))
 
-    tang = lambda t: (-math.sin(t), math.cos(t), 0.0)
-
     face(plane((0, 0, 0), (0, 0, -1), (1, 0, 0)), [("e1", "F"), ("e2", "F")])
     face(plane((0, 0, H), (0, 0, 1), (1, 0, 0)), [("e3", "T"), ("e8", "T")])
     chord_e9 = [("e9a", "T"), ("e9b", "T")] if split else [("e9", "T")]
     cyl_e9 = [("e9b", "F"), ("e9a", "F")] if split else [("e9", "F")]
     face(plane((XC, 0, 0), (-1, 0, 0), (0, 0, 1)),
-         chord_e9 + [("e8", "F"), ("e10", "F"), ("e2", "T")])
-    face(cyl(R), [("e1", "T"), ("e10", "T"), ("e3", "F")] + cyl_e9)
+         [*chord_e9, ("e8", "F"), ("e10", "F"), ("e2", "T")])
+    face(cyl(R), [("e1", "T"), ("e10", "T"), ("e3", "F"), *cyl_e9])
 
     s.lines[shell_slot] = "#%d = CLOSED_SHELL('',(%s));" % (
         shell, ",".join("#%d" % f for f in faces))
@@ -212,8 +211,6 @@ DATA;
 """
     return head + "\n".join(s.lines) + "\nENDSEC;\nEND-ISO-10303-21;\n"
 
-
-import sys
 
 d = sys.argv[1]
 th = 1.0 / 3.0

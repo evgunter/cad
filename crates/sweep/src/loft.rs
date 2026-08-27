@@ -55,7 +55,7 @@ use geom::Curve3;
 use geom::{NurbsSurface, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeGeometry, NewellError, newell_plane};
 use geom_core::{
-    Affine3, Band, BandError, Decide, Indeterminate, Margin, Point3, Real, Sign, Vec3,
+    Affine3, Band, BandError, Decide, Indeterminate, Margin, Point3, Real, Sign, Tol, Vec3,
 };
 use profile::{
     Profile, ProfileError, ProfileLoop, ProfileVertex, RawLoop, SketchPlane, ValidatedProfile,
@@ -65,9 +65,8 @@ use topo::{
     PcurveMintError, ShellKey, SolidKey,
 };
 
-use crate::extrude::{SweptSeg, swept_segments};
 use crate::skin::{LoftGeometry, Section, SkinError, lift_surface, loft_geometry, sweep_places};
-use crate::swept::{cap_points, face_surface_key, placed_segment_spec};
+use crate::swept::{SweptSeg, cap_points, face_surface_key, placed_segment_spec, swept_segments};
 
 /// Everything [`loft_body`]/[`sweep_body`] built, keyed — the
 /// [`crate::Extruded`] bundle one operation over.
@@ -222,6 +221,7 @@ fn lift_affine<T: Real>(a: &Affine3<f64>) -> Affine3<T> {
 fn end_profile<T: Decide>(
     section: &Section,
     place: &Affine3<f64>,
+    tol: Tol,
 ) -> Result<ValidatedProfile<T>, LoftError> {
     let loops = section
         .iter()
@@ -241,7 +241,7 @@ fn end_profile<T: Decide>(
         })
         .collect();
     Profile::new(SketchPlane::new(lift_affine(place)), loops)
-        .validate(geom_core::Tolerance::get())
+        .validate(tol)
         .map_err(LoftError::Profile)
 }
 
@@ -261,9 +261,9 @@ fn assemble<T: Decide>(
     sections: &[Section],
     places: &[Affine3<f64>],
     geometry: &LoftGeometry,
+    tol: Tol,
 ) -> Result<Lofted<T>, LoftError> {
-    let band = Band::linear().map_err(LoftError::Band)?;
-    let k = sections.len();
+    let band = Band::linear(tol).map_err(LoftError::Band)?;
     let (Some(sec_bottom), Some(sec_top), Some(place_bottom), Some(place_top)) = (
         sections.first(),
         sections.last(),
@@ -272,13 +272,12 @@ fn assemble<T: Decide>(
     ) else {
         return Err(LoftError::SectionStructure);
     };
-    let bottom_profile: ValidatedProfile<T> = end_profile(sec_bottom, place_bottom)?;
-    let top_profile: ValidatedProfile<T> = end_profile(sec_top, place_top)?;
+    let bottom_profile: ValidatedProfile<T> = end_profile(sec_bottom, place_bottom, tol)?;
+    let top_profile: ValidatedProfile<T> = end_profile(sec_top, place_top, tol)?;
     let bplace: Affine3<T> = lift_affine(place_bottom);
     let tplace: Affine3<T> = lift_affine(place_top);
     let n_bottom = bplace.linear.c2;
     let n_top = tplace.linear.c2;
-    let _ = k;
 
     // ---- Traversals and world points, both ends, per loop. ----
     let bloops: Vec<Vec<SweptSeg<T>>> = bottom_profile
@@ -355,6 +354,7 @@ fn assemble<T: Decide>(
         },
         qs[1 % n],
         placed_segment_spec(&outer[0], bplace, n_bottom, qs[0], qs[1 % n]),
+        tol,
     )?;
     hes.push(first.he_plus);
     let mut prev = first;
@@ -366,6 +366,7 @@ fn assemble<T: Decide>(
             },
             qs[j],
             placed_segment_spec(&outer[j - 1], bplace, n_bottom, qs[j - 1], qs[j]),
+            tol,
         )?;
         hes.push(m.he_plus);
         prev = m;
@@ -386,6 +387,7 @@ fn assemble<T: Decide>(
         },
         placed_segment_spec(&outer[n - 1], bplace, n_bottom, qs[n - 1], qs[0]),
         FaceSurface::New(bottom_plane),
+        tol,
     )?;
     hes.push(close.he_plus);
     let top_face = seed.face;
@@ -411,6 +413,7 @@ fn assemble<T: Decide>(
                 he2: anchor,
             },
             hq[0],
+            tol,
         )?;
         let ring = body.kemr(bridge.he_plus, bridge.he_minus)?.ring;
         let mut hole_hes = Vec::with_capacity(m);
@@ -418,6 +421,7 @@ fn assemble<T: Decide>(
             MevSite::Lone { r#loop: ring },
             hq[1 % m],
             placed_segment_spec(&segs[0], bplace, n_bottom, hq[0], hq[1 % m]),
+            tol,
         )?;
         hole_hes.push(first.he_plus);
         let mut prev = first;
@@ -429,6 +433,7 @@ fn assemble<T: Decide>(
                 },
                 hq[j],
                 placed_segment_spec(&segs[j - 1], bplace, n_bottom, hq[j - 1], hq[j]),
+                tol,
             )?;
             hole_hes.push(mv.he_plus);
             prev = mv;
@@ -440,6 +445,7 @@ fn assemble<T: Decide>(
             },
             placed_segment_spec(&segs[m - 1], bplace, n_bottom, hq[m - 1], hq[0]),
             FaceSurface::Shared(bottom_surface),
+            tol,
         )?;
         hole_hes.push(close.he_plus);
         body.kfmrh(bottom_face, close.face)?;
@@ -463,6 +469,7 @@ fn assemble<T: Decide>(
                     he2: base[j],
                 },
                 tq[li][j],
+                tol,
             )?;
             struts.push(m);
         }
@@ -484,6 +491,7 @@ fn assemble<T: Decide>(
                 },
                 placed_segment_spec(&tsegs[j], tplace, n_top, top_q_from, top_q_to),
                 FaceSurface::New(Surface::Nurbs(Arc::clone(&walls_t[li][j]))),
+                tol,
             )?;
             if j == 0 {
                 first_top = Some(mef.he_plus);
@@ -529,13 +537,13 @@ fn assemble<T: Decide>(
                 param_start: T::zero(),
                 param_end: T::one(),
             };
-            body.set_edge_curve(seams[j], spec)?;
+            body.set_edge_curve(seams[j], spec, tol)?;
         }
     }
 
     // ---- Phase 7: whole-body pcurve mint (spec §1's final pass) —
     // every wall boundary stores its exact line-in-UV image. ----
-    topo::mint_pcurves(&mut body).map_err(LoftError::Pcurve)?;
+    topo::mint_pcurves(&mut body, tol).map_err(LoftError::Pcurve)?;
 
     #[cfg(debug_assertions)]
     debug_assert_eq!(
@@ -571,9 +579,10 @@ pub fn loft_body<T: Decide>(
     sections: &[Section],
     places: &[Affine3<f64>],
     v_degree: usize,
+    tol: Tol,
 ) -> Result<Lofted<T>, LoftError> {
-    let geometry = loft_geometry(sections, places, v_degree).map_err(LoftError::Skin)?;
-    assemble(sections, places, &geometry)
+    let geometry = loft_geometry(sections, places, v_degree, tol).map_err(LoftError::Skin)?;
+    assemble(sections, places, &geometry, tol)
 }
 
 /// **The path-swept body** (§10.4 as a solid): places rigid copies of
@@ -591,9 +600,10 @@ pub fn sweep_body<T: Decide>(
     path: &geom::NurbsCurve3<f64>,
     stations: usize,
     v_degree: usize,
+    tol: Tol,
 ) -> Result<Lofted<T>, LoftError> {
     let places = sweep_places(place, path, stations).map_err(LoftError::Skin)?;
     let sections: Vec<Section> = core::iter::repeat_n(profile.to_vec(), places.len()).collect();
-    let geometry = loft_geometry(&sections, &places, v_degree).map_err(LoftError::Skin)?;
-    assemble(&sections, &places, &geometry)
+    let geometry = loft_geometry(&sections, &places, v_degree, tol).map_err(LoftError::Skin)?;
+    assemble(&sections, &places, &geometry, tol)
 }

@@ -15,8 +15,7 @@
 //! to how the numbers are READ cannot reach the lane that produces
 //! them.
 //!
-//! **The rule, with its one exception, because it is otherwise stated
-//! absolutely and bent quietly.** The rule is: the kernel reports what
+//! **The rule, with its one exception.** The rule is: the kernel reports what
 //! nothing downstream can recover. `FaceMeasure::patch_steps` and
 //! `CellMeasure::steps` BREAK it — they are `grid_steps(delta_s)` over
 //! `(muu, muv, mvv)`, and all four values ride in the same struct, so
@@ -27,15 +26,6 @@
 //! could drift from the one being measured, and a column comparing
 //! the two would then be reporting on the copy. Reporting the answer
 //! keeps one derivation. Everything else in the row is derived here.
-//!
-//! **The successor risk, stated because S30's own lesson is one level
-//! up.** S30 happened because a gating rule was easy to certify green
-//! and quietly became the whole review. "Is it in `tools/`?" is just as
-//! easy to certify green, and answers just as little: it says nothing
-//! about whether this crate has grown a second schedule, a second
-//! certificate, or an argument the kernel should have made. The
-//! question that matters stays "could the kernel have been asked for
-//! this instead, and would it then own two of something?"
 //!
 //! # The slack factors
 //!
@@ -104,8 +94,8 @@
 //!
 //! | factor | ratio | what it says |
 //! |---|---|---|
-//! | **span held** | `patch_cells / grid_cells` | the gain TESS-SPAN holds over whole-patch-sup sizing. Falls toward 1.0 if the shipped schedule regresses toward the patch sup. |
-//! | **split slack** | `grid_cells / span_opt_cells` | grid cells still recoverable by picking a cheaper point on each cell's constraint ellipse. The `2·a_u·a_v ≤ a_u² + a_v²` decoupling is unchanged by TESS-SPAN (the aspect-policy question is the split unit's), and a ruled wall still pays for it — see the anisotropy caveat below. |
+//! | **span held** | `patch_cells / grid_cells` | the gain TESS-SPAN holds over whole-patch-sup sizing (both sides through the shipped selection). Falls toward 1.0 if the shipped schedule regresses toward the patch sup. |
+//! | **split slack** | `grid_cells / span_opt_cells` | grid cells still recoverable by picking a cheaper point on each cell's constraint ellipse. Since TESS-SPLIT the shipped selection IS the cell-minimizing point under the ratified A = 16 aspect cap, so this reads ~1.0 where no constraint is active; the residue above 1.0 is the PRICE of the cap and the sliver snap (the denominator is the UNCONSTRAINED optimum — the anisotropy caveat below), attributed per face by `cap_bands` / `snap_bands`. |
 //! | **budget slack** | `delta / worst_cert` | the sizing heuristic's headroom — two-cells-per-axis budgeting, the `ceil`, and trim boxes smaller than a full grid cell. |
 //! | **certificate slack** | `worst_cert / worst_dev` | how far the Hessian interpolation bound sits above the deviation actually attained. Irreducible in part (a bound must dominate). |
 //!
@@ -123,11 +113,13 @@
 //! a parameter aspect near 5·10³). Nothing in the certificate objects,
 //! and nothing downstream of it has been asked whether it minds.
 //! `opt_cells` is therefore an UPPER BOUND on what a practical
-//! schedule would recover; a schedule that caps aspect would land
-//! between it and the shipped grid, and capping it HONESTLY needs the
-//! surface's first fundamental form, since parameter aspect is not
-//! 3-D aspect. The span factor carries no such caveat — it changes
-//! where divisions go, not how elongated a cell is.
+//! schedule recovers; since TESS-SPLIT the shipped schedule IS the
+//! aspect-capped point (through the first fundamental form, since
+//! parameter aspect is not 3-D aspect), so it lands between the strip
+//! optimum and the retired AM-GM point, and the gap that remains
+//! against `opt_cells`/`span_opt_cells` is the cap's deliberate,
+//! indicated price. The span factor carries no such caveat — it
+//! changes where divisions go, not how elongated a cell is.
 //!
 //! The product of the last two, `delta / worst_dev`, is the **total
 //! slack**: the factor by which the deviation budget went unspent.
@@ -184,6 +176,11 @@ pub enum Chart {
     /// `Surface::Nurbs` (described; the placeholder never reaches a row
     /// — it refuses upstream).
     Nurbs,
+    /// `Surface::Approx` — an approximating surface. Its own row: the
+    /// lane meshes its FIT, so the cell count is a spline's, but what
+    /// the face carries is a description plus a certificate, and a
+    /// budget reader that saw `nurbs` here would not know that.
+    Approx,
 }
 
 impl Chart {
@@ -196,6 +193,7 @@ impl Chart {
             Surface::Sphere { .. } => Chart::Sphere,
             Surface::Torus { .. } => Chart::Torus,
             Surface::Nurbs(_) => Chart::Nurbs,
+            Surface::Approx(_) => Chart::Approx,
         }
     }
 
@@ -208,6 +206,7 @@ impl Chart {
             Chart::Sphere => "sphere",
             Chart::Torus => "torus",
             Chart::Nurbs => "nurbs",
+            Chart::Approx => "approx",
         }
     }
 }
@@ -219,9 +218,12 @@ pub struct NurbsColumns {
     pub u: (f64, f64),
     /// The trim box the grid spans: `v` extent.
     pub v: (f64, f64),
-    /// COUNTERFACTUAL since TESS-SPAN: the grid divisions the retired
+    /// COUNTERFACTUAL since TESS-SPAN: the grid divisions a
     /// whole-patch-sup schedule would use over the trim box, `u`
-    /// direction.
+    /// direction — through the SHIPPED point selection
+    /// (`FaceMeasure::patch_steps`, since TESS-SPLIT the aspect-capped
+    /// one), so the column keeps meaning "what per-cell sizing saves"
+    /// as the selection moves.
     pub nu: f64,
     /// The whole-patch counterfactual's `v` divisions.
     pub nv: f64,
@@ -232,6 +234,11 @@ pub struct NurbsColumns {
     pub muv: f64,
     /// `sup ‖S_vv‖` of that bound.
     pub mvv: f64,
+    /// `sup ‖S_u‖` of that bound — the first-fundamental-form sample
+    /// the shipped selection's 3-D aspect cap reads (TESS-SPLIT).
+    pub mu1: f64,
+    /// `sup ‖S_v‖` of that bound.
+    pub mv1: f64,
     /// Analysis cells the per-cell bound reported (knot spans for the
     /// integral arm, refined cells for the rational one).
     pub cells: usize,
@@ -256,6 +263,22 @@ pub struct NurbsColumns {
     /// How many deviation samples that maximum is over (0 when not
     /// armed for deviation).
     pub dev_samples: u64,
+    /// Bands the shipped schedule emitted.
+    pub bands: usize,
+    /// **The constraint-activity indicator (TESS-SPLIT D-3), A-cap
+    /// kind**: bands whose step selection the 3-D aspect cap clamped.
+    /// Reported by the lane, never re-derived — the selection rule is
+    /// not re-spelled outside it.
+    pub cap_bands: usize,
+    /// The indicator's sliver/snap kind: bands the malign-band snap
+    /// projected onto the patch column schedule with changed counts
+    /// (either direction — columns added, or columns traded for rows).
+    pub snap_bands: usize,
+    /// Max over bands of the emitted lattice's post-`ceil` spacing
+    /// ratio `s_u/s_v` — the realized aspect `SAFE_ASPECT` judges,
+    /// reported so "which faces sit above the sliver line, under which
+    /// protection" is read off the CSV.
+    pub realized_aspect: f64,
 }
 
 /// One face's budget row.
@@ -276,8 +299,9 @@ pub struct FaceRow {
 
 /// The CSV header the sweep writes and `tools/tess-lint` reads.
 pub const CSV_HEADER: &str = "scene,face,chart,delta,triangles,u0,u1,v0,v1,nu,nv,\
-                              muu,muv,mvv,cells,grid_cells,patch_cells,opt_cells,\
-                              span_opt_cells,worst_cert,worst_dev,dev_samples";
+                              muu,muv,mvv,mu1,mv1,cells,grid_cells,patch_cells,\
+                              opt_cells,span_opt_cells,worst_cert,worst_dev,\
+                              dev_samples,bands,cap_bands,snap_bands,realized_aspect";
 
 /// How many of [`CSV_HEADER`]'s columns are the NURBS lane's — every
 /// column after `triangles`, which is the last one every row fills.
@@ -310,8 +334,8 @@ impl FaceRow {
             // the two arms disagree about the row's width.
             None => format!("{head}{}", ",".repeat(nurbs_column_count())),
             Some(n) => format!(
-                "{head},{:e},{:e},{:e},{:e},{:e},{:e},{:e},{:e},{:e},{},\
-                 {:e},{:e},{:e},{:e},{:e},{:e},{}",
+                "{head},{:e},{:e},{:e},{:e},{:e},{:e},{:e},{:e},{:e},{:e},{:e},{},\
+                 {:e},{:e},{:e},{:e},{:e},{:e},{},{},{},{},{:e}",
                 n.u.0,
                 n.u.1,
                 n.v.0,
@@ -321,6 +345,8 @@ impl FaceRow {
                 n.muu,
                 n.muv,
                 n.mvv,
+                n.mu1,
+                n.mv1,
                 n.cells,
                 n.grid_cells,
                 n.patch_cells,
@@ -328,7 +354,11 @@ impl FaceRow {
                 n.span_opt_cells,
                 n.worst_cert,
                 n.worst_dev,
-                n.dev_samples
+                n.dev_samples,
+                n.bands,
+                n.cap_bands,
+                n.snap_bands,
+                n.realized_aspect
             ),
         }
     }
@@ -416,6 +446,8 @@ fn columns(m: &FaceMeasure) -> NurbsColumns {
         muu: m.muu,
         muv: m.muv,
         mvv: m.mvv,
+        mu1: m.mu1,
+        mv1: m.mv1,
         cells: m.cells.len(),
         grid_cells,
         patch_cells: nu * nv,
@@ -424,6 +456,10 @@ fn columns(m: &FaceMeasure) -> NurbsColumns {
         worst_cert: m.worst_cert,
         worst_dev: m.worst_dev,
         dev_samples: m.dev_samples,
+        bands: m.bands,
+        cap_bands: m.cap_bands,
+        snap_bands: m.snap_bands,
+        realized_aspect: m.realized_aspect,
     }
 }
 
@@ -458,12 +494,12 @@ impl From<&CellMeasure> for Bound {
 /// direction (`h = ∞`, e.g. the ruled direction of a wall with
 /// `muv = 0`) takes one.
 ///
-/// **It is the second spelling of the lane's `chords::ceil_count`, and
+/// **It is the second spelling of the lane's `sizing::ceil_count`, and
 /// it deliberately does not match it.** They cannot share an import —
 /// two cargo roots — so the divergences are stated instead of left to
 /// be discovered:
 ///
-/// * `ceil_count` REFUSES a count at or above `MAX_STEPS` (2^24) with
+/// * `ceil_count` REFUSES a count at or above its `MAX_COUNT` (2^24) with
 ///   a typed error, because it is about to allocate that many grid
 ///   points. This one counts and returns, because it sizes nothing:
 ///   an absurd counterfactual is a number in a diagnostic column, and
@@ -474,7 +510,10 @@ impl From<&CellMeasure> for Bound {
 ///   normal thing for a counterfactual to be asked about.
 ///
 /// The shared part — `ceil(extent / h)`, floored at one — is the part
-/// the columns are comparable through, and it is identical.
+/// the columns are comparable through, and it is identical. The
+/// different NAME is the tell: the lane says *count* for a `usize`
+/// division count it is about to allocate for, and this says
+/// *divisions* for an `f64` counterfactual that allocates nothing.
 pub fn divisions(extent: f64, h: f64) -> f64 {
     if h.is_finite() && h > 0.0 {
         (extent / h).ceil().max(1.0)
@@ -490,9 +529,38 @@ pub fn divisions(extent: f64, h: f64) -> f64 {
 /// exactly where these walls live — a ruled direction has `muu = 0`
 /// and pushes the optimum onto the `h_u ≤ extent` boundary — and the
 /// two `ceil`s make the true objective a step function anyway.
+///
+/// # Why these two carry no mechanical guard
+///
+/// **Not an omission: the quantity anyone would guard — the cell count
+/// this scan produces — is DISCONTINUOUS in the parameters they would
+/// guard it against.** Moving the sample count by one moves the worst
+/// relative excess by percentage points in either direction, with no
+/// convergence, so no tolerance on it can admit every refinement and
+/// exclude every degradation: wide enough to survive the jumps is too
+/// weak to catch anything, tight enough to catch a degradation is a
+/// lottery on which lattice the count lands.
+///
+/// **The discontinuity is the two `ceil`s, not the scan.** The same
+/// worst-excess computed WITHOUT them — the cost as a continuous
+/// function of `t` — falls smoothly with resolution and depends on the
+/// sampling step `2·DECADES/(SAMPLES−1)` and the range, which is what
+/// these two constants actually set. A guard on THAT quantity is
+/// continuous where a guard on the cell count cannot be; it is not
+/// written here because it measures something these columns do not
+/// report.
+///
+/// **So what these constants guarantee is a resolution in aspect
+/// ratio, and not a bound on the answer.** The `ceil` quantisation on
+/// top of it is real and is not theirs to control. Anyone re-tuning
+/// them should know that the shipped pair is not even locally best on
+/// the cell count, and that this is exactly the kind of fact a step
+/// function produces and no amount of tuning removes.
 const SPLIT_SCAN_DECADES: f64 = 8.0;
 /// Samples per scan (fixed, so the answer is deterministic — D9).
-const SPLIT_SCAN_STEPS: usize = 321;
+/// SAMPLES, not steps: a step in this crate's vocabulary is a UV
+/// increment, and these are trial aspect ratios.
+const SPLIT_SCAN_SAMPLES: usize = 321;
 
 /// The cheapest uniform grid a bound admits over one box: minimize
 /// `divisions(U, h_u) · divisions(V, h_v)` subject to the SAME
@@ -502,10 +570,11 @@ const SPLIT_SCAN_STEPS: usize = 321;
 /// That constraint is the per-triangle bound `Q/4` at the lane's own
 /// two-cells-per-axis budgeting (`a_u ≤ 2h_u`), so a grid found here
 /// certifies EXACTLY as the shipped one does — the difference is only
-/// which `(h_u, h_v)` on the constraint ellipse gets picked. The
-/// shipped schedule picks the point the decoupling `2·a_u·a_v ≤
-/// a_u² + a_v²` leaves it at, which is not the cheapest point when the
-/// two directions are anisotropic.
+/// which `(h_u, h_v)` on the constraint ellipse gets picked. Since
+/// TESS-SPLIT the shipped selection is the cell minimizer under the
+/// A = 16 first-fundamental-form aspect cap, so this UNCONSTRAINED
+/// optimum differs from it exactly where the cap (or the sliver snap)
+/// binds — which is what the split column now measures.
 ///
 /// The lane's own steps are evaluated too, so the answer can never
 /// come out worse than what the lane already does.
@@ -535,9 +604,9 @@ pub fn best_split_steps(bound: Bound, du: f64, dv: f64, delta_s: f64) -> (f64, f
         lane_u,
         lane_v,
     );
-    for k in 0..SPLIT_SCAN_STEPS {
+    for k in 0..SPLIT_SCAN_SAMPLES {
         #[allow(clippy::cast_precision_loss)]
-        let f = k as f64 / (SPLIT_SCAN_STEPS - 1) as f64;
+        let f = k as f64 / (SPLIT_SCAN_SAMPLES - 1) as f64;
         let (hu, hv) = steps(10.0f64.powf(SPLIT_SCAN_DECADES * f.mul_add(2.0, -1.0)));
         let n = divisions(du, hu) * divisions(dv, hv);
         if n < best.0 {

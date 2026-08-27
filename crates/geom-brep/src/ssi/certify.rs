@@ -342,9 +342,11 @@ fn composite_form<T: Bounds>(s: &Surface<T>) -> Result<(ImplicitSurface, f64), &
                 1.0 / (2.0 * radius),
             ))
         }
-        Surface::Cone { .. } | Surface::Torus { .. } | Surface::Nurbs(_) => {
+        Surface::Cone { .. } | Surface::Torus { .. } | Surface::Nurbs(_) | Surface::Approx(_) => {
             Err("no ring-computable meters composite for this surface kind \
-             (cone/torus need a certified root the exact-arithmetic ring lacks)")
+             (cone/torus need a certified root the exact-arithmetic ring lacks; \
+             a spline stand-in and its offset description have no implicit form \
+             to build one from)")
         }
     }
 }
@@ -703,6 +705,9 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
 /// The certified distance of an enclosure from zero: `0` when it
 /// straddles (or is poison), which is exactly what makes the trilean
 /// land in the sliver band.
+/// (The mignitude. `offset_meters::mig` is the same arithmetic read
+/// as a coefficient-hull assembly term rather than a decision; noted
+/// at both sites.)
 fn zero_free_lower_bound(i: RingInterval) -> f64 {
     if i.is_poison() {
         return 0.0;
@@ -781,7 +786,19 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
     // ---- limb 3: pick the widest certifiable tube, then decide ONCE.
     let mut chosen: Option<(f64, f64, u32)> = None; // (radius, margin, boxes)
     let chain = box_chain(carrier);
-    for radius in tube_ladder(extent, band) {
+    // The ladder is materialised so its EMPTINESS is a distinguishable
+    // outcome. An empty ladder means every rung fell below the floor —
+    // a structural fact about extent against ε, decided before any box
+    // is probed — and it must refuse as itself rather than fall through
+    // to the no-rung-answered path below with a manufactured margin.
+    let ladder: Vec<f64> = tube_ladder(extent, band).collect();
+    if ladder.is_empty() {
+        return Err(SsiError::TubeLadderEmpty {
+            extent,
+            floor: SSI_TUBE_RADIUS * band.zero(),
+        });
+    }
+    for radius in ladder.iter().copied() {
         let probe = match (a, b) {
             (SsiOperand::Analytic(s1), SsiOperand::Analytic(s2)) => {
                 probe_tube_analytic(&chain, s1, s2, radius)
@@ -839,9 +856,12 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
         chosen = Some((radius, margin, boxes));
     }
     let Some((radius, margin, boxes)) = chosen else {
-        return Err(SsiError::CertificateLimb {
-            limb: SsiLimb::Tube,
-            value: f64::NAN,
+        // Rungs were offered and none answered. Structural, and it
+        // carries no margin: nothing was ever measured, so there is no
+        // honest number to report.
+        #[allow(clippy::cast_possible_truncation)]
+        return Err(SsiError::TubeProbeSilent {
+            rungs: ladder.len() as u32,
         });
     };
     // The margin is the ring's zero-free lower bound (`f64`, C9); the

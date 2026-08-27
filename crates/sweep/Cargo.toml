@@ -63,6 +63,10 @@ topo = { path = "../topo" }
 # artifact of that same invocation — an explicit test-inclusive build,
 # not a production one.)
 sweep = { path = ".", features = ["test-support"] }
+# `step-export` for one row: the standing `CurvedShellClassification`
+# gate, recorded on a curved two-shell body that only the shell verb
+# can now produce. Dev-only — no consumer's build graph sees it.
+step-export = { path = "../step-export" }
 # `sweep-testing` for the same reason editor-core's dev-dependency
 # carries it: several suites here run the §4.4 differential pair and
 # name `SweepStrategy::Idealized`, which is reference surface gated out

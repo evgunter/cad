@@ -39,6 +39,14 @@ publish = false
 # mirrored here, on the default (no-Python) path that hosted CI takes.
 [lints.rust]
 missing_docs = "warn"
+unreachable_pub = "warn"
+# LOAD-BEARING — DO NOT REMOVE, and keep byte-identical with the workspace
+# root's copy. See the long note in the root `Cargo.toml`: without this
+# `check-cfg` declaration a demoted test's
+# `#[cfg_attr(not(nightly_suite), ignore = ...)]` marker is an
+# `unexpected 'cfg' condition name` ERROR under `-D warnings`, and this crate
+# does not inherit the workspace table, so it needs its own copy.
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(nightly_suite)'] }
 
 [lints.clippy]
 panic = "warn"

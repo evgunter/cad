@@ -15,6 +15,7 @@ use editor_core::{
 };
 use fixture::{declare_x_offset_flush, desc, insert, len, step};
 use geom_core::Interval;
+use geom_core::Tol;
 
 /// A rectangular block: profile on the plane z = `z0`, extruded `dz`.
 fn block(
@@ -43,7 +44,13 @@ fn block(
 }
 
 fn run<T: editor_core::EvalScalar>(doc: &ProfileDoc) -> Evaluation<T> {
-    evaluate::<T>(doc, None, &CancelToken::new(), &EvalOptions::default())
+    evaluate::<T>(
+        doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    )
 }
 
 #[test]
@@ -51,7 +58,7 @@ fn f64_and_interval_lanes_resolve_appearance_identically() {
     // An overlapping union plus a free extrude — enough to exercise
     // resolved rows (operand-wrapped and pass-through names), a
     // Vanished loss, and multi-attribute entries at both lanes.
-    let doc = ProfileDoc::empty_derived("m4_pr7_appearance_interval");
+    let doc = ProfileDoc::empty_derived("m4_pr7_appearance_interval", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, decl) = declare_x_offset_flush(doc, a, b);

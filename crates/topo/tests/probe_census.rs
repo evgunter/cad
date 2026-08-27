@@ -1,11 +1,20 @@
 //! Review probe (review/f34): dump the FULL per-sample census of both
 //! twin boolean configurations at both scales, for merge-base-vs-tip
 //! byte-identity diffing (T3).
+//!
+//! **NO TEST IN THIS FILE IS EXECUTED BY CI.** The probe suites CI runs are
+//! rostered in `scripts/gates/probe-suite-census.sh` (`RUN_FLOOR`) and run
+//! by `scripts/k_probe_sweep.sh`; this one is on neither list, so nothing
+//! here can go red on a merge and its assertions are evidence for a reader
+//! rather than a gate. By hand:
+//! `cargo test -p topo --features probe --test all -- probe_census::`.
+
 #![cfg(feature = "probe")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod common;
 
 use common::prism_z;
+use geom_core::Tol;
 use geom_core::k_stats::{self, Probe};
 use topo::{BooleanResult, subtract};
 
@@ -30,14 +39,15 @@ fn dump_full_census() {
         k_stats::start_recording();
         let a1 = bx(scale, (0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
         let b1 = bx(scale, (1.0, 3.0), (1.0, 3.0), (1.0, 3.0));
-        let r = match subtract(&a1, &b1).expect("corner") {
+        let r = match subtract(&a1, &b1, Tol::witness()).expect("corner") {
             BooleanResult::Body(b) => b,
             other => panic!("corner: {other:?}"),
         };
-        topo::validate_pseudomanifold(&r.body, &topo::ContactRecords::default()).expect("census");
+        topo::validate_pseudomanifold(&r.body, &topo::ContactRecords::default(), Tol::witness())
+            .expect("census");
         let a2 = bx(scale, (0.0, 4.0), (0.0, 4.0), (0.0, 1.0));
         let b2 = bx(scale, (1.0, 2.0), (1.0, 2.0), (-1.0, 2.0));
-        subtract(&a2, &b2).expect("pocket");
+        subtract(&a2, &b2, Tol::witness()).expect("pocket");
         for s in k_stats::take_samples() {
             println!(
                 "CEN {} {} {:?} {:?}",

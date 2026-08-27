@@ -16,9 +16,16 @@ use editor_core::{
     ProfileDoc, Qualifier, RecipeNodeId, RoleSeg, StableName, evaluate,
 };
 use fixture::{ang, declare_x_offset_flush, desc, insert, len, scl};
+use geom_core::Tol;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
-    evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default())
+    evaluate::<f64>(
+        doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    )
 }
 
 fn table(ev: &Evaluation<f64>, id: RecipeNodeId) -> &NameTable {
@@ -65,7 +72,7 @@ fn block(
 
 #[test]
 fn union_names_operand_descent_seams_and_ordered_rim_fragments() {
-    let doc = ProfileDoc::empty_derived("m4_pr3_names_bool");
+    let doc = ProfileDoc::empty_derived("m4_pr3_names_bool", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, decl) = declare_x_offset_flush(doc, a, b);
@@ -180,7 +187,7 @@ fn union_names_operand_descent_seams_and_ordered_rim_fragments() {
 
 #[test]
 fn slot_subtract_discriminates_cap_fragments_by_side_of_vectors() {
-    let doc = ProfileDoc::empty_derived("m4_pr3_names_bool");
+    let doc = ProfileDoc::empty_derived("m4_pr3_names_bool", Tol::witness());
     // A: 3×3×1 block; B: a slot crossing the top cap fully in y.
     let (doc, a) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
     let (doc, b) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
@@ -234,7 +241,7 @@ fn slot_subtract_discriminates_cap_fragments_by_side_of_vectors() {
 
 #[test]
 fn symmetric_u_cutter_fragments_tie_and_naming_stays_total() {
-    let doc = ProfileDoc::empty_derived("m4_pr3_names_bool");
+    let doc = ProfileDoc::empty_derived("m4_pr3_names_bool", Tol::witness());
     // A: 4×4×4 block.
     let (doc, a) = block(doc, (0.0, 4.0), (0.0, 4.0), 0.0, 4.0);
     // B: U-shaped prongs along −x, base OUTSIDE A (x ∈ [5,6]), prong
@@ -304,7 +311,7 @@ fn symmetric_u_cutter_fragments_tie_and_naming_stays_total() {
 fn no_flip_translation_edit_leaves_every_table_identical() {
     // B placed by a Transform whose translation is the edited knob.
     let build = |tx: f64| {
-        let doc = ProfileDoc::empty_derived("m4_pr3_names_bool");
+        let doc = ProfileDoc::empty_derived("m4_pr3_names_bool", Tol::witness());
         let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
         let (doc, b0) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
         let (doc, decl) = declare_x_offset_flush(doc, a, b0);
@@ -347,7 +354,7 @@ fn no_flip_translation_edit_leaves_every_table_identical() {
 #[test]
 fn flip_changes_exactly_the_boolean_nodes_table() {
     let build = |tx: f64| {
-        let doc = ProfileDoc::empty_derived("m4_pr3_names_bool");
+        let doc = ProfileDoc::empty_derived("m4_pr3_names_bool", Tol::witness());
         let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
         let (doc, b0) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
         let (doc, decl) = declare_x_offset_flush(doc, a, b0);

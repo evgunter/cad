@@ -126,6 +126,13 @@ pub fn update_references<P>(
 
 /// One referenced document id carrying more than one pin, with the
 /// sites holding each (A13 clause 3; ASM-UPD D-3).
+///
+/// Deliberately carries no `Display` yet: the report is typed data
+/// with no user-facing rendering site. When one appears, this is the
+/// finding sink's next resident — it composes through
+/// `crate::finding::Finding` (subject: the id and its pin spread;
+/// story: the sites; recourse: `update_references`), never a fourth
+/// hand-rolled renderer.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PinMultiplicity {
     /// The document referenced at two or more versions.

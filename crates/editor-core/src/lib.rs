@@ -18,11 +18,13 @@
 
 pub mod appearance;
 pub mod assembly;
+pub mod checks;
 pub mod diff;
 pub mod doc;
 pub mod edit;
 pub mod eval;
 pub mod expr;
+mod finding;
 pub mod ident;
 pub mod mate;
 pub mod meta;
@@ -46,6 +48,10 @@ pub use appearance::{
 };
 pub use assembly::{
     Assembly, AssemblyError, AtRestFinding, Attribution, MintedDeclaration, RefusedRef, assemble,
+};
+pub use checks::{
+    CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal, ChecksConfig, ChecksError,
+    ChecksReport, Severity, enforce_checks, run_checks, subject_body,
 };
 pub use diff::{DocDiff, NodeChange};
 pub use doc::{Doc, DocParam, ParamName};

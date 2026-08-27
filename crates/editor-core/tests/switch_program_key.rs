@@ -13,23 +13,33 @@ use editor_core::{
     ParamName, ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, evaluate,
     parse_expr,
 };
+use geom_core::Tol;
 use profile::SketchPlane;
 
 fn key_of(doc: &ProfileDoc) -> ContentKey {
-    let ev = evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default());
+    let ev = evaluate::<f64>(
+        doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
     ev.value(RecipeNodeId(0))
         .expect("profile evaluates")
         .content_key
 }
 
 fn doc_with(loops: Vec<LoopProgram>) -> ProfileDoc {
-    let doc = ProfileDoc::empty_derived("switch_program_key");
-    doc.apply(&DocEdit::InsertNode {
-        node: Node::Profile(ProfileProgram {
-            plane: SketchPlane::xy(),
-            loops,
-        }),
-    })
+    let doc = ProfileDoc::empty_derived("switch_program_key", Tol::witness());
+    doc.apply(
+        &DocEdit::InsertNode {
+            node: Node::Profile(ProfileProgram {
+                plane: SketchPlane::xy(),
+                loops,
+            }),
+        },
+        Tol::witness(),
+    )
     .expect("valid program")
     .doc
 }
@@ -50,6 +60,10 @@ fn loop_structure_never_aliases_data() {
 
 /// Verb identity is structure: a `circle` program and a `circle_split`
 /// program of the SAME carrier never share a key.
+///
+/// This is one pair, end to end through `evaluate`. That NO two verbs
+/// share a tag is the stronger property and is computed over
+/// `profile::Verb::ALL` by `eval::verb_tag_tests::verb_tags_are_injective`.
 #[test]
 fn verb_tags_are_structure() {
     let a = doc_with(vec![LoopProgram::circle(1.0, 1.0, 0.5).unwrap()]);
@@ -65,29 +79,35 @@ fn verb_tags_are_structure() {
 #[test]
 fn resolved_values_feed_the_key() {
     let with_param = |value: f64| {
-        let doc = ProfileDoc::empty_derived("switch_program_key");
+        let doc = ProfileDoc::empty_derived("switch_program_key", Tol::witness());
         let doc = doc
-            .apply(&DocEdit::SetDocParam {
-                name: ParamName::new("r"),
-                value: DocParam::Continuous {
-                    dim: Dimension::Length,
-                    value,
+            .apply(
+                &DocEdit::SetDocParam {
+                    name: ParamName::new("r"),
+                    value: DocParam::Continuous {
+                        dim: Dimension::Length,
+                        value,
+                    },
                 },
-            })
+                Tol::witness(),
+            )
             .unwrap()
             .doc;
-        doc.apply(&DocEdit::InsertNode {
-            node: Node::Profile(ProfileProgram {
-                plane: SketchPlane::xy(),
-                loops: vec![LoopProgram::Circle {
-                    centre: [
-                        Expr::literal(0.0, Dimension::Length).unwrap(),
-                        Expr::literal(0.0, Dimension::Length).unwrap(),
-                    ],
-                    radius: Expr::param(ParamName::new("r"), Dimension::Length),
-                }],
-            }),
-        })
+        doc.apply(
+            &DocEdit::InsertNode {
+                node: Node::Profile(ProfileProgram {
+                    plane: SketchPlane::xy(),
+                    loops: vec![LoopProgram::Circle {
+                        centre: [
+                            Expr::literal(0.0, Dimension::Length).unwrap(),
+                            Expr::literal(0.0, Dimension::Length).unwrap(),
+                        ],
+                        radius: Expr::param(ParamName::new("r"), Dimension::Length),
+                    }],
+                }),
+            },
+            Tol::witness(),
+        )
         .unwrap()
         .doc
     };

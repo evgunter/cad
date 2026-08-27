@@ -12,6 +12,7 @@ use topo::Body;
 
 mod common;
 use common::quad;
+use geom_core::Tol;
 
 const SQ: [(f64, f64); 4] = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
 const TRAP: [(f64, f64); 4] = [(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)];
@@ -22,7 +23,7 @@ fn loft_at(zs: &[f64]) -> Body<f64> {
         .iter()
         .map(|z| Affine3::translation(Vec3::new(0.0, 0.0, *z)))
         .collect();
-    loft_body::<f64>(&sections, &places, 2)
+    loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("loft builds")
         .body
 }
@@ -41,7 +42,7 @@ fn rational_pie() -> Body<f64> {
         .iter()
         .map(|z| Affine3::translation(Vec3::new(0.0, 0.0, *z)))
         .collect();
-    loft_body::<f64>(&sections, &places, 1)
+    loft_body::<f64>(&sections, &places, 1, Tol::witness())
         .expect("the rational pie lofts")
         .body
 }
@@ -68,6 +69,7 @@ fn swept_elbow() -> Body<f64> {
         &path,
         9,
         3,
+        Tol::witness(),
     )
     .expect("sweep builds")
     .body
@@ -108,11 +110,30 @@ const Z1_DELTAS: [f64; 2] = [3e-2, 6e-3];
 /// **GATED**: `mesh::budget`'s instrument is compiled only under
 /// `mesh`'s `budget` feature, so this row rides that build — with the
 /// feature off there is no `arm`/`take` to call, which is the point of
-/// the gate rather than a limitation of it. M8-5 MIN-1's intent is
-/// intact: the hosted gate still runs this UNCONDITIONALLY, in
+/// the gate rather than a limitation of it. The hosted gate runs it in
 /// ci.yml's "mesh budget meter + certificate falsifier
-/// (feature = budget)" row (mirrored by local-scripts/ci-local.sh). What moved is which build the row rides
-/// in, not whether the row runs.
+/// (feature = budget)" row (mirrored by local-scripts/ci-local.sh).
+///
+/// **FREQUENCY, corrected 2026-08-22 — this row is no longer
+/// unconditional.** That step rides `k-lint`'s `dev-budget` feature
+/// row, and `k-lint` now SAMPLES one of its five feature unifications
+/// per run, so the falsifier runs on an expected 1 run in 5 rather than
+/// on every build-triggering change. The draw is seeded from the head
+/// SHA under its own salt, so a re-run of one commit draws the same row
+/// and the draw is recoverable from the SHA without the logs;
+/// repetition covers the matrix at this repository's ~60 runs/hour of
+/// active work.
+///
+/// M8-5 MIN-1's intent survives the change, and the reason is specific
+/// rather than reassuring: this row is a PERSISTENCE detector. A
+/// certificate that stopped dominating its own samples stays broken in
+/// the tree, so a later draw still finds it — the red is deferred, not
+/// lost. Sampling would NOT be sound for a detector of absence (a row
+/// deleted, or a gate sited where it cannot fire), because an absence
+/// merges silently once and leaves no future red; that class stays
+/// unconditional elsewhere in CI. What has moved, twice now, is which
+/// build the row rides in and how often it is drawn — never whether
+/// the claim is checked.
 ///
 /// The ASSERTION is here and not in the tessellation lane, which is
 /// what keeps `mesh::tessellate`'s typed-error contract out of reach
@@ -127,7 +148,7 @@ fn z1_per_triangle_certificate_falsification() {
             budget::arm(Mode::Deviation {
                 samples_per_edge: 12,
             });
-            let m = mesh::tessellate(&body, delta).expect("tessellates");
+            let m = mesh::tessellate(&body, delta, Tol::witness()).expect("tessellates");
             let measures = budget::take();
             assert!(
                 !measures.is_empty(),
@@ -142,6 +163,16 @@ fn z1_per_triangle_certificate_falsification() {
             // face carrying one would come out "smallest" and escape.
             // A loop has no comparator to get wrong, and `!(x <= 1.0)`
             // is true for every NaN of either sign.
+            // MONOTONE THE EASY WAY, and this is the row hosted CI
+            // runs: `worst_ratio` only shrinks as `bound` grows, so a
+            // loose certificate passes this by a WIDER margin than a
+            // tight one. `budget_meter.rs`'s sibling row grew a
+            // measured floor beside its ceiling; this one has not, and
+            // the asymmetry is recorded as **S237**
+            // (`docs/SMELL-SCAN-2026-08.md`), unowned — with two more
+            // instances of the same shape in `nurbs_cert.rs`'s own
+            // test module, which #887's sweep missed and its
+            // adversarial review found.
             for f in &measures {
                 assert!(
                     f.worst_ratio <= 1.0,
@@ -193,7 +224,7 @@ fn z1_per_triangle_certificate_falsification() {
 fn z1_fixtures_still_tessellate_with_the_falsifier_gated_out() {
     for (name, body) in z1_fixtures() {
         for delta in Z1_DELTAS {
-            let m = mesh::tessellate(&body, delta).expect("tessellates");
+            let m = mesh::tessellate(&body, delta, Tol::witness()).expect("tessellates");
             let tris: usize = m.patches.iter().map(|p| p.triangles.len()).sum();
             assert!(tris > 0, "{name} at delta={delta:.0e}: empty mesh");
             mesh::validate::check_mesh(&m)
@@ -213,7 +244,7 @@ fn z2_detached_pcurve_refuses_typed() {
         .next()
         .expect("body has pcurve caches");
     body.detach_pcurve(hek);
-    match mesh::tessellate(&body, 1e-2) {
+    match mesh::tessellate(&body, 1e-2, Tol::witness()) {
         Err(e) => {
             let s = format!("{e:?}");
             assert!(
@@ -230,7 +261,7 @@ fn z2_detached_pcurve_refuses_typed() {
 #[test]
 fn z5_positions_hash_stamp() {
     let body = swept_elbow();
-    let m = mesh::tessellate(&body, 1e-2).expect("tessellates");
+    let m = mesh::tessellate(&body, 1e-2, Tol::witness()).expect("tessellates");
     let mut h: u64 = 0xcbf2_9ce4_8422_2325;
     for p in &m.positions {
         for b in [p.x.to_bits(), p.y.to_bits(), p.z.to_bits()] {
@@ -255,7 +286,8 @@ fn z5_positions_hash_stamp() {
 #[test]
 fn z3_fine_nurbs_vs_coarse_planar_neighbor_watertight() {
     for delta in [5e-4, 2e-4] {
-        let mesh = mesh::tessellate(&loft_at(&[0.0, 1.0, 2.0]), delta).expect("tessellates");
+        let mesh = mesh::tessellate(&loft_at(&[0.0, 1.0, 2.0]), delta, Tol::witness())
+            .expect("tessellates");
         mesh::validate::check_mesh(&mesh).expect("watertight at fine delta");
     }
 }

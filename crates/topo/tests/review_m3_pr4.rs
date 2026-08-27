@@ -12,6 +12,7 @@ mod common;
 
 use common::{flush_declarations, prism_z};
 use geom_core::Decide;
+use geom_core::Tol;
 use topo::{Body, BooleanError, BooleanOp, BooleanReduction, boolean_reduce, validate};
 
 fn brick<T: Decide>(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<T> {
@@ -43,7 +44,8 @@ fn reduce_ok<T: Decide + geom_core::Bounds>(
 ) -> BooleanReduction<T> {
     let (da, db) = (dump(a), dump(b));
     // M4 PR 5: the review corpus declares its intended flush contacts.
-    let red = topo::boolean_reduce_declared(op, a, b, &flush_declarations(a, b)).unwrap();
+    let red =
+        topo::boolean_reduce_declared(op, a, b, &flush_declarations(a, b), Tol::witness()).unwrap();
     assert_eq!(dump(a), da, "operand A mutated");
     assert_eq!(dump(b), db, "operand B mutated");
     validate(&red.a).unwrap();
@@ -259,7 +261,7 @@ fn reflex_edge_touch_benign() {
     .body;
     let b = prism_z::<f64>(&[(1.0, 1.0), (2.0, 1.4), (1.4, 2.0)], 0.0, 1.0).body;
     for op in ALL_OPS {
-        match boolean_reduce(op, &a, &b) {
+        match boolean_reduce(op, &a, &b, Tol::witness()) {
             Ok(red) => {
                 validate(&red.a).unwrap();
                 validate(&red.b).unwrap();
@@ -300,7 +302,7 @@ fn reflex_edge_crossing_refuses_loudly() {
     .body;
     let b = prism_z::<f64>(&[(1.0, 1.0), (2.0, 0.6), (2.0, 1.4)], 0.0, 1.0).body;
     for op in ALL_OPS {
-        match boolean_reduce(op, &a, &b) {
+        match boolean_reduce(op, &a, &b, Tol::witness()) {
             Ok(red) => {
                 assert!(
                     !red.null_pairs.is_empty(),
@@ -339,7 +341,7 @@ fn notch_fill_dense_ties() {
     .body;
     let b = brick::<f64>((1.0, 2.0), (1.0, 2.0), (0.0, 1.0));
     for op in ALL_OPS {
-        match boolean_reduce(op, &a, &b) {
+        match boolean_reduce(op, &a, &b, Tol::witness()) {
             Ok(red) => {
                 validate(&red.a).unwrap();
                 validate(&red.b).unwrap();
@@ -374,7 +376,7 @@ fn notch_fill_dense_ties() {
 fn plane_eq_nan_and_negzero() {
     use geom_core::{Band, Point3, Vec3};
     use topo::{GeomSource, PlaneIdentity, PlaneRelation, oriented_plane_eq};
-    let band = Band::linear().unwrap();
+    let band = Band::linear(Tol::witness()).unwrap();
     let mk = |n: Vec3<f64>, o: Point3<f64>| topo::boolean::plane_eq::PlaneDesc {
         origin: o,
         normal: n,
@@ -494,22 +496,19 @@ fn generic_edge_edge_mixed_order_pair() {
     }
 }
 
-/// The per-arm curved gate (M5 PR 9 narrowed this witness: `Cylinder`
-/// faces now PASS the operand gate — the conic arms are wired — so
-/// the gate-refusal witness moved to a kind with no wired boolean arm
-/// at all): a face swapped to a torus must refuse as
-/// CurvedBooleanUnsupported with the offending operand and face
-/// named, AT THE GATE.
-#[test]
-fn curved_face_gate_witness() {
-    use geom_core::{Point3, Vec3};
-    let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
+/// A brick of `b` with one face relabelled a torus centred at
+/// `center` — the operand gate's fixture on both sides of its
+/// question. The torus arm reads nothing from the boundary, so the
+/// centre alone decides whether the face's box can reach `a`.
+#[cfg(test)]
+fn brick_with_torus_face_at(center: geom_core::Point3<f64>) -> (topo::Body<f64>, topo::FaceKey) {
+    use geom_core::Vec3;
     let mut b = brick::<f64>((2.0, 3.0), (0.0, 1.0), (0.0, 1.0));
     let (face, _) = b.faces().next().unwrap();
     b.set_face_surface(
         face,
         topo::FaceSurface::New(geom::Surface::Torus {
-            center: Point3::new(0.0, 0.0, 1.0),
+            center,
             axis: Vec3::new(1.0, 0.0, 0.0),
             major_radius: 1.0,
             minor_radius: 0.25,
@@ -517,14 +516,65 @@ fn curved_face_gate_witness() {
         }),
     )
     .unwrap();
-    match boolean_reduce(BooleanOp::Union, &a, &b) {
-        Err(BooleanError::CurvedBooleanUnsupported {
-            operand: topo::Operand::B,
-            face: f,
-            kind: geom_brep::SurfaceKind::Torus,
-        }) => assert_eq!(f, face),
-        other => panic!("expected CurvedBooleanUnsupported(B), got {other:?}"),
-    }
+    (b, face)
+}
+
+/// The curved gate, PAIR-SCOPED: a face whose kind has no wired
+/// boolean arm refuses only when its box may meet the other operand,
+/// and the refusal names the germ PAIR — both faces and both kinds —
+/// rather than the body.
+#[test]
+fn curved_face_gate_witness() {
+    use geom_core::Point3;
+    let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
+    // Centred on `a`: the torus box definitely reaches it.
+    let (b, face) = brick_with_torus_face_at(Point3::new(0.0, 0.0, 1.0));
+    let err = match boolean_reduce(BooleanOp::Union, &a, &b, Tol::witness()) {
+        Err(e) => e,
+        Ok(_) => panic!("a torus face reaching the other operand must refuse"),
+    };
+    let BooleanError::CurvedPairUnsupported {
+        op: None,
+        operand: topo::Operand::B,
+        face: f,
+        kind: geom_brep::SurfaceKind::Torus,
+        other_kind: geom_brep::SurfaceKind::Plane,
+        ..
+    } = err
+    else {
+        panic!("expected the pair-scoped gate refusal, got {err:?}");
+    };
+    assert_eq!(f, face);
+    let msg = format!("{err}");
+    assert!(
+        msg.contains("MAY INTERSECT"),
+        "the refusal states the box conservatism: {msg}"
+    );
+    assert!(
+        msg.contains("MAY, not a DOES"),
+        "the refusal says the overlap is not a computed meeting: {msg}"
+    );
+}
+
+/// **The other side of the same question**: the SAME body, with the
+/// torus face's box moved clear of the other operand, is no longer
+/// gated at all — the reduction runs. The two bricks are disjoint, so
+/// what this row pins is the gate's scope and nothing downstream: a
+/// kind with no arm cannot disqualify an operation it could never
+/// enter. Reverting the gate to a per-body kind scan reds it.
+#[test]
+fn a_torus_face_whose_box_clears_the_other_operand_does_not_gate() {
+    use geom_core::Point3;
+    let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
+    // Ten units out along the torus axis: `center ± (R + r)` cannot
+    // reach x ∈ [0, 1].
+    let (b, _) = brick_with_torus_face_at(Point3::new(10.0, 0.0, 1.0));
+    let red = boolean_reduce(BooleanOp::Union, &a, &b, Tol::witness())
+        .expect("a torus face out of reach must not gate the union");
+    assert!(
+        red.null_pairs.is_empty(),
+        "the two bricks are disjoint; the gate's scope is what this row pins"
+    );
 }
 
 /// Shape (iii) READINESS, pinned end to end at the boolean layer
@@ -548,7 +598,7 @@ fn nurbs_wall_boolean_surfaces_the_crossing_layer_refusal() {
         ))),
     )
     .unwrap();
-    let err = match boolean_reduce(BooleanOp::Union, &a, &b) {
+    let err = match boolean_reduce(BooleanOp::Union, &a, &b, Tol::witness()) {
         Err(e) => e,
         Ok(_) => panic!("a NURBS wall cannot classify at the crossing layer yet"),
     };

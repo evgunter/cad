@@ -22,9 +22,11 @@
 //!   [`sweep_cross_solid_backstop`]): cross-solid face pairs with a
 //!   curved side within reach — curved × curved (the conformal
 //!   cradle, boss-in-hole) and curved × planar (the embedded ball
-//!   cap, F5) — including EVERY pair with a cone/torus/NURBS side
-//!   (no sound cheap reach bound exists: refused without a distance
-//!   test); a cross-key `PatchContact` on such a pair ESCALATES
+//!   cap, F5). Cone, torus and NURBS sides are reach-tested like any
+//!   other — every surface kind has a sound cheap reach bound
+//!   ([`face_reach`]); what refuses without a distance test is a
+//!   DESCRIPTION with no claim in it (a placeholder patch), not a
+//!   kind. A cross-key `PatchContact` on such a pair ESCALATES
 //!   through the chart predicate's divergence posture, so the class
 //!   can today be neither certified nor silently passed. And one
 //!   instance's extent box contained in another's (the
@@ -63,25 +65,38 @@
 //! (`VvContact`, `VfContact`). Since M9-2 `ContactRecords` also carries
 //! face-granularity records (`curves`, `patches`), and each bullet
 //! below has a corresponding face rung — `Declared::vv_face_backed` /
-//! `vf_face_backed`, which back a subordinate vertex event from a
-//! declared FACE pair holding it on both boundaries. Those rungs are
-//! named in the bullets rather than left out of the derivation that
-//! licenses them.
+//! `vf_face_backed` / `ve_face_backed`, which back a subordinate
+//! vertex event from a declared FACE pair holding the entities it
+//! relates on the pair's two sides. Those rungs are named in the
+//! bullets rather than left out of the derivation that licenses them.
+//!
+//! **All three rungs are structural-incidence and region-unconfined,
+//! by one deliberate decision.** A rung asks whether a declared face
+//! pair HOLDS the entities of the event — one on each side, through
+//! boundary membership and an edge's incidence to the faces it bounds
+//! — and never where on those faces the event lies. So a declared pair
+//! backs an event on the entities it holds even where that event lies
+//! outside the pair's own overlap region. Confining a rung to that
+//! region is not a tightening of one rung, it is a second standard the
+//! other two do not meet; the region question belongs to the confirm
+//! pass, which verifies the declared pair itself in both directions.
 //! Continuous overlaps — two collinear edges sharing a positive-length
 //! segment, an edge resting in a face's region — are certified by
 //! **reconstruction from their bounding vertex events**:
 //!
-//! - An **edge-edge collinear overlap** is certified iff at each of
-//!   its two bounds both edges hold a vertex there and the pair is
-//!   v-v-declared, or backed by a declared face pair holding the two
-//!   vertices on its two boundaries (`vv_face_backed`), or is one
-//!   shared vertex — structural. Derivation:
+//! - An **edge-edge collinear overlap** is certified iff each of its
+//!   two bounds is backed. Where both edges hold a vertex at the
+//!   bound, that means the pair is v-v-declared, or backed by a
+//!   declared face pair holding the two vertices on its two boundaries
+//!   (`vv_face_backed`), or is one shared vertex — structural. Where
+//!   only one edge holds a vertex there — the endpoint rests on the
+//!   other edge's INTERIOR — the bound is a vertex-on-edge event and
+//!   is backed by exactly that lane's rung: a declared face pair
+//!   holding the vertex on one boundary and naming a face the other
+//!   edge bounds (`ve_face_backed`). Derivation:
 //!   the overlap of two collinear spans is an interval whose each
-//!   bound is an endpoint of at least one span; if the *other* edge
-//!   has no vertex there, that endpoint rests on the other edge's
-//!   interior — the vertex-on-edge lane already reports it (reduction
-//!   refines every such event by splitting, so a certified result
-//!   always carries the vertex). Between two backed bounds the
+//!   bound is an endpoint of at least one span, so one of the two arms
+//!   applies at every bound. Between two backed bounds the
 //!   carriers coincide identically (two lines sharing two points are
 //!   one line), so the interior overlap is exactly the convex closure
 //!   of the bounded events on both carriers — no interior record can
@@ -92,9 +107,13 @@
 //!   vertex of the face's boundary, backed by a declared face pair
 //!   naming this face and one holding the vertex (`vf_face_backed`),
 //!   or itself a vertex of the face's boundary (structural). Same
-//!   argument: an uncertified bound
-//!   configuration implies a vertex-on-edge / edge-edge-cross finding
-//!   that hard-errors independently.
+//!   argument, with its remaining looseness stated: a bound at which
+//!   the edge holds NO vertex is a vertex-on-edge or edge-edge-cross
+//!   configuration the sweeps report in their own lane, so this lane
+//!   declines to reconstruct it rather than inferring one. Where that
+//!   subordinate event is itself face-backed, the decline is a
+//!   LOUDNESS the pair keeps — reported, never blessed — and closing
+//!   it needs the same rung read at this bound, not a new one.
 //!
 //! Failure mode: a segment overlap with a missing bounding record is
 //! [`ValidationError::UndeclaredContact`] — never inferred. (A
@@ -107,11 +126,36 @@
 //! Reduction's sweep splits the *other* edge at every on-edge event
 //! (`split_other_at_point`) in **both** lanes that can discover one —
 //! the proper-crossing lane (`FaceContainment::OnEdge`) and the
-//! vertex-on-plane lane (`dovertexonface` → `OnEdge`) — so every
-//! vertex-on-edge(-interior) contact is refined into a v-v record
-//! before records are emitted. At rest, a vertex on an edge interior
-//! is therefore always an undeclarable defect: the census reports it
-//! as [`CensusContact::VertexOnEdge`] with no backing path, by design.
+//! vertex-on-plane lane (`dovertexonface` → `OnEdge`) — so in the
+//! BOOLEAN lane every vertex-on-edge(-interior) contact is refined
+//! into a v-v record before records are emitted. That is why no
+//! vertex-granularity record type names this configuration: in the
+//! lane that mints them, it never survives to be named.
+//!
+//! **That premise is the boolean lane's, and it does not carry to
+//! rest.** At rest nothing refines — no boolean runs, nothing is
+//! zipped, the bodies arrive as they were placed — so the raw induced
+//! configuration reaches the certifier intact. Its status there is:
+//!
+//! - **Certifiable through the face rung, and only through it**: a
+//!   declared face pair holding the vertex on one boundary and naming
+//!   a face the edge bounds (`ve_face_backed`) holds the whole event
+//!   — the vertex on one side of the interface, the edge on the other
+//!   — exactly as `vv_face_backed` holds a coincident vertex pair.
+//!   A seat whose two faces share a boundary induces this event by
+//!   construction, and the declaration that says the faces rest says
+//!   it once for everything the seat induces.
+//! - **Otherwise an undeclarable defect**: with no face pair holding
+//!   it, there is no record that can name the configuration, and the
+//!   census reports [`CensusContact::VertexOnEdge`] as
+//!   `UndeclaredContact`. The rung consults DECLARATIONS, never the
+//!   geometry's own agreement with itself — a configuration nobody
+//!   declared stays the F1 hard error however exactly it coincides.
+//!
+//! Cross-reference: the face rung is CONTACT-DESIGN C3's declared
+//! rung read at the granularity the records already carry, not a new
+//! identity claim about the carriers — what the declared pair itself
+//! must satisfy is the confirm pass's, on C3's ladder.
 
 use std::collections::BTreeSet;
 
@@ -177,7 +221,7 @@ pub(crate) fn census_and_certify<T: Decide + crate::chart_region::ChartRegionLan
     let geo = snapshot(body);
     let declared = Declared::index(contacts);
     sweep_vertex_vertex(&geo, &declared, band, &mut errors);
-    sweep_vertex_edge(&geo, band, &mut errors);
+    sweep_vertex_edge(&geo, &declared, band, &mut errors);
     sweep_vertex_face(body, &geo, &declared, band, &mut errors);
     sweep_edge_face(body, &geo, &declared, band, &mut errors);
     sweep_edge_edge(&geo, &declared, band, &mut errors);
@@ -246,6 +290,27 @@ impl Declared {
         geo.vertex_faces
             .get(&v)
             .is_some_and(|gs| gs.iter().any(|&g| self.faces.contains(&(g, f))))
+    }
+
+    /// The face rung for a vertex-on-edge event: the v-on-f rung
+    /// against either face the edge bounds. An edge is structurally
+    /// incident to `f_plus` and `f_minus`, so a declared pair holding
+    /// `v` on one boundary and naming a face of `e` on the other holds
+    /// the whole event — the vertex on one side of the interface, the
+    /// edge on the other.
+    ///
+    /// Strength, stated rather than left to be read off the code: this
+    /// rung is STRUCTURAL-INCIDENCE, exactly as strong as the two
+    /// rungs it is built from and no stronger. It asks whether the
+    /// declared pair holds the two entities, never WHERE on the pair
+    /// the event lies, so it backs an event anywhere on the incident
+    /// entities — including outside the declared faces' own overlap
+    /// region. Confining it to that region would be new machinery
+    /// [`Declared::vv_face_backed`] and [`Declared::vf_face_backed`]
+    /// do not have, and the census would then hold three rungs to two
+    /// different standards.
+    fn ve_face_backed<T: Real>(&self, geo: &Geo<T>, v: VertexKey, e: &EdgeGeo<T>) -> bool {
+        self.vf_face_backed(geo, v, e.f_plus) || self.vf_face_backed(geo, v, e.f_minus)
     }
 }
 
@@ -441,9 +506,16 @@ fn sweep_vertex_vertex<T: Decide>(
     }
 }
 
-/// Census pass 2: vertex on an edge's **interior** — undeclarable by
-/// design (module docs, D4): always a hard finding.
-fn sweep_vertex_edge<T: Decide>(geo: &Geo<T>, band: Band, errors: &mut Vec<ValidationError>) {
+/// Census pass 2: vertex on an edge's **interior** — certifiable only
+/// through the face rung (module docs, D4), and otherwise a hard
+/// finding: there is no vertex-granularity record type that can name
+/// this configuration.
+fn sweep_vertex_edge<T: Decide>(
+    geo: &Geo<T>,
+    declared: &Declared,
+    band: Band,
+    errors: &mut Vec<ValidationError>,
+) {
     for &(vk, q) in &geo.verts {
         for e in &geo.edges {
             if vk == e.v0 || vk == e.v1 {
@@ -470,7 +542,7 @@ fn sweep_vertex_edge<T: Decide>(geo: &Geo<T>, band: Band, errors: &mut Vec<Valid
                     }
                 }
             }
-            if interior {
+            if interior && !declared.ve_face_backed(geo, vk, e) {
                 errors.push(ValidationError::UndeclaredContact {
                     contact: CensusContact::VertexOnEdge {
                         vertex: vk,
@@ -615,7 +687,11 @@ fn ef_bound_backed<T: Decide>(
     errors: &mut Vec<ValidationError>,
 ) -> bool {
     let Some(ve) = edge_vertex_at(e, s, band, errors) else {
-        return false; // interior bound: the v-on-e lane already fired
+        // The bound is a vertex-on-edge event, which has a backing
+        // path of its own — so this lane declining is a LOUDNESS the
+        // overlap keeps, not a proof the configuration is undeclared
+        // (D3's bullet states the same looseness; #973 schedules it).
+        return false;
     };
     if declared.vf.contains(&(ve, f.key))
         || f.boundary.contains(&ve)
@@ -905,7 +981,18 @@ fn ee_collinear_lane<T: Decide>(
 
 /// D3 backing for one bound of a collinear overlap: both edges hold a
 /// vertex at the bound and the pair is declared (or is one shared
-/// vertex — structural).
+/// vertex — structural), or — where only ONE edge has a vertex there,
+/// so the bound rests on the other edge's interior — that vertex is
+/// face-backed onto the other edge.
+///
+/// The two arms are one rule at two granularities: a bound of a
+/// collinear overlap is an endpoint of at least one span, and whether
+/// the other span happens to end there too is a fact about the
+/// configuration, not about what a declaration can hold. Both edges
+/// with a vertex is a v-v event and takes the v-v rungs; one edge with
+/// a vertex is a vertex-on-edge event and takes that lane's rung
+/// ([`Declared::ve_face_backed`]) — the same declared face pair, one
+/// incidence step further out.
 fn ee_bound_backed<T: Decide>(
     ea: &EdgeGeo<T>,
     eb: &EdgeGeo<T>,
@@ -915,15 +1002,20 @@ fn ee_bound_backed<T: Decide>(
     band: Band,
     errors: &mut Vec<ValidationError>,
 ) -> bool {
-    let Some(va) = edge_vertex_at(ea, s, band, errors) else {
-        return false; // interior on ea: the v-on-e lane already fired
-    };
+    let va = edge_vertex_at(ea, s, band, errors);
     let q = ea.p0 + ea.dir * s;
     let sb = (q - eb.p0).dot(eb.dir);
-    let Some(vb) = edge_vertex_at(eb, sb, band, errors) else {
-        return false;
-    };
-    va == vb || declared.vv.contains(&(va, vb)) || declared.vv_face_backed(geo, va, vb)
+    let vb = edge_vertex_at(eb, sb, band, errors);
+    match (va, vb) {
+        (Some(va), Some(vb)) => {
+            va == vb || declared.vv.contains(&(va, vb)) || declared.vv_face_backed(geo, va, vb)
+        }
+        (Some(va), None) => declared.ve_face_backed(geo, va, eb),
+        (None, Some(vb)) => declared.ve_face_backed(geo, vb, ea),
+        // Neither edge resolves a vertex at the bound: an escalated
+        // span (already pushed), never a backing.
+        (None, None) => false,
+    }
 }
 
 /// **The conformal face-pair arm** (M9-2, C2's structural rung run as
@@ -1031,6 +1123,333 @@ fn sweep_conformal_patches<T: Decide + crate::chart_region::ChartRegionLane>(
     }
 }
 
+/// **`boolean::boxes`'s `FaceBoxRule`/`EdgeBoxRule`, instantiated at
+/// this lane's scalar.** Both the rules — which kinds have a cheap
+/// sound superset, and by what construction — AND the extent
+/// arithmetic that realizes them come from there: the per-kind
+/// extents are written once, against `boxes::Span`, and this lane
+/// enters them with degenerate spans (`lo == hi`) at its own `T`
+/// while the boolean lane enters them with `[lo(), hi()]` brackets at
+/// `f64`. Neither takes a bound the other cannot, and no bound is
+/// derived twice.
+///
+/// What this lane still owns is its ARENA WALK — [`boundary_reach`]
+/// reads `body.loops`/`body.half_edges` directly rather than through
+/// the accessors the `Bounds`-allowlisted lane uses — and its answer
+/// for a description with no claim in it: `None`, versus the poison
+/// box there. Neither is arithmetic, and
+/// `the_two_box_lanes_agree_face_for_face` in `boolean::boxes` pins
+/// that what is left cannot drift.
+///
+/// A NURBS placeholder has a poison control net: `face_box` folding
+/// it to a poison box is correct there, because poison never prunes.
+/// Folding it here would produce `Some((NaN, NaN))` — neither a claim
+/// nor a refusal, since every margin against it decides NEITHER sign
+/// — so this answers `None`.
+pub(crate) fn face_reach<T: Decide>(
+    body: &Body<T>,
+    f: crate::entity::FaceKey,
+) -> Option<(Point3<T>, Point3<T>)> {
+    let surface = body
+        .get_face(f)
+        .and_then(|d| body.surfaces.get(d.surface))?;
+    match crate::boolean::boxes::face_box_rule(surface) {
+        crate::boolean::boxes::FaceBoxRule::BoundaryHull => boundary_reach(body, f),
+        crate::boolean::boxes::FaceBoxRule::ControlNet(patch) => {
+            if patch.is_placeholder() {
+                // The mvfs placeholder's control net is poison
+                // points, and this fold is `min`/`max`, which
+                // propagate NaN by contract. Folding it would
+                // return `Some((NaN, NaN))` — a box that is
+                // neither a claim nor a refusal: every margin
+                // taken against it decides NEITHER sign, so the
+                // arm falls out at its in-band refusal having
+                // compared no geometry at all, and the typed
+                // "unclaimable extent" refusal below never fires.
+                // `None` is what this function's contract already
+                // says a description with no claim in it answers,
+                // and a placeholder is that case par excellence:
+                // it is "no description yet".
+                //
+                // NOT an exclusion. Dropping the face from a
+                // solid's reach would UNDER-claim the container
+                // and could clear a body nested inside it; `None`
+                // makes the whole solid unclaimable, which is the
+                // conservative direction and the one arm 2's fold
+                // is already written for.
+                return None;
+            }
+            let mut it = patch.control().iter();
+            let first = *it.next()?;
+            let (mut lo, mut hi) = (first, first);
+            for p in it {
+                lo = Point3::new(lo.x.min(p.x), lo.y.min(p.y), lo.z.min(p.z));
+                hi = Point3::new(hi.x.max(p.x), hi.y.max(p.y), hi.z.max(p.z));
+            }
+            Some((lo, hi))
+        }
+        crate::boolean::boxes::FaceBoxRule::WholeBall { center, radius } => {
+            Some(span_pts(crate::boolean::boxes::ball_extent(
+                &crate::boolean::boxes::SpanBox::point(center),
+                radius,
+            )))
+        }
+        crate::boolean::boxes::FaceBoxRule::WholeTorus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+        } => Some(span_pts(crate::boolean::boxes::torus_extent(
+            &crate::boolean::boxes::SpanBox::point(center),
+            &crate::boolean::boxes::SpanBox::vector(axis),
+            major_radius,
+            minor_radius,
+        ))),
+        crate::boolean::boxes::FaceBoxRule::CylinderSlab {
+            origin,
+            axis,
+            radius,
+        } => {
+            // The axial extent comes from the boundary's own LOCUS
+            // — not its vertices, and not a box around it: the axial
+            // coordinate is linear along the surface, so the face's
+            // axial extremes lie ON the boundary, but not
+            // necessarily at a boundary VERTEX.
+            let h = boundary_axial(body, f, origin, axis)?;
+            let slab = span_pts(crate::boolean::boxes::slab_extent(
+                &crate::boolean::boxes::SpanBox::point(origin),
+                &crate::boolean::boxes::SpanBox::vector(axis),
+                h,
+                radius,
+            ));
+            // The azimuth clip, mirroring the boolean lane's
+            // `clip_to_boundary` — the slab is the whole turn, the face
+            // is a patch of it, and the boundary's own reach bounds the
+            // patch's footprint perpendicular to the axis (azimuth is a
+            // chart coordinate, so it takes no interior extremum). Both
+            // lanes must clip the same way or
+            // `the_two_box_lanes_agree_face_for_face` reds — which is
+            // exactly that row's job.
+            Some(match boundary_reach(body, f) {
+                Some((blo, bhi)) => (
+                    Point3::new(slab.0.x.max(blo.x), slab.0.y.max(blo.y), slab.0.z),
+                    Point3::new(slab.1.x.min(bhi.x), slab.1.y.min(bhi.y), slab.1.z),
+                ),
+                None => slab,
+            })
+        }
+        crate::boolean::boxes::FaceBoxRule::ConeSlab {
+            apex,
+            axis,
+            half_angle,
+        } => {
+            let h = boundary_axial(body, f, apex, axis)?;
+            let apex = crate::boolean::boxes::SpanBox::point(apex);
+            let axis = crate::boolean::boxes::SpanBox::vector(axis);
+            Some(span_pts(crate::boolean::boxes::cone_frustum_extent(
+                &apex,
+                &axis,
+                h,
+                half_angle.tan(),
+            )))
+        }
+    }
+}
+
+/// The face boundary's AXIAL range about `(origin, axis)` — the
+/// boundary's own locus projected on the axis, edge by edge, rather
+/// than the corners of a box around it
+/// ([`crate::boolean::boxes::edge_axial_span`], which carries why the
+/// difference is not cosmetic at a tilted axis). `None` for a face
+/// with no boundary, or one whose boundary this lane cannot walk.
+fn boundary_axial<T: Decide>(
+    body: &Body<T>,
+    f: crate::entity::FaceKey,
+    origin: Point3<T>,
+    axis: Vec3<T>,
+) -> Option<crate::boolean::boxes::Span<T>> {
+    use crate::boolean::boxes::{AxialCarrier, EdgeBoxRule, SpanBox, edge_axial_span};
+    let face = body.get_face(f)?;
+    let (o, ax) = (SpanBox::point(origin), SpanBox::vector(axis));
+    let mut acc: Option<crate::boolean::boxes::Span<T>> = None;
+    for &lk in core::iter::once(&face.outer).chain(&face.rings) {
+        let l = body.loops.get(lk)?;
+        match l.boundary {
+            LoopBoundary::Empty { vertex } => {
+                let v = body.vertices.get(vertex)?;
+                let p = SpanBox::point(*body.points.get(v.point)?);
+                let sp = edge_axial_span(&o, &ax, &AxialCarrier::Chord, (&p, &p));
+                acc = Some(acc.map_or(sp, |a| a.hull(sp)));
+            }
+            LoopBoundary::Cycle { first } => {
+                for he in body.loop_cycle(first)? {
+                    let ek = body.half_edges.get(he)?.edge;
+                    let e = body.edges.get(ek)?;
+                    let end = |h| -> Option<SpanBox<T>> {
+                        let hd = body.half_edges.get(h)?;
+                        let v = body.vertices.get(hd.start)?;
+                        Some(SpanBox::point(*body.points.get(v.point)?))
+                    };
+                    let carrier = body
+                        .curves
+                        .get(e.curve)
+                        .and_then(CurveGeom::certified)
+                        .map(geom_brep::EdgeCurve::carrier);
+                    let axial = match crate::boolean::boxes::edge_box_rule(carrier) {
+                        EdgeBoxRule::NoSoundBox => AxialCarrier::Unclaimable,
+                        EdgeBoxRule::Chord => AxialCarrier::Chord,
+                        EdgeBoxRule::ConicAmplitude {
+                            center,
+                            axis: c_axis,
+                            semi_u,
+                            semi_v,
+                            u_ref,
+                        } => AxialCarrier::Conic {
+                            center: SpanBox::point(center),
+                            u_ref: SpanBox::vector(u_ref),
+                            v_ref: SpanBox::vector(c_axis.cross(u_ref)),
+                            semi_u,
+                            semi_v,
+                            params: body
+                                .curves
+                                .get(e.curve)
+                                .and_then(CurveGeom::certified)
+                                .map(geom_brep::EdgeCurve::params),
+                        },
+                    };
+                    let sp =
+                        edge_axial_span(&o, &ax, &axial, (&end(e.he_plus)?, &end(e.he_minus)?));
+                    acc = Some(acc.map_or(sp, |a| a.hull(sp)));
+                }
+            }
+        }
+    }
+    acc
+}
+
+/// Every boundary edge's reach, hulled with the isolated-vertex loops
+/// (which have no edge to speak for them). `None` as soon as one
+/// boundary curve has no sound box — [`face_reach`]'s boundary walk.
+fn boundary_reach<T: Decide>(
+    body: &Body<T>,
+    f: crate::entity::FaceKey,
+) -> Option<(Point3<T>, Point3<T>)> {
+    let face = body.get_face(f)?;
+    let mut acc: Option<(Point3<T>, Point3<T>)> = None;
+    let mut grow = |(lo, hi): (Point3<T>, Point3<T>)| {
+        acc = Some(match acc {
+            None => (lo, hi),
+            Some((l, h)) => (
+                Point3::new(l.x.min(lo.x), l.y.min(lo.y), l.z.min(lo.z)),
+                Point3::new(h.x.max(hi.x), h.y.max(hi.y), h.z.max(hi.z)),
+            ),
+        });
+    };
+    for &lk in core::iter::once(&face.outer).chain(&face.rings) {
+        let l = body.loops.get(lk)?;
+        match l.boundary {
+            LoopBoundary::Empty { vertex } => {
+                let v = body.vertices.get(vertex)?;
+                let p = *body.points.get(v.point)?;
+                grow((p, p));
+            }
+            LoopBoundary::Cycle { first } => {
+                for he in body.loop_cycle(first)? {
+                    let ek = body.half_edges.get(he)?.edge;
+                    grow(edge_reach(body, ek)?);
+                }
+            }
+        }
+    }
+    acc
+}
+
+/// One edge's reach — [`crate::boolean::boxes::EdgeBoxRule`] at this
+/// lane's scalar.
+fn edge_reach<T: Decide>(
+    body: &Body<T>,
+    ek: crate::entity::EdgeKey,
+) -> Option<(Point3<T>, Point3<T>)> {
+    let e = body.edges.get(ek)?;
+    let end = |he| -> Option<Point3<T>> {
+        let hd = body.half_edges.get(he)?;
+        let v = body.vertices.get(hd.start)?;
+        body.points.get(v.point).copied()
+    };
+    let (a, b) = (end(e.he_plus)?, end(e.he_minus)?);
+    let chord = (
+        Point3::new(a.x.min(b.x), a.y.min(b.y), a.z.min(b.z)),
+        Point3::new(a.x.max(b.x), a.y.max(b.y), a.z.max(b.z)),
+    );
+    let carrier = body
+        .curves
+        .get(e.curve)
+        .and_then(CurveGeom::certified)
+        .map(geom_brep::EdgeCurve::carrier);
+    match crate::boolean::boxes::edge_box_rule(carrier) {
+        crate::boolean::boxes::EdgeBoxRule::NoSoundBox => None,
+        crate::boolean::boxes::EdgeBoxRule::Chord => Some(chord),
+        crate::boolean::boxes::EdgeBoxRule::ConicAmplitude {
+            center,
+            axis,
+            semi_u,
+            semi_v,
+            u_ref,
+        } => {
+            let v_ref = axis.cross(u_ref);
+            // The ARC's own extent, not the closed conic's — the same
+            // construction the boolean lane reads, so the two cannot
+            // drift (`the_two_box_lanes_agree_face_for_face` is what
+            // says so). A carrier with no certified parameters has no
+            // arc to scope and keeps the full-turn amplitude.
+            let params = body
+                .curves
+                .get(e.curve)
+                .and_then(CurveGeom::certified)
+                .map(geom_brep::EdgeCurve::params);
+            let (flo, fhi) = span_pts(match params {
+                Some((t0, t1)) => crate::boolean::boxes::arc_extent(
+                    &crate::boolean::boxes::SpanBox::point(center),
+                    &crate::boolean::boxes::SpanBox::vector(u_ref),
+                    &crate::boolean::boxes::SpanBox::vector(v_ref),
+                    crate::boolean::boxes::Span::exact(semi_u),
+                    crate::boolean::boxes::Span::exact(semi_v),
+                    t0,
+                    t1,
+                ),
+                None => crate::boolean::boxes::conic_extent(
+                    &crate::boolean::boxes::SpanBox::point(center),
+                    &crate::boolean::boxes::SpanBox::vector(u_ref),
+                    &crate::boolean::boxes::SpanBox::vector(v_ref),
+                    semi_u,
+                    semi_v,
+                ),
+            });
+            Some((
+                Point3::new(
+                    flo.x.min(chord.0.x),
+                    flo.y.min(chord.0.y),
+                    flo.z.min(chord.0.z),
+                ),
+                Point3::new(
+                    fhi.x.max(chord.1.x),
+                    fhi.y.max(chord.1.y),
+                    fhi.z.max(chord.1.z),
+                ),
+            ))
+        }
+    }
+}
+
+/// A [`crate::boolean::boxes::SpanBox`] as this lane's `(lo, hi)`
+/// corner pair, and back.
+fn span_pts<T: Decide>(s: crate::boolean::boxes::SpanBox<T>) -> (Point3<T>, Point3<T>) {
+    (
+        Point3::new(s.x.lo, s.y.lo, s.z.lo),
+        Point3::new(s.x.hi, s.y.hi, s.z.hi),
+    )
+}
+
 /// **The conservative loudness backstop** (M9-2 union fix F1): the
 /// census must DECIDE or REFUSE — it must never silently not-examine
 /// (A5's letter). Two cross-solid candidate classes have no examining
@@ -1050,10 +1469,10 @@ fn sweep_conformal_patches<T: Decide + crate::chart_region::ChartRegionLane>(
 ///    (boss-in-hole), and the embedded ball cap (the delta witness)
 ///    land here; the certified excluder this stands in for is the C9
 ///    exclusion ring. The reach boxes are SOUND per-kind supersets:
-///    `reach_box` is [`crate::boolean::boxes::FaceBoxRule`] — the ONE
-///    face-box rule — instantiated in this lane's arithmetic (the
-///    closure's own comment says why the arithmetic, and only the
-///    arithmetic, is separate). A kind with no cheap sound box refuses
+///    [`face_reach`] is [`crate::boolean::boxes::FaceBoxRule`] — the
+///    ONE face-box rule — with this module's own arena walk over the
+///    module's own per-kind extents, so no bound is derived twice. A
+///    description with no claim in it (a placeholder patch) refuses
 ///    WITHOUT a distance test rather than under-claiming its reach. A
 ///    planar face vf-NAMED by a record whose vertex is on the OTHER
 ///    FACE OF THIS PAIR defers to the confirm pass (the declared
@@ -1066,6 +1485,16 @@ fn sweep_conformal_patches<T: Decide + crate::chart_region::ChartRegionLane>(
 ///    makes no boundary event at all (the reviewed nested-cube
 ///    witness), and interference is representable only through C6's
 ///    recorded gate-skips, which do not exist yet.
+///
+///    **This is the arm where a box that is too BIG is wrong**, and
+///    the direction is easy to get backwards: over-width in the
+///    containing reach box does not cost work here, it costs an
+///    answer — a solid genuinely outside stops having a definitely
+///    negative margin and is refused as the interference class. Each
+///    arm claims exactly its rule's construction and no more
+///    (`boxes`' ceiling rows pin that), so what is left here is the
+///    looseness the rules THEMSELVES state — a whole ball for a
+///    sphere band, a full turn for an arc — not slack in the code.
 ///
 /// Both arms clear a pair ONLY on a definitely-positive separation
 /// margin (`census_backstop_gap` / `census_backstop_containment` —
@@ -1223,206 +1652,7 @@ fn sweep_cross_solid_backstop<T: Decide>(
         }
         Some((lo, hi))
     };
-    // **`boolean::boxes`'s `FaceBoxRule`/`EdgeBoxRule`, instantiated in
-    // this lane's arithmetic.** The rules — which kinds have a cheap
-    // sound superset, and by what construction — are read from there;
-    // only the min/max is re-derived. An unboxable kind is `None` here
-    // and poison there — refuse without a distance test, versus never
-    // prune. Both loud.
-    //
-    // "Unboxable" is a property of the DESCRIPTION, not only of the
-    // surface kind, and the two lanes part company on it. A NURBS
-    // placeholder has a poison control net: `face_box` folding it to a
-    // poison box is correct there, because poison never prunes. Folding
-    // it here would produce `Some((NaN, NaN))`, which is neither a claim
-    // nor a refusal — every margin against it decides NEITHER sign — so
-    // `reach_box` answers `None` for it, which is what the sentence above
-    // promises. That is the one place this instantiation must diverge
-    // from the `f64` one rather than merely re-derive its arithmetic.
-    //
-    // **The reason for the duplication has LAPSED, and its replacement is
-    // weaker.** It used to read: `face_box` reads `[lo(), hi()]` under a
-    // per-file `Bounds` allowlist (geom-core `real.rs`) that this lane is
-    // not on "and cannot join, because the census validates `Dual` bodies
-    // and `Dual` has no bracket". Since the D1 ruling (2026-08-19) `Dual`
-    // HAS a bracket — the value channel's — so that impossibility is
-    // gone. What is left is the discipline rule itself: `census.rs` is
-    // not allowlisted, so writing `T: Decide + Bounds` here fires
-    // `scripts/gates/bounds-allowlist.sh` until the seam is ratified.
-    // That is a process reason, not a type one, and it does not by itself
-    // justify carrying two derivations of the same min/max that can
-    // silently diverge, with no differential row between them. Filed as
-    // issue #700 rather than left as prose in a merged PR body.
-    let edge_reach = |ek: crate::entity::EdgeKey| -> Option<(Point3<T>, Point3<T>)> {
-        let e = body.edges.get(ek)?;
-        let end = |he| -> Option<Point3<T>> {
-            let hd = body.half_edges.get(he)?;
-            let v = body.vertices.get(hd.start)?;
-            body.points.get(v.point).copied()
-        };
-        let (a, b) = (end(e.he_plus)?, end(e.he_minus)?);
-        let chord = (
-            Point3::new(a.x.min(b.x), a.y.min(b.y), a.z.min(b.z)),
-            Point3::new(a.x.max(b.x), a.y.max(b.y), a.z.max(b.z)),
-        );
-        let carrier = body
-            .curves
-            .get(e.curve)
-            .and_then(CurveGeom::certified)
-            .map(geom_brep::EdgeCurve::carrier);
-        match crate::boolean::boxes::edge_box_rule(carrier) {
-            crate::boolean::boxes::EdgeBoxRule::NoSoundBox => None,
-            crate::boolean::boxes::EdgeBoxRule::Chord => Some(chord),
-            crate::boolean::boxes::EdgeBoxRule::ConicAmplitude {
-                center,
-                axis,
-                semi_u,
-                semi_v,
-                u_ref,
-            } => {
-                let v_ref = axis.cross(u_ref);
-                let reach = |ui: T, vi: T| ui.abs() * semi_u + vi.abs() * semi_v;
-                let (rx, ry, rz) = (
-                    reach(u_ref.x, v_ref.x),
-                    reach(u_ref.y, v_ref.y),
-                    reach(u_ref.z, v_ref.z),
-                );
-                Some((
-                    Point3::new(
-                        (center.x - rx).min(chord.0.x),
-                        (center.y - ry).min(chord.0.y),
-                        (center.z - rz).min(chord.0.z),
-                    ),
-                    Point3::new(
-                        (center.x + rx).max(chord.1.x),
-                        (center.y + ry).max(chord.1.y),
-                        (center.z + rz).max(chord.1.z),
-                    ),
-                ))
-            }
-        }
-    };
-    // Every boundary edge's reach, hulled with the isolated-vertex
-    // loops (which have no edge to speak for them). `None` as soon as
-    // one boundary curve has no sound box.
-    let boundary_reach = |f: FK| -> Option<(Point3<T>, Point3<T>)> {
-        let face = body.get_face(f)?;
-        let mut acc: Option<(Point3<T>, Point3<T>)> = None;
-        let mut grow = |(lo, hi): (Point3<T>, Point3<T>)| {
-            acc = Some(match acc {
-                None => (lo, hi),
-                Some((l, h)) => (
-                    Point3::new(l.x.min(lo.x), l.y.min(lo.y), l.z.min(lo.z)),
-                    Point3::new(h.x.max(hi.x), h.y.max(hi.y), h.z.max(hi.z)),
-                ),
-            });
-        };
-        for &lk in core::iter::once(&face.outer).chain(&face.rings) {
-            let l = body.loops.get(lk)?;
-            match l.boundary {
-                LoopBoundary::Empty { vertex } => {
-                    let v = body.vertices.get(vertex)?;
-                    let p = *body.points.get(v.point)?;
-                    grow((p, p));
-                }
-                LoopBoundary::Cycle { first } => {
-                    for he in body.loop_cycle(first)? {
-                        let ek = body.half_edges.get(he)?.edge;
-                        grow(edge_reach(ek)?);
-                    }
-                }
-            }
-        }
-        acc
-    };
-    let reach_box = |f: FK| -> Option<(Point3<T>, Point3<T>)> {
-        let surface = body
-            .get_face(f)
-            .and_then(|d| body.surfaces.get(d.surface))?;
-        match crate::boolean::boxes::face_box_rule(surface) {
-            crate::boolean::boxes::FaceBoxRule::NoSoundBox => None,
-            crate::boolean::boxes::FaceBoxRule::BoundaryHull => boundary_reach(f),
-            crate::boolean::boxes::FaceBoxRule::ControlNet(patch) => {
-                if patch.is_placeholder() {
-                    // The mvfs placeholder's control net is poison
-                    // points, and this fold is `min`/`max`, which
-                    // propagate NaN by contract. Folding it would
-                    // return `Some((NaN, NaN))` — a box that is
-                    // neither a claim nor a refusal: every margin
-                    // taken against it decides NEITHER sign, so the
-                    // arm falls out at its in-band refusal having
-                    // compared no geometry at all, and the typed
-                    // "unclaimable extent" refusal below never fires.
-                    // `None` is what this closure's contract already
-                    // says an unboxable kind answers, and a
-                    // placeholder is the unboxable case par
-                    // excellence: it is "no description yet".
-                    //
-                    // NOT an exclusion. Dropping the face from a
-                    // solid's reach would UNDER-claim the container
-                    // and could clear a body nested inside it; `None`
-                    // makes the whole solid unclaimable, which is the
-                    // conservative direction and the one arm 2's fold
-                    // is already written for.
-                    return None;
-                }
-                let mut it = patch.control().iter();
-                let first = *it.next()?;
-                let (mut lo, mut hi) = (first, first);
-                for p in it {
-                    lo = Point3::new(lo.x.min(p.x), lo.y.min(p.y), lo.z.min(p.z));
-                    hi = Point3::new(hi.x.max(p.x), hi.y.max(p.y), hi.z.max(p.z));
-                }
-                Some((lo, hi))
-            }
-            crate::boolean::boxes::FaceBoxRule::WholeBall { center, radius } => Some((
-                Point3::new(center.x - radius, center.y - radius, center.z - radius),
-                Point3::new(center.x + radius, center.y + radius, center.z + radius),
-            )),
-            crate::boolean::boxes::FaceBoxRule::CylinderSlab {
-                origin,
-                axis,
-                radius,
-            } => {
-                // The axial extent comes from the boundary's own
-                // reach, not its vertices: the axial coordinate is
-                // linear along the surface, so the face's axial
-                // extremes lie ON the boundary — but not necessarily
-                // at a boundary VERTEX.
-                let (blo, bhi) = boundary_reach(f)?;
-                let corners = [
-                    Point3::new(blo.x, blo.y, blo.z),
-                    Point3::new(bhi.x, bhi.y, bhi.z),
-                    Point3::new(blo.x, blo.y, bhi.z),
-                    Point3::new(blo.x, bhi.y, blo.z),
-                    Point3::new(bhi.x, blo.y, blo.z),
-                    Point3::new(blo.x, bhi.y, bhi.z),
-                    Point3::new(bhi.x, blo.y, bhi.z),
-                    Point3::new(bhi.x, bhi.y, blo.z),
-                ];
-                let proj = |p: Point3<T>| {
-                    (p.x - origin.x) * axis.x
-                        + (p.y - origin.y) * axis.y
-                        + (p.z - origin.z) * axis.z
-                };
-                let mut it = corners.iter();
-                let h0 = proj(*it.next()?);
-                let (mut h_min, mut h_max) = (h0, h0);
-                for p in it {
-                    let h = proj(*p);
-                    h_min = h_min.min(h);
-                    h_max = h_max.max(h);
-                }
-                let a = origin + axis * h_min;
-                let b = origin + axis * h_max;
-                let r = radius;
-                Some((
-                    Point3::new(a.x.min(b.x) - r, a.y.min(b.y) - r, a.z.min(b.z) - r),
-                    Point3::new(a.x.max(b.x) + r, a.y.max(b.y) + r, a.z.max(b.z) + r),
-                ))
-            }
-        }
-    };
+    let reach_box = |f: FK| face_reach(body, f);
 
     // Arm 1: cross-solid proximity — curved × curved, (F5) curved ×
     // planar, and the planar × planar pairs the exact sweeps cannot
@@ -1593,16 +1823,19 @@ fn sweep_cross_solid_backstop<T: Decide>(
             if vf_deferred {
                 continue; // the declared interface — confirm pass's pair
             }
-            // A kind with no sound reach box refuses without a
-            // distance test (reach_box docs — the loud direction).
+            // A DESCRIPTION with no claim in it refuses without a
+            // distance test (`face_reach` docs — the loud direction).
+            // Every surface KIND has a reach bound; what has none is a
+            // placeholder patch, or a face whose boundary carries an
+            // unboxable curve.
             let (Some((alo, ahi)), Some((blo, bhi))) = (a.boxed, b.boxed) else {
                 errors.push(ValidationError::CensusUndecidable {
                     a: EntityId::Face(a.face),
                     b: EntityId::Face(b.face),
-                    what: "a cross-solid face pair with a carrier kind that has no \
-                           sound cheap reach bound (cone/torus/NURBS, or a planar \
-                           face with a non-conic curved boundary) — the \
-                           exclusion ring is the certified excluder",
+                    what: "a cross-solid face pair one of whose faces has no sound \
+                           cheap reach bound — a placeholder surface, or a boundary \
+                           carrying a curve with no sound box — the exclusion ring \
+                           is the certified excluder",
                 });
                 continue;
             };
@@ -1982,6 +2215,7 @@ mod tests {
     use crate::entity::FaceKey;
     use crate::euler::{FaceSurface, MefSite, MevSite};
     use geom::Surface;
+    use geom_core::Tol;
     use geom_core::Vec3;
 
     fn band() -> Band {
@@ -2070,6 +2304,7 @@ mod tests {
                 },
                 p10,
                 bottom,
+                Tol::witness(),
             )
             .unwrap();
         let e_r = body
@@ -2079,6 +2314,7 @@ mod tests {
                     he2: e_b.he_minus,
                 },
                 p11,
+                Tol::witness(),
             )
             .unwrap();
         let top = rim(body, z1, false);
@@ -2090,6 +2326,7 @@ mod tests {
                 },
                 p01,
                 top,
+                Tol::witness(),
             )
             .unwrap();
         let he = body
@@ -2103,6 +2340,7 @@ mod tests {
                 },
                 EdgeCurveSpec::line_between(p01, p00),
                 FaceSurface::Shared(cyl),
+                Tol::witness(),
             )
             .unwrap()
             .face;
@@ -2115,7 +2353,7 @@ mod tests {
         let mut body = Body::<f64>::new();
         let (w1, cyl) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
         let (w2, _) = cyl_sheet(&mut body, Some(cyl), 1.0, 2.4, 0.3, 0.7, false);
-        crate::pcurves::mint_pcurves(&mut body).unwrap();
+        crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         (body, w1, w2)
     }
 
@@ -2208,7 +2446,7 @@ mod tests {
             let mut body = Body::<f64>::new();
             let (_w1, cyl) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
             let (_w2, _) = cyl_sheet(&mut body, Some(cyl), 1.0, 2.4, z0, z1, false);
-            crate::pcurves::mint_pcurves(&mut body).unwrap();
+            crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
             census_and_certify(&body, &ContactRecords::default(), band())
                 .into_iter()
                 .filter_map(|e| match e {
@@ -2260,7 +2498,7 @@ mod tests {
         let mut body = Body::<f64>::new();
         let (w1, cyl) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
         let (w3, _) = cyl_sheet(&mut body, Some(cyl), 3.0, 4.0, 0.0, 1.0, false);
-        crate::pcurves::mint_pcurves(&mut body).unwrap();
+        crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         let mut records = ContactRecords::default();
         records.patches.push(PatchContact {
             face_a: w1,
@@ -2287,7 +2525,7 @@ mod tests {
         // mean width ≈ 5e-9 m, inside Band{1e-9, 1e-8}.
         let (w1, cyl) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 0.5 + 5e-9, true);
         let (w2, _) = cyl_sheet(&mut body, Some(cyl), 0.4, 1.4, 0.5, 1.0, false);
-        crate::pcurves::mint_pcurves(&mut body).unwrap();
+        crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         let arm = census_and_certify(&body, &ContactRecords::default(), band());
         assert!(
             arm.iter()
@@ -2339,7 +2577,7 @@ mod tests {
         // Same locus, next periodic branch; u-nested and z-nested so
         // no strut/vertex coincidences muddy the face-pair question.
         let (w2, _) = cyl_sheet(&mut body, Some(cyl), 0.5 + tau, 1.2 + tau, 0.3, 0.7, false);
-        crate::pcurves::mint_pcurves(&mut body).unwrap();
+        crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         let arm = census_and_certify(&body, &ContactRecords::default(), band());
         assert!(
             arm.iter().any(|e| matches!(
@@ -2371,7 +2609,7 @@ mod tests {
         let mut body = Body::<f64>::new();
         let (w1, cyl) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
         let (w2, _) = cyl_sheet(&mut body, Some(cyl), 1.0, 2.4, 0.3, 0.7, true);
-        crate::pcurves::mint_pcurves(&mut body).unwrap();
+        crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         let mut records = ContactRecords::default();
         records.patches.push(PatchContact {
             face_a: w1,

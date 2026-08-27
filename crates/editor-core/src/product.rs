@@ -60,6 +60,7 @@ use crate::doc::Doc;
 use crate::eval::{BooleanValue, Evaluation, NodeResult, NodeValue, SplitSide, ValuePayload};
 use crate::names::{EntityKey, EntityRef, Entry, NameTable, StableName};
 use crate::node::RecipeNodeId;
+use geom_core::Tol;
 
 /// Why [`product`] refused. Fail-loud and typed: a product is all of
 /// the roots or none of them — there are no partial products.
@@ -131,21 +132,39 @@ pub enum ProductError {
     },
 }
 
+// The human-readable rendering (LIB-DOORS F6 shape): each arm states
+// the PROBLEM and FORWARDS its payload's own `Display` — the kernel's
+// refusals and validity findings both carry one, so no arm re-states
+// them (and none Debug-dumps them). A validity-finding list renders
+// one kernel finding per indented line, the finding sink's list
+// shape; node ids render plain, names as kind + minting node.
 impl core::fmt::Display for ProductError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let list = |f: &mut core::fmt::Formatter<'_>, errors: &[ValidationError]| {
+            for error in errors {
+                write!(f, "\n  {error}")?;
+            }
+            Ok(())
+        };
         match self {
             Self::UnknownNode { node } => {
-                write!(f, "product: root {node:?} has no entry in this evaluation")
+                write!(
+                    f,
+                    "product: root {} has no entry in this evaluation",
+                    node.0
+                )
             }
             Self::RootFailed { node } => write!(
                 f,
-                "product: root {node:?} failed to evaluate (ask \
-                 `Evaluation::node_error` for the typed cause)"
+                "product: root {} failed to evaluate (ask \
+                 `Evaluation::node_error` for the typed cause)",
+                node.0
             ),
             Self::RootPoisoned { node, through } => write!(
                 f,
-                "product: root {node:?} never ran — poisoned through \
-                 failed ancestor {through:?}"
+                "product: root {} never ran — poisoned through \
+                 failed ancestor {}",
+                node.0, through.0
             ),
             Self::NoBodyRoots => f.write_str(
                 "product: no product root denotes a body — this document \
@@ -153,26 +172,39 @@ impl core::fmt::Display for ProductError {
             ),
             Self::Naming { node, name } => write!(
                 f,
-                "product: root {}'s name {name:?} collides in the product's name table",
-                node.0
+                "product: root {}'s {} name (minted by node {}) collides in the \
+                 product's name table",
+                node.0,
+                name.kind.noun(),
+                name.node.0
             ),
             Self::Graft { node, source } => {
-                write!(f, "product: grafting root {node:?} refused: {source:?}")
+                write!(f, "product: grafting root {} refused: {source}", node.0)
             }
-            Self::SolidInvalid { node, errors } => write!(
-                f,
-                "product: root {node:?}'s solid is not valid at rest: {errors:?}"
-            ),
-            Self::ProductInvalid { errors } => write!(
-                f,
-                "product: the gathered product is not valid at rest: {errors:?}"
-            ),
+            Self::SolidInvalid { node, errors } => {
+                write!(
+                    f,
+                    "product: root {}'s solid is not valid at rest ({} finding(s)):",
+                    node.0,
+                    errors.len()
+                )?;
+                list(f, errors)
+            }
+            Self::ProductInvalid { errors } => {
+                write!(
+                    f,
+                    "product: the gathered product is not valid at rest ({} finding(s)):",
+                    errors.len()
+                )?;
+                list(f, errors)
+            }
             Self::ContactLineage { node, what } => write!(
                 f,
-                "product: root {node:?}'s declared contact names a {what} the \
+                "product: root {}'s declared contact names a {what} the \
                  graft's descendant map has no image for — the key bridge is \
                  incomplete; declarations are never dropped to make a gather \
-                 succeed"
+                 succeed",
+                node.0
             ),
         }
     }
@@ -193,7 +225,7 @@ impl core::error::Error for ProductError {}
 /// (the `BooleanBody` contract, which predates the channel), every
 /// other op's ride [`crate::eval::NodeValue::contacts`]. Downstream
 /// therefore never asks which op put records where.
-fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<T>>> {
+pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<T>>> {
     let carried = || Arc::clone(&value.contacts);
     let none = || Arc::new(ContactRecords::default());
     match &value.payload {
@@ -256,8 +288,9 @@ fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<T>>> {
 pub fn product<P, T: Decide + PropsQuadLane>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
+    tol: Tol,
 ) -> Result<Body<T>, ProductError> {
-    product_recorded(doc, evaluation).map(|p| p.body)
+    product_recorded(doc, evaluation, tol).map(|p| p.body)
 }
 
 /// The whole-document product, with everything the gather knows about
@@ -300,8 +333,9 @@ pub struct Product<T: Decide> {
 pub fn product_named<P, T: Decide + PropsQuadLane>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
+    tol: Tol,
 ) -> Result<(Body<T>, NameTable), ProductError> {
-    product_recorded(doc, evaluation).map(|p| (p.body, p.names))
+    product_recorded(doc, evaluation, tol).map(|p| (p.body, p.names))
 }
 
 /// The document's product with its name table AND its declared contact
@@ -326,6 +360,7 @@ pub fn product_named<P, T: Decide + PropsQuadLane>(
 pub fn product_recorded<P, T: Decide + PropsQuadLane>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
+    tol: Tol,
 ) -> Result<Product<T>, ProductError> {
     // Pass 1: every root's value, refused whole. "No partial products"
     // means a FAILED root refuses even when a later root would have
@@ -372,7 +407,7 @@ pub fn product_recorded<P, T: Decide + PropsQuadLane>(
         .sum();
     if total_solids > 1 {
         for (node, _, body, _, _) in &sources {
-            topo::validate_geometric(body.as_ref()).map_err(|errors| {
+            topo::validate_geometric(body.as_ref(), tol).map_err(|errors| {
                 ProductError::SolidInvalid {
                     node: *node,
                     errors,
@@ -396,19 +431,18 @@ pub fn product_recorded<P, T: Decide + PropsQuadLane>(
         if body.solids().next().is_none() {
             continue;
         }
-        let keys =
-            topo::graft_disjoint_all_keyed(&mut aggregate, body.as_ref()).map_err(|source| {
-                ProductError::Graft {
-                    node: *node,
-                    source: Box::new(source),
-                }
-            })?;
+        let keys = topo::graft_disjoint_all_keyed(&mut aggregate, body.as_ref(), tol).map_err(
+            |source| ProductError::Graft {
+                node: *node,
+                source: Box::new(source),
+            },
+        )?;
         carry_names(&mut names, table, *ix, &keys)
             .map_err(|name| ProductError::Naming { node: *node, name })?;
         carry_contacts(&mut contacts, records, &keys)
             .map_err(|what| ProductError::ContactLineage { node: *node, what })?;
     }
-    topo::validate_geometric(&aggregate)
+    topo::validate_geometric(&aggregate, tol)
         .map_err(|errors| ProductError::ProductInvalid { errors })?;
     Ok(Product {
         body: aggregate,
@@ -431,7 +465,7 @@ type Source<T> = (
 
 /// One body-denoting source as [`sources_of`] hands it back: output
 /// index, body, and the records keyed in that body's arena.
-type Source0<T> = (u32, Arc<Body<T>>, Arc<ContactRecords>);
+pub(crate) type Source0<T> = (u32, Arc<Body<T>>, Arc<ContactRecords>);
 
 /// Re-keys one grafted body's contact records onto the aggregate,
 /// through the graft's DESCENDANT MAP (`product_recorded`'s contacts

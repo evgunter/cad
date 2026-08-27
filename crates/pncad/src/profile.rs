@@ -21,9 +21,6 @@
 //! nameable. This module re-exports everything in `profile`'s root
 //! EXCEPT `RawLoop`, so `pncad::profile::ProfileLoop::polygon(…)` does
 //! not resolve: the trait is not in scope and there is no path to it.
-//! (`pub use profile;` did resolve it — that is the measurement this
-//! narrowing answers: a curated module in place of a whole-crate
-//! re-export, aimed at one nameability.)
 //!
 //! What this module removes is the *authoring tier*: the named,
 //! documented, prelude-carried way to mint a loop from a coordinate
@@ -46,11 +43,11 @@
 //! Authoring goes through the lattice: [`Open`], [`Start`], the
 //! binders, [`circle`], [`circle_split`].
 
-// The submodules a caller reaches for by path. `test_support` is gone
-// and `path`'s own root re-exports are already listed
+// The submodules a caller reaches for by path. `path`'s own root
+// re-exports are already listed
 // below, but the module hop is what the lattice's program vocabulary
 // (`profile::path::program::Step`) is spelled through.
-pub use ::profile::{k_stats, lift, path};
+pub use ::profile::{lift, path};
 
 // The lattice: authoring states, targets, the closed-carrier verbs.
 pub use ::profile::{

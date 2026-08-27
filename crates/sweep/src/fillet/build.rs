@@ -24,9 +24,11 @@
 //! What lives here besides the entry point is the part of the
 //! derivation that is about a SOURCE body rather than about the
 //! mutation: a face's boundary cycle, a vertex's face orbit, a
-//! planar face's outward normal, and the two per-corner derivations
-//! ([`octant_chart`], [`corner_convexity`]) the surgery reads at each
-//! trivalent corner.
+//! planar face's outward normal, and the per-corner chart derivation
+//! ([`octant_chart`]) the surgery reads at each trivalent corner.
+//! The corner's ORIENTATION bit is not derived here at all: it is
+//! whatever its admitted links carry, which the surgery reads off
+//! `Corner`'s own field.
 //!
 //! # Naming
 //!
@@ -59,9 +61,11 @@ use topo::{
     Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, ShellKey, SolidKey, VertexKey,
 };
 
-use super::battery::{Convexity, FilletRequest, Link, run_battery};
-use super::surgery::CORNER_SUPPORT_NOT_PLANAR;
-use super::{CornerConfig, FilletError, RunOutPolicy};
+use super::admit::{CornerFaces, CornerLinks};
+use super::battery::{FilletRequest, Link, run_battery};
+use super::surgery::{CORNER_SUPPORT_NOT_PLANAR, unbuilt_geometry};
+use super::{BlendKind, FilletError};
+use geom_core::Tol;
 
 /// A filleted body: the rounded solid plus the keys of the faces the
 /// blend introduced.
@@ -117,14 +121,16 @@ pub struct Filleted<T: Real> {
 /// [`FilletError::BodyNotIntact`] when the body does not hold together
 /// where the plan reads it;
 /// [`FilletError::RingClearance`] when a carried-through ring does not
-/// clear a trimline; [`FilletError::Op`] when an Euler operator
-/// refuses; [`FilletError::Certify`] when a blend description does not
-/// certify as stored.
+/// clear a trimline; [`FilletError::Op`], carrying the operator's own
+/// typed refusal, when an Euler operator refuses;
+/// [`FilletError::Certify`], carrying the pass's own typed refusal,
+/// when the result's pcurve caches cannot be re-minted.
 pub fn fillet_edges<T: Decide + Bounds>(
     body: &Body<T>,
     edges: &[EdgeKey],
     radius: T,
     band: Band,
+    tol: Tol,
 ) -> Result<Filleted<T>, FilletError> {
     // A repeated edge is malformed for the chain walk (it would
     // double a link), so it refuses before the battery samples
@@ -145,7 +151,7 @@ pub fn fillet_edges<T: Decide + Bounds>(
     let verdict = run_battery(&request, band)?;
 
     // ---- Then the assembly, which is the composition surgery. ----
-    super::surgery::fillet_surgery(body, &verdict, band)
+    super::surgery::blend_surgery(body, &verdict, band, tol)
 }
 
 /// A face's boundary cycle (outer loop, cycle order).
@@ -180,107 +186,47 @@ pub(super) fn vertex_faces<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Opti
 /// genuinely oblique case, tier-3 `VolumeUncomputable`) only when
 /// none does. Returns `(u_ref, axis)` — the seam is the picked
 /// link's first support normal.
+///
+/// **The pick always yields.** A candidate needs an incident link and
+/// a third support: [`CornerLinks`] carries at least one link, and
+/// [`CornerFaces::third`] is total over three distinct faces, so there
+/// is no "no candidate here" state left to refuse. The two refusals
+/// below both read a stored `Surface` and are the genuine geometric
+/// frontier.
+///
+/// # Errors
+///
+/// [`FilletError::UnsupportedGeometry`] when a support of this corner
+/// is not a plane.
 pub(super) fn octant_chart<T: Decide + Bounds>(
     body: &Body<T>,
-    vertex: VertexKey,
-    faces: &[FaceKey],
-    links: &[&Link<T>],
+    faces: &CornerFaces,
+    links: &CornerLinks<'_, T>,
 ) -> Result<(Vec3<T>, Vec3<T>), FilletError> {
-    let mut best: Option<(f64, Vec3<T>, Vec3<T>)> = None;
-    for l in links
-        .iter()
-        .filter(|l| l.start == vertex || l.end == vertex)
-    {
-        let (Some(n_a), Some(n_b)) = (outward_of(body, l.face_a), outward_of(body, l.face_b))
-        else {
-            let bad = if outward_of(body, l.face_a).is_none() {
-                l.face_a
-            } else {
-                l.face_b
-            };
-            return Err(FilletError::UnsupportedGeometry {
-                at: EntityId::Face(bad),
-                detail: CORNER_SUPPORT_NOT_PLANAR,
-            });
+    // `(score, u_ref, axis)` for one candidate edge: the chart aimed
+    // along it, scored by how nearly the third support's normal is
+    // parallel to its axis.
+    let candidate = |l: &Link<T>| -> Result<(f64, Vec3<T>, Vec3<T>), FilletError> {
+        let planar = |f: FaceKey| {
+            outward_of(body, f)
+                .ok_or_else(|| unbuilt_geometry(EntityId::Face(f), CORNER_SUPPORT_NOT_PLANAR))
         };
+        let (n_a, n_b) = (planar(l.face_a)?, planar(l.face_b)?);
         let axis = n_a.cross(n_b).normalize();
-        // The third support of the corner — the one this edge does
-        // not touch. `faces` is the vertex's three, so the complement
-        // is a single face.
-        let Some(&f_c) = faces.iter().find(|f| **f != l.face_a && **f != l.face_b) else {
-            continue;
-        };
-        let Some(n_c) = outward_of(body, f_c) else {
-            return Err(FilletError::UnsupportedGeometry {
-                at: EntityId::Face(f_c),
-                detail: CORNER_SUPPORT_NOT_PLANAR,
-            });
-        };
-        let score = n_c.cross(axis).norm().lo().abs();
-        if best.as_ref().is_none_or(|(s, _, _)| score < *s) {
-            best = Some((score, n_a, axis));
+        // The third support of the corner — the one this edge does not
+        // touch.
+        let n_c = planar(faces.third(l.face_a, l.face_b))?;
+        Ok((n_c.cross(axis).norm().lo().abs(), n_a, axis))
+    };
+    let mut best = candidate(links.first().link())?;
+    for l in links.rest() {
+        let next = candidate(l.link())?;
+        if next.0 < best.0 {
+            best = next;
         }
     }
-    // `best` stays `None` when no incident requested link contributed a
-    // candidate: either none touches this vertex, or every one of them
-    // has a support outside the corner's own three faces. Both are the
-    // same unbuilt configuration, and neither is the run-out door above.
-    let (_, n_a, axis) = best.ok_or(FilletError::UnsupportedRunOut {
-        at: EntityId::Vertex(vertex),
-        detail: "no requested link at this corner is supported by two of its three faces; \
-                 corners assembled from other links are not implemented",
-    })?;
+    let (_, n_a, axis) = best;
     Ok((n_a, axis))
-}
-
-/// The octant's ORIENTATION BIT at one trivalent corner (the shape
-/// [`octant_chart`] already has).
-///
-/// A corner patch is a sphere about the rolling ball's rest centre and
-/// its chart normal is the outward radial, exactly as a blend's
-/// cylinder chart normal is. The centre lies on the material side
-/// precisely when the corner is convex, so the octant's sense is the
-/// same bit its blends take, off the same stored verdict
-/// ([`Convexity::blend_sense`]) — never a sampled normal.
-///
-/// `links` are the requested links already filtered to this corner.
-/// **Neither refusal below is reachable through the front door**: it
-/// admits only convex chains, and a corner exists only where an open
-/// link terminates, so the links are always present and always agree.
-///
-/// They stay TYPED rather than becoming the addendum's row 4 because
-/// **this function cannot observe the fact that would make them
-/// impossible**: `links` is a parameter, and the door that establishes
-/// convexity is two frames up in [`super::surgery::fillet_surgery`],
-/// which carries its verdict as prose rather than as a type. An
-/// `unreachable!` here would rest on a caller's behaviour, which is the
-/// inheritance the D2 addendum's row 4 forbids; doing it honestly needs
-/// a type that says "convex link".
-pub(super) fn corner_convexity<T: Real>(
-    vertex: VertexKey,
-    links: &[&Link<T>],
-) -> Result<Convexity, FilletError> {
-    let mut convexity: Option<Convexity> = None;
-    for l in links {
-        if *convexity.get_or_insert(l.convexity) != l.convexity {
-            // The corner's own configuration, in the vocabulary the
-            // battery's classifier already speaks.
-            return Err(FilletError::FilletCornerUnsupported {
-                vertex,
-                corner: CornerConfig::MixedConvexity {
-                    convex: links
-                        .iter()
-                        .filter(|l| matches!(l.convexity, Convexity::Convex))
-                        .count(),
-                },
-                policy: RunOutPolicy::RunOutStopAtVertex,
-            });
-        }
-    }
-    convexity.ok_or(FilletError::UnsupportedRunOut {
-        at: EntityId::Vertex(vertex),
-        detail: "a corner has no requested incident link, so no octant sense is derivable",
-    })
 }
 
 /// A planar face's OUTWARD normal: the stored plane normal folded
@@ -291,4 +237,84 @@ pub(super) fn outward_of<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Vec
         Surface::Plane { normal, .. } => Some(*normal * f.sense_sign::<T>()),
         _ => None,
     }
+}
+
+// ------------------------------------------------------------------
+// The chamfer's front door.
+//
+// It lives beside `fillet_edges` rather than in `crate::chamfer`
+// because the two are one seam: the same battery, the same admission
+// tokens, the same composition surgery, and the same certified metric
+// payloads that the `Decide + Bounds` scope rule ratifies for exactly
+// these three files (`geom-core/src/real.rs`). `crate::chamfer` is
+// the verb's documented module and re-exports what is written here.
+// ------------------------------------------------------------------
+
+/// A chamfered body. The same record the fillet's assembly returns —
+/// `blend_faces` are the strips, `corner_faces` the flat patches, and
+/// `band_faces` is empty, since a chamfer has no closed-chain band.
+pub type Chamfered<T> = Filleted<T>;
+
+/// **Chamfer a set of a body's edges** at equal setback `distance`
+/// along both supports.
+///
+/// The battery runs FIRST and its refusal propagates unchanged — the
+/// same ordering contract [`fillet_edges`] keeps,
+/// for the same reason: nothing is minted before a verdict exists.
+///
+/// # Errors
+///
+/// [`FilletError::NonpositiveSize`] when `distance` is not definitely
+/// positive; [`FilletError::RepeatedEdge`] when the request names one
+/// edge twice; [`FilletError::ChamferArmUnsupported`] when a requested
+/// edge's supports are not both planes; any predicate refusal the
+/// battery raises, or [`FilletError::Escalated`] carrying the margin;
+/// [`FilletError::UnsupportedBody`], [`FilletError::UnsupportedChain`],
+/// [`FilletError::UnsupportedRunOut`],
+/// [`FilletError::UnsupportedGeometry`] or
+/// [`FilletError::FilletCornerUnsupported`] when the request is outside
+/// the assembly's front door; [`FilletError::BodyNotIntact`] when the
+/// body does not hold together where the plan reads it;
+/// [`FilletError::RingClearance`] when a carried-through ring does not
+/// clear a trimline; [`FilletError::Op`] / [`FilletError::Certify`]
+/// carrying an operator's or the pcurve pass's own typed refusal.
+pub fn chamfer_edges<T: Decide + Bounds>(
+    body: &Body<T>,
+    edges: &[EdgeKey],
+    distance: T,
+    band: Band,
+    tol: Tol,
+) -> Result<Chamfered<T>, FilletError> {
+    // The setback must be definitely positive, and that is a fact
+    // about the REQUEST, so it is read off the bracket's low end
+    // rather than metered: a `Zero`/`Negative` here is not a geometric
+    // verdict about the body, and quoting one downstream would lever
+    // the corner and clearance margins by the very number that is
+    // wrong. Written through `partial_cmp` rather than `<= 0` so the
+    // INCOMPARABLE case is an arm and not an accident: a poisoned size
+    // is not definitely positive either, and it refuses here with the
+    // other two.
+    if !matches!(
+        distance.lo().partial_cmp(&0.0),
+        Some(core::cmp::Ordering::Greater)
+    ) {
+        return Err(FilletError::NonpositiveSize {
+            size: distance.lo(),
+        });
+    }
+    // A repeated edge is malformed for the chain walk (it would double
+    // a link), so it refuses before the battery samples anything.
+    let mut requested = edges.to_vec();
+    requested.sort_unstable();
+    if let Some(edge) = requested.windows(2).find(|w| w[0] == w[1]).map(|w| w[0]) {
+        return Err(FilletError::RepeatedEdge { edge });
+    }
+
+    let request = FilletRequest {
+        body,
+        edges: edges.to_vec(),
+        radius: distance,
+    };
+    let verdict = super::battery::run_battery_for(&request, band, BlendKind::Chamfer)?;
+    super::surgery::blend_surgery(body, &verdict, band, tol)
 }

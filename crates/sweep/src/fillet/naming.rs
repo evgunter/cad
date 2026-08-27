@@ -44,12 +44,21 @@
 
 use topo::{EdgeKey, FaceKey, VertexKey};
 
-/// Which support a rim band's trim arc lies on.
+/// Which of a rim band's two supports a trim arc lies on.
+///
+/// The two variants are the carve's two ROLES — the support whose strip
+/// is merged away, and the one whose strip becomes the band — and on a
+/// LADDER rim they coincide with the kinds they are named for. On an
+/// ANNULUS rim between two CURVED walls they do not: the roles are the
+/// link's own slots, so one trim arc takes [`RimSide::Plane`] while
+/// lying on a cone. The names stay UNIQUE, so nothing collides; making
+/// the vocabulary say what it means is a change to a persisted,
+/// versioned name alphabet and is tracked as #961.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum RimSide {
-    /// The planar support (the face carrying the rim as a ring).
+    /// The HOST support — the planar one wherever the rim has one.
     Plane,
-    /// The curved support (the cap the rim bounds).
+    /// The MATE support — the curved cap on a ladder rim.
     Sphere,
 }
 

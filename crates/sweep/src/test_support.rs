@@ -40,12 +40,13 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use geom_core::{Band, Point2, Tolerance};
+use geom_core::{Band, Point2};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use topo::{Body, EdgeKey};
 
 use crate::fillet::battery::{FilletRequest, Link, run_battery};
 use crate::{Extrusion, extrude};
+use geom_core::Tol;
 
 /// The cube side the in-crate pins build on, meters.
 pub const L: f64 = 1.0;
@@ -54,7 +55,7 @@ pub const R: f64 = 0.1;
 
 /// An axis-aligned cube of side `l` with a corner at the origin:
 /// eight trivalent corners, every one of them geometrically CONVEX.
-pub fn cube(l: f64) -> Body<f64> {
+pub fn cube(l: f64, tol: Tol) -> Body<f64> {
     let lp = ProfileLoop::new(
         [(0.0, 0.0), (l, 0.0), (l, l), (0.0, l)]
             .into_iter()
@@ -62,15 +63,15 @@ pub fn cube(l: f64) -> Body<f64> {
             .collect(),
     );
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(tol)
         .unwrap();
-    extrude(&profile, Extrusion::Distance(l)).unwrap().body
+    extrude(&profile, Extrusion::Distance(l), tol).unwrap().body
 }
 
 /// Every edge of `body` resolved by the fillet battery, in edge
 /// order.
-pub fn all_links(body: &Body<f64>) -> Vec<Link<f64>> {
-    let tol = Tolerance::get();
+pub fn all_links(body: &Body<f64>, tol: Tol) -> Vec<Link<f64>> {
+    let tol = tol.get();
     let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
     let verdict = run_battery(
         &FilletRequest {
@@ -84,8 +85,92 @@ pub fn all_links(body: &Body<f64>) -> Vec<Link<f64>> {
     let mut links: Vec<Link<f64>> = verdict
         .chains
         .iter()
-        .flat_map(|c| c.links.iter().cloned())
+        .flat_map(|c| c.links().cloned())
         .collect();
     links.sort_by_key(|l| l.edge);
     links
+}
+
+/// A closed sketch loop revolved about the sketch **y-axis** — the one
+/// home for the revolve fixtures the rim suites build on. Five suites
+/// each carried a byte-identical copy of this before the fix pass; that
+/// is the S52 shape the module header names, and the copies drift.
+pub fn revolved_about_y(
+    verts: Vec<ProfileVertex<f64>>,
+    rev: crate::Revolution<f64>,
+    tol: Tol,
+) -> Body<f64> {
+    let profile = Profile::new(SketchPlane::xy(), vec![ProfileLoop::new(verts)])
+        .validate(tol)
+        .unwrap();
+    let axis = crate::RevolveAxis {
+        origin: Point2::new(0.0, 0.0),
+        dir: geom_core::Vec2::new(0.0, 1.0),
+    };
+    crate::revolve(&profile, axis, rev, tol).unwrap().body
+}
+
+/// **The dome**: a sphere zone of radius `r` from the equator up 45°,
+/// on a flat base annulus, bored on-axis at `r/2` so the profile stays
+/// ANNULAR — which is what makes the full revolve mint one wall per
+/// profile segment and CLOSED latitude rims. Its equator is the
+/// canonical one-edge closed plane–sphere rim.
+pub fn dome(r: f64, tol: Tol) -> Body<f64> {
+    revolved_about_y(dome_profile(r), crate::Revolution::Full, tol)
+}
+
+/// [`dome`]'s profile, so a suite can revolve it PARTIALLY for the
+/// differential pair.
+pub fn dome_profile(r: f64) -> Vec<ProfileVertex<f64>> {
+    let a45 = core::f64::consts::FRAC_1_SQRT_2;
+    let bulge = (core::f64::consts::FRAC_PI_4 / 4.0).tan();
+    vec![
+        ProfileVertex::new(Point2::new(0.5 * r, 0.0), 0.0),
+        ProfileVertex::new(Point2::new(r, 0.0), bulge),
+        ProfileVertex::new(Point2::new(r * a45, r * a45), 0.0),
+        ProfileVertex::new(Point2::new(0.5 * r, r * a45), 0.0),
+    ]
+}
+
+/// The one CLOSED plane–sphere rim of `body` whose circle carrier has
+/// radius `rim_r` (to 1e-6). Selection is by the analytically known
+/// radius, not by uniqueness: the dome carries two such rims.
+///
+/// # Panics
+///
+/// If the body does not carry exactly one.
+pub fn closed_plane_sphere_rim(body: &Body<f64>, rim_r: f64) -> EdgeKey {
+    let hits: Vec<EdgeKey> = body
+        .edges()
+        .filter_map(|(k, e)| {
+            let start = body.get_half_edge(e.he_plus)?.start;
+            if Some(start) != body.half_edge_end(e.he_plus) {
+                return None;
+            }
+            let surf = |he| -> Option<geom::Surface<f64>> {
+                let l = body.get_half_edge(he)?.parent_loop;
+                let f = body.get_loop(l)?.face;
+                body.get_surface(body.get_face(f)?.surface).cloned()
+            };
+            let (a, b) = (surf(e.he_plus)?, surf(e.he_minus)?);
+            let ps = |x: &geom::Surface<f64>, y: &geom::Surface<f64>| {
+                matches!(x, geom::Surface::Plane { .. })
+                    && matches!(y, geom::Surface::Sphere { .. })
+            };
+            if !(ps(&a, &b) || ps(&b, &a)) {
+                return None;
+            }
+            let c = body.get_curve_geom(e.curve)?.certified()?;
+            match *c.carrier() {
+                geom::Curve3::Circle { radius, .. } if (radius - rim_r).abs() < 1e-6 => Some(k),
+                _ => None,
+            }
+        })
+        .collect();
+    assert_eq!(
+        hits.len(),
+        1,
+        "exactly one closed plane–sphere rim of radius {rim_r}"
+    );
+    hits[0]
 }

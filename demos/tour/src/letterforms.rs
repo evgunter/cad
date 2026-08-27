@@ -7,7 +7,7 @@
 //! "H" on the xy plane extruded +z, a "T" on the yz plane extruded
 //! +x, a "C" on the zx plane extruded +y — all three letter boxes the
 //! same 3-unit height): every face a plane, every edge a line — the
-//! operand gate (`reduce::gate_operand_kinds`) passes and no curved
+//! operand gate (`reduce::gate_operand_pairs`) passes and no curved
 //! geometry goes near a boolean at all (round letterforms are the M5
 //! upgrade). A×Z was probed (#91, 2026-07-25)
 //! and refused typed then — banked as the acceptance fixture for the
@@ -39,33 +39,36 @@ use crate::paths::path_polygon;
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
 use pncad::authoring::validated;
+use pncad::geom_core::Tol;
 
 /// "H" sketch: xy plane at z = -0.25, extruded 3.5 (z ∈ [-0.25, 3.25] —
 /// covering the full-height T).
-fn h_prism<S: Scalar>(poly: &[(f64, f64)]) -> Body<S> {
+fn h_prism<S: Scalar>(poly: &[(f64, f64)], tol: Tol) -> Body<S> {
     let plane = SketchPlane::from_frame(
         Point3::new(S::from_f64(0.0), S::from_f64(0.0), S::from_f64(-0.25)),
         Vec3::new(S::from_f64(1.0), S::from_f64(0.0), S::from_f64(0.0)),
         Vec3::new(S::from_f64(0.0), S::from_f64(1.0), S::from_f64(0.0)),
     );
     extrude(
-        &validated(plane, vec![path_polygon(poly)]).expect("letterform profile"),
+        &validated(plane, vec![path_polygon(poly, tol)], tol).expect("letterform profile"),
         Extrusion::Distance(S::from_f64(3.5)),
+        tol,
     )
     .expect("extrude H")
     .body
 }
 
 /// "T" sketch: yz plane at x = -0.25, extruded 2.5 (x ∈ [-0.25, 2.25]).
-fn t_prism<S: Scalar>(poly: &[(f64, f64)]) -> Body<S> {
+fn t_prism<S: Scalar>(poly: &[(f64, f64)], tol: Tol) -> Body<S> {
     let plane = SketchPlane::from_frame(
         Point3::new(S::from_f64(-0.25), S::from_f64(0.0), S::from_f64(0.0)),
         Vec3::new(S::from_f64(0.0), S::from_f64(1.0), S::from_f64(0.0)),
         Vec3::new(S::from_f64(0.0), S::from_f64(0.0), S::from_f64(1.0)),
     );
     extrude(
-        &validated(plane, vec![path_polygon(poly)]).expect("letterform profile"),
+        &validated(plane, vec![path_polygon(poly, tol)], tol).expect("letterform profile"),
         Extrusion::Distance(S::from_f64(2.5)),
+        tol,
     )
     .expect("extrude T")
     .body
@@ -83,7 +86,7 @@ fn t_prism<S: Scalar>(poly: &[(f64, f64)]) -> Body<S> {
 /// shadow stays COMPLETE: the C's spine spans the stem's z-band over
 /// H's full-height left column, and its top arm spans every x at the
 /// T-bar band.
-fn c_prism<S: Scalar>() -> Body<S> {
+fn c_prism<S: Scalar>(tol: Tol) -> Body<S> {
     let plane = SketchPlane::from_frame(
         Point3::new(S::from_f64(0.0), S::from_f64(-0.5), S::from_f64(0.0)),
         Vec3::new(S::from_f64(0.0), S::from_f64(0.0), S::from_f64(1.0)),
@@ -101,8 +104,9 @@ fn c_prism<S: Scalar>() -> Body<S> {
         (0.1875, 2.0625),
     ];
     extrude(
-        &validated(plane, vec![path_polygon(&poly)]).expect("letterform profile"),
+        &validated(plane, vec![path_polygon(&poly, tol)], tol).expect("letterform profile"),
         Extrusion::Distance(S::from_f64(4.0)),
+        tol,
     )
     .expect("extrude C")
     .body
@@ -187,11 +191,11 @@ const V_3WAY: f64 = 2.798095703125;
 /// DescriptionNotAdjacent" posture is gone because the op refuses
 /// EARLIER and cleaner. DECLARED, the same geometry glues to the
 /// exact silhouette volume.
-fn narrate_naive<S: Scalar>() {
+fn narrate_naive<S: Scalar>(tol: Tol) {
     println!("   -- the coincidence ladder, made visible (before/after, M4 PR 5) --");
     // BEFORE: undeclared flush contact refuses typed, loudly.
-    let (h, t) = (h_prism::<S>(&H_NAIVE), t_prism::<S>(&T_NAIVE));
-    match try_intersect(&h, &t) {
+    let (h, t) = (h_prism::<S>(&H_NAIVE, tol), t_prism::<S>(&T_NAIVE, tol));
+    match try_intersect(&h, &t, tol) {
         Err(e) => {
             assert!(
                 format!("{e:?}").contains("UndeclaredCoincidence"),
@@ -211,11 +215,12 @@ fn narrate_naive<S: Scalar>() {
     }
     // AFTER: the SAME geometry with the flush contact DECLARED —
     // glued, certified, exact.
-    let r = crate::booleans::try_intersect_declared(&h, &t).expect("declared naive 2-way runs");
+    let r =
+        crate::booleans::try_intersect_declared(&h, &t, tol).expect("declared naive 2-way runs");
     let BooleanResult::Body(bb) = r else {
         panic!("declared naive 2-way cannot be empty");
     };
-    let v = pncad::topo::mass_properties(&bb.body)
+    let v = pncad::topo::mass_properties(&bb.body, tol)
         .expect("declared naive volume")
         .volume
         .f();
@@ -224,7 +229,7 @@ fn narrate_naive<S: Scalar>() {
         "declared naive 2-way volume {v} vs {V_2WAY_NAIVE}"
     );
     assert_eq!(
-        validate_pseudomanifold(&bb.body, &bb.contacts),
+        validate_pseudomanifold(&bb.body, &bb.contacts, tol),
         Ok(()),
         "the declared naive 2-way certifies at the 3' gate"
     );
@@ -236,26 +241,31 @@ fn narrate_naive<S: Scalar>() {
 }
 
 /// Builds the decoupled 2-way and 3-way results.
-pub(crate) fn build<S: Scalar>() -> (BooleanBody<S>, BooleanBody<S>) {
-    narrate_naive::<S>();
+pub(crate) fn build<S: Scalar>(tol: Tol) -> (BooleanBody<S>, BooleanBody<S>) {
+    narrate_naive::<S>(tol);
     let two = expect_seamed(
         "decoupled H x T intersect",
         check(
-            try_intersect(&h_prism::<S>(&H_DECOUPLED), &t_prism::<S>(&T_DECOUPLED)),
+            try_intersect(
+                &h_prism::<S>(&H_DECOUPLED, tol),
+                &t_prism::<S>(&T_DECOUPLED, tol),
+                tol,
+            ),
             V_2WAY,
+            tol,
         ),
         V_2WAY,
     );
     let three = expect_seamed(
         "3-way intersect (result x diamond)",
-        check(try_intersect(&two.body, &c_prism()), V_3WAY),
+        check(try_intersect(&two.body, &c_prism(tol), tol), V_3WAY, tol),
         V_3WAY,
     );
     (two, three)
 }
 
-pub fn stops() -> Vec<Stop> {
-    let (two, three) = build::<f64>();
+pub fn stops(tol: Tol) -> Vec<Stop> {
+    let (two, three) = build::<f64>(tol);
     // The shadow PROOF renders (standalone, not montage panels): the
     // 3-way solid viewed straight down each axis — orthographic, so
     // each frame IS the shadow: an H (z), a T (x), a C (y).

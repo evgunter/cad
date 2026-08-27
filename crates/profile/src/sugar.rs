@@ -26,11 +26,9 @@
 //! that [`crate::Profile::validate`] rejects with typed errors — the
 //! sugar never guesses and never panics.
 
-use geom_core::{
-    Band, BandError, Decide, Indeterminate, Margin, Point2, Real, Sign, Tolerance, Vec2,
-};
+use geom_core::k_stats::decide;
+use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Point2, Real, Sign, Tol, Vec2};
 
-use crate::k_stats::decide;
 use crate::validate::{FilletLeg, NoCornerReason};
 
 /// The sweep direction hint for [`bulge_from_center`] /
@@ -308,8 +306,7 @@ pub(crate) enum ArcTrimRefusal<T: Real> {
     /// the shorter leg on its own channel.
     LegDegenerate {
         /// The incoming leg's lever arm. Construction diagnostic: the
-        /// surviving door reads only `arm` (the raw builder's mapper,
-        /// which named the shorter leg, retired with #377).
+        /// surviving door reads only `arm`.
         #[allow(dead_code)]
         leg_in_arm: T,
         /// The outgoing leg's lever arm (same status).
@@ -386,11 +383,12 @@ pub(crate) enum ArcTrimRefusal<T: Real> {
     Band(BandError),
 }
 
-/// The ratified arc-carrier fillet construction (M5 S2), extracted
-/// verbatim from the raw builder's corner door so the twin and
-/// the PATHS algebra lowering share one code path — the
+/// The ratified arc-carrier fillet construction (M5 S2) — the
 /// [`line_line_fillet_trims`] pattern, applied to the offset-carrier
 /// corner.
+///
+/// **One consumer, `path::arc_fillet`'s lowering**, which calls this
+/// ratified construction rather than carrying a second copy of it.
 ///
 /// Runs the arm gate, the turn gate, the offset-carrier intersection and
 /// the per-candidate reach/fit pass, in exactly the shipped order and
@@ -414,9 +412,9 @@ pub(crate) fn arc_fillet_trims<T: Decide>(
     outgoing: FilletLegShape<T>,
     next: Point2<T>,
     radius: T,
-    tol: Tolerance,
+    tol: Tol,
 ) -> Result<ArcFilletOutcome<T>, ArcTrimRefusal<T>> {
-    let band = Band::new(tol.eps, tol.k * tol.eps).map_err(ArcTrimRefusal::Band)?;
+    let band = Band::new(tol.eps(), tol.k() * tol.eps()).map_err(ArcTrimRefusal::Band)?;
     // The exact-order band (validate module docs): no representable
     // f64 lies strictly inside it, so f64 classification is total.
     let exact = Band::new(f64::from_bits(1), f64::from_bits(2)).map_err(ArcTrimRefusal::Band)?;

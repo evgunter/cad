@@ -18,6 +18,7 @@ use profile::RawLoop;
 
 use geom::Surface;
 use geom_brep::EdgeGeometry;
+use geom_core::Tol;
 use profile::ProfileLoop;
 use revolve_common::*;
 use sweep::{Revolution, RevolvedKind, revolve};
@@ -29,7 +30,7 @@ fn triangle() -> ProfileLoop<f64> {
 #[test]
 fn cone_full_revolve_has_an_apex_and_certifies() {
     let vp = validated(vec![triangle()]);
-    let t = revolve(&vp, axis_y(), Revolution::Full).unwrap();
+    let t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
     assert_eq!(counts(&t.body), (4, 6, 4, 0));
     // Two surfaces total (one plane, one cone), each shared by its
@@ -58,6 +59,7 @@ fn cone_full_revolve_has_an_apex_and_certifies() {
     else {
         panic!("full revolve");
     };
+    let meridians = &meridians[0];
     // The base rim (canonical vertex 1, the profile corner (1, 0)) is
     // two half-period Intersections; the pole/apex vertices have none.
     let rim = t.rims[0][1].expect("base rim, first half");

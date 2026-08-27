@@ -21,7 +21,6 @@ from pncad import (
     import_step,
     load,
     m,
-    mm,
 )
 
 
@@ -477,9 +476,35 @@ class TestStepExport(unittest.TestCase):
         self.assertEqual(caught.exception.variant, "node_failed")
 
     def test_import_of_garbage_is_a_typed_refusal(self):
+        """The tag names WHICH refusal, not that there was one.
+
+        It used to be the literal `refused` for all twenty-one arms of
+        the importer's error, so this row could not tell a malformed
+        file from an unsupported entity from a tier refusal — and the
+        id and line that would separate them live in the message prose.
+        """
         with self.assertRaises(pncad.StepImportError) as caught:
             import_step("not a step file")
-        self.assertEqual(caught.exception.variant, "refused")
+        self.assertEqual(caught.exception.variant, "syntax")
+
+    def test_a_parsed_file_with_no_body_refuses_under_its_own_tag(self):
+        """The second tag, so the row above is pinning a MAP and not a
+        constant: two different refusals of the same door must not
+        arrive under one name."""
+        header = (
+            "ISO-10303-21;\n"
+            "HEADER;\n"
+            "FILE_DESCRIPTION((''),'2;1');\n"
+            "FILE_NAME('','',(''),(''),'','','');\n"
+            "FILE_SCHEMA(('AUTOMOTIVE_DESIGN'));\n"
+            "ENDSEC;\n"
+            "DATA;\n"
+            "ENDSEC;\n"
+            "END-ISO-10303-21;\n"
+        )
+        with self.assertRaises(pncad.StepImportError) as caught:
+            import_step(header)
+        self.assertNotEqual(caught.exception.variant, "syntax")
 
 
 class TestNoArenaKeysCross(unittest.TestCase):

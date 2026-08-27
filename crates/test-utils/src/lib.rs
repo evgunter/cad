@@ -1,19 +1,22 @@
 //! Shared test scaffolding for the whole tree — the pieces several
 //! suites would otherwise each hand-roll a copy of.
 //!
-//! Today that is exactly one thing: [`fuzz`], the harness every
-//! randomized falsification sweep draws its RNG, its per-run seed and
-//! its EFFORT dial from.
+//! Three things today:
+//!
+//! - [`fuzz`], the harness every randomized falsification sweep draws
+//!   its RNG, its per-run seed and its EFFORT dial from.
+//! - [`source`], the shared *"is this text code?"* predicate for the
+//!   guards that pin a claim about the code against the code (S117's
+//!   named way out of five hand-rolled readers).
+//! - [`vacuity`], the **anti-vacuity floor** — a statement of how much a
+//!   sampling guard actually exercised, printed every run and asserted,
+//!   so a run that exercised nothing goes red instead of green.
 //!
 //! # DEV-ONLY, by convention
 //!
 //! Nothing depends on this crate outside `[dev-dependencies]`, and
-//! nothing should. It used to live inside `geom-core` behind a
-//! `fuzz-support` feature reached through a self dev-dependency —
-//! machinery that existed *only* because the host crate was a shipping
-//! one. A standalone crate needs neither: a crate that no production
-//! manifest names cannot be reached from a production build path, which
-//! is the same guarantee the feature bought, with none of the wiring.
+//! nothing should: a crate that no production manifest names cannot be
+//! reached from a production build path.
 //!
 //! Being a LEAF with ZERO dependencies is the other half of the point.
 //! `interval-transcendentals/` is its own workspace root and is
@@ -23,3 +26,5 @@
 //! to create.
 
 pub mod fuzz;
+pub mod source;
+pub mod vacuity;

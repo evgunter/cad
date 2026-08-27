@@ -21,6 +21,21 @@
 //! affine image of a superset is a superset of the affine image, so a
 //! box-level separation is a genuine separation of the solids.
 //!
+//! **That premise is the box module's contract, and it holds on every
+//! scalar**: the per-kind extents range over a bracketed description
+//! rather than sampling one endpoint of it. This door is the one where
+//! a box-level non-overlap is a GRANT rather than a prune, so it is
+//! the door that would pay for any gap, and the sentence above may be
+//! read as unconditional.
+//!
+//! **The other direction costs this door too, and costs it more
+//! often.** A box that is too BIG cannot make a wrong certificate —
+//! it can only withhold one — but withholding is this door's whole
+//! output. What remains is the looseness the RULES themselves state —
+//! a whole ball for a sphere band, a full turn for an arc — not slack
+//! in the code: each arm claims exactly its construction, which the
+//! `boxes` module's ceiling rows pin.
+//!
 //! **This door needs no surface-kind gate of its own.** It shares the one
 //! [`crate::boolean::boxes::FaceBoxRule`]; what differs is only what a
 //! POISON box MEANS at each door, and that difference is what lets the
@@ -82,7 +97,7 @@
 //! everything, so poison refuses — it never certifies.
 
 use bvh::{Aabb, Bvh};
-use geom_core::{Affine3, Band, Bounds, Decide};
+use geom_core::{Affine3, Band, Bounds, Decide, Tol};
 
 use crate::body::Body;
 use crate::boolean::BooleanError;
@@ -128,8 +143,8 @@ impl Separation {
     /// [`BooleanError`] — the box builder's own corruption refusals (a
     /// face whose loop is unwalkable is not a body), and
     /// `ClassificationInvariant` when the ambient band is unusable.
-    pub fn of<T: Decide + Bounds>(proto: &Body<T>) -> Result<Self, BooleanError> {
-        let band = Band::linear().map_err(|_| BooleanError::ClassificationInvariant {
+    pub fn of<T: Decide + Bounds>(proto: &Body<T>, tol: Tol) -> Result<Self, BooleanError> {
+        let band = Band::linear(tol).map_err(|_| BooleanError::ClassificationInvariant {
             what: "placement separation: the ambient tolerance band is unusable",
         })?;
         let pad = sweep_pad(band);

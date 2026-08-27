@@ -15,7 +15,7 @@
 //! - same loop ⇒ `mef(Chords { he1: h1, he2: next(h2) })` (the book's
 //!   `lmef(h1, h2->nxt)`; our [`MefSite::Chords`] documents the same
 //!   run association, so the argument pair ports literally — and the
-//!   mirror test pins the outcome, not the citation), guarded by
+//!   mirror test pins the outcome, not the citation, tol), guarded by
 //!   `prev(prev(h1)) != h2` (adjacent ⇒ the chord already exists);
 //! - different loops ⇒ `mekr` with the **ring chosen structurally**
 //!   (the loop that is not the face's outer; the book's fixed
@@ -91,6 +91,7 @@ use crate::splitting::SplitPlane;
 use crate::splitting::containment::{LoopContainment, PointInLoopError, point_in_loop};
 use crate::splitting::rules::face_extent;
 use crate::validate::decide;
+use geom_core::Tol;
 
 /// Which sub-case of the arc-side **azimuth-window containment** rule
 /// refused (M5 S9). The rule selects the section arc whose azimuth
@@ -541,71 +542,6 @@ impl<T: Real> JoinLane<'_, T> {
     }
 }
 
-/// The chord spec for dividing `face` between vertices `u1 → u2`
-/// (the mef/mekr `he_plus` direction): `None` for planar faces and
-/// for ruling sections (the straight chord IS the honest carrier —
-/// the M3 lane, bit-identical), `Some(spec)` with the C5 conic arc
-/// for curved faces.
-///
-/// The conic lane (M5 PR 5):
-///
-/// 1. Classify (plane × wall surface) through THE table's
-///    [`geom_brep::plane_cylinder_section`] — trileans before any
-///    rung; `TiltedEllipse`/`Rim` proceed, `ParallelLines` falls back
-///    to the ruling chord, `TangentLine` refuses typed (C7),
-///    escalations pass through whole.
-/// 2. Select WHICH arc of the section conic lies in `face` by
-///    **azimuth-window containment** (M5 S9, repairing the PR 5
-///    RUN-sample rule — see the selection note below).
-/// 3. Describe as `Intersection { wall, aux plane, witness }` with the
-///    witness minted at the carrier's mid-parameter (the witness
-///    contract) — certification then pins endpoints, residuals, and
-///    transversality through the ordinary gate.
-///
-/// # The arc-side rule: azimuth-window containment (M5 S9)
-///
-/// The stored arc must lie inside the **divided face's own azimuth
-/// window** — the same statement M5 PR 6 certifies for pcurves
-/// ([`crate::pcurves`]), evaluated here at selection time.
-///
-/// - The window comes from the RUN this chord co-bounds the face with
-///   (`run`, the real halves between the two null halves being joined):
-///   each run edge's chart image is derived in closed form through
-///   [`geom_brep::chart_pcurve`], branch-pinned to its predecessor's
-///   exit exactly as PR 6's loop walk does, and the hull of their
-///   **exact** azimuth extents is the window. Nothing is sampled.
-/// - The chord's two complementary candidates are closed azimuth
-///   intervals anchored at its start, `[x₁, x₁ + g]` (ccw in the chart)
-///   and `[x₁ − (τ − g), x₁]`, with `g` the endpoints' azimuth gap;
-///   the selected arc is the one **contained** in the window. Exactly
-///   one is contained whenever the window is narrower than a period
-///   (the two candidates' unions cover the circle and only one can fit
-///   inside a sub-period window), so neither/both are genuine
-///   degeneracies and refuse typed with the sub-case named
-///   ([`ArcWindowCase`]) — never a guess.
-/// - Every containment margin is metered as **azimuth × chart radius**
-///   (metres, the PR 6 convention) through the named trilean
-///   `split_arc_window`; an in-band window boundary escalates F6.
-///   Which candidate is the conic parameter's ccw arc is itself a named
-///   trilean, `split_arc_chart_orientation` (θ runs ccw about the
-///   section normal, azimuth ccw about the cylinder axis: they agree
-///   iff `n̂ₑ · âc > 0`). The cw arc takes the axis-flipped frame so the
-///   carrier still runs forward `u1 → u2`.
-///
-/// **Why the PR 5 rule was wrong** (#144, and the history note in
-/// `sweep/tests/m5_pr5_tilted_cut.rs`): it decided the side from a
-/// single azimuth *sample* on the run, premised on that sample lying
-/// inside the chord's own interval. That premise fails whenever the
-/// divided face spans more azimuth than the chord — the tilted belly
-/// cut, where a 91° rim run bounds a face closed by 17.5° and 44.4°
-/// section arcs — and the rule then selected the complement arc, a body
-/// no tier-3 check could reject. Containment asks about the face, not
-/// about a point.
-///
-/// Seam placement does not enter: rotating the chart's `u_ref` shifts
-/// the window and the chord's endpoint azimuths by the same constant,
-/// and every quantity below is a difference.
-#[allow(clippy::too_many_arguments)] // one internal lane, each argument a named duty
 /// The section conic's frame — the datum both chord lanes select an
 /// arc of, in the form the arc-side rule reads it.
 struct SectionConic<T: Real> {
@@ -642,11 +578,20 @@ enum SectionCase<T: Real> {
     Tangent(geom::Curve3<T>),
 }
 
-/// The section of `plane_s × wall` under THE C5 table, in the frame
-/// the arc-side rule reads — **one implementation for both chord
-/// lanes** (smell scan S5's residue: this classification was written
-/// twice in this file, once per lane, differing only in the wording of
-/// its refusals and in what it did with the tangent arm).
+/// The section of the surface PAIR `(s1, s2)` under THE C5 table, in
+/// the frame the arc-side rule reads — **one implementation for both
+/// chord lanes** (smell scan S5's residue: this classification was
+/// written twice in this file, once per lane, differing only in the
+/// wording of its refusals and in what it did with the tangent arm).
+///
+/// **Pair-general, not plane-first.** The two arms wired today are
+/// plane×cylinder and plane×sphere, and either order is accepted: the
+/// caller hands over the pair it has, and which member is the plane is
+/// this function's question rather than the caller's. A pair with no
+/// arm — every curved×curved pair, today — refuses typed here, which
+/// is the same discipline the germ-pair frame dispatch keeps
+/// (`boolean::join::pair_section_frame`): a missing arm is never a
+/// straight chord.
 ///
 /// The sphere lane (M5 S13) classifies through `plane_sphere_section`
 /// — an exact Circle, never a fitted chord — and refuses a section
@@ -657,11 +602,32 @@ enum SectionCase<T: Real> {
 fn section_case<T: Decide>(
     face: FaceKey,
     band: Band,
-    plane_s: &geom::Surface<T>,
-    wall: &geom::Surface<T>,
+    s1: &geom::Surface<T>,
+    s2: &geom::Surface<T>,
     extent: T,
 ) -> Result<SectionCase<T>, SplitJoinError> {
     let invariant = |what: &'static str| SplitJoinError::SectionInvariant { face, what };
+    // The pair normalization: exactly one member must be the plane the
+    // section rides. Two planes have no conic to select an arc of, and
+    // a curved pair has no arm — both are named rather than folded
+    // into the wall match below.
+    let (plane_s, wall) = match (s1, s2) {
+        (geom::Surface::Plane { .. }, geom::Surface::Plane { .. }) => {
+            return Err(invariant(
+                "a plane×plane pair reached the chord's section table — a planar pair's \
+                 chord is straight and is minted by the planar lane, never here",
+            ));
+        }
+        (geom::Surface::Plane { .. }, other) => (s1, other),
+        (other, geom::Surface::Plane { .. }) => (s2, other),
+        _ => {
+            return Err(invariant(
+                "a chord's section pair has no plane — the C5 arms this lane reads are \
+                 plane×cylinder and plane×sphere, and a curved×curved pair has no arc-side \
+                 rule to run; refused typed rather than defaulted to a straight chord",
+            ));
+        }
+    };
     let table = |e: geom_brep::SectionError| match e {
         geom_brep::SectionError::Escalated(diag) => SplitJoinError::Escalated { face, diag },
         other => SplitJoinError::Section {
@@ -1004,6 +970,71 @@ fn select_arc<T: Decide>(
     }
 }
 
+/// The chord spec for dividing `face` between vertices `u1 → u2`
+/// (the mef/mekr `he_plus` direction): `None` for planar faces and
+/// for ruling sections (the straight chord IS the honest carrier —
+/// the M3 lane, bit-identical), `Some(spec)` with the C5 conic arc
+/// for curved faces.
+///
+/// The conic lane (M5 PR 5):
+///
+/// 1. Classify (plane × wall surface) through THE table's
+///    [`geom_brep::plane_cylinder_section`] — trileans before any
+///    rung; `TiltedEllipse`/`Rim` proceed, `ParallelLines` falls back
+///    to the ruling chord, `TangentLine` refuses typed (C7),
+///    escalations pass through whole.
+/// 2. Select WHICH arc of the section conic lies in `face` by
+///    **azimuth-window containment** (M5 S9, repairing the PR 5
+///    RUN-sample rule — see the selection note below).
+/// 3. Describe as `Intersection { wall, aux plane, witness }` with the
+///    witness minted at the carrier's mid-parameter (the witness
+///    contract) — certification then pins endpoints, residuals, and
+///    transversality through the ordinary gate.
+///
+/// # The arc-side rule: azimuth-window containment (M5 S9)
+///
+/// The stored arc must lie inside the **divided face's own azimuth
+/// window** — the same statement M5 PR 6 certifies for pcurves
+/// ([`crate::pcurves`]), evaluated here at selection time.
+///
+/// - The window comes from the RUN this chord co-bounds the face with
+///   (`run`, the real halves between the two null halves being joined):
+///   each run edge's chart image is derived in closed form through
+///   [`geom_brep::chart_pcurve`], branch-pinned to its predecessor's
+///   exit exactly as PR 6's loop walk does, and the hull of their
+///   **exact** azimuth extents is the window. Nothing is sampled.
+/// - The chord's two complementary candidates are closed azimuth
+///   intervals anchored at its start, `[x₁, x₁ + g]` (ccw in the chart)
+///   and `[x₁ − (τ − g), x₁]`, with `g` the endpoints' azimuth gap;
+///   the selected arc is the one **contained** in the window. Exactly
+///   one is contained whenever the window is narrower than a period
+///   (the two candidates' unions cover the circle and only one can fit
+///   inside a sub-period window), so neither/both are genuine
+///   degeneracies and refuse typed with the sub-case named
+///   ([`ArcWindowCase`]) — never a guess.
+/// - Every containment margin is metered as **azimuth × chart radius**
+///   (metres, the PR 6 convention) through the named trilean
+///   `split_arc_window`; an in-band window boundary escalates F6.
+///   Which candidate is the conic parameter's ccw arc is itself a named
+///   trilean, `split_arc_chart_orientation` (θ runs ccw about the
+///   section normal, azimuth ccw about the cylinder axis: they agree
+///   iff `n̂ₑ · âc > 0`). The cw arc takes the axis-flipped frame so the
+///   carrier still runs forward `u1 → u2`.
+///
+/// **Why the PR 5 rule was wrong** (#144, and the history note in
+/// `sweep/tests/m5_pr5_tilted_cut.rs`): it decided the side from a
+/// single azimuth *sample* on the run, premised on that sample lying
+/// inside the chord's own interval. That premise fails whenever the
+/// divided face spans more azimuth than the chord — the tilted belly
+/// cut, where a 91° rim run bounds a face closed by 17.5° and 44.4°
+/// section arcs — and the rule then selected the complement arc, a body
+/// no tier-3 check could reject. Containment asks about the face, not
+/// about a point.
+///
+/// Seam placement does not enter: rotating the chart's `u_ref` shifts
+/// the window and the chord's endpoint azimuths by the same constant,
+/// and every quantity below is a difference.
+#[allow(clippy::too_many_arguments)] // one internal lane, each argument a named duty
 fn chord_spec<T: Decide>(
     body: &mut Body<T>,
     band: Band,
@@ -1229,9 +1260,11 @@ pub(crate) fn face_azimuth_window<T: Decide>(
 /// azimuth window — the S9 statement asked of the mate's chart. Both
 /// operands' chords of one polygon side therefore select the same
 /// geometric arc, which is what keeps the zip's seams
-/// antiparallel-congruent. (Selection logic mirrors [`chord_spec`]'s
-/// S9 block deliberately — same margins, same predicate names, same
-/// refusal cases — with the window supplied instead of derived.)
+/// antiparallel-congruent. The arc selection itself is [`select_arc`],
+/// the one body this lane SHARES with [`chord_spec`]'s S9 block — same
+/// margins, same predicate names, same refusal cases because it is the
+/// same code; what differs is only that the window arrives from the
+/// mate's face instead of being derived here.
 #[allow(clippy::too_many_arguments)]
 fn bool_planar_chord_spec<T: Decide>(
     body: &mut Body<T>,
@@ -1712,6 +1745,7 @@ impl ChordJoiner {
         h1: HalfEdgeKey,
         h2: HalfEdgeKey,
         mut lane: JoinLane<'_, T>,
+        tol: Tol,
     ) -> Result<Vec<EdgeKey>, SplitJoinError> {
         let l1 = body
             .get_half_edge(h1)
@@ -1785,16 +1819,18 @@ impl ChordJoiner {
                     start_of(body, h1)?,
                     start_of(body, outside)?,
                 )?;
-                // SENSE HAZARD (M5 S11, banked): this mef re-mint
-                // stamps `sense: true` on the new fragment. Splitting
-                // a reversed (`sense: false`) face here would silently
-                // reset the bit — the fragment must INHERIT `oldf`'s
-                // sense before curved booleans make such splits
-                // reachable (`Body::set_face_sense` docs; guard:
-                // review_s11_adv's touching-union probe).
+                // The fragment INHERITS `oldf`'s orientation bit.
+                // Both arms hand `mef` the parent's surface, and
+                // `mint_face_surface_and_sense` returns the parent's
+                // sense whenever the fragment lands on it: a piece of
+                // a reversed wall is the same surface region with the
+                // same material side, so stamping `true` here would
+                // mint a silently inside-out fragment. Guard: sweep's
+                // `m5_s12_curved_ops.rs`, the row named
+                // `a_boolean_that_splits_a_reversed_wall_inherits_the_parent_bit`.
                 let created = match spec {
-                    None => body.mef_chord(site)?,
-                    Some(spec) => body.mef(site, spec, FaceSurface::Inherit)?,
+                    None => body.mef_chord(site, tol)?,
+                    Some(spec) => body.mef(site, spec, FaceSurface::Inherit, tol)?,
                 };
                 self.slivers.insert(created.face, ());
                 self.fragments.push((created.face, oldf));
@@ -1828,8 +1864,8 @@ impl ChordJoiner {
                 start_of(body, ring)?,
             )?;
             let made = match spec {
-                None => body.mekr_chord(site)?,
-                Some(spec) => body.mekr(site, spec)?,
+                None => body.mekr_chord(site, tol)?,
+                Some(spec) => body.mekr(site, spec, tol)?,
             };
             chords.push(made.edge);
         }
@@ -1883,8 +1919,8 @@ impl ChordJoiner {
                 start_of(body, next(body, h1)?)?,
             )?;
             let created = match spec {
-                None => body.mef_chord(site)?,
-                Some(spec) => body.mef(site, spec, FaceSurface::Inherit)?,
+                None => body.mef_chord(site, tol)?,
+                Some(spec) => body.mef(site, spec, FaceSurface::Inherit, tol)?,
             };
             self.slivers.insert(created.face, ());
             self.fragments.push((created.face, owner));
@@ -2016,7 +2052,23 @@ impl ChordJoiner {
     }
 }
 
-/// The face's plane normal (F5-gated: always a `Plane`).
+/// The face's **chart** plane normal (F5-gated: always a `Plane`),
+/// deliberately without the face's sense folded in.
+///
+/// Its one consumer is [`point_in_loop`], which reads the normal only
+/// to recover the loop's PLANE and whose verdict is exactly invariant
+/// under `n̂ ↦ −n̂`. **That derivation lives at `point_in_loop`**,
+/// under the function whose property it is rather than under the
+/// five-line producer that relies on it; the consequence here is that
+/// ring re-homing cannot move a ring on the sense bit, and
+/// `tests/review_m3_pr3_pil.rs` pins it.
+///
+/// The contrast with [`crate::boolean::solid_contain`]'s `face_plane`,
+/// which multiplies although its own consumer is equally sign-blind,
+/// is a naming contract rather than a correctness one: that door
+/// promises an OUTWARD normal to whoever calls it next. This one
+/// promises a chart normal and is named for it, so it is not a site
+/// of [`crate::face_normal`]'s hand-multiply inventory.
 fn face_plane_normal<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -2058,6 +2110,7 @@ fn ring_representative<T: Decide>(
 mod tests {
     use super::*;
     use crate::entity::FaceKey;
+    use geom_core::Tol;
 
     // -----------------------------------------------------------------
     // DIRECT rows for the arc-side selector. Since M5 S9 the selector is
@@ -2120,6 +2173,7 @@ mod tests {
                     r#loop: seed.r#loop,
                 },
                 p2,
+                Tol::witness(),
             )
             .unwrap();
         let ctx = SectionCtx {
@@ -2172,6 +2226,7 @@ mod tests {
                     param_start: t0,
                     param_end: t1,
                 },
+                Tol::witness(),
             )
             .unwrap();
         body.get_edge(made.edge).unwrap().he_plus
@@ -2466,8 +2521,8 @@ mod tests {
             "sphere_section_polar",
         ]
         .map(|rung| format!("\"split_{rung}\""));
-        let home = crate::fixtures::src_root().join("chord_join.rs");
-        let files = crate::fixtures::crate_sources();
+        let home = crate::source_walk::src_root().join("chord_join.rs");
+        let files = crate::source_walk::crate_sources();
         assert!(files.contains(&home), "the walk did not find chord_join.rs");
         for rung in &rungs {
             let mut sites = 0;
@@ -2493,6 +2548,84 @@ mod tests {
                 "{rung} is spelled at {sites} site(s); the arc-side rule is supposed \
                  to be written once — a second site is the S9 block copied again"
             );
+        }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod section_case_pair_tests {
+    use geom_core::{Band, Point3, Tol, Vec3};
+
+    use super::{SectionCase, section_case};
+    use crate::entity::FaceKey;
+    use crate::splitting::SplitJoinError;
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).expect("a linear band")
+    }
+
+    fn plane() -> geom::Surface<f64> {
+        geom::Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.5),
+            normal: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        }
+    }
+
+    fn cylinder() -> geom::Surface<f64> {
+        geom::Surface::Cylinder {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 1.0,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        }
+    }
+
+    fn sphere() -> geom::Surface<f64> {
+        geom::Surface::Sphere {
+            center: Point3::new(0.0, 0.0, 0.0),
+            radius: 2.0,
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        }
+    }
+
+    /// The dispatch reads a PAIR: which member carries the plane is
+    /// this table's question, not the caller's, so both orders name the
+    /// same conic.
+    #[test]
+    fn the_pair_is_order_free() {
+        let f = FaceKey::default();
+        for (a, b) in [(plane(), cylinder()), (cylinder(), plane())] {
+            let got = section_case(f, band(), &a, &b, 4.0).expect("the rim arm is wired");
+            let SectionCase::Conic(c) = got else {
+                panic!("a square cut names a rim circle");
+            };
+            assert!((c.sa - 1.0).abs() < 1e-12 && (c.sb - 1.0).abs() < 1e-12);
+        }
+    }
+
+    /// A pair with no arm refuses TYPED. It must never fall through to
+    /// `Straight`, which the callers mint a straight chord from.
+    #[test]
+    fn a_pair_without_a_plane_refuses_typed() {
+        let f = FaceKey::default();
+        for (a, b) in [
+            (cylinder(), cylinder()),
+            (cylinder(), sphere()),
+            (sphere(), sphere()),
+        ] {
+            match section_case(f, band(), &a, &b, 4.0) {
+                Err(SplitJoinError::SectionInvariant { .. }) => {}
+                Err(e) => panic!("a curved pair must refuse SectionInvariant, got {e:?}"),
+                Ok(_) => panic!("a curved pair must refuse typed, never classify"),
+            }
+        }
+        match section_case(f, band(), &plane(), &plane(), 4.0) {
+            Err(SplitJoinError::SectionInvariant { .. }) => {}
+            Err(e) => panic!("a planar pair must refuse SectionInvariant, got {e:?}"),
+            Ok(_) => panic!("a planar pair must refuse typed here, never classify"),
         }
     }
 }

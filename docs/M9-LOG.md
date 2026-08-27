@@ -262,3 +262,250 @@ dispatch
 PR-A with the standard brief lines → M9-5 spec (dependency
 discharged in code, baseline pointer still owed — see the
 caveat above) → the M9 exit walk.
+
+## M9-3 SPEC BINDING (2026-08-23) — spike run, ruling fixed, block M9-16 drawn; new orchestrator online
+
+New M9 orchestrator (remote-session harness — no tmux monitors or
+away-channel scripts; PR watching via subscriptions and scheduled
+self check-ins instead). Resume executed per #607: the salvaged
+spike was finished (API drift only — Tol threading, the SEAL
+loop/vertex doors, `geom::Surface`), run, and pushed
+(`m9/3-spike-wip` @ c0d7ddf2, still never-merge). Measured, in
+three steps: the front door refuses first; past it, reduction's
+`curved_face_arm` (reduce.rs:753 frontier) refuses declared-
+cosurface incidences typed `CurvedPierceUnsupported` WITHOUT
+consulting declarations — germ/v-v records never form, the rest
+lane is unreachable; with those incidences skipped recl.rs:40's
+untyped invariant fires on the v-v lane, reached through the
+planar cap coincidences. Bonus probe: `contact_pair_verdict` =
+`Definite` on all nine cross-authored bore×peg pairs — the
+verification dependency is sound. RULING: the split stands,
+PR-A ABSORBS the reduction rung (spec item 2, new); PR-A
+difficulty amended M → M-L pre-draw. Spec is BINDING; DRAFT
+dropped. Block M9-16 drawn v4 (byte 80 → fable's position = slot
+1): **M9-3 = FABLE**; slots 2–4 opus.
+
+Cross-program state folded at this seam: TESS-SPLIT MERGED (#951,
+2026-08-23) and ASM's program CLOSED at its ratified exit walk —
+**M9-5's fresh-state pointer now EXISTS** (ASM-LOG tail: the
+shipped selection is `split_steps` + the fixpoint snap, baseline
+re-cut at 31f052d2), so M9-5's spec consumes that directly; the
+wait-or-derive fork in the pause entry is MOOT. Census-owned
+items steered to M9 while paused: the #591-thread Door-2
+cross-instance chart-identity gap and #943 (at-rest boundary-
+flush closure, the F1/Door-2 sibling) — both M9-2-machinery
+design work, neither blocking M9-3 (the join lane is the boolean
+lane, where reduction refines). Board: PR-A dispatching on this
+seam's merge.
+
+## M9-3 MERGED (both PRs; #967 at 3057f806 + #971 at f483d8b6, 2026-08-26) — the join lane exists
+
+The milestone's core unit is done end to end. **PR-A opened the
+door** (#967, 2026-08-23): `validate_declarations` admits by CARRIER
+INVENTORY instead of refusing every non-planar declared face, the
+reduction rung's cover extends to verified declared pairs, the
+carrier lump lands at BOTH wall sites — vtxfac's pierce site and
+recl's vertex-vertex site, the untyped one the substrate found —
+and the declared-`Tangent` descent runs the EXISTING second-order
+sector trilean, so the unit mints no new metered predicate, exactly
+as the spec's default required. **PR-B closed the lane** (#971):
+multi-run slit zip (band closure) and ring-capable `glue_pair`,
+correspondence widened to the reduction's own v-v records, the D6
+smooth ladder minting `TangentIntersection` where the jet is
+determinate (the folded M9-4), and stale curved smooth seams
+re-described conventionally on their unchanged carriers instead of
+dying `JoinDesync`. Acceptance: the two-peg plate unions at volume
+exactly 48 BITWISE with every wall face deleted; the tube-chain rim
+survives as the wedge-π smooth seam carrying `TangentIntersection`;
+crosslap and the S1 suites unregressed but for one deliberate
+baseline move (the annular ring-carrying patch, retired to green
+with an exact-volume + tier-3 oracle).
+
+**OUTAGE SEAM, recorded honestly.** The 2026-08-23→25 model-limit
+outage killed the orchestrator session that dispatched this unit's
+review, between PR-B's fix pass and its merge; PR-B then sat open
+and green for three days. The reviews DID complete — #975 collects
+residues from both arms by name (item 2 "(R1 NOTE-4)", item 3
+"(R2 n1)") — but the reports, verdict labels, finding counts,
+rubric scores and per-phase figures died with that session and are
+NOT recoverable. The unit row says so in place of invented numbers,
+and the dual is recorded as attested-but-unscored. Nothing nudged
+the lane back afterwards because the away-channel then carrying M9
+watched only `verbs/` prefixes — the monitor-scope lesson of this
+milestone, and the reason the close-out happened only when an
+older M9 session was resumed and swept the board.
+
+**The close-out's own finding.** Re-merging main (151 commits)
+surfaced ONE real interaction: VERBS-GATE (#1001) had re-pinned
+`tangent_door_contradicts_escalates_and_admits` to the planar merge
+door's "not a plane" refusal, and PR-B's Rest-only class filter
+removes that path, so the union now completes. Measured before the
+assertion was touched: tier-3 valid, ONE solid, volume 16 + 0.75π
+with difference exactly 0.0 — bitwise additive across a tangent
+ruling. Flipped to the success arm carrying that oracle, on the
+same discipline PR-B applied to the annular row. A second, unrelated
+repair rode along: a main-inherited clippy `type_complexity` error
+in demos/tour that had landed ungated because the change filter
+skipped `k-lint` on the pushes carrying it — filed as the class
+issue #1023 at the VERBS orchestrator's request.
+
+**Residues, none blocking**: #974 (the coaxial cylinder×sphere
+`TangentLocus::Circle` arm — the STOP-reported witness-lane
+widening, which is why fixture (ii) is the straight-spine rim
+rather than the sphere-capped one) and #975 (six semantic residues,
+headed by the vtxfac/recl tangent-descent divergence). **STRANDED
+at the same outage moment**: branch `m9/census-xid` (890d3fb6)
+carries an unreviewed, un-PR'd start on #943's gap 2 — the Door-2
+world-carrier arm for declared planar pairs — recorded on #943
+rather than merged or discarded.
+
+Board: **M9-5 (the lily FULL rebuild) is the last unit**, and its
+fresh-state pointer exists (TESS-SPLIT #951 at 31f052d2; walls 1+7
+retire, wall 2 deferred by ruling, wall 8 rides the post-M9 pcurve
+migration, #554 rides-or-banks as a question for Evan). Then the
+M9 exit walk.
+
+## M9-5 (seam D) — the lily rebuild, the two-peg cell, the arming
+
+**Scope: SEAM D ONLY**, as ratified (#966 comment 5388118595). K1
+(wall 1) stayed banked as #968 and K2 (wall 7) stayed handed to the
+VERBS breadth slate; no operand gate was opened and no klein pin was
+touched.
+
+**The two-peg plate cell is the unit's demonstration and it landed
+whole**: `demos/tour/src/twopeg.rs`, mated + apart, three declared
+contacts (one planar `Rest`, two CYLINDRICAL), volume 48.0 BITWISE
+against the closed form the cell narrates, every cylindrical patch
+interior so the result carries no cylinder face. The sheet
+consolidation `demos/README.md` had been holding open since M5 is
+executed: `crosslap`, `crosslap_exploded` and `bossplate` come off the
+montage, `twopeg`/`twopeg_apart` go on, everything retired keeps its
+standalone render and all its assertions.
+
+**The lily authors NO join, and that is the unit's finding rather than
+a gap.** Four natural spellings were tried under Q6's latitude and
+measured to their doors: (i) a full revolve whose planar cap TOUCHES
+THE AXIS is born as the F7 defect and `merge_coplanar_faces` refuses to
+repair it (`MergedFaceRoleAmbiguous`) — the true blocker under lily
+wall 7, filed as **#1031**, now probe 13; (ii) drilling a socket into a
+round body is a curved×curved transverse subtract
+(`CurvedPierceUnsupported`); (iii) **a purely cylindrical declared
+`Rest`, with no planar `Rest` beside it, does not reach the rest lane**
+— filed as **#1032** with the isolating measurement (the refusal
+survives full engagement, partial engagement and the two-peg fixture's
+own 3-arc face structure), now probe 12; (iv) torus (#968) and NURBS
+(wall 8) unchanged. What the rebuild DID author is the plant's
+underground half: `lily_corm` (a sphere-zone swelling with a coaxial
+bore, ANNULAR caps on purpose so it is a legal operand at all) threaded
+on `lily_foot`, the straight basal internode.
+
+**A wall text on main was false and is corrected**: wall 7 blamed the
+spherical zone's two half-bands on one surface key;
+`boolean::reduce`'s `gate_maximal_faces` says in terms that same-key
+CURVED adjacency is the canonical maximal form and only the PLANAR
+same-key pair is the defect. Both orchestrators verified the reading.
+Consequence for VERBS Wave 2, written into the probe: a sphere × sphere
+germ arm alone will not flip wall 7.
+
+**#782's arming rode here**: the `k-lint` demos/tour row is widened from
+`--test eps_regression` to the whole `cargo test --release`, and the
+stale comment claiming two finding-13 rows red on main is replaced.
+`lily.rs`'s second spelling of its frontier pins is executable in the
+gate for the first time.
+
+## M9-5 MERGED (#1037 at a92ba3b4, 2026-08-26) — the last unit; the demo moment lands and the lily reports its doors
+
+The milestone's final unit is in. **The two-peg plate cell is the
+join lane's demonstration and it landed whole**: plate∪pegs mated to
+plate∖bores across ONE planar and TWO CYLINDRICAL declared `Rest`s,
+volume **48.0 BITWISE** against the closed form the cell narrates,
+every cylindrical patch interior so the result carries no cylinder
+face. The sheet consolidation `demos/README.md` had held open since
+M5 is executed. #782's CI arming rode here: the row widened from
+`--test eps_regression` to the whole release suite, its stale "two
+rows red on main" comment replaced, its cost now MEASURED rather
+than argued.
+
+**The unit's finding is that the lily authors NO join**, measured
+across four spellings under Q6's full content latitude, each hitting
+a different door M9-3 did not open. Two of those doors are now
+issues and live probes rather than prose: **#1032** (a purely
+cylindrical declared `Rest` with no planar `Rest` beside it never
+reaches the rest lane — not a lily fact, a limitation of the join
+lane M9-3 had just shipped, and nobody had noticed the two-peg
+fixture's planar contact was load-bearing) and **#1031** (a full
+revolve whose planar cap touches the axis is BORN as the F7 defect
+and `merge_coplanar_faces` refuses to repair it). What the rebuild
+DID author is the plant's underground half — `lily_corm`, annular
+caps on purpose so it is a legal operand at all, threaded on
+`lily_foot`.
+
+**A wall text on main was FALSE and is corrected**: wall 7 blamed
+the spherical zone's same-key half-bands; `gate_maximal_faces` says
+only the PLANAR same-key pair is the defect. Both orchestrators read
+the code independently before the text moved. Consequence written
+into the probe and into VERBS-PLAN: **a sphere×sphere germ arm alone
+will not flip wall 7**, because F7 refuses first and is about the
+caps — a planning error caught before the arm was scoped rather than
+after it failed to move the wall.
+
+**Two honesty rows this unit earned.** The implementer PREDICTED the
+tess-lint gate would fire and it did not (the gate is granular per
+`scene/body`, so new bodies read as new coverage); the wrong
+prediction stays visible in the PR body with its correction. And the
+`vanished` reading — done BEFORE anything was re-cut, per
+TESS-BUDGET's own rule — turned up **#1038**: 146 face rows across
+five VERBS-owned scenes have been swept and linted every run since
+the baseline was cut at 31f052d2 and **compared against nothing**, a
+comparison gate reporting green by not looking. The fold went to
+VERBS **with an audit** rather than being blessed here, because
+coverage restored is not coverage verified.
+
+Reviewer's note, recorded because the walk inherits it: this was a
+demo-class unit and therefore orchestrator-reviewed, and **the
+reviewer's own e2e run never executed** — queued out of the build
+mutex twice. The review says so and rests its dynamic evidence on
+the hosted gate, after verifying the gap rather than assuming it:
+zero files under `demos/tour/` changed since the green
+`release-default` draw, and the later ci.yml delta is comment-only.
+
+Board: **every M9 unit is merged.** Remaining: the exit walk —
+criteria vs evidence, the honesty rows, and the closure affordance
+to Evan. Open items it inherits: #1032, #1031, #1038, #968, #974,
+#975, and `m9/census-xid` still stranded against #943.
+
+## M9 CLOSED (walk ratified #1041 at b8f55b34, 2026-08-27)
+
+Evan ratified `docs/M9-EXIT-WALK.md` AS WRITTEN, which is the
+milestone's done-state of record. Two consequences the affordance
+put to him explicitly and the ratification therefore carries: **the
+lily's no-join outcome stands as an honest milestone RESULT**, not a
+shortfall to be made good later; and **#427's Q3 pushback window
+passed unexercised**, so the authority record's home closes as
+adopted — per-edge KERNEL data — with the post-M9 pcurve migration.
+
+What M9 built: the declared-contact vocabulary (M9-1), the A5
+at-rest census door (M9-2, closing #382), the OQ5 refusal migration
+(M9-0, closing #459), the pcurve unification design pass ratified as
+U2 (M9-D), the revolve pole-key emitter (D1), the join lane itself
+with M9-4's mark-wiring folded in (M9-3), and the lily rebuild with
+the two-peg plate cell (M9-5). A′ PlacedUnion went to LIB with M9
+retaining design ownership.
+
+What M9 leaves, each with a named owner in the walk's carried table:
+#1032 (cylindrical-only declared `Rest` never reaches the rest
+lane), #1031 (axis-touching planar caps born as the F7 defect),
+#1038 (a comparison gate stops comparing when the corpus outgrows
+its reference — audit half executed by VERBS, the gate fix still
+open), #968, #943 gap 2 with `m9/census-xid` recorded as a stranded
+start, #974, #975, and lily walls 2/7/8.
+
+The milestone's own methodological residue, recorded because it
+outlived the units: two standing rules landed mid-flight — a class
+finding gets a durable home AT ADJUDICATION time (#1027), and the
+foreground rule needs its `setsid` exception in every brief (#1036)
+— both bought by failures inside this milestone rather than
+theorised.
+
+**The kernel program's next milestone is M10 (error propagation,
+C5's contract items), unopened and unscheduled at this entry.**

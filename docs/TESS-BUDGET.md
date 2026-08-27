@@ -3,15 +3,24 @@
 **Status: measurement complete; the SPAN half is FIXED (TESS-SPAN,
 merged as #594; its binding spec was deleted with the other
 closed-unit artifacts and is recoverable through
-`docs/DOC-LEDGER.md`).** #320 asked whether the NURBS-wall grid
+`docs/DOC-LEDGER.md`), and the SPLIT half is FIXED (TESS-SPLIT):
+the shipped point selection is now the cell minimizer on the same
+certified ellipse under the ratified A = 16 first-fundamental-form
+aspect cap (`mesh::nurbs_cert::ASPECT_CAP` and
+`NurbsFaceBound::split_steps` are the statement of record), with
+the realized-lattice sliver machinery in force over it — the
+post-fix split ratio reads ~1.0 at constraint-inactive cells and
+the CSV's `cap_bands`/`snap_bands` columns say which constraint
+bound the rest.** #320 asked whether the NURBS-wall grid
 sizing is "honestly tight … or systematically over-conservative", and
 asked for measurement first. This document is that measurement, the
 instrument that produced it, and what the numbers said a fix would
 have to do — kept as the pre-fix record. Since TESS-SPAN the shipped
 schedule sizes each knot-span cell from its own certified bound, so
 the `span` factor below is REALIZED and the meter's columns were
-re-derived ("The columns after TESS-SPAN", below); the SPLIT factor
-remains open on the aspect-policy question.
+re-derived ("The columns after TESS-SPAN", below); since TESS-SPLIT
+the split factor is realized too, under the ratified aspect policy
+below.
 
 ## The instrument
 
@@ -69,13 +78,16 @@ sizing the lane already performed. Both run in ~4 s over the whole tour
 in release.
 
 The committed baseline is `docs/tess-budget-data/tess-budget-baseline.csv`
-(1,049 face rows, WITH the resampling pass, **re-cut at TESS-SPAN**).
+(WITH the resampling pass). Its row count is the file's own and grows
+with the tour — 1,075 at the TESS-SPLIT re-cut, and every re-cut since
+is an ordinary commit under "Re-cutting the baseline" below — so read
+the file, not this sentence, for the current count.
 It is NOT the cut this document's measurement was taken from and its
 numbers are not the ones quoted below: "The finding" reports 1,025
 faces and 390,100 grid cells against the shipped whole-patch schedule
 of the time, where the committed file's own `grid_cells` sum is
-163,182, and the total-slack figures come from that same pre-TESS-SPAN
-cut. Read the committed file as the gate's reference point and the
+46,102 (the TESS-SPAN re-cut's was 163,182), and the total-slack
+figures come from that same pre-TESS-SPAN cut. Read the committed file as the gate's reference point and the
 figures below as the pre-fix record they are labelled as. CI runs the
 sweep `--sizing-only` and gates on REGRESSION against it: a scene's
 mesh growing, a face's sizing getting wastefuller, or a scene silently
@@ -325,6 +337,34 @@ scripts/tess_budget_sweep.sh docs/tess-budget-data/tess-budget-baseline.csv
 and say WHY in the commit. A `vanished` finding is never re-baselined
 without reading it first: a scene the sweep stopped covering improves
 every total it used to appear in.
+
+**A re-cut that FOLDS IN uncovered scenes restores coverage, it does
+not verify it.** This is the sentence to read before treating a fold as
+good news, whoever is doing it. Folding an uncovered scene into the
+baseline buys comparison FROM NOW ON; it cannot recover the window the
+scene spent outside the gate. Whatever happened to its sizing in that
+interval is unaudited and is not recoverable from the sweep data, so the
+values a fold blesses are **current-state, not verified-optimal** — if
+the scene regressed in the window, the fold enshrines the regression as
+the new reference. *Coverage restored* is not *coverage verified*, and
+only an audit closes the gap.
+
+Measured instance (M9-5, PR #1037): the baseline cut at 31f052d2
+predated five scenes already on the tour — `diechamfer` 68,
+`benchlayout` 30, `diechamferblank` 26, `bench` 18, `hollowring` 4 =
+**146 face rows** — swept, measured, printed and compared against
+NOTHING on every run, while the gate reported clean. M9-5's own
+baseline change was its 47 new rows only; the five scenes' fold was
+executed by VERBS-TESSFOLD WITH the audit this section demands: each
+scene's values verified against an expectation the fold does not
+itself define (the chamfer scenes row-for-row against their
+filleted/pipped twins, `hollowring` exactly against the torus grid
+step (`mesh::sizing::torus_grid_step`), the bench scenes against
+their introducing PR's claim and the box-face arithmetic) before
+landing as reference. The class —
+a comparison gate whose coverage decays silently as the corpus
+outgrows its reference, while its verdict stays green by not looking —
+is **#1038**, sibling to #1023, and stays open past the fold.
 
 ## The split schedule's aspect policy (RATIFIED 2026-08-16, PR #568)
 

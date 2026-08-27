@@ -19,12 +19,13 @@
 
 use geom::NurbsCurve3;
 use geom_brep::SketchSegment;
+use geom_core::Tol;
 use geom_core::{Affine3, Band, Point2, Point3, Vec3};
 use sweep::skin::{SkinError, lift_surface, make_compatible, segment_curve, skin, skin_parameters};
 
 /// The band this row resolves at — every probe scales from it.
 fn band() -> Band {
-    Band::linear().expect("the linear band resolves")
+    Band::linear(Tol::witness()).expect("the linear band resolves")
 }
 
 /// Ring tolerance: the acceptance scale for a claim that is exact in

@@ -163,9 +163,8 @@ pub(crate) fn facets(mesh: &mesh::Mesh) -> Result<Vec<Facet>, StlError> {
             // ORIENTATION comes from the triangle order and nothing
             // else: outwardness is the mesh's guarantee, already
             // sense-correct (module docs).
-            // (Computing
-            // it from the f32-narrowed vertices instead was tried and
-            // rejected: apex-fan slivers become EXACTLY collinear
+            // (Not computed from the f32-narrowed vertices:
+            // apex-fan slivers become EXACTLY collinear
             // under f32 rounding at every practical δ, so an
             // "as-written" normal doesn't exist for them; external
             // checkers recomputing normals from the file's f32

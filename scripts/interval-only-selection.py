@@ -62,16 +62,49 @@ Usage:
 Writes a nextest filter expression to stdout.
 """
 
+import importlib.util
 import json
 import os
 import sys
 
-# The text a cfg naming the interval feature must contain, whatever the
-# surrounding shape (`not(...)`, `all(...)`, a gated test, a gated
-# impl). Kept as a substring rather than a regex on purpose: this is a
-# PRESENCE question, and the narrower question — is the gate additive —
-# is check-interval-cfg-additive.py's, gated separately.
-FEATURE_CFG = 'feature = "interval"'
+# THE PREDICATE IS IMPORTED, NOT RESTATED. Whether a line carries a cfg
+# naming the interval feature is one question with one home:
+# check-interval-cfg-additive.py's `carries_interval_cfg`. This script
+# used to answer it with a bare substring test over a whole file, which
+# is a question about TEXT and not about what compiles — a doc comment
+# QUOTING the attribute satisfied it, so `crates/step-import`, whose
+# only occurrence is the sentence in `tests/all.rs` explaining that
+# inner attributes survive `#[path]` aggregation, counted as gated. That
+# is the same defect #753 fixed in scripts/gates/probe-suite-census.sh,
+# and the reason the fix is an import rather than a second anchored
+# regex here: two gates answering one question two ways is how the first
+# one drifted.
+#
+# The direction that matters is stated at `CARRIES_CFG` there: this scan
+# must stay a SUPERSET of what the tripwire calls a gate, because
+# under-reporting here emits `none()` for a scope that really does have
+# interval-gated tests.
+FEATURE_CFG_DESCRIPTION = 'cfg attribute naming `feature = "interval"`'
+
+
+def _load_tripwire():
+    """The sibling tripwire, imported by path — its filename has hyphens
+    in it, so `import` cannot name it."""
+    path = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "check-interval-cfg-additive.py"
+    )
+    spec = importlib.util.spec_from_file_location("check_interval_cfg_additive", path)
+    if spec is None or spec.loader is None:
+        raise SystemExit(
+            "error: cannot load {} — this script's crate scan has no predicate "
+            "of its own and must not invent one".format(path)
+        )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+carries_interval_cfg = _load_tripwire().carries_interval_cfg
 
 
 def load(path):
@@ -123,13 +156,15 @@ def load(path):
 def crates_with_interval_gates(root, packages):
     """Which of `packages` contain any cfg naming the interval feature.
 
-    A syntactic scan of the crate's whole source, both halves, matching
-    the tripwire in check-interval-cfg-additive.py — deliberately
-    COARSER than "has a gated test", because the two ways it can be
-    wrong are not symmetric. Over-reporting (a crate whose only gates
-    are src-side impls) sends an empty difference to the exit-1 arm,
-    which is the safe direction. Under-reporting cannot happen: a gated
-    test is text that names the feature.
+    A syntactic scan of the crate's whole source, both halves, through
+    the tripwire's own predicate — deliberately COARSER than "has a
+    gated test", because the two ways it can be wrong are not symmetric.
+    Over-reporting (a crate whose only gates are src-side impls) sends an
+    empty difference to the exit-1 arm, which is the safe direction.
+    Under-reporting is the dangerous one, which is why the predicate is
+    the loosest of the tripwire's three and why it is imported from
+    there: a gate form this cannot see is one the tripwire cannot police
+    either, so the blind spot is stated once instead of diverging.
 
     A package with no crate directory is reported as gated, for the same
     reason — absence cannot be proved from a directory that is not
@@ -147,7 +182,7 @@ def crates_with_interval_gates(root, packages):
                     if not name.endswith(".rs"):
                         continue
                     with open(os.path.join(dirpath, name)) as f:
-                        if FEATURE_CFG in f.read():
+                        if any(carries_interval_cfg(line) for line in f):
                             gated.add(package)
     return gated
 
@@ -230,11 +265,13 @@ def main(argv):
         if not gated:
             sys.stderr.write(
                 "NOTE: scoped no-op — the {} crate(s) in this scope ({}) "
-                "contain no `{}` cfg at all, so this scope HAS no "
+                "carry no {} at all, so this scope HAS no "
                 "interval-gated tests and these legs have nothing to run. "
                 "Emitting `none()`. If you expected tests here, the SCOPE "
                 "is wrong, not this selection.\n".format(
-                    len(scope), ", ".join(sorted(scope)) or "none", FEATURE_CFG
+                    len(scope),
+                    ", ".join(sorted(scope)) or "none",
+                    FEATURE_CFG_DESCRIPTION,
                 )
             )
             print("none()")

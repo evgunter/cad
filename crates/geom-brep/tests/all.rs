@@ -1,8 +1,13 @@
 //! Aggregated integration-test binary for `geom-brep`.
 //!
 //! Every `tests/*.rs` suite is included here VERBATIM via `#[path]`, so
-//! this one binary replaces what were 17 separate test targets. The files
-//! themselves are untouched: each keeps its own `//!` docs, its inner
+//! this one binary stands in for one test target per suite.
+//! The suite count is deliberately NOT restated in prose here:
+//! `every_suite_file_is_aggregated` below checks this file against the
+//! directory on every run, and a number written out beside it is a
+//! second, unchecked copy of a set the compiler already knows.
+//!
+//! The files themselves are untouched: each keeps its own `//!` docs, its inner
 //! attributes (`#![cfg(feature = "interval")]` and friends work as
 //! module-level attributes), and its own `mod <helper>;` lines — a
 //! `#[path]` module's child modules resolve against the DIRECTORY
@@ -30,6 +35,10 @@
 // the lint gate for every suite module included below.
 #![allow(clippy::duplicate_mod)]
 
+#[path = "approx_surface.rs"]
+mod approx_surface;
+#[path = "arc_eval_anchor.rs"]
+mod arc_eval_anchor;
 #[path = "decoration_plane_mint.rs"]
 mod decoration_plane_mint;
 #[path = "imported_chart_arc_rim.rs"]
@@ -50,12 +59,27 @@ mod m5_pr9_tangent;
 mod m7_8_plane_nurbs_edge;
 #[path = "m8_f67_r1_probes.rs"]
 mod m8_f67_r1_probes;
+#[path = "offa_r1_probes.rs"]
+mod offa_r1_probes;
+#[path = "offb_r1_probes.rs"]
+mod offb_r1_probes;
+
+#[path = "offb_r2_probes.rs"]
+mod offb_r2_probes;
+
+#[path = "offset_fit.rs"]
+mod offset_fit;
+
+#[path = "offset_mint.rs"]
+mod offset_mint;
 #[path = "pcurve_conic.rs"]
 mod pcurve_conic;
 #[path = "pcurve_parameter_finding.rs"]
 mod pcurve_parameter_finding;
 #[path = "r1_pxn_probes.rs"]
 mod r1_pxn_probes;
+#[path = "review_arceval_r1_probes.rs"]
+mod review_arceval_r1_probes;
 #[path = "review_flux_probes_r1.rs"]
 mod review_flux_probes_r1;
 #[path = "review_m2_pr3_certify.rs"]
@@ -86,6 +110,8 @@ mod rim_dim_review_probes;
 mod rim_dim_scale_twins;
 #[path = "s58_iso_rectangle.rs"]
 mod s58_iso_rectangle;
+#[path = "s81_one_rim_level_rule.rs"]
+mod s81_one_rim_level_rule;
 #[path = "span_meter_dim_twins.rs"]
 mod span_meter_dim_twins;
 

@@ -10,10 +10,11 @@
 //! fixture roots are walked, so a fixture added without a row here
 //! turns this suite red rather than quietly escaping the gate.
 //!
-//! Three things are asserted per file, at three tolerances (the file's
-//! own ε_in, and overrides 1e-6 / 1e-12) — with ONE documented
-//! exception, `dm1-id-214.stp`, which is swept at its own ε_in only;
-//! see [`eps_in_rows_for`] for what that costs and what it buys:
+//! Three things are asserted per file at the file's own declared ε_in,
+//! and additionally at the overrides 1e-6 / 1e-12 for the files
+//! [`EPS_IN_SWEPT`] names — measured 2026-08-22 to be the only ones
+//! whose outcome moves with ε_in at all. See that constant for the
+//! measurement and for what the reduction gives up:
 //!
 //! * **the disposition** — solid, wireframe, or a typed refusal with
 //!   its reason. Every file in [`CORPUS`] not marked `EpsSensitive`
@@ -53,10 +54,8 @@
 //! file fails the gate. 44 solids pass, 8 files refuse for reasons that predate this
 //! unit (one of them, `band_c180`, at the gate itself — the inside-out
 //! torus band, refusing now through the general mechanism that
-//! replaced its band-only backstop), and one file is a wireframe. The
-//! previously-'importing' body that turns out to have been invalid all
-//! along — #260's "arguably the point" — is NOT in the committed
-//! corpus; the one body class the gate newly refuses is the
+//! replaced its band-only backstop), and one file is a wireframe.
+//! The one body class the gate newly refuses is the
 //! rational-walled loft, which has no committed fixture and whose row
 //! lives in `nurbs_import.rs`.
 //!
@@ -77,6 +76,7 @@
 use std::path::{Path, PathBuf};
 
 use Disposition::{EpsSensitive, Pass, Refused, Wireframe};
+use geom_core::Tol;
 use step_import::{ImportOptions, StepImport, StepImportError, import_step};
 
 /// What a corpus file does at import, at every tolerance in the sweep.
@@ -114,36 +114,66 @@ const PINNED_AMBIENT: [f64; 3] = [geom_core::tolerance::DEFAULT_EPS, 1e-6, 1e-12
 const EPS_IN_ROWS: [(&str, Option<f64>); 3] =
     [("file", None), ("1e-6", Some(1e-6)), ("1e-12", Some(1e-12))];
 
-/// The `eps_in` rows THIS file is swept at — the whole sweep for every
-/// corpus file but one.
+/// **The files swept at all three ε_in tags.** Every other corpus file
+/// is imported once, at its own declared ε_in.
 ///
-/// **`dm1-id-214.stp` is swept at its own ε_in only** (the 2026-08-13
-/// test-time audit). dm1 is by far the most expensive import in the
-/// corpus, and importing it three times per ambient row was 74% of this
-/// test's entire cost — the other 53 files, across all three ε_in tags,
-/// together cost a small fraction of it.
+/// This is the 2026-08-13 audit's dm1 exemption, generalised on a
+/// measurement rather than on cost alone.
 ///
-/// **What that costs, said plainly:** the EXECUTED measurement that
-/// dm1's disposition is ε_in-invariant at each ambient band. Its nine
-/// cells in [`EPS_ROWS`] recorded the same disposition for all three
-/// ε_in tags at every band — "ε_in moves nothing, which is itself the
-/// measurement" — and three of those nine are what still runs. So the
-/// invariance is now a RECORDED finding (the reason is in the
-/// [`EPS_ROWS`] comment: recognition certifies this file's carriers
-/// with ~14 decades of margin, so no interpretation budget in this
-/// sweep can change what is promoted), not a re-executed one. If that
-/// margin argument is ever in doubt, restore the two dropped tags here
-/// and the completeness test will demand their cells back.
+/// # What the ε_in sweep is FOR, and why one file carries it
 ///
-/// **What is NOT lost:** the AMBIENT sweep, which is where dm1 actually
-/// moves (rational-flux stall at the two fine bands, the `#389` ladder
-/// gap at 1e-6). All three ambient rows still import dm1 and still pin
-/// its disposition cell by cell.
+/// ε_in is the INTERPRETATION tolerance — the budget the adoption
+/// ladder spends deciding what a file's carriers certify AS. It can
+/// only change a disposition for a file with something sitting near
+/// that budget. Every committed file but one states itself to full
+/// double precision and certifies with enormous margin, so its
+/// disposition is a constant function of ε_in — which the sweep was
+/// re-measuring 61 times a run, at every ambient band. `ftc11_uref_off`
+/// is the exception BY CONSTRUCTION: it is the deliberately degenerate
+/// band fixture, whose ~1.6e-6 m seam residual is engineered to sit
+/// where a tolerance decides it.
+///
+/// # The measurement, taken rather than assumed (2026-08-22)
+///
+/// Every file in [`CORPUS`] was imported at all three ε_in tags at all
+/// three [`PINNED_AMBIENT`] bands — 558 imports — and the outcomes
+/// compared in FULL: the whole census for a solid, the whole refusal
+/// message for a refusal, not the coarse [`Disposition`] class. Across
+/// the entire corpus **exactly one file's outcome moves with ε_in**,
+/// and it is `ftc11_uref_off` at all three bands (`file` refuses on the
+/// seam halfplane; `1e-6` and `1e-12` reach the intersection arm, the
+/// param span, or pass — see [`EPS_ROWS`]). The other 61 are invariant
+/// to the byte.
+///
+/// Comparing full messages rather than classes is what makes that
+/// negative result worth acting on: a file that changed WHY it refused
+/// while staying `Refused` would have shown up here.
+///
+/// # What it costs, said plainly, and what is NOT lost
+///
+/// Given up: the EXECUTED per-run re-measurement of ε_in-invariance for
+/// 61 files. It is a recorded finding now, not a live one, exactly as
+/// dm1's has been since 2026-08-13. A file that BECOMES ε_in-sensitive
+/// would go unnoticed until someone re-takes the measurement above.
+///
+/// Not given up: the AMBIENT sweep, which is the axis these files
+/// actually move on, and which still runs on every file at every band;
+/// every file's disposition, census and refusal reason at its own
+/// declared ε_in, every run; and the full ε_in sweep on the one file
+/// that is ε_in-sensitive, still pinned cell by cell in [`EPS_ROWS`].
+///
+/// Measured saving: ~2.8 s of this row's ~8.1 s at CI's opt-2 settings
+/// (4-vCPU box, 2026-08-22; CI's 2-vCPU runner differs). `dm1` was
+/// already exempt and is not in the figure.
+const EPS_IN_SWEPT: [&str; 1] = [FTC11];
+
+/// The `eps_in` rows THIS file is swept at — see [`EPS_IN_SWEPT`] for
+/// the measurement that decides which files get all three.
 fn eps_in_rows_for(rel: &str) -> &'static [(&'static str, Option<f64>)] {
-    if rel == DM1 {
-        &EPS_IN_ROWS[..1]
-    } else {
+    if EPS_IN_SWEPT.contains(&rel) {
         &EPS_IN_ROWS
+    } else {
+        &EPS_IN_ROWS[..1]
     }
 }
 
@@ -177,7 +207,7 @@ fn eps_in_rows_for(rel: &str) -> &'static [(&'static str, Option<f64>)] {
 ///   the NIST inch translator prints ~12 significant digits, so the
 ///   file does not state itself to 1e-12 m, and the adoption ladder
 ///   says so by name instead of certifying a carrier it cannot.
-const EPS_ROWS: [(&str, f64, &str, Disposition); 21] = [
+const EPS_ROWS: [(&str, f64, &str, Disposition); 15] = [
     // -- tests/fixtures/band/ftc11_uref_off.stp -----------------------
     (FTC11, 1e-9, "file", Refused(SEAM_HALFPLANE_DEFINITE)),
     (FTC11, 1e-9, "1e-6", Refused(TANGENT_PLANES_COINCIDE)),
@@ -189,15 +219,20 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 21] = [
     (FTC11, 1e-12, "1e-6", Pass(1, 1, 6, 16, 12)),
     (FTC11, 1e-12, "1e-12", Pass(1, 1, 6, 16, 12)),
     // -- tests/fixtures/wild/nist/nist_ftc_09_asme1_rd.stp ------------
+    // The AMBIENT sweep only, at this file's own ε_in — the same shape
+    // dm1 took in 2026-08-13, for the same reason and on the same kind
+    // of evidence. It was nine cells until 2026-08-22; the six dropped
+    // ones were the `1e-6` and `1e-12` ε_in tags, and each held the
+    // SAME disposition, census and refusal message as the `file` tag
+    // beside it at every band. This file is AMBIENT-sensitive and
+    // ε_in-INVARIANT, and those are different axes: what moves it is
+    // that the NIST inch translator prints ~12 significant digits, so
+    // at ambient 1e-12 the file does not state itself finely enough —
+    // a property of the file against the ambient band, which no
+    // interpretation budget in this sweep touches. See [`EPS_IN_SWEPT`].
     (NIST09, 1e-9, "file", Pass(1, 1, 158, 454, 300)),
-    (NIST09, 1e-9, "1e-6", Pass(1, 1, 158, 454, 300)),
-    (NIST09, 1e-9, "1e-12", Pass(1, 1, 158, 454, 300)),
     (NIST09, 1e-6, "file", Pass(1, 1, 158, 454, 300)),
-    (NIST09, 1e-6, "1e-6", Pass(1, 1, 158, 454, 300)),
-    (NIST09, 1e-6, "1e-12", Pass(1, 1, 158, 454, 300)),
     (NIST09, 1e-12, "file", Refused(ENDPOINT_START_MAPPED_CURVE)),
-    (NIST09, 1e-12, "1e-6", Refused(ENDPOINT_START_MAPPED_CURVE)),
-    (NIST09, 1e-12, "1e-12", Refused(ENDPOINT_START_MAPPED_CURVE)),
     // -- tests/fixtures/wild/stepcode/dm1-id-214.stp (#327) -----------
     // The AMBIENT sweep only, at this file's own ε_in: two cells at the
     // rational-flux stall, one at the ladder's `#389` gap.
@@ -452,11 +487,12 @@ const CORPUS: [(&str, Disposition); 62] = [
         // #389 reachable at all — it had been masked behind #685 at
         // every band — so the coarse cell is a PRE-EXISTING gap newly
         // exposed, not a movement of anything #327 built. Three cells
-        // in `EPS_ROWS`, one per ambient band: this is the ONE file the
-        // ε_in sweep no longer runs on (`eps_in_rows_for`, the
-        // 2026-08-13 audit), so its ε_in-invariance is recorded there
-        // rather than re-measured. The ambient sweep — the axis it
-        // MOVES on — is untouched.
+        // in `EPS_ROWS`, one per ambient band. This was the FIRST file
+        // the ε_in sweep stopped running (the 2026-08-13 audit); since
+        // 2026-08-22 that is the corpus-wide default and the exemption
+        // is the other way round — see `EPS_IN_SWEPT`. Either way its
+        // ε_in-invariance is recorded rather than re-measured, and the
+        // ambient sweep — the axis it MOVES on — is untouched.
         DM1,
         EpsSensitive,
     ),
@@ -618,7 +654,7 @@ fn the_table_is_the_whole_corpus() {
 fn assert_typed_outcome(who: &str, got: Result<StepImport, StepImportError>) {
     match got {
         Ok(StepImport::Solid { body, .. }) => assert_eq!(
-            topo::validate_geometric(&body),
+            topo::validate_geometric(&body, Tol::witness()),
             Ok(()),
             "{who}: import shipped a body its own gate refuses"
         ),
@@ -638,6 +674,22 @@ fn assert_typed_outcome(who: &str, got: Result<StepImport, StepImportError>) {
 /// combinations — so a cell that goes missing is red, and so is a cell
 /// left behind for a tag that is no longer swept (which would otherwise
 /// sit there unread, claiming a measurement nothing performs).
+/// [`EPS_IN_SWEPT`] must name files the corpus actually holds.
+///
+/// The list is the only thing standing between a file and a silently
+/// single-row sweep, so a typo in it — or a fixture renamed out from
+/// under it — must be loud rather than a quietly narrower gate.
+#[test]
+fn the_eps_in_swept_files_are_corpus_files() {
+    for swept in EPS_IN_SWEPT {
+        assert!(
+            CORPUS.iter().any(|(p, _)| *p == swept),
+            "EPS_IN_SWEPT names {swept:?}, which is not in CORPUS — the ε_in sweep it \
+             asks for runs on nothing"
+        );
+    }
+}
+
 #[test]
 fn every_eps_sensitive_row_is_pinned_cell_by_cell() {
     let mut markers: Vec<&str> = CORPUS
@@ -683,7 +735,7 @@ fn expected(rel: &str, row: Disposition, eps_tag: &str) -> Option<Disposition> {
     if row != EpsSensitive {
         return Some(row);
     }
-    let ambient = geom_core::Tolerance::get().eps;
+    let ambient = geom_core::Tol::witness().get().eps;
     EPS_ROWS
         .iter()
         .find(|(p, a, t, _)| *p == rel && *a == ambient && *t == eps_tag)
@@ -710,13 +762,13 @@ fn every_corpus_import_passes_the_shared_gate() {
                 // Off the pinned ambient matrix. The disposition of an
                 // ε-sensitive file is not knowable here, but the gate's
                 // claim still is, and asserting it is not nothing.
-                assert_typed_outcome(&who, import_step(&text, &options));
+                assert_typed_outcome(&who, import_step(&text, &options, Tol::witness()));
                 continue;
             };
-            match (import_step(&text, &options), want) {
+            match (import_step(&text, &options, Tol::witness()), want) {
                 (Ok(StepImport::Solid { body, .. }), Pass(s, sh, f, e, v)) => {
                     assert_eq!(
-                        topo::validate_geometric(&body),
+                        topo::validate_geometric(&body, Tol::witness()),
                         Ok(()),
                         "{who}: the SHIPPED body must be gate-clean — import handed out a \
                          body its own gate refuses, which can only mean the gate is no \
@@ -814,7 +866,7 @@ fn the_refusal_carries_the_kernels_verdicts() {
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/band/band_c180.stp"),
     )
     .unwrap();
-    let e = import_step(&text, &ImportOptions::default()).unwrap_err();
+    let e = import_step(&text, &ImportOptions::default(), Tol::witness()).unwrap_err();
     let StepImportError::TierInvalid { solid, errors } = &e else {
         panic!("expected the gate's typed refusal, got: {e:?}");
     };

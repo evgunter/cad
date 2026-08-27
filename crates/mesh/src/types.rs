@@ -13,8 +13,11 @@ use topo::{EdgeKey, FaceKey, VertexKey};
 ///
 /// Watertightness contract: patches of adjacent faces share the same
 /// position indices along their common boundary polylines, so the
-/// triangle set is a closed 2-manifold for closed input bodies
-/// ([`crate::validate::check_mesh`] verifies).
+/// triangle set is a closed 2-manifold for closed input bodies.
+/// [`crate::validate::check_mesh`] re-derives that over a `Mesh` and
+/// is what would catch a violation — but **[`fn@crate::tessellate`]
+/// does not run it**, so a consumer that needs the contract checked
+/// rather than argued has to call it.
 ///
 /// No `PartialEq`: positions are floats; D9 comparisons are bitwise
 /// (compare `f64::to_bits` of positions plus the index/key structure —
@@ -158,10 +161,10 @@ pub enum TessellateError {
         what: &'static str,
     },
     /// A requested resolution overflowed the sanity cap (δ so small
-    /// that a single edge or face would need more than ~2²⁴ chords or
-    /// grid steps) — refused before allocating.
+    /// that a single edge or face would need a chord or grid-division
+    /// count above ~2²⁴) — refused before allocating.
     ResolutionOverflow {
-        /// The computed step count that overflowed.
+        /// The computed count that overflowed.
         count: f64,
     },
     /// An emitted triangle failed its closed-form deviation

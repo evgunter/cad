@@ -14,7 +14,7 @@
 //! and for its reason: a sweep-format drift must never read as a
 //! geometry finding.
 
-use tess_lint::{Kind, Row, compare, parse, totals};
+use tess_lint::{Kind, Row, SceneTotals, compare, parse, totals};
 
 /// The gate ran and the budget distribution moved.
 const EXIT_FINDINGS: i32 = 2;
@@ -125,26 +125,51 @@ fn main() {
     // holds, and what the same certificates would still allow. Cell
     // counts, not triangles — the triangle count of a trimmed face is
     // not its grid.
-    let (mut cg, mut cp, mut cso) = (0.0, 0.0, 0.0);
-    for r in &nurbs {
-        if let Some(n) = r.nurbs {
-            cg += n.grid_cells;
-            cp += n.patch_cells;
-            cso += n.span_opt_cells;
-        }
+    //
+    // Through `SceneTotals`, deliberately: it is the same fold the
+    // per-scene table uses and it answers `None` where there is
+    // nothing to divide, so this report has one spelling of a total
+    // rather than a second one guarded by a comment.
+    let mut sweep = SceneTotals::default();
+    for r in &rows {
+        sweep.add(r);
     }
-    if cg > 0.0 {
+    if let (Some(held), Some(recoverable)) = (sweep.span_held(), sweep.recoverable()) {
         println!(
-            "  grid cells over all Hessian-sized faces: {cg:.0} used (per-knot-span-cell, \
-             TESS-SPAN); whole-patch counterfactual {cp:.0} ({:.1}x held), {cso:.0} at the \
-             cheapest split per cell ({:.1}x still recoverable)",
-            cp / cg,
-            cg / cso
+            "  grid cells over all Hessian-sized faces: {:.0} used (per-knot-span-cell, \
+             TESS-SPAN); whole-patch counterfactual {:.0} ({held:.1}x held), {:.0} at the \
+             cheapest split per cell ({recoverable:.1}x still recoverable)",
+            sweep.grid_cells, sweep.patch_cells, sweep.span_opt_cells
         );
         println!(
             "  every one of those grids satisfies the SAME per-triangle certificate the \
              shipped lane checks — this is sizing slack, not tolerance slack"
         );
+    }
+    // The constraint-activity indicator (TESS-SPLIT): which constraint
+    // bound the schedule where the split ratio sits above 1.0, and the
+    // worst realized lattice aspect (reported; the sliver-safe line is
+    // read at mesh::nurbs_cert::SAFE_ASPECT, never from a copy here).
+    {
+        let (mut bands, mut cap, mut snap) = (0.0f64, 0.0f64, 0.0f64);
+        let mut worst: Option<(f64, &Row)> = None;
+        for r in &nurbs {
+            if let Some(n) = r.nurbs {
+                bands += n.bands;
+                cap += n.cap_bands;
+                snap += n.snap_bands;
+                if worst.is_none_or(|(a, _)| n.realized_aspect > a) {
+                    worst = Some((n.realized_aspect, r));
+                }
+            }
+        }
+        if let Some((aspect, r)) = worst {
+            println!(
+                "  constraint activity: {cap:.0} A-cap-bound band(s), {snap:.0} snap-projected \
+                 band(s) of {bands:.0}; worst realized s_u/s_v {aspect:.2} ({} face {})",
+                r.scene, r.face
+            );
+        }
     }
     let scenes = totals(&rows);
     let mut ranked: Vec<_> = scenes
@@ -158,15 +183,17 @@ fn main() {
             "scene (Hessian-sized faces)", "tris", "nurbs", "held", "split", "total"
         );
         for (scene, t) in ranked.iter().take(top) {
-            let total = t
-                .total_slack()
-                .map_or_else(|| "     -".to_string(), |s| format!("{s:5.1}x"));
+            // A column with nothing behind it prints as nothing: the
+            // report never spells an absent measurement as a number,
+            // for the same reason the gate refuses to read one.
+            let factor = |v: Option<f64>| v.map_or_else(|| "-".to_string(), |x| format!("{x:.1}x"));
             println!(
-                "  {scene:<34} {:>9} {:>9} {:>6.1}x {:>6.1}x {total:>8}",
+                "  {scene:<34} {:>9} {:>9} {:>7} {:>7} {:>8}",
                 t.triangles,
                 t.nurbs_triangles,
-                t.span_held(),
-                t.recoverable()
+                factor(t.span_held()),
+                factor(t.recoverable()),
+                factor(t.total_slack())
             );
         }
         if ranked.len() > top {

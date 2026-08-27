@@ -15,17 +15,11 @@
 //!
 //! So these rows drive `fillet_edges` and read what a caller would
 //! actually see.
-//!
-//! A fourth row shipped with this suite when it was written: a
-//! duplication detector asserting that `FilletEntity` and
-//! `topo::EntityId` rendered identically. It was retired the moment it
-//! went green for the right reason — the duplicate type is gone and
-//! these refusals carry `topo::EntityId` — because a detector for a
-//! type that no longer exists is not a guard.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Band, Tolerance};
+use geom_core::Band;
+use geom_core::Tol;
 use sweep::fillet::build::fillet_edges;
 use sweep::fillet::{
     FILLET3_ASSEMBLY_RECOURSE, FILLET3_BODY_RECOURSE, FILLET3_CHAIN_RECOURSE,
@@ -60,7 +54,7 @@ const ALL: [(&str, &str); 12] = [
 ];
 
 fn band() -> Band {
-    let tol = Tolerance::get();
+    let tol = Tol::witness().get();
     Band::new(tol.eps, tol.k * tol.eps).unwrap()
 }
 
@@ -97,9 +91,9 @@ fn only_recourse(err: &FilletError, expect: Option<&str>, what: &str) {
 /// path ever re-attaches it.
 #[test]
 fn a_run_out_refusal_gives_corner_advice_and_no_assembly_advice() {
-    let body = cube(L);
+    let body = cube(L, Tol::witness());
     let edges = edges_of(&body);
-    let err = fillet_edges(&body, &edges[..1], R, band())
+    let err = fillet_edges(&body, &edges[..1], R, band(), Tol::witness())
         .expect_err("one edge of a box leaves its corners partly requested");
     assert!(
         matches!(err, FilletError::UnsupportedRunOut { .. }),
@@ -114,11 +108,11 @@ fn a_run_out_refusal_gives_corner_advice_and_no_assembly_advice() {
 /// anyway.
 #[test]
 fn a_repeated_edge_refusal_gives_no_recourse_at_all() {
-    let body = cube(L);
+    let body = cube(L, Tol::witness());
     let edges = edges_of(&body);
     let mut req = edges.clone();
     req.push(edges[0]);
-    let err = fillet_edges(&body, &req, R, band()).expect_err("a repeated edge");
+    let err = fillet_edges(&body, &req, R, band(), Tol::witness()).expect_err("a repeated edge");
     assert!(
         matches!(err, FilletError::RepeatedEdge { edge } if edge == edges[0]),
         "expected the repeated-edge refusal naming the key, got {err:?}"
@@ -132,11 +126,12 @@ fn a_repeated_edge_refusal_gives_no_recourse_at_all() {
 /// one.
 #[test]
 fn a_multi_solid_body_gives_body_advice_and_no_chain_advice() {
-    let mut body = cube(L);
-    let other = cube(L);
-    topo::instance::graft_disjoint_all(&mut body, &other).expect("a disjoint graft");
+    let mut body = cube(L, Tol::witness());
+    let other = cube(L, Tol::witness());
+    topo::instance::graft_disjoint_all(&mut body, &other, Tol::witness())
+        .expect("a disjoint graft");
     let edges = edges_of(&body);
-    let err = fillet_edges(&body, &edges[..1], R, band())
+    let err = fillet_edges(&body, &edges[..1], R, band(), Tol::witness())
         .expect_err("the in-place surgery is built for one solid");
     assert!(
         matches!(err, FilletError::UnsupportedBody { solids, .. } if solids == 2),

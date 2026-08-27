@@ -24,31 +24,51 @@
 
 use geom_core::{Band, Decide, Margin, Sign, Vec3};
 
-use super::plane_eq::{PlaneDesc, PlaneEqError, PlaneRelation};
-use super::reduce::face_plane;
+use super::carrier_eq::CarrierDesc;
+use super::plane_eq::{PlaneEqError, PlaneRelation};
 use super::sectors::{BoolSector, PairRecord, side_code};
 use super::tables::{eq15_3_lump, resolve_verdict, table_ii};
 use super::{BooleanError, BooleanOp, Operand, SideCode};
 use crate::body::Body;
 use crate::validate::decide;
 
-/// The sector face's ORIENTED plane: [`face_plane`] hands out the
-/// face's outward normal (S10's sense bit already folded in), which is
-/// what the Same±-orientation verdict below has to mean — the whole
-/// point of the verdict is which way the two materials face.
-fn plane_of<T: Decide>(body: &Body<T>, s: &BoolSector<T>) -> Result<PlaneDesc<T>, BooleanError> {
-    face_plane(body, s.face).ok_or(BooleanError::ClassificationInvariant {
-        what: "sector face lost its plane",
+/// The sector face's ORIENTED carrier description
+/// ([`super::rest::face_carrier`] —
+/// the face's material side with S10's sense bit already folded in,
+/// which is what the Same±-orientation verdict below has to mean: the
+/// whole point of the verdict is which way the two materials face).
+/// A kind outside the `Rest` ladder's inventory (cone, torus, NURBS)
+/// is the C5 typed refusal.
+fn carrier_of<T: Decide>(
+    body: &Body<T>,
+    operand: super::Operand,
+    s: &BoolSector<T>,
+) -> Result<CarrierDesc<T>, BooleanError> {
+    super::rest::face_carrier(body, s.face).ok_or_else(|| {
+        let kind = body
+            .get_face(s.face)
+            .and_then(|f| body.get_surface(f.surface))
+            .map_or(geom_brep::SurfaceKind::Nurbs, geom_brep::SurfaceKind::of);
+        BooleanError::CurvedBooleanUnsupported {
+            operand,
+            face: s.face,
+            kind,
+        }
     })
 }
 
-/// The geometrically-ON sector pair's plane identity check, with the
+/// The geometrically-ON sector pair's carrier identity check, with the
 /// M4 PR 5 evidence: the two faces' recipe sources (N6) plus the
 /// consuming op's declared face pairs (F5). The sources are the
 /// ORIENTED ones ([`super::reduce::face_plane_source`]): rung 1
 /// decides Same± from `orient`, and the descriptions it decides about
-/// are outward normals, so the face senses must be composed in or a
+/// are material sides, so the face senses must be composed in or a
 /// same-surface opposite-sense pair reads SameOriented.
+///
+/// C8: a CURVED sector pair descends the ladder only under a declared
+/// `Rest` pair — an undeclared on-carrier curved pair keeps the typed
+/// frontier refusal (the recourse is a declared contact, vocabulary
+/// CONTACT-DESIGN C4).
 #[allow(clippy::too_many_arguments)]
 fn require_same<T: Decide>(
     body1: &Body<T>,
@@ -61,6 +81,45 @@ fn require_same<T: Decide>(
     arm: T,
     band: Band,
 ) -> Result<PlaneRelation, BooleanError> {
+    // A declared-`Tangent` ON pair has no carrier-identity answer
+    // (the carriers are DISTINCT by the verified declaration); the
+    // lanes that can consume its second-order verdict dispatch to
+    // [`super::sectors::tangent_lump`] before reaching here, so a
+    // remaining reach is a lane without that arm — refused typed.
+    if declared.class_of(o1, s1.face, o2, s2.face) == Some(crate::contact::ContactClass::Tangent) {
+        let kind = body1
+            .get_face(s1.face)
+            .and_then(|f| body1.get_surface(f.surface))
+            .map_or(geom_brep::SurfaceKind::Nurbs, geom_brep::SurfaceKind::of);
+        return Err(BooleanError::CurvedBooleanUnsupported {
+            operand: o1,
+            face: s1.face,
+            kind,
+        });
+    }
+    let c1 = carrier_of(body1, o1, s1)?;
+    let c2 = carrier_of(body2, o2, s2)?;
+    let declared_rest = declared.declares_rest(o1, s1.face, o2, s2.face);
+    if !declared_rest {
+        let curved = |c: &CarrierDesc<T>| !matches!(c, CarrierDesc::Plane { .. });
+        let refusal = if curved(&c1) {
+            Some((o1, s1.face, body1.get_face(s1.face), body1))
+        } else if curved(&c2) {
+            Some((o2, s2.face, body2.get_face(s2.face), body2))
+        } else {
+            None
+        };
+        if let Some((operand, face, f, body)) = refusal {
+            let kind = f
+                .and_then(|f| body.get_surface(f.surface))
+                .map_or(geom_brep::SurfaceKind::Nurbs, geom_brep::SurfaceKind::of);
+            return Err(BooleanError::CurvedBooleanUnsupported {
+                operand,
+                face,
+                kind,
+            });
+        }
+    }
     let (g1, g2) = (
         super::reduce::face_plane_source(body1, s1.face),
         super::reduce::face_plane_source(body2, s2.face),
@@ -68,11 +127,11 @@ fn require_same<T: Decide>(
     let id = super::PlaneIdentity {
         s1: g1.as_ref(),
         s2: g2.as_ref(),
-        declared: declared.declares_rest(o1, s1.face, o2, s2.face),
+        declared: declared_rest,
     };
-    match super::oriented_plane_eq(&plane_of(body1, s1)?, &plane_of(body2, s2)?, id, arm, band) {
+    match super::carrier_eq::carrier_eq(&c1, &c2, id, arm, band) {
         Ok(PlaneRelation::Distinct) => Err(BooleanError::ClassificationInvariant {
-            what: "geometrically-ON sector pair with definitely-distinct planes",
+            what: "geometrically-ON sector pair with definitely-distinct carriers",
         }),
         Ok(rel) => Ok(rel),
         Err(PlaneEqError::Escalated(diag)) => Err(BooleanError::Escalated { diag }),
@@ -120,6 +179,95 @@ pub(super) fn recl_sectors<T: Decide>(
         let sa = &a_sectors[r.a];
         let sb = &b_sectors[r.b];
         let arm = sa.arm.min(sb.arm);
+        // Declared-`Tangent` (distinct carriers touching): the all-on
+        // reading is the tangent-plane degeneracy — the sectors do
+        // NOT coincide, only the tangency locus does — so the record
+        // descends PER BOUND to the second-order side
+        // ([`super::sectors::tangent_relative_side`]): a bound along
+        // the locus honestly stays `On` (the recl edge engine
+        // adjudicates it, exactly as a first-order On), other bounds
+        // take the side their carrier curves to. No Eq. 15.3 lump and
+        // no neighbor propagation: nothing here is a coincident-
+        // sector identity.
+        let tangent_pair =
+            declared.class_of(super::Operand::A, sa.face, super::Operand::B, sb.face)
+                == Some(crate::contact::ContactClass::Tangent);
+        if tangent_pair {
+            let surface_of = |body: &Body<T>, face| {
+                body.get_face(face)
+                    .and_then(|f| body.get_surface(f.surface))
+                    .cloned()
+                    .ok_or(BooleanError::ClassificationInvariant {
+                        what: "declared-Tangent face lost its surface",
+                    })
+            };
+            let s_a = surface_of(a_body, sa.face)?;
+            let s_b = surface_of(b_body, sb.face)?;
+            let p = a_body
+                .get_half_edge(sa.he)
+                .and_then(|he| a_body.get_vertex(he.start))
+                .and_then(|v| a_body.get_point(v.point))
+                .copied()
+                .ok_or(BooleanError::ClassificationInvariant {
+                    what: "v-v site lost its point",
+                })?;
+            let ca = (
+                super::sectors::tangent_relative_side(
+                    &s_a, &s_b, sb.normal, p, sa.start, arm, band,
+                )?,
+                super::sectors::tangent_relative_side(&s_a, &s_b, sb.normal, p, sa.end, arm, band)?,
+            );
+            let cb = (
+                super::sectors::tangent_relative_side(
+                    &s_b, &s_a, sa.normal, p, sb.start, arm, band,
+                )?,
+                super::sectors::tangent_relative_side(&s_b, &s_a, sa.normal, p, sb.end, arm, band)?,
+            );
+            // Per-bound propagation, the Rest loop's shape with the
+            // SHARED bound's own code (definite codes only — an `On`
+            // is this record's own edge-engine business): the sector
+            // sharing r.a's start holds it as its END, and so on.
+            let a_start_nbr = (r.a + 1) % n_a;
+            let a_end_nbr = (r.a + n_a - 1) % n_a;
+            let b_start_nbr = (r.b + 1) % n_b;
+            let b_end_nbr = (r.b + n_b - 1) % n_b;
+            for rec in records.iter_mut() {
+                if rec.a == a_start_nbr
+                    && rec.b == r.b
+                    && rec.sa.0 != SideCode::On
+                    && ca.0 != SideCode::On
+                {
+                    rec.sa.1 = ca.0;
+                }
+                if rec.a == a_end_nbr
+                    && rec.b == r.b
+                    && rec.sa.1 != SideCode::On
+                    && ca.1 != SideCode::On
+                {
+                    rec.sa.0 = ca.1;
+                }
+                if rec.b == b_start_nbr
+                    && rec.a == r.a
+                    && rec.sb.0 != SideCode::On
+                    && cb.0 != SideCode::On
+                {
+                    rec.sb.1 = cb.0;
+                }
+                if rec.b == b_end_nbr
+                    && rec.a == r.a
+                    && rec.sb.1 != SideCode::On
+                    && cb.1 != SideCode::On
+                {
+                    rec.sb.0 = cb.1;
+                }
+                cancel_uniform(rec);
+            }
+            let rec = &mut records[i];
+            rec.sa = ca;
+            rec.sb = cb;
+            cancel_uniform(rec);
+            continue;
+        }
         let rel = require_same(
             a_body,
             super::Operand::A,
@@ -131,8 +279,10 @@ pub(super) fn recl_sectors<T: Decide>(
             arm,
             band,
         )?;
-        let newsa = eq15_3_lump(op, Operand::A, rel);
-        let newsb = eq15_3_lump(op, Operand::B, rel);
+        let (newsa, newsb) = (
+            eq15_3_lump(op, Operand::A, rel),
+            eq15_3_lump(op, Operand::B, rel),
+        );
         // Cyclic neighbors through the shared-bound chain:
         // start(k) == end(k+1); end(k) == start(k−1).
         let a_start_nbr = (r.a + 1) % n_a; // shares r.a's start (as its end)
@@ -539,19 +689,58 @@ fn resolve_edge_edge<T: Decide>(
                         } else {
                             (super::Operand::B, super::Operand::A)
                         };
-                        let rel = require_same(
-                            own_body,
-                            own_op,
-                            &own_secs[own_idx],
-                            other_body,
-                            other_op,
-                            &other_secs[oi],
-                            declared,
-                            arm,
-                            band,
-                        )?;
                         let comparison = if own_is_a { Operand::A } else { Operand::B };
-                        if eq15_3_lump(op, comparison, rel) != SideCode::In {
+                        // Declared-`Tangent` flanking pairs (distinct
+                        // carriers touching along the on-edge): the
+                        // membership verdict is the second-order
+                        // descent — which side the OWN sector's
+                        // carrier curves to relative to the other
+                        // face's material — not the carrier identity
+                        // ladder (whose Same± question is ill-posed
+                        // across distinct carriers).
+                        let own_sec = &own_secs[own_idx];
+                        let other_sec = &other_secs[oi];
+                        let lump =
+                            if declared.class_of(own_op, own_sec.face, other_op, other_sec.face)
+                                == Some(crate::contact::ContactClass::Tangent)
+                            {
+                                let surface_of = |body: &Body<T>, face| {
+                                    body.get_face(face)
+                                        .and_then(|f| body.get_surface(f.surface))
+                                        .cloned()
+                                        .ok_or(BooleanError::ClassificationInvariant {
+                                            what: "declared-Tangent face lost its surface",
+                                        })
+                                };
+                                let s_own = surface_of(own_body, own_sec.face)?;
+                                let s_other = surface_of(other_body, other_sec.face)?;
+                                let p = own_body
+                                    .get_half_edge(own_sec.he)
+                                    .and_then(|he| own_body.get_vertex(he.start))
+                                    .and_then(|vd| own_body.get_point(vd.point))
+                                    .copied()
+                                    .ok_or(BooleanError::ClassificationInvariant {
+                                        what: "edge-edge site lost its point",
+                                    })?;
+                                super::sectors::tangent_lump(
+                                    &s_own,
+                                    &s_other,
+                                    other_sec.normal,
+                                    p,
+                                    op,
+                                    comparison,
+                                    own_sec.face,
+                                    arm,
+                                    band,
+                                )?
+                            } else {
+                                let rel = require_same(
+                                    own_body, own_op, own_sec, other_body, other_op, other_sec,
+                                    declared, arm, band,
+                                )?;
+                                eq15_3_lump(op, comparison, rel)
+                            };
+                        if lump != SideCode::In {
                             inside = false;
                         }
                     }
@@ -560,23 +749,44 @@ fn resolve_edge_edge<T: Decide>(
         }
         Ok(inside)
     };
-    let a_in = [
-        membership(true, a_fl[0].0, a_fl[0].1, &b_fl)?,
-        membership(true, a_fl[1].0, a_fl[1].1, &b_fl)?,
-    ];
-    let b_in = [
-        membership(false, b_fl[0].0, b_fl[0].1, &a_fl)?,
-        membership(false, b_fl[1].0, b_fl[1].1, &a_fl)?,
-    ];
-    let germ_a = a_in[0] != a_in[1];
-    let germ_b = b_in[0] != b_in[1];
-    if germ_a != germ_b {
-        return Err(BooleanError::ClassificationInvariant {
-            what: "edge-edge membership disagreement between the two solids",
+    // A declared-`Tangent` flanking pair short-circuits the wedge
+    // membership: the verified declaration says the two carriers
+    // meet ALONG A LOCUS, and a coincident real-edge pair riding
+    // that locus IS a section curve of the boundary intersection —
+    // definitionally a germ (the rim the zip and the marks consume).
+    // The membership algebra cannot see it: at a tangency every
+    // in-plane rep reads On against the wall, and the first-order
+    // tie-breaks resolve "touching" — true of the WEDGES, not of the
+    // boundary curve the germ names.
+    let tangent_flank = [(fa_s, fb_s), (fa_s, fb_e), (fa_e, fb_s), (fa_e, fb_e)]
+        .into_iter()
+        .any(|(ia, ib)| {
+            declared.class_of(
+                super::Operand::A,
+                a_sectors[ia].face,
+                super::Operand::B,
+                b_sectors[ib].face,
+            ) == Some(crate::contact::ContactClass::Tangent)
         });
-    }
-    if !germ_a {
-        return Ok(None);
+    if !tangent_flank {
+        let a_in = [
+            membership(true, a_fl[0].0, a_fl[0].1, &b_fl)?,
+            membership(true, a_fl[1].0, a_fl[1].1, &b_fl)?,
+        ];
+        let b_in = [
+            membership(false, b_fl[0].0, b_fl[0].1, &a_fl)?,
+            membership(false, b_fl[1].0, b_fl[1].1, &a_fl)?,
+        ];
+        let germ_a = a_in[0] != a_in[1];
+        let germ_b = b_in[0] != b_in[1];
+        if germ_a != germ_b {
+            return Err(BooleanError::ClassificationInvariant {
+                what: "edge-edge membership disagreement between the two solids",
+            });
+        }
+        if !germ_a {
+            return Ok(None);
+        }
     }
     let combos = [(fa_s, fb_s), (fa_s, fb_e), (fa_e, fb_s), (fa_e, fb_e)];
     combos

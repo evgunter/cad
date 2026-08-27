@@ -7,8 +7,10 @@ FreeCAD — the zero-dependency fallback, and the renderer that draws
 OUR OWN tessellation (FreeCAD re-tessellates from the B-rep, so this
 lane is the mesh-path proof).
 
-Scene list comes from <stl_dir>/scenes.json (written by the tour);
-multi-body scenes draw every body into one axes with its own color.
+Scene list comes from <stl_dir>/scenes.json, read through `manifest`.
+BOTH producers reach this renderer: the tour's manifest on the kernel
+lane, and the wild generator's on `render-wild.sh`'s. Multi-body
+scenes draw every body into one axes with its own color.
 
 `--author=TEXT` stamps an `Author` tEXt chunk into every PNG (on top
 of matplotlib's own deterministic `Software` chunk). The wild-corpus
@@ -22,10 +24,10 @@ its frames stay recognizable as fallback output.
 Usage: python render.py <stl_dir> <out_dir> [--author=TEXT]
 """
 
-import json
 import sys
 from pathlib import Path
 
+import manifest
 import matplotlib
 
 matplotlib.use("Agg")
@@ -48,13 +50,22 @@ def read_binary_stl(path):
     return tris["verts"].astype(np.float64)
 
 
-def orient(verts, up):
-    """Rotate so the display up axis is +z (matplotlib's vertical)."""
-    if up == "y":  # (x, y, z) -> (x, -z, y): y becomes vertical
-        return np.stack(
-            [verts[..., 0], -verts[..., 2], verts[..., 1]], axis=-1
-        )
-    return verts
+def orient(verts, axes):
+    """Rotate world vertices into the z-up display frame.
+
+    `axes` is the scene's world -> display spec from `manifest`, which
+    is where the convention it encodes is defined.
+
+    This applies the spec rather than calling `manifest.apply_axes`,
+    which does the same thing for one 3-tuple: here the input is an
+    (n, 3, 3) array and the whole point is to move every vertex in one
+    numpy op. The two applications cannot disagree about the CAMERA,
+    which is what the convention is for -- both read the same spec, and
+    a sign or an axis lives only in the table. They could disagree
+    about how a spec is applied, which is arithmetic a reader can check
+    against the line above in full.
+    """
+    return np.stack([sign * verts[..., src] for src, sign in axes], axis=-1)
 
 
 def shade(verts, base, alpha=1.0):
@@ -86,28 +97,24 @@ def cull_backfaces(verts, elev, azim):
 
 
 def draw(ax, scene, stl_dir):
-    view = scene["view"]
-    elev, azim, up = view["elev"], view["azim"], view["up"]
+    """Draw every body of one scene and frame the axes around them.
+
+    This lane draws the STL only; `step` is never read here, so the
+    two producers disagreeing on it is not this renderer's question.
+    """
+    elev, azim = scene.elev, scene.azim
+    axes = scene.world_to_display()
     lo = np.full(3, np.inf)
     hi = np.full(3, -np.inf)
-    drawn = 0
-    for body in scene["bodies"]:
-        if body["stl"] is None:
-            # A #111-pinned body: the STL writer refused its defective
-            # tessellation typed; only the FreeCAD/STEP lane can draw
-            # it. Contributes nothing here (including to the axis
-            # bounds below).
-            print(f"WARNING: {scene['name']}: body has no STL (#111 pin) — skipped")
-            continue
-        drawn += 1
-        verts = orient(read_binary_stl(stl_dir / body["stl"]), up)
+    for body in scene.bodies:
+        verts = orient(read_binary_stl(stl_dir / body.stl), axes)
         # Transparency (a scene property, carried in the manifest):
         # backfaces are what a see-through body is FOR, so a
         # transparent body keeps them and the painter's z-sort does
         # the rest. Opaque bodies still cull exactly, as before.
-        alpha = 1.0 - body.get("transparency", 0) / 100.0
+        alpha = 1.0 - body.transparency / 100.0
         front = verts if alpha < 1.0 else cull_backfaces(verts, elev, azim)
-        colors = shade(front, body["color"], alpha)
+        colors = shade(front, body.color, alpha)
         ax.add_collection3d(
             Poly3DCollection(
                 front,
@@ -124,11 +131,6 @@ def draw(ax, scene, stl_dir):
         )
         lo = np.minimum(lo, verts.reshape(-1, 3).min(axis=0))
         hi = np.maximum(hi, verts.reshape(-1, 3).max(axis=0))
-    if drawn == 0:
-        # Nothing rendered (every body #111-pinned): lo/hi are still
-        # ±inf, so skip the axis math and tell the caller not to save
-        # a blank panel.
-        return False
     c, half = (lo + hi) / 2, (hi - lo).max() / 2 * 1.02
     ax.set_xlim(c[0] - half, c[0] + half)
     ax.set_ylim(c[1] - half, c[1] + half)
@@ -137,7 +139,6 @@ def draw(ax, scene, stl_dir):
     ax.view_init(elev, azim)
     ax.set_proj_type("ortho")
     ax.set_axis_off()
-    return True
 
 
 def main():
@@ -152,20 +153,15 @@ def main():
     stl_dir, out_dir = Path(pos[0]), Path(pos[1])
     metadata = {"Author": author} if author else None
     out_dir.mkdir(parents=True, exist_ok=True)
-    scenes = json.loads((stl_dir / "scenes.json").read_text())
-    for scene in scenes:
+    for scene in manifest.read_scenes(stl_dir):
         fig = plt.figure(figsize=(5, 5), dpi=130)
         ax = fig.add_subplot(projection="3d")
-        if not draw(ax, scene, stl_dir):
-            plt.close(fig)
-            print(f"skipped {scene['name']} (no STL bodies — #111 pin)")
-            continue
+        draw(ax, scene, stl_dir)
         fig.tight_layout(pad=0.1)
-        fig.savefig(
-            out_dir / f"{scene['name']}.png", facecolor="white", metadata=metadata
-        )
+        png = out_dir / f"{scene.name}.png"
+        fig.savefig(png, facecolor="white", metadata=metadata)
         plt.close(fig)
-        print(f"rendered {out_dir / (scene['name'] + '.png')}")
+        print(f"rendered {png}")
 
 
 if __name__ == "__main__":

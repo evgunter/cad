@@ -125,8 +125,18 @@ class ExportError(PncadError):
     kind: Optional[str]
 
 class StepImportError(PncadError):
-    """A STEP text the importer refused (`refused`), or one that
-    parsed to a non-solid (`wireframe`)."""
+    """A STEP text the importer refused, or one that parsed to a
+    non-solid.
+
+    `variant` is the importer's own refusal tag — `syntax`,
+    `dangling_reference`, `wrong_entity_type`, `malformed_record`,
+    `unsupported_entity`, `unsupported_unit`, `nothing_to_import`,
+    `structure`, `missing_uncertainty`, `invalid_eps_override`,
+    `declaration_unresolved`, `malformed_real`, `topology`,
+    `assembly`, `adoption`, `rim_off_wall_boundary`,
+    `recognition_ambiguous`, `pcurves`, `placement`, `instance` or
+    `tier_invalid` — or `wireframe`, which is not a refusal at all:
+    the file parsed, to something this door does not adopt."""
 
     variant: str
 
@@ -169,11 +179,18 @@ class FrameError(PncadError):
     variant: str
 
 class IdentityError(PncadError):
-    """A document identity could not be minted: the OS entropy source
-    refused. Identity is never defaulted — two documents sharing an id
-    are the same part, and a workspace refuses to hold both.
+    """A document identity could not be minted. Identity is never
+    defaulted — two documents sharing an id are the same part, and a
+    workspace refuses to hold both.
 
-    `variant` is `randomness_unavailable`."""
+    `variant` is the workspace refusal's own tag:
+    `randomness_unavailable`, `io`, `duplicate_id`, `header`,
+    `unknown_id`, `load`, `pin`, `pin_mismatch`, `save` or `update`.
+    Only `randomness_unavailable` is reachable through this door today
+    — minting an identity has one failure mode, the OS entropy source
+    refusing — but the tag names the refusal that actually occurred, so
+    a second one would arrive under its own name rather than this
+    one."""
 
     variant: str
 
@@ -1063,6 +1080,7 @@ class SurfaceKind:
     Sphere: Final[SurfaceKind]
     Torus: Final[SurfaceKind]
     Nurbs: Final[SurfaceKind]
+    Approx: Final[SurfaceKind]
 
 class Cmp:
     """The comparison `GeomPred.datum_distance` makes: the sign

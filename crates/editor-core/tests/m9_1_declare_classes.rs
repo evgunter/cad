@@ -18,6 +18,7 @@ use editor_core::{
 mod fixture;
 
 use fixture::{desc, fname, insert, len};
+use geom_core::Tol;
 
 fn block(
     doc: ProfileDoc,
@@ -46,7 +47,7 @@ fn block(
 
 /// Two blocks meeting on z = 1: a genuine flush cap.
 fn stacked() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
-    let doc = ProfileDoc::empty_derived("m9_1_declare_classes");
+    let doc = ProfileDoc::empty_derived("m9_1_declare_classes", Tol::witness());
     let (doc, a) = block(doc, (0.0, 2.0), (0.0, 2.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 2.5), (0.25, 2.25), 1.0, 1.0);
     (doc, a, b)
@@ -76,8 +77,14 @@ fn cap(node: RecipeNodeId, end: CapEnd) -> editor_core::StableName {
 #[test]
 fn declare_node_preserves_the_findings_class() {
     let (doc, a, b) = stacked();
-    let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default());
-    let detected = find_flush_candidates(&ev, a, b).expect("the detector runs");
+    let ev = evaluate::<f64>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
+    let detected = find_flush_candidates(&ev, a, b, Tol::witness()).expect("the detector runs");
     assert!(!detected.is_empty(), "the stack has a flush cap to find");
 
     // A finding the detector cannot mint today, carrying a class the
@@ -132,7 +139,7 @@ fn an_authored_class_is_what_the_node_holds() {
         ],
     };
     let applied = doc
-        .apply(&DocEdit::InsertNode { node })
+        .apply(&DocEdit::InsertNode { node }, Tol::witness())
         .expect("the Declare inserts");
     let id = applied.record.minted.unwrap();
     let Some(Node::Declare { pairs }) = applied.doc.node(id) else {
@@ -145,11 +152,13 @@ fn an_authored_class_is_what_the_node_holds() {
 /// **The wrong class, end to end from a recipe.**
 ///
 /// A genuine flush cap declared as `Tangent` reaches the kernel door
-/// carrying the class the author wrote, and the op refuses it typed
-/// rather than treating it as the class it can act on. The refusal is
-/// the whole point of threading the class: before this change the
-/// recipe could not express the mistake, so the kernel could not
-/// refuse it.
+/// carrying the class the author wrote, and the op CONTRADICTS it —
+/// a flush pair is conformal contact (`Rest`), and the Tangent
+/// door's conformal screen refuses the claim with the geometry's own
+/// margins rather than treating it as the class it can act on. The
+/// refusal is the whole point of threading the class: before this
+/// change the recipe could not express the mistake, so the kernel
+/// could not refuse it.
 #[test]
 fn a_wrong_class_declaration_refuses_at_the_op() {
     let (doc, a, b) = stacked();
@@ -163,21 +172,27 @@ fn a_wrong_class_declaration_refuses_at_the_op() {
     // needs while the borrow lives.
     let run = |class| -> (bool, String) {
         let applied = doc
-            .apply(&DocEdit::InsertNode {
-                node: declare(class),
-            })
+            .apply(
+                &DocEdit::InsertNode {
+                    node: declare(class),
+                },
+                Tol::witness(),
+            )
             .expect("the Declare inserts");
         let d = applied.record.minted.unwrap();
         let applied = applied
             .doc
-            .apply(&DocEdit::InsertNode {
-                node: Node::Boolean {
-                    op: BooleanOp::Union,
-                    a,
-                    b,
-                    declare: Some(d),
+            .apply(
+                &DocEdit::InsertNode {
+                    node: Node::Boolean {
+                        op: BooleanOp::Union,
+                        a,
+                        b,
+                        declare: Some(d),
+                    },
                 },
-            })
+                Tol::witness(),
+            )
             .expect("the boolean inserts");
         let id = applied.record.minted.unwrap();
         let ev = evaluate::<f64>(
@@ -185,6 +200,7 @@ fn a_wrong_class_declaration_refuses_at_the_op() {
             None,
             &CancelToken::new(),
             &EvalOptions::default(),
+            Tol::witness(),
         );
         match ev.nodes.get(&id) {
             Some(NodeResult::Ok(_)) => (true, String::new()),
@@ -196,12 +212,12 @@ fn a_wrong_class_declaration_refuses_at_the_op() {
     let (ok, why) = run(ContactClass::Rest);
     assert!(ok, "a correctly-classed declaration still unions: {why}");
 
-    // The WRONG class: typed refusal naming the class that was asked
-    // for, never a silent re-interpretation.
+    // The WRONG class: typed contradiction naming the class that was
+    // asked for, never a silent re-interpretation.
     let (ok, msg) = run(ContactClass::Tangent);
     assert!(!ok, "a Tangent declaration on a conformal pair must refuse");
     assert!(
-        msg.contains("UnsupportedDeclarationClass") && msg.contains("Tangent"),
+        msg.contains("ContactContradicted") && msg.contains("Tangent"),
         "the refusal names the class that was asked for: {msg}"
     );
 }
@@ -213,8 +229,14 @@ fn a_wrong_class_declaration_refuses_at_the_op() {
 #[test]
 fn the_detectors_class_is_the_kernels_enum() {
     let (doc, a, b) = stacked();
-    let ev = evaluate::<f64>(&doc, None, &CancelToken::new(), &EvalOptions::default());
-    let findings = find_flush_candidates(&ev, a, b).expect("the detector runs");
+    let ev = evaluate::<f64>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
+    let findings = find_flush_candidates(&ev, a, b, Tol::witness()).expect("the detector runs");
     for f in &findings {
         assert_eq!(f.class, ContactClass::Rest);
         // Same type, spelled through the kernel path: this would not

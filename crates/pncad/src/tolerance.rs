@@ -32,7 +32,7 @@
 //!
 //! [`committed_report`] is the door to reach for. It does **not**
 //! commit: asking is not deciding. [`report`] does commit (exactly as
-//! [`Tolerance::get`] does), so calling it at the top of a program
+//! [`Tol::witness`] does), so calling it at the top of a program
 //! that later loads a document would bootstrap ε from the ambient
 //! environment and turn that load into a `ToleranceConflict`. Reach
 //! for [`report`] only where the ambient value is already the answer.
@@ -46,7 +46,7 @@
 //! [`EpsilonSource`] at all.
 
 pub use geom_core::tolerance::{
-    DEFAULT_EPS, DEFAULT_K, ENV_EPS, ENV_K, EpsilonSource, Tolerance, ToleranceEnvError,
+    DEFAULT_EPS, DEFAULT_K, ENV_EPS, ENV_K, EpsilonSource, Tol, Tolerance, ToleranceEnvError,
     ToleranceEnvErrorKind, ToleranceError, ToleranceReport,
 };
 
@@ -60,7 +60,7 @@ pub fn committed_report() -> Option<ToleranceReport> {
 }
 
 /// The same report, committing the ambient bootstrap if nothing has —
-/// exactly [`Tolerance::get`]'s behaviour, and the same hazard: a
+/// exactly [`Tol::witness`]'s behaviour, and the same hazard: a
 /// program that later loads a document should use [`committed_report`]
 /// instead.
 pub fn report() -> ToleranceReport {

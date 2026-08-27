@@ -9,7 +9,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Affine3, Point2, Vec3};
+use geom_core::{Affine3, Point2, Tol, Vec3};
 use mesh::budget::{self, Mode};
 use profile::{ProfileLoop, RawLoop as _};
 use sweep::loft_body;
@@ -19,7 +19,7 @@ use topo::Body;
 /// The `loft_prism` corpus body (#212): squares at z = 0 and 2, the
 /// non-affine trapezoid at z = 1, v-degree 2 — NURBS walls and planar
 /// caps in one body, which is the mix the row rules are about.
-fn loft_prism() -> Body<f64> {
+fn loft_prism(tol: Tol) -> Body<f64> {
     let quad = |pts: [(f64, f64); 4]| -> sweep::Section {
         vec![ProfileLoop::polygon(
             pts.iter().map(|&(x, y)| Point2::new(x, y)),
@@ -34,16 +34,17 @@ fn loft_prism() -> Body<f64> {
         .iter()
         .map(|z| Affine3::translation(Vec3::new(0.0, 0.0, *z)))
         .collect();
-    loft_body::<f64>(&sections, &places, 2)
+    loft_body::<f64>(&sections, &places, 2, tol)
         .expect("the corpus loft builds")
         .body
 }
 
 #[test]
 fn every_face_gets_a_row_and_only_nurbs_faces_get_sizing() {
-    let body = loft_prism();
+    let tol = Tol::witness();
+    let body = loft_prism(tol);
     budget::arm(Mode::Sizing);
-    let mesh = mesh::tessellate(&body, 6e-3).expect("tessellates");
+    let mesh = mesh::tessellate(&body, 6e-3, tol).expect("tessellates");
     let measures = budget::take();
     let rows = face_rows(6e-3, &body, &mesh, &measures);
 
@@ -110,8 +111,9 @@ fn every_face_gets_a_row_and_only_nurbs_faces_get_sizing() {
 /// a measured zero.
 #[test]
 fn a_face_with_no_measurements_gets_an_empty_tailed_row() {
-    let body = loft_prism();
-    let mesh = mesh::tessellate(&body, 6e-3).expect("tessellates");
+    let tol = Tol::witness();
+    let body = loft_prism(tol);
+    let mesh = mesh::tessellate(&body, 6e-3, tol).expect("tessellates");
     let rows = face_rows(6e-3, &body, &mesh, &[]);
     assert_eq!(rows.len(), body.faces().count());
     assert!(rows.iter().all(|r| r.nurbs.is_none()));

@@ -11,10 +11,11 @@ use geom::Curve3;
 use geom::Surface;
 use geom_brep::SurfaceKey;
 use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeGeometry, PlaneCylinderSection};
+use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};
 
 fn band() -> Band {
-    Band::linear().unwrap()
+    Band::linear(Tol::witness()).unwrap()
 }
 
 /// The authored tangent pair: the unit cylinder about z and the plane
@@ -345,10 +346,12 @@ fn the_coaxial_circle_class_was_retired_into_the_lane_at_pr_12() {
 }
 
 #[test]
-fn outside_the_span_bound_lane_refuses_typed() {
-    // The lane boundary AFTER PR 12: a cone partner has no closed-form
-    // span bound in either arm, so a tangency carried on it is a
-    // routing refusal — typed, named, no fallback.
+fn a_coaxial_cone_sphere_contact_circle_certifies() {
+    // The inscribed sphere touches the cone along a COAXIAL circle —
+    // the class a sphere-cone fillet band's contact circles belong to,
+    // which cannot be described at rest without the circle arm's cone
+    // row. Every one of that row's bounds is exactly zero on a coaxial
+    // carrier.
     let (k1, k2, map) = arena2(
         Surface::Cone {
             apex: Point3::new(0.0, 0.0, 1.0),
@@ -363,9 +366,6 @@ fn outside_the_span_bound_lane_refuses_typed() {
             u_ref: Vec3::new(1.0, 0.0, 0.0),
         },
     );
-    // The inscribed sphere touches the cone along a circle; the class
-    // is geometrically real and still uncertified, which is exactly
-    // the honest state the refusal reports.
     let carrier = Curve3::Circle {
         center: Point3::new(0.0, 0.0, 0.5),
         axis: Vec3::new(0.0, 0.0, 1.0),
@@ -383,6 +383,49 @@ fn outside_the_span_bound_lane_refuses_typed() {
         param_end: 1.5,
     };
     let (p0, p1) = (spec.carrier.eval(0.0), spec.carrier.eval(1.5));
+    let curve = EdgeCurve::certify(spec, p0, p1, |k| map.get(k).cloned(), band())
+        .expect("a coaxial cone-sphere contact circle is inside the circle arm");
+    assert!(curve.certificate().max_residual < 1e-12);
+}
+
+#[test]
+fn outside_the_span_bound_lane_refuses_typed() {
+    // The lane boundary: the LINE arm carries no cone row (a cone
+    // tangency along a generator is not a configuration this kernel
+    // constructs), so a tangency carried on one is a routing refusal —
+    // typed, named, no fallback.
+    let s2 = core::f64::consts::FRAC_1_SQRT_2;
+    let (k1, k2, map) = arena2(
+        Surface::Cone {
+            apex: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            half_angle: core::f64::consts::FRAC_PI_4,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        },
+        // The tangent plane along the generator through (1, 0, 1): it
+        // contains the apex and that whole ruling, so the contact locus
+        // is the ruling itself.
+        Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal: Vec3::new(s2, 0.0, -s2),
+            u_ref: Vec3::new(0.0, 1.0, 0.0),
+        },
+    );
+    let carrier = Curve3::Line {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        dir: Vec3::new(s2, 0.0, s2),
+    };
+    let spec = EdgeCurveSpec {
+        description: EdgeGeometry::TangentIntersection {
+            s1: k1,
+            s2: k2,
+            witness: carrier.eval(1.0),
+        },
+        carrier,
+        param_start: 0.5,
+        param_end: 1.5,
+    };
+    let (p0, p1) = (spec.carrier.eval(0.5), spec.carrier.eval(1.5));
     let err = EdgeCurve::certify(spec, p0, p1, |k| map.get(k).cloned(), band()).unwrap_err();
     assert!(
         matches!(err, CertifyError::TangentCertificateUnsupported),

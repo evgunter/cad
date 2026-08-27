@@ -260,6 +260,12 @@ done
 # No CARGO_BUILD_JOBS cap: the slot experiment measured -j4 strictly
 # worse both solo (52s vs 33s) and paired — full -j inside the slot,
 # serialization between slots, is the fast configuration.
+# UNGUARDED, and unguardably so: this pair is a reading on the local box
+# (docs/LOCAL-BUILD-PERF.md §0), and nothing in this repo runs this script
+# — hosted CI never takes a build slot, so no gate can go red when the
+# ordering flips on different core counts. Re-take it on the box before
+# reinstating a cap; the absence of a cap is not evidence the pair still
+# holds.
 export BUILD_SLOT_HELD="$MODE"
 if [ "$MODE" = express ]; then
   # Self-enforcing budget: the job runs under its own declared timeout,

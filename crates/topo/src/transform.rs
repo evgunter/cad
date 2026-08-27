@@ -55,6 +55,7 @@
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeGeometry, MappedCurve};
+use geom_core::Tol;
 use geom_core::predicate::{Band, BandError};
 use geom_core::{Affine3, Decide, Margin, Point3, Real, Vec3};
 
@@ -108,6 +109,11 @@ pub enum TransformError {
     /// A `Nurbs` placeholder surface or carrier — unimplemented
     /// geometry evaluates to poison, so transforming it is refused.
     NurbsPlaceholder,
+    /// An approximating surface: the rigid map of an offset is the
+    /// offset of the rigid map, but re-deriving the mapped fit's
+    /// certificate is fit-door work this pass cannot reach, and a
+    /// certificate is never carried across a geometry change.
+    ApproxSurface,
     /// The body's topology references a missing arena entry — a
     /// corrupt body (the validators would refuse it too).
     Corrupt {
@@ -115,6 +121,54 @@ pub enum TransformError {
         what: &'static str,
     },
 }
+
+impl core::fmt::Display for TransformError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Pcurve { source } => write!(f, "transform pcurve pass: {source}"),
+            Self::Band(e) => write!(f, "transform could not form a band: {e}"),
+            Self::Certify { edge, source } => write!(
+                f,
+                "transform: mapped edge {edge:?} failed re-certification: {source}"
+            ),
+            Self::NotRigid { check } => write!(
+                f,
+                "transform: the map's linear part is not an isometry at tolerance — \
+                 predicate {check} refused, definitely or in-band"
+            ),
+            Self::NonFiniteMap { check } => write!(
+                f,
+                "transform: the map has a non-finite component — predicate {check} refused"
+            ),
+            Self::NullScaffold { edge } => write!(
+                f,
+                "transform: edge {edge:?} carries a transient null-scaffold curve; bodies at \
+                 rest never do"
+            ),
+            Self::ApproxSurface => f.write_str(
+                "transform: an approximating surface's description composes with a rigid map \
+                 (the map of an offset is the offset of the map), but its certificate would \
+                 have to be re-derived against the mapped base — fit-door work this pass \
+                 cannot reach — so mapping it is refused rather than carrying an \
+                 unre-derived claim",
+            ),
+            Self::NurbsPlaceholder => f.write_str(
+                "transform: a Nurbs placeholder surface or carrier evaluates to poison, so \
+                 mapping it is refused",
+            ),
+            Self::Corrupt { what } => write!(
+                f,
+                "transform: the body's topology references a missing {what} — a corrupt body"
+            ),
+        }
+    }
+}
+
+// No `source()`, matching every error type in this crate: each arm's
+// `Display` renders its nested payload's own `Display` in full, so the
+// chain is already in the message and a walker would re-read what it
+// just printed.
+impl std::error::Error for TransformError {}
 
 fn map_vec<T: Real>(map: &Affine3<T>, v: Vec3<T>) -> Vec3<T> {
     map.linear * v
@@ -250,6 +304,18 @@ fn map_surface<T: Real>(map: &Affine3<T>, s: &Surface<T>) -> Result<Surface<T>, 
             u_ref: map_vec(map, u_ref),
         },
         Surface::Nurbs(_) => return Err(TransformError::NurbsPlaceholder),
+        // The composition law HOLDS: a rigid map carries unit normals
+        // to unit normals, so `M(S + d·n) = M(S) + d·n_M` — the map of
+        // an offset IS the offset of the map, and the description is
+        // the layer where that identity lives (a fit mapped
+        // control-point-wise is the fit of the mapped description).
+        // What this pass cannot discharge is the CERTIFICATE: it is
+        // generic in `T` and carries no band or tolerance, while
+        // re-deriving the two-limb bound is `f64`-only fit-door work.
+        // Carrying a certificate across a geometry change is exactly
+        // what the never-trust posture forbids, so the door refuses
+        // rather than ship an unre-derived claim.
+        Surface::Approx(_) => return Err(TransformError::ApproxSurface),
     })
 }
 
@@ -306,8 +372,9 @@ fn map_carrier<T: Real>(map: &Affine3<T>, c: &Curve3<T>) -> Result<Curve3<T>, Tr
 pub fn transform_rigid<T: Decide>(
     body: &Body<T>,
     map: &Affine3<T>,
+    tol: Tol,
 ) -> Result<Body<T>, TransformError> {
-    let band = Band::linear().map_err(TransformError::Band)?;
+    let band = Band::linear(tol).map_err(TransformError::Band)?;
     check_rigid(map, band)?;
     let mut out = body.clone();
 
@@ -425,7 +492,7 @@ pub fn transform_rigid<T: Decide>(
     // runs when the operand actually carried caches, so transform never
     // MINTS caches a body did not have.
     if out.pcurves().next().is_some() {
-        crate::pcurves::mint_pcurves(&mut out)
+        crate::pcurves::mint_pcurves(&mut out, tol)
             .map_err(|source| TransformError::Pcurve { source })?;
     }
     Ok(out)

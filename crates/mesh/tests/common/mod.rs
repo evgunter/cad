@@ -2,10 +2,12 @@
 //! body builders (through public profile/sweep APIs only), the
 //! full-mesh acceptance check, exact surface distances, and the D9
 //! byte-identity dump.
-#![allow(dead_code)] // each test binary uses a subset
+#![allow(dead_code)] // loaded once per consumer; each uses a subset
+#![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
 use geom::Surface;
-use geom_core::{Point2, Point3, Tolerance, Vec2};
+use geom_core::Tol;
+use geom_core::{Point2, Point3, Vec2};
 use mesh::validate::{check_mesh, signed_volume};
 use mesh::{Mesh, tessellate};
 use profile::RawLoop;
@@ -14,7 +16,7 @@ use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::Body;
 
 pub fn eps() -> f64 {
-    Tolerance::get().eps
+    Tol::witness().get().eps
 }
 
 /// A one-loop, four-line quad SECTION for the loft/sweep doors
@@ -32,7 +34,7 @@ pub fn p2(x: f64, y: f64) -> Point2<f64> {
 
 pub fn validated(loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
     Profile::new(SketchPlane::xy(), loops)
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap()
 }
 
@@ -55,18 +57,26 @@ pub fn l_prism() -> Body<f64> {
         p2(1.0, 2.0),
         p2(0.0, 2.0),
     ]);
-    extrude(&validated(vec![lp]), Extrusion::Distance(1.0))
-        .unwrap()
-        .body
+    extrude(
+        &validated(vec![lp]),
+        Extrusion::Distance(1.0),
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 /// Holed prism: 3×3 square with a centered 1×1 square hole, height 1.
 pub fn holed_prism() -> Body<f64> {
     let outer = ProfileLoop::polygon([p2(0.0, 0.0), p2(3.0, 0.0), p2(3.0, 3.0), p2(0.0, 3.0)]);
     let hole = ProfileLoop::polygon([p2(1.0, 1.0), p2(2.0, 1.0), p2(2.0, 2.0), p2(1.0, 2.0)]);
-    extrude(&validated(vec![outer, hole]), Extrusion::Distance(1.0))
-        .unwrap()
-        .body
+    extrude(
+        &validated(vec![outer, hole]),
+        Extrusion::Distance(1.0),
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 /// Rounded-square prism: 2×2 square, corners rounded at radius
@@ -89,9 +99,13 @@ pub fn rounded_prism() -> Body<f64> {
     // (the #101 discipline).
     let n = lp.vertices().len();
     lp = lp.with_tangent_joints((0..n).collect());
-    extrude(&validated(vec![lp]), Extrusion::Distance(1.0))
-        .unwrap()
-        .body
+    extrude(
+        &validated(vec![lp]),
+        Extrusion::Distance(1.0),
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 /// The ball: unit half-disc revolved fully (two-band sphere, poles).
@@ -100,18 +114,28 @@ pub fn ball() -> Body<f64> {
         ProfileVertex::new(p2(0.0, -1.0), 1.0),
         ProfileVertex::new(p2(0.0, 1.0), 0.0),
     ]);
-    revolve(&validated(vec![lp]), axis_y(), Revolution::Full)
-        .unwrap()
-        .body
+    revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 /// The cone: right triangle (base radius 1, height 1) revolved fully
 /// (apex fan + base disc).
 pub fn cone() -> Body<f64> {
     let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(0.0, 1.0)]);
-    revolve(&validated(vec![lp]), axis_y(), Revolution::Full)
-        .unwrap()
-        .body
+    revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 /// A PARTIAL revolve of the cone profile — base radius `s`, height 1,
@@ -121,9 +145,14 @@ pub fn cone() -> Body<f64> {
 /// the sagitta cap at every δ, and a narrow `theta`) live here.
 pub fn cone_wedge(s: f64, theta: f64) -> Body<f64> {
     let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(s, 0.0), p2(0.0, 1.0)]);
-    revolve(&validated(vec![lp]), axis_y(), Revolution::Partial(theta))
-        .unwrap()
-        .body
+    revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Partial(theta),
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 /// A PARTIAL revolve of the unit half-disc — the ball's profile swept
@@ -136,18 +165,28 @@ pub fn sphere_wedge(theta: f64) -> Body<f64> {
         ProfileVertex::new(p2(0.0, -1.0), 1.0),
         ProfileVertex::new(p2(0.0, 1.0), 0.0),
     ]);
-    revolve(&validated(vec![lp]), axis_y(), Revolution::Partial(theta))
-        .unwrap()
-        .body
+    revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Partial(theta),
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 /// The washer: rectangle [1,2]×[0,1] revolved fully (genus 1, slit
 /// annuli + full-2π cylinder walls).
 pub fn washer() -> Body<f64> {
     let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
-    revolve(&validated(vec![lp]), axis_y(), Revolution::Full)
-        .unwrap()
-        .body
+    revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 /// The donut: circle of radius 0.5 centered at (2, 0) (two arc
@@ -158,9 +197,14 @@ pub fn donut() -> Body<f64> {
         ProfileVertex::new(p2(2.0, -0.5), 1.0),
         ProfileVertex::new(p2(2.0, 0.5), 1.0),
     ]);
-    revolve(&validated(vec![lp]), axis_y(), Revolution::Full)
-        .unwrap()
-        .body
+    revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 /// Partial wedge: rectangle [1,2]×[0,1] revolved by +π/2.
@@ -170,6 +214,7 @@ pub fn wedge() -> Body<f64> {
         &validated(vec![lp]),
         axis_y(),
         Revolution::Partial(core::f64::consts::FRAC_PI_2),
+        Tol::witness(),
     )
     .unwrap()
     .body
@@ -184,6 +229,7 @@ pub fn axis_wedge() -> Body<f64> {
         &validated(vec![lp]),
         axis_y(),
         Revolution::Partial(core::f64::consts::FRAC_PI_2),
+        Tol::witness(),
     )
     .unwrap()
     .body
@@ -238,7 +284,8 @@ pub fn dist_to_surface(surface: &Surface<f64>, p: Point3<f64>) -> f64 {
             let d_circle = ((rho - major_radius).powi(2) + h * h).sqrt();
             (d_circle - minor_radius).abs()
         }
-        Surface::Nurbs(_) => f64::NAN,
+        // No closed-form distance oracle for a spline locus or a fit.
+        Surface::Nurbs(_) | Surface::Approx(_) => f64::NAN,
     }
 }
 
@@ -272,7 +319,7 @@ pub fn dump(mesh: &Mesh) -> String {
 /// chordal bound by dense sampling, back-reference integrity, boundary
 /// conformity, and D9 byte-identical rebuild.
 pub fn check_mesh_acceptance(body: &Body<f64>, delta: f64, exact: Option<(f64, f64)>) -> Mesh {
-    let mesh = tessellate(body, delta).unwrap();
+    let mesh = tessellate(body, delta, Tol::witness()).unwrap();
 
     // (i) watertight, manifold, consistently wound.
     assert_eq!(check_mesh(&mesh), Ok(()));
@@ -369,7 +416,7 @@ pub fn check_mesh_acceptance(body: &Body<f64>, delta: f64, exact: Option<(f64, f
     }
 
     // (v) determinism: byte-identical rebuild.
-    let again = tessellate(body, delta).unwrap();
+    let again = tessellate(body, delta, Tol::witness()).unwrap();
     assert_eq!(dump(&mesh), dump(&again), "rebuild not byte-identical");
 
     mesh

@@ -56,6 +56,7 @@
 //!   (unit; `u_ref ⊥ axis`, ⊥ `normal`), unchecked per the crate
 //!   docs' rule.
 
+pub mod approx;
 pub mod boxes;
 pub mod nurbs;
 pub mod projection;
@@ -66,6 +67,7 @@ use geom_core::spline::SpanLocate;
 use geom_core::{Point3, Real, Vec3};
 
 use crate::azimuth;
+pub use approx::{ApproxSurface, ApproxWindow, OffsetCertificate, SurfaceDescription, SurfaceSpec};
 pub use nurbs::{NurbsSurface, SurfaceJet, SurfaceJet3, SurfaceWindow};
 pub use projection::{SurfaceProjection, SurfaceProjectionInconclusive};
 
@@ -214,8 +216,12 @@ pub enum Surface<T: Real> {
     ///   (radially farthest from the axis), `v = π/2` on the top circle
     ///   (toward `+axis`).
     /// - Convention `R > r > 0` (a ring torus — no self-intersection);
-    ///   spindle/horn configurations are degenerate data rejected
-    ///   upstream.
+    ///   spindle/horn configurations are degenerate data. `sweep::revolve`
+    ///   refuses them at construction, but the other door that can mint a
+    ///   torus (`step-import`'s `TOROIDAL_SURFACE`) reads both radii
+    ///   verbatim — so the net covering BOTH is `topo::validate`'s tier-3
+    ///   check 1, which reports `DegenerateTorus` on any face carrying one
+    ///   at rest.
     /// - Chart normal: `radial(u)·cos v + axis·sin v` — out of the tube
     ///   — since `∂u × ∂v = (that)·(r·(R + r·cos v))` and
     ///   `R + r·cos v > 0` for a ring torus. No chart singularities on
@@ -244,6 +250,24 @@ pub enum Surface<T: Real> {
     /// [`Surface::nurbs_placeholder`] — a poison-valued payload with
     /// the same all-poison evaluation behavior.
     Nurbs(Arc<NurbsSurface<T>>),
+
+    /// An **approximating** surface: a fitted NURBS standing in for a
+    /// surface the kernel cannot represent exactly, carrying the
+    /// intensional description of what it approximates and a
+    /// certificate bounding the distance between them
+    /// ([`ApproxSurface`]).
+    ///
+    /// The fit **is** the geometry: every evaluator, box and mesh arm
+    /// delegates to it, and the certificate says how far that stands
+    /// from the intent. The description is what re-certification
+    /// measures against — the validator re-derives per face and never
+    /// trusts the stored certificate.
+    ///
+    /// The payload is certified by construction ([`ApproxSurface`] has
+    /// no other door), so unlike [`Surface::Nurbs`] there is no
+    /// placeholder state in this variant: an `Approx` surface is always
+    /// described.
+    Approx(Arc<ApproxSurface<T>>),
 }
 
 impl<T: Real> Surface<T> {
@@ -254,6 +278,30 @@ impl<T: Real> Surface<T> {
     /// loudly (D4 ¶2) — representable ≠ described.
     pub fn nurbs_placeholder() -> Self {
         Surface::Nurbs(Arc::new(NurbsSurface::placeholder()))
+    }
+
+    /// The **spline chart** a surface evaluates through, when it has
+    /// one: the payload for [`Surface::Nurbs`], the fit for
+    /// [`Surface::Approx`], `None` for the analytic kinds.
+    ///
+    /// The invariant this expresses is the `Approx` variant's own — the
+    /// fit IS the geometry — so every consumer whose question is about
+    /// the surface's `(u, v)` chart (evaluation, stretch bounds, the
+    /// spline pcurve lanes, tessellation) asks here rather than
+    /// matching `Nurbs` and dropping `Approx` on the floor. A consumer
+    /// whose question is about what the surface *means* (the boolean
+    /// operand gate, the offset mint, STEP export) must NOT: it reads
+    /// the description, or refuses.
+    pub fn spline_chart(&self) -> Option<&NurbsSurface<T>> {
+        match self {
+            Surface::Plane { .. }
+            | Surface::Cylinder { .. }
+            | Surface::Cone { .. }
+            | Surface::Sphere { .. }
+            | Surface::Torus { .. } => None,
+            Surface::Nurbs(n) => Some(n),
+            Surface::Approx(a) => Some(a.fit()),
+        }
     }
 }
 
@@ -268,6 +316,18 @@ impl<T: SpanLocate> Surface<T> {
     /// (span selection via the sealed [`SpanLocate`] seam — the
     /// `impl`-block bound, a sealed `Real` subtrait; see the crate
     /// docs' evaluation-code discipline note).
+    ///
+    /// **Each analytic arm's point expression is written twice** — once
+    /// here and once in [`Surface::jet`] — and that is a duplication
+    /// this method's own collapse of the derivative accessors created.
+    /// The alternative is making `eval` a projection of the jet, which
+    /// costs [`Surface::Nurbs`] an order-2 basis pass on the workspace's
+    /// hottest evaluation door to spare five short analytic
+    /// expressions; the copies are the cheaper trade. They are not
+    /// unguarded: `eval_agrees_bitwise_with_the_jets_point` compares
+    /// the two, bit for bit, over every chart in the corpus, so a
+    /// divergence between the copies is a red test rather than a silent
+    /// fork.
     pub fn eval(&self, u: T, v: T) -> Point3<T> {
         match self {
             &Surface::Plane {
@@ -319,6 +379,130 @@ impl<T: SpanLocate> Surface<T> {
                 center + radial * (major_radius + minor_radius * c_v) + axis * (minor_radius * s_v)
             }
             Surface::Nurbs(n) => n.eval(u, v),
+            // The fit IS the geometry (the variant's docs): evaluation
+            // delegates to it, and the certificate — not this arm —
+            // carries how far it stands from the description.
+            Surface::Approx(a) => a.fit().eval(u, v),
+        }
+    }
+
+    /// The whole second-order jet at `(u, v)` in **one** evaluation:
+    /// the point and every partial with `k + l ≤ 2`.
+    ///
+    /// This is the enum's primitive derivative query: the five
+    /// single-partial accessors below and [`Surface::normal`] are
+    /// defined as its projections, so each field here is, by
+    /// construction, exactly what the corresponding accessor returns,
+    /// bit for bit (pinned by test, as [`SurfaceJet3`]'s common fields
+    /// are). A caller wanting more than one partial at a point asks
+    /// once: the analytic arms build the azimuthal frame and
+    /// `sin_cos(v)` a single time, and [`Surface::Nurbs`] makes a
+    /// single [`NurbsSurface::ders`] pass rather than one per partial.
+    ///
+    /// `point` is the payload jet's own point for [`Surface::Nurbs`] —
+    /// [`Surface::eval`] keeps its dedicated pass and is **not** a
+    /// projection of this jet. That pass really is the cheaper one:
+    /// order-0 basis against this jet's order-2 tensor, measured on a
+    /// rational patch at 2 heap allocations against the jet's 40.
+    ///
+    /// Note what these arms cost the other way: on the analytic
+    /// variants the single-partial projections are now *more*
+    /// expensive than the bodies they replaced — `deriv_vv` on a
+    /// [`Surface::Plane`] was `Vec3::zero()` and now builds a whole
+    /// jet. That is deliberate, and it is affordable because no
+    /// production path calls the single-partial doors; `Surface::eval`
+    /// and `Surface::jet` are the only two that any does.
+    pub fn jet(&self, u: T, v: T) -> SurfaceJet<T> {
+        match self {
+            &Surface::Plane {
+                origin,
+                normal,
+                u_ref,
+            } => {
+                let v_ref = normal.cross(u_ref);
+                SurfaceJet {
+                    point: origin + u_ref * u + v_ref * v,
+                    du: u_ref,
+                    dv: v_ref,
+                    duu: Vec3::zero(),
+                    duv: Vec3::zero(),
+                    dvv: Vec3::zero(),
+                }
+            }
+            &Surface::Cylinder {
+                origin,
+                axis,
+                radius,
+                u_ref,
+            } => {
+                let (radial, tangential) = azimuth::frame(axis, u_ref, u);
+                SurfaceJet {
+                    point: origin + radial * radius + axis * v,
+                    du: tangential * radius,
+                    dv: axis,
+                    duu: radial * (-radius),
+                    duv: Vec3::zero(),
+                    dvv: Vec3::zero(),
+                }
+            }
+            &Surface::Cone {
+                apex,
+                axis,
+                half_angle,
+                u_ref,
+            } => {
+                let (s_a, c_a) = half_angle.sin_cos();
+                let (radial, tangential) = azimuth::frame(axis, u_ref, u);
+                SurfaceJet {
+                    point: apex + axis * (v * c_a) + radial * (v * s_a),
+                    du: tangential * (v * s_a),
+                    dv: axis * c_a + radial * s_a,
+                    duu: radial * (-(v * s_a)),
+                    duv: tangential * s_a,
+                    dvv: Vec3::zero(),
+                }
+            }
+            &Surface::Sphere {
+                center,
+                radius,
+                axis,
+                u_ref,
+            } => {
+                let (s_v, c_v) = v.sin_cos();
+                let (radial, tangential) = azimuth::frame(axis, u_ref, u);
+                SurfaceJet {
+                    point: center + (radial * c_v + axis * s_v) * radius,
+                    du: tangential * (radius * c_v),
+                    dv: (radial * (-s_v) + axis * c_v) * radius,
+                    duu: radial * (-(radius * c_v)),
+                    duv: tangential * (-(radius * s_v)),
+                    dvv: (radial * c_v + axis * s_v) * (-radius),
+                }
+            }
+            &Surface::Torus {
+                center,
+                axis,
+                major_radius,
+                minor_radius,
+                u_ref,
+            } => {
+                let (s_v, c_v) = v.sin_cos();
+                let (radial, tangential) = azimuth::frame(axis, u_ref, u);
+                SurfaceJet {
+                    point: center
+                        + radial * (major_radius + minor_radius * c_v)
+                        + axis * (minor_radius * s_v),
+                    du: tangential * (major_radius + minor_radius * c_v),
+                    dv: (radial * (-s_v) + axis * c_v) * minor_radius,
+                    duu: radial * (-(major_radius + minor_radius * c_v)),
+                    duv: tangential * (-(minor_radius * s_v)),
+                    dvv: (radial * c_v + axis * s_v) * (-minor_radius),
+                }
+            }
+            Surface::Nurbs(n) => n.ders(u, v),
+            // As `eval`: the fit is the geometry, so every derivative
+            // (and therefore `normal`) is the fit's.
+            Surface::Approx(a) => a.fit().ders(u, v),
         }
     }
 
@@ -330,51 +514,12 @@ impl<T: SpanLocate> Surface<T> {
     /// **zero at the poles**. Torus:
     /// `tangential(u)·(R + r·cos v)`. Nurbs: the payload jet's `du`
     /// (all-poison for the placeholder state).
+    ///
+    /// [`Surface::jet`]'s `du`, projected — the enum evaluates its jet
+    /// once, and a caller wanting a second partial at the same `(u, v)`
+    /// asks for the jet rather than for two projections.
     pub fn deriv_u(&self, u: T, v: T) -> Vec3<T> {
-        match self {
-            &Surface::Plane { u_ref, .. } => u_ref,
-            &Surface::Cylinder {
-                axis,
-                radius,
-                u_ref,
-                ..
-            } => {
-                let (_, tangential) = azimuth::frame(axis, u_ref, u);
-                tangential * radius
-            }
-            &Surface::Cone {
-                axis,
-                half_angle,
-                u_ref,
-                ..
-            } => {
-                let (s_a, _) = half_angle.sin_cos();
-                let (_, tangential) = azimuth::frame(axis, u_ref, u);
-                tangential * (v * s_a)
-            }
-            &Surface::Sphere {
-                radius,
-                axis,
-                u_ref,
-                ..
-            } => {
-                let (_, c_v) = v.sin_cos();
-                let (_, tangential) = azimuth::frame(axis, u_ref, u);
-                tangential * (radius * c_v)
-            }
-            &Surface::Torus {
-                axis,
-                major_radius,
-                minor_radius,
-                u_ref,
-                ..
-            } => {
-                let (_, c_v) = v.sin_cos();
-                let (_, tangential) = azimuth::frame(axis, u_ref, u);
-                tangential * (major_radius + minor_radius * c_v)
-            }
-            Surface::Nurbs(n) => n.ders(u, v).du,
-        }
+        self.jet(u, v).du
     }
 
     /// The first partial `∂S/∂v`.
@@ -385,46 +530,16 @@ impl<T: SpanLocate> Surface<T> {
     /// `(radial(u)·(−sin v) + axis·cos v)·radius` — the meridian
     /// tangent. Torus: `(radial(u)·(−sin v) + axis·cos v)·r`. Nurbs:
     /// the payload jet's `dv` (all-poison for the placeholder state).
+    ///
+    /// [`Surface::jet`]'s `dv`, projected (see [`Surface::deriv_u`]).
     pub fn deriv_v(&self, u: T, v: T) -> Vec3<T> {
-        match self {
-            &Surface::Plane { normal, u_ref, .. } => normal.cross(u_ref),
-            &Surface::Cylinder { axis, .. } => axis,
-            &Surface::Cone {
-                axis,
-                half_angle,
-                u_ref,
-                ..
-            } => {
-                let (s_a, c_a) = half_angle.sin_cos();
-                let (radial, _) = azimuth::frame(axis, u_ref, u);
-                axis * c_a + radial * s_a
-            }
-            &Surface::Sphere {
-                radius,
-                axis,
-                u_ref,
-                ..
-            } => {
-                let (s_v, c_v) = v.sin_cos();
-                let (radial, _) = azimuth::frame(axis, u_ref, u);
-                (radial * (-s_v) + axis * c_v) * radius
-            }
-            &Surface::Torus {
-                axis,
-                minor_radius,
-                u_ref,
-                ..
-            } => {
-                let (s_v, c_v) = v.sin_cos();
-                let (radial, _) = azimuth::frame(axis, u_ref, u);
-                (radial * (-s_v) + axis * c_v) * minor_radius
-            }
-            Surface::Nurbs(n) => n.ders(u, v).dv,
-        }
+        self.jet(u, v).dv
     }
 
-    /// The unit chart normal: exactly
-    /// `self.deriv_u(u, v).cross(self.deriv_v(u, v)).normalize()` — the
+    /// The unit chart normal: `du × dv` normalized, off ONE
+    /// [`Surface::jet`] — the same value as
+    /// `self.deriv_u(u, v).cross(self.deriv_v(u, v)).normalize()`, whose
+    /// two fields it takes from a single evaluation instead of two. The
     /// derived normal of this module's docs. Orientation is the
     /// parameterization's; at chart singularities (sphere poles in
     /// exact arithmetic, the cone apex) the cross vanishes and the
@@ -432,7 +547,8 @@ impl<T: SpanLocate> Surface<T> {
     /// fabricated limit directions; downstream pole machinery owns
     /// those points).
     pub fn normal(&self, u: T, v: T) -> Vec3<T> {
-        self.deriv_u(u, v).cross(self.deriv_v(u, v)).normalize()
+        let j = self.jet(u, v);
+        j.du.cross(j.dv).normalize()
     }
 
     /// The second partial `∂²S/∂u²`.
@@ -442,51 +558,10 @@ impl<T: SpanLocate> Surface<T> {
     /// Torus: `radial(u)·(−(R + r·cos v))`. Nurbs: the payload jet's
     /// `duu` (all-poison for the placeholder state). (Each is the
     /// azimuthal-rotation second derivative: `radial″ = −radial`.)
+    ///
+    /// [`Surface::jet`]'s `duu`, projected (see [`Surface::deriv_u`]).
     pub fn deriv_uu(&self, u: T, v: T) -> Vec3<T> {
-        match self {
-            &Surface::Plane { .. } => Vec3::zero(),
-            &Surface::Cylinder {
-                axis,
-                radius,
-                u_ref,
-                ..
-            } => {
-                let (radial, _) = azimuth::frame(axis, u_ref, u);
-                radial * (-radius)
-            }
-            &Surface::Cone {
-                axis,
-                half_angle,
-                u_ref,
-                ..
-            } => {
-                let (s_a, _) = half_angle.sin_cos();
-                let (radial, _) = azimuth::frame(axis, u_ref, u);
-                radial * (-(v * s_a))
-            }
-            &Surface::Sphere {
-                radius,
-                axis,
-                u_ref,
-                ..
-            } => {
-                let (_, c_v) = v.sin_cos();
-                let (radial, _) = azimuth::frame(axis, u_ref, u);
-                radial * (-(radius * c_v))
-            }
-            &Surface::Torus {
-                axis,
-                major_radius,
-                minor_radius,
-                u_ref,
-                ..
-            } => {
-                let (_, c_v) = v.sin_cos();
-                let (radial, _) = azimuth::frame(axis, u_ref, u);
-                radial * (-(major_radius + minor_radius * c_v))
-            }
-            Surface::Nurbs(n) => n.ders(u, v).duu,
-        }
+        self.jet(u, v).duu
     }
 
     /// The mixed second partial `∂²S/∂u∂v` (= `∂²S/∂v∂u` — smooth
@@ -496,41 +571,10 @@ impl<T: SpanLocate> Surface<T> {
     /// `tangential(u)·(−(radius·sin v))`. Torus:
     /// `tangential(u)·(−(r·sin v))`. Nurbs: the payload jet's `duv`
     /// (all-poison for the placeholder state).
+    ///
+    /// [`Surface::jet`]'s `duv`, projected (see [`Surface::deriv_u`]).
     pub fn deriv_uv(&self, u: T, v: T) -> Vec3<T> {
-        match self {
-            &Surface::Plane { .. } | &Surface::Cylinder { .. } => Vec3::zero(),
-            &Surface::Cone {
-                axis,
-                half_angle,
-                u_ref,
-                ..
-            } => {
-                let (s_a, _) = half_angle.sin_cos();
-                let (_, tangential) = azimuth::frame(axis, u_ref, u);
-                tangential * s_a
-            }
-            &Surface::Sphere {
-                radius,
-                axis,
-                u_ref,
-                ..
-            } => {
-                let (s_v, _) = v.sin_cos();
-                let (_, tangential) = azimuth::frame(axis, u_ref, u);
-                tangential * (-(radius * s_v))
-            }
-            &Surface::Torus {
-                axis,
-                minor_radius,
-                u_ref,
-                ..
-            } => {
-                let (s_v, _) = v.sin_cos();
-                let (_, tangential) = azimuth::frame(axis, u_ref, u);
-                tangential * (-(minor_radius * s_v))
-            }
-            Surface::Nurbs(n) => n.ders(u, v).duv,
-        }
+        self.jet(u, v).duv
     }
 
     /// The second partial `∂²S/∂v²`.
@@ -540,33 +584,10 @@ impl<T: SpanLocate> Surface<T> {
     /// radial. Torus: `(radial(u)·cos v + axis·sin v)·(−r)` — into the
     /// tube. Nurbs: the payload jet's `dvv` (all-poison for the
     /// placeholder state).
+    ///
+    /// [`Surface::jet`]'s `dvv`, projected (see [`Surface::deriv_u`]).
     pub fn deriv_vv(&self, u: T, v: T) -> Vec3<T> {
-        match self {
-            &Surface::Plane { .. } | &Surface::Cylinder { .. } | &Surface::Cone { .. } => {
-                Vec3::zero()
-            }
-            &Surface::Sphere {
-                radius,
-                axis,
-                u_ref,
-                ..
-            } => {
-                let (s_v, c_v) = v.sin_cos();
-                let (radial, _) = azimuth::frame(axis, u_ref, u);
-                (radial * c_v + axis * s_v) * (-radius)
-            }
-            &Surface::Torus {
-                axis,
-                minor_radius,
-                u_ref,
-                ..
-            } => {
-                let (s_v, c_v) = v.sin_cos();
-                let (radial, _) = azimuth::frame(axis, u_ref, u);
-                (radial * c_v + axis * s_v) * (-minor_radius)
-            }
-            Surface::Nurbs(n) => n.ders(u, v).dvv,
-        }
+        self.jet(u, v).dvv
     }
 }
 
@@ -707,7 +728,9 @@ mod tests {
                 minor_radius: Dual::constant(minor_radius),
                 u_ref: crate::scalar_lift::dual_vec(u_ref),
             },
-            Surface::Nurbs(_) => Surface::nurbs_placeholder(),
+            // The corpus below is analytic; neither spline kind lifts
+            // to a `Dual` (there is no `NurbsSurface<Dual>` fixture).
+            Surface::Nurbs(_) | Surface::Approx(_) => Surface::nurbs_placeholder(),
         }
     }
 
@@ -865,7 +888,7 @@ mod tests {
                         let dr = rho - major_radius;
                         (dr.powi(2) + along.powi(2)).sqrt() - minor_radius
                     }
-                    Surface::Nurbs(_) => 0.0,
+                    Surface::Nurbs(_) | Surface::Approx(_) => 0.0,
                 };
                 prop_assert!(
                     residual.abs() <= 1e-12,
@@ -1111,7 +1134,9 @@ mod tests {
                     minor_radius: Interval::from_f64(minor_radius),
                     u_ref: crate::scalar_lift::interval_vec(u_ref),
                 },
-                Surface::Nurbs(_) => Surface::nurbs_placeholder(),
+                // As the dual lift: the corpus is analytic, and neither
+                // spline kind has an interval fixture to lift.
+                Surface::Nurbs(_) | Surface::Approx(_) => Surface::nurbs_placeholder(),
             }
         }
 

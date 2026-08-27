@@ -10,8 +10,12 @@
 #![allow(clippy::expect_used, clippy::panic)]
 
 use crate::errors::{ErrorClass, QuantityOpMismatch, canonical_unit, dimension_tag};
-use crate::tags::{expr_dimension_error_tag, path_error_tag, persist_error_tag};
+use crate::tags::{
+    expr_dimension_error_tag, path_error_tag, persist_error_tag, step_import_error_tag,
+    workspace_error_tag,
+};
 use pncad::document::Dimension;
+use pncad::tolerance::Tol;
 use std::collections::BTreeMap;
 use std::path::Path;
 
@@ -46,7 +50,7 @@ fn a_quantity_operator_mismatch_carries_structure_not_prose() {
 /// Every class name is pinned, and the pin cannot go stale: the
 /// expected spelling comes from a SECOND exhaustive match, so a new
 /// [`ErrorClass`] variant stops this test compiling rather than
-/// slipping past a list someone forgot to extend (`Frame` did).
+/// slipping past a list someone forgot to extend.
 #[test]
 fn error_classes_name_the_python_hierarchy() {
     fn expected(class: ErrorClass) -> &'static str {
@@ -138,10 +142,8 @@ fn select_refusal_tags_are_stable() {
 /// arm and the compile-time drift alarm is unavailable — an unknown
 /// class refuses typed (`unclassified`) at the crossing instead.
 ///
-/// That forced wildcard has a cost this pin now pays: a wildcarded
-/// alarm cannot fire, so `Tangent` sat in the kernel for a whole PR
-/// while the mirror still spelled only `Rest` and nothing went red.
-/// So the pin ENUMERATES what the mirror claims to speak, one line
+/// That forced wildcard has a cost this pin pays: a wildcarded alarm
+/// cannot fire, so the pin ENUMERATES what the mirror speaks, one line
 /// per class, and a class added to the kernel without a line here is
 /// visible as an absence in a list rather than invisible behind a
 /// wildcard.
@@ -245,10 +247,11 @@ fn literal_refusals_come_from_the_kernel_with_stable_tags() {
 /// quantity boundary's `DimensionError` either.
 #[test]
 fn the_load_door_reaches_dimension_mismatch_arms_as_an_untyped_parse_refusal() {
+    let tol = Tol::witness();
     use pncad::document::{DocEdit, LoopProgram, Node, ProfileDoc, ProfileProgram, apply, save};
     use pncad::prelude::SketchPlane;
 
-    let doc: ProfileDoc = crate::identity::derived("dimension-routing-probe");
+    let doc: ProfileDoc = crate::identity::derived("dimension-routing-probe", tol);
     let square = LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
         .expect("finite corners");
     let applied = apply(
@@ -259,9 +262,10 @@ fn the_load_door_reaches_dimension_mismatch_arms_as_an_untyped_parse_refusal() {
                 loops: vec![square],
             }),
         },
+        tol,
     )
     .expect("the profile inserts");
-    let text = save(&applied.doc, &[]).expect("the document saves");
+    let text = save(&applied.doc, &[], tol).expect("the document saves");
     let (header, body) = text.split_once("\n{").expect("a header line then the body");
     let body = format!("{{{body}");
     let saved: serde_json::Value = serde_json::from_str(&body).expect("the save body is JSON");
@@ -307,7 +311,7 @@ fn the_load_door_reaches_dimension_mismatch_arms_as_an_untyped_parse_refusal() {
             "{header}\n{}",
             serde_json::to_string(&mutated).expect("re-serializing")
         );
-        let err = pncad::document::load(&text)
+        let err = pncad::document::load(&text, tol)
             .err()
             .unwrap_or_else(|| panic!("{arm}: an ill-dimensioned save file must refuse"));
         assert_eq!(
@@ -345,33 +349,78 @@ fn replace_first_literal(value: &mut serde_json::Value, with: &serde_json::Value
 /// two tags' spellings against the wire).
 #[test]
 fn persist_error_tags_are_stable() {
-    let header = pncad::document::load("not a header").expect_err("garbage refuses");
+    let header =
+        pncad::document::load("not a header", Tol::witness()).expect_err("garbage refuses");
     assert_eq!(persist_error_tag(&header), "header");
-    let unknown = pncad::document::load("schema: 9999\n{}").expect_err("a future schema refuses");
+    let unknown = pncad::document::load("schema: 9999\n{}", Tol::witness())
+        .expect_err("a future schema refuses");
     assert_eq!(persist_error_tag(&unknown), "unknown_schema");
+}
+
+/// The workspace tags `Doc()` publishes. `randomness_unavailable` is
+/// the one `pncad.pyi` names, and it is minted here rather than
+/// provoked: `getrandom::fill` has no injection seam (see
+/// `crate::identity::interactive`), so the reachable-arm door cannot
+/// be driven from a test. `Io` is driven through a real workspace
+/// door — `Workspace::open`, which is NOT the door that raises
+/// `IdentityError`, and that is the point: the map answers about the
+/// VALUE, so it is exercisable wherever a `WorkspaceError` can be
+/// produced rather than only where this one is raised.
+#[test]
+fn workspace_error_tags_are_stable() {
+    use pncad::workspace::{Workspace, WorkspaceError};
+
+    assert_eq!(
+        workspace_error_tag(&WorkspaceError::RandomnessUnavailable {
+            message: "entropy source refused".to_string(),
+        }),
+        "randomness_unavailable"
+    );
+    let missing = Workspace::open(Path::new("/nonexistent/pncad-workspace"))
+        .expect_err("a directory that is not there refuses");
+    assert_eq!(workspace_error_tag(&missing), "io");
+}
+
+/// The STEP importer's tags. Every arm of this enum is reachable
+/// through `import_step`, so unlike the workspace map there is no
+/// single-reachable-arm caveat to make: the exhaustive match is the
+/// drift alarm and these two pin its spelling against the wire. The
+/// first goes through the real door; the second is minted, because
+/// reaching `NothingToImport` needs a well-formed Part 21 file and
+/// that is a fixture, not a literal.
+#[test]
+fn step_import_error_tags_are_stable() {
+    let opts = pncad::step_import::ImportOptions::default();
+    let garbage = pncad::step_import::import_step("not a step file", &opts, Tol::witness())
+        .expect_err("garbage refuses");
+    assert_eq!(step_import_error_tag(&garbage), "syntax");
+    assert_eq!(
+        step_import_error_tag(&pncad::step_import::StepImportError::NothingToImport),
+        "nothing_to_import"
+    );
 }
 
 #[test]
 fn path_error_tags_are_stable() {
     use pncad::prelude::{Open, Start, circle, p2};
 
-    let zero = circle(p2(0.0, 0.0), 0.0).expect_err("a zero radius refuses");
+    let zero = circle(p2(0.0, 0.0), 0.0, Tol::witness()).expect_err("a zero radius refuses");
     assert_eq!(path_error_tag(&zero), "nonpositive_circle_radius");
 
     let tangent = Open
         .at(p2(0.0, 0.0))
-        .line_to(p2(1.0, 0.0))
+        .line_to(p2(1.0, 0.0), Tol::witness())
         .expect("a leg east")
-        .angle(0.0)
+        .angle(0.0, Tol::witness())
         .expect_err("a corner tangent to its incoming leg refuses");
     assert_eq!(path_error_tag(&tangent), "junction_tangent");
 
     let overdetermined = Open
         .at(p2(0.0, 0.0))
-        .line_to(p2(1.0, 0.0))
+        .line_to(p2(1.0, 0.0), Tol::witness())
         .expect("a leg east")
         .tangent()
-        .tangent_arc_to(Start)
+        .tangent_arc_to(Start, Tol::witness())
         .expect_err("a tangent LINE close refuses always");
     assert_eq!(path_error_tag(&overdetermined), "tangent_line_close");
 }
@@ -414,10 +463,9 @@ fn toml_table(source: &str, header: &str) -> BTreeMap<String, String> {
 ///
 /// This crate cannot inherit `[workspace.lints]` (see the Cargo.toml
 /// header: `unsafe_code = "forbid"` versus PyO3's macro-generated
-/// `unsafe impl`), so the table is restated by hand — and an earlier
-/// revision of this file silently dropped four clippy lints while
-/// claiming it had kept them all. This test turns that claim into an
-/// enforced invariant: adding a lint to `[workspace.lints]` breaks
+/// `unsafe impl`), so the table is restated by hand — and this test
+/// makes the equality an enforced invariant rather than a claim:
+/// adding a lint to `[workspace.lints]` breaks
 /// this crate's build until it is mirrored, LOUDLY, on the default
 /// (no-Python) path hosted CI takes.
 #[test]
@@ -485,8 +533,8 @@ fn crate_lints_match_the_workspace_minus_unsafe_code() {
 /// the ids are for.
 #[test]
 fn two_python_authored_documents_are_two_parts_in_one_workspace() {
-    let a = crate::identity::interactive().expect("OS entropy");
-    let b = crate::identity::interactive().expect("OS entropy");
+    let a = crate::identity::interactive(Tol::witness()).expect("OS entropy");
+    let b = crate::identity::interactive(Tol::witness()).expect("OS entropy");
     assert_ne!(
         a.id(),
         b.id(),
@@ -503,9 +551,11 @@ fn two_python_authored_documents_are_two_parts_in_one_workspace() {
     std::fs::create_dir_all(&dir).expect("a scratch workspace directory");
 
     let mut store = pncad::workspace::Workspace::open(&dir).expect("an empty workspace opens");
-    let first = store.create(&a).expect("the first document writes");
+    let first = store
+        .create(&a, Tol::witness())
+        .expect("the first document writes");
     let second = store
-        .create(&b)
+        .create(&b, Tol::witness())
         .expect("the second document writes beside it");
     assert_ne!(first, second, "two parts, two files");
     assert_eq!(
@@ -527,11 +577,11 @@ fn two_python_authored_documents_are_two_parts_in_one_workspace() {
 #[test]
 fn a_labelled_document_is_the_same_part_every_time() {
     assert_eq!(
-        crate::identity::derived("plate-param").id(),
-        crate::identity::derived("plate-param").id()
+        crate::identity::derived("plate-param", Tol::witness()).id(),
+        crate::identity::derived("plate-param", Tol::witness()).id()
     );
     assert_ne!(
-        crate::identity::derived("plate-param").id(),
-        crate::identity::derived("bracket").id()
+        crate::identity::derived("plate-param", Tol::witness()).id(),
+        crate::identity::derived("bracket", Tol::witness()).id()
     );
 }

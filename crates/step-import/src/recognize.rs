@@ -385,14 +385,15 @@ fn enveloped_residual_sup(
     let kv = patch.knots_v();
     let mut worst = 0.0f64;
     for su in ku.first_span()..=ku.last_span() {
-        // The emptiness skip and the window validation are one
-        // operation now; the window itself is built once per span cell.
-        let Some(span_u) = ku.span(su) else { continue };
         let (ua, ub) = (ku.knots()[su], ku.knots()[su + 1]);
         for sv in kv.first_span()..=kv.last_span() {
-            let Some(span_v) = kv.span(sv) else { continue };
+            // The emptiness skip, the span validation and the window
+            // construction are one operation, both directions; the
+            // window itself is built once per span cell.
+            let Some(win) = patch.window(su, sv) else {
+                continue;
+            };
             let (va, vb) = (kv.knots()[sv], kv.knots()[sv + 1]);
-            let win = patch.window_of(span_u, span_v);
             let mut cell = 0.0f64;
             for i in 0..k {
                 let u = ua + (ub - ua) * f64::from(i) / f64::from(k - 1);

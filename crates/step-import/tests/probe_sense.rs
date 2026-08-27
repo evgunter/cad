@@ -6,6 +6,7 @@
 
 mod common;
 use common::census;
+use geom_core::Tol;
 use step_import::{ImportOptions, StepImport, import_step};
 
 fn fixture(rel: &str) -> String {
@@ -14,12 +15,12 @@ fn fixture(rel: &str) -> String {
 }
 
 fn probe(tag: &str, text: &str, base_vol: f64) {
-    match import_step(text, &ImportOptions::default()) {
+    match import_step(text, &ImportOptions::default(), Tol::witness()) {
         Ok(StepImport::Solid { body, .. }) => {
             let t1 = topo::validate(&body);
             let t2 = topo::validate_closed(&body);
-            let t3 = topo::validate_geometric(&body);
-            let v = topo::mass_properties(&body).map(|m| m.volume);
+            let t3 = topo::validate_geometric(&body, Tol::witness());
+            let v = topo::mass_properties(&body, Tol::witness()).map(|m| m.volume);
             println!(
                 "{tag}: IMPORTED census={:?} t1={t1:?} t2={t2:?} t3ok={} vol={v:?}",
                 census(&body),
@@ -42,11 +43,12 @@ fn probe(tag: &str, text: &str, base_vol: f64) {
 #[test]
 fn flipped_sense_is_never_silent_misgeometry() {
     let base = fixture("freecad/box.step");
-    let StepImport::Solid { body, .. } = import_step(&base, &ImportOptions::default()).unwrap()
+    let StepImport::Solid { body, .. } =
+        import_step(&base, &ImportOptions::default(), Tol::witness()).unwrap()
     else {
         panic!()
     };
-    let v0 = topo::mass_properties(&body).unwrap().volume;
+    let v0 = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
 
     // Box: flip one EDGE_CURVE sense only.
     let m = base.replace(
@@ -58,11 +60,12 @@ fn flipped_sense_is_never_silent_misgeometry() {
 
     // sg1: flip one wild .F. back to .T. (inconsistent with its uses).
     let sg1 = fixture("wild/stepcode/sg1-c5-214.stp");
-    let StepImport::Solid { body, .. } = import_step(&sg1, &ImportOptions::default()).unwrap()
+    let StepImport::Solid { body, .. } =
+        import_step(&sg1, &ImportOptions::default(), Tol::witness()).unwrap()
     else {
         panic!()
     };
-    let vs = topo::mass_properties(&body).unwrap().volume;
+    let vs = topo::mass_properties(&body, Tol::witness()).unwrap().volume;
     let m2 = sg1.replace(
         "#46=EDGE_CURVE('',#43,#45,#41,.F.) ;",
         "#46=EDGE_CURVE('',#43,#45,#41,.T.) ;",

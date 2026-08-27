@@ -51,17 +51,19 @@ use topo::{Body, FaceKey, FaceSurface, LoopKey};
 use crate::assemble::Assembled;
 use crate::entities::SolidSpec;
 use crate::error::{AdoptionAttempt, AdoptionCandidate, StepImportError};
+use geom_core::Tol;
 
 /// Runs phases B and C for one assembled solid (module docs).
 pub(crate) fn finish(
     body: &mut Body<f64>,
     solid: &SolidSpec,
     asm: &Assembled,
+    tol: Tol,
 ) -> Result<(), StepImportError> {
     let face_keys = designate_faces(body, solid, asm)?;
-    rotate_loop_firsts(body, solid, asm)?;
+    rotate_loop_firsts(body, solid, asm, tol)?;
     attach_surfaces(body, solid, &face_keys)?;
-    adopt_edges(body, solid, asm)
+    adopt_edges(body, solid, asm, tol)
 }
 
 /// The body loop realizing target loop `l`.
@@ -182,6 +184,7 @@ fn rotate_loop_firsts(
     body: &mut Body<f64>,
     solid: &SolidSpec,
     asm: &Assembled,
+    tol: Tol,
 ) -> Result<(), StepImportError> {
     let op_err = |source| StepImportError::Assembly {
         id: solid.id,
@@ -222,7 +225,7 @@ fn rotate_loop_firsts(
             })?;
         let offset = Point3::new(p.x + 1.0, p.y, p.z);
         let strut = body
-            .mev_line(topo::MevSite::Fan { he1: t, he2: t }, offset)
+            .mev_line(topo::MevSite::Fan { he1: t, he2: t }, offset, tol)
             .map_err(op_err)?;
         body.kev(strut.he_plus).map_err(op_err)?;
     }
@@ -303,6 +306,16 @@ fn surface_sig(surface: &Surface<f64>) -> Vec<u64> {
         // field the record states, like the analytic arms above.
         // Counts lead each variable-length section so two payloads
         // with different shapes cannot alias by concatenation.
+        // No import path mints one (STEP's OFFSET_SURFACE is not read),
+        // so this arm exists to keep the signature TOTAL rather than to
+        // dedup: a tag alone would alias every approximating surface to
+        // every other, which is the silent-wrong-body trap the NURBS
+        // arm below was written against. A distinct tag plus the fit's
+        // and the base's own signatures is what an adopt path would
+        // need, and it is not written until one exists — so the arm
+        // signs a tag that can alias only with itself and no import
+        // reaches it.
+        Surface::Approx(_) => vec![6u64],
         Surface::Nurbs(ref payload) => {
             let (nu, nv) = payload.control_counts();
             let mut sig = vec![
@@ -357,6 +370,7 @@ fn adopt_edges(
     body: &mut Body<f64>,
     solid: &SolidSpec,
     asm: &Assembled,
+    tol: Tol,
 ) -> Result<(), StepImportError> {
     for (&edge_id, spec) in &solid.edges {
         let (fwd, rev) = asm
@@ -524,6 +538,7 @@ fn adopt_edges(
                         spec.t1,
                         p_start,
                         p_end,
+                        tol,
                     )
                     .map_err(|residual| {
                         StepImportError::RimOffWallBoundary {
@@ -534,13 +549,17 @@ fn adopt_edges(
                 }
             }
             conventional = nurbs_rim
-                || (coincident_surfaces(body.get_surface(fs_plus), body.get_surface(fs_minus))
-                    && carrier_on_surface(
-                        body.get_surface(fs_plus),
-                        &spec.carrier,
-                        spec.t0,
-                        spec.t1,
-                    ));
+                || (coincident_surfaces(
+                    body.get_surface(fs_plus),
+                    body.get_surface(fs_minus),
+                    tol,
+                ) && carrier_on_surface(
+                    body.get_surface(fs_plus),
+                    &spec.carrier,
+                    spec.t0,
+                    spec.t1,
+                    tol,
+                ));
         } else {
             let periodic = body.get_surface(fs_plus).is_some_and(|s| {
                 matches!(
@@ -594,7 +613,7 @@ fn adopt_edges(
             // at `f64`, which carries the lane. Every other rung is
             // unaffected — the door differs only in whether that one
             // certificate is reachable.
-            match body.set_edge_curve_nurbs_lane(edge_key, attempt) {
+            match body.set_edge_curve_nurbs_lane(edge_key, attempt, tol) {
                 Ok(_) => {
                     adopted = true;
                     break;
@@ -793,6 +812,7 @@ fn arc_rim_on_wall_boundary(
     t1: f64,
     p_start: Point3<f64>,
     p_end: Point3<f64>,
+    tol: Tol,
 ) -> Result<(), f64> {
     let Curve3::Circle {
         center,
@@ -805,7 +825,7 @@ fn arc_rim_on_wall_boundary(
         // Circle before calling, so this arm is defensive totality.
         return Ok(());
     };
-    let eps = geom_core::Tolerance::get().eps;
+    let eps = tol.eps();
     let axis_norm = axis.norm();
     let u_ref_norm = u_ref.norm();
     if !(radius.is_finite() && radius > 0.0)
@@ -967,8 +987,8 @@ fn bitwise_iso_match(carrier: &geom::NurbsCurve3<f64>, iso: &geom::NurbsCurve3<f
 /// `false` — the conventional rung is then not offered, and the edge
 /// must earn an intrinsic description or refuse typed, which is the
 /// conservative direction.
-fn coincident_surfaces(s1: Option<&Surface<f64>>, s2: Option<&Surface<f64>>) -> bool {
-    let eps = geom_core::Tolerance::get().eps;
+fn coincident_surfaces(s1: Option<&Surface<f64>>, s2: Option<&Surface<f64>>, tol: Tol) -> bool {
+    let eps = tol.eps();
     match (s1, s2) {
         (
             Some(&Surface::Plane {
@@ -1009,11 +1029,12 @@ fn carrier_on_surface(
     carrier: &Curve3<f64>,
     t0: f64,
     t1: f64,
+    tol: Tol,
 ) -> bool {
     let Some(&Surface::Plane { origin, normal, .. }) = surface else {
         return false;
     };
-    let eps = geom_core::Tolerance::get().eps;
+    let eps = tol.eps();
     let n = normal.norm();
     if !(n.is_finite() && n > 0.0) {
         return false;

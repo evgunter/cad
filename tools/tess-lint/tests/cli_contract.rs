@@ -15,13 +15,18 @@ use tess_lint::EXPECTED_HEADER as HEADER;
 
 /// A one-plane, one-NURBS scene. `tris` is the wall's triangle count
 /// and `span_opt` the cheapest per-cell grid, which together move the
-/// two gate rules independently.
+/// two gate rules independently — and, at `span_opt = 0`, produce the
+/// unreadable denominator this file's harness-voice row needs.
+///
+/// **The twin of `tess_lint`'s own test fixture**, deliberately: an
+/// integration test cannot see a `#[cfg(test)]` item, so the two
+/// cannot share one. Keep them in step.
 fn scene(tris: usize, span_opt: f64) -> String {
     format!(
         "{HEADER}\n\
-         s/b,0,plane,2e-3,4,,,,,,,,,,,,,,,,,\n\
-         s/b,1,nurbs,2e-3,{tris},0e0,1e0,0e0,1e0,1e1,2e1,1e0,1e0,1e0,4,\
-         1e2,2e2,5e1,{span_opt:e},1e-4,5e-5,99\n"
+         s/b,0,plane,2e-3,4,,,,,,,,,,,,,,,,,,,,,,,\n\
+         s/b,1,nurbs,2e-3,{tris},0e0,1e0,0e0,1e0,1e1,2e1,1e0,1e0,1e0,2e0,3e0,4,\
+         1e2,2e2,5e1,{span_opt:e},1e-4,5e-5,99,2,1,0,3e0\n"
     )
 }
 
@@ -96,6 +101,33 @@ fn a_drifted_header_exits_one_not_two() {
     assert!(
         err_of(&out).contains("harness breakage"),
         "{}",
+        err_of(&out)
+    );
+}
+
+/// VOICE (b) again, on the case the voices exist to separate. The
+/// gate fires only on growth, so a denominator resolved in band would
+/// be its own pass value: an unreadable `span_opt_cells` must reach
+/// exit 1, NOT the clean 0 it would reach if the lint answered a
+/// broken measurement with a number.
+#[test]
+fn an_unreadable_denominator_exits_one_not_zero() {
+    let base = csv("broken-base.csv", &scene(100, 2.5e1));
+    let fresh = csv("broken-fresh.csv", &scene(100, 0.0));
+    let out = run(&[
+        fresh.to_str().unwrap(),
+        "--baseline",
+        base.to_str().unwrap(),
+    ]);
+    assert_eq!(
+        out.status.code(),
+        Some(1),
+        "a zero denominator is harness breakage, never a clean gate: {}",
+        out_of(&out)
+    );
+    assert!(
+        err_of(&out).contains("span_opt_cells"),
+        "the message names the column: {}",
         err_of(&out)
     );
 }

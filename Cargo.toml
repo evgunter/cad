@@ -125,18 +125,67 @@ truck-stepio = "0.3.0"
 
 # Workspace-wide lints, inherited by members via `[lints] workspace = true`.
 # D9 (determinism / engineering charter): our own code carries essentially no
-# unsafe (the exception budget lives in vetted dependencies, per L4). Public
-# API is documented.
+# unsafe (the exception budget lives in vetted dependencies). Public API is
+# documented.
 [workspace.lints.rust]
 unsafe_code = "forbid"
 missing_docs = "warn"
+# A `pub` item that no path from the crate root reaches is invisible to
+# `dead_code`, which exempts anything `pub` on the assumption an external
+# crate may call it. That assumption is false here: this workspace's only
+# consumers are its own members plus `pncad`/`pncad-py`, so nothing outside
+# the tree can be the caller such an item is being kept for. This lint is
+# what sees them: a `pub` that is a lie about reachability becomes a
+# compile-time warning rather than something whoever opens the file next
+# has to notice.
+#
+# WHAT IT DOES NOT SEE, so the clean run is not read as a census: struct
+# fields (a bare `pub` field of a `pub(crate)` struct is not linted — it
+# hides no corpse, because `dead_code` DOES report an unread field whatever
+# its keyword, but the keyword still claims a reach the type cannot give
+# it); items an external macro expands to; and `demos/`, `tools/` and
+# `interval-transcendentals/`, which are `exclude`d from this workspace and
+# inherit no `[lints]` table.
+#
+# Two shapes carry an `allow` rather than a narrower keyword.
+#
+# 1. A facade whose door opens under a `cfg` the current build does not
+#    have: `pub` is right for the widest arm and unreachable under the
+#    narrowest, so the `allow` names the arm the `pub` is for.
+#    `crates/topo/src/test_support_impl.rs` is the whole population.
+# 2. A `tests/` helper module — and here the allow is not a judgement
+#    call, because THE DEFECT ABOVE CANNOT OCCUR IN A TEST BINARY. A test
+#    binary has no external API, so `dead_code` is not blinded by `pub`
+#    there: an unused `pub` helper is already reported, by name. Demoting
+#    those helpers would buy no coverage that another lint does not
+#    already give. (Counterfactual, re-run against this tree: drop the
+#    `#![allow(dead_code)]` from `crates/mesh/tests/common/mod.rs` and
+#    `cargo check -p mesh --all-targets` names all 19 of that file's `pub`
+#    helpers.) Each helper tree carries one file-level allow citing this
+#    paragraph; none of them restates it.
+unreachable_pub = "warn"
+# LOAD-BEARING — DO NOT REMOVE. This declares the `nightly_suite` cfg name so
+# `unexpected_cfgs` accepts it. Demoted tests carry
+# `#[cfg_attr(not(nightly_suite), ignore = "nightly-only: <reason>")]`, and the
+# scheduled nightly job builds with `RUSTFLAGS="--cfg nightly_suite"` to run
+# exactly that set (a plain `#[ignore]` stays skipped in BOTH configurations,
+# which is the point). VERIFIED on rustc 1.97.0: with this line deleted, that
+# marker becomes `error: unexpected 'cfg' condition name: 'nightly_suite'`
+# under CI's `-D warnings` and the WHOLE WORKSPACE fails to build. Tidying it
+# away is not a cleanup, it is a red gate.
+#
+# Mirrored by hand in `crates/pncad-py/Cargo.toml` (see the header there) and
+# enforced by its `crate_lints_match_the_workspace_minus_unsafe_code` test —
+# edit both, and keep the line byte-identical: that test compares the manifests
+# textually.
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(nightly_suite)'] }
 
+[workspace.lints.clippy]
 # D9: the kernel never panics on any INPUT — every input-reachable failure
-# is a typed error. The panic family is linted from line one (L5); CI's
-# `-D warnings` makes these hard errors there. Test code may allow the
-# unwrap/expect/panic lints per-module (`#[allow(...)]` on `mod tests` /
-# `#![allow(...)]` in integration-test files) — panicking is a test's
-# failure mechanism.
+# is a typed error. CI's `-D warnings` makes this family hard errors. Test
+# code may allow the unwrap/expect/panic lints per-module (`#[allow(...)]`
+# on `mod tests` / `#![allow(...)]` in integration-test files) — panicking
+# is a test's failure mechanism.
 #
 # `unreachable` is DELIBERATELY ABSENT from this family (D9's D2 addendum,
 # ratified 2026-08-19). It is the sanctioned mechanism for a kernel bug the
@@ -151,9 +200,19 @@ missing_docs = "warn"
 # Mirrored by hand in `crates/pncad-py/Cargo.toml` and enforced by its
 # `crate_lints_match_the_workspace_minus_unsafe_code` test — edit both.
 #
-# `indexing_slicing` (also a panic source) is deliberately deferred until
-# real evaluation code exists to judge the noise against (L5).
-[workspace.lints.clippy]
+# `indexing_slicing` is absent for the same reason `unreachable` is, and
+# the two paragraphs are one position rather than two: an index panic is
+# not an input-reachable failure, it is a kernel bug the code trips over.
+# The family above is about input-reachable failure, so the shape does not
+# belong in it and the lint stays off.
+#
+# It remains a useful instrument to RUN. `cargo clippy --workspace --lib
+# -- -W clippy::indexing_slicing` prints the index expressions of the
+# workspace's LIBRARIES — not the tree's: no tests, no benches, no
+# `tools/` binaries, and clippy is blind inside `macro_rules!` bodies.
+# Some of what it prints reads better rewritten; that output is something
+# to browse while doing style work, a sample of the shape rather than a
+# census of it, and not a queue anyone owes.
 unwrap_used = "warn"
 expect_used = "warn"
 panic = "warn"
@@ -170,6 +229,14 @@ dbg_macro = "warn"
 # reverted by the PR that added this block). debug-assertions default ON
 # in dev — fail-loud postconditions keep their teeth. Integration tests
 # build the lib under `dev`, so these overrides cover the hot loops.
+#
+# GUARD: `crates/mesh/tests/profile_overrides.rs` goes red if either stanza
+# below is deleted or stops being `opt-level = 2`. It pins the DECISION,
+# not the timing: the 91.7s/1.2s pair is a 2026-07-21 reading on one box
+# and nothing re-takes it, because a timing asserted in the suite would be
+# box-dependent and this repo reports timings rather than gating them
+# (`docs/PERF-PLAN.md`). So the numbers above are a dated reason for a
+# guarded decision, and re-measuring them is a perf-lane act, not a CI one.
 [profile.dev.package.spade]
 opt-level = 2
 [profile.dev.package.mesh]
@@ -181,4 +248,34 @@ opt-level = 2
 # constantly (per-PR opt-2 recompiles = the #52 regression). The full
 # whole-graph win (suite 75s -> 4.9s) is available locally via
 # local-scripts/test-fast.sh where warm caches absorb the build cost. The
-# durable fix is spade bulk-loading (PERF-PLAN §2).
+# durable fix is spade bulk-loading (PERF-PLAN §2). These figures are a
+# record of a rejected alternative and nothing reads them: no stanza below
+# depends on them, so there is nothing for a guard to go red about. They
+# are dated in the same 2026-07-21 reading as the block above.
+
+# Release builds keep their `debug_assert`s. The kernel's fail-loud
+# postconditions are D2-addendum row-5 checks — kernel-bug states
+# detectable only by re-derivation — and D9's converse half makes a panic
+# on such a state an OBLIGATION, "as loudly and as early as it is
+# detectable". Cargo's release default compiles every one of them out, so
+# the profile that would meet real parts is the one profile checking
+# nothing. Dev already defaults this ON (see
+# the note above the `[profile.dev.package]` block); this makes release
+# agree. The detached `demos/` workspaces already set this for the same
+# reason; being detached, their stanzas never reached the kernel, and
+# `demos/tour`'s note that it is "the ONLY release build of the kernel
+# in CI" is still true — this stanza adds no release build, it changes
+# what one contains.
+#
+# `overflow-checks` is a SEPARATE knob and is deliberately left at its
+# release default of OFF: cargo emits `-C overflow-checks=off` under
+# release even with `-C debug-assertions=on` (verified in `cargo build
+# --release -v` on 1.97.0), so this stanza does not smuggle in
+# integer-overflow panics. `demos/` sets both because it is claiming
+# parity with the nextest legs; this stanza is not.
+#
+# PRE-PUBLISH: this comes back OUT. `docs/DESIGN.md`'s "Before
+# publishing" list is where that is written down, together with the
+# version numbers.
+[profile.release]
+debug-assertions = true

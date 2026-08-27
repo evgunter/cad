@@ -19,6 +19,7 @@
 mod common;
 
 use common::{flush_declarations, prism_z};
+use geom_core::Tol;
 use topo::{Body, BooleanResult, mass_properties, subtract, union_with};
 
 fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
@@ -26,7 +27,7 @@ fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
 }
 
 fn checked_mesh_volume(body: &Body<f64>) -> f64 {
-    let mesh = mesh::tessellate(body, 1e-2).expect("tessellate");
+    let mesh = mesh::tessellate(body, 1e-2, Tol::witness()).expect("tessellate");
     mesh::validate::check_mesh(&mesh).expect("watertight, consistently oriented");
     mesh::validate::signed_volume(&mesh)
 }
@@ -88,10 +89,13 @@ fn assert_ring_senses(body: &Body<f64>, label: &str) -> usize {
 fn control_same_shape_via_subtract() {
     let big = brick((0.0, 3.0), (0.0, 1.0), (0.0, 2.0));
     let notch = brick((1.0, 2.0), (-0.5, 1.5), (1.0, 1.5));
-    let BooleanResult::Body(s) = subtract(&big, &notch).unwrap() else {
+    let BooleanResult::Body(s) = subtract(&big, &notch, Tol::witness()).unwrap() else {
         panic!("control subtract yields a body");
     };
-    assert_eq!(mass_properties(&s.body).unwrap().volume, 5.5);
+    assert_eq!(
+        mass_properties(&s.body, Tol::witness()).unwrap().volume,
+        5.5
+    );
     let v = checked_mesh_volume(&s.body);
     assert!(((v - 5.5) / 5.5).abs() < 1e-9, "control mesh volume {v}");
 }
@@ -103,12 +107,12 @@ fn control_same_shape_via_subtract() {
 fn control_ring_face_from_interior_pillar() {
     let a = brick((0.0, 2.0), (0.0, 2.0), (0.0, 2.0));
     let b = brick((0.75, 1.25), (0.75, 1.25), (2.0, 3.0));
-    let g = match union_with(&a, &b, &flush_declarations(&a, &b)).unwrap() {
+    let g = match union_with(&a, &b, &flush_declarations(&a, &b), Tol::witness()).unwrap() {
         BooleanResult::Body(g) => g,
         BooleanResult::Empty => panic!("pillar union cannot be empty"),
     };
     assert!(assert_ring_senses(&g.body, "pillar") >= 1);
-    let exact = mass_properties(&g.body).unwrap().volume;
+    let exact = mass_properties(&g.body, Tol::witness()).unwrap().volume;
     assert_eq!(exact, 8.25);
     let v = checked_mesh_volume(&g.body);
     assert!(((v - exact) / exact).abs() < 1e-9, "pillar mesh volume {v}");
@@ -122,10 +126,17 @@ fn ring_sense_bridge_census() {
     let a = brick((0.0, 3.0), (0.0, 1.0), (0.0, 1.0));
     let blank = brick((0.0, 3.0), (0.0, 1.0), (1.0, 2.0));
     let notch = brick((1.0, 2.0), (-0.5, 1.5), (0.5, 1.5));
-    let BooleanResult::Body(bb) = subtract(&blank, &notch).unwrap() else {
+    let BooleanResult::Body(bb) = subtract(&blank, &notch, Tol::witness()).unwrap() else {
         panic!("bridge subtract yields a body");
     };
-    let g = match union_with(&a, &bb.body, &flush_declarations(&a, &bb.body)).unwrap() {
+    let g = match union_with(
+        &a,
+        &bb.body,
+        &flush_declarations(&a, &bb.body),
+        Tol::witness(),
+    )
+    .unwrap()
+    {
         BooleanResult::Body(g) => g,
         BooleanResult::Empty => panic!("bridge union cannot be empty"),
     };

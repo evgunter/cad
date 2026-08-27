@@ -99,6 +99,16 @@ pub enum SurfaceKind {
     Torus,
     /// [`Surface::Nurbs`] — the universal fallback kind.
     Nurbs,
+    /// [`Surface::Approx`] — a fitted stand-in for a description.
+    ///
+    /// **Its own kind, not `Nurbs`.** The payload is a NURBS and every
+    /// evaluator delegates to it, but a pair table indexed by kind is
+    /// deciding what a *locus claim* about the pair means, and a claim
+    /// about an approximating surface is a claim about the fit, not
+    /// about the surface the modeller asked for. Collapsing the two
+    /// tags would let every such table answer for `Approx` silently —
+    /// the exact failure the closed enum exists to prevent.
+    Approx,
 }
 
 impl SurfaceKind {
@@ -111,6 +121,7 @@ impl SurfaceKind {
             Surface::Sphere { .. } => Self::Sphere,
             Surface::Torus { .. } => Self::Torus,
             Surface::Nurbs(_) => Self::Nurbs,
+            Surface::Approx(_) => Self::Approx,
         }
     }
 
@@ -123,6 +134,7 @@ impl SurfaceKind {
             Self::Sphere => "sphere",
             Self::Torus => "torus",
             Self::Nurbs => "nurbs",
+            Self::Approx => "approx",
         }
     }
 }
@@ -167,7 +179,8 @@ pub struct PairRoute {
 
 impl PairRoute {
     /// The typed-refusal sentence for an unimplemented arm — names the
-    /// routing per C5 ("this pair routes to …, unimplemented until …").
+    /// routing per C5 ("this pair routes to …") and what that arm is
+    /// still missing.
     pub fn refusal(&self, a: SurfaceKind, b: SurfaceKind) -> String {
         format!(
             "{}×{} routes to {} — {}",
@@ -191,7 +204,7 @@ impl PairRoute {
 /// else in the workspace; the no-wildcard grep row in
 /// `tests/pcurve_conic.rs` keeps the property pinned in CI.
 pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
-    use SurfaceKind::{Cone, Cylinder, Nurbs, Plane, Sphere, Torus};
+    use SurfaceKind::{Approx, Cone, Cylinder, Nurbs, Plane, Sphere, Torus};
     match (a, b) {
         // ---- Rung 1, implemented: the M2 pair, executed by the
         // existing splitting/boolean seam bit-identically. ----
@@ -218,7 +231,8 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
             note: "exact-degenerate cases only (apex-through lines/tangent/point, \
                    axis-normal Circle); generic tilt routes to the general rung \
                    PERMANENTLY (parabola and hyperbola are outside the conic \
-                   inventory by decision, not by omission); unimplemented until SSI",
+                   inventory by decision, not by omission) — a routing that no \
+                   general-rung arm retires",
         },
         // ---- Rung 1, implemented (M5 S13): the closed-form Circle —
         // never a fitted chord (the die-pips premise). ----
@@ -244,10 +258,12 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
             note: "equal radii (structural/declared ONLY — never inferred from \
                    values) with intersecting axes split into two Ellipses \
                    (cylinder_cylinder_section); unequal, undeclared, or skew routes \
-                   to the general rung, unimplemented until SSI",
+                   to the general rung, whose cylinder×cylinder arm has not retired \
+                   (arms retire one at a time, each with its proof)",
         },
-        // ---- Rung 3: quartic-and-worse loci; the general rung is not
-        // ready until PR 7, so these refuse typed naming the routing.
+        // ---- Rung 3: quartic-and-worse loci. The general rung is
+        // implemented, but it retires per arm (C12.1), so these still
+        // refuse typed, naming the routing AND what each one lacks.
         (Plane, Torus) | (Torus, Plane) => PairRoute {
             rung: Rung::General,
             implemented: false,
@@ -379,6 +395,25 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
                    exhaustiveness/seeding story — arms retire one at a time, each \
                    with its proof",
         },
+        // ---- Approx × everything: refused, and deliberately NOT as
+        // the fitted kind would be. An intersection locus is a claim
+        // about the surfaces the modeller asked for; against an
+        // approximating surface it is a claim about the FIT, off the
+        // intended locus by up to the fit's own ε. Certifying it means
+        // composing that ε with the SSI's three limbs, and no rule for
+        // that composition is ratified. Routing `Approx` to its fitted
+        // kind's arm would silently make the weaker claim. ----
+        (Approx, Plane | Cylinder | Cone | Sphere | Torus | Nurbs | Approx)
+        | (Plane | Cylinder | Cone | Sphere | Torus | Nurbs, Approx) => PairRoute {
+            rung: Rung::General,
+            implemented: false,
+            note: "an approximating operand routes to the general rung with the ℝ⁴ \
+                   PARAMETRIC-PAIR trace shape of its FIT, and refuses there: the \
+                   locus the trace would certify is the fit's, not the described \
+                   surface's, and composing the fit's precision claim with the \
+                   SSI certificate's limbs is not a ratified rule. The refusal is \
+                   the honest answer, not a missing marcher",
+        },
     }
 }
 
@@ -399,9 +434,10 @@ pub enum SectionError {
     /// or poisoned (F6): the operand pair is ill-conditioned at this ε.
     Escalated(Indeterminate),
     /// The configuration routes to the general rung — a documented arm
-    /// decision (no runtime fallback exists; C5): unimplemented until
-    /// SSI (M5 PR 7), or permanently routed (plane×cone generic tilt,
-    /// R1).
+    /// decision (no runtime fallback exists; C5). The general rung is
+    /// implemented; its arms retire one at a time, so a pair reaching
+    /// here is one whose arm has not retired — or one routed there
+    /// permanently (plane×cone generic tilt, R1).
     RoutesToGeneralRung {
         /// The pair, for the message.
         pair: &'static str,
@@ -832,7 +868,7 @@ pub fn cylinder_cylinder_section<T: Decide>(
             pair: "cylinder×cylinder",
             why: "radius equality is not structural/declared — never inferred from \
                   values (the coincidence ladder); the undeclared pair routes to the \
-                  general rung, unimplemented until SSI",
+                  general rung, whose cylinder×cylinder arm has not retired",
         });
     }
     // 2. Verify the declaration (declared ≠ unchecked).
@@ -902,7 +938,8 @@ pub fn cylinder_cylinder_section<T: Decide>(
                     return Err(SectionError::RoutesToGeneralRung {
                         pair: "cylinder×cylinder",
                         why: "skew axes have no conic section; this configuration routes \
-                              to the general rung, unimplemented until SSI",
+                              to the general rung, whose cylinder×cylinder arm has not \
+                              retired",
                     });
                 }
             }
@@ -1071,7 +1108,8 @@ pub fn plane_cone_section<T: Decide>(
                     why: "generic tilt routes to the general rung PERMANENTLY — the \
                           conic trio is outside the closed-form inventory by \
                           decision, and only an arm that adds parabola/hyperbola \
-                          moves it; unimplemented until SSI",
+                          moves it. The general rung is implemented; this routing is \
+                          not waiting on it",
                 }),
             }
         }

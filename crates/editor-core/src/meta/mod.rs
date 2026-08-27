@@ -140,6 +140,18 @@ pub enum MetaVersionError {
     VersionNotInt,
 }
 
+impl std::fmt::Display for MetaVersionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::NotAMap => f.write_str("the stored value is not a map"),
+            Self::MissingVersion => f.write_str("the map has no \"v\" entry"),
+            Self::VersionNotInt => f.write_str("the \"v\" entry is not an integer"),
+        }
+    }
+}
+
+impl std::error::Error for MetaVersionError {}
+
 /// Typed refusal from the producer boundary ([`to_value`] /
 /// [`from_value`]).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -213,10 +225,12 @@ mod tests {
     /// Minimal serialize_bytes shim (serde derives Vec<u8> as a seq;
     /// the BYTES path needs an explicit call — same as serde_bytes).
     mod serde_bytes_shim {
-        pub fn serialize<S: serde::Serializer>(b: &[u8], s: S) -> Result<S::Ok, S::Error> {
+        pub(super) fn serialize<S: serde::Serializer>(b: &[u8], s: S) -> Result<S::Ok, S::Error> {
             s.serialize_bytes(b)
         }
-        pub fn deserialize<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<u8>, D::Error> {
+        pub(super) fn deserialize<'de, D: serde::Deserializer<'de>>(
+            d: D,
+        ) -> Result<Vec<u8>, D::Error> {
             struct V;
             impl serde::de::Visitor<'_> for V {
                 type Value = Vec<u8>;

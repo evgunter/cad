@@ -21,6 +21,7 @@ use geom_core::{Point2, Point3, Real, Vec3};
 use super::join::loop_points_of;
 use super::{SplitError, SplitPlane, split_scratch};
 use crate::body::Body;
+use geom_core::Tol;
 
 /// One section polygon: the closed vertex chain the plane cuts, in
 /// below-loop cycle order — as 3-D points and as in-plane `(u, v)`
@@ -77,8 +78,9 @@ pub struct Section<T: Real> {
 pub fn plane_section<T: geom_core::Decide>(
     operand: &Body<T>,
     plane: &SplitPlane<T>,
+    tol: Tol,
 ) -> Result<Section<T>, SplitError> {
-    let (red, completed, _fragments) = split_scratch(operand, plane)?;
+    let (red, completed, _fragments) = split_scratch(operand, plane, tol)?;
 
     let mut u_ref = None;
     let mut v_ref = None;

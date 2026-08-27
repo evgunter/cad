@@ -61,6 +61,9 @@ class TestGuideBlocksExecute(unittest.TestCase):
                     code = compile(source, where, "exec")
                     # A fresh namespace per block: blocks are independent
                     # programs, never a chain that silently shares state.
+                    # The S102 marker below: running the guide's own code
+                    # blocks IS this test — the source is a committed docs
+                    # page, never input.
                     exec(code, {"__name__": "__guide__"})  # noqa: S102
                 ran += 1
         self.assertGreater(ran, 0, "the guide has no python blocks to run")

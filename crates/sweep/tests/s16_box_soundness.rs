@@ -21,10 +21,26 @@
 //! inscribed triangular prism, whose x extent starts at −0.25 while
 //! the cylinder's starts at −0.5. Every nested probe below lives in
 //! that annulus.
+//!
+//! The two counter-rows — the ones that keep the row above from
+//! passing by refusing everything — separate in **x** and in **z**.
+//! Both directions are needed and neither is decorative: the cylinder
+//! arm widens the reach box radially by construction and not at all
+//! along its axis, so a rule that lost the axial extent, or grew it,
+//! would keep an x-only file green.
+//!
+//! # 2. The NURBS extent re-gate's blocker
+//!
+//! `topo`'s fallback re-gate has no end-to-end path today, and one of
+//! the two reasons is a `sweep` fact: a lofted body's NURBS EDGES are
+//! refused before any face box is built. That blocker is pinned below,
+//! with the operand's face class asserted so the row cannot outlive the
+//! premise it argues from.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Affine3, Point2, Tolerance, Vec3};
+use geom_core::Tol;
+use geom_core::{Affine3, Point2, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Extrusion, Section, extrude, loft_body};
@@ -51,32 +67,43 @@ fn cylinder() -> Body<f64> {
         ProfileVertex::new(at(240.0), b120),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0)).unwrap().body
+    extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
+        .unwrap()
+        .body
 }
 
-/// A small axis-aligned box of half-width `h` centred at `(cx, 0, 0.5)`.
-fn nested_box(cx: f64, h: f64) -> Body<f64> {
+/// A small axis-aligned box of half-width `h` centred at `(cx, 0, ·)`,
+/// spanning `z in [z0, z0 + 0.4]`.
+fn small_box(cx: f64, h: f64, z0: f64) -> Body<f64> {
     let lp = ProfileLoop::new(
         [(cx - h, -h), (cx + h, -h), (cx + h, h), (cx - h, h)]
             .into_iter()
             .map(|(x, y)| ProfileVertex::new(p2(x, y), 0.0))
             .collect(),
     );
-    // Lifted clear of both caps: z in [0.3, 0.7] inside the
-    // cylinder's [0, 1], so the pair is nested, never touching.
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.3)));
+    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
-    extrude(&profile, Extrusion::Distance(0.4)).unwrap().body
+    extrude(&profile, Extrusion::Distance(0.4), Tol::witness())
+        .unwrap()
+        .body
+}
+
+/// The same box at `z in [0.3, 0.7]`. Against section 1's cylinder
+/// (`z in [0, 1]`) that is clear of both caps, so a pair there is
+/// nested or separated in x alone, never touching; section 2 uses the
+/// same box only as a far operand, where the lift carries no claim.
+fn nested_box(cx: f64, h: f64) -> Body<f64> {
+    small_box(cx, h, 0.3)
 }
 
 /// The nested pair as one two-instance arena.
 fn assembly(outer: &Body<f64>, inner: &Body<f64>) -> Body<f64> {
     let mut out = outer.clone();
-    topo::graft_disjoint(&mut out, inner).unwrap();
+    topo::graft_disjoint(&mut out, inner, Tol::witness()).unwrap();
     out
 }
 
@@ -106,11 +133,11 @@ fn a_body_nested_inside_a_curved_solid_is_never_silently_cleared() {
         // Tier 3 alone cannot see it — that is the #382 finding, and
         // the reason arm 2 exists at all.
         assert_eq!(
-            topo::validate_geometric(&body),
+            topo::validate_geometric(&body, Tol::witness()),
             Ok(()),
             "probe at {cx}: tier 3 does not compare solids"
         );
-        let errors = validate_pseudomanifold(&body, &ContactRecords::default())
+        let errors = validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness())
             .expect_err("a nested instance must refuse, never clear");
         assert!(
             errors.iter().any(|e| matches!(
@@ -134,27 +161,50 @@ fn a_body_beside_the_cylinder_is_still_cleared_by_containment() {
     let outer = cylinder();
     let beside = nested_box(3.0, 0.2);
     let body = assembly(&outer, &beside);
-    let verdict = validate_pseudomanifold(&body, &ContactRecords::default());
-    let containment: Vec<&ValidationError> = match &verdict {
-        Ok(()) => Vec::new(),
-        Err(errors) => errors
-            .iter()
-            .filter(|e| {
-                matches!(
-                    e,
-                    ValidationError::CensusUndecidable {
-                        a: EntityId::Solid(_),
-                        b: EntityId::Solid(_),
-                        ..
-                    }
-                )
-            })
-            .collect(),
-    };
+    // The whole verdict, not a filtered slice of it. Filtering to
+    // `CensusUndecidable` and asserting that list empty makes a row
+    // named "still cleared" green whenever the pair starts refusing for
+    // some OTHER reason — the shape this file's section 2 exists about.
+    let verdict = validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness());
     assert!(
-        containment.is_empty(),
-        "a separated pair must not refuse as containment: {containment:?}"
+        verdict.is_ok(),
+        "a separated pair must validate cleanly, not refuse: {verdict:?}"
     );
+}
+
+/// **The same claim in z, which nothing in this file separated in.**
+/// The row above separates at `cx = 3.0` in **x** — the axis the
+/// cylinder arm does not widen — so a reach box that grew along its
+/// own AXIS would leave this file entirely green. Here the probe sits
+/// directly over the cylinder's top cap, radially INSIDE it, so `z`
+/// is the only axis that can clear the pair: the row goes red for any
+/// rule that loses the containing solid's axial extent, and for any
+/// that unbounds it.
+///
+/// **How far over, swept from touching to far.** The cylinder tops out
+/// at `z = 1` and its reach box now stops there: the radius widens the
+/// slab PERPENDICULAR to its own axis and not along it. So the whole
+/// range a full-radius axial over-claim used to swallow — `z` just
+/// above 1, where the probe is genuinely above the solid and touching
+/// nothing — is assertable, and this row sweeps it rather than
+/// standing clear of it. Any rule that widens the containing solid's
+/// axial extent reds the near offsets; any that loses it reds the far
+/// ones (the pair stops being clearable at all).
+#[test]
+fn a_body_above_the_cylinder_is_still_cleared_by_containment() {
+    let outer = cylinder();
+    // Half-width 0.2 against radius 0.5: radially inside the wall, so
+    // `z` is the only axis that can clear any of these pairs.
+    for &z0 in &[1.01, 1.1, 1.25, 1.5, 2.0] {
+        let above = small_box(0.0, 0.2, z0);
+        let body = assembly(&outer, &above);
+        let verdict = validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness());
+        assert!(
+            verdict.is_ok(),
+            "a pair separated in z alone (probe at z0 = {z0}, solid tops out at 1.0) \
+             must validate cleanly, not refuse: {verdict:?}"
+        );
+    }
 }
 
 // ---------------------------------------------------------------------
@@ -176,7 +226,9 @@ fn lofted() -> Body<f64> {
         Affine3::translation(Vec3::new(0.0, 0.0, 1.0)),
         Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
     ];
-    loft_body::<f64>(&sections, &places, 2).unwrap().body
+    loft_body::<f64>(&sections, &places, 2, Tol::witness())
+        .unwrap()
+        .body
 }
 
 /// **Why `NurbsExtentUnsupported` has no end-to-end row, pinned so the
@@ -200,8 +252,20 @@ fn lofted() -> Body<f64> {
 #[test]
 fn a_lofted_operand_is_refused_at_its_nurbs_edges_before_any_face_box() {
     let a = lofted();
+    // The operand is IN the class the re-gate exists for. Nothing else
+    // in the row says so: the refusal below is about its EDGES.
+    let nurbs_faces = a
+        .faces()
+        .filter(|(_, f)| matches!(a.get_surface(f.surface), Some(geom::Surface::Nurbs(_))))
+        .count();
+    assert!(
+        nurbs_faces > 0,
+        "the lofted operand carries NURBS FACES — the class the re-gate exists for"
+    );
+
     let b = nested_box(20.0, 0.5);
-    let err = topo::boolean::union(&a, &b).expect_err("a NURBS operand must refuse typed");
+    let err = topo::boolean::union(&a, &b, Tol::witness())
+        .expect_err("a NURBS operand must refuse typed");
     assert!(
         matches!(err, BooleanError::CurvedEdgeUnsupported { .. }),
         "the operand gate's edge arm is what a lofted body meets, got {err:?}"

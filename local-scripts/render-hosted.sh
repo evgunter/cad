@@ -75,17 +75,28 @@ RUN_ID=""
 ON_DEMAND=0
 # The lane jobs, by the name each ends with. A dispatched render.yml run
 # names them exactly; called from ci.yml they arrive prefixed ("render
-# lanes / kernel montage"), so the match is on the SUFFIX and one list
-# serves both. This is what lets the poll wait for the render rather
-# than for a whole CI run — the lanes settle in ~3 minutes, CI in ~12.
-RENDER_JOBS_RE='(demo tour \(scene inputs\)|uv trim-loop sheet|kernel montage|freecad montage|wild-corpus montage)$'
+# lanes / freecad montages (kernel + freecad)"), so the match is on the
+# SUFFIX and one list serves both. This is what lets the poll wait for the
+# render rather than for a whole CI run — the lanes settle in ~3 minutes,
+# CI in ~12.
+#
+# TWO JOBS, FIVE LANES (2026-08-22). render.yml merged its five lane jobs
+# into two — the three renderer-free ones into `scene inputs + uv sheet +
+# wild montage`, the two FreeCAD ones into `freecad montages (kernel +
+# freecad)` — to stop paying five runner setups, two 821 MB FreeCAD cache
+# restores and two apt installs for work that shares all of it. Every lane
+# still uploads its own artifact under its own name, which is what the
+# download path below actually keys on; this regex only decides which jobs
+# the PROGRESS DISPLAY waits for and reports.
+RENDER_JOBS_RE='(scene inputs \+ uv sheet \+ wild montage|freecad montages \(kernel \+ freecad\))$'
 REF=""
 SCENE_TIMEOUT=""
 INSTALL=1
 VERIFY=0
-# Outer stop. The FreeCAD legs are capped at 90 min by the workflow, the
-# tour at 45; queueing on top of that is the slack.
-POLL_BUDGET_MIN=150
+# Outer stop. The merged FreeCAD job is capped at 150 min by the workflow
+# (two lanes on one runner) and the scene-inputs job at 75; queueing on top
+# of that is the slack.
+POLL_BUDGET_MIN=200
 POLL_INTERVAL=20
 
 usage() {

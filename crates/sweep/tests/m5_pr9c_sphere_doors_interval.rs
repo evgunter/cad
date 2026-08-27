@@ -13,7 +13,8 @@
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Band, Interval, Point2, Point3, Real, Tolerance};
+use geom_core::Tol;
+use geom_core::{Band, Interval, Point2, Point3, Real};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Revolution, RevolveAxis, revolve};
@@ -34,37 +35,39 @@ fn ball() -> topo::Body<Interval> {
         ProfileVertex::new(Point2::new(iv(0.0), iv(1.0)), iv(0.0)),
     ]);
     let vp = Profile::new(SketchPlane::<Interval>::xy(), vec![lp])
-        .validate(Tolerance::get())
+        .validate(Tol::witness())
         .unwrap();
     let axis = RevolveAxis {
         origin: Point2::new(iv(0.0), iv(0.0)),
         dir: geom_core::Vec2::new(iv(0.0), iv(1.0)),
     };
-    revolve(&vp, axis, Revolution::Full).unwrap().body
+    revolve(&vp, axis, Revolution::Full, Tol::witness())
+        .unwrap()
+        .body
 }
 
 #[test]
 fn interval_sphere_doors_classify_in_out_and_boundary() {
     let body = ball();
-    let b = Band::linear().unwrap();
+    let b = Band::linear(Tol::witness()).unwrap();
     // Dyadic probes: exactly representable, so the enclosures are
     // points and every margin decides definitely.
     assert_eq!(
-        point_in_solid(&body, Point3::origin(), b).unwrap(),
+        point_in_solid(&body, Point3::origin(), b, Tol::witness()).unwrap(),
         SolidContainment::In
     );
     assert_eq!(
-        point_in_solid(&body, p3(0.25, 0.125, -0.5), b).unwrap(),
+        point_in_solid(&body, p3(0.25, 0.125, -0.5), b, Tol::witness()).unwrap(),
         SolidContainment::In
     );
     assert_eq!(
-        point_in_solid(&body, p3(2.0, 1.5, 0.25), b).unwrap(),
+        point_in_solid(&body, p3(2.0, 1.5, 0.25), b, Tol::witness()).unwrap(),
         SolidContainment::Out
     );
     // ON the wall: the dyadic Pythagorean point (0.6, 0.8, 0) is not
     // dyadic, so use the axis point — exactly on the unit sphere.
     assert_eq!(
-        point_in_solid(&body, p3(0.0, 0.0, 1.0), b).unwrap(),
+        point_in_solid(&body, p3(0.0, 0.0, 1.0), b, Tol::witness()).unwrap(),
         SolidContainment::OnBoundary
     );
 }

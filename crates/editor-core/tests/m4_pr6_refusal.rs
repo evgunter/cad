@@ -15,10 +15,11 @@ use editor_core::{
     apply, evaluate, load, save,
 };
 use fixture::{desc, insert, len};
+use geom_core::Tol;
 
 /// A small valid document (profile + extrude + witness) and its save.
 fn small() -> (ProfileDoc, String) {
-    let doc = ProfileDoc::empty_derived("m4_pr6_refusal");
+    let doc = ProfileDoc::empty_derived("m4_pr6_refusal", Tol::witness());
     let (doc, p) = insert(
         doc,
         Node::Profile(desc(
@@ -44,10 +45,11 @@ fn small() -> (ProfileDoc, String) {
                 bytes: vec![0xab, 0xcd],
             },
         },
+        Tol::witness(),
     )
     .expect("witness")
     .doc;
-    let text = save(&doc, &[]).expect("save");
+    let text = save(&doc, &[], Tol::witness()).expect("save");
     (doc, text)
 }
 
@@ -59,14 +61,14 @@ fn unknown_schema_version_refuses_typed() {
     // `UnknownSchema` — held one past `SCHEMA_VERSION` so the row
     // survives every schema bump (M5 PR 10 moved it from a literal 2).
     let newer = format!("schema: {}\n{body}", SCHEMA_VERSION + 1);
-    match load(&newer) {
+    match load(&newer, Tol::witness()) {
         Err(PersistError::UnknownSchema { found, newest }) => {
             assert_eq!(found, u64::from(SCHEMA_VERSION) + 1);
             assert_eq!(newest, SCHEMA_VERSION);
         }
         other => panic!("expected UnknownSchema, got {other:?}"),
     }
-    match load("schema: 0\n{}") {
+    match load("schema: 0\n{}", Tol::witness()) {
         Err(PersistError::UnknownSchema { found: 0, .. }) => {}
         other => panic!("expected UnknownSchema for v0, got {other:?}"),
     }
@@ -75,7 +77,7 @@ fn unknown_schema_version_refuses_typed() {
 #[test]
 fn missing_or_garbled_header_refuses_typed() {
     for text in ["", "not a save file", "schema: banana\n{}"] {
-        match load(text) {
+        match load(text, Tol::witness()) {
             Err(PersistError::Header { .. }) => {}
             other => panic!("expected Header refusal for {text:?}, got {other:?}"),
         }
@@ -86,7 +88,7 @@ fn missing_or_garbled_header_refuses_typed() {
 fn truncated_file_refuses_typed_with_position() {
     let (_, text) = small();
     let cut = &text[..text.len() * 2 / 3];
-    match load(cut) {
+    match load(cut, Tol::witness()) {
         Err(PersistError::Parse {
             line,
             column,
@@ -109,13 +111,19 @@ fn corrupt_payloads_refuse_typed() {
     let bad_hex = text.replace("\"abcd\"", "\"abxd\"");
     assert_ne!(bad_hex, text, "fixture must contain the hex bytes");
     assert!(
-        matches!(load(&bad_hex), Err(PersistError::Parse { .. })),
+        matches!(
+            load(&bad_hex, Tol::witness()),
+            Err(PersistError::Parse { .. })
+        ),
         "non-hex byte string must refuse"
     );
     // An unknown field (deny_unknown_fields — no silent tolerance).
     let extra = text.replace("\"snapshot\":", "\"extra\": 1, \"snapshot\":");
     assert!(
-        matches!(load(&extra), Err(PersistError::Parse { .. })),
+        matches!(
+            load(&extra, Tol::witness()),
+            Err(PersistError::Parse { .. })
+        ),
         "unknown field must refuse"
     );
     // An ill-dimensioned expression tree (Length + Angle) — the
@@ -126,7 +134,10 @@ fn corrupt_payloads_refuse_typed() {
     );
     if bad_expr != text {
         assert!(
-            matches!(load(&bad_expr), Err(PersistError::Parse { .. })),
+            matches!(
+                load(&bad_expr, Tol::witness()),
+                Err(PersistError::Parse { .. })
+            ),
             "ill-dimensioned expression must refuse"
         );
     } else {
@@ -143,7 +154,7 @@ fn snapshot_invariant_violations_refuse_typed() {
     // next_id below the live ids (a replay would re-mint id 1).
     let clipped = text.replace("\"next_id\": 2", "\"next_id\": 1");
     assert_ne!(clipped, text);
-    match load(&clipped) {
+    match load(&clipped, Tol::witness()) {
         Err(PersistError::Snapshot(SnapshotError::IdBeyondCounter { id, next_id: 1 })) => {
             assert_eq!(id, RecipeNodeId(1));
         }
@@ -154,7 +165,7 @@ fn snapshot_invariant_violations_refuse_typed() {
     if unordered != text {
         assert!(
             matches!(
-                load(&unordered),
+                load(&unordered, Tol::witness()),
                 Err(PersistError::Snapshot(SnapshotError::OrderMismatch))
             ),
             "order mismatch must refuse"
@@ -174,7 +185,7 @@ fn non_finite_floats_refuse_at_save_naming_the_site() {
             value: f64::NAN,
         },
     };
-    match save(&doc, &[nan_edit]) {
+    match save(&doc, &[nan_edit], Tol::witness()) {
         Err(PersistError::NonFinite {
             site: NonFiniteSite::Edit { index: 0, inner },
         }) => assert!(
@@ -193,7 +204,7 @@ fn non_finite_floats_refuse_at_save_naming_the_site() {
             vec![vec![(0.0, 0.0), (1.0, 0.0), (0.5, 1.0)]],
         )),
     );
-    match save(&bad_doc, &[]) {
+    match save(&bad_doc, &[], Tol::witness()) {
         Err(PersistError::NonFinite {
             site: NonFiniteSite::Profile { node, .. },
         }) => assert_eq!(node, p),
@@ -212,7 +223,7 @@ fn non_finite_floats_refuse_at_save_naming_the_site() {
         key: "k".into(),
         value: MetaValue::Map(m),
     };
-    match save(&doc, &[meta_edit]) {
+    match save(&doc, &[meta_edit], Tol::witness()) {
         Err(PersistError::NonFinite {
             site: NonFiniteSite::Edit { inner, .. },
         }) => assert!(matches!(*inner, NonFiniteSite::Metadata { .. })),
@@ -223,12 +234,17 @@ fn non_finite_floats_refuse_at_save_naming_the_site() {
 #[test]
 fn tolerance_conflict_refuses_on_load_and_at_evaluate() {
     let (doc, _) = small();
-    let ambient = geom_core::Tolerance::get().eps;
+    let ambient = geom_core::Tol::witness().get().eps;
     // A recorded ε that disagrees with the committed process ε: the
     // LOAD door refuses (one process = one ε, D4).
     let other_eps = ambient * 2.0;
-    let text = save(&doc, &[DocEdit::SetTolerance { eps: other_eps }]).expect("save");
-    match load(&text) {
+    let text = save(
+        &doc,
+        &[DocEdit::SetTolerance { eps: other_eps }],
+        Tol::witness(),
+    )
+    .expect("save");
+    match load(&text, Tol::witness()) {
         Err(PersistError::ToleranceConflict { process, document }) => {
             assert_eq!(process.to_bits(), ambient.to_bits());
             assert_eq!(document.to_bits(), other_eps.to_bits());
@@ -236,10 +252,20 @@ fn tolerance_conflict_refuses_on_load_and_at_evaluate() {
         other => panic!("expected ToleranceConflict, got {other:?}"),
     }
     // The EVALUATE door refuses the same conflict per node, typed.
-    let retol = apply(&doc, &DocEdit::SetTolerance { eps: other_eps })
-        .expect("SetTolerance applies as a pure doc edit")
-        .doc;
-    let ev = evaluate::<f64>(&retol, None, &CancelToken::new(), &EvalOptions::default());
+    let retol = apply(
+        &doc,
+        &DocEdit::SetTolerance { eps: other_eps },
+        Tol::witness(),
+    )
+    .expect("SetTolerance applies as a pure doc edit")
+    .doc;
+    let ev = evaluate::<f64>(
+        &retol,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        Tol::witness(),
+    );
     assert_eq!(ev.nodes.len(), 2);
     for result in ev.nodes.values() {
         assert!(
@@ -252,11 +278,16 @@ fn tolerance_conflict_refuses_on_load_and_at_evaluate() {
     }
     // And SetTolerance itself validates its value.
     assert!(
-        apply(&doc, &DocEdit::SetTolerance { eps: -1.0 }).is_err(),
+        apply(&doc, &DocEdit::SetTolerance { eps: -1.0 }, Tol::witness()).is_err(),
         "non-positive ε must refuse"
     );
     assert!(
-        apply(&doc, &DocEdit::SetTolerance { eps: f64::NAN }).is_err(),
+        apply(
+            &doc,
+            &DocEdit::SetTolerance { eps: f64::NAN },
+            Tol::witness()
+        )
+        .is_err(),
         "NaN ε must refuse"
     );
 }
@@ -279,6 +310,7 @@ fn metadata_convention_doors_refuse_typed() {
             key: "k".into(),
             value: MetaValue::Map(m),
         },
+        Tol::witness(),
     );
     assert!(
         matches!(no_v, Err(editor_core::EditError::MetaUnversioned { .. })),
@@ -292,6 +324,7 @@ fn metadata_convention_doors_refuse_typed() {
             key: "k".into(),
             value: MetaValue::Int(1),
         },
+        Tol::witness(),
     );
     assert!(
         matches!(scalar, Err(editor_core::EditError::MetaUnversioned { .. })),
@@ -307,13 +340,13 @@ fn program_structure_doors_refuse_typed_at_load() {
     // order, both refused by the shared validator on the parsed
     // document. Craft a valid file, then mutate the JSON body.
     let (doc, _) = insert(
-        ProfileDoc::empty_derived("m4_pr6_refusal"),
+        ProfileDoc::empty_derived("m4_pr6_refusal", Tol::witness()),
         Node::Profile(editor_core::ProfileProgram {
             plane: profile::SketchPlane::xy(),
             loops: vec![editor_core::LoopProgram::circle(0.0, 0.0, 0.5).expect("finite")],
         }),
     );
-    let text = save(&doc, &[]).expect("save");
+    let text = save(&doc, &[], Tol::witness()).expect("save");
     // v5 headers are TWO lines (schema, id); split both off.
     let (schema_line, rest) = text.split_once('\n').expect("schema line");
     let (id_line, body) = rest.split_once('\n').expect("id line");
@@ -325,7 +358,7 @@ fn program_structure_doors_refuse_typed_at_load() {
     v["snapshot"]["nodes"]["0"]["Profile"]["loops"][0]["Circle"]["centre"][0]["Literal"]["dim"] =
         serde_json::Value::String("Angle".into());
     let mangled = format!("{header}\n{}\n", serde_json::to_string_pretty(&v).unwrap());
-    match load(&mangled) {
+    match load(&mangled, Tol::witness()) {
         Err(PersistError::ProfileProgram {
             node,
             fault:
@@ -341,7 +374,7 @@ fn program_structure_doors_refuse_typed_at_load() {
     // mid-air) — reachable only from a hand-edited file, refused by
     // the replay PROBE with the Transition class.
     let (doc2, _) = insert(
-        ProfileDoc::empty_derived("m4_pr6_refusal"),
+        ProfileDoc::empty_derived("m4_pr6_refusal", Tol::witness()),
         Node::Profile(fixture::desc(
             [0.0, 0.0, 0.0],
             [1.0, 0.0, 0.0],
@@ -349,7 +382,7 @@ fn program_structure_doors_refuse_typed_at_load() {
             vec![vec![(0.0, 0.0), (1.0, 0.0), (0.5, 1.0)]],
         )),
     );
-    let text2 = save(&doc2, &[]).expect("save");
+    let text2 = save(&doc2, &[], Tol::witness()).expect("save");
     let (schema_line2, rest2) = text2.split_once('\n').expect("schema line");
     let (id_line2, body2) = rest2.split_once('\n').expect("id line");
     let header2 = format!("{schema_line2}\n{id_line2}");
@@ -363,7 +396,7 @@ fn program_structure_doors_refuse_typed_at_load() {
         "{header2}\n{}\n",
         serde_json::to_string_pretty(&v2).unwrap()
     );
-    match load(&mangled2) {
+    match load(&mangled2, Tol::witness()) {
         Err(PersistError::ProfileProgram {
             node,
             fault:
@@ -380,7 +413,7 @@ fn program_structure_doors_refuse_typed_at_load() {
         other => panic!("an unclosed chain must refuse typed at load, got {other:?}"),
     }
     // The unmangled file loads and the program survives bit-exactly.
-    let loaded = load(&text).expect("canonical program loads");
+    let loaded = load(&text, Tol::witness()).expect("canonical program loads");
     let Some(Node::Profile(prog)) = loaded.doc.node(RecipeNodeId(0)) else {
         panic!("profile lost");
     };
@@ -402,10 +435,11 @@ fn corrupt_program_refuses_at_the_edit_door_before_any_save() {
         loops: vec![LoopProgram::Chain(vec![ProgramStep::Tangent])],
     };
     match editor_core::apply(
-        &ProfileDoc::empty_derived("m4_pr6_refusal"),
+        &ProfileDoc::empty_derived("m4_pr6_refusal", Tol::witness()),
         &DocEdit::InsertNode {
             node: Node::Profile(unclosed),
         },
+        Tol::witness(),
     ) {
         Err(EditError::ProfileProgramRefused {
             refusal:
@@ -435,7 +469,7 @@ fn unreplayable_edit_log_refuses_at_save() {
         key: "k".into(),
         value: MetaValue::Map(m),
     };
-    match save(&doc, &[bad]) {
+    match save(&doc, &[bad], Tol::witness()) {
         Err(PersistError::EditReplay { index: 0, error }) => assert!(
             matches!(error, editor_core::EditError::MetaUnversioned { .. }),
             "expected the apply door's refusal, got {error:?}"
@@ -449,7 +483,7 @@ fn unreplayable_edit_log_refuses_at_save() {
         expr: len(1.0),
     };
     assert!(matches!(
-        save(&doc, &[orphan]),
+        save(&doc, &[orphan], Tol::witness()),
         Err(PersistError::EditReplay { index: 0, .. })
     ));
 }

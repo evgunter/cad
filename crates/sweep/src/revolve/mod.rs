@@ -22,10 +22,11 @@
 //!   `−n` side of the sketch plane (velocity `a₃ × radial` at angle 0),
 //!   so the **start cap** (on the sketch plane) is outward-`+n` and
 //!   carries the profile's canonical winding; the sweep therefore
-//!   traverses the chains **reversed** for θ > 0 (the profile crate's
-//!   reversal involution — the exact mirror of extrude's `w·n < 0`
-//!   case), forward for θ < 0. [`Revolution::Full`] sweeps +2π and
-//!   reverses likewise.
+//!   traverses the chains **reversed** for θ > 0, forward for θ < 0.
+//!   `θ > 0` is this verb's answer to the question extrude answers
+//!   with `w·n < 0`; both feed the one `swept::swept_segments`, which
+//!   is where the involution itself lives. [`Revolution::Full`] sweeps +2π and reverses
+//!   likewise.
 //! - **The shared azimuthal frame.** Every revolution surface minted by
 //!   one revolve call uses `axis = +a₃` and `u_ref = u₃ = place·ê_r`,
 //!   anchored on the placed axis line — so the `u = 0` iso-curve of
@@ -57,10 +58,20 @@
 //!   line segments opens into a **wire** whose tips become poles/
 //!   apexes; contact at an isolated vertex, or in two or more runs,
 //!   revolves to a non-manifold solid and is refused (D1). Holes are
-//!   supported for partial revolves (extrude-shaped); a full revolve
-//!   of a holed profile is refused as a typed error (M2 scope — the
-//!   per-hole seam surgery is mechanical but unexercised by the plan's
-//!   acceptance set; deviation recorded in the PR).
+//!   supported for partial revolves (extrude-shaped) AND for full
+//!   revolves: a full revolve of a holed profile is DEFINED as
+//!   `revolve(outer) − revolve(hole-as-outer)` (OFFSET-DESIGN O4) and
+//!   executed as the degenerate no-crossing arm — each hole revolves
+//!   as its own solid of revolution and its reversed boundary is
+//!   inserted as a cavity through the shared void-insertion door
+//!   ([`topo::insert_void`], DESIGN's M2 cavity invariant), with
+//!   strict containment certified FROM the profile's own validation:
+//!   a hole is strictly inside the outer loop with decided clearance
+//!   and containment margins, and revolution about the shared axis
+//!   carries strict 2-D containment to strict 3-D containment
+//!   verbatim. No SSI, no crossing census, no 3-D box test runs on
+//!   that path (a torus-walled cavity could not even enter the
+//!   crossing pipeline — its operand gate refuses tori).
 //! - **Cone charts.** A cone wall is minted with `axis = +a₃`
 //!   regardless of which nappe the face occupies: the implicit
 //!   residual/gradient machinery is nappe-symmetric, so the axis sign
@@ -100,12 +111,12 @@ mod upgrade;
 use core::fmt;
 
 use geom_brep::NewellError;
-use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Point2, Real, Sign, Vec2};
+use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Point2, Real, Sign, Tol, Vec2};
 use profile::ValidatedProfile;
 use topo::readback::{Pose, ReadbackError, face_pose};
 use topo::{Body, EdgeKey, EulerOpError, FaceKey, ShellKey, SolidKey, VertexKey};
 
-use crate::swept::{SweptChord, SweptKind, decide};
+use crate::swept::decide;
 
 /// The predicate names a revolve's cosurface decision reports under
 /// (the revolution walls: planes, cylinders and cones from lines,
@@ -146,8 +157,8 @@ pub enum Revolution<T: Real> {
 /// shape): the body plus the handles downstream passes address it by.
 ///
 /// Indexing convention: outer Vecs are per **canonical** loop (loop 0
-/// the outer, then holes — a full revolve has exactly one); inner Vecs
-/// are per canonical segment (`walls`) or canonical vertex (`rims`).
+/// the outer, then holes); inner Vecs are per canonical segment
+/// (`walls`) or canonical vertex (`rims`).
 /// `None` marks the axis-contact special classes: an on-axis segment
 /// has no wall (partial: the edge is shared by the wedge caps; full:
 /// omitted entirely), an on-axis vertex has no latitude edge (partial:
@@ -158,8 +169,14 @@ pub struct Revolved<T: Real> {
     pub body: Body<T>,
     /// The solid.
     pub solid: SolidKey,
-    /// Its single shell.
+    /// The primary (outer-boundary) shell.
     pub shell: ShellKey,
+    /// A full revolve of a holed profile only: the cavity shell each
+    /// hole's revolved boundary was inserted as, one per hole loop
+    /// (index 0 ↔ canonical loop 1). Empty for partial revolves (holes
+    /// there are extrude-shaped tunnels in the one shell) and for
+    /// unholed profiles.
+    pub cavities: Vec<ShellKey>,
     /// Wall faces, per loop, per canonical segment (`None`: on-axis).
     pub walls: Vec<Vec<Option<FaceKey>>>,
     /// Latitude edges (partial: wedge arcs; full: full-period rims,
@@ -203,22 +220,27 @@ pub enum RevolvedKind {
     /// one full-period band: `walls`/`rims` carry the complete
     /// revolution patches and full-period rim self-loops, `meridians`
     /// the single seam chain, and every `pi_*` field is `None`. The
-    /// **wire** case (an on-axis run, omitted) sweeps two π-bands so
-    /// poles/apexes keep valence 2 (tier 2's strut ban): `walls`/
-    /// `rims` are the angle-0…π band, the `pi_*` fields the π…2π band.
+    /// **wire** case (an on-axis run, omitted — the OUTER loop only;
+    /// holes are strictly off-axis by validated containment) sweeps
+    /// two π-bands so poles/apexes keep valence 2 (tier 2's strut
+    /// ban): `walls`/`rims` are the angle-0…π band, the `pi_*` fields
+    /// the π…2π band. Hole loops are always lamina-shaped: their
+    /// `meridians` entries are their cavity seam chains, and the
+    /// `pi_*` fields (outer-loop shaped) never name hole entities.
     Full {
         /// Angle-0 meridian edges (the `u = 0` seam chain), per
-        /// canonical segment (`None`: omitted on-axis segment).
-        meridians: Vec<Option<EdgeKey>>,
+        /// canonical loop, per canonical segment (`None`: omitted
+        /// on-axis segment of the outer loop).
+        meridians: Vec<Vec<Option<EdgeKey>>>,
         /// Wire case: the π…2π band's wall faces, per canonical
-        /// segment.
+        /// segment of the OUTER loop.
         pi_walls: Vec<Option<FaceKey>>,
         /// Wire case: the angle-π meridian copies (conventional
         /// `MappedCurve` — the π half-plane is not the seam), per
-        /// canonical segment.
+        /// canonical segment of the OUTER loop.
         pi_meridians: Vec<Option<EdgeKey>>,
         /// Wire case: the π…2π latitude half-rims, per canonical
-        /// vertex.
+        /// vertex of the OUTER loop.
         pi_rims: Vec<Option<EdgeKey>>,
     },
 }
@@ -265,23 +287,25 @@ impl From<ReadbackError> for WedgeCapsError {
 /// [`topo::readback::face_pose`] refusal.
 ///
 /// ```
-/// use geom_core::{Point2, Tolerance, Vec2};
+/// use geom_core::{Point2, Tol, Vec2};
 /// use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
 /// use sweep::{Revolution, RevolveAxis, revolve, revolved_caps};
 ///
+/// let tol = Tol::witness();
 /// // A quarter tube: a small circle a distance 5 from the axis,
 /// // revolved a quarter turn about the sketch frame's +v.
-/// let circle = profile::circle(Point2::new(5.0, 0.0), 0.5).expect("a positive radius");
+/// let circle = profile::circle(Point2::new(5.0, 0.0), 0.5, tol).expect("a positive radius");
 /// // The complete-loop primitives answer with a `ClosedLoop` (the
 /// // lowered loop plus its program); `Profile` takes the loop.
 /// let sketch = Profile::new(SketchPlane::xy(), vec![circle.into()])
-///     .validate(Tolerance::get())
+///     .validate(tol)
 ///     .expect("the circle validates");
 /// let axis = RevolveAxis { origin: Point2::new(0.0, 0.0), dir: Vec2::new(0.0, 1.0) };
 /// let quarter = revolve::<f64>(
 ///     &sketch,
 ///     axis,
 ///     Revolution::Partial(std::f64::consts::FRAC_PI_2),
+///     tol,
 /// )
 /// .expect("the tube revolves");
 ///
@@ -388,25 +412,44 @@ pub enum RevolveError {
         /// Canonical index of the offending vertex.
         vertex_index: usize,
     },
-    /// Full revolve of a profile with two or more disjoint on-axis
-    /// runs: the revolved boundary closes an inner shell, i.e. a VOID.
-    /// A **permanent** refusal under the ratified sweeps-vs-voids
-    /// invariant (DESIGN "∅, disjoint, and voids are typed results"),
-    /// the same rule [`RevolveError::FullRevolveHoles`] states — not a
-    /// deferral: sweeps produce genus, voids are boolean-born. Same
-    /// recourse as the holed profile.
+    /// Full revolve of a profile whose OUTER loop touches the axis in
+    /// two or more disjoint runs: the revolved boundary closes an
+    /// inner shell — a cavity — that this construction has no
+    /// certified containment evidence for (the two-run profile's
+    /// "hole" is not a validated hole loop; it exists only in the
+    /// revolved solid). Refused under the ratified cavity invariant
+    /// (DESIGN's M2 bullet: every cavity is born through the shared
+    /// void-insertion door, with caller-certified containment) — the
+    /// recourse is the explicit composition, whose boolean derives
+    /// the evidence itself.
     MultipleAxisRuns {
         /// Canonical index of the loop.
         loop_index: usize,
     },
-    /// Full revolve of a holed profile: the hole revolves into a closed
-    /// inner shell, i.e. a VOID. A **permanent** refusal under the
-    /// ratified sweeps-vs-voids invariant, not a deferral — the
-    /// `Display` below carries the rule and the recourse. The
-    /// extrude/full-revolve hole asymmetry is an instance of that
-    /// invariant (extruded holes are cap-to-cap tunnels, hence genus),
-    /// not an inconsistency.
-    FullRevolveHoles,
+    /// Full revolve of a holed profile met a HOLE loop with axis
+    /// contact (an on-axis vertex or segment). Unreachable for a
+    /// profile validated at this run's tolerance — a hole is strictly
+    /// interior to the outer region, interior points are strictly
+    /// off-axis under the half-plane gate, and near-axis holes refuse
+    /// as [`RevolveError::SliverRadius`] first — so this arm exists
+    /// for the tolerance-disagreement case (profile validated at a
+    /// different ε than the revolve runs at), surfaced typed rather
+    /// than trusted.
+    HoleTouchesAxis {
+        /// Canonical index of the hole loop.
+        loop_index: usize,
+    },
+    /// The void-insertion door refused a hole cavity's insertion
+    /// ([`topo::insert_void`]). The evidence arms are unreachable from
+    /// this construction (every hole shell is certified from the
+    /// profile's own validation before the call); the revert/graft
+    /// arms surface kernel-level corruption typed.
+    VoidInsertion {
+        /// Canonical index of the hole loop whose insertion refused.
+        loop_index: usize,
+        /// The door's refusal.
+        source: topo::VoidInsertError,
+    },
     /// A cosurface-sharing predicate escalated at a join (the extrude
     /// `CosurfaceEscalated` posture: defense-in-depth, believed
     /// unreachable from validated profiles).
@@ -544,16 +587,24 @@ impl fmt::Display for RevolveError {
             Self::MultipleAxisRuns { loop_index } => write!(
                 f,
                 "full revolve: loop {loop_index} touches the axis in two or more disjoint \
-                 segment runs, so the revolved boundary would close an inner void shell, \
-                 and sweeps produce genus, never voids (the sweeps-vs-voids invariant); \
-                 voids are born only from booleans — revolve the solid profile and \
-                 subtract the hole body (topo::subtract), or use a partial revolve"
+                 segment runs, so the revolved boundary would close an inner cavity shell \
+                 this construction holds no containment evidence for (every cavity is born \
+                 through the void-insertion door with caller-certified containment; a \
+                 two-run profile's enclosure is not a validated hole loop) — revolve the \
+                 solid profile and subtract the enclosed body (topo::subtract), or use a \
+                 partial revolve"
             ),
-            Self::FullRevolveHoles => f.write_str(
-                "full revolve of a holed profile would enclose an inner void shell, and sweeps \
-                 produce genus, never voids (the sweeps-vs-voids invariant); voids are born \
-                 only from booleans — revolve the solid profile and subtract the hole body \
-                 (topo::subtract), or use a partial revolve",
+            Self::HoleTouchesAxis { loop_index } => write!(
+                f,
+                "full revolve: hole loop {loop_index} touches the revolve axis, which \
+                 contradicts its validated strict containment inside the outer loop — the \
+                 profile was validated at a different tolerance than this revolve runs at; \
+                 re-validate the profile at the run's tolerance"
+            ),
+            Self::VoidInsertion { loop_index, source } => write!(
+                f,
+                "full revolve: inserting hole loop {loop_index}'s revolved cavity through \
+                 the void-insertion door refused: {source}"
             ),
             Self::CosurfaceEscalated {
                 loop_index,
@@ -597,92 +648,14 @@ impl From<EulerOpError> for RevolveError {
     }
 }
 
-/// One segment of a swept loop in swept traversal order (canonical, or
-/// reversed for θ > 0 — module docs), with canonical indices for error
-/// reporting. A revolve's wall orientation is decided per wall class
-/// (`axis::WallKind`), not per segment, so no orientation bit rides
-/// here; the shared lowering reads this through
-/// [`crate::swept::SweptChord`].
-#[derive(Clone, Copy, Debug)]
-pub(super) struct SweptSeg<T: Real> {
-    /// Start point, sketch coordinates; swept vertex `j` is segment
-    /// `j`'s start.
-    pub(super) a: Point2<T>,
-    /// End point.
-    pub(super) b: Point2<T>,
-    /// The bulge in swept traversal (negated by reversal).
-    pub(super) bulge: T,
-    pub(super) kind: SweptKind<T>,
-    /// Canonical index of the start vertex.
-    pub(super) canonical_vertex: usize,
-    /// Canonical index of the segment.
-    pub(super) canonical_segment: usize,
-}
-
-/// Builds the swept traversal of one canonical loop: forward, or
-/// reversed via the profile crate's reversal involution (endpoints
-/// swapped, bulge negated, turn flipped).
-pub(super) fn swept_segments<T: Decide>(
-    lp: &profile::ValidatedLoop<T>,
-    reverse: bool,
-) -> Vec<SweptSeg<T>> {
-    use profile::SegmentKind;
-    let segs = lp.segments();
-    let n = segs.len();
-    let mut out = Vec::with_capacity(n);
-    for j in 0..n {
-        let (s, a, b, bulge, canonical_vertex, canonical_segment) = if reverse {
-            let s = &segs[n - 1 - j];
-            (
-                s,
-                s.end,
-                s.start,
-                T::zero() - s.bulge,
-                (n - j) % n,
-                n - 1 - j,
-            )
-        } else {
-            let s = &segs[j];
-            (s, s.start, s.end, s.bulge, j, j)
-        };
-        let kind = match s.kind {
-            SegmentKind::Line => SweptKind::Line,
-            SegmentKind::Arc {
-                center,
-                radius,
-                turn,
-            } => SweptKind::Arc {
-                center,
-                radius,
-                turn: if reverse { turn.flip() } else { turn },
-            },
-        };
-        out.push(SweptSeg {
-            a,
-            b,
-            bulge,
-            kind,
-            canonical_vertex,
-            canonical_segment,
-        });
-    }
-    out
-}
-
-impl<T: Real> SweptChord<T> for SweptSeg<T> {
-    fn a(&self) -> Point2<T> {
-        self.a
-    }
-    fn b(&self) -> Point2<T> {
-        self.b
-    }
-    fn bulge(&self) -> T {
-        self.bulge
-    }
-    fn kind(&self) -> SweptKind<T> {
-        self.kind
-    }
-}
+/// The swept traversal a revolve sweeps: the shared record and the
+/// shared builder, re-exported under this module's names.
+///
+/// Reversed for θ > 0 (module docs). A revolve's wall orientation is
+/// decided per wall class (`axis::WallKind`, `axis::classify_segment`)
+/// and not per segment, so this verb needs nothing beyond the shared
+/// record — unlike `extrude`, which wraps it to add an orientation bit.
+pub(super) use crate::swept::{SweptSeg, swept_segments};
 
 /// Revolves a validated profile about an in-sketch-plane axis into a
 /// closed solid.
@@ -702,8 +675,9 @@ pub fn revolve<T: Decide>(
     profile: &ValidatedProfile<T>,
     axis: RevolveAxis<T>,
     revolution: Revolution<T>,
+    tol: Tol,
 ) -> Result<Revolved<T>, RevolveError> {
-    let band = Band::linear().map_err(RevolveError::Band)?;
+    let band = Band::linear(tol).map_err(RevolveError::Band)?;
     let place = profile.plane().placement;
     let frame = axis::AxisFrame::build(place, &axis, band)?;
 
@@ -732,11 +706,21 @@ pub fn revolve<T: Decide>(
     };
 
     // ---- Swept traversals + axis-contact classification (canonical
-    // error indices carried through the reversal). ----
+    // error indices carried through the reversal). A FULL revolve's
+    // hole loops traverse FORWARD: the stored hole chain is the
+    // canonical clockwise traversal, i.e. exactly the reversed chain
+    // of the counterclockwise hole-as-outer loop — which is what the
+    // +2π sweep expects (module docs: winding). `classify_loop` still
+    // receives `reverse = true` for them: its sign un-flip then lands
+    // on the hole-as-outer (counterclockwise) direction, whose
+    // material-left side is the hole's interior — the cavity solid's
+    // own material, which is what each hole builds as before the door
+    // reverses it.
     let loops: Vec<Vec<SweptSeg<T>>> = profile
         .loops()
         .iter()
-        .map(|lp| swept_segments(lp, reverse))
+        .enumerate()
+        .map(|(li, lp)| swept_segments(lp, if full && li > 0 { false } else { reverse }))
         .collect();
     let mut classes = Vec::with_capacity(loops.len());
     for (li, segs) in loops.iter().enumerate() {
@@ -744,15 +728,15 @@ pub fn revolve<T: Decide>(
     }
 
     let mut out = if full {
-        full::build_full(&frame, &loops, &classes, theta, band)
+        full::build_full(&frame, &loops, &classes, theta, band, tol)
     } else {
-        partial::build_partial(&frame, &loops, &classes, theta, reverse, band)
+        partial::build_partial(&frame, &loops, &classes, theta, reverse, band, tol)
     }?;
     // Final pass (M6-3, walk row 4): every revolve face's chart now
     // mints — cone/sphere/torus walls exactly as cylinder ones — so a
     // revolve output carries its stored certified pcurves at rest,
     // the same posture as boolean/split/loft outputs.
-    topo::mint_pcurves(&mut out.body).map_err(RevolveError::Pcurve)?;
+    topo::mint_pcurves(&mut out.body, tol).map_err(RevolveError::Pcurve)?;
     Ok(out)
 }
 

@@ -240,7 +240,7 @@ use core::fmt;
 
 use geom::Surface;
 use geom_brep::{CertifyError, DihedralClass, classify_dihedral};
-use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Real, Sign};
+use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Real, Sign, Tol};
 use slotmap::{Key, SecondaryMap};
 
 use crate::body::{Body, Walk};
@@ -298,9 +298,22 @@ pub enum ContactMark {
 
 /// A structural or geometric defect found by the validators. Closed
 /// enum, D3 style: each tier's PRs add variants as compiler-guided
-/// extensions — every match site is forced to say what it does with the
-/// new failure kinds, which is exactly the loudness the house style
-/// wants. (`Eq` dropped at M2 PR 3: the tier-3 variants carry margin
+/// extensions.
+///
+/// **The obligation that closedness buys falls on the sites that
+/// CLASSIFY**, and it is not stylistic. A match that maps this enum
+/// onto a SMALLER vocabulary — a caller's verdict, a recourse, a tag —
+/// must say what it does with each new failure kind, because a
+/// wildcard there answers for the new kind silently and no existing
+/// row can notice: the rows that exist exercise the variants the named
+/// arms already handle.
+///
+/// A site that EXTRACTS carries no such obligation — a
+/// `find_map`/`filter_map` picking one variant out and answering
+/// `None` to the rest is asking a question, not giving an answer, and
+/// its `_` arm IS the question.
+///
+/// (`Eq` dropped at M2 PR 3: the tier-3 variants carry margin
 /// diagnostics with `f64` payloads.)
 #[derive(Clone, Debug, PartialEq)]
 pub enum ValidationError {
@@ -334,6 +347,72 @@ pub enum ValidationError {
     /// shared discriminator.
     UncertifiableSurface {
         /// The face whose surface is the placeholder.
+        face: FaceKey,
+    },
+    /// Tier 3: a face's **approximating** surface failed to
+    /// re-certify against its own stored description at rest.
+    ///
+    /// The stored certificate is never read (O5's never-trust
+    /// posture): the two-limb bound is re-derived per validation call
+    /// from the description and the fit, and classified against the
+    /// **run's** ε_precision rather than the tolerance the surface
+    /// carries (O3's ratified claim is what tier 3 verifies; the stored
+    /// tolerance is the mint's parameter). A fit that has drifted from
+    /// what it claims to approximate — coarsened, edited, grafted onto
+    /// another base — reports here, naming the limb that caught it, and
+    /// so does one minted looser than the ε this run demands.
+    ApproxCertification {
+        /// The face whose approximating surface failed.
+        face: FaceKey,
+        /// The fit door's typed refusal.
+        error: geom_brep::OffsetFitError,
+    },
+    /// Tier 3: a face carries an approximating surface and this scalar
+    /// has no re-derivation lane ([`crate::props::PropsQuadLane`]'s
+    /// `recertify_approx` answering `None`).
+    ///
+    /// Reported rather than skipped: a surface certificate is the one
+    /// claim this kernel refuses to leave unchecked, and passing a
+    /// face whose certificate nothing re-derived would make it exactly
+    /// that.
+    ApproxLaneUnsupported {
+        /// The face whose approximating surface has no lane.
+        face: FaceKey,
+    },
+    /// Tier 3: a face's torus violates D3's ring convention `R > r > 0`
+    /// — a horn (`R == r`) or spindle (`R < r`) torus, whose axis
+    /// carries a singular point the chart machinery has no
+    /// representation for (`geom::Surface::Torus`'s own contract: the
+    /// chart normal derivation assumes `R + r·cos v > 0`, and
+    /// `mesh::walk::Chart::poles` is empty for a torus because a ring
+    /// torus has none).
+    ///
+    /// This is the net BOTH doors that can mint a torus pass through:
+    /// `sweep::revolve` refuses the configuration at construction, and
+    /// `step-import` reads `TOROIDAL_SURFACE`'s two radii verbatim.
+    DegenerateTorus {
+        /// The face whose torus is a horn or spindle.
+        face: FaceKey,
+    },
+    /// Tier 3: the ring-torus convention margin `R − r` landed in the
+    /// ambiguity band (or was poison) — the classification is not
+    /// available at this tolerance.
+    DegenerateTorusEscalated {
+        /// The face whose torus could not be classified.
+        face: FaceKey,
+        /// The predicate-layer escalation.
+        cause: Indeterminate,
+    },
+    /// Tier 3: a face's torus has a tube radius that is not definitely
+    /// positive — the `r > 0` half of D3's ring convention `R > r > 0`.
+    ///
+    /// **Not a metered predicate, deliberately** (the chamfer's
+    /// `NonpositiveSize` precedent): whether the stored datum is a
+    /// positive number is a fact about the DATUM, not a geometric
+    /// quantity of the body, so it takes no `k_stats` name and no band.
+    /// A poisoned or zero-straddling radius fails it with the rest.
+    NonpositiveTorusTube {
+        /// The face whose torus has no tube.
         face: FaceKey,
     },
     /// Tier 3: an edge's carrier re-certification failed at rest — the
@@ -422,8 +501,9 @@ pub enum ValidationError {
     /// ε-tightening can escalate an edge but never flips a valid body
     /// to invalid through this check. (A mixed transverse/smooth sample
     /// set — a tangency-crossing edge — is neither definitely
-    /// transverse nor definitely smooth as a whole and is not enforced
-    /// at M2.)
+    /// transverse nor definitely smooth as a whole, so it takes
+    /// `ContactMark::Unmarked` and NEITHER must-carry attaches: an
+    /// exemption by the predicate, like every other one here.)
     TransverseNotIntrinsic {
         /// The definitely-transverse edge whose description is
         /// conventional.
@@ -512,9 +592,29 @@ pub enum ValidationError {
     /// comparand, no new margin: the derived side reuses the flux
     /// lanes' already-length-metered named decides. Posture inherited
     /// from check 7: only a DEFINITE disagreement refuses; an
-    /// escalated/degenerate/out-of-inventory derivation is exempt, and
-    /// the **rimless** sphere band (whose boundary encodes no side —
-    /// its `s_f` IS the bit) stays exempt as the documented residual.
+    /// escalated/degenerate/out-of-inventory derivation is exempt.
+    ///
+    /// **What is exempt, in full**, because this set is larger than a
+    /// reader expects and it grew:
+    ///
+    /// * the **rimless** sphere band — its boundary encodes no side at
+    ///   all (`s_f` IS the bit), the documented residual;
+    /// * a face whose **domain is not an iso-parameter rectangle**.
+    ///   `props`' side derivation runs the `props_rim_level` predicate
+    ///   before answering, on all four curved kinds, because
+    ///   `lo + hi − 2v` reads *which extreme is this rim at* and that
+    ///   is a material side only on a rectangle. Such a face returns
+    ///   `Err` and is exempt HERE, which is correct — without the
+    ///   premise it returned a definite ±1 that depended on where
+    ///   `loop_edges` started the cycle, and this arm turned that into
+    ///   a refusal that also suppressed check 7's honest
+    ///   `VolumeUncomputable { NotIsoRectangle }` through the
+    ///   `errors.is_empty()` gate. **The coverage is real and is
+    ///   given up on purpose**: the corpus's `cross.step` and
+    ///   `tee.step` walls are exempt here now, and the flux lane
+    ///   refuses those bodies anyway;
+    /// * conic-trimmed faces the quadrature lane owns, and NURBS.
+    ///
     /// S11's honest `sense: false` faces (a washer's bore, a die's
     /// dimples) PASS: their traversals already place the material on
     /// the anti-chart-normal side — the gate refuses lone bit flips,
@@ -992,9 +1092,12 @@ pub enum CensusContact {
         /// The face.
         face: FaceKey,
     },
-    /// A vertex on an edge's interior — never declarable: reduction
-    /// refines every such contact into v-v records before records are
-    /// emitted (module docs, D4), so at rest this is always a defect.
+    /// A vertex on an edge's interior. No VERTEX-granularity record
+    /// names it — the boolean lane refines every such contact into v-v
+    /// records before records are emitted — so at rest it is
+    /// certifiable through the face rung alone: a declared face pair
+    /// holding the vertex on one boundary and the edge on the other
+    /// (census module docs, D4). Unbacked, it is a defect.
     VertexOnEdge {
         /// The resting vertex.
         vertex: VertexKey,
@@ -1101,6 +1204,31 @@ impl fmt::Display for ValidationError {
                 "face {face:?}'s surface is the Nurbs PLACEHOLDER (mvfs's all-poison \
                  'no description yet' state) — uncertifiable at rest; attach the real \
                  surface. A described NURBS surface passes this check"
+            ),
+            Self::ApproxCertification { face, error } => write!(
+                f,
+                "tier 3: face {face:?}'s approximating surface does not re-certify against \
+                 its own description at rest: {error}"
+            ),
+            Self::ApproxLaneUnsupported { face } => write!(
+                f,
+                "tier 3: face {face:?} carries an approximating surface and this scalar has \
+                 no re-derivation lane — the certificate cannot be re-derived, and a \
+                 surface certificate is never trusted unchecked"
+            ),
+            Self::DegenerateTorus { face } => write!(
+                f,
+                "face {face:?}'s torus violates D3's ring convention R > r > 0 (a horn or \
+                 spindle torus, whose axis carries a chart singularity)"
+            ),
+            Self::DegenerateTorusEscalated { face, cause } => write!(
+                f,
+                "face {face:?}'s ring-torus margin R - r escalated: {cause}"
+            ),
+            Self::NonpositiveTorusTube { face } => write!(
+                f,
+                "face {face:?}'s torus has a tube radius that is not definitely positive, \
+                 so it is not a torus at all (D3's ring convention R > r > 0)"
             ),
             Self::EdgeCertification { edge, error } => {
                 write!(f, "edge {edge:?} failed re-certification at rest: {error}")
@@ -1598,7 +1726,10 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 /// 1. **Surface implementedness** (faces, arena order): no face's
 ///    surface is the `Nurbs` representable-unimplemented placeholder
 ///    ([`ValidationError::UncertifiableSurface`]) — nothing can be
-///    certified against it at M2.
+///    certified against it at M2 — and every torus honours D3's ring
+///    convention `R > r > 0`
+///    ([`ValidationError::DegenerateTorus`] /
+///    [`ValidationError::DegenerateTorusEscalated`]).
 /// 2. **Carrier re-certification** (edges, arena order): every edge's
 ///    stored [`geom_brep::EdgeCurve`] re-runs its full D4 ¶2
 ///    certification — endpoint pinning against the edge's own vertices'
@@ -1655,8 +1786,15 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 ///
 /// # What tier 3 does NOT yet check (deferred, named)
 ///
-/// - **Global self-intersection / minimum clearance** — M3 partial (via
-///   booleans), M6 interval clearance.
+/// - **Global self-intersection / minimum clearance** — M3 partial
+///   (via booleans); the interval-based whole-body check is scheduled
+///   rather than dropped. `DESIGN.md` carries it twice — in the
+///   tier-3 bullet of the validation-tier list, and in the milestone
+///   list under the entry containing *"interval-based
+///   self-intersection / minimum-clearance checks over the parameter
+///   box"*. Quoted rather than dated on purpose: a milestone copied
+///   into this list is the rot the list keeps producing, and a quote
+///   is what survives the milestone being renumbered.
 /// - **The material wedge side** (lamina/zero-volume detection, wedge
 ///   0 vs 2π vs the legal π): distinguishing them needs the faces'
 ///   material sense **at the edge** — which side of each surface the
@@ -1697,15 +1835,16 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 /// any, else the tier-3 failures in the documented order.
 pub fn validate_geometric<T: crate::props::PropsQuadLane>(
     body: &Body<T>,
+    tol: Tol,
 ) -> Result<(), Vec<ValidationError>> {
     // Coarse gate: structural tiers first, verbatim.
     validate_closed(body)?;
 
-    let band = match Band::linear() {
+    let band = match Band::linear(tol) {
         Ok(band) => band,
         Err(error) => return Err(vec![ValidationError::Band { error }]),
     };
-    let errors = tier3_local_checks(body, band);
+    let errors = tier3_local_checks(body, band, tol);
     if errors.is_empty() {
         Ok(())
     } else {
@@ -1722,9 +1861,10 @@ pub fn validate_geometric<T: crate::props::PropsQuadLane>(
 pub(crate) fn tier3_local_checks<T: crate::props::PropsQuadLane>(
     body: &Body<T>,
     band: Band,
+    tol: Tol,
 ) -> Vec<ValidationError> {
     let mut marks = slotmap::SecondaryMap::new();
-    tier3_local_checks_marked(body, band, &mut marks)
+    tier3_local_checks_marked(body, band, &mut marks, tol)
 }
 
 /// The per-edge tier-3 contact MARKS at rest (OQ7 level (i), M5 PR 9):
@@ -1738,14 +1878,15 @@ pub(crate) fn tier3_local_checks<T: crate::props::PropsQuadLane>(
 /// As [`validate_geometric`].
 pub fn contact_marks<T: crate::props::PropsQuadLane>(
     body: &Body<T>,
+    tol: Tol,
 ) -> Result<slotmap::SecondaryMap<EdgeKey, ContactMark>, Vec<ValidationError>> {
     validate_closed(body)?;
-    let band = match Band::linear() {
+    let band = match Band::linear(tol) {
         Ok(band) => band,
         Err(error) => return Err(vec![ValidationError::Band { error }]),
     };
     let mut marks = slotmap::SecondaryMap::new();
-    let errors = tier3_local_checks_marked(body, band, &mut marks);
+    let errors = tier3_local_checks_marked(body, band, &mut marks, tol);
     if errors.is_empty() {
         Ok(marks)
     } else {
@@ -1760,6 +1901,7 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     body: &Body<T>,
     band: Band,
     marks: &mut slotmap::SecondaryMap<EdgeKey, ContactMark>,
+    tol: Tol,
 ) -> Vec<ValidationError> {
     let mut errors = Vec::new();
 
@@ -1774,12 +1916,90 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     // which is a mid-surgery "no description yet" fact, never a
     // certifiable surface. One discriminator, shared:
     // `NurbsSurface::is_placeholder`.
+    //
+    // A torus is implemented only under D3's ring convention
+    // `R > r > 0`: a horn or spindle torus puts a singular point on the
+    // axis that no chart in the tree represents. The check lives HERE,
+    // at rest, because that is the one place BOTH doors that can mint a
+    // torus pass through — `sweep::revolve` refuses the configuration at
+    // construction, `step-import` reads the two radii verbatim.
     // ------------------------------------------------------------------
     for (face_key, face) in body.faces.iter() {
-        if let Some(Surface::Nurbs(payload)) = body.surfaces.get(face.surface)
-            && payload.is_placeholder()
-        {
-            errors.push(ValidationError::UncertifiableSurface { face: face_key });
+        match body.surfaces.get(face.surface) {
+            Some(Surface::Nurbs(payload)) if payload.is_placeholder() => {
+                errors.push(ValidationError::UncertifiableSurface { face: face_key });
+            }
+            // The approximating surface's re-derivation (O5): the
+            // two-limb certificate is recomputed from the stored
+            // description and fit on EVERY call, and the stored
+            // certificate is not read. A grid per face is a real cost
+            // where edges pay a line schedule; the alternative —
+            // trust-on-read for surfaces only — would make this the one
+            // unchecked claim in tier 3.
+            //
+            // **Classified against the RUN's ε, exactly as every edge
+            // carrier is** — never against the surface's own stored
+            // tolerance. O3's ratified claim is `≤ ε_precision`, and a
+            // mint's parameter is not that claim; see
+            // `PropsQuadLane::recertify_approx` for the argument, and
+            // for why ε-tightening turning a loosely-minted surface red
+            // is D4's blessed behaviour rather than a regression.
+            Some(Surface::Approx(approx)) => match T::recertify_approx(approx, tol.eps(), band) {
+                Some(Ok(_)) => {}
+                Some(Err(error)) => {
+                    errors.push(ValidationError::ApproxCertification {
+                        face: face_key,
+                        error,
+                    });
+                }
+                None => {
+                    errors.push(ValidationError::ApproxLaneUnsupported { face: face_key });
+                }
+            },
+            Some(Surface::Torus {
+                major_radius,
+                minor_radius,
+                ..
+            }) => {
+                // `r > 0`, the convention's other half, is a fact about
+                // the STORED DATUM and not a geometric quantity of the
+                // body: a tube radius that is zero, negative or poison
+                // does not describe a small torus, it fails to describe
+                // one. So it takes no `k_stats` name and no band — the
+                // chamfer's `NonpositiveSize` precedent — and is read
+                // off the bracket's low end (`PropsQuadLane::datum_lo`,
+                // whose docs say why it is a named accessor and not an
+                // `Enclosure` bound) through `partial_cmp`, so the
+                // INCOMPARABLE case is an arm and not an accident.
+                // It is checked FIRST because `R − r` metered against a
+                // nonpositive `r` would quote it: at `r = −R` the
+                // difference reads `2R`, definitely positive, and the
+                // net would pass a surface that has no tube at all.
+                if !matches!(
+                    minor_radius.datum_lo().partial_cmp(&0.0),
+                    Some(core::cmp::Ordering::Greater)
+                ) {
+                    errors.push(ValidationError::NonpositiveTorusTube { face: face_key });
+                } else {
+                    match decide(
+                        "ring_torus_convention",
+                        Margin::of(*major_radius - *minor_radius),
+                        band,
+                    ) {
+                        Ok(Sign::Positive) => {}
+                        Ok(Sign::Zero | Sign::Negative) => {
+                            errors.push(ValidationError::DegenerateTorus { face: face_key });
+                        }
+                        Err(cause) => {
+                            errors.push(ValidationError::DegenerateTorusEscalated {
+                                face: face_key,
+                                cause,
+                            });
+                        }
+                    }
+                }
+            }
+            _ => {}
         }
     }
 
@@ -1972,8 +2192,13 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
         // conventional `IsoCurve`/`MappedCurve` descriptions the
         // loft/sweep builder mints; the mark stays `Unmarked` (no
         // derived verdict, exactly the escalation posture).
-        let nurbs_adjacent =
-            matches!(s_plus, Surface::Nurbs(_)) || matches!(s_minus, Surface::Nurbs(_));
+        // An `Approx` face is exempt on the SAME terms and by the same
+        // rule: its geometry is a spline fit, whose implicit-form
+        // gradient is poison, so `classify_dihedral` cannot run there
+        // either. O5 records the inheritance explicitly — narrowing it
+        // (deriving a dihedral class from the DESCRIPTION rather than
+        // the fit) is its own conversation, not smuggled in here.
+        let nurbs_adjacent = s_plus.spline_chart().is_some() || s_minus.spline_chart().is_some();
         let mut escalated = false;
         let mut all_transverse = true;
         let mut all_smooth = true;
@@ -2238,9 +2463,21 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     // way the flux lanes read it:
     // `geom_brep::props::boundary_material_sign` re-runs the rim-side
     // / meridian-orientation sub-derivations (`props_rim_side`,
-    // `props_circle_axis_class`, `props_meridian_orient` — already
-    // length-metered named decides). No new comparand exists: the
-    // final comparison is two exact ±1s, genuinely combinatorial.
+    // `props_rim_level`, `props_circle_axis_class`,
+    // `props_meridian_orient` — already length-metered named decides).
+    // No new comparand exists: the final comparison is two exact ±1s,
+    // genuinely combinatorial.
+    //
+    // `props_rim_level` — the iso-rectangle premise — is on that list
+    // because the rim-side derivation rests on it: `lo + hi − 2v` is a
+    // material side only on a domain whose rims all sit at an extreme,
+    // and without it a plus-shaped face answered a definite ±1 that
+    // depended on where `loop_edges` started the cycle. Such a face now
+    // arrives here as `Err`, i.e. EXEMPT by the posture below, which is
+    // what it always should have been: this arm firing on it pushed a
+    // `CurvedSenseInverted` that suppressed check 7's honest
+    // `VolumeUncomputable { NotIsoRectangle }` through the
+    // `errors.is_empty()` gate.
     // Fires BEFORE check 7, which cannot see this defect — the flux is
     // traversal-derived, so a lone sense flip on a rim-bearing curved
     // face leaves the volume BIT-IDENTICAL (M6-6 substrate truth
@@ -2271,8 +2508,8 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
         let Some(surface) = body.surfaces.get(face.surface) else {
             continue; // unreachable on tier-1 input
         };
-        if matches!(surface, Surface::Plane { .. } | Surface::Nurbs(_)) {
-            // Planar: the Newell arm above. NURBS: the quadrature lane
+        if matches!(surface, Surface::Plane { .. }) || surface.spline_chart().is_some() {
+            // Planar: the Newell arm above. Spline charts: the quadrature lane
             // is winding-derived end to end, bit-free by design (S10
             // module docs) — recorded residual, out of this arm's
             // scope.
@@ -2326,7 +2563,7 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     // the face the check-6 curved arm must exempt as Unencoded.
     // ------------------------------------------------------------------
     if errors.is_empty() {
-        match crate::props::mass_properties_with(body, band) {
+        match crate::props::mass_properties_with(body, band, tol) {
             Ok(props) => {
                 // The margin consumes the CERTIFIED bound (M5 PR 11):
                 // for quadrature faces `volume` is an enclosure
@@ -2412,13 +2649,14 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
 pub fn validate_pseudomanifold<T: crate::props::PropsQuadLane>(
     body: &Body<T>,
     contacts: &crate::boolean::ContactRecords,
+    tol: Tol,
 ) -> Result<(), Vec<ValidationError>> {
     validate_closed(body)?;
-    let band = match Band::linear() {
+    let band = match Band::linear(tol) {
         Ok(band) => band,
         Err(error) => return Err(vec![ValidationError::Band { error }]),
     };
-    let mut errors = tier3_local_checks(body, band);
+    let mut errors = tier3_local_checks(body, band, tol);
     if errors.is_empty() {
         errors.extend(crate::census::census_and_certify(body, contacts, band));
     }
@@ -3311,6 +3549,7 @@ fn shell_component<T: Real>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use geom_core::Point3;
+    use geom_core::Tol;
     use proptest::prelude::*;
 
     use super::*;
@@ -3371,7 +3610,7 @@ mod tests {
         // The minimal closed body: 2 vertices, 2 edges, 2 faces —
         // Euler–Poincaré v − e + f = 2 − 2 + 2 = 2 = 2(s − h) + r with
         // s = 1, h = r = 0 (a sphere). Replaces M0's single-face tiny().
-        let t = pillow();
+        let t = pillow(Tol::witness());
         assert_eq!(validate(&t.body), Ok(()));
         assert_eq!(t.body.vertices().count(), 2);
         assert_eq!(t.body.edges().count(), 2);
@@ -3384,7 +3623,7 @@ mod tests {
         // n = 1: one vertex, one self-loop edge whose two halves live in
         // different faces' one-half-edge loops. A legal (tier-1 and
         // tier-2) closed manifold body: v − e + f = 1 − 1 + 2 = 2.
-        let t = ngon_pillow(1);
+        let t = ngon_pillow(1, Tol::witness());
         assert_eq!(validate(&t.body), Ok(()));
         assert_eq!(t.body.vertices().count(), 1);
         assert_eq!(t.body.edges().count(), 1);
@@ -3403,7 +3642,7 @@ mod tests {
 
     #[test]
     fn prism_validates_cleanly() {
-        let t = prism(4);
+        let t = prism(4, Tol::witness());
         assert_eq!(validate(&t.body), Ok(()));
         // v = 2n, e = 3n, f = n + 2: v − e + f = 8 − 12 + 6 = 2.
         assert_eq!(t.body.vertices().count(), 8);
@@ -3426,7 +3665,7 @@ mod tests {
         // that is exactly the next(mate(·)) order. (GWB states its orbit
         // idiom for the mirrored clockwise-loop convention; this test is
         // the transcription guard.)
-        let t = prism(4);
+        let t = prism(4, Tol::witness());
         let i = 1;
         assert_eq!(
             t.body.vertex_orbit(t.ht[i]),
@@ -3449,7 +3688,7 @@ mod tests {
 
     #[test]
     fn orbit_steps_are_mutual_inverses_and_preserve_start() {
-        let t = prism(3);
+        let t = prism(3, Tol::witness());
         for (he_key, he) in t.body.half_edges() {
             // cw(he) = next(mate(he)) starts at the same vertex...
             let mate = t.body.mate(he_key).unwrap();
@@ -3476,7 +3715,7 @@ mod tests {
 
     #[test]
     fn dangling_topology_is_reported() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         // Mint a key that can never resolve again: insert, then remove
         // (the slot's version is bumped; even reuse cannot revive it).
         let dead = t.body.add_half_edge(
@@ -3529,7 +3768,7 @@ mod tests {
 
     #[test]
     fn dangling_geometry_is_reported() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         // Repoint an existing vertex at a removed point: the vertex's
         // reference dangles, and the abandoned point becomes an orphan.
         let dead = t.body.add_point(anchor());
@@ -3577,7 +3816,7 @@ mod tests {
 
     #[test]
     fn next_prev_mismatch_is_reported() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         // Tear prev only: a1's true predecessor (via next) is a0, so the
         // check fires for a0 ("my successor does not point back") and
         // for nothing else — next itself is intact, so cycles and orbits
@@ -3594,7 +3833,7 @@ mod tests {
 
     #[test]
     fn loop_cycle_overrun_is_reported() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         // Point a0's next into loop B's cycle. A pure overrun is
         // impossible: while next/prev stay mutual inverses next is a
         // permutation and every walk closes — so the expected vector
@@ -3618,7 +3857,7 @@ mod tests {
 
     #[test]
     fn parent_loop_mismatch_is_reported() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         // b0 claims loop A as parent while sitting in loop B's cycle:
         // loop B's walk reports the mismatch, and b0 is simultaneously
         // unreachable from its claimed parent (whose cycle closed
@@ -3640,7 +3879,7 @@ mod tests {
 
     #[test]
     fn half_edge_claiming_an_empty_parent_is_unreachable() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         // A fresh lone vertex in an empty loop (legal), then a1 claims
         // that empty loop as its parent: an empty loop reaches nothing.
         let p2 = t.body.add_point(anchor());
@@ -3669,7 +3908,7 @@ mod tests {
 
     #[test]
     fn edge_halves_identical_is_reported() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         // e0 claims a0 in both slots: a0 is now claimed twice overall
         // and b0 (e0's real minus half) by nobody. Antiparallelism is
         // gated on distinct halves (skipped); both orbits break at the
@@ -3694,7 +3933,7 @@ mod tests {
 
     #[test]
     fn edge_slot_backpointer_mismatch_is_reported() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         // e0's minus slot claims b1 (whose .edge is e1): back-pointer
         // mismatch; b0 goes unclaimed, b1 doubly claimed; and e0's
         // halves (a0, b1) both run v0 → v1, so antiparallelism genuinely
@@ -3721,7 +3960,7 @@ mod tests {
 
     #[test]
     fn edge_not_antiparallel_is_reported() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         // Swap loop B's start vertices: both edges' halves now run the
         // same way (parallel, not antiparallel), and both orbits close
         // over a foreign member — the b half-edge that now starts at the
@@ -3751,7 +3990,7 @@ mod tests {
 
     #[test]
     fn emanating_start_mismatch_is_reported() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         // v0's emanating points at a half-edge starting at v1. The orbit
         // check is gated on a matching start (skipped for v0), so the
         // mismatch is the single report.
@@ -3767,7 +4006,7 @@ mod tests {
 
     #[test]
     fn empty_loop_vertex_with_emanating_is_reported() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         // An empty loop claiming v0, which has half-edges: a lone vertex
         // must have none.
         add_empty_loop_face(&mut t.body, t.shell, t.vertices[0]);
@@ -3782,7 +4021,7 @@ mod tests {
 
     #[test]
     fn lone_vertex_with_incidence_is_reported() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         // v0 claims to be lone (emanating: None) while two half-edges
         // start at it. The orbit check needs an emanating (skipped).
         t.body.get_vertex_mut(t.vertices[0]).unwrap().emanating = None;
@@ -3797,7 +4036,7 @@ mod tests {
 
     #[test]
     fn orphan_vertex_is_reported() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         // A vertex no half-edge starts at and no empty loop holds — the
         // M0 orphan-vertex rule restated in half-edge terms. Its point
         // is NOT an orphan: geometry referenced by an orphan entity is
@@ -3864,9 +4103,11 @@ mod tests {
         // close, mates pair, antiparallelism holds, emanating matches —
         // but v0's incident half-edges fall into TWO orbits, and the
         // orbit-closure check is exactly what catches it.
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         let v0 = t.vertices[0];
-        let curve = t.body.add_curve(crate::fixtures::test_curve(anchor()));
+        let curve = t
+            .body
+            .add_curve(crate::fixtures::test_curve(anchor(), Tol::witness()));
         let e2 = t.body.add_edge(
             crate::entity::Edge {
                 he_plus: HalfEdgeKey::default(),
@@ -3931,7 +4172,7 @@ mod tests {
 
     #[test]
     fn outer_listed_as_ring_is_reported() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         // outer ∈ rings is both the designation error and a double
         // ownership (the loop is counted once as outer, once as ring) —
         // two true statements, two errors, in pass-7 order.
@@ -3950,7 +4191,7 @@ mod tests {
 
     #[test]
     fn loop_back_pointer_mismatch_is_reported() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         t.body.get_loop_mut(t.loop_b).unwrap().face = t.face_a;
         assert_eq!(
             validate(&t.body),
@@ -3964,7 +4205,7 @@ mod tests {
 
     #[test]
     fn face_and_shell_back_pointer_mismatches_are_reported() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         // A second (empty but owned) shell+solid to point at.
         let solid2 = t.body.add_solid(Solid { shells: vec![] }, prov());
         let shell2 = t.body.add_shell(
@@ -4000,7 +4241,7 @@ mod tests {
 
     #[test]
     fn orphan_shell_is_reported() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         let sh2 = t.body.add_shell(
             Shell {
                 faces: vec![],
@@ -4026,7 +4267,7 @@ mod tests {
 
     #[test]
     fn multiply_owned_shell_is_reported() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         let sh = t.shell;
         t.body.get_solid_mut(t.solid).unwrap().shells.push(sh);
         assert_eq!(
@@ -4040,9 +4281,11 @@ mod tests {
 
     #[test]
     fn orphan_geometry_is_reported_for_all_three_arenas() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         let p = t.body.add_point(anchor());
-        let c = t.body.add_curve(crate::fixtures::test_curve(anchor()));
+        let c = t
+            .body
+            .add_curve(crate::fixtures::test_curve(anchor(), Tol::witness()));
         let s = t.body.add_surface(crate::fixtures::test_surface(anchor()));
         assert_eq!(
             validate(&t.body),
@@ -4075,7 +4318,7 @@ mod tests {
         // `EnumCount` derive or the workspace's first proc-macro crate —
         // and neither is bought here. When you add an arm, its index is
         // the new `VARIANTS - 1`.
-        const VARIANTS: usize = 59;
+        const VARIANTS: usize = 64;
         fn variant_index(e: &ValidationError) -> usize {
             match e {
                 ValidationError::Band { .. } => 0,
@@ -4137,6 +4380,11 @@ mod tests {
                 ValidationError::StaleNullFaceLoop { .. } => 56,
                 ValidationError::NullEdgeAtRest { .. } => 57,
                 ValidationError::NullFaceAtRest { .. } => 58,
+                ValidationError::DegenerateTorus { .. } => 59,
+                ValidationError::DegenerateTorusEscalated { .. } => 60,
+                ValidationError::NonpositiveTorusTube { .. } => 61,
+                ValidationError::ApproxCertification { .. } => 62,
+                ValidationError::ApproxLaneUnsupported { .. } => 63,
             }
         }
         fn band_error() -> geom_core::BandError {
@@ -4149,7 +4397,7 @@ mod tests {
                 predicate: Some("validate_probe"),
             }
         }
-        let t = pillow();
+        let t = pillow(Tol::witness());
         let he = t.hes_a[0];
         let v = t.vertices[0];
         let e = t.edges[0];
@@ -4335,6 +4583,20 @@ mod tests {
             },
             ValidationError::NullEdgeAtRest { edge: e },
             ValidationError::NullFaceAtRest { face: t.face_a },
+            ValidationError::DegenerateTorus { face: t.face_a },
+            ValidationError::DegenerateTorusEscalated {
+                face: t.face_a,
+                cause: indeterminate(),
+            },
+            ValidationError::NonpositiveTorusTube { face: t.face_a },
+            ValidationError::ApproxCertification {
+                face: t.face_a,
+                error: geom_brep::OffsetFitError::InvalidRequest {
+                    d: 0.0,
+                    tolerance: 0.0,
+                },
+            },
+            ValidationError::ApproxLaneUnsupported { face: t.face_a },
         ];
         let mut covered = [false; VARIANTS];
         for err in &all {
@@ -4356,7 +4618,7 @@ mod tests {
 
     #[test]
     fn solid_without_shells_is_reported() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         // Solids are containment roots — nothing anchors them, so a bare
         // solid trips ONLY the arity floor.
         let bare = t.body.add_solid(Solid { shells: vec![] }, prov());
@@ -4368,7 +4630,7 @@ mod tests {
 
     #[test]
     fn shell_without_faces_is_reported() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         // Owned and back-pointed correctly — the missing faces are the
         // only defect (contrast the orphan-shell test, where BOTH fire).
         let sh2 = t.body.add_shell(
@@ -4400,7 +4662,7 @@ mod tests {
         // its mates has v − e + f − r = 2 − 2 + 1 − 0 = 1, odd.
         // Documented order: pass 10 (edge arena order), then pass 11
         // (shell arena order).
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         let solid2 = t.body.add_solid(Solid { shells: vec![] }, prov());
         let shell2 = t.body.add_shell(
             Shell {
@@ -4454,7 +4716,7 @@ mod tests {
         // vertices and all 12 edges (each moved edge still has its
         // other face here), χ = 8 − 12 + 5 = 1; the lone face has
         // χ = 4 − 4 + 1 = 1.
-        let t = ops_cube();
+        let t = ops_cube(Tol::witness());
         let mut body = t.body;
         let front = t.mefs[1].face;
         let old_shell = body.get_face(front).unwrap().shell;
@@ -4506,7 +4768,7 @@ mod tests {
 
     #[test]
     fn missing_provenance_is_reported() {
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         t.body.face_provenance.remove(t.face_a);
         assert_eq!(
             validate(&t.body),
@@ -4522,7 +4784,7 @@ mod tests {
         // pub(crate) arena WITHOUT removing its record — the exact bug
         // a kill-side operator would have if it forgot its kill-hygiene
         // duty, and the reason the bidirectional check exists.
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         let extra = t.body.add_solid(Solid { shells: vec![] }, prov());
         t.body.solids.remove(extra);
         assert_eq!(
@@ -4538,7 +4800,7 @@ mod tests {
         // One body with independent defects in passes 9, 10, 11, and 12:
         // the report arrives in exactly pass order. (The per-pass tests
         // above pin intra-pass order; this pins the pass sequence.)
-        let mut t = pillow();
+        let mut t = pillow(Tol::witness());
         let bare = t.body.add_solid(Solid { shells: vec![] }, prov()); // pass 9
         let solid2 = t.body.add_solid(Solid { shells: vec![] }, prov());
         let shell2 = t.body.add_shell(
@@ -4629,13 +4891,16 @@ mod tests {
     #[test]
     fn closed_fixtures_pass_tier_two() {
         // Raw-built closed families…
-        assert_eq!(validate_closed(&pillow().body), Ok(()));
-        assert_eq!(validate_closed(&ngon_pillow(1).body), Ok(()));
-        assert_eq!(validate_closed(&prism(4).body), Ok(()));
+        assert_eq!(validate_closed(&pillow(Tol::witness()).body), Ok(()));
+        assert_eq!(
+            validate_closed(&ngon_pillow(1, Tol::witness()).body),
+            Ok(())
+        );
+        assert_eq!(validate_closed(&prism(4, Tol::witness()).body), Ok(()));
         // …and the operator-built acceptance bodies, genus 0 through 2.
-        assert_eq!(validate_closed(&ops_cube().body), Ok(()));
-        assert_eq!(validate_closed(&ops_holed_box().body), Ok(()));
-        assert_eq!(validate_closed(&ops_genus2()), Ok(()));
+        assert_eq!(validate_closed(&ops_cube(Tol::witness()).body), Ok(()));
+        assert_eq!(validate_closed(&ops_holed_box(Tol::witness()).body), Ok(()));
+        assert_eq!(validate_closed(&ops_genus2(Tol::witness())), Ok(()));
     }
 
     /// Gives every face of `body` the Newell plane of its outer loop —
@@ -4645,7 +4910,7 @@ mod tests {
     /// The loop order is the stored one, so the minted normal is the
     /// face's OUTWARD normal — which is what `sense: true` claims.
     fn plane_every_face(body: &mut Body<f64>) {
-        let band = Band::linear().unwrap();
+        let band = Band::linear(Tol::witness()).unwrap();
         let keys: Vec<FaceKey> = body.faces.keys().collect();
         for face_key in keys {
             let outer = body.get_face(face_key).unwrap().outer;
@@ -4696,9 +4961,9 @@ mod tests {
     /// certified cube, lives in `tests/geometric_cube.rs`.)
     #[test]
     fn tier_three_refuses_a_hand_flipped_face_sense() {
-        let mut cube = ops_cube().body;
+        let mut cube = ops_cube(Tol::witness()).body;
         plane_every_face(&mut cube);
-        let honest = validate_geometric(&cube).unwrap_err();
+        let honest = validate_geometric(&cube, Tol::witness()).unwrap_err();
         assert!(
             honest
                 .iter()
@@ -4710,7 +4975,7 @@ mod tests {
         let (face, f) = cube.faces.iter().next().unwrap();
         let outer = f.outer;
         let flipped = cube.flipped_face_sense_for_tests(face).unwrap();
-        let errors = validate_geometric(&flipped).unwrap_err();
+        let errors = validate_geometric(&flipped, Tol::witness()).unwrap_err();
         assert!(
             errors.contains(&ValidationError::LoopRoleInverted {
                 face,
@@ -4723,7 +4988,11 @@ mod tests {
         // computed from the loop windings, which a lone sense flip does
         // not touch — the two bodies meter the SAME volume, so check 7
         // could not refuse the flipped one even if it ran.
-        let volume = |b: &Body<f64>| crate::props::mass_properties(b).unwrap().volume;
+        let volume = |b: &Body<f64>| {
+            crate::props::mass_properties(b, Tol::witness())
+                .unwrap()
+                .volume
+        };
         assert_eq!(
             volume(&cube).to_bits(),
             volume(&flipped).to_bits(),
@@ -4765,6 +5034,7 @@ mod tests {
                     r#loop: seed.r#loop,
                 },
                 p(1.0),
+                Tol::witness(),
             )
             .unwrap();
         assert_eq!(validate(&body), Ok(()));
@@ -4788,12 +5058,16 @@ mod tests {
                     r#loop: seed.r#loop,
                 },
                 p(1.0),
+                Tol::witness(),
             )
             .unwrap();
-        body.mef_chord(MefSite::Chords {
-            he1: seg.he_plus,
-            he2: seg.he_minus,
-        })
+        body.mef_chord(
+            MefSite::Chords {
+                he1: seg.he_plus,
+                he2: seg.he_minus,
+            },
+            Tol::witness(),
+        )
         .unwrap();
         let strut = body
             .mev_line(
@@ -4802,6 +5076,7 @@ mod tests {
                     he2: seg.he_plus,
                 },
                 p(2.0),
+                Tol::witness(),
             )
             .unwrap();
         assert_eq!(validate(&body), Ok(()));
@@ -4826,12 +5101,16 @@ mod tests {
                     r#loop: seed.r#loop,
                 },
                 p(1.0),
+                Tol::witness(),
             )
             .unwrap();
-        body.mef_chord(MefSite::Chords {
-            he1: seg.he_plus,
-            he2: seg.he_minus,
-        })
+        body.mef_chord(
+            MefSite::Chords {
+                he1: seg.he_plus,
+                he2: seg.he_minus,
+            },
+            Tol::witness(),
+        )
         .unwrap();
         let strut = body
             .mev_line(
@@ -4840,6 +5119,7 @@ mod tests {
                     he2: seg.he_plus,
                 },
                 p(2.0),
+                Tol::witness(),
             )
             .unwrap();
         let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
@@ -4867,12 +5147,16 @@ mod tests {
                     r#loop: seed.r#loop,
                 },
                 p(1.0),
+                Tol::witness(),
             )
             .unwrap();
-        body.mef_chord(MefSite::Chords {
-            he1: seg.he_plus,
-            he2: seg.he_minus,
-        })
+        body.mef_chord(
+            MefSite::Chords {
+                he1: seg.he_plus,
+                he2: seg.he_minus,
+            },
+            Tol::witness(),
+        )
         .unwrap();
         let strut = body
             .mev_line(
@@ -4881,16 +5165,20 @@ mod tests {
                     he2: seg.he_plus,
                 },
                 p(2.0),
+                Tol::witness(),
             )
             .unwrap();
         let kill = body.kemr(strut.he_plus, strut.he_minus).unwrap();
         let grow = body
-            .mev_line(MevSite::Lone { r#loop: kill.ring }, p(3.0))
+            .mev_line(MevSite::Lone { r#loop: kill.ring }, p(3.0), Tol::witness())
             .unwrap();
-        body.mef_chord(MefSite::Chords {
-            he1: grow.he_plus,
-            he2: grow.he_minus,
-        })
+        body.mef_chord(
+            MefSite::Chords {
+                he1: grow.he_plus,
+                he2: grow.he_minus,
+            },
+            Tol::witness(),
+        )
         .unwrap();
         body.mfkrh_plug(kill.ring).unwrap();
         (body, seed.shell)
@@ -4931,6 +5219,7 @@ mod tests {
                     he2: anchor,
                 },
                 p(4.0),
+                Tol::witness(),
             )
             .unwrap();
         // …and a planted empty ring next to it.
@@ -4941,6 +5230,7 @@ mod tests {
                     he2: anchor,
                 },
                 p(5.0),
+                Tol::witness(),
             )
             .unwrap();
         let ring2 = body.kemr(plant.he_plus, plant.he_minus).unwrap();
@@ -4983,9 +5273,9 @@ mod tests {
             let mut body = Body::<f64>::new();
             let mut counter = 0_u32;
             for (d1, d2) in decisions {
-                let choice = seqgen::choose_op(&body, d1, d2)
+                let choice = seqgen::choose_op(&body, d1, d2, Tol::witness())
                     .expect("an op always applies");
-                seqgen::apply(&mut body, choice, &mut counter);
+                seqgen::apply(&mut body, choice, &mut counter, Tol::witness());
                 prop_assert_eq!(validate(&body), Ok(()), "after {:?}", choice);
             }
         }
@@ -5000,11 +5290,11 @@ mod tests {
             let mut body = Body::<f64>::new();
             let mut counter = 0_u32;
             for (d1, d2) in decisions {
-                let choice = seqgen::choose_op(&body, d1, d2)
+                let choice = seqgen::choose_op(&body, d1, d2, Tol::witness())
                     .expect("an op always applies");
-                seqgen::apply(&mut body, choice, &mut counter);
+                seqgen::apply(&mut body, choice, &mut counter, Tol::witness());
             }
-            seqgen::teardown(&mut body);
+            seqgen::teardown(&mut body, Tol::witness());
             // The torn-down body is empty; both tiers hold vacuously.
             prop_assert_eq!(validate(&body), Ok(()));
             prop_assert_eq!(validate_closed(&body), Ok(()));
@@ -5021,7 +5311,7 @@ mod tests {
     proptest! {
         #[test]
         fn ngon_pillows_validate_cleanly(n in 1usize..=8) {
-            let t = ngon_pillow(n);
+            let t = ngon_pillow(n, Tol::witness());
             prop_assert_eq!(validate(&t.body), Ok(()));
             prop_assert_eq!(validate_closed(&t.body), Ok(()));
             prop_assert_eq!(t.body.vertices().count(), n);
@@ -5037,7 +5327,7 @@ mod tests {
 
         #[test]
         fn prisms_validate_cleanly(n in 2usize..=8) {
-            let t = prism(n);
+            let t = prism(n, Tol::witness());
             prop_assert_eq!(validate(&t.body), Ok(()));
             prop_assert_eq!(validate_closed(&t.body), Ok(()));
             prop_assert_eq!(t.body.vertices().count(), 2 * n);
