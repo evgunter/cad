@@ -363,7 +363,7 @@ machine-wide build mutex behind other lanes. Token spend: roughly 260k.
   witness.
 - `crates/editor-core/Cargo.toml` — `test-utils` dev-dependency (needed by the
   above; dev-only).
-- `review/gui1-r2-probes/` — the standalone float probes (`slab*.rs`, compiled
+- `review/gui1-r2-probes/` — the standalone float probes (`slab*.rs.txt` — `.txt` so the pre-push rustfmt gate leaves them alone; compile with `rustc -O -o /tmp/p file.rs.txt --crate-type bin` after copying to a `.rs` name; compiled
   with plain `rustc`) and the four mutation scripts.
 
 Both suites are registered in their crates' `tests/all.rs`, are rustfmt-clean and
