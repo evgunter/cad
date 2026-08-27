@@ -262,3 +262,18 @@ that call; the germ-chord lane has no other near-term consumer,
 so its banking deepens. Probe texts are not evidence of cause —
 payload + raising site are (third instance; wall 7 → #1031 was
 the first).
+
+## Plan note (2026-08-27, #1031's steer): the cap unit's opening question
+
+Evan's recorded lean is (b) — producers mint maximal axis-touching
+caps at creation (the discipline that stops each NEW producer from
+minting the defect) — with a scoping test that overrides it: if
+making revolve mint the maximal cap IS "get the faces and merge
+them" internally, do (a) (the repair op) first rather than paying
+the hard case twice. So the #1031 unit's spec opens with a
+MEASUREMENT, not a shape choice: does one maximal cap fall out of
+revolve/full.rs's own wire-case construction (half = θ/2, rot_pi),
+or does it require the role-ambiguous merge that
+merge_coplanar_faces refuses? The plane-face interior-seam
+question is ruled permissible (a preference to avoid, not a wall).
+Full steer: #1031's 2026-08-27 comment.
