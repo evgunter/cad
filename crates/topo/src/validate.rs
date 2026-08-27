@@ -2880,7 +2880,7 @@ fn locus_gap<T: Real>(carrier: &geom::Curve3<T>, p: geom_core::Point3<T>) -> Opt
             let d = p - *center;
             let along = d.dot(*axis);
             let radial = (d - *axis * along).norm() - *radius;
-            Some((radial * radial + along * along).sqrt())
+            Some((radial.powi(2) + along.powi(2)).sqrt())
         }
         _ => None,
     }
