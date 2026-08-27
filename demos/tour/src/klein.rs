@@ -1006,9 +1006,10 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
             )
         },
         "record that the writer's outward/void classifier grew a curved arm, update \
-         findings entry 7 (the O6 demo-gates list row), and retire the `ring` scene's \
-         `step_at_frontier` declaration, which pins this same refusal on the rendered \
-         ring — the two are one gate with two probes and retire together",
+         findings entry 7 (the O6 demo-gates list row), and retire the `ring` and \
+         `tubewall::hollowtorus` scenes' `step_at_frontier` declarations, which pin this \
+         same refusal on the rendered hollow ring and on the parameter door's hollow \
+         torus — one gate, three probes, retiring together",
     );
 
     // Wall 7: a valid body the tessellator refuses. The ONLY change
