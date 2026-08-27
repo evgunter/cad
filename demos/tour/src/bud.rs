@@ -312,14 +312,18 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 "the refusal still names the shared support: {detail}"
             );
             println!(
-                "   [budfillet] all three rims in ONE call — REFUSED TYPED,                  UnsupportedChain: {detail}"
+                "   [budfillet] all three rims in ONE call — REFUSED TYPED, \
+                 UnsupportedChain: {detail}"
             );
         }
         Err(other) => panic!(
-            "the three-rim request refuses UnsupportedChain on the shared pucker cone;              got {other:?} — re-derive finding 1 from what the door now says"
+            "the three-rim request refuses UnsupportedChain on the shared pucker cone; \
+             got {other:?} — re-derive finding 1 from what the door now says"
         ),
         Ok(_) => panic!(
-            "the three-rim request now SUCCEEDS: the door grew the shared-support case.              Retire this probe, rewrite finding 1 from the success, and collapse the              two calls below into one"
+            "the three-rim request now SUCCEEDS: the door grew the shared-support case. \
+             Retire this probe, rewrite finding 1 from the success, and collapse the two \
+             calls below into one"
         ),
     }
 
@@ -347,7 +351,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         .expect("two bore rims");
     let rolled = fillet_edges(&first.body, &[lip2, base2], ROLL, band, tol).unwrap_or_else(|e| {
         panic!(
-            "the lip and the bore's base share no support face, so they roll TOGETHER;              got {e:?}"
+            "the lip and the bore's base share no support face, so they roll TOGETHER; \
+             got {e:?}"
         )
     });
 
