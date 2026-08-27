@@ -451,12 +451,22 @@ fn a_curved_two_shell_shell_refuses_step_export() {
 fn the_shell_cost_is_measured_not_asserted() {
     use std::time::Instant;
     let cases: Vec<(&str, Body<f64>, f64)> = vec![
-        ("box (6 faces, 6 charts)", boxy(2.0, 3.0, 4.0), 0.25),
-        ("vessel (4 faces, 3 charts)", vessel(1.0, 2.0), 0.2),
-        ("tube (8 faces, 6 charts)", tube(0.6, 1.0, 2.0), 0.1),
+        ("box", boxy(2.0, 3.0, 4.0), 0.25),
+        ("vessel", vessel(1.0, 2.0), 0.2),
+        ("tube", tube(0.6, 1.0, 2.0), 0.1),
     ];
     for (name, body, t) in cases {
+        // Counts are PRINTED, never spelled into the label: a hand
+        // label drifts from the fixture (this row's first version said
+        // "vessel (4 faces)" while printing 6) and a drifted label is
+        // the kind of number that gets copied into an issue.
         let faces = body.faces().count();
+        let charts = {
+            let mut k: Vec<_> = body.faces().map(|(_, f)| f.surface).collect();
+            k.sort_by_key(|s| format!("{s:?}"));
+            k.dedup();
+            k.len()
+        };
         let start = Instant::now();
         let hollow =
             topo::shell(&body, t, FIT_TOL, band(), Tol::witness()).expect("the fixture shells");
@@ -465,7 +475,7 @@ fn the_shell_cost_is_measured_not_asserted() {
         topo::validate_geometric(&hollow, Tol::witness()).expect("valid");
         let validate = start.elapsed();
         println!(
-            "[shell cost] {name}: {faces} operand faces -> {} result faces; \
+            "[shell cost] {name}: {faces} operand faces / {charts} charts -> {} result faces; \
              build {build:?}, one tier-3 validation {validate:?}",
             hollow.faces().count(),
         );
