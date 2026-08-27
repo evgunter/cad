@@ -25,7 +25,9 @@
 //! - **the spout** — a cone-frustum tube, built about its own axis and
 //!   placed by `transform_rigid`.
 //! - **the handle** — one `tube_along_arc` window, its two roots
-//!   buried in the belly wall.
+//!   driven through the belly wall — 11.2 mm past it, measured, which
+//!   is what makes the union a real request and is also why a teapot
+//!   built this way would leak (see `HANDLE_OVER`).
 //!
 //! # Findings this scene records (the demo-purpose rule)
 //!
@@ -40,8 +42,13 @@
 //!    would draw is wall 1. The class is not curvature: a right prism
 //!    on a TRIANGLE refuses the same way, and a cone frustum between
 //!    two caps refuses the same way, while a box and an L-prism
-//!    hollow. `tests/verbs_teapot.rs` is that table, its sweep, and
-//!    the sweep's stated blind spot. This is not a gap the verb
+//!    hollow. A curved neighbour refuses at a SECOND door
+//!    (`CarrierLaneUnsupported`), and that door is about the
+//!    neighbour's offset not being a rigid translation rather than
+//!    about tangency — a dome whose centre is lifted clear of the
+//!    wall's top is definitely not tangent and refuses identically.
+//!    `tests/verbs_teapot.rs` is that table, its sweep, and the
+//!    sweep's stated blind spot. This is not a gap the verb
 //!    announced: `shell`'s acceptance corpus is a box, a cylinder
 //!    between two caps and a tube between two caps — every fixture in
 //!    the surviving class, and the class was never named.
@@ -55,13 +62,26 @@
 //!    which is genus 0"*, and it will not tessellate: the CDT refuses
 //!    an insertion on a mouth half-disc. That is wall 2, and the table
 //!    shows it is not a tolerance lottery — five wall thicknesses,
-//!    mouth radii from 41 mm to 1 m, three chord budgets, and the
-//!    simplest fixture there is (a cylindrical drum), all the same
-//!    answer. The acceptance corpus opens BOXES, and a box's cap is
-//!    one face; a full revolve's is two half-discs sharing a chart,
-//!    which is exactly the case the rim lift was routed through the
-//!    group door to serve. So the pot ships SEALED, and this teapot
-//!    has no opening — which is the finding, rendered.
+//!    mouth radii at two scales (41–47 mm and 1 m), three chord
+//!    budgets, and the simplest fixture there is (a cylindrical drum),
+//!    all the same answer.
+//!
+//!    **The mechanism is NOT "a revolve's cap is two half-discs".**
+//!    That was this scene's first reading, and the adopted review
+//!    fixtures falsify it: a revolved TUBE's mouth is ONE face and is
+//!    wrong too, and a partial revolve's cap is one face and touches
+//!    the axis. The class is *a designated face whose cavity
+//!    counterpart's boundary cannot become an interior-disjoint RING
+//!    of it* — on an axis-touching cap the counterpart is a D-loop
+//!    reaching the same apex the outer loop owns and running back
+//!    along its own seam legs, which is exactly the contact the CDT
+//!    refuses; on an ANNULAR cap the correct rim is TWO DISJOINT
+//!    ANNULI, a face SPLIT that `kfmrh` cannot express at all. Nor was
+//!    the path unvisited: `offd2_r1_probes::probe_opened_vessel_cup`
+//!    already opened a revolved vessel and checked only the things
+//!    that are right — tier 3, the shell count, the volume — never the
+//!    rings, the genus or the mesh. So the pot ships SEALED, and this
+//!    teapot has no opening — which is the finding, rendered.
 //! 3. **A steam vent is what makes the lid's knob filletable.** The
 //!    one-edge annulus band carves a CLOSED latitude rim, and a full
 //!    revolve mints one only from an ANNULAR profile; a profile that
@@ -159,8 +179,11 @@ const LIFT: f64 = 1.0 / 32.0;
 /// The lid's underside plane.
 const LID_BASE: f64 = Y_MOUTH + LIFT;
 /// The dome's sphere radius, and its centre's station: the 5-12-13
-/// triple, so the dome passes through the lid's rim at `R_NECK` and
-/// carries the knob's foot at `R_KNOB` with both stations exact.
+/// triple. What that buys is not that any of these decimals is a
+/// binary-exact float — 3/64 and 13/256 are, 0.6 and 0.8 would not be
+/// — but that the RESIDUALS are exactly zero: `|c − p|² − r²` for the
+/// rim and for the knob's foot evaluate to 0.0 in f64, so the arc door
+/// has nothing to round when it checks equidistance.
 const DOME_R: f64 = 13.0 / 256.0;
 /// The dome sphere's centre, BELOW the lid's underside.
 const DOME_C: f64 = LID_BASE - 5.0 / 256.0;
@@ -194,9 +217,10 @@ const SPOUT_ROOT: Point3<f64> = Point3 {
     y: 3.0 / 64.0,
     z: 0.0,
 };
-/// The spout's axis: the 3-4-5 direction, so the placement's rotation
-/// matrix is exact in binary and `transform_rigid`'s orthonormality
-/// decide has nothing to round.
+/// The spout's axis: the 3-4-5 direction. 0.6 and 0.8 are NOT
+/// binary-exact floats; what is exact is the residual — the rotation
+/// matrix built from them satisfies `cᵢ·cⱼ − δᵢⱼ == 0.0` in f64, so
+/// `transform_rigid`'s orthonormality decide has nothing to round.
 const SPOUT_DIR: Vec3<f64> = Vec3 {
     x: -0.8,
     y: 0.6,
@@ -219,9 +243,22 @@ const HANDLE_C: Point3<f64> = Point3 {
     z: 0.0,
 };
 /// How far past the semicircle each end of the handle runs, in radians
-/// of its own spine. The overshoot is what buries each root INSIDE the
-/// belly wall rather than tangent to it, which is what makes the union
-/// attempted below a real request rather than a touching one.
+/// of its own spine, so that each root PENETRATES the belly rather than
+/// touching it — which is what makes the union attempted below a real
+/// request rather than a tangency.
+///
+/// **It penetrates all the way through, and the geometry says it must.**
+/// The spine's centre sits ON the outer wall, so at the semicircle's own
+/// ends the tube already reaches `HANDLE_TUBE` inward — and this tube's
+/// radius IS the wall thickness, so the cap is flush with the cavity at
+/// zero overshoot and inside it at any positive one. At 0.5 rad the
+/// deepest material stands `HANDLE_R·sin(0.5) + HANDLE_TUBE` = 19.0 mm
+/// below the outer wall, which is 11.2 mm into the tea. Nothing
+/// asserted here depends on that (the union refuses at the operand
+/// gate, before any intersection work), and the scene keeps the
+/// overshoot rather than thinning the handle to hide it — but a teapot
+/// built this way would leak, and re-cutting it is the FIRST thing the
+/// wall-3 retire note asks for if the union ever composes.
 const HANDLE_OVER: f64 = 0.5;
 
 /// The bellied pot's foot radius. Its belly is a sphere zone of the
@@ -452,6 +489,18 @@ fn describe<T, E: core::fmt::Debug>(outcome: &Result<T, E>) -> String {
 
 /// The genus of `body` by the Euler–Poincaré identity
 /// `v − e + f − r = 2(s − g)`, summed over shells.
+///
+/// The identity's left side is EVEN on any body the identity applies
+/// to, so an odd one is not a body with a surprising genus — it is a
+/// census that does not satisfy Euler–Poincaré at all, and halving it
+/// would turn that into a plausible number. Checked before the divide
+/// rather than after, because after is too late.
+///
+/// Duplicated, deliberately, in `tests/verbs_teapot.rs`: a binary's
+/// module cannot be imported by an integration test, and the two
+/// copies are three lines of a published identity rather than a shared
+/// invariant. The tie between them is that both are checked against
+/// the same measured censuses.
 fn genus(body: &Body<f64>) -> i64 {
     let (v, e, f) = (
         body.vertices().count() as i64,
@@ -459,7 +508,13 @@ fn genus(body: &Body<f64>) -> i64 {
         body.faces().count() as i64,
     );
     let r: i64 = body.faces().map(|(_, x)| x.rings.len() as i64).sum();
-    body.shells().count() as i64 - (v - e + f - r) / 2
+    let chi = v - e + f - r;
+    assert!(
+        chi % 2 == 0,
+        "v - e + f - r = {chi} is ODD, so this census does not satisfy \
+         Euler-Poincare and no genus follows from it"
+    );
+    body.shells().count() as i64 - chi / 2
 }
 
 /// The pot's own stack of cylindrical segments, as `(radius, height)`
@@ -537,6 +592,18 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                     Some(Surface::Plane { normal, .. }) if normal.y < 0.0)
             })
             .count();
+    // Not merely reported: EVERY planar face of this pot stores `+y`,
+    // and that is the whole content of the sense-bit warning below. A
+    // number only printed is a number nothing checks — if a revolve
+    // ever stores a cap's plane the other way round, this fails here
+    // and the note's sentence gets re-derived rather than silently
+    // becoming a different true statement.
+    assert_eq!(
+        stored_plus,
+        planes.len(),
+        "every planar face of this pot stores a +y normal; only the face's own sense \
+         bit says which way each looks"
+    );
     let mut clearance = f64::INFINITY;
     for (i, a) in planes.iter().enumerate() {
         for b in &planes[i + 1..] {
@@ -874,7 +941,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     crate::walls::wall(
         "teapot",
         3,
-        "join the handle to the vessel (union; both roots buried in the belly wall)",
+        "join the handle to the vessel (union; both roots driven 11.2 mm past the \
+         belly's inner wall — a real overlap, not a tangency)",
         handle_union,
         |e| {
             matches!(
@@ -889,7 +957,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             )
         },
         "make the teapot ONE solid: union the handle and the spout into the vessel, drop \
-         walls 3 and 4, and re-state the montage caption, which currently says four solids",
+         walls 3 and 4, re-state the montage caption (which currently says four solids), \
+         and RE-CUT THE HANDLE'S OVERSHOOT FIRST — at 0.5 rad its roots stand 11.2 mm \
+         inside the cavity, which is fine for a refused request and wrong for a joined one",
     );
 
     // WALL 4 — the spout joined to the pot. A DIFFERENT pair, and it
@@ -902,7 +972,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     crate::walls::wall(
         "teapot",
         4,
-        "join the spout to the vessel (union; the root buried in the belly)",
+        "join the spout to the vessel (union; the root disc wholly inside the belly)",
         spout_union,
         |e| {
             matches!(
@@ -917,7 +987,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             )
         },
         "make the teapot ONE solid: union the handle and the spout into the vessel, drop \
-         walls 3 and 4, and re-state the montage caption, which currently says four solids",
+         walls 3 and 4, re-state the montage caption (which currently says four solids), \
+         and RE-CUT THE HANDLE'S OVERSHOOT FIRST — at 0.5 rad its roots stand 11.2 mm \
+         inside the cavity, which is fine for a refused request and wrong for a joined one",
     );
 
     vec![Stop {
@@ -958,13 +1030,23 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              finds no antiparallel pair here at all. THE BELLY IS SQUARED, AND THAT IS \
              THE SCENE'S FIRST FINDING: the same pot with its shoulders turned into one \
              sphere zone REFUSES (wall 1) — and so does a cone frustum, and so does a \
-             triangular prism, so the class is OBLIQUE junctions and not curvature \
-             (`tests/verbs_teapot.rs` carries the table and its blind spot). THE MOUTH \
+             triangular prism (all planes, dihedrals 58/58/64), and so does a quarter \
+             revolve's meridian cap, so the class is OBLIQUE junctions and not \
+             curvature. A CURVED neighbour refuses at a second door, and that door is \
+             the neighbour's offset not being a rigid translation rather than tangency: \
+             a lifted, definitely-non-tangent dome refuses identically \
+             (`tests/verbs_teapot.rs` carries the table, the discriminator and the \
+             sweep's blind spot). THE MOUTH \
              IS THE SECOND: `shell_open` at the mouth's chart RETURNS a body and it \
              passes tiers 1-3, but each designated half-disc comes back carrying a full \
              RING, the result is genus {} where the verb's own docs say a cup is genus \
-             0, and it will not tessellate (wall 2) — so the scene ships the SEALED \
-             hollow, which is why this teapot has no opening. AND THE SEALED HOLLOW \
+             0, and it will not tessellate (wall 2). The class is NOT \
+             \"a revolve's cap is two half-discs\" — a revolved tube's mouth is one \
+             face and is wrong too — but any designated face whose cavity counterpart's \
+             boundary cannot become an interior-disjoint RING of it; on an annular \
+             mouth the correct rim is TWO DISJOINT ANNULI, a face split kfmrh cannot \
+             express. So the scene ships the SEALED hollow, which is why this teapot \
+             has no opening. AND THE SEALED HOLLOW \
              CANNOT LEAVE AS STEP: a multi-shell CURVED solid refuses \
              CurvedShellClassification, the standing gate this scene declares at the \
              body and probes on every pass — the fourth live probe of one gate, with \

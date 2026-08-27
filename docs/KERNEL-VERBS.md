@@ -226,11 +226,33 @@ the table.
   three chord budgets, every case gives the same two wrong numbers,
   including the simplest fixture there is (a cylindrical drum opened
   at its top). A BOX opened at its top is correct — genus 0, one ring,
-  and it meshes. The distinguishing fact is the one the fix was routed
-  for: an extrusion's cap is ONE face, a full revolve's is TWO
-  half-discs sharing a chart, and the chart-group rim lift (#1048's
-  MIN-1) has never had a consumer until this scene. Consequence for
-  the demo: the teapot ships SEALED and has no opening.
+  and it meshes.
+
+  **The class, re-scoped after review — do not inherit the first
+  reading.** "An extrusion's cap is ONE face, a full revolve's is TWO
+  half-discs sharing a chart" is FALSE as the mechanism: a revolved
+  TUBE's mouth chart is ONE face (a closed off-axis profile closes its
+  own seam) and `shell_open` is still wrong there — rings 1, genus 2,
+  untessellatable — and a PARTIAL revolve's cap is one face and does
+  touch the axis. The true class is **a designated face whose cavity
+  counterpart's boundary cannot become an interior-disjoint RING of
+  it**. On an axis-touching cap that boundary is a D-loop — a half-arc
+  plus two radial legs meeting the axis apex the OUTER loop also owns,
+  running back along the outer loop's own seam edges — and that CONTACT
+  is why the CDT refuses. On an ANNULAR cap the correct rim is not a
+  ring at all but **TWO DISJOINT ANNULI**, a face SPLIT that `kfmrh`
+  cannot express: this is a surgery whose only output shape is "outer
+  loop plus rings", not a ring-placement bug. Fixtures:
+  `demos/tour/tests/verbs_teapot_r2_probes.rs` (revolved tube, partial
+  revolve, annular-mouth anatomy) and `..._r1_probes.rs` (the D-loop
+  measured on the PR's own body).
+
+  **Why nothing caught it, corrected.** Not "the rim lift never had a
+  consumer": `offd2_r1_probes::probe_opened_vessel_cup` already opened
+  a revolved vessel through this very path and blessed it, checking
+  only the things that are right — tier 3, the shell count, the volume
+  — and never the rings, the genus or the mesh. Consequence for the
+  demo: the teapot ships SEALED and has no opening.
 - **A hollow ring cannot leave as STEP.** The one-call hollow ring
   itself SHIPPED (VERBS-RING retired `FullRevolveHoles`: a full
   revolve of a holed profile builds the multi-shell solid through the
