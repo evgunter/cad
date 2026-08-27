@@ -1865,6 +1865,26 @@ mod tests {
     // against what certification now records.
     // ------------------------------------------------------------------
 
+    /// The bit-diff row's OWN band and drift, fixed rather than the
+    /// run's.
+    ///
+    /// The row measures the meter's ARITHMETIC, and the arithmetic is
+    /// not a function of ε — but a fixture drift expressed as a
+    /// fraction of ε is, and so is the ULP delta it produces. Measured
+    /// both ways before this was fixed: the same fixture answers
+    /// **1907 ULP** at a 2.5e-10 drift and **1 952 950 996 ULP** at a
+    /// 2.5e-13 one, because the residual is `√(drift² + dv²)` with `dv`
+    /// at the last-bit scale, so the relative move goes as
+    /// `dv²/(2·drift²)`. A row pinned against the run's ε would
+    /// therefore say something different on every ε point and pin
+    /// nothing. The drift is a fixed metre value and the band is
+    /// built to contain it at every run.
+    const D2_DRIFT: f64 = 2.5e-10;
+
+    fn d2_band() -> Band {
+        Band::new(1e-9, 10.0 * 1e-9).expect("the bit-diff row's own band")
+    }
+
     /// ULP distance between two finite same-sign `f64`s.
     fn ulps(a: f64, b: f64) -> i64 {
         let (x, y) = (a.to_bits() as i64, b.to_bits() as i64);
@@ -2065,7 +2085,7 @@ mod tests {
         // answer a bitwise zero, which measures nothing. `d` is the
         // radial drift a real construction leaves behind, and it is
         // what the two meters disagree about.
-        let d = eps() * 0.25;
+        let d = D2_DRIFT;
         let (p0, p1) = (Point3::new(r + d, 0.0, 0.0), Point3::new(r + d, 0.0, 3.0));
         let seam_spec = EdgeCurveSpec {
             description: EdgeGeometry::Seam { surface: keys[0] },
@@ -2076,7 +2096,7 @@ mod tests {
             param_start: 0.0,
             param_end: 3.0,
         };
-        let cert = EdgeCurve::certify(seam_spec.clone(), p0, p1, &lookup, band())
+        let cert = EdgeCurve::certify(seam_spec.clone(), p0, p1, &lookup, d2_band())
             .expect("the seam certifies")
             .certificate;
         let legacy = legacy_seam_max(&seam_spec, &lookup(keys[0]).unwrap(), p0, p1);
@@ -2104,7 +2124,7 @@ mod tests {
         let dir = (q1 - q0) / q0.distance(q1);
         // The same in-band drift, off the chart in the surface's own
         // normal: the residual the two arithmetic orders evaluate.
-        let drift = Vec3::unit_z() * (eps() * 0.25);
+        let drift = Vec3::unit_z() * (D2_DRIFT);
         let iso_spec = EdgeCurveSpec {
             description: EdgeGeometry::IsoCurve {
                 surface: pk[0],
@@ -2119,10 +2139,15 @@ mod tests {
             param_start: t0,
             param_end: t1,
         };
-        let iso_cert =
-            EdgeCurve::certify(iso_spec.clone(), q0 + drift, q1 + drift, &plookup, band())
-                .expect("the plane iso certifies")
-                .certificate;
+        let iso_cert = EdgeCurve::certify(
+            iso_spec.clone(),
+            q0 + drift,
+            q1 + drift,
+            &plookup,
+            d2_band(),
+        )
+        .expect("the plane iso certifies")
+        .certificate;
         let iso_legacy = legacy_iso_max(
             &iso_spec,
             &plookup(pk[0]).unwrap(),
@@ -2140,7 +2165,7 @@ mod tests {
         let (a, b) = (Point3::new(-1.0, 0.25, 0.5), Point3::new(2.0, -3.0, 4.0));
         let mapped = line_spec(a, b);
         let (_, empty) = table(vec![]);
-        let mapped_cert = EdgeCurve::certify(mapped.clone(), a, b, &empty, band())
+        let mapped_cert = EdgeCurve::certify(mapped.clone(), a, b, &empty, d2_band())
             .expect("the mapped line certifies")
             .certificate;
         let mut mapped_legacy = mapped.carrier.eval(mapped.param_start).distance(a);
