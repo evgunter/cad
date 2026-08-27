@@ -210,7 +210,8 @@ fn l_prism(tol: Tol) -> Body<f64> {
 }
 
 /// A right prism on a TRIANGLE: every side normal to both caps, and
-/// not one of the three side-to-side dihedrals square.
+/// not one of the three side-to-side dihedrals square — they are the
+/// footprint's own interior angles, 58°, 58° and 64°.
 fn triangular_prism(tol: Tol) -> Body<f64> {
     extruded(
         Open.at(Point2::new(0.0, 0.0))
@@ -255,11 +256,12 @@ fn offset_refusal(e: &ShellError<f64>) -> String {
 /// class, and the box is in it because every one of its faces is
 /// normal to every neighbour.
 ///
-/// Everything else moves its neighbour's edge off the neighbour:
-/// two planes meeting at 63°, a cone against a cap, a sphere zone
-/// against a cap. The gap the refusal carries IS that distance in
-/// meters, and it is checked to be a real positive length rather than
-/// a tag.
+/// Everything else moves its neighbour's edge off the neighbour: the
+/// triangular prism's side planes (its footprint's interior angles are
+/// 58°, 58° and 64°, and the dihedral between two side planes IS that
+/// angle), a cone against a cap, a sphere zone against a cap. The gap
+/// the refusal carries IS that distance in meters, and it is checked to
+/// be a real positive length rather than a tag.
 ///
 /// **The tangent row refuses at a DIFFERENT door, and the table does
 /// not attribute that to tangency.** A tangent junction is only
