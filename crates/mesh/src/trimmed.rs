@@ -975,6 +975,18 @@ fn trim_polygon(
                            layer (the cut-loft unit)",
                 });
             }
+            // The general curve-in-UV arm (U2): the trim walk reads
+            // closed-form chart images, and this class has none —
+            // refused typed under its own name, never folded into the
+            // fitted arm's message.
+            Pcurve::General(_) => {
+                return Err(TessellateError::UnsupportedCurve {
+                    edge: he.edge,
+                    note: "trimmed face half-edge carries a GENERAL curve-in-UV pcurve \
+                           — the trim walk and the chord pass's boundary tightening \
+                           read closed-form chart images",
+                });
+            }
         }
         let ids = chords
             .ids
