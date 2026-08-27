@@ -1840,3 +1840,26 @@ limit — and were resumed from transcript per the death-recovery
 rule; if R2's limit still binds at resume, the v6 budget valve
 question opens (every-2nd-row duals) rather than a silent
 downgrade.
+
+## ORDINAL 85 (FIRST v6 PAIR) RETURNED AND ADJUDICATED (2026-08-27)
+
+R1 opus A-W-F 2/5/5, R2 fable NMAI 1/4/4 — the pair's
+correspondence is the design working: BOTH arms independently
+measured the same central defect (the non-disc arc-loop
+remainder is a silent wrong body — R1's half-disc both senses,
+R2's half-cylinder AND the lens, which is all-arc and falsifies
+the blind-spot prose itself), while each arm carried a unique
+find: R1 alone caught cast_ray's ray×cylinder quadratic
+falsifying the STOP's "no root finder anywhere" (the STOP
+survives on the independent ring-lane leg — both arms verified
+that leg separately); R2 alone closed R1's open bit-identity
+column with full default suites. Ruling on the shared MAJOR:
+gate arc-bearing <3-vertex non-disc loops typed NOW (the
+measured-wrong class exactly — slot/rounded-rect measured
+correct, so no wider), issue the general arc-aware parity
+remainder, fix the "honest remainder"/blind-spot prose to the
+callee's own contract. v6 tally: R1's cast_ray MAJ is unilateral
+but CLAIM-CLASS — excluded per instrument 3b; TALLY 0 after
+pair 1. Isolation: both arms disclosed command-line-only
+glimpses via the shared build slot — benign, recorded. Union
+fix pass dispatched; both reviewer lanes swept.
