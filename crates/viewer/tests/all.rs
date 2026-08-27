@@ -41,6 +41,8 @@ mod camera_ops;
 mod input_mapping;
 #[path = "review_gui0_r1.rs"]
 mod review_gui0_r1;
+#[path = "review_gui0_r2.rs"]
+mod review_gui0_r2;
 #[path = "scene_build.rs"]
 mod scene_build;
 
