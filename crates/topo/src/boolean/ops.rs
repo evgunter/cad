@@ -943,14 +943,19 @@ pub(super) fn describe_minted_edges<T: Decide>(
                     let c = existing.as_ref().ok_or_else(corrupt)?;
                     let (t0, t1) = c.params();
                     geom_brep::EdgeCurveSpec {
-                        description: geom_brep::EdgeDescriptionSpec::Intersection { s1, s2, witness },
+                        description: geom_brep::EdgeDescriptionSpec::Intersection {
+                            s1,
+                            s2,
+                            witness,
+                        },
                         carrier: c.carrier().clone(),
                         param_start: t0,
                         param_end: t1,
                     }
                 } else {
                     let mut spec = geom_brep::EdgeCurveSpec::line_between(p0, p1);
-                    spec.description = geom_brep::EdgeDescriptionSpec::Intersection { s1, s2, witness };
+                    spec.description =
+                        geom_brep::EdgeDescriptionSpec::Intersection { s1, s2, witness };
                     spec
                 };
                 body.set_edge_curve(edge, spec, tol)

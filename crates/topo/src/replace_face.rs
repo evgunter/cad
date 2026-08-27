@@ -1177,10 +1177,7 @@ fn plan_edge<T: Decide>(
     // fit's own control net, so extracting it lands the carrier in the
     // fit's spline space — its degree and its refined interior knots —
     // without elevating or refining anything.
-    if let (
-        EdgeDescription::Chart(c),
-        Surface::Approx(approx),
-    ) = (&description, new_surface)
+    if let (EdgeDescription::Chart(c), Surface::Approx(approx)) = (&description, new_surface)
         && c.surface == old_key
         && let geom_brep::Pcurve::IsoLine { p0, pl } = c.pcurve
     {

@@ -6,7 +6,10 @@
 
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::{EdgeCurve, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, SurfaceKey, tangent_certificate_lane};
+use geom_brep::{
+    EdgeCurve, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, SurfaceKey,
+    tangent_certificate_lane,
+};
 use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};
 use slotmap::SlotMap;

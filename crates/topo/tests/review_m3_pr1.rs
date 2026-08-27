@@ -593,7 +593,8 @@ fn split_edge_intersection_witness_bitwise_remint() {
             "witness is not the bitwise mid-sample"
         );
         // Children keep the parent's surface keys.
-        let topo::EdgeDescription::Intersection { s1: p1, s2: p2, .. } = *parent.description() else {
+        let topo::EdgeDescription::Intersection { s1: p1, s2: p2, .. } = *parent.description()
+        else {
             panic!("parent description");
         };
         assert_eq!((s1, s2), (p1, p2));

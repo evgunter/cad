@@ -47,8 +47,8 @@
 
 use geom_core::Real;
 
-use crate::mapped::MappedCurve;
 use crate::keys::SurfaceKey;
+use crate::mapped::MappedCurve;
 use crate::pcurve_cache::Pcurve;
 
 /// U2's ONE conventional description form: a chart surface and the
@@ -158,7 +158,6 @@ impl<T: Real> EdgeDescription<T> {
         }
     }
 }
-
 
 /// The description **as a construction states it** — the pre-mint form
 /// of [`EdgeDescription`], carried by [`crate::EdgeCurveSpec`].

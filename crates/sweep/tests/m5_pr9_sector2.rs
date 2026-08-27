@@ -193,11 +193,13 @@ fn the_must_carry_fires_when_the_description_is_conventional() {
     // The conventional description extrude would have kept: the
     // extruded profile point under the identity placement.
     let spec = geom_brep::EdgeCurveSpec {
-        description: geom_brep::EdgeDescriptionSpec::Scaffold(geom_brep::MappedCurve::ExtrudedPoint {
-            point: p2(origin.x, origin.y),
-            place: geom_core::Affine3::identity(),
-            vec: dir * (t1 - t0),
-        }),
+        description: geom_brep::EdgeDescriptionSpec::Scaffold(
+            geom_brep::MappedCurve::ExtrudedPoint {
+                point: p2(origin.x, origin.y),
+                place: geom_core::Affine3::identity(),
+                vec: dir * (t1 - t0),
+            },
+        ),
         carrier: geom::Curve3::Line { origin, dir },
         param_start: t0,
         param_end: t1,

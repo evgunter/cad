@@ -571,10 +571,7 @@ fn adopt_edges(
                 )
             });
             if periodic {
-                candidates.push((
-                    AdoptionCandidate::Seam,
-                    EdgeDescriptionSpec::seam(fs_plus),
-                ));
+                candidates.push((AdoptionCandidate::Seam, EdgeDescriptionSpec::seam(fs_plus)));
             }
         }
         if conventional

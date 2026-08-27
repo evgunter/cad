@@ -50,7 +50,6 @@
 
 use geom_core::{Affine3, Point2, Point3, Real, Vec2, Vec3};
 
-
 /// A 2-D sketch-plane segment in the zero-redundancy bulge form (module
 /// docs). The line/arc split is structural — decided upstream, never
 /// re-decided here.

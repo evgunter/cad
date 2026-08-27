@@ -569,9 +569,7 @@ fn nurbs_iso_derive<T: Decide>(
         // that follows, which compares the chart's boundary column
         // against the carrier circle's own rational-quadratic form and
         // refuses a chart that is not this construction.
-        geom_brep::EdgeDescription::Chart(_)
-            if matches!(carrier, geom::Curve3::Circle { .. }) =>
-        {
+        geom_brep::EdgeDescription::Chart(_) if matches!(carrier, geom::Curve3::Circle { .. }) => {
             let Some(payload) = surface.spline_chart() else {
                 return Err(refuse("an arc cap rim on a non-spline chart"));
             };

@@ -335,7 +335,9 @@ mod tests {
     use geom_core::Tol;
 
     use geom::Curve3;
-    use geom_brep::{EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, MappedCurve, SketchSegment};
+    use geom_brep::{
+        EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, MappedCurve, SketchSegment,
+    };
     use geom_core::{Affine3, Point2, Point3, Vec3};
 
     use super::*;

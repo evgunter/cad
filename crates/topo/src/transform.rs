@@ -54,7 +54,9 @@
 
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, MappedCurve};
+use geom_brep::{
+    CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, MappedCurve,
+};
 use geom_core::Tol;
 use geom_core::predicate::{Band, BandError};
 use geom_core::{Affine3, Decide, Margin, Point3, Real, Vec3};
@@ -442,8 +444,8 @@ pub fn transform_rigid<T: Decide>(
             // stable, the witness re-mints from the mapped carrier.
             EdgeDescription::TangentIntersection { s1, s2, .. } => {
                 EdgeDescriptionSpec::TangentIntersection {
-                s1: *s1,
-                s2: *s2,
+                    s1: *s1,
+                    s2: *s2,
                     witness: carrier.eval(old.sample_param((geom_brep::CERT_SAMPLES - 1) / 2)),
                 }
             }

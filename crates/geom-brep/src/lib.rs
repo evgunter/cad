@@ -56,12 +56,12 @@
 pub mod certify;
 pub mod description;
 pub mod dihedral;
-pub mod mapped;
 pub mod edge_nurbs;
 pub mod enters;
 pub mod implicit;
 pub mod intersect;
 pub mod keys;
+pub mod mapped;
 pub mod newell;
 pub mod nurbs_iso;
 pub mod offset;
@@ -82,7 +82,6 @@ pub use description::{
     ChartCurve, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, authority_of,
 };
 pub use dihedral::{DihedralClass, classify_dihedral};
-pub use mapped::{MappedCurve, SketchSegment};
 pub use edge_nurbs::{EdgeNurbsLane, PlaneNurbsLimbs, PlaneNurbsRefusal};
 pub use enters::{
     EntersMaterial, OutwardNormal, ReferenceNormal, enters_material, enters_material_order2,
@@ -97,6 +96,7 @@ pub use intersect::{
     plane_cylinder_section, plane_sphere_section, route,
 };
 pub use keys::{CurveKey, PointKey, SurfaceKey};
+pub use mapped::{MappedCurve, SketchSegment};
 pub use newell::{NewellError, newell_plane};
 pub use nurbs_iso::{IsoRowError, boundary_iso_u, boundary_iso_v, iso_boundary_row};
 pub use offset::{ConeOffset, OffsetError, offset_surface};

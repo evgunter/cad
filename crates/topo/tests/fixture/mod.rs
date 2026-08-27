@@ -46,7 +46,9 @@ use std::sync::Arc;
 use geom::Surface;
 use geom::{Curve3, NurbsCurve2, NurbsCurve3};
 use geom_brep::ssi::{self, SsiDomain, SsiError};
-use geom_brep::{ChartWindow, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, Pcurve, PcurveCache};
+use geom_brep::{
+    ChartWindow, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, Pcurve, PcurveCache,
+};
 use geom_core::Tol;
 use geom_core::{Band, Point2, Point3, Real, Vec3};
 use topo::{Body, HalfEdgeKey};

@@ -55,12 +55,12 @@ pub fn counts(body: &Body<f64>) -> (usize, usize, usize, usize) {
 /// The edge's stored description.
 pub fn description(body: &Body<f64>, edge: EdgeKey) -> EdgeDescription<f64> {
     let curve = body.get_edge(edge).unwrap().curve;
-    body
-        .get_curve_geom(curve)
+    body.get_curve_geom(curve)
         .unwrap()
         .certified()
         .unwrap()
-        .description().clone()
+        .description()
+        .clone()
 }
 
 /// Probe points of a loop in `next` order: each start vertex plus

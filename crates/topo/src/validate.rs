@@ -2070,10 +2070,7 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
         // yet. This edge has two faces — the lookup above answered —
         // so it has a chart, and a scaffold here is a construction
         // that stopped half-way.
-        if matches!(
-            curve.description(),
-            geom_brep::EdgeDescription::Scaffold(_)
-        ) {
+        if matches!(curve.description(), geom_brep::EdgeDescription::Scaffold(_)) {
             errors.push(ValidationError::ScaffoldAtRest { edge: edge_key });
         }
         let adjacent = match curve.description() {

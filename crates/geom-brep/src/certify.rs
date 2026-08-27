@@ -461,13 +461,11 @@ impl<T: Real> EdgeCurveSpec<T> {
         use geom_core::{Affine3, Point2};
         let len = p0.distance(p1);
         Self {
-            description: EdgeDescriptionSpec::Scaffold(
-                crate::mapped::MappedCurve::ExtrudedPoint {
-                    point: Point2::new(T::zero(), T::zero()),
-                    place: Affine3::translation(p0 - Point3::origin()),
-                    vec: p1 - p0,
-                },
-            ),
+            description: EdgeDescriptionSpec::Scaffold(crate::mapped::MappedCurve::ExtrudedPoint {
+                point: Point2::new(T::zero(), T::zero()),
+                place: Affine3::translation(p0 - Point3::origin()),
+                vec: p1 - p0,
+            }),
             carrier: Curve3::Line {
                 origin: p0,
                 dir: (p1 - p0) / len,
@@ -501,15 +499,13 @@ impl<T: Real> EdgeCurveSpec<T> {
         };
         let start = carrier.eval(t0);
         Some(Self {
-            description: EdgeDescriptionSpec::Scaffold(
-                crate::mapped::MappedCurve::RevolvedPoint {
-                    point: Point2::new(T::zero(), T::zero()),
-                    place: Affine3::translation(start - Point3::origin()),
-                    axis_origin: center,
-                    axis_dir: axis,
-                    angle: t1 - t0,
-                },
-            ),
+            description: EdgeDescriptionSpec::Scaffold(crate::mapped::MappedCurve::RevolvedPoint {
+                point: Point2::new(T::zero(), T::zero()),
+                place: Affine3::translation(start - Point3::origin()),
+                axis_origin: center,
+                axis_dir: axis,
+                angle: t1 - t0,
+            }),
             carrier,
             param_start: t0,
             param_end: t1,
@@ -570,15 +566,13 @@ impl<T: Real> EdgeCurveSpec<T> {
         use geom_core::{Affine3, Point2, Vec3};
         let center = p + Vec3::unit_x();
         Self {
-            description: EdgeDescriptionSpec::Scaffold(
-                crate::mapped::MappedCurve::RevolvedPoint {
-                    point: Point2::new(T::zero(), T::zero()),
-                    place: Affine3::translation(p - Point3::origin()),
-                    axis_origin: center,
-                    axis_dir: Vec3::unit_z(),
-                    angle: T::tau(),
-                },
-            ),
+            description: EdgeDescriptionSpec::Scaffold(crate::mapped::MappedCurve::RevolvedPoint {
+                point: Point2::new(T::zero(), T::zero()),
+                place: Affine3::translation(p - Point3::origin()),
+                axis_origin: center,
+                axis_dir: Vec3::unit_z(),
+                angle: T::tau(),
+            }),
             carrier: Curve3::Circle {
                 center,
                 axis: Vec3::unit_z(),
@@ -984,9 +978,7 @@ impl<T: SpanLocate> EdgeCurve<T> {
                             .eval(sample_param(ta, tb, (CERT_SAMPLES - 1) / 2)),
                     }
                 }
-                EdgeDescription::Scaffold(mc) => {
-                    EdgeDescriptionSpec::Scaffold(mc.restrict(s0, s1))
-                }
+                EdgeDescription::Scaffold(mc) => EdgeDescriptionSpec::Scaffold(mc.restrict(s0, s1)),
                 // A chart image is a function of the CARRIER's own
                 // parameter, and splitting an edge changes the
                 // interval, not the carrier — so the child's image is
@@ -2154,7 +2146,10 @@ mod tests {
         let scaffold = EdgeCurve::certify(line_spec(a, b), a, b, &empty, band())
             .expect("the scaffolding line certifies");
         assert!(scaffold.description().chart().is_none());
-        assert!(matches!(scaffold.description(), EdgeDescription::Scaffold(_)));
+        assert!(matches!(
+            scaffold.description(),
+            EdgeDescription::Scaffold(_)
+        ));
     }
 
     /// **The authority record** (U2 Q3): the datum tier 3's

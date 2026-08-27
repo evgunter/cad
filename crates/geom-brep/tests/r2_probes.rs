@@ -27,7 +27,10 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::{Curve3, Surface};
-use geom_brep::{CERT_SAMPLES, EdgeCurve, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, implicit_residual, sample_param};
+use geom_brep::{
+    CERT_SAMPLES, EdgeCurve, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec,
+    implicit_residual, sample_param,
+};
 use geom_core::{Band, Point3, Vec3};
 
 fn table(

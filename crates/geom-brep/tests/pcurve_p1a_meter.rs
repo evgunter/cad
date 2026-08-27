@@ -12,7 +12,11 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::{Curve3, Surface};
-use geom_brep::{CertCheck, CertifyError, ChartWindow, EdgeCurve, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, PcurveCache, PcurveCertifyError, PcurveCheck, chart_pcurve, implicit_residual};
+use geom_brep::{
+    CertCheck, CertifyError, ChartWindow, EdgeCurve, EdgeCurveSpec, EdgeDescription,
+    EdgeDescriptionSpec, PcurveCache, PcurveCertifyError, PcurveCheck, chart_pcurve,
+    implicit_residual,
+};
 use geom_core::{Band, Point3, Vec3};
 
 /// The rows' own ε, and the band built from it. Fixed rather than the
