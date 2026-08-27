@@ -142,6 +142,61 @@ fn r2_a_box_through_a_half_disc_cap_measures_the_mixed_loop_remainder() {
     }
 }
 
+/// Calibration for the PR's cosurface design claim (door-2 evidence
+/// item 4): what does the PLANAR substrate do with an undeclared
+/// value-coincident cap-to-cap union (two stacked boxes)? If this
+/// unions without a declaration, "their honest destination is the
+/// declaration ladder" reads differently for coaxial-stacked than the
+/// PR implies; if it refuses, the curved rows follow the precedent.
+#[test]
+fn r2_stacked_boxes_calibrate_the_cosurface_claim() {
+    let tol = Tol::witness();
+    let a = boxx(0.0, 1.0, 0.0, 1.0, 0.0, 1.0);
+    let b = boxx(0.0, 1.0, 0.0, 1.0, 1.0, 2.0);
+    match topo::union(&a, &b, tol) {
+        Err(e) => println!("stacked boxes refuse: {e:?}"),
+        Ok(topo::BooleanResult::Body(out)) => {
+            let v = topo::mass_properties(&out.body, tol).unwrap().volume;
+            println!("stacked boxes union OK, volume {v}");
+        }
+        Ok(other) => println!("stacked boxes: {other:?}"),
+    }
+}
+
+/// The `point_in_face` sibling site (PR sweep table: "measured, not
+/// fixed"), attacked at a pose the shipped guard does not reach: a
+/// PANCAKE cylinder (r much larger than h) buries a box at its centre,
+/// so most of the ray schedule's directions exit through the CAPS —
+/// the faces whose trim the ray lane still reads through the
+/// zero-area two-vertex polygon. If the cap hits are dropped, the box
+/// reads as outside and the union double-counts it.
+#[test]
+fn r2_a_box_buried_in_a_pancake_cylinder_attacks_the_ray_cap_trim() {
+    let tol = Tol::witness();
+    let cyl = {
+        let lp = profile::circle(p2(0.0, 0.0), 5.0, tol).unwrap();
+        let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.0)));
+        let profile = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
+        extrude(&profile, Extrusion::Distance(0.4), tol)
+            .unwrap()
+            .body
+    };
+    let b = boxx(-0.1, 0.1, -0.1, 0.1, 0.1, 0.3);
+    match topo::union(&cyl, &b, tol) {
+        Err(e) => println!("pancake burial refuses typed: {e:?}"),
+        Ok(topo::BooleanResult::Body(out)) => {
+            let v = topo::mass_properties(&out.body, tol).unwrap().volume;
+            let truth = PI * 25.0 * 0.4;
+            println!("pancake union volume {v}; truth {truth}");
+            assert!(
+                (v - truth).abs() < 1e-9,
+                "RAY-CAP-TRIM WRONG BODY: {v} vs {truth} (buried box not swallowed)"
+            );
+        }
+        Ok(other) => panic!("unexpected: {other:?}"),
+    }
+}
+
 /// The #1032 seam measurement re-run (PR body "Point 2, measured"):
 /// declaring every cross-solid cylindrical wall pair in the m9_2b_r2
 /// fixture must clear exactly the wall-on-wall undecidables and leave
