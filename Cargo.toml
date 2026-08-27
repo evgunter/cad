@@ -35,6 +35,7 @@ members = [
     "crates/sweep",
     "crates/test-utils",
     "crates/topo",
+    "crates/viewer",
 ]
 
 # No root package: the project name is pending (Q9), so the workspace stays

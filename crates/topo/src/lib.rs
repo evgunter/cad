@@ -288,7 +288,9 @@ pub use euler_ring::{KemrResult, KfmrhResult, MekrResult, MekrSite};
 // The types that appear in this crate's own operator signatures, so a
 // consumer of the ops needs no direct geom-* imports for the common
 // path (the full geometry vocabulary still lives in those crates).
-pub use chart_region::{ChartOverlap, ChartRegionError, ChartRegionLane, chart_region_overlap};
+pub use chart_region::{
+    ChartOverlap, ChartRegionError, ChartRegionLane, chart_region_overlap, declared_pair_overlap,
+};
 pub use geom::Curve3;
 pub use geom::Surface;
 pub use geom_brep::{
