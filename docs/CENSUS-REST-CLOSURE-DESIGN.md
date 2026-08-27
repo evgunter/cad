@@ -174,7 +174,28 @@ Three options examined:
   embedding is a chart both descriptions agree on as a locus with
   no u_ref/seam ambiguity — C2's chart-divergence caveat
   (:151-155) is specifically about chart PARAMETERS, which a
-  plane's world embedding does not have. The overlap test becomes
+  plane's world embedding does not have.
+  **CORRECTION (2026-08-27, Evan ratifying after the gap-2
+  substrate; the CONCLUSION stands, this reasoning does not).**
+  The sentence above is false about the type it consumes.
+  `Surface::Plane` carries `origin`, `normal` AND `u_ref`, and
+  `u_ref` is documented as carrying the in-plane frame convention
+  (geom/src/surfaces.rs:99-107) — so a plane description does have
+  chart parameters. The world embedding as a LOCUS has none, but
+  Door 2 needs a CHART to run parity in, and `world_carrier`
+  returns `s_a`: it picks A's frame as the REPRESENTATIVE. Measured
+  on the seat: the two descriptions disagree on all three fields
+  (origins 0.06 vs 0.45; normals exactly negated, as a `Rest` pair
+  must be). What actually justifies the choice is
+  **FRAME-INVARIANCE OF THE ANSWER** — the verdict does not depend
+  on which of the two frames is taken as representative — and that
+  lemma must be WRITTEN and pinned, not assumed. Second, "exact" is
+  too strong: a verified declaration does not prove exact locus
+  identity, because `decide`'s `Ok(Zero)` means `|m| ≤ zero`, not
+  bit-zero (measured: a shelf at `z = 0.5 + 1e-9` returns Door 1
+  `Definite`; `+1e-7` is `Contradicted`). The honest claim is
+  **certified everywhere within ε**, metered at the pair's own
+  chart extent. The overlap test becomes
   the planar parity/containment machinery the census already owns
   (`contfp`), exact on the F5 subset — named by C3:230-232 itself
   as the intended machinery. Cross-instance CURVED declared pairs
