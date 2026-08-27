@@ -3,6 +3,21 @@
 //! Not part of the PR under review; lives on the probe branch only.
 //! Every row here is built from fixtures the PR does NOT enumerate, so
 //! a green row is independent signal and not a re-run of their table.
+//!
+//! **The #1082 rows (R2-1, R2-2, R2-3, R2-4, R2-10) are kept VERBATIM
+//! after the repair.** They were written as instruments rather than as
+//! assertions — they print the shape the surgery left and assert only
+//! that a body comes back — so what they measure now is the fixed rim:
+//! one annular face with one disjoint ring on an axis-touching cap,
+//! TWO disjoint annuli on an annular one, both meshing. Nothing here
+//! needed re-pinning, and the rows are worth more unedited: they are
+//! the measurement that re-scoped the class, and they still run the
+//! same fixtures against the door. The numbers that ARE pinned live
+//! beside them — `verbs_teapot::the_opened_rim_is_an_annulus_on_every_
+//! revolve` and `..::the_annular_mouth_opens_to_two_disjoint_rims` —
+//! and R2-5, the box control, is unchanged and still green, which is
+//! the differential that says the repair did not move the case that
+//! was always right.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
