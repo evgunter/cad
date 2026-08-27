@@ -2656,7 +2656,8 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   `product_named` are the curated gather and `assemble` is what
 ///   needs the recorded one.
 /// - **The hit-test service** (`MeshPick`, `MeshPickError`,
-///   `PickHit`, `PickTarget`, `Ray`, `pick_face`): GUI-1's layer-2
+///   `NodePick`, `NodePickError`, `PickHit`, `PickTarget`, `pick_face`,
+///   and `Ray` — a `bvh` re-export riding the service's door): GUI-1's layer-2
 ///   picking door (`ray → StableName` over tessellated meshes),
 ///   consumed by the viewer's selection path (GUI-2). Its inputs are
 ///   `mesh::Mesh` indexes and viewport rays — display-side state the
@@ -2666,7 +2667,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 /// - **`MigrationStep`**: the stated exception in the crate docs —
 ///   its signature speaks `serde_json::Value`, which does not cross
 ///   the curated surface.
-const NOT_CARRIED: [&str; 89] = [
+const NOT_CARRIED: [&str; 91] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -2703,6 +2704,8 @@ const NOT_CARRIED: [&str; 89] = [
     "NamingError",
     "NamingKey",
     "NodeChange",
+    "NodePick",
+    "NodePickError",
     "NodeVerdictDelta",
     "NodeVerdicts",
     "ParamValue",

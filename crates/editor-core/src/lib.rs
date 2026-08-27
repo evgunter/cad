@@ -115,7 +115,9 @@ pub use resolve::{
 // vocabulary re-exported from `bvh` so a layer-3 consumer needs no
 // direct bvh dependency.
 pub use bvh::Ray;
-pub use resolve::{MeshPick, MeshPickError, PickHit, PickTarget, pick_face};
+pub use resolve::{
+    MeshPick, MeshPickError, NodePick, NodePickError, PickHit, PickTarget, pick_face,
+};
 pub use roots::RootFault;
 pub use update::{PinMultiplicity, PinSites, UpdateError, mixed_pins, update_references};
 pub use witness::{

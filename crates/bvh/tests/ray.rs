@@ -32,10 +32,11 @@ fn items(cands: &[RayCandidate]) -> Vec<usize> {
     cands.iter().map(|c| c.item).collect()
 }
 
-/// The `0 × ∞ → NaN` trap: a zero direction component with the origin
-/// exactly ON the slab bound. The ray lies in the closed boundary
-/// plane, so the box must stay a candidate (the NaN axis imposes no
-/// constraint), and the other axes still meter the entry.
+/// The historic `0 × ∞ → NaN` trap input: a zero direction component
+/// with the origin exactly ON the slab bound. The ray lies in the
+/// closed boundary plane, so the box must stay a candidate (the exact
+/// `d = 0` arm reads it as inside — no product is ever formed), and
+/// the other axes still meter the entry.
 #[test]
 fn zero_direction_on_slab_boundary_is_a_candidate() {
     let tree = Bvh::build(&[boxed([0.0; 3], [1.0; 3])]);
@@ -53,13 +54,64 @@ fn zero_direction_on_slab_boundary_is_a_candidate() {
 }
 
 /// A zero direction component with the origin strictly OUTSIDE the
-/// slab: both products are the same infinity, and the prune is exact
-/// (the ray is parallel to and outside the slab).
+/// slab: the exact `d = 0` comparison arm prunes, and it prunes on
+/// BOTH sides — above the slab and below it. (The R2 review caught
+/// the pre-fix arithmetic pruning only the above side; both halves
+/// are pinned here.)
 #[test]
 fn zero_direction_outside_slab_prunes() {
     let tree = Bvh::build(&[boxed([0.0; 3], [1.0; 3])]);
+    // Above the slab (o > hi).
     let r = ray([2.0, 0.5, -1.0], [0.0, 0.0, 1.0]);
     assert_eq!(tree.ray(&r), Vec::<RayCandidate>::new());
+    // Below the slab (o < lo) — the side the pre-fix code kept.
+    let r = ray([-2.0, 0.5, -1.0], [0.0, 0.0, 1.0]);
+    assert_eq!(tree.ray(&r), Vec::<RayCandidate>::new());
+    // Both sides even with NO other axis constraining (a zero-length
+    // point ray strictly outside the slab).
+    let r = ray([-2.0, 0.5, 0.5], [0.0, 0.0, 0.0]);
+    assert_eq!(tree.ray(&r), Vec::<RayCandidate>::new());
+    let r = ray([2.0, 0.5, 0.5], [0.0, 0.0, 0.0]);
+    assert_eq!(tree.ray(&r), Vec::<RayCandidate>::new());
+}
+
+/// The reciprocal-overflow hole (R2's second witness class): a
+/// SUBNORMAL direction component used to make `1/d = ∞` and mint a
+/// fake-infinite endpoint from a moderate true quotient, pruning a
+/// truly hit box. The division spelling computes the true quotient
+/// correctly rounded: the box is a candidate with an honest entry.
+#[test]
+fn subnormal_direction_does_not_prune_a_true_hit() {
+    // x: bounds subnormal, d subnormal — true t ∈ [1, 2] exactly.
+    let b = boxed([1e-315, -1.0, -1.0], [2e-315, 5.0, 1.0]);
+    let tree = Bvh::build(&[b]);
+    let r = ray([0.0, 0.5, 0.0], [1e-315, 1.0, 0.0]);
+    let out = tree.ray(&r);
+    assert_eq!(items(&out), vec![0]);
+    assert!(
+        out[0].t_enter <= 1.0 && out[0].t_enter > 0.9,
+        "t_enter {} lower-bounds the true entry 1.0",
+        out[0].t_enter
+    );
+}
+
+/// An entry GENUINELY beyond `f64` range (the division overflows on a
+/// true quotient > MAX): the box stays a candidate and `t_enter` is
+/// the finite ≈`MAX` clamp — never `+∞` (the documented lower-bound
+/// and finiteness claims at their extreme).
+#[test]
+fn entry_beyond_f64_range_stays_a_candidate_with_finite_t_enter() {
+    let b = boxed([1e300, -1.0, -1.0], [1.5e300, 1.0, 1.0]);
+    let tree = Bvh::build(&[b]);
+    // True t ≈ [1e330, 1.5e330]: beyond MAX, still a real intersection.
+    let r = ray([0.0, 0.0, 0.0], [1e-30, 0.0, 0.0]);
+    let out = tree.ray(&r);
+    assert_eq!(items(&out), vec![0]);
+    assert!(out[0].t_enter.is_finite(), "t_enter is never +∞");
+    assert!(
+        out[0].t_enter > 1e308,
+        "the clamp is ≈ MAX, a valid lower bound"
+    );
 }
 
 /// A negative-zero direction component behaves like positive zero
@@ -168,6 +220,10 @@ fn brute(boxes: &[Aabb], r: &Ray) -> Vec<RayCandidate> {
                 .map(|t_enter| RayCandidate { item, t_enter })
         })
         .collect();
+    // The documented order, restated INDEPENDENTLY of `Bvh::ray`'s
+    // own comparator on purpose: sharing one comparator would blind
+    // this oracle to a tie-break regression (both sides would change
+    // together). Keep the duplication.
     out.sort_unstable_by(|a, b| a.t_enter.total_cmp(&b.t_enter).then(a.item.cmp(&b.item)));
     out
 }
@@ -184,6 +240,7 @@ fn brute(boxes: &[Aabb], r: &Ray) -> Vec<RayCandidate> {
 #[test]
 fn sweep_matches_brute_force_and_never_misses_true_hits() {
     let mut rng = fuzz::start("bvh::ray conservative-superset sweep");
+    let mut exposure = test_utils::vacuity::Exposure::new("bvh::ray sweep");
     for case in 0..fuzz::scaled(60) {
         let n = rng.below(40) + 1;
         let mut boxes = Vec::with_capacity(n);
@@ -274,14 +331,34 @@ fn sweep_matches_brute_force_and_never_misses_true_hits() {
             fuzz::replay()
         );
         // A zero direction is legal input (the ray is a point; the
-        // target box contains it, closed) — the slab test's NaN arm
-        // covers it, so the true-hit claim holds there too.
+        // target box contains it, closed) — the exact d = 0 arm reads
+        // the point as inside, so the true-hit claim holds there too.
         if target_is_real {
+            exposure.note("true-hit case");
             assert!(
                 got.iter().any(|c| c.item == target),
                 "case {case}: true hit of box {target} dropped ({r:?}, {b:?}); {}",
                 fuzz::replay()
             );
         }
+        if !got.is_empty() {
+            exposure.note("nonempty candidate set");
+        }
     }
+    exposure.report();
+    // Anti-vacuity floors (memories/test-suite-cost + test_utils::vacuity):
+    // stated against the effort-1 floor of the dial (60 cases; a target
+    // is poison — skipping the true-hit assertion — with probability
+    // 1/(4n) ≤ 1/4 per case), so a run below these floors did not
+    // exercise the contract, not merely got unlucky.
+    exposure.require(
+        "true-hit case",
+        16,
+        "the conservative-superset claim needs constructed true hits to bite",
+    );
+    exposure.require(
+        "nonempty candidate set",
+        16,
+        "the realized == idealized row needs nonempty sets to compare",
+    );
 }

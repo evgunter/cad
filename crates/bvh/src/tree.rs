@@ -2,7 +2,9 @@
 //! total tie-breaks (documented at [`Bvh::build`], D9-cited), no hash
 //! iteration, no parallel build in v1, fixed leaf constant
 //! [`LEAF_SIZE`]. Queries prune only (crate docs: the conservative-
-//! superset contract) and return candidates in ascending input order.
+//! superset contract); [`Bvh::overlapping`] returns candidates in
+//! ascending input order, [`Bvh::ray`] in ascending conservative
+//! entry parameter with index tie-breaks (each method's docs).
 
 use crate::aabb::{Aabb, Axis};
 use crate::ray::{Ray, RayCandidate};
@@ -144,12 +146,17 @@ impl Bvh {
     /// Conservative by [`Ray::slab_enter`]: a returned candidate may
     /// be a miss (the consumer re-tests exactly), but a leaf whose box
     /// the ray truly intersects is never dropped — poison boxes and
-    /// poison rays are always candidates. Node hulls only prune:
-    /// each per-axis hull interval contains the corresponding item
-    /// interval (the slab arithmetic is monotone in the bounds, NaN
-    /// axes are skipped on both, and hulls propagate item NaN), so a
-    /// hull prune never drops an item its own slab test would accept —
-    /// the result is a function of the item boxes only, independent of
+    /// poison rays are always candidates. Node hulls only prune, and
+    /// deliberately more weakly than items are tested (the internal
+    /// hull test widens each endpoint 8 ULPs where the per-item test
+    /// widens 4 — `ray.rs`, `HULL_WIDEN_STEPS`): per axis the hull's
+    /// slab contains the item's, the zero-direction arm compares
+    /// exactly, the endpoint arithmetic is monotone in the bounds
+    /// within each of its two formulas, and the extra hull widening
+    /// dominates the ≤ ~2-ULP disagreement the overflow-recompute
+    /// seam can introduce between the formulas — so a hull prune
+    /// never drops an item its own slab test would accept, and the
+    /// result is a function of the item boxes only, independent of
     /// tree shape.
     ///
     /// **Candidate order (documented contract)**: ascending
@@ -175,7 +182,7 @@ impl Bvh {
             };
             match node {
                 Node::Leaf { start, count, aabb } => {
-                    if ray.slab_enter(aabb).is_none() {
+                    if !ray.slab_enter_hull(aabb) {
                         continue;
                     }
                     for &item in self.items.iter().skip(*start).take(*count) {
@@ -186,7 +193,7 @@ impl Bvh {
                     }
                 }
                 Node::Inner { right, aabb } => {
-                    if ray.slab_enter(aabb).is_none() {
+                    if !ray.slab_enter_hull(aabb) {
                         continue;
                     }
                     stack.push(*right);

@@ -7,7 +7,9 @@
 //! concern with no D9 predicate obligation (GQ6 re-survey §3 note),
 //! and the crate's conservative-superset contract is what the test is
 //! written against: it may answer "candidate" for a box the ray misses,
-//! and must never answer "disjoint" for a box the ray truly intersects.
+//! and it never answers "disjoint" for a box the ray truly intersects —
+//! at any magnitude, overflow included ([`Ray::slab_enter`] carries
+//! the corner-by-corner argument).
 
 use geom_core::{Point3, Vec3};
 
@@ -42,91 +44,155 @@ pub struct RayCandidate {
     pub item: usize,
     /// A conservative LOWER bound on every `t ≥ 0` at which the ray
     /// is inside the item's box: never above the true entry parameter
-    /// ([`Ray::slab_enter`] docs). This is what licenses a consumer
-    /// early-out — once a confirmed hit at `t* < t_enter` exists, this
-    /// box cannot contain a nearer hit.
+    /// ([`Ray::slab_enter`] docs), never NaN, never `+∞`. This is what
+    /// licenses a consumer early-out — once a confirmed hit at
+    /// `t* < t_enter` exists, this box cannot contain a nearer hit.
     pub t_enter: f64,
 }
 
-/// One slab-test axis: the conservative `[near, far]` parameter
-/// interval in which the ray is inside `[lo, hi]`, or `None` when the
-/// axis imposes no constraint (the conservative reading of every NaN).
+/// The slab test's outward widening for the PER-ITEM query (4 ULP
+/// steps per endpoint): strictly covers the ≤ 2 roundings each
+/// endpoint carries ([`slab_t`]), with margin.
+const ITEM_WIDEN_STEPS: u32 = 4;
+
+/// The slab test's outward widening for INTERNAL-NODE hulls (8 ULP
+/// steps): [`ITEM_WIDEN_STEPS`] plus enough slack to dominate the
+/// ≤ ~2-ULP disagreement the overflow-recompute seam in [`slab_t`]
+/// can introduce between a hull's endpoint and an item's, so a hull
+/// prune never drops an item whose own test would accept
+/// ([`crate::Bvh::ray`] states the resulting invariant).
+const HULL_WIDEN_STEPS: u32 = 8;
+
+/// One slab endpoint: the parameter at which the ray's coordinate
+/// reaches `bound`, computed as `(bound − o) / d` with `d ≠ 0`.
 ///
-/// The IEEE corners, and which way each falls:
+/// Two properties this spelling buys over the classic
+/// `(bound − o) · (1/d)`:
 ///
-/// - `inv = 1/d` is `±∞` at `d = ±0.0` (never a division check).
-/// - **The `0 × ∞ → NaN` trap**: with `d = 0` and the origin exactly
-///   on a slab bound, `(bound − o) · inv = 0 · ∞ = NaN`. The ray then
-///   lies in the (closed) boundary plane, so the honest constraint is
-///   "no constraint" — and that is exactly what returning `None`
-///   (skip the axis) implements. The same arm absorbs a poison box
-///   (NaN bound) and a poison ray (NaN origin/direction component):
-///   skipping an axis only widens the candidate set, so **NaN can
-///   never witness disjointness**.
-/// - `d = 0` with the origin strictly outside the slab: both products
-///   are the same infinity, so `near = far = ±∞` and the caller's
-///   `t_min ≤ t_max` verdict prunes — the ray is truly parallel to and
-///   outside the slab, so the prune is exact, not just legal.
-/// - A zero-extent axis (`lo == hi`) degenerates to `near == far`
-///   before widening — a plane box stays hittable.
-/// - An inverted axis (`lo > hi`, the crate's empty-box convention)
-///   is swept up by the `near ≤ far` swap below and behaves like the
-///   un-inverted slab: possibly extra candidates, never a wrongly
-///   pruned true intersection (an empty box has none to miss).
+/// - **Division cannot mint a fake infinity.** `fl(s / d)` is the
+///   correctly-rounded true quotient of the (exactly-rounded)
+///   difference, so it overflows to `±∞` only when the true quotient
+///   really is beyond `f64` range. The reciprocal composition could
+///   lie: a subnormal `|d| < ~5.6e−309` makes `1/d = ±∞` while the
+///   true quotient is moderate.
+/// - **An overflowed subtraction is recomputed exactly in halves.**
+///   When `bound − o` overflows with both operands finite, both
+///   operands (or all but a subnormal one) are huge normals, whose
+///   halving is exact; the halved difference is ≤ `MAX/1` in
+///   magnitude, so it rounds instead of overflowing, and the final
+///   `× 2` is exact (or a GENUINE overflow). A subnormal operand's
+///   halving error is ≤ 2⁻¹⁰⁷⁵ absolute against a ≈ 2⁵¹¹-magnitude
+///   difference — dwarfed by the caller's ULP widening.
 ///
-/// **Rounding**: each endpoint is the result of ≤ 3 roundings (the
-/// subtraction, the reciprocal, the product), so its relative error is
-/// `< (1 + 2⁻⁵³)³ − 1 < 4·2⁻⁵³`, and 4 ULP steps cover that with
-/// margin (1 ULP of `v` is ≥ `2⁻⁵³·|v|` for finite `v`; in the
-/// subnormal range the per-step absolute half-ULP errors are covered
-/// the same way). `near` is pushed 4 ULPs **down** and `far` 4 ULPs
-/// **up**, so the returned interval always contains the exact-real
-/// one; on ±∞ the outward direction is a fixed point and the inward
-/// `next_down(+∞) = MAX` only ever loosens.
-fn axis_interval(o: f64, d: f64, lo: f64, hi: f64) -> Option<(f64, f64)> {
-    let inv = 1.0 / d;
-    let t0 = (lo - o) * inv;
-    let t1 = (hi - o) * inv;
-    if t0.is_nan() || t1.is_nan() {
-        return None;
+/// Every result is therefore within 2 roundings of the true value
+/// (subtract + divide; the halved lane adds only the negligible term
+/// above and the exact `× 2`), or a genuine `±∞` (true value beyond
+/// `f64` range, or an infinite input), or NaN (a NaN input, or `∞/∞`
+/// from a non-finite ray — the caller skips those conservatively).
+fn slab_t(bound: f64, o: f64, d: f64) -> f64 {
+    let s = bound - o;
+    if s.is_infinite() && bound.is_finite() && o.is_finite() {
+        ((bound * 0.5 - o * 0.5) / d) * 2.0
+    } else {
+        s / d
     }
-    let (near, far) = if t0 <= t1 { (t0, t1) } else { (t1, t0) };
-    Some((widen_down(near), widen_up(far)))
 }
 
-/// 4 ULP steps downward ([`axis_interval`]'s rounding cover).
-fn widen_down(v: f64) -> f64 {
-    v.next_down().next_down().next_down().next_down()
+/// `steps` ULP steps downward. The outward-widening idiom of the ray
+/// query — the ray-parameter-space sibling of [`Aabb::padded`]'s
+/// 1-ULP-per-bound coordinate-space widening: different budgets
+/// because they cover different arithmetic (`padded` covers its own
+/// two rounding steps per bound; this covers [`slab_t`]'s per-endpoint
+/// error under [`ITEM_WIDEN_STEPS`]/[`HULL_WIDEN_STEPS`]).
+fn widen_down(v: f64, steps: u32) -> f64 {
+    let mut v = v;
+    for _ in 0..steps {
+        v = v.next_down();
+    }
+    v
 }
 
-/// 4 ULP steps upward ([`widen_down`]'s dual).
-fn widen_up(v: f64) -> f64 {
-    v.next_up().next_up().next_up().next_up()
+/// [`widen_down`]'s upward dual.
+fn widen_up(v: f64, steps: u32) -> f64 {
+    let mut v = v;
+    for _ in 0..steps {
+        v = v.next_up();
+    }
+    v
 }
 
 impl Ray {
     /// The conservative ray-box test: `Some(t_enter)` unless the box
     /// is **definitely** disjoint from the ray over `t ∈ [0, ∞)`.
     ///
-    /// The slab intersection: fold the per-axis intervals of
-    /// [`axis_interval`] into `[t_min, t_max]`, starting from the
-    /// ray's own domain `[0, ∞)` (so `t_enter` is never negative: a
-    /// box containing the origin enters at exactly `0`). The verdict
-    /// is `t_min ≤ t_max` — **closed**, so a grazing touch stays a
-    /// candidate, matching the crate's closed-box convention
-    /// ([`Aabb::overlaps`]: touching boxes overlap).
+    /// The slab intersection folds per-axis parameter intervals into
+    /// `[t_min, t_max]`, starting from the ray's own domain `[0, ∞)`
+    /// (so `t_enter = t_min` is never negative: a box containing the
+    /// origin enters at exactly `0`). The verdict is `t_min ≤ t_max` —
+    /// **closed**, so a grazing touch stays a candidate, matching the
+    /// crate's closed-box convention ([`Aabb::overlaps`]: touching
+    /// boxes overlap).
     ///
-    /// `t_enter = t_min` is a conservative lower bound on the true
-    /// entry parameter: every per-axis `near` is widened downward,
-    /// skipped (NaN) axes only lower the fold, and the `0` floor
-    /// lower-bounds the domain itself. A box entirely behind the
-    /// origin has some exact `far < 0`; its widened `far` keeps the
-    /// sign (rounding and the ULP steps cannot carry a strictly
-    /// negative product past `0` from below the widening margin — and
-    /// if widening lands it at `≥ 0` the box simply stays a
-    /// candidate), so behind-boxes are pruned exactly when they are
-    /// definitely disjoint from the `t ≥ 0` domain.
+    /// # The corners, and which way each falls
+    ///
+    /// - **`d = ±0.0` is its own arm, with no arithmetic at all**: the
+    ///   ray's coordinate is the constant `o`, so the axis either
+    ///   never constrains `t` (`o` inside the closed slab — including
+    ///   exactly ON a bound, the case that used to be the `0 × ∞ →
+    ///   NaN` trap) or is disjoint outright (`o < lo` or `o > hi`,
+    ///   an EXACT prune on **both** sides — comparisons, not
+    ///   products). A NaN anywhere (poison bound, poison origin)
+    ///   satisfies neither comparison, so poison never prunes here.
+    /// - **`d ≠ 0` endpoints come from [`slab_t`]** — division, plus
+    ///   the exact halved recompute of an overflowed subtraction — so
+    ///   an infinity here is GENUINE: an infinite box bound (an
+    ///   unbounded slab side), or a true parameter beyond `f64` range.
+    /// - **NaN endpoints skip the axis** (no constraint): NaN arises
+    ///   only from poison inputs or a non-finite ray (`∞/∞`), and
+    ///   skipping only widens the answer — **NaN can never witness
+    ///   disjointness**.
+    /// - **Genuine infinities are handled by the widening itself**:
+    ///   `widen_down(+∞)` is ≈ `MAX`, a *valid lower bound* for an
+    ///   entry that truly lies beyond `f64` range — the box stays a
+    ///   candidate with `t_enter ≈ MAX` (also why `t_enter` is never
+    ///   `+∞`); `widen_up(−∞)` is ≈ `−MAX`, a *valid upper bound* for
+    ///   an exit truly below `−MAX` — the box is entirely behind the
+    ///   origin and prunes against `t_min ≥ 0`. `−∞ near` / `+∞ far`
+    ///   are fixed points and simply never tighten the fold.
+    /// - **Zero-extent axes** (`lo == hi`) degenerate to
+    ///   `near == far` before widening — a plane box stays hittable.
+    ///   **Inverted boxes** (`lo > hi`, the crate's empty-box
+    ///   convention) fall into the `near ≤ far` swap and behave like
+    ///   the un-inverted slab: possibly extra candidates, never a
+    ///   wrongly pruned true intersection (an empty box has none to
+    ///   miss).
+    /// - **Rounding**: each finite endpoint carries ≤ 2 roundings
+    ///   ([`slab_t`]), relative error < `3·2⁻⁵³`; the 4-ULP outward
+    ///   widening ([`ITEM_WIDEN_STEPS`]) strictly covers it (1 ULP of
+    ///   finite `v` is ≥ `2⁻⁵³·|v|`; in the subnormal range the
+    ///   per-step absolute half-ULP errors are covered the same way).
+    ///
+    /// Together: **no magnitude precondition** — the returned interval
+    /// always contains the true one, so a truly intersected box is
+    /// never refused, and `t_enter` is a conservative lower bound on
+    /// the true entry parameter (each per-axis `near` is a widened
+    /// lower bound, skipped axes only lower the fold, and the `0`
+    /// floor lower-bounds the domain itself).
     pub fn slab_enter(&self, b: &Aabb) -> Option<f64> {
+        self.slab_enter_widened(b, ITEM_WIDEN_STEPS)
+    }
+
+    /// [`Ray::slab_enter`] with the hull widening ([`HULL_WIDEN_STEPS`])
+    /// — the internal-node test of [`crate::Bvh::ray`], deliberately
+    /// WEAKER than the per-item test so a hull prune can never
+    /// out-prune the items under it (the constant's docs).
+    pub(crate) fn slab_enter_hull(&self, b: &Aabb) -> bool {
+        self.slab_enter_widened(b, HULL_WIDEN_STEPS).is_some()
+    }
+
+    /// The fold shared by the two entry points above; `steps` is the
+    /// per-endpoint outward widening.
+    fn slab_enter_widened(&self, b: &Aabb, steps: u32) -> Option<f64> {
         let mut t_min = 0.0f64;
         let mut t_max = f64::INFINITY;
         for (o, d, lo, hi) in [
@@ -134,13 +200,28 @@ impl Ray {
             (self.origin.y, self.dir.y, b.min_y, b.max_y),
             (self.origin.z, self.dir.z, b.min_z, b.max_z),
         ] {
-            if let Some((near, far)) = axis_interval(o, d, lo, hi) {
-                if near > t_min {
-                    t_min = near;
+            if d == 0.0 {
+                // The exact zero-direction arm (docs above): inside
+                // the closed slab ⇒ no constraint; strictly outside ⇒
+                // definitely disjoint, both sides; NaN ⇒ no constraint.
+                if o < lo || o > hi {
+                    return None;
                 }
-                if far < t_max {
-                    t_max = far;
-                }
+                continue;
+            }
+            let t0 = slab_t(lo, o, d);
+            let t1 = slab_t(hi, o, d);
+            if t0.is_nan() || t1.is_nan() {
+                continue;
+            }
+            let (near, far) = if t0 <= t1 { (t0, t1) } else { (t1, t0) };
+            let near = widen_down(near, steps);
+            let far = widen_up(far, steps);
+            if near > t_min {
+                t_min = near;
+            }
+            if far < t_max {
+                t_max = far;
             }
         }
         (t_min <= t_max).then_some(t_min)

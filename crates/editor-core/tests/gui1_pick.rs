@@ -377,3 +377,80 @@ fn corrupt_mesh_is_a_typed_build_error() {
         }
     );
 }
+
+/// The provenance-atomic door (`NodePick`): built against the
+/// evaluation payload itself, its target answers exactly what a
+/// correctly-assembled raw target answers, its mesh is the same
+/// tessellation it picks against, and every unusable input is a
+/// typed `NodePickError` — never a silent wrong pairing.
+#[test]
+fn node_pick_door_is_prepaired_and_typed() {
+    let doc = ProfileDoc::empty_derived("gui1_pick_door", Tol::witness());
+    let (doc, ext) = cube_doc_node(doc, 0.0);
+    let (doc, lone_profile) = insert(
+        doc,
+        Node::Profile(desc(
+            [0.0; 3],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
+        )),
+    );
+    let (doc, bad) = insert(
+        doc,
+        Node::Extrude {
+            profile: lone_profile,
+            distance: len(0.0), // degenerate: fails
+        },
+    );
+    let ev = run(&doc);
+
+    let np = editor_core::NodePick::build(&ev, ext, 0, DELTA, Tol::witness())
+        .expect("the box tessellates and indexes");
+    assert_eq!(np.node(), ext);
+    assert_eq!(np.body(), 0);
+    assert!(
+        !np.mesh().patches.is_empty(),
+        "the display mesh rides along"
+    );
+
+    // The door's target answers exactly the raw, correctly-paired path.
+    let mesh = mesh_of(&ev, ext);
+    let pick = MeshPick::build(&mesh).expect("well-formed mesh");
+    let raw = [PickTarget {
+        node: ext,
+        body: 0,
+        pick: &pick,
+    }];
+    let r = ray([0.5, 0.5, -2.0], [0.0, 0.0, 1.0]);
+    let via_door = pick_face(&ev, &[np.target()], &r)
+        .expect("no error")
+        .expect("hits");
+    let via_raw = pick_face(&ev, &raw, &r).expect("no error").expect("hits");
+    assert_eq!(via_door.name, via_raw.name);
+    assert_eq!(via_door.t.to_bits(), via_raw.t.to_bits());
+
+    // Typed refusals, arm by arm.
+    use editor_core::NodePickError;
+    assert_eq!(
+        editor_core::NodePick::build(&ev, lone_profile, 0, DELTA, Tol::witness())
+            .expect_err("a profile denotes no body"),
+        NodePickError::NotABody { node: lone_profile }
+    );
+    assert_eq!(
+        editor_core::NodePick::build(&ev, ext, 1, DELTA, Tol::witness())
+            .expect_err("an extrude has one output body"),
+        NodePickError::NoSuchBody { node: ext, body: 1 }
+    );
+    assert_eq!(
+        editor_core::NodePick::build(&ev, bad, 0, DELTA, Tol::witness())
+            .expect_err("a failed node has no body to pair"),
+        NodePickError::Standing(HitTestError::NodeFailed { node: bad })
+    );
+    let foreign = RecipeNodeId(9999);
+    assert_eq!(
+        editor_core::NodePick::build(&ev, foreign, 0, DELTA, Tol::witness())
+            .expect_err("a foreign id has no result"),
+        NodePickError::Standing(HitTestError::NodeNotEvaluated { node: foreign })
+    );
+}

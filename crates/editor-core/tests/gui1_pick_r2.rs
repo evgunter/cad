@@ -488,12 +488,18 @@ fn a_degenerate_triangle_is_unhittable_and_harmless() {
 ///
 /// The row below asserts what a checked service would do — refuse, or
 /// at least not answer a name for a face the mesh never carried. It
-/// is IGNORED because the current service answers instead; un-ignore
-/// it if the fix pass adds a provenance check, delete it if the fix
-/// pass decides the convention is enough and says so at the call
-/// site.
+/// stays IGNORED after the fix pass, deliberately: the fix closes the
+/// lane by CONSTRUCTION rather than by check — `NodePick` is the door
+/// whose `(node, body)` ↔ mesh pairing cannot be mis-asserted (it
+/// fetches the body from the evaluation payload itself), and
+/// `PickTarget` now carries the loud contract naming this exact
+/// failure mode. Raw target assembly remains verification-free — the
+/// keys carry no node identity to check against — so this row is the
+/// standing witness of what mis-assembling raw targets costs, kept as
+/// documentation of the residual class (issue #1098; revisit when
+/// GUI-2's cache lands).
 #[test]
-#[ignore = "R2 review finding: (node, body)/mesh provenance is unchecked; a mismatch answers a wrong name"]
+#[ignore = "R2 review finding: raw PickTarget provenance is by construction unverifiable; NodePick is the checked door — this row documents the residual raw-assembly class"]
 fn a_mesh_paired_with_the_wrong_node_does_not_answer_a_name() {
     let doc = ProfileDoc::empty_derived("gui1_r2_provenance", Tol::witness());
     let (doc, a) = box_node(doc, 0.0, 0.0, 1.0, 1.0);

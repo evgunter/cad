@@ -6,10 +6,15 @@
 //! ray/triangle tests in plain `f64` → nearest hit by `t` with a
 //! total, documented tie-break → the winning triangle's
 //! [`mesh::FacePatch::face`] back-reference → [`super::hit::entity_name`]
-//! → [`StableName`]. **No arena key crosses the layer-2/3 boundary**:
-//! the service's public answer is a name (plus node id, `t`, and hit
-//! point) or a typed error; the [`topo::FaceKey`]s live inside the
-//! private [`MeshPick`] state and the private winning-triangle lookup.
+//! → [`StableName`]. **No arena key crosses the layer-2/3 boundary as
+//! a selection value**: the service's public answer is a name (plus
+//! node id, `t`, and hit point) or a typed error; the
+//! [`topo::FaceKey`]s live inside the private [`MeshPick`] state and
+//! the private winning-triangle lookup. The one stated exception is
+//! the [`HitTestError::Unnamed`] BUG arm, whose payload (inherited
+//! verbatim from [`super::hit`]) carries the unnamed [`EntityRef`] —
+//! that is a naming-emission diagnostic for a kernel bug report,
+//! never a selection value, and typed beats stringly even there.
 //!
 //! Picking is a UI concern with no D9 predicate obligation (GQ6
 //! re-survey §3): everything here is plain `f64` with conservative
@@ -28,16 +33,35 @@
 //! so a consumer keys its `MeshPick` cache by
 //! ([`Evaluation::epoch`], node, body) and drops entries whose epoch
 //! is stale — exactly the staleness discipline the epoch exists for.
+//! That keying is a CONSUMER obligation this module cannot check;
+//! [`NodePick`] below is the door that discharges it by construction.
+//!
+//! # Provenance: the one confident-wrong-answer lane, and its door
+//!
+//! Arena keys collide numerically across sibling nodes, so a
+//! [`PickTarget`] whose `(node, body)` is not the pair its mesh was
+//! tessellated from makes [`pick_face`] invert the hit face's key
+//! against the WRONG node's table — a plausible, confidently wrong
+//! [`StableName`], not an error ([`PickTarget`]'s contract). The
+//! typed door that closes the lane is [`NodePick`]: it fetches the
+//! body from the evaluation payload itself (through the same
+//! output-body indexing the name tables key by), tessellates and
+//! indexes in one call, and hands back the mesh alongside — so the
+//! pairing is established by construction and the display mesh and
+//! the pick index are the same tessellation. Raw [`PickTarget`]
+//! assembly remains for consumers that already hold a mesh, and
+//! carries the loud contract.
 
 use bvh::{Aabb, Bvh, Ray};
-use geom_core::{Decide, Point3, Vec3};
-use mesh::Mesh;
+use geom_core::{Decide, Point3, Tol, Vec3};
+use mesh::{Mesh, TessellateError};
 use topo::FaceKey;
 
 use super::hit::{HitTestError, entity_name};
 use crate::eval::{Evaluation, NodeResult};
 use crate::names::{EntityKey, EntityRef, StableName};
 use crate::node::RecipeNodeId;
+use crate::product::sources_of;
 
 /// One triangle of the pick index: its corner geometry (copied out of
 /// the mesh's position buffer, so the index cannot drift out of sync
@@ -139,17 +163,24 @@ impl MeshPick {
             tris,
         })
     }
-
-    /// The number of triangles indexed.
-    pub fn triangle_count(&self) -> usize {
-        self.tris.len()
-    }
 }
 
 /// One displayed mesh offered to a pick: which node/body the mesh
-/// renders, and its prebuilt index. The (node, body) pair must be the
-/// one the mesh was tessellated from — the same provenance discipline
-/// as [`super::MeshPatchKey`].
+/// renders, and its prebuilt index.
+///
+/// # The provenance contract (loud, unenforceable here)
+///
+/// **`(node, body)` MUST be the pair `pick`'s mesh was tessellated
+/// from.** This module cannot verify it: arena keys collide
+/// numerically across sibling nodes, so a mismatched pairing does not
+/// error — [`pick_face`] resolves the hit triangle's face key against
+/// the wrong node's table and answers a **plausible, confidently
+/// wrong name** (the failure a selection consumer cannot detect;
+/// same convention family as [`super::MeshPatchKey`]). Assemble raw
+/// targets only from state that carries the pairing — e.g. a cache
+/// keyed by ([`Evaluation::epoch`], node, body) holding the mesh and
+/// its index together — or use [`NodePick`], which establishes the
+/// pairing by construction and cannot be mis-assembled.
 #[derive(Clone, Copy)]
 pub struct PickTarget<'a> {
     /// The node whose evaluation produced the displayed body.
@@ -158,6 +189,133 @@ pub struct PickTarget<'a> {
     pub body: u32,
     /// The body's mesh index ([`MeshPick::build`]).
     pub pick: &'a MeshPick,
+}
+
+/// Typed failure of [`NodePick::build`] (closed; no silent lanes).
+#[derive(Debug, Clone, PartialEq)]
+pub enum NodePickError {
+    /// The node has no `Ok` value in this evaluation — the same
+    /// standing vocabulary [`pick_face`] answers.
+    Standing(HitTestError),
+    /// The node's value denotes no output body at all (datum,
+    /// profile, declarations, mate).
+    NotABody {
+        /// The non-body node.
+        node: RecipeNodeId,
+    },
+    /// The node's value has no output body at this index (out of
+    /// range, an empty boolean, or an empty split side).
+    NoSuchBody {
+        /// The queried node.
+        node: RecipeNodeId,
+        /// The absent output-body index.
+        body: u32,
+    },
+    /// Tessellation refused — the kernel's typed error, unaltered.
+    Tessellate(TessellateError),
+    /// The tessellated mesh failed indexing (corrupt back-references).
+    Index(MeshPickError),
+}
+
+/// A pick index whose `(node, body)` ↔ mesh pairing is TRUE BY
+/// CONSTRUCTION: [`NodePick::build`] fetches the body from the
+/// evaluation payload itself — through the same output-body indexing
+/// the name tables key by — then tessellates and indexes it in one
+/// call. The fields are private and there is no other constructor,
+/// so a `NodePick` cannot assert a pairing it does not have (the
+/// closure of [`PickTarget`]'s provenance contract).
+///
+/// The tessellated mesh rides along ([`NodePick::mesh`]) so a viewer
+/// can display exactly what it picks against — one tessellation, one
+/// source of truth. Cache a `NodePick` per displayed (node, body) and
+/// drop it when [`Evaluation::epoch`] moves.
+#[derive(Debug, Clone)]
+pub struct NodePick {
+    node: RecipeNodeId,
+    body: u32,
+    mesh: Mesh,
+    pick: MeshPick,
+}
+
+impl NodePick {
+    /// Tessellates and indexes output body `body` of `node` at
+    /// chordal tolerance `delta`, against `eval`'s own payload.
+    ///
+    /// # Errors
+    ///
+    /// [`NodePickError`], each arm typed: node standing, non-body or
+    /// absent-body payloads, tessellation refusals (unaltered), and
+    /// mesh-index refusals.
+    pub fn build(
+        eval: &Evaluation<f64>,
+        node: RecipeNodeId,
+        body: u32,
+        delta: f64,
+        tol: Tol,
+    ) -> Result<Self, NodePickError> {
+        let value = match eval.nodes.get(&node) {
+            Some(NodeResult::Ok(v)) => v,
+            Some(NodeResult::Failed(_)) => {
+                return Err(NodePickError::Standing(HitTestError::NodeFailed { node }));
+            }
+            Some(NodeResult::Poisoned { through }) => {
+                return Err(NodePickError::Standing(HitTestError::NodePoisoned {
+                    node,
+                    through: *through,
+                }));
+            }
+            None => {
+                return Err(NodePickError::Standing(HitTestError::NodeNotEvaluated {
+                    node,
+                }));
+            }
+        };
+        // The payload's body-denoting sources, tagged with the SAME
+        // output-body indices the node's name table keys its rows by
+        // (`product::sources_of` — the one shipped enumeration; using
+        // anything else here would re-mint the pairing this door
+        // exists to guarantee).
+        let Some(sources) = sources_of(value) else {
+            return Err(NodePickError::NotABody { node });
+        };
+        let Some((_, body_arc, _)) = sources.into_iter().find(|(ix, _, _)| *ix == body) else {
+            return Err(NodePickError::NoSuchBody { node, body });
+        };
+        let mesh = mesh::tessellate(&body_arc, delta, tol).map_err(NodePickError::Tessellate)?;
+        let pick = MeshPick::build(&mesh).map_err(NodePickError::Index)?;
+        Ok(Self {
+            node,
+            body,
+            mesh,
+            pick,
+        })
+    }
+
+    /// The pick target this index answers for — pre-paired, ready for
+    /// [`pick_face`].
+    pub fn target(&self) -> PickTarget<'_> {
+        PickTarget {
+            node: self.node,
+            body: self.body,
+            pick: &self.pick,
+        }
+    }
+
+    /// The tessellation this index was built from — the mesh to
+    /// display so that what is drawn is what is picked.
+    pub fn mesh(&self) -> &Mesh {
+        &self.mesh
+    }
+
+    /// The node this index answers for.
+    pub fn node(&self) -> RecipeNodeId {
+        self.node
+    }
+
+    /// The output-body index this index answers for.
+    pub fn body(&self) -> u32 {
+        self.body
+    }
 }
 
 /// A successful face pick: the stable name plus where and what was
@@ -318,14 +476,20 @@ pub fn pick_face<T: Decide>(
 /// an open boundary). A zero determinant (ray parallel to the plane,
 /// or a degenerate triangle) is a miss, as is any NaN anywhere: every
 /// acceptance condition is an affirmative comparison, which NaN
-/// fails — poisoned geometry is un-hittable, never mis-hit.
+/// fails — poisoned geometry is un-hittable, never mis-hit. A
+/// NON-FINITE `t` (the `e2·q × inv` product overflowing on a
+/// near-degenerate determinant) is refused by the final guard: a hit
+/// the service cannot place at a finite point is a miss, never a
+/// `PickHit` whose `point` would be `0 · ∞ = NaN`.
 fn ray_triangle(ray: &Ray, tri: &PickTri) -> Option<f64> {
     let e1: Vec3<f64> = tri.b - tri.a;
     let e2: Vec3<f64> = tri.c - tri.a;
     let p = ray.dir.cross(e2);
     let det = e1.dot(p);
     if det == 0.0 {
-        return None; // parallel or degenerate (NaN det also lands here via the comparisons below being false)
+        // Parallel or degenerate. (A NaN det passes THIS check and is
+        // refused two comparisons down, at `u_inside`.)
+        return None;
     }
     let inv = 1.0 / det;
     let s = ray.origin - tri.a;
@@ -341,6 +505,6 @@ fn ray_triangle(ray: &Ray, tri: &PickTri) -> Option<f64> {
         return None;
     }
     let t = e2.dot(q) * inv;
-    let forward = t >= 0.0;
-    forward.then_some(t)
+    let forward_and_finite = t >= 0.0 && t.is_finite();
+    forward_and_finite.then_some(t)
 }

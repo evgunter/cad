@@ -569,13 +569,12 @@ fn empty_inputs_answer_empty() {
 /// box at `t = 3.35e8` (`x = −1.65e308`, `y = 3.35e8`, `z = 0`), yet
 /// the query returns nothing.
 ///
-/// IGNORED, not red: this is a review finding, not an agreed contract
-/// change. Un-ignore it if the fix pass decides the contract holds at
-/// all finite magnitudes; delete it if the fix pass instead scopes the
-/// doc-comment to inputs where `bound − origin` and `1/d` stay in the
-/// normal range.
+/// Un-ignored by the fix pass: the contract now holds at all
+/// magnitudes (the slab test divides instead of multiplying by a
+/// reciprocal, and recomputes an overflowed subtraction exactly in
+/// halves — `ray.rs`, `slab_t`), so this row gates as the regression
+/// pin for the R2 witness.
 #[test]
-#[ignore = "R2 review finding: overflow in (bound - origin) prunes a true intersection"]
 fn overflow_in_the_slab_subtraction_drops_a_true_intersection() {
     let b = Aabb {
         min_x: -1.7e308,
