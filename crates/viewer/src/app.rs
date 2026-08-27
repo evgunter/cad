@@ -182,6 +182,10 @@ pub struct ViewerApp {
     /// A fit is owed, and will be taken by the viewport pane on the
     /// next frame — the only place that knows the real aspect.
     pending_fit: bool,
+    /// A fit is owed as soon as the NEXT rebuilt scene lands — set by
+    /// a successful `Open`, whose document arrives asynchronously, so
+    /// fitting immediately would frame the outgoing picture.
+    fit_on_scene: bool,
     /// The last thing that went wrong, kept so a refused operation is
     /// visible instead of silently dropped.
     status: Option<String>,
@@ -257,6 +261,7 @@ impl ViewerApp {
             tree: initial_layout(),
             drafts: Drafts::default(),
             pending_fit: true,
+            fit_on_scene: false,
             status: None,
         })
     }
@@ -308,6 +313,10 @@ impl ViewerApp {
             Ok(mesh) => {
                 self.scene = Arc::new(mesh);
                 self.revision = self.revision.wrapping_add(1);
+                if self.fit_on_scene {
+                    self.fit_on_scene = false;
+                    self.pending_fit = true;
+                }
                 // The gather's own verdict, computed once when the
                 // evaluation landed. A naming collision across roots is
                 // not a node failure, so no tree badge carries it and
@@ -360,8 +369,14 @@ impl ViewerApp {
             let mut performed: Vec<SessionOp> = Vec::with_capacity(ops.len());
             for op in ops {
                 performed.push(op.clone());
-                if let Some(next) = self.session.perform(op).refusal {
-                    refusal = Refusal::preferred(refusal, next);
+                let opened = matches!(op, SessionOp::Open(_));
+                match self.session.perform(op).refusal {
+                    Some(next) => refusal = Refusal::preferred(refusal, next),
+                    // A replaced document owes a re-frame — taken when
+                    // its scene actually lands, not on the outgoing
+                    // picture.
+                    None if opened => self.fit_on_scene = true,
+                    None => {}
                 }
             }
             frame::batch_status(&performed, refusal.as_ref())
@@ -1321,7 +1336,13 @@ fn to_f32(matrix: &[[f64; 4]; 4]) -> [[f32; 4]; 4] {
     matrix.map(|column| column.map(|value| value as f32))
 }
 
-/// Run the application.
+/// Run the application, optionally opening `open` at startup.
+///
+/// The path goes through [`SessionOp::Open`] — the same typed door
+/// the dialog feeds; a CLI argument is a way of choosing the `Path`,
+/// never a different code path. An open that refuses shows its typed
+/// refusal in the status line over the built-in startup document,
+/// exactly as a refused dialog open would.
 ///
 /// The depth buffer request is load-bearing — see `gpu`'s module docs.
 ///
@@ -1330,7 +1351,7 @@ fn to_f32(matrix: &[[f64; 4]; 4]) -> [[f32; 4]; 4] {
 /// `eframe`'s own startup error, or a [`StartupError`] boxed into it:
 /// a viewer that cannot build its scene reports why and exits rather
 /// than opening a window onto nothing.
-pub fn run(tol: Tol) -> eframe::Result<()> {
+pub fn run(tol: Tol, open: Option<std::path::PathBuf>) -> eframe::Result<()> {
     let options = eframe::NativeOptions {
         depth_buffer: DEPTH_BITS,
         ..Default::default()
@@ -1339,7 +1360,13 @@ pub fn run(tol: Tol) -> eframe::Result<()> {
         WINDOW_TITLE,
         options,
         Box::new(move |cc| {
-            let app = ViewerApp::new(cc, tol).map_err(|error| format!("{error:?}"))?;
+            let mut app = ViewerApp::new(cc, tol).map_err(|error| format!("{error:?}"))?;
+            if let Some(path) = open {
+                app.perform_batch(vec![SessionOp::Open(path)]);
+                // The opened document's scene lands asynchronously;
+                // re-frame when it does, not on the outgoing picture.
+                app.fit_on_scene = true;
+            }
             Ok(Box::new(app))
         }),
     )
