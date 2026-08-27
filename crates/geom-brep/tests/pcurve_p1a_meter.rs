@@ -14,7 +14,7 @@
 use geom::{Curve3, Surface};
 use geom_brep::{
     CertCheck, CertifyError, ChartWindow, EdgeCurve, EdgeCurveSpec, EdgeGeometry, PcurveCache,
-    chart_pcurve, implicit_residual,
+    PcurveCertifyError, PcurveCheck, chart_pcurve, implicit_residual,
 };
 use geom_core::{Band, Point3, Vec3};
 
@@ -148,13 +148,41 @@ fn the_cache_lane_already_imposed_the_collapsed_meter() {
     let d = 0.98 * ROW_EPS;
     let (cone, carrier, t0, t1) = cone_seam(alpha, d);
     let pcurve = chart_pcurve(&carrier, &cone, band()).expect("the cone ruling mints");
-    let cache = PcurveCache::certify(pcurve, t0, t1, &carrier, &cone, window(), band());
-    assert!(
-        cache.is_err(),
+    let err = PcurveCache::certify(pcurve, t0, t1, &carrier, &cone, window(), band()).expect_err(
         "the cache lane must already refuse the geometry the description lane now \
-         refuses — if it certifies, the collapse is imposing a NEW rule and the \
-         re-baseline argument is wrong"
+             refuses — if it certifies, the collapse is imposing a NEW rule and the \
+             re-baseline argument is wrong",
     );
+    // **The predicate identity IS the argument**, so it is asserted,
+    // not left to `is_err()`. "Both lanes refuse" would be satisfied
+    // by two lanes refusing for unrelated reasons; what makes the
+    // re-baseline a removal of disagreement rather than a new rule is
+    // that the cache lane refuses on the SAME metered statement, at
+    // the SAME magnitude, under the SAME predicate name.
+    match err {
+        PcurveCertifyError::Escalated { check, cause, .. } => {
+            assert_eq!(
+                check,
+                PcurveCheck::MapResidual,
+                "the cache lane's refusal must be the map residual, not another limb"
+            );
+            assert_eq!(
+                cause.predicate,
+                Some("pcurve_map_residual"),
+                "the same predicate the collapsed description arm now meters"
+            );
+            let geom_core::MarginDiag::Value(v) = cause.margin else {
+                panic!("an f64 lane classifies a value: {cause:?}");
+            };
+            let expected = d / alpha.cos();
+            assert!(
+                (v / expected - 1.0).abs() < 1e-6,
+                "the cache lane escalates at {v:e}, and d·sec α is {expected:e} — the \
+                 two lanes must be refusing the SAME magnitude, not merely both refusing"
+            );
+        }
+        other => panic!("expected the cache lane's map-residual escalation, got {other:?}"),
+    }
 }
 
 /// **What the collapsed meter is, positively**: an upper bound on the

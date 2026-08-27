@@ -417,6 +417,20 @@ impl core::fmt::Display for CertifyError {
                  carriers on Plane/Cylinder/Sphere pairs (classes retire one at a time, \
                  each with its proof; no runtime fallback)"
             ),
+            // The not-a-sample sentinel renders as words, not as
+            // 4294967295: a diagnostic whose whole purpose is to stop
+            // claiming a schedule point it never visited should not
+            // then print a number that looks like one. Sampled checks
+            // keep their exact wording — `step-import`'s tier gate
+            // pins the `sample 0` string, and it is still true there.
+            Self::Escalated {
+                check,
+                sample,
+                cause,
+            } if *sample == NOT_A_SAMPLE => write!(
+                f,
+                "certification: {check:?} (not a sampled check) escalated: {cause}"
+            ),
             Self::Escalated {
                 check,
                 sample,
@@ -2364,31 +2378,32 @@ mod tests {
     /// taken and says nothing about the meter; the sweep is what turns
     /// it into a measurement. Three decades, each pinned:
     ///
-    /// | drift (m) | cylinder-seam | plane-iso-offset-t0 | mapped-line |
-    /// |---|---|---|---|
-    /// | 2.5e-7  | 293 601 280 | 0 | 0 |
-    /// | 2.5e-10 | 0 | 1 907 | 0 |
-    /// | 2.5e-13 | 0 | 1 952 950 996 | 0 |
+    /// | drift (m) | cylinder-seam | mapped-line (control) |
+    /// |---|---|---|
+    /// | 2.5e-7  | 293 601 280 | 0 |
+    /// | 2.5e-10 | 0 | 0 |
+    /// | 2.5e-13 | 0 | 0 |
     ///
-    /// **The deltas are not scale-invariant, and the two arms move in
-    /// OPPOSITE directions with scale.** Neither column may be read as
-    /// a statement about its meter: "the seam arm does not move" is
-    /// true only below the coarse decade, and "the iso move is ~1e-21
-    /// m" is true only at the middle one. Any claim about the size of
-    /// the move is a claim about a scale, and this table is the only
-    /// support for one.
+    /// **The seam column is not scale-invariant**, so it may not be
+    /// read as a statement about its meter: "the seam arm does not
+    /// move" is true only below the coarse decade. Any claim about the
+    /// size of the move is a claim about a scale, and this table is
+    /// the only support for one.
     ///
-    /// The iso column's mechanism is derived: the residual is
-    /// `√(drift² + dv²)` with `dv` at the last-bit scale, so the
-    /// relative move goes as `dv²/(2·drift²)` and grows as the drift
-    /// shrinks. **The seam column's is NOT derived here** — the arm is
+    /// The mechanism is **not derived here** — the arm is
     /// bitwise-identical at both fine decades and moves only at the
-    /// coarse one, which is the signature of a cancellation floor
-    /// rather than of the collapse. The seam meter's behaviour across
-    /// CHART KINDS (a cone's implicit residual measures the
-    /// perpendicular distance to the generator where `|C − S(P)|`
-    /// measures the radial chord — a change of QUANTITY, not of bits)
-    /// is a separate finding and is not what this table measures.
+    /// coarse one, which is the signature of a cancellation floor in
+    /// the legacy `|radial| − r` rather than of the collapse.
+    ///
+    /// **What this table does NOT measure**, named so it is not
+    /// over-read. Not the iso arm: that arm moves in the parameter
+    /// ANCHOR, not in the drift, and is swept by
+    /// [`d2_iso_move_is_unbounded_in_the_anchor_offset`] at zero
+    /// drift. Not the seam meter across CHART KINDS: a cone's
+    /// implicit residual reads the perpendicular distance to the
+    /// generator where `|C − S(P)|` reads the radial chord — a change
+    /// of QUANTITY, `sec α`, measured in `tests/r2_probes.rs` and
+    /// disposed of at the Chart arm.
     ///
     /// The mapped-line column is the control: the fenced scaffolding
     /// arm's meter is untouched by the collapse, so it must read zero
@@ -2451,19 +2466,56 @@ mod tests {
     ///
     /// Demonstrated rather than hoped: a mutant that makes the
     /// collapsed meter reproduce the legacy `v0 + (v1 − v0)·frac`
-    /// fails the anchor sweep below, and mutants that re-associate
-    /// `v0 − slope·t0` fail here.
+    /// fails the anchor sweep below, and all three known
+    /// re-associations of `v0 − slope·t0` fail here.
+    ///
+    /// **Two of those three were once recorded as "no-ops", wrongly.**
+    /// They were checked against the four round anchors this row
+    /// started with, agreed at all four, and were written up as
+    /// bitwise-identical. They are not: one separates at ~50 % of
+    /// anchors and the other at ~1.2 %. The separating anchors are
+    /// pinned below for that reason, and the episode is recorded
+    /// rather than quietly repaired — a false "we checked, it was a
+    /// no-op" in the record is worse than an unexamined mutant,
+    /// because it tells the next reader not to look.
     #[test]
     fn d2_the_mint_arithmetic_is_pinned_in_bits() {
-        // Every anchor of the sweep, not one: a re-association can be
-        // bitwise-identical at some anchors and not others, so a
-        // single-anchor pin is a tripwire with gaps. Measured — the
-        // `v1 − slope·t1` mutant differs ONLY at 1.7 among these four.
-        const PINNED: [(f64, u64, u64); 4] = [
+        // **One anchor per mutant FAMILY, chosen by separation rather
+        // than by roundness.** A re-association can be
+        // bitwise-identical at some anchors and different at others,
+        // so the anchors are not decoration — each is here because a
+        // known mutant survives without it:
+        //
+        // - `1.7` separates `v1 − slope·t1` (the far-endpoint anchor),
+        //   which is identical at every other entry;
+        // - `84871.995…` separates `(v0·L − (v1−v0)·t0)/L` (the
+        //   algebraic re-expression), which agrees at 0, 1.7, 1e3 and
+        //   1e6 and separates at roughly HALF of random anchors;
+        // - `4824.781…` separates the reciprocal-slope form
+        //   `v0 − (v1−v0)·(1/L)·t0`, which separates at only ~1.2 % of
+        //   anchors and so is the easiest of the three to miss.
+        //
+        // The last two were found by a reviewer executing mutants this
+        // row's author had asserted were no-ops. They were not: they
+        // coincided at the four anchors originally pinned. A tripwire
+        // is only as wide as the cases it was checked against, and
+        // "we tried it and nothing moved" is exactly what a too-narrow
+        // one reports.
+        const PINNED: [(f64, u64, u64); 6] = [
             (0.0, 0x3fc0_a3d7_0a3d_70a4, 0x3fd5_5555_5555_5556),
             (1.7, 0xbfdb_f258_bf25_8bf4, 0x3fd5_5555_5555_5556),
             (1.0e3, 0xc074_d340_da74_0d68, 0x3fd5_5555_5555_5514),
             (1.0e6, 0xc114_5854_d037_9507, 0x3fd5_5555_5556_5965),
+            (
+                84_871.995_158_921_64,
+                0xc0db_a0a2_3e4e_7fe9,
+                0x3fd5_5555_5555_1451,
+            ),
+            (
+                4_824.781_053_628_38,
+                0xc099_2085_7ac9_91b5,
+                0x3fd5_5555_5555_5145,
+            ),
         ];
         let measured: Vec<(f64, u64, u64)> = PINNED
             .iter()
