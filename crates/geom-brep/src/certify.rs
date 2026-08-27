@@ -526,9 +526,17 @@ pub struct Certificate<T: Real> {
     /// The sample count of the schedule that ran ([`CERT_SAMPLES`]).
     pub samples: u32,
     /// The maximum magnitude over every classified **distance** residual
-    /// (endpoint, surface, mapped-source, seam checks; transversality
-    /// margins are clearance margins, not residuals, and are excluded).
-    /// Certified ≤ ε by construction.
+    /// (endpoint, surface, scaffolding-source, chart and seam-obligation
+    /// checks; transversality margins are clearance margins, not
+    /// residuals, and are excluded). Certified ≤ ε by construction.
+    ///
+    /// **This number may MOVE at the conventional arms across the U2
+    /// collapse** (D2): the three pre-collapse forms did not measure
+    /// the same thing, and a `Pcurve` is a function of the carrier's
+    /// own parameter where the iso arm's `v` walked the schedule
+    /// fraction. The move is measured per fixture and pinned — see
+    /// `D2_SEAM_ULPS` / `D2_ISO_ULPS` in this module's tests — never
+    /// laundered by re-associating a meter to make a number match.
     pub max_residual: T,
 }
 

@@ -6,6 +6,8 @@
 //! ε-row for the new door — its three outcomes, each drawn rather
 //! than asserted.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use core::f64::consts::FRAC_1_SQRT_2;
 use std::sync::Arc;
 
