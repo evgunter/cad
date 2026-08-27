@@ -439,8 +439,16 @@ fn definite_diag<T: Bounds>(
 }
 
 /// **The predicate** (module docs): trilean-honest trim-region overlap
-/// of two faces on one structurally-identified chart. Pass the same
+/// of two faces on one STRUCTURALLY-identified chart. Pass the same
 /// `&Body` twice for the at-rest (one-body) site.
+///
+/// This is the structural door and it stays structural: a pair with no
+/// shared `SurfaceKey` and no shared `GeomSource` gets
+/// [`ChartRegionError::ChartDivergence`] here however coincident its
+/// geometry looks, because value equality never glues (F6). A pair
+/// whose chart authority is a VERIFIED DECLARATION is a different
+/// question, asked at [`declared_pair_overlap`] — which asks this one
+/// first.
 ///
 /// # Errors
 ///
