@@ -298,11 +298,17 @@ impl DocSession {
         self.generation
     }
 
-    /// Whether a result is outstanding — what the busy indicator
-    /// reads. A VALUE the chrome consumes, not a spinner the seam
-    /// draws.
+    /// Whether the result on screen answers a document the session has
+    /// already moved past — what the busy indicator reads. A VALUE the
+    /// chrome consumes, not a spinner the seam draws.
+    ///
+    /// Defined against the SESSION's own two generations rather than
+    /// by asking the seam whether it has work: those agree whenever
+    /// the seam is the only source of results, and where they differ
+    /// this is the honest one. "Am I showing the current document" is
+    /// the question a busy indicator answers.
     pub fn busy(&self) -> bool {
-        self.eval.busy() || self.landed_generation != Some(self.generation)
+        self.landed_generation != Some(self.generation)
     }
 
     /// The feature tree's rows for the shown document.
