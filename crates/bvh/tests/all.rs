@@ -39,6 +39,8 @@
 mod aggregator_headers;
 #[path = "determinism.rs"]
 mod determinism;
+#[path = "ray.rs"]
+mod ray;
 
 /// Guards the `autotests = false` hazard: a suite file added to `tests/`
 /// but not declared above would silently stop being compiled and run.

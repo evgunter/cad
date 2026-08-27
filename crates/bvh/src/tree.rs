@@ -5,6 +5,7 @@
 //! superset contract) and return candidates in ascending input order.
 
 use crate::aabb::{Aabb, Axis};
+use crate::ray::{Ray, RayCandidate};
 
 /// The fixed leaf-size constant (C10: named, fixed, not tuned): a
 /// range of at most this many items becomes a leaf.
@@ -134,6 +135,67 @@ impl Bvh {
         // Each item lives in exactly one leaf, so this is a
         // permutation sort, never a dedup.
         out.sort_unstable();
+        out
+    }
+
+    /// All input indices whose item box the ray may intersect over
+    /// `t ∈ [0, ∞)` — the viewport-picking query (crate docs).
+    ///
+    /// Conservative by [`Ray::slab_enter`]: a returned candidate may
+    /// be a miss (the consumer re-tests exactly), but a leaf whose box
+    /// the ray truly intersects is never dropped — poison boxes and
+    /// poison rays are always candidates. Node hulls only prune:
+    /// each per-axis hull interval contains the corresponding item
+    /// interval (the slab arithmetic is monotone in the bounds, NaN
+    /// axes are skipped on both, and hulls propagate item NaN), so a
+    /// hull prune never drops an item its own slab test would accept —
+    /// the result is a function of the item boxes only, independent of
+    /// tree shape.
+    ///
+    /// **Candidate order (documented contract)**: ascending
+    /// [`RayCandidate::t_enter`] under `f64::total_cmp`, ties broken
+    /// by ascending input index. `t_enter` is never NaN (the slab fold
+    /// starts at `0.0` and only ever takes non-NaN bounds), so
+    /// `total_cmp` agrees with the naive order and is used purely to
+    /// keep the sort total by construction. Same query, same tree ⇒
+    /// bit-identical output (the crate's determinism posture).
+    pub fn ray(&self, ray: &Ray) -> Vec<RayCandidate> {
+        let mut out = Vec::new();
+        // Same fixed traversal shape as `overlapping`; order is
+        // irrelevant to the sorted result but fixed anyway (D9
+        // discipline).
+        let mut stack = Vec::new();
+        if !self.nodes.is_empty() {
+            stack.push(0usize);
+        }
+        while let Some(idx) = stack.pop() {
+            let Some(node) = self.nodes.get(idx) else {
+                // Unreachable: child indices are minted by the build.
+                continue;
+            };
+            match node {
+                Node::Leaf { start, count, aabb } => {
+                    if ray.slab_enter(aabb).is_none() {
+                        continue;
+                    }
+                    for &item in self.items.iter().skip(*start).take(*count) {
+                        if let Some(t_enter) =
+                            self.boxes.get(item).and_then(|b| ray.slab_enter(b))
+                        {
+                            out.push(RayCandidate { item, t_enter });
+                        }
+                    }
+                }
+                Node::Inner { right, aabb } => {
+                    if ray.slab_enter(aabb).is_none() {
+                        continue;
+                    }
+                    stack.push(*right);
+                    stack.push(idx + 1);
+                }
+            }
+        }
+        out.sort_unstable_by(|a, b| a.t_enter.total_cmp(&b.t_enter).then(a.item.cmp(&b.item)));
         out
     }
 }
