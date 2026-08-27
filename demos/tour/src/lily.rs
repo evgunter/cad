@@ -262,8 +262,9 @@ fn tube_arc<S: Scalar>(spec: ArcSpec, tube: f64, tol: Tol) -> (Body<S>, WedgeFra
 /// the centre and at `mouth` below it, then closed by a conical pucker
 /// of drop `lip_drop` down to a disk of radius `lip_r` — the three
 /// tepal tips meeting under the lantern. Above the zone it opens
-/// through a NECK cone to a throat disk of radius `neck_r`, the
-/// stem tube's own radius.
+/// through a NECK cone — `neck` is that cone's throat radius (the
+/// stem tube's own) and its half-angle — to a throat disk sitting in
+/// the attachment plane.
 ///
 /// Faces: throat plane, neck cone, sphere zone, pucker cone, mouth
 /// plane. Every one exact; the profile is authored centre-first
@@ -274,23 +275,20 @@ fn tube_arc<S: Scalar>(spec: ArcSpec, tube: f64, tol: Tol) -> (Body<S>, WedgeFra
 /// centre is CHECKED — this profile derives both radii from the
 /// sphere, so it passes by construction and would refuse loudly if it
 /// ever stopped doing so.
-/// How far a **neck** cone rises above the globe's truncation circle
-/// to reach the throat radius `neck_r`.
+/// How far a **neck** cone of half-angle `half_angle` rises above the
+/// globe's truncation circle to reach the throat radius `neck_r`.
 ///
-/// The neck is the globe's OWN tangent cone at the truncation circle:
-/// in the meridian the tangent to the belly at `(r_top, ·)` has
-/// `dr/dt = top / r_top`, so the throat sits this far above the
-/// shoulder and the neck leaves the belly G1. The cone's apex is then
-/// at `globe²/top` from the globe centre — the truncation plane's
-/// pole in the sphere — so the throat radius, the shoulder radius and
-/// the apex are one closed form and not three chosen numbers.
+/// The neck spans two radii the flower already has — the shoulder's
+/// `r_top` and the throat's `neck_r`, which is the stem tube's — so a
+/// half-angle is the whole of what is left to choose, and the drop
+/// follows: `(r_top − neck_r) / tan α`.
 ///
 /// One expression because two callers need the same number: the
 /// [`meridian`] that draws the cone, and the placement that has to
 /// know where the globe centre ended up with a neck in front of it.
-fn neck_drop(globe: f64, top: f64, neck_r: f64) -> f64 {
+fn neck_drop(globe: f64, top: f64, neck_r: f64, half_angle: f64) -> f64 {
     let r_top = (globe.powi(2) - top.powi(2)).sqrt();
-    r_top * (r_top - neck_r) / top
+    (r_top - neck_r) / half_angle.tan()
 }
 
 /// The lantern/bud **meridian**: the closed profile a flower or a
@@ -300,32 +298,33 @@ fn neck_drop(globe: f64, top: f64, neck_r: f64) -> f64 {
 /// segments are the same shape said three times and not a re-typed
 /// near-copy.
 ///
-/// `neck_r` is what a flower welded to a TUBE needs and a bud on a
-/// tripod cannot use. With it the profile opens at a throat disk of
-/// that radius and rises to the shoulder along a [`neck_drop`] cone,
-/// so the revolved body's topmost curved wall is a cone whose rim
-/// circle is a circle of radius `neck_r` about the flower axis, in
-/// the plane through the attachment point — which is exactly a tube's
-/// meridian circle at the station whose tangent that axis is. Without
-/// it the profile opens flat at `r_top`: the attachment disk a bud's
-/// tepal is truncated by, whose three tilted axes have no such
-/// station to share.
+/// `neck` — the throat radius and the neck cone's half-angle — is
+/// what a flower welded to a TUBE needs and a bud on a tripod cannot
+/// use. With it the profile opens at a throat disk of that radius and
+/// rises to the shoulder along a [`neck_drop`] cone, so the revolved
+/// body's topmost curved wall is a cone whose rim circle is a circle
+/// of the throat radius about the flower axis, in the plane through
+/// the attachment point — which is exactly a tube's meridian circle
+/// at the station whose tangent that axis is. Without it the profile
+/// opens flat at `r_top`: the attachment disk a bud's tepal is
+/// truncated by, whose three tilted axes have no such station to
+/// share.
 fn meridian<S: Scalar>(
     globe: f64,
     top: f64,
     mouth: f64,
     lip_r: f64,
     lip_drop: f64,
-    neck_r: Option<f64>,
+    neck: Option<(f64, f64)>,
     tol: Tol,
 ) -> ProfileLoop<S> {
     let r_top = (globe.powi(2) - top.powi(2)).sqrt();
     let r_mouth = (globe.powi(2) - mouth.powi(2)).sqrt();
-    let shoulder = neck_r.map_or(0.0, |nr| neck_drop(globe, top, nr));
+    let shoulder = neck.map_or(0.0, |(nr, a)| neck_drop(globe, top, nr, a));
     let t_mouth = shoulder + top + mouth;
     let t_end = t_mouth + lip_drop;
-    let opening = match neck_r {
-        Some(nr) => Open
+    let opening = match neck {
+        Some((nr, _)) => Open
             .at(p2(0.0, 0.0))
             .line_to(p2(nr, 0.0), tol)
             .expect("lantern throat disk")
@@ -365,7 +364,7 @@ fn lantern<S: Scalar>(
     mouth: f64,
     lip_r: f64,
     lip_drop: f64,
-    neck_r: f64,
+    neck: (f64, f64),
     tol: Tol,
 ) -> Body<S> {
     // Sketch frame: origin at the attachment point, v along the
@@ -384,7 +383,7 @@ fn lantern<S: Scalar>(
                 mouth,
                 lip_r,
                 lip_drop,
-                Some(neck_r),
+                Some(neck),
                 tol,
             )],
             tol,
@@ -1236,6 +1235,26 @@ const FLOWER_TOP: f64 = 0.40;
 /// number is how the scene says so.
 const ARCH_R: f64 = 0.052;
 
+/// The flower's NECK cone, as its half-angle from the flower axis.
+/// With the two radii the neck spans already fixed — the shoulder's
+/// `sqrt(FLOWER_GLOBE² − FLOWER_TOP²)` and the throat's [`ARCH_R`] —
+/// this one angle fixes the whole neck.
+///
+/// **Why an authored angle rather than the globe's own TANGENT cone**,
+/// which is the derivation that suggests itself (α = atan(top/r_top)
+/// = 65.38°, apex at the truncation plane's pole in the sphere, a G1
+/// shoulder). Two reasons, and the first is a live refusal: the
+/// authoring algebra will not take a leg that departs along its
+/// predecessor's tangent when the departure is spelled in COORDINATES
+/// — `PathError::JunctionTangent`, one recourse named, the structural
+/// `.tangent()` verb (pinned by
+/// `review_probes::the_globes_tangent_cone_neck_is_refused_by_the_junction_gate`).
+/// The second is the shape: 70° sits INSIDE the tangent cone, so the
+/// shoulder is a real convex crease where the globe meets its neck,
+/// which is what a nodding *Calochortus* has and a G1 blend would
+/// erase.
+const FLOWER_NECK_HALF_ANGLE: f64 = 70.0 * PI / 180.0;
+
 const GREEN_STEM: [f64; 3] = [0.36, 0.52, 0.30];
 const GREEN_LEAF: [f64; 3] = [0.44, 0.62, 0.34];
 /// *C. pulchellus* is the YELLOW fairy lantern — clear lemon, not the
@@ -1328,7 +1347,8 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
     // body, so a sepal standing there would be tangent to a surface
     // that is not there. 38 degrees puts them on the shoulder of the
     // globe.
-    let flower_globe_depth = neck_drop(FLOWER_GLOBE, FLOWER_TOP, ARCH_R) + FLOWER_TOP;
+    let flower_globe_depth =
+        neck_drop(FLOWER_GLOBE, FLOWER_TOP, ARCH_R, FLOWER_NECK_HALF_ANGLE) + FLOWER_TOP;
     // The BUD: three pre-tepals, not a small flower. A much smaller
     // globe and a much skinnier, longer pucker than the open lantern's
     // — an unopened Calochortus is mostly taper.
@@ -1425,7 +1445,7 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
                 0.36,
                 0.09,
                 0.16,
-                ARCH_R,
+                (ARCH_R, FLOWER_NECK_HALF_ANGLE),
                 tol,
             ),
             caps: None,
@@ -2392,7 +2412,7 @@ mod review_probes {
     /// The flower's globe centre: P2 (the arch's own last spine
     /// point, since the flower is welded there and not set back) plus
     /// the neck's drop plus `FLOWER_TOP` along T2.
-    const SPHERE1_C: (f64, f64) = (-2.364270479158321, 0.7821480798576109);
+    const SPHERE1_C: (f64, f64) = (-2.3668444700923885, 0.7942577551075498);
 
     /// One of the tube's two JOINT FRAMES passes through world point
     /// `p` (xz-plane) with normal parallel to `t` — i.e. the tube's
@@ -2568,6 +2588,58 @@ mod review_probes {
         );
     }
 
+    /// **A live refusal, banked where it was met.** The neck a
+    /// derivation would pick is the globe's own TANGENT cone at the
+    /// truncation circle — half-angle `atan(top / r_top)`, a G1
+    /// shoulder, apex at the truncation plane's pole in the sphere.
+    /// The authoring algebra will not take it: a leg whose departure
+    /// is spelled in COORDINATES and lands within ε of the incoming
+    /// tangent is `PathError::JunctionTangent`, and the refusal names
+    /// its one recourse — say the tangency STRUCTURALLY, with the
+    /// `.tangent()` verb, which makes it exact by construction rather
+    /// than by arithmetic that happens to agree.
+    ///
+    /// So this is not a gap: it is the algebra declining to infer an
+    /// intent it has a door for. The scene does not walk through that
+    /// door because it does not want a G1 shoulder
+    /// ([`FLOWER_NECK_HALF_ANGLE`]); the refusal is pinned here so
+    /// that reasoning stays checkable and the margin stays visible.
+    #[test]
+    fn the_globes_tangent_cone_neck_is_refused_by_the_junction_gate() {
+        let tol = Tol::witness();
+        let (globe, top) = (FLOWER_GLOBE, FLOWER_TOP);
+        let r_top = (globe.powi(2) - top.powi(2)).sqrt();
+        // The tangent cone's own half-angle, and the drop that follows.
+        let tangent_alpha = (top / r_top).atan();
+        let drop = neck_drop(globe, top, ARCH_R, tangent_alpha);
+        let out = p2::<f64>(0.0, 0.0);
+        let refusal = Open
+            .at(out)
+            .line_to(p2(ARCH_R, 0.0), tol)
+            .expect("throat disk")
+            .line_to(p2(r_top, drop), tol)
+            .expect("the tangent neck's own leg authors fine")
+            .arc_to(
+                Center {
+                    c: p2(0.0, drop + top),
+                    winding: ArcSweep::Ccw,
+                    p: p2((globe.powi(2) - 0.36_f64.powi(2)).sqrt(), drop + top + 0.36),
+                },
+                tol,
+            )
+            .expect_err("a tangent belly departure is refused");
+        println!("the tangent-cone neck answers {refusal:?}");
+        assert!(
+            matches!(
+                refusal,
+                pncad::profile::PathError::JunctionTangent { margin, arm }
+                    if margin.abs() < 1e-15 && arm > 0.1
+            ),
+            "the tangent neck must refuse as JunctionTangent with a vanishing \
+             turn margin on a real lever arm: {refusal:?}"
+        );
+    }
+
     /// The re-authored lantern's CENSUS and its exact mass, against
     /// the closed form of the solid of revolution it is.
     ///
@@ -2594,7 +2666,7 @@ mod review_probes {
         println!("lantern census (shells, faces, edges, vertices) = {census:?}");
         assert_eq!(census, (1, 10, 20, 12), "the re-authored lantern's census");
         let props = pncad::topo::mass_properties(lant, Tol::witness()).expect("mass properties");
-        let exact = 0.3651461718270886;
+        let exact = 0.36455193285177373;
         assert!(
             (props.volume - exact).abs() < 1e-12,
             "lantern volume {} vs the closed form {exact}",
@@ -2647,14 +2719,18 @@ mod review_probes {
         // derived from the same numbers the profile is drawn from
         // rather than transcribed:
         //   π[r²(a+b) − (a³+b³)/3] + π·h(R² + Rρ + ρ²)/3 per frustum.
-        // It comes to 0.3651461718270886 m³.
+        // It comes to 0.36455193285177373 m³.
         let (globe, top, mouth, lip_r, lip_drop): (f64, f64, f64, f64, f64) =
             (FLOWER_GLOBE, FLOWER_TOP, 0.36, 0.09, 0.16);
         let r_top = (globe.powi(2) - top.powi(2)).sqrt();
         let r_mouth = (globe.powi(2) - mouth.powi(2)).sqrt();
         let frustum = |h: f64, r0: f64, r1: f64| PI * h * r0.mul_add(r1, r0 * r0 + r1 * r1) / 3.0;
         let exact = PI * (globe.powi(2) * (top + mouth) - (top.powi(3) + mouth.powi(3)) / 3.0)
-            + frustum(neck_drop(globe, top, ARCH_R), ARCH_R, r_top)
+            + frustum(
+                neck_drop(globe, top, ARCH_R, FLOWER_NECK_HALF_ANGLE),
+                ARCH_R,
+                r_top,
+            )
             + frustum(lip_drop, r_mouth, lip_r);
         for (delta, lo, hi) in [(5e-3, 0.0120, 0.0130), (2e-3, 0.0050, 0.0056)] {
             let m = pncad::mesh::tessellate(body(&ps, "lily_lantern"), delta, Tol::witness())
