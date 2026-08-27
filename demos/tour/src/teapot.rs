@@ -67,10 +67,16 @@
 //!    revolve mints one only from an ANNULAR profile; a profile that
 //!    touches the axis mints half-walls whose rims are two open arcs.
 //!    So the lid is bored — a vent through the finial, which is a real
-//!    teapot's answer as well as the kernel's — and the pot beside it,
-//!    which touches the axis at both ends, has no filletable rim
-//!    anywhere on it. The register's ARMS-1 row states this bound; the
-//!    scene is where a part met it while trying to be a part.
+//!    teapot's answer as well as the kernel's. What is measured HERE is
+//!    the positive half: the bored lid's knob rim is a closed edge and
+//!    it rolls, with the band's census and its two tangency lines
+//!    checked below. The negative half is measured ELSEWHERE and cited
+//!    rather than re-asserted — `verbs_arms1_r1_probes::the_unbored_
+//!    hemisphere_equator_refuses_typed` is the axis-touching profile's
+//!    own pin, and the register's ARMS-1 row states the bound. The
+//!    scene is where a PART met it while trying to be a part: the pot
+//!    touches the axis at both ends, so nothing on it is a candidate
+//!    and the lid had to be bored to have one.
 //! 4. **The teapot is four solids because the operand gate has no arm
 //!    for either join.** handle ∪ pot is torus × cylinder; spout ∪ pot
 //!    is cone × plane. Both refuse `CurvedPairUnsupported`, pinned in
