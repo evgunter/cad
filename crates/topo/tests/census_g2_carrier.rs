@@ -354,8 +354,26 @@ fn both_orders(a: &Body<f64>, b: &Body<f64>) -> (String, String) {
 #[test]
 fn the_verdict_is_argument_order_symmetric_under_rotation() {
     let base = slab(1.0);
+    let eps = Tol::witness().eps();
+    // The angle list is NOT all coarse. Three of these are ε-relative
+    // near-parallel angles, and they are the regime the one-sided lever
+    // actually broke in: at a coarse angle the determinant is definite
+    // whichever length levers it, so a battery of coarse rotations is
+    // wide and shallow and passes a predicate that is wrong. `10ε` and
+    // `100ε` at a 20:1 edge-length ratio put the two one-sided margins
+    // on opposite sides of the band.
+    let near = [
+        (2.0 * eps).atan().to_degrees(),
+        (10.0 * eps).atan().to_degrees(),
+        (100.0 * eps).atan().to_degrees(),
+    ];
+    let mut angles = vec![0.0, 1.0, 7.0, 17.0, 30.0, 45.0, 63.5, 89.0, 91.0, 137.0];
+    angles.extend(near);
+    // And the 90°-neighbourhood of each near-parallel angle, where the
+    // SHORT edge is the near-parallel partner rather than the long one.
+    angles.extend(near.iter().map(|a| 90.0 - a));
     let mut checked = 0usize;
-    for &deg in &[0.0, 1.0, 7.0, 17.0, 30.0, 45.0, 63.5, 89.0, 91.0, 137.0] {
+    for &deg in &angles {
         for &(w, d) in &[(1.0, 1.0), (0.05, 0.05), (0.9, 0.05), (0.05, 0.9)] {
             for &(tx, ty) in &[(0.0, 0.0), (0.3, 0.2), (0.5, 0.5), (0.95, 0.0)] {
                 let b = turned_plate(w, d, deg, tx, ty);
@@ -369,7 +387,7 @@ fn the_verdict_is_argument_order_symmetric_under_rotation() {
             }
         }
     }
-    assert_eq!(checked, 160, "the battery is the size it says it is");
+    assert_eq!(checked, 256, "the battery is the size it says it is");
 }
 
 /// INVARIANT, the R1 probe that found the defect, kept as a row: a SHORT

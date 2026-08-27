@@ -1634,10 +1634,21 @@ struct Crossing<T: Decide> {
 ///   maps `(t, |r|)` to `(u, |s|)` and back, so the four clearances
 ///   are the same MULTISET and the `Negative`/`Zero`/in-band reads
 ///   over them are unchanged;
+/// - `chart_region_cross_order` already was too, and is the pattern
+///   the parallel row should have followed from the start: it decides
+///   BOTH sides' orders, each levered by its own edge, and requires
+///   both — a conjunction over an unordered pair;
 /// - `chart_region_collinear_overlap` measures the two segments'
-///   shared span, which is the same interval intersection either way;
-///   the two frames' projections of it differ only at second order in
-///   the residual angle, itself already bounded by the parallel row.
+///   shared span, which is the same interval intersection either way.
+///   The two frames project it onto `r̂` and onto `ŝ`, so the lengths
+///   differ by a factor `cos θ` in the residual angle — and that angle
+///   is already bounded by the parallel row at `max(|r|, |s|)·sin θ ≤
+///   ε`, so the discrepancy is at most `overlap·θ²/2 ≤ ε²/(2·max(|r|,
+///   |s|))`. At the tightest ε the matrix runs that is below `1e-24 /
+///   |r|`, which no configuration can carry across a band edge. Left
+///   in that form deliberately: an exactly-symmetric projection would
+///   be new machinery bought for a residue twelve orders under the
+///   one it would protect.
 ///
 /// What is NOT claimed, and is the module's standing posture: the ray
 /// schedule in [`crate::ray_parity`] is fixed in CHART coordinates, so
@@ -1978,22 +1989,31 @@ fn overlap_of_regions<T: Decide + Bounds>(
             // it by vertex probes (cycle order, skipping on-boundary
             // vertices; a polygon with NO definite vertex has a
             // boundary coincident with the other's ⇒ touching).
-            match polygon_relation(&a.outer, &b.outer, band)? {
-                Some(PolyContainment::In) => (a.outer_2a, a.outer_p), // A ⊆ B
+            // ARGUMENT-ORDER INVARIANT (#1063 fix pass): BOTH relations
+            // are read before any verdict. Asking one and refusing on
+            // its `None` before the other was ever consulted made the
+            // refusal depend on which face the caller named first — the
+            // same one-sided shape as the crossing rows' lever, in the
+            // arm that decides `Empty`.
+            let ab = polygon_relation(&a.outer, &b.outer, band)?;
+            let ba = polygon_relation(&b.outer, &a.outer, band)?;
+            match (ab, ba) {
+                // Containment either way. Both arms hold only for
+                // coincident regions, where the two measures agree, so
+                // the precedence between them is not a choice.
+                (Some(PolyContainment::In), _) => (a.outer_2a, a.outer_p), // A ⊆ B
+                (_, Some(PolyContainment::In)) => (b.outer_2a, b.outer_p), // B ⊆ A
+                // Definitely disjoint, said by both descriptions.
+                (Some(_), Some(_)) => return Ok(ChartOverlap::Empty),
                 // Defense-in-depth (union fix U3), stated as the
-                // invariant it is: every A vertex ON B's boundary with
-                // ZERO proper crossings cannot occur without a
-                // `chart_region_cross_span` Zero having refused first
-                // (three adversarial witness constructions all hit
-                // TouchingBoundary at the crossing rows). If the arm
-                // is ever reached, the pair is a touching
-                // configuration — never Empty.
-                None => return Err(ChartRegionError::TouchingBoundary),
-                Some(_) => match polygon_relation(&b.outer, &a.outer, band)? {
-                    Some(PolyContainment::In) => (b.outer_2a, b.outer_p), // B ⊆ A
-                    Some(_) => return Ok(ChartOverlap::Empty),            // definitely disjoint
-                    None => return Err(ChartRegionError::TouchingBoundary),
-                },
+                // invariant it is: a polygon with no definite vertex
+                // against the other, at ZERO proper crossings, cannot
+                // occur without a `chart_region_cross_span` Zero having
+                // refused first (three adversarial witness
+                // constructions all hit TouchingBoundary at the
+                // crossing rows). If the arm is ever reached, the pair
+                // is a touching configuration — never Empty.
+                (None, _) | (_, None) => return Err(ChartRegionError::TouchingBoundary),
             }
         } else {
             let pieces = intersection_pieces(&a.outer, &b.outer, &crossings, band)?;
