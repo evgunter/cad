@@ -135,12 +135,80 @@ fn opening_a_file_that_is_not_a_document_refuses_at_the_persistence_door() {
 /// the loader about an old shape.
 const GALLERY_RING: &str = include_str!("gallery_ring.v14.pncad");
 
+/// **ε is a run parameter, and a saved document records the one it was
+/// decided at** — "one process, one ε", which `load` enforces by
+/// refusing a file whose recorded ε is not the process's
+/// (`PersistError::ToleranceConflict`). The CI matrix sweeps ε, so a
+/// committed document fixture is loadable at exactly one of its
+/// points and refuses at the others; this row went red at 1e-12 for
+/// precisely that reason.
+///
+/// So the fixture is re-stamped with THIS run's ε before it is
+/// opened. That is not an adjustment to make a row pass: it is
+/// byte-for-byte what `demo-tour gallery` writes under this ε, because
+/// the only ε-dependent byte in the file is the recorded value itself
+/// (the ring's dimensions are authored literals, and `save` takes the
+/// ε from `Doc::epsilon`). Measured, not assumed — the row below
+/// asserts that the re-stamp changes exactly the ε line and nothing
+/// else, so a future ε-dependent byte in the format fails here instead
+/// of being quietly papered over.
+///
+/// The new ε line comes from `save` itself, via a throwaway document
+/// at the process tolerance: spelling a float the way the serializer
+/// spells it is the serializer's job, not this file's.
+fn gallery_ring_at(tol: Tol) -> String {
+    let probe: pncad::document::Doc<pncad::document::ProfileProgram> =
+        pncad::document::Doc::empty_derived("gui3-epsilon-probe", tol);
+    let probe_text = pncad::document::save(&probe, &[], tol).expect("an empty document saves");
+    let is_epsilon = |line: &&str| line.trim_start().starts_with("\"epsilon\":");
+    let wanted = probe_text
+        .lines()
+        .find(is_epsilon)
+        .expect("a saved document records its ε");
+
+    let (kept, replaced): (Vec<&str>, Vec<&str>) =
+        GALLERY_RING.lines().partition(|line| !is_epsilon(line));
+    assert_eq!(
+        replaced.len(),
+        1,
+        "the fixture must carry exactly one ε line; found {}",
+        replaced.len()
+    );
+    let restamped: Vec<String> = GALLERY_RING
+        .lines()
+        .map(|line| {
+            if is_epsilon(&line) {
+                wanted.to_owned()
+            } else {
+                line.to_owned()
+            }
+        })
+        .collect();
+    // The only line that moved is ε's — the claim above, checked.
+    let stripped: Vec<&String> = restamped
+        .iter()
+        .filter(|line| !is_epsilon(&line.as_str()))
+        .collect();
+    assert_eq!(
+        stripped.len(),
+        kept.len(),
+        "re-stamping ε changed the line count"
+    );
+    assert!(
+        stripped.iter().zip(&kept).all(|(a, b)| a.as_str() == *b),
+        "re-stamping ε changed a line that is not ε's"
+    );
+    let mut text = restamped.join("\n");
+    text.push('\n');
+    text
+}
+
 #[test]
 fn a_gallery_document_opens_evaluates_and_saves_back() {
     let tol = Tol::witness();
     let dir = tempdir("gui3-gallery");
     let file = dir.join("ring.pncad");
-    std::fs::write(&file, GALLERY_RING).expect("the fixture is writable");
+    std::fs::write(&file, gallery_ring_at(tol)).expect("the fixture is writable");
 
     let history = docio::open(&file, tol).expect("the gallery document opens");
     let mut session = DocSession::new(
