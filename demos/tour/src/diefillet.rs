@@ -409,6 +409,15 @@ fn blank_volume() -> f64 {
         + (4.0 / 3.0) * PI * R.powi(3)
 }
 
+/// This scene's recipe, as a document the GUI can open.
+///
+/// The same `build` the stops walk, geometric selections and all: what
+/// a reader opens in the viewer is the document this scene renders,
+/// not a re-authoring of it.
+pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
+    build(tol).doc
+}
+
 pub fn stops(tol: Tol) -> Vec<Stop> {
     let die = build(tol);
     let ev = evaluate::<f64>(

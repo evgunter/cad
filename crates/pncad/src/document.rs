@@ -44,6 +44,22 @@ pub use editor_core::{
 // MATCH on it rather than pre-check the conditions it refuses.
 pub use editor_core::{Dimension, DimensionError, Expr, ParamEnv, ParseError, parse_expr};
 
+// The expression READ side: an expression's current value under a
+// document's parameter environment (`Doc::param_env`). A panel that
+// shows a slot before editing it needs this — `Expr::literal_value`
+// answers only for a bare literal, and a slot driven by
+// `width/2 - margin` has a value the consumer otherwise cannot obtain
+// without re-implementing the evaluator. `EvalError` rides along so a
+// slot whose value cannot be computed says which parameter is missing
+// rather than displaying a blank.
+//
+// Reached through the `expr` module path rather than through
+// `editor_core::eval`, which names BOTH the evaluation module and this
+// function: a bare `pub use editor_core::eval` would re-export the
+// module too, opening a second door onto the layer this list exists to
+// curate.
+pub use editor_core::expr::{EvalError, eval, eval_count};
+
 // Named document parameters.
 // `ParamName` is a parameter's name — a plain string newtype — and
 // `DocParam` its declared dimension plus exact stored value: recipe

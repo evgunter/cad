@@ -231,6 +231,62 @@ jobs:
       - name: admesh check (watertight/manifold, no repair accepted)
         run: scripts/check_admesh.sh target/stl-acceptance
 
+  # THE GUI TOOLKIT ROW, and the reason ci.yml is allowed to skip it.
+  #
+  # ci.yml compiles `viewer`'s `app` feature (eframe + wgpu + naga + winit,
+  # ~140 crates) only when the change filter's SEEDS intersect
+  # {viewer, pncad, bvh} — Evan's viewer-CI-posture ruling, docs/GUI-LOG.md
+  # 2026-08-27, "the GUI is treated as a third-party consumer of the API".
+  # That skip is sound for the class of breakage it was reasoned about
+  # (kernel changes reaching viewer through `pncad`'s re-exports, which
+  # viewer's ungated default-feature rows still catch) and NOT sound for the
+  # one it was not: TOOLKIT-DEPENDENCY DRIFT. A `cargo update`, an egui point
+  # release, a wgpu backend change — none of those touch a seed, and all of
+  # them can break this build.
+  #
+  # So the skipped coverage is re-taken here, ungated, once a day. The
+  # relationship is explicit in both directions: ci.yml's step comment names
+  # this row as what re-takes it, and this row exists for no other reason.
+  # If this job is ever deleted, ci.yml's gate becomes unsound and the
+  # comment there is the thread to pull.
+  #
+  # CLIPPY, NOT CHECK, and `--all-targets`: the same command ci.yml runs, so
+  # a nightly green means exactly what a gated green would have meant. It is
+  # a compile, not a run — there is no GPU or display on a runner, and the
+  # app half of this crate has never been executed anywhere (GUI-0's PR body
+  # says so; the maintainer-side first light is issue-tracked).
+  viewer-toolkit:
+    name: viewer app feature (eframe + wgpu)
+    runs-on: ubuntu-latest
+    needs: gate
+    if: needs.gate.outputs.run == 'true'
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
+      # local-scripts/ (the local half of the tooling split) and .claude/
+      # (agent session config: the SessionStart hook that provisions a
+      # Claude Code on the web container, and its settings). Deleting both
+      # here means a workflow that grows a reference to either fails
+      # loudly on the very next run instead of silently coupling the gate
+      # to a developer's machine or to an agent's container.
+      # This is also what lets scripts/ci-filter.py treat changes under
+      # either tree as non-triggering (its _is_docs).
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: clippy (viewer app feature - eframe + wgpu)
+        run: cargo clippy -p viewer --features app --all-targets -- -D warnings
+      # The rustdoc half of the same gate: ci.yml documents `viewer` at
+      # default features on a skipped run, so the app-gated modules' doc
+      # links are checked here instead.
+      - name: rustdoc (viewer, all features)
+        if: '!cancelled()'
+        run: cargo doc -p viewer --all-features --no-deps
+
   # THE WALL-CLOCK HALF OF THE OLD ci.yml JOB (M4 PR 8a spec D2, M4-PLAN F8).
   # It prints a per-document table (full rebuild + incremental recompute,
   # median of 5) and diffs it against the newest entry in the timing history,

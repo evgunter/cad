@@ -1,5 +1,7 @@
-//! The twelve `tests/all.rs` headers state the no-restated-count rule in
-//! ONE spelling, and none of them carries the retired one.
+//! Every aggregating `tests/all.rs` header states the no-restated-count
+//! rule in ONE spelling, and none of them carries the retired one.
+//! (The count of them is not written here either — this file's own
+//! subject is what a hand-written count of a compiler-known set is.)
 //!
 //! WHY THIS EXISTS. A count of a set the compiler already knows is a
 //! second, unchecked copy — and what is left to protect is not the
