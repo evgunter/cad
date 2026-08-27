@@ -1705,3 +1705,221 @@ mod tests {
         }
     }
 }
+
+/// R2 review probes (verbs/pierce-r2-probes): boundary attacks on the
+/// mid-anchored azimuth claim. Not for merge.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod r2_probes {
+    use core::f64::consts::{PI, TAU};
+
+    use geom_core::{Point3, Vec3};
+
+    use super::circle_split_param;
+
+    fn axis_aligned() -> (geom::Curve3<f64>, Point3<f64>) {
+        let center = Point3::new(1.0, 2.0, 3.0);
+        (
+            geom::Curve3::Circle {
+                center,
+                axis: Vec3::unit_z(),
+                radius: 1.5,
+                u_ref: Vec3::unit_x(),
+            },
+            center,
+        )
+    }
+
+    /// Reversed winding: the same locus with the axis flipped (deriv
+    /// reverses sign). The parameter must still be recovered on the
+    /// span's own period.
+    #[test]
+    fn r2_reversed_winding_recovers_the_parameter() {
+        let center = Point3::new(1.0, 2.0, 3.0);
+        let carrier = geom::Curve3::Circle {
+            center,
+            axis: -Vec3::unit_z(),
+            radius: 1.5,
+            u_ref: Vec3::unit_x(),
+        };
+        for (t0, t1) in [(0.0, PI), (-4.0, -1.0), (PI, 3.0 * PI)] {
+            for f in [0.1, 0.5, 0.9] {
+                let t = t0 + (t1 - t0) * f;
+                let got = circle_split_param(&carrier, center, t0, t1, carrier.eval(t));
+                assert!((got - t).abs() < 1e-12, "span ({t0},{t1}) at {t}: {got}");
+            }
+        }
+    }
+
+    /// A TINY span (1e-9 rad): the mid anchor's atan2 must still hand
+    /// back a parameter inside it, at full precision.
+    #[test]
+    fn r2_a_tiny_span_recovers_its_midpoint() {
+        let (carrier, center) = axis_aligned();
+        let (t0, t1) = (1.0, 1.0 + 1e-9);
+        let t = t0 + 0.5e-9;
+        let got = circle_split_param(&carrier, center, t0, t1, carrier.eval(t));
+        assert!((got - t).abs() < 1e-15, "got {got}");
+        assert!(got > t0 && got < t1, "got {got} outside ({t0},{t1})");
+    }
+
+    /// δ = ±π EXACTLY: a full-period span's endpoints are one point.
+    /// atan2's principal branch hands back +π (i.e. t1) — measure it,
+    /// and note the answer is an ENDPOINT either way, which
+    /// `split_edge`'s interiority trilean refuses typed. No silent
+    /// branch exists here.
+    #[test]
+    fn r2_the_exact_seam_point_maps_to_an_endpoint() {
+        let (carrier, center) = axis_aligned();
+        let (t0, t1) = (0.0, TAU);
+        let got = circle_split_param(&carrier, center, t0, t1, carrier.eval(t0));
+        // Principal branch: atan2(-0.0 or +0.0, -r²) — sign of zero decides.
+        assert!(
+            (got - t1).abs() < 1e-12 || (got - t0).abs() < 1e-12,
+            "seam point must land on an endpoint, got {got}"
+        );
+        println!("seam point parameter: {got} (t0={t0}, t1={t1})");
+    }
+
+    /// Measure the actual error against the "~1 ulp" claim over a
+    /// dense grid: prints the max relative error in ulps of the span.
+    #[test]
+    fn r2_measure_ulp_error() {
+        let (carrier, center) = axis_aligned();
+        let mut max_ulps: f64 = 0.0;
+        for (t0, t1) in [(0.0, PI), (2.5, 2.5 + TAU * 0.9), (-5.0, -2.0)] {
+            for i in 1..200 {
+                let t = t0 + (t1 - t0) * (i as f64) / 200.0;
+                let got = circle_split_param(&carrier, center, t0, t1, carrier.eval(t));
+                let ulp = t.abs().max(1.0) * f64::EPSILON;
+                max_ulps = max_ulps.max((got - t).abs() / ulp);
+            }
+        }
+        println!("max split-parameter error: {max_ulps} ulps");
+        assert!(max_ulps < 8.0, "error {max_ulps} ulps is not ~1 ulp");
+    }
+
+    /// The interval lane at the CUT: a point next to a full-period
+    /// span's seam must come back as a WIDE enclosure (the branch hull),
+    /// never a tight wrong-branch answer — this is the "widens instead
+    /// of mis-selecting" claim at its only dangerous input.
+    #[cfg(feature = "interval")]
+    #[test]
+    fn r2_interval_seam_neighbour_widens_rather_than_misselects() {
+        use geom_core::{Bounds, interval::Interval};
+
+        let center64 = Point3::new(1.0, 2.0, 3.0);
+        let carrier64 = geom::Curve3::Circle {
+            center: center64,
+            axis: Vec3::unit_z(),
+            radius: 1.5,
+            u_ref: Vec3::unit_x(),
+        };
+        let lift_p = |p: Point3<f64>| {
+            Point3::new(
+                Interval::from_f64(p.x),
+                Interval::from_f64(p.y),
+                Interval::from_f64(p.z),
+            )
+        };
+        let lift_v = |v: Vec3<f64>| {
+            Vec3::new(
+                Interval::from_f64(v.x),
+                Interval::from_f64(v.y),
+                Interval::from_f64(v.z),
+            )
+        };
+        let carrier = geom::Curve3::Circle {
+            center: lift_p(center64),
+            axis: lift_v(Vec3::unit_z()),
+            radius: Interval::from_f64(1.5),
+            u_ref: lift_v(Vec3::unit_x()),
+        };
+        for t in [1e-12, TAU - 1e-12] {
+            let p = carrier64.eval(t);
+            let got = circle_split_param(
+                &carrier,
+                lift_p(center64),
+                Interval::from_f64(0.0),
+                Interval::from_f64(TAU),
+                lift_p(p),
+            );
+            let truth = circle_split_param(&carrier64, center64, 0.0, TAU, p);
+            println!("t={t}: f64 {truth}, enclosure [{}, {}]", got.lo(), got.hi());
+            assert!(
+                got.lo() <= truth && truth <= got.hi(),
+                "t={t}: enclosure [{}, {}] excludes the f64 answer {truth}",
+                got.lo(),
+                got.hi()
+            );
+            // Either the enclosure is the branch hull (wide) or it is
+            // tight — but a TIGHT enclosure on the wrong branch is the
+            // failure. Wrong branch = excludes every representative of
+            // the true angle: check distance mod 2π instead.
+            let (lo, hi) = (got.lo(), got.hi());
+            let contains_mod = |x: f64| {
+                let mut k = x;
+                while k < lo - TAU {
+                    k += TAU;
+                }
+                while k > hi + TAU {
+                    k -= TAU;
+                }
+                (lo..=hi).contains(&k) || (lo..=hi).contains(&(k + TAU)) || (lo..=hi).contains(&(k - TAU))
+            };
+            assert!(contains_mod(t), "t={t} not represented in [{lo}, {hi}]");
+        }
+    }
+
+    /// The interval lane on an ORDINARY interior point of a
+    /// seam-adjacent span: the enclosure stays tight and strictly
+    /// inside — the widening is confined to the cut.
+    #[cfg(feature = "interval")]
+    #[test]
+    fn r2_interval_interior_points_stay_tight() {
+        use geom_core::{Bounds, interval::Interval};
+
+        let center64 = Point3::new(1.0, 2.0, 3.0);
+        let carrier64 = geom::Curve3::Circle {
+            center: center64,
+            axis: Vec3::unit_z(),
+            radius: 1.5,
+            u_ref: Vec3::unit_x(),
+        };
+        let lift_p = |p: Point3<f64>| {
+            Point3::new(
+                Interval::from_f64(p.x),
+                Interval::from_f64(p.y),
+                Interval::from_f64(p.z),
+            )
+        };
+        let lift_v = |v: Vec3<f64>| {
+            Vec3::new(
+                Interval::from_f64(v.x),
+                Interval::from_f64(v.y),
+                Interval::from_f64(v.z),
+            )
+        };
+        let carrier = geom::Curve3::Circle {
+            center: lift_p(center64),
+            axis: lift_v(Vec3::unit_z()),
+            radius: Interval::from_f64(1.5),
+            u_ref: lift_v(Vec3::unit_x()),
+        };
+        // A span that STRADDLES the parameter seam (t=0/TAU region).
+        let (t0, t1) = (-1.0, 1.0);
+        for t in [-0.7, 0.0, 0.7] {
+            let p = carrier64.eval(t);
+            let got = circle_split_param(
+                &carrier,
+                lift_p(center64),
+                Interval::from_f64(t0),
+                Interval::from_f64(t1),
+                lift_p(p),
+            );
+            assert!(got.hi() - got.lo() < 1e-9, "t={t}: width {}", got.hi() - got.lo());
+            let truth = circle_split_param(&carrier64, center64, t0, t1, p);
+            assert!(got.lo() <= truth && truth <= got.hi(), "t={t}");
+        }
+    }
+}
