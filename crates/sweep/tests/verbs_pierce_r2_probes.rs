@@ -111,6 +111,44 @@ fn r2_a_box_through_the_washer_solid_part_is_never_silent() {
     }
 }
 
+/// The blind spot BEYOND the stated one: a LENS cap — two arcs of two
+/// DIFFERENT circles, no line edge at all. The PR's sweep names only
+/// loops that "mix arcs and lines" as the polygonized remainder; an
+/// all-arc loop whose circles disagree is equally outside the disc
+/// class and equally a two-vertex polygon. Measured the same way.
+#[test]
+fn r2_a_box_through_a_lens_cap_measures_the_all_arc_remainder() {
+    let tol = Tol::witness();
+    // Lens: from (-1,0) to (1,0) via a deep arc (bulge 0.6), back via
+    // a shallow arc of a DIFFERENT circle (bulge 0.35 on the return).
+    let lp = ProfileLoop::new(vec![
+        ProfileVertex::new(p2(-1.0, 0.0), 0.6),
+        ProfileVertex::new(p2(1.0, 0.0), 0.35),
+    ]);
+    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.0)));
+    let profile = Profile::new(plane, vec![lp]).validate(tol).unwrap();
+    let a = extrude(&profile, Extrusion::Distance(2.0), tol)
+        .unwrap()
+        .body;
+    let va = topo::mass_properties(&a, tol).unwrap().volume;
+    // A small box through the cap near (0, 0.3) — inside the lens for
+    // these bulges (upper arc reaches y=0.6... sagitta = bulge*half-chord).
+    let b = boxx(-0.1, 0.1, 0.2, 0.4, 1.0, 3.0);
+    match topo::union(&a, &b, tol) {
+        Err(e) => println!("lens cap union refuses typed: {e:?}"),
+        Ok(topo::BooleanResult::Body(out)) => {
+            let v = topo::mass_properties(&out.body, tol).unwrap().volume;
+            let silent_wrong = va + 0.2 * 0.2 * 2.0;
+            println!("lens union volume {v}; operand {va}; silent-wrong {silent_wrong}");
+            assert!(
+                (v - silent_wrong).abs() > 1e-9,
+                "ALL-ARC LENS SILENT WRONG BODY: {v} (double-counted overlap)"
+            );
+        }
+        Ok(other) => panic!("unexpected: {other:?}"),
+    }
+}
+
 /// **The stated blind spot, measured.** A box driven up through a
 /// HALF-cylinder's cap, strictly inside the semicircular region: the
 /// cap's loop mixes an arc and a line, so it is still read as the
@@ -139,6 +177,25 @@ fn r2_a_box_through_a_half_disc_cap_measures_the_mixed_loop_remainder() {
             );
         }
         Ok(other) => panic!("unexpected: {other:?}"),
+    }
+}
+
+/// The door-table claim names `Join(SectionLoopMixed)` for the
+/// box-through-cap row; the shipped test asserts only `Join(_)`.
+/// Print the exact payload.
+#[test]
+fn r2_the_box_cap_refusal_payload_is_printed() {
+    let tol = Tol::witness();
+    let lp = profile::circle(p2(0.0, 0.0), 1.0, tol).unwrap();
+    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.0)));
+    let profile = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
+    let a = extrude(&profile, Extrusion::Distance(2.0), tol)
+        .unwrap()
+        .body;
+    let b = boxx(-0.3, 0.3, -0.3, 0.3, 1.0, 3.0);
+    match topo::union(&a, &b, tol) {
+        Err(e) => println!("box-through-cap refusal: {e:?}"),
+        Ok(r) => panic!("expected the typed refusal, got {r:?}"),
     }
 }
 
