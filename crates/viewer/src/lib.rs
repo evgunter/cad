@@ -36,8 +36,14 @@
 //! `mesh`'s own δ-is-not-ε contract).
 
 pub mod camera;
+pub mod docio;
+pub mod evalseam;
+pub mod history;
 pub mod input;
+pub mod props;
 pub mod scene;
+pub mod session;
+pub mod tree;
 
 #[cfg(feature = "app")]
 pub mod app;
@@ -45,5 +51,11 @@ pub mod app;
 mod gpu;
 
 pub use camera::{Camera, CameraError, CameraOp, CameraOpError};
+pub use docio::DocIoError;
+pub use evalseam::{EvalDone, EvalRequest, EvalService, Generation, InlineEvaluator};
+pub use history::{History, HistoryId};
 pub use input::{InputMap, PointerButton, ViewportEvent, ViewportSize};
+pub use props::{SlotDriver, SlotRow, SlotValue};
 pub use scene::{DisplayTolerance, SceneDocError, SceneError, SceneMesh, SceneStats};
+pub use session::{DocSession, Landing, OpOutcome, Refusal, Selection, SessionOp};
+pub use tree::{RowStatus, TreeRow};
