@@ -1772,3 +1772,21 @@ bookkeeping class), two stale invalidated-premise sentences in
 klein/ring, and the cross-panel constants duplicated without a
 tie. Fix pass dispatched with probe adoption; reviewer lane
 swept.
+
+## PROTOCOL v6 RATIFIED AND ADOPTED (2026-08-27, #1064 merged)
+
+The #1016 suspension ends: from the next review dispatch, every
+implementation row gets a CROSS-MODEL dual with the R1/R2 model
+assignment randomized per dual (one urandom byte at dispatch,
+parity 0 = R1 opus + R2 fable, parity 1 = R1 fable + R2 opus;
+byte recorded in the lane-private draw file beside the arm
+draws). Stopping rule pre-registered: eight adjudicated
+unilateral MAJORs per the fixed instrument, or twelve new pairs,
+whichever first — Evan notified explicitly at the trigger.
+Read-side lane isolation enters both briefs (pushing never
+delayed; glimpses disclosed, ASM-1 shape). The v6 tally starts
+at zero — the v4/v5 pairs and attested-but-unscored pair 11 stay
+analysis input only. First affected dispatch: VERBS-PIERCE's
+review (ordinal 84) — TWO reviewer lanes, frozen-head
+concurrent. Demo-class units keep the plan's process section
+(DEMO2's ordinal-83 single predates ratification and stands).
