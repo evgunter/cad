@@ -102,14 +102,14 @@ fn brute_ray_triangle(r: &Ray, a: Point3<f64>, b: Point3<f64>, c: Point3<f64>) -
         return None;
     }
     let t = n.dot(a - r.origin) / denom;
-    if !(t >= 0.0) {
+    if t.is_nan() || t < 0.0 {
         return None;
     }
     let p = r.origin + r.dir * t;
     // Closed containment: p is inside iff every edge cross product
     // agrees in sign with the face normal (zero counts as inside).
     let nn = n.dot(n);
-    if !(nn > 0.0) {
+    if nn.is_nan() || nn <= 0.0 {
         return None; // degenerate triangle
     }
     let w0 = (b - a).cross(p - a).dot(n);
@@ -472,6 +472,58 @@ fn a_degenerate_triangle_is_unhittable_and_harmless() {
     // And the oracle, over the same corrupted mesh, agrees.
     let want = brute_nearest(&[&m], &along).expect("oracle hits the box");
     assert!((want.0 - hit.t).abs() < 1e-12);
+}
+
+/// **Provenance is held by convention, and a mismatch answers a
+/// CONFIDENT WRONG NAME** — a review finding, recorded as a probe.
+///
+/// `PickTarget`'s doc says the `(node, body)` pair "must be the one
+/// the mesh was tessellated from". Nothing checks it. Two sibling
+/// extrudes mint face keys in their own arenas, so the keys collide
+/// numerically: pairing body A's `MeshPick` with node B answers a
+/// name belonging to B — no error, no miss, a plausible wrong answer
+/// that a selection consumer cannot distinguish from a right one.
+/// The service's typed-error posture covers node STANDING and does
+/// not reach node/mesh PROVENANCE.
+///
+/// The row below asserts what a checked service would do — refuse, or
+/// at least not answer a name for a face the mesh never carried. It
+/// is IGNORED because the current service answers instead; un-ignore
+/// it if the fix pass adds a provenance check, delete it if the fix
+/// pass decides the convention is enough and says so at the call
+/// site.
+#[test]
+#[ignore = "R2 review finding: (node, body)/mesh provenance is unchecked; a mismatch answers a wrong name"]
+fn a_mesh_paired_with_the_wrong_node_does_not_answer_a_name() {
+    let doc = ProfileDoc::empty_derived("gui1_r2_provenance", Tol::witness());
+    let (doc, a) = box_node(doc, 0.0, 0.0, 1.0, 1.0);
+    let (doc, b) = box_node(doc, 5.0, 0.0, 1.0, 1.0);
+    let ev = run(&doc);
+    let ma = mesh_of(&ev, a);
+    let pa = MeshPick::build(&ma).expect("mesh a indexes");
+    // Body A's index, presented as node B's target — the mistake a
+    // consumer holding a cache keyed by the wrong node id makes.
+    let wrong = [PickTarget {
+        node: b,
+        body: 0,
+        pick: &pa,
+    }];
+    let right = [PickTarget {
+        node: a,
+        body: 0,
+        pick: &pa,
+    }];
+    let r = ray([0.5, 0.5, -2.0], [0.0, 0.0, 1.0]);
+    let truth = pick_face(&ev, &right, &r)
+        .expect("no error")
+        .expect("hits")
+        .name;
+    let got = pick_face(&ev, &wrong, &r).expect("no error");
+    assert!(
+        got.is_none_or(|h| h.name == truth),
+        "a mesh paired with the wrong node answered a name from that \
+         other node — provenance is unchecked"
+    );
 }
 
 /// A ray with an INFINITE direction component and a ray with a zero

@@ -214,7 +214,7 @@ fn candidates_are_a_superset_of_the_exact_integer_truth() {
             }
             [aim[0] - o[0], aim[1] - o[1], aim[2] - o[2]]
         };
-        if d.iter().any(|&c| c == 0) {
+        if d.contains(&0) {
             seen.note("draws with a zero direction component");
         }
         if (0..n).any(|i| (0..3).any(|a| lo[i][a] == hi[i][a])) {
