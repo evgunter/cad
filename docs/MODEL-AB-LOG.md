@@ -128,8 +128,10 @@ amended:
      cross-program read is needed at dispatch, so a collision is
      impossible by construction rather than arbitrated after the
      fact. Bands, allocated at this entry:
-     **VERBS 100–199 · PCURVE 200–299 · LIB 300–399**, with
-     **400+ unallocated** — the orchestrator opening the next
+     **VERBS 100–199 · PCURVE 200–299 · LIB 300–399 · GUI 400–499
+     (claimed 2026-08-27 at the GUI program's opening —
+     `docs/GUI-LOG.md`)**, with
+     **500+ unallocated** — the orchestrator opening the next
      program takes the next free band and records it HERE in the
      same commit that opens the program. **1–99 is CLOSED
      HISTORY**: the pre-banding global sequence, which reached 85.
@@ -1505,3 +1507,23 @@ unchanged; both briefs carry v6 item 5's lane-isolation READ rule.
 Pre-draw fields logged at the spec: difficulty **M**, task-class
 **NUMERIC**, implementer arm **OPUS** (block PCURVE-1 slot 2).
 Row at merge.
+
+## GUI program rows (the v1 GUI, docs/GUI-PLAN.md; band 400–499; blocks named GUI-B<n> — the B avoids colliding with the unit names GUI-0…GUI-6)
+
+Block GUI-B1 pre-draw fields (2026-08-27, logged before the draw):
+slot 1 = GUI-0 (docs/GUI-0-SPEC.md) — difficulty M, task-class
+STRUCTURAL (new-crate scaffold, eframe/wgpu plumbing, typed camera
+ops; no new numeric predicate — camera math is display-layer state,
+not a tolerance/measurement decision). Slot 2 = GUI-1
+(docs/GUI-1-SPEC.md) — difficulty M, task-class NUMERIC (ray-slab
+comparisons, conservative-superset boundary decisions, nearest-hit
+ordering are geometric-measurement decisions, though under no D9
+obligation). Slots 3–4 bank for GUI-2/GUI-3 in dispatch order,
+pre-draw fields at their specs.
+
+Block GUI-B1 draw (2026-08-27, after the pre-draw fields above):
+byte **101** (<252, accepted), 101 mod 4 = 1 = fable's position
+(0-indexed, the VERBS-4/PCURVE-1 mapping) ⇒ **fable at slot 2**.
+So: slot 1 GUI-0 = OPUS, slot 2 GUI-1 = FABLE, slots 3–4 = OPUS
+(GUI-2/GUI-3, arms read back from this record at dispatch per the
+VERBS-4 deviation remedy).
