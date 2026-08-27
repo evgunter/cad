@@ -2377,7 +2377,7 @@ fn run_harmonic_checks<T: Decide>(
 }
 
 /// The chart kind, named — shared by both lanes' refusal texts.
-fn chart_name<T: Real>(surface: &Surface<T>) -> &'static str {
+pub(crate) fn chart_name<T: Real>(surface: &Surface<T>) -> &'static str {
     match surface {
         Surface::Plane { .. } => "plane",
         Surface::Cylinder { .. } => "cylinder",

@@ -1,4 +1,21 @@
-//! R2 REVIEW PROBES (lane-local, NOT part of PR #1073).
+//! **R2 review probes, ADOPTED** (PCURVE P-1a fix pass). Authored by
+//! the R2 reviewer on `pcurve/r2-probes` and taken here by
+//! cherry-pick, so the measurement and its authorship travel
+//! together. Two things changed in adoption, both recorded rather
+//! than silent:
+//!
+//! 1. the probes reported by `panic!`, which is right for a probe and
+//!    wrong for a merged row — each is now a PINNED assertion, so the
+//!    measurement becomes a tripwire instead of a one-shot reading;
+//! 2. the fixtures perturbed by `eps() * 0.25`, which makes the row a
+//!    function of the run's ε — the exact defect R2's own MAJOR-1
+//!    named on the `d2` row. The drift is now a fixed metre value and
+//!    the band is built from it, so the rows read the same at every ε
+//!    point in the matrix.
+//!
+//! The claim they attack stands: the seam classes this file measures
+//! move, and one of them moves in QUANTITY. See
+//! `certify.rs`'s Chart arm for the disposition.
 //!
 //! Claim-1 attack: the D2 bit-diff row measures a cylinder seam at
 //! r = 2 (0 ULP) and a plane iso (1907 ULP). These probes measure the
@@ -13,7 +30,7 @@ use geom::{Curve3, Surface};
 use geom_brep::{
     CERT_SAMPLES, EdgeCurve, EdgeCurveSpec, EdgeGeometry, implicit_residual, sample_param,
 };
-use geom_core::{Band, Point3, Tol, Vec3};
+use geom_core::{Band, Point3, Vec3};
 
 fn table(
     surfs: Vec<Surface<f64>>,
@@ -27,13 +44,34 @@ fn table(
     (keys, move |k| map.get(k).cloned())
 }
 
+/// The probes' fixed drift, and the band built from it (adoption note
+/// 2 in the module docs). Four times the drift is the same fraction
+/// of the band R2's `eps() * 0.25` had, without the ε coupling.
+const DRIFT: f64 = 2.5e-10;
+
 fn band() -> Band {
-    Band::linear(Tol::witness()).unwrap()
+    Band::new(4.0 * DRIFT, 40.0 * DRIFT).expect("the probes' own band")
 }
 
-fn eps() -> f64 {
-    Tol::witness().get().eps
-}
+/// R2's measured rows, pinned at the adoption drift (module docs).
+/// Sphere: a bit move. Cone: a QUANTITY move, `sec α`. Small
+/// cylinder: a bit move in the other direction, the legacy form's own
+/// `d²/(2r)` term.
+/// Sphere seam, r = 2: a BIT move, upward — 2.35e9 ULP.
+const R2_SPHERE_ULPS: i64 = 2_349_518_964;
+const R2_SPHERE_LEGACY: f64 = 2.500_000_206_850_927_5e-10;
+const R2_SPHERE_NOW: f64 = 2.500_001_421_523_762_4e-10;
+/// Cone seam, α = 0.5 rad: a QUANTITY move — `sec α` = 1.139494,
+/// asserted as a ratio below, not just as a delta. 6.75e14 ULP.
+const R2_CONE_ULPS: i64 = 674_550_383_640_576;
+const R2_CONE_LEGACY: f64 = 2.500_001_317_073_952e-10;
+const R2_CONE_NOW: f64 = 2.848_735_691_785_009_3e-10;
+/// Cylinder seam, r = 1e-4: a bit move DOWNWARD — the legacy
+/// normalized implicit form's own `d²/(2r)` term, which at this
+/// radius no longer rounds away. 6.04e9 ULP.
+const R2_SMALL_CYL_ULPS: i64 = 6_044_665_344;
+const R2_SMALL_CYL_LEGACY: f64 = 2.500_003_125_058_102e-10;
+const R2_SMALL_CYL_NOW: f64 = 2.500_000_000_039_363e-10;
 
 fn ulps(a: f64, b: f64) -> i64 {
     let (x, y) = (a.to_bits() as i64, b.to_bits() as i64);
@@ -87,10 +125,9 @@ fn seam_delta(
         param_start: t0,
         param_end: t1,
     };
-    let cert = EdgeCurve::certify(spec.clone(), p0, p1, &lookup, band())
-        .expect("this seam class certified on main and must still certify")
-        .certificate()
-        .clone();
+    let certified = EdgeCurve::certify(spec.clone(), p0, p1, &lookup, band())
+        .expect("this seam class certified on main and must still certify");
+    let cert = *certified.certificate();
     let legacy = legacy_seam_max(&spec, &surface, anchor, axis, u_ref, p0, p1);
     (ulps(cert.max_residual, legacy), legacy, cert.max_residual)
 }
@@ -100,7 +137,7 @@ fn seam_delta(
 #[test]
 fn r2_probe_sphere_seam_bit_move() {
     let r = 2.0;
-    let d = eps() * 0.25;
+    let d = DRIFT;
     let sphere = Surface::Sphere {
         center: Point3::origin(),
         radius: r,
@@ -124,14 +161,18 @@ fn r2_probe_sphere_seam_bit_move() {
         -1.2,
         1.3,
     );
-    panic!("R2 sphere-seam row: legacy {legacy:e} m, now {now:e} m, delta {delta} ULP");
+    assert_eq!(
+        (delta, legacy, now),
+        (R2_SPHERE_ULPS, R2_SPHERE_LEGACY, R2_SPHERE_NOW),
+        "R2 sphere-seam row moved: legacy {legacy:e} m, now {now:e} m, delta {delta} ULP"
+    );
 }
 
 /// Cone seam meridian, in-band normal drift 0.25 eps.
 #[test]
 fn r2_probe_cone_seam_bit_move() {
     let half_angle = 0.5_f64;
-    let d = eps() * 0.25;
+    let d = DRIFT;
     let cone = Surface::Cone {
         apex: Point3::origin(),
         axis: Vec3::unit_z(),
@@ -156,7 +197,21 @@ fn r2_probe_cone_seam_bit_move() {
         0.5,
         2.0,
     );
-    panic!("R2 cone-seam row: legacy {legacy:e} m, now {now:e} m, delta {delta} ULP");
+    assert_eq!(
+        (delta, legacy, now),
+        (R2_CONE_ULPS, R2_CONE_LEGACY, R2_CONE_NOW),
+        "R2 cone-seam row moved: legacy {legacy:e} m, now {now:e} m, delta {delta} ULP"
+    );
+    // The cone row is the one that moved in QUANTITY, not in bits, and
+    // the ratio is the geometry: the chart image carries the carrier's
+    // own azimuth and axial height, so `C − S(P)` is purely radial
+    // where `implicit_residual` reads the perpendicular.
+    let sec_alpha = 1.0 / half_angle.cos();
+    assert!(
+        ((now / legacy) / sec_alpha - 1.0).abs() < 1e-6,
+        "the cone re-baseline is sec α = {sec_alpha}, measured {}",
+        now / legacy
+    );
 }
 
 /// Cylinder seam at r = 1e-4: same fixture SHAPE as the D2 row's
@@ -165,7 +220,7 @@ fn r2_probe_cone_seam_bit_move() {
 #[test]
 fn r2_probe_small_cylinder_seam_bit_move() {
     let r = 1e-4;
-    let d = eps() * 0.25;
+    let d = DRIFT;
     let cyl = Surface::Cylinder {
         origin: Point3::origin(),
         axis: Vec3::unit_z(),
@@ -185,5 +240,21 @@ fn r2_probe_small_cylinder_seam_bit_move() {
         0.0,
         3.0,
     );
-    panic!("R2 small-cylinder-seam row: legacy {legacy:e} m, now {now:e} m, delta {delta} ULP");
+    assert_eq!(
+        (delta, legacy, now),
+        (R2_SMALL_CYL_ULPS, R2_SMALL_CYL_LEGACY, R2_SMALL_CYL_NOW),
+        "R2 small-cylinder-seam row moved: legacy {legacy:e} m, now {now:e} m, \
+         delta {delta} ULP"
+    );
+    // Here the collapsed meter reads LOWER than the legacy one, and
+    // that direction matters: `implicit_residual`'s cylinder arm is a
+    // normalized implicit form carrying a `d²/(2r)` term, which at
+    // r = 1e-4 no longer rounds away, while `|C − S(P)|` is the
+    // distance itself. Neither meter dominates the other in general —
+    // see the Chart arm's disposition — and this row is the
+    // counter-example to any claim that one does.
+    assert!(
+        now < legacy,
+        "at r = 1e-4 the legacy normalized implicit form over-reads: {now:e} vs {legacy:e}"
+    );
 }

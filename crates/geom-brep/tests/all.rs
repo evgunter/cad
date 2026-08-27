@@ -76,6 +76,8 @@ mod offset_mint;
 mod pcurve_conic;
 #[path = "pcurve_general.rs"]
 mod pcurve_general;
+#[path = "pcurve_p1a_meter.rs"]
+mod pcurve_p1a_meter;
 #[path = "pcurve_parameter_finding.rs"]
 mod pcurve_parameter_finding;
 #[path = "r1_pxn_probes.rs"]

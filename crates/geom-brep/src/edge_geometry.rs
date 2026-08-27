@@ -15,10 +15,16 @@
 //! point. `EdgeGeometry` stays `Copy` — the collapsed form is not
 //! (it carries a [`crate::Pcurve`]), and keeping the shim `Copy` is
 //! what leaves the 22 deref sites in the consumer crates untouched by
-//! this unit. And the boundary is CHECKABLE: `authority_of` and the
-//! collapse in `certify` are the only places the two vocabularies
-//! meet, so deleting them is exactly what finishing the migration
-//! means.
+//! this unit. And the boundary is CHECKABLE: the two vocabularies meet
+//! at exactly **three** sites —
+//! [`crate::description::authority_of`], the collapse block in
+//! `certify::run_checks`, and
+//! [`crate::EdgeCurve::with_remapped_surfaces`], which is the only
+//! door that mints an `EdgeCurve` without a run of the schedule and
+//! therefore the only one that could let the two DRIFT. It cannot:
+//! every key the canonical form carries there is read out of the
+//! already-remapped shim rather than remapped a second time. Deleting
+//! those three sites is exactly what finishing the migration means.
 //!
 //! An edge's geometry is stored as an intensional description
 //! ([`EdgeGeometry`]); every concrete representation — the 3-D carrier
