@@ -1878,3 +1878,17 @@ coaxial family → declared-contact territory; parallel/steinmetz
 the tree. v6 tally 0 after pair 1. Lane swept. TEAPOT's report
 is the program's last outstanding item before the register
 re-audit.
+
+## ORDINAL 100 CLAIMED (first VERBS banded claim, per #1075) — TEAPOT dual (2026-08-27)
+
+TEAPOT (#1078) reported: the demo ships with four bodies, honest
+walls (both unions refuse typed with payloads carried verbatim
+into the panel note), the fourth probe on the one STEP gate — and
+TWO fresh shell defects found by real use, now #1081 (the sealed
+hollow's one-junction-shape class; the pot's belly squared) and
+#1082 (shell_open's VALIDATED wrong body on every solid of
+revolution; the pot ships sealed). Both await blinded
+verification in this review cycle. Ordinal 100 claimed on main
+AT CLAIM TIME per the post-collision rule; v6 dual, frozen head
+7d5aa5b2; slot draw in the lane-private file. Sample number
+assigns at merge.
