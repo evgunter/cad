@@ -4050,6 +4050,7 @@ dependencies = [
  "egui-wgpu",
  "egui_tiles",
  "pncad",
+ "test-utils",
 ]
 
 [[package]]
