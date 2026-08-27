@@ -36,10 +36,12 @@
 //!   not see. They are separate BODIES: gluing them is a coincident-
 //!   planar contact, which the kernel refuses (probe 1).
 //! - the open **flower** is a lantern: a full revolve whose wall is a
-//!   sphere zone truncated at both poles — a wide belly, a small
-//!   attachment disk where the pedicel enters, and a puckered conical
-//!   mouth closing to a small disk. Sphere zone + cone + two planes,
-//!   all exact — a `revolve` still, unchanged by this refresh.
+//!   sphere zone truncated at both poles — a wide belly, a NECK cone
+//!   narrowing to a throat disk the arch's tube exactly fills, and a
+//!   puckered conical mouth closing to a small disk. Sphere zone +
+//!   two cones + two planes, all exact. The neck is the globe's own
+//!   tangent cone, cut at the arch's radius, so the flower and the
+//!   stem meet along one shared circle (probe 2).
 //! - the **bud** is the same meridian said THREE times, PARTIALLY:
 //!   three pre-tepals of 156 degrees each, on three axes forming a
 //!   narrow tripod about the bud's own, and rolled so they nest like a
@@ -257,45 +259,89 @@ fn tube_arc<S: Scalar>(spec: ArcSpec, tube: f64, tol: Tol) -> (Body<S>, WedgeFra
 
 /// A **lantern**: the closed globular flower. A full revolve whose
 /// wall is a sphere ZONE of radius `globe`, truncated at `top` above
-/// the centre (the attachment disk the pedicel enters through) and at
-/// `mouth` below it, then closed by a conical pucker of drop
-/// `lip_drop` down to a disk of radius `lip_r` — the three tepal tips
-/// meeting under the lantern.
+/// the centre and at `mouth` below it, then closed by a conical pucker
+/// of drop `lip_drop` down to a disk of radius `lip_r` — the three
+/// tepal tips meeting under the lantern. Above the zone it opens
+/// through a NECK cone to a throat disk of radius `neck_r`, the
+/// stem tube's own radius.
 ///
-/// Faces: attachment plane, sphere zone, cone, mouth plane. Every one
-/// exact; the profile is authored centre-first (`Center`) so the
-/// zone's carrier is the sphere itself and not a fitted arc. That
-/// centre-intent is now sayable in the algebra (LIB-G1 constructor 3):
-/// the globe centre is authored, the winding is structural, and
-/// equidistance of the two endpoints from the centre is CHECKED — this
-/// profile derives both radii from the sphere, so it passes by
-/// construction and would refuse loudly if it ever stopped doing so.
+/// Faces: throat plane, neck cone, sphere zone, pucker cone, mouth
+/// plane. Every one exact; the profile is authored centre-first
+/// (`Center`) so the zone's carrier is the sphere itself and not a
+/// fitted arc. That centre-intent is now sayable in the algebra
+/// (LIB-G1 constructor 3): the globe centre is authored, the winding
+/// is structural, and equidistance of the two endpoints from the
+/// centre is CHECKED — this profile derives both radii from the
+/// sphere, so it passes by construction and would refuse loudly if it
+/// ever stopped doing so.
+/// How far a **neck** cone rises above the globe's truncation circle
+/// to reach the throat radius `neck_r`.
+///
+/// The neck is the globe's OWN tangent cone at the truncation circle:
+/// in the meridian the tangent to the belly at `(r_top, ·)` has
+/// `dr/dt = top / r_top`, so the throat sits this far above the
+/// shoulder and the neck leaves the belly G1. The cone's apex is then
+/// at `globe²/top` from the globe centre — the truncation plane's
+/// pole in the sphere — so the throat radius, the shoulder radius and
+/// the apex are one closed form and not three chosen numbers.
+///
+/// One expression because two callers need the same number: the
+/// [`meridian`] that draws the cone, and the placement that has to
+/// know where the globe centre ended up with a neck in front of it.
+fn neck_drop(globe: f64, top: f64, neck_r: f64) -> f64 {
+    let r_top = (globe.powi(2) - top.powi(2)).sqrt();
+    r_top * (r_top - neck_r) / top
+}
+
 /// The lantern/bud **meridian**: the closed profile a flower or a
 /// pre-tepal is revolved from, in sketch `(s, t)` with the axis along
 /// `t`. Shared by [`lantern`] (revolved FULL, one body) and [`bud`]
 /// (revolved PARTIAL, three bodies on three axes), so the bud's
 /// segments are the same shape said three times and not a re-typed
 /// near-copy.
+///
+/// `neck_r` is what a flower welded to a TUBE needs and a bud on a
+/// tripod cannot use. With it the profile opens at a throat disk of
+/// that radius and rises to the shoulder along a [`neck_drop`] cone,
+/// so the revolved body's topmost curved wall is a cone whose rim
+/// circle is a circle of radius `neck_r` about the flower axis, in
+/// the plane through the attachment point — which is exactly a tube's
+/// meridian circle at the station whose tangent that axis is. Without
+/// it the profile opens flat at `r_top`: the attachment disk a bud's
+/// tepal is truncated by, whose three tilted axes have no such
+/// station to share.
 fn meridian<S: Scalar>(
     globe: f64,
     top: f64,
     mouth: f64,
     lip_r: f64,
     lip_drop: f64,
+    neck_r: Option<f64>,
     tol: Tol,
 ) -> ProfileLoop<S> {
     let r_top = (globe.powi(2) - top.powi(2)).sqrt();
     let r_mouth = (globe.powi(2) - mouth.powi(2)).sqrt();
-    let t_mouth = top + mouth;
+    let shoulder = neck_r.map_or(0.0, |nr| neck_drop(globe, top, nr));
+    let t_mouth = shoulder + top + mouth;
     let t_end = t_mouth + lip_drop;
-    Open.at(p2(0.0, 0.0))
-        .line_to(p2(r_top, 0.0), tol)
-        .expect("lantern attachment disk")
+    let opening = match neck_r {
+        Some(nr) => Open
+            .at(p2(0.0, 0.0))
+            .line_to(p2(nr, 0.0), tol)
+            .expect("lantern throat disk")
+            .line_to(p2(r_top, shoulder), tol)
+            .expect("lantern neck cone"),
+        None => Open
+            .at(p2(0.0, 0.0))
+            .line_to(p2(r_top, 0.0), tol)
+            .expect("lantern attachment disk"),
+    };
+    opening
         // The belly: the sphere's own arc about the globe centre,
         // swept the long way round the equator (Ccw in sketch (s, t)).
         .arc_to(
             Center {
-                c: p2(0.0, top),
+                c: p2(0.0, shoulder + top),
                 winding: ArcSweep::Ccw,
                 p: p2(r_mouth, t_mouth),
             },
@@ -310,7 +356,7 @@ fn meridian<S: Scalar>(
         .expect("lantern axis seam")
         .into()
 }
-#[allow(clippy::too_many_arguments)] // the 8th is the run-tolerance witness
+#[allow(clippy::too_many_arguments)] // the 9th is the run-tolerance witness
 fn lantern<S: Scalar>(
     attach: (f64, f64),
     dir: (f64, f64),
@@ -319,6 +365,7 @@ fn lantern<S: Scalar>(
     mouth: f64,
     lip_r: f64,
     lip_drop: f64,
+    neck_r: f64,
     tol: Tol,
 ) -> Body<S> {
     // Sketch frame: origin at the attachment point, v along the
@@ -331,7 +378,15 @@ fn lantern<S: Scalar>(
     revolve(
         &validated(
             plane,
-            vec![meridian(globe, top, mouth, lip_r, lip_drop, tol)],
+            vec![meridian(
+                globe,
+                top,
+                mouth,
+                lip_r,
+                lip_drop,
+                Some(neck_r),
+                tol,
+            )],
             tol,
         )
         .expect("lily profile validates"),
@@ -586,7 +641,11 @@ fn bud<S: Scalar>(
         revolve(
             &validated(
                 plane,
-                vec![meridian(globe, top, mouth, lip_r, lip_drop, tol)],
+                // No neck: a tepal's axis LEANS off the pedicel's
+                // tangent, so there is no station whose meridian
+                // circle a neck could be cut to. The bud keeps the
+                // flat attachment disk and the set-back placement.
+                vec![meridian(globe, top, mouth, lip_r, lip_drop, None, tol)],
                 tol,
             )
             .expect("bud profile validates"),
@@ -1170,6 +1229,13 @@ const FLOWER_GLOBE: f64 = 0.44;
 /// See [`FLOWER_GLOBE`].
 const FLOWER_TOP: f64 = 0.40;
 
+/// The ARCH tube's radius — and the flower's throat radius, because
+/// they are one circle. The arch's terminal meridian circle and the
+/// lantern's neck-cone rim are the same locus, and that identity is
+/// what makes the flower/arch weld a shared-circle contact; one
+/// number is how the scene says so.
+const ARCH_R: f64 = 0.052;
+
 const GREEN_STEM: [f64; 3] = [0.36, 0.52, 0.30];
 const GREEN_LEAF: [f64; 3] = [0.44, 0.62, 0.34];
 /// *C. pulchellus* is the YELLOW fairy lantern — clear lemon, not the
@@ -1209,16 +1275,19 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
     let (pedicel, at_bud) = fork.arc(0.42, deg(130.0));
 
     let (stem, stem_caps) = tube_arc(lower, 0.060, tol);
-    let (arch, arch_caps) = tube_arc(upper, 0.052, tol);
+    let (arch, arch_caps) = tube_arc(upper, ARCH_R, tol);
     let (pedicel_body, pedicel_caps) = tube_arc(pedicel, 0.032, tol);
 
     // The main flower's attachment point and axis — the same two the
     // lantern below is built on, named once so the sepals hang on the
     // flower's own axis rather than a hand-copied one.
-    let flower_attach = (
-        at_flower.p.0 - 0.08 * at_flower.t.0,
-        at_flower.p.1 - 0.08 * at_flower.t.1,
-    );
+    //
+    // The attachment IS the arch's last spine point, with no set-back:
+    // the flower's throat circle and the tube's terminal meridian
+    // circle are then the SAME circle, which is what makes the weld a
+    // shared-circle contact instead of a transverse one (see
+    // [`weld_circle_is_shared`]).
+    let flower_attach = at_flower.p;
     // The sepal plan: a narrow strap at the neck easing to a lance,
     // then tapering hard to a near-point. The roll is gentle and
     // spread evenly (ease 1.0) — a sepal curls, it does not corkscrew.
@@ -1248,16 +1317,18 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
         twist: deg(75.0),
         twist_ease: 1.3,
     };
-    // The globe's own centre, derived from the two numbers the lantern
-    // is built with rather than copied: `FLOWER_TOP` along the flower
-    // axis from the attachment point. The sepals then stand on the
-    // sphere the lantern actually has.
+    // The globe's own centre, derived from the numbers the lantern is
+    // built with rather than copied: the NECK's drop plus
+    // `FLOWER_TOP`, along the flower axis from the attachment point.
+    // The sepals then stand on the sphere the lantern actually has.
     //
     // `theta` must clear `acos(FLOWER_TOP / FLOWER_GLOBE)` = 24.6
     // degrees, the polar angle where the sphere is TRUNCATED by the
-    // attachment disk: above that the sphere is not part of the body,
-    // so a sepal standing there would be tangent to a surface that
-    // is not there. 38 degrees puts them on the shoulder of the globe.
+    // neck's shoulder circle: above that the sphere is not part of the
+    // body, so a sepal standing there would be tangent to a surface
+    // that is not there. 38 degrees puts them on the shoulder of the
+    // globe.
+    let flower_globe_depth = neck_drop(FLOWER_GLOBE, FLOWER_TOP, ARCH_R) + FLOWER_TOP;
     // The BUD: three pre-tepals, not a small flower. A much smaller
     // globe and a much skinnier, longer pucker than the open lantern's
     // — an unopened Calochortus is mostly taper.
@@ -1281,9 +1352,9 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
 
     let sepal_bodies: [Body<S>; 3] = sepals(
         (
-            flower_attach.0 + FLOWER_TOP * at_flower.t.0,
+            flower_attach.0 + flower_globe_depth * at_flower.t.0,
             0.0,
-            flower_attach.1 + FLOWER_TOP * at_flower.t.1,
+            flower_attach.1 + flower_globe_depth * at_flower.t.1,
         ),
         (at_flower.t.0, 0.0, at_flower.t.1),
         FLOWER_GLOBE,
@@ -1341,9 +1412,11 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
         Piece {
             name: "lily_lantern",
             color: YELLOW_TEPAL,
-            // Set back 0.08 along the stem's own tangent so the
-            // pedicel tip is INSIDE the flower: two bodies sharing a
-            // plane would z-fight, and gluing them is probe 1.
+            // The flower sits ON the arch's last station, throat
+            // circle to tube rim, and the neck cone is cut at the
+            // arch's own radius — so the cone and the tube meet along
+            // ONE shared circle rather than crossing. Gluing them is
+            // still probe 2.
             body: lantern(
                 flower_attach,
                 at_flower.t,
@@ -1352,6 +1425,7 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
                 0.36,
                 0.09,
                 0.16,
+                ARCH_R,
                 tol,
             ),
             caps: None,
@@ -1451,7 +1525,10 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let note = format!(
         "{} closed solids: 3 torus-segment stem tubes said in WORLD \
          coordinates (centre/axis/u_ref/radii stored exactly as \
-         given), 1 sphere-zone lantern with a conical mouth, 3 \
+         given), 1 sphere-zone lantern with a NECK cone cut at the \
+         arch tube's own radius — its rim IS that tube's terminal \
+         meridian circle, so flower and stem meet on one shared \
+         circle — and a conical mouth, 3 \
          PARTIAL revolves of that same meridian forming the bud's \
          tripod of pre-tepals, 2 SWEPT \
          keeled blades (one kite section carried along an arching \
@@ -1502,6 +1579,220 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             .map(|p| SceneBody::plain(p.name, p.color, p.body))
             .collect(),
     }]
+}
+
+// ---------------------------------------------------------------
+// The weld circle
+// ---------------------------------------------------------------
+
+/// One circle in space: centre, radius, unit normal — the only shape
+/// the flower/arch junction is allowed to be.
+#[derive(Clone, Copy, Debug)]
+struct Circle {
+    c: (f64, f64, f64),
+    r: f64,
+    n: (f64, f64, f64),
+}
+
+fn v_sub(a: (f64, f64, f64), b: (f64, f64, f64)) -> (f64, f64, f64) {
+    (a.0 - b.0, a.1 - b.1, a.2 - b.2)
+}
+
+fn v_dot(a: (f64, f64, f64), b: (f64, f64, f64)) -> f64 {
+    a.0 * b.0 + a.1 * b.1 + a.2 * b.2
+}
+
+fn v_cross(a: (f64, f64, f64), b: (f64, f64, f64)) -> (f64, f64, f64) {
+    (
+        a.1 * b.2 - a.2 * b.1,
+        a.2 * b.0 - a.0 * b.2,
+        a.0 * b.1 - a.1 * b.0,
+    )
+}
+
+fn v_len(a: (f64, f64, f64)) -> f64 {
+    v_dot(a, a).sqrt()
+}
+
+/// Every station circle of radius `rho` that `body`'s conical faces
+/// carry — two per cone, one on each nappe.
+///
+/// Closed form off the stored `(apex, axis, half_angle)`: the
+/// generator reaches radius `rho` at slant `v = rho / sin α`, whose
+/// axial offset is `v·cos α = rho / tan α`. Nothing is sampled and
+/// nothing is fitted; a cone's radius-`rho` locus IS a circle.
+fn cone_station_circles<S: Scalar>(
+    body: &Body<S>,
+    rho: f64,
+) -> Vec<(pncad::topo::FaceKey, Circle)> {
+    let mut out = Vec::new();
+    for (k, f) in body.faces() {
+        let Some(&pncad::geom::Surface::Cone {
+            apex,
+            axis,
+            half_angle,
+            ..
+        }) = body.get_surface(f.surface)
+        else {
+            continue;
+        };
+        let a = (apex.x.f(), apex.y.f(), apex.z.f());
+        let d = (axis.x.f(), axis.y.f(), axis.z.f());
+        let off = rho / half_angle.f().tan();
+        for s in [1.0, -1.0] {
+            out.push((
+                k,
+                Circle {
+                    c: (
+                        a.0 + s * off * d.0,
+                        a.1 + s * off * d.1,
+                        a.2 + s * off * d.2,
+                    ),
+                    r: rho,
+                    n: d,
+                },
+            ));
+        }
+    }
+    out
+}
+
+/// The body's single stored torus carrier as `(centre, axis, R, r)`.
+fn torus_carrier<S: Scalar>(body: &Body<S>) -> ((f64, f64, f64), (f64, f64, f64), f64, f64) {
+    for (_, f) in body.faces() {
+        if let Some(&pncad::geom::Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            ..
+        }) = body.get_surface(f.surface)
+        {
+            return (
+                (center.x.f(), center.y.f(), center.z.f()),
+                (axis.x.f(), axis.y.f(), axis.z.f()),
+                major_radius.f(),
+                minor_radius.f(),
+            );
+        }
+    }
+    panic!("the arch stores a torus wall")
+}
+
+/// How far `circle` is from BEING a meridian circle of the torus
+/// `(tc, ta, big_r, small_r)`, as the three residuals that say it is
+/// one: the centre's distance off the spine circle, the radius
+/// mismatch, and the sine of the angle between the circle's normal
+/// and the spine tangent under it.
+///
+/// A torus's meridian circle at azimuth `u` is
+/// `(tc + radial(u)·R, r, tangential(u))`, so membership needs no
+/// azimuth to be chosen: the azimuth is READ OFF the candidate centre
+/// and the three residuals are what remains.
+fn meridian_residuals(
+    circle: Circle,
+    tc: (f64, f64, f64),
+    ta: (f64, f64, f64),
+    big_r: f64,
+    small_r: f64,
+) -> (f64, f64, f64) {
+    let w = v_sub(circle.c, tc);
+    let h = v_dot(w, ta);
+    let radial = (w.0 - h * ta.0, w.1 - h * ta.1, w.2 - h * ta.2);
+    let rad_len = v_len(radial);
+    // Distance from the spine circle: the meridian plane's own polar
+    // coordinates, (in-plane radius − R, out-of-plane height).
+    let off_spine = ((rad_len - big_r).powi(2) + h * h).sqrt();
+    let tangential = v_cross(ta, radial);
+    let tl = v_len(tangential);
+    let tangential = (tangential.0 / tl, tangential.1 / tl, tangential.2 / tl);
+    (
+        off_spine,
+        (circle.r - small_r).abs(),
+        v_len(v_cross(circle.n, tangential)),
+    )
+}
+
+/// **The weld circle, computed twice from stored carriers and
+/// asserted equal.** This is the CONTENT of the flower/arch junction,
+/// so it is a pin and not a sentence.
+///
+/// A torus's meridian circle at a station lies in the plane
+/// perpendicular to the spine tangent there, and the lantern's axis
+/// IS that tangent (`review_probes::
+/// lantern_axes_are_the_stored_stem_tangents`) — so a cone coaxial
+/// with it, cut at the tube's minor radius, meets that meridian
+/// circle exactly. The two carriers are then analytically identical
+/// along one circle, and the pair's contact is that circle rather
+/// than a transverse SSI curve nobody has a closed form for.
+///
+/// Stated as a MEASUREMENT, not a search. The lantern's cones offer
+/// four station circles at the tube's minor radius (two cones, two
+/// nappes); the best of them must satisfy the torus's meridian
+/// membership to the last bit the arithmetic carries, the runner-up
+/// must miss by a distance no tolerance could confuse with zero, and
+/// the winner must sit on the tube's END — the frame
+/// `sweep::revolved_caps` reports — rather than somewhere along it.
+/// Returns the neck cone's face key, the circle, its residuals and
+/// the runner-up's score, for narration and for the probes that need
+/// to talk about the OTHER cone.
+fn weld_circle<S: Scalar>(
+    lantern: &Body<S>,
+    arch: &Body<S>,
+    arch_caps: &WedgeFrames<S>,
+) -> (pncad::topo::FaceKey, Circle, (f64, f64, f64), f64) {
+    let (tc, ta, big_r, small_r) = torus_carrier(arch);
+    let candidates = cone_station_circles(lantern, small_r);
+    assert!(
+        candidates.len() == 4,
+        "the lantern carries two cones — a neck and a pucker — so four station \
+         circles at the tube's minor radius; got {}",
+        candidates.len()
+    );
+    let score = |c: &Circle| {
+        let (a, b, d) = meridian_residuals(*c, tc, ta, big_r, small_r);
+        a + b + d
+    };
+    let mut ranked = candidates;
+    ranked.sort_by(|a, b| score(&a.1).total_cmp(&score(&b.1)));
+    let (neck_face, best) = ranked[0];
+    let res = meridian_residuals(best, tc, ta, big_r, small_r);
+    // The tube's END, not a station part-way along it: one of the two
+    // joint frames the revolve recorded passes through this centre
+    // with this normal.
+    let on_end = [arch_caps.start, arch_caps.end].into_iter().any(|pose| {
+        let o = (pose.origin.x.f(), pose.origin.y.f(), pose.origin.z.f());
+        let n = (pose.axis.x.f(), pose.axis.y.f(), pose.axis.z.f());
+        v_len(v_sub(best.c, o)) < 1e-12 && v_len(v_cross(best.n, n)) < 1e-12
+    });
+    assert!(
+        res.0 < 1e-12 && res.1 == 0.0 && res.2 < 1e-12,
+        "the flower's neck circle is not the arch's meridian circle: off-spine \
+         {:e}, radius {:e}, normal {:e}",
+        res.0,
+        res.1,
+        res.2
+    );
+    assert!(
+        on_end,
+        "the weld circle is a meridian circle of the arch's torus but not the \
+         one at its END station — the flower is threaded on the tube, not \
+         welded to its rim"
+    );
+    // The runner-up is the SAME cone's other nappe unless the two
+    // cones are told apart, so the miss that matters is the nearest
+    // station circle on a DIFFERENT face.
+    let runner_up = ranked
+        .iter()
+        .filter(|(k, _)| *k != neck_face)
+        .map(|(_, c)| score(c))
+        .fold(f64::INFINITY, f64::min);
+    assert!(
+        runner_up > 1e-3,
+        "the pucker's station circle coincides to {runner_up:e} too — the match \
+         above is not the neck cone's alone"
+    );
+    (neck_face, best, res, runner_up)
 }
 
 // ---------------------------------------------------------------
@@ -1578,6 +1869,33 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
             .body
     };
     let (stem, arch, lant) = (by("lily_stem"), by("lily_arch"), by("lily_lantern"));
+    let arch_caps = pieces
+        .iter()
+        .find(|p| p.name == "lily_arch")
+        .and_then(|p| p.caps.as_ref())
+        .expect("the arch is a partial revolve, so it has joint frames");
+
+    // The junction wall 2 asks about, measured before it is asked for:
+    // the flower's neck circle and the arch's terminal meridian circle
+    // are ONE circle, in closed form off both stored carriers.
+    let (_, weld, res, runner_up) = weld_circle(lant, arch, arch_caps);
+    println!(
+        "   the weld circle — centre ({:.6}, {:.6}, {:.6}), r = {:.3}, normal \
+         ({:.6}, {:.6}, {:.6}): the arch's terminal meridian circle and the \
+         lantern's neck-cone rim, off-spine {:.3e} / radius {:.3e} / normal \
+         {:.3e}; nearest other cone station misses by {:.3e}",
+        weld.c.0,
+        weld.c.1,
+        weld.c.2,
+        weld.r,
+        weld.n.0,
+        weld.n.1,
+        weld.n.2,
+        res.0,
+        res.1,
+        res.2,
+        runner_up
+    );
 
     // 1. The stem is ONE stem. Its two arcs meet on a shared disk —
     //    an exact coincident planar contact, the crosslap mate — so
@@ -1615,28 +1933,28 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         "make the stem a single body — and close #968, whose whole content this is",
     );
 
-    // 2. The flower grows OUT OF the pedicel. What refuses is the
-    //    OPERAND GATE, on KINDS: `op: None` is `gate_operand_pairs`
-    //    (boolean/reduce.rs), which asks whether a boolean arm exists
-    //    for the (Cone, Torus) pair and lets boxes decide only whether
-    //    the pair can matter. No intersection is attempted, so the
-    //    refusal says nothing about how these two surfaces meet.
+    // 2. The flower grows OUT OF the pedicel, and it is now authored
+    //    so that it CAN: the neck cone's rim and the arch tube's
+    //    terminal meridian circle are one circle, asserted above off
+    //    both stored carriers. There is no transverse curve here to
+    //    have a closed form for.
     //
-    //    As AUTHORED the pair is transverse, and a transverse
-    //    curved x curved weld needs the banked germ-chord lane. But
-    //    that is a fact about this authoring, not about the pair: a
-    //    cone coaxial with the lantern axis (which IS the stem
-    //    tangent) and cut at the tube's minor radius meets the torus
-    //    in a shared CIRCLE — analytic, declarable, no SSI. Untried,
-    //    not unavailable; re-authoring it that way would make wall 2
-    //    a gate-admission question of #968's shape rather than an SSI
-    //    one. The distinction and its consequence are #1059.
+    //    What refuses is the OPERAND GATE, on KINDS: `op: None` is
+    //    `gate_operand_pairs` (boolean/reduce.rs), which asks whether
+    //    a boolean arm exists for the pair and lets boxes decide only
+    //    whether the pair can matter. It reads kinds, never loci — so
+    //    it cannot see the coincidence, and a declared cone x torus
+    //    has no admission to reach it with. That is the whole of the
+    //    remaining ask, and it is #968's shape rather than an SSI
+    //    one: gate admission for the declared pair, plus a cone/torus
+    //    rung in `carrier_eq` for the descent to consume. #1059 is
+    //    the derivation; VERBS-LILYWELD PR-2 is the unit.
     wall(
         2,
-        "weld the lantern onto the arch (torus tube x sphere zone)",
+        "weld the lantern onto the arch (declared cone x torus, meeting on \
+         one shared circle)",
         pncad::topo::union(lant, arch, tol),
         |e| {
-            // Reviewer pin (r1 probes): PR body claims (Cone, Torus).
             matches!(
                 e,
                 BooleanError::CurvedPairUnsupported {
@@ -1648,7 +1966,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
                 }
             )
         },
-        "join flower to stem and drop the set-back trick",
+        "join flower to stem — VERBS-LILYWELD PR-2 is what does it",
     );
 
     // 3. The lily's leaves DO leave their own plane now — each blade
@@ -2071,7 +2389,10 @@ mod review_probes {
     const P2: (f64, f64) = (-2.4599453279967154, 1.2322628544225218);
     const T2: (f64, f64) = (0.20791169081775934, -0.9781476007338056);
     const T3: (f64, f64) = (0.17364817766693053, -0.984807753012208);
-    const SPHERE1_C: (f64, f64) = (-2.3934135869350324, 0.919255622187704);
+    /// The flower's globe centre: P2 (the arch's own last spine
+    /// point, since the flower is welded there and not set back) plus
+    /// the neck's drop plus `FLOWER_TOP` along T2.
+    const SPHERE1_C: (f64, f64) = (-2.364270479158321, 0.7821480798576109);
 
     /// One of the tube's two JOINT FRAMES passes through world point
     /// `p` (xz-plane) with normal parallel to `t` — i.e. the tube's
@@ -2151,8 +2472,10 @@ mod review_probes {
         );
     }
 
-    /// Claim: the lantern axes ARE the stem tangents and the globes
-    /// sit at attach + top·dir — read off the stored sphere/cone.
+    /// Claim: the lantern axes ARE the stem tangents, and the globe
+    /// sits at attach + (neck drop + top)·dir — read off the stored
+    /// sphere and the two cones (neck and pucker), not off the
+    /// construction code.
     #[test]
     fn lantern_axes_are_the_stored_stem_tangents() {
         let ps = pieces();
@@ -2163,7 +2486,7 @@ mod review_probes {
             let b = body(&ps, name);
             let tv = Vec3::new(t.0, 0.0, t.1);
             let mut saw_sphere = false;
-            let mut saw_cone = false;
+            let mut cones = 0usize;
             for (_, f) in b.faces() {
                 match b.get_surface(f.surface) {
                     Some(Surface::Sphere {
@@ -2183,7 +2506,7 @@ mod review_probes {
                         assert!((radius - rad).abs() < 1e-15, "{name} radius");
                     }
                     Some(Surface::Cone { axis, .. }) => {
-                        saw_cone = true;
+                        cones += 1;
                         assert!(
                             cross_norm(*axis, tv) < 1e-14,
                             "{name}: cone axis || tangent"
@@ -2193,10 +2516,91 @@ mod review_probes {
                 }
             }
             assert!(
-                saw_sphere && saw_cone,
-                "{name}: sphere zone + conical pucker"
+                saw_sphere && cones == 2,
+                "{name}: sphere zone between a neck cone and a conical pucker, \
+                 both coaxial with the stem tangent — saw {cones} cones"
             );
         }
+    }
+
+    /// **The weld, as geometry.** The flower's neck circle and the
+    /// arch tube's terminal meridian circle are ONE circle, each
+    /// computed to closed form off its own body's stored carrier
+    /// (`weld_circle`, which the scene also runs live). Checked here
+    /// as well, for the reason the other boolean walls are: a scene
+    /// claim must not cost a whole render pass to re-measure.
+    ///
+    /// The circle is then said a third way, against the reviewer's
+    /// independent turtle algebra: it is centred on P2 with normal
+    /// T2 and radius exactly the arch tube's. That is the whole
+    /// content of #1059 — the lantern's axis is the stem's own
+    /// tangent, so the cone cut at the tube's minor radius meets the
+    /// meridian circle at that station exactly.
+    #[test]
+    fn the_flower_and_the_arch_share_one_circle() {
+        let ps = pieces();
+        let (_, circle, res, runner_up) = weld_circle(
+            body(&ps, "lily_lantern"),
+            body(&ps, "lily_arch"),
+            caps(&ps, "lily_arch"),
+        );
+        println!(
+            "weld circle: centre {:?}, r {}, normal {:?}; meridian residuals \
+             (off-spine, radius, normal) {res:?}; nearest station circle on the \
+             OTHER cone misses by {runner_up:e}",
+            circle.c, circle.r, circle.n
+        );
+        assert_eq!(circle.r, ARCH_R, "the weld circle is the tube's own");
+        assert!(
+            (circle.c.0 - P2.0).abs() < 1e-12 && (circle.c.2 - P2.1).abs() < 1e-12,
+            "the weld circle is centred on the arch's last spine point"
+        );
+        assert!(
+            circle.c.1.abs() < 1e-15,
+            "the weld circle's centre is in the plant's own plane"
+        );
+        assert!(
+            cross_norm(
+                Vec3::new(circle.n.0, circle.n.1, circle.n.2),
+                Vec3::new(T2.0, 0.0, T2.1)
+            ) < 1e-14,
+            "the weld circle's normal is the stem tangent there"
+        );
+    }
+
+    /// The re-authored lantern's CENSUS and its exact mass, against
+    /// the closed form of the solid of revolution it is.
+    ///
+    /// The census is what the re-authoring changed structurally: the
+    /// meridian gained one segment (the neck cone) between the throat
+    /// disk and the belly, and a FULL revolve emits every wall as two
+    /// half-bands on one carrier, so the neck arrives as two faces
+    /// with the seam struts and rim vertices that go with them. The
+    /// exact volume is the same closed form
+    /// `finding_13_tessellation_table_reproduces` measures the mesh
+    /// against, taken here from the kernel's own `mass_properties`
+    /// door rather than from a tessellation — so the two rows are
+    /// independent readings of one number.
+    #[test]
+    fn the_lanterns_census_and_mass_are_the_re_authored_ones() {
+        let ps = pieces();
+        let lant = body(&ps, "lily_lantern");
+        let census = (
+            lant.shells().count(),
+            lant.faces().count(),
+            lant.edges().count(),
+            lant.vertices().count(),
+        );
+        println!("lantern census (shells, faces, edges, vertices) = {census:?}");
+        assert_eq!(census, (1, 10, 20, 12), "the re-authored lantern's census");
+        let props = pncad::topo::mass_properties(lant, Tol::witness()).expect("mass properties");
+        let exact = 0.3651461718270886;
+        assert!(
+            (props.volume - exact).abs() < 1e-12,
+            "lantern volume {} vs the closed form {exact}",
+            props.volume
+        );
+        assert_eq!(props.volume_pad, 0.0, "every lantern face is closed-form");
     }
 
     /// Finding 13 re-measured: one chord budget for the whole scene
@@ -2236,8 +2640,22 @@ mod review_probes {
                 .expect("tessellate");
             assert_eq!(triangle_count(&m), want, "{name} @ {delta:e}");
         }
-        // Lantern volume error at both deltas (1.25% / 0.53% claimed).
-        let exact = 0.36225803729804673;
+        // Lantern volume error at both deltas. The exact figure is the
+        // authored solid of revolution in closed form — the zone
+        // integral between the two truncations, plus the two conical
+        // frusta (the NECK above it and the pucker below) — so it is
+        // derived from the same numbers the profile is drawn from
+        // rather than transcribed:
+        //   π[r²(a+b) − (a³+b³)/3] + π·h(R² + Rρ + ρ²)/3 per frustum.
+        // It comes to 0.3651461718270886 m³.
+        let (globe, top, mouth, lip_r, lip_drop): (f64, f64, f64, f64, f64) =
+            (FLOWER_GLOBE, FLOWER_TOP, 0.36, 0.09, 0.16);
+        let r_top = (globe.powi(2) - top.powi(2)).sqrt();
+        let r_mouth = (globe.powi(2) - mouth.powi(2)).sqrt();
+        let frustum = |h: f64, r0: f64, r1: f64| PI * h * r0.mul_add(r1, r0 * r0 + r1 * r1) / 3.0;
+        let exact = PI * (globe.powi(2) * (top + mouth) - (top.powi(3) + mouth.powi(3)) / 3.0)
+            + frustum(neck_drop(globe, top, ARCH_R), ARCH_R, r_top)
+            + frustum(lip_drop, r_mouth, lip_r);
         for (delta, lo, hi) in [(5e-3, 0.0120, 0.0130), (2e-3, 0.0050, 0.0056)] {
             let m = pncad::mesh::tessellate(body(&ps, "lily_lantern"), delta, Tol::witness())
                 .expect("tessellate");
@@ -2632,6 +3050,40 @@ mod review_probes {
         }
     }
 
+    /// The lantern's PUCKER cone faces — every conical face whose
+    /// carrier is not the NECK's.
+    ///
+    /// The lantern has two conical walls since the flower/arch weld
+    /// was authored circle-coincident, and a full revolve halves each
+    /// wall at its seam, so "the cone" is now four faces on two
+    /// carriers. Wall 7's measurement is about the pucker alone (it
+    /// is the wall the carving ball is near); the neck sits at the
+    /// other end of the flower and folding it into the same box would
+    /// measure a different thing. The neck is named by the weld pin,
+    /// so the two walls are told apart by carrier and not by a
+    /// threshold.
+    pub(super) fn pucker_cone_faces(ps: &[Piece<f64>]) -> Vec<pncad::topo::FaceKey> {
+        let lant = body(ps, "lily_lantern");
+        let (neck, _, _, _) = weld_circle(lant, body(ps, "lily_arch"), caps(ps, "lily_arch"));
+        let neck_apex = lant
+            .faces()
+            .find(|(k, _)| *k == neck)
+            .and_then(|(_, f)| match lant.get_surface(f.surface) {
+                Some(&Surface::Cone { apex, .. }) => Some(apex),
+                _ => None,
+            })
+            .expect("the neck the weld pin names is a cone");
+        lant.faces()
+            .filter(|(_, f)| {
+                matches!(
+                    lant.get_surface(f.surface),
+                    Some(&Surface::Cone { apex, .. }) if (apex - neck_apex).norm() > 1e-9
+                )
+            })
+            .map(|(k, _)| k)
+            .collect()
+    }
+
     /// The single stored sphere of a body: (centre, radius).
     fn sphere_of(b: &Body<f64>) -> (Point3<f64>, f64) {
         for (_, f) in b.faces() {
@@ -2805,16 +3257,17 @@ mod verbs_gate_r1_probes {
             .body;
         // The carving ball of wall 7, in its own numbers.
         let (bc, br) = (Point3::new(-2.80, 0.0, 0.90), 0.16);
+        let pucker = super::review_probes::pucker_cone_faces(&pieces);
         let mut min_frustum_gap = f64::INFINITY;
         let mut zone_hit = false;
-        for (_, f) in lant.faces() {
+        for (k, f) in lant.faces() {
             match lant.get_surface(f.surface) {
                 Some(&Surface::Cone {
                     apex,
                     axis,
                     half_angle,
                     ..
-                }) => {
+                }) if pucker.contains(&k) => {
                     let mut v_lo = f64::INFINITY;
                     let mut v_hi = f64::NEG_INFINITY;
                     for lk in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
@@ -2892,7 +3345,7 @@ mod verbs_gate_r1_probes {
         // the per-axis overlap, so the day an ORIENTED-box door or an
         // exact cone×sphere separation test lands, the number to beat
         // is written down.
-        let (fa, fb) = frustum_aabb(lant, (bc, br));
+        let (fa, fb) = frustum_aabb(lant, &pucker, (bc, br));
         let overlap = |lo_a: f64, hi_a: f64, lo_b: f64, hi_b: f64| hi_a.min(hi_b) - lo_a.max(lo_b);
         let per_axis = [
             overlap(fa.0.x, fa.1.x, fb.0.x, fb.1.x),
@@ -2982,22 +3435,32 @@ mod verbs_gate_r1_probes {
                     ..
                 }
             ),
-            "wall 2 must name the lantern's pucker against the arch's tube: {welded:?}"
+            "wall 2 must name a lantern CONE against the arch's tube — the pair the \
+             gate has no arm for, with the two loci sharing one circle: {welded:?}"
         );
     }
 
-    /// The axis-aligned box of the lantern's cone frustum, and the
-    /// carving ball's — the kernel's own two constructions, re-derived
-    /// here so the residual looseness is measured by an outside
-    /// consumer rather than read out of the module under test.
+    /// The axis-aligned box of the named cone frusta of the lantern,
+    /// and the carving ball's — the kernel's own two constructions,
+    /// re-derived here so the residual looseness is measured by an
+    /// outside consumer rather than read out of the module under
+    /// test. `faces` is which cone the caller means; the lantern
+    /// carries two walls' worth.
     /// One axis-aligned box as (lo, hi).
     type Aabb = (Point3<f64>, Point3<f64>);
 
-    fn frustum_aabb(lant: &Body<f64>, ball: (Point3<f64>, f64)) -> (Aabb, Aabb) {
+    fn frustum_aabb(
+        lant: &Body<f64>,
+        faces: &[pncad::topo::FaceKey],
+        ball: (Point3<f64>, f64),
+    ) -> (Aabb, Aabb) {
         let (bc, br) = ball;
         let mut lo = Point3::new(f64::INFINITY, f64::INFINITY, f64::INFINITY);
         let mut hi = Point3::new(f64::NEG_INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY);
-        for (_, f) in lant.faces() {
+        for (k, f) in lant.faces() {
+            if !faces.contains(&k) {
+                continue;
+            }
             let Some(&Surface::Cone {
                 apex,
                 axis,
