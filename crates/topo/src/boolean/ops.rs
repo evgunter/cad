@@ -1079,14 +1079,14 @@ pub(super) fn describe_minted_edges<T: Decide>(
                                        re-description lane exists for this carrier kind)",
                             });
                         };
-                        body.set_edge_curve(edge, spec.at_rest_in_chart(s1), tol)
+                        body.set_edge_curve(edge, spec.at_rest_in_chart(s1, false), tol)
                             .map_err(|_| BooleanError::JoinDesync {
                                 what: "stale arc description failed re-certification",
                             })?;
                     } else {
                         body.set_edge_curve(
                             edge,
-                            geom_brep::EdgeCurveSpec::line_between(p0, p1).at_rest_in_chart(s1),
+                            geom_brep::EdgeCurveSpec::line_between(p0, p1).at_rest_in_chart(s1, false),
                             tol,
                         )
                         .map_err(|_| BooleanError::JoinDesync {

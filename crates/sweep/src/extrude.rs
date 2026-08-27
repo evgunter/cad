@@ -802,15 +802,27 @@ fn sweep_loop<T: Decide>(
         let f_next = faces[j];
         let k_prev = face_surface_key(body, f_prev)?;
         let k_next = face_surface_key(body, f_next)?;
-        if k_prev == k_next {
-            continue;
-        }
         let s_prev = body
             .get_surface(k_prev)
             .cloned()
             .ok_or(EulerOpError::StaleGeometry {
                 key: topo::GeomRef::Surface(k_prev),
             })?;
+        if k_prev == k_next {
+            // ONE surface on both sides: a conventional locus the
+            // surfaces under-determine (a collinear split, or the
+            // meridian where a closed wall's chart wraps). It was
+            // minted through the scaffolding door because the wall did
+            // not exist yet; now it does, so the edge is described
+            // where it RESTS — as an image in that one chart (D3's
+            // transience fence). On a PERIODIC wall the strut IS the
+            // chart's parameterization seam and owes D1's two seam
+            // predicates besides; on a plane there is no seam to be.
+            let seam = !matches!(s_prev, Surface::Plane { .. });
+            let spec = EdgeCurveSpec::line_between(qs[j], qs[j] + w).at_rest_in_chart(k_prev, seam);
+            body.set_edge_curve(struts[j].edge, spec, tol)?;
+            continue;
+        }
         let s_next = body
             .get_surface(k_next)
             .cloned()

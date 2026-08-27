@@ -1453,6 +1453,16 @@ fn blank_phase<T: Decide + Bounds>(
                 .and_then(|x| body.get_point(x.point))
                 .ok_or_else(|| not_intact(EntityId::Vertex(v), "a support boundary vertex"))?;
             let fp = station.foot;
+            // The strut lies IN the support face it is carved into, so
+            // it is described where it rests: an image in that chart
+            // (D3's transience fence — the scaffolding door is for
+            // edges whose surfaces do not exist yet, and this one's
+            // does). The sketch pushforward the chord was built from
+            // stays as the authority record beside it.
+            let support_chart = body
+                .get_face(f)
+                .map(|fd| fd.surface)
+                .ok_or_else(|| not_intact(EntityId::Face(f), "a support face"))?;
             let created = body
                 .mev(
                     MevSite::Fan {
@@ -1460,7 +1470,7 @@ fn blank_phase<T: Decide + Bounds>(
                         he2: station.half_edge,
                     },
                     fp,
-                    EdgeCurveSpec::line_between(p, fp),
+                    EdgeCurveSpec::line_between(p, fp).at_rest_in_chart(support_chart, false),
                     tol,
                 )
                 .map_err(|e| op("strut mev", e))?;
@@ -1925,11 +1935,18 @@ fn rim_phase<T: Decide + Bounds>(
         // The foot inherits the rim vertex's own parameter on the
         // scaled carrier — azimuth preserved exactly, no atan2.
         let fp = curve.eval(t0);
+        // Described where it rests, not through the scaffolding door:
+        // the strut is a radial chord of the ring face it is carved
+        // into, so that face's chart is where it lives (D3's
+        // transience fence). Its pushforward stays as the authority.
+        let ring_chart = face_of_half(body, he)
+            .and_then(|f| body.get_face(f).map(|fd| fd.surface))
+            .ok_or_else(|| not_intact(EntityId::Edge(e), "a rim edge's own face"))?;
         let created = body
             .mev(
                 MevSite::Fan { he1: he, he2: he },
                 fp,
-                EdgeCurveSpec::line_between(p, fp),
+                EdgeCurveSpec::line_between(p, fp).at_rest_in_chart(ring_chart, false),
                 tol,
             )
             .map_err(|e| op("rim strut mev", e))?;

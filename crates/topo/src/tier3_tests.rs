@@ -63,6 +63,17 @@ fn coplanar_pillow(tol: Tol) -> (Body<f64>, crate::MefCreated) {
     // the surfaces' tangent planes, not their keys).
     body.set_face_surface(seed.face, FaceSurface::New(plane))
         .unwrap();
+    // Both chords were built through the SCAFFOLDING door, because
+    // neither face's surface existed when its `mev`/`mef` ran. The
+    // body is at rest now and both faces have charts, so both edges
+    // are re-described where they rest (D3's transience fence — tier
+    // 3 refuses a scaffold on a body with faces).
+    let chart = body.get_face(split.face).unwrap().surface;
+    for e in [seg.edge, split.edge] {
+        let spec = EdgeCurveSpec::line_between(pt(0.0, 0.0, 0.0), pt(1.0, 0.0, 0.0))
+            .at_rest_in_chart(chart, false);
+        body.set_edge_curve(e, spec, tol).unwrap();
+    }
     (body, split)
 }
 
@@ -71,6 +82,61 @@ fn coplanar_split_is_smooth_and_tier3_clean() {
     let tol = Tol::witness();
     let (body, _) = coplanar_pillow(tol);
     assert_eq!(validate_geometric(&body, tol), Ok(()));
+}
+
+/// **The transience fence** (U2's Q2 as corrected, 2026-08-27), red
+/// then green on ONE edge of one body.
+///
+/// RED: the scaffolding door describes a locus for an edge whose
+/// surfaces do not exist yet. Put that description back on an edge of
+/// a body AT REST — two faces, two charts — and tier 3 names it.
+///
+/// GREEN: the same edge, same carrier, same interval, described where
+/// it rests (an image in the chart it lies in) validates clean. Only
+/// the description moves, which is the whole content of the fence.
+#[test]
+fn a_scaffold_at_rest_is_refused_and_the_chart_description_is_not() {
+    let tol = Tol::witness();
+    let (mut body, split) = coplanar_pillow(tol);
+    assert_eq!(validate_geometric(&body, tol), Ok(()));
+
+    // RED — back through the scaffolding door.
+    let scaffolded = EdgeCurveSpec::line_between(pt(0.0, 0.0, 0.0), pt(1.0, 0.0, 0.0));
+    body.set_edge_curve(split.edge, scaffolded.clone(), tol)
+        .expect("the door itself is legal: certification is not where the fence lives");
+    let errors = validate_geometric(&body, tol).expect_err("a scaffold at rest is refused");
+    assert!(
+        errors.contains(&ValidationError::ScaffoldAtRest { edge: split.edge }),
+        "tier 3 must name the scaffolded edge, got {errors:?}",
+    );
+
+    // GREEN — the same edge described where it rests.
+    let chart = body.get_face(split.face).unwrap().surface;
+    body.set_edge_curve(split.edge, scaffolded.at_rest_in_chart(chart, false), tol)
+        .unwrap();
+    assert_eq!(validate_geometric(&body, tol), Ok(()));
+}
+
+/// The other half of the fence: the door it exists to keep open. An
+/// edge whose surfaces genuinely do not exist yet — a `mev` chord in a
+/// half-built ring — carries a scaffolding description and is NOT
+/// refused, because the fence is TRANSIENCE and this edge is transient.
+#[test]
+fn the_scaffolding_door_still_passes_mid_construction() {
+    let tol = Tol::witness();
+    let mut body = Body::<f64>::new();
+    let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap();
+    body.mev_line(
+        MevSite::Lone {
+            r#loop: seed.r#loop,
+        },
+        pt(1.0, 0.0, 0.0),
+        tol,
+    )
+    .unwrap();
+    // No surface anywhere yet, so the chord could not name a chart
+    // even in principle — and tier 3 says nothing about it.
+    assert_eq!(validate(&body), Ok(()));
 }
 
 #[test]

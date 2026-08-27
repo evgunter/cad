@@ -519,7 +519,9 @@ impl<T: Real> EdgeCurveSpec<T> {
 
     /// The same spec with a SCAFFOLDING description re-stated as an
     /// image in `surface`'s chart, the pushforward demoted to the
-    /// authority record it always was (U2 Q3).
+    /// authority record it always was (U2 Q3). `seam` carries D1's
+    /// obligation: this edge claims to BE that chart's
+    /// parameterization seam.
     ///
     /// This is the transience fence's one conversion (D3): the
     /// scaffolding constructors above describe a locus for an edge
@@ -534,10 +536,15 @@ impl<T: Real> EdgeCurveSpec<T> {
     /// construction call this on whatever it built without first
     /// asking what that was.
     #[must_use]
-    pub fn at_rest_in_chart(self, surface: SurfaceKey) -> Self {
+    pub fn at_rest_in_chart(self, surface: SurfaceKey, seam: bool) -> Self {
         let description = match self.description {
             EdgeDescriptionSpec::Scaffold(mc) => {
-                EdgeDescriptionSpec::chart(surface).declared_by(mc)
+                let chart = if seam {
+                    EdgeDescriptionSpec::seam(surface)
+                } else {
+                    EdgeDescriptionSpec::chart(surface)
+                };
+                chart.declared_by(mc)
             }
             other => other,
         };
