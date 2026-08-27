@@ -1600,3 +1600,16 @@ the banding amendment. Claim recorded on the GUI orchestrator
 branch per the #1095 state-sync shape — the band has a single
 claimant, so the claim is raceless; it reaches main with the next
 merge carrying that branch. Row at merge.
+
+GUI-1 review ordinal fixed at dispatch (2026-08-27, PR #1093 open —
+frozen head `568bda3`): **ordinal 401** (GUI band; claimed on the
+GUI orchestrator branch per the #1095 state-sync shape, single
+claimant in band). Protocol v6 dual: draw = `/dev/urandom` byte
+**121**, parity 1 ⇒ **R1 = FABLE, R2 = OPUS** — the opposite slot
+assignment from GUI-0's (byte 180, R1 opus), per-dual
+randomization working as intended. Concurrent on the frozen head,
+identical briefs, v5 instrument, verdict ladder unchanged; both
+briefs carry v6 item 5's lane-isolation READ rule and the blinding
+fence. Pre-draw fields at the block record above: M / NUMERIC,
+implementer arm read from block GUI-B1 slot 2. Sample number
+assigned AT MERGE. Row at merge.
