@@ -8,7 +8,7 @@
 use geom_core::{Band, Point2, Tol, Vec2};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
-use topo::{Body, FaceKey};
+use topo::{Body, FaceKey, ShellError};
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -202,29 +202,22 @@ fn probe_dumbbell_neck_collision_fails_loud() {
         2.0,
     );
     let r = topo::shell(&db, 0.3, FIT_TOL, band(), Tol::witness());
-    // **MAJ-1 pin (review finding, ordinal 82).** Observed at 259fde04:
-    // this returns Ok, tier-3 VALIDATES, volume 11.76 — but the
-    // cavity's neck walls (y = 0.8 + 0.3 = 1.1 and y = 1.2 − 0.3 = 0.9)
-    // have CROSSED: the body is self-intersecting and the volume is not
-    // the erosion's (11.312). The PR's claim that "the cavity's own
-    // tier-3 validation catches that class" is false for this instance:
-    // every per-face loop stays simple and consistently wound, so
-    // nothing per-face can see the collision. This row PASSES today by
-    // pinning the misbehavior; it must be inverted when the gap closes.
-    let body = r.expect("pinned: the dumbbell silently 'succeeds' today");
-    assert_eq!(
-        topo::validate_geometric(&body, Tol::witness()),
-        Ok(()),
-        "pinned: tier 3 does NOT catch the crossed cavity"
-    );
-    let v = topo::mass_properties(&body, Tol::witness())
-        .expect("props")
-        .volume;
-    println!("[probe] MAJ-1: dumbbell shelled Ok, tier-3 valid, volume {v} (silent wrong answer)");
+    // **MAJ-1, closed (ordinal 82 -> fix pass).** At `259fde04` this
+    // returned Ok, tier-3 VALIDATED, and reported volume 11.76 against
+    // a true erosion volume of 11.312: the cavity's neck walls
+    // (y = 0.8 + 0.3 = 1.1 and y = 1.2 - 0.3 = 0.9) had CROSSED. No
+    // per-face margin could see it — a plane's reach is unbounded — and
+    // tier 3 could not either, because every per-face loop stays simple
+    // and consistently wound while the walls march through each other.
+    //
+    // The closed-form planar clearance gate is what sees it now: the
+    // neck's two facing walls are 0.4 apart and two 0.3 walls need 0.6.
+    let e = r.expect_err("the neck is thinner than two walls");
     assert!(
-        (v - 11.76).abs() < 1e-9,
-        "the pinned wrong volume moved: {v}"
+        matches!(e, ShellError::WallClearance { .. }),
+        "expected the wall-clearance gate, got {e}"
     );
+    println!("[probe] MAJ-1: dumbbell refuses LOUD: {e}");
 }
 
 /// Shelling an ALREADY-HOLLOW body: the operand has two shells, the
@@ -236,26 +229,24 @@ fn probe_shell_of_a_hollow_fails_loud() {
     let hollow = topo::shell(&boxy(2.0, 3.0, 4.0), 0.25, FIT_TOL, band(), Tol::witness())
         .expect("the first shell is the PR's own green row");
     let r = topo::shell(&hollow, 0.05, FIT_TOL, band(), Tol::witness());
-    // **MAJ-2 pin (review finding, ordinal 82).** Observed at 259fde04:
-    // Ok with FOUR shells, tier-3 valid, volume 4.362. The verb offset
-    // the operand's VOID shell too and inserted both cavity-clone
-    // shells as new voids beside the existing one — the new voids
-    // overlap/contain the old void, and the `Carried { Positive }`
-    // evidence is false for the offset-of-the-void shell (it is not in
-    // material). No gate refuses a multi-SHELL operand (`NotOneSolid`
-    // counts solids only). This row PASSES today by pinning the
-    // misbehavior; it must be inverted when the gap closes.
-    let body = r.expect("pinned: shelling a hollow silently 'succeeds' today");
-    assert_eq!(body.shells().count(), 4, "pinned: overlapping-void census");
-    assert_eq!(
-        topo::validate_geometric(&body, Tol::witness()),
-        Ok(()),
-        "pinned: tier 3 does NOT catch the overlapping voids"
+    // **MAJ-2, closed (ordinal 82 -> fix pass).** At `259fde04` this
+    // returned Ok with FOUR shells, tier-3 valid, volume 4.362: the
+    // verb offset the operand's VOID shell too and inserted both
+    // cavity-clone shells as new voids beside the existing one, with
+    // `Carried { Positive }` asserted for a shell that was never in
+    // material. `NotOneSolid` did not gate it — a hollow body is ONE
+    // solid with two shells.
+    //
+    // The operand gate refuses it now. The ratified semantics for when
+    // this is answered rather than refused is "thicken EVERY boundary"
+    // (issue #1056) — offsetting only the outer shell is explicitly
+    // not the answer.
+    let e = r.expect_err("a hollow operand has no single boundary to erode");
+    assert!(
+        matches!(e, ShellError::OperandAlreadyHollow { shells: 2 }),
+        "expected the already-hollow gate naming two shells, got {e}"
     );
-    let v = topo::mass_properties(&body, Tol::witness())
-        .expect("props")
-        .volume;
-    println!("[probe] MAJ-2: shell-of-hollow Ok, 4 shells, tier-3 valid, volume {v}");
+    println!("[probe] MAJ-2: shell-of-hollow refuses LOUD: {e}");
 }
 
 // ---------------------------------------------------------------------
@@ -342,19 +333,27 @@ fn probe_opened_vessel_cup() {
     // A full revolve splits each planar cap into TWO faces on one
     // plane chart (4 planar faces total). Designate the whole top cap:
     // both of its faces.
+    // **The cap coordinate is `y`, not `z`.** This fixture revolves an
+    // xy-sketch meridian about `dir = (0, 1)`, so the body's axis is
+    // `y` and BOTH cap planes sit at `origin.z == 0`. Keying the
+    // selection on `z` (as this row first did) selects all four planar
+    // faces, designates both caps, and builds a two-ended TUBE — whose
+    // volume is `pi*(r^2*h - (r-t)^2*h)`, not the cup's. The verb was
+    // right and the selector was wrong; corrected here rather than
+    // loosening the volume the row checks.
     let mut caps: Vec<(FaceKey, f64)> = v
         .faces()
         .filter_map(|(k, f)| match v.get_surface(f.surface) {
-            Some(geom::Surface::Plane { origin, .. }) => Some((k, origin.z)),
+            Some(geom::Surface::Plane { origin, .. }) => Some((k, origin.y)),
             _ => None,
         })
         .collect();
     println!("[probe] vessel planar faces: {}", caps.len());
     caps.sort_by(|a, b| b.1.total_cmp(&a.1));
-    let zmax = caps[0].1;
+    let ymax = caps[0].1;
     let top: Vec<FaceKey> = caps
         .iter()
-        .filter(|(_, z)| (*z - zmax).abs() < 1e-9)
+        .filter(|(_, y)| (*y - ymax).abs() < 1e-9)
         .map(|(k, _)| *k)
         .collect();
     match topo::shell_open(&v, t, &top, FIT_TOL, band(), Tol::witness()) {

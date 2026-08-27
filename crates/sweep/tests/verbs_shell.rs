@@ -162,11 +162,19 @@ fn a_sealed_shelled_box_is_an_outer_and_a_void() {
 /// **`bool_ring_run_winding` is allowed, and naming it is the point.**
 /// The verb ends in a tier-3 validation, and the validator's own
 /// planar-boundary check decides that predicate against the same margin
-/// the boolean's ring-run test uses — one name, two owners
-/// (`topo::validate` and `topo::boolean::join`). Allowing it by name
-/// keeps the claim exact: nothing SSI, census or classification ran.
-/// A silent `bool_`-prefix filter would have hidden that the shared
-/// name exists at all.
+/// the boolean's ring-run test uses. The name has **three** owners, not
+/// two — `topo::validate`, `topo::boolean::join`, and
+/// `topo::merge_faces`' role normalization — which is exactly why a
+/// silent prefix filter would be the wrong shape here. Allowing it by
+/// name keeps the claim exact.
+///
+/// **What this pin does and does not cover.** It reads the log for
+/// `bool_`-prefixed predicates, which is the crossing pipeline's own
+/// vocabulary; it does NOT cover the `ssi_*` or `tangent_locus_*`
+/// families, which carry their own prefixes. The claim is "the
+/// boolean's machinery did not run", and the marching stack is reached
+/// only through that machinery, so the coverage of SSI is by
+/// composition rather than by the filter — stated rather than implied.
 const VALIDATOR_SHARED: &str = "bool_ring_run_winding";
 
 #[test]
@@ -301,7 +309,11 @@ fn a_nonpositive_thickness_refuses_typed() {
 /// refuses, and that refusal IS the containment evidence's own decide.
 #[test]
 fn a_wall_past_the_reach_refuses_typed() {
-    let e = topo::shell(&vessel(1.0, 2.0), 1.5, FIT_TOL, band(), Tol::witness())
+    // The vessel is TALL so the caps clear each other: at `h = 6` the
+    // two cap planes are 6 m apart and a 1.2 m wall needs 2.4, so the
+    // clearance gate (which runs first, and rightly) passes and the
+    // refusal under test is the one the row is about.
+    let e = topo::shell(&vessel(1.0, 6.0), 1.2, FIT_TOL, band(), Tol::witness())
         .expect_err("a wall past the radius collapses the wall");
     assert!(
         matches!(
