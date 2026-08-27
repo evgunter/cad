@@ -1696,3 +1696,23 @@ remove — so threshold-plus-variant-name is now the rule, and a
 door wanting a derived echo is asking to be a seam. The queued
 payload-projection unit is CANCELLED; the real.rs entry and
 #1052 amended.
+
+## ORDINAL 82 RETURNED: OFF-D PR-2 NMAI 2/5/3; ADJUDICATED WITH EVAN (2026-08-27)
+
+The review found exactly what the brief aimed it at — both MAJors
+behind the PR's own honesty paragraph, whose claimed backstop is
+measured false: (1) the colliding-cavity dumbbell (0.4 neck,
+t=0.3) returns Ok/valid/volume 11.76 vs true 11.312 — planar
+faces have vacuous reach margins, the cavity's neck walls cross,
+every loop stays simple, and tier-3 has no face-vs-face check;
+(2) shell of an already-hollow operand inserts overlapping voids
+and validates. Evan ruled: MAJ-1 gets the closed-form
+planar-pair clearance gate (sound in the #571 conservative
+direction) with the curved-pair residue a DOCUMENTED window
+issued at M10's clearance certificate; MAJ-2 gets a
+one-shell/zero-void operand gate now, with the semantics issue
+recording that the eventual resolution must thicken EVERY
+boundary (outer-only explicitly rejected). Fix pass dispatched
+with the five MINs, the S2 uniform-sense gate, and the C7
+requirement that interval coverage of the final head be on the
+record before merge. Reviewer lane swept.
