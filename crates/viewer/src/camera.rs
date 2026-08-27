@@ -613,10 +613,16 @@ impl Camera {
             f.y + r.y * sx + u.y * sy,
             f.z + r.z * sx + u.z * sy,
         );
-        // `powi(2)`, not `x * x`: the ratified interval-square rule,
-        // which this file is subject to like every other. At `f64` the
-        // two are the same number, and the rule is about which
-        // spelling survives a refactor that widens the scalar.
+        // `powi(2)`, not `x * x` — the ratified interval-square rule
+        // (`scripts/gates/interval-square-allowlist.sh`), which this
+        // file is subject to like every other. The rule's own reason is
+        // the gate's: `powi(2)` is strictly tighter than `x * x` when
+        // the enclosure straddles zero and equal elsewhere, EXCEPT for a
+        // square below 2^-960 where the backend pads once more — so it
+        // is not "never wider", and whether a given enclosure can
+        // straddle zero is a global property of upstream callers that
+        // refactors change silently. Which is why the spelling is a
+        // gate rather than a judgement call at each site.
         let len = (dir.x.powi(2) + dir.y.powi(2) + dir.z.powi(2)).sqrt();
         // `forward` is a unit vector and the offsets are perpendicular
         // to it, so the length is at least 1 for every finite cursor;

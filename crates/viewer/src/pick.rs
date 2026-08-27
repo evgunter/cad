@@ -493,9 +493,14 @@ impl core::fmt::Display for PickError {
     /// `CameraError` nor `HitTestError` has a `Display` — and the rule
     /// this crate follows is that the layer which raised a failure
     /// names it, never a sentence composed here about somebody else's
-    /// refusal. `CameraError`'s absence is this crate's own and
-    /// pre-existing; `HitTestError`'s is `editor-core`'s, recorded as
-    /// a finding rather than papered over with wording invented here.
+    /// refusal.
+    ///
+    /// **That absence is a CLASS, and it is scheduled: issue #1111.**
+    /// It covers both of these and the six other public error types
+    /// whose values reach a string a person reads (`SceneError`,
+    /// `PickIndexError` and the rest). Reported as one instance in this
+    /// unit's PR; swept into the issue at the fix pass, because "worth
+    /// an issue" is not a schedule.
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Camera(error) => write!(f, "the cursor names no ray: {error:?}"),
