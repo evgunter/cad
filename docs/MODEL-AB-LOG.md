@@ -113,6 +113,64 @@ amended:
   - Record WHO executed the fix pass (implementer-inherited vs
     orchestrator-applied) — inconsistent execution contaminates
     the fix-pass proxies.
+- **Method relaxations are RECORDED PER ARM, and a pair whose arms ran
+  under different methods counts toward NEITHER the tally NOR the twelve
+  (Evan, in-chat, 2026-08-27).** The rule: *"it's important to record
+  when the method was relaxed, because then the two reviews aren't
+  comparable any more — and probably also don't count them towards the
+  12."*
+  1. **Any orchestrator relaxation of a reviewer's method is written
+     into the row, naming WHICH ARM received it.** Scope narrowing
+     ("run the rows your findings need, not the whole crate"), a
+     lifted battery requirement, a permitted substitution — each is a
+     change to the instrument, not a scheduling detail.
+  2. **A pair whose two arms ran under different methods is excluded
+     from the adjudicated unilateral-MAJOR tally AND from the
+     twelve-pair count.** It is still RECORDED in full, findings and
+     all — the work is not wasted, it is simply not a controlled
+     comparison. This EXTENDS v6 item 3(e), which excluded interrupted
+     or truncated pairs; the same logic covers a pair the orchestrator
+     itself made asymmetric.
+  2b. **A CORRECTION back to the stated method is NOT a relaxation
+     (boundary raised by the VERBS orchestrator, 2026-08-27, applying
+     this rule to its own PIERCE pair).** Nudging an agent that parked
+     on a background watcher back into foreground polling, or telling
+     one that a battery belongs in `-x` rather than the express lane,
+     restores the brief — it does not change the instrument, and it
+     does not spend the pair. What spends the pair is granting one arm
+     something the brief did not give it and the other arm did not
+     get: narrower scope, a lifted requirement, a permitted
+     substitution. The test is not "did the orchestrator send a
+     message" but **"do the two arms now differ in what they were
+     permitted to do".** Without this line the rule would exclude
+     every pair anyone ever nudged, which would make it unusable.
+  3. **Why it matters more than it looks.** A unilateral MAJOR is
+     informative only if the silent arm had the same opportunity to
+     find it. If one arm was told to narrow its batteries and the
+     other was not, "R2 never mentioned it" stops being evidence about
+     R2's judgment and becomes evidence about the instructions.
+  4. **The operational tension, stated so it is not rediscovered.**
+     Relaxations get proposed under build-mutex saturation, which is
+     exactly when several duals run at once. Every relaxation now
+     costs a pair, so under contention the cheaper lever is REDUCING
+     CONCURRENCY (fewer simultaneous duals) rather than narrowing
+     method — the same total work, without spending the experiment.
+
+  **Applied retroactively at this entry, both of 2026-08-27:**
+  - **PCURVE P-1a (ordinal 84)** — EXCLUDED. R2's batteries were
+    killed twice by the express-lane cap (work lost) and it needed an
+    orchestrator nudge to resume; v6 3(e) already covered this.
+  - **Census gap 2 (ordinal 200)** — EXCLUDED under the new clause,
+    reversing this orchestrator's earlier call that it was fair. **R1
+    was granted a scope relaxation under mutex saturation and R2 was
+    not** — R2 had already run full `cargo test -p topo` batteries. R1
+    then found a unilateral MAJOR (the `chart_region_parallel`
+    argument-order asymmetry) that R2 missed while sweeping 120
+    frame configurations. The finding is REAL and is being fixed; it
+    simply cannot be scored, because the arms were not comparable and
+    the asymmetry was mine.
+
+  **Tally after this entry: 0 of 8. Clean pairs toward twelve: 0.**
 - **Ordinal bands, per program (Evan, in-chat, 2026-08-27; authorised
   and self-merged after the first arbitrated collision).** THE
   PROBLEM v6 CREATED: under v4/v5 duals were every third row, and two
@@ -128,8 +186,10 @@ amended:
      cross-program read is needed at dispatch, so a collision is
      impossible by construction rather than arbitrated after the
      fact. Bands, allocated at this entry:
-     **VERBS 100–199 · PCURVE 200–299 · LIB 300–399**, with
-     **400+ unallocated** — the orchestrator opening the next
+     **VERBS 100–199 · PCURVE 200–299 · LIB 300–399 · GUI 400–499
+     (claimed 2026-08-27 at the GUI program's opening —
+     `docs/GUI-LOG.md`)**, with
+     **500+ unallocated** — the orchestrator opening the next
      program takes the next free band and records it HERE in the
      same commit that opens the program. **1–99 is CLOSED
      HISTORY**: the pre-banding global sequence, which reached 85.
@@ -1505,3 +1565,87 @@ unchanged; both briefs carry v6 item 5's lane-isolation READ rule.
 Pre-draw fields logged at the spec: difficulty **M**, task-class
 **NUMERIC**, implementer arm **OPUS** (block PCURVE-1 slot 2).
 Row at merge.
+
+## GUI program rows (the v1 GUI, docs/GUI-PLAN.md; band 400–499; blocks named GUI-B<n> — the B avoids colliding with the unit names GUI-0…GUI-6)
+
+Block GUI-B1 pre-draw fields (2026-08-27, logged before the draw):
+slot 1 = GUI-0 (docs/GUI-0-SPEC.md) — difficulty M, task-class
+STRUCTURAL (new-crate scaffold, eframe/wgpu plumbing, typed camera
+ops; no new numeric predicate — camera math is display-layer state,
+not a tolerance/measurement decision). Slot 2 = GUI-1
+(docs/GUI-1-SPEC.md) — difficulty M, task-class NUMERIC (ray-slab
+comparisons, conservative-superset boundary decisions, nearest-hit
+ordering are geometric-measurement decisions, though under no D9
+obligation). Slots 3–4 bank for GUI-2/GUI-3 in dispatch order,
+pre-draw fields at their specs.
+
+Block GUI-B1 draw (2026-08-27, after the pre-draw fields above):
+byte **101** (<252, accepted), 101 mod 4 = 1 = fable's position
+(0-indexed, the VERBS-4/PCURVE-1 mapping) ⇒ **fable at slot 2**.
+So: slot 1 GUI-0 = OPUS, slot 2 GUI-1 = FABLE, slots 3–4 = OPUS
+(GUI-2/GUI-3, arms read back from this record at dispatch per the
+VERBS-4 deviation remedy).
+| P-1a | 2026-08-27 | PCURVE's first unit — the collapsed edge description, the unified meter, the authority record (`geom-brep` only, behind a thin shim; consumers/fence/test-rewrites are P-1b's). `EdgeDescription` collapses D2's conventional variants to one `Chart(ChartCurve{surface,pcurve,seam})` arm plus a fenced `Scaffold`; `Pcurve::General` lands at the Fitted grade through `certify_general` (running `run_fitted_checks` VERBATIM, with a row asserting both doors produce identical certificates on identical inputs); D1's unified meter `|C(t) − S(P(t))| ≤ ε` with the two seam predicates retained as a periodic-chart obligation; `EdgeAuthority::{Derived,Declared}` stored per edge; D4's mint wired at certification. The `Copy` loss resolved by BORROW — `EdgeGeometry` stays `Copy` as the consumers' vocabulary, so the 22 deref sites are untouched and P-1b pays them against a borrowable type | **L** / STRUCTURAL (pre-logged at the spec) | OPUS (block PCURVE-1 slot 1; block byte 251, mod 4 = 3 ⇒ fable at slot 4) | **DUAL (ordinal 84, sample #27, CROSS-MODEL, v6's FIRST randomized-slot draw — byte 238, parity 0 ⇒ R1 opus + R2 fable, frozen `af0aebb5`). BOTH ARMS NOT-MERGEABLE-AS-IS, converged on the core defect from different angles.** R1: the gate was red at the frozen head (the `d2` row failing at ε=1e-12 and `demos/tour` not compiling — a `Pcurve::General` arm missed because `demos/tour` is outside the workspace, so `--workspace` never sees it); the D2 row generalized ONE ε point into a class fact; **the seam meter changed QUANTITY not bits — cone perpendicular-to-generator vs radial chord, ratio sec α, and an edge that certifies on main now ESCALATES**; the iso move unbounded in anchor offset (t0 1e6 → 7.0e14 ULP). R2: the same gate red; **the same seam finding reached independently and wider — sphere 2.35e9 ULP, cone 6.7e14 verdict-flipping, and cylinder at r=1e-4 moving 6.0e9, so the row's r=2 fixture was exactly where the move rounds away**; and the D2 tripwire BLIND to the laundering it existed to catch (iso slope exactly 1.0 — two mutants survived it). **PAIR EXCLUDED from the v6 tally and from the twelve** under item 3(e): R2's batteries were killed twice by the express-lane cap and it needed a correction to resume — work lost, so the arms are not comparable. Findings fully recorded and fully fixed; simply not scored | **0 silent** — every deviation reported in the PR body before review | 4 | 4 | 5 | substantial, IMPLEMENTER-INHERITED, TWO ROUNDS. Round 1: the seam disposition ruled `|C − S(P)|` the RIGHT quantity and re-baselined deliberately — the decisive ground VERIFIED not argued, that the pcurve CACHE lane already imposed exactly this statement on exactly this geometry through exactly this mint (demonstrated by running the fixture through `PcurveCache::certify`, code the unit does not touch), so the collapse removes a place where the kernel said two different things about one edge rather than inventing a rule; the price pinned as an assertion of the NEW behaviour; the implementer WITHDREW its own 'the new meter is conservative' claim on R2's small-cylinder evidence and replaced it with the narrower `|C − S(P)| ≥ dist(C, surface)`; the D2 tripwire rebuilt onto the mint's OUTPUT bits after finding TWO MORE blindnesses the review had not (v0=0 degeneracy, quadratic swamping). Round 2 (delta re-verification, required by the NOT-MERGEABLE verdict): the delta EXECUTED and FALSIFIED the implementer's 'no-op, not a survivor' claim — two re-associations passed all three D2 rows while moving minted bits at ~52%% and ~1.2%% of random anchors, coinciding only at the four pinned ones; two separating anchors added (six total, each documented with why), all four mutants now die, and the PR record corrected in place because a false 'we checked, it was a no-op' retires the question for the next reader | hosted CI green on every head; the branch's union drew BOTH compile modes on fix-pass code — default @ 1e-12 (`a6f3fcd6`) and interval @ 1e-6 (`54b542f0`, `a030c694`), k-lint gate green throughout (a metered-quantity change did not trip it). Merged #1073 at `9fa321d4` | impl ~443k / reviews R1 ~201k + R2 ~280k (incl. delta round) | impl ~6h across two fix rounds; reviews ~5.6h wall including a 2h18m self-inflicted mutex starvation (the implementer's own superseded footnote battery — the incident that produced the lane-ops rule at #1085) |
+
+GUI-0 review ordinal fixed at dispatch (2026-08-27, PR #1094 open —
+frozen head `f511a00`): **ordinal 400 — the FIRST claim in GUI's
+band (400–499)**. Protocol v6 dual: draw = `/dev/urandom` byte
+**180**, parity 0 ⇒ **R1 = OPUS, R2 = FABLE**, concurrent on the
+frozen head, identical briefs, v5 instrument, verdict ladder
+unchanged; both briefs carry v6 item 5's lane-isolation READ rule
+and the blinding fence (reviewers do not read this file). Pre-draw
+fields at the block record above: M / STRUCTURAL, implementer arm
+read from block GUI-B1 slot 1. Sample number assigned AT MERGE per
+the banding amendment. Claim recorded on the GUI orchestrator
+branch per the #1095 state-sync shape — the band has a single
+claimant, so the claim is raceless; it reaches main with the next
+merge carrying that branch. Row at merge.
+
+GUI-1 review ordinal fixed at dispatch (2026-08-27, PR #1093 open —
+frozen head `568bda3`): **ordinal 401** (GUI band; claimed on the
+GUI orchestrator branch per the #1095 state-sync shape, single
+claimant in band). Protocol v6 dual: draw = `/dev/urandom` byte
+**121**, parity 1 ⇒ **R1 = FABLE, R2 = OPUS** — the opposite slot
+assignment from GUI-0's (byte 180, R1 opus), per-dual
+randomization working as intended. Concurrent on the frozen head,
+identical briefs, v5 instrument, verdict ladder unchanged; both
+briefs carry v6 item 5's lane-isolation READ rule and the blinding
+fence. Pre-draw fields at the block record above: M / NUMERIC,
+implementer arm read from block GUI-B1 slot 2. Sample number
+assigned AT MERGE. Row at merge.
+| CENSUS-G2 | 2026-08-27 | #943's gap 2 — the flush seat certifies (PR #1080): a post seated flush under a shelf, declared `Rest`, could not certify because two independently-authored coincident planes share no chart and Door 2 had nowhere to compute overlap. Takes the pair's shared WORLD CARRIER as the chart, with the FRAME-INVARIANCE LEMMA written at `world_carrier` rather than in a PR body (both chart maps are isometries; when `carrier_agreement` decides Zero, psi is within eps a plane isometry; every downstream quantity is a Euclidean invariant; ORIENTATION — the one thing a reflection does not fix, and exactly the field an opposed `Rest` pair differs in — is absorbed structurally by CCW normalization before the machinery runs). Door 2 now consumes the `ContactVerdict` the census discarded; the residue is metered at the PAIR'S OWN CHART EXTENT, not Door 1's pinned 1 m lever; one new metered predicate `chart_region_carrier_tilt` with four honest outcomes. The demo's bench seats are FLUSH and the A5 gate asserts Certified | **M** / NUMERIC (pre-logged at the spec) | OPUS (block PCURVE-1 slot 2) | **DUAL (ordinal 200 — the FIRST BANDED claim, PCURVE's 200-299 range; sample #28; CROSS-MODEL, byte 159 parity 1 => R1 FABLE + R2 OPUS, the opposite slot assignment from P-1a's, frozen `e16749ad`). BOTH APPROVE-WITH-FIXES.** R2 attacked the lemma hardest and it HELD: it found the shipped symmetry corpus builds both bodies from one cube mapper so psi is at most a REFLECTION, supplied the missing rotations itself (21 configurations, then 120 across both band edges), zero disagreements, and judged the implementer's self-reported `ray_parity` concession **the right size**. R1's unilateral MAJOR: `chart_region_parallel` levers its margin by the FIRST polygon's edge length, so a 5 cm edge against a 1 m edge certifies one way and refuses the other — a different gate verdict per which face the mate named first. **PAIR EXCLUDED from the tally and the twelve**: the orchestrator granted R1 a scope relaxation under mutex saturation and did not grant it to R2, making the arms incomparable — the exclusion is the orchestrator's fault, not either reviewer's, and the finding is real and fixed | **0 silent** — neither reviewer found one | 4 | 4 | 4 | substantial, IMPLEMENTER-INHERITED. The MAJOR reproduced before being trusted (matching R1's -5.0e-9 to the digit), then fixed by `|r|` -> `min(|r|,|s|)` — which IS the union-max of the two candidate margins, so it is symmetric by construction and NEVER LESS DEFINITE than before: no existing certification is lost and R1's probe now certifies both ways. **Scope lifted by Evan, the lane audited the whole door and found two more**: `chart_region_collinear_offset` was also one-sided, and `overlap_of_regions`' containment arm refused on one relation's `None` before consulting the other. Five further predicates proved already symmetric (`cross_span` bit-exactly under the swap); `collinear_overlap`'s `cos θ` difference bounded by derivation rather than called second-order. **Three narrowings the lane found in ITS OWN tests, not the door**: comparing `Debug` strings included the `Indeterminate` margin (a field documented as not-to-be-branched-on); a fixed 1e-6 tolerance encodes an eps (frame noise goes as EPSILON/sin θ); and the signed comparison flipped because `perp_dot(r,s) = -perp_dot(s,r)` exactly — that sign IS the crossing's orientation and must flip. The result is an honest split: strict verdict equality where well-conditioned (160 cells), and where 1/sin θ conditioning means no door can be order-invariant, the claim that actually holds — never two different CERTIFIED answers, margins agreeing to the derived noise bound. R1's probe is a PROVEN regression test (red pre-fix, green post-fix); the original 160-cell battery did not catch the defect, which is why the probe was needed | hosted green on head `719ff7b4` (f64, eps = default, both shards, all new rows run). **Stated gap, not hidden**: the interval-lane greens are on EARLIER heads whose `crates/topo` differs, so they do not cover the symmetry work and the lane does not claim they do; the local three-eps f64 sweep predates the last three commits and was not re-run (mutex held by siblings, per the orchestrator's own do-not-start-another-battery instruction). Merged #1080 | impl ~389k / reviews R1 ~252k + R2 ~305k | impl ~4.6h across two rounds / reviews ~4.6h and ~3.8h, R1's including a 2h30m mutex starvation |
+| GUI-0 | 2026-08-27 | GUI-0 (PR #1094; the GUI program's first unit): the `viewer` crate scaffold — eframe app with `egui_tiles` docked chrome (OQ-b decided in-unit: licence parity MIT-OR-Apache vs egui_dock's MIT-only, layout-is-a-value shape, rerun provenance, 22-day age with 0.17.1 at 9 days correctly refused), thin custom wgpu viewport (paint-callback, egui's own depth attachment) drawing plate_with_hole through Doc→evaluate→product→tessellate at display-δ, orbit/pan/zoom as typed renderer-free `Camera`/`CameraOp`/fold (G1 operations-are-API), 26→45 headless CI rows; the seam-friction reading: NO GQ6-RESURVEY §5 fallback condition met, honestly scoped — the spike edits nothing, the real measurement re-takes at GUI-3; `app` a non-default feature (toolkit out of the dependent closure); Evan's viewer-CI ruling (in-conversation, GUI-LOG) implemented at the fix pass: seed-keyed RUN_VIEWER_TOOLKIT axis in ci-filter.py ∩{viewer,pncad,bvh}, the skip a published output with an always-printed verdict step, nightly viewer row re-taking gated coverage, doc-gate --skip-viewer-toolkit keeping the renderer-free rustdoc gate; the witness-not-ambient gate's façade-spelling hole closed (matcher + planted differential both ways; crates/*/src/bin/ excluded per the gate's own entry-point rule); issue #1097 = first light + culling flip + winding check | M / STRUCTURAL (pre-draw at block) | OPUS (block GUI-B1 slot 1; byte 101 ⇒ fable slot 2) | **DUAL (ordinal 400 — the GUI band's first claim; sample #29 at merge; byte 180 parity 0 ⇒ R1 OPUS + R2 FABLE, concurrent, frozen f511a00, v5 instrument).** R1: A-W-F 1/4/4 + style 15, rubric 4/4/4 — MAJOR-1 the `pncad::tolerance::witness()` door bypassing the gate's `Tol::witness` string-grep (planted differential: identical semantics, opposite verdicts); refuted the framing row's one-sidedness (dropped-/aspect mutant survives where credited); pinned the silent fit-clamp misfit as a red #[ignore] row. R2: A-W-F 0/4/4 + style 11, rubric 4/4/4 — the same gate hole at MINOR, the same aspect findings independently (|ndc| 4.79 at aspect 0.005), every re-derived PR-body number exact (CI seconds, crate ages, licence census). CONVERGED: every substantive finding bilateral. **v6 tally after this pair: 0** — no unilateral MAJOR. R2 was interrupted by the 17:25Z container restart (~18 min gap, worktree survived with unpushed commits, all measurements re-run post-resume, disclosed) — arms judged comparable and the pair SCORED; the blinded adjudication may re-decide under 3(e) | 0 silent (5 reported; 3 initially unscheduled → scheduled at fix) | 4 | 4 | 4 | substantial, IMPLEMENTER-INHERITED: the CI-posture ruling in full (SKIP direction proven by filter selftests + local invocation, first hosted exercise = the next kernel-only PR, stated in the PR); gate matcher extended with residual stated; `CameraError::Unfittable` replacing the silent clamp (R1's red row un-ignored, gating green); real viewport aspect wired (both hardcoded 1.0s); ONE fold home (`fold_recorded`; `navigate` deleted; views proven agreeing incl. refusals); DisplayTolerance DOC-narrowed not door-widened (adjudicated: a door check re-derives the tessellator's sizing rule — one home); UnusableBounds kept with honest doc (a split reds a promoted row); both reviewer suites adopted --no-ff authorship-preserving, reports/probes removed in a follow-up commit; PR-body arithmetic corrected including one R1 claim refuted with receipt (13 aggregating all.rs files — pncad's is single-file); fonts row decided ACCEPT in the body with the named fallback for Evan | impl CI 33094649160 GREEN (default, default-ε); fix CI 33102412634 GREEN (default, 1e-6; the two verdict steps ran, clippy-app ran — tier all fails open); merged #1094 at sample #29 | impl ~489k / fix ~265k / R1 ~270k / R2 ~290k | impl ~62m / fix ~118m / R1 ~105m / R2 ~75m active + ~18m restart gap (annotated) |
+
+Block GUI-B1 slot 3 assignment (2026-08-27): GUI-3 dispatches next
+(GUI-2 waits on GUI-1's merge), so **slot 3 = GUI-3**
+(docs/GUI-3-SPEC.md; slot 4 banks for GUI-2). Pre-draw fields,
+logged at the spec: difficulty **M-L** (the largest wiring unit —
+tree + panel + evaluation seam + undo tree + open/save + exporter —
+but ordinary headless Rust over shipped substrate), task-class
+**STRUCTURAL** (wiring and state values; no new numeric predicate —
+the refusal affordance and badges render existing typed payloads).
+Arm read back from the block draw record: **slot 3 = OPUS**
+(byte 101 put fable at slot 2, consumed by GUI-1).
+| GUI-1 | 2026-08-27 | GUI-1 (PR #1093): `Bvh::ray` + the hit-test service — the ray-slab test and traversal on the deterministic BVH with the conservative-superset contract made MAGNITUDE-UNIVERSAL at the fix pass (exact arithmetic-free d=0 arm both sides; endpoints by correctly-rounded division, not reciprocal; overflowed subtractions recomputed exactly in halves; remaining infinities genuine with the widening as valid clamp; internal hulls at 8-ULP vs items' 4, dominance argued), deterministic (t_enter, index) order; `editor-core::resolve::pick` — Möller–Trumbore both-sided closed-boundary exact tests, nearest-hit `ray → StableName` with typed miss/errors, arena keys confined (bug-arm exception scoped in prose); the **`NodePick` atomic provenance door** (body fetched via `product::sources_of`, tessellated + indexed in one call — pairing true by construction; the raw-target confident-wrong-name class documented at #1098); census NOT_CARRIED (+NodePick, NodePickError = 91) with the future curated `pncad::select` door banked | M / NUMERIC (pre-draw at block) | FABLE (block GUI-B1 slot 2 — the block's one fable) | **DUAL (ordinal 401; sample #30 at merge; byte 121 parity 1 ⇒ R1 FABLE + R2 OPUS — opposite slots from GUI-0's draw, per-dual randomization working; concurrent, frozen 568bda3, v5 instrument).** R1: A-W-F 1/3/2, rubric 4/5/3 — MAJOR: intermediate overflow breaks the conservative superset (COMMITTED RED WITNESS `overflow_prunes_a_truly_hit_box`); exact-i128-oracle sweeps clean elsewhere; 3 mutants proven red-capable. R2: A-W-F 0/3/5 + 11 style, rubric 4/4/3 — the SAME overflow hole independently (own witness + the subnormal-1/d sibling composition), the provenance gap (verified confident wrong name on sibling extrudes), d=0 prune exact on one side only; 9,000-ray independent differential (own BVH-free oracle): zero disagreements. CONVERGED — every substantive finding bilateral; **v6 tally after this pair: 0**. Both reviewers interrupted by the 17:25Z container restart (R1 ~3 min, R2 a-few-min gaps; both resumed in surviving worktrees, re-ran every in-flight measurement, disclosed) and both disclosed benign build-slot command-line glimpses — pair judged comparable and SCORED; the blinded adjudication may re-decide under 3(e) | 0 silent (1 reported spec-sanctioned scoped exclusion: edge/vertex proximity) | 4 | 4 | 3 | substantial, IMPLEMENTER-INHERITED: the three-part overflow fix with BOTH reviewer witnesses flipped green-and-gating plus new subnormal/beyond-range rows, sweeps re-run at effort 120/60; both-sides-exact d=0 with the missing-side rows; the NodePick door + #1098 (R2's raw-target witness kept #[ignore]d as the class document — the door closes the lane, a check cannot); doc truth throughout (t.is_finite() guard making "refuses non-finite" true; module-header universal claim REWRITTEN and defended, not scoped); vacuity floors on the shipped sweep (test_utils::vacuity, floors stated against the effort-1 dial); brute-comparator duplication KEPT with the independence argument in a comment; triangle_count removed; both reviewer suites adopted --no-ff authorship-preserving (reports/probes removed in a follow-up commit); one transient local test-utils vacuity failure flagged (passed isolated + full re-run + twice hosted; possibly cross-lane interference, not acted on) | impl CI 33093540858 (interval/default-ε: red ONLY on the pncad census, fixed in-lane), 33095274605 GREEN (default, 1e-6), 33096924504 GREEN (default, 1e-12); fix CI 33103576216 GREEN (interval, 1e-6) + 33104578515 GREEN (interval, default-ε) — four of six matrix points drawn green across the lane's runs, the interval lane at both drawn tolerances on the new suites; merged #1093 at sample #30 | impl ~310k / fix ~135k / R1 ~300k / R2 ~260k | impl ~77m / fix ~52m / R1 ~55m / R2 ~130m (incl. ~25m slot queueing); restart gaps annotated in all three affected lanes |
+
+GUI-3 review ordinal fixed at dispatch (2026-08-27, PR #1101 open —
+frozen head `956ef3cf`): **ordinal 402** (GUI band; claimed on the
+GUI orchestrator branch per the #1095 shape, single claimant).
+Protocol v6 dual: draw = `/dev/urandom` byte **35**, parity 1 ⇒
+**R1 = FABLE, R2 = OPUS**. Concurrent on the frozen head, identical
+briefs, v5 instrument, verdict ladder unchanged; both briefs carry
+v6 item 5's lane-isolation READ rule and the blinding fence.
+Pre-draw fields at the slot-3 record above: M-L / STRUCTURAL,
+implementer arm read from block GUI-B1 slot 3. Sample number
+assigned AT MERGE. Row at merge. Known main-red context handed to
+both reviewers: #1102 (main red at the 1e-12 draw, not this PR's).
+
+Block GUI-B1 slot 4 assignment (2026-08-27): **slot 4 = GUI-2**
+(docs/GUI-2-SPEC.md; the block's last slot — GUI-4 opens block
+GUI-B2 with a fresh draw). Pre-draw fields, logged at the spec:
+difficulty **M**, task-class **STRUCTURAL** (selection state,
+id-buffer plumbing, wiring over the shipped picking numerics; no
+new numeric predicate). Arm read back from the block draw record:
+**slot 4 = OPUS**. Dispatch waits on GUI-3's merge per the L-GUI-1
+sequencing call in GUI-LOG.
+| GUI-3 | 2026-08-27 | GUI-3 (PR #1101): the document panels — feature tree over the GQ2 result DAG with typed Failed/Poisoned badges (assembly gallery docs render 7 typed InstantiatePart refusals, no crash); property panel through pure `apply` with the expression-refusal affordance (navigate-and-display, no pre-fill — verified substrate limit: `Expr` exposes no operator identity; unparser filed #1103); the evaluation seam (`EvalService` trait, Inline + Thread implementations, cancel-and-restart, per-job CancelToken, in-seam memo, busy + Cancel + Reevaluate chrome); the sibling-minting undo tree (linear chrome over tree state per the plan's undo note; open→save byte-stable; `replayed` makes a file's log the current path); typed open/save + rfd 0.17.2 dialog veneer; the tour gallery exporter ({assembly, checks, ring, diefillet, heatsink} — the plan's scene list corrected, `scalar` is the trait module). **The §5 seam-friction re-take: GO ON EGUI, AUTHORITATIVE** — complete frame-state inventory (both reviewers' adversarial sweeps confirm; no document shadows, no interior mutability), both spike-untestable surfaces (editing, async eval) measured. Fix pass hardened: canceled runs never land (Landing::Canceled; both reviewers' red rows now gate), ThreadEvaluator coalesces handle-side (argued deviation from the suggested worker drain — makes the two seams the same shape), param drags get the gesture arm (one DragValue→ops home), refusal precedence + Display, the ε re-stamp row measures for real, the viewer toolkit CI rows relocated to the every-lane fmt job (structurally lane-proof; verified at step level) | M-L / STRUCTURAL (pre-draw at slot record) | OPUS (block GUI-B1 slot 3) | **DUAL (ordinal 402; sample #31 at merge; byte 35 parity 1 ⇒ R1 FABLE + R2 OPUS, concurrent, frozen 956ef3cf, v5 instrument).** R1: A-W-F 1/4/6 + 7 style, rubric 5/4/3 — MAJOR: param DragValue commits one edit PER FRAME of a drag (G1 ratifies one commit on release; the correct triple ten lines away) — **UNILATERAL but found by inspection on the GPU-excused widget surface, not demonstrated by execution: recorded, EXCLUDED from the tally per instrument 3(d)**; full threaded-seam e2e (cancel honored in 10 ms, byte-identical open→save). R2: A-W-F 2/6/4 + 10 style, rubric 5/4/3 — MAJOR-1 canceled runs LAND and blank the tree (= R1 m-1, bilateral; committed red row), MAJOR-2 ThreadEvaluator does not coalesce while the doc promises it (= R1 m-2, bilateral; committed red row); narrowed the viewer-CI gap (doc-gate half already every-lane; the loss was clippy-app + verdict silence). **v6 tally after this pair: 0** (both MAJORs bilateral; the unilateral one inspection-only). Both reviews uninterrupted; no glimpses | R1 counted 1 silent (the param-drag deviation), R2 counted 3 (land, coalescing, rfd framing) — recorded per-reviewer | 5 | 4 | 3 | substantial, IMPLEMENTER-INHERITED: items 1–10 all landed (see description); one argued deviation (handle-side coalescing, reviewable); one reviewer row's EXPECTATION FLIPPED per its own written instruction (renamed, old behavior recorded — disclosed); both formerly-red reviewer rows un-ignored, green, gating; viewer at 110 rows × 3 ε; #1103 filed; both suites adopted --no-ff | impl CI 33109314338 GREEN (default, default-ε; toolkit steps verified RUN at step level); fix CI 33114535869 green on every job EXCEPT `test (eps=1e-12, 2/2)` — **the sole failure is #1102, main's red at the 1e-12 draw** (reproduced; branch touches no topo file; second inheritance documented on the issue) — merged citing #1102 per the pre-existing-main-red pattern (#415 precedent); merged #1101 at sample #31 | impl ~530k / fix ~183k / R1 ~265k / R2 ~270k | impl ~95m to green / fix ~50m / R1 ~85m / R2 ~27m |

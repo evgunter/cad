@@ -1,5 +1,31 @@
 //! D2's intensional edge descriptions: what an edge's locus **is**.
 //!
+//! # STATUS: this type is the **shim** (PCURVE P-1a)
+//!
+//! U2 (`docs/PCURVE-UNIFY-DESIGN.md`, ratified 2026-08-15) collapsed
+//! the conventional descriptions onto ONE form, and
+//! [`crate::EdgeDescription`] is that form — the one `geom-brep`
+//! certifies, meters and stores. [`EdgeGeometry`] survives as the
+//! vocabulary the six consumer crates still speak: it is what an
+//! [`crate::EdgeCurveSpec`] carries in, and certification collapses it
+//! exactly once, at the door. P-1b moves the consumers onto
+//! [`crate::EdgeDescription`] and deletes this type.
+//!
+//! Two consequences worth naming, because they are the shim's whole
+//! point. `EdgeGeometry` stays `Copy` — the collapsed form is not
+//! (it carries a [`crate::Pcurve`]), and keeping the shim `Copy` is
+//! what leaves the 22 deref sites in the consumer crates untouched by
+//! this unit. And the boundary is CHECKABLE: the two vocabularies meet
+//! at exactly **three** sites —
+//! [`crate::description::authority_of`], the collapse block in
+//! `certify::run_checks`, and
+//! [`crate::EdgeCurve::with_remapped_surfaces`], which is the only
+//! door that mints an `EdgeCurve` without a run of the schedule and
+//! therefore the only one that could let the two DRIFT. It cannot:
+//! every key the canonical form carries there is read out of the
+//! already-remapped shim rather than remapped a second time. Deleting
+//! those three sites is exactly what finishing the migration means.
+//!
 //! An edge's geometry is stored as an intensional description
 //! ([`EdgeGeometry`]); every concrete representation — the 3-D carrier
 //! curve now, pcurves at M3 — is a *derived cache* certified against the

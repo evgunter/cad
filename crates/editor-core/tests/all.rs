@@ -63,6 +63,10 @@ mod boolean_op_wire;
 mod dsc_checks;
 #[path = "e4_dual_door.rs"]
 mod e4_dual_door;
+#[path = "gui1_pick.rs"]
+mod gui1_pick;
+#[path = "gui1_pick_r2.rs"]
+mod gui1_pick_r2;
 #[path = "lbret_schema_v8.rs"]
 mod lbret_schema_v8;
 #[path = "lib_doors_node_result.rs"]
@@ -185,6 +189,8 @@ mod m9_d1_r2_probes;
 mod placedunion_schema_v12;
 #[path = "respell_schema_v9.rs"]
 mod respell_schema_v9;
+#[path = "review_gui1_r1.rs"]
+mod review_gui1_r1;
 #[path = "review_m4_pr1.rs"]
 mod review_m4_pr1;
 #[path = "review_m4_pr1_die.rs"]

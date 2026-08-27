@@ -856,7 +856,7 @@ tesslint_gate() {
 # nothing checked" is not a guard.
 wasm_check() {
   rustup target add wasm32-unknown-unknown \
-    && cargo check --workspace --exclude pncad --exclude pncad-py \
+    && cargo check --workspace --exclude pncad --exclude pncad-py --exclude viewer \
          --features interval --target wasm32-unknown-unknown
 }
 
@@ -869,8 +869,36 @@ run_row "uv composer selftest (demos)" uv_composer_selftest
 run_row "scene manifest reader (demos)" manifest_selftest
 # HOSTED MIRROR: fmt / rustfmt
 run_row "rustfmt"                      cargo fmt --all --check
+# HOSTED MIRROR: fmt / rustfmt (benches — its own cargo root)
+# `--all` above stops at the workspace, and benches/ is outside it.
+run_row "rustfmt (benches)"            bash -c 'cd benches && cargo fmt --all --check'
 # HOSTED MIRROR: clippy / clippy (default features)
 run_row "clippy"                       cargo clippy $SCOPE --all-targets -- -D warnings
+# HOSTED MIRROR: fmt / viewer toolkit rows - the filter's verdict
+# HOSTED MIRROR: fmt / clippy (viewer app feature - eframe + wgpu)
+# HOSTED MIRROR: viewer-toolkit / clippy (viewer app feature - eframe + wgpu)
+# HOSTED MIRROR: viewer-toolkit / rustdoc (viewer, all features)
+#
+# BOTH HOSTED ROWS NOW SIT IN `fmt`, which carries no lane gate. They
+# used to sit in `clippy`, which does — so on an interval draw the whole
+# job vanished and the seed-keyed verdict step with it, which made a
+# seed-keyed axis lane-sampled and left the ruling's "never a green job
+# name over a silent skip" false half the time.
+#
+# UNCONDITIONAL HERE, GATED HOSTED, and that asymmetry is the same one
+# the sampled matrix already has: the hosted gate skips the eframe/wgpu
+# graph unless the change filter's SEEDS intersect {viewer, pncad, bvh}
+# (Evan's viewer-CI-posture ruling, docs/GUI-LOG.md 2026-08-27), because
+# it is billed by the minute on every PR. This half is not billed by the
+# minute — it is billed in one developer's wall clock, on a run they
+# chose to make — and it is already the lane that runs every point of a
+# matrix the hosted gate samples. Skipping work here would buy nothing
+# and would leave the local gate proving strictly less than the hosted
+# one, which is the opposite of this file's contract.
+#
+# `RUN_VIEWER_TOOLKIT` is deliberately not consulted: the filter's
+# output is shared, but a local run has no reason to act on this axis.
+run_row "clippy (viewer app)"          cargo clippy -p viewer --features app --all-targets -- -D warnings
 # Rustdoc gate (#465): same script hosted calls, unscoped there and here
 # — it is a tree-wide ratchet over a derived root set, not a per-closure
 # row. See scripts/doc-gate.sh for the flags and the derivation.
@@ -882,6 +910,9 @@ run_row "clippy"                       cargo clippy $SCOPE --all-targets -- -D w
 # header says why), but `gate-roster.sh` names it in OUTLIER_GATES and
 # checks this wiring anyway — dropping either half of the line below
 # reds that gate.
+# `--skip-viewer-toolkit` exists for the hosted half only (see the
+# clippy note above): this row documents viewer under --all-features
+# like everything else.
 rustdoc_gate() {
   scripts/doc-gate.sh --selftest && scripts/doc-gate.sh
 }

@@ -235,6 +235,28 @@ pub enum Pcurve<T: Real> {
     /// trace's chart projection — and it is certified through the
     /// control-hull machinery, never through the harmonic algebra.
     Fitted(Arc<NurbsCurve2<T>>),
+    /// The **general curve-in-UV** (U2's `General` arm): a 2-D NURBS
+    /// chart image on the carrier's own parameter that does NOT carry
+    /// [`Pcurve::Fitted`]'s construction provenance.
+    ///
+    /// `Fitted` is the SSI trace's projection, and its entry
+    /// requirement is the OQ4 identity — the 3-D curve and both
+    /// pcurves are projections of one parameterized ℝ⁴ object, so the
+    /// shared parameter is a construction fact. `General` is the same
+    /// SHAPE with that fact absent: a curve in UV whose agreement with
+    /// the carrier is a certified measurement rather than a
+    /// construction identity (#498's interior/diagonal
+    /// `Intersection` loci, and any chart image a future lane fits
+    /// directly).
+    ///
+    /// It certifies at exactly the Fitted GRADE — the same C2
+    /// certificate, hull sup-norm and uniqueness tube, through
+    /// [`PcurveCache::certify_general`] — because the grade is a
+    /// statement about what was MEASURED, and the two arms measure
+    /// the same thing. What differs is what may be assumed without
+    /// measuring, which is why the variants are distinct and no arm
+    /// is ever a catch-all for the other.
+    General(Arc<NurbsCurve2<T>>),
     /// The **exact straight line in UV**: `P(t) = p0 + pl·t` — the
     /// iso-parameter lane of a NURBS chart (M6-3; M5 PR 10 §3's
     /// "Line-in-UV pcurve variant", landed where its first minting
@@ -378,7 +400,7 @@ impl<T: SpanLocate> Pcurve<T> {
                     p0.y + pa.y * c + pb.y * s + pl.y * t,
                 )
             }
-            Pcurve::Fitted(image) => image.eval(t),
+            Pcurve::Fitted(image) | Pcurve::General(image) => image.eval(t),
             Pcurve::IsoLine { p0, pl } => Point2::new(p0.x + pl.x * t, p0.y + pl.y * t),
             Pcurve::IsoArc {
                 p0,
@@ -418,7 +440,7 @@ impl<T: SpanLocate> Pcurve<T> {
             // over the WHOLE domain — conservative in the containment
             // direction, exactly like the harmonic arm, and a
             // convexity fact rather than an evaluation.
-            Pcurve::Fitted(image) => {
+            Pcurve::Fitted(image) | Pcurve::General(image) => {
                 let mut ctl = image.control().iter();
                 let Some(first) = ctl.next() else {
                     // An empty net is unrepresentable through
@@ -514,7 +536,7 @@ impl<T: SpanLocate> Pcurve<T> {
             // this method's whole point. The kernel never panics
             // (D4 ¶2), so the impossible case is a typed absence the
             // caller must handle, not an abort.
-            Pcurve::Fitted(image) => {
+            Pcurve::Fitted(image) | Pcurve::General(image) => {
                 let shifted: Vec<Point2<T>> = image
                     .control()
                     .iter()
@@ -523,7 +545,13 @@ impl<T: SpanLocate> Pcurve<T> {
                 let rebuilt =
                     NurbsCurve2::new(image.knots().clone(), shifted, image.weights().to_vec())
                         .ok()?;
-                Pcurve::Fitted(Arc::new(rebuilt))
+                // The arm reconstructs the ORIGINAL variant: a shift
+                // moves the branch, never the provenance.
+                if matches!(self, Pcurve::Fitted(_)) {
+                    Pcurve::Fitted(Arc::new(rebuilt))
+                } else {
+                    Pcurve::General(Arc::new(rebuilt))
+                }
             }
             // The iso lane lives on NURBS charts, which have no
             // periodic azimuth — no minted iso line is ever shifted.
@@ -1484,7 +1512,9 @@ impl<T: Decide> PcurveCache<T> {
         band: Band,
     ) -> Result<Self, PcurveCertifyError> {
         let certificate = match &pcurve {
-            Pcurve::Fitted(_) => return Err(PcurveCertifyError::UnsupportedCarrier),
+            Pcurve::Fitted(_) | Pcurve::General(_) => {
+                return Err(PcurveCertifyError::UnsupportedCarrier);
+            }
             // The iso lane (M6-3): closed-form like the harmonic one —
             // no mate operand, no bracket obligation — so it shares
             // this `Decide`-scalar door.
@@ -1586,6 +1616,55 @@ impl<T: PcurveFittedLane> PcurveCache<T> {
         })
     }
 
+    /// Certifies a **general curve-in-UV** ([`Pcurve::General`], U2's
+    /// arm) at the FITTED GRADE: the identical five checks in the
+    /// identical order as [`PcurveCache::certify_fitted`], against the
+    /// identical `(surface, mate)` operand pair, producing the
+    /// identical C2 certificate.
+    ///
+    /// The two doors are separate because their ENTRY requirements
+    /// differ, not their statements: `certify_fitted` is entered by a
+    /// caller who can assert the OQ4 construction identity, this one
+    /// by a caller who cannot. Nothing here is weaker as a
+    /// consequence — the certificate is measured either way — so the
+    /// three outcomes are the fitted lane's verbatim:
+    ///
+    /// - **certify**: every sampled map residual is coincident with
+    ///   zero, the hull sup bound is within ε, and the uniqueness
+    ///   tube is definitely positive;
+    /// - **refuse**: [`PcurveCertifyError::FittedCertificate`] (a
+    ///   definite limb failure) or [`PcurveCertifyError::
+    ///   IntervalNotForward`];
+    /// - **escalate**: [`PcurveCertifyError::Escalated`] /
+    ///   [`PcurveCertifyError::FittedEscalated`] (a sliver-band
+    ///   verdict), [`PcurveCertifyError::FittedMateMissing`] (no
+    ///   operand pair to state a tube about), or
+    ///   [`PcurveCertifyError::FittedLaneUnsupported`] (a scalar with
+    ///   no exact-ring hull).
+    ///
+    /// # Errors
+    ///
+    /// The first failing check, as a typed [`PcurveCertifyError`].
+    #[allow(clippy::too_many_arguments)] // one parameter per named quantity
+    pub fn certify_general(
+        image: Arc<NurbsCurve2<T>>,
+        t0: T,
+        t1: T,
+        carrier: &Curve3<T>,
+        surface: &Surface<T>,
+        mate: Option<&Surface<T>>,
+        window: ChartWindow<T>,
+        band: Band,
+    ) -> Result<Self, PcurveCertifyError> {
+        let certificate = run_fitted_checks(&image, t0, t1, carrier, surface, mate, window, band)?;
+        Ok(Self {
+            pcurve: Pcurve::General(image),
+            param_start: t0,
+            param_end: t1,
+            certificate,
+        })
+    }
+
     /// Re-runs the full certification at rest — the tier-3 validator's
     /// per-half-edge pass, for EITHER lane. Same checks, same schedule,
     /// same errors; the stored certificate is not consulted
@@ -1605,7 +1684,7 @@ impl<T: PcurveFittedLane> PcurveCache<T> {
         band: Band,
     ) -> Result<PcurveCertificate<T>, PcurveCertifyError> {
         match &self.pcurve {
-            Pcurve::Fitted(image) => run_fitted_checks(
+            Pcurve::Fitted(image) | Pcurve::General(image) => run_fitted_checks(
                 image,
                 self.param_start,
                 self.param_end,
@@ -2298,7 +2377,7 @@ fn run_harmonic_checks<T: Decide>(
 }
 
 /// The chart kind, named — shared by both lanes' refusal texts.
-fn chart_name<T: Real>(surface: &Surface<T>) -> &'static str {
+pub(crate) fn chart_name<T: Real>(surface: &Surface<T>) -> &'static str {
     match surface {
         Surface::Plane { .. } => "plane",
         Surface::Cylinder { .. } => "cylinder",

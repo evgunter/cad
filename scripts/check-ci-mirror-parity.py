@@ -137,6 +137,18 @@ MIRROR_EXEMPT = {
         "is that lane's committed output, through ci-local.sh's `render "
         "provenance (demos)` row",
     ),
+    "scripts/criterion-emit.py": (
+        "hosted",
+        "the criterion benchmark lane's history writer. The lane is hosted-only "
+        "for the reason nightly.yml states at its key: the entries are "
+        "comparable only because one box class produced all of them, and a "
+        "developer box's milliseconds committed as a trend point are exactly "
+        "the failure memories/perf-measurement-lane.md was written about. The "
+        "HARNESS is not one-sided — `cd benches && cargo bench` is the right "
+        "local act and every number in this document came from it; what does "
+        "not mirror is stapling an environment block to a local reading and "
+        "committing it",
+    ),
     "scripts/opt-level-calibrate.py": (
         "hosted",
         "the opt-level calibration lane. Its free arm is READ from this "

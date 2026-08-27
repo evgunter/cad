@@ -37,6 +37,8 @@
 
 #[path = "box_with_hole.rs"]
 mod box_with_hole;
+#[path = "census_g2_carrier.rs"]
+mod census_g2_carrier;
 #[path = "corner_table.rs"]
 mod corner_table;
 #[path = "crosslap_rest.rs"]

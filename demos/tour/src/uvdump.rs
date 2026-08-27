@@ -214,6 +214,10 @@ fn traverse(body: &Body<f64>, hek: HalfEdgeKey, band: Band) -> Result<Traversal,
         // `u` — which is exactly what this sheet is for showing.
         Pcurve::IsoArc { .. } => "isoarc",
         Pcurve::Fitted(_) => "fitted",
+        // U2's general curve-in-UV: the same spline shape as the
+        // fitted arm without its construction provenance, and the
+        // sheet names the class it drew rather than merging the two.
+        Pcurve::General(_) => "general",
     };
     let n = if straight || matches!(pcurve, Pcurve::IsoLine { .. }) {
         2
