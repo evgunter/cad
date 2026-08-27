@@ -197,17 +197,15 @@ fn bore_base(body: &Body<f64>) -> EdgeKey {
     *rims
         .iter()
         .min_by(|a, b| {
-            let station = |e: &EdgeKey| {
-                match *body
-                    .get_curve_geom(body.get_edge(*e).unwrap().curve)
-                    .unwrap()
-                    .certified()
-                    .unwrap()
-                    .carrier()
-                {
-                    pncad::geom::Curve3::Circle { center, .. } => center.y,
-                    ref other => panic!("latitude rim is a circle, got {other:?}"),
-                }
+            let station = |e: &EdgeKey| match *body
+                .get_curve_geom(body.get_edge(*e).unwrap().curve)
+                .unwrap()
+                .certified()
+                .unwrap()
+                .carrier()
+            {
+                pncad::geom::Curve3::Circle { center, .. } => center.y,
+                ref other => panic!("latitude rim is a circle, got {other:?}"),
             };
             station(a).partial_cmp(&station(b)).unwrap()
         })
