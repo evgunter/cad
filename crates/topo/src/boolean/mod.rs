@@ -593,17 +593,36 @@ pub enum BooleanError {
         edge: EdgeKey,
     },
     /// The both-edges-split point lane needs a carrier with an exact
-    /// point parameter and got one without. `Circle` and `Ellipse`
-    /// reach here: the operand gate admits them, so this is a
-    /// **narrower** condition than the gate's, at a later stage — which
-    /// is exactly why it is its own variant rather than a second reach
-    /// of [`Self::CurvedEdgeUnsupported`]. One doc and one message
-    /// covering both could name neither.
+    /// point parameter and got one without. `Line` and `Circle` have
+    /// one; `Ellipse` reaches here, because the operand gate admits it,
+    /// so this is a **narrower** condition than the gate's, at a later
+    /// stage — which is exactly why it is its own variant rather than a
+    /// second reach of [`Self::CurvedEdgeUnsupported`]. One doc and one
+    /// message covering both could name neither.
     PointSplitCarrierUnsupported {
         /// The offending operand and edge.
         operand: Operand,
         /// The edge.
         edge: EdgeKey,
+    },
+    /// **Point-in-face on an arc-bearing loop the polygon walk cannot
+    /// express.** The ray-parity walk's contract is a planar POLYGON
+    /// through a loop's vertices (line carriers — the F5 regime); an
+    /// arc-bearing loop with fewer than three vertices gives it a
+    /// segment of ZERO AREA, so every interior point of the region
+    /// reads `Out` and the operands read as disjoint. Measured wrong at
+    /// exactly that shape — a half-disc cap, a half-cylinder cap, a
+    /// lens cap (two arcs of two different circles) — so the walk is
+    /// not called there. A loop of arcs of ONE circle is the disc class
+    /// and answers exactly; arc loops with three or more vertices keep
+    /// the polygon walk, measured correct at the shapes reviewed (a
+    /// slot, a rounded rectangle) and unproven in general. Both
+    /// remainders are issue #1076's.
+    ArcLoopContainmentUnsupported {
+        /// The operand whose face carries the loop.
+        operand: Operand,
+        /// The loop with no walk.
+        r#loop: crate::entity::LoopKey,
     },
     /// An operand already carries null scaffolding (mid-surgery body).
     ScaffoldingOperand {
@@ -1015,9 +1034,19 @@ impl core::fmt::Display for BooleanError {
             Self::PointSplitCarrierUnsupported { operand, edge } => write!(
                 f,
                 "boolean_reduce: edge {edge:?} of operand {operand:?} must be split at \
-                 an event point, and its carrier has no exact point parameter — only a \
-                 Line does. The operand gate admits Circle and Ellipse; this lane is \
+                 an event point, and its carrier has no exact point parameter — a Line \
+                 and a Circle do. The operand gate admits Ellipse; this lane is \
                  narrower, and refuses rather than solving for the parameter"
+            ),
+            Self::ArcLoopContainmentUnsupported { operand, r#loop } => write!(
+                f,
+                "boolean_reduce: loop {loop:?} of operand {operand:?} bounds a planar \
+                 region with an ARC on its boundary and fewer than three vertices, so \
+                 the ray-parity walk's polygon through those vertices has zero area — \
+                 it would report every interior point of the region as outside it. A \
+                 loop of arcs of one circle is decided exactly; this one is not, and \
+                 the general arc-aware walk does not exist yet (issue #1076). Refused \
+                 rather than answered"
             ),
             Self::ScaffoldingOperand { operand, edge } => write!(
                 f,
