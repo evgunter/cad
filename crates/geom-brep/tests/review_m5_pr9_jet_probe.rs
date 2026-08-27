@@ -6,7 +6,7 @@
 
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeGeometry, SurfaceKey};
+use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, SurfaceKey};
 use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};
 
@@ -51,7 +51,7 @@ fn certify_line(
         dir: Vec3::new(0.0, 0.0, 1.0),
     };
     let spec = EdgeCurveSpec {
-        description: EdgeGeometry::TangentIntersection {
+        description: EdgeDescriptionSpec::TangentIntersection {
             s1: k1,
             s2: k2,
             witness: carrier.eval(0.5),
@@ -151,7 +151,7 @@ fn ruling_drift_is_exactly_zero_and_the_bound_discriminates() {
         dir: Vec3::new(0.0, 0.0, 1.0),
     };
     let spec = EdgeCurveSpec {
-        description: EdgeGeometry::TangentIntersection {
+        description: EdgeDescriptionSpec::TangentIntersection {
             s1: k1,
             s2: k2,
             witness: carrier.eval(50.0),

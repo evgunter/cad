@@ -11,7 +11,7 @@ mod revolve_common;
 use core::f64::consts::{FRAC_PI_2, PI};
 use profile::RawLoop;
 
-use geom_brep::EdgeGeometry;
+use geom_brep::EdgeDescription;
 use geom_core::Tol;
 use profile::ProfileLoop;
 use revolve_common::*;
@@ -48,7 +48,7 @@ fn check_wedge(theta: f64) {
     let axis_edge = start_meridians[0][3];
     assert!(matches!(
         description(&t.body, axis_edge),
-        EdgeGeometry::Intersection { .. }
+        EdgeDescription::Intersection { .. }
     ));
     // Walled segments have distinct start/end meridians, upgraded to
     // cap–wall Intersections.
@@ -58,7 +58,7 @@ fn check_wedge(theta: f64) {
         for e in [start_meridians[0][j], end_meridians[0][j]] {
             assert!(matches!(
                 description(&t.body, e),
-                EdgeGeometry::Intersection { .. }
+                EdgeDescription::Intersection { .. }
             ));
         }
     }
@@ -70,7 +70,7 @@ fn check_wedge(theta: f64) {
         let e = t.rims[0][v].expect("off-axis strut");
         assert!(matches!(
             description(&t.body, e),
-            EdgeGeometry::Intersection { .. }
+            EdgeDescription::Intersection { .. }
         ));
     }
     // Orientation oracle holds for BOTH sweep directions.
@@ -103,7 +103,7 @@ fn half_revolve_axis_edge_stays_conventional() {
     };
     assert!(matches!(
         description(&t.body, start_meridians[0][3]),
-        EdgeGeometry::MappedCurve(_)
+        EdgeDescription::Scaffold(_)
     ));
     assert!(signed_volume(&t.body) > 0.0);
 }

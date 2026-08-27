@@ -480,9 +480,9 @@ fn loft_prism_descriptions_land_in_the_native_classes() {
     for (_, edge) in body.edges() {
         match body.get_curve_geom(edge.curve) {
             Some(topo::CurveGeom::Certified(curve)) => match curve.description() {
-                geom_brep::EdgeGeometry::IsoCurve { .. } => iso += 1,
-                geom_brep::EdgeGeometry::MappedCurve(_) => mapped += 1,
-                geom_brep::EdgeGeometry::Intersection { .. } => intersection += 1,
+                geom_brep::EdgeDescription::Chart(_) => iso += 1,
+                geom_brep::EdgeDescription::Scaffold(_) => mapped += 1,
+                geom_brep::EdgeDescription::Intersection { .. } => intersection += 1,
                 other => panic!("unexpected description class on a loft edge: {other:?}"),
             },
             other => panic!("every imported edge is certified, got: {other:?}"),
@@ -539,8 +539,11 @@ fn an_adopted_iso_column_is_a_knot_domain_end() {
     let mut columns: Vec<f64> = body
         .curves()
         .filter_map(|(_, geom)| match geom {
-            topo::CurveGeom::Certified(c) => match *c.description() {
-                geom_brep::EdgeGeometry::IsoCurve { surface, u, .. } if surface == wall => Some(u),
+            topo::CurveGeom::Certified(c) => match c.description() {
+                geom_brep::EdgeDescription::Chart(cc) if cc.surface == wall => match cc.pcurve {
+                    geom_brep::Pcurve::IsoLine { p0, .. } => Some(p0.x),
+                    _ => None,
+                },
                 _ => None,
             },
             _ => None,

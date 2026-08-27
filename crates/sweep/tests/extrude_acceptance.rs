@@ -11,7 +11,7 @@ use core::f64::consts::FRAC_PI_8;
 use profile::RawLoop;
 
 use geom::Surface;
-use geom_brep::{EdgeGeometry, newell_plane};
+use geom_brep::{EdgeDescription, newell_plane};
 use geom_core::Tol;
 use geom_core::{Band, Point2, Point3, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
@@ -128,14 +128,14 @@ fn outward_normal(body: &Body<f64>, face: FaceKey) -> Vec3<f64> {
 }
 
 /// The edge's stored description.
-fn description(body: &Body<f64>, edge: EdgeKey) -> EdgeGeometry<f64> {
+fn description(body: &Body<f64>, edge: EdgeKey) -> EdgeDescription<f64> {
     let curve = body.get_edge(edge).unwrap().curve;
-    *body
+    body
         .get_curve_geom(curve)
         .unwrap()
         .certified()
         .unwrap()
-        .description()
+        .description().clone()
 }
 
 #[test]
@@ -165,7 +165,7 @@ fn extruded_l_profile_passes_all_tiers() {
     for &edge in &t.strut_edges[0] {
         assert!(matches!(
             description(&t.body, edge),
-            EdgeGeometry::Intersection { .. }
+            EdgeDescription::Intersection { .. }
         ));
     }
     // Rim edges upgrade too (the ratified rim decision, M2 PR 4 fix
@@ -177,7 +177,7 @@ fn extruded_l_profile_passes_all_tiers() {
         .filter(|(_, c)| {
             matches!(
                 c.certified().map(topo::EdgeCurve::description),
-                Some(EdgeGeometry::Intersection { .. })
+                Some(EdgeDescription::Intersection { .. })
             )
         })
         .count();
@@ -222,14 +222,14 @@ fn extruded_profile_with_hole_builds_the_ring_path() {
     for &edge in &t.strut_edges[1] {
         assert!(matches!(
             description(&t.body, edge),
-            EdgeGeometry::MappedCurve(_)
+            EdgeDescription::Scaffold(_)
         ));
     }
     // The outer square's corners upgrade to Intersection.
     for &edge in &t.strut_edges[0] {
         assert!(matches!(
             description(&t.body, edge),
-            EdgeGeometry::Intersection { .. }
+            EdgeDescription::Intersection { .. }
         ));
     }
     // Ring orientation: rings run clockwise viewed from outside, so
@@ -298,7 +298,7 @@ fn rounded_square_exercises_tangent_line_arc_joins() {
     for &edge in &t.strut_edges[0] {
         assert!(matches!(
             description(&t.body, edge),
-            EdgeGeometry::TangentIntersection { .. }
+            EdgeDescription::TangentIntersection { .. }
         ));
     }
     // The sixteen cap-wall rims are all transverse and upgrade to
@@ -309,7 +309,7 @@ fn rounded_square_exercises_tangent_line_arc_joins() {
         .filter(|(_, c)| {
             matches!(
                 c.certified().map(topo::EdgeCurve::description),
-                Some(EdgeGeometry::Intersection { .. })
+                Some(EdgeDescription::Intersection { .. })
             )
         })
         .count();
@@ -350,7 +350,7 @@ fn disc_extrudes_to_a_shared_carrier_cylinder() {
     for &edge in &t.strut_edges[0] {
         assert!(matches!(
             description(&t.body, edge),
-            EdgeGeometry::MappedCurve(_)
+            EdgeDescription::Scaffold(_)
         ));
     }
 }
@@ -379,7 +379,7 @@ fn d_profile_mixes_plane_and_cylinder_corners() {
     for &edge in &t.strut_edges[0] {
         assert!(matches!(
             description(&t.body, edge),
-            EdgeGeometry::Intersection { .. }
+            EdgeDescription::Intersection { .. }
         ));
     }
 }

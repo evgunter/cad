@@ -168,7 +168,7 @@ fn declared_rest_two_peg_reaches_downstream_of_classification() {
                 if matches!(c.carrier(), geom::Curve3::Circle { .. }) {
                     rims += 1;
                     assert!(
-                        matches!(c.description(), geom_brep::EdgeGeometry::MappedCurve(_)),
+                        matches!(c.description(), geom_brep::EdgeDescription::Scaffold(_)),
                         "a coplanar-adjacent rim is conventionally described: {:?}",
                         c.description()
                     );

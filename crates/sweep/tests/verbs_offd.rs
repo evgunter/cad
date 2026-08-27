@@ -192,7 +192,7 @@ fn the_untouched_cap_seams_are_re_anchored() {
             let c = body
                 .get_curve_geom(e.curve)
                 .and_then(CurveGeom::certified)?;
-            matches!(c.description(), geom_brep::EdgeGeometry::MappedCurve(_)).then(|| {
+            matches!(c.description(), geom_brep::EdgeDescription::Scaffold(_)).then(|| {
                 let (t0, t1) = c.params();
                 (t1 - t0).abs()
             })
@@ -210,7 +210,7 @@ fn the_untouched_cap_seams_are_re_anchored() {
             let c = body
                 .get_curve_geom(e.curve)
                 .and_then(CurveGeom::certified)?;
-            let geom_brep::EdgeGeometry::MappedCurve(geom_brep::MappedCurve::PlacedSegment {
+            let geom_brep::EdgeDescription::Scaffold(geom_brep::MappedCurve::PlacedSegment {
                 segment: geom_brep::SketchSegment::Line { a, b },
                 ..
             }) = c.description()

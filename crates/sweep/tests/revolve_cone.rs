@@ -17,7 +17,7 @@ use core::f64::consts::FRAC_PI_4;
 use profile::RawLoop;
 
 use geom::Surface;
-use geom_brep::EdgeGeometry;
+use geom_brep::EdgeDescription;
 use geom_core::Tol;
 use profile::ProfileLoop;
 use revolve_common::*;
@@ -65,12 +65,12 @@ fn cone_full_revolve_has_an_apex_and_certifies() {
     let rim = t.rims[0][1].expect("base rim, first half");
     assert!(matches!(
         description(&t.body, rim),
-        EdgeGeometry::Intersection { .. }
+        EdgeDescription::Intersection { .. }
     ));
     let rim2 = pi_rims[1].expect("base rim, second half");
     assert!(matches!(
         description(&t.body, rim2),
-        EdgeGeometry::Intersection { .. }
+        EdgeDescription::Intersection { .. }
     ));
     assert_eq!(t.rims[0][0], None);
     assert_eq!(t.rims[0][2], None);
@@ -78,11 +78,11 @@ fn cone_full_revolve_has_an_apex_and_certifies() {
     // omitted.
     assert!(matches!(
         description(&t.body, meridians[0].unwrap()),
-        EdgeGeometry::MappedCurve(_)
+        EdgeDescription::Scaffold(_)
     ));
     assert!(matches!(
         description(&t.body, meridians[1].unwrap()),
-        EdgeGeometry::Seam { .. }
+        EdgeDescription::Chart(_)
     ));
     assert!(meridians[2].is_none());
     // Orientation oracle: interior lift points per band face (the

@@ -8,7 +8,7 @@
 mod revolve_common;
 
 use geom::Surface;
-use geom_brep::EdgeGeometry;
+use geom_brep::EdgeDescription;
 use geom_core::Tol;
 use profile::ProfileLoop;
 use profile::RawLoop;
@@ -53,7 +53,7 @@ fn washer_full_revolve_is_genus_one_and_tier_valid() {
         let e = r.expect("no on-axis vertices");
         assert!(matches!(
             description(&t.body, e),
-            EdgeGeometry::Intersection { .. }
+            EdgeDescription::Intersection { .. }
         ));
     }
     // Meridians: cylinder walls carry Seam, plane walls keep the
@@ -76,8 +76,8 @@ fn washer_full_revolve_is_genus_one_and_tier_valid() {
     let mut mapped = 0;
     for m in meridians {
         match description(&t.body, m.expect("no omitted segments")) {
-            EdgeGeometry::Seam { .. } => seams += 1,
-            EdgeGeometry::MappedCurve(_) => mapped += 1,
+            EdgeDescription::Chart(_) => seams += 1,
+            EdgeDescription::Scaffold(_) => mapped += 1,
             other => panic!("unexpected meridian description {other:?}"),
         }
     }
@@ -118,7 +118,7 @@ fn donut_two_arc_profile_shares_one_torus() {
     for r in &t.rims[0] {
         assert!(matches!(
             description(&t.body, r.unwrap()),
-            EdgeGeometry::MappedCurve(_)
+            EdgeDescription::Scaffold(_)
         ));
     }
     // Both meridians are the torus's seam.
@@ -129,7 +129,7 @@ fn donut_two_arc_profile_shares_one_torus() {
     for m in meridians {
         assert!(matches!(
             description(&t.body, m.unwrap()),
-            EdgeGeometry::Seam { .. }
+            EdgeDescription::Chart(_)
         ));
     }
     assert!(signed_volume(&t.body) > 0.0);

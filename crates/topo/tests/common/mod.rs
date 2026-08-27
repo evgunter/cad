@@ -15,7 +15,7 @@
 #![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
 use geom::Surface;
-use geom_brep::{EdgeCurveSpec, EdgeGeometry, newell_plane};
+use geom_brep::{EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, newell_plane};
 use geom_core::Tol;
 use geom_core::{Band, Point3, Real};
 use topo::{Body, FaceSurface, MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
@@ -351,7 +351,7 @@ pub fn describe_as_intersections<T: geom_core::Decide>(body: &mut Body<T>) {
             geom_brep::DihedralClass::Transverse => {}
         }
         let mut spec = EdgeCurveSpec::line_between(p0, p1);
-        spec.description = EdgeGeometry::Intersection { s1, s2, witness };
+        spec.description = EdgeDescriptionSpec::Intersection { s1, s2, witness };
         body.set_edge_curve(edge_key, spec, Tol::witness()).unwrap();
     }
 }

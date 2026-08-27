@@ -2094,7 +2094,7 @@ mod tests {
         let (p0, p1) = (Point3::new(r, 0.0, 0.0), Point3::new(r, 0.0, 3.0));
         let seam = EdgeCurve::certify(
             EdgeCurveSpec {
-                description: EdgeGeometry::Seam { surface: keys[0] },
+                description: EdgeDescriptionSpec::seam(keys[0]),
                 carrier: Curve3::Line {
                     origin: p0,
                     dir: Vec3::unit_z(),
@@ -2108,7 +2108,7 @@ mod tests {
             band(),
         )
         .expect("the seam certifies");
-        let chart = seam.canonical().chart().expect("a seam IS a chart image");
+        let chart = seam.description().chart().expect("a seam IS a chart image");
         assert_eq!(chart.surface, keys[0]);
         assert!(chart.seam, "a seam carries D1's obligation");
 
@@ -2124,12 +2124,7 @@ mod tests {
         let len = q0.distance(q1);
         let iso = EdgeCurve::certify(
             EdgeCurveSpec {
-                description: EdgeGeometry::IsoCurve {
-                    surface: pk[0],
-                    u,
-                    v0,
-                    v1,
-                },
+                description: EdgeDescriptionSpec::iso(pk[0], u, v0, v1, 0.0, len),
                 carrier: Curve3::Line {
                     origin: q0,
                     dir: (q1 - q0) / len,
@@ -2144,7 +2139,7 @@ mod tests {
         )
         .expect("the iso curve certifies");
         let iso_chart = iso
-            .canonical()
+            .description()
             .chart()
             .expect("an iso curve IS a chart image");
         assert!(
@@ -2158,8 +2153,8 @@ mod tests {
         let (_, empty) = table(vec![]);
         let scaffold = EdgeCurve::certify(line_spec(a, b), a, b, &empty, band())
             .expect("the scaffolding line certifies");
-        assert!(scaffold.canonical().chart().is_none());
-        assert!(matches!(scaffold.canonical(), EdgeDescription::Scaffold(_)));
+        assert!(scaffold.description().chart().is_none());
+        assert!(matches!(scaffold.description(), EdgeDescription::Scaffold(_)));
     }
 
     /// **The authority record** (U2 Q3): the datum tier 3's
@@ -2189,7 +2184,7 @@ mod tests {
         let (p0, p1) = (Point3::new(r, 0.0, 0.0), Point3::new(r, 0.0, 3.0));
         let derived = EdgeCurve::certify(
             EdgeCurveSpec {
-                description: EdgeGeometry::Seam { surface: keys[0] },
+                description: EdgeDescriptionSpec::seam(keys[0]),
                 carrier: Curve3::Line {
                     origin: p0,
                     dir: Vec3::unit_z(),
@@ -2232,7 +2227,7 @@ mod tests {
         let d = drift;
         let (p0, p1) = (Point3::new(r + d, 0.0, 0.0), Point3::new(r + d, 0.0, 3.0));
         let seam_spec = EdgeCurveSpec {
-            description: EdgeGeometry::Seam { surface: keys[0] },
+            description: EdgeDescriptionSpec::seam(keys[0]),
             carrier: Curve3::Line {
                 origin: p0,
                 dir: Vec3::unit_z(),
@@ -2257,7 +2252,7 @@ mod tests {
             .certificate;
         let mut mapped_legacy = mapped.carrier.eval(mapped.param_start).distance(a);
         mapped_legacy = mapped_legacy.max(mapped.carrier.eval(mapped.param_end).distance(b));
-        let EdgeGeometry::MappedCurve(mc) = mapped.description else {
+        let EdgeDescriptionSpec::Scaffold(mc) = mapped.description else {
             panic!("line_between describes a MappedCurve");
         };
         for i in 0..CERT_SAMPLES {
@@ -2330,12 +2325,7 @@ mod tests {
         // The in-band drift, off the chart along its own normal.
         let off = Vec3::zero();
         let iso_spec = EdgeCurveSpec {
-            description: EdgeGeometry::IsoCurve {
-                surface: pk[0],
-                u,
-                v0,
-                v1,
-            },
+            description: EdgeDescriptionSpec::iso(pk[0], u, v0, v1, anchor, t1),
             carrier: Curve3::Line {
                 origin: q0 + off - dir * anchor,
                 dir,
@@ -2352,7 +2342,7 @@ mod tests {
         )
         .expect("the nurbs iso certifies");
         let iso_chart = iso_cert
-            .canonical()
+            .description()
             .chart()
             .expect("an iso description IS a chart image")
             .clone();
@@ -2713,7 +2703,7 @@ mod tests {
         let p0 = Point3::origin();
         let p1 = Point3::new(1.0, 0.0, 0.0);
         let spec = EdgeCurveSpec {
-            description: EdgeGeometry::Intersection {
+            description: EdgeDescriptionSpec::Intersection {
                 s1: src_keys[0],
                 s2: src_keys[1],
                 witness: Point3::new(0.5, 0.0, 0.0),
@@ -2734,7 +2724,7 @@ mod tests {
 
         // The handles moved.
         match *moved.description() {
-            EdgeGeometry::Intersection { s1, s2, witness } => {
+            EdgeDescription::Intersection { s1, s2, witness } => {
                 assert_eq!(s1, dst_keys[0]);
                 assert_eq!(s2, dst_keys[1]);
                 // ...and the witness, a POINT, did not.
@@ -2793,7 +2783,7 @@ mod tests {
         let p0 = Point3::origin();
         let p1 = Point3::new(1.0, 0.0, 0.0);
         let spec = EdgeCurveSpec {
-            description: EdgeGeometry::Intersection {
+            description: EdgeDescriptionSpec::Intersection {
                 s1: keys[0],
                 s2: keys[1],
                 witness: Point3::new(0.5, 0.0, 0.0),
@@ -2832,7 +2822,7 @@ mod tests {
 
         // A displaced witness fails the witness checks.
         let mut bad = spec.clone();
-        bad.description = EdgeGeometry::Intersection {
+        bad.description = EdgeDescriptionSpec::Intersection {
             s1: keys[0],
             s2: keys[1],
             witness: Point3::new(0.5, 0.0, 0.25),
@@ -2848,7 +2838,7 @@ mod tests {
 
         // Same surface twice is structurally malformed.
         let mut bad = spec.clone();
-        bad.description = EdgeGeometry::Intersection {
+        bad.description = EdgeDescriptionSpec::Intersection {
             s1: keys[0],
             s2: keys[0],
             witness: Point3::new(0.5, 0.0, 0.0),
@@ -2860,7 +2850,7 @@ mod tests {
 
         // A stale key is a typed error.
         let mut bad = spec.clone();
-        bad.description = EdgeGeometry::Intersection {
+        bad.description = EdgeDescriptionSpec::Intersection {
             s1: keys[0],
             s2: SurfaceKey::default(),
             witness: Point3::new(0.5, 0.0, 0.0),
@@ -2893,7 +2883,7 @@ mod tests {
         let p0 = Point3::origin();
         let p1 = Point3::new(1.0, 0.0, 0.0);
         let spec = EdgeCurveSpec {
-            description: EdgeGeometry::Intersection {
+            description: EdgeDescriptionSpec::Intersection {
                 s1: keys[0],
                 s2: keys[1],
                 witness: Point3::new(0.5, 0.0, 0.0),
@@ -2930,7 +2920,7 @@ mod tests {
             },
         ]);
         let spec = EdgeCurveSpec {
-            description: EdgeGeometry::Intersection {
+            description: EdgeDescriptionSpec::Intersection {
                 s1: keys[0],
                 s2: keys[1],
                 witness: Point3::new(0.5, 0.0, 0.0),
@@ -2962,7 +2952,7 @@ mod tests {
         let p0 = Point3::new(r, 0.0, 0.0);
         let p1 = Point3::new(r, 0.0, 3.0);
         let spec = EdgeCurveSpec {
-            description: EdgeGeometry::Seam { surface: keys[0] },
+            description: EdgeDescriptionSpec::seam(keys[0]),
             carrier: Curve3::Line {
                 origin: p0,
                 dir: Vec3::unit_z(),
@@ -2997,7 +2987,7 @@ mod tests {
             u_ref: Vec3::unit_x(),
         }]);
         let mut bad = spec.clone();
-        bad.description = EdgeGeometry::Seam { surface: pkeys[0] };
+        bad.description = EdgeDescriptionSpec::seam(pkeys[0]);
         assert_eq!(
             EdgeCurve::certify(bad, p0, p1, &plookup, band()).unwrap_err(),
             CertifyError::SeamOnNonPeriodic
@@ -3030,7 +3020,7 @@ mod tests {
         let center = Point3::new(1.0, 2.0, 3.0);
         let p = Point3::new(2.0, 2.0, 3.0); // center + u_ref·r
         let spec = EdgeCurveSpec {
-            description: EdgeGeometry::MappedCurve(MappedCurve::RevolvedPoint {
+            description: EdgeDescriptionSpec::Scaffold(MappedCurve::RevolvedPoint {
                 point: Point2::new(2.0, 2.0),
                 place: Affine3::translation(Vec3::new(0.0, 0.0, 3.0)),
                 axis_origin: center,
@@ -3057,7 +3047,7 @@ mod tests {
         let bulge = (core::f64::consts::PI / 8.0).tan();
         let place = Affine3::translation(Vec3::new(0.0, 0.0, 1.0));
         let spec = EdgeCurveSpec {
-            description: EdgeGeometry::MappedCurve(MappedCurve::PlacedSegment {
+            description: EdgeDescriptionSpec::Scaffold(MappedCurve::PlacedSegment {
                 segment: SketchSegment::Arc {
                     a: Point2::new(1.0, 0.0),
                     b: Point2::new(0.0, 1.0),

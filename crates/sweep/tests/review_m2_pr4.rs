@@ -17,7 +17,7 @@ use core::f64::consts::{FRAC_PI_8, PI};
 use profile::RawLoop;
 
 use geom::Surface;
-use geom_brep::{EdgeGeometry, newell_plane};
+use geom_brep::{EdgeDescription, newell_plane};
 use geom_core::Tol;
 use geom_core::{Band, Point2, Point3, Real, Vec3};
 use profile::{LoopRole, Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
@@ -121,14 +121,14 @@ fn outward_normal(body: &Body<f64>, face: FaceKey) -> Vec3<f64> {
 }
 
 /// The edge's stored description.
-fn description(body: &Body<f64>, edge: EdgeKey) -> EdgeGeometry<f64> {
+fn description(body: &Body<f64>, edge: EdgeKey) -> EdgeDescription<f64> {
     let curve = body.get_edge(edge).unwrap().curve;
-    *body
+    body
         .get_curve_geom(curve)
         .unwrap()
         .certified()
         .unwrap()
-        .description()
+        .description().clone()
 }
 
 /// Independent orientation oracle: signed volume by the ch. 13
@@ -570,7 +570,7 @@ fn survives_dihedral_band_sweep_at_the_strut_arm() {
     assert_all_tiers(&t.body);
     assert!(matches!(
         description(&t.body, t.strut_edges[0][1]),
-        EdgeGeometry::MappedCurve(_)
+        EdgeDescription::Scaffold(_)
     ));
     let k0 = t.body.get_face(t.side_faces[0][0]).unwrap().surface;
     let k1 = t.body.get_face(t.side_faces[0][1]).unwrap().surface;
@@ -605,7 +605,7 @@ fn survives_dihedral_band_sweep_at_the_strut_arm() {
     assert_all_tiers(&t.body);
     assert!(matches!(
         description(&t.body, t.strut_edges[0][1]),
-        EdgeGeometry::Intersection { .. }
+        EdgeDescription::Intersection { .. }
     ));
 }
 
@@ -638,14 +638,14 @@ fn survives_collinear_lines_share_the_plane_key() {
     assert_eq!(t.body.surfaces().count(), 6);
     assert!(matches!(
         description(&t.body, t.strut_edges[0][1]),
-        EdgeGeometry::MappedCurve(_)
+        EdgeDescription::Scaffold(_)
     ));
     // The shared-key smooth join is skipped structurally; every true
     // corner upgraded.
     for j in [0usize, 2, 3, 4] {
         assert!(matches!(
             description(&t.body, t.strut_edges[0][j]),
-            EdgeGeometry::Intersection { .. }
+            EdgeDescription::Intersection { .. }
         ));
     }
 }
@@ -681,12 +681,12 @@ fn survives_notched_circle_wrap_join_shares_the_key() {
     // upgrade.
     assert!(matches!(
         description(&t.body, t.strut_edges[0][0]),
-        EdgeGeometry::MappedCurve(_)
+        EdgeDescription::Scaffold(_)
     ));
     for j in [1usize, 2, 3] {
         assert!(matches!(
             description(&t.body, t.strut_edges[0][j]),
-            EdgeGeometry::Intersection { .. }
+            EdgeDescription::Intersection { .. }
         ));
     }
     assert!(signed_volume(&t.body) > 0.0);
@@ -745,16 +745,16 @@ fn fixed_wrap_cosurface_run_shares_one_key() {
     // corners upgrade.
     assert!(matches!(
         description(&t.body, t.strut_edges[0][0]),
-        EdgeGeometry::MappedCurve(_)
+        EdgeDescription::Scaffold(_)
     ));
     assert!(matches!(
         description(&t.body, t.strut_edges[0][3]),
-        EdgeGeometry::MappedCurve(_)
+        EdgeDescription::Scaffold(_)
     ));
     for j in [1usize, 2] {
         assert!(matches!(
             description(&t.body, t.strut_edges[0][j]),
-            EdgeGeometry::Intersection { .. }
+            EdgeDescription::Intersection { .. }
         ));
     }
 }
@@ -1021,7 +1021,7 @@ fn survives_sub_eps_oblique_vector_used_as_given() {
     let t = extrude(&validated(vec![lp]), Extrusion::Vector(v), Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
     // Stored vector bitwise = input.
-    let EdgeGeometry::MappedCurve(geom_brep::MappedCurve::ExtrudedPoint { vec, .. }) =
+    let EdgeDescription::Scaffold(geom_brep::MappedCurve::ExtrudedPoint { vec, .. }) =
         description(&t.body, t.strut_edges[0][1])
     else {
         panic!("strut description");

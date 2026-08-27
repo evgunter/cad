@@ -16,9 +16,7 @@
 
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::{
-    EdgeCurve, EdgeCurveSpec, EdgeGeometry, SurfaceKey, tangent_certificate_lane, tangent_jet,
-};
+use geom_brep::{EdgeCurve, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, SurfaceKey, tangent_certificate_lane, tangent_jet};
 use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};
 use slotmap::SlotMap;
@@ -120,7 +118,7 @@ fn the_corner_ball_cylinder_circle_certifies_as_a_tangent_intersection() {
         r,
     );
     let spec = EdgeCurveSpec {
-        description: EdgeGeometry::TangentIntersection {
+        description: EdgeDescriptionSpec::TangentIntersection {
             s1: k_sphere,
             s2: k_cyl,
             witness,

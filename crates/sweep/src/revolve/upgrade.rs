@@ -8,10 +8,7 @@
 //! `set_edge_curve` door with the carrier and interval kept verbatim.
 
 use geom::Curve3;
-use geom_brep::{
-    DihedralClass, EdgeCurveSpec, EdgeDescriptionSpec, classify_dihedral, curvature_lever_arm,
-    edge_extent, tangent_certificate_lane, tangent_jet,
-};
+use geom_brep::{DihedralClass, EdgeCurveSpec, EdgeDescriptionSpec, classify_dihedral, curvature_lever_arm, edge_extent, tangent_certificate_lane, tangent_jet};
 use geom_core::spline::SpanLocate;
 use geom_core::{Band, Decide, Margin, Point3, Real};
 use topo::{Body, EdgeKey, EulerOpError, SurfaceKey};

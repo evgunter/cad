@@ -224,9 +224,19 @@ pub struct ReattachRefusal {
 /// kernel's own formula (`geom_brep::certify`'s iso arm), replicated
 /// so the fixture has a NUMBER where the refusal gives a verdict.
 fn iso_residual(body: &Body<f64>, spec: &EdgeCurveSpec<f64>) -> Option<f64> {
-    let geom_brep::EdgeGeometry::IsoCurve { surface, u, v0, v1 } = spec.description else {
+    let geom_brep::EdgeDescriptionSpec::Chart {
+        surface,
+        image: Some(geom_brep::Pcurve::IsoLine { p0, pl }),
+        ..
+    } = spec.description
+    else {
         return None;
     };
+    let (u, v0, v1) = (
+        p0.x,
+        p0.y + pl.y * spec.param_start,
+        p0.y + pl.y * spec.param_end,
+    );
     let s = body.get_surface(surface)?;
     let n = f64::from(geom_brep::CERT_SAMPLES - 1);
     let mut worst = 0.0_f64;
@@ -321,7 +331,7 @@ pub fn try_approx_walls(
         };
         let (param_start, param_end) = re.params();
         let spec = EdgeCurveSpec {
-            description: *re.description(),
+            description: re.restated_description(),
             carrier,
             param_start,
             param_end,
@@ -384,7 +394,7 @@ pub fn reattach_certifies_at(body: &Body<f64>, edge: EdgeKey, eps: f64) -> bool 
     let (start, end) = (*start, *end);
     let (param_start, param_end) = curve.params();
     let spec = EdgeCurveSpec {
-        description: *curve.description(),
+        description: curve.restated_description(),
         carrier: curve.carrier().clone(),
         param_start,
         param_end,

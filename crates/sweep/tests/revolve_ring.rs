@@ -83,7 +83,7 @@ fn one_call_hollow_ring() {
         .filter(|m| {
             matches!(
                 description(&t.body, m.unwrap()),
-                geom_brep::EdgeGeometry::Seam { .. }
+                geom_brep::EdgeDescription::Chart(_)
             )
         })
         .count();

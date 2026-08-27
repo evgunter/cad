@@ -10,7 +10,7 @@
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::SurfaceKey;
-use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeGeometry, PlaneCylinderSection};
+use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, PlaneCylinderSection};
 use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};
 
@@ -69,7 +69,7 @@ fn ruling_spec(k1: SurfaceKey, k2: SurfaceKey) -> EdgeCurveSpec<f64> {
         dir: Vec3::new(0.0, 0.0, 1.0),
     };
     EdgeCurveSpec {
-        description: EdgeGeometry::TangentIntersection {
+        description: EdgeDescriptionSpec::TangentIntersection {
             s1: k1,
             s2: k2,
             witness: carrier.eval(0.5),
@@ -106,7 +106,7 @@ fn the_authored_tangent_pair_certifies_with_the_full_jet_schedule() {
         .expect("the kernel's first certified TangentIntersection");
     assert!(matches!(
         curve.description(),
-        EdgeGeometry::TangentIntersection { .. }
+        EdgeDescription::TangentIntersection { .. }
     ));
     // The certificate is byte-honest: zero residual on an exact
     // ruling (every sample satisfies both implicit forms exactly).
@@ -165,7 +165,7 @@ fn a_g2_flat_pair_refuses_second_order_definitely() {
         dir: Vec3::new(0.0, 0.0, 1.0),
     };
     let spec = EdgeCurveSpec {
-        description: EdgeGeometry::TangentIntersection {
+        description: EdgeDescriptionSpec::TangentIntersection {
             s1: k1,
             s2: k2,
             witness: carrier.eval(0.5),
@@ -215,7 +215,7 @@ fn an_in_band_second_order_margin_escalates_f6() {
         dir: Vec3::new(0.0, 0.0, 1.0),
     };
     let spec = EdgeCurveSpec {
-        description: EdgeGeometry::TangentIntersection {
+        description: EdgeDescriptionSpec::TangentIntersection {
             s1: k1,
             s2: k2,
             witness: carrier.eval(0.5),
@@ -247,7 +247,7 @@ fn a_skewed_carrier_fails_normal_parallelism() {
         dir: Vec3::new(0.0, 0.05, 1.0),
     };
     let spec = EdgeCurveSpec {
-        description: EdgeGeometry::TangentIntersection {
+        description: EdgeDescriptionSpec::TangentIntersection {
             s1: k1,
             s2: k2,
             witness: carrier.eval(0.5),
@@ -281,7 +281,7 @@ fn an_off_surface_carrier_fails_the_residual_schedule_at_band_scale() {
         dir: Vec3::new(0.0, 0.0, 1.0),
     };
     let spec = EdgeCurveSpec {
-        description: EdgeGeometry::TangentIntersection {
+        description: EdgeDescriptionSpec::TangentIntersection {
             s1: k1,
             s2: k2,
             witness: carrier.eval(0.5),
@@ -330,7 +330,7 @@ fn the_coaxial_circle_class_was_retired_into_the_lane_at_pr_12() {
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let spec = EdgeCurveSpec {
-        description: EdgeGeometry::TangentIntersection {
+        description: EdgeDescriptionSpec::TangentIntersection {
             s1: k1,
             s2: k2,
             witness: carrier.eval(0.75),
@@ -373,7 +373,7 @@ fn a_coaxial_cone_sphere_contact_circle_certifies() {
         u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let spec = EdgeCurveSpec {
-        description: EdgeGeometry::TangentIntersection {
+        description: EdgeDescriptionSpec::TangentIntersection {
             s1: k1,
             s2: k2,
             witness: carrier.eval(0.75),
@@ -416,7 +416,7 @@ fn outside_the_span_bound_lane_refuses_typed() {
         dir: Vec3::new(s2, 0.0, s2),
     };
     let spec = EdgeCurveSpec {
-        description: EdgeGeometry::TangentIntersection {
+        description: EdgeDescriptionSpec::TangentIntersection {
             s1: k1,
             s2: k2,
             witness: carrier.eval(1.0),

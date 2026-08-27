@@ -153,7 +153,7 @@ fn a_fillet_grade_tangency_must_carry_and_does() {
                 body.get_curve_geom(e.curve)
                     .and_then(|g| g.certified())
                     .map(geom_brep::EdgeCurve::description),
-                Some(geom_brep::EdgeGeometry::TangentIntersection { .. })
+                Some(geom_brep::EdgeDescription::TangentIntersection { .. })
             )
         })
         .map(|(k, _)| k)
@@ -181,7 +181,7 @@ fn the_must_carry_fires_when_the_description_is_conventional() {
             let c = body.get_curve_geom(e.curve).and_then(|g| g.certified())?;
             matches!(
                 c.description(),
-                geom_brep::EdgeGeometry::TangentIntersection { .. }
+                geom_brep::EdgeDescription::TangentIntersection { .. }
             )
             .then(|| (k, c.clone()))
         })
@@ -193,7 +193,7 @@ fn the_must_carry_fires_when_the_description_is_conventional() {
     // The conventional description extrude would have kept: the
     // extruded profile point under the identity placement.
     let spec = geom_brep::EdgeCurveSpec {
-        description: geom_brep::EdgeGeometry::MappedCurve(geom_brep::MappedCurve::ExtrudedPoint {
+        description: geom_brep::EdgeDescriptionSpec::Scaffold(geom_brep::MappedCurve::ExtrudedPoint {
             point: p2(origin.x, origin.y),
             place: geom_core::Affine3::identity(),
             vec: dir * (t1 - t0),
@@ -237,7 +237,7 @@ fn a_g2_underdetermined_join_must_not_carry() {
         let Some(c) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
             continue;
         };
-        if matches!(c.description(), geom_brep::EdgeGeometry::MappedCurve(_))
+        if matches!(c.description(), geom_brep::EdgeDescription::Scaffold(_))
             && matches!(c.carrier(), geom::Curve3::Line { .. })
         {
             assert_eq!(

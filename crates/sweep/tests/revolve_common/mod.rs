@@ -5,7 +5,7 @@
 #![allow(dead_code)] // loaded once per consumer; each uses a subset
 #![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
-use geom_brep::EdgeGeometry;
+use geom_brep::EdgeDescription;
 use geom_core::Tol;
 use geom_core::{Point2, Point3, Vec2};
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
@@ -53,14 +53,14 @@ pub fn counts(body: &Body<f64>) -> (usize, usize, usize, usize) {
 }
 
 /// The edge's stored description.
-pub fn description(body: &Body<f64>, edge: EdgeKey) -> EdgeGeometry<f64> {
+pub fn description(body: &Body<f64>, edge: EdgeKey) -> EdgeDescription<f64> {
     let curve = body.get_edge(edge).unwrap().curve;
-    *body
+    body
         .get_curve_geom(curve)
         .unwrap()
         .certified()
         .unwrap()
-        .description()
+        .description().clone()
 }
 
 /// Probe points of a loop in `next` order: each start vertex plus

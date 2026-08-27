@@ -18,7 +18,7 @@ use std::sync::Arc;
 
 use geom::Surface;
 use geom::{Curve3, NurbsCurve2};
-use geom_brep::{Pcurve, PcurveCache};
+use geom_brep::{EdgeDescriptionSpec, Pcurve, PcurveCache};
 use geom_core::{Band, Point2, Point3, Real, Vec3};
 
 /// The tight band the reviewed row only reaches at
@@ -359,7 +359,7 @@ fn the_margin_is_legible_through_the_public_topo_door() {
             },
             p1,
             geom_brep::EdgeCurveSpec {
-                description: geom_brep::EdgeGeometry::Intersection {
+                description: geom_brep::EdgeDescriptionSpec::Intersection {
                     s1: sph_key,
                     s2: pl_key,
                     witness: carrier.eval(mid),

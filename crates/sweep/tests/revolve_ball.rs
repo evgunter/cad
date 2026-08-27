@@ -18,7 +18,7 @@
 mod revolve_common;
 
 use geom::Surface;
-use geom_brep::EdgeGeometry;
+use geom_brep::EdgeDescription;
 use geom_core::Tol;
 use profile::RawLoop;
 use profile::{ProfileLoop, ProfileVertex};
@@ -74,7 +74,7 @@ fn ball_full_revolve_omits_the_axis_edge_and_certifies() {
     assert!(meridians[1].is_none(), "axis segment omitted");
     assert!(matches!(
         description(&t.body, arc_edge),
-        EdgeGeometry::Seam { .. }
+        EdgeDescription::Chart(_)
     ));
     assert_eq!(t.walls[0][1], None);
     assert!(t.rims[0].iter().all(Option::is_none));
@@ -96,7 +96,7 @@ fn ball_full_revolve_omits_the_axis_edge_and_certifies() {
     let pi_arc = pi_meridians[0].expect("pi copy of the arc");
     assert!(matches!(
         description(&t.body, pi_arc),
-        EdgeGeometry::MappedCurve(_)
+        EdgeDescription::Scaffold(_)
     ));
     assert!(pi_rims.iter().all(Option::is_none));
     // Orientation: positive volume. The two band faces' boundaries

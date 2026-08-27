@@ -61,10 +61,7 @@ use core::fmt;
 
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::{
-    DihedralClass, EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, NewellError, classify_dihedral,
-    newell_plane,
-};
+use geom_brep::{DihedralClass, EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, NewellError, classify_dihedral, newell_plane};
 use geom_core::{
     Affine3, Band, BandError, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Tol, Vec3,
 };

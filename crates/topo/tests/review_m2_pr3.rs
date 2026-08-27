@@ -16,11 +16,11 @@
 
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::{MappedCurve, SketchSegment, newell_plane};
+use geom_brep::{EdgeDescriptionSpec, MappedCurve, SketchSegment, newell_plane};
 use geom_core::Tol;
 use geom_core::{Affine3, Band, Decide, Point2, Point3, Vec3};
 use topo::{
-    Body, EdgeCurveSpec, EdgeGeometry, EulerOpError, FaceSurface, MefSite, MevSite, SurfaceKey,
+    Body, EdgeCurveSpec, EdgeDescription, EulerOpError, FaceSurface, MefSite, MevSite, SurfaceKey,
     ValidationError, validate, validate_closed, validate_geometric,
 };
 
@@ -58,7 +58,7 @@ fn triangle_prism<T: Decide>() -> (Body<T>, topo::MvfsCreated, [topo::MefCreated
 
     // A bottom/top profile rim: PlacedSegment (the sweep's own form).
     let rim = |s0: Point2<T>, s1: Point2<T>, p0: Point3<T>, p1: Point3<T>, place| EdgeCurveSpec {
-        description: EdgeGeometry::MappedCurve(MappedCurve::PlacedSegment {
+        description: EdgeDescriptionSpec::Scaffold(MappedCurve::PlacedSegment {
             segment: SketchSegment::Line { a: s0, b: s1 },
             place,
         }),
@@ -71,7 +71,7 @@ fn triangle_prism<T: Decide>() -> (Body<T>, topo::MvfsCreated, [topo::MefCreated
     };
     // A side strut: ExtrudedPoint (the sweep's own form), s in [0,1].
     let strut_spec = |s0: Point2<T>, p0: Point3<T>| EdgeCurveSpec {
-        description: EdgeGeometry::MappedCurve(MappedCurve::ExtrudedPoint {
+        description: EdgeDescriptionSpec::Scaffold(MappedCurve::ExtrudedPoint {
             point: s0,
             place: place_bottom,
             vec: w,
@@ -206,7 +206,7 @@ fn e2e_mini_extrude_triangle_prism_passes_tiers_and_upgrades() {
     assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
     assert!(body.curves().all(|(_, c)| matches!(
         c.certified().map(topo::EdgeCurve::description),
-        Some(EdgeGeometry::Intersection { .. })
+        Some(EdgeDescription::Intersection { .. })
     )));
     // Determinism (D9): a replayed build is certificate-identical.
     let (body2, _, _) = triangle_prism::<f64>();
@@ -323,7 +323,7 @@ fn survives_atomicity_deep_snapshots_on_every_failure_path() {
         )
         .unwrap();
     let mut spec = EdgeCurveSpec::line_between(p0, p1);
-    spec.description = EdgeGeometry::Seam { surface: foreign };
+    spec.description = EdgeDescriptionSpec::seam(foreign);
     let err = body.set_edge_curve(ek, spec, Tol::witness()).unwrap_err();
     assert!(
         matches!(
@@ -537,7 +537,7 @@ fn fixed_planar_face_arc_boundary_bulge_reported_at_tier3() {
     // honestly certified arc — description and carrier agree exactly).
     let edge = t.mevs[0].edge;
     let spec = EdgeCurveSpec {
-        description: EdgeGeometry::MappedCurve(MappedCurve::PlacedSegment {
+        description: EdgeDescriptionSpec::Scaffold(MappedCurve::PlacedSegment {
             segment: SketchSegment::Arc {
                 a: Point2::new(0.0, 0.0),
                 b: Point2::new(1.0, 0.0),
@@ -591,7 +591,7 @@ fn fixed_aliased_interval_refused_at_public_setter() {
     common::describe_as_intersections(&mut body);
     let edge = t.mevs[0].edge;
     let mk = |t1: f64| EdgeCurveSpec {
-        description: EdgeGeometry::MappedCurve(MappedCurve::PlacedSegment {
+        description: EdgeDescriptionSpec::Scaffold(MappedCurve::PlacedSegment {
             segment: SketchSegment::Arc {
                 a: Point2::new(0.0, 0.0),
                 b: Point2::new(1.0, 0.0),
@@ -903,7 +903,7 @@ mod interval_lane {
         assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
         assert!(body.curves().all(|(_, c)| matches!(
             c.certified().map(topo::EdgeCurve::description),
-            Some(EdgeGeometry::Intersection { .. })
+            Some(EdgeDescription::Intersection { .. })
         )));
     }
 

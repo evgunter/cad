@@ -9,7 +9,7 @@
 
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::{CertCheck, CertifyError, EdgeCurveSpec, EdgeGeometry};
+use geom_brep::{CertCheck, CertifyError, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec};
 use geom_core::{Point3, Vec3};
 use topo::{
     Body, EulerOpError, FaceSurface, MefSite, MevSite, validate, validate_closed,
@@ -181,7 +181,7 @@ fn cube_edges_upgrade_to_intersections_and_pass_tier3() {
     assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
     assert!(body.curves().all(|(_, c)| matches!(
         c.certified().map(topo::EdgeCurve::description),
-        Some(EdgeGeometry::Intersection { .. })
+        Some(EdgeDescription::Intersection { .. })
     )));
 
     // Teeth: an Intersection naming a NON-adjacent pair is refused by
@@ -199,7 +199,7 @@ fn cube_edges_upgrade_to_intersections_and_pass_tier3() {
         .set_face_surface(t.seed.face, FaceSurface::Inherit)
         .unwrap(); // the top face's key — not this bottom edge's face
     let mut spec = EdgeCurveSpec::line_between(p0, p1);
-    spec.description = EdgeGeometry::Intersection {
+    spec.description = EdgeDescriptionSpec::Intersection {
         s1: foreign1,
         s2: foreign1,
         witness: p0.lerp(p1, 0.5),
@@ -310,7 +310,7 @@ fn near_tangent_intersection_attachment_escalates() {
         .unwrap();
     let flat = body.get_face(split.face).unwrap().surface;
     let mut spec = EdgeCurveSpec::line_between(c(0.0, 0.0, 0.0), c(1.0, 0.0, 0.0));
-    spec.description = EdgeGeometry::Intersection {
+    spec.description = EdgeDescriptionSpec::Intersection {
         s1: flat,
         s2: tilted,
         witness: c(0.5, 0.0, 0.0),

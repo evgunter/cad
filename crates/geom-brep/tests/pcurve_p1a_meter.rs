@@ -12,10 +12,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::{Curve3, Surface};
-use geom_brep::{
-    CertCheck, CertifyError, ChartWindow, EdgeCurve, EdgeCurveSpec, EdgeGeometry, PcurveCache,
-    PcurveCertifyError, PcurveCheck, chart_pcurve, implicit_residual,
-};
+use geom_brep::{CertCheck, CertifyError, ChartWindow, EdgeCurve, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, PcurveCache, PcurveCertifyError, PcurveCheck, chart_pcurve, implicit_residual};
 use geom_core::{Band, Point3, Vec3};
 
 /// The rows' own ε, and the band built from it. Fixed rather than the
@@ -100,7 +97,7 @@ fn a_cone_edge_inside_the_legacy_band_now_escalates() {
 
     let err = EdgeCurve::certify(
         EdgeCurveSpec {
-            description: EdgeGeometry::Seam { surface: keys[0] },
+            description: EdgeDescriptionSpec::seam(keys[0]),
             carrier,
             param_start: t0,
             param_end: t1,
@@ -228,7 +225,7 @@ fn the_collapsed_meter_never_understates_the_distance_to_the_surface() {
         let (p0, p1) = (carrier.eval(t0), carrier.eval(t1));
         let cert = EdgeCurve::certify(
             EdgeCurveSpec {
-                description: EdgeGeometry::Seam { surface: keys[0] },
+                description: EdgeDescriptionSpec::seam(keys[0]),
                 carrier,
                 param_start: t0,
                 param_end: t1,
@@ -273,7 +270,7 @@ fn a_carrier_with_no_chart_image_names_the_pair_it_could_not_state() {
     let (p0, p1) = (carrier.eval(0.0), carrier.eval(1.0));
     let err = EdgeCurve::certify(
         EdgeCurveSpec {
-            description: EdgeGeometry::Seam { surface: keys[0] },
+            description: EdgeDescriptionSpec::seam(keys[0]),
             carrier,
             param_start: 0.0,
             param_end: 1.0,
@@ -315,7 +312,7 @@ fn a_carrier_with_no_chart_image_names_the_pair_it_could_not_state() {
 #[cfg(feature = "interval")]
 mod at_intervals {
     use geom::{Curve3, Surface};
-    use geom_brep::{EdgeCurve, EdgeCurveSpec, EdgeGeometry};
+    use geom_brep::{EdgeCurve, EdgeCurveSpec, EdgeDescription};
     use geom_core::{Band, Bounds, Interval, Point3, Real, Vec3};
 
     fn iv(x: f64) -> Interval {
@@ -361,7 +358,7 @@ mod at_intervals {
         let (p0, p1) = (carrier.eval(t0), carrier.eval(t1));
         let certified = EdgeCurve::certify(
             EdgeCurveSpec {
-                description: EdgeGeometry::Seam { surface: keys[0] },
+                description: EdgeDescriptionSpec::seam(keys[0]),
                 carrier,
                 param_start: t0,
                 param_end: t1,
@@ -417,7 +414,7 @@ mod at_intervals {
         let (p0, p1) = (carrier.eval(t0), carrier.eval(t1));
         let certified = EdgeCurve::certify(
             EdgeCurveSpec {
-                description: EdgeGeometry::Seam { surface: keys[0] },
+                description: EdgeDescriptionSpec::seam(keys[0]),
                 carrier,
                 param_start: t0,
                 param_end: t1,

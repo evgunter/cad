@@ -13,10 +13,7 @@ use core::f64::consts::{FRAC_PI_2, FRAC_PI_6, PI, TAU};
 
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::{
-    CertCheck, CertifyError, DihedralClass, EdgeCurve, EdgeCurveSpec, EdgeGeometry, MappedCurve,
-    NewellError, SketchSegment, SurfaceKey, classify_dihedral, newell_plane,
-};
+use geom_brep::{CertCheck, CertifyError, DihedralClass, EdgeCurve, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, MappedCurve, NewellError, SketchSegment, SurfaceKey, classify_dihedral, newell_plane};
 use geom_core::Tol;
 use geom_core::{Affine3, Band, Point2, Point3, Vec3};
 
@@ -75,7 +72,7 @@ fn fixed_winding_aliased_arc_interval_refused() {
         place: Affine3::identity(),
     };
     let mk = |t1: f64| EdgeCurveSpec {
-        description: EdgeGeometry::MappedCurve(desc),
+        description: EdgeDescriptionSpec::Scaffold(desc),
         carrier: Curve3::Circle {
             center: Point3::origin(),
             axis: Vec3::unit_z(),
@@ -106,7 +103,7 @@ fn fixed_winding_aliased_full_period_refused() {
     let center = Point3::new(1.0, 2.0, 3.0);
     let p = Point3::new(2.0, 2.0, 3.0);
     let spec = EdgeCurveSpec {
-        description: EdgeGeometry::MappedCurve(MappedCurve::RevolvedPoint {
+        description: EdgeDescriptionSpec::Scaffold(MappedCurve::RevolvedPoint {
             point: Point2::new(2.0, 2.0),
             place: Affine3::translation(Vec3::new(0.0, 0.0, 3.0)),
             axis_origin: center,
@@ -148,7 +145,7 @@ fn survives_wrong_carriers_are_rejected() {
     let p0 = Point3::new(1.0, 0.0, 0.0);
     let p1 = Point3::new(0.0, 1.0, 0.0);
     let base = |carrier, t0: f64, t1: f64| EdgeCurveSpec {
-        description: EdgeGeometry::MappedCurve(arc),
+        description: EdgeDescriptionSpec::Scaffold(arc),
         carrier,
         param_start: t0,
         param_end: t1,
@@ -250,7 +247,7 @@ fn survives_plane_cylinder_partial_rim_certifies() {
     let p0 = Point3::new(1.0, 0.0, 0.0);
     let p1 = Point3::new(-1.0, 0.0, 0.0);
     let spec = EdgeCurveSpec {
-        description: EdgeGeometry::Intersection {
+        description: EdgeDescriptionSpec::Intersection {
             s1: keys[0],
             s2: keys[1],
             witness: Point3::new(0.0, 1.0, 0.0),
@@ -300,7 +297,7 @@ fn fixed_intersection_arc_side_and_winding_pinned() {
     let p0 = Point3::new(1.0, 0.0, 0.0);
     let p1 = Point3::new(-1.0, 0.0, 0.0);
     let mk = |t1: f64| EdgeCurveSpec {
-        description: EdgeGeometry::Intersection {
+        description: EdgeDescriptionSpec::Intersection {
             s1: keys[0],
             s2: keys[1],
             witness: Point3::new(0.0, 1.0, 0.0),
@@ -333,10 +330,10 @@ fn fixed_intersection_arc_side_and_winding_pinned() {
     // by the mid-parameter pin (S2): witness at the lower arc's
     // midpoint, interval traversing the upper arc.
     let mut wrong_side = mk(PI);
-    let EdgeGeometry::Intersection { s1, s2, .. } = wrong_side.description else {
+    let EdgeDescriptionSpec::Intersection { s1, s2, .. } = wrong_side.description else {
         panic!("mk builds an Intersection description");
     };
-    wrong_side.description = EdgeGeometry::Intersection {
+    wrong_side.description = EdgeDescriptionSpec::Intersection {
         s1,
         s2,
         witness: Point3::new(0.0, -1.0, 0.0),
@@ -380,7 +377,7 @@ fn fixed_full_period_rim_intersection_certifies() {
     ]);
     let p = Point3::new(1.0, 0.0, 0.0);
     let spec = EdgeCurveSpec {
-        description: EdgeGeometry::Intersection {
+        description: EdgeDescriptionSpec::Intersection {
             s1: keys[0],
             s2: keys[1],
             // The mid-parameter point of t: 0 → tau is carrier(pi).
@@ -545,7 +542,7 @@ fn fixed_reversed_interval_refused() {
     let p1 = Point3::new(1.0, 0.0, 0.0);
     let spec = EdgeCurveSpec {
         // Description runs p1 -> p0 over s in [0,1].
-        description: EdgeGeometry::MappedCurve(MappedCurve::ExtrudedPoint {
+        description: EdgeDescriptionSpec::Scaffold(MappedCurve::ExtrudedPoint {
             point: Point2::new(0.0, 0.0),
             place: Affine3::translation(p1 - Point3::origin()),
             vec: p0 - p1,
@@ -577,7 +574,7 @@ fn fixed_reversed_interval_refused() {
 fn fixed_zero_length_edge_refused() {
     let p = Point3::new(2.0, -1.0, 5.0);
     let spec = EdgeCurveSpec {
-        description: EdgeGeometry::MappedCurve(MappedCurve::ExtrudedPoint {
+        description: EdgeDescriptionSpec::Scaffold(MappedCurve::ExtrudedPoint {
             point: Point2::new(0.0, 0.0),
             place: Affine3::translation(p - Point3::origin()),
             vec: Vec3::zero(),
@@ -784,7 +781,7 @@ mod interval_lane {
         let center = ipt(1.0, 2.0, 3.0);
         let p = ipt(2.0, 2.0, 3.0);
         let spec = EdgeCurveSpec {
-            description: EdgeGeometry::MappedCurve(MappedCurve::RevolvedPoint {
+            description: EdgeDescriptionSpec::Scaffold(MappedCurve::RevolvedPoint {
                 point: Point2::new(Interval::from_f64(2.0), Interval::from_f64(2.0)),
                 place: Affine3::translation(ivec(0.0, 0.0, 3.0)),
                 axis_origin: center,

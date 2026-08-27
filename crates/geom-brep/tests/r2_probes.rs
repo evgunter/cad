@@ -27,9 +27,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::{Curve3, Surface};
-use geom_brep::{
-    CERT_SAMPLES, EdgeCurve, EdgeCurveSpec, EdgeGeometry, implicit_residual, sample_param,
-};
+use geom_brep::{CERT_SAMPLES, EdgeCurve, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, implicit_residual, sample_param};
 use geom_core::{Band, Point3, Vec3};
 
 fn table(
@@ -120,7 +118,7 @@ fn seam_delta(
     let p0 = carrier.eval(t0);
     let p1 = carrier.eval(t1);
     let spec = EdgeCurveSpec {
-        description: EdgeGeometry::Seam { surface: keys[0] },
+        description: EdgeDescriptionSpec::seam(keys[0]),
         carrier,
         param_start: t0,
         param_end: t1,
