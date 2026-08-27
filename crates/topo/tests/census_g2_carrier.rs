@@ -143,12 +143,11 @@ fn the_verdict_does_not_depend_on_which_frame_is_representative() {
     ];
     for (what, a, b, verdict) in cases {
         let (fa, fb) = pair(&a, &b);
-        let ab = declared_pair_overlap(&a, fa, &b, fb, verdict, band());
-        let ba = declared_pair_overlap(&b, fb, &a, fa, verdict, band());
+        let ab = verdict_class(declared_pair_overlap(&a, fa, &b, fb, verdict, band()));
+        let ba = verdict_class(declared_pair_overlap(&b, fb, &a, fa, verdict, band()));
         assert_eq!(
-            format!("{ab:?}"),
-            format!("{ba:?}"),
-            "{what}: the two argument orders disagreed — {ab:?} vs {ba:?}"
+            ab, ba,
+            "{what}: the two argument orders disagreed — {ab} vs {ba}"
         );
     }
 }
@@ -330,18 +329,75 @@ fn turned_plate(w: f64, d: f64, deg: f64, tx: f64, ty: f64) -> Body<f64> {
     })
 }
 
-/// Both argument orders of one configuration, rendered for comparison.
+/// The VERDICT of one call, as the thing a caller may branch on.
+///
+/// Deliberately NOT the `Debug` rendering. An `Indeterminate` carries
+/// its margin VALUE, which `geom_core` documents in terms as being
+/// "here for error messages and margin telemetry, not to be branched
+/// on" — so a symmetry row that compared it would be asserting
+/// bit-identical DIAGNOSTICS, which the frame-invariance lemma never
+/// claimed and floating-point rotation arithmetic does not deliver.
+/// What the lemma claims, and what a mate's author actually depends
+/// on, is the outcome: certified positive, certified empty, or refused
+/// — and for a refusal, WHICH row refused, since that is the part a
+/// recourse sentence is built from.
+///
+/// Measured, so the distinction is not theoretical: a 1 x 1 plate
+/// turned by 1.1e-7 degrees escalates `chart_region_parallel` in both
+/// orders with margins -2.0000000544584395e-9 and
+/// -2.0000001099695908e-9 — the same verdict on the same row, 2.8e-8
+/// apart in relative terms. That IS the conceded few-ulp variance.
+/// The defect this battery exists to catch is a different shape
+/// entirely: `Ok(PositiveArea)` one way and `Err(Escalated)` the
+/// other.
+fn verdict_class(r: Result<ChartOverlap, ChartRegionError>) -> String {
+    match r {
+        Ok(o) => format!("Ok({o:?})"),
+        Err(ChartRegionError::Escalated(diag)) => {
+            format!("Escalated({})", diag.predicate.unwrap_or("unnamed"))
+        }
+        // By VARIANT only: a refusal that names a face names A's in one
+        // order and B's in the other, which is the two descriptions
+        // being different objects and not the door disagreeing.
+        Err(e) => format!(
+            "Err({})",
+            match e {
+                ChartRegionError::ChartDivergence { .. } => "ChartDivergence",
+                ChartRegionError::NonPlanarTrim { .. } => "NonPlanarTrim",
+                ChartRegionError::MissingCache { .. } => "MissingCache",
+                ChartRegionError::ArmUnbounded { .. } => "ArmUnbounded",
+                ChartRegionError::SeamBranch => "SeamBranch",
+                ChartRegionError::CarrierTilt => "CarrierTilt",
+                ChartRegionError::TouchingBoundary => "TouchingBoundary",
+                ChartRegionError::DegenerateLoop { .. } => "DegenerateLoop",
+                ChartRegionError::RayExhausted => "RayExhausted",
+                ChartRegionError::Corrupt => "Corrupt",
+                ChartRegionError::Escalated(_) => unreachable!("handled above"),
+            }
+        ),
+    }
+}
+
+/// Both argument orders of one configuration, as verdict classes.
 fn both_orders(a: &Body<f64>, b: &Body<f64>) -> (String, String) {
     let (fa, fb) = pair(a, b);
     (
-        format!(
-            "{:?}",
-            declared_pair_overlap(a, fa, b, fb, ContactVerdict::Definite, band())
-        ),
-        format!(
-            "{:?}",
-            declared_pair_overlap(b, fb, a, fa, ContactVerdict::Definite, band())
-        ),
+        verdict_class(declared_pair_overlap(
+            a,
+            fa,
+            b,
+            fb,
+            ContactVerdict::Definite,
+            band(),
+        )),
+        verdict_class(declared_pair_overlap(
+            b,
+            fb,
+            a,
+            fa,
+            ContactVerdict::Definite,
+            band(),
+        )),
     )
 }
 
@@ -362,10 +418,17 @@ fn the_verdict_is_argument_order_symmetric_under_rotation() {
     // wide and shallow and passes a predicate that is wrong. `10ε` and
     // `100ε` at a 20:1 edge-length ratio put the two one-sided margins
     // on opposite sides of the band.
+    // Clear of BOTH thresholds by a factor, deliberately. `10ε` is
+    // exactly `K·ε` — the definite/in-band boundary itself — where the
+    // classifier flips on the last ulp of whatever it is handed, so a
+    // row placed there measures thresholding rather than argument
+    // order and would disagree for a door with no asymmetry at all.
+    // That boundary is not swept under the rug: it is pinned as its
+    // own row below, with the measurement.
     let near = [
         (2.0 * eps).atan().to_degrees(),
-        (10.0 * eps).atan().to_degrees(),
-        (100.0 * eps).atan().to_degrees(),
+        (30.0 * eps).atan().to_degrees(),
+        (300.0 * eps).atan().to_degrees(),
     ];
     let mut angles = vec![0.0, 1.0, 7.0, 17.0, 30.0, 45.0, 63.5, 89.0, 91.0, 137.0];
     angles.extend(near);
@@ -418,4 +481,57 @@ fn the_short_against_long_near_parallel_edge_pair_agrees_both_ways() {
         "and a pair whose trims plainly overlap certifies rather than \
          escalating: {ab}"
     );
+}
+
+/// INVARIANT (**where the frame-invariance lemma stops, pinned with its
+/// measurement**): the two argument orders compute the SAME margin to
+/// within floating-point noise — but "the same to within noise" is not
+/// "the same", and at a band THRESHOLD noise decides the verdict.
+///
+/// This row places the parallel row's margin exactly on `K·ε`, the
+/// definite/in-band boundary. There the two orders can and do land on
+/// opposite sides, and no symmetrization can prevent it: `decide` is a
+/// hard threshold, so any quantity computed by two different arithmetic
+/// routes flips there. That is exactly the caveat `world_carrier`'s
+/// lemma states in prose, and this is its measurement.
+///
+/// What the row DOES assert is the thing that separates conceded noise
+/// from the #1063 defect: the two margins agree to a small RELATIVE
+/// tolerance. The defect was not noise — it was a factor of `|r| / |s|`,
+/// a 20x separation at a 5 cm edge against a 1 m one. A tolerance of
+/// 1e-6 admits the rotation arithmetic's cancellation (measured: 2.8e-8
+/// relative) and excludes a length ratio by fourteen orders.
+#[test]
+fn the_band_edge_is_where_the_lemma_stops_and_the_margins_still_agree() {
+    let eps = Tol::witness().eps();
+    let base = slab(1.0);
+    // sin θ = K·ε exactly: the parallel row's margin lands ON the
+    // definite threshold, both edges being unit length.
+    let b = turned_plate(1.0, 1.0, (10.0 * eps).atan().to_degrees(), 0.0, 0.0);
+    let (fa, fb) = pair(&base, &b);
+    let margin = |r: Result<ChartOverlap, ChartRegionError>| match r {
+        Err(ChartRegionError::Escalated(d)) => match d.margin {
+            geom_core::MarginDiag::Value(v) => Some(v),
+            _ => None,
+        },
+        _ => None,
+    };
+    let ab = declared_pair_overlap(&base, fa, &b, fb, ContactVerdict::Definite, band());
+    let ba = declared_pair_overlap(&b, fb, &base, fa, ContactVerdict::Definite, band());
+    // At the threshold at least one order escalates; whichever do, the
+    // margins they report must be the same number to noise.
+    let seen: Vec<f64> = [margin(ab), margin(ba)].into_iter().flatten().collect();
+    assert!(
+        !seen.is_empty(),
+        "the fixture is meant to sit ON the threshold, so at least one \
+         order escalates the parallel row"
+    );
+    if let [x, y] = seen[..] {
+        let rel = (x - y).abs() / x.abs().max(y.abs());
+        assert!(
+            rel < 1e-6,
+            "the two orders compute the same margin to noise, not to a \
+             length ratio: {x} vs {y} (relative {rel})"
+        );
+    }
 }
