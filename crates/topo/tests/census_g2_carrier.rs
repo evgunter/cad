@@ -512,7 +512,18 @@ fn near_parallel_pairs_never_contradict_and_agree_on_their_margins() {
                 if let (Some((pa, x)), Some((pb, y))) = (margin_of(&ab), margin_of(&ba))
                     && pa == pb
                 {
-                    let rel = (x - y).abs() / x.abs().max(y.abs()).max(f64::MIN_POSITIVE);
+                    // MAGNITUDES, and the sign deliberately excluded:
+                    // `perp_dot(r, s)` is the exact negative of
+                    // `perp_dot(s, r)`, and that sign is the crossing's
+                    // ORIENTATION — whether A's boundary enters B's
+                    // interior here or leaves it. Swapping the pair
+                    // swaps enter for leave, which is the two
+                    // descriptions being read from opposite sides and
+                    // is the answer being right, not the door
+                    // disagreeing. What must agree is how far from
+                    // parallel the row found them.
+                    let rel =
+                        (x.abs() - y.abs()).abs() / x.abs().max(y.abs()).max(f64::MIN_POSITIVE);
                     assert!(
                         rel < noise_bound,
                         "sin θ = {k}ε, plate = {w} x {d}, at ({tx}, {ty}): {pa} \
@@ -613,7 +624,10 @@ fn the_band_edge_is_where_the_lemma_stops_and_the_margins_still_agree() {
          order escalates the parallel row"
     );
     if let [x, y] = seen[..] {
-        let rel = (x - y).abs() / x.abs().max(y.abs());
+        // Magnitudes, for the reason the near-parallel battery gives:
+        // the determinant's SIGN is the crossing's orientation and
+        // flips with the pair by construction.
+        let rel = (x.abs() - y.abs()).abs() / x.abs().max(y.abs());
         // Same derived bound as the near-parallel battery: the frame
         // noise this inherits is `~EPSILON / sin θ`, and sin θ here is
         // `K·ε`, so the bound tightens and loosens with ε instead of
