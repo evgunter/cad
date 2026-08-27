@@ -31,3 +31,42 @@ Everything above was rendered by llvmpipe. Real-hardware first light
 (actual GPU adapter, presentation path, vsync, DPI) remains untested;
 treat these as evidence the pipeline draws correctly on the software
 adapter only.
+
+## GUI-2 addendum — selection, captured live (same recipe, later commit)
+
+Added by the GUI-2 fix pass (PR #1106) with the recipe above unchanged:
+Xvfb `:99` at 1280x800x24, lavapipe, `import -window root`, debug
+profile, the built-in `plate_with_hole` startup document. Cursors were
+driven with `xdotool mousemove` / `click 1`; the app window is 800x600
+inside the root and the viewport pane is its left two thirds, so every
+cursor is `x < 520`.
+
+| File | What it shows |
+| --- | --- |
+| `05-startup.png` | The startup scene with the fix pass's changes in it — the baseline the four below move from. |
+| `06-hover-highlight.png` | Hover over the hole's cylindrical wall: the wall tints BLUE, and Properties still reads "select a feature". Hover is transient and never touches the selection. |
+| `07-face-selected.png` | Click, same cursor: the wall tints ORANGE, the **Extrude row highlights in the feature tree**, and Properties shows `face of feature 1`, its `Delete feature` affordance and the owning node's `Distance 0.0080 Length`. One selection value; the tree and the panel are views of it. |
+| `08-second-face-selected.png` | Click the plate's top cap: the cap tints and **the hole wall reverts**. Single-select replaces; nothing accumulates. |
+| `09-cleared-by-empty-click.png` | Click empty space inside the viewport: highlight gone, tree row unhighlighted, Properties back to "select a feature". A click that hits nothing clears. |
+
+### What this is evidence of, and what it is not
+
+**The GPU id pass executed for the first time.** Until these shots
+`crates/viewer/src/gpu.rs` had never run: the pipeline creation, the
+WGSL, the 1×1 `R32Uint` target, its clear, the `copy_texture_to_buffer`
+and the blocking readback are all on the path a hovering cursor takes.
+They ran here, on lavapipe.
+
+**And the two picking paths agreed at every cursor.** The application
+compares the id pass's answer against the ray path's by name and prints
+`picking paths disagree at the cursor: …` in the status line when they
+differ (issue #1097 §4's one-gesture check). No shot above carries that
+message — including `09`, over empty space, where the id buffer's clear
+value and the ray's miss must both read as "nothing".
+
+**It is not the hardware reading.** lavapipe is a software rasterizer:
+it says the code is correct, not that a real adapter agrees. #1097 §4's
+three named failure modes stay open on hardware — a sign/scale error in
+the 1×1 trick would show here too and does not, but `R32Uint` clear
+semantics and the readback's frame-rate cost are both properties of a
+real driver. Culling is still off in both pipelines (§2).
