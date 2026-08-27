@@ -49,22 +49,6 @@ fn boxx(x0: f64, x1: f64, y0: f64, y1: f64, z0: f64, z1: f64) -> Body<f64> {
         .body
 }
 
-/// A half-cylinder: half-disc (semicircular arc + diameter), extruded.
-fn half_cyl(r: f64, z0: f64, z1: f64) -> Body<f64> {
-    let tol = Tol::witness();
-    // bulge 1 = semicircle from (-r,0) to (r,0)... vertex order and
-    // sign chosen so the arc bows through (0, r).
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(r, 0.0), 0.0),
-        ProfileVertex::new(p2(-r, 0.0), 1.0),
-    ]);
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
-    let profile = Profile::new(plane, vec![lp]).validate(tol).unwrap();
-    extrude(&profile, Extrusion::Distance(z1 - z0), tol)
-        .unwrap()
-        .body
-}
-
 /// A thin box dropped straight through the washer's HOLE, touching
 /// nothing: the ring loop is a disc-class loop, and a point inside the
 /// hole must read OUTSIDE the annular face. The operands are honestly

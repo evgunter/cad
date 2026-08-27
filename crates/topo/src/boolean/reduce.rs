@@ -1558,10 +1558,11 @@ fn split_other_at_point<T: Decide>(
 /// it, this answers about `p`'s radial projection.
 ///
 /// At `|δ| = π` exactly — the two endpoints of a FULL-period span —
-/// `atan2` returns `+π` for both, so `t₀` maps to `t₁`. Both are
+/// the principal branch collapses the two into ONE answer, and which
+/// endpoint that is comes down to the last bit of `sin(π)`. Both are
 /// endpoints, `split_edge`'s interiority trilean refuses a split at
-/// either, and the rows below pin that rather than leave it to be
-/// rediscovered.
+/// either, so the collapse has no reachable consequence; the rows
+/// below pin that rather than leave it to be rediscovered.
 fn circle_split_param<T: Decide>(
     carrier: &geom::Curve3<T>,
     center: Point3<T>,
@@ -1743,12 +1744,17 @@ mod tests {
         let (t0, t1) = (0.0, TAU);
         for t in [t0, t1] {
             let got = circle_split_param(&carrier, center, t0, t1, carrier.eval(t));
+            // WHICH of the two endpoints comes back is decided by the
+            // last bit of `sin(π)`, so the row asserts the property
+            // that matters and not the coin flip: the answer is an
+            // ENDPOINT, and `split_edge`'s interiority trilean refuses
+            // a split at either.
             assert!(
-                (got - t1).abs() < 1e-12,
-                "both period endpoints map to t1: t={t} got={got}"
+                (got - t0).abs() < 1e-12 || (got - t1).abs() < 1e-12,
+                "a period endpoint maps to an endpoint: t={t} got={got}"
             );
             assert!(
-                !(got > t0 && got < t1),
+                !(got > t0 + 1e-12 && got < t1 - 1e-12),
                 "an endpoint is never strictly interior: {got}"
             );
         }
