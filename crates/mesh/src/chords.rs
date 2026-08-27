@@ -566,6 +566,17 @@ fn nurbs_tighten(
                            edge×NURBS-face boolean layer (the cut-loft unit)",
                 });
             }
+            // The general curve-in-UV arm (U2) refuses on the same
+            // ground and names its own class: a NURBS chart image has
+            // no closed-form UV speed sup, whatever its provenance.
+            Pcurve::General(_) => {
+                return Err(TessellateError::UnsupportedCurve {
+                    edge: ek,
+                    note: "NURBS-face half-edge carries a GENERAL curve-in-UV pcurve — \
+                           no certified UV speed bound is wired for a spline chart \
+                           image's chord schedule",
+                });
+            }
         };
         n = n
             .max(ceil_count(su * span, hu)?)
