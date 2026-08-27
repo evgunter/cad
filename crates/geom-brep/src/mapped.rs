@@ -1,61 +1,20 @@
-//! D2's intensional edge descriptions: what an edge's locus **is**.
+//! The **sketch pushforward**: one authoritative sketch entity and the
+//! map that carries it into 3-space ([`MappedCurve`]).
 //!
-//! # STATUS: this type is the **shim** (PCURVE P-1a)
+//! A pushforward is not a class of locus. It is a statement about who
+//! DETERMINED the locus — a modeler's sketch entity under a sweep map,
+//! never two peer representations — and U2
+//! (`docs/PCURVE-UNIFY-DESIGN.md`) puts it where that statement
+//! belongs: it is the payload of [`crate::EdgeAuthority::Declared`],
+//! the per-edge record tier 3's prefer-intrinsic rules read, and the
+//! payload of [`crate::EdgeDescription::Scaffold`], the fenced door
+//! through which an edge whose surfaces do not exist yet is described
+//! at all. It is no longer a description arm competing with a chart
+//! image: `Seam`, `IsoCurve` and `MappedCurve` collapsed into
+//! [`crate::ChartCurve`], and what survives here is the sketch data
+//! and its evaluation.
 //!
-//! U2 (`docs/PCURVE-UNIFY-DESIGN.md`, ratified 2026-08-15) collapsed
-//! the conventional descriptions onto ONE form, and
-//! [`crate::EdgeDescription`] is that form — the one `geom-brep`
-//! certifies, meters and stores. [`EdgeGeometry`] survives as the
-//! vocabulary the six consumer crates still speak: it is what an
-//! [`crate::EdgeCurveSpec`] carries in, and certification collapses it
-//! exactly once, at the door. P-1b moves the consumers onto
-//! [`crate::EdgeDescription`] and deletes this type.
-//!
-//! Two consequences worth naming, because they are the shim's whole
-//! point. `EdgeGeometry` stays `Copy` — the collapsed form is not
-//! (it carries a [`crate::Pcurve`]), and keeping the shim `Copy` is
-//! what leaves the 22 deref sites in the consumer crates untouched by
-//! this unit. And the boundary is CHECKABLE: the two vocabularies meet
-//! at exactly **three** sites —
-//! [`crate::description::authority_of`], the collapse block in
-//! `certify::run_checks`, and
-//! [`crate::EdgeCurve::with_remapped_surfaces`], which is the only
-//! door that mints an `EdgeCurve` without a run of the schedule and
-//! therefore the only one that could let the two DRIFT. It cannot:
-//! every key the canonical form carries there is read out of the
-//! already-remapped shim rather than remapped a second time. Deleting
-//! those three sites is exactly what finishing the migration means.
-//!
-//! An edge's geometry is stored as an intensional description
-//! ([`EdgeGeometry`]); every concrete representation — the 3-D carrier
-//! curve now, pcurves at M3 — is a *derived cache* certified against the
-//! description (D4 ¶2, [`crate::EdgeCurve`]). The sum type is D2's,
-//! verbatim, with **no `Explicit` variant** — the deliberate omission is
-//! the design's spine: there is no extensional escape hatch, so it can
-//! never be reached for.
-//!
-//! # The taxonomy (D2's dichotomy)
-//!
-//! - **Intrinsic**: [`EdgeGeometry::Intersection`] — the locus is
-//!   determined by its two surfaces (a transverse surface–surface
-//!   intersection; the witness point selects the connected component
-//!   and later seeds marching). Its validity precondition is
-//!   *transversality* — normals linearly independent along the locus —
-//!   checked at certification through the dihedral machinery
-//!   ([`crate::classify_dihedral`]). `TangencyLocus` (the second
-//!   intrinsic variant) arrives with fillets (M5); at M2 a tangential
-//!   contact classifies as sliver and fails loudly.
-//! - **Conventional**: [`EdgeGeometry::MappedCurve`] and
-//!   [`EdgeGeometry::Seam`] — loci the surfaces *under*-determine, so
-//!   the description carries its own defining data. `MappedCurve` is a
-//!   pushforward: one authoritative source (a sketch entity) and a map,
-//!   never two peer representations. `Seam` is a closed-chart
-//!   parameterization seam — pure convention, carried by the surface's
-//!   own `u_ref` (the `u_ref`-half-plane meridian is *the* seam; see
-//!   [`EdgeGeometry::Seam`] for the spatial definition and the
-//!   mirror-nappe cone caveat).
-//!
-//! # `MappedCurve`'s payload at M2
+//! # The payload
 //!
 //! The source/map pairs are combined per variant so that incoherent
 //! pairings (a 1-D source under a 1-parameter motion, which would
@@ -91,7 +50,6 @@
 
 use geom_core::{Affine3, Point2, Point3, Real, Vec2, Vec3};
 
-use crate::keys::SurfaceKey;
 
 /// A 2-D sketch-plane segment in the zero-redundancy bulge form (module
 /// docs). The line/arc split is structural — decided upstream, never
@@ -211,8 +169,7 @@ impl<T: Real> SketchSegment<T> {
     }
 }
 
-/// The pushforward payload of [`EdgeGeometry::MappedCurve`] (module
-/// docs): one authoritative sketch source plus the map that carries it
+/// The sketch pushforward (module docs): one authoritative sketch source plus the map that carries it
 /// into 3-space, combined per variant so incoherent pairings are
 /// unrepresentable.
 ///
@@ -325,117 +282,6 @@ impl<T: Real> MappedCurve<T> {
 /// A sketch-plane point under a placement: `place · (x, y, 0)`.
 fn place_point<T: Real>(place: Affine3<T>, p: Point2<T>) -> Point3<T> {
     place.transform_point(Point3::new(p.x, p.y, T::zero()))
-}
-
-/// D2's intensional edge-geometry sum type (module docs). **No
-/// `Explicit` variant, by ratified design.**
-///
-/// Surface references are body-arena keys ([`SurfaceKey`]) —
-/// lineage-scoped per Q1 (see [`crate::keys`]); certification receives
-/// a resolver from the owning body rather than resolving keys itself.
-#[derive(Clone, Copy, Debug)]
-pub enum EdgeGeometry<T: Real> {
-    /// Intrinsic: the connected component of the transverse intersection
-    /// S₁ ∩ S₂ selected by `witness`. Transversality (normals linearly
-    /// independent along the locus) is the validity precondition,
-    /// enforced at certification. The witness SELECTS the component
-    /// and nothing else: the marching rung mints its own
-    /// (`carrier(mid)`, from the fitted cache) and seeds from surviving
-    /// cell centres, so it consumes no witness from here —
-    /// `geom_brep::ssi::certify` states that contract in its own words.
-    Intersection {
-        /// The first surface (one of the edge's two adjacent faces'
-        /// surfaces — coherence checked by the tier-3 validator).
-        s1: SurfaceKey,
-        /// The second surface.
-        s2: SurfaceKey,
-        /// A point on (within ε of) the intended component of the
-        /// intersection locus — and, by the certification contract
-        /// (M2 PR 3 fix pass), **the edge's mid-parameter point**:
-        /// certification pins `carrier((t₀ + t₁)/2)` to this point
-        /// within ε, so the witness selects not just the component but
-        /// the traversed arc and winding between the endpoints.
-        /// Constructors mint it by evaluating the carrier at the
-        /// interval midpoint (for straight chords: the chord midpoint).
-        witness: Point3<T>,
-    },
-    /// Intrinsic, one differential order up (D2 as sharpened per
-    /// CURVED-DESIGN OQ7; M5 PR 9): the connected component of the
-    /// TANGENTIAL contact locus of S₁ and S₂ selected by `witness` —
-    /// surfaces coincident and normal-parallel *along* the locus,
-    /// separating quadratically *transverse* to it (relative
-    /// transverse normal curvature bounded away from zero — the jet
-    /// system's IFT denominator, enforced at certification as the
-    /// second-order margin). No stored contact-order field: order-k
-    /// contact beyond k = 1 is out of scope at M5 (D2's note records
-    /// the generalization). Fillet trimlines (M5 PR 12) STORE this
-    /// variant; at PR 9 it is minted by classification of the C5
-    /// table's tangent arms — never by marching (the SSI σ₂ band
-    /// refuses toward this variant instead of desingularizing).
-    TangentIntersection {
-        /// The first surface (one of the edge's two adjacent faces'
-        /// surfaces — coherence checked by the tier-3 validator).
-        s1: SurfaceKey,
-        /// The second surface.
-        s2: SurfaceKey,
-        /// A point on the intended component of the tangency locus —
-        /// and, by the certification contract, **the edge's
-        /// mid-parameter point** (the same S2 pin as
-        /// [`EdgeGeometry::Intersection`]'s witness).
-        witness: Point3<T>,
-    },
-    /// Conventional: a pushforward of a sketch entity under a sweep map
-    /// — the defining data for loci the surfaces under-determine
-    /// (profile-join splits, swept trajectories).
-    MappedCurve(MappedCurve<T>),
-    /// Conventional: the parameterization seam of a closed (periodic)
-    /// surface — the **`u_ref`-half-plane meridian**, defined
-    /// spatially: the surface's locus in the closed half-plane spanned
-    /// by the axis and `u_ref` (certification meters the wrong-side
-    /// excess `max(0, −w·u_ref)`; seam placement is conventional data,
-    /// D2). On most walls that locus is also the chart's u = 0
-    /// iso-curve, but not always: a mirror-nappe cone (walls on
-    /// v < 0 — revolve always aims the chart axis at +a₃, so a
-    /// downward-opening cone sweeps its mirror nappe) has its u = 0
-    /// iso-curve on the spatial-π meridian, and the seam meridian is
-    /// chart u = π. The spatial definition is the one the kernel
-    /// certifies.
-    /// Both of the edge's faces lie on this one surface. Pcurves (the
-    /// classical second payload) are M3 derived caches, absent at M2.
-    Seam {
-        /// The periodic surface whose seam this edge is.
-        surface: SurfaceKey,
-    },
-    /// Conventional: the `u = const` **iso-parameter curve** of a
-    /// parametric surface — the loft/sweep assembly's wall–wall seam
-    /// class (M6-3).
-    ///
-    /// Why this is its own variant and not an
-    /// [`EdgeGeometry::Intersection`]: a definitional wall junction's
-    /// contact class is the profile's **declared** corner structure
-    /// (Q8/C11), not a derived one — and on a NURBS wall the
-    /// implicit-form machinery (`implicit_residual`,
-    /// `curvature_lever_arm`) is poison anyway, so `classify_dihedral`
-    /// cannot run there. The certified statement is instead the
-    /// genuinely metric residual
-    /// `|C(t) − S(u, v0 + (v1 − v0)·(t − t0)/(t1 − t0))|` at the CERT
-    /// schedule (two-tolerance, definite arms included), and tier-3
-    /// adjacency reads as `surface ∈ {fs_plus, fs_minus}`.
-    ///
-    /// The definitional payoff (M5 PR 10 §3): an iso-curve's pcurve on
-    /// its own chart is an **exact straight line in UV** — no fit
-    /// anywhere.
-    IsoCurve {
-        /// The surface whose iso-curve this edge is (one of the edge's
-        /// two adjacent faces' surfaces — tier-3 coherence).
-        surface: SurfaceKey,
-        /// The fixed `u` parameter of the iso-curve.
-        u: T,
-        /// The `v` value at the edge's `param_start`.
-        v0: T,
-        /// The `v` value at the edge's `param_end`.
-        v1: T,
-    },
 }
 
 #[cfg(test)]

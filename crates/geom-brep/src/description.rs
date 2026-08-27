@@ -6,7 +6,8 @@
 //! # The taxonomy, after the collapse
 //!
 //! [`EdgeDescription`] has four arms and exactly ONE conventional
-//! form:
+//! form (and [`EdgeDescriptionSpec`] is its pre-mint twin, the form a
+//! CONSTRUCTION states — see that type for why the input needs one):
 //!
 //! - the two INTRINSIC arms ([`EdgeDescription::Intersection`],
 //!   [`EdgeDescription::TangentIntersection`]) are D2's, untouched —
@@ -41,12 +42,12 @@
 //! (`topo`'s `TransverseNotIntrinsic` / `TangentNotIntrinsic`) today
 //! read "the description is a `MappedCurve`" as "the modeler declared
 //! this locus"; once the conventional forms collapse there is no such
-//! shape to read, so the declaration becomes recorded data. Sketch
-//! truth is recorded, not derived.
+//! shape to read, so the declaration is recorded data. Sketch truth is
+//! recorded, not derived.
 
 use geom_core::Real;
 
-use crate::edge_geometry::{EdgeGeometry, MappedCurve};
+use crate::mapped::MappedCurve;
 use crate::keys::SurfaceKey;
 use crate::pcurve_cache::Pcurve;
 
@@ -158,23 +159,161 @@ impl<T: Real> EdgeDescription<T> {
     }
 }
 
-/// The **shim** view of a description, in the pre-collapse vocabulary.
+
+/// The description **as a construction states it** — the pre-mint form
+/// of [`EdgeDescription`], carried by [`crate::EdgeCurveSpec`].
 ///
-/// This exists so P-1a is a `geom-brep`-only diff: the six consumer
-/// crates keep reading [`EdgeGeometry`] and P-1b moves them onto
-/// [`EdgeDescription`] as its own reviewable change. It is the only
-/// place the two vocabularies meet, which is what makes the crate
-/// boundary checkable — delete this function and the shim is gone.
+/// # Why the input needs its own type
 ///
-/// The authority record is read off the same shim: a `MappedCurve`
-/// description IS a declaration, which is exactly the negative space
-/// tier 3 reads today.
-pub fn authority_of<T: Real>(description: &EdgeGeometry<T>) -> EdgeAuthority<T> {
+/// The taxonomy is the same one: two intrinsic arms, ONE conventional
+/// arm, the fenced scaffolding door. What differs is the chart IMAGE.
+/// An analytic chart's image is minted from the carrier through
+/// [`crate::chart_pcurve`], which needs the **resolved surface**; a
+/// construction holds arena KEYS and hands certification the resolver,
+/// so it cannot mint one. Certification therefore mints the image at
+/// the door, inside the check sequence, where a degenerate interval
+/// still refuses in its own order and no chart image is derived from
+/// an interval the kernel has not yet accepted (D4/D9). The two types
+/// are that fact made structural: the door is the only place a chart
+/// image is derived, and [`EdgeDescription`] is the only form that
+/// carries one.
+#[derive(Clone, Debug)]
+pub enum EdgeDescriptionSpec<T: Real> {
+    /// Intrinsic: the transverse intersection component selected by
+    /// `witness` (D2).
+    Intersection {
+        /// The first surface.
+        s1: SurfaceKey,
+        /// The second surface.
+        s2: SurfaceKey,
+        /// The mid-parameter witness point.
+        witness: geom_core::Point3<T>,
+    },
+    /// Intrinsic, one differential order up: the tangential contact
+    /// component selected by `witness` (D2 as sharpened by OQ7).
+    TangentIntersection {
+        /// The first surface.
+        s1: SurfaceKey,
+        /// The second surface.
+        s2: SurfaceKey,
+        /// The mid-parameter witness point.
+        witness: geom_core::Point3<T>,
+    },
+    /// **Conventional — the one form** (U2): this edge's locus is the
+    /// image of `image` in the chart `surface`.
+    Chart {
+        /// The chart the locus is described in.
+        surface: SurfaceKey,
+        /// The image, when the construction KNOWS it exactly — a
+        /// spline chart's iso boundary, or a restriction of an image
+        /// already certified. `None` asks the certification door to
+        /// derive it from the carrier ([`crate::chart_pcurve`]), the
+        /// one place chart images are derived.
+        image: Option<crate::pcurve_cache::Pcurve<T>>,
+        /// D1's obligation: this edge claims to BE the chart's
+        /// parameterization seam, so the two seam predicates are
+        /// metered beside the one meter.
+        seam: bool,
+        /// The authority record this construction states (U2 Q3):
+        /// `Some` when a sketch entity under a sweep map DECLARED the
+        /// locus that this chart image describes. Carried separately
+        /// from the description precisely because a declared locus and
+        /// a derived one can be the same chart image — the difference
+        /// is who determined it, which is data, not shape.
+        declared: Option<MappedCurve<T>>,
+    },
+    /// The fenced scaffolding door (D3): a pushforward standing in as
+    /// a description while the edge is TRANSIENT.
+    Scaffold(MappedCurve<T>),
+}
+
+impl<T: Real> EdgeDescriptionSpec<T> {
+    /// A chart image the door derives from the carrier, owed the one
+    /// meter and nothing else.
+    pub fn chart(surface: SurfaceKey) -> Self {
+        EdgeDescriptionSpec::Chart {
+            surface,
+            image: None,
+            seam: false,
+            declared: None,
+        }
+    }
+
+    /// The chart's parameterization seam: a derived image carrying
+    /// D1's seam obligation.
+    pub fn seam(surface: SurfaceKey) -> Self {
+        EdgeDescriptionSpec::Chart {
+            surface,
+            image: None,
+            seam: true,
+            declared: None,
+        }
+    }
+
+    /// A chart image the construction states exactly (spline charts,
+    /// and restrictions of already-certified images).
+    pub fn chart_image(surface: SurfaceKey, image: crate::pcurve_cache::Pcurve<T>) -> Self {
+        EdgeDescriptionSpec::Chart {
+            surface,
+            image: Some(image),
+            seam: false,
+            declared: None,
+        }
+    }
+
+    /// The `u = const` iso image of `surface`, on the carrier's own
+    /// parameter: `P(t) = (u, v0 + slope·(t − t0))` with
+    /// `slope = (v1 − v0)/(t1 − t0)` — the exact form every stored
+    /// cache of this class carries, which is what makes a description's
+    /// image and a cache's image the same object.
+    pub fn iso(surface: SurfaceKey, u: T, v0: T, v1: T, t0: T, t1: T) -> Self {
+        let slope = (v1 - v0) / (t1 - t0);
+        Self::chart_image(
+            surface,
+            crate::pcurve_cache::Pcurve::IsoLine {
+                p0: geom_core::Point2::new(u, v0 - slope * t0),
+                pl: geom_core::Vec2::new(T::zero(), slope),
+            },
+        )
+    }
+
+    /// The same description with `mc` recorded as the authority that
+    /// declared the locus (U2 Q3). No-op on the arms that carry their
+    /// own authority: an intrinsic locus is derived by definition, and
+    /// a scaffold's pushforward IS its declaration.
+    #[must_use]
+    pub fn declared_by(self, mc: MappedCurve<T>) -> Self {
+        match self {
+            EdgeDescriptionSpec::Chart {
+                surface,
+                image,
+                seam,
+                ..
+            } => EdgeDescriptionSpec::Chart {
+                surface,
+                image,
+                seam,
+                declared: Some(mc),
+            },
+            other => other,
+        }
+    }
+}
+
+/// The authority record a construction's description states (U2 Q3):
+/// who determined this edge's locus.
+///
+/// A scaffold's pushforward IS the declaration; a chart image carries
+/// its declaration beside itself when a sketch entity determined the
+/// locus it draws; everything else is derived.
+pub fn authority_of<T: Real>(description: &EdgeDescriptionSpec<T>) -> EdgeAuthority<T> {
     match *description {
-        EdgeGeometry::MappedCurve(mc) => EdgeAuthority::Declared(mc),
-        EdgeGeometry::Intersection { .. }
-        | EdgeGeometry::TangentIntersection { .. }
-        | EdgeGeometry::Seam { .. }
-        | EdgeGeometry::IsoCurve { .. } => EdgeAuthority::Derived,
+        EdgeDescriptionSpec::Scaffold(mc) => EdgeAuthority::Declared(mc),
+        EdgeDescriptionSpec::Chart {
+            declared: Some(mc), ..
+        } => EdgeAuthority::Declared(mc),
+        EdgeDescriptionSpec::Chart { declared: None, .. }
+        | EdgeDescriptionSpec::Intersection { .. }
+        | EdgeDescriptionSpec::TangentIntersection { .. } => EdgeAuthority::Derived,
     }
 }

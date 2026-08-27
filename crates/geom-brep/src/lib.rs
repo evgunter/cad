@@ -4,7 +4,7 @@
 //!
 //! This crate sits between the evaluators (`geom`) and the arena
 //! store (`topo`): it defines **what an
-//! edge's geometry is** ([`EdgeGeometry`] — a description, never a bare
+//! edge's geometry is** ([`EdgeDescription`] — a description, never a bare
 //! curve), **how a concrete cache earns its place** ([`EdgeCurve`] —
 //! certification against the description, D4 ¶2; an uncertified carrier
 //! is unrepresentable), and the two geometric classifiers M2's
@@ -56,7 +56,7 @@
 pub mod certify;
 pub mod description;
 pub mod dihedral;
-pub mod edge_geometry;
+pub mod mapped;
 pub mod edge_nurbs;
 pub mod enters;
 pub mod implicit;
@@ -78,9 +78,11 @@ pub use certify::{
     CERT_SAMPLES, CertCheck, Certificate, CertifyError, EdgeCurve, EdgeCurveSpec, edge_extent,
     sample_param,
 };
-pub use description::{ChartCurve, EdgeAuthority, EdgeDescription, authority_of};
+pub use description::{
+    ChartCurve, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, authority_of,
+};
 pub use dihedral::{DihedralClass, classify_dihedral};
-pub use edge_geometry::{EdgeGeometry, MappedCurve, SketchSegment};
+pub use mapped::{MappedCurve, SketchSegment};
 pub use edge_nurbs::{EdgeNurbsLane, PlaneNurbsLimbs, PlaneNurbsRefusal};
 pub use enters::{
     EntersMaterial, OutwardNormal, ReferenceNormal, enters_material, enters_material_order2,
