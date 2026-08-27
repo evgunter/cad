@@ -65,6 +65,8 @@ mod dsc_checks;
 mod e4_dual_door;
 #[path = "gui1_pick.rs"]
 mod gui1_pick;
+#[path = "gui1_pick_r2.rs"]
+mod gui1_pick_r2;
 #[path = "lbret_schema_v8.rs"]
 mod lbret_schema_v8;
 #[path = "lib_doors_node_result.rs"]

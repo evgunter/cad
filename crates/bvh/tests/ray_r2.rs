@@ -389,14 +389,62 @@ fn permutation_invariance_of_the_candidate_answer() {
     }
 }
 
-/// The index tie-break, pinned so it CAN go red.
+/// The documented index tie-break, at scale — **EVIDENCE, not a gate
+/// on the tie-break**.
 ///
-/// `ray.rs`'s order row uses three boxes; a small nearly-sorted slice
-/// is insertion-sorted by `sort_unstable_by`, which is stable in
-/// practice, so dropping `.then(item.cmp(..))` from the comparator
-/// leaves that row green. Here the ties are many and deliberately
-/// presented out of index order, so a comparator that does not name
-/// the index cannot reproduce the contract.
+/// Stated plainly because the attempt failed: deleting
+/// `.then(a.item.cmp(&b.item))` from `Bvh::ray`'s comparator leaves
+/// THIS row green, and leaves `ray.rs`'s order row green, and leaves
+/// the sweep green on roughly a third of seeds (measured: 3 red of 5
+/// mutant runs across two constructions). The cause is structural —
+/// the traversal is left-child-first over an items array the build
+/// already ordered, so the pre-sort sequence is normally *already*
+/// index-ascending inside each tie group and an unstable sort has
+/// nothing to disturb. No deterministic construction found here
+/// reaches the mutant.
+///
+/// What the row does carry: 200 boxes in two exact tie groups of 100,
+/// with the near group last in input order, come back grouped by
+/// `t_enter` and index-ascending within each group. That is the
+/// contract's observable shape; the falsifying row for the comparator
+/// itself is a review finding, not something this file supplies.
+#[test]
+fn interleaved_ties_come_back_in_ascending_index_order() {
+    let near = |k: usize| Aabb {
+        min_x: if k >= 100 { 1.0 } else { 3.0 },
+        min_y: -1.0,
+        min_z: -1.0,
+        max_x: if k >= 100 { 2.0 } else { 4.0 },
+        max_y: 1.0,
+        max_z: 1.0,
+    };
+    let boxes: Vec<Aabb> = (0..200).map(near).collect();
+    let tree = Bvh::build(&boxes);
+    let out = tree.ray(&Ray {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        dir: Vec3::new(1.0, 0.0, 0.0),
+    });
+    assert_eq!(out.len(), 200, "every box is on the ray");
+    let nearer: Vec<usize> = out.iter().take(100).map(|c| c.item).collect();
+    let farther: Vec<usize> = out.iter().skip(100).map(|c| c.item).collect();
+    assert_eq!(
+        nearer,
+        (100..200).collect::<Vec<_>>(),
+        "the nearer tie group ascends by input index"
+    );
+    assert_eq!(
+        farther,
+        (0..100).collect::<Vec<_>>(),
+        "the farther tie group ascends by input index"
+    );
+    assert!(
+        out[0].t_enter.to_bits() == out[99].t_enter.to_bits()
+            && out[100].t_enter.to_bits() == out[199].t_enter.to_bits(),
+        "each group ties bit-exactly, so only the index can order it"
+    );
+}
+
+/// Identical boxes tie bit-exactly and come back index-ascending.
 #[test]
 fn identical_boxes_come_back_in_ascending_index_order() {
     // 64 copies of one box: every t_enter ties exactly, so the ONLY
