@@ -313,7 +313,11 @@ fn dyadic_battery_pins_faces_edges_corners_and_tiebreak() {
             (o[1] * 2.0) as i128,
             (o[2] * 2.0) as i128,
         ];
-        let d2 = [(d[0] * 2.0) as i128, (d[1] * 2.0) as i128, (d[2] * 2.0) as i128];
+        let d2 = [
+            (d[0] * 2.0) as i128,
+            (d[1] * 2.0) as i128,
+            (d[2] * 2.0) as i128,
+        ];
         let hits = oracle_hits(&scaled_meshes, o2, d2);
         let win = oracle_winner(&hits).unwrap_or_else(|| panic!("case {ci}: oracle hit expected"));
         let r2 = ray(
@@ -464,7 +468,8 @@ fn random_integer_rays_match_the_exact_oracle() {
                     .collect();
                 if tied.len() == 1 {
                     assert_eq!(
-                        got_patch, w.patch,
+                        got_patch,
+                        w.patch,
                         "case {case}: unique oracle winner (o={o:?} d={d:?}); {}",
                         fuzz::replay()
                     );
