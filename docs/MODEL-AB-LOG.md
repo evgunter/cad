@@ -1662,3 +1662,18 @@ from block GUI-B1 slot 4 (OPUS — block GUI-B1 now fully consumed:
 GUI-0/GUI-1/GUI-3/GUI-2 at slots 1/2/3/4). Sample number assigned
 AT MERGE. Row at merge. Known-red context handed to reviewers:
 #1102 (main red at the 1e-12 draw).
+
+Block GUI-B2 pre-draw fields (2026-08-27, logged before the draw):
+slot 1 = GUI-4 (docs/GUI-4-SPEC.md; the last required v1 unit —
+assembly interaction + mate tool + viewer PartResolver + the
+exit-demo walk) — difficulty **M-L**, task-class **STRUCTURAL**
+(tool state, display transforms, resolver wiring, one committed
+DocEdit; mate/placement math is shipped ASM substrate). Slot 2
+banks for GUI-5 (the optional web lane) if dispatched; slots 3–4
+bank for post-v1 work (GUI-6) or die with the program's close.
+
+Block GUI-B2 draw (2026-08-27, after the pre-draw fields above):
+byte **108** (<252, accepted), 108 mod 4 = 0 = fable's position
+(0-indexed, the standing mapping) ⇒ **fable at slot 1**. So:
+**slot 1 GUI-4 = FABLE**, slots 2–4 = OPUS (arms read back from
+this record at dispatch per the VERBS-4 deviation remedy).
