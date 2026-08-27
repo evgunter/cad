@@ -534,9 +534,10 @@ pub struct Certificate<T: Real> {
     /// collapse** (D2): the three pre-collapse forms did not measure
     /// the same thing, and a `Pcurve` is a function of the carrier's
     /// own parameter where the iso arm's `v` walked the schedule
-    /// fraction. The move is measured per fixture and pinned — see
-    /// `D2_SEAM_ULPS` / `D2_ISO_ULPS` in this module's tests — never
-    /// laundered by re-associating a meter to make a number match.
+    /// fraction. The move is measured per fixture AND PER DRIFT SCALE
+    /// and pinned — see `D2_SWEEP` in this module's tests, whose two
+    /// arms move in opposite directions with scale — never laundered
+    /// by re-associating a meter to make a number match.
     pub max_residual: T,
 }
 
@@ -1818,28 +1819,6 @@ mod tests {
         (keys, move |k| map.get(k).cloned())
     }
 
-    /// **D2's measured row, fixture `cylinder-seam`: 0 ULP.** The
-    /// seam arm traded the implicit-form residual for
-    /// `|C − S(P)|` and the recorded maximum did NOT move
-    /// (2.5000002068509275e-10 m either way): on a cylinder the
-    /// implicit residual IS the radial drift, and so is the distance
-    /// to the chart image of the same drifted ruling. Measured, not
-    /// assumed — the two are different expressions that happen to
-    /// agree bitwise on this class.
-    const D2_SEAM_ULPS: i64 = 0;
-    /// **D2's measured row, fixture `plane-iso-offset-t0`: 1907 ULP**
-    /// (legacy 2.5000002068519134e-10 m, now 2.5000002068509275e-10 m
-    /// — a move of ~1e-21 m, eleven orders below ε).
-    ///
-    /// This is the move D2 predicted and forbade laundering: the
-    /// legacy expression walked `v0 + (v1 − v0)·frac` on the SCHEDULE
-    /// FRACTION, while a `Pcurve` is by contract a function of the
-    /// carrier's own parameter, so the collapsed meter evaluates
-    /// `(v0 − slope·t0) + slope·t`. The two are equal in ℝ and not in
-    /// `f64`. The fixture's interval deliberately does not start at
-    /// zero, which is what makes the difference visible at all.
-    const D2_ISO_ULPS: i64 = 1907;
-
     fn line_spec(p0: Point3<f64>, p1: Point3<f64>) -> EdgeCurveSpec<f64> {
         EdgeCurveSpec::line_between(p0, p1)
     }
@@ -1865,24 +1844,17 @@ mod tests {
     // against what certification now records.
     // ------------------------------------------------------------------
 
-    /// The bit-diff row's OWN band and drift, fixed rather than the
-    /// run's.
+    /// The bit-diff row's OWN band, built from the fixture's drift
+    /// rather than from the run's ε.
     ///
-    /// The row measures the meter's ARITHMETIC, and the arithmetic is
-    /// not a function of ε — but a fixture drift expressed as a
-    /// fraction of ε is, and so is the ULP delta it produces. Measured
-    /// both ways before this was fixed: the same fixture answers
-    /// **1907 ULP** at a 2.5e-10 drift and **1 952 950 996 ULP** at a
-    /// 2.5e-13 one, because the residual is `√(drift² + dv²)` with `dv`
-    /// at the last-bit scale, so the relative move goes as
-    /// `dv²/(2·drift²)`. A row pinned against the run's ε would
-    /// therefore say something different on every ε point and pin
-    /// nothing. The drift is a fixed metre value and the band is
-    /// built to contain it at every run.
-    const D2_DRIFT: f64 = 2.5e-10;
-
-    fn d2_band() -> Band {
-        Band::new(1e-9, 10.0 * 1e-9).expect("the bit-diff row's own band")
+    /// The band's zero threshold is four times the drift at every
+    /// scale, so each row sits at the same fraction of its own band
+    /// and the SWEPT variable is the drift alone. Deriving the band
+    /// from the run's ε instead would make the row a different
+    /// measurement on every ε point in the matrix, which is how the
+    /// first version of this row passed locally and failed hosted.
+    fn d2_band(drift: f64) -> Band {
+        Band::new(4.0 * drift, 40.0 * drift).expect("the bit-diff row's own band")
     }
 
     /// ULP distance between two finite same-sign `f64`s.
@@ -2067,8 +2039,10 @@ mod tests {
         assert!(!derived.authority().is_declared());
     }
 
-    #[test]
-    fn d2_bit_diff_row_is_measured_per_fixture() {
+    /// One row of the sweep: the three fixtures' ULP deltas at a
+    /// given drift, in the order (cylinder-seam, plane-iso-offset-t0,
+    /// mapped-line).
+    fn d2_row(drift: f64) -> (i64, i64, i64) {
         // ---- Fixture "cylinder-seam": the seam ruling of a radius-2
         // cylinder about +z, seam at +x. Legacy: implicit residual +
         // the two predicates. Now: |C − S(P)| + the same two
@@ -2085,7 +2059,7 @@ mod tests {
         // answer a bitwise zero, which measures nothing. `d` is the
         // radial drift a real construction leaves behind, and it is
         // what the two meters disagree about.
-        let d = D2_DRIFT;
+        let d = drift;
         let (p0, p1) = (Point3::new(r + d, 0.0, 0.0), Point3::new(r + d, 0.0, 3.0));
         let seam_spec = EdgeCurveSpec {
             description: EdgeGeometry::Seam { surface: keys[0] },
@@ -2096,7 +2070,7 @@ mod tests {
             param_start: 0.0,
             param_end: 3.0,
         };
-        let cert = EdgeCurve::certify(seam_spec.clone(), p0, p1, &lookup, d2_band())
+        let cert = EdgeCurve::certify(seam_spec.clone(), p0, p1, &lookup, d2_band(drift))
             .expect("the seam certifies")
             .certificate;
         let legacy = legacy_seam_max(&seam_spec, &lookup(keys[0]).unwrap(), p0, p1);
@@ -2124,7 +2098,7 @@ mod tests {
         let dir = (q1 - q0) / q0.distance(q1);
         // The same in-band drift, off the chart in the surface's own
         // normal: the residual the two arithmetic orders evaluate.
-        let drift = Vec3::unit_z() * (D2_DRIFT);
+        let off = Vec3::unit_z() * drift;
         let iso_spec = EdgeCurveSpec {
             description: EdgeGeometry::IsoCurve {
                 surface: pk[0],
@@ -2133,7 +2107,7 @@ mod tests {
                 v1,
             },
             carrier: Curve3::Line {
-                origin: q0 + drift - dir * t0,
+                origin: q0 + off - dir * t0,
                 dir,
             },
             param_start: t0,
@@ -2141,10 +2115,10 @@ mod tests {
         };
         let iso_cert = EdgeCurve::certify(
             iso_spec.clone(),
-            q0 + drift,
-            q1 + drift,
+            q0 + off,
+            q1 + off,
             &plookup,
-            d2_band(),
+            d2_band(drift),
         )
         .expect("the plane iso certifies")
         .certificate;
@@ -2154,8 +2128,8 @@ mod tests {
             u,
             v0,
             v1,
-            q0 + drift,
-            q1 + drift,
+            q0 + off,
+            q1 + off,
         );
         let iso_delta = ulps(iso_cert.max_residual, iso_legacy);
 
@@ -2165,7 +2139,7 @@ mod tests {
         let (a, b) = (Point3::new(-1.0, 0.25, 0.5), Point3::new(2.0, -3.0, 4.0));
         let mapped = line_spec(a, b);
         let (_, empty) = table(vec![]);
-        let mapped_cert = EdgeCurve::certify(mapped.clone(), a, b, &empty, d2_band())
+        let mapped_cert = EdgeCurve::certify(mapped.clone(), a, b, &empty, d2_band(drift))
             .expect("the mapped line certifies")
             .certificate;
         let mut mapped_legacy = mapped.carrier.eval(mapped.param_start).distance(a);
@@ -2182,18 +2156,84 @@ mod tests {
         }
         let mapped_delta = ulps(mapped_cert.max_residual, mapped_legacy);
 
-        // The measured row. Pinned, so a later arithmetic change to
-        // the meter has to restate it rather than slip through.
+        (seam_delta, iso_delta, mapped_delta)
+    }
+
+    /// **D2's bit-diff row, swept over drift scale.**
+    ///
+    /// A delta measured at one operating point is true where it was
+    /// taken and says nothing about the meter; the sweep is what turns
+    /// it into a measurement. Three decades, each pinned:
+    ///
+    /// | drift (m) | cylinder-seam | plane-iso-offset-t0 | mapped-line |
+    /// |---|---|---|---|
+    /// | 2.5e-7  | 293 601 280 | 0 | 0 |
+    /// | 2.5e-10 | 0 | 1 907 | 0 |
+    /// | 2.5e-13 | 0 | 1 952 950 996 | 0 |
+    ///
+    /// **The deltas are not scale-invariant, and the two arms move in
+    /// OPPOSITE directions with scale.** Neither column may be read as
+    /// a statement about its meter: "the seam arm does not move" is
+    /// true only below the coarse decade, and "the iso move is ~1e-21
+    /// m" is true only at the middle one. Any claim about the size of
+    /// the move is a claim about a scale, and this table is the only
+    /// support for one.
+    ///
+    /// The iso column's mechanism is derived: the residual is
+    /// `√(drift² + dv²)` with `dv` at the last-bit scale, so the
+    /// relative move goes as `dv²/(2·drift²)` and grows as the drift
+    /// shrinks. **The seam column's is NOT derived here** — the arm is
+    /// bitwise-identical at both fine decades and moves only at the
+    /// coarse one, which is the signature of a cancellation floor
+    /// rather than of the collapse. The seam meter's behaviour across
+    /// CHART KINDS (a cone's implicit residual measures the
+    /// perpendicular distance to the generator where `|C − S(P)|`
+    /// measures the radial chord — a change of QUANTITY, not of bits)
+    /// is a separate finding and is not what this table measures.
+    ///
+    /// The mapped-line column is the control: the fenced scaffolding
+    /// arm's meter is untouched by the collapse, so it must read zero
+    /// at every scale, and a nonzero entry there means the sweep
+    /// itself is measuring the wrong thing.
+    const D2_SWEEP: [(f64, (i64, i64, i64)); 3] = [
+        (2.5e-7, (D2_S0_SEAM, D2_S0_ISO, 0)),
+        (2.5e-10, (D2_S1_SEAM, D2_S1_ISO, 0)),
+        (2.5e-13, (D2_S2_SEAM, D2_S2_ISO, 0)),
+    ];
+
+    /// Drift 2.5e-7 m, cylinder-seam: **293 601 280 ULP**. The seam
+    /// arm's two expressions do NOT agree at this scale — the legacy
+    /// implicit form computes `|radial| − r`, a subtractive
+    /// cancellation against the chart radius, where `|C − S(P)|`
+    /// forms the same length directly. The move is toward the
+    /// directly-formed one.
+    const D2_S0_SEAM: i64 = 293_601_280;
+    /// Drift 2.5e-7 m, plane-iso: **0 ULP** — at this scale the two
+    /// `v` evaluations round to the same `f64`.
+    const D2_S0_ISO: i64 = 0;
+    /// Drift 2.5e-10 m, cylinder-seam: **0 ULP**.
+    const D2_S1_SEAM: i64 = 0;
+    /// Drift 2.5e-10 m, plane-iso: **1907 ULP**.
+    const D2_S1_ISO: i64 = 1_907;
+    /// Drift 2.5e-13 m, cylinder-seam: **0 ULP**.
+    const D2_S2_SEAM: i64 = 0;
+    /// Drift 2.5e-13 m, plane-iso: **1 952 950 996 ULP**.
+    const D2_S2_ISO: i64 = 1_952_950_996;
+
+    #[test]
+    fn d2_bit_diff_row_is_measured_across_drift_scales() {
+        // The WHOLE table is compared at once, deliberately: a
+        // per-scale assertion stops at the first move and hides the
+        // shape of the rest, and the shape is the measurement.
+        let measured: Vec<(f64, (i64, i64, i64))> =
+            D2_SWEEP.iter().map(|&(d, _)| (d, d2_row(d))).collect();
+        let pinned: Vec<(f64, (i64, i64, i64))> = D2_SWEEP.to_vec();
         assert_eq!(
-            (seam_delta, iso_delta, mapped_delta),
-            (D2_SEAM_ULPS, D2_ISO_ULPS, 0),
-            "D2 bit-diff row moved — cylinder-seam {seam_delta} ULP \
-             (legacy {legacy:e} m, now {:e} m), plane-iso-offset-t0 {iso_delta} ULP \
-             (legacy {iso_legacy:e} m, now {:e} m), mapped-line {mapped_delta} ULP. \
-             Re-measure and RESTATE the row; never re-associate the meter to \
-             make a number match (D2)",
-            cert.max_residual,
-            iso_cert.max_residual,
+            measured, pinned,
+            "D2 bit-diff row moved — measured (drift, (cylinder-seam, \
+             plane-iso-offset-t0, mapped-line)) = {measured:?}, pinned \
+             {pinned:?}. Re-measure and RESTATE the row; never re-associate a \
+             meter to make a number match (D2)"
         );
     }
 
