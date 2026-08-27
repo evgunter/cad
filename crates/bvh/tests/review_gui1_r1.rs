@@ -346,7 +346,7 @@ fn overflow_prunes_a_truly_hit_box() {
     // [1.588…, 1.6] — nonempty, forward. Sanity-check it in exact
     // integer arithmetic scaled by 1e306: x(t)·1e−306 = 170(1 − t),
     // bounds [−150, −100] ⇒ t ∈ [270/170, 320/170].
-    assert!(270.0 / 170.0 < 1.6, "the true interval is nonempty");
+    // (270/170 ≈ 1.588 < 1.6: the true interval is nonempty.)
     let tree = Bvh::build(&[b]);
     assert_eq!(
         tree.ray(&r).len(),
