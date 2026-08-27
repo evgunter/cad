@@ -1485,3 +1485,23 @@ task-class **STRUCTURAL**, implementer arm **OPUS** (block PCURVE-1
 slot 1, byte 251 ⇒ fable at slot 4). This is the PCURVE program's
 first row and the first dual drawn under v6's randomized slots.
 Row at merge.
+
+Census gap-2 review ordinal fixed at dispatch (2026-08-27, PR #1080
+open — frozen head `e16749ad`): **ordinal 200 — the FIRST BANDED
+claim in PCURVE's range (200–299)**, under the per-program bands
+adopted the same day. The unit is a standalone kernel unit carried
+by the PCURVE orchestrator rather than PCURVE work; it takes that
+orchestrator's band because the band's purpose is collision
+avoidance between concurrent CLAIMANTS, and this orchestrator is one
+claimant. **Sample number is NOT assigned here** — under the banding
+amendment it is assigned AT MERGE in main's merge order.
+
+Protocol v6 dual: draw = `/dev/urandom` byte **159**, parity 1 ⇒
+**R1 = FABLE, R2 = OPUS** — the opposite slot assignment from
+PCURVE P-1a's (byte 238, R1 opus), which is the point of randomizing
+per dual rather than fixing R1 by construction. Concurrent on the
+frozen head, identical briefs, v5 instrument, verdict ladder
+unchanged; both briefs carry v6 item 5's lane-isolation READ rule.
+Pre-draw fields logged at the spec: difficulty **M**, task-class
+**NUMERIC**, implementer arm **OPUS** (block PCURVE-1 slot 2).
+Row at merge.

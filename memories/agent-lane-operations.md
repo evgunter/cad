@@ -80,6 +80,22 @@ self-acquire; wrap raw `cargo` invocations yourself.
   record is the instrument, the workflow source is not. Verify
   coverage at the STEP level (`gh api .../jobs`, step conclusions),
   never by job-name green. (Ordinal 100, 2026-08-27.)
+- **A detached job whose evidence is SUPERSEDED still takes the mutex
+  (2026-08-27, PCURVE P-1a).** The `setsid` rule keeps a long job alive
+  through a harness reap — but alive is not the same as useful. A P-1a
+  local workspace battery held `slot-1` for **2h18m** AFTER hosted CI
+  had drawn both compile modes on the same code, i.e. after its own
+  author had written that it was "a footnote, not the gate". Three
+  review lanes queued behind it, including the delta round gating that
+  unit's own merge. **Kill a detached job at the moment its evidence is
+  superseded, not at its natural end** — running is not a reason to
+  keep running. Corollary that makes the kill cheap: RECORD THE PID AT
+  LAUNCH, so stopping it is a one-liner rather than a hunt (and never
+  pattern-match a lane name — see the kill-targets rule above). Kill
+  children first so none inherits the lock fd, then VERIFY the release
+  (`fuser -v` on the lock, or watch the holder file get rewritten by
+  the next lane): "parent dead, lock still held" is the failure mode
+  that looks identical to success from outside.
 - **A CONFLICTING PR gets NO CI run — silently, and none retroactively
   once resolved.** GitHub skips the pull_request trigger while a PR is
   CONFLICTING; pushes during that window produce nothing, and merging
