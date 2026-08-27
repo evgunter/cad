@@ -64,3 +64,52 @@ before opening; confirm CI runs STARTED (a CONFLICTING PR gets no
 run, silently — verify one fires); note the drawn point; watch to
 completion; cancel detached timers before the final report; do
 not merge.
+
+## Door 2 STOPS — the in-lane measurement (awaiting adjudication)
+
+Door 1 shipped. **Door 2 fires the §Fences STOP** ("if the ring-insert
+half needs machinery beyond the existing Line-pierce precedents"), and
+the four measured rows are not one family:
+
+- There is no Line-pierce-into-a-CURVED-face precedent to reuse:
+  `curved_face_arm` refuses every definite crossing of a curved face,
+  Line carriers included. The pierce path that exists is plane-only.
+- No curve × curved-surface root finder exists anywhere in the repo.
+  The only crossing-root code is `conic_plane_crossing_roots`, which
+  refuses lines outright; `implicit.rs` offers enclosures and no roots.
+  "The event point comes from the existing section/route answers" has
+  no answer to read — surface×surface sections take no curve.
+- The pierce ring (`vtxfac.rs`, Delta 3) needs the pierced face's
+  PLANE and outward normal and refuses without one; its transient
+  chord is a straight `line_between`. A pierce into a cylinder wall
+  has no ring lane whatever the roots say.
+- **Two of the four rows are not pierces.** `coaxial-equal-r` and
+  `coaxial-stacked` are undeclared VALUE-COINCIDENT cosurface
+  incidences (the rim/seam lies exactly on the partner wall carrier;
+  plain `union` passes `BooleanDeclarations::none()`). CONTACT-DESIGN
+  C2/C4 forbid inferring that gluing at any ε, so no arms unit flips
+  them either — their honest destination is the declaration ladder,
+  not the join. The acceptance sentence "rows 1–2 likewise reach the
+  join layer" rests on a premise the ratified contact design denies.
+
+Only `parallel-equal-r` (circle × wall) and `steinmetz` (line × wall)
+are genuine pierces, and both need the roots AND the curved ring lane.
+
+## What door 1 turned out to include
+
+The split had a ROUTING half the spec did not name, and it carried a
+silent wrong answer: `contfp` decided a `Circle` boundary edge by its
+CHORD, and a cap rim's chord is the disc's own diameter — so every
+event on the diameter, strictly inside the cap, was reported `OnEdge`.
+That is what #1044's table measured as the coaxial-boss row's door.
+One layer below, `point_in_loop` reads a loop as the polygon through
+its vertices, and a cap loop has two vertices: **every interior point
+of a cylinder cap answered `Out`**, so a box driven through a cap
+unioned as two disjoint solids with the overlap counted twice
+(7.003185307179585 against a truth of 6.643185307179586). Both are
+closed: `Circle` boundaries take their exact arc rows, and a loop of
+arcs of one circle is read by its radius — the planar analog of
+`curved_face_containment`'s iso-bounded class, with the same honest
+remainder. Loops that MIX arcs and lines (a half-disc, a slot, a
+rounded rectangle) are still polygonized; general arc-aware ray parity
+is new machinery and is not in this unit.
