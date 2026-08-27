@@ -69,6 +69,17 @@ self-acquire; wrap raw `cargo` invocations yourself.
   wait for long queues — a blocking wait can eat a Bash call's 10-min
   cap. Long rows that must survive the harness 590s timeout: launch
   under `setsid`, then poll the output file in the foreground.
+- **A green job NAME can sit over a SKIPPED step — k-lint's demos rows
+  are their own sampled axis (`klint_row`).** Third face of the
+  silent-coverage class (after CONFLICTING-no-run and
+  queued-with-zero-jobs): the TEAPOT dual found the PR's junction
+  tables had never executed hosted — both runs' k-lint jobs were green
+  while `demos tour suite` recorded `skipped` (the drawn klint_row
+  didn't carry it). One reviewer read ci.yml and concluded the steps
+  ran; the other read the RUN's jobs API and saw `skipped` — the run
+  record is the instrument, the workflow source is not. Verify
+  coverage at the STEP level (`gh api .../jobs`, step conclusions),
+  never by job-name green. (Ordinal 100, 2026-08-27.)
 - **A CONFLICTING PR gets NO CI run — silently, and none retroactively
   once resolved.** GitHub skips the pull_request trigger while a PR is
   CONFLICTING; pushes during that window produce nothing, and merging

@@ -1892,3 +1892,28 @@ verification in this review cycle. Ordinal 100 claimed on main
 AT CLAIM TIME per the post-collision rule; v6 dual, frozen head
 7d5aa5b2; slot draw in the lane-private file. Sample number
 assigns at merge.
+
+## ORDINAL 100 (TEAPOT DUAL) RETURNED AND ADJUDICATED (2026-08-27)
+
+R1 fable A-W-F 0/3/2, R2 opus A-W-F 3/4/3. Both arms confirmed
+BOTH shell defects on independent fixtures (R1's closed-form gap
+match at 1.1e-17; R2's non-dyadic vase + the hexagon gap law
+t·|cosθ| exact) — #1081/#1082 stand verified. THREE conflicts,
+each resolved by the better instrument: (1) the junction tables
+never ran hosted — R2's jobs-API read (steps `skipped` under a
+green k-lint job name; klint_row is its own sampled axis) beats
+R1's ci.yml read, VERIFIED by the orchestrator directly; the
+third face of the silent-coverage class, now in lane-ops memory;
+(2) #1082's discriminator is wrong — R2's revolved-tube fixture
+(one-face cap still wrong; annular mouths need a face SPLIT)
+re-scopes the issue to "any designated face whose cavity
+counterpart's boundary cannot become an interior-disjoint ring";
+(3) the tangent non-attribution premise false — R2's
+definitely-not-tangent dome refuses identically at a third door
+(the sphere's non-translation offset is the variable); R1's
+code-read verdict loses to the fixture. v6 tally after pair 2:
+STILL 0 — R2's k-lint and tangent MAJs were MENTIONED by R1
+(opposite verdicts), so not unilateral under the coding
+definition; the discriminator MAJ's demonstrated core dedups
+into the bilateral #1082 defect. Union fix pass dispatched;
+both reviewer lanes swept.
