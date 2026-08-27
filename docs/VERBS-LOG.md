@@ -1917,3 +1917,20 @@ STILL 0 — R2's k-lint and tangent MAJs were MENTIONED by R1
 definition; the discriminator MAJ's demonstrated core dedups
 into the bilateral #1082 defect. Union fix pass dispatched;
 both reviewer lanes swept.
+
+## TEAPOT MERGED (#1078, 2026-08-27) — ordinal-100 row (sample #26). THE Q8 ARC IS COMPLETE
+
+Row TEAPOT in MODEL-AB-LOG. The designated demo ships: vessel,
+lid, spout and handle in one cell, with the walls that remain
+pinned typed and scheduled (#1057's C5 arms; the taper/canal
+family; the edge selector) and two shell defects (#1081/#1082)
+found by the demo doing exactly what demos are for — real use
+against the shipped verb, verified by both arms of the dual on
+independent fixtures. The register's teapot rows record what
+composed and what walls. Wave 3's substrate story is DONE:
+OFF-A/B/C/D, shell, the teapot. Remaining VERBS queue: the shell
+defect repairs (#1081/#1082 — unowned, spec-ready material in
+the issues), SPHSPH/CYLSPH/CONE germ lanes (waiting on arms
+adjudication + #1076's sibling machinery), #1031 (cap F7), the
+wall-2 fork (Evan's content call), and the arms unit behind the
+ring lane. Lane swept.
