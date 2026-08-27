@@ -9,7 +9,7 @@
 
 use geom::Curve3;
 use geom_brep::{
-    DihedralClass, EdgeCurveSpec, EdgeGeometry, classify_dihedral, curvature_lever_arm,
+    DihedralClass, EdgeCurveSpec, EdgeDescription, classify_dihedral, curvature_lever_arm,
     edge_extent, tangent_certificate_lane, tangent_jet,
 };
 use geom_core::spline::SpanLocate;
@@ -111,7 +111,7 @@ pub(super) fn upgrade_intersection<T: Decide>(
     match classify_dihedral(&surf1, &surf2, data.witness, data.extent, band) {
         Ok(DihedralClass::Transverse) => {
             let spec = EdgeCurveSpec {
-                description: EdgeGeometry::Intersection {
+                description: EdgeDescription::Intersection {
                     s1,
                     s2,
                     witness: data.witness,
@@ -136,7 +136,7 @@ pub(super) fn upgrade_intersection<T: Decide>(
         Ok(DihedralClass::Smooth) => {
             if jet_determinate(&surf1, &surf2, &data, band) {
                 let spec = EdgeCurveSpec {
-                    description: EdgeGeometry::TangentIntersection {
+                    description: EdgeDescription::TangentIntersection {
                         s1,
                         s2,
                         witness: data.witness,
@@ -216,7 +216,7 @@ pub(super) fn upgrade_meridian_seam<T: Decide>(
     }
     let data = edge_data(body, edge)?;
     let spec = EdgeCurveSpec {
-        description: EdgeGeometry::Seam { surface: wall },
+        description: EdgeDescription::Seam { surface: wall },
         carrier: data.carrier,
         param_start: data.t0,
         param_end: data.t1,

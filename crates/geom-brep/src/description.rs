@@ -101,9 +101,9 @@ pub enum EdgeAuthority<T: Real> {
 }
 
 impl<T: Real> EdgeAuthority<T> {
-    /// Whether a modeler DECLARED this locus — the read that replaces
-    /// `matches!(description, EdgeGeometry::MappedCurve(_))` at tier
-    /// 3's prefer-intrinsic rules.
+    /// Whether a modeler DECLARED this locus — the read tier 3's
+    /// prefer-intrinsic rules make, in place of the pre-collapse
+    /// "the description is a pushforward" shape test.
     pub fn is_declared(&self) -> bool {
         matches!(*self, EdgeAuthority::Declared(_))
     }
@@ -119,7 +119,7 @@ impl<T: Real> EdgeAuthority<T> {
 #[derive(Clone, Debug)]
 pub enum EdgeDescription<T: Real> {
     /// Intrinsic: the transverse intersection component selected by
-    /// `witness` (D2, verbatim from [`EdgeGeometry::Intersection`]).
+    /// `witness` (D2, verbatim).
     Intersection {
         /// The first surface.
         s1: SurfaceKey,

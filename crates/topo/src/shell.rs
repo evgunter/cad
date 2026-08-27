@@ -670,7 +670,7 @@ fn rename_ring_surface<T: Decide>(
             edge,
             geom_brep::EdgeCurveSpec {
                 description: crate::replace_face::remap_description(
-                    *curve.description(),
+                    curve.restated_description(),
                     dead,
                     live,
                 ),

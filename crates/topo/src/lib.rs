@@ -292,7 +292,7 @@ pub use chart_region::{ChartOverlap, ChartRegionError, ChartRegionLane, chart_re
 pub use geom::Curve3;
 pub use geom::Surface;
 pub use geom_brep::{
-    CertifyError, ChartWindow, EdgeCurve, EdgeCurveSpec, EdgeGeometry, EdgeNurbsLane, Pcurve,
+    CertifyError, ChartWindow, EdgeCurve, EdgeCurveSpec, EdgeDescription, EdgeNurbsLane, Pcurve,
     PcurveCache, PcurveCertifyError,
 };
 pub use geometry::{CurveKey, PointKey, SurfaceKey};

@@ -107,7 +107,7 @@
 use std::sync::Arc;
 
 use geom::{Curve3, NurbsCurve3, NurbsSurface, Surface};
-use geom_brep::{EdgeCurveSpec, EdgeGeometry, SurfaceKind};
+use geom_brep::{EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, SurfaceKind};
 use geom_core::k_stats::decide;
 use geom_core::{Affine3, Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Tol, Vec3};
 
@@ -1169,7 +1169,7 @@ fn plan_edge<T: Decide>(
         .ok_or(ReplaceFaceError::Corrupt)?;
     let (t0, t1) = curve.params();
     let old_carrier = curve.carrier().clone();
-    let description = *curve.description();
+    let description = curve.description().clone();
     let mid = old_carrier.eval((t0 + t1) * T::from_f64(0.5));
 
     // The one description that gets an EXACT carrier rather than a
@@ -1178,13 +1178,17 @@ fn plan_edge<T: Decide>(
     // fit's spline space — its degree and its refined interior knots —
     // without elevating or refining anything.
     if let (
-        EdgeGeometry::IsoCurve {
-            surface, u, v0, v1, ..
-        },
+        EdgeDescription::Chart(c),
         Surface::Approx(approx),
     ) = (&description, new_surface)
-        && *surface == old_key
+        && c.surface == old_key
+        && let geom_brep::Pcurve::IsoLine { p0, pl } = c.pcurve
     {
+        // An iso image on a DESCRIPTION is u-const by construction —
+        // `EdgeDescriptionSpec::iso` is the only door that mints one,
+        // and it fixes `u` and moves `v`. (The u-moving `IsoLine` the
+        // cap-rim lane mints is a stored CACHE, never a description.)
+        let (u, v0, v1) = (p0.x, p0.y + pl.y * t0, p0.y + pl.y * t1);
         // The seam this row carries is shared with whatever face
         // sits on the other side. If THAT face is a bounded chart
         // too, it would have to move with this one to keep holding
@@ -1214,23 +1218,18 @@ fn plan_edge<T: Decide>(
         // is the fitted-boundary note below — until every chart
         // bounding an edge moves together, the only reachable exit
         // past this call is a refusal.
-        let (row, u_domain) = geom_brep::iso_boundary_row(approx.fit(), *u, band)
+        let (row, u_domain) = geom_brep::iso_boundary_row(approx.fit(), u, band)
             .map_err(|error| ReplaceFaceError::IsoRow { edge, error })?;
         let carrier = Curve3::Nurbs(Arc::new(row));
-        let p_start = carrier.eval(*v0);
-        let p_end = carrier.eval(*v1);
+        let p_start = carrier.eval(v0);
+        let p_end = carrier.eval(v1);
         return Ok(EdgePlan {
             edge,
             spec: EdgeCurveSpec {
-                description: EdgeGeometry::IsoCurve {
-                    surface: old_key,
-                    u: u_domain,
-                    v0: *v0,
-                    v1: *v1,
-                },
+                description: EdgeDescriptionSpec::iso(old_key, u_domain, v0, v1, v0, v1),
                 carrier,
-                param_start: *v0,
-                param_end: *v1,
+                param_start: v0,
+                param_end: v1,
             },
             start,
             end,
@@ -1245,15 +1244,22 @@ fn plan_edge<T: Decide>(
     if matches!(new_surface, Surface::Approx(_)) {
         return Err(ReplaceFaceError::FittedBoundaryUnsupported {
             edge,
+            // The pre-collapse refusal "a mapped rim (a v-row is not
+            // an `IsoCurve`)" is GONE with the taxonomy that made it:
+            // a rim is a chart image like any other, and a u-const one
+            // takes the exact-row lane above whatever minted it. What
+            // is left refuses on GEOMETRY — the fit's rows run u-const
+            // — rather than on which variant the description was.
             what: match description {
-                EdgeGeometry::IsoCurve { .. } => "an iso-curve of a neighbour's chart",
-                EdgeGeometry::Seam { .. } => "a periodic seam",
-                EdgeGeometry::MappedCurve(_) => {
-                    "a mapped rim (a v-row is not an `IsoCurve`, which is u-const by definition)"
+                EdgeDescription::Chart(ref c) if c.surface == old_key => {
+                    "a chart image of this face's own fit that is not one of its u-const rows"
                 }
-                EdgeGeometry::Intersection { .. } | EdgeGeometry::TangentIntersection { .. } => {
+                EdgeDescription::Chart(_) => "a chart image of a neighbour's chart",
+                EdgeDescription::Intersection { .. }
+                | EdgeDescription::TangentIntersection { .. } => {
                     "an intrinsic intersection with an untouched neighbour"
                 }
+                EdgeDescription::Scaffold(_) => "scaffolding that never came to rest",
             },
         });
     }
@@ -1270,22 +1276,27 @@ fn plan_edge<T: Decide>(
     let new_mid = carrier.eval((t0 + t1) * T::from_f64(0.5));
 
     let new_description = match description {
-        // A seam names a surface and nothing else — no parameter to
-        // shift, unlike an iso-curve's `v` on a cone. Stated rather
-        // than left to the fall-through so the contrast is on the page.
-        EdgeGeometry::Seam { surface } if surface == old_key => {
-            EdgeGeometry::Seam { surface: old_key }
+        // A seam names a surface and nothing else — its image is
+        // DERIVED from the transported carrier against the new chart,
+        // exactly as it was derived from the old one, so there is no
+        // parameter to shift. Stated rather than left to the
+        // fall-through so the contrast with the line below is on the
+        // page.
+        EdgeDescription::Chart(ref c) if c.surface == old_key && c.seam => {
+            EdgeDescriptionSpec::seam(old_key)
         }
-        EdgeGeometry::IsoCurve {
-            surface, u, v0, v1, ..
-        } if surface == old_key => EdgeGeometry::IsoCurve {
-            surface: old_key,
-            u,
-            v0: v0 + shift,
-            v1: v1 + shift,
-        },
-        EdgeGeometry::Intersection { s1, s2, .. }
-        | EdgeGeometry::TangentIntersection { s1, s2, .. }
+        // Every other image on the MOVED chart shifts with the chart's
+        // own offset action: `d·cot α` in `v` on a cone, zero on every
+        // other kind.
+        EdgeDescription::Chart(ref c) if c.surface == old_key => EdgeDescriptionSpec::chart_image(
+            old_key,
+            shift_chart_v(&c.pcurve, shift).ok_or(ReplaceFaceError::CarrierLaneUnsupported {
+                edge,
+                what: "a fitted chart image whose v channel has no closed-form parameter shift",
+            })?,
+        ),
+        EdgeDescription::Intersection { s1, s2, .. }
+        | EdgeDescription::TangentIntersection { s1, s2, .. }
             if s1 == old_key || s2 == old_key =>
         {
             let other = if s1 == old_key { s2 } else { s1 };
@@ -1299,32 +1310,32 @@ fn plan_edge<T: Decide>(
                     other_kind,
                 });
             }
-            let tangent = matches!(description, EdgeGeometry::TangentIntersection { .. });
+            let tangent = matches!(description, EdgeDescription::TangentIntersection { .. });
             let (n1, n2) = if s1 == old_key {
                 (old_key, s2)
             } else {
                 (s1, old_key)
             };
             if tangent {
-                EdgeGeometry::TangentIntersection {
+                EdgeDescriptionSpec::TangentIntersection {
                     s1: n1,
                     s2: n2,
                     witness: new_mid,
                 }
             } else {
-                EdgeGeometry::Intersection {
+                EdgeDescriptionSpec::Intersection {
                     s1: n1,
                     s2: n2,
                     witness: new_mid,
                 }
             }
         }
-        EdgeGeometry::MappedCurve(mapped) => {
+        EdgeDescription::Scaffold(mapped) => {
             let delta = delta.ok_or(ReplaceFaceError::CarrierLaneUnsupported {
                 edge,
                 what: "a mapped description whose surface's offset is not a rigid translation",
             })?;
-            EdgeGeometry::MappedCurve(translate_mapped(mapped, delta).ok_or(
+            EdgeDescriptionSpec::Scaffold(translate_mapped(mapped, delta).ok_or(
                 ReplaceFaceError::CarrierLaneUnsupported {
                     edge,
                     what: "a rotation-family mapped description (its trajectory does not translate)",
@@ -1335,7 +1346,18 @@ fn plan_edge<T: Decide>(
         // face — its carrier transports, and whether the untouched
         // surface it names still holds the moved locus is a question
         // the attach layer's certification answers, not this door.
-        other => other,
+        EdgeDescription::Chart(ref c) => EdgeDescriptionSpec::Chart {
+            surface: c.surface,
+            image: Some(c.pcurve.clone()),
+            seam: c.seam,
+            declared: None,
+        },
+        EdgeDescription::Intersection { s1, s2, witness } => {
+            EdgeDescriptionSpec::Intersection { s1, s2, witness }
+        }
+        EdgeDescription::TangentIntersection { s1, s2, witness } => {
+            EdgeDescriptionSpec::TangentIntersection { s1, s2, witness }
+        }
     };
 
     Ok(EdgePlan {
@@ -1350,6 +1372,47 @@ fn plan_edge<T: Decide>(
         end,
         p_start: carrier.eval(t0),
         p_end: carrier.eval(t1),
+    })
+}
+
+/// A chart image with its `v` channel shifted by `shift` — the cone
+/// offset's `d·cot α` parameter action, and the identity on every
+/// other chart kind (`shift` is zero there).
+///
+/// The shift lands on the image's CONSTANT term, which is the only
+/// place a `v` translation can go for an image whose moving channels
+/// are the chart's own: the offset re-parameterizes the chart, it does
+/// not bend the curve drawn in it. `None` for a fitted image, whose
+/// `v` channel is a control net rather than a closed form — refused
+/// rather than shifted point-by-point, which would author a fit this
+/// door has no certificate for.
+fn shift_chart_v<T: Real>(pcurve: &geom_brep::Pcurve<T>, shift: T) -> Option<geom_brep::Pcurve<T>> {
+    use geom_brep::Pcurve;
+    Some(match *pcurve {
+        Pcurve::Harmonic { p0, pa, pb, pl } => Pcurve::Harmonic {
+            p0: geom_core::Point2::new(p0.x, p0.y + shift),
+            pa,
+            pb,
+            pl,
+        },
+        Pcurve::IsoLine { p0, pl } => Pcurve::IsoLine {
+            p0: geom_core::Point2::new(p0.x, p0.y + shift),
+            pl,
+        },
+        Pcurve::IsoArc {
+            p0,
+            pd,
+            t0,
+            angle,
+            ref breaks,
+        } => Pcurve::IsoArc {
+            p0: geom_core::Point2::new(p0.x, p0.y + shift),
+            pd,
+            t0,
+            angle,
+            breaks: breaks.clone(),
+        },
+        Pcurve::Fitted(_) | Pcurve::General(_) => return None,
     })
 }
 
@@ -1382,34 +1445,38 @@ fn translate_mapped<T: Real>(
 /// `description` with every occurrence of `old` re-pointed at `new` —
 /// the stale-key step a fresh surface mint forces.
 pub(crate) fn remap_description<T: Real>(
-    description: EdgeGeometry<T>,
+    description: EdgeDescriptionSpec<T>,
     old: SurfaceKey,
     new: SurfaceKey,
-) -> EdgeGeometry<T> {
+) -> EdgeDescriptionSpec<T> {
     let map = |k: SurfaceKey| if k == old { new } else { k };
     match description {
-        EdgeGeometry::Intersection { s1, s2, witness } => EdgeGeometry::Intersection {
-            s1: map(s1),
-            s2: map(s2),
-            witness,
-        },
-        EdgeGeometry::TangentIntersection { s1, s2, witness } => {
-            EdgeGeometry::TangentIntersection {
+        EdgeDescriptionSpec::Intersection { s1, s2, witness } => {
+            EdgeDescriptionSpec::Intersection {
                 s1: map(s1),
                 s2: map(s2),
                 witness,
             }
         }
-        EdgeGeometry::Seam { surface } => EdgeGeometry::Seam {
+        EdgeDescriptionSpec::TangentIntersection { s1, s2, witness } => {
+            EdgeDescriptionSpec::TangentIntersection {
+                s1: map(s1),
+                s2: map(s2),
+                witness,
+            }
+        }
+        EdgeDescriptionSpec::Chart {
+            surface,
+            image,
+            seam,
+            declared,
+        } => EdgeDescriptionSpec::Chart {
             surface: map(surface),
+            image,
+            seam,
+            declared,
         },
-        EdgeGeometry::IsoCurve { surface, u, v0, v1 } => EdgeGeometry::IsoCurve {
-            surface: map(surface),
-            u,
-            v0,
-            v1,
-        },
-        EdgeGeometry::MappedCurve(m) => EdgeGeometry::MappedCurve(m),
+        EdgeDescriptionSpec::Scaffold(m) => EdgeDescriptionSpec::Scaffold(m),
     }
 }
 
@@ -1451,7 +1518,7 @@ fn plan_reanchors<T: Decide>(
             .ok_or(ReplaceFaceError::Corrupt)?;
         let carrier = curve.carrier().clone();
         let (mut t0, mut t1) = curve.params();
-        let mut description = *curve.description();
+        let mut description = curve.restated_description();
         for (point, is_start) in [(new_start, true), (new_end, false)] {
             let Some(point) = point else { continue };
             let t_old = if is_start { t0 } else { t1 };
@@ -1472,9 +1539,9 @@ fn plan_reanchors<T: Decide>(
                 Sign::Positive | Sign::Zero => {}
                 Sign::Negative => return Err(ReplaceFaceError::ReanchorOffCarrier { edge, gap }),
             }
-            if let EdgeGeometry::MappedCurve(m) = description {
+            if let EdgeDescriptionSpec::Scaffold(m) = description {
                 description =
-                    EdgeGeometry::MappedCurve(move_mapped_endpoint(m, point, is_start).ok_or(
+                    EdgeDescriptionSpec::Scaffold(move_mapped_endpoint(m, point, is_start).ok_or(
                         ReplaceFaceError::CarrierLaneUnsupported {
                             edge,
                             what: "a re-anchored mapped description that is not a placed line \
@@ -1498,16 +1565,18 @@ fn plan_reanchors<T: Decide>(
         // read at the new midpoint.
         let mid = carrier.eval((t0 + t1) * T::from_f64(0.5));
         description = match description {
-            EdgeGeometry::Intersection { s1, s2, .. } => EdgeGeometry::Intersection {
+            EdgeDescriptionSpec::Intersection { s1, s2, .. } => EdgeDescriptionSpec::Intersection {
                 s1,
                 s2,
                 witness: mid,
             },
-            EdgeGeometry::TangentIntersection { s1, s2, .. } => EdgeGeometry::TangentIntersection {
-                s1,
-                s2,
-                witness: mid,
-            },
+            EdgeDescriptionSpec::TangentIntersection { s1, s2, .. } => {
+                EdgeDescriptionSpec::TangentIntersection {
+                    s1,
+                    s2,
+                    witness: mid,
+                }
+            }
             other => other,
         };
         out.push((

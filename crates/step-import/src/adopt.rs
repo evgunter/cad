@@ -44,7 +44,7 @@
 
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::{EdgeCurveSpec, EdgeGeometry, MappedCurve};
+use geom_brep::{EdgeCurveSpec, EdgeDescription, MappedCurve};
 use geom_core::{Affine3, Point2, Point3};
 use topo::{Body, FaceKey, FaceSurface, LoopKey};
 
@@ -409,7 +409,7 @@ fn adopt_edges(
 
         // The candidate descriptions, in preference order (module
         // docs: intrinsic before conventional).
-        let mut candidates: Vec<(AdoptionCandidate, EdgeGeometry<f64>)> = Vec::new();
+        let mut candidates: Vec<(AdoptionCandidate, EdgeDescription<f64>)> = Vec::new();
         let mut conventional = true;
         let mut nurbs_rim = false;
         // The IsoCurve rung is offered on BOTH sides of the branch
@@ -417,7 +417,7 @@ fn adopt_edges(
         // seam class, and on ONE wall — the same described NURBS
         // surface on both sides of the edge — it is that patch's own
         // parameterization SEAM, which a closed patch states by
-        // repeating its `u = 0` column at `u = 1`. `EdgeGeometry::Seam`
+        // repeating its `u = 0` column at `u = 1`. `EdgeDescription::Seam`
         // is the analytic vocabulary (cylinder, cone, sphere, torus);
         // a described NURBS patch's seam is an `IsoCurve` and nothing
         // else, and withholding the rung there left dm1's rational
@@ -449,7 +449,7 @@ fn adopt_edges(
             // domain ([0, 1] for every exported wall).
             candidates.push((
                 AdoptionCandidate::Intersection,
-                EdgeGeometry::Intersection {
+                EdgeDescription::Intersection {
                     s1: fs_plus,
                     s2: fs_minus,
                     witness,
@@ -457,7 +457,7 @@ fn adopt_edges(
             ));
             candidates.push((
                 AdoptionCandidate::TangentIntersection,
-                EdgeGeometry::TangentIntersection {
+                EdgeDescription::TangentIntersection {
                     s1: fs_plus,
                     s2: fs_minus,
                     witness,
@@ -573,7 +573,7 @@ fn adopt_edges(
             if periodic {
                 candidates.push((
                     AdoptionCandidate::Seam,
-                    EdgeGeometry::Seam { surface: fs_plus },
+                    EdgeDescription::Seam { surface: fs_plus },
                 ));
             }
         }
@@ -583,7 +583,7 @@ fn adopt_edges(
         {
             candidates.push((
                 AdoptionCandidate::MappedCurve,
-                EdgeGeometry::MappedCurve(mapped),
+                EdgeDescription::MappedCurve(mapped),
             ));
         }
 
@@ -664,7 +664,7 @@ fn iso_curve_candidates(
     spec: &crate::entities::EdgeSpec,
     fs_plus: topo::SurfaceKey,
     fs_minus: topo::SurfaceKey,
-    candidates: &mut Vec<(AdoptionCandidate, EdgeGeometry<f64>)>,
+    candidates: &mut Vec<(AdoptionCandidate, EdgeDescription<f64>)>,
 ) {
     let Curve3::Nurbs(ref nurbs_carrier) = spec.carrier else {
         return;
@@ -689,7 +689,7 @@ fn iso_curve_candidates(
                 let (du0, du1) = wp.knots_u().domain();
                 candidates.push((
                     AdoptionCandidate::IsoCurve,
-                    EdgeGeometry::IsoCurve {
+                    EdgeDescription::IsoCurve {
                         surface: wall,
                         u: if end { du1 } else { du0 },
                         v0: spec.t0,

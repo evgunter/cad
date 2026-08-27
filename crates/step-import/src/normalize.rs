@@ -310,7 +310,7 @@ pub(crate) fn normalize_shell(
 /// the shape a natively revolved wall carries.
 ///
 /// The seam azimuth is the surface's own `u_ref` azimuth, ALWAYS
-/// (spec D1): `EdgeGeometry::Seam` is defined spatially as the locus
+/// (spec D1): `EdgeDescription::Seam` is defined spatially as the locus
 /// in the closed u_ref half-plane and certification meters
 /// SeamHalfplane/SeamSide against it, so re-charting `u_ref` to dodge
 /// a split would mutate imported geometry beyond need. Where a rim
@@ -585,7 +585,7 @@ fn mint_band(
     );
     // The mint's whole point is D1's spatial statement — this edge IS
     // the u_ref half-plane seam — so adoption must certify it as
-    // `EdgeGeometry::Seam` or refuse; a silent downgrade to the
+    // `EdgeDescription::Seam` or refuse; a silent downgrade to the
     // conventional mapped-curve rung would import a body whose "seam"
     // is off the half-plane (R1 fix pass, m2). Recorded here, enforced
     // in [`crate::adopt`].

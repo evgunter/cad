@@ -511,7 +511,7 @@ fn build_wire<T: Decide>(
             .he_minus;
         let center = frame.foot3(segs[wseg(i)].a);
         let spec = EdgeCurveSpec {
-            description: geom_brep::EdgeGeometry::MappedCurve(
+            description: geom_brep::EdgeDescription::MappedCurve(
                 geom_brep::MappedCurve::RevolvedPoint {
                     point: segs[wseg(i)].a,
                     place: place_pi,

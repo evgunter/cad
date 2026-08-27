@@ -2039,20 +2039,22 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
         else {
             continue;
         };
-        let adjacent = match *curve.description() {
-            geom_brep::EdgeGeometry::Intersection { s1, s2, .. }
-            | geom_brep::EdgeGeometry::TangentIntersection { s1, s2, .. } => {
-                (s1 == fs_plus && s2 == fs_minus) || (s1 == fs_minus && s2 == fs_plus)
+        let adjacent = match curve.description() {
+            geom_brep::EdgeDescription::Intersection { s1, s2, .. }
+            | geom_brep::EdgeDescription::TangentIntersection { s1, s2, .. } => {
+                (*s1 == fs_plus && *s2 == fs_minus) || (*s1 == fs_minus && *s2 == fs_plus)
             }
-            geom_brep::EdgeGeometry::Seam { surface } => surface == fs_plus && surface == fs_minus,
-            // Iso adjacency (M6-3, the M5-LOG item 6(iii) rule): the
+            // Chart adjacency (M6-3, the M5-LOG item 6(iii) rule): the
             // described chart is ONE of the edge's two adjacent faces'
             // surfaces — a wall–wall seam is the u-boundary iso of
-            // either wall, and the minted convention names one.
-            geom_brep::EdgeGeometry::IsoCurve { surface, .. } => {
-                surface == fs_plus || surface == fs_minus
+            // either wall, and the minted convention names one. An
+            // image that claims to BE the chart's parameterization
+            // seam owes more: both sides of a seam are one surface.
+            geom_brep::EdgeDescription::Chart(c) if c.seam => {
+                c.surface == fs_plus && c.surface == fs_minus
             }
-            geom_brep::EdgeGeometry::MappedCurve(_) => true,
+            geom_brep::EdgeDescription::Chart(c) => c.surface == fs_plus || c.surface == fs_minus,
+            geom_brep::EdgeDescription::Scaffold(_) => true,
         };
         if !adjacent {
             errors.push(ValidationError::DescriptionNotAdjacent { edge: edge_key });
@@ -2217,10 +2219,12 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
                     }
                 }
             }
-            if !escalated
-                && all_transverse
-                && matches!(curve.description(), geom_brep::EdgeGeometry::MappedCurve(_))
-            {
+            // The prefer-intrinsic rule reads the AUTHORITY record
+            // (U2 Q3), not the description's shape: since the
+            // conventional forms collapsed there is no shape left that
+            // means "the modeler declared this locus", so the
+            // declaration is the datum it always was.
+            if !escalated && all_transverse && curve.authority().is_declared() {
                 errors.push(ValidationError::TransverseNotIntrinsic { edge: edge_key });
             }
         }
@@ -2246,7 +2250,10 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
             ContactMark::Unmarked
         } else if escalated {
             ContactMark::Unmarked
-        } else if matches!(curve.description(), geom_brep::EdgeGeometry::Seam { .. }) {
+        } else if matches!(
+            curve.description(),
+            geom_brep::EdgeDescription::Chart(c) if c.seam
+        ) {
             ContactMark::Seam
         } else if all_transverse {
             ContactMark::Transverse
@@ -2288,7 +2295,7 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
             ContactMark::Unmarked
         };
         if mark == ContactMark::Tangent
-            && matches!(curve.description(), geom_brep::EdgeGeometry::MappedCurve(_))
+            && curve.authority().is_declared()
             && geom_brep::tangent_certificate_lane(curve.carrier(), s_plus, s_minus)
         {
             // The lane condition IS the jet certificate's per-class

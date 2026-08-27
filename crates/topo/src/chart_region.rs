@@ -1868,7 +1868,7 @@ mod tests {
     use crate::euler::{FaceSurface, MefSite, MevSite};
     use crate::source::GeomSource;
     use geom::Curve3;
-    use geom_brep::{EdgeCurveSpec, EdgeGeometry};
+    use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
 
     /// The shared test plane: chart u = x, v = y (u_ref = x̂, normal =
     /// ẑ ⇒ v_ref = ẑ × x̂ = ŷ).
@@ -2077,7 +2077,7 @@ mod tests {
         let t0 = if ccw { u0 } else { 0.0 };
         let mid = cyl_pt((u0 + u1) * 0.5, z);
         EdgeCurveSpec {
-            description: EdgeGeometry::Intersection {
+            description: EdgeDescriptionSpec::Intersection {
                 s1: cyl,
                 s2: plane,
                 witness: mid,

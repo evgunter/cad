@@ -78,12 +78,9 @@ pub const CERT_SAMPLES: u32 = 9;
 /// point that was never visited, which is a fabricated diagnostic
 /// however small it looks.
 ///
-/// **The interval checks ([`CertCheck::ParamSpan`]) still report `0`**
-/// and are not changed here: their `Display` text is pinned by
-/// `step-import`'s tier-gate test, so moving them is a test rewrite
-/// that belongs with the consumer pass, not with this unit. Recorded
-/// rather than quietly left: the same fabrication is there, one door
-/// over.
+/// The interval checks ([`CertCheck::ParamSpan`]) carry it for the
+/// same reason the mint does: the span decision runs ONCE, before the
+/// schedule exists.
 pub const NOT_A_SAMPLE: u32 = u32::MAX;
 
 /// Which certification check a [`CertifyError`] names — the residual
@@ -179,22 +176,6 @@ pub enum CertCheck {
     /// Intersection, plane × NURBS (M7-8): the lane's own margins as a
     /// whole, named when one of them escalates.
     PlaneNurbsCertificate,
-}
-
-#[allow(non_upper_case_globals)] // a variant's retired NAME, not a constant
-impl CertCheck {
-    /// **Shim** (P-1a): the pre-collapse name of the arm that already
-    /// stated `|C − S(P)|`, aliasing the unified meter it became.
-    ///
-    /// It exists so the consumer crates and their probes read the same
-    /// name through P-1a's `geom-brep`-only diff; P-1b deletes it
-    /// together with the probes that spell it.
-    pub const IsoResidual: Self = Self::ChartResidual;
-
-    /// **Shim** (P-1a): the seam arm's retired implicit-form residual.
-    /// The seam's on-surface statement is now the unified meter's, so
-    /// this names the same check the seam obligation rides beside.
-    pub const SeamSurface: Self = Self::ChartResidual;
 }
 
 /// Typed certification failure (D4 ¶3): actionable, closed enum. The
@@ -421,9 +402,7 @@ impl core::fmt::Display for CertifyError {
             // The not-a-sample sentinel renders as words, not as
             // 4294967295: a diagnostic whose whole purpose is to stop
             // claiming a schedule point it never visited should not
-            // then print a number that looks like one. Sampled checks
-            // keep their exact wording — `step-import`'s tier gate
-            // pins the `sample 0` string, and it is still true there.
+            // then print a number that looks like one.
             Self::Escalated {
                 check,
                 sample,
@@ -535,6 +514,36 @@ impl<T: Real> EdgeCurveSpec<T> {
             param_start: t0,
             param_end: t1,
         })
+    }
+
+    /// The same spec with a SCAFFOLDING description re-stated as an
+    /// image in `surface`'s chart, the pushforward demoted to the
+    /// authority record it always was (U2 Q3).
+    ///
+    /// This is the transience fence's one conversion (D3): the
+    /// scaffolding constructors above describe a locus for an edge
+    /// whose surfaces do not exist yet, and an edge that comes to REST
+    /// between two faces has surfaces — so it is described where it
+    /// rests, in a chart, and the sketch entity that DECLARED it (if
+    /// any) is recorded rather than re-purposed as a description.
+    /// Carrier and interval are untouched: only the description moves.
+    ///
+    /// Idempotent — a spec already describing a chart image is
+    /// already at rest and comes back unchanged, which is what lets a
+    /// construction call this on whatever it built without first
+    /// asking what that was.
+    #[must_use]
+    pub fn at_rest_in_chart(self, surface: SurfaceKey) -> Self {
+        let description = match self.description {
+            EdgeDescriptionSpec::Scaffold(mc) => {
+                EdgeDescriptionSpec::chart(surface).declared_by(mc)
+            }
+            other => other,
+        };
+        Self {
+            description,
+            ..self
+        }
     }
 
     /// The canonical full-period self-loop spec at `p`: a unit circle
@@ -1005,12 +1014,37 @@ impl<T: SpanLocate> EdgeCurve<T> {
         (child(T::zero(), a, t0, t), child(a, T::one(), t, t1))
     }
 
-    /// This carrier's spec view (for re-certification): the certified
-    /// description stated back as a construction states one. A chart
-    /// image travels EXACTLY — a re-run must re-meter the image the
-    /// edge already carries, not derive a second one and meter that.
+    /// This carrier's spec view (for re-certification).
     fn spec(&self) -> EdgeCurveSpec<T> {
-        let description = match self.description {
+        EdgeCurveSpec {
+            description: self.restated_description(),
+            carrier: self.carrier.clone(),
+            param_start: self.param_start,
+            param_end: self.param_end,
+        }
+    }
+}
+
+impl<T: Real> EdgeCurve<T> {
+    /// This edge's certified description stated back the way a
+    /// CONSTRUCTION states one — the door every consumer that rebuilds
+    /// a spec from a certified edge goes through (a transplant, a
+    /// re-anchor, a re-certification at rest).
+    ///
+    /// A chart image travels EXACTLY: restating a description must
+    /// re-meter the image the edge already carries, never derive a
+    /// second one and meter that. A SEAM image is the one exception
+    /// and for the opposite reason — a seam names its chart and
+    /// nothing else, so its image is whatever that chart's own mint
+    /// makes it, which is what keeps a seam a seam when the chart
+    /// underneath it moves.
+    #[must_use]
+    pub fn restated_description(&self) -> EdgeDescriptionSpec<T> {
+        let declared = match self.authority {
+            EdgeAuthority::Declared(mc) => Some(mc),
+            EdgeAuthority::Derived => None,
+        };
+        match self.description {
             EdgeDescription::Intersection { s1, s2, witness } => {
                 EdgeDescriptionSpec::Intersection { s1, s2, witness }
             }
@@ -1019,20 +1053,11 @@ impl<T: SpanLocate> EdgeCurve<T> {
             }
             EdgeDescription::Chart(ref c) => EdgeDescriptionSpec::Chart {
                 surface: c.surface,
-                image: Some(c.pcurve.clone()),
+                image: if c.seam { None } else { Some(c.pcurve.clone()) },
                 seam: c.seam,
-                declared: match self.authority {
-                    EdgeAuthority::Declared(mc) => Some(mc),
-                    EdgeAuthority::Derived => None,
-                },
+                declared,
             },
             EdgeDescription::Scaffold(mc) => EdgeDescriptionSpec::Scaffold(mc),
-        };
-        EdgeCurveSpec {
-            description,
-            carrier: self.carrier.clone(),
-            param_start: self.param_start,
-            param_end: self.param_end,
         }
     }
 }
@@ -1332,9 +1357,10 @@ fn run_checks<T: Decide>(
     // length (radians × radius for circles) so they classify against
     // the linear band like every other margin (dimensional honesty).
     let span = t1 - t0;
+    // The span decision runs once, before the schedule: not a sample.
     let span_escalated = |cause: Indeterminate| CertifyError::Escalated {
         check: CertCheck::ParamSpan,
-        sample: 0,
+        sample: NOT_A_SAMPLE,
         cause,
     };
     match &spec.carrier {

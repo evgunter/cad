@@ -335,7 +335,7 @@ mod tests {
     use geom_core::Tol;
 
     use geom::Curve3;
-    use geom_brep::{EdgeCurveSpec, EdgeGeometry, MappedCurve, SketchSegment};
+    use geom_brep::{EdgeCurveSpec, EdgeDescription, MappedCurve, SketchSegment};
     use geom_core::{Affine3, Point2, Point3, Vec3};
 
     use super::*;
@@ -399,7 +399,7 @@ mod tests {
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(Point3::new(1.0, 0.0, 0.0)).unwrap();
         let spec = EdgeCurveSpec {
-            description: EdgeGeometry::MappedCurve(MappedCurve::PlacedSegment {
+            description: EdgeDescription::MappedCurve(MappedCurve::PlacedSegment {
                 segment: SketchSegment::Arc {
                     a: Point2::new(1.0, 0.0),
                     b: Point2::new(0.0, 1.0),
@@ -447,7 +447,7 @@ mod tests {
         // The restricted description is still a placed arc.
         assert!(matches!(
             c2.description(),
-            EdgeGeometry::MappedCurve(MappedCurve::PlacedSegment {
+            EdgeDescription::MappedCurve(MappedCurve::PlacedSegment {
                 segment: SketchSegment::Arc { .. },
                 ..
             })

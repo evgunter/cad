@@ -218,7 +218,7 @@ pub struct ReattachRefusal {
     pub max_iso_residual: f64,
 }
 
-/// The quantity `CertCheck::IsoResidual` classifies, for one
+/// The quantity `CertCheck::ChartResidual` classifies, for one
 /// `IsoCurve`-described spec: `max_i |C(tᵢ) − S(u, v(tᵢ))|` over the
 /// certification schedule, with `v` affine in the parameter — the
 /// kernel's own formula (`geom_brep::certify`'s iso arm), replicated

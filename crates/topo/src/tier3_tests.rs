@@ -155,7 +155,7 @@ fn dangling_description_is_a_tier1_error() {
         .face;
     let s_seed = body.get_face(seed_face).unwrap().surface;
     let mut spec = EdgeCurveSpec::line_between(pt(0.0, 0.0, 0.0), pt(1.0, 0.0, 0.0));
-    spec.description = geom_brep::EdgeGeometry::Intersection {
+    spec.description = geom_brep::EdgeDescriptionSpec::Intersection {
         s1: s_seed,
         s2: s_plus,
         witness: pt(0.5, 0.0, 0.0),
@@ -199,7 +199,7 @@ fn description_references_keep_a_surface_alive() {
         u_ref: Vec3::unit_x(),
     };
     let mut spec = EdgeCurveSpec::line_between(pt(0.0, 0.0, 0.0), pt(1.0, 0.0, 0.0));
-    spec.description = geom_brep::EdgeGeometry::Intersection {
+    spec.description = geom_brep::EdgeDescriptionSpec::Intersection {
         s1: s_seed,
         s2: s_plus,
         witness: pt(0.5, 0.0, 0.0),

@@ -11,7 +11,7 @@
 //!   `Surface::Nurbs` "not yet described" state); the sweep attaches
 //!   the real plane once profile data determines it.
 //! - [`Body::set_edge_curve`] — an intrinsic
-//!   ([`geom_brep::EdgeGeometry::Intersection`]) description references
+//!   ([`geom_brep::EdgeDescription::Intersection`]) description references
 //!   its two adjacent faces' surfaces *by key*, and a swept edge is
 //!   necessarily minted **before** the side faces it will bound
 //!   (struts precede `mef`): the sweep mints with a conventional
@@ -227,30 +227,33 @@ impl<T: Decide> Body<T> {
             // Both intrinsic variants carry the same adjacency
             // obligation: the described pair IS the faces' pair
             // (M5 PR 9 — TangentIntersection mirrors Intersection).
-            geom_brep::EdgeGeometry::Intersection { s1, s2, .. }
-            | geom_brep::EdgeGeometry::TangentIntersection { s1, s2, .. } => {
+            geom_brep::EdgeDescriptionSpec::Intersection { s1, s2, .. }
+            | geom_brep::EdgeDescriptionSpec::TangentIntersection { s1, s2, .. } => {
                 let matches_pair =
                     (s1 == fs_plus && s2 == fs_minus) || (s1 == fs_minus && s2 == fs_plus);
                 if !matches_pair {
                     return Err(EulerOpError::DescriptionNotAdjacent { edge });
                 }
             }
-            geom_brep::EdgeGeometry::Seam { surface } => {
-                if surface != fs_plus || surface != fs_minus {
+            // A chart image names ONE of the edge's two adjacent
+            // faces' surfaces (M6-3: a wall–wall seam is the
+            // u-boundary iso of either wall; the minted convention
+            // picks one, and adjacency accepts either side — the
+            // M5-LOG item 6(iii) reading). A chart image that claims
+            // to BE the chart's parameterization seam owes more: both
+            // sides of a seam are the SAME surface, by what a seam is.
+            geom_brep::EdgeDescriptionSpec::Chart { surface, seam, .. } => {
+                let adjacent = if seam {
+                    surface == fs_plus && surface == fs_minus
+                } else {
+                    surface == fs_plus || surface == fs_minus
+                };
+                if !adjacent {
                     return Err(EulerOpError::DescriptionNotAdjacent { edge });
                 }
             }
-            // The iso description names ONE of the edge's two adjacent
-            // faces' surfaces (M6-3: a wall–wall seam is the u-boundary
-            // iso of either wall; the minted convention picks one, and
-            // adjacency accepts either side — the M5-LOG item 6(iii)
-            // reading).
-            geom_brep::EdgeGeometry::IsoCurve { surface, .. } => {
-                if surface != fs_plus && surface != fs_minus {
-                    return Err(EulerOpError::DescriptionNotAdjacent { edge });
-                }
-            }
-            geom_brep::EdgeGeometry::MappedCurve(_) => {}
+            // The scaffolding door names no surface — there is none.
+            geom_brep::EdgeDescriptionSpec::Scaffold(_) => {}
         }
 
         let certified = certify(self, curve, p_start, p_end, tol)?;
