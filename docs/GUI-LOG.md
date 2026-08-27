@@ -85,6 +85,33 @@ band makes the claim raceless and the record reaches main with the
 next merge that carries this branch. Design conversations,
 protocol amendments, and spec ratifications keep their own PRs.
 
+**Ruling — viewer CI posture (Evan, 2026-08-27, in-conversation,
+on his own proposal):** the GUI is treated as a third-party
+consumer of the API. Concretely, landing in the GUI-0 fix pass:
+
+- The toolkit-touching steps (`clippy -p viewer --features app`,
+  the doc gate's `--all-features` pass over viewer) run only when
+  the change filter's **seeds** (crates whose files changed)
+  intersect {`viewer`, `pncad`, `bvh`} — seed-keyed, not
+  closure-keyed, because `pncad` is in every kernel change's
+  closure but seeds only when its own files change.
+- The skip is a **recorded axis in the filter output** (the
+  klint_row lesson — never a green job name over a silent skip),
+  and a viewer row joins the nightly lane to re-take the gated
+  coverage against toolkit-dependency drift.
+- Viewer's default-feature build and headless tests stay in the
+  ordinary dependent closure: `pncad` mostly re-exports, so a
+  breaking change to a re-exported type does not seed the façade —
+  the cheap in-closure rows are what put that breakage (and
+  behavior drift caught by the volume/winding tripwires) on the
+  offending kernel PR instead of an innocent later one.
+- This settles the GUI-0 implementer's adjudication item 1 (the
+  doc-gate `--all-features` question) in the gated direction.
+- Extracting `viewer` from the workspace as its own root (own
+  lockfile, the `benches/` shape) is deferred to v1's close —
+  GUI-2…4 are the maximum-churn window for viewer↔editor-core
+  co-evolution.
+
 Next actions: liveness check-ins on both lanes; at each PR-open,
 freeze head, claim ordinal (recorded here, pushed), dispatch the
-v6 dual.
+v6 dual; the ruling above lands with the GUI-0 fix pass.
