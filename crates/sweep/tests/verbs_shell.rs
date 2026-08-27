@@ -397,6 +397,48 @@ fn the_open_face_designation_gates_refuse_typed() {
     );
 }
 
+/// **A chart with two orientations has no "inward".** `shell` reads a
+/// chart's inward direction from its faces' orientation bit, and a
+/// chart is moved as ONE by the group door — so a surface worn by
+/// faces of OPPOSITE sense has no single direction to move it by.
+///
+/// Nothing structural forbids that body: `step-import`'s adoption
+/// shares surface keys outright, so the sharing is not always a
+/// revolve's two co-oriented wall bands. This row builds the
+/// configuration the honest way available from outside the kernel —
+/// sharing the outer wall's chart onto the inner wall, whose sense is
+/// the opposite — and pins that the verb decides it rather than reading
+/// the first face's bit and hoping.
+#[test]
+fn a_mixed_sense_chart_refuses_typed() {
+    let mut body = tube(0.6, 1.0, 2.0);
+    let cyl = |b: &Body<f64>, r: f64| -> FaceKey {
+        b.faces()
+            .find(|(_, f)| {
+                matches!(b.get_surface(f.surface), Some(geom::Surface::Cylinder { radius, .. })
+                    if (*radius - r).abs() < 1e-9)
+            })
+            .map(|(k, _)| k)
+            .unwrap_or_else(|| panic!("no r = {r} wall"))
+    };
+    let (outer, inner) = (cyl(&body, 1.0), cyl(&body, 0.6));
+    assert_ne!(
+        body.get_face(outer).unwrap().sense,
+        body.get_face(inner).unwrap().sense,
+        "the tube's two walls face opposite ways, which is the point"
+    );
+    let shared = body.get_face(outer).unwrap().surface;
+    body.set_face_surface(inner, topo::FaceSurface::Shared(shared))
+        .expect("the attach-layer door shares a live key");
+
+    let e = topo::shell(&body, 0.1, FIT_TOL, band(), Tol::witness())
+        .expect_err("a mixed-sense chart has no single inward");
+    assert!(
+        matches!(e, ShellError::ChartSenseMixed { .. }),
+        "expected the chart-sense gate, got {e}"
+    );
+}
+
 // ---------------------------------------------------------------------
 // The STEP gate, recorded
 // ---------------------------------------------------------------------
