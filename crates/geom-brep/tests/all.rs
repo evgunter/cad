@@ -78,8 +78,6 @@ mod pcurve_conic;
 mod pcurve_general;
 #[path = "pcurve_p1a_meter.rs"]
 mod pcurve_p1a_meter;
-#[path = "pcurve_p1a_meter_interval.rs"]
-mod pcurve_p1a_meter_interval;
 #[path = "pcurve_parameter_finding.rs"]
 mod pcurve_parameter_finding;
 #[path = "r1_pxn_probes.rs"]
