@@ -707,7 +707,7 @@ pub fn shell_open<T: Decide + PropsQuadLane>(
                 key: EntityId::Face(rim),
             })?
             .outer;
-        if crate::validate::ring_outer_contact(&out, rim_outer, source_outer, band, tol).is_some() {
+        if crate::validate::ring_outer_contact(&out, rim_outer, source_outer, band).is_some() {
             return Err(ShellError::OpenFaceRimNotExpressible {
                 face: designated,
                 what: "the cavity counterpart's boundary meets the designated face's own \

@@ -2700,7 +2700,7 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
     // ------------------------------------------------------------------
     for (face_key, face) in body.faces.iter() {
         for &ring in &face.rings {
-            if let Some(contact) = ring_outer_contact(body, face.outer, ring, band, tol) {
+            if let Some(contact) = ring_outer_contact(body, face.outer, ring, band) {
                 errors.push(ValidationError::RingMeetsOuter {
                     face: face_key,
                     ring,
@@ -2726,9 +2726,7 @@ pub(crate) fn ring_outer_contact<T: Decide>(
     outer: LoopKey,
     ring: LoopKey,
     band: Band,
-    tol: Tol,
 ) -> Option<RingContact> {
-    let eps = T::from_f64(tol.eps());
     let ring_cycle = loop_cycle_of(body, ring)?;
     let outer_cycle = loop_cycle_of(body, outer)?;
 
@@ -2752,11 +2750,14 @@ pub(crate) fn ring_outer_contact<T: Decide>(
             let Some(op) = vertex_point(body, ov) else {
                 continue;
             };
-            if let Ok(Sign::Positive) = decide(
-                "ring_outer_vertex_gap",
-                Margin::of(eps - (rp - op).norm()),
-                band,
-            ) {
+            // The separation itself is the margin, and `Zero` — not
+            // certifiably apart — is the contact. Metering `eps − gap`
+            // instead would put a coincident pair's margin AT the
+            // band's own threshold, which escalates rather than
+            // decides.
+            if let Ok(Sign::Zero) =
+                decide("ring_outer_vertex_gap", Margin::of((rp - op).norm()), band)
+            {
                 return Some(RingContact::Vertex {
                     ring_vertex: rv,
                     outer_vertex: ov,
@@ -2775,9 +2776,10 @@ pub(crate) fn ring_outer_contact<T: Decide>(
     //
     // Two steps, in this order because the first is arithmetic and the
     // second costs a decide: the samples' total gap to the outer
-    // edge's INFINITE carrier, then — only for a pair that shares a
-    // locus — whether the shared locus is inside the outer edge's own
-    // trim. On a CIRCLE the second step is unnecessary and deliberately
+    // edge's INFINITE carrier, decided against zero (three
+    // nonnegative gaps summing to a `Zero` margin is three points on
+    // the locus), then — only for a pair that shares a locus —
+    // whether the shared locus is inside the outer edge's own trim. On a CIRCLE the second step is unnecessary and deliberately
     // absent: a ring edge on the same circle as an outer edge already
     // means the hole reaches the face's outer boundary circle, whatever
     // sub-arc each is trimmed to.
@@ -2823,12 +2825,8 @@ pub(crate) fn ring_outer_contact<T: Decide>(
                 continue; // the recorded residue: Ellipse and Nurbs carriers
             }
             let shares_locus = matches!(
-                decide(
-                    "ring_outer_locus_gap",
-                    Margin::of(eps * T::from_f64(3.0) - total),
-                    band,
-                ),
-                Ok(Sign::Positive)
+                decide("ring_outer_locus_gap", Margin::of(total), band),
+                Ok(Sign::Zero)
             );
             if !shares_locus {
                 continue;
@@ -2842,8 +2840,8 @@ pub(crate) fn ring_outer_contact<T: Decide>(
                 };
                 let side = (samples[1] - a).dot(samples[1] - b);
                 if !matches!(
-                    decide("ring_outer_segment_side", Margin::of(-side), band),
-                    Ok(Sign::Positive)
+                    decide("ring_outer_segment_side", Margin::of(side), band),
+                    Ok(Sign::Negative)
                 ) {
                     continue;
                 }
