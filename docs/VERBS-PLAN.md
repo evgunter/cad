@@ -247,3 +247,18 @@ review lanes). Briefs point at `docs/prompts/implementer-discipline.md`
 and reviews at `docs/prompts/reviewer-style-lane.md`, by path. Unit
 branches `verbs/<unit>`; lanes via `local-scripts/new-lane.sh`;
 state-sync docs PRs at every pipeline seam.
+
+## Plan note (2026-08-27, #1059): lily wall 2's disposition forks
+
+Wall 2's stated blocker (transverse curved×curved SSI — the
+banked germ-chord lane) is NOT the binding refusal: the operand
+KIND gate refuses first (`op: None`, reduce.rs:341), and Evan's
+circle-coincident observation makes a #968-shaped disposition
+available (gate admission under a verified declaration + a
+carrier_eq rung for cone/torus) IF the flower/arch junction is
+re-authored circle-coincident — a content decision on Evan's
+canvas (#1059 item 2). No unit gets cut for either side until
+that call; the germ-chord lane has no other near-term consumer,
+so its banking deepens. Probe texts are not evidence of cause —
+payload + raising site are (third instance; wall 7 → #1031 was
+the first).
