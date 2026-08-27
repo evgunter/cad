@@ -37,14 +37,28 @@
 
 #[path = "camera_ops.rs"]
 mod camera_ops;
+#[path = "doc_io.rs"]
+mod doc_io;
+#[path = "eval_seam.rs"]
+mod eval_seam;
 #[path = "input_mapping.rs"]
 mod input_mapping;
+#[path = "panel_edits.rs"]
+mod panel_edits;
 #[path = "review_gui0_r1.rs"]
 mod review_gui0_r1;
 #[path = "review_gui0_r2.rs"]
 mod review_gui0_r2;
+#[path = "review_gui3_r1.rs"]
+mod review_gui3_r1;
+#[path = "review_gui3_r2.rs"]
+mod review_gui3_r2;
 #[path = "scene_build.rs"]
 mod scene_build;
+#[path = "tree_badges.rs"]
+mod tree_badges;
+#[path = "undo_tree.rs"]
+mod undo_tree;
 
 /// Guards the `autotests = false` hazard: a suite file added to `tests/`
 /// but not declared above would silently stop being compiled and run.

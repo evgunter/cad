@@ -2632,10 +2632,19 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   `Qualifier`, `Coset`, `HitTestError`, `resolve*`): the interior
 ///   of name→entity resolution, whose curated face is
 ///   `crate::select`'s doors.
-/// - **Evaluation interior** (`EvalError`, `EvalScalar`, `RunCtx`,
-///   `RunStatus`, `ContentKey`, `eval`, `eval_count`,
-///   `apply_with_names`, `derivation_nodes`): the service's own
-///   machinery behind `evaluate`.
+/// - **Evaluation interior** (`EvalScalar`, `RunCtx`, `RunStatus`,
+///   `ContentKey`, `apply_with_names`, `derivation_nodes`): the
+///   service's own machinery behind `evaluate`.
+///
+///   **`eval`, `eval_count` and `EvalError` used to be in this family
+///   and were wrong to be.** They are not machinery behind
+///   `evaluate` — they are the EXPRESSION read side, the only way to
+///   answer "what does this slot say right now" for a slot driven by
+///   a parameter or by arithmetic. `Expr::literal_value` answers only
+///   for a bare literal, so without them a consumer holding the
+///   curated `Expr` + `ParamEnv` pair had no door from an expression
+///   to its value and would have had to re-implement the evaluator to
+///   display one. `crate::document` carries all three now.
 /// - **Types whose curated face is a different shape**
 ///   (`ProfilePayload`, `ProgramRefusal`, `ExprPath`, `ParamValue`,
 ///   `Product`, `product_recorded`, `ClassAdmission`,
@@ -2667,7 +2676,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 /// - **`MigrationStep`**: the stated exception in the crate docs —
 ///   its signature speaks `serde_json::Value`, which does not cross
 ///   the curated surface.
-const NOT_CARRIED: [&str; 91] = [
+const NOT_CARRIED: [&str; 88] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -2688,7 +2697,6 @@ const NOT_CARRIED: [&str; 91] = [
     "EntityRef",
     "Entry",
     "Epoch",
-    "EvalError",
     "EvalScalar",
     "ExprPath",
     "FlipSet",
@@ -2748,8 +2756,6 @@ const NOT_CARRIED: [&str; 91] = [
     "enrich_appearance_loss",
     "enrich_appearance_loss_with_prior",
     "entity_name",
-    "eval",
-    "eval_count",
     "from_value",
     "pick_face",
     "product_recorded",

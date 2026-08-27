@@ -874,11 +874,16 @@ run_row "rustfmt"                      cargo fmt --all --check
 run_row "rustfmt (benches)"            bash -c 'cd benches && cargo fmt --all --check'
 # HOSTED MIRROR: clippy / clippy (default features)
 run_row "clippy"                       cargo clippy $SCOPE --all-targets -- -D warnings
-# HOSTED MIRROR: clippy / viewer toolkit rows - the filter's verdict
-# HOSTED MIRROR: clippy / clippy (viewer app feature - eframe + wgpu)
 # HOSTED MIRROR: fmt / viewer toolkit rows - the filter's verdict
+# HOSTED MIRROR: fmt / clippy (viewer app feature - eframe + wgpu)
 # HOSTED MIRROR: viewer-toolkit / clippy (viewer app feature - eframe + wgpu)
 # HOSTED MIRROR: viewer-toolkit / rustdoc (viewer, all features)
+#
+# BOTH HOSTED ROWS NOW SIT IN `fmt`, which carries no lane gate. They
+# used to sit in `clippy`, which does — so on an interval draw the whole
+# job vanished and the seed-keyed verdict step with it, which made a
+# seed-keyed axis lane-sampled and left the ruling's "never a green job
+# name over a silent skip" false half the time.
 #
 # UNCONDITIONAL HERE, GATED HOSTED, and that asymmetry is the same one
 # the sampled matrix already has: the hosted gate skips the eframe/wgpu
