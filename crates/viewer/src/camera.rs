@@ -612,7 +612,11 @@ impl Camera {
             f.y + r.y * sx + u.y * sy,
             f.z + r.z * sx + u.z * sy,
         );
-        let len = (dir.x * dir.x + dir.y * dir.y + dir.z * dir.z).sqrt();
+        // `powi(2)`, not `x * x`: the ratified interval-square rule,
+        // which this file is subject to like every other. At `f64` the
+        // two are the same number, and the rule is about which
+        // spelling survives a refactor that widens the scalar.
+        let len = (dir.x.powi(2) + dir.y.powi(2) + dir.z.powi(2)).sqrt();
         // `forward` is a unit vector and the offsets are perpendicular
         // to it, so the length is at least 1 for every finite cursor;
         // the guard is here because a non-finite one would otherwise
