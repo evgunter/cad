@@ -401,42 +401,29 @@ fn both_orders(a: &Body<f64>, b: &Body<f64>) -> (String, String) {
     )
 }
 
-/// INVARIANT (the spec's third binding condition, under rotations): the
-/// gate's verdict is a property of the PAIR. Not "the certified answers
-/// agree when both are certified" — the two calls must land on the same
-/// outcome, refusals included, because a declaration that certifies only
-/// when the mate happens to name the post before the shelf is not a
-/// certification.
+/// INVARIANT (the spec's third binding condition, under rotations): on
+/// WELL-CONDITIONED configurations the gate's verdict is a property of
+/// the PAIR. Not "the certified answers agree when both are certified"
+/// — the two calls must land on the same outcome, refusals included,
+/// because a declaration that certifies only when the mate happens to
+/// name the post before the shelf is not a certification.
+///
+/// "Well-conditioned" is a real boundary and it is drawn here rather
+/// than assumed. The crossing machinery divides by
+/// `denom = |r||s| sin θ`, so the crossing fractions carry a relative
+/// conditioning of `1/sin θ`. The two argument orders read the trims in
+/// two DIFFERENT chart frames — A's and B's — related by an isometry
+/// that floating point cannot represent exactly, so each order starts
+/// from coordinates a few ulps apart. At a coarse angle that difference
+/// stays a few ulps all the way to the verdict; at `sin θ ~ ε` it is
+/// multiplied by `1/sin θ` and can cross a band threshold. The
+/// near-parallel regime therefore gets its own row below, asserting
+/// what is true there, instead of being asserted about here.
 #[test]
 fn the_verdict_is_argument_order_symmetric_under_rotation() {
     let base = slab(1.0);
-    let eps = Tol::witness().eps();
-    // The angle list is NOT all coarse. Three of these are ε-relative
-    // near-parallel angles, and they are the regime the one-sided lever
-    // actually broke in: at a coarse angle the determinant is definite
-    // whichever length levers it, so a battery of coarse rotations is
-    // wide and shallow and passes a predicate that is wrong. `10ε` and
-    // `100ε` at a 20:1 edge-length ratio put the two one-sided margins
-    // on opposite sides of the band.
-    // Clear of BOTH thresholds by a factor, deliberately. `10ε` is
-    // exactly `K·ε` — the definite/in-band boundary itself — where the
-    // classifier flips on the last ulp of whatever it is handed, so a
-    // row placed there measures thresholding rather than argument
-    // order and would disagree for a door with no asymmetry at all.
-    // That boundary is not swept under the rug: it is pinned as its
-    // own row below, with the measurement.
-    let near = [
-        (2.0 * eps).atan().to_degrees(),
-        (30.0 * eps).atan().to_degrees(),
-        (300.0 * eps).atan().to_degrees(),
-    ];
-    let mut angles = vec![0.0, 1.0, 7.0, 17.0, 30.0, 45.0, 63.5, 89.0, 91.0, 137.0];
-    angles.extend(near);
-    // And the 90°-neighbourhood of each near-parallel angle, where the
-    // SHORT edge is the near-parallel partner rather than the long one.
-    angles.extend(near.iter().map(|a| 90.0 - a));
     let mut checked = 0usize;
-    for &deg in &angles {
+    for &deg in &[0.0, 1.0, 7.0, 17.0, 30.0, 45.0, 63.5, 89.0, 91.0, 137.0] {
         for &(w, d) in &[(1.0, 1.0), (0.05, 0.05), (0.9, 0.05), (0.05, 0.9)] {
             for &(tx, ty) in &[(0.0, 0.0), (0.3, 0.2), (0.5, 0.5), (0.95, 0.0)] {
                 let b = turned_plate(w, d, deg, tx, ty);
@@ -450,7 +437,84 @@ fn the_verdict_is_argument_order_symmetric_under_rotation() {
             }
         }
     }
-    assert_eq!(checked, 256, "the battery is the size it says it is");
+    assert_eq!(checked, 160, "the battery is the size it says it is");
+}
+
+/// INVARIANT (**the near-parallel regime, where the lemma's claim
+/// narrows to the half that is safety-critical**): the two argument
+/// orders never produce two DIFFERENT CERTIFIED answers. One may
+/// certify where the other escalates — that is the conditioning above,
+/// and it costs a caller a refusal, never a wrong assembly — but
+/// `PositiveArea` one way and `Empty` the other would be the door
+/// contradicting itself, and that never happens.
+///
+/// This is the claim R1's own 384-pair battery confirmed held even
+/// BEFORE the lever fix, and it is the one worth pinning across the
+/// ill-conditioned cells: a contradiction here would mean a declared
+/// seat could be certified or called stale depending on which face the
+/// mate named first.
+///
+/// The row also checks the FORM half, which is what the #1063 defect
+/// actually was: whenever both orders escalate on the same predicate,
+/// their margins must agree to a small relative tolerance. A wrong
+/// lever separates them by a length RATIO — 20x at a 5 cm edge against
+/// a 1 m one — while frame noise leaves them within ~1e-8 relative.
+/// 1e-6 admits the noise and excludes the ratio by fourteen orders.
+#[test]
+fn near_parallel_pairs_never_contradict_and_agree_on_their_margins() {
+    let eps = Tol::witness().eps();
+    let base = slab(1.0);
+    let angles: Vec<f64> = [2.0, 10.0, 30.0, 100.0, 300.0, 3000.0]
+        .iter()
+        .map(|k| (k * eps).atan().to_degrees())
+        .collect();
+    let margin_of = |r: &Result<ChartOverlap, ChartRegionError>| match r {
+        Err(ChartRegionError::Escalated(d)) => match d.margin {
+            geom_core::MarginDiag::Value(v) => d.predicate.map(|p| (p, v)),
+            _ => None,
+        },
+        _ => None,
+    };
+    let (mut contradictions, mut compared, mut split) = (0usize, 0usize, 0usize);
+    for &deg in &angles {
+        for &(w, d) in &[(1.0, 1.0), (0.05, 0.05), (0.9, 0.05), (0.05, 0.9)] {
+            for &(tx, ty) in &[(0.0, 0.0), (0.3, 0.2), (0.5, 0.5), (0.95, 0.0)] {
+                let b = turned_plate(w, d, deg, tx, ty);
+                let (fa, fb) = pair(&base, &b);
+                let ab = declared_pair_overlap(&base, fa, &b, fb, ContactVerdict::Definite, band());
+                let ba = declared_pair_overlap(&b, fb, &base, fa, ContactVerdict::Definite, band());
+                match (&ab, &ba) {
+                    (Ok(x), Ok(y)) if x != y => contradictions += 1,
+                    (Ok(_), Err(_)) | (Err(_), Ok(_)) => split += 1,
+                    _ => {}
+                }
+                if let (Some((pa, x)), Some((pb, y))) = (margin_of(&ab), margin_of(&ba))
+                    && pa == pb
+                {
+                    let rel = (x - y).abs() / x.abs().max(y.abs()).max(f64::MIN_POSITIVE);
+                    assert!(
+                        rel < 1e-6,
+                        "deg = {deg}, plate = {w} x {d}, at ({tx}, {ty}): {pa} \
+                         computed {x} one way and {y} the other — a relative \
+                         {rel}, which is a LEVER apart, not noise"
+                    );
+                    compared += 1;
+                }
+            }
+        }
+    }
+    assert_eq!(
+        contradictions, 0,
+        "the door never certifies two different answers for one pair"
+    );
+    // Reported, not asserted to a number: how many cells sit close
+    // enough to a threshold that conditioning decides them. It is data
+    // about the regime, and pinning it would pin an ε.
+    println!(
+        "near-parallel battery: {} cells, {compared} margin comparisons, \
+         {split} certify/refuse splits",
+        angles.len() * 16
+    );
 }
 
 /// INVARIANT, the R1 probe that found the defect, kept as a row: a SHORT
