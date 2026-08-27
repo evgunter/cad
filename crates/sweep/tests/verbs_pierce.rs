@@ -150,7 +150,9 @@ fn a_box_down_a_circular_hole_in_a_square_plate_sees_the_hole() {
         let profile = Profile::new(plane, vec![outer, hole.into()])
             .validate(tol)
             .unwrap();
-        extrude(&profile, Extrusion::Distance(1.0), tol).unwrap().body
+        extrude(&profile, Extrusion::Distance(1.0), tol)
+            .unwrap()
+            .body
     };
     let boss = boxx(-0.2, 0.2, -0.2, 0.2, 0.5, 2.0);
     let topo::BooleanResult::Body(out) =
