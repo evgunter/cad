@@ -176,8 +176,10 @@ The exit demo opens the application and loads any of the existing
 demo *documents* through a file-open dialog.
 `pncad::document::save` exists and the tour's assembly demo
 already writes `assembly/*.pncad`; the document-authored tour
-scenes today are **assembly, checks, diefillet, heatsink,
-scalar** — the assembly exercises every G3 item plus the mate
+scenes today are **assembly, checks, ring, diefillet,
+heatsink** (corrected 2026-08-27 at GUI-3: `scalar` is the trait
+module, not a scene; `ring` is the fifth) — the assembly
+exercises every G3 item plus the mate
 tool. A small exporter mode in the tour (each document-authored
 scene saves its `.pncad`) supplies the gallery directory. The
 remaining tour scenes drive the kernel API directly and are
