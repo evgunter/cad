@@ -1763,10 +1763,13 @@ fn weld_circle<S: Scalar>(
 ) -> (pncad::topo::FaceKey, Circle, (f64, f64, f64), f64) {
     let (tc, ta, big_r, small_r) = torus_carrier(arch);
     let candidates = cone_station_circles(lantern, small_r);
+    // Two conical WALLS, each halved at the full revolve's seam, each
+    // half-band offering its carrier's two nappes.
     assert!(
-        candidates.len() == 4,
-        "the lantern carries two cones — a neck and a pucker — so four station \
-         circles at the tube's minor radius; got {}",
+        candidates.len() == 8,
+        "the lantern carries two cones — a neck and a pucker — halved at the \
+         revolve seam, so eight station circles at the tube's minor radius; \
+         got {}",
         candidates.len()
     );
     let score = |c: &Circle| {
@@ -1799,18 +1802,18 @@ fn weld_circle<S: Scalar>(
          one at its END station — the flower is threaded on the tube, not \
          welded to its rim"
     );
-    // The runner-up is the SAME cone's other nappe unless the two
-    // cones are told apart, so the miss that matters is the nearest
-    // station circle on a DIFFERENT face.
+    // The neck's two half-bands offer the SAME circle, so the miss
+    // that matters is the nearest DISTINCT station circle — the neck's
+    // other nappe, or either of the pucker's.
     let runner_up = ranked
         .iter()
-        .filter(|(k, _)| *k != neck_face)
+        .filter(|(_, c)| v_len(v_sub(c.c, best.c)) > 1e-9)
         .map(|(_, c)| score(c))
         .fold(f64::INFINITY, f64::min);
     assert!(
         runner_up > 1e-3,
-        "the pucker's station circle coincides to {runner_up:e} too — the match \
-         above is not the neck cone's alone"
+        "a second, distinct station circle coincides to {runner_up:e} too — the \
+         match above is not the neck cone's alone"
     );
     (neck_face, best, res, runner_up)
 }
@@ -2536,9 +2539,10 @@ mod review_probes {
                 }
             }
             assert!(
-                saw_sphere && cones == 2,
+                saw_sphere && cones == 4,
                 "{name}: sphere zone between a neck cone and a conical pucker, \
-                 both coaxial with the stem tangent — saw {cones} cones"
+                 both coaxial with the stem tangent and both halved at the \
+                 revolve seam — saw {cones} cone faces"
             );
         }
     }
@@ -2664,7 +2668,7 @@ mod review_probes {
             lant.vertices().count(),
         );
         println!("lantern census (shells, faces, edges, vertices) = {census:?}");
-        assert_eq!(census, (1, 10, 20, 12), "the re-authored lantern's census");
+        assert_eq!(census, (1, 10, 18, 10), "the re-authored lantern's census");
         let props = pncad::topo::mass_properties(lant, Tol::witness()).expect("mass properties");
         let exact = 0.36455193285177373;
         assert!(
@@ -2707,11 +2711,19 @@ mod review_probes {
             ("lily_leaf_b", 2e-3, 468),
             ("lily_leaf_c", 2e-3, 414),
         ];
-        for (name, delta, want) in table {
-            let m = pncad::mesh::tessellate(body(&ps, name), delta, Tol::witness())
-                .expect("tessellate");
-            assert_eq!(triangle_count(&m), want, "{name} @ {delta:e}");
-        }
+        // Measured first, compared once: a row-at-a-time assert stops
+        // at the first move and hides the rest, and this table is read
+        // as a whole.
+        let got: Vec<(&str, f64, usize)> = table
+            .iter()
+            .map(|&(name, delta, _)| {
+                let m = pncad::mesh::tessellate(body(&ps, name), delta, Tol::witness())
+                    .expect("tessellate");
+                (name, delta, triangle_count(&m))
+            })
+            .collect();
+        println!("finding 13, measured: {got:?}");
+        assert_eq!(got, table.to_vec(), "the finding-13 tessellation table");
         // Lantern volume error at both deltas. The exact figure is the
         // authored solid of revolution in closed form — the zone
         // integral between the two truncations, plus the two conical
@@ -2736,6 +2748,7 @@ mod review_probes {
             let m = pncad::mesh::tessellate(body(&ps, "lily_lantern"), delta, Tol::witness())
                 .expect("tessellate");
             let rel = ((signed_volume(&m) - exact) / exact).abs();
+            println!("lantern volume error @ {delta:e}: rel {rel}");
             assert!(rel > lo && rel < hi, "lantern @ {delta:e}: rel {rel}");
         }
         // A swept blade has no analytic wall to compare against, but it
