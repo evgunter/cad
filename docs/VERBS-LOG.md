@@ -1790,3 +1790,13 @@ analysis input only. First affected dispatch: VERBS-PIERCE's
 review (ordinal 84) — TWO reviewer lanes, frozen-head
 concurrent. Demo-class units keep the plan's process section
 (DEMO2's ordinal-83 single predates ratification and stands).
+
+## DEMO2 MERGED (#1054, 2026-08-27) — ordinal-83 row; #986 closed
+
+Row DEMO2 in MODEL-AB-LOG. The montage gains the hollow elbow
+(bore visible opaque), the translucent genus-2 hollow torus with
+its self-retiring STEP pin, and the filleted bud with its
+proof-by-assertion. The fillet_edges composition grain
+(per-disjoint-support-set) is pinned from both directions. The
+demo queue's remaining item is THE TEAPOT — the Wave-3 finale,
+unblocked since shell merged. Lane swept.
