@@ -128,13 +128,21 @@ pub(crate) enum Recognition {
 /// other — within 2·ε_in everywhere on it, so either answer is a
 /// correct reading of the file and the fixed order merely picks the
 /// canonical one (D7's typed ambiguity is reserved for the estimator's
-/// own conditioning, where no answer exists at the budget). While the
-/// first-order envelope refuses every cylinder certificate (R2
-/// NOTE-2), the preference order is unfalsifiable by execution — no
-/// authorable patch double-certifies — so only the plane-first arm is
-/// pinned (P6); the order stays stated for the day a tighter cylinder
-/// certificate lands. **That the promoting arm is unreachable is
-/// stated here and nowhere the compiler can see it — issue #711.**
+/// own conditioning, where no answer exists at the budget).
+///
+/// **Both arms of that order execute, and the condition that reaches
+/// them is a RATIO.** Every certificate here is scale-covariant:
+/// [`enveloped_residual_sup`]'s slack is
+/// `L·(Du·Δu + Dv·Δv)/(2·(k−1))` per knot-span cell — a patch extent,
+/// not an ε — so what decides a cylinder certificate is per-span
+/// extent measured AGAINST `eps_in`, never the geometry's absolute
+/// size. A patch whose per-span extent is small enough in that ratio
+/// promotes as a cylinder (P9); one coarser still certifies as BOTH
+/// kinds, and the order selects [`PromotedKind::Plane`] (P10). The
+/// wild corpus sits at the other end of the same ratio — metre-scale
+/// cylinders read at an import budget many orders finer, where the
+/// first-order envelope honestly refuses (P7) until the algebraic
+/// tightening lands.
 pub(crate) fn recognize(patch: &NurbsSurface<f64>, eps_in: f64) -> Recognition {
     if let Some((surface, residual)) = try_plane(patch, eps_in) {
         return Recognition::Promoted {
@@ -730,9 +738,9 @@ mod review_probes {
     }
 
     /// **P6 — Plane wins the selection order on an exactly planar
-    /// patch** (structural pin of the D-c2 preference's plane-first
-    /// arm; a genuinely double-certifying patch is not authorable
-    /// without the cylinder estimator succeeding on a plane).
+    /// patch** (the D-c2 preference's plane-first arm where only the
+    /// plane certificate holds; P10 is the same order exercised where
+    /// BOTH hold).
     #[test]
     fn p6_plane_wins_the_selection_order() {
         let patch = bulged_plane(0.0, 1.0);
@@ -747,11 +755,14 @@ mod review_probes {
     /// grid residual is ~1e-16, but the first-order between-samples
     /// envelope is patch-scale (measured here at ~1e-1 m — the slack
     /// is `L·D·span/(2(k−1))`, patch size over the sample count), so
-    /// recognition correctly refuses to certify it at any real ε_in
-    /// and the patch stays NURBS. This is the M-1 fix's measured
-    /// consequence, pinned: a tighter certificate (algebraic
-    /// spline-product hulls) is what restores the cylinder track,
-    /// never a wider budget.
+    /// recognition refuses to certify it at every ε_in fine against
+    /// the patch's own span extent and the patch stays NURBS — the
+    /// import budgets a metre-scale part is read at, all of them.
+    /// (The certificate is a ratio, not an absolute: the same patch
+    /// read at a metre-scale budget certifies, which is P9.) This is
+    /// the M-1 fix's measured consequence, pinned: a tighter
+    /// certificate (algebraic spline-product hulls) is what restores
+    /// the cylinder track at a real budget, never a wider budget.
     /// A unit-radius rational quarter cylinder: `u` runs the arc CCW
     /// from `(1,0)` toward `(0,1)`, `v` runs `+z` — so the chart
     /// normal `∂u × ∂v = tangential × ẑ` points radially OUTWARD,
@@ -803,12 +814,14 @@ mod review_probes {
     }
 
     /// **P8 (R2 MIN-1) — [`chart_flipped`] pinned DIRECTLY, both
-    /// outcomes.** While the envelope refuses every cylinder, the
-    /// sense-compose arm is unreachable through the import path
-    /// (promoted planes are pre-aligned by `try_plane`), so a
-    /// stubbed-`false` mutation survived the whole suite — verified
-    /// red under exactly that mutation, then restored, at the R2 fix
-    /// pass. Constructed inputs, no import:
+    /// outcomes.** The sense-compose arm is reached only by a
+    /// promoted CYLINDER whose chart runs inward — promoted planes
+    /// are pre-aligned by `try_plane` and can never flip — so at the
+    /// import budgets a metre-scale part is read at it is not reached
+    /// at all, and a stubbed-`false` mutation survives the whole
+    /// suite unless this row pins it directly. Constructed inputs, no
+    /// import, so the pin does not depend on that budget ratio (P9 is
+    /// the promoting path that reaches this arm through `recognize`):
     ///
     /// * the quarter cylinder as authored (u along the arc, v along
     ///   `+z`) has an OUTWARD chart normal → not flipped;
@@ -853,5 +866,117 @@ mod review_probes {
             "the alignment is real: opposite patch orientations store opposite \
              normals ({n_fwd:?} vs {n_rev:?})"
         );
+    }
+    /// A unit-radius, `h`-tall FULL-PERIOD rational cylinder: four
+    /// 90-degree quadratic Bézier spans (double interior knots), `u`
+    /// CCW from `(1, 0)`, `v` along `+z`. Exact — every surface point
+    /// is at radius 1 — so a certificate on it is the envelope's
+    /// slack and nothing else.
+    fn unit_full_cylinder(h: f64) -> NurbsSurface<f64> {
+        let ku = KnotVector::clamped(
+            vec![0.0, 0.0, 0.0, 1.0, 1.0, 2.0, 2.0, 3.0, 3.0, 4.0, 4.0, 4.0],
+            2,
+        )
+        .unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let mut control = Vec::new();
+        let mut weights = Vec::new();
+        for i in 0..9 {
+            let theta = core::f64::consts::FRAC_PI_4 * i as f64;
+            let (radius, w) = if i % 2 == 1 {
+                (core::f64::consts::SQRT_2, core::f64::consts::FRAC_1_SQRT_2)
+            } else {
+                (1.0, 1.0)
+            };
+            let (x, y) = (radius * theta.cos(), radius * theta.sin());
+            control.push(Point3::new(x, y, 0.0));
+            control.push(Point3::new(x, y, h));
+            weights.push(w);
+            weights.push(w);
+        }
+        NurbsSurface::new(ku, kv, control, weights).unwrap()
+    }
+
+    /// **P9 — the cylinder PROMOTING arm executes**, on the same
+    /// [`unit_full_cylinder`] the fine-budget rows refuse. The
+    /// certificate is a ratio (`recognize`'s docs): the envelope's
+    /// slack is a per-span patch extent, so the arm is reached by
+    /// reading a patch at a budget coarse against its own span
+    /// extent, never by shrinking the geometry. At ε_in = 0.9 m the
+    /// unit cylinder certifies and the plane does not, so `recognize`
+    /// takes the cylinder arm; at 1e-3 m — still enormous next to any
+    /// import budget — it refuses, which is P7's looseness from the
+    /// other side.
+    #[test]
+    fn p9_the_cylinder_promoting_arm_executes() {
+        let patch = unit_full_cylinder(1.0);
+        // The fixture is an EXACT cylinder: what certifies below is
+        // the envelope's slack, not a fitted approximation.
+        for (i, j) in [(0, 0), (1, 3), (2, 5), (3, 7)] {
+            let p = patch.eval(f64::from(i) + 0.375, f64::from(j) / 8.0);
+            let rho = (p.x * p.x + p.y * p.y).sqrt();
+            assert!((rho - 1.0).abs() < 1e-14, "exact locus: rho = {rho}");
+        }
+        assert!(
+            try_plane(&patch, 0.9).is_none(),
+            "the plane certificate must refuse, so the selection reaches try_cylinder"
+        );
+        match recognize(&patch, 0.9) {
+            Recognition::Promoted {
+                surface,
+                residual,
+                kind,
+            } => {
+                assert_eq!(kind, PromotedKind::Cylinder);
+                assert!(residual <= 0.9, "truthful residual: {residual:e}");
+                match surface {
+                    Surface::Cylinder { radius, axis, .. } => {
+                        assert!((radius - 1.0).abs() < 1e-12, "radius {radius}");
+                        assert!(axis.dot(Vec3::new(0.0, 0.0, 1.0)).abs() > 1.0 - 1e-12);
+                    }
+                    other => panic!("the cylinder arm promotes to a cylinder: {other:?}"),
+                }
+            }
+            other => panic!("the cylinder arm must fire at eps_in = 0.9: {other:?}"),
+        }
+        match recognize(&patch, 1e-3) {
+            Recognition::Promoted { kind, residual, .. } => {
+                panic!("the loose envelope promoted {kind:?} at 1e-3 m: {residual:e}")
+            }
+            other => println!("fine budget refuses the same patch: {other:?}"),
+        }
+    }
+
+    /// **P10 — the `Plane > Cylinder` order decides a patch that
+    /// certifies as BOTH.** At ε_in = 0.99 m the same
+    /// [`unit_full_cylinder`] certifies as a plane (0.969) and as a
+    /// cylinder (0.443); `recognize` returns the plane. P9 reads the
+    /// same patch one budget finer, where only the cylinder holds —
+    /// so the pair brackets the plane certificate's own boundary. This is the
+    /// canonicalization `recognize`'s docs claim, executed rather
+    /// than argued: both residuals are within ε_in, so the two
+    /// analytic surfaces agree with the patch — hence with each other
+    /// — within 2·ε_in on it, and the fixed order picks one.
+    #[test]
+    fn p10_a_double_certifying_patch_selects_plane() {
+        let patch = unit_full_cylinder(1.0);
+        let eps_in = 0.99;
+        let Some((_, plane_residual)) = try_plane(&patch, eps_in) else {
+            panic!("the plane certificate must hold at this budget")
+        };
+        let Ok(Some((_, cylinder_residual))) = try_cylinder(&patch, eps_in) else {
+            panic!("the cylinder certificate must hold at this budget")
+        };
+        assert!(
+            plane_residual <= eps_in && cylinder_residual <= eps_in,
+            "both readings are correct at the budget: {plane_residual} / {cylinder_residual}"
+        );
+        match recognize(&patch, eps_in) {
+            Recognition::Promoted { kind, residual, .. } => {
+                assert_eq!(kind, PromotedKind::Plane);
+                assert_eq!(residual.to_bits(), plane_residual.to_bits());
+            }
+            other => panic!("a double-certifying patch promotes: {other:?}"),
+        }
     }
 }
