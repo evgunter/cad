@@ -75,7 +75,13 @@ self-acquire; wrap raw `cargo` invocations yourself.
   main afterwards doesn't fire one either. After resolving, force a
   run: push a new commit or close/reopen the PR (the `reopened`
   trigger). Always CONFIRM a run started after any push that followed
-  a main-moved conflict. (TESSFOLD fix pass, 2026-08-26.)
+  a main-moved conflict. (TESSFOLD fix pass, 2026-08-26.) Second face
+  of the class (OFF-D PR-2, 2026-08-27): a run can queue with ZERO
+  jobs behind a superseded run — `mergeable: CLEAN`, never starts,
+  and cancelling the superseded run does not release it; an
+  EMPTY-commit re-roll classifies docs-only and skips the code tier.
+  The reliable re-roll is a real code commit. The rule both times:
+  confirm jobs actually RUNNING, not that a run object exists.
 - **A finished agent with orphaned detached timers re-wakes forever** —
   each expiry resumes it for a no-op "stale timer" turn, burning tokens
   and notification spam. Once its report is final, the orchestrator
