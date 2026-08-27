@@ -775,7 +775,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
                                 }
                                 FaceContainment::OnEdge(ey) => {
                                     let w = split_at(x, x_is, edge_key, t, tol)?;
-                                    let wy = split_other_at_point(y, x_is.other(), ey, p, tol)?;
+                                    let wy = split_other_at_point(y, x_is.other(), ey, p, band, tol)?;
                                     push_vv(contacts, x_is, w, wy);
                                     requeue(&mut worklist, x, edge_key, w, j)?;
                                     break 'faces;
@@ -858,7 +858,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
                         }
                         FaceContainment::OnEdge(ey) => {
                             let w = split_at(x, x_is, edge_key, t, tol)?;
-                            let wy = split_other_at_point(y, x_is.other(), ey, p, tol)?;
+                            let wy = split_other_at_point(y, x_is.other(), ey, p, band, tol)?;
                             push_vv(contacts, x_is, w, wy);
                             requeue(&mut worklist, x, edge_key, w, j + 1)?;
                             break 'faces;
@@ -1278,7 +1278,7 @@ fn vertex_on_curved_face<T: Decide>(
             return Ok(true);
         }
         Some(FaceContainment::OnEdge(ey)) => {
-            let wy = split_other_at_point(y, x_is.other(), ey, px, tol)?;
+            let wy = split_other_at_point(y, x_is.other(), ey, px, band, tol)?;
             push_vv(contacts, x_is, vx, wy);
             return Ok(true);
         }
@@ -1383,7 +1383,7 @@ fn vertex_on_face<T: Decide>(
         FaceContainment::Out => return Ok(false),
         FaceContainment::In => contacts.vf(x_is, VfContact { vertex: vx, face }),
         FaceContainment::OnEdge(ey) => {
-            let wy = split_other_at_point(y, x_is.other(), ey, px, tol)?;
+            let wy = split_other_at_point(y, x_is.other(), ey, px, band, tol)?;
             push_vv(contacts, x_is, vx, wy);
         }
         FaceContainment::OnVertex(vy) => push_vv(contacts, x_is, vx, vy),
@@ -1409,16 +1409,47 @@ fn split_at<T: Decide>(
 
 /// Splits the OTHER solid's boundary edge at the (already-computed)
 /// event point `p` — the both-edges-split lane that turns an edge-edge
-/// crossing into a v-v pair. A `Line` carrier gives the parameter as
-/// the exact projection `t = (p − origin)·dir`; anything else refuses
-/// typed as [`BooleanError::PointSplitCarrierUnsupported`], its own
-/// variant because this precondition is NOT the operand gate's — the
-/// gate admits `Circle` and `Ellipse` and this lane cannot take them.
+/// crossing into a v-v pair.
+///
+/// Two carriers have an exact point parameter and both are taken:
+///
+/// - **`Line`**: the projection `t = (p − origin)·dir`.
+/// - **`Circle`**: the azimuth, anchored at the SPAN MIDPOINT rather
+///   than at the seam. Writing `m = (t₀ + t₁)/2` and `δ = t − m`, the
+///   mid frame `(r̂, τ̂)` is read from the public evaluators — `r̂·radius
+///   = eval(m) − center`, `τ̂·radius = deriv(m)` — and `δ = atan2(w·τ̂,
+///   w·r̂)` with `w = p − center`. Both arguments carry the same
+///   positive factor `radius`, which `atan2` quotients away, so no
+///   division enters and no frame is re-derived here.
+///
+///   **The mid anchor is what removes the branch cut**, and that is
+///   why the parameter is not `atan2` about the seam plus a winding
+///   correction: an edge span is at most one period, so `|δ| ≤ π` and
+///   the PRINCIPAL branch is already the right one — there is no `k·2π`
+///   to select, hence no ordering decision and no lane fork (the
+///   interval scalar's `atan2` is an enclosure of the same value, and
+///   a span that straddles the cut widens it rather than mis-selecting
+///   a branch). Where the enclosure is too wide to place `t` strictly
+///   inside the span, `split_edge`'s own interiority trilean escalates.
+///
+/// `p` must lie ON the carrier for the azimuth to name the event: the
+/// distance from `p` to the circle (radial and axial misses folded, the
+/// exact hypotenuse) is classified on `bool_contact_arc` — the same row
+/// [`super::contain::point_on_arc`] uses for the same quantity — before
+/// the parameter is taken. The angular half of "on the ARC" is not
+/// repeated here: `split_edge`'s interiority gate is exactly that
+/// question, metered in metres at the radius.
+///
+/// `Ellipse` and `Nurbs` carriers keep the typed refusal
+/// [`BooleanError::PointSplitCarrierUnsupported`], its own variant
+/// because this precondition is NOT the operand gate's — the gate
+/// admits `Ellipse` and this lane cannot take it.
 fn split_other_at_point<T: Decide>(
     y: &mut Body<T>,
     y_is: Operand,
     edge: EdgeKey,
     p: Point3<T>,
+    band: Band,
     tol: Tol,
 ) -> Result<VertexKey, BooleanError> {
     let curve = match y.get_edge(edge).and_then(|e| y.get_curve_geom(e.curve)) {
@@ -1430,13 +1461,47 @@ fn split_other_at_point<T: Decide>(
             });
         }
     };
-    let geom::Curve3::Line { origin, dir } = *curve.carrier() else {
-        return Err(BooleanError::PointSplitCarrierUnsupported {
-            operand: y_is,
-            edge,
-        });
+    let t = match *curve.carrier() {
+        geom::Curve3::Line { origin, dir } => (p - origin).dot(dir),
+        geom::Curve3::Circle {
+            center,
+            axis,
+            radius,
+            ..
+        } => {
+            let w = p - center;
+            // On the carrier? The radial and axial misses are
+            // orthogonal, so their hypotenuse is the exact distance to
+            // the circle.
+            let height = w.dot(axis);
+            let radial = w - axis * height;
+            let d = ((radial.norm() - radius).powi(2) + height.powi(2)).sqrt();
+            match decide("bool_contact_arc", Margin::of(d), band) {
+                Ok(Sign::Zero) => {}
+                // The caller placed the event ON this edge; a point
+                // definitely off its carrier means two exact rows
+                // disagree, which is a broken invariant, not a
+                // frontier.
+                Ok(Sign::Positive | Sign::Negative) => {
+                    return Err(BooleanError::ClassificationInvariant {
+                        what: "split point definitely off the circle carrier it was placed on",
+                    });
+                }
+                Err(diag) => return Err(BooleanError::Escalated { diag }),
+            }
+            let (t0, t1) = curve.params();
+            let mid = (t0 + t1) * T::from_f64(0.5);
+            let r_mid = curve.carrier().eval(mid) - center;
+            let tau_mid = curve.carrier().deriv(mid);
+            mid + w.dot(tau_mid).atan2(w.dot(r_mid))
+        }
+        geom::Curve3::Ellipse { .. } | geom::Curve3::Nurbs(_) => {
+            return Err(BooleanError::PointSplitCarrierUnsupported {
+                operand: y_is,
+                edge,
+            });
+        }
     };
-    let t = (p - origin).dot(dir);
     split_at(y, y_is, edge, t, tol)
 }
 

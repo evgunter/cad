@@ -130,17 +130,22 @@ pub(super) fn curved_boundary_containment<T: Decide>(
 }
 
 /// Which boundary edges the shared pre-pass may decide `OnEdge`
-/// through the chord rows.
+/// through the chord rows. **`Circle` carriers are decided by their
+/// own exact arc rows in both modes** — an arc's chord is a different
+/// curve, and on a planar face the chord of a rim arc runs through the
+/// face INTERIOR, so a chord verdict there is not conservative, it is
+/// wrong: it names a boundary edge for a point that is strictly
+/// inside. What the two modes still disagree about is the remainder —
+/// the carriers with neither an exact row nor a chord that is their
+/// own curve.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum EdgeChords {
-    /// Every boundary edge ([`contfp`]'s historical posture — its
-    /// callers' events lie in the face plane, where the chord test is
-    /// exact for line boundaries and conservative-by-band for the
-    /// conic ones it has always run).
+    /// `Line` and every non-circular conic through the chord rows
+    /// ([`contfp`]'s posture for the carriers it has always run:
+    /// exact for a line boundary, conservative-by-band for the rest).
     All,
-    /// `Line` carriers through the chord rows, `Circle` carriers
-    /// through their own EXACT arc rows ([`point_on_arc`]), every
-    /// other carrier undecided. The curved chart's walk: a rim arc is
+    /// `Line` carriers through the chord rows, every carrier without
+    /// an exact row undecided. The curved chart's walk: a rim arc is
     /// a boundary a curved face genuinely has, and answering about its
     /// chord would be answering about a different curve.
     LinesAndArcs,
@@ -186,34 +191,44 @@ fn boundary_pre_pass<T: Decide>(
         for (i, (_, he, a)) in cycle.iter().enumerate() {
             let edge_key = body.get_half_edge(*he).ok_or(ContainError::Corrupt)?.edge;
             // Which rows may decide this edge, by carrier. A chord row
-            // on a conic answers about the chord, not the edge, so the
-            // curved walk sends conics to their own exact rows and
-            // sends everything else away empty-handed.
+            // on a conic answers about the CHORD, not the edge, so a
+            // carrier with an exact row takes it and the rest are
+            // routed by mode.
             let carrier = body
                 .get_edge(edge_key)
                 .and_then(|e| body.get_curve_geom(e.curve))
                 .and_then(crate::null::CurveGeom::certified)
                 .map(|c| (c.carrier().clone(), c.params()));
-            if chords != EdgeChords::All {
-                match carrier {
-                    Some((geom::Curve3::Line { .. }, _)) => {}
-                    Some((
-                        geom::Curve3::Circle {
-                            center,
-                            axis,
-                            radius,
-                            u_ref,
-                        },
-                        (t0, t1),
-                    )) if chords == EdgeChords::LinesAndArcs => {
-                        if point_on_arc(q, center, axis, radius, u_ref, t0, t1, band)? == Some(true)
-                        {
-                            return Ok(Some(FaceContainment::OnEdge(edge_key)));
-                        }
-                        continue;
+            match carrier {
+                // A `Line` boundary IS its chord: the rows below are
+                // exact for it in both modes.
+                Some((geom::Curve3::Line { .. }, _)) => {}
+                // A `Circle` boundary takes its own exact arc rows in
+                // both modes. On a PLANAR face this is not a
+                // refinement but a correction: an arc's chord runs
+                // through the face interior, so the chord rows report
+                // `OnEdge` for points that are strictly INSIDE — a
+                // rim arc's chord is the cap's diameter, and every
+                // event on it read as a boundary event.
+                Some((
+                    geom::Curve3::Circle {
+                        center,
+                        axis,
+                        radius,
+                        u_ref,
+                    },
+                    (t0, t1),
+                )) => {
+                    if point_on_arc(q, center, axis, radius, u_ref, t0, t1, band)? == Some(true) {
+                        return Ok(Some(FaceContainment::OnEdge(edge_key)));
                     }
-                    _ => continue,
+                    continue;
                 }
+                // No exact row: the curved walk gives no verdict
+                // rather than a chord's; the planar walk keeps the
+                // conservative chord row it has always run.
+                _ if chords == EdgeChords::LinesAndArcs => continue,
+                _ => {}
             }
             let b = cycle[(i + 1) % cycle.len()].2;
             let e = b - *a;
