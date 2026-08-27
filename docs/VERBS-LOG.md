@@ -1616,3 +1616,56 @@ The fix pass surfaced a wild instance of a new operational law
 silently, and none retroactively — force one via push or
 close/reopen after resolving. Lane swept. In flight: ordinal 80
 (#1044's review), OFF-D PR-2 (shell).
+
+## ORDINAL 80 RETURNED: CYLCYL PR-B A-W-F 0/4/5; FIX PASS OUT (2026-08-27)
+
+No wrong-answer path: the closed-form pins held under the
+reviewer's r∈{6.5,7,8,9.5} attack (exact volumes throughout) with
+honest refusal at r=10 tangency; arc_extent's sagitta bound,
+clip_to_boundary's wrap argument, and the span-dip bound all
+re-derived and verified — the clip argument proved STRONGER than
+stated (no branch needs an unwrapped azimuth). The MINs: the
+false "2×" prose (bound sound, multiplicative claim unbounded
+near the span end); the re-aimed r5 row's red-ability measured
+false under both mutations (box tangency hides regression); the
+dip clamp shipping unpinned (M3 mutation leaves the whole tree
+green); and the one soundness caveat — edge_box collapses the
+radius bracket to .hi() before arc_extent, under-covering by the
+bracket width in the pruning direction (fix: widen). NOTE-3
+invokes the class rule on three unswept siblings; NOTE-4 adopts
+the bracket.py 6mm flip as the unit's own point. Fix pass
+dispatched with probe adoption; reviewer lane swept.
+
+## OFF-D PR-2 REPORTED GREEN; ORDINAL 82 CLAIMED, REVIEW DISPATCHED (2026-08-27)
+
+Shell exists (#1048): sealed = the degenerate no-crossing arm
+exactly as ratified (every chart's inward offset assembled and
+handed to insert_void with the collapse meter's own decides as
+Carried{Positive}; no SSI, no census, pinned structurally);
+opened = the counterpart lifted OUTWARD onto the designated
+face's surface then kfmrh — the rim is a plain ring loop on an
+existing surface, genus rises, nothing opens; the adjudication
+fence untripped. Klein re-authoring recorded blocked-not-retired
+on the absent plane×torus C5 arm (closed form, scheduled) — with
+cone×cylinder, the two arms the whole revolved demo corpus waits
+on (banked). Three root-cause deviations fixed in place (the
+chart-group door replace_faces_offset; the WitnessMidpoint
+re-anchor; revert's plane-normal trap). #1019 measured: tens of
+ms release, the O(n²) term invisible; the issue's own wanted
+fixture measured UNBUILDABLE (Approx faces cannot move) — posted
+to #1019. Ordinal 82 claimed; single fable review dispatched
+against frozen head 259fde04, aimed hardest at the one possible
+wrong-answer hideout: the per-face-local evidence vs global
+clearance (over-thick slab, colliding-cavity dumbbell — the
+failure must be LOUD).
+
+## CYLCYL PR-B MERGED (#1044, 2026-08-27) — ordinal-80 row; the bracket rounds at 6 mm
+
+Row CYLCYL-B in MODEL-AB-LOG. The germ lane's conservatism story
+is done: carrier-slab scoping at both box levels (face clip +
+arc-scoped edge box, now bracket-span-sound per MIN-4), the
+clamped span-dip, and bracket.py at its natural 6 mm with the
+awkwardness note retired. #347 stays open on the union half,
+which waits on the curved pierce/split substrate unit (spec next
+from the orchestrator). Lane swept. In flight: ordinal 82
+(#1048's shell review).
