@@ -163,7 +163,23 @@ instance of the already-derived pattern. Its implementation unit
 alone, #943's flush seat moves from hard `AtRest` to the same
 `Uncertified` frontier the inset seat reaches today.
 
-## Proposed ruling U-R2 (gap 2) — a world-carrier Door 2 for declared PLANAR pairs; C3/C4 revision. WAITS for sign-off.
+## Proposed ruling U-R2 (gap 2) — a world-carrier Door 2 for declared PLANAR pairs; C3/C4 revision. RATIFIED (with the correction below); IMPLEMENTED #1063.
+
+**Status 2026-08-27: BUILT.** `chart_region.rs` grows
+`declared_pair_overlap` (the world-carrier arm, `world_carrier`'s
+frame-invariance lemma, the `chart_region_carrier_tilt` row and the
+interior-witness rung); the census carries Door 1's `ContactVerdict`
+into Door 2 instead of discarding it; CONTACT-DESIGN C3/C4 carry the
+revision this section asks for. The flush seat certifies and the
+demo's inset is retired. What the implementation deviated on is
+recorded in the #1063 PR; the two items worth reading here are that
+the `StaleContactDeclaration → Refuted` arm and asm_r2b's `row3_b`
+re-bless exactly as this section predicted, and that the two
+bogus-record probes were re-derived on their OWN fixtures (their
+original records turned out to be TRUE about their geometry, so the
+assertion moved and a genuinely fabricated record was added beside
+it — the fixture was not relocated).
+
 
 Three options examined:
 

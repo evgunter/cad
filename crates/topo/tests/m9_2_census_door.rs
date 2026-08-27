@@ -263,11 +263,28 @@ fn parallel_cylinders_mint_the_external_and_internal_generators() {
 // ---------------------------------------------------------------------
 
 /// R1 probe (claim 3): the face-granularity backing rung is indexed
-/// from the RAW records, before confirmation — a bogus patch record
-/// naming the two interface faces silences the corner v-v findings.
-/// The two-directional certification must still refuse the body
-/// through the record's own confirmation; if this ever answers Ok the
-/// backing rung has silently glued a contact on an unconfirmed record.
+/// from the RAW records, before confirmation — a patch record naming
+/// the two interface faces silences the corner v-v findings, so the
+/// record's OWN confirmation is the only thing left standing between a
+/// fabricated record and a blessed body.
+///
+/// **RE-BLESSED at #1063, deliberately, and the fixture is NOT moved.**
+/// The probe was written when Door 2 declined every cross-key pair, so
+/// ANY record on this fixture refused and the row could not tell a true
+/// record from a false one. It can now, and the two halves below are
+/// what the row was always trying to say:
+///
+/// - the ORIGINAL record — A's top against B's bottom on two stacked
+///   cubes — is TRUE about the geometry. Those faces are coincident,
+///   opposed and fully overlapping; a declared rest contact between two
+///   stacked blocks is exactly what the machinery exists to certify,
+///   and the honest verdict is `Ok`. Asserting a refusal here would be
+///   demanding a false negative, which is why the assertion moved
+///   rather than the fixture (the `m9/census-xid` branch moved the
+///   fixture instead, and that is the re-blessing #1063 names).
+/// - a record that is FALSE about the same geometry — the outer faces,
+///   two metres apart — is refused loudly, which is the property this
+///   probe is actually about.
 #[test]
 fn r1_probe_a_bogus_patch_record_cannot_silently_back_the_corners() {
     let (body, _) = stacked();
@@ -283,21 +300,45 @@ fn r1_probe_a_bogus_patch_record_cannot_silently_back_the_corners() {
     let [fa, fb] = ifaces[..] else {
         panic!("exactly two z=1 faces, got {ifaces:?}");
     };
-    let mut records = ContactRecords::default();
-    records.patches.push(topo::PatchContact {
-        face_a: fa,
-        face_b: fb,
-    });
-    let errors = validate_pseudomanifold(&body, &records, Tol::witness())
-        .expect_err("an unconfirmed patch record must never bless the corners");
-    // The record DID back the four corner v-v events (no undeclared
-    // finding survives) — the refusal must come from the record's own
-    // confirmation instead.
+    let patch = |a, b| ContactRecords {
+        patches: vec![topo::PatchContact {
+            face_a: a,
+            face_b: b,
+        }],
+        ..ContactRecords::default()
+    };
+    // The TRUE record on this fixture: the interface pair, certified
+    // through the declared pair's shared world carrier (#1063).
+    assert_eq!(
+        validate_pseudomanifold(&body, &patch(fa, fb), Tol::witness()),
+        Ok(()),
+        "the interface record is true about this geometry and now certifies"
+    );
+    // The FALSE record on the SAME fixture: the two OUTER faces, z = 0
+    // and z = 2. The backing rung silences whatever those faces hold,
+    // and the record's own confirmation refuses anyway.
+    let mut outers: Vec<_> = body
+        .faces()
+        .filter_map(|(k, f)| match body.get_surface(f.surface) {
+            Some(Surface::Plane { origin, .. })
+                if origin.z.abs() < 1e-9 || (origin.z - 2.0).abs() < 1e-9 =>
+            {
+                Some(k)
+            }
+            _ => None,
+        })
+        .collect();
+    outers.sort();
+    let [oa, ob] = outers[..] else {
+        panic!("exactly two outer z faces, got {outers:?}");
+    };
+    let errors = validate_pseudomanifold(&body, &patch(oa, ob), Tol::witness())
+        .expect_err("a fabricated patch record must never bless the body");
     assert!(
-        !errors
+        errors
             .iter()
-            .any(|e| matches!(e, ValidationError::UndeclaredContact { .. })),
-        "backing rung reached: {errors:?}"
+            .any(|e| matches!(e, ValidationError::ContactContradicted { .. })),
+        "the fabrication is contradicted where the lie meets geometry: {errors:?}"
     );
 }
 
