@@ -1934,3 +1934,15 @@ the issues), SPHSPH/CYLSPH/CONE germ lanes (waiting on arms
 adjudication + #1076's sibling machinery), #1031 (cap F7), the
 wall-2 fork (Evan's content call), and the arms unit behind the
 ring lane. Lane swept.
+
+## EVAN'S WALL-2 CALL: RE-AUTHOR; LILYWELD CUT (2026-08-27)
+
+Evan ratified the circle-coincident re-authoring ("please do
+re-author the lily!"). LILYWELD spec'd two-PR: the content
+re-authoring with the coincidence itself asserted analytically
+(PR-1, S), then the #968-shaped kernel half — declared cone×torus
+gate admission + a carrier_eq rung on the exact shared circle —
+flipping wall 2 (PR-2, M). #968 proper (wall 1's torus×torus with
+the tangency disposition) stays banked; LILYWELD's machinery is
+deliberately the reusable half its checklist names. Recorded on
+#1059; dispatching to block VERBS-6 slot 2 beside SHELLFIX.
