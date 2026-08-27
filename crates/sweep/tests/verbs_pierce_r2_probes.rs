@@ -121,9 +121,11 @@ fn r2_a_box_through_a_lens_cap_measures_the_all_arc_remainder() {
     let tol = Tol::witness();
     // Lens: from (-1,0) to (1,0) via a deep arc (bulge 0.6), back via
     // a shallow arc of a DIFFERENT circle (bulge 0.35 on the return).
+    // SYMMETRIC lens: equal bulges on both legs bow outward on
+    // opposite sides (mirror-image circles, distinct carriers).
     let lp = ProfileLoop::new(vec![
         ProfileVertex::new(p2(-1.0, 0.0), 0.6),
-        ProfileVertex::new(p2(1.0, 0.0), 0.35),
+        ProfileVertex::new(p2(1.0, 0.0), 0.6),
     ]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.0)));
     let profile = Profile::new(plane, vec![lp]).validate(tol).unwrap();
@@ -133,7 +135,11 @@ fn r2_a_box_through_a_lens_cap_measures_the_all_arc_remainder() {
     let va = topo::mass_properties(&a, tol).unwrap().volume;
     // A small box through the cap near (0, 0.3) — inside the lens for
     // these bulges (upper arc reaches y=0.6... sagitta = bulge*half-chord).
-    let b = boxx(-0.1, 0.1, 0.2, 0.4, 1.0, 3.0);
+    println!(
+        "lens operand volume {}",
+        topo::mass_properties(&a, tol).unwrap().volume
+    );
+    let b = boxx(-0.1, 0.1, -0.1, 0.1, 1.0, 3.0);
     match topo::union(&a, &b, tol) {
         Err(e) => println!("lens cap union refuses typed: {e:?}"),
         Ok(topo::BooleanResult::Body(out)) => {
