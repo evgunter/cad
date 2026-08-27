@@ -34,6 +34,37 @@
 #    on the far side that could hold a witness to pass in. Note the
 #    path is `src/py`, not the whole crate: pncad-py's non-FFI
 #    modules are ordinary library code and are scanned.
+#  - crates/*/src/bin/ — a BINARY TARGET's `main`, which THE RULE
+#    above already names as an entry point ("a `main`, a test, the
+#    curated `pncad` door"). Not an exemption so much as the rule's
+#    first word finally having a resident: until `crates/viewer`
+#    grew a bin target, every `main` in this repo lived under
+#    `demos/` or `tools/`, which this gate never scanned, so the
+#    case had never come up. It is sound for the reason the rule
+#    gives: a bin target is not library code — nothing can call
+#    into it, so nothing downstream can inherit an ambient read
+#    from it — and it is where a run begins.
+#    NARROW ON PURPOSE: only `src/bin/`, cargo's own convention for
+#    "this file is a program". A `main` written anywhere else in
+#    `src/` is scanned like the library code it sits beside.
+#
+# TWO SPELLINGS ARE MATCHED, and this is the whole of the gate's
+# completeness argument. `Tol::witness` is the kernel's; and since
+# GUI-0, `pncad::tolerance::witness` is the FAÇADE's — one thin
+# wrapper over the same call, public, in the crate every consumer
+# already depends on. Matching only the first left the second a
+# general bypass: identical semantics, opposite verdicts, which is
+# exactly what a GUI-0 reviewer's planted differential measured.
+#
+# WHAT THE PATTERN STILL CANNOT SEE, stated so a bypass hunt starts
+# here rather than from scratch: a `use pncad::tolerance::witness;`
+# followed by a bare `witness()` call. Both spellings matched are
+# QUALIFIED forms, and matching the bare name would fire on every
+# function in the tree called `witness`. Widening this is a real
+# option (match the `use` line as well), deliberately not taken:
+# it trades a false-negative nobody has written for a false-positive
+# class, and the import itself is visible in review at the one place
+# it would have to appear.
 #
 # THE COMPANION GATE is no-ambient-env.sh, which forbids the
 # environment read; this one forbids the ambient tolerance read. They
@@ -79,15 +110,16 @@ gate() {
   local excluded hits
   excluded=$(cfg_test_modules | sort -u)
   hits=$(gate_rust_code --skip-cfg-test "${GATE_SOURCE_FILES[@]}" \
-    | grep -F 'Tol::witness' \
+    | grep -E 'Tol::witness|tolerance::witness' \
     | grep -vE '^crates/geom-core/src/tolerance\.rs:' \
     | grep -vE '^crates/pncad/src/' \
     | grep -vE '^crates/pncad-py/src/py/' \
+    | grep -vE '^crates/[^/]+/src/bin/' \
     | { if [ -n "$excluded" ]; then grep -vF -f <(printf '%s\n' "$excluded" | sed 's#/$#/#; s#\.rs$#.rs:#'); else cat; fi } \
     || true)
   if [ -n "$hits" ]; then
     echo "$hits"
-    gate_error "kernel library code minted a tolerance witness instead of receiving one. Tol::witness() commits the run's eps: it is an entry-point act (a main, a test, the pncad door). Take \`tol: Tol\` as a parameter and pass it down — a witness minted mid-library is the ambient read the parameter exists to replace."
+    gate_error "kernel library code minted a tolerance witness instead of receiving one. Tol::witness() — and its façade spelling pncad::tolerance::witness() — commits the run's eps: it is an entry-point act (a main under src/bin, a test, the pncad door). Take \`tol: Tol\` as a parameter and pass it down — a witness minted mid-library is the ambient read the parameter exists to replace."
     exit 1
   fi
   gate_ok "no kernel library code mints a tolerance witness"
@@ -123,13 +155,44 @@ plant_in_cfg_test() {
   } > "$1/crates/planted/src/lib.rs"
 }
 
+# THE FAÇADE SPELLING. `pncad::tolerance::witness()` is the same act
+# through one thin wrapper; before GUI-0's fix pass this passed the
+# gate while the line above it fired, which is a general bypass rather
+# than a near miss.
+plant_facade_spelling() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn eps() -> f64 { pncad::tolerance::witness().get().eps }\n' \
+    > "$1/crates/planted/src/lib.rs"
+}
+
+# A BIN TARGET's main IS an entry point (THE RULE's first word), so the
+# same call there passes — and only under `src/bin/`.
+plant_in_bin() {
+  mkdir -p "$1/crates/planted/src/bin"
+  printf 'pub fn ok(a: f64) -> f64 { a }\n' > "$1/crates/planted/src/lib.rs"
+  printf 'fn main() { let _ = pncad::tolerance::witness(); }\n' \
+    > "$1/crates/planted/src/bin/prog.rs"
+}
+
+# ... but a `main` written OUTSIDE `src/bin/` is library-adjacent code
+# and stays scanned: the exclusion is cargo's path convention, not the
+# word `main`.
+plant_main_outside_bin() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'fn main() { let _ = pncad::tolerance::witness(); }\n' \
+    > "$1/crates/planted/src/lib.rs"
+}
+
 gate_selftest() {
   local want="kernel library code minted a tolerance witness"
   gate_selftest_clean
   gate_selftest_case "$want" plant
+  gate_selftest_case "$want" plant_facade_spelling
+  gate_selftest_case "$want" plant_main_outside_bin
   gate_selftest_passes "the call named in prose, a block comment and a string literal" plant_prose_only
   gate_selftest_passes "the same call inside a #[cfg(test)] module" plant_in_cfg_test
-  printf '%s selftest OK: passes a clean fixture, prose/block-comment/string-literal mentions of the call, and the same call inside a #[cfg(test)] module; fires on a witness minted in library code\n' "$(gate_name)"
+  gate_selftest_passes "a bin target's main under src/bin" plant_in_bin
+  printf '%s selftest OK: passes a clean fixture, prose/block-comment/string-literal mentions of the call, the same call inside a #[cfg(test)] module, and a bin target under src/bin; fires on a witness minted in library code, on the pncad::tolerance::witness facade spelling, and on a main written outside src/bin\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"
