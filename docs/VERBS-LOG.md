@@ -1800,3 +1800,81 @@ proof-by-assertion. The fillet_edges composition grain
 (per-disjoint-support-set) is pinned from both directions. The
 demo queue's remaining item is THE TEAPOT — the Wave-3 finale,
 unblocked since shell merged. Lane swept.
+
+## PIERCE REPORTED; DOOR-2 STOP ACCEPTED; ORDINAL 84 = THE FIRST v6 DUAL (2026-08-27)
+
+Door 1 exceeded acceptance: the mid-anchored azimuth removes the
+atan2 branch cut entirely (|δ| ≤ π within one edge span — the
+interval lane needs NO fork and NO measured constant; banked as a
+reusable pattern), and the routing half the spec did not name
+turned out to hide TWO silent wrong answers — contfp deciding
+Circle boundaries by CHORD (a cap rim's chord is the diameter)
+and point_in_loop polygonizing disc loops (every cap interior
+answered Out; rings invisible) — one measured as a wrong union
+volume on main (7.003 vs 6.643). The coaxial boss now UNIONS
+correctly. Door 2's STOP fired per the fence with evidence: no
+curve×curved-surface root finder exists anywhere, the ring
+insert is planar by construction, and TWO of the four #1044
+cases are cosurface incidences C2/C4 forbid inferring — #347's
+union demand SPLITS (comment posted there; the declared-contact
+family owns that half, door 2's remainder rides the arms
+adjudication). The #1032 seam measured: one fix does NOT move
+both rows (11 → 6 under declaration; the remaining six are
+curved×planar). Ordinal 84 claimed — THE FIRST v6 DUAL: slot
+byte 180, parity 0 → R1 opus + R2 fable, frozen head 5da23569,
+read-side isolation in both briefs. The mixed-arc-and-line loop
+blind spot (half-disc, slot, rounded rectangle still
+polygonized) stated in the PR and left for the register.
+
+## ORDINAL COLLISION WITH PCURVE; PIERCE'S DUAL RENUMBERS 84 → 85 (2026-08-27)
+
+PCURVE claimed 84 for P-1a ON MAIN (#1074) after my PIERCE claim
+had been logged only to this branch — main-is-authority resolves
+it their way (the ASM precedent's rule doing exactly its job).
+PIERCE's dual is ordinal 85: slot byte 180 parity 0 (R1 opus +
+R2 fable), frozen head 5da23569, unchanged otherwise. Process
+correction adopted: ordinal claims now go to main IMMEDIATELY at
+claim time. Separately, BOTH ordinal-85 reviewers died mid-run —
+R1 on an auth gap (the account re-logged), R2 on the fable usage
+limit — and were resumed from transcript per the death-recovery
+rule; if R2's limit still binds at resume, the v6 budget valve
+question opens (every-2nd-row duals) rather than a silent
+downgrade.
+
+## ORDINAL 85 (FIRST v6 PAIR) RETURNED AND ADJUDICATED (2026-08-27)
+
+R1 opus A-W-F 2/5/5, R2 fable NMAI 1/4/4 — the pair's
+correspondence is the design working: BOTH arms independently
+measured the same central defect (the non-disc arc-loop
+remainder is a silent wrong body — R1's half-disc both senses,
+R2's half-cylinder AND the lens, which is all-arc and falsifies
+the blind-spot prose itself), while each arm carried a unique
+find: R1 alone caught cast_ray's ray×cylinder quadratic
+falsifying the STOP's "no root finder anywhere" (the STOP
+survives on the independent ring-lane leg — both arms verified
+that leg separately); R2 alone closed R1's open bit-identity
+column with full default suites. Ruling on the shared MAJOR:
+gate arc-bearing <3-vertex non-disc loops typed NOW (the
+measured-wrong class exactly — slot/rounded-rect measured
+correct, so no wider), issue the general arc-aware parity
+remainder, fix the "honest remainder"/blind-spot prose to the
+callee's own contract. v6 tally: R1's cast_ray MAJ is unilateral
+but CLAIM-CLASS — excluded per instrument 3b; TALLY 0 after
+pair 1. Isolation: both arms disclosed command-line-only
+glimpses via the shared build slot — benign, recorded. Union
+fix pass dispatched; both reviewer lanes swept.
+
+## PIERCE MERGED (#1068, 2026-08-27) — ordinal-85 row (sample #25); the first v6 pair closes clean
+
+Row PIERCE in MODEL-AB-LOG with the full dual columns. The fix
+pass's own finds are worth the read: one reviewer probe fixture
+re-signed (it demonstrated nothing as written — the measured
+geometry bowed the other way), the >period alias rowed, the
+|δ|=π endpoint asserted as a property rather than a coin flip,
+and the interval lane pinned by rule so the drawn point is no
+longer sampling luck. #347's remaining union scope now reads:
+coaxial family → declared-contact territory; parallel/steinmetz
+→ the ring lane (#1076's sibling machinery), roots already in
+the tree. v6 tally 0 after pair 1. Lane swept. TEAPOT's report
+is the program's last outstanding item before the register
+re-audit.
