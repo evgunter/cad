@@ -177,3 +177,19 @@ selection-state shape); GUI-2's spec is written when GUI-3's PR
 freezes, and its dispatch takes block GUI-B1 slot 4 (arm opus per
 the draw). Cost: one idle dispatch slot for a few hours; the plan's
 1-before-2 ordering already made GUI-2 non-blocking for GUI-3.
+## GUI-3 merged (2026-08-27, PR #1101, sample #31 / ordinal 402)
+
+The document panels exist: tree with typed badges, property panel
+with the refusal affordance, the evaluation seam (cancel semantics
+hardened at the fix pass — canceled runs never land; both seam
+implementations coalesce and are covered by threaded rows), the
+sibling-minting undo tree, typed open/save, and the demo-document
+gallery (scene list corrected: ring, not scalar). **The §5
+seam-friction re-take is GO on egui, authoritative** — the
+iced-fallback question is closed for v1 barring new evidence.
+Riders: the viewer toolkit CI rows moved to the every-lane fmt job
+(the lane-sample gap both reviewers confirmed, now structurally
+closed); #1103 banks the expression unparser; the merge inherited
+main's #1102 red at the 1e-12 draw (cited, not this unit's).
+Program consequence: **GUI-2 dispatches now** (spec staged; block
+GUI-B1 slot 4, arm opus); GUI-4 wants GUI-2 + GUI-3.

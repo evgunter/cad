@@ -44,6 +44,7 @@ mod curvedcut;
 mod cutaway;
 mod diechamfer;
 mod diefillet;
+mod gallery;
 mod heatsink;
 mod klein;
 mod letterforms;
@@ -742,9 +743,18 @@ fn main() {
     // once, here, and hands it to every scene it walks.
     let tol = Tol::witness();
     let outdir = std::env::args().nth(1).expect(
-        "usage: demo-tour <outdir> | demo-tour k-probe [out.csv] | \
+        "usage: demo-tour <outdir> | demo-tour gallery [dir] | \
+                 demo-tour k-probe [out.csv] | \
                  demo-tour tess-budget [out.csv] [--deviation]",
     );
+    // The demo-document gallery (the GUI's acceptance substrate): each
+    // document-authored scene saved as a `.pncad` the viewer can open.
+    // Not behind a feature — it authors the same documents the ordinary
+    // run does and links nothing extra.
+    if outdir == "gallery" {
+        gallery::run(std::env::args().nth(2), tol);
+        return;
+    }
     // The K-telemetry mode (M4 PR 8b): rebuild every scene at the
     // recording scalar and dump the margin CSV — see `probe`.
     //

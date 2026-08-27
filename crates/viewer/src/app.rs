@@ -1,47 +1,60 @@
-//! The eframe application: docked chrome around the wgpu viewport.
+//! The eframe application: docked chrome around the wgpu viewport,
+//! with the document panels beside it.
 //!
 //! # What this module is allowed to contain
 //!
 //! Toolkit adaptation, and nothing else. It turns egui pointer state
-//! into [`ViewportEvent`]s, folds those through [`InputMap`] and
-//! [`camera::apply`], and hands the resulting camera to the paint
-//! callback. Every decision it takes is a call into the renderer-free
-//! half of this crate, which is what makes the navigation testable
-//! without a window (G1) — and what makes the seam reading in the
-//! PR body a statement about egui rather than about our code.
+//! into [`ViewportEvent`]s and into [`SessionOp`]s, hands both to the
+//! renderer-free half of this crate, and paints what comes back. Every
+//! decision it takes is a call into that half, which is what makes the
+//! navigation and the editing testable without a window (G1) — and
+//! what makes the seam reading in the PR body a statement about egui
+//! rather than about our code.
+//!
+//! # Panes name operations; the application performs them
+//!
+//! A pane never mutates the session. It reads the session as a value
+//! and pushes [`SessionOp`]s into a queue, which the application
+//! drains after the layout has been walked. That is the toolkit-side
+//! shape of `handle(event, ui_state) → (ui_state′, edits, overlay)`,
+//! and it is also what makes the borrows work out: the layout needs a
+//! shared view of everything and a mutable hold on nothing.
 //!
 //! # OQ-b: the docking crate is `egui_tiles`
 //!
 //! The layout is a `Tree<Pane>` the application **owns**: panes are
 //! our enum, the tree is our field, and rendering is a `Behavior` impl
-//! that reads it. That is the same discipline the rest of this crate
-//! runs on, one level up — the layout is a value, the frame is a view
-//! of it — and it is the reason the choice went this way rather than
-//! to `egui_dock`, whose licence is MIT-only where ours is
-//! MIT OR Apache-2.0. The PR body carries the full argument.
+//! that reads it — the same discipline the rest of this crate runs on,
+//! one level up.
 //!
-//! # No threads
+//! # Evaluation is not on this thread
 //!
-//! Evaluation runs inline, on the frame that asks for it. The plan
-//! forbids this layer from assuming threads, and the spike has no
-//! evaluation service to put behind a seam yet; the one place a
-//! background service will attach is [`ViewerApp::rebuild`], which is
-//! already the only function that turns a document into a scene.
+//! The application drives [`DocSession`] over a
+//! [`crate::evalseam::ThreadEvaluator`]: edits submit
+//! a document and the frame loop polls for results. The busy indicator
+//! and the Cancel button are the two things that makes visible. What
+//! this module knows about threads is one constructor call; everything
+//! else is the seam's vocabulary, which the wasm build satisfies with
+//! no thread at all.
 
 use std::sync::Arc;
 
 use eframe::egui;
 use egui_tiles::{TileId, Tiles, Tree, UiResponse};
-use pncad::document::{Doc, ProfileProgram};
+use pncad::document::{Dimension, RecipeNodeId, SlotId};
 use pncad::geom_core::Tol;
 
 use crate::camera::{self, Camera, CameraOp};
+use crate::evalseam::{Generation, ThreadEvaluator};
 use crate::gpu::{DEPTH_BITS, ViewportCallback, ViewportRenderer};
 use crate::input::{self, InputMap, PointerButton, ViewportEvent, ViewportSize};
+use crate::props::{SlotDriver, SlotRow, SlotValue};
 use crate::scene::{self, DisplayTolerance, SceneMesh};
+use crate::session::{DocSession, Refusal, Selection, SessionOp};
+use crate::tree::{RowStatus, TreeRow};
 
 /// The window title.
-const WINDOW_TITLE: &str = "viewer — GUI-0 scaffold";
+const WINDOW_TITLE: &str = "viewer";
 
 /// The starting display tolerance: 0.1 mm, fine enough that a 24 mm
 /// hole reads as a circle and coarse enough to redraw instantly.
@@ -58,44 +71,75 @@ const LIGHT_DIRECTION: [f32; 3] = [0.408_248_3, 0.408_248_3, -0.816_496_6];
 /// shading reads as shape rather than as colour.
 const BASE_COLOR: [f32; 3] = [0.62, 0.64, 0.67];
 
+/// The document file extension the dialog filters on.
+const DOC_EXTENSION: &str = "pncad";
+
+/// Points of indent per level of the feature tree.
+const INDENT_STEP: f32 = 12.0;
+
+/// The deepest level the tree indents for.
+///
+/// Depth is the longest input chain and a real document reaches far
+/// past this — the tour's `diefillet` hits 27, which at
+/// [`INDENT_STEP`] would be 324 points of dead space in a pane that
+/// holds a third of the window. Past the clamp the rows stop moving
+/// right; they stay in evaluation order, so the tree is still readable
+/// as a sequence, and what is lost is depth information that had
+/// already stopped fitting.
+const INDENT_MAX_DEPTH: usize = 8;
+
+/// The indent a row at `depth` draws at.
+fn indent(depth: usize) -> f32 {
+    depth.min(INDENT_MAX_DEPTH) as f32 * INDENT_STEP
+}
+
 /// One docked pane.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Pane {
     /// The 3D viewport.
     Viewport,
-    /// The recipe outline — GUI-3's feature tree occupies this seat;
-    /// here it lists the document's nodes so the chrome is showing
-    /// the real document rather than filler.
-    Recipe,
-    /// View settings: display δ, the camera's state, and what the
-    /// last refused operation was.
+    /// The feature tree over the evaluation's result DAG.
+    Features,
+    /// The selected node's (or parameter's) properties.
+    Properties,
+    /// View settings: display δ and the camera's state.
     View,
 }
 
-/// Everything the application knows.
+/// Transient text a panel is mid-edit on.
 ///
-/// The `Doc` is the authoritative value; `scene` and `camera` are
-/// derived from it and from navigation, and nothing else is kept.
+/// Layer-3 state that never enters the document: an expression the
+/// user is typing is not an edit until they commit it, and a draft
+/// abandoned by selecting elsewhere leaves nothing behind.
+#[derive(Debug, Default)]
+struct Drafts {
+    /// The slot the expression field is currently for.
+    expr_target: Option<(RecipeNodeId, SlotId)>,
+    /// What is typed in it.
+    expr_text: String,
+}
+
+/// Everything the application knows.
 pub struct ViewerApp {
-    document: Doc<ProfileProgram>,
+    session: DocSession,
     tol: Tol,
     delta: DisplayTolerance,
     scene: Arc<SceneMesh>,
     /// Bumped on every rebuild; the GPU uploads when it disagrees.
     revision: u64,
+    /// The evaluation generation `scene` was built from. When it
+    /// disagrees with the session's landed generation, the picture is
+    /// out of date and exactly one rebuild is owed.
+    scene_generation: Option<Generation>,
     camera: Camera,
     input: InputMap,
     tree: Tree<Pane>,
+    drafts: Drafts,
     /// A fit is owed, and will be taken by the viewport pane on the
     /// next frame — the only place that knows the real aspect.
-    ///
-    /// The startup camera and the `Fit` button both raise this rather
-    /// than framing with an invented aspect: a `Frame` at a hardcoded
-    /// 1.0 is exact only for a square pane and under-fits every
-    /// narrower one, and the toolbar has no pane rectangle to read.
     pending_fit: bool,
-    /// The last refusal, kept so a rejected operation is visible
-    /// instead of silently dropped.
+    /// The last thing that went wrong, kept so a refused operation is
+    /// visible instead of silently dropped.
     status: Option<String>,
 }
 
@@ -111,12 +155,16 @@ pub enum StartupError {
     /// `eframe` handed the application no wgpu render state — the
     /// application was built against a renderer it does not have.
     NoWgpuRenderState,
+    /// The evaluation worker could not be started. Fatal on purpose: a
+    /// seam with no worker accepts every submit and answers none, so
+    /// the application would open onto a permanent "evaluating…".
+    Evaluator(crate::evalseam::SpawnError),
 }
 
 impl ViewerApp {
-    /// Build the application: author the document, evaluate it,
-    /// tessellate at the initial δ, frame a camera on the result, and
-    /// install the viewport pipeline into the render state.
+    /// Build the application: author the starting document, evaluate
+    /// it, tessellate at the initial δ, frame a camera on the result,
+    /// and install the viewport pipeline into the render state.
     ///
     /// # Errors
     ///
@@ -146,26 +194,41 @@ impl ViewerApp {
             .insert(renderer);
 
         Ok(Self {
-            document,
+            session: DocSession::new(
+                document,
+                tol,
+                Box::new(ThreadEvaluator::spawn().map_err(StartupError::Evaluator)?),
+            ),
             tol,
             delta,
             scene: Arc::new(mesh),
             revision: 1,
+            scene_generation: None,
             camera,
             input: InputMap::default(),
             tree: initial_layout(),
+            drafts: Drafts::default(),
             pending_fit: true,
             status: None,
         })
     }
 
-    /// Re-tessellate at the current δ and re-frame nothing.
+    /// Take whatever the seam finished and, if the picture is behind
+    /// the document, rebuild it.
     ///
-    /// The seam a background evaluation service attaches to: this is
-    /// the whole of "the document changed, make a new picture", and it
-    /// is called from exactly one place.
-    fn rebuild(&mut self) {
-        match scene::scene_of(&self.document, self.delta, self.tol) {
+    /// The one place a document becomes a scene. Gated on the
+    /// generation so a frame that changed nothing re-tessellates
+    /// nothing.
+    fn sync_scene(&mut self) {
+        self.session.pump();
+        if self.scene_generation == self.session.landed_generation() {
+            return;
+        }
+        let Some(evaluation) = self.session.evaluation_arc().map(Arc::clone) else {
+            return;
+        };
+        self.scene_generation = self.session.landed_generation();
+        match scene::scene_of_evaluation(self.session.doc(), &evaluation, self.delta, self.tol) {
             Ok(mesh) => {
                 self.scene = Arc::new(mesh);
                 self.revision = self.revision.wrapping_add(1);
@@ -175,23 +238,78 @@ impl ViewerApp {
         }
     }
 
-    /// Change δ by `factor`, rebuilding the scene.
+    /// Change δ, rebuilding the picture from the evaluation already in
+    /// hand — a display change is not a document change and re-runs no
+    /// geometry above the tessellator.
     fn rescale_delta(&mut self, factor: f64) {
         match self.delta.scaled(factor) {
             Ok(delta) => {
                 self.delta = delta;
-                self.rebuild();
+                self.scene_generation = None;
+                self.sync_scene();
             }
             Err(error) => self.status = Some(format!("display tolerance: {error:?}")),
         }
+    }
+
+    /// Perform one operation and record what it refused.
+    /// Perform one frame's whole batch of operations, keeping the
+    /// refusal worth showing.
+    ///
+    /// **Not one assignment per op.** A frame queues several ops and
+    /// several of them can refuse; assigning `status` from each in turn
+    /// keeps the LAST, which is how dragging a driven slot came to
+    /// display `NoGesture` instead of the ratified affordance —
+    /// `BeginGesture` refuses with the affordance and the same frame's
+    /// `PreviewGesture` refuses `NoGesture` on top of it. `Refusal`
+    /// ranks itself; this keeps the best-ranked, first-seen one, and
+    /// clears the line only when a batch refuses nothing at all.
+    fn perform_batch(&mut self, ops: Vec<SessionOp>) {
+        if ops.is_empty() {
+            return;
+        }
+        let mut refusal: Option<Refusal> = None;
+        for op in ops {
+            if let Some(next) = self.session.perform(op).refusal {
+                refusal = Refusal::preferred(refusal, next);
+            }
+        }
+        self.status = refusal.map(|refusal| refusal.to_string());
     }
 }
 
 impl eframe::App for ViewerApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        self.sync_scene();
+        let mut ops: Vec<SessionOp> = Vec::new();
+
         egui::Panel::top("viewer_toolbar").show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label(WINDOW_TITLE);
+                ui.separator();
+                if ui.button("Open…").clicked()
+                    && let Some(path) = pick_open()
+                {
+                    ops.push(SessionOp::Open(path));
+                }
+                if ui.button("Save As…").clicked()
+                    && let Some(path) = pick_save(self.session.path())
+                {
+                    ops.push(SessionOp::Save(path));
+                }
+                ui.separator();
+                if ui
+                    .add_enabled(self.session.history().can_undo(), egui::Button::new("Undo"))
+                    .clicked()
+                {
+                    ops.push(SessionOp::Undo);
+                }
+                if ui
+                    .add_enabled(self.session.history().can_redo(), egui::Button::new("Redo"))
+                    .clicked()
+                {
+                    ops.push(SessionOp::Redo);
+                }
                 ui.separator();
                 if ui.button("Fit").clicked() {
                     // The toolbar has no pane rectangle, so it asks
@@ -205,6 +323,33 @@ impl eframe::App for ViewerApp {
                 if ui.button("Finer δ").clicked() {
                     self.rescale_delta(1.0 / DELTA_STEP);
                 }
+                // The indicator is a READ of session state, and the
+                // buttons beside it are the shipped token and its pair.
+                // Neither knows whether a thread is involved.
+                //
+                // THREE states, not two, because a cancel leaves a
+                // fourth thing to say: the picture is older than the
+                // document AND nothing is running. A spinner there
+                // would be a lie about work nobody is doing.
+                if self.session.busy() {
+                    ui.separator();
+                    if self.session.running() {
+                        ui.spinner();
+                        ui.label("evaluating…");
+                        if ui.button("Cancel").clicked() {
+                            ops.push(SessionOp::CancelEvaluation);
+                        }
+                        // A background result is not a user event, so
+                        // nothing else would wake the frame loop to
+                        // collect it.
+                        ui.ctx().request_repaint();
+                    } else {
+                        ui.label("canceled — showing an older result");
+                        if ui.button("Re-evaluate").clicked() {
+                            ops.push(SessionOp::Reevaluate);
+                        }
+                    }
+                }
                 if let Some(status) = &self.status {
                     ui.separator();
                     ui.label(status.as_str());
@@ -214,31 +359,37 @@ impl eframe::App for ViewerApp {
 
         egui::CentralPanel::no_frame().show(ui, |ui| {
             let mut behavior = ViewerBehavior {
-                document: &self.document,
+                session: &self.session,
                 delta: self.delta,
                 scene: &self.scene,
                 revision: self.revision,
                 camera: &mut self.camera,
                 input: self.input,
+                drafts: &mut self.drafts,
                 pending_fit: &mut self.pending_fit,
                 status: &mut self.status,
+                ops: &mut ops,
             };
             self.tree.ui(&mut behavior, ui);
         });
+
+        self.perform_batch(ops);
     }
 }
 
 /// The `Behavior` egui_tiles renders panes through: a borrow of the
 /// application's state for the duration of one frame.
 struct ViewerBehavior<'a> {
-    document: &'a Doc<ProfileProgram>,
+    session: &'a DocSession,
     delta: DisplayTolerance,
     scene: &'a Arc<SceneMesh>,
     revision: u64,
     camera: &'a mut Camera,
     input: InputMap,
+    drafts: &'a mut Drafts,
     pending_fit: &'a mut bool,
     status: &'a mut Option<String>,
+    ops: &'a mut Vec<SessionOp>,
 }
 
 /// Land a fold: take the camera it reached, and either show the
@@ -247,8 +398,7 @@ struct ViewerBehavior<'a> {
 /// **The one place a camera move becomes application state.** Both the
 /// toolbar's single operations and the viewport's event stream come
 /// through here, so "record the refusal, clear it on success" has one
-/// implementation — the two hand-rolled copies that had already
-/// drifted (one cleared the status, one did not) are gone.
+/// implementation.
 fn land(camera: &mut Camera, status: &mut Option<String>, folded: &camera::Folded) {
     *camera = folded.camera;
     *status = folded
@@ -261,7 +411,8 @@ impl egui_tiles::Behavior<Pane> for ViewerBehavior<'_> {
     fn tab_title_for_pane(&mut self, pane: &Pane) -> egui::WidgetText {
         match pane {
             Pane::Viewport => "Viewport".into(),
-            Pane::Recipe => "Recipe".into(),
+            Pane::Features => "Features".into(),
+            Pane::Properties => "Properties".into(),
             Pane::View => "View".into(),
         }
     }
@@ -269,7 +420,8 @@ impl egui_tiles::Behavior<Pane> for ViewerBehavior<'_> {
     fn pane_ui(&mut self, ui: &mut egui::Ui, _tile_id: TileId, pane: &mut Pane) -> UiResponse {
         match pane {
             Pane::Viewport => self.viewport_ui(ui),
-            Pane::Recipe => self.recipe_ui(ui),
+            Pane::Features => self.features_ui(ui),
+            Pane::Properties => self.properties_ui(ui),
             Pane::View => self.view_ui(ui),
         }
         UiResponse::None
@@ -357,22 +509,201 @@ impl ViewerBehavior<'_> {
         ));
     }
 
-    /// The recipe pane: GUI-3's seat, showing the real document.
-    fn recipe_ui(&mut self, ui: &mut egui::Ui) {
-        ui.heading("Recipe");
-        ui.label(format!("{} nodes", self.document.order().len()));
-        ui.separator();
-        egui::ScrollArea::vertical().show(ui, |ui| {
-            for id in self.document.order() {
-                let label = match self.document.node(*id) {
-                    Some(node) => format!("{id:?}: {}", node_kind(node)),
-                    None => format!("{id:?}: (absent)"),
-                };
-                ui.label(label);
-            }
+    /// The feature tree: one row per recipe node, with its status
+    /// badge from the evaluation's typed result.
+    fn features_ui(&mut self, ui: &mut egui::Ui) {
+        let rows = self.session.tree_rows();
+        ui.horizontal(|ui| {
+            ui.heading("Features");
+            ui.label(format!("{} nodes", rows.len()));
         });
         ui.separator();
-        ui.label(format!("roots: {}", self.document.roots().len()));
+        let selected = match self.session.selection() {
+            Selection::Node(id) => Some(*id),
+            Selection::None | Selection::Param(_) => None,
+        };
+        egui::ScrollArea::vertical().show(ui, |ui| {
+            for row in &rows {
+                self.feature_row(ui, row, selected == Some(row.id));
+            }
+        });
+    }
+
+    /// One feature-tree row.
+    fn feature_row(&mut self, ui: &mut egui::Ui, row: &TreeRow, selected: bool) {
+        ui.horizontal(|ui| {
+            ui.add_space(indent(row.depth));
+            let label = if row.root {
+                format!("{} ▸", row.kind)
+            } else {
+                row.kind.to_owned()
+            };
+            if ui.selectable_label(selected, label).clicked() {
+                self.ops.push(SessionOp::Select(Selection::Node(row.id)));
+            }
+            match &row.status {
+                RowStatus::Ok => {}
+                RowStatus::Unevaluated => {
+                    ui.weak(row.status.badge());
+                }
+                RowStatus::Failed { .. } | RowStatus::Poisoned { .. } => {
+                    ui.colored_label(egui::Color32::from_rgb(210, 90, 70), row.status.badge());
+                }
+            }
+        });
+        // The typed payload's own message, indented under the row it
+        // belongs to. Never a sentence this module wrote.
+        if let Some(message) = row.status.message() {
+            ui.horizontal(|ui| {
+                ui.add_space(indent(row.depth) + INDENT_STEP);
+                ui.weak(message);
+            });
+        }
+    }
+
+    /// The property panel.
+    fn properties_ui(&mut self, ui: &mut egui::Ui) {
+        ui.heading("Properties");
+        ui.separator();
+        match self.session.selection().clone() {
+            Selection::None => {
+                ui.weak("select a feature");
+            }
+            Selection::Node(node) => {
+                let rows = self.session.slot_rows();
+                if rows.is_empty() {
+                    ui.weak("this feature carries no parameters");
+                }
+                for row in &rows {
+                    self.slot_ui(ui, node, row);
+                }
+            }
+            Selection::Param(name) => {
+                if let Some(row) = crate::props::param_rows(self.session.doc())
+                    .into_iter()
+                    .find(|row| row.name == name)
+                {
+                    ui.label(format!("parameter {} ({:?})", row.name.0, row.dimension));
+                    let mut value = row.value.as_f64();
+                    let widget = ui.add(egui::DragValue::new(&mut value).speed(
+                        if row.dimension == Dimension::Count {
+                            1.0
+                        } else {
+                            0.0005
+                        },
+                    ));
+                    drag_ops(
+                        &widget,
+                        value,
+                        SessionOp::BeginParamGesture { name: name.clone() },
+                        |value| SessionOp::SetParam {
+                            name: name.clone(),
+                            value: SlotValue::of(row.dimension, value),
+                        },
+                        self.ops,
+                    );
+                } else {
+                    ui.weak("that parameter is gone");
+                }
+            }
+        }
+        ui.separator();
+        ui.label("document parameters");
+        for row in crate::props::param_rows(self.session.doc()) {
+            if ui.link(row.name.0.clone()).clicked() {
+                self.ops
+                    .push(SessionOp::Select(Selection::Param(row.name.clone())));
+            }
+        }
+    }
+
+    /// One slot row, with the expression-driven refusal's affordance
+    /// attached to it.
+    fn slot_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId, row: &SlotRow) {
+        ui.horizontal(|ui| {
+            ui.label(format!("{:?}", row.slot));
+            match row.value {
+                Ok(value) => {
+                    let mut number = value.as_f64();
+                    let widget =
+                        ui.add(egui::DragValue::new(&mut number).speed(if row.structural {
+                            1.0
+                        } else {
+                            0.0005
+                        }));
+                    drag_ops(
+                        &widget,
+                        number,
+                        SessionOp::BeginGesture {
+                            node,
+                            slot: row.slot,
+                        },
+                        |number| SessionOp::SetSlot {
+                            node,
+                            slot: row.slot,
+                            value: SlotValue::of(row.dimension, number),
+                        },
+                        self.ops,
+                    );
+                }
+                Err(ref error) => {
+                    ui.weak(format!("{error}"));
+                }
+            }
+            ui.weak(format!("{:?}", row.dimension));
+            if row.structural {
+                ui.weak("structural");
+            }
+        });
+        // The affordance. It is attached to the row rather than raised
+        // on refusal alone so the user can see WHY the number will not
+        // move before they fight it — the refusal itself still
+        // surfaces in the status line when they try.
+        if let SlotDriver::Expression { params } = &row.driver {
+            ui.horizontal(|ui| {
+                // The ratified wording, from its one home — the same
+                // string the status line shows when the edit is
+                // actually attempted.
+                ui.weak(Refusal::affordance(
+                    params,
+                    row.value.as_ref().ok().copied(),
+                ));
+                for name in params {
+                    if ui.link(format!("edit {}", name.0)).clicked() {
+                        self.ops
+                            .push(SessionOp::Select(Selection::Param(name.clone())));
+                    }
+                }
+            });
+        }
+        // The expression text door, offered on every slot: the way to
+        // replace a computation is to write a new one.
+        let target = (node, row.slot);
+        if self.drafts.expr_target == Some(target) {
+            ui.horizontal(|ui| {
+                ui.text_edit_singleline(&mut self.drafts.expr_text);
+                if ui.button("Set").clicked() {
+                    self.ops.push(SessionOp::SetSlotExpression {
+                        node,
+                        slot: row.slot,
+                        text: self.drafts.expr_text.clone(),
+                    });
+                    self.drafts.expr_target = None;
+                    self.drafts.expr_text.clear();
+                }
+                if ui.button("Cancel").clicked() {
+                    self.drafts.expr_target = None;
+                    self.drafts.expr_text.clear();
+                }
+            });
+        } else if ui.small_button("expression…").clicked() {
+            // Deliberately EMPTY rather than pre-filled: the
+            // expression API has no text rendering, so a pre-filled
+            // field would be this crate's guess at what the slot says.
+            // See the module docs of `props`.
+            self.drafts.expr_target = Some(target);
+            self.drafts.expr_text.clear();
+        }
     }
 
     /// The view pane: the numbers the camera and the tessellation are
@@ -395,6 +726,12 @@ impl ViewerBehavior<'_> {
             self.camera.min_distance() * 1000.0,
             self.camera.max_distance() * 1000.0
         ));
+        ui.separator();
+        ui.label(format!("history: {} states", self.session.history().len()));
+        match self.session.path() {
+            Some(path) => ui.label(format!("file: {}", path.display())),
+            None => ui.weak("unsaved document"),
+        };
         if let Some(status) = self.status.as_ref() {
             ui.separator();
             ui.label(status.as_str());
@@ -402,27 +739,66 @@ impl ViewerBehavior<'_> {
     }
 }
 
-/// A node's kind, for the outline. Deliberately a name and not a
-/// rendering of the node: GUI-3 owns what a feature tree shows.
-fn node_kind(node: &pncad::document::Node<ProfileProgram>) -> &'static str {
-    use pncad::document::Node;
-    match node {
-        Node::Profile(_) => "Profile",
-        Node::Extrude { .. } => "Extrude",
-        Node::Revolve { .. } => "Revolve",
-        Node::Transform { .. } => "Transform",
-        Node::Boolean { .. } => "Boolean",
-        Node::Split { .. } => "Split",
-        Node::Pattern { .. } => "Pattern",
-        Node::PlacedUnion { .. } => "PlacedUnion",
-        Node::Datum(_) => "Datum",
-        Node::Declare { .. } => "Declare",
-        Node::Fillet { .. } => "Fillet",
-        Node::Loft { .. } => "Loft",
-        Node::Sweep { .. } => "Sweep",
-        Node::InstantiatePart { .. } => "InstantiatePart",
-        Node::Mate { .. } => "Mate",
+/// **The one mapping from a `DragValue` to session operations**, and
+/// the only place in this crate that turns a widget into a gesture.
+///
+/// G1 ratifies the shape: a continuous gesture emits previews against
+/// scratch state and exactly ONE committed edit on release. egui's
+/// `DragValue` does not hand that over — it conflates dragging with
+/// typing and fires `changed()` every frame of a drag — so the
+/// translation is the `drag_started` / `dragged` / `drag_stopped`
+/// triple below.
+///
+/// **It is a function because the same file once had two copies of it
+/// and one of them was wrong**: the slot rows mapped the triple and the
+/// document-parameter row mapped a bare `changed()`, so dragging a
+/// parameter committed one edit, one undo step and one re-evaluation
+/// per frame. Two spellings of a ratified rule is one spelling too
+/// many. Any future dragged number in this file calls this; nothing but
+/// this comment enforces that, which is the honest state of it.
+fn drag_ops(
+    widget: &egui::Response,
+    value: f64,
+    begin: SessionOp,
+    typed: impl Fn(f64) -> SessionOp,
+    ops: &mut Vec<SessionOp>,
+) {
+    if widget.drag_started() {
+        ops.push(begin);
     }
+    if widget.dragged() && widget.changed() {
+        ops.push(SessionOp::PreviewGesture { value });
+    }
+    if widget.drag_stopped() {
+        ops.push(SessionOp::CommitGesture);
+    } else if widget.changed() && !widget.dragged() {
+        // Typed, not dragged: one edit, no gesture.
+        ops.push(typed(value));
+    }
+}
+
+/// The open dialog: a THIN veneer over `SessionOp::Open`.
+///
+/// Everything it does is choose a `Path`. The blocking call is
+/// deliberate — a modal file chooser is the platform's own idea of a
+/// modal file chooser, and the alternative (an async handle polled
+/// across frames) would buy responsiveness during an interaction that
+/// is already modal, at the cost of a second state machine.
+fn pick_open() -> Option<std::path::PathBuf> {
+    rfd::FileDialog::new()
+        .add_filter("document", &[DOC_EXTENSION])
+        .pick_file()
+}
+
+/// The save dialog, starting where the current document lives.
+fn pick_save(current: Option<&std::path::Path>) -> Option<std::path::PathBuf> {
+    let mut dialog = rfd::FileDialog::new().add_filter("document", &[DOC_EXTENSION]);
+    if let Some(path) = current
+        && let Some(dir) = path.parent()
+    {
+        dialog = dialog.set_directory(dir);
+    }
+    dialog.save_file()
 }
 
 /// The starting layout: the viewport with a tabbed side panel, in a
@@ -430,13 +806,22 @@ fn node_kind(node: &pncad::document::Node<ProfileProgram>) -> &'static str {
 pub fn initial_layout() -> Tree<Pane> {
     let mut tiles = Tiles::default();
     let viewport = tiles.insert_pane(Pane::Viewport);
-    let recipe = tiles.insert_pane(Pane::Recipe);
+    let features = tiles.insert_pane(Pane::Features);
+    let properties = tiles.insert_pane(Pane::Properties);
     let view = tiles.insert_pane(Pane::View);
-    let side = tiles.insert_tab_tile(vec![recipe, view]);
-    // Three quarters of the width to the viewport: the side panel is
-    // GUI-3's seat, not this unit's subject.
+    // The tree above the properties: selecting in one drives the
+    // other, so they are visible together rather than tabbed apart.
+    let stack = egui_tiles::Linear::new_binary(
+        egui_tiles::LinearDir::Vertical,
+        [features, properties],
+        0.5,
+    );
+    let stacked = tiles.insert_container(egui_tiles::Container::Linear(stack));
+    let side = tiles.insert_tab_tile(vec![stacked, view]);
+    // Two thirds of the width to the viewport: the panels are this
+    // unit's subject and need room to read.
     let linear =
-        egui_tiles::Linear::new_binary(egui_tiles::LinearDir::Horizontal, [viewport, side], 0.75);
+        egui_tiles::Linear::new_binary(egui_tiles::LinearDir::Horizontal, [viewport, side], 0.66);
     let root = tiles.insert_container(egui_tiles::Container::Linear(linear));
     Tree::new("viewer_tree", root, tiles)
 }
