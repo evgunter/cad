@@ -611,6 +611,19 @@ pub trait Real:
 /// indeterminate). A free-floating bounds-comparison helper would be
 /// the #701 `Enclosure` evasion with better manners, and stays out.
 ///
+/// **The direction rule for terminal grants (#571, A′'s design-owner
+/// ruling; recorded here per the #1027 durable-home rule — it
+/// previously lived only in the decision's history).** A terminal
+/// grant from `Bounds` is legitimate only when the granted claim lies
+/// in the bound's CONSERVATIVE direction: a box-disjointness answer IS
+/// a sound disjointness certificate for the contents
+/// (sufficient-not-necessary; touching-or-overlapping boxes with
+/// disjoint contents refuse or escalate — the safe failure direction),
+/// whereas a terminal grant of an EXISTENCE or overlap claim from
+/// boxes would be the violation. The #990 shapes above never reach
+/// this rule: neither branches on a bracket, so neither is a terminal
+/// grant at all.
+///
 /// # Semantics
 ///
 /// `[lo(), hi()]` brackets every real number the scalar stands for. For
