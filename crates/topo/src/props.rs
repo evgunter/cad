@@ -705,6 +705,26 @@ pub trait PropsQuadLane:
         band: Band,
     ) -> Option<Result<geom::OffsetCertificate, geom_brep::OffsetFitError>>;
 
+    /// Mints the certified approximating surface for a NURBS operand's
+    /// offset — the fit door, reached through the lane so the doors
+    /// above it stay scalar-generic.
+    ///
+    /// `None` = this scalar has no fit lane. That is not a pass: a
+    /// caller that cannot mint the offset refuses, exactly as tier 3
+    /// refuses a certificate it cannot re-derive. The fit door is
+    /// `f64`-only, so `None` is every other scalar's honest answer.
+    ///
+    /// # Errors
+    ///
+    /// The fit door's typed refusal (the meters, a rational operand,
+    /// the refinement budget, a certificate limb).
+    fn approx_offset_surface(
+        base: std::sync::Arc<geom::NurbsSurface<Self>>,
+        d: Self,
+        tolerance: f64,
+        band: Band,
+    ) -> Option<Result<Surface<Self>, geom_brep::OffsetFitError>>;
+
     /// # Errors
     ///
     /// [`PropsError`] from the quadrature lane (budget, unsupported
@@ -732,6 +752,15 @@ impl PropsQuadLane for f64 {
         Some(geom_brep::recertify_approx(approx, tolerance, band))
     }
 
+    fn approx_offset_surface(
+        base: std::sync::Arc<geom::NurbsSurface<Self>>,
+        d: Self,
+        tolerance: f64,
+        band: Band,
+    ) -> Option<Result<Surface<Self>, geom_brep::OffsetFitError>> {
+        Some(geom_brep::approx_offset_surface(base, d, tolerance, band))
+    }
+
     fn quad_cut_face(
         body: &Body<Self>,
         surface: &Surface<Self>,
@@ -754,6 +783,15 @@ impl PropsQuadLane for geom_core::Probe {
         _tolerance: f64,
         _band: Band,
     ) -> Option<Result<geom::OffsetCertificate, geom_brep::OffsetFitError>> {
+        None
+    }
+
+    fn approx_offset_surface(
+        _base: std::sync::Arc<geom::NurbsSurface<Self>>,
+        _d: Self,
+        _tolerance: f64,
+        _band: Band,
+    ) -> Option<Result<Surface<Self>, geom_brep::OffsetFitError>> {
         None
     }
 
@@ -783,6 +821,15 @@ impl PropsQuadLane for geom_core::interval::Interval {
         _tolerance: f64,
         _band: Band,
     ) -> Option<Result<geom::OffsetCertificate, geom_brep::OffsetFitError>> {
+        None
+    }
+
+    fn approx_offset_surface(
+        _base: std::sync::Arc<geom::NurbsSurface<Self>>,
+        _d: Self,
+        _tolerance: f64,
+        _band: Band,
+    ) -> Option<Result<Surface<Self>, geom_brep::OffsetFitError>> {
         None
     }
 
@@ -816,6 +863,15 @@ where
         _tolerance: f64,
         _band: Band,
     ) -> Option<Result<geom::OffsetCertificate, geom_brep::OffsetFitError>> {
+        None
+    }
+
+    fn approx_offset_surface(
+        _base: std::sync::Arc<geom::NurbsSurface<Self>>,
+        _d: Self,
+        _tolerance: f64,
+        _band: Band,
+    ) -> Option<Result<Surface<Self>, geom_brep::OffsetFitError>> {
         None
     }
 
