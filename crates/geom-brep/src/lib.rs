@@ -94,8 +94,8 @@ pub use intersect::{
 };
 pub use keys::{CurveKey, PointKey, SurfaceKey};
 pub use newell::{NewellError, newell_plane};
-pub use nurbs_iso::{boundary_iso_u, boundary_iso_v};
-pub use offset::{OffsetError, offset_surface};
+pub use nurbs_iso::{IsoRowError, boundary_iso_u, boundary_iso_v, iso_boundary_row};
+pub use offset::{ConeOffset, OffsetError, offset_surface};
 pub use offset_fit::{
     OffsetCertificate, OffsetFitError, OffsetLimb, approx_offset_surface, certify_offset,
     fit_offset, recertify_approx,

@@ -172,6 +172,7 @@ pub mod props;
 pub mod provenance;
 pub(crate) mod ray_parity;
 pub mod readback;
+pub mod replace_face;
 pub mod revert;
 #[cfg(test)]
 mod review_d18;
@@ -307,6 +308,7 @@ pub use props::{
 };
 pub use provenance::Provenance;
 pub use readback::{DanglingRef, Pose, ReadbackError};
+pub use replace_face::{ReplaceFaceError, replace_face_offset};
 pub use revert::RevertError;
 pub use separation::{PlacementsMeet, Separation};
 pub use source::{GeomSource, Or, SourceAttachError, SourceExpr};

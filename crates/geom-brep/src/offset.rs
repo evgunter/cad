@@ -105,6 +105,86 @@ use geom_core::{Band, Indeterminate, Margin, Sign};
 use crate::dihedral::decide;
 use crate::intersect::SurfaceKind;
 
+/// **The cone offset's action, in one place.** The mint below and every
+/// consumer that has to move a curve, a point or a parameter WITH the
+/// minted cone read the action from here, so the apex slide, the
+/// parameter shift and the pointwise displacement cannot drift apart —
+/// they are three faces of one derivation (module docs).
+///
+/// The action is the pushforward along the CONTINUOUS EXTENSION of the
+/// opening nappe's normal field (the module's complete-locus fine
+/// print), which is what makes it a pure parameter shift:
+///
+/// - the minted apex is [`ConeOffset::apex`] = `apex − axis·(d/sin α)`;
+/// - a base point at chart `(u, v)` is the minted cone's point at
+///   `(u, v + shift)`, [`ConeOffset::shift`] = `d·cot α`;
+/// - in space that is the displacement `d·n₊(u)` with
+///   `n₊(u) = radial(u)·cos α − axis·sin α`, [`ConeOffset::displacement`].
+///
+/// **`n₊` does NOT flip across the apex**, and that is the contract
+/// rather than an oversight: the per-point chart normal negates on the
+/// mirror nappe, and following IT would split the double cone instead
+/// of translating the parameter. A mirror-nappe face's material
+/// therefore moves `−d` along its OWN chart normal — the same locus the
+/// mint produces, read from the same side.
+#[derive(Clone, Copy, Debug)]
+pub struct ConeOffset<T: geom_core::Real> {
+    apex: geom_core::Point3<T>,
+    axis: geom_core::Vec3<T>,
+    half_angle: T,
+    d: T,
+}
+
+impl<T: geom_core::Real> ConeOffset<T> {
+    /// The action of offsetting the cone `(apex, axis, half_angle)` by
+    /// the signed distance `d`.
+    pub fn new(apex: geom_core::Point3<T>, axis: geom_core::Vec3<T>, half_angle: T, d: T) -> Self {
+        Self {
+            apex,
+            axis,
+            half_angle,
+            d,
+        }
+    }
+
+    /// The minted cone's apex, `apex − axis·(d/sin α)`.
+    ///
+    /// The reverse offset negates the slide exactly (`(−d)/s = −(d/s)`
+    /// and the per-component products negate exactly), so a round
+    /// trip's only slack is one rounded operation per leg: the apex
+    /// coordinate addition here and the matching subtraction back.
+    pub fn apex(&self) -> geom_core::Point3<T> {
+        self.apex - self.axis * (self.d / self.half_angle.sin())
+    }
+
+    /// The chart parameter shift: `v ↦ v + d·cot α` at matched `u`.
+    pub fn shift(&self) -> T {
+        let (sin_a, cos_a) = self.half_angle.sin_cos();
+        self.d * (cos_a / sin_a)
+    }
+
+    /// The displacement the action applies to `p`, a point of the BASE
+    /// cone: `d·n₊(u)` at `p`'s own azimuth.
+    ///
+    /// `radial(u)` is recovered from `p` — which needs `p`'s nappe,
+    /// because the geometric radial direction at `v < 0` is
+    /// `−radial(u)`. The nappe is `p`'s axial coordinate's sign
+    /// (`h = v·cos α`, and `cos α > 0` on the stored convention), so
+    /// the whole recovery is `copysign` on the RADIAL term — never on
+    /// the axial one, which carries `−sin α` for both nappes.
+    ///
+    /// At the apex itself `radial(u)` is undetermined (every azimuth
+    /// maps there) and the recovery poisons, which is the honest
+    /// answer: the apex has no tangent plane to push along.
+    pub fn displacement(&self, p: geom_core::Point3<T>) -> geom_core::Vec3<T> {
+        let (sin_a, cos_a) = self.half_angle.sin_cos();
+        let w = p - self.apex;
+        let h = w.dot(self.axis);
+        let radial = w.reject_from(self.axis).normalize();
+        (radial * cos_a.copysign(h) - self.axis * sin_a) * self.d
+    }
+}
+
 /// Typed refusal of the offset door (D4 ¶3). Scalar payloads echo the
 /// classified margin's ingredients — data, not a decision (the
 /// [`Margin::value`] diagnostics blessing; the `PathError` payload
@@ -248,17 +328,11 @@ pub fn offset_surface<T: geom_core::Decide>(
             half_angle,
             u_ref,
         } => {
-            // The slide: `−axis·(d/sin α)`, the minus sign read off
-            // the chart normal's axial coefficient `−sin α` (module
-            // docs — stored structure, no numeric branch). The reverse
-            // offset negates the slide exactly ((−d)/s = −(d/s) and
-            // the per-component products negate exactly), so a round
-            // trip's only slack is one rounded operation per leg (two
-            // per round trip): the apex coordinate addition here and
-            // the matching subtraction on the way back.
-            let slide = d / half_angle.sin();
+            // The slide is [`ConeOffset`]'s, which is also what every
+            // consumer moving a curve or a parameter with this mint
+            // reads: one derivation, three faces, no copy to drift.
             Ok(Surface::Cone {
-                apex: *apex - *axis * slide,
+                apex: ConeOffset::new(*apex, *axis, *half_angle, d).apex(),
                 axis: *axis,
                 half_angle: *half_angle,
                 u_ref: *u_ref,
