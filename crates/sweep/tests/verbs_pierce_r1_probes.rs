@@ -261,3 +261,29 @@ fn r1_the_cap_yardstick_is_what_the_pr_says() {
         format!("{truth}") != "6.643185307179586"
     );
 }
+
+/// **The RING half of the disc class, isolated.** The PR claims "a
+/// circular hole was invisible too: the ring's two-vertex polygon
+/// holds only its own diameter, and a point inside the hole was
+/// reported inside the face". Nothing in the PR demonstrates it — the
+/// tube rows do not, because a tube's OUTER loop is also a circle and
+/// the two errors cancel. This isolates it: a SQUARE plate (outer loop
+/// a polygon, already right) with a CIRCULAR hole, and a box driven
+/// down the hole. The box meets no plate material at all.
+#[test]
+fn r1_a_box_down_a_circular_hole_in_a_square_plate() {
+    let tol = Tol::witness();
+    let hole = profile::circle(p2(0.0, 0.0), 0.5, tol).unwrap();
+    let plate = body_of(
+        vec![
+            RawLoop::polygon([p2(-2.0, -2.0), p2(2.0, -2.0), p2(2.0, 2.0), p2(-2.0, 2.0)]),
+            hole.into(),
+        ],
+        0.0,
+        1.0,
+    );
+    let boss = boxx(-0.2, 0.2, -0.2, 0.2, 0.5, 2.0);
+    let v = report("circular-hole-plate+box-down-the-hole", &plate, &boss);
+    let truth = (16.0 - PI * 0.25) * 1.0 + 0.4 * 0.4 * 1.5;
+    println!("R1[circular-hole-plate] truth-if-disjoint={truth} got={v:?}");
+}
