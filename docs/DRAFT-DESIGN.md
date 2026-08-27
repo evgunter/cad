@@ -1,6 +1,6 @@
 # Draft — the molding-taper design conversation
 
-**Status: DRAFT — design conversation, awaiting Evan's sign-off**
+**Status: RATIFIED (Evan's sign-off on PR #908, with a note-fold round — planes-only to start is Evan's own note). The status line lagged the ratification until 2026-08-27 — the sign-off itself is the PR record.**
 (VERBS program; the register's "no design record yet — needs its own
 conversation" row). Proposals DR1–DR6. Substrate anchors verified on
 main 2026-08-21 by the survey lane; the row is genuinely greenfield —
