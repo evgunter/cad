@@ -18,6 +18,18 @@ use pncad::sweep::{
 };
 use pncad::topo::{Body, FaceKey, LoopBoundary, ReplaceFaceError, ShellError};
 
+/// A closed polygon through `$first` and the rest, on the `path`
+/// lattice (`RawLoop::polygon` is deliberately off pncad's presented
+/// surface, so the chain is unrolled here).
+macro_rules! poly {
+    ($tol:expr, $first:expr, $($rest:expr),+ $(,)?) => {{
+        let b = Open.at($first);
+        $( let b = b.line_to($rest, $tol).expect("side"); )+
+        let lp: ProfileLoop<f64> = b.line_to(Start, $tol).expect("close").into();
+        lp
+    }};
+}
+
 const FIT_TOL: f64 = 1e-6;
 
 fn band(tol: Tol) -> Band {
@@ -145,7 +157,10 @@ fn r2_my_own_revolve_opens_wrong() {
         genus(&cup),
     );
     let mesh = pncad::mesh::tessellate(&cup, 1e-3, tol);
-    println!("[r2-1] tessellate = {:?}", mesh.map(|m| m.triangles.len()));
+    println!(
+        "[r2-1] tessellate = {:?}",
+        mesh.map(|m| m.patches.iter().map(|q| q.triangles.len()).sum::<usize>())
+    );
     let props = pncad::topo::mass_properties(&cup, tol);
     println!(
         "[r2-1] props = {:?}",
@@ -198,7 +213,11 @@ fn r2_revolved_tube_separates_seam_from_axis() {
             );
             println!(
                 "[r2-2] tessellate = {:?}",
-                pncad::mesh::tessellate(&cup, 1e-3, tol).map(|m| m.triangles.len())
+                pncad::mesh::tessellate(&cup, 1e-3, tol).map(|m| m
+                    .patches
+                    .iter()
+                    .map(|q| q.triangles.len())
+                    .sum::<usize>())
             );
         }
     }
@@ -249,7 +268,11 @@ fn r2_partial_revolve_one_cap_face() {
                 "[r2-3] OPEN Ok: rings = {}, genus = {}, mesh = {:?}",
                 rings(&cup),
                 genus(&cup),
-                pncad::mesh::tessellate(&cup, 1e-3, tol).map(|m| m.triangles.len())
+                pncad::mesh::tessellate(&cup, 1e-3, tol).map(|m| m
+                    .patches
+                    .iter()
+                    .map(|q| q.triangles.len())
+                    .sum::<usize>())
             ),
         }
     }
@@ -338,7 +361,11 @@ fn r2_ring_anatomy_on_a_drum() {
     }
     println!(
         "[r2-4] tessellate(1e-3) = {:?}",
-        pncad::mesh::tessellate(&cup, 1e-3, tol).map(|m| m.triangles.len())
+        pncad::mesh::tessellate(&cup, 1e-3, tol).map(|m| m
+            .patches
+            .iter()
+            .map(|q| q.triangles.len())
+            .sum::<usize>())
     );
     println!(
         "[r2-4] props = {:?}",
@@ -390,7 +417,10 @@ fn r2_box_control_is_right() {
         pncad::topo::validate_geometric(&cup, tol)
     );
     let m = pncad::mesh::tessellate(&cup, 1e-3, tol);
-    println!("[r2-5] tessellate = {:?}", m.map(|x| x.triangles.len()));
+    println!(
+        "[r2-5] tessellate = {:?}",
+        m.map(|x| x.patches.iter().map(|q| q.triangles.len()).sum::<usize>())
+    );
     let props = pncad::topo::mass_properties(&cup, tol).expect("props");
     let want = w * d * h - (w - 2.0 * t) * (d - 2.0 * t) * (h - t);
     println!(
@@ -417,24 +447,55 @@ fn r2_box_control_is_right() {
 #[test]
 fn r2_oblique_plane_prisms_outside_their_table() {
     let tol = Tol::witness();
-    let hex: Vec<(f64, f64)> = (0..6)
-        .map(|i| {
-            let a = core::f64::consts::TAU * f64::from(i) / 6.0;
-            (0.5 * a.cos(), 0.5 * a.sin())
-        })
-        .collect();
-    let bevel: Vec<(f64, f64)> = vec![(0.0, 0.0), (0.6, 0.0), (0.8, 0.2), (0.8, 0.5), (0.0, 0.5)];
-    let kite: Vec<(f64, f64)> = vec![(0.0, 0.0), (0.4, -0.25), (0.9, 0.0), (0.4, 0.25)];
-    for (what, pts) in [
-        ("a hexagonal prism", hex),
-        ("a box with ONE bevelled edge", bevel),
-        ("a kite prism", kite),
+    let hx = |i: i32| {
+        let a = core::f64::consts::TAU * f64::from(i) / 6.0;
+        Point2::new(0.5 * a.cos(), 0.5 * a.sin())
+    };
+    // A regular HEXAGONAL prism: every dihedral 120 degrees, every face
+    // a plane, and the inward offset of the footprint is a trivially
+    // correct smaller hexagon.
+    let hex = poly!(tol, hx(0), hx(1), hx(2), hx(3), hx(4), hx(5));
+    // A box with ONE bevelled corner: two 135-degree dihedrals, the
+    // other three square.
+    let bevel = poly!(
+        tol,
+        Point2::new(0.0, 0.0),
+        Point2::new(0.6, 0.0),
+        Point2::new(0.8, 0.2),
+        Point2::new(0.8, 0.5),
+        Point2::new(0.0, 0.5),
+    );
+    // A kite: four planes, no right angle anywhere.
+    let kite = poly!(
+        tol,
+        Point2::new(0.0, 0.0),
+        Point2::new(0.4, -0.25),
+        Point2::new(0.9, 0.0),
+        Point2::new(0.4, 0.25),
+    );
+    // The control the class predicts SURVIVES: a non-convex CROSS whose
+    // every dihedral is square (four of them reflex).
+    let cross = poly!(
+        tol,
+        Point2::new(0.2, 0.0),
+        Point2::new(0.4, 0.0),
+        Point2::new(0.4, 0.2),
+        Point2::new(0.6, 0.2),
+        Point2::new(0.6, 0.4),
+        Point2::new(0.4, 0.4),
+        Point2::new(0.4, 0.6),
+        Point2::new(0.2, 0.6),
+        Point2::new(0.2, 0.4),
+        Point2::new(0.0, 0.4),
+        Point2::new(0.0, 0.2),
+        Point2::new(0.2, 0.2),
+    );
+    for (what, lp) in [
+        ("a hexagonal prism (120 deg)", hex),
+        ("a box with ONE bevelled edge (135 deg)", bevel),
+        ("a kite prism (no right angle)", kite),
+        ("a CROSS prism (all square, non-convex)", cross),
     ] {
-        let mut b = Open.at(Point2::new(pts[0].0, pts[0].1));
-        for p in &pts[1..] {
-            b = b.line_to(Point2::new(p.0, p.1), tol).expect("side");
-        }
-        let lp: ProfileLoop<f64> = b.line_to(Start, tol).expect("close").into();
         let body = extruded(lp, 0.3, tol);
         match pncad::topo::shell(&body, 0.02, FIT_TOL, band(tol), tol) {
             Err(e) => println!("[r2-6] {what}: REFUSES {}", offset_refusal(&e)),
@@ -444,38 +505,6 @@ fn r2_oblique_plane_prisms_outside_their_table() {
                 genus(&h)
             ),
         }
-    }
-    // And the control the class predicts SURVIVES: a right prism on a
-    // rectangle with different numbers, plus an axis-aligned cross.
-    let cross: Vec<(f64, f64)> = vec![
-        (0.2, 0.0),
-        (0.4, 0.0),
-        (0.4, 0.2),
-        (0.6, 0.2),
-        (0.6, 0.4),
-        (0.4, 0.4),
-        (0.4, 0.6),
-        (0.2, 0.6),
-        (0.2, 0.4),
-        (0.0, 0.4),
-        (0.0, 0.2),
-        (0.2, 0.2),
-    ];
-    let mut b = Open.at(Point2::new(cross[0].0, cross[0].1));
-    for p in &cross[1..] {
-        b = b.line_to(Point2::new(p.0, p.1), tol).expect("side");
-    }
-    let lp: ProfileLoop<f64> = b.line_to(Start, tol).expect("close").into();
-    let body = extruded(lp, 0.3, tol);
-    match pncad::topo::shell(&body, 0.02, FIT_TOL, band(tol), tol) {
-        Err(e) => println!(
-            "[r2-6] a CROSS prism (all square): REFUSES {}",
-            offset_refusal(&e)
-        ),
-        Ok(h) => println!(
-            "[r2-6] a CROSS prism (all square): hollows (genus {})",
-            genus(&h)
-        ),
     }
 }
 
@@ -508,12 +537,13 @@ fn r2_tangent_bullet_which_door() {
         Err(e) => println!("[r2-7] bullet: {}", offset_refusal(&e)),
         Ok(h) => println!("[r2-7] bullet HOLLOWS (genus {})", genus(&h)),
     }
-    // The same dome geometry reached WITHOUT the tangent door: a
-    // hemisphere sitting on a cylinder of a DIFFERENT radius makes the
-    // junction non-tangent, so the arc is authored by `Center` and the
-    // description is not a mapped tangent arc. If that refuses
-    // ReanchorOffCarrier, the bullet's door change is about the
-    // AUTHORING route, exactly as the PR declines to claim.
+    // The SAME curved pair (sphere against cylinder) reached by the
+    // ORDINARY `Center` arc instead of the tangent door: the centre is
+    // lifted off the wall's top so the junction is definitely NOT
+    // tangent. If this refuses `ReanchorOffCarrier`, the bullet's
+    // different door tracks the AUTHORING ROUTE rather than the pair.
+    let d = 0.02;
+    let rr = (r * r + d * d).sqrt();
     let lp2: ProfileLoop<f64> = Open
         .at(Point2::new(0.0, 0.0))
         .line_to(Point2::new(r, 0.0), tol)
@@ -522,71 +552,64 @@ fn r2_tangent_bullet_which_door() {
         .expect("wall")
         .arc_to(
             pncad::profile::Center {
-                c: Point2::new(0.0, top),
+                c: Point2::new(0.0, top + d),
                 winding: pncad::profile::ArcSweep::Ccw,
-                p: Point2::new(0.0, top + r * 0.8),
+                p: Point2::new(0.0, top + d + rr),
             },
             tol,
         )
-        .map(|b| b.line_to(Start, tol).expect("axis").into())
-        .map_err(|e| format!("{e:?}"));
-    match lp2 {
-        Err(e) => println!("[r2-7] the non-tangent dome does not even author: {e}"),
-        Ok(lp2) => {
-            let b2 = revolved(lp2, tol);
-            match pncad::topo::shell(&b2, 1.0 / 128.0, FIT_TOL, band(tol), tol) {
-                Err(e) => println!("[r2-7] non-tangent dome: {}", offset_refusal(&e)),
-                Ok(h) => println!("[r2-7] non-tangent dome HOLLOWS (genus {})", genus(&h)),
-            }
-        }
+        .expect("a non-tangent dome authors")
+        .line_to(Start, tol)
+        .expect("axis")
+        .into();
+    let b2 = revolved(lp2, tol);
+    match pncad::topo::shell(&b2, 1.0 / 128.0, FIT_TOL, band(tol), tol) {
+        Err(e) => println!(
+            "[r2-7] NON-tangent dome (Center arc): {}",
+            offset_refusal(&e)
+        ),
+        Ok(h) => println!("[r2-7] NON-tangent dome HOLLOWS (genus {})", genus(&h)),
     }
 }
 
-/// **R2-8: the acceptance corpus, re-run here.** The PR's "why nothing
-/// caught this" says `verbs_shell.rs`'s three fixtures all sit inside
-/// the surviving class. Rebuilt from their own descriptions.
+/// **R2-8: the acceptance corpus, rebuilt from its own descriptions.**
+/// The PR's "why nothing caught this" says `verbs_shell.rs`'s three
+/// fixtures — a box, a cylinder between two caps, a tube between two
+/// caps — all sit inside the surviving class.
 #[test]
 fn r2_acceptance_corpus_sits_inside_the_class() {
     let tol = Tol::witness();
-    // box
-    let lp: ProfileLoop<f64> = Open
-        .at(Point2::new(0.0, 0.0))
-        .line_to(Point2::new(2.0, 0.0), tol)
-        .expect("a")
-        .line_to(Point2::new(2.0, 3.0), tol)
-        .expect("b")
-        .line_to(Point2::new(0.0, 3.0), tol)
-        .expect("c")
-        .line_to(Start, tol)
-        .expect("d")
-        .into();
-    let boxy = extruded(lp, 4.0, tol);
-    // vessel: cylinder between two caps
-    let lp: ProfileLoop<f64> = Open
-        .at(Point2::new(0.0, 0.0))
-        .line_to(Point2::new(1.0, 0.0), tol)
-        .expect("a")
-        .line_to(Point2::new(1.0, 2.0), tol)
-        .expect("b")
-        .line_to(Point2::new(0.0, 2.0), tol)
-        .expect("c")
-        .line_to(Start, tol)
-        .expect("d")
-        .into();
-    let vessel = revolved(lp, tol);
-    // tube: annular meridian
-    let lp: ProfileLoop<f64> = Open
-        .at(Point2::new(0.6, 0.0))
-        .line_to(Point2::new(1.0, 0.0), tol)
-        .expect("a")
-        .line_to(Point2::new(1.0, 2.0), tol)
-        .expect("b")
-        .line_to(Point2::new(0.6, 2.0), tol)
-        .expect("c")
-        .line_to(Start, tol)
-        .expect("d")
-        .into();
-    let tube = revolved(lp, tol);
+    let boxy = extruded(
+        poly!(
+            tol,
+            Point2::new(0.0, 0.0),
+            Point2::new(2.0, 0.0),
+            Point2::new(2.0, 3.0),
+            Point2::new(0.0, 3.0),
+        ),
+        4.0,
+        tol,
+    );
+    let vessel = revolved(
+        poly!(
+            tol,
+            Point2::new(0.0, 0.0),
+            Point2::new(1.0, 0.0),
+            Point2::new(1.0, 2.0),
+            Point2::new(0.0, 2.0),
+        ),
+        tol,
+    );
+    let tube = revolved(
+        poly!(
+            tol,
+            Point2::new(0.6, 0.0),
+            Point2::new(1.0, 0.0),
+            Point2::new(1.0, 2.0),
+            Point2::new(0.6, 2.0),
+        ),
+        tol,
+    );
     for (what, body, t) in [
         ("the box", boxy, 0.25),
         ("the vessel", vessel, 0.2),
@@ -603,30 +626,25 @@ fn r2_acceptance_corpus_sits_inside_the_class() {
     }
 }
 
-// =====================================================================
-// The union walls
-// =====================================================================
-
-/// **R2-9: both refusals, on MY operands.** A torus tube against a
-/// plain cylinder (no pot), and a cone frustum against the same
-/// cylinder. Confirms the pair the gate names and the wrong-pair
-/// caveat's mechanism: the gate returns the FIRST offender × other-face
-/// pair in ARENA order whose padded boxes overlap.
+/// **R2-9: both union walls, on MY operands.** A torus tube against a
+/// plain cylinder can, and a cone frustum against the same can. The
+/// gate scans `Operand::A` then `B`, offenders in ARENA order against
+/// the other body's faces in ARENA order, and returns the FIRST padded
+/// box overlap — so swapping the operands must swap which side is
+/// named.
 #[test]
 fn r2_the_two_union_walls_on_my_operands() {
     let tol = Tol::witness();
-    let lp: ProfileLoop<f64> = Open
-        .at(Point2::new(0.0, 0.0))
-        .line_to(Point2::new(0.5, 0.0), tol)
-        .expect("a")
-        .line_to(Point2::new(0.5, 1.0), tol)
-        .expect("b")
-        .line_to(Point2::new(0.0, 1.0), tol)
-        .expect("c")
-        .line_to(Start, tol)
-        .expect("d")
-        .into();
-    let can = revolved(lp, tol);
+    let can = revolved(
+        poly!(
+            tol,
+            Point2::new(0.0, 0.0),
+            Point2::new(0.5, 0.0),
+            Point2::new(0.5, 1.0),
+            Point2::new(0.0, 1.0),
+        ),
+        tol,
+    );
     let handle = tube_along_arc::<f64>(
         Point3 {
             x: 0.5,
@@ -643,21 +661,23 @@ fn r2_the_two_union_walls_on_my_operands() {
     .expect("tube builds")
     .body;
     println!(
-        "[r2-9] can ∪ handle: {:?}",
+        "[r2-9] can u handle: {:?}",
         pncad::topo::union(&can, &handle, tol).err()
     );
-    let lp: ProfileLoop<f64> = Open
-        .at(Point2::new(0.0, 0.0))
-        .line_to(Point2::new(0.25, 0.0), tol)
-        .expect("a")
-        .line_to(Point2::new(0.1, 0.7), tol)
-        .expect("cone")
-        .line_to(Point2::new(0.0, 0.7), tol)
-        .expect("c")
-        .line_to(Start, tol)
-        .expect("d")
-        .into();
-    let cone = revolved(lp, tol);
+    println!(
+        "[r2-9] handle u can: {:?}",
+        pncad::topo::union(&handle, &can, tol).err()
+    );
+    let cone = revolved(
+        poly!(
+            tol,
+            Point2::new(0.0, 0.0),
+            Point2::new(0.25, 0.0),
+            Point2::new(0.1, 0.7),
+            Point2::new(0.0, 0.7),
+        ),
+        tol,
+    );
     let cone = pncad::topo::transform_rigid(
         &cone,
         &pncad::geom_core::Affine3::from_parts(
@@ -668,13 +688,258 @@ fn r2_the_two_union_walls_on_my_operands() {
     )
     .expect("placed");
     println!(
-        "[r2-9] can ∪ cone: {:?}",
+        "[r2-9] can u cone: {:?}",
         pncad::topo::union(&can, &cone, tol).err()
     );
-    // Order matters to the gate (Operand::A is scanned first): the same
-    // pair with the operands swapped names operand A.
     println!(
-        "[r2-9] cone ∪ can: {:?}",
+        "[r2-9] cone u can: {:?}",
         pncad::topo::union(&cone, &can, tol).err()
     );
+}
+
+/// **R2-10: the ANNULAR-mouth revolve, in full.** R2-2 showed a
+/// revolved tube's mouth chart is ONE face (a full revolve of a CLOSED
+/// off-axis profile closes its seam) and that opening it ALSO produces
+/// an untessellatable body — with different wrong numbers. So "two
+/// half-discs sharing a chart" cannot be the discriminator. This row
+/// dumps what the surgery actually left, and checks the SEALED arm on
+/// the same body as the control.
+#[test]
+fn r2_annular_mouth_anatomy() {
+    let tol = Tol::witness();
+    let (ri, ro, h, t) = (0.30, 0.50, 0.40, 0.05);
+    let body = revolved(
+        poly!(
+            tol,
+            Point2::new(ri, 0.0),
+            Point2::new(ro, 0.0),
+            Point2::new(ro, h),
+            Point2::new(ri, h),
+        ),
+        tol,
+    );
+    println!(
+        "[r2-10] operand: V/E/F = {}/{}/{}, rings = {}, genus = {}",
+        body.vertices().count(),
+        body.edges().count(),
+        body.faces().count(),
+        rings(&body),
+        genus(&body)
+    );
+    let sealed = pncad::topo::shell(&body, t, FIT_TOL, band(tol), tol).expect("the tube hollows");
+    println!(
+        "[r2-10] SEALED: shells = {}, rings = {}, genus = {}, mesh = {:?}",
+        sealed.shells().count(),
+        rings(&sealed),
+        genus(&sealed),
+        pncad::mesh::tessellate(&sealed, 1e-3, tol).map(|m| m
+            .patches
+            .iter()
+            .map(|q| q.triangles.len())
+            .sum::<usize>())
+    );
+    let chart = plane_chart_at(&body, h);
+    let cup =
+        pncad::topo::shell_open(&body, t, &chart, FIT_TOL, band(tol), tol).expect("the tube opens");
+    println!(
+        "[r2-10] OPEN: V/E/F = {}/{}/{}, shells = {}, rings = {}, genus = {}, tier3 = {:?}",
+        cup.vertices().count(),
+        cup.edges().count(),
+        cup.faces().count(),
+        cup.shells().count(),
+        rings(&cup),
+        genus(&cup),
+        pncad::topo::validate_geometric(&cup, tol)
+    );
+    for (k, f) in cup.faces() {
+        let s = match cup.get_surface(f.surface) {
+            Some(Surface::Plane { origin, .. }) => format!("plane(y={:.3})", origin.y),
+            Some(Surface::Cylinder { radius, .. }) => format!("cyl(r={radius:.3})"),
+            other => format!("{other:?}"),
+        };
+        println!("[r2-10]   face {k:?}: {s}, rings = {}", f.rings.len());
+    }
+    println!(
+        "[r2-10] mesh = {:?}",
+        pncad::mesh::tessellate(&cup, 1e-3, tol).map(|m| m
+            .patches
+            .iter()
+            .map(|q| q.triangles.len())
+            .sum::<usize>())
+    );
+    // The correct rim here is TWO disjoint annuli (ro-t..ro and
+    // ri..ri+t), which is a face SPLIT that `kfmrh` cannot express —
+    // so this case cannot be a ring-count bug at all.
+    let want = core::f64::consts::PI
+        * ((ro * ro - ri * ri) * h - ((ro - t).powi(2) - (ri + t).powi(2)) * (h - t));
+    println!(
+        "[r2-10] props = {:?} vs a correct cup's {want}",
+        pncad::topo::mass_properties(&cup, tol).map(|p| (p.volume, p.volume_pad))
+    );
+}
+
+/// **R2-11: the STEP frontier the scene declares.** A sealed hollow
+/// CYLINDER-and-PLANE pot must refuse `CurvedShellClassification`, and
+/// the register row names `kind: "circle"`.
+#[test]
+fn r2_step_frontier_kind() {
+    let tol = Tol::witness();
+    let pot = revolved(
+        poly!(
+            tol,
+            Point2::new(0.0, 0.0),
+            Point2::new(0.5, 0.0),
+            Point2::new(0.5, 1.0),
+            Point2::new(0.0, 1.0),
+        ),
+        tol,
+    );
+    let hollow = pncad::topo::shell(&pot, 0.1, FIT_TOL, band(tol), tol).expect("hollows");
+    let e = pncad::step_export::step_string(
+        &hollow,
+        &pncad::step_export::StepOptions {
+            product_name: "r2pot".to_string(),
+            ..Default::default()
+        },
+        tol,
+    )
+    .err();
+    println!("[r2-11] STEP on a sealed hollow revolve: {e:?}");
+}
+
+/// **R2-12: the scene's own vessel, rebuilt from its stations**, to
+/// check the four numbers the panel's note states as measurements: the
+/// sense-bit count, the antiparallel clearance, the capacity in litres,
+/// and the two union payloads on the REAL operands.
+#[test]
+fn r2_the_scene_numbers() {
+    let tol = Tol::witness();
+    let (rf, rb, rn) = (3.0 / 64.0, 5.0 / 64.0, 3.0 / 64.0);
+    let (yf, ys, ym) = (1.0 / 64.0, 6.0 / 64.0, 8.0 / 64.0);
+    let wall = 1.0 / 128.0;
+    let sharp = revolved(
+        poly!(
+            tol,
+            Point2::new(0.0, 0.0),
+            Point2::new(rf, 0.0),
+            Point2::new(rf, yf),
+            Point2::new(rb, yf),
+            Point2::new(rb, ys),
+            Point2::new(rn, ys),
+            Point2::new(rn, ym),
+            Point2::new(0.0, ym),
+        ),
+        tol,
+    );
+    println!(
+        "[r2-12] sharp: V/E/F = {}/{}/{}",
+        sharp.vertices().count(),
+        sharp.edges().count(),
+        sharp.faces().count()
+    );
+    let planes: Vec<(f64, f64, f64)> = sharp
+        .faces()
+        .filter_map(|(_, f)| match sharp.get_surface(f.surface) {
+            Some(Surface::Plane { origin, normal, .. }) => Some((
+                origin.y,
+                normal.y,
+                if f.sense { normal.y } else { -normal.y },
+            )),
+            _ => None,
+        })
+        .collect();
+    let stored_plus = planes.iter().filter(|p| p.1 >= 0.0).count();
+    println!(
+        "[r2-12] planar faces = {}, storing +y = {stored_plus}; senses = {:?}",
+        planes.len(),
+        planes.iter().map(|p| (p.0, p.2)).collect::<Vec<_>>()
+    );
+    let mut clearance = f64::INFINITY;
+    let mut blind = f64::INFINITY;
+    for (i, a) in planes.iter().enumerate() {
+        for b in &planes[i + 1..] {
+            if a.2 * b.2 < 0.0 {
+                clearance = clearance.min((b.0 - a.0).abs());
+            }
+            if a.1 * b.1 < 0.0 {
+                blind = blind.min((b.0 - a.0).abs());
+            }
+        }
+    }
+    println!(
+        "[r2-12] sense-aware clearance = {clearance}; sense-BLIND = {blind} (inf = none found)"
+    );
+    let pot = pncad::topo::shell(&sharp, wall, FIT_TOL, band(tol), tol).expect("the pot hollows");
+    println!(
+        "[r2-12] pot: V/E/F = {}/{}/{}, shells = {}, genus = {}, tier3 = {:?}",
+        pot.vertices().count(),
+        pot.edges().count(),
+        pot.faces().count(),
+        pot.shells().count(),
+        genus(&pot),
+        pncad::topo::validate_geometric(&pot, tol)
+    );
+    let classes = pncad::topo::classify_shells(&pot, tol).expect("classify");
+    for c in &classes {
+        println!(
+            "[r2-12]   shell role {:?}, volume {} ({} L)",
+            c.role,
+            c.volume,
+            -c.volume * 1000.0
+        );
+    }
+    // The handle and the spout, on the scene's own parameters.
+    let handle = tube_along_arc::<f64>(
+        Point3 {
+            x: rb,
+            y: (yf + ys) / 2.0,
+            z: 0.0,
+        },
+        Vec3::unit_z(),
+        Vec3::unit_x(),
+        6.0 / 256.0,
+        TubeWindow::Arc {
+            t0: -(core::f64::consts::FRAC_PI_2 + 0.5),
+            t1: core::f64::consts::FRAC_PI_2 + 0.5,
+        },
+        1.0 / 128.0,
+        tol,
+    )
+    .expect("handle")
+    .body;
+    println!(
+        "[r2-12] pot u handle: {:?}",
+        pncad::topo::union(&pot, &handle, tol).err()
+    );
+    let spout = revolved(
+        poly!(
+            tol,
+            Point2::new(6.0 / 256.0 - 1.0 / 256.0, 0.0),
+            Point2::new(6.0 / 256.0, 0.0),
+            Point2::new(3.0 / 256.0, 8.0 / 64.0),
+            Point2::new(3.0 / 256.0 - 1.0 / 256.0, 8.0 / 64.0),
+        ),
+        tol,
+    );
+    let spout = pncad::topo::transform_rigid(
+        &spout,
+        &pncad::geom_core::Affine3::from_parts(
+            pncad::geom_core::Mat3::from_cols(
+                Vec3::new(0.6, 0.8, 0.0),
+                Vec3::new(-0.8, 0.6, 0.0),
+                Vec3::unit_z(),
+            ),
+            Vec3::new(-1.0 / 32.0, 3.0 / 64.0, 0.0),
+        ),
+        tol,
+    )
+    .expect("spout placed");
+    let e = pncad::topo::union(&pot, &spout, tol).err();
+    println!("[r2-12] pot u spout: {e:?}");
+    if let Some(pncad::topo::BooleanError::CurvedPairUnsupported { other_face, .. }) = &e {
+        let s = pot
+            .get_face(*other_face)
+            .and_then(|f| pot.get_surface(f.surface));
+        println!("[r2-12]   the face the gate NAMED on the pot: {s:?}");
+    }
 }
