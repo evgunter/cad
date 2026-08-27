@@ -24,12 +24,16 @@ the row below) + in-place composition surgery,
 **symmetric-setback edge chamfers** (`chamfer_edges`, **plane–plane
 supports only, convex chains, open chains between fully-requested
 trivalent corners** — see the row below),
-merge_coplanar_faces, rigid transform, tessellation/STL/STEP
+merge_coplanar_faces, rigid transform, **shell / hollow** (sealed and
+opened, `topo::shell` / `topo::shell_open` — with the two reach bounds
+its own demo measured, in "Scope limits" below: the sealed arm survives
+exactly the plane-normal-to-cylinder junction, and the opened arm is
+wrong on every solid of revolution), tessellation/STL/STEP
 export, STEP import (adoption incl. recognition + tier gate).
 
 | verb | what | prerequisites / blockers (as ratified) | notes |
 |---|---|---|---|
-| **shell / hollow** | offset the boundary inward, remove faces, thicken | Q8: offset surfaces — analytic kinds are CLOSED under offset (a D3 payoff); a NURBS offset is NOT a NURBS → needs the approximating-surface machinery (intensional spec `Offset(S,d)` + fit + certified residual ≤ ε, "exactly mirroring fitted intersection curves"). Also wants open-shell/face-removal vocabulary (D1's manifold-first boundary) | **The Utah teapot is this verb's designated demo** (Evan, 2026-08-09) — a vessel is a shelled revolve; the demo queues behind the verb. **Second consumer, and the first to PAY for the absence in full: the Klein bottle** (`demos/tour/src/klein.rs`, 2026-08-16). A thin 3-manifold whose midsurface is the immersed Klein bottle is nothing but shell, so every wall is authored as its own two offsets by hand — each radius spelled twice as `r ± t/2`, each blend radius twice as `R ∓ t/2` with the sign depending on which side the centre of curvature is on, and the offsets swapping sides wherever the surface turns back on itself. It builds and it is exact; it is the whole row, paid once per wall |
+| **shell / hollow** | offset the boundary inward, remove faces, thicken | Q8: offset surfaces — analytic kinds are CLOSED under offset (a D3 payoff); a NURBS offset is NOT a NURBS → needs the approximating-surface machinery (intensional spec `Offset(S,d)` + fit + certified residual ≤ ε, "exactly mirroring fitted intersection curves"). Also wants open-shell/face-removal vocabulary (D1's manifold-first boundary) | **SHIPPED at #1048** (`topo::shell` / `topo::shell_open`), and its designated demo has now MEASURED its reach — the two teapot rows in "Scope limits" below are that measurement: the sealed arm survives exactly the plane-normal-to-cylinder junction and refuses every oblique one, and the OPENED arm is wrong on every solid of revolution. **The Utah teapot was this verb's designated demo** (Evan, 2026-08-09) — a vessel is a shelled revolve; the demo has landed (`demos/tour/src/teapot.rs`) and ships a SEALED pot with a squared belly, because neither the arc nor the opening survives. **Second consumer, and the first to PAY for the absence in full: the Klein bottle** (`demos/tour/src/klein.rs`, 2026-08-16). A thin 3-manifold whose midsurface is the immersed Klein bottle is nothing but shell, so every wall is authored as its own two offsets by hand — each radius spelled twice as `r ± t/2`, each blend radius twice as `R ∓ t/2` with the sign depending on which side the centre of curvature is on, and the offsets swapping sides wherever the surface turns back on itself. It builds and it is exact; it is the whole row, paid once per wall |
 | **offset (surface/solid)** | the standalone Q8 operation | same as shell's core; Q8 says "needed before shelling/offset work (M5+), stated now" | shell's substrate; may land as one unit |
 | **chamfer** | the fillet's ruled-surface sibling | **Shipped for plane–plane supports** (VERBS-CHAMFER): `sweep::chamfer_edges` at equal setback, over the fillet's own battery, admission doors and composition surgery — a flat strip per edge and a flat patch per trivalent corner, every face an exact `Surface::Plane`. What is NOT shipped and what blocks it: **curved supports** (the strip over a curved support is VERBS-ARMS' machinery, refused `ChamferArmUnsupported`); **concave chains** (refused at the same two admission doors the fillet's concave case is, and the corner-configuration classifier reaches first); **asymmetric parameters** (distance–distance, distance–angle — a widening of the same door, nothing forecloses it); **closed chains**; **a recipe-layer `Node::chamfer`**, without which the verb is unreachable from a document and mints no names | The register's own "cheapest entry" call held: the verb is a front door, one blend arm, one corner patch and three parameterized decisions in the shared surgery |
 | **constant-radius fillet on CURVED support pairs** | the arms of C8's analytic table that M5 PR 12 did not implement — sphere×cone, cone×plane, cone×cone, sphere×sphere, and the cylinder pairs | **The COAXIAL half is SHIPPED (VERBS-ARMS-2).** Eight arms from ONE derivation: when a support pair carries a symmetry the rolling ball inherits — a common axis of revolution, or a common ruling — the ball's centre is confined to a SHEET (the meridian half-plane through the rim; the cross-section normal to the ruling), where each support cuts a LINE or a CIRCLE and the centre is the crossing of the two OFFSET traces, on the branch that returns the rim as `r → 0`. Coaxial six → TORUS (sphere×cone, cone×plane(⊥), cone×cone, cylinder×cone, cylinder×sphere, cylinder×plane(⊥)); ruled two → CYLINDER (cylinder×cylinder(∥), cylinder×plane(∥)). **No constant-radius arm mints a cone** — that is the variable-radius family, and C8's prose now says so. The closed-rim surgery's gates were re-cut by SHAPE rather than by KIND so the annulus band carries any pair of revolution walls, and `geom-brep`'s tangent-certificate circle arm grew a CONE row so such a band can be described at rest. **Sphere×sphere SHIPPED (VERBS-ARMS-3)** as the ninth coaxial arm and the only one whose shared-axis hypothesis is FREE: two spheres on distinct centres always meet in a circle, and the line through the centres is that circle's own axis, so the `fillet3_support_coaxiality` margin is zero by construction rather than by luck. It is a pure reduction — the circle×circle sheet crossing ARMS-2 already derived, with both spheres' stored sense bits folded in. Consumer, MET: a lentil (the solid between two unit spheres, bored) whose convex equator fillets end to end through the annulus door, tier-3 valid, the band's spine at `√((R − r)² − c²)` (`crates/sweep/tests/verbs_arms3.rs`). **NOT shipped**: the two ruled arms classify but refuse at the open-chain door, which admits plane–plane terminations only (#987); a CONCAVE curved rim's band adds material, which the composition surgery does not build (what the two-sphere snowman waist meets now that its arm exists); and the genuine mid-curve run-out pair below | Consumer, MET: the calochortus bud's sphere–cone seam — its MOUTH RIM alone fillets end to end, tier-3 valid, with closed-form trim circles (`crates/sweep/tests/verbs_arms2_bud.rs`); so do the same bud's cone×plane lip and cylinder×plane bore. `lily::wall_probes` wall 6 asks for EVERY lantern edge and still refuses, at a co-surface seam meridian's tangency (margin exactly zero) — it cannot distinguish this door from that one. **The coaxial arms may need no consumer at all** (Evan, 2026-08-16, on the Klein bottle's neck→flare blend): a blend between two coaxial surfaces of revolution is itself one, so it is authorable as an ARC IN THE MERIDIAN before revolving — exact, free, and *better* than a post-hoc roll. That escape closes as soon as the supports are NOT coaxial, which is the canal case below. **`SpineUnsupported` now discriminates**: a pair outside the arm roster names the roster; a pair inside it whose supports miss the shared axis refuses on the `fillet3_support_coaxiality` margin, and THAT is the canal case (DESIGN frontier (f)) — no approximating surface is involved in anything this row ships |
@@ -48,7 +52,7 @@ export, STEP import (adoption incl. recognition + tier gate).
 | **point-section loft ("generalized cone")** | loft whose end section degenerates to a point (apex) | three tiers (Evan's mark-down, 2026-08-10, PR #300-era chat): (1) circle profile + straight axis = the ANALYTIC CONE — mint exact CONICAL_SURFACE (the tube_along_arc exact-intent pattern; #256 always-promote applies), mostly sugar + recognition; (2) polygon profile = pyramid, plain planar walls, possibly already expressible; (3) general curved profile = a NURBS wall with a collapsed boundary row — needs apex-degenerate certification (span meter is honestly zero at the apex, normals undefined, quadrature hulls loose) with the apex as a vertex-loop (the sphere-pole precedent) | no design conversation yet by ruling ("mark it down for the future"); tier 1 is a cheap early pick when a consumer appears |
 | **declared conformal / REST joins (curved)** | ball-and-socket, interference fits | **this one IS M9** — C7 (CONTACT-DESIGN, ratified #178) | listed for completeness; the register's one M9 row |
 
-Consumers waiting on rows above: the Utah teapot (shell), the full
+Consumers waiting on rows above: the full
 calochortus rebuild (C7 — in M9), helical parts (#222), the
 petal'd lily (sheet bodies), and **the Klein
 bottle** (shell; curved booleans both ways; the canal blend —
@@ -56,6 +60,21 @@ bottle** (shell; curved booleans both ways; the canal blend —
 and whose `wall_probes` runs every refusal live). The bottle is
 deliberately NOT a consumer of the coaxial curved-fillet arms: the
 meridian arc is the better answer there, per the row's own note.
+
+**The Utah teapot has been MET** (`demos/tour/src/teapot.rs`,
+2026-08-27) and is no longer waiting on shell; it is now a consumer of
+three other rows and the source of two "scope limits" entries below.
+What it still waits on: **curved boolean breadth** — handle ∪ pot is
+torus × cylinder and spout ∪ pot is cone × plane, both
+`CurvedPairUnsupported`, so the teapot is FOUR solids (walls 3 and 4);
+**taper / variable-section sweep and the canal family** — a spout the
+shape of a spout is a swept curved section along a bent spine, which
+`sweep_body` will not round (`ReversedStacking`) and no
+variable-section door exists for, so the scene's spout is a straight
+cone frustum tilted into place, a spout the way a LATHE would make
+one; and **geometric edge selection**, which is document-layer only,
+so the lid's knob rim is scanned for by hand exactly as the bud's and
+the bottle's are.
 
 ## Scope limits and defects met by consumers — NOT missing verbs
 
@@ -166,6 +185,75 @@ the table.
   ring's does. Self-retiring in klein's wall-6 shape — a different
   refusal, or a success, fails the tour. Issue #986, closed by the
   scene.
+- **`shell` survives exactly ONE junction shape, and it is not about
+  curvature.** Added 2026-08-27 by the verb's own designated demo
+  (`demos/tour/src/teapot.rs`, wall 1; the table and its sweep are
+  `demos/tour/tests/verbs_teapot.rs`). The sealed arm replaces one
+  CHART at a time and re-anchors every edge that ends at a moved
+  vertex on a carrier that has NOT moved yet, so a junction survives
+  exactly when the neighbouring surface is invariant under the moved
+  face's own offset motion. On the analytic vocabulary that is one
+  pair: **a plane normal to a cylinder's axis, in both directions** —
+  the plane's offset is a translation along the cylinder's ruling, the
+  cylinder's is a radial shrink the plane is invariant under. A box is
+  in the class because every face is normal to every neighbour.
+  Everything else refuses `ShellError::Face { ReplaceFaceError::
+  ReanchorOffCarrier { gap } }`, where `gap` is the distance in meters
+  the neighbour's edge was pushed off its own carrier: a cone frustum
+  between two caps, a sphere zone between two caps, **and a right
+  prism on a TRIANGLE** — which is what rules curvature out as the
+  variable. A TANGENT junction refuses too, at a second door
+  (`CarrierLaneUnsupported`), but that row is not attributable to
+  tangency alone: the lattice's only route to a tangent junction is
+  `.tangent().tangent_arc_to(..)`, whose description is a mapped arc,
+  so the two variables cannot be separated from outside the kernel.
+  **Why nothing caught this before:** `shell`'s acceptance corpus
+  (`crates/sweep/tests/verbs_shell.rs`) is a box, a cylinder between
+  two caps and a tube between two caps — every fixture inside the
+  surviving class, and the class was never named. The teapot pays for
+  it in shape: the pot's belly is SQUARED (foot, shoulder, belly,
+  shoulder, neck, all right angles) because the arc a potter would
+  draw does not hollow.
+- **`shell_open`'s rim is wrong on every solid of revolution.** Added
+  2026-08-27 with the row above (teapot wall 2 + the same test file).
+  The verb RETURNS a body and the body passes tiers 1, 2 and 3 — and
+  each designated half-disc of the revolved cap comes back carrying a
+  full RING, the result is genus 1 where `topo::shell`'s own module
+  docs say *"one opening gives a cup, which is genus 0"*, and
+  `mesh::tessellate` refuses `Triangulation` on a mouth half-disc at
+  every δ. It is NOT the `mesh::planar` sub-floor lottery of #555:
+  swept over five wall thicknesses, mouth radii at two scales (41.25 mm
+  and 46.875 mm — 14% apart, one cluster — and 1 m) and
+  three chord budgets, every case gives the same two wrong numbers,
+  including the simplest fixture there is (a cylindrical drum opened
+  at its top). A BOX opened at its top is correct — genus 0, one ring,
+  and it meshes.
+
+  **The class, re-scoped after review — do not inherit the first
+  reading.** "An extrusion's cap is ONE face, a full revolve's is TWO
+  half-discs sharing a chart" is FALSE as the mechanism: a revolved
+  TUBE's mouth chart is ONE face (a closed off-axis profile closes its
+  own seam) and `shell_open` is still wrong there — rings 1, genus 2,
+  untessellatable — and a PARTIAL revolve's cap is one face and does
+  touch the axis. The true class is **a designated face whose cavity
+  counterpart's boundary cannot become an interior-disjoint RING of
+  it**. On an axis-touching cap that boundary is a D-loop — a half-arc
+  plus two radial legs meeting the axis apex the OUTER loop also owns,
+  running back along the outer loop's own seam edges — and that CONTACT
+  is why the CDT refuses. On an ANNULAR cap the correct rim is not a
+  ring at all but **TWO DISJOINT ANNULI**, a face SPLIT that `kfmrh`
+  cannot express: this is a surgery whose only output shape is "outer
+  loop plus rings", not a ring-placement bug. Fixtures:
+  `demos/tour/tests/verbs_teapot_r2_probes.rs` (revolved tube, partial
+  revolve, annular-mouth anatomy) and `..._r1_probes.rs` (the D-loop
+  measured on the PR's own body).
+
+  **Why nothing caught it, corrected.** Not "the rim lift never had a
+  consumer": `offd2_r1_probes::probe_opened_vessel_cup` already opened
+  a revolved vessel through this very path and blessed it, checking
+  only the things that are right — tier 3, the shell count, the volume
+  — and never the rings, the genus or the mesh. Consequence for the
+  demo: the teapot ships SEALED and has no opening.
 - **A hollow ring cannot leave as STEP.** The one-call hollow ring
   itself SHIPPED (VERBS-RING retired `FullRevolveHoles`: a full
   revolve of a holed profile builds the multi-shell solid through the
@@ -174,14 +262,20 @@ the table.
   forms for planar faces only, so a multi-shell CURVED solid refuses
   `CurvedShellClassification` — the known standing gate of
   OFFSET-DESIGN O6's demo-gates list, which every hollow curved part
-  (this ring today, the full-period `tube_along_arc_hollow` shell
-  since VERBS-TUBEWALL, the shelled teapot when Wave 3 lands) hits at
-  export. (Wall 6, re-baselined: it now pins THIS refusal on the
-  ring it builds.) The gate now carries THREE probes, which retire
-  together: klein's wall 6, the `ring` scene's `step_at_frontier` on
-  the profile door's hollow ring, and the `hollowtorus` scene's on the
-  parameter door's — the two doors' shapes are separate bodies and a
-  widened classifier releases both.
+  (this ring, the full-period `tube_along_arc_hollow` shell
+  since VERBS-TUBEWALL, and the shelled teapot, which reached it as
+  predicted) hits at export. (Wall 6, re-baselined: it now pins THIS
+  refusal on the ring it builds.) The gate now carries FOUR probes,
+  which retire together: klein's wall 6, the `ring` scene's
+  `step_at_frontier` on the profile door's hollow ring, the
+  `hollowtorus` scene's on the parameter door's, and the `teapot`
+  scene's on the SHELL verb's own product — a sealed hollow pot of
+  cylinders and planes, two shells, refusing
+  `CurvedShellClassification { kind: "circle" }`. Four separate bodies
+  through four doors, and a widened classifier releases all of them;
+  what the teapot's adds is that the gate is now on record for a body
+  built by asking for a hollow PART rather than for a shape chosen to
+  reach it.
 - **The PATHS lattice has no tangent straight leg to an anchor.**
   After a declared-tangent joint off an arc, the only straight
   continuation is `.line(len)` — `.to(anchor)` belongs to a fillet's
