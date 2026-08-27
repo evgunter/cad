@@ -1863,3 +1863,18 @@ but CLAIM-CLASS — excluded per instrument 3b; TALLY 0 after
 pair 1. Isolation: both arms disclosed command-line-only
 glimpses via the shared build slot — benign, recorded. Union
 fix pass dispatched; both reviewer lanes swept.
+
+## PIERCE MERGED (#1068, 2026-08-27) — ordinal-85 row (sample #25); the first v6 pair closes clean
+
+Row PIERCE in MODEL-AB-LOG with the full dual columns. The fix
+pass's own finds are worth the read: one reviewer probe fixture
+re-signed (it demonstrated nothing as written — the measured
+geometry bowed the other way), the >period alias rowed, the
+|δ|=π endpoint asserted as a property rather than a coin flip,
+and the interval lane pinned by rule so the drawn point is no
+longer sampling luck. #347's remaining union scope now reads:
+coaxial family → declared-contact territory; parallel/steinmetz
+→ the ring lane (#1076's sibling machinery), roots already in
+the tree. v6 tally 0 after pair 1. Lane swept. TEAPOT's report
+is the program's last outstanding item before the register
+re-audit.
