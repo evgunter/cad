@@ -727,10 +727,7 @@ fn world_carrier<T: Decide + Bounds>(
 }
 
 /// A face's own surface description.
-fn face_surface<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-) -> Result<&Surface<T>, ChartRegionError> {
+fn face_surface<T: Decide>(body: &Body<T>, face: FaceKey) -> Result<&Surface<T>, ChartRegionError> {
     let key = body
         .get_face(face)
         .ok_or(ChartRegionError::Corrupt)?
@@ -846,7 +843,9 @@ fn carrier_agreement<T: Decide + Bounds>(
     let mut worst = T::zero();
     for (body, face) in [(body_a, face_a), (body_b, face_b)] {
         for p in face_boundary_points(body, face)? {
-            worst = worst.max((p - o_a).dot(n_a).abs()).max((p - o_b).dot(n_b).abs());
+            worst = worst
+                .max((p - o_a).dot(n_a).abs())
+                .max((p - o_b).dot(n_b).abs());
         }
     }
     match decide("chart_region_carrier_tilt", Margin::of(worst), band) {

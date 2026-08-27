@@ -44,7 +44,10 @@ fn z_face(body: &Body<f64>, sign: f64) -> FaceKey {
         if let Some(Surface::Plane { normal, .. }) = body.get_surface(f.surface) {
             let out = if f.sense { *normal } else { -*normal };
             if out.z * sign > 0.5 {
-                assert!(found.is_none(), "the z-facing face is unique in this fixture");
+                assert!(
+                    found.is_none(),
+                    "the z-facing face is unique in this fixture"
+                );
                 found = Some(k);
             }
         }
@@ -72,9 +75,7 @@ fn slab(len: f64) -> Body<f64> {
 /// TILTED by `slope`, so the two carriers meet exactly at `x = 0` and
 /// are `slope · len` apart at the far end.
 fn plate(len: f64, slope: f64) -> Body<f64> {
-    common::mapped_cube(|x, y, z| {
-        Point3::new(x * len, 0.25 + y * 0.5, 1.0 + slope * x * len + z)
-    })
+    common::mapped_cube(|x, y, z| Point3::new(x * len, 0.25 + y * 0.5, 1.0 + slope * x * len + z))
 }
 
 /// The declared pair of a slab/plate fixture: the slab's top and the
@@ -181,9 +182,7 @@ fn one_tilt_two_extents_two_answers() {
     let (fa, fb) = pair(&a, &b);
     match declared_pair_overlap(&a, fa, &b, fb, ContactVerdict::Definite, band()) {
         Err(ChartRegionError::CarrierTilt) => {}
-        other => panic!(
-            "at the table's own extent the same tilt must refuse typed, got {other:?}"
-        ),
+        other => panic!("at the table's own extent the same tilt must refuse typed, got {other:?}"),
     }
 }
 
