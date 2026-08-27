@@ -154,3 +154,5 @@ fn every_suite_file_is_aggregated() {
 
 #[path = "review_probes_m8_4.rs"]
 mod review_probes_m8_4;
+#[path = "r2_probes.rs"]
+mod r2_probes;
