@@ -50,8 +50,14 @@ fn scl(v: f64) -> Expr {
     Expr::literal(v, Dimension::Scalar).expect("a finite scalar")
 }
 
-fn applied(doc: &Doc<ProfileProgram>, edit: DocEdit<ProfileProgram>, tol: Tol) -> Doc<ProfileProgram> {
-    apply(doc, &edit, tol).expect("the fixture edit applies").doc
+fn applied(
+    doc: &Doc<ProfileProgram>,
+    edit: DocEdit<ProfileProgram>,
+    tol: Tol,
+) -> Doc<ProfileProgram> {
+    apply(doc, &edit, tol)
+        .expect("the fixture edit applies")
+        .doc
 }
 
 fn insert(
@@ -144,14 +150,25 @@ fn r1_an_abandoned_branch_keeps_its_whole_subtree() {
 
     let history = session.history();
     assert_eq!(history.len(), 5, "root + a + b + c + d, nothing dropped");
-    assert_eq!(history.entry(a).children(), &[b, d], "both branches hang off a");
-    assert_eq!(history.entry(a).active_child(), Some(d), "redo follows the new work");
+    assert_eq!(
+        history.entry(a).children(),
+        &[b, d],
+        "both branches hang off a"
+    );
+    assert_eq!(
+        history.entry(a).active_child(),
+        Some(d),
+        "redo follows the new work"
+    );
     // The abandoned chain is intact end to end: states, edits, links.
     assert_eq!(history.entry(b).children(), &[c], "b keeps its own child");
     assert_eq!(history.entry(c).parent(), Some(b));
     assert_eq!(depth_of(history.entry(b).doc()), 0.004);
     assert_eq!(depth_of(history.entry(c).doc()), 0.005);
-    assert!(history.entry(c).edit().is_some(), "the abandoned edit is retained");
+    assert!(
+        history.entry(c).edit().is_some(),
+        "the abandoned edit is retained"
+    );
     assert_eq!(depth_of(history.entry(d).doc()), 0.006);
 }
 
@@ -174,7 +191,11 @@ fn r1_redo_walks_the_new_branch_across_two_levels() {
     session.perform(SessionOp::Undo); // -> root
     assert!(session.history().can_redo());
     session.perform(SessionOp::Redo); // -> e (not a)
-    assert_eq!(depth_of(session.committed_doc()), 0.007, "redo took the new branch");
+    assert_eq!(
+        depth_of(session.committed_doc()),
+        0.007,
+        "redo took the new branch"
+    );
     session.perform(SessionOp::Redo); // -> f
     assert_eq!(depth_of(session.committed_doc()), 0.008);
     assert!(!session.history().can_redo(), "f is the branch tip");
@@ -196,7 +217,12 @@ fn r1_open_then_save_reproduces_the_file_bytes_exactly() {
     let dir = tempdir("r1-byte-stable");
     let first = dir.join("first.pncad");
     let second = dir.join("second.pncad");
-    assert!(session.perform(SessionOp::Save(first.clone())).refusal.is_none());
+    assert!(
+        session
+            .perform(SessionOp::Save(first.clone()))
+            .refusal
+            .is_none()
+    );
 
     let reopened = docio::open(&first, tol).expect("the file opens");
     docio::save_path(&second, &reopened, tol).expect("the reopened history saves");
@@ -252,7 +278,11 @@ fn r1_a_user_cancel_lands_the_canceled_prefix_as_the_current_result() {
     assert!(session.busy());
     session.perform(SessionOp::CancelEvaluation);
     let landings = session.pump();
-    assert_eq!(landings, vec![Landing::Landed], "same generation, so it lands");
+    assert_eq!(
+        landings,
+        vec![Landing::Landed],
+        "same generation, so it lands"
+    );
     assert!(!session.busy(), "the indicator goes dark after a cancel");
     let evaluation = session.evaluation().expect("a result is on screen");
     assert_eq!(
