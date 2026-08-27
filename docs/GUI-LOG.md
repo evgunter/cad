@@ -126,3 +126,28 @@ isolation rule re-stated now that `gui/gui-0-review-r1` exists on
 origin). Rows at merge annotate the wall-clock gap per the
 recording discipline; reports must disclose the interruption for
 the v6 fair-pair adjudication.
+Next actions: dispatch GUI-0 and GUI-1 per the block GUI-B1 draw;
+reviews per protocol v6 (cross-model duals, banded ordinals from
+400) at each PR.
+
+## GUI-0 merged (2026-08-27, PR #1094, sample #29 / ordinal 400)
+
+The `viewer` crate exists: eframe + `egui_tiles` chrome (OQ-b
+closed in-unit), thin wgpu viewport drawing an evaluated document
+at display-δ, typed renderer-free camera operations, 45 headless
+rows. Both reviews APPROVE-WITH-FIXES, all substantive findings
+bilateral, v6 tally contribution 0; full record in the
+MODEL-AB-LOG row. The program-level outcomes:
+
+- **The seam-friction reading is provisional by design**: no §5
+  fallback condition met, but the spike edits nothing — GUI-3
+  re-takes the measurement where it counts.
+- **Evan's viewer-CI ruling is live**: seed-keyed toolkit gate
+  with a published skip axis, nightly viewer row, doc-gate split.
+  The SKIP direction's first hosted exercise is the next
+  kernel-only PR — whoever sees that run confirms the verdict
+  step drew SKIP (not silence).
+- **#1097** banks first light on real hardware (+ culling flip,
+  winding check).
+- GUI-3 is now unblocked (chrome exists); GUI-2 additionally
+  wants GUI-1's service (in fix pass at this writing).

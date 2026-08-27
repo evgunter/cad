@@ -389,8 +389,25 @@ gate() {
   fi
 
   # PASS 1 — the workspace.
-  doc_pass "the workspace pass — a doc comment above has stopped rendering (a link to a renamed, deleted, or test-only item is the usual cause), and clippy is blind to every one of these lints" \
-    --workspace --all-features || rc=1
+  #
+  # `--skip-viewer-toolkit` is the ONE thing that changes here, and it
+  # changes the FEATURES of one member rather than dropping it: `viewer`
+  # comes out of the --all-features pass and goes back in under DEFAULT
+  # features, so its renderer-free modules keep their rustdoc gate and
+  # only the `app`-gated ones (which drag ~140 eframe/wgpu crates in)
+  # are skipped. Evan's viewer-CI-posture ruling, docs/GUI-LOG.md
+  # 2026-08-27; the caller decides, this script only obeys, and the
+  # hosted caller passes the flag off the change filter's seed-keyed
+  # RUN_VIEWER_TOOLKIT.
+  if [ "$SKIP_VIEWER_TOOLKIT" = true ]; then
+    doc_pass "the workspace pass (viewer at default features) — a doc comment above has stopped rendering (a link to a renamed, deleted, or test-only item is the usual cause), and clippy is blind to every one of these lints" \
+      --workspace --all-features --exclude viewer || rc=1
+    doc_pass "the viewer pass at DEFAULT features — its renderer-free modules are gated on every run; only the app-feature modules are skipped" \
+      -p viewer || rc=1
+  else
+    doc_pass "the workspace pass — a doc comment above has stopped rendering (a link to a renamed, deleted, or test-only item is the usual cause), and clippy is blind to every one of these lints" \
+      --workspace --all-features || rc=1
+  fi
   n=1
 
   # PASS 2 — every manifest the workspace pass did not cover, one
@@ -676,10 +693,12 @@ gate_selftest() {
 # way scripts/gates/probe-suite-census.sh adds its modes: `gate_parse_args`
 # knows `--selftest` and `--root` and rejects anything else.
 PRINT_ROOTS=false
+SKIP_VIEWER_TOOLKIT=false
 gate_args=()
 for a in "$@"; do
   case "$a" in
     --print-roots) PRINT_ROOTS=true ;;
+    --skip-viewer-toolkit) SKIP_VIEWER_TOOLKIT=true ;;
     *) gate_args+=("$a") ;;
   esac
 done
