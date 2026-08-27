@@ -84,6 +84,9 @@ sha2 = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
+# The GUI-1 review consumer suite's varying seed + effort dial
+# (memories/test-suite-cost): a leaf crate, dev-only.
+test-utils = { path = "../test-utils" }
 # The M5 PR 8 differential suite's doors (failure injection + traces)
 # are test-only surface in topo; dev-dependencies are the only place
 # the feature turns on.
