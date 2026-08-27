@@ -92,3 +92,7 @@ test-utils = { path = "../test-utils" }
 [[test]]
 name = "all"
 path = "tests/all.rs"
+
+[[test]]
+name = "verbs_shell_r2b"
+path = "tests/verbs_shell_r2b.rs"

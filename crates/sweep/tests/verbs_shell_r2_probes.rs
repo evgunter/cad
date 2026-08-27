@@ -571,7 +571,7 @@ fn r2_box_control_fingerprint() {
                     cup.shells().count(),
                     genus_of(&cup),
                     props.volume,
-                    props.area,
+                    props.surface_area,
                     topo::validate_geometric(&cup, tol).is_ok()
                 );
             }
