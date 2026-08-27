@@ -1,6 +1,6 @@
 # Offset & shell — the Q8 design conversation
 
-**Status: DRAFT — design conversation, awaiting Evan's sign-off**
+**Status: RATIFIED (Evan's sign-off on PR #907, with two note-fold rounds; O4 later amended through both of Evan's rounds). The status line lagged the ratification until 2026-08-27 — the sign-off itself is the PR record.**
 (VERBS program, Wave 3 gate; DESIGN.md Q8 is the ratified seed).
 Proposals O1–O6, each with a firm recommendation. Substrate anchors
 were verified on main 2026-08-21; the survey behind them is at the
