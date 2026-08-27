@@ -35,7 +35,7 @@ use super::axis::{AxisFrame, AxisRun, LoopClasses};
 use super::chain::build_chain;
 use super::partial::{he_edge, sweep_loop};
 use super::surfaces::{strut_spec, wall_surface};
-use super::upgrade::{upgrade_intersection, upgrade_meridian_seam};
+use super::upgrade::{describe_at_rest, upgrade_intersection, upgrade_meridian_seam};
 use super::{RevolveError, Revolved, RevolvedKind, SweptSeg, WALL_COSURFACE};
 use crate::swept::{cosurface, face_surface_key, placed_segment_spec, turn_axis};
 use geom_core::Tol;
@@ -472,6 +472,7 @@ fn build_wire<T: Decide>(
         let k_prev = face_surface_key(&body, faces[i - 1])?;
         let k_next = face_surface_key(&body, faces[i])?;
         if k_prev == k_next {
+            describe_at_rest(&mut body, strut.edge, k_prev, tol)?;
             continue;
         }
         let vertex_index = segs[wseg(i)].canonical_vertex;
@@ -557,6 +558,7 @@ fn build_wire<T: Decide>(
         let k_prev = face_surface_key(&body, band2_faces[i - 1])?;
         let k_next = face_surface_key(&body, band2_faces[i])?;
         if k_prev == k_next {
+            describe_at_rest(&mut body, rim2, k_prev, tol)?;
             continue;
         }
         let vertex_index = segs[wseg(i)].canonical_vertex;
@@ -577,12 +579,17 @@ fn build_wire<T: Decide>(
 
     // ---- Phase 4: meridian upgrades — angle-0 chain edges sit on the
     // u = 0 seam of their (periodic) wall surfaces; the angle-π copies
-    // are NOT the seam and stay conventional `MappedCurve` (module
-    // docs). ----
+    // are NOT the seam, so they take the wall's chart image WITHOUT
+    // D1's seam obligation (module docs; D3's transience fence — the
+    // wall exists by now, so neither copy needs the scaffolding
+    // door). ----
     for i in 0..k {
         let wall = face_surface_key(&body, faces[i])?;
         let edge = he_edge(&body, hes[i])?;
         upgrade_meridian_seam(&mut body, edge, wall, tol)?;
+        if body.get_edge(tops[i]).is_some() {
+            describe_at_rest(&mut body, tops[i], wall, tol)?;
+        }
     }
 
     #[cfg(debug_assertions)]

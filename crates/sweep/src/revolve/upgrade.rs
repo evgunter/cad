@@ -44,7 +44,7 @@ pub(super) fn vertex_point<T: Real>(
 
 /// This edge restated as a spec — description, carrier and interval
 /// verbatim — for a re-description that moves nothing geometric.
-fn restated<T: SpanLocate>(
+pub(super) fn restated<T: SpanLocate>(
     body: &Body<T>,
     edge: EdgeKey,
 ) -> Result<geom_brep::EdgeCurveSpec<T>, RevolveError> {
@@ -107,6 +107,26 @@ fn edge_data<T: SpanLocate>(body: &Body<T>, edge: EdgeKey) -> Result<EdgeData<T>
 /// latitude rims all funnel here. Smooth keeps the conventional
 /// description (the D2 split; tier 3 permits it); Indeterminate is the
 /// typed error built by `sliver`.
+/// Re-states one edge as an image in `chart`, keeping carrier,
+/// interval and (through `at_rest_in_chart`) the pushforward that
+/// scaffolded it as its authority record.
+///
+/// The join lanes call this where they used to `continue`: ONE surface
+/// on both sides is a locus the surfaces under-determine (D2's split),
+/// so the description stays conventional — but the edge is at rest
+/// between two faces now, and the scaffolding door is for edges whose
+/// surfaces do not exist yet (D3's transience fence).
+pub(super) fn describe_at_rest<T: Decide>(
+    body: &mut Body<T>,
+    edge: EdgeKey,
+    chart: SurfaceKey,
+    tol: Tol,
+) -> Result<(), RevolveError> {
+    let spec = restated(body, edge)?.at_rest_in_chart(chart, false);
+    body.set_edge_curve(edge, spec, tol)?;
+    Ok(())
+}
+
 pub(super) fn upgrade_intersection<T: Decide>(
     body: &mut Body<T>,
     edge: EdgeKey,
@@ -175,8 +195,7 @@ pub(super) fn upgrade_intersection<T: Decide>(
                 // fence). The pushforward it was scaffolded from stays
                 // beside it as the authority record, which is what
                 // keeps tier 3's prefer-intrinsic reading unchanged.
-                let spec = restated(body, edge)?.at_rest_in_chart(s1, false);
-                body.set_edge_curve(edge, spec, tol)?;
+                describe_at_rest(body, edge, s1, tol)?;
             }
             Ok(())
         }
@@ -248,8 +267,7 @@ pub(super) fn upgrade_meridian_seam<T: Decide>(
         // was minted through is for edges whose surfaces do not exist
         // yet (D3's transience fence). So it is described where it
         // rests, as an ordinary chart image owing the one meter.
-        let spec = restated(body, edge)?.at_rest_in_chart(wall, false);
-        body.set_edge_curve(edge, spec, tol)?;
+        describe_at_rest(body, edge, wall, tol)?;
         return Ok(());
     }
     let data = edge_data(body, edge)?;
