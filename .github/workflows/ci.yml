@@ -982,9 +982,14 @@ jobs:
       - name: install the wasm32 target (pinned toolchain)
         if: '!cancelled()'
         run: rustup target add wasm32-unknown-unknown
+      # `viewer` is excluded for the SAME reason `pncad` is — it depends
+      # on `pncad`, so a leg that excludes the façade cannot include a
+      # crate sitting on top of it. GUI-5 owns the real wasm lane for
+      # the GUI (docs/GUI-PLAN.md's unit list); this guard's subject is
+      # the kernel plus `editor-core`, and it stays that.
       - name: wasm32 check (kernel + editor-core, --features interval)
         if: '!cancelled()'
-        run: cargo check --workspace --exclude pncad --exclude pncad-py --features interval --target wasm32-unknown-unknown
+        run: cargo check --workspace --exclude pncad --exclude pncad-py --exclude viewer --features interval --target wasm32-unknown-unknown
 
   clippy:
     name: clippy
@@ -1016,6 +1021,28 @@ jobs:
       # `-p <closure>` list in tier `closure`.
       - name: clippy (default features)
         run: cargo clippy ${{ needs.filter.outputs.cargo_scope }} --all-targets -- -D warnings
+      # THE GUI TOOLKIT GRAPH, compiled exactly once per run.
+      #
+      # `viewer`'s `app` feature (eframe + wgpu + naga + winit) is 140
+      # crates that no other row in this workflow needs. It is NOT a
+      # default feature, and that is what keeps this a single step
+      # rather than a tax on four `--workspace` jobs: `viewer` sits
+      # downstream of every kernel crate, so the change filter's
+      # dependent closure puts it in scope for nearly every code PR,
+      # and a default-on toolkit would be compiled in each of them.
+      #
+      # It must still be COMPILED somewhere, or the app half of that
+      # crate is unbuilt code with a green gate over it — which is the
+      # failure mode the whole feature split would otherwise create. So
+      # it runs unconditionally on every code-tier run, in this job
+      # rather than a new one (Actions bills per job, rounded up:
+      # docs/CI-MINUTES-2026-08.md), and it runs clippy rather than
+      # check so `-D warnings` covers the app source like every other
+      # line in the workspace.
+      #
+      # Mirror: local-scripts/ci-local.sh's clippy row.
+      - name: clippy (viewer app feature - eframe + wgpu)
+        run: cargo clippy -p viewer --features app --all-targets -- -D warnings
 
   # BUILD job, default features (see the build-once header comment above
   # the `env:` block). Compiles the scoped test binaries exactly once and

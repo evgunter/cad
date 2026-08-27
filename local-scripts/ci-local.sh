@@ -856,7 +856,7 @@ tesslint_gate() {
 # nothing checked" is not a guard.
 wasm_check() {
   rustup target add wasm32-unknown-unknown \
-    && cargo check --workspace --exclude pncad --exclude pncad-py \
+    && cargo check --workspace --exclude pncad --exclude pncad-py --exclude viewer \
          --features interval --target wasm32-unknown-unknown
 }
 
@@ -871,6 +871,12 @@ run_row "scene manifest reader (demos)" manifest_selftest
 run_row "rustfmt"                      cargo fmt --all --check
 # HOSTED MIRROR: clippy / clippy (default features)
 run_row "clippy"                       cargo clippy $SCOPE --all-targets -- -D warnings
+# HOSTED MIRROR: clippy / clippy (viewer app feature - eframe + wgpu)
+# Unscoped and unconditional, exactly as hosted: the toolkit graph is
+# not a default feature, so no other row compiles it, and a row that
+# ran only when `viewer` was in $SCOPE would leave the app half of that
+# crate unbuilt behind a green gate.
+run_row "clippy (viewer app)"          cargo clippy -p viewer --features app --all-targets -- -D warnings
 # Rustdoc gate (#465): same script hosted calls, unscoped there and here
 # — it is a tree-wide ratchet over a derived root set, not a per-closure
 # row. See scripts/doc-gate.sh for the flags and the derivation.
