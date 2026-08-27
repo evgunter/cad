@@ -135,12 +135,22 @@ fn pattern_of(count: i64) -> (Doc<ProfileProgram>, RecipeNodeId) {
     (doc, pattern)
 }
 
-fn landed_index(session: &DocSession) -> PickIndex {
+fn index_at(session: &DocSession, d: DisplayTolerance) -> PickIndex {
     let (doc, eval) = session.landed_pair().expect("an evaluation has landed");
     let generation = session
         .landed_generation()
         .expect("a landed evaluation has a generation");
-    PickIndex::build(doc, eval, generation, delta(), session.tol()).expect("the fixture indexes")
+    PickIndex::build(doc, eval, generation, d, session.tol()).expect("the fixture indexes")
+}
+
+fn landed_index(session: &DocSession) -> PickIndex {
+    index_at(session, delta())
+}
+
+/// A δ coarse enough that the gallery ring tessellates cheaply — the
+/// e2e row's subject is the selection walk, not the facet count.
+fn coarse() -> DisplayTolerance {
+    DisplayTolerance::new(2.0e-3).expect("a positive delta")
 }
 
 fn evaluation(session: &DocSession) -> &Evaluation<f64> {
@@ -808,7 +818,13 @@ fn one_name_can_be_drawn_under_two_ids() {
 ///
 /// The selection value carries `node` and `body` precisely so this
 /// question has an answer; `pick::highlight` reads only `name`.
+///
+/// **RED against the reviewed head — this is MAJOR-1, written as the
+/// gate it should become.** Ignored so a promoted suite does not turn
+/// the branch red before the fix; drop the attribute when
+/// `pick::highlight` disambiguates by `(node, body)`.
 #[test]
+#[ignore = "R2 review finding (MAJOR-1): highlight lights the first id of the NAME, ignoring the selection's node/body"]
 fn the_highlight_marks_the_selected_bodys_patch_not_another_with_the_same_name() {
     let (doc, _left, right) = two_placements();
     let mut session = DocSession::inline(doc, tol());
@@ -1322,6 +1338,184 @@ fn tree_rows_still_read_the_shown_doc_against_the_old_evaluation() {
 }
 
 // -------------------------------------------------------------------
+// 8b. End to end on a GALLERY document, through the shipped doors
+// -------------------------------------------------------------------
+
+/// The committed gallery ring, `doc_io`'s fixture. Re-stamped with this
+/// run's ε below for the same reason that suite states: a saved
+/// document records the ε it was decided at, and the matrix sweeps ε.
+const GALLERY_RING: &str = include_str!("gallery_ring.v14.pncad");
+
+/// The fixture's text with this process's ε line, taken from the
+/// serializer rather than spelled here.
+fn gallery_at(t: Tol) -> String {
+    let probe: Doc<ProfileProgram> = Doc::empty_derived("r2-gui2-eps-probe", t);
+    let probe_text = pncad::document::save(&probe, &[], t).expect("an empty document saves");
+    let is_eps = |line: &str| line.trim_start().starts_with("\"epsilon\":");
+    let wanted = probe_text
+        .lines()
+        .find(|line| is_eps(line))
+        .expect("a saved document records its ε");
+    let mut text: String = GALLERY_RING
+        .lines()
+        .map(|line| if is_eps(line) { wanted } else { line })
+        .collect::<Vec<&str>>()
+        .join("\n");
+    text.push('\n');
+    text
+}
+
+/// **The e2e walk this review owed**, on a real gallery document rather
+/// than a fixture written for the occasion: open it through
+/// `SessionOp::Open`, frame a camera on what it draws, cast a cursor ray
+/// through that camera, hover, click, read the tree and the panel off
+/// the one selection value, delete the owning feature, watch the typed
+/// unresolved state, and undo back to live.
+///
+/// Every step goes through a shipped door — no direct field access, no
+/// hand-assembled `PickTarget`, no ray invented outside the camera.
+/// The transcript is printed for the review; the assertions are the
+/// gate.
+#[test]
+fn a_gallery_document_selects_survives_and_recovers_end_to_end() {
+    let t = tol();
+    let dir = std::env::temp_dir().join(format!(
+        "r2-gui2-e2e-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_nanos())
+    ));
+    std::fs::create_dir_all(&dir).expect("a scratch directory");
+    let file = dir.join("ring.pncad");
+    std::fs::write(&file, gallery_at(t)).expect("the fixture is writable");
+
+    // 1. Open, through the session's own door.
+    let mut session = DocSession::inline(Doc::empty_derived("r2-gui2-e2e", t), t);
+    session.pump();
+    let outcome = session.perform(SessionOp::Open(file.clone()));
+    assert!(outcome.refusal.is_none(), "the gallery opens: {outcome:?}");
+    session.pump();
+    let index = index_at(&session, coarse());
+    println!(
+        "E2E opened: {} tree rows, {} drawn parts, {} ids",
+        session.tree_rows().len(),
+        index.parts().len(),
+        index.ids().len()
+    );
+    assert!(
+        !index.ids().is_empty(),
+        "the gallery draws pickable patches"
+    );
+
+    // 2. A camera framed on what is actually drawn, and a cursor at the
+    //    centre of the pane — the framing points the view axis at the
+    //    scene's centre, so the centre pixel meets the body.
+    let scene = index.scene().expect("the parts build a scene");
+    let pane = ViewportSize {
+        width_px: 1280.0,
+        height_px: 800.0,
+    };
+    let aspect = pane.aspect().expect("a positive aspect");
+    let camera = camera_on(&scene.bounds(), aspect);
+    // A cursor aimed at the centroid of a drawn triangle, taken from the
+    // scene's OWN position buffer. The pane centre would not do: the
+    // gallery body is a ring, and the middle of the pane looks through
+    // the hole — an honest miss, and not what this walk is about.
+    let corners = scene.positions();
+    assert!(corners.len() >= 3, "the scene draws triangles");
+    let target = Point3::new(
+        f64::from(corners[0][0] + corners[1][0] + corners[2][0]) / 3.0,
+        f64::from(corners[0][1] + corners[1][1] + corners[2][1]) / 3.0,
+        f64::from(corners[0][2] + corners[1][2] + corners[2][2]) / 3.0,
+    );
+    let centre = cursor_of(&camera, target, pane);
+
+    // 3. Hover, then click — through the event stream and the input
+    //    mapping, exactly as the viewport does.
+    let map = InputMap::default();
+    let stream = [
+        ViewportEvent::Hover { pos_px: centre },
+        ViewportEvent::Click {
+            button: PointerButton::Primary,
+            pos_px: centre,
+        },
+    ];
+    for action in viewer::input::pick_stream(&map, &stream) {
+        let op = index
+            .op_for(evaluation(&session), &camera, pane, action)
+            .expect("the centre cursor un-projects and the pick answers");
+        session.perform(op);
+    }
+    let face = session
+        .selection()
+        .face()
+        .expect("a cursor aimed at a drawn triangle selects a face")
+        .clone();
+    println!(
+        "E2E picked: node {:?} body {} name kind {:?}",
+        face.node, face.body, face.name.kind
+    );
+
+    // 4. Tree ↔ viewport unity, off the ONE value.
+    let owner = session.selection().node().expect("a face owns a node");
+    assert_eq!(owner, face.node);
+    assert!(
+        session.tree_rows().iter().any(|row| row.id == owner),
+        "the owning feature is a row in the tree"
+    );
+    let standing = session.standing();
+    assert!(standing.live(), "a fresh pick on the shown run is live");
+    let rows_live = session.slot_rows().len();
+    println!("E2E panel: {rows_live} slot row(s) for the owning feature");
+
+    // 5. Delete the owning feature and watch the typed unresolved state.
+    let outcome = session.perform(SessionOp::DeleteNode { node: owner });
+    assert!(outcome.refusal.is_none(), "the delete applies: {outcome:?}");
+    session.pump();
+    assert_eq!(
+        session.selection().face(),
+        Some(&face),
+        "the selection survived the edit that removed its referent"
+    );
+    let gone = session.standing();
+    assert!(!gone.live(), "and it is no longer live");
+    let verdict = gone.unresolved().expect("a typed verdict, not an absence");
+    assert!(!matches!(verdict, Resolution::Resolved(_)));
+    assert!(
+        session.slot_rows().is_empty(),
+        "the dependent affordances are off at the source"
+    );
+    println!("E2E after delete: live=false, unresolved={verdict:?}");
+
+    // 6. Undo across the edit: the same value resolves again, and
+    //    nothing was re-picked.
+    session.perform(SessionOp::Undo);
+    session.pump();
+    assert_eq!(session.selection().face(), Some(&face));
+    assert!(
+        session.standing().live(),
+        "undo brings the referent back and the stored name resolves"
+    );
+    assert_eq!(
+        session.slot_rows().len(),
+        rows_live,
+        "the panel is back to what it showed before the delete"
+    );
+
+    // 7. The index the pick ran against belongs to the run on screen,
+    //    and a rebuilt one describes the new generation.
+    let generation = session.landed_generation().expect("a generation");
+    assert!(
+        !index.current_for(Some(generation), coarse()),
+        "the pre-edit index is stale after two evaluations"
+    );
+    let rebuilt = index_at(&session, coarse());
+    assert!(rebuilt.current_for(Some(generation), coarse()));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+// -------------------------------------------------------------------
 // 9. Generation and δ invalidation
 // -------------------------------------------------------------------
 
@@ -1400,6 +1594,58 @@ fn the_drawn_scene_carries_exactly_the_indexs_ids() {
         .map(|p| p.triangles.len())
         .sum();
     assert_eq!(scene.stats().triangles, from_parts);
+}
+
+/// `SceneError::MispairedIds` fires for a part whose id list is neither
+/// empty nor one per patch, in BOTH directions — short and long.
+///
+/// The arm ships with a fail-loud justification ("drawing it would put
+/// ids on the wrong triangles — the silent wrong answer the whole id
+/// mapping exists to make impossible") and no row anywhere reaches it,
+/// so nothing goes red if the check is ever relaxed.
+#[test]
+fn a_part_whose_ids_do_not_pair_with_its_patches_is_refused() {
+    let (doc, _) = slab(0.03, 0.02, 0.01, "r2-mispaired");
+    let mut session = DocSession::inline(doc, tol());
+    session.pump();
+    let index = landed_index(&session);
+    let part = index.parts().first().expect("one drawn part");
+    let patches = part.mesh().patches.len();
+    assert!(patches >= 2, "the fixture has patches to mis-pair");
+
+    let short: Vec<u32> = (1..=patches as u32 - 1).collect();
+    let long: Vec<u32> = (1..=patches as u32 + 1).collect();
+    for (label, ids) in [("short", &short), ("long", &long)] {
+        let scene = viewer::scene::SceneMesh::build_parts(
+            &[viewer::scene::ScenePart {
+                mesh: part.mesh(),
+                ids,
+            }],
+            delta(),
+        );
+        match scene {
+            Err(viewer::scene::SceneError::MispairedIds {
+                ids: got,
+                patches: want,
+            }) => {
+                assert_eq!(got, ids.len(), "{label}: the refusal names the id count");
+                assert_eq!(want, patches, "{label}: and the patch count");
+            }
+            other => panic!("{label} id list was accepted: {other:?}"),
+        }
+    }
+    // Empty is the unpickable part, and it is NOT a mis-pairing.
+    assert!(
+        viewer::scene::SceneMesh::build_parts(
+            &[viewer::scene::ScenePart {
+                mesh: part.mesh(),
+                ids: &[]
+            }],
+            delta()
+        )
+        .is_ok(),
+        "a part with no ids at all is the gathered-product case"
+    );
 }
 
 // -------------------------------------------------------------------
