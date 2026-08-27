@@ -1669,3 +1669,18 @@ awkwardness note retired. #347 stays open on the union half,
 which waits on the curved pierce/split substrate unit (spec next
 from the orchestrator). Lane swept. In flight: ordinal 82
 (#1048's shell review).
+
+## #990 RESOLVED BY EVAN'S RULING; DESIGN PR OPENED (2026-08-27)
+
+Evan ruled in conversation: request validity dissolves at the
+signature (caller-intent magnitudes as f64 or a validating
+newtype, constraint in the type where expressible — shell's
+thickness is the pattern); the trilean-on-a-difference shape for
+genuine decisions is the metered predicate layer itself, and a
+bare shared helper stays out (the #701 evasion class). Refusal
+payloads get one sanctioned gate-recognized projection, built as
+its own S unit. The Bounds scope rule in geom-core/src/real.rs
+carries the resolution entry; design-conversation PR opened for
+the 👍. Also per Evan: #1051 filed (workflow_dispatch CI runs
+with requested lane/ε — retires most full local batteries), and
+briefs tightened to targeted-local-plus-drawn-point.

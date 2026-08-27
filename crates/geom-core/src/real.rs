@@ -570,6 +570,42 @@ pub trait Real:
 /// compound bound in either operand order, and a **sole**
 /// [`CertifiedBounds`] does not fire.
 ///
+/// **Resolution of #990 (ratified 2026-08-27, Evan's ruling in the
+/// issue conversation): the two non-decision shapes, and why neither
+/// needs a seam.** VERBS-TUBEWALL met a gap twice: a new door outside
+/// the seams had (1) no non-metered spelling for *request validity*
+/// (refusing a nonsensical caller input like `thickness ≤ 0` without
+/// minting a K-corpus row that meters the CALLER), and (2) no way to
+/// echo the *caller's own offending value* in a refusal payload (no
+/// `f64` out of a `T: Decide`). Both dissolve without touching this
+/// rule's class, because neither is a kernel decision:
+///
+/// 1. **Request validity dissolves at the signature.** Caller-intent
+///    magnitudes enter doors as plain `f64` — or, where the constraint
+///    is expressible in the type, as a validating newtype whose
+///    constructor is the single refusal site — and are lifted into `T`
+///    only after validation. `topo::shell`'s `thickness` is the
+///    pattern. No bracket is ever read, no row meters the caller, and
+///    the invalid value cannot reach the door at all in the newtype
+///    form. A door that takes its request in `T` is the thing to fix,
+///    not to allowlist.
+/// 2. **Refusal payloads get ONE sanctioned projection** (to be built
+///    as its own unit): a loudly-named `geom-core` helper for
+///    error-payload construction only, which
+///    `scripts/gates/bounds-allowlist.sh` recognizes BY NAME while
+///    still firing on raw endpoint reads. It is display, not
+///    decision: nothing may branch on its result, and the gate's
+///    recognizer plus review are the fence. Until it lands, the
+///    TUBEWALL posture (report the run's threshold, document why)
+///    remains the honest fallback.
+///
+/// For genuine decisions nothing changes: the metered predicate layer
+/// is the only spelling — it IS the "definite sign or indeterminate"
+/// trilean, plus the two things a bare helper lacks (the NAME in the
+/// verdict log, and escalation as the forced disposition of
+/// indeterminate). A free-floating bounds-comparison helper would be
+/// the #701 `Enclosure` evasion with better manners, and stays out.
+///
 /// # Semantics
 ///
 /// `[lo(), hi()]` brackets every real number the scalar stands for. For
