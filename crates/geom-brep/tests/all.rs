@@ -74,6 +74,10 @@ mod offset_fit;
 mod offset_mint;
 #[path = "pcurve_conic.rs"]
 mod pcurve_conic;
+#[path = "pcurve_general.rs"]
+mod pcurve_general;
+#[path = "pcurve_p1a_meter.rs"]
+mod pcurve_p1a_meter;
 #[path = "pcurve_parameter_finding.rs"]
 mod pcurve_parameter_finding;
 #[path = "r1_pxn_probes.rs"]
@@ -150,5 +154,7 @@ fn every_suite_file_is_aggregated() {
     );
 }
 
+#[path = "r2_probes.rs"]
+mod r2_probes;
 #[path = "review_probes_m8_4.rs"]
 mod review_probes_m8_4;

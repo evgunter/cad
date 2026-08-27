@@ -800,6 +800,17 @@ jobs:
           workspaces: ${{ steps.doc-roots.outputs.roots }}
       - name: rustfmt
         run: cargo fmt --all --check
+      # `benches/` IS ITS OWN CARGO ROOT, so `--all` above does not reach it
+      # (that manifest says why it is one). Formatting is the ONE check this
+      # crate gets in the merge gate, and it is free — rustfmt compiles
+      # nothing. Its clippy row is in the nightly's `criterion benchmarks
+      # (reporting)` job instead of in `k-lint` beside demos/tour's and
+      # tools/*'s: a bench crate nothing depends on cannot have broken a PR,
+      # and the nightly is already checked out and cached for it.
+      - name: rustfmt (benches — its own cargo root)
+        if: '!cancelled()'
+        working-directory: benches
+        run: cargo fmt --all --check
       # RUSTDOC gate (#465): clippy is blind to rustdoc lints, so a doc
       # comment can silently stop rendering with the gate green. The
       # command and the flags live in scripts/doc-gate.sh — one
