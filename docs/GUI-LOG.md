@@ -70,5 +70,21 @@ their PRs; reviews dispatch at PR-open per protocol v6
 (cross-model dual, banded ordinals from 400, parity byte drawn per
 dual at dispatch).
 
+**State-sync shape (2026-08-27, adopting the amended protocol in
+`memories/orchestration-model.md` the day it landed, #1095):**
+unit rows and log entries ride the unit's own PR as its LAST
+commit, pushed only after both reviewers' reports are delivered
+(the row names the arm; a docs commit on a branch reviewers have
+checked out breaks blinding through their own `git log`), and the
+merge does not wait on a fresh CI run when that commit is
+docs-only atop an already-green head. Dispatch-time records that
+must exist before reviews complete — the v6 parity byte, frozen
+head, ordinal claim — go on THIS orchestrator branch, pushed
+immediately: the GUI band (400–499) has a single claimant, so the
+band makes the claim raceless and the record reaches main with the
+next merge that carries this branch. Design conversations,
+protocol amendments, and spec ratifications keep their own PRs.
+
 Next actions: liveness check-ins on both lanes; at each PR-open,
-freeze head, claim ordinal on main, dispatch the v6 dual.
+freeze head, claim ordinal (recorded here, pushed), dispatch the
+v6 dual.
