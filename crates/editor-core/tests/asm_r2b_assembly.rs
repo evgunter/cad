@@ -271,9 +271,9 @@ fn findings(result: &Result<editor_core::Assembly<f64>, AssemblyError>) -> Vec<S
 ///
 /// Returns the record set the gate was handed, and whatever it could
 /// not certify.
-fn gate_records<'a>(
-    result: &'a Result<editor_core::Assembly<f64>, AssemblyError>,
-) -> (&'a topo::ContactRecords, &'a [editor_core::AtRestFinding]) {
+fn gate_records(
+    result: &Result<editor_core::Assembly<f64>, AssemblyError>,
+) -> (&topo::ContactRecords, &[editor_core::AtRestFinding]) {
     match result {
         Ok(assembly) => (&assembly.contacts, &[]),
         Err(AssemblyError::Uncertified { contacts, findings }) => (contacts, findings),
