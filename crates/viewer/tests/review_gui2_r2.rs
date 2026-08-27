@@ -819,12 +819,11 @@ fn one_name_can_be_drawn_under_two_ids() {
 /// The selection value carries `node` and `body` precisely so this
 /// question has an answer; `pick::highlight` reads only `name`.
 ///
-/// **RED against the reviewed head — this is MAJOR-1, written as the
-/// gate it should become.** Ignored so a promoted suite does not turn
-/// the branch red before the fix; drop the attribute when
-/// `pick::highlight` disambiguates by `(node, body)`.
+/// **Was RED against the reviewed head — MAJOR-1, written as the gate
+/// it should become.** The fix pass made `pick::highlight` narrow by
+/// `(node, body)` through `PickIndex::ids_of_target`, so the attribute
+/// is gone and this row gates.
 #[test]
-#[ignore = "R2 review finding (MAJOR-1): highlight lights the first id of the NAME, ignoring the selection's node/body"]
 fn the_highlight_marks_the_selected_bodys_patch_not_another_with_the_same_name() {
     let (doc, _left, right) = two_placements();
     let mut session = DocSession::inline(doc, tol());
@@ -1688,20 +1687,27 @@ fn the_selection_value_holds_no_arena_key() {
 /// consumer do with the arena keys that ride in `Resolved::entity` and
 /// `Tombstone::patch`.
 ///
-/// The PR's stated seal is that a consumer "cannot spell their type, so
+/// The PR's stated seal was that a consumer "cannot spell their type, so
 /// it cannot store one in its own state". This row is the counterexample
-/// as compiled code: the WRAPPERS are nameable, so the key is stored in
-/// an ordinary struct field, and `PartialEq`/`Ord` on the wrapper make
-/// keys minted by two DIFFERENT evaluations comparable — which is the
-/// body-lineage-scoped comparison the boundary exists to forbid.
-/// Asserts nothing about what the answer should be; it records that the
-/// operations compile and run.
+/// as compiled code: the key is stored in an ordinary consumer field and
+/// `PartialEq` makes keys minted by two DIFFERENT evaluations comparable
+/// — which is the body-lineage-scoped comparison the boundary exists to
+/// forbid. Asserts nothing about what the answer should be; it records
+/// that the operations compile and run.
+///
+/// **Kept green across the fix pass, with the route narrowed.** The fix
+/// stopped carrying `Resolved` as a name at all, so the original
+/// spelling of this row (`Option<pncad::select::Resolved>`) no longer
+/// compiles — which is the naming barrier working. The capability it
+/// demonstrates survives that, through the generic field below, and
+/// that is the point the fixed prose now makes: the seal prevents
+/// accidents, not determined consumers.
 #[test]
 fn arena_keys_can_be_stored_and_compared_through_the_widened_door() {
     /// A layer-3 struct with an arena-keyed field, declared without
-    /// naming `EntityRef` — the seal's premise says this is impossible.
-    struct ConsumerState {
-        kept: Option<pncad::select::Resolved>,
+    /// naming `Resolved` OR `EntityRef` — inference supplies both.
+    struct ConsumerState<T> {
+        kept: Option<T>,
     }
 
     let (doc, extrude) = slab(0.03, 0.02, 0.01, "r2-seal");

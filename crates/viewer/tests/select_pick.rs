@@ -120,10 +120,9 @@ fn a_projected_point_unprojects_to_the_ray_through_it() {
             .expect("the projection is defined")
             .expect("a framed corner is in front of the eye");
         // NDC → the pixel the cursor would be at, `+y` down.
-        let cursor = [
-            (ndc[0] + 1.0) * 0.5 * viewport.width_px,
-            (1.0 - ndc[1]) * 0.5 * viewport.height_px,
-        ];
+        let cursor = viewport
+            .cursor_of([ndc[0], ndc[1]])
+            .expect("a positive area");
         let ray = camera
             .ray_through(cursor, viewport)
             .expect("a cursor inside the viewport un-projects");
@@ -387,10 +386,9 @@ fn the_id_passs_transform_samples_the_pixel_the_ray_was_cast_through() {
         .project(Point3::new(0.008, 0.006, PLATE_EXTENT[2]), aspect)
         .expect("defined")
         .expect("in front of the eye");
-    let cursor = [
-        (ndc_of_target[0] + 1.0) * 0.5 * viewport.width_px,
-        (1.0 - ndc_of_target[1]) * 0.5 * viewport.height_px,
-    ];
+    let cursor = viewport
+        .cursor_of([ndc_of_target[0], ndc_of_target[1]])
+        .expect("a positive area");
     let ray = camera
         .ray_through(cursor, viewport)
         .expect("the cursor un-projects");
@@ -403,10 +401,8 @@ fn the_id_passs_transform_samples_the_pixel_the_ray_was_cast_through() {
         .view_projection(aspect)
         .expect("the projection is defined");
     let vp = matrix.map(|column| column.map(|v| v as f32));
-    let ndc = [
-        (2.0 * cursor[0] / viewport.width_px - 1.0) as f32,
-        (1.0 - 2.0 * cursor[1] / viewport.height_px) as f32,
-    ];
+    let ndc_at = viewport.ndc_of(cursor).expect("a positive area");
+    let ndc = [ndc_at[0] as f32, ndc_at[1] as f32];
     let sampled = cursor_projection(
         &vp,
         ndc,
@@ -420,6 +416,36 @@ fn the_id_passs_transform_samples_the_pixel_the_ray_was_cast_through() {
         (clip[0] / clip[3]).abs() < 1.0 && (clip[1] / clip[3]).abs() < 1.0,
         "the hit point lands inside the sampled pixel: {clip:?}"
     );
+
+    // **The centre alone is the transform's FIXED POINT**, where every
+    // scale and every sign is invisible — the row above stayed green
+    // under `* -sx` and under `* (sy * 100.0)`. What pins those is the
+    // pixel's WIDTH and its ORIENTATION.
+    //
+    // The hit point does not move; the SAMPLED WINDOW does. So moving
+    // the cursor one pixel RIGHT slides the window right and the fixed
+    // point lands one whole target-width LEFT (`x ≈ −2`, the target
+    // spanning ±1) — and one pixel DOWN slides the window down, which
+    // in the `+y`-up device frame puts the point ABOVE centre
+    // (`y ≈ +2`). Both the magnitude and both signs are asserted:
+    // magnitude catches a wrong scale, sign catches a flipped axis.
+    for (step_px, want) in [([1.0, 0.0], [-2.0, 0.0]), ([0.0, 1.0], [0.0, 2.0])] {
+        let moved = [cursor[0] + step_px[0], cursor[1] + step_px[1]];
+        let ndc_moved = viewport.ndc_of(moved).expect("a positive area");
+        let shifted = cursor_projection(
+            &vp,
+            [ndc_moved[0] as f32, ndc_moved[1] as f32],
+            [viewport.width_px as f32, viewport.height_px as f32],
+        );
+        let at = mul_point(&shifted, hit.point);
+        assert!(at[3] > 0.0);
+        let got = [at[0] / at[3], at[1] / at[3]];
+        assert!(
+            (got[0] - want[0]).abs() < 0.25 && (got[1] - want[1]).abs() < 0.25,
+            "a one-pixel cursor step should move the sample by {want:?}, \
+             got {got:?} — a scale or a sign is wrong"
+        );
+    }
 }
 
 /// A column-major matrix applied to a world point.
@@ -480,10 +506,9 @@ fn an_event_stream_selects_a_face_and_a_click_on_nothing_clears_it() {
         .project(on_face, aspect)
         .expect("defined")
         .expect("in front of the eye");
-    let cursor = [
-        (ndc[0] + 1.0) * 0.5 * viewport.width_px,
-        (1.0 - ndc[1]) * 0.5 * viewport.height_px,
-    ];
+    let cursor = viewport
+        .cursor_of([ndc[0], ndc[1]])
+        .expect("a positive area");
     // Far outside the pane: the ray leaves the frustum and meets
     // nothing, which is the "click on empty space" case.
     let empty = [-4000.0, -4000.0];
@@ -543,10 +568,9 @@ fn hovering_never_touches_the_selection_and_leaving_clears_only_the_hover() {
         .project(Point3::new(0.005, 0.005, PLATE_EXTENT[2]), aspect)
         .expect("defined")
         .expect("in front");
-    let cursor = [
-        (ndc[0] + 1.0) * 0.5 * viewport.width_px,
-        (1.0 - ndc[1]) * 0.5 * viewport.height_px,
-    ];
+    let cursor = viewport
+        .cursor_of([ndc[0], ndc[1]])
+        .expect("a positive area");
     let eval_ptr = eval_of(&session);
     let select = index
         .op_for(eval_ptr, &camera, viewport, PickAction::Select(cursor))
