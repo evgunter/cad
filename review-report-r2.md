@@ -179,9 +179,21 @@ and reported (wasm-guard exclusion); silent deviations found: 0.
 ## Process
 
 Lane isolation: no fetch/read of the other review lane's branches or
-artifacts; MODEL-AB-LOG and the A/B memory not read; no glimpse to disclose.
+artifacts (including after being told `gui/gui-0-review-r1` now exists on
+origin); MODEL-AB-LOG and the A/B memory not read; no glimpse to disclose.
 Local runs were unique-signal (mutants, random-state sweeps, wasm negative
 probe, license census); the pinned suites ride the PR gate and the verdict is
 conditional on hosted green. No detached waiters left armed (one self-matching
-poll loop was killed and is recorded here). Approx cost: ~280K tokens,
-~70 min wall clock.
+poll loop was killed and is recorded here). Approx cost: ~290K tokens,
+~75 min of active review wall clock.
+
+**Interruption disclosure (fair-pair rule):** the review container restarted
+mid-review, after the review commit 9e17446 was created locally but before it
+was pushed. Wall-clock gap: last pre-restart action ~17:20 UTC, resumed
+17:38 UTC 2026-08-27 (~18 min gap, no review work performed in it). All
+findings and measurements above were completed before the restart; on resume
+the worktree was verified intact at 9e17446, the branch pushed, and the
+results re-confirmed post-restart (full 33-row suite green, consumer suite
+green at CAD_FUZZ_EFFORT=8 on a fresh seed, `cargo fmt --check` clean). No
+in-flight measurement was lost.
+
