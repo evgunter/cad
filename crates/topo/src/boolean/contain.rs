@@ -115,7 +115,7 @@ pub fn contfp<T: Decide>(
 /// The circle a [`loop_disc`] loop bounds — its own type, because
 /// three components of one datum read better named than positional.
 #[derive(Clone, Copy)]
-struct LoopCircle<T> {
+struct LoopCircle<T: geom_core::Real> {
     /// The circle's centre.
     center: Point3<T>,
     /// Its plane normal (sign-free: only `cross` reads it).
