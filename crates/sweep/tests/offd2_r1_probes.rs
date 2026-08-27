@@ -217,9 +217,14 @@ fn probe_dumbbell_neck_collision_fails_loud() {
         Ok(()),
         "pinned: tier 3 does NOT catch the crossed cavity"
     );
-    let v = topo::mass_properties(&body, Tol::witness()).expect("props").volume;
+    let v = topo::mass_properties(&body, Tol::witness())
+        .expect("props")
+        .volume;
     println!("[probe] MAJ-1: dumbbell shelled Ok, tier-3 valid, volume {v} (silent wrong answer)");
-    assert!((v - 11.76).abs() < 1e-9, "the pinned wrong volume moved: {v}");
+    assert!(
+        (v - 11.76).abs() < 1e-9,
+        "the pinned wrong volume moved: {v}"
+    );
 }
 
 /// Shelling an ALREADY-HOLLOW body: the operand has two shells, the
@@ -247,7 +252,9 @@ fn probe_shell_of_a_hollow_fails_loud() {
         Ok(()),
         "pinned: tier 3 does NOT catch the overlapping voids"
     );
-    let v = topo::mass_properties(&body, Tol::witness()).expect("props").volume;
+    let v = topo::mass_properties(&body, Tol::witness())
+        .expect("props")
+        .volume;
     println!("[probe] MAJ-2: shell-of-hollow Ok, 4 shells, tier-3 valid, volume {v}");
 }
 
@@ -271,7 +278,11 @@ fn probe_opened_box_census() {
     let r: i64 = cup.faces().map(|(_, fc)| fc.rings.len() as i64).sum();
     let s = cup.shells().count() as i64;
     println!("[probe] cup census: V={v} E={e} F={f} R={r} S={s}");
-    assert_eq!((v, e, f, r, s), (16, 24, 11, 1, 1), "the rim surgery's census");
+    assert_eq!(
+        (v, e, f, r, s),
+        (16, 24, 11, 1, 1),
+        "the rim surgery's census"
+    );
     assert_eq!(v - e + f - r, 2 * s, "Euler–Poincaré at genus 0");
 
     // And the tube (two opposite rims): genus 1.
@@ -313,7 +324,10 @@ fn probe_adjacent_two_face_opening() {
                 "adjacent-pair volume: got {}, want {want}",
                 props.volume
             );
-            println!("[probe] adjacent pair: Ok and coherent (volume {})", props.volume);
+            println!(
+                "[probe] adjacent pair: Ok and coherent (volume {})",
+                props.volume
+            );
         }
     }
 }
@@ -344,7 +358,10 @@ fn probe_opened_vessel_cup() {
         .map(|(k, _)| *k)
         .collect();
     match topo::shell_open(&v, t, &top, FIT_TOL, band(), Tol::witness()) {
-        Err(e) => println!("[probe] vessel cup ({} top faces): typed refusal: {e}", top.len()),
+        Err(e) => println!(
+            "[probe] vessel cup ({} top faces): typed refusal: {e}",
+            top.len()
+        ),
         Ok(cup) => {
             assert_eq!(
                 topo::validate_geometric(&cup, Tol::witness()),
@@ -360,7 +377,10 @@ fn probe_opened_vessel_cup() {
                 props.volume,
                 props.volume_pad
             );
-            println!("[probe] vessel cup: Ok and coherent (volume {})", props.volume);
+            println!(
+                "[probe] vessel cup: Ok and coherent (volume {})",
+                props.volume
+            );
         }
     }
 }
@@ -422,7 +442,10 @@ fn probe_partial_group_refuses_and_leaves_body_untouched() {
         })
         .map(|(k, _)| k)
         .collect();
-    assert!(cyl.len() >= 2, "the full revolve wears one cylinder on two faces");
+    assert!(
+        cyl.len() >= 2,
+        "the full revolve wears one cylinder on two faces"
+    );
 
     let mut work = v.clone();
     let before = format!("{work:?}");
@@ -432,7 +455,11 @@ fn probe_partial_group_refuses_and_leaves_body_untouched() {
         matches!(e, topo::ReplaceFaceError::SharedSurfaceKey { .. }),
         "expected SharedSurfaceKey for the partial group, got {e}"
     );
-    assert_eq!(before, format!("{work:?}"), "body moved across a partial-group Err");
+    assert_eq!(
+        before,
+        format!("{work:?}"),
+        "body moved across a partial-group Err"
+    );
 
     // A mixed group refuses too, untouched.
     let cap = v
@@ -447,13 +474,21 @@ fn probe_partial_group_refuses_and_leaves_body_untouched() {
         matches!(e, topo::ReplaceFaceError::GroupChartsDiffer { .. }),
         "expected GroupChartsDiffer, got {e}"
     );
-    assert_eq!(before, format!("{work:?}"), "body moved across a mixed-group Err");
+    assert_eq!(
+        before,
+        format!("{work:?}"),
+        "body moved across a mixed-group Err"
+    );
 
     // The empty group.
     let e = topo::replace_faces_offset(&mut work, &[], -0.2, FIT_TOL, band(), Tol::witness())
         .expect_err("an empty group must refuse");
     assert!(matches!(e, topo::ReplaceFaceError::EmptyGroup), "got {e}");
-    assert_eq!(before, format!("{work:?}"), "body moved across an empty-group Err");
+    assert_eq!(
+        before,
+        format!("{work:?}"),
+        "body moved across an empty-group Err"
+    );
 }
 
 /// A LATE Err path through the group door (the C5 refusal, decided
@@ -483,7 +518,12 @@ fn probe_late_err_leaves_body_untouched() {
     .body;
     let cap = elbow
         .faces()
-        .find(|(_, f)| matches!(elbow.get_surface(f.surface), Some(geom::Surface::Plane { .. })))
+        .find(|(_, f)| {
+            matches!(
+                elbow.get_surface(f.surface),
+                Some(geom::Surface::Plane { .. })
+            )
+        })
         .map(|(k, _)| k)
         .unwrap();
     let mut work = elbow.clone();

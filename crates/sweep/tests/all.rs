@@ -39,10 +39,10 @@
 mod offb_r1_loft_probes;
 #[path = "offc_r1_probes.rs"]
 mod offc_r1_probes;
-#[path = "offd_r1_probes.rs"]
-mod offd_r1_probes;
 #[path = "offd2_r1_probes.rs"]
 mod offd2_r1_probes;
+#[path = "offd_r1_probes.rs"]
+mod offd_r1_probes;
 #[path = "verbs_offc_consumer.rs"]
 mod verbs_offc_consumer;
 #[path = "verbs_offd.rs"]
