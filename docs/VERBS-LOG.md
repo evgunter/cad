@@ -1755,3 +1755,20 @@ runbook. Ordinal 83 claimed (main at #1060's merge); single
 fable review dispatched against frozen head 27a6efba, aimed at
 the pins' TEETH (would the mesh pin actually red on a door
 fork?) and the independent re-derivations.
+
+## ORDINAL 83 RETURNED: DEMO2 A-W-F 0/3/3; SMALL FIX PASS OUT (2026-08-27)
+
+Every pin verified by independent derivation: the mouth ball
+centre re-solved from the two tangency conditions alone (exact);
+the census/genus chains re-derived (elbow ≅ solid torus, the
+hollow torus genus 2, the bud's 3×(+1,+2,+1)); the sweep and the
+renders byte-compared (the committed PNGs identical to the hosted
+run's artifacts — no hand-produced render possible); the pins'
+TEETH probed (the mesh pin reds under a one-sided δ change; the
+UnsupportedChain detail is the sharing, not the rim count —
+measured both directions). MINs: a CI-attribution slip in the PR
+body (the sweep gated in run 1, not run 2 — the drawn-row
+bookkeeping class), two stale invalidated-premise sentences in
+klein/ring, and the cross-panel constants duplicated without a
+tie. Fix pass dispatched with probe adoption; reviewer lane
+swept.
