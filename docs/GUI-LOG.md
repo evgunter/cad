@@ -50,6 +50,82 @@ consumes GUI-2+GUI-3; GUI-5 is stretch.
 `egui_tiles` vs `egui_dock`) — decided inside GUI-0, rationale in
 that unit's PR.
 
+## Dispatch record (2026-08-27, after #1088 merged the opening)
+
+Both units dispatched concurrently as isolation-worktree subagent
+lanes, arms read back from the block GUI-B1 draw record in
+`docs/MODEL-AB-LOG.md` at dispatch (the VERBS-4 deviation remedy)
+and echoed verbatim:
+
+- **GUI-0** (docs/GUI-0-SPEC.md), branch `gui/gui-0-scaffold` —
+  arm per draw record: **slot 1 = OPUS**.
+- **GUI-1** (docs/GUI-1-SPEC.md), branch `gui/gui-1-ray` — arm per
+  draw record: **slot 2 = FABLE**.
+
+Briefs point at the spec + `docs/prompts/implementer-discipline.md`
+by path and carry both halves of the foreground rule, the
+build-slot mutex, lane-private output paths, the no-trailer
+blinding rule, and the CONFLICTING-CI rules. Implementers open
+their PRs; reviews dispatch at PR-open per protocol v6
+(cross-model dual, banded ordinals from 400, parity byte drawn per
+dual at dispatch).
+
+**State-sync shape (2026-08-27, adopting the amended protocol in
+`memories/orchestration-model.md` the day it landed, #1095):**
+unit rows and log entries ride the unit's own PR as its LAST
+commit, pushed only after both reviewers' reports are delivered
+(the row names the arm; a docs commit on a branch reviewers have
+checked out breaks blinding through their own `git log`), and the
+merge does not wait on a fresh CI run when that commit is
+docs-only atop an already-green head. Dispatch-time records that
+must exist before reviews complete — the v6 parity byte, frozen
+head, ordinal claim — go on THIS orchestrator branch, pushed
+immediately: the GUI band (400–499) has a single claimant, so the
+band makes the claim raceless and the record reaches main with the
+next merge that carries this branch. Design conversations,
+protocol amendments, and spec ratifications keep their own PRs.
+
+**Ruling — viewer CI posture (Evan, 2026-08-27, in-conversation,
+on his own proposal):** the GUI is treated as a third-party
+consumer of the API. Concretely, landing in the GUI-0 fix pass:
+
+- The toolkit-touching steps (`clippy -p viewer --features app`,
+  the doc gate's `--all-features` pass over viewer) run only when
+  the change filter's **seeds** (crates whose files changed)
+  intersect {`viewer`, `pncad`, `bvh`} — seed-keyed, not
+  closure-keyed, because `pncad` is in every kernel change's
+  closure but seeds only when its own files change.
+- The skip is a **recorded axis in the filter output** (the
+  klint_row lesson — never a green job name over a silent skip),
+  and a viewer row joins the nightly lane to re-take the gated
+  coverage against toolkit-dependency drift.
+- Viewer's default-feature build and headless tests stay in the
+  ordinary dependent closure: `pncad` mostly re-exports, so a
+  breaking change to a re-exported type does not seed the façade —
+  the cheap in-closure rows are what put that breakage (and
+  behavior drift caught by the volume/winding tripwires) on the
+  offending kernel PR instead of an innocent later one.
+- This settles the GUI-0 implementer's adjudication item 1 (the
+  doc-gate `--all-features` question) in the gated direction.
+- Extracting `viewer` from the workspace as its own root (own
+  lockfile, the `benches/` shape) is deferred to v1's close —
+  GUI-2…4 are the maximum-churn window for viewer↔editor-core
+  co-evolution.
+
+Next actions: liveness check-ins on both lanes; at each PR-open,
+freeze head, claim ordinal (recorded here, pushed), dispatch the
+v6 dual; the ruling above lands with the GUI-0 fix pass.
+
+**Incident (2026-08-27 ~17:25Z): container restart killed three
+in-flight review lanes** — GUI-0 R2 and both GUI-1 reviewers
+(GUI-0 R1 had already delivered). All three isolation worktrees
+survived with their branches (GUI-0 R2 with local commits past the
+frozen head); all three resumed by message with the post-restart
+cautions (cwd reset, suspect in-flight results, push-early, the
+isolation rule re-stated now that `gui/gui-0-review-r1` exists on
+origin). Rows at merge annotate the wall-clock gap per the
+recording discipline; reports must disclose the interruption for
+the v6 fair-pair adjudication.
 Next actions: dispatch GUI-0 and GUI-1 per the block GUI-B1 draw;
 reviews per protocol v6 (cross-model duals, banded ordinals from
 400) at each PR.
