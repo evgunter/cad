@@ -1051,9 +1051,16 @@ jobs:
   #
   #     build the benchmark binary   54.7 s local  ->  ~110 s hosted
   #     run the six rows             37.8 s local  ->   ~60 s hosted
+  #     clippy (a check, not a build) 17 s local   ->   ~34 s hosted
   #     checkout + cache + emit                        ~30 s
   #                                                   ---------
-  #                                                  ~3 billed minutes
+  #                                          ~234 s = 4 billed minutes
+  #
+  # FOUR, not three: GitHub rounds each job up to the whole minute, so the
+  # right arithmetic is ceil(234/60) and not 234/60. The clippy row is
+  # inside that rounding rather than on top of it — which is exactly why it
+  # is sited here instead of in a code-tier job, where the same 34 s would
+  # meet a different job's rounding on every PR.
   #
   # The build is the dominant term and it is paid every night: rust-cache
   # serves criterion's 44 transitive crates but evicts workspace members
@@ -1161,6 +1168,19 @@ jobs:
       # No recursion: GITHUB_TOKEN pushes trigger no workflow runs, the
       # subject carries [skip ci] as belt-and-braces, and the `gate` job
       # excludes this path from the diff it reads.
+      # CLIPPY LAST, AND `!cancelled()` RATHER THAN `always()`. Two reasons,
+      # both about keeping verdicts separate. A lint finding must never cost
+      # this run its measurement — the history entry is the job's product and
+      # is already committed by the time this runs — and a measurement that
+      # failed to land must not hide a lint finding either, which is the same
+      # rule ci.yml applies to rustfmt and the rustdoc gate. `--examples`
+      # covers `counts.rs`, the δ sweep behind the tessellation rows.
+      #
+      # This is the ONLY clippy this crate gets, and `benches/Cargo.toml`
+      # says why it is here rather than in `k-lint` with demos/tour's.
+      - name: clippy (benches — its own cargo root)
+        if: '!cancelled()'
+        run: cd benches && cargo clippy --benches --examples -- -D warnings
       - name: commit measurement to the benchmark history (main only)
         if: github.ref == 'refs/heads/main' && inputs.ref == ''
         env:

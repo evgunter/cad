@@ -58,7 +58,8 @@ neither number alone is.
 ## Cadence, and what it costs
 
 Nightly, and only on a night where `main` actually moved — the workflow's
-`gate` job. ~3 billed minutes when it runs, nothing when it does not.
+`gate` job. **4 billed minutes** when it runs (~234 s of work, and GitHub
+rounds each job up to the whole minute), nothing when it does not.
 
 PERF-PLAN's ratified Q-P4 says post-merge, never a PR gate, and named
 pushes to `main`. The nightly is strictly cheaper than that and satisfies
@@ -71,9 +72,13 @@ cannot corrupt this history with measurements of an old tree.
 
 ## Running it yourself
 
-    cd benches && cargo bench
+    cd benches && cargo bench                        # the six rows
+    cd benches && cargo run --release --example counts   # the δ sweep
 
-That is the right local act and it writes nothing here — deliberately. Your
+The first is the lane's own measurement; the second walks chordal
+tolerance over four decades and prints the exponent in triangle count,
+which is what tells a steep constant from a bad asymptote. Both are the
+right local act and neither writes anything here — deliberately. Your
 milliseconds are not comparable with a runner's, which is the design and
 not a limitation. `scripts/criterion-emit.py` is declared hosted-only in
 `scripts/check-ci-mirror-parity.py`'s exemption table for exactly that

@@ -11,21 +11,28 @@
 #
 # WHAT THE EXCLUSION COSTS, checked rather than assumed:
 #   * `scripts/doc-gate.sh` documents every tracked cargo root, so this
-#     one joins the list automatically. It is FREE: the package has no
-#     lib and no bin, so `cargo doc --no-deps` here compiles nothing and
-#     returns in 0.07 s (measured). doc-gate's own header already says
-#     `benches/` is outside every `cargo doc` target filter.
+#     one joins the list automatically. It was free while this package
+#     had only bench targets — doc-gate's own header says `benches/` is
+#     outside every `cargo doc` target filter — and `examples/counts.rs`
+#     ended that: the gate passes `--examples`, so it now checks the
+#     kernel here. Measured at ~1.7 s warm and ~17 s cold (4-core box;
+#     roughly double on the runner), the cold figure being the
+#     once-per-cache-rotation tax every root in that job pays.
 #   * `scripts/ci-filter.py` classifies an unrecognised path TIER=all, so
 #     editing a benchmark triggers a full code-tier gate run. Deliberate,
 #     not an oversight: the filter is an allowlist that fails closed, and
 #     bench churn is rare. If it stops being rare, that is the moment to
 #     write a rule — not before.
-#   * `cargo fmt --check` here is wired into ci.yml's `fmt` job (no build,
-#     so no minutes). `cargo clippy` is NOT wired anywhere, and that is a
-#     priced omission rather than an accident: `--benches` here compiles
-#     the whole kernel under a clippy fingerprint that no other job's
-#     artifacts can serve, ~1 billed minute a night for a five-function
-#     bench file. Run it by hand when editing this crate.
+#   * `cargo fmt --check` is wired into ci.yml's `fmt` job (rustfmt
+#     compiles nothing, so no minutes), and `cargo clippy --benches
+#     --examples -- -D warnings` runs in the nightly's criterion job.
+#     Both, because every other excluded root in this tree gets both and
+#     an unlinted root is how lints rot. Clippy is sited in the NIGHTLY
+#     rather than in `k-lint` — where demos/tour and tools/* get theirs —
+#     because it is a check and not a build: 17 s on a cold 4-core box,
+#     ~34 s on the runner, inside a job that already runs for ~200 s. In
+#     `k-lint` the same 34 s would land on code-tier PR runs, where this
+#     crate cannot have broken anything.
 [workspace]
 
 [package]

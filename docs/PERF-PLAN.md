@@ -166,11 +166,41 @@ entry's confidence interval is not the resolution of a comparison.
   — is a **dead end**, measured at 39.26 s vs 39.05 s: the quadratic
   is the legalization cascade against a degenerate cocircular hull,
   not point location. `crates/mesh/src/lib.rs`'s §Performance section
-  is the statement of record and is current. **The trigger has fired**:
-  §5's first table has the washer costing 690 ms at δ = 1e-6 against
-  10.5 ms at 1e-4 — 66× for a 100× tolerance change — while every
-  non-tessellation row in the harness is microseconds. CDT dominance is
-  measured, not awaited. The `spade` `HashSet` fix still comes first.
+  is the statement of record and is current.
+
+  **The quadratic is now measured rather than argued, and on a body
+  with no hole in it.** `benches/examples/counts.rs` sweeps δ over four
+  decades on the washer and reports the exponent directly (2026-08-27,
+  two runs, 4-core box):
+
+  | δ | triangles | wall | exponent in n |
+  |---|---|---|---|
+  | 1e-2 | 308 | 0.75 / 0.98 ms | |
+  | 1e-3 | 964 | 1.96 / 2.27 ms | 0.87 / 0.73 |
+  | 1e-4 | 3040 | 9.44 / 10.7 ms | 1.36 / 1.35 |
+  | 1e-5 | 9596 | 70.8 / 87.8 ms | 1.75 / 1.83 |
+  | 1e-6 | 30340 | 642 / 733 ms | 1.91 / 1.84 |
+
+  Triangle count grows as √10 per decade, as a chordal criterion should,
+  and is bit-identical run to run (D9). The wall clock does not follow
+  it: the exponent in triangle count climbs to **~1.85** and has not
+  finished climbing at 30k triangles. The washer's annulus caps put
+  their vertices on two concentric circles — near-cocircular by
+  construction, which is finding 7b's degeneracy reached through a slit
+  rather than through nesting. So the cost this item is about is real,
+  is asymptotically n², and does not need a hole to appear.
+
+  **The written trigger is still not met, and the distinction matters.**
+  It says "a real fine-δ export need, or the corpus showing CDT
+  dominance" — a claim about documents people actually build. One
+  synthetic body swept by an example is not the corpus, and δ = 1e-6 is
+  an export tolerance, which §1.2 puts in the *background* lane where
+  642 ms is not a latency failure. What the sweep licenses is the
+  measurement work: point `tools/tess-meter` or the harness at the
+  corpus documents and see whether their faces reach this regime. If
+  they do, the trigger is met on evidence; if they do not, this item
+  stays queued and that is worth knowing too. The `spade` `HashSet` fix
+  comes first either way.
 - **Narrow the pcurve re-mint to the touched faces** (§1.3's top
   entry). Sequenced behind PCURVE P-1, and belongs on that program's
   slate.
@@ -491,16 +521,18 @@ on 2026-08-27.** What follows is ordered against what it now says.
    | `kernel/build/extrude` | 24 µs |
    | `kernel/boolean/two_bricks` | 130 µs |
 
-   **Two of this document's own triggers fire on that table.** The
-   tessellation rows are 400× and 27,000× everything else, and the
-   1e-4 → 1e-6 ratio is **66× for a 100× tolerance change** — CDT
-   dominance is no longer a hypothesis waiting on a corpus, so §2.1's
-   bulk-loading item has its trigger, and the `spade` `HashSet` fix
-   that must precede it is the next unit of work there. The other four
-   rows are microseconds, which prices the arena-scan family honestly:
-   they are complexity fixes for bodies far larger than these, and
-   item 2 below does not wait on the harness precisely because these
-   scenarios are too small to show them.
+   **What that table settles, and what it does not.** Tessellation is
+   two to four orders of magnitude above every other row, and §2.1's δ
+   sweep shows its cost growing as ~n^1.85 in triangle count on a
+   near-cocircular body — so the CDT quadratic is measured, and the
+   `spade` `HashSet` fix that must precede bulk loading is the next
+   unit of work there. It does **not** discharge that item's written
+   trigger, which asks for the *corpus* showing dominance rather than
+   one synthetic body at an export tolerance; §2.1 says what would.
+   The other four rows are microseconds, which prices the arena-scan
+   family honestly: they are complexity fixes for bodies far larger
+   than these, and item 2 below does not wait on the harness precisely
+   because these scenarios are too small to show them.
 
 2. **The arena-scan family** (§2.1) — findings 9, 11, 13, 14, and
    pass 13. Local, D9-neutral, justified by complexity argument
@@ -513,8 +545,10 @@ on 2026-08-27.** What follows is ordered against what it now says.
 4. **Boolean gate double tier-1 and product-path double tier-3**
    (findings 4, 16) — XS/S, in release, on the commit lane.
 
-**On the trigger list:** CDT bulk loading — **triggered**, on item 1's
-table, and still needing the `spade` `HashSet` fix first (§2.1). SSI
+**On the trigger list:** CDT bulk loading — its quadratic is measured
+now (§2.1's sweep), its trigger is not yet met, and the corpus reading
+that would meet it is the cheap next step; the `spade` `HashSet` fix
+precedes adoption either way. SSI
 seeding on the BVH: its own module says "when profiling asks for it",
 and the harness does not benchmark SSI, so that trigger needs a row
 before it can fire. Per-face tessellation parallelism (§2.2) — the
