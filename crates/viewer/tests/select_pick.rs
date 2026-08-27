@@ -445,11 +445,6 @@ fn viewport_and_camera() -> (ViewportSize, Camera) {
     (viewport, camera)
 }
 
-/// The cursor of the pane's centre — over the plate, and over its hole.
-fn centre_cursor(viewport: ViewportSize) -> [f64; 2] {
-    [viewport.width_px * 0.5, viewport.height_px * 0.5]
-}
-
 #[test]
 fn the_primary_button_is_the_select_binding_and_moves_no_camera() {
     let map = InputMap::default();

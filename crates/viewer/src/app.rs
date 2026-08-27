@@ -310,13 +310,25 @@ impl ViewerApp {
         if ops.is_empty() {
             return;
         }
+        // **A hover does not clear the status line.** The clear-on-a-
+        // clean-batch rule is about the user's ACTION on the document:
+        // "you tried something and it worked, so the last complaint is
+        // stale". Moving the pointer is not that — it emits an
+        // operation on every frame the cursor changes what it is over,
+        // refuses nothing by construction, and left unfiltered it wipes
+        // the ratified affordance off the screen the instant the mouse
+        // drifts over the viewport.
+        let mut acted = false;
         let mut refusal: Option<Refusal> = None;
         for op in ops {
+            acted |= !matches!(op, SessionOp::Hover(_));
             if let Some(next) = self.session.perform(op).refusal {
                 refusal = Refusal::preferred(refusal, next);
             }
         }
-        self.status = refusal.map(|refusal| refusal.to_string());
+        if acted || refusal.is_some() {
+            self.status = refusal.map(|refusal| refusal.to_string());
+        }
     }
 }
 
@@ -558,8 +570,14 @@ impl ViewerBehavior<'_> {
         }
 
         // ONE fold, the same one `map_stream` gives the tests.
+        //
+        // Landed only when the fold actually MOVED something: the
+        // stream now carries cursor events too, and a stream that
+        // denotes no camera operation is not a camera event — landing
+        // it would clear the status line on every frame the pointer is
+        // inside the viewport.
         let folded = input::fold_events(&self.input, self.camera, viewport, &events);
-        if !events.is_empty() {
+        if !folded.applied.is_empty() || folded.refused.is_some() {
             land(self.camera, self.status, &folded);
         }
 
@@ -571,6 +589,11 @@ impl ViewerBehavior<'_> {
         if let (Some(index), Some(eval)) = (self.index, self.session.evaluation()) {
             for action in actions {
                 match index.op_for(eval, self.camera, viewport, action) {
+                    // A hover that changes nothing is not queued: the
+                    // cursor is over the same face on most frames, and
+                    // an operation per frame that performs no
+                    // transition is churn in the one log a test reads.
+                    Ok(SessionOp::Hover(face)) if face.as_ref() == self.session.hover() => {}
                     Ok(op) => self.ops.push(op),
                     Err(error) => *self.status = Some(error.to_string()),
                 }
