@@ -1677,8 +1677,18 @@ fn cone_station_circles<S: Scalar>(
     out
 }
 
-/// The body's single stored torus carrier as `(centre, axis, R, r)`.
-fn torus_carrier<S: Scalar>(body: &Body<S>) -> ((f64, f64, f64), (f64, f64, f64), f64, f64) {
+/// A stored torus carrier, reduced to the four numbers a meridian
+/// circle is built from.
+#[derive(Clone, Copy, Debug)]
+struct TorusCarrier {
+    centre: (f64, f64, f64),
+    axis: (f64, f64, f64),
+    big_r: f64,
+    small_r: f64,
+}
+
+/// The body's single stored torus carrier.
+fn torus_carrier<S: Scalar>(body: &Body<S>) -> TorusCarrier {
     for (_, f) in body.faces() {
         if let Some(&pncad::geom::Surface::Torus {
             center,
@@ -1688,47 +1698,41 @@ fn torus_carrier<S: Scalar>(body: &Body<S>) -> ((f64, f64, f64), (f64, f64, f64)
             ..
         }) = body.get_surface(f.surface)
         {
-            return (
-                (center.x.f(), center.y.f(), center.z.f()),
-                (axis.x.f(), axis.y.f(), axis.z.f()),
-                major_radius.f(),
-                minor_radius.f(),
-            );
+            return TorusCarrier {
+                centre: (center.x.f(), center.y.f(), center.z.f()),
+                axis: (axis.x.f(), axis.y.f(), axis.z.f()),
+                big_r: major_radius.f(),
+                small_r: minor_radius.f(),
+            };
         }
     }
     panic!("the arch stores a torus wall")
 }
 
-/// How far `circle` is from BEING a meridian circle of the torus
-/// `(tc, ta, big_r, small_r)`, as the three residuals that say it is
-/// one: the centre's distance off the spine circle, the radius
-/// mismatch, and the sine of the angle between the circle's normal
-/// and the spine tangent under it.
+/// How far `circle` is from BEING a meridian circle of `torus`, as
+/// the three residuals that say it is one: the centre's distance off
+/// the spine circle, the radius mismatch, and the sine of the angle
+/// between the circle's normal and the spine tangent under it.
 ///
 /// A torus's meridian circle at azimuth `u` is
-/// `(tc + radial(u)·R, r, tangential(u))`, so membership needs no
+/// `(centre + radial(u)·R, r, tangential(u))`, so membership needs no
 /// azimuth to be chosen: the azimuth is READ OFF the candidate centre
 /// and the three residuals are what remains.
-fn meridian_residuals(
-    circle: Circle,
-    tc: (f64, f64, f64),
-    ta: (f64, f64, f64),
-    big_r: f64,
-    small_r: f64,
-) -> (f64, f64, f64) {
-    let w = v_sub(circle.c, tc);
+fn meridian_residuals(circle: Circle, torus: TorusCarrier) -> (f64, f64, f64) {
+    let ta = torus.axis;
+    let w = v_sub(circle.c, torus.centre);
     let h = v_dot(w, ta);
     let radial = (w.0 - h * ta.0, w.1 - h * ta.1, w.2 - h * ta.2);
     let rad_len = v_len(radial);
     // Distance from the spine circle: the meridian plane's own polar
     // coordinates, (in-plane radius − R, out-of-plane height).
-    let off_spine = ((rad_len - big_r).powi(2) + h * h).sqrt();
+    let off_spine = ((rad_len - torus.big_r).powi(2) + h * h).sqrt();
     let tangential = v_cross(ta, radial);
     let tl = v_len(tangential);
     let tangential = (tangential.0 / tl, tangential.1 / tl, tangential.2 / tl);
     (
         off_spine,
-        (circle.r - small_r).abs(),
+        (circle.r - torus.small_r).abs(),
         v_len(v_cross(circle.n, tangential)),
     )
 }
@@ -1761,8 +1765,8 @@ fn weld_circle<S: Scalar>(
     arch: &Body<S>,
     arch_caps: &WedgeFrames<S>,
 ) -> (pncad::topo::FaceKey, Circle, (f64, f64, f64), f64) {
-    let (tc, ta, big_r, small_r) = torus_carrier(arch);
-    let candidates = cone_station_circles(lantern, small_r);
+    let torus = torus_carrier(arch);
+    let candidates = cone_station_circles(lantern, torus.small_r);
     // Two conical WALLS, each halved at the full revolve's seam, each
     // half-band offering its carrier's two nappes.
     assert!(
@@ -1773,13 +1777,13 @@ fn weld_circle<S: Scalar>(
         candidates.len()
     );
     let score = |c: &Circle| {
-        let (a, b, d) = meridian_residuals(*c, tc, ta, big_r, small_r);
+        let (a, b, d) = meridian_residuals(*c, torus);
         a + b + d
     };
     let mut ranked = candidates;
     ranked.sort_by(|a, b| score(&a.1).total_cmp(&score(&b.1)));
     let (neck_face, best) = ranked[0];
-    let res = meridian_residuals(best, tc, ta, big_r, small_r);
+    let res = meridian_residuals(best, torus);
     // The tube's END, not a station part-way along it: one of the two
     // joint frames the revolve recorded passes through this centre
     // with this normal.
