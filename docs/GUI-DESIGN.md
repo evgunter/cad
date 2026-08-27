@@ -535,6 +535,14 @@ history tree is the additive evolution (log entries gain a parent
 pointer) via the F3 migration chain when the GUI needs it.
 Non-binding until a GUI milestone picks it up.
 
+Visualization sketch (Evan, 2026-08-27; non-binding like the rest
+of this section): render the history as a graph with the linear
+history running top to bottom; an edit made after an undo mints a
+new child node placed to the right of the child that redo would
+have reached. Sized in the same conversation at one-to-two work
+units including the separable sidecar file, sequenced after GUI
+v1 (`docs/GUI-PLAN.md` banks it as GUI-6).
+
 ### State/history separation (Evan, 2026-07-27 — the sharpened
 ### form of the git-like instinct)
 

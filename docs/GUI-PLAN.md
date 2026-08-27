@@ -17,11 +17,17 @@ here.
 
 - **Platform: native before browser.** The web lane is GUI-5,
   separable, never on the v1 acceptance path.
-- **Selection: single-select for v1.** Mate authoring gets its two
-  picks through tool state, not through a general multi-select
-  (GUI-4; the pick mechanics are an implementation-time choice).
-- **Undo: linear for v1.** The history tree stays future; see the
-  undo note below for what v1 holds open for it.
+- **The web lane ships threaded, not single-threaded** (ruled in
+  the round-2 conversation): a pinned-nightly wasm build with
+  `wasm-bindgen-rayon`, per the platform section below; the
+  single-Worker lane is the named fallback, not the plan.
+- **Selection: single-select for v1.** Mate authoring holds its
+  two sequential picks in tool state (GUI-4) — ruled, closing the
+  round-2 OQ-a.
+- **Undo: linear for v1.** The history graph + sidecar is banked
+  as post-v1 unit GUI-6, Evan-sized at one-to-two units; the
+  visualization sketch is recorded in GUI-DESIGN's undo-tree
+  section.
 - **Units: canonical meters/radians in the panels.** U8's
   units/display layer is not a dependency.
 - **Long evaluations: busy indicator + the shipped `CancelToken`.**
@@ -74,16 +80,27 @@ in progress; the `pncad` `getrandom` `wasm_js` row is an unguarded
 one-time reading; and persistence needs a download/upload or OPFS
 story the native lane doesn't.
 
-**The browser threading answer, named so it is not overread as a
-blocker:** what v1 needs is only that evaluation never freeze the
-UI. The intended wasm shape is **one dedicated Web Worker running
-the evaluation seam single-threaded**, message-passing results —
-no SharedArrayBuffer, no cross-origin-isolation headers, no
-toolchain change. Rayon-on-wasm (`wasm-bindgen-rayon`) is needed
-only if *parallel* evaluation in the browser is ever wanted; its
-real cost is that wasm atomics still require a nightly
-`-Zbuild-std`, colliding with the pinned stable toolchain — so it
-stays unbuilt until single-worker evaluation measures too slow.
+**The browser threading posture — RULED: the web lane ships
+threaded.** Concretely: the wasm artifact is built on a *pinned
+nightly* with `-Zbuild-std` and
+`+atomics,+bulk-memory,+mutable-globals`, runs its rayon pool as
+Web Workers via `wasm-bindgen-rayon`, and is served with the
+cross-origin-isolation headers (`COOP: same-origin` +
+`COEP: require-corp`) that unlock `SharedArrayBuffer`. Costs,
+named: a second toolchain pin (pinned like the stable one; the
+*source* stays stable-compatible — build-std is a build flag,
+never a nightly feature in code), the browser's
+never-block-the-main-thread discipline on how joins are driven,
+and header control wherever the app is served (we control our
+serving; static hosts have a service-worker workaround). What
+this does **not** put at risk is D9 determinism: the value paths
+are libm-only pure Rust and wasm's software `mul_add` is
+correctly rounded, so numeric results are independent of the
+compiler lane — the nightly costs churn, not bit-identity. The
+**single-Worker single-threaded lane is the named fallback** if
+the nightly lane proves brittle (build-std breakage,
+`wasm-bindgen-rayon` maintenance): same evaluation seam, no
+source change.
 
 Constraint carried through every unit so the web lane stays cheap:
 the interaction layer never assumes threads — evaluation sits
@@ -129,15 +146,24 @@ Ordered; 1 is independent of 0 and may run concurrently.
    free-move transforms for completely-unconstrained instances,
    layer-3 state only (never persisted, per G3), rendered
    visually distinct from mated placement; **the mate tool** —
-   two picks held in tool state (`select::face_frame` already
-   derives a frame from a face pick), a class/alignment choice
-   from the ASM vocabulary, one committed `DocEdit` adding the
-   mate node; the instance's free-move transform is superseded by
-   the solved placement when the mate lands.
+   two sequential picks held in tool state (RULED;
+   `select::face_frame` already derives a frame from a face
+   pick), a class/alignment choice from the ASM vocabulary, one
+   committed `DocEdit` adding the mate node; the instance's
+   free-move transform is superseded by the solved placement when
+   the mate lands.
 5. **GUI-5 — the web lane** (stretch, separable): wasm build of
-   `viewer`, the evaluation Worker, the `getrandom` cfg made a
-   guarded lane, open/save via download/upload. Skipping it costs
-   v1 nothing.
+   `viewer` on the threaded posture above (the pinned-nightly
+   build lane, guarded in CI once it exists), the `getrandom` cfg
+   made a guarded lane, the cross-origin-isolation serving story,
+   open/save via download/upload. Skipping it costs v1 nothing.
+
+Banked past v1 (not a v1 unit): **GUI-6 — the history graph +
+sidecar** — the undo tree's branch-graph UI (sketch recorded in
+GUI-DESIGN's undo-tree section) and the separable history sidecar
+file per the state/history separation note. Evan-sized at
+one-to-two units; v1's tree-shaped undo state (the undo note
+above) is what makes it additive.
 
 The G1 boundary rules bind every unit: operations are API, tools
 are `handle(event, ui_state) → (ui_state′, edits, overlay)`, CI
@@ -176,12 +202,10 @@ ratified fallback), wgpu plumbing depth in GUI-0/2 (the one
 genuinely new craft in the codebase), and egui's release churn
 landing on the toolchain pin (RESURVEY §5 watches it).
 
-## Remaining open questions
+## Remaining open question
 
-- **OQ-a — mate pick mechanics**: tool-held sequential picks
-  (proposed — the selection model stays single-select) vs an
-  ordered two-slot selection. Both emit the same mate edit;
-  implementation-time choice, recorded here so it is chosen
-  consciously.
-- **OQ-b — docking crate**: `egui_tiles` vs `egui_dock`, chosen
-  inside GUI-0.
+- **OQ-b — docking crate**: `egui_tiles` vs `egui_dock` — the two
+  live ecosystem crates for movable/tabbed panel chrome (feature
+  tree / viewport / property panel). Both MIT-compatible and
+  released this cycle (RESURVEY §1); chosen inside GUI-0, where
+  the difference is visible.
