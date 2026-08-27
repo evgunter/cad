@@ -580,63 +580,156 @@ fn the_short_against_long_near_parallel_edge_pair_agrees_both_ways() {
     );
 }
 
-/// INVARIANT (**where the frame-invariance lemma stops, pinned with its
-/// measurement**): the two argument orders compute the SAME margin to
-/// within floating-point noise — but "the same to within noise" is not
-/// "the same", and at a band THRESHOLD noise decides the verdict.
+/// INVARIANT (**where the frame-invariance lemma stops, pinned as a
+/// PROPERTY rather than as a fixture placement**).
 ///
-/// This row places the parallel row's margin exactly on `K·ε`, the
-/// definite/in-band boundary. There the two orders can and do land on
-/// opposite sides, and no symmetrization can prevent it: `decide` is a
-/// hard threshold, so any quantity computed by two different arithmetic
-/// routes flips there. That is exactly the caveat `world_carrier`'s
-/// lemma states in prose, and this is its measurement.
+/// The two argument orders read the trims in two different chart
+/// frames, related by an isometry floating point cannot represent
+/// exactly. So they compute the parallel row's margin by two arithmetic
+/// routes that agree only to noise — and at a band THRESHOLD, noise
+/// decides the verdict. That is the caveat `world_carrier`'s lemma
+/// states in prose, and this row is its measurement.
 ///
-/// What the row DOES assert is the thing that separates conceded noise
-/// from the #1063 defect: the two margins agree to a small RELATIVE
-/// tolerance. The defect was not noise — it was a factor of `|r| / |s|`,
-/// a 20x separation at a 5 cm edge against a 1 m one. A tolerance of
-/// 1e-6 admits the rotation arithmetic's cancellation (measured: 2.8e-8
-/// relative) and excludes a length ratio by fourteen orders.
+/// **Re-derived after the row went red at ε = 1e-12 on main.** The
+/// first version built ONE fixture at `sin θ = K·ε` and asserted that
+/// at least one order escalates. That is not ε-robust, and the reason
+/// is worth stating because it is the opposite of the obvious guess:
+/// the angle round trip `(10ε).atan().to_degrees()` →
+/// `to_radians().sin()` is EXACT at 1e-9 and 1e-12 (measured; it loses
+/// 5e-16 relative only at 1e-6). Landing exactly ON the threshold is
+/// precisely the problem — `decide` calls `|m| >= K·ε` definite, so a
+/// fixture placed on the boundary is decided by whatever the kernel's
+/// own arithmetic adds, which differs with ε. A row whose subject is
+/// "the edge is where noise decides" cannot itself depend on a fixture
+/// landing on that edge.
+///
+/// So the operating point is fixed and the scale is SWEPT: cells at
+/// `sin θ = kε` for `k` straddling `K = 10`. Non-vacuity is then
+/// structural rather than lucky — `k = 5, 8, 9` are strictly inside
+/// `(ε, K·ε)` at every ε, so they escalate whatever the noise does.
+///
+/// Three claims, none of which depends on where a cell lands:
+///
+/// 1. the door never certifies two DIFFERENT answers for one pair —
+///    the safety-critical half, and the one R1's own battery confirmed
+///    held even before the lever fix;
+/// 2. when both orders escalate on the same row, their margin
+///    MAGNITUDES agree to the derived frame-noise bound (a wrong lever
+///    separates them by a length RATIO instead);
+/// 3. a certify-versus-refuse split may happen ONLY where the margin
+///    is within that same noise bound of a band threshold. This is the
+///    honest, checkable form of "the disagreement is confined to the
+///    edge": a split anywhere in the interior would be a real defect
+///    and this row would catch it.
 #[test]
 fn the_band_edge_is_where_the_lemma_stops_and_the_margins_still_agree() {
     let eps = Tol::witness().eps();
+    let k_eps = Tol::witness().k() * eps;
     let base = slab(1.0);
-    // sin θ = K·ε exactly: the parallel row's margin lands ON the
-    // definite threshold, both edges being unit length.
-    let b = turned_plate(1.0, 1.0, (10.0 * eps).atan().to_degrees(), 0.0, 0.0);
-    let (fa, fb) = pair(&base, &b);
-    let margin = |r: Result<ChartOverlap, ChartRegionError>| match r {
+    let margin_of = |r: &Result<ChartOverlap, ChartRegionError>| match r {
         Err(ChartRegionError::Escalated(d)) => match d.margin {
-            geom_core::MarginDiag::Value(v) => Some(v),
+            geom_core::MarginDiag::Value(v) => d.predicate.map(|p| (p, v)),
             _ => None,
         },
         _ => None,
     };
-    let ab = declared_pair_overlap(&base, fa, &b, fb, ContactVerdict::Definite, band());
-    let ba = declared_pair_overlap(&b, fb, &base, fa, ContactVerdict::Definite, band());
-    // At the threshold at least one order escalates; whichever do, the
-    // margins they report must be the same number to noise.
-    let seen: Vec<f64> = [margin(ab), margin(ba)].into_iter().flatten().collect();
+    let (mut escalations, mut compared, mut splits) = (0usize, 0usize, 0usize);
+    for k in [5.0, 8.0, 9.0, 10.0, 11.0, 12.0, 20.0] {
+        let sin_theta = k * eps;
+        // The frame noise the margin inherits, derived (not picked):
+        // the two orders start from coordinates ~`f64::EPSILON` apart
+        // in relative terms, and that enters a cancelling determinant,
+        // so the relative noise goes as `EPSILON / sin θ` — growing
+        // both as the pair approaches parallel and as ε tightens. The
+        // 1e3 is headroom over the observed factor; the 0.5 cap keeps
+        // the row from going vacuous at the tightest ε and is still an
+        // order of magnitude under the signature it excludes.
+        let noise = (1.0e3 * f64::EPSILON / sin_theta).clamp(1e-9, 0.5);
+        let b = turned_plate(1.0, 1.0, sin_theta.atan().to_degrees(), 0.0, 0.0);
+        let (fa, fb) = pair(&base, &b);
+        let ab = declared_pair_overlap(&base, fa, &b, fb, ContactVerdict::Definite, band());
+        let ba = declared_pair_overlap(&b, fb, &base, fa, ContactVerdict::Definite, band());
+
+        // (1) never two different certified answers.
+        if let (Ok(x), Ok(y)) = (&ab, &ba) {
+            assert_eq!(
+                x, y,
+                "sin θ = {k}ε: the door certified two different answers for \
+                 one pair — {x:?} one way and {y:?} the other"
+            );
+        }
+        // (2) same row, same margin to noise.
+        if let (Some((pa, x)), Some((pb, y))) = (margin_of(&ab), margin_of(&ba))
+            && pa == pb
+        {
+            // Magnitudes: `perp_dot(r, s)` is the exact negative of
+            // `perp_dot(s, r)`, and that sign is the crossing's
+            // ORIENTATION — enter versus leave — which flips with the
+            // pair by construction.
+            let rel = (x.abs() - y.abs()).abs() / x.abs().max(y.abs()).max(f64::MIN_POSITIVE);
+            assert!(
+                rel < noise,
+                "sin θ = {k}ε: {pa} computed {x} one way and {y} the other \
+                 — relative {rel} against a frame-noise bound of {noise}. \
+                 That is a LEVER apart, not noise"
+            );
+            compared += 1;
+        }
+        if margin_of(&ab).is_some() || margin_of(&ba).is_some() {
+            escalations += 1;
+        }
+        // (3) a split is legitimate only AT a threshold.
+        let split = matches!((&ab, &ba), (Ok(_), Err(_)) | (Err(_), Ok(_)));
+        if split {
+            splits += 1;
+            let (_, m) = margin_of(&ab)
+                .or_else(|| margin_of(&ba))
+                .expect("the refusing order of a split reports its margin");
+            let to_upper = (m.abs() - k_eps).abs() / k_eps;
+            let to_lower = (m.abs() - eps).abs() / eps;
+            assert!(
+                to_upper.min(to_lower) < noise,
+                "sin θ = {k}ε: one order certified and the other refused with \
+                 margin {m}, which is {to_upper} from the definite threshold \
+                 and {to_lower} from the zero threshold — both beyond the \
+                 frame-noise bound {noise}. A split away from a threshold is \
+                 a real disagreement, not the conceded one"
+            );
+        }
+    }
+    // Non-vacuity, structural: k = 5, 8, 9 are strictly inside
+    // (ε, K·ε) at every ε the matrix runs, so they cannot fail to
+    // escalate. If this ever trips, the band itself moved.
     assert!(
-        !seen.is_empty(),
-        "the fixture is meant to sit ON the threshold, so at least one \
-         order escalates the parallel row"
+        escalations >= 3,
+        "the sweep must reach the band: only {escalations} cells escalated"
     );
-    if let [x, y] = seen[..] {
-        // Magnitudes, for the reason the near-parallel battery gives:
-        // the determinant's SIGN is the crossing's orientation and
-        // flips with the pair by construction.
-        let rel = (x.abs() - y.abs()).abs() / x.abs().max(y.abs());
-        // Same derived bound as the near-parallel battery: the frame
-        // noise this inherits is `~EPSILON / sin θ`, and sin θ here is
-        // `K·ε`, so the bound tightens and loosens with ε instead of
-        // pretending not to.
-        let noise_bound = (1.0e3 * f64::EPSILON / (10.0 * eps)).clamp(1e-9, 0.5);
-        assert!(
-            rel < noise_bound,
-            "the two orders compute the same margin to noise, not to a \
-             length ratio: {x} vs {y} (relative {rel}, bound {noise_bound})"
-        );
+    println!(
+        "band-edge sweep: {escalations} escalating cells, {compared} margin \
+         comparisons, {splits} certify/refuse splits"
+    );
+}
+
+/// TEMPORARY diagnostic (removed before merge): what the parallel row
+/// actually measures across the band edge, at whatever ε is set.
+#[test]
+#[ignore]
+fn diag_band_edge_sweep() {
+    let eps = Tol::witness().eps();
+    let base = slab(1.0);
+    let show = |r: &Result<ChartOverlap, ChartRegionError>| match r {
+        Ok(o) => format!("Ok({o:?})"),
+        Err(ChartRegionError::Escalated(d)) => {
+            format!("Esc({}, m={:?})", d.predicate.unwrap_or("?"), d.margin)
+        }
+        Err(_) => "Err(other)".to_string(),
+    };
+    println!("eps={eps:e} K*eps={:e}", 10.0 * eps);
+    for k in [5.0, 8.0, 9.0, 9.9, 10.0, 10.1, 11.0, 12.0, 20.0, 50.0] {
+        let b = turned_plate(1.0, 1.0, (k * eps).atan().to_degrees(), 0.0, 0.0);
+        let (fa, fb) = pair(&base, &b);
+        let ab = declared_pair_overlap(&base, fa, &b, fb, ContactVerdict::Definite, band());
+        let ba = declared_pair_overlap(&b, fb, &base, fa, ContactVerdict::Definite, band());
+        println!("  k={k:<6} AB={:<52} BA={}", show(&ab), show(&ba));
     }
 }
