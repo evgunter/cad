@@ -253,9 +253,13 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
         "gates on `validate_closed` at entry and mutates only through `ring_move`/`kef`",
     ),
     (
-        "replace_face_offset",
+        "replace_faces_offset",
         "mutates a clone only through `set_face_surface`/`set_edge_curve` (both asserting) \
          and one point re-write, and gates the clone on `validate_closed` before adopting it",
+    ),
+    (
+        "replace_face_offset",
+        "the one-face spelling of `replace_faces_offset`, which it calls",
     ),
     // ---- Setters carrying their own tier-1 debug_assert. ----
     (
