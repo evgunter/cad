@@ -54,9 +54,7 @@
 use geom::Curve3;
 use geom::Surface;
 use geom_core::spline::SpanLocate;
-use geom_core::{
-    Band, BandError, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Vec2,
-};
+use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Vec2};
 
 use crate::description::{ChartCurve, EdgeAuthority, EdgeDescription, authority_of};
 use crate::dihedral::{DihedralClass, classify_dihedral, decide};
