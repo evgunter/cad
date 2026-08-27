@@ -1800,3 +1800,28 @@ proof-by-assertion. The fillet_edges composition grain
 (per-disjoint-support-set) is pinned from both directions. The
 demo queue's remaining item is THE TEAPOT — the Wave-3 finale,
 unblocked since shell merged. Lane swept.
+
+## PIERCE REPORTED; DOOR-2 STOP ACCEPTED; ORDINAL 84 = THE FIRST v6 DUAL (2026-08-27)
+
+Door 1 exceeded acceptance: the mid-anchored azimuth removes the
+atan2 branch cut entirely (|δ| ≤ π within one edge span — the
+interval lane needs NO fork and NO measured constant; banked as a
+reusable pattern), and the routing half the spec did not name
+turned out to hide TWO silent wrong answers — contfp deciding
+Circle boundaries by CHORD (a cap rim's chord is the diameter)
+and point_in_loop polygonizing disc loops (every cap interior
+answered Out; rings invisible) — one measured as a wrong union
+volume on main (7.003 vs 6.643). The coaxial boss now UNIONS
+correctly. Door 2's STOP fired per the fence with evidence: no
+curve×curved-surface root finder exists anywhere, the ring
+insert is planar by construction, and TWO of the four #1044
+cases are cosurface incidences C2/C4 forbid inferring — #347's
+union demand SPLITS (comment posted there; the declared-contact
+family owns that half, door 2's remainder rides the arms
+adjudication). The #1032 seam measured: one fix does NOT move
+both rows (11 → 6 under declaration; the remaining six are
+curved×planar). Ordinal 84 claimed — THE FIRST v6 DUAL: slot
+byte 180, parity 0 → R1 opus + R2 fable, frozen head 5da23569,
+read-side isolation in both briefs. The mixed-arc-and-line loop
+blind spot (half-disc, slot, rounded rectangle still
+polygonized) stated in the PR and left for the register.
