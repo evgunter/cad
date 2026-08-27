@@ -840,10 +840,12 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         (2, 1),
         "MEASURED, not wanted: the rim surgery gives EACH designated half-disc a full \
          ring, and the result is genus 1 where `topo::shell`'s own module docs say \
-         \"one opening gives a cup, which is genus 0\". When this reads (0, 0) the \
-         chart-group rim lift has been fixed on a revolved cap: retire wall 2, ship the \
-         OPENED pot as the scene's vessel instead of the sealed one, and move the \
-         `step_at_frontier` pin — a one-shell cup exports"
+         \"one opening gives a cup, which is genus 0\". The numbers are pinned as they \
+         ARE, and nothing here predicts what a fix would make them. When this stops \
+         reading (2, 1): re-derive finding 2 from what it says instead, retire wall 2 \
+         if the body meshes, ship the OPENED pot as the scene's vessel, and re-decide \
+         the `step_at_frontier` pin — the frontier is declared on a TWO-shell body and \
+         a cup is not one"
     );
     crate::walls::wall(
         "teapot",
