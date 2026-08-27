@@ -70,6 +70,13 @@ $GITHUB_OUTPUT and to parse with `while IFS='=' read -r k v`.
   EPS=default|<value>|all       which tolerance row this run gates
   KLINT_ROW=<unification>|all   which of `k-lint (gate)`'s five feature
                                 unifications this run gates (see below)
+  SEEDS=<comma-separated members whose OWN files changed, empty for
+                                docs and for `all`>
+  RUN_VIEWER_TOOLKIT=true|false the eframe/wgpu rows (`clippy -p viewer
+                                --features app`, the doc gate's
+                                --all-features pass over viewer) — keyed on
+                                SEEDS, not on the closure; see
+                                `VIEWER_TOOLKIT_SEEDS`
 
 CONFIGURATION SAMPLING (2026-08-22, Evan's ask after the minutes audit).
 The hosted gate used to run every point of {default, interval} x {default,
@@ -430,7 +437,7 @@ def classify(files: list[str], root: str) -> dict[str, str]:
 
     consumed = _consumed_markdown(root)
     if all(_is_docs(f, consumed) for f in files):
-        return {"TIER": "docs", "PKGS": "", "CARGO_SCOPE": ""}
+        return {"TIER": "docs", "PKGS": "", "SEEDS": "", "CARGO_SCOPE": ""}
 
     dir_of, deps = _members(root)
     seeds: set[str] = set()
@@ -465,6 +472,16 @@ def classify(files: list[str], root: str) -> dict[str, str]:
     return {
         "TIER": "closure",
         "PKGS": ",".join(pkgs),
+        # THE SEEDS, kept and reported alongside the closure they generate.
+        # The closure answers "what must be rebuilt"; the seeds answer "what
+        # did the author actually touch", and those are different questions
+        # with different consumers. `pncad` is in almost every kernel change's
+        # CLOSURE (it re-exports everything) and in almost none of their
+        # SEEDS, which is exactly the distinction the viewer-toolkit axis in
+        # `decorate` is keyed on. Reported rather than derived-and-discarded
+        # so a reader of the filter's output can see the input to that
+        # decision, not only its verdict.
+        "SEEDS": ",".join(sorted(seeds)),
         "CARGO_SCOPE": " ".join(f"-p {p}" for p in pkgs),
     }
 
@@ -481,7 +498,12 @@ def _all_tier(root: str) -> dict[str, str]:
     # by taking this branch.
     except Exception:  # noqa: BLE001 — fail CLOSED, like the caller below
         pkgs = ""
-    return {"TIER": "all", "PKGS": pkgs, "CARGO_SCOPE": "--workspace"}
+    # SEEDS is empty at tier `all` and that is not "nothing was
+    # touched": the tier means the change is unscopable, so every
+    # seed-keyed axis must read it as "all seeds", not as none. Each
+    # such axis in `decorate` branches on the tier FIRST, before it
+    # looks at this field.
+    return {"TIER": "all", "PKGS": pkgs, "SEEDS": "", "CARGO_SCOPE": "--workspace"}
 
 
 # Root packages per pipeline job. A job runs iff one of its roots is in the
@@ -562,6 +584,17 @@ def _touches_oracle(files: list[str] | None) -> bool:
         return True
     return any(f.startswith(ORACLE_PATHS) for f in files)
 
+
+# THE SEEDS THAT BUY THE GUI TOOLKIT ROWS (Evan's viewer-CI-posture ruling,
+# 2026-08-27; docs/GUI-LOG.md). SEEDS, not the closure — the argument is at
+# `RUN_VIEWER_TOOLKIT` in `decorate`, and it is the whole of why this is a
+# three-name set rather than "anything viewer depends on".
+#
+# Adding a name here is a decision about what can break the eframe/wgpu half
+# without touching viewer's own sources; it is not a convenience. The nightly
+# lane re-takes the whole row daily, which is what makes the set safe to keep
+# small.
+VIEWER_TOOLKIT_SEEDS: frozenset[str] = frozenset({"viewer", "pncad", "bvh"})
 
 # THE SAMPLED MATRIX. Both lists are the full set the hosted gate used to
 # run on every push; sampling picks one member of each per run.
@@ -692,6 +725,55 @@ def decorate(
     # probe sweep records predicate margins from every kernel crate. Any
     # member change can break it, so it runs whenever anything builds.
     res["RUN_K_LINT"] = "false" if tier == "docs" else "true"
+    # THE VIEWER TOOLKIT AXIS — SEED-KEYED, NOT CLOSURE-KEYED (Evan,
+    # 2026-08-27, ruling recorded in docs/GUI-LOG.md: "the GUI is treated as a
+    # third-party consumer of the API").
+    #
+    # What it gates: the two rows that compile eframe + wgpu + naga + winit —
+    # `clippy -p viewer --features app` and the rustdoc gate's `--all-features`
+    # pass over `viewer`. Roughly 140 crates that no other row in this workflow
+    # needs, and a permanent per-PR bill if every kernel change pays it.
+    #
+    # WHY SEEDS AND NOT THE CLOSURE, which is the whole substance of the
+    # ruling. `viewer` sits downstream of `pncad`, which re-exports the entire
+    # kernel — so `viewer` is in the dependent CLOSURE of nearly every kernel
+    # change, and a closure-keyed test would be true almost always and would
+    # gate nothing. The SEEDS are the members whose own files moved. `pncad` is
+    # in every kernel change's closure and in almost none of their seeds, which
+    # is exactly the difference that makes this axis mean something.
+    #
+    # WHY THESE THREE. `viewer` — its own code. `pncad` — the façade the
+    # viewer's whole public-API path goes through, and the one crate whose own
+    # source can break the app half without any kernel crate moving. `bvh` —
+    # `Camera` speaks `bvh::Aabb` in its public signatures, the one direct
+    # non-façade edge the crate has. A kernel crate that `pncad` merely
+    # re-exports is deliberately NOT here: a breaking change to a re-exported
+    # type still reaches viewer's DEFAULT-feature rows, which stay in the
+    # ordinary closure below and put that breakage on the offending PR.
+    #
+    # WHAT THIS DOES NOT GATE, and the reason the ruling is affordable:
+    # viewer's default-feature build and its headless suites — the camera,
+    # input-mapping and scene rows, including the volume/winding tripwires —
+    # ride the ordinary dependent closure like any other crate. This axis
+    # skips the TOOLKIT only.
+    #
+    # THE COVERAGE THE SKIP GIVES UP is re-taken daily: nightly.yml runs the
+    # app-feature clippy row ungated, so toolkit-dependency drift surfaces
+    # within a day rather than at whichever unlucky PR next touches viewer.
+    #
+    # RECORDED, NEVER SILENT (the KLINT_ROW lesson): this is an output key, the
+    # filter echoes it with the seeds it was computed from, and the workflow
+    # prints the verdict in a step that always runs. A green job name over a
+    # skipped step is the failure mode this shape exists to avoid.
+    if tier == "docs":
+        res["RUN_VIEWER_TOOLKIT"] = "false"
+    elif tier == "all":
+        # Unscopable: no seed information, so the axis fails OPEN like every
+        # other signal here.
+        res["RUN_VIEWER_TOOLKIT"] = "true"
+    else:
+        seeds = set(s for s in res.get("SEEDS", "").split(",") if s)
+        res["RUN_VIEWER_TOOLKIT"] = "true" if seeds & VIEWER_TOOLKIT_SEEDS else "false"
     # Sampling is the LAST word and reads nothing above it: which point of
     # the matrix a run gates is independent of which rows the change filter
     # selected, and keeping the two apart is what lets the local gate consume
@@ -747,6 +829,55 @@ _FIXTURE_PKGS = {
     "topo": [("geom-core", "normal")],
     "stl": [("topo", "dev")],
 }
+
+
+# A SECOND, SMALLER FIXTURE, for the seed-vs-closure axis only.
+#
+# It is separate from `_FIXTURE_PKGS` on purpose: adding `pncad` and `viewer`
+# to that graph would move the expected closures of half the cases above, so
+# the battery would be re-stating the fixture rather than the rule. Here the
+# shape is the minimum that can tell the two questions apart —
+#
+#   viewer -> pncad -> topo      (and viewer -> bvh)
+#
+# so a `topo` change puts `pncad` and `viewer` in the CLOSURE while seeding
+# neither, which is precisely the case a closure-keyed test would get wrong.
+_VIEWER_FIXTURE_PKGS = {
+    "topo": [],
+    "bvh": [],
+    "pncad": [("topo", "normal")],
+    "viewer": [("pncad", "normal"), ("bvh", "normal")],
+}
+
+
+def _plant_viewer_fixture(t: str) -> str:
+    """A minimal workspace exercising `RUN_VIEWER_TOOLKIT`'s seed keying."""
+    import shutil
+
+    for pkg in _VIEWER_FIXTURE_PKGS:
+        os.makedirs(os.path.join(t, "crates", pkg, "src"), exist_ok=True)
+        open(os.path.join(t, "crates", pkg, "Cargo.toml"), "w").close()
+        open(os.path.join(t, "crates", pkg, "src", "lib.rs"), "w").close()
+    os.makedirs(os.path.join(t, "scripts"), exist_ok=True)
+    os.makedirs(os.path.join(t, "bin"), exist_ok=True)
+    shutil.copy(os.path.abspath(__file__), os.path.join(t, "scripts", "ci-filter.py"))
+    meta = {
+        "packages": [
+            {
+                "name": pkg,
+                "manifest_path": os.path.join(t, "crates", pkg, "Cargo.toml"),
+                "dependencies": [{"name": d, "kind": k} for d, k in deps],
+            }
+            for pkg, deps in _VIEWER_FIXTURE_PKGS.items()
+        ]
+    }
+    stub = os.path.join(t, "bin", "cargo")
+    with open(stub, "w") as fh:
+        fh.write("#!/bin/sh\n")
+        fh.write('[ "$1" = metadata ] || { echo "stub cargo: $*" >&2; exit 1; }\n')
+        fh.write("cat <<'JSON'\n" + json.dumps(meta) + "\nJSON\n")
+    os.chmod(stub, 0o700)
+    return t
 
 
 def _plant_fixture(t: str) -> str:
@@ -993,6 +1124,39 @@ def selftest() -> None:
         _expect("a base equal to HEAD is an empty diff, not a docs change",
                 _selftest_invoke(t, ["--base", "HEAD"]),
                 {"TIER": "all", "RUN_BUILD": "true"})
+
+    # --- THE VIEWER TOOLKIT AXIS, on its own fixture (`_VIEWER_FIXTURE_PKGS`).
+    #
+    # The rule under test is SEED keying, and the only way to see it is a case
+    # where the seeds and the closure disagree. Both directions are here: a
+    # crate that seeds the axis, and a crate that reaches it only through the
+    # closure. Without the second case a closure-keyed implementation passes
+    # this battery, which would make the ruling unenforced.
+    with tempfile.TemporaryDirectory() as t:
+        _plant_viewer_fixture(t)
+        _files_case(t, "viewer's own sources buy the toolkit rows",
+                    ["crates/viewer/src/app.rs"],
+                    TIER="closure", SEEDS="viewer", RUN_VIEWER_TOOLKIT="true")
+        _files_case(t, "the facade's own sources buy them",
+                    ["crates/pncad/src/lib.rs"],
+                    TIER="closure", SEEDS="pncad", RUN_VIEWER_TOOLKIT="true")
+        _files_case(t, "bvh's own sources buy them (Camera speaks bvh::Aabb)",
+                    ["crates/bvh/src/aabb.rs"],
+                    TIER="closure", SEEDS="bvh", RUN_VIEWER_TOOLKIT="true")
+        # THE CASE THAT MATTERS. `topo` is under `pncad`, so `pncad` and
+        # `viewer` are both in the closure — and neither is a seed. A
+        # closure-keyed axis would say true here and gate nothing, which is
+        # the whole reason the ruling says "seeds".
+        _files_case(t, "a kernel crate reaching viewer only through the closure does NOT",
+                    ["crates/topo/src/lib.rs"],
+                    TIER="closure", PKGS="pncad,topo,viewer", SEEDS="topo",
+                    RUN_VIEWER_TOOLKIT="false")
+        # Fails OPEN with the rest of the filter: an unscopable change has no
+        # seeds to read, and "no seeds" must not read as "no toolkit".
+        _files_case(t, "an unscopable change runs the toolkit rows",
+                    ["Cargo.toml"], TIER="all", SEEDS="", RUN_VIEWER_TOOLKIT="true")
+        _files_case(t, "a docs-only change runs nothing, toolkit included",
+                    ["README.md"], TIER="docs", SEEDS="", RUN_VIEWER_TOOLKIT="false")
 
     # An `include!` this reader cannot resolve could name a .md, so it takes
     # the whole change set to TIER=all rather than guessing. Its own fixture:

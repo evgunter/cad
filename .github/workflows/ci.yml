@@ -271,6 +271,17 @@ jobs:
       # The third sampled dimension (2026-08-22): which of `k-lint (gate)`'s
       # five feature unifications this run gates. Only that job reads it.
       klint_row: ${{ steps.classify.outputs.KLINT_ROW }}
+      # The members whose OWN files changed, as opposed to `pkgs` (the
+      # dependent closure they generate). Published because the viewer
+      # toolkit axis below is keyed on it: a reader who sees that axis
+      # false can see the seed list it was decided from, in the same
+      # output, without re-deriving it.
+      seeds: ${{ steps.classify.outputs.SEEDS }}
+      # Whether this run compiles the GUI toolkit graph (eframe + wgpu +
+      # naga + winit). SEED-keyed per Evan's viewer-CI-posture ruling
+      # (docs/GUI-LOG.md, 2026-08-27) — the argument is at
+      # `RUN_VIEWER_TOOLKIT` in scripts/ci-filter.py.
+      run_viewer_toolkit: ${{ steps.classify.outputs.RUN_VIEWER_TOOLKIT }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -836,11 +847,34 @@ jobs:
       # independent verdicts, and the matrix-free merge must not turn
       # two findings into one. `!cancelled()` rather than `always()` so
       # a cancelled run still stops here.
+      # `--skip-viewer-toolkit` when the change filter's seeds do not buy
+      # the GUI toolkit rows (Evan's viewer-CI-posture ruling,
+      # docs/GUI-LOG.md 2026-08-27). It takes `viewer` out of the
+      # --all-features pass and puts it back at DEFAULT features, so its
+      # renderer-free modules are gated on every run and only the
+      # `app`-gated ones — the ones that drag ~140 eframe/wgpu crates
+      # into a rustdoc pass — are skipped. The verdict is printed by the
+      # step below, never left to be inferred from a green job name.
       - name: rustdoc (gate)
         if: '!cancelled()'
         run: |
           scripts/doc-gate.sh --selftest
-          scripts/doc-gate.sh
+          if [ '${{ needs.filter.outputs.run_viewer_toolkit }}' = 'true' ]; then
+            scripts/doc-gate.sh
+          else
+            scripts/doc-gate.sh --skip-viewer-toolkit
+          fi
+      - name: viewer toolkit rows - the filter's verdict
+        if: '!cancelled()'
+        run: |
+          printf 'seeds: %s\n' '${{ needs.filter.outputs.seeds }}'
+          printf 'tier: %s\n' '${{ needs.filter.outputs.tier }}'
+          if [ '${{ needs.filter.outputs.run_viewer_toolkit }}' = 'true' ]; then
+            echo 'RUN: the rustdoc pass above documented viewer under --all-features.'
+          else
+            echo 'SKIP: no seed in {viewer, pncad, bvh} — viewer was documented at DEFAULT features.'
+            echo 'The nightly lane re-takes the app-feature row ungated.'
+          fi
 
       # WASM32 GUARD (#807), THE INTERVAL BUILD ONLY.
       #
@@ -993,9 +1027,14 @@ jobs:
       - name: install the wasm32 target (pinned toolchain)
         if: '!cancelled()'
         run: rustup target add wasm32-unknown-unknown
+      # `viewer` is excluded for the SAME reason `pncad` is — it depends
+      # on `pncad`, so a leg that excludes the façade cannot include a
+      # crate sitting on top of it. GUI-5 owns the real wasm lane for
+      # the GUI (docs/GUI-PLAN.md's unit list); this guard's subject is
+      # the kernel plus `editor-core`, and it stays that.
       - name: wasm32 check (kernel + editor-core, --features interval)
         if: '!cancelled()'
-        run: cargo check --workspace --exclude pncad --exclude pncad-py --features interval --target wasm32-unknown-unknown
+        run: cargo check --workspace --exclude pncad --exclude pncad-py --exclude viewer --features interval --target wasm32-unknown-unknown
 
   clippy:
     name: clippy
@@ -1027,6 +1066,48 @@ jobs:
       # `-p <closure>` list in tier `closure`.
       - name: clippy (default features)
         run: cargo clippy ${{ needs.filter.outputs.cargo_scope }} --all-targets -- -D warnings
+      # THE GUI TOOLKIT GRAPH — GATED, and the gate is RECORDED.
+      #
+      # `viewer`'s `app` feature (eframe + wgpu + naga + winit) is ~140
+      # crates that no other row in this workflow needs. It is not a
+      # default feature, and per Evan's viewer-CI-posture ruling
+      # (docs/GUI-LOG.md, 2026-08-27) the rows that compile it run only
+      # when the change filter's SEEDS intersect {viewer, pncad, bvh} —
+      # seed-keyed, NOT closure-keyed, because `pncad` re-exports the
+      # kernel and is therefore in nearly every change's closure while
+      # being in almost none of their seeds. The full argument lives at
+      # `RUN_VIEWER_TOOLKIT` in scripts/ci-filter.py; do not re-derive
+      # it here.
+      #
+      # WHAT STAYS UNGATED: viewer's default-feature build and its
+      # headless suites ride the ordinary dependent closure like any
+      # other crate, so a kernel change that breaks the camera, the
+      # input mapping or the scene path still reds on the offending PR.
+      # This axis skips the TOOLKIT only.
+      #
+      # WHAT RE-TAKES THE SKIPPED COVERAGE: the `viewer app feature`
+      # row in nightly.yml, ungated, once a day.
+      #
+      # THE SKIP IS ANNOUNCED, NEVER SILENT (the klint_row lesson). The
+      # step below always runs and prints the verdict with the seeds it
+      # was computed from, so a reader of a green `clippy` job can tell
+      # "the toolkit was compiled" from "the toolkit was deliberately
+      # skipped, here is why" without opening the filter's output.
+      #
+      # Mirror: local-scripts/ci-local.sh's clippy rows.
+      - name: viewer toolkit rows - the filter's verdict
+        run: |
+          printf 'seeds: %s\n' '${{ needs.filter.outputs.seeds }}'
+          printf 'tier: %s\n' '${{ needs.filter.outputs.tier }}'
+          if [ '${{ needs.filter.outputs.run_viewer_toolkit }}' = 'true' ]; then
+            echo 'RUN: the seeds intersect {viewer, pncad, bvh} (or the tier is unscopable).'
+          else
+            echo 'SKIP: no seed in {viewer, pncad, bvh} — the eframe/wgpu graph is not compiled on this run.'
+            echo 'The nightly lane re-takes this row ungated; viewer default-feature rows still ran in the closure.'
+          fi
+      - name: clippy (viewer app feature - eframe + wgpu)
+        if: needs.filter.outputs.run_viewer_toolkit == 'true'
+        run: cargo clippy -p viewer --features app --all-targets -- -D warnings
 
   # BUILD job, default features (see the build-once header comment above
   # the `env:` block). Compiles the scoped test binaries exactly once and
