@@ -131,6 +131,19 @@ amended:
      comparison. This EXTENDS v6 item 3(e), which excluded interrupted
      or truncated pairs; the same logic covers a pair the orchestrator
      itself made asymmetric.
+  2b. **A CORRECTION back to the stated method is NOT a relaxation
+     (boundary raised by the VERBS orchestrator, 2026-08-27, applying
+     this rule to its own PIERCE pair).** Nudging an agent that parked
+     on a background watcher back into foreground polling, or telling
+     one that a battery belongs in `-x` rather than the express lane,
+     restores the brief — it does not change the instrument, and it
+     does not spend the pair. What spends the pair is granting one arm
+     something the brief did not give it and the other arm did not
+     get: narrower scope, a lifted requirement, a permitted
+     substitution. The test is not "did the orchestrator send a
+     message" but **"do the two arms now differ in what they were
+     permitted to do".** Without this line the rule would exclude
+     every pair anyone ever nudged, which would make it unusable.
   3. **Why it matters more than it looks.** A unilateral MAJOR is
      informative only if the silent arm had the same opportunity to
      find it. If one arm was told to narrow its batteries and the
