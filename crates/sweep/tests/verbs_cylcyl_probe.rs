@@ -98,20 +98,15 @@ fn cylinder_unions_refuse_at_the_curved_pierce_door() {
 }
 
 /// The COAXIAL UNEQUAL-radius pose (a boss on a shaft) is not a pierce
-/// case at all, and it now UNIONS — metered here, because a row that
-/// only asserted the absence of a refusal would pass on a wrong body.
-/// The closed form is a shaft plus the boss's protruding stub:
+/// case, and it unions. Metered rather than asserted `is_ok`, because
+/// a door that opened onto a wrong body would pass that check: the
+/// closed form is a shaft plus the boss's protruding stub,
 /// `π·1²·2 + π·0.5²·1`.
 ///
-/// It reached this suite as a `PointSplitCarrierUnsupported` row, and
-/// the door it named was a MISDIAGNOSIS twice over: the shaft's cap is
-/// bounded by two rim semicircles whose chord is the disc's own
-/// diameter, so the boss's seam crossing at `(0.5, 0, 2)` — strictly
-/// inside the cap — was read as ON that rim edge, and behind that
-/// verdict the ray-parity walk would have read the whole disc as a
-/// two-vertex polygon and answered `Out`. Both are gone: a `Circle`
-/// boundary is decided by its exact arc rows, and a loop of arcs of
-/// one circle is decided by its radius.
+/// The two rows behind it are the cap's: a `Circle` boundary is
+/// decided by its exact arc rows, not by a chord that runs through the
+/// disc; and a loop of arcs of one circle is decided by its radius,
+/// not by the polygon through its two vertices.
 #[test]
 fn the_coaxial_boss_unions_and_meters_at_the_closed_form() {
     let tol = Tol::witness();

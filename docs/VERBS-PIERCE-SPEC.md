@@ -74,26 +74,40 @@ the four measured rows are not one family:
 - There is no Line-pierce-into-a-CURVED-face precedent to reuse:
   `curved_face_arm` refuses every definite crossing of a curved face,
   Line carriers included. The pierce path that exists is plane-only.
-- No curve × curved-surface root finder exists anywhere in the repo.
-  The only crossing-root code is `conic_plane_crossing_roots`, which
-  refuses lines outright; `implicit.rs` offers enclosures and no roots.
-  "The event point comes from the existing section/route answers" has
-  no answer to read — surface×surface sections take no curve.
+- The ROOTS are only half-missing, and the first statement of this
+  addendum got it wrong. `solid_contain`'s `cast_ray` (:818-885) solves
+  the certified ray × cylinder quadratic, generic over `T: Decide`,
+  trimmed by `point_on_wall_in_face` — so **LINE × cylinder crossing
+  parameters already exist** and are reusable. What does not exist is
+  the CIRCLE × curved-surface root: the residual there is a degree-2
+  trigonometric polynomial, a quartic in `tan(θ/2)`, and nothing in the
+  repo solves it (`conic_plane_crossing_roots` is plane-only;
+  `implicit.rs` offers enclosures and no roots). "The event point comes
+  from the existing section/route answers" still has no answer to read
+  for the circle case — surface×surface sections take no curve.
 - The pierce ring (`vtxfac.rs`, Delta 3) needs the pierced face's
   PLANE and outward normal and refuses without one; its transient
   chord is a straight `line_between`. A pierce into a cylinder wall
   has no ring lane whatever the roots say.
-- **Two of the four rows are not pierces.** `coaxial-equal-r` and
-  `coaxial-stacked` are undeclared VALUE-COINCIDENT cosurface
-  incidences (the rim/seam lies exactly on the partner wall carrier;
-  plain `union` passes `BooleanDeclarations::none()`). CONTACT-DESIGN
-  C2/C4 forbid inferring that gluing at any ε, so no arms unit flips
-  them either — their honest destination is the declaration ladder,
-  not the join. The acceptance sentence "rows 1–2 likewise reach the
-  join layer" rests on a premise the ratified contact design denies.
+- **Two of the four rows are not pierces.** Both are undeclared
+  VALUE-COINCIDENT contacts, and they are coincident in DIFFERENT
+  places. `coaxial-equal-r`'s rim circle lies on the partner WALL
+  carrier. `coaxial-stacked`'s binding coincidence is not the
+  rim-on-wall sentence at all — the two cylinders meet cap to cap, so
+  the contact that must be declared is the pair of **coincident cap
+  DISCS**, a plane × plane rest; the wall carriers happen to agree as
+  well, but they are edge-adjacent, not the contact. Plain `union`
+  passes `BooleanDeclarations::none()`, and CONTACT-DESIGN C2/C4 forbid
+  inferring either gluing at any ε, so no arms unit flips them —
+  their honest destination is the declaration ladder, not the join.
+  The acceptance sentence "rows 1–2 likewise reach the join layer"
+  rests on a premise the ratified contact design denies.
 
 Only `parallel-equal-r` (circle × wall) and `steinmetz` (line × wall)
-are genuine pierces, and both need the roots AND the curved ring lane.
+are genuine pierces, and their costs are NOT equal. **`steinmetz` needs
+only the ring lane** — its line × wall roots exist at `cast_ray`.
+`parallel-equal-r` needs the ring lane and the circle × wall quartic.
+The ring lane is the shared blocker and the reason both stop.
 
 ## What door 1 turned out to include
 
@@ -109,7 +123,23 @@ unioned as two disjoint solids with the overlap counted twice
 (7.003185307179585 against a truth of 6.643185307179586). Both are
 closed: `Circle` boundaries take their exact arc rows, and a loop of
 arcs of one circle is read by its radius — the planar analog of
-`curved_face_containment`'s iso-bounded class, with the same honest
-remainder. Loops that MIX arcs and lines (a half-disc, a slot, a
-rounded rectangle) are still polygonized; general arc-aware ray parity
-is new machinery and is not in this unit.
+`curved_face_containment`'s iso-bounded class.
+
+**What is left is not an "honest remainder", and calling it one was
+wrong.** `point_in_loop`'s own contract is a planar POLYGON (line
+carriers, the F5 regime), so falling back to it with an arc-bearing
+loop is a call outside its stated domain — a contract violation, not a
+conservative default. The class is **arc-bearing non-disc loops**, not
+"loops that mix arcs and lines": a LENS cap is two arcs of two
+different circles, all-arc, and equally broken. Both #1068 reviewers
+measured silent wrong bodies at that shape (half-disc cap
+3.321592653589793 against 3.231592653589793; half-cylinder cap
+3.266592653589793 against 3.204092653589793; lens likewise). The unit
+therefore GATES it: an arc-bearing loop with fewer than three
+vertices — where the polygon has zero area and the error is
+demonstrated — refuses typed
+(`BooleanError::ArcLoopContainmentUnsupported`). Arc loops with three
+or more vertices keep the polygon walk: a slot (4) and a rounded
+rectangle (8) were measured correct, and that is the whole evidence —
+unproven, not proven. Issue #1076 owns the general arc-aware ray
+parity that retires both.

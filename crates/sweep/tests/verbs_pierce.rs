@@ -48,10 +48,13 @@ fn boxx(x0: f64, x1: f64, y0: f64, y1: f64, z0: f64, z1: f64) -> Body<f64> {
 /// walk found no event at all, the operands read as disjoint, and the
 /// union came back OK with the overlap counted TWICE.
 ///
-/// The yardstick is kept because it is what makes the row falsifiable:
-/// `π·1²·2 + 0.6·0.6·2 = 7.003185307179585` was the answer, and the
-/// truth is `π·1²·2 + 0.6·0.6·1 = 6.643185307179586` — the difference
-/// is exactly the buried 0.36 of box.
+/// The yardstick is kept because it is what makes the row falsifiable.
+/// `7.003185307179585` was the answer and `6.643185307179586` is the
+/// truth — the difference is exactly the buried 0.36 of box. Both are
+/// MEASURED values, not closed forms: `π·1²·2 + 0.6·0.6·2` evaluated
+/// in `f64` differs from the first in its last bit, and quoting the
+/// expression as if it produced the literal would be quoting a number
+/// this kernel never returned.
 ///
 /// It is a typed refusal now, from the JOIN layer: the events are
 /// found, both bodies are split, and what has no arm is the join of a
@@ -118,4 +121,45 @@ fn a_box_buried_in_a_cylinder_unions_to_the_cylinder() {
     };
     let v = topo::mass_properties(&out.body, tol).unwrap().volume;
     assert!((v - PI * 2.0).abs() < 1e-12, "{v} vs {}", PI * 2.0);
+}
+
+/// **The ring half of the disc class, isolated** — and the clearest
+/// single result the substrate has, so it gets its own row rather than
+/// a sentence.
+///
+/// A face's RINGS go through the same walk as its outer loop, so a
+/// circular hole was invisible in exactly the way a cap was: the
+/// ring's polygon through its two vertices is the hole's own diameter,
+/// and every point inside the hole read as inside the face. A tube
+/// cannot show it — a tube's outer loop is also a circle, and the two
+/// errors cancel — so this is a SQUARE plate (outer loop a polygon,
+/// always right) with a CIRCULAR hole, and a box driven straight down
+/// the hole. The box meets no plate material at all; the operands are
+/// honestly disjoint and the volumes add exactly.
+///
+/// Adopted from the R1 review probe branch, whose author observed that
+/// nothing in the unit demonstrated the ring half.
+#[test]
+fn a_box_down_a_circular_hole_in_a_square_plate_sees_the_hole() {
+    let tol = Tol::witness();
+    let hole = profile::circle(p2(0.0, 0.0), 0.5, tol).unwrap();
+    let plate = {
+        let outer: ProfileLoop<f64> =
+            RawLoop::polygon([p2(-2.0, -2.0), p2(2.0, -2.0), p2(2.0, 2.0), p2(-2.0, 2.0)]);
+        let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.0)));
+        let profile = Profile::new(plane, vec![outer, hole.into()])
+            .validate(tol)
+            .unwrap();
+        extrude(&profile, Extrusion::Distance(1.0), tol).unwrap().body
+    };
+    let boss = boxx(-0.2, 0.2, -0.2, 0.2, 0.5, 2.0);
+    let topo::BooleanResult::Body(out) =
+        topo::union(&plate, &boss, tol).expect("the hole is empty; nothing to route")
+    else {
+        panic!("a plate and a box down its hole are two disjoint shells");
+    };
+    assert_eq!(out.body.shells().count(), 2, "the box touches no material");
+    let v = topo::mass_properties(&out.body, tol).unwrap().volume;
+    let truth = (16.0 - PI * 0.25) * 1.0 + 0.4 * 0.4 * 1.5;
+    assert!((v - truth).abs() < 1e-12, "{v} vs {truth}");
 }

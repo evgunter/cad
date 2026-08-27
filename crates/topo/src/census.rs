@@ -588,7 +588,10 @@ fn contain<T: Decide>(
             errors.push(ValidationError::CensusEscalated { cause });
             None
         }
-        Err(_) => {
+        // An arc-bearing loop the polygon walk cannot express: the
+        // census asks the same question through the same door, and
+        // gets the same honest nothing (issue #1076).
+        Err(ContainError::ArcLoopUnsupported { .. }) | Err(_) => {
             errors.push(ValidationError::CensusEscalated {
                 cause: invalid(band, "pm_census_containment"),
             });

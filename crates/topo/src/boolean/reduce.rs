@@ -1337,6 +1337,9 @@ fn esc(e: ContainError, operand: Operand) -> BooleanError {
         ContainError::RayExhausted => BooleanError::ClassificationInvariant {
             what: "contfp ray schedule exhausted",
         },
+        ContainError::ArcLoopUnsupported { r#loop } => {
+            BooleanError::ArcLoopContainmentUnsupported { operand, r#loop }
+        }
         ContainError::Corrupt => BooleanError::CorruptOperand {
             operand,
             vertex: VertexKey::default(),
@@ -1471,14 +1474,49 @@ fn split_other_at_point<T: Decide>(
                 // definitely off its carrier means two exact rows
                 // disagree, which is a broken invariant, not a
                 // frontier.
-                Ok(Sign::Positive | Sign::Negative) => {
+                Ok(Sign::Positive) => {
                     return Err(BooleanError::ClassificationInvariant {
                         what: "split point definitely off the circle carrier it was placed on",
+                    });
+                }
+                // A NEGATIVE distance is impossible; the arm is
+                // spelled the way the row's original spells it
+                // (`super::contain::point_on_arc`) rather than folded
+                // in with the positive one, so the two copies of this
+                // row cannot drift while both are alive (issue #1077).
+                Ok(Sign::Negative) => {
+                    return Err(BooleanError::Escalated {
+                        diag: geom_core::Indeterminate {
+                            margin: geom_core::MarginDiag::Invalid,
+                            band,
+                            predicate: Some("bool_contact_arc"),
+                        },
                     });
                 }
                 Err(diag) => return Err(BooleanError::Escalated { diag }),
             }
             let (t0, t1) = curve.params();
+            // A span of at most one period is what makes the mid
+            // anchor's principal branch the right one, and it is
+            // CHECKED rather than assumed: past a period the azimuth
+            // aliases by 2π silently, and `split_edge`'s interiority
+            // gate cannot see it (an aliased parameter is still inside
+            // a span that long). The row is the period guard
+            // `super::contain::point_on_arc` already spells, metered
+            // the same way; a full turn is `Zero` and passes.
+            match decide(
+                "bool_split_span_period",
+                Margin::levered(T::tau() - (t1 - t0), radius),
+                band,
+            ) {
+                Ok(Sign::Positive | Sign::Zero) => {}
+                Ok(Sign::Negative) => {
+                    return Err(BooleanError::ClassificationInvariant {
+                        what: "circle edge span exceeds one period; the split azimuth                                would alias by a turn",
+                    });
+                }
+                Err(diag) => return Err(BooleanError::Escalated { diag }),
+            }
             circle_split_param(curve.carrier(), center, t0, t1, p)
         }
         geom::Curve3::Ellipse { .. } | geom::Curve3::Nurbs(_) => {
@@ -1502,17 +1540,28 @@ fn split_other_at_point<T: Decide>(
 /// arguments is `atan2`'s to quotient away, so no division enters and
 /// no frame is re-derived here.
 ///
-/// **The mid anchor is what removes the branch cut.** An edge span is
-/// at most one period, so `|δ| ≤ π` and `atan2`'s principal branch is
-/// already the right one: there is no `k·2π` to select, hence no
-/// ordering decision and no lane fork — the interval scalar's `atan2`
-/// encloses the same value, and a span straddling the cut widens the
-/// enclosure rather than mis-selecting a branch. An anchor at the SEAM
-/// would need that selection, and the selection is what `Real` cannot
-/// order.
+/// **The mid anchor is what removes the branch cut.** For a span of at
+/// most one period `|δ| ≤ π`, so `atan2`'s principal branch is already
+/// the right one: there is no `k·2π` to select, hence no ordering
+/// decision and no lane fork — the interval scalar's `atan2` encloses
+/// the same value, and a span straddling the cut widens the enclosure
+/// rather than mis-selecting a branch. An anchor at the SEAM would
+/// need that selection, which on `Real` costs either an ordering (not
+/// available) or a `floor` whose interval answer widens across the
+/// integer (`crate::replace_face`'s `invert_carrier` takes that second
+/// road; issue #1077 owns the three spellings).
 ///
-/// `p` off the carrier answers about its radial projection; the
-/// caller owns the on-carrier precondition.
+/// **Two preconditions, neither checked here.** The span must be at
+/// most one period — the caller's `bool_split_span_period` row
+/// enforces it, because past a period the answer aliases by `2π` and
+/// nothing downstream can see it. And `p` must be ON the carrier: off
+/// it, this answers about `p`'s radial projection.
+///
+/// At `|δ| = π` exactly — the two endpoints of a FULL-period span —
+/// `atan2` returns `+π` for both, so `t₀` maps to `t₁`. Both are
+/// endpoints, `split_edge`'s interiority trilean refuses a split at
+/// either, and the rows below pin that rather than leave it to be
+/// rediscovered.
 fn circle_split_param<T: Decide>(
     carrier: &geom::Curve3<T>,
     center: Point3<T>,
@@ -1648,60 +1697,86 @@ mod tests {
         assert!((got - t).abs() < 1e-12, "got {got}");
     }
 
-    /// The interval lane runs the SAME body — no fork, no measured
-    /// constant gating one — and its answer encloses the `f64` one.
-    #[cfg(feature = "interval")]
-    #[test]
-    fn the_interval_lane_encloses_the_f64_parameter() {
-        use geom_core::{Bounds, Real, interval::Interval};
+    // ---- Adopted from the R1 review probe branch
+    // (`verbs/pierce-r1-probes`), authorship preserved: attacks on the
+    // "|δ| ≤ π so the principal branch is always right" claim.
 
-        let center64 = Point3::new(1.0, 2.0, 3.0);
-        let carrier64 = geom::Curve3::Circle {
-            center: center64,
-            axis: Vec3::unit_z(),
-            radius: 1.5,
-            u_ref: Vec3::unit_x(),
-        };
-        let lift_p = |p: Point3<f64>| {
-            Point3::new(
-                Interval::from_f64(p.x),
-                Interval::from_f64(p.y),
-                Interval::from_f64(p.z),
-            )
-        };
-        let lift_v = |v: Vec3<f64>| {
-            Vec3::new(
-                Interval::from_f64(v.x),
-                Interval::from_f64(v.y),
-                Interval::from_f64(v.z),
-            )
-        };
-        let carrier = geom::Curve3::Circle {
-            center: lift_p(center64),
-            axis: lift_v(Vec3::unit_z()),
-            radius: Interval::from_f64(1.5),
-            u_ref: lift_v(Vec3::unit_x()),
-        };
-        for t in [0.3, 1.1, 2.7] {
-            let p = carrier64.eval(t);
-            let got64 = circle_split_param(&carrier64, center64, 0.0, PI, p);
-            let got = circle_split_param(
-                &carrier,
-                lift_p(center64),
-                Interval::from_f64(0.0),
-                Interval::from_f64(PI),
-                lift_p(p),
+    /// A circle wound the OTHER way (axis = −z), so increasing `t` runs
+    /// clockwise in the global frame. The claim must not depend on the
+    /// sense.
+    fn wound_negative() -> (geom::Curve3<f64>, Point3<f64>) {
+        let center = Point3::new(1.0, 2.0, 3.0);
+        (
+            geom::Curve3::Circle {
+                center,
+                axis: -Vec3::unit_z(),
+                radius: 1.5,
+                u_ref: Vec3::unit_x(),
+            },
+            center,
+        )
+    }
+
+    #[test]
+    fn r1_both_winding_senses_recover_the_parameter() {
+        for (carrier, center) in [axis_aligned(), wound_negative(), tilted()] {
+            for (t0, t1) in [(0.0, PI), (-5.0, -2.0), (2.5, 2.5 + TAU * 0.999)] {
+                for f in [0.01, 0.5, 0.99] {
+                    let t = t0 + (t1 - t0) * f;
+                    let got = circle_split_param(&carrier, center, t0, t1, carrier.eval(t));
+                    assert!((got - t).abs() < 1e-9, "span ({t0},{t1}) at {t}: {got}");
+                }
+            }
+        }
+    }
+
+    /// **`δ = ±π` EXACTLY.** On a full-period span both endpoints sit
+    /// at `|δ| = π`, and `atan2`'s principal branch returns `+π` for
+    /// both — so `t₀` maps to `t₁`. This is the one place the
+    /// principal-branch sentence is not literally true, and the row
+    /// pins the reason it is harmless: the answer is an ENDPOINT, and
+    /// the interiority trilean refuses a split at an endpoint whichever
+    /// of the two it names.
+    #[test]
+    fn r1_the_exact_half_period_boundary_lands_on_an_endpoint() {
+        let (carrier, center) = axis_aligned();
+        let (t0, t1) = (0.0, TAU);
+        for t in [t0, t1] {
+            let got = circle_split_param(&carrier, center, t0, t1, carrier.eval(t));
+            assert!(
+                (got - t1).abs() < 1e-12,
+                "both period endpoints map to t1: t={t} got={got}"
             );
             assert!(
-                got.lo() <= got64 && got64 <= got.hi(),
-                "at {t}: f64 {got64} outside [{}, {}]",
-                got.lo(),
-                got.hi()
-            );
-            assert!(
-                got.lo() > 0.0 && got.hi() < PI,
-                "at {t}: not strictly inside"
+                !(got > t0 && got < t1),
+                "an endpoint is never strictly interior: {got}"
             );
         }
     }
+
+    /// A TINY span (a hair of arc): the mid anchor is a hair from both
+    /// endpoints, so `δ` is tiny and the answer is still exact and
+    /// still strictly inside.
+    #[test]
+    fn r1_a_tiny_span_still_recovers_the_parameter() {
+        let (carrier, center) = axis_aligned();
+        for w in [1e-3, 1e-6, 1e-9] {
+            let (t0, t1) = (1.0, 1.0 + w);
+            let t = t0 + w * 0.5001;
+            let got = circle_split_param(&carrier, center, t0, t1, carrier.eval(t));
+            assert!((got - t).abs() < w * 1e-6, "w={w} t={t} got={got}");
+            assert!(got > t0 && got < t1, "w={w}: {got} outside ({t0},{t1})");
+        }
+    }
 }
+
+/// The interval lane's rows for this module, in a file the CI filter's
+/// naming rule matches (`scripts/ci-filter.py`'s `_forces_interval`):
+/// the shipped code has no interval-gated block at all — that is the
+/// whole point of the mid anchor — so the only interval-specific
+/// artifact is this suite, and naming it is what pins its lane instead
+/// of sampling it.
+#[cfg(test)]
+#[cfg(feature = "interval")]
+#[path = "reduce_interval_rows.rs"]
+mod reduce_interval_rows;

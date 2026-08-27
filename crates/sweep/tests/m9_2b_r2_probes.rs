@@ -89,18 +89,12 @@ fn probe_cross_instance_conformal_wall_touch_at_three_prime() {
     // faces within reach, at least one with a curved carrier or a
     // curved boundary.
     //
-    // This row used to observe `EdgeFacePierce` and to record, in this
-    // comment, that the class was WRONG — the geometry touches
-    // (gap == 0), it does not cross. The mechanism is now named and
-    // gone: the boss's wall joint-line edges cross the plate's
-    // top/bottom face planes at points exactly ON the hole's rim
-    // circle, and the point-in-face walk was deciding a `Circle`
-    // boundary through its CHORD, which for a rim arc runs through the
-    // face INTERIOR — so an on-rim graze read as `In` and the touch
-    // surfaced as a pierce. The exact arc rows decide it now. Pinned:
-    // (1) A5 holds — the undeclared touch is never blessed; (2) no
-    // pierce is invented for a grazing edge; (3) the census envelope
-    // statement still does not name this distinct-carrier conformal
+    // Three invariants: (1) A5 holds — the undeclared touch is never
+    // blessed; (2) **no pierce is invented for a graze** — the boss's
+    // wall joint-line edges cross the plate's face planes at points
+    // exactly ON the hole's rim circle, and a point on a boundary arc
+    // is a boundary event, never an interior one; (3) the census
+    // envelope statement does not name this distinct-carrier conformal
     // class.
     let errs = verdict.expect_err("the undeclared cross-instance touch must not bless");
     assert!(
