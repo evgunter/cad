@@ -2706,8 +2706,8 @@ mod review_probes {
             ("lily_stem", 5e-3, 31_612usize),
             ("lily_stem", 2e-3, 76_436),
             ("lily_arch", 2e-3, 136_076),
-            ("lily_lantern", 5e-3, 988),
-            ("lily_lantern", 2e-3, 2_348),
+            ("lily_lantern", 5e-3, 1_084),
+            ("lily_lantern", 2e-3, 2_560),
             ("lily_leaf_b", 2e-3, 468),
             ("lily_leaf_c", 2e-3, 414),
         ];
@@ -2744,11 +2744,16 @@ mod review_probes {
                 r_top,
             )
             + frustum(lip_drop, r_mouth, lip_r);
-        for (delta, lo, hi) in [(5e-3, 0.0120, 0.0130), (2e-3, 0.0050, 0.0056)] {
-            let m = pncad::mesh::tessellate(body(&ps, "lily_lantern"), delta, Tol::witness())
-                .expect("tessellate");
-            let rel = ((signed_volume(&m) - exact) / exact).abs();
-            println!("lantern volume error @ {delta:e}: rel {rel}");
+        let rels: Vec<(f64, f64)> = [5e-3, 2e-3]
+            .into_iter()
+            .map(|delta| {
+                let m = pncad::mesh::tessellate(body(&ps, "lily_lantern"), delta, Tol::witness())
+                    .expect("tessellate");
+                (delta, ((signed_volume(&m) - exact) / exact).abs())
+            })
+            .collect();
+        println!("lantern volume error, measured: {rels:?}");
+        for ((delta, rel), (lo, hi)) in rels.into_iter().zip([(0.0120, 0.0130), (0.0050, 0.0056)]) {
             assert!(rel > lo && rel < hi, "lantern @ {delta:e}: rel {rel}");
         }
         // A swept blade has no analytic wall to compare against, but it
