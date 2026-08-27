@@ -709,27 +709,3 @@ fn the_band_edge_is_where_the_lemma_stops_and_the_margins_still_agree() {
          comparisons, {splits} certify/refuse splits"
     );
 }
-
-/// TEMPORARY diagnostic (removed before merge): what the parallel row
-/// actually measures across the band edge, at whatever ε is set.
-#[test]
-#[ignore]
-fn diag_band_edge_sweep() {
-    let eps = Tol::witness().eps();
-    let base = slab(1.0);
-    let show = |r: &Result<ChartOverlap, ChartRegionError>| match r {
-        Ok(o) => format!("Ok({o:?})"),
-        Err(ChartRegionError::Escalated(d)) => {
-            format!("Esc({}, m={:?})", d.predicate.unwrap_or("?"), d.margin)
-        }
-        Err(_) => "Err(other)".to_string(),
-    };
-    println!("eps={eps:e} K*eps={:e}", 10.0 * eps);
-    for k in [5.0, 8.0, 9.0, 9.9, 10.0, 10.1, 11.0, 12.0, 20.0, 50.0] {
-        let b = turned_plate(1.0, 1.0, (k * eps).atan().to_degrees(), 0.0, 0.0);
-        let (fa, fb) = pair(&base, &b);
-        let ab = declared_pair_overlap(&base, fa, &b, fb, ContactVerdict::Definite, band());
-        let ba = declared_pair_overlap(&b, fb, &base, fa, ContactVerdict::Definite, band());
-        println!("  k={k:<6} AB={:<52} BA={}", show(&ab), show(&ba));
-    }
-}
