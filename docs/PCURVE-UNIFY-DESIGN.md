@@ -2,7 +2,16 @@
 
 STATUS: **RATIFIED (Evan, PR #514 comment 5303556411,
 2026-08-15): U2 as scoped; the scaffold = MappedCurve retained as
-a description SOLELY for pre-body edges (narrow, tightly fenced);
+a description SOLELY for pre-body edges (narrow, tightly fenced)
+— **fence criterion CORRECTED 2026-08-27, Evan ratifying in chat
+after P-1's substrate: the boundary is TRANSIENCE, not "pre-body".**
+`MappedCurve` measurably reaches REST through `describe_minted_edges`
+and six fillet strut sites, so "pre-body" never fenced it. Evan's
+Q2 choice — narrow `MappedCurve` rather than a dedicated `Scaffold`
+rung — is UNCHANGED and was not revisited ("i think i don't want to
+revisit Scaffold"); only the doc's description of where the fence
+falls was wrong. Legal as a description only through the scaffolding
+door; tier 3 refuses it at rest;
 Seam folds in as drafted. Q3 (the authority record's home) adopted
 by dominant argument with Evan's pushback window open: per-edge
 KERNEL data — forced because tier-3's prefer-intrinsic enforcement
