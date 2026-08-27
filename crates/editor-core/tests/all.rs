@@ -63,6 +63,8 @@ mod boolean_op_wire;
 mod dsc_checks;
 #[path = "e4_dual_door.rs"]
 mod e4_dual_door;
+#[path = "gui1_pick.rs"]
+mod gui1_pick;
 #[path = "lbret_schema_v8.rs"]
 mod lbret_schema_v8;
 #[path = "lib_doors_node_result.rs"]

@@ -111,6 +111,11 @@ pub use resolve::{
     NodeVerdicts, SummaryDelta, SummaryDivergence, SummaryFlip, SummaryFlipSet, VerdictSummary,
     diff_summaries, verdict_summary,
 };
+// GUI-1: the hit-test service (G1 `ray → stable ref`), with the ray
+// vocabulary re-exported from `bvh` so a layer-3 consumer needs no
+// direct bvh dependency.
+pub use bvh::Ray;
+pub use resolve::{MeshPick, MeshPickError, PickHit, PickTarget, pick_face};
 pub use roots::RootFault;
 pub use update::{PinMultiplicity, PinSites, UpdateError, mixed_pins, update_references};
 pub use witness::{
