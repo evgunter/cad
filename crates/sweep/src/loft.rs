@@ -53,7 +53,7 @@ use std::sync::Arc;
 
 use geom::Curve3;
 use geom::{NurbsSurface, Surface};
-use geom_brep::{EdgeCurveSpec, EdgeDescription, NewellError, newell_plane};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, NewellError, newell_plane};
 use geom_core::{
     Affine3, Band, BandError, Decide, Indeterminate, Margin, Point3, Real, Sign, Tol, Vec3,
 };
@@ -527,12 +527,14 @@ fn assemble<T: Decide>(
             let carrier = geom_brep::boundary_iso_u(walls_t[li][j].as_ref(), false)
                 .map_err(|_| LoftError::SeamStructure)?;
             let spec = EdgeCurveSpec {
-                description: EdgeDescription::IsoCurve {
-                    surface: wall_key,
-                    u: T::zero(),
-                    v0: T::zero(),
-                    v1: T::one(),
-                },
+                description: EdgeDescriptionSpec::iso(
+                    wall_key,
+                    T::zero(),
+                    T::zero(),
+                    T::one(),
+                    T::zero(),
+                    T::one(),
+                ),
                 carrier: Curve3::Nurbs(Arc::new(carrier)),
                 param_start: T::zero(),
                 param_end: T::one(),

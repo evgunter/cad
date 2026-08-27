@@ -45,7 +45,7 @@
 //! the two together, and it is deliberately not deleted.
 
 use geom::Curve3;
-use geom_brep::{EdgeCurveSpec, EdgeDescription, MappedCurve, SketchSegment};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, SketchSegment};
 use geom_core::{
     Affine3, Band, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Vec2, Vec3,
 };
@@ -326,7 +326,7 @@ pub(crate) fn placed_segment_spec<T: Real, S: SweptChord<T>>(
     q_from: Point3<T>,
     q_to: Point3<T>,
 ) -> EdgeCurveSpec<T> {
-    let description = EdgeDescription::MappedCurve(MappedCurve::PlacedSegment {
+    let description = EdgeDescriptionSpec::Scaffold(MappedCurve::PlacedSegment {
         segment: sketch_segment(seg),
         place,
     });

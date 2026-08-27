@@ -431,7 +431,7 @@ fn classify(
     curve: &geom_brep::EdgeCurve<f64>,
     _ek: EdgeKey,
 ) -> Result<TravKind, TessellateError> {
-    if matches!(curve.description(), EdgeDescription::Seam { .. }) {
+    if matches!(curve.description(), EdgeDescription::Chart(c) if c.seam) {
         return Ok(TravKind::Meridian {
             u_raw: mid_azimuth(chart, curve),
         });

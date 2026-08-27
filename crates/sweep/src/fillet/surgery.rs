@@ -123,7 +123,7 @@
 
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::{EdgeCurveSpec, EdgeDescription};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Vec3};
 use topo::{
     Body, EdgeKey, EntityId, FaceKey, FaceSurface, HalfEdgeKey, LoopKey, MefSite, MevSite,
@@ -1399,7 +1399,7 @@ enum ContactCarrier<T: Real> {
     /// An exact stored arc (the rim trim circles — π-safe).
     Exact(Curve3<T>, T, T),
     /// A torus band's SLIT: a double-traversed minor-circle arc
-    /// described as a [`EdgeDescription::Seam`] of the band's own
+    /// described as the SEAM image of the band's own
     /// surface (sweep < π; the donut's representation).
     SeamArc { center: Point3<T>, radius: T },
 }
@@ -2561,7 +2561,7 @@ fn attach_contact<T: Decide + Bounds>(
                  close as an annulus",
             ));
         }
-        EdgeDescription::Seam { surface: s1 }
+        EdgeDescriptionSpec::seam(s1)
     } else if transverse {
         // The chamfer's edges: two surfaces crossing at a definite
         // angle, so the intrinsic description is the plain
@@ -2569,10 +2569,10 @@ fn attach_contact<T: Decide + Bounds>(
         // claim normal-parallelism along the locus that the geometry
         // does not have, and certification measures exactly that.
         let witness = curve.eval((t0 + t1) * T::from_f64(0.5));
-        EdgeDescription::Intersection { s1, s2, witness }
+        EdgeDescriptionSpec::Intersection { s1, s2, witness }
     } else {
         let witness = curve.eval((t0 + t1) * T::from_f64(0.5));
-        EdgeDescription::TangentIntersection { s1, s2, witness }
+        EdgeDescriptionSpec::TangentIntersection { s1, s2, witness }
     };
     body.set_edge_curve(
         edge,

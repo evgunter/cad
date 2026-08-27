@@ -62,7 +62,7 @@ use core::fmt;
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::{
-    DihedralClass, EdgeCurveSpec, EdgeDescription, MappedCurve, NewellError, classify_dihedral,
+    DihedralClass, EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, NewellError, classify_dihedral,
     newell_plane,
 };
 use geom_core::{
@@ -384,7 +384,7 @@ fn strut_spec<T: Real>(
     w_norm: T,
 ) -> EdgeCurveSpec<T> {
     EdgeCurveSpec {
-        description: EdgeDescription::MappedCurve(MappedCurve::ExtrudedPoint {
+        description: EdgeDescriptionSpec::Scaffold(MappedCurve::ExtrudedPoint {
             point,
             place,
             vec: w,
@@ -824,7 +824,7 @@ fn sweep_loop<T: Decide>(
                 // was impossible (the side surfaces did not exist);
                 // re-describe through the certified setter.
                 let spec = EdgeCurveSpec {
-                    description: EdgeDescription::Intersection {
+                    description: EdgeDescriptionSpec::Intersection {
                         s1: k_prev,
                         s2: k_next,
                         witness: mid,
@@ -857,7 +857,7 @@ fn sweep_loop<T: Decide>(
                 match geom_core::k_stats::decide("tangent_second_order", margin, band) {
                     Ok(geom_core::Sign::Positive) => {
                         let spec = EdgeCurveSpec {
-                            description: EdgeDescription::TangentIntersection {
+                            description: EdgeDescriptionSpec::TangentIntersection {
                                 s1: k_prev,
                                 s2: k_next,
                                 witness: mid,
@@ -1052,7 +1052,7 @@ fn upgrade_rim<T: Decide>(
     match classify_dihedral(&s_cap, &s_wall, witness, extent, band) {
         Ok(DihedralClass::Transverse) => {
             let spec = EdgeCurveSpec {
-                description: EdgeDescription::Intersection {
+                description: EdgeDescriptionSpec::Intersection {
                     s1: cap,
                     s2: wall,
                     witness,
