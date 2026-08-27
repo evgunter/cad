@@ -464,16 +464,13 @@ fn the_shell_cost_is_measured_not_asserted() {
 // The Klein bottle's walls, re-authored
 // ---------------------------------------------------------------------
 
-/// The Klein bottle's own numbers (`demos/tour/src/klein.rs`): the
-/// tube's spine radius, the wall thickness spelled into both offsets of
-/// every run by hand, the loop arc's spine radius, and one arc's sweep.
-mod klein_constants {
-    use core::f64::consts::PI;
-    pub const R: f64 = 0.25;
-    pub const WALL: f64 = 0.05;
-    pub const RLOOP: f64 = 1.20;
-    pub const SWEEP_IN: f64 = 0.5 * PI;
-}
+// The Klein bottle's own numbers (`demos/tour/src/klein.rs`): the
+// tube's spine radius, the wall thickness spelled into both offsets of
+// every run by hand, the loop arc's spine radius, and one arc's sweep.
+const KLEIN_R: f64 = 0.25;
+const KLEIN_WALL: f64 = 0.05;
+const KLEIN_RLOOP: f64 = 1.20;
+const KLEIN_SWEEP_IN: f64 = 0.5 * core::f64::consts::PI;
 
 /// A circle profile loop of radius `r` — two semicircular arcs, the
 /// spelling `profile::circle` produces.
@@ -487,17 +484,16 @@ fn circle_loop(r: f64) -> ProfileLoop<f64> {
 /// Klein's elbow, revolved about the loop-arc axis exactly as the demo
 /// does — built from whichever cross-section loops it is handed.
 fn klein_elbow(loops: Vec<ProfileLoop<f64>>) -> Body<f64> {
-    use klein_constants::{RLOOP, SWEEP_IN};
     let profile = Profile::new(SketchPlane::xy(), loops)
         .validate(Tol::witness())
         .expect("the elbow's cross-section validates");
     revolve(
         &profile,
         RevolveAxis {
-            origin: p2(RLOOP, 0.0),
+            origin: p2(KLEIN_RLOOP, 0.0),
             dir: Vec2::new(0.0, -1.0),
         },
-        Revolution::Partial(-SWEEP_IN),
+        Revolution::Partial(-KLEIN_SWEEP_IN),
         Tol::witness(),
     )
     .expect("the elbow revolves")
@@ -539,13 +535,11 @@ fn klein_elbow(loops: Vec<ProfileLoop<f64>>) -> Body<f64> {
 /// keep consistent across two call sites.
 #[test]
 fn the_klein_wall_pair_waits_on_a_plane_torus_route() {
-    use klein_constants::{R, WALL};
-
     // The hand construction still builds, unchanged — the debt is real
     // and the demo is not broken, it is just paid by hand.
     let by_hand = klein_elbow(vec![
-        circle_loop(R + WALL / 2.0),
-        circle_loop(R - WALL / 2.0),
+        circle_loop(KLEIN_R + KLEIN_WALL / 2.0),
+        circle_loop(KLEIN_R - KLEIN_WALL / 2.0),
     ]);
     assert_eq!(
         topo::validate_geometric(&by_hand, Tol::witness()),
@@ -553,7 +547,7 @@ fn the_klein_wall_pair_waits_on_a_plane_torus_route() {
         "the hand-built elbow is what the demo ships"
     );
 
-    let solid = klein_elbow(vec![circle_loop(R + WALL / 2.0)]);
+    let solid = klein_elbow(vec![circle_loop(KLEIN_R + KLEIN_WALL / 2.0)]);
     let caps: Vec<FaceKey> = solid
         .faces()
         .filter(|(_, f)| {
@@ -566,7 +560,7 @@ fn the_klein_wall_pair_waits_on_a_plane_torus_route() {
         .collect();
     assert_eq!(caps.len(), 2, "a partial revolve has two meridian end caps");
 
-    let e = topo::shell_open(&solid, WALL, &caps, FIT_TOL, band(), Tol::witness())
+    let e = topo::shell_open(&solid, KLEIN_WALL, &caps, FIT_TOL, band(), Tol::witness())
         .expect_err("plane x torus has no route arm");
     assert!(
         matches!(
@@ -585,7 +579,7 @@ fn the_klein_wall_pair_waits_on_a_plane_torus_route() {
 
     // The sealed arm stops at the same wall, on the same edges — the
     // blocker is the rim pair, not the opening.
-    let sealed = topo::shell(&solid, WALL, FIT_TOL, band(), Tol::witness())
+    let sealed = topo::shell(&solid, KLEIN_WALL, FIT_TOL, band(), Tol::witness())
         .expect_err("the sealed arm meets the same pair");
     assert!(matches!(sealed, ShellError::Face { .. }), "got {sealed}");
 }

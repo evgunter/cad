@@ -1044,7 +1044,7 @@ fn group_cone_v_window<T: Decide>(
 }
 
 /// The `v`-range of one carrier on a cone chart (see
-/// [`face_cone_v_window`]).
+/// [`group_cone_v_window`]).
 fn cone_v_range<T: Decide>(
     carrier: &Curve3<T>,
     t0: T,
