@@ -11,21 +11,46 @@
 //!    nothing to do with it.** A box and a right prism on an L hollow;
 //!    a right prism on a TRIANGLE does not. A cylinder between two
 //!    caps normal to its axis hollows; a cone between the same two
-//!    caps does not, and neither does a sphere zone. A TANGENT
-//!    junction refuses too, at a second door — and the test says why
-//!    that row cannot be attributed to tangency alone. The surviving
-//!    class is stated in `the_hollow_survives_exactly_the_square_junction`.
+//!    caps does not, and neither does a sphere zone, and neither do a
+//!    partial revolve's meridian caps — planes CONTAINING the axis
+//!    rather than normal to it, which is the same rule from the
+//!    direction the first cut of this table omitted. A CURVED
+//!    neighbour refuses at a SECOND door, and that door is about the
+//!    neighbour's offset not being a rigid translation rather than
+//!    about tangency: `lifted_dome` is a definitely-non-tangent
+//!    fixture that refuses at the identical site with the identical
+//!    `what` string, which the table now asserts.
 //! 2. **the opened rim is wrong on every solid of revolution**, and
-//!    right on a box. Not a tolerance lottery: `the_opened_rim_is_wrong_
-//!    on_every_revolve` sweeps five wall thicknesses, three mouth radii
-//!    spanning a factor of 24, and three chord budgets, and the answer
-//!    is the same every time — including on the simplest possible
-//!    fixture, a cylindrical drum.
+//!    right on a box. Not a tolerance lottery:
+//!    `the_opened_rim_is_wrong_on_every_revolve` sweeps five wall
+//!    thicknesses, mouth radii at two scales (41–47 mm and 1 m) and
+//!    three chord budgets, and the answer is the same every time —
+//!    including on the simplest possible fixture, a cylindrical drum.
+//!    And the MECHANISM is not the one this file first asserted:
+//!    `the_seam_split_is_not_the_mechanism` designates a revolved
+//!    TUBE's mouth, which is ONE face on a body with no axis apex, and
+//!    the rim is wrong there too — in a different shape (genus 2, one
+//!    ring). The class both shapes belong to is *a designated face
+//!    whose cavity counterpart's boundary cannot become an
+//!    interior-disjoint RING of it*, and on an annular cap the correct
+//!    rim is two disjoint annuli, a face SPLIT the surgery cannot
+//!    express.
 //!
-//! Both tables are PLANTED REDS in the direction of the fix: each
-//! refusal is asserted by its exact variant and each defect by its
-//! exact wrong number, so a door that grows either case fails here and
-//! sends the reader to the scene's own retire notes.
+//! **Two claims this file used to make and no longer does**, both
+//! retracted on measurement rather than on argument: that the tangent
+//! row's door could not be separated from tangency (`lifted_dome`
+//! separates it), and that the opened rim's discriminator was "one
+//! face versus two half-discs on a chart"
+//! (`the_seam_split_is_not_the_mechanism` falsifies it). The fixtures
+//! that did it were contributed by the review of #1078 and are merged
+//! beside this file as `verbs_teapot_r1_probes.rs` and
+//! `verbs_teapot_r2_probes.rs`.
+//!
+//! Every table here is a PLANTED RED in the direction of the fix: each
+//! refusal is asserted by its exact variant (and, at the second door,
+//! its exact `what`), each defect by its exact wrong numbers. A door
+//! that grows any of these cases fails here and sends the reader to
+//! the retire note beside the assertion.
 //!
 //! # The sweeps, and what they could not match
 //!
@@ -35,11 +60,9 @@
 //! lane, which no fixture here enters); junctions between two CURVED
 //! faces on one body; multi-designation openings; and operands whose
 //! charts are shared by adoption rather than by a revolve's seam.
-//! A tangent junction IS covered (`bullet`), because the reasoning
-//! that predicts the oblique class predicts that one too, and a
-//! prediction nothing executes is a claim — but it is a two-variable
-//! row, and the test says so rather than reading it as a third
-//! confirmation.
+//! A tangent junction IS covered (`bullet`), and so is its
+//! non-tangent twin (`lifted_dome`), which is what turns that row from
+//! a two-variable observation into a one-variable one.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
