@@ -303,7 +303,19 @@ fn offset_refusal(e: &ShellError<f64>) -> String {
                 assert!(*gap > 0.0, "the gap is a distance in meters, got {gap}");
                 "ReanchorOffCarrier".to_string()
             }
-            ReplaceFaceError::CarrierLaneUnsupported { .. } => "CarrierLaneUnsupported".to_string(),
+            // The STRING as well as the variant: this door has more than
+            // one `what`, and which one fires IS the finding — "the
+            // neighbour's offset is not a rigid translation" is a
+            // statement about the neighbouring surface, not about how
+            // the meridian was authored.
+            ReplaceFaceError::CarrierLaneUnsupported { what, .. } => {
+                assert_eq!(
+                    *what, "a mapped description whose surface's offset is not a rigid translation",
+                    "this door's OTHER `what` (a carrier that is neither a line nor a circle) \
+                     would be a different finding"
+                );
+                "CarrierLaneUnsupported".to_string()
+            }
             other => panic!("an unexpected face-offset refusal: {other}"),
         },
         other => panic!("the refusal is not the offset door's: {other}"),
@@ -611,4 +623,78 @@ fn genus(body: &Body<f64>) -> i64 {
          Euler-Poincare and no genus follows from it"
     );
     body.shells().count() as i64 - chi / 2
+}
+
+/// **The seam split is NOT the mechanism, asserted rather than cited.**
+///
+/// The row above sweeps axis-touching caps, every one of which is two
+/// half-discs on one chart — so on its own it cannot separate "the cap
+/// is two faces" from "the cap touches the axis" from anything else.
+/// This row removes both variables at once: a revolved TUBE's meridian
+/// is a closed off-axis loop, so it closes its own seam and its mouth
+/// chart is exactly ONE face, with no axis apex anywhere on the body.
+/// The rim is still wrong, and wrong in a DIFFERENT shape — genus 2
+/// with one ring, against the axis-touching cap's genus 1 with two.
+///
+/// What both shapes have in common is the class the register now
+/// carries: the cavity counterpart's boundary cannot become an
+/// interior-disjoint ring of the designated face. Here the correct rim
+/// would be TWO DISJOINT ANNULI — a face SPLIT, which the `kfmrh`
+/// surgery has no output shape for at all — and what the verb returns
+/// instead is a single ring the CDT then refuses.
+///
+/// (`verbs_teapot_r2_probes::r2_revolved_tube_separates_seam_from_axis`
+/// and `r2_annular_mouth_anatomy` are where this was first measured and
+/// where the loop anatomy is printed face by face; this row is the
+/// planted red, so a fix reds here.)
+#[test]
+fn the_seam_split_is_not_the_mechanism() {
+    let tol = Tol::witness();
+    let (ri, ro, h) = (0.30, 0.50, 0.40);
+    let body = revolved(
+        Open.at(Point2::new(ri, 0.0))
+            .line_to(Point2::new(ro, 0.0), tol)
+            .expect("base annulus")
+            .line_to(Point2::new(ro, h), tol)
+            .expect("outer wall")
+            .line_to(Point2::new(ri, h), tol)
+            .expect("mouth annulus")
+            .line_to(Start, tol)
+            .expect("the bore closes the meridian")
+            .into(),
+        tol,
+    );
+    let chart = plane_chart_at(&body, h);
+    assert_eq!(
+        chart.len(),
+        1,
+        "a closed OFF-AXIS meridian closes its own seam, so this cap is ONE face — \
+         which is the whole point of the row"
+    );
+    let cup = pncad::topo::shell_open(&body, 0.05, &chart, FIT_TOL, band(tol), tol)
+        .expect("the opened arm returns a body here too");
+    assert_eq!(
+        pncad::topo::validate_geometric(&cup, tol),
+        Ok(()),
+        "and tiers 1-3 bless it, exactly as they bless the axis-touching case"
+    );
+    assert_eq!(
+        (rings(&cup), genus(&cup)),
+        (1, 2),
+        "MEASURED, not wanted: one ring and genus 2 on a body with no seam split and no \
+         axis apex. When this stops reading (1, 2), re-derive the class in \
+         docs/KERNEL-VERBS.md and #1082 from what it says instead"
+    );
+    let e = pncad::mesh::tessellate(&cup, 1e-3, tol)
+        .expect_err("and it does not mesh, for the same reason the axis-touching one does not");
+    let pncad::mesh::TessellateError::Triangulation { face } = e else {
+        panic!("expected the CDT's insertion refusal, got {e:?}");
+    };
+    let f = cup.get_face(face).expect("the refusing face");
+    assert!(
+        matches!(cup.get_surface(f.surface),
+            Some(Surface::Plane { origin, .. }) if (origin.y - h).abs() < 1e-12)
+            && f.rings.len() == 1,
+        "the face that refuses is the MOUTH annulus carrying the ring, not some other face"
+    );
 }
