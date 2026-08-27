@@ -137,6 +137,15 @@ const ROLL: f64 = 0.05;
 /// circle centred ON the revolve axis and the wall it sweeps is a
 /// sphere rather than a fitted stand-in — which is what the
 /// sphere×cone arm needs to exist at all.
+///
+/// **Not shared with `bodies::bud_rim`, deliberately.** That body is
+/// this same bud, probe-lane only (no stop, no cell), and it exists so
+/// the `fillet3_*` family records margins in the K corpus. Its own
+/// meridian is authored VIA a decimal midpoint rather than about a
+/// centre, and its bytes are what that corpus is pinned to — re-spelling
+/// it to share this function would move the K baseline for a
+/// refactoring's sake. The two stay separate until something else asks
+/// for the shape.
 fn meridian(tol: Tol) -> ProfileLoop<f64> {
     Open.at(Point2::new(BORE, 0.0))
         .line_to(Point2::new(GLOBE, 0.0), tol)
