@@ -1616,3 +1616,22 @@ The fix pass surfaced a wild instance of a new operational law
 silently, and none retroactively — force one via push or
 close/reopen after resolving. Lane swept. In flight: ordinal 80
 (#1044's review), OFF-D PR-2 (shell).
+
+## ORDINAL 80 RETURNED: CYLCYL PR-B A-W-F 0/4/5; FIX PASS OUT (2026-08-27)
+
+No wrong-answer path: the closed-form pins held under the
+reviewer's r∈{6.5,7,8,9.5} attack (exact volumes throughout) with
+honest refusal at r=10 tangency; arc_extent's sagitta bound,
+clip_to_boundary's wrap argument, and the span-dip bound all
+re-derived and verified — the clip argument proved STRONGER than
+stated (no branch needs an unwrapped azimuth). The MINs: the
+false "2×" prose (bound sound, multiplicative claim unbounded
+near the span end); the re-aimed r5 row's red-ability measured
+false under both mutations (box tangency hides regression); the
+dip clamp shipping unpinned (M3 mutation leaves the whole tree
+green); and the one soundness caveat — edge_box collapses the
+radius bracket to .hi() before arc_extent, under-covering by the
+bracket width in the pruning direction (fix: widen). NOTE-3
+invokes the class rule on three unswept siblings; NOTE-4 adopts
+the bracket.py 6mm flip as the unit's own point. Fix pass
+dispatched with probe adoption; reviewer lane swept.
