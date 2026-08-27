@@ -41,6 +41,8 @@ mod camera_ops;
 mod doc_io;
 #[path = "eval_seam.rs"]
 mod eval_seam;
+#[path = "frame_policy.rs"]
+mod frame_policy;
 #[path = "input_mapping.rs"]
 mod input_mapping;
 #[path = "panel_edits.rs"]
@@ -49,12 +51,18 @@ mod panel_edits;
 mod review_gui0_r1;
 #[path = "review_gui0_r2.rs"]
 mod review_gui0_r2;
+#[path = "review_gui2_r1.rs"]
+mod review_gui2_r1;
+#[path = "review_gui2_r2.rs"]
+mod review_gui2_r2;
 #[path = "review_gui3_r1.rs"]
 mod review_gui3_r1;
 #[path = "review_gui3_r2.rs"]
 mod review_gui3_r2;
 #[path = "scene_build.rs"]
 mod scene_build;
+#[path = "select_pick.rs"]
+mod select_pick;
 #[path = "tree_badges.rs"]
 mod tree_badges;
 #[path = "undo_tree.rs"]

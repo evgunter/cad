@@ -2614,10 +2614,20 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 /// The families here, and why each stays interior:
 ///
 /// - **Arena keys and the naming table's interior** (`EntityRef`,
-///   `EntityKey`, `Entry`, `NamingKey`, `MeshPatchKey`, `TieWitness`,
-///   `entity_name`, `body_name`, `vertex_name`): body-lineage-scoped,
-///   meaningful only against the evaluation that minted them. Not
-///   carrying them IS the LB13 boundary the guard above enforces.
+///   `EntityKey`, `Entry`, `NamingKey`, `entity_name`, `body_name`,
+///   `vertex_name`): body-lineage-scoped, meaningful only against the
+///   evaluation that minted them. Not carrying them IS the LB13
+///   boundary the guard above enforces.
+///
+///   `MeshPatchKey` and `TieWitness` are here with them, and the
+///   reason is worth stating because a previous revision of this file
+///   got it wrong: the seal is a **naming** barrier, not a capability
+///   one. Not carrying a type stops a consumer reaching it by
+///   accident — every remaining route is a contortion a reader can
+///   see — but a payload bound out of a carried enum can still be
+///   stored in a generic field and compared across evaluations. The
+///   list below is therefore cut to what a consumer needs to ASK, not
+///   to what it could be trusted not to misuse.
 /// - **Appearance** (`Appearance*`, `Attr*`, `Rgba8`,
 ///   `*rebind_suggestions`, `enrich_appearance_loss*`): a GUI-side
 ///   presentation layer with no authoring door yet.
@@ -2626,13 +2636,26 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   `Diagnosis`, `Implicated`, `PredicateDivergence`, `SideVerdict`,
 ///   `DocDiff`, `NodeChange`, `diff_*`, `verdict_summary`, `Epoch`,
 ///   `Tombstone`, `RecipeEditRef`): the editor's own re-evaluation
-///   telemetry, not a modelling vocabulary.
-/// - **Resolution plumbing** (`Resolution`, `Resolved`,
-///   `ResolveError`, `ResolveIndeterminate`, `ResolutionFailure`,
-///   `Qualifier`, `Coset`, `HitTestError`, `resolve*`): the interior
-///   of name→entity resolution, whose curated face is
-///   `crate::select`'s doors.
-/// - **Evaluation interior** (`EvalScalar`, `RunCtx`, `RunStatus`,
+///   telemetry, not a modelling vocabulary. GUI-2 carried these
+///   briefly as the payloads of a resolution failure and then put them
+///   back: the panel renders the failure through its `Display`, so
+///   nothing consumed the payload types, and a door carried for a
+///   consumer that does not exist is a claim nobody is checking.
+/// - **Naming interior** (`Qualifier`, `Coset`, `Resolved`,
+///   `ResolveError`, `ResolutionFailure`, `ResolveIndeterminate`,
+///   `resolve_with_prior`): the shapes the name algebra and the
+///   resolution ladder work in, below the verdict that is the curated
+///   face.
+///
+///   **The resolution VERDICT left this family at GUI-2** — exactly
+///   three names: `resolve`, `RunCtx`, `Resolution`. It is not
+///   plumbing behind a door; it IS the door for the question a
+///   consumer that stores names must ask on every re-evaluation, and
+///   `Resolution`'s arms answer it (`Resolved(_)` / `Failed(f)` /
+///   `Indeterminate(c)`) through pattern matching and `Display`,
+///   without naming a payload type. The ladder's own vocabulary stays
+///   here until something consumes it.
+/// - **Evaluation interior** (`EvalScalar`, `RunStatus`,
 ///   `ContentKey`, `apply_with_names`, `derivation_nodes`): the
 ///   service's own machinery behind `evaluate`.
 ///
@@ -2664,19 +2687,30 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   now; `product_recorded` stays out because `product`/
 ///   `product_named` are the curated gather and `assemble` is what
 ///   needs the recorded one.
-/// - **The hit-test service** (`MeshPick`, `MeshPickError`,
-///   `NodePick`, `NodePickError`, `PickHit`, `PickTarget`, `pick_face`,
-///   and `Ray` — a `bvh` re-export riding the service's door): GUI-1's layer-2
-///   picking door (`ray → StableName` over tessellated meshes),
-///   consumed by the viewer's selection path (GUI-2). Its inputs are
-///   `mesh::Mesh` indexes and viewport rays — display-side state the
-///   Python authoring surface does not hold; a headless-picking door
-///   for bindings would be a curated decision of its own, not a
-///   root-name pass-through.
+///   **The hit-test service's NAMED half left this list at GUI-2**
+///   (`NodePick`, `NodePickError`, `PickHit`, `PickTarget`,
+///   `pick_face`, `HitTestError`, and `Ray` — a `bvh` re-export riding
+///   the service's door). GUI-1 held the whole service out on the
+///   argument that its inputs are display-side state the Python
+///   authoring surface does not hold. Its first consumer landed and
+///   that argument did not survive it: the service's whole public
+///   ANSWER is a `StableName`, the same currency `crate::select`'s
+///   other doors speak, and the alternative — the viewer taking a
+///   direct `editor-core` edge — hands layer 3 the arena keys the
+///   façade's curation exists to seal.
+///
+///   **`MeshPick` and `MeshPickError` stay, and that is what closes
+///   #1098's lane at the façade.** They are the raw index a
+///   hand-assembled `PickTarget` needs, and `PickTarget::pick` is a
+///   `&MeshPick` — so with the index unnameable here, the target whose
+///   contract warns of a confidently wrong name has no constructor a
+///   façade consumer can reach, and `NodePick` is not merely the
+///   preferred door but the only one. `PickTarget` is carried because
+///   `pick_face`'s signature names it, not because it can be built.
 /// - **`MigrationStep`**: the stated exception in the crate docs —
 ///   its signature speaks `serde_json::Value`, which does not cross
 ///   the curated surface.
-const NOT_CARRIED: [&str; 88] = [
+const NOT_CARRIED: [&str; 78] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -2700,7 +2734,6 @@ const NOT_CARRIED: [&str; 88] = [
     "EvalScalar",
     "ExprPath",
     "FlipSet",
-    "HitTestError",
     "Implicated",
     "MeshPatchKey",
     "MeshPick",
@@ -2712,27 +2745,20 @@ const NOT_CARRIED: [&str; 88] = [
     "NamingError",
     "NamingKey",
     "NodeChange",
-    "NodePick",
-    "NodePickError",
     "NodeVerdictDelta",
     "NodeVerdicts",
     "ParamValue",
-    "PickHit",
-    "PickTarget",
     "PredicateDivergence",
     "Product",
     "ProfilePayload",
     "ProgramRefusal",
     "Qualifier",
-    "Ray",
     "RecipeEditRef",
-    "Resolution",
     "ResolutionFailure",
     "ResolveError",
     "ResolveIndeterminate",
     "Resolved",
     "Rgba8",
-    "RunCtx",
     "RunStatus",
     "SideVerdict",
     "SummaryDelta",
@@ -2757,10 +2783,8 @@ const NOT_CARRIED: [&str; 88] = [
     "enrich_appearance_loss_with_prior",
     "entity_name",
     "from_value",
-    "pick_face",
     "product_recorded",
     "rebind_suggestions",
-    "resolve",
     "resolve_with_prior",
     "to_value",
     "verdict_summary",

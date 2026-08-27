@@ -35,9 +35,11 @@ use std::sync::Arc;
 
 use pncad::document::{
     Dimension, DimensionError, Doc, DocEdit, EditError, Evaluation, ParamName, ParseError,
-    ProfileProgram, RecipeNodeId, SlotId, apply, parse_expr,
+    ProductError, ProfileProgram, RecipeNodeId, SlotId, apply, parse_expr, product,
 };
 use pncad::geom_core::Tol;
+use pncad::prelude::StableName;
+use pncad::select::{Resolution, RunCtx, resolve};
 
 use crate::docio::{self, DocIoError};
 use crate::evalseam::{EvalRequest, EvalService, Generation, InlineEvaluator};
@@ -45,8 +47,43 @@ use crate::history::History;
 use crate::props::{self, SlotDriver, SlotValue};
 use crate::tree::{self, TreeRow};
 
-/// What the panels have selected. A typed layer-3 value: recipe node
-/// ids and parameter names, never an arena key.
+/// A picked face: the stable name it is, and the node whose body
+/// carried it when it was picked.
+///
+/// **The name is the selection**; the node rides along because it is
+/// what the feature tree highlights and what the property panel shows
+/// slots for, and re-deriving it would mean resolving the name again
+/// for a question the pick already answered. G1's rule is satisfied
+/// exactly: a `StableName` and a `RecipeNodeId`, no arena key.
+///
+/// The node is the one whose evaluated body was hit, which is not
+/// necessarily `name.node` (the node whose operation MINTED the
+/// entity): a face minted by a profile's extrude and passed through a
+/// later transform is hit on the transform's body and named after the
+/// extrude. Both are true and they answer different questions; this
+/// field answers "whose body did the ray meet".
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FaceSelection {
+    /// The picked face's stable name — what survives re-evaluation.
+    pub name: StableName,
+    /// The node whose body was hit.
+    pub node: RecipeNodeId,
+    /// The output body index within that node's value.
+    pub body: u32,
+}
+
+/// What the session has selected. A typed layer-3 value: stable
+/// names, recipe node ids and parameter names, never an arena key.
+///
+/// **Single-select, by ratification** (the GUI plan's rulings): one
+/// selection, and nothing here is shaped to grow a second. Multi-select
+/// is GQ7 and deferred by design.
+///
+/// **ONE value for the viewport and the panels.** A face picked in the
+/// viewport and a node clicked in the tree write the same field, which
+/// is what makes "click a face, watch its feature highlight" a
+/// property of the state rather than of two widgets agreeing —
+/// [`Selection::node`] is the one inversion both read.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub enum Selection {
     /// Nothing selected.
@@ -57,6 +94,113 @@ pub enum Selection {
     /// A document parameter, selected in the property panel — where
     /// the expression-driven refusal's affordance navigates to.
     Param(ParamName),
+    /// A face, picked in the viewport.
+    Face(FaceSelection),
+}
+
+impl Selection {
+    /// The recipe node this selection is about, when it is about one:
+    /// the node itself, or a picked face's owning node.
+    ///
+    /// **The one home for the viewport→tree inversion.** The feature
+    /// tree's highlight and the property panel's slot rows both read
+    /// it, so a face pick reaches them without either of them knowing
+    /// what a face is.
+    pub fn node(&self) -> Option<RecipeNodeId> {
+        match self {
+            Self::Node(id) => Some(*id),
+            Self::Face(face) => Some(face.node),
+            Self::None | Self::Param(_) => None,
+        }
+    }
+
+    /// The picked face, when the selection is one.
+    pub fn face(&self) -> Option<&FaceSelection> {
+        match self {
+            Self::Face(face) => Some(face),
+            Self::None | Self::Node(_) | Self::Param(_) => None,
+        }
+    }
+}
+
+/// Whether the selection still denotes something in the evaluation on
+/// screen — the ratified resolution-failure semantics, as a value.
+///
+/// **A vanished reference is a STATE, not an event.** Nothing clears
+/// the selection when the thing it names stops existing: the name
+/// stays, this verdict changes, and the chrome renders the unresolved
+/// state distinctly while the affordances that need a live entity
+/// switch off. That is the whole of GQ7's recorded constraint (tools
+/// survive the referenced entity vanishing) at v1's single-select
+/// scope.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Standing {
+    /// There is nothing selected to resolve.
+    Empty,
+    /// A node selection, and whether the document still holds it.
+    Node {
+        /// The node.
+        node: RecipeNodeId,
+        /// Whether it is still in the recipe.
+        present: bool,
+    },
+    /// A parameter selection, and whether the document still declares
+    /// it.
+    Param {
+        /// The parameter.
+        name: ParamName,
+        /// Whether it is still declared.
+        present: bool,
+    },
+    /// A face selection, and the resolution verdict its name got.
+    Face {
+        /// The selection.
+        face: FaceSelection,
+        /// What the shipped resolution machinery answered — `None`
+        /// when there is no evaluation to answer against yet, which is
+        /// neither "live" nor "vanished" and is not reported as
+        /// either.
+        ///
+        /// Boxed for the reason [`Refusal::Edit`] is: a `Resolution`
+        /// carrying a diagnosis and a tombstone is an order of
+        /// magnitude wider than the other arms here, and this value is
+        /// returned by value on every frame.
+        resolution: Option<Box<Resolution>>,
+    },
+}
+
+impl Standing {
+    /// Whether the selection denotes something the chrome may edit
+    /// against.
+    ///
+    /// The one predicate the dependent affordances read. A face whose
+    /// name did not resolve is NOT live; so is one with no evaluation
+    /// behind it yet, because "we cannot tell" and "yes" are not the
+    /// same answer and only one of them may enable a button.
+    pub fn live(&self) -> bool {
+        match self {
+            Self::Empty => false,
+            Self::Node { present, .. } | Self::Param { present, .. } => *present,
+            Self::Face { resolution, .. } => {
+                matches!(resolution.as_deref(), Some(Resolution::Resolved(_)))
+            }
+        }
+    }
+
+    /// The typed unresolved verdict, when the selection has one.
+    ///
+    /// `Some` exactly when a face selection's name failed to resolve
+    /// or the evaluation could not answer for it — the two arms that
+    /// render distinctly.
+    pub fn unresolved(&self) -> Option<&Resolution> {
+        match self {
+            Self::Face {
+                resolution: Some(resolution),
+                ..
+            } if !matches!(**resolution, Resolution::Resolved(_)) => Some(resolution),
+            _ => None,
+        }
+    }
 }
 
 /// Why an operation did not happen. Every arm is a value the chrome
@@ -219,6 +363,25 @@ impl Refusal {
 pub enum SessionOp {
     /// Move the selection.
     Select(Selection),
+    /// Move the transient hover, or clear it with `None`.
+    ///
+    /// **Hover is layer-3 state and nothing else**: it never enters
+    /// the document, never enters the history, and is not persisted.
+    /// It is an operation rather than a field the chrome writes for
+    /// the same reason every other move here is one (G1's
+    /// operations-are-API rule) — a headless test hovers by naming
+    /// this op.
+    Hover(Option<FaceSelection>),
+    /// Delete a recipe node.
+    ///
+    /// The panel's own door to `DocEdit::DeleteNode`, and the edit the
+    /// survival semantics are exercised through: deleting the feature
+    /// a selected face belongs to is the first of the three ways a
+    /// selection's referent goes away.
+    DeleteNode {
+        /// The node to delete.
+        node: RecipeNodeId,
+    },
     /// Write a value into a node's slot. Refused if the slot is
     /// driven by an expression.
     SetSlot {
@@ -376,12 +539,38 @@ pub struct DocSession {
     history: History,
     tol: Tol,
     selection: Selection,
+    /// What the cursor is over: transient, never persisted, and its
+    /// ONE home. A widget that kept its own copy would be the
+    /// per-widget shadow the panels' inventory discipline forbids.
+    hover: Option<FaceSelection>,
     gesture: Option<Gesture>,
     scratch: Option<Doc<ProfileProgram>>,
     eval: Box<dyn EvalService>,
     generation: Generation,
+    /// The document handed to the seam under [`DocSession::generation`]
+    /// — kept so a landed result can be paired with the document it
+    /// actually answers.
+    ///
+    /// `Arc` so that landing it costs a handle rather than a copy: the
+    /// landed pair and the outstanding request name the SAME document
+    /// value for as long as they agree, which is most of the time.
+    requested_doc: Arc<Doc<ProfileProgram>>,
     landed: Option<Arc<Evaluation<f64>>>,
+    /// The document [`DocSession::landed`] answers.
+    ///
+    /// **Resolution is a question about a PAIR.** `resolve` reads the
+    /// recipe and the evaluation together, so asking it about the
+    /// document as it stands now and the evaluation as it stood one
+    /// edit ago is asking about a run that never happened — and the
+    /// diagnosis it answers with would be about that non-run. The two
+    /// move together here, one generation behind the shown document
+    /// while a run is outstanding, which is exactly what the picture
+    /// does.
+    landed_doc: Option<Arc<Doc<ProfileProgram>>>,
     landed_generation: Option<Generation>,
+    /// The gather's refusal for the landed pair, computed once when it
+    /// lands ([`DocSession::product_fault`]).
+    landed_fault: Option<ProductError>,
     path: Option<PathBuf>,
 }
 
@@ -407,14 +596,22 @@ impl DocSession {
     /// nobody asked.
     pub fn new(doc: Doc<ProfileProgram>, tol: Tol, eval: Box<dyn EvalService>) -> Self {
         let mut session = Self {
+            // A placeholder the `request_eval` below overwrites before
+            // anything can read it. It is the empty document rather
+            // than a clone of `doc` because a clone here would be a
+            // second copy nobody ever looks at.
+            requested_doc: Arc::new(Doc::empty_derived("unsubmitted", tol)),
             history: History::new(doc),
             tol,
             selection: Selection::None,
+            hover: None,
             gesture: None,
             scratch: None,
             eval,
             generation: Generation::FIRST,
             landed: None,
+            landed_doc: None,
+            landed_fault: None,
             landed_generation: None,
             path: None,
         };
@@ -454,6 +651,40 @@ impl DocSession {
         &self.selection
     }
 
+    /// What the cursor is over, if anything.
+    pub fn hover(&self) -> Option<&FaceSelection> {
+        self.hover.as_ref()
+    }
+
+    /// Whether the selection still denotes something in the evaluation
+    /// on screen.
+    ///
+    /// **A pure function of (shown document, landed evaluation,
+    /// selection)** — recomputed, never cached, so it cannot be stale
+    /// with respect to the state it describes. A face's verdict comes
+    /// from the shipped `resolve` door; nothing here re-implements the
+    /// resolution ladder or interprets its answer beyond arranging it
+    /// beside the other two selection kinds.
+    pub fn standing(&self) -> Standing {
+        match &self.selection {
+            Selection::None => Standing::Empty,
+            Selection::Node(node) => Standing::Node {
+                node: *node,
+                present: self.doc().node(*node).is_some(),
+            },
+            Selection::Param(name) => Standing::Param {
+                name: name.clone(),
+                present: self.doc().params().contains_key(name),
+            },
+            Selection::Face(face) => Standing::Face {
+                face: face.clone(),
+                resolution: self
+                    .landed_pair()
+                    .map(|(doc, eval)| Box::new(resolve(RunCtx { doc, eval }, &face.name))),
+            },
+        }
+    }
+
     /// The most recent evaluation that answered the current document.
     pub fn evaluation(&self) -> Option<&Evaluation<f64>> {
         self.landed.as_deref()
@@ -462,6 +693,24 @@ impl DocSession {
     /// The most recent evaluation, shared.
     pub fn evaluation_arc(&self) -> Option<&Arc<Evaluation<f64>>> {
         self.landed.as_ref()
+    }
+
+    /// The landed evaluation together with the document it answers —
+    /// the pair every name question is asked of.
+    ///
+    /// The two fields are set in one place and read together, so a
+    /// caller cannot pick up one without the other.
+    pub fn landed_pair(&self) -> Option<(&Doc<ProfileProgram>, &Evaluation<f64>)> {
+        Some((self.landed_doc.as_deref()?, self.landed.as_deref()?))
+    }
+
+    /// Why the landed evaluation's product does not gather, if it does
+    /// not — the gather-level refusal no per-node badge can carry.
+    ///
+    /// `None` both when the product is well formed and when nothing
+    /// has landed yet; [`DocSession::landed_pair`] distinguishes those.
+    pub fn product_fault(&self) -> Option<&ProductError> {
+        self.landed_fault.as_ref()
     }
 
     /// The file this session is backed by, if any.
@@ -510,15 +759,38 @@ impl DocSession {
 
     /// The feature tree's rows for the shown document.
     pub fn tree_rows(&self) -> Vec<TreeRow> {
-        tree::rows(self.doc(), self.evaluation())
+        // **The landed PAIR, not the shown document against the landed
+        // evaluation.** A row's badge is a statement about what a run
+        // said about a node, so reading it off a document that run
+        // never saw describes a run that never happened — the same
+        // defect `landed_pair` exists to make unreachable, and it lived
+        // one function away from the fix that introduced it. While a
+        // run is outstanding the tree therefore shows the picture's
+        // document, which is what the viewport shows too.
+        match self.landed_pair() {
+            Some((doc, eval)) => tree::rows(doc, Some(eval)),
+            // Nothing has landed: the shown document with no
+            // evaluation, which renders every row `Unevaluated`.
+            None => tree::rows(self.doc(), None),
+        }
     }
 
-    /// The property rows for the selected node; empty for any other
-    /// selection.
+    /// The property rows for the selected node — the node itself, or a
+    /// picked face's owning node ([`Selection::node`]); empty for any
+    /// other selection.
+    ///
+    /// **A selection whose referent has vanished offers no rows.**
+    /// That is the "disables dependent affordances" half of the
+    /// resolution-failure semantics, taken at the source rather than
+    /// at each widget: a panel that cannot get rows cannot offer an
+    /// edit against a face that is no longer there.
     pub fn slot_rows(&self) -> Vec<props::SlotRow> {
-        match &self.selection {
-            Selection::Node(id) => props::slot_rows(self.doc(), *id),
-            Selection::None | Selection::Param(_) => Vec::new(),
+        if !self.standing().live() {
+            return Vec::new();
+        }
+        match self.selection.node() {
+            Some(id) => props::slot_rows(self.doc(), id),
+            None => Vec::new(),
         }
     }
 
@@ -555,7 +827,17 @@ impl DocSession {
             return Landing::Canceled;
         }
         self.landed_generation = Some(done.generation);
+        // **The product's own verdict, once per landed evaluation.**
+        // The gather is the only thing that answers "is this
+        // document's product well formed" — a naming collision across
+        // roots is not a node failure, so the feature tree's badges
+        // cannot see it, and a viewport that draws the parts without
+        // ever asking would render a body nothing says is wrong.
+        // Computed HERE because here is the one place a result becomes
+        // the session's, so it cannot be run twice or skipped.
+        self.landed_fault = product(self.requested_doc.as_ref(), &done.evaluation, self.tol).err();
         self.landed = Some(done.evaluation);
+        self.landed_doc = Some(Arc::clone(&self.requested_doc));
         Landing::Landed
     }
 
@@ -565,6 +847,16 @@ impl DocSession {
             SessionOp::Select(selection) => {
                 self.selection = selection;
                 OpOutcome::default()
+            }
+            SessionOp::Hover(hover) => {
+                self.hover = hover;
+                OpOutcome::default()
+            }
+            SessionOp::DeleteNode { node } => {
+                if self.gesture.is_some() {
+                    return OpOutcome::refused(Refusal::GestureInFlight);
+                }
+                self.commit(DocEdit::DeleteNode { id: node })
             }
             SessionOp::SetSlot { node, slot, value } => self.set_slot(node, slot, value),
             SessionOp::SetSlotExpression { node, slot, text } => {
@@ -789,7 +1081,16 @@ impl DocSession {
             Ok(history) => {
                 self.history = history;
                 self.selection = Selection::None;
+                self.hover = None;
                 self.gesture = None;
+                // The landed run answered the PREVIOUS document. Left
+                // in place it would render the old model's tree and
+                // resolve the new document's names against it until
+                // the first run lands.
+                self.landed = None;
+                self.landed_doc = None;
+                self.landed_fault = None;
+                self.landed_generation = None;
                 self.scratch = None;
                 self.path = Some(path.to_path_buf());
                 self.request_eval();
@@ -829,9 +1130,15 @@ impl DocSession {
     /// document to the seam.
     fn request_eval(&mut self) {
         self.generation = self.generation.next();
+        // ONE clone of the shown document per request: into the
+        // `Arc` the session keeps, then out of it into the request the
+        // seam owns. The second is the seam's vocabulary (`EvalRequest`
+        // takes a value so a worker owns its copy) and is not a
+        // retained copy — the session keeps exactly one.
+        self.requested_doc = Arc::new(self.doc().clone());
         self.eval.submit(EvalRequest {
             generation: self.generation,
-            doc: self.doc().clone(),
+            doc: self.requested_doc.as_ref().clone(),
             tol: self.tol,
         });
     }
@@ -843,6 +1150,7 @@ impl std::fmt::Debug for DocSession {
             .field("generation", &self.generation)
             .field("landed_generation", &self.landed_generation)
             .field("selection", &self.selection)
+            .field("hover", &self.hover)
             .field("states", &self.history.len())
             .field("gesture", &self.gesture.is_some())
             .field("path", &self.path)

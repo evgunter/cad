@@ -496,8 +496,16 @@ fn a_degenerate_triangle_is_unhittable_and_harmless() {
 /// failure mode. Raw target assembly remains verification-free — the
 /// keys carry no node identity to check against — so this row is the
 /// standing witness of what mis-assembling raw targets costs, kept as
-/// documentation of the residual class (issue #1098; revisit when
-/// GUI-2's cache lands).
+/// documentation of the residual class (issue #1098).
+///
+/// **Revisited when GUI-2's cache landed, and kept ignored.** That
+/// cache holds `NodePick`s and offers targets only through
+/// `NodePick::target`, so the viewer never assembles a raw
+/// `PickTarget` and never enters this lane — which is the outcome
+/// #1098 asked for, and is why the row still cannot be gated: gating
+/// it would mean checking a pairing the keys do not carry, and
+/// deleting it would erase the record of what raw assembly still
+/// costs a consumer who reaches for it.
 #[test]
 #[ignore = "R2 review finding: raw PickTarget provenance is by construction unverifiable; NodePick is the checked door — this row documents the residual raw-assembly class"]
 fn a_mesh_paired_with_the_wrong_node_does_not_answer_a_name() {

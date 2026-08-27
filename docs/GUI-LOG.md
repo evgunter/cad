@@ -206,3 +206,30 @@ for any unit whose reviews have not concluded** — arms live in
 MODEL-AB-LOG (reviewer-fenced) until then; this file references
 slots only. The offending line is left as-is (history is not
 rewritten; the leak already happened) — future entries comply.
+## GUI-2 merged (2026-08-28, PR #1106, sample #32 / ordinal 403)
+
+Viewport selection exists and the G3 interaction set is complete
+minus assemblies: click-to-select with the one selection value
+shared between viewport and tree, hover, highlight, survival under
+vanishing refs, and the GPU id pass — which EXECUTED for the first
+time during the fix pass's screenshot capture (lavapipe; geometry
+correct, no false disagreement; #1097 hardware modes stay open).
+Three program-level outcomes recorded:
+
+- **#1098's raw-target lane is closed structurally**: the census
+  trim made `MeshPick` unnameable at the façade, so `PickTarget`
+  has no reachable constructor — the confident-wrong-name class
+  is now unreachable from layer 3, not merely documented.
+- **The ID-buffer/ray roles inverted vs GQ6-RESURVEY §3** (ray
+  authoritative, id-buffer comparative), argued in the PR and now
+  stated at the code seam; recorded here so the design record
+  reflects practice.
+- **#1111** banks the Display-gap class (eight error types + the
+  editor-core pair).
+- The pair's blinding was contaminated by the orchestrator's own
+  GUI-3 log entry (rule recorded above); flagged on the row.
+- #1102's main-red resolved independently (#1108, the census
+  owner's ε-fix) — the GUI program's citations of it are closed.
+
+Program consequence: **GUI-4 dispatches now** (fable, block
+GUI-B2 slot 1) — the last required v1 unit.
