@@ -1595,6 +1595,12 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                                             what: "extent scan: contfp met corrupt topology",
                                         }
                                     }
+                                    ContainError::ArcLoopUnsupported { r#loop } => {
+                                        BooleanError::ArcLoopContainmentUnsupported {
+                                            operand: x_is,
+                                            r#loop,
+                                        }
+                                    }
                                 })? {
                                     // The circle misses this face
                                     // (it crosses the carrier plane

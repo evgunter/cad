@@ -113,6 +113,49 @@ amended:
   - Record WHO executed the fix pass (implementer-inherited vs
     orchestrator-applied) — inconsistent execution contaminates
     the fix-pass proxies.
+- **Ordinal bands, per program (Evan, in-chat, 2026-08-27; authorised
+  and self-merged after the first arbitrated collision).** THE
+  PROBLEM v6 CREATED: under v4/v5 duals were every third row, and two
+  orchestrators claiming the same integer was rare enough to arbitrate
+  by hand. v6 makes EVERY row a dual, so claim traffic roughly
+  tripled, and PCURVE P-1a and VERBS-PIERCE both drew ordinal 84
+  within minutes on 2026-08-27. The main-is-authority rule resolved it
+  correctly and without argument — PCURVE's claim had reached main,
+  PIERCE's was branch-local, so PIERCE renumbered to 85 — but each
+  such collision costs a renumber plus a corrected log, and the rate
+  now scales with the number of concurrent programs.
+  1. **Each program owns a BAND of 100 and assigns within it.** No
+     cross-program read is needed at dispatch, so a collision is
+     impossible by construction rather than arbitrated after the
+     fact. Bands, allocated at this entry:
+     **VERBS 100–199 · PCURVE 200–299 · LIB 300–399**, with
+     **400+ unallocated** — the orchestrator opening the next
+     program takes the next free band and records it HERE in the
+     same commit that opens the program. **1–99 is CLOSED
+     HISTORY**: the pre-banding global sequence, which reached 85.
+     No new claim ever lands below 100.
+  2. **Claiming on main at review dispatch is UNCHANGED**, and this
+     is deliberate. The band removes the collision; the claim is
+     what keeps the ledger a single auditable record and preserves
+     the main-is-authority tiebreak for the case a band is ever
+     mis-assigned. A cheaper convention that dropped the claim would
+     trade an impossible failure for an invisible one.
+  3. **THE CONSEQUENCE THAT MUST NOT BE SILENT: ordinals stop being
+     chronological, so the SAMPLE NUMBER can no longer be derived
+     from ordinal position.** Rows have read "sample number by
+     ordinal position"; under bands that derivation is wrong, and a
+     later analysis reading it would mis-order the stream. From this
+     entry: **the dual SAMPLE NUMBER is assigned AT MERGE, in main's
+     merge order**, which is already serialized and therefore
+     raceless. A row records BOTH — its banded dispatch ordinal and
+     its merge-order sample number — and they are no longer the same
+     sequence. Sample numbering continues unbroken from #24; the
+     ordinal is an identifier, the sample number is the order.
+  4. Everything else about v6 is untouched: every row still gets a
+     cross-model dual, R1/R2 assignment is still randomized per dual
+     by a recorded byte, the stopping rule and the adjudication
+     instrument are unchanged.
+
 - **Protocol v6 (Evan, in-chat, 2026-08-26, from the fourth
   readout's confound review). DUAL REVIEW REINSTATED,
   SLOT-RANDOMIZED, with a pre-registered stopping rule and a
@@ -1402,6 +1445,7 @@ merge.
 | CYLCYL-B | 2026-08-27 | VERBS-CYLCYL PR-B (PR #1044): the conservatism unit, re-scoped mid-flight by the opening measurement — the arms' premise was FALSE (union refusals come from the CROSSING layer: CurvedPierceUnsupported has no pierce-event path, PointSplitCarrierUnsupported leaves Circle-edge splitting unwired), so the arms moved behind a new curved pierce/split substrate unit and PR-B shipped the three fixes that were #347's whole first demand: the arc-scoped conic edge box (arc_extent: subdivision + per-coordinate sagitta charge — the carrier-slab diagnosis one level down, a class finding), the boundary-clipped cylinder face box, the segment-clamped span-dip vertex. The bracket rounds at 6 mm, pinned at closed-form volumes r ∈ {3,4,5,6}; #347 NARROWED by comment (union demand stays open); bracket.py flipped to its natural 6 mm at the fix pass | M (pre-draw) | OPUS (block VERBS-4 slot 2 as-executed; see the VERBS-4 deviation note — the draw had assigned fable here) | single (ordinal 80, fable; duals suspended per #1016): A-W-F 0/4/5 — NO wrong-answer path: the pins held under r∈{6.5,7,8,9.5} attack (exact volumes) with honest refusal at r=10 tangency; arc_extent's sagitta bound, the wrap-inclusive clip argument (proved STRONGER than stated) and the dip bound all re-derived; MINs: the false '2×' prose (ratio truly unbounded near the span end), the re-aimed r5 row's red-ability measured false under both mutations (box tangency), the dip clamp shipping unpinned (whole tree green under reversion), and the one soundness caveat — edge_box collapsing the radius bracket to .hi() before arc_extent (under-coverage in the pruning direction) | 0 | 4 | 4 | 4 | moderate, IMPLEMENTER-INHERITED (MIN-4 fixed as SPANS via bracket_span with the domination argument at the site; MIN-2 re-derived at r=6 where regression is strict, measured red under both mutations; the clamp pinned by a radial-edge row that q/8 refuses; NOTE-3 class sweep: Conic axial span arc-scoped, ConeSlab why-not at the site, the circle-row q/8's trigonometric-residual sentence written; Q1's false dismissal replaced by the shared-arithmetic reason; probes adopted authorship-preserving; mutation evidence: each of the three mutations reds exactly its own rows) | impl CI 33009685318 GREEN (interval, 1e-12) after a powi(2) discipline red fixed by conversion; fix CI 33033929580 GREEN (interval, 1e-12); interval covered at 1e-6 + 1e-12 across three runs, default mode local-only (topo 473, sweep 575+, editor-core 598, geom-brep 98), stated | impl ~133k / fix ~50k / review ~538k | impl ~5.8h (incl. ~3.5h build-mutex wait) / fix ~1.4h / review ~4.7h |
 | OFFD2 | 2026-08-27 | VERBS-OFF-D PR-2 (PR #1048): `topo::shell` sealed and opened — sealed exactly as O4 ratified (every chart's inward offset assembled and handed to insert_void with the collapse meter's own decides as Carried{Positive}; NO SSI/census, pinned structurally); opened = the cavity counterpart lifted OUTWARD onto the designated face's surface then kfmrh (the rim a plain ring loop on an existing surface; adjudication fence untripped); the chart-group door replace_faces_offset (a full revolve wears one cylinder across two faces — the SharedSurfaceKey refusal became the capability it pointed at); klein re-authoring recorded blocked-not-retired on the absent plane×torus arm (#1057); #1019 measured (tens of ms release; the issue's wanted Approx fixture proven UNBUILDABLE) | L (pre-draw) | OPUS (block VERBS-4 slot 4, the PR-1 arm continuing) | single (ordinal 82, fable; duals suspended per #1016): **NMAI 2/5/3** — both MAJors behind the PR's own honesty paragraph, whose claimed backstop was measured FALSE: the colliding-cavity dumbbell (0.4 neck, t=0.3) returned Ok/tier-3-valid/volume 11.76 vs true 11.312 (planar reach margins are vacuous; the cavity's neck walls cross; nothing per-face can see it), and shell of an already-hollow operand inserted overlapping voids and validated; the opened arm, chart-group contract, root-cause fixes, klein pin, no-crossing pin and #1019 numbers all verified; C7 correction: the interval lane was uncovered at the frozen head | 0 (the honesty paragraph named the gap — the false claim was the backstop, not silence) | 4 | 4 | 4 | substantial, ADJUDICATED WITH EVAN (MAJ-1: the closed-form planar-pair wall_clearance gate, conservative per the #571 direction rule, with the curved residue a DOCUMENTED window at #1055 aimed at M10; MAJ-2: OperandAlreadyHollow gate with Evan's thicken-every-boundary ruling recorded verbatim in #1056; the rim lift re-routed through the group door so revolved caps work; ChartSenseMixed gate with an out-of-kernel planted red; both discriminator probes FLIPPED to loud typed refusals; two reviewer-fixture defects corrected rather than worked around, reasons on the page) | impl three runs incl. (interval,1e-12 — guard-only reds) and (default,1e-12) GREEN; fix CI 33037842886 GREEN with the draw landing (interval, 1e-6) — C7 satisfied hosted; one queued-with-zero-jobs silent run met and named (the CONFLICTING class's sibling) | impl ~201k / fix ~65k / review ~183k | impl ~4.1h / fix ~0.5h / review ~1.2h |
 | DEMO2 | 2026-08-27 | VERBS-DEMO2 (PR #1054; closes #986): three tour scenes — hollowelbow (the bore visible opaque; the CROSS-SCENE MESH PIN: the hollow door's outer walls face-for-face equal to the solid tube's committed 17,152, so a door sizing fork REDS instead of shifting a total; the storage contract pinned == on the bits), hollowtorus (genus 2 through the parameter door; the STEP frontier pinned self-retiring on the exact variant — one gate, three probes retiring together with klein wall 6 and ring), budfillet (the fillets proven by ASSERTIONS: census 3×(+1,+2,+1), the mouth spine re-derived in-scene from the two tangency conditions, ΔV bracketed by the corner-square Pappus bound). Two refusals pinned not worked around: the natural three-rim spelling refuses (the grain is one fillet_edges call per DISJOINT-SUPPORT set — and the surviving lip+bore one-call case pinned too); the bore-rim selector gap gets one more register consumer. #986's four-face prediction measured SIX (wedge caps are faces). 18 baseline rows pure-additive per the runbook | M (pre-draw) | OPUS (block VERBS-5 slot 2) | single (ordinal 83, fable; dispatched pre-v6, stands): A-W-F 0/3/3 + style 9/9 — every pin verified by INDEPENDENT derivation (the ball centre re-solved exact from the tangency conditions; the census/genus chains re-derived; the sweep AND the renders byte-compared against the hosted artifacts — no hand-produced render possible); the pins' teeth probed (the mesh pin reds under a one-sided δ change; the UnsupportedChain detail is the SHARING, not the rim count — measured both directions); MINs: a CI-attribution slip in the PR body (the sweep gated in run 1, not run 2), two stale invalidated-premise sentences in klein/ring, the cross-panel constants duplicated without a tie | 0 | 5 | 5 | 4 | light, IMPLEMENTER-INHERITED (the panels tied by ONE HOME over an assert, with the why argued — shared constants close the fixture leg, the retained assert the schedule leg; both stale sentences retired with cites; wall_triangles made a multiset; probes adopted --no-ff authorship-preserved) | impl CI 33037395871 (interval, default-ε — the run that gated the re-cut baseline) + 33038218690 (default, 1e-6, render lanes green not skipped); fix CI 33040225455 GREEN (interval, 1e-6) — three distinct points across the lane's runs, both silent-run shapes checked at each push | impl ~268k / fix ~14k / review ~177k | impl ~1.2h / fix ~0.3h / review ~0.3h |
+| PIERCE | 2026-08-27 | VERBS-PIERCE (PR #1068): the curved pierce/split substrate — door 1 EXCEEDED acceptance: the mid-anchored azimuth (t = m + atan2(w·τ̂, w·r̂)) removes the branch cut by construction (|δ| ≤ π within a certified span — the interval lane needs NO fork and no measured constant; banked as the reusable pattern, #1077 the consolidation), and the unnamed routing half hid TWO silent wrong answers — contfp deciding Circle boundaries by CHORD and point_in_loop polygonizing disc loops — one measured as a wrong union volume ON MAIN (7.003185307179585 vs 6.643185307179586); the coaxial boss now UNIONS at 0.0 ulp. Door 2's STOP fired per the fence (the ring insert is planar-by-construction — the decisive leg, verified by both reviewers independently); two of #1044's four cases proven COSURFACE (C2/C4 forbid inference — #347's union demand split, comment posted). The #1032 seam measured: one fix does NOT move both rows | M (pre-draw) | OPUS (block VERBS-5 slot 3) | **DUAL (ordinal 85 — the FIRST v6 pair; sample #25 at merge per #1075's merge-order rule; slot byte 180, parity 0 → R1 OPUS + R2 FABLE, concurrent, frozen 5da23569, read-side isolation — both arms disclosed command-line-only build-slot glimpses, benign). R1: A-W-F 2/5/5, style Q1 2/5 (the three-spelling duplication) — unique finds: cast_ray's ray×cylinder quadratic FALSIFIES the STOP's no-root-finder-anywhere sentence (STOP survives on the ring-lane leg); the half-disc silent wrong volume. R2: NMAI 1/4/4 — unique finds: the LENS cap (all-arc, outside the stated blind-spot class — the decisive prose falsifier); the stacked-box calibration measuring the cosurface posture on the planar precedent; closed R1's open bit-identity column with full default suites. CONVERGED on the shared central defect (the arc-loop remainder). v6 tally after pair 1: 0 — R1's cast_ray MAJ is unilateral but CLAIM-CLASS, excluded per instrument 3b** | 0 (the blind spot was stated — the defect was calling it honest) | 3 | 4 | 4 | substantial, ADJUDICATED (the <3-vertex arc-loop gate landed at exactly the measured width — slot/rounded-rect untouched; #1076 the ≥3 remainder verbatim unproven-but-unmeasured; the honest-remainder prose corrected to the callee's contract violation; the STOP evidence corrected, steinmetz restated ring-lane-only; the fix pass also RE-SIGNED one of R2's probe fixtures that demonstrated nothing as written (the half-cylinder bowed away — rebuilt on R1's two-sense design) and caught two of its own: the >period alias now rowed, the |δ|=π endpoint coin-flip asserted as a property; Ellipse swept into the arc-bearing gate; probes from BOTH branches adopted authorship-preserving, every adopted row asserting) | impl CI 33041706189 GREEN (interval, 1e-6, sampled); fix CI 33053005779 GREEN (interval, 1e-12, PINNED BY RULE — the filename rule landed and the filter log proves it); both tolerance rows of the interval lane on the record; default mode covered by R2's full suites + the implementer's local runs, stated | impl ~353k / fix ~484k / R1 ~259k / R2 ~247k | impl ~1.2h / fix ~2.1h / R1 ~1.4h (incl. auth-death resume) / R2 ~1.4h (incl. limit-death resume + an unpark) |
 
 ## PROTOCOL DEVIATION — block VERBS-4 executed unbalanced (found 2026-08-26)
 
@@ -1424,3 +1468,39 @@ AT DISPATCH and echoed into the dispatch record verbatim; block
 VERBS-5 proceeds by its own draw (slot 1 = fable, executed
 correctly at TESSFOLD). Flagged for Evan alongside the #1016
 dual-sampling disposition.
+
+PCURVE P-1a review ordinal fixed at dispatch (2026-08-27, PR #1073
+open — frozen head `af0aebb5`): main claimed through 83, so this
+claim = **84**. Under **protocol v6** every implementation row gets
+a CROSS-MODEL dual and the R1/R2 model assignment is RANDOMIZED per
+dual: draw = `/dev/urandom` byte **238**, parity 0 ⇒ **R1 = OPUS,
+R2 = FABLE**, concurrent on the frozen head, briefs identical, v5
+instrument, verdict ladder unchanged. Sample numbering continues by
+ordinal. Both briefs carry v6 item 5's lane-isolation READ rule
+(pushing is never delayed; neither reviewer reads the other's lane
+until its own report is delivered; an accidental glimpse is
+disclosed). Pre-draw fields logged at the spec: difficulty **L**,
+task-class **STRUCTURAL**, implementer arm **OPUS** (block PCURVE-1
+slot 1, byte 251 ⇒ fable at slot 4). This is the PCURVE program's
+first row and the first dual drawn under v6's randomized slots.
+Row at merge.
+
+Census gap-2 review ordinal fixed at dispatch (2026-08-27, PR #1080
+open — frozen head `e16749ad`): **ordinal 200 — the FIRST BANDED
+claim in PCURVE's range (200–299)**, under the per-program bands
+adopted the same day. The unit is a standalone kernel unit carried
+by the PCURVE orchestrator rather than PCURVE work; it takes that
+orchestrator's band because the band's purpose is collision
+avoidance between concurrent CLAIMANTS, and this orchestrator is one
+claimant. **Sample number is NOT assigned here** — under the banding
+amendment it is assigned AT MERGE in main's merge order.
+
+Protocol v6 dual: draw = `/dev/urandom` byte **159**, parity 1 ⇒
+**R1 = FABLE, R2 = OPUS** — the opposite slot assignment from
+PCURVE P-1a's (byte 238, R1 opus), which is the point of randomizing
+per dual rather than fixing R1 by construction. Concurrent on the
+frozen head, identical briefs, v5 instrument, verdict ladder
+unchanged; both briefs carry v6 item 5's lane-isolation READ rule.
+Pre-draw fields logged at the spec: difficulty **M**, task-class
+**NUMERIC**, implementer arm **OPUS** (block PCURVE-1 slot 2).
+Row at merge.
