@@ -355,31 +355,128 @@ pub fn shell_open<T: Decide + PropsQuadLane>(
             key: EntityId::Face(cavity_face),
         })?;
         // Lift the cavity's counterpart back onto the designated face's
-        // own surface. The offset that put it `t` inside was signed by
-        // the ORIGINAL face's orientation, and the graft's reversal
-        // flips the sense while leaving the chart normal alone — so the
-        // way back is the negation of the way in, read from the operand
-        // rather than re-derived from the reversed face.
-        let back = -inward(body, outer_face, thickness)?;
+        // own surface. The distance is read from the two PLANES rather
+        // than negated from the way in: the graft's reversal negates a
+        // stored plane normal (`revert`'s own contract), so "the way
+        // back" is not the arithmetic negation of "the way in", and
+        // deriving it from geometry is both shorter and sign-safe.
+        let back = lift_to(&out, rim_source, outer_face)?;
         crate::replace_face_offset(&mut out, rim_source, back, tolerance, band, tol).map_err(
             |error| ShellError::Face {
                 face: rim_source,
                 error: Box::new(error),
             },
         )?;
+        // Read AFTER the lift: `FaceSurface::New` minted a fresh key
+        // for the moved chart, and that key — not the one the graft
+        // brought in — is what the ring's descriptions now name.
+        let dead_surface = out
+            .get_face(rim_source)
+            .ok_or(ShellError::Corrupt {
+                key: EntityId::Face(rim_source),
+            })?
+            .surface;
         // The connected sum: the counterpart dies, its outer loop
         // becomes the designated face's RING, and the cavity shell
         // fuses into the outer one.
-        out.kfmrh(outer_face, rim_source)
+        let fused = out
+            .kfmrh(outer_face, rim_source)
             .map_err(|error| ShellError::Rim {
                 face: outer_face,
                 error,
             })?;
+        // The ring's edges still NAME the surface that just died. They
+        // lie on the rim's surface now — the lift put the two planes on
+        // top of each other — so the re-description is a key swap with
+        // the carrier untouched, and the attach layer certifies it
+        // against the geometry rather than taking the swap on trust.
+        rename_ring_surface(&mut out, fused.ring, dead_surface, outer_face, tol)?;
     }
 
     // ---- One validation. ----
     validate_geometric(&out, tol).map_err(|errors| ShellError::NotValid { errors })?;
     Ok(out)
+}
+
+/// The signed distance along `from`'s chart normal that lands it on
+/// `onto`'s plane. Both are planar — a curved designation is refused
+/// upstream — so this is one dot product and no solve.
+fn lift_to<T: Real>(body: &Body<T>, from: FaceKey, onto: FaceKey) -> Result<T, ShellError<T>> {
+    let plane =
+        |face: FaceKey| -> Result<(geom_core::Point3<T>, geom_core::Vec3<T>), ShellError<T>> {
+            let data = body.get_face(face).ok_or(ShellError::Corrupt {
+                key: EntityId::Face(face),
+            })?;
+            match body.get_surface(data.surface) {
+                Some(geom::Surface::Plane { origin, normal, .. }) => Ok((*origin, *normal)),
+                _ => Err(ShellError::Corrupt {
+                    key: EntityId::Face(face),
+                }),
+            }
+        };
+    let (o_from, n_from) = plane(from)?;
+    let (o_onto, _) = plane(onto)?;
+    Ok((o_onto - o_from).dot(n_from))
+}
+
+/// Re-points every description on `ring` that names `dead` at `rim`'s
+/// surface, re-certifying each through the attach layer.
+fn rename_ring_surface<T: Decide>(
+    body: &mut Body<T>,
+    ring: crate::entity::LoopKey,
+    dead: crate::geometry::SurfaceKey,
+    rim: FaceKey,
+    tol: Tol,
+) -> Result<(), ShellError<T>> {
+    let corrupt = |key| ShellError::Corrupt { key };
+    let live = body
+        .get_face(rim)
+        .ok_or_else(|| corrupt(EntityId::Face(rim)))?
+        .surface;
+    let LoopBoundary::Cycle { first } = body
+        .get_loop(ring)
+        .ok_or_else(|| corrupt(EntityId::Loop(ring)))?
+        .boundary
+    else {
+        return Ok(());
+    };
+    let cycle = body
+        .loop_cycle(first)
+        .ok_or_else(|| corrupt(EntityId::HalfEdge(first)))?;
+    let mut specs = Vec::new();
+    for he in cycle {
+        let edge = body
+            .get_half_edge(he)
+            .ok_or_else(|| corrupt(EntityId::HalfEdge(he)))?
+            .edge;
+        let curve = body
+            .get_curve_geom(
+                body.get_edge(edge)
+                    .ok_or_else(|| corrupt(EntityId::Edge(edge)))?
+                    .curve,
+            )
+            .and_then(crate::null::CurveGeom::certified)
+            .ok_or_else(|| corrupt(EntityId::Edge(edge)))?;
+        let (param_start, param_end) = curve.params();
+        specs.push((
+            edge,
+            geom_brep::EdgeCurveSpec {
+                description: crate::replace_face::remap_description(
+                    *curve.description(),
+                    dead,
+                    live,
+                ),
+                carrier: curve.carrier().clone(),
+                param_start,
+                param_end,
+            },
+        ));
+    }
+    for (edge, spec) in specs {
+        body.set_edge_curve(edge, spec, tol)
+            .map_err(|error| ShellError::Rim { face: rim, error })?;
+    }
+    Ok(())
 }
 
 /// The body's faces grouped by the surface they wear, in face-arena

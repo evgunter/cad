@@ -151,13 +151,24 @@ fn a_sealed_shelled_box_is_an_outer_and_a_void() {
 }
 
 /// **The structural claim: no crossing machinery runs.** The sealed
-/// shell is the boolean's degenerate no-crossing arm, and this is the
-/// fact rather than the intention — the verdict log records every
-/// decided predicate, and not one `bool_` predicate may appear.
+/// shell is the boolean's degenerate no-crossing arm, and this row is
+/// the FACT rather than the intention — the verdict log records every
+/// decided predicate, and none of the crossing pipeline's may appear.
 ///
 /// The fixture is deliberately boolean-ADMISSIBLE (planes throughout),
 /// so a reroute through `subtract` would genuinely run the pipeline and
 /// this row would see it.
+///
+/// **`bool_ring_run_winding` is allowed, and naming it is the point.**
+/// The verb ends in a tier-3 validation, and the validator's own
+/// planar-boundary check decides that predicate against the same margin
+/// the boolean's ring-run test uses — one name, two owners
+/// (`topo::validate` and `topo::boolean::join`). Allowing it by name
+/// keeps the claim exact: nothing SSI, census or classification ran.
+/// A silent `bool_`-prefix filter would have hidden that the shared
+/// name exists at all.
+const VALIDATOR_SHARED: &str = "bool_ring_run_winding";
+
 #[test]
 fn shell_runs_no_intersection_machinery() {
     let body = boxy(2.0, 3.0, 4.0);
@@ -168,7 +179,7 @@ fn shell_runs_no_intersection_machinery() {
     let crossing: Vec<&'static str> = verdicts
         .iter()
         .map(|v| v.predicate)
-        .filter(|p| p.starts_with("bool_"))
+        .filter(|p| p.starts_with("bool_") && *p != VALIDATOR_SHARED)
         .collect();
     assert!(
         crossing.is_empty(),
@@ -403,4 +414,48 @@ fn a_curved_two_shell_shell_refuses_step_export() {
         ),
         "expected the standing curved-two-shell gate, got {e}"
     );
+}
+
+// ---------------------------------------------------------------------
+// The measurement (#1019)
+// ---------------------------------------------------------------------
+
+/// **The shell verb's own cost, measured rather than asserted** —
+/// `#1019`'s named fixture, and the place the `O(n²)` whole-body pcurve
+/// mint banked at OFF-D PR-1 either shows up or does not.
+///
+/// `#[ignore]` because a timing row is a measurement, not a gate: it
+/// asserts nothing about wall-clock (which is not a property of the
+/// kernel), and a CI runner's numbers are not the numbers to record.
+/// Run it explicitly, both profiles, and put what it prints in the
+/// issue:
+///
+/// ```text
+/// cargo test -p sweep --test all -- verbs_shell::the_shell_cost --ignored --nocapture
+/// cargo test --release -p sweep --test all -- verbs_shell::the_shell_cost --ignored --nocapture
+/// ```
+#[test]
+#[ignore = "a measurement, not a gate — see the doc comment"]
+fn the_shell_cost_is_measured_not_asserted() {
+    use std::time::Instant;
+    let cases: Vec<(&str, Body<f64>, f64)> = vec![
+        ("box (6 faces, 6 charts)", boxy(2.0, 3.0, 4.0), 0.25),
+        ("vessel (4 faces, 3 charts)", vessel(1.0, 2.0), 0.2),
+        ("tube (8 faces, 6 charts)", tube(0.6, 1.0, 2.0), 0.1),
+    ];
+    for (name, body, t) in cases {
+        let faces = body.faces().count();
+        let start = Instant::now();
+        let hollow =
+            topo::shell(&body, t, FIT_TOL, band(), Tol::witness()).expect("the fixture shells");
+        let build = start.elapsed();
+        let start = Instant::now();
+        topo::validate_geometric(&hollow, Tol::witness()).expect("valid");
+        let validate = start.elapsed();
+        println!(
+            "[shell cost] {name}: {faces} operand faces -> {} result faces; \
+             build {build:?}, one tier-3 validation {validate:?}",
+            hollow.faces().count(),
+        );
+    }
 }

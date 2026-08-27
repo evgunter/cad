@@ -1381,7 +1381,7 @@ fn translate_mapped<T: Real>(
 
 /// `description` with every occurrence of `old` re-pointed at `new` —
 /// the stale-key step a fresh surface mint forces.
-fn remap_description<T: Real>(
+pub(crate) fn remap_description<T: Real>(
     description: EdgeGeometry<T>,
     old: SurfaceKey,
     new: SurfaceKey,
