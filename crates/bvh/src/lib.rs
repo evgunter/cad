@@ -13,7 +13,10 @@
 //!   ("Brute force, deliberately, for now"): this tree swaps in under
 //!   that module's already-merged differential suite when profiling
 //!   asks for it. Nothing in the C3 contract changes when it does.
-//! - **Viewport picking** — INTENDED, blocked on there being a GUI.
+//! - **Viewport picking** — LIVE since GUI-1: [`Bvh::ray`], the
+//!   conservative ray-slab query the editor-core hit-test service
+//!   traverses (candidates ordered by conservative entry parameter;
+//!   see the method's contract).
 //!
 //! # The conservative-superset contract (load-bearing)
 //!
@@ -72,7 +75,9 @@
 //! subdivision structure, the payloads live beside it.
 
 pub mod aabb;
+pub mod ray;
 pub mod tree;
 
 pub use aabb::{Aabb, Axis};
+pub use ray::{Ray, RayCandidate};
 pub use tree::{Bvh, LEAF_SIZE};

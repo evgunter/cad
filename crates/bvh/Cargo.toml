@@ -18,6 +18,9 @@ geom-core = { path = "../geom-core" }
 
 [dev-dependencies]
 proptest = { workspace = true }
+# The ray sweep's varying seed + effort dial (memories/test-suite-cost):
+# a leaf crate, dev-only, same as every other sweep's harness row.
+test-utils = { path = "../test-utils" }
 
 # ONE test binary for the whole suite (see tests/all.rs). Each extra test
 # target cost ~1.9 s of codegen+link on the 2-vCPU CI runner.

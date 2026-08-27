@@ -16,6 +16,7 @@ interval = [
     "geom-core/interval",
     "geom-brep/interval",
     "geom/interval",
+    "mesh/interval",
     "profile/interval",
     "sweep/interval",
     "topo/interval",
@@ -30,6 +31,7 @@ probe = [
     "geom-core/probe",
     "geom-brep/probe",
     "geom/probe",
+    "mesh/probe",
     "profile/probe",
     "sweep/probe",
     "topo/probe",
@@ -41,6 +43,16 @@ probe = [
 # crates gain NO editor-core dependency (the workspace dep direction
 # enforces it).
 geom-core = { path = "../geom-core" }
+# GUI-1: the hit-test service (`resolve::pick`) traverses `Bvh::ray`
+# over per-triangle boxes and reads the mesh back-references
+# (`FacePatch::face`) it inverts through `resolve::hit`. Both sit
+# below editor-core (bvh under geom-core only; mesh is the kernel's
+# tessellation crate) — the G1 direction is untouched.
+bvh = { path = "../bvh" }
+# Promoted from dev-dependencies by GUI-1; the dev-side need it served
+# there still stands and is now covered by this row (M5 PR 11: the
+# corpus curved documents' tessellation/props columns in tests/).
+mesh = { path = "../mesh" }
 # LIB-SEL1: the geometric selector's EXACT atoms read the surface tag,
 # and `geom_brep::SurfaceKind` is the workspace's ONE fieldless mirror
 # of `Surface` (D3: closed, compiler-enumerated). Reused rather than
@@ -75,12 +87,14 @@ sha2 = { workspace = true }
 
 [dev-dependencies]
 proptest = { workspace = true }
+# The GUI-1 randomized sweeps' varying seed + effort dial
+# (memories/test-suite-cost): a dependency-free leaf crate, dev-only,
+# the same harness row every other randomized sweep in the tree takes.
+test-utils = { path = "../test-utils" }
 # The M5 PR 8 differential suite's doors (failure injection + traces)
 # are test-only surface in topo; dev-dependencies are the only place
 # the feature turns on.
 topo = { path = "../topo", features = ["sweep-testing"] }
-# M5 PR 11: the corpus curved documents gain tessellation columns.
-mesh = { path = "../mesh" }
 
 # ONE test binary for the whole suite (see tests/all.rs). Each extra test
 # target cost ~1.9 s of codegen+link on the 2-vCPU CI runner.
