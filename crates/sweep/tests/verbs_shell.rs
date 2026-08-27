@@ -459,3 +459,133 @@ fn the_shell_cost_is_measured_not_asserted() {
         );
     }
 }
+
+// ---------------------------------------------------------------------
+// The Klein bottle's walls, re-authored
+// ---------------------------------------------------------------------
+
+/// The Klein bottle's own numbers (`demos/tour/src/klein.rs`): the
+/// tube's spine radius, the wall thickness spelled into both offsets of
+/// every run by hand, the loop arc's spine radius, and one arc's sweep.
+mod klein_constants {
+    use core::f64::consts::PI;
+    pub const R: f64 = 0.25;
+    pub const WALL: f64 = 0.05;
+    pub const RLOOP: f64 = 1.20;
+    pub const SWEEP_IN: f64 = 0.5 * PI;
+}
+
+/// A circle profile loop of radius `r` — two semicircular arcs, the
+/// spelling `profile::circle` produces.
+fn circle_loop(r: f64) -> ProfileLoop<f64> {
+    ProfileLoop::new(vec![
+        ProfileVertex::new(p2(-r, 0.0), 1.0),
+        ProfileVertex::new(p2(r, 0.0), 1.0),
+    ])
+}
+
+/// Klein's elbow, revolved about the loop-arc axis exactly as the demo
+/// does — built from whichever cross-section loops it is handed.
+fn klein_elbow(loops: Vec<ProfileLoop<f64>>) -> Body<f64> {
+    use klein_constants::{RLOOP, SWEEP_IN};
+    let profile = Profile::new(SketchPlane::xy(), loops)
+        .validate(Tol::witness())
+        .expect("the elbow's cross-section validates");
+    revolve(
+        &profile,
+        RevolveAxis {
+            origin: p2(RLOOP, 0.0),
+            dir: Vec2::new(0.0, -1.0),
+        },
+        Revolution::Partial(-SWEEP_IN),
+        Tol::witness(),
+    )
+    .expect("the elbow revolves")
+    .body
+}
+
+/// **The `r ± t/2` wall pair — and the wall that stops it retiring.**
+///
+/// Klein's `elbow` spells the thickness twice: `circle(R + WALL/2)` for
+/// the outer wall and `circle(R − WALL/2)` for the inner, revolved as
+/// an annulus. The natural spelling is one circle and a `shell_open`
+/// call — revolve the DISC, hollow it, and rim the two end caps where
+/// the elbow meets the rest of the bottle. That is the "paid once per
+/// wall" debt the demo's own findings list records.
+///
+/// **It does not retire in this unit, and this row is why.** A partial
+/// revolve of a disc gives a TORUS wall and two PLANAR meridian end
+/// caps, so every rim is `plane × torus` — and the C5 table has no arm
+/// for that pair. The face-replacement door refuses
+/// `NeighborPairUnroutable` naming it, and the shell verb carries that
+/// refusal up unchanged. **Widening the route to chase a green would be
+/// the wrong unit's work**; the refusal is the honest boundary, so this
+/// row pins it by name.
+///
+/// **What would retire it**, concretely: a `plane × torus` section
+/// arm. The configuration these rims need is the easy one — a plane
+/// CONTAINING the torus axis cuts it in two circles, closed form, no
+/// marching — and it is the same shape as the `plane_cylinder_section`
+/// / `plane_cone_section` doors that already exist. Every other klein
+/// wall pair is revolved too, so the same arm (plus `cone × cylinder`
+/// for the flare) is what the whole debt waits on.
+///
+/// The comparison this row would make once that lands: topology exactly
+/// equal, stored radii within one ulp (the two spellings reach the
+/// inner radius by different routes — `R − WALL/2` against
+/// `(R + WALL/2) − WALL`), volume within `1e-12`. Under the demo rule
+/// the contract is **naturalness, not byte-identity**: one radius
+/// instead of two, and the wall stops being a number the author has to
+/// keep consistent across two call sites.
+#[test]
+fn the_klein_wall_pair_waits_on_a_plane_torus_route() {
+    use klein_constants::{R, WALL};
+
+    // The hand construction still builds, unchanged — the debt is real
+    // and the demo is not broken, it is just paid by hand.
+    let by_hand = klein_elbow(vec![
+        circle_loop(R + WALL / 2.0),
+        circle_loop(R - WALL / 2.0),
+    ]);
+    assert_eq!(
+        topo::validate_geometric(&by_hand, Tol::witness()),
+        Ok(()),
+        "the hand-built elbow is what the demo ships"
+    );
+
+    let solid = klein_elbow(vec![circle_loop(R + WALL / 2.0)]);
+    let caps: Vec<FaceKey> = solid
+        .faces()
+        .filter(|(_, f)| {
+            matches!(
+                solid.get_surface(f.surface),
+                Some(geom::Surface::Plane { .. })
+            )
+        })
+        .map(|(k, _)| k)
+        .collect();
+    assert_eq!(caps.len(), 2, "a partial revolve has two meridian end caps");
+
+    let e = topo::shell_open(&solid, WALL, &caps, FIT_TOL, band(), Tol::witness())
+        .expect_err("plane x torus has no route arm");
+    assert!(
+        matches!(
+            e,
+            ShellError::Face { ref error, .. } if matches!(
+                **error,
+                topo::ReplaceFaceError::NeighborPairUnroutable {
+                    kind: geom_brep::SurfaceKind::Plane,
+                    other_kind: geom_brep::SurfaceKind::Torus,
+                    ..
+                }
+            )
+        ),
+        "expected the C5 refusal naming (plane, torus), got {e}"
+    );
+
+    // The sealed arm stops at the same wall, on the same edges — the
+    // blocker is the rim pair, not the opening.
+    let sealed = topo::shell(&solid, WALL, FIT_TOL, band(), Tol::witness())
+        .expect_err("the sealed arm meets the same pair");
+    assert!(matches!(sealed, ShellError::Face { .. }), "got {sealed}");
+}
