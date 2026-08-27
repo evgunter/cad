@@ -2614,25 +2614,44 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 /// The families here, and why each stays interior:
 ///
 /// - **Arena keys and the naming table's interior** (`EntityRef`,
-///   `EntityKey`, `Entry`, `NamingKey`, `MeshPatchKey`, `TieWitness`,
-///   `entity_name`, `body_name`, `vertex_name`): body-lineage-scoped,
-///   meaningful only against the evaluation that minted them. Not
-///   carrying them IS the LB13 boundary the guard above enforces.
+///   `EntityKey`, `Entry`, `NamingKey`, `entity_name`, `body_name`,
+///   `vertex_name`): body-lineage-scoped, meaningful only against the
+///   evaluation that minted them. Not carrying them IS the LB13
+///   boundary the guard above enforces.
+///
+///   **`MeshPatchKey` and `TieWitness` left this family at GUI-2**,
+///   with the resolution verdict they are payloads of. Neither is an
+///   arena key: `TieWitness` is names and a width, and `MeshPatchKey`
+///   is a node plus an `EntityRef` FIELD — a field a consumer can read
+///   and print but whose type the façade still does not name, so it
+///   cannot be stored. What the boundary forbids is holding a key, and
+///   holding a tombstone beside a name is the shipped selection
+///   discipline that `Tombstone`'s own contract states.
 /// - **Appearance** (`Appearance*`, `Attr*`, `Rgba8`,
 ///   `*rebind_suggestions`, `enrich_appearance_loss*`): a GUI-side
 ///   presentation layer with no authoring door yet.
 /// - **The witness/verdict/diff instrumentation** (`Branch*`,
 ///   `Summary*`, `Verdict*`, `Witness*`, `NodeVerdict*`, `FlipSet`,
-///   `Diagnosis`, `Implicated`, `PredicateDivergence`, `SideVerdict`,
-///   `DocDiff`, `NodeChange`, `diff_*`, `verdict_summary`, `Epoch`,
-///   `Tombstone`, `RecipeEditRef`): the editor's own re-evaluation
-///   telemetry, not a modelling vocabulary.
-/// - **Resolution plumbing** (`Resolution`, `Resolved`,
-///   `ResolveError`, `ResolveIndeterminate`, `ResolutionFailure`,
-///   `Qualifier`, `Coset`, `HitTestError`, `resolve*`): the interior
-///   of name→entity resolution, whose curated face is
-///   `crate::select`'s doors.
-/// - **Evaluation interior** (`EvalScalar`, `RunCtx`, `RunStatus`,
+///   `Implicated`, `PredicateDivergence`, `SideVerdict`,
+///   `DocDiff`, `NodeChange`, `diff_*`, `verdict_summary`, `Epoch`):
+///   the editor's own re-evaluation telemetry, not a modelling
+///   vocabulary. `Diagnosis`, `Tombstone` and `RecipeEditRef` left at
+///   GUI-2 — they are the PAYLOADS of a resolution failure, and a
+///   consumer that stores names needs to render the answer it gets.
+/// - **Naming interior** (`Qualifier`, `Coset`): the shapes the
+///   name algebra works in, below the selector vocabulary that is the
+///   curated face.
+///
+///   **The resolution VERDICT left this family at GUI-2**
+///   (`resolve`, `resolve_with_prior`, `RunCtx`, `Resolution`,
+///   `Resolved`, `ResolveError`, `ResolveIndeterminate`,
+///   `ResolutionFailure`, and the payloads above). It is not plumbing
+///   behind a door — it IS the door for the question a consumer that
+///   stores names must ask on every re-evaluation: does this name
+///   still denote anything, and if not, why. `crate::select` carries
+///   it beside the picking door that mints the names in the first
+///   place.
+/// - **Evaluation interior** (`EvalScalar`, `RunStatus`,
 ///   `ContentKey`, `apply_with_names`, `derivation_nodes`): the
 ///   service's own machinery behind `evaluate`.
 ///
@@ -2664,19 +2683,21 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   now; `product_recorded` stays out because `product`/
 ///   `product_named` are the curated gather and `assemble` is what
 ///   needs the recorded one.
-/// - **The hit-test service** (`MeshPick`, `MeshPickError`,
-///   `NodePick`, `NodePickError`, `PickHit`, `PickTarget`, `pick_face`,
-///   and `Ray` — a `bvh` re-export riding the service's door): GUI-1's layer-2
-///   picking door (`ray → StableName` over tessellated meshes),
-///   consumed by the viewer's selection path (GUI-2). Its inputs are
-///   `mesh::Mesh` indexes and viewport rays — display-side state the
-///   Python authoring surface does not hold; a headless-picking door
-///   for bindings would be a curated decision of its own, not a
-///   root-name pass-through.
+///   **The hit-test service left this list at GUI-2** (`MeshPick`,
+///   `MeshPickError`, `NodePick`, `NodePickError`, `PickHit`,
+///   `PickTarget`, `pick_face`, `HitTestError`, and `Ray` — a `bvh`
+///   re-export riding the service's door). GUI-1 held it out on the
+///   argument that its inputs are display-side state the Python
+///   authoring surface does not hold. Its first consumer landed and
+///   the argument did not survive it: the service's whole public
+///   ANSWER is a `StableName`, the same currency `crate::select`'s
+///   other doors speak, and the alternative — the viewer taking a
+///   direct `editor-core` edge — hands layer 3 the arena keys the
+///   façade's curation exists to seal.
 /// - **`MigrationStep`**: the stated exception in the crate docs —
 ///   its signature speaks `serde_json::Value`, which does not cross
 ///   the curated surface.
-const NOT_CARRIED: [&str; 88] = [
+const NOT_CARRIED: [&str; 66] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -2691,7 +2712,6 @@ const NOT_CARRIED: [&str; 88] = [
     "ClassAdmission",
     "ContentKey",
     "Coset",
-    "Diagnosis",
     "DocDiff",
     "EntityKey",
     "EntityRef",
@@ -2700,11 +2720,7 @@ const NOT_CARRIED: [&str; 88] = [
     "EvalScalar",
     "ExprPath",
     "FlipSet",
-    "HitTestError",
     "Implicated",
-    "MeshPatchKey",
-    "MeshPick",
-    "MeshPickError",
     "MetaError",
     "MetaValue",
     "MetaVersionError",
@@ -2712,35 +2728,21 @@ const NOT_CARRIED: [&str; 88] = [
     "NamingError",
     "NamingKey",
     "NodeChange",
-    "NodePick",
-    "NodePickError",
     "NodeVerdictDelta",
     "NodeVerdicts",
     "ParamValue",
-    "PickHit",
-    "PickTarget",
     "PredicateDivergence",
     "Product",
     "ProfilePayload",
     "ProgramRefusal",
     "Qualifier",
-    "Ray",
-    "RecipeEditRef",
-    "Resolution",
-    "ResolutionFailure",
-    "ResolveError",
-    "ResolveIndeterminate",
-    "Resolved",
     "Rgba8",
-    "RunCtx",
     "RunStatus",
     "SideVerdict",
     "SummaryDelta",
     "SummaryDivergence",
     "SummaryFlip",
     "SummaryFlipSet",
-    "TieWitness",
-    "Tombstone",
     "VerdictFlip",
     "VerdictSummary",
     "WitnessAge",
@@ -2757,11 +2759,8 @@ const NOT_CARRIED: [&str; 88] = [
     "enrich_appearance_loss_with_prior",
     "entity_name",
     "from_value",
-    "pick_face",
     "product_recorded",
     "rebind_suggestions",
-    "resolve",
-    "resolve_with_prior",
     "to_value",
     "verdict_summary",
     "vertex_name",
