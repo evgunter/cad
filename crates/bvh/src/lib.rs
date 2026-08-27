@@ -1,9 +1,12 @@
 //! Deterministic AABB bounding-volume hierarchy (C10, PERF-PLAN §2.1).
 //!
-//! One tree, several duties — **one of them wired so far**:
+//! One tree, several duties — **two of them wired so far**:
 //!
 //! - **Boolean edge×face sweep** candidate generation — LIVE since
 //!   M5 PR 8 (`topo::boolean::reduce`).
+//! - **Placement separation** — LIVE (`topo::separation`): the
+//!   pairwise certificate that no two placed copies of a prototype
+//!   can meet.
 //! - **SSI seeding / C3 exhaustiveness subdivision** — INTENDED, not
 //!   yet wired. `geom_brep::ssi::exhaust` still enumerates cells by
 //!   recursive bisection with a linear scan over tubes, and says so

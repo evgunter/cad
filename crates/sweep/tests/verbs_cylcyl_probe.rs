@@ -97,17 +97,31 @@ fn cylinder_unions_refuse_at_the_curved_pierce_door() {
     }
 }
 
-/// The COAXIAL UNEQUAL-radius pose (a boss on a shaft) is refused by a
-/// DIFFERENT door — the both-split point lane, which needs a `Line`
-/// carrier — so it is not evidence about the pierce door and is pinned
-/// separately rather than folded into the row above.
+/// The COAXIAL UNEQUAL-radius pose (a boss on a shaft) is not a pierce
+/// case, and it unions. Metered rather than asserted `is_ok`, because
+/// a door that opened onto a wrong body would pass that check: the
+/// closed form is a shaft plus the boss's protruding stub,
+/// `π·1²·2 + π·0.5²·1`.
+///
+/// The two rows behind it are the cap's: a `Circle` boundary is
+/// decided by its exact arc rows, not by a chord that runs through the
+/// disc; and a loop of arcs of one circle is decided by its radius,
+/// not by the polygon through its two vertices.
 #[test]
-fn the_coaxial_boss_refuses_at_the_point_split_carrier_door() {
-    let err = union_err(&cyl(0.0, 0.0, 1.0, 0.0, 2.0), &cyl(0.0, 0.0, 0.5, 1.0, 3.0));
-    assert!(
-        matches!(err, BooleanError::PointSplitCarrierUnsupported { .. }),
-        "expected the point-split carrier door, got {err:?}"
-    );
+fn the_coaxial_boss_unions_and_meters_at_the_closed_form() {
+    let tol = Tol::witness();
+    let topo::BooleanResult::Body(out) = topo::union(
+        &cyl(0.0, 0.0, 1.0, 0.0, 2.0),
+        &cyl(0.0, 0.0, 0.5, 1.0, 3.0),
+        tol,
+    )
+    .expect("the boss unions") else {
+        panic!("a boss on a shaft is one solid");
+    };
+    assert_eq!(topo::validate_geometric(&out.body, tol), Ok(()), "tier 3");
+    let v = topo::mass_properties(&out.body, tol).unwrap().volume;
+    let truth = PI * 2.0 + PI * 0.25;
+    assert!((v - truth).abs() < 1e-12, "{v} vs {truth}");
 }
 
 /// **#347's bound is GONE, and the flip is this row.** It used to
