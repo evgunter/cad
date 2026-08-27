@@ -1424,3 +1424,19 @@ AT DISPATCH and echoed into the dispatch record verbatim; block
 VERBS-5 proceeds by its own draw (slot 1 = fable, executed
 correctly at TESSFOLD). Flagged for Evan alongside the #1016
 dual-sampling disposition.
+
+PCURVE P-1a review ordinal fixed at dispatch (2026-08-27, PR #1073
+open — frozen head `af0aebb5`): main claimed through 83, so this
+claim = **84**. Under **protocol v6** every implementation row gets
+a CROSS-MODEL dual and the R1/R2 model assignment is RANDOMIZED per
+dual: draw = `/dev/urandom` byte **238**, parity 0 ⇒ **R1 = OPUS,
+R2 = FABLE**, concurrent on the frozen head, briefs identical, v5
+instrument, verdict ladder unchanged. Sample numbering continues by
+ordinal. Both briefs carry v6 item 5's lane-isolation READ rule
+(pushing is never delayed; neither reviewer reads the other's lane
+until its own report is delivered; an accidental glimpse is
+disclosed). Pre-draw fields logged at the spec: difficulty **L**,
+task-class **STRUCTURAL**, implementer arm **OPUS** (block PCURVE-1
+slot 1, byte 251 ⇒ fable at slot 4). This is the PCURVE program's
+first row and the first dual drawn under v6's randomized slots.
+Row at merge.
