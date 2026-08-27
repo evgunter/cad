@@ -113,6 +113,49 @@ amended:
   - Record WHO executed the fix pass (implementer-inherited vs
     orchestrator-applied) — inconsistent execution contaminates
     the fix-pass proxies.
+- **Ordinal bands, per program (Evan, in-chat, 2026-08-27; authorised
+  and self-merged after the first arbitrated collision).** THE
+  PROBLEM v6 CREATED: under v4/v5 duals were every third row, and two
+  orchestrators claiming the same integer was rare enough to arbitrate
+  by hand. v6 makes EVERY row a dual, so claim traffic roughly
+  tripled, and PCURVE P-1a and VERBS-PIERCE both drew ordinal 84
+  within minutes on 2026-08-27. The main-is-authority rule resolved it
+  correctly and without argument — PCURVE's claim had reached main,
+  PIERCE's was branch-local, so PIERCE renumbered to 85 — but each
+  such collision costs a renumber plus a corrected log, and the rate
+  now scales with the number of concurrent programs.
+  1. **Each program owns a BAND of 100 and assigns within it.** No
+     cross-program read is needed at dispatch, so a collision is
+     impossible by construction rather than arbitrated after the
+     fact. Bands, allocated at this entry:
+     **VERBS 100–199 · PCURVE 200–299 · LIB 300–399**, with
+     **400+ unallocated** — the orchestrator opening the next
+     program takes the next free band and records it HERE in the
+     same commit that opens the program. **1–99 is CLOSED
+     HISTORY**: the pre-banding global sequence, which reached 85.
+     No new claim ever lands below 100.
+  2. **Claiming on main at review dispatch is UNCHANGED**, and this
+     is deliberate. The band removes the collision; the claim is
+     what keeps the ledger a single auditable record and preserves
+     the main-is-authority tiebreak for the case a band is ever
+     mis-assigned. A cheaper convention that dropped the claim would
+     trade an impossible failure for an invisible one.
+  3. **THE CONSEQUENCE THAT MUST NOT BE SILENT: ordinals stop being
+     chronological, so the SAMPLE NUMBER can no longer be derived
+     from ordinal position.** Rows have read "sample number by
+     ordinal position"; under bands that derivation is wrong, and a
+     later analysis reading it would mis-order the stream. From this
+     entry: **the dual SAMPLE NUMBER is assigned AT MERGE, in main's
+     merge order**, which is already serialized and therefore
+     raceless. A row records BOTH — its banded dispatch ordinal and
+     its merge-order sample number — and they are no longer the same
+     sequence. Sample numbering continues unbroken from #24; the
+     ordinal is an identifier, the sample number is the order.
+  4. Everything else about v6 is untouched: every row still gets a
+     cross-model dual, R1/R2 assignment is still randomized per dual
+     by a recorded byte, the stopping rule and the adjudication
+     instrument are unchanged.
+
 - **Protocol v6 (Evan, in-chat, 2026-08-26, from the fourth
   readout's confound review). DUAL REVIEW REINSTATED,
   SLOT-RANDOMIZED, with a pre-registered stopping rule and a
