@@ -157,12 +157,15 @@ the table.
   concentric, constant along the arc. An eccentric bore, a varying
   wall, or a non-circular section is still a profile-side job, and
   the `revolve`/`sweep_body` doors remain where those are said. And
-  the full-period form is a multi-shell curved solid, so it is
-  EXPECTED to join the STEP row below rather than escape it — stated
-  as an expectation, not a receipt: unlike the hollow ring, which
-  `klein::wall_probes` pins in place, nothing in the tree runs the
-  hollow tube through the STEP writer today. The tour scene that
-  would pin it is issue #986.
+  the full-period form is a multi-shell curved solid, so it JOINS the
+  STEP row below rather than escaping it — now a receipt, not an
+  expectation: the `hollowtorus` tour scene (`demos/tour/src/tubewall.rs`)
+  declares the writer's frontier at the body and probes it on every
+  pass, and the export refuses
+  `CurvedShellClassification { kind: "torus" }` exactly as the hollow
+  ring's does. Self-retiring in klein's wall-6 shape — a different
+  refusal, or a success, fails the tour. Issue #986, closed by the
+  scene.
 - **A hollow ring cannot leave as STEP.** The one-call hollow ring
   itself SHIPPED (VERBS-RING retired `FullRevolveHoles`: a full
   revolve of a holed profile builds the multi-shell solid through the
@@ -174,7 +177,11 @@ the table.
   (this ring today, the full-period `tube_along_arc_hollow` shell
   since VERBS-TUBEWALL, the shelled teapot when Wave 3 lands) hits at
   export. (Wall 6, re-baselined: it now pins THIS refusal on the
-  ring it builds.)
+  ring it builds.) The gate now carries THREE probes, which retire
+  together: klein's wall 6, the `ring` scene's `step_at_frontier` on
+  the profile door's hollow ring, and the `hollowtorus` scene's on the
+  parameter door's — the two doors' shapes are separate bodies and a
+  widened classifier releases both.
 - **The PATHS lattice has no tangent straight leg to an anchor.**
   After a declared-tangent joint off an arc, the only straight
   continuation is `.line(len)` — `.to(anchor)` belongs to a fillet's
