@@ -113,6 +113,75 @@ amended:
   - Record WHO executed the fix pass (implementer-inherited vs
     orchestrator-applied) — inconsistent execution contaminates
     the fix-pass proxies.
+- **Protocol v6 (Evan, in-chat, 2026-08-26, from the fourth
+  readout's confound review). DUAL REVIEW REINSTATED,
+  SLOT-RANDOMIZED, with a pre-registered stopping rule and a
+  pre-registered adjudication instrument.** Non-leaking rationale:
+  the fourth readout's cross-model coding leaves the
+  reviewer-MODEL contrast confounded with the R1/R2 SLOT, because
+  v4 item 3 fixed every cross-model dual as R1 fable + R2 opus by
+  construction, and the same-model control bounds the slot effect
+  only weakly (most control pairs carried zero MAJORs). Closing
+  the confound needs slot variation, not more of the same design.
+  1. **Every implementation row gets a CROSS-MODEL dual** (was
+     every 3rd) until the stopping rule in item 2 fires. **The
+     R1/R2 model assignment is RANDOMIZED PER DUAL**: one
+     /dev/urandom byte at dispatch, parity 0 = R1 opus + R2
+     fable, parity 1 = R1 fable + R2 opus; the byte and the
+     assignment are recorded in the row like block draws. R1/R2
+     stay dispatch-order labels; briefs, blinding, frozen-head
+     concurrency, the union fix pass, the v5 instrument, and the
+     verdict ladder are all unchanged. The same-model variance
+     stream stays CLOSED (its v4 stopping rule was met at sample
+     #16). Sample numbering continues by ordinal. Budget valve:
+     if the fable usage limit binds (the v3 rationale),
+     orchestrators may drop to every-2nd-row duals, recording the
+     change here; the stopping rule is unaffected.
+  2. **Pre-registered stopping rule: the stream STOPS when the
+     adjudicated unilateral-MAJOR tally (per item 3) reaches
+     EIGHT, or at TWELVE new pairs, whichever comes first.** The
+     orchestrator recording the triggering row notifies Evan
+     explicitly (away-channel comment requesting acknowledgment).
+     Rationale: the informative unit for the slot-vs-model
+     question is the adjudicated unilateral MAJOR, not the pair —
+     zero-MAJOR pairs are nearly uninformative — and eight such
+     findings under randomized slots separate the hypotheses
+     decisively where a pair count alone does not.
+  3. **Pre-registered adjudication instrument (fixed BEFORE any
+     v6 data exists; the fourth readout's deductions were
+     post-hoc, which this replaces).** A finding enters the tally
+     iff ALL of:
+     (a) UNILATERAL — raised as MAJOR by one reviewer and never
+         mentioned by the other at any severity (the
+         correspondence coding's definition);
+     (b) DEFECT CLASS code / test-gap / contract-API — doc- or
+         claim-only findings are recorded but excluded;
+     (c) DEDUP — findings tracing to one underlying defect count
+         ONCE, however many ways it is described;
+     (d) DEMONSTRATED BY EXECUTION — a red probe, a surviving
+         mutant gone red, a compile-fail pin, a red CI row, or a
+         measured wrong value; accepted-by-inspection findings
+         are recorded but do not count;
+     (e) FAIR PAIR — pairs where either review was interrupted or
+         truncated (outage, kill, lost session) are excluded from
+         the tally though still recorded; unrecoverable counts
+         are missing data, never zeros.
+  4. **Blinded adjudication: correspondence coding and the item-3
+     adjudication run ATTRIBUTION-STRIPPED** — the coder sees
+     reviewer A/B with the A/B-to-R1/R2 mapping re-randomized per
+     pair and model names removed from the material; the readout
+     states the coding session's own model. (Fourth-readout
+     lesson: coding and adjudication ran unblinded, in a session
+     of one of the two models under comparison.)
+  5. **Lane isolation, READ side (the ASM-1 glimpse precedent).
+     Pushing is NEVER delayed** — remote sessions run in
+     preemptible containers where unpushed work is lost, so
+     pushing early and often stays mandatory. Instead: until its
+     own report is delivered, a reviewer must not fetch, check
+     out, or read the other same-unit review lane's branches,
+     scratchpads, or CI artifacts; any accidental glimpse is
+     DISCLOSED in the report and the adjudicator flags the pair
+     (item 3e applies if the glimpse included findings).
 - **Protocol v5 (Evan, 2026-08-18, from the SMELL-SCAN process
   findings). REVIEW SCOPE WIDENS — SCORES ARE NOT COMPARABLE ACROSS
   THIS BOUNDARY.**
