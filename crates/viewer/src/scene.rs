@@ -349,6 +349,29 @@ pub fn product_body(doc: &Doc<ProfileProgram>, tol: Tol) -> Result<Body<f64>, Sc
     product(doc, &evaluation, tol).map_err(SceneError::NoProduct)
 }
 
+/// The scene of a document under an evaluation SOMEONE ELSE ran.
+///
+/// The door the evaluation seam feeds: a result DAG arrives from
+/// wherever it was computed, and the picture is gathered and
+/// tessellated from it. [`scene_of`] is this function with an
+/// evaluation of its own, kept for callers that have no seam — the two
+/// share every step after the result exists, so a document drawn from
+/// a background run and one drawn inline cannot differ.
+///
+/// # Errors
+///
+/// Every arm of [`SceneError`] except the δ one.
+pub fn scene_of_evaluation(
+    doc: &Doc<ProfileProgram>,
+    evaluation: &pncad::document::Evaluation<f64>,
+    delta: DisplayTolerance,
+    tol: Tol,
+) -> Result<SceneMesh, SceneError> {
+    let body = product(doc, evaluation, tol).map_err(SceneError::NoProduct)?;
+    let mesh = tessellate(&body, delta.get(), tol).map_err(SceneError::NotTessellated)?;
+    SceneMesh::build(&mesh, delta)
+}
+
 /// The whole path: document → evaluated product → tessellation at δ →
 /// drawable scene.
 ///

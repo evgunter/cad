@@ -101,10 +101,10 @@ fn opening_a_missing_file_refuses_typed_and_leaves_the_session_alone() {
     let outcome = session.perform(SessionOp::Open(
         std::env::temp_dir().join("gui3-no-such-document.pncad"),
     ));
-    assert!(matches!(
-        outcome.refusal,
-        Some(Refusal::Io(DocIoError::Read { .. }))
-    ));
+    match outcome.refusal {
+        Some(Refusal::Io(ref error)) => assert!(matches!(**error, DocIoError::Read { .. })),
+        ref other => panic!("expected a read refusal, got {other:?}"),
+    }
     assert_eq!(distance(session.committed_doc(), extrude), before);
     assert!(session.path().is_none());
 }

@@ -88,17 +88,23 @@ pub enum Refusal {
     /// No document parameter by that name.
     NoSuchParam(ParamName),
     /// `apply` refused the edit.
-    Edit(EditError),
+    ///
+    /// Boxed, as `Io` is below: these two payloads are an order of
+    /// magnitude larger than every other arm, and a refusal is
+    /// returned by value from functions on the ordinary path — so the
+    /// unboxed shape made every `Ok` in this module pay for the widest
+    /// error nobody was raising.
+    Edit(Box<EditError>),
     /// The value was not a usable dimensioned literal.
     Dimension(DimensionError),
     /// The expression text did not parse.
-    Parse(ParseError),
+    Parse(Box<ParseError>),
     /// A gesture operation arrived with no gesture in flight.
     NoGesture,
     /// A gesture is in flight, so this operation is not available.
     GestureInFlight,
     /// A file operation failed.
-    Io(DocIoError),
+    Io(Box<DocIoError>),
     /// Undo at the root, or redo at the tip of the current branch.
     NothingToDo,
 }
@@ -298,6 +304,13 @@ impl DocSession {
         self.generation
     }
 
+    /// The generation of the result currently on screen — what a
+    /// consumer derived from the evaluation (the scene) compares
+    /// against to know whether its own copy is current.
+    pub fn landed_generation(&self) -> Option<Generation> {
+        self.landed_generation
+    }
+
     /// Whether the result on screen answers a document the session has
     /// already moved past — what the busy indicator reads. A VALUE the
     /// chrome consumes, not a spinner the seam draws.
@@ -441,7 +454,7 @@ impl DocSession {
             .collect();
         let expr = match parse_expr(text, &dims) {
             Ok(expr) => expr,
-            Err(error) => return OpOutcome::refused(Refusal::Parse(error)),
+            Err(error) => return OpOutcome::refused(Refusal::Parse(Box::new(error))),
         };
         // An expression edit is available on a driven slot AND on a
         // literal one — the refusal is about writing a number over a
@@ -509,7 +522,7 @@ impl DocSession {
                     ..OpOutcome::default()
                 }
             }
-            Err(error) => OpOutcome::refused(Refusal::Edit(error)),
+            Err(error) => OpOutcome::refused(Refusal::Edit(Box::new(error))),
         }
     }
 
@@ -559,7 +572,7 @@ impl DocSession {
                 self.request_eval();
                 OpOutcome::default()
             }
-            Err(error) => OpOutcome::refused(Refusal::Io(error)),
+            Err(error) => OpOutcome::refused(Refusal::Io(Box::new(error))),
         }
     }
 
@@ -569,7 +582,7 @@ impl DocSession {
                 self.path = Some(path.to_path_buf());
                 OpOutcome::default()
             }
-            Err(error) => OpOutcome::refused(Refusal::Io(error)),
+            Err(error) => OpOutcome::refused(Refusal::Io(Box::new(error))),
         }
     }
 
@@ -585,7 +598,7 @@ impl DocSession {
                     ..OpOutcome::default()
                 }
             }
-            Err(error) => OpOutcome::refused(Refusal::Edit(error)),
+            Err(error) => OpOutcome::refused(Refusal::Edit(Box::new(error))),
         }
     }
 

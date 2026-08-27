@@ -62,6 +62,28 @@ egui_tiles = { version = "0.17.0", optional = true }
 # Vertex/uniform bytes for the wgpu buffers. Zlib OR Apache-2.0 OR MIT;
 # 1.25.2 released 2026-07-19.
 bytemuck = { version = "1.25.2", features = ["derive"], optional = true }
+# The native file dialog — the ONE thing in the open/save path that
+# escapes headless testing. `viewer::docio::{open, save_path}` are
+# ordinary typed functions over a `Path`; this crate chooses the path
+# and does nothing else.
+#
+# 0.17.2 (2026-01-12), MIT — far past the ~2-week age rule
+# (memories/review-and-dependency-policy.md). MIT-only is a narrower
+# licence than this project's MIT OR Apache-2.0 and is compatible with
+# both branches of it; the egui_dock comparison that went the other way
+# in GUI-0 was a choice between two crates of equal fitness, which this
+# is not — the alternatives here are a GTK C dependency
+# (`native-dialog`'s Linux path) or writing a chooser.
+#
+# Default features are OFF and the Linux pair is named explicitly:
+# `xdg-portal` (the desktop portal, via `pollster` — no async runtime)
+# plus `wayland` for the parent-window handle. What that avoids is the
+# `gtk3` feature's `gtk-sys`/`glib-sys`/`gobject-sys`, which would put
+# a C toolchain requirement into a build that has none.
+rfd = { version = "0.17.2", default-features = false, features = [
+    "wayland",
+    "xdg-portal",
+], optional = true }
 
 [dev-dependencies]
 # The workspace's shared fuzz harness (seed/effort dial,
@@ -74,7 +96,14 @@ test-utils = { path = "../test-utils" }
 # camera operations, the input mapping, and the scene extraction — is
 # renderer-free and compiles without it (G1: layer 3 is
 # headless-testable).
-app = ["dep:bytemuck", "dep:eframe", "dep:egui", "dep:egui-wgpu", "dep:egui_tiles"]
+app = [
+    "dep:bytemuck",
+    "dep:eframe",
+    "dep:egui",
+    "dep:egui-wgpu",
+    "dep:egui_tiles",
+    "dep:rfd",
+]
 
 [[bin]]
 name = "viewer"
