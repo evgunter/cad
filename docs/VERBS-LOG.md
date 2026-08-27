@@ -1696,3 +1696,39 @@ remove — so threshold-plus-variant-name is now the rule, and a
 door wanting a derived echo is asking to be a seam. The queued
 payload-projection unit is CANCELLED; the real.rs entry and
 #1052 amended.
+
+## ORDINAL 82 RETURNED: OFF-D PR-2 NMAI 2/5/3; ADJUDICATED WITH EVAN (2026-08-27)
+
+The review found exactly what the brief aimed it at — both MAJors
+behind the PR's own honesty paragraph, whose claimed backstop is
+measured false: (1) the colliding-cavity dumbbell (0.4 neck,
+t=0.3) returns Ok/valid/volume 11.76 vs true 11.312 — planar
+faces have vacuous reach margins, the cavity's neck walls cross,
+every loop stays simple, and tier-3 has no face-vs-face check;
+(2) shell of an already-hollow operand inserts overlapping voids
+and validates. Evan ruled: MAJ-1 gets the closed-form
+planar-pair clearance gate (sound in the #571 conservative
+direction) with the curved-pair residue a DOCUMENTED window
+issued at M10's clearance certificate; MAJ-2 gets a
+one-shell/zero-void operand gate now, with the semantics issue
+recording that the eventual resolution must thicken EVERY
+boundary (outer-only explicitly rejected). Fix pass dispatched
+with the five MINs, the S2 uniform-sense gate, and the C7
+requirement that interval coverage of the final head be on the
+record before merge. Reviewer lane swept.
+
+## OFF-D PR-2 MERGED (#1048, 2026-08-27) — SHELL IS IN. The Q8 substrate arc is complete
+
+Row OFFD2 in MODEL-AB-LOG. The offset program's whole chain is
+merged: OFF-A mints, OFF-B/C the Approx fit + certification,
+PR-1 the face-replacement door, PR-2 the verb — sealed through
+the shared void-insertion door exactly as ratified, opened as a
+closed thin solid, with the no-room class gated loudly on planar
+pairs (#1055 the curved window), hollow operands refused with the
+thicken-every-boundary semantics recorded (#1056), and the klein
+debt scheduled on its two C5 arms (#1057). The TEAPOT demo unit
+is unblocked. Lane swept. Also banked: the zero-jobs queued run
+(the silent-CI class's second face — a run can queue behind a
+superseded run with mergeable CLEAN and never start; an
+empty-commit re-roll reads as docs-only; a real code commit is
+the reliable re-roll).
