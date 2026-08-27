@@ -1,6 +1,6 @@
 # Patterns & mirror — the reflection-instancing design conversation
 
-**Status: DRAFT — design conversation, awaiting Evan's sign-off**
+**Status: RATIFIED (Evan's sign-off on PR #909, with a P1 conversation round — u ↦ −u per Evan's agreement). The status line lagged the ratification until 2026-08-27 — the sign-off itself is the PR record.**
 (VERBS program). Proposals P1–P6. Substrate anchors verified on main
 2026-08-21. The headline finding reframes the register's row: **the
 patterns half is largely SHIPPED** — `Node::Pattern` (linear/
