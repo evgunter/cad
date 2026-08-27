@@ -1,6 +1,13 @@
 # M9 exit walk — criteria vs evidence
 
-**STATUS: DRAFT, awaiting Evan's closure ruling.** M9 = the C7
+**STATUS: RATIFIED — M9 CLOSED** (Evan's approval on PR #1041,
+comment 5433508382, 2026-08-27). This document is M9's done-state of
+record, ratified AS WRITTEN — which carries two consequences the
+affordance put to him explicitly: the lily's no-join outcome stands
+as an honest milestone RESULT (row 7 + honesty row 1), and **#427's
+Q3 pushback window passed unexercised**, so the authority record's
+home closes as adopted (per-edge kernel data) with the post-M9
+pcurve migration. M9 = the C7
 declared-contact join lane + ASSEMBLY-DESIGN A5's at-rest census
 door + the lily FULL rebuild (ratified via PR #509, 2026-08-15).
 Every unit on the slate is merged. Criteria are quoted **verbatim**
