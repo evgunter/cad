@@ -54,16 +54,36 @@
 use geom::Curve3;
 use geom::Surface;
 use geom_core::spline::SpanLocate;
-use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Point3, Real, Sign};
+use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Vec2};
 
+use crate::description::{ChartCurve, EdgeAuthority, EdgeDescription, authority_of};
 use crate::dihedral::{DihedralClass, classify_dihedral, decide};
 use crate::edge_geometry::EdgeGeometry;
 use crate::implicit::{implicit_residual, seam_frame};
 use crate::keys::SurfaceKey;
+use crate::pcurve_cache::{Pcurve, PcurveCertifyError, chart_pcurve};
 
 /// The fixed certification sample count (module docs): 9 uniform
 /// parameters, endpoints included.
 pub const CERT_SAMPLES: u32 = 9;
+
+/// The `sample` a [`CertifyError`] carries when the failing check is
+/// **not a sampled one** — currently the chart-image mint, which runs
+/// once, before the schedule.
+///
+/// It is a value no schedule index can take ([`CERT_SAMPLES`] counts
+/// 0…8), so a reader can tell "this check has no sample" from "this
+/// check failed at sample 0". Reporting `0` there states a schedule
+/// point that was never visited, which is a fabricated diagnostic
+/// however small it looks.
+///
+/// **The interval checks ([`CertCheck::ParamSpan`]) still report `0`**
+/// and are not changed here: their `Display` text is pinned by
+/// `step-import`'s tier-gate test, so moving them is a test rewrite
+/// that belongs with the consumer pass, not with this unit. Recorded
+/// rather than quietly left: the same fabrication is there, one door
+/// over.
+pub const NOT_A_SAMPLE: u32 = u32::MAX;
 
 /// Which certification check a [`CertifyError`] names — the residual
 /// taxonomy, one variant per documented check.
@@ -123,19 +143,30 @@ pub enum CertCheck {
     /// uniqueness of the locus) holds along the WHOLE edge, not just
     /// at the schedule points.
     TangentTube,
-    /// MappedCurve: `|carrier(t_i) − description(s_i)|` at a sample.
+    /// Scaffold: `|carrier(t_i) − description(s_i)|` at a sample —
+    /// the fenced scaffolding arm's meter, the one conventional
+    /// residual that has no chart to state itself against (D3).
     MappedSource,
-    /// Seam: implicit residual against the seam's surface at a sample.
-    SeamSurface,
-    /// Seam: the out-of-halfplane component `|w · v_ref|` at a sample.
+    /// Chart, periodic-seam obligation: the out-of-halfplane component
+    /// `|w · v_ref|` at a sample.
     SeamHalfplane,
-    /// Seam: the wrong-side excess `max(0, −w · u_ref)` at a sample
-    /// (distinguishes the seam from the antipodal meridian).
+    /// Chart, periodic-seam obligation: the wrong-side excess
+    /// `max(0, −w · u_ref)` at a sample (distinguishes the seam from
+    /// the antipodal meridian — the unified meter alone cannot, since
+    /// the antipodal ruling IS a chart image of the same surface).
     SeamSide,
-    /// IsoCurve: the genuinely metric residual
-    /// `|carrier(tᵢ) − S(u, v(tᵢ))|` at a sample (M6-3; the
-    /// wall–wall-seam class).
-    IsoResidual,
+    /// The **mint step** of the collapsed conventional description
+    /// (D4): deriving the chart image the meter is stated against.
+    /// Not a sampled check — like [`CertCheck::ParamSpan`] it runs
+    /// once, and the `sample` field of a [`CertifyError`] naming it
+    /// carries the module's not-a-sample sentinel rather than an
+    /// index that was never visited.
+    ChartImage,
+    /// **The unified conventional meter** (D1): `|C(tᵢ) − S(P(tᵢ))|`
+    /// at a sample, C4 verbatim — the ONE statement every collapsed
+    /// conventional description makes, whatever certification lane its
+    /// [`crate::Pcurve`] belongs to.
+    ChartResidual,
     /// Intersection, plane × NURBS (M7-8): limb 1's largest sampled
     /// on-locus residual over both operands — the closed-form plane
     /// distance and the certified foot distance on the wall.
@@ -149,6 +180,22 @@ pub enum CertCheck {
     PlaneNurbsCertificate,
 }
 
+#[allow(non_upper_case_globals)] // a variant's retired NAME, not a constant
+impl CertCheck {
+    /// **Shim** (P-1a): the pre-collapse name of the arm that already
+    /// stated `|C − S(P)|`, aliasing the unified meter it became.
+    ///
+    /// It exists so the consumer crates and their probes read the same
+    /// name through P-1a's `geom-brep`-only diff; P-1b deletes it
+    /// together with the probes that spell it.
+    pub const IsoResidual: Self = Self::ChartResidual;
+
+    /// **Shim** (P-1a): the seam arm's retired implicit-form residual.
+    /// The seam's on-surface statement is now the unified meter's, so
+    /// this names the same check the seam obligation rides beside.
+    pub const SeamSurface: Self = Self::ChartResidual;
+}
+
 /// Typed certification failure (D4 ¶3): actionable, closed enum. The
 /// body-side attachment gates (`topo`'s operators and setters) wrap
 /// this; the tier-3 validator carries it inside its own error.
@@ -160,6 +207,24 @@ pub enum CertCheck {
 /// exists for every lane — the Dual lane in particular).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum CertifyError {
+    /// The collapsed conventional description's **chart image could
+    /// not be derived** for this (chart, carrier) pair (D4's mint
+    /// door, `crate::chart_pcurve`).
+    ///
+    /// This is a statement about the GEOMETRY, not about a missing
+    /// feature: the named carrier is not a locus of any certified
+    /// image class of the named chart — an ellipse on a cone, say,
+    /// which no cone chart image can be. It is deliberately distinct
+    /// from [`CertifyError::Unimplemented`], which means a described
+    /// surface or carrier is of a kind this module refuses wholesale;
+    /// collapsing the two would answer "not implemented" to a caller
+    /// whose description is simply wrong.
+    ChartImageUnavailable {
+        /// The chart kind the description named.
+        chart: &'static str,
+        /// The carrier kind offered against it.
+        carrier: &'static str,
+    },
     /// A surface key in the description did not resolve in the owning
     /// body (stale, or the surface does not exist yet — attach the
     /// intrinsic description once its surfaces are in the arena).
@@ -280,6 +345,13 @@ impl core::fmt::Display for CertifyError {
             Self::UnresolvedSurface { key } => {
                 write!(f, "certification: surface key {key:?} does not resolve")
             }
+            Self::ChartImageUnavailable { chart, carrier } => write!(
+                f,
+                "certification: a conventional description on a {chart} chart has no \
+                 certified chart image for a {carrier} carrier — the locus this \
+                 description claims is not one this chart can state. The description \
+                 is wrong, not the build"
+            ),
             Self::Unimplemented => write!(
                 f,
                 "certification: a Nurbs described surface, or a Nurbs carrier under a \
@@ -344,6 +416,20 @@ impl core::fmt::Display for CertifyError {
                  certificate's certified span-bound lane — the certified class is Line \
                  carriers on Plane/Cylinder/Sphere pairs (classes retire one at a time, \
                  each with its proof; no runtime fallback)"
+            ),
+            // The not-a-sample sentinel renders as words, not as
+            // 4294967295: a diagnostic whose whole purpose is to stop
+            // claiming a schedule point it never visited should not
+            // then print a number that looks like one. Sampled checks
+            // keep their exact wording — `step-import`'s tier gate
+            // pins the `sample 0` string, and it is still true there.
+            Self::Escalated {
+                check,
+                sample,
+                cause,
+            } if *sample == NOT_A_SAMPLE => write!(
+                f,
+                "certification: {check:?} (not a sampled check) escalated: {cause}"
             ),
             Self::Escalated {
                 check,
@@ -504,9 +590,18 @@ pub struct Certificate<T: Real> {
     /// The sample count of the schedule that ran ([`CERT_SAMPLES`]).
     pub samples: u32,
     /// The maximum magnitude over every classified **distance** residual
-    /// (endpoint, surface, mapped-source, seam checks; transversality
-    /// margins are clearance margins, not residuals, and are excluded).
-    /// Certified ≤ ε by construction.
+    /// (endpoint, surface, scaffolding-source, chart and seam-obligation
+    /// checks; transversality margins are clearance margins, not
+    /// residuals, and are excluded). Certified ≤ ε by construction.
+    ///
+    /// **This number may MOVE at the conventional arms across the U2
+    /// collapse** (D2): the three pre-collapse forms did not measure
+    /// the same thing, and a `Pcurve` is a function of the carrier's
+    /// own parameter where the iso arm's `v` walked the schedule
+    /// fraction. The move is measured per fixture AND PER DRIFT SCALE
+    /// and pinned — see `D2_SWEEP` in this module's tests, whose two
+    /// arms move in opposite directions with scale — never laundered
+    /// by re-associating a meter to make a number match.
     pub max_residual: T,
 }
 
@@ -517,7 +612,17 @@ pub struct Certificate<T: Real> {
 /// uncertified value is unrepresentable (D4 ¶2 made structural).
 #[derive(Clone, Debug)]
 pub struct EdgeCurve<T: Real> {
+    /// **The shim** (P-1a): the pre-collapse description vocabulary,
+    /// kept so the six consumer crates read their own names through a
+    /// `geom-brep`-only diff. `canonical` is what this crate certifies
+    /// and what U2 means by the description; P-1b moves the consumers
+    /// onto it and deletes this field.
     description: EdgeGeometry<T>,
+    /// U2's collapsed description — ONE conventional form, minted and
+    /// metered at certification (D1/D4).
+    canonical: EdgeDescription<T>,
+    /// U2 Q3's per-edge authority record: who determined the locus.
+    authority: EdgeAuthority<T>,
     carrier: Curve3<T>,
     param_start: T,
     param_end: T,
@@ -593,9 +698,11 @@ impl<T: Decide> EdgeCurve<T> {
         surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
         band: Band,
     ) -> Result<Self, CertifyError> {
-        let certificate = run_checks(&spec, start, end, &surfaces, None, band)?;
+        let (certificate, canonical) = run_checks(&spec, start, end, &surfaces, None, band)?;
         Ok(Self {
+            authority: authority_of(&spec.description),
             description: spec.description,
+            canonical,
             carrier: spec.carrier,
             param_start: spec.param_start,
             param_end: spec.param_end,
@@ -618,7 +725,7 @@ impl<T: Decide> EdgeCurve<T> {
         surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
         band: Band,
     ) -> Result<Certificate<T>, CertifyError> {
-        run_checks(&self.spec(), start, end, &surfaces, None, band)
+        run_checks(&self.spec(), start, end, &surfaces, None, band).map(|(cert, _)| cert)
     }
 }
 
@@ -672,7 +779,7 @@ impl<T: crate::edge_nurbs::EdgeNurbsLane> EdgeCurve<T> {
         surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
         band: Band,
     ) -> Result<Self, CertifyError> {
-        let certificate = run_checks(
+        let (certificate, canonical) = run_checks(
             &spec,
             start,
             end,
@@ -681,7 +788,9 @@ impl<T: crate::edge_nurbs::EdgeNurbsLane> EdgeCurve<T> {
             band,
         )?;
         Ok(Self {
+            authority: authority_of(&spec.description),
             description: spec.description,
+            canonical,
             carrier: spec.carrier,
             param_start: spec.param_start,
             param_end: spec.param_end,
@@ -710,13 +819,34 @@ impl<T: crate::edge_nurbs::EdgeNurbsLane> EdgeCurve<T> {
             Some(&T::plane_nurbs_limbs),
             band,
         )
+        .map(|(cert, _)| cert)
     }
 }
 
 impl<T: Real> EdgeCurve<T> {
-    /// The intensional description (authoritative, D2).
+    /// The intensional description (authoritative, D2) in the
+    /// **shim's** pre-collapse vocabulary — see
+    /// [`EdgeCurve::canonical`] for the form this crate certifies.
     pub fn description(&self) -> &EdgeGeometry<T> {
         &self.description
+    }
+
+    /// The **canonical** description (U2): D2's two intrinsic arms,
+    /// ONE conventional form, and the fenced scaffolding door.
+    ///
+    /// Handed out by reference, never by value: [`EdgeDescription`]
+    /// carries a [`crate::Pcurve`] and is therefore not `Copy` — the
+    /// deliberate resolution of the `Copy` loss (see the type's docs).
+    pub fn canonical(&self) -> &EdgeDescription<T> {
+        &self.canonical
+    }
+
+    /// The **authority record** (U2 Q3): whether a modeler DECLARED
+    /// this locus, and with what sketch source. The datum tier 3's
+    /// prefer-intrinsic rules read instead of `MappedCurve`'s
+    /// negative space.
+    pub fn authority(&self) -> EdgeAuthority<T> {
+        self.authority
     }
 
     /// The cached carrier curve (a certified derived cache, D4 ¶2).
@@ -788,8 +918,59 @@ impl<T: Real> EdgeCurve<T> {
             },
             EdgeGeometry::MappedCurve(m) => EdgeGeometry::MappedCurve(m),
         };
+        // **The shim's THIRD site** (with `description::authority_of`
+        // and the collapse in `run_checks`): this door is the only
+        // other place both vocabularies are written, and it is the
+        // only one that could let them DRIFT apart, since it mints an
+        // `EdgeCurve` without a run of the schedule.
+        //
+        // They cannot drift, structurally rather than by assertion:
+        // every key the canonical form carries is READ OUT OF the
+        // already-remapped shim above rather than remapped a second
+        // time, so "both were remapped consistently" is not a property
+        // to check — there is only one remap. The chart IMAGE travels
+        // verbatim, because it is geometry stated in chart
+        // coordinates, which a bitwise re-creation of the surface
+        // leaves untouched.
+        let canonical = match (&self.canonical, description) {
+            (
+                EdgeDescription::Intersection { witness, .. },
+                EdgeGeometry::Intersection { s1, s2, .. },
+            ) => EdgeDescription::Intersection {
+                s1,
+                s2,
+                witness: *witness,
+            },
+            (
+                EdgeDescription::TangentIntersection { witness, .. },
+                EdgeGeometry::TangentIntersection { s1, s2, .. },
+            ) => EdgeDescription::TangentIntersection {
+                s1,
+                s2,
+                witness: *witness,
+            },
+            (EdgeDescription::Chart(c), EdgeGeometry::Seam { surface })
+            | (EdgeDescription::Chart(c), EdgeGeometry::IsoCurve { surface, .. }) => {
+                EdgeDescription::Chart(ChartCurve {
+                    surface,
+                    pcurve: c.pcurve.clone(),
+                    seam: c.seam,
+                })
+            }
+            (EdgeDescription::Scaffold(m), EdgeGeometry::MappedCurve(_)) => {
+                EdgeDescription::Scaffold(*m)
+            }
+            // Unreachable: the two vocabularies were minted together
+            // by `run_checks` and this door does not change which arm
+            // either is on. Typed rather than asserted (D4 ¶2) — a
+            // mismatch here would mean the shim had already drifted,
+            // and answering `None` refuses to propagate it.
+            _ => return None,
+        };
         Some(Self {
             description,
+            canonical,
+            authority: self.authority,
             carrier: self.carrier.clone(),
             param_start: self.param_start,
             param_end: self.param_end,
@@ -964,6 +1145,17 @@ pub fn edge_extent<T: Real>(carrier: &Curve3<T>, t0: T, t1: T, chord: T) -> T {
     }
 }
 
+/// The carrier's kind, for a refusal that has to name the pair it
+/// could not state (the chart side is `chart_name`'s).
+fn carrier_kind<T: Real>(carrier: &Curve3<T>) -> &'static str {
+    match carrier {
+        Curve3::Line { .. } => "line",
+        Curve3::Circle { .. } => "circle",
+        Curve3::Ellipse { .. } => "ellipse",
+        Curve3::Nurbs(_) => "Nurbs",
+    }
+}
+
 /// Folds a residual into the running max and classifies it: must be
 /// coincident with zero (|r| ≤ ε). Positive/Negative beyond the band ⇒
 /// [`CertifyError::ResidualExceeded`]; in-band or poisoned ⇒
@@ -999,7 +1191,7 @@ fn run_checks<T: Decide>(
     surfaces: &impl Fn(SurfaceKey) -> Option<Surface<T>>,
     lane: Option<NurbsLane<'_, T>>,
     band: Band,
-) -> Result<Certificate<T>, CertifyError> {
+) -> Result<(Certificate<T>, EdgeDescription<T>), CertifyError> {
     // ---- Check 1: implementedness / description well-formedness. ----
     // Rung-3 (`Nurbs`) carriers certify under an `Intersection`
     // description of two ANALYTIC surfaces — the class the curved
@@ -1056,13 +1248,25 @@ fn run_checks<T: Decide>(
             surf2: Surface<T>,
             witness: Point3<T>,
         },
-        Mapped(crate::edge_geometry::MappedCurve<T>),
-        Seam(Surface<T>),
-        Iso {
+        /// D3's fenced scaffolding door: a pushforward standing in
+        /// as a description while the edge is TRANSIENT.
+        Scaffold(crate::edge_geometry::MappedCurve<T>),
+        /// U2's ONE conventional form: the chart, its arena key, and
+        /// the chart-image data the pcurve is minted from (D4 — the
+        /// mint runs after the interval checks, so a degenerate span
+        /// still refuses in its own order).
+        Chart {
             surface: Surface<T>,
-            u: T,
-            v0: T,
-            v1: T,
+            key: SurfaceKey,
+            /// `Some((u, v0, v1))` for a caller-supplied iso image
+            /// (D4: spline charts take the image from the caller,
+            /// which every iso constructor already knows); `None` for
+            /// an analytic chart, whose image is minted here through
+            /// [`crate::chart_pcurve`].
+            iso: Option<(T, T, T)>,
+            /// D1's obligation: this edge claims to BE the chart's
+            /// seam meridian.
+            seam: bool,
         },
         /// `Intersection` of a PLANE and a described NURBS wall
         /// (M7-8): the declare-and-check lane's shape.
@@ -1113,7 +1317,7 @@ fn run_checks<T: Decide>(
                 witness,
             }
         }
-        EdgeGeometry::MappedCurve(mc) => Resolved::Mapped(mc),
+        EdgeGeometry::MappedCurve(mc) => Resolved::Scaffold(mc),
         EdgeGeometry::Seam { surface } => {
             let s = resolve(surface)?;
             // Periodicity is structural: the plane is the one
@@ -1121,13 +1325,18 @@ fn run_checks<T: Decide>(
             if matches!(s, Surface::Plane { .. }) {
                 return Err(CertifyError::SeamOnNonPeriodic);
             }
-            Resolved::Seam(s)
+            Resolved::Chart {
+                surface: s,
+                key: surface,
+                iso: None,
+                seam: true,
+            }
         }
-        EdgeGeometry::IsoCurve { surface, u, v0, v1 } => Resolved::Iso {
+        EdgeGeometry::IsoCurve { surface, u, v0, v1 } => Resolved::Chart {
             surface: resolve_iso(surface)?,
-            u,
-            v0,
-            v1,
+            key: surface,
+            iso: Some((u, v0, v1)),
+            seam: false,
         },
     };
 
@@ -1247,6 +1456,81 @@ fn run_checks<T: Decide>(
         &mut max_residual,
     )?;
 
+    // ---- The collapse (U2/D4): the canonical description. ----
+    // Minted HERE, after the interval checks and before the residual
+    // schedule, so a degenerate span still refuses in its own order
+    // and no chart image is derived from an interval the kernel has
+    // not yet accepted.
+    let canonical: EdgeDescription<T> = match spec.description {
+        EdgeGeometry::Intersection { s1, s2, witness } => {
+            EdgeDescription::Intersection { s1, s2, witness }
+        }
+        EdgeGeometry::TangentIntersection { s1, s2, witness } => {
+            EdgeDescription::TangentIntersection { s1, s2, witness }
+        }
+        EdgeGeometry::MappedCurve(mc) => EdgeDescription::Scaffold(mc),
+        EdgeGeometry::Seam { .. } | EdgeGeometry::IsoCurve { .. } => {
+            let Resolved::Chart {
+                ref surface,
+                key,
+                iso,
+                seam,
+            } = resolved
+            else {
+                // Unreachable: the two arms above are exactly the ones
+                // the resolver answers `Chart` for. Typed rather than
+                // assumed (D4 ¶2) — never a panic.
+                return Err(CertifyError::Unimplemented);
+            };
+            let pcurve = match iso {
+                // D4, the caller-supplied half: a spline chart's image
+                // IS the constructor's own iso data, exactly. `v` is
+                // affine in the carrier parameter, so the chart image
+                // is `P(t) = (u, v0 + slope·(t − t0))` written on the
+                // carrier's own parameter — the form every stored
+                // cache of this class already carries, which is what
+                // makes description and cache the same object.
+                Some((u, v0, v1)) => {
+                    let slope = (v1 - v0) / (t1 - t0);
+                    Pcurve::IsoLine {
+                        p0: Point2::new(u, v0 - slope * t0),
+                        pl: Vec2::new(T::zero(), slope),
+                    }
+                }
+                // D4, the minted half: an analytic chart's image is
+                // derived from the carrier through the one door that
+                // derives chart images anywhere in this kernel.
+                None => chart_pcurve(&spec.carrier, surface, band).map_err(|e| match e {
+                    // The mint runs ONCE, before the schedule, so the
+                    // sample field carries the not-a-sample sentinel:
+                    // reporting `0` would name a schedule point that
+                    // was never visited.
+                    PcurveCertifyError::Escalated { cause, .. } => CertifyError::Escalated {
+                        check: CertCheck::ChartImage,
+                        sample: NOT_A_SAMPLE,
+                        cause,
+                    },
+                    // Every other refusal says the same thing: this
+                    // (chart, carrier) pair has no certified chart
+                    // image. That is a fact about the DESCRIPTION's
+                    // geometry, and it is reported as one — not as
+                    // `Unimplemented`, which means something else and
+                    // would send the caller looking for a missing
+                    // feature instead of a wrong locus.
+                    _ => CertifyError::ChartImageUnavailable {
+                        chart: crate::pcurve_cache::chart_name(surface),
+                        carrier: carrier_kind(&spec.carrier),
+                    },
+                })?,
+            };
+            EdgeDescription::Chart(ChartCurve {
+                surface: key,
+                pcurve,
+                seam,
+            })
+        }
+    };
+
     // ---- Check 4: per-sample description residuals. ----
     // The transversality extent arm is the edge's honest spatial
     // extent — the chord where it is honest, the carrier-derived
@@ -1357,7 +1641,12 @@ fn run_checks<T: Decide>(
                     )?;
                 }
             }
-            Resolved::Mapped(mc) => {
+            // The fenced scaffolding arm (D3): the ONE conventional
+            // residual with no chart to state itself against, because
+            // a transient scaffolding edge has no surfaces yet. It
+            // keeps its own meter for exactly as long as the fence
+            // keeps it legal.
+            Resolved::Scaffold(mc) => {
                 let s = T::from_f64(f64::from(i) / f64::from(CERT_SAMPLES - 1));
                 check_residual(
                     "carrier_matches_mapped_source",
@@ -1368,18 +1657,84 @@ fn run_checks<T: Decide>(
                     &mut max_residual,
                 )?;
             }
-            Resolved::Seam(s) => {
+            // **U2's one conventional arm, D1's one meter.**
+            // `|C(t) − S(P(t))| ≤ ε` (C4 verbatim), on the carrier's
+            // own parameter — the same statement, the same predicate
+            // name and the same dimension as every stored pcurve
+            // cache's schedule (`pcurve_map_residual`), because it is
+            // the same statement.
+            //
+            // **This is a different QUANTITY from the seam arm's
+            // pre-collapse meter, deliberately, and the change is a
+            // re-baseline rather than a bit move.** The old seam arm
+            // metered `implicit_residual`, the PERPENDICULAR distance
+            // from the carrier to the surface. This meters the
+            // distance to the surface point the pcurve NAMES. On a
+            // cone the chart image carries the carrier's own azimuth
+            // and its own axial height (`v = h / cos α`), so the
+            // displacement between them is purely RADIAL and the two
+            // quantities stand in the exact ratio
+            //
+            //     |C − S(P)| = |perpendicular| · sec α
+            //
+            // — 1.1547 at a 30° half-angle. A sphere and a
+            // small-radius cylinder move for the same reason in their
+            // own geometry.
+            //
+            // Which is right? This one, on three grounds, and the
+            // third is the one that makes the re-baseline safe:
+            //
+            // 1. It is the statement D1 ratified and C4 words, and it
+            //    is the ONLY statement a collapsed description can
+            //    make — `implicit_residual` needs a per-chart implicit
+            //    form, which is the per-class branching the collapse
+            //    exists to remove.
+            // 2. It is the statement every STORED pcurve cache already
+            //    certifies (`pcurve_map_residual` in
+            //    `pcurve_cache::schedule_residuals`). Before the
+            //    collapse an edge could certify as a description and
+            //    refuse as a cache on identical geometry, because the
+            //    two were measuring different things. They now agree
+            //    by construction.
+            // 3. **It is conservative.** `S(P(t))` is a point ON the
+            //    surface, so `|C − S(P)| ≥ dist(C, surface)` always,
+            //    with equality exactly when the pcurve names the foot
+            //    point. The collapse can therefore only REFUSE what
+            //    the old meter accepted; it can never ACCEPT what the
+            //    old meter refused. The direction of the change is
+            //    toward truth, and the bound is `sec α` on a cone.
+            //
+            // The consequence is stated rather than hidden: on a cone
+            // of half-angle α, an edge whose perpendicular drift lies
+            // in `(ε·cos α, ε]` certified before this unit and now
+            // refuses or escalates. `d2_bit_diff` and the cone
+            // re-baseline row measure it; the live minting class
+            // (`sweep/src/revolve/upgrade.rs:219`) mints exact seams
+            // and is unaffected, which the whole-body batteries show.
+            Resolved::Chart { surface, seam, .. } => {
+                let Some(chart) = canonical.chart() else {
+                    return Err(CertifyError::Unimplemented);
+                };
+                let q = chart.pcurve.eval(sample_param(t0, t1, i));
                 check_residual(
-                    "carrier_on_seam_surface",
-                    CertCheck::SeamSurface,
+                    "pcurve_map_residual",
+                    CertCheck::ChartResidual,
                     i,
-                    Margin::of(implicit_residual(s, p)),
+                    Margin::of(p.distance(surface.eval(q.x, q.y))),
                     band,
                     &mut max_residual,
                 )?;
+                // D1's retained obligation. The unified meter cannot
+                // see the difference between a seam meridian and its
+                // antipode — both ARE chart images of the same
+                // surface, and the meter is satisfied by either — so a
+                // chart image that claims to be THE seam owes the two
+                // half-plane/side predicates as well. They are an
+                // obligation on periodic charts, never a second form.
+                //
                 // seam_frame is Some: plane and Nurbs were rejected in
                 // check 1, and every remaining kind is axisymmetric.
-                if let Some((w, u_ref, v_ref)) = seam_frame(s, p) {
+                if *seam && let Some((w, u_ref, v_ref)) = seam_frame(surface, p) {
                     check_residual(
                         "carrier_in_seam_halfplane",
                         CertCheck::SeamHalfplane,
@@ -1403,22 +1758,6 @@ fn run_checks<T: Decide>(
             // points), so it runs once after the loop rather than
             // per-sample here — see the block below check 4.
             Resolved::PlaneNurbs { .. } => {}
-            // The iso lane (M6-3): the genuinely metric residual
-            // |C(tᵢ) − S(u, v(tᵢ))| with v affine in the parameter —
-            // the same schedule fraction the Mapped arm uses, so the
-            // stated formula and the evaluated one share their bits.
-            Resolved::Iso { surface, u, v0, v1 } => {
-                let frac = T::from_f64(f64::from(i) / f64::from(CERT_SAMPLES - 1));
-                let v = *v0 + (*v1 - *v0) * frac;
-                check_residual(
-                    "carrier_on_iso_curve",
-                    CertCheck::IsoResidual,
-                    i,
-                    Margin::of(p.distance(surface.eval(*u, v))),
-                    band,
-                    &mut max_residual,
-                )?;
-            }
         }
     }
 
@@ -1583,10 +1922,13 @@ fn run_checks<T: Decide>(
         )?;
     }
 
-    Ok(Certificate {
-        samples: CERT_SAMPLES,
-        max_residual,
-    })
+    Ok((
+        Certificate {
+            samples: CERT_SAMPLES,
+            max_residual,
+        },
+        canonical,
+    ))
 }
 
 /// The plane × NURBS pairing, in either order: exactly one PLANE and
@@ -1612,6 +1954,7 @@ fn plane_nurbs_pair<T: Real>(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use geom_core::Tol;
+    use geom_core::spline::KnotVector;
     use geom_core::{Affine3, Point2, Vec3};
 
     use crate::edge_geometry::{MappedCurve, SketchSegment};
@@ -1638,6 +1981,625 @@ mod tests {
 
     fn line_spec(p0: Point3<f64>, p1: Point3<f64>) -> EdgeCurveSpec<f64> {
         EdgeCurveSpec::line_between(p0, p1)
+    }
+
+    // ------------------------------------------------------------------
+    // **D2's bit-diff row**: the collapse's effect on
+    // `Certificate.max_residual`, MEASURED per fixture rather than
+    // asserted.
+    //
+    // The three pre-collapse conventional forms did not measure the
+    // same thing — a seam stated its on-surface residual through the
+    // IMPLICIT form, an iso curve through `|C − S(u, v)|` with `v`
+    // affine in the SCHEDULE FRACTION, a mapped source against a
+    // pushforward with no surface at all — so a single meter cannot
+    // reproduce all three bit for bit, and pinning it per lane would
+    // re-import the per-class branching the collapse exists to
+    // remove. What is owed instead is honesty: each fixture's delta
+    // is measured here, in ULPs, and moves only when the arithmetic
+    // moves.
+    //
+    // Each row states the legacy expression VERBATIM — not a
+    // re-association chosen to make a number match — and compares it
+    // against what certification now records.
+    // ------------------------------------------------------------------
+
+    /// The bit-diff row's OWN band, built from the fixture's drift
+    /// rather than from the run's ε.
+    ///
+    /// The band's zero threshold is four times the drift at every
+    /// scale, so each row sits at the same fraction of its own band
+    /// and the SWEPT variable is the drift alone. Deriving the band
+    /// from the run's ε instead would make the row a different
+    /// measurement on every ε point in the matrix, which is how the
+    /// first version of this row passed locally and failed hosted.
+    fn d2_band(drift: f64) -> Band {
+        Band::new(4.0 * drift, 40.0 * drift).expect("the bit-diff row's own band")
+    }
+
+    /// ULP distance between two finite same-sign `f64`s.
+    fn ulps(a: f64, b: f64) -> i64 {
+        let (x, y) = (a.to_bits() as i64, b.to_bits() as i64);
+        (x - y).abs()
+    }
+
+    /// The pre-collapse SEAM meter, verbatim: endpoint pins, then per
+    /// sample the implicit-form residual and the two seam predicates.
+    fn legacy_seam_max(
+        spec: &EdgeCurveSpec<f64>,
+        surface: &Surface<f64>,
+        start: Point3<f64>,
+        end: Point3<f64>,
+    ) -> f64 {
+        let (t0, t1) = (spec.param_start, spec.param_end);
+        let mut m = spec.carrier.eval(t0).distance(start);
+        m = m.max(spec.carrier.eval(t1).distance(end));
+        for i in 0..CERT_SAMPLES {
+            let p = spec.carrier.eval(sample_param(t0, t1, i));
+            m = m.max(implicit_residual(surface, p).abs());
+            if let Some((w, u_ref, v_ref)) = seam_frame(surface, p) {
+                m = m.max(w.dot(v_ref).abs());
+                m = m.max((0.0 - w.dot(u_ref)).max(0.0).abs());
+            }
+        }
+        m
+    }
+
+    /// The pre-collapse ISO meter, verbatim — `v0 + (v1 − v0)·frac`
+    /// on the schedule FRACTION, which is the arithmetic order the
+    /// collapse necessarily changes (a `Pcurve` is a function of the
+    /// carrier's own parameter).
+    fn legacy_iso_max(
+        spec: &EdgeCurveSpec<f64>,
+        surface: &Surface<f64>,
+        u: f64,
+        v0: f64,
+        v1: f64,
+        start: Point3<f64>,
+        end: Point3<f64>,
+    ) -> f64 {
+        let (t0, t1) = (spec.param_start, spec.param_end);
+        let mut m = spec.carrier.eval(t0).distance(start);
+        m = m.max(spec.carrier.eval(t1).distance(end));
+        for i in 0..CERT_SAMPLES {
+            let p = spec.carrier.eval(sample_param(t0, t1, i));
+            let frac = f64::from(i) / f64::from(CERT_SAMPLES - 1);
+            let v = v0 + (v1 - v0) * frac;
+            m = m.max(p.distance(surface.eval(u, v)));
+        }
+        m
+    }
+
+    /// **Acceptance 1**: `geom-brep` carries ONE conventional
+    /// description form. The two pre-collapse conventional writings —
+    /// a periodic seam and a chart iso curve — certify onto the same
+    /// arm, and the fenced scaffolding door is the only other
+    /// conventional shape that exists.
+    #[test]
+    fn the_collapse_leaves_one_conventional_form() {
+        let r = 2.0;
+        let (keys, lookup) = table(vec![Surface::Cylinder {
+            origin: Point3::origin(),
+            axis: Vec3::unit_z(),
+            radius: r,
+            u_ref: Vec3::unit_x(),
+        }]);
+        let (p0, p1) = (Point3::new(r, 0.0, 0.0), Point3::new(r, 0.0, 3.0));
+        let seam = EdgeCurve::certify(
+            EdgeCurveSpec {
+                description: EdgeGeometry::Seam { surface: keys[0] },
+                carrier: Curve3::Line {
+                    origin: p0,
+                    dir: Vec3::unit_z(),
+                },
+                param_start: 0.0,
+                param_end: 3.0,
+            },
+            p0,
+            p1,
+            &lookup,
+            band(),
+        )
+        .expect("the seam certifies");
+        let chart = seam.canonical().chart().expect("a seam IS a chart image");
+        assert_eq!(chart.surface, keys[0]);
+        assert!(chart.seam, "a seam carries D1's obligation");
+
+        let plane = Surface::Plane {
+            origin: Point3::new(0.25, -0.5, 1.0),
+            normal: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let (pk, plookup) = table(vec![plane]);
+        let (u, v0, v1) = (0.3_f64, 0.7_f64, 2.9_f64);
+        let s_at = |v: f64| plookup(pk[0]).unwrap().eval(u, v);
+        let (q0, q1) = (s_at(v0), s_at(v1));
+        let len = q0.distance(q1);
+        let iso = EdgeCurve::certify(
+            EdgeCurveSpec {
+                description: EdgeGeometry::IsoCurve {
+                    surface: pk[0],
+                    u,
+                    v0,
+                    v1,
+                },
+                carrier: Curve3::Line {
+                    origin: q0,
+                    dir: (q1 - q0) / len,
+                },
+                param_start: 0.0,
+                param_end: len,
+            },
+            q0,
+            q1,
+            &plookup,
+            band(),
+        )
+        .expect("the iso curve certifies");
+        let iso_chart = iso
+            .canonical()
+            .chart()
+            .expect("an iso curve IS a chart image");
+        assert!(
+            !iso_chart.seam,
+            "an iso boundary owes the meter and nothing else"
+        );
+
+        // The fenced scaffolding door is the only other conventional
+        // shape, and it is NOT a chart image — it has no surface.
+        let (a, b) = (Point3::new(-1.0, 0.25, 0.5), Point3::new(2.0, -3.0, 4.0));
+        let (_, empty) = table(vec![]);
+        let scaffold = EdgeCurve::certify(line_spec(a, b), a, b, &empty, band())
+            .expect("the scaffolding line certifies");
+        assert!(scaffold.canonical().chart().is_none());
+        assert!(matches!(scaffold.canonical(), EdgeDescription::Scaffold(_)));
+    }
+
+    /// **The authority record** (U2 Q3): the datum tier 3's
+    /// prefer-intrinsic rules read instead of `MappedCurve`'s negative
+    /// space. A declared locus answers `true` and carries its source;
+    /// a derived one answers `false` — which is exactly the verdict
+    /// `TransverseNotIntrinsic` needs and the only one it needs.
+    #[test]
+    fn the_authority_record_replaces_the_negative_space() {
+        let (a, b) = (Point3::new(-1.0, 0.25, 0.5), Point3::new(2.0, -3.0, 4.0));
+        let (_, empty) = table(vec![]);
+        let declared = EdgeCurve::certify(line_spec(a, b), a, b, &empty, band())
+            .expect("the scaffolding line certifies");
+        assert!(declared.authority().is_declared());
+        assert!(matches!(
+            declared.authority(),
+            EdgeAuthority::Declared(MappedCurve::ExtrudedPoint { .. })
+        ));
+
+        let r = 2.0;
+        let (keys, lookup) = table(vec![Surface::Cylinder {
+            origin: Point3::origin(),
+            axis: Vec3::unit_z(),
+            radius: r,
+            u_ref: Vec3::unit_x(),
+        }]);
+        let (p0, p1) = (Point3::new(r, 0.0, 0.0), Point3::new(r, 0.0, 3.0));
+        let derived = EdgeCurve::certify(
+            EdgeCurveSpec {
+                description: EdgeGeometry::Seam { surface: keys[0] },
+                carrier: Curve3::Line {
+                    origin: p0,
+                    dir: Vec3::unit_z(),
+                },
+                param_start: 0.0,
+                param_end: 3.0,
+            },
+            p0,
+            p1,
+            &lookup,
+            band(),
+        )
+        .expect("the seam certifies");
+        assert!(!derived.authority().is_declared());
+    }
+
+    /// One row of the DRIFT sweep: the seam class's ULP delta and the
+    /// scaffolding control's, at a given in-band drift, in the order
+    /// (cylinder-seam, mapped-line).
+    ///
+    /// The iso class is swept separately, over the variable it
+    /// actually moves in — see [`d2_iso_delta`].
+    fn d2_row(drift: f64) -> (i64, i64) {
+        // ---- Fixture "cylinder-seam": the seam ruling of a radius-2
+        // cylinder about +z, seam at +x. Legacy: implicit residual +
+        // the two predicates. Now: |C − S(P)| + the same two
+        // predicates (D1 keeps them).
+        let r = 2.0;
+        let cyl = Surface::Cylinder {
+            origin: Point3::origin(),
+            axis: Vec3::unit_z(),
+            radius: r,
+            u_ref: Vec3::unit_x(),
+        };
+        let (keys, lookup) = table(vec![cyl]);
+        // Perturbed INSIDE the band: an exact ruling makes every meter
+        // answer a bitwise zero, which measures nothing. `d` is the
+        // radial drift a real construction leaves behind, and it is
+        // what the two meters disagree about.
+        let d = drift;
+        let (p0, p1) = (Point3::new(r + d, 0.0, 0.0), Point3::new(r + d, 0.0, 3.0));
+        let seam_spec = EdgeCurveSpec {
+            description: EdgeGeometry::Seam { surface: keys[0] },
+            carrier: Curve3::Line {
+                origin: p0,
+                dir: Vec3::unit_z(),
+            },
+            param_start: 0.0,
+            param_end: 3.0,
+        };
+        let cert = EdgeCurve::certify(seam_spec.clone(), p0, p1, &lookup, d2_band(drift))
+            .expect("the seam certifies")
+            .certificate;
+        let legacy = legacy_seam_max(&seam_spec, &lookup(keys[0]).unwrap(), p0, p1);
+        let seam_delta = ulps(cert.max_residual, legacy);
+
+        // ---- Fixture "mapped-line": the fenced scaffolding arm. Its
+        // meter is untouched by the collapse, so its delta is the
+        // control: it must be exactly zero.
+        let (a, b) = (Point3::new(-1.0, 0.25, 0.5), Point3::new(2.0, -3.0, 4.0));
+        let mapped = line_spec(a, b);
+        let (_, empty) = table(vec![]);
+        let mapped_cert = EdgeCurve::certify(mapped.clone(), a, b, &empty, d2_band(drift))
+            .expect("the mapped line certifies")
+            .certificate;
+        let mut mapped_legacy = mapped.carrier.eval(mapped.param_start).distance(a);
+        mapped_legacy = mapped_legacy.max(mapped.carrier.eval(mapped.param_end).distance(b));
+        let EdgeGeometry::MappedCurve(mc) = mapped.description else {
+            panic!("line_between describes a MappedCurve");
+        };
+        for i in 0..CERT_SAMPLES {
+            let p = mapped
+                .carrier
+                .eval(sample_param(mapped.param_start, mapped.param_end, i));
+            let s = f64::from(i) / f64::from(CERT_SAMPLES - 1);
+            mapped_legacy = mapped_legacy.max(p.distance(mc.eval(s)));
+        }
+        let mapped_delta = ulps(mapped_cert.max_residual, mapped_legacy);
+
+        (seam_delta, mapped_delta)
+    }
+
+    /// The ISO class's ULP delta at a given parameter anchor, with
+    /// **no drift at all**.
+    ///
+    /// Zero drift is the point. With a drift the residual is
+    /// `√(drift² + dz²)` and the mint's own arithmetic enters only
+    /// quadratically, so a re-association of the mint is swamped and
+    /// the row goes blind — which is how the first version of this
+    /// fixture read 0 ULP while a laundering mutant survived. At zero
+    /// drift the residual IS `|dz|`, linear in the mint's error, and
+    /// any re-association shows at full strength.
+    fn d2_iso_delta(anchor: f64) -> (i64, ChartCurve<f64>) {
+        // Fixture "nurbs-iso": an iso curve of a described NURBS
+        // wall over an interval that does NOT start at zero.
+        //
+        // **The chart is a spline one on purpose.** On every ANALYTIC
+        // chart the v-channel is unit-speed, so a boundary iso's slope
+        // `(v1 − v0)/(t1 − t0)` is exactly ±1 — and at slope 1 the
+        // collapsed mint `(v0 − slope·t0) + slope·t` re-associates to
+        // the legacy `v0 + (v1 − v0)·frac` bit for bit, which makes
+        // the row BLIND to exactly the laundering D2 forbids. A
+        // spline chart's v runs over its knot domain while the carrier
+        // runs over arc length, so the slope is a real number; here it
+        // is 1/3, asserted below in bits so the blindness cannot come
+        // back unnoticed.
+        let wall = {
+            let ku = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).expect("u knots");
+            let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).expect("v knots");
+            let control = vec![
+                Point3::new(1.0, 0.0, 0.0),
+                Point3::new(1.0, 0.0, 3.0),
+                Point3::new(2.0, 0.0, 0.0),
+                Point3::new(2.0, 0.0, 3.0),
+            ];
+            Surface::Nurbs(std::sync::Arc::new(
+                geom::NurbsSurface::new(ku, kv, control, vec![1.0; 4]).expect("wall builds"),
+            ))
+        };
+        let (pk, plookup) = table(vec![wall]);
+        // `v0` is deliberately NOT zero and the endpoints are
+        // deliberately not round: at `v0 = 0` the mint's
+        // `(v0 − slope·t0) + slope·t` collapses to `slope·t` and the
+        // two expressions agree bitwise again — a second way for this
+        // row to go blind, found by measuring rather than by reasoning
+        // about it.
+        let (u, v0, v1) = (0.0_f64, 0.13_f64, 0.83_f64);
+        let s_at = |v: f64| plookup(pk[0]).unwrap().eval(u, v);
+        let (q0, q1) = (s_at(v0), s_at(v1));
+        let len = q0.distance(q1);
+        let t1 = anchor + len;
+        let dir = (q1 - q0) / len;
+        assert!(
+            (v1 - v0) / (t1 - anchor) != 1.0,
+            "the iso fixture's slope must not be 1.0 — at slope 1 the two mint \
+             expressions coincide bitwise and the row measures nothing"
+        );
+        // The in-band drift, off the chart along its own normal.
+        let off = Vec3::zero();
+        let iso_spec = EdgeCurveSpec {
+            description: EdgeGeometry::IsoCurve {
+                surface: pk[0],
+                u,
+                v0,
+                v1,
+            },
+            carrier: Curve3::Line {
+                origin: q0 + off - dir * anchor,
+                dir,
+            },
+            param_start: anchor,
+            param_end: t1,
+        };
+        let iso_cert = EdgeCurve::certify(
+            iso_spec.clone(),
+            q0 + off,
+            q1 + off,
+            &plookup,
+            d2_band(2.5e-10),
+        )
+        .expect("the nurbs iso certifies");
+        let iso_chart = iso_cert
+            .canonical()
+            .chart()
+            .expect("an iso description IS a chart image")
+            .clone();
+        let iso_cert = iso_cert.certificate;
+        let iso_legacy = legacy_iso_max(
+            &iso_spec,
+            &plookup(pk[0]).unwrap(),
+            u,
+            v0,
+            v1,
+            q0 + off,
+            q1 + off,
+        );
+        let iso_delta = ulps(iso_cert.max_residual, iso_legacy);
+
+        (iso_delta, iso_chart)
+    }
+
+    /// The iso fixture's minted chart image at a given anchor — the
+    /// mint's own output, for the bit-pin row.
+    fn d2_iso_chart(anchor: f64) -> (ChartCurve<f64>, f64) {
+        let (delta, chart) = d2_iso_delta(anchor);
+        #[allow(clippy::cast_precision_loss)]
+        (chart, delta as f64)
+    }
+
+    /// **D2's bit-diff row, swept over drift scale.**
+    ///
+    /// A delta measured at one operating point is true where it was
+    /// taken and says nothing about the meter; the sweep is what turns
+    /// it into a measurement. Three decades, each pinned:
+    ///
+    /// | drift (m) | cylinder-seam | mapped-line (control) |
+    /// |---|---|---|
+    /// | 2.5e-7  | 293 601 280 | 0 |
+    /// | 2.5e-10 | 0 | 0 |
+    /// | 2.5e-13 | 0 | 0 |
+    ///
+    /// **The seam column is not scale-invariant**, so it may not be
+    /// read as a statement about its meter: "the seam arm does not
+    /// move" is true only below the coarse decade. Any claim about the
+    /// size of the move is a claim about a scale, and this table is
+    /// the only support for one.
+    ///
+    /// The mechanism is **not derived here** — the arm is
+    /// bitwise-identical at both fine decades and moves only at the
+    /// coarse one, which is the signature of a cancellation floor in
+    /// the legacy `|radial| − r` rather than of the collapse.
+    ///
+    /// **What this table does NOT measure**, named so it is not
+    /// over-read. Not the iso arm: that arm moves in the parameter
+    /// ANCHOR, not in the drift, and is swept by
+    /// [`d2_iso_move_is_unbounded_in_the_anchor_offset`] at zero
+    /// drift. Not the seam meter across CHART KINDS: a cone's
+    /// implicit residual reads the perpendicular distance to the
+    /// generator where `|C − S(P)|` reads the radial chord — a change
+    /// of QUANTITY, `sec α`, measured in `tests/r2_probes.rs` and
+    /// disposed of at the Chart arm.
+    ///
+    /// The mapped-line column is the control: the fenced scaffolding
+    /// arm's meter is untouched by the collapse, so it must read zero
+    /// at every scale, and a nonzero entry there means the sweep
+    /// itself is measuring the wrong thing.
+    const D2_SWEEP: [(f64, (i64, i64)); 3] = [
+        (2.5e-7, (D2_S0_SEAM, 0)),
+        (2.5e-10, (D2_S1_SEAM, 0)),
+        (2.5e-13, (D2_S2_SEAM, 0)),
+    ];
+
+    /// Drift 2.5e-7 m, cylinder-seam: **293 601 280 ULP**. The seam
+    /// arm's two expressions do NOT agree at this scale — the legacy
+    /// implicit form computes `|radial| − r`, a subtractive
+    /// cancellation against the chart radius, where `|C − S(P)|`
+    /// forms the same length directly. The move is toward the
+    /// directly-formed one.
+    const D2_S0_SEAM: i64 = 293_601_280;
+    /// Drift 2.5e-10 m, cylinder-seam: **0 ULP**.
+    const D2_S1_SEAM: i64 = 0;
+    /// Drift 2.5e-13 m, cylinder-seam: **0 ULP**.
+    const D2_S2_SEAM: i64 = 0;
+
+    /// **R1's M4, executed**: the iso arm's move is unbounded in the
+    /// ANCHOR OFFSET, so no single number is "the size of the move".
+    ///
+    /// The mint writes the chart image on the carrier's own parameter
+    /// as `(v0 − slope·t0) + slope·t`. Both terms grow with `t0` while
+    /// their difference does not, so the cancellation — and with it
+    /// the departure from the legacy `v0 + (v1 − v0)·frac` — grows
+    /// without bound as the edge's parameter anchor moves away from
+    /// the origin. At `t0 = 0` the two expressions coincide exactly.
+    ///
+    /// **The direction is toward truth, and here is the bound.** The
+    /// legacy expression evaluates `v` at the schedule FRACTION, which
+    /// is not the quantity the description states: the description
+    /// says `v` is affine in the CARRIER PARAMETER, and the carrier is
+    /// what the residual is taken against. The collapsed expression
+    /// evaluates the stated quantity. Both lose accuracy as `t0`
+    /// grows, and they lose it in the same place — the carrier's own
+    /// `origin + dir·t` suffers the identical cancellation — so the
+    /// row bounds the DISAGREEMENT, not the error: it is at most the
+    /// cancellation `t0·2⁻⁵³` propagated through the chart's v-scale,
+    /// which is what the table below shows growing linearly in `t0`.
+    /// An edge anchored 1e6 m from its own parameter origin has a
+    /// representation problem the meter cannot fix and should not
+    /// hide.
+    /// **The mint's own bits**, pinned — the tripwire D2 actually
+    /// asks for.
+    ///
+    /// The residual sweeps below measure the mint's EFFECT, and an
+    /// effect can be swamped: a one-ULP change in the chart image
+    /// survives a distance-to-surface only if nothing downstream
+    /// rounds it away, which is how two earlier versions of this
+    /// fixture read 0 ULP while the arithmetic underneath had moved.
+    /// This row compares the mint's OUTPUT instead, so any
+    /// re-expression of `(v0 − slope·t0) + slope·t` — however
+    /// algebraically equal — changes a pinned bit pattern and fails
+    /// here, whether or not it survives to the certificate.
+    ///
+    /// Demonstrated rather than hoped: a mutant that makes the
+    /// collapsed meter reproduce the legacy `v0 + (v1 − v0)·frac`
+    /// fails the anchor sweep below, and all three known
+    /// re-associations of `v0 − slope·t0` fail here.
+    ///
+    /// **Two of those three were once recorded as "no-ops", wrongly.**
+    /// They were checked against the four round anchors this row
+    /// started with, agreed at all four, and were written up as
+    /// bitwise-identical. They are not: one separates at ~50 % of
+    /// anchors and the other at ~1.2 %. The separating anchors are
+    /// pinned below for that reason, and the episode is recorded
+    /// rather than quietly repaired — a false "we checked, it was a
+    /// no-op" in the record is worse than an unexamined mutant,
+    /// because it tells the next reader not to look.
+    #[test]
+    fn d2_the_mint_arithmetic_is_pinned_in_bits() {
+        // **One anchor per mutant FAMILY, chosen by separation rather
+        // than by roundness.** A re-association can be
+        // bitwise-identical at some anchors and different at others,
+        // so the anchors are not decoration — each is here because a
+        // known mutant survives without it:
+        //
+        // - `1.7` separates `v1 − slope·t1` (the far-endpoint anchor),
+        //   which is identical at every other entry;
+        // - `84871.995…` separates `(v0·L − (v1−v0)·t0)/L` (the
+        //   algebraic re-expression), which agrees at 0, 1.7, 1e3 and
+        //   1e6 and separates at roughly HALF of random anchors;
+        // - `4824.781…` separates the reciprocal-slope form
+        //   `v0 − (v1−v0)·(1/L)·t0`, which separates at only ~1.2 % of
+        //   anchors and so is the easiest of the three to miss.
+        //
+        // The last two were found by a reviewer executing mutants this
+        // row's author had asserted were no-ops. They were not: they
+        // coincided at the four anchors originally pinned. A tripwire
+        // is only as wide as the cases it was checked against, and
+        // "we tried it and nothing moved" is exactly what a too-narrow
+        // one reports.
+        const PINNED: [(f64, u64, u64); 6] = [
+            (0.0, 0x3fc0_a3d7_0a3d_70a4, 0x3fd5_5555_5555_5556),
+            (1.7, 0xbfdb_f258_bf25_8bf4, 0x3fd5_5555_5555_5556),
+            (1.0e3, 0xc074_d340_da74_0d68, 0x3fd5_5555_5555_5514),
+            (1.0e6, 0xc114_5854_d037_9507, 0x3fd5_5555_5556_5965),
+            (
+                84_871.995_158_921_64,
+                0xc0db_a0a2_3e4e_7fe9,
+                0x3fd5_5555_5555_1451,
+            ),
+            (
+                4_824.781_053_628_38,
+                0xc099_2085_7ac9_91b5,
+                0x3fd5_5555_5555_5145,
+            ),
+        ];
+        let measured: Vec<(f64, u64, u64)> = PINNED
+            .iter()
+            .map(|&(anchor, _, _)| {
+                let (chart, _) = d2_iso_chart(anchor);
+                let Pcurve::IsoLine { p0, pl } = chart.pcurve else {
+                    panic!("the iso arm mints an IsoLine chart image");
+                };
+                (anchor, p0.y.to_bits(), pl.y.to_bits())
+            })
+            .collect();
+        assert_eq!(
+            measured,
+            PINNED.to_vec(),
+            "the iso mint's arithmetic moved. The mint is \
+             `(v0 − slope·t0) + slope·t`, written that way ON PURPOSE — \
+             re-expressing it is what D2 forbids, and restating these \
+             constants to match a re-expression IS the laundering"
+        );
+    }
+
+    #[test]
+    fn d2_iso_move_is_unbounded_in_the_anchor_offset() {
+        let measured: Vec<(f64, i64)> = D2_ANCHOR_SWEEP
+            .iter()
+            .map(|&(t0, _)| (t0, d2_iso_delta(t0).0))
+            .collect();
+        let pinned: Vec<(f64, i64)> = D2_ANCHOR_SWEEP.to_vec();
+        assert_eq!(
+            measured, pinned,
+            "the anchor-offset sweep moved: measured (t0, iso ULP) = {measured:?}, \
+             pinned {pinned:?}. Re-measure and RESTATE — and read the METRE \
+             values (run with D2_DEBUG=1), not the ULP counts, for the size"
+        );
+    }
+
+    /// The anchor-offset sweep's pinned table (see the test's docs),
+    /// measured at zero drift so the residual IS the mint arithmetic:
+    ///
+    /// | `t0` (m) | legacy (m) | collapsed (m) | ULP | relative |
+    /// |---|---|---|---|---|
+    /// | 0     | 4.4409e-16 | 4.4409e-16 | 0 | 0 |
+    /// | 1.7   | 4.4409e-16 | 4.4409e-16 | 0 | 0 |
+    /// | 1e3   | 5.9064e-14 | 1.7053e-13 | 6.58e15 | **+189 %** |
+    /// | 1e6   | 6.0536e-11 | 5.8208e-11 | 1.80e14 | **−3.85 %** |
+    ///
+    /// Read the ULP column as a tripwire and the relative column as
+    /// the size: a ULP distance between two numbers of different
+    /// ORDER is large by construction and says little on its own.
+    ///
+    /// The last row is the one to look at twice. At `t0 = 1e6` the
+    /// residual is 6e-11 m — six per cent of a 1e-9 band — in BOTH
+    /// meters, from parameter cancellation alone. Neither expression
+    /// is trustworthy there, they disagree by 3.85 %, and the sign of
+    /// the disagreement is not even constant across the sweep. That
+    /// is the bound the D1 argument needs: the collapse evaluates the
+    /// quantity the description STATES, but at a far enough anchor
+    /// both evaluations are dominated by the carrier's own
+    /// representation error, and no meter can repair that.
+    const D2_ANCHOR_SWEEP: [(f64, i64); 4] =
+        [(0.0, D2_A0), (1.7, D2_A1), (1.0e3, D2_A2), (1.0e6, D2_A3)];
+    /// Anchor 0: the two expressions are identical (`slope·t0 = 0`).
+    const D2_A0: i64 = 0;
+    /// Anchor 1.7 m: still identical at this fixture's numbers.
+    const D2_A1: i64 = 0;
+    /// Anchor 1e3 m: the collapsed meter reads 2.9× the legacy one.
+    const D2_A2: i64 = 6_579_477_580_611_584;
+    /// Anchor 1e6 m: they disagree by 3.85 %, the other way.
+    const D2_A3: i64 = 180_148_108_263_424;
+
+    #[test]
+    fn d2_bit_diff_row_is_measured_across_drift_scales() {
+        // The WHOLE table is compared at once, deliberately: a
+        // per-scale assertion stops at the first move and hides the
+        // shape of the rest, and the shape is the measurement.
+        let measured: Vec<(f64, (i64, i64))> =
+            D2_SWEEP.iter().map(|&(d, _)| (d, d2_row(d))).collect();
+        let pinned: Vec<(f64, (i64, i64))> = D2_SWEEP.to_vec();
+        assert_eq!(
+            measured, pinned,
+            "D2 drift sweep moved — measured (drift, (cylinder-seam, mapped-line)) \
+             = {measured:?}, pinned {pinned:?}. Re-measure and RESTATE the row; \
+             never re-associate a meter to make a number match (D2)"
+        );
     }
 
     #[test]

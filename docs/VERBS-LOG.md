@@ -1934,3 +1934,44 @@ the issues), SPHSPH/CYLSPH/CONE germ lanes (waiting on arms
 adjudication + #1076's sibling machinery), #1031 (cap F7), the
 wall-2 fork (Evan's content call), and the arms unit behind the
 ring lane. Lane swept.
+
+## EVAN'S WALL-2 CALL: RE-AUTHOR; LILYWELD CUT (2026-08-27)
+
+Evan ratified the circle-coincident re-authoring ("please do
+re-author the lily!"). LILYWELD spec'd two-PR: the content
+re-authoring with the coincidence itself asserted analytically
+(PR-1, S), then the #968-shaped kernel half — declared cone×torus
+gate admission + a carrier_eq rung on the exact shared circle —
+flipping wall 2 (PR-2, M). #968 proper (wall 1's torus×torus with
+the tangency disposition) stays banked; LILYWELD's machinery is
+deliberately the reusable half its checklist names. Recorded on
+#1059; dispatching to block VERBS-6 slot 2 beside SHELLFIX.
+
+## THE #1090 RULING ADOPTED AND SELF-APPLIED (2026-08-27)
+
+Evan's rule via PCURVE: relaxations recorded per arm; asymmetric
+pairs score nothing; 3(e) extends to orchestrator-made asymmetry.
+Self-applied at the same standard: PIERCE's pair is excluded
+under 3(e)'s letter (both arms killed mid-run and resumed —
+complete reports, identical briefs, but interrupted is
+interrupted; PCURVE excluded their comparable pair). VERBS state:
+tally 0/8, clean pairs toward twelve: 1 (TEAPOT). Ledger row
+corrected in place. Scheduling consequence adopted: under mutex
+saturation, stagger duals rather than touch briefs.
+
+## ORDINAL 101 CLAIMED — SHELLFIX PR-1 dual (2026-08-27)
+
+PR-1 (#1099) reported green with NO STOP: the class was an
+OPERAND artifact (the revolve's seam inside the designated
+chart), not a surgery limit — canonicalize_chart (kef/kev/kemr)
+retires the seam before the glue, the axis-touching cap MINTS one
+annular rim, the annular cap SPLITS to two disjoint annuli
+through existing doors (the thing #1082 said kfmrh could not
+express), anything else refuses typed. The teapot ships OPENED —
+wall 2 retires, all four bodies export STEP (the frontier gate
+back to three probes). Tier-3 gains check 9 (RingMeetsOuter,
+metered against ZERO — metering coincidence against eps lands on
+the band's own threshold and escalates; a real bug hosted CI
+caught, banked). v6 dual, frozen head 66071862; slot draw in the
+lane-private file; claim to main at dispatch per the standing
+carve-out.

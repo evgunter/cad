@@ -4,6 +4,11 @@ resolver = "3"
 # tour + STL viewer tooling); it must never join the kernel workspace.
 # tools/ holds CI tooling (the k-lint fragility lint) — same posture:
 # lint policy must never become a workspace dependency.
+# benches/ is the criterion harness (PERF-PLAN §5); same posture again —
+# criterion's 44 transitive crates must never enter `cargo nextest archive
+# --workspace` or `cargo clippy --workspace --all-targets`, which is to say
+# the two build jobs and both clippy rows of every code-tier PR. That
+# manifest states the exclusion's full price.
 # interval-transcendentals/ is the `interval` feature's backend (M5 PR 1)
 # and IS depended on by geom-core, but stays a separate workspace root on
 # purpose: its differential-certification oracle is a gmp-backed inari
@@ -12,7 +17,7 @@ resolver = "3"
 # every `cargo test --workspace`, dragging the LGPL C build back in. The
 # exclusion is also what lets a nested crate keep its own `[workspace]`
 # table without cargo reporting two roots in one workspace.
-exclude = ["demos", "tools", "interval-transcendentals"]
+exclude = ["benches", "demos", "tools", "interval-transcendentals"]
 members = [
     "crates/bvh",
     "crates/editor-core",
@@ -30,6 +35,7 @@ members = [
     "crates/sweep",
     "crates/test-utils",
     "crates/topo",
+    "crates/viewer",
 ]
 
 # No root package: the project name is pending (Q9), so the workspace stays
