@@ -1596,10 +1596,13 @@ struct Crossing<T: Decide> {
 ///
 /// # Rows
 ///
-/// - `chart_region_parallel`: the transversality determinant over one
-///   edge's length, `over_lever(perp_dot(r, s), |r|)` — the
-///   perpendicular height of `s` across `r`'s line (m). Zero ⇒ the
-///   parallel lane below.
+/// - `chart_region_parallel`: the transversality determinant over the
+///   SHORTER edge's length, `over_lever(perp_dot(r, s), min(|r|, |s|))`
+///   — the perpendicular height the LONGER edge makes across the
+///   other's line (m). Zero ⇒ the parallel lane below. The lever is
+///   the shorter length because that is the union-max of the two
+///   descriptions' candidate margins and therefore argument-order
+///   symmetric; see the invariant comment at the row itself.
 /// - `chart_region_cross_span`: each of the four advance clearances
 ///   `t·|r|`, `(1−t)·|r|`, `u·|s|`, `(1−u)·|s|` — the crossing
 ///   point's distance from a segment endpoint along its segment
@@ -1607,10 +1610,11 @@ struct Crossing<T: Decide> {
 ///   definitely positive ⇒ a proper crossing; any definitely negative
 ///   ⇒ the lines cross off-segment (no crossing); an exact Zero is a
 ///   boundary-touch configuration ⇒ typed refusal.
-/// - `chart_region_collinear_offset` (parallel lane): the signed
-///   perpendicular offset of `b`'s start from `a`'s line,
-///   `over_lever(perp_dot(r, q − p), |r|)` (m). Definite ⇒ parallel
-///   disjoint lines, no crossing; Zero ⇒ collinear, span check next.
+/// - `chart_region_collinear_offset` (parallel lane): how far apart the
+///   two lines are, as the MAX of the two perpendicular offsets —
+///   `q`'s from `r`'s line and `p`'s from `s`'s (m), again the
+///   union-max form. Definite ⇒ parallel disjoint lines, no crossing;
+///   Zero ⇒ collinear, span check next.
 /// - `chart_region_collinear_overlap` (collinear lane): the shared
 ///   span length along the common line (m, an interval-overlap
 ///   difference of metre projections). Positive ⇒ the boundaries
@@ -1619,6 +1623,26 @@ struct Crossing<T: Decide> {
 ///
 /// The division by the determinant in `t`/`u` is certified: the
 /// parallel row's definite sign excludes zero from the enclosure.
+///
+/// # Argument-order symmetry (#1063)
+///
+/// Every row here answers the same for `(a, b)` and `(b, a)`:
+///
+/// - `chart_region_parallel` and `chart_region_collinear_offset` are
+///   union-max forms, symmetric by construction (see their rows);
+/// - `chart_region_cross_span` already was: swapping the arguments
+///   maps `(t, |r|)` to `(u, |s|)` and back, so the four clearances
+///   are the same MULTISET and the `Negative`/`Zero`/in-band reads
+///   over them are unchanged;
+/// - `chart_region_collinear_overlap` measures the two segments'
+///   shared span, which is the same interval intersection either way;
+///   the two frames' projections of it differ only at second order in
+///   the residual angle, itself already bounded by the parallel row.
+///
+/// What is NOT claimed, and is the module's standing posture: the ray
+/// schedule in [`crate::ray_parity`] is fixed in CHART coordinates, so
+/// which configurations refuse rather than decide still rotates with
+/// the frame.
 fn proper_crossings<T: Decide>(
     a: &[Point2<T>],
     b: &[Point2<T>],
@@ -1634,17 +1658,44 @@ fn proper_crossings<T: Decide>(
             let s = b[(bi + 1) % b.len()] - q;
             let qp = q - p;
             let denom = r.perp_dot(s);
+            // ARGUMENT-ORDER INVARIANT (#1063 fix pass): both levers
+            // here are UNION-MAX forms, so the margin is a `max` over a
+            // multiset that swapping `(A, B)` for `(B, A)` only
+            // permutes. `min(|r|, |s|)` under an `over_lever` IS that
+            // max — `|denom|/min(|r|, |s|) = max(|denom|/|r|,
+            // |denom|/|s|)` — and `min`/`max` are commutative, so the
+            // margin is bit-identical in both orders. A one-sided
+            // `|r|` lever is what made the SAME pair certify one way
+            // and escalate the other.
+            let lever = r.norm().min(s.norm());
             let d_sign = decide(
                 "chart_region_parallel",
-                Margin::over_lever(denom, r.norm()),
+                Margin::over_lever(denom, lever),
                 band,
             )
             .map_err(escalate)?;
             if d_sign == Sign::Zero {
-                // Parallel lane.
+                // Parallel lane. Same discipline: the two candidate
+                // offsets are `q`'s distance from `r`'s line and `p`'s
+                // from `s`'s, and the row takes their max. Only the
+                // MAGNITUDE is read below (Zero versus anything
+                // definite), so a max of magnitudes says exactly what
+                // the row asks — "are these two lines definitely
+                // apart" — with neither description privileged.
+                //
+                // Dimensional argument, the `over_lever` door's own:
+                // `perp_dot(r, q − p) / |r|` is a determinant (m2) over
+                // the length that levers it, i.e. `q`'s perpendicular
+                // distance from `r`'s line, in metres. Both candidates
+                // are that same length, so their max is a length and
+                // `Margin::of` is its door (the `carrier_agreement`
+                // precedent).
+                let pq = Vec2::new(T::zero() - qp.x, T::zero() - qp.y);
+                let off_a = (r.perp_dot(qp) / r.norm()).abs();
+                let off_b = (s.perp_dot(pq) / s.norm()).abs();
                 match decide(
                     "chart_region_collinear_offset",
-                    Margin::over_lever(r.perp_dot(qp), r.norm()),
+                    Margin::of(off_a.max(off_b)),
                     band,
                 )
                 .map_err(escalate)?

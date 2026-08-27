@@ -106,12 +106,22 @@ fn probe_bogus_planar_patch_record_never_silently_blesses() {
     // The fabrication, on the same fixture: the two OUTER faces, two
     // metres apart. Nothing about the backing rung may rescue it.
     let fake = patch(z_facing(0.0, -1.0), z_facing(2.0, 1.0));
-    let verdict = validate_pseudomanifold(&body, &fake, Tol::witness());
-    println!("fabricated patch verdict: {verdict:?}");
+    let errors = validate_pseudomanifold(&body, &fake, Tol::witness())
+        .expect_err("a fabricated patch record must never bless the assembly");
+    println!("fabricated patch verdict: {errors:?}");
+    // Asserted by KIND, not by `is_err()`. A bare `is_err()` here cannot
+    // FAIL for the reason its message names: this fixture's two stacked
+    // cubes touch, so an undeclared interface leaves `UndeclaredContact`
+    // findings whatever the record does, and the row would survive a
+    // mutant that blessed the fabrication silently. The claim is that
+    // the RECORD is refused, so the assertion has to name the record's
+    // own refusal.
     assert!(
-        verdict.is_err(),
-        "MAJOR if this fails: a fabricated patch record silently blessed \
-         an assembly while suppressing the events its faces hold"
+        errors
+            .iter()
+            .any(|e| matches!(e, ValidationError::ContactContradicted { .. })),
+        "the fabrication is contradicted where the lie meets geometry — \
+         two carriers definitely two metres apart: {errors:?}"
     );
 }
 

@@ -112,6 +112,20 @@ const SHELF_THICKNESS: f64 = 0.04;
 /// shelf's underside. They stay inset in y, because a bench top
 /// overhangs front and back and a post is not the depth of the shelf.
 ///
+/// "Flush" here is flush AS THE MODEL COMPUTES IT, and the two ends are
+/// not identical about it: `SEAT_A`'s near face lands on `x = 0`
+/// exactly (`POST_SECTION / 2 - POST_SECTION / 2`), while `SEAT_B`'s far
+/// face lands 1.11e-16 m past `SHELF_LENGTH`, because
+/// `0.9 - 0.06 + 0.06` is not `0.9` in binary floating point. That is
+/// one ulp of the model's own coordinates and four orders below the
+/// TIGHTEST ε the hosted matrix runs (1e-12), so it is a residue the
+/// seat's own predicate certifies rather than a gap in the drawing —
+/// which is the whole "certified everywhere within ε, never exact"
+/// posture, met by the demo instead of asserted about it. The
+/// dimensions are NOT adjusted to make the arithmetic close: moving
+/// geometry so a number reads round is the one thing this file may not
+/// do.
+///
 /// This was authored INSET until #1063 landed, with a comment saying
 /// flush and inset reached the same verdict — true then, and the
 /// reason it was a gap: a declared cross-instance pair was declined at
@@ -689,6 +703,18 @@ fn stand_scene(ws: &Workspace, stand: &Stand, tol: Tol) -> SceneBody {
         gate.minted(),
         2,
         "one record per solved mate (A3's minting)"
+    );
+    // ASSERTED, not merely printed: this is #1063's visible acceptance.
+    // The stand is the natural drawing of a bench — two posts seated
+    // FLUSH with the shelf's ends — and until the census could answer a
+    // declared cross-instance pair it reached the frontier and no
+    // further. A scene that only PRINTED its verdict would keep saying
+    // so with the sentence and the geometry drifting apart, which is
+    // the shape of the demo bug this file exists to avoid.
+    assert!(
+        matches!(gate.verdict, AtRestVerdict::Certified),
+        "the flush-seated stand CERTIFIES at the A5 gate: {}",
+        gate.verdict.describe()
     );
 
     SceneBody::at_rest("bench", [0.55, 0.44, 0.30], gate.body, gate.contacts)

@@ -186,6 +186,34 @@ fn one_tilt_two_extents_two_answers() {
     }
 }
 
+/// INVARIANT (the row's THIRD outcome, pinned rather than asserted in
+/// prose): a carrier disagreement that lands IN the band escalates
+/// typed and names the predicate. Without this row two of
+/// `chart_region_carrier_tilt`'s outcomes are exercised and the
+/// genuine-residue one is only claimed.
+///
+/// The fixture is ε-relative for the reason the module header gives:
+/// the whole content of this row is where a residue falls relative to
+/// ε. `3ε` of separation over the pair's own extent is strictly inside
+/// `(ε, Kε)` at every ε the matrix runs, since `K = 10`.
+#[test]
+fn an_in_band_carrier_disagreement_escalates_naming_the_row() {
+    let eps = Tol::witness().eps();
+    // Extent 1 m, so the far end's separation IS the slope: 3ε.
+    let (a, b) = (slab(1.0), plate(1.0, 3.0 * eps));
+    let (fa, fb) = pair(&a, &b);
+    match declared_pair_overlap(&a, fa, &b, fb, ContactVerdict::Definite, band()) {
+        Err(ChartRegionError::Escalated(diag)) => {
+            assert_eq!(
+                diag.predicate,
+                Some("chart_region_carrier_tilt"),
+                "the escalation names the row that could not decide: {diag:?}"
+            );
+        }
+        other => panic!("an in-band carrier residue escalates typed, got {other:?}"),
+    }
+}
+
 /// INVARIANT: the tilt refusal is a REFUSAL, not a contradiction and
 /// not an `Empty`. The pair may well be in contact; what the door says
 /// is that it cannot certify the overlap in either description's frame,
@@ -270,4 +298,106 @@ fn a_declared_curved_cross_instance_pair_is_still_refused() {
         Err(ChartRegionError::ChartDivergence { .. }) => {}
         other => panic!("a curved cross-instance declared pair stays refused: {other:?}"),
     }
+}
+
+// ---------------------------------------------------------------------
+// Argument-order symmetry, under ROTATIONS (the #1063 fix pass)
+// ---------------------------------------------------------------------
+//
+// The corpus above builds both bodies from ONE cube mapper, so the map
+// between the two frames is always a reflection with axis-aligned
+// `u_ref`s — which exercises the orientation half of the lemma and
+// nothing else. The rows below rotate the B-side body in its own plane
+// by angles that are not multiples of a right angle, so the map between
+// the two chart frames is a genuine rotation and the trims land on
+// edges of every length ratio against each other.
+//
+// This is where the ONE real asymmetry was found: `chart_region_parallel`
+// levered its determinant by the FIRST polygon's edge length, so a short
+// edge against a long one at a near-parallel angle read a margin a
+// length-ratio apart in the two orders — mid-band one way, definite the
+// other, which is a different GATE VERDICT and not the few-ulp frame
+// variance the lemma concedes. Both levers are union-max forms now.
+
+/// A plate whose underside is the rectangle `[0, w] × [0, d]` at
+/// `z = 1`, ROTATED by `deg` about the z-axis through the origin and
+/// then translated by `(tx, ty)`.
+fn turned_plate(w: f64, d: f64, deg: f64, tx: f64, ty: f64) -> Body<f64> {
+    let (c, s) = (deg.to_radians().cos(), deg.to_radians().sin());
+    common::mapped_cube(|x, y, z| {
+        let (px, py) = (x * w, y * d);
+        Point3::new(px * c - py * s + tx, px * s + py * c + ty, 1.0 + z)
+    })
+}
+
+/// Both argument orders of one configuration, rendered for comparison.
+fn both_orders(a: &Body<f64>, b: &Body<f64>) -> (String, String) {
+    let (fa, fb) = pair(a, b);
+    (
+        format!(
+            "{:?}",
+            declared_pair_overlap(a, fa, b, fb, ContactVerdict::Definite, band())
+        ),
+        format!(
+            "{:?}",
+            declared_pair_overlap(b, fb, a, fa, ContactVerdict::Definite, band())
+        ),
+    )
+}
+
+/// INVARIANT (the spec's third binding condition, under rotations): the
+/// gate's verdict is a property of the PAIR. Not "the certified answers
+/// agree when both are certified" — the two calls must land on the same
+/// outcome, refusals included, because a declaration that certifies only
+/// when the mate happens to name the post before the shelf is not a
+/// certification.
+#[test]
+fn the_verdict_is_argument_order_symmetric_under_rotation() {
+    let base = slab(1.0);
+    let mut checked = 0usize;
+    for &deg in &[0.0, 1.0, 7.0, 17.0, 30.0, 45.0, 63.5, 89.0, 91.0, 137.0] {
+        for &(w, d) in &[(1.0, 1.0), (0.05, 0.05), (0.9, 0.05), (0.05, 0.9)] {
+            for &(tx, ty) in &[(0.0, 0.0), (0.3, 0.2), (0.5, 0.5), (0.95, 0.0)] {
+                let b = turned_plate(w, d, deg, tx, ty);
+                let (ab, ba) = both_orders(&base, &b);
+                assert_eq!(
+                    ab, ba,
+                    "deg = {deg}, plate = {w} x {d}, at ({tx}, {ty}): the two \
+                     argument orders disagreed — {ab} vs {ba}"
+                );
+                checked += 1;
+            }
+        }
+    }
+    assert_eq!(checked, 160, "the battery is the size it says it is");
+}
+
+/// INVARIANT, the R1 probe that found the defect, kept as a row: a SHORT
+/// edge crossing a LONG edge's line at a near-parallel angle, far off
+/// the segment, with a fat overlap between the two trims.
+///
+/// Before the fix this pair read `Ok(PositiveArea)` one way and
+/// `Err(Escalated)` the other, because the parallel row's margin was
+/// `|denom| / |r|` — the perpendicular height of the SECOND edge across
+/// the first's line, which is a length-ratio apart from its mirror. The
+/// union-max lever makes the margin `max(|r|, |s|) · sin θ` in both
+/// orders. The pair is a plainly-overlapping one, so the symmetric
+/// answer it settles on is also the RIGHT one: certified, not refused.
+#[test]
+fn the_short_against_long_near_parallel_edge_pair_agrees_both_ways() {
+    // Angle chosen so the near-parallel margin sits where the two
+    // one-sided levers straddled the band: the long edge's height
+    // across the short edge's line is definite, the short edge's across
+    // the long one's is not.
+    let eps = Tol::witness().eps();
+    let deg = (100.0 * eps).atan().to_degrees();
+    let base = slab(1.0);
+    let b = turned_plate(0.05, 0.9, deg, 0.3, 0.05);
+    let (ab, ba) = both_orders(&base, &b);
+    assert_eq!(ab, ba, "the probe disagreed: {ab} vs {ba}");
+    assert_eq!(
+        ab, "Ok(PositiveArea)",
+        "and a pair whose trims plainly overlap certifies rather than \
+         escalating: {ab}"
+    );
 }

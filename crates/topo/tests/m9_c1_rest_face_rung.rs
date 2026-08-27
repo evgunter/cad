@@ -94,15 +94,12 @@ fn count(cs: &[CensusContact], f: impl Fn(&CensusContact) -> bool) -> usize {
     cs.iter().filter(|c| f(c)).count()
 }
 
-/// The line-contact seat: the post stands just OFF the shelf's side,
-/// its top cap coplanar with the shelf's underside and sharing exactly
-/// one boundary line with it. The two faces touch along a segment and
-/// their regions overlap in no area at all — so every event the
-/// configuration induces lies outside the declared pair's own
-/// interface.
 /// The INSET seat: the post wholly within the shelf's underside, its
 /// cap sharing no boundary with it — how legs are actually set under a
 /// top, and the shape the demo had to author while gap 2 was open.
+/// Its trims overlap in plain AREA, so the region walk decides it
+/// outright and the interior-witness rung is never consulted; that is
+/// what makes it the control for the flush row beside it.
 fn inset_seat() -> (Body<f64>, FaceKey, FaceKey) {
     seat(
         &[(0.10, 0.09), (0.22, 0.09), (0.22, 0.21), (0.10, 0.21)],
@@ -110,6 +107,12 @@ fn inset_seat() -> (Body<f64>, FaceKey, FaceKey) {
     )
 }
 
+/// The line-contact seat: the post stands just OFF the shelf's side,
+/// its top cap coplanar with the shelf's underside and sharing exactly
+/// one boundary line with it. The two faces touch along a segment and
+/// their regions overlap in no area at all — so every event the
+/// configuration induces lies outside the declared pair's own
+/// interface.
 fn line_contact_seat() -> (Body<f64>, FaceKey, FaceKey) {
     seat(
         &[(0.0, 0.30), (0.12, 0.30), (0.12, 0.42), (0.0, 0.42)],
