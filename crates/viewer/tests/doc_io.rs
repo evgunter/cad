@@ -122,6 +122,63 @@ fn opening_a_file_that_is_not_a_document_refuses_at_the_persistence_door() {
     std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
 }
 
+/// **A real gallery document, opened through the typed door.**
+///
+/// The file is the tour's `gallery` mode output for the ring scene,
+/// committed verbatim — so this row is the acceptance walk (open a
+/// gallery `.pncad`, see its feature tree with live statuses, save it
+/// back) with the dialog and the window taken out.
+///
+/// It is version-stamped in its name, as `pncad`'s own fixture is: a
+/// schema break makes this file unreadable, and the fix is to
+/// regenerate it from `demo-tour gallery` and rename, never to teach
+/// the loader about an old shape.
+const GALLERY_RING: &str = include_str!("gallery_ring.v14.pncad");
+
+#[test]
+fn a_gallery_document_opens_evaluates_and_saves_back() {
+    let tol = Tol::witness();
+    let dir = tempdir("gui3-gallery");
+    let file = dir.join("ring.pncad");
+    std::fs::write(&file, GALLERY_RING).expect("the fixture is writable");
+
+    let history = docio::open(&file, tol).expect("the gallery document opens");
+    let mut session = DocSession::new(
+        history.doc().clone(),
+        tol,
+        Box::new(viewer::InlineEvaluator::new()),
+    );
+    session.pump();
+
+    let rows = session.tree_rows();
+    assert_eq!(rows.len(), 3, "profile, axis datum, revolve");
+    assert!(
+        !viewer::tree::has_faults(&rows),
+        "a gallery document evaluates clean: {:?}",
+        rows.iter().map(|r| &r.status).collect::<Vec<_>>()
+    );
+    assert!(
+        rows.iter().any(|row| row.kind == "Revolve" && row.root),
+        "the revolve is the product root"
+    );
+
+    // Round-trip: opened, saved, and opened again is the same document.
+    let out = dir.join("ring-again.pncad");
+    assert!(
+        session
+            .perform(SessionOp::Save(out.clone()))
+            .refusal
+            .is_none()
+    );
+    let reopened = docio::open(&out, tol).expect("the re-saved document opens");
+    assert!(
+        reopened.doc().bit_eq(history.doc()),
+        "bit-identical round trip"
+    );
+
+    std::fs::remove_dir_all(&dir).expect("the fixture directory is removable");
+}
+
 #[test]
 fn a_saved_file_is_byte_identical_when_nothing_changed_between_saves() {
     // Save is a function of the history's current path, so saving the
