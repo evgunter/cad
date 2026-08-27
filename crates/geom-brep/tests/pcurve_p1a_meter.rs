@@ -13,9 +13,8 @@
 
 use geom::{Curve3, Surface};
 use geom_brep::{
-    CertCheck, CertifyError, ChartWindow, EdgeCurve, EdgeCurveSpec,
-    EdgeDescriptionSpec, PcurveCache, PcurveCertifyError, PcurveCheck, chart_pcurve,
-    implicit_residual,
+    CertCheck, CertifyError, ChartWindow, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec,
+    PcurveCache, PcurveCertifyError, PcurveCheck, chart_pcurve, implicit_residual,
 };
 use geom_core::{Band, Point3, Vec3};
 

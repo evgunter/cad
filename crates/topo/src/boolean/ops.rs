@@ -1086,7 +1086,8 @@ pub(super) fn describe_minted_edges<T: Decide>(
                     } else {
                         body.set_edge_curve(
                             edge,
-                            geom_brep::EdgeCurveSpec::line_between(p0, p1).at_rest_in_chart(s1, false),
+                            geom_brep::EdgeCurveSpec::line_between(p0, p1)
+                                .at_rest_in_chart(s1, false),
                             tol,
                         )
                         .map_err(|_| BooleanError::JoinDesync {
