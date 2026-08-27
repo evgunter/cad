@@ -165,9 +165,10 @@ fn assert_intent_stored_bit_exact(body: &Body<f64>, what: &str) {
 }
 
 /// The triangle count of every torus face of `body` whose stored minor
-/// radius is `r`, at `delta` — the mesh the tour itself would emit.
-fn wall_triangles(body: &Body<f64>, r: f64, delta: f64, tol: Tol) -> Vec<usize> {
-    let mesh = pncad::mesh::tessellate(body, delta, tol).expect("the scene body tessellates");
+/// radius is `r`, read off a mesh of that body — one tessellation per
+/// body, since the scene compares two bodies' walls and not two
+/// budgets.
+fn wall_triangles(body: &Body<f64>, mesh: &pncad::mesh::Mesh, r: f64) -> Vec<usize> {
     body.faces()
         .filter(|(_, face)| {
             matches!(
@@ -253,14 +254,18 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // surface over the same window at the same δ, so they mesh
     // identically. A sizing change that moved one and not the other
     // would be a semantic fork the census could not see.
-    let outer_here = wall_triangles(&elbow.body, OUTER, DELTA_ELBOW, tol);
-    let outer_solid = wall_triangles(&solid, OUTER, DELTA_ELBOW, tol);
+    let elbow_mesh = pncad::mesh::tessellate(&elbow.body, DELTA_ELBOW, tol)
+        .expect("the hollow elbow tessellates");
+    let solid_mesh =
+        pncad::mesh::tessellate(&solid, DELTA_ELBOW, tol).expect("the solid elbow tessellates");
+    let outer_here = wall_triangles(&elbow.body, &elbow_mesh, OUTER);
+    let outer_solid = wall_triangles(&solid, &solid_mesh, OUTER);
     assert_eq!(
         outer_here, outer_solid,
         "the hollow door's OUTER walls are the solid door's, face for face at δ = \
          {DELTA_ELBOW} — growing a bore must not resize the wall outside it"
     );
-    let inner_here = wall_triangles(&elbow.body, INNER, DELTA_ELBOW, tol);
+    let inner_here = wall_triangles(&elbow.body, &elbow_mesh, INNER);
 
     let (ve, ee, fe) = (
         elbow.body.vertices().count(),
