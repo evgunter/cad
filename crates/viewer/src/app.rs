@@ -47,9 +47,10 @@ use pncad::geom_core::Tol;
 
 use crate::camera::{self, Camera, CameraOp};
 use crate::evalseam::{Generation, ThreadEvaluator};
+use crate::frame::{self, IdQueryLog, IdStep, StatusUpdate};
 use crate::gpu::{DEPTH_BITS, IdQuery, ViewportCallback, ViewportRenderer};
 use crate::input::{self, InputMap, PointerButton, ViewportEvent, ViewportSize};
-use crate::pick::{self, IdMap, PickIndex};
+use crate::pick::{self, PickCache, PickIndex};
 use crate::props::{SlotDriver, SlotRow, SlotValue};
 use crate::scene::{self, DisplayTolerance, SceneMesh};
 use crate::session::{DocSession, Refusal, Selection, SessionOp, Standing};
@@ -129,18 +130,17 @@ struct Drafts {
 /// Everything the application knows.
 pub struct ViewerApp {
     session: DocSession,
-    tol: Tol,
     delta: DisplayTolerance,
     scene: Arc<SceneMesh>,
-    /// What the cursor picks against, for the generation on screen.
-    /// `None` until the first evaluation lands, or when the current
-    /// one produced no index — in both cases the viewport draws and
-    /// picks nothing rather than picking against a stale run.
-    index: Option<PickIndex>,
+    /// What the cursor picks against, and the rebuild-on-stale loop
+    /// that keeps it current — one attempt per (generation, δ), so a
+    /// document with a failed root does not re-tessellate every
+    /// healthy root on every repainted frame.
+    picks: PickCache,
     /// Where the id pass leaves its answer: `serial << 32 | id`.
     id_answer: Arc<AtomicU64>,
-    /// The serial of the id query the last frame asked.
-    id_serial: u32,
+    /// Which id query is outstanding and what it was asked about.
+    id_log: IdQueryLog,
     /// Bumped on every rebuild; the GPU uploads when it disagrees.
     revision: u64,
     /// The evaluation generation `scene` was built from. When it
@@ -215,12 +215,11 @@ impl ViewerApp {
                 tol,
                 Box::new(ThreadEvaluator::spawn().map_err(StartupError::Evaluator)?),
             ),
-            tol,
             delta,
             scene: Arc::new(mesh),
-            index: None,
+            picks: PickCache::new(),
             id_answer: Arc::new(AtomicU64::new(0)),
-            id_serial: 0,
+            id_log: IdQueryLog::new(),
             revision: 1,
             scene_generation: None,
             camera,
@@ -240,41 +239,37 @@ impl ViewerApp {
     /// nothing.
     fn sync_scene(&mut self) {
         self.session.pump();
-        let landed = self.session.landed_generation();
-        if self.scene_generation == landed
-            && self
-                .index
-                .as_ref()
-                .is_some_and(|index| index.current_for(landed, self.delta))
-        {
-            return;
-        }
-        let Some(generation) = landed else {
-            return;
-        };
-        // The index is DISCARDED and rebuilt, never repaired: a
-        // `NodePick` belongs to the evaluation it was built from, and
-        // re-pairing one by hand is the confident-wrong-answer lane
-        // issue #1098 names.
-        self.index = None;
-        self.scene_generation = landed;
-        let built = match self.session.landed_pair() {
-            Some((doc, eval)) => PickIndex::build(doc, eval, generation, self.delta, self.tol),
-            None => return,
-        };
-        let index = match built {
-            Ok(index) => index,
-            Err(error) => {
-                self.status = Some(format!("pick index: {error:?}"));
+        // The cache owns the retry policy: one attempt per (landed
+        // generation, δ). A refused build is reported and held, not
+        // re-attempted every frame behind a stale picture.
+        match self.picks.sync(&self.session, self.delta) {
+            pick::CacheStep::Current | pick::CacheStep::Held | pick::CacheStep::Nothing => return,
+            pick::CacheStep::Refused => {
+                self.status = self
+                    .picks
+                    .error()
+                    .map(|error| format!("pick index: {error:?}"));
                 return;
             }
+            pick::CacheStep::Rebuilt => {}
+        }
+        self.scene_generation = self.session.landed_generation();
+        let Some(index) = self.picks.index() else {
+            return;
         };
         match index.scene() {
             Ok(mesh) => {
                 self.scene = Arc::new(mesh);
-                self.index = Some(index);
                 self.revision = self.revision.wrapping_add(1);
-                self.status = None;
+                // The gather's own verdict, computed once when the
+                // evaluation landed. A naming collision across roots is
+                // not a node failure, so no tree badge carries it and
+                // the viewport would otherwise draw a product nothing
+                // says is malformed.
+                self.status = self
+                    .session
+                    .product_fault()
+                    .map(|fault| format!("product: {fault}"));
             }
             Err(error) => self.status = Some(format!("scene: {error:?}")),
         }
@@ -287,7 +282,6 @@ impl ViewerApp {
         match self.delta.scaled(factor) {
             Ok(delta) => {
                 self.delta = delta;
-                self.scene_generation = None;
                 self.sync_scene();
             }
             Err(error) => self.status = Some(format!("display tolerance: {error:?}")),
@@ -310,24 +304,25 @@ impl ViewerApp {
         if ops.is_empty() {
             return;
         }
-        // **A hover does not clear the status line.** The clear-on-a-
-        // clean-batch rule is about the user's ACTION on the document:
-        // "you tried something and it worked, so the last complaint is
-        // stale". Moving the pointer is not that — it emits an
-        // operation on every frame the cursor changes what it is over,
-        // refuses nothing by construction, and left unfiltered it wipes
-        // the ratified affordance off the screen the instant the mouse
-        // drifts over the viewport.
-        let mut acted = false;
         let mut refusal: Option<Refusal> = None;
-        for op in ops {
-            acted |= !matches!(op, SessionOp::Hover(_));
-            if let Some(next) = self.session.perform(op).refusal {
-                refusal = Refusal::preferred(refusal, next);
+        // The VERDICT is `frame::batch_status`'s, computed from the ops
+        // and the refusal; this loop only performs and collects. The
+        // rule used to live inline here, in app-gated code no row could
+        // reach — see `frame`'s module docs.
+        let update = {
+            let mut performed: Vec<SessionOp> = Vec::with_capacity(ops.len());
+            for op in ops {
+                performed.push(op.clone());
+                if let Some(next) = self.session.perform(op).refusal {
+                    refusal = Refusal::preferred(refusal, next);
+                }
             }
-        }
-        if acted || refusal.is_some() {
-            self.status = refusal.map(|refusal| refusal.to_string());
+            frame::batch_status(&performed, refusal.as_ref())
+        };
+        match update {
+            StatusUpdate::Keep => {}
+            StatusUpdate::Clear => self.status = None,
+            StatusUpdate::Show(message) => self.status = Some(message),
         }
     }
 }
@@ -416,7 +411,7 @@ impl eframe::App for ViewerApp {
                 session: &self.session,
                 delta: self.delta,
                 scene: &self.scene,
-                index: self.index.as_ref(),
+                index: self.picks.index(),
                 revision: self.revision,
                 camera: &mut self.camera,
                 input: self.input,
@@ -424,7 +419,7 @@ impl eframe::App for ViewerApp {
                 pending_fit: &mut self.pending_fit,
                 status: &mut self.status,
                 id_answer: &self.id_answer,
-                id_serial: &mut self.id_serial,
+                id_log: &mut self.id_log,
                 ops: &mut ops,
             };
             self.tree.ui(&mut behavior, ui);
@@ -448,7 +443,7 @@ struct ViewerBehavior<'a> {
     pending_fit: &'a mut bool,
     status: &'a mut Option<String>,
     id_answer: &'a Arc<AtomicU64>,
-    id_serial: &'a mut u32,
+    id_log: &'a mut IdQueryLog,
     ops: &'a mut Vec<SessionOp>,
 }
 
@@ -577,9 +572,20 @@ impl ViewerBehavior<'_> {
         // it would clear the status line on every frame the pointer is
         // inside the viewport.
         let folded = input::fold_events(&self.input, self.camera, viewport, &events);
-        if !folded.applied.is_empty() || folded.refused.is_some() {
+        if frame::folded_moved(&folded) {
             land(self.camera, self.status, &folded);
         }
+
+        // **One movement verdict for both picking paths.** The id
+        // query's bookkeeping answers "has anything changed under this
+        // cursor since the last question", and the CPU ray obeys the
+        // same answer: a still cursor over an unchanged picture is a
+        // ray cast whose result is already known. Without it an orbit
+        // drag ran a full ray cast AND a blocking GPU readback on every
+        // frame, because the app pushes a `Hover` whenever the pointer
+        // is inside the pane — true of every frame of a drag.
+        let generation = self.index.map(PickIndex::generation);
+        let step = self.id_log.step(cursor_px, generation);
 
         // The cursor path: actions in, session operations out. Every
         // step of it — the un-projection, the ray service, the miss
@@ -588,11 +594,17 @@ impl ViewerBehavior<'_> {
         let actions = input::pick_stream(&self.input, &events);
         if let (Some(index), Some(eval)) = (self.index, self.session.evaluation()) {
             for action in actions {
+                // A hover over an unchanged picture at an unmoved
+                // cursor asks a question whose answer the session
+                // already holds. A click never skips: it is an
+                // ACTION, not an observation.
+                if step == IdStep::Hold && matches!(action, input::PickAction::Hover(_)) {
+                    continue;
+                }
                 match index.op_for(eval, self.camera, viewport, action) {
-                    // A hover that changes nothing is not queued: the
-                    // cursor is over the same face on most frames, and
-                    // an operation per frame that performs no
-                    // transition is churn in the one log a test reads.
+                    // A hover that changes nothing is not queued: an
+                    // operation per frame that performs no transition
+                    // is churn in the one log a test reads.
                     Ok(SessionOp::Hover(face)) if face.as_ref() == self.session.hover() => {}
                     Ok(op) => self.ops.push(op),
                     Err(error) => *self.status = Some(error.to_string()),
@@ -614,39 +626,32 @@ impl ViewerBehavior<'_> {
             }
         };
 
-        // The id pass's previous answer, checked against the ray path's
-        // answer for the SAME cursor — the two paths' agreement, which
-        // is the property GQ6-RESURVEY §3's two-lane picking strategy
-        // rests on. The comparison is against `session.hover()`, which
-        // is the ray path's verdict on the cursor the query was issued
-        // at; both are one frame old together.
-        //
-        // A disagreement is REPORTED, never resolved: the ray path is
-        // the shipped answer because it is the tested one, and the id
-        // pass is here to contradict it out loud on hardware if it can
-        // (issue #1097's checklist).
-        let raw = self.id_answer.load(Ordering::Relaxed);
-        if (raw >> 32) as u32 == *self.id_serial && *self.id_serial != 0 {
-            let from_gpu = raw as u32;
-            let from_ray = highlight.as_ref().map_or(IdMap::NOTHING, |h| h.hovered);
-            if from_gpu != from_ray {
-                *self.status = Some(format!(
-                    "picking paths disagree at the cursor: id buffer {from_gpu}, ray {from_ray}"
-                ));
-            }
+        // The two paths' agreement, compared BY NAME (`frame::
+        // disagreement` says why ids are the wrong currency, and
+        // records the ray-authoritative role inversion against
+        // GQ6-RESURVEY §3). Reported, never resolved.
+        if let Some(report) = self.index.and_then(|index| {
+            frame::disagreement(
+                index,
+                self.id_answer.load(Ordering::Relaxed),
+                self.id_log.outstanding(),
+                self.session.hover().map(|face| &face.name),
+            )
+        }) {
+            *self.status = Some(report.to_string());
         }
-        let id_query = cursor_px.map(|[px, py]| {
-            *self.id_serial = self.id_serial.wrapping_add(1).max(1);
-            IdQuery {
-                cursor_ndc: [
-                    (2.0 * px / viewport.width_px - 1.0) as f32,
-                    (1.0 - 2.0 * py / viewport.height_px) as f32,
-                ],
-                viewport_px: [viewport.width_px as f32, viewport.height_px as f32],
-                serial: *self.id_serial,
-                answer: Arc::clone(self.id_answer),
+
+        let id_query = match (step, cursor_px) {
+            (IdStep::Ask { serial }, Some(cursor)) => {
+                viewport.ndc_of(cursor).map(|[nx, ny]| IdQuery {
+                    cursor_ndc: [nx as f32, ny as f32],
+                    viewport_px: [viewport.width_px as f32, viewport.height_px as f32],
+                    serial,
+                    answer: Arc::clone(self.id_answer),
+                })
             }
-        });
+            _ => None,
+        };
 
         ui.painter().add(egui_wgpu::Callback::new_paint_callback(
             rect,

@@ -35,7 +35,7 @@ use std::sync::Arc;
 
 use pncad::document::{
     Dimension, DimensionError, Doc, DocEdit, EditError, Evaluation, ParamName, ParseError,
-    ProfileProgram, RecipeNodeId, SlotId, apply, parse_expr,
+    ProductError, ProfileProgram, RecipeNodeId, SlotId, apply, parse_expr, product,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -550,7 +550,11 @@ pub struct DocSession {
     /// The document handed to the seam under [`DocSession::generation`]
     /// — kept so a landed result can be paired with the document it
     /// actually answers.
-    requested_doc: Doc<ProfileProgram>,
+    ///
+    /// `Arc` so that landing it costs a handle rather than a copy: the
+    /// landed pair and the outstanding request name the SAME document
+    /// value for as long as they agree, which is most of the time.
+    requested_doc: Arc<Doc<ProfileProgram>>,
     landed: Option<Arc<Evaluation<f64>>>,
     /// The document [`DocSession::landed`] answers.
     ///
@@ -562,8 +566,11 @@ pub struct DocSession {
     /// move together here, one generation behind the shown document
     /// while a run is outstanding, which is exactly what the picture
     /// does.
-    landed_doc: Option<Doc<ProfileProgram>>,
+    landed_doc: Option<Arc<Doc<ProfileProgram>>>,
     landed_generation: Option<Generation>,
+    /// The gather's refusal for the landed pair, computed once when it
+    /// lands ([`DocSession::product_fault`]).
+    landed_fault: Option<ProductError>,
     path: Option<PathBuf>,
 }
 
@@ -589,7 +596,11 @@ impl DocSession {
     /// nobody asked.
     pub fn new(doc: Doc<ProfileProgram>, tol: Tol, eval: Box<dyn EvalService>) -> Self {
         let mut session = Self {
-            requested_doc: doc.clone(),
+            // A placeholder the `request_eval` below overwrites before
+            // anything can read it. It is the empty document rather
+            // than a clone of `doc` because a clone here would be a
+            // second copy nobody ever looks at.
+            requested_doc: Arc::new(Doc::empty_derived("unsubmitted", tol)),
             history: History::new(doc),
             tol,
             selection: Selection::None,
@@ -600,6 +611,7 @@ impl DocSession {
             generation: Generation::FIRST,
             landed: None,
             landed_doc: None,
+            landed_fault: None,
             landed_generation: None,
             path: None,
         };
@@ -689,7 +701,16 @@ impl DocSession {
     /// The two fields are set in one place and read together, so a
     /// caller cannot pick up one without the other.
     pub fn landed_pair(&self) -> Option<(&Doc<ProfileProgram>, &Evaluation<f64>)> {
-        Some((self.landed_doc.as_ref()?, self.landed.as_deref()?))
+        Some((self.landed_doc.as_deref()?, self.landed.as_deref()?))
+    }
+
+    /// Why the landed evaluation's product does not gather, if it does
+    /// not — the gather-level refusal no per-node badge can carry.
+    ///
+    /// `None` both when the product is well formed and when nothing
+    /// has landed yet; [`DocSession::landed_pair`] distinguishes those.
+    pub fn product_fault(&self) -> Option<&ProductError> {
+        self.landed_fault.as_ref()
     }
 
     /// The file this session is backed by, if any.
@@ -738,7 +759,20 @@ impl DocSession {
 
     /// The feature tree's rows for the shown document.
     pub fn tree_rows(&self) -> Vec<TreeRow> {
-        tree::rows(self.doc(), self.evaluation())
+        // **The landed PAIR, not the shown document against the landed
+        // evaluation.** A row's badge is a statement about what a run
+        // said about a node, so reading it off a document that run
+        // never saw describes a run that never happened — the same
+        // defect `landed_pair` exists to make unreachable, and it lived
+        // one function away from the fix that introduced it. While a
+        // run is outstanding the tree therefore shows the picture's
+        // document, which is what the viewport shows too.
+        match self.landed_pair() {
+            Some((doc, eval)) => tree::rows(doc, Some(eval)),
+            // Nothing has landed: the shown document with no
+            // evaluation, which renders every row `Unevaluated`.
+            None => tree::rows(self.doc(), None),
+        }
     }
 
     /// The property rows for the selected node — the node itself, or a
@@ -793,8 +827,17 @@ impl DocSession {
             return Landing::Canceled;
         }
         self.landed_generation = Some(done.generation);
+        // **The product's own verdict, once per landed evaluation.**
+        // The gather is the only thing that answers "is this
+        // document's product well formed" — a naming collision across
+        // roots is not a node failure, so the feature tree's badges
+        // cannot see it, and a viewport that draws the parts without
+        // ever asking would render a body nothing says is wrong.
+        // Computed HERE because here is the one place a result becomes
+        // the session's, so it cannot be run twice or skipped.
+        self.landed_fault = product(self.requested_doc.as_ref(), &done.evaluation, self.tol).err();
         self.landed = Some(done.evaluation);
-        self.landed_doc = Some(self.requested_doc.clone());
+        self.landed_doc = Some(Arc::clone(&self.requested_doc));
         Landing::Landed
     }
 
@@ -1040,6 +1083,14 @@ impl DocSession {
                 self.selection = Selection::None;
                 self.hover = None;
                 self.gesture = None;
+                // The landed run answered the PREVIOUS document. Left
+                // in place it would render the old model's tree and
+                // resolve the new document's names against it until
+                // the first run lands.
+                self.landed = None;
+                self.landed_doc = None;
+                self.landed_fault = None;
+                self.landed_generation = None;
                 self.scratch = None;
                 self.path = Some(path.to_path_buf());
                 self.request_eval();
@@ -1079,10 +1130,15 @@ impl DocSession {
     /// document to the seam.
     fn request_eval(&mut self) {
         self.generation = self.generation.next();
-        self.requested_doc = self.doc().clone();
+        // ONE clone of the shown document per request: into the
+        // `Arc` the session keeps, then out of it into the request the
+        // seam owns. The second is the seam's vocabulary (`EvalRequest`
+        // takes a value so a worker owns its copy) and is not a
+        // retained copy — the session keeps exactly one.
+        self.requested_doc = Arc::new(self.doc().clone());
         self.eval.submit(EvalRequest {
             generation: self.generation,
-            doc: self.requested_doc.clone(),
+            doc: self.requested_doc.as_ref().clone(),
             tol: self.tol,
         });
     }

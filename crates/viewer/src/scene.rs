@@ -256,7 +256,13 @@ impl SceneMesh {
             let mesh = part.mesh;
             faces += mesh.patches.len();
             for (index, patch) in mesh.patches.iter().enumerate() {
-                let id = part.ids.get(index).copied().unwrap_or(0);
+                // `IdMap::NOTHING` for a part that carries no ids —
+                // the constant, not the literal it happens to be.
+                let id = part
+                    .ids
+                    .get(index)
+                    .copied()
+                    .unwrap_or(crate::pick::IdMap::NOTHING);
                 for corners in &patch.triangles {
                     let Some(corner_points) = fetch(&mesh.positions, corners) else {
                         // A patch index outside the shared position

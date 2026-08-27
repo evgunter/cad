@@ -58,7 +58,7 @@ use mesh::{Mesh, TessellateError};
 use topo::FaceKey;
 
 use super::hit::{HitTestError, entity_name};
-use crate::eval::{Evaluation, NodeResult};
+use crate::eval::{Evaluation, NodeResult, NodeValue};
 use crate::names::{EntityKey, EntityRef, StableName};
 use crate::node::RecipeNodeId;
 use crate::product::sources_of;
@@ -217,6 +217,33 @@ pub enum NodePickError {
     Index(MeshPickError),
 }
 
+/// One node's `Ok` value, or the standing refusal that says why there
+/// is none.
+///
+/// The ladder [`NodePick::build`] and [`NodePick::build_all`] both
+/// climb, written once: two spellings of one standing vocabulary is
+/// how the two doors come to disagree about a poisoned node.
+fn standing_value<T: Decide>(
+    eval: &Evaluation<T>,
+    node: RecipeNodeId,
+) -> Result<&NodeValue<T>, NodePickError> {
+    match eval.nodes.get(&node) {
+        Some(NodeResult::Ok(value)) => Ok(value),
+        Some(NodeResult::Failed(_)) => {
+            Err(NodePickError::Standing(HitTestError::NodeFailed { node }))
+        }
+        Some(NodeResult::Poisoned { through }) => {
+            Err(NodePickError::Standing(HitTestError::NodePoisoned {
+                node,
+                through: *through,
+            }))
+        }
+        None => Err(NodePickError::Standing(HitTestError::NodeNotEvaluated {
+            node,
+        })),
+    }
+}
+
 /// A pick index whose `(node, body)` ↔ mesh pairing is TRUE BY
 /// CONSTRUCTION: [`NodePick::build`] fetches the body from the
 /// evaluation payload itself — through the same output-body indexing
@@ -253,23 +280,7 @@ impl NodePick {
         delta: f64,
         tol: Tol,
     ) -> Result<Self, NodePickError> {
-        let value = match eval.nodes.get(&node) {
-            Some(NodeResult::Ok(v)) => v,
-            Some(NodeResult::Failed(_)) => {
-                return Err(NodePickError::Standing(HitTestError::NodeFailed { node }));
-            }
-            Some(NodeResult::Poisoned { through }) => {
-                return Err(NodePickError::Standing(HitTestError::NodePoisoned {
-                    node,
-                    through: *through,
-                }));
-            }
-            None => {
-                return Err(NodePickError::Standing(HitTestError::NodeNotEvaluated {
-                    node,
-                }));
-            }
-        };
+        let value = standing_value(eval, node)?;
         // The payload's body-denoting sources, tagged with the SAME
         // output-body indices the node's name table keys its rows by
         // (`product::sources_of` — the one shipped enumeration; using
@@ -314,11 +325,16 @@ impl NodePick {
     /// function the name tables key by, and each element is a
     /// `NodePick` with its pairing established the ordinary way.
     ///
-    /// The bodies come back in payload order. A node denoting no body
-    /// answers [`NodePickError::NotABody`] rather than an empty
-    /// vector: "this node draws nothing" and "this node has nothing to
-    /// draw yet" are different, and a caller that wants to skip the
-    /// former should say so by matching it.
+    /// The bodies come back in payload order.
+    ///
+    /// **An empty vector is a legal answer**, and it means something
+    /// narrower than it looks: the node's payload IS body-denoting but
+    /// currently denotes none — a boolean that annihilated, a split
+    /// whose sides are both empty. A node whose payload is not
+    /// body-denoting at all (datum, profile, declarations, mate)
+    /// answers [`NodePickError::NotABody`] instead, because "this kind
+    /// of node never draws" and "this node draws nothing today" are
+    /// different states and only the second changes under an edit.
     ///
     /// # Errors
     ///
@@ -332,28 +348,14 @@ impl NodePick {
         delta: f64,
         tol: Tol,
     ) -> Result<Vec<Self>, NodePickError> {
-        let value = match eval.nodes.get(&node) {
-            Some(NodeResult::Ok(v)) => v,
-            Some(NodeResult::Failed(_)) => {
-                return Err(NodePickError::Standing(HitTestError::NodeFailed { node }));
-            }
-            Some(NodeResult::Poisoned { through }) => {
-                return Err(NodePickError::Standing(HitTestError::NodePoisoned {
-                    node,
-                    through: *through,
-                }));
-            }
-            None => {
-                return Err(NodePickError::Standing(HitTestError::NodeNotEvaluated {
-                    node,
-                }));
-            }
-        };
+        let value = standing_value(eval, node)?;
         let Some(sources) = sources_of(value) else {
             return Err(NodePickError::NotABody { node });
         };
-        let indices: Vec<u32> = sources.into_iter().map(|(ix, _, _)| ix).collect();
-        indices
+        sources
+            .into_iter()
+            .map(|(ix, _, _)| ix)
+            .collect::<Vec<_>>()
             .into_iter()
             .map(|body| Self::build(eval, node, body, delta, tol))
             .collect()

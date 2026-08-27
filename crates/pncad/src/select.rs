@@ -11,8 +11,11 @@
 //! enum grows. The façade's job is to make it reachable in one
 //! import. The two doors below it — picking (`ray → StableName`) and
 //! resolution (`stored name → this run's verdict`) — are here for the
-//! same reason: both speak names and nothing else, so they belong
-//! beside the vocabulary rather than one crate deeper.
+//! same reason: both speak names, so they belong beside the vocabulary
+//! rather than one crate deeper. Each is cut to what a consumer
+//! actually needs to ask, not to the whole of what `editor-core`
+//! exports about the subject; the stanzas below say what was left out
+//! and why.
 //!
 //! Three invariants govern the surface, and each is worked through
 //! in [`crate::guide::selecting`] — the page this module's examples
@@ -68,13 +71,17 @@ pub use topo::readback::{Pose, ReadbackError};
 // answer is a name.
 //
 // `Ray` is `bvh`'s, re-exported by `editor_core` for exactly this
-// reason. `NodePick` is the door to prefer: it establishes the
-// (node, body) ↔ mesh pairing by construction, where a hand-assembled
-// `PickTarget` cannot be checked (its own contract says so).
-pub use editor_core::{
-    HitTestError, MeshPick, MeshPickError, NodePick, NodePickError, PickHit, PickTarget, Ray,
-    pick_face,
-};
+// reason.
+//
+// **The raw-assembly lane is NOT carried, and its absence is
+// structural.** `MeshPick` and `MeshPickError` stay interior, so a
+// façade consumer cannot build one — and `PickTarget`'s `pick` field
+// is a `&MeshPick`, so the target whose contract warns of a
+// confidently wrong name (issue #1098) has no constructor here. The
+// type is carried only because `pick_face`'s signature names it.
+// `NodePick` is therefore not merely the door to prefer: through this
+// façade it is the only one.
+pub use editor_core::{HitTestError, NodePick, NodePickError, PickHit, PickTarget, Ray, pick_face};
 
 // **The resolution verdict a stored name gets at the next
 // evaluation** — the machinery the ratified resolution-failure
@@ -83,18 +90,36 @@ pub use editor_core::{
 // still denotes something: `resolve` answers `Resolution`, and the
 // failure arms carry the typed N5 diagnosis rather than a message.
 //
-// WHAT THIS DOES AND DOES NOT WIDEN. The façade's document rule is
+// WHAT THIS SEAL IS, STATED CORRECTLY. The façade's document rule is
 // that arena keys — `EntityRef`, `EntityKey`, `Entry` — are not
-// nameable through `pncad`, and this list does not name them. Two of
-// the payloads below carry one in a FIELD (`Resolved::entity`, and
-// `Tombstone::patch`'s `MeshPatchKey::entity`): a consumer can read
-// and `Debug`-print those fields but cannot spell their type, so it
-// cannot store one in its own state, which is what the seal is for.
-// Holding a `Tombstone` beside a name is not a workaround either — it
-// is the shipped selection discipline, stated in `Tombstone`'s own
-// contract ("selection state holds name + tombstone, never a bare
-// arena key").
-pub use editor_core::{
-    Diagnosis, MeshPatchKey, RecipeEditRef, Resolution, ResolutionFailure, ResolveError,
-    ResolveIndeterminate, Resolved, RunCtx, TieWitness, Tombstone, resolve, resolve_with_prior,
-};
+// nameable through `pncad`, and this list does not name them.
+//
+// **That is a naming barrier, not a capability barrier, and the
+// difference matters.** An earlier version of this comment claimed a
+// consumer "cannot store one in its own state"; that is false as
+// compiled code. `Resolution::Resolved(r)` binds a value whose type is
+// unnameable here, and a generic field — `struct Stash<T>(T)` — stores
+// it anyway; the payload derives `PartialEq`, so two arena keys minted
+// by two DIFFERENT evaluations can be compared, which is exactly the
+// body-lineage-scoped comparison G1's rule exists to forbid. Both
+// reviewers of the unit that opened this door demonstrated it with
+// compiling code that names only `pncad`.
+//
+// So what the seal buys is precise and worth having: **no consumer
+// reaches an arena key by accident**, because every route to one is a
+// deliberate contortion that a reader of the code can see. It does not
+// make the reach impossible, and narrowing the payloads' own derives
+// to make it so was assessed and declined — `Resolved`'s `PartialEq`
+// is `Resolution`'s, which `editor-core`'s own resolution suites
+// compare, so removing it is a cascade through the kernel's tests
+// rather than a small façade edit. The cheaper narrowing was taken
+// instead: `Resolved`, `Tombstone` and `MeshPatchKey` are not carried
+// at all, so nothing here names a key-bearing payload as a TYPE.
+//
+// What is carried is the verdict a consumer that stores names must
+// read on every re-evaluation, and nothing beyond it: the payload
+// vocabulary a richer diagnosis UI would want (`Diagnosis`,
+// `Tombstone`, `TieWitness`, `RecipeEditRef`, `resolve_with_prior`)
+// stays interior until something consumes it, because a door carried
+// for a consumer that does not exist is a claim nobody is checking.
+pub use editor_core::{Resolution, RunCtx, resolve};

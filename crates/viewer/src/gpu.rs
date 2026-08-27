@@ -71,7 +71,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use eframe::wgpu;
 
-use crate::pick::{Highlight, cursor_projection};
+use crate::pick::{Highlight, IdMap, cursor_projection};
 use crate::scene::SceneMesh;
 
 /// Bits of depth requested at startup. 32 maps to
@@ -673,7 +673,7 @@ impl egui_wgpu::CallbackTrait for ViewportCallback {
                         query.viewport_px,
                         &self.view_projection,
                     )
-                    .unwrap_or(0);
+                    .unwrap_or(IdMap::NOTHING);
                 query.answer.store(
                     u64::from(query.serial) << 32 | u64::from(id),
                     Ordering::Relaxed,

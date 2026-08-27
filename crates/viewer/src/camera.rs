@@ -595,11 +595,12 @@ impl Camera {
         let Some(aspect) = viewport.aspect() else {
             return Err(CameraError::UnusableBounds);
         };
-        // Normalized device coordinates: the projection maps the
-        // frustum onto x, y ∈ [−1, 1] with +y UP, and pixels count
-        // down from the top edge.
-        let ndc_x = 2.0 * cx / viewport.width_px - 1.0;
-        let ndc_y = 1.0 - 2.0 * cy / viewport.height_px;
+        // Normalized device coordinates, through the conversion's one
+        // home (`ViewportSize::ndc_of`) rather than a second spelling
+        // of the y-flip here.
+        let Some([ndc_x, ndc_y]) = viewport.ndc_of([cx, cy]) else {
+            return Err(CameraError::UnusableBounds);
+        };
         // The projection scales view-space x by `t / aspect` and y by
         // `t`, where `t = cot(fov_y / 2)`; inverting that on a point at
         // unit distance down the view axis gives the offsets below.

@@ -131,6 +131,46 @@ pub struct ViewportSize {
 }
 
 impl ViewportSize {
+    /// **The one home for the pixel→NDC conversion**, y-flip included.
+    ///
+    /// A cursor arrives in physical pixels from the pane's top-left
+    /// corner with `+y` DOWN (this module's screen convention); the
+    /// projection maps the frustum onto `x, y ∈ [−1, 1]` with `+y` UP.
+    /// The flip is one subtraction and it was written independently in
+    /// the camera's un-projection, in the id pass's query and twice in
+    /// tests — four spellings of one convention, where a y-flip drift
+    /// between any two is exactly the disagreement the id/ray
+    /// comparison would misdiagnose as a GPU fault.
+    ///
+    /// `None` for a viewport with no area, which has no NDC at all.
+    pub fn ndc_of(&self, cursor_px: [f64; 2]) -> Option<[f64; 2]> {
+        if self.width_px > 0.0 && self.height_px > 0.0 {
+            Some([
+                2.0 * cursor_px[0] / self.width_px - 1.0,
+                1.0 - 2.0 * cursor_px[1] / self.height_px,
+            ])
+        } else {
+            None
+        }
+    }
+
+    /// The inverse of [`ViewportSize::ndc_of`]: which cursor position
+    /// names this NDC point. `None` for a viewport with no area.
+    ///
+    /// Here because a test that wants "the cursor over this world
+    /// point" projects and then converts, and deriving that inverse at
+    /// each call site is how the fourth spelling of the flip appeared.
+    pub fn cursor_of(&self, ndc: [f64; 2]) -> Option<[f64; 2]> {
+        if self.width_px > 0.0 && self.height_px > 0.0 {
+            Some([
+                (ndc[0] + 1.0) * 0.5 * self.width_px,
+                (1.0 - ndc[1]) * 0.5 * self.height_px,
+            ])
+        } else {
+            None
+        }
+    }
+
     /// The aspect ratio, or `None` when the viewport has no area —
     /// which happens for real, on the frame a pane is first laid out
     /// and whenever one is dragged shut.

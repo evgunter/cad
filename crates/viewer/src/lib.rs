@@ -53,6 +53,7 @@
 pub mod camera;
 pub mod docio;
 pub mod evalseam;
+pub mod frame;
 pub mod history;
 pub mod input;
 pub mod pick;

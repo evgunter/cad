@@ -26,8 +26,10 @@
 //! `PickTarget`'s own contract). `NodePick` establishes that pairing
 //! by construction and offers no other constructor, so the pairing
 //! cannot drift as this cache grows a field. **Nothing here re-pairs a
-//! mesh with a node by hand, and there is no door through which it
-//! could.**
+//! mesh with a node by hand, and this type offers no door through
+//! which it could** — said about `PickIndex` and about nothing else:
+//! whether the FAÇADE hands a consumer the raw-assembly lane is a
+//! separate question, answered in `pncad::select`'s own docs.
 //!
 //! # Staleness is by generation, and it is a discard
 //!
@@ -49,7 +51,7 @@ use crate::camera::{Camera, CameraError};
 use crate::evalseam::Generation;
 use crate::input::{PickAction, ViewportSize};
 use crate::scene::{DisplayTolerance, SceneError, SceneMesh, ScenePart};
-use crate::session::{FaceSelection, Selection, SessionOp};
+use crate::session::{DocSession, FaceSelection, Selection, SessionOp};
 
 /// One drawn face patch, addressed the way selection speaks: the node
 /// whose body carries it, which output body, and the patch's position
@@ -207,11 +209,26 @@ pub struct PickIndex {
     /// entries — `Err` for the loud unnamed-face bug arm, which is one
     /// patch's problem and not the index's.
     names: Vec<Result<StableName, HitTestError>>,
-    /// The inverse of `names`: which ids a name is drawn as. A `Vec`
-    /// because a name CAN be drawn more than once — a body appearing
-    /// under two roots draws the same face twice — and the highlight
-    /// should light every occurrence rather than the first.
+    /// The inverse of `names`: which ids a name is drawn as.
+    ///
+    /// **A `Vec` because a name can be drawn under several
+    /// (node, body) pairs** — two `Transform` roots over one extrude is
+    /// legal, a transform contributes no role segment, so both drawn
+    /// copies carry the extrude's names. It is NOT a `Vec` because a
+    /// name can repeat WITHIN one (node, body): a node's name table is
+    /// bidirectional (N4), so one name denotes at most one entity of
+    /// one body, and [`PickIndex::ids_in`] therefore narrows this list
+    /// to at most one id. That is the whole reason a `FaceSelection`
+    /// carries its `node` and `body` beside the name.
     by_name: BTreeMap<StableName, Vec<u32>>,
+    /// Which ids belong to each drawn (node, body), as a contiguous
+    /// window into `id_slice` — the parts are laid out in that order,
+    /// so a window is all the bookkeeping this needs.
+    ///
+    /// The primitive the highlight is built on. Without it the only
+    /// question this index could answer was "which ids share a name",
+    /// which is the wrong question whenever a name is drawn twice.
+    by_target: BTreeMap<(RecipeNodeId, u32), (usize, usize)>,
 }
 
 impl PickIndex {
@@ -267,7 +284,14 @@ impl PickIndex {
                     .push(index as u32 + 1);
             }
         }
-        let id_slice = ids.ids().collect();
+        let id_slice: Vec<u32> = ids.ids().collect();
+        let mut by_target: BTreeMap<(RecipeNodeId, u32), (usize, usize)> = BTreeMap::new();
+        let mut next = 0usize;
+        for part in &parts {
+            let patches = part.mesh().patches.len();
+            by_target.insert((part.node(), part.body()), (next, patches));
+            next += patches;
+        }
         Ok(Self {
             generation,
             delta,
@@ -276,6 +300,7 @@ impl PickIndex {
             id_slice,
             names,
             by_name,
+            by_target,
         })
     }
 
@@ -315,10 +340,40 @@ impl PickIndex {
         self.names.get(usize::try_from(id.checked_sub(1)?).ok()?)
     }
 
-    /// The ids a name is drawn as — **the id map's inverse**, and what
-    /// the highlight and the ray/id agreement check both read.
+    /// The ids a name is drawn as — **the id map's inverse**, across
+    /// every drawn (node, body). A name drawn twice answers two ids;
+    /// which of them a SELECTION means is [`PickIndex::ids_of_target`].
     pub fn ids_of(&self, name: &StableName) -> &[u32] {
         self.by_name.get(name).map_or(&[], Vec::as_slice)
+    }
+
+    /// Every id drawn for one (node, body), ascending.
+    ///
+    /// The index lays its parts out in root-then-payload order and
+    /// assigns ids in that same walk, so one body's ids are a
+    /// contiguous run and this is a slice rather than a search.
+    pub fn ids_in(&self, node: RecipeNodeId, body: u32) -> &[u32] {
+        let Some(&(start, len)) = self.by_target.get(&(node, body)) else {
+            return &[];
+        };
+        self.id_slice.get(start..start + len).unwrap_or_default()
+    }
+
+    /// The ids a face selection denotes: the ids of its NAME, narrowed
+    /// to its own (node, body).
+    ///
+    /// **At most one**, by the name table's bidirectionality — but
+    /// answered as a slice rather than an `Option` so a caller reads
+    /// the narrowing rather than trusting it, and so a naming-emission
+    /// bug that broke the bijection would show as a wider answer
+    /// instead of a silently chosen one.
+    pub fn ids_of_target(&self, face: &FaceSelection) -> Vec<u32> {
+        let scope = self.ids_in(face.node, face.body);
+        self.ids_of(&face.name)
+            .iter()
+            .copied()
+            .filter(|id| scope.contains(id))
+            .collect()
     }
 
     /// The drawable scene for this index: every part, carrying the ids
@@ -472,28 +527,35 @@ pub struct Highlight {
 /// The highlight for a selection and a hover, against the index that
 /// describes what is drawn.
 ///
+/// **Scoped to the selection's own (node, body)**, not merely to its
+/// name. A name can be drawn twice — two `Transform` roots over one
+/// extrude carry the same names on both copies — and marking "the
+/// first id of the name" then lights the OTHER placement, which is the
+/// deliverable failing at exactly the shape it is hardest to notice.
+/// [`PickIndex::ids_of_target`] does the narrowing, and it narrows to
+/// at most one id because a node's name table is a bijection.
+///
 /// A selection whose name is not drawn in this index — the vanished
 /// case — yields [`IdMap::NOTHING`], which is how "nothing lights up"
 /// falls out of the resolution-failure semantics rather than being a
-/// second implementation of them. A name drawn more than once lights
-/// its FIRST id: the uniform block carries one, and the ids of one
-/// name are ascending, so the choice is deterministic rather than
-/// whichever the map iterated to first.
+/// second implementation of them. So does a selection whose name IS
+/// drawn but not on the body it was picked from, which is the same
+/// statement said about a stale index.
 pub fn highlight(
     index: &PickIndex,
     selection: &Selection,
     hover: Option<&FaceSelection>,
 ) -> Highlight {
-    let first = |name: &StableName| {
+    let mark = |face: &FaceSelection| {
         index
-            .ids_of(name)
+            .ids_of_target(face)
             .first()
             .copied()
             .unwrap_or(IdMap::NOTHING)
     };
     Highlight {
-        selected: selection.face().map_or(IdMap::NOTHING, |f| first(&f.name)),
-        hovered: hover.map_or(IdMap::NOTHING, |f| first(&f.name)),
+        selected: selection.face().map_or(IdMap::NOTHING, mark),
+        hovered: hover.map_or(IdMap::NOTHING, mark),
     }
 }
 
@@ -527,4 +589,99 @@ pub fn cursor_projection(
         column[1] = (column[1] - cy * w) * sy;
     }
     out
+}
+
+/// A [`PickIndex`] kept current with a session — **the rebuild-on-stale
+/// loop, owned once**.
+///
+/// Two things made this a type rather than a habit. Ergonomics: a
+/// consumer that only wanted to pick had to notice `current_for` said
+/// stale, then rebuild with four arguments (document, evaluation,
+/// generation, δ) it had to keep in step by hand, three of which come
+/// from one `DocSession`. And correctness: the application's own
+/// rebuild loop retried on **every repainted frame** whenever a build
+/// refused — a failed or poisoned root is an ordinary editing state,
+/// and each frame then re-tessellated every healthy root before
+/// reaching the failing one, behind a picture that was already stale.
+///
+/// So the retry policy is stated once, here: **at most one attempt per
+/// (landed generation, δ)**, success or failure. A failure is kept and
+/// readable ([`PickCache::error`]) rather than retried into a stall.
+#[derive(Debug, Default)]
+pub struct PickCache {
+    index: Option<PickIndex>,
+    /// What the last attempt was for. `Some` after any attempt,
+    /// successful or not — which is what stops the retry loop.
+    attempted: Option<(Generation, DisplayTolerance)>,
+    error: Option<PickIndexError>,
+}
+
+/// What one [`PickCache::sync`] did.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CacheStep {
+    /// The held index already describes the run on screen.
+    Current,
+    /// Rebuilt for a new generation or δ.
+    Rebuilt,
+    /// The rebuild refused; the error is on the cache and will NOT be
+    /// retried until the generation or δ moves.
+    Refused,
+    /// This attempt was already made and refused — nothing was done.
+    Held,
+    /// No evaluation has landed, so there is nothing to index.
+    Nothing,
+}
+
+impl PickCache {
+    /// An empty cache.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Bring the cache in line with the session's landed evaluation at
+    /// `delta`, at most one build attempt per (generation, δ).
+    pub fn sync(&mut self, session: &DocSession, delta: DisplayTolerance) -> CacheStep {
+        let Some(generation) = session.landed_generation() else {
+            return CacheStep::Nothing;
+        };
+        if self
+            .index
+            .as_ref()
+            .is_some_and(|index| index.current_for(Some(generation), delta))
+        {
+            return CacheStep::Current;
+        }
+        if self.attempted == Some((generation, delta)) {
+            // Attempted and refused for this exact picture. Retrying
+            // is the per-frame rebuild loop; the error is already
+            // recorded and the caller has already seen it.
+            return CacheStep::Held;
+        }
+        self.attempted = Some((generation, delta));
+        self.index = None;
+        let Some((doc, eval)) = session.landed_pair() else {
+            return CacheStep::Nothing;
+        };
+        match PickIndex::build(doc, eval, generation, delta, session.tol()) {
+            Ok(index) => {
+                self.index = Some(index);
+                self.error = None;
+                CacheStep::Rebuilt
+            }
+            Err(error) => {
+                self.error = Some(error);
+                CacheStep::Refused
+            }
+        }
+    }
+
+    /// The held index, if the last attempt produced one.
+    pub fn index(&self) -> Option<&PickIndex> {
+        self.index.as_ref()
+    }
+
+    /// Why the last attempt refused, if it did.
+    pub fn error(&self) -> Option<&PickIndexError> {
+        self.error.as_ref()
+    }
 }

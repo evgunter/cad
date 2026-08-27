@@ -2619,38 +2619,42 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   evaluation that minted them. Not carrying them IS the LB13
 ///   boundary the guard above enforces.
 ///
-///   **`MeshPatchKey` and `TieWitness` left this family at GUI-2**,
-///   with the resolution verdict they are payloads of. Neither is an
-///   arena key: `TieWitness` is names and a width, and `MeshPatchKey`
-///   is a node plus an `EntityRef` FIELD — a field a consumer can read
-///   and print but whose type the façade still does not name, so it
-///   cannot be stored. What the boundary forbids is holding a key, and
-///   holding a tombstone beside a name is the shipped selection
-///   discipline that `Tombstone`'s own contract states.
+///   `MeshPatchKey` and `TieWitness` are here with them, and the
+///   reason is worth stating because a previous revision of this file
+///   got it wrong: the seal is a **naming** barrier, not a capability
+///   one. Not carrying a type stops a consumer reaching it by
+///   accident — every remaining route is a contortion a reader can
+///   see — but a payload bound out of a carried enum can still be
+///   stored in a generic field and compared across evaluations. The
+///   list below is therefore cut to what a consumer needs to ASK, not
+///   to what it could be trusted not to misuse.
 /// - **Appearance** (`Appearance*`, `Attr*`, `Rgba8`,
 ///   `*rebind_suggestions`, `enrich_appearance_loss*`): a GUI-side
 ///   presentation layer with no authoring door yet.
 /// - **The witness/verdict/diff instrumentation** (`Branch*`,
 ///   `Summary*`, `Verdict*`, `Witness*`, `NodeVerdict*`, `FlipSet`,
-///   `Implicated`, `PredicateDivergence`, `SideVerdict`,
-///   `DocDiff`, `NodeChange`, `diff_*`, `verdict_summary`, `Epoch`):
-///   the editor's own re-evaluation telemetry, not a modelling
-///   vocabulary. `Diagnosis`, `Tombstone` and `RecipeEditRef` left at
-///   GUI-2 — they are the PAYLOADS of a resolution failure, and a
-///   consumer that stores names needs to render the answer it gets.
-/// - **Naming interior** (`Qualifier`, `Coset`): the shapes the
-///   name algebra works in, below the selector vocabulary that is the
-///   curated face.
+///   `Diagnosis`, `Implicated`, `PredicateDivergence`, `SideVerdict`,
+///   `DocDiff`, `NodeChange`, `diff_*`, `verdict_summary`, `Epoch`,
+///   `Tombstone`, `RecipeEditRef`): the editor's own re-evaluation
+///   telemetry, not a modelling vocabulary. GUI-2 carried these
+///   briefly as the payloads of a resolution failure and then put them
+///   back: the panel renders the failure through its `Display`, so
+///   nothing consumed the payload types, and a door carried for a
+///   consumer that does not exist is a claim nobody is checking.
+/// - **Naming interior** (`Qualifier`, `Coset`, `Resolved`,
+///   `ResolveError`, `ResolutionFailure`, `ResolveIndeterminate`,
+///   `resolve_with_prior`): the shapes the name algebra and the
+///   resolution ladder work in, below the verdict that is the curated
+///   face.
 ///
-///   **The resolution VERDICT left this family at GUI-2**
-///   (`resolve`, `resolve_with_prior`, `RunCtx`, `Resolution`,
-///   `Resolved`, `ResolveError`, `ResolveIndeterminate`,
-///   `ResolutionFailure`, and the payloads above). It is not plumbing
-///   behind a door — it IS the door for the question a consumer that
-///   stores names must ask on every re-evaluation: does this name
-///   still denote anything, and if not, why. `crate::select` carries
-///   it beside the picking door that mints the names in the first
-///   place.
+///   **The resolution VERDICT left this family at GUI-2** — exactly
+///   three names: `resolve`, `RunCtx`, `Resolution`. It is not
+///   plumbing behind a door; it IS the door for the question a
+///   consumer that stores names must ask on every re-evaluation, and
+///   `Resolution`'s arms answer it (`Resolved(_)` / `Failed(f)` /
+///   `Indeterminate(c)`) through pattern matching and `Display`,
+///   without naming a payload type. The ladder's own vocabulary stays
+///   here until something consumes it.
 /// - **Evaluation interior** (`EvalScalar`, `RunStatus`,
 ///   `ContentKey`, `apply_with_names`, `derivation_nodes`): the
 ///   service's own machinery behind `evaluate`.
@@ -2683,21 +2687,30 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   now; `product_recorded` stays out because `product`/
 ///   `product_named` are the curated gather and `assemble` is what
 ///   needs the recorded one.
-///   **The hit-test service left this list at GUI-2** (`MeshPick`,
-///   `MeshPickError`, `NodePick`, `NodePickError`, `PickHit`,
-///   `PickTarget`, `pick_face`, `HitTestError`, and `Ray` — a `bvh`
-///   re-export riding the service's door). GUI-1 held it out on the
+///   **The hit-test service's NAMED half left this list at GUI-2**
+///   (`NodePick`, `NodePickError`, `PickHit`, `PickTarget`,
+///   `pick_face`, `HitTestError`, and `Ray` — a `bvh` re-export riding
+///   the service's door). GUI-1 held the whole service out on the
 ///   argument that its inputs are display-side state the Python
 ///   authoring surface does not hold. Its first consumer landed and
-///   the argument did not survive it: the service's whole public
+///   that argument did not survive it: the service's whole public
 ///   ANSWER is a `StableName`, the same currency `crate::select`'s
 ///   other doors speak, and the alternative — the viewer taking a
 ///   direct `editor-core` edge — hands layer 3 the arena keys the
 ///   façade's curation exists to seal.
+///
+///   **`MeshPick` and `MeshPickError` stay, and that is what closes
+///   #1098's lane at the façade.** They are the raw index a
+///   hand-assembled `PickTarget` needs, and `PickTarget::pick` is a
+///   `&MeshPick` — so with the index unnameable here, the target whose
+///   contract warns of a confidently wrong name has no constructor a
+///   façade consumer can reach, and `NodePick` is not merely the
+///   preferred door but the only one. `PickTarget` is carried because
+///   `pick_face`'s signature names it, not because it can be built.
 /// - **`MigrationStep`**: the stated exception in the crate docs —
 ///   its signature speaks `serde_json::Value`, which does not cross
 ///   the curated surface.
-const NOT_CARRIED: [&str; 66] = [
+const NOT_CARRIED: [&str; 78] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -2712,6 +2725,7 @@ const NOT_CARRIED: [&str; 66] = [
     "ClassAdmission",
     "ContentKey",
     "Coset",
+    "Diagnosis",
     "DocDiff",
     "EntityKey",
     "EntityRef",
@@ -2721,6 +2735,9 @@ const NOT_CARRIED: [&str; 66] = [
     "ExprPath",
     "FlipSet",
     "Implicated",
+    "MeshPatchKey",
+    "MeshPick",
+    "MeshPickError",
     "MetaError",
     "MetaValue",
     "MetaVersionError",
@@ -2736,6 +2753,11 @@ const NOT_CARRIED: [&str; 66] = [
     "ProfilePayload",
     "ProgramRefusal",
     "Qualifier",
+    "RecipeEditRef",
+    "ResolutionFailure",
+    "ResolveError",
+    "ResolveIndeterminate",
+    "Resolved",
     "Rgba8",
     "RunStatus",
     "SideVerdict",
@@ -2743,6 +2765,8 @@ const NOT_CARRIED: [&str; 66] = [
     "SummaryDivergence",
     "SummaryFlip",
     "SummaryFlipSet",
+    "TieWitness",
+    "Tombstone",
     "VerdictFlip",
     "VerdictSummary",
     "WitnessAge",
@@ -2761,6 +2785,7 @@ const NOT_CARRIED: [&str; 66] = [
     "from_value",
     "product_recorded",
     "rebind_suggestions",
+    "resolve_with_prior",
     "to_value",
     "verdict_summary",
     "vertex_name",
