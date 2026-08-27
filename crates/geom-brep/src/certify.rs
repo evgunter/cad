@@ -1910,6 +1910,135 @@ mod tests {
         m
     }
 
+    /// **Acceptance 1**: `geom-brep` carries ONE conventional
+    /// description form. The two pre-collapse conventional writings —
+    /// a periodic seam and a chart iso curve — certify onto the same
+    /// arm, and the fenced scaffolding door is the only other
+    /// conventional shape that exists.
+    #[test]
+    fn the_collapse_leaves_one_conventional_form() {
+        let r = 2.0;
+        let (keys, lookup) = table(vec![Surface::Cylinder {
+            origin: Point3::origin(),
+            axis: Vec3::unit_z(),
+            radius: r,
+            u_ref: Vec3::unit_x(),
+        }]);
+        let (p0, p1) = (Point3::new(r, 0.0, 0.0), Point3::new(r, 0.0, 3.0));
+        let seam = EdgeCurve::certify(
+            EdgeCurveSpec {
+                description: EdgeGeometry::Seam { surface: keys[0] },
+                carrier: Curve3::Line {
+                    origin: p0,
+                    dir: Vec3::unit_z(),
+                },
+                param_start: 0.0,
+                param_end: 3.0,
+            },
+            p0,
+            p1,
+            &lookup,
+            band(),
+        )
+        .expect("the seam certifies");
+        let chart = seam.canonical().chart().expect("a seam IS a chart image");
+        assert_eq!(chart.surface, keys[0]);
+        assert!(chart.seam, "a seam carries D1's obligation");
+
+        let plane = Surface::Plane {
+            origin: Point3::new(0.25, -0.5, 1.0),
+            normal: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+        };
+        let (pk, plookup) = table(vec![plane]);
+        let (u, v0, v1) = (0.3_f64, 0.7_f64, 2.9_f64);
+        let s_at = |v: f64| plookup(pk[0]).unwrap().eval(u, v);
+        let (q0, q1) = (s_at(v0), s_at(v1));
+        let len = q0.distance(q1);
+        let iso = EdgeCurve::certify(
+            EdgeCurveSpec {
+                description: EdgeGeometry::IsoCurve {
+                    surface: pk[0],
+                    u,
+                    v0,
+                    v1,
+                },
+                carrier: Curve3::Line {
+                    origin: q0,
+                    dir: (q1 - q0) / len,
+                },
+                param_start: 0.0,
+                param_end: len,
+            },
+            q0,
+            q1,
+            &plookup,
+            band(),
+        )
+        .expect("the iso curve certifies");
+        let iso_chart = iso
+            .canonical()
+            .chart()
+            .expect("an iso curve IS a chart image");
+        assert!(
+            !iso_chart.seam,
+            "an iso boundary owes the meter and nothing else"
+        );
+
+        // The fenced scaffolding door is the only other conventional
+        // shape, and it is NOT a chart image — it has no surface.
+        let (a, b) = (Point3::new(-1.0, 0.25, 0.5), Point3::new(2.0, -3.0, 4.0));
+        let (_, empty) = table(vec![]);
+        let scaffold = EdgeCurve::certify(line_spec(a, b), a, b, &empty, band())
+            .expect("the scaffolding line certifies");
+        assert!(scaffold.canonical().chart().is_none());
+        assert!(matches!(scaffold.canonical(), EdgeDescription::Scaffold(_)));
+    }
+
+    /// **The authority record** (U2 Q3): the datum tier 3's
+    /// prefer-intrinsic rules read instead of `MappedCurve`'s negative
+    /// space. A declared locus answers `true` and carries its source;
+    /// a derived one answers `false` — which is exactly the verdict
+    /// `TransverseNotIntrinsic` needs and the only one it needs.
+    #[test]
+    fn the_authority_record_replaces_the_negative_space() {
+        let (a, b) = (Point3::new(-1.0, 0.25, 0.5), Point3::new(2.0, -3.0, 4.0));
+        let (_, empty) = table(vec![]);
+        let declared = EdgeCurve::certify(line_spec(a, b), a, b, &empty, band())
+            .expect("the scaffolding line certifies");
+        assert!(declared.authority().is_declared());
+        assert!(matches!(
+            declared.authority(),
+            EdgeAuthority::Declared(MappedCurve::ExtrudedPoint { .. })
+        ));
+
+        let r = 2.0;
+        let (keys, lookup) = table(vec![Surface::Cylinder {
+            origin: Point3::origin(),
+            axis: Vec3::unit_z(),
+            radius: r,
+            u_ref: Vec3::unit_x(),
+        }]);
+        let (p0, p1) = (Point3::new(r, 0.0, 0.0), Point3::new(r, 0.0, 3.0));
+        let derived = EdgeCurve::certify(
+            EdgeCurveSpec {
+                description: EdgeGeometry::Seam { surface: keys[0] },
+                carrier: Curve3::Line {
+                    origin: p0,
+                    dir: Vec3::unit_z(),
+                },
+                param_start: 0.0,
+                param_end: 3.0,
+            },
+            p0,
+            p1,
+            &lookup,
+            band(),
+        )
+        .expect("the seam certifies");
+        assert!(!derived.authority().is_declared());
+    }
+
     #[test]
     fn d2_bit_diff_row_is_measured_per_fixture() {
         // ---- Fixture "cylinder-seam": the seam ruling of a radius-2
