@@ -333,24 +333,19 @@ enum GestureTarget {
 }
 
 impl GestureTarget {
-    /// **The one rule for which arm a dragged `f64` becomes**, for
-    /// every gesture target there is.
-    ///
-    /// A Count-dimensioned target takes the value truncated toward
-    /// zero and everything else takes it as-is. The DIMENSION decides,
-    /// never the widget and never the value's current arm: a slot is
-    /// Count exactly when `SlotId::is_structural` says so, and a
-    /// parameter exactly when it is declared `Dimension::Count`.
-    fn value_of(&self, value: f64) -> SlotValue {
-        let count = match self {
-            Self::Slot { slot, .. } => slot.is_structural(),
-            Self::Param { dimension, .. } => *dimension == Dimension::Count,
-        };
-        if count {
-            SlotValue::Count(value as i64)
-        } else {
-            SlotValue::Continuous(value)
+    /// This target's dimension — a slot's from its `SlotId`, a
+    /// parameter's from its declaration.
+    fn dimension(&self) -> Dimension {
+        match self {
+            Self::Slot { slot, .. } => slot.dimension(),
+            Self::Param { dimension, .. } => *dimension,
         }
+    }
+
+    /// Which arm a dragged `f64` becomes, through
+    /// [`SlotValue::of`] — the one home for that rule.
+    fn value_of(&self, value: f64) -> SlotValue {
+        SlotValue::of(self.dimension(), value)
     }
 
     /// The edit that writes `value` into this target.

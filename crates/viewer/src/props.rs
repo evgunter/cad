@@ -57,6 +57,26 @@ pub enum SlotValue {
 }
 
 impl SlotValue {
+    /// **The one rule for which arm a widget's `f64` becomes.**
+    ///
+    /// The DIMENSION decides, and nothing else: a `Count` dimension
+    /// takes the value truncated toward zero, everything else takes it
+    /// as-is. Not the widget, not the arm the value currently has, and
+    /// not the slot's structurality read separately — `SlotId::
+    /// is_structural` is itself defined as "the dimension is Count", so
+    /// deciding on the dimension is deciding on the same thing in one
+    /// place instead of three.
+    ///
+    /// Three call sites wanted this and two of them had spelled it
+    /// differently, which is why it is a function.
+    pub fn of(dimension: Dimension, value: f64) -> Self {
+        if dimension == Dimension::Count {
+            Self::Count(value as i64)
+        } else {
+            Self::Continuous(value)
+        }
+    }
+
     /// The value as an `f64`, for a widget that has only one kind of
     /// number. Lossless for every count a recipe can carry.
     pub fn as_f64(self) -> f64 {

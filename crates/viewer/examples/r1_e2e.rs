@@ -167,8 +167,15 @@ fn main() {
     );
     std::thread::sleep(std::time::Duration::from_millis(50));
     session.perform(SessionOp::CancelEvaluation);
+    // UPDATED AT THE FIX PASS. This loop waited on `busy()`, which was
+    // the right wait against the head this review froze on: the
+    // canceled prefix landed and `busy()` went dark. It no longer
+    // does — a canceled run never replaces a landed evaluation, so
+    // `busy()` correctly goes on reporting that the picture is older
+    // than the document — and the wait that means "the worker stopped"
+    // is `running()`.
     let start = std::time::Instant::now();
-    while session.busy() {
+    while session.running() {
         session.pump();
         if start.elapsed().as_secs() > 120 {
             panic!("the cancel was not honored within 120 s");
@@ -176,8 +183,13 @@ fn main() {
         std::thread::sleep(std::time::Duration::from_millis(5));
     }
     println!(
-        "   canceled: worker answered {:?} after the cancel",
+        "   canceled: the worker stopped {:?} after the cancel",
         start.elapsed()
+    );
+    assert!(
+        session.busy(),
+        "and the session still owes an answer — the state the chrome shows as \
+         'canceled, showing an older result'"
     );
     let unevaluated = session
         .tree_rows()
@@ -185,10 +197,24 @@ fn main() {
         .filter(|row| row.status == RowStatus::Unevaluated)
         .count();
     println!(
-        "   {} of {} rows unevaluated after the cancel (the completed prefix keeps its statuses)",
+        "   {} of {} rows unevaluated after the cancel (this document had no landed \
+         evaluation to keep, so the tree is honest about having nothing)",
         unevaluated,
         session.tree_rows().len()
     );
+
+    // The recovery op, which did not exist when this review ran: ask
+    // again, without editing anything.
+    session.perform(SessionOp::Reevaluate);
+    let start = std::time::Instant::now();
+    while session.busy() {
+        session.pump();
+        if start.elapsed().as_secs() > 300 {
+            panic!("the re-evaluation did not land within 300 s");
+        }
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    println!("   Reevaluate landed a full run in {:?}", start.elapsed());
 
     // The seam recovers: an edit resubmits and the run completes.
     let params = viewer::props::param_rows(session.doc());

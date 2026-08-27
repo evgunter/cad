@@ -598,10 +598,7 @@ impl ViewerBehavior<'_> {
                         SessionOp::BeginParamGesture { name: name.clone() },
                         |value| SessionOp::SetParam {
                             name: name.clone(),
-                            value: match row.value {
-                                SlotValue::Count(_) => SlotValue::Count(value as i64),
-                                SlotValue::Continuous(_) => SlotValue::Continuous(value),
-                            },
+                            value: SlotValue::of(row.dimension, value),
                         },
                         self.ops,
                     );
@@ -644,10 +641,7 @@ impl ViewerBehavior<'_> {
                         |number| SessionOp::SetSlot {
                             node,
                             slot: row.slot,
-                            value: match value {
-                                SlotValue::Count(_) => SlotValue::Count(number as i64),
-                                SlotValue::Continuous(_) => SlotValue::Continuous(number),
-                            },
+                            value: SlotValue::of(row.dimension, number),
                         },
                         self.ops,
                     );
