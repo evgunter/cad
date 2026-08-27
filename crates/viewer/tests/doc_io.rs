@@ -18,16 +18,6 @@ use viewer::docio::{self, DocIoError};
 use viewer::props::SlotValue;
 use viewer::session::{DocSession, Refusal, SessionOp};
 
-/// A fresh directory under the OS temp root, named for the row.
-fn tempdir(label: &str) -> std::path::PathBuf {
-    let unique = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |d| d.as_nanos());
-    let dir = std::env::temp_dir().join(format!("{label}-{unique}"));
-    std::fs::create_dir_all(&dir).expect("the fixture directory is creatable");
-    dir
-}
-
 fn distance(
     doc: &pncad::document::Doc<pncad::document::ProfileProgram>,
     node: pncad::document::RecipeNodeId,
@@ -54,7 +44,7 @@ fn a_document_round_trips_through_save_and_open() {
         SlotValue::Continuous(0.010)
     );
 
-    let dir = tempdir("gui3-round-trip");
+    let dir = common::tempdir("gui3-round-trip");
     let file = dir.join("plate.pncad");
     assert!(
         session
@@ -112,7 +102,7 @@ fn opening_a_missing_file_refuses_typed_and_leaves_the_session_alone() {
 #[test]
 fn opening_a_file_that_is_not_a_document_refuses_at_the_persistence_door() {
     let tol = Tol::witness();
-    let dir = tempdir("gui3-not-a-document");
+    let dir = common::tempdir("gui3-not-a-document");
     let file = dir.join("junk.pncad");
     std::fs::write(&file, "not a document").expect("the fixture file is writable");
     match docio::open(&file, tol) {
@@ -143,70 +133,80 @@ const GALLERY_RING: &str = include_str!("gallery_ring.v14.pncad");
 /// points and refuses at the others; this row went red at 1e-12 for
 /// precisely that reason.
 ///
-/// So the fixture is re-stamped with THIS run's ε before it is
-/// opened. That is not an adjustment to make a row pass: it is
-/// byte-for-byte what `demo-tour gallery` writes under this ε, because
-/// the only ε-dependent byte in the file is the recorded value itself
-/// (the ring's dimensions are authored literals, and `save` takes the
-/// ε from `Doc::epsilon`). Measured, not assumed — the row below
-/// asserts that the re-stamp changes exactly the ε line and nothing
-/// else, so a future ε-dependent byte in the format fails here instead
-/// of being quietly papered over.
-///
-/// The new ε line comes from `save` itself, via a throwaway document
-/// at the process tolerance: spelling a float the way the serializer
+/// So the fixture is re-stamped with THIS run's ε before it is opened.
+/// The new ε line comes from `save` itself, via a throwaway document at
+/// the process tolerance: spelling a float the way the serializer
 /// spells it is the serializer's job, not this file's.
+///
+/// **What this function does NOT do is check its own work.** An earlier
+/// version asserted that the re-stamp changed only the ε line by
+/// comparing its own output's non-ε lines against its own input's — an
+/// assertion true by construction of the `map` that built them, which
+/// is to say no assertion at all. The real claim (a re-stamped fixture
+/// is byte-for-byte what the exporter writes at this ε) is measured by
+/// [`the_restamped_fixture_is_what_the_serializer_writes_at_this_eps`],
+/// which puts the bytes back through `save` rather than through this
+/// function's own arithmetic.
 fn gallery_ring_at(tol: Tol) -> String {
     let probe: pncad::document::Doc<pncad::document::ProfileProgram> =
         pncad::document::Doc::empty_derived("gui3-epsilon-probe", tol);
     let probe_text = pncad::document::save(&probe, &[], tol).expect("an empty document saves");
-    let is_epsilon = |line: &&str| line.trim_start().starts_with("\"epsilon\":");
+    let is_epsilon = |line: &str| line.trim_start().starts_with("\"epsilon\":");
     let wanted = probe_text
         .lines()
-        .find(is_epsilon)
+        .find(|line| is_epsilon(line))
         .expect("a saved document records its ε");
-
-    let (kept, replaced): (Vec<&str>, Vec<&str>) =
-        GALLERY_RING.lines().partition(|line| !is_epsilon(line));
     assert_eq!(
-        replaced.len(),
+        GALLERY_RING.lines().filter(|l| is_epsilon(l)).count(),
         1,
-        "the fixture must carry exactly one ε line; found {}",
-        replaced.len()
+        "the fixture must carry exactly one ε line"
     );
-    let restamped: Vec<String> = GALLERY_RING
+    let mut text: String = GALLERY_RING
         .lines()
-        .map(|line| {
-            if is_epsilon(&line) {
-                wanted.to_owned()
-            } else {
-                line.to_owned()
-            }
-        })
-        .collect();
-    // The only line that moved is ε's — the claim above, checked.
-    let stripped: Vec<&String> = restamped
-        .iter()
-        .filter(|line| !is_epsilon(&line.as_str()))
-        .collect();
-    assert_eq!(
-        stripped.len(),
-        kept.len(),
-        "re-stamping ε changed the line count"
-    );
-    assert!(
-        stripped.iter().zip(&kept).all(|(a, b)| a.as_str() == *b),
-        "re-stamping ε changed a line that is not ε's"
-    );
-    let mut text = restamped.join("\n");
+        .map(|line| if is_epsilon(line) { wanted } else { line })
+        .collect::<Vec<&str>>()
+        .join("\n");
     text.push('\n');
     text
+}
+
+/// **The ε claim, measured through the serializer rather than through
+/// the re-stamp's own arithmetic.**
+///
+/// The claim the fixture rests on is that ε is the file's ONLY
+/// ε-dependent byte, so re-stamping one line reproduces what
+/// `demo-tour gallery` would write at this run's tolerance. This row
+/// takes the re-stamped bytes, loads them, and asks `save` — the same
+/// door the exporter calls — to write the document back at this ε. If
+/// the format ever grows a second ε-dependent byte the two texts
+/// disagree and this goes red, which is exactly what the old
+/// self-check could not do.
+///
+/// It measures at whichever point of the ε matrix the run drew, not
+/// only at the one the fixture was born at, because the tolerance it
+/// uses is the run's own witness.
+#[test]
+fn the_restamped_fixture_is_what_the_serializer_writes_at_this_eps() {
+    let tol = Tol::witness();
+    let restamped = gallery_ring_at(tol);
+    let loaded = pncad::document::load(&restamped, tol).expect("the re-stamped fixture loads");
+    assert!(
+        loaded.edits.is_empty(),
+        "the gallery ships state, not a log"
+    );
+    let rewritten =
+        pncad::document::save(&loaded.snapshot, &loaded.edits, tol).expect("and saves back");
+    assert_eq!(
+        rewritten, restamped,
+        "re-stamping ε reproduced the serializer's own output at this ε, \
+         so ε is the file's only ε-dependent byte"
+    );
 }
 
 #[test]
 fn a_gallery_document_opens_evaluates_and_saves_back() {
     let tol = Tol::witness();
-    let dir = tempdir("gui3-gallery");
+    let dir = common::tempdir("gui3-gallery");
     let file = dir.join("ring.pncad");
     std::fs::write(&file, gallery_ring_at(tol)).expect("the fixture is writable");
 
@@ -259,7 +259,7 @@ fn a_saved_file_is_byte_identical_when_nothing_changed_between_saves() {
         name: common::thickness_param(),
         value: SlotValue::Continuous(0.020),
     });
-    let dir = tempdir("gui3-stable-save");
+    let dir = common::tempdir("gui3-stable-save");
     let a = dir.join("a.pncad");
     let b = dir.join("b.pncad");
     session.perform(SessionOp::Save(a.clone()));

@@ -792,7 +792,7 @@ fn a_backlog_of_results_drains_in_one_pump_and_only_the_current_one_lands() {
     assert!(!session.busy());
 }
 
-/// **RED at 956ef3cf — review finding.** A canceled run's completed
+/// **Was RED at 956ef3cf; green since the fix pass.** A canceled run's completed
 /// prefix must not become the session's result.
 ///
 /// `DocSession::land` compares generations only, so a run canceled for
@@ -803,7 +803,6 @@ fn a_backlog_of_results_drains_in_one_pump_and_only_the_current_one_lands() {
 /// seam's own module docs say the crate "never mistakes it for a
 /// completed one"; this row is that sentence.
 #[test]
-#[ignore = "RED against PR #1101's head — review finding; un-ignore at the fix pass"]
 fn a_canceled_run_is_not_mistaken_for_the_current_documents_answer() {
     let tol = Tol::witness();
     let (doc, extrude, _moved) = slab(tol);
@@ -839,7 +838,7 @@ fn a_canceled_run_is_not_mistaken_for_the_current_documents_answer() {
     );
 }
 
-/// **RED at 956ef3cf — review finding.** The two seam implementations
+/// **Was RED at 956ef3cf; green since the fix pass.** The two seam implementations
 /// must agree on what two rapid submits produce.
 ///
 /// `evalseam`'s module docs say multiple submits COALESCE — "only the
@@ -849,7 +848,6 @@ fn a_canceled_run_is_not_mistaken_for_the_current_documents_answer() {
 /// and N `evaluate` calls. The behaviour the docs describe is the
 /// inline one; the application runs the other.
 #[test]
-#[ignore = "RED against PR #1101's head — review finding; un-ignore at the fix pass"]
 fn both_seam_implementations_coalesce_two_submits_into_one_result() {
     let tol = Tol::witness();
     let (doc, _extrude, _moved) = slab(tol);
@@ -879,7 +877,7 @@ fn both_seam_implementations_coalesce_two_submits_into_one_result() {
     };
 
     let inline = count_results(&mut InlineEvaluator::new());
-    let threaded = count_results(&mut ThreadEvaluator::spawn());
+    let threaded = count_results(&mut ThreadEvaluator::spawn().expect("the worker starts"));
     assert_eq!(
         inline,
         vec![Generation::FIRST.next()],

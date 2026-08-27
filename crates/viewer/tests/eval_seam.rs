@@ -83,6 +83,51 @@ fn a_stale_result_is_discarded_by_generation() {
     assert!(!session.busy());
 }
 
+/// **A canceled run never becomes the picture.**
+///
+/// The prefix a cancel returns answers a document nobody asked to see
+/// half of: rendered, it is a tree of `Unevaluated` rows and a product
+/// that gathers to nothing. So the session keeps the last good
+/// evaluation, and `busy()` goes on saying the picture is older than
+/// the document — with `running()` false, which is the state
+/// `Reevaluate` exists to leave.
+#[test]
+fn a_cancel_keeps_the_last_good_picture_and_reevaluate_recovers_it() {
+    let tol = Tol::witness();
+    let (doc, _profile, _extrude) = common::parametric_plate(tol);
+    let mut session = DocSession::inline(doc, tol);
+    session.pump();
+    let good = Arc::clone(session.evaluation_arc().expect("the first result landed"));
+
+    session.perform(SessionOp::SetParam {
+        name: common::thickness_param(),
+        value: SlotValue::Continuous(0.010),
+    });
+    session.perform(SessionOp::CancelEvaluation);
+    assert_eq!(session.pump(), vec![Landing::Canceled]);
+
+    assert!(session.busy(), "the picture is older than the document");
+    assert!(!session.running(), "and nothing is working on it");
+    assert!(
+        Arc::ptr_eq(
+            session.evaluation_arc().expect("a picture is still shown"),
+            &good
+        ),
+        "the canceled prefix did not replace the last good evaluation"
+    );
+    assert!(
+        !viewer::tree::has_faults(&session.tree_rows()),
+        "the tree still shows the good run, not a blank one"
+    );
+
+    // The recovery op: ask again, and the picture comes back.
+    session.perform(SessionOp::Reevaluate);
+    assert!(session.running());
+    assert_eq!(session.pump(), vec![Landing::Landed]);
+    assert!(!session.busy());
+    assert!(!session.running());
+}
+
 #[test]
 fn cancel_reaches_the_shipped_token_and_the_prefix_is_typed_canceled() {
     let tol = Tol::witness();
@@ -227,7 +272,7 @@ fn the_threaded_seam_answers_the_same_generations() {
     // arrives rather than asserting when it does.
     let tol = Tol::witness();
     let (doc, _profile, _extrude) = common::parametric_plate(tol);
-    let mut seam = viewer::evalseam::ThreadEvaluator::spawn();
+    let mut seam = viewer::evalseam::ThreadEvaluator::spawn().expect("the worker starts");
     seam.submit(EvalRequest {
         generation: Generation::FIRST,
         doc,
@@ -248,6 +293,103 @@ fn the_threaded_seam_answers_the_same_generations() {
 }
 
 /// The seam never sends anything but values across the boundary — the
+/// **The threaded lane coalesces too** — the property the module doc
+/// states for the seam and not for one implementation of it.
+///
+/// The inline row above proves it for the seam the tests drive; this
+/// proves it for the seam the APPLICATION drives, which is the lane
+/// where "N submits queue N jobs" would actually have cost work. Two
+/// submits, one result, carrying the newer generation: the superseded
+/// request dies inside the seam rather than travelling up to be
+/// discarded by generation.
+#[cfg(not(target_family = "wasm"))]
+#[test]
+fn the_threaded_seam_coalesces_two_submits_into_one_result() {
+    let tol = Tol::witness();
+    let (doc, _profile, _extrude) = common::parametric_plate(tol);
+    let mut seam = viewer::ThreadEvaluator::spawn().expect("the worker starts");
+    seam.submit(EvalRequest {
+        generation: Generation::FIRST,
+        doc: doc.clone(),
+        tol,
+    });
+    let second = Generation::FIRST.next();
+    seam.submit(EvalRequest {
+        generation: second,
+        doc,
+        tol,
+    });
+
+    let mut results = Vec::new();
+    for _ in 0..10_000 {
+        while let Some(done) = seam.poll() {
+            results.push(done.generation);
+        }
+        if !seam.busy() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+    assert_eq!(
+        results,
+        vec![second],
+        "two submits must answer once, for the newer request"
+    );
+    assert!(!seam.busy(), "and the seam is idle afterwards");
+}
+
+/// **A cancel raised against a threaded seam with a job WAITING** —
+/// the window the per-job token exists for, and the one no row reached
+/// before.
+///
+/// `cancel()` names the newest submitted job's token whether that job
+/// is running or waiting, so the cancelation cannot be lost in the
+/// hand-off between the two. What comes back is a `Canceled` outcome
+/// (or nothing, if the seam had already finished) — never a completed
+/// run for a request the user stopped.
+#[cfg(not(target_family = "wasm"))]
+#[test]
+fn a_cancel_reaches_a_threaded_seams_waiting_job() {
+    let tol = Tol::witness();
+    let (doc, _profile, _extrude) = common::parametric_plate(tol);
+    let mut seam = viewer::ThreadEvaluator::spawn().expect("the worker starts");
+    seam.submit(EvalRequest {
+        generation: Generation::FIRST,
+        doc: doc.clone(),
+        tol,
+    });
+    let second = Generation::FIRST.next();
+    seam.submit(EvalRequest {
+        generation: second,
+        doc,
+        tol,
+    });
+    // The second job is waiting behind the first; cancel names it.
+    seam.cancel();
+
+    let mut results = Vec::new();
+    for _ in 0..10_000 {
+        while let Some(done) = seam.poll() {
+            results.push(done);
+        }
+        if !seam.busy() {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+    assert!(!seam.busy());
+    for done in &results {
+        assert_eq!(
+            done.generation, second,
+            "only the newest request is ever answered"
+        );
+        assert!(
+            !done.completed(),
+            "a canceled job must not answer as a completed run"
+        );
+    }
+}
+
 /// property that makes a Worker-backed sibling possible without
 /// changing a line above it.
 #[test]

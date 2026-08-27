@@ -261,18 +261,31 @@ fn r1_a_result_from_a_future_generation_does_not_land() {
     );
 }
 
-/// What a user Cancel actually does at the SESSION level, pinned:
-/// the canceled run's result carries the CURRENT generation, so it
-/// LANDS — the session's evaluation becomes the canceled prefix and
-/// `busy()` goes false. (Recorded by the review because the seam's
-/// module docs read as though the prefix were discarded; if the fix
-/// pass changes the policy, this row is the one to update.)
+/// What a user Cancel does at the SESSION level, pinned.
+///
+/// **Updated at the fix pass, on this row's own instruction.** As
+/// written by the review it pinned the DEFECT: the canceled run's
+/// result carried the current generation, so it landed, the session's
+/// evaluation became the empty prefix, the tree went all-`Unevaluated`
+/// and `busy()` went dark — a panel claiming to be neither building
+/// anything nor waiting for anything. The row said "if the fix pass
+/// changes the policy, this row is the one to update"; it did, and this
+/// is that update, subject unchanged and expectation flipped.
+///
+/// The fixed policy: a result that did not COMPLETE never replaces a
+/// landed evaluation, so the last good picture stays, `busy()` goes on
+/// reporting that the picture is older than the document, and
+/// `running()` says nothing is working on it.
 #[test]
-fn r1_a_user_cancel_lands_the_canceled_prefix_as_the_current_result() {
+fn r1_a_user_cancel_keeps_the_last_completed_result_on_screen() {
     let tol = Tol::witness();
     let (doc, _profile, _extrude) = wedge(tol);
     let mut session = DocSession::inline(doc, tol);
     session.pump(); // first result lands, Completed
+    let good = session
+        .evaluation_arc()
+        .expect("the first result landed")
+        .clone();
 
     set_depth(&mut session, 0.009); // busy again
     assert!(session.busy());
@@ -280,21 +293,29 @@ fn r1_a_user_cancel_lands_the_canceled_prefix_as_the_current_result() {
     let landings = session.pump();
     assert_eq!(
         landings,
-        vec![Landing::Landed],
-        "same generation, so it lands"
+        vec![Landing::Canceled],
+        "current generation, but not a completed run"
     );
-    assert!(!session.busy(), "the indicator goes dark after a cancel");
+    assert!(
+        session.busy(),
+        "the picture is still older than the document"
+    );
+    assert!(!session.running(), "and nothing is working on it");
     let evaluation = session.evaluation().expect("a result is on screen");
     assert_eq!(
         evaluation.outcome,
-        EvalOutcome::Canceled,
-        "and it is the canceled prefix, not the last completed run"
+        EvalOutcome::Completed,
+        "the last completed run, not the canceled prefix"
     );
-    // The tree renders the absence honestly.
+    assert!(std::sync::Arc::ptr_eq(
+        session.evaluation_arc().expect("still shown"),
+        &good
+    ));
+    // The tree still shows the run that finished.
     let rows = session.tree_rows();
     assert!(
-        rows.iter().all(|row| row.status == RowStatus::Unevaluated),
-        "a run canceled before its first node shows every row unevaluated"
+        rows.iter().all(|row| row.status != RowStatus::Unevaluated),
+        "a cancel does not blank the tree"
     );
 }
 

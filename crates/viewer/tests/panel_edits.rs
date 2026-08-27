@@ -285,6 +285,149 @@ fn a_gesture_previews_against_scratch_state_and_commits_exactly_once() {
     );
 }
 
+/// **A dragged document PARAMETER is a gesture too.**
+///
+/// The affordance's "edit the parameter" link lands a user on this
+/// widget, so it is a primary path — and it used to commit one edit,
+/// one undo step and one re-evaluation per frame of a drag, where G1
+/// ratifies exactly one commit on release. The rule is the slot rule
+/// and this row is the slot row's twin.
+#[test]
+fn a_parameter_drag_previews_and_commits_exactly_once() {
+    let tol = Tol::witness();
+    let (doc, _profile, extrude) = common::parametric_plate(tol);
+    let mut session = DocSession::inline(doc, tol);
+    let before = session.history().len();
+    let name = common::thickness_param();
+
+    assert!(
+        session
+            .perform(SessionOp::BeginParamGesture { name: name.clone() })
+            .refusal
+            .is_none()
+    );
+    let mut previews = 0usize;
+    let mut last = 0.0;
+    for step in 1..=5 {
+        last = 0.008 + f64::from(step) * 0.002;
+        let outcome = session.perform(SessionOp::PreviewGesture { value: last });
+        assert!(outcome.committed.is_empty(), "a preview commits nothing");
+        previews += outcome.previewed.len();
+        assert_eq!(session.history().len(), before, "and mints no history");
+    }
+    assert_eq!(previews, 5);
+
+    let outcome = session.perform(SessionOp::CommitGesture);
+    assert_eq!(outcome.committed.len(), 1, "one edit for the whole drag");
+    assert!(matches!(
+        outcome.committed.first(),
+        Some(DocEdit::SetDocParam { .. })
+    ));
+    assert_eq!(session.history().len(), before + 1, "one undo step");
+    // The last previewed value is the one recorded, and the driven
+    // slot downstream followed it.
+    assert_eq!(
+        props::slot_rows(session.committed_doc(), extrude)
+            .into_iter()
+            .find(|row| row.slot == SlotId::Distance)
+            .expect("still there")
+            .value,
+        Ok(SlotValue::Continuous(last / 2.0)),
+        "the LAST previewed value is what the commit recorded"
+    );
+
+    session.perform(SessionOp::Undo);
+    assert_eq!(session.history().len(), before + 1, "undo destroys nothing");
+    assert_eq!(
+        props::slot_rows(session.committed_doc(), extrude)
+            .into_iter()
+            .find(|row| row.slot == SlotId::Distance)
+            .expect("still there")
+            .value,
+        Ok(SlotValue::Continuous(0.004)),
+        "one undo returns the whole gesture"
+    );
+}
+
+#[test]
+fn a_gesture_on_an_absent_parameter_refuses_typed() {
+    let tol = Tol::witness();
+    let (doc, _profile, _extrude) = common::parametric_plate(tol);
+    let mut session = DocSession::inline(doc, tol);
+    let outcome = session.perform(SessionOp::BeginParamGesture {
+        name: pncad::document::ParamName::new("no-such-parameter"),
+    });
+    assert!(matches!(outcome.refusal, Some(Refusal::NoSuchParam(_))));
+    assert!(matches!(
+        session
+            .perform(SessionOp::PreviewGesture { value: 1.0 })
+            .refusal,
+        Some(Refusal::NoGesture)
+    ));
+}
+
+/// **A frame's refusals have a precedence, and the affordance wins.**
+///
+/// Dragging an expression-driven slot queues `BeginGesture` (refused
+/// with the ratified affordance) and `PreviewGesture` (refused
+/// `NoGesture`, purely BECAUSE the first refusal stopped the gesture
+/// from opening) in one frame. A chrome that keeps the last refusal
+/// shows the bookkeeping one and buries the decision. This row replays
+/// that exact batch and asserts on what a frame would display.
+#[test]
+fn the_affordance_outranks_the_bookkeeping_refusal_it_causes() {
+    let tol = Tol::witness();
+    let (doc, _profile, extrude) = common::parametric_plate(tol);
+    let mut session = DocSession::inline(doc, tol);
+
+    let batch = vec![
+        SessionOp::BeginGesture {
+            node: extrude,
+            slot: SlotId::Distance,
+        },
+        SessionOp::PreviewGesture { value: 0.02 },
+    ];
+    let mut shown: Option<Refusal> = None;
+    for op in batch {
+        if let Some(next) = session.perform(op).refusal {
+            shown = Refusal::preferred(shown, next);
+        }
+    }
+    let shown = shown.expect("the batch refused");
+    assert!(
+        matches!(shown, Refusal::DrivenByExpression { .. }),
+        "expected the affordance, got {shown:?}"
+    );
+    assert!(
+        shown.to_string().contains("edit the expression?"),
+        "and it renders the ratified wording: {shown}"
+    );
+    assert!(shown.rank() < Refusal::NoGesture.rank());
+}
+
+/// Every refusal renders through `Display`, not through a debug dump.
+#[test]
+fn refusals_render_as_sentences() {
+    let tol = Tol::witness();
+    let (doc, _profile, _extrude) = common::parametric_plate(tol);
+    let mut session = DocSession::inline(doc, tol);
+    let refusal = session
+        .perform(SessionOp::Open(
+            std::env::temp_dir().join("gui3-no-such-document.pncad"),
+        ))
+        .refusal
+        .expect("a missing file refuses");
+    let rendered = refusal.to_string();
+    assert!(
+        rendered.contains("cannot read the file"),
+        "the io arm names what happened: {rendered}"
+    );
+    assert!(
+        !rendered.contains('{') && !rendered.contains('"'),
+        "and it is a sentence, not a debug dump: {rendered}"
+    );
+}
+
 #[test]
 fn an_abandoned_gesture_leaves_no_trace() {
     let tol = Tol::witness();

@@ -41,7 +41,7 @@ use std::sync::Arc;
 
 use eframe::egui;
 use egui_tiles::{TileId, Tiles, Tree, UiResponse};
-use pncad::document::{RecipeNodeId, SlotId};
+use pncad::document::{Dimension, RecipeNodeId, SlotId};
 use pncad::geom_core::Tol;
 
 use crate::camera::{self, Camera, CameraOp};
@@ -73,6 +73,25 @@ const BASE_COLOR: [f32; 3] = [0.62, 0.64, 0.67];
 
 /// The document file extension the dialog filters on.
 const DOC_EXTENSION: &str = "pncad";
+
+/// Points of indent per level of the feature tree.
+const INDENT_STEP: f32 = 12.0;
+
+/// The deepest level the tree indents for.
+///
+/// Depth is the longest input chain and a real document reaches far
+/// past this — the tour's `diefillet` hits 27, which at
+/// [`INDENT_STEP`] would be 324 points of dead space in a pane that
+/// holds a third of the window. Past the clamp the rows stop moving
+/// right; they stay in evaluation order, so the tree is still readable
+/// as a sequence, and what is lost is depth information that had
+/// already stopped fitting.
+const INDENT_MAX_DEPTH: usize = 8;
+
+/// The indent a row at `depth` draws at.
+fn indent(depth: usize) -> f32 {
+    depth.min(INDENT_MAX_DEPTH) as f32 * INDENT_STEP
+}
 
 /// One docked pane.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -136,6 +155,10 @@ pub enum StartupError {
     /// `eframe` handed the application no wgpu render state — the
     /// application was built against a renderer it does not have.
     NoWgpuRenderState,
+    /// The evaluation worker could not be started. Fatal on purpose: a
+    /// seam with no worker accepts every submit and answers none, so
+    /// the application would open onto a permanent "evaluating…".
+    Evaluator(crate::evalseam::SpawnError),
 }
 
 impl ViewerApp {
@@ -171,7 +194,11 @@ impl ViewerApp {
             .insert(renderer);
 
         Ok(Self {
-            session: DocSession::new(document, tol, Box::new(ThreadEvaluator::spawn())),
+            session: DocSession::new(
+                document,
+                tol,
+                Box::new(ThreadEvaluator::spawn().map_err(StartupError::Evaluator)?),
+            ),
             tol,
             delta,
             scene: Arc::new(mesh),
@@ -226,9 +253,28 @@ impl ViewerApp {
     }
 
     /// Perform one operation and record what it refused.
-    fn perform(&mut self, op: SessionOp) {
-        let outcome = self.session.perform(op);
-        self.status = outcome.refusal.as_ref().map(describe);
+    /// Perform one frame's whole batch of operations, keeping the
+    /// refusal worth showing.
+    ///
+    /// **Not one assignment per op.** A frame queues several ops and
+    /// several of them can refuse; assigning `status` from each in turn
+    /// keeps the LAST, which is how dragging a driven slot came to
+    /// display `NoGesture` instead of the ratified affordance —
+    /// `BeginGesture` refuses with the affordance and the same frame's
+    /// `PreviewGesture` refuses `NoGesture` on top of it. `Refusal`
+    /// ranks itself; this keeps the best-ranked, first-seen one, and
+    /// clears the line only when a batch refuses nothing at all.
+    fn perform_batch(&mut self, ops: Vec<SessionOp>) {
+        if ops.is_empty() {
+            return;
+        }
+        let mut refusal: Option<Refusal> = None;
+        for op in ops {
+            if let Some(next) = self.session.perform(op).refusal {
+                refusal = Refusal::preferred(refusal, next);
+            }
+        }
+        self.status = refusal.map(|refusal| refusal.to_string());
     }
 }
 
@@ -277,20 +323,32 @@ impl eframe::App for ViewerApp {
                 if ui.button("Finer δ").clicked() {
                     self.rescale_delta(1.0 / DELTA_STEP);
                 }
-                // The busy indicator is a READ of session state, and
-                // the Cancel beside it is the shipped token. Neither
-                // knows whether a thread is involved.
+                // The indicator is a READ of session state, and the
+                // buttons beside it are the shipped token and its pair.
+                // Neither knows whether a thread is involved.
+                //
+                // THREE states, not two, because a cancel leaves a
+                // fourth thing to say: the picture is older than the
+                // document AND nothing is running. A spinner there
+                // would be a lie about work nobody is doing.
                 if self.session.busy() {
                     ui.separator();
-                    ui.spinner();
-                    ui.label("evaluating…");
-                    if ui.button("Cancel").clicked() {
-                        ops.push(SessionOp::CancelEvaluation);
+                    if self.session.running() {
+                        ui.spinner();
+                        ui.label("evaluating…");
+                        if ui.button("Cancel").clicked() {
+                            ops.push(SessionOp::CancelEvaluation);
+                        }
+                        // A background result is not a user event, so
+                        // nothing else would wake the frame loop to
+                        // collect it.
+                        ui.ctx().request_repaint();
+                    } else {
+                        ui.label("canceled — showing an older result");
+                        if ui.button("Re-evaluate").clicked() {
+                            ops.push(SessionOp::Reevaluate);
+                        }
                     }
-                    // A background result is not a user event, so
-                    // nothing else would wake the frame loop to
-                    // collect it.
-                    ui.ctx().request_repaint();
                 }
                 if let Some(status) = &self.status {
                     ui.separator();
@@ -315,9 +373,7 @@ impl eframe::App for ViewerApp {
             self.tree.ui(&mut behavior, ui);
         });
 
-        for op in ops {
-            self.perform(op);
-        }
+        self.perform_batch(ops);
     }
 }
 
@@ -476,7 +532,7 @@ impl ViewerBehavior<'_> {
     /// One feature-tree row.
     fn feature_row(&mut self, ui: &mut egui::Ui, row: &TreeRow, selected: bool) {
         ui.horizontal(|ui| {
-            ui.add_space(row.depth as f32 * 12.0);
+            ui.add_space(indent(row.depth));
             let label = if row.root {
                 format!("{} ▸", row.kind)
             } else {
@@ -499,7 +555,7 @@ impl ViewerBehavior<'_> {
         // belongs to. Never a sentence this module wrote.
         if let Some(message) = row.status.message() {
             ui.horizontal(|ui| {
-                ui.add_space(row.depth as f32 * 12.0 + 12.0);
+                ui.add_space(indent(row.depth) + INDENT_STEP);
                 ui.weak(message);
             });
         }
@@ -529,19 +585,26 @@ impl ViewerBehavior<'_> {
                 {
                     ui.label(format!("parameter {} ({:?})", row.name.0, row.dimension));
                     let mut value = row.value.as_f64();
-                    if ui
-                        .add(egui::DragValue::new(&mut value).speed(0.0005))
-                        .changed()
-                    {
-                        let value = match row.value {
-                            SlotValue::Count(_) => SlotValue::Count(value as i64),
-                            SlotValue::Continuous(_) => SlotValue::Continuous(value),
-                        };
-                        self.ops.push(SessionOp::SetParam {
+                    let widget = ui.add(egui::DragValue::new(&mut value).speed(
+                        if row.dimension == Dimension::Count {
+                            1.0
+                        } else {
+                            0.0005
+                        },
+                    ));
+                    drag_ops(
+                        &widget,
+                        value,
+                        SessionOp::BeginParamGesture { name: name.clone() },
+                        |value| SessionOp::SetParam {
                             name: name.clone(),
-                            value,
-                        });
-                    }
+                            value: match row.value {
+                                SlotValue::Count(_) => SlotValue::Count(value as i64),
+                                SlotValue::Continuous(_) => SlotValue::Continuous(value),
+                            },
+                        },
+                        self.ops,
+                    );
                 } else {
                     ui.weak("that parameter is gone");
                 }
@@ -571,34 +634,26 @@ impl ViewerBehavior<'_> {
                         } else {
                             0.0005
                         }));
-                    // The gesture's three moments. A drag is a
-                    // continuous gesture — previews against scratch,
-                    // one commit on release — and a typed value is a
-                    // single edit; both are the SAME edit shape.
-                    if widget.drag_started() {
-                        self.ops.push(SessionOp::BeginGesture {
+                    drag_ops(
+                        &widget,
+                        number,
+                        SessionOp::BeginGesture {
                             node,
                             slot: row.slot,
-                        });
-                    }
-                    if widget.dragged() && widget.changed() {
-                        self.ops.push(SessionOp::PreviewGesture { value: number });
-                    }
-                    if widget.drag_stopped() {
-                        self.ops.push(SessionOp::CommitGesture);
-                    } else if widget.changed() && !widget.dragged() {
-                        self.ops.push(SessionOp::SetSlot {
+                        },
+                        |number| SessionOp::SetSlot {
                             node,
                             slot: row.slot,
                             value: match value {
                                 SlotValue::Count(_) => SlotValue::Count(number as i64),
                                 SlotValue::Continuous(_) => SlotValue::Continuous(number),
                             },
-                        });
-                    }
+                        },
+                        self.ops,
+                    );
                 }
                 Err(ref error) => {
-                    ui.weak(format!("{error:?}"));
+                    ui.weak(format!("{error}"));
                 }
             }
             ui.weak(format!("{:?}", row.dimension));
@@ -612,18 +667,13 @@ impl ViewerBehavior<'_> {
         // surfaces in the status line when they try.
         if let SlotDriver::Expression { params } = &row.driver {
             ui.horizontal(|ui| {
-                ui.weak(if params.is_empty() {
-                    "driven by an expression".to_owned()
-                } else {
-                    format!(
-                        "driven by an expression over {}",
-                        params
-                            .iter()
-                            .map(|p| p.0.as_str())
-                            .collect::<Vec<_>>()
-                            .join(", ")
-                    )
-                });
+                // The ratified wording, from its one home — the same
+                // string the status line shows when the edit is
+                // actually attempted.
+                ui.weak(Refusal::affordance(
+                    params,
+                    row.value.as_ref().ok().copied(),
+                ));
                 for name in params {
                     if ui.link(format!("edit {}", name.0)).clicked() {
                         self.ops
@@ -695,37 +745,41 @@ impl ViewerBehavior<'_> {
     }
 }
 
-/// A refusal, as the status line says it.
+/// **The one mapping from a `DragValue` to session operations**, and
+/// the only place in this crate that turns a widget into a gesture.
 ///
-/// The one arm that composes a sentence is the ratified affordance,
-/// whose WORDING is the decision ("driven by … — edit the
-/// expression?"); every other arm shows the typed payload.
-fn describe(refusal: &Refusal) -> String {
-    match refusal {
-        Refusal::DrivenByExpression {
-            params, current, ..
-        } => {
-            let over = if params.is_empty() {
-                "an expression".to_owned()
-            } else {
-                format!(
-                    "an expression over {}",
-                    params
-                        .iter()
-                        .map(|p| p.0.as_str())
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                )
-            };
-            match current {
-                Some(value) => format!(
-                    "driven by {over} (currently {}) — edit the expression?",
-                    value.as_f64()
-                ),
-                None => format!("driven by {over} — edit the expression?"),
-            }
-        }
-        other => format!("{other:?}"),
+/// G1 ratifies the shape: a continuous gesture emits previews against
+/// scratch state and exactly ONE committed edit on release. egui's
+/// `DragValue` does not hand that over — it conflates dragging with
+/// typing and fires `changed()` every frame of a drag — so the
+/// translation is the `drag_started` / `dragged` / `drag_stopped`
+/// triple below.
+///
+/// **It is a function because the same file once had two copies of it
+/// and one of them was wrong**: the slot rows mapped the triple and the
+/// document-parameter row mapped a bare `changed()`, so dragging a
+/// parameter committed one edit, one undo step and one re-evaluation
+/// per frame. Two spellings of a ratified rule is one spelling too
+/// many. Any future dragged number in this file calls this; nothing but
+/// this comment enforces that, which is the honest state of it.
+fn drag_ops(
+    widget: &egui::Response,
+    value: f64,
+    begin: SessionOp,
+    typed: impl Fn(f64) -> SessionOp,
+    ops: &mut Vec<SessionOp>,
+) {
+    if widget.drag_started() {
+        ops.push(begin);
+    }
+    if widget.dragged() && widget.changed() {
+        ops.push(SessionOp::PreviewGesture { value });
+    }
+    if widget.drag_stopped() {
+        ops.push(SessionOp::CommitGesture);
+    } else if widget.changed() && !widget.dragged() {
+        // Typed, not dragged: one edit, no gesture.
+        ops.push(typed(value));
     }
 }
 

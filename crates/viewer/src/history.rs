@@ -173,7 +173,14 @@ impl History {
         self.entries.len()
     }
 
-    /// Whether the history holds only its root.
+    /// Whether the history holds no EDIT — one state, the root, and
+    /// nothing to undo.
+    ///
+    /// The name is clippy's (`len_without_is_empty` pairs it with
+    /// [`History::len`]) and it fights the arithmetic, because `len`
+    /// counts STATES and a history's minimum is one. Read it as "empty
+    /// of edits", which is the question a caller actually asks and the
+    /// same thing [`History::can_undo`] answers from the cursor.
     pub fn is_empty(&self) -> bool {
         self.entries.len() <= 1
     }

@@ -109,6 +109,111 @@ pub enum Refusal {
     NothingToDo,
 }
 
+impl Refusal {
+    /// How much this refusal has to say, lower being more.
+    ///
+    /// **A frame performs a BATCH of operations**, and a batch can hold
+    /// more than one refusal: dragging an expression-driven slot queues
+    /// `BeginGesture` (refused with the ratified affordance) and
+    /// `PreviewGesture` (refused `NoGesture`, purely because the first
+    /// refusal stopped the gesture from opening). A chrome that keeps
+    /// the last refusal shows the second one and buries the decision
+    /// the affordance exists to deliver.
+    ///
+    /// So the ranks are: the affordance first, because it is a ratified
+    /// decision about what the user just tried; then every refusal that
+    /// names a real failure; then the bookkeeping ones, which are
+    /// consequences of an earlier refusal at least as often as they are
+    /// news. [`Refusal::preferred`] applies it.
+    pub fn rank(&self) -> u8 {
+        match self {
+            Self::DrivenByExpression { .. } => 0,
+            Self::NoSuchSlot { .. }
+            | Self::NoSuchParam(_)
+            | Self::Edit(_)
+            | Self::Dimension(_)
+            | Self::Parse(_)
+            | Self::Io(_) => 1,
+            Self::NoGesture | Self::GestureInFlight | Self::NothingToDo => 2,
+        }
+    }
+
+    /// The refusal a frame should show, given the one it already has.
+    ///
+    /// Strictly better wins; ties keep the incumbent, so within one
+    /// rank the FIRST refusal of a frame is the one displayed — it is
+    /// the one that describes what the user's action ran into, and
+    /// everything after it is downstream of that.
+    pub fn preferred(shown: Option<Self>, next: Self) -> Option<Self> {
+        match shown {
+            Some(shown) if shown.rank() <= next.rank() => Some(shown),
+            _ => Some(next),
+        }
+    }
+}
+
+impl core::fmt::Display for Refusal {
+    /// Renders each arm through its payload's OWN `Display` wherever
+    /// the payload has one — `EditError`, `DimensionError` and
+    /// `PersistError` (inside [`DocIoError`]) all do, and using them is
+    /// the same rule the feature tree's badges follow: the layer that
+    /// raised the failure names it.
+    ///
+    /// Two exceptions, both stated rather than hidden. The affordance
+    /// arm's wording is a RATIFIED decision of this layer's, so it is
+    /// composed here (and here only — [`Refusal::affordance`] is its
+    /// single home). And `ParseError` has no `Display` in
+    /// `editor-core`, so that one arm still shows a debug rendering;
+    /// the gap is recorded in the expression-surface issue this crate
+    /// cites at the affordance site.
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::DrivenByExpression {
+                params, current, ..
+            } => write!(f, "{}", Self::affordance(params, *current)),
+            Self::NoSuchSlot { node, slot } => {
+                write!(f, "node {node:?} has no {slot:?} slot")
+            }
+            Self::NoSuchParam(name) => write!(f, "no document parameter named {}", name.0),
+            Self::Edit(error) => write!(f, "the edit was refused: {error}"),
+            Self::Dimension(error) => write!(f, "{error}"),
+            Self::Parse(error) => write!(f, "the expression did not parse: {error:?}"),
+            Self::NoGesture => write!(f, "no drag is in progress"),
+            Self::GestureInFlight => write!(f, "finish the drag first"),
+            Self::Io(error) => write!(f, "{error}"),
+            Self::NothingToDo => write!(f, "nothing to undo or redo"),
+        }
+    }
+}
+
+impl core::error::Error for Refusal {}
+
+impl Refusal {
+    /// **The ratified affordance sentence, and its one home.**
+    ///
+    /// "Dragging an expression-driven dimension → refuse, with an
+    /// affordance" is a ratified micro-decision whose WORDING is part
+    /// of the decision, so it is composed once and every surface that
+    /// shows it — the status line, the inline note under the slot row —
+    /// calls this. Two independently-built copies is how the wording
+    /// drifts from the decision.
+    pub fn affordance(params: &[ParamName], current: Option<SlotValue>) -> String {
+        let over = if params.is_empty() {
+            "an expression".to_owned()
+        } else {
+            let names: Vec<&str> = params.iter().map(|p| p.0.as_str()).collect();
+            format!("an expression over {}", names.join(", "))
+        };
+        match current {
+            Some(value) => format!(
+                "driven by {over} (currently {}) — edit the expression?",
+                value.as_f64()
+            ),
+            None => format!("driven by {over} — edit the expression?"),
+        }
+    }
+}
+
 /// One typed operation on the session.
 #[derive(Clone, Debug)]
 pub enum SessionOp {
@@ -149,6 +254,19 @@ pub enum SessionOp {
         /// The slot.
         slot: SlotId,
     },
+    /// Start a continuous gesture over a DOCUMENT PARAMETER.
+    ///
+    /// The same preview/commit machinery as [`SessionOp::BeginGesture`]
+    /// and deliberately a separate door rather than a widened one: the
+    /// two targets are addressed differently (a node and a slot; a
+    /// name) and collapsing them would put an `Option` in every arm.
+    /// A parameter is where the expression-driven affordance sends a
+    /// user, so it is a dragged widget on a primary path and gets the
+    /// gesture rule the ratified preview-vs-commit decision demands.
+    BeginParamGesture {
+        /// The parameter.
+        name: ParamName,
+    },
     /// Move the in-flight gesture. Emits a preview edit against
     /// scratch state; commits nothing.
     PreviewGesture {
@@ -166,6 +284,15 @@ pub enum SessionOp {
     Redo,
     /// Cancel the evaluation in flight.
     CancelEvaluation,
+    /// Ask for the current document to be evaluated again.
+    ///
+    /// The pair to [`SessionOp::CancelEvaluation`], and the only way
+    /// back from a cancel: a canceled run leaves the picture older than
+    /// the document with nothing running, and every other route to a
+    /// re-submit goes through an edit or an undo, i.e. through changing
+    /// the document to get it re-drawn. The memo makes the re-run of an
+    /// unchanged document nearly free.
+    Reevaluate,
     /// Replace the session's document with a file's.
     Open(PathBuf),
     /// Write the current path to a file.
@@ -193,11 +320,54 @@ impl OpOutcome {
     }
 }
 
+/// What a gesture is dragging.
+#[derive(Clone, Debug)]
+enum GestureTarget {
+    /// A node's named slot.
+    Slot { node: RecipeNodeId, slot: SlotId },
+    /// A document parameter, with the dimension it is declared at.
+    Param {
+        name: ParamName,
+        dimension: Dimension,
+    },
+}
+
+impl GestureTarget {
+    /// **The one rule for which arm a dragged `f64` becomes**, for
+    /// every gesture target there is.
+    ///
+    /// A Count-dimensioned target takes the value truncated toward
+    /// zero and everything else takes it as-is. The DIMENSION decides,
+    /// never the widget and never the value's current arm: a slot is
+    /// Count exactly when `SlotId::is_structural` says so, and a
+    /// parameter exactly when it is declared `Dimension::Count`.
+    fn value_of(&self, value: f64) -> SlotValue {
+        let count = match self {
+            Self::Slot { slot, .. } => slot.is_structural(),
+            Self::Param { dimension, .. } => *dimension == Dimension::Count,
+        };
+        if count {
+            SlotValue::Count(value as i64)
+        } else {
+            SlotValue::Continuous(value)
+        }
+    }
+
+    /// The edit that writes `value` into this target.
+    fn edit(&self, value: SlotValue) -> Result<DocEdit<ProfileProgram>, DimensionError> {
+        match self {
+            Self::Slot { node, slot } => props::slot_edit(*node, *slot, value),
+            Self::Param { name, dimension } => {
+                Ok(props::param_edit(name.clone(), *dimension, value))
+            }
+        }
+    }
+}
+
 /// A gesture in flight: layer-3 state only.
 #[derive(Debug)]
 struct Gesture {
-    node: RecipeNodeId,
-    slot: SlotId,
+    target: GestureTarget,
     /// The document the previews are applied to — the history's
     /// current value, held so each preview replaces the last rather
     /// than stacking.
@@ -225,8 +395,13 @@ pub struct DocSession {
 pub enum Landing {
     /// It answered the current document and is now the session's.
     Landed,
-    /// It answered an older document and was discarded.
+    /// It answered an older request and was discarded.
     Stale,
+    /// It answered the current request but was CANCELED, so it carries
+    /// the completed prefix of a run nobody asked to see half of. The
+    /// last good evaluation stays on screen and the session goes on
+    /// owing an answer.
+    Canceled,
 }
 
 impl DocSession {
@@ -324,6 +499,20 @@ impl DocSession {
         self.landed_generation != Some(self.generation)
     }
 
+    /// Whether the seam actually has work outstanding.
+    ///
+    /// [`DocSession::busy`] asks "is the picture older than the
+    /// document"; this asks "is anyone doing something about it". They
+    /// agree except in one state, and that state is the whole reason
+    /// this exists: after a Cancel the picture is older and **nothing
+    /// is running**, so a chrome that only read `busy` would show a
+    /// spinner over an idle seam forever. `busy() && !running()` is
+    /// "canceled, showing an older result" — what
+    /// [`SessionOp::Reevaluate`] recovers from.
+    pub fn running(&self) -> bool {
+        self.eval.busy()
+    }
+
     /// The feature tree's rows for the shown document.
     pub fn tree_rows(&self) -> Vec<TreeRow> {
         tree::rows(self.doc(), self.evaluation())
@@ -353,9 +542,22 @@ impl DocSession {
 
     /// Decide one result's fate. Public so the staleness rule is
     /// testable without a scheduler.
+    ///
+    /// **Two filters, and both are refusals to show a wrong picture.**
+    /// A result for a superseded request is [`Landing::Stale`]. A
+    /// result for the CURRENT request that did not complete is
+    /// [`Landing::Canceled`]: a canceled run answers with the prefix it
+    /// finished before the token was seen, and that prefix is not the
+    /// document — rendered, it is a feature tree of `Unevaluated` rows
+    /// and a product that gathers to nothing. The last good evaluation
+    /// therefore stays, and [`DocSession::busy`] goes on reporting that
+    /// the picture is older than the document, which it is.
     pub fn land(&mut self, done: crate::evalseam::EvalDone) -> Landing {
         if done.generation != self.generation {
             return Landing::Stale;
+        }
+        if !done.completed() {
+            return Landing::Canceled;
         }
         self.landed_generation = Some(done.generation);
         self.landed = Some(done.evaluation);
@@ -375,13 +577,19 @@ impl DocSession {
             }
             SessionOp::SetParam { name, value } => self.set_param(&name, value),
             SessionOp::BeginGesture { node, slot } => self.begin_gesture(node, slot),
+            SessionOp::BeginParamGesture { name } => self.begin_param_gesture(&name),
             SessionOp::PreviewGesture { value } => self.preview_gesture(value),
             SessionOp::CommitGesture => self.commit_gesture(),
             SessionOp::CancelGesture => {
                 let had = self.gesture.take().is_some();
-                self.scratch = None;
+                // Same rule as a no-move commit: only a gesture that
+                // actually put a scratch document on screen owes a
+                // re-submit to take it away again.
+                let previewed = self.scratch.take().is_some();
                 if had {
-                    self.request_eval();
+                    if previewed {
+                        self.request_eval();
+                    }
                     OpOutcome::default()
                 } else {
                     OpOutcome::refused(Refusal::NoGesture)
@@ -391,6 +599,10 @@ impl DocSession {
             SessionOp::Redo => self.step(false),
             SessionOp::CancelEvaluation => {
                 self.eval.cancel();
+                OpOutcome::default()
+            }
+            SessionOp::Reevaluate => {
+                self.request_eval();
                 OpOutcome::default()
             }
             SessionOp::Open(path) => self.open(&path),
@@ -484,9 +696,26 @@ impl DocSession {
         if let Err(refusal) = self.guard_driven(node, slot) {
             return OpOutcome::refused(refusal);
         }
+        self.start(GestureTarget::Slot { node, slot })
+    }
+
+    fn begin_param_gesture(&mut self, name: &ParamName) -> OpOutcome {
+        if self.gesture.is_some() {
+            return OpOutcome::refused(Refusal::GestureInFlight);
+        }
+        let Some(dimension) = self.committed_doc().params().get(name).map(|p| p.dim()) else {
+            return OpOutcome::refused(Refusal::NoSuchParam(name.clone()));
+        };
+        self.start(GestureTarget::Param {
+            name: name.clone(),
+            dimension,
+        })
+    }
+
+    /// Open a gesture on an already-validated target.
+    fn start(&mut self, target: GestureTarget) -> OpOutcome {
         self.gesture = Some(Gesture {
-            node,
-            slot,
+            target,
             base: self.history.doc().clone(),
             value: None,
         });
@@ -497,15 +726,8 @@ impl DocSession {
         let Some(gesture) = self.gesture.as_mut() else {
             return OpOutcome::refused(Refusal::NoGesture);
         };
-        // A Count slot under a continuous gesture takes the value
-        // truncated toward zero; the slot's own dimension decides,
-        // never the widget.
-        let slot_value = if gesture.slot.is_structural() {
-            SlotValue::Count(value as i64)
-        } else {
-            SlotValue::Continuous(value)
-        };
-        let edit = match props::slot_edit(gesture.node, gesture.slot, slot_value) {
+        let slot_value = gesture.target.value_of(value);
+        let edit = match gesture.target.edit(slot_value) {
             Ok(edit) => edit,
             Err(error) => return OpOutcome::refused(Refusal::Dimension(error)),
         };
@@ -530,15 +752,21 @@ impl DocSession {
         let Some(gesture) = self.gesture.take() else {
             return OpOutcome::refused(Refusal::NoGesture);
         };
-        self.scratch = None;
+        let previewed = self.scratch.take().is_some();
         // A gesture that never moved commits nothing: one undo step
         // per gesture that CHANGED something, none for a click that
-        // happened to land on a slider.
+        // happened to land on a slider. It also asks for NOTHING —
+        // dropping a scratch that was never set leaves the shown
+        // document exactly as it was, and a request for a picture we
+        // already have spends a generation and flickers the indicator
+        // to say so.
         let Some(value) = gesture.value else {
-            self.request_eval();
+            if previewed {
+                self.request_eval();
+            }
             return OpOutcome::default();
         };
-        match props::slot_edit(gesture.node, gesture.slot, value) {
+        match gesture.target.edit(value) {
             Ok(edit) => self.commit(edit),
             Err(error) => OpOutcome::refused(Refusal::Dimension(error)),
         }

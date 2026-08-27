@@ -109,6 +109,32 @@ impl SlotDriver {
     }
 }
 
+/// Why a slot has no value to show.
+#[derive(Clone, Debug, PartialEq)]
+pub enum SlotFault {
+    /// The expression did not evaluate — the kernel's own typed reason
+    /// (an unbound parameter, a non-finite result).
+    Eval(EvalError),
+    /// The node LISTED this slot and then carried no expression for it.
+    /// A broken `Node::slots`/`Node::expr` postcondition, reported
+    /// rather than skipped; see [`slot_row`].
+    NoExpression,
+}
+
+impl core::fmt::Display for SlotFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Eval(error) => write!(f, "{error}"),
+            Self::NoExpression => write!(
+                f,
+                "the node lists this slot but carries no expression for it"
+            ),
+        }
+    }
+}
+
+impl core::error::Error for SlotFault {}
+
 /// One editable row of the property panel.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SlotRow {
@@ -123,7 +149,7 @@ pub struct SlotRow {
     pub driver: SlotDriver,
     /// The value the slot has under the document's parameters, or the
     /// typed reason it has none.
-    pub value: Result<SlotValue, EvalError>,
+    pub value: Result<SlotValue, SlotFault>,
 }
 
 /// The rows for one node, in the node vocabulary's own slot order.
@@ -137,30 +163,53 @@ pub fn slot_rows(doc: &Doc<ProfileProgram>, id: RecipeNodeId) -> Vec<SlotRow> {
     };
     node.slots()
         .into_iter()
-        .filter_map(|slot| slot_row(doc, node, slot))
+        .map(|slot| slot_row(doc, node, slot))
         .collect()
 }
 
-/// One row, or `None` if the node does not actually carry the slot.
-fn slot_row(
-    doc: &Doc<ProfileProgram>,
-    node: &Node<ProfileProgram>,
-    slot: SlotId,
-) -> Option<SlotRow> {
-    let expr = node.expr(slot)?;
+/// One row for a slot the node lists.
+///
+/// **`Node::slots()` is authoritative**: it is documented as "the
+/// domain of `Node::expr`", so a slot it lists and `expr` denies is a
+/// broken postcondition in the node vocabulary, not a slot this panel
+/// should quietly skip. Dropping it silently is what a `filter_map`
+/// here used to do — a fail-loud codebase's panel showing a node with
+/// one fewer row than it has and no way to notice.
+///
+/// The row is still a value, not a panic: the panel says the slot is
+/// there and that its value could not be read, which is the same shape
+/// every other unreadable value takes here.
+fn slot_row(doc: &Doc<ProfileProgram>, node: &Node<ProfileProgram>, slot: SlotId) -> SlotRow {
+    let Some(expr) = node.expr(slot) else {
+        return SlotRow {
+            slot,
+            dimension: slot.dimension(),
+            structural: slot.is_structural(),
+            // No expression to classify. Reported as driven, which is
+            // the refusing direction: nothing here should be
+            // overwritten with a number on the strength of an
+            // invariant that just failed.
+            driver: SlotDriver::Expression { params: Vec::new() },
+            value: Err(SlotFault::NoExpression),
+        };
+    };
     let env = doc.param_env::<f64>();
     let value = if slot.dimension() == Dimension::Count {
-        eval_count(expr, &env).map(SlotValue::Count)
+        eval_count(expr, &env)
+            .map(SlotValue::Count)
+            .map_err(SlotFault::Eval)
     } else {
-        eval::<f64>(expr, &env).map(SlotValue::Continuous)
+        eval::<f64>(expr, &env)
+            .map(SlotValue::Continuous)
+            .map_err(SlotFault::Eval)
     };
-    Some(SlotRow {
+    SlotRow {
         slot,
         dimension: slot.dimension(),
         structural: slot.is_structural(),
         driver: SlotDriver::of(expr),
         value,
-    })
+    }
 }
 
 /// One document-level parameter, as the panel shows it.

@@ -188,3 +188,18 @@ pub fn broken_document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNo
     );
     (doc, extrude, moved)
 }
+
+/// A fresh directory under the OS temp root, named for the caller.
+///
+/// One home: two suites wanted the same six lines and had copied them
+/// verbatim, which is exactly the drift this module's header exists to
+/// prevent. (A review suite keeping its own copy is the one case that
+/// argument does not cover — independence is the point there.)
+pub fn tempdir(label: &str) -> std::path::PathBuf {
+    let unique = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_nanos());
+    let dir = std::env::temp_dir().join(format!("{label}-{unique}"));
+    std::fs::create_dir_all(&dir).expect("the fixture directory is creatable");
+    dir
+}

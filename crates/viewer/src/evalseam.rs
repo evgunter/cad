@@ -20,16 +20,35 @@
 //! new document. The alternative — queue and let the old run finish —
 //! spends work on a document nobody is looking at any more, and its
 //! result would be discarded by [`Generation`] anyway. Multiple
-//! submits while busy COALESCE: only the newest document is queued, so
-//! a slider drag that outruns the evaluator produces at most one
-//! evaluation per completed run rather than a backlog of them.
+//! submits while busy COALESCE: only the newest document is held, so a
+//! slider drag that outruns the evaluator produces at most one
+//! evaluation per completed run rather than a backlog of them, and a
+//! superseded run's result is dropped HERE rather than travelling up to
+//! be discarded by generation.
+//!
+//! **Both implementations do this, by the same mechanism**: at most one
+//! request is ever outstanding, and a submit while one is outstanding
+//! REPLACES the waiting request rather than adding to it. For
+//! [`InlineEvaluator`] that is a single `Option`; for
+//! [`ThreadEvaluator`] it is a single `Option` in the handle plus a
+//! `running` flag, so the channel to the worker never holds more than
+//! one job. Making the worker drain a queue would have produced the
+//! same observable answer, but it would have left the handle's own
+//! accounting (what `busy` reports) describing a queue the caller
+//! cannot see; keeping the queue in the handle is why the two
+//! implementations are the same shape rather than merely the same
+//! outcome. The row that pins it drives BOTH.
 //!
 //! The cancelation is the shipped `CancelToken` and nothing else: it
 //! is checked between nodes, so a canceled run returns its completed
-//! prefix typed as `EvalOutcome::Canceled`. This crate discards that
-//! prefix (it is not the document the user is on) but never mistakes
-//! it for a completed one — the memo is only ever primed from a run
-//! that completed.
+//! prefix typed as `EvalOutcome::Canceled`. That prefix answers a
+//! document nobody asked to see half of, so it never becomes anyone's
+//! picture: the memo is primed only from a completed run
+//! ([`run_once`]), and the session refuses to land a result that is not
+//! [`EvalDone::completed`] (`DocSession::land`). A cancel therefore
+//! leaves the last good evaluation on screen and the session still
+//! owing an answer — which `DocSession::running` distinguishes from
+//! "an answer is coming", so the chrome can say which.
 //!
 //! # Staleness is decided here, by generation
 //!
@@ -50,9 +69,12 @@ use pncad::geom_core::Tol;
 /// the session on every submit.
 ///
 /// Distinct from the shipped evaluation `Epoch`, which identifies the
-/// RUN. This identifies the DOCUMENT VERSION the run was asked for,
-/// which is what staleness is about: two runs of the same document
-/// (a cancel and its restart) share a generation.
+/// RUN. This identifies the REQUEST, and the session mints a fresh one
+/// for every submit — including a re-submit of an unchanged document
+/// (`SessionOp::Reevaluate`). That is deliberately stricter than
+/// "identifies the document version": a result may land only against
+/// the request that asked for it, so a run canceled and then re-asked
+/// can never have its abandoned answer accepted for the new ask.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Generation(u64);
 
@@ -61,8 +83,17 @@ impl Generation {
     pub const FIRST: Self = Self(0);
 
     /// The next generation after this one.
+    ///
+    /// Saturating, not wrapping. A wrap would make a stale result
+    /// compare equal to the current request — the one thing this type
+    /// exists to prevent — and it is unreachable at `u64` anyway, so
+    /// the arithmetic that cannot produce the failure is the one to
+    /// write. At the ceiling every request shares a generation and the
+    /// staleness filter degrades to accepting everything, which is the
+    /// pre-existing behaviour of a counter that never advances; no run
+    /// of this application gets within astronomical distance of it.
     pub fn next(self) -> Self {
-        Self(self.0.wrapping_add(1))
+        Self(self.0.saturating_add(1))
     }
 
     /// The raw counter, for a caller displaying it.
@@ -197,7 +228,7 @@ impl EvalService for InlineEvaluator {
 }
 
 #[cfg(not(target_family = "wasm"))]
-pub use threaded::ThreadEvaluator;
+pub use threaded::{SpawnError, ThreadEvaluator};
 
 /// The native seam: one worker thread, a request channel, a result
 /// channel.
@@ -225,12 +256,27 @@ mod threaded {
     /// it was clearing for. A per-job token has no such window,
     /// because the only thing a cancel can name is a job that already
     /// exists.
+    #[derive(Debug)]
     struct Job {
         request: EvalRequest,
         cancel: CancelToken,
     }
 
+    /// Why a worker could not be started.
+    #[derive(Debug)]
+    pub enum SpawnError {
+        /// The OS refused the thread.
+        Thread(std::io::Error),
+    }
+
     /// A background-thread evaluation seam.
+    ///
+    /// **At most one job is ever with the worker.** A submit while the
+    /// worker holds one replaces [`ThreadEvaluator::waiting`] rather
+    /// than queueing, and [`EvalService::poll`] drops a result that a
+    /// waiting job has already superseded — which is the coalescing the
+    /// module docs promise, in the same shape [`super::InlineEvaluator`]
+    /// has it.
     #[derive(Debug)]
     pub struct ThreadEvaluator {
         to_worker: Option<Sender<Job>>,
@@ -238,28 +284,54 @@ mod threaded {
         /// The token of the most recently submitted job — what
         /// `cancel` names, and what the next `submit` cancels.
         cancel: CancelToken,
-        /// Requests submitted and not yet answered. A count rather
-        /// than a flag: the busy indicator must go dark when the LAST
-        /// answer lands, not when the first does.
-        in_flight: usize,
+        /// The job the worker is evaluating, if any. A flag rather
+        /// than a count, because the channel never holds more than one.
+        running: bool,
+        /// The newest request, held back until the worker is free.
+        /// Replaced, never appended to: that is latest-wins.
+        waiting: Option<Job>,
         worker: Option<JoinHandle<()>>,
     }
 
     impl ThreadEvaluator {
         /// Spawn the worker.
-        pub fn spawn() -> Self {
+        ///
+        /// # Errors
+        ///
+        /// [`SpawnError::Thread`] if the OS refuses the thread. Loud
+        /// rather than degraded on purpose: a seam whose worker never
+        /// started accepts every submit and answers none, so the
+        /// application would sit at "evaluating…" forever with no
+        /// failure anywhere to read.
+        pub fn spawn() -> Result<Self, SpawnError> {
             let (to_worker, requests) = channel::<Job>();
             let (results, from_worker) = channel::<EvalDone>();
             let worker = std::thread::Builder::new()
                 .name("viewer-eval".to_owned())
                 .spawn(move || work(&requests, &results))
-                .ok();
-            Self {
+                .map_err(SpawnError::Thread)?;
+            Ok(Self {
                 to_worker: Some(to_worker),
                 from_worker,
                 cancel: CancelToken::new(),
-                in_flight: 0,
-                worker,
+                running: false,
+                waiting: None,
+                worker: Some(worker),
+            })
+        }
+
+        /// Hand `job` to the worker, or record that the worker is gone.
+        fn dispatch(&mut self, job: Job) {
+            match self.to_worker.as_ref() {
+                Some(to_worker) if to_worker.send(job).is_ok() => self.running = true,
+                // The worker ended (only reachable after `Drop` has
+                // closed the channel, or if it panicked). Nothing more
+                // will ever be answered, and the indicator must not
+                // stay lit for an answer that is not coming.
+                _ => {
+                    self.running = false;
+                    self.waiting = None;
+                }
             }
         }
     }
@@ -288,16 +360,21 @@ mod threaded {
 
     impl EvalService for ThreadEvaluator {
         fn submit(&mut self, request: EvalRequest) {
-            // Cancel-and-restart: the in-flight run is for an older
-            // document, so it is stopped at its next node boundary and
-            // the worker picks this job up immediately after.
+            // Cancel-and-restart: whatever the worker holds is for an
+            // older request, so it is stopped at its next node
+            // boundary. The same call also cancels a job that is only
+            // WAITING — correct, because that job is superseded too and
+            // the token it carries is about to be dropped with it.
             self.cancel.cancel();
             let cancel = CancelToken::new();
             self.cancel = cancel.clone();
-            if let Some(to_worker) = self.to_worker.as_ref()
-                && to_worker.send(Job { request, cancel }).is_ok()
-            {
-                self.in_flight += 1;
+            let job = Job { request, cancel };
+            if self.running {
+                // Latest wins: the previous waiting job is dropped, not
+                // queued behind this one.
+                self.waiting = Some(job);
+            } else {
+                self.dispatch(job);
             }
         }
 
@@ -306,23 +383,33 @@ mod threaded {
         }
 
         fn poll(&mut self) -> Option<EvalDone> {
-            match self.from_worker.try_recv() {
-                Ok(done) => {
-                    self.in_flight = self.in_flight.saturating_sub(1);
-                    Some(done)
-                }
-                Err(TryRecvError::Empty) => None,
-                // The worker is gone. Nothing further will ever land,
-                // so the indicator must not stay lit forever.
-                Err(TryRecvError::Disconnected) => {
-                    self.in_flight = 0;
-                    None
+            loop {
+                match self.from_worker.try_recv() {
+                    Ok(done) => {
+                        self.running = false;
+                        match self.waiting.take() {
+                            // `done` answers a request the caller has
+                            // already superseded. Coalescing means it
+                            // dies HERE rather than travelling up to be
+                            // discarded by generation.
+                            Some(next) => self.dispatch(next),
+                            None => return Some(done),
+                        }
+                    }
+                    Err(TryRecvError::Empty) => return None,
+                    // The worker is gone. Nothing further will ever
+                    // land, so the indicator must not stay lit forever.
+                    Err(TryRecvError::Disconnected) => {
+                        self.running = false;
+                        self.waiting = None;
+                        return None;
+                    }
                 }
             }
         }
 
         fn busy(&self) -> bool {
-            self.in_flight > 0
+            self.running || self.waiting.is_some()
         }
     }
 

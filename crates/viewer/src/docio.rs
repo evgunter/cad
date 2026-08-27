@@ -48,6 +48,24 @@ pub enum DocIoError {
     Replay(ReplayError),
 }
 
+impl core::fmt::Display for DocIoError {
+    /// The persistence arm delegates to `PersistError`'s own `Display`
+    /// — the same rule the feature tree's badges follow. The replay arm
+    /// names the log position and delegates to `EditError`.
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Read { message } => write!(f, "cannot read the file: {message}"),
+            Self::Write { message } => write!(f, "cannot write the file: {message}"),
+            Self::Persist(error) => write!(f, "{error}"),
+            Self::Replay(ReplayError::Refused { index, error }) => {
+                write!(f, "edit {index} of the saved log was refused: {error}")
+            }
+        }
+    }
+}
+
+impl core::error::Error for DocIoError {}
+
 /// Open a document file as an edit history.
 ///
 /// # Errors

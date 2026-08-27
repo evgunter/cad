@@ -156,7 +156,7 @@ fn a_save_writes_the_current_paths_linear_log() {
     let path = session.history().path_edits();
     assert_eq!(path.len(), 2, "the path, not the tree");
 
-    let dir = tempdir("gui3-save-path");
+    let dir = common::tempdir("gui3-save-path");
     let file = dir.join("doc.pncad");
     assert!(
         session
@@ -203,14 +203,4 @@ fn a_replayed_history_is_the_files_log_step_for_step() {
             .expect("the distance evaluates"),
         SlotValue::Continuous(0.03)
     );
-}
-
-/// A fresh directory under the OS temp root, named for the suite.
-fn tempdir(label: &str) -> std::path::PathBuf {
-    let unique = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map_or(0, |d| d.as_nanos());
-    let dir = std::env::temp_dir().join(format!("{label}-{unique}"));
-    std::fs::create_dir_all(&dir).expect("the fixture directory is creatable");
-    dir
 }

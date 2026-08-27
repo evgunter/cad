@@ -69,7 +69,7 @@ fn main() {
     let mut session = DocSession::new(
         history.doc().clone(),
         tol,
-        Box::new(ThreadEvaluator::spawn()),
+        Box::new(ThreadEvaluator::spawn().expect("the worker starts")),
     );
     pump_until_idle(&mut session, "first evaluation");
     show_tree(&session);
@@ -163,7 +163,7 @@ fn main() {
     let mut session = DocSession::new(
         history.doc().clone(),
         tol,
-        Box::new(ThreadEvaluator::spawn()),
+        Box::new(ThreadEvaluator::spawn().expect("the worker starts")),
     );
     std::thread::sleep(std::time::Duration::from_millis(50));
     session.perform(SessionOp::CancelEvaluation);
@@ -215,7 +215,7 @@ fn main() {
     let mut session = DocSession::new(
         history.doc().clone(),
         tol,
-        Box::new(ThreadEvaluator::spawn()),
+        Box::new(ThreadEvaluator::spawn().expect("the worker starts")),
     );
     pump_until_idle(&mut session, "heatsink first evaluation");
     let rows = session.tree_rows();
@@ -327,7 +327,7 @@ fn main() {
 
     // -- 6. The seam trait object is still honest about busy. -------
     banner("threaded seam: busy count over two submits");
-    let mut seam = ThreadEvaluator::spawn();
+    let mut seam = ThreadEvaluator::spawn().expect("the worker starts");
     let ring = docio::open(&dir.join("ring.pncad"), tol).expect("ring opens");
     for generation in [
         viewer::evalseam::Generation::FIRST,

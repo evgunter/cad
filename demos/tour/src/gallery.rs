@@ -8,7 +8,7 @@
 //! documents to exist as files. This mode writes them, from the SAME
 //! authoring functions the tour renders — never a second authoring,
 //! which would make the gallery evidence about itself rather than
-//! about the scenes (`memos`: `memories/demo-purpose.md`).
+//! about the scenes (`memories/demo-purpose.md`).
 //!
 //! # Which scenes are here, and which are not
 //!
