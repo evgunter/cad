@@ -445,18 +445,23 @@ pub struct EdgeCurveSpec<T: Real> {
 }
 
 impl<T: Real> EdgeCurveSpec<T> {
-    /// The straight-chord spec between two points: carrier the line
-    /// from `p0` to `p1` (arc-length parameters `0 … |p1 − p0|`),
-    /// description the honest pushforward form — `p0`'s trajectory
-    /// under the translation by `p1 − p0`
+    /// The straight-chord SCAFFOLDING spec between two points:
+    /// carrier the line from `p0` to `p1` (arc-length parameters
+    /// `0 … |p1 − p0|`), description the honest pushforward — `p0`'s
+    /// trajectory under the translation by `p1 − p0`
     /// ([`crate::MappedCurve::ExtrudedPoint`] with the sketch origin
-    /// placed at `p0`).
+    /// placed at `p0`) — through the scaffolding door (D3).
     ///
     /// By calling this the caller asserts the edge's locus **is** the
     /// straight chord; a construction whose edge follows any other
     /// locus (an arc trajectory, a placed profile segment) builds its
     /// spec explicitly. Coincident endpoints yield a poison carrier
     /// that certification rejects loudly (typed, total).
+    ///
+    /// **The door is for TRANSIENT edges.** An edge built here that
+    /// comes to rest between two faces must be re-stated where it
+    /// rests — [`EdgeCurveSpec::at_rest_in_chart`] — or tier 3 refuses
+    /// it (U2's transience fence).
     pub fn line_between(p0: Point3<T>, p1: Point3<T>) -> Self {
         use geom_core::{Affine3, Point2};
         let len = p0.distance(p1);
@@ -475,9 +480,9 @@ impl<T: Real> EdgeCurveSpec<T> {
         }
     }
 
-    /// The conventional ARC spec along an existing CIRCLE carrier
+    /// The ARC SCAFFOLDING spec along an existing CIRCLE carrier
     /// between the given parameters: the carrier and interval are kept
-    /// verbatim, and the description is the honest pushforward form —
+    /// verbatim, and the description is the honest pushforward —
     /// the start point's trajectory under the rotation about the
     /// carrier's own axis by the swept angle
     /// ([`crate::MappedCurve::RevolvedPoint`], the same
@@ -988,7 +993,15 @@ impl<T: SpanLocate> EdgeCurve<T> {
                 // land a few ulps away from it.
                 EdgeDescription::Chart(ref c) => EdgeDescriptionSpec::Chart {
                     surface: c.surface,
-                    image: Some(c.pcurve.clone()),
+                    // A seam names its chart and nothing else, so the
+                    // child re-derives its image there exactly as the
+                    // parent did (the mint reads the carrier, which
+                    // the split does not change — same bits). Every
+                    // other image is a function of the carrier's own
+                    // parameter, so the sub-arc's image IS the
+                    // parent's: stated exactly rather than
+                    // re-derived a few ulps away from it.
+                    image: if c.seam { None } else { Some(c.pcurve.clone()) },
                     seam: c.seam,
                     declared: match self.authority {
                         EdgeAuthority::Declared(mc) => Some(mc.restrict(s0, s1)),
