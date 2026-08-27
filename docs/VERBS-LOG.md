@@ -1716,3 +1716,19 @@ boundary (outer-only explicitly rejected). Fix pass dispatched
 with the five MINs, the S2 uniform-sense gate, and the C7
 requirement that interval coverage of the final head be on the
 record before merge. Reviewer lane swept.
+
+## OFF-D PR-2 MERGED (#1048, 2026-08-27) — SHELL IS IN. The Q8 substrate arc is complete
+
+Row OFFD2 in MODEL-AB-LOG. The offset program's whole chain is
+merged: OFF-A mints, OFF-B/C the Approx fit + certification,
+PR-1 the face-replacement door, PR-2 the verb — sealed through
+the shared void-insertion door exactly as ratified, opened as a
+closed thin solid, with the no-room class gated loudly on planar
+pairs (#1055 the curved window), hollow operands refused with the
+thicken-every-boundary semantics recorded (#1056), and the klein
+debt scheduled on its two C5 arms (#1057). The TEAPOT demo unit
+is unblocked. Lane swept. Also banked: the zero-jobs queued run
+(the silent-CI class's second face — a run can queue behind a
+superseded run with mergeable CLEAN and never start; an
+empty-commit re-roll reads as docs-only; a real code commit is
+the reliable re-roll).
