@@ -92,11 +92,7 @@ fn seam_delta(
         .certificate()
         .clone();
     let legacy = legacy_seam_max(&spec, &surface, anchor, axis, u_ref, p0, p1);
-    (
-        ulps(cert.max_residual, legacy),
-        legacy,
-        cert.max_residual,
-    )
+    (ulps(cert.max_residual, legacy), legacy, cert.max_residual)
 }
 
 /// Sphere seam meridian, in-band radial drift 0.25 eps — the D2 row's
