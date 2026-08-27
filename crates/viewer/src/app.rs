@@ -30,7 +30,7 @@
 //! # Evaluation is not on this thread
 //!
 //! The application drives [`DocSession`] over a
-//! [`ThreadEvaluator`](crate::evalseam::ThreadEvaluator): edits submit
+//! [`crate::evalseam::ThreadEvaluator`]: edits submit
 //! a document and the frame loop polls for results. The busy indicator
 //! and the Cancel button are the two things that makes visible. What
 //! this module knows about threads is one constructor call; everything
