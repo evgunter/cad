@@ -54,12 +54,16 @@
 use geom::Curve3;
 use geom::Surface;
 use geom_core::spline::SpanLocate;
-use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Point3, Real, Sign};
+use geom_core::{
+    Band, BandError, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Vec2,
+};
 
+use crate::description::{ChartCurve, EdgeAuthority, EdgeDescription, authority_of};
 use crate::dihedral::{DihedralClass, classify_dihedral, decide};
 use crate::edge_geometry::EdgeGeometry;
 use crate::implicit::{implicit_residual, seam_frame};
 use crate::keys::SurfaceKey;
+use crate::pcurve_cache::{Pcurve, PcurveCertifyError, chart_pcurve};
 
 /// The fixed certification sample count (module docs): 9 uniform
 /// parameters, endpoints included.
@@ -123,19 +127,23 @@ pub enum CertCheck {
     /// uniqueness of the locus) holds along the WHOLE edge, not just
     /// at the schedule points.
     TangentTube,
-    /// MappedCurve: `|carrier(t_i) − description(s_i)|` at a sample.
+    /// Scaffold: `|carrier(t_i) − description(s_i)|` at a sample —
+    /// the fenced scaffolding arm's meter, the one conventional
+    /// residual that has no chart to state itself against (D3).
     MappedSource,
-    /// Seam: implicit residual against the seam's surface at a sample.
-    SeamSurface,
-    /// Seam: the out-of-halfplane component `|w · v_ref|` at a sample.
+    /// Chart, periodic-seam obligation: the out-of-halfplane component
+    /// `|w · v_ref|` at a sample.
     SeamHalfplane,
-    /// Seam: the wrong-side excess `max(0, −w · u_ref)` at a sample
-    /// (distinguishes the seam from the antipodal meridian).
+    /// Chart, periodic-seam obligation: the wrong-side excess
+    /// `max(0, −w · u_ref)` at a sample (distinguishes the seam from
+    /// the antipodal meridian — the unified meter alone cannot, since
+    /// the antipodal ruling IS a chart image of the same surface).
     SeamSide,
-    /// IsoCurve: the genuinely metric residual
-    /// `|carrier(tᵢ) − S(u, v(tᵢ))|` at a sample (M6-3; the
-    /// wall–wall-seam class).
-    IsoResidual,
+    /// **The unified conventional meter** (D1): `|C(tᵢ) − S(P(tᵢ))|`
+    /// at a sample, C4 verbatim — the ONE statement every collapsed
+    /// conventional description makes, whatever certification lane its
+    /// [`crate::Pcurve`] belongs to.
+    ChartResidual,
     /// Intersection, plane × NURBS (M7-8): limb 1's largest sampled
     /// on-locus residual over both operands — the closed-form plane
     /// distance and the certified foot distance on the wall.
@@ -147,6 +155,22 @@ pub enum CertCheck {
     /// Intersection, plane × NURBS (M7-8): the lane's own margins as a
     /// whole, named when one of them escalates.
     PlaneNurbsCertificate,
+}
+
+#[allow(non_upper_case_globals)] // a variant's retired NAME, not a constant
+impl CertCheck {
+    /// **Shim** (P-1a): the pre-collapse name of the arm that already
+    /// stated `|C − S(P)|`, aliasing the unified meter it became.
+    ///
+    /// It exists so the consumer crates and their probes read the same
+    /// name through P-1a's `geom-brep`-only diff; P-1b deletes it
+    /// together with the probes that spell it.
+    pub const IsoResidual: Self = Self::ChartResidual;
+
+    /// **Shim** (P-1a): the seam arm's retired implicit-form residual.
+    /// The seam's on-surface statement is now the unified meter's, so
+    /// this names the same check the seam obligation rides beside.
+    pub const SeamSurface: Self = Self::ChartResidual;
 }
 
 /// Typed certification failure (D4 ¶3): actionable, closed enum. The
@@ -517,7 +541,17 @@ pub struct Certificate<T: Real> {
 /// uncertified value is unrepresentable (D4 ¶2 made structural).
 #[derive(Clone, Debug)]
 pub struct EdgeCurve<T: Real> {
+    /// **The shim** (P-1a): the pre-collapse description vocabulary,
+    /// kept so the six consumer crates read their own names through a
+    /// `geom-brep`-only diff. `canonical` is what this crate certifies
+    /// and what U2 means by the description; P-1b moves the consumers
+    /// onto it and deletes this field.
     description: EdgeGeometry<T>,
+    /// U2's collapsed description — ONE conventional form, minted and
+    /// metered at certification (D1/D4).
+    canonical: EdgeDescription<T>,
+    /// U2 Q3's per-edge authority record: who determined the locus.
+    authority: EdgeAuthority<T>,
     carrier: Curve3<T>,
     param_start: T,
     param_end: T,
@@ -593,9 +627,11 @@ impl<T: Decide> EdgeCurve<T> {
         surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
         band: Band,
     ) -> Result<Self, CertifyError> {
-        let certificate = run_checks(&spec, start, end, &surfaces, None, band)?;
+        let (certificate, canonical) = run_checks(&spec, start, end, &surfaces, None, band)?;
         Ok(Self {
+            authority: authority_of(&spec.description),
             description: spec.description,
+            canonical,
             carrier: spec.carrier,
             param_start: spec.param_start,
             param_end: spec.param_end,
@@ -618,7 +654,7 @@ impl<T: Decide> EdgeCurve<T> {
         surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
         band: Band,
     ) -> Result<Certificate<T>, CertifyError> {
-        run_checks(&self.spec(), start, end, &surfaces, None, band)
+        run_checks(&self.spec(), start, end, &surfaces, None, band).map(|(cert, _)| cert)
     }
 }
 
@@ -672,7 +708,7 @@ impl<T: crate::edge_nurbs::EdgeNurbsLane> EdgeCurve<T> {
         surfaces: impl Fn(SurfaceKey) -> Option<Surface<T>>,
         band: Band,
     ) -> Result<Self, CertifyError> {
-        let certificate = run_checks(
+        let (certificate, canonical) = run_checks(
             &spec,
             start,
             end,
@@ -681,7 +717,9 @@ impl<T: crate::edge_nurbs::EdgeNurbsLane> EdgeCurve<T> {
             band,
         )?;
         Ok(Self {
+            authority: authority_of(&spec.description),
             description: spec.description,
+            canonical,
             carrier: spec.carrier,
             param_start: spec.param_start,
             param_end: spec.param_end,
@@ -710,13 +748,34 @@ impl<T: crate::edge_nurbs::EdgeNurbsLane> EdgeCurve<T> {
             Some(&T::plane_nurbs_limbs),
             band,
         )
+        .map(|(cert, _)| cert)
     }
 }
 
 impl<T: Real> EdgeCurve<T> {
-    /// The intensional description (authoritative, D2).
+    /// The intensional description (authoritative, D2) in the
+    /// **shim's** pre-collapse vocabulary — see
+    /// [`EdgeCurve::canonical`] for the form this crate certifies.
     pub fn description(&self) -> &EdgeGeometry<T> {
         &self.description
+    }
+
+    /// The **canonical** description (U2): D2's two intrinsic arms,
+    /// ONE conventional form, and the fenced scaffolding door.
+    ///
+    /// Handed out by reference, never by value: [`EdgeDescription`]
+    /// carries a [`crate::Pcurve`] and is therefore not `Copy` — the
+    /// deliberate resolution of the `Copy` loss (see the type's docs).
+    pub fn canonical(&self) -> &EdgeDescription<T> {
+        &self.canonical
+    }
+
+    /// The **authority record** (U2 Q3): whether a modeler DECLARED
+    /// this locus, and with what sketch source. The datum tier 3's
+    /// prefer-intrinsic rules read instead of `MappedCurve`'s
+    /// negative space.
+    pub fn authority(&self) -> EdgeAuthority<T> {
+        self.authority
     }
 
     /// The cached carrier curve (a certified derived cache, D4 ¶2).
@@ -788,8 +847,34 @@ impl<T: Real> EdgeCurve<T> {
             },
             EdgeGeometry::MappedCurve(m) => EdgeGeometry::MappedCurve(m),
         };
+        // The canonical form travels the same way and for the same
+        // reason: only handles move. The chart IMAGE is geometry
+        // stated in chart coordinates, which a bitwise re-creation of
+        // the surface leaves untouched.
+        let canonical = match self.canonical {
+            EdgeDescription::Intersection { s1, s2, witness } => EdgeDescription::Intersection {
+                s1: remap(s1)?,
+                s2: remap(s2)?,
+                witness,
+            },
+            EdgeDescription::TangentIntersection { s1, s2, witness } => {
+                EdgeDescription::TangentIntersection {
+                    s1: remap(s1)?,
+                    s2: remap(s2)?,
+                    witness,
+                }
+            }
+            EdgeDescription::Chart(ref c) => EdgeDescription::Chart(ChartCurve {
+                surface: remap(c.surface)?,
+                pcurve: c.pcurve.clone(),
+                seam: c.seam,
+            }),
+            EdgeDescription::Scaffold(m) => EdgeDescription::Scaffold(m),
+        };
         Some(Self {
             description,
+            canonical,
+            authority: self.authority,
             carrier: self.carrier.clone(),
             param_start: self.param_start,
             param_end: self.param_end,
@@ -999,7 +1084,7 @@ fn run_checks<T: Decide>(
     surfaces: &impl Fn(SurfaceKey) -> Option<Surface<T>>,
     lane: Option<NurbsLane<'_, T>>,
     band: Band,
-) -> Result<Certificate<T>, CertifyError> {
+) -> Result<(Certificate<T>, EdgeDescription<T>), CertifyError> {
     // ---- Check 1: implementedness / description well-formedness. ----
     // Rung-3 (`Nurbs`) carriers certify under an `Intersection`
     // description of two ANALYTIC surfaces — the class the curved
@@ -1056,13 +1141,25 @@ fn run_checks<T: Decide>(
             surf2: Surface<T>,
             witness: Point3<T>,
         },
-        Mapped(crate::edge_geometry::MappedCurve<T>),
-        Seam(Surface<T>),
-        Iso {
+        /// D3's fenced scaffolding door: a pushforward standing in
+        /// as a description while the edge is TRANSIENT.
+        Scaffold(crate::edge_geometry::MappedCurve<T>),
+        /// U2's ONE conventional form: the chart, its arena key, and
+        /// the chart-image data the pcurve is minted from (D4 — the
+        /// mint runs after the interval checks, so a degenerate span
+        /// still refuses in its own order).
+        Chart {
             surface: Surface<T>,
-            u: T,
-            v0: T,
-            v1: T,
+            key: SurfaceKey,
+            /// `Some((u, v0, v1))` for a caller-supplied iso image
+            /// (D4: spline charts take the image from the caller,
+            /// which every iso constructor already knows); `None` for
+            /// an analytic chart, whose image is minted here through
+            /// [`crate::chart_pcurve`].
+            iso: Option<(T, T, T)>,
+            /// D1's obligation: this edge claims to BE the chart's
+            /// seam meridian.
+            seam: bool,
         },
         /// `Intersection` of a PLANE and a described NURBS wall
         /// (M7-8): the declare-and-check lane's shape.
@@ -1113,7 +1210,7 @@ fn run_checks<T: Decide>(
                 witness,
             }
         }
-        EdgeGeometry::MappedCurve(mc) => Resolved::Mapped(mc),
+        EdgeGeometry::MappedCurve(mc) => Resolved::Scaffold(mc),
         EdgeGeometry::Seam { surface } => {
             let s = resolve(surface)?;
             // Periodicity is structural: the plane is the one
@@ -1121,13 +1218,18 @@ fn run_checks<T: Decide>(
             if matches!(s, Surface::Plane { .. }) {
                 return Err(CertifyError::SeamOnNonPeriodic);
             }
-            Resolved::Seam(s)
+            Resolved::Chart {
+                surface: s,
+                key: surface,
+                iso: None,
+                seam: true,
+            }
         }
-        EdgeGeometry::IsoCurve { surface, u, v0, v1 } => Resolved::Iso {
+        EdgeGeometry::IsoCurve { surface, u, v0, v1 } => Resolved::Chart {
             surface: resolve_iso(surface)?,
-            u,
-            v0,
-            v1,
+            key: surface,
+            iso: Some((u, v0, v1)),
+            seam: false,
         },
     };
 
@@ -1247,6 +1349,70 @@ fn run_checks<T: Decide>(
         &mut max_residual,
     )?;
 
+    // ---- The collapse (U2/D4): the canonical description. ----
+    // Minted HERE, after the interval checks and before the residual
+    // schedule, so a degenerate span still refuses in its own order
+    // and no chart image is derived from an interval the kernel has
+    // not yet accepted.
+    let canonical: EdgeDescription<T> = match spec.description {
+        EdgeGeometry::Intersection { s1, s2, witness } => {
+            EdgeDescription::Intersection { s1, s2, witness }
+        }
+        EdgeGeometry::TangentIntersection { s1, s2, witness } => {
+            EdgeDescription::TangentIntersection { s1, s2, witness }
+        }
+        EdgeGeometry::MappedCurve(mc) => EdgeDescription::Scaffold(mc),
+        EdgeGeometry::Seam { .. } | EdgeGeometry::IsoCurve { .. } => {
+            let Resolved::Chart {
+                ref surface,
+                key,
+                iso,
+                seam,
+            } = resolved
+            else {
+                // Unreachable: the two arms above are exactly the ones
+                // the resolver answers `Chart` for. Typed rather than
+                // assumed (D4 ¶2) — never a panic.
+                return Err(CertifyError::Unimplemented);
+            };
+            let pcurve = match iso {
+                // D4, the caller-supplied half: a spline chart's image
+                // IS the constructor's own iso data, exactly. `v` is
+                // affine in the carrier parameter, so the chart image
+                // is `P(t) = (u, v0 + slope·(t − t0))` written on the
+                // carrier's own parameter — the form every stored
+                // cache of this class already carries, which is what
+                // makes description and cache the same object.
+                Some((u, v0, v1)) => {
+                    let slope = (v1 - v0) / (t1 - t0);
+                    Pcurve::IsoLine {
+                        p0: Point2::new(u, v0 - slope * t0),
+                        pl: Vec2::new(T::zero(), slope),
+                    }
+                }
+                // D4, the minted half: an analytic chart's image is
+                // derived from the carrier through the one door that
+                // derives chart images anywhere in this kernel.
+                None => chart_pcurve(&spec.carrier, surface, band).map_err(|e| match e {
+                    PcurveCertifyError::Escalated { cause, .. } => CertifyError::Escalated {
+                        check: CertCheck::ChartResidual,
+                        sample: 0,
+                        cause,
+                    },
+                    // Every other refusal is a (chart, carrier) pair
+                    // outside the certified lane — the same verdict a
+                    // conventional description has always drawn there.
+                    _ => CertifyError::Unimplemented,
+                })?,
+            };
+            EdgeDescription::Chart(ChartCurve {
+                surface: key,
+                pcurve,
+                seam,
+            })
+        }
+    };
+
     // ---- Check 4: per-sample description residuals. ----
     // The transversality extent arm is the edge's honest spatial
     // extent — the chord where it is honest, the carrier-derived
@@ -1357,7 +1523,12 @@ fn run_checks<T: Decide>(
                     )?;
                 }
             }
-            Resolved::Mapped(mc) => {
+            // The fenced scaffolding arm (D3): the ONE conventional
+            // residual with no chart to state itself against, because
+            // a transient scaffolding edge has no surfaces yet. It
+            // keeps its own meter for exactly as long as the fence
+            // keeps it legal.
+            Resolved::Scaffold(mc) => {
                 let s = T::from_f64(f64::from(i) / f64::from(CERT_SAMPLES - 1));
                 check_residual(
                     "carrier_matches_mapped_source",
@@ -1368,18 +1539,36 @@ fn run_checks<T: Decide>(
                     &mut max_residual,
                 )?;
             }
-            Resolved::Seam(s) => {
+            // **U2's one conventional arm, D1's one meter.**
+            // `|C(t) − S(P(t))| ≤ ε` (C4 verbatim), on the carrier's
+            // own parameter — the same statement, the same predicate
+            // name and the same dimension as every stored pcurve
+            // cache's schedule (`pcurve_map_residual`), because it is
+            // the same statement.
+            Resolved::Chart { surface, seam, .. } => {
+                let Some(chart) = canonical.chart() else {
+                    return Err(CertifyError::Unimplemented);
+                };
+                let q = chart.pcurve.eval(sample_param(t0, t1, i));
                 check_residual(
-                    "carrier_on_seam_surface",
-                    CertCheck::SeamSurface,
+                    "pcurve_map_residual",
+                    CertCheck::ChartResidual,
                     i,
-                    Margin::of(implicit_residual(s, p)),
+                    Margin::of(p.distance(surface.eval(q.x, q.y))),
                     band,
                     &mut max_residual,
                 )?;
+                // D1's retained obligation. The unified meter cannot
+                // see the difference between a seam meridian and its
+                // antipode — both ARE chart images of the same
+                // surface, and the meter is satisfied by either — so a
+                // chart image that claims to be THE seam owes the two
+                // half-plane/side predicates as well. They are an
+                // obligation on periodic charts, never a second form.
+                //
                 // seam_frame is Some: plane and Nurbs were rejected in
                 // check 1, and every remaining kind is axisymmetric.
-                if let Some((w, u_ref, v_ref)) = seam_frame(s, p) {
+                if *seam && let Some((w, u_ref, v_ref)) = seam_frame(surface, p) {
                     check_residual(
                         "carrier_in_seam_halfplane",
                         CertCheck::SeamHalfplane,
@@ -1403,22 +1592,6 @@ fn run_checks<T: Decide>(
             // points), so it runs once after the loop rather than
             // per-sample here — see the block below check 4.
             Resolved::PlaneNurbs { .. } => {}
-            // The iso lane (M6-3): the genuinely metric residual
-            // |C(tᵢ) − S(u, v(tᵢ))| with v affine in the parameter —
-            // the same schedule fraction the Mapped arm uses, so the
-            // stated formula and the evaluated one share their bits.
-            Resolved::Iso { surface, u, v0, v1 } => {
-                let frac = T::from_f64(f64::from(i) / f64::from(CERT_SAMPLES - 1));
-                let v = *v0 + (*v1 - *v0) * frac;
-                check_residual(
-                    "carrier_on_iso_curve",
-                    CertCheck::IsoResidual,
-                    i,
-                    Margin::of(p.distance(surface.eval(*u, v))),
-                    band,
-                    &mut max_residual,
-                )?;
-            }
         }
     }
 
@@ -1583,10 +1756,13 @@ fn run_checks<T: Decide>(
         )?;
     }
 
-    Ok(Certificate {
-        samples: CERT_SAMPLES,
-        max_residual,
-    })
+    Ok((
+        Certificate {
+            samples: CERT_SAMPLES,
+            max_residual,
+        },
+        canonical,
+    ))
 }
 
 /// The plane × NURBS pairing, in either order: exactly one PLANE and
