@@ -1806,7 +1806,7 @@ mod r2_probes {
     #[cfg(feature = "interval")]
     #[test]
     fn r2_interval_seam_neighbour_widens_rather_than_misselects() {
-        use geom_core::{Bounds, interval::Interval};
+        use geom_core::{Bounds, Real, interval::Interval};
 
         let center64 = Point3::new(1.0, 2.0, 3.0);
         let carrier64 = geom::Curve3::Circle {
@@ -1879,7 +1879,7 @@ mod r2_probes {
     #[cfg(feature = "interval")]
     #[test]
     fn r2_interval_interior_points_stay_tight() {
-        use geom_core::{Bounds, interval::Interval};
+        use geom_core::{Bounds, Real, interval::Interval};
 
         let center64 = Point3::new(1.0, 2.0, 3.0);
         let carrier64 = geom::Curve3::Circle {
