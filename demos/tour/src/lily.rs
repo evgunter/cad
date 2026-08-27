@@ -1615,12 +1615,22 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         "make the stem a single body — and close #968, whose whole content this is",
     );
 
-    // 2. The flower grows OUT OF the pedicel. That weld is a
-    //    transverse curved boolean between a torus tube and a sphere
-    //    zone: the SSI the kernel has no closed form for. UNDECLARED
-    //    and TRANSVERSE, so M9-3's door — which only ever widens what
-    //    a verified DECLARATION unlocks — does not reach it; the
-    //    germ-chord lane it needs stays banked (M9-5's ruling).
+    // 2. The flower grows OUT OF the pedicel. What refuses is the
+    //    OPERAND GATE, on KINDS: `op: None` is `gate_operand_pairs`
+    //    (boolean/reduce.rs), which asks whether a boolean arm exists
+    //    for the (Cone, Torus) pair and lets boxes decide only whether
+    //    the pair can matter. No intersection is attempted, so the
+    //    refusal says nothing about how these two surfaces meet.
+    //
+    //    As AUTHORED the pair is transverse, and a transverse
+    //    curved x curved weld needs the banked germ-chord lane. But
+    //    that is a fact about this authoring, not about the pair: a
+    //    cone coaxial with the lantern axis (which IS the stem
+    //    tangent) and cut at the tube's minor radius meets the torus
+    //    in a shared CIRCLE — analytic, declarable, no SSI. Untried,
+    //    not unavailable; re-authoring it that way would make wall 2
+    //    a gate-admission question of #968's shape rather than an SSI
+    //    one. The distinction and its consequence are #1059.
     wall(
         2,
         "weld the lantern onto the arch (torus tube x sphere zone)",
