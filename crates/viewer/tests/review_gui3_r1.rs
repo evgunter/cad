@@ -513,8 +513,8 @@ fn r1_a_replayed_history_opens_at_the_tip_with_the_log_undoable() {
     let mut history = History::replayed(doc, &edits, tol).expect("the log replays");
     assert!(!history.can_redo(), "the cursor opens at the tip");
     assert!(history.can_undo());
-    assert_eq!(history.undo().is_some(), true);
-    assert_eq!(history.undo().is_some(), true);
+    assert!(history.undo().is_some());
+    assert!(history.undo().is_some());
     assert!(!history.can_undo(), "two edits, two undos, then the root");
     assert!(history.can_redo(), "and the walk back is available again");
 }
