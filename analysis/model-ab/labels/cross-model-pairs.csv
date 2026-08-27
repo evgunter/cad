@@ -1,0 +1,13 @@
+sample_no,row_id,r1_model,r2_model,r1_maj,r1_min,r1_note,r2_maj,r2_min,r2_note,r1_verdict,r2_verdict,difficulty,task_class,notes
+12,U4A-DOOR,fable,opus,0,2,NA,0,3,4,APPROVE_WITH_FIXES,APPROVE_WITH_FIXES,M-L,numeric,IN SCOPE. Models stated in row. Both 0 MAJOR; CONVERGED incl. labels; complementary tails; R1 NOTE count unstated
+17,TESS-SPAN,fable,opus,0,4,5,4,5,3,APPROVE_WITH_FIXES,APPROVE_WITH_FIXES,M-L,numeric,IN SCOPE. Models stated. LABELS DIVERGED 0 vs 4 MAJOR on substantially converged findings; 2 R2-MAJ = R1-MIN; 2 R2-alone
+19,RIM,fable,opus,0,2,3,5,4,3,APPROVE_WITH_FIXES,APPROVE_WITH_FIXES,M,unstated,IN SCOPE. Models stated. Row's difficulty cell carries no task class (VERBS lane logs it off-file); disjoint tails each real
+20,SSIFLAT,fable,opus,0,2,1,3,4,3,APPROVE,APPROVE_WITH_FIXES,M,unstated,IN SCOPE. Models stated. Labels DIVERGED with a direct judgment contradiction on idiom; no task class in the difficulty cell
+21,ASM-DEMO,fable,opus,0,3,4,3,5,3,APPROVE_WITH_FIXES,APPROVE_WITH_FIXES,M,structural,IN SCOPE. Models stated. LABELS DIVERGED 0 vs 3 MAJOR on CONVERGED substance - all three R2 MAJORs are R1 MINORs
+22,TUBEWALL,fable,opus,0,3,3,3,7,4,APPROVE_WITH_FIXES,APPROVE_WITH_FIXES,S,unstated,IN SCOPE. Models stated. Substance PARTITIONED BY REGIME; R1's review was interrupted by the 2-day model-limit outage
+23,M9-3,fable,opus,NA,NA,NA,NA,NA,NA,NA,NA,L,structural,IN SCOPE. Models stated. Both arms delivered and adjudicated but reports/counts UNRECOVERABLE (outage session loss) - missing data not zeros
+10,M8-14b,fable,opus,2,3,4,3,3,4,NOT_MERGEABLE_AS_IS,NOT_MERGEABLE_AS_IS,M,numeric(retro),EXTRA (not in the brief's scope). First cross-model pair; models stated; strong convergence on 4 executed finds
+14,M9-2-PR1,fable,opus,0,3,4,0,4,5,NA,NA,M,numeric,EXTRA. Models stated in the ordinal-42 dispatch entry; both 0 MAJOR; verdict labels not recorded in the row
+NA,RESPELL-PR2,fable,opus,NA,NA,NA,2,5,2,APPROVE_WITH_FIXES,APPROVE_WITH_FIXES,L,structural,EXTRA. Ordinal 51; the log never assigned it a sample number (numbering jumps to #17 at ordinal 54); R1 counts UNSTATED
+18,ONARC,fable,opus,2,3,6,0,6,6,NOT_MERGEABLE_AS_IS,APPROVE_WITH_FIXES,M,structural,EXTRA. Sample number not printed in the row (ordinal 57); the ONE pair where the FABLE reviewer carried the MAJORs
+24,OFFB,fable,opus,1,4,2,4,9,6,APPROVE_WITH_FIXES,APPROVE_WITH_FIXES,L,unstated,EXTRA. The twelfth cross-model pair; strongest convergence in the program; no task class in the difficulty cell

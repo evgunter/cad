@@ -1,0 +1,17 @@
+sample_no,row_id,raised_by,correspondence,other_severity,short_desc,evidence
+1,G1,R1,both_major,MAJOR,Far-end anchor declares tangency without construction,"CONVERGED on the identical MAJOR (Zero-fit far-end anchor -> executed spurious TangencyContradicted)"
+1,G1,R2,both_major,MAJOR,Far-end anchor declares tangency without construction,"CONVERGED on the identical MAJOR (Zero-fit far-end anchor -> executed spurious TangencyContradicted)"
+4,SWITCH-E,R1,both_major,MAJOR,Hole-circle naming parity ambiguous under reversal,"FULL CONVERGENCE on both MAJORs independently executed; semicircle faces silently swapped program names"
+4,SWITCH-E,R1,both_major,MAJOR,Clippy-red head: hosted interval battery never ran,"FULL CONVERGENCE on both MAJORs independently executed; clippy-red head = hosted interval battery never ran"
+4,SWITCH-E,R2,both_major,MAJOR,Hole-circle naming parity ambiguous under reversal,"FULL CONVERGENCE on both MAJORs independently executed; semicircle faces silently swapped program names"
+4,SWITCH-E,R2,both_major,MAJOR,Clippy-red head: hosted interval battery never ran,"FULL CONVERGENCE on both MAJORs independently executed; clippy-red head = hosted interval battery never ran"
+9,M8-14a,R2,severity_split,MINOR,Suite misses unsound speed-bound mutants,"the SAME gap was MINOR to R1 (by inspection) and MAJOR to R2 (by demonstration - two unsound mutants survived)"
+9,M8-14a,R2,unclear,unknown,Second R2 MAJOR not identified in the row,"R2 AWF 2/1/2 but the row names ONE divergent gap only; the second MAJOR is never described"
+13,M9-1-PR1,R1,both_major,MAJOR,Corpus carries a 0.5 m coincidence lie (op-door pass),"BOTH independently proved the reverted op-door pass RIGHT and main's corpus carrying a 0.5 m coincidence lie"
+13,M9-1-PR1,R2,both_major,MAJOR,Corpus carries a 0.5 m coincidence lie (op-door pass),"BOTH independently proved the reverted op-door pass RIGHT and main's corpus carrying a 0.5 m coincidence lie"
+13,M9-1-PR1,R1,unclear,unknown,Tangent bridge over in-band residual/opposition,"productively divergent on the Tangent bridge (R1 measured in-band residual/opposition bridging) - R2 silent"
+16,M9-2-PR2,R1,both_major,MAJOR,3-prime census validates undeclared contact silently,"R1's cradle witness and R2's containment witness both validated SILENTLY at 3' - one loud->silent regression"
+16,M9-2-PR2,R2,both_major,MAJOR,Nested-instance containment validates silently,"R1's cradle witness and R2's containment witness both validated SILENTLY at 3' - one loud->silent regression"
+16,M9-2-PR2,R1,unclear,unknown,Second R1 MAJOR not identified in the row,"R1 NOT-MERGEABLE 2/3/4+1s; row names the cradle MAJOR only - second undescribed (F3 nested tangent_locus?)"
+# zero-major-pairs: 2 (U7) 3 (U5) 5 (DOORS) 6 (U10) 7 (ASM-1) 8 (ASM-2K) 11 (RETTAIL) 15 (M9-D1) - checked - both reviewers 0 MAJOR
+# out-of-scope-checked: 10 (M8-14b) and 14 (M9-2-PR1) are CROSS-model duals; 16 (M9-2-PR2) IS same-model and its findings have now landed in the log so it is included above
