@@ -24,7 +24,11 @@ the row below) + in-place composition surgery,
 **symmetric-setback edge chamfers** (`chamfer_edges`, **plane–plane
 supports only, convex chains, open chains between fully-requested
 trivalent corners** — see the row below),
-merge_coplanar_faces, rigid transform, tessellation/STL/STEP
+merge_coplanar_faces, rigid transform, **shell / hollow** (sealed and
+opened, `topo::shell` / `topo::shell_open` — with the two reach bounds
+its own demo measured, in "Scope limits" below: the sealed arm survives
+exactly the plane-normal-to-cylinder junction, and the opened arm is
+wrong on every solid of revolution), tessellation/STL/STEP
 export, STEP import (adoption incl. recognition + tier gate).
 
 | verb | what | prerequisites / blockers (as ratified) | notes |
