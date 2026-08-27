@@ -26,9 +26,14 @@
 //! screen-space winding wgpu calls "front" — that this lane had no GPU
 //! to settle, and getting it backwards makes a closed solid vanish
 //! entirely. With a depth buffer and an opaque closed body, drawing
-//! both sides is visually identical and cannot fail that way. Turning
-//! culling on is a one-line change for whoever first runs this on real
-//! hardware.
+//! both sides is visually identical and cannot fail that way.
+//!
+//! **Scheduled, not merely noted: issue #1097** (viewer first light) owns
+//! turning it on — set `cull_mode: Some(Face::Back)`, run it, and if the
+//! solid vanishes the answer is `FrontFace::Cw` rather than `Ccw`. Whoever
+//! does it replaces this section with which one it was; the reason it is
+//! off today is ignorance, and ignorance recorded is a debt with an
+//! owner.
 
 use std::sync::Arc;
 
