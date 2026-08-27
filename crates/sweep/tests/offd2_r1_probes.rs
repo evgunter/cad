@@ -326,6 +326,14 @@ fn probe_adjacent_two_face_opening() {
 /// The opened arm on a REVOLVED body: the vessel's planar cap over
 /// cylinder walls (plane x cylinder IS routable). The acceptance only
 /// ever opens boxes; this is the first curved-walled cup.
+///
+/// **Extended after #1082**, whose transferable lesson this row IS: as
+/// first written it checked tier 3, the shell count and the volume —
+/// every one of which the wrong body satisfied — and never the rings,
+/// the genus or the mesh, so it blessed a rim carrying its own cavity
+/// counterpart's boundary as a ring for a whole milestone. A probe
+/// that checks only the quantities that are right is not evidence
+/// about the quantities that are wrong. All three are now here.
 #[test]
 fn probe_opened_vessel_cup() {
     let (r, h, t) = (1.0, 2.0, 0.2);
@@ -368,6 +376,44 @@ fn probe_opened_vessel_cup() {
                 "the vessel cup must validate"
             );
             assert_eq!(cup.shells().count(), 1, "one shell after the rim fuses");
+            // THE RINGS: one, and on the mouth plane — the rim is the
+            // annulus between the wall's two radii, not a copy of the
+            // cavity cap's own boundary laid over the designated face.
+            let rings: usize = cup.faces().map(|(_, f)| f.rings.len()).sum();
+            let mouth: Vec<FaceKey> = cup
+                .faces()
+                .filter(|(_, f)| {
+                    matches!(cup.get_surface(f.surface),
+                        Some(geom::Surface::Plane { origin, .. }) if (origin.y - h).abs() < 1e-12)
+                })
+                .map(|(k, _)| k)
+                .collect();
+            assert_eq!(mouth.len(), 1, "the mouth chart is ONE rim face");
+            assert_eq!(
+                cup.get_face(mouth[0]).expect("the rim").rings.len(),
+                1,
+                "the rim carries exactly one ring"
+            );
+            assert_eq!(rings, 1, "and that is the body's only ring");
+            // THE GENUS: `topo::shell`'s own docs say a cup is 0.
+            let (v, e, f) = (
+                cup.vertices().count() as i64,
+                cup.edges().count() as i64,
+                cup.faces().count() as i64,
+            );
+            let chi = v - e + f - rings as i64;
+            assert!(chi % 2 == 0, "v - e + f - r = {chi} is ODD");
+            assert_eq!(
+                cup.shells().count() as i64 - chi / 2,
+                0,
+                "one opening gives a cup, which is genus 0"
+            );
+            // THE MESH: the consumer that discovered #1082, run here.
+            for delta in [1e-2, 1e-3] {
+                mesh::tessellate(&cup, delta, Tol::witness()).unwrap_or_else(|err| {
+                    panic!("the vessel cup must triangulate at delta = {delta}, got {err:?}")
+                });
+            }
             let props = topo::mass_properties(&cup, Tol::witness()).expect("props");
             let want = core::f64::consts::PI * (r * r * h - (r - t) * (r - t) * (h - t));
             assert!(
@@ -377,7 +423,7 @@ fn probe_opened_vessel_cup() {
                 props.volume_pad
             );
             println!(
-                "[probe] vessel cup: Ok and coherent (volume {})",
+                "[probe] vessel cup: Ok and coherent (volume {}, rings {rings})",
                 props.volume
             );
         }

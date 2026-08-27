@@ -85,14 +85,18 @@
 //!
 //! 1. the sealed shell, exactly as above — so the evidence handed to
 //!    the void door is the strict one, before anything is opened;
-//! 2. per designated face, its CAVITY counterpart offset back OUTWARD
+//! 2. per designated CHART, its CAVITY counterpart offset back OUTWARD
 //!    by `t` ([`crate::replace_face_offset`] again), which lands it on
 //!    the designated face's own surface and — because the door
 //!    re-describes a moved face's boundary against its untouched
 //!    neighbours — extends the cavity's side walls up to meet it;
-//! 3. `kfmrh` on the pair: the cavity counterpart dies, its outer loop
+//! 3. both charts reduced to ONE face carrying disjoint cycles
+//!    ([`canonicalize_chart`]);
+//! 4. `kfmrh` on the pair: the cavity counterpart dies, its outer loop
 //!    becomes a RING of the designated face, and the cavity shell fuses
-//!    into the outer one.
+//!    into the outer one. A counterpart HOLE is promoted to its own rim
+//!    face first (`mfkrh`) and collects the designated face's matching
+//!    hole after (`ring_move`).
 //!
 //! The result is a CLOSED thin solid with one shell: the designated
 //! face is now annular — the rim, where the wall thickness shows.
@@ -104,13 +108,37 @@
 //! band precedent verbatim; no new machinery, and in particular no
 //! ladder of quads (which would chamfer the opening rather than rim
 //! it — the geometry that made step 2 necessary).
+//!
+//! # Why step 3 exists, and what the arm is expressible over
+//!
+//! The glue's only output shape is "one region per face, an outer loop
+//! plus rings", so a designated face is safe exactly when its cavity
+//! counterpart's boundary can become an INTERIOR-DISJOINT ring of it.
+//! A revolve's chart does not arrive that way: a full revolve of an
+//! axis-touching profile splits the cap into two half-discs meeting at
+//! the axis apex, and a full revolve of a closed off-axis profile
+//! leaves the annular cap SLIT along a radial seam. Gluing onto either
+//! puts the counterpart's boundary ON the designated face's own —
+//! sharing the apex, running back along the seam — and the result is a
+//! body every structural tier blesses and no triangulator accepts.
+//!
+//! Both are facts about how the operand was swept rather than about
+//! the region, and step 3 removes them through the Euler doors alone
+//! (`kef`, `kev`, `kemr`). What survives step 3 is genuinely about the
+//! region and is refused typed
+//! ([`ShellError::OpenFaceRimNotExpressible`]): a chart whose faces are
+//! not one region, a counterpart boundary that still meets the
+//! designated face's, or more than one hole to pair. The invariant is
+//! stated once more at rest by tier 3's check 9
+//! ([`ValidationError::RingMeetsOuter`]), so a ring standing on its own
+//! outer loop is loud wherever it is minted and not only here.
 
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Indeterminate, Margin, Real, Sign, Tol};
 
 use crate::body::Body;
 use crate::boolean::voids::{VoidContainment, VoidEvidence, VoidInsertError, insert_void};
-use crate::entity::{EntityId, FaceKey, LoopBoundary, ShellKey, SolidKey};
+use crate::entity::{EntityId, FaceKey, HalfEdgeKey as HeKey, LoopBoundary, ShellKey, SolidKey};
 use crate::euler::EulerOpError;
 use crate::props::PropsQuadLane;
 use crate::replace_face::ReplaceFaceError;
@@ -252,6 +280,25 @@ pub enum ShellError<T: Real> {
         /// The door's typed refusal, verbatim.
         error: VoidInsertError,
     },
+    /// **The rim the designation asks for is not expressible.** The
+    /// surgery's only output shape is "one region per face, bounded by
+    /// an outer loop and disjoint rings", and the rim of this
+    /// designated face is not that: either the chart could not be
+    /// reduced to one such face, or the cavity counterpart's boundary
+    /// meets the designated face's own boundary rather than sitting
+    /// strictly inside it, or the two boundaries' holes do not
+    /// correspond.
+    ///
+    /// Refused rather than answered wrongly — a body whose face
+    /// carries a ring standing on its own outer loop passes every
+    /// structural tier and then refuses to tessellate, which is the
+    /// class this refusal closes at the door.
+    OpenFaceRimNotExpressible {
+        /// The designated face.
+        face: FaceKey,
+        /// Which of the shapes above it is.
+        what: &'static str,
+    },
     /// The rim surgery's Euler step refused.
     Rim {
         /// The designated face whose rim could not be minted.
@@ -319,6 +366,12 @@ impl<T: Real> core::fmt::Display for ShellError<T> {
                 "shell: {face:?} was designated open but {other:?} shares its chart and was not \
                  — the rim surgery lifts a chart as one, so a partial designation has no \
                  coherent lift"
+            ),
+            Self::OpenFaceRimNotExpressible { face, what } => write!(
+                f,
+                "shell: the rim for {face:?} is not expressible as this surgery's output shape \
+                 (one region per face, an outer loop plus disjoint rings): {what}. Nothing is \
+                 built"
             ),
             Self::Lift { face, error } => write!(
                 f,
@@ -531,79 +584,528 @@ pub fn shell_open<T: Decide + PropsQuadLane>(
 
     // ---- The rim surgery, per designated CHART. ----
     //
-    // Per chart rather than per face because the lift goes through the
-    // GROUP door: a full revolve's cap is two faces on one plane, and
-    // a chart moves as one or not at all. The designation gate above
-    // has already refused a chart that was only half designated, so
-    // every counterpart chart here is exactly the designated faces'.
-    let mut lifted: Vec<crate::geometry::SurfaceKey> = Vec::new();
-    for &outer_face in open_faces {
-        let rim_source = inserted.face(outer_face).ok_or(ShellError::Corrupt {
-            key: EntityId::Face(outer_face),
-        })?;
+    // Per chart, ONCE — not once per designated face. The rim a
+    // designation asks for is one region of the mouth plane, and how
+    // many faces the operand spent on that region is a fact about the
+    // operand's construction (a full revolve's seam) rather than about
+    // the rim. Both sides of the glue are reduced to one face carrying
+    // proper, mutually disjoint loops first
+    // ([`canonicalize_chart`]) — which is exactly the condition that
+    // makes the counterpart's boundary an interior-disjoint RING of
+    // the designated face instead of a second copy of its own seam.
+    //
+    // The grouping is read ONCE, before any surgery: a chart's faces
+    // merge into one, so a designation read after its own chart's turn
+    // would name a key that no longer resolves.
+    let mut charts: Vec<(crate::geometry::SurfaceKey, Vec<FaceKey>)> = Vec::new();
+    for &designated in open_faces {
+        let chart = out
+            .get_face(designated)
+            .ok_or(ShellError::Corrupt {
+                key: EntityId::Face(designated),
+            })?
+            .surface;
+        match charts.iter_mut().find(|(key, _)| *key == chart) {
+            Some((_, faces)) => faces.push(designated),
+            None => charts.push((chart, vec![designated])),
+        }
+    }
+    for (_, group) in charts {
+        let designated = group[0];
+        let sources: Vec<FaceKey> = group
+            .iter()
+            .map(|&f| {
+                inserted.face(f).ok_or(ShellError::Corrupt {
+                    key: EntityId::Face(f),
+                })
+            })
+            .collect::<Result<_, _>>()?;
+
         // Lift the cavity's counterpart chart back onto the designated
         // face's own surface. The distance is read from the two PLANES
         // rather than negated from the way in: the graft's reversal
         // negates a stored plane normal (`revert`'s own contract), so
         // "the way back" is not the arithmetic negation of "the way
         // in", and deriving it from geometry is shorter and sign-safe.
-        let chart = out
-            .get_face(rim_source)
+        let counterpart_chart = out
+            .get_face(sources[0])
             .ok_or(ShellError::Corrupt {
-                key: EntityId::Face(rim_source),
+                key: EntityId::Face(sources[0]),
             })?
             .surface;
-        if !lifted.contains(&chart) {
-            let group: Vec<FaceKey> = out
-                .faces()
-                .filter(|(_, f)| f.surface == chart)
-                .map(|(k, _)| k)
-                .collect();
-            let back = lift_to(&out, rim_source, outer_face)?;
-            crate::replace_faces_offset(&mut out, &group, back, tolerance, band, tol).map_err(
-                |error| ShellError::Lift {
-                    face: outer_face,
-                    error: Box::new(error),
-                },
-            )?;
-            // Read AFTER the lift: `FaceSurface::New` minted a fresh key
-            // for the moved chart, and that key — not the one the graft
-            // brought in — is what the ring's descriptions now name.
-            lifted.push(
-                out.get_face(rim_source)
-                    .ok_or(ShellError::Corrupt {
-                        key: EntityId::Face(rim_source),
-                    })?
-                    .surface,
-            );
-        }
+        let lift_group: Vec<FaceKey> = out
+            .faces()
+            .filter(|(_, f)| f.surface == counterpart_chart)
+            .map(|(k, _)| k)
+            .collect();
+        let back = lift_to(&out, sources[0], designated)?;
+        crate::replace_faces_offset(&mut out, &lift_group, back, tolerance, band, tol).map_err(
+            |error| ShellError::Lift {
+                face: designated,
+                error: Box::new(error),
+            },
+        )?;
+        // Read AFTER the lift: `FaceSurface::New` minted a fresh key
+        // for the moved chart, and that key — not the one the graft
+        // brought in — is what the ring's descriptions now name.
         let dead_surface = out
-            .get_face(rim_source)
+            .get_face(sources[0])
             .ok_or(ShellError::Corrupt {
-                key: EntityId::Face(rim_source),
+                key: EntityId::Face(sources[0]),
             })?
             .surface;
-        // The connected sum: the counterpart dies, its outer loop
-        // becomes the designated face's RING, and the cavity shell
-        // fuses into the outer one (the first pair does the fusion;
-        // any further pair is same-shell genus surgery).
-        let fused = out
-            .kfmrh(outer_face, rim_source)
-            .map_err(|error| ShellError::Rim {
-                face: outer_face,
-                error,
+
+        // One face per side, loops disjoint.
+        let rim = canonicalize_chart(&mut out, &group, band)?;
+        let source = canonicalize_chart(&mut out, &sources, band)?;
+        let (rim_surface, rim_sense) = {
+            let data = out.get_face(rim).ok_or(ShellError::Corrupt {
+                key: EntityId::Face(rim),
             })?;
+            (data.surface, data.sense)
+        };
+
+        // The counterpart's rings are the counterparts of the
+        // designated face's OWN rings — an annular mouth's correct rim
+        // is not one region but one per hole plus one for the outer
+        // boundary, and a face is one region. Each counterpart ring is
+        // therefore promoted to the outer loop of its own rim face
+        // BEFORE the glue (which requires a ring-free counterpart),
+        // and after the glue takes the designated face's matching ring
+        // with it.
+        let pairs = pair_rings(&out, rim, source, band)?;
+        let mut promoted: Vec<(FaceKey, crate::entity::LoopKey)> = Vec::new();
+        for &(source_ring, rim_ring) in &pairs {
+            let made = out
+                .mfkrh(source_ring, crate::euler::FaceSurface::Shared(rim_surface))
+                .map_err(|error| ShellError::Rim {
+                    face: designated,
+                    error,
+                })?;
+            out.set_face_sense(made.face, rim_sense)
+                .map_err(|error| ShellError::Rim {
+                    face: designated,
+                    error,
+                })?;
+            rename_loop_surface(&mut out, source_ring, dead_surface, rim_surface, tol, rim)?;
+            promoted.push((made.face, rim_ring));
+        }
+
+        // The counterpart's boundary must now be an interior-disjoint
+        // ring of the rim — the invariant the validator states as
+        // check 9. Refused HERE, naming the shape, rather than left to
+        // arrive as a generic at-rest report on a body already built.
+        let source_outer = out
+            .get_face(source)
+            .ok_or(ShellError::Corrupt {
+                key: EntityId::Face(source),
+            })?
+            .outer;
+        let rim_outer = out
+            .get_face(rim)
+            .ok_or(ShellError::Corrupt {
+                key: EntityId::Face(rim),
+            })?
+            .outer;
+        if crate::validate::ring_outer_contact(&out, rim_outer, source_outer, band, tol).is_some() {
+            return Err(ShellError::OpenFaceRimNotExpressible {
+                face: designated,
+                what: "the cavity counterpart's boundary meets the designated face's own \
+                       boundary, so it cannot become an interior-disjoint ring of it",
+            });
+        }
+
+        // The connected sum: the counterpart dies, its outer loop
+        // becomes the rim's RING, and the cavity shell fuses into the
+        // outer one (the first chart does the fusion; any further
+        // chart is same-shell genus surgery).
+        let fused = out.kfmrh(rim, source).map_err(|error| ShellError::Rim {
+            face: designated,
+            error,
+        })?;
         // The ring's edges still NAME the surface that just died. They
         // lie on the rim's surface now — the lift put the two planes on
         // top of each other — so the re-description is a key swap with
         // the carrier untouched, and the attach layer certifies it
         // against the geometry rather than taking the swap on trust.
-        rename_ring_surface(&mut out, fused.ring, dead_surface, outer_face, tol)?;
+        rename_loop_surface(&mut out, fused.ring, dead_surface, rim_surface, tol, rim)?;
+        // Each promoted rim face takes its matching hole with it: the
+        // fusion put every face in one shell, which is `ring_move`'s
+        // precondition.
+        for (face, rim_ring) in promoted {
+            out.ring_move(rim_ring, face)
+                .map_err(|error| ShellError::Rim {
+                    face: designated,
+                    error,
+                })?;
+        }
     }
 
     // ---- One validation. ----
     validate_geometric(&out, tol).map_err(|errors| ShellError::NotValid { errors })?;
     Ok(out)
+}
+
+/// **One face per chart, loops disjoint** — the shape the rim glue's
+/// only output form needs on both sides of it.
+///
+/// A chart arrives from a revolve carrying that construction's seam:
+/// an axis-touching cap is TWO faces meeting along a diameter, and an
+/// annular cap is one face slit radially, its loop walking the seam
+/// edge in both directions. Neither is a fact about the region — both
+/// are facts about how the operand was swept — and both are exactly
+/// what makes a counterpart's boundary land ON the designated face's
+/// boundary instead of strictly inside it. This reduces them, through
+/// the Euler doors and nothing else:
+///
+/// 1. the chart's faces merge across the edges only they share
+///    (`kef`), leaving the merged loop walking each killed edge's
+///    surviving partner twice;
+/// 2. a SPUR — such a duplicate whose far vertex the merge left with
+///    one edge on it, the axis apex of a revolved cap — dies with that
+///    vertex (`kev`);
+/// 3. a SLIT — a duplicate still anchored at both ends, an annular
+///    cap's radial seam — splits the loop in two (`kemr`), the
+///    inner side becoming the ring it always was.
+///
+/// Returns the surviving face. A chart this cannot reduce refuses
+/// typed rather than gluing onto a shape it does not have.
+fn canonicalize_chart<T: Decide>(
+    body: &mut Body<T>,
+    faces: &[FaceKey],
+    band: Band,
+) -> Result<FaceKey, ShellError<T>> {
+    let anchor = *faces.first().ok_or(ShellError::Corrupt {
+        key: EntityId::Face(FaceKey::default()),
+    })?;
+    let not_expressible =
+        |what: &'static str| ShellError::OpenFaceRimNotExpressible { face: anchor, what };
+
+    // ---- 1: one face. ----
+    let mut alive: Vec<FaceKey> = faces.to_vec();
+    while alive.len() > 1 {
+        let edges: Vec<crate::entity::EdgeKey> = body.edges().map(|(k, _)| k).collect();
+        let mut acted = false;
+        for edge in edges {
+            let Some((fp, fm)) = edge_faces(body, edge) else {
+                continue;
+            };
+            if fp == fm || !alive.contains(&fp) || !alive.contains(&fm) {
+                continue;
+            }
+            let data = body.get_edge(edge).ok_or(ShellError::Corrupt {
+                key: EntityId::Edge(edge),
+            })?;
+            // `kef` kills the face of the half-edge it is given, and
+            // refuses a dying face that carries rings.
+            let ring_free =
+                |body: &Body<T>, f: FaceKey| body.get_face(f).is_some_and(|d| d.rings.is_empty());
+            let (dying, he) = if fm != anchor && ring_free(body, fm) {
+                (fm, data.he_minus)
+            } else if fp != anchor && ring_free(body, fp) {
+                (fp, data.he_plus)
+            } else {
+                continue;
+            };
+            body.kef(he).map_err(|error| ShellError::Rim {
+                face: anchor,
+                error,
+            })?;
+            alive.retain(|&f| f != dying);
+            acted = true;
+            break;
+        }
+        if !acted {
+            return Err(not_expressible(
+                "the designated chart's faces do not merge into one region through the edges \
+                 they share",
+            ));
+        }
+    }
+
+    // ---- 2 and 3: proper loops. ----
+    while let Some((r#loop, he1, he2)) = duplicate_in_loop(body, anchor) {
+        let far = |he| body.half_edge_end(he);
+        if far(he1).is_some_and(|v| valence(body, v) == 1) {
+            body.kev(he1).map_err(|error| ShellError::Rim {
+                face: anchor,
+                error,
+            })?;
+            continue;
+        }
+        if far(he2).is_some_and(|v| valence(body, v) == 1) {
+            body.kev(he2).map_err(|error| ShellError::Rim {
+                face: anchor,
+                error,
+            })?;
+            continue;
+        }
+        // The slit's two sides, in cycle order: the run strictly after
+        // `he1` up to `he2`, and the run strictly after `he2` up to
+        // `he1`. `kemr` makes its FIRST argument's side the ring, so
+        // the argument order is the role assignment, decided by which
+        // side the other encloses.
+        let (side1, side2) = split_cycle(body, r#loop, he1, he2)
+            .ok_or_else(|| not_expressible("the chart's slit loop does not split in two"))?;
+        let (p1, p2) = (
+            half_edge_points(body, &side1),
+            half_edge_points(body, &side2),
+        );
+        let ring_first = if encloses(&p1, &p2, band) {
+            true
+        } else if encloses(&p2, &p1, band) {
+            false
+        } else {
+            return Err(not_expressible(
+                "the chart's slit loop splits into two sides neither of which encloses the \
+                 other, so neither is the hole",
+            ));
+        };
+        let (a, b) = if ring_first { (he1, he2) } else { (he2, he1) };
+        let made = body.kemr(a, b).map_err(|error| ShellError::Rim {
+            face: anchor,
+            error,
+        })?;
+        // The role assignment is verified, not assumed: the ring must
+        // be the enclosed side.
+        let (ring_pts, outer_pts) = {
+            let outer = body
+                .get_face(anchor)
+                .ok_or(ShellError::Corrupt {
+                    key: EntityId::Face(anchor),
+                })?
+                .outer;
+            (loop_points(body, made.ring), loop_points(body, outer))
+        };
+        if !encloses(&ring_pts, &outer_pts, band) {
+            return Err(not_expressible(
+                "the chart's slit loop split with the enclosing side as the ring",
+            ));
+        }
+    }
+    Ok(anchor)
+}
+
+/// Pair the cavity counterpart's hole with the designated face's own.
+///
+/// A designated face's rim is one region per BOUNDARY the counterpart
+/// sits inside: the annulus between the two outer loops, plus one
+/// annulus per hole. This returns the `(source_ring, rim_ring)`
+/// correspondence those extra regions need.
+///
+/// **Scope, stated rather than implied**: zero or ONE hole. A
+/// designated face with two or more holes has a pairing this door does
+/// not derive — the enclosure question stops being the single
+/// comparison below — and refuses typed rather than guessing at it.
+fn pair_rings<T: Decide>(
+    body: &Body<T>,
+    rim: FaceKey,
+    source: FaceKey,
+    band: Band,
+) -> Result<Vec<(crate::entity::LoopKey, crate::entity::LoopKey)>, ShellError<T>> {
+    let rings_of = |face: FaceKey| -> Result<Vec<crate::entity::LoopKey>, ShellError<T>> {
+        Ok(body
+            .get_face(face)
+            .ok_or(ShellError::Corrupt {
+                key: EntityId::Face(face),
+            })?
+            .rings
+            .clone())
+    };
+    let rim_rings = rings_of(rim)?;
+    let source_rings = rings_of(source)?;
+    let not_expressible =
+        |what: &'static str| ShellError::OpenFaceRimNotExpressible { face: rim, what };
+    match (&rim_rings[..], &source_rings[..]) {
+        ([], []) => Ok(Vec::new()),
+        ([rim_ring], [source_ring]) => {
+            if encloses(
+                &loop_points(body, *source_ring),
+                &loop_points(body, *rim_ring),
+                band,
+            ) {
+                Err(not_expressible(
+                    "the designated face's hole does not sit inside the cavity counterpart's",
+                ))
+            } else if encloses(
+                &loop_points(body, *rim_ring),
+                &loop_points(body, *source_ring),
+                band,
+            ) {
+                Ok(vec![(*source_ring, *rim_ring)])
+            } else {
+                Err(not_expressible(
+                    "the designated face's hole and the cavity counterpart's do not nest",
+                ))
+            }
+        }
+        _ => Err(not_expressible(
+            "the designated face and its cavity counterpart do not each carry the same single \
+             hole, and this door pairs no more than one",
+        )),
+    }
+}
+
+/// The two faces an edge separates.
+fn edge_faces<T: Real>(body: &Body<T>, edge: crate::entity::EdgeKey) -> Option<(FaceKey, FaceKey)> {
+    let data = body.get_edge(edge)?;
+    let face_of =
+        |he| -> Option<FaceKey> { Some(body.get_loop(body.get_half_edge(he)?.parent_loop)?.face) };
+    Some((face_of(data.he_plus)?, face_of(data.he_minus)?))
+}
+
+/// A loop of `face` that walks one edge in BOTH directions, with the
+/// two halves in cycle order — the seam remnant a chart merge leaves,
+/// and the slit a full revolve of a closed profile is born with.
+fn duplicate_in_loop<T: Real>(
+    body: &Body<T>,
+    face: FaceKey,
+) -> Option<(crate::entity::LoopKey, HeKey, HeKey)> {
+    let data = body.get_face(face)?;
+    for r#loop in core::iter::once(data.outer).chain(data.rings.iter().copied()) {
+        let LoopBoundary::Cycle { first } = body.get_loop(r#loop)?.boundary else {
+            continue;
+        };
+        let cycle = body.loop_cycle(first)?;
+        for (i, &he1) in cycle.iter().enumerate() {
+            let e1 = body.get_half_edge(he1)?.edge;
+            for &he2 in &cycle[i + 1..] {
+                if body.get_half_edge(he2)?.edge == e1 {
+                    return Some((r#loop, he1, he2));
+                }
+            }
+        }
+    }
+    None
+}
+
+/// The two runs a loop's cycle falls into when `he1` and `he2` are
+/// removed: the halves strictly after `he1` up to `he2`, and the
+/// halves strictly after `he2` up to `he1`.
+fn split_cycle<T: Real>(
+    body: &Body<T>,
+    r#loop: crate::entity::LoopKey,
+    he1: HeKey,
+    he2: HeKey,
+) -> Option<(Vec<HeKey>, Vec<HeKey>)> {
+    let LoopBoundary::Cycle { first } = body.get_loop(r#loop)?.boundary else {
+        return None;
+    };
+    let cycle = body.loop_cycle(first)?;
+    let i = cycle.iter().position(|&he| he == he1)?;
+    let j = cycle.iter().position(|&he| he == he2)?;
+    let (lo, hi) = if i < j { (i, j) } else { (j, i) };
+    let between: Vec<HeKey> = cycle[lo + 1..hi].to_vec();
+    let around: Vec<HeKey> = cycle[hi + 1..]
+        .iter()
+        .chain(&cycle[..lo])
+        .copied()
+        .collect();
+    if i < j {
+        Some((between, around))
+    } else {
+        Some((around, between))
+    }
+}
+
+/// How many edges emanate from a vertex.
+fn valence<T: Real>(body: &Body<T>, vertex: crate::entity::VertexKey) -> usize {
+    body.get_vertex(vertex)
+        .and_then(|d| d.emanating)
+        .and_then(|he| body.vertex_orbit(he))
+        .map_or(0, |orbit| orbit.len())
+}
+
+/// Sampled points along a run of half-edges — each edge at the
+/// certification schedule's own parameters, so a full-period arc is
+/// read as the arc rather than as its (collapsed) chord.
+fn half_edge_points<T: Decide>(body: &Body<T>, run: &[HeKey]) -> Vec<geom_core::Point3<T>> {
+    let mut out = Vec::new();
+    for &he in run {
+        let Some(geom) = body
+            .get_half_edge(he)
+            .and_then(|h| body.get_edge(h.edge))
+            .and_then(|e| body.get_curve_geom(e.curve))
+            .and_then(crate::null::CurveGeom::certified)
+        else {
+            continue;
+        };
+        for i in 0..=8 {
+            out.push(geom.carrier().eval(geom.sample_param(i)));
+        }
+    }
+    out
+}
+
+/// [`half_edge_points`] over a whole loop.
+fn loop_points<T: Decide>(
+    body: &Body<T>,
+    r#loop: crate::entity::LoopKey,
+) -> Vec<geom_core::Point3<T>> {
+    let Some(LoopBoundary::Cycle { first }) = body.get_loop(r#loop).map(|l| l.boundary) else {
+        return Vec::new();
+    };
+    let Some(cycle) = body.loop_cycle(first) else {
+        return Vec::new();
+    };
+    half_edge_points(body, &cycle)
+}
+
+/// Whether `inner` is the ENCLOSED one of two nested coplanar loops,
+/// by mean radius about the pair's common centroid.
+///
+/// The comparison is a mean radius and not a containment proof, and
+/// that is exactly the claim the callers need: the loops compared here
+/// are always the two boundaries ONE offset produced from the other —
+/// a slit chart's two sides, or a hole and its own offset — so they
+/// are concentric by construction and the mean radius is their nesting
+/// order. Anything else refuses typed at the call site rather than
+/// being read off this. One margin, one decide, metered as the length
+/// it is.
+fn encloses<T: Decide>(
+    inner: &[geom_core::Point3<T>],
+    outer: &[geom_core::Point3<T>],
+    band: Band,
+) -> bool {
+    if inner.is_empty() || outer.is_empty() {
+        return false;
+    }
+    let centre = centroid_of(&[inner, outer]);
+    let gap = mean_radius(outer, centre) - mean_radius(inner, centre);
+    matches!(
+        decide("shell_rim_nesting", Margin::of(gap), band),
+        Ok(Sign::Positive)
+    )
+}
+
+/// The centroid of several point runs, accumulated from the first
+/// point so the sum stays local to the geometry's own scale.
+fn centroid_of<T: Real>(runs: &[&[geom_core::Point3<T>]]) -> geom_core::Point3<T> {
+    let base = runs
+        .iter()
+        .find_map(|run| run.first().copied())
+        .unwrap_or(geom_core::Point3::new(T::zero(), T::zero(), T::zero()));
+    let mut sum = geom_core::Vec3::new(T::zero(), T::zero(), T::zero());
+    let mut n = 0usize;
+    for run in runs {
+        for p in *run {
+            sum = sum + (*p - base);
+            n += 1;
+        }
+    }
+    if n == 0 {
+        return base;
+    }
+    base + sum / T::from_f64(n as f64)
+}
+
+/// The mean distance of a point run from `centre`.
+fn mean_radius<T: Real>(points: &[geom_core::Point3<T>], centre: geom_core::Point3<T>) -> T {
+    let mut sum = T::zero();
+    for p in points {
+        sum = sum + (*p - centre).norm();
+    }
+    sum / T::from_f64(points.len() as f64)
 }
 
 /// The signed distance along `from`'s chart normal that lands it on
@@ -627,20 +1129,19 @@ fn lift_to<T: Real>(body: &Body<T>, from: FaceKey, onto: FaceKey) -> Result<T, S
     Ok((o_onto - o_from).dot(n_from))
 }
 
-/// Re-points every description on `ring` that names `dead` at `rim`'s
-/// surface, re-certifying each through the attach layer.
-fn rename_ring_surface<T: Decide>(
+/// Re-points every description on `r#loop` that names `dead` at
+/// `live`, re-certifying each through the attach layer. `rim` names
+/// the designated face in any refusal and is otherwise unread.
+fn rename_loop_surface<T: Decide>(
     body: &mut Body<T>,
-    ring: crate::entity::LoopKey,
+    r#loop: crate::entity::LoopKey,
     dead: crate::geometry::SurfaceKey,
-    rim: FaceKey,
+    live: crate::geometry::SurfaceKey,
     tol: Tol,
+    rim: FaceKey,
 ) -> Result<(), ShellError<T>> {
     let corrupt = |key| ShellError::Corrupt { key };
-    let live = body
-        .get_face(rim)
-        .ok_or_else(|| corrupt(EntityId::Face(rim)))?
-        .surface;
+    let ring = r#loop;
     let LoopBoundary::Cycle { first } = body
         .get_loop(ring)
         .ok_or_else(|| corrupt(EntityId::Loop(ring)))?

@@ -684,6 +684,24 @@ pub enum ValidationError {
         /// The pcurve pass's typed finding.
         finding: crate::pcurves::PcurveMintError,
     },
+    /// **Tier 3, check 9.** A face's RING meets its own OUTER loop: it
+    /// shares a vertex position with it, or one of its edges runs
+    /// along one of the outer loop's. A ring states "the region this
+    /// face trims has a hole strictly inside it"; a ring that touches
+    /// the outer boundary states no such region, and every consumer
+    /// that reads the trim — the CDT above all — is entitled to refuse
+    /// it. The two loops are compared by POSITION, not by key: the
+    /// shapes this catches are minted by surgeries that copy a
+    /// boundary, so the copy's vertices and edges are fresh keys
+    /// standing on the original's geometry.
+    RingMeetsOuter {
+        /// The face whose two loops meet.
+        face: FaceKey,
+        /// The ring.
+        ring: LoopKey,
+        /// What the contact is, and which entities carry it.
+        contact: RingContact,
+    },
     /// Tier 3′ (M3 PR 6a): the global coincidence census found a
     /// position coincidence between distinct entities that no declared
     /// contact record backs (directly, or via the D3 segment
@@ -1550,11 +1568,66 @@ impl fmt::Display for ValidationError {
                  unconsumed surgery transients)"
             ),
             Self::Pcurve { finding } => write!(f, "tier 3: {finding}"),
+            Self::RingMeetsOuter {
+                face,
+                ring,
+                contact,
+            } => write!(
+                f,
+                "tier 3: ring {ring:?} of {face:?} meets that face's own outer loop ({contact}) \
+                 — a ring is a hole strictly inside the region its face trims, and one that \
+                 touches the outer boundary trims no region at all"
+            ),
         }
     }
 }
 
 impl std::error::Error for ValidationError {}
+
+/// How a ring meets its face's outer loop
+/// ([`ValidationError::RingMeetsOuter`]) — the two shapes the
+/// position comparison can find.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RingContact {
+    /// A vertex of the ring stands on a vertex of the outer loop.
+    Vertex {
+        /// The ring's vertex.
+        ring_vertex: VertexKey,
+        /// The outer loop's vertex it stands on.
+        outer_vertex: VertexKey,
+    },
+    /// An edge of the ring runs ALONG an edge of the outer loop —
+    /// sampled interior points of the ring's edge all lie on the outer
+    /// edge's trimmed carrier, so the two share a positive-length arc
+    /// rather than meeting at a point.
+    Edge {
+        /// The ring's edge.
+        ring_edge: EdgeKey,
+        /// The outer loop's edge it runs along.
+        outer_edge: EdgeKey,
+    },
+}
+
+impl fmt::Display for RingContact {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Vertex {
+                ring_vertex,
+                outer_vertex,
+            } => write!(
+                f,
+                "{ring_vertex:?} stands on the outer loop's {outer_vertex:?}"
+            ),
+            Self::Edge {
+                ring_edge,
+                outer_edge,
+            } => write!(
+                f,
+                "{ring_edge:?} runs along the outer loop's {outer_edge:?}"
+            ),
+        }
+    }
+}
 
 /// Counts one resolved reference to `key` (dangling keys never reach
 /// here). `SecondaryMap` rather than a hash map: typed per key kind and
@@ -2600,7 +2673,231 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
         errors.push(ValidationError::Pcurve { finding });
     }
 
+    // ------------------------------------------------------------------
+    // Tier 3, check 9: ring-vs-outer disjointness. A ring is the
+    // statement "this face's region has a hole strictly inside it", so
+    // a ring that stands on the outer loop — sharing a vertex position
+    // with it, or running along one of its edges — is not a trim of
+    // any region. Nothing else in this battery sees it: every loop
+    // stays a simple, consistently wound cycle, the Euler count is
+    // whatever the surgery made it, and the volume flux is computed
+    // from the same windings. It is the CDT downstream that discovers
+    // the body is not triangulable, which is a consumer reporting a
+    // producer's bug.
+    //
+    // Compared by POSITION, not by key: the shape this exists to catch
+    // is minted by a surgery that copies a boundary and re-labels the
+    // copy as a ring, so the copy carries fresh vertex and edge keys
+    // standing on the original's geometry. Ungated on the volume
+    // check — a loop contact is local evidence about one face.
+    //
+    // **What the overlap arm can and cannot match** (D4 honesty): the
+    // sampled ring-edge points are tested against the outer edge's
+    // TRIMMED carrier in closed form, which is implemented for `Line`
+    // and `Circle`. An overlap carried by an ellipse or a NURBS edge
+    // is not matched and is a recorded residue; the vertex arm is
+    // kind-agnostic and covers every kind.
+    // ------------------------------------------------------------------
+    for (face_key, face) in body.faces.iter() {
+        for &ring in &face.rings {
+            if let Some(contact) = ring_outer_contact(body, face.outer, ring, band, tol) {
+                errors.push(ValidationError::RingMeetsOuter {
+                    face: face_key,
+                    ring,
+                    contact,
+                });
+            }
+        }
+    }
+
     errors
+}
+
+/// The first contact between `ring` and the outer loop `outer` of the
+/// same face — a shared vertex POSITION, else a ring edge running
+/// along an outer edge — or `None` when the two loops are disjoint as
+/// far as this predicate can see (check 9's residue note).
+///
+/// Shared with the shell verb, which runs it as a PRECONDITION of the
+/// rim glue so the refusal names the shape rather than arriving as a
+/// generic at-rest report.
+pub(crate) fn ring_outer_contact<T: Decide>(
+    body: &Body<T>,
+    outer: LoopKey,
+    ring: LoopKey,
+    band: Band,
+    tol: Tol,
+) -> Option<RingContact> {
+    let eps = T::from_f64(tol.eps());
+    let ring_cycle = loop_cycle_of(body, ring)?;
+    let outer_cycle = loop_cycle_of(body, outer)?;
+
+    // ---- The vertex arm: a ring vertex standing on an outer one. ----
+    //
+    // Kind-agnostic: it reads points, so no carrier kind is exempt.
+    for &rhe in &ring_cycle {
+        let Some(rv) = body.half_edges.get(rhe).map(|h| h.start) else {
+            continue;
+        };
+        let Some(rp) = vertex_point(body, rv) else {
+            continue;
+        };
+        for &ohe in &outer_cycle {
+            let Some(ov) = body.half_edges.get(ohe).map(|h| h.start) else {
+                continue;
+            };
+            if ov == rv {
+                continue; // one vertex in both loops is tier 1's business
+            }
+            let Some(op) = vertex_point(body, ov) else {
+                continue;
+            };
+            if let Ok(Sign::Positive) = decide(
+                "ring_outer_vertex_gap",
+                Margin::of(eps - (rp - op).norm()),
+                band,
+            ) {
+                return Some(RingContact::Vertex {
+                    ring_vertex: rv,
+                    outer_vertex: ov,
+                });
+            }
+        }
+    }
+
+    // ---- The overlap arm: a ring edge running along an outer one. ----
+    //
+    // Three INTERIOR samples of the ring edge, at the certification
+    // schedule's own quarter/middle/three-quarter parameters. Three
+    // shared points is the discriminator: a line and a circle, or two
+    // distinct circles, meet in at most two, so agreement at three
+    // interior samples is a shared LOCUS rather than a crossing.
+    //
+    // Two steps, in this order because the first is arithmetic and the
+    // second costs a decide: the samples' total gap to the outer
+    // edge's INFINITE carrier, then — only for a pair that shares a
+    // locus — whether the shared locus is inside the outer edge's own
+    // trim. On a CIRCLE the second step is unnecessary and deliberately
+    // absent: a ring edge on the same circle as an outer edge already
+    // means the hole reaches the face's outer boundary circle, whatever
+    // sub-arc each is trimmed to.
+    for &rhe in &ring_cycle {
+        let Some(redge) = body.half_edges.get(rhe).map(|h| h.edge) else {
+            continue;
+        };
+        let Some(rgeom) = body
+            .get_edge(redge)
+            .and_then(|e| body.get_curve_geom(e.curve))
+            .and_then(CurveGeom::certified)
+        else {
+            continue;
+        };
+        let samples: [geom_core::Point3<T>; 3] = [
+            rgeom.carrier().eval(rgeom.sample_param(2)),
+            rgeom.carrier().eval(rgeom.sample_param(4)),
+            rgeom.carrier().eval(rgeom.sample_param(6)),
+        ];
+        for &ohe in &outer_cycle {
+            let Some(oedge) = body.half_edges.get(ohe).map(|h| h.edge) else {
+                continue;
+            };
+            if oedge == redge {
+                continue; // the same edge in both loops is tier 1's business
+            }
+            let Some(ogeom) = body
+                .get_edge(oedge)
+                .and_then(|e| body.get_curve_geom(e.curve))
+                .and_then(CurveGeom::certified)
+            else {
+                continue;
+            };
+            let mut total = T::zero();
+            let mut carried = true;
+            for &p in &samples {
+                match locus_gap(ogeom.carrier(), p) {
+                    Some(gap) => total = total + gap,
+                    None => carried = false,
+                }
+            }
+            if !carried {
+                continue; // the recorded residue: Ellipse and Nurbs carriers
+            }
+            let shares_locus = matches!(
+                decide(
+                    "ring_outer_locus_gap",
+                    Margin::of(eps * T::from_f64(3.0) - total),
+                    band,
+                ),
+                Ok(Sign::Positive)
+            );
+            if !shares_locus {
+                continue;
+            }
+            if let geom::Curve3::Line { .. } = ogeom.carrier() {
+                // The trim: the ring edge's middle sample must lie
+                // strictly between the outer edge's own endpoints, or
+                // the two are collinear rather than overlapping.
+                let Some((a, b)) = edge_endpoints(body, ohe) else {
+                    continue;
+                };
+                let side = (samples[1] - a).dot(samples[1] - b);
+                if !matches!(
+                    decide("ring_outer_segment_side", Margin::of(-side), band),
+                    Ok(Sign::Positive)
+                ) {
+                    continue;
+                }
+            }
+            return Some(RingContact::Edge {
+                ring_edge: redge,
+                outer_edge: oedge,
+            });
+        }
+    }
+    None
+}
+
+/// The distance from `p` to a carrier's INFINITE locus, in closed
+/// form and without a single comparison. `None` for a kind this
+/// inversion does not implement — check 9's recorded residue,
+/// `Ellipse` and `Nurbs`.
+fn locus_gap<T: Real>(carrier: &geom::Curve3<T>, p: geom_core::Point3<T>) -> Option<T> {
+    match carrier {
+        // `dir` is unit by convention, so the rejection is the residual
+        // of the projection.
+        geom::Curve3::Line { origin, dir } => {
+            let d = p - *origin;
+            Some((d - *dir * d.dot(*dir)).norm())
+        }
+        // The distance from a point to a full circle: the in-plane
+        // radial defect and the out-of-plane offset, in quadrature.
+        geom::Curve3::Circle {
+            center,
+            axis,
+            radius,
+            ..
+        } => {
+            let d = p - *center;
+            let along = d.dot(*axis);
+            let radial = (d - *axis * along).norm() - *radius;
+            Some((radial * radial + along * along).sqrt())
+        }
+        _ => None,
+    }
+}
+
+/// A loop's half-edge cycle, or `None` for an empty loop (which bounds
+/// nothing and can meet nothing).
+fn loop_cycle_of<T: Real>(body: &Body<T>, r#loop: LoopKey) -> Option<Vec<HalfEdgeKey>> {
+    let LoopBoundary::Cycle { first } = body.get_loop(r#loop)?.boundary else {
+        return None;
+    };
+    body.loop_cycle(first)
+}
+
+/// The point a vertex stands at.
+fn vertex_point<T: Real>(body: &Body<T>, vertex: VertexKey) -> Option<geom_core::Point3<T>> {
+    body.points.get(body.vertices.get(vertex)?.point).copied()
 }
 
 /// **Tier 3′** (M3 PR 6a, F1/F2): the pseudomanifold at-rest validator
@@ -4318,7 +4615,7 @@ mod tests {
         // `EnumCount` derive or the workspace's first proc-macro crate —
         // and neither is bought here. When you add an arm, its index is
         // the new `VARIANTS - 1`.
-        const VARIANTS: usize = 64;
+        const VARIANTS: usize = 65;
         fn variant_index(e: &ValidationError) -> usize {
             match e {
                 ValidationError::Band { .. } => 0,
@@ -4385,6 +4682,7 @@ mod tests {
                 ValidationError::NonpositiveTorusTube { .. } => 61,
                 ValidationError::ApproxCertification { .. } => 62,
                 ValidationError::ApproxLaneUnsupported { .. } => 63,
+                ValidationError::RingMeetsOuter { .. } => 64,
             }
         }
         fn band_error() -> geom_core::BandError {
@@ -4405,6 +4703,14 @@ mod tests {
             ValidationError::DanglingTopology {
                 from: EntityId::Solid(t.solid),
                 to: EntityId::Shell(t.shell),
+            },
+            ValidationError::RingMeetsOuter {
+                face: t.face_a,
+                ring: t.loop_a,
+                contact: RingContact::Vertex {
+                    ring_vertex: v,
+                    outer_vertex: v,
+                },
             },
             ValidationError::DanglingGeometry {
                 from: EntityId::Vertex(v),

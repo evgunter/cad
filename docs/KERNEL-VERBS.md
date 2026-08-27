@@ -214,46 +214,71 @@ the table.
   it in shape: the pot's belly is SQUARED (foot, shoulder, belly,
   shoulder, neck, all right angles) because the arc a potter would
   draw does not hollow.
-- **`shell_open`'s rim is wrong on every solid of revolution.** Added
-  2026-08-27 with the row above (teapot wall 2 + the same test file).
-  The verb RETURNS a body and the body passes tiers 1, 2 and 3 — and
-  each designated half-disc of the revolved cap comes back carrying a
-  full RING, the result is genus 1 where `topo::shell`'s own module
-  docs say *"one opening gives a cup, which is genus 0"*, and
-  `mesh::tessellate` refuses `Triangulation` on a mouth half-disc at
-  every δ. It is NOT the `mesh::planar` sub-floor lottery of #555:
-  swept over five wall thicknesses, mouth radii at two scales (41.25 mm
-  and 46.875 mm — 14% apart, one cluster — and 1 m) and
-  three chord budgets, every case gives the same two wrong numbers,
-  including the simplest fixture there is (a cylindrical drum opened
-  at its top). A BOX opened at its top is correct — genus 0, one ring,
-  and it meshes.
+- **`shell_open`'s rim on a solid of revolution — FIXED.** Added
+  2026-08-27 with the junction row above (teapot wall 2 + the same test
+  file) and repaired the same week. **What was wrong**: the verb
+  RETURNED a body that passed tiers 1, 2 and 3 while each designated
+  face carried its own cavity counterpart's boundary re-labelled as an
+  interior ring — genus 1 where `topo::shell`'s docs say a cup is genus
+  0, and `mesh::tessellate` refusing `Triangulation` at every δ. Not
+  the `mesh::planar` sub-floor lottery of #555: swept over five wall
+  thicknesses, mouth radii at two scales (41.25 mm and 46.875 mm — 14%
+  apart, one cluster — and 1 m) and three chord budgets, every case
+  gave the same two wrong numbers, the simplest fixture (a cylindrical
+  drum) included. A BOX opened at its top was always correct.
 
-  **The class, re-scoped after review — do not inherit the first
-  reading.** "An extrusion's cap is ONE face, a full revolve's is TWO
-  half-discs sharing a chart" is FALSE as the mechanism: a revolved
-  TUBE's mouth chart is ONE face (a closed off-axis profile closes its
-  own seam) and `shell_open` is still wrong there — rings 1, genus 2,
-  untessellatable — and a PARTIAL revolve's cap is one face and does
-  touch the axis. The true class is **a designated face whose cavity
-  counterpart's boundary cannot become an interior-disjoint RING of
-  it**. On an axis-touching cap that boundary is a D-loop — a half-arc
-  plus two radial legs meeting the axis apex the OUTER loop also owns,
-  running back along the outer loop's own seam edges — and that CONTACT
-  is why the CDT refuses. On an ANNULAR cap the correct rim is not a
-  ring at all but **TWO DISJOINT ANNULI**, a face SPLIT that `kfmrh`
-  cannot express: this is a surgery whose only output shape is "outer
-  loop plus rings", not a ring-placement bug. Fixtures:
-  `demos/tour/tests/verbs_teapot_r2_probes.rs` (revolved tube, partial
-  revolve, annular-mouth anatomy) and `..._r1_probes.rs` (the D-loop
-  measured on the PR's own body).
+  **The class, as the review re-scoped it**: *a designated face whose
+  cavity counterpart's boundary cannot become an interior-disjoint RING
+  of it*. "An extrusion's cap is ONE face, a full revolve's is TWO
+  half-discs sharing a chart" was FALSE as the mechanism — a revolved
+  TUBE's mouth chart is ONE face and was wrong too (rings 1, genus 2),
+  and a PARTIAL revolve's cap is one face and does touch the axis.
 
-  **Why nothing caught it, corrected.** Not "the rim lift never had a
-  consumer": `offd2_r1_probes::probe_opened_vessel_cup` already opened
-  a revolved vessel through this very path and blessed it, checking
-  only the things that are right — tier 3, the shell count, the volume
-  — and never the rings, the genus or the mesh. Consequence for the
-  demo: the teapot ships SEALED and has no opening.
+  **What the fix turned out to be, and it is not a ring placement.**
+  Both failure shapes are the REVOLVE's seam arriving inside the
+  designated chart: an axis-touching cap is two half-discs meeting at
+  an axis apex, so the counterpart's boundary is a D-loop reaching that
+  same apex and running back along the outer loop's own seam legs; an
+  annular cap is ONE face SLIT along a radial edge its loop walks
+  twice, so the counterpart's boundary runs along that slit. Neither is
+  a fact about the mouth. `shell_open` now reduces both charts to one
+  face carrying disjoint cycles before the glue — `kef`, `kev`, `kemr`,
+  no new machinery — after which the counterpart's boundary IS strictly
+  inside. The axis-touching mouth comes back as ONE annular rim (one
+  ring, genus 0, meshing, closed-form volume); the ANNULAR mouth comes
+  back as TWO DISJOINT ANNULI, the face SPLIT the first reading said
+  `kfmrh` could not express — built with `mfkrh` promoting the
+  counterpart's hole to its own rim face before the glue and
+  `ring_move` handing it the designated face's matching hole after.
+  What is still refused, typed and naming the shape, is
+  `ShellError::OpenFaceRimNotExpressible`: a chart whose faces are not
+  one region, a counterpart boundary that still meets the designated
+  face's, or more than one hole to pair (the pairing this door derives
+  is single-hole; a two-holed designation refuses rather than guesses).
+
+  **The invariant is now stated at rest**, which is what turns the
+  class loud wherever it is minted: tier 3's check 9
+  (`ValidationError::RingMeetsOuter`) refuses a ring that shares a
+  vertex POSITION with its face's outer loop or has an edge running
+  along one of the outer loop's. Compared by position, not by key —
+  the shapes it catches are minted by surgeries that copy a boundary.
+  Its overlap arm inverts `Line` and `Circle` carriers in closed form;
+  an overlap carried by an `Ellipse` or a NURBS edge is a recorded
+  residue, and the vertex arm is kind-agnostic.
+
+  **Why nothing caught it, and the transferable lesson.** Not "the rim
+  lift never had a consumer": `offd2_r1_probes::probe_opened_vessel_cup`
+  already opened a revolved vessel through this very path and blessed
+  it, checking only the things that were right — tier 3, the shell
+  count, the volume — and never the rings, the genus or the mesh. A
+  probe that checks only what is right is not evidence about what is
+  wrong. That row now checks all three. Fixtures:
+  `crates/sweep/tests/verbs_shell.rs` (both rim shapes and the
+  validator's planted red, built through the public doors the verb used
+  to compose), `demos/tour/tests/verbs_teapot.rs` (the sweep, flipped)
+  and the two review probe suites beside it. Consequence for the demo:
+  **the teapot ships OPENED**, and — being one shell — it also leaves
+  as STEP, which the sealed two-shell body could not.
 - **A hollow ring cannot leave as STEP.** The one-call hollow ring
   itself SHIPPED (VERBS-RING retired `FullRevolveHoles`: a full
   revolve of a holed profile builds the multi-shell solid through the
@@ -265,14 +290,14 @@ the table.
   (this ring, the full-period `tube_along_arc_hollow` shell
   since VERBS-TUBEWALL, and the shelled teapot, which reached it as
   predicted) hits at export. (Wall 6, re-baselined: it now pins THIS
-  refusal on the ring it builds.) The gate now carries FOUR probes,
+  refusal on the ring it builds.) The gate now carries THREE probes,
   which retire together: klein's wall 6, the `ring` scene's
-  `step_at_frontier` on the profile door's hollow ring, the
-  `hollowtorus` scene's on the parameter door's, and the `teapot`
-  scene's on the SHELL verb's own product — a sealed hollow pot of
-  cylinders and planes, two shells, refusing
-  `CurvedShellClassification { kind: "circle" }`. Four separate bodies
-  through four doors, and a widened classifier releases all of them;
+  `step_at_frontier` on the profile door's hollow ring, and the
+  `hollowtorus` scene's on the parameter door's. The `teapot` scene
+  was a fourth until #1082's repair: its vessel ships OPENED now, and
+  a cup is ONE shell, which this gate never reaches. Three separate
+  bodies through three doors, and a widened classifier releases all of
+  them;
   what the teapot's adds is that the gate is now on record for a body
   built by asking for a hollow PART rather than for a shape chosen to
   reach it.

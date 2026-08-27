@@ -20,37 +20,43 @@
 //!    about tangency: `lifted_dome` is a definitely-non-tangent
 //!    fixture that refuses at the identical site with the identical
 //!    `what` string, which the table now asserts.
-//! 2. **the opened rim is wrong on every solid of revolution**, and
-//!    right on a box. Not a tolerance lottery:
-//!    `the_opened_rim_is_wrong_on_every_revolve` sweeps five wall
+//! 2. **the opened rim is an annulus on every solid of revolution**,
+//!    as it always was on a box.
+//!    `the_opened_rim_is_an_annulus_on_every_revolve` sweeps five wall
 //!    thicknesses, mouth radii at two scales (41–47 mm and 1 m) and
-//!    three chord budgets, and the answer is the same every time —
-//!    including on the simplest possible fixture, a cylindrical drum.
-//!    And the MECHANISM is not the one this file first asserted:
-//!    `the_seam_split_is_not_the_mechanism` designates a revolved
-//!    TUBE's mouth, which is ONE face on a body with no axis apex, and
-//!    the rim is wrong there too — in a different shape (genus 2, one
-//!    ring). The class both shapes belong to is *a designated face
-//!    whose cavity counterpart's boundary cannot become an
-//!    interior-disjoint RING of it*, and on an annular cap the correct
-//!    rim is two disjoint annuli, a face SPLIT the surgery cannot
-//!    express.
+//!    three chord budgets, and every one comes back one rim face, one
+//!    ring, genus 0, meshing, at the closed-form volume;
+//!    `the_annular_mouth_opens_to_two_disjoint_rims` pins the other
+//!    shape of the same class — a revolved TUBE's mouth, ONE face on a
+//!    body with no axis apex, whose correct rim is TWO disjoint annuli
+//!    and therefore a face SPLIT.
+//!
+//!    The class was *a designated face whose cavity counterpart's
+//!    boundary cannot become an interior-disjoint RING of it*, and on
+//!    a revolved cap it could not because the cap arrives carrying the
+//!    REVOLVE's seam — an axis apex both half-discs own, or a radial
+//!    slit the annulus walks twice. That is a fact about the sweep and
+//!    not about the mouth, and `shell_open` now retires it through the
+//!    Euler doors before the glue. The invariant is also stated at
+//!    rest: tier 3's check 9 refuses a ring standing on its own face's
+//!    outer loop.
 //!
 //! **Two claims this file used to make and no longer does**, both
 //! retracted on measurement rather than on argument: that the tangent
 //! row's door could not be separated from tangency (`lifted_dome`
 //! separates it), and that the opened rim's discriminator was "one
-//! face versus two half-discs on a chart"
-//! (`the_seam_split_is_not_the_mechanism` falsifies it). The fixtures
-//! that did it were contributed by the review of #1078 and are merged
-//! beside this file as `verbs_teapot_r1_probes.rs` and
-//! `verbs_teapot_r2_probes.rs`.
+//! face versus two half-discs on a chart" (the revolved tube falsifies
+//! it). The fixtures that did it were contributed by the review of
+//! #1078 and are merged beside this file as
+//! `verbs_teapot_r1_probes.rs` and `verbs_teapot_r2_probes.rs`.
 //!
-//! Every table here is a PLANTED RED in the direction of the fix: each
-//! refusal is asserted by its exact variant (and, at the second door,
-//! its exact `what`), each defect by its exact wrong numbers. A door
-//! that grows any of these cases fails here and sends the reader to
-//! the retire note beside the assertion.
+//! The junction table (finding 1) is a PLANTED RED in the direction of
+//! the fix: each refusal is asserted by its exact variant and, at the
+//! second door, its exact `what`. A door that grows any of those cases
+//! fails here and sends the reader to the retire note beside the
+//! assertion. The rim rows (finding 2) are the opposite — they were
+//! planted red and have FLIPPED, so they now pin what the fixed
+//! surgery builds, closed forms included.
 //!
 //! # The sweeps, and what they could not match
 //!
@@ -476,63 +482,65 @@ fn the_opened_rim_is_right_on_a_box() {
     pncad::mesh::tessellate(&cup, 1e-3, tol).expect("and it meshes");
 }
 
-/// **The opened rim on a REVOLVE is wrong, everywhere.** Sweeping five
-/// wall thicknesses over a factor of 5, mouth radii at two scales
-/// (41–47 mm, and 1 m — the small pair are 14% apart, so this is two
-/// scales rather than a continuum), the pot's stepped meridian against
-/// the simplest fixture there is, and three chord budgets over a
-/// factor of 50: every one comes back genus 1 with TWO rings and
-/// refuses tessellation on a half-disc of the mouth plane. There is no
-/// corner of this parameter space where it is right, which is what
-/// separates it from the `mesh::planar` sub-floor lottery (klein's
-/// wall 7, #555) that fires at one flare angle and not its neighbour.
+/// **The opened rim on a REVOLVE is an annulus, everywhere.** The same
+/// sweep the defect row ran — five wall thicknesses over a factor of
+/// 5, mouth radii at two scales (41–47 mm, the small pair 14% apart,
+/// and 1 m), the pot's stepped meridian against the simplest fixture
+/// there is, three chord budgets over a factor of 50 — and every one
+/// now comes back as ONE rim face carrying ONE ring, genus 0, and
+/// triangulating at every budget. The volume is checked against the
+/// closed form on the drums, so "it meshes" is not standing in for
+/// "it is the right solid".
 ///
-/// # What the class is NOT — and this row does not get to say it alone
+/// # What was wrong, and what fixed it
 ///
-/// The obvious discriminator, and the one this file first asserted,
-/// was "an extrusion's cap is ONE face; a full revolve's is TWO
-/// half-discs sharing a chart". That is FALSE as a mechanism, and two
-/// adopted review fixtures are what falsify it, both in-tree and both
-/// run by the same `cargo test --release`:
-/// `verbs_teapot_r2_probes::r2_revolved_tube_separates_seam_from_axis`
-/// designates the mouth of a revolved TUBE — one face, because a
-/// closed off-axis profile closes its own seam — and the result is
-/// wrong there too; `r2_partial_revolve_one_cap_face` comes at it from
-/// the other side with a wedge, whose cap is one face and does touch
-/// the axis.
+/// The class was *a designated face whose cavity counterpart's
+/// boundary cannot become an interior-disjoint RING of it*, and on a
+/// revolved cap it could not because the cap arrives carrying the
+/// REVOLVE's seam: an axis-touching cap is two half-discs meeting at
+/// the axis apex, so the counterpart's boundary reached that same apex
+/// and ran back along the outer loop's own seam legs. That contact —
+/// not a ring count — is what the CDT refused.
 ///
-/// **The class, restated from what those measure:** a designated face
-/// is safe exactly when its CAVITY COUNTERPART's boundary can become
-/// an interior-disjoint RING of it. A box's can — the inner rectangle
-/// sits strictly inside the outer one. A revolved cap's cannot: on an
-/// axis-touching cap the counterpart's boundary is a D-loop that
-/// reaches the same axis apex the outer loop owns and runs back along
-/// the outer loop's own seam legs (measured in
-/// `verbs_teapot_r1_probes` and `r2_ring_anatomy_on_a_drum`), and that
-/// CONTACT is why the CDT refuses. On an ANNULAR cap the correct
-/// answer is not a ring at all but TWO DISJOINT ANNULI — a face SPLIT,
-/// which `kfmrh` has no way to express (`r2_annular_mouth_anatomy`).
-/// So this is not one ring-placement bug; it is a surgery whose only
-/// output shape is "outer loop plus rings".
+/// The seam is a fact about how the operand was swept, not about the
+/// mouth, and `shell_open` now removes it before the glue: the chart
+/// is reduced to one face with disjoint cycles on both sides
+/// (`kef`/`kev`/`kemr`, no new machinery), after which the
+/// counterpart's boundary IS strictly inside. The invariant is stated
+/// at rest as well — tier 3's check 9 refuses any ring standing on its
+/// face's outer loop — and `verbs_shell::a_ring_standing_on_its_outer_
+/// loop_refuses_at_tier_3` builds the old body through the same public
+/// doors to show that net firing.
 #[test]
-fn the_opened_rim_is_wrong_on_every_revolve() {
+fn the_opened_rim_is_an_annulus_on_every_revolve() {
     let tol = Tol::witness();
-    let cases: Vec<(String, Body<f64>, f64)> =
+    let cases: Vec<(String, Body<f64>, f64, Option<f64>)> =
         [1.0 / 128.0, 1.0 / 100.0, 1.0 / 64.0, 0.003, 0.0055]
             .into_iter()
-            .map(|t| (format!("drum, t = {t}"), drum(3.0 / 64.0, tol), t))
-            .chain(
-                [0.041_25, 3.0 / 64.0, 1.0]
-                    .into_iter()
-                    .map(|r| (format!("drum, mouth radius {r}"), drum(r, tol), 1.0 / 128.0)),
-            )
+            .map(|t| {
+                (
+                    format!("drum, t = {t}"),
+                    drum(3.0 / 64.0, tol),
+                    t,
+                    Some(3.0 / 64.0),
+                )
+            })
+            .chain([0.041_25, 3.0 / 64.0, 1.0].into_iter().map(|r| {
+                (
+                    format!("drum, mouth radius {r}"),
+                    drum(r, tol),
+                    1.0 / 128.0,
+                    Some(r),
+                )
+            }))
             .chain(core::iter::once((
                 "the teapot's own stepped meridian".to_string(),
                 teapot_pot(tol),
                 1.0 / 128.0,
+                None,
             )))
             .collect();
-    for (what, body, t) in cases {
+    for (what, body, t, drum_radius) in cases {
         let chart = plane_chart_at(&body, TOP);
         assert_eq!(
             chart.len(),
@@ -540,31 +548,36 @@ fn the_opened_rim_is_wrong_on_every_revolve() {
             "{what}: a full revolve's cap is two half-discs"
         );
         let cup = pncad::topo::shell_open(&body, t, &chart, FIT_TOL, band(tol), tol)
-            .unwrap_or_else(|e| panic!("{what}: the opened arm still returns a body, got {e}"));
+            .unwrap_or_else(|e| panic!("{what}: the opened arm must build the rim, got {e}"));
         assert_eq!(
             pncad::topo::validate_geometric(&cup, tol),
             Ok(()),
-            "{what}: and it passes tier 3, which is why this table exists"
+            "{what}: tier 3, which now also carries the ring-vs-outer invariant"
         );
         assert_eq!(
             (rings(&cup), genus(&cup)),
-            (2, 1),
-            "{what}: a ring on EACH half-disc, and genus 1 where a cup's is 0"
+            (1, 0),
+            "{what}: ONE rim annulus with one ring, and a cup is genus 0"
+        );
+        assert_eq!(
+            plane_chart_at(&cup, TOP).len(),
+            1,
+            "{what}: the two half-discs became one rim face"
         );
         for delta in [1e-2, 1e-3, 2e-4] {
-            let e = pncad::mesh::tessellate(&cup, delta, tol)
-                .err()
-                .unwrap_or_else(|| panic!("{what}: δ = {delta} must refuse"));
-            let pncad::mesh::TessellateError::Triangulation { face } = e else {
-                panic!("{what}: δ = {delta}: expected the CDT's insertion refusal, got {e:?}");
-            };
-            let f = cup.get_face(face).expect("the refusing face");
+            pncad::mesh::tessellate(&cup, delta, tol)
+                .unwrap_or_else(|e| panic!("{what}: delta = {delta} must triangulate, got {e:?}"));
+        }
+        // The drums have a closed form; the stepped pot does not get a
+        // number invented for it here (the scene owns its census).
+        if let Some(r) = drum_radius {
+            let props = pncad::topo::mass_properties(&cup, tol).expect("props");
+            let want = core::f64::consts::PI * (r * r * TOP - (r - t) * (r - t) * (TOP - t));
             assert!(
-                matches!(cup.get_surface(f.surface),
-                    Some(Surface::Plane { origin, .. }) if (origin.y - TOP).abs() < 1e-12)
-                    && f.rings.len() == 1,
-                "{what}: δ = {delta}: the face that refuses is a MOUTH half-disc \
-                 carrying the spurious ring, not some other face"
+                (props.volume - want).abs() <= 1e-9 + props.volume_pad,
+                "{what}: cup volume {} (pad {}), want {want}",
+                props.volume,
+                props.volume_pad
             );
         }
     }
@@ -648,32 +661,32 @@ fn genus(body: &Body<f64>) -> i64 {
     body.shells().count() as i64 - chi / 2
 }
 
-/// **The seam split is NOT the mechanism, asserted rather than cited.**
+/// **The ANNULAR mouth: two disjoint rims, not one ring.**
 ///
-/// The row above sweeps axis-touching caps, every one of which is two
-/// half-discs on one chart — so on its own it cannot separate "the cap
-/// is two faces" from "the cap touches the axis" from anything else.
-/// This row removes both variables at once: a revolved TUBE's meridian
-/// is a closed off-axis loop, so it closes its own seam and its mouth
-/// chart is exactly ONE face, with no axis apex anywhere on the body.
-/// The rim is still wrong, and wrong in a DIFFERENT shape — genus 2
-/// with one ring, against the axis-touching cap's genus 1 with two.
+/// This row's fixture is the one that falsified the first reading of
+/// the class: a revolved TUBE's meridian is a closed off-axis loop, so
+/// it closes its own seam and the mouth chart is exactly ONE face,
+/// with no axis apex anywhere on the body — and the rim was wrong here
+/// too, in a different shape (genus 2, one ring, untessellatable).
 ///
-/// What both shapes have in common is the class the register now
-/// carries: the cavity counterpart's boundary cannot become an
-/// interior-disjoint ring of the designated face. Here the correct rim
-/// would be TWO DISJOINT ANNULI — a face SPLIT, which the `kfmrh`
-/// surgery has no output shape for at all — and what the verb returns
-/// instead is a single ring the CDT then refuses.
+/// The correct rim here is not a ring at all but TWO DISJOINT ANNULI —
+/// `[ri, ri+t]` and `[ro-t, ro]` — which is a face SPLIT, and it is
+/// built: the counterpart's hole is promoted to its own rim face
+/// before the glue (`mfkrh`) and takes the designated face's matching
+/// hole with it after (`ring_move`). Both are existing doors; the
+/// surgery gained no new machinery. What the operand contributed was
+/// the seam again, in its other form — the annulus arrives SLIT along
+/// a radial edge its own loop walks twice — and `kemr` retires that
+/// before the glue for the same reason `kef`/`kev` retire the axis
+/// apex above.
 ///
 /// (`verbs_teapot_r2_probes::r2_revolved_tube_separates_seam_from_axis`
-/// and `r2_annular_mouth_anatomy` are where this was first measured and
-/// where the loop anatomy is printed face by face; this row is the
-/// planted red, so a fix reds here.)
+/// and `r2_annular_mouth_anatomy` are where the wrong shape was first
+/// measured; this row is where the right one is pinned.)
 #[test]
-fn the_seam_split_is_not_the_mechanism() {
+fn the_annular_mouth_opens_to_two_disjoint_rims() {
     let tol = Tol::witness();
-    let (ri, ro, h) = (0.30, 0.50, 0.40);
+    let (ri, ro, h, t) = (0.30, 0.50, 0.40, 0.05);
     let body = revolved(
         Open.at(Point2::new(ri, 0.0))
             .line_to(Point2::new(ro, 0.0), tol)
@@ -694,30 +707,31 @@ fn the_seam_split_is_not_the_mechanism() {
         "a closed OFF-AXIS meridian closes its own seam, so this cap is ONE face — \
          which is the whole point of the row"
     );
-    let cup = pncad::topo::shell_open(&body, 0.05, &chart, FIT_TOL, band(tol), tol)
-        .expect("the opened arm returns a body here too");
+    let cup = pncad::topo::shell_open(&body, t, &chart, FIT_TOL, band(tol), tol)
+        .expect("the annular mouth opens");
     assert_eq!(
         pncad::topo::validate_geometric(&cup, tol),
         Ok(()),
-        "and tiers 1-3 bless it, exactly as they bless the axis-touching case"
+        "tiers 1-3, the third of which now carries the ring-vs-outer invariant"
     );
     assert_eq!(
         (rings(&cup), genus(&cup)),
-        (1, 2),
-        "MEASURED, not wanted: one ring and genus 2 on a body with no seam split and no \
-         axis apex. When this stops reading (1, 2), re-derive the class in \
-         docs/KERNEL-VERBS.md and #1082 from what it says instead"
+        (2, 1),
+        "TWO rim annuli, one ring each; the bore runs through, so the cup is genus 1"
     );
-    let e = pncad::mesh::tessellate(&cup, 1e-3, tol)
-        .expect_err("and it does not mesh, for the same reason the axis-touching one does not");
-    let pncad::mesh::TessellateError::Triangulation { face } = e else {
-        panic!("expected the CDT's insertion refusal, got {e:?}");
-    };
-    let f = cup.get_face(face).expect("the refusing face");
+    assert_eq!(
+        plane_chart_at(&cup, h).len(),
+        2,
+        "the mouth plane is worn by two faces — the SPLIT, which is the finding"
+    );
+    pncad::mesh::tessellate(&cup, 1e-3, tol).expect("and it triangulates");
+    let props = pncad::topo::mass_properties(&cup, tol).expect("props");
+    let want = core::f64::consts::PI
+        * ((ro * ro - ri * ri) * h - ((ro - t).powi(2) - (ri + t).powi(2)) * (h - t));
     assert!(
-        matches!(cup.get_surface(f.surface),
-            Some(Surface::Plane { origin, .. }) if (origin.y - h).abs() < 1e-12)
-            && f.rings.len() == 1,
-        "the face that refuses is the MOUTH annulus carrying the ring, not some other face"
+        (props.volume - want).abs() <= 1e-9 + props.volume_pad,
+        "annular cup volume {} (pad {}), want {want}",
+        props.volume,
+        props.volume_pad
     );
 }
