@@ -41,6 +41,8 @@ mod camera_ops;
 mod doc_io;
 #[path = "eval_seam.rs"]
 mod eval_seam;
+#[path = "frame_policy.rs"]
+mod frame_policy;
 #[path = "input_mapping.rs"]
 mod input_mapping;
 #[path = "panel_edits.rs"]
