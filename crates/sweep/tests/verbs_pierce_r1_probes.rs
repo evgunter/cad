@@ -85,9 +85,10 @@ fn report(name: &str, a: &Body<f64>, b: &Body<f64>) -> Option<f64> {
 // The disc class's adjacent shapes.
 // ---------------------------------------------------------------
 
-/// **Annular cap.** A tube's cap is bounded by TWO circle loops (outer
-/// + bore), each all-arc, so `loop_disc` fires on both. A box driven
-/// through the SOLID part of the annulus must not be silent.
+/// **Annular cap.** A tube's cap is bounded by TWO circle loops — the
+/// outer rim and the bore — each all-arc, so the disc class decides
+/// both. A box driven through the SOLID part of the annulus must not
+/// be silent.
 #[test]
 fn r1_a_box_through_an_annular_cap() {
     let a = tube(1.0, 0.4, 0.0, 2.0);

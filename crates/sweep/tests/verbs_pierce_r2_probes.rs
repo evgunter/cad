@@ -336,7 +336,7 @@ fn r2_the_1032_declaration_measurement_reproduces() {
         .body;
     let b120 = (core::f64::consts::PI / 6.0).tan();
     let at = |deg: f64| {
-        let th = (deg as f64).to_radians();
+        let th = deg.to_radians();
         p2(2.0 + 0.5 * th.cos(), 2.0 + 0.5 * th.sin())
     };
     let lp = ProfileLoop::new(vec![
