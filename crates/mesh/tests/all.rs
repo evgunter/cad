@@ -160,18 +160,23 @@ fn every_suite_file_is_aggregated() {
 ///   (`budget` feature). Counted after a cut since #887, which gave
 ///   the file its first test module; the total did not move, because
 ///   that module reads no ε.
-/// - **`walk.rs` — 12.** **Four** `eps` parameters (`gap_is_noise`,
+/// - **`walk.rs` — 13.** **Four** `eps` parameters (`gap_is_noise`,
 ///   `closing_column`, `iso_side_starts`, `loop_polygon`), **five**
 ///   hand-offs (`closing_column`'s and `loop_polygon`'s two
 ///   `gap_is_noise` calls, `loop_polygon`'s calls to
-///   `iso_side_starts` and `closing_column`), and the crate's **three**
-///   terminal reads: `gap_is_noise`'s `gap * lever < eps` (one
-///   predicate, four call sites — the domain guard above plus three
-///   `debug_assert` detectors that gate nothing),
-///   `iso_side_starts`' `radial > eps`, and `pole_v`'s
-///   `norm() <= eps`. 4 + 5 + 3 = 12.
+///   `iso_side_starts` and `closing_column`), and **four** terminal
+///   reads: `gap_is_noise`'s `gap * lever < eps` (one predicate, four
+///   call sites — the domain guard above plus three `debug_assert`
+///   detectors that gate nothing), `iso_side_starts`' `radial > eps`,
+///   `pole_v`'s `norm() <= eps`, and `loop_polygon`'s declared-vertex
+///   separation guard `d > eps`. 4 + 5 + 4 = 13. It was **12** until
+///   the separation guard landed: a `debug_assert` over the loop's
+///   JUNCTIONS (never the chord subdivisions, which densify with
+///   delta by design), CLASSIFYING nothing and moving no coordinate —
+///   it states that the SOURCE declared two vertices at one point,
+///   which `pole_v` two lines down would then resolve arbitrarily.
 ///
-/// Seven consumer sites, four terminal reads across the crate. **The
+/// Seven consumer sites, five terminal reads across the crate. **The
 /// per-file totals above are pinned; every other number in this doc is
 /// hand-written and is not.** They are checkable — each file's
 /// breakdown sums to its pinned total, which is the arithmetic a
@@ -181,11 +186,15 @@ fn every_suite_file_is_aggregated() {
 /// hand-written narrative that did not add up, in the doc of the pin
 /// that replaced a hand-written list for going stale.
 ///
-/// **That has now happened twice.** #887 moved `curved.rs` from 7 to
-/// 6, re-pinned the total, and left this doc's breakdown of it summing
-/// to the old number — the pin stayed GREEN while its own account of
-/// what it counted went false, which is the failure mode the pin
-/// exists to make impossible one level down. The arithmetic above is
+/// **That has now happened twice, and the third change did it right.**
+/// #887 moved `curved.rs` from 7 to 6, re-pinned the total, and left
+/// this doc's breakdown of it summing to the old number — the pin
+/// stayed GREEN while its own account of what it counted went false,
+/// which is the failure mode the pin exists to make impossible one
+/// level down. The declared-vertex guard (`walk.rs` 12 → 13) is the
+/// third read this pin has caught, and the breakdown, the crate-level
+/// terminal-read count and every sum on this list were re-run WITH the
+/// re-pin rather than after a reviewer asked. The arithmetic above is
 /// the only thing standing between a reader and that, and it is
 /// hand-run. **Whoever next changes an ε read re-runs every sum on
 /// this list, not just the file they touched.**
@@ -241,7 +250,7 @@ fn the_eps_inventory_is_pinned() {
         ("sizing.rs", 1),
         ("tessellate.rs", 3),
         ("trimmed.rs", 1),
-        ("walk.rs", 12),
+        ("walk.rs", 13),
     ];
     // Both ways the suite runs: a plain `cargo test` against the baked
     // manifest dir, and a nextest ARCHIVE replayed with the per-test

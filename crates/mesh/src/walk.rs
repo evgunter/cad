@@ -991,6 +991,51 @@ pub(crate) fn loop_polygon(
         .get_face(face)
         .ok_or(TessellateError::MissingEntity { what: "face" })?
         .sense_sign();
+    // DECLARED-VERTEX SEPARATION (D2's "numeric coincidence never
+    // merges", one layer down). The junctions of this loop are vertices
+    // the SOURCE declared distinct, and `pole_v` below is about to
+    // classify them against `poles` at this same `eps`. Two declared
+    // vertices closer than `eps` make that classification arbitrary --
+    // and no legitimate body states two distinct vertices at one point,
+    // because the way to say "these are the same point" is to use one
+    // vertex. So this is a statement about the INPUT, and a violation is
+    // a bug upstream of the mesher, not a tessellation limit.
+    //
+    // JUNCTIONS ONLY. A traversal's interior ids are chord subdivisions
+    // minted by `chords`; they get arbitrarily dense as delta shrinks
+    // and are expected to fall within `eps` of each other at fine
+    // delta. Asserting over them would be asserting about the output.
+    //
+    // DISTINCT IDS, not distinct indices: one vertex may legitimately be
+    // the junction of two traversals (a loop that returns to it), which
+    // is a revisit, not a coincidence.
+    //
+    // What this does NOT establish: it does not by itself make `pole_v`
+    // unambiguous. A single non-pole vertex can still land within `eps`
+    // of an analytic pole with no other declared vertex near it, and two
+    // vertices each within `eps` of one pole are only guaranteed `2*eps`
+    // apart. This NARROWS the D9 hazard (`docs/DESIGN.md`, the mesh-eps
+    // paragraph); it does not close it.
+    #[cfg(debug_assertions)]
+    {
+        let mut js: Vec<u32> = travs.iter().map(|t| t.ids[0]).collect();
+        js.sort_unstable();
+        js.dedup();
+        for (i, &a) in js.iter().enumerate() {
+            for &b in &js[i + 1..] {
+                let d = (positions[a as usize] - positions[b as usize]).norm();
+                debug_assert!(
+                    d > eps,
+                    "face {face:?} loop {lk:?}: declared vertices {a} and {b} are {d} m \
+                     apart, within eps {eps} -- two distinct vertices at one point. \
+                     The pole classification below reads the same eps, so this makes \
+                     it arbitrary. Numeric coincidence is never intent (D2): the source \
+                     states one point twice, or the walk resolved two junctions onto \
+                     one vertex."
+                );
+            }
+        }
+    }
     let poles = chart.poles();
     let pole_v = |id: u32| -> Option<f64> {
         let p = positions[id as usize];

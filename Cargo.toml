@@ -178,6 +178,30 @@ dbg_macro = "warn"
 # box-dependent and this repo reports timings rather than gating them
 # (`docs/PERF-PLAN.md`). So the numbers above are a dated reason for a
 # guarded decision, and re-measuring them is a perf-lane act, not a CI one.
+# PRE-1.0, DELIBERATE: debug assertions stay ON in release builds.
+#
+# The kernel's guards are `debug_assert!`s, and the class they catch is
+# a SILENTLY wrong result -- a non-watertight mesh returned as `Ok`, a
+# vertex classified against eps by a coin toss. Pre-1.0 the cost of
+# finding those late is far higher than the cost of running the checks,
+# and nothing here ships to a user yet.
+#
+# This is NOT free and it is NOT a default worth inheriting:
+#   * it makes ~140 `debug_assert!`s live in release across the
+#     workspace (topo 84, mesh 33, sweep 14, geom-core 6, and one each
+#     in bvh / editor-core / step-import), plus 63 `cfg(debug_assertions)`
+#     blocks, several of which are computation rather than a bare assert;
+#   * a failing one PANICS, which is what D9 forbids of a shipped build;
+#   * the mesh guard alone was measured at +18-30% of tessellation time
+#     on pole-bearing bodies (see PR #884's table).
+# It does NOT enable `overflow-checks` -- that is a separate flag and
+# was verified to stay off on 1.97 rather than assumed.
+#
+# TURN THIS OFF BEFORE PUBLISHING: see `docs/DESIGN.md`, "Before
+# publishing".
+[profile.release]
+debug-assertions = true
+
 [profile.dev.package.spade]
 opt-level = 2
 [profile.dev.package.mesh]

@@ -2207,6 +2207,30 @@ the ambiguity constant K's numeric value — CLOSED, K = 10 permanent,
 M1: orientation/sense conventions and the validator's concrete
 invariant checklist — both ratified into D1.)*
 
+## Before publishing
+
+Things that are deliberately wrong for a shipped artefact and right for
+a pre-1.0 kernel nobody depends on yet. **Each one is cheap to revert and
+expensive to forget**, so they live in one list rather than in the heads
+of whoever set them.
+
+- **Turn debug assertions back off in release.** `Cargo.toml`'s
+  `[profile.release] debug-assertions = true` is a pre-1.0 choice: the
+  guards that catch a *silently* wrong result (a non-watertight mesh
+  returned as `Ok`; a vertex classified against eps by a coin toss) are
+  `debug_assert!`s, and before anyone depends on this it is worth paying
+  for them. **A shipped build must not carry them: a failing
+  `debug_assert!` panics, and D9 forbids a panic in a shipped build.**
+  The same pass that rolls the version numbers for publication removes
+  that stanza — the two belong together, because a version bump is the
+  one moment someone is certainly looking at `Cargo.toml`. Whatever the
+  guards were catching then needs a typed refusal or an explicit
+  decision to drop it, not a silent compile-out; **S65** in
+  `docs/SMELL-SCAN-2026-08.md` is that argument worked through for one
+  of them.
+- **Settle the project name (Q9).** The placeholder workspace name is
+  fine until publication and renames are cheap before it.
+
 ## Crate landscape (surveyed 2026-07)
 
 Since the kernel itself is greenfield, dependencies are for the *substrate*,
