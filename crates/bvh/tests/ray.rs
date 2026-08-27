@@ -45,7 +45,11 @@ fn zero_direction_on_slab_boundary_is_a_candidate() {
     assert_eq!(items(&out), vec![0]);
     // Entry is metered by z: exact 1.0, reported within the documented
     // 4-ULP-per-endpoint conservative widening (and never above it).
-    assert!(out[0].t_enter <= 1.0 && out[0].t_enter > 1.0 - 1e-12, "t_enter {}", out[0].t_enter);
+    assert!(
+        out[0].t_enter <= 1.0 && out[0].t_enter > 1.0 - 1e-12,
+        "t_enter {}",
+        out[0].t_enter
+    );
 }
 
 /// A zero direction component with the origin strictly OUTSIDE the
@@ -86,7 +90,11 @@ fn zero_extent_box_is_hittable() {
     let r = ray([0.5, 0.5, -1.0], [0.0, 0.0, 1.0]);
     let out = tree.ray(&r);
     assert_eq!(items(&out), vec![0]);
-    assert!(out[0].t_enter <= 1.5 && out[0].t_enter > 1.5 - 1e-12, "t_enter {}", out[0].t_enter);
+    assert!(
+        out[0].t_enter <= 1.5 && out[0].t_enter > 1.5 - 1e-12,
+        "t_enter {}",
+        out[0].t_enter
+    );
 }
 
 /// Poison boxes are always candidates (NaN never witnesses
@@ -138,7 +146,10 @@ fn candidates_order_by_entry_then_index() {
     let tree = Bvh::build(&boxes);
     let out = tree.ray(&ray([0.0; 3], [1.0, 0.0, 0.0]));
     assert_eq!(items(&out), vec![0, 2, 1]);
-    assert_eq!(out[0].t_enter, out[1].t_enter, "duplicate boxes tie exactly");
+    assert_eq!(
+        out[0].t_enter, out[1].t_enter,
+        "duplicate boxes tie exactly"
+    );
     // Unnormalized direction: doubling |dir| halves every t_enter.
     let out2 = tree.ray(&ray([0.0; 3], [2.0, 0.0, 0.0]));
     assert_eq!(items(&out2), vec![0, 2, 1]);
@@ -152,7 +163,10 @@ fn brute(boxes: &[Aabb], r: &Ray) -> Vec<RayCandidate> {
     let mut out: Vec<RayCandidate> = boxes
         .iter()
         .enumerate()
-        .filter_map(|(item, b)| r.slab_enter(b).map(|t_enter| RayCandidate { item, t_enter }))
+        .filter_map(|(item, b)| {
+            r.slab_enter(b)
+                .map(|t_enter| RayCandidate { item, t_enter })
+        })
         .collect();
     out.sort_unstable_by(|a, b| a.t_enter.total_cmp(&b.t_enter).then(a.item.cmp(&b.item)));
     out
@@ -181,9 +195,21 @@ fn sweep_matches_brute_force_and_never_misses_true_hits() {
             ];
             // Zero extent on an axis with probability ~1/4 each.
             let e = [
-                if rng.below(4) == 0 { 0.0 } else { rng.range(0.0, 50.0) },
-                if rng.below(4) == 0 { 0.0 } else { rng.range(0.0, 50.0) },
-                if rng.below(4) == 0 { 0.0 } else { rng.range(0.0, 50.0) },
+                if rng.below(4) == 0 {
+                    0.0
+                } else {
+                    rng.range(0.0, 50.0)
+                },
+                if rng.below(4) == 0 {
+                    0.0
+                } else {
+                    rng.range(0.0, 50.0)
+                },
+                if rng.below(4) == 0 {
+                    0.0
+                } else {
+                    rng.range(0.0, 50.0)
+                },
             ];
             boxes.push(boxed(
                 [c[0] - e[0], c[1] - e[1], c[2] - e[2]],
@@ -235,8 +261,18 @@ fn sweep_matches_brute_force_and_never_misses_true_hits() {
 
         let got = tree.ray(&r);
         let want = brute(&boxes, &r);
-        assert_eq!(got, want, "case {case}: realized == idealized; {}", fuzz::replay());
-        assert_eq!(got, tree.ray(&r), "case {case}: determinism; {}", fuzz::replay());
+        assert_eq!(
+            got,
+            want,
+            "case {case}: realized == idealized; {}",
+            fuzz::replay()
+        );
+        assert_eq!(
+            got,
+            tree.ray(&r),
+            "case {case}: determinism; {}",
+            fuzz::replay()
+        );
         // A zero direction is legal input (the ray is a point; the
         // target box contains it, closed) — the slab test's NaN arm
         // covers it, so the true-hit claim holds there too.

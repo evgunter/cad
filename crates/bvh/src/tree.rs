@@ -179,8 +179,7 @@ impl Bvh {
                         continue;
                     }
                     for &item in self.items.iter().skip(*start).take(*count) {
-                        if let Some(t_enter) =
-                            self.boxes.get(item).and_then(|b| ray.slab_enter(b))
+                        if let Some(t_enter) = self.boxes.get(item).and_then(|b| ray.slab_enter(b))
                         {
                             out.push(RayCandidate { item, t_enter });
                         }
