@@ -248,9 +248,9 @@ impl InputMap {
                 Some(PickAction::Select(pos_px))
             }
             ViewportEvent::Leave => Some(PickAction::ClearHover),
-            ViewportEvent::Click { .. } | ViewportEvent::Drag { .. } | ViewportEvent::Scroll { .. } => {
-                None
-            }
+            ViewportEvent::Click { .. }
+            | ViewportEvent::Drag { .. }
+            | ViewportEvent::Scroll { .. } => None,
         }
     }
 
@@ -350,5 +350,8 @@ pub fn pick_stream<'a>(
     map: &InputMap,
     events: impl IntoIterator<Item = &'a ViewportEvent>,
 ) -> Vec<PickAction> {
-    events.into_iter().filter_map(|event| map.pick(event)).collect()
+    events
+        .into_iter()
+        .filter_map(|event| map.pick(event))
+        .collect()
 }

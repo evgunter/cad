@@ -661,9 +661,9 @@ impl DocSession {
             },
             Selection::Face(face) => Standing::Face {
                 face: face.clone(),
-                resolution: self.landed_pair().map(|(doc, eval)| {
-                    resolve(RunCtx { doc, eval }, &face.name)
-                }),
+                resolution: self
+                    .landed_pair()
+                    .map(|(doc, eval)| resolve(RunCtx { doc, eval }, &face.name)),
             },
         }
     }

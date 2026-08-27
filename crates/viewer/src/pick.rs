@@ -261,7 +261,10 @@ impl PickIndex {
                 // `index + 1` is the id `IdMap::build` assigned to the
                 // key at the same position; the two lists are built in
                 // one pass above, which is what keeps them parallel.
-                by_name.entry(name.clone()).or_default().push(index as u32 + 1);
+                by_name
+                    .entry(name.clone())
+                    .or_default()
+                    .push(index as u32 + 1);
             }
         }
         let id_slice = ids.ids().collect();
@@ -337,10 +340,7 @@ impl PickIndex {
             // The id list is contiguous per part in `IdMap` order,
             // because the keys were pushed part by part in exactly
             // this order — the same loop that built `names`.
-            let ids = self
-                .id_slice
-                .get(next..next + patches)
-                .unwrap_or_default();
+            let ids = self.id_slice.get(next..next + patches).unwrap_or_default();
             next += patches;
             parts.push(ScenePart {
                 mesh: part.mesh(),
@@ -359,11 +359,7 @@ impl PickIndex {
     /// # Errors
     ///
     /// [`HitTestError`], verbatim from `pick_face`.
-    pub fn pick(
-        &self,
-        eval: &Evaluation<f64>,
-        ray: &Ray,
-    ) -> Result<Option<PickHit>, HitTestError> {
+    pub fn pick(&self, eval: &Evaluation<f64>, ray: &Ray) -> Result<Option<PickHit>, HitTestError> {
         let targets: Vec<PickTarget<'_>> = self.parts.iter().map(NodePick::target).collect();
         pick_face(eval, &targets, ray)
     }
