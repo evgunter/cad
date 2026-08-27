@@ -496,3 +496,35 @@ pub fn highlight(
         hovered: hover.map_or(IdMap::NOTHING, |f| first(&f.name)),
     }
 }
+
+/// The view-projection that puts ONE source pixel over the whole 1×1
+/// target the GPU id pass renders into.
+///
+/// A pixel centred at `cursor_ndc` spans `2 / width` by `2 / height` of
+/// normalized device space, so translating that point to the origin and
+/// scaling by the viewport's pixel dimensions maps exactly that pixel
+/// onto the target's `[−1, 1]²`. In a column-major clip-space matrix
+/// the translation is a subtraction of `cursor · w`, which is why the
+/// `w` row participates.
+///
+/// **It lives here, out of the render module, because it is the one
+/// part of the id pass a machine with no GPU can check**: composed
+/// with [`Camera::project`] it says that the world point the ray path
+/// un-projects to is the point the id pass rasterizes at the centre of
+/// its target. That composition is the headless half of "both picking
+/// paths answer the same question".
+pub fn cursor_projection(
+    view_projection: &[[f32; 4]; 4],
+    cursor_ndc: [f32; 2],
+    viewport_px: [f32; 2],
+) -> [[f32; 4]; 4] {
+    let [cx, cy] = cursor_ndc;
+    let [sx, sy] = viewport_px;
+    let mut out = *view_projection;
+    for column in &mut out {
+        let w = column[3];
+        column[0] = (column[0] - cx * w) * sx;
+        column[1] = (column[1] - cy * w) * sy;
+    }
+    out
+}

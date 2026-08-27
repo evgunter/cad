@@ -76,7 +76,8 @@ pub use evalseam::{SpawnError, ThreadEvaluator};
 pub use history::{History, HistoryId};
 pub use input::{InputMap, PickAction, PointerButton, ViewportEvent, ViewportSize};
 pub use pick::{
-    Highlight, IdMap, IdMapError, PatchId, PickError, PickIndex, PickIndexError, highlight,
+    Highlight, IdMap, IdMapError, PatchId, PickError, PickIndex, PickIndexError, cursor_projection,
+    highlight,
 };
 pub use props::{SlotDriver, SlotFault, SlotRow, SlotValue};
 pub use scene::{DisplayTolerance, SceneDocError, SceneError, SceneMesh, ScenePart, SceneStats};

@@ -71,7 +71,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use eframe::wgpu;
 
-use crate::pick::Highlight;
+use crate::pick::{Highlight, cursor_projection};
 use crate::scene::SceneMesh;
 
 /// Bits of depth requested at startup. 32 maps to
@@ -544,34 +544,6 @@ impl IdPass {
             readback,
         }
     }
-}
-
-/// The view-projection that puts ONE source pixel over the whole 1×1
-/// id target.
-///
-/// A pixel centred at `cursor_ndc` spans `2 / width` by `2 / height` of
-/// normalized device space, so translating that point to the origin and
-/// scaling by the viewport's pixel dimensions maps exactly that pixel
-/// onto the target's `[−1, 1]²`. In a column-major clip-space matrix
-/// the translation is a subtraction of `cursor · w`, which is why the
-/// `w` row participates.
-///
-/// Pure arithmetic on a matrix, so it is the one part of the id pass
-/// that a test without a GPU can check.
-pub(crate) fn cursor_projection(
-    view_projection: &[[f32; 4]; 4],
-    cursor_ndc: [f32; 2],
-    viewport_px: [f32; 2],
-) -> [[f32; 4]; 4] {
-    let [cx, cy] = cursor_ndc;
-    let [sx, sy] = viewport_px;
-    let mut out = *view_projection;
-    for column in &mut out {
-        let w = column[3];
-        column[0] = (column[0] - cx * w) * sx;
-        column[1] = (column[1] - cy * w) * sy;
-    }
-    out
 }
 
 /// Create a buffer and fill it, without `wgpu::util` (which would be

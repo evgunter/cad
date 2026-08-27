@@ -55,6 +55,8 @@ mod review_gui3_r1;
 mod review_gui3_r2;
 #[path = "scene_build.rs"]
 mod scene_build;
+#[path = "select_pick.rs"]
+mod select_pick;
 #[path = "tree_badges.rs"]
 mod tree_badges;
 #[path = "undo_tree.rs"]
