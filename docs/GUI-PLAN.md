@@ -1,8 +1,8 @@
-# GUI-1 — the v1 GUI (plan, DRAFT)
+# GUI-1 — the v1 GUI (plan)
 
-**STATUS: DRAFT, second round — the 2026-08-27 in-conversation
-rulings (Evan) are folded and marked RULED; the plan as a whole is
-not yet ratified.** Every *decision* this plan leans on is ratified
+**STATUS: RATIFIED (Evan's in-conversation sign-off on this
+draft, 2026-08-27, with all rulings below folded).** Every
+*decision* this plan leans on is ratified
 elsewhere and is cited, not re-litigated: the three-layer split and
 boundary rules (`docs/GUI-DESIGN.md` G1, including the
 operations-are-API rule recorded 2026-08-27), the v1 minimum (G3),

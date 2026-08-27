@@ -19,7 +19,7 @@ a reader entering here should know all of them exist.
 | `docs/PATHS-DESIGN.md` | RATIFIED (#124) | PartialPath authoring algebra (S5); implemented at LIB U2 |
 | `docs/PROFILES-V2-DESIGN.md` | RATIFIED (#242) | Profiles-as-programs V1–V7: the stored profile-program, Expr-bearing steps, the replay driver; implemented at the LIB SWITCH units |
 | `docs/SELECT-DESIGN.md` | RATIFIED (#286) | Geometric selectors, the detect/declare protocol, and the GQ7 re-homing |
-| `docs/GUI-DESIGN.md` | RATIFIED (G1–G5) | GUI/editor architecture: three-layer split, document-as-value, edit vocabulary |
+| `docs/GUI-DESIGN.md` | RATIFIED (G1–G5) | GUI/editor architecture: three-layer split, document-as-value, edit vocabulary; the v1 GUI plan is RATIFIED — `docs/GUI-PLAN.md` (GUI-0…5 + banked GUI-6) |
 | `docs/ASSEMBLY-DESIGN.md` | RATIFIED (#333) | Band 3 assemblies A1–A11 + AQ1–AQ6: scope ladder, assembly-evaluates-to-a-body, mates-as-declarations, pins/split-inline, validity, mirror, relative freedom, product roots, the constructive-solve boundary; implementation ladder R0–R4 (R1 running — `docs/ASM-PLAN.md`) |
 | `docs/LIBRARY-DESIGN.md` | RATIFIED (#229) | Usable-as-a-library program L1–L7: façade, Python bindings via the document layer, v2-fronted PATHS, authoring-ergonomics unit ladder; the program is running (`docs/LIB-LOG.md`) |
 | `docs/K-REPORT.md` | Reference | K-constant evidence record (#89 CLOSED, K = 10 permanent) + milestone addenda |
