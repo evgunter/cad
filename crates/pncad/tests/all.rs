@@ -2655,10 +2655,18 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   now; `product_recorded` stays out because `product`/
 ///   `product_named` are the curated gather and `assemble` is what
 ///   needs the recorded one.
+/// - **The hit-test service** (`MeshPick`, `MeshPickError`,
+///   `PickHit`, `PickTarget`, `Ray`, `pick_face`): GUI-1's layer-2
+///   picking door (`ray → StableName` over tessellated meshes),
+///   consumed by the viewer's selection path (GUI-2). Its inputs are
+///   `mesh::Mesh` indexes and viewport rays — display-side state the
+///   Python authoring surface does not hold; a headless-picking door
+///   for bindings would be a curated decision of its own, not a
+///   root-name pass-through.
 /// - **`MigrationStep`**: the stated exception in the crate docs —
 ///   its signature speaks `serde_json::Value`, which does not cross
 ///   the curated surface.
-const NOT_CARRIED: [&str; 83] = [
+const NOT_CARRIED: [&str; 89] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -2686,6 +2694,8 @@ const NOT_CARRIED: [&str; 83] = [
     "HitTestError",
     "Implicated",
     "MeshPatchKey",
+    "MeshPick",
+    "MeshPickError",
     "MetaError",
     "MetaValue",
     "MetaVersionError",
@@ -2696,11 +2706,14 @@ const NOT_CARRIED: [&str; 83] = [
     "NodeVerdictDelta",
     "NodeVerdicts",
     "ParamValue",
+    "PickHit",
+    "PickTarget",
     "PredicateDivergence",
     "Product",
     "ProfilePayload",
     "ProgramRefusal",
     "Qualifier",
+    "Ray",
     "RecipeEditRef",
     "Resolution",
     "ResolutionFailure",
@@ -2735,6 +2748,7 @@ const NOT_CARRIED: [&str; 83] = [
     "eval",
     "eval_count",
     "from_value",
+    "pick_face",
     "product_recorded",
     "rebind_suggestions",
     "resolve",
