@@ -113,6 +113,51 @@ amended:
   - Record WHO executed the fix pass (implementer-inherited vs
     orchestrator-applied) — inconsistent execution contaminates
     the fix-pass proxies.
+- **Method relaxations are RECORDED PER ARM, and a pair whose arms ran
+  under different methods counts toward NEITHER the tally NOR the twelve
+  (Evan, in-chat, 2026-08-27).** The rule: *"it's important to record
+  when the method was relaxed, because then the two reviews aren't
+  comparable any more — and probably also don't count them towards the
+  12."*
+  1. **Any orchestrator relaxation of a reviewer's method is written
+     into the row, naming WHICH ARM received it.** Scope narrowing
+     ("run the rows your findings need, not the whole crate"), a
+     lifted battery requirement, a permitted substitution — each is a
+     change to the instrument, not a scheduling detail.
+  2. **A pair whose two arms ran under different methods is excluded
+     from the adjudicated unilateral-MAJOR tally AND from the
+     twelve-pair count.** It is still RECORDED in full, findings and
+     all — the work is not wasted, it is simply not a controlled
+     comparison. This EXTENDS v6 item 3(e), which excluded interrupted
+     or truncated pairs; the same logic covers a pair the orchestrator
+     itself made asymmetric.
+  3. **Why it matters more than it looks.** A unilateral MAJOR is
+     informative only if the silent arm had the same opportunity to
+     find it. If one arm was told to narrow its batteries and the
+     other was not, "R2 never mentioned it" stops being evidence about
+     R2's judgment and becomes evidence about the instructions.
+  4. **The operational tension, stated so it is not rediscovered.**
+     Relaxations get proposed under build-mutex saturation, which is
+     exactly when several duals run at once. Every relaxation now
+     costs a pair, so under contention the cheaper lever is REDUCING
+     CONCURRENCY (fewer simultaneous duals) rather than narrowing
+     method — the same total work, without spending the experiment.
+
+  **Applied retroactively at this entry, both of 2026-08-27:**
+  - **PCURVE P-1a (ordinal 84)** — EXCLUDED. R2's batteries were
+    killed twice by the express-lane cap (work lost) and it needed an
+    orchestrator nudge to resume; v6 3(e) already covered this.
+  - **Census gap 2 (ordinal 200)** — EXCLUDED under the new clause,
+    reversing this orchestrator's earlier call that it was fair. **R1
+    was granted a scope relaxation under mutex saturation and R2 was
+    not** — R2 had already run full `cargo test -p topo` batteries. R1
+    then found a unilateral MAJOR (the `chart_region_parallel`
+    argument-order asymmetry) that R2 missed while sweeping 120
+    frame configurations. The finding is REAL and is being fixed; it
+    simply cannot be scored, because the arms were not comparable and
+    the asymmetry was mine.
+
+  **Tally after this entry: 0 of 8. Clean pairs toward twelve: 0.**
 - **Ordinal bands, per program (Evan, in-chat, 2026-08-27; authorised
   and self-merged after the first arbitrated collision).** THE
   PROBLEM v6 CREATED: under v4/v5 duals were every third row, and two
