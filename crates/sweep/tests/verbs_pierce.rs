@@ -79,7 +79,10 @@ fn a_box_driven_through_a_cap_no_longer_unions_as_two_disjoint_solids() {
         Ok(other) => panic!("expected one solid or a typed refusal, got {other:?}"),
     };
     assert!(
-        matches!(err, BooleanError::Join(_)),
+        matches!(
+            err,
+            BooleanError::Join(topo::SplitJoinError::SectionLoopMixed { .. })
+        ),
         "the crossing layer passes it; the join layer owns what is left: {err:?}"
     );
 }

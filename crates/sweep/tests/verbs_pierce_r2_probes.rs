@@ -162,39 +162,69 @@ fn r2_a_box_through_a_lens_cap_measures_the_all_arc_remainder() {
     }
 }
 
-/// A box driven up through a HALF-cylinder's cap, strictly inside the
-/// semicircular region: the cap's loop is an arc plus a chord over two
-/// vertices, so the polygon through them is a zero-area segment.
+/// A box driven up through a HALF-cylinder's cap, in the semicircular
+/// region: the cap's loop is an arc plus a chord over two vertices, so
+/// the polygon through them is a zero-area segment.
 ///
-/// **RED-BY-DESIGN, FLIPPED.** Against the shipped PR this was the
-/// same silent wrong body the disc class fixed for full discs
-/// (3.266592653589793 against a truth of 3.204092653589793); the
-/// loop-shape gate refuses it typed now.
+/// **RED-BY-DESIGN, FLIPPED — and re-signed.** As authored this row
+/// ran ONE bulge sense and read `3.266592653589793` as the silent
+/// wrong body against a truth of `3.204092653589793`. Measured in the
+/// fix pass, that half-disc bows AWAY from its box: nothing overlaps,
+/// and `3.266592653589793` is the correct disjoint answer. The row
+/// therefore takes the R1 row's two-sense design, which needs no such
+/// judgement — exactly one of the two senses contains the box, the
+/// containing one has no walk for its cap and refuses typed, and the
+/// other is honestly disjoint. Both answering the same number is the
+/// silent wrong body.
 #[test]
 fn r2_a_box_through_a_half_disc_cap_measures_the_mixed_loop_remainder() {
     let tol = Tol::witness();
-    let a = half_cyl(1.0, 0.0, 2.0);
-    // Cap crossings at (0.1..0.35, 0.3..0.55, z=2): strictly inside
-    // the half-disc (max radius ~0.65), strictly off the diameter.
+    // Cap crossings at (0.1..0.35, 0.3..0.55, z=2): inside the
+    // half-disc that bows to y > 0, outside the one that bows to y < 0.
     let b = boxx(0.1, 0.35, 0.3, 0.55, 1.0, 3.0);
     let half = PI / 2.0 * 2.0; // half-disc area * height = pi
-    let overlap = 0.25 * 0.25 * 1.0;
-    let truth = half + 0.25 * 0.25 * 2.0 - overlap;
-    let silent_wrong = half + 0.25 * 0.25 * 2.0;
-    match topo::union(&a, &b, tol) {
-        Err(e) => assert!(
-            matches!(e, BooleanError::ArcLoopContainmentUnsupported { .. }),
-            "the half-disc cap has no walk and must say so; got {e:?}"
-        ),
-        Ok(topo::BooleanResult::Body(out)) => {
-            let v = topo::mass_properties(&out.body, tol).unwrap().volume;
-            panic!(
-                "ARC-BEARING LOOP SILENT WRONG BODY: {v} \
-                 (truth {truth}, silent-wrong {silent_wrong})"
-            );
+    let disjoint_answer = half + 0.25 * 0.25 * 2.0;
+    let buried_truth = disjoint_answer - 0.25 * 0.25 * 1.0;
+    let mut refused = 0;
+    let mut bodies = 0;
+    for bulge in [1.0, -1.0] {
+        let lp = ProfileLoop::new(vec![
+            ProfileVertex::new(p2(1.0, 0.0), 0.0),
+            ProfileVertex::new(p2(-1.0, 0.0), bulge),
+        ]);
+        let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.0)));
+        let profile = Profile::new(plane, vec![lp]).validate(tol).unwrap();
+        let a = extrude(&profile, Extrusion::Distance(2.0), tol)
+            .unwrap()
+            .body;
+        match topo::union(&a, &b, tol) {
+            Err(e) => {
+                assert!(
+                    matches!(e, BooleanError::ArcLoopContainmentUnsupported { .. }),
+                    "bulge={bulge}: the half-disc cap has no walk; got {e:?}"
+                );
+                refused += 1;
+            }
+            Ok(topo::BooleanResult::Body(out)) => {
+                let v = topo::mass_properties(&out.body, tol).unwrap().volume;
+                println!("half-disc cap bulge={bulge}: BODY volume {v}");
+                assert!(
+                    (v - disjoint_answer).abs() < 1e-9,
+                    "bulge={bulge}: the non-containing sense is honestly disjoint \
+                     ({disjoint_answer}); got {v}"
+                );
+                bodies += 1;
+            }
+            Ok(other) => panic!("bulge={bulge}: unexpected {other:?}"),
         }
-        Ok(other) => panic!("unexpected: {other:?}"),
     }
+    assert_eq!(
+        (refused, bodies),
+        (1, 1),
+        "one sense contains the box and must refuse; the other must answer \
+         disjoint ({disjoint_answer}). Both answering it is the silent wrong \
+         body against a buried truth of {buried_truth}"
+    );
 }
 
 /// The door-table claim names `Join(SectionLoopMixed)` for the
@@ -211,7 +241,16 @@ fn r2_the_box_cap_refusal_payload_is_printed() {
         .body;
     let b = boxx(-0.3, 0.3, -0.3, 0.3, 1.0, 3.0);
     match topo::union(&a, &b, tol) {
-        Err(e) => println!("box-through-cap refusal: {e:?}"),
+        Err(e) => {
+            println!("box-through-cap refusal: {e:?}");
+            assert!(
+                matches!(
+                    e,
+                    BooleanError::Join(topo::SplitJoinError::SectionLoopMixed { .. })
+                ),
+                "the door table names this payload, so it is pinned: {e:?}"
+            );
+        }
         Ok(r) => panic!("expected the typed refusal, got {r:?}"),
     }
 }
@@ -257,7 +296,7 @@ fn r2_a_box_buried_in_a_pancake_cylinder_attacks_the_ray_cap_trim() {
     };
     let b = boxx(-0.1, 0.1, -0.1, 0.1, 0.1, 0.3);
     match topo::union(&cyl, &b, tol) {
-        Err(e) => println!("pancake burial refuses typed: {e:?}"),
+        Err(e) => panic!("the buried box must be swallowed, not refused: {e:?}"),
         Ok(topo::BooleanResult::Body(out)) => {
             let v = topo::mass_properties(&out.body, tol).unwrap().volume;
             let truth = PI * 25.0 * 0.4;
