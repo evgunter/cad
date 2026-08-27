@@ -1036,40 +1036,27 @@ jobs:
   # WHY HERE AND NOT ON EVERY PUSH TO main. Q-P4 ratified "post-merge only,
   # never a PR gate" and named pushes to main. The nightly is strictly
   # cheaper and satisfies the same requirement — a trend that predates the
-  # first change it would police — for ~3 billed minutes a night instead of
-  # ~3 per merged PR, and on a quiet day the `gate` job above spends nothing
-  # at all. What it gives up is per-commit attribution: a regression is
-  # localized to a day's merges rather than to one commit. The
+  # first change it would police — because it runs once a night instead of
+  # once per merged PR, and on a quiet day the `gate` job above spends
+  # nothing at all. What it gives up is per-commit attribution: a regression
+  # is localized to a day's merges rather than to one commit. The
   # `workflow_dispatch` ref input at the top of this file is exactly the
   # handle that closes that gap, and it already exists — a dispatch at a SHA
   # runs the rows and writes nothing, so a bisection cannot corrupt the
   # history with measurements of an old tree.
   #
-  # THE COST, MEASURED BEFORE IT WAS WIRED (4-core box, 2026-08-27; hosted
-  # 2-vCPU figures scaled by the 2.0x factor read off `demos/tour`'s release
-  # build, 65 s local against the 2m11 the k-lint job records):
-  #
-  #     build the benchmark binary   54.7 s local  ->  ~110 s hosted
-  #     run the six rows             37.8 s local  ->   ~60 s hosted
-  #     clippy (a check, not a build) 17 s local   ->   ~34 s hosted
-  #     checkout + cache + emit                        ~30 s
-  #                                                   ---------
-  #                                          ~234 s = 4 billed minutes
-  #
-  # FOUR, not three: GitHub rounds each job up to the whole minute, so the
-  # right arithmetic is ceil(234/60) and not 234/60. The clippy row is
-  # inside that rounding rather than on top of it — which is exactly why it
-  # is sited here instead of in a code-tier job, where the same 34 s would
-  # meet a different job's rounding on every PR.
-  #
-  # The build is the dominant term and it is paid every night: rust-cache
-  # serves criterion's 44 transitive crates but evicts workspace members
-  # before saving (ci.yml's cache header says so), so the kernel itself
-  # recompiles. That is the price of a release-profile measurement in a tree
-  # whose gate builds nothing at that profile, and it is why the run budget
-  # below is 38 s rather than criterion's default ~100 s: narrowing a
-  # within-run interval that the cross-run spread swamps anyway would be
-  # buying nothing with real minutes.
+  # WHERE THIS JOB'S TIME GOES, in shape rather than in seconds — the
+  # seconds would be stale within a month and `docs/CI-MINUTES-2026-08.md`
+  # is where a reading of them belongs. The BUILD dominates, and it is paid
+  # in full every night: rust-cache serves criterion's transitive crates but
+  # evicts workspace members before saving (ci.yml's cache header says so),
+  # so the kernel itself recompiles. That is the standing price of a
+  # release-profile measurement in a tree whose gate builds nothing at that
+  # profile. The RUN is a distant second and is deliberately budgeted in the
+  # benchmark file rather than left at criterion's default sample counts:
+  # narrowing a within-run interval that the cross-run spread swamps anyway
+  # would be buying nothing with real minutes. CLIPPY is a check and not a
+  # build, which is why it can sit in this job at all — see the manifest.
   #
   # REPORTING, NEVER GATING (memories/perf-measurement-lane.md). No step here
   # fails on a millisecond. The one thing that DOES fail is the roster pin in

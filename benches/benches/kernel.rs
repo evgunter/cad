@@ -59,12 +59,14 @@
 //!
 //! # The wall-clock budget
 //!
-//! ~20 s of measurement, and the per-group sample counts below are set
-//! to hold it. The single expensive row is the 1e-6 tessellation at
-//! ~0.7 s an iteration; everything else is microseconds. The budget is
-//! deliberate — this lane costs Actions minutes every night it runs, and
-//! criterion's default 100 samples would spend ~100 s of them to
-//! narrow intervals that the cross-run spread above swamps anyway.
+//! The per-group sample counts below are set deliberately low rather
+//! than left at criterion's default of 100, and the reason is the noise
+//! floor above rather than parsimony: extra samples narrow a WITHIN-run
+//! interval that the cross-run spread swamps anyway, so past a handful
+//! they buy resolution the trend cannot use, with Actions minutes, every
+//! night. One row dominates the budget — the 1e-6 tessellation, which is
+//! sub-second an iteration while everything else is microseconds — so
+//! `tessellate` carries its own sample count.
 
 use criterion::{Criterion, criterion_group, criterion_main};
 use pncad::prelude::*;
