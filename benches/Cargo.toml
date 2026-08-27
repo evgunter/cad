@@ -1,0 +1,83 @@
+# THE CRITERION BENCHMARK HARNESS — PERF-PLAN §5's blocking item.
+#
+# A SEPARATE CARGO ROOT, and not a workspace member, for the reason
+# `tools/` is one: measurement tooling must never become a kernel
+# dependency. Criterion pulls 44 transitive crates (clap, regex, serde,
+# ciborium, and a `cc` build for `alloca`); as a member's dev-dependency
+# every one of them would enter `cargo nextest archive --workspace` and
+# `cargo clippy --workspace --all-targets`, i.e. the two 11-12 minute
+# build jobs and both clippy rows, on every code-tier PR. Out here they
+# enter nothing the merge gate builds.
+#
+# WHAT THE EXCLUSION COSTS, checked rather than assumed:
+#   * `scripts/doc-gate.sh` documents every tracked cargo root, so this
+#     one joins the list automatically. It is FREE: the package has no
+#     lib and no bin, so `cargo doc --no-deps` here compiles nothing and
+#     returns in 0.07 s (measured). doc-gate's own header already says
+#     `benches/` is outside every `cargo doc` target filter.
+#   * `scripts/ci-filter.py` classifies an unrecognised path TIER=all, so
+#     editing a benchmark triggers a full code-tier gate run. Deliberate,
+#     not an oversight: the filter is an allowlist that fails closed, and
+#     bench churn is rare. If it stops being rare, that is the moment to
+#     write a rule — not before.
+#   * `cargo fmt --check` here is wired into ci.yml's `fmt` job (no build,
+#     so no minutes). `cargo clippy` is NOT wired anywhere, and that is a
+#     priced omission rather than an accident: `--benches` here compiles
+#     the whole kernel under a clippy fingerprint that no other job's
+#     artifacts can serve, ~1 billed minute a night for a five-function
+#     bench file. Run it by hand when editing this crate.
+[workspace]
+
+[package]
+name = "pncad-bench"
+version = "0.0.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+rust-version = "1.97.0"
+publish = false
+
+# The authoring façade, exactly as a library consumer would take it: the
+# benchmarks are measurements of the PUBLIC surface, so a scenario that
+# cannot be written through `pncad::prelude` is a finding about the
+# library and not a reason to reach past it (memories/demo-purpose.md).
+[dependencies]
+pncad = { path = "../crates/pncad" }
+
+# 0.8.2, published 2026-02-04 — comfortably past the ~2-week dependency-age
+# policy (memories/review-and-dependency-policy.md). `default-features =
+# false` drops the plotting and HTML-report machinery: this lane's output
+# is the committed JSON history, and gnuplot is not on the runner anyway.
+[dev-dependencies]
+criterion = { version = "0.8.2", default-features = false }
+
+[[bench]]
+name = "kernel"
+harness = false
+
+# DEBUG ASSERTIONS ARE OFF HERE, AND THE NUMBER IS WHY.
+#
+# The kernel's own `[profile.release]` turns them ON deliberately — D2's
+# fail-loud postconditions are an obligation, and the profile real parts
+# meet is the one that must keep checking. This root has its own profile
+# table and does not inherit that, so the posture has to be stated.
+#
+# Measured on this tree (4-core box, 2026-08-27), assertions off -> on:
+#
+#     build/extrude        18.5 µs ->  120 µs   (6.5x)
+#     boolean/two_bricks    155 µs ->  806 µs   (5.2x)
+#     tessellate 1e-6       699 ms ->  782 ms   (1.12x)
+#     validate/mass props            unchanged
+#
+# That 5-6.5x is PERF-PLAN §1.3's "per-op debug full-body tier-1"
+# (`topo/src/euler.rs:60-72`, D1's ratified postcondition clause) being
+# measured for the first time, and it lands precisely on the two
+# topology-surgery rows. Leaving it on would put a 5x constant on top of
+# exactly the scenarios §2.1's arena-scan family (findings 9, 11, 13, 14)
+# is meant to move, which is how a real algorithmic win gets rounded away.
+#
+# So this lane measures the kernel, and the ratio above is the record of
+# what it is NOT measuring. Making D1's clause cheaper is a DESIGN.md
+# question, not a perf-PR one — PERF-PLAN says so, and nothing here
+# re-opens it.
+[profile.bench]
+debug-assertions = false
