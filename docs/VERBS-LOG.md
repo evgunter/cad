@@ -1958,3 +1958,20 @@ interrupted; PCURVE excluded their comparable pair). VERBS state:
 tally 0/8, clean pairs toward twelve: 1 (TEAPOT). Ledger row
 corrected in place. Scheduling consequence adopted: under mutex
 saturation, stagger duals rather than touch briefs.
+
+## ORDINAL 101 CLAIMED — SHELLFIX PR-1 dual (2026-08-27)
+
+PR-1 (#1099) reported green with NO STOP: the class was an
+OPERAND artifact (the revolve's seam inside the designated
+chart), not a surgery limit — canonicalize_chart (kef/kev/kemr)
+retires the seam before the glue, the axis-touching cap MINTS one
+annular rim, the annular cap SPLITS to two disjoint annuli
+through existing doors (the thing #1082 said kfmrh could not
+express), anything else refuses typed. The teapot ships OPENED —
+wall 2 retires, all four bodies export STEP (the frontier gate
+back to three probes). Tier-3 gains check 9 (RingMeetsOuter,
+metered against ZERO — metering coincidence against eps lands on
+the band's own threshold and escalates; a real bug hosted CI
+caught, banked). v6 dual, frozen head 66071862; slot draw in the
+lane-private file; claim to main at dispatch per the standing
+carve-out.
