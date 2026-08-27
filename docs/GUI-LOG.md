@@ -194,6 +194,18 @@ main's #1102 red at the 1e-12 draw (cited, not this unit's).
 Program consequence: **GUI-2 dispatches now** (spec staged; block
 GUI-B1 slot 4, arm opus); GUI-4 wants GUI-2 + GUI-3.
 
+**Process defect, mine (2026-08-27, disclosed by GUI-2's R1): a
+GUI-LOG unit entry leaked the NEXT unit's arm to its blinded
+reviewers.** The GUI-3 entry above says "(block GUI-B1 slot 4, arm
+opus)" — GUI-2's arm — and GUI-LOG unit entries are in reviewer
+binding reading. R1 disclosed the exposure (did not open A/B
+material; nothing keyed on it); R2 has the same reading. Recorded
+on the GUI-2 row for the blinded adjudication to weigh. THE RULE
+THIS BUYS: **a log entry visible to reviewers never names an arm
+for any unit whose reviews have not concluded** — arms live in
+MODEL-AB-LOG (reviewer-fenced) until then; this file references
+slots only. The offending line is left as-is (history is not
+rewritten; the leak already happened) — future entries comply.
 ## GUI-2 merged (2026-08-28, PR #1106, sample #32 / ordinal 403)
 
 Viewport selection exists and the G3 interaction set is complete
