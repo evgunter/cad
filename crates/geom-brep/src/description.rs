@@ -113,7 +113,7 @@ impl<T: Real> EdgeAuthority<T> {
 /// arms, U2's ONE conventional form, and the fenced scaffolding door.
 ///
 /// **Not `Copy`** — [`Pcurve`] carries heap payloads on two of its
-/// four variants. See [`crate::EdgeCurve::canonical`] for how the
+/// four variants. See [`crate::EdgeCurve::description`] for how the
 /// certified product hands it out (by reference, never by copy: an
 /// edge description is read, not moved around).
 #[derive(Clone, Debug)]
