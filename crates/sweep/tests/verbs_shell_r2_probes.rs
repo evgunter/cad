@@ -95,7 +95,11 @@ fn extruded(loops: Vec<ProfileLoop<f64>>, h: f64) -> Option<Body<f64>> {
     let profile = Profile::new(SketchPlane::xy(), loops)
         .validate(Tol::witness())
         .ok()?;
-    Some(extrude(&profile, Extrusion::Distance(h), Tol::witness()).ok()?.body)
+    Some(
+        extrude(&profile, Extrusion::Distance(h), Tol::witness())
+            .ok()?
+            .body,
+    )
 }
 
 /// Report an opened body's shape, or the typed refusal.
@@ -227,9 +231,8 @@ fn r2_axis_at_one_end_only() {
         if let Ok(cup) = &opened {
             assert_eq!(topo::validate_geometric(cup, tol), Ok(()), "{name}");
             for delta in [1e-2, 1e-3, 2e-4] {
-                mesh::tessellate(cup, delta, tol).unwrap_or_else(|e| {
-                    panic!("{name}: VALIDATED WRONG BODY at {delta}: {e:?}")
-                });
+                mesh::tessellate(cup, delta, tol)
+                    .unwrap_or_else(|e| panic!("{name}: VALIDATED WRONG BODY at {delta}: {e:?}"));
             }
         }
     }
@@ -353,8 +356,8 @@ fn r2_two_holed_designation_refuses_typed() {
 fn r2_one_holed_extrusion_opens() {
     let tol = Tol::witness();
     let outer = poly(&[(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]);
-    let body = extruded(vec![outer, circle_loop(0.5, 0.5, 0.2)], 0.6)
-        .expect("a holed rectangle extrudes");
+    let body =
+        extruded(vec![outer, circle_loop(0.5, 0.5, 0.2)], 0.6).expect("a holed rectangle extrudes");
     let top = plane_chart_at_z(&body, 0.6);
     let opened = topo::shell_open(&body, 0.05, &top, FIT_TOL, band(), tol);
     report("one-holed extrusion", &opened);
