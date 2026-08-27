@@ -1639,3 +1639,12 @@ Pre-draw fields at the slot-3 record above: M-L / STRUCTURAL,
 implementer arm read from block GUI-B1 slot 3. Sample number
 assigned AT MERGE. Row at merge. Known main-red context handed to
 both reviewers: #1102 (main red at the 1e-12 draw, not this PR's).
+
+Block GUI-B1 slot 4 assignment (2026-08-27): **slot 4 = GUI-2**
+(docs/GUI-2-SPEC.md; the block's last slot — GUI-4 opens block
+GUI-B2 with a fresh draw). Pre-draw fields, logged at the spec:
+difficulty **M**, task-class **STRUCTURAL** (selection state,
+id-buffer plumbing, wiring over the shipped picking numerics; no
+new numeric predicate). Arm read back from the block draw record:
+**slot 4 = OPUS**. Dispatch waits on GUI-3's merge per the L-GUI-1
+sequencing call in GUI-LOG.
