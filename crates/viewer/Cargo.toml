@@ -75,11 +75,26 @@ bytemuck = { version = "1.25.2", features = ["derive"], optional = true }
 # is not — the alternatives here are a GTK C dependency
 # (`native-dialog`'s Linux path) or writing a chooser.
 #
-# Default features are OFF and the Linux pair is named explicitly:
-# `xdg-portal` (the desktop portal, via `pollster` — no async runtime)
-# plus `wayland` for the parent-window handle. What that avoids is the
-# `gtk3` feature's `gtk-sys`/`glib-sys`/`gobject-sys`, which would put
-# a C toolchain requirement into a build that has none.
+# WHAT THE PIN DOES AND DOES NOT AVOID, stated exactly, because the
+# first version of this comment overstated it. `xdg-portal` + `wayland`
+# IS rfd 0.17.2's own default set, and `gtk3` was never in it — so
+# `default-features = false` avoids nothing today. What it buys is that
+# a future release cannot widen the default set into this build without
+# an edit here: the C-toolchain dependency `gtk3` would introduce is a
+# thing to opt into deliberately, never to inherit. The resolved Linux
+# subtree is `libc, log, percent-encoding, pollster, raw-window-handle,
+# wayland-{backend,client,protocols}` — no gtk/glib/gobject-sys, no
+# zbus/ashpd/tokio, no C.
+#
+# TWO THINGS TO KNOW, neither a blocker. (1) The `xdg-portal` backend
+# talks to the desktop portal and FALLS BACK TO SPAWNING `zenity` when
+# there is none, so Open…/Save… has a runtime dependency on a portal or
+# that binary — a property of the dialog, which is this unit's one
+# excused surface. (2) `pollster` enters the lock at 0.4.0 beside the
+# 1.0.1 already there, so the graph carries two majors of it. The
+# `egui-wgpu` stanza above argues against exactly that shape for a
+# DIRECT edge; this one is a dependency-of-a-dependency we do not pick,
+# and it is recorded here rather than left for a reader to find.
 rfd = { version = "0.17.2", default-features = false, features = [
     "wayland",
     "xdg-portal",

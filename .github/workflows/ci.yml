@@ -864,17 +864,37 @@ jobs:
           else
             scripts/doc-gate.sh --skip-viewer-toolkit
           fi
+      # THE ONE VERDICT FOR BOTH TOOLKIT ROWS, IN AN EVERY-LANE SEAT.
+      #
+      # This job has no lane gate, which is why the pair lives here: the
+      # seed-keyed axis has to be able to speak on every run, and in the
+      # lane-gated `clippy` job it could not (see the note there). Both
+      # rows the ruling names are now in one job with one verdict —
+      # the rustdoc `--all-features` pass above, and the app-feature
+      # clippy below.
+      #
+      # Mirror: local-scripts/ci-local.sh's toolkit rows.
       - name: viewer toolkit rows - the filter's verdict
         if: '!cancelled()'
         run: |
           printf 'seeds: %s\n' '${{ needs.filter.outputs.seeds }}'
           printf 'tier: %s\n' '${{ needs.filter.outputs.tier }}'
           if [ '${{ needs.filter.outputs.run_viewer_toolkit }}' = 'true' ]; then
+            echo 'RUN: the seeds intersect {viewer, pncad, bvh} (or the tier is unscopable).'
             echo 'RUN: the rustdoc pass above documented viewer under --all-features.'
+            echo 'RUN: the app-feature clippy row below compiles the eframe/wgpu graph.'
           else
-            echo 'SKIP: no seed in {viewer, pncad, bvh} — viewer was documented at DEFAULT features.'
-            echo 'The nightly lane re-takes the app-feature row ungated.'
+            echo 'SKIP: no seed in {viewer, pncad, bvh} — the eframe/wgpu graph is not compiled on this run.'
+            echo 'SKIP: viewer was documented at DEFAULT features and its app-feature clippy row did not run.'
+            echo 'The nightly lane re-takes both ungated; viewer default-feature rows still ran in the closure.'
           fi
+      # Sited here rather than in `clippy` so a lane draw cannot take it
+      # away. The toolkit graph is already built in this job by the
+      # rustdoc pass when the axis is true, so the marginal cost is the
+      # lint itself.
+      - name: clippy (viewer app feature - eframe + wgpu)
+        if: '!cancelled() && needs.filter.outputs.run_viewer_toolkit == ''true'''
+        run: cargo clippy -p viewer --features app --all-targets -- -D warnings
 
       # WASM32 GUARD (#807), THE INTERVAL BUILD ONLY.
       #
@@ -1088,26 +1108,18 @@ jobs:
       # WHAT RE-TAKES THE SKIPPED COVERAGE: the `viewer app feature`
       # row in nightly.yml, ungated, once a day.
       #
-      # THE SKIP IS ANNOUNCED, NEVER SILENT (the klint_row lesson). The
-      # step below always runs and prints the verdict with the seeds it
-      # was computed from, so a reader of a green `clippy` job can tell
-      # "the toolkit was compiled" from "the toolkit was deliberately
-      # skipped, here is why" without opening the filter's output.
+      # THE VIEWER TOOLKIT ROWS ARE NOT HERE. They used to be, and that
+      # was a hole in Evan's viewer-CI ruling rather than a hole in this
+      # job: THIS JOB CARRIES `lane != 'interval'`, and LANE is a 50/50
+      # sample, so on an interval draw the whole job — the seed-keyed
+      # verdict step included — never ran, and the ruling's "never a
+      # green job name over a silent skip" failed silently exactly half
+      # the time. A seed-keyed axis inside a lane-sampled job is
+      # lane-sampled.
       #
-      # Mirror: local-scripts/ci-local.sh's clippy rows.
-      - name: viewer toolkit rows - the filter's verdict
-        run: |
-          printf 'seeds: %s\n' '${{ needs.filter.outputs.seeds }}'
-          printf 'tier: %s\n' '${{ needs.filter.outputs.tier }}'
-          if [ '${{ needs.filter.outputs.run_viewer_toolkit }}' = 'true' ]; then
-            echo 'RUN: the seeds intersect {viewer, pncad, bvh} (or the tier is unscopable).'
-          else
-            echo 'SKIP: no seed in {viewer, pncad, bvh} — the eframe/wgpu graph is not compiled on this run.'
-            echo 'The nightly lane re-takes this row ungated; viewer default-feature rows still ran in the closure.'
-          fi
-      - name: clippy (viewer app feature - eframe + wgpu)
-        if: needs.filter.outputs.run_viewer_toolkit == 'true'
-        run: cargo clippy -p viewer --features app --all-targets -- -D warnings
+      # They now live in the `fmt` job, which carries no lane gate and
+      # already hosted the identically-named verdict step for the
+      # doc-gate half of the same ruling. See the header there.
 
   # BUILD job, default features (see the build-once header comment above
   # the `env:` block). Compiles the scoped test binaries exactly once and

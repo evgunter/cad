@@ -164,8 +164,8 @@ impl core::fmt::Display for Refusal {
     /// composed here (and here only — [`Refusal::affordance`] is its
     /// single home). And `ParseError` has no `Display` in
     /// `editor-core`, so that one arm still shows a debug rendering;
-    /// the gap is recorded in the expression-surface issue this crate
-    /// cites at the affordance site.
+    /// the gap is recorded in issue #1103 alongside the unparser, which
+    /// is the same missing surface.
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::DrivenByExpression {

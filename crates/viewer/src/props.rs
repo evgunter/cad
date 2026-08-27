@@ -37,8 +37,9 @@
 //! actually needs in order to act: the slot's CURRENT VALUE under the
 //! document's parameters, and the names of the parameters driving it —
 //! each of which the panel can navigate to and edit as a document
-//! parameter. An unparser in `editor-core` would close the gap; it is
-//! not this unit's work.
+//! parameter. An unparser in `editor-core` would close the gap and is
+//! scheduled as issue #1103, which names this affordance as the
+//! consumer that wants it; it is not this unit's work.
 
 use pncad::document::{
     Dimension, Doc, DocEdit, DocParam, EvalError, Expr, Node, ParamName, ProfileProgram,
