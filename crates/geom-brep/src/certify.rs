@@ -1033,18 +1033,6 @@ impl<T: SpanLocate> EdgeCurve<T> {
 }
 
 impl<T: Real> EdgeCurve<T> {
-    /// This edge's certified description stated back the way a
-    /// CONSTRUCTION states one — the door every consumer that rebuilds
-    /// a spec from a certified edge goes through (a transplant, a
-    /// re-anchor, a re-certification at rest).
-    ///
-    /// A chart image travels EXACTLY: restating a description must
-    /// re-meter the image the edge already carries, never derive a
-    /// second one and meter that. A SEAM image is the one exception
-    /// and for the opposite reason — a seam names its chart and
-    /// nothing else, so its image is whatever that chart's own mint
-    /// makes it, which is what keeps a seam a seam when the chart
-    /// underneath it moves.
     /// This edge restated as the SPEC a construction would hand in —
     /// description ([`EdgeCurve::restated_description`]), carrier and
     /// interval, all verbatim. The door a consumer goes through to
@@ -1059,6 +1047,18 @@ impl<T: Real> EdgeCurve<T> {
         }
     }
 
+    /// This edge's certified description stated back the way a
+    /// CONSTRUCTION states one — the door every consumer that rebuilds
+    /// a spec from a certified edge goes through (a transplant, a
+    /// re-anchor, a re-certification at rest).
+    ///
+    /// A chart image travels EXACTLY: restating a description must
+    /// re-meter the image the edge already carries, never derive a
+    /// second one and meter that. A SEAM image is the one exception
+    /// and for the opposite reason — a seam names its chart and
+    /// nothing else, so its image is whatever that chart's own mint
+    /// makes it, which is what keeps a seam a seam when the chart
+    /// underneath it moves.
     #[must_use]
     pub fn restated_description(&self) -> EdgeDescriptionSpec<T> {
         let declared = match self.authority {

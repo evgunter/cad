@@ -1453,16 +1453,19 @@ fn blank_phase<T: Decide + Bounds>(
                 .and_then(|x| body.get_point(x.point))
                 .ok_or_else(|| not_intact(EntityId::Vertex(v), "a support boundary vertex"))?;
             let fp = station.foot;
-            // The strut lies IN the support face it is carved into, so
-            // it is described where it rests: an image in that chart
-            // (D3's transience fence — the scaffolding door is for
-            // edges whose surfaces do not exist yet, and this one's
-            // does). The sketch pushforward the chord was built from
-            // stays as the authority record beside it.
-            let support_chart = body
-                .get_face(f)
-                .map(|fd| fd.surface)
-                .ok_or_else(|| not_intact(EntityId::Face(f), "a support face"))?;
+            // **NOT re-described at rest, and that is a REPORTED
+            // finding rather than an oversight** (P-1b): this strut is
+            // a straight CHORD between two points of the support
+            // surface, so on a curved support it is a secant — it does
+            // not lie on the surface its two faces share, and no chart
+            // image of that surface describes it. Stating it as one
+            // makes `ChartResidual` escalate at ε = 1e-6 on the die
+            // fixture, which is the geometry saying so. It therefore
+            // reaches rest through the scaffolding door and tier 3's
+            // transience fence names it — the fence working, on a body
+            // whose edge genuinely is not where its faces are. The fix
+            // is fillet-verb work (put the strut ON the support), not
+            // a description change, so it is not taken here.
             let created = body
                 .mev(
                     MevSite::Fan {
@@ -1470,7 +1473,7 @@ fn blank_phase<T: Decide + Bounds>(
                         he2: station.half_edge,
                     },
                     fp,
-                    EdgeCurveSpec::line_between(p, fp).at_rest_in_chart(support_chart, false),
+                    EdgeCurveSpec::line_between(p, fp),
                     tol,
                 )
                 .map_err(|e| op("strut mev", e))?;
@@ -1935,18 +1938,15 @@ fn rim_phase<T: Decide + Bounds>(
         // The foot inherits the rim vertex's own parameter on the
         // scaled carrier — azimuth preserved exactly, no atan2.
         let fp = curve.eval(t0);
-        // Described where it rests, not through the scaffolding door:
-        // the strut is a radial chord of the ring face it is carved
-        // into, so that face's chart is where it lives (D3's
-        // transience fence). Its pushforward stays as the authority.
-        let ring_chart = face_of_half(body, he)
-            .and_then(|f| body.get_face(f).map(|fd| fd.surface))
-            .ok_or_else(|| not_intact(EntityId::Edge(e), "a rim edge's own face"))?;
+        // Same reported finding as the support strut above: a radial
+        // chord of the ring is a chord, not an image of the ring's
+        // chart, so it reaches rest through the scaffolding door and
+        // the fence names it.
         let created = body
             .mev(
                 MevSite::Fan { he1: he, he2: he },
                 fp,
-                EdgeCurveSpec::line_between(p, fp).at_rest_in_chart(ring_chart, false),
+                EdgeCurveSpec::line_between(p, fp),
                 tol,
             )
             .map_err(|e| op("rim strut mev", e))?;
