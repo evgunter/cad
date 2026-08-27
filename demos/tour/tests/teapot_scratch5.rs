@@ -79,7 +79,13 @@ fn pole_mouth() {
         .line_to(Start, tol)
         .expect("axis")
         .into();
-    report("stepped pot, POLE mouth", &revolved(lp, tol), 8.0 / 64.0, T, tol);
+    report(
+        "stepped pot, POLE mouth",
+        &revolved(lp, tol),
+        8.0 / 64.0,
+        T,
+        tol,
+    );
 }
 
 /// The same pot BORED: the mouth is a true annulus, no axis anywhere.
@@ -106,7 +112,13 @@ fn annular_mouth() {
         .line_to(Start, tol)
         .expect("bore")
         .into();
-    report("stepped pot, ANNULAR mouth", &revolved(lp, tol), 8.0 / 64.0, T, tol);
+    report(
+        "stepped pot, ANNULAR mouth",
+        &revolved(lp, tol),
+        8.0 / 64.0,
+        T,
+        tol,
+    );
 }
 
 /// The box the acceptance corpus uses, for contrast.
@@ -195,7 +207,8 @@ fn sealed_pot() {
         props.volume_pad,
         props.surface_area,
         pncad::topo::validate_geometric(&sealed, tol),
-        pncad::mesh::tessellate(&sealed, 2e-4, tol).map(|m| pncad::mesh::validate::triangle_count(&m)),
+        pncad::mesh::tessellate(&sealed, 2e-4, tol)
+            .map(|m| pncad::mesh::validate::triangle_count(&m)),
     );
     let classes = pncad::topo::classify_shells(&sealed, tol).expect("classify");
     for c in &classes {

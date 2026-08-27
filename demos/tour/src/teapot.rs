@@ -346,7 +346,6 @@ fn describe<T, E: core::fmt::Debug>(outcome: &Result<T, E>) -> String {
     }
 }
 
-
 // ---------------------------------------------------------------------
 // The scene
 // ---------------------------------------------------------------------
@@ -436,8 +435,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     );
     let rings: usize = cup.faces().map(|(_, f)| f.rings.len()).sum();
     assert_eq!(
-        rings,
-        2,
+        rings, 2,
         "one ring per designated HALF-disc: the chart is lifted as one and each of its \
          two faces comes back annular"
     );
@@ -599,12 +597,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     );
 
     // ---- the spout: built about its own axis, then placed ----
-    let spout = pncad::topo::transform_rigid(
-        &revolved(spout_meridian(tol), tol),
-        &spout_placement(),
-        tol,
-    )
-    .expect("the spout is placed by a rigid map");
+    let spout =
+        pncad::topo::transform_rigid(&revolved(spout_meridian(tol), tol), &spout_placement(), tol)
+            .expect("the spout is placed by a rigid map");
     let v_spout = frustum_volume(SPOUT_R0, SPOUT_R1, SPOUT_LEN)
         - frustum_volume(SPOUT_R0 - SPOUT_WALL, SPOUT_R1 - SPOUT_WALL, SPOUT_LEN);
     let a_spout = frustum_lateral(SPOUT_R0, SPOUT_R1, SPOUT_LEN)
