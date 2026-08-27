@@ -56,6 +56,7 @@ mod ring;
 mod rocker;
 mod scalar;
 mod skinned;
+mod teapot;
 #[cfg(feature = "budget")]
 mod tessbudget;
 mod tube;
@@ -667,6 +668,14 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
          shell) --"
     );
     for stop in tubewall::stops(tol) {
+        visit(&stop);
+    }
+
+    println!(
+        "\n-- the teapot (VERBS-TEAPOT: shell's designated demo — a shelled pot, a \
+         lifted lid, and the two unions that refuse) --"
+    );
+    for stop in teapot::stops(tol) {
         visit(&stop);
     }
 
