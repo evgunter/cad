@@ -86,9 +86,30 @@ in git history and the M-logs, not here):
   answer) or issues — NEVER comments on merged PRs, he doesn't scan
   them. Watch 👍 reactions only on comments you explicitly requested
   sign-off on.
-- **State-sync PRs (Evan, #96)**: the orchestrator branch must not
-  accumulate a large unmerged delta — open a docs-only PR to main at
-  every pipeline seam.
+- **State-sync records RIDE THE UNIT'S OWN PR (Evan, 2026-08-27,
+  superseding the per-seam docs PR of #96).** A unit's ledger row and
+  log entries go on as one more commit to that unit's branch and merge
+  with it — no separate sync PR. Two conditions, both load-bearing:
+  - **LAST, after both reviews are delivered.** The A/B row names the
+    implementer's model arm, so a docs commit pushed while reviewers
+    are live on the branch breaks blinding through their own
+    `git log`. Never before the reports are in.
+  - **Merge immediately, without waiting on a fresh CI run**, when the
+    commit touches ONLY docs and comments AND the head it sits on was
+    already green. The docs land after code CI has gated, and re-running
+    the matrix to gate prose is waste.
+  **Scope this narrowly: it is for STATE-SYNC only** — rows, log
+  entries, seam records. Design conversations, protocol and memory
+  amendments, spec ratifications and anything that asks Evan a question
+  still get their OWN PR and their own visibility; they are the traffic
+  worth notifying other orchestrators about, and burying them inside a
+  unit's merge would hide exactly the changes that should be seen.
+  The rationale for the change: every PR notifies every orchestrator,
+  and per-seam docs PRs were most of one program's daily traffic while
+  carrying nothing another program needed to read. **The orchestrator
+  branch still must not accumulate a large unmerged delta (#96's
+  point) — keep PUSHING branches continuously; only the PR is
+  batched.**
 - **Every implementer dispatch**: point the lane at
   `docs/prompts/implementer-discipline.md` by path — output discipline,
   CI-first verification (local runs are an iteration tool, not the
