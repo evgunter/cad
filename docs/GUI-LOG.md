@@ -50,6 +50,25 @@ consumes GUI-2+GUI-3; GUI-5 is stretch.
 `egui_tiles` vs `egui_dock`) — decided inside GUI-0, rationale in
 that unit's PR.
 
-Next actions: dispatch GUI-0 and GUI-1 per the block GUI-B1 draw;
-reviews per protocol v6 (cross-model duals, banded ordinals from
-400) at each PR.
+## Dispatch record (2026-08-27, after #1088 merged the opening)
+
+Both units dispatched concurrently as isolation-worktree subagent
+lanes, arms read back from the block GUI-B1 draw record in
+`docs/MODEL-AB-LOG.md` at dispatch (the VERBS-4 deviation remedy)
+and echoed verbatim:
+
+- **GUI-0** (docs/GUI-0-SPEC.md), branch `gui/gui-0-scaffold` —
+  arm per draw record: **slot 1 = OPUS**.
+- **GUI-1** (docs/GUI-1-SPEC.md), branch `gui/gui-1-ray` — arm per
+  draw record: **slot 2 = FABLE**.
+
+Briefs point at the spec + `docs/prompts/implementer-discipline.md`
+by path and carry both halves of the foreground rule, the
+build-slot mutex, lane-private output paths, the no-trailer
+blinding rule, and the CONFLICTING-CI rules. Implementers open
+their PRs; reviews dispatch at PR-open per protocol v6
+(cross-model dual, banded ordinals from 400, parity byte drawn per
+dual at dispatch).
+
+Next actions: liveness check-ins on both lanes; at each PR-open,
+freeze head, claim ordinal on main, dispatch the v6 dual.
