@@ -127,13 +127,21 @@
 //!    ends behind where it started refuses `ReversedStacking`
 //!    wholesale, however well every consecutive pair stacks. That
 //!    gate is what makes the loop two bodies rather than one.
-//! 6. **`tube_along_arc` is solid-only** — the torus door takes a
-//!    `minor_radius` and no wall, so a HOLLOW tube cannot use it and
-//!    must be re-said as a partial revolve of an annulus. The door's
-//!    whole point is that it stores the caller's intent parameters
-//!    bit-exactly (`tube` scene); a thin tube gives that up. NOT a
-//!    probe: the parameter does not exist, so there is nothing to
-//!    refuse.
+//! 6. **`tube_along_arc` WAS solid-only — RETIRED by VERBS-TUBEWALL.**
+//!    The torus door took a `minor_radius` and no wall, so a hollow
+//!    tube had to be re-said as a revolve of an annulus and gave up
+//!    the door's whole point: the caller's intent parameters stored
+//!    bit-exactly. The door now has a hollow sibling,
+//!    `tube_along_arc_hollow`, taking the outer minor radius plus a
+//!    `wall` — the outer wall's radii and frame are still the caller's
+//!    numbers bit for bit, and the inner wall's radius is
+//!    `minor_radius - wall`, one IEEE subtraction the caller can
+//!    repeat. Both window policies are on the tour:
+//!    `tubewall::hollowelbow` (an open elbow of annular section, which
+//!    asserts the storage contract on the scene body itself) and
+//!    `tubewall::hollowtorus` (the full period, whose bore is a
+//!    cavity). Never a probe here and none is owed: the gap was a
+//!    MISSING PARAMETER, so there was nothing to refuse.
 //! 7. **The one-call hollow ring BUILDS; its STEP export is the wall**
 //!    (wall 6 — re-baselined by VERBS-RING). A full revolve of a
 //!    holed profile no longer refuses: the annulus revolves into a
@@ -844,9 +852,10 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         "cut the flare where the descending neck passes through it",
         pncad::topo::subtract(&bulb_body, &into, tol),
         |e| {
-            // Reviewer pin (r1 probes): the PR body and finding 4
-            // claim this pair is (Torus, Torus); the shipped matcher
-            // pins only the op.
+            // Reviewer pin (r1 probes): finding 4 claims this pair is
+            // (Torus, Torus), and the matcher below pins BOTH kinds as
+            // well as the op — so the claim and the probe say the same
+            // thing, and a pair that changed kind reds here.
             matches!(
                 e,
                 BooleanError::CurvedPairUnsupported {

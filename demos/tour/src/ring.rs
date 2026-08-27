@@ -9,13 +9,20 @@
 //! halves.
 //!
 //! This is the shape the Klein bottle scene wanted and could not have.
-//! Its findings entry 6 still stands — `tube_along_arc`, the door that
-//! stores a torus's INTENT parameters bit-exactly, is solid-only, so a
-//! hollow tube cannot use it — and its entry 7 is what this scene
-//! renders: the ring BUILDS, and its remaining wall is the STEP export
-//! (below). The tour therefore says the hollow tube twice: as the
-//! parameter door's missing wall thickness, and as the profile door's
-//! one-call answer.
+//! Its findings entry 7 is what this scene renders: the ring BUILDS,
+//! and its remaining wall is the STEP export (below).
+//!
+//! Its entry 6 — that `tube_along_arc`, the door storing a torus's
+//! INTENT parameters bit-exactly, was solid-only — **no longer
+//! stands**: VERBS-TUBEWALL gave that door the hollow sibling
+//! `tube_along_arc_hollow`, and `tubewall::hollowtorus` puts its full
+//! period on the tour beside this ring. So the two panels are now the
+//! SAME shape through two doors rather than a shape and a gap: this
+//! one is the profile door's answer (a holed profile, fully revolved),
+//! that one the parameter door's (an outer radius and a wall, stored),
+//! and they come out with the same census, the same two shells and the
+//! same closed forms. What is still said only once is the STEP wall,
+//! which both of them hit — pinned on both, and on klein's wall 6.
 //!
 //! # Why it is drawn see-through
 //!

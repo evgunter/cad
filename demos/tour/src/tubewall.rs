@@ -91,25 +91,20 @@ use pncad::topo::Body;
 
 use crate::{SceneBody, Stop, View};
 
-/// Major radius — the spine's own radius (`verbs_tubewall.rs::R`).
-const R: f64 = 2.0;
-/// The tube's OUTER minor radius (`verbs_tubewall.rs::OUTER`).
-const OUTER: f64 = 0.5;
-/// The wall thickness (`verbs_tubewall.rs::WALL`).
+// The spine, the window, the outer radius and the chord budget are
+// IMPORTED from `tube`, which owns them. This panel's headline
+// assertion is that the two doors' outer walls mesh face for face, and
+// that is a statement about the DOORS only if the two scenes cannot
+// differ in the fixture — a second copy here would demote it to a
+// claim that two constant tables agree. (They are
+// `verbs_tubewall.rs`'s constants too, R for R and window for window.)
+use crate::tube::{DELTA as DELTA_ELBOW, MINOR as OUTER, R, T0, T1};
+
+/// The wall thickness — the one number the solid door has no seat for
+/// (`verbs_tubewall.rs::WALL`).
 const WALL: f64 = 0.125;
 /// The bore's radius, as the caller recovers it: ONE IEEE subtraction.
 const INNER: f64 = OUTER - WALL;
-/// The window's start angle about the spine axis from `u_ref`, in
-/// radians — `tube`'s own wedge, so the elbow and the solid tube are
-/// the same swept arc.
-const T0: f64 = 0.25;
-/// The window's end angle.
-const T1: f64 = 1.75;
-
-/// The scene δ for the windowed elbow: `tube`'s, so the two panels'
-/// outer walls are meshed under identical budgets and the triangle
-/// counts below compare.
-const DELTA_ELBOW: f64 = 1e-2;
 /// The full period sweeps 2π of spine where the window sweeps 1.5 rad
 /// — 4.2× the arc at the same chord budget — so this panel spends a
 /// coarser one. It is a montage panel, not a measurement of the
@@ -169,7 +164,8 @@ fn assert_intent_stored_bit_exact(body: &Body<f64>, what: &str) {
 /// body, since the scene compares two bodies' walls and not two
 /// budgets.
 fn wall_triangles(body: &Body<f64>, mesh: &pncad::mesh::Mesh, r: f64) -> Vec<usize> {
-    body.faces()
+    let mut counts: Vec<usize> = body
+        .faces()
         .filter(|(_, face)| {
             matches!(
                 body.get_surface(face.surface),
@@ -184,7 +180,13 @@ fn wall_triangles(body: &Body<f64>, mesh: &pncad::mesh::Mesh, r: f64) -> Vec<usi
                 .triangles
                 .len()
         })
-        .collect()
+        .collect();
+    // Sorted, so what the comparison below means is "the same multiset
+    // of wall meshes" rather than "the same faces in the same iteration
+    // order". Face order is the slotmap's business, and a reorder would
+    // false-red an assertion that is about the SCHEDULE.
+    counts.sort_unstable();
+    counts
 }
 
 pub fn stops(tol: Tol) -> Vec<Stop> {
