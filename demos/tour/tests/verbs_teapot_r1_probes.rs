@@ -268,9 +268,7 @@ fn p1_shell_open_reproduced_and_rederived_on_my_own_revolve() {
 
     // And it will not tessellate, at a budget the PR never ran, with
     // the refusal on a mouth half-disc carrying the spurious ring.
-    let e = pncad::mesh::tessellate(&cup, 5e-4, tol)
-        .err()
-        .expect("the wrong trim cannot mesh");
+    let e = pncad::mesh::tessellate(&cup, 5e-4, tol).expect_err("the wrong trim cannot mesh");
     let pncad::mesh::TessellateError::Triangulation { face } = e else {
         panic!("expected the CDT insertion refusal, got {e:?}");
     };

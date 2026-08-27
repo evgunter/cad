@@ -150,8 +150,8 @@ fn barrel(tol: Tol) -> Body<f64> {
 /// through the ordinary `Center` door rather than the tangent one.
 /// The discriminator for the second door (see the table's docs).
 fn lifted_dome(tol: Tol) -> Body<f64> {
-    let r = 3.0 / 64.0;
-    let d = 0.02;
+    let r: f64 = 3.0 / 64.0;
+    let d: f64 = 0.02;
     let rr = (r * r + d * d).sqrt();
     revolved(
         Open.at(Point2::new(0.0, 0.0))
