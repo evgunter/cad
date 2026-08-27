@@ -464,10 +464,9 @@ fn the_verdict_is_argument_order_symmetric_under_rotation() {
 fn near_parallel_pairs_never_contradict_and_agree_on_their_margins() {
     let eps = Tol::witness().eps();
     let base = slab(1.0);
-    let angles: Vec<f64> = [2.0, 10.0, 30.0, 100.0, 300.0, 3000.0]
-        .iter()
-        .map(|k| (k * eps).atan().to_degrees())
-        .collect();
+    // Carried as the multiple of ε, because the noise bound below is a
+    // function of sin θ and a bare angle would hide that.
+    let ks = [2.0, 10.0, 30.0, 100.0, 300.0, 3000.0];
     let margin_of = |r: &Result<ChartOverlap, ChartRegionError>| match r {
         Err(ChartRegionError::Escalated(d)) => match d.margin {
             geom_core::MarginDiag::Value(v) => d.predicate.map(|p| (p, v)),
@@ -476,7 +475,29 @@ fn near_parallel_pairs_never_contradict_and_agree_on_their_margins() {
         _ => None,
     };
     let (mut contradictions, mut compared, mut split) = (0usize, 0usize, 0usize);
-    for &deg in &angles {
+    for &k in &ks {
+        let sin_theta = k * eps;
+        let deg = sin_theta.atan().to_degrees();
+        // THE TOLERANCE IS DERIVED, NOT PICKED. The two orders read the
+        // trims in two chart frames related by an isometry floating
+        // point cannot represent exactly, so each starts from
+        // coordinates ~`f64::EPSILON` apart in relative terms. The
+        // parallel row's margin is `|r||s| sin θ / min(|r|, |s|)`, and
+        // a coordinate perturbation enters it through a cancelling
+        // determinant, so the relative noise it inherits goes as
+        // `EPSILON / sin θ` — it GROWS as the configuration approaches
+        // parallel, and as ε tightens. A fixed number here would encode
+        // an ε: measured, the same cell reads 2.8e-8 relative at
+        // ε = 1e-9 and 2.8e-5 at ε = 1e-12, and a 1e-6 constant passes
+        // one and fails the other while saying nothing about either.
+        //
+        // The constant 1e3 is headroom over the observed factor (~250);
+        // the 0.5 cap is what keeps the row from going vacuous at the
+        // tightest ε, and is still an order of magnitude below the
+        // signature it exists to catch — a wrong lever separates the
+        // two margins by a LENGTH RATIO, 20x (relative 0.95) on the
+        // 0.05-against-1 cells below.
+        let noise_bound = (1.0e3 * f64::EPSILON / sin_theta).clamp(1e-9, 0.5);
         for &(w, d) in &[(1.0, 1.0), (0.05, 0.05), (0.9, 0.05), (0.05, 0.9)] {
             for &(tx, ty) in &[(0.0, 0.0), (0.3, 0.2), (0.5, 0.5), (0.95, 0.0)] {
                 let b = turned_plate(w, d, deg, tx, ty);
@@ -493,10 +514,11 @@ fn near_parallel_pairs_never_contradict_and_agree_on_their_margins() {
                 {
                     let rel = (x - y).abs() / x.abs().max(y.abs()).max(f64::MIN_POSITIVE);
                     assert!(
-                        rel < 1e-6,
-                        "deg = {deg}, plate = {w} x {d}, at ({tx}, {ty}): {pa} \
+                        rel < noise_bound,
+                        "sin θ = {k}ε, plate = {w} x {d}, at ({tx}, {ty}): {pa} \
                          computed {x} one way and {y} the other — a relative \
-                         {rel}, which is a LEVER apart, not noise"
+                         {rel} against a frame-noise bound of {noise_bound}. \
+                         That is a LEVER apart, not noise"
                     );
                     compared += 1;
                 }
@@ -513,7 +535,7 @@ fn near_parallel_pairs_never_contradict_and_agree_on_their_margins() {
     println!(
         "near-parallel battery: {} cells, {compared} margin comparisons, \
          {split} certify/refuse splits",
-        angles.len() * 16
+        ks.len() * 16
     );
 }
 
@@ -592,10 +614,15 @@ fn the_band_edge_is_where_the_lemma_stops_and_the_margins_still_agree() {
     );
     if let [x, y] = seen[..] {
         let rel = (x - y).abs() / x.abs().max(y.abs());
+        // Same derived bound as the near-parallel battery: the frame
+        // noise this inherits is `~EPSILON / sin θ`, and sin θ here is
+        // `K·ε`, so the bound tightens and loosens with ε instead of
+        // pretending not to.
+        let noise_bound = (1.0e3 * f64::EPSILON / (10.0 * eps)).clamp(1e-9, 0.5);
         assert!(
-            rel < 1e-6,
+            rel < noise_bound,
             "the two orders compute the same margin to noise, not to a \
-             length ratio: {x} vs {y} (relative {rel})"
+             length ratio: {x} vs {y} (relative {rel}, bound {noise_bound})"
         );
     }
 }
