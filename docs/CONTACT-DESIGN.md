@@ -245,6 +245,57 @@ same source ⇒ bit-identical descriptions), and a rung-3 pair
 escalates typed — C2's own caveat that two descriptions of one locus
 may differ as charts makes chart-space exactness unachievable there.
 
+**REVISION (#1063, 2026-08-27; U-R2 as corrected).** The rung-3
+sentence above gains ONE arm, and only one: a declared **PLANAR**
+pair may be answered on the pair's **shared world carrier** — one of
+the two plane descriptions, taken as the pair's REPRESENTATIVE FRAME.
+Everything else about rung 3 is unchanged, curved pairs included.
+
+The revision does NOT claim the exactness C2 refused, and it does not
+claim the world embedding is parameter-free — it is not: a
+`Surface::Plane` carries `u_ref`, and the arm reads both trims in one
+of the two frames. Three things make it honest instead, and all three
+are load-bearing:
+
+1. **Frame invariance of the ANSWER.** Both chart maps are isometries
+   of the Euclidean plane onto their carriers, so the map between the
+   two frames is a rigid motion (possibly with a reflection), and
+   every quantity the area machinery consumes — shoelace area,
+   perimeter, incidence, containment, the `2A/P` mean width — is a
+   Euclidean invariant. Orientation, the one thing a reflection does
+   not fix, is absorbed structurally by the loop walk's CCW
+   normalization before the machinery runs; the metering is unmoved
+   because a plane chart's lever arms are `(1, 1)` in either frame.
+   The certified verdicts are therefore invariant under the choice of
+   representative. The lemma is WRITTEN at `chart_region.rs`'s
+   `world_carrier`, and argument-order symmetry is pinned as a row.
+   What the lemma deliberately does not cover: the ray schedule is
+   fixed in CHART coordinates, so *which* configurations refuse
+   rather than decide is conditioning-dependent and rotates with the
+   frame.
+2. **Certified everywhere within ε, not exact.** A verified
+   declaration does not prove exact locus identity: `decide`'s
+   `Ok(Zero)` means `|m| ≤ zero`, never bit-zero. The claim the arm
+   earns is that the two carriers agree to within ε everywhere the
+   pair's trims reach.
+3. **Metered at the PAIR'S OWN EXTENT.** `chart_region_carrier_tilt`
+   measures the two carriers' largest separation over the union of
+   the pair's own boundary vertices, and refuses typed when that is
+   definitely positive. Door 1's carrier ladder meters the same
+   disagreement as an angle at a PINNED 1 m arm, which prices a peg
+   and a table alike; this row does not. One tilt, two extents, two
+   honest answers.
+
+Cross-instance CURVED declared pairs keep the escalation. There the
+divergence C2 names is real — two independently authored curved
+descriptions differ in `u_ref` and seam, no world embedding
+arbitrates that, and there is no isometry lemma to be had (a
+cylinder's chart map is not an isometry in azimuth unless the radii
+agree exactly, and the seam makes containment branch-dependent). The
+closure that fits them is a certified everywhere-within-ε overlap
+enclosure on the shared curved carrier, a different shape from
+either.
+
 *Alternative — area-sampled patch certification*: rejected; sampling
 can miss a trim hole and certify a contact that is not there — the
 missed-small-loop disaster the SSI-completeness principle kills.
@@ -285,12 +336,29 @@ lists; the declaration bridges ONLY the third:
 `oriented_plane_eq` ladder: same kind, defining data not definitely
 distinct — for spheres center & radius, for cylinders axis & radius,
 each margin at its named lever arm), opposed senses (exact bit, S10),
-chart-space overlap definitely positive (else stale, C3).
+overlap definitely positive **in the pair's chart** (else stale, C3)
+— that chart being the structural rungs' by construction, or, for a
+declared PLANAR pair, the shared world carrier of C3's revision, whose
+representative frame is certified by `chart_region_carrier_tilt` at
+the pair's own extent.
 Contradicted by: definitely-distinct carriers, aligned senses,
 definite separation anywhere on the claimed patch. Bridged: in-band
 carrier-data margins between independently-authored descriptions —
 the declaration is what makes them one carrier (ladder rung (b)'s
 "explicit recipe-level relation", now for every kind).
+
+**The two doors are not independent (#1063).** The world-carrier arm
+exists only because the declaration verified, so the area
+certification is handed Door 1's `ContactVerdict` rather than
+re-deriving or assuming it. It reads it in exactly one place: the
+interior-witness rung — the rung that answers a FLUSH seat, where the
+trims share a boundary and the region walk can build no intersection
+piece — runs only on `Definite`. That rung proves its point lies ON
+both carriers, and a `Bridged` verdict is precisely the statement that
+the carriers' coincidence rests on the declaration rather than on the
+geometry; a precondition may not be discharged by the claim under
+test. On `Bridged` the rung declines and the region walk's typed
+refusal stands.
 
 `Tangent`: definite = first-order tangency along the witnessed locus
 (normal opposition within the derived angle — for constructor-

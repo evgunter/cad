@@ -54,7 +54,7 @@ Next actions: dispatch GUI-0 and GUI-1 per the block GUI-B1 draw;
 reviews per protocol v6 (cross-model duals, banded ordinals from
 400) at each PR.
 
-## GUI-0 merged (2026-08-27, PR #1094, sample #28 / ordinal 400)
+## GUI-0 merged (2026-08-27, PR #1094, sample #29 / ordinal 400)
 
 The `viewer` crate exists: eframe + `egui_tiles` chrome (OQ-b
 closed in-unit), thin wgpu viewport drawing an evaluated document

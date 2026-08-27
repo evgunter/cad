@@ -87,3 +87,52 @@ Board: **P-1b next** — the consumers, the transience fence (`ops.rs`'s
 two mint sites and fillet's six strut sites), `nurbs_iso_derive`'s
 conventional arms, tier 3 switching onto `EdgeAuthority`, and the shim
 field plus 22 deref sites to pay. P-2 (#498's `General` home) follows.
+
+## Census gap 2 MERGED (#1080, 2026-08-27) — the flush seat certifies
+
+Not PCURVE work — a standalone kernel unit (#943's gap 2, issue
+#1063) carried by this orchestrator alongside the program, recorded
+here because this is where the orchestrator's narrative lives.
+
+The obvious way to draw a seated part — a post flush under a shelf —
+could not certify. Two independently authored coincident planes share
+no chart, so Door 2 had nowhere to compute the overlap and declined;
+the demo had been authored with an INSET, its comment saying flush ≡
+inset until this landed. It now takes the pair's shared **world
+carrier** as the chart, and the demo's bench seats are flush with the
+A5 gate ASSERTING `Certified` rather than printing it.
+
+**The unit's real content is the lemma, and it is written where the
+next reader meets it** (at `world_carrier`, not in a PR body): both
+chart maps are isometries, so when `carrier_agreement` decides Zero,
+ψ = φ_B⁻¹ ∘ φ_A is within ε a plane isometry, and every downstream
+quantity is a Euclidean invariant. Orientation — the one thing a
+reflection does not fix, and exactly the field an opposed `Rest` pair
+differs in — is absorbed **structurally** by CCW normalization before
+the machinery runs. Stated honestly beside it: the *certified*
+answers are invariant, the *refusal boundary* is not exactly, because
+`ray_parity`'s schedule rotates with the frame. The reviewer judged
+that concession **the right size** after supplying the rotations the
+shipped corpus never exercised.
+
+**U-R2's ratified justification was FALSE and is corrected.** The
+design argued a plane's world embedding "does not have chart
+parameters"; `Surface::Plane` carries `u_ref`, and `world_carrier`
+returns `s_a` — it picks A's frame as the REPRESENTATIVE. What
+licenses the choice is frame-invariance of the answer, and "exact" is
+too strong besides: `decide`'s `Ok(Zero)` is `|m| ≤ zero`, not
+bit-zero. The honest claim is **certified everywhere within ε**.
+
+**What lifting the scope constraint bought.** Evan cleared the lane to
+edit M9-2's code; auditing the whole door then found TWO more
+asymmetries beyond the reviewer's one — `collinear_offset` also
+one-sided, and `overlap_of_regions`' containment arm refusing on one
+relation's `None` before consulting the other. The fix
+(`|r|` → `min(|r|,|s|)`) is the union-max of the candidate margins,
+so it is symmetric by construction and never less definite: nothing
+that certified before stops certifying.
+
+The dual (ordinal 200 — the first banded claim) is EXCLUDED from the
+tally and the twelve, because the orchestrator relaxed R1's method
+under mutex saturation and not R2's. The fault is the orchestrator's;
+the findings are real and fixed.

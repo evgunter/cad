@@ -23,7 +23,7 @@
 //! Both are real things a user models, and between them they cover
 //! the two halves of A5's validity story: the layout is DISJOINT and
 //! its at-rest gate passes outright; the stand TOUCHES, and its gate
-//! reaches the declared direction's frontier (see [`stand_scene`]).
+//! CERTIFIES, its two flush seats included (see [`stand_scene`]).
 //!
 //! Every door this file uses is `pncad::…`, the tour's standing
 //! invariant: the demos are the façade's acceptance corpus, so a scene
@@ -36,11 +36,14 @@
 //! using the library is actually like. Each of these is commented at
 //! the site that meets it and filed where it can be fixed:
 //!
-//! - **#943** — a mate declares a FACE PAIR, and the census backs the
-//!   vertex-on-edge and edge-edge events a flush seat induces from
-//!   that one declaration; what a declared CROSS-INSTANCE seat still
-//!   stops at is the chart-identity door, flush or inset alike
-//!   (`SEAT_A`).
+//! - **#943 / #1063 — CLOSED, and the accommodation retired.** A mate
+//!   declares a FACE PAIR; the census backs the vertex-on-edge and
+//!   edge-edge events a flush seat induces from that one declaration,
+//!   and the declared pair itself now certifies on the two
+//!   descriptions' shared world carrier. The stand's posts are seated
+//!   FLUSH with the shelf's ends — the obvious way to draw it — where
+//!   they had to be inset while the chart-identity door declined every
+//!   cross-instance pair (`SEAT_A`).
 //! - **#944** — nothing mints a mate's alignment frame from a
 //!   selected face, so the frame and the geometry drift apart
 //!   silently (`stops`, `update_door`).
@@ -103,21 +106,36 @@ const SHELF_THICKNESS: f64 = 0.04;
 /// Where the shelf's underside meets each post, in SHELF coordinates
 /// — the two seating points the stand's mates are authored against.
 ///
-/// Both are INSET from the shelf's edges, by more than half a post
-/// section: that is how legs are set under a top, and it is the only
-/// reason they are inset here.
+/// **FLUSH with the shelf's two ends**, which is the obvious way to
+/// draw a bench: each post's outer face is in the plane of the shelf
+/// end above it, so the post's cap shares a boundary LINE with the
+/// shelf's underside. They stay inset in y, because a bench top
+/// overhangs front and back and a post is not the depth of the shelf.
 ///
-/// It is NOT a workaround for the gate. A flush seat — the post's cap
-/// sharing a boundary line with the shelf's underside — reaches the
-/// same verdict as this one: the mate's face-pair declaration backs
-/// the vertex-on-edge and edge-edge events such a seat induces (the
-/// census's face rung, module docs D3/D4), so the seat is never a
-/// finding against the document. What both seats stop at is the
-/// frontier [`at_rest`] describes: a declared CROSS-INSTANCE pair is
-/// declined at the census's chart-identity door, whether its faces
-/// share a boundary or not.
-const SEAT_A: [f64; 3] = [0.10, 0.15, 0.0];
-const SEAT_B: [f64; 3] = [0.80, 0.15, 0.0];
+/// "Flush" here is flush AS THE MODEL COMPUTES IT, and the two ends are
+/// not identical about it: `SEAT_A`'s near face lands on `x = 0`
+/// exactly (`POST_SECTION / 2 - POST_SECTION / 2`), while `SEAT_B`'s far
+/// face lands 1.11e-16 m past `SHELF_LENGTH`, because
+/// `0.9 - 0.06 + 0.06` is not `0.9` in binary floating point. That is
+/// one ulp of the model's own coordinates and four orders below the
+/// TIGHTEST ε the hosted matrix runs (1e-12), so it is a residue the
+/// seat's own predicate certifies rather than a gap in the drawing —
+/// which is the whole "certified everywhere within ε, never exact"
+/// posture, met by the demo instead of asserted about it. The
+/// dimensions are NOT adjusted to make the arithmetic close: moving
+/// geometry so a number reads round is the one thing this file may not
+/// do.
+///
+/// This was authored INSET until #1063 landed, with a comment saying
+/// flush and inset reached the same verdict — true then, and the
+/// reason it was a gap: a declared cross-instance pair was declined at
+/// the census's chart-identity door whatever its geometry, so the
+/// natural drawing was the one that did not certify. The pair now
+/// answers on its shared world carrier, and the shared boundary is
+/// carried by the interior-witness rung, so the flush seat certifies
+/// and the accommodation is retired.
+const SEAT_A: [f64; 3] = [POST_SECTION / 2.0, SHELF_DEPTH / 2.0, 0.0];
+const SEAT_B: [f64; 3] = [SHELF_LENGTH - POST_SECTION / 2.0, SHELF_DEPTH / 2.0, 0.0];
 
 /// The post's own seating point, in POST coordinates: the centre of
 /// its top cap. Every mate that seats something on a post is authored
@@ -686,6 +704,18 @@ fn stand_scene(ws: &Workspace, stand: &Stand, tol: Tol) -> SceneBody {
         2,
         "one record per solved mate (A3's minting)"
     );
+    // ASSERTED, not merely printed: this is #1063's visible acceptance.
+    // The stand is the natural drawing of a bench — two posts seated
+    // FLUSH with the shelf's ends — and until the census could answer a
+    // declared cross-instance pair it reached the frontier and no
+    // further. A scene that only PRINTED its verdict would keep saying
+    // so with the sentence and the geometry drifting apart, which is
+    // the shape of the demo bug this file exists to avoid.
+    assert!(
+        matches!(gate.verdict, AtRestVerdict::Certified),
+        "the flush-seated stand CERTIFIES at the A5 gate: {}",
+        gate.verdict.describe()
+    );
 
     SceneBody::at_rest("bench", [0.55, 0.44, 0.30], gate.body, gate.contacts)
 }
@@ -740,25 +770,27 @@ impl AtRest {
 /// Runs the A5 gate.
 ///
 /// `Ok` and `Uncertified` are BOTH accepted, and the difference is
-/// reported rather than asserted: today every declared cross-instance
-/// pair lands in `Uncertified`, and the day the census grows its
-/// cross-instance rung this same call returns `Ok` and the scene's
-/// line says so. What is NOT accepted is `AtRest` — a finding AGAINST
-/// the document — which is the arm that means the declarations do not
-/// hold, and which the update walk deliberately provokes.
+/// reported rather than asserted. Since #1063 a declared PLANAR
+/// cross-instance pair certifies on its shared world carrier, so this
+/// stand returns `Ok`; the `Uncertified` arm stays because it is still
+/// the honest answer for everything the carrier arm does not reach — a
+/// declared CURVED cross-instance pair, or a planar pair whose two
+/// descriptions disagree over the pair's own extent. What is NOT
+/// accepted is `AtRest` — a finding AGAINST the document — which is
+/// the arm that means the declarations do not hold, and which the
+/// update walk deliberately provokes.
 ///
 /// # What the frontier's observable does and does not say
 ///
-/// The finding this arm carries is `CensusUnsupported` naming a face.
+/// The finding that arm carries is `CensusUnsupported` naming a face.
 /// The declared-patch loop emits that from MORE THAN ONE door — the
-/// carrier-identity check and the chart-identity check both decline
-/// through it — so the observable a caller sees does NOT say which of
-/// them declined, and this demo does not claim to know. What holds
-/// either way, and is the whole content of the frontier, is that a
-/// declared cross-instance pair is not certifiable in this tree:
-/// nothing was decided about the geometry, in either direction.
-/// Separating the doors would take a probe against the census, which
-/// is the census's unit to write, not this scene's.
+/// carrier-identity check, the chart-region inventory and the carrier
+/// tilt row all decline through it — so the observable a caller sees
+/// does NOT say which of them declined, and this demo does not claim
+/// to know. What holds either way is the whole content of the
+/// frontier: nothing was decided about the geometry, in either
+/// direction. Separating the doors would take a probe against the
+/// census, which is the census's unit to write, not this scene's.
 fn at_rest(doc: &ProfileDoc, ev: &Evaluation<f64>, tol: Tol) -> AtRest {
     match assemble(doc, ev, tol) {
         Ok(Assembly { body, contacts, .. }) => AtRest {
@@ -1544,9 +1576,9 @@ pub fn stops(work: &Path, tol: Tol) -> Vec<Stop> {
             delta: 4e-3,
             note: Some(format!(
                 "3 solids, V = {:.6} m^3; the mates mint their Rest declarations into the \
-                 product's contact record set, and the A5 at-rest gate reports the declared \
-                 direction's frontier (the census has no cross-instance certifier lane yet, \
-                 so the declarations are neither certified nor refuted)",
+                 product's contact record set, and the A5 at-rest gate CERTIFIES them — \
+                 each post is seated flush with a shelf end, and a declared planar pair \
+                 with no shared chart is answered on the two descriptions' world carrier",
                 2.0 * POST_VOLUME + SHELF_VOLUME
             )),
             view: View {
