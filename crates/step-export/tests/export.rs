@@ -301,3 +301,99 @@ fn committed_fixtures_are_byte_golden() {
         );
     }
 }
+
+/// **The `boss_union` re-baseline, with its cause** (PCURVE P-1b).
+///
+/// Three of this fixture's vertices moved one ULP in `z`,
+/// `0.9999999999999999 → 1.0`, when the conventional descriptions
+/// collapsed onto chart images. Twelve other points on the same plane
+/// were already exactly `1.0`; these three were the outliers. The
+/// fixture was regenerated deliberately, and this row is why — it
+/// asserts the MECHANISM, so the move cannot later be read as drift
+/// that someone waved through.
+///
+/// Two things are shown, because either alone would be a story:
+///
+/// 1. **The three points are the boss's corner struts crossing the
+///    plate's top**, and those struts are exactly the edges this unit
+///    re-described: the boss's three 120° arcs are arcs of ONE circle,
+///    so its three walls share one surface, so each corner strut is
+///    the `k_prev == k_next` case that used to keep a pushforward and
+///    now states a chart image (`extrude`'s same-surface strut join).
+///    They carry `EdgeAuthority::Declared`, which is the record of
+///    exactly that conversion — a derived chart image would not.
+/// 2. **The new `z` is FORCED by the chart, not produced by luck.**
+///    The plate's top is a plane whose `u_ref` and `v_ref` both have
+///    `z` exactly zero, so `S(u, v).z = origin.z` identically — every
+///    image in that chart evaluates to `z = 1.0` for every parameter,
+///    with no arithmetic that could round. A pushforward states the
+///    same locus in 3-SPACE and carries whatever the boolean's
+///    intersection arithmetic produced, which for these three was one
+///    ULP low.
+#[test]
+fn boss_union_seam_vertices_are_exactly_on_the_plate_top() {
+    let body = common::boss_union();
+    // (2) first: the chart cannot express any z but the plane's own.
+    let tops: Vec<_> = body
+        .surfaces()
+        .filter_map(|(k, s)| match s {
+            geom::Surface::Plane {
+                origin,
+                normal,
+                u_ref,
+            } if origin.z == 1.0 && normal.z.abs() == 1.0 => Some((k, *origin, *normal, *u_ref)),
+            _ => None,
+        })
+        .collect();
+    assert!(!tops.is_empty(), "the plate's top plane is in the arena");
+    for (_, origin, normal, u_ref) in &tops {
+        let v_ref = normal.cross(*u_ref);
+        assert_eq!(
+            (u_ref.z, v_ref.z),
+            (0.0, 0.0),
+            "an axis-aligned plane's in-chart axes have no z, so S(u, v).z is exactly \
+             origin.z for every (u, v) — the value is forced, not rounded to"
+        );
+        assert_eq!(origin.z, 1.0, "and that z is the plate's top");
+    }
+    // (1): the three boss corners, at the plate's top, exactly on it.
+    let corners = [
+        (2.5_f64, 2.0_f64),
+        (1.75, 2.433_012_701_892_219),
+        (1.749_999_999_999_999_8, 1.566_987_298_107_780_8),
+    ];
+    let mut found = 0;
+    for (_, p) in body.points() {
+        for (cx, cy) in corners {
+            if p.x == cx && p.y == cy && (p.z - 1.0).abs() < 0.5 {
+                assert_eq!(
+                    p.z, 1.0,
+                    "a boss corner strut crossing the plate's top lies ON it, bitwise \
+                     — this is the re-baselined value and the reason it is exact"
+                );
+                found += 1;
+            }
+        }
+    }
+    assert_eq!(found, 3, "all three boss corners cross the plate's top");
+    // And every edge described in that chart records the declaration
+    // the conversion moved out of the description (U2 Q3).
+    let top_keys: Vec<_> = tops.iter().map(|(k, ..)| *k).collect();
+    let mut declared_chart_edges = 0;
+    for (_, e) in body.edges() {
+        let Some(topo::CurveGeom::Certified(c)) = body.get_curve_geom(e.curve) else {
+            continue;
+        };
+        if let topo::EdgeDescription::Chart(chart) = c.description()
+            && top_keys.contains(&chart.surface)
+            && c.authority().is_declared()
+        {
+            declared_chart_edges += 1;
+        }
+    }
+    assert!(
+        declared_chart_edges > 0,
+        "the plate's top carries chart images whose locus is recorded as DECLARED — \
+         the fence's conversion, which is what moved these points"
+    );
+}

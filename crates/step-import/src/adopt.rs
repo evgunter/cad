@@ -587,19 +587,34 @@ fn adopt_edges(
             // authority record beside it (U2 Q3), which is what keeps
             // tier 3's prefer-intrinsic reading of this edge unchanged.
             //
-            // A NURBS rim keeps the SCAFFOLDING door, because the
-            // analytic mint that derives chart images refuses a spline
-            // chart — so it reaches rest through the door and tier 3's
-            // transience fence names it. Recorded as a gap rather than
-            // papered over with a silent downgrade: the rim's exact
-            // image exists (`nurbs_iso_derive` mints it as a CACHE),
-            // and moving it into the DESCRIPTION is the follow-up.
-            let description = if nurbs_rim {
-                EdgeDescriptionSpec::Scaffold(mapped)
+            // A NURBS RIM takes the PLANE side of its own pair. The
+            // rung's gate (`nurbs_plane_pair`) is exactly "one
+            // described spline wall and one plane", so an analytic
+            // chart is always in hand — and it is the RIGHT one: the
+            // rim is the cap's boundary and lies in the cap's plane by
+            // construction, where the derived image is exact. The
+            // spline wall's own image of the same rim exists too, but
+            // it is a stored CACHE (`topo`'s `nurbs_iso_derive`), not
+            // something a construction can state, and it is not needed
+            // — a chart image names ONE of the edge's two adjacent
+            // surfaces, and either is admissible (tier 3's chart
+            // adjacency, the M5-LOG item 6(iii) rule).
+            //
+            // No gate is skipped by preferring the plane: the rim is
+            // not METERED onto the cap here the way the coincident
+            // rung meters its carrier, but certification's own
+            // `|C(t) − S(P(t))|` does exactly that a moment later, so
+            // a rim that does not lie in the cap refuses loudly rather
+            // than adopting a description of the wrong locus.
+            let chart = if nurbs_rim {
+                plane_of_pair(body, fs_plus, fs_minus).unwrap_or(fs_plus)
             } else {
-                EdgeDescriptionSpec::chart(fs_plus).declared_by(mapped)
+                fs_plus
             };
-            candidates.push((AdoptionCandidate::MappedCurve, description));
+            candidates.push((
+                AdoptionCandidate::MappedCurve,
+                EdgeDescriptionSpec::chart(chart).declared_by(mapped),
+            ));
         }
 
         // A band-minted seam generator (M7-5, R1 fix pass m2): the
@@ -911,6 +926,27 @@ fn arc_rim_on_wall_boundary(
 /// plane — the cap-rim adjacency the conventional rung's exemption
 /// names (its call site's comment). Any other pairing answers
 /// `false`: the exemption is exactly as wide as the class it serves.
+/// Whichever of the two adjacent surfaces is the PLANE of a
+/// [`nurbs_plane_pair`] — the analytic chart a NURBS-adjacent rim is
+/// described in. `None` when neither is a plane, which the caller
+/// treats as "no preference" rather than as an error: certification
+/// then meters whatever chart it was given and refuses if the locus is
+/// not on it.
+fn plane_of_pair(
+    body: &topo::Body<f64>,
+    s1: geom_brep::SurfaceKey,
+    s2: geom_brep::SurfaceKey,
+) -> Option<geom_brep::SurfaceKey> {
+    let is_plane = |k| matches!(body.get_surface(k), Some(Surface::Plane { .. }));
+    if is_plane(s1) {
+        Some(s1)
+    } else if is_plane(s2) {
+        Some(s2)
+    } else {
+        None
+    }
+}
+
 fn nurbs_plane_pair(s1: Option<&Surface<f64>>, s2: Option<&Surface<f64>>) -> bool {
     let described_nurbs =
         |s: Option<&Surface<f64>>| matches!(s, Some(Surface::Nurbs(p)) if !p.is_placeholder());
