@@ -236,7 +236,15 @@ CONFLICTING as a loud failure.
 **The session scratchpad is SHARED between concurrently running agents
 of one session.** PR/issue bodies and anything else to-be-published go
 to LANE-PRIVATE paths (`~/.local/share/cad-work/<lane>-*.md`), never the
-scratchpad; orchestrator briefs state this.
+scratchpad; orchestrator briefs state this. **Logs and run artifacts
+too** (ordinal 102's lesson): a reviewer found the implementer lane's
+logs in the shared scratchpad — a blinding channel (filenames alone
+leak) — and misread another agent's stale driver as "its own prior
+task" before killing it (harmless there, only because the process had
+already exited; the kill-by-recorded-PID rule exists exactly for
+this). Every lane writes logs under its OWN directory
+(`cad-work/<lane>/` or a `<lane>-logs/` sibling), never the session
+scratchpad.
 
 **Reclaiming a finished lane is the ORCHESTRATOR's job, not a lane's.** A
 lane cannot judge whether a sibling directory is live and should not try —

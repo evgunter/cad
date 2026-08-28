@@ -69,3 +69,4 @@ usable-as-a-library (`docs/LIB-LOG.md`), ASM — assemblies
 - [K telemetry state](../docs/K-REPORT.md) — not a memory: K = 10 is the
   permanent ratified default, #89 CLOSED; check a landing's margin
   DIMENSION before reading it as K evidence
+- [A refusal's text is not evidence of its cause](refusal-text-is-not-cause.md) — five measured instances; measure-first is mandatory; the payload and raising site are the instrument
