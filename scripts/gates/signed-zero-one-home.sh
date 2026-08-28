@@ -97,9 +97,9 @@ gate() {
     exit 1
   fi
   hits=$(gate_rust_code --window 6 "${files[@]}" \
-    | grep -vE "^$HOME_FILE:" \
-    | grep -E "$PAT_BRANCH|$PAT_ADD|$PAT_ADD_REVERSED" \
-    | cut -c1-140 || true)
+    | gate_grep -vE "^$HOME_FILE:" \
+    | gate_grep -E "$PAT_BRANCH|$PAT_ADD|$PAT_ADD_REVERSED" \
+    | cut -c1-140)
   if [ -n "$hits" ]; then
     printf '%s\n' "$hits"
     gate_error "a negative-zero flush outside the sanctioned home ($HOME_FILE) — call crate::signed_zero instead of re-deriving it"

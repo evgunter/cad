@@ -48,29 +48,66 @@ fn seg_distance(q: Point2<f64>, a: Point2<f64>, b: Point2<f64>) -> f64 {
     (q - foot).norm_squared().sqrt()
 }
 
-/// A convex polygon's vertices: distinct sorted angles about the
-/// origin with per-vertex radii — junctions definitely sharp by
-/// construction (angle gaps ≥ 0.15 rad, radii in [1, 3]).
+/// Per-vertex radii vary within `base * [1 - RADIUS_JITTER, 1 +
+/// RADIUS_JITTER]`. The bound is not free: see `convex_polygon`.
+const RADIUS_JITTER: f64 = 0.08;
+
+/// A STRICTLY CONVEX polygon's vertices, at increasing angles about the
+/// origin with per-vertex radii. Both halves of that are guaranteed by
+/// construction, and both are what `sharp_polygons_differential_and_
+/// verified` needs of its input: a simple closed loop whose every
+/// junction turns, so no `line_to` meets a cusp or a straight
+/// continuation and the junction verifier has nothing to refuse.
+///
+/// ANGLES. `n` weights drawn from `[1, 1.5]` are normalised to sum to
+/// `TAU`, so each angular gap lies in `[TAU / ((n-1) * 1.5 + w), TAU * w
+/// / ((n-1) + w)]` for its own `w` — over `n` in `3..8` that is contained
+/// in `[TAU/10, TAU * 1.5/3.5]`, hence strictly inside `(0, PI)`. Gaps
+/// under `PI` are the load-bearing part: they put the origin strictly
+/// inside the fan, so consecutive edges live in disjoint angular wedges
+/// and increasing-angle order implies a SIMPLE loop. Drawing gaps freely
+/// and rescaling them to a full turn does NOT give this — the rescale
+/// multiplies gaps, and one gap past `PI` puts the origin outside, where
+/// increasing angles imply nothing.
+///
+/// RADII. Left-turning at a vertex with neighbouring gaps `g1, g2` and
+/// radii `a, b, c` is `sin(g2)/a + sin(g1)/c > sin(g1+g2)/b`. Over
+/// `g1, g2 >= g_min` the right side is worst at `g1 = g2 = g_min`, and
+/// with radii confined to `base * [1-J, 1+J]` the worst assignment is
+/// `a = c = base(1+J)`, `b = base(1-J)`; the condition then reduces to
+/// `(1-J)/(1+J) > cos(g_min)`, i.e. `J < tan^2(g_min/2)`. With
+/// `g_min = TAU/10` that admits any `J < 0.105`, so `RADIUS_JITTER` at
+/// 0.08 keeps radius variety with margin. Radii free in `[1, 3]` would
+/// NOT: a mid vertex can then land on the chord of its neighbours, which
+/// is a straight junction, not a sharp one.
 fn convex_polygon() -> impl Strategy<Value = Vec<Point2<f64>>> {
     (3usize..8)
         .prop_flat_map(|n| {
             (
-                proptest::collection::vec(0.15f64..1.0, n),
-                proptest::collection::vec(1.0f64..3.0, n),
+                proptest::collection::vec(1.0f64..1.5, n),
+                1.0f64..3.0,
+                proptest::collection::vec(-RADIUS_JITTER..RADIUS_JITTER, n),
             )
         })
-        .prop_map(|(gaps, radii)| {
-            let total: f64 = gaps.iter().sum();
-            let scale = std::f64::consts::TAU / total;
+        .prop_map(|(weights, base, jitter)| {
+            let total: f64 = weights.iter().sum();
             let mut phi = 0.0;
-            gaps.iter()
-                .zip(&radii)
-                .map(|(g, r)| {
-                    phi += g * scale;
+            weights
+                .iter()
+                .zip(&jitter)
+                .map(|(w, j)| {
+                    phi += std::f64::consts::TAU * w / total;
+                    let r = base * (1.0 + j);
                     p2(r * phi.cos(), r * phi.sin())
                 })
                 .collect()
         })
+}
+
+/// Twice the signed area of `(a, b, c)` — positive exactly when the
+/// junction at `b` turns left.
+fn turn(a: Point2<f64>, b: Point2<f64>, c: Point2<f64>) -> f64 {
+    (b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x)
 }
 
 proptest! {
@@ -83,6 +120,23 @@ proptest! {
     /// never fires on it.
     #[test]
     fn sharp_polygons_differential_and_verified(pts in convex_polygon()) {
+        // The strategy's own contract, asserted against the INPUT rather
+        // than assumed. A left turn at every vertex is what makes the
+        // loop simple and every junction sharp, and it is exactly the
+        // precondition `validate_ok` below is entitled to; a generator
+        // that stops supplying it turns this row into a test of
+        // `validate` against inputs it is right to refuse.
+        let n = pts.len();
+        for k in 0..n {
+            let t = turn(pts[k], pts[(k + 1) % n], pts[(k + 2) % n]);
+            prop_assert!(
+                t > 0.0,
+                "convex_polygon() is contracted to be strictly convex, but the \
+                 junction at vertex {} turns by {t} (<= 0): {pts:?}",
+                (k + 1) % n
+            );
+        }
+
         let mut path = Open.at(pts[0]).line_to(pts[1], Tol::witness()).unwrap();
         for q in &pts[2..] {
             path = path.line_to(*q, Tol::witness()).unwrap();

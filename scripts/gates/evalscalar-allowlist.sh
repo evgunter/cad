@@ -30,8 +30,8 @@ gate() {
   gate_require_crate_sources
   local hits
   hits=$(gate_rust_code --statements "${GATE_SOURCE_FILES[@]}" \
-    | grep -E '(:|\+)[[:space:]]*(editor_core::)?EvalScalar([^A-Za-z0-9_]|$)' \
-    | grep -vE '^crates/editor-core/src/eval/(mod|parts)\.rs:' || true)
+    | gate_grep -E '(:|\+)[[:space:]]*(editor_core::)?EvalScalar([^A-Za-z0-9_]|$)' \
+    | gate_grep -vE '^crates/editor-core/src/eval/(mod|parts)\.rs:')
   if [ -n "$hits" ]; then
     echo "$hits"
     gate_error "EvalScalar (a compound Bounds bound by another name) outside the evaluation-service seam — see geom-core/src/real.rs (Bounds scope rule) and editor-core/src/eval/mod.rs; ratify before allowlisting"

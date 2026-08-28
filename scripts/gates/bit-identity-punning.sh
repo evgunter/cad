@@ -19,8 +19,8 @@ gate() {
   gate_require_crate_sources
   local hits
   hits=$(gate_rust_code "${GATE_SOURCE_FILES[@]}" \
-    | grep -E 'downcast_ref|downcast_mut|TypeId|core::any|std::any' \
-    | grep -vE '^crates/geom-core/src/bit_identity\.rs:' || true)
+    | gate_grep -E 'downcast_ref|downcast_mut|TypeId|core::any|std::any' \
+    | gate_grep -vE '^crates/geom-core/src/bit_identity\.rs:')
   if [ -n "$hits" ]; then
     printf '%s\n' "$hits"
     gate_error "bit-identity punning outside the sanctioned seam (geom-core/src/bit_identity.rs)"

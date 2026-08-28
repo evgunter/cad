@@ -155,7 +155,7 @@ SQUARE_RE="$SQUARE_RE|(?<!\w)\(\s*[^()]*?\*\s*($SQUARE_PATH)\s*\)\s*\*\s*\2(?![\
 # skip cannot see across files. Resolved here, from the declaration
 # rather than from a list of names, so a new one needs no edit.
 production_sources() {
-  local decl dir name cands=() excl=()
+  local decl dir name narrowed=() cands=() excl=()
   # TWO STAGES, because reading every source twice costs more than this
   # gate is worth: raw `grep` narrows to the handful of files that carry
   # both the attribute and a `mod` declaration, and only those are read
@@ -166,8 +166,16 @@ production_sources() {
   # makes `#[cfg(test)] mod probes;` on ONE line and the same split over
   # two the same record — the earlier `grep -A1` form saw only the split
   # one, and cried wolf on the other.
-  mapfile -t cands < <(grep -lF '#[cfg(test)]' "${GATE_SOURCE_FILES[@]}" \
-    | xargs -r grep -lE '(^|[[:space:]])mod [a-z_][a-z0-9_]*;' || true)
+  #
+  # NO `xargs` BETWEEN THE STAGES. `xargs` reports 123 for any child that
+  # exited 1-125, which folds `grep`'s "nothing matched" and its "I could
+  # not search" into one status before anything here can tell them apart.
+  # The narrowed list is small by construction, so the second stage takes
+  # it as arguments.
+  mapfile -t narrowed < <(gate_grep -lF '#[cfg(test)]' "${GATE_SOURCE_FILES[@]}")
+  if [ "${#narrowed[@]}" -gt 0 ]; then
+    mapfile -t cands < <(gate_grep -lE '(^|[[:space:]])mod [a-z_][a-z0-9_]*;' "${narrowed[@]}")
+  fi
   if [ "${#cands[@]}" -gt 0 ]; then
     while IFS= read -r decl; do
       [ -n "$decl" ] || continue
@@ -175,17 +183,17 @@ production_sources() {
       name=${decl##*:}
       excl+=("$dir/$name.rs" "$dir/$name/")
     done < <(gate_rust_code --statements "${cands[@]}" \
-      | grep -E '#\[cfg\(([^]]*[(,][[:space:]]*)?test[,)]' \
-      | grep -vE '#\[cfg\([^]]*(any|not)\(' \
-      | grep -oE '^[^:]*:[0-9]+:.*[[:space:]]mod [a-z_][a-z0-9_]*$' \
-      | sed -E 's/:[0-9]+:.*[[:space:]]mod /:/' || true)
+      | gate_grep -E '#\[cfg\(([^]]*[(,][[:space:]]*)?test[,)]' \
+      | gate_grep -vE '#\[cfg\([^]]*(any|not)\(' \
+      | gate_grep -oE '^[^:]*:[0-9]+:.*[[:space:]]mod [a-z_][a-z0-9_]*$' \
+      | sed -E 's/:[0-9]+:.*[[:space:]]mod /:/')
   fi
   if [ "${#excl[@]}" -eq 0 ]; then
     printf '%s\n' "${GATE_SOURCE_FILES[@]}"
     return 0
   fi
   printf '%s\n' "${GATE_SOURCE_FILES[@]}" \
-    | grep -vF "$(printf '%s\n' "${excl[@]}")" || true
+    | gate_grep -vF "$(printf '%s\n' "${excl[@]}")"
 }
 
 gate() {
@@ -198,10 +206,10 @@ gate() {
     exit 1
   fi
   hits=$(gate_rust_code --skip-cfg-test --statements "${files[@]}" \
-    | grep -P "$SQUARE_RE" \
-    | grep -vE '^crates/geom-core/src/(real|ring_interval)\.rs:' \
-    | grep -vE '^crates/geom-core/src/linalg/(svd|lsq)\.rs:' \
-    | grep -vE '^crates/geom-brep/src/ssi/(jet|march|system)\.rs:' || true)
+    | gate_grep -P "$SQUARE_RE" \
+    | gate_grep -vE '^crates/geom-core/src/(real|ring_interval)\.rs:' \
+    | gate_grep -vE '^crates/geom-core/src/linalg/(svd|lsq)\.rs:' \
+    | gate_grep -vE '^crates/geom-brep/src/ssi/(jet|march|system)\.rs:')
   if [ -n "$hits" ]; then
     printf '%s\n' "$hits"
     gate_error "use powi(2): it is strictly tighter than x*x when the enclosure straddles zero, and equal elsewhere except for a square below 2^-960, where the backend pads once more (see this gate's header — NOT 'never wider'). Whether THIS enclosure can straddle zero is a global property of upstream callers that refactors change silently — four live bugs arrived exactly that way. Convert, or ratify this file into the allowlist."

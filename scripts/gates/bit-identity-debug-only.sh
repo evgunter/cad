@@ -110,8 +110,8 @@ gate() {
   gate_require_file "$SUBJECT"
   local report uses ungated
   report=$(gate_rust_code "$SUBJECT" | debug_only_report)
-  ungated=$(printf '%s\n' "$report" | grep '^UNGATED ' | sed 's/^UNGATED //' || true)
-  uses=$(printf '%s\n' "$report" | grep -c '^USE$' || true)
+  ungated=$(printf '%s\n' "$report" | gate_grep '^UNGATED ' | sed 's/^UNGATED //')
+  uses=$(printf '%s\n' "$report" | gate_grep -c '^USE$')
   GATE_SCAN_FILES=$uses
   if [ -n "$ungated" ]; then
     printf '%s\n' "$ungated"

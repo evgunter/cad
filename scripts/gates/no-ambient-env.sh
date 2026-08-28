@@ -101,10 +101,10 @@ gate() {
   gate_require_crate_sources
   local hits
   hits=$(gate_rust_code "${GATE_SOURCE_FILES[@]}" \
-    | grep -P '\benv::vars?(_os)?\s*\(' \
-    | grep -vE '^crates/geom-core/src/tolerance\.rs:' \
-    | grep -vE '^crates/test-utils/src/fuzz\.rs:' \
-    | grep -vE '^crates/viewer/src/frame\.rs:' || true)
+    | gate_grep -P '\benv::vars?(_os)?\s*\(' \
+    | gate_grep -vE '^crates/geom-core/src/tolerance\.rs:' \
+    | gate_grep -vE '^crates/test-utils/src/fuzz\.rs:' \
+    | gate_grep -vE '^crates/viewer/src/frame\.rs:')
   if [ -n "$hits" ]; then
     echo "$hits"
     gate_error "a kernel crate reads the environment at runtime — that is a back channel into shipped code, changing behaviour with no rebuild and no call site to review (NURBS_PROBE was exactly this). Arm it by an explicit call and gate it behind a feature, or ratify this file into the allowlist."

@@ -127,12 +127,15 @@ gate() {
   # the token `Real` in the same statement, so the two matchers only
   # ever see statements that contain one. No line window, and therefore
   # no assumption about which lines are adjacent.
-  near=$(gate_rust_code --statements "${GATE_SOURCE_FILES[@]}" | grep -F Real || true)
+  near=$(gate_rust_code --statements "${GATE_SOURCE_FILES[@]}" | gate_grep -F Real)
   plus=$(printf '%s\n' "$near" \
-    | grep -E '(\+[[:space:]]*([A-Za-z0-9_]+::)*Real([^A-Za-z0-9_]|$))|((^|[^A-Za-z0-9_])Real[[:space:]]*\+)' \
-    | grep -vE "^$SEALED_HOME_RE:[0-9]+: $SEALED_DECL_RE\$" || true)
-  twice=$(printf '%s\n' "$near" | compound_without_plus || true)
-  hits=$(printf '%s\n%s\n' "$plus" "$twice" | grep -v '^$' | sort -u || true)
+    | gate_grep -E '(\+[[:space:]]*([A-Za-z0-9_]+::)*Real([^A-Za-z0-9_]|$))|((^|[^A-Za-z0-9_])Real[[:space:]]*\+)' \
+    | gate_grep -vE "^$SEALED_HOME_RE:[0-9]+: $SEALED_DECL_RE\$")
+  # `compound_without_plus` is awk, which has no "no match" status: it
+  # exits 0 having printed nothing. A non-zero from it is a reader that
+  # died, so it is NOT tolerated here either.
+  twice=$(printf '%s\n' "$near" | compound_without_plus)
+  hits=$(printf '%s\n%s\n' "$plus" "$twice" | gate_grep -v '^$' | sort -u)
   if [ -n "$hits" ]; then
     printf '%s\n' "$hits"
     gate_error "found extra bound(s) on Real above — evaluation-code discipline forbids extra bounds on scalar type parameters, in either operand order, whether or not a \`+\` is written, and however rustfmt wrapped it"

@@ -224,19 +224,19 @@ gate() {
   gate_require_crate_sources
   gate_definition_skip_subject
   local hits
-  hits=$(grep -rnE '(\+\s*(\w+::)*\w*Bounds\b)|(\w*Bounds\s*\+)|(\btrait\s+\w+\b[^;{]*:[^;{]*\w*Bounds\b)' crates/*/src \
-    | grep -vE ':[0-9]+:\s*(//|///|//!)' \
-    | grep -vE ':[0-9]+:pub trait CertifiedBounds: Bounds \+ CertifiedEnclosure \{\}$' \
-    | grep -vE ':[0-9]+:impl<T: Bounds \+ CertifiedEnclosure> CertifiedBounds for T \{\}$' \
+  hits=$(gate_grep -rnE '(\+\s*(\w+::)*\w*Bounds\b)|(\w*Bounds\s*\+)|(\btrait\s+\w+\b[^;{]*:[^;{]*\w*Bounds\b)' crates/*/src \
+    | gate_grep -vE ':[0-9]+:\s*(//|///|//!)' \
+    | gate_grep -vE ':[0-9]+:pub trait CertifiedBounds: Bounds \+ CertifiedEnclosure \{\}$' \
+    | gate_grep -vE ':[0-9]+:impl<T: Bounds \+ CertifiedEnclosure> CertifiedBounds for T \{\}$' \
     | cut -d: -f1 | sort -u \
-    | grep -vE '^crates/topo/src/boolean/(boxes|mod|ops|reduce|rest)\.rs$' \
-    | grep -vE '^crates/topo/src/separation\.rs$' \
-    | grep -vE '^crates/topo/src/props\.rs$' \
-    | grep -vE '^crates/topo/src/chart_region\.rs$' \
-    | grep -vE '^crates/editor-core/src/eval/(mod|wire)\.rs$' \
-    | grep -vE '^crates/profile/src/path/arc_fillet\.rs$' \
-    | grep -vE '^crates/geom-brep/src/(pcurve_cache|ssi|ssi/certify|edge_nurbs)\.rs$' \
-    | grep -vE '^crates/sweep/src/fillet/(battery|build|surgery)\.rs$' || true)
+    | gate_grep -vE '^crates/topo/src/boolean/(boxes|mod|ops|reduce|rest)\.rs$' \
+    | gate_grep -vE '^crates/topo/src/separation\.rs$' \
+    | gate_grep -vE '^crates/topo/src/props\.rs$' \
+    | gate_grep -vE '^crates/topo/src/chart_region\.rs$' \
+    | gate_grep -vE '^crates/editor-core/src/eval/(mod|wire)\.rs$' \
+    | gate_grep -vE '^crates/profile/src/path/arc_fillet\.rs$' \
+    | gate_grep -vE '^crates/geom-brep/src/(pcurve_cache|ssi|ssi/certify|edge_nurbs)\.rs$' \
+    | gate_grep -vE '^crates/sweep/src/fillet/(battery|build|surgery)\.rs$')
   if [ -n "$hits" ]; then
     echo "$hits"
     gate_error "compound Bounds bound outside the ratified seams above — see geom-core/src/real.rs (Bounds scope rule); ratify before allowlisting"

@@ -110,13 +110,12 @@ gate() {
   local excluded hits
   excluded=$(cfg_test_modules | sort -u)
   hits=$(gate_rust_code --skip-cfg-test "${GATE_SOURCE_FILES[@]}" \
-    | grep -E 'Tol::witness|tolerance::witness' \
-    | grep -vE '^crates/geom-core/src/tolerance\.rs:' \
-    | grep -vE '^crates/pncad/src/' \
-    | grep -vE '^crates/pncad-py/src/py/' \
-    | grep -vE '^crates/[^/]+/src/bin/' \
-    | { if [ -n "$excluded" ]; then grep -vF -f <(printf '%s\n' "$excluded" | sed 's#/$#/#; s#\.rs$#.rs:#'); else cat; fi } \
-    || true)
+    | gate_grep -E 'Tol::witness|tolerance::witness' \
+    | gate_grep -vE '^crates/geom-core/src/tolerance\.rs:' \
+    | gate_grep -vE '^crates/pncad/src/' \
+    | gate_grep -vE '^crates/pncad-py/src/py/' \
+    | gate_grep -vE '^crates/[^/]+/src/bin/' \
+    | { if [ -n "$excluded" ]; then gate_grep -vF -f <(printf '%s\n' "$excluded" | sed 's#/$#/#; s#\.rs$#.rs:#'); else cat; fi })
   if [ -n "$hits" ]; then
     echo "$hits"
     gate_error "kernel library code minted a tolerance witness instead of receiving one. Tol::witness() — and its façade spelling pncad::tolerance::witness() — commits the run's eps: it is an entry-point act (a main under src/bin, a test, the pncad door). Take \`tol: Tol\` as a parameter and pass it down — a witness minted mid-library is the ambient read the parameter exists to replace."

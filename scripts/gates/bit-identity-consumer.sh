@@ -34,11 +34,11 @@ gate() {
   gate_require_crate_sources
   local hits
   hits=$(gate_rust_code "${GATE_SOURCE_FILES[@]}" \
-    | grep -E 'bit_identity::|repr_bits|eq_bits' \
-    | grep -vE '^crates/geom-core/src/bit_identity\.rs:' \
-    | grep -vE '^crates/geom-core/src/interval\.rs:' \
-    | grep -vE '^crates/topo/src/source\.rs:' \
-    | grep -vE '^crates/editor-core/src/eval/memo\.rs:' || true)
+    | gate_grep -E 'bit_identity::|repr_bits|eq_bits' \
+    | gate_grep -vE '^crates/geom-core/src/bit_identity\.rs:' \
+    | gate_grep -vE '^crates/geom-core/src/interval\.rs:' \
+    | gate_grep -vE '^crates/topo/src/source\.rs:' \
+    | gate_grep -vE '^crates/editor-core/src/eval/memo\.rs:')
   if [ -n "$hits" ]; then
     printf '%s\n' "$hits"
     gate_error "bit-identity channel use above — the channel is RETIRED from production (M4 PR 5, N6); use GeomSource, or revise DESIGN.md before adding any consumer"
