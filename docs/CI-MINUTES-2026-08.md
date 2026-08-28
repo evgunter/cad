@@ -1023,6 +1023,18 @@ drawn one would reintroduce, by hand, the silent-coverage failure the
 **Precedence** is invocation over trailer over draw, per dimension, so
 `--config eps=1e-12` means "1e-12, and surprise me twice".
 
+**Shown to fire, hosted, before it merged.** The DRAWN half: the
+`change filter` job of run
+[`33191437807`](https://github.com/evgunter/cad/actions/runs/33191437807)
+— the feature's own PR — printed `lane=default eps=1e-6
+klint_row=release-default` / `source: lane:sampled eps:sampled
+klint:sampled`, which is also what proves the hosted-only line in that
+step (reading the PR HEAD commit's message out of a merge-ref checkout)
+works at all. The REQUESTED half: the commit carrying this paragraph
+asks in its own message for `eps=1e-12 klint=dev-probe`, so its run
+gates a second point of the matrix and its `source:` line names the
+trailer for exactly those two dimensions.
+
 **A malformed request is a red step, not a fallback to the draw** — an
 unknown key, an unknown value, a repeated dimension. This is the one
 place in `ci-filter.py` that does not fail into more work, and the
