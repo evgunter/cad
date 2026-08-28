@@ -1,7 +1,10 @@
-# GUI-1 — the v1 GUI (plan)
+# GUI v1 — the plan
 
 **STATUS: RATIFIED (Evan's in-conversation sign-off on this
-draft, 2026-08-27, with all rulings below folded).** Every
+draft, 2026-08-27, with all rulings below folded) and DELIVERED —
+units GUI-0…GUI-4 merged as PRs #1094, #1093, #1101, #1106,
+#1113, the program CLOSED 2026-08-28 on the ratified exit walk
+`docs/GUI-EXIT-WALK.md` (#1121).** Every
 *decision* this plan leans on is ratified
 elsewhere and is cited, not re-litigated: the three-layer split and
 boundary rules (`docs/GUI-DESIGN.md` G1, including the
@@ -9,9 +12,8 @@ operations-are-API rule recorded 2026-08-27), the v1 minimum (G3),
 the toolkit (GQ6: **egui**, iced the named fallback), and the
 viewport/picking recommendations (`docs/GQ6-RESURVEY.md` §§2–3).
 Sequencing stance: DESIGN.md places GUI after usable-as-library;
-starting this program is Evan's call per LQ5, and LIB's
-dispatchable residue (the Python assembly series) blocks nothing
-here.
+this program ran on Evan's call per LQ5, with LIB's dispatchable
+residue (the Python assembly series) blocking nothing here.
 
 ## Rulings (Evan, 2026-08-27, in-conversation)
 
@@ -110,18 +112,21 @@ fails the existing wasm guard.
 
 ## The units
 
-Ordered; 1 is independent of 0 and may run concurrently.
+Ordered; 1 is independent of 0 and may run concurrently. Units
+GUI-0…GUI-4 are merged and the entries below are the delivered
+scope; GUI-5 is DEFERRED post-v1 beside GUI-6 (Evan's ruling,
+2026-08-28, at the close of `docs/GUI-LOG.md`).
 
 0. **GUI-0 — the scaffold spike** (RESURVEY §5's named increment):
-   the `viewer` crate (the name DESIGN.md's crate table reserves) —
-   eframe app, docked chrome (`egui_tiles` or `egui_dock`; pick at
-   implementation), thin custom wgpu viewport drawing one
-   tessellated body at display-δ, orbit/pan/zoom camera as typed
-   layer-3 operations (the G1 operations-are-API rule). Delivers
-   G3 pan/rotate/zoom and the one measurement no survey could
-   take: the friction of holding an authoritative `Doc` under an
-   immediate-mode loop — the egui→iced fallback conditions get
-   their first data here.
+   the `viewer` crate (DESIGN.md's crate table row) — eframe app,
+   docked chrome (`egui_tiles`, decided here — see below), thin
+   custom wgpu viewport drawing one tessellated body at display-δ,
+   orbit/pan/zoom camera as typed layer-3 operations (the G1
+   operations-are-API rule). Delivers G3 pan/rotate/zoom and the
+   one measurement no survey could take: the friction of holding
+   an authoritative `Doc` under an immediate-mode loop — the
+   egui→iced fallback conditions took their first data here, and
+   none of them were met.
 1. **GUI-1 — `Bvh::ray` + the hit-test service** (headless, no
    rendering dependency): a ray-slab test and traversal on the
    existing deterministic BVH (RESURVEY §3: extend our own, not
@@ -152,8 +157,8 @@ Ordered; 1 is independent of 0 and may run concurrently.
    committed `DocEdit` adding the mate node; the instance's
    free-move transform is superseded by the solved placement when
    the mate lands.
-5. **GUI-5 — the web lane** (stretch, separable): wasm build of
-   `viewer` on the threaded posture above (the pinned-nightly
+5. **GUI-5 — the web lane** (DEFERRED post-v1, separable): wasm
+   build of `viewer` on the threaded posture above (the pinned-nightly
    build lane, guarded in CI once it exists), the `getrandom` cfg
    made a guarded lane, the cross-origin-isolation serving story,
    open/save via download/upload. Skipping it costs v1 nothing.
@@ -197,17 +202,23 @@ DESIGN.md's "a GUI is a second project of comparable size to the
 kernel" scoped the FULL GUI — sketcher, live editing, DOF
 diagnosis, error-UX breadth; G3 excludes exactly those, and
 `editor-core` already ships the document/edit/eval/naming layer
-that would otherwise dominate. **Estimate: one mid-sized
-milestone (M9-scale), not a program.** The risks that could grow
-it, named: the immediate-mode seam (measured at GUI-0, with a
-ratified fallback), wgpu plumbing depth in GUI-0/2 (the one
-genuinely new craft in the codebase), and egui's release churn
-landing on the toolchain pin (RESURVEY §5 watches it).
+that would otherwise dominate. **Scope: one mid-sized milestone
+(M9-scale), not a program.** The three risks that could have grown
+it — the immediate-mode seam, wgpu plumbing depth in GUI-0/2 (the
+one genuinely new craft in the codebase), and egui's release churn
+landing on the toolchain pin — are walked closed in
+`docs/GUI-EXIT-WALK.md`; the egui-churn watch (RESURVEY §5)
+stands.
 
-## Remaining open question
+## The docking crate, settled in GUI-0
 
-- **OQ-b — docking crate**: `egui_tiles` vs `egui_dock` — the two
-  live ecosystem crates for movable/tabbed panel chrome (feature
-  tree / viewport / property panel). Both MIT-compatible and
-  released this cycle (RESURVEY §1); chosen inside GUI-0, where
-  the difference is visible.
+- **OQ-b — docking crate: `egui_tiles`**, over `egui_dock` — the
+  two live ecosystem crates for movable/tabbed panel chrome
+  (feature tree / viewport / property panel). Licensing decided
+  it first: `egui_tiles` is MIT OR Apache-2.0 and keeps both
+  branches of this project's dual license alive, where `egui_dock`
+  is MIT-only. Shape decided it second: the layout is a
+  `Tree<Pane>` VALUE the app owns and a `Behavior` impl renders —
+  the same state-is-a-value discipline G1 puts on everything else
+  here. The pin and the full argument live in
+  `crates/viewer/Cargo.toml`.

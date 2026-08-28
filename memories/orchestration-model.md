@@ -1,156 +1,95 @@
 ---
 name: orchestration-model
-description: How Evan wants implementation work run — top-level agent orchestrates and meta-reviews, subagents code and review; only applies to the session's top-level agent
+description: How Evan wants implementation work run — top-level agent orchestrates and meta-reviews, subagents code and review; plus the standing operational rules for running lanes and channels
 metadata:
   type: feedback
 ---
 
 **Scope: the top-level (orchestrator) agent of a session only.** If you
-were spawned as a subagent (implementer, reviewer, explorer), this memory
-is not about you — just do your delegated task well.
+were spawned as a subagent (implementer, reviewer, explorer), this
+memory is not about you — just do your delegated task well.
 
-Evan's standing instructions for implementation work (given at M0 start,
-2026-07-15):
+Evan's standing instructions for implementation work:
 
-- The top-level agent acts as **orchestrator and (meta-)reviewer**:
-  central planning and design decisions stay with it; normal coding tasks
-  are delegated to subagents, and reviews are delegated to subagents
-  too. (Model choice for implementation dispatches is currently
-  governed by the coin-flip A/B protocol — see [[model-ab-experiment]];
-  design/specs/reviews/rulings stay Fable.)
-  Subagents may spawn their own subagents for large tasks.
-- **Continue autonomously** until hitting a major branch point that needs
-  Evan's input: automatically any change to a ratified DESIGN.md
-  decision, plus important forks discovered during implementation.
-  Design-conversation PRs (see [[git-workflow]]) are opened with full
-  writeups and left for sign-off while work continues stacked on top.
-- **Self-merge escalation (Evan, 2026-07-16, PR #20)**: after M1 PRs 1–3
-  earned trust, high-confidence design PRs (dominant-argument
-  conventions, faithful elaborations of an already-ratified plan)
-  **self-merge with their full writeups**; Evan reviews the backlog
-  retroactively — "even when I have had a comment it's usually been
-  something that is patchable, not fatal." **Fundamental design forks
-  still wait for sign-off**: changes to ratified DESIGN.md decisions,
-  and genuinely open questions with multiple viable answers where
-  Evan's preference matters. When unsure which kind a decision is,
-  treat it as a fork.
-- **Keep an orchestrator log of design decisions made unilaterally**
-  (L-numbered decisions, the shape M0's used) and generally maintain
+- The top-level agent is **orchestrator and (meta-)reviewer**: central
+  planning and design decisions stay with it; coding and reviews are
+  delegated to subagents, which may spawn their own. Implementation
+  model choice follows [[model-ab-experiment]]; design, specs, reviews
+  and rulings stay Fable.
+- **Continue autonomously** to the next genuine branch point. High-
+  confidence design PRs (dominant-argument conventions, faithful
+  elaborations of a ratified plan) self-merge with their full writeups;
+  Evan reviews the backlog retroactively. **Fundamental design forks
+  wait for sign-off**: changes to ratified DESIGN.md decisions, and open
+  questions with several viable answers where Evan's preference matters.
+  When unsure which kind a decision is, treat it as a fork.
+- **Keep an orchestrator log of decisions made unilaterally** and keep
   state-of-work knowledge in version control.
-- **Before stopping, write down and commit all crucial state** (log
-  updates, memories, in-flight branch status) so the next session can
-  resume cold.
+- **Before stopping, commit all crucial state** (log updates, memories,
+  in-flight branch status) so the next session can resume cold.
 
-**Why:** Evan wants throughput without losing the design-conversation
-loop ([[cad-working-style]]) — delegation for speed, one accountable
-place (the orchestrator + committed logs) for design coherence.
+**Standing operational rules:**
 
-**How to apply:** at session start, read the current milestone's log for
-in-flight state; delegate implementation with detailed specs citing
-DESIGN.md decisions; review subagent output before merging; escalate to
-Evan only at genuine design forks.
-
-**Standing operational rules** (the incidents that earned them live
-in git history and the M-logs, not here):
-
-- **Monitors are tools, not mandates (Evan, 2026-08-22)**: arm, tune,
-  re-cadence, or disarm any of them at will to suit the session's
-  present purposes. The default remains useful at session start —
+- **Monitors are tools, not mandates (Evan)**: arm, tune, re-cadence or
+  disarm any of them at will. The default at session start is
   `cp local-scripts/monitors/*.sh ~/.local/share/cad-work/monitors/`
-  from an up-to-date checkout, then arm the installed copies as
-  persistent Monitors (checkouts switch refs; glob the directory, do
-  not maintain a named list) — but it is a default, not an
-  obligation.
+  from an up-to-date checkout, then arm every script in the installed
+  directory as a persistent Monitor — glob the directory, never
+  maintain a named list. They stay separate scripts on purpose
+  (independent failure domains, per-stream disarm).
+- **Usage alerts: act only on ones naming YOUR OWN account.** Resolve it
+  at session start from your own agent dir
+  (`agent-<id>/plugin/claude/anthropic/.claude.json` →
+  `oauthAccount.emailAddress`; the id is in your memory-directory path).
+  `usage-watch.sh`'s events carry their own actions. Other accounts'
+  alerts are informational — never act on them.
 - **Away-channel arming**: the script fails loud (exit 78) without its
-  routing env. Arm as `CAD_CHANNEL_SELF_TAG="(<ROLE> orchestrator)"
+  routing env — `CAD_CHANNEL_SELF_TAG="(<ROLE> orchestrator)"
   CAD_CHANNEL_BRANCH_PREFIXES=<prefixes> bash .../github-away-channel.sh`.
-  Per-comment events are scoped to your own threads; new-issue/PR
-  events stay repo-wide. If you set `CAD_SIGNOFF_WATCHLIST` at arm
-  time, append sign-off entries to THAT file — not the default
-  `~/.local/share/cad-work/signoff-watchlist.txt`.
-- **Branch-prefix convention (Evan, #396)**: each program owns ONE
-  short prefix — unit branches `foo/<unit>`, orchestrator branch
+  Per-comment events are scoped to your own threads; new-issue/PR events
+  stay repo-wide. If you set `CAD_SIGNOFF_WATCHLIST` at arm time, append
+  sign-off entries to THAT file.
+- **Branch-prefix convention (Evan, #396)**: each program owns ONE short
+  prefix — unit branches `foo/<unit>`, orchestrator branch
   `foo/orchestrator`, armed with `CAD_CHANNEL_BRANCH_PREFIXES=foo/`.
-  Programs whose branches predate this arm with their actual prefix
-  list and record it in their own handoff; fold renames in at natural
-  seams. No central legacy registry — it rots.
-- **Away-channel etiquette**: `@ orchestrators` summons everyone,
-  `@ lib` / `@ asm` / `@ m9` summon one. (i) LEAD every comment with
-  your role tag — it is both the thread subscription and the
-  self-suppression key; (ii) to watch a thread your filter misses,
-  post "(<ROLE> orchestrator) subscribing." on it; (iii) SIGN issue
-  bodies you file, which auto-subscribes you and makes authorship
-  visible on the shared account.
-- **Channel to Evan**: questions go out as design-conversation PRs
-  (edit the doc to state the question, update in place with the
-  answer) or issues — NEVER comments on merged PRs, he doesn't scan
-  them. Watch 👍 reactions only on comments you explicitly requested
-  sign-off on.
-- **State-sync records RIDE THE UNIT'S OWN PR (Evan, 2026-08-27,
-  superseding the per-seam docs PR of #96).** A unit's ledger row and
-  log entries go on as one more commit to that unit's branch and merge
-  with it — no separate sync PR. Two conditions, both load-bearing:
-  - **LAST, after both reviews are delivered.** The A/B row names the
-    implementer's model arm, so a docs commit pushed while reviewers
-    are live on the branch breaks blinding through their own
-    `git log`. Never before the reports are in.
-  - **Merge immediately, without waiting on a fresh CI run**, when the
-    commit touches ONLY docs and comments AND the head it sits on was
-    already green. The docs land after code CI has gated, and re-running
-    the matrix to gate prose is waste.
-  **Scope this narrowly: it is for STATE-SYNC only** — rows, log
-  entries, seam records. Design conversations, protocol and memory
-  amendments, spec ratifications and anything that asks Evan a question
-  still get their OWN PR and their own visibility; they are the traffic
-  worth notifying other orchestrators about, and burying them inside a
-  unit's merge would hide exactly the changes that should be seen.
-  The rationale for the change: every PR notifies every orchestrator,
-  and per-seam docs PRs were most of one program's daily traffic while
-  carrying nothing another program needed to read. **The orchestrator
-  branch still must not accumulate a large unmerged delta (#96's
-  point) — keep PUSHING branches continuously; only the PR is
-  batched.**
-- **Every implementer dispatch**: point the lane at
-  `docs/prompts/implementer-discipline.md` by path — output discipline,
-  CI-first verification (local runs are an iteration tool, not the
-  record), per-lane target dirs, k-lint and comment style live there. Read it once yourself; do not paste it.
-- **Reviews**: assign reviewers explicit claims to falsify, AND point
-  them at the style lane by path (`docs/prompts/reviewer-style-lane.md` — read it
-  once yourself, do not paste it; dispatcher notes in
-  `docs/REVIEW-STYLE-DISPATCH.md`) — the claims lane is
-  strong on soundness and blind to structure; promote
-  reviewer suites into CI after the fix pass
-  ([[review-and-dependency-policy]]). Dual-review sampling per the A/B
-  amendment in `docs/MODEL-AB-LOG.md`, which owns the ordinal.
-- **The foreground rule needs its exception stated, or long jobs die
-  (2026-08-26, M9-5)**: the verbatim foreground sentence ("never arm
-  waiters, monitors, or background chains for your own builds/tests")
-  is written against waiter-parking and is right — but a job that
-  outlives a 600 s foreground call MUST be launched `setsid`-detached
-  from the process group and then polled in the foreground, per
-  [[agent-lane-operations]]. Briefs that carry only the prohibition
-  get the failure it does not cover: an M9-5 chained battery was
-  REAPED by the harness ~30 min into a release build, holding a
-  courtesy slot-turn another program had donated, and produced
-  nothing. Worse than the loss: **a harness-reaped background job is
-  indistinguishable from a completed one** — it announced `killed`
-  and left a slot-holder file that looked ordinary. Put BOTH halves
-  in every implementer brief.
-- **A finding with no durable home cannot warn anyone (2026-08-26,
-  #1023; adopted on the VERBS side the same day)**: at ADJUDICATION
-  time — as part of reading a report, not later — any finding that
-  asserts a CLASS rather than an instance gets a durable home: a log
-  line or an issue. Two instances bought this rule on one day. A
-  banked finding that PREDICTED #1023's defect class lived only in an
-  implementer's report transcript, so when the class fired the
-  citation trail broke at first use and the warning had protected
-  nothing. Separately, M9-3's dual reviews (ordinal 72) were
-  delivered, adjudicated, and then LOST with the orchestrator session
-  that held them — the residue issues survived, so the reviews are
-  attested, but every verdict label, finding count, rubric score and
-  per-phase figure is gone and the ledger row records missing data
-  instead. Corollary for reviews specifically: a report that only
-  ever exists in a session's context is one outage from never having
-  happened.
+  Fold renames in at natural seams; no central legacy registry.
+- **Away-channel etiquette**: `@ orchestrators` summons everyone, a
+  program tag summons one. LEAD every comment with your role tag (it is
+  both the thread subscription and the self-suppression key); to watch a
+  thread your filter misses, post "(<ROLE> orchestrator) subscribing.";
+  SIGN issue bodies you file.
+- **Channel to Evan**: questions go out as design-conversation PRs (edit
+  the doc to state the question, update in place with the answer) or
+  issues — NEVER comments on merged PRs, he doesn't scan them. Watch 👍
+  reactions only on comments you explicitly requested sign-off on.
+- **State-sync records RIDE THE UNIT'S OWN PR (Evan, 2026-08-27)** — a
+  unit's ledger row and log entries go on as one more commit to that
+  unit's branch. Two conditions: **LAST, after both reviews are
+  delivered** (the A/B row names the implementer's arm, and reviewers
+  read `git log`), and **merge immediately without a fresh CI run** when
+  the commit touches only docs/comments on an already-green head. This
+  is for STATE-SYNC only: design conversations, protocol and memory
+  amendments, spec ratifications and anything asking Evan a question get
+  their OWN PR — burying those in a unit's merge hides exactly what
+  other orchestrators should see. Keep PUSHING branches continuously;
+  only the PR is batched.
+- **Every implementer dispatch** points the lane at
+  `docs/prompts/implementer-discipline.md` BY PATH (read it once
+  yourself; do not paste it). Briefs carry BOTH halves of the
+  foreground rule: never arm waiters or background chains for your own
+  builds/tests, AND launch any job that outlives a 600 s foreground call
+  `setsid`-detached, then poll it in the foreground — a harness-reaped
+  background job is indistinguishable from a completed one
+  ([[agent-lane-operations]]).
+- **Reviews**: assign reviewers explicit claims to falsify AND point
+  them at `docs/prompts/reviewer-style-lane.md` by path (dispatcher
+  notes: `docs/REVIEW-STYLE-DISPATCH.md`) — the claims lane is strong on
+  soundness and blind to structure. Promote reviewer suites into CI
+  after the fix pass ([[review-and-dependency-policy]]).
+- **A finding with no durable home cannot warn anyone.** At
+  ADJUDICATION time, as part of reading a report, any finding asserting
+  a CLASS rather than an instance gets a log line or an issue. A report
+  that exists only in a session's context is one outage from never
+  having happened.
 
 Handing the session to a successor: [[orchestrator-switch-runbook]].

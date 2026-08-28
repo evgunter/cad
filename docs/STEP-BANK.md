@@ -108,10 +108,11 @@ registered below. They are all under one PD grant; the table lists only the pick
   Inc. or TEAM** (`moon_buggy_asm.stp`, `as1_pe.stp`, `mbb.stp`, `iso14649-demo.stp`,
   `ph4m3-st.stp`, `teampart.stp`) — third-party donations redistributed by NIST. Only the
   `NIST DPPA Repository`-sourced files in that directory were taken.
-- **`CadQuery/cadquery`** — GitHub now reports the repo license as **NOASSERTION**, where
-  `WILD-CORPUS-LICENSES.md` (2026-08-09) recorded Apache-2.0. This may be nothing more than
-  GitHub's classifier, but it is a **delta worth checking** before the existing
-  `cq_red_cube_blue_cylinder.step` fixture is relied on further. No new files taken.
+- **`CadQuery/cadquery`** — GitHub reports the repo license as **NOASSERTION**, and the
+  flag is a classifier artifact: the LICENSE file states Apache-2.0 in prose behind a custom
+  preamble, so the Apache-2.0 verdict for the existing `cq_red_cube_blue_cylinder.step`
+  fixture stands (`WILD-CORPUS-LICENSES.md`'s post-audit note is the record). No new files
+  taken.
 - **GrabCAD / Thingiverse / TraceParts and manufacturer part portals** — not searched, per
   the standing rule.
 

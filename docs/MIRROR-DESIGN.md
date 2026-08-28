@@ -1,6 +1,6 @@
 # Patterns & mirror — the reflection-instancing design conversation
 
-**Status: RATIFIED (Evan's sign-off on PR #909, with a P1 conversation round — u ↦ −u per Evan's agreement). The status line lagged the ratification until 2026-08-27 — the sign-off itself is the PR record.**
+**Status: RATIFIED (Evan's sign-off on PR #909, 2026-08-22, with a P1 conversation round — u ↦ −u per Evan's agreement).**
 (VERBS program). Proposals P1–P6. Substrate anchors verified on main
 2026-08-21. The headline finding reframes the register's row: **the
 patterns half is largely SHIPPED** — `Node::Pattern` (linear/
@@ -15,7 +15,7 @@ the D9 conv. 4 equivariance premise becomes a **named prerequisite
 of the mirror implementation unit — audited then, not assumed**);
 this conversation is that audit's design half.
 
-## P1 — The chart-handedness convention (the ruling that most needs Evan)
+## P1 — The chart-handedness convention
 
 Every analytic surface computes `v_ref = axis × u_ref` — right-
 handed by construction, **computed, never stored** — so a reflection
@@ -62,7 +62,7 @@ parameter door ever opens (evaluate-at-(u,v) through the API), the
 convention becomes documented behavior at that door — documented,
 not per-plane.
 
-**Recommendation: u ↦ −u** (map the frame forward). The v
+**Ratified: u ↦ −u** (map the frame forward). The v
 coordinate carries structural meaning consulted by invariants
 (nappe, hemisphere, height sign) and negating the axis would move
 that meaning; the u coordinate is periodic, and the payloads u-
@@ -97,7 +97,7 @@ verbatim): whether reflection's loop-orientation reversal and the
 normal flip cancel so that no half-edge reversal is needed — the
 mirror unit proves or refutes it at the site.
 
-## P3 — The equivariance audit's boundary (Evan owns the scope)
+## P3 — The equivariance audit's boundary
 
 The survey enumerates ~15 orientation-sensitive site classes (sense
 bits, plane-normal storage, chart handedness, circle/ellipse
@@ -113,7 +113,7 @@ body's data actually traverses", executed as the mirror unit's
 checklist (the table above is the checklist's seed), with documented
 residuals permitted where a candidate-swapping symmetry makes
 equivariance impossible — the S8 rung-3 precedent. The alternative
-(a residual-free mandate) makes the unit open-ended. Evan's call.
+(a residual-free mandate) makes the unit open-ended.
 
 ## P4 — Pattern-of-a-body stays the kernel truth (feature patterns are sugar)
 
@@ -130,7 +130,7 @@ recorded; the alternative (a kernel feature-replication node) re-
 runs arbitrary ops N times inside evaluation and buys nothing the
 lowering doesn't, at the price of a second instancing semantics.
 
-## P5 — Derivable items, adopted here unless Evan objects
+## P5 — Derivable items, adopted here
 
 - **`SegPat` instance-index predicate**: the selector cannot say
   "instance 7" except as a full exact path, which GROUP-BOOLEAN's
@@ -144,14 +144,13 @@ lowering doesn't, at the price of a second instancing semantics.
   (`name_pattern`'s recorded deferral) — nothing upstream can
   produce one; the refusal text already says so.
 
-## P6 — Consequence for hole features: the register row is stale
+## P6 — Consequence for hole features
 
-KERNEL-VERBS lists hole features as "blocked mainly on patterns".
+KERNEL-VERBS listed hole features as "blocked mainly on patterns".
 After PlacedUnion shipped, the substrate exists: counterbore =
 stepped cutter × `PlacedUnion` × `Subtract`, today. What actually
 remains: (a) the sugar-node vocabulary (follows P4's ruling), (b)
 face-tied placements (GROUP-BOOLEAN's "staged, not riding" item),
 (c) overlapping cutters, which sit behind G8's residual (the
 multi-solid boolean operand — cross-program, LIB's register). The
-register's row is corrected to say this by the PR that ratifies this
-doc.
+register's row (`docs/KERNEL-VERBS.md`) carries this correction.

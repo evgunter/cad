@@ -13,10 +13,11 @@ it:
 | NAMING-DESIGN N1–N7 | Names are derivation paths; this doc discharges its scope exclusion "assembly pin representation" (A4) |
 | DESIGN.md banked flags | SE(3) witnesses budgeted, not assumed from sketch machinery; ε-disagreement across referenced documents is a typed error at the seam; pattern indices ride provenance explicitly; free-move/hide are display-layer state, never persisted (G3) |
 
-Decisions are **A1–A13**; open questions **AQ1–AQ7** (AQ3
+Decisions are **A1–A13**; open questions **AQ1–AQ8** (AQ3
 discharged by A11; AQ7 by A12; AQ2 by A13). This doc schedules nothing; the implementation
-ladder below names homes, and the program that works through it is
-`docs/ASM-PLAN.md` / `docs/ASM-LOG.md`. Chat/issue rulings
+ladder below names homes, and the program that worked through it is
+`docs/ASM-PLAN.md`, CLOSED at v1 scope — its done-state of record
+is `docs/ASM-EXIT-WALK.md`. Chat/issue rulings
 incorporated: the scope ladder, materialized evaluation, and the
 key-identity relaxation are Evan's calls of 2026-08-09/10 (#328).
 
@@ -31,7 +32,7 @@ design's implementation scope:
   carrying CONTACT-DESIGN's classes, solved **constructively**
   (frame-composition chains). A mate system that is not
   constructively solvable — genuinely simultaneous constraints —
-  refuses typed, naming the cycle (AQ3 pins the exact boundary).
+  refuses typed, naming the cycle (A11 pins the exact boundary).
 - **(c) Numerically solved mates**: the W8 mechanism (SE(3)
   witnesses, chart-centered Krawczyk and its proof obligation) —
   its own design-and-implementation era, after the sketch-solver
@@ -101,9 +102,12 @@ Consequences, all normative:
 
 Three node kinds, all ordinary feature nodes:
 
-- **`InstantiatePart { pin, placement }`** — pin per A4; placement
-  is either an explicit rigid frame or derived from mates (below).
-  Improper frames (det = −1) are admitted per A6.
+- **`InstantiatePart { pin, interface }`** — pin per A4;
+  `interface` is the split seam's crossing declarations (A4).
+  Placement is not a field of the node: A11 rule 2 carries it on
+  the placement CLUSTER as document data, and a lone unmated
+  instance is the singleton case of that registry. Improper
+  frames (det = −1) are admitted per A6.
 - **`Mate { a, b, class, alignment }`** — `a`/`b` are
   instance-qualified stable references (the GQ4 wrapper composed
   with NAMING-DESIGN local names); `class` is **exactly
@@ -190,9 +194,9 @@ pins the verification detail).
   (M9). **Named wiring so it is not lost (the #328 scoping trap):
   M9's C7 as slated is the *join lane*; an assembly at rest needs
   census + verification with no boolean — an at-rest door, not a
-  zip.** Same substrate, different door; the C7 spec should adopt
-  it deliberately as a sibling deliverable or it becomes a silent
-  gap. Cross-instance census cost is quadratic in entity pairs;
+  zip.** Same substrate, different door; the at-rest door is M9-2's
+  own deliverable beside the join lane, not a corner of it.
+  Cross-instance census cost is quadratic in entity pairs;
   `bvh` pruning is the intended engineering answer (the tree
   prunes, exact predicates decide).
 - **Interference fits**: representable as overlapping shells,
@@ -503,10 +507,10 @@ door, four clauses:
   mold, listing each id's pin multiplicity with the referencing
   nodes. Refusal would make staged updates unauthorable;
   silence would hide the most common mistake.
-- **Update triggers ordinary re-evaluation**; once R2-b lands, a
-  pin move on an instance with crossing declarations additionally
-  triggers mate re-verification (A4's "does it actually fit"
-  gate — the edit's contract, stated once). Disk-moved-pin-held
+- **Update triggers ordinary re-evaluation**; a pin move on an
+  instance with crossing declarations additionally triggers mate
+  re-verification (A4's "does it actually fit" gate — the edit's
+  contract, stated once). Disk-moved-pin-held
   staleness is AQ5's capture question, out of this decision.
 
 ## Open questions
@@ -518,16 +522,17 @@ door, four clauses:
   the workspace).
 - **AQ2 — DISCHARGED into A13** (sign-off 2026-08-16, PR #544).
 - **AQ3 — DISCHARGED into A11** (working session 2026-08-10).
-- **AQ4 — per-instance arguments.** v1 posture: an instance is pin
-  + frame, nothing else — no per-instance parameters, no
-  per-instance suppression beyond GQ2's failure semantics. The
+- **AQ4 — per-instance arguments.** v1 posture: an instance is a
+  pin and its cluster's placement, nothing else — no per-instance
+  parameters, no per-instance suppression beyond GQ2's failure
+  semantics. The
   natural form when the door opens (the #356 conversation,
   replacing the spooky "override" framing): a document already IS
   a function — `build(params) → Body` — so its named parameters
   are its SIGNATURE, its authored values are DEFAULTS, and an
-  instance is an APPLICATION: `InstantiatePart { pin, placement,
-  args }` evaluates the pinned recipe at `args` (unsupplied names
-  take defaults; memo keys on (pin, args, ε)). Nothing mutates or
+  instance is an APPLICATION: `InstantiatePart { pin, …, args }`
+  evaluates the pinned recipe at `args` (unsupplied names take
+  defaults; memo keys on (pin, args, ε)). Nothing mutates or
   shadows the part document; self-containment and pin semantics
   survive untouched because arguments are assembly-side data. The
   fastener-bundle coupling (A7) is this door's natural client —
@@ -606,25 +611,32 @@ recipe DAG itself):
 
 ## Implementation ladder
 
-Worked through by the ASM program (`docs/ASM-PLAN.md`); the live
-state is the ASM-LOG tail, never this list.
+Worked through by the ASM program (`docs/ASM-PLAN.md`), CLOSED at
+v1 scope; the state of record is `docs/ASM-EXIT-WALK.md`, never
+this list.
 
 - **R0 — DISCHARGED**: #317 import flattening, with the A7 record
   shape as its one new obligation.
-- **R1 — the body graph**: `InstantiatePart` (pin + explicit
-  frame) and `Pattern` nodes; materialized evaluation through
-  `transform_rigid`; instance-qualified naming; pins and the
-  split/inline pair; disjoint-assembly validity (all-shipped
-  substrate — this rung has no kernel prerequisites).
-- **R2 — mates, constructively**: `Mate` nodes, frame-chain
-  solving, declaration minting, planar contact verification (the
-  census inventory that exists); typed refusal on simultaneous
-  systems.
-- **R3 (with M9/C7)** — curved contact verification at rest (the
-  A5 sibling door), then C6 interference gates and the mass-props
-  refusal/subtraction (M9/M10 era).
+- **R1 — DISCHARGED, the body graph**: `InstantiatePart` (pin,
+  placed through A11's cluster registry) and `Pattern` nodes;
+  materialized evaluation through `transform_rigid`;
+  instance-qualified naming; pins and the split/inline pair;
+  disjoint-assembly validity.
+- **R2 — DISCHARGED, mates, constructively**: `Mate` nodes,
+  frame-chain solving, declaration minting, planar contact
+  verification; typed refusal on simultaneous systems. The one
+  follow-on the rung banks is AQ8's conversion door (ASM-XSPLIT,
+  spec unwritten); the A11 member-vocabulary rider's
+  implementation is banked with it (#945).
+- **R3** — the at-rest door landed with M9, and cross-instance
+  PLANAR pairs certify on the verified shared carrier (#1063,
+  `docs/CENSUS-REST-CLOSURE-DESIGN.md`). Cross-instance CURVED
+  verification is that document's named residue; C6 interference
+  gates and the mass-props refusal/subtraction are the M10-era
+  half.
 - **R4 (banked)** — instanced/lazy evaluation as pure optimization;
-  mirror implementation (equivariance audit as prerequisite);
+  mirror implementation (equivariance audit as prerequisite; its
+  design half is ratified as `docs/MIRROR-DESIGN.md`);
   import-as-assembly-document (post-AQ1).
 - **(c)/(d) eras** — numeric SE(3) mates (W8 mechanism + proof
   obligation), then kinematics. Out of v1 by A1.
