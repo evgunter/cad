@@ -89,23 +89,70 @@ fn a_clean_action_clears_and_a_refusal_shows_even_from_a_hover_batch() {
 }
 
 #[test]
-fn a_dialog_that_hands_back_nothing_says_so_and_a_chosen_path_stays_quiet() {
-    // The first-light defect (#1097): with no portal service and no
-    // zenity, `rfd` returns the same bare `None` a cancel does, and the
-    // app dropped it — Open/Save As "silently do nothing". The verdict
-    // must name both readings, because the process cannot tell them
-    // apart, and must point at the dialog-free workaround.
-    let StatusUpdate::Show(message) = frame::dialog_status(false) else {
-        panic!("an empty-handed dialog reaches the status line");
+fn the_chooser_probe_is_confident_only_with_neither_backend_reading() {
+    // The first-light defect (#1097, a WSL distro): with no portal
+    // service and no zenity, `rfd` returns the same bare `None` a
+    // cancel does, and the app dropped it — Open/Save As "silently do
+    // nothing". The probe's decision logic is a pure function of the
+    // two readings, so these rows hold whatever is on the CI box's
+    // PATH.
+    use frame::ChooserBackend;
+    assert_eq!(
+        frame::chooser_backend_of(true, false),
+        ChooserBackend::ZenityPresent
+    );
+    assert_eq!(
+        frame::chooser_backend_of(true, true),
+        ChooserBackend::ZenityPresent,
+        "zenity needs no portal"
+    );
+    assert_eq!(
+        frame::chooser_backend_of(false, true),
+        ChooserBackend::PortalPossible,
+        "a session bus makes a portal POSSIBLE — a hint, never a verdict"
+    );
+    assert_eq!(
+        frame::chooser_backend_of(false, false),
+        ChooserBackend::Absent
+    );
+    assert!(ChooserBackend::ZenityPresent.usable());
+    assert!(ChooserBackend::PortalPossible.usable());
+    assert!(
+        !ChooserBackend::Absent.usable(),
+        "the one arm the chrome disables the dialogs over"
+    );
+}
+
+#[test]
+fn an_empty_dialog_is_loud_only_under_a_confidently_absent_backend() {
+    use frame::ChooserBackend;
+    // Confident absence: the loud arm, naming the remedy and the
+    // dialog-free workaround. (The chrome disables the controls before
+    // any click can reach this; the policy stays honest regardless.)
+    let StatusUpdate::Show(message) = frame::dialog_status(ChooserBackend::Absent, false) else {
+        panic!("an empty-handed dialog with no backend reaches the status line");
     };
-    assert_eq!(message, frame::NO_FILE_CHOSEN);
-    assert!(message.contains("cancelled"));
-    assert!(message.contains("xdg-desktop-portal"));
+    assert_eq!(message, frame::NO_CHOOSER_BACKEND);
     assert!(message.contains("zenity"));
+    assert!(message.contains("xdg-desktop-portal"));
     assert!(message.contains("command line"));
-    // A chosen path is not this policy's business: the Open/Save batch
-    // it feeds owns the line through `batch_status`.
-    assert_eq!(frame::dialog_status(true), StatusUpdate::Keep);
+    // A plausibly-present backend reads `None` as a genuine cancel,
+    // which should not nag.
+    for backend in [
+        ChooserBackend::ZenityPresent,
+        ChooserBackend::PortalPossible,
+    ] {
+        assert_eq!(frame::dialog_status(backend, false), StatusUpdate::Keep);
+    }
+    // A chosen path is never this policy's business: the Open/Save
+    // batch it feeds owns the line through `batch_status`.
+    for backend in [
+        ChooserBackend::ZenityPresent,
+        ChooserBackend::PortalPossible,
+        ChooserBackend::Absent,
+    ] {
+        assert_eq!(frame::dialog_status(backend, true), StatusUpdate::Keep);
+    }
 }
 
 #[test]
@@ -135,6 +182,7 @@ fn an_empty_batch_and_a_pure_cursor_stream_move_no_camera() {
     let orbit = [input::ViewportEvent::Drag {
         button: input::PointerButton::Middle,
         shift: false,
+        alt: false,
         delta_px: [12.0, 0.0],
     }];
     let moved = input::fold_events(&map, &camera, viewport, &orbit);

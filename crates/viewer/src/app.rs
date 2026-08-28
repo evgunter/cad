@@ -189,6 +189,10 @@ pub struct ViewerApp {
     /// The last thing that went wrong, kept so a refused operation is
     /// visible instead of silently dropped.
     status: Option<String>,
+    /// Whether the environment can show a file dialog at all — probed
+    /// once at startup ([`frame::chooser_backend`]); the Open/Save As
+    /// controls read it every frame.
+    chooser: frame::ChooserBackend,
 }
 
 /// Why the application could not start (closed enum, D4 ¶3).
@@ -263,6 +267,7 @@ impl ViewerApp {
             pending_fit: true,
             fit_on_scene: false,
             status: None,
+            chooser: frame::chooser_backend(),
         })
     }
 
@@ -409,22 +414,36 @@ impl eframe::App for ViewerApp {
             ui.horizontal(|ui| {
                 ui.label(WINDOW_TITLE);
                 ui.separator();
-                // A dialog that hands back no path is REPORTED, not
-                // swallowed: `rfd` cannot distinguish a cancel from a
-                // backend with no way to show a dialog (first light,
-                // #1097), so the verdict — `frame::dialog_status` —
-                // says so on the status line either way.
-                if ui.button("Open…").clicked() {
+                // The chooser-backend verdict, probed once at startup:
+                // with confidently NO backend (no zenity, no session
+                // bus) the dialogs are disabled UP FRONT with the
+                // reason as their tooltip — a dead click is exactly
+                // the silent failure #1097 reported. Under a
+                // plausibly-present backend, a dialog handing back
+                // `None` is read as a genuine cancel and stays quiet;
+                // `frame::dialog_status` is that rule as a policy
+                // value, and its loud arm is the belt to this
+                // disabling's braces.
+                let chooser = self.chooser;
+                if ui
+                    .add_enabled(chooser.usable(), egui::Button::new("Open…"))
+                    .on_disabled_hover_text(frame::NO_CHOOSER_BACKEND)
+                    .clicked()
+                {
                     let path = pick_open();
-                    let update = frame::dialog_status(path.is_some());
+                    let update = frame::dialog_status(chooser, path.is_some());
                     if let Some(path) = path {
                         ops.push(SessionOp::Open(path));
                     }
                     self.apply_status(update);
                 }
-                if ui.button("Save As…").clicked() {
+                if ui
+                    .add_enabled(chooser.usable(), egui::Button::new("Save As…"))
+                    .on_disabled_hover_text(frame::NO_CHOOSER_BACKEND)
+                    .clicked()
+                {
                     let path = pick_save(self.session.path());
-                    let update = frame::dialog_status(path.is_some());
+                    let update = frame::dialog_status(chooser, path.is_some());
                     if let Some(path) = path {
                         ops.push(SessionOp::Save(path));
                     }
@@ -614,7 +633,7 @@ impl ViewerBehavior<'_> {
             return;
         };
 
-        let shift = ui.input(|i| i.modifiers.shift);
+        let (shift, alt) = ui.input(|i| (i.modifiers.shift, i.modifiers.alt));
         let mut events: Vec<ViewportEvent> = Vec::new();
         for (egui_button, button) in [
             (egui::PointerButton::Primary, PointerButton::Primary),
@@ -626,6 +645,7 @@ impl ViewerBehavior<'_> {
                 events.push(ViewportEvent::Drag {
                     button,
                     shift,
+                    alt,
                     delta_px: [
                         f64::from(delta.x) * pixels_per_point,
                         f64::from(delta.y) * pixels_per_point,
