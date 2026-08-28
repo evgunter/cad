@@ -140,6 +140,8 @@ mod review_s1_controls;
 mod review_s1_probes;
 #[path = "review_s6_probe.rs"]
 mod review_s6_probe;
+#[path = "review_f7_pole_r1_probes.rs"]
+mod review_f7_pole_r1_probes;
 #[path = "review_ssiflat_r1_probes.rs"]
 mod review_ssiflat_r1_probes;
 #[path = "review_ssiflat_r2_probes.rs"]
