@@ -93,8 +93,3 @@ test-utils = { path = "../test-utils" }
 name = "all"
 path = "tests/all.rs"
 
-# R1 review probe target (probe branch only): a SMALL link so the
-# review loop is not billed the aggregated binary's link on each edit.
-[[test]]
-name = "shellfix1_r1_only"
-path = "tests/shellfix1_r1_only.rs"

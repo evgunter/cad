@@ -45,8 +45,6 @@ mod offd2_r1_probes;
 mod offd_r1_probes;
 #[path = "shellfix1_bitdump.rs"]
 mod shellfix1_bitdump;
-#[path = "shellfix1_r1_only.rs"]
-mod shellfix1_r1_only;
 #[path = "shellfix1_r1_probes.rs"]
 mod shellfix1_r1_probes;
 #[path = "verbs_offc_consumer.rs"]
@@ -325,3 +323,8 @@ mod r1_probes_m9_3;
 
 #[path = "verbs_gate_r1_probes.rs"]
 mod verbs_gate_r1_probes;
+
+#[path = "verbs_shell_r2_probes.rs"]
+mod verbs_shell_r2_probes;
+#[path = "verbs_shell_r2b.rs"]
+mod verbs_shell_r2b;
