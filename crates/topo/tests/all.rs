@@ -193,3 +193,9 @@ mod probe_census;
 mod probe_f34_review;
 #[path = "probe_s5_sectors.rs"]
 mod probe_s5_sectors;
+#[path = "review_f7_pole_r1_probes.rs"]
+mod review_f7_pole_r1_probes;
+#[path = "verbs_f7_collinear_seam.rs"]
+mod verbs_f7_collinear_seam;
+#[path = "verbs_f7_r2_probes.rs"]
+mod verbs_f7_r2_probes;
