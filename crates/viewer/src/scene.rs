@@ -25,10 +25,10 @@
 
 use bvh::Aabb;
 use pncad::document::{
-    CancelToken, Dimension, Doc, DocEdit, EvalOptions, Expr, LoopProgram, Node, ProductError,
-    ProfileProgram, RecipeNodeId, apply, evaluate, product,
+    CancelToken, Dimension, Doc, DocEdit, EvalOptions, Expr, Frame, LoopProgram, Node,
+    ProductError, ProfileProgram, RecipeNodeId, apply, evaluate, product,
 };
-use pncad::geom_core::{Point3, Tol};
+use pncad::geom_core::{Affine3, Point3, Tol};
 use pncad::mesh::{Mesh, TessellateError, tessellate};
 use pncad::profile::SketchPlane;
 use pncad::topo::Body;
@@ -110,6 +110,19 @@ pub enum SceneError {
     /// bounding box — nothing to look at, and nothing to frame a
     /// camera against.
     EmptyMesh,
+    /// A part offered its patches' ids, but not one per patch.
+    ///
+    /// A part either carries no ids at all (nothing in it is
+    /// pickable) or one per patch. A short or long list is a caller
+    /// whose id assignment and whose tessellation disagree, and
+    /// drawing it would put ids on the wrong triangles — the silent
+    /// wrong answer the whole id mapping exists to make impossible.
+    MispairedIds {
+        /// How many ids were offered.
+        ids: usize,
+        /// How many patches the part has.
+        patches: usize,
+    },
     /// A face patch named a vertex index outside the mesh's shared
     /// position table.
     ///
@@ -145,8 +158,62 @@ pub struct SceneMesh {
     /// `0, 1, 2, …` — kept explicit so the draw call is an indexed
     /// one and a future welded build changes only this module.
     indices: Vec<u32>,
+    /// The id of the patch each corner belongs to, parallel to
+    /// [`SceneMesh::positions`]. `IdMap::NOTHING` for a corner drawn
+    /// from a part that carries no ids.
+    ///
+    /// It is a per-corner attribute rather than a per-draw uniform
+    /// because the whole picture is one draw call and the id has to
+    /// vary within it — the id-buffer pass writes this straight out,
+    /// and the shaded pass compares it against the highlight.
+    ids: Vec<u32>,
+    /// Per-corner display flags, parallel to [`SceneMesh::positions`]:
+    /// [`SceneMesh::FLAG_PROBE`] for a corner drawn from a free-moved
+    /// part, `0` otherwise.
+    ///
+    /// **This is the G3 visual-distinctness requirement as a value.**
+    /// A probed placement must be distinguishable from a mated or
+    /// authored one — an honesty rule, not a styling choice — so the
+    /// distinction is carried in the scene the shader consumes, where a
+    /// headless row can assert its presence, rather than decided at
+    /// paint time where nothing can.
+    flags: Vec<u32>,
     bounds: Aabb,
     stats: SceneStats,
+}
+
+/// One piece of the drawn picture: a tessellation, and the id its
+/// patches are drawn under.
+///
+/// `ids` is either empty — nothing in this part is pickable, which is
+/// the gathered product's case, whose patches belong to the aggregate
+/// and to no node — or exactly one id per patch of `mesh`, in patch
+/// order.
+#[derive(Clone, Copy, Debug)]
+pub struct ScenePart<'a> {
+    /// The tessellation to draw.
+    pub mesh: &'a Mesh,
+    /// The id of each patch, or empty for an unpickable part.
+    pub ids: &'a [u32],
+    /// The free-move PROBE this part is drawn under, if any: a display
+    /// frame composed over the tessellated placement (applied to the
+    /// positions at build, in `f64`, before the `f32` cast), and — by
+    /// its very presence — the G3 distinctness marker: every corner of
+    /// a probed part carries [`SceneMesh::FLAG_PROBE`]. One field for
+    /// both facts, so a part cannot be displaced without being marked
+    /// or marked without being displaced.
+    pub probe: Option<Frame>,
+}
+
+impl<'a> ScenePart<'a> {
+    /// A part drawn where its tessellation puts it, unprobed.
+    pub fn plain(mesh: &'a Mesh, ids: &'a [u32]) -> Self {
+        Self {
+            mesh,
+            ids,
+            probe: None,
+        }
+    }
 }
 
 /// What a scene cost, for the chrome to show.
@@ -158,9 +225,39 @@ pub struct SceneStats {
     pub triangles: usize,
     /// The δ this scene was built at.
     pub display_delta: f64,
+    /// How many drawn parts are free-move probes (drawn displaced and
+    /// marked distinct). The scene-level summary of the per-corner
+    /// [`SceneMesh::flags`].
+    pub probe_parts: usize,
 }
 
 impl SceneMesh {
+    /// The per-corner flag marking a free-move probe's corners.
+    pub const FLAG_PROBE: u32 = 1;
+
+    /// The empty picture: what a scene where EVERYTHING is hidden
+    /// draws. Zero triangles, legally — an honest blank viewport, not
+    /// an error — with `bounds` carried from the geometry that exists
+    /// but is not drawn, so a camera still has something real to frame
+    /// against. Distinct from [`SceneError::EmptyMesh`], which remains
+    /// the refusal for a document that has nothing to draw at all.
+    pub fn empty(bounds: Aabb, delta: DisplayTolerance) -> Self {
+        Self {
+            positions: Vec::new(),
+            normals: Vec::new(),
+            indices: Vec::new(),
+            ids: Vec::new(),
+            flags: Vec::new(),
+            bounds,
+            stats: SceneStats {
+                faces: 0,
+                triangles: 0,
+                display_delta: delta.get(),
+                probe_parts: 0,
+            },
+        }
+    }
+
     /// Build a drawable scene from a tessellated body.
     ///
     /// Winding comes from `mesh::FacePatch`'s documented contract —
@@ -176,46 +273,121 @@ impl SceneMesh {
     /// [`SceneError::BrokenPatchIndex`] when a patch names a vertex
     /// the shared position table does not have.
     pub fn build(mesh: &Mesh, delta: DisplayTolerance) -> Result<Self, SceneError> {
-        let triangles: usize = mesh.patches.iter().map(|p| p.triangles.len()).sum();
+        Self::build_parts(&[ScenePart::plain(mesh, &[])], delta)
+    }
+
+    /// Build a scene from several parts, concatenated in the order
+    /// given.
+    ///
+    /// **This is the shape the viewport draws**: one part per
+    /// (node, output body), each the tessellation its pick index was
+    /// built from, so the picture and the pick answer come from one
+    /// tessellation rather than two that happen to agree.
+    ///
+    /// # Errors
+    ///
+    /// As [`SceneMesh::build`], plus [`SceneError::MispairedIds`] for
+    /// a part whose id list is neither empty nor one per patch.
+    pub fn build_parts(
+        parts: &[ScenePart<'_>],
+        delta: DisplayTolerance,
+    ) -> Result<Self, SceneError> {
+        for part in parts {
+            if !part.ids.is_empty() && part.ids.len() != part.mesh.patches.len() {
+                return Err(SceneError::MispairedIds {
+                    ids: part.ids.len(),
+                    patches: part.mesh.patches.len(),
+                });
+            }
+        }
+        let triangles: usize = parts
+            .iter()
+            .flat_map(|part| part.mesh.patches.iter())
+            .map(|p| p.triangles.len())
+            .sum();
         if triangles == 0 {
             return Err(SceneError::EmptyMesh);
         }
         let mut positions = Vec::with_capacity(triangles * 3);
         let mut normals = Vec::with_capacity(triangles * 3);
-        for patch in &mesh.patches {
-            for corners in &patch.triangles {
-                let Some(corner_points) = fetch(&mesh.positions, corners) else {
-                    // A patch index outside the shared position table
-                    // is a broken mesh: refuse the whole scene, naming
-                    // the index, rather than dropping a triangle.
-                    return Err(SceneError::BrokenPatchIndex {
-                        index: corners
-                            .iter()
-                            .copied()
-                            .find(|i| *i as usize >= mesh.positions.len())
-                            .unwrap_or_default(),
-                        positions: mesh.positions.len(),
-                    });
-                };
-                let normal = triangle_normal(&corner_points);
-                for p in corner_points {
-                    positions.push([p.x as f32, p.y as f32, p.z as f32]);
-                    normals.push(normal);
+        let mut ids = Vec::with_capacity(triangles * 3);
+        let mut flags = Vec::with_capacity(triangles * 3);
+        let mut faces = 0usize;
+        let mut probe_parts = 0usize;
+        for part in parts {
+            let mesh = part.mesh;
+            faces += mesh.patches.len();
+            // The probe's display map, applied in f64 BEFORE the f32
+            // cast: the displaced picture takes the same one rounding
+            // step an undisplaced one does.
+            let map: Option<Affine3<f64>> = part.probe.map(|frame| frame.affine());
+            let flag = if part.probe.is_some() {
+                probe_parts += 1;
+                Self::FLAG_PROBE
+            } else {
+                0
+            };
+            for (index, patch) in mesh.patches.iter().enumerate() {
+                // `IdMap::NOTHING` for a part that carries no ids —
+                // the constant, not the literal it happens to be.
+                let id = part
+                    .ids
+                    .get(index)
+                    .copied()
+                    .unwrap_or(crate::pick::IdMap::NOTHING);
+                for corners in &patch.triangles {
+                    let Some(mut corner_points) = fetch(&mesh.positions, corners) else {
+                        // A patch index outside the shared position
+                        // table is a broken mesh: refuse the whole
+                        // scene, naming the index, rather than
+                        // dropping a triangle.
+                        return Err(SceneError::BrokenPatchIndex {
+                            index: corners
+                                .iter()
+                                .copied()
+                                .find(|i| *i as usize >= mesh.positions.len())
+                                .unwrap_or_default(),
+                            positions: mesh.positions.len(),
+                        });
+                    };
+                    if let Some(map) = &map {
+                        for p in &mut corner_points {
+                            *p = map.transform_point(*p);
+                        }
+                    }
+                    // Computed from the (possibly displaced) corners,
+                    // so a probed part is lit by where it is drawn.
+                    let normal = triangle_normal(&corner_points);
+                    for p in corner_points {
+                        positions.push([p.x as f32, p.y as f32, p.z as f32]);
+                        normals.push(normal);
+                        ids.push(id);
+                        flags.push(flag);
+                    }
                 }
             }
         }
         let indices = (0..positions.len() as u32).collect();
-        let bounds =
-            Aabb::from_points(mesh.positions.iter().copied()).ok_or(SceneError::EmptyMesh)?;
+        let bounds = Aabb::from_points(parts.iter().flat_map(|part| {
+            let map: Option<Affine3<f64>> = part.probe.map(|frame| frame.affine());
+            part.mesh
+                .positions
+                .iter()
+                .map(move |p| map.as_ref().map_or(*p, |m| m.transform_point(*p)))
+        }))
+        .ok_or(SceneError::EmptyMesh)?;
         Ok(Self {
             positions,
             normals,
             indices,
+            ids,
+            flags,
             bounds,
             stats: SceneStats {
-                faces: mesh.patches.len(),
+                faces,
                 triangles,
                 display_delta: delta.get(),
+                probe_parts,
             },
         })
     }
@@ -234,6 +406,19 @@ impl SceneMesh {
     /// The index buffer.
     pub fn indices(&self) -> &[u32] {
         &self.indices
+    }
+
+    /// The per-corner patch ids, parallel to
+    /// [`SceneMesh::positions`].
+    pub fn ids(&self) -> &[u32] {
+        &self.ids
+    }
+
+    /// The per-corner display flags ([`SceneMesh::FLAG_PROBE`]),
+    /// parallel to [`SceneMesh::positions`] — the distinctness value
+    /// the shader paints and the headless rows assert.
+    pub fn flags(&self) -> &[u32] {
+        &self.flags
     }
 
     /// A bounding box of the scene, in world units — what a camera

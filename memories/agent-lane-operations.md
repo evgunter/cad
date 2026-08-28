@@ -133,9 +133,29 @@ self-acquire; wrap raw `cargo` invocations yourself.
   fix by killing the inheriting process. Slot-wrapped commands should
   not spawn daemons; if a cache/watcher daemon ever enters the build
   path, pre-start it before with-build-slot.sh opens its fds.
+- **An `-x` waiter is STARVED by single-slot arrivals, so a one-lane
+  yield does not clear a path for it.** Exclusive mode needs ALL slots,
+  and grabbers that arrive AFTER the waiter is armed still win, because
+  flock has no queue and no priority. The census eps-fix (#1108) queued
+  ~50 minutes with a courtesy window arranged and one waiter armed the
+  whole time: two unrelated single-slot jobs took slot-1 after the
+  waiter existed. Arranging a window for an `-x` job means a
+  MACHINE-WIDE quiet period, not pausing the one lane you happened to
+  ask. Waiting harder never wins. Meanwhile the blocked lane can still
+  push and open its PR — hosted CI needs no local slot.
 - An OOM-killed test shows as a bare "Terminated" single-row FAIL —
   check what else was running and rerun quiet before diagnosing a code
   bug.
+
+**A single-lane yield cannot clear a path for an `-x` waiter.**
+`-x` waits for ALL slots, so pausing one lane still loses to every
+other lane's single-slot arrivals — the armed waiter is passed
+indefinitely by grabs it can never outrace (measured ~50 min at
+2026-08-27's census-fix window: two holders took slot-1 AFTER the
+waiter armed). An exclusive job's courtesy window must be a
+MACHINE-WIDE quiet period (every lane that might grab holds off),
+not a one-lane yield. Salvage tip: an `-x` waiter can spend the
+queue time on pushes/PR-opening — hosted CI needs no local slot.
 
 **Lane-takeover courtesy.** When the orchestrator operates in a
 possibly-alive agent's lane (pushing parked commits, merging its PR,

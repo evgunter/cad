@@ -21,12 +21,66 @@
 //! writes the same snapshot and the same log — persistence is
 //! untouched by the tree, which is exactly the plan's undo note.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
-use pncad::document::{Doc, PersistError, ProfileProgram, load, save};
+use pncad::document::{
+    Doc, DocRef, PartResolver, PersistError, ProfileDoc, ProfileProgram, ResolveFailure,
+    ResolveFault, load, save,
+};
 use pncad::geom_core::Tol;
+use pncad::workspace::Workspace;
 
 use crate::history::{History, ReplayError};
+
+/// The viewer's document seam: part references resolve against **the
+/// opened file's own directory**, and nothing else.
+///
+/// **The directory rule, stated once.** The assembly gallery's part
+/// documents sit beside the assembly that pins them, so the store a
+/// session consults is exactly the directory of the file it opened —
+/// never a remembered directory from a previous document, never a
+/// search path. A session with no backing file carries no resolver at
+/// all, and its instantiate nodes refuse with the shipped no-resolver
+/// semantics.
+///
+/// **The scan happens at RESOLUTION time, not at open.** Opening a
+/// document must not fail because an unrelated sibling file is
+/// corrupt or two junk files collide on an id — a directory is not
+/// required to be a healthy store until something actually resolves
+/// through it. When a resolution IS attempted and the scan refuses
+/// (unreadable header, duplicate id), that refusal arrives typed at
+/// the instantiate node, carrying the workspace's own message naming
+/// the offending files — the tree badge GUI-3 built is where it
+/// renders.
+#[derive(Debug)]
+pub struct DirResolver {
+    dir: PathBuf,
+}
+
+impl DirResolver {
+    /// A resolver over `dir`.
+    pub fn new(dir: PathBuf) -> Self {
+        Self { dir }
+    }
+
+    /// The directory this resolver consults.
+    pub fn dir(&self) -> &Path {
+        &self.dir
+    }
+}
+
+impl PartResolver for DirResolver {
+    fn resolve(&self, doc_ref: &DocRef, tol: Tol) -> Result<ProfileDoc, ResolveFailure> {
+        let workspace = Workspace::open(&self.dir).map_err(|error| ResolveFailure {
+            // The scan's refusal is the store's, verbatim; the fault
+            // classification is `Unresolved` because the reference
+            // itself was never reached.
+            fault: ResolveFault::Unresolved,
+            message: error.to_string(),
+        })?;
+        PartResolver::resolve(&workspace, doc_ref, tol)
+    }
+}
 
 /// A refusal on the way to or from a file.
 #[derive(Debug)]

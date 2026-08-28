@@ -121,30 +121,36 @@ fn rings(body: &Body<f64>) -> usize {
     body.faces().map(|(_, f)| f.rings.len()).sum()
 }
 
-/// **P1 — #1082 reproduced on a fixture the PR never built**, and the
-/// "spurious ring" re-derived as a GEOMETRIC inconsistency rather than
-/// accepted as a wrong number:
+/// **P1 — #1082's fix, re-derived on the same fixture that first
+/// measured the defect** (a squared vase on stations, wall thickness
+/// and chord budget all outside the PR's sweep, kept verbatim).
 ///
-/// 1. each mouth half-disc carries exactly one ring;
-/// 2. every edge of both rings lies on the FULL circle of radius
-///    `neck − t` centred on the axis in the mouth plane — and the two
-///    faces' rings are the SAME circle, claimed twice;
-/// 3. each of those faces ALSO keeps an outer-loop edge whose two
-///    endpoints sit at radial distances straddling `neck − t` — so the
-///    ring's carrier CROSSES the face's own outer boundary (a
-///    continuous path from radius ~0 to radius `neck` passes through
-///    radius `neck − t`). An interior ring that crosses its outer loop
-///    is not a valid trim of any face, so the body is WRONG as a body,
-///    not merely differently-documented: correct topology for this cup
-///    would be two half-annuli with no rings at all (each half-disc
-///    minus the inner disc is simply connected), Euler characteristic
-///    2, genus 0 — which is also what `topo::shell`'s module docs
-///    promise ("one opening gives a cup, which is genus 0").
+/// What this row measured before, and pinned as the defect: each mouth
+/// half-disc came back carrying a ring that was the cavity
+/// counterpart's own half-disc boundary — an inner half-circle plus
+/// two radial legs meeting a ring vertex AT the axis point the OUTER
+/// loop already owned, running back along the outer loop's own seam
+/// legs. An interior ring that meets its outer loop is not a valid
+/// trim of any face, which is why the CDT refused; the correct
+/// topology is the mouth annulus, simply connected once its hole is a
+/// hole, Euler characteristic 2, genus 0 — which is also what
+/// `topo::shell`'s module docs promise ("one opening gives a cup,
+/// which is genus 0").
 ///
-/// The CDT's refusal on exactly such a face then follows, and tiers
-/// 1–3 all passing is re-asserted (the "validated wrong body" class).
+/// It now reads that way, and the row checks the SAME three things it
+/// used to falsify, in the positive direction:
+///
+/// 1. the mouth plane is worn by ONE face, carrying exactly one ring —
+///    the revolve's seam split is retired before the glue rather than
+///    inherited into the rim;
+/// 2. that ring is the full circle of radius `neck − t` about the
+///    axis, and it shares NO vertex position and NO edge with the
+///    face's outer loop (the contact that made the old body wrong);
+/// 3. the Euler-Poincare census over the returned arenas reads genus
+///    0, and the body triangulates at the same 5e-4 budget that used
+///    to refuse.
 #[test]
-fn p1_shell_open_reproduced_and_rederived_on_my_own_revolve() {
+fn p1_shell_open_is_a_disjoint_ring_on_my_own_revolve() {
     let tol = Tol::witness();
     let t = 0.004;
     let body = vase(tol);
@@ -161,7 +167,8 @@ fn p1_shell_open_reproduced_and_rederived_on_my_own_revolve() {
     let cup = pncad::topo::shell_open(&body, t, &mouth, FIT_TOL, band(tol), tol)
         .expect("the opened arm returns a body on my vase too");
 
-    // Tiers 1-3 all bless it.
+    // Tiers 1-3 still bless it — and tier 3 now also carries the
+    // ring-vs-outer invariant the old body violated.
     assert!(pncad::topo::validate(&cup).is_ok(), "tier 1 passes");
     assert!(pncad::topo::validate_closed(&cup).is_ok(), "tier 2 passes");
     assert_eq!(
@@ -170,90 +177,68 @@ fn p1_shell_open_reproduced_and_rederived_on_my_own_revolve() {
         "tier 3 passes"
     );
 
-    // The two mouth faces each carry one ring. MEASURED (this probe's
-    // first two runs): the ring is NOT a bare circle — it is the
-    // cavity counterpart's own half-disc boundary: a half-circle of
-    // radius neck - t about the axis plus TWO radial line edges
-    // (carriers `Line { origin: (0, TOP, 0), dir: ±x }`) meeting at a
-    // ring vertex AT the axis point (0, TOP, 0). The outer loop of the
-    // same face still owns a vertex at that exact point, and its two
-    // seam radial edges lie on the same lines — so the ring touches
-    // the outer boundary at the axis and overlaps its radial edges
-    // over [0, neck - t]. An interior ring that meets its outer loop
-    // is not a valid trim of any face; the body is WRONG as a body.
     let r_ring = VASE_NECK - t;
     let axis_pt = Point3::new(0.0, VASE_TOP, 0.0);
     let dist_pt = |p: Point3<f64>, q: Point3<f64>| {
         ((p.x - q.x).powi(2) + (p.y - q.y).powi(2) + (p.z - q.z).powi(2)).sqrt()
     };
-    let mut ring_faces = 0;
-    for (fk, f) in cup.faces() {
-        let on_mouth = matches!(cup.get_surface(f.surface),
-            Some(Surface::Plane { origin, .. }) if (origin.y - VASE_TOP).abs() < 1e-12);
-        if !on_mouth {
-            continue;
-        }
-        ring_faces += 1;
-        assert_eq!(
-            f.rings.len(),
-            1,
-            "face {fk:?}: each designated half-disc carries exactly one ring"
-        );
-        // Classify the ring's edges: arcs on the inner circle, plus at
-        // least one straight diameter edge through the axis.
-        let carriers = loop_carriers(&cup, f.rings[0]);
-        let ends = loop_edge_ends(&cup, f.rings[0]);
-        println!("mouth face {fk:?}: ring of {} edges:", carriers.len());
-        let mut has_inner_arc = false;
-        let mut has_axis_diameter = false;
-        for (c, (a, b)) in carriers.iter().zip(&ends) {
-            println!("  edge {:?} -> {:?}: {c:?}", (a.x, a.z), (b.x, b.z));
-            match c {
-                Curve3::Circle { center, radius, .. }
-                    if center.x.abs() < 1e-9
+    let rim: Vec<FaceKey> = cup
+        .faces()
+        .filter(|(_, f)| {
+            matches!(cup.get_surface(f.surface),
+                Some(Surface::Plane { origin, .. }) if (origin.y - VASE_TOP).abs() < 1e-12)
+        })
+        .map(|(k, _)| k)
+        .collect();
+    assert_eq!(rim.len(), 1, "the mouth plane is worn by ONE rim face");
+    let f = cup.get_face(rim[0]).expect("the rim");
+    assert_eq!(f.rings.len(), 1, "the rim carries exactly one ring");
+
+    // The ring is the inner circle, and ONLY arcs of it.
+    let carriers = loop_carriers(&cup, f.rings[0]);
+    for c in &carriers {
+        match c {
+            Curve3::Circle { center, radius, .. } => {
+                assert!(
+                    center.x.abs() < 1e-9
                         && center.z.abs() < 1e-9
-                        && (radius - r_ring).abs() < 1e-9 =>
-                {
-                    has_inner_arc = true;
-                }
-                Curve3::Line { .. } => {
-                    // A radial leg: one endpoint AT the axis point (a
-                    // vertex of the ring sits exactly where the outer
-                    // loop's own axis vertex is), the other at the
-                    // cavity radius, the segment lying along the seam
-                    // radial line the outer loop's edges occupy.
-                    let (ra, rb) = (a.x.hypot(a.z), b.x.hypot(b.z));
-                    if (ra.min(rb)) < 1e-9 && (ra.max(rb) - r_ring).abs() < 1e-9 {
-                        has_axis_diameter = true;
-                    }
-                }
-                _ => {}
+                        && (radius - r_ring).abs() < 1e-9,
+                    "the ring must be the circle of radius neck - t about the axis, got {c:?}"
+                );
+            }
+            other => panic!(
+                "the ring carries a non-arc edge: {other:?} — a radial leg is \
+                             exactly the old defect"
+            ),
+        }
+    }
+
+    // And it is DISJOINT from the outer loop: no shared vertex
+    // position, and the axis point neither loop owns any more.
+    let ring_ends = loop_edge_ends(&cup, f.rings[0]);
+    let outer_ends = loop_edge_ends(&cup, f.outer);
+    for (a, b) in ring_ends.iter().chain(&outer_ends) {
+        for p in [a, b] {
+            assert!(
+                dist_pt(*p, axis_pt) > 1e-9,
+                "no loop of the rim may own the axis point any more; {p:?} does"
+            );
+        }
+    }
+    for (ra, rb) in &ring_ends {
+        for (oa, ob) in &outer_ends {
+            for (r, o) in [(ra, oa), (ra, ob), (rb, oa), (rb, ob)] {
+                assert!(
+                    dist_pt(*r, *o) > 1e-9,
+                    "the ring shares a vertex position with the outer loop at {r:?}"
+                );
             }
         }
-        assert!(
-            has_inner_arc && has_axis_diameter,
-            "face {fk:?}: the ring is the cavity half-disc's own boundary — an inner \
-             half-circle plus radial legs that reach the AXIS; got {carriers:?}"
-        );
-        // The outer loop keeps a vertex AT the axis point, and its seam
-        // radial edges run along the very line the ring's diameter lies
-        // on — the ring meets the outer boundary, which no valid
-        // interior ring can.
-        let outer_ends = loop_edge_ends(&cup, f.outer);
-        let outer_touches_axis = outer_ends
-            .iter()
-            .any(|(a, b)| dist_pt(*a, axis_pt) < 1e-9 || dist_pt(*b, axis_pt) < 1e-9);
-        assert!(
-            outer_touches_axis,
-            "face {fk:?}: the outer loop still owns the axis vertex the ring passes through"
-        );
     }
-    assert_eq!(ring_faces, 2, "both half-discs came back");
-    assert_eq!(rings(&cup), 2, "and those are the body's only rings");
+    assert_eq!(rings(&cup), 1, "and that is the body's only ring");
 
-    // Euler bookkeeping on the returned data reads genus 1 (the
-    // issue's number) — computed here from raw counts, not via the
-    // scene's helper.
+    // Euler bookkeeping on the returned data reads genus 0 — computed
+    // here from raw counts, not via the scene's helper.
     let (v, e, f) = (
         cup.vertices().count() as i64,
         cup.edges().count() as i64,
@@ -262,22 +247,15 @@ fn p1_shell_open_reproduced_and_rederived_on_my_own_revolve() {
     let s = cup.shells().count() as i64;
     assert_eq!(
         s - (v - e + f - rings(&cup) as i64) / 2,
-        1,
-        "Euler–Poincaré over the returned arenas reads genus 1 where a cup is genus 0"
+        0,
+        "Euler-Poincare over the returned arenas reads genus 0, as a cup's is"
     );
 
-    // And it will not tessellate, at a budget the PR never ran, with
-    // the refusal on a mouth half-disc carrying the spurious ring.
-    let e = pncad::mesh::tessellate(&cup, 5e-4, tol).expect_err("the wrong trim cannot mesh");
-    let pncad::mesh::TessellateError::Triangulation { face } = e else {
-        panic!("expected the CDT insertion refusal, got {e:?}");
-    };
-    let f = cup.get_face(face).expect("the refusing face");
+    // And it tessellates, at the budget that used to refuse.
+    let m = pncad::mesh::tessellate(&cup, 5e-4, tol).expect("the rim triangulates");
     assert!(
-        matches!(cup.get_surface(f.surface),
-            Some(Surface::Plane { origin, .. }) if (origin.y - VASE_TOP).abs() < 1e-12)
-            && f.rings.len() == 1,
-        "the refusing face is a mouth half-disc with the spurious ring"
+        m.patches.iter().map(|q| q.triangles.len()).sum::<usize>() > 0,
+        "a mesh with no triangles is not a mesh"
     );
 }
 

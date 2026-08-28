@@ -35,26 +35,44 @@
 // the lint gate for every suite module included below.
 #![allow(clippy::duplicate_mod)]
 
+#[path = "assembly_display.rs"]
+mod assembly_display;
+#[path = "assembly_walk.rs"]
+mod assembly_walk;
 #[path = "camera_ops.rs"]
 mod camera_ops;
 #[path = "doc_io.rs"]
 mod doc_io;
 #[path = "eval_seam.rs"]
 mod eval_seam;
+#[path = "frame_policy.rs"]
+mod frame_policy;
 #[path = "input_mapping.rs"]
 mod input_mapping;
+#[path = "mate_tool_flow.rs"]
+mod mate_tool_flow;
 #[path = "panel_edits.rs"]
 mod panel_edits;
 #[path = "review_gui0_r1.rs"]
 mod review_gui0_r1;
 #[path = "review_gui0_r2.rs"]
 mod review_gui0_r2;
+#[path = "review_gui2_r1.rs"]
+mod review_gui2_r1;
+#[path = "review_gui2_r2.rs"]
+mod review_gui2_r2;
 #[path = "review_gui3_r1.rs"]
 mod review_gui3_r1;
 #[path = "review_gui3_r2.rs"]
 mod review_gui3_r2;
+#[path = "review_gui4_r1.rs"]
+mod review_gui4_r1;
+#[path = "review_gui4_r2.rs"]
+mod review_gui4_r2;
 #[path = "scene_build.rs"]
 mod scene_build;
+#[path = "select_pick.rs"]
+mod select_pick;
 #[path = "tree_badges.rs"]
 mod tree_badges;
 #[path = "undo_tree.rs"]

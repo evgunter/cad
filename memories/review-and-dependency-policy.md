@@ -40,6 +40,28 @@ reviewer's, or a warning's. Fix the facts and write no account of how they came
 to be that way. And when you retract one, grep for the claim, not the sentence —
 a correction made where you first wrote it leaves every other copy standing.
 
+**A stated coverage gap is a BLOCKER when the untested axis is the
+row's own subject.** Merging a row whose declared purpose is X, on
+evidence that never exercised X, buys nothing — the row is decorative
+until the axis it names is drawn. Census G2 (#1080) merged a band-edge
+row on a CI draw of `EPS=default`; the row's whole subject is what
+happens across the eps band, and it went red on main at 1e-12 within
+the day. Hosted CI draws ONE eps per run from the seed, so a green
+check is evidence about that draw and nothing else — a row parameterised
+on eps must be run locally at every eps it claims to cover, before
+merge.
+
+**Why:** an accepted gap sounds like a scoping decision and is usually a
+liveness bug in disguise — the failing row was passing at default eps
+BY LUCK (one argument order certified, the other escalated, so its
+`seen` set had exactly one entry). It was a coin-flip at every eps; the
+default draw just landed heads.
+
+**How to apply:** when an implementer names a gap, ask whether the
+untested axis is the row's subject or merely adjacent. Adjacent is a
+follow-up; the subject is a blocker. See also [[agent-lane-operations]]
+on eps-matrix draws.
+
 **Reviewer suites get promoted into CI.** A review charter has the
 reviewer write their OWN consumer test suite — an independent
 derivation of what the PR claims, not a re-reading of its diff. After

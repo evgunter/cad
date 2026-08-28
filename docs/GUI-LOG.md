@@ -193,3 +193,114 @@ closed); #1103 banks the expression unparser; the merge inherited
 main's #1102 red at the 1e-12 draw (cited, not this unit's).
 Program consequence: **GUI-2 dispatches now** (spec staged; block
 GUI-B1 slot 4, arm opus); GUI-4 wants GUI-2 + GUI-3.
+
+**Process defect, mine (2026-08-27, disclosed by GUI-2's R1): a
+GUI-LOG unit entry leaked the NEXT unit's arm to its blinded
+reviewers.** The GUI-3 entry above says "(block GUI-B1 slot 4, arm
+opus)" — GUI-2's arm — and GUI-LOG unit entries are in reviewer
+binding reading. R1 disclosed the exposure (did not open A/B
+material; nothing keyed on it); R2 has the same reading. Recorded
+on the GUI-2 row for the blinded adjudication to weigh. THE RULE
+THIS BUYS: **a log entry visible to reviewers never names an arm
+for any unit whose reviews have not concluded** — arms live in
+MODEL-AB-LOG (reviewer-fenced) until then; this file references
+slots only. The offending line is left as-is (history is not
+rewritten; the leak already happened) — future entries comply.
+## GUI-2 merged (2026-08-28, PR #1106, sample #32 / ordinal 403)
+
+Viewport selection exists and the G3 interaction set is complete
+minus assemblies: click-to-select with the one selection value
+shared between viewport and tree, hover, highlight, survival under
+vanishing refs, and the GPU id pass — which EXECUTED for the first
+time during the fix pass's screenshot capture (lavapipe; geometry
+correct, no false disagreement; #1097 hardware modes stay open).
+Three program-level outcomes recorded:
+
+- **#1098's raw-target lane is closed structurally**: the census
+  trim made `MeshPick` unnameable at the façade, so `PickTarget`
+  has no reachable constructor — the confident-wrong-name class
+  is now unreachable from layer 3, not merely documented.
+- **The ID-buffer/ray roles inverted vs GQ6-RESURVEY §3** (ray
+  authoritative, id-buffer comparative), argued in the PR and now
+  stated at the code seam; recorded here so the design record
+  reflects practice.
+- **#1111** banks the Display-gap class (eight error types + the
+  editor-core pair).
+- The pair's blinding was contaminated by the orchestrator's own
+  GUI-3 log entry (rule recorded above); flagged on the row.
+- #1102's main-red resolved independently (#1108, the census
+  owner's ε-fix) — the GUI program's citations of it are closed.
+
+Program consequence: **GUI-4 dispatches now** (block
+GUI-B2 slot 1) — the last required v1 unit.
+
+**The blinding-leak rule fired a SECOND time (2026-08-28, disclosed
+by GUI-4's R2): the GUI-2 unit entry above named GUI-4's arm — 
+written by this orchestrator AFTER recording the rule.** The arm is
+now redacted from that entry (docs state the present; the leak
+itself is history both reviewers' briefs required disclosing —
+R2 disclosed, R1's exposure is presumed identical). The GUI-4 pair
+is flagged on its row like GUI-2's. Compliance correction adopted:
+the at-merge unit-entry TEMPLATE now ends "(block <id> slot <n>)"
+with no arm token, and the pre-push self-check for orchestrator
+log commits is `grep -i 'fable\|opus' docs/GUI-LOG.md` scoped to
+entries about units with unconcluded reviews.
+
+**Ruling — block-draw disclosure (Evan, 2026-08-28,
+in-conversation, closing the #1112 thread):** verifiable
+precommitment of block draws is NOT required; hashes are permitted
+but optional. GUI adoption: block draws are recorded at draw time
+on the orchestrator branch (pushed = durable; arms read back from
+it at dispatch per the VERBS-4 remedy) and the block record merges
+to main only once the block's last reviews conclude. Already-
+exposed blocks (GUI-B2's remaining slots included) carry
+contamination flags on their remaining duals' rows.
+## GUI-4 merged (2026-08-28, PR #1113, sample #33 / ordinal 404) — THE REQUIRED v1 PATH IS COMPLETE
+
+Assembly interaction and the mate tool exist, and the plan's
+acceptance is EVIDENCED ON THE REAL GALLERY: the render lane runs
+the tour's gallery exporter and an exit-nonzero probe on every
+real document (10/10 open and resolve; the flat-pack's patterned
+posts hide and probe through consuming-edge ancestry; constrained
+instances refuse typed; no accepted-but-inert operation anywhere),
+alongside the ten-stage fixture walk whose in-file argument states
+why no single real document can carry the whole sequence. The
+admission verdict outlives commit (tree note + the once-per-landing
+A5 at-rest badge). Residue banked: #1117 (save-a-copy identity),
+the `SetPlacement` vocabulary gap (R1 n8 — issue at close), GUI-5
+(optional, Evan's call), GUI-6 (banked post-v1), #1097's hardware
+first light. The unit's dual carried three disclosed blinding
+contamination sources (row has the accounting; the block-draw
+format ruling landed mid-review). v1 status: **GUI-0…GUI-4 all
+merged, samples #29–#33, ordinals 400–404; v6 tally 0 confirmed +
+1 candidate pending blinded coding.** Next: the exit walk with
+Evan.
+
+## Exit walk RATIFIED (2026-08-28 05:13Z — Evan merged #1121)
+
+The v1 GUI's required path is complete and signed off:
+GUI-0…GUI-4 merged (samples #29–#33, ordinals 400–404), acceptance
+evidenced on the real gallery hosted, the egui GO authoritative,
+residue banked (#1097, #1111, #1117, #1120, GUI-6). The walk's
+second question — **GUI-5 (the threaded web lane): dispatch,
+defer, or drop** — received no answer with the merge and stays
+OPEN as Evan's call; block GUI-B2 slot 2 stands ready, and the
+block record's remaining-slot handling follows the branch-side
+ruling either way. Program state: idle on that one decision; no
+lanes running; the PR subscription and fallback watches are
+retired.
+
+## Program close (2026-08-28, Evan's GUI-5 ruling: DEFER)
+
+GUI-5 (the threaded web lane) is DEFERRED post-v1, banked beside
+GUI-6 — the plan's posture ("skipping it costs v1 nothing")
+carries it; the wasm guard keeps the compile-level option green in
+CI. Block GUI-B2: slot 1 consumed (GUI-4); slots 2–4 banked with
+the block's branch-side draw record — a future dispatch of GUI-5
+or GUI-6 takes the next slot with its arm read back from that
+record. **The v1 GUI program is CLOSED**: plan delivered and
+ratified (#1121), five units merged (samples #29–#33, ordinals
+400–404), residue owned (#1097 hardware first light, #1111,
+#1117, #1120, GUI-5 + GUI-6 banked). The tail of this log is the
+program's final state; future GUI work opens its own log or
+reopens this one at a new seam.

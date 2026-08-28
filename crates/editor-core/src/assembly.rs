@@ -701,6 +701,8 @@ fn attribute(error: &ValidationError, minted: &[MintedDeclaration]) -> Attributi
         | ValidationError::NegativeVolume
         | ValidationError::VolumeUncomputable { .. }
         | ValidationError::Pcurve { .. }
+        | ValidationError::RingMeetsOuter { .. }
+        | ValidationError::RingContactEscalated { .. }
         | ValidationError::DanglingTopology { .. }
         | ValidationError::DanglingGeometry { .. }
         | ValidationError::NextPrevMismatch { .. }
