@@ -92,7 +92,7 @@ territory; it can land independently as a recipe convenience without
 this conversation.
 
 Validity predicates, per the ratified pre-construction stance
-(DESIGN.md:2032): neutral-trace non-degeneracy per wall (the pivot
+(DESIGN.md:2088): neutral-trace non-degeneracy per wall (the pivot
 line must actually cross the wall), angle vs adjacent-face
 consumption (a drafted wall must not sweep past its neighbor — the
 face-clearance shape from the fillet battery, re-instantiated), and

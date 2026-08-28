@@ -1,7 +1,7 @@
 # CLAUDE.md
 
-Greenfield B-rep CAD kernel in Rust. API-first (GUI last), functional
-style, fail-loud.
+Greenfield B-rep CAD kernel in Rust. API-first (the GUI is a thin
+client over the API), functional style, fail-loud.
 
 ## Read before working
 

@@ -217,12 +217,13 @@ per kickoff ruling).
   `T: Decide + Bounds` on the fillet signatures and do NOT re-attempt
   the `CertifiedBounds` tightening as a side effect (its lone blocker
   is `wire_fillet`; #687 and #279 sit behind any signature touch).
-- **Tessellation-gate claims are suspect until #746/#782 resolve**:
+- **Tessellation-gate claims are suspect until #746 resolves**:
   tess-lint joins on face ORDINAL (a reorder compares the wrong faces
   or drops them silently — `diefillet` already has 16 permuted
-  ordinals) and the tour's finding-13 pin is RED on main with no lane
-  running it. A VERBS spec claims a tessellation acceptance row only
-  with the join fixed or the row hand-verified.
+  ordinals). A VERBS spec claims a tessellation acceptance row only
+  with the join fixed or the row hand-verified. #782's half is gone:
+  finding-13 was re-pinned against the shipped split schedule and the
+  whole `demos/tour` suite runs in k-lint's release-default row.
 - **#555 stays out of VERBS** (kickoff ruling) but is a live wall in
   front of meshing full-revolve products — W1 acceptance rows that
   tessellate revolves must not wire that refusal into a gate.
@@ -239,32 +240,41 @@ and reviews at `docs/prompts/reviewer-style-lane.md`, by path. Unit
 branches `verbs/<unit>`; lanes via `local-scripts/new-lane.sh`;
 state-sync docs PRs at every pipeline seam.
 
-## Plan note (2026-08-27, #1059): lily wall 2's disposition forks
+## Plan note (#1059): lily wall 2's disposition
 
 Wall 2's stated blocker (transverse curved×curved SSI — the
-banked germ-chord lane) is NOT the binding refusal: the operand
-KIND gate refuses first (`op: None`, reduce.rs:341), and Evan's
-circle-coincident observation makes a #968-shaped disposition
-available (gate admission under a verified declaration + a
-carrier_eq rung for cone/torus) IF the flower/arch junction is
-re-authored circle-coincident — a content decision on Evan's
-canvas (#1059 item 2). No unit gets cut for either side until
-that call; the germ-chord lane has no other near-term consumer,
-so its banking deepens. Probe texts are not evidence of cause —
-payload + raising site are (third instance; wall 7 → #1031 was
-the first).
+banked germ-chord lane) is NOT the binding refusal, and neither is
+the operand KIND gate that refuses first (`op: None`,
+reduce.rs:341). Evan ruled the content question: the flower/arch
+junction is authored circle-coincident (VERBS-LILYWELD, #1109).
+Measured there, the weld's declared contact is plane×plane and no
+declaration covers the cone×torus pair, so the #968-shaped gate
+admission has nothing to consult — it is DEFERRED, and the
+`carrier_eq` rung has no consumer. Wall 2's binding blocker is
+#1031, then the curved-pierce door. The germ-chord lane has no
+other near-term consumer, so its banking deepens. Probe texts are
+not evidence of cause — payload + raising site are
+(`memories/refusal-text-is-not-cause.md`).
 
-## Plan note (2026-08-27, #1031's steer): the cap unit's opening question
+## Plan note (#1031): the cap unit's opening measurement
 
-Evan's recorded lean is (b) — producers mint maximal axis-touching
-caps at creation (the discipline that stops each NEW producer from
-minting the defect) — with a scoping test that overrides it: if
-making revolve mint the maximal cap IS "get the faces and merge
-them" internally, do (a) (the repair op) first rather than paying
-the hard case twice. So the #1031 unit's spec opens with a
-MEASUREMENT, not a shape choice: does one maximal cap fall out of
-revolve/full.rs's own wire-case construction (half = θ/2, rot_pi),
-or does it require the role-ambiguous merge that
-merge_coplanar_faces refuses? The plane-face interior-seam
-question is ruled permissible (a preference to avoid, not a wall).
-Full steer: #1031's 2026-08-27 comment.
+The measurement the unit opened with — does one maximal cap fall
+out of revolve/full.rs's own wire-case construction (half = θ/2,
+rot_pi), or does it require the role-ambiguous merge that
+merge_coplanar_faces refuses? — is TAKEN, and it falsifies the
+premise Evan's two recorded options share (his lean was (b),
+producers mint maximal caps; (a), the repair op, first if that is
+merge-shaped). A full revolve sweeps in TWO π-bands precisely so
+each pole ends valence-2: merging one meridian away leaves
+valence 1, which tier 2 bans as strut scaffolding, and merging
+both leaves the pole interior to the face, which is exactly the
+`MergedFaceRoleAmbiguous` the merge door refuses. There is no
+one-face cap to mint or to repair, so what is wrong is the RULE —
+F7's planar same-key refusal over-reaching onto revolve poles,
+where the identical CURVED shape is already canonical. #1031
+therefore splits: the POLE half (the gate exemption; demanded by
+lily walls 2 and 7 and the teapot's caps) and the ordinary
+coplanar pair, which keeps the issue and stays a kernel question.
+The deviation from the recorded steer is flagged for Evan's
+retroactive review; the plane-face interior-seam question is ruled
+permissible (a preference to avoid, not a wall).

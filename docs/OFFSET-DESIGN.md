@@ -40,8 +40,8 @@ translates finitely — so no door predicate exists; the real
 question is the consumer-side v-window crossing the shifted apex,
 which is `offset_apex_window` at the face-replacement door,
 `topo/src/replace_face.rs`)*. Each is a named margined Q1
-predicate over the INPUTS, evaluated before
-construction — DESIGN.md:2032 already ratifies this stance for
+predicate over the INPUTS, evaluated before construction —
+DESIGN.md:2088 already ratifies this stance for
 shell/offset ("same principle applies"); O1 just instantiates it.
 
 **Recommendation**: build exactly this, as the first Wave-3 unit; it
@@ -176,7 +176,7 @@ trigger it:
   are already legal (voids, outer-vs-cavity derived from volume
   sign). The M2 convention this has to argue against reads "sweeps
   emit single-shell bodies; **voids are born only from booleans**"
-  — the bullet DESIGN.md:369 now carries in its revised form.
+  — the bullet DESIGN.md:387 now carries in its revised form.
 
 **The fork, refined after Evan's #907 note** (the "voids are born
 only from booleans" sentence is revisable — it predates booleans
@@ -214,7 +214,7 @@ the performance question:
   the `FullRevolveHoles` refusal cited before VERBS-RING (#933)
   retired it. RING is that unit: it factored the void-insertion
   door callable-without-SSI, the door's first consumer, ahead of
-  shell. DESIGN.md:369 carries the revised bullet.
+  shell. DESIGN.md:387 carries the revised bullet.
 - The open-faces variant runs the same offset construction and then
   rim surgery (a composed Euler sequence on a clone, decided-then-
   mutated per the M6-1 pattern, validated once) — no boolean

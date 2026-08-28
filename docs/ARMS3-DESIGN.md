@@ -3,10 +3,10 @@
 **Status: RATIFIED** (Evan's 👍 on #992). Implemented by
 VERBS-ARMS-3 (#1028), with one correction recorded below — A3-2's
 RECOURSE rested on a premise the implementation lane found false
-when it reproduced the witness. (VERBS program; the ARMS cut's third unit,
-whose corner half OQ6 explicitly reserved for Evan: "run-out
-policies are a taxonomy decision Evan should own before any
-lands".) Proposals A3-1..A3-3.
+when it reproduced the witness. (VERBS program; the ARMS cut's
+third unit, whose corner half OQ6 explicitly reserved for Evan:
+"run-out policies are a taxonomy decision Evan should own before
+any lands".) Proposals A3-1..A3-3.
 
 ## A3-1 — the sphere×sphere arm is plumbing; it dispatches on ratification
 

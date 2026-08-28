@@ -17,7 +17,7 @@ a reader entering here should know all of them exist.
 | `docs/ERROR-DESIGN.md` | RATIFIED (#110) | Error-propagation program E1–E11 (duals, stackups, subdivision driver, trichotomy) |
 | `docs/CONTACT-DESIGN.md` | RATIFIED (#178) | Contact census & declared contact C1–C8 (closes CURVED OQ5); the C7 join lane shipped at M9 |
 | `docs/PATHS-DESIGN.md` | RATIFIED (#124) | PartialPath authoring algebra (S5); implemented at LIB U2 |
-| `docs/PROFILES-V2-DESIGN.md` | RATIFIED (#242) | Profiles-as-programs V1–V7: the stored profile-program, Expr-bearing steps, the replay driver; implemented at the LIB SWITCH units |
+| `docs/PROFILES-V2-DESIGN.md` | RATIFIED (#242) | Profiles-as-programs V1–V8: the stored profile-program, Expr-bearing steps, the replay driver; implemented at the LIB SWITCH units |
 | `docs/SELECT-DESIGN.md` | RATIFIED (#286) | Geometric selectors, the detect/declare protocol, and the GQ7 re-homing |
 | `docs/GUI-DESIGN.md` | RATIFIED (G1–G5) | GUI/editor architecture: three-layer split, document-as-value, edit vocabulary; the v1 GUI program is CLOSED — plan `docs/GUI-PLAN.md`, exit walk `docs/GUI-EXIT-WALK.md` (ratified #1121, 2026-08-28); GUI-5 and GUI-6 banked post-v1 |
 | `docs/ASSEMBLY-DESIGN.md` | RATIFIED (#333) | Band 3 assemblies A1–A13 + AQ1–AQ8: scope ladder, assembly-evaluates-to-a-body, mates-as-declarations, pins/split-inline, validity, mirror, relative freedom, product roots, the constructive-solve boundary; implementation ladder R0–R4, CLOSED at v1 scope through R1–R2 (`docs/ASM-EXIT-WALK.md`) |
@@ -25,19 +25,19 @@ a reader entering here should know all of them exist.
 | `docs/DISCIPLINES-DESIGN.md` | WIP — provisionally accepted (2026-08-25) | Disciplines/checks registry DS1–DS9: the identification criterion, the severity invariant, the four grades, the recording dial, out-of-tree checks; first resident SHIPPED (`editor_core::checks`, connectedness) |
 | `docs/PCURVE-UNIFY-DESIGN.md` | RATIFIED (#514) | Pcurve unification (#427): `EdgeGeometry`'s conventional variants collapse to ONE (surface, `Pcurve`) form, the exact variants kept as certification lanes; `MappedCurve` demotes to an authority record behind a transience fence. Executed by the PCURVE program (`docs/PCURVE-PLAN.md` / `docs/PCURVE-LOG.md`) |
 | `docs/CENSUS-REST-CLOSURE-DESIGN.md` | RATIFIED (#965) | At-rest census structural identity (#943 + #591 Door-2): the world-space Door 2 for declared planar pairs with its C3/C4 revision; cross-instance curved declared `Rest` as named residue |
-| `docs/GROUP-BOOLEAN-DESIGN.md` | SHAPE RATIFIED (#496, option A′) | Group boolean in the recipe layer (D2 + F4): `PlacedUnion` — "a Pattern that fuses", one prototype, one body out, `Instance{i}` naming unchanged |
-| `docs/OFFSET-DESIGN.md` | RATIFIED (#907) | Offset & shell O1–O6: analytic offsets minted by struct-update, the approximating-surface lift, the offset certificate and its two meters, what shell IS. DESIGN.md Q8 is its ratified seed (VERBS) |
+| `docs/GROUP-BOOLEAN-DESIGN.md` | RATIFIED (#496, option A′) | Group boolean in the recipe layer (D2 + F4): `PlacedUnion` — "a Pattern that fuses", one prototype, one body out, `Instance{i}` naming unchanged; implemented by LIB (#571, schema v12) |
+| `docs/OFFSET-DESIGN.md` | RATIFIED (#907) | Offset & shell O1–O6: analytic offsets minted by struct-update, the approximating-surface lift, the offset certificate and its two meters, what shell IS. DESIGN.md Q8 is its ratified seed; implemented across VERBS Wave 3 (OFF-A…OFF-D + the teapot) |
 | `docs/MIRROR-DESIGN.md` | RATIFIED (#909) | Patterns & mirror P1–P6: the chart-handedness convention (u ↦ −u), mirror's own door beside rigid transform, and the boundary of ASSEMBLY-DESIGN A6's equivariance audit (VERBS) |
-| `docs/DRAFT-DESIGN.md` | RATIFIED (#908) | Draft, the molding taper, DR1–DR6: plane walls only at v1, a certified re-geom pass, the pull-direction selector as a SELECT-DESIGN amendment, survivor naming (VERBS) |
-| `docs/ARMS3-DESIGN.md` | RATIFIED (#992) | ARMS-3, A3-1…A3-3: the general sphere×sphere fillet arm, the valence-4 "corner" that is not a corner, and what a run-out at a seam vertex IS (VERBS) |
+| `docs/DRAFT-DESIGN.md` | RATIFIED (#908) | Draft, the molding taper, DR1–DR6: plane walls only at v1, a certified re-geom pass, the pull-direction selector as a SELECT-DESIGN amendment, survivor naming; NOT YET IMPLEMENTED (VERBS) |
+| `docs/ARMS3-DESIGN.md` | RATIFIED (#992) | ARMS-3, A3-1…A3-3: the general sphere×sphere fillet arm, the valence-4 "corner" that is not a corner, and what a run-out at a seam vertex IS; implemented at #1028, the recourse's missing door is #1022 (VERBS) |
 | `docs/KERNEL-VERBS.md` | Reference register | The modeling verbs the kernel does not yet have, each with its prerequisites; worked in dependency order by the VERBS program (`docs/VERBS-PLAN.md` / `docs/VERBS-LOG.md`). The register never schedules |
 | `docs/K-REPORT.md` | Reference | K-constant evidence record (#89 CLOSED, K = 10 permanent) + milestone addenda |
 | `docs/PERF-PLAN.md` | Merged-and-advisory (D9 addendum) | Performance plan and Q-P answers |
-| `docs/CURVO-AUDIT.md` | Reference | curvo/truck vendor audit behind Q5's resolution |
+| `docs/CURVO-AUDIT.md` | Reference | curvo vendor audit behind Q5's resolution |
 | `docs/LONGTERM-IDEAS.md` | Parked, non-binding | Idea bank with a graduation rule |
 | `docs/MODEL-AB-LOG.md` | Experiment log | Model A/B protocol + running data; process data, not design |
 | `docs/NAME-CANDIDATES.md` | Reference | Q9 project-name candidates and registry availability (re-sweep before ratifying) |
-| `docs/predicate-dimension-audit.md` | LIVE working audit | Dimensional-analysis sweep; open findings F2, F6's residue, F7–F15 |
+| `docs/predicate-dimension-audit.md` | LIVE working audit | Dimensional-analysis sweep; open findings F2, F8–F15 (F6 and F7 RETIRED at M8's #502; F6's residue is cross-crate, issue #501) |
 
 ## Vision
 
@@ -1992,8 +1992,8 @@ keep their full-size framing because that is what they still cost.
   shell/hollow (sealed and opened), and linear/circular/explicit
   patterns. Daily use still assumes: variable-radius fillets, draft,
   hole features (counterbore/countersink/tapped), mirror (D8's
-  structural parameters are the substrate), datum planes/axes,
-  helixes, rib/text features. Individually small; the long tail
+  structural parameters are the substrate), helixes, rib/text
+  features. Individually small; the long tail
   dominates "why can't I model my part." The kernel-side view with
   dependencies is `docs/KERNEL-VERBS.md`; the program executing its
   scheduled rows is `docs/VERBS-PLAN.md` / `docs/VERBS-LOG.md`.
