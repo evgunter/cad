@@ -2064,3 +2064,24 @@ belly is a sphere zone and lands THERE — the un-squaring stays
 honestly pending). The STOP fence's second save this program;
 the measurement posted to #1081 in the appended-correction
 pattern.
+
+## LILYWELD PR-2's PREMISE DISSOLVED BY MEASUREMENT; RULED; LANE TAKES #1031 (2026-08-28)
+
+The second STOP of the day and the sharper one: the declared
+contact is PLANE×PLANE by PR-1's own achievement (the cone×torus
+circle is the RIM of the contact, not the contact — a Rest on
+that pair would be Contradicted, correctly), no declaration
+covers the cone×torus box pair, and the door sequence continues
+into NonMaximalFaces (#1031) then the curved-pierce arm
+regardless. Item 2 killed; the gate half DEFERRED (an admission
+with no covering declaration is dead code or new design);
+wall 2's binding blocker re-pointed to #1031 — the fourth
+stated-blocker-not-binding instance, the first caught in a
+spec's OWN text, pre-build, by the now-mandatory measure-first
+checkpoint. The lane's two pins merge as the unit's closing
+record (orchestrator-reviewed, demo-class, no ordinal); the
+lane then takes THE #1031 UNIT — now triple-demanded (walls 2
+and 7, the teapot's F7 caps) — under Evan's recorded (a)/(b)
+steer, difficulty pre-logged M, with the opening measurement
+reported before building. SHELLFIX PR-2a opened as #1126
+meanwhile.
