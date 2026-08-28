@@ -93,3 +93,12 @@ test-utils = { path = "../test-utils" }
 name = "all"
 path = "tests/all.rs"
 
+
+# --- reviewer R1 probe targets (probe branch only, SHELLFIX PR-2a) ---
+[[test]]
+name = "sf2a_r1"
+path = "tests/sf2a_r1.rs"
+
+[[test]]
+name = "sf2a_r1_head"
+path = "tests/sf2a_r1_head.rs"
