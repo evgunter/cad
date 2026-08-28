@@ -41,14 +41,6 @@ cancel does (`rfd` cannot tell the two apart), which is why a
 plausibly-present backend that still never shows a dialog reads as
 quiet cancels — if that is what you see, install `zenity`.
 
-**Zenity renders every character as boxes (tofu).** A bare WSL distro
-has no fonts for GTK to draw with (the viewer itself is unaffected —
-egui bundles its fonts). Remedy:
-
-```sh
-sudo apt install fontconfig fonts-dejavu-core   # then `fc-cache -f` if needed
-```
-
 **Window won't resize horizontally under WSLg — CONFIRMED root cause.**
 WSLg presents Wayland windows through an RDP RAIL shell whose
 client-side-decoration negotiation breaks horizontal resizing; forcing
