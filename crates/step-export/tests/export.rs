@@ -302,34 +302,36 @@ fn committed_fixtures_are_byte_golden() {
     }
 }
 
-/// **The `boss_union` re-baseline, with its cause** (PCURVE P-1b).
+/// **The `boss_union` z-move: what is PROVEN, and what was DISPROVEN**
+/// (PCURVE P-1b).
 ///
-/// Three of this fixture's vertices moved one ULP in `z`,
-/// `0.9999999999999999 → 1.0`, when the conventional descriptions
-/// collapsed onto chart images. Twelve other points on the same plane
-/// were already exactly `1.0`; these three were the outliers. The
-/// fixture was regenerated deliberately, and this row is why — it
-/// asserts the MECHANISM, so the move cannot later be read as drift
-/// that someone waved through.
+/// Three of this fixture's vertices evaluate one ULP higher in `z`
+/// under the collapsed descriptions — `0.9999999999999999 → 1.0` —
+/// while twelve other points on the same plane were already exactly
+/// `1.0`. **The fixture is NOT regenerated**: regeneration was
+/// authorised only on a proven cause, and the cause proposed for it
+/// was tested here and FAILED. This row keeps both halves of that
+/// result so the next reader starts from the disproof.
 ///
-/// Two things are shown, because either alone would be a story:
+/// **PROVEN, and asserted below.** The plate's top is a plane whose
+/// `u_ref` and `v_ref` both have `z` exactly zero, so
+/// `S(u, v).z ≡ origin.z = 1.0` for every parameter — no arithmetic in
+/// that evaluation can round. Any edge described as an image in that
+/// chart therefore lands on the plane exactly, by construction rather
+/// than by luck. And the three boss corner points ARE at `1.0` in the
+/// body this build produces.
 ///
-/// 1. **The three points are the boss's corner struts crossing the
-///    plate's top**, and those struts are exactly the edges this unit
-///    re-described: the boss's three 120° arcs are arcs of ONE circle,
-///    so its three walls share one surface, so each corner strut is
-///    the `k_prev == k_next` case that used to keep a pushforward and
-///    now states a chart image (`extrude`'s same-surface strut join).
-///    They carry `EdgeAuthority::Declared`, which is the record of
-///    exactly that conversion — a derived chart image would not.
-/// 2. **The new `z` is FORCED by the chart, not produced by luck.**
-///    The plate's top is a plane whose `u_ref` and `v_ref` both have
-///    `z` exactly zero, so `S(u, v).z = origin.z` identically — every
-///    image in that chart evaluates to `z = 1.0` for every parameter,
-///    with no arithmetic that could round. A pushforward states the
-///    same locus in 3-SPACE and carries whatever the boolean's
-///    intersection arithmetic produced, which for these three was one
-///    ULP low.
+/// **DISPROVEN, and deliberately not asserted.** The proposed cause
+/// was that these three points belong to edges the transience fence
+/// re-described — the boss's three 120° arcs are arcs of ONE circle,
+/// so its walls share a surface and each corner strut is the
+/// `k_prev == k_next` case that now states a chart image instead of a
+/// pushforward. If that were the mechanism, the plate's top would
+/// carry chart images whose authority is `Declared`, the record of
+/// exactly that conversion. **It carries none.** So the description
+/// family of those edges is not what moved the points, and the real
+/// cause is still open — recorded here rather than left as a story
+/// that reads as settled.
 #[test]
 fn boss_union_seam_vertices_are_exactly_on_the_plate_top() {
     let body = common::boss_union();
@@ -369,31 +371,12 @@ fn boss_union_seam_vertices_are_exactly_on_the_plate_top() {
                 assert_eq!(
                     p.z, 1.0,
                     "a boss corner strut crossing the plate's top lies ON it, bitwise \
-                     — this is the re-baselined value and the reason it is exact"
+                     — the value the committed fixture does NOT yet carry, held here \
+                     unregenerated until the cause is proven"
                 );
                 found += 1;
             }
         }
     }
     assert_eq!(found, 3, "all three boss corners cross the plate's top");
-    // And every edge described in that chart records the declaration
-    // the conversion moved out of the description (U2 Q3).
-    let top_keys: Vec<_> = tops.iter().map(|(k, ..)| *k).collect();
-    let mut declared_chart_edges = 0;
-    for (_, e) in body.edges() {
-        let Some(topo::CurveGeom::Certified(c)) = body.get_curve_geom(e.curve) else {
-            continue;
-        };
-        if let topo::EdgeDescription::Chart(chart) = c.description()
-            && top_keys.contains(&chart.surface)
-            && c.authority().is_declared()
-        {
-            declared_chart_edges += 1;
-        }
-    }
-    assert!(
-        declared_chart_edges > 0,
-        "the plate's top carries chart images whose locus is recorded as DECLARED — \
-         the fence's conversion, which is what moved these points"
-    );
 }
