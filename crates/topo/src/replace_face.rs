@@ -12,8 +12,20 @@
 //! # What moves and what does not
 //!
 //! **The neighbours' surfaces are untouched.** Only the named face's
-//! surface is replaced; every other face keeps the chart it had. What
-//! must then be re-derived is everything the replaced chart carries:
+//! surface is replaced; every other face keeps the chart it had.
+//!
+//! **That premise is this door's, not the verb's**, and it is what
+//! bounds the door: composing it over a whole boundary transports each
+//! corner once per chart, which is the offset body's corner only where
+//! the normals are mutually perpendicular. At an OBLIQUE junction it is
+//! not, and [`ReplaceFaceError::ReanchorOffCarrier`] is what refuses to
+//! build the difference (#1081). A body whose faces are ALL PLANES has
+//! another route — [`crate::offset_planes_together`], which moves every
+//! chart at once and solves each corner simultaneously; this door is
+//! what everything else still takes.
+//!
+//! What must then be re-derived is everything the replaced chart
+//! carries:
 //!
 //! - the face's boundary edges' carriers and descriptions,
 //! - the points of the vertices those edges end at,

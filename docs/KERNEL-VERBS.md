@@ -185,8 +185,12 @@ the table.
   ring's does. Self-retiring in klein's wall-6 shape — a different
   refusal, or a success, fails the tour. Issue #986, closed by the
   scene.
-- **`shell` survives exactly ONE junction shape, and it is not about
-  curvature.** Added 2026-08-27 by the verb's own designated demo
+- **`shell`'s PER-CHART arm survives exactly ONE junction shape, and it
+  is not about curvature — and since #1081's PR-2a that arm is not the
+  only one.** An all-planar body is offset SIMULTANEOUSLY and its
+  oblique corners hollow; what is described below is the per-chart door,
+  which is what every body with a CURVED face still takes. Added
+  2026-08-27 by the verb's own designated demo
   (`demos/tour/src/teapot.rs`, wall 1; the table and its sweep are
   `demos/tour/tests/verbs_teapot.rs`). The sealed arm replaces one
   CHART at a time and re-anchors every edge that ends at a moved
@@ -227,11 +231,17 @@ the table.
   until 2b lands. Three typed refusals name the new door's own scope:
   `TogetherNonPlanar`, `TogetherPartialSet`, `TogetherCorner`.
   The #1048 corpus is byte-identical across the change, measured with
-  the dump harness rather than asserted. A TANGENT junction refuses too, at a second door
-  (`CarrierLaneUnsupported`), but that row is not attributable to
-  tangency alone: the lattice's only route to a tangent junction is
-  `.tangent().tangent_arc_to(..)`, whose description is a mapped arc,
-  so the two variables cannot be separated from outside the kernel.
+  the dump harness rather than asserted. A TANGENT junction refuses too, at a further door
+  (`CarrierLaneUnsupported`). That row was first recorded as "not
+  attributable to tangency alone", because the lattice's only route to
+  a tangent junction is `.tangent().tangent_arc_to(..)`, whose
+  description is a mapped arc — but the ordinal-100 review SEPARATED
+  the two variables and the caveat no longer stands: a dome whose
+  centre is lifted clear of the wall's top is definitely NOT tangent
+  and refuses at the identical site with the identical `what`. That
+  door is about the neighbour's offset not being a rigid translation;
+  tangency is not its variable. It is out of PR-2a's and PR-2b's scope
+  alike — its fix is the mapped-description transport family.
   **Why nothing caught this before:** `shell`'s acceptance corpus
   (`crates/sweep/tests/verbs_shell.rs`) is a box, a cylinder between
   two caps and a tube between two caps — every fixture inside the

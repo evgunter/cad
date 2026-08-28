@@ -17,9 +17,18 @@
 //! bodies the construction has already proven nested. The sealed shell
 //! therefore executes as the boolean's DEGENERATE NO-CROSSING ARM:
 //!
-//! 1. one clone, every boundary face replaced by its inward offset
-//!    ([`crate::replace_face_offset`] per face) — the result is the
-//!    material to remove, a positively oriented closed body;
+//! 1. one clone, every boundary face moved to its inward offset — the
+//!    result is the material to remove, a positively oriented closed
+//!    body. **Two doors do that, and which one runs is decided by the
+//!    body**: an ALL-PLANAR operand goes through
+//!    [`crate::offset_planes_together`], which moves every chart at
+//!    once and solves each corner against all the moved planes meeting
+//!    it; anything with a curved face goes chart by chart through
+//!    [`crate::replace_faces_offset`], whose corners are transported
+//!    once per chart and whose OBLIQUE ones therefore refuse
+//!    (`ReanchorOffCarrier`) rather than build. The split is #1081's:
+//!    the planar half of that class is repaired and the curved half is
+//!    not;
 //! 2. that body inserted through the shared void-insertion door
 //!    ([`crate::boolean::voids::insert_void`]) with carried evidence;
 //! 3. one validation.

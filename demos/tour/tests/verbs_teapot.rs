@@ -364,12 +364,22 @@ fn offset_refusal(e: &ShellError<f64>) -> String {
 /// class, and the box is in it because every one of its faces is
 /// normal to every neighbour.
 ///
-/// Everything else moves its neighbour's edge off the neighbour: the
+/// Everything else moved its neighbour's edge off the neighbour: the
 /// triangular prism's side planes (its footprint's interior angles are
 /// 58°, 58° and 64°, and the dihedral between two side planes IS that
 /// angle), a cone against a cap, a sphere zone against a cap. The gap
 /// the refusal carries IS that distance in meters, and it is checked to
 /// be a real positive length rather than a tag.
+///
+/// **That is the PER-CHART door, and since #1081's PR-2a it is no
+/// longer the only one.** An ALL-PLANAR body's corners are solved
+/// simultaneously — each against every moved plane meeting it — so the
+/// triangular prism has moved to the hollowing list below, along with
+/// the hexagon, the bevel and the kite that
+/// `verbs_teapot_r1_probes::p2` carries. The invariance law above still
+/// describes exactly the per-chart door, which is still what a body
+/// with any CURVED face takes, and every refusing row here is one of
+/// those. The pot's belly is a sphere zone, so it is too.
 ///
 /// **The second door is about the NEIGHBOUR'S OFFSET, not about
 /// tangency**, and that is measured rather than reasoned. A dome
