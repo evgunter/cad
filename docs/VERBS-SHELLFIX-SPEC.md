@@ -73,6 +73,80 @@ verified on hexagon/bevel/kite) and the group door refuses.
    volume pins; the tangent bullet still refuses at its own door
    (differential); the #1048 acceptance corpus bit-identical.
 
+## CORRECTION (2026-08-28, before any PR-2 code — the opening measurement)
+
+**PR-2 §1's premise above is FALSIFIED and its fix must not be built.**
+Measured on the ordinal-100 hexagon (`t = 0.02`) by the PR-2 lane
+before writing code; the difficulty is re-logged at the re-scope
+(PR-2a **M**, PR-2b **L**), pre-work, so the A/B pre-registration
+stands.
+
+**1. The refusing edge's two faces are BOTH outside the group.** §1
+says to re-anchor against the neighbour's moved carrier "when the
+neighbour is IN THE SAME GROUP (its own offset is being applied in the
+same `replace_faces_offset` call)". That condition is never true on
+this class: `shell` offsets ONE chart per call, and the edge that
+refuses belongs to two OTHER charts.
+
+```
+group face        FaceKey(3v1)  plane n = (-0.866, -0.500,  0.000)
+refusing edge     EdgeKey(2v1)  gap 0.010000000000000009  (= t/2)
+  plus side face  FaceKey(4v1)  plane n = ( 0.000, -1.000,  0.000)
+  minus side face FaceKey(2v1)  plane n = ( 0.000,  0.000, -1.000)
+```
+
+The gap is `t·|n_group · n_neighbour| = t·cos 60° = t/2`, which
+confirms the review's law with the neighbour pair identified.
+
+**2. Re-anchoring alone would produce a WRONG BODY.** Grant the door
+full knowledge of the co-moving set and let the re-anchor succeed: the
+moved VERTEX is still derived from one chart's rigid transport, and
+`shell` visits the three charts at a corner in sequence, so the corner
+accumulates `−t(n₃ + n₄ + n_cap)`:
+
+```
+original corner V       = [-0.100000, -0.173205,  0.000000]
+true offset corner      = [-0.088453, -0.153205,  0.020000]
+sequential accumulation = [-0.082679, -0.143205,  0.020000]
+discrepancy             =  0.011547 m   on a 0.020 m wall
+
+seq corner's signed offset from side3: -0.030   (want -0.020)
+seq corner's signed offset from side4: -0.030   (want -0.020)
+seq corner's signed offset from cap:   -0.020   (want -0.020)
+```
+
+30 mm of wall where 20 mm was asked for, at both oblique faces — and
+no tier catches it: every loop stays simple and consistently wound and
+the volume is whatever the wrong corner makes it. **`ReanchorOffCarrier`
+is the gate PREVENTING that body and stays load-bearing** until the
+simultaneous solve replaces it; removing it without one converts a
+typed refusal into the validated-wrong-body class #1082 just closed.
+A box is unaffected and always was — with mutually perpendicular
+normals the accumulated sum satisfies `δ·nᵢ = −t` exactly, which is
+why #1048's corpus never saw this.
+
+**3. The repair is a SIMULTANEOUS offset**, not a re-anchor posture:
+each moved vertex solved against ALL the moved surfaces meeting it,
+each affected edge re-derived as the intersection of its TWO MOVED
+surfaces. Split accordingly:
+
+- **PR-2a (M)** — the door for ALL-PLANAR corners: a 3×3 solve per
+  vertex, plane∩plane per edge. Acceptance: hexagon, bevelled box,
+  kite and triangular prism hollow with closed-form volume pins (the
+  `t·|cos θ|` rows become POSITIVE rows); a non-simple corner (valence
+  > 3 inconsistent, or a singular 3×3 — coplanar-adjacent faces)
+  refuses typed naming the shape; the box corpus bit-identical;
+  `ReanchorOffCarrier` keeps firing for everything the door does not
+  cover, curved corners included (differential rows). STOP again if
+  the edge re-derivation needs intersection machinery beyond
+  plane∩plane.
+- **PR-2b (L)** — the curved corners through the C5 table
+  (plane∩cylinder / sphere / cone per-corner solves). The sphere-zone,
+  cone-frustum and partial-revolve-wedge fixtures land there, and so
+  does **the teapot's belly, which is a sphere zone**. The pot's
+  un-squaring is therefore honestly PENDING until 2b and must not be
+  half-claimed in 2a.
+
 ## Fences
 
 - No SSI, no crossing-pipeline entry (the no-crossing pin stands).
