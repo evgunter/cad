@@ -75,10 +75,11 @@ const RADIUS_JITTER: f64 = 0.08;
 /// `g1, g2 >= g_min` the right side is worst at `g1 = g2 = g_min`, and
 /// with radii confined to `base * [1-J, 1+J]` the worst assignment is
 /// `a = c = base(1+J)`, `b = base(1-J)`; the condition then reduces to
-/// `(1-J)/(1+J) > cos(g_min)`, i.e. `J < tan^2(g_min/2)`. With
-/// `g_min = TAU/10` that admits any `J < 0.105`, so `RADIUS_JITTER` at
-/// 0.08 keeps radius variety with margin. Radii free in `[1, 3]` would
-/// NOT: a mid vertex can then land on the chord of its neighbours, which
+/// `(1-J)/(1+J) > cos(g_min)`, i.e. `J < tan^2(g_min/2)` — with
+/// `g_min = TAU/10`, `J < tan^2(TAU/20)`. That is the bound
+/// `RADIUS_JITTER` is chosen inside, and it is the whole reason the
+/// radii are a jitter about one base rather than free in `[1, 3]`: free
+/// radii let a middle vertex land on the chord of its neighbours, which
 /// is a straight junction, not a sharp one.
 fn convex_polygon() -> impl Strategy<Value = Vec<Point2<f64>>> {
     (3usize..8)
