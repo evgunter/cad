@@ -16,6 +16,7 @@
 //! frame loop still decides WHEN to call them; it no longer decides what
 //! they mean.
 
+use pncad::document::{ParamName, ParseError, RecipeNodeId, SlotId};
 use pncad::prelude::StableName;
 
 use crate::camera::Folded;
@@ -59,6 +60,162 @@ pub fn batch_status(ops: &[SessionOp], refusal: Option<&Refusal>) -> StatusUpdat
         (_, Some(refusal)) => StatusUpdate::Show(refusal.to_string()),
         (true, None) => StatusUpdate::Clear,
         (false, None) => StatusUpdate::Keep,
+    }
+}
+
+/// The name a refused batch offers to CREATE.
+///
+/// The parse door's unknown-parameter refusal is deliberate
+/// typo-safety — text naming an undeclared parameter never creates
+/// one. The ratified pattern is refuse-then-offer, and this is the
+/// offer as a value: the undeclared name, for the frame loop to
+/// prefill into the add-parameter affordance (name only — the
+/// expression's context does not determine the new parameter's
+/// DIMENSION, so that stays the user's explicit pick there). `None`
+/// for every other refusal and for a clean batch.
+pub fn creation_offer(refusal: Option<&Refusal>) -> Option<ParamName> {
+    match refusal {
+        Some(Refusal::Parse(error)) => match error.as_ref() {
+            // The parse error carries the identifier as text (it is a
+            // fact about the SOURCE); the offer mints the name the
+            // create door would declare.
+            ParseError::UnknownParam { name, .. } => Some(ParamName::new(name.as_str())),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+/// The expression draft a parse-refused batch should hand back.
+///
+/// The chrome clears the expression field the moment Set is clicked —
+/// a draft is transient state and a committed one leaves nothing
+/// behind. But a PARSE refusal means nothing was committed, and for
+/// the unknown-parameter case the offer above sends the user off to
+/// create the parameter first: coming back to an empty field would
+/// make acting on the offer cost the very text that raised it. So a
+/// parse-refused batch restores the draft — the slot the text was
+/// aimed at and the text itself, read from the batch's own op.
+pub fn retype_draft(
+    ops: &[SessionOp],
+    refusal: Option<&Refusal>,
+) -> Option<(RecipeNodeId, SlotId, String)> {
+    if !matches!(refusal, Some(Refusal::Parse(_))) {
+        return None;
+    }
+    ops.iter().rev().find_map(|op| match op {
+        SessionOp::SetSlotExpression { node, slot, text } => Some((*node, *slot, text.clone())),
+        _ => None,
+    })
+}
+
+/// What the environment offers `rfd` as a file-chooser backend.
+///
+/// Probed ONCE at startup ([`chooser_backend`]) — it is a fact about
+/// the environment, not per-frame state — and consulted wherever a
+/// dialog is offered. The point is to fail LOUD at first sight (first
+/// light, issue #1097: Open/Save As "silently did nothing" on a WSL
+/// distro shipping neither backend) instead of hedging after a dead
+/// click: `rfd`'s blocking dialogs return the same bare `None` for a
+/// user cancel and for a backend that could not put a dialog up, so
+/// the time to know is before the click.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ChooserBackend {
+    /// `zenity` is on `PATH`: dialogs work with no portal at all.
+    ZenityPresent,
+    /// No `zenity`, but a D-Bus session-bus address exists, so an
+    /// `xdg-desktop-portal` file chooser is possible. **A HINT, not a
+    /// verdict**: a session bus without a working portal frontend
+    /// still ends in a silent `None` the process cannot tell from a
+    /// cancel — that residue is the README's troubleshooting entry,
+    /// not a message this code can honestly print.
+    PortalPossible,
+    /// Neither: no dialog can possibly appear. The one CONFIDENT
+    /// arm, and the one the chrome disables the dialogs over.
+    Absent,
+}
+
+impl ChooserBackend {
+    /// Whether attempting a dialog can possibly show one.
+    pub fn usable(self) -> bool {
+        !matches!(self, Self::Absent)
+    }
+}
+
+/// The chooser verdict as a pure function of the two probe readings,
+/// so the rows exercising it do not depend on the CI box's `PATH`.
+pub fn chooser_backend_of(zenity_on_path: bool, session_bus: bool) -> ChooserBackend {
+    match (zenity_on_path, session_bus) {
+        (true, _) => ChooserBackend::ZenityPresent,
+        (false, true) => ChooserBackend::PortalPossible,
+        (false, false) => ChooserBackend::Absent,
+    }
+}
+
+/// Probe the environment for a chooser backend. Startup calls this
+/// once; everything downstream reads the stored value.
+pub fn chooser_backend() -> ChooserBackend {
+    if cfg!(target_os = "linux") {
+        chooser_backend_of(zenity_on_path(), session_bus_hinted())
+    } else {
+        // Off Linux `rfd` speaks the platform's native dialog API and
+        // the zenity/portal question does not arise. Grouped under the
+        // hint arm because the downstream meaning is the same: attempt
+        // the dialog, and read a `None` as a genuine cancel.
+        ChooserBackend::PortalPossible
+    }
+}
+
+/// Whether a `zenity` binary sits in some `PATH` directory. Presence
+/// is the signal `rfd`'s own fallback lookup uses; a present but
+/// broken zenity is the dialog's own problem to report.
+fn zenity_on_path() -> bool {
+    std::env::var_os("PATH")
+        .is_some_and(|paths| std::env::split_paths(&paths).any(|dir| dir.join("zenity").is_file()))
+}
+
+/// Whether a D-Bus session-bus address is advertised — the necessary
+/// (never sufficient) condition for the portal chooser.
+fn session_bus_hinted() -> bool {
+    std::env::var_os("DBUS_SESSION_BUS_ADDRESS").is_some_and(|address| !address.is_empty())
+}
+
+/// Whether this process runs inside WSL, read off the environment
+/// markers WSL itself sets for every process (`WSL_DISTRO_NAME`,
+/// `WSL_INTEROP`). Either suffices; both are checked because WSL1
+/// and WSL2 differ in which they guarantee. Consumed by `app::run`,
+/// which prefers the X11 backend under WSL (WSLg's Wayland RAIL shell
+/// breaks horizontal resizing — #1097, confirmed).
+///
+/// Here rather than in `app` so the viewer's ambient-environment
+/// reads have ONE home, which is what the `no-ambient-env` gate's
+/// allowlist entry for this file ratifies — see the argument in
+/// `scripts/gates/no-ambient-env.sh`.
+#[cfg(target_os = "linux")]
+pub fn running_under_wsl() -> bool {
+    std::env::var_os("WSL_DISTRO_NAME").is_some() || std::env::var_os("WSL_INTEROP").is_some()
+}
+
+/// What the disabled dialog controls say, and what the status line
+/// says should a dialog somehow be attempted anyway: the confident
+/// half of the #1097 finding, with the dialog-free workaround.
+pub const NO_CHOOSER_BACKEND: &str = "no file chooser backend — install zenity or \
+     xdg-desktop-portal; a document path can also be passed on the \
+     command line";
+
+/// The status line after a file dialog returns.
+///
+/// A chosen path leaves the line alone — the `Open`/`Save` batch it
+/// feeds owns the verdict through [`batch_status`]. An empty-handed
+/// dialog under a plausibly-present backend is read as a genuine
+/// cancel and stays QUIET (a cancel should not nag); under
+/// [`ChooserBackend::Absent`] it is the loud arm — belt to the
+/// chrome's braces, which should have disabled the control before any
+/// click could reach here.
+pub fn dialog_status(backend: ChooserBackend, chose: bool) -> StatusUpdate {
+    match (chose, backend.usable()) {
+        (true, _) | (false, true) => StatusUpdate::Keep,
+        (false, false) => StatusUpdate::Show(NO_CHOOSER_BACKEND.to_owned()),
     }
 }
 

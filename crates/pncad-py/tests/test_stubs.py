@@ -8,7 +8,10 @@ in the same degraded environment as the rest of the suite.
 
 Scope, stated honestly: NAME-level equality of the top-level surface
 (classes, functions, constants), both directions. Signature-level
-checking remains `ty`'s job.
+checking remains `ty`'s job, and COVERAGE — whether the Rust façade's
+curated surface has a Python spelling at all — is
+`test_binding_census.py`'s: this check is satisfied by a stub and a
+module that agree on nothing being bound.
 
 LAYOUT-INVARIANT (R1/R2 converged finding): the module is importable
 two ways — the repo script's flat `pncad.so` staging, and the wheel's

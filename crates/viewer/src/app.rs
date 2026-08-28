@@ -42,7 +42,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use eframe::egui;
 use egui_tiles::{TileId, Tiles, Tree, UiResponse};
-use pncad::document::{Dimension, RecipeNodeId, SlotId};
+use pncad::document::{Dimension, ParamName, RecipeNodeId, SlotId};
 use pncad::geom_core::Tol;
 
 use crate::camera::{self, Camera, CameraOp};
@@ -128,6 +128,20 @@ struct Drafts {
     expr_target: Option<(RecipeNodeId, SlotId)>,
     /// What is typed in it.
     expr_text: String,
+    /// The add-parameter form's name field.
+    new_param_name: String,
+    /// Its chosen dimension — `None` until the user picks one, and
+    /// the Create button waits for the pick. The offer path lands
+    /// here from an expression whose context does not determine the
+    /// new parameter's dimension, and a silently-defaulted one would
+    /// be a guess none of this program's doors make.
+    new_param_dimension: Option<Dimension>,
+    /// Its value field.
+    new_param_value: f64,
+    /// The name an unknown-parameter refusal offered to create
+    /// ([`frame::creation_offer`]); shown over the form while the
+    /// name field still says it.
+    new_param_offer: Option<ParamName>,
     /// The mate tool's class/alignment choice, as widget state: an
     /// index into [`admitted_classes`], an index into
     /// [`MATE_PRIMITIVES`], and the sense toggle. Draft chrome state
@@ -189,6 +203,10 @@ pub struct ViewerApp {
     /// The last thing that went wrong, kept so a refused operation is
     /// visible instead of silently dropped.
     status: Option<String>,
+    /// Whether the environment can show a file dialog at all — probed
+    /// once at startup ([`frame::chooser_backend`]); the Open/Save As
+    /// controls read it every frame.
+    chooser: frame::ChooserBackend,
 }
 
 /// Why the application could not start (closed enum, D4 ¶3).
@@ -263,6 +281,7 @@ impl ViewerApp {
             pending_fit: true,
             fit_on_scene: false,
             status: None,
+            chooser: frame::chooser_backend(),
         })
     }
 
@@ -365,26 +384,45 @@ impl ViewerApp {
             return;
         }
         let mut refusal: Option<Refusal> = None;
-        // The VERDICT is `frame::batch_status`'s, computed from the ops
-        // and the refusal; this loop only performs and collects. The
-        // rule used to live inline here, in app-gated code no row could
+        // The VERDICTS are `frame`'s, computed from the ops and the
+        // refusal; this loop only performs and collects. The rules
+        // used to live inline here, in app-gated code no row could
         // reach — see `frame`'s module docs.
-        let update = {
-            let mut performed: Vec<SessionOp> = Vec::with_capacity(ops.len());
-            for op in ops {
-                performed.push(op.clone());
-                let opened = matches!(op, SessionOp::Open(_));
-                match self.session.perform(op).refusal {
-                    Some(next) => refusal = Refusal::preferred(refusal, next),
-                    // A replaced document owes a re-frame — taken when
-                    // its scene actually lands, not on the outgoing
-                    // picture.
-                    None if opened => self.fit_on_scene = true,
-                    None => {}
-                }
+        let mut performed: Vec<SessionOp> = Vec::with_capacity(ops.len());
+        for op in ops {
+            performed.push(op.clone());
+            let opened = matches!(op, SessionOp::Open(_));
+            match self.session.perform(op).refusal {
+                Some(next) => refusal = Refusal::preferred(refusal, next),
+                // A replaced document owes a re-frame — taken when
+                // its scene actually lands, not on the outgoing
+                // picture.
+                None if opened => self.fit_on_scene = true,
+                None => {}
             }
-            frame::batch_status(&performed, refusal.as_ref())
-        };
+        }
+        let update = frame::batch_status(&performed, refusal.as_ref());
+        // The refuse-then-offer pair for a parse refusal: restore the
+        // refused draft so acting on the refusal does not cost the
+        // text that raised it, and — for an unknown parameter name —
+        // prefill the add-parameter affordance with the name it
+        // offers to create (dimension deliberately left unpicked).
+        if let Some((node, slot, text)) = frame::retype_draft(&performed, refusal.as_ref()) {
+            self.drafts.expr_target = Some((node, slot));
+            self.drafts.expr_text = text;
+        }
+        if let Some(name) = frame::creation_offer(refusal.as_ref()) {
+            self.drafts.new_param_name = name.0.clone();
+            self.drafts.new_param_dimension = None;
+            self.drafts.new_param_offer = Some(name.clone());
+        }
+        self.apply_status(update);
+    }
+
+    /// Apply a policy verdict to the status line — the one place a
+    /// [`StatusUpdate`] becomes the field, shared by the batch policy
+    /// and the dialog policy so neither hand-assigns.
+    fn apply_status(&mut self, update: StatusUpdate) {
         match update {
             StatusUpdate::Keep => {}
             StatusUpdate::Clear => self.status = None,
@@ -402,15 +440,40 @@ impl eframe::App for ViewerApp {
             ui.horizontal(|ui| {
                 ui.label(WINDOW_TITLE);
                 ui.separator();
-                if ui.button("Open…").clicked()
-                    && let Some(path) = pick_open()
+                // The chooser-backend verdict, probed once at startup:
+                // with confidently NO backend (no zenity, no session
+                // bus) the dialogs are disabled UP FRONT with the
+                // reason as their tooltip — a dead click is exactly
+                // the silent failure #1097 reported. Under a
+                // plausibly-present backend, a dialog handing back
+                // `None` is read as a genuine cancel and stays quiet;
+                // `frame::dialog_status` is that rule as a policy
+                // value, and its loud arm is the belt to this
+                // disabling's braces.
+                let chooser = self.chooser;
+                if ui
+                    .add_enabled(chooser.usable(), egui::Button::new("Open…"))
+                    .on_disabled_hover_text(frame::NO_CHOOSER_BACKEND)
+                    .clicked()
                 {
-                    ops.push(SessionOp::Open(path));
+                    let path = pick_open();
+                    let update = frame::dialog_status(chooser, path.is_some());
+                    if let Some(path) = path {
+                        ops.push(SessionOp::Open(path));
+                    }
+                    self.apply_status(update);
                 }
-                if ui.button("Save As…").clicked()
-                    && let Some(path) = pick_save(self.session.path())
+                if ui
+                    .add_enabled(chooser.usable(), egui::Button::new("Save As…"))
+                    .on_disabled_hover_text(frame::NO_CHOOSER_BACKEND)
+                    .clicked()
                 {
-                    ops.push(SessionOp::Save(path));
+                    let path = pick_save(self.session.path());
+                    let update = frame::dialog_status(chooser, path.is_some());
+                    if let Some(path) = path {
+                        ops.push(SessionOp::Save(path));
+                    }
+                    self.apply_status(update);
                 }
                 ui.separator();
                 if ui
@@ -570,13 +633,32 @@ impl egui_tiles::Behavior<Pane> for ViewerBehavior<'_> {
         }
     }
 
-    fn pane_ui(&mut self, ui: &mut egui::Ui, _tile_id: TileId, pane: &mut Pane) -> UiResponse {
-        match pane {
-            Pane::Viewport => self.viewport_ui(ui),
-            Pane::Features => self.features_ui(ui),
-            Pane::Properties => self.properties_ui(ui),
-            Pane::View => self.view_ui(ui),
+    fn pane_ui(&mut self, ui: &mut egui::Ui, tile_id: TileId, pane: &mut Pane) -> UiResponse {
+        // The viewport IS its rectangle: it allocates exactly the
+        // available size and paints into it, so a scroll container
+        // around it would have nothing true to say.
+        if *pane == Pane::Viewport {
+            self.viewport_ui(ui);
+            return UiResponse::None;
         }
+        // Every CHROME pane scrolls its own overflow — the class of
+        // panes, not the one that happened to clip. First light
+        // (#1097): the Properties pane's lower content was unreachable
+        // at any window height, clipped with no scrollbar. auto_shrink
+        // is off on both axes so the pane fills its tile (a scrollbar
+        // at the tile's edge, no collapse under short content); the
+        // salt is the tile id, so two tabs of one tile scroll
+        // independently.
+        egui::ScrollArea::vertical()
+            .auto_shrink([false, false])
+            .id_salt(tile_id)
+            .show(ui, |ui| match pane {
+                // Handled above; this arm cannot be reached.
+                Pane::Viewport => {}
+                Pane::Features => self.features_ui(ui),
+                Pane::Properties => self.properties_ui(ui),
+                Pane::View => self.view_ui(ui),
+            });
         UiResponse::None
     }
 }
@@ -596,7 +678,7 @@ impl ViewerBehavior<'_> {
             return;
         };
 
-        let shift = ui.input(|i| i.modifiers.shift);
+        let (shift, alt) = ui.input(|i| (i.modifiers.shift, i.modifiers.alt));
         let mut events: Vec<ViewportEvent> = Vec::new();
         for (egui_button, button) in [
             (egui::PointerButton::Primary, PointerButton::Primary),
@@ -608,6 +690,7 @@ impl ViewerBehavior<'_> {
                 events.push(ViewportEvent::Drag {
                     button,
                     shift,
+                    alt,
                     delta_px: [
                         f64::from(delta.x) * pixels_per_point,
                         f64::from(delta.y) * pixels_per_point,
@@ -775,13 +858,13 @@ impl ViewerBehavior<'_> {
         });
         ui.separator();
         // A face picked in the viewport highlights its owning
-        // feature here — one selection value, one inversion.
+        // feature here — one selection value, one inversion. Overflow
+        // is `pane_ui`'s scroll container's job, the same one every
+        // chrome pane sits in; a second ScrollArea here would nest.
         let selected = self.session.selection().node();
-        egui::ScrollArea::vertical().show(ui, |ui| {
-            for row in &rows {
-                self.feature_row(ui, row, selected == Some(row.id));
-            }
-        });
+        for row in &rows {
+            self.feature_row(ui, row, selected == Some(row.id));
+        }
     }
 
     /// One feature-tree row.
@@ -913,6 +996,97 @@ impl ViewerBehavior<'_> {
                     .push(SessionOp::Select(Selection::Param(row.name.clone())));
             }
         }
+        self.add_param_ui(ui);
+    }
+
+    /// The create half of the document-parameters section: name,
+    /// dimension, value, one [`SessionOp::CreateParam`] on commit.
+    ///
+    /// Two deliberate frictions, both refusals-in-advance. The
+    /// dimension starts UNPICKED and Create waits for it — the offer
+    /// path arrives here from an expression whose context does not
+    /// determine the new parameter's dimension, and a silent default
+    /// would be a guess. And a name that is already declared shows the
+    /// session's own already-exists sentence with the edit door
+    /// offered, before the click ever reaches the typed refusal
+    /// backing it ([`Refusal::ParamExists`]).
+    fn add_param_ui(&mut self, ui: &mut egui::Ui) {
+        // The offer from an unknown-parameter parse refusal, shown
+        // while the name field still says the offered name.
+        if let Some(offered) = self.drafts.new_param_offer.clone() {
+            if offered.0 == self.drafts.new_param_name.trim() {
+                ui.weak(Refusal::offer_wording(&offered));
+            } else {
+                // The user typed past the offer; it is stale.
+                self.drafts.new_param_offer = None;
+            }
+        }
+        ui.horizontal(|ui| {
+            ui.label("add");
+            ui.add(
+                egui::TextEdit::singleline(&mut self.drafts.new_param_name)
+                    .hint_text("name")
+                    .desired_width(90.0),
+            );
+            for (dimension, label) in [
+                (Dimension::Length, "Length"),
+                (Dimension::Angle, "Angle"),
+                (Dimension::Count, "Count"),
+                (Dimension::Scalar, "Scalar"),
+            ] {
+                ui.radio_value(&mut self.drafts.new_param_dimension, Some(dimension), label);
+            }
+            ui.add(
+                egui::DragValue::new(&mut self.drafts.new_param_value).speed(
+                    if self.drafts.new_param_dimension == Some(Dimension::Count) {
+                        1.0
+                    } else {
+                        0.0005
+                    },
+                ),
+            );
+        });
+        let name = self.drafts.new_param_name.trim();
+        let existing = if name.is_empty() {
+            None
+        } else {
+            self.session.doc().params().get(&ParamName::new(name))
+        };
+        if let Some(existing) = existing {
+            // The same sentence the session's refusal would show, and
+            // the edit door it offers instead — refuse-then-offer,
+            // ahead of the click.
+            let name = ParamName::new(name);
+            ui.horizontal(|ui| {
+                ui.weak(Refusal::exists_wording(&name, existing.dim()));
+                if ui.link(format!("edit {}", name.0)).clicked() {
+                    self.ops.push(SessionOp::Select(Selection::Param(name)));
+                }
+            });
+            return;
+        }
+        let ready = !name.is_empty() && self.drafts.new_param_dimension.is_some();
+        let create = ui.add_enabled(ready, egui::Button::new("Create"));
+        let create = if self.drafts.new_param_dimension.is_none() {
+            create.on_disabled_hover_text("pick a dimension first")
+        } else {
+            create
+        };
+        if create.clicked()
+            && let Some(dimension) = self.drafts.new_param_dimension
+        {
+            self.ops.push(SessionOp::CreateParam {
+                name: ParamName::new(name),
+                value: crate::props::doc_param(
+                    dimension,
+                    SlotValue::of(dimension, self.drafts.new_param_value),
+                ),
+            });
+            self.drafts.new_param_name.clear();
+            self.drafts.new_param_dimension = None;
+            self.drafts.new_param_value = 0.0;
+            self.drafts.new_param_offer = None;
+        }
     }
 
     /// The selection's own header: what is selected, whether it still
@@ -930,7 +1104,7 @@ impl ViewerBehavior<'_> {
                 ui.horizontal(|ui| {
                     ui.label(format!("feature {}", node.0));
                     if *present {
-                        if ui.button("Delete").clicked() {
+                        if ui.button(delete_label(self.session, *node)).clicked() {
                             self.ops.push(SessionOp::DeleteNode { node: *node });
                         }
                     } else {
@@ -952,7 +1126,8 @@ impl ViewerBehavior<'_> {
                     // of scope for v1 selection, so the kind is not a
                     // variable to render.
                     ui.label(format!("face of feature {}", face.node.0));
-                    if standing.live() && ui.button("Delete feature").clicked() {
+                    if standing.live() && ui.button(delete_label(self.session, face.node)).clicked()
+                    {
                         self.ops.push(SessionOp::DeleteNode { node: face.node });
                     }
                 });
@@ -1337,6 +1512,23 @@ fn drag_ops(
     }
 }
 
+/// The delete button's label: it names the FEATURE it deletes, by the
+/// node vocabulary's own kind name.
+///
+/// First-light finding (#1097's run): reached from a face selection, a
+/// bare "Delete feature" read as deleting the *face* — an entity this
+/// vocabulary can never delete; a face is a way of reaching the node
+/// that made it. The label carries the target's kind so the affordance
+/// states the operation it queues. The fallback arm is for a node the
+/// document no longer holds — no button renders for one today, and if
+/// that changes the label stays honest rather than panicking.
+fn delete_label(session: &DocSession, node: RecipeNodeId) -> String {
+    match session.doc().node(node) {
+        Some(target) => format!("Delete feature '{}'", crate::tree::node_kind(target)),
+        None => format!("Delete feature {}", node.0),
+    }
+}
+
 /// The open dialog: a THIN veneer over `SessionOp::Open`.
 ///
 /// Everything it does is choose a `Path`. The blocking call is
@@ -1412,10 +1604,38 @@ fn to_f32(matrix: &[[f64; 4]; 4]) -> [[f32; 4]; 4] {
 /// a viewer that cannot build its scene reports why and exits rather
 /// than opening a window onto nothing.
 pub fn run(tol: Tol, open: Option<std::path::PathBuf>) -> eframe::Result<()> {
-    let options = eframe::NativeOptions {
+    #[allow(unused_mut)] // mutated only on the cfg(linux) arm below
+    let mut options = eframe::NativeOptions {
+        // EXPLICIT, not defaulted (first light, #1097): a bare
+        // `NativeOptions::default()` leaves resizability and the
+        // window's size to whatever the winit backend negotiates with
+        // the window manager, and on at least one real WM that
+        // negotiation produced a window resizable vertically but not
+        // horizontally, with content stuck off the right edge. Stating
+        // the intent — resizable, a size the chrome fits in, a floor it
+        // stays readable at — is the portable posture whatever the
+        // backend's own defaults do.
+        viewport: egui::ViewportBuilder::default()
+            .with_resizable(true)
+            .with_inner_size([1280.0, 800.0])
+            .with_min_inner_size([800.0, 500.0]),
         depth_buffer: DEPTH_BITS,
         ..Default::default()
     };
+    // WSLg: PREFER the X11 (XWayland) backend. Confirmed on the
+    // first-light box (#1097): the horizontally-unresizable window is
+    // WSLg's Wayland RAIL-shell CSD path, and `WAYLAND_DISPLAY=` —
+    // the same X11 preference by hand — fixes resizing entirely. The
+    // hook fires ONLY when WSL is detected (the env markers WSL
+    // itself sets), so every other environment keeps winit's own
+    // backend choice and needs nothing unset.
+    #[cfg(target_os = "linux")]
+    if frame::running_under_wsl() {
+        options.event_loop_builder = Some(Box::new(|builder| {
+            use winit::platform::x11::EventLoopBuilderExtX11 as _;
+            builder.with_x11();
+        }));
+    }
     eframe::run_native(
         WINDOW_TITLE,
         options,

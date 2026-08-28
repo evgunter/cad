@@ -14,6 +14,83 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [main]
+  # RUNNING THE GATE AT A CONFIGURATION YOU CHOOSE (2026-08-28, Evan's ask).
+  #
+  # The `filter` job draws ONE point of {lane} x {eps} x {k-lint row} per run
+  # and lets repetition cover the rest — scripts/ci-filter.py's CONFIGURATION
+  # SAMPLING note is the argument, and billed minutes are what it buys. The
+  # draw is a DEFAULT, not a lock, and this is the entry point that says so:
+  # pick the lane, the tolerance row, the k-lint row, or leave any of them on
+  # `sample` and let the SHA decide as usual.
+  #
+  # THE OTHER SPELLING IS A COMMIT TRAILER — `CI-Config: eps=1e-12` in the
+  # head commit's message — and it is read on ORDINARY pull_request runs by
+  # the same `filter` job. The two are not redundant. A dispatch's checks
+  # belong to the run and never appear on a pull request's head commit, so it
+  # cannot be the thing a reviewer looks at before merging; and a trailer
+  # cannot re-gate a commit already written, which is the whole of "that
+  # landed, now run it at 1e-12" in a repository that does not rewrite
+  # history. ci-filter.py's REQUESTING A POINT section carries the full
+  # argument and the precedence rule (invocation > trailer > draw, per
+  # dimension).
+  #
+  # THE TRAILER IS READ OFF THE HEAD COMMIT AND ONLY THAT ONE, so a request
+  # lasts exactly one push: the next commit — a merge of main into the branch
+  # included — is sampled again unless it carries the trailer too. That is
+  # the deliberate reading. A request that persisted over a branch would gate
+  # commits nobody wrote it for, and the run that did so would look like any
+  # other; asking again is one line, and the step below prints which of the
+  # three dimensions was asked for on every run.
+  #
+  # WHAT IT COSTS, said plainly because nothing else here rate-limits it: a
+  # dispatch bills what a code-tier PR run bills (~40 minutes on
+  # docs/CI-MINUTES-2026-08.md's arithmetic) and buys a SECOND gate over a
+  # tree, since the ordinary run already happened. Naming `lane: both` or
+  # `klint: all` puts back rows the sampling removed and costs
+  # correspondingly more. The render lanes are the one thing a dispatch does
+  # NOT run — they read no sampled dimension, they re-baseline against a
+  # branch, and render.yml has its own dispatch for when new frames are what
+  # you want.
+  workflow_dispatch:
+    inputs:
+      lane:
+        description: "Compile mode to gate (`sample` draws it from the SHA, as an ordinary run does)"
+        required: false
+        type: choice
+        default: sample
+        options: [sample, default, interval, both]
+      # NO `all` ROW, deliberately: `EPS=all` is the LOCAL half's word for
+      # "loop the rows", while the hosted rows put the value straight into
+      # CAD_TOLERANCE_EPS, where `all` is a parse error by design. ci-filter.py
+      # refuses it for the same reason and names the legal values when it does.
+      eps:
+        description: "Tolerance row to gate (CAD_TOLERANCE_EPS; `default` leaves it unset)"
+        required: false
+        type: choice
+        default: sample
+        options: [sample, default, "1e-6", "1e-12"]
+      klint:
+        description: "Which `k-lint (gate)` feature unification to gate (`all` runs all five)"
+        required: false
+        type: choice
+        default: sample
+        options: [sample, dev-default, release-default, release-budget, dev-budget, dev-probe, all]
+      # `changed` is the ordinary case and reproduces what the PR run saw: a
+      # dispatch has no merge ref, so it diffs against the default branch,
+      # which is the same three-dot base a pull_request run would have used.
+      #
+      # `all` is for the dispatch aimed at the default branch itself — the
+      # tree that landed, whose diff against that branch is empty. It takes NO
+      # diff, so the path-keyed signals have nothing to read and fail CLOSED:
+      # the oracle tier runs, and `lane: sample` reads as `interval` because
+      # nothing can prove the interval sources held still. Name a lane if you
+      # want the other one.
+      scope:
+        description: "Classify the change set against the default branch, or run everything unscoped"
+        required: false
+        type: choice
+        default: changed
+        options: [changed, all]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -40,11 +117,22 @@ concurrency:
 # bot commit onto a PR branch becomes that PR's head, triggers no run
 # of its own, and strands every green check on the parent commit.
 #
-# So every OTHER job is gated to `pull_request` below, and a push to
-# main now runs `filter` + `rebuild-latency` + `renders`.
+# So every OTHER job is gated below, and a push to main now runs
+# `filter` + `rebuild-latency` + `renders`.
 # `cleanup-archives` is deliberately NOT gated: its `needs` (test,
 # test-interval) skip on a push, which skips it too — one mechanism
 # rather than two saying the same thing.
+#
+# THE CONDITION IS SPELLED `!= 'push'`, NOT `== 'pull_request'` (2026-08-28,
+# with the configuration dispatch at the top of this file). What this rule is
+# about is the SECOND run of a tree the PR run already tested; every other
+# event is a person asking for the gate, and under `== 'pull_request'` that
+# ask would have been answered by a run of `filter` and nothing else — a
+# page of skipped jobs under a green tick, which is the reading this file's
+# RUN_VIEWER_TOOLKIT note calls the failure mode to avoid. Written this way, a trigger added
+# here runs the gate by default and has to be excluded deliberately, which is
+# the direction that fails safe. `renders` is the one such exclusion and
+# carries its reason at its own key.
 #
 # WHAT THIS GIVES UP, AND WHY NOTHING PAIRS WITH IT. The commit that
 # actually lands on main is now never itself built or tested. When main
@@ -264,8 +352,11 @@ jobs:
       run_topo_release: ${{ steps.classify.outputs.RUN_TOPO_RELEASE }}
       run_k_lint: ${{ steps.classify.outputs.RUN_K_LINT }}
       # The sampled matrix point (scripts/ci-filter.py, CONFIGURATION
-      # SAMPLING). Every compile-mode job reads `lane`; the two archive-run
-      # matrices read `eps`.
+      # SAMPLING) — or the REQUESTED one: a dispatch input or a `CI-Config:`
+      # trailer in the head commit replaces a drawn value here, and
+      # `config_source` below says which of the three that happened to.
+      # Every compile-mode job reads `lane`; the two archive-run matrices
+      # read `eps`.
       lane: ${{ steps.classify.outputs.LANE }}
       eps: ${{ steps.classify.outputs.EPS }}
       # The third sampled dimension (2026-08-22): which of `k-lint (gate)`'s
@@ -282,6 +373,13 @@ jobs:
       # (docs/GUI-LOG.md, 2026-08-27) — the argument is at
       # `RUN_VIEWER_TOOLKIT` in scripts/ci-filter.py.
       run_viewer_toolkit: ${{ steps.classify.outputs.RUN_VIEWER_TOOLKIT }}
+      # WHERE THE THREE SAMPLED VALUES ABOVE CAME FROM — `sampled` for each
+      # dimension the SHA drew, `requested` for one a dispatch input named,
+      # `commit-trailer` for one the head commit's `CI-Config:` line named. No
+      # job reads it; it is published so that "which configuration gated this
+      # run, and did anyone choose it" is answerable from the run's outputs
+      # rather than from a log line, and it is printed in a step of its own.
+      config_source: ${{ steps.classify.outputs.CONFIG_SOURCE }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -309,6 +407,18 @@ jobs:
           RUSTUP_TOOLCHAIN: stable
           SEED: ${{ github.event.pull_request.head.sha || github.sha }}
           DRAFT: ${{ github.event.pull_request.draft }}
+          # The dispatch inputs (empty on every other event). `sample` is the
+          # dispatch's own spelling of "draw it", and the empty string is what
+          # a pull_request or push run sees; both mean NO request, and the
+          # loop below drops them rather than passing them on. Nothing here
+          # validates a value: the legal sets belong to ci-filter.py, so an
+          # input this file gets wrong is a red step naming the values it
+          # would have accepted, never a run that quietly samples instead.
+          IN_LANE: ${{ inputs.lane }}
+          IN_EPS: ${{ inputs.eps }}
+          IN_KLINT: ${{ inputs.klint }}
+          IN_SCOPE: ${{ inputs.scope }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         run: |
           # Always diff against the checkout's own first parent. On
           # pull_request the checkout is the test-merge commit, so HEAD^1
@@ -317,10 +427,43 @@ jobs:
           # (base moved between payload snapshot and merge-ref
           # construction), and the skew window's commits then appear as
           # phantom changed files that defeat the docs/closure tiers.
-          BASE="$(git rev-parse HEAD^1 2>/dev/null || git rev-parse HEAD)"
-          echo "base: $BASE"
-          echo "changed files:"
-          git diff --name-only "$BASE"...HEAD || true
+          #
+          # A DISPATCH HAS NEITHER — no merge ref, and no base in its payload.
+          # Its HEAD^1 is the previous commit ON THE BRANCH, so classifying
+          # against it would scope the run to the last commit and skip the
+          # rest of the branch. It diffs against the default branch instead:
+          # three-dot, so git takes the merge base, which is the same tree a
+          # pull_request run would have been built against. On the default
+          # branch itself that comes back empty, which is what `scope: all` is
+          # for and why it says so at the input.
+          if [ "$IN_SCOPE" = all ]; then
+            FILTER=(--force-all)
+            echo "base: none — scope=all takes no diff, so everything runs unscoped"
+          else
+            if [ "$GITHUB_EVENT_NAME" = workflow_dispatch ]; then
+              BASE="origin/$DEFAULT_BRANCH"
+              git rev-parse --verify "$BASE" >/dev/null 2>&1 || BASE="$(git rev-parse HEAD)"
+            else
+              BASE="$(git rev-parse HEAD^1 2>/dev/null || git rev-parse HEAD)"
+            fi
+            FILTER=(--base "$BASE")
+            echo "base: $BASE"
+            echo "changed files:"
+            git diff --name-only "$BASE"...HEAD || true
+          fi
+          # THE CONFIGURATION REQUEST, in its two spellings. Both are optional,
+          # both are per-dimension, and the invocation wins over the trailer —
+          # ci-filter.py's REQUESTING A POINT section is the argument for all
+          # of that. The trailer is read off the PR's HEAD commit rather than
+          # off the merge ref this job is checked out at: the merge commit's
+          # message is written by GitHub, and what was asked for is what the
+          # author wrote.
+          CONFIG=()
+          for pair in "lane=$IN_LANE" "eps=$IN_EPS" "klint=$IN_KLINT"; do
+            case "$pair" in *=|*=sample) continue ;; esac
+            CONFIG+=(--config "$pair")
+          done
+          git log -1 --format=%B "$SEED" > commit-message.txt
           echo "classification:"
           # THE SAMPLING SEED IS THE PR'S HEAD SHA, not the merge-ref HEAD
           # this job is checked out at. The merge ref changes whenever main
@@ -329,7 +472,8 @@ jobs:
           # commit picks the same point" property that is the whole reason
           # the draw is seeded rather than random. `github.sha` is the
           # fallback for the push trigger, which runs no sampled job today.
-          scripts/ci-filter.py --base "$BASE" --seed "$SEED" > filter.out
+          scripts/ci-filter.py "${FILTER[@]}" --seed "$SEED" \
+            --config-from-message commit-message.txt "${CONFIG[@]}" > filter.out
           # DRAFT PRs SKIP THE GATE (2026-08-22, Evan's ask; F5 of the
           # minutes audit, which called it "the largest single lever
           # available" and left it as a policy decision).
@@ -351,6 +495,32 @@ jobs:
           fi
           cat filter.out | tee -a "$GITHUB_OUTPUT"
 
+      # RECORDED, NEVER SILENT — the same rule RUN_VIEWER_TOOLKIT is held to,
+      # and it bites harder here. A skipped row at least leaves a skipped job
+      # on the page; a run at a REQUESTED point looks identical to a run at
+      # the drawn one, and the property the sampling was built on — "which
+      # configuration gated this commit is recoverable from the SHA" — is
+      # exactly what a request suspends. So the run says so itself, in a step
+      # with no `if:`, rather than leaving it to be reconstructed from a
+      # dispatch's inputs.
+      - name: the configuration this run gates
+        env:
+          LANE: ${{ steps.classify.outputs.LANE }}
+          EPS: ${{ steps.classify.outputs.EPS }}
+          KLINT_ROW: ${{ steps.classify.outputs.KLINT_ROW }}
+          CONFIG_SOURCE: ${{ steps.classify.outputs.CONFIG_SOURCE }}
+        run: |
+          printf 'lane=%s eps=%s klint_row=%s\n' "$LANE" "$EPS" "$KLINT_ROW"
+          printf 'source: %s\n' "$CONFIG_SOURCE"
+          case "$CONFIG_SOURCE" in
+            *requested*|*commit-trailer*)
+              echo "ASKED FOR, NOT DRAWN: at least one dimension above was chosen by hand" \
+                   "(a workflow_dispatch input, or a CI-Config: trailer in the head commit)."
+              echo "This run therefore does NOT gate the point this SHA samples; a re-run" \
+                   "of the same commit without the request will pick that one instead."
+              ;;
+          esac
+
   # NO LOCAL MIRROR: a marker job with no check in it — it echoes the tier so
   # a docs-only PR has a green required status. ci-local.sh prints the same two
   # lines at its docs-tier exit and returns 0; there is nothing here to run.
@@ -358,7 +528,7 @@ jobs:
     name: docs-only ok
     runs-on: ubuntu-latest
     needs: filter
-    if: github.event_name == 'pull_request'
+    if: github.event_name != 'push'
     steps:
       - run: echo "tier=${{ needs.filter.outputs.tier }} pkgs=${{ needs.filter.outputs.pkgs }}"
 
@@ -513,7 +683,7 @@ jobs:
     name: discipline (evaluation-code)
     runs-on: ubuntu-latest
     needs: filter
-    if: github.event_name == 'pull_request' && needs.filter.outputs.run_build == 'true'
+    if: github.event_name != 'push' && needs.filter.outputs.run_build == 'true'
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
@@ -737,7 +907,7 @@ jobs:
     name: rustfmt + rustdoc (gate) + wasm32
     runs-on: ubuntu-latest
     needs: filter
-    if: github.event_name == 'pull_request' && needs.filter.outputs.run_build == 'true'
+    if: github.event_name != 'push' && needs.filter.outputs.run_build == 'true'
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
@@ -1060,7 +1230,7 @@ jobs:
     name: clippy
     runs-on: ubuntu-latest
     needs: filter
-    if: github.event_name == 'pull_request' && needs.filter.outputs.run_build == 'true'
+    if: github.event_name != 'push' && needs.filter.outputs.run_build == 'true'
       && needs.filter.outputs.lane != 'interval'
     steps:
       - uses: actions/checkout@v4
@@ -1136,7 +1306,7 @@ jobs:
     # Unset today, so this is `ubuntu-latest` and nothing changes.
     runs-on: ${{ vars.BUILD_RUNNER || 'ubuntu-latest' }}
     needs: filter
-    if: github.event_name == 'pull_request' && needs.filter.outputs.run_build == 'true'
+    if: github.event_name != 'push' && needs.filter.outputs.run_build == 'true'
       && needs.filter.outputs.lane != 'interval'
     # OPT LEVEL — reverses the #52/#53 verdict, because both of its
     # premises expired. That decision ("blanket opt 2 is net-slower on
@@ -1396,7 +1566,7 @@ jobs:
     name: test (eps = ${{ needs.filter.outputs.eps }}, ${{ matrix.shard }}/2)
     runs-on: ubuntu-latest
     needs: [filter, build]
-    if: github.event_name == 'pull_request' && needs.filter.outputs.run_build == 'true'
+    if: github.event_name != 'push' && needs.filter.outputs.run_build == 'true'
       && needs.filter.outputs.lane != 'interval'
     strategy:
       fail-fast: false
@@ -1557,7 +1727,7 @@ jobs:
     name: corrupt input (release profile)
     runs-on: ubuntu-latest
     needs: filter
-    if: github.event_name == 'pull_request' && needs.filter.outputs.run_topo_release == 'true'
+    if: github.event_name != 'push' && needs.filter.outputs.run_topo_release == 'true'
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL — see the full note on the `filter` job above.
@@ -1635,7 +1805,7 @@ jobs:
     # Same BUILD_RUNNER variable as the default build job; unset today.
     runs-on: ${{ vars.BUILD_RUNNER || 'ubuntu-latest' }}
     needs: filter
-    if: github.event_name == 'pull_request' && needs.filter.outputs.run_build == 'true'
+    if: github.event_name != 'push' && needs.filter.outputs.run_build == 'true'
       && needs.filter.outputs.lane != 'default'
     # Same link/debuginfo/opt knobs, same job-level-not-step-level
     # reasoning, as the default build job — see the LINK/DEBUGINFO and
@@ -1748,7 +1918,7 @@ jobs:
     name: clippy + doc-tests (interval)
     runs-on: ubuntu-latest
     needs: filter
-    if: github.event_name == 'pull_request' && needs.filter.outputs.run_build == 'true'
+    if: github.event_name != 'push' && needs.filter.outputs.run_build == 'true'
       && needs.filter.outputs.lane != 'default'
     env:
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
@@ -1812,7 +1982,7 @@ jobs:
     # test list (the left operand of the retired set difference), and a
     # sampled run does not run the default build at all.
     needs: [filter, build-interval]
-    if: github.event_name == 'pull_request' && needs.filter.outputs.run_build == 'true'
+    if: github.event_name != 'push' && needs.filter.outputs.run_build == 'true'
       && needs.filter.outputs.lane != 'default'
     # ONE ε ROW, SAMPLED, AND SHARDED AGAIN. Both halves of that reverse
     # the 2026-08-20 audit's collapse of this job, and both follow from the
@@ -1929,7 +2099,7 @@ jobs:
     needs: filter
     # Tier `closure` never reaches this: interval-transcendentals/ is its
     # own workspace, so ANY change under it is tier `all`.
-    if: github.event_name == 'pull_request' && needs.filter.outputs.run_interval_backend == 'true'
+    if: github.event_name != 'push' && needs.filter.outputs.run_interval_backend == 'true'
     # The `interval` feature's backend lives in its own workspace
     # (interval-transcendentals/), so the kernel's workspace rows never
     # build its tests. Its pad tripwire therefore had no CI at all until
@@ -2017,7 +2187,7 @@ jobs:
     name: interval oracle (certify vs inari+MPFR)
     runs-on: ubuntu-latest
     needs: filter
-    if: github.event_name == 'pull_request' && needs.filter.outputs.run_interval_oracle == 'true'
+    if: github.event_name != 'push' && needs.filter.outputs.run_interval_oracle == 'true'
     # inari's rounding primitives sit behind
     # cfg(all(target_feature = "avx", target_feature = "fma")) and it raises
     # a compile_error! without them. The repo sets no target-cpu floor
@@ -2078,7 +2248,7 @@ jobs:
     # Root package `step-export`: this job builds nothing — it runs FreeCAD
     # over the committed fixtures under crates/step-export/tests/fixtures,
     # which are byte-golden against that crate's writer.
-    if: github.event_name == 'pull_request' && needs.filter.outputs.run_step_export == 'true'
+    if: github.event_name != 'push' && needs.filter.outputs.run_step_export == 'true'
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
@@ -2148,7 +2318,7 @@ jobs:
     name: python suite (wheel + guide + north-star)
     runs-on: ubuntu-latest
     needs: filter
-    if: github.event_name == 'pull_request' && needs.filter.outputs.run_pncad_py == 'true'
+    if: github.event_name != 'push' && needs.filter.outputs.run_pncad_py == 'true'
     steps:
       - uses: actions/checkout@v4
       # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
@@ -2302,7 +2472,7 @@ jobs:
     # demos/tour (a path-dependent of nine members) and tools/k-lint, and
     # its probe sweep records margins from every kernel crate. So it runs
     # whenever anything builds at all.
-    if: github.event_name == 'pull_request' && needs.filter.outputs.run_k_lint == 'true'
+    if: github.event_name != 'push' && needs.filter.outputs.run_k_lint == 'true'
     #
     # ONE OF FIVE FEATURE UNIFICATIONS PER RUN (2026-08-22, the same
     # configuration-sampling ruling that draws the lane and the ε; the roster
@@ -2723,7 +2893,15 @@ jobs:
   renders:
     name: render lanes
     needs: filter
-    if: needs.filter.outputs.run_k_lint == 'true'
+    # NOT ON A DISPATCH, the one exclusion from the `!= 'push'` rule at the
+    # top of this file. A configuration dispatch names a lane, an ε and a
+    # k-lint row; no render lane reads any of the three, so re-rendering ~55
+    # cells would be the most expensive part of the run and could not differ
+    # from what the same tree already rendered. The lanes also re-baseline
+    # against a BRANCH, and a dispatch is the one entry point with no pull
+    # request to report on. render.yml keeps its own `workflow_dispatch` for
+    # when new frames are the thing being asked for.
+    if: github.event_name != 'workflow_dispatch' && needs.filter.outputs.run_k_lint == 'true'
     uses: ./.github/workflows/render.yml
     # A reusable workflow gets the CALLER's token scope, and this
     # workflow declares none at the top level — so the lanes' own

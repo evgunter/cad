@@ -2096,7 +2096,6 @@ declared a posture. It re-mints now, for the same reason
 replace_faces_offset does — every edge of the body is
 re-described, so every stored row is stale.
 
-
 **PR-2a fix pass (R1 NMAI 3/8/6; R2 A-W-F 0/3/5).** The corner solve
 itself held against both arms, including R2's concurring valence-4
 build at 1 ulp and the door's first interval instantiation. ONE code
@@ -2120,3 +2119,151 @@ favour of the `CI-Config:` trailer that landed on main the same day: it
 pins the dimension on the HEAD COMMIT, so which configuration gated a
 commit is recoverable from the commit — the property the sampling was
 built around and the one a dispatch necessarily breaks.
+## LILYWELD R1 ARM IN; A SCRATCHPAD-SHARING LESSON (2026-08-28)
+
+R1 (opus): A-W-F 1/6/5 — the coincidence re-derived bit-exact
+from scene constants alone; the MAJ is the catch of the cycle:
+the module header claims the neck IS the globe's tangent cone
+while the PR's own probe records that cone being REFUSED — a
+freshly-minted instance of the wall-text error class this very
+unit exists to fix (#1059's fourth instance, caught pre-merge
+this time). Also: the res.1==0.0 assert is x−x (cannot red);
+the f64 exactness is 39%-luck atop geometric necessity (the
+in-code 1e-12 guard is the honest one); the sepal baseline
+drift under-reported by three columns. Isolation disclosures:
+the shared session scratchpad exposed the IMPLEMENTER lane's log
+filenames to the reviewer (provenance-grepped only, no content;
+benign, recorded) and misled it into killing an
+already-exited stale driver it took for its own — the
+logs-are-lane-private rule now in lane-ops memory. SHELLFIX R1
+verified unharmed. Union waits on R2's arm.
+
+## ORDINAL 101 RETURNED AND ADJUDICATED; THE PAIR SELF-EXCLUDED (2026-08-28)
+
+R1 A-W-F 0/4/6, R2 A-W-F 0/4/6 — near-perfect convergence: the
+Indeterminate swallow at check 9's three decides AND the glue
+precondition (bilateral, the headline), the edge arm's missed
+contact shapes (bilateral), the C7 compile-mode overstatement
+(bilateral); R1's unique find is the tier-1 FALSE PREMISE behind
+the key-shared guards (tier 1 read end-to-end: an umbrella pinch
+passes). The central inversion held under every attack — the
+counterbore refuses upstream at OpenFacesDisconnect, the
+Line-carrier split builds at (4,1), the byte-diff is clean. NO
+MAJ either arm; tally unchanged at 0. **Pair excluded under the
+#1090 clause, self-applied**: my deliver-with-labeled-gaps
+instruction to R1 under mutex starvation was a completion-bar
+relaxation R2 never received — the same shape that excluded
+PCURVE's census pair, and consistency is the standard's whole
+value. Clean pairs toward twelve: 1 (TEAPOT). Union fix pass
+dispatched; reviewer lanes swept.
+
+## ORDINAL 102 RETURNED AND ADJUDICATED; PAIR EXCLUDED 3(e) (2026-08-28)
+
+R1 A-W-F 1/6/5, R2 A-W-F 0/6/4 — every geometric claim verified
+independently by both arms (bit-exact turtle re-derivations from
+scene constants; the tangent-cone refusal reproduced to the last
+bit; the baseline re-run byte-clean). The arms' probes
+COMPLEMENT on the exactness question: R2's ARCH_R mutation shows
+robustness, R1's spine sensitivity shows fragility — both true on
+different axes, and the synthesis (the in-code 1e-12 guard is
+the binding check) goes into the prose. R1's MAJ is the fourth
+instance of the wall-text error class, caught pre-merge: the
+module header claims the neck IS the tangent cone the unit's own
+probe records as refused. One conflict (R1's verbatim quote vs
+R2's blanket module-doc-correct) resolved to the quote. All
+fixes text-level; union fix pass out. Tally candidates: none
+(the MAJ is doc-class, excluded 3b regardless). **Pair excluded
+under 3(e)** — R2 was limit-killed mid-run and resumed. Tally
+0/8; clean pairs toward twelve: 1. Reviewer lanes swept.
+
+## PR-2's PREMISE FALSIFIED BY THE LANE; RE-SCOPED TO 2a/2b (2026-08-28)
+
+The lane measured before writing code and my spec's fix was
+wrong: the refusing edge's two faces are OUTSIDE the group
+(shell offsets one chart per call), and granting the re-anchor
+would mint a corner accumulating −t(n₃+n₄+n_cap) — a 30mm wall
+where 20mm was asked, nothing catching it: the exact
+validated-wrong-body class PR-1 closed. ReanchorOffCarrier is
+the gate PREVENTING that body and stays until the real repair —
+SIMULTANEOUS offsets (each corner vertex solved against all
+moved surfaces; each edge the intersection of its two moved
+surfaces). Ruled option (b): PR-2a the all-planar 3×3 corner
+solve (M re-logged; hexagon/bevel/kite/tri-prism flip); PR-2b
+the curved corners via the C5 table (L pre-logged; the teapot's
+belly is a sphere zone and lands THERE — the un-squaring stays
+honestly pending). The STOP fence's second save this program;
+the measurement posted to #1081 in the appended-correction
+pattern.
+
+## LILYWELD PR-2's PREMISE DISSOLVED BY MEASUREMENT; RULED; LANE TAKES #1031 (2026-08-28)
+
+The second STOP of the day and the sharper one: the declared
+contact is PLANE×PLANE by PR-1's own achievement (the cone×torus
+circle is the RIM of the contact, not the contact — a Rest on
+that pair would be Contradicted, correctly), no declaration
+covers the cone×torus box pair, and the door sequence continues
+into NonMaximalFaces (#1031) then the curved-pierce arm
+regardless. Item 2 killed; the gate half DEFERRED (an admission
+with no covering declaration is dead code or new design);
+wall 2's binding blocker re-pointed to #1031 — the fourth
+stated-blocker-not-binding instance, the first caught in a
+spec's OWN text, pre-build, by the now-mandatory measure-first
+checkpoint. The lane's two pins merge as the unit's closing
+record (orchestrator-reviewed, demo-class, no ordinal); the
+lane then takes THE #1031 UNIT — now triple-demanded (walls 2
+and 7, the teapot's F7 caps) — under Evan's recorded (a)/(b)
+steer, difficulty pre-logged M, with the opening measurement
+reported before building. SHELLFIX PR-2a opened as #1126
+meanwhile.
+
+## THE v6 BUDGET VALVE INVOKED; WEEKLY WIND-DOWN PLAN (2026-08-28)
+
+The account's 7-DAY limit crossed 90% with ~57h to reset — the
+binding constraint, no 5h rollover rescue. Per v6 item 1's valve
+("if the usage limit binds, orchestrators may drop to
+every-2nd-row duals, recording the change here"): INVOKED —
+SHELLFIX1 (ordinal 101) was the last dual, so SHELLFIX PR-2a's
+review (#1126, next ordinal) runs SINGLE; alternation resumes
+while the valve holds, full duals return when the weekly
+pressure clears. The wind-down plan: land #1126 through its
+single review + fix pass; merge the LILYWELD pins PR
+(orchestrator-reviewed, already ruled); take #1031's
+measure-first CHECKPOINT (cheap) but defer its build phase
+unless the remaining budget allows; no new units cut; the
+orchestrator's own footprint minimal. The stopping-rule tally is
+unaffected (v6: the valve does not change it).
+
+## THE BUDGET VALVE LIFTED (2026-08-28)
+
+Evan fixed the account's usage limit ("it should now be fixed",
+in chat). The v6 valve invoked earlier today is RESCINDED before
+any single ran under it — no review was dispatched between
+invocation and lift, so every pair in the ledger remains a full
+dual and the alternation never actually started. Full duals
+resume from the next review dispatch (#1126's, when its lane
+reports). The wind-down plan is void; normal cadence resumes.
+
+## ORDINAL 103 CLAIMED — SHELLFIX PR-2a dual (2026-08-28)
+
+PR-2a (#1126) green: offset_planes_together — Cramer on the
+first well-conditioned triple with every FURTHER plane VERIFIED
+against the solution (a valence-past-3 corner whose planes don't
+concur refuses TogetherCorner typed); edges keep their old
+carriers translated (conventional data is data — the first cut
+churned 20 lines of anchors without moving a locus, and PR-1's
+adopted byte-dump harness caught it); the hexagon carries the
+closed form because a wrong corner BUILDS. The planar fixtures
+flip; every curved row and the teapot honestly unchanged
+(2b's). Full dual (valve lifted), frozen head 0954c4e4.
+
+## ORDINAL 104 CLAIMED — the F7 pole exemption's dual (#1131) (2026-08-28)
+
+The (d) build green: pole_split_cap structural (per-edge, so a
+pair is admitted only if EVERY shared edge is exempt — the
+teapot's valence-4 pair still refuses with the exemption live),
+the honest residue argued at the site (structure certified, not
+provenance), wall 7 MOVED to the curved-pierce door, the merge
+probe answered (MergedFaceRoleAmbiguous — half B stays a KERNEL
+question), and the steer deviation flagged with both framings
+(the lane's dump + PCURVE's ownership of the a/b offer) for
+Evan's retroactive 👍. Full dual, frozen head af04ee7a.

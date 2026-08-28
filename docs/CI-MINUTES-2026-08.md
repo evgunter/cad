@@ -705,7 +705,11 @@ stays broken, so a later draw finds it.
 green" now attests one point. A review verdict issued "conditional on
 green", or a merge-row battery cell, should say WHICH point gated — the
 job names carry it (`test (eps = 1e-6, 1/2)`) and the SHA-recoverable draw
-makes it derivable after the fact.
+makes it derivable after the fact. **Since 2026-08-28 that last clause has
+an exception**: a run whose point was ASKED FOR is not derivable from the
+SHA, which is why the request is recorded in the run itself
+(`CONFIG_SOURCE`, printed by a step of its own). See *asking for a point
+instead of drawing one*, below.
 
 ### What is NOT sampled, and the rule
 
@@ -979,3 +983,83 @@ not a saving, it is a hole.
    different baseline: the two build jobs are one build job per run since
    sampling, so a workspace-crate hit is worth half what the F4 note
    priced it at.
+
+## 2026-08-28 — asking for a point instead of drawing one
+
+The draw above is a **default, not a lock**. Two entry points let a
+person name the point a run gates; both land in the same place —
+`scripts/ci-filter.py`'s LANE / EPS / KLINT_ROW output lines — so a
+requested run is byte-for-byte the run that point would have been, and
+no job condition, matrix or cache key learns a new word.
+
+* **`workflow_dispatch` on ci.yml.** Inputs `lane`, `eps`, `klint`, each
+  defaulting to `sample` (draw it as usual), plus `scope` — classify
+  against the default branch, or run everything unscoped.
+* **A `CI-Config:` trailer in the head commit's message**, e.g.
+  `CI-Config: eps=1e-12 klint=dev-probe`, read on ordinary
+  `pull_request` runs. The HEAD commit's and only that one, so a request
+  lasts exactly one push — the next commit, a merge of main into the branch
+  included, samples again unless it carries the trailer too. A request that
+  persisted over a branch would gate commits nobody wrote it for.
+
+**Why both, when either alone answers the ask.** They fail at opposite
+ends, and the two failures are the two things one actually wants to do:
+
+| | dispatch | trailer |
+|---|---|---|
+| needs a commit | no | yes |
+| can target an already-landed tree | yes | no (no history rewriting here) |
+| reports on the pull request | no — checks belong to the run | yes |
+| which point gated is recoverable from the commit | no | yes |
+
+That last row is the property the sampling was built around, and a
+dispatch necessarily suspends it. So the run says so itself: the `filter`
+job prints `CONFIG_SOURCE` — `sampled` / `requested` / `commit-trailer`,
+per dimension — in a step with no `if:`, and publishes it as a job
+output. A run at a chosen point that looked exactly like a run at the
+drawn one would reintroduce, by hand, the silent-coverage failure the
+`klint_row` lesson is about.
+
+**Precedence** is invocation over trailer over draw, per dimension, so
+`--config eps=1e-12` means "1e-12, and surprise me twice".
+
+**Shown to fire, hosted, before it merged.** The DRAWN half: the
+`change filter` job of run
+[`33191437807`](https://github.com/evgunter/cad/actions/runs/33191437807)
+— the feature's own PR — printed `lane=default eps=1e-6
+klint_row=release-default` / `source: lane:sampled eps:sampled
+klint:sampled`, which is also what proves the hosted-only line in that
+step (reading the PR HEAD commit's message out of a merge-ref checkout)
+works at all. The REQUESTED half: the commit carrying this paragraph
+asks in its own message for `eps=1e-12 klint=dev-probe`, so its run
+gates a second point of the matrix and its `source:` line names the
+trailer for exactly those two dimensions.
+
+**A malformed request is a red step, not a fallback to the draw** — an
+unknown key, an unknown value, a repeated dimension. This is the one
+place in `ci-filter.py` that does not fail into more work, and the
+asymmetry is deliberate: every other failure there is an inability to
+classify, where running everything is the safe answer, while this one is
+an input error whose author is standing there reading the result. Failing
+open would hand them a green run over a configuration they did not ask
+for, which is exactly the question they were asking. `eps=all` is refused
+for a duller reason: it is the LOCAL half's word for "loop the rows",
+while the hosted rows interpolate the value into `CAD_TOLERANCE_EPS`,
+where it is a parse error by design.
+
+**What this does and does not do to item 3 of the ranked list** (*a
+scheduled full run on main*). It does not close it — nothing here fires
+on its own, and an unrun gate is not a gate. What it removes is the
+**helplessness**: "no single tree is gated at every point by hosted CI"
+was true with no way to fix it for a particular tree, and a dispatch at
+`scope: all` against main now gates a landed tree at a named point on
+demand, one point per run. The scheduled run, if it ever lands, is that
+without someone having to decide to press it.
+
+**Cost, unchanged and worth restating**: a dispatch bills what a code-tier
+PR run bills (~40 above) and buys a *second* gate over a tree the ordinary
+run already gated at one point — and `lane: both` or `klint: all` put back
+rows the sampling removed. This is the escape hatch, not the new normal.
+The render lanes are the one thing a dispatch skips — no lane reads any
+sampled dimension, they re-baseline against a branch, and `render.yml` has
+its own dispatch for when frames are what is wanted.

@@ -16,7 +16,7 @@
 
 mod common;
 
-use pncad::document::{Doc, Node, ProfileProgram, RecipeNodeId, SlotId};
+use pncad::document::{Doc, Node, ParamName, ProfileProgram, RecipeNodeId, SlotId};
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::select::Ray;
 use viewer::camera::{Camera, CameraOp};
@@ -26,7 +26,7 @@ use viewer::input::{self, InputMap, ViewportSize};
 use viewer::pick::{CacheStep, IdMap, PickCache, PickIndex};
 use viewer::props::SlotValue;
 use viewer::scene::{self, DisplayTolerance, PLATE_EXTENT};
-use viewer::session::{DocSession, FaceSelection, Selection, SessionOp};
+use viewer::session::{DocSession, FaceSelection, Refusal, Selection, SessionOp};
 
 fn delta() -> DisplayTolerance {
     DisplayTolerance::new(2.0e-4).expect("a positive delta")
@@ -89,6 +89,73 @@ fn a_clean_action_clears_and_a_refusal_shows_even_from_a_hover_batch() {
 }
 
 #[test]
+fn the_chooser_probe_is_confident_only_with_neither_backend_reading() {
+    // The first-light defect (#1097, a WSL distro): with no portal
+    // service and no zenity, `rfd` returns the same bare `None` a
+    // cancel does, and the app dropped it — Open/Save As "silently do
+    // nothing". The probe's decision logic is a pure function of the
+    // two readings, so these rows hold whatever is on the CI box's
+    // PATH.
+    use frame::ChooserBackend;
+    assert_eq!(
+        frame::chooser_backend_of(true, false),
+        ChooserBackend::ZenityPresent
+    );
+    assert_eq!(
+        frame::chooser_backend_of(true, true),
+        ChooserBackend::ZenityPresent,
+        "zenity needs no portal"
+    );
+    assert_eq!(
+        frame::chooser_backend_of(false, true),
+        ChooserBackend::PortalPossible,
+        "a session bus makes a portal POSSIBLE — a hint, never a verdict"
+    );
+    assert_eq!(
+        frame::chooser_backend_of(false, false),
+        ChooserBackend::Absent
+    );
+    assert!(ChooserBackend::ZenityPresent.usable());
+    assert!(ChooserBackend::PortalPossible.usable());
+    assert!(
+        !ChooserBackend::Absent.usable(),
+        "the one arm the chrome disables the dialogs over"
+    );
+}
+
+#[test]
+fn an_empty_dialog_is_loud_only_under_a_confidently_absent_backend() {
+    use frame::ChooserBackend;
+    // Confident absence: the loud arm, naming the remedy and the
+    // dialog-free workaround. (The chrome disables the controls before
+    // any click can reach this; the policy stays honest regardless.)
+    let StatusUpdate::Show(message) = frame::dialog_status(ChooserBackend::Absent, false) else {
+        panic!("an empty-handed dialog with no backend reaches the status line");
+    };
+    assert_eq!(message, frame::NO_CHOOSER_BACKEND);
+    assert!(message.contains("zenity"));
+    assert!(message.contains("xdg-desktop-portal"));
+    assert!(message.contains("command line"));
+    // A plausibly-present backend reads `None` as a genuine cancel,
+    // which should not nag.
+    for backend in [
+        ChooserBackend::ZenityPresent,
+        ChooserBackend::PortalPossible,
+    ] {
+        assert_eq!(frame::dialog_status(backend, false), StatusUpdate::Keep);
+    }
+    // A chosen path is never this policy's business: the Open/Save
+    // batch it feeds owns the line through `batch_status`.
+    for backend in [
+        ChooserBackend::ZenityPresent,
+        ChooserBackend::PortalPossible,
+        ChooserBackend::Absent,
+    ] {
+        assert_eq!(frame::dialog_status(backend, true), StatusUpdate::Keep);
+    }
+}
+
+#[test]
 fn an_empty_batch_and_a_pure_cursor_stream_move_no_camera() {
     // The other half of the same defect: the event stream now carries
     // cursor events, so "the stream was non-empty" stopped meaning "the
@@ -115,6 +182,7 @@ fn an_empty_batch_and_a_pure_cursor_stream_move_no_camera() {
     let orbit = [input::ViewportEvent::Drag {
         button: input::PointerButton::Middle,
         shift: false,
+        alt: false,
         delta_px: [12.0, 0.0],
     }];
     let moved = input::fold_events(&map, &camera, viewport, &orbit);
@@ -557,4 +625,86 @@ fn the_pixel_to_ndc_conversion_round_trips_and_flips_y_once() {
     assert!((ray.dir.x - forward.x).abs() < 1e-12);
     assert!((ray.dir.y - forward.y).abs() < 1e-12);
     assert!((ray.dir.z - forward.z).abs() < 1e-12);
+}
+
+// --- the refuse-then-offer pair for an unknown parameter ------------
+
+/// **The unknown-parameter refusal carries its offer, and the frame
+/// policies hand both to the chrome.** An expression naming an
+/// undeclared parameter refuses at the parse door (typo-safety — text
+/// never creates a parameter); `creation_offer` extracts the name to
+/// prefill the add-parameter affordance, and `retype_draft` hands the
+/// refused text back so acting on the offer does not cost the very
+/// expression that raised it.
+#[test]
+fn an_unknown_parameter_refusal_offers_creation_and_returns_the_draft() {
+    let tol = Tol::witness();
+    let doc: Doc<ProfileProgram> = Doc::empty_derived("frame-offer", tol);
+    let (doc, profile) = common::inserted(&doc, common::square(0.04), tol);
+    let (doc, extrude) = common::inserted(
+        &doc,
+        Node::Extrude {
+            profile,
+            distance: common::len(0.008),
+        },
+        tol,
+    );
+    let mut session = DocSession::inline(doc, tol);
+
+    // The frame loop's exact shape: perform the batch, collect the
+    // preferred refusal, then ask the policies.
+    let batch = vec![SessionOp::SetSlotExpression {
+        node: extrude,
+        slot: SlotId::Distance,
+        text: "margin * 2.0".to_owned(),
+    }];
+    let mut refusal = None;
+    for op in batch.clone() {
+        if let Some(next) = session.perform(op).refusal {
+            refusal = Refusal::preferred(refusal, next);
+        }
+    }
+    assert_eq!(
+        frame::creation_offer(refusal.as_ref()),
+        Some(ParamName::new("margin")),
+        "the offer is the undeclared name"
+    );
+    assert_eq!(
+        frame::retype_draft(&batch, refusal.as_ref()),
+        Some((extrude, SlotId::Distance, "margin * 2.0".to_owned())),
+        "and the refused draft comes back"
+    );
+
+    // A parse refusal that names NO parameter restores the draft but
+    // offers nothing to create.
+    let batch = vec![SessionOp::SetSlotExpression {
+        node: extrude,
+        slot: SlotId::Distance,
+        text: "0.008 *".to_owned(),
+    }];
+    let mut refusal = None;
+    for op in batch.clone() {
+        if let Some(next) = session.perform(op).refusal {
+            refusal = Refusal::preferred(refusal, next);
+        }
+    }
+    assert!(refusal.is_some(), "the malformed text refuses");
+    assert_eq!(frame::creation_offer(refusal.as_ref()), None);
+    assert!(frame::retype_draft(&batch, refusal.as_ref()).is_some());
+
+    // And a clean batch offers and restores nothing.
+    let batch = vec![SessionOp::SetSlotExpression {
+        node: extrude,
+        slot: SlotId::Distance,
+        text: "8 mm * 2.0".to_owned(),
+    }];
+    let mut refusal = None;
+    for op in batch.clone() {
+        if let Some(next) = session.perform(op).refusal {
+            refusal = Refusal::preferred(refusal, next);
+        }
+    }
+    assert!(refusal.is_none(), "{refusal:?}");
+    assert_eq!(frame::creation_offer(refusal.as_ref()), None);
+    assert_eq!(frame::retype_draft(&batch, refusal.as_ref()), None);
 }
