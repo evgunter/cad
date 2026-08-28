@@ -75,16 +75,9 @@ fn brick_operand() -> Body<f64> {
     let vp = Profile::new(SketchPlane::xy(), vec![loop_])
         .validate(Tol::witness())
         .unwrap();
-    extrude(
-        &vp,
-        Extrusion::Blind {
-            distance: 0.4,
-            reverse: false,
-        },
-        Tol::witness(),
-    )
-    .unwrap()
-    .body
+    extrude(&vp, Extrusion::Distance(0.4), Tol::witness())
+        .unwrap()
+        .body
 }
 
 /// PROBE 1 — the plain analytic CONE from `revolve` carries the

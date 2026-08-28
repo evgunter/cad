@@ -79,3 +79,7 @@ step-export = { path = "../step-export" }
 [[test]]
 name = "all"
 path = "tests/all.rs"
+
+[[test]]
+name = "r2probes"
+path = "tests/verbs_f7_r2_probes.rs"
