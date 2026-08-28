@@ -842,13 +842,13 @@ mod recourse_tests {
     use topo::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 
     use super::{
-        CHAMFER_ARM_RECOURSE, FILLET3_ASSEMBLY_RECOURSE, FILLET3_BODY_RECOURSE,
-        FILLET3_CHAIN_RECOURSE, FILLET3_CLEARANCE_RECOURSE, FILLET3_CONVEXITY_RECOURSE,
-        FILLET3_CORNER_RECOURSE, FILLET3_GEOMETRY_RECOURSE, FILLET3_RADIUS_RECOURSE,
-        FILLET3_RING_RECOURSE, FILLET3_SEAM_VERTEX_RECOURSE, FILLET3_SPINE_KIND_RECOURSE,
-        FILLET3_SPINE_RECOURSE, FILLET3_TANGENTIAL_RECOURSE, FilletError, FilletSite,
+        CHAMFER_ARM_RECOURSE, Convexity, CornerConfig, FILLET3_ASSEMBLY_RECOURSE,
+        FILLET3_BODY_RECOURSE, FILLET3_CHAIN_RECOURSE, FILLET3_CLEARANCE_RECOURSE,
+        FILLET3_CONVEXITY_RECOURSE, FILLET3_CORNER_RECOURSE, FILLET3_GEOMETRY_RECOURSE,
+        FILLET3_RADIUS_RECOURSE, FILLET3_RING_RECOURSE, FILLET3_SEAM_VERTEX_RECOURSE,
+        FILLET3_SPINE_KIND_RECOURSE, FILLET3_SPINE_RECOURSE, FILLET3_TANGENTIAL_RECOURSE,
+        FilletError, FilletSite,
     };
-    use super::{Convexity, CornerConfig};
 
     /// Every recourse sentence this module can append.
     const ALL: [&str; 14] = [
@@ -893,9 +893,9 @@ mod recourse_tests {
     /// variant can be missing a DECISION. Nothing in the match makes
     /// that variant *render*, and Rust cannot enumerate a type's
     /// variants, so `seeds` is hand-written and carries one value of
-    /// every variant this table names — the two lists are read side by
-    /// side when a variant is added, and there is no compiler check
-    /// that they still agree.
+    /// every variant this table names. Nothing compiles that list
+    /// against this one: a variant added here and not there loses its
+    /// rendering silently.
     ///
     /// **The blind spot this module cannot close from inside**: `ALL`
     /// is hand-written for the same reason (Rust cannot enumerate a

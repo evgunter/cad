@@ -389,7 +389,7 @@ impl ViewerApp {
                 self.delta = delta;
                 self.sync_scene();
             }
-            Err(error) => self.status = Some(format!("display tolerance: {error}")),
+            Err(error) => self.status = Some(format!("{error}")),
         }
     }
 

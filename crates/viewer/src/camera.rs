@@ -174,22 +174,23 @@ impl core::fmt::Display for CameraError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::NotFinite { what, value } => {
-                write!(f, "camera: {what} is {value}, which is not a finite number")
+                write!(
+                    f,
+                    "the camera's {what} is {value}, which is not a finite number"
+                )
             }
             Self::DegenerateScene { radius } => write!(
                 f,
-                "camera: the scene bounds give a radius of {radius}, which is not a \
-                 positive extent to frame against"
+                "the scene bounds give a radius of {radius}, which is not a positive \
+                 extent to frame against"
             ),
             Self::FieldOfViewOutOfRange { fov_y } => write!(
                 f,
-                "camera: a vertical field of view of {fov_y} rad is not strictly \
-                 inside (0, pi)"
+                "a vertical field of view of {fov_y} rad is not strictly inside (0, pi)"
             ),
             Self::UnusableBounds => f.write_str(
-                "camera: the framing request names no view — the bounds are empty or \
-                 carry a NaN bound, or the viewport aspect is not a positive finite \
-                 ratio",
+                "the framing request names no view — the bounds are empty or carry a \
+                 NaN bound, or the viewport aspect is not a positive finite ratio",
             ),
             Self::Unfittable {
                 required,
@@ -197,8 +198,8 @@ impl core::fmt::Display for CameraError {
                 aspect,
             } => write!(
                 f,
-                "camera: fitting the scene at aspect {aspect} needs a stand-off of \
-                 {required}, past the zoom band's furthest distance of {max_distance}"
+                "fitting the scene at aspect {aspect} needs a stand-off of {required}, \
+                 past the zoom band's furthest distance of {max_distance}"
             ),
         }
     }
@@ -279,12 +280,12 @@ impl core::fmt::Display for CameraOpError {
         match self {
             Self::NotFinite { what, value } => write!(
                 f,
-                "camera operation: {what} is {value}, which is not a finite number"
+                "the operation's {what} is {value}, which is not a finite number"
             ),
             Self::NonPositiveDolly { factor } => write!(
                 f,
-                "camera operation: a dolly factor of {factor} is not a positive scale \
-                 for a viewing distance"
+                "a dolly factor of {factor} is not a positive scale for a viewing \
+                 distance"
             ),
             Self::Unframeable(error) => write!(f, "{error}"),
         }

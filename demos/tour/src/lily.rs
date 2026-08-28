@@ -2423,10 +2423,33 @@ mod review_probes {
             {
                 let t = (*center, *axis, *major_radius, *minor_radius, *u_ref);
                 if let Some(prev) = &found {
-                    // Both torus half-bands must share ONE carrier.
+                    // Both torus half-bands must share ONE carrier, and
+                    // that means EVERY component of it: a comparison
+                    // that skips a component is a comparison two
+                    // different tori can pass, which is exactly what
+                    // this assertion exists to rule out.
                     let (pc, pa, pr, pm, pu): &(Point3<f64>, Vec3<f64>, f64, f64, Vec3<f64>) = prev;
-                    println!("PROBE prev c={:?} a={:?} R={} r={} u={:?}", pc, pa, pr, pm, pu);
-                    println!("PROBE next c={:?} a={:?} R={} r={} u={:?}", t.0, t.1, t.2, t.3, t.4);
+                    assert!(
+                        (*pc - t.0).norm() < 1e-15,
+                        "two torus faces, two centers: {pc:?} vs {:?}",
+                        t.0
+                    );
+                    assert!(
+                        (*pa - t.1).norm() < 1e-15,
+                        "two torus faces, two axes: {pa:?} vs {:?}",
+                        t.1
+                    );
+                    assert!(
+                        (*pu - t.4).norm() < 1e-15,
+                        "two torus faces, two u_ref: {pu:?} vs {:?}",
+                        t.4
+                    );
+                    assert!(
+                        (pr - t.2).abs() < 1e-15 && (pm - t.3).abs() < 1e-15,
+                        "two torus faces, two radius pairs: ({pr}, {pm}) vs ({}, {})",
+                        t.2,
+                        t.3
+                    );
                 } else {
                     found = Some(t);
                 }
@@ -3366,6 +3389,17 @@ mod review_probes {
 
     /// The single stored sphere of a body: (centre, radius).
     fn sphere_of(b: &Body<f64>) -> (Point3<f64>, f64) {
+        for (_, f) in b.faces() {
+            if let Some(pncad::geom::Surface::Sphere {
+                center,
+                radius,
+                axis,
+                u_ref,
+            }) = b.get_surface(f.surface)
+            {
+                println!("PROBE sphere c={center:?} r={radius} a={axis:?} u={u_ref:?}");
+            }
+        }
         for (_, f) in b.faces() {
             if let Some(pncad::geom::Surface::Sphere { center, radius, .. }) =
                 b.get_surface(f.surface)

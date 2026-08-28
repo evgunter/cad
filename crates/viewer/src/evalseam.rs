@@ -327,7 +327,11 @@ mod threaded {
         fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
             match self {
                 Self::Thread(error) => {
-                    write!(f, "evaluator: the OS refused the worker thread: {error}")
+                    write!(
+                        f,
+                        "the evaluation worker could not be started: the OS refused \
+                         the thread: {error}"
+                    )
                 }
             }
         }

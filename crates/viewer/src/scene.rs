@@ -151,26 +151,28 @@ impl core::fmt::Display for SceneError {
         match self {
             Self::InvalidDisplayTolerance { delta } => write!(
                 f,
-                "scene: a display tolerance of {delta} is not a finite, strictly \
-                 positive length"
+                "{delta} is not a finite, strictly positive display tolerance"
             ),
             Self::NoProduct(error) => write!(f, "{error}"),
             Self::NotTessellated(error) => {
-                write!(f, "scene: the body did not tessellate: {error:?}")
+                write!(
+                    f,
+                    "the body did not tessellate at this display tolerance: {error:?}"
+                )
             }
             Self::EmptyMesh => f.write_str(
-                "scene: the tessellation drew nothing — there is no picture to show \
-                 and no bounds to frame a camera against",
+                "the tessellation drew nothing — there is no picture to show and no \
+                 bounds to frame a camera against",
             ),
             Self::MispairedIds { ids, patches } => write!(
                 f,
-                "scene: a part offered {ids} patch ids for {patches} patches; a part \
-                 carries either no ids at all or exactly one per patch"
+                "a part offered {ids} patch ids for {patches} patches; a part carries \
+                 either no ids at all or exactly one per patch"
             ),
             Self::BrokenPatchIndex { index, positions } => write!(
                 f,
-                "scene: a face patch names vertex {index}, but the mesh's shared \
-                 position table holds only {positions}"
+                "a face patch names vertex {index}, but the mesh's shared position \
+                 table holds only {positions} positions"
             ),
         }
     }
@@ -568,8 +570,8 @@ impl core::fmt::Display for SceneDocError {
             Self::Dimension(error) => write!(f, "{error}"),
             Self::Edit(error) => write!(f, "{error}"),
             Self::NoNodeMinted => f.write_str(
-                "scene document: an insert minted no node id, so the authored node \
-                 cannot be referred to",
+                "an insert minted no node id, so the authored node cannot be referred \
+                 to",
             ),
         }
     }

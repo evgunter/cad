@@ -228,7 +228,7 @@ use crate::entity::{
 use crate::euler::ArenaDelta;
 use crate::euler::EulerOpError;
 use crate::geometry::{CurveKey, SurfaceKey};
-use crate::live::{require_key, Live};
+use crate::live::{Live, require_key};
 use crate::provenance::Provenance;
 use geom_core::Tol;
 

@@ -197,14 +197,13 @@ impl core::fmt::Display for IdMapError {
         match self {
             Self::Duplicate { key } => write!(
                 f,
-                "pick ids: patch {} of body {} on node {} was offered twice; an id \
-                 assignment is a bijection",
+                "patch {} of body {} on node {} was offered twice; an id assignment \
+                 is a bijection",
                 key.patch, key.body, key.node.0
             ),
             Self::TooManyPatches { patches } => write!(
                 f,
-                "pick ids: {patches} patches is more than a 32-bit id buffer can \
-                 address"
+                "{patches} patches is more than a 32-bit id buffer can address"
             ),
         }
     }
@@ -222,7 +221,7 @@ impl core::fmt::Display for PickIndexError {
         match self {
             Self::Node { node, error } => write!(
                 f,
-                "pick index: root {}'s bodies could not be indexed: {error:?}",
+                "root {}'s bodies could not be tessellated or indexed: {error:?}",
                 node.0
             ),
             Self::Ids(error) => write!(f, "{error}"),

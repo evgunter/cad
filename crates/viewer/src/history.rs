@@ -107,7 +107,7 @@ impl core::fmt::Display for ReplayError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Refused { index, error } => {
-                write!(f, "replay: edit {index} of the saved log was refused: {error}")
+                write!(f, "edit {index} of the saved log was refused: {error}")
             }
         }
     }

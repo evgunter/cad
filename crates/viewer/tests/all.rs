@@ -43,6 +43,8 @@ mod assembly_walk;
 mod camera_ops;
 #[path = "doc_io.rs"]
 mod doc_io;
+#[path = "error_display.rs"]
+mod error_display;
 #[path = "eval_seam.rs"]
 mod eval_seam;
 #[path = "frame_policy.rs"]

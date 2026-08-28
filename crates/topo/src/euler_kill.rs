@@ -280,7 +280,7 @@ use crate::entity::{
 use crate::euler::ArenaDelta;
 use crate::euler::{EulerOpError, FaceSurface};
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
-use crate::live::{require_key, Live};
+use crate::live::{Live, require_key};
 use crate::provenance::Provenance;
 
 /// The outcome of one [`Body::kvfs`] call: five dead topology keys plus
