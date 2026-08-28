@@ -29,10 +29,6 @@ fn p(x: f64, y: f64, z: f64) -> Point3<f64> {
     Point3::new(x, y, z)
 }
 
-fn v(x: f64, y: f64, z: f64) -> Vec3<f64> {
-    Vec3::new(x, y, z)
-}
-
 /// A surface table and its resolver (the injected lookup the door
 /// takes — keys never resolve inside `geom-brep`).
 fn table(surfs: Vec<Surface<f64>>) -> (Vec<SurfaceKey>, impl Fn(SurfaceKey) -> Option<Surface<f64>>)
@@ -464,7 +460,6 @@ fn r2_a_die_scale_strut_chord_on_a_planar_support_certifies_exactly() {
     // A support boundary vertex of the cube's `z = 0` face and the
     // foot of its station, both in that face.
     let (q0, q1) = (p(0.0, 0.0, 0.0), p(r, r, 0.0));
-    let len = q0.distance(q1);
     let edge = EdgeCurve::certify(
         EdgeCurveSpec::line_between(q0, q1).at_rest_in_chart(keys[0], false),
         q0,
