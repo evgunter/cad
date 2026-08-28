@@ -164,18 +164,36 @@ impl<T: Real> EdgeDescription<T> {
 ///
 /// # Why the input needs its own type
 ///
-/// The taxonomy is the same one: two intrinsic arms, ONE conventional
-/// arm, the fenced scaffolding door. What differs is the chart IMAGE.
+/// **The taxonomy is NOT doubled here — read the next paragraph before
+/// concluding the collapse left two of anything.** These arms are
+/// [`EdgeDescription`]'s, one for one: two intrinsic, ONE conventional
+/// [`EdgeDescriptionSpec::Chart`], the fenced scaffolding door. What
+/// differs is not what an edge can BE; it is who derives the chart
+/// image.
+///
 /// An analytic chart's image is minted from the carrier through
-/// [`crate::chart_pcurve`], which needs the **resolved surface**; a
-/// construction holds arena KEYS and hands certification the resolver,
-/// so it cannot mint one. Certification therefore mints the image at
-/// the door, inside the check sequence, where a degenerate interval
+/// [`crate::chart_pcurve`], which needs the **resolved surface**. A
+/// construction holds arena KEYS and hands certification the resolver
+/// (`topo`'s `set_edge_curve` takes none), so a construction cannot
+/// mint an image even in principle. Certification therefore mints it
+/// at the door, inside the check sequence, where a degenerate interval
 /// still refuses in its own order and no chart image is derived from
-/// an interval the kernel has not yet accepted (D4/D9). The two types
-/// are that fact made structural: the door is the only place a chart
-/// image is derived, and [`EdgeDescription`] is the only form that
-/// carries one.
+/// an interval the kernel has not yet accepted (D4/D9).
+///
+/// **`image: None` is a REQUEST — "derive this at the door" — and
+/// never a second description form.** There is no edge whose
+/// description is "a chart with no image": every certified
+/// [`EdgeDescription::Chart`] carries a real [`Pcurve`], whether the
+/// construction stated it or the door minted it. So the conventional
+/// form is still singular, and these two types are one taxonomy
+/// photographed on either side of the one place a chart image is
+/// derived.
+///
+/// The alternative — one type, image always present — was measured and
+/// rejected: it forces the mint out to the callers, which relocates
+/// [`crate::CertifyError::ChartImageUnavailable`] and its ORDERING
+/// against the interval checks, and that is a verdict change on every
+/// degenerate-span row. A second input type is the cheaper honesty.
 #[derive(Clone, Debug)]
 pub enum EdgeDescriptionSpec<T: Real> {
     /// Intrinsic: the transverse intersection component selected by
@@ -204,10 +222,14 @@ pub enum EdgeDescriptionSpec<T: Real> {
         /// The chart the locus is described in.
         surface: SurfaceKey,
         /// The image, when the construction KNOWS it exactly — a
-        /// spline chart's iso boundary, or a restriction of an image
-        /// already certified. `None` asks the certification door to
-        /// derive it from the carrier ([`crate::chart_pcurve`]), the
-        /// one place chart images are derived.
+        /// spline chart's iso boundary, or a restatement of an image
+        /// already certified.
+        ///
+        /// `None` is a REQUEST, not a description: it asks the
+        /// certification door to derive the image from the carrier
+        /// ([`crate::chart_pcurve`]), the one place chart images are
+        /// derived anywhere in this kernel. The certified form that
+        /// comes back carries an image either way.
         image: Option<crate::pcurve_cache::Pcurve<T>>,
         /// D1's obligation: this edge claims to BE the chart's
         /// parameterization seam, so the two seam predicates are

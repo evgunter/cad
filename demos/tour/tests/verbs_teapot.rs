@@ -317,6 +317,82 @@ fn triangular_prism(tol: Tol) -> Body<f64> {
     )
 }
 
+/// How many of `body`'s edges are still described through the
+/// SCAFFOLDING door — the arm `CarrierLaneUnsupported`'s "not a rigid
+/// translation" `what` is raised on, and the only one.
+fn scaffold_descriptions(body: &Body<f64>) -> usize {
+    body.edges()
+        .filter(|(_, e)| {
+            matches!(
+                body.get_curve_geom(e.curve)
+                    .and_then(pncad::topo::CurveGeom::certified)
+                    .map(pncad::topo::EdgeCurve::description),
+                Some(&pncad::topo::EdgeDescription::Scaffold(_))
+            )
+        })
+        .count()
+}
+
+/// **The retired door, demonstrated rather than argued** (PCURVE
+/// P-1b).
+///
+/// `CarrierLaneUnsupported`'s *"a mapped description whose surface's
+/// offset is not a rigid translation"* is raised on exactly ONE
+/// description arm — the scaffolding door, whose payload is a
+/// pushforward stated in 3-SPACE and therefore has to be translated
+/// with the face it hangs off. Once U2 collapsed the conventional
+/// descriptions onto a chart image, stated in CHART coordinates, there
+/// is nothing left to translate: the offset re-parameterizes the chart
+/// and the image drawn in it is untouched. So the door stops firing —
+/// not because the obstruction went away, but because that particular
+/// obstruction was an artefact of writing a conventional locus in
+/// 3-space.
+///
+/// This asserts the PREMISE on the fixtures themselves rather than
+/// reasoning about it: neither curved-neighbour body carries a
+/// scaffolding description at all, so the arm cannot be entered, and
+/// the refusal necessarily moves to whatever obstruction is really
+/// there. (It is still a refusal — the junction is still not square,
+/// which is finding 1 and is untouched.)
+#[test]
+fn the_not_a_rigid_translation_door_is_unreachable_at_rest() {
+    let tol = Tol::witness();
+    let mut doors = Vec::new();
+    for (what, body) in [
+        ("a hemisphere TANGENT to its cylinder", bullet(tol)),
+        (
+            "a dome whose centre is lifted clear of the wall's top",
+            lifted_dome(tol),
+        ),
+    ] {
+        assert_eq!(
+            scaffold_descriptions(&body),
+            0,
+            "{what}: every edge of a body at rest says which chart it lies in, so the \
+             scaffolding arm the retired door hangs off cannot be entered"
+        );
+        let e = pncad::topo::shell(&body, 1.0 / 128.0, FIT_TOL, band(tol), tol)
+            .expect_err("this junction is not square, so the hollow must refuse");
+        doors.push((what, offset_refusal(&e)));
+    }
+    // Both fixtures land on the obstruction that is really there —
+    // the same door the table's WEDGE row has always expected.
+    assert_eq!(
+        doors,
+        vec![
+            (
+                "a hemisphere TANGENT to its cylinder",
+                "ReanchorOffCarrier".to_string()
+            ),
+            (
+                "a dome whose centre is lifted clear of the wall's top",
+                "ReanchorOffCarrier".to_string()
+            ),
+        ],
+        "the retired door is unreachable, so these must refuse elsewhere"
+    );
+}
+
 /// The offset door's own refusal, as a two-word class name plus what
 /// it measured — read off the payload, never off the message.
 fn offset_refusal(e: &ShellError<f64>) -> String {

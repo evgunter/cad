@@ -1327,6 +1327,25 @@ fn plan_edge<T: Decide>(
                 }
             }
         }
+        // **A refusal the collapse RETIRED for every edge at rest**
+        // (PCURVE P-1b). Both `what`s below say the same thing about
+        // the same thing: a pushforward is stated in 3-SPACE, so it
+        // has to be carried bodily with the face it hangs off, and it
+        // can only be carried when the offset is a rigid translation
+        // of a family that translates. A CHART IMAGE is stated in the
+        // chart's own coordinates — the offset re-parameterizes the
+        // chart and leaves the image drawn in it untouched — so the
+        // question does not arise, and the two refusals stop firing
+        // for the conventional edges that used to raise them.
+        //
+        // They are NOT dead code: the scaffolding door is still real
+        // for edges whose surfaces do not exist yet. They are
+        // unreachable for a body AT REST, because tier 3's transience
+        // fence (`ValidationError::ScaffoldAtRest`) refuses a scaffold
+        // there — which `demos/tour`'s
+        // `the_not_a_rigid_translation_door_is_unreachable_at_rest`
+        // asserts on the two fixtures that used to reach them, rather
+        // than leaving it as an argument.
         EdgeDescription::Scaffold(mapped) => {
             let delta = delta.ok_or(ReplaceFaceError::CarrierLaneUnsupported {
                 edge,
