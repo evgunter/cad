@@ -43,6 +43,10 @@ mod offc_r1_probes;
 mod offd2_r1_probes;
 #[path = "offd_r1_probes.rs"]
 mod offd_r1_probes;
+#[path = "sf2a_r1.rs"]
+mod sf2a_r1;
+#[path = "sf2a_r1_head.rs"]
+mod sf2a_r1_head;
 #[path = "sf2a_r2_interval_probe.rs"]
 mod sf2a_r2_interval_probe;
 #[path = "sf2a_r2_probes.rs"]
