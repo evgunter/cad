@@ -131,7 +131,6 @@ fn description(body: &Body<f64>, edge: EdgeKey) -> EdgeDescription<f64> {
         .clone()
 }
 
-
 /// The edge's **authority record** (U2 Q3): who determined its locus.
 /// The datum that survived the `IsoCurve` / `MappedCurve` collapse —
 /// a pushforward no longer says by BEING the description that a sketch

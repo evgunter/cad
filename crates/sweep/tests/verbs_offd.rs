@@ -216,13 +216,13 @@ fn the_untouched_cap_seams_are_re_anchored() {
     seams.sort_by(|x, y| x.0.total_cmp(&y.0));
     assert_eq!(seams.len(), 2, "the two cap seams, got {seams:?}");
     assert!(
-        seams.iter().all(|(span, _)| (span - (0.4 + d)).abs() < 1e-15),
+        seams
+            .iter()
+            .all(|(span, _)| (span - (0.4 + d)).abs() < 1e-15),
         "both cap seams span the wider annulus, got {seams:?}"
     );
     assert!(
-        seams
-            .iter()
-            .all(|(_, far)| (far - (0.8 + d)).abs() < 1e-15),
+        seams.iter().all(|(_, far)| (far - (0.8 + d)).abs() < 1e-15),
         "the sketch segments' far endpoints followed the wall: {seams:?}"
     );
 }

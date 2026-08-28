@@ -357,7 +357,11 @@ fn the_fitted_obstruction_holds_on_a_curved_fit() {
     // the same leg — and the row says so by name rather than by
     // membership.
     for (name, mut body, leg) in [
-        ("planar prism", prism(), "a chart image of a neighbour's chart"),
+        (
+            "planar prism",
+            prism(),
+            "a chart image of a neighbour's chart",
+        ),
         (
             "twisted loft",
             twisted_loft(0.3),
