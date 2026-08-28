@@ -133,6 +133,15 @@ self-acquire; wrap raw `cargo` invocations yourself.
   fix by killing the inheriting process. Slot-wrapped commands should
   not spawn daemons; if a cache/watcher daemon ever enters the build
   path, pre-start it before with-build-slot.sh opens its fds.
+- **The ORCHESTRATOR's own worktree grows a stale `target/` too** —
+  and it is invisible to a lane sweep, because it is not a lane. Mine
+  held 3.0G untouched for two weeks (the orchestrator builds in lanes,
+  never at home), which was more than every idle lane combined on the
+  third disk warning of a session. Check
+  `~/.mngr/worktrees/<yours>/target` before sweeping other programs'
+  live lanes: it costs them a rebuild mid-unit and you a courtesy
+  message, where this costs nothing at all.
+
 - **An `-x` waiter is STARVED by single-slot arrivals, so a one-lane
   yield does not clear a path for it.** Exclusive mode needs ALL slots,
   and grabbers that arrive AFTER the waiter is armed still win, because
