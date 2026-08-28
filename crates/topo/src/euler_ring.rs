@@ -228,7 +228,7 @@ use crate::entity::{
 use crate::euler::ArenaDelta;
 use crate::euler::EulerOpError;
 use crate::geometry::{CurveKey, SurfaceKey};
-use crate::live::Live;
+use crate::live::{require_key, Live};
 use crate::provenance::Provenance;
 use geom_core::Tol;
 
@@ -433,11 +433,7 @@ impl<T: Decide> Body<T> {
             return Err(EulerOpError::LoopNotCycle { r#loop: loop_key });
         }
         let face_key = loop_data.face;
-        if !self.faces.contains_key(face_key) {
-            return Err(EulerOpError::StaleKey {
-                key: EntityId::Face(face_key),
-            });
-        }
+        require_key(&self.faces, face_key, EntityId::Face)?;
         // The full cycle from he1 (bounded, D9); its split at he2 yields
         // the two survivor sides.
         let cycle = self
@@ -455,14 +451,10 @@ impl<T: Decide> Body<T> {
         let old_side: Vec<Live> = cycle[position + 1..].to_vec();
         let u = he1_data.start;
         let w = he2_data.start;
+        // The op rewrites both emanating anchors; a dangling start
+        // vertex is tier-1-invalid input caught here.
         for vertex in [u, w] {
-            if !self.vertices.contains_key(vertex) {
-                // The op rewrites both emanating anchors; a dangling
-                // start vertex is tier-1-invalid input caught here.
-                return Err(EulerOpError::StaleKey {
-                    key: EntityId::Vertex(vertex),
-                });
-            }
+            require_key(&self.vertices, vertex, EntityId::Vertex)?;
         }
         if ring_side.is_empty() && old_side.is_empty() && u == w {
             return Err(EulerOpError::EmptyAnchorsCollide { vertex: u });
@@ -783,28 +775,18 @@ impl<T: Decide> Body<T> {
             return Err(EulerOpError::FaceHasRings { face: f2 });
         }
         let ring = f2_data.outer;
-        if !self.loops.contains_key(ring) {
-            return Err(EulerOpError::StaleKey {
-                key: EntityId::Loop(ring),
-            });
-        }
+        require_key(&self.loops, ring, EntityId::Loop)?;
         if cross_shell {
             // The fusion re-homes f2's shell's surviving faces and
             // rewrites the shared solid's shell list; both are keys read
             // out of the body rather than arguments, so prove them live
             // here — the mutation below cannot fail midway (atomicity).
             for &face in &s2_data.faces {
-                if face != f2 && !self.faces.contains_key(face) {
-                    return Err(EulerOpError::StaleKey {
-                        key: EntityId::Face(face),
-                    });
+                if face != f2 {
+                    require_key(&self.faces, face, EntityId::Face)?;
                 }
             }
-            if !self.solids.contains_key(s2_data.solid) {
-                return Err(EulerOpError::StaleKey {
-                    key: EntityId::Solid(s2_data.solid),
-                });
-            }
+            require_key(&self.solids, s2_data.solid, EntityId::Solid)?;
         }
 
         // ---- Mutation (infallible from here on). ----

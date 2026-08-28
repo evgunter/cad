@@ -3,6 +3,17 @@
 //! the carrier's true locus over the stated span lies inside it — and
 //! every computation here errs outward only.
 //!
+//! **Outward is the only sound direction; it is not the free one, and
+//! nothing here may say otherwise.** A wider box is a weaker answer,
+//! not a cheaper one: what a consumer loses to width depends on which
+//! way that consumer reads a box, and the consumers are a crate up
+//! (`topo` depends on `geom`, not the reverse) reading in more than
+//! one direction — a wider box costs a candidate pair at a pruner and
+//! costs an ANSWER at a door seeking non-overlap. So these docs state
+//! the containment contract and stop: they do not characterise what
+//! looseness or poison costs downstream, because that is not knowable
+//! from here.
+//!
 //! These land now and are consumed later (the planar boolean consumes
 //! only vertex-extent boxes in PR 8); they live HERE, not in the `bvh`
 //! crate, so the tree stays below the geometry crates (PR 7's SSI
@@ -12,8 +23,9 @@
 //!
 //! This is certified-box driver code, a **sole**-bound [`Bounds`] seam
 //! under the 2026-07-29 amendment (geom-core `real.rs`, Bounds scope
-//! rule): every scalar enters as its `[lo(), hi()]` bracket, poison
-//! (NaN) flows to the poison box, which never prunes.
+//! rule): every scalar enters as its `[lo(), hi()]` bracket, and
+//! poison (NaN) flows to the poison box, which overlaps everything —
+//! the honest answer when no cheap superset is known.
 //!
 //! **Not "allowlisted", which is what this said before.** The amendment
 //! ratifies the box constructors to write the COMPOUND `Decide + Bounds`
@@ -102,7 +114,8 @@ fn pfold(a: f64, b: f64, f: fn(f64, f64) -> f64) -> f64 {
 /// test below: it absorbs `libm::atan2`'s deviation from the exact
 /// value (observed ≤ 4 ulps in the geom-core census — this is 6+ orders
 /// more) plus the membership arithmetic's own rounding. Slack only ever
-/// *includes* more extrema, so it errs outward (a looser box).
+/// *includes* more extrema, so it errs outward, which is the sound
+/// direction and the priced one (module docs).
 const ANGLE_SLOP: f64 = 1e-6;
 
 /// Whether some 2πk-translate of the angle INTERVAL `[phi_lo, phi_hi]`
@@ -179,7 +192,7 @@ fn extremal_angle_interval(u: Brk, v: Brk) -> Option<(f64, f64)> {
 ///
 /// `None` when `carrier` is not a `Circle` (the caller named the wrong
 /// lane — refuse loudly rather than guess). Poison anywhere yields
-/// poison bounds, which never prune.
+/// poison bounds, which overlap everything.
 pub fn circle_arc_aabb<T: Bounds>(
     carrier: &Curve3<T>,
     theta0: T,
@@ -292,7 +305,7 @@ fn axis_extremum(min: &mut f64, max: &mut f64, c: Brk, u: Brk, v: Brk, r: Brk, l
 /// as an INTERVAL over the scaled-bracket corners, branch-cut wedges
 /// (and possibly-origin rectangles) include BOTH extrema, span
 /// membership is `ANGLE_SLOP`-widened and conservative-inclusive, and
-/// poison never prunes.
+/// poison flows outward to the poison box.
 ///
 /// `None` when `carrier` is not an `Ellipse` (wrong lane — refuse
 /// loudly rather than guess). Residual padding stays the caller's
@@ -377,9 +390,10 @@ pub fn ellipse_arc_aabb<T: Bounds>(
 /// enforced by [`NurbsCurve3::new`]; negative weights would void
 /// convexity, Book p. 293). Valid over the whole domain, a fortiori
 /// over any certified span (span-tight hulls via knot refinement are a
-/// later sharpening; looser is conservative). No arithmetic — brackets
-/// only — so no rounding to pad. The placeholder curve's all-poison
-/// control points yield the poison box, which never prunes.
+/// later sharpening; a wider box still contains the locus). No
+/// arithmetic — brackets only — so no rounding to pad. The placeholder
+/// curve's all-poison control points yield the poison box, which
+/// overlaps everything.
 pub fn nurbs_curve_aabb<T: Bounds>(curve: &NurbsCurve3<T>) -> Aabb {
     Aabb::from_points(curve.control().iter().copied()).unwrap_or_else(Aabb::poison)
 }

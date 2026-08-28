@@ -105,8 +105,8 @@ impl<T: Decide> Body<T> {
     /// An Euler operator mints `sense: true` on a face it puts on a
     /// NEW surface, because the material side is not op-level
     /// knowledge: `mef` sees two chords, not the profile. Whether a
-    /// swept wall's material lies with or
-    /// against its surface's chart normal is the **constructor's**
+    /// swept wall's material lies with or against its surface's chart
+    /// normal is the **constructor's**
     /// knowledge, decided from exact stored structure (a concave arc
     /// segment's turn sign against its loop's canonical winding — the
     /// profile's material-left rule), so the constructor attaches the
@@ -128,7 +128,7 @@ impl<T: Decide> Body<T> {
     /// reversed wall is the same surface region with the same material
     /// side — and stamps `true` only when it mints a NEW surface,
     /// which is not the parent's region at all and whose honest bit is
-    /// this door's to attach. [`Body::mint_face_surface_and_sense`]
+    /// this door's to attach. `Body::mint_face_surface_and_sense`
     /// owns that rule; the boolean's chord re-mints (`chord_join.rs`)
     /// pass `FaceSurface::Inherit` and so inherit, while
     /// `splitting/finish.rs`'s section promotion is the live case of

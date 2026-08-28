@@ -25,6 +25,7 @@ use crate::entity::{EntityId, FaceKey, LoopBoundary, Shell, ShellKey};
 #[cfg(debug_assertions)]
 use crate::euler::ArenaDelta;
 use crate::euler::EulerOpError;
+use crate::live::require_key;
 use crate::provenance::Provenance;
 
 impl<T: Decide> Body<T> {
@@ -73,11 +74,7 @@ impl<T: Decide> Body<T> {
                 key: EntityId::Shell(shell),
             })?;
         let solid = shell_data.solid;
-        if !self.solids.contains_key(solid) {
-            return Err(EulerOpError::StaleKey {
-                key: EntityId::Solid(solid),
-            });
-        }
+        require_key(&self.solids, solid, EntityId::Solid)?;
         let mut component: slotmap::SecondaryMap<FaceKey, usize> = slotmap::SecondaryMap::new();
         let mut count = 0_usize;
         for &seed in &shell_data.faces {
@@ -116,11 +113,7 @@ impl<T: Decide> Body<T> {
                                     key: EntityId::Loop(mate_data.parent_loop),
                                 })?;
                         let neighbor = mate_loop.face;
-                        if !self.faces.contains_key(neighbor) {
-                            return Err(EulerOpError::StaleKey {
-                                key: EntityId::Face(neighbor),
-                            });
-                        }
+                        require_key(&self.faces, neighbor, EntityId::Face)?;
                         if !component.contains_key(neighbor) {
                             component.insert(neighbor, label);
                             pending.push(neighbor);

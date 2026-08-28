@@ -72,7 +72,13 @@ pub(super) fn wall_surface<T: Real>(
 /// latitude circle. `axis_c` is the θ-signed carrier axis (forward
 /// interval `(0, |θ|]`; `u_ref` points at the start point `q` — the
 /// carrier-frame convention, distinct from the surfaces' shared `u₃`).
-pub(super) fn strut_spec<T: Real>(
+///
+/// The extrude family's strut spec is `extrude`'s
+/// `extruded_strut_spec`: a different description, a different carrier
+/// class and a different parameter interval, sharing only the
+/// topological role. The two carry distinct names because a reader who
+/// greps one must not be handed the other's contract.
+pub(super) fn revolved_strut_spec<T: Real>(
     point: Point2<T>,
     radius: T,
     q: Point3<T>,

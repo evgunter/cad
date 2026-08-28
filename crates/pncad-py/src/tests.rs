@@ -89,10 +89,15 @@ fn error_classes_name_the_python_hierarchy() {
 
 /// LIB-PYSEL: `SelectRefusal` is `#[non_exhaustive]`, so the tag
 /// match cannot be the compile-time drift alarm the other tag
-/// functions are — this pin is the replacement. It constructs every
-/// arm whose payload the curated surface can build and asserts its
-/// tag, so a kernel arm arriving untagged surfaces as `unclassified`
-/// HERE rather than silently in Python. (`InBand`/`PairInBand`/
+/// functions are, and this pin does NOT restore one: it constructs
+/// every arm whose payload the curated surface can build and asserts
+/// its tag, which means it cannot construct — and cannot fail on — an
+/// arm the kernel has not shipped yet. What it gives is the
+/// enumeration the wildcard hides: one line per arm this binding
+/// speaks, so a kernel arm added without a tag here is an absence in
+/// a list rather than invisible behind the wildcard. The safety
+/// property is the crossing's own typed `unclassified` refusal
+/// (`py/select.rs`), not this test. (`InBand`/`PairInBand`/
 /// `BadValue` carry funnel/expression internals with no public
 /// constructor; their tags are covered by the match itself.)
 #[test]

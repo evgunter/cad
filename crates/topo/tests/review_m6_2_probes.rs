@@ -30,6 +30,7 @@ use geom::{Curve3, NurbsCurve2};
 use geom_brep::{Pcurve, PcurveCache, PcurveCertifyError, PcurveCheck};
 use geom_core::Tol;
 use geom_core::{Band, Point2};
+use test_utils::vacuity::stood_down;
 use topo::pcurves::{PcurveMintError, validate_pcurves};
 
 /// Species 1: the foreign-arc cache fails the at-rest pass at the
@@ -40,7 +41,14 @@ use topo::pcurves::{PcurveMintError, validate_pcurves};
 #[test]
 fn the_foreign_arc_cache_fails_on_the_map_residual_against_the_edges_carrier() {
     let Some(mut built) = fixture::build::<f64>() else {
-        println!("SKIPPED: FitSampleBudget stand-down at this ε");
+        stood_down(
+            "M6-2 species 1: foreign-arc cache",
+            "the cylinder×sphere fixture stood down on the SSI door's typed \
+             FitSampleBudget refusal at this ε, so THIS RUN ASSERTS NOTHING about \
+             species 1: not that the foreign-arc cache is rejected at all, and not \
+             that the rejection is the map residual against the edge's own carrier \
+             rather than a side check",
+        );
         return;
     };
     let band = Band::linear(Tol::witness()).unwrap();
@@ -76,7 +84,14 @@ fn the_foreign_arc_cache_fails_on_the_map_residual_against_the_edges_carrier() {
 #[test]
 fn a_between_samples_image_corruption_survives_the_full_c2_certificate() {
     let Some(mut built) = fixture::build::<f64>() else {
-        println!("SKIPPED: FitSampleBudget stand-down at this ε");
+        stood_down(
+            "M6-2 species 2: between-samples corruption",
+            "the cylinder×sphere fixture stood down on the SSI door's typed \
+             FitSampleBudget refusal at this ε, so THIS RUN ASSERTS NOTHING about \
+             species 2: the OnLocusHull gap is unexercised — neither that a \
+             between-samples image corruption still certifies, nor that the at-rest \
+             pass finds nothing against it",
+        );
         return;
     };
     let band = Band::linear(Tol::witness()).unwrap();
@@ -156,7 +171,14 @@ fn a_between_samples_image_corruption_survives_the_full_c2_certificate() {
 #[test]
 fn a_sub_interval_cache_is_caught_by_loop_continuity() {
     let Some(mut built) = fixture::build::<f64>() else {
-        println!("SKIPPED: FitSampleBudget stand-down at this ε");
+        stood_down(
+            "M6-2 species 3: sub-interval cache",
+            "the cylinder×sphere fixture stood down on the SSI door's typed \
+             FitSampleBudget refusal at this ε, so THIS RUN ASSERTS NOTHING about \
+             species 3: not that a sub-interval cache is caught, and not that loop \
+             continuity rather than a param-coverage comparison is the net that \
+             catches it",
+        );
         return;
     };
     let band = Band::linear(Tol::witness()).unwrap();

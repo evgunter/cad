@@ -29,8 +29,15 @@
 //!   speed bound here and refuses typed (the trimmed lane's module
 //!   docs name its consumer).
 //!
-//! These tightenings are the only places adjacent surfaces enter
-//! chord counts — chord points remain a pure function of (carrier +
+//! An adjacent surface reaches a chord count only through
+//! [`adjacent_surface`], and the two tightenings above are its two
+//! call sites — the `Circle` arm's torus step and [`nurbs_tighten`].
+//! The claim is therefore about one function's callers, which a reader
+//! settles by grepping this file for the name. **Nothing in the tree
+//! checks it**: a third caller compiles green, and it would be a third
+//! way for a neighbour to enter the count.
+//!
+//! With that door held, chord points are a pure function of (carrier +
 //! interval, endpoint points, adjacent surface parameters, δ).
 //!
 //! Polyline endpoints are the topology vertices' points **bitwise**
@@ -95,15 +102,7 @@ pub(crate) fn compute_chords(
                 let mut n =
                     ceil_count(span, sagitta_step(delta_s, circle_radius(curve.carrier())))?;
                 for fk in adjacent_faces(body, ek)? {
-                    let face = body
-                        .get_face(fk)
-                        .ok_or(TessellateError::MissingEntity { what: "face" })?;
-                    let surface =
-                        body.get_surface(face.surface)
-                            .ok_or(TessellateError::MissingEntity {
-                                what: "face surface",
-                            })?;
-                    if let Some(h) = torus_step(surface, delta_s) {
+                    if let Some(h) = torus_step(adjacent_surface(body, fk)?, delta_s) {
                         n = n.max(ceil_count(span, h)?);
                     }
                 }
@@ -499,14 +498,7 @@ fn nurbs_tighten(
                 what: "parent loop",
             })?;
         let fk = lp.face;
-        let face = body
-            .get_face(fk)
-            .ok_or(TessellateError::MissingEntity { what: "face" })?;
-        let surface = body
-            .get_surface(face.surface)
-            .ok_or(TessellateError::MissingEntity {
-                what: "face surface",
-            })?;
+        let surface = adjacent_surface(body, fk)?;
         // The UV step schedule is a statement about the chart, so both
         // spline kinds take it — an approximating surface's chart is
         // its fit's.
@@ -610,6 +602,28 @@ pub(crate) fn edge_vertices(
             what: "he_plus end",
         })?;
     Ok((he.start, end))
+}
+
+/// The one door through which an adjacent face's surface reaches a
+/// chord count. Every read of a neighbour's surface in this module
+/// goes through this function; the module header's claim about which
+/// tightenings read one is a claim about its call sites, so a reader
+/// checking it greps this file for the name.
+///
+/// Nothing mechanical counts those call sites — the name gives the
+/// claim a token to grep, which the two `get_surface` spellings it
+/// replaced did not, and that is the whole of what holds it.
+fn adjacent_surface(
+    body: &Body<f64>,
+    fk: topo::FaceKey,
+) -> Result<&geom::Surface<f64>, TessellateError> {
+    let face = body
+        .get_face(fk)
+        .ok_or(TessellateError::MissingEntity { what: "face" })?;
+    body.get_surface(face.surface)
+        .ok_or(TessellateError::MissingEntity {
+            what: "face surface",
+        })
 }
 
 /// The (≤ 2 distinct) faces adjacent to an edge.

@@ -971,7 +971,14 @@ def _plant_fixture(t: str) -> str:
     return t
 
 
-def _selftest_invoke(t: str, argv: list[str], stdin: str = "") -> dict[str, str]:
+def _selftest_run(t: str, argv: list[str], stdin: str = ""):
+    """One invocation of this script as a SUBPROCESS, both streams kept.
+
+    Separate from `_selftest_invoke` because stdout and stderr carry
+    different contracts here — stdout is the machine-readable KEY=value
+    stream, stderr is what a human reads — and the pin battery is the one
+    case that has to look at the second.
+    """
     env = dict(os.environ)
     env["PATH"] = os.path.join(t, "bin") + os.pathsep + env.get("PATH", "")
     r = subprocess.run(
@@ -980,6 +987,11 @@ def _selftest_invoke(t: str, argv: list[str], stdin: str = "") -> dict[str, str]
     )
     if r.returncode != 0:
         raise SystemExit(f"SELFTEST FAILED: {argv} exited {r.returncode}\n{r.stdout}{r.stderr}")
+    return r
+
+
+def _selftest_invoke(t: str, argv: list[str], stdin: str = "") -> dict[str, str]:
+    r = _selftest_run(t, argv, stdin)
     out: dict[str, str] = {}
     for line in r.stdout.splitlines():
         k, _, v = line.partition("=")
@@ -1219,6 +1231,10 @@ def selftest() -> None:
                 _selftest_invoke(t, ["--files", "-"], "docs/guide/PYPAGE.md\n"),
                 {"TIER": "all", "RUN_BUILD": "true"})
 
+    with tempfile.TemporaryDirectory() as t:
+        _plant_fixture(t)
+        _selftest_lane_pin(t)
+
     _selftest_docs_premise()
     _selftest_sampling()
     print(
@@ -1236,7 +1252,9 @@ def selftest() -> None:
         "edges upward only; the oracle signal fires on certified sources and lockfile and "
         "not on their prose; and the three sampled dimensions fail open with no seed, "
         "repeat under the same seed, and are drawn independently enough that every one "
-        "of the 30 matrix points is reachable"
+        "of the 30 matrix points is reachable; and the lane pin beats a draw that went "
+        "the other way, says so on stderr naming the file that pinned it, and stays off "
+        "stdout and out of unpinned and unseeded runs"
     )
 
 
@@ -1287,6 +1305,56 @@ def _selftest_sampling() -> None:
             "one) collapse into a single number and make part of the product "
             "unreachable — check `_sample`'s salt argument at every call site in "
             "`decorate`")
+
+
+def _selftest_lane_pin(t: str) -> None:
+    """THE PIN OVER THE DRAW, AND THE FACT THAT IT SAYS SO.
+
+    `_forces_interval` runs BEFORE the seeded draw and short-circuits it, so
+    a branch that trips it is on the interval lane for every push it ever
+    makes. That is defensible; being unable to SEE it is not, and it is what
+    cost a full ruling cycle (#1122) — the pin was invisible until someone
+    re-implemented the filter to find it.
+
+    So this asserts both halves: that the pin beats a draw that went the
+    other way, and that the run says so on stderr and NOT on stdout, where
+    an extra line would become a bogus $GITHUB_OUTPUT key.
+    """
+    # The seed is FOUND, not hardcoded: the pinned case only tests the pin if
+    # the draw it overrode was `default`, and a literal SHA here would stop
+    # being that the moment `LANES` or the salt moved.
+    seed = next(
+        s for s in (f"{i:040x}" for i in range(1000))
+        if _sample(s, "lane", LANES) == "default"
+    )
+
+    pinned = _selftest_run(t, ["--files", "-", "--seed", seed],
+                           "crates/topo/src/ring_interval.rs\n")
+    if "LANE=interval" not in pinned.stdout.splitlines():
+        raise SystemExit("SELFTEST FAILED: a basename carrying `interval` did not pin the "
+                         f"lane\n{pinned.stdout}")
+    if "PINNED" not in pinned.stderr or "ring_interval.rs" not in pinned.stderr:
+        raise SystemExit("SELFTEST FAILED: the lane was pinned and the run did not say so, or "
+                         f"did not name the file that pinned it\nstderr: {pinned.stderr!r}")
+    if "PINNED" in pinned.stdout:
+        raise SystemExit("SELFTEST FAILED: the pin note reached STDOUT, where both halves read "
+                         f"KEY=value lines\n{pinned.stdout}")
+
+    drawn = _selftest_run(t, ["--files", "-", "--seed", seed],
+                          "crates/topo/src/lib.rs\n")
+    if "LANE=default" not in drawn.stdout.splitlines():
+        raise SystemExit("SELFTEST FAILED: an ordinary basename did not fall through to the "
+                         f"draw\n{drawn.stdout}")
+    if "PINNED" in drawn.stderr:
+        raise SystemExit("SELFTEST FAILED: an unpinned run announced a pin — the note would then "
+                         f"say nothing\nstderr: {drawn.stderr!r}")
+
+    # No seed: nothing is drawn, so there is nothing to pin. LANE=both already
+    # runs both compile modes, and a note there would be a false alarm.
+    unseeded = _selftest_run(t, ["--files", "-"], "crates/topo/src/ring_interval.rs\n")
+    if "LANE=both" not in unseeded.stdout.splitlines() or "PINNED" in unseeded.stderr:
+        raise SystemExit("SELFTEST FAILED: an unseeded run must be LANE=both and announce no "
+                         f"pin\n{unseeded.stdout}\nstderr: {unseeded.stderr!r}")
 
 
 def _selftest_docs_premise() -> None:

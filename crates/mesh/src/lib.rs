@@ -78,8 +78,10 @@
 //! across rebuilds. The chord points themselves are a pure function of
 //! (edge carrier + interval, endpoint vertex points, the adjacent
 //! faces' surface parameters, δ) — adjacent surfaces enter only through
-//! the torus and trimmed-NURBS boundary-step requirements, documented
-//! on [`chords`].
+//! the torus and trimmed-NURBS boundary-step requirements, which reach
+//! a neighbour's surface through one named door in [`chords`]. That
+//! module states what does and does not hold the door shut; nothing
+//! here adds to it.
 //!
 //! # Structure kept, structure dropped
 //!
@@ -237,11 +239,13 @@ mod chords;
 mod curved;
 mod nurbs_cert;
 mod planar;
-// The sizing vocabulary is this crate's own: every name in it is
-// `pub(crate)`, and no consumer outside these walls calls one. It is
-// `mod` rather than `pub mod` so `unreachable_pub` and `dead_code` can
-// see a name the crate stops using; `--document-private-items` keeps
-// its prose in the rendered docs.
+// The sizing vocabulary is this crate's own, and every name in it is
+// `pub(crate)`. The module is `mod` rather than `pub mod` so that
+// `dead_code` reports one the crate stops using: a `pub` item inside a
+// `pub mod` is exempted on the assumption of an external caller, which
+// is the assumption `[workspace.lints]`'s `unreachable_pub` paragraph
+// records as false for this workspace. `--document-private-items`
+// keeps the module's prose in the rendered docs.
 mod sizing;
 mod tessellate;
 mod trimmed;

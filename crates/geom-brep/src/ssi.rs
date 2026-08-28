@@ -129,13 +129,13 @@ use geom_core::{Band, Indeterminate, Margin, Point3};
 pub use certify::{SSI_CERT_SPANS, SSI_TUBE_RADIUS, SsiCertificate, SsiLimb};
 pub use exhaust::{Exhaustiveness, SSI_FLOOR, SSI_MAX_CELLS, SSI_SEED_FLOOR};
 pub use march::{
-    BranchEnd, MarchTol, SSI_IDEALIZED_STEP, SSI_NEWTON_ITERS, SSI_NEWTON_TOL, SSI_STEP_DEVIATION,
+    BranchEnd, SSI_IDEALIZED_STEP, SSI_NEWTON_ITERS, SSI_NEWTON_TOL, SSI_STEP_DEVIATION,
     SSI_STEP_MAX, StepperMode,
 };
 
 use enclose::{Box3, NurbsBoxes};
 use exhaust::UvRect;
-use march::{MarchContext, Trace, march_both, trace_points};
+use march::{MarchContext, MarchTol, Trace, march_both, trace_points};
 use system::{Chart, ImplicitPairR3, ParametricPairR4};
 
 /// The two chart-parameter sample sequences of an ℝ⁴ trace — the
@@ -1137,7 +1137,7 @@ fn finish_r4(
 /// `march_tol` is the marcher's step tolerance in meters; every
 /// certifying door derives its own from `band` and has no such
 /// parameter. This door takes a bare `f64` and mints the private
-/// [`MarchTol`] itself, which is what keeps a decoupled tolerance
+/// `MarchTol` itself, which is what keeps a decoupled tolerance
 /// unmintable anywhere else — including inside a certifying door, whose
 /// maintainer is the caller who would otherwise reach for it.
 ///
