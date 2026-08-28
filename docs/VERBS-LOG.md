@@ -2242,3 +2242,23 @@ agreeing to 1e-16). Union fix pass out. **Pair EXCLUDED
 allowance went to R2 only.** No tally candidates survived coding
 regardless. State: tally 1/8; clean pairs toward twelve: 2
 (TEAPOT, F7). Reviewer lanes swept.
+
+## THE F7 REDIRECT'S TRIGGER FALSIFIED BY CORPUS; COLLINEARITY RULED (2026-08-28)
+
+The lane's third STOP: the ruled trigger (whole-shared-set = two
+edges at a valence-2 vertex) also admits merge_skip's L-shaped
+brick seam — structurally identical to a pole at every level the
+lane probed. Its diagnosis (the difference is semantic) pointed
+at the answer: the difference is GEOMETRIC — a pole-split cap's
+two shared edges are halves of one DIAMETER, collinear on one
+carrier line, so the vertex removal preserves every locus; the
+L-corner's edges meet at an angle. Ruled: collinearity (certified
+line-carrier equality, exact) is the license; the repair is
+honestly GENERAL (remove a redundant subdivision vertex on a
+shared collinear seam), not pole-specific. The lane's own
+method proposal adopted as program rule: candidate predicates run
+against the full corpus BEFORE building (three predicates in one
+family argued from imagined shapes, all falsified by in-repo
+fixtures — the method note ships in the PR verbatim). The 25x
+slowdown measured environmental (a REVERTED tree slower than the
+blamed one) and routed to the #1134 neighborhood.
