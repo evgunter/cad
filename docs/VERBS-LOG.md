@@ -2045,3 +2045,22 @@ fixes text-level; union fix pass out. Tally candidates: none
 (the MAJ is doc-class, excluded 3b regardless). **Pair excluded
 under 3(e)** — R2 was limit-killed mid-run and resumed. Tally
 0/8; clean pairs toward twelve: 1. Reviewer lanes swept.
+
+## PR-2's PREMISE FALSIFIED BY THE LANE; RE-SCOPED TO 2a/2b (2026-08-28)
+
+The lane measured before writing code and my spec's fix was
+wrong: the refusing edge's two faces are OUTSIDE the group
+(shell offsets one chart per call), and granting the re-anchor
+would mint a corner accumulating −t(n₃+n₄+n_cap) — a 30mm wall
+where 20mm was asked, nothing catching it: the exact
+validated-wrong-body class PR-1 closed. ReanchorOffCarrier is
+the gate PREVENTING that body and stays until the real repair —
+SIMULTANEOUS offsets (each corner vertex solved against all
+moved surfaces; each edge the intersection of its two moved
+surfaces). Ruled option (b): PR-2a the all-planar 3×3 corner
+solve (M re-logged; hexagon/bevel/kite/tri-prism flip); PR-2b
+the curved corners via the C5 table (L pre-logged; the teapot's
+belly is a sphere zone and lands THERE — the un-squaring stays
+honestly pending). The STOP fence's second save this program;
+the measurement posted to #1081 in the appended-correction
+pattern.
