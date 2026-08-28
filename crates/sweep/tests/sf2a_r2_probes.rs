@@ -209,7 +209,10 @@ fn r2a_valence4_concurring_corner_builds_in_closed_form() {
     assert_eq!(topo::validate_geometric(&chamfered, tol), Ok(()), "tier 3");
     let props = topo::mass_properties(&chamfered, tol).expect("props");
     let want = chamfered_cube_volume(a - 2.0 * t, d + s * core::f64::consts::SQRT_2 - 2.0 * t);
-    println!("[r2a] concurring valence-4 inset: volume {} want {want}", props.volume);
+    println!(
+        "[r2a] concurring valence-4 inset: volume {} want {want}",
+        props.volume
+    );
     assert!(
         (props.volume - want).abs() <= 1e-12,
         "the inset chamfered cube's closed form is {want}, got {}",
@@ -386,9 +389,7 @@ fn r2a_one_curved_face_among_oblique_planes_refuses_at_the_old_door() {
         .body;
     let curved = body
         .faces()
-        .filter(|(_, f)| {
-            !matches!(body.get_surface(f.surface), Some(Surface::Plane { .. }))
-        })
+        .filter(|(_, f)| !matches!(body.get_surface(f.surface), Some(Surface::Plane { .. })))
         .count();
     assert!(curved > 0, "the bore is a curved chart");
     let e = topo::shell(&body, 0.02, FIT_TOL, band(), tol)
