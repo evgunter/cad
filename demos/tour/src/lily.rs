@@ -1992,17 +1992,31 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    both stored carriers. There is no transverse curve here to
     //    have a closed form for.
     //
-    //    What refuses is the OPERAND GATE, on KINDS: `op: None` is
-    //    `gate_operand_pairs` (boolean/reduce.rs), which asks whether
-    //    a boolean arm exists for the pair and lets boxes decide only
-    //    whether the pair can matter. It reads kinds, never loci — so
-    //    it cannot see the coincidence. This union is UNDECLARED, and
-    //    a DECLARED cone x torus has no admission to reach the gate
-    //    with either. That is the whole of the
-    //    remaining ask, and it is #968's shape rather than an SSI
-    //    one: gate admission for the declared pair, plus a cone/torus
-    //    rung in `carrier_eq` for the descent to consume. #1059 is
-    //    the derivation; VERBS-LILYWELD PR-2 is the unit.
+    //    What refuses FIRST is the OPERAND GATE, on KINDS: `op: None`
+    //    is `gate_operand_pairs` (boolean/reduce.rs), which asks
+    //    whether a boolean arm exists for the pair and lets boxes
+    //    decide only whether the pair can matter. It reads kinds,
+    //    never loci — so it cannot see the coincidence.
+    //
+    //    **What BINDS is one door further down, and it is not this
+    //    pair's business at all.** The whole sequence is measured by
+    //    `review_probes::the_declared_weld_refuses_exactly_as_the_
+    //    undeclared_one_does` and its sibling: widen the gate and the
+    //    next refusal is `NonMaximalFaces` on this very body — the
+    //    lantern's two axis-touching planar caps, the F7 defect, which
+    //    `merge_coplanar_faces` will not repair. No boolean can take
+    //    the lantern as an operand until **#1031** lands, whatever the
+    //    gate learns about cone x torus. After that comes the curved
+    //    PIERCE arm (wall 12's door), and only after that could a
+    //    germ-pair question arise.
+    //
+    //    So wall 2's binding blocker is #1031, not #968's shape. The
+    //    gate-admission reading was this unit's SPEC, and measuring it
+    //    is what refuted it: declaring the weld changes nothing today,
+    //    because the declared contact is the PLANAR pair the throat
+    //    disk and the arch's cap already form, and a cone x torus Rest
+    //    declaration would be Contradicted, correctly. #1059 is the
+    //    derivation; the measurement is VERBS-LILYWELD PR-2's.
     wall(
         2,
         "weld the lantern onto the arch (cone x torus, meeting on one \
@@ -2022,7 +2036,8 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
                 }
             )
         },
-        "join flower to stem — VERBS-LILYWELD PR-2 is what does it",
+        "join flower to stem — #1031 (the F7 caps) is what unblocks it, \
+         measured, not guessed",
     );
 
     // 3. The lily's leaves DO leave their own plane now — each blade
