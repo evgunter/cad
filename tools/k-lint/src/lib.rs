@@ -328,8 +328,8 @@ pub struct Scan {
     pub proximity_capped: Option<(f64, f64)>,
 }
 
-/// The sweep's CSV header: the column order [`FLOAT_COLUMNS`] indexes
-/// against and the only header [`lint_csv`] accepts.
+/// The sweep's CSV header: the column order this file's rules are
+/// stated against, and the only header [`lint_csv`] accepts.
 const EXPECTED_HEADER: &str = "shape,predicate,margin,band_zero,band_escalate,outcome";
 
 /// What a numeric column of the sweep may say.
@@ -357,8 +357,9 @@ enum Admissible {
     /// the outcomes that produce them: `NaN` is the poison
     /// `Decide for f64` reports as `invalid`, and ±∞ is documented
     /// there as maximally definite, so it can only accompany a definite
-    /// outcome. Neither is admitted against an outcome that would score
-    /// the row clean.
+    /// outcome. A pairing the recorder could not have written is drift,
+    /// and the one this rule exists for is `NaN` on an outcome whose
+    /// every comparison it makes false.
     Margin,
     /// A band threshold: finite and strictly positive, which is
     /// `Band::new`'s own contract.
