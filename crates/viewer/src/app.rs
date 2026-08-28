@@ -1461,15 +1461,6 @@ pub fn initial_layout() -> Tree<Pane> {
     Tree::new("viewer_tree", root, tiles)
 }
 
-/// Whether this process runs inside WSL, read off the environment
-/// markers WSL itself sets for every process (`WSL_DISTRO_NAME`,
-/// `WSL_INTEROP`). Either suffices; both are checked because WSL1
-/// and WSL2 differ in which they guarantee.
-#[cfg(target_os = "linux")]
-fn running_under_wsl() -> bool {
-    std::env::var_os("WSL_DISTRO_NAME").is_some() || std::env::var_os("WSL_INTEROP").is_some()
-}
-
 /// Column-major `f64` matrix to the `f32` the GPU consumes.
 ///
 /// Written as a `map` rather than an indexed loop on purpose: the
@@ -1522,7 +1513,7 @@ pub fn run(tol: Tol, open: Option<std::path::PathBuf>) -> eframe::Result<()> {
     // itself sets), so every other environment keeps winit's own
     // backend choice and needs nothing unset.
     #[cfg(target_os = "linux")]
-    if running_under_wsl() {
+    if frame::running_under_wsl() {
         options.event_loop_builder = Some(Box::new(|builder| {
             use winit::platform::x11::EventLoopBuilderExtX11 as _;
             builder.with_x11();

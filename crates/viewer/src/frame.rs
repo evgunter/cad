@@ -133,6 +133,22 @@ fn session_bus_hinted() -> bool {
     std::env::var_os("DBUS_SESSION_BUS_ADDRESS").is_some_and(|address| !address.is_empty())
 }
 
+/// Whether this process runs inside WSL, read off the environment
+/// markers WSL itself sets for every process (`WSL_DISTRO_NAME`,
+/// `WSL_INTEROP`). Either suffices; both are checked because WSL1
+/// and WSL2 differ in which they guarantee. Consumed by `app::run`,
+/// which prefers the X11 backend under WSL (WSLg's Wayland RAIL shell
+/// breaks horizontal resizing — #1097, confirmed).
+///
+/// Here rather than in `app` so the viewer's ambient-environment
+/// reads have ONE home, which is what the `no-ambient-env` gate's
+/// allowlist entry for this file ratifies — see the argument in
+/// `scripts/gates/no-ambient-env.sh`.
+#[cfg(target_os = "linux")]
+pub fn running_under_wsl() -> bool {
+    std::env::var_os("WSL_DISTRO_NAME").is_some() || std::env::var_os("WSL_INTEROP").is_some()
+}
+
 /// What the disabled dialog controls say, and what the status line
 /// says should a dialog somehow be attempted anyway: the confident
 /// half of the #1097 finding, with the dialog-free workaround.
