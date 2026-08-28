@@ -48,6 +48,8 @@ mod inst_review_probes;
 mod nurbs_import;
 #[path = "parser.rs"]
 mod parser;
+#[path = "p1b_r1_import_scan.rs"]
+mod p1b_r1_import_scan;
 #[path = "probe_dup.rs"]
 mod probe_dup;
 #[path = "probe_eps.rs"]
