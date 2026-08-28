@@ -2096,3 +2096,18 @@ declared a posture. It re-mints now, for the same reason
 replace_faces_offset does — every edge of the body is
 re-described, so every stored row is stale.
 
+
+**PR-2a fix pass (R1 NMAI 3/8/6; R2 A-W-F 0/3/5).** The corner solve
+itself held against both arms, including R2's concurring valence-4
+build at 1 ulp and the door's first interval instantiation. ONE code
+defect, bilateral: the conditioning meter levered `|det|` by the
+REQUEST (`Σ|dᵢ|` over the call), so the verdict moved with how far the
+body was asked to move — a cube read "singular" at a small enough
+thickness, a 4e-4-rad prism built at a large enough one, and a
+zero-offset box refused as "singular" about geometry that is nothing of
+the kind. The arm is now the corner's OWN incident edge lengths
+(`Margin::levered`'s documented dimensionless-times-length shape) and a
+corner asked to move nothing short-circuits as no-move before any meter
+runs. BANKED: when a dimensionless quantity needs a lever, the lever
+must come from the geometry being judged, never from the request — or
+the refusal's own words stop being true.
