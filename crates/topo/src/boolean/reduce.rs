@@ -514,11 +514,35 @@ pub(super) fn face_plane_source<T: Decide>(
 ///
 /// The test is STRUCTURAL and reads no geometry: an endpoint of the
 /// edge is a valence-2 vertex both of whose edges separate the same
-/// face pair. That is a two-band revolve's pole and nothing else. The
-/// case F7 exists for — two genuinely coplanar faces that the
-/// producing op should have merged — meets at edges whose endpoints
-/// carry other faces: the teapot cup's pair, the measured instance,
-/// has valence-4 endpoints on a meridian plane.
+/// face pair.
+///
+/// **Why that cannot let a genuine defect through, argued rather than
+/// asserted.** The exemption is PER EDGE, and [`gate_maximal_faces`]
+/// walks every edge of the body — so a coplanar pair is admitted only
+/// if EVERY edge it shares is exempt. A pair that should have been
+/// merged shares a boundary somewhere away from any pole, and that
+/// edge's endpoints carry the pair's other neighbours, so it has no
+/// valence-2 same-pair endpoint and refuses on its own account. The
+/// measured instance is the teapot cup's meridian-plane pair, whose
+/// shared edge has valence-4 endpoints; it still refuses, with this
+/// exemption in force. The pole-split cap is the configuration where
+/// EVERY shared edge runs to the pole, which is what makes it the one
+/// shape that passes.
+///
+/// **The honest residue.** This is a claim about structure, not about
+/// provenance: nothing here checks that the body came from `revolve`
+/// or that the vertex sits on an axis. That is deliberate, because
+/// the REASON is provenance-blind — at a valence-2 vertex whose two
+/// edges both separate the same pair there is no one-face form to
+/// demand, whatever built it, so refusing the body demands a shape
+/// nothing can express. What the predicate certifies is exactly that
+/// absence, and any construction reaching the same local structure
+/// earns the same exemption for the same reason. What it does NOT
+/// certify is that some future producer could not reach this shape
+/// where a different repair (merging two artificially split EDGES
+/// rather than the faces) would be the right one; that body would
+/// still refuse here if the pair meets anywhere else, and would slip
+/// through if it does not.
 fn pole_split_cap<T: Decide>(
     body: &Body<T>,
     edge_key: EdgeKey,
