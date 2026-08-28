@@ -152,6 +152,16 @@ pub use editor_core::{
     relative_freedom_components, solve_document,
 };
 
+// The class-admission table (`ClassAdmission`, read through
+// `class_admission`, with `CLASS_DEFERRAL` as the deferral sentence its
+// refusals cite): HOW FAR each contact class gets in v1, as one value
+// both enforcement doors read. A mate-authoring consumer needs it
+// BEFORE committing — the table is what says a class will refuse at
+// the solve or mint door, so exposing it here is what lets a tool
+// offer only what the vocabulary can execute instead of discovering
+// the refusal after the edit lands.
+pub use editor_core::{CLASS_DEFERRAL, ClassAdmission, class_admission};
+
 // **The assembly at-rest gate** (A5): `assemble` gathers a document's
 // product, mints every solved mate's declaration into its contact
 // record set, and runs the kernel's own tier-3′ door over the two

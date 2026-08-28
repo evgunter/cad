@@ -255,3 +255,23 @@ it at dispatch per the VERBS-4 remedy) and the block record merges
 to main only once the block's last reviews conclude. Already-
 exposed blocks (GUI-B2's remaining slots included) carry
 contamination flags on their remaining duals' rows.
+## GUI-4 merged (2026-08-28, PR #1113, sample #33 / ordinal 404) — THE REQUIRED v1 PATH IS COMPLETE
+
+Assembly interaction and the mate tool exist, and the plan's
+acceptance is EVIDENCED ON THE REAL GALLERY: the render lane runs
+the tour's gallery exporter and an exit-nonzero probe on every
+real document (10/10 open and resolve; the flat-pack's patterned
+posts hide and probe through consuming-edge ancestry; constrained
+instances refuse typed; no accepted-but-inert operation anywhere),
+alongside the ten-stage fixture walk whose in-file argument states
+why no single real document can carry the whole sequence. The
+admission verdict outlives commit (tree note + the once-per-landing
+A5 at-rest badge). Residue banked: #1117 (save-a-copy identity),
+the `SetPlacement` vocabulary gap (R1 n8 — issue at close), GUI-5
+(optional, Evan's call), GUI-6 (banked post-v1), #1097's hardware
+first light. The unit's dual carried three disclosed blinding
+contamination sources (row has the accounting; the block-draw
+format ruling landed mid-review). v1 status: **GUI-0…GUI-4 all
+merged, samples #29–#33, ordinals 400–404; v6 tally 0 confirmed +
+1 candidate pending blinded coding.** Next: the exit walk with
+Evan.

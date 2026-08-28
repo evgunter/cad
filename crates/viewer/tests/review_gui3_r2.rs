@@ -857,11 +857,13 @@ fn both_seam_implementations_coalesce_two_submits_into_one_result() {
             generation: Generation::FIRST,
             doc: doc.clone(),
             tol,
+            resolver: None,
         });
         seam.submit(EvalRequest {
             generation: Generation::FIRST.next(),
             doc: doc.clone(),
             tol,
+            resolver: None,
         });
         let mut results = Vec::new();
         for _ in 0..10_000 {
