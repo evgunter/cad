@@ -133,6 +133,16 @@ self-acquire; wrap raw `cargo` invocations yourself.
   fix by killing the inheriting process. Slot-wrapped commands should
   not spawn daemons; if a cache/watcher daemon ever enters the build
   path, pre-start it before with-build-slot.sh opens its fds.
+- **An `-x` waiter is STARVED by single-slot arrivals, so a one-lane
+  yield does not clear a path for it.** Exclusive mode needs ALL slots,
+  and grabbers that arrive AFTER the waiter is armed still win, because
+  flock has no queue and no priority. The census eps-fix (#1108) queued
+  ~50 minutes with a courtesy window arranged and one waiter armed the
+  whole time: two unrelated single-slot jobs took slot-1 after the
+  waiter existed. Arranging a window for an `-x` job means a
+  MACHINE-WIDE quiet period, not pausing the one lane you happened to
+  ask. Waiting harder never wins. Meanwhile the blocked lane can still
+  push and open its PR — hosted CI needs no local slot.
 - An OOM-killed test shows as a bare "Terminated" single-row FAIL —
   check what else was running and rerun quiet before diagnosing a code
   bug.

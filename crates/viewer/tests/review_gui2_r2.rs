@@ -1004,6 +1004,7 @@ fn the_two_mappings_partition_the_event_stream() {
         ViewportEvent::Drag {
             button: PointerButton::Middle,
             shift: false,
+            alt: false,
             delta_px: [4.0, 4.0],
         },
         ViewportEvent::Scroll { units: 1.0 },
@@ -1619,6 +1620,7 @@ fn a_part_whose_ids_do_not_pair_with_its_patches_is_refused() {
             &[viewer::scene::ScenePart {
                 mesh: part.mesh(),
                 ids,
+                probe: None,
             }],
             delta(),
         );
@@ -1638,7 +1640,8 @@ fn a_part_whose_ids_do_not_pair_with_its_patches_is_refused() {
         viewer::scene::SceneMesh::build_parts(
             &[viewer::scene::ScenePart {
                 mesh: part.mesh(),
-                ids: &[]
+                ids: &[],
+                probe: None
             }],
             delta()
         )

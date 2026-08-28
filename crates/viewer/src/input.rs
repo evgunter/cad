@@ -30,12 +30,18 @@
 //! - **Zoom**: a scroll notch is a fixed multiplicative step, so
 //!   zooming is scale-invariant and reversible.
 //!
-//! **The primary (left) button selects, and moves no camera.** It is
-//! the button click-to-select takes — the first of
+//! **The primary (left) button selects, and a plain drag of it moves
+//! no camera.** It is the button click-to-select takes — the first of
 //! `docs/GUI-DESIGN.md` G3's four items — so it is bound to
-//! [`PickAction::Select`] and to nothing in the navigation vocabulary.
-//! Navigation lives on middle and secondary, which is mainstream CAD
-//! convention independently of that.
+//! [`PickAction::Select`] and, unmodified, to nothing in the
+//! navigation vocabulary. Navigation lives on middle and secondary,
+//! which is mainstream CAD convention independently of that.
+//!
+//! The one modifier exception: **alt + primary drag orbits** (the
+//! [`InputMap::alt_orbit_button`] binding). First light (#1097) was a
+//! laptop trackpad, where a middle-button drag is impractical; a
+//! modifier-gated second orbit binding keeps plain primary purely
+//! selection while making orbit reachable with one hand on a trackpad.
 //!
 //! # Two mappings over one event stream
 //!
@@ -73,6 +79,10 @@ pub enum ViewportEvent {
         /// Whether a shift-style modifier is held — the modifier that
         /// turns the orbit binding into a pan binding.
         shift: bool,
+        /// Whether an alt-style modifier is held — the modifier that
+        /// binds [`InputMap::alt_orbit_button`]'s drag to orbit (the
+        /// trackpad binding; see the module docs).
+        alt: bool,
         /// The motion since the previous event.
         delta_px: [f64; 2],
     },
@@ -197,6 +207,11 @@ pub struct InputMap {
     pub zoom_rate_per_notch: f64,
     /// The button that orbits.
     pub orbit_button: PointerButton,
+    /// The button whose drag orbits with the ALT-style modifier held —
+    /// the trackpad binding (module docs). A plain drag of this button
+    /// stays exactly as bound elsewhere; with the default bindings that
+    /// is the select button, whose plain drag navigates nothing.
+    pub alt_orbit_button: PointerButton,
     /// The button that pans without a modifier.
     pub pan_button: PointerButton,
     /// The button that selects.
@@ -210,6 +225,7 @@ impl Default for InputMap {
             orbit_radians_per_px: 0.008,
             zoom_rate_per_notch: 0.1,
             orbit_button: PointerButton::Middle,
+            alt_orbit_button: PointerButton::Primary,
             pan_button: PointerButton::Secondary,
             select_button: PointerButton::Primary,
         }
@@ -234,12 +250,18 @@ impl InputMap {
             ViewportEvent::Drag {
                 button,
                 shift,
+                alt,
                 delta_px: [dx, dy],
             } => {
                 if dx == 0.0 && dy == 0.0 {
                     return None;
                 }
                 let pans = button == self.pan_button || (button == self.orbit_button && shift);
+                // The alt-gated second orbit binding (module docs):
+                // checked alongside the plain one, after `pans` so a
+                // pan-bound button never orbits by accident.
+                let orbits =
+                    button == self.orbit_button || (button == self.alt_orbit_button && alt);
                 if pans {
                     let world_per_px = self.world_per_px(viewport, camera)?;
                     // The model follows the cursor, so the target
@@ -249,7 +271,7 @@ impl InputMap {
                         right: -dx * world_per_px,
                         up: dy * world_per_px,
                     })
-                } else if button == self.orbit_button {
+                } else if orbits {
                     Some(CameraOp::Orbit {
                         yaw: -dx * self.orbit_radians_per_px,
                         pitch: dy * self.orbit_radians_per_px,

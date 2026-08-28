@@ -231,5 +231,96 @@ Three program-level outcomes recorded:
 - #1102's main-red resolved independently (#1108, the census
   owner's ε-fix) — the GUI program's citations of it are closed.
 
-Program consequence: **GUI-4 dispatches now** (fable, block
+Program consequence: **GUI-4 dispatches now** (block
 GUI-B2 slot 1) — the last required v1 unit.
+
+**The blinding-leak rule fired a SECOND time (2026-08-28, disclosed
+by GUI-4's R2): the GUI-2 unit entry above named GUI-4's arm — 
+written by this orchestrator AFTER recording the rule.** The arm is
+now redacted from that entry (docs state the present; the leak
+itself is history both reviewers' briefs required disclosing —
+R2 disclosed, R1's exposure is presumed identical). The GUI-4 pair
+is flagged on its row like GUI-2's. Compliance correction adopted:
+the at-merge unit-entry TEMPLATE now ends "(block <id> slot <n>)"
+with no arm token, and the pre-push self-check for orchestrator
+log commits is `grep -i 'fable\|opus' docs/GUI-LOG.md` scoped to
+entries about units with unconcluded reviews.
+
+**Ruling — block-draw disclosure (Evan, 2026-08-28,
+in-conversation, closing the #1112 thread):** verifiable
+precommitment of block draws is NOT required; hashes are permitted
+but optional. GUI adoption: block draws are recorded at draw time
+on the orchestrator branch (pushed = durable; arms read back from
+it at dispatch per the VERBS-4 remedy) and the block record merges
+to main only once the block's last reviews conclude. Already-
+exposed blocks (GUI-B2's remaining slots included) carry
+contamination flags on their remaining duals' rows.
+## GUI-4 merged (2026-08-28, PR #1113, sample #33 / ordinal 404) — THE REQUIRED v1 PATH IS COMPLETE
+
+Assembly interaction and the mate tool exist, and the plan's
+acceptance is EVIDENCED ON THE REAL GALLERY: the render lane runs
+the tour's gallery exporter and an exit-nonzero probe on every
+real document (10/10 open and resolve; the flat-pack's patterned
+posts hide and probe through consuming-edge ancestry; constrained
+instances refuse typed; no accepted-but-inert operation anywhere),
+alongside the ten-stage fixture walk whose in-file argument states
+why no single real document can carry the whole sequence. The
+admission verdict outlives commit (tree note + the once-per-landing
+A5 at-rest badge). Residue banked: #1117 (save-a-copy identity),
+the `SetPlacement` vocabulary gap (R1 n8 — issue at close), GUI-5
+(optional, Evan's call), GUI-6 (banked post-v1), #1097's hardware
+first light. The unit's dual carried three disclosed blinding
+contamination sources (row has the accounting; the block-draw
+format ruling landed mid-review). v1 status: **GUI-0…GUI-4 all
+merged, samples #29–#33, ordinals 400–404; v6 tally 0 confirmed +
+1 candidate pending blinded coding.** Next: the exit walk with
+Evan.
+
+## Exit walk RATIFIED (2026-08-28 05:13Z — Evan merged #1121)
+
+The v1 GUI's required path is complete and signed off:
+GUI-0…GUI-4 merged (samples #29–#33, ordinals 400–404), acceptance
+evidenced on the real gallery hosted, the egui GO authoritative,
+residue banked (#1097, #1111, #1117, #1120, GUI-6). The walk's
+second question — **GUI-5 (the threaded web lane): dispatch,
+defer, or drop** — received no answer with the merge and stays
+OPEN as Evan's call; block GUI-B2 slot 2 stands ready, and the
+block record's remaining-slot handling follows the branch-side
+ruling either way. Program state: idle on that one decision; no
+lanes running; the PR subscription and fallback watches are
+retired.
+
+## Program close (2026-08-28, Evan's GUI-5 ruling: DEFER)
+
+GUI-5 (the threaded web lane) is DEFERRED post-v1, banked beside
+GUI-6 — the plan's posture ("skipping it costs v1 nothing")
+carries it; the wasm guard keeps the compile-level option green in
+CI. Block GUI-B2: slot 1 consumed (GUI-4); slots 2–4 banked with
+the block's branch-side draw record — a future dispatch of GUI-5
+or GUI-6 takes the next slot with its arm read back from that
+record. **The v1 GUI program is CLOSED**: plan delivered and
+ratified (#1121), five units merged (samples #29–#33, ordinals
+400–404), residue owned (#1097 hardware first light, #1111,
+#1117, #1120, GUI-5 + GUI-6 banked). The tail of this log is the
+program's final state; future GUI work opens its own log or
+reopens this one at a new seam.
+
+**Post-close maintenance (2026-08-28, PR #1125 — the first-light
+hardening bundle):** Evan's real-hardware run (WSLg) produced six
+findings in one evening, all fixed here: explicit window sizing +
+WSL-detected X11 backend preference (WSLg's Wayland RAIL resize
+confirmed broken, X11 confirmed working); chrome panes scrollable
+(overflow was unreachable); a chooser-backend probe failing LOUD
+at first sight when no zenity/portal exists (rfd's silent-None
+lane closed as far as it can be); Alt+primary orbit for trackpads;
+delete buttons naming the feature they delete; a viewer README
+with the bindings and the CONFIRMED WSL troubleshooting chains
+(including the memorable one: dpkg claiming fonts-dejavu-core
+installed while the files were gone from disk — hex-box tofu via
+a Type 1 fallback Pango cannot shape). One gate-policy edit rides
+along, flagged for Evan's retroactive glance: `no-ambient-env.sh`
+allowlists viewer frame.rs as the single door for the GUI shell's
+platform probes (environment-as-subject, argued in the gate
+header). No A/B ceremony per the post-close maintenance precedent
+(#1108); orchestrator-reviewed. Next: the add-parameter affordance
+PR (queued behind this merge).

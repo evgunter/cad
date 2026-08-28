@@ -66,9 +66,10 @@ pub use expr::{
 };
 pub use ident::{ContentPin, DocRef, DocumentId};
 pub use mate::{
-    Alignment, AxisSense, ClassAdmission, ClusterMaintenance, Coset, MateFault, MateFrame,
-    MatePrimitive, MateRole, MateSide, SolvedPoses, Subgroup, UNDER_RECOURSE, class_admission,
-    clusters, gauge_of, reading_edges, relative_freedom_components, solve_document,
+    Alignment, AxisSense, CLASS_DEFERRAL, ClassAdmission, ClusterMaintenance, Coset, MateFault,
+    MateFrame, MatePrimitive, MateRole, MateSide, SolvedPoses, Subgroup, UNDER_RECOURSE,
+    class_admission, clusters, gauge_of, reading_edges, relative_freedom_components,
+    solve_document,
 };
 pub use meta::{MetaError, MetaValue, MetaVersionError, from_value, to_value};
 pub use names::{

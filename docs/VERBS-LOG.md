@@ -1989,6 +1989,7 @@ the scene authors 70° on its own merits. One clippy red fixed by
 the #971 alias precedent, not allowed. v6 dual, frozen head
 a1aa5289; slot draw lane-private; claim to main at dispatch.
 
+<<<<<<< HEAD
 ## LILYWELD R1 ARM IN; A SCRATCHPAD-SHARING LESSON (2026-08-28)
 
 R1 (opus): A-W-F 1/6/5 — the coincidence re-derived bit-exact
@@ -2112,3 +2113,85 @@ invocation and lift, so every pair in the ledger remains a full
 dual and the alternation never actually started. Full duals
 resume from the next review dispatch (#1126's, when its lane
 reports). The wind-down plan is void; normal cadence resumes.
+=======
+## ORDINAL 101 FIX PASS — SHELLFIX PR-1 union (2026-08-28)
+
+Dual adjudicated A-W-F 0/4/6 and 0/4/6: the central inversion
+HELD under every attack from both arms (wedge, counterbore,
+bottom-opened and Line-carrier shapes all correct-or-typed; the
+byte-diff clean; no validated wrong body found anywhere). Four
+union items, all landed. The HEADLINE was bilateral and was a
+real defect: check 9 matched only `Ok(Sign::Zero)` at all three
+decides, so an `Err(Indeterminate)` read as NO CONTACT — and the
+same drop was a precondition of the GLUE, which proceeded to
+build on an uncertifiable gap. Three-valued verdict now;
+`RingContactEscalated` at rest, `ShellError::Escalated` at the
+door, neither reachable through this verb (the thickness gate
+shields the band) and both there for other producers' bodies.
+Second: a third contact arm (a ring vertex on an outer edge's
+INTERIOR), the collinear arm accepting ANY sample inside the
+trim, and the residue list rewritten from "Ellipse/NURBS" — false
+by omission — to the enumerated set (non-vertex tangency,
+transversal crossings, Ellipse/NURBS). Third: the key-shared
+exemption cited tier 1 on a FALSE premise (R1 read passes 1-13;
+an umbrella pinch passes) and is removed, with its own planted
+red. Fourth: C7's compile-mode sentence was overstated and is
+withdrawn.
+
+Two BANKED lessons, both from the hosted gate rather than from
+reading: metering a coincidence test against eps lands a
+coincident pair's margin ON the band's threshold, where it
+escalates instead of deciding — meter the separation against
+ZERO; and `revolve`'s axis-contact classification is
+epsilon-sensitive, so an axis-touching fixture that builds at the
+default band refuses `NonManifoldAxisContact` at 1e-12. The
+adopted probe rows record that door fact instead of expecting
+past it. Both probe branches adopted authorship-preserving,
+byte-dump harness included. Helper duplication filed as #1123.
+
+**Fix-pass gate coverage (PR #1099).** The sampled matrix earned its
+keep here: five separate defects surfaced one per drawn point, none of
+them reachable from the point before it — the planted red's arm-order
+assumption (interval, default), `revolve`'s epsilon-sensitive axis
+contact (interval, 1e-12), #1081's epsilon-shielded re-anchor door on
+an oblique probe meridian (default, 1e-12), the offset door's
+mapped-description lane on the two-holed row (interval, 1e-12), and a
+borrow the default lane never compiled (interval, 1e-6). A single-point
+gate would have shipped four of them. First fully green fix-pass head:
+74a054e6 at LANE=interval, EPS=default, KLINT_ROW=dev-budget; the
+DEFAULT-lane confirmation C7 owes is drawn separately and named in the
+PR.
+
+## SHELLFIX PR-1 MERGED (#1099) — ordinal-101 row (sample #34); #1082 CLOSED (2026-08-28)
+
+The validated-wrong-body class is dead three ways: the operand
+fixed (canonicalize_chart), the net armed (check 9, now
+escalation-honest at all four sites with the key-shared exemption
+removed under R1's measured tier-1 reading), and the probe that
+let it ship extended. The teapot ships opened; #1082 closes at
+this merge; #1081 is PR-2's, dispatching now. The ε-sampling
+finding (five defects, one per drawn point) is the strongest
+argument yet for #1051's requestable runs — cited there.
+
+## LILYWELD PR-1 MERGED (#1109) — ordinal-102 row (sample #35) (2026-08-28)
+
+The lily's flower and arch now share one exact circle, pinned
+from both carriers; wall 2 waits on PR-2's gate admission +
+carrier_eq rung with its retire note pointing there. The
+wall-text error class scored its fourth instance — caught
+pre-merge for the first time, by the dual. PR-2 dispatches to
+this lane next.
+>>>>>>> origin/main
+
+## ORDINAL 103 CLAIMED — SHELLFIX PR-2a dual (2026-08-28)
+
+PR-2a (#1126) green: offset_planes_together — Cramer on the
+first well-conditioned triple with every FURTHER plane VERIFIED
+against the solution (a valence-past-3 corner whose planes don't
+concur refuses TogetherCorner typed); edges keep their old
+carriers translated (conventional data is data — the first cut
+churned 20 lines of anchors without moving a locus, and PR-1's
+adopted byte-dump harness caught it); the hexagon carries the
+closed form because a wrong corner BUILDS. The planar fixtures
+flip; every curved row and the teapot honestly unchanged
+(2b's). Full dual (valve lifted), frozen head 0954c4e4.

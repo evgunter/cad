@@ -31,6 +31,7 @@ fn round_map() -> InputMap {
         orbit_radians_per_px: 0.01,
         zoom_rate_per_notch: 0.1,
         orbit_button: PointerButton::Middle,
+        alt_orbit_button: PointerButton::Primary,
         pan_button: PointerButton::Secondary,
         select_button: PointerButton::Primary,
     }
@@ -40,6 +41,16 @@ fn drag(button: PointerButton, shift: bool, dx: f64, dy: f64) -> ViewportEvent {
     ViewportEvent::Drag {
         button,
         shift,
+        alt: false,
+        delta_px: [dx, dy],
+    }
+}
+
+fn alt_drag(button: PointerButton, dx: f64, dy: f64) -> ViewportEvent {
+    ViewportEvent::Drag {
+        button,
+        shift: false,
+        alt: true,
         delta_px: [dx, dy],
     }
 }
@@ -112,6 +123,62 @@ fn shift_turns_the_orbit_binding_into_a_pan() {
         )
         .expect("the pan button is bound");
     assert_eq!(secondary, shifted);
+}
+
+/// The trackpad binding (#1097 first light: a laptop trackpad, where
+/// a middle-button drag is impractical): ALT + primary drag orbits,
+/// while a plain primary drag stays bound to nothing and a primary
+/// click stays selection — the modifier is the whole difference.
+#[test]
+fn alt_and_primary_drag_orbits_and_plain_primary_still_selects() {
+    let map = round_map();
+    let camera = framed();
+    // The stream folds to exactly the orbits the alt-drags denote:
+    // the interleaved plain primary drag binds to nothing.
+    let events = [
+        alt_drag(PointerButton::Primary, 10.0, 0.0),
+        drag(PointerButton::Primary, false, 20.0, 20.0),
+        alt_drag(PointerButton::Primary, 0.0, -5.0),
+    ];
+    let (_, ops) = input::map_stream(&map, &camera, viewport(), &events).expect("finite events");
+    assert_eq!(
+        ops,
+        vec![
+            CameraOp::Orbit {
+                yaw: -0.1,
+                pitch: 0.0
+            },
+            CameraOp::Orbit {
+                yaw: 0.0,
+                pitch: -0.05
+            },
+        ],
+        "alt gates primary's drag into the orbit binding; plain \
+         primary is still bound to no camera operation"
+    );
+    // And the alt-orbit matches the middle-button orbit exactly: one
+    // binding's operation, reachable two ways.
+    assert_eq!(
+        map.map(
+            &alt_drag(PointerButton::Primary, 10.0, 0.0),
+            viewport(),
+            &camera
+        ),
+        map.map(
+            &drag(PointerButton::Middle, false, 10.0, 0.0),
+            viewport(),
+            &camera
+        ),
+    );
+    // The selection half is untouched: a primary click still picks.
+    let click = ViewportEvent::Click {
+        button: PointerButton::Primary,
+        pos_px: [5.0, 6.0],
+    };
+    assert_eq!(
+        map.pick(&click),
+        Some(input::PickAction::Select([5.0, 6.0]))
+    );
 }
 
 /// The pan rate is defined by a property, not by a constant: a drag

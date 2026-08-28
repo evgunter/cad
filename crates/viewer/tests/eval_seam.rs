@@ -137,6 +137,7 @@ fn cancel_reaches_the_shipped_token_and_the_prefix_is_typed_canceled() {
         generation: Generation::FIRST,
         doc: doc.clone(),
         tol,
+        resolver: None,
     });
     assert!(seam.busy());
     seam.cancel();
@@ -158,6 +159,7 @@ fn cancel_reaches_the_shipped_token_and_the_prefix_is_typed_canceled() {
         generation: Generation::FIRST.next(),
         doc,
         tol,
+        resolver: None,
     });
     let done = seam.poll().expect("the next run answers");
     assert!(done.completed());
@@ -172,12 +174,14 @@ fn an_edit_during_an_evaluation_cancels_and_restarts_rather_than_queueing() {
         generation: Generation::FIRST,
         doc: doc.clone(),
         tol,
+        resolver: None,
     });
     let second = Generation::FIRST.next();
     seam.submit(EvalRequest {
         generation: second,
         doc,
         tol,
+        resolver: None,
     });
     let done = seam.poll().expect("a result");
     assert_eq!(
@@ -199,6 +203,7 @@ fn the_memo_makes_an_edited_documents_re_evaluation_incremental() {
         generation: Generation::FIRST,
         doc: doc.clone(),
         tol,
+        resolver: None,
     });
     let first = seam.poll().expect("a result");
     assert!(first.completed());
@@ -221,6 +226,7 @@ fn the_memo_makes_an_edited_documents_re_evaluation_incremental() {
         generation: Generation::FIRST.next(),
         doc: edited,
         tol,
+        resolver: None,
     });
     let second = seam.poll().expect("a result");
     assert!(second.completed());
@@ -246,6 +252,7 @@ fn the_seams_result_agrees_with_a_direct_evaluation() {
         generation: Generation::FIRST,
         doc: doc.clone(),
         tol,
+        resolver: None,
     });
     let through_seam = seam.poll().expect("a result");
     let direct = evaluate::<f64>(
@@ -277,6 +284,7 @@ fn the_threaded_seam_answers_the_same_generations() {
         generation: Generation::FIRST,
         doc,
         tol,
+        resolver: None,
     });
     let mut done: Option<EvalDone> = None;
     for _ in 0..10_000 {
@@ -312,12 +320,14 @@ fn the_threaded_seam_coalesces_two_submits_into_one_result() {
         generation: Generation::FIRST,
         doc: doc.clone(),
         tol,
+        resolver: None,
     });
     let second = Generation::FIRST.next();
     seam.submit(EvalRequest {
         generation: second,
         doc,
         tol,
+        resolver: None,
     });
 
     let mut results = Vec::new();
@@ -357,12 +367,14 @@ fn a_cancel_reaches_a_threaded_seams_waiting_job() {
         generation: Generation::FIRST,
         doc: doc.clone(),
         tol,
+        resolver: None,
     });
     let second = Generation::FIRST.next();
     seam.submit(EvalRequest {
         generation: second,
         doc,
         tol,
+        resolver: None,
     });
     // The second job is waiting behind the first; cancel names it.
     seam.cancel();

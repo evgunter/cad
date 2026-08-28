@@ -50,6 +50,16 @@ eframe = { version = "0.36.1", default-features = false, features = [
 # major version into the graph; going through this re-export makes the
 # toolkit's pin structurally ours.
 egui-wgpu = { version = "0.36.1", optional = true }
+# A DIRECT edge to the winit eframe already pins (0.30.13 in the
+# lockfile — no new crate, no new version, so the dependency-age rule
+# is untouched), because eframe does not re-export the crate and the
+# WSLg fix needs one trait from it: `EventLoopBuilderExtX11`, to
+# PREFER the X11 backend when WSL is detected (see `app::run` — WSLg's
+# Wayland RAIL shell breaks horizontal resize; X11 verified working,
+# issue #1097). Default features off: the x11/wayland backends are
+# already chosen by the eframe stanza above, and this edge must never
+# be the one that widens them.
+winit = { version = "0.30.13", default-features = false, optional = true }
 # OQ-b, decided here: egui_tiles over egui_dock. Licensing is the first
 # reason — MIT OR Apache-2.0 keeps both branches of this project's dual
 # license alive, where egui_dock is MIT-only. The second is shape: the
@@ -118,6 +128,7 @@ app = [
     "dep:egui-wgpu",
     "dep:egui_tiles",
     "dep:rfd",
+    "dep:winit",
 ]
 
 [[bin]]

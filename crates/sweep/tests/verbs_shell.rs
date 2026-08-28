@@ -17,7 +17,7 @@ use geom_core::k_stats::{start_verdict_log, take_verdict_log};
 use geom_core::{Band, Point2, Tol, Vec2};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
-use topo::{Body, FaceKey, ShellError, ShellRole};
+use topo::{Body, FaceKey, LoopBoundary, ShellError, ShellRole};
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -646,4 +646,264 @@ fn the_klein_wall_pair_waits_on_a_plane_torus_route() {
     let sealed = topo::shell(&solid, KLEIN_WALL, FIT_TOL, band(), Tol::witness())
         .expect_err("the sealed arm meets the same pair");
     assert!(matches!(sealed, ShellError::Face { .. }), "got {sealed}");
+}
+
+// ---------------------------------------------------------------------
+// The rim on a solid of revolution (#1082)
+// ---------------------------------------------------------------------
+
+/// Every planar face whose plane sits at station `y` — the CHART, which
+/// on a full revolve is what a cap is worn by.
+fn plane_chart_at_y(body: &Body<f64>, y: f64) -> Vec<FaceKey> {
+    body.faces()
+        .filter(|(_, f)| {
+            matches!(body.get_surface(f.surface),
+                Some(geom::Surface::Plane { origin, .. }) if (origin.y - y).abs() < 1e-12)
+        })
+        .map(|(k, _)| k)
+        .collect()
+}
+
+/// **One of NINE copies of this helper across five crates (#1123).**
+/// `demos/tour` is a separate workspace and an integration test cannot
+/// import a binary's module, so no existing home covers them all; the
+/// issue carries the list and the shared-test-support fix.
+fn rings_of(body: &Body<f64>) -> usize {
+    body.faces().map(|(_, f)| f.rings.len()).sum()
+}
+
+/// The Euler–Poincaré genus, parity-checked before halving.
+fn genus_of(body: &Body<f64>) -> i64 {
+    let (v, e, f) = (
+        body.vertices().count() as i64,
+        body.edges().count() as i64,
+        body.faces().count() as i64,
+    );
+    let chi = v - e + f - rings_of(body) as i64;
+    assert!(chi % 2 == 0, "v - e + f - r = {chi} is ODD");
+    body.shells().count() as i64 - chi / 2
+}
+
+/// **The AXIS-TOUCHING cap: one rim annulus, and it meshes.**
+///
+/// A full revolve of an axis-touching meridian wears its cap on two
+/// half-disc faces that meet at the axis apex, and the cavity
+/// counterpart's boundary is the same shape one wall in. Gluing that
+/// counterpart on as a ring would put it ON the designated boundary —
+/// the #1082 class. The rim is instead built on the chart as ONE
+/// region, so the mouth comes back as a single annulus carrying a
+/// single ring, the cup is genus 0 exactly as `topo::shell`'s docs say,
+/// and the CDT accepts it.
+#[test]
+fn a_revolved_cap_opens_to_one_annular_rim() {
+    let tol = Tol::witness();
+    let (r, h, t) = (0.5, 0.4, 0.05);
+    let body = vessel(r, h);
+    let chart = plane_chart_at_y(&body, h);
+    assert_eq!(chart.len(), 2, "a full revolve's cap is two half-discs");
+    let cup = topo::shell_open(&body, t, &chart, FIT_TOL, band(), tol).expect("the drum opens");
+
+    assert_eq!(topo::validate_geometric(&cup, tol), Ok(()), "tier 3");
+    assert_eq!(cup.shells().count(), 1, "the rim fuses the cavity in");
+    assert_eq!(
+        (rings_of(&cup), genus_of(&cup)),
+        (1, 0),
+        "one rim annulus with one ring, and a cup is genus 0"
+    );
+    let mouth: Vec<FaceKey> = plane_chart_at_y(&cup, h);
+    assert_eq!(mouth.len(), 1, "the two half-discs became ONE rim face");
+
+    for delta in [1e-2, 1e-3, 2e-4] {
+        mesh::tessellate(&cup, delta, tol)
+            .unwrap_or_else(|e| panic!("the rim must triangulate at delta = {delta}, got {e:?}"));
+    }
+    let props = topo::mass_properties(&cup, tol).expect("props");
+    let want = core::f64::consts::PI * (r * r * h - (r - t) * (r - t) * (h - t));
+    assert!(
+        (props.volume - want).abs() <= 1e-9 + props.volume_pad,
+        "drum cup volume: got {} (pad {}), want {want}",
+        props.volume,
+        props.volume_pad
+    );
+}
+
+/// **The ANNULAR cap: TWO disjoint rim annuli**, which is a face SPLIT
+/// and not a ring placement — the second shape of the #1082 class. A
+/// full revolve of a CLOSED off-axis meridian closes its own seam, so
+/// the mouth is one slit annular face; its cavity counterpart is a
+/// smaller annulus sitting strictly inside it, and the material between
+/// them is two disjoint rings of wall. Both are built: the hole is
+/// promoted to its own rim face before the glue and collects the
+/// designated face's own hole after it.
+#[test]
+fn an_annular_cap_opens_to_two_disjoint_rims() {
+    let tol = Tol::witness();
+    let (ri, ro, h, t) = (0.30, 0.50, 0.40, 0.05);
+    let body = tube(ri, ro, h);
+    let chart = plane_chart_at_y(&body, h);
+    assert_eq!(
+        chart.len(),
+        1,
+        "a closed off-axis meridian closes its own seam, so this cap is ONE face"
+    );
+    let cup = topo::shell_open(&body, t, &chart, FIT_TOL, band(), tol).expect("the tube opens");
+
+    assert_eq!(topo::validate_geometric(&cup, tol), Ok(()), "tier 3");
+    assert_eq!(cup.shells().count(), 1);
+    assert_eq!(
+        (rings_of(&cup), genus_of(&cup)),
+        (2, 1),
+        "two rim annuli, one ring each; the bore keeps the cup genus 1"
+    );
+    // The two rims, named by the radii they run between.
+    let mut radii: Vec<(f64, f64)> = plane_chart_at_y(&cup, h)
+        .into_iter()
+        .map(|k| {
+            let f = cup.get_face(k).expect("rim face");
+            assert_eq!(f.rings.len(), 1, "each rim is an annulus");
+            let radius = |lk| {
+                let LoopBoundary::Cycle { first } = cup.get_loop(lk).expect("loop").boundary else {
+                    panic!("an empty rim loop")
+                };
+                let he = cup.loop_cycle(first).expect("cycle")[0];
+                let e = cup
+                    .get_edge(cup.get_half_edge(he).expect("he").edge)
+                    .expect("edge");
+                match cup
+                    .get_curve_geom(e.curve)
+                    .and_then(|g| g.certified())
+                    .expect("carrier")
+                    .carrier()
+                {
+                    geom::Curve3::Circle { radius, .. } => *radius,
+                    other => panic!("a rim bounded by {other:?}"),
+                }
+            };
+            (radius(f.rings[0]), radius(f.outer))
+        })
+        .collect();
+    radii.sort_by(|a, b| a.0.total_cmp(&b.0));
+    assert_eq!(radii.len(), 2, "two rim faces on the mouth plane");
+    for (got, want) in radii.iter().zip([(ri, ri + t), (ro - t, ro)]) {
+        assert!(
+            (got.0 - want.0).abs() < 1e-12 && (got.1 - want.1).abs() < 1e-12,
+            "rim between {got:?}, want {want:?}"
+        );
+    }
+
+    for delta in [1e-2, 1e-3, 2e-4] {
+        mesh::tessellate(&cup, delta, tol)
+            .unwrap_or_else(|e| panic!("the rims must triangulate at delta = {delta}, got {e:?}"));
+    }
+    let props = topo::mass_properties(&cup, tol).expect("props");
+    let want = core::f64::consts::PI
+        * ((ro * ro - ri * ri) * h - ((ro - t).powi(2) - (ri + t).powi(2)) * (h - t));
+    assert!(
+        (props.volume - want).abs() <= 1e-9 + props.volume_pad,
+        "tube cup volume: got {} (pad {}), want {want}",
+        props.volume,
+        props.volume_pad
+    );
+}
+
+/// **The validator's net, shown firing** — tier 3's check 9, on the
+/// exact anatomy the rim construction above removes.
+///
+/// The wrong body #1082 named cannot be built through `shell_open` any
+/// more, so it is built here through the PUBLIC doors the verb used to
+/// compose: shell it sealed, lift the cavity's counterpart chart onto
+/// the designated one (`replace_faces_offset`, the same distance the
+/// verb derives from the two planes), then `kfmrh` each pair straight
+/// on — skipping the step that makes the chart one region. That is the
+/// old construction exactly, and what it mints is a ring standing on
+/// its own face's outer loop.
+///
+/// Both contact shapes are covered, one per fixture, because the arms
+/// of the check are independent: the axis-touching cap shares a VERTEX
+/// position (the apex both loops own), while the annular cap shares
+/// none and is caught only through an outer EDGE — the radial seam,
+/// whose counterpart's seam sits strictly inside it.
+#[test]
+fn a_ring_standing_on_its_outer_loop_refuses_at_tier_3() {
+    let tol = Tol::witness();
+    let t = 0.05;
+    for (what, body, y, want_vertex) in [
+        ("an axis-touching cap", vessel(0.5, 0.4), 0.4, true),
+        ("an annular cap", tube(0.30, 0.50, 0.40), 0.40, false),
+    ] {
+        let mut sealed = topo::shell(&body, t, FIT_TOL, band(), tol).expect("the sealed shell");
+        let mouth = plane_chart_at_y(&sealed, y);
+        let counterpart = plane_chart_at_y(&sealed, y - t);
+        assert_eq!(
+            mouth.len(),
+            counterpart.len(),
+            "{what}: the counterpart chart mirrors the designated one"
+        );
+        // The verb's own lift distance: read off the two planes rather
+        // than negated from the way in.
+        let plane_of =
+            |b: &Body<f64>, f: FaceKey| match b.get_surface(b.get_face(f).expect("face").surface) {
+                Some(geom::Surface::Plane { origin, normal, .. }) => (*origin, *normal),
+                other => panic!("{what}: a non-planar cap: {other:?}"),
+            };
+        let (o_from, n_from) = plane_of(&sealed, counterpart[0]);
+        let (o_onto, _) = plane_of(&sealed, mouth[0]);
+        let back = (o_onto - o_from).dot(n_from);
+        topo::replace_faces_offset(&mut sealed, &counterpart, back, FIT_TOL, band(), tol)
+            .expect("the counterpart chart lifts onto the mouth plane");
+        for (&rim, &source) in mouth.iter().zip(&counterpart) {
+            sealed.kfmrh(rim, source).expect("the raw glue");
+        }
+        let errors = topo::validate_geometric(&sealed, tol)
+            .expect_err("a ring standing on its outer loop must refuse");
+        let contacts: Vec<&topo::ValidationError> = errors
+            .iter()
+            .filter(|e| matches!(e, topo::ValidationError::RingMeetsOuter { .. }))
+            .collect();
+        assert!(
+            !contacts.is_empty(),
+            "{what}: tier 3 must name the ring-vs-outer contact; got {errors:?}"
+        );
+        let vertex_arm = contacts.iter().any(|e| {
+            matches!(
+                e,
+                topo::ValidationError::RingMeetsOuter {
+                    contact: topo::RingContact::Vertex { .. },
+                    ..
+                }
+            )
+        });
+        // The two arms that involve an outer EDGE. Which of them fires
+        // on the annular cap is a fact about arm ORDER, not about the
+        // body: the counterpart's seam edge runs from radius ri+t to
+        // ro-t along the outer loop's own seam edge, so its ENDPOINTS
+        // are interior points of that edge — arm 2 sees the vertex on
+        // the edge before arm 3 gets to the edge along the edge. Both
+        // are the same contact named at different granularity, so the
+        // row pins "an edge of the outer loop is involved, and no
+        // vertex of it is", which is the claim that separates this
+        // fixture from the axis-touching one.
+        let edge_arm = contacts.iter().any(|e| {
+            matches!(
+                e,
+                topo::ValidationError::RingMeetsOuter {
+                    contact: topo::RingContact::Edge { .. }
+                        | topo::RingContact::VertexOnEdge { .. },
+                    ..
+                }
+            )
+        });
+        if want_vertex {
+            assert!(
+                vertex_arm,
+                "{what}: the apex both loops own is a VERTEX contact; got {contacts:?}"
+            );
+        } else {
+            assert!(
+                edge_arm && !vertex_arm,
+                "{what}: no shared vertex position here — the contact must be carried by an \
+                 outer EDGE; got {contacts:?}"
+            );
+        }
+    }
 }
