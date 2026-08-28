@@ -142,10 +142,15 @@ plant_prose_only() {
 gate_selftest() {
   local want="a kernel crate reads the environment at runtime"
   gate_selftest_clean
+  # A `grep` that cannot run is the failure this gate cannot see for
+  # itself: it produces no hits, and no hits is what a clean tree
+  # produces. Proved here rather than asserted, because before
+  # `gate_grep` this exact fixture printed OK and exited 0.
+  gate_selftest_without_tool grep "it is grep saying it could not search"
   gate_selftest_case "$want" plant
   gate_selftest_case "$want" plant_after_block_comment
   gate_selftest_passes "prose, a block comment and a string literal naming the call" plant_prose_only
-  printf '%s selftest OK: passes a clean fixture and prose/block-comment/string-literal mentions of the call; fires on a read, and on one hidden behind a block comment\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture and prose/block-comment/string-literal mentions of the call; fires on a read, and on one hidden behind a block comment; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

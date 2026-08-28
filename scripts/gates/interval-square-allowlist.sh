@@ -345,6 +345,11 @@ plant_gated_module_file() {
 gate_selftest() {
   local want="use powi(2)"
   gate_selftest_clean
+  # A `grep` that cannot run is the failure this gate cannot see for
+  # itself: it produces no hits, and no hits is what a clean tree
+  # produces. Proved here rather than asserted, because before
+  # `gate_grep` this exact fixture printed OK and exited 0.
+  gate_selftest_without_tool grep "it is grep saying it could not search"
   gate_selftest_case "$want" plant
   gate_selftest_case "$want" plant_field_path
   gate_selftest_case "$want" plant_self_field
@@ -358,7 +363,7 @@ gate_selftest() {
   gate_selftest_passes "prose, string literals, mixed products, a * a.method(), a call whose result multiplies its own argument, a parenthesized product whose last factor is not the repeated one, and a cfg(test) module" plant_not_squares
   gate_selftest_passes "a square in a module file whose declaration is cfg(test)-gated" plant_gated_module_file
   gate_selftest_passes "the same, declared on one line" plant_gated_module_file_one_line
-  printf '%s selftest OK: passes a clean fixture, prose/strings/mixed products/`a * a.method()`/a cfg(test) module, and a test-only module file declared on one line or two; fires on a bare identifier, a field path, a `self.` field, a two-level path, a rustfmt-wrapped product, a square behind a block comment, a PARENTHESIZED SCALED square in both bare and field-path form, the same module file registered WITHOUT the cfg gate, and one registered under any(debug_assertions, test), which is every debug build\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture, prose/strings/mixed products/`a * a.method()`/a cfg(test) module, and a test-only module file declared on one line or two; fires on a bare identifier, a field path, a `self.` field, a two-level path, a rustfmt-wrapped product, a square behind a block comment, a PARENTHESIZED SCALED square in both bare and field-path form, the same module file registered WITHOUT the cfg gate, and one registered under any(debug_assertions, test), which is every debug build; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

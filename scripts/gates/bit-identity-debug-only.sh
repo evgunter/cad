@@ -239,6 +239,11 @@ plant_permitted_shapes() {
 gate_selftest() {
   local want="outside any cfg(debug_assertions) item"
   gate_selftest_clean
+  # A `grep` that cannot run is the failure this gate cannot see for
+  # itself: it produces no hits, and no hits is what a clean tree
+  # produces. Proved here rather than asserted, because before
+  # `gate_grep` this exact fixture printed OK and exited 0.
+  gate_selftest_without_tool grep "it is grep saying it could not search"
   gate_selftest_case "$want" plant
   gate_selftest_case "$want" plant_one_gated_one_leaked
   gate_selftest_case "$want" plant_after_the_gated_item
@@ -249,7 +254,7 @@ gate_selftest() {
   gate_selftest_passes "a debug_assert!, prose, a string literal and a gated inner module" plant_permitted_shapes
   gate_selftest_passes "a rustfmt-wrapped debug_assert! around the use" plant_wrapped_debug_assert
   gate_selftest_passes "cfg(all(…)) with debug_assertions as the SECOND operand" plant_all_cfg_swapped
-  printf '%s selftest OK: passes a clean fixture, a debug_assert! (wrapped or not), cfg(all(…)) in either operand order, prose/strings and a gated inner module; fires on a bare use, on a leak BESIDE a properly gated use, on a leak AFTER a debug_assert! on the same line, on a use after the gated item closes, on any(…) and not(debug_assertions) items, and on the subject file being gone\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture, a debug_assert! (wrapped or not), cfg(all(…)) in either operand order, prose/strings and a gated inner module; fires on a bare use, on a leak BESIDE a properly gated use, on a leak AFTER a debug_assert! on the same line, on a use after the gated item closes, on any(…) and not(debug_assertions) items, and on the subject file being gone; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
 }
 
 # The subject removed out from under the gate.

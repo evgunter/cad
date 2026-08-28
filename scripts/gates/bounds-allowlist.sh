@@ -374,6 +374,11 @@ plant_real_rs_alias_redefined() {
 gate_selftest() {
   local want="compound Bounds bound outside the ratified seams"
   gate_selftest_clean
+  # A `grep` that cannot run is the failure this gate cannot see for
+  # itself: it produces no hits, and no hits is what a clean tree
+  # produces. Proved here rather than asserted, because before
+  # `gate_grep` this exact fixture printed OK and exited 0.
+  gate_selftest_without_tool grep "it is grep saying it could not search"
   gate_selftest_case "$want" plant_decide_first
   gate_selftest_case "$want" plant_bounds_first
   gate_selftest_case "$want" plant_certified_decide_first
@@ -387,7 +392,7 @@ gate_selftest() {
   gate_selftest_case "no longer in crates/geom-core/src/real.rs verbatim" plant_real_rs_alias_redefined
   gate_selftest_case "$want" plant_dual_equivalent_spelling
   gate_selftest_passes "a sole bracket bound" plant_sole_bracket_bounds
-  printf '%s selftest OK: passes a clean fixture and a sole bracket bound; fires on both operand orders of Decide+Bounds and of Decide+CertifiedBounds, on a path-qualified alias after the plus, on an alias name not in the tree today, on all three spellings of a non-Bounds-named alias DECLARATION (GAP 4 mitigation: pair, sole supertrait, where-clause), on a compound bound in real.rs beside the skipped definition lines, on real.rs redefining the alias to carry Decide (through the definition-skip subject check), and on the equivalent spelling of dual.rs Bounds impl (GAP 2)\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture and a sole bracket bound; fires on both operand orders of Decide+Bounds and of Decide+CertifiedBounds, on a path-qualified alias after the plus, on an alias name not in the tree today, on all three spellings of a non-Bounds-named alias DECLARATION (GAP 4 mitigation: pair, sole supertrait, where-clause), on a compound bound in real.rs beside the skipped definition lines, on real.rs redefining the alias to carry Decide (through the definition-skip subject check), and on the equivalent spelling of dual.rs Bounds impl (GAP 2); and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

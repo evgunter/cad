@@ -704,14 +704,20 @@ gate_plant_clean() {
 plant_no_tests_dirs() { rm -rf "$1"/crates/*/tests; }
 # The gate spelling changed under every file at once.
 plant_gate_renamed() { sed -i 's/"probe"/"probe2"/' "$1"/crates/*/tests/*.rs; }
-# ONE file re-gated onto an always-off feature: the per-crate floor is
-# what turns 5 -> 4 into a failure.
-plant_one_file_misgated() { sed -i 's/"probe"/"prboe"/' "$1/crates/topo/tests/probe_0.rs"; }
+# ONE CRATE's gates re-spelt onto an always-off feature, so its census
+# drops to zero and the per-crate floor is what reports it. Crate-wide
+# and not one file, because most crates are now rostered ABOVE their
+# floor and a single drop there is caught by the ROSTER check
+# (`plant_roster_orphan`) rather than by the floor — the subject here is
+# that a misspelt gate is NOT COUNTED, and the floor is what says so.
+plant_crate_misgated() { sed -i 's/"probe"/"prboe"/' "$1"/crates/topo/tests/*.rs; }
 # The gate line deleted, the file's PROSE mention of the feature left —
 # the case the substring predicate could not tell from a real gate.
 plant_prose_only() {
-  printf '// this file is #![cfg(feature = "probe")] in spirit\n' \
-    > "$1/crates/geom-brep/tests/probe_0.rs"
+  local f
+  for f in "$1"/crates/geom-brep/tests/*.rs; do
+    printf '// this file is #![cfg(feature = "probe")] in spirit\n' > "$f"
+  done
 }
 plant_citation_dropped() { printf 'no longer cites it\n' > "$1/${CITING_FILES[1]}"; }
 plant_citing_file_gone() { rm -f "$1/${CITING_FILES[2]}"; }
@@ -976,8 +982,8 @@ gate_selftest() {
   selftest_compound_counted
   gate_selftest_case 'scanned nothing' plant_no_tests_dirs
   gate_selftest_case 'no longer matches it' plant_gate_renamed
-  gate_selftest_case 'topo carries 4 probe-gated test suite(s), below the 5' plant_one_file_misgated
-  gate_selftest_case 'geom-brep carries 3 probe-gated test suite(s), below the 4' plant_prose_only
+  gate_selftest_case 'topo carries 0 probe-gated test suite(s), below the 5' plant_crate_misgated
+  gate_selftest_case 'geom-brep carries 0 probe-gated test suite(s), below the 4' plant_prose_only
   gate_selftest_case 'no workspace `cargo clippy' plant_clippy_undenied
   gate_selftest_case 'silences `unexpected_cfgs`' plant_cfg_lint_allowed
   gate_selftest_case 'does not say so' plant_disposition_undeclared
@@ -1006,7 +1012,7 @@ gate_selftest() {
   gate_plant_clean_exempt_control
   GATE_SELFTEST_ARGS=()
 
-  printf '%s selftest OK: passes a clean fixture, one with a ci.yml long enough to race, a compound gate, a complete listing, and a tally meeting every rostered execution; fires on a listing missing a counted suite, on an empty one, and on an absent tests/ tree, a renamed gate spelling, one file re-gated onto a misspelt feature, a gate line replaced by a prose mention, a clippy row that stopped denying warnings, the cfg lint silenced at the site, a suite with no declared disposition, the disposition sentence written as an ordinary comment rather than a doc comment, the blanket sentence over a partly-gated file and the partial one over a wholly-gated file, a rostered suite claiming it is not run, a roster row naming no censused file, and a sweep that stopped feeding --check-executed or commented the call out — and in --check-executed mode, on a suite SELECTED that executed nothing, a dropped invocation, an empty tally, an unrostered execution, a malformed row, an `#[ignore]`d test no selection runs, and a suite rostered under `--ignored` alone; and in --citations mode, on a dropped citation, a deleted citing file, a renamed CI step, and an undeclared new citation, while PASSING the same citation in a declared-history file\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture, one with a ci.yml long enough to race, a compound gate, a complete listing, and a tally meeting every rostered execution; fires on a listing missing a counted suite, on an empty one, and on an absent tests/ tree, a renamed gate spelling, every gate in one crate re-spelt onto a misspelt feature, every gate line in another replaced by a prose mention, a clippy row that stopped denying warnings, the cfg lint silenced at the site, a suite with no declared disposition, the disposition sentence written as an ordinary comment rather than a doc comment, the blanket sentence over a partly-gated file and the partial one over a wholly-gated file, a rostered suite claiming it is not run, a roster row naming no censused file, and a sweep that stopped feeding --check-executed or commented the call out — and in --check-executed mode, on a suite SELECTED that executed nothing, a dropped invocation, an empty tally, an unrostered execution, a malformed row, an `#[ignore]`d test no selection runs, and a suite rostered under `--ignored` alone; and in --citations mode, on a dropped citation, a deleted citing file, a renamed CI step, and an undeclared new citation, while PASSING the same citation in a declared-history file\n' "$(gate_name)"
 }
 
 # The negative control for the completeness check: the same planted

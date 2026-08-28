@@ -110,6 +110,31 @@ fn turn(a: Point2<f64>, b: Point2<f64>, c: Point2<f64>) -> f64 {
     (b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x)
 }
 
+/// ANTI-VACUITY for the convexity contract asserted on every draw of
+/// `sharp_polygons_differential_and_verified`: a witness that predicate
+/// must reject, written down rather than searched for. These four points
+/// are at increasing angles about the origin with one angular gap past
+/// `PI`, which is the shape a gaps-then-rescale strategy emits and the
+/// shape whose edges 1 and 3 cross. The predicate has to see it, or it is
+/// guarding nothing.
+#[test]
+fn the_convexity_contract_rejects_an_increasing_angle_loop_that_crosses() {
+    let pts = [
+        p2(1.477_867_658_492_595, 1.132_126_545_585_816_3),
+        p2(0.675_863_001_545_653_5, 2.506_274_403_424_949),
+        p2(2.269_885_464_407_144_7, -1.738_855_015_147_889_9),
+        p2(1.0, -2.449_293_598_294_706_4e-16),
+    ];
+    let n = pts.len();
+    let turns: Vec<f64> = (0..n)
+        .map(|k| turn(pts[k], pts[(k + 1) % n], pts[(k + 2) % n]))
+        .collect();
+    assert!(
+        turns.iter().any(|t| *t <= 0.0),
+        "the convexity contract accepted a self-crossing loop: turns {turns:?}"
+    );
+}
+
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(64))]
 

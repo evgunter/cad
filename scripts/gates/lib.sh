@@ -151,7 +151,15 @@ gate_grep() {
   if [ "$status" -le 1 ]; then
     return 0
   fi
-  gate_error "$(gate_name): grep exited $status, which is not \"no match\" (exit 1) — it is grep saying it could not search, so the scan below it decided nothing. Pattern: grep $*"
+  # The call is echoed so the diagnosis names the matcher that died, but
+  # TRIMMED: a gate hands `grep` a few hundred file operands, and a
+  # diagnosis that buries its own first line under them is the reason a
+  # reader scrolls past it.
+  local shown="$*"
+  if [ "${#shown}" -gt 160 ]; then
+    shown="${shown:0:160}... (arguments trimmed)"
+  fi
+  gate_error "$(gate_name): grep exited $status, which is not \"no match\" (exit 1) — it is grep saying it could not search, so the scan below it decided nothing. Call: grep $shown"
   # THE EXIT STATUS ALONE IS NOT ENOUGH, and this file is where that is
   # already known: a stage inside `< <(…)` feeding `mapfile` or a `while
   # read` cannot fail its caller, because a process substitution's

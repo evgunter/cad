@@ -5,14 +5,13 @@
 //!
 //! Naming: R1.. tags match the review report's findings/witnesses.
 //!
-//! **ITS PROBE-GATED CODE IS NOT EXECUTED BY CI**, and the rest of this file
-//! IS executed: only the K-telemetry block inside
-//! `r5_crossing_vertex_on_is_declared_not_measured` sits behind the feature,
-//! and no CI row passes it, while every test here runs on every merge. The
-//! probe suites CI runs are rostered in `scripts/gates/probe-suite-census.sh`
-//! (`RUN_FLOOR`) and run by `scripts/k_probe_sweep.sh`; this file is on
-//! neither list, so claim (c) below is evidence for a reader rather than a
-//! gate. By hand:
+//! **CI EXECUTES THIS FILE UNDER BOTH CONFIGURATIONS.** Every test here
+//! runs on every merge; the K-telemetry block inside
+//! `r5_crossing_vertex_on_is_declared_not_measured` sits behind the `probe`
+//! feature, and this file is rostered in
+//! `scripts/gates/probe-suite-census.sh` (`RUN_FLOOR`) and run under the
+//! DEFAULT selection by `scripts/k_probe_sweep.sh`, whose tally is floored
+//! by `--check-executed`. Claim (c) below is therefore a gate. By hand:
 //! `cargo test -p topo --features probe --test all -- review_m3_pr2::`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
