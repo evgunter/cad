@@ -144,14 +144,14 @@ mod review_s6_probe;
 mod review_ssiflat_r1_probes;
 #[path = "review_ssiflat_r2_probes.rs"]
 mod review_ssiflat_r2_probes;
-#[path = "verbs_f7_r2_probes.rs"]
-mod verbs_f7_r2_probes;
 #[path = "rim_dim_boolean_twins.rs"]
 mod rim_dim_boolean_twins;
 #[path = "rim_dim_review_probes.rs"]
 mod rim_dim_review_probes;
 #[path = "shell_roles.rs"]
 mod shell_roles;
+#[path = "verbs_f7_r2_probes.rs"]
+mod verbs_f7_r2_probes;
 #[path = "void_door.rs"]
 mod void_door;
 

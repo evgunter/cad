@@ -71,12 +71,7 @@ fn dump_poles(b: &Body<f64>, label: &str) {
 fn brick_operand() -> Body<f64> {
     use profile::{Profile, SketchPlane};
     use sweep::{Extrusion, extrude};
-    let loop_ = ProfileLoop::polygon([
-        p2(-0.5, -0.5),
-        p2(0.5, -0.5),
-        p2(0.5, 0.5),
-        p2(-0.5, 0.5),
-    ]);
+    let loop_ = ProfileLoop::polygon([p2(-0.5, -0.5), p2(0.5, -0.5), p2(0.5, 0.5), p2(-0.5, 0.5)]);
     let vp = Profile::new(SketchPlane::xy(), vec![loop_])
         .validate(Tol::witness())
         .unwrap();

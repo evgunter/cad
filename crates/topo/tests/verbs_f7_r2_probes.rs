@@ -17,8 +17,12 @@ fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
 }
 
 fn point_of(b: &Body<f64>, he: topo::HalfEdgeKey) -> Point3<f64> {
-    *b.get_point(b.get_vertex(b.get_half_edge(he).unwrap().start).unwrap().point)
-        .unwrap()
+    *b.get_point(
+        b.get_vertex(b.get_half_edge(he).unwrap().start)
+            .unwrap()
+            .point,
+    )
+    .unwrap()
 }
 
 /// CONTROL (the pinned pre-PR behaviour): the top face split by ONE
@@ -46,7 +50,10 @@ fn r2_control_single_chord_split_still_refuses() {
     validate(&b).unwrap();
     let err = boolean_reduce(BooleanOp::Union, &a, &b, Tol::witness()).unwrap_err();
     println!("R2-CONTROL single-chord split => {err:?}");
-    assert!(matches!(err, BooleanError::NonMaximalFaces { .. }), "{err:?}");
+    assert!(
+        matches!(err, BooleanError::NonMaximalFaces { .. }),
+        "{err:?}"
+    );
 }
 
 /// ATTACK on the structural predicate: the SAME defect, but the
