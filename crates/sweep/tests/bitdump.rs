@@ -270,3 +270,56 @@ fn bitdump_chamfered_cube() {
     );
     save(&dir, "chamfered_cube", &text);
 }
+
+// --- R2 review (ordinal 101, VERBS-SHELLFIX PR-1) -------------------
+
+/// The `#1048` acceptance corpus of `shell_open`: the box cup and the
+/// box TUBE (both caps designated). The PR claims a one-face unslit
+/// chart canonicalises to itself and the box is **bit-identical**;
+/// run this at the merge base and at the head and diff.
+#[test]
+fn bitdump_shell_open_box_corpus() {
+    let Some(dir) = dump_dir() else {
+        return;
+    };
+    let tol = Tol::witness();
+    let lp = ProfileLoop::new(vec![
+        ProfileVertex::new(Point2::new(0.0, 0.0), 0.0),
+        ProfileVertex::new(Point2::new(2.0, 0.0), 0.0),
+        ProfileVertex::new(Point2::new(2.0, 3.0), 0.0),
+        ProfileVertex::new(Point2::new(0.0, 3.0), 0.0),
+    ]);
+    let profile = Profile::new(SketchPlane::xy(), vec![lp])
+        .validate(tol)
+        .unwrap();
+    let body = sweep::extrude(&profile, sweep::Extrusion::Distance(4.0), tol)
+        .unwrap()
+        .body;
+    let cap_at = |b: &Body<f64>, z: f64| -> Vec<topo::FaceKey> {
+        b.faces()
+            .filter(|(_, f)| {
+                matches!(b.get_surface(f.surface),
+                    Some(Surface::Plane { origin, normal, .. })
+                        if (origin.z - z).abs() < 1e-12
+                            && normal.x.abs() < 1e-9
+                            && normal.y.abs() < 1e-9)
+            })
+            .map(|(k, _)| k)
+            .collect()
+    };
+    let top = cap_at(&body, 4.0);
+    let bottom = cap_at(&body, 0.0);
+    let both: Vec<topo::FaceKey> = top.iter().chain(&bottom).copied().collect();
+
+    let mut text = String::new();
+    let _ = writeln!(text, "== box cup (top designated, t = 0.25) ==");
+    let cup = topo::shell_open(&body, 0.25, &top, 1e-6, band(), tol).unwrap();
+    text.push_str(&dump(&cup));
+    let _ = writeln!(text, "== box tube (both caps designated, t = 0.25) ==");
+    let tubey = topo::shell_open(&body, 0.25, &both, 1e-6, band(), tol).unwrap();
+    text.push_str(&dump(&tubey));
+    let _ = writeln!(text, "== the SEALED box (t = 0.25) ==");
+    let sealed = topo::shell(&body, 0.25, 1e-6, band(), tol).unwrap();
+    text.push_str(&dump(&sealed));
+    save(&dir, "shell_open_box_corpus", &text);
+}
