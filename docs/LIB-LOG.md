@@ -439,7 +439,9 @@ satisfies V3 via resolved-bits convention.
 ## LIB residual register (2026-08-10, at the program's close —
 ## Evan's ask; kernel-functionality-tracking items excluded)
 
-Beyond "docs update as the kernel grows," five categories:
+Beyond "docs update as the kernel grows," five categories (a
+sixth, F, folded 2026-08-28 — see the re-survey entry at this
+file's tail):
 
 **A. Curation-gap residuals (the F1 class — library-side doors):**
 - **R1 (the significant one, U10 F1)**: named document parameters
@@ -457,6 +459,67 @@ Beyond "docs update as the kernel grows," five categories:
   `NodeErrorKind::UndeclaredContact { finding, diag }` — the
   detector's own FlushFinding shape, no re-detection on the error
   path; the menu crosses to Python as `EvaluationError.finding`.
+- **FOLDED 2026-08-28 (the orphan sweep).** Library-shaped issues
+  filed by OTHER programs, none of them named anywhere in this log
+  before today, so LIB's pickup path could not see them. Each was
+  read at fold time; all are OPEN.
+  - **#918** — `sweep::chamfer_edges` ships (VERBS-CHAMFER,
+    `crates/sweep/src/fillet/build.rs:281`, prelude'd at
+    `crates/pncad/src/prelude.rs:100`) with NO `Node::Chamfer`:
+    kernel-direct only, so a chamfer cannot appear in a recipe,
+    cannot rebuild, and mints no `StableName` for any selector.
+    Same class, same shape, NOT separately filed: `topo::shell` /
+    `shell_open` (shipped #1048, the teapot built on it) and
+    `tube_along_arc` / `tube_along_arc_hollow` — `Node` carries 15
+    variants and none of them is a chamfer, a shell or a tube
+    (`crates/editor-core/src/node.rs:471`). The audit's row 19
+    already prices the tube one (a new node kind is a
+    schema-version break).
+  - **#757** — `topo::BooleanDeclarations` is exported through the
+    prelude with a public CONSUMER and no geometric PRODUCER, so a
+    caller holding two flush-built bodies hand-writes ~55 lines
+    against the `k_stats` telemetry door; the tree carries two
+    copies that declare their twinning in prose.
+  - **#758** — no public census/genus query, so the Euler-Poincaré
+    identity is hand-written at ~13 sites in several return shapes,
+    in exactly the places asserting the kernel is sound.
+  - **#759** — the façade `polygon` door was DEMOTED with no
+    replacement scheduled (`crates/pncad/src/authoring.rs:115`);
+    11 tour call sites route through a demo-hosted fold whose own
+    doc comment cites the removed function.
+  - **#796** — authoring the lily meant building a shadow vector
+    algebra beside `Vec3` (normalize twice byte-identically, rotate
+    about an axis, an orthonormal frame from an axis), while the
+    same file uses `Vec3` freely when CHECKING results. The
+    candidate cause worth confirming is generic-scalar friction —
+    if true, the kernel's vector type is awkward in exactly the
+    generic code the kernel asks people to write.
+  - **#948** — `LoopProgram::polygon` is literals-only, so every
+    parametric author writes the five `ProgramStep`s by hand; the
+    gap is the whole chain vocabulary's literal/Expr split.
+  - **#944** (ASM-filed, library-shaped) — nothing consumes a
+    `Pose` into an `Alignment`/`MateFrame`, so "mate THIS face to
+    THAT face" has no spelling and the frame stays retyped
+    literals. A11 keeps the SOLVE structural either way; what needs
+    deciding is freeze-at-authoring vs re-derive.
+  - **#743 / #742 / #741** — the export option surface. A plausible
+    part name is a hard panic in both demos (`solid-block` sniffs
+    as ASCII STL; >80 bytes overruns the header field); the STEP
+    writer hardcodes the two Part 21 header fields the standard
+    assigns to the USER while already distinguishing the software
+    fields; ε has no type of its own, so `Tolerance::init`'s
+    finite-and-strictly-positive rule is restated by hand across
+    `step-export` and `step-import`. #742 and #741 say on their own
+    faces that their plan goes to Evan before implementation.
+  - **#1103** — no expression UNPARSER (`Expr` → source text).
+    `ExprKind` is `pub(crate)`, so above the crate boundary there
+    is no operator identity at all; `ParseError` has no `Display`.
+    The consumer that named it is GUI-3's expression-refusal field,
+    which cannot be pre-filled with what the slot says today.
+  - **#1111's editor-core slice** — `HitTestError` is carried on
+    the façade (`crates/pncad/src/select.rs:84`) and has no
+    `Display`, so its values reach a user surface as a struct dump.
+    The rest of that issue's list is `viewer`-owned (category F).
 
 **B. Bindings-parity residuals (the north-star audit, executable):**
 G1-G11 ranked in the U10 report — the audit test FAILS as doors
@@ -464,7 +527,24 @@ land, so this register self-enforces. The big three: G1 profile
 arcs/circles via Python (the PATHS lattice in .pyi — the §L4
 typestate stubs, deferred to post-v2, now unblocked), G2
 loft/sweep/tube bindings, G3 non-xy sketch planes. Plus G11
-(tessellation/STL from Python — completes the ladder's steps 5-6).
+(tessellation/STL from Python — completes the ladder's steps 5-6;
+the audit page's own G11 row says steps 4 and 5 — the page is the
+measurement, this line is the stale copy).
+
+**FOLDED 2026-08-28**: two bindings-parity items the audit test
+structurally cannot see, because neither is a missing SCENE —
+- **#730**: `step_string` exposes ONE of `StepOptions`' six fields
+  (`crates/pncad-py/src/py/value.rs:626`), silently. `uncertainty_m`
+  is the one with teeth: a Python caller cannot override the
+  ambient tolerance a Rust caller can.
+- **#694**: the LOAD path stringifies structured kernel refusals
+  (`crates/editor-core/src/persist/wire.rs:155`, `format!("… {e:?}")`),
+  contradicting `crates/pncad-py/src/errors.rs`'s "typed exceptions
+  carrying the structured error, never strings". Reproduced by
+  execution on the issue. Its CLASS is the durable half:
+  reachability argued from the AUTHORING doors while ignoring the
+  DESERIALIZATION doors, every one of which re-runs a smart
+  constructor.
 
 **C. Infrastructure residuals:**
 - R4 (U10 F4, strongest available follow-up): the PYTHON TESTS ARE
@@ -493,6 +573,42 @@ loft/sweep/tube bindings, G3 non-xy sketch planes. Plus G11
 - The U9 release checklist: reset version numbers (LQ7b), crate
   descriptions (F3), publish gates — a small unit when release
   is actually wanted.
+
+**F. Cross-program library-shaped findings (folded 2026-08-28).**
+Recorded so LIB's pickup path SEES them; every one is owned
+elsewhere, and LIB taking one silently would be the error:
+- **#945** (ASM) — mates x patterns did not compose. **RULED
+  2026-08-23** (Evan, at the ASM exit walk's sign-off, on the
+  issue): A11 gains the member-vocabulary rider, a mate head may
+  be a pattern-placed `Instance(i)`, and the issue CONVERTED from a
+  design question into a banked ASM implementation unit (`head_of`'s
+  member vocabulary + composing the derived offset into the member
+  frame). Not awaiting a ruling and not LIB's.
+- **#946** (ASM) — a sub-assembly's MATE-minted declarations are
+  lost at the instantiation seam (`product_recorded` runs, `mint`
+  does not), so nesting an assembly that has mates reports
+  `UndeclaredContact` in the outer document for contacts the inner
+  one declared. A semantics call on A2, not a patch.
+- **#947** (ASM) — refusal text: `PIN_MISMATCH_RECOURSE` is emitted
+  twice (the demo carries an ARMED assertion counting 2, which must
+  flip to 1 in the same change); `MateFault::Contradictory` and
+  `AssemblyError::NoAtRestRecord` carry no recourse sentence, which
+  the ASM ladder's own exit criterion asks for.
+- **#917** (VERBS) — the blend refusal vocabulary is shared by
+  fillet and chamfer and still speaks as the fillet, down to
+  `Display`'s `"fillet assembly: "` on arms a chamfer user reaches.
+  The issue's own point is that the ~255-reference rename is the
+  EASY half and not the substance.
+- **#1120** (GUI) — no persistent `SetPlacement` in the layer-3
+  session vocabulary. The document door EXISTS and is curated
+  (`DocEdit::SetPlacement`, `crates/editor-core/src/edit.rs:208`,
+  carried on the façade), so this is a GUI vocabulary gap, not a
+  library curation gap — LIB owes it nothing beyond the Python
+  spelling the ASM deposit already claims.
+- **#1111's `viewer` half** — CameraError, CameraOpError,
+  SceneError, SceneDocError, StartupError, IdMapError,
+  PickIndexError, ReplayError, none with a `Display`. GUI-owned;
+  the issue asks its taker to re-sweep rather than trust the list.
 
 ## PROGRAM COMPLETE — resting state (2026-08-10)
 
@@ -1027,3 +1143,163 @@ shape), then the node/edit/refactoring bindings, which are
 mechanical once evaluation can resolve. The demo
 (`demos/tour/src/assembly.rs`) is the ready-made coverage oracle
 for the whole series, per the standing tour-corpus rule.
+
+## LIB re-survey (2026-08-28, Evan's ask — the track after ten days
+## at rest). Everything below was measured in-tree or on the tracker
+## in the session that wrote it.
+
+**State.** No active LIB lanes since PERR merged (#622, 2026-08-18);
+LIB-12 slots 2-4 still banked (opus x3). The only movement in this
+file since is the ASM cross-program deposit of 2026-08-23. Nothing
+LIB dispatched has come back unmerged, and nothing in the register's
+SCHEDULED column has re-filled.
+
+**What landed elsewhere that LIB owes a door for.** Three kernel
+verbs have shipped with NO recipe-layer door, so each is
+kernel-direct only: unreachable from a document, minting no
+`StableName`, invisible to Python.
+
+- **chamfer** — `sweep::chamfer_edges`
+  (`crates/sweep/src/fillet/build.rs:281`, re-exported
+  `crates/sweep/src/chamfer.rs:66`, prelude'd at
+  `crates/pncad/src/prelude.rs:100`). Filed as **#918**.
+- **shell / shell_open** — `crates/topo/src/shell.rs:463` and `:485`,
+  recorded SHIPPED at #1048 in `docs/KERNEL-VERBS.md`, with the
+  teapot (`demos/tour/src/teapot.rs`) built on it. NOT filed.
+- **tube** — `tube_along_arc` (`crates/sweep/src/revolve/tube.rs:265`)
+  and, since VERBS-TUBEWALL, `tube_along_arc_hollow` (`:306`). Known
+  only as the audit's row 19, which correctly prices it: a new node
+  kind is a schema-version break, and the missing node now has to
+  carry the wall too — one node kind, not two.
+
+The measurement behind all three: `Node`
+(`crates/editor-core/src/node.rs:471`) carries fifteen variants —
+Datum, Profile, Extrude, Revolve, Loft, Sweep, Fillet, Split,
+Boolean, Transform, Pattern, PlacedUnion, Declare, InstantiatePart,
+Mate — and none of them is a chamfer, a shell or a tube.
+
+**Why it accumulated: two structural holes, one per side of the
+façade.** Neither is a lapse by any unit; both are the absence of a
+test that would have made the drift loud.
+
+1. **The north-star audit page's ROSTER is unguarded.** Its test
+   (`crates/pncad-py/tests/test_north_star.py`) rebuilds every YES
+   row and asserts every named gap is still a gap — so the page
+   fails the day a DOOR lands, which is the property category B
+   leans on. Nothing compares the page's row set against the tour's
+   stop set. Measured at this entry's writing: the table holds 34
+   numbered rows (`docs/guide/north-star-audit.md:197-230`) and
+   twelve of the tour's named stops appear nowhere on it —
+   `bench`, `benchlayout`, `budfillet`, `diechamfer`,
+   `diechamferblank`, `hollowelbow`, `hollowring`, `hollowtorus`,
+   `klein`, `teapot`, `twopeg`, `twopeg_apart`. Row 10's `lily
+   (8 bodies)` is stale by the same mechanism: `plant()` returns
+   fifteen pieces (nine in the literal, plus three bud and three
+   sepal; `demos/tour/src/lily.rs:1395-1545`), and the scene's own
+   doc comment still says eight (`lily.rs:1275`). **A concurrent
+   unit in this PR re-cuts the page and adds the roster guard** —
+   what is recorded here is the state as measured BEFORE that unit
+   landed, deliberately, so the reason the guard exists stays
+   legible.
+2. **The Python bindings have no coverage guard at all.**
+   `crates/pncad-py/tests/test_stubs.py` checks `.pyi` <-> module
+   drift at NAME level and nothing else; no test compares the Rust
+   façade's curated surface against the Python one. The Rust side is
+   self-enforcing — `crates/pncad/tests/all.rs:2899`
+   (`every_document_layer_root_export_is_carried_or_listed`) fails
+   when the document layer exports a name the façade neither carries
+   nor lists as interior, which is exactly why the GUI program's
+   façade additions got carried correctly and the bindings' did not.
+   What has accumulated on the far side of that missing guard, all
+   verified absent from `crates/pncad-py/pncad.pyi` and present on
+   the façade: the whole assembly block (`document.rs:178`), the
+   checks door `run_checks`/`ChecksReport`/`enforce_checks`
+   (`document.rs:219`), the picking family
+   `NodePick`/`pick_face`/`Ray`/`PickHit`/`PickTarget`/`HitTestError`
+   (`select.rs:84`), the expression read side
+   `eval`/`eval_count`/`EvalError` (`document.rs:61`), and
+   `ClassAdmission`/`class_admission`/`CLASS_DEFERRAL`
+   (`document.rs:163`). **A concurrent unit in this PR adds the
+   Python-side guard**; same reading as above.
+
+**The register fold (done in this entry's change).** Nineteen
+library-shaped issues filed by other programs were recorded NOWHERE
+in this log — zero mentions of any of them before today — so they
+were invisible to LIB's pickup path even though the register is
+supposed to be the successor's map. Each was read, not skimmed, and
+placed: eleven into **category A** (the F1 curation-gap class:
+#918, #757, #758, #759, #796, #948, #944, #743/#742/#741, #1103),
+two into **category B** (#730, #694 — bindings-parity items the
+audit test structurally cannot see, because neither is a missing
+SCENE), five into a **new category F** for cross-program findings
+LIB must SEE but must not silently take (#945, #946, #947, #917,
+#1120), and one — **#1111** — SPLIT, because it is a class spanning
+two owners: its editor-core slice (`HitTestError`, carried on the
+façade) into A, its `viewer` list into F. F
+is a new grouping rather than a stretch of A-E because A-E are all
+LIB-OWNED work; filing another program's item under them would make
+the register lie about who picks it up. The register's body is
+inside the historical part of an append-only log, so the fold is the
+smallest edit that puts each item under the category a successor
+reads: bullets appended in place, existing text untouched except the
+"five categories" line, which now points here.
+
+**Two corrections the fold produced.** (i) **#945 is not open for a
+ruling.** It was RULED 2026-08-23 on the issue (Evan, at the ASM exit
+walk's sign-off): A11 gains the member-vocabulary rider, and the
+issue converted from a design question into a banked ASM
+implementation unit. (ii) **#1120 is not a library curation gap.**
+`DocEdit::SetPlacement` exists and is curated
+(`crates/editor-core/src/edit.rs:208`, carried on the façade); the
+gap is the viewer's session vocabulary, GUI-owned. Both are recorded
+under F with that ownership stated, so neither is picked up here by
+mistake.
+
+**R2, checked live and STILL OPEN — with a narrower honest
+statement.** `PathNoCornerReason` (`crates/profile/src/path.rs:487`)
+is the payload of `PathError::NoCornerForFillet`'s `reason` field
+(`path.rs:576-579`). Neither the `profile` crate root's `pub use
+path::{…}` (`crates/profile/src/lib.rs:131-134`) nor the façade's
+two lists (`crates/pncad/src/profile.rs:55`,
+`crates/pncad/src/prelude.rs:91`) carries it, though all of them
+carry `PathError`. It is NOT unreachable: `path` is a public module
+(`profile/src/lib.rs:120`) re-exported wholesale by the façade
+(`crates/pncad/src/profile.rs:51`), so `pncad::profile::path::
+PathNoCornerReason` names the type. So R2's real shape is "not
+carried beside its carrier", not "not re-exported" — one line in
+each of two files, which nobody has spent in the eighteen days since
+the register named it. Not fixed here: this unit's fence is this
+file.
+
+**The map, for a cold successor.**
+
+- **Dispatchable now, no design conversation.** G11 (the mesh /
+  tessellation door from Python — the Rust door exists,
+  `pncad::prelude` re-exports `mesh::{Mesh, TessellateError,
+  tessellate}` at `prelude.rs:133`; completes the guide ladder's
+  steps 4-5 per the audit's own G11 row). G15 (workspace store /
+  `DocRef` / `ContentPin` — the audit's G15 row states every door is
+  curated in Rust already, so it is a binding unit). The
+  **evaluate-memo door** (PYPU's banked finding: `evaluate` takes no
+  prior, so memoized recompute is unobservable from Python). The
+  **Python assembly series** from the ASM deposit, in its stated
+  order — resolver/workspace door first, then the node/edit
+  bindings, with `demos/tour/src/assembly.rs` as the ready-made
+  oracle. **die_tool's Python re-authoring** (banked). And the
+  retroactive curation review of the A5 assembly-gate re-export
+  block that landed on the façade in #938 (`document.rs:178`) —
+  small, and LIB's to do, per the deposit.
+- **Wants a design conversation, LIB-shaped.** The three
+  door-less kernel verbs above, of which only chamfer is filed
+  (#918): what a recipe-layer shell or tube node costs is a
+  schema-version question, and #918's own text says the emitter is
+  where the care is (do not replicate `emit_fillet`'s #708 tie
+  defect). Also #741/#742 by their own faces.
+- **Needs Evan.** The enclosing-tangency vocabulary question
+  (#608's named residue), Wave 0 D1-D4, Q9.
+- **Needs another program.** G8's kernel gap (multi-solid boolean
+  operand), the G2 sweep/tube frontier, and all of category F.
+
+The pickup path is unchanged in shape and now actually complete:
+this log's tail + the residual register (categories A-F) +
+`memories/MEMORY.md`.
