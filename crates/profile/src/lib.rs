@@ -130,7 +130,8 @@ pub use path::program::{
 };
 pub use path::{
     ArcCarrierScalar, ArcLen, ArcSide, Bulge, Center, LineTarget, Open, PartialPath, PathError,
-    PointLeg, Radius, Start, Sweep, TangentArcTarget, Via, circle, circle_split,
+    PathNoCornerReason, PointLeg, Radius, Start, Sweep, TangentArcTarget, Via, circle,
+    circle_split,
 };
 pub use sugar::{ArcSweep, FilletLegShape, bulge_from_center, bulge_from_via};
 pub use validate::{
