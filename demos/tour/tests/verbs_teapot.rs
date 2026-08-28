@@ -15,11 +15,23 @@
 //!    partial revolve's meridian caps — planes CONTAINING the axis
 //!    rather than normal to it, which is the same rule from the
 //!    direction the first cut of this table omitted. A CURVED
-//!    neighbour refuses at a SECOND door, and that door is about the
-//!    neighbour's offset not being a rigid translation rather than
-//!    about tangency: `lifted_dome` is a definitely-non-tangent
-//!    fixture that refuses at the identical site with the identical
-//!    `what` string, which the table now asserts.
+//!    neighbour refuses too, and NOT because of tangency:
+//!    `lifted_dome` is a definitely-non-tangent fixture that refuses
+//!    at the identical site, which the table asserts.
+//!
+//!    **The SECOND DOOR this file used to name is gone** (PCURVE
+//!    P-1b). Curved neighbours refused through
+//!    `CarrierLaneUnsupported`'s "the neighbour's offset is not a
+//!    rigid translation" while a conventional locus was written as a
+//!    pushforward in 3-space; U2 collapsed those onto a chart image
+//!    in the chart's own coordinates, which an offset re-parameterizes
+//!    without moving, so the door has nothing left to refuse. Both
+//!    rows now land on `ReanchorOffCarrier` — the door the WEDGE row
+//!    always expected. The CLASS finding is untouched: a curved
+//!    neighbour still refuses, and still not for tangency. Only the
+//!    claim that it refuses at a door of its own retires, and
+//!    `the_not_a_rigid_translation_door_is_unreachable_at_rest`
+//!    demonstrates why rather than asserting it.
 //! 2. **the opened rim is wrong on every solid of revolution**, and
 //!    right on a box. Not a tolerance lottery:
 //!    `the_opened_rim_is_wrong_on_every_revolve` sweeps five wall
@@ -36,12 +48,16 @@
 //!    rim is two disjoint annuli, a face SPLIT the surgery cannot
 //!    express.
 //!
-//! **Two claims this file used to make and no longer does**, both
+//! **Three claims this file used to make and no longer does**, all
 //! retracted on measurement rather than on argument: that the tangent
 //! row's door could not be separated from tangency (`lifted_dome`
-//! separates it), and that the opened rim's discriminator was "one
-//! face versus two half-discs on a chart"
-//! (`the_seam_split_is_not_the_mechanism` falsifies it). The fixtures
+//! separates it), that the opened rim's discriminator was "one face
+//! versus two half-discs on a chart"
+//! (`the_seam_split_is_not_the_mechanism` falsifies it), and that a
+//! curved neighbour refuses at a door of its OWN — the
+//! not-a-rigid-translation lane — which the U2 description collapse
+//! retired, since a chart image has nothing to translate
+//! (`the_not_a_rigid_translation_door_is_unreachable_at_rest`). The fixtures
 //! that did it were contributed by the review of #1078 and are merged
 //! beside this file as `verbs_teapot_r1_probes.rs` and
 //! `verbs_teapot_r2_probes.rs`.
@@ -488,19 +504,36 @@ fn the_hollow_survives_exactly_the_square_junction() {
             0.02,
             "ReanchorOffCarrier",
         ),
+        // **These two moved doors in PCURVE P-1b, and the move is the
+        // finding.** They refused through `CarrierLaneUnsupported`'s
+        // "not a rigid translation" `what` while a conventional locus
+        // was written as a pushforward in 3-SPACE, which has to be
+        // carried bodily with the face it hangs off. U2 collapsed
+        // those descriptions onto a chart IMAGE, stated in the chart's
+        // own coordinates, and an offset re-parameterizes the chart
+        // without touching the image drawn in it — so that door has
+        // nothing left to refuse and the obstruction that is really
+        // there answers instead. Demonstrated, not asserted, by
+        // `the_not_a_rigid_translation_door_is_unreachable_at_rest`:
+        // neither body carries a scaffolding description at all, so
+        // the arm that raises the retired `what` cannot be entered.
+        //
+        // What did NOT change is finding 1 itself: both still refuse,
+        // because the junction is still oblique.
         (
             "a hemisphere TANGENT to its cylinder",
             bullet(tol),
             t,
-            "CarrierLaneUnsupported",
+            "ReanchorOffCarrier",
         ),
         // The discriminator, not a third confirmation: same pair,
-        // same door, and NOT tangent. Tangency is not the variable.
+        // same door, and NOT tangent. Tangency is not the variable —
+        // and it still is not, now that the door is the other one.
         (
             "a dome whose centre is lifted clear of the wall's top",
             lifted_dome(tol),
             t,
-            "CarrierLaneUnsupported",
+            "ReanchorOffCarrier",
         ),
         // The rule reads "a plane NORMAL to a cylinder's axis" — this
         // row comes at it from the direction the rest of the table
