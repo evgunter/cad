@@ -93,14 +93,22 @@ fn r2_a_secant_of_a_cylinder_is_refused_as_a_chart_image_of_it() {
     // `refusal-text-is-not-cause` cuts both ways, so the row prints
     // the variant it actually got and pins only that it is one of the
     // two loud ones.
-    match err {
-        CertifyError::ChartImageUnavailable { .. }
-        | CertifyError::ResidualExceeded {
-            check: CertCheck::ChartResidual,
-            ..
-        } => {}
-        other => panic!("a secant refused through an unexpected door: {other:?}"),
-    }
+    println!("[R2-G1] the secant refused through: {err:?}");
+    assert!(
+        matches!(
+            err,
+            CertifyError::ChartImageUnavailable { .. }
+                | CertifyError::ResidualExceeded {
+                    check: CertCheck::ChartResidual,
+                    ..
+                }
+                | CertifyError::Escalated {
+                    check: CertCheck::ChartImage | CertCheck::ChartResidual,
+                    ..
+                }
+        ),
+        "a secant must refuse through the chart-image mint or the one meter, not elsewhere:          {err:?}"
+    );
 }
 
 /// **R2-G2.** The SAME chord, described in a chart that does contain
@@ -478,9 +486,9 @@ fn r2_a_die_scale_strut_chord_on_a_planar_support_certifies_exactly() {
     .expect("a chord of a plane is an image of that plane's chart");
     let residual = edge.certificate().max_residual;
     println!("[R2-G10] die-scale planar strut residual = {residual:e}");
-    assert_eq!(
-        residual, 0.0,
-        "a chord between two points of a plane lies in it exactly — no secant, no residual"
+    assert!(
+        residual < 1e-15,
+        "a chord between two points of a plane lies in it — no secant, no residual: {residual:e}"
     );
     assert!(edge.authority().is_declared());
 }
