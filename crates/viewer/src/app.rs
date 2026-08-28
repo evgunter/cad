@@ -189,6 +189,10 @@ pub struct ViewerApp {
     /// The last thing that went wrong, kept so a refused operation is
     /// visible instead of silently dropped.
     status: Option<String>,
+    /// Whether the environment can show a file dialog at all — probed
+    /// once at startup ([`frame::chooser_backend`]); the Open/Save As
+    /// controls read it every frame.
+    chooser: frame::ChooserBackend,
 }
 
 /// Why the application could not start (closed enum, D4 ¶3).
@@ -263,6 +267,7 @@ impl ViewerApp {
             pending_fit: true,
             fit_on_scene: false,
             status: None,
+            chooser: frame::chooser_backend(),
         })
     }
 
@@ -385,6 +390,13 @@ impl ViewerApp {
             }
             frame::batch_status(&performed, refusal.as_ref())
         };
+        self.apply_status(update);
+    }
+
+    /// Apply a policy verdict to the status line — the one place a
+    /// [`StatusUpdate`] becomes the field, shared by the batch policy
+    /// and the dialog policy so neither hand-assigns.
+    fn apply_status(&mut self, update: StatusUpdate) {
         match update {
             StatusUpdate::Keep => {}
             StatusUpdate::Clear => self.status = None,
@@ -402,15 +414,40 @@ impl eframe::App for ViewerApp {
             ui.horizontal(|ui| {
                 ui.label(WINDOW_TITLE);
                 ui.separator();
-                if ui.button("Open…").clicked()
-                    && let Some(path) = pick_open()
+                // The chooser-backend verdict, probed once at startup:
+                // with confidently NO backend (no zenity, no session
+                // bus) the dialogs are disabled UP FRONT with the
+                // reason as their tooltip — a dead click is exactly
+                // the silent failure #1097 reported. Under a
+                // plausibly-present backend, a dialog handing back
+                // `None` is read as a genuine cancel and stays quiet;
+                // `frame::dialog_status` is that rule as a policy
+                // value, and its loud arm is the belt to this
+                // disabling's braces.
+                let chooser = self.chooser;
+                if ui
+                    .add_enabled(chooser.usable(), egui::Button::new("Open…"))
+                    .on_disabled_hover_text(frame::NO_CHOOSER_BACKEND)
+                    .clicked()
                 {
-                    ops.push(SessionOp::Open(path));
+                    let path = pick_open();
+                    let update = frame::dialog_status(chooser, path.is_some());
+                    if let Some(path) = path {
+                        ops.push(SessionOp::Open(path));
+                    }
+                    self.apply_status(update);
                 }
-                if ui.button("Save As…").clicked()
-                    && let Some(path) = pick_save(self.session.path())
+                if ui
+                    .add_enabled(chooser.usable(), egui::Button::new("Save As…"))
+                    .on_disabled_hover_text(frame::NO_CHOOSER_BACKEND)
+                    .clicked()
                 {
-                    ops.push(SessionOp::Save(path));
+                    let path = pick_save(self.session.path());
+                    let update = frame::dialog_status(chooser, path.is_some());
+                    if let Some(path) = path {
+                        ops.push(SessionOp::Save(path));
+                    }
+                    self.apply_status(update);
                 }
                 ui.separator();
                 if ui
@@ -570,13 +607,32 @@ impl egui_tiles::Behavior<Pane> for ViewerBehavior<'_> {
         }
     }
 
-    fn pane_ui(&mut self, ui: &mut egui::Ui, _tile_id: TileId, pane: &mut Pane) -> UiResponse {
-        match pane {
-            Pane::Viewport => self.viewport_ui(ui),
-            Pane::Features => self.features_ui(ui),
-            Pane::Properties => self.properties_ui(ui),
-            Pane::View => self.view_ui(ui),
+    fn pane_ui(&mut self, ui: &mut egui::Ui, tile_id: TileId, pane: &mut Pane) -> UiResponse {
+        // The viewport IS its rectangle: it allocates exactly the
+        // available size and paints into it, so a scroll container
+        // around it would have nothing true to say.
+        if *pane == Pane::Viewport {
+            self.viewport_ui(ui);
+            return UiResponse::None;
         }
+        // Every CHROME pane scrolls its own overflow — the class of
+        // panes, not the one that happened to clip. First light
+        // (#1097): the Properties pane's lower content was unreachable
+        // at any window height, clipped with no scrollbar. auto_shrink
+        // is off on both axes so the pane fills its tile (a scrollbar
+        // at the tile's edge, no collapse under short content); the
+        // salt is the tile id, so two tabs of one tile scroll
+        // independently.
+        egui::ScrollArea::vertical()
+            .auto_shrink([false, false])
+            .id_salt(tile_id)
+            .show(ui, |ui| match pane {
+                // Handled above; this arm cannot be reached.
+                Pane::Viewport => {}
+                Pane::Features => self.features_ui(ui),
+                Pane::Properties => self.properties_ui(ui),
+                Pane::View => self.view_ui(ui),
+            });
         UiResponse::None
     }
 }
@@ -596,7 +652,7 @@ impl ViewerBehavior<'_> {
             return;
         };
 
-        let shift = ui.input(|i| i.modifiers.shift);
+        let (shift, alt) = ui.input(|i| (i.modifiers.shift, i.modifiers.alt));
         let mut events: Vec<ViewportEvent> = Vec::new();
         for (egui_button, button) in [
             (egui::PointerButton::Primary, PointerButton::Primary),
@@ -608,6 +664,7 @@ impl ViewerBehavior<'_> {
                 events.push(ViewportEvent::Drag {
                     button,
                     shift,
+                    alt,
                     delta_px: [
                         f64::from(delta.x) * pixels_per_point,
                         f64::from(delta.y) * pixels_per_point,
@@ -775,13 +832,13 @@ impl ViewerBehavior<'_> {
         });
         ui.separator();
         // A face picked in the viewport highlights its owning
-        // feature here — one selection value, one inversion.
+        // feature here — one selection value, one inversion. Overflow
+        // is `pane_ui`'s scroll container's job, the same one every
+        // chrome pane sits in; a second ScrollArea here would nest.
         let selected = self.session.selection().node();
-        egui::ScrollArea::vertical().show(ui, |ui| {
-            for row in &rows {
-                self.feature_row(ui, row, selected == Some(row.id));
-            }
-        });
+        for row in &rows {
+            self.feature_row(ui, row, selected == Some(row.id));
+        }
     }
 
     /// One feature-tree row.
@@ -930,7 +987,7 @@ impl ViewerBehavior<'_> {
                 ui.horizontal(|ui| {
                     ui.label(format!("feature {}", node.0));
                     if *present {
-                        if ui.button("Delete").clicked() {
+                        if ui.button(delete_label(self.session, *node)).clicked() {
                             self.ops.push(SessionOp::DeleteNode { node: *node });
                         }
                     } else {
@@ -952,7 +1009,8 @@ impl ViewerBehavior<'_> {
                     // of scope for v1 selection, so the kind is not a
                     // variable to render.
                     ui.label(format!("face of feature {}", face.node.0));
-                    if standing.live() && ui.button("Delete feature").clicked() {
+                    if standing.live() && ui.button(delete_label(self.session, face.node)).clicked()
+                    {
                         self.ops.push(SessionOp::DeleteNode { node: face.node });
                     }
                 });
@@ -1337,6 +1395,23 @@ fn drag_ops(
     }
 }
 
+/// The delete button's label: it names the FEATURE it deletes, by the
+/// node vocabulary's own kind name.
+///
+/// First-light finding (#1097's run): reached from a face selection, a
+/// bare "Delete feature" read as deleting the *face* — an entity this
+/// vocabulary can never delete; a face is a way of reaching the node
+/// that made it. The label carries the target's kind so the affordance
+/// states the operation it queues. The fallback arm is for a node the
+/// document no longer holds — no button renders for one today, and if
+/// that changes the label stays honest rather than panicking.
+fn delete_label(session: &DocSession, node: RecipeNodeId) -> String {
+    match session.doc().node(node) {
+        Some(target) => format!("Delete feature '{}'", crate::tree::node_kind(target)),
+        None => format!("Delete feature {}", node.0),
+    }
+}
+
 /// The open dialog: a THIN veneer over `SessionOp::Open`.
 ///
 /// Everything it does is choose a `Path`. The blocking call is
@@ -1412,10 +1487,38 @@ fn to_f32(matrix: &[[f64; 4]; 4]) -> [[f32; 4]; 4] {
 /// a viewer that cannot build its scene reports why and exits rather
 /// than opening a window onto nothing.
 pub fn run(tol: Tol, open: Option<std::path::PathBuf>) -> eframe::Result<()> {
-    let options = eframe::NativeOptions {
+    #[allow(unused_mut)] // mutated only on the cfg(linux) arm below
+    let mut options = eframe::NativeOptions {
+        // EXPLICIT, not defaulted (first light, #1097): a bare
+        // `NativeOptions::default()` leaves resizability and the
+        // window's size to whatever the winit backend negotiates with
+        // the window manager, and on at least one real WM that
+        // negotiation produced a window resizable vertically but not
+        // horizontally, with content stuck off the right edge. Stating
+        // the intent — resizable, a size the chrome fits in, a floor it
+        // stays readable at — is the portable posture whatever the
+        // backend's own defaults do.
+        viewport: egui::ViewportBuilder::default()
+            .with_resizable(true)
+            .with_inner_size([1280.0, 800.0])
+            .with_min_inner_size([800.0, 500.0]),
         depth_buffer: DEPTH_BITS,
         ..Default::default()
     };
+    // WSLg: PREFER the X11 (XWayland) backend. Confirmed on the
+    // first-light box (#1097): the horizontally-unresizable window is
+    // WSLg's Wayland RAIL-shell CSD path, and `WAYLAND_DISPLAY=` —
+    // the same X11 preference by hand — fixes resizing entirely. The
+    // hook fires ONLY when WSL is detected (the env markers WSL
+    // itself sets), so every other environment keeps winit's own
+    // backend choice and needs nothing unset.
+    #[cfg(target_os = "linux")]
+    if frame::running_under_wsl() {
+        options.event_loop_builder = Some(Box::new(|builder| {
+            use winit::platform::x11::EventLoopBuilderExtX11 as _;
+            builder.with_x11();
+        }));
+    }
     eframe::run_native(
         WINDOW_TITLE,
         options,
