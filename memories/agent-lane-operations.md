@@ -100,8 +100,12 @@ origin/main immediately before opening a PR and whenever main moves;
 after any push, confirm jobs are actually RUNNING by reading the
 workflow **runs** list, not the PR's checks list; re-roll with a real
 code commit (an empty commit classifies docs-only); and verify coverage
-at the STEP level (`gh api .../jobs`, step conclusions). **The run
-record is the instrument; the workflow source is not.**
+at the STEP level (`gh api .../jobs`, step conclusions). A missing row
+can be ASKED FOR rather than re-rolled for: a `CI-Config:
+klint=dev-probe` trailer on the head commit, or ci.yml's
+`workflow_dispatch` inputs, pin lane/eps/klint for one run
+(`docs/CI-MINUTES-2026-08.md`). **The run record is the instrument; the
+workflow source is not.**
 
 **Merging is destructive to checks — four rules, each guarding a silent
 or permanent failure rather than a red build.** Before merging, filter

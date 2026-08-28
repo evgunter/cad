@@ -88,8 +88,8 @@ pub use ::profile::{
 // `bossplate` scene's three-arc rim IS one), so `circle` alone left
 // half of the closed-carrier vocabulary a crate away.
 pub use ::profile::{
-    ArcLen, ArcSide, Bulge, Center, ClosedLoop, LineTarget, Open, PartialPath, PathError, Radius,
-    Start, Sweep, TangentArcTarget, Via, circle, circle_split,
+    ArcLen, ArcSide, Bulge, Center, ClosedLoop, LineTarget, Open, PartialPath, PathError,
+    PathNoCornerReason, Radius, Start, Sweep, TangentArcTarget, Via, circle, circle_split,
 };
 
 // --- 3. The four body operations ------------------------------
