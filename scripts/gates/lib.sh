@@ -177,6 +177,7 @@ gate_matcher_marker_cleanup() {
   if [ "${BASHPID:-$$}" = "$$" ]; then
     rm -f "$GATE_MATCHER_FAILED"
   fi
+  return 0
 }
 trap gate_matcher_marker_cleanup EXIT
 
@@ -631,8 +632,16 @@ gate_main() {
     gate_selftest
     exit 0
   fi
-  # A marker from a crashed earlier run with this pid would red an
-  # innocent pass; the run that means it writes its own below.
+  # THE MARKER IS PROVED WRITABLE BEFORE ANYTHING DEPENDS ON IT, and
+  # this is the same rule as the two above it: a marker that cannot be
+  # created reports nothing, and a `gate_grep` inside a process
+  # substitution would then fail exactly the way this file exists to
+  # stop — quietly. Creating it also clears a marker left by a crashed
+  # earlier run that happened to hold this pid.
+  if ! (: > "$GATE_MATCHER_FAILED") 2>/dev/null; then
+    gate_error "$(gate_name): cannot create $GATE_MATCHER_FAILED, so a matcher failing mid-scan could not be reported and a green would mean nothing — point TMPDIR at a writable directory"
+    exit 1
+  fi
   rm -f "$GATE_MATCHER_FAILED"
   if ! cd "$GATE_ROOT" 2>/dev/null; then
     gate_error "$(gate_name): cannot enter --root $GATE_ROOT from $PWD, so the gate scanned nothing — which is not a pass"
