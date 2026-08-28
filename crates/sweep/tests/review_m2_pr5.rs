@@ -333,30 +333,29 @@ fn survives_wire_four_segment_dome_two_band_structure() {
     ] {
         assert_eq!(valence(&t.body, vertex_at(&t.body, p)), 4, "interior {p:?}");
     }
-    // Meridian descriptions: angle-0 seam on periodic walls, plane
-    // walls conventional; every angle-π copy conventional.
-    assert!(matches!(
-        description(&t.body, meridians[0].unwrap()),
-        EdgeDescription::Scaffold(_)
-    ));
-    assert!(matches!(
-        description(&t.body, meridians[1].unwrap()),
-        EdgeDescription::Chart(_)
-    ));
-    assert!(matches!(
-        description(&t.body, meridians[2].unwrap()),
-        EdgeDescription::Chart(_)
-    ));
-    assert!(matches!(
-        description(&t.body, meridians[3].unwrap()),
-        EdgeDescription::Scaffold(_)
-    ));
+    // Meridian descriptions: the angle-0 meridian of each PERIODIC
+    // wall is that chart's own seam; the plane walls' meridians are
+    // not (a plane chart has no seam to be) and every angle-π copy is
+    // an ordinary image, because only one meridian per periodic chart
+    // can be its seam.
+    //
+    // **Re-expressed at PCURVE P-1b.** These eight lines used to read
+    // the description's VARIANT — `IsoCurve` for a seam, `MappedCurve`
+    // otherwise. U2 collapsed both into the one conventional form, so
+    // the variant now says `Chart` on all eight and discriminates
+    // nothing. The two facts the variants stood for are still stored:
+    // the seam obligation on the image, and the authority record (U2
+    // Q3) saying a profile entity determined the locus. The row reads
+    // those, and additionally pins each image to ITS OWN wall's chart
+    // — teeth the variant test never had.
+    let wall_of = |seg: usize| wall_key(&t.body, t.walls[0][seg].unwrap());
+    assert_declared_image_in(&t.body, meridians[0].unwrap(), wall_of(0));
+    assert_seam_of(&t.body, meridians[1].unwrap(), wall_of(1));
+    assert_seam_of(&t.body, meridians[2].unwrap(), wall_of(2));
+    assert_declared_image_in(&t.body, meridians[3].unwrap(), wall_of(3));
     assert!(meridians[4].is_none());
-    for pm in pi_meridians.iter().take(4) {
-        assert!(matches!(
-            description(&t.body, pm.unwrap()),
-            EdgeDescription::Scaffold(_)
-        ));
+    for (seg, pm) in pi_meridians.iter().enumerate().take(4) {
+        assert_declared_image_in(&t.body, pm.unwrap(), wall_of(seg));
     }
     // All 3 interior joins are transverse (plane×cyl, cyl×cone,
     // cone×plane): Intersection in BOTH bands.
@@ -419,12 +418,14 @@ fn survives_wire_cosurface_pair_inside_the_wire() {
         "one cylinder key: {keys:?}"
     );
     // The cosurface split vertex (canonical 2, at (1,1)): rims stay
-    // conventional in both bands (same key both sides).
+    // conventional in both bands — ONE surface on both sides
+    // under-determines the locus, so no Intersection can be cited, and
+    // the rim is an image in that one cylinder chart with the profile
+    // vertex's revolved pushforward as its authority. (Pre-U2 this
+    // read `MappedCurve`; the variant is gone, the two facts it stood
+    // for are asserted directly, and the chart is pinned besides.)
     for e in [t.rims[0][2].unwrap(), pi_rims[2].unwrap()] {
-        assert!(matches!(
-            description(&t.body, e),
-            EdgeDescription::Scaffold(_)
-        ));
+        assert_declared_image_in(&t.body, e, keys[0]);
     }
     // The genuine corners at (1,0) and (1,2): Intersection both bands.
     for v in [1, 3] {
@@ -622,23 +623,22 @@ fn survives_four_arc_donut_wrap_run_single_torus() {
         t.body.get_surface(keys[0]),
         Some(Surface::Torus { .. })
     ));
-    // All rims conventional (same key both sides); all four meridian
-    // arcs are Seam { torus } on the u = 0 minor circle.
+    // All rims conventional — one torus on both sides under-determines
+    // the locus, so each rim is an image in that chart declared by the
+    // profile's revolved vertex; all four meridian arcs are the
+    // torus's own seam on the u = 0 minor circle. (Pre-U2: the
+    // `MappedCurve` / `Seam` variant split, collapsed by U2 into one
+    // conventional form — the seam flag and the authority record are
+    // what those names were saying.)
     for r in &t.rims[0] {
-        assert!(matches!(
-            description(&t.body, r.unwrap()),
-            EdgeDescription::Scaffold(_)
-        ));
+        assert_declared_image_in(&t.body, r.unwrap(), keys[0]);
     }
     let RevolvedKind::Full { meridians, .. } = &t.kind else {
         panic!("full")
     };
     let meridians = &meridians[0];
     for m in meridians {
-        assert!(matches!(
-            description(&t.body, m.unwrap()),
-            EdgeDescription::Chart(_)
-        ));
+        assert_seam_of(&t.body, m.unwrap(), keys[0]);
     }
     assert_seams_on_u0(&t.body);
     // Pappus: V = 2π·R̄·A = 2π·1.5·(π·0.5²).
@@ -1322,11 +1322,13 @@ fn survives_forged_seam_on_plane_wall_meridian_is_refused() {
     // Canonical segment 1 ((2,0)->(2,1)) is a cylinder; segment 0
     // ((1,0)->(2,0)) sweeps the bottom plane annulus.
     let plane_meridian = meridians[0].unwrap();
-    assert!(matches!(
-        description(&t.body, plane_meridian),
-        EdgeDescription::Scaffold(_)
-    ));
     let plane_key = wall_key(&t.body, t.walls[0][0].unwrap());
+    // Its honest state before the forgery: an image in the plane
+    // annulus's chart, NOT that chart's seam, declared by the profile
+    // segment. (Pre-U2 this was the `MappedCurve` variant; the seam
+    // flag is where the same fact lives now — which is exactly the
+    // fact the forgery below flips.)
+    assert_declared_image_in(&t.body, plane_meridian, plane_key);
     assert!(matches!(
         t.body.get_surface(plane_key),
         Some(Surface::Plane { .. })
@@ -1386,13 +1388,12 @@ fn survives_wire_cosurface_pair_at_segment_zero() {
         assert_eq!(wall_key(&t.body, *f), k0, "one cone key across bands");
     }
     assert!(matches!(t.body.get_surface(k0), Some(Surface::Cone { .. })));
-    // The cosurface split rims (vertex 1) conventional in both bands;
-    // the cone-plane corner (vertex 2) transverse in both bands.
+    // The cosurface split rims (vertex 1) conventional in both bands —
+    // one cone on both sides under-determines the locus, so the rim is
+    // an image in that cone's chart declared by the profile's revolved
+    // vertex; the cone-plane corner (vertex 2) transverse in both.
     for e in [t.rims[0][1].unwrap(), pi_rims[1].unwrap()] {
-        assert!(matches!(
-            description(&t.body, e),
-            EdgeDescription::Scaffold(_)
-        ));
+        assert_declared_image_in(&t.body, e, k0);
     }
     for e in [t.rims[0][2].unwrap(), pi_rims[2].unwrap()] {
         assert!(matches!(

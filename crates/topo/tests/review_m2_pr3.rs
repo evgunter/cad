@@ -191,16 +191,18 @@ fn e2e_mini_extrude_triangle_prism_passes_tiers_and_upgrades() {
     assert_eq!(body.surfaces().count(), 5);
     assert_eq!(validate(&body), Ok(()));
     assert_eq!(validate_closed(&body), Ok(()));
-    // Prefer-intrinsic enforcement (D2, ratified 2026-07-19): every
-    // prism edge is a definitely-transverse plane-pair corner, so at
-    // rest the un-upgraded body names all nine — and nothing else.
+    // At rest the un-upgraded body names all nine chords, once by each
+    // of the two rules they break, and nothing else.
+    //
+    // **Re-expressed at PCURVE P-1b, not renumbered.** Prefer-intrinsic
+    // (D2) was the only at-rest rule a conventional chord broke when
+    // this row was written; U2's transience fence is the second, and
+    // it fires here because the prism is built through the Euler-op
+    // door, which describes chords before any face surface exists. The
+    // helper asserts the bijection — one report per rule per edge, in
+    // arena order, nothing else — rather than swapping 9 for 18.
     let errs = validate_geometric(&body, Tol::witness()).unwrap_err();
-    assert_eq!(errs.len(), 9, "{errs:?}");
-    assert!(
-        errs.iter()
-            .all(|e| matches!(e, ValidationError::TransverseNotIntrinsic { .. })),
-        "{errs:?}"
-    );
+    common::assert_every_chord_named_by_both_rules(&body, &errs);
     // The prefer-intrinsic upgrade: all nine upgrade via set_edge_curve.
     common::describe_as_intersections(&mut body);
     assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
@@ -428,6 +430,37 @@ fn lamina() -> (Body<f64>, topo::MvfsCreated, topo::MefCreated) {
     (body, seed, split)
 }
 
+/// Bring a hand-built body to REST in `chart`: restate every edge's
+/// description as an image in that chart, carrier and interval
+/// verbatim.
+///
+/// **Why the fixtures need this at PCURVE P-1b.** The Euler-op door
+/// describes through the SCAFFOLDING door — `mev_line` and
+/// `mef_chord` mint an edge before any face surface exists, so they
+/// have no chart to name. That is legal exactly while the edge is
+/// TRANSIENT; U2's fence makes tier 3 refuse it once the edge has two
+/// faces (`ScaffoldAtRest`). A body assembled by hand and then grafted
+/// with planes is therefore an UNFINISHED construction until its
+/// descriptions are restated, which every real verb does for itself.
+/// The rows below are about other defects, so their fixtures are
+/// finished here rather than left carrying a complaint that would
+/// drown the one under test. (`tier3_tests::coplanar_pillow` does the
+/// same for the same reason.)
+fn describe_every_edge_in(body: &mut Body<f64>, chart: topo::SurfaceKey) {
+    let edges: Vec<_> = body.edges().map(|(k, _)| k).collect();
+    for e in edges {
+        let spec = body
+            .get_edge(e)
+            .and_then(|edge| body.get_curve_geom(edge.curve))
+            .and_then(topo::CurveGeom::certified)
+            .expect("a certified chord")
+            .restated_spec()
+            .at_rest_in_chart(chart, false);
+        body.set_edge_curve(e, spec, Tol::witness())
+            .expect("the chord lies in the chart it is described in");
+    }
+}
+
 /// SURVIVES: an isolated in-band (3·eps) dihedral at rest is reported
 /// as SliverDihedral and nothing else; the coplanar-shared-key variant
 /// is definitely Smooth and tier-3 clean (the legal π wedge).
@@ -445,10 +478,15 @@ fn survives_sliver_dihedral_isolated_at_rest() {
         normal: Vec3::new(0.0, theta.sin(), theta.cos()),
         u_ref: Vec3::unit_x(),
     };
-    body.set_face_surface(seed.face, FaceSurface::New(flat.clone()))
+    let flat_key = body
+        .set_face_surface(seed.face, FaceSurface::New(flat.clone()))
         .unwrap();
     body.set_face_surface(split.face, FaceSurface::New(tilted))
         .unwrap();
+    // Both chords run along the x-axis, which lies in BOTH planes
+    // exactly; describe them in the flat one so the only thing wrong
+    // with this body is the sliver the row is about.
+    describe_every_edge_in(&mut body, flat_key);
     assert_eq!(validate_closed(&body), Ok(()));
     let errs = validate_geometric(&body, Tol::witness()).unwrap_err();
     assert!(!errs.is_empty());
@@ -466,6 +504,7 @@ fn survives_sliver_dihedral_isolated_at_rest() {
         .unwrap();
     body.set_face_surface(split.face, FaceSurface::Shared(key))
         .unwrap();
+    describe_every_edge_in(&mut body, key);
     assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
 }
 
@@ -496,6 +535,9 @@ fn survives_nurbs_seed_gate_and_clear() {
     let key = body
         .set_face_surface(split.face, FaceSurface::New(flat.clone()))
         .unwrap();
+    // The chords rest in the plane just grafted on; describe them
+    // there, so the only complaint left is the seed's Nurbs.
+    describe_every_edge_in(&mut body, key);
     let errs = validate_geometric(&body, Tol::witness()).unwrap_err();
     assert!(
         errs.iter().any(
@@ -566,6 +608,13 @@ fn fixed_planar_face_arc_boundary_bulge_reported_at_tier3() {
     assert_eq!(
         validate_geometric(&body, Tol::witness()),
         Err(vec![
+            // The spec above describes this arc through the
+            // SCAFFOLDING door on a body already at rest, so U2's
+            // transience fence names it too (PCURVE P-1b). It is the
+            // same one edge, reported by all three at-rest rules it
+            // breaks — the "and nothing else" the row is about is
+            // about OTHER edges and OTHER faces, and still holds.
+            ValidationError::ScaffoldAtRest { edge },
             ValidationError::TransverseNotIntrinsic { edge },
             ValidationError::PlanarBoundaryResidual { face: front, edge },
         ]),
@@ -635,6 +684,14 @@ fn fixed_aliased_interval_refused_at_public_setter() {
     assert_eq!(
         validate_geometric(&body, Tol::witness()),
         Err(vec![
+            // `mk` describes the arc through the SCAFFOLDING door
+            // (`EdgeDescriptionSpec::Scaffold`, above) on a body whose
+            // faces already have their planes — so the transience
+            // fence names it, and this row is where it came from.
+            // Added at PCURVE P-1b as a THIRD at-rest report on the
+            // one attacked edge, which is what the message below has
+            // always claimed the list is.
+            ValidationError::ScaffoldAtRest { edge },
             ValidationError::TransverseNotIntrinsic { edge },
             ValidationError::PlanarBoundaryResidual {
                 face: t.mefs[1].face,
@@ -718,6 +775,16 @@ fn fixed_self_loop_dihedral_and_containment_have_teeth_at_rest() {
     assert_eq!(
         validate_geometric(&body, Tol::witness()),
         Err(vec![
+            // All three chords were minted through the Euler-op door
+            // — before any of these planes existed — and this row
+            // deliberately never restates them, because the
+            // conventional description is half of what it is testing.
+            // At rest that breaks U2's transience fence as well as
+            // prefer-intrinsic, once per edge each, in edge-arena
+            // order and ahead of the boundary report (PCURVE P-1b).
+            ValidationError::ScaffoldAtRest { edge: seg.edge },
+            ValidationError::ScaffoldAtRest { edge: split.edge },
+            ValidationError::ScaffoldAtRest { edge: circ.edge },
             ValidationError::TransverseNotIntrinsic { edge: seg.edge },
             ValidationError::TransverseNotIntrinsic { edge: split.edge },
             ValidationError::TransverseNotIntrinsic { edge: circ.edge },

@@ -138,6 +138,39 @@ fn description(body: &Body<f64>, edge: EdgeKey) -> EdgeDescription<f64> {
         .clone()
 }
 
+
+/// The edge's **authority record** (U2 Q3): who determined its locus.
+/// The datum that survived the `IsoCurve` / `MappedCurve` collapse —
+/// a pushforward no longer says by BEING the description that a sketch
+/// entity declared the locus, so it says it here.
+fn authority(body: &Body<f64>, edge: EdgeKey) -> geom_brep::EdgeAuthority<f64> {
+    let curve = body.get_edge(edge).unwrap().curve;
+    body.get_curve_geom(curve)
+        .unwrap()
+        .certified()
+        .unwrap()
+        .authority()
+}
+
+/// **A conventional description the profile DECLARED**: an image in
+/// `chart` that is not that chart's parameterization seam, carrying
+/// the sketch entity's pushforward as its authority. The post-collapse
+/// spelling of "this strut stays a `MappedCurve`" — stricter, because
+/// it pins the chart the image is drawn in as well.
+fn assert_declared_image_in(body: &Body<f64>, edge: EdgeKey, chart: topo::SurfaceKey) {
+    match description(body, edge) {
+        EdgeDescription::Chart(c) => {
+            assert_eq!(c.surface, chart, "the image must be drawn in {chart:?}");
+            assert!(!c.seam, "a declared image is not the chart's seam");
+        }
+        other => panic!("expected a conventional chart image, got {other:?}"),
+    }
+    assert!(
+        authority(body, edge).is_declared(),
+        "a sketch entity under the sweep map determined this locus"
+    );
+}
+
 #[test]
 fn extruded_l_profile_passes_all_tiers() {
     // (a) The L-prism: 8 faces, genus 0, every join a corner.
@@ -218,12 +251,18 @@ fn extruded_profile_with_hole_builds_the_ring_path() {
         t.body.get_surface(k0).unwrap(),
         Surface::Cylinder { .. }
     ));
-    // The hole's joins are same-carrier smooth: struts stay MappedCurve.
+    // The hole's joins are same-carrier smooth: ONE cylinder on both
+    // sides under-determines the strut's locus, so it cannot be cited
+    // as an Intersection and is described as an image in that one
+    // chart, declared by the profile vertex's extrusion.
+    //
+    // **Re-expressed at PCURVE P-1b.** "Stays `MappedCurve`" was a
+    // variant test; U2 collapsed the conventional forms into one, so
+    // the variant no longer separates a declared locus from a derived
+    // one. The authority record (U2 Q3) does, and the chart key — the
+    // very key asserted shared two lines above — is now pinned too.
     for &edge in &t.strut_edges[1] {
-        assert!(matches!(
-            description(&t.body, edge),
-            EdgeDescription::Scaffold(_)
-        ));
+        assert_declared_image_in(&t.body, edge, k0);
     }
     // The outer square's corners upgrade to Intersection.
     for &edge in &t.strut_edges[0] {
@@ -346,12 +385,15 @@ fn disc_extrudes_to_a_shared_carrier_cylinder() {
     let k0 = t.body.get_face(t.side_faces[0][0]).unwrap().surface;
     let k1 = t.body.get_face(t.side_faces[0][1]).unwrap().surface;
     assert_eq!(k0, k1);
-    // Both joins smooth: struts stay MappedCurve.
+    // Both joins smooth on ONE shared carrier: the surfaces
+    // under-determine each strut's locus, so each is an image in that
+    // single cylinder chart declared by the profile vertex's
+    // extrusion — not an Intersection, which the shared key could not
+    // support. (Pre-U2 this asserted the `MappedCurve` variant; the
+    // authority record is where "the profile declared it" lives now,
+    // and the shared chart is pinned besides.)
     for &edge in &t.strut_edges[0] {
-        assert!(matches!(
-            description(&t.body, edge),
-            EdgeDescription::Scaffold(_)
-        ));
+        assert_declared_image_in(&t.body, edge, k0);
     }
 }
 

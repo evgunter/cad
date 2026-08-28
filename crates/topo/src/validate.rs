@@ -5002,19 +5002,51 @@ mod tests {
     /// multiply is `· +1`) — pinned here as "no `LoopRoleInverted`
     /// before the flip". The fixture is [`ops_cube`] with real planes
     /// grafted on; its twelve chords stay conventional, so the honest
-    /// report is the twelve `TransverseNotIntrinsic` complaints and
-    /// nothing else. (The all-green variant of this row, on the fully
-    /// certified cube, lives in `tests/geometric_cube.rs`.)
+    /// report is about those chords and nothing else. (The all-green
+    /// variant of this row, on the fully certified cube, lives in
+    /// `tests/geometric_cube.rs`.)
+    ///
+    /// **Re-expressed at PCURVE P-1b.** The honest report used to be
+    /// twelve `TransverseNotIntrinsic` complaints; U2's transience
+    /// fence added a second, independent at-rest rule that the same
+    /// twelve chords break — they were minted through the Euler-op
+    /// door, which describes an edge before any face surface exists,
+    /// and `plane_every_face` grafts the planes without restating
+    /// them. The row asserts the PAIR — one report per rule per chord
+    /// and nothing else — rather than widening the `matches!` to admit
+    /// a second variant, which would have let a body with eleven of
+    /// one and thirteen of the other through.
     #[test]
     fn tier_three_refuses_a_hand_flipped_face_sense() {
         let mut cube = ops_cube(Tol::witness()).body;
         plane_every_face(&mut cube);
         let honest = validate_geometric(&cube, Tol::witness()).unwrap_err();
-        assert!(
-            honest
-                .iter()
-                .all(|e| matches!(e, ValidationError::TransverseNotIntrinsic { .. })),
-            "the grafted cube's only complaint is the conventional \
+        let edges: Vec<crate::EdgeKey> = cube.edges().map(|(k, _)| k).collect();
+        let named = |pick: fn(&ValidationError) -> Option<crate::EdgeKey>| {
+            honest.iter().filter_map(pick).collect::<Vec<_>>()
+        };
+        assert_eq!(
+            named(|e| match e {
+                ValidationError::ScaffoldAtRest { edge } => Some(*edge),
+                _ => None,
+            }),
+            edges,
+            "the fence names every chord still at the scaffolding \
+             door, once; got {honest:?}"
+        );
+        assert_eq!(
+            named(|e| match e {
+                ValidationError::TransverseNotIntrinsic { edge } => Some(*edge),
+                _ => None,
+            }),
+            edges,
+            "prefer-intrinsic names every declared transverse chord, \
+             once; got {honest:?}"
+        );
+        assert_eq!(
+            honest.len(),
+            2 * edges.len(),
+            "the grafted cube's only complaints are its conventional \
              chords; got {honest:?}"
         );
 

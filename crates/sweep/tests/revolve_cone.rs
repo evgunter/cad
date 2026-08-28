@@ -74,16 +74,21 @@ fn cone_full_revolve_has_an_apex_and_certifies() {
     ));
     assert_eq!(t.rims[0][0], None);
     assert_eq!(t.rims[0][2], None);
-    // Meridians: base conventional (plane wall), slant Seam, axis
-    // omitted.
-    assert!(matches!(
-        description(&t.body, meridians[0].unwrap()),
-        EdgeDescription::Scaffold(_)
-    ));
-    assert!(matches!(
-        description(&t.body, meridians[1].unwrap()),
-        EdgeDescription::Chart(_)
-    ));
+    // **Meridians, re-expressed at PCURVE P-1b.** The pair used to be
+    // told apart by variant — `MappedCurve` on the base, `IsoCurve`
+    // (Seam) on the slant. U2 made both chart images, so the variant
+    // no longer discriminates; the two facts that DO are the seam flag
+    // and the authority record (U2 Q3), and both were always the real
+    // content of this line. The base plane annulus has no seam to be
+    // (a plane chart is not periodic), so its meridian is an ordinary
+    // image whose locus the profile segment declared; the cone is
+    // periodic, so its angle-0 meridian is the chart's own seam,
+    // derived. Each is also pinned to ITS OWN wall's chart, which the
+    // variant test never checked.
+    let base_key = t.body.get_face(base).unwrap().surface;
+    let slant_key = t.body.get_face(slant).unwrap().surface;
+    assert_declared_image_in(&t.body, meridians[0].unwrap(), base_key);
+    assert_seam_of(&t.body, meridians[1].unwrap(), slant_key);
     assert!(meridians[2].is_none());
     // Orientation oracle: interior lift points per band face (the
     // band boundaries are coplanar — see the ball suite): band 1

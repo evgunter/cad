@@ -337,11 +337,32 @@ fn a_side_wall_replacement_refuses_typed_at_the_rim_arcs() {
 /// surface as `Fit`, not `FittedBoundaryUnsupported`) and the refusal
 /// must still be the structural one. Both rows also pin WHICH leg the
 /// loop walk hits, which the suite left as bookkeeping.
+///
+/// **Re-expressed at PCURVE P-1b, and the leg list retired with it.**
+/// Two of the five legs this row enumerated no longer exist: U2
+/// collapsed `IsoCurve`/`Seam`/`MappedCurve` into one conventional
+/// form, so "an iso-curve of a neighbour's chart" and "a periodic
+/// seam" merged into "a chart image of a neighbour's chart", and the
+/// "a mapped rim (a v-row is not an `IsoCurve`)" refusal was retired
+/// outright — a rim is a chart image like any other, and a u-const one
+/// takes the exact-row lane whatever minted it (P-1b item 4). Rather
+/// than swap five strings for four, the row now pins the leg EXACTLY,
+/// per fixture: membership in a list of five could never distinguish
+/// a door that fired for the wrong reason from one that fired for the
+/// right one, which is the whole thing this row exists to check.
 #[test]
 fn the_fitted_obstruction_holds_on_a_curved_fit() {
-    for (name, mut body) in [
-        ("planar prism", prism()),
-        ("twisted loft", twisted_loft(0.3)),
+    // Both fixtures' spline walls are bounded by rims described in a
+    // NEIGHBOUR's chart (the cap plane they lie in), so both land on
+    // the same leg — and the row says so by name rather than by
+    // membership.
+    for (name, mut body, leg) in [
+        ("planar prism", prism(), "a chart image of a neighbour's chart"),
+        (
+            "twisted loft",
+            twisted_loft(0.3),
+            "a chart image of a neighbour's chart",
+        ),
     ] {
         let wall = body
             .faces()
@@ -358,16 +379,6 @@ fn the_fitted_obstruction_holds_on_a_curved_fit() {
         let ReplaceFaceError::FittedBoundaryUnsupported { what, .. } = e else {
             panic!("{name}: expected the structural refusal, got {e}");
         };
-        assert!(
-            [
-                "a seam shared with another bounded chart",
-                "an iso-curve of a neighbour's chart",
-                "a periodic seam",
-                "a mapped rim (a v-row is not an `IsoCurve`, which is u-const by definition)",
-                "an intrinsic intersection with an untouched neighbour",
-            ]
-            .contains(&what),
-            "{name}: an undocumented leg: {what}"
-        );
+        assert_eq!(what, leg, "{name}: the wrong leg of the fitted door");
     }
 }

@@ -131,6 +131,39 @@ fn description(body: &Body<f64>, edge: EdgeKey) -> EdgeDescription<f64> {
         .clone()
 }
 
+
+/// The edge's **authority record** (U2 Q3): who determined its locus.
+/// The datum that survived the `IsoCurve` / `MappedCurve` collapse —
+/// a pushforward no longer says by BEING the description that a sketch
+/// entity declared the locus, so it says it here.
+fn authority(body: &Body<f64>, edge: EdgeKey) -> geom_brep::EdgeAuthority<f64> {
+    let curve = body.get_edge(edge).unwrap().curve;
+    body.get_curve_geom(curve)
+        .unwrap()
+        .certified()
+        .unwrap()
+        .authority()
+}
+
+/// **A conventional description the profile DECLARED**: an image in
+/// `chart` that is not that chart's parameterization seam, carrying
+/// the sketch entity's pushforward as its authority. The post-collapse
+/// spelling of "this strut stays a `MappedCurve`" — stricter, because
+/// it pins the chart the image is drawn in as well.
+fn assert_declared_image_in(body: &Body<f64>, edge: EdgeKey, chart: topo::SurfaceKey) {
+    match description(body, edge) {
+        EdgeDescription::Chart(c) => {
+            assert_eq!(c.surface, chart, "the image must be drawn in {chart:?}");
+            assert!(!c.seam, "a declared image is not the chart's seam");
+        }
+        other => panic!("expected a conventional chart image, got {other:?}"),
+    }
+    assert!(
+        authority(body, edge).is_declared(),
+        "a sketch entity under the sweep map determined this locus"
+    );
+}
+
 /// Independent orientation oracle: signed volume by the ch. 13
 /// divergence fan, `V = (1/6) Σ_loops Σ_i det[p₁, pᵢ, pᵢ₊₁]`, fanned
 /// over every loop (outer + rings) of every face in `next` order, using
@@ -568,13 +601,50 @@ fn survives_dihedral_band_sweep_at_the_strut_arm() {
     )
     .unwrap();
     assert_all_tiers(&t.body);
-    assert!(matches!(
-        description(&t.body, t.strut_edges[0][1]),
-        EdgeDescription::Scaffold(_)
-    ));
     let k0 = t.body.get_face(t.side_faces[0][0]).unwrap().surface;
     let k1 = t.body.get_face(t.side_faces[0][1]).unwrap().surface;
     assert_ne!(k0, k1, "smooth-at-arm join must not silently share keys");
+    // The strut stays conventional: two DISTINCT planes meeting
+    // smoothly have zero relative normal curvature, so the pair
+    // under-determines the locus and no intrinsic description exists
+    // for it. It is still an edge at rest, so it says where it rests —
+    // an image in the FIRST wall's chart (the strut is that wall's
+    // boundary), with the profile vertex's extrusion as its authority.
+    //
+    // **Re-expressed at PCURVE P-1b, and the row grew teeth doing it.**
+    // "Stays `MappedCurve`" was a variant test, and the variant is
+    // gone. Worse, it was passing for the wrong reason: this join is
+    // the one under-determined lane in `extrude` that never converted,
+    // so the body it built was one tier 3 refuses — which the variant
+    // test could not see and `assert_all_tiers` above now does. The
+    // row asserts the authority record AND the chart, so a strut that
+    // stopped at the scaffolding door fails here as well as there.
+    assert_declared_image_in(&t.body, t.strut_edges[0][1], k0);
+    // **Either chart is a legitimate home — demonstrated, not
+    // asserted.** `extrude` names `k_prev`, and the certification
+    // meter only ever checks the chart it is given, so the pick would
+    // be load-bearing if the strut lay in just one wall. It lies in
+    // both: an extruded wall is ruled in the extrusion vector, and the
+    // strut IS the ruling through the vertex the two segments share.
+    // Re-describing it in the other wall's chart therefore certifies
+    // and validates identically. (Contrast #1116: a fillet strut on a
+    // curved support is a chord, i.e. a secant, and lies in neither —
+    // same word, opposite outcome, and this is the row that tells them
+    // apart.)
+    let mut other = t.body.clone();
+    let strut = t.strut_edges[0][1];
+    let restated = other
+        .get_edge(strut)
+        .and_then(|e| other.get_curve_geom(e.curve))
+        .and_then(topo::CurveGeom::certified)
+        .unwrap()
+        .restated_spec()
+        .at_rest_in_chart(k1, false);
+    other
+        .set_edge_curve(strut, restated, Tol::witness())
+        .expect("the strut lies in the OTHER wall's chart too");
+    assert_all_tiers(&other);
+    assert_declared_image_in(&other, strut, k1);
 
     // (b) In-band: the typed sliver, at the canonical vertex.
     let err = extrude(
@@ -636,10 +706,13 @@ fn survives_collinear_lines_share_the_plane_key() {
     assert_eq!(k0, k1, "collinear walls share one plane");
     // 2 caps + 4 distinct wall planes (5 segments, one shared pair).
     assert_eq!(t.body.surfaces().count(), 6);
-    assert!(matches!(
-        description(&t.body, t.strut_edges[0][1]),
-        EdgeDescription::Scaffold(_)
-    ));
+    // The collinear join's strut: one plane on both sides
+    // under-determines its locus, so it is an image in that shared
+    // chart declared by the profile vertex's extrusion. (Pre-U2 this
+    // was the `MappedCurve` variant; U2 collapsed the conventional
+    // forms, and the authority record plus the chart key are what the
+    // variant stood for.)
+    assert_declared_image_in(&t.body, t.strut_edges[0][1], k0);
     // The shared-key smooth join is skipped structurally; every true
     // corner upgraded.
     for j in [0usize, 2, 3, 4] {
@@ -677,12 +750,10 @@ fn survives_notched_circle_wrap_join_shares_the_key() {
     assert_eq!(k0, k3, "wrap-join same-carrier arcs share one cylinder");
     // 2 caps + 1 cylinder + 2 planes.
     assert_eq!(t.body.surfaces().count(), 5);
-    // Strut 0 (the wrap join) stays conventional; the line corners
-    // upgrade.
-    assert!(matches!(
-        description(&t.body, t.strut_edges[0][0]),
-        EdgeDescription::Scaffold(_)
-    ));
+    // Strut 0 (the wrap join) stays conventional — the shared cylinder
+    // under-determines its locus, so it is an image in that chart
+    // declared by the profile vertex; the line corners upgrade.
+    assert_declared_image_in(&t.body, t.strut_edges[0][0], k0);
     for j in [1usize, 2, 3] {
         assert!(matches!(
             description(&t.body, t.strut_edges[0][j]),
@@ -741,16 +812,11 @@ fn fixed_wrap_cosurface_run_shares_one_key() {
     // 2 caps + 1 plane + ONE cylinder key for the run's carrier.
     assert_eq!(t.body.surfaces().count(), 4);
     // The in-run struts (walls 3|0 at vertex 0, walls 2|3 at vertex 3)
-    // are same-key smooth joins and stay conventional; the chord's two
-    // corners upgrade.
-    assert!(matches!(
-        description(&t.body, t.strut_edges[0][0]),
-        EdgeDescription::Scaffold(_)
-    ));
-    assert!(matches!(
-        description(&t.body, t.strut_edges[0][3]),
-        EdgeDescription::Scaffold(_)
-    ));
+    // are same-key smooth joins and stay conventional — images in the
+    // run's ONE cylinder chart, declared by their profile vertices;
+    // the chord's two corners upgrade.
+    assert_declared_image_in(&t.body, t.strut_edges[0][0], key(0));
+    assert_declared_image_in(&t.body, t.strut_edges[0][3], key(0));
     for j in [1usize, 2] {
         assert!(matches!(
             description(&t.body, t.strut_edges[0][j]),
@@ -1021,10 +1087,19 @@ fn survives_sub_eps_oblique_vector_used_as_given() {
     let t = extrude(&validated(vec![lp]), Extrusion::Vector(v), Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
     // Stored vector bitwise = input.
-    let EdgeDescription::Scaffold(geom_brep::MappedCurve::ExtrudedPoint { vec, .. }) =
-        description(&t.body, t.strut_edges[0][1])
+    //
+    // **Re-expressed at PCURVE P-1b.** The vector used to be read off
+    // the DESCRIPTION, because a pushforward said what it was by being
+    // the description. U2 moved the pushforward into the authority
+    // record (Q3) and left the description saying where the locus
+    // lies; the sketch datum this row is about is the same datum, at
+    // the field that now holds it. Nothing about what is checked
+    // moves: the stored vector is still the input, bitwise, and the
+    // raised vertices are still measured against it below.
+    let geom_brep::EdgeAuthority::Declared(geom_brep::MappedCurve::ExtrudedPoint { vec, .. }) =
+        authority(&t.body, t.strut_edges[0][1])
     else {
-        panic!("strut description");
+        panic!("the collinear join's strut keeps its declaring pushforward");
     };
     assert_eq!(vec.x.to_bits(), v.x.to_bits());
     assert_eq!(vec.y.to_bits(), v.y.to_bits());

@@ -830,15 +830,7 @@ fn sweep_loop<T: Decide>(
             // which silently moves the geometry in a pass whose whole
             // contract is that only the DESCRIPTION moves. The edge's
             // own certified curve is the only honest source.
-            let curve = body
-                .get_edge(struts[j].edge)
-                .and_then(|e| body.get_curve_geom(e.curve))
-                .and_then(topo::CurveGeom::certified)
-                .ok_or(EulerOpError::StaleKey {
-                    key: topo::EntityId::Edge(struts[j].edge),
-                })?;
-            let spec = curve.restated_spec().at_rest_in_chart(k_prev, false);
-            body.set_edge_curve(struts[j].edge, spec, tol)?;
+            describe_strut_at_rest(body, struts[j].edge, k_prev, tol)?;
             continue;
         }
         let s_next = body
@@ -901,7 +893,64 @@ fn sweep_loop<T: Decide>(
                         };
                         body.set_edge_curve(struts[j].edge, spec, tol)?;
                     }
-                    Ok(geom_core::Sign::Zero | geom_core::Sign::Negative) => {}
+                    Ok(geom_core::Sign::Zero | geom_core::Sign::Negative) => {
+                        // Zero-side second order: the surfaces
+                        // under-determine the locus, so the strut
+                        // "keeps the conventional description BY THE
+                        // PREDICATE" — the sentence above, unchanged.
+                        // **This call is that sentence translated, not
+                        // a new policy.** Pre-U2 the conventional
+                        // description WAS the pushforward, so doing
+                        // nothing here spelled it faithfully; U2 made
+                        // the conventional form a chart image, and
+                        // spelling the same sentence now means saying
+                        // which chart. Leaving the arm empty through
+                        // the collapse is what made `extrude` the one
+                        // verb still handing back a body tier 3
+                        // refuses (D3's transience fence) — caught by
+                        // the default-mode battery on
+                        // `survives_dihedral_band_sweep_at_the_strut_arm`,
+                        // whose two walls are DISTINCT planes, so the
+                        // same-key lane above never sees it.
+                        //
+                        // **Why `k_prev`, and why the pick is free.**
+                        // The same-key lane has no choice; this one
+                        // does, so the choice is argued rather than
+                        // taken. An extruded wall is the sweep of its
+                        // profile segment along `w`, hence RULED in
+                        // `w`; the strut is
+                        // `Line { origin: qs[j], dir: w.normalize() }`
+                        // — the ruling through the vertex the two
+                        // segments SHARE. That ruling lies in both
+                        // walls exactly, so either chart is a
+                        // legitimate home and neither is a better
+                        // statement about the locus.
+                        // `survives_dihedral_band_sweep_at_the_strut_arm`
+                        // demonstrates it rather than trusting this
+                        // paragraph: it re-describes the same strut in
+                        // the OTHER wall's chart and watches that
+                        // certify and validate too.
+                        //
+                        // The contrast worth naming, because the word
+                        // is the same: a FILLET strut (#1116) is a
+                        // chord between a support boundary vertex and
+                        // its foot, and on a curved support a chord is
+                        // a SECANT — it lies in neither adjacent
+                        // surface, so no chart image describes it and
+                        // the conversion there is refused, correctly.
+                        // The difference is containment, not the name.
+                        //
+                        // The asymmetry is real even so, and stated
+                        // plainly: certification meters
+                        // `|C(t) − S(P(t))|` against the NAMED chart
+                        // only, and tier 3's chart adjacency accepts
+                        // either adjacent surface. So `k_prev` is
+                        // load-bearing — the meter never checks the
+                        // strut against `k_next` — and it is benign
+                        // here only because of the ruling argument
+                        // above.
+                        describe_strut_at_rest(body, struts[j].edge, k_prev, tol)?;
+                    }
                     Err(source) => {
                         return Err(ExtrudeError::SliverJoin {
                             loop_index,
@@ -926,6 +975,37 @@ fn sweep_loop<T: Decide>(
         struts: struts.iter().map(|m| m.edge).collect(),
         top_rims,
     })
+}
+
+/// Re-states one strut as an image in `chart`, keeping its carrier and
+/// parameter interval verbatim (D3's transience fence: the scaffolding
+/// door is for edges whose surfaces do not exist yet, and this one's
+/// do now).
+///
+/// **The carrier is RESTATED, never rebuilt.** Re-deriving it from the
+/// endpoints (`line_between(q, q + w)`) recomputes the direction and
+/// the interval from a sum that need not be bitwise what the strut was
+/// minted with, which silently moves geometry in a pass whose whole
+/// contract is that only the DESCRIPTION moves. Through
+/// `at_rest_in_chart` the pushforward that scaffolded the strut stays
+/// beside it as the authority record, which is what keeps tier 3's
+/// prefer-intrinsic reading unchanged.
+fn describe_strut_at_rest<T: Decide>(
+    body: &mut Body<T>,
+    edge: topo::EdgeKey,
+    chart: topo::SurfaceKey,
+    tol: Tol,
+) -> Result<(), ExtrudeError> {
+    let curve = body
+        .get_edge(edge)
+        .and_then(|e| body.get_curve_geom(e.curve))
+        .and_then(topo::CurveGeom::certified)
+        .ok_or(EulerOpError::StaleKey {
+            key: topo::EntityId::Edge(edge),
+        })?;
+    let spec = curve.restated_spec().at_rest_in_chart(chart, false);
+    body.set_edge_curve(edge, spec, tol)?;
+    Ok(())
 }
 
 /// One loop's sweep products, in swept order (see [`sweep_loop`]).

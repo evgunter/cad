@@ -186,43 +186,44 @@ fn the_untouched_cap_seams_are_re_anchored() {
     let face = cylinder_face(&body, 0.8);
     topo::replace_face_offset(&mut body, face, d, FIT_TOL, band(), Tol::witness()).unwrap();
 
-    let mut spans: Vec<f64> = body
+    // **Re-expressed at PCURVE P-1b.** This row is about a SKETCH
+    // DATUM — the radial segment the door re-states — and about the
+    // parameter interval that datum implies. Before U2 a pushforward
+    // said what it was by BEING the description, so both walks
+    // selected on the `MappedCurve` variant. U2 moved the pushforward
+    // into the authority record (Q3) and left the description saying
+    // where the locus lies; the datum is the same datum, at the field
+    // that now holds it. Selecting on it also merges the two walks
+    // into one, so the spans and the far endpoints are read off the
+    // SAME edges — which the two independent filters only assumed.
+    let mut seams: Vec<(f64, f64)> = body
         .edges()
         .filter_map(|(_, e)| {
             let c = body
                 .get_curve_geom(e.curve)
                 .and_then(CurveGeom::certified)?;
-            matches!(c.description(), geom_brep::EdgeDescription::Scaffold(_)).then(|| {
-                let (t0, t1) = c.params();
-                (t1 - t0).abs()
-            })
-        })
-        .collect();
-    spans.sort_by(f64::total_cmp);
-    assert!(
-        spans.len() == 2 && spans.iter().all(|s| (s - (0.4 + d)).abs() < 1e-15),
-        "both cap seams span the wider annulus, got {spans:?}"
-    );
-
-    let far: Vec<f64> = body
-        .edges()
-        .filter_map(|(_, e)| {
-            let c = body
-                .get_curve_geom(e.curve)
-                .and_then(CurveGeom::certified)?;
-            let geom_brep::EdgeDescription::Scaffold(geom_brep::MappedCurve::PlacedSegment {
+            let geom_brep::EdgeAuthority::Declared(geom_brep::MappedCurve::PlacedSegment {
                 segment: geom_brep::SketchSegment::Line { a, b },
                 ..
-            }) = c.description()
+            }) = c.authority()
             else {
                 return None;
             };
-            Some(a.x.max(b.x))
+            let (t0, t1) = c.params();
+            Some(((t1 - t0).abs(), a.x.max(b.x)))
         })
         .collect();
+    seams.sort_by(|x, y| x.0.total_cmp(&y.0));
+    assert_eq!(seams.len(), 2, "the two cap seams, got {seams:?}");
     assert!(
-        far.iter().all(|x| (x - (0.8 + d)).abs() < 1e-15),
-        "the sketch segments' far endpoints followed the wall: {far:?}"
+        seams.iter().all(|(span, _)| (span - (0.4 + d)).abs() < 1e-15),
+        "both cap seams span the wider annulus, got {seams:?}"
+    );
+    assert!(
+        seams
+            .iter()
+            .all(|(_, far)| (far - (0.8 + d)).abs() < 1e-15),
+        "the sketch segments' far endpoints followed the wall: {seams:?}"
     );
 }
 
