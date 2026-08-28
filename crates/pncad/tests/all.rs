@@ -2670,11 +2670,12 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   display one. `crate::document` carries all three now.
 /// - **Types whose curated face is a different shape**
 ///   (`ProfilePayload`, `ProgramRefusal`, `ExprPath`, `ParamValue`,
-///   `Product`, `product_recorded`, `ClassAdmission`,
-///   `class_admission`, `BifurcationKind`, `NamingError`,
+///   `Product`, `product_recorded`, `BifurcationKind`, `NamingError`,
 ///   `MetaValue`, `MetaError`, `MetaVersionError`, `from_value`,
 ///   `to_value`): each has a curated door of its own or is machinery
-///   behind one.
+///   behind one. (`ClassAdmission`/`class_admission` left this family
+///   at GUI-4: a mate-authoring consumer needs the admission table
+///   BEFORE committing, so `crate::document` carries them now.)
 ///
 ///   **The A5 gate used to be in this family and was wrong to be.**
 ///   `assemble` and its vocabulary (`Assembly`, `AssemblyError`,
@@ -2710,7 +2711,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 /// - **`MigrationStep`**: the stated exception in the crate docs —
 ///   its signature speaks `serde_json::Value`, which does not cross
 ///   the curated surface.
-const NOT_CARRIED: [&str; 78] = [
+const NOT_CARRIED: [&str; 76] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -2722,7 +2723,6 @@ const NOT_CARRIED: [&str; 78] = [
     "BifurcationKind",
     "BranchCertification",
     "BranchMarginEvidence",
-    "ClassAdmission",
     "ContentKey",
     "Coset",
     "Diagnosis",
@@ -2775,7 +2775,6 @@ const NOT_CARRIED: [&str; 78] = [
     "appearance_rebind_suggestions",
     "apply_with_names",
     "body_name",
-    "class_admission",
     "derivation_nodes",
     "diff_summaries",
     "diff_verdicts",
