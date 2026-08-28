@@ -4341,27 +4341,6 @@ puts its probe over the top cap and radially inside the wall, sits at
 `z ∈ [2.0, 2.4]`, clear of the over-width, with its doc saying the near case
 belongs there once #862 lands.
 
-## S68. The W2c discard sweep stopped inside the function it was editing
-
-**[verified]** W2c's claim, restated in `crates/topo/src/euler.rs:24`
-(*"A mutation phase announces a failed lookup rather than discarding it,
-at every write"*), in `review_m1_pr2/release_corruption.rs:33` and in
-`ci.yml:740`, is scoped to `euler{,_ring,_kill}.rs` plus
-`link_half_edges`.
-
-`split_edge`'s mutation phase was edited in this same diff — two
-`unreachable!` conversions landed at `crates/topo/src/split.rs:279` and
-`:286` — and ten lines below them sit three silent `if let Some(..)`
-discards at `:287`, `:294`, `:299`. `movefac` — named in
-`docs/DESIGN.md:1117` as one of the four structural mutators the closure
-property rests on — carries three more (`movefac.rs:150,162,166`), and
-`attach.rs:81,252` two.
-
-The sweep's own scope sentence is what made the sibling instances
-invisible. And `split_edge` is not a sibling — it is the same call.
-
-**Verdict:**
-
 ## S69. `kfmrh`'s shell-fusion form is outside the fuzz catalog, and the `Ledger` counts solids, so it cannot notice
 
 S15's finding was that `split_edge` shared `mev`'s Euler vector while
@@ -4444,47 +4423,6 @@ finding rather than a footnote. No test covers scene-present-face-missing.
 *Line numbers are as found and have moved since; the join is `compare`'s
 `key` closure and the `else { continue }` arm below it, both marked at the
 site.*
-
-**Verdict:**
-
-## S75. The recourse-contract guard's central assertion is a tautology, and two suites defer their completeness obligation to it
-
-`crates/sweep/src/fillet/mod.rs:696` — `contract()` returns
-`(err.clone(), Recourse::…)` on **every** arm, so the witness it hands
-back is definitionally the same variant as the seed, and
-
-```rust
-assert_eq!(discriminant(&witness), discriminant(&seed),
-           "the table's arm must witness its OWN variant")
-```
-
-cannot fail. The doc at `:684` claims *"Each arm carries BOTH halves —
-the decision and a witness value of its own variant — so the two cannot
-drift apart by omission, which is exactly how a hand-kept witness list
-lets a wrong decision ship green."* That mechanism is described and not
-implemented; what actually constrains the test is `seeds()`, which **is**
-a hand-kept list, seeding 8 of ~21 variants. **Both numbers moved under
-#768 (D27/D29), which deleted `FilletError::EmptyChain`: the list seeds 7
-of ~20 today. Re-derive rather than transcribe** — the count is a
-property of an enum this track is still editing.
-
-Two other rows defer completeness to it:
-`crates/sweep/tests/m5_pr12_refusals.rs:509` (*"the standing check on
-completeness is `fillet::recourse_tests`' exhaustive match"*) and
-`crates/sweep/tests/review_d2_recourse_at_the_site.rs:6`. So the whole
-recourse-correctness story rests on a guard whose central assertion is
-vacuous.
-
-And the row those defer *to* is itself weaker than its name:
-`m5_pr12_refusals.rs:514`'s
-`every_recourse_sentence_is_reachable_from_both_arms` asserts only
-`!s.is_empty()` and `!s.ends_with('.')` over a list of constants —
-nothing renders a `FilletError`, nothing exercises an arm, nothing
-checks reachability. Its doc says *"this row is what would catch a
-future edit that inlines one of them"*; inlining a constant's text at a
-`Display` site would leave both the constant and this row green. **This
-fix pass touched the row**, adding four new constants, without noticing
-it cannot go red for the reason its name gives.
 
 **Verdict:**
 
@@ -4580,7 +4518,7 @@ document that records a fault in prose and passes it in its verdict
 column is a second finding wearing the first one's clothes, and #893
 asks for that row to be corrected as part of the fix.
 
-## S83. `seam_tol` / `MarchTolMismatch` cannot be reached and has no row; `MarchTol` is public with no possible caller
+## S83. `seam_tol` / `MarchTolMismatch` cannot be reached and has no row
 
 Both finishers call `seam_tol(ctx.tol, band)` where `ctx.tol` was built
 as `MarchTol::from_band(band)` from the same `band` a few dozen lines
@@ -4598,13 +4536,6 @@ range moved under #877, which left the paragraph itself verbatim)
 worries at length that an unreachable
 `require_zero` is *"a value computation wearing a typed-refusal
 costume"*. The SSI seam is that shape and got no such treatment.
-
-Separately, `MarchTol` (`ssi/march.rs:133,145,176`) is `pub` and
-re-exported, its doc saying *"Outside this crate the only constructor is
-`MarchTol::from_band`"* — but no public item takes or returns one.
-`MarchContext` became `pub(crate)` in the same diff; `march` and
-`newton_refine` are `pub(crate)`; `SsiBranch::march_tol` is a bare
-`f64`. A `pub` type for an external caller who cannot exist.
 
 **Verdict:**
 
@@ -5123,23 +5054,6 @@ dependency graph does not support. S5's shape, one indirection later.
 
 **Verdict:**
 
-## S98. `K-REPORT.md`'s dated M3 crop was back-filled against its own twice-stated rule, and its arithmetic no longer closes
-
-`bool_join_chord` (minted by #719) and `point_in_loop_segment` (minted
-by #712) were inserted into the *"M3 addendum (snapshot, 2026-07-23)"*
-crop (`docs/K-REPORT.md:307,312-322`), with its bullet counts bumped
-24→25 and 4→5. The same document rules twice that this must not happen —
-*"back-filling it would make it describe something it never
-described"*, and *"The M3 addendum's inventory … is likewise left as
-written: it is a dated 2026-07-23 record."* The header still reads
-*"added 59 predicate names"* while the bullets now sum to 61, and the
-per-family table at `:848` still reads `point_in_loop_* | 4`.
-
-For this section, the K data no longer means what it did after the name
-churn, and the internal inconsistency is the evidence.
-
-**Verdict:**
-
 ## S99. `net::is_placeholder` tests one channel while the crate doc promises all of them
 
 The hoisted predicate (`crates/geom/src/net.rs:142`) is
@@ -5283,34 +5197,6 @@ the width-1 caveat where a caller meets it.
 
 Narrowing the lookup needs the PAIR in
 `ValidationError::CensusUnsupported`, which is `topo`'s to carry.
-
-## S192. A wildcard over a closed enum, one layer upstream of `attribute()`: `topo::census` decides `Escalated` vs `Unsupported` behind one
-
-**Raised by #833's style review** over `crates/topo/src/census.rs`, which
-is outside that lane's scope cell. **Not fixed there** — §D row **D120**.
-
-`census.rs:1018` and `census.rs:1962` are both `Some(Err(_)) =>` over
-`ChartRegionError`, whose own doc says *"closed enum, D3 style: every arm
-names its recourse"*, and both decide between
-`ValidationError::CensusEscalated` and
-`ValidationError::CensusUnsupported`. That is **precisely the
-discrimination `editor_core::attribute` then turns into `Unattributed`
-against `Declined`, i.e. `AssemblyError::AtRest` against
-`AssemblyError::Uncertified`** — so an arm added to `ChartRegionError`
-becomes `CensusUnsupported`, becomes `Declined`, and is reported to the
-caller as an unrefuted frontier over geometry nothing decided. **The
-enum has ten variants today**, so the arm at risk is the eleventh (the
-review said tenth). `:1962` is the *declared* record's confirm pass, so
-the pair reaching it is one a mate minted — the promotion is not
-hypothetical for that site.
-
-By the taxonomy #833 wrote into `ValidationError`'s doc these are
-**classification** sites, not rendering or extraction: the wildcard's
-answer is a different, smaller vocabulary, chosen here.
-
-**Where else to look**, and the sweep this row owes: every
-`Err(_)`/`Some(Err(_))` over a `topo` refusal enum in `census.rs` and
-`boolean/`.
 
 ## S193. A classification spelled as a let-else — the hit a disclosed blind spot produced
 
@@ -5969,44 +5855,6 @@ it is the reviewer's to place; recorded here only so the next reader does
 not mistake this row's 13 for the whole of *"guards that count and never
 floor"*.
 
-## S119. `k-lint` scores an unreadable margin CLEAN, and the argument against that is already written at the site
-
-Found by lane F-b while closing S73's part one, which is this shape in
-the sibling instrument.
-
-`tools/k-lint/src/lib.rs`'s `lint_csv` parses `margin`, `band_zero` and
-`band_escalate` with `f64::parse` and checks nothing further, so
-`"NaN"`, `"inf"` and a negative all parse. Every rule in `lint_sample`
-is an `m < threshold` or `m > threshold` comparison, so a `NaN` margin
-makes all of them false: the row scores **clean** and still counts in
-`Scan::scanned`. A `NaN` `band_zero` is worse — `band_zero >=
-AMBIENT_BAND_MIN` is false, so the row falls through the `_ => {}` arm
-and answers to no rule at all, while the CLI still reports it as
-scanned. **A sweep the lint cannot read is not a corpus that got
-safer.**
-
-The argument is already at that site, for the column next door: the
-`outcome` string is checked against a five-name allow-list because
-*"scoring it silently CLEAN would let a sweep-format drift disarm the
-whole lint (review MIN-2)"*. The three floats beside it get no such
-check.
-
-**Not currently wrong, and that is the qualifier the finding owes**:
-the three committed sweeps under `docs/k-report-data/` carry no `NaN`
-or `inf`, and the margins are recorded kernel decisions rather than
-arithmetic that obviously produces one. The finding is that the
-instrument's answer to an unreadable measurement is its own pass value,
-and nothing upstream of the parser promises otherwise — which is
-exactly what S73's part one was, one tool over.
-
-**Fix shape, if taken:** the per-column admissibility S73's fix landed
-in `tess-lint` (`margin` finite; the two bands finite and
-non-negative), refused in the harness voice `lint_csv` already owns,
-with the same two guards — a policy table checked against the header,
-and a row that reds when a policy is loosened rather than only when one
-fixture breaks. **Not taken by F-b**: `tools/k-lint/` is outside F6's
-scope.
-
 ## S120. What the tessellation and K instruments still cannot see, after F6 (roll-up)
 
 Recorded by lane F-b out of #783's style review. Four members, one
@@ -6128,34 +5976,6 @@ and Track G's G-a, so it is named here rather than changed.
 
 ---
 
-## S127. The local gate has no mirror of `oracle-certify`, and nothing enforces ci.yml ↔ ci-local.sh job parity
-
-**Found by #786's style review, in the sentence #786 was rewriting.**
-`local-scripts/ci-local.sh:432-438` carried both of the claims S72
-convicted in `ci.yml` (*"the row that catches a dropped outward round"*,
-*"stays a by-hand gate"*) — doc rot, and fixed there by #786. The
-**code** drift underneath it is not fixed: `ci-local.sh` mirrors
-`ci.yml`'s cheap `interval-backend` row and has **no `oracle-certify`
-row at all**.
-
-That matters because `local-scripts/gate.sh` documents itself as the
-merge gate when hosted Actions is unavailable. On the hosted pipeline a
-dropped transcendental pad is caught (by `oracle-certify`, keyed on
-`ci-filter.py`'s `ORACLE_PATHS`); under the local gate it is not caught
-by anything, and the same is true of a dropped `+`/`−` pad.
-`scripts/gates/gate-roster.sh` enforces gate-SCRIPT parity, which is a
-different set — **nothing enforces JOB parity between the two files**,
-so this is a class, not an instance: any hosted job with no local mirror
-is invisible the same way.
-
-Two decisions, and neither is #786's to take: whether the local gate
-should carry a ~250s GMP+MPFR build, and whether job parity should be
-mechanically enforced or explicitly declared per job. #786 records the
-gap at both sites (`ci-local.sh`'s comment and the crate README) rather
-than closing it.
-
-**Verdict:** ACCEPTED, unstaffed. §D row **D71**.
-
 ## S129. `demos/` has assertions and no runner (raised by #787)
 
 **Raised by Track G's G2 lane while establishing what CI actually does
@@ -6201,7 +6021,7 @@ moment **#782** is decided; until then this row stays open.
 ## S130. `demos/tour/src/lily.rs` — the first end-to-end read (roll-up, raised by #787)
 
 **Row: Track X's `D79`**, which is this finding under a row number — same
-file, same six members, same description. Neither is a second finding.
+file, same members, same description. Neither is a second finding.
 
 **Raised by #787's style review**, which took the file as free ground: the
 second scan's coverage record named `lily.rs` as its highest-yield uncovered
@@ -6216,14 +6036,6 @@ and one item — `bud`/`sepals` returning `Vec<Body<S>>` where a naming
 that PR's own governing move (`WILD_CELLS: [Cell; 8]`); both now return
 `[Body<S>; 3]`. The rest are recorded:
 
-- (a) **`:1104-1113` is an orphaned comment block whose live number is
-  wrong.** Ten lines about the globe centre and the sepal polar angle
-  sit between `};` and `// The BUD:` with no code between them and no
-  blank line, saying *"38 degrees puts them on the shoulder of the
-  globe"* — while the live `sepals(…)` call passes
-  `(FLOWER_TOP / FLOWER_GLOBE).acos() + deg(4.0)` = **28.6°**, with its
-  own restatement of the same argument. S112's class, in the file the
-  scan flagged as least read.
 - (b) **A shadow vector algebra beside the kernel's own.** `nrm` is
   byte-identical at `:395-397` and `:972-974`; `rot` at `:162`; the
   radial-frame builders at `:387` and `:932` — all in bare
@@ -6233,16 +6045,6 @@ that PR's own governing move (`WILD_CELLS: [Cell; 8]`); both now return
   bullet; **the reason is a library finding and is issue #796** — if
   authoring a plant naturally means not using `Vec3`, that is evidence
   about `Vec3`'s ergonomics (`memories/demo-purpose.md`).
-- (c) **Two near-parallel "extract the single stored carrier" helpers
-  with different rigor**, inside one `mod review_probes`: `:1687`
-  `torus()` scans all faces and cross-checks that multiple torus faces
-  share one carrier; `:2300` `sphere_of()` documents itself as *"The
-  single stored sphere of a body"* and returns the **first** one with
-  no such check. And `torus()`'s own agreement check is partly
-  vacuous — it compares `center.x`/`center.z` but never `center.y`,
-  compares `axis.y.abs()` only (so two tori whose axes differ in x/z
-  pass), and ignores `u_ref` — while the surrounding prose claims the
-  stored parameters come back bit-for-bit.
 - (d) **`assert_cap` is an existential over two, and gets easier as the
   caps converge.** `:1755-1770` is
   `[caps.start, caps.end].into_iter().any(…)`, so a body whose two
@@ -6258,7 +6060,7 @@ that PR's own governing move (`WILD_CELLS: [Cell; 8]`); both now return
 - (f) **41% comment, 137-line header, accumulated one titled essay at a
   time.** S116(e)'s class, one crate over.
 
-**Reading (b)–(e) together**: this is the file `mod review_probes`
+**Reading (b), (d) and (e) together**: this is the file `mod review_probes`
 lives in, and those probes are exactly the seven `#[test]`s no gate
 runs (**S129**, **#782**). A rigor gradient inside an unrun suite is
 worth less attention than the same gradient inside a running one — but
@@ -6304,100 +6106,6 @@ and the placement question was handed the fact — that `copysign` is on the
 **Verdict:** ACCEPTED, unstaffed. §D row **D78**.
 
 ---
-
-## S131. A unification declares "one home" while self-declared hand-copies of the same rule stand inside its own scope
-
-**[verified, #781's fix pass]** S74 unified the two swept-traversal
-builders and `swept.rs` then claimed `swept_segments` was *"the one home
-of the profile crate's reversal involution."* It was not.
-`revolve/tube.rs:216` builds two `SweptSeg` values by hand under a
-comment that **says so**: *"the same transform `swept_segments` applies
-to a canonical CCW loop: endpoints swapped, bulge −1, turn Negative."*
-A self-declared copy of the exact rule being unified, in a file §D
-listed inside the unit's own scope.
-
-**This is the class, and it has three members in these files alone.**
-Run the marker vocabulary over the **working tree** rather than over
-history and `crates/sweep/src` returns, outside `fillet/`:
-
-- **`revolve/tube.rs:216`** — the reversal involution, hand-applied.
-- **`revolve/tube.rs:169`** — *"mirrors revolve's angle
-  classification"*: `revolve/mod.rs:640-648` decides span and headroom
-  under `revolve_angle` / `revolve_angle_headroom`, `tube.rs:174-179`
-  decides the same pair under `tube_window_span` /
-  `tube_window_headroom`. Live and true.
-- **`loft.rs:400`** — *"extrude's phase verbatim, loft rim specs"*:
-  `extrude.rs:537` is the same `mev_line` → `kemr` → `mev` hole phase,
-  differing only in the rim specs. Live and true.
-
-**All three are honest markers and all three stay.** The tube ones
-cannot share code: that door exists to store the caller's centre and
-radii bit-exactly rather than reconstruct them from bulges, so it cannot
-hand the shared builder a `ValidatedLoop` at all. `loft.rs:400` is a
-real candidate for sharing and nobody has costed it.
-
-**The defect is not the copies; it is that a unification asserted "one
-home" without looking for them**, and that both of the unit's sweeps
-were structurally blind to them — Sweep 1 grepped the *not-sharing*
-vocabulary, Sweep 2 grepped the *marker* vocabulary but over `git log`,
-never over the tree. **The cheap generalisation: any claim of the form
-"X now has one home" is owed a marker-vocabulary grep of the tree in
-the scope it claims**, and that is one command.
-
-**Two measurements on the vocabulary itself**, from running it over
-`crates/sweep/src` (minus `fillet/`) at `6a479c94` — 13 hits:
-
-- **It is mostly false positives here: 9 or 10 of the 13.** *"verbatim"*
-  overwhelmingly modifies a **value** carried through unchanged — a
-  carrier, a parameter interval, the caller's centre and radii
-  (`extrude.rs:47,983`, `upgrade.rs:8,199`, `tube.rs:190`) — not a body
-  being a copy. *"re-derived"* twice cites Mäntylä, a book
-  (`lib.rs:8`, `extrude.rs:4`). Only 3 clearly declare duplicated code
-  (`tube.rs:169`, `loft.rs:400`, `skin.rs:302`, the last cross-crate and
-  already recorded at S6), plus `skin.rs:1121` arguably. **Every hit has
-  to be read**; the grep is a candidate list, never a count.
-- **It cannot see a marker written in fresh words.** `tube.rs:216`'s
-  marker existed and was honest, and the vocabulary missed it because it
-  said *"the same transform `swept_segments` applies"* — none of the
-  eleven phrases. #781's first fix pass then rewrote it as *"a
-  HAND-APPLICATION of"*, which was **still invisible to the grep**. It
-  now reads *"a hand-written COPY OF"* and says at the site why the
-  wording is not free. **A duplication declared in words the tree's own
-  greps do not carry is a duplication nothing will find** — which is
-  C11's observation with the mechanism named, and it is the argument for
-  a fixed vocabulary being written down somewhere a marker's author will
-  read.
-
-`swept.rs`'s sentence is corrected to state the qualifier that makes it
-true (*from a validated loop*) and to name `tube.rs` as the exception.
-Recorded because the *shape* — a consolidation's headline claim
-falsified by a marker already in the tree — is not specific to `sweep`.
-
-**Verdict:**
-
-## S132. `strut_spec` — one name, two different rules, in one crate
-
-**[verified]** `extrude.rs:384` and `revolve/surfaces.rs:75` are both
-`strut_spec`. They share nothing else: different arity (five parameters
-against six), different description (`MappedCurve::ExtrudedPoint`
-against `RevolvedPoint`), different carrier (`Curve3::Line` against
-`Curve3::Circle`) and different parameter intervals (`0..w_norm` against
-`0..|θ|`).
-
-S6 saw it, called it *"a name collision"*, and correctly left it
-unified-nothing. S74's class re-check saw it again, confirmed the
-non-unification claim was sound, and **put it in a lane report**. That
-is the inverse of S4's shape — one vocabulary, N implementations — and
-it is the project's standing failure in miniature: **an instance
-recorded outside the register is not recorded.** The register is here.
-
-Not obviously a defect: two verbs each naming their own strut spec after
-the thing it specifies is defensible. What is not defensible is that a
-reader who greps `strut_spec` gets two functions with incompatible
-contracts and nothing at either site saying the other exists. Minimum
-close: a marker at each. Fuller close: name them for what differs.
-
-**Verdict:**
 
 ## S133. The consolidation-deletes-its-own-evidence sweep was run over one crate, and the mechanism is not crate-specific
 
@@ -7159,17 +6867,12 @@ disclosed blind spot of the same sweep and a reader who takes one should
 see the others.
 
 **(b) `bounds-allowlist.sh` is the one gate still on the leading-`//`
-comment filter, the one still keeping a self-test helper that runs
-in-process, and the one whose `gate_main` call still passes arguments
-to a default self-test that no longer exists.** All three because
-F-g's brief fenced that file (F1 had just landed it). Its own KNOWN
-GAP 5 names this lane as the taker, and its `bounds_selftest_passes`
-carries a comment saying it is named gate-specifically so that
-promoting one into `lib.sh` cannot shadow it — `lib.sh` now has
-`gate_selftest_passes`, so the promotion is a deletion and two
-call-site edits. The in-process helper is a must-PASS case, so it is
-not blind the way S157's were: a gate that died would fail it, with a
-misleading message.
+comment filter**, rather than on the shared reader the other six
+converted to — because F-g's brief fenced that file (F1 had just
+landed it). Its own KNOWN GAP 5 names this lane as the taker. A
+leading-`//` filter sees a trailing comment, a block comment and a
+`//` inside a string literal as code, which is the whole reason the
+shared reader exists.
 
 **A fourth gate is off the shared reader on purpose, and it is the one
 that decides the reader's interface.** `probe-suite-census.sh`'s
@@ -7224,37 +6927,6 @@ twice (`--selftest` then the gate). **On the hosted runner the whole
 gate step is 0–1 s** (runs `32439375293` and `32388258102`), so nothing
 is at risk today — the number is here because a tenfold aggregate
 change should be findable by the next person rather than discovered.
-
-**Verdict:**
-
-## S164. `scripts/ci-filter.py` decides whether any gate runs at all, and it is the one script here with no test
-
-**Relocated out of S63 by lane F-g rather than closed with it** (F-R11:
-a claim the closing record cannot carry moves, it does not vanish).
-S63's other three halves are fixed; this one is not, and recording the
-whole finding as FIXED would have made a live claim read as closed.
-
-**Re-derived, because S63's line numbers had moved.** The script is
-**385 lines** (S63 said 367). Every gate under `scripts/gates/` carries
-a `--selftest` that both halves of CI invoke; `check-interval-cfg-additive.py`,
-`check-ci-mirror-parity.py` and `demos/check_render_provenance.py` do
-too. `ci-filter.py` has neither a self-test nor a test file anywhere in
-the tree, and both halves depend on it: `ci.yml`'s `change filter` job
-runs it and every downstream job reads its output, and
-`local-scripts/ci-local.sh` walks the same output. It fails **closed**
-on uncertainty — `Bail` (`:141`) is caught at top level and turned into
-`TIER=all`, which covers the direction that matters most — but the
-`docs` branch (`:202`, `all(_is_docs(f) for f in files)`) is a
-**fail-open** path taken before any of that, and it is the branch S61
-depends on. `lib.sh` says a guard that has never been shown to fire is
-not a guard; the sentence was never applied one level up.
-
-**Why F-g did not take it.** Wiring a `--selftest` into both halves is
-an edit to `.github/workflows/ci.yml`, which lane F-2 had just landed
-and F-g's brief fenced — and `check-ci-mirror-parity.py` now Bails on
-workflow shapes it does not recognise, so the edit may red with an
-instruction to extend the recogniser. That is a sequencing fact, not an
-argument against the row.
 
 **Verdict:**
 
@@ -7415,46 +7087,6 @@ shut"*. One clause, and whoever next opens that crate should take it.
 
 `crates/bvh/` is **Track M**'s, whose `H10` carries this. **This row does not
 retire until someone takes it.**
-
-## S232. `geom`'s box constructors say a loose box "never prunes" — one crate below four doors, three of which do not prune
-
-**Raised by I-d (#876) while fixing the same sentence in
-`topo/src/boolean/boxes.rs`; ROUTED TO TRACK H**, whose scope is
-`crates/geom-core/` and `crates/geom/` (§D, in those words) and which is
-live. Not a wandering row: it has an owner and this line is it.
-
-**The claim, six times over.** `crates/geom/src/surfaces/boxes.rs:22-24` —
-*"looser is conservative"* and *"the poison box, **which never prunes**"*, on
-`nurbs_surface_aabb`. `crates/geom/src/curves/boxes.rs` says it three more
-times (`:16` for the whole module's poison rule, `:175` on `circle_arc_aabb`,
-`:373-375` on `nurbs_curve_aabb` with its own *"looser is conservative"*), and
-`:98` adds *"Slack only ever includes more extrema, so it errs outward (a
-looser box)"* as though outward were free.
-
-**Why it is false, with the count I-d had to correct to see it.** These boxes
-are not consumed by a pruner. `nurbs_surface_aabb` is what
-`topo::boolean::boxes::face_box`'s `ControlNet` arm returns, and `face_box`
-feeds **four** doors — `boolean/reduce.rs`'s C10 tree, `separation.rs`,
-`boolean/ops.rs:1486`'s sphere-extent fallback, and (through the shared
-`FaceBoxRule`) `census.rs`'s arm 2. **Only the first prunes.** At the other
-three, box non-overlap is the answer being sought, so a looser box is a
-REFUSAL: a placement pair that is genuinely separated stops being certifiable,
-a separated cyl×sphere pair becomes `FallbackExtentUnsupported`, and an
-instance genuinely outside another becomes `CensusUndecidable` — the
-interference class.
-
-**The count is the load-bearing part.** S66 itself said *"two of its three
-consumers"*; I-d established the doors are four and that `ops.rs:1486` is a
-third refusing one nobody had counted. `geom`'s copies of the sentence inherit
-that error rather than merely repeating a phrase — they are false for the same
-reason and by the same arithmetic, which is why this is one finding and not a
-grep hit. `geom` also cannot see its consumers (`topo` depends on it, not the
-reverse), so the honest fix is almost certainly to state the CONTRACT (a
-superset, erring outward) and stop characterising what looseness costs, rather
-than to recite a door list one crate below the doors.
-
-**Not fixed by #876**, which is Track I's and does not edit `crates/geom/`.
-
 
 ## S234. The door inventory computes the roster's KEYS and none of its content — the direction column, which is the whole argument
 
@@ -7680,76 +7312,6 @@ a taker should read it beside KNOWN GAP 2 rather than as a doc edit.**
 misdescribe themselves — they were read and they do not. This is one
 sentence about one lane, with two doors under it.
 
-## S215. The tree's only oblique-axis bit-exact rotation test cannot fail for a change inside the rotation
-
-**Raised by H-e (#885) on closing D109(a)**, out of Track H's `S210`–`S229`
-block. **Renumbered `S213` → `S215` by the Track H orchestrator before merge,
-and the reason is worth more than the number.** Not scheduled — recorded, not
-claimed.
-
-**Why the collision happened, since re-deriving did not prevent it.** This was
-minted as `S213` after re-deriving against `main`, where `S210`–`S212` were
-taken and `S213` was free. **`smellh/h-g-doors` (#886) had already minted its
-own `S213` about two hours earlier**, and `S214` was open on the orchestrator's
-own branch. Both lanes checked correctly and both were wrong, because **neither
-branch was merged**: `main` cannot show a number that only exists on a sibling's
-unmerged branch. G-R13's fourth rule — *re-derive against `main` after every
-merge* — caught `H-a`'s collision this morning only because the colliding PR
-(**#875**) had already **landed**. Here nothing had, so the rule that saved
-`H-a` could not fire at all.
-
-**The published block is the wrong instrument for this.** `S210`–`S229` protects
-Track H from other tracks; between two open branches *inside* Track H it does
-nothing, because a reservation the reserver alone can see is not one — which is
-G-R13(b) stated about a block instead of a lane. **The disposition: the Track H
-orchestrator now allocates numbers on request and publishes each reservation in
-`docs/SMELL-H-LOG.md`, which lands on `main` far more often than any lane branch
-does.** That moves the reservation to where the other party actually looks,
-which is the only thing that could have prevented this.
-
-`editor-core/tests/asm2a_instantiate.rs:1051` —
-`r1_the_placement_frame_matches_the_transform_node_bit_for_bit` — sweeps four
-axes including `[1.0, 2.0, 3.0]`, *"non-unit, oblique"*, and asserts
-`to_bits()` equality. It reads exactly like a pin on `Mat3::rotation_about`'s
-output at an oblique axis, and **it is the only such row in the tree.** It is
-not one. Its expected side is `eval::wire::wire_transform`'s expression
-re-spelled — *"verbatim"*, in its own comment — so it calls
-`Mat3::rotation_about(unit, angle)` itself and both sides move together. Any
-change **inside** the rotation is invisible to it.
-
-**How this was found, which is the part worth keeping.** #885 reassociated
-`rotation_about`'s diagonal from `((t·nᵢ)·nᵢ) + c` to `(t·(nᵢ²)) + c` — an
-`f64`-visible change on 34.6% of random (θ, axis) pairs — and the entire tree
-stayed green. Part of that is genuine (every rotation on a committed
-artifact's path has axis components in `{0, ±1}`, where the two associations
-are identical). But **the one test positioned to catch the rest could not**,
-and its name, its axis list and its `to_bits()` assertions all say otherwise.
-
-**The test is not wrong and should not be deleted.** It correctly pins what it
-says in its heading — that `Frame::rotate_then_translate` and the `Transform`
-node agree bit for bit, including for a non-unit axis, *"the case the claim
-used to get wrong"*. That is an **agreement** property between two callers, and
-for that job re-spelling the callee is the right construction. The finding is
-that the row reads as a **value** pin and is shelved among value pins.
-
-**This is the class of a suite that cannot go red for the defect it appears
-to cover** — **in the one place where it mattered for this change.** The
-familiar form is an assertion too weak to discriminate; this one is an oracle
-that is a copy of the subject, which is the sharper form: no strengthening of
-the tolerance would help.
-
-**What the work is.** Either say at the site that the oracle is a re-spelling
-and therefore blind to the callee (cheap, and enough to stop the next reader
-mistaking it), or add a genuine value pin for `rotation_about` at an oblique
-axis. **#885 added the second for the diagonal specifically**
-(`mat.rs::tests::rotation_diagonal_takes_the_square_before_the_scale`, which
-reds on the reverted association), so what remains here is the off-diagonals
-and the doc note — not the whole gap.
-
-**Ownership.** `editor-core/` is in **neither Track H's nor Track I's scope**,
-so this row has no home track today — the same shape as `S230`/`S231`. Recorded
-rather than taken.
-
 ## S216. The repo has ~39 `compile_fail` rows and not one verifies what it claims
 
 **Number allocated by the Track H orchestrator** (`docs/SMELL-H-LOG.md`),
@@ -7854,66 +7416,6 @@ the lane that raised it is named in its own lead.
 
 ---
 
-## S169. The loud stand-down has ten hand-rolled spellings, and three of them announce no coverage
-
-**Placed by lane F-d (#825) at its stopping point, not left to evaporate.**
-F4 gave the tree a home for the idiom —
-`test_utils::vacuity::stood_down`, one line, `SKIPPED (label): what
-this run did not assert` — and converted the sites under its own hand:
-three in `geom-brep/tests/m5_pr7_ssi.rs`, including the local helper
-`wall_stand_down`, which is now one argument's worth of vocabulary over
-`stood_down` rather than a second implementation of it.
-
-**The residue, re-derived on the merged tree rather than transcribed**
-(`SKIPPED (` / `SKIPPED:` over `crates/*/{src,tests}`): **ten in-row
-sites, four files.**
-
-| file | sites | what they say |
-|---|---|---|
-| `crates/topo/tests/review_m6_2_probes.rs` | `:42`, `:78`, `:158` | three **byte-identical** copies of `println!("SKIPPED: FitSampleBudget stand-down at this ε")` |
-| `crates/topo/tests/m6_2_fitted_at_rest.rs` | `:49`, `:138`, `:210` | one of them the same one-liner; the other two name the fixture |
-| `crates/geom-brep/tests/review_m5_pr7b_ssi.rs` | `:168`, `:216`, `:229` | full sentences, naming the ε and the reason |
-| `crates/mesh/tests/fitted_refusals.rs` | `:249` | names the fixture and the door |
-
-**The three one-liners are the finding, and the other seven are
-tidying.** *"FitSampleBudget stand-down at this ε"* announces that a
-stand-down happened and nothing about **what the run therefore did not
-assert** — which is the whole content of a loud skip. A reader of the
-battery log learns that a row stood down and cannot learn what coverage
-went missing, so the announcement is only marginally better than the
-silence it replaced. Three byte-identical copies of it is also S13's
-shape.
-
-**Not a floors proposal.** C21's ruling stands: whether these rows
-should be ε-conditional at all comes first, and D70 already carries that
-question for the *silent* whole-row form. This row is narrower — these
-sites already announce; the ask is that they announce **through one
-door** and **say what was lost**.
-
-**No edge today.** #790 (F-c) is merged and touched none of these four
-files; no live Track F lane names any of them. `review_m5_pr7b_ssi.rs`
-is inside F4's own `geom-brep/tests/` scope and F-d deliberately did not
-convert it: its stand-downs are sound in content, and F4's finding was
-about the tolerant *arm* at `:349`, which F-d examined and judged sound
-for its own disjunctive claim. Converting prose that is already correct
-was outside what that row asked for.
-
-**Four further sites are a different idiom and are NOT in this
-population**: the whole-binary
-`interval_lane_skipped_no_certified_coverage_here` test
-(`sweep/tests/{m5_s13_pips_interval,m5_s12_curved_ops_interval,m6_surgery_interval}.rs`,
-`topo/tests/m6_2_fitted_at_rest.rs:171`), which `memories/test-suite-cost.md`
-names by name and whose entire body is the announcement.
-
-**What the grep could not match**: a stand-down announced without the
-word `SKIPPED` — `eprintln!("standing down …")`, a `dbg!`, or a comment
-where a print should be; one that returns green through a helper that
-prints elsewhere; and `demos/`, `tools/` and `interval-transcendentals/`
-were scanned and clean but are not this row's scope. **Ten is a floor,
-not an enumeration.**
-
----
-
 ## S160. The split scan's constants can be guarded — on the continuous objective, which the cell count is not
 
 **Placed by the orchestrator out of #783's F-R14 ruling, with lane F-b's
@@ -7969,91 +7471,6 @@ possible and unwritten) and `tools/tess-meter/tests/derivations.rs`.
 re-measure this and belongs with it — that gate structurally cannot see a
 degraded scan, so if the answer is a scheduled re-measure, this is the
 quantity it would measure. **Row: D105.**
-
-## S174. S113(a)'s sweep stopped one paragraph short, in the file it edited
-
-**Raised by G11 / #837 while regenerating the uv lane to check for
-drift.** S113(a) is recorded FIXED by #787 and its record names the
-exact corrections — *"982 → 1049 faces, 879 → 946 checkable, and
-`9.4e-16` → `9.93e-16` for the worst 3-D loop gap"* — and says the
-sweep reached `demos/README.md:346`. **Five of those same numbers are
-still standing in `demos/README.md`, above and below the line the
-sweep fixed**, measured on a tour run from this tree (35 scenes, 1049
-face charts, 946 checkable / 103 branch-jumped / 0 disagree, worst 3-D
-loop gap 9.93e-16 m, 285 curved faces, 48 sheet cells):
-
-- `:176-177` *"879 of the 982 M7 faces are checkable … all 879
-  agree"* → **946 of 1049**, and all 946 agree (`0 disagree`).
-- `:186-187` *"103 of the 982 M7 faces show such a jump"* — **103 is
-  right, 982 is not** (1049).
-- `:188-189` *"the true closure gap never exceeds 9e-16 m anywhere in
-  the corpus"* — **false as stated**: the measured worst is
-  9.93e-16 m, and this is the same number S113(a) corrected at
-  `uvdump.rs:294`.
-- `:218` *"982 at M7"* and `:224` *"all 982 SVGs stay in `out/uv/`"* →
-  **1049**, a number the composer PRINTS on every run.
-- `:232` *"Of the 238 curved faces"* → **285**.
-
-**Not claimed:** `:196`'s *"3 of 36 on the sheet"* and `:232`'s
-*"234 have boundaries built entirely from iso-curves … only 4 do not"*
-are almost certainly stale too — the sheet carries 48 cells now — but
-neither is derivable from anything a run prints or `uv.json` carries,
-so this finding does not put a number on them. Deciding what they
-should say is part of the work, not part of the evidence.
-
-**The disposition is #787's own rule, not a recount:** *compute or
-delete, never restate.* The tour's closing lines already print every
-figure in the first four bullets and the composer prints the fifth, so
-the prose should point at the run and state the RULE, exactly as
-`uvdump.rs` and `compose_uv_montage.py` now do. A corrected number
-here is a number that drifts again on the next scene.
-
-**Why it is not fixed in #837:** `demos/README.md` is outside G11's
-scope cell, and the honest fix is an editorial pass over that whole
-section — the half of it that can only be restated has to say at the
-site why. A partial recount is §C13's half-fix. **Row: D123.**
-
-## S196. Twelve `# noqa` markers for three linters, none of which the repo runs
-
-**Raised by G11 / #837**, whose own fix pass added two of them before
-checking whether anything reads them.
-
-`git grep noqa -- '*.py'` returns **twelve markers in six files**, and
-`git grep -il 'ruff|flake8|pycodestyle|black|pylint'` over `.github/`,
-`local-scripts/`, `scripts/` and every `*.toml`/`*.cfg` returns
-**nothing**. No Python linter is installed, configured or invoked
-anywhere in this repo.
-
-The markers are not one tool's, either — they name rules from three
-separate namespaces, so no single install would even make them all
-meaningful:
-
-- **`E402`** (module import not at top) ×6 and **`E731`** (lambda
-  assignment) ×1 — pycodestyle, all in `demos/render_freecad.py`,
-  where the imports genuinely cannot move (the notification-area wedge
-  must run before `FreeCADGui` loads) and the lambda genuinely reads
-  better than a `def`.
-- **`F401`** (imported but unused) ×3 — pyflakes, in the three FreeCAD
-  probe scripts, where `import Part` is imported for its side effect
-  of registering the workbench.
-- **`S102`** (`exec` used) ×1 and **`BLE001`** (blind `except`) ×1 —
-  flake8-bandit and flake8-blind-except, i.e. **ruff's** extended set.
-
-**Why it is a finding rather than dead decoration.** Each marker is a
-claim that a specific check exists and was consciously overridden, and
-in every one of these cases the *reason* is the load-bearing part —
-`render_freecad.py:48` sits above a fifty-line comment explaining why
-the import order is what it is, and the `# noqa: E402` is doing none of
-that work. A reader who greps for the linter to see what else it says
-finds nothing at all.
-
-**Two dispositions, and it is a small decision rather than a patch.**
-Either the repo runs one Python linter (ruff would cover all three
-namespaces, and `scripts/`+`demos/`+`crates/**/tests/*.py` is a small
-surface) and the markers start meaning something; or they are deleted
-and the reasons they gesture at stay in the prose that already carries
-them. **Do not do half** — deleting some and keeping others is how
-this got here. **Row: D122.**
 
 ## S230. Certified widths with no ceiling
 
@@ -8118,69 +7535,6 @@ about the missing ceilings.
 **What would close it**: a ceiling on each, derived from a measurement, at the
 sites named. The two `editor-core` rows and the Python rows are three separate
 crates' test suites; nothing here is a kernel change.
-
----
-
-## S231. `chords.rs`'s "the only places adjacent surfaces enter chord counts" is an unfalsifiable absence claim, and no lane owns the file
-
-**[verified]** **Found by I-c (#872) while sweeping the class it was closing
-— the `mesh` crate's ε ledger, recited in prose rather than computed. I-c is
-NOT fixing this one, and as of this row no lane owns it.**
-`crates/mesh/src/chords.rs`'s module header lists four chord-count
-rules — line carriers, circle carriers, the adjacent-torus tightening,
-the adjacent-NURBS tightening — and then closes the list with:
-
-> These tightenings are the only places adjacent surfaces enter chord
-> counts — chord points remain a pure function of (carrier + interval,
-> endpoint points, adjacent surface parameters, δ).
-
-**The claim is load-bearing.** The clause after the dash is the
-memo-key contract's chord half, restated in `mesh/lib.rs`'s crate
-header as *"the chord points themselves are a pure function of (edge
-carrier + interval, endpoint vertex points, the adjacent faces' surface
-parameters, δ) — adjacent surfaces enter only through the torus and
-trimmed-NURBS boundary-step requirements, documented on [`chords`]"*.
-So the claim exists at **two** sites, one of which delegates to the
-other, and neither is checked.
-
-**Why it cannot be falsified as written.** It is an absence claim over
-a whole module: not *"these four rules are the four"* — which a reader
-settles against the list directly above it — but *"nothing else in this
-file reads an adjacent surface when it sizes a chord"*. A fifth
-tightening added anywhere in the module's ~550 production lines makes
-the sentence false and nothing in the tree goes red. It is **exactly the
-shape #872 closed one file over** — the crate's other absence claim about what
-a value may reach — and **that remedy transfers only halfway.** #872 replaced
-the ε ledger's hand-written roster with a computed pin over `eps` identifiers,
-which works because ε has a NAME a textual walk can count. *"Adjacent surfaces
-enter chord counts"* has no such token: the two real sites read `get_face` /
-`get_surface`, spellings that appear in four files for other reasons.
-A count pin here would pin the wrong thing, so the remedy is an open
-question rather than a transcription of the ε ledger's.
-
-**What a reader should NOT conclude from this row.** Not that the
-sentence is false — it was checked at `acfbfb9c` (`chords.rs`
-unchanged since `5d4b88ab`) and it is **TRUE**: the file reads an
-adjacent face's surface at exactly two sites, the `Circle` arm's
-`torus_step` call in `compute_chords` and `nurbs_tighten`, which are
-the two the sentence names.
-Not that it is a duplicate of the ε-ledger finding #872 closed: that one is
-closed, this is a different file, a different value, and a different remedy.
-And not that anyone is working on it. The row exists so that *"the ε ledger is
-fixed"* cannot be read as *"the `mesh` crate's unmechanized absence claims are
-dealt with"*, which is precisely what a scan closing one instance of a class
-invites.
-
-**Ownership, stated because a row with no owner reads as one with an
-implicit one.** `crates/mesh/` is inside **Track I**'s scope, but
-`chords.rs` is in **none of Track I's five lanes' file sets** — I-c is
-`{lib,sizing,walk}.rs` plus `curved.rs`'s header, I-e is `curved.rs`'s
-guard bodies plus `{trimmed,planar,budget}.rs`. It is deliberately
-**not** routed to I-e: widening a running lane's brief by writing a row
-at it is how a lane discovers its scope grew after dispatch. This row
-needs a lane, and does not have one.
-
-**Verdict:**
 
 ---
 
