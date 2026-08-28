@@ -48,10 +48,14 @@
 //!    solution rather than assumed
 //!    ([`ReplaceFaceError::TogetherCorner`] when it disagrees, which is
 //!    the valence-past-3 shape);
-//! 2. **the edge** — the intersection line of its two moved planes,
-//!    oriented so the stored parameter order survives; a seam between
-//!    two faces of ONE chart is not an intersection at all and
-//!    translates with its own plane;
+//! 2. **the edge** — its own line, translated perpendicular to itself
+//!    by however far the two moved planes carried it, with the
+//!    endpoints re-read because the third plane at each corner is
+//!    moving too and slides them ALONG it. The old carrier's
+//!    conventional data survives that (a `t = 0` anchor on a line is
+//!    conventional, D2), which is what keeps an unmoved corner's edge
+//!    bit-identical; a seam between two faces of ONE chart is not an
+//!    intersection at all and translates with its own plane;
 //! 3. **the description** — an intrinsic one re-points at the new
 //!    surface keys and re-states its witness at the new mid-parameter;
 //!    a mapped one translates by the edge's own displacement, which is
@@ -217,26 +221,39 @@ pub fn offset_planes_together<T: Decide + PropsQuadLane>(
                 t1_old,
             )
         } else {
-            let line = intersect_planes(edge, pa, pb, scale, band)?;
-            let Curve3::Line { origin, dir } = line else {
-                return Err(ReplaceFaceError::Corrupt);
+            // The new line is the old one TRANSLATED. Two planes
+            // translate, so the line they meet in keeps its direction
+            // and moves PERPENDICULAR to it — which means the old
+            // carrier's conventional data (its `t = 0` anchor, its
+            // direction, signed zeros and all) is still valid data, and
+            // carrying it rather than re-deriving an origin from a
+            // cross product is what keeps a body whose corners did not
+            // move bit-identical. The endpoints still SLIDE along the
+            // line, because the third plane at each corner is moving
+            // too, so the parameters are read afresh.
+            let Curve3::Line { origin, dir } = old_carrier else {
+                return Err(ReplaceFaceError::CarrierLaneUnsupported {
+                    edge,
+                    what: "an edge between two distinct planes whose carrier is not a line",
+                });
             };
-            let (mut t0, mut t1) = ((p_start - origin).dot(dir), (p_end - origin).dot(dir));
-            // Keep the stored traversal forward: the attach layer's
-            // span gate reads the parameter order, and flipping the
-            // direction is the only free choice this construction has.
-            let (origin, dir) = if matches!(
-                decide("offset_together_span", Margin::of(t1 - t0), band),
-                Ok(Sign::Negative)
-            ) {
-                let dir = -dir;
-                t0 = (p_start - origin).dot(dir);
-                t1 = (p_end - origin).dot(dir);
-                (origin, dir)
-            } else {
-                (origin, dir)
-            };
-            (Curve3::Line { origin, dir }, t0, t1)
+            let shift = p_start - old_start;
+            let origin = origin + (shift - dir * shift.dot(dir));
+            // The other endpoint is VERIFIED onto that line rather than
+            // assumed onto it: it is a different corner solve, and two
+            // solves agreeing is the claim being made.
+            let t1 = (p_end - origin).dot(dir);
+            let gap = (origin + dir * t1).distance(p_end);
+            match decide("offset_together_edge_agreement", Margin::of(gap), band) {
+                Ok(Sign::Zero) => {}
+                Ok(_) => return Err(ReplaceFaceError::ReanchorOffCarrier { edge, gap }),
+                Err(source) => return Err(ReplaceFaceError::Escalated { source }),
+            }
+            (
+                Curve3::Line { origin, dir },
+                (p_start - origin).dot(dir),
+                t1,
+            )
         };
 
         let mid = carrier.eval((t0 + t1) * T::from_f64(0.5));
@@ -418,40 +435,6 @@ fn cramer<T: Real>(a: &MovedPlane<T>, b: &MovedPlane<T>, c: &MovedPlane<T>, det:
         + a.normal.cross(b.normal) * c.c)
         / det;
     Point3::new(v.x, v.y, v.z)
-}
-
-/// The line two moved planes meet in.
-fn intersect_planes<T: Decide>(
-    edge: EdgeKey,
-    a: &MovedPlane<T>,
-    b: &MovedPlane<T>,
-    scale: T,
-    band: Band,
-) -> Result<Curve3<T>, ReplaceFaceError<T>> {
-    let d = a.normal.cross(b.normal);
-    let n2 = d.dot(d);
-    match decide(
-        "offset_together_edge_pair",
-        Margin::of(d.norm() * scale),
-        band,
-    ) {
-        Ok(Sign::Positive) => {}
-        Ok(_) => {
-            return Err(ReplaceFaceError::TogetherCorner {
-                vertex: VertexKey::default(),
-                planes: 2,
-                what: "an edge whose two faces' planes are parallel after the offset, so they \
-                       meet in no line",
-            });
-        }
-        Err(source) => return Err(ReplaceFaceError::Escalated { source }),
-    }
-    let _ = edge;
-    let p = (b.normal.cross(d) * a.c + d.cross(a.normal) * b.c) / n2;
-    Ok(Curve3::Line {
-        origin: Point3::new(p.x, p.y, p.z),
-        dir: d.normalize(),
-    })
 }
 
 /// A point read as the vector from the origin — the form a plane
