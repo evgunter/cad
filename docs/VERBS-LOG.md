@@ -2047,3 +2047,12 @@ let it ship extended. The teapot ships opened; #1082 closes at
 this merge; #1081 is PR-2's, dispatching now. The ε-sampling
 finding (five defects, one per drawn point) is the strongest
 argument yet for #1051's requestable runs — cited there.
+
+## LILYWELD PR-1 MERGED (#1109) — ordinal-102 row (sample #35) (2026-08-28)
+
+The lily's flower and arch now share one exact circle, pinned
+from both carriers; wall 2 waits on PR-2's gate admission +
+carrier_eq rung with its retire note pointing there. The
+wall-text error class scored its fourth instance — caught
+pre-merge for the first time, by the dual. PR-2 dispatches to
+this lane next.
