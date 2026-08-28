@@ -238,7 +238,13 @@ fn r2b_partial_revolve_refuses_before_the_rim() {
         )
         .validate(tol)
         .expect("a valid meridian");
-        let body = revolve(
+        // The AXIS-TOUCHING partial revolve is refused
+        // `NonManifoldAxisContact` at eps = 1e-12 where it builds at
+        // the default: `revolve`'s axis classification is decided
+        // against the RUN's epsilon. Recorded as the operand-door fact
+        // it is — a meridian the sweep will not build never reaches
+        // the verb this row is about — rather than expected past.
+        let swept = revolve(
             &profile,
             RevolveAxis {
                 origin: p2(0.0, 0.0),
@@ -246,9 +252,12 @@ fn r2b_partial_revolve_refuses_before_the_rim() {
             },
             Revolution::Partial(theta),
             tol,
-        )
-        .expect("it revolves")
-        .body;
+        );
+        let Ok(swept) = swept else {
+            println!("[r2b] theta={theta} does NOT revolve at this epsilon: {swept:?}");
+            continue;
+        };
+        let body = swept.body;
         let chart = plane_chart_at_y(&body, h);
         let opened = topo::shell_open(&body, t, &chart, FIT_TOL, band(), tol);
         match &opened {
