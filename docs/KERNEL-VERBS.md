@@ -258,13 +258,26 @@ the table.
 
   **The invariant is now stated at rest**, which is what turns the
   class loud wherever it is minted: tier 3's check 9
-  (`ValidationError::RingMeetsOuter`) refuses a ring that shares a
-  vertex POSITION with its face's outer loop or has an edge running
-  along one of the outer loop's. Compared by position, not by key —
-  the shapes it catches are minted by surgeries that copy a boundary.
-  Its overlap arm inverts `Line` and `Circle` carriers in closed form;
-  an overlap carried by an `Ellipse` or a NURBS edge is a recorded
-  residue, and the vertex arm is kind-agnostic.
+  (`ValidationError::RingMeetsOuter`) refuses a ring that meets its
+  face's own outer loop, in three arms — vertex-on-vertex,
+  vertex-on-edge-interior, and edge-along-edge. Compared by POSITION,
+  not by key: the shapes it catches are minted by surgeries that copy a
+  boundary. Key-shared pairs are decided too and carry no exemption —
+  tier 1 has no pass that refuses a face's outer loop and its own ring
+  sharing a vertex or edge key, so an exemption there would leave the
+  umbrella pinch unnetted. Every margin **escalates typed**
+  (`ValidationError::RingContactEscalated`) rather than reading as
+  "disjoint"; the shell verb's own precondition escalates the same way
+  and never proceeds to build.
+
+  **What check 9 does NOT match, enumerated** (an unstated blind spot
+  is an unverified claim): one-point TANGENCY between two edges at a
+  point that is a vertex of neither (circle-circle internal or
+  external, line-circle) and a transversal CROSSING at a non-vertex
+  point — three-sample locus agreement cannot see a single shared
+  point, and the closed forms that could need an arc-containment test
+  this predicate has not got; and `Ellipse`/NURBS carriers in the two
+  locus arms, whose endpoints the vertex arm still covers.
 
   **Why nothing caught it, and the transferable lesson.** Not "the rim
   lift never had a consumer": `offd2_r1_probes::probe_opened_vessel_cup`

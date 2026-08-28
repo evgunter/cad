@@ -128,10 +128,21 @@
 //! region and is refused typed
 //! ([`ShellError::OpenFaceRimNotExpressible`]): a chart whose faces are
 //! not one region, a counterpart boundary that still meets the
-//! designated face's, or more than one hole to pair. The invariant is
+//! designated face's, a promoted rim face whose own boundary meets the
+//! hole it would carry, or more than one hole to pair. The invariant is
 //! stated once more at rest by tier 3's check 9
 //! ([`ValidationError::RingMeetsOuter`]), so a ring standing on its own
 //! outer loop is loud wherever it is minted and not only here.
+//!
+//! **An UNDECIDABLE separation refuses too** and never proceeds to
+//! build ([`ShellError::Escalated`]) — the glue is a write, and
+//! building on a gap the predicate layer could not certify is the
+//! guess D4 forbids. Through THIS verb that arm is door-shielded:
+//! `shell_thickness` has already decided the wall certifiably
+//! positive and every rim the arm below builds is that wall wide, so
+//! no fixture of this verb reaches it. It is there for the at-rest
+//! bodies OTHER producers hand the same predicate, which is where
+//! check 9 does its work.
 
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Indeterminate, Margin, Real, Sign, Tol};
