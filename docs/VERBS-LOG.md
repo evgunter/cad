@@ -2086,3 +2086,12 @@ pinned to its closed form; the curved rows still refuse at the
 same door; the teapot's belly is a sphere zone, so its
 un-squaring is honestly PENDING for 2b and is not claimed here.
 
+Gate: first fully green fix head 83031612 at LANE=default,
+EPS=default, KLINT_ROW=dev-budget (17 pass, 4 skipping, no
+neutral rows — the scene is unchanged, so no lane drifted). Two
+door CENSUSES caught the new public mutation path before CI's
+test row did anything else: it neither re-minted pcurves nor
+declared a posture. It re-mints now, for the same reason
+replace_faces_offset does — every edge of the body is
+re-described, so every stored row is stale.
+
