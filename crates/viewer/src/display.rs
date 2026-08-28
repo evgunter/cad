@@ -203,9 +203,7 @@ pub fn is_instance(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
 /// `Transform` chain) consumes is not a root — the node above it is.
 /// Display state names the INSTANCE (the thing with an identity a user
 /// hides or probes); this map says which drawn roots that names.
-fn instances_by_root(
-    doc: &Doc<ProfileProgram>,
-) -> Vec<(RecipeNodeId, BTreeSet<RecipeNodeId>)> {
+fn instances_by_root(doc: &Doc<ProfileProgram>) -> Vec<(RecipeNodeId, BTreeSet<RecipeNodeId>)> {
     doc.roots()
         .iter()
         .map(|&root| {

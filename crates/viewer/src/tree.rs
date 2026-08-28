@@ -167,16 +167,10 @@ pub fn rows(doc: &Doc<ProfileProgram>, evaluation: Option<&Evaluation<f64>>) -> 
 /// follow).
 fn node_note(node: &Node<ProfileProgram>) -> Option<String> {
     match node {
-        Node::Mate { class, .. } => {
-            match pncad::document::class_admission(*class) {
-                pncad::document::ClassAdmission::Mints => None,
-                other => Some(format!(
-                    "{}: {}",
-                    class.name(),
-                    other.no_record_reason()
-                )),
-            }
-        }
+        Node::Mate { class, .. } => match pncad::document::class_admission(*class) {
+            pncad::document::ClassAdmission::Mints => None,
+            other => Some(format!("{}: {}", class.name(), other.no_record_reason())),
+        },
         _ => None,
     }
 }

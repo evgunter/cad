@@ -180,10 +180,7 @@ struct PriorRun {
 /// directory). Comparing by directory instead would treat a rebind to
 /// the same path as a change (harmless) and, worse, would need the
 /// trait to expose an identity it does not have.
-fn same_resolver(
-    a: &Option<Arc<dyn PartResolver>>,
-    b: &Option<Arc<dyn PartResolver>>,
-) -> bool {
+fn same_resolver(a: &Option<Arc<dyn PartResolver>>, b: &Option<Arc<dyn PartResolver>>) -> bool {
     match (a, b) {
         (None, None) => true,
         (Some(a), Some(b)) => Arc::ptr_eq(a, b),

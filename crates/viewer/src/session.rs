@@ -1372,11 +1372,7 @@ impl DocSession {
 /// assembly-shaped documents (see [`AtRestBadge`]). The gate's own
 /// vocabulary either way: a certification with its minted count, or
 /// the typed refusal rendered by its own `Display`.
-fn at_rest_of(
-    doc: &Doc<ProfileProgram>,
-    eval: &Evaluation<f64>,
-    tol: Tol,
-) -> Option<AtRestBadge> {
+fn at_rest_of(doc: &Doc<ProfileProgram>, eval: &Evaluation<f64>, tol: Tol) -> Option<AtRestBadge> {
     let assembly_shaped = doc
         .order()
         .iter()

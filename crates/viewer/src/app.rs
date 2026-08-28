@@ -1037,12 +1037,16 @@ impl ViewerBehavior<'_> {
                             &widget,
                             value,
                             SessionOp::BeginFreeMove { instance: node },
-                            |_| SessionOp::PreviewFreeMove { frame: frame_of(mm) },
+                            |_| SessionOp::PreviewFreeMove {
+                                frame: frame_of(mm),
+                            },
                             SessionOp::CommitFreeMove,
                             |_| {
                                 vec![
                                     SessionOp::BeginFreeMove { instance: node },
-                                    SessionOp::PreviewFreeMove { frame: frame_of(mm) },
+                                    SessionOp::PreviewFreeMove {
+                                        frame: frame_of(mm),
+                                    },
                                     SessionOp::CommitFreeMove,
                                 ]
                             },
