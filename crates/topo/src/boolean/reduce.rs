@@ -487,6 +487,70 @@ pub(super) fn face_plane_source<T: Decide>(
     })
 }
 
+/// **The pole-split exemption to F7**: is `edge` one of the two
+/// meridians a full revolve's axis-touching CAP is split at?
+///
+/// [`gate_maximal_faces`] treats same-key CURVED adjacency as the
+/// canonical maximal form — a periodic wall cannot be one face without
+/// its parameterization cut — and used to call the PLANAR same-key
+/// pair a defect without exception. Measured, an axis-touching planar
+/// cap is in exactly the same position: a revolved disk and a revolved
+/// sphere wall are the same structure (two faces on one surface key,
+/// joined at two meridian edges, meeting at a valence-2 pole) and
+/// differ only in the carrier's kind.
+///
+/// **It cannot be one face either, and the reason is tier 2's own rule
+/// rather than a convenience.** `revolve`'s wire case sweeps in TWO
+/// π-bands precisely so each pole ends with valence 2; a one-band wire
+/// would leave the tips valence-1, which tier 2 bans as strut
+/// scaffolding (`sweep::revolve::full`'s own module docs). Merge one
+/// meridian away and the pole is valence 1 — banned. Merge both and
+/// the pole becomes a vertex interior to the face with no edges on it,
+/// which is exactly the `MergedFaceRoleAmbiguous` that
+/// [`crate::Body::merge_coplanar_faces`] refuses. So there is no
+/// maximal one-face form for this pair to be measured against, and
+/// demanding one refuses a body for not having a shape nothing can
+/// build.
+///
+/// The test is STRUCTURAL and reads no geometry: an endpoint of the
+/// edge is a valence-2 vertex both of whose edges separate the same
+/// face pair. That is a two-band revolve's pole and nothing else. The
+/// case F7 exists for — two genuinely coplanar faces that the
+/// producing op should have merged — meets at edges whose endpoints
+/// carry other faces: the teapot cup's pair, the measured instance,
+/// has valence-4 endpoints on a meridian plane.
+fn pole_split_cap<T: Decide>(
+    body: &Body<T>,
+    edge_key: EdgeKey,
+    edge: &crate::entity::Edge,
+) -> bool {
+    let pair_of = |ek: EdgeKey| -> Option<(FaceKey, FaceKey)> {
+        let e = body.get_edge(ek)?;
+        let face_of = |he| {
+            let parent = body.get_half_edge(he)?.parent_loop;
+            Some(body.get_loop(parent)?.face)
+        };
+        let (x, y) = (face_of(e.he_plus)?, face_of(e.he_minus)?);
+        Some(if x <= y { (x, y) } else { (y, x) })
+    };
+    let Some(want) = pair_of(edge_key) else {
+        return false;
+    };
+    // One orbit per endpoint: `vertex_orbit` walks the half-edges
+    // STARTING at that vertex, so its length is the vertex's valence
+    // and each member names one incident edge.
+    [edge.he_plus, edge.he_minus].into_iter().any(|he| {
+        body.vertex_orbit(he).is_some_and(|orbit| {
+            orbit.len() == 2
+                && orbit.iter().all(|h| {
+                    body.get_half_edge(*h)
+                        .and_then(|x| pair_of(x.edge))
+                        .is_some_and(|p| p == want)
+                })
+        })
+    })
+}
+
 /// F7: the maximal-faces precondition through the coincidence ladder —
 /// same surface key (structural) or Same±-oriented planes (declared,
 /// [`super::oriented_plane_eq`]) across any edge ⇒
@@ -524,7 +588,10 @@ pub(super) fn gate_maximal_faces<T: Decide>(
             let planar = k1
                 .and_then(|k| body.get_surface(k))
                 .is_some_and(|s| matches!(s, geom::Surface::Plane { .. }));
-            if planar {
+            // ...and a planar same-key pair is the F7 defect UNLESS it
+            // is a revolve's pole-split cap, which is canonical for the
+            // same reason the curved pair is.
+            if planar && !pole_split_cap(body, edge_key, edge) {
                 return Err(BooleanError::NonMaximalFaces {
                     operand,
                     edge: edge_key,

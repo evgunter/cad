@@ -1998,17 +1998,16 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    decide only whether the pair can matter. It reads kinds,
     //    never loci — so it cannot see the coincidence.
     //
-    //    **What BINDS is one door further down, and it is not this
-    //    pair's business at all.** The whole sequence is measured by
+    //    **What BINDS is further down, and it is not this pair's
+    //    business at all.** The whole sequence is measured by
     //    `review_probes::the_declared_weld_refuses_exactly_as_the_
-    //    undeclared_one_does` and its sibling: widen the gate and the
-    //    next refusal is `NonMaximalFaces` on this very body — the
-    //    lantern's two axis-touching planar caps, the F7 defect, which
-    //    `merge_coplanar_faces` will not repair. No boolean can take
-    //    the lantern as an operand until **#1031** lands, whatever the
-    //    gate learns about cone x torus. After that comes the curved
-    //    PIERCE arm (wall 12's door), and only after that could a
-    //    germ-pair question arise.
+    //    undeclared_one_does` and its sibling. Widen the gate and the
+    //    next refusal used to be `NonMaximalFaces` on this very body;
+    //    that door is now OPEN — the lantern's two axis-touching caps
+    //    are pole-split, which `reduce::pole_split_cap` exempts as
+    //    canonical. What answers after it is the curved PIERCE arm
+    //    (wall 12's door), and only after that could a germ-pair
+    //    question arise.
     //
     //    So wall 2's binding blocker is #1031, not #968's shape. The
     //    gate-admission reading was this unit's SPEC, and measuring it
@@ -2036,8 +2035,9 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
                 }
             )
         },
-        "join flower to stem — #1031 (the F7 caps) is what unblocks it, \
-         measured, not guessed",
+        "join flower to stem — #1031's pole half, now landed, is \
+         NECESSARY BUT NOT SUFFICIENT: the chain runs gate -> (F7, now \
+         open) -> the curved pierce arm, all three measured",
     );
 
     // 3. The lily's leaves DO leave their own plane now — each blade
@@ -2149,43 +2149,42 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //
     //    The pair-scoped gate ADMITS this cut: the pucker's box
     //    clears the ball's, so no unsupported KIND can enter the
-    //    operation. What refuses is one door later, and it is not a
-    //    germ class: the operand is not maximal-faced
-    //    (`NonMaximalFaces`, the F7 door).
+    //    operation. What refuses is two doors later, and it is not a
+    //    germ class: the reduction's curved PIERCE arm, on the
+    //    lantern's own lip disk at one of its seam struts.
     //
-    //    WHICH faces, corrected at M9-5 — this sentence used to name
-    //    the spherical zone's two half-bands on one surface key, and
-    //    that is not the defect. `boolean::reduce`'s
-    //    `gate_maximal_faces` says so in terms: same-key CURVED
-    //    adjacency is the CANONICAL maximal form (a periodic wall
-    //    cannot be one face without its parameterization cut), and
-    //    only the PLANAR same-key pair is the F7 defect. The lantern's
-    //    real defect is its AXIS-TOUCHING PLANAR CAPS: a full revolve
-    //    of a profile that touches the axis emits each such cap as two
-    //    half-faces on one plane key, and that pair is the refusal.
+    //    **This wall used to stop one door earlier, at the F7
+    //    precondition, and that door is now open.** The lantern's two
+    //    axis-touching planar caps arrive as two half-faces on one
+    //    plane key, and `gate_maximal_faces` called that the defect
+    //    while calling the identical CURVED shape canonical. Measured,
+    //    the two are the same structure — two faces on one surface
+    //    key, two meridian edges, a valence-2 pole — so the planar
+    //    rule was over-reaching onto revolve poles, and it no longer
+    //    does (`boolean::reduce::pole_split_cap`). There was never a
+    //    one-face form to demand: tier 2 REQUIRES the valence-2 pole,
+    //    so merging one meridian away is banned and merging both is
+    //    the role-ambiguity `merge_coplanar_faces` refuses — which is
+    //    probe 13, still standing and still refusing.
     //
-    //    That makes this wall's blocker a PRECONDITION rather than a
-    //    breadth gap — and the obvious repair does not work either,
-    //    which probe 13 measures: `merge_coplanar_faces` REFUSES on
-    //    those caps (`MergedFaceRoleAmbiguous`), because killing both
-    //    seam struts leaves a loop the winding resolution cannot
-    //    assign a role to. So the precondition is a door-widening or
-    //    an authoring change (the corm avoids the class entirely by
-    //    having ANNULAR caps), not a call the scene forgot to make.
-    //    The open REPAIR question — teach `merge_coplanar_faces` the
-    //    cap pair, or have `revolve` mint maximal caps — is **#1031**;
-    //    the mechanism is `gate_maximal_faces` in
-    //    `crates/topo/src/boolean/reduce.rs`.
+    //    What #1031 KEEPS is the other defect that wore its number:
+    //    two genuinely coplanar faces meeting at an ordinary edge,
+    //    which the producing op should have merged. The measured
+    //    instance is the teapot cup's meridian-plane pair, whose
+    //    endpoints are valence 4 with no pole anywhere near them; the
+    //    merge door refuses that one too
+    //    (`MergedFaceRoleAmbiguous { face: 4v1 }`), so it stays a
+    //    kernel question and #1031 stays open for it.
     //
-    //    What is left after that is the breadth half, DEPENDENCY-STATED
-    //    like probe 8's: it waits on the verbs/breadth slate,
-    //    VERBS-PLAN Wave 2 items 6 (VERBS-GATE, the per-face-kind gate
-    //    re-scope) and 9 (VERBS-SPHSPH, the sphere × sphere germ lane)
-    //    — the ruling that put it there is M9-5's, and the demand
-    //    signal is this probe. NOTE for those items: on this
-    //    measurement a sphere × sphere germ arm alone does not flip
-    //    this wall, because the F7 refusal happens first and is about
-    //    the caps.
+    //    What is left is the breadth half, DEPENDENCY-STATED like
+    //    probe 8's: it waits on the verbs/breadth slate, VERBS-PLAN
+    //    Wave 2 items 6 (VERBS-GATE, the per-face-kind gate re-scope)
+    //    and 9 (VERBS-SPHSPH, the sphere × sphere germ lane) — and now
+    //    ALSO on the curved pierce arm, which answers first today and
+    //    is wall 12's door. The old NOTE here said a sphere × sphere
+    //    arm alone would not flip this wall because the F7 refusal
+    //    came first; F7 no longer does, and the note still holds for
+    //    the new reason.
     wall(
         7,
         "carve a tepal seam into the lantern (sphere x sphere by geometry; the \
@@ -2194,7 +2193,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         |e| {
             matches!(
                 e,
-                BooleanError::NonMaximalFaces {
+                BooleanError::CurvedPierceUnsupported {
                     operand: Operand::A,
                     ..
                 }
@@ -2661,25 +2660,23 @@ mod review_probes {
         );
     }
 
-    /// **The lantern's F7 defect, named face by face** — the door
-    /// UNDER the operand gate, and the reason the weld's acceptance is
-    /// not this unit's to give.
+    /// **The lantern's two pole-split caps, named face by face** —
+    /// the shape the F7 rule used to call a defect and no longer does.
     ///
-    /// `gate_maximal_faces` refuses an operand carrying a PLANAR
-    /// same-key adjacency. The lantern has two, and this row says
-    /// which: the LIP disk and the THROAT disk, each a full revolve's
-    /// cap that touches the axis and therefore arrives as two
-    /// half-faces on one plane key. The body's curved same-key
-    /// adjacencies (the two cones and the sphere zone) are the
-    /// CANONICAL maximal form and are not defects — this row asserts
-    /// that split, so a change that started treating curved same-key
-    /// pairs as defects would fail here rather than silently.
+    /// The lantern carries two PLANAR same-key adjacencies, the LIP
+    /// disk and the THROAT disk, each a full revolve's cap that
+    /// touches the axis and therefore arrives as two half-faces on one
+    /// plane key. Its CURVED same-key adjacencies (two cones, one
+    /// sphere zone) are the same structure with a different carrier.
+    /// This row asserts the split — four planar half-faces, six curved
+    /// — so a change that stopped telling the two apart fails here
+    /// rather than silently.
     ///
-    /// The repair door is still shut: `merge_coplanar_faces` refuses
-    /// on the re-authored lantern exactly as probe 13 pins it. **#1031
-    /// holds the choice**, and until it lands no boolean can take this
-    /// body as an operand, whatever the operand gate learns about
-    /// cone×torus.
+    /// `boolean::reduce::pole_split_cap` now exempts exactly this
+    /// shape, so the gate no longer refuses the lantern for having it.
+    /// The MERGE door is still shut: `merge_coplanar_faces` refuses on
+    /// the re-authored lantern exactly as probe 13 pins it — which is
+    /// the whole reason a one-face cap was never a form to demand.
     #[test]
     fn the_lanterns_two_axis_touching_caps_are_the_f7_defect() {
         let tol = Tol::witness();
@@ -3663,9 +3660,10 @@ mod verbs_gate_r1_probes {
              not, so this row's reading of the refusal below is wrong"
         );
         assert!(
-            matches!(refusal, BooleanError::NonMaximalFaces { .. }),
-            "the operand gate admits now, so what refuses is the maximal-faces \
-             precondition — got {refusal:?}"
+            matches!(refusal, BooleanError::CurvedPierceUnsupported { .. }),
+            "the operand gate admits and the F7 pole-split exemption lets the \
+             lantern IN, so what refuses is the curved pierce arm — got \
+             {refusal:?}"
         );
     }
 
