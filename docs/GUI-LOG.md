@@ -304,3 +304,23 @@ ratified (#1121), five units merged (samples #29–#33, ordinals
 #1117, #1120, GUI-5 + GUI-6 banked). The tail of this log is the
 program's final state; future GUI work opens its own log or
 reopens this one at a new seam.
+
+**Post-close maintenance (2026-08-28, PR #1125 — the first-light
+hardening bundle):** Evan's real-hardware run (WSLg) produced six
+findings in one evening, all fixed here: explicit window sizing +
+WSL-detected X11 backend preference (WSLg's Wayland RAIL resize
+confirmed broken, X11 confirmed working); chrome panes scrollable
+(overflow was unreachable); a chooser-backend probe failing LOUD
+at first sight when no zenity/portal exists (rfd's silent-None
+lane closed as far as it can be); Alt+primary orbit for trackpads;
+delete buttons naming the feature they delete; a viewer README
+with the bindings and the CONFIRMED WSL troubleshooting chains
+(including the memorable one: dpkg claiming fonts-dejavu-core
+installed while the files were gone from disk — hex-box tofu via
+a Type 1 fallback Pango cannot shape). One gate-policy edit rides
+along, flagged for Evan's retroactive glance: `no-ambient-env.sh`
+allowlists viewer frame.rs as the single door for the GUI shell's
+platform probes (environment-as-subject, argued in the gate
+header). No A/B ceremony per the post-close maintenance precedent
+(#1108); orchestrator-reviewed. Next: the add-parameter affordance
+PR (queued behind this merge).
