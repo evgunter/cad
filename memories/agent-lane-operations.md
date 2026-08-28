@@ -143,6 +143,20 @@ self-acquire; wrap raw `cargo` invocations yourself.
   MACHINE-WIDE quiet period, not pausing the one lane you happened to
   ask. Waiting harder never wins. Meanwhile the blocked lane can still
   push and open its PR — hosted CI needs no local slot.
+- **A red CI run's failure COUNT is not the failure surface** (#1128,
+  2026-08-28). Hosted CI runs `cargo nextest run` with neither
+  fail-fast flag, and nextest's default stops after the first failure,
+  so a run reports ~1 failure per shard however many exist. Measured on
+  one tree: hosted showed 1-2, local `--no-fail-fast` showed 22 (19 of
+  them one systematic family). The `fail-fast: false` in the workflow is
+  the MATRIX setting — it stops one shard cancelling the other, not a
+  shard truncating itself — and it makes the workflow read as though
+  this is handled. Consequences: a systematic breakage and a lone stale
+  assertion look identical; "fixed it, CI green" can be true while the
+  family behind it is untouched; reviewers reasoning from CI evidence
+  are reading a truncated sample that is not marked as truncated. Before
+  concluding a red is small, run the suite locally with
+  `--no-fail-fast`.
 - An OOM-killed test shows as a bare "Terminated" single-row FAIL —
   check what else was running and rerun quiet before diagnosing a code
   bug.
