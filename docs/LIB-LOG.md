@@ -531,6 +531,26 @@ loft/sweep/tube bindings, G3 non-xy sketch planes. Plus G11
 the audit page's own G11 row says steps 4 and 5 — the page is the
 measurement, this line is the stale copy).
 
+**ENUMERATED BY THE CENSUS (2026-08-28).** This category no longer
+carries its list in prose. The enumeration of record is
+`crates/pncad-py/tests/test_binding_census.py`: every name the
+façade's curated lists introduce is bound in Python, mapped to the
+spelling that answers the same question, or listed there with its
+family — and every `gap:` entry names ONE id that owns the work. An
+audit gap id where `docs/guide/north-star-audit.md` defines one
+(cited, never minted, since that page's ids are scene-anchored and
+its tallies depend on staying that way); otherwise a census-owned
+family id — `B-CHECKS`, `B-PICKING`, `B-RESOLVE`, `B-READBACK`,
+`B-EXPR-READ`, `B-CANCEL`, `B-FORMAT`, `B-VALIDATE4` — each carrying
+a one-line charter saying what a unit closing it would deliver. The
+`B-` is this category's own letter: the census owns the surface-debt
+id space, this register points AT it, and the census's own test fails
+when a pointer stops resolving in either direction (a citation the
+audit page no longer defines; a charter no entry cites). What stays
+here is what the census does not say: the ranking's lineage above,
+and the two items below — neither of which is a missing scene OR a
+missing name, which is why neither instrument sees them.
+
 **FOLDED 2026-08-28**: two bindings-parity items the audit test
 structurally cannot see, because neither is a missing SCENE —
 - **#730**: `step_string` exposes ONE of `StepOptions`' six fields
@@ -1245,11 +1265,17 @@ test that would have made the drift loud.
    in the other direction, as the Rust guard's stale check does. The
    census reads source text only, so it runs with no compiled module.
    Its own finding, which this register should carry: the audit's gap
-   list is SCENE-driven, so the debt no tour scene exercises had no
-   gap id anywhere — assembly, checks, picking, mates and class
-   admission, split/inline, product roots, name resolution, the
-   read-back doors and the expression read side reach the record for
-   the first time as census families.
+   list is SCENE-driven, so debt no tour scene exercises can go
+   unnamed — **checks, picking, name resolution, the read-back doors
+   and the expression READ side** reach the record for the first time,
+   as the census-owned `B-*` families. The assembly block, mates,
+   split/inline and product roots turned out to be named already, by
+   the **G18** row this same PR minted, and are cited to it rather
+   than given census ids: where an audit gap id exists the census
+   CITES it, and where none does the family tag IS the id. That
+   division is itself guarded — a census entry citing `G##` must name
+   a gap the audit page actually defines, so the two instruments
+   cannot drift apart silently.
 
 **The register fold (done in this entry's change).** Nineteen
 library-shaped issues filed by other programs were recorded NOWHERE

@@ -423,6 +423,22 @@ library:
 | G11 | **Tessellation and STL** | register B (named there as completing the ladder) | No mesh door, so Python loses steps 4 and 5 of the guide's ladder — no tessellate, and therefore no mesh-vs-exact cross-check. Step 6 does work: `Evaluation.step_string` exports STEP, and re-importing it is the strongest check available from Python |
 | G15 | **The workspace store, content pins, and cross-document references** | THIS PAGE (`test_the_named_gaps_are_still_gaps` asserts the absence of `Workspace`, `ContentPin`, `DocRef` and `random_document_id`, so the row fails the day a door lands) | Identity itself is bound now — `Doc()` mints a distinct id per document and `Doc.id` reads it — but the surface identity EXISTS FOR is not. Python can save a document to text and load one back; it cannot open a directory of them, resolve a `DocRef`, compute or compare a `ContentPin`, or say "this part instantiates that one". So a Python author can produce two documents a workspace will accept side by side, and cannot then assemble them. The doors are `pncad::workspace::{Workspace, random_document_id, update_to_store}` and `pncad::document::{DocRef, ContentPin, content_pin}` — all curated in Rust already, so this is a binding unit and not a kernel one. The identity half is what made the rest sayable: before it, every Python document was the same part. **This row stopped being hypothetical when the tour grew its assembly stops.** Its four doors are G18's first half, so it is now the named SECONDARY blocker on rows 46 and 47 — the bench documents are exactly the "two documents a workspace will accept side by side" this row predicted, and they are exactly what cannot be assembled |
 
+**What this page structurally cannot see.** Every id above is
+SCENE-ANCHORED: a gap is named here because the tour puts the missing
+door in view — a stop blocked, a stop degraded, or the generic ladder
+every scene is held to (which is G11's anchor) — and the partition
+just above means something only because that holds. So library debt no
+scene exercises gets no id on this page — a curated door with no
+Python spelling, in a family the tour never walks through, is
+invisible to this measurement however plainly it is missing. That
+surface is enumerated by the BINDING CENSUS instead
+(`crates/pncad-py/tests/test_binding_census.py`), which asks the other
+question — can a caller REACH this door? — over the façade's curated
+lists, name by name, and fails when one is neither bound nor listed.
+It cites the ids above wherever one owns the door, and owns its own
+`B-*` ids where none does. The two lists together are the debt;
+reading only this page under-counts it.
+
 ## Closed gaps
 
 | # | gap | closed by | register / pointer | what is true now |

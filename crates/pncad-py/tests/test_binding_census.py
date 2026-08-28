@@ -77,13 +77,46 @@ is a `NOT_BOUND` entry Python has since started binding, or a
 `BOUND_AS` entry whose curated name Python now spells identically. A
 roster that only ever grows is a roster nobody is reading.
 
+THE SURFACE-DEBT ID SPACE, WHICH THIS CENSUS OWNS
+-------------------------------------------------
+Every `gap:` entry names exactly ONE id, in the first position after
+the colon: `gap: <ID> <free prose>`. Two id spaces meet there, and the
+rule between them is the point of this section.
+
+`docs/guide/north-star-audit.md` asks a SCENE question — can a user
+reproduce this model? — so its `G##` ids are anchored to tour stops
+and its stop tallies only mean something because every id is anchored
+that way. This census asks a SURFACE question: can a user reach this
+door? Debt no tour scene exercises therefore has no `G##` id, and
+minting one would make the audit's tallies measure two different
+things at once.
+
+So: **where an audit gap id exists the census CITES it; where none
+does, the census's family tag IS the id and the census owns it**
+(`FAMILIES`, below). Both halves are checked mechanically —
+`test_every_gap_entry_names_a_defined_id` reads the audit page's own
+gap tables and fails on a citation the page does not define, and on a
+family tag `FAMILIES` does not charter. `docs/LIB-LOG.md`'s residual
+register, category B, points here for the enumeration rather than
+carrying one in prose.
+
 WHAT THIS DOES NOT CLAIM
 ------------------------
 - Not that each `NOT_BOUND` entry is individually argued. They are
   argued BY FAMILY, in that constant's docstring, the way `NOT_CARRIED`
   argues its own.
 - Not that the `gap:` families are decisions. They are OWED WORK, and
-  each entry carries the pointer that owns it.
+  each entry names the id that owns it.
+- Not that a cited id is the RIGHT owner. The cross-doc check asks
+  only whether the pointer RESOLVES — that `G18` is a gap the audit
+  page defines, that `B-CHECKS` is a family this file charters. Which
+  id owns which door is a judgement made by hand, at the entry.
+- Not that the audit page's ids are all readable from here. The
+  extraction reads TABLE ROWS whose first cell is `G` + digits, in the
+  two sections that define ids; a gap the page names only in prose (the
+  closed list's `G2's loft half` row, the `G1`/`G10` residue
+  cross-references) is invisible to it. That is the intended reading:
+  an id worth citing is one a reader can look UP.
 - Not that the curated surface is all of `pncad`. `crate::workspace`,
   `crate::authoring`, `crate::guide`, `crate::export`, `crate::profile`
   and `crate::tolerance` are outside the census; the Rust guard reads
@@ -103,6 +136,7 @@ REPO = Path(__file__).resolve().parents[3]
 FACADE = REPO / "crates" / "pncad" / "src"
 FACADE_FILES = ("document.rs", "select.rs", "prelude.rs")
 STUB = REPO / "crates" / "pncad-py" / "pncad.pyi"
+AUDIT = REPO / "docs" / "guide" / "north-star-audit.md"
 
 
 # --- the Rust side ----------------------------------------------------
@@ -218,6 +252,76 @@ def stub_surface():
     return top, members
 
 
+# --- the audit page's gap ids -----------------------------------------
+
+#: The `## `-level sections of `docs/guide/north-star-audit.md` that
+#: DEFINE gap ids, one row per gap. Scoping the read to these two is
+#: what keeps a row of the audit's scene table — whose first cell is a
+#: row NUMBER, and whose fourth cell CITES a gap — from being read as
+#: a definition of one.
+GAP_SECTIONS = ("\n## The gap list\n", "\n## Closed gaps\n")
+
+
+def markdown_section(page, heading):
+    """A `## ` section's body: after the heading, up to the next one.
+
+    The Rust guards that parse this same page
+    (`crates/pncad/tests/all.rs::the_north_star_audit_has_a_row_for_
+    every_tour_stop` and its tally sibling) carry a function of this
+    name and this rule; this is it in Python, so the two read the page
+    the same way. `\\n## ` needs the trailing space, so a `### `
+    subheading stays INSIDE its section.
+    """
+    at = page.find(heading)
+    if at < 0:
+        raise AssertionError(f"the audit page has no `{heading.strip()}` heading")
+    rest = page[at + len(heading) :]
+    end = rest.find("\n## ")
+    return rest if end < 0 else rest[:end]
+
+
+def table_cells(line):
+    """One Markdown row's cells, or `None` for a non-row.
+
+    The Rust guards' rule again: a line that does not start with `|`
+    is not a row, and the `|---|` separator is not one either.
+    """
+    t = line.strip()
+    if not t.startswith("|"):
+        return None
+    cells = [c.strip() for c in t.strip("|").split("|")]
+    if all(c and set(c) <= set("-:") for c in cells):
+        return None
+    return cells
+
+
+def audit_gap_ids():
+    """Every gap id `docs/guide/north-star-audit.md` DEFINES.
+
+    A definition is a row of one of the two id-defining sections whose
+    FIRST cell is `G` + digits — the shape the Rust tally guard uses to
+    tell a gap row from the prose and headers around it. The open list
+    and the closed list are read alike: a closed gap keeps its id, and
+    an entry citing one (`G1`'s Expr residue, `G16`'s chamfer node) is
+    citing a row that is still there to be read.
+
+    What this cannot see is stated in the module docstring: a gap named
+    only in prose, and the closed list's `G2's loft half` row, whose
+    first cell is not a bare id.
+    """
+    page = AUDIT.read_text()
+    ids = set()
+    for heading in GAP_SECTIONS:
+        for line in markdown_section(page, heading).splitlines():
+            cells = table_cells(line)
+            if not cells:
+                continue
+            first = cells[0]
+            if first.startswith("G") and first[1:].isdigit():
+                ids.add(first)
+    return ids
+
+
 # --- the rosters ------------------------------------------------------
 
 #: Curated names Python binds under a DIFFERENT spelling. Each value is
@@ -289,12 +393,90 @@ BOUND_AS = {
     "validate_geometric": "Body.validate_geometric",
 }
 
-# The family tags a NOT_BOUND entry may carry. A `gap:` entry names its
-# pointer after the colon and is OWED WORK; the other two are the
-# surface being a different shape in Python, not a debt.
+# The family tags a NOT_BOUND entry may carry. A `gap:` entry names the
+# id that owns it after the colon and is OWED WORK; the other two are
+# the surface being a different shape in Python, not a debt.
 SHAPE = "different-shape"
 INTERIOR = "behind-a-door"
 GAP = "gap"
+
+#: The surface-debt ids this census OWNS, each with its charter.
+#:
+#: These are the families no audit gap id reaches, because no tour
+#: scene exercises them — the census's own founding finding, and the
+#: reason the module docstring's id-space section splits the two
+#: spaces the way it does. Where the audit page DOES define an id, an
+#: entry cites that instead and nothing is minted here: `G2` (sweep
+#: and tube), `G8` (the memo), `G11` (tessellation and STL), `G15`
+#: (content pins), `G16` (chamfer's missing recipe node), `G18` (the
+#: whole Python assembly series, whose row enumerates `assemble`,
+#: `solve_document`, `product`, `split` and `inline` by name), and
+#: `G1` for the Expr-in-a-profile-step residue its row records.
+#:
+#: **The spelling.** `B-` is the register category these entries used
+#: to point at in prose — `docs/LIB-LOG.md`, "LIB residual register",
+#: category B — which now points HERE for its enumeration, so the
+#: lineage stays legible in the id itself and a reader arriving from
+#: either document lands in the same place. Upper case with a hyphen
+#: makes an id unmistakable for an audit `G##`, for a Python
+#: identifier, or for the prose that follows it; no whitespace, so
+#: `gap: <ID> <prose>` parses by splitting once.
+#:
+#: **What a charter is.** One line: the door that is missing, and what
+#: a unit closing it would have to DELIVER. Not a plan, not a
+#: schedule, and not a claim that the unit is small — sizing is the
+#: brief's job, not the census's. What the charter buys is that a
+#: dispatcher reading an id knows what closing it means, which is
+#: exactly what "register B" as a prose paragraph did not give them.
+FAMILIES = {
+    "B-CHECKS": (
+        "the advisory report-never-gate checks registry "
+        "(DISCIPLINES-DESIGN DS6); closing it binds `run_checks` / "
+        "`enforce_checks` and the findings they report, with `CheckId` "
+        "and `Severity` as values a Python caller can dispatch on"
+    ),
+    "B-PICKING": (
+        "picking, the fourth door onto a name — ray in, `StableName` "
+        "out; closing it binds `pick_face` with its ray/target/hit "
+        "vocabulary, answering in the same opaque-text alphabet "
+        "`Evaluation.select` speaks"
+    ),
+    "B-RESOLVE": (
+        "name resolution across re-evaluation; closing it binds "
+        "`resolve` and its `Resolution` verdict — the question every "
+        "consumer that STORES names must ask on the next run, which is "
+        "every consumer the stub tells to store one"
+    ),
+    "B-READBACK": (
+        "the geometry read-back doors; closing it binds `face_frame` / "
+        "`edge_frame` / `vertex_position` / `denotation` and the `Pose` "
+        "they answer in, giving `crate::select`'s third invariant — a "
+        "name answers with VALUES, never keys — its first Python face"
+    ),
+    "B-EXPR-READ": (
+        "the expression READ side; closing it binds `eval` / "
+        "`eval_count` and their refusal, so a Python caller holding a "
+        "`DocParam` environment can ask an expression for its value "
+        "(the authoring half is G1's recorded residue, not this)"
+    ),
+    "B-CANCEL": (
+        "cooperative cancellation; closing it puts a `CancelToken` on "
+        "the `evaluate(doc)` door, which today takes none — so a Python "
+        "caller cannot stop a long evaluation at all"
+    ),
+    "B-FORMAT": (
+        "the D6 display formatter; closing it binds `fmt_length` / "
+        "`fmt_angle` and their refusal, so choosing digits and a symbol "
+        "stops being hand-work Python redoes beside `Length.in_unit`'s "
+        "bare float"
+    ),
+    "B-VALIDATE4": (
+        "the fourth validator rung; closing it binds "
+        "`validate_pseudomanifold` beside the three `Body` already "
+        "carries — the ladder is bound three-quarters and this is the "
+        "missing quarter"
+    ),
+}
 
 #: Curated names with no Python spelling at all, by family.
 #:
@@ -391,13 +573,12 @@ GAP = "gap"
 #:
 #: **`gap` — genuinely unbound doors, and each is OWED WORK.** This is
 #: the family that makes the census worth having: these are not
-#: decisions, they are debt, and the pointer after the colon says who
-#: owns each. Four have gap ids on
-#: `docs/guide/north-star-audit.md`; the rest are register category B
-#: work (`docs/LIB-LOG.md`, "bindings-parity residuals") that the
-#: audit's SCENE-driven gap list does not reach, because no tour scene
-#: exercises them — which is exactly why they accumulated unnoticed and
-#: why this census exists.
+#: decisions, they are debt, and the id after the colon says what owns
+#: each. Seven of the ids are the audit page's, cited (`G1`, `G2`, `G8`,
+#: `G11`, `G15`, `G16`, `G18`); the other eight are `FAMILIES` keys
+#: this census owns, because the audit's SCENE-driven list does not
+#: reach a door no tour scene exercises — which is exactly why those
+#: accumulated unnoticed and why this census exists.
 #:
 #: - **G2 — sweep and tube.** `sweep_body`, `tube_along_arc`,
 #:   `tube_along_arc_hollow`, `TubeError`, `TubeWindow`. Banked, not
@@ -417,13 +598,15 @@ GAP = "gap"
 #:   `PinMultiplicity`, `PinSites`). The audit's G15 row already
 #:   watches the `workspace::` half; this is the `document::` half, in
 #:   the census the audit's absence test cannot see.
-#: - **Assembly, the at-rest gate (A5).** `assemble`, `Assembly`,
-#:   `AssemblyError`, `AtRestFinding`, `Attribution`,
+#: - **G18 — assembly, the at-rest gate (A5).** `assemble`,
+#:   `Assembly`, `AssemblyError`, `AtRestFinding`, `Attribution`,
 #:   `MintedDeclaration`, `RefusedRef`. The façade carried these
 #:   BECAUSE a consumer could build an assembly and not check it; the
 #:   same argument applies one layer out, and Python cannot check one
-#:   at all. No gap id owns it today.
-#: - **Mates and the solve.** `Alignment`, `MateFrame`,
+#:   at all. The audit's G18 row names this half by name, down to the
+#:   list of types, and records that #938's fix pass curated it — so
+#:   the id exists and is cited rather than minted.
+#: - **G18 — mates and the solve.** `Alignment`, `MateFrame`,
 #:   `MatePrimitive`, `MateRole`, `MateSide`, `AxisSense`,
 #:   `SolvedPoses`, `Subgroup`, `MateFault`, `ClusterMaintenance`,
 #:   `clusters`, `gauge_of`, `reading_edges`,
@@ -431,64 +614,77 @@ GAP = "gap"
 #:   admission table a tool must read BEFORE committing
 #:   (`ClassAdmission`, `class_admission`). Python can author no mate,
 #:   so it cannot reach the assembly gate above even if that were
-#:   bound. No gap id.
-#: - **Instantiated parts.** `PartResolver`, `PartFault`,
+#:   bound. G18's row names `mate`, its four frame types and
+#:   `solve_document`; the admission table it does not name, and this
+#:   entry is where that reaches the record.
+#: - **G18 — instantiated parts.** `PartResolver`, `PartFault`,
 #:   `ResolveFailure`, `ResolveFault`, `PlacementRuleFault` — the
 #:   document seam evaluation crosses to reach a referenced document.
 #:   G15's neighbour and the reason its row says a Python author "can
 #:   produce two documents a workspace will accept side by side, and
-#:   cannot then assemble them". No gap id of its own.
-#: - **Split and inline, the recorded refactorings.** `split`,
+#:   cannot then assemble them". G18's row puts it FIRST in the
+#:   series' stated order: `evaluate(doc)` takes no resolver, so an
+#:   `InstantiatePart` node cannot evaluate from Python at all.
+#: - **G18 — split and inline, the recorded refactorings.** `split`,
 #:   `inline`, `SplitOutcome`, `InlineOutcome`, `SplitError`,
 #:   `InlineError`, `NodeMap`, `InterfaceRecord`, `InterfaceCrossing`.
 #:   NOTE the collision: this `split` is the document refactoring, NOT
 #:   the geometry `Node.split` Python binds. A looser mapping rule
-#:   would have matched them and hidden the gap. No gap id.
-#: - **Explicit product roots.** `product`, `product_named`,
+#:   would have matched them and hidden the gap. G18's row names both
+#:   verbs in its list of what is absent.
+#: - **G18 — explicit product roots.** `product`, `product_named`,
 #:   `ProductError`, `RootFault`. `Doc` has no `roots` reader and
 #:   `DocEdit` no `SetRoots`, so Python cannot say what a document's
-#:   product IS. No gap id.
-#: - **The advisory checks (DISCIPLINES-DESIGN DS6).** `run_checks`,
-#:   `enforce_checks`, `subject_body`, `ChecksReport`, `ChecksConfig`,
-#:   `ChecksError`, `CheckFinding`, `CheckEvidence`, `CheckId`,
-#:   `CheckKind`, `CheckRefusal`, `Severity`. The report-never-gate
-#:   registry. No gap id.
-#: - **Picking.** `pick_face`, `PickTarget`, `PickHit`, `NodePick`,
-#:   `NodePickError`, `HitTestError`, `Ray`. The fourth door onto a
-#:   name — ray in, `StableName` out, the same alphabet
-#:   `Evaluation.select` speaks. No gap id.
-#: - **Name resolution across re-evaluation.** `resolve`, `Resolution`,
-#:   `RunCtx`. The question a consumer that STORES names must ask on
-#:   every run — and Python's whole selection story is store-then-reuse
-#:   (`Node.fillet` freezes a name set), so the absence bites exactly
-#:   the consumers the stub tells to store. No gap id.
-#: - **The expression surface.** `Expr`, `ParamEnv`, `parse_expr`,
-#:   `ParseError`, and its read side `eval`, `eval_count`, `EvalError`.
-#:   The audit's G1/G10 residue names the authoring half ("a profile
-#:   step whose argument is an EXPRESSION rather than a literal" — the
-#:   one door still blocking `plate_param` from scratch, and the same
-#:   door `GeomPred.datum_distance`'s comparand waits on). The READ
-#:   half is unnamed anywhere: Python holds `DocParam` values and has
-#:   no door from an expression to its value.
-#: - **The geometry read-back doors.** `face_frame`, `edge_frame`,
-#:   `vertex_position`, `denotation`, `Denotation`, and the `Pose` /
-#:   `ReadbackError` they answer in. `crate::select`'s third invariant
-#:   — "a name answers with values, never keys" — has no Python face:
-#:   `Evaluation.all_faces` hands back names and nothing asks one where
-#:   it is. No gap id.
-#: - **The fourth validator rung.** `validate_pseudomanifold`. `Body`
-#:   binds three of the ladder's four; this one is simply missing. No
-#:   gap id.
-#: - **Chamfer.** `chamfer_edges`, `Chamfered`. The fillet's ruled
-#:   sibling, and the reason it cannot be bound the way `Node.fillet`
-#:   was is one level down: `editor-core` has no `Chamfer` node, so
-#:   this is a document-layer unit before it is a binding one.
-#: - **Cooperative cancellation.** `CancelToken`. `evaluate(doc)` takes
-#:   none, so a Python caller cannot stop a long evaluation.
-#: - **The D6 display formatter.** `fmt_length`, `fmt_angle`,
-#:   `FmtQuantityError`. `Length.in_unit` answers a bare float;
-#:   choosing digits and a symbol is the formatter's job and Python
-#:   redoes it by hand. No gap id.
+#:   product IS — which is `set_roots` and `product`, two more of the
+#:   names G18's row lists.
+#: - **B-CHECKS — the advisory checks (DISCIPLINES-DESIGN DS6).**
+#:   `run_checks`, `enforce_checks`, `subject_body`, `ChecksReport`,
+#:   `ChecksConfig`, `ChecksError`, `CheckFinding`, `CheckEvidence`,
+#:   `CheckId`, `CheckKind`, `CheckRefusal`, `Severity`. The
+#:   report-never-gate registry, and the largest census-owned family.
+#: - **B-PICKING — picking.** `pick_face`, `PickTarget`, `PickHit`,
+#:   `NodePick`, `NodePickError`, `HitTestError`, `Ray`. The fourth
+#:   door onto a name — ray in, `StableName` out, the same alphabet
+#:   `Evaluation.select` speaks.
+#: - **B-RESOLVE — name resolution across re-evaluation.** `resolve`,
+#:   `Resolution`, `RunCtx`. The question a consumer that STORES names
+#:   must ask on every run — and Python's whole selection story is
+#:   store-then-reuse (`Node.fillet` freezes a name set), so the
+#:   absence bites exactly the consumers the stub tells to store.
+#: - **The expression surface, split at the half the audit reaches.**
+#:   `Expr`, `ParamEnv`, `parse_expr` and `ParseError` are **G1**: its
+#:   row records the residue by name ("a profile step whose argument
+#:   is an EXPRESSION rather than a literal" — the one door still
+#:   blocking `plate_param` from scratch, and the same door
+#:   `GeomPred.datum_distance`'s comparand waits on). The READ side
+#:   `eval`, `eval_count` and `EvalError` is **B-EXPR-READ**, unnamed
+#:   on that page or anywhere else: Python holds `DocParam` values and
+#:   has no door from an expression to its value. One family, two ids,
+#:   because the entries are what carry an id and only one half of
+#:   this family has one.
+#: - **B-READBACK — the geometry read-back doors.** `face_frame`,
+#:   `edge_frame`, `vertex_position`, `denotation`, `Denotation`, and
+#:   the `Pose` / `ReadbackError` they answer in. `crate::select`'s
+#:   third invariant — "a name answers with values, never keys" — has
+#:   no Python face: `Evaluation.all_faces` hands back names and
+#:   nothing asks one where it is.
+#: - **B-VALIDATE4 — the fourth validator rung.**
+#:   `validate_pseudomanifold`. `Body` binds three of the ladder's
+#:   four; this one is simply missing.
+#: - **G16 — chamfer.** `chamfer_edges`, `Chamfered`. The fillet's
+#:   ruled sibling, and the reason it cannot be bound the way
+#:   `Node.fillet` was is one level down: `editor-core` has no
+#:   `Chamfer` node, so this is a document-layer unit before it is a
+#:   binding one — which IS G16, whose row says the same thing from
+#:   the scene side ("**Not a bindings gap.** The day `Node::Chamfer`
+#:   lands, binding it is the mechanical LIB-PYBUNDLE shape").
+#: - **B-CANCEL — cooperative cancellation.** `CancelToken`.
+#:   `evaluate(doc)` takes none, so a Python caller cannot stop a long
+#:   evaluation.
+#: - **B-FORMAT — the D6 display formatter.** `fmt_length`,
+#:   `fmt_angle`, `FmtQuantityError`. `Length.in_unit` answers a bare
+#:   float; choosing digits and a symbol is the formatter's job and
+#:   Python redoes it by hand.
 NOT_BOUND = {
     # --- different-shape ------------------------------------------
     "ALL_SURFACE_KINDS": SHAPE,
@@ -635,102 +831,102 @@ NOT_BOUND = {
     "header_document_id": f"{GAP}: G15 content pins",
     "mixed_pins": f"{GAP}: G15 content pins",
     "update_references": f"{GAP}: G15 content pins",
-    # --- gap: assembly at-rest gate (register B, no gap id) -------
-    "Assembly": f"{GAP}: register B assembly gate",
-    "AssemblyError": f"{GAP}: register B assembly gate",
-    "AtRestFinding": f"{GAP}: register B assembly gate",
-    "Attribution": f"{GAP}: register B assembly gate",
-    "MintedDeclaration": f"{GAP}: register B assembly gate",
-    "RefusedRef": f"{GAP}: register B assembly gate",
-    "assemble": f"{GAP}: register B assembly gate",
-    # --- gap: mates and the solve (register B, no gap id) ---------
-    "Alignment": f"{GAP}: register B mates",
-    "AxisSense": f"{GAP}: register B mates",
-    "ClassAdmission": f"{GAP}: register B mates",
-    "ClusterMaintenance": f"{GAP}: register B mates",
-    "MateFault": f"{GAP}: register B mates",
-    "MateFrame": f"{GAP}: register B mates",
-    "MatePrimitive": f"{GAP}: register B mates",
-    "MateRole": f"{GAP}: register B mates",
-    "MateSide": f"{GAP}: register B mates",
-    "SolvedPoses": f"{GAP}: register B mates",
-    "Subgroup": f"{GAP}: register B mates",
-    "class_admission": f"{GAP}: register B mates",
-    "clusters": f"{GAP}: register B mates",
-    "gauge_of": f"{GAP}: register B mates",
-    "reading_edges": f"{GAP}: register B mates",
-    "relative_freedom_components": f"{GAP}: register B mates",
-    "solve_document": f"{GAP}: register B mates",
-    # --- gap: instantiated parts (register B, G15's neighbour) ----
-    "PartFault": f"{GAP}: register B instantiate-part",
-    "PartResolver": f"{GAP}: register B instantiate-part",
-    "PlacementRuleFault": f"{GAP}: register B instantiate-part",
-    "ResolveFailure": f"{GAP}: register B instantiate-part",
-    "ResolveFault": f"{GAP}: register B instantiate-part",
-    # --- gap: split/inline refactorings (register B, no gap id) ---
-    "InlineError": f"{GAP}: register B split/inline",
-    "InlineOutcome": f"{GAP}: register B split/inline",
-    "InterfaceCrossing": f"{GAP}: register B split/inline",
-    "InterfaceRecord": f"{GAP}: register B split/inline",
-    "NodeMap": f"{GAP}: register B split/inline",
-    "SplitError": f"{GAP}: register B split/inline",
-    "SplitOutcome": f"{GAP}: register B split/inline",
-    "inline": f"{GAP}: register B split/inline",
-    "split": f"{GAP}: register B split/inline",
-    # --- gap: explicit product roots (register B, no gap id) ------
-    "ProductError": f"{GAP}: register B product roots",
-    "RootFault": f"{GAP}: register B product roots",
-    "product": f"{GAP}: register B product roots",
-    "product_named": f"{GAP}: register B product roots",
-    # --- gap: advisory checks DS6 (register B, no gap id) ---------
-    "CheckEvidence": f"{GAP}: register B checks",
-    "CheckFinding": f"{GAP}: register B checks",
-    "CheckId": f"{GAP}: register B checks",
-    "CheckKind": f"{GAP}: register B checks",
-    "CheckRefusal": f"{GAP}: register B checks",
-    "ChecksConfig": f"{GAP}: register B checks",
-    "ChecksError": f"{GAP}: register B checks",
-    "ChecksReport": f"{GAP}: register B checks",
-    "Severity": f"{GAP}: register B checks",
-    "enforce_checks": f"{GAP}: register B checks",
-    "run_checks": f"{GAP}: register B checks",
-    "subject_body": f"{GAP}: register B checks",
-    # --- gap: picking (register B, no gap id) ---------------------
-    "HitTestError": f"{GAP}: register B picking",
-    "NodePick": f"{GAP}: register B picking",
-    "NodePickError": f"{GAP}: register B picking",
-    "PickHit": f"{GAP}: register B picking",
-    "PickTarget": f"{GAP}: register B picking",
-    "Ray": f"{GAP}: register B picking",
-    "pick_face": f"{GAP}: register B picking",
-    # --- gap: name resolution (register B, no gap id) -------------
-    "Resolution": f"{GAP}: register B name resolution",
-    "RunCtx": f"{GAP}: register B name resolution",
-    "resolve": f"{GAP}: register B name resolution",
-    # --- gap: the expression surface (audit G1/G10 residue) -------
-    "EvalError": f"{GAP}: G1 residue expressions",
-    "Expr": f"{GAP}: G1 residue expressions",
-    "ParamEnv": f"{GAP}: G1 residue expressions",
-    "ParseError": f"{GAP}: G1 residue expressions",
-    "eval": f"{GAP}: G1 residue expressions",
-    "eval_count": f"{GAP}: G1 residue expressions",
-    "parse_expr": f"{GAP}: G1 residue expressions",
-    # --- gap: geometry read-back doors (register B, no gap id) ----
-    "Denotation": f"{GAP}: register B read-back doors",
-    "Pose": f"{GAP}: register B read-back doors",
-    "ReadbackError": f"{GAP}: register B read-back doors",
-    "denotation": f"{GAP}: register B read-back doors",
-    "edge_frame": f"{GAP}: register B read-back doors",
-    "face_frame": f"{GAP}: register B read-back doors",
-    "vertex_position": f"{GAP}: register B read-back doors",
-    # --- gap: assorted single doors (register B, no gap id) -------
-    "CancelToken": f"{GAP}: register B cancellation",
-    "Chamfered": f"{GAP}: register B chamfer",
-    "FmtQuantityError": f"{GAP}: register B quantity formatter",
-    "chamfer_edges": f"{GAP}: register B chamfer",
-    "fmt_angle": f"{GAP}: register B quantity formatter",
-    "fmt_length": f"{GAP}: register B quantity formatter",
-    "validate_pseudomanifold": f"{GAP}: register B fourth validator",
+    # --- gap: assembly at-rest gate (audit G18) -------------------
+    "Assembly": f"{GAP}: G18 assembly at-rest gate",
+    "AssemblyError": f"{GAP}: G18 assembly at-rest gate",
+    "AtRestFinding": f"{GAP}: G18 assembly at-rest gate",
+    "Attribution": f"{GAP}: G18 assembly at-rest gate",
+    "MintedDeclaration": f"{GAP}: G18 assembly at-rest gate",
+    "RefusedRef": f"{GAP}: G18 assembly at-rest gate",
+    "assemble": f"{GAP}: G18 assembly at-rest gate",
+    # --- gap: mates and the solve (audit G18) ---------------------
+    "Alignment": f"{GAP}: G18 mates and the solve",
+    "AxisSense": f"{GAP}: G18 mates and the solve",
+    "ClassAdmission": f"{GAP}: G18 mates and the solve",
+    "ClusterMaintenance": f"{GAP}: G18 mates and the solve",
+    "MateFault": f"{GAP}: G18 mates and the solve",
+    "MateFrame": f"{GAP}: G18 mates and the solve",
+    "MatePrimitive": f"{GAP}: G18 mates and the solve",
+    "MateRole": f"{GAP}: G18 mates and the solve",
+    "MateSide": f"{GAP}: G18 mates and the solve",
+    "SolvedPoses": f"{GAP}: G18 mates and the solve",
+    "Subgroup": f"{GAP}: G18 mates and the solve",
+    "class_admission": f"{GAP}: G18 mates and the solve",
+    "clusters": f"{GAP}: G18 mates and the solve",
+    "gauge_of": f"{GAP}: G18 mates and the solve",
+    "reading_edges": f"{GAP}: G18 mates and the solve",
+    "relative_freedom_components": f"{GAP}: G18 mates and the solve",
+    "solve_document": f"{GAP}: G18 mates and the solve",
+    # --- gap: instantiated parts (audit G18, G15's neighbour) -----
+    "PartFault": f"{GAP}: G18 instantiated parts",
+    "PartResolver": f"{GAP}: G18 instantiated parts",
+    "PlacementRuleFault": f"{GAP}: G18 instantiated parts",
+    "ResolveFailure": f"{GAP}: G18 instantiated parts",
+    "ResolveFault": f"{GAP}: G18 instantiated parts",
+    # --- gap: split/inline refactorings (audit G18) ---------------
+    "InlineError": f"{GAP}: G18 split/inline refactorings",
+    "InlineOutcome": f"{GAP}: G18 split/inline refactorings",
+    "InterfaceCrossing": f"{GAP}: G18 split/inline refactorings",
+    "InterfaceRecord": f"{GAP}: G18 split/inline refactorings",
+    "NodeMap": f"{GAP}: G18 split/inline refactorings",
+    "SplitError": f"{GAP}: G18 split/inline refactorings",
+    "SplitOutcome": f"{GAP}: G18 split/inline refactorings",
+    "inline": f"{GAP}: G18 split/inline refactorings",
+    "split": f"{GAP}: G18 split/inline refactorings",
+    # --- gap: explicit product roots (audit G18) ------------------
+    "ProductError": f"{GAP}: G18 explicit product roots",
+    "RootFault": f"{GAP}: G18 explicit product roots",
+    "product": f"{GAP}: G18 explicit product roots",
+    "product_named": f"{GAP}: G18 explicit product roots",
+    # --- gap: advisory checks DS6 (census-owned) ------------------
+    "CheckEvidence": f"{GAP}: B-CHECKS advisory checks",
+    "CheckFinding": f"{GAP}: B-CHECKS advisory checks",
+    "CheckId": f"{GAP}: B-CHECKS advisory checks",
+    "CheckKind": f"{GAP}: B-CHECKS advisory checks",
+    "CheckRefusal": f"{GAP}: B-CHECKS advisory checks",
+    "ChecksConfig": f"{GAP}: B-CHECKS advisory checks",
+    "ChecksError": f"{GAP}: B-CHECKS advisory checks",
+    "ChecksReport": f"{GAP}: B-CHECKS advisory checks",
+    "Severity": f"{GAP}: B-CHECKS advisory checks",
+    "enforce_checks": f"{GAP}: B-CHECKS advisory checks",
+    "run_checks": f"{GAP}: B-CHECKS advisory checks",
+    "subject_body": f"{GAP}: B-CHECKS advisory checks",
+    # --- gap: picking (census-owned) ------------------------------
+    "HitTestError": f"{GAP}: B-PICKING ray onto a name",
+    "NodePick": f"{GAP}: B-PICKING ray onto a name",
+    "NodePickError": f"{GAP}: B-PICKING ray onto a name",
+    "PickHit": f"{GAP}: B-PICKING ray onto a name",
+    "PickTarget": f"{GAP}: B-PICKING ray onto a name",
+    "Ray": f"{GAP}: B-PICKING ray onto a name",
+    "pick_face": f"{GAP}: B-PICKING ray onto a name",
+    # --- gap: name resolution (census-owned) ----------------------
+    "Resolution": f"{GAP}: B-RESOLVE names across runs",
+    "RunCtx": f"{GAP}: B-RESOLVE names across runs",
+    "resolve": f"{GAP}: B-RESOLVE names across runs",
+    # --- gap: the expression surface (audit G1 + census-owned) ----
+    "EvalError": f"{GAP}: B-EXPR-READ an expression's value",
+    "Expr": f"{GAP}: G1 Expr-bearing authoring steps",
+    "ParamEnv": f"{GAP}: G1 Expr-bearing authoring steps",
+    "ParseError": f"{GAP}: G1 Expr-bearing authoring steps",
+    "eval": f"{GAP}: B-EXPR-READ an expression's value",
+    "eval_count": f"{GAP}: B-EXPR-READ an expression's value",
+    "parse_expr": f"{GAP}: G1 Expr-bearing authoring steps",
+    # --- gap: geometry read-back doors (census-owned) -------------
+    "Denotation": f"{GAP}: B-READBACK a name answers with values",
+    "Pose": f"{GAP}: B-READBACK a name answers with values",
+    "ReadbackError": f"{GAP}: B-READBACK a name answers with values",
+    "denotation": f"{GAP}: B-READBACK a name answers with values",
+    "edge_frame": f"{GAP}: B-READBACK a name answers with values",
+    "face_frame": f"{GAP}: B-READBACK a name answers with values",
+    "vertex_position": f"{GAP}: B-READBACK a name answers with values",
+    # --- gap: assorted single doors -------------------------------
+    "CancelToken": f"{GAP}: B-CANCEL cooperative cancellation",
+    "Chamfered": f"{GAP}: G16 chamfer has no recipe node",
+    "FmtQuantityError": f"{GAP}: B-FORMAT the D6 display formatter",
+    "chamfer_edges": f"{GAP}: G16 chamfer has no recipe node",
+    "fmt_angle": f"{GAP}: B-FORMAT the D6 display formatter",
+    "fmt_length": f"{GAP}: B-FORMAT the D6 display formatter",
+    "validate_pseudomanifold": f"{GAP}: B-VALIDATE4 the fourth validator rung",
 }
 
 
@@ -790,7 +986,81 @@ class TestBindingCensus(unittest.TestCase):
             bad,
             [],
             f"a NOT_BOUND family must be {SHAPE!r}, {INTERIOR!r}, "
-            f"or '{GAP}: <pointer>'",
+            f"or '{GAP}: <ID> <prose>'",
+        )
+
+    def test_every_gap_entry_names_a_defined_id(self):
+        """**The pointers resolve — both id spaces, mechanically.**
+
+        A `gap:` entry is OWED WORK, and the id after the colon is
+        what a dispatcher works from. Before this guard those ids were
+        free prose, and half of them read `register B <something>` —
+        a pointer at a PARAGRAPH of `docs/LIB-LOG.md`, which is not an
+        enumeration and cannot be dispatched against. So each entry
+        now names exactly one id and each id must be defined:
+
+        - an audit citation (`G` + digits) must be a gap
+          `docs/guide/north-star-audit.md` actually defines, read off
+          that page's own gap tables by [`audit_gap_ids`] — the
+          cross-document half, which is what stops a citation from
+          drifting when the page is re-cut;
+        - anything else must be a `FAMILIES` key, chartered here.
+
+        And it decays, like every other roster in this file: a
+        `FAMILIES` entry no `gap:` entry cites is a charter for work
+        nobody is tracking, which is the same failure as a stale
+        exclusion — it fails here rather than sitting as decoration.
+
+        **What this does NOT claim** (the module docstring says it
+        too, and it matters most here): not that the cited id is the
+        RIGHT owner for that door, only that it RESOLVES. `G18` being
+        a defined gap is checkable; `assemble` being G18's work rather
+        than G15's is a reading, made by hand at the entry. Nor does
+        it claim the prose after the id is accurate — only that there
+        IS prose, because an entry reduced to a bare tag loses the one
+        thing a human reader can use.
+        """
+        defined = audit_gap_ids()
+        self.assertGreater(
+            len(defined),
+            12,
+            "the audit page's gap tables parsed to almost nothing — its shape "
+            "changed and this guard was about to pass vacuously",
+        )
+        bad = []
+        cited = set()
+        for name, family in sorted(NOT_BOUND.items()):
+            if not family.startswith(f"{GAP}: "):
+                continue
+            words = family[len(f"{GAP}: ") :].split()
+            if len(words) < 2:
+                bad.append(f"{name}: {family!r} — an id and then no prose")
+                continue
+            gap_id = words[0]
+            cited.add(gap_id)
+            if gap_id.startswith("G") and gap_id[1:].isdigit():
+                if gap_id not in defined:
+                    bad.append(
+                        f"{name}: cites {gap_id}, which north-star-audit.md's "
+                        "gap tables do not define"
+                    )
+            elif gap_id not in FAMILIES:
+                bad.append(
+                    f"{name}: cites {gap_id}, which FAMILIES does not charter"
+                )
+        self.assertEqual(
+            bad,
+            [],
+            "a 'gap:' entry must name an audit gap id the page defines, or a "
+            "FAMILIES key, and then say something readable about it",
+        )
+        uncited = sorted(set(FAMILIES) - cited)
+        self.assertEqual(
+            uncited,
+            [],
+            "FAMILIES charters work no NOT_BOUND entry cites — either the "
+            "entries moved off it (drop the charter) or the id is a placeholder "
+            "for work nobody is tracking",
         )
 
     def test_every_curated_name_is_bound_or_listed(self):
