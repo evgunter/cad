@@ -53,8 +53,6 @@ mod input_mapping;
 mod mate_tool_flow;
 #[path = "panel_edits.rs"]
 mod panel_edits;
-#[path = "review_gui4_r2.rs"]
-mod review_gui4_r2;
 #[path = "review_gui0_r1.rs"]
 mod review_gui0_r1;
 #[path = "review_gui0_r2.rs"]
@@ -67,6 +65,8 @@ mod review_gui2_r2;
 mod review_gui3_r1;
 #[path = "review_gui3_r2.rs"]
 mod review_gui3_r2;
+#[path = "review_gui4_r2.rs"]
+mod review_gui4_r2;
 #[path = "scene_build.rs"]
 mod scene_build;
 #[path = "select_pick.rs"]
