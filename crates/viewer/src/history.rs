@@ -101,6 +101,20 @@ pub enum ReplayError {
     },
 }
 
+impl core::fmt::Display for ReplayError {
+    /// The position is this layer's contribution; the refusal itself is
+    /// [`EditError`]'s own sentence.
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Refused { index, error } => {
+                write!(f, "replay: edit {index} of the saved log was refused: {error}")
+            }
+        }
+    }
+}
+
+impl core::error::Error for ReplayError {}
+
 impl History {
     /// A history holding one state and no edits.
     pub fn new(doc: Doc<ProfileProgram>) -> Self {
