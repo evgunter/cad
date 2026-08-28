@@ -1038,17 +1038,16 @@ fn a_curved_face_at_the_junction_still_refuses_where_it_did() {
     )
     .expect("the frustum revolves")
     .body;
-    for (what, body) in [("a cone frustum between two caps", frustum)] {
-        let e = topo::shell(&body, t, FIT_TOL, band(), tol)
-            .expect_err("a curved junction is outside this door's scope");
-        let ShellError::Face { error, .. } = e else {
-            panic!("{what}: not the offset door's refusal: {e}");
-        };
-        assert!(
-            matches!(*error, topo::ReplaceFaceError::ReanchorOffCarrier { .. }),
-            "{what}: the door that refuses is part of the finding: {error}"
-        );
-    }
+    let what = "a cone frustum between two caps";
+    let e = topo::shell(&frustum, t, FIT_TOL, band(), tol)
+        .expect_err("a curved junction is outside this door's scope");
+    let ShellError::Face { error, .. } = e else {
+        panic!("{what}: not the offset door's refusal: {e}");
+    };
+    assert!(
+        matches!(*error, topo::ReplaceFaceError::ReanchorOffCarrier { .. }),
+        "{what}: the door that refuses is part of the finding: {error}"
+    );
     // And the drum still hollows, because a cylinder between two caps
     // NORMAL to its axis was always inside the surviving class — the
     // simultaneous branch is not what makes it work, and this row says
