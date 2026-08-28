@@ -3207,7 +3207,11 @@ mod review_probes {
                 let (center, _, axis) = sphere_of(body(&ps, n));
                 // Stored axes may point either way along the line;
                 // orient them all into the bud.
-                let a = if axis.dot(bud_axis) < 0.0 { -axis } else { axis };
+                let a = if axis.dot(bud_axis) < 0.0 {
+                    -axis
+                } else {
+                    axis
+                };
                 (center, a)
             })
             .collect();
@@ -3375,7 +3379,12 @@ mod review_probes {
             .collect()
     }
 
-    /// The body's single stored sphere carrier: (centre, radius, axis).
+    /// Everything a stored sphere holds: (centre, radius, axis,
+    /// `u_ref`). Named so the agreement check below can compare the
+    /// whole of one against the whole of another.
+    type SphereCarrier = (Point3<f64>, f64, Vec3<f64>, Vec3<f64>);
+
+    /// The body's single stored sphere: (centre, radius, axis).
     ///
     /// Single is CHECKED, not assumed. Every caller reads one sphere
     /// face and treats what it stores as the body's, so a second face
@@ -3385,7 +3394,7 @@ mod review_probes {
     /// included, because a partial comparison is one two different
     /// spheres can pass.
     fn sphere_of(b: &Body<f64>) -> (Point3<f64>, f64, Vec3<f64>) {
-        let mut found: Option<(Point3<f64>, f64, Vec3<f64>, Vec3<f64>)> = None;
+        let mut found: Option<SphereCarrier> = None;
         for (_, f) in b.faces() {
             if let Some(pncad::geom::Surface::Sphere {
                 center,

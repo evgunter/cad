@@ -230,16 +230,3 @@ fn startup_error_forwards_every_payload_arm() {
     );
 }
 
-#[cfg(feature = "app")]
-#[test]
-fn tmp_show() {
-    use viewer::app::StartupError;
-    for m in [
-        StartupError::Document(SceneDocError::NoNodeMinted).to_string(),
-        StartupError::Scene(SceneError::EmptyMesh).to_string(),
-        StartupError::Camera(CameraError::UnusableBounds).to_string(),
-        StartupError::NoWgpuRenderState.to_string(),
-    ] {
-        println!("|{m}|");
-    }
-}

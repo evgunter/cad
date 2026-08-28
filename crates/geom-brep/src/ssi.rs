@@ -975,11 +975,30 @@ pub fn plane_nurbs_ssi(
     let dv = nb.deriv_box(ud.0, ud.1, vd.0, vd.1, false);
     let mag =
         |b: Box3| (b.x.mag() * b.x.mag() + b.y.mag() * b.y.mag() + b.z.mag() * b.z.mag()).sqrt();
-    let speed = mag(du).max(mag(dv));
-    if speed.is_nan() || speed <= 0.0 {
+    // A NaN-propagating fold: `f64::max` returns the non-NaN operand, so
+    // a lone poisoned derivative box would be dropped before the guard
+    // below could see it.
+    let (su, sv) = (mag(du), mag(dv));
+    let speed = if su.is_nan() || sv.is_nan() {
+        f64::NAN
+    } else {
+        su.max(sv)
+    };
+    // Only a POSITIVE FINITE speed translates a floor. `floor / ∞` is
+    // exactly zero — a floor no cell can ever reach — so a non-finite
+    // speed would let the sweep run to its cell budget and answer in
+    // this guard's place with the wrong diagnosis.
+    if !speed.is_finite() {
         return Err(SsiError::UnsupportedCertificate {
-            what: "the NURBS wall's certified chart speed is zero or poison, so no \
-                   floor in meters can be translated into its parameter domain",
+            what: "the NURBS wall's certified chart speed is not finite — its \
+                   derivative bound overflowed or is poison — so no floor in \
+                   meters can be translated into its parameter domain",
+        });
+    }
+    if speed <= 0.0 {
+        return Err(SsiError::UnsupportedCertificate {
+            what: "the NURBS wall's certified chart speed is zero, so no floor in \
+                   meters can be translated into its parameter domain",
         });
     }
 
