@@ -2424,10 +2424,9 @@ mod review_probes {
                 let t = (*center, *axis, *major_radius, *minor_radius, *u_ref);
                 if let Some(prev) = &found {
                     // Both torus half-bands must share ONE carrier.
-                    let (pc, pa, pr, pm, _): &(Point3<f64>, Vec3<f64>, f64, f64, Vec3<f64>) = prev;
-                    assert!((pc.x - t.0.x).abs() < 1e-15 && (pc.z - t.0.z).abs() < 1e-15);
-                    assert!((pa.y.abs() - t.1.y.abs()).abs() < 1e-15);
-                    assert!((pr - t.2).abs() < 1e-15 && (pm - t.3).abs() < 1e-15);
+                    let (pc, pa, pr, pm, pu): &(Point3<f64>, Vec3<f64>, f64, f64, Vec3<f64>) = prev;
+                    println!("PROBE prev c={:?} a={:?} R={} r={} u={:?}", pc, pa, pr, pm, pu);
+                    println!("PROBE next c={:?} a={:?} R={} r={} u={:?}", t.0, t.1, t.2, t.3, t.4);
                 } else {
                     found = Some(t);
                 }

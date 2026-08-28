@@ -519,19 +519,29 @@ fn trio_corner_independence() {
     }
 }
 
-/// The recourse sentences are shared CONSTANTS, so the definite and
-/// escalated arms of one user situation cannot drift apart — this row
-/// is what would catch a future edit that inlines one of them.
+/// **Every recourse sentence composes into a message.** A recourse is
+/// appended to a sentence the `Display` impl has already started, so a
+/// constant that is empty or that closes with a full stop renders a
+/// refusal that reads wrong wherever it appears.
 ///
-/// The list is hand-kept and nothing forces it to stay complete —
-/// Rust cannot enumerate a module's constants — so the standing check
-/// on completeness is `fillet::recourse_tests`' exhaustive match over
-/// the variants that append them.
+/// That is the whole of what this row checks: it reads the constants
+/// and renders nothing, so it cannot see which variants append them or
+/// whether a definite and an escalated arm of one situation still
+/// agree. **Both of those live elsewhere** — the pairing is checked by
+/// the rows above, which drive definite and in-band inputs through the
+/// same door and compare what comes back, and coverage of the constant
+/// list itself is `fillet::recourse_tests`'
+/// `every_recourse_sentence_is_rendered_by_some_variant`, which
+/// renders one value of every `FilletError` variant and requires each
+/// sentence to appear.
+///
+/// The list below is hand-kept — Rust cannot enumerate a module's
+/// constants — and so is the private `ALL` it mirrors, so a constant
+/// added to neither is checked by nothing in either crate.
 #[test]
-fn every_recourse_sentence_is_reachable_from_both_arms() {
-    let p = Point3::new(0.0, 0.0, 0.0);
-    let _ = p;
+fn every_recourse_sentence_composes_into_a_message() {
     for s in [
+        sweep::fillet::CHAMFER_ARM_RECOURSE,
         sweep::fillet::FILLET3_RADIUS_RECOURSE,
         sweep::fillet::FILLET3_CLEARANCE_RECOURSE,
         sweep::fillet::FILLET3_TANGENTIAL_RECOURSE,
@@ -539,13 +549,14 @@ fn every_recourse_sentence_is_reachable_from_both_arms() {
         sweep::fillet::FILLET3_CHAIN_RECOURSE,
         sweep::fillet::FILLET3_CONVEXITY_RECOURSE,
         sweep::fillet::FILLET3_CORNER_RECOURSE,
+        sweep::fillet::FILLET3_SEAM_VERTEX_RECOURSE,
         sweep::fillet::FILLET3_SPINE_KIND_RECOURSE,
         sweep::fillet::FILLET3_ASSEMBLY_RECOURSE,
         sweep::fillet::FILLET3_RING_RECOURSE,
         sweep::fillet::FILLET3_BODY_RECOURSE,
         sweep::fillet::FILLET3_GEOMETRY_RECOURSE,
     ] {
-        assert!(!s.is_empty());
+        assert!(!s.is_empty(), "a recourse sentence is never empty");
         assert!(
             !s.ends_with('.'),
             "recourse sentences compose into a message and never end it: {s}"
