@@ -10,7 +10,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Tol;
-use geom_core::{Band, Point2, Point3, Vec3};
+use geom_core::{Band, Point2, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::fillet::battery::{
@@ -524,16 +524,15 @@ fn trio_corner_independence() {
 /// constant that is empty or that closes with a full stop renders a
 /// refusal that reads wrong wherever it appears.
 ///
-/// That is the whole of what this row checks: it reads the constants
-/// and renders nothing, so it cannot see which variants append them or
-/// whether a definite and an escalated arm of one situation still
-/// agree. **Both of those live elsewhere** — the pairing is checked by
-/// the rows above, which drive definite and in-band inputs through the
-/// same door and compare what comes back, and coverage of the constant
-/// list itself is `fillet::recourse_tests`'
-/// `every_recourse_sentence_is_rendered_by_some_variant`, which
+/// That is the whole of what this row checks. It reads the constants
+/// and renders no refusal, so it cannot see which variant appends
+/// which sentence, nor whether the definite and escalated arms of one
+/// user situation still agree; a name promising either would be a name
+/// this body cannot go red for. **Coverage of the list lives in
+/// `fillet::recourse_tests`'
+/// `every_recourse_sentence_is_rendered_by_some_variant`**, which
 /// renders one value of every `FilletError` variant and requires each
-/// sentence to appear.
+/// sentence to appear in some rendering.
 ///
 /// The list below is hand-kept — Rust cannot enumerate a module's
 /// constants — and so is the private `ALL` it mirrors, so a constant

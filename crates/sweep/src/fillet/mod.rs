@@ -841,7 +841,6 @@ mod recourse_tests {
     use geom_core::{Band, BandError, Indeterminate, MarginDiag};
     use topo::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 
-    use super::{Convexity, CornerConfig};
     use super::{
         CHAMFER_ARM_RECOURSE, FILLET3_ASSEMBLY_RECOURSE, FILLET3_BODY_RECOURSE,
         FILLET3_CHAIN_RECOURSE, FILLET3_CLEARANCE_RECOURSE, FILLET3_CONVEXITY_RECOURSE,
@@ -849,6 +848,7 @@ mod recourse_tests {
         FILLET3_RING_RECOURSE, FILLET3_SEAM_VERTEX_RECOURSE, FILLET3_SPINE_KIND_RECOURSE,
         FILLET3_SPINE_RECOURSE, FILLET3_TANGENTIAL_RECOURSE, FilletError, FilletSite,
     };
+    use super::{Convexity, CornerConfig};
 
     /// Every recourse sentence this module can append.
     const ALL: [&str; 14] = [
@@ -892,7 +892,7 @@ mod recourse_tests {
     /// exhaustive, so a new variant is a compile error here: no
     /// variant can be missing a DECISION. Nothing in the match makes
     /// that variant *render*, and Rust cannot enumerate a type's
-    /// variants, so [`seeds`] is hand-written and carries one value of
+    /// variants, so `seeds` is hand-written and carries one value of
     /// every variant this table names — the two lists are read side by
     /// side when a variant is added, and there is no compiler check
     /// that they still agree.
@@ -908,53 +908,27 @@ mod recourse_tests {
     fn contract(err: &FilletError) -> Recourse {
         match err {
             FilletError::Band(_) => Recourse::None,
-            FilletError::ChainNotConnected { .. } => {
-                Recourse::Exactly(FILLET3_CHAIN_RECOURSE)
-            }
-            FilletError::RadiusHeadroom { .. } => {
-                Recourse::Exactly(FILLET3_RADIUS_RECOURSE)
-            }
+            FilletError::ChainNotConnected { .. } => Recourse::Exactly(FILLET3_CHAIN_RECOURSE),
+            FilletError::RadiusHeadroom { .. } => Recourse::Exactly(FILLET3_RADIUS_RECOURSE),
             FilletError::FaceClearanceUncertified { .. } => {
                 Recourse::Exactly(FILLET3_CLEARANCE_RECOURSE)
             }
-            FilletError::TangentialEdge { .. } => {
-                Recourse::Exactly(FILLET3_TANGENTIAL_RECOURSE)
-            }
-            FilletError::SpineIrregular { .. } => {
-                Recourse::Exactly(FILLET3_SPINE_RECOURSE)
-            }
-            FilletError::ChainNotG1 { .. } => {
-                Recourse::Exactly(FILLET3_CHAIN_RECOURSE)
-            }
-            FilletError::ConvexitySignFlip { .. } => {
-                Recourse::Exactly(FILLET3_CONVEXITY_RECOURSE)
-            }
+            FilletError::TangentialEdge { .. } => Recourse::Exactly(FILLET3_TANGENTIAL_RECOURSE),
+            FilletError::SpineIrregular { .. } => Recourse::Exactly(FILLET3_SPINE_RECOURSE),
+            FilletError::ChainNotG1 { .. } => Recourse::Exactly(FILLET3_CHAIN_RECOURSE),
+            FilletError::ConvexitySignFlip { .. } => Recourse::Exactly(FILLET3_CONVEXITY_RECOURSE),
             FilletError::FilletCornerUnsupported { corner, .. } => {
                 Recourse::Exactly(corner.recourse())
             }
-            FilletError::SpineUnsupported { .. } => {
-                Recourse::Exactly(FILLET3_SPINE_KIND_RECOURSE)
-            }
-            FilletError::ChamferArmUnsupported { .. } => {
-                Recourse::Exactly(CHAMFER_ARM_RECOURSE)
-            }
+            FilletError::SpineUnsupported { .. } => Recourse::Exactly(FILLET3_SPINE_KIND_RECOURSE),
+            FilletError::ChamferArmUnsupported { .. } => Recourse::Exactly(CHAMFER_ARM_RECOURSE),
             FilletError::Escalated { .. } => Recourse::RoutedByPredicate,
             // The surgery's own frontiers (D2 addendum row 2).
-            FilletError::UnsupportedBody { .. } => {
-                Recourse::Exactly(FILLET3_BODY_RECOURSE)
-            }
-            FilletError::UnsupportedChain { .. } => {
-                Recourse::Exactly(FILLET3_ASSEMBLY_RECOURSE)
-            }
-            FilletError::UnsupportedRunOut { .. } => {
-                Recourse::Exactly(FILLET3_CORNER_RECOURSE)
-            }
-            FilletError::UnsupportedGeometry { .. } => {
-                Recourse::Exactly(FILLET3_GEOMETRY_RECOURSE)
-            }
-            FilletError::RingClearance { .. } => {
-                Recourse::Exactly(FILLET3_RING_RECOURSE)
-            }
+            FilletError::UnsupportedBody { .. } => Recourse::Exactly(FILLET3_BODY_RECOURSE),
+            FilletError::UnsupportedChain { .. } => Recourse::Exactly(FILLET3_ASSEMBLY_RECOURSE),
+            FilletError::UnsupportedRunOut { .. } => Recourse::Exactly(FILLET3_CORNER_RECOURSE),
+            FilletError::UnsupportedGeometry { .. } => Recourse::Exactly(FILLET3_GEOMETRY_RECOURSE),
+            FilletError::RingClearance { .. } => Recourse::Exactly(FILLET3_RING_RECOURSE),
             // Invalid input (row 1), and the two forwarding variants.
             FilletError::RepeatedEdge { .. } => Recourse::None,
             FilletError::NonpositiveSize { .. } => Recourse::None,
@@ -964,16 +938,16 @@ mod recourse_tests {
         }
     }
 
-    /// **One value of every [`FilletError`] variant**, in the enum's
+    /// **One value of every `FilletError` variant**, in the enum's
     /// own declaration order so the two lists read side by side.
     ///
     /// Rust cannot enumerate a type's variants, so this list is
     /// hand-written and nothing compiles it against the enum: adding a
-    /// variant is caught by [`contract`]'s exhaustive match, adding it
+    /// variant is caught by `contract`'s exhaustive match, adding it
     /// HERE is not. Every row below is rendered by
-    /// [`a_recourse_is_appended_only_where_the_table_allows_it`], and
+    /// `a_recourse_is_appended_only_where_the_table_allows_it`, and
     /// the sentences they render are checked against `ALL` by
-    /// [`every_recourse_sentence_is_rendered_by_some_variant`].
+    /// `every_recourse_sentence_is_rendered_by_some_variant`.
     ///
     /// `FilletCornerUnsupported` appears twice on purpose: the recourse
     /// that variant appends is chosen by its TAG, so one witness would
@@ -1148,7 +1122,7 @@ mod recourse_tests {
     ///
     /// This is the completeness the suites in `tests/` defer to, and
     /// it is completeness over `ALL` — not over the module's
-    /// constants, which nothing enumerates (see [`contract`]).
+    /// constants, which nothing enumerates (see `contract`).
     #[test]
     fn every_recourse_sentence_is_rendered_by_some_variant() {
         let rendered: Vec<&'static str> = seeds()

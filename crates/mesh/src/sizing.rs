@@ -32,9 +32,15 @@
 //! the identifiers — a rename that leaves a doc sentence calling a
 //! count a step has not landed.
 //!
-//! **Scope, and what enforces it.** The rule is this crate's; the
-//! nearest violation outside it is `step-import`'s `STEPS: usize`
-//! sample count. Nothing mechanical enforces either half today — the
+//! **Scope, and what enforces it.** The rule is this crate's. No
+//! violation of it is known outside the crate: the three integer
+//! constants elsewhere whose names carry "steps" — `bvh`'s
+//! `ITEM_WIDEN_STEPS` and `HULL_WIDEN_STEPS`, and `geom-brep`'s
+//! `SSI_MAX_STEPS` — each count a step actually taken (ULP widenings,
+//! marching iterations) rather than a sampling density, which is the
+//! shape this rule forbids. No sweep has read the whole tree for that
+//! shape, so read it as no KNOWN violation, not a checked absence.
+//! Nothing mechanical enforces either half today — the
 //! guard this wants is a source-scraping row in the shape of this
 //! crate's own `tests/all.rs`, which `include_str!`s its own source to
 //! prove every test file is registered — and, since the ε ledger,
