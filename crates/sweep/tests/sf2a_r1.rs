@@ -442,6 +442,40 @@ fn r1g_box_control() {
 fn wide_dump(body: &Body<f64>) -> String {
     use std::fmt::Write as _;
     let mut s = String::new();
+    let _ = writeln!(
+        s,
+        "census V={} E={} F={} L={} S={}",
+        body.vertices().count(),
+        body.edges().count(),
+        body.faces().count(),
+        body.loops().count(),
+        body.shells().count(),
+    );
+    for (k, _) in body.vertices() {
+        let p = body
+            .get_vertex(k)
+            .and_then(|v| body.get_point(v.point))
+            .unwrap();
+        let _ = writeln!(
+            s,
+            "v {k:?} {:x} {:x} {:x}",
+            p.x.to_bits(),
+            p.y.to_bits(),
+            p.z.to_bits()
+        );
+    }
+    for (k, f) in body.faces() {
+        let surf = body
+            .get_surface(f.surface)
+            .map(|x| format!("{x:?}"))
+            .unwrap_or_else(|| "?".into());
+        let _ = writeln!(
+            s,
+            "f {k:?} sense={} rings={} {surf}",
+            f.sense,
+            f.rings.len()
+        );
+    }
     for (k, e) in body.edges() {
         let g = body
             .get_curve_geom(e.curve)
@@ -471,6 +505,14 @@ fn wide_dump(body: &Body<f64>) -> String {
     for line in pc {
         let _ = writeln!(s, "{line}");
     }
+    let props = topo::mass_properties(body, Tol::witness()).unwrap();
+    let _ = writeln!(
+        s,
+        "props V={:x} A={:x} pad={:x}",
+        props.volume.to_bits(),
+        props.surface_area.to_bits(),
+        props.volume_pad.to_bits()
+    );
     s
 }
 
