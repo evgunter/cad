@@ -664,14 +664,24 @@ fn survives_dihedral_band_sweep_at_the_strut_arm() {
     } else {
         wall_a
     };
+    //
+    // The re-homing states the other chart EXPLICITLY rather than
+    // going through `at_rest_in_chart`, which is the scaffolding
+    // door's conversion and a deliberate no-op on a spec that already
+    // names a chart — an already-described edge is re-homed by saying
+    // where, not by asking the door again. Carrier, interval and the
+    // declaration are carried verbatim; only the chart differs.
     let mut other = t.body.clone();
-    let restated = other
+    let certified = other
         .get_edge(strut)
         .and_then(|e| other.get_curve_geom(e.curve))
         .and_then(topo::CurveGeom::certified)
-        .unwrap()
-        .restated_spec()
-        .at_rest_in_chart(other_chart, false);
+        .unwrap();
+    let mut restated = certified.restated_spec();
+    let geom_brep::EdgeAuthority::Declared(mc) = certified.authority() else {
+        panic!("the strut's locus was declared by the profile vertex's extrusion");
+    };
+    restated.description = geom_brep::EdgeDescriptionSpec::chart(other_chart).declared_by(mc);
     other
         .set_edge_curve(strut, restated, Tol::witness())
         .expect("the strut lies in the OTHER wall's chart too");
