@@ -14,6 +14,24 @@
 //! stage is a numbered block whose assertions say what the stage
 //! claims; the helpers live in `common::asm` so the walk reads as the
 //! walk.
+//!
+//! # Why this walk runs on a FIXTURE, and where the real gallery is
+//! exercised
+//!
+//! The walk needs, in one document: unconstrained instances (to hide
+//! and probe), two matable faces, and no pre-existing mate. **No
+//! single real gallery document has that shape** — the tour's stand
+//! has all three instances mate-constrained (the free-move stage is
+//! unreachable there), and its flat-pack has no second part to mate
+//! the patterned posts to. So the walk authors a gallery-SHAPED
+//! workspace through the same public doors the tour uses (parts
+//! beside the assembly, id-named files, `Workspace::create`) and
+//! walks the FULL sequence on it; the REAL gallery is exercised
+//! per-item where its documents allow — hosted CI's render lane runs
+//! `demo-tour gallery` and drives `examples/r1_gallery_probe.rs`
+//! over its actual output (every document opens and resolves; hide
+//! and free-move take visible effect or refuse typed, the flat-pack's
+//! patterned instances included).
 
 // Panicking is a test's failure mechanism (workspace lint note).
 #![allow(clippy::expect_used)]
@@ -198,8 +216,15 @@ fn the_exit_demo_walk() {
     assert!(session.display().free_move_of(bench.post_b).is_none());
 
     // ── 9. The PLACEMENT IS SOLVED: the two picked frames coincide
-    // in world space, and the instance is drawn at the solved
-    // placement with no probe marking anywhere.
+    // in world space — the FULL frame, not origins alone: origins
+    // meet, axes oppose (the chosen sense), and the roll references
+    // agree under the solve's opposed flip. Solver-vs-authored by
+    // construction (the solve enforces what the alignment declares);
+    // the INDEPENDENT check that the authored alignment itself is the
+    // picked geometry pulled into part coordinates is the reviewer
+    // oracle rows (`review_gui4_r2::proposal_frames_agree_with_the_
+    // standalone_part_documents`, `review_gui4_r1::r1_the_minted_
+    // alignment_…` — the latter under a ROTATED placement).
     session.pump();
     let (doc, _) = session.landed_pair().expect("landed");
     let poses = solve_document(doc, tol);
@@ -211,15 +236,38 @@ fn the_exit_demo_walk() {
         .placement(doc, bench.shelf_i)
         .expect("the shelf is placed")
         .affine::<f64>();
-    let [ax, ay, az] = proposal.alignment.a.origin;
-    let [bx, by, bz] = proposal.alignment.b.origin;
-    let world_a = placed_a.transform_point(Point3::new(ax, ay, az));
-    let world_b = placed_b.transform_point(Point3::new(bx, by, bz));
-    assert!(
-        (world_a.x - world_b.x).abs() < 1e-9
-            && (world_a.y - world_b.y).abs() < 1e-9
-            && (world_a.z - world_b.z).abs() < 1e-9,
-        "the mated frames coincide: {world_a:?} vs {world_b:?}"
+    let close3 = |got: Vec3<f64>, want: Vec3<f64>, what: &str| {
+        assert!(
+            (got.x - want.x).abs() < 1e-9
+                && (got.y - want.y).abs() < 1e-9
+                && (got.z - want.z).abs() < 1e-9,
+            "{what}: {got:?} vs {want:?}"
+        );
+    };
+    let point = |m: [f64; 3]| Point3::new(m[0], m[1], m[2]);
+    let vector = |m: [f64; 3]| Vec3::new(m[0], m[1], m[2]);
+    let world_a = placed_a.transform_point(point(proposal.alignment.a.origin));
+    let world_b = placed_b.transform_point(point(proposal.alignment.b.origin));
+    close3(
+        world_a - Point3::new(0.0, 0.0, 0.0),
+        world_b - Point3::new(0.0, 0.0, 0.0),
+        "the mated frame ORIGINS coincide",
+    );
+    let axis_a = placed_a.transform_vec(vector(proposal.alignment.a.axis));
+    let axis_b = placed_b.transform_vec(vector(proposal.alignment.b.axis));
+    close3(
+        axis_a,
+        axis_b * -1.0,
+        "the AXES meet opposed, as the chosen sense declares",
+    );
+    let ref_a = placed_a.transform_vec(vector(proposal.alignment.a.reference));
+    let ref_b = placed_b.transform_vec(vector(proposal.alignment.b.reference));
+    close3(
+        ref_a,
+        ref_b * -1.0,
+        "the roll REFERENCES meet under the solve's opposed flip at zero \
+         clocking (the flip reverses reference and axis together, keeping \
+         the pair's handedness proper)",
     );
     let solved_index = asm::index_of(&session);
     let solved_scene = solved_index
@@ -232,12 +280,31 @@ fn the_exit_demo_walk() {
     );
     for row in session.tree_rows() {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
+        assert!(
+            row.note.is_none(),
+            "a Rest mate carries no standing caveat: {row:?}"
+        );
     }
+    // …and the A5 at-rest verdict landed with the evaluation: the
+    // seated Rest declaration is minted and certified — the
+    // verification does not die at the commit.
+    assert_eq!(
+        session.at_rest(),
+        Some(&viewer::session::AtRestBadge::Certified { minted: 1 }),
+        "the mated assembly certifies at rest with its one declaration"
+    );
 
-    // ── 10. SAVE and REOPEN. The document round-trips WITH the mate;
-    // every piece of layer-3 state — the hidden instance, the (already
-    // superseded) probe, the tool's held picks — is gone, because none
-    // of it was ever the document's.
+    // ── 10. SAVE and REOPEN. The document round-trips WITH the mate.
+    //
+    // "Layer-3 state is gone" is scoped honestly here: the persistence
+    // schema has NO field that could carry display state, so the
+    // guarantee is structural unrepresentability — stronger than any
+    // row, and NOT one, because a freshly opened session's display
+    // state is empty by construction and the two asserts below cannot
+    // go red. They stay as executable documentation of the claim; what
+    // this stage actually GATES is the document half: the mate
+    // round-trips, every row re-resolves, and the solved placement is
+    // reproduced.
     assert!(
         !session.display().hidden().is_empty(),
         "the walk still holds layer-3 state at save time"
@@ -247,11 +314,11 @@ fn the_exit_demo_walk() {
     let reopened = asm::open_bench(&bench, tol);
     assert!(
         reopened.display().hidden().is_empty(),
-        "hide died with the session"
+        "hide died with the session (documentation, not a gate — see above)"
     );
     assert!(
         reopened.display().free_move_of(bench.post_b).is_none(),
-        "so did the probe"
+        "so did the probe (documentation, not a gate — see above)"
     );
     let rows = reopened.tree_rows();
     assert_eq!(rows.len(), 4, "three instances and the mate");
@@ -267,7 +334,7 @@ fn the_exit_demo_walk() {
         .placement(doc2, bench.post_b)
         .expect("post_b is solved after reopen")
         .affine::<f64>();
-    let re_world = re_placed.transform_point(Point3::new(ax, ay, az));
+    let re_world = re_placed.transform_point(point(proposal.alignment.a.origin));
     assert!(
         (re_world.x - world_a.x).abs() < 1e-12
             && (re_world.y - world_a.y).abs() < 1e-12

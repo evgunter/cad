@@ -260,6 +260,121 @@ fn hiding_drops_scene_and_picks_but_keeps_tree_and_document() {
 }
 
 #[test]
+fn fused_geometry_refuses_both_display_ops_typed() {
+    // Two instances consumed by one boolean: neither can be hidden or
+    // probed separately — the drawn root fuses their material — and
+    // both ops say so typed instead of accepting and drawing nothing
+    // different (the propagation rule's refusing half).
+    let tol = Tol::witness();
+    let bench = asm::bench("fused", tol);
+    let mut ws = pncad::workspace::Workspace::open(&bench.dir).expect("the store opens");
+    let mut doc =
+        pncad::document::ProfileDoc::empty(pncad::document::DocumentId::derive("gui4-fused"), tol);
+    let insert = |doc: &mut pncad::document::ProfileDoc,
+                  node: pncad::document::Node<pncad::document::ProfileProgram>| {
+        let applied =
+            pncad::document::apply(doc, &pncad::document::DocEdit::InsertNode { node }, tol)
+                .expect("the insert applies");
+        *doc = applied.doc;
+        applied.record.minted.expect("an id")
+    };
+    let a = insert(
+        &mut doc,
+        pncad::document::Node::instantiate_part(bench.post),
+    );
+    let b = insert(
+        &mut doc,
+        pncad::document::Node::instantiate_part(bench.post),
+    );
+    let weld = insert(
+        &mut doc,
+        pncad::document::Node::Boolean {
+            op: pncad::document::BooleanOp::Union,
+            a,
+            b,
+            declare: None,
+        },
+    );
+    let path = ws.create(&doc, tol).expect("the fused assembly stores");
+    let mut session = DocSession::inline(
+        pncad::document::Doc::empty_derived("gui4-fused-boot", tol),
+        tol,
+    );
+    assert!(session.perform(SessionOp::Open(path)).refusal.is_none());
+    session.pump();
+    for (label, op) in [
+        (
+            "hide a",
+            SessionOp::SetInstanceHidden {
+                instance: a,
+                hidden: true,
+            },
+        ),
+        (
+            "hide b",
+            SessionOp::SetInstanceHidden {
+                instance: b,
+                hidden: true,
+            },
+        ),
+        ("probe a", SessionOp::BeginFreeMove { instance: a }),
+        ("probe b", SessionOp::BeginFreeMove { instance: b }),
+    ] {
+        match session.perform(op).refusal {
+            Some(Refusal::Display(DisplayFault::FusedGeometry {
+                instance,
+                root,
+                others,
+            })) => {
+                assert!(instance == a || instance == b);
+                assert_eq!(root, weld, "the refusal names the fusing root");
+                assert_eq!(others.len(), 1, "…and the other instance");
+            }
+            other => panic!("{label}: expected FusedGeometry, got {other:?}"),
+        }
+    }
+}
+
+#[test]
+fn the_at_rest_badge_lands_with_the_evaluation() {
+    // The A5 verdict lives past the commit: the mate-less assembly
+    // certifies with nothing minted; a Rest mate certifies WITH its
+    // declaration; a Tangent mate turns the badge into the gate's own
+    // refusal while its tree row carries the class's standing note.
+    let tol = Tol::witness();
+    let bench = asm::bench("atrest", tol);
+    let mut session = asm::open_bench(&bench, tol);
+    assert_eq!(
+        session.at_rest(),
+        Some(&viewer::session::AtRestBadge::Certified { minted: 0 }),
+        "disjoint instances certify outright (A5's disjoint half)"
+    );
+    session.perform(SessionOp::AddMate {
+        a: asm::in_part(bench.post_b, &bench.post_top),
+        b: asm::in_part(bench.shelf_i, &bench.shelf_bottom),
+        class: ContactClass::Tangent,
+        alignment: seat_alignment(),
+    });
+    session.pump();
+    match session.at_rest() {
+        Some(viewer::session::AtRestBadge::Refused { message }) => assert!(
+            message.contains("no at-rest kernel record"),
+            "the badge is the gate's own refusal: {message}"
+        ),
+        other => panic!("a Tangent mate must turn the badge red, got {other:?}"),
+    }
+    // …and the mate's own tree row says why, independent of any run.
+    let note = session
+        .tree_rows()
+        .into_iter()
+        .find(|row| row.kind == "Mate")
+        .expect("the mate row exists")
+        .note
+        .expect("a Tangent mate carries its standing note");
+    assert!(note.contains("Tangent"), "{note}");
+}
+
+#[test]
 fn hide_refuses_a_non_instance_typed() {
     let tol = Tol::witness();
     let bench = asm::bench("hidewrong", tol);
