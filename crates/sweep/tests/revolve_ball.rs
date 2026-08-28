@@ -18,7 +18,6 @@
 mod revolve_common;
 
 use geom::Surface;
-use geom_brep::EdgeDescription;
 use geom_core::Tol;
 use profile::RawLoop;
 use profile::{ProfileLoop, ProfileVertex};

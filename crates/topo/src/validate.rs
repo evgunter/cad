@@ -5021,8 +5021,8 @@ mod tests {
         let mut cube = ops_cube(Tol::witness()).body;
         plane_every_face(&mut cube);
         let honest = validate_geometric(&cube, Tol::witness()).unwrap_err();
-        let edges: Vec<crate::EdgeKey> = cube.edges().map(|(k, _)| k).collect();
-        let named = |pick: fn(&ValidationError) -> Option<crate::EdgeKey>| {
+        let edges: Vec<EdgeKey> = cube.edges().map(|(k, _)| k).collect();
+        let named = |pick: fn(&ValidationError) -> Option<EdgeKey>| {
             honest.iter().filter_map(pick).collect::<Vec<_>>()
         };
         assert_eq!(
