@@ -156,7 +156,7 @@ impl<'de> Deserialize<'de> for Expr {
     fn deserialize<D: Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
         let wire = WireExpr::deserialize(de)?;
         wire.rebuild()
-            .map_err(|e| D::Error::custom(format!("ill-dimensioned expression refused: {e}")))
+            .map_err(|e| D::Error::custom(format!("ill-dimensioned expression refused: {e:?}")))
     }
 }
 

@@ -230,25 +230,15 @@ fn startup_error_forwards_every_payload_arm() {
     );
 }
 
+#[cfg(feature = "app")]
 #[test]
 fn tmp_show() {
+    use viewer::app::StartupError;
     for m in [
-        CameraError::NotFinite { what: "distance", value: f64::NAN }.to_string(),
-        CameraError::DegenerateScene { radius: 0.0 }.to_string(),
-        CameraError::FieldOfViewOutOfRange { fov_y: 4.5 }.to_string(),
-        CameraError::UnusableBounds.to_string(),
-        CameraError::Unfittable { required: 12.5, max_distance: 8.25, aspect: 0.125 }.to_string(),
-        CameraOpError::NonPositiveDolly { factor: -2.0 }.to_string(),
-        CameraOp::Dolly { factor: 0.75 }.to_string(),
-        SceneError::InvalidDisplayTolerance { delta: -1.0 }.to_string(),
-        SceneError::EmptyMesh.to_string(),
-        SceneError::MispairedIds { ids: 2, patches: 3 }.to_string(),
-        SceneError::BrokenPatchIndex { index: 9, positions: 4 }.to_string(),
-        SceneDocError::NoNodeMinted.to_string(),
-        IdMapError::Duplicate { key: PatchId { node: RecipeNodeId(7), body: 1, patch: 2 } }.to_string(),
-        IdMapError::TooManyPatches { patches: 5000 }.to_string(),
-        PickError::Camera(CameraError::UnusableBounds).to_string(),
-        ReplayError::Refused { index: 3, error: EditError::UnknownNode { id: RecipeNodeId(4) } }.to_string(),
+        StartupError::Document(SceneDocError::NoNodeMinted).to_string(),
+        StartupError::Scene(SceneError::EmptyMesh).to_string(),
+        StartupError::Camera(CameraError::UnusableBounds).to_string(),
+        StartupError::NoWgpuRenderState.to_string(),
     ] {
         println!("|{m}|");
     }
