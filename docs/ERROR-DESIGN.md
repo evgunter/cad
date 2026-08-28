@@ -279,8 +279,9 @@ certificate content.
 **K telemetry (T6/K-REPORT obligation)**: every driver-path
 predicate sample lands in the k_stats funnel — margins *driven
 toward* zero by refinement are the first genuinely ill-conditioned
-population K sees; M10's exit reads the funnel before reaffirming
-K = 10.
+population K sees; an in-band landing there is exactly K-REPORT's
+stated re-open trigger (#89 CLOSED — K = 10 is the permanent
+ratified default).
 
 ## E7 — Clearance & self-intersection: a trichotomy over box × domain; duals accelerate, never decide
 
@@ -313,10 +314,10 @@ clear" verdict; mass accounting applies to leaves (E6), full stop.
 **Self-intersection scope**: the tier-3′ census made global and
 parametric — non-adjacent face pairs certified strictly positive
 distance; adjacent pairs are covered locally by the wedge predicates
-(their distance is legitimately 0). v1 geometry scope = the carriers
-M5 leaves interval evaluators for; carriers without interval
-evaluation refuse typed (`Unsupported`), never downgrade to
-sampling.
+(their distance is legitimately 0). v1 geometry scope = the
+carriers the kernel has interval evaluators for; carriers without
+interval evaluation refuse typed (`Unsupported`), never downgrade
+to sampling.
 
 **Duals as pruning only**: over a leaf, a sign-definite
 `Dual<Interval>` enclosure of ∂d/∂pᵢ makes d monotone in pᵢ — the

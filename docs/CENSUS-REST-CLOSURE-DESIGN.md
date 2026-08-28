@@ -17,8 +17,8 @@ plainly does not belong to its interface?); **Q4 adopted as
 proposed** (derivation stays module-doc-pinned + one C3
 cross-reference). The latitude notes above are part of the
 ratified record. Implementation: TWO units as scoped below —
-gap 1 (S) dispatches now; gap 2 (M) serialized after gap 1's
-merge (both write census.rs). Originally proposed as: two rulings
+gap 1 BUILT (#969), gap 2 BUILT (#1063), serialized because both
+write census.rs. Originally proposed as: two rulings
 (U-R1 dominant-argument with pushback window; U-R2 a C3/C4
 revision waiting for sign-off), four questions. This is
 the census-owned design pass both steers asked for: #943 (the
@@ -31,9 +31,9 @@ throughout: **do not re-implement contact machinery as mates** —
 the mate already said the right thing (one face pair, declared
 once); what is missing is the census consulting it.
 
-Both gaps fire on the same natural document (a post seated flush
-under a shelf's end; #943's repro): gap 1 makes the seat a hard
-`AtRest` refusal (Unattributed findings), gap 2 keeps even the
+Both gaps fired on the same natural document (a post seated flush
+under a shelf's end; #943's repro): gap 1 made the seat a hard
+`AtRest` refusal (Unattributed findings), gap 2 kept even the
 inset seat at the `Uncertified` frontier for INSTANCED parts. They
 compose but do not depend — either lands alone with a stated
 residue.
@@ -125,7 +125,7 @@ binding latitude by everything below:
    arm (option A) stays preferred where it applies because it
    needs no approximation at all.
 
-## Proposed ruling U-R1 (gap 1) — the forced closure, dominant argument
+## Proposed ruling U-R1 (gap 1) — the forced closure, dominant argument. RATIFIED (with the correction below); IMPLEMENTED #969.
 
 Extend the existing face rung to the two places it visibly stops
 short: pass `declared` into `sweep_vertex_edge` with the rung
@@ -156,12 +156,12 @@ inset workaround (demos/tour/src/assembly.rs:104-113) retires.
 > of **gap 2** and moves there. This corrects a stated consequence
 > that measurement did not bear out; the ruling itself is unchanged.
 
-Proposed as **dominant argument with the standard pushback
+Carried as **dominant argument with the standard pushback
 window**: it is the unique candidate the code offers and an
-instance of the already-derived pattern. Its implementation unit
-(S) can dispatch without waiting on U-R2's ratification; on gap 1
-alone, #943's flush seat moves from hard `AtRest` to the same
-`Uncertified` frontier the inset seat reaches today.
+instance of the already-derived pattern. **Status: BUILT (#969)**
+— on gap 1 alone #943's flush seat moved from hard `AtRest` to the
+`Uncertified` frontier the inset seat reached; gap 2 took the pair
+the rest of the way to certification.
 
 ## Proposed ruling U-R2 (gap 2) — a world-carrier Door 2 for declared PLANAR pairs; C3/C4 revision. RATIFIED (with the correction below); IMPLEMENTED #1063.
 
@@ -243,12 +243,11 @@ order safe: **gap 1 = S** (census.rs + module docs + rows + the
 flush-seat acceptance row + the demos inset retirement), **gap 2
 = M** (the Door 2 planar-carrier arm + the C3/C4 revision text +
 the Refuted-arm acceptance row + row3_b re-bless). Both are
-census-side and file-disjoint from M9-3; they schedule as M9
-adjacents without touching the join lane's critical path. Gap 1
-dispatches on U-R1's pushback window opening; gap 2 dispatches
-only on U-R2's ratification.
+census-side and file-disjoint from M9-3; they scheduled as M9
+adjacents without touching the join lane's critical path. Both
+landed in that order — gap 1 as #969, gap 2 as #1063.
 
-## Questions for Evan (restated concretely, 2026-08-23, after the latitude notes)
+## The four questions Evan answered (restated concretely, 2026-08-23, after the latitude notes)
 
 1. **May Door 2 test planar overlap in WORLD space?** Today two
    mated faces must live in one chart (shared surface key, or the

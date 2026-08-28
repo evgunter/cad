@@ -29,9 +29,10 @@ A typed authoring algebra for profile loops in which **accidental
 tangency is unrepresentable, intended tangency is exact by
 construction, and every authored point lies on the final path,
 authored once**. It is a generator-layer surface (D8); it lowers to
-what exists — explicit segments + declared tangency flags, verified
-at build by the same junction predicates. No kernel or document
-semantics change.
+explicit segments + declared tangency flags, verified at build by
+the same junction predicates. No kernel semantics change; the
+document layer's own change — the stored program — is
+PROFILES-V2's.
 
 ## 2. The core
 
@@ -111,7 +112,9 @@ half-bound tip.
   the tangent-departing endpoint-full form; {tangent-both + r} =
   the fillet family (§ below), which alone carries the
   neighbor-trimming insertion.
-- **NURBS legs** — rigid authored data (clamped, w > 0, the PR 3
+- **NURBS legs** — specified here, not built: `ProfileLoop` has no
+  NURBS segment to lower to, so they wait on the segment vocabulary
+  (PROFILES-V2 VQ7). Rigid authored data (clamped, w > 0, the PR 3
   invariants); end positions and end tangents are intrinsic, so a
   NURBS leg's end is a directed point and `.tangent()` chains
   onward. Two doors:
@@ -341,10 +344,16 @@ This primitive is not a chain and authors no seam, so the chain rule
 stands untouched and a chain closing on its own carrier still refuses
 (pinned by test).
 
-The primitive offers no control over the split, deliberately. A demo
-that needs a particular split (the tour's boss wants three 120° arcs so
-a boolean can cross a three-face rim seam) is asking for a specific
-lowering, which is a raw-chain question, not an authoring one.
+`circle` itself offers no control over the split. A loop whose
+downstream naming depends on the seam structure (the tour's boss wants
+three 120° arcs so a boolean can cross a three-face rim seam) authors
+it with `circle_split(centre, r, n, phase)` instead — the
+declared-subdivision closed carrier: `n` arcs of equal sweep, first
+vertex at `phase` from +x, `n ≥ 2` or `CircleSplitCount`. Its vertices
+are STRUCTURAL subdivisions of one carrier — same-carrier identities,
+nothing declared tangent — so it too authors no seam and PQ4 stays
+untouched; the count and phase are simply authored data rather than a
+private lowering detail.
 
 **Refusals**: `r` not definitely positive (`NonpositiveCircleRadius`),
 through the same funnel as the other sign gates.
@@ -732,11 +741,9 @@ extension**, uniform across line/arc/NURBS incomings. The one
 surviving refusal is `NoCornerForFillet` (parallel carriers /
 intersection behind the ray start) — geometry, not mechanism.
 
-Sequencing: #413 (route 3 as landed) is MERGED; this redesign
-re-spells the surface on top of the same resolution machinery
-in a follow-up unit, which also re-spells the program Step
-vocabulary (pre-release clean break; the v8 step set is not a
-compatibility surface).
+The program Step vocabulary carries the same spelling as the
+surface: pre-release, the step set is not a compatibility
+surface (LQ7a's clean break).
 
 ### §2c dissolution amendment — OnArc RETIRES (RATIFIED
 ### 2026-08-16; Evan's in-chat ruling, ratification delegated
@@ -799,7 +806,7 @@ typestate, and it retires:
 | `.angle(θ)` | Point → Directed; Open → Angle | angle binder (+ junction check on directed points) |
 | `.tangent()` | directed point → Directed | inherit + declared; ill-typed on plain points |
 | `.toward(dx, dy)` | Point → Directed; Open → Angle | **G1** — the exact director: same slot as `.angle`, ray stored verbatim |
-| `line(len)` / `nurbs_in_place(len1, …)` / `nurbs(curve)` | Directed → Point | legs |
+| `line(len)` / `nurbs_in_place(len1, …)` / `nurbs(curve)` | Directed → Point | legs; the NURBS pair awaits the segment vocabulary (VQ7) |
 | `arc_to(spec)` | Point → Point (Bulge/Via/Center); Directed → Point (Sweep/ArcLen) | **§2c** — the sharp arc leg over the `ArcData` family; admissibility = the state-keyed trait matrix; `p: Start` closes |
 | `fillet(r)` | Directed \| leg end → Open | line incoming (ray extension off a leg end), line arrival |
 | `fillet_arc(r, spec)` | Directed \| leg end → per spec | line incoming, ARC arrival (see arrival rows below) |
@@ -811,10 +818,12 @@ typestate, and it retires:
 | `Start` | directed-point VALUE | targeting it closes, structurally |
 | `.to(p)` on a bound arrival direction | Angle → Point | **G1** — the far-end anchor: the arrival side ENDS at its authored anchor |
 | `circle(c, r)` | — → complete loop | **G1** — closed-carrier program form; a whole loop, not a chain step; authors no seam, so PQ4 is untouched |
+| `circle_split(c, r, n, phase)` | — → complete loop | the declared-subdivision closed carrier: `n` equal arcs from `phase`, structural subdivisions of one carrier — the same no-seam story as `circle`, with the count and phase authored |
+| `arc_continue(p)` | directed point → directed point | continues the incoming ARC carrier to `p`, minting a structural subdivision vertex; a same-carrier identity, so no junction check runs and nothing is declared |
 | **TIER 1 — SUGAR** (one call each; expands to core; adds no semantics) | | |
 | `line_to(p)` | Point → Point (also from line arrivals) | `.angle(toward p).line(dist)` |
 | `tangent_arc_to(p)` | Directed → Point | the unique tangent arc |
-| `nurbs_reversed(curve)` / `nurbs_mirrored(curve)` | Directed → Point | structural variants of rigid placement |
+| `nurbs_reversed(curve)` / `nurbs_mirrored(curve)` | Directed → Point | structural variants of rigid placement; VQ7-banked with the legs |
 | `.turn(δ)` | directed point → Directed | `.angle(incoming + δ)`; `turn(0)` refuses → `.tangent()`; `turn(±π)` hits the reverse class |
 
 The retired-name doors (`arc_to(p, bulge)` / `arc_via` / `arc_center`
@@ -867,8 +876,11 @@ verify layer as today. From §2a and the spec family:
 `NonpositiveCircleRadius`; `ZeroDirection`; `ArcViaCollinear`;
 `DegenerateArcChord`; `DegenerateArcSpec` (a zero bulge, a
 non-positive sweep/arc-length); `ArcCenterNotEquidistant`;
-`DegenerateArcCenter`; `FarEndAnchorWithoutFillet`. RETIRED with
-the §2b register: `ArcCarrierSpelling` and the doctrine-level
+`DegenerateArcCenter`; `FarEndAnchorWithoutFillet`;
+`CircleSplitCount`; `ArcContinueNeedsArcCarrier` and
+`ArcContinueOffCarrier` (no incoming arc carrier to continue; an
+authored target off it — authored points never re-project).
+RETIRED with the §2b register: `ArcCarrierSpelling` and the doctrine-level
 `FilletCarrierUnsupported` — under the §2c axiom a carrier-keyed
 refusal is unwritable (contact ON a carrier is the fused verb;
 bare `fillet` is ray extension; `nurbs_fillet` is an absent verb).
@@ -954,7 +966,7 @@ bound slot + its args; a fillet arrival binds from its own
 anchor/director args; the seam consumes `Start` — bound at entry
 — plus the final carrier), and the one construct that needed a
 LATER binding (the anchor-free both-ends-trimmed side) is
-unwritable. To re-verify at implementation, not an axiom. D9:
+unwritable. D9:
 elaboration is pure f64 structure selection (C6 boundary — it
 decides leg parameters, never topology); the lowered profile runs
 the ordinary generic pipeline. `UnderdeterminedLeg`/
@@ -963,7 +975,8 @@ unreachable from the typed surface; a reachable case is a design
 finding to bring back here, not a silent fix.
 
 Representation: ONE struct — `pos: Option<PosData>`,
-`ang: Option<f64>` — under type-level lattice markers
+`ang: Option<Dir>` (the §2a widening: the ray stored verbatim, the
+angle carried beside it) — under type-level lattice markers
 (`Tip<P, A>`; the four states are the instantiations, the
 position marker carrying the plain-vs-directed flavor). Binders
 are written once, generic over the slot they do not touch;
@@ -994,10 +1007,9 @@ concrete authoring need, as a revision to this section.
 
 ## 7. Explicitly out of scope
 
-Implementation (banked for v2 profiles-as-programs, #104);
-persistence changes (the lowering targets the existing form:
-segments + tangent_joints flags); constraint-solver interactions
-(fillets/directors are closed forms, never iterative); 3-D paths;
-spline legs as junction-vocabulary extensions (they join with
-their own continuity story when profiles grow them); arc-arrival
-fillets (additive, with a use case).
+Constraint-solver interactions (fillets/directors are closed
+forms, never iterative); 3-D paths — LIBRARY-DESIGN LQ3(a)
+ratifies the landing site as this layer, an open-chain vocabulary,
+and nothing is built; spline legs as junction-vocabulary
+extensions (they join with their own continuity story when
+profiles grow them — PROFILES-V2 VQ7).

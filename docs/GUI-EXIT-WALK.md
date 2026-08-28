@@ -1,4 +1,8 @@
-# GUI v1 exit walk (2026-08-28, proposed — awaiting Evan's sign-off)
+# GUI v1 exit walk — plan vs evidence
+
+**STATUS: RATIFIED — the v1 GUI program CLOSED** (Evan's approval
+on PR #1121, 2026-08-28). This document is the v1 GUI program's
+done-state of record.
 
 The plan is `docs/GUI-PLAN.md` (RATIFIED 2026-08-27); this walk
 checks the program against it, item by item, with the evidence
@@ -75,8 +79,8 @@ MSRV under the toolchain, watch item stands.
 #1111 Display-gap class; #1117 save-a-copy identity; #1120
 SetPlacement vocabulary gap (banked from GUI-4's R1); the
 viewer-CI seed-gate's SKIP direction first exercised hosted on the
-next kernel-only PR; GUI-6 (history graph + sidecar) banked
-post-v1 per the plan.
+next kernel-only PR; GUI-5 (the web lane) and GUI-6 (history graph
++ sidecar) banked post-v1.
 
 ## A/B accounting (details in MODEL-AB-LOG; numbers live there)
 
@@ -89,10 +93,12 @@ recorded — and the block-record format defect resolved by Evan's
 no-precommitment-required ruling; block draws now live branch-side
 until block conclusion).
 
-## The two decisions this walk asks of Evan
+## The two decisions this walk put to Evan, ruled
 
-1. **Ratify this walk** (the program's required scope is
-   delivered), or name what is missing.
-2. **GUI-5 (the threaded web lane)**: dispatch, defer, or drop —
-   the plan makes it separable stretch ("skipping it costs v1
-   nothing"); block GUI-B2 slot 2 stands ready if wanted.
+1. **The walk is RATIFIED** — the program's required scope is
+   delivered (#1121, 2026-08-28).
+2. **GUI-5 (the threaded web lane): DEFERRED** post-v1, banked
+   beside GUI-6 — the plan makes it separable stretch ("skipping
+   it costs v1 nothing"), and the wasm guard keeps the
+   compile-level option green in CI. Block GUI-B2 slot 2 stands
+   ready for whichever of GUI-5/GUI-6 is dispatched first.
