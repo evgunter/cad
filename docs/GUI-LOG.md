@@ -246,6 +246,15 @@ with no arm token, and the pre-push self-check for orchestrator
 log commits is `grep -i 'fable\|opus' docs/GUI-LOG.md` scoped to
 entries about units with unconcluded reviews.
 
+**Ruling — block-draw disclosure (Evan, 2026-08-28,
+in-conversation, closing the #1112 thread):** verifiable
+precommitment of block draws is NOT required; hashes are permitted
+but optional. GUI adoption: block draws are recorded at draw time
+on the orchestrator branch (pushed = durable; arms read back from
+it at dispatch per the VERBS-4 remedy) and the block record merges
+to main only once the block's last reviews conclude. Already-
+exposed blocks (GUI-B2's remaining slots included) carry
+contamination flags on their remaining duals' rows.
 ## GUI-4 merged (2026-08-28, PR #1113, sample #33 / ordinal 404) — THE REQUIRED v1 PATH IS COMPLETE
 
 Assembly interaction and the mate tool exist, and the plan's
