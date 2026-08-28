@@ -363,6 +363,7 @@ fn main() {
             generation,
             doc: ring.doc().clone(),
             tol,
+            resolver: None,
         });
     }
     let start = std::time::Instant::now();

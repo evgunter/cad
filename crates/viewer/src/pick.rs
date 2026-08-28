@@ -6,10 +6,11 @@
 //! [`PickIndex`] is built once per evaluation generation and answers
 //! everything the viewport asks about what is under the cursor:
 //!
-//! - the **ray path** — [`PickIndex::pick`] un-projects nothing itself;
-//!   it takes a ray (from [`crate::Camera::ray_through`]) and hands it
-//!   to the shipped `pick_face` service, whose answer is a
-//!   `StableName`;
+//! - the **ray path** — [`PickIndex::pick_for`] (and its
+//!   display-view-less wrapper [`PickIndex::pick`]) un-projects
+//!   nothing itself; it takes a ray (from
+//!   [`crate::Camera::ray_through`]) and hands it to the shipped
+//!   `pick_face` service, whose answer is a `StableName`;
 //! - the **id map** — [`PickIndex::ids`], the pure pair
 //!   `id ↔ (node, body, patch)` that the GPU id-buffer pass writes and
 //!   reads back;
@@ -48,6 +49,7 @@ use pncad::prelude::StableName;
 use pncad::select::{HitTestError, NodePick, NodePickError, PickHit, PickTarget, Ray, pick_face};
 
 use crate::camera::{Camera, CameraError};
+use crate::display::DisplayView;
 use crate::evalseam::Generation;
 use crate::input::{PickAction, ViewportSize};
 use crate::scene::{DisplayTolerance, SceneError, SceneMesh, ScenePart};
@@ -388,6 +390,27 @@ impl PickIndex {
     ///
     /// Every arm of [`crate::SceneError`] the part path can reach.
     pub fn scene(&self) -> Result<SceneMesh, SceneError> {
+        self.scene_for(&DisplayView::none())
+    }
+
+    /// The drawable scene under a display view: hidden instances'
+    /// parts are omitted (the picture drops them; the ids and the
+    /// document keep them), and a free-moved instance's parts are
+    /// drawn under its probe frame, marked distinct.
+    ///
+    /// The id windows are walked over EVERY part, drawn or not, so an
+    /// id names the same patch whatever is hidden — hide changes what
+    /// is emitted, never what an id means.
+    ///
+    /// # Errors
+    ///
+    /// As [`PickIndex::scene`]. Hiding EVERYTHING is not an error:
+    /// when the index has parts and the view hides all of them, the
+    /// answer is [`SceneMesh::empty`] — an honest blank picture whose
+    /// bounds are the hidden geometry's, so the camera keeps a real
+    /// extent to frame against and the picture is never left stale
+    /// behind a refusal.
+    pub fn scene_for(&self, display: &DisplayView) -> Result<SceneMesh, SceneError> {
         let mut parts: Vec<ScenePart<'_>> = Vec::with_capacity(self.parts.len());
         let mut next = 0usize;
         for part in &self.parts {
@@ -397,10 +420,23 @@ impl PickIndex {
             // this order — the same loop that built `names`.
             let ids = self.id_slice.get(next..next + patches).unwrap_or_default();
             next += patches;
+            if display.hidden_roots.contains(&part.node()) {
+                continue;
+            }
             parts.push(ScenePart {
                 mesh: part.mesh(),
                 ids,
+                probe: display.moved_roots.get(&part.node()).copied(),
             });
+        }
+        if parts.is_empty() && !self.parts.is_empty() {
+            let bounds = bvh::Aabb::from_points(
+                self.parts
+                    .iter()
+                    .flat_map(|part| part.mesh().positions.iter().copied()),
+            )
+            .ok_or(SceneError::EmptyMesh)?;
+            return Ok(SceneMesh::empty(bounds, self.delta));
         }
         SceneMesh::build_parts(&parts, self.delta)
     }
@@ -415,8 +451,79 @@ impl PickIndex {
     ///
     /// [`HitTestError`], verbatim from `pick_face`.
     pub fn pick(&self, eval: &Evaluation<f64>, ray: &Ray) -> Result<Option<PickHit>, HitTestError> {
-        let targets: Vec<PickTarget<'_>> = self.parts.iter().map(NodePick::target).collect();
-        pick_face(eval, &targets, ray)
+        self.pick_for(eval, ray, &DisplayView::none())
+    }
+
+    /// The nearest face a ray meets **under a display view**: hidden
+    /// instances are not offered at all (a hidden part is out of the
+    /// pick index exactly as it is out of the picture), and a
+    /// free-moved instance is picked WHERE IT IS DRAWN — the ray is
+    /// carried into that instance's display-local space through the
+    /// probe frame's inverse, so the picture and the pick answer stay
+    /// one tessellation even while the display displaces it.
+    ///
+    /// The comparison across groups is by the hit parameter `t`, which
+    /// the display layer keeps comparable by admitting only rigid
+    /// probe frames (lengths preserved, so `t` in units of `|dir|`
+    /// means the same world distance in every group). Ties keep the
+    /// first group considered: the unmoved batch first, then moved
+    /// instances in node order — deterministic, stated, and reachable
+    /// only by a graze across two instances' coincident triangles.
+    ///
+    /// # Errors
+    ///
+    /// [`HitTestError`], verbatim from `pick_face`.
+    pub fn pick_for(
+        &self,
+        eval: &Evaluation<f64>,
+        ray: &Ray,
+        display: &DisplayView,
+    ) -> Result<Option<PickHit>, HitTestError> {
+        let visible = |part: &&NodePick| !display.hidden_roots.contains(&part.node());
+        let unmoved: Vec<PickTarget<'_>> = self
+            .parts
+            .iter()
+            .filter(visible)
+            .filter(|part| !display.moved_roots.contains_key(&part.node()))
+            .map(NodePick::target)
+            .collect();
+        let mut best = pick_face(eval, &unmoved, ray)?;
+        for (&node, frame) in &display.moved_roots {
+            if display.hidden_roots.contains(&node) {
+                continue;
+            }
+            let targets: Vec<PickTarget<'_>> = self
+                .parts
+                .iter()
+                .filter(|part| part.node() == node)
+                .map(NodePick::target)
+                .collect();
+            if targets.is_empty() {
+                continue;
+            }
+            let map = frame.affine::<f64>();
+            let inverse = map.inverse();
+            let local = Ray {
+                origin: inverse.transform_point(ray.origin),
+                dir: inverse.transform_vec(ray.dir),
+            };
+            if let Some(hit) = pick_face(eval, &targets, &local)? {
+                // The hit's point is display-local; the answer the
+                // caller compares against the picture is world.
+                let world = PickHit {
+                    point: map.transform_point(hit.point),
+                    ..hit
+                };
+                let better = match &best {
+                    None => true,
+                    Some(b) => world.t < b.t,
+                };
+                if better {
+                    best = Some(world);
+                }
+            }
+        }
+        Ok(best)
     }
 
     /// The face selection a ray denotes, or `None` for a miss.
@@ -429,7 +536,21 @@ impl PickIndex {
         eval: &Evaluation<f64>,
         ray: &Ray,
     ) -> Result<Option<FaceSelection>, HitTestError> {
-        Ok(self.pick(eval, ray)?.map(|hit| FaceSelection {
+        self.face_at_for(eval, ray, &DisplayView::none())
+    }
+
+    /// [`PickIndex::face_at`] under a display view.
+    ///
+    /// # Errors
+    ///
+    /// As [`PickIndex::pick_for`].
+    pub fn face_at_for(
+        &self,
+        eval: &Evaluation<f64>,
+        ray: &Ray,
+        display: &DisplayView,
+    ) -> Result<Option<FaceSelection>, HitTestError> {
+        Ok(self.pick_for(eval, ray, display)?.map(|hit| FaceSelection {
             name: hit.name,
             node: hit.node,
             body: hit.body,
@@ -460,6 +581,24 @@ impl PickIndex {
         viewport: ViewportSize,
         action: PickAction,
     ) -> Result<SessionOp, PickError> {
+        self.op_under(eval, camera, viewport, action, &DisplayView::none())
+    }
+
+    /// [`PickIndex::op_for`] under a display view — the whole cursor
+    /// path with hide and free-move applied, which is the one the
+    /// application drives.
+    ///
+    /// # Errors
+    ///
+    /// As [`PickIndex::op_for`].
+    pub fn op_under(
+        &self,
+        eval: &Evaluation<f64>,
+        camera: &Camera,
+        viewport: ViewportSize,
+        action: PickAction,
+        display: &DisplayView,
+    ) -> Result<SessionOp, PickError> {
         let cursor = match action {
             PickAction::ClearHover => return Ok(SessionOp::Hover(None)),
             PickAction::Hover(cursor) | PickAction::Select(cursor) => cursor,
@@ -467,7 +606,9 @@ impl PickIndex {
         let ray = camera
             .ray_through(cursor, viewport)
             .map_err(PickError::Camera)?;
-        let face = self.face_at(eval, &ray).map_err(PickError::HitTest)?;
+        let face = self
+            .face_at_for(eval, &ray, display)
+            .map_err(PickError::HitTest)?;
         Ok(match action {
             PickAction::Hover(_) => SessionOp::Hover(face),
             PickAction::Select(_) => SessionOp::Select(match face {

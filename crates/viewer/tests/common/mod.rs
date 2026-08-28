@@ -21,6 +21,9 @@
 // Panicking is a test's failure mechanism (workspace lint note).
 #![allow(clippy::expect_used)]
 
+/// The GUI-4 assembly fixture (a gallery-shaped workspace on disk).
+pub mod asm;
+
 use bvh::Aabb;
 use pncad::geom_core::Point3;
 use viewer::camera::Camera;
