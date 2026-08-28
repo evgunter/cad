@@ -1722,10 +1722,9 @@ fn an_unseeded_chart_run_refuses_typed_rather_than_receipting_an_unprovable_doma
 //     Scheduled as §D row C18 in `docs/SMELL-SCAN-2026-08.md`, which
 //     carries this negative result so the next taker does not repeat
 //     it.
-//   - the chart-speed guard itself. Both of its arms are unreachable
-//     as written, and the hole beside them is a LIVE source defect,
-//     open as issue #762 — see
-//     `an_infinite_chart_speed_refuses_rather_than_receipting`.
+//   - the chart-speed guard's ZERO arm. Its non-finite arm is covered
+//     by `an_infinite_chart_speed_refuses_rather_than_receipting`; a
+//     wall whose chart speed is exactly zero has no fixture.
 //
 // Every cell here is a claim in `exhaust.rs`'s module docs — "a typed
 // refusal, never a silent truncation of the search" — that no fixture
@@ -2067,10 +2066,11 @@ fn an_unaffordable_chart_seed_floor_refuses_the_cell_budget_typed() {
 /// budget. The caller is then told the search was too big, when the
 /// truth is that this operand has no certificate at all and no budget
 /// would have helped. That is what this arm exists to prevent: not a
-/// wrong answer, a wrong DIAGNOSIS. The same substitution happens for
-/// real, today, one guard over — see
-/// [`an_infinite_chart_speed_refuses_rather_than_receipting`], where
-/// there is no arm and the budget does answer in its place.
+/// wrong answer, a wrong DIAGNOSIS. The chart lane states the same duty
+/// one guard over — see
+/// [`an_infinite_chart_speed_refuses_rather_than_receipting`], whose
+/// guard refuses a non-finite chart speed before the cell budget can
+/// answer in its place.
 #[test]
 fn a_degenerate_r3_operand_refuses_the_enclosure_typed() {
     let point_sphere = Surface::Sphere {
@@ -2119,13 +2119,20 @@ fn a_degenerate_r3_operand_refuses_the_enclosure_typed() {
 /// row: the arm is a certificate obligation, and a certificate that
 /// cannot be formed must say so at any magnitude a caller can build.
 ///
-/// **Which duty**: the **Seed** one, as in the ℝ³ twin —
-/// `seed_chart_plane` runs first and the first cell poisons
-/// (instrumented). Worth recording: this net also drives the certified
-/// chart speed to `+∞`, so it passes through the same guard hole
-/// [`an_infinite_chart_speed_refuses_rather_than_receipting`] is about;
-/// the poison arm simply answers first, which is the ordering that
-/// makes this row a poison-arm row and not a second copy of that one.
+/// **Which door answers**: this net also drives the certified chart
+/// speed to `+∞`, and the chart-speed guard runs BEFORE the sweep — a
+/// floor cannot be translated at all if the speed is not finite — so on
+/// this fixture the guard answers and the sweep is never entered. Both
+/// diagnoses are true of this wall. The row therefore accepts either
+/// door and names which one fired; what it pins, at any magnitude a
+/// caller can build, is that the operation refuses in the operation's
+/// own terms rather than handing back a receipt.
+///
+/// The coupling is not a property of this fixture alone: a control-net
+/// enclosure poisons only once `w·P` overflows, and the chart speed
+/// squares the same magnitudes, so it is already `+∞` well below that.
+/// A fixture that reaches the sweep's poison arm from the public door
+/// is still wanted.
 #[test]
 fn a_poisoning_control_net_refuses_the_enclosure_typed() {
     let h = 1.0e308;
@@ -2152,13 +2159,15 @@ fn a_poisoning_control_net_refuses_the_enclosure_typed() {
     );
     let w = NurbsSurface::new(ku, kv, control, weights).expect("a wall a caller can build");
     match ssi::plane_nurbs_ssi(&cutting_plane(), &w, wall_domain(), band()) {
-        Err(SsiError::UnsupportedCertificate { what }) => {
-            assert!(
-                what.contains("control-net enclosure poisoned"),
-                "the refusal must be the CHART sweep's poison arm: {what}"
-            );
+        Err(SsiError::UnsupportedCertificate { what })
+            if what.contains("control-net enclosure poisoned") =>
+        {
+            println!("the poisoned net was answered by the CHART SWEEP'S POISON ARM");
         }
-        Err(other) => panic!("expected the enclosure refusal, got {other}"),
+        Err(SsiError::UnsupportedCertificate { what }) if what.contains("chart speed") => {
+            println!("the poisoned net was answered by the CHART-SPEED GUARD");
+        }
+        Err(other) => panic!("expected the enclosure refusal or the chart-speed refusal, got {other}"),
         Ok(out) => panic!(
             "SILENT: a chart domain no enclosure could be formed over returned Ok with \
              {} branches and a receipt {:?}",
@@ -2168,46 +2177,28 @@ fn a_poisoning_control_net_refuses_the_enclosure_typed() {
     }
 }
 
-/// **A live defect, made executable — not a door row.**
+/// **The chart-speed guard**: a wall whose certified chart speed is not
+/// a positive finite number is refused as itself, by name.
 ///
-/// This row covers **none** of the thirteen cells the block header
-/// enumerates. It is the regression guard attached to a source defect
-/// that is open as **issue #762**, and it is here so the defect is
-/// executable rather than only written down.
+/// `plane_nurbs_ssi` translates BOTH of its floors — seeding and
+/// accounting — from meters into the wall's parameter domain by
+/// dividing by that speed, and pads every banked tube by
+/// `tube_radius / speed`. A speed of `+∞` divides all three to exactly
+/// `0`: a floor no cell can reach and a tube of zero width. Nothing
+/// downstream can then state the operation's own terms, so the guard
+/// refuses before the first division rather than letting the sweep run
+/// to its cell budget and answer in its place — the budget's sentence
+/// ("your search exceeded the budget") would be the wrong DIAGNOSIS,
+/// the substitution [`a_degenerate_r3_operand_refuses_the_enclosure_typed`]'s
+/// arm exists to prevent one lane over.
 ///
-/// **The defect.** `plane_nurbs_ssi` translates BOTH of its floors —
-/// seeding and accounting — from meters into the wall's parameter
-/// domain by dividing by a certified chart speed, and guards that
-/// translation with `speed.is_nan() || speed <= 0.0`. A speed of
-/// **+∞** passes: `floor / ∞` is exactly `0`, in both floors, so
-/// neither sweep can terminate at its floor; and the certified tube
-/// padding is `tube_radius / speed`, so every banked tube would be
-/// zero-width as well. Measured on this fixture: `speed = inf`,
-/// `seed_floor/speed = 0e0`, `floor/speed = 0e0`.
+/// The fixture is a net at `1e200` m: every input is finite, the
+/// derivative boxes are finite intervals, and their magnitudes overflow
+/// when squared, so the speed comes out `+∞`.
 ///
-/// **What answers instead, and why that is the bug.** Seeding runs
-/// first, so the refusal comes from `seed_chart_plane` and the cell
-/// budget — the same door and the same duty
-/// [`an_unaffordable_chart_seed_floor_refuses_the_cell_budget_typed`]
-/// already covers, reached by another road. The caller is told its
-/// search was too big when the truth is that this wall has no usable
-/// chart speed, which is exactly the substitution
-/// [`a_degenerate_r3_operand_refuses_the_enclosure_typed`]'s arm
-/// exists to prevent one lane over: not a wrong answer, a wrong
-/// DIAGNOSIS. This row does not endorse that disposition. It pins the
-/// one thing that is true today and must stay true — the operation
-/// never hands back a receipt — and names which door answered, so that
-/// when the guard is widened to refuse a non-finite speed the row
-/// moves to the other arm instead of going red.
-///
-/// Latent beside it, and part of the same defect: `mag(du).max(mag(dv))`
-/// **drops a lone `NaN`** (`f64::max` returns the non-NaN operand), so
-/// the guard's `is_nan` arm cannot fire from a single poisoned
-/// derivative box. Nothing reaches it today.
-///
-/// The fixture is a net at `1e200` m: the derivative boxes are finite
-/// intervals, their magnitudes overflow when squared, and the speed
-/// comes out `+∞`.
+/// The guard's fold propagates NaN — `f64::max` returns the non-NaN
+/// operand, which would drop a lone poisoned derivative box — so a
+/// poisoned box reaches the same refusal as an overflowed one.
 #[test]
 fn an_infinite_chart_speed_refuses_rather_than_receipting() {
     let m = 1.0e200;
@@ -2218,19 +2209,18 @@ fn an_infinite_chart_speed_refuses_rather_than_receipting() {
         (1.05 * m, 0.30 * m),
     ]);
     match ssi::plane_nurbs_ssi(&cutting_plane(), &w, wall_domain(), band()) {
-        Err(SsiError::CellBudget { budget }) => {
-            assert_eq!(budget, SSI_MAX_CELLS);
-            println!(
-                "the infinite chart speed was answered by the CELL BUDGET, under the \
-                 SEEDING duty: both floors translated to 0 and the sweep ran until the \
-                 budget stopped it — the wrong diagnosis, and the reason this row is a \
-                 defect record rather than a door row"
+        Err(SsiError::UnsupportedCertificate { what }) => {
+            assert!(
+                what.contains("chart speed") && what.contains("not finite"),
+                "the refusal must name the chart speed as the diagnosis: {what}"
             );
         }
-        Err(SsiError::UnsupportedCertificate { what }) if what.contains("chart speed") => {
-            println!("the infinite chart speed was answered by the CHART-SPEED GUARD");
-        }
-        Err(other) => panic!("expected the budget refusal or the chart-speed refusal, got {other}"),
+        Err(SsiError::CellBudget { budget }) => panic!(
+            "WRONG DIAGNOSIS: the cell budget ({budget}) answered for a wall whose \
+             chart speed is not finite — both floors translated to 0 and the sweep \
+             ran until the budget stopped it"
+        ),
+        Err(other) => panic!("expected the chart-speed refusal, got {other}"),
         Ok(out) => panic!(
             "SILENT: a floor that translated to zero returned Ok with {} branches and \
              a receipt {:?}",
@@ -2443,4 +2433,3 @@ fn the_ssi_predicates_reach_the_k_funnel() {
         );
     }
 }
-
