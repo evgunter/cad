@@ -224,11 +224,19 @@ blockers stay named in the last column.
 
 The rows are in TOUR ORDER: `walk_tour` in `demos/tour/src/main.rs` is
 the one enumeration of what the tour contains, and this table walks it.
+One row per `Stop`, which is what the roster guard compares against —
+so the narration-only passes `walk_tour` also makes (`checks`, the
+wall-probe batteries, the coincidence-ladder narrations) have no row
+here. They build no stop and render nothing; `checks` says so in its
+own module doc, *"narration-only (no render stop): the subject is a
+REPORT, and its `Display` is the picture."* A row for one of them
+would fail the guard's decay direction, which is the right answer:
+this page grades BODIES against the bound surface.
 
 | # | scene | Python? | gap | the missing door |
 |---|---|---|---|---|
 | 1 | `bracket` | **YES** | — | — |
-| 2 | `spacer` | NO | G16 | `chamfer_edges` has no recipe node, so this part has no document at all — the scene's own finding 3, said on a part with no recipe behind it |
+| 2 | `spacer` | NO | G16 | `chamfer_edges` has no recipe node, so a consumer wanting a chamfer in a RECIPE — with names, with a rebuild — cannot have one; the scene's own second recorded friction, on a part with no recipe behind it |
 | 3 | `plate` | **YES** | — | — |
 | 4 | `vase` | **YES** | — | — |
 | 5 | `sheave` | **YES** | — | — |

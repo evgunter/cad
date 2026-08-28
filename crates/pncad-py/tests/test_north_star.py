@@ -1672,7 +1672,10 @@ class TestKlein(unittest.TestCase):
 
     def band(self, md):
         half = self.WALL / 2.0
-        p = lambda xy: (xy[0] * m, xy[1] * m)
+
+        def p(xy):
+            return (xy[0] * m, xy[1] * m)
+
         return (
             Open.at((md["ri"] * m, self.ZTOP * m))
             .toward(0.0, -1.0)

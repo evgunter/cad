@@ -3035,8 +3035,8 @@ fn the_authoring_seam_roster_is_what_the_crate_doc_claims() {
 /// still a stop the audit owes a row.
 fn tour_sources() -> Vec<(String, String)> {
     let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../demos/tour/src");
-    let entries = std::fs::read_dir(&dir)
-        .unwrap_or_else(|e| panic!("reading {}: {e}", dir.display()));
+    let entries =
+        std::fs::read_dir(&dir).unwrap_or_else(|e| panic!("reading {}: {e}", dir.display()));
     let mut out: Vec<(String, String)> = Vec::new();
     for entry in entries {
         let path = entry.expect("a readable directory entry").path();
@@ -3056,7 +3056,11 @@ fn tour_sources() -> Vec<(String, String)> {
         out.push((name, code_without_comments(&text)));
     }
     out.sort();
-    assert!(!out.is_empty(), "no tour scene sources at {}", dir.display());
+    assert!(
+        !out.is_empty(),
+        "no tour scene sources at {}",
+        dir.display()
+    );
     out
 }
 
@@ -3158,7 +3162,7 @@ fn first_arg_literals(code: &str, ident: &str) -> Vec<String> {
         }
         let rest = &code[at + ident.len()..];
         let paren = rest.len() - rest.trim_start().len();
-        if rest[paren..].as_bytes().first() != Some(&b'(') {
+        if rest.as_bytes().get(paren) != Some(&b'(') {
             continue;
         }
         let before = code[..at].trim_end();
@@ -3222,7 +3226,7 @@ fn tour_stop_roster() -> (std::collections::BTreeSet<String>, usize, Vec<String>
             }
             let rest = &code[at + "Stop".len()..];
             let gap = rest.len() - rest.trim_start().len();
-            if rest[gap..].as_bytes().first() != Some(&b'{') {
+            if rest.as_bytes().get(gap) != Some(&b'{') {
                 continue;
             }
             // `-> Stop {` opens a function body, not a literal.
@@ -3275,9 +3279,12 @@ fn tour_stop_roster() -> (std::collections::BTreeSet<String>, usize, Vec<String>
             } else if let Some(expr) = field.strip_prefix("name:") {
                 let expr = expr.trim();
                 let lits = string_literals(expr);
-                if lits.len() == 1 && expr == format!("\"{}\"", lits[0]) {
-                    lits
-                } else if expr.starts_with("match") && !lits.is_empty() {
+                // Form 1 (one literal, and the expression IS that
+                // literal) or form 2 (a `match` whose arms are
+                // literals) — the same answer either way, the two
+                // shapes kept apart so a third form falls through.
+                let one_literal = lits.len() == 1 && expr == format!("\"{}\"", lits[0]);
+                if one_literal || (expr.starts_with("match") && !lits.is_empty()) {
                     lits
                 } else {
                     complaints.push(format!(
@@ -3330,12 +3337,11 @@ fn table_cells(line: &str) -> Option<Vec<&str>> {
     if !t.starts_with('|') {
         return None;
     }
-    let cells: Vec<&str> = t
-        .trim_matches('|')
-        .split('|')
-        .map(str::trim)
-        .collect();
-    if cells.iter().all(|c| !c.is_empty() && c.chars().all(|ch| ch == '-' || ch == ':')) {
+    let cells: Vec<&str> = t.trim_matches('|').split('|').map(str::trim).collect();
+    if cells
+        .iter()
+        .all(|c| !c.is_empty() && c.chars().all(|ch| ch == '-' || ch == ':'))
+    {
         return None;
     }
     Some(cells)
@@ -3456,8 +3462,7 @@ fn the_north_star_audit_has_a_row_for_every_tour_stop() {
         rows.len()
     );
 
-    let listed: std::collections::BTreeSet<String> =
-        rows.iter().map(|r| r.scene.clone()).collect();
+    let listed: std::collections::BTreeSet<String> = rows.iter().map(|r| r.scene.clone()).collect();
     assert_eq!(
         listed.len(),
         rows.len(),
@@ -3503,15 +3508,20 @@ fn the_north_star_audit_has_a_row_for_every_tour_stop() {
 ///
 /// Two tallies are checked, both purely mechanical:
 ///
-/// 1. the **headline** — `N of the M tour stops are authorable` —
-///    against the row count and the YES/YES\* verdicts;
+/// 1. the **headline paragraph** — every number it writes, in order:
+///    authorable of total, then the outright/degraded split, then the
+///    blocked count — against the rows' own YES/YES\*/NO verdicts.
+///    The whole paragraph rather than its first clause, because the
+///    drift that happened was BETWEEN the headline's total and its
+///    own split;
 /// 2. each gap's **stops** column against the number of rows naming
 ///    that gap as their primary blocker.
 ///
 /// **Not guarded, stated:** the prose arithmetic sentence under the
-/// gap list, and the per-row narrative in the last column. Those are
-/// re-derived by hand at each revision; what this guard buys is that
-/// the numbers they are derived FROM cannot drift unnoticed.
+/// gap list, which re-says the partition row by row, and the per-row
+/// narrative in the last column. Those are re-derived by hand at each
+/// revision; what this guard buys is that the numbers they are
+/// derived FROM cannot drift unnoticed.
 #[test]
 fn the_north_star_audits_tallies_are_derived_from_its_rows() {
     let rows = audit_rows();
@@ -3520,8 +3530,11 @@ fn the_north_star_audits_tallies_are_derived_from_its_rows() {
         if row.verdict.contains("NO") {
             no += 1;
         } else if row.verdict.contains("YES") {
-            // `YES\*` is the escaped asterisk the page writes.
-            if row.verdict.contains('*') {
+            // The page writes an outright YES in bold (`**YES**`) and
+            // the degraded mark as `YES` plus an ESCAPED asterisk, so
+            // the backslash is what tells them apart — the bold
+            // markers are asterisks too.
+            if row.verdict.contains('\\') {
                 yes_star += 1;
             } else {
                 yes += 1;
@@ -3539,24 +3552,27 @@ fn the_north_star_audits_tallies_are_derived_from_its_rows() {
         "every row is YES, YES* or NO"
     );
 
+    // The headline PARAGRAPH — every number in it, in the order it
+    // writes them: authorable of total, then the outright/degraded
+    // split, then the blocked count. Reading the whole paragraph
+    // rather than one clause is deliberate: the drift that happened
+    // was between the headline's total and its own split, which a
+    // guard reading only the first clause would have missed.
     let head = "**Result: ";
     let at = AUDIT_PAGE
         .find(head)
         .expect("the audit page opens with its Result headline");
-    let sentence: String = AUDIT_PAGE[at + head.len()..]
-        .split("are authorable")
-        .next()
-        .expect("the headline names what it counts")
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ");
+    let tail = &AUDIT_PAGE[at + head.len()..];
+    let end = tail.find("\n\n").expect("the headline is a paragraph");
+    let sentence: String = tail[..end].split_whitespace().collect::<Vec<_>>().join(" ");
     let numbers: Vec<usize> = sentence
-        .split_whitespace()
-        .filter_map(|w| w.parse::<usize>().ok())
+        .split(|c: char| !c.is_ascii_digit())
+        .filter(|w| !w.is_empty())
+        .map(|w| w.parse::<usize>().expect("a decimal count"))
         .collect();
     assert_eq!(
         numbers,
-        vec![yes + yes_star, rows.len()],
+        vec![yes + yes_star, rows.len(), yes, yes_star, no],
         "the headline reads `{sentence}`, but the table says {} of {} \
          (YES {yes} + YES* {yes_star}, NO {no})",
         yes + yes_star,
@@ -3564,8 +3580,7 @@ fn the_north_star_audits_tallies_are_derived_from_its_rows() {
     );
 
     // The gap list's `stops` column, per gap id.
-    let mut blocked: std::collections::BTreeMap<String, usize> =
-        std::collections::BTreeMap::new();
+    let mut blocked: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
     for row in &rows {
         if let Some(id) = row.gap.strip_prefix('G')
             && id.chars().all(|c| c.is_ascii_digit())
