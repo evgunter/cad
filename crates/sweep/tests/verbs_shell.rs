@@ -960,22 +960,34 @@ fn oblique_planar_prisms_hollow_with_their_closed_forms() {
     let area = |r: f64| 1.5 * s3 * r * r;
     let hex_want = area(r) * 0.25 - area(r - 2.0 * t / s3) * (0.25 - 2.0 * t);
 
+    // The other three carry closed forms too, from the footprint's own
+    // INSET polygon (each edge line moved in by `t`, re-crossed with
+    // its neighbours) — the same shape as the hexagon's, derived
+    // generally instead of per fixture. Shipping these rows on
+    // "hollows, two shells, tier 3" alone was an undisclosed narrowing
+    // of this unit's acceptance: a corner solved to the wrong point
+    // satisfies every one of those three.
+    let want_of =
+        |pts: &[(f64, f64)]| shoelace(pts) * 0.25 - shoelace(&inset(pts, t)) * (0.25 - 2.0 * t);
+    let bevel = vec![(0.0, 0.0), (0.4, 0.0), (0.3, 0.3), (0.0, 0.3)];
+    let kite = vec![(0.0, 0.0), (0.2, -0.1), (0.4, 0.0), (0.2, 0.3)];
+    let triangle = vec![(0.0, 0.0), (0.3, 0.0), (0.15, 0.26)];
     for (what, pts, want) in [
         ("a regular hexagon (120 deg)", hex, Some(hex_want)),
         (
             "a box with ONE bevelled side (135 deg)",
-            vec![(0.0, 0.0), (0.4, 0.0), (0.3, 0.3), (0.0, 0.3)],
-            None,
+            bevel.clone(),
+            Some(want_of(&bevel)),
         ),
         (
             "a kite (no right angle anywhere)",
-            vec![(0.0, 0.0), (0.2, -0.1), (0.4, 0.0), (0.2, 0.3)],
-            None,
+            kite.clone(),
+            Some(want_of(&kite)),
         ),
         (
             "a triangle (58/58/64)",
-            vec![(0.0, 0.0), (0.3, 0.0), (0.15, 0.26)],
-            None,
+            triangle.clone(),
+            Some(want_of(&triangle)),
         ),
     ] {
         let body = prism(&pts, 0.25);
@@ -1137,4 +1149,45 @@ fn the_simultaneous_door_names_its_scope() {
         Ok(()),
         "a refused call leaves the operand exactly as it was"
     );
+}
+
+/// Twice the signed area of a simple polygon, halved — the footprint
+/// area the wall's closed form is built from.
+fn shoelace(pts: &[(f64, f64)]) -> f64 {
+    let n = pts.len();
+    (0..n)
+        .map(|i| {
+            let (x0, y0) = pts[i];
+            let (x1, y1) = pts[(i + 1) % n];
+            x0 * y1 - x1 * y0
+        })
+        .sum::<f64>()
+        / 2.0
+}
+
+/// The footprint inset by `t`: every edge line moved inward by `t`
+/// along its own left normal (inward for a CCW loop), then re-crossed
+/// with its neighbours. This is the 2-D shadow of exactly what the
+/// simultaneous door does in 3-D, which is why it is the right closed
+/// form to check the door against — and it is derived here rather than
+/// read off the door, so the two are independent.
+fn inset(pts: &[(f64, f64)], t: f64) -> Vec<(f64, f64)> {
+    let n = pts.len();
+    let line = |i: usize| -> (f64, f64, f64, f64) {
+        let (px, py) = pts[i];
+        let (qx, qy) = pts[(i + 1) % n];
+        let (dx, dy) = (qx - px, qy - py);
+        let l = dx.hypot(dy);
+        let (nx, ny) = (-dy / l, dx / l);
+        (px + t * nx, py + t * ny, dx, dy)
+    };
+    (0..n)
+        .map(|i| {
+            let (x0, y0, dx0, dy0) = line((i + n - 1) % n);
+            let (x1, y1, dx1, dy1) = line(i);
+            let det = dx0 * (-dy1) - (-dx1) * dy0;
+            let a = ((x1 - x0) * (-dy1) - (-dx1) * (y1 - y0)) / det;
+            (x0 + a * dx0, y0 + a * dy0)
+        })
+        .collect()
 }
