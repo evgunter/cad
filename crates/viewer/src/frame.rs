@@ -16,6 +16,7 @@
 //! frame loop still decides WHEN to call them; it no longer decides what
 //! they mean.
 
+use pncad::document::{ParamName, ParseError, RecipeNodeId, SlotId};
 use pncad::prelude::StableName;
 
 use crate::camera::Folded;
@@ -60,6 +61,49 @@ pub fn batch_status(ops: &[SessionOp], refusal: Option<&Refusal>) -> StatusUpdat
         (true, None) => StatusUpdate::Clear,
         (false, None) => StatusUpdate::Keep,
     }
+}
+
+/// The name a refused batch offers to CREATE.
+///
+/// The parse door's unknown-parameter refusal is deliberate
+/// typo-safety — text naming an undeclared parameter never creates
+/// one. The ratified pattern is refuse-then-offer, and this is the
+/// offer as a value: the undeclared name, for the frame loop to
+/// prefill into the add-parameter affordance (name only — the
+/// expression's context does not determine the new parameter's
+/// DIMENSION, so that stays the user's explicit pick there). `None`
+/// for every other refusal and for a clean batch.
+pub fn creation_offer(refusal: Option<&Refusal>) -> Option<&ParamName> {
+    match refusal {
+        Some(Refusal::Parse(error)) => match error.as_ref() {
+            ParseError::UnknownParam { name, .. } => Some(name),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+/// The expression draft a parse-refused batch should hand back.
+///
+/// The chrome clears the expression field the moment Set is clicked —
+/// a draft is transient state and a committed one leaves nothing
+/// behind. But a PARSE refusal means nothing was committed, and for
+/// the unknown-parameter case the offer above sends the user off to
+/// create the parameter first: coming back to an empty field would
+/// make acting on the offer cost the very text that raised it. So a
+/// parse-refused batch restores the draft — the slot the text was
+/// aimed at and the text itself, read from the batch's own op.
+pub fn retype_draft(
+    ops: &[SessionOp],
+    refusal: Option<&Refusal>,
+) -> Option<(RecipeNodeId, SlotId, String)> {
+    if !matches!(refusal, Some(Refusal::Parse(_))) {
+        return None;
+    }
+    ops.iter().rev().find_map(|op| match op {
+        SessionOp::SetSlotExpression { node, slot, text } => Some((*node, *slot, text.clone())),
+        _ => None,
+    })
 }
 
 /// What the environment offers `rfd` as a file-chooser backend.

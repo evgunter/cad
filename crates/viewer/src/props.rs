@@ -287,6 +287,20 @@ pub fn slot_edit(
     })
 }
 
+/// The `DocParam` a dimension and a value mint — one home, shared by
+/// the replace door ([`param_edit`]) and the panel's create-parameter
+/// affordance, so the two cannot disagree about which arm a value
+/// becomes (the dimension decides, [`SlotValue::of`]'s rule).
+pub fn doc_param(dimension: Dimension, value: SlotValue) -> DocParam {
+    match value {
+        SlotValue::Count(value) => DocParam::Count { value },
+        SlotValue::Continuous(value) => DocParam::Continuous {
+            dim: dimension,
+            value,
+        },
+    }
+}
+
 /// The edit that replaces a document parameter's value, keeping its
 /// declared dimension.
 pub fn param_edit(
@@ -294,12 +308,8 @@ pub fn param_edit(
     dimension: Dimension,
     value: SlotValue,
 ) -> DocEdit<ProfileProgram> {
-    let param = match value {
-        SlotValue::Count(value) => DocParam::Count { value },
-        SlotValue::Continuous(value) => DocParam::Continuous {
-            dim: dimension,
-            value,
-        },
-    };
-    DocEdit::SetDocParam { name, value: param }
+    DocEdit::SetDocParam {
+        name,
+        value: doc_param(dimension, value),
+    }
 }

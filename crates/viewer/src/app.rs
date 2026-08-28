@@ -42,7 +42,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use eframe::egui;
 use egui_tiles::{TileId, Tiles, Tree, UiResponse};
-use pncad::document::{Dimension, RecipeNodeId, SlotId};
+use pncad::document::{Dimension, ParamName, RecipeNodeId, SlotId};
 use pncad::geom_core::Tol;
 
 use crate::camera::{self, Camera, CameraOp};
@@ -128,6 +128,20 @@ struct Drafts {
     expr_target: Option<(RecipeNodeId, SlotId)>,
     /// What is typed in it.
     expr_text: String,
+    /// The add-parameter form's name field.
+    new_param_name: String,
+    /// Its chosen dimension — `None` until the user picks one, and
+    /// the Create button waits for the pick. The offer path lands
+    /// here from an expression whose context does not determine the
+    /// new parameter's dimension, and a silently-defaulted one would
+    /// be a guess none of this program's doors make.
+    new_param_dimension: Option<Dimension>,
+    /// Its value field.
+    new_param_value: f64,
+    /// The name an unknown-parameter refusal offered to create
+    /// ([`frame::creation_offer`]); shown over the form while the
+    /// name field still says it.
+    new_param_offer: Option<ParamName>,
     /// The mate tool's class/alignment choice, as widget state: an
     /// index into [`admitted_classes`], an index into
     /// [`MATE_PRIMITIVES`], and the sense toggle. Draft chrome state
@@ -370,26 +384,38 @@ impl ViewerApp {
             return;
         }
         let mut refusal: Option<Refusal> = None;
-        // The VERDICT is `frame::batch_status`'s, computed from the ops
-        // and the refusal; this loop only performs and collects. The
-        // rule used to live inline here, in app-gated code no row could
+        // The VERDICTS are `frame`'s, computed from the ops and the
+        // refusal; this loop only performs and collects. The rules
+        // used to live inline here, in app-gated code no row could
         // reach — see `frame`'s module docs.
-        let update = {
-            let mut performed: Vec<SessionOp> = Vec::with_capacity(ops.len());
-            for op in ops {
-                performed.push(op.clone());
-                let opened = matches!(op, SessionOp::Open(_));
-                match self.session.perform(op).refusal {
-                    Some(next) => refusal = Refusal::preferred(refusal, next),
-                    // A replaced document owes a re-frame — taken when
-                    // its scene actually lands, not on the outgoing
-                    // picture.
-                    None if opened => self.fit_on_scene = true,
-                    None => {}
-                }
+        let mut performed: Vec<SessionOp> = Vec::with_capacity(ops.len());
+        for op in ops {
+            performed.push(op.clone());
+            let opened = matches!(op, SessionOp::Open(_));
+            match self.session.perform(op).refusal {
+                Some(next) => refusal = Refusal::preferred(refusal, next),
+                // A replaced document owes a re-frame — taken when
+                // its scene actually lands, not on the outgoing
+                // picture.
+                None if opened => self.fit_on_scene = true,
+                None => {}
             }
-            frame::batch_status(&performed, refusal.as_ref())
-        };
+        }
+        let update = frame::batch_status(&performed, refusal.as_ref());
+        // The refuse-then-offer pair for a parse refusal: restore the
+        // refused draft so acting on the refusal does not cost the
+        // text that raised it, and — for an unknown parameter name —
+        // prefill the add-parameter affordance with the name it
+        // offers to create (dimension deliberately left unpicked).
+        if let Some((node, slot, text)) = frame::retype_draft(&performed, refusal.as_ref()) {
+            self.drafts.expr_target = Some((node, slot));
+            self.drafts.expr_text = text;
+        }
+        if let Some(name) = frame::creation_offer(refusal.as_ref()) {
+            self.drafts.new_param_name = name.0.clone();
+            self.drafts.new_param_dimension = None;
+            self.drafts.new_param_offer = Some(name.clone());
+        }
         self.apply_status(update);
     }
 
@@ -969,6 +995,97 @@ impl ViewerBehavior<'_> {
                 self.ops
                     .push(SessionOp::Select(Selection::Param(row.name.clone())));
             }
+        }
+        self.add_param_ui(ui);
+    }
+
+    /// The create half of the document-parameters section: name,
+    /// dimension, value, one [`SessionOp::CreateParam`] on commit.
+    ///
+    /// Two deliberate frictions, both refusals-in-advance. The
+    /// dimension starts UNPICKED and Create waits for it — the offer
+    /// path arrives here from an expression whose context does not
+    /// determine the new parameter's dimension, and a silent default
+    /// would be a guess. And a name that is already declared shows the
+    /// session's own already-exists sentence with the edit door
+    /// offered, before the click ever reaches the typed refusal
+    /// backing it ([`Refusal::ParamExists`]).
+    fn add_param_ui(&mut self, ui: &mut egui::Ui) {
+        // The offer from an unknown-parameter parse refusal, shown
+        // while the name field still says the offered name.
+        if let Some(offered) = self.drafts.new_param_offer.clone() {
+            if offered.0 == self.drafts.new_param_name.trim() {
+                ui.weak(Refusal::offer_wording(&offered));
+            } else {
+                // The user typed past the offer; it is stale.
+                self.drafts.new_param_offer = None;
+            }
+        }
+        ui.horizontal(|ui| {
+            ui.label("add");
+            ui.add(
+                egui::TextEdit::singleline(&mut self.drafts.new_param_name)
+                    .hint_text("name")
+                    .desired_width(90.0),
+            );
+            for (dimension, label) in [
+                (Dimension::Length, "Length"),
+                (Dimension::Angle, "Angle"),
+                (Dimension::Count, "Count"),
+                (Dimension::Scalar, "Scalar"),
+            ] {
+                ui.radio_value(&mut self.drafts.new_param_dimension, Some(dimension), label);
+            }
+            ui.add(
+                egui::DragValue::new(&mut self.drafts.new_param_value).speed(
+                    if self.drafts.new_param_dimension == Some(Dimension::Count) {
+                        1.0
+                    } else {
+                        0.0005
+                    },
+                ),
+            );
+        });
+        let name = self.drafts.new_param_name.trim();
+        let existing = if name.is_empty() {
+            None
+        } else {
+            self.session.doc().params().get(&ParamName::new(name))
+        };
+        if let Some(existing) = existing {
+            // The same sentence the session's refusal would show, and
+            // the edit door it offers instead — refuse-then-offer,
+            // ahead of the click.
+            let name = ParamName::new(name);
+            ui.horizontal(|ui| {
+                ui.weak(Refusal::exists_wording(&name, existing.dim()));
+                if ui.link(format!("edit {}", name.0)).clicked() {
+                    self.ops.push(SessionOp::Select(Selection::Param(name)));
+                }
+            });
+            return;
+        }
+        let ready = !name.is_empty() && self.drafts.new_param_dimension.is_some();
+        let create = ui.add_enabled(ready, egui::Button::new("Create"));
+        let create = if self.drafts.new_param_dimension.is_none() {
+            create.on_disabled_hover_text("pick a dimension first")
+        } else {
+            create
+        };
+        if create.clicked()
+            && let Some(dimension) = self.drafts.new_param_dimension
+        {
+            self.ops.push(SessionOp::CreateParam {
+                name: ParamName::new(name),
+                value: crate::props::doc_param(
+                    dimension,
+                    SlotValue::of(dimension, self.drafts.new_param_value),
+                ),
+            });
+            self.drafts.new_param_name.clear();
+            self.drafts.new_param_dimension = None;
+            self.drafts.new_param_value = 0.0;
+            self.drafts.new_param_offer = None;
         }
     }
 
