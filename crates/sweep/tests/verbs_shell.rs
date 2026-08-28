@@ -818,11 +818,11 @@ fn an_annular_cap_opens_to_two_disjoint_rims() {
 /// old construction exactly, and what it mints is a ring standing on
 /// its own face's outer loop.
 ///
-/// Both contact shapes are covered, one per fixture, because the two
-/// arms of the check are independent: the axis-touching cap shares a
-/// VERTEX position (the apex both loops own), while the annular cap
-/// shares none and is caught only by an EDGE running along an edge
-/// (the radial seam, whose counterpart sits inside it).
+/// Both contact shapes are covered, one per fixture, because the arms
+/// of the check are independent: the axis-touching cap shares a VERTEX
+/// position (the apex both loops own), while the annular cap shares
+/// none and is caught only through an outer EDGE — the radial seam,
+/// whose counterpart's seam sits strictly inside it.
 #[test]
 fn a_ring_standing_on_its_outer_loop_refuses_at_tier_3() {
     let tol = Tol::witness();
@@ -873,11 +873,22 @@ fn a_ring_standing_on_its_outer_loop_refuses_at_tier_3() {
                 }
             )
         });
+        // The two arms that involve an outer EDGE. Which of them fires
+        // on the annular cap is a fact about arm ORDER, not about the
+        // body: the counterpart's seam edge runs from radius ri+t to
+        // ro-t along the outer loop's own seam edge, so its ENDPOINTS
+        // are interior points of that edge — arm 2 sees the vertex on
+        // the edge before arm 3 gets to the edge along the edge. Both
+        // are the same contact named at different granularity, so the
+        // row pins "an edge of the outer loop is involved, and no
+        // vertex of it is", which is the claim that separates this
+        // fixture from the axis-touching one.
         let edge_arm = contacts.iter().any(|e| {
             matches!(
                 e,
                 topo::ValidationError::RingMeetsOuter {
-                    contact: topo::RingContact::Edge { .. },
+                    contact: topo::RingContact::Edge { .. }
+                        | topo::RingContact::VertexOnEdge { .. },
                     ..
                 }
             )
@@ -890,7 +901,8 @@ fn a_ring_standing_on_its_outer_loop_refuses_at_tier_3() {
         } else {
             assert!(
                 edge_arm && !vertex_arm,
-                "{what}: no shared vertex here — the seam is an EDGE contact; got {contacts:?}"
+                "{what}: no shared vertex position here — the contact must be carried by an \
+                 outer EDGE; got {contacts:?}"
             );
         }
     }
