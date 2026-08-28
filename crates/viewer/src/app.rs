@@ -240,7 +240,10 @@ impl core::fmt::Display for StartupError {
                 write!(f, "the starting document draws no scene: {error}")
             }
             Self::Camera(error) => {
-                write!(f, "no camera could be framed on the starting scene: {error}")
+                write!(
+                    f,
+                    "no camera could be framed on the starting scene: {error}"
+                )
             }
             Self::NoWgpuRenderState => f.write_str(
                 "eframe handed the viewer no wgpu render state: this build was linked \

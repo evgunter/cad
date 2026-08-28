@@ -132,12 +132,11 @@ fn scene_error_names_the_counts_it_carries() {
 
     prose(&SceneError::EmptyMesh.to_string(), "EmptyMesh");
 
-    let mispaired = SceneError::MispairedIds {
-        ids: 2,
-        patches: 3,
-    }
-    .to_string();
-    assert!(mispaired.contains('2') && mispaired.contains('3'), "{mispaired}");
+    let mispaired = SceneError::MispairedIds { ids: 2, patches: 3 }.to_string();
+    assert!(
+        mispaired.contains('2') && mispaired.contains('3'),
+        "{mispaired}"
+    );
     prose(&mispaired, "MispairedIds");
 
     let broken = SceneError::BrokenPatchIndex {
@@ -229,4 +228,3 @@ fn startup_error_forwards_every_payload_arm() {
         "NoWgpuRenderState",
     );
 }
-

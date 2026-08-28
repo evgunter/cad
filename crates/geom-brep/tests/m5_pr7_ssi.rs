@@ -2443,3 +2443,41 @@ fn the_ssi_predicates_reach_the_k_funnel() {
         );
     }
 }
+
+#[test]
+fn zz_temp_probe_poison_vs_speed() {
+    let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let build = |cols: [(f64, f64); 4], ws: [f64; 4]| {
+        let mut control = Vec::with_capacity(8);
+        let mut weights = Vec::with_capacity(8);
+        for ((x, y), w) in cols.into_iter().zip(ws) {
+            control.push(Point3::new(x, y, 0.0));
+            control.push(Point3::new(x, y, 0.8));
+            weights.push(w);
+            weights.push(w);
+        }
+        NurbsSurface::new(ku.clone(), kv.clone(), control, weights)
+    };
+    let h = 1.0e308;
+    let cases: Vec<(&str, [(f64, f64); 4], [f64; 4])> = vec![
+        ("A orig 1e308 w=1,2,3,4", [(0.0, 0.0), (h, h), (h, h), (h, h)], [1.0, 2.0, 3.0, 4.0]),
+        ("B 1e308 w=1", [(0.0, 0.0), (h, h), (h, h), (h, h)], [1.0, 1.0, 1.0, 1.0]),
+        ("C modest pts, huge weights", [(0.0, 0.0), (0.35, 0.14), (0.70, 0.24), (1.05, 0.30)], [1.0e308, 9.0e307, 8.0e307, 7.0e307]),
+        ("D modest pts, one huge weight", [(0.0, 0.0), (0.35, 0.14), (0.70, 0.24), (1.05, 0.30)], [1.0, 1.0e308, 1.0, 1.0]),
+        ("E 1e200 net", [(0.0, 0.0), (0.35e200, 0.14e200), (0.70e200, 0.24e200), (1.05e200, 0.30e200)], [1.0, 1.0, 1.0, 1.0]),
+        ("F 1e160 pts, 1e160 weights", [(0.0, 0.0), (1.0e160, 0.4e160), (2.0e160, 0.7e160), (3.0e160, 0.9e160)], [1.0e160, 1.0e160, 1.0e160, 1.0e160]),
+    ];
+    for (name, cols, ws) in cases {
+        match build(cols, ws) {
+            Err(e) => println!("[probe] {name}: constructor refused: {e:?}"),
+            Ok(w) => match ssi::plane_nurbs_ssi(&cutting_plane(), &w, wall_domain(), band()) {
+                Err(SsiError::UnsupportedCertificate { what }) => {
+                    println!("[probe] {name}: UnsupportedCertificate: {what}");
+                }
+                Err(other) => println!("[probe] {name}: {other}"),
+                Ok(o) => println!("[probe] {name}: Ok, {} branches", o.branches.len()),
+            },
+        }
+    }
+}
