@@ -45,6 +45,8 @@ mod offd2_r1_probes;
 mod offd_r1_probes;
 #[path = "shellfix1_bitdump.rs"]
 mod shellfix1_bitdump;
+#[path = "sf2a_r2_probes.rs"]
+mod sf2a_r2_probes;
 #[path = "shellfix1_r1_probes.rs"]
 mod shellfix1_r1_probes;
 #[path = "verbs_offc_consumer.rs"]
