@@ -2587,6 +2587,131 @@ mod review_probes {
         }
     }
 
+    /// **The declared weld's door sequence, measured** — VERBS-LILYWELD
+    /// PR-2's opening measurement, kept as the record it is.
+    ///
+    /// PR-1 authored the flower/arch junction circle-coincident and
+    /// left wall 2 pinned on the operand gate. The obvious next
+    /// question is what a DECLARED union would do, and the answer
+    /// today is: exactly what the undeclared one does. The scene's
+    /// own `flush_declarations` DOES find the contact — the lantern's
+    /// two throat-disk half-faces against the arch's end cap, an
+    /// exact coincident planar Rest pair — and the union still
+    /// refuses with the identical payload, because `gate_operand_pairs`
+    /// runs on KINDS before any declaration is consulted.
+    ///
+    /// That is the pin: **declaring the weld changes nothing today**,
+    /// and the differential between the declared and undeclared calls
+    /// is empty. When the operand gate learns declared cone×torus,
+    /// this row is what will show the two calls separating.
+    #[test]
+    fn the_declared_weld_refuses_exactly_as_the_undeclared_one_does() {
+        let tol = Tol::witness();
+        let ps = pieces();
+        let (lant, arch) = (body(&ps, "lily_lantern"), body(&ps, "lily_arch"));
+        let decls = crate::booleans::flush_declarations(lant, arch, tol);
+        println!(
+            "declared coincident face pairs: {:?}",
+            decls.coincident_faces
+        );
+        assert_eq!(
+            decls.coincident_faces.len(),
+            2,
+            "the throat disk arrives as two half-faces on one plane key, so the \
+             flush contact against the arch's single end cap is two pairs"
+        );
+        let declared = pncad::topo::union_with(lant, arch, &decls, tol)
+            .expect_err("the declared weld still refuses");
+        let undeclared =
+            pncad::topo::union(lant, arch, tol).expect_err("the undeclared weld still refuses");
+        println!("declared:   {declared:?}\nundeclared: {undeclared:?}");
+        assert_eq!(
+            format!("{declared:?}"),
+            format!("{undeclared:?}"),
+            "the operand gate reads kinds before declarations, so these must be \
+             the SAME refusal until the gate learns the declared pair"
+        );
+        assert!(
+            matches!(
+                declared,
+                BooleanError::CurvedPairUnsupported {
+                    op: None,
+                    operand: Operand::A,
+                    kind: SurfaceKind::Cone,
+                    other_kind: SurfaceKind::Torus,
+                    ..
+                }
+            ),
+            "{declared:?}"
+        );
+    }
+
+    /// **The lantern's F7 defect, named face by face** — the door
+    /// UNDER the operand gate, and the reason the weld's acceptance is
+    /// not this unit's to give.
+    ///
+    /// `gate_maximal_faces` refuses an operand carrying a PLANAR
+    /// same-key adjacency. The lantern has two, and this row says
+    /// which: the LIP disk and the THROAT disk, each a full revolve's
+    /// cap that touches the axis and therefore arrives as two
+    /// half-faces on one plane key. The body's curved same-key
+    /// adjacencies (the two cones and the sphere zone) are the
+    /// CANONICAL maximal form and are not defects — this row asserts
+    /// that split, so a change that started treating curved same-key
+    /// pairs as defects would fail here rather than silently.
+    ///
+    /// The repair door is still shut: `merge_coplanar_faces` refuses
+    /// on the re-authored lantern exactly as probe 13 pins it. **#1031
+    /// holds the choice**, and until it lands no boolean can take this
+    /// body as an operand, whatever the operand gate learns about
+    /// cone×torus.
+    #[test]
+    fn the_lanterns_two_axis_touching_caps_are_the_f7_defect() {
+        let tol = Tol::witness();
+        let ps = pieces();
+        let lant = body(&ps, "lily_lantern");
+        let mut planar_pairs = 0usize;
+        let mut curved_pairs = 0usize;
+        for (_, e) in lant.edges() {
+            let face_of = |he| {
+                let p = lant.get_half_edge(he)?.parent_loop;
+                Some(lant.get_loop(p)?.face)
+            };
+            let (Some(f1), Some(f2)) = (face_of(e.he_plus), face_of(e.he_minus)) else {
+                continue;
+            };
+            if f1 == f2 {
+                continue;
+            }
+            let (k1, k2) = (
+                lant.get_face(f1).map(|f| f.surface),
+                lant.get_face(f2).map(|f| f.surface),
+            );
+            if k1.is_none() || k1 != k2 {
+                continue;
+            }
+            match k1.and_then(|k| lant.get_surface(k)) {
+                Some(Surface::Plane { .. }) => planar_pairs += 1,
+                Some(_) => curved_pairs += 1,
+                None => {}
+            }
+        }
+        // Each defect is counted from both of its two struts.
+        assert_eq!(
+            (planar_pairs, curved_pairs),
+            (4, 6),
+            "two planar caps (the lip disk and the throat disk) and three curved \
+             walls (two cones, one sphere zone), each split at its seam"
+        );
+        assert!(
+            matches!(
+                lant.clone().merge_coplanar_faces(tol),
+                Err(pncad::topo::MergeCoplanarError::MergedFaceRoleAmbiguous { .. })
+            ),
+            "the merge door is still shut on the re-authored lantern (#1031)"
+        );
+    }
+
     /// **The weld, as geometry.** The flower's neck circle and the
     /// arch tube's terminal meridian circle are ONE circle, each
     /// computed to closed form off its own body's stored carrier
