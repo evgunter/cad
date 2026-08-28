@@ -578,10 +578,28 @@ fn adopt_edges(
             && let Some(mapped) =
                 mapped_self_description(&spec.carrier, p_start, p_end, spec.t0, spec.t1, nurbs_rim)
         {
-            candidates.push((
-                AdoptionCandidate::MappedCurve,
-                EdgeDescriptionSpec::Scaffold(mapped),
-            ));
+            // The conventional rung, since U2 collapsed the forms: a
+            // locus two COINCIDENT faces under-determine is an image
+            // in the chart they share, and the rung's own gate has
+            // just metered the carrier onto that chart
+            // (`carrier_on_surface`), so the image exists. The
+            // pushforward that used to BE the description becomes the
+            // authority record beside it (U2 Q3), which is what keeps
+            // tier 3's prefer-intrinsic reading of this edge unchanged.
+            //
+            // A NURBS rim keeps the SCAFFOLDING door, because the
+            // analytic mint that derives chart images refuses a spline
+            // chart — so it reaches rest through the door and tier 3's
+            // transience fence names it. Recorded as a gap rather than
+            // papered over with a silent downgrade: the rim's exact
+            // image exists (`nurbs_iso_derive` mints it as a CACHE),
+            // and moving it into the DESCRIPTION is the follow-up.
+            let description = if nurbs_rim {
+                EdgeDescriptionSpec::Scaffold(mapped)
+            } else {
+                EdgeDescriptionSpec::chart(fs_plus).declared_by(mapped)
+            };
+            candidates.push((AdoptionCandidate::MappedCurve, description));
         }
 
         // A band-minted seam generator (M7-5, R1 fix pass m2): the
