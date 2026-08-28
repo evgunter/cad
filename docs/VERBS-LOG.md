@@ -2085,3 +2085,20 @@ and 7, the teapot's F7 caps) — under Evan's recorded (a)/(b)
 steer, difficulty pre-logged M, with the opening measurement
 reported before building. SHELLFIX PR-2a opened as #1126
 meanwhile.
+
+## THE v6 BUDGET VALVE INVOKED; WEEKLY WIND-DOWN PLAN (2026-08-28)
+
+The account's 7-DAY limit crossed 90% with ~57h to reset — the
+binding constraint, no 5h rollover rescue. Per v6 item 1's valve
+("if the usage limit binds, orchestrators may drop to
+every-2nd-row duals, recording the change here"): INVOKED —
+SHELLFIX1 (ordinal 101) was the last dual, so SHELLFIX PR-2a's
+review (#1126, next ordinal) runs SINGLE; alternation resumes
+while the valve holds, full duals return when the weekly
+pressure clears. The wind-down plan: land #1126 through its
+single review + fix pass; merge the LILYWELD pins PR
+(orchestrator-reviewed, already ruled); take #1031's
+measure-first CHECKPOINT (cheap) but defer its build phase
+unless the remaining budget allows; no new units cut; the
+orchestrator's own footprint minimal. The stopping-rule tally is
+unaffected (v6: the valve does not change it).
