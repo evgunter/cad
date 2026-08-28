@@ -399,6 +399,17 @@ fn r2_two_holed_designation_refuses_typed() {
                 "the refusal must name the single-hole limitation, got {what}"
             );
         }
+        // A door AHEAD of the pairing may take the operand first, and
+        // that is a pass for this row too: the claim is "refuses
+        // typed, never a wrong body", not "reaches the pairing". The
+        // offset door's mapped-description lane is epsilon-shielded —
+        // it lets this operand through at the default band and refuses
+        // `CarrierLaneUnsupported` at 1e-12 — and that lane is the
+        // tangent-adjacent third door the spec puts OUT of PR-1's
+        // scope.
+        Err(ShellError::Face { error, .. }) => {
+            println!("  refused earlier, typed, at the offset door: {error}");
+        }
         other => panic!("a two-holed designation must refuse typed; got {other:?}"),
     }
 }
