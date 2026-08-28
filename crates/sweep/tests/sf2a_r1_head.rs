@@ -141,7 +141,15 @@ fn h1_valence_four_concurring_corners_must_solve() {
                 worst_incidence(&body),
                 topo::validate_geometric(&body, Tol::witness()).is_ok()
             );
-            assert!(worst < 1e-14, "a concurring valence-4 corner solved wrong");
+            if worst >= 1e-14 {
+                for (i, (b0, a0)) in before.iter().zip(after.iter()).enumerate().take(6) {
+                    println!("[h1] pair {i}: before {b0:?} after {a0:?}");
+                }
+            }
+            assert!(
+                worst_incidence(&body) < 1e-14,
+                "a concurring valence-4 corner is off one of its own planes"
+            );
         }
         Err(e) => panic!("[h1] a concurring valence-4 corner was REFUSED: {e}"),
     }

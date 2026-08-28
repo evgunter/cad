@@ -7,7 +7,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)]
 
-use geom_core::{Band, Point2, Point3, Tol, Vec2, Vec3};
+use geom_core::{Band, Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Extrusion, extrude};
 use topo::Body;
@@ -341,9 +341,8 @@ fn r1e_conditioning_verdict_moves_with_the_offset_alone() {
             (1.0, 1.0),
             (0.0, 1.0),
         ];
-        // the near-straight vertex is CONVEX (bulges out) at -delta
-        let pts: Vec<(f64, f64)> = pts.into_iter().map(|(x, y)| (x, -y)).collect();
-        let pts: Vec<(f64, f64)> = pts.into_iter().map(|(x, y)| (x, y)).collect();
+        // the near-straight vertex at (0.5, -delta) bulges OUTWARD, so
+        // the loop stays convex and CCW.
         for t in [0.05, 1e-3, 1e-5, 1e-7] {
             let body = prism(&pts, h);
             let want = wall_volume(&pts, h, t);
@@ -373,13 +372,13 @@ fn r1f_one_curved_face_among_planars() {
     let h = 0.25;
     let r = 0.2;
     // A hexagon with ONE side replaced by an arc (bulge on that edge).
-    let mut vs: Vec<ProfileVertex<f64>> = (0..6)
+    let vs: Vec<ProfileVertex<f64>> = (0..6)
         .map(|i| {
             let a = core::f64::consts::TAU * f64::from(i) / 6.0;
-            ProfileVertex::new(p2(r * a.cos(), r * a.sin()), 0.0)
+            let bulge = if i == 0 { 0.2 } else { 0.0 };
+            ProfileVertex::new(p2(r * a.cos(), r * a.sin()), bulge)
         })
         .collect();
-    vs[0] = ProfileVertex::new(vs[0].point, 0.2);
     let profile = Profile::new(SketchPlane::xy(), vec![ProfileLoop::new(vs)])
         .validate(Tol::witness())
         .expect("the bulged hexagon validates");
@@ -428,6 +427,94 @@ fn r1g_box_control() {
             got - want
         );
     }
-    let _ = Vec2::new(0.0, 1.0);
-    let _: Option<RawLoop<f64>> = None;
+}
+
+// =====================================================================
+// R1-H. The bit-identity harness, WIDENED. PR-1's adopted dump prints
+// carriers, vertices, loops and the mass-property bits — but not an
+// edge's PARAMETER RANGE, not its DESCRIPTION, and not the pcurve
+// rows. All three are conventional data of exactly the kind the PR's
+// own "conventional data is data" finding is about, so a dump that
+// cannot see them cannot decide the claim it is quoted for. This runs
+// the same five fixtures with those three columns added.
+// =====================================================================
+
+fn wide_dump(body: &Body<f64>) -> String {
+    use std::fmt::Write as _;
+    let mut s = String::new();
+    for (k, e) in body.edges() {
+        let g = body
+            .get_curve_geom(e.curve)
+            .and_then(topo::CurveGeom::certified);
+        match g {
+            Some(g) => {
+                let (t0, t1) = g.params();
+                let _ = writeln!(
+                    s,
+                    "e {k:?} t0={:x} t1={:x} carrier={:?} desc={:?}",
+                    t0.to_bits(),
+                    t1.to_bits(),
+                    g.carrier(),
+                    g.description()
+                );
+            }
+            None => {
+                let _ = writeln!(s, "e {k:?} null");
+            }
+        }
+    }
+    let mut pc: Vec<String> = body
+        .pcurves()
+        .map(|(he, c)| format!("pc {he:?} {c:?}"))
+        .collect();
+    pc.sort();
+    for line in pc {
+        let _ = writeln!(s, "{line}");
+    }
+    s
+}
+
+#[test]
+fn r1h_widened_bit_identity_dump() {
+    let Some(dir) = std::env::var_os("SF2A_R1_DUMP_DIR").map(std::path::PathBuf::from) else {
+        println!("[r1h] SF2A_R1_DUMP_DIR unset; clean skip");
+        return;
+    };
+    std::fs::create_dir_all(&dir).unwrap();
+    let tol = Tol::witness();
+    let (w, d, h, t) = (2.0, 3.0, 4.0, 0.25);
+    let body = prism(&[(0.0, 0.0), (w, 0.0), (w, d), (0.0, d)], h);
+    let plane_face_at_z = |body: &Body<f64>, z: f64| {
+        body.faces()
+            .find(|(_, f)| {
+                matches!(
+                    body.get_surface(f.surface),
+                    Some(geom::Surface::Plane { origin, normal, .. })
+                        if (origin.z - z).abs() < 1e-9
+                            && normal.x.abs() < 1e-9
+                            && normal.y.abs() < 1e-9
+                )
+            })
+            .map(|(k, _)| k)
+            .unwrap()
+    };
+    let top = plane_face_at_z(&body, h);
+    let bottom = plane_face_at_z(&body, 0.0);
+    for (name, b) in [
+        (
+            "sealed_box",
+            topo::shell(&body, t, FIT_TOL, band(), tol).unwrap(),
+        ),
+        (
+            "box_cup",
+            topo::shell_open(&body, t, &[top], FIT_TOL, band(), tol).unwrap(),
+        ),
+        (
+            "box_tube",
+            topo::shell_open(&body, t, &[top, bottom], FIT_TOL, band(), tol).unwrap(),
+        ),
+    ] {
+        std::fs::write(dir.join(format!("{name}.wide.txt")), wide_dump(&b)).unwrap();
+    }
+    println!("[r1h] wrote widened dumps to {}", dir.display());
 }
