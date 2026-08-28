@@ -2262,3 +2262,21 @@ family argued from imagined shapes, all falsified by in-repo
 fixtures — the method note ships in the PR verbatim). The 25x
 slowdown measured environmental (a REVERTED tree slower than the
 blamed one) and routed to the #1134 neighborhood.
+
+## SHELLFIX 2a FIX PASS COMPLETE; HELD ON THE ACTIONS OUTAGE (2026-08-28)
+
+The union executed in full — the meter's defect fixed at the
+root (Margin::levered(|det|, the corner's own incident edge
+chords) with a no-move short-circuit; the banked law: when a
+dimensionless quantity needs a lever, the lever comes from the
+GEOMETRY BEING JUDGED, never the request — otherwise the
+refusal's words stop being true and it says "singular" about a
+cube); R2's zero-offset row flipped positive; all six prose
+sites swept by sentence; both probe branches adopted. BLOCKED at
+merge: a repo-wide Actions outage (no runs since 18:26Z) has
+left every fix-pass push ungated — report-and-hold per the
+outage precedent. The head carries a `CI-Config:
+klint=release-default` trailer (#1136's mechanism, landed on
+main today), so the recovery run gates the exact demos row the
+flipped tests live in, recoverable from the commit itself.
+Merge fires when a hosted run gates b42fc653.
