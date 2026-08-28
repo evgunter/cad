@@ -41,6 +41,25 @@ cancel does (`rfd` cannot tell the two apart), which is why a
 plausibly-present backend that still never shows a dialog reads as
 quiet cancels — if that is what you see, install `zenity`.
 
+**Dialog opens but every character is a box with tiny hex digits:**
+Pango cannot shape the font fontconfig matched. Diagnose with
+`fc-match sans` — if it names a `.pfb` (a PostScript Type 1 font,
+e.g. Nimbus Sans L from the legacy URW set), Pango dropped Type 1
+support years ago and renders hex boxes with no warning. On aged WSL
+images the usual root cause is that the DejaVu files are MISSING ON
+DISK while dpkg still claims `fonts-dejavu-core` is installed (plain
+`apt install` refuses with "already installed"). Fix:
+
+```sh
+sudo apt install --reinstall fonts-dejavu-core && fc-cache -f
+```
+
+then verify `fc-match sans` now answers DejaVu Sans. (A stale
+`~/.cache/fontconfig` can also pin an old match —
+`rm -rf ~/.cache/fontconfig && fc-cache -f` is the no-sudo variant to
+try first.) The viewer itself is unaffected — egui bundles its own
+fonts; only the GTK/zenity dialog needs the system set.
+
 **Window won't resize horizontally under WSLg — CONFIRMED root cause.**
 WSLg presents Wayland windows through an RDP RAIL shell whose
 client-side-decoration negotiation breaks horizontal resizing; forcing
