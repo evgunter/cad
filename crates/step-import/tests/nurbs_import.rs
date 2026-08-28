@@ -489,6 +489,14 @@ fn loft_prism_walls_get_distinct_surface_keys() {
 ///
 /// So the split is 4 / 4 / 4 exactly as before, and a regression that
 /// merged the two chart populations would still be caught.
+///
+/// **The principle, because the alternative was available and worse.**
+/// Re-baselining this row to `(8, 0, 4)` would have kept its SHAPE and
+/// thrown away its TEETH: every body in which the cap rims stopped
+/// being described in the cap plane would still read `(8, 0, 4)` and
+/// pass. A re-baseline over a retired taxonomy should re-express what
+/// the row was actually discriminating, not adjust the number until
+/// it matches.
 #[test]
 fn loft_prism_descriptions_land_in_the_native_classes() {
     let (body, _) = import_body("loft_prism");
