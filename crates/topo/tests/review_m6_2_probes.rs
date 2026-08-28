@@ -42,7 +42,10 @@ use topo::pcurves::{PcurveMintError, validate_pcurves};
 fn the_foreign_arc_cache_fails_on_the_map_residual_against_the_edges_carrier() {
     let Some(mut built) = fixture::build::<f64>() else {
         vacuity::stood_down(
-            &format!("M6-2 species 1: foreign-arc cache, eps = {:e}", Tol::witness().get().eps),
+            &format!(
+                "M6-2 species 1: foreign-arc cache, eps = {:e}",
+                Tol::witness().get().eps
+            ),
             "the cylinder×sphere fixture stood down on the SSI door's typed \
              FitSampleBudget refusal at this ε, so THIS RUN ASSERTS NOTHING about \
              species 1: not that the foreign-arc cache is rejected at all, and not \
@@ -85,7 +88,10 @@ fn the_foreign_arc_cache_fails_on_the_map_residual_against_the_edges_carrier() {
 fn a_between_samples_image_corruption_survives_the_full_c2_certificate() {
     let Some(mut built) = fixture::build::<f64>() else {
         vacuity::stood_down(
-            &format!("M6-2 species 2: between-samples corruption, eps = {:e}", Tol::witness().get().eps),
+            &format!(
+                "M6-2 species 2: between-samples corruption, eps = {:e}",
+                Tol::witness().get().eps
+            ),
             "the cylinder×sphere fixture stood down on the SSI door's typed \
              FitSampleBudget refusal at this ε, so THIS RUN ASSERTS NOTHING about \
              species 2: the OnLocusHull gap is unexercised — neither that a \
@@ -172,7 +178,10 @@ fn a_between_samples_image_corruption_survives_the_full_c2_certificate() {
 fn a_sub_interval_cache_is_caught_by_loop_continuity() {
     let Some(mut built) = fixture::build::<f64>() else {
         vacuity::stood_down(
-            &format!("M6-2 species 3: sub-interval cache, eps = {:e}", Tol::witness().get().eps),
+            &format!(
+                "M6-2 species 3: sub-interval cache, eps = {:e}",
+                Tol::witness().get().eps
+            ),
             "the cylinder×sphere fixture stood down on the SSI door's typed \
              FitSampleBudget refusal at this ε, so THIS RUN ASSERTS NOTHING about \
              species 3: not that a sub-interval cache is caught, and not that loop \

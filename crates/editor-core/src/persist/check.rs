@@ -656,6 +656,19 @@ pub enum ProgramFault {
 impl core::fmt::Display for ProgramFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
+            // A program fault's slot is a program slot, whose address
+            // is spelled out rather than dumped: `SlotId::Profile`'s
+            // three fields are the location, and a derived rendering
+            // would put the struct's own braces in a user's message.
+            Self::SlotDimension {
+                slot: SlotId::Profile { loop_, step, arg },
+                expected,
+                found,
+            } => write!(
+                f,
+                "loop {loop_} step {step}'s {arg:?} argument needs a {expected:?} \
+                 expression, got {found:?}"
+            ),
             Self::SlotDimension {
                 slot,
                 expected,

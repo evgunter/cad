@@ -3,10 +3,11 @@
 //! (its module docs carry the placement rationale: the `bvh` crate
 //! stays below the geometry crates; constructors sit next to the
 //! invariants they cite — and the containment contract, including why
-//! a box's docs must not price its own looseness). Certified-box driver code — a **sole**-bound
-//! [`Bounds`] seam under the 2026-07-29 amendment (geom-core `real.rs`,
-//! Bounds scope rule), not an allowlisted one: the sibling module's
-//! docs carry why the distinction is not pedantry.
+//! a box's docs must not price its own looseness). Certified-box
+//! driver code — a **sole**-bound [`Bounds`] seam under the 2026-07-29
+//! amendment (geom-core `real.rs`, Bounds scope rule), not an
+//! allowlisted one: the sibling module's docs carry why the
+//! distinction is not pedantry.
 
 use bvh::Aabb;
 use geom_core::Bounds;

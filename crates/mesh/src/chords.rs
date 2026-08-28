@@ -604,15 +604,14 @@ pub(crate) fn edge_vertices(
     Ok((he.start, end))
 }
 
-/// The one door through which an adjacent face's surface reaches a
-/// chord count. Every read of a neighbour's surface in this module
-/// goes through this function; the module header's claim about which
-/// tightenings read one is a claim about its call sites, so a reader
-/// checking it greps this file for the name.
+/// The door an adjacent face's surface reaches a chord count through.
+/// The module header's claim is a claim about this function's call
+/// sites, and it names them: the `Circle` arm's torus tightening and
+/// [`nurbs_tighten`].
 ///
-/// Nothing mechanical counts those call sites — the name gives the
-/// claim a token to grep, which the two `get_surface` spellings it
-/// replaced did not, and that is the whole of what holds it.
+/// **Nothing counts those call sites.** What the name buys is a token
+/// to grep for, which is what the claim lacked; a third caller still
+/// compiles green.
 fn adjacent_surface(
     body: &Body<f64>,
     fk: topo::FaceKey,

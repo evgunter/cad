@@ -1026,10 +1026,6 @@ mod recourse_tests {
                 corner: CornerConfig::SeamVertex,
                 policy: CornerConfig::SeamVertex.policy(),
             },
-            FilletError::SpineUnsupported {
-                edge: EdgeKey::default(),
-                supports: "a support pair with no analytic arm",
-            },
             FilletError::ChamferArmUnsupported {
                 edge: EdgeKey::default(),
                 supports: "non-(plane–plane)",

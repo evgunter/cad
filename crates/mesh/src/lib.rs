@@ -239,13 +239,14 @@ mod chords;
 mod curved;
 mod nurbs_cert;
 mod planar;
-// The sizing vocabulary is this crate's own, and every name in it is
-// `pub(crate)`. The module is `mod` rather than `pub mod` so that
-// `dead_code` reports one the crate stops using: a `pub` item inside a
-// `pub mod` is exempted on the assumption of an external caller, which
-// is the assumption `[workspace.lints]`'s `unreachable_pub` paragraph
-// records as false for this workspace. `--document-private-items`
-// keeps the module's prose in the rendered docs.
+// The sizing vocabulary is this crate's own: nothing in the module is
+// `pub`, and its shared names are `pub(crate)`. The module itself is
+// `mod` rather than `pub mod` so that `dead_code` reports one the crate
+// stops using — a `pub` item inside a `pub mod` is exempted on the
+// assumption of an external caller, which `[workspace.lints]`'s
+// `unreachable_pub` paragraph records as false for this workspace.
+// `--document-private-items` keeps the module's prose in the rendered
+// docs.
 mod sizing;
 mod tessellate;
 mod trimmed;

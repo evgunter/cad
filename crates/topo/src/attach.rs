@@ -126,9 +126,11 @@ impl<T: Decide> Body<T> {
     /// same region.** A `mef` or `mfkrh` re-mint that keeps the
     /// parent's surface takes the parent's `sense` — a piece of a
     /// reversed wall is the same surface region with the same material
-    /// side — and stamps `true` only when it mints a NEW surface,
-    /// which is not the parent's region at all and whose honest bit is
-    /// this door's to attach. `Body::mint_face_surface_and_sense`
+    /// side — and stamps `true` only when the fragment lands somewhere
+    /// that is NOT the parent's surface (a fresh one, or a foreign
+    /// shared key), which is not the parent's region at all and whose
+    /// honest bit is this door's to attach.
+    /// `Body::mint_face_surface_and_sense`
     /// owns that rule; the boolean's chord re-mints (`chord_join.rs`)
     /// pass `FaceSurface::Inherit` and so inherit, while
     /// `splitting/finish.rs`'s section promotion is the live case of

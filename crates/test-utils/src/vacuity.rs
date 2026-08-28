@@ -61,9 +61,10 @@
 //! assert the budget is D9's, genuinely overrun, at a finer-than-default
 //! ε before they announce.
 //!
-//! **Every in-row stand-down in `crates/` goes through this door.** The
-//! hand-rolled `println!`s that predated it are converted. What the
-//! sweep behind that statement matched is `SKIPPED (` / `SKIPPED:` over
+//! **The hand-rolled in-row `println!`s that predated this module are
+//! converted, so every in-row stand-down in `crates/` goes through this
+//! door.** Nothing guards that, so read it as a sweep result rather than
+//! an invariant: what the sweep matched is `SKIPPED (` / `SKIPPED:` over
 //! `crates/*/{src,tests}`, so it cannot see a stand-down announced
 //! without the word — an `eprintln!("standing down …")`, a `dbg!`, or a
 //! comment where a print should be — and it does not reach `demos/`,

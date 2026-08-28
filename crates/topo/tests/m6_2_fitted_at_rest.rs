@@ -48,7 +48,10 @@ use test_utils::vacuity;
 fn a_rung3_edge_at_rest_carries_a_fitted_pcurve_with_the_full_c2_certificate() {
     let Some(built) = fixture::build::<f64>() else {
         vacuity::stood_down(
-            &format!("M6-2 rung-3 edge at rest, f64 lane, eps = {:e}", Tol::witness().get().eps),
+            &format!(
+                "M6-2 rung-3 edge at rest, f64 lane, eps = {:e}",
+                Tol::witness().get().eps
+            ),
             "the cylinder×sphere fixture stood down on the SSI door's typed \
              FitSampleBudget refusal at this ε — the budget row pins that outcome. \
              THIS RUN ASSERTS NOTHING about the at-rest body: neither that the cache it \
@@ -142,7 +145,10 @@ fn a_rung3_edge_at_rest_carries_a_fitted_pcurve_with_the_full_c2_certificate() {
 fn the_dual_lane_refuses_a_fitted_cache_typed() {
     let Some(built) = fixture::build::<f64>() else {
         vacuity::stood_down(
-            &format!("M6-2 dual-lane refusal, eps = {:e}", Tol::witness().get().eps),
+            &format!(
+                "M6-2 dual-lane refusal, eps = {:e}",
+                Tol::witness().get().eps
+            ),
             "the cylinder×sphere fixture stood down on the SSI door's typed \
              FitSampleBudget refusal at this ε, so THIS RUN ASSERTS NOTHING about the \
              dual lane: neither that it refuses a fitted cache typed, nor that the \
