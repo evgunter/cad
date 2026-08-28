@@ -110,6 +110,19 @@ pub enum SceneError {
     /// bounding box — nothing to look at, and nothing to frame a
     /// camera against.
     EmptyMesh,
+    /// A part offered its patches' ids, but not one per patch.
+    ///
+    /// A part either carries no ids at all (nothing in it is
+    /// pickable) or one per patch. A short or long list is a caller
+    /// whose id assignment and whose tessellation disagree, and
+    /// drawing it would put ids on the wrong triangles — the silent
+    /// wrong answer the whole id mapping exists to make impossible.
+    MispairedIds {
+        /// How many ids were offered.
+        ids: usize,
+        /// How many patches the part has.
+        patches: usize,
+    },
     /// A face patch named a vertex index outside the mesh's shared
     /// position table.
     ///
@@ -145,8 +158,32 @@ pub struct SceneMesh {
     /// `0, 1, 2, …` — kept explicit so the draw call is an indexed
     /// one and a future welded build changes only this module.
     indices: Vec<u32>,
+    /// The id of the patch each corner belongs to, parallel to
+    /// [`SceneMesh::positions`]. `IdMap::NOTHING` for a corner drawn
+    /// from a part that carries no ids.
+    ///
+    /// It is a per-corner attribute rather than a per-draw uniform
+    /// because the whole picture is one draw call and the id has to
+    /// vary within it — the id-buffer pass writes this straight out,
+    /// and the shaded pass compares it against the highlight.
+    ids: Vec<u32>,
     bounds: Aabb,
     stats: SceneStats,
+}
+
+/// One piece of the drawn picture: a tessellation, and the id its
+/// patches are drawn under.
+///
+/// `ids` is either empty — nothing in this part is pickable, which is
+/// the gathered product's case, whose patches belong to the aggregate
+/// and to no node — or exactly one id per patch of `mesh`, in patch
+/// order.
+#[derive(Clone, Copy, Debug)]
+pub struct ScenePart<'a> {
+    /// The tessellation to draw.
+    pub mesh: &'a Mesh,
+    /// The id of each patch, or empty for an unpickable part.
+    pub ids: &'a [u32],
 }
 
 /// What a scene cost, for the chrome to show.
@@ -176,44 +213,95 @@ impl SceneMesh {
     /// [`SceneError::BrokenPatchIndex`] when a patch names a vertex
     /// the shared position table does not have.
     pub fn build(mesh: &Mesh, delta: DisplayTolerance) -> Result<Self, SceneError> {
-        let triangles: usize = mesh.patches.iter().map(|p| p.triangles.len()).sum();
+        Self::build_parts(&[ScenePart { mesh, ids: &[] }], delta)
+    }
+
+    /// Build a scene from several parts, concatenated in the order
+    /// given.
+    ///
+    /// **This is the shape the viewport draws**: one part per
+    /// (node, output body), each the tessellation its pick index was
+    /// built from, so the picture and the pick answer come from one
+    /// tessellation rather than two that happen to agree.
+    ///
+    /// # Errors
+    ///
+    /// As [`SceneMesh::build`], plus [`SceneError::MispairedIds`] for
+    /// a part whose id list is neither empty nor one per patch.
+    pub fn build_parts(
+        parts: &[ScenePart<'_>],
+        delta: DisplayTolerance,
+    ) -> Result<Self, SceneError> {
+        for part in parts {
+            if !part.ids.is_empty() && part.ids.len() != part.mesh.patches.len() {
+                return Err(SceneError::MispairedIds {
+                    ids: part.ids.len(),
+                    patches: part.mesh.patches.len(),
+                });
+            }
+        }
+        let triangles: usize = parts
+            .iter()
+            .flat_map(|part| part.mesh.patches.iter())
+            .map(|p| p.triangles.len())
+            .sum();
         if triangles == 0 {
             return Err(SceneError::EmptyMesh);
         }
         let mut positions = Vec::with_capacity(triangles * 3);
         let mut normals = Vec::with_capacity(triangles * 3);
-        for patch in &mesh.patches {
-            for corners in &patch.triangles {
-                let Some(corner_points) = fetch(&mesh.positions, corners) else {
-                    // A patch index outside the shared position table
-                    // is a broken mesh: refuse the whole scene, naming
-                    // the index, rather than dropping a triangle.
-                    return Err(SceneError::BrokenPatchIndex {
-                        index: corners
-                            .iter()
-                            .copied()
-                            .find(|i| *i as usize >= mesh.positions.len())
-                            .unwrap_or_default(),
-                        positions: mesh.positions.len(),
-                    });
-                };
-                let normal = triangle_normal(&corner_points);
-                for p in corner_points {
-                    positions.push([p.x as f32, p.y as f32, p.z as f32]);
-                    normals.push(normal);
+        let mut ids = Vec::with_capacity(triangles * 3);
+        let mut faces = 0usize;
+        for part in parts {
+            let mesh = part.mesh;
+            faces += mesh.patches.len();
+            for (index, patch) in mesh.patches.iter().enumerate() {
+                // `IdMap::NOTHING` for a part that carries no ids —
+                // the constant, not the literal it happens to be.
+                let id = part
+                    .ids
+                    .get(index)
+                    .copied()
+                    .unwrap_or(crate::pick::IdMap::NOTHING);
+                for corners in &patch.triangles {
+                    let Some(corner_points) = fetch(&mesh.positions, corners) else {
+                        // A patch index outside the shared position
+                        // table is a broken mesh: refuse the whole
+                        // scene, naming the index, rather than
+                        // dropping a triangle.
+                        return Err(SceneError::BrokenPatchIndex {
+                            index: corners
+                                .iter()
+                                .copied()
+                                .find(|i| *i as usize >= mesh.positions.len())
+                                .unwrap_or_default(),
+                            positions: mesh.positions.len(),
+                        });
+                    };
+                    let normal = triangle_normal(&corner_points);
+                    for p in corner_points {
+                        positions.push([p.x as f32, p.y as f32, p.z as f32]);
+                        normals.push(normal);
+                        ids.push(id);
+                    }
                 }
             }
         }
         let indices = (0..positions.len() as u32).collect();
-        let bounds =
-            Aabb::from_points(mesh.positions.iter().copied()).ok_or(SceneError::EmptyMesh)?;
+        let bounds = Aabb::from_points(
+            parts
+                .iter()
+                .flat_map(|part| part.mesh.positions.iter().copied()),
+        )
+        .ok_or(SceneError::EmptyMesh)?;
         Ok(Self {
             positions,
             normals,
             indices,
+            ids,
             bounds,
             stats: SceneStats {
-                faces: mesh.patches.len(),
+                faces,
                 triangles,
                 display_delta: delta.get(),
             },
@@ -234,6 +322,12 @@ impl SceneMesh {
     /// The index buffer.
     pub fn indices(&self) -> &[u32] {
         &self.indices
+    }
+
+    /// The per-corner patch ids, parallel to
+    /// [`SceneMesh::positions`].
+    pub fn ids(&self) -> &[u32] {
+        &self.ids
     }
 
     /// A bounding box of the scene, in world units — what a camera

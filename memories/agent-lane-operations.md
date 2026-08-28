@@ -147,6 +147,16 @@ self-acquire; wrap raw `cargo` invocations yourself.
   check what else was running and rerun quiet before diagnosing a code
   bug.
 
+**A single-lane yield cannot clear a path for an `-x` waiter.**
+`-x` waits for ALL slots, so pausing one lane still loses to every
+other lane's single-slot arrivals — the armed waiter is passed
+indefinitely by grabs it can never outrace (measured ~50 min at
+2026-08-27's census-fix window: two holders took slot-1 AFTER the
+waiter armed). An exclusive job's courtesy window must be a
+MACHINE-WIDE quiet period (every lane that might grab holds off),
+not a one-lane yield. Salvage tip: an `-x` waiter can spend the
+queue time on pushes/PR-opening — hosted CI needs no local slot.
+
 **Lane-takeover courtesy.** When the orchestrator operates in a
 possibly-alive agent's lane (pushing parked commits, merging its PR,
 handing the lane to a successor), MESSAGE the incumbent first or
