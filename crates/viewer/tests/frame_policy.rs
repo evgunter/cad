@@ -89,6 +89,26 @@ fn a_clean_action_clears_and_a_refusal_shows_even_from_a_hover_batch() {
 }
 
 #[test]
+fn a_dialog_that_hands_back_nothing_says_so_and_a_chosen_path_stays_quiet() {
+    // The first-light defect (#1097): with no portal service and no
+    // zenity, `rfd` returns the same bare `None` a cancel does, and the
+    // app dropped it — Open/Save As "silently do nothing". The verdict
+    // must name both readings, because the process cannot tell them
+    // apart, and must point at the dialog-free workaround.
+    let StatusUpdate::Show(message) = frame::dialog_status(false) else {
+        panic!("an empty-handed dialog reaches the status line");
+    };
+    assert_eq!(message, frame::NO_FILE_CHOSEN);
+    assert!(message.contains("cancelled"));
+    assert!(message.contains("xdg-desktop-portal"));
+    assert!(message.contains("zenity"));
+    assert!(message.contains("command line"));
+    // A chosen path is not this policy's business: the Open/Save batch
+    // it feeds owns the line through `batch_status`.
+    assert_eq!(frame::dialog_status(true), StatusUpdate::Keep);
+}
+
+#[test]
 fn an_empty_batch_and_a_pure_cursor_stream_move_no_camera() {
     // The other half of the same defect: the event stream now carries
     // cursor events, so "the stream was non-empty" stopped meaning "the

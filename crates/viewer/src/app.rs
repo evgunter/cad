@@ -385,6 +385,13 @@ impl ViewerApp {
             }
             frame::batch_status(&performed, refusal.as_ref())
         };
+        self.apply_status(update);
+    }
+
+    /// Apply a policy verdict to the status line — the one place a
+    /// [`StatusUpdate`] becomes the field, shared by the batch policy
+    /// and the dialog policy so neither hand-assigns.
+    fn apply_status(&mut self, update: StatusUpdate) {
         match update {
             StatusUpdate::Keep => {}
             StatusUpdate::Clear => self.status = None,
@@ -402,15 +409,26 @@ impl eframe::App for ViewerApp {
             ui.horizontal(|ui| {
                 ui.label(WINDOW_TITLE);
                 ui.separator();
-                if ui.button("Open…").clicked()
-                    && let Some(path) = pick_open()
-                {
-                    ops.push(SessionOp::Open(path));
+                // A dialog that hands back no path is REPORTED, not
+                // swallowed: `rfd` cannot distinguish a cancel from a
+                // backend with no way to show a dialog (first light,
+                // #1097), so the verdict — `frame::dialog_status` —
+                // says so on the status line either way.
+                if ui.button("Open…").clicked() {
+                    let path = pick_open();
+                    let update = frame::dialog_status(path.is_some());
+                    if let Some(path) = path {
+                        ops.push(SessionOp::Open(path));
+                    }
+                    self.apply_status(update);
                 }
-                if ui.button("Save As…").clicked()
-                    && let Some(path) = pick_save(self.session.path())
-                {
-                    ops.push(SessionOp::Save(path));
+                if ui.button("Save As…").clicked() {
+                    let path = pick_save(self.session.path());
+                    let update = frame::dialog_status(path.is_some());
+                    if let Some(path) = path {
+                        ops.push(SessionOp::Save(path));
+                    }
+                    self.apply_status(update);
                 }
                 ui.separator();
                 if ui
@@ -930,7 +948,7 @@ impl ViewerBehavior<'_> {
                 ui.horizontal(|ui| {
                     ui.label(format!("feature {}", node.0));
                     if *present {
-                        if ui.button("Delete").clicked() {
+                        if ui.button(delete_label(self.session, *node)).clicked() {
                             self.ops.push(SessionOp::DeleteNode { node: *node });
                         }
                     } else {
@@ -952,7 +970,9 @@ impl ViewerBehavior<'_> {
                     // of scope for v1 selection, so the kind is not a
                     // variable to render.
                     ui.label(format!("face of feature {}", face.node.0));
-                    if standing.live() && ui.button("Delete feature").clicked() {
+                    if standing.live()
+                        && ui.button(delete_label(self.session, face.node)).clicked()
+                    {
                         self.ops.push(SessionOp::DeleteNode { node: face.node });
                     }
                 });
@@ -1337,6 +1357,23 @@ fn drag_ops(
     }
 }
 
+/// The delete button's label: it names the FEATURE it deletes, by the
+/// node vocabulary's own kind name.
+///
+/// First-light finding (#1097's run): reached from a face selection, a
+/// bare "Delete feature" read as deleting the *face* — an entity this
+/// vocabulary can never delete; a face is a way of reaching the node
+/// that made it. The label carries the target's kind so the affordance
+/// states the operation it queues. The fallback arm is for a node the
+/// document no longer holds — no button renders for one today, and if
+/// that changes the label stays honest rather than panicking.
+fn delete_label(session: &DocSession, node: RecipeNodeId) -> String {
+    match session.doc().node(node) {
+        Some(target) => format!("Delete feature '{}'", crate::tree::node_kind(target)),
+        None => format!("Delete feature {}", node.0),
+    }
+}
+
 /// The open dialog: a THIN veneer over `SessionOp::Open`.
 ///
 /// Everything it does is choose a `Path`. The blocking call is
@@ -1413,6 +1450,19 @@ fn to_f32(matrix: &[[f64; 4]; 4]) -> [[f32; 4]; 4] {
 /// than opening a window onto nothing.
 pub fn run(tol: Tol, open: Option<std::path::PathBuf>) -> eframe::Result<()> {
     let options = eframe::NativeOptions {
+        // EXPLICIT, not defaulted (first light, #1097): a bare
+        // `NativeOptions::default()` leaves resizability and the
+        // window's size to whatever the winit backend negotiates with
+        // the window manager, and on at least one real WM that
+        // negotiation produced a window resizable vertically but not
+        // horizontally, with content stuck off the right edge. Stating
+        // the intent — resizable, a size the chrome fits in, a floor it
+        // stays readable at — is the portable posture whatever the
+        // backend's own defaults do.
+        viewport: egui::ViewportBuilder::default()
+            .with_resizable(true)
+            .with_inner_size([1280.0, 800.0])
+            .with_min_inner_size([800.0, 500.0]),
         depth_buffer: DEPTH_BITS,
         ..Default::default()
     };

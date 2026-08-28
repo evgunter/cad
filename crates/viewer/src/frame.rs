@@ -62,6 +62,32 @@ pub fn batch_status(ops: &[SessionOp], refusal: Option<&Refusal>) -> StatusUpdat
     }
 }
 
+/// What the status line says when a file dialog hands back nothing.
+///
+/// `rfd`'s blocking dialogs return a bare `None` for a user cancel AND
+/// for a backend that could not put a dialog up at all — on Linux, no
+/// reachable `xdg-desktop-portal` and no `zenity` binary produce
+/// exactly the silence a cancel does (first light, issue #1097:
+/// Open/Save As "silently do nothing"). The process cannot tell the
+/// two apart, so the message honestly names both, plus the workaround
+/// that needs no dialog.
+pub const NO_FILE_CHOSEN: &str = "no file chosen — dialog cancelled, or no system file chooser \
+     is available (requires xdg-desktop-portal or zenity; a document \
+     path can be passed on the command line)";
+
+/// The status line after a file dialog: a dialog that handed back no
+/// path says so ([`NO_FILE_CHOSEN`] — cancel and backend failure are
+/// one observation, see there), and a chosen path leaves the line
+/// alone, because the `Open`/`Save` batch it feeds owns the verdict
+/// through [`batch_status`].
+pub fn dialog_status(chose: bool) -> StatusUpdate {
+    if chose {
+        StatusUpdate::Keep
+    } else {
+        StatusUpdate::Show(NO_FILE_CHOSEN.to_owned())
+    }
+}
+
 /// Whether a folded event stream actually moved the camera.
 ///
 /// The stream carries cursor events too, and a stream that denotes no
