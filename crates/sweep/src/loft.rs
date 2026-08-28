@@ -66,7 +66,10 @@ use topo::{
 };
 
 use crate::skin::{LoftGeometry, Section, SkinError, lift_surface, loft_geometry, sweep_places};
-use crate::swept::{SweptSeg, cap_points, face_surface_key, placed_segment_spec, swept_segments};
+use crate::swept::{
+    SweptSeg, cap_points, describe_face_rim_at_rest, face_surface_key, placed_segment_spec,
+    swept_segments,
+};
 
 /// Everything [`loft_body`]/[`sweep_body`] built, keyed — the
 /// [`crate::Extruded`] bundle one operation over.
@@ -514,6 +517,13 @@ fn assemble<T: Decide>(
     let raised = cap_points(&tloops[0], &tq[0], tplace);
     let top_plane = newell_plane(&raised, band).map_err(LoftError::CapPlane)?;
     body.set_face_surface(top_face, FaceSurface::New(top_plane))?;
+
+    // Both cap planes exist now, so both rims are at REST in them and
+    // stop leaning on the scaffolding door they had to be minted
+    // through (D3's transience fence — a cap's plane is fitted THROUGH
+    // its own rim, so the rim cannot name it at mint time).
+    describe_face_rim_at_rest(&mut body, bottom_face, tol)?;
+    describe_face_rim_at_rest(&mut body, top_face, tol)?;
 
     // ---- Phase 6: strut upgrades to the seam class — the wall keys
     // now exist, so each strut re-describes as wall j's `u = 0`
