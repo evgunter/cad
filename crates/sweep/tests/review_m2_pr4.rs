@@ -144,6 +144,19 @@ fn authority(body: &Body<f64>, edge: EdgeKey) -> geom_brep::EdgeAuthority<f64> {
         .authority()
 }
 
+/// The surfaces of the two faces an edge separates, read from the body
+/// rather than from a key bundle — the pair tier 3's chart adjacency
+/// admits, and therefore the pair a conventional description may name.
+fn edge_face_surfaces(body: &Body<f64>, edge: EdgeKey) -> (topo::SurfaceKey, topo::SurfaceKey) {
+    let e = body.get_edge(edge).unwrap();
+    let surface_of = |he| {
+        let h = body.get_half_edge(he).unwrap();
+        let f = body.get_loop(h.parent_loop).unwrap().face;
+        body.get_face(f).unwrap().surface
+    };
+    (surface_of(e.he_plus), surface_of(e.he_minus))
+}
+
 /// **A conventional description the profile DECLARED**: an image in
 /// `chart` that is not that chart's parameterization seam, carrying
 /// the sketch entity's pushforward as its authority. The post-collapse
@@ -618,32 +631,52 @@ fn survives_dihedral_band_sweep_at_the_strut_arm() {
     // test could not see and `assert_all_tiers` above now does. The
     // row asserts the authority record AND the chart, so a strut that
     // stopped at the scaffolding door fails here as well as there.
-    assert_declared_image_in(&t.body, t.strut_edges[0][1], k0);
+    let strut = t.strut_edges[0][1];
+    let (wall_a, wall_b) = edge_face_surfaces(&t.body, strut);
+    assert_ne!(wall_a, wall_b, "the strut separates two distinct walls");
+    let chart = match description(&t.body, strut) {
+        EdgeDescription::Chart(c) => c,
+        other => panic!("expected a conventional chart image, got {other:?}"),
+    };
+    assert!(
+        chart.surface == wall_a || chart.surface == wall_b,
+        "the image is drawn in one of the strut's OWN two wall charts"
+    );
+    assert!(!chart.seam, "a declared image is not the chart's seam");
+    assert!(
+        authority(&t.body, strut).is_declared(),
+        "the profile vertex's extrusion determined this locus"
+    );
     // **Either chart is a legitimate home — demonstrated, not
     // asserted.** `extrude` names `k_prev`, and the certification
-    // meter only ever checks the chart it is given, so the pick would
+    // meter only ever checks the chart it is GIVEN, so the pick would
     // be load-bearing if the strut lay in just one wall. It lies in
     // both: an extruded wall is ruled in the extrusion vector, and the
     // strut IS the ruling through the vertex the two segments share.
     // Re-describing it in the other wall's chart therefore certifies
-    // and validates identically. (Contrast #1116: a fillet strut on a
-    // curved support is a chord, i.e. a secant, and lies in neither —
-    // same word, opposite outcome, and this is the row that tells them
-    // apart.)
+    // and validates identically — which is why the row does not pin
+    // WHICH of the two the verb happened to name. (Contrast #1116: a
+    // fillet strut on a curved support is a chord, i.e. a secant, and
+    // lies in NEITHER adjacent surface — same word, opposite outcome,
+    // and this is the row that tells them apart.)
+    let other_chart = if chart.surface == wall_a {
+        wall_b
+    } else {
+        wall_a
+    };
     let mut other = t.body.clone();
-    let strut = t.strut_edges[0][1];
     let restated = other
         .get_edge(strut)
         .and_then(|e| other.get_curve_geom(e.curve))
         .and_then(topo::CurveGeom::certified)
         .unwrap()
         .restated_spec()
-        .at_rest_in_chart(k1, false);
+        .at_rest_in_chart(other_chart, false);
     other
         .set_edge_curve(strut, restated, Tol::witness())
         .expect("the strut lies in the OTHER wall's chart too");
     assert_all_tiers(&other);
-    assert_declared_image_in(&other, strut, k1);
+    assert_declared_image_in(&other, strut, other_chart);
 
     // (b) In-band: the typed sliver, at the canonical vertex.
     let err = extrude(

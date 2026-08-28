@@ -1555,17 +1555,56 @@ fn plan_reanchors<T: Decide>(
                 Sign::Positive | Sign::Zero => {}
                 Sign::Negative => return Err(ReplaceFaceError::ReanchorOffCarrier { edge, gap }),
             }
-            if let EdgeDescriptionSpec::Scaffold(m) = description {
-                description =
-                    EdgeDescriptionSpec::Scaffold(move_mapped_endpoint(m, point, is_start).ok_or(
-                        ReplaceFaceError::CarrierLaneUnsupported {
-                            edge,
-                            what: "a re-anchored mapped description that is not a placed line \
-                                   segment (an arc's bulge and a trajectory's family are sketch \
-                                   data this door does not author)",
-                        },
-                    )?);
-            }
+            // **The door RE-STATES the sketch datum; it does not
+            // patch the carrier around it.** The datum is the placed
+            // segment whose pushforward determined this locus, and it
+            // has to end where the edge now ends.
+            //
+            // **Both homes of that datum, since PCURVE P-1b.** It
+            // still IS the description while an edge is transient
+            // (the scaffolding door), and on an edge AT REST it is the
+            // AUTHORITY record beside a chart image (U2 Q3). Moving
+            // only the first was this unit's own miss: an at-rest cap
+            // seam re-anchored fine and kept a `declared` segment that
+            // still ended at the wall's OLD radius — a provenance
+            // record contradicting the geometry it claims to have
+            // determined. `verbs_offd::the_untouched_cap_seams_are_
+            // re_anchored` reads the datum where it now lives and is
+            // what caught it.
+            //
+            // The refusal is mirrored onto the new home DELIBERATELY,
+            // not by omission: an arc's bulge and a trajectory's
+            // family are sketch data this door cannot author, and that
+            // was a refusal before the collapse. Dropping the
+            // declaration instead would silently flip
+            // `EdgeAuthority::is_declared`, which tier 3's
+            // prefer-intrinsic rules read — a verdict change, which
+            // this unit does not make.
+            let restate = |m| {
+                move_mapped_endpoint(m, point, is_start).ok_or(
+                    ReplaceFaceError::CarrierLaneUnsupported {
+                        edge,
+                        what: "a re-anchored mapped description that is not a placed line \
+                               segment (an arc's bulge and a trajectory's family are sketch \
+                               data this door does not author)",
+                    },
+                )
+            };
+            description = match description {
+                EdgeDescriptionSpec::Scaffold(m) => EdgeDescriptionSpec::Scaffold(restate(m)?),
+                EdgeDescriptionSpec::Chart {
+                    surface,
+                    image,
+                    seam,
+                    declared: Some(mc),
+                } => EdgeDescriptionSpec::Chart {
+                    surface,
+                    image,
+                    seam,
+                    declared: Some(restate(mc)?),
+                },
+                other => other,
+            };
             if is_start {
                 t0 = t_new;
             } else {

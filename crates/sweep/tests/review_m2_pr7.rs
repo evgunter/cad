@@ -254,14 +254,20 @@ fn megascale_washer_matches_and_validates() {
 /// therefore stays at the scaffolding door, which U2's transience
 /// fence names at check 2.
 ///
-/// So the defect this row plants is now caught EARLIER and by name,
-/// which is what the row asserts. The closed form's typed refusal —
-/// the actual subject — is untouched and still read directly from
-/// `mass_properties`. The tier-3 `VolumeUncomputable` lane keeps its
-/// own pins on bodies that ARE at rest and merely uncomputable
-/// (`m5_pr12_fix_pass`, `step-import`'s `nurbs_import` / `freecad` /
-/// `wild`), so nothing lost coverage — this fixture stopped being an
-/// example of it.
+/// So the defect this row plants is now caught EARLIER and by name —
+/// three reports, all on entities the row itself minted: the fence on
+/// the chord, and check 8 (the pcurve-cache pass, deliberately UNGATED
+/// on the volume check) once per half-edge, both bounding a cylinder
+/// face whose chart mints caches. That is a strictly sharper statement
+/// than the single `VolumeUncomputable` it replaces: the old report
+/// named a face's volume, these name the chord.
+///
+/// The closed form's typed refusal — the actual subject — is untouched
+/// and still read directly from `mass_properties`. The tier-3
+/// `VolumeUncomputable` lane keeps its own pins on bodies that ARE at
+/// rest and merely uncomputable (`m5_pr12_fix_pass`, `step-import`'s
+/// `nurbs_import` / `freecad` / `wild`), so nothing lost coverage —
+/// this fixture stopped being an example of it.
 #[test]
 fn diagonal_chord_split_refuses_typed_not_silent() {
     use topo::{FaceSurface, LoopBoundary, MassPropsError, MefSite, ValidationError};
@@ -307,9 +313,22 @@ fn diagonal_chord_split_refuses_typed_not_silent() {
     let errs = validate_geometric(&body, Tol::witness()).unwrap_err();
     assert_eq!(
         errs,
-        vec![ValidationError::ScaffoldAtRest { edge: split.edge }],
-        "tier 3 must name the secant chord that has no at-rest \
-         description, and nothing else; got {errs:?}"
+        vec![
+            ValidationError::ScaffoldAtRest { edge: split.edge },
+            ValidationError::Pcurve {
+                finding: topo::PcurveMintError::MissingCache {
+                    half_edge: split.he_plus,
+                },
+            },
+            ValidationError::Pcurve {
+                finding: topo::PcurveMintError::MissingCache {
+                    half_edge: split.he_minus,
+                },
+            },
+        ],
+        "tier 3 must name the planted chord — once for having no at-rest \
+         description, and once per half for bounding a minting chart \
+         with no cache — and nothing else; got {errs:?}"
     );
 }
 
