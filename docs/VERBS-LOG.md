@@ -2026,3 +2026,22 @@ relaxation R2 never received — the same shape that excluded
 PCURVE's census pair, and consistency is the standard's whole
 value. Clean pairs toward twelve: 1 (TEAPOT). Union fix pass
 dispatched; reviewer lanes swept.
+
+## ORDINAL 102 RETURNED AND ADJUDICATED; PAIR EXCLUDED 3(e) (2026-08-28)
+
+R1 A-W-F 1/6/5, R2 A-W-F 0/6/4 — every geometric claim verified
+independently by both arms (bit-exact turtle re-derivations from
+scene constants; the tangent-cone refusal reproduced to the last
+bit; the baseline re-run byte-clean). The arms' probes
+COMPLEMENT on the exactness question: R2's ARCH_R mutation shows
+robustness, R1's spine sensitivity shows fragility — both true on
+different axes, and the synthesis (the in-code 1e-12 guard is
+the binding check) goes into the prose. R1's MAJ is the fourth
+instance of the wall-text error class, caught pre-merge: the
+module header claims the neck IS the tangent cone the unit's own
+probe records as refused. One conflict (R1's verbatim quote vs
+R2's blanket module-doc-correct) resolved to the quote. All
+fixes text-level; union fix pass out. Tally candidates: none
+(the MAJ is doc-class, excluded 3b regardless). **Pair excluded
+under 3(e)** — R2 was limit-killed mid-run and resumed. Tally
+0/8; clean pairs toward twelve: 1. Reviewer lanes swept.
