@@ -41,8 +41,9 @@ use std::f64::consts::FRAC_PI_2;
 
 use common::asm;
 use pncad::document::{
-    AxisSense, ClassAdmission, DocEdit, DocumentId, Frame, MatePrimitive, Node, ProfileDoc,
-    ProfileProgram, RecipeNodeId, apply, assemble, class_admission, solve_document,
+    AxisSense, ClassAdmission, DocEdit, DocumentId, Frame, MatePrimitive, Node, PatternKind,
+    ProfileDoc, ProfileProgram, RecipeNodeId, apply, assemble, class_admission, parse_expr,
+    solve_document,
 };
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::select::{ContactClass, Ray, face_frame};
@@ -715,10 +716,10 @@ fn r1_every_offered_class_is_executable_and_a_tangent_commit_is_unassemblable() 
         );
     }
     let (doc, eval) = session.landed_pair().expect("landed");
-    let refusal = assemble(doc, eval, tol)
-        .err()
-        .expect("the at-rest gate refuses a Tangent declaration");
-    let text = refusal.to_string();
+    let text = match assemble(doc, eval, tol) {
+        Err(refusal) => refusal.to_string(),
+        Ok(_) => panic!("the at-rest gate must refuse a Tangent declaration"),
+    };
     assert!(
         text.contains("no at-rest kernel record"),
         "the refusal is the class table's own: {text}"
@@ -872,7 +873,165 @@ fn r1_two_faces_of_one_instance_refuse_before_any_edit() {
     );
 }
 
-// ── 8. A workspace with no parts at all ──────────────────────────
+// ── 8. An instance a `Pattern` consumes ──────────────────────────
+
+/// **Both G3 display operations are accepted and silently inert on an
+/// instance a `Pattern` consumes.**
+///
+/// Hide and free-move admit any live `InstantiatePart` node, but the
+/// scene drops and displaces parts by the node that OWNS the drawn
+/// geometry — the product's roots. A patterned instance is not a root:
+/// the `Pattern` above it is. So hiding it changes no triangle, and
+/// probing it draws nothing displaced and marks nothing distinct,
+/// while the display state, the tree checkbox, and `free_move_of` all
+/// report the operation as in force.
+///
+/// This is not hypothetical: the tour's flat-pack layout — one of the
+/// gallery documents the exit demo opens — has exactly this shape, and
+/// the shipped rows cannot see it because `common::asm`'s fixture has
+/// no `Pattern`. Measured on the real gallery at review time
+/// (`examples/r1_gallery_probe.rs`): `3888f1…` node 0 hide 60 → 60
+/// triangles, probe `probe_parts = 0`.
+///
+/// Pinned as shipped. When the fix lands — whether by refusing the op
+/// on a non-root instance or by carrying display state through the
+/// pattern — this row goes red and is the place to state the new rule.
+#[test]
+fn r1_a_patterned_instance_accepts_hide_and_probe_and_neither_does_anything() {
+    let tol = Tol::witness();
+    let bench = asm::bench("r1pattern", tol);
+    let scope = std::collections::BTreeMap::new();
+    let mut ws = Workspace::open(&bench.dir).expect("the store opens");
+    let mut doc = ProfileDoc::empty(DocumentId::derive("r1-pattern-bench"), tol);
+    let applied = apply(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::instantiate_part(bench.post),
+        },
+        tol,
+    )
+    .expect("the insert applies");
+    doc = applied.doc;
+    let instance = applied.record.minted.expect("an id");
+    let applied = apply(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::Pattern {
+                input: instance,
+                count: parse_expr("3", &scope).expect("a count"),
+                kind: PatternKind::Linear {
+                    direction: [
+                        parse_expr("0.0", &scope).expect("x"),
+                        parse_expr("1.0", &scope).expect("y"),
+                        parse_expr("0.0", &scope).expect("z"),
+                    ],
+                    spacing: parse_expr("50 mm", &scope).expect("a spacing"),
+                },
+            },
+        },
+        tol,
+    )
+    .expect("the pattern applies");
+    doc = applied.doc;
+    let pattern = applied.record.minted.expect("an id");
+    let path = ws.create(&doc, tol).expect("the pattern assembly stores");
+
+    let mut session = DocSession::inline(pncad::document::Doc::empty_derived("r1-boot", tol), tol);
+    assert!(
+        session.perform(SessionOp::Open(path)).refusal.is_none(),
+        "the pattern assembly opens"
+    );
+    session.pump();
+    for row in session.tree_rows() {
+        assert_eq!(row.status, RowStatus::Ok, "it resolves: {row:?}");
+    }
+    let index = asm::index_of(&session);
+    let baseline = index
+        .scene_for(&session.display_view())
+        .expect("a scene")
+        .stats()
+        .triangles;
+
+    // HIDE: accepted, and the picture does not move.
+    assert!(
+        session
+            .perform(SessionOp::SetInstanceHidden {
+                instance,
+                hidden: true,
+            })
+            .refusal
+            .is_none(),
+        "hide is ACCEPTED on the patterned instance"
+    );
+    assert!(
+        session.display().is_hidden(instance),
+        "the state says hidden"
+    );
+    assert_eq!(
+        index
+            .scene_for(&session.display_view())
+            .expect("a scene")
+            .stats()
+            .triangles,
+        baseline,
+        "SHIPPED BEHAVIOUR, recorded not endorsed: the drawn picture is unchanged, so \
+         the checkbox and the viewport disagree"
+    );
+    session.perform(SessionOp::SetInstanceHidden {
+        instance,
+        hidden: false,
+    });
+
+    // FREE-MOVE: eligible, committed, and nothing is displaced or marked.
+    assert!(
+        viewer::display::free_move_check(session.doc(), instance).is_ok(),
+        "the patterned instance is 'completely unconstrained' by the document test"
+    );
+    session.perform(SessionOp::BeginFreeMove { instance });
+    session.perform(SessionOp::PreviewFreeMove {
+        frame: Frame::translation([0.5, 0.0, 0.0]),
+    });
+    assert!(
+        session.perform(SessionOp::CommitFreeMove).refusal.is_none(),
+        "the probe commits"
+    );
+    assert!(
+        session.display().free_move_of(instance).is_some(),
+        "the state holds the probe value"
+    );
+    let probed = index.scene_for(&session.display_view()).expect("a scene");
+    assert_eq!(
+        probed.stats().probe_parts,
+        0,
+        "SHIPPED BEHAVIOUR, recorded not endorsed: G3's distinctness marking reaches \
+         nothing, because the drawn geometry belongs to the Pattern node"
+    );
+    assert!(
+        probed.flags().iter().all(|&f| f == 0),
+        "…and no corner carries the flag"
+    );
+    assert_eq!(
+        probed.stats().triangles,
+        baseline,
+        "…and the probe displaced nothing"
+    );
+
+    // The `Pattern` node itself, which is what IS drawn, refuses both.
+    assert!(
+        matches!(
+            session
+                .perform(SessionOp::SetInstanceHidden {
+                    instance: pattern,
+                    hidden: true,
+                })
+                .refusal,
+            Some(Refusal::Display(DisplayFault::NotAnInstance { .. }))
+        ),
+        "so the drawn thing has no display identity at all"
+    );
+}
+
+// ── 9. A workspace with no parts at all ──────────────────────────
 
 /// An assembly whose store is empty: the open still SUCCEEDS (a
 /// document is not held hostage by its directory), and every instantiate
