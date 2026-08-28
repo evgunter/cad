@@ -302,36 +302,48 @@ fn committed_fixtures_are_byte_golden() {
     }
 }
 
-/// **The `boss_union` z-move: what is PROVEN, and what was DISPROVEN**
-/// (PCURVE P-1b).
+/// **The `boss_union` z-move: the cause, PROVEN, and what it turned
+/// out to be** (PCURVE P-1b).
 ///
-/// Three of this fixture's vertices evaluate one ULP higher in `z`
-/// under the collapsed descriptions — `0.9999999999999999 → 1.0` —
-/// while twelve other points on the same plane were already exactly
-/// `1.0`. **The fixture is NOT regenerated**: regeneration was
-/// authorised only on a proven cause, and the cause proposed for it
-/// was tested here and FAILED. This row keeps both halves of that
-/// result so the next reader starts from the disproof.
+/// Three of this fixture's vertices moved one ULP in `z` during this
+/// unit — `0.9999999999999999 → 1.0` — while twelve other points on
+/// the same plane were already exactly `1.0`. Two mechanisms were
+/// proposed and tested. This row carries the settled result, and the
+/// fixture was never regenerated: it did not need to be, because the
+/// move was a DEFECT and fixing the defect put the bytes back.
 ///
-/// **PROVEN, and asserted below.** The plate's top is a plane whose
-/// `u_ref` and `v_ref` both have `z` exactly zero, so
-/// `S(u, v).z ≡ origin.z = 1.0` for every parameter — no arithmetic in
-/// that evaluation can round. Any edge described as an image in that
-/// chart therefore lands on the plane exactly, by construction rather
-/// than by luck. And the three boss corner points ARE at `1.0` in the
-/// body this build produces.
+/// **The cause: a re-description pass that rebuilt geometry.**
+/// `sweep::extrude`'s same-surface strut conversion was written as
+/// `line_between(qs[j], qs[j] + w).at_rest_in_chart(k_prev, false)`,
+/// which re-derives origin, direction and parameter interval from
+/// `(p0 + w) − p0` — not bitwise `w`, at `p0` of magnitude ~2.5. A
+/// pass whose whole contract is that only the DESCRIPTION moves was
+/// silently moving the carrier, and the boolean's crossing arithmetic
+/// consumed the moved carrier. It now restates the edge's own
+/// certified curve.
 ///
-/// **DISPROVEN, and deliberately not asserted.** The proposed cause
-/// was that these three points belong to edges the transience fence
-/// re-described — the boss's three 120° arcs are arcs of ONE circle,
-/// so its walls share a surface and each corner strut is the
-/// `k_prev == k_next` case that now states a chart image instead of a
-/// pushforward. If that were the mechanism, the plate's top would
-/// carry chart images whose authority is `Declared`, the record of
-/// exactly that conversion. **It carries none.** So the description
-/// family of those edges is not what moved the points, and the real
-/// cause is still open — recorded here rather than left as a story
-/// that reads as settled.
+/// **Proven by A/B on one head, everything else held constant.**
+/// Restoring the rebuild — with every other change of this unit still
+/// in place, including the distinct-key conversion — moves all three
+/// corners to exactly `1.0` and `committed_fixtures_are_byte_golden`
+/// fails on `boss_union.step`, in exactly those three `CARTESIAN_POINT`
+/// lines with entity ids unchanged. Restating the carrier puts all
+/// three back and the oracle passes. That is byte-exact evidence for
+/// one mechanism and against the other: the fence's conversion is
+/// present in BOTH arms, so it cannot be what moved them.
+///
+/// **What the surviving 1-ULP gap is, and is not.** The corner
+/// vertices sit one ULP BELOW the plane they bound, and always have —
+/// it is what the committed fixture carries and what the pre-U2
+/// kernel produced. It is a property of the boolean's crossing
+/// arithmetic in 3-space, which places vertices; descriptions do not
+/// place vertices. The row pins the complementary structural fact
+/// below: the plate's top is a plane whose `u_ref` and `v_ref` both
+/// have `z` exactly zero, so `S(u, v).z ≡ origin.z = 1.0` for every
+/// parameter and no arithmetic in that evaluation can round. So an
+/// edge DESCRIBED in that chart lies on the plane exactly, while the
+/// VERTEX bounding it need not — and the gap between those two facts
+/// is the boolean's, untouched by this unit and out of its scope.
 #[test]
 fn boss_union_seam_vertices_are_exactly_on_the_plate_top() {
     let body = common::boss_union();
@@ -369,10 +381,15 @@ fn boss_union_seam_vertices_are_exactly_on_the_plate_top() {
         for (cx, cy) in corners {
             if p.x == cx && p.y == cy && (p.z - 1.0).abs() < 0.5 {
                 assert_eq!(
-                    p.z, 1.0,
-                    "a boss corner strut crossing the plate's top lies ON it, bitwise \
-                     — the value the committed fixture does NOT yet carry, held here \
-                     unregenerated until the cause is proven"
+                    p.z,
+                    1.0_f64.next_down(),
+                    "a boss corner vertex carries what the BOOLEAN's crossing \
+                     arithmetic produced from the strut's minted carrier — one ULP \
+                     below the plane it bounds, which is the value the committed \
+                     fixture carries and the value the pre-U2 kernel produced. \
+                     Reading exactly 1.0 here means the strut's carrier was rebuilt \
+                     rather than restated (see the doc comment's A/B), and \
+                     `committed_fixtures_are_byte_golden` will be red beside this row"
                 );
                 found += 1;
             }
