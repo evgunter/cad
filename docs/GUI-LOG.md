@@ -231,5 +231,17 @@ Three program-level outcomes recorded:
 - #1102's main-red resolved independently (#1108, the census
   owner's ε-fix) — the GUI program's citations of it are closed.
 
-Program consequence: **GUI-4 dispatches now** (fable, block
+Program consequence: **GUI-4 dispatches now** (block
 GUI-B2 slot 1) — the last required v1 unit.
+
+**The blinding-leak rule fired a SECOND time (2026-08-28, disclosed
+by GUI-4's R2): the GUI-2 unit entry above named GUI-4's arm — 
+written by this orchestrator AFTER recording the rule.** The arm is
+now redacted from that entry (docs state the present; the leak
+itself is history both reviewers' briefs required disclosing —
+R2 disclosed, R1's exposure is presumed identical). The GUI-4 pair
+is flagged on its row like GUI-2's. Compliance correction adopted:
+the at-merge unit-entry TEMPLATE now ends "(block <id> slot <n>)"
+with no arm token, and the pre-push self-check for orchestrator
+log commits is `grep -i 'fable\|opus' docs/GUI-LOG.md` scoped to
+entries about units with unconcluded reviews.
