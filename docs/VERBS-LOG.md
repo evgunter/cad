@@ -2204,3 +2204,23 @@ probe answered (MergedFaceRoleAmbiguous — half B stays a KERNEL
 question), and the steer deviation flagged with both framings
 (the lane's dump + PCURVE's ownership of the a/b offer) for
 Evan's retroactive 👍. Full dual, frozen head af04ee7a.
+
+## ORDINAL 104 RETURNED: BOTH ARMS NMAI; THE EXEMPTION WITHDRAWN (2026-08-28)
+
+R1 fable 3/3/4, R2 opus 2/3/3 — converging on both foundations:
+the predicate admits ordinary coplanar splits (mid-vertex chords,
+inset-patch rings — all tier-2-legal and non-revolve), and the
+impossibility premise is FALSE (both arms reached the one-face
+cap via public kef→kev; tier 2 binds at-rest bodies, not
+intermediates). Evan's original steer was RIGHT — the deviation
+flag is retracted, the memory's instance 5 corrected to the
+double-instance form (a measurement that dissolves a premise can
+smuggle in its own). R1's unilateral MAJ-3 (the pure pole-split
+revolve still dead-ends at the boolean's merge OUTPUT stage —
+the exemption unlocked nobody) is **the FIRST TALLY-ELIGIBLE
+UNILATERAL MAJOR: tally 1 of 8**, on a fair clean pair (counts
+toward the twelve as pair 2). Redirect ruled: the exemption
+reverts; merge_coplanar_faces learns the POLE case via the
+kef→kev route; wall 7 repairs by authoring; the ordinary half
+stays open. The dual system's clearest win yet — a wrong gate
+change stopped pre-merge by two independent arms.

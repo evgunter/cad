@@ -18,12 +18,17 @@ assumed fix had nothing to act on.
 3. Wall 8, the same shape (M9 exit walk).
 4. P-1b's spec ordered strut conversions that are geometrically
    impossible — the struts are secants, never on the chart (#1116).
-5. The F7 (a)/(b) steer itself: both options presupposed a one-face
-   cap that the valence-2 pole requirement structurally bans — the
-   GATE's rule was wrong, not the producer (#1031/#1131). First
-   instance where the false premise was in a spec/steer rather than a
-   wall text, and it had propagated through TWO orchestrators and
-   Evan before one measurement dissolved it.
+5. The F7 exemption's own premise (#1031/#1131) — a DOUBLE instance,
+   corrected at the ordinal-104 dual: the lane first measured that
+   both steer options "presupposed a one-face cap the valence-2 pole
+   requirement structurally bans," and that claim was ITSELF the
+   next false premise — both reviewers independently reached the
+   one-face cap via public kef→kev (tier 2 binds at-rest bodies,
+   not intermediates). Evan's original repair-op steer was right
+   all along; the exemption was withdrawn pre-merge. Lesson within
+   the lesson: a measurement that dissolves a premise can smuggle
+   in its own — "nothing can build it" needs the constructive
+   search, not just the enumeration of two routes.
 
 **How to apply:** the measure-first checkpoint is mandatory before
 building against any stated blocker — run the failing operation, read
