@@ -2102,3 +2102,13 @@ measure-first CHECKPOINT (cheap) but defer its build phase
 unless the remaining budget allows; no new units cut; the
 orchestrator's own footprint minimal. The stopping-rule tally is
 unaffected (v6: the valve does not change it).
+
+## THE BUDGET VALVE LIFTED (2026-08-28)
+
+Evan fixed the account's usage limit ("it should now be fixed",
+in chat). The v6 valve invoked earlier today is RESCINDED before
+any single ran under it — no review was dispatched between
+invocation and lift, so every pair in the ledger remains a full
+dual and the alternation never actually started. Full duals
+resume from the next review dispatch (#1126's, when its lane
+reports). The wind-down plan is void; normal cadence resumes.
