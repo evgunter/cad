@@ -2224,3 +2224,21 @@ reverts; merge_coplanar_faces learns the POLE case via the
 kef→kev route; wall 7 repairs by authoring; the ordinary half
 stays open. The dual system's clearest win yet — a wrong gate
 change stopped pre-merge by two independent arms.
+
+## ORDINAL 103 RETURNED AND ADJUDICATED; PAIR EXCLUDED (2026-08-28)
+
+R1 NMAI 3/8/6, R2 A-W-F 0/3/5 — the corner solve held against
+every attack from both arms (R2's concurring valence-4 build at
+1 ulp; the door's first interval instantiation, green), and the
+adjudication resolves the severity gap: the one code fix is the
+conditioning meter (it measures the REQUEST — a perfect cube
+refused as "singular" at small legal offsets; the fix is a
+local-geometry lever + a zero-move short-circuit + honest
+payloads); the rest is record corrections (the "built silently"
+cell false at base — both arms; the six-site stale-prose sweep;
+the three unpinned closed forms, both arms' independent pins
+agreeing to 1e-16). Union fix pass out. **Pair EXCLUDED
+(#1090/#1091 self-applied): the deliver-with-labeled-gaps
+allowance went to R2 only.** No tally candidates survived coding
+regardless. State: tally 1/8; clean pairs toward twelve: 2
+(TEAPOT, F7). Reviewer lanes swept.
