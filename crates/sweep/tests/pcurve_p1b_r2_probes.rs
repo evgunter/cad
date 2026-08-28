@@ -243,6 +243,7 @@ fn r2_no_product_verb_hands_back_a_scaffold_at_rest() {
         };
         c.loop_cycle(first)
             .unwrap()
+            .into_iter()
             .map(|he| c.get_half_edge(he).unwrap().edge)
             .collect()
     };
@@ -597,4 +598,26 @@ fn r2_the_declared_arm_of_the_retired_refusal_is_reachable_at_rest() {
             println!("[R2-S6] the declared arm did not fire here: {other:?}");
         }
     }
+}
+
+/// **R2-S7 — the other half of the #1116 check.** `die_fillet`'s body
+/// is `sweep::test_support::cube`, and the fillet's SUPPORTS are that
+/// body's faces. Every one of them is a plane, so no support in that
+/// run is curved and the recorded "secant on a curved support" cause
+/// cannot be what escalated there.
+#[test]
+fn r2_the_die_fixtures_supports_are_all_planes() {
+    let c = cube(1.0, Tol::witness());
+    let kinds: Vec<bool> = c
+        .faces()
+        .map(|(_, f)| matches!(c.get_surface(f.surface), Some(Surface::Plane { .. })))
+        .collect();
+    println!("[R2-S7] die blank faces: {} total", kinds.len());
+    assert_eq!(kinds.len(), 6, "the die blank is a box");
+    assert!(
+        kinds.iter().all(|p| *p),
+        "every support of the die fillet is a PLANE — a chord between two of its points \
+         lies in it, so the strut is not a secant there"
+    );
+    assert_eq!(c.edges().count(), 12, "all twelve edges are filleted");
 }

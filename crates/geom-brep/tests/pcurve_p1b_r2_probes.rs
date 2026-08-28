@@ -431,3 +431,54 @@ fn r2_the_scaffolding_door_certifies_with_no_surface_at_all() {
         "a scaffold's pushforward IS its declaration"
     );
 }
+
+/// **R2-G10 — the `#1116` diagnosis, tested against its own fixture.**
+///
+/// The unit declines the spec's ordered fillet conversions and files
+/// #1116 with this recorded cause: *"a strut is a straight chord
+/// between a support boundary vertex and its foot ... on a curved one
+/// it is a SECANT ... Stating one makes `ChartResidual` escalate at
+/// ε = 1e-6 on `die_fillet`."*
+///
+/// `die_fillet` is a UNIT CUBE with all twelve edges blended in one
+/// call (`crates/editor-core/tests/corpus/die_fillet.rs`), so every
+/// support face in that run is a PLANE. This row builds that fixture's
+/// strut in the small: a chord between two points of the `z = 0` face
+/// at the die's own radius, described as an image in that face's
+/// chart, at the ε the PR names.
+///
+/// It certifies with residual exactly zero. So on `die_fillet` the
+/// secant mechanism cannot be what escalated — whatever did was never
+/// isolated. (This row falsifies the stated cause; it does not claim
+/// to supply the real one.)
+#[test]
+fn r2_a_die_scale_strut_chord_on_a_planar_support_certifies_exactly() {
+    // The die: L = 1, r = 0.15 (`m5_pr12_die_body.rs`'s constants).
+    let (l, r) = (1.0_f64, 0.15_f64);
+    let _ = l;
+    let (keys, lookup) = table(vec![Surface::Plane {
+        origin: Point3::origin(),
+        normal: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    }]);
+    // A support boundary vertex of the cube's `z = 0` face and the
+    // foot of its station, both in that face.
+    let (q0, q1) = (p(0.0, 0.0, 0.0), p(r, r, 0.0));
+    let len = q0.distance(q1);
+    let edge = EdgeCurve::certify(
+        EdgeCurveSpec::line_between(q0, q1).at_rest_in_chart(keys[0], false),
+        q0,
+        q1,
+        &lookup,
+        // The ε the PR names for the escalation.
+        Band::new(1e-6, 1e-6 * Tol::witness().get().k).unwrap(),
+    )
+    .expect("a chord of a plane is an image of that plane's chart");
+    let residual = edge.certificate().max_residual;
+    println!("[R2-G10] die-scale planar strut residual = {residual:e}");
+    assert_eq!(
+        residual, 0.0,
+        "a chord between two points of a plane lies in it exactly — no secant, no residual"
+    );
+    assert!(edge.authority().is_declared());
+}
