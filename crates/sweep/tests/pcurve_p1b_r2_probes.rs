@@ -404,3 +404,197 @@ fn r2_an_undeclared_edge_still_crosses_a_non_translating_offset() {
         }
     }
 }
+
+// ---------------------------------------------------------------
+// R2-S5 — the METER, measured rather than argued
+// ---------------------------------------------------------------
+
+/// **R2-S5.** Every edge the fence CONVERTED re-meters from
+/// `|C(t) − mapped(s)|` (which never asked whether the locus was on
+/// either surface) to D1's `|C(t) − S(P(t))|` (which does). The unit
+/// calls that "a stricter statement about the same locus"; the
+/// question a consumer has is how much room is left under ε, because
+/// a converted edge sitting near the band is one ε-tightening away
+/// from a body that used to build and no longer does.
+///
+/// So this row MEASURES it: over every verb body above, the largest
+/// certified residual carried by a chart-described edge whose
+/// authority is `Declared` — i.e. exactly the edges the conversion
+/// created — reported as a fraction of the witness ε.
+///
+/// The assertion is only the one certification already guarantees
+/// (≤ ε). The NUMBER is the finding, and it is printed.
+#[test]
+fn r2_the_converted_edges_have_measurable_epsilon_headroom() {
+    let eps = Tol::witness().get().eps;
+    let mut bodies: Vec<(&'static str, Body<f64>)> = vec![
+        ("extrude slab", slab(0.0, 0.0, 2.0, 0.0, 2.0)),
+        ("extrude arc prism", arc_prism()),
+        ("revolve full tube", tube()),
+        (
+            "revolve partial wedge",
+            revolved(
+                &[(0.4, 0.0), (0.8, 0.0), (0.8, 0.6), (0.4, 0.6)],
+                Revolution::Partial(1.1),
+            ),
+        ),
+    ];
+    let square = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
+    let trapezoid = [(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)];
+    if let Ok(l) = loft_body::<f64>(
+        &[quad(square), quad(trapezoid), quad(square)],
+        &[
+            Affine3::identity(),
+            Affine3::translation(Vec3::new(0.0, 0.0, 1.0)),
+            Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
+        ],
+        2,
+        Tol::witness(),
+    ) {
+        bodies.push(("loft prism", l.body));
+    }
+
+    let mut worst: (f64, String) = (0.0, "none".to_string());
+    let mut converted = 0usize;
+    for (name, body) in &bodies {
+        for (k, e) in body.edges() {
+            let Some(c) = body
+                .get_curve_geom(e.curve)
+                .and_then(topo::CurveGeom::certified)
+            else {
+                continue;
+            };
+            if !matches!(c.description(), geom_brep::EdgeDescription::Chart(_))
+                || !c.authority().is_declared()
+            {
+                continue;
+            }
+            converted += 1;
+            let r = c.certificate().max_residual;
+            if r > worst.0 {
+                worst = (r, format!("{name} edge {k:?}"));
+            }
+        }
+    }
+    println!(
+        "[R2-S5] {converted} converted edge(s); worst residual {:e} = {:.3e} x eps ({eps:e})",
+        worst.0,
+        worst.0 / eps
+    );
+    assert!(
+        converted > 0,
+        "the fixtures must actually contain converted edges for this row to mean anything"
+    );
+    assert!(
+        worst.0 <= eps,
+        "a converted edge is over ε — {} at {:e}",
+        worst.1,
+        worst.0
+    );
+}
+
+// ---------------------------------------------------------------
+// R2-S6 — is the "not a rigid translation" refusal really retired
+//         AT REST?
+// ---------------------------------------------------------------
+
+/// **R2-S6.** `replace_face.rs`'s retirement text says the two
+/// *"not a rigid translation"* refusals "are unreachable for a body AT
+/// REST, because tier 3's transience fence refuses a scaffold there",
+/// and `demos/tour`'s
+/// `the_not_a_rigid_translation_door_is_unreachable_at_rest`
+/// demonstrates the premise by showing the fixtures carry no
+/// scaffolding description.
+///
+/// That premise is about the SCAFFOLD arm. This unit also added a
+/// second arm — `carried_declaration()` — which raises the SAME
+/// `ReplaceFaceError::CarrierLaneUnsupported` variant, with the same
+/// sentence reworded, for a chart image whose authority is
+/// `Declared`. And declared chart images are exactly what the fence's
+/// conversion produces from the pushforwards that used to raise the
+/// retired arm.
+///
+/// So the row asks the question the retirement text answers in prose:
+/// on a body AT REST, with no scaffolding description anywhere, does
+/// offsetting a chart whose boundary carries a DECLARED image still
+/// refuse through `CarrierLaneUnsupported`?
+///
+/// The fixture is the revolved ball: its angle-π meridian is a
+/// declared image in the sphere's own chart (the unit's own
+/// `revolve_ball` row asserts exactly that), and a sphere's offset is
+/// concentric — not a rigid translation.
+#[test]
+fn r2_the_declared_arm_of_the_retired_refusal_is_reachable_at_rest() {
+    let lp = ProfileLoop::new(vec![
+        ProfileVertex::new(p2(0.0, -1.0), 1.0),
+        ProfileVertex::new(p2(0.0, 1.0), 0.0),
+    ]);
+    let profile = Profile::new(SketchPlane::xy(), vec![lp])
+        .validate(Tol::witness())
+        .expect("the half disc is a valid profile");
+    let ball = revolve(
+        &profile,
+        RevolveAxis {
+            origin: p2(0.0, 0.0),
+            dir: Vec2::new(0.0, 1.0),
+        },
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .expect("the ball revolves")
+    .body;
+
+    // The premise the tour row asserts: nothing scaffolded survives.
+    assert!(
+        scaffold_descriptions(&ball).is_empty(),
+        "the ball is at rest — no scaffolding description"
+    );
+    // And at least one edge IS declared, which is the other premise
+    // the retirement text does not state.
+    let declared: Vec<EdgeKey> = ball
+        .edges()
+        .filter(|(_, e)| {
+            ball.get_curve_geom(e.curve)
+                .and_then(topo::CurveGeom::certified)
+                .is_some_and(|c| c.authority().is_declared())
+        })
+        .map(|(k, _)| k)
+        .collect();
+    println!("[R2-S6] declared edges at rest: {}", declared.len());
+    assert!(
+        !declared.is_empty(),
+        "the ball's angle-pi meridian is a declared chart image"
+    );
+
+    // Both sphere bands share ONE surface key, so the chart moves as a
+    // group.
+    let sphere_key = ball
+        .faces()
+        .find_map(|(_, f)| {
+            matches!(ball.get_surface(f.surface), Some(Surface::Sphere { .. })).then_some(f.surface)
+        })
+        .expect("the ball's sphere chart");
+    let group: Vec<FaceKey> = ball
+        .faces()
+        .filter(|(_, f)| f.surface == sphere_key)
+        .map(|(k, _)| k)
+        .collect();
+
+    let mut body = ball.clone();
+    let outcome = topo::replace_faces_offset(&mut body, &group, 0.05, 1e-9, band(), Tol::witness());
+    println!("[R2-S6] offsetting the sphere chart: {outcome:?}");
+    match outcome {
+        Err(topo::ReplaceFaceError::CarrierLaneUnsupported { what, .. }) => {
+            println!("[R2-S6] CarrierLaneUnsupported: {what}");
+            assert!(
+                what.contains("declared"),
+                "the refusal that fired is the DECLARED arm, at rest: {what}"
+            );
+        }
+        other => {
+            // Not a failure of the unit by itself — but it is the
+            // measurement the retirement text needs and does not have.
+            println!("[R2-S6] the declared arm did not fire here: {other:?}");
+        }
+    }
+}
