@@ -2167,7 +2167,9 @@ fn a_poisoning_control_net_refuses_the_enclosure_typed() {
         Err(SsiError::UnsupportedCertificate { what }) if what.contains("chart speed") => {
             println!("the poisoned net was answered by the CHART-SPEED GUARD");
         }
-        Err(other) => panic!("expected the enclosure refusal or the chart-speed refusal, got {other}"),
+        Err(other) => {
+            panic!("expected the enclosure refusal or the chart-speed refusal, got {other}")
+        }
         Ok(out) => panic!(
             "SILENT: a chart domain no enclosure could be formed over returned Ok with \
              {} branches and a receipt {:?}",
