@@ -395,6 +395,18 @@ fn the_hollow_survives_exactly_the_square_junction() {
         ),
         ("a right prism on a rectangle", boxy(tol), 0.02),
         ("a right prism on an L", l_prism(tol), 0.02),
+        // FLIPPED by #1081's PR-2a. This row asserted a refusal until
+        // the simultaneous door landed: an all-PLANAR body's corners
+        // are now solved against every moved plane at once, so an
+        // oblique junction between planes hollows. The rows below are
+        // the differential — every one of them has a CURVED face at
+        // the junction, which is the C5-table work that follows, and
+        // they still refuse exactly where they did.
+        (
+            "a right prism on a triangle (58/58/64)",
+            triangular_prism(tol),
+            0.02,
+        ),
     ] {
         pncad::topo::shell(&body, thickness, FIT_TOL, band(tol), tol)
             .unwrap_or_else(|e| panic!("{what} hollows, got {e}"));
@@ -410,12 +422,6 @@ fn the_hollow_survives_exactly_the_square_junction() {
             "a sphere zone between two caps",
             barrel(tol),
             t,
-            "ReanchorOffCarrier",
-        ),
-        (
-            "a right prism on a triangle",
-            triangular_prism(tol),
-            0.02,
             "ReanchorOffCarrier",
         ),
         (
