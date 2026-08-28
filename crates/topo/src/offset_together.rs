@@ -321,6 +321,12 @@ pub fn offset_planes_together<T: Decide + PropsQuadLane>(
                 error,
             })?;
     }
+    // Every edge of the body was just re-described, so every stored
+    // pcurve row is stale — re-minted here for the same reason
+    // `replace_faces_offset` re-mints, and before the tier-2 gate that
+    // adopts the clone.
+    crate::pcurves::mint_pcurves(&mut work, tol)
+        .map_err(|source| ReplaceFaceError::Pcurve { source })?;
     if let Err(errors) = crate::validate::validate_closed(&work) {
         return Err(ReplaceFaceError::ResultNotClosed { errors });
     }
