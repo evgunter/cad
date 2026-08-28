@@ -2033,4 +2033,6 @@ an oblique probe meridian (default, 1e-12), the offset door's
 mapped-description lane on the two-holed row (interval, 1e-12), and a
 borrow the default lane never compiled (interval, 1e-6). A single-point
 gate would have shipped four of them. First fully green fix-pass head:
-74a054e6 at LANE=interval, EPS=default, KLINT_ROW=dev-budget.
+74a054e6 at LANE=interval, EPS=default, KLINT_ROW=dev-budget; the
+DEFAULT-lane confirmation C7 owes is drawn separately and named in the
+PR.
