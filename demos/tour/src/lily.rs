@@ -3172,7 +3172,7 @@ mod review_probes {
         // and a 1.05 m sepal reaches 0.027 m inside it — this assert
         // is what caught that, and reds if the phase is dropped.
         for seg in ["lily_bud_a", "lily_bud_b", "lily_bud_c"] {
-            let (bc, br) = sphere_of(body(&ps, seg));
+            let (bc, br, _) = sphere_of(body(&ps, seg));
             for name in ["lily_sepal_a", "lily_sepal_b", "lily_sepal_c"] {
                 let sb = body(&ps, name);
                 for (_, v) in sb.vertices() {
@@ -3204,23 +3204,11 @@ mod review_probes {
         let segs: Vec<(Point3<f64>, Vec3<f64>)> = ["lily_bud_a", "lily_bud_b", "lily_bud_c"]
             .into_iter()
             .map(|n| {
-                let b = body(&ps, n);
-                let mut found = None;
-                for (_, f) in b.faces() {
-                    if let Some(pncad::geom::Surface::Sphere { center, axis, .. }) =
-                        b.get_surface(f.surface)
-                    {
-                        // Stored axes may point either way along the
-                        // line; orient them all into the bud.
-                        let a = if axis.dot(bud_axis) < 0.0 {
-                            -*axis
-                        } else {
-                            *axis
-                        };
-                        found = Some((*center, a));
-                    }
-                }
-                found.expect("a bud segment stores its globe")
+                let (center, _, axis) = sphere_of(body(&ps, n));
+                // Stored axes may point either way along the line;
+                // orient them all into the bud.
+                let a = if axis.dot(bud_axis) < 0.0 { -axis } else { axis };
+                (center, a)
             })
             .collect();
         for (i, (_, a)) in segs.iter().enumerate() {
@@ -3387,8 +3375,17 @@ mod review_probes {
             .collect()
     }
 
-    /// The single stored sphere of a body: (centre, radius).
-    fn sphere_of(b: &Body<f64>) -> (Point3<f64>, f64) {
+    /// The body's single stored sphere carrier: (centre, radius, axis).
+    ///
+    /// Single is CHECKED, not assumed. Every caller reads one sphere
+    /// face and treats what it stores as the body's, so a second face
+    /// carrying a different sphere would make that reading arbitrary —
+    /// the same licence [`torus`] asserts for its own two half-bands,
+    /// and asserted the same way: over the WHOLE carrier, `u_ref`
+    /// included, because a partial comparison is one two different
+    /// spheres can pass.
+    fn sphere_of(b: &Body<f64>) -> (Point3<f64>, f64, Vec3<f64>) {
+        let mut found: Option<(Point3<f64>, f64, Vec3<f64>, Vec3<f64>)> = None;
         for (_, f) in b.faces() {
             if let Some(pncad::geom::Surface::Sphere {
                 center,
@@ -3397,17 +3394,21 @@ mod review_probes {
                 u_ref,
             }) = b.get_surface(f.surface)
             {
-                println!("PROBE sphere c={center:?} r={radius} a={axis:?} u={u_ref:?}");
+                let s = (*center, *radius, *axis, *u_ref);
+                match found {
+                    Some(p) => assert!(
+                        (p.0 - s.0).norm() < 1e-15
+                            && (p.1 - s.1).abs() < 1e-15
+                            && (p.2 - s.2).norm() < 1e-15
+                            && (p.3 - s.3).norm() < 1e-15,
+                        "two sphere faces, two carriers: {p:?} vs {s:?}"
+                    ),
+                    None => found = Some(s),
+                }
             }
         }
-        for (_, f) in b.faces() {
-            if let Some(pncad::geom::Surface::Sphere { center, radius, .. }) =
-                b.get_surface(f.surface)
-            {
-                return (*center, *radius);
-            }
-        }
-        panic!("body stores no sphere")
+        let (center, radius, axis, _) = found.expect("body stores no sphere");
+        (center, radius, axis)
     }
 
     /// One planar cap of a lofted blade, reduced to the numbers the
