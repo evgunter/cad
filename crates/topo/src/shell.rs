@@ -554,15 +554,55 @@ pub fn shell_open<T: Decide + PropsQuadLane>(
     // is by surface key, in face-arena order, so the walk is
     // deterministic.
     let mut cavity = body.clone();
-    for group in &charts {
-        let face = group[0];
-        let d = inward(&cavity, face, thickness)?;
-        crate::replace_faces_offset(&mut cavity, group, d, tolerance, band, tol).map_err(
-            |error| ShellError::Face {
-                face,
+    // **All-planar bodies move SIMULTANEOUSLY; everything else still
+    // moves chart by chart.** Composing the per-chart door over a body
+    // cannot offset an OBLIQUE junction: a corner is visited once per
+    // chart and transported rigidly each time, so it accumulates
+    // `Σ dᵢ·nᵢ` where the offset body needs the point satisfying every
+    // `nᵢ·x = nᵢ·oᵢ + dᵢ` at once. Those agree exactly when the normals
+    // are mutually perpendicular — which is why a box was always right
+    // — and diverge otherwise. `ReanchorOffCarrier` is what has been
+    // refusing the difference rather than building it, and it stays
+    // exactly where it was for every body this branch does not take:
+    // the curved corners are the C5-table work that follows.
+    let all_planar = cavity.faces().all(|(_, f)| {
+        matches!(
+            cavity.get_surface(f.surface),
+            Some(geom::Surface::Plane { .. })
+        )
+    });
+    if all_planar {
+        let mut moves: Vec<crate::offset_together::ChartMove<T>> = Vec::with_capacity(charts.len());
+        for group in &charts {
+            moves.push(crate::offset_together::ChartMove {
+                faces: group.clone(),
+                distance: inward(&cavity, group[0], thickness)?,
+            });
+        }
+        let named = charts
+            .first()
+            .and_then(|g| g.first())
+            .copied()
+            .ok_or(ShellError::Corrupt {
+                key: EntityId::Solid(solid),
+            })?;
+        crate::offset_planes_together(&mut cavity, &moves, band, tol).map_err(|error| {
+            ShellError::Face {
+                face: named,
                 error: Box::new(error),
-            },
-        )?;
+            }
+        })?;
+    } else {
+        for group in &charts {
+            let face = group[0];
+            let d = inward(&cavity, face, thickness)?;
+            crate::replace_faces_offset(&mut cavity, group, d, tolerance, band, tol).map_err(
+                |error| ShellError::Face {
+                    face,
+                    error: Box::new(error),
+                },
+            )?;
+        }
     }
 
     // ---- The evidence: the construction's own decides, carried. ----

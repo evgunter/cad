@@ -275,6 +275,40 @@ pub enum ReplaceFaceError<T: Real> {
         /// in meters.
         gap: T,
     },
+    /// **The simultaneous door's scope gate**: a face it was asked to
+    /// move is not a plane. Its corner solve is three plane equations,
+    /// and a curved face has no such equation — the C5-table work that
+    /// follows this unit is where those corners land. Until then they
+    /// refuse where they always did, at
+    /// [`ReplaceFaceError::ReanchorOffCarrier`].
+    TogetherNonPlanar {
+        /// The face that is not a plane.
+        face: FaceKey,
+        /// What it carries instead.
+        kind: SurfaceKind,
+    },
+    /// **The simultaneous door's other scope gate**: a face of the body
+    /// was not in the moving set. Every corner's answer depends on all
+    /// the planes meeting it, so a set the door was not told about in
+    /// full is a set it cannot solve against.
+    TogetherPartialSet {
+        /// A face of the body that no chart move named.
+        face: FaceKey,
+    },
+    /// **A corner the simultaneous door cannot solve.** Either fewer
+    /// than three distinct planes meet there, or every triple of them
+    /// is singular, or — the valence-past-3 shape — the planes do not
+    /// concur after the offset, so no point satisfies them all. Refused
+    /// rather than solved on a subset and hoped over: a corner placed
+    /// off one of its own planes is a wrong body no tier catches.
+    TogetherCorner {
+        /// The vertex.
+        vertex: VertexKey,
+        /// How many distinct planes meet there.
+        planes: usize,
+        /// Which of the shapes above it is.
+        what: &'static str,
+    },
     /// A margined predicate escalated: the margin landed in the
     /// ambiguity band or was poisoned (escalate-never-guess, D4 ¶3).
     Escalated {
@@ -413,6 +447,26 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
             Self::Pcurve { source } => {
                 write!(f, "replace_face_offset: the pcurve mint refused: {source}")
             }
+            Self::TogetherNonPlanar { face, kind } => write!(
+                f,
+                "offset_planes_together: {face:?} carries a {kind:?}, and this door solves \
+                 corners as plane equations — a curved corner has none"
+            ),
+            Self::TogetherPartialSet { face } => write!(
+                f,
+                "offset_planes_together: {face:?} is a face of the body that no chart move \
+                 named — every corner's answer depends on all the planes meeting it, so a \
+                 partial set has corners this door cannot solve"
+            ),
+            Self::TogetherCorner {
+                vertex,
+                planes,
+                what,
+            } => write!(
+                f,
+                "offset_planes_together: the corner at {vertex:?} ({planes} distinct planes) \
+                 has no offset point — {what}"
+            ),
             Self::ResultNotClosed { errors } => write!(
                 f,
                 "replace_face_offset: the re-described body is not tier-2 valid ({} errors); \
@@ -635,7 +689,7 @@ fn mid_domain_normal<T: Decide>(s: &NurbsSurface<T>) -> Option<Vec3<T>> {
 /// `curve` translated by `delta` — exact on every carrier kind (a
 /// translation acts on the stored anchor and leaves every frame,
 /// radius and weight alone).
-fn translate_curve<T: Real>(
+pub(crate) fn translate_curve<T: Real>(
     curve: &Curve3<T>,
     delta: Vec3<T>,
 ) -> Result<Curve3<T>, geom_core::spline::SplineError> {
@@ -1356,7 +1410,7 @@ fn plan_edge<T: Decide>(
 /// `mapped` under the translation `delta` — the placement's own
 /// translation absorbs it. `None` on the rotation family, whose
 /// trajectory is not a rigid function of the placement's translation.
-fn translate_mapped<T: Real>(
+pub(crate) fn translate_mapped<T: Real>(
     mapped: geom_brep::MappedCurve<T>,
     delta: Vec3<T>,
 ) -> Option<geom_brep::MappedCurve<T>> {
