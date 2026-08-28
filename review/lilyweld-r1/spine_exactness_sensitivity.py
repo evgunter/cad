@@ -26,7 +26,7 @@ class T:
 
 def run(t1, t2, r1, r2):
     root = T((0.0, 0.0), (0.0, 1.0))
-    a, f = root.arc(r1, t1 * PI / 180.0)
+    _first_arc, f = root.arc(r1, t1 * PI / 180.0)
     u, fl_ = f.arc(r2, t2 * PI / 180.0)
     C = u["center"]
     P = fl_.p
