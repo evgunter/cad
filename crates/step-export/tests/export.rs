@@ -344,6 +344,24 @@ fn committed_fixtures_are_byte_golden() {
 /// edge DESCRIBED in that chart lies on the plane exactly, while the
 /// VERTEX bounding it need not — and the gap between those two facts
 /// is the boolean's, untouched by this unit and out of its scope.
+///
+/// **If this value ever moves, do NOT update the number.** Pinning
+/// `1.0_f64.next_down()` means the row goes red the day the boolean's
+/// crossing arithmetic changes — which is the point, not a
+/// maintenance cost. A red here is a FACT TO SURFACE (the boolean now
+/// places this vertex somewhere else, deliberately or not), never a
+/// stale fixture to regenerate. Read the A/B above before touching it:
+/// the last time this value moved, it moved because a re-description
+/// pass was rebuilding geometry.
+///
+/// No issue is filed against the boolean for the 1-ULP gap, on a test
+/// applied rather than a judgement asserted: a gap inside ε is only
+/// actionable if some site assumes BITWISE membership of a vertex in a
+/// surface, and a search of the kernel finds none — the bitwise
+/// comparisons that exist are surface-to-surface (`surface_sig`'s
+/// dedup), curve-to-curve (`bitwise_iso_match`) and vertex-to-vertex
+/// (the boolean zip's coincidence requirement). This row is the
+/// record.
 #[test]
 fn boss_union_seam_vertices_are_exactly_on_the_plate_top() {
     let body = common::boss_union();
