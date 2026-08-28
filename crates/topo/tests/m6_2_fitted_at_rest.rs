@@ -40,15 +40,20 @@ mod fixture;
 use geom_brep::{EnvelopeStatement, Pcurve};
 use geom_core::Band;
 use geom_core::Tol;
+use test_utils::vacuity;
 
 /// The full at-rest run at `f64`: build, validate, and read the
 /// certificate the tier-3 pass re-derived.
 #[test]
 fn a_rung3_edge_at_rest_carries_a_fitted_pcurve_with_the_full_c2_certificate() {
     let Some(built) = fixture::build::<f64>() else {
-        println!(
-            "SKIPPED: the cylinder×sphere fixture stood down on the SSI door's typed \
-             FitSampleBudget refusal at this ε — the budget row pins that outcome"
+        vacuity::stood_down(
+            &format!("M6-2 rung-3 edge at rest, f64 lane, eps = {:e}", Tol::witness().get().eps),
+            "the cylinder×sphere fixture stood down on the SSI door's typed \
+             FitSampleBudget refusal at this ε — the budget row pins that outcome. \
+             THIS RUN ASSERTS NOTHING about the at-rest body: neither that the cache it \
+             carries is fitted, nor that the tier-3 pass re-derives the full C2 \
+             certificate over it",
         );
         return;
     };
@@ -136,7 +141,14 @@ fn a_rung3_edge_at_rest_carries_a_fitted_pcurve_with_the_full_c2_certificate() {
 #[test]
 fn the_dual_lane_refuses_a_fitted_cache_typed() {
     let Some(built) = fixture::build::<f64>() else {
-        println!("SKIPPED: FitSampleBudget stand-down at this ε");
+        vacuity::stood_down(
+            &format!("M6-2 dual-lane refusal, eps = {:e}", Tol::witness().get().eps),
+            "the cylinder×sphere fixture stood down on the SSI door's typed \
+             FitSampleBudget refusal at this ε, so THIS RUN ASSERTS NOTHING about the \
+             dual lane: neither that it refuses a fitted cache typed, nor that the \
+             refusal names the lane and its post-D1 reason instead of re-asserting the \
+             premise D1 invalidated",
+        );
         return;
     };
     let err = fixture::certify_at_dual(&built);
@@ -208,11 +220,15 @@ mod certified {
     #[test]
     fn the_fitted_certificate_is_derived_at_the_interval_scalar_and_dominates_f64() {
         let Some(built) = fixture::build::<Interval>() else {
-            println!(
-                "SKIPPED: the cylinder×sphere fixture stood down on the SSI door's typed \
+            vacuity::stood_down(
+                &format!(
+                    "M6-2 fitted certificate at the interval scalar, eps = {:e}",
+                    Tol::witness().get().eps
+                ),
+                "the cylinder×sphere fixture stood down on the SSI door's typed \
                  FitSampleBudget refusal at this ε — THIS RUN CONTRIBUTES NO INTERVAL-LANE \
                  COVERAGE: neither the derived-at-Interval certificate nor its dominance \
-                 over the f64 lane was asserted"
+                 over the f64 lane was asserted",
             );
             return;
         };

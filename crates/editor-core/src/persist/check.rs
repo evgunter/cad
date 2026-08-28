@@ -100,6 +100,34 @@ pub enum NonFiniteSite {
     },
 }
 
+// The site prose. Each arm names WHERE the float sits, in the
+// vocabulary a document author reads — the recursive `Edit` arm
+// forwards the inner site rather than re-stating it.
+impl core::fmt::Display for NonFiniteSite {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Epsilon => f.write_str("the recorded ε"),
+            Self::DocParam { name } => write!(f, "document parameter {:?}", name.0),
+            Self::Profile { node, index } => write!(
+                f,
+                "float {index} of the sketch-plane placement on profile node {}",
+                node.0
+            ),
+            Self::Metadata { name, key, path } => write!(
+                f,
+                "metadata {key:?} on the {} named by node {}, at {path}",
+                name.kind.noun(),
+                name.node.0
+            ),
+            Self::InsertedProfile { index } => write!(
+                f,
+                "float {index} of an inserted profile's sketch-plane placement"
+            ),
+            Self::Edit { index, inner } => write!(f, "edit {index}, {inner}"),
+        }
+    }
+}
+
 /// The shared validator (module docs): every direction-independent
 /// document check, in one place, invoked by both doors. Check order
 /// is float walk → program walk → structural invariants (the save

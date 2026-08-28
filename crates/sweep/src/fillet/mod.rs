@@ -838,12 +838,10 @@ impl core::error::Error for FilletError {}
 #[allow(clippy::panic)]
 #[allow(clippy::expect_used)]
 mod recourse_tests {
-    use core::mem::discriminant;
-
-    use geom_core::{Band, Indeterminate, MarginDiag};
+    use geom_core::{Band, BandError, Indeterminate, MarginDiag};
     use topo::{EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 
-    use super::CornerConfig;
+    use super::{Convexity, CornerConfig};
     use super::{
         CHAMFER_ARM_RECOURSE, FILLET3_ASSEMBLY_RECOURSE, FILLET3_BODY_RECOURSE,
         FILLET3_CHAIN_RECOURSE, FILLET3_CLEARANCE_RECOURSE, FILLET3_CONVEXITY_RECOURSE,
@@ -888,84 +886,166 @@ mod recourse_tests {
     ///
     /// A recourse is advice, so it must be TRUE of the variant that
     /// appends it, and a variant reporting invalid input has no fillet
-    /// advice to give. Each arm carries BOTH halves — the decision and
-    /// a witness value of its own variant — so the two cannot drift
-    /// apart by omission, which is exactly how a hand-kept witness list
-    /// lets a wrong decision ship green.
+    /// advice to give.
     ///
-    /// **What this still cannot do:** Rust cannot enumerate a type's
-    /// variants, so the *seeds* below are hand-written. Adding a
-    /// variant is a compile error here (the match is exhaustive, and
-    /// the arm must produce a witness of that variant), but nothing
-    /// in-file forces the new witness to be *rendered* until it is
-    /// seeded. `tests/review_d2_recourse_at_the_site.rs` closes that at
-    /// the place it matters, by reaching refusals through
-    /// `fillet_edges`.
-    fn contract(err: &FilletError) -> (FilletError, Recourse) {
+    /// **What the match enforces, and what it does not.** The match is
+    /// exhaustive, so a new variant is a compile error here: no
+    /// variant can be missing a DECISION. Nothing in the match makes
+    /// that variant *render*, and Rust cannot enumerate a type's
+    /// variants, so [`seeds`] is hand-written and carries one value of
+    /// every variant this table names — the two lists are read side by
+    /// side when a variant is added, and there is no compiler check
+    /// that they still agree.
+    ///
+    /// **The blind spot this module cannot close from inside**: `ALL`
+    /// is hand-written for the same reason (Rust cannot enumerate a
+    /// module's constants), so a recourse constant that appears in
+    /// neither `ALL` nor any `Display` arm is invisible to every row
+    /// here. `tests/review_d2_recourse_at_the_site.rs` restates the
+    /// list independently and reaches refusals through `fillet_edges`,
+    /// which is the check on whether a SITE picks the right class;
+    /// neither suite enumerates the constants.
+    fn contract(err: &FilletError) -> Recourse {
         match err {
-            FilletError::Band(_) => (err.clone(), Recourse::None),
+            FilletError::Band(_) => Recourse::None,
             FilletError::ChainNotConnected { .. } => {
-                (err.clone(), Recourse::Exactly(FILLET3_CHAIN_RECOURSE))
+                Recourse::Exactly(FILLET3_CHAIN_RECOURSE)
             }
             FilletError::RadiusHeadroom { .. } => {
-                (err.clone(), Recourse::Exactly(FILLET3_RADIUS_RECOURSE))
+                Recourse::Exactly(FILLET3_RADIUS_RECOURSE)
             }
             FilletError::FaceClearanceUncertified { .. } => {
-                (err.clone(), Recourse::Exactly(FILLET3_CLEARANCE_RECOURSE))
+                Recourse::Exactly(FILLET3_CLEARANCE_RECOURSE)
             }
             FilletError::TangentialEdge { .. } => {
-                (err.clone(), Recourse::Exactly(FILLET3_TANGENTIAL_RECOURSE))
+                Recourse::Exactly(FILLET3_TANGENTIAL_RECOURSE)
             }
             FilletError::SpineIrregular { .. } => {
-                (err.clone(), Recourse::Exactly(FILLET3_SPINE_RECOURSE))
+                Recourse::Exactly(FILLET3_SPINE_RECOURSE)
             }
             FilletError::ChainNotG1 { .. } => {
-                (err.clone(), Recourse::Exactly(FILLET3_CHAIN_RECOURSE))
+                Recourse::Exactly(FILLET3_CHAIN_RECOURSE)
             }
             FilletError::ConvexitySignFlip { .. } => {
-                (err.clone(), Recourse::Exactly(FILLET3_CONVEXITY_RECOURSE))
+                Recourse::Exactly(FILLET3_CONVEXITY_RECOURSE)
             }
             FilletError::FilletCornerUnsupported { corner, .. } => {
-                (err.clone(), Recourse::Exactly(corner.recourse()))
+                Recourse::Exactly(corner.recourse())
             }
             FilletError::SpineUnsupported { .. } => {
-                (err.clone(), Recourse::Exactly(FILLET3_SPINE_KIND_RECOURSE))
+                Recourse::Exactly(FILLET3_SPINE_KIND_RECOURSE)
             }
             FilletError::ChamferArmUnsupported { .. } => {
-                (err.clone(), Recourse::Exactly(CHAMFER_ARM_RECOURSE))
+                Recourse::Exactly(CHAMFER_ARM_RECOURSE)
             }
-            FilletError::Escalated { .. } => (err.clone(), Recourse::RoutedByPredicate),
+            FilletError::Escalated { .. } => Recourse::RoutedByPredicate,
             // The surgery's own frontiers (D2 addendum row 2).
             FilletError::UnsupportedBody { .. } => {
-                (err.clone(), Recourse::Exactly(FILLET3_BODY_RECOURSE))
+                Recourse::Exactly(FILLET3_BODY_RECOURSE)
             }
             FilletError::UnsupportedChain { .. } => {
-                (err.clone(), Recourse::Exactly(FILLET3_ASSEMBLY_RECOURSE))
+                Recourse::Exactly(FILLET3_ASSEMBLY_RECOURSE)
             }
             FilletError::UnsupportedRunOut { .. } => {
-                (err.clone(), Recourse::Exactly(FILLET3_CORNER_RECOURSE))
+                Recourse::Exactly(FILLET3_CORNER_RECOURSE)
             }
             FilletError::UnsupportedGeometry { .. } => {
-                (err.clone(), Recourse::Exactly(FILLET3_GEOMETRY_RECOURSE))
+                Recourse::Exactly(FILLET3_GEOMETRY_RECOURSE)
             }
             FilletError::RingClearance { .. } => {
-                (err.clone(), Recourse::Exactly(FILLET3_RING_RECOURSE))
+                Recourse::Exactly(FILLET3_RING_RECOURSE)
             }
             // Invalid input (row 1), and the two forwarding variants.
-            FilletError::RepeatedEdge { .. } => (err.clone(), Recourse::None),
-            FilletError::NonpositiveSize { .. } => (err.clone(), Recourse::None),
-            FilletError::BodyNotIntact { .. } => (err.clone(), Recourse::None),
-            FilletError::Certify { .. } => (err.clone(), Recourse::None),
-            FilletError::Op { .. } => (err.clone(), Recourse::None),
+            FilletError::RepeatedEdge { .. } => Recourse::None,
+            FilletError::NonpositiveSize { .. } => Recourse::None,
+            FilletError::BodyNotIntact { .. } => Recourse::None,
+            FilletError::Certify { .. } => Recourse::None,
+            FilletError::Op { .. } => Recourse::None,
         }
     }
 
-    /// The seeds this row renders: the surgery's own variants, plus
-    /// `Escalated`, whose `Display` routes to six different constants
-    /// and is the one arm a single-sentence table gets wrong.
+    /// **One value of every [`FilletError`] variant**, in the enum's
+    /// own declaration order so the two lists read side by side.
+    ///
+    /// Rust cannot enumerate a type's variants, so this list is
+    /// hand-written and nothing compiles it against the enum: adding a
+    /// variant is caught by [`contract`]'s exhaustive match, adding it
+    /// HERE is not. Every row below is rendered by
+    /// [`a_recourse_is_appended_only_where_the_table_allows_it`], and
+    /// the sentences they render are checked against `ALL` by
+    /// [`every_recourse_sentence_is_rendered_by_some_variant`].
+    ///
+    /// `FilletCornerUnsupported` appears twice on purpose: the recourse
+    /// that variant appends is chosen by its TAG, so one witness would
+    /// leave the other route unrendered and unchecked.
     fn seeds() -> Vec<FilletError> {
         let band = Band::new(1e-9, 1e-6).expect("a band");
         vec![
+            FilletError::Band(BandError::Empty {
+                zero: 1.0,
+                escalate: 0.5,
+            }),
+            FilletError::ChainNotConnected {
+                edge: EdgeKey::default(),
+            },
+            FilletError::RadiusHeadroom {
+                face: FaceKey::default(),
+                margin: -1e-3,
+                radius: 0.5,
+            },
+            FilletError::FaceClearanceUncertified {
+                face: FaceKey::default(),
+                margin: -1e-3,
+                gap: 0.2,
+            },
+            FilletError::TangentialEdge {
+                edge: EdgeKey::default(),
+                margin: 0.0,
+            },
+            FilletError::SpineIrregular {
+                margin: -1e-3,
+                radius: 0.5,
+            },
+            FilletError::ChainNotG1 {
+                vertex: VertexKey::default(),
+                margin: -1e-3,
+                arm: 0.5,
+            },
+            FilletError::ConvexitySignFlip {
+                edge: EdgeKey::default(),
+                margin: -1e-3,
+                chain: Convexity::Convex,
+            },
+            FilletError::FilletCornerUnsupported {
+                vertex: VertexKey::default(),
+                corner: CornerConfig::NEdgeVertex { valence: 4 },
+                policy: CornerConfig::NEdgeVertex { valence: 4 }.policy(),
+            },
+            FilletError::FilletCornerUnsupported {
+                vertex: VertexKey::default(),
+                corner: CornerConfig::SeamVertex,
+                policy: CornerConfig::SeamVertex.policy(),
+            },
+            FilletError::SpineUnsupported {
+                edge: EdgeKey::default(),
+                supports: "a support pair with no analytic arm",
+            },
+            FilletError::ChamferArmUnsupported {
+                edge: EdgeKey::default(),
+                supports: "non-(plane–plane)",
+            },
+            FilletError::Escalated {
+                site: FilletSite::Chain,
+                source: Indeterminate {
+                    margin: MarginDiag::Value(0.0),
+                    band,
+                    predicate: Some("fillet3_ring_clearance"),
+                },
+            },
+            FilletError::RepeatedEdge {
+                edge: EdgeKey::default(),
+            },
+            FilletError::NonpositiveSize { size: 0.0 },
             FilletError::UnsupportedBody {
                 solids: 2,
                 shells: 2,
@@ -982,37 +1062,22 @@ mod recourse_tests {
                 at: EntityId::Face(FaceKey::default()),
                 detail: "a stored shape the closed forms do not cover",
             },
-            FilletError::RepeatedEdge {
-                edge: EdgeKey::default(),
-            },
-            FilletError::NonpositiveSize { size: 0.0 },
-            FilletError::ChamferArmUnsupported {
-                edge: EdgeKey::default(),
-                supports: "non-(plane–plane)",
-            },
             FilletError::BodyNotIntact {
                 at: EntityId::HalfEdge(HalfEdgeKey::default()),
                 detail: "a reference the plan followed",
             },
-            // BOTH corner routes are seeded: the recourse this variant
-            // appends is chosen by its TAG, so one witness would leave
-            // the other route unrendered and unchecked.
-            FilletError::FilletCornerUnsupported {
-                vertex: VertexKey::default(),
-                corner: CornerConfig::NEdgeVertex { valence: 4 },
-                policy: CornerConfig::NEdgeVertex { valence: 4 }.policy(),
+            FilletError::RingClearance {
+                face: FaceKey::default(),
+                margin: -1e-3,
             },
-            FilletError::FilletCornerUnsupported {
-                vertex: VertexKey::default(),
-                corner: CornerConfig::SeamVertex,
-                policy: CornerConfig::SeamVertex.policy(),
+            FilletError::Certify {
+                site: "blend face pcurves",
+                source: topo::PcurveMintError::Corrupt,
             },
-            FilletError::Escalated {
-                site: FilletSite::Chain,
-                source: Indeterminate {
-                    margin: MarginDiag::Value(0.0),
-                    band,
-                    predicate: Some("fillet3_ring_clearance"),
+            FilletError::Op {
+                site: "strut mev",
+                source: topo::EulerOpError::StaleKey {
+                    key: EntityId::Edge(EdgeKey::default()),
                 },
             },
         ]
@@ -1052,31 +1117,50 @@ mod recourse_tests {
     #[test]
     fn a_recourse_is_appended_only_where_the_table_allows_it() {
         for seed in seeds() {
-            let (witness, expected) = contract(&seed);
-            assert_eq!(
-                discriminant(&witness),
-                discriminant(&seed),
-                "the table's arm must witness its OWN variant: {seed:?}"
-            );
-            let text = witness.to_string();
+            let text = seed.to_string();
             let found = recourses_in(&text);
-            match expected {
+            match contract(&seed) {
                 Recourse::Exactly(one) => assert!(
                     found == [one],
-                    "{witness:?} must carry exactly its own recourse, found {} — {text}",
+                    "{seed:?} must carry exactly its own recourse, found {} — {text}",
                     found.len()
                 ),
                 Recourse::RoutedByPredicate => assert!(
                     found.len() == 1,
-                    "{witness:?} must route to exactly one recourse, found {} — {text}",
+                    "{seed:?} must route to exactly one recourse, found {} — {text}",
                     found.len()
                 ),
                 Recourse::None => assert!(
                     found.is_empty(),
-                    "{witness:?} reports invalid input and must give no fillet recourse: \
+                    "{seed:?} reports invalid input and must give no fillet recourse: \
                      {text}"
                 ),
             }
+        }
+    }
+
+    /// **Every sentence in `ALL` is appended by some variant.** A
+    /// recourse constant no refusal renders is advice the kernel never
+    /// gives, and a seed list that reaches only some of the constants
+    /// leaves the rest asserted by nothing anywhere: the row above
+    /// checks what a seeded variant appends, never that a constant is
+    /// appended at all.
+    ///
+    /// This is the completeness the suites in `tests/` defer to, and
+    /// it is completeness over `ALL` — not over the module's
+    /// constants, which nothing enumerates (see [`contract`]).
+    #[test]
+    fn every_recourse_sentence_is_rendered_by_some_variant() {
+        let rendered: Vec<&'static str> = seeds()
+            .iter()
+            .flat_map(|seed| recourses_in(&seed.to_string()))
+            .collect();
+        for sentence in ALL {
+            assert!(
+                rendered.contains(&sentence),
+                "no seeded variant appends {sentence:?} — either the constant is dead or \
+                 the variant that appends it is unseeded"
+            );
         }
     }
 }

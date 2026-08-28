@@ -125,12 +125,12 @@ use super::system::LocalSystem;
 /// second `f64` copy of the run tolerance is exactly the shape that
 /// lets a caller march at one tolerance and certify at another.
 ///
-/// **The type does not leave this crate.** No public door takes or
-/// returns one — the uncertified trace, the only door that names the
-/// generator's tolerance at all, takes a bare `f64` and mints one
-/// here. Inside `ssi` the only constructor a certifying door can reach
-/// is [`MarchTol::from_band`]; a tolerance that is not the run band's
-/// comes from [`MarchTol::decoupled`], which that one door owns.
+/// **The type does not leave this crate**: no public door takes or
+/// returns one, and the uncertified trace — the only door that names
+/// the generator's tolerance at all — takes a bare `f64`. A tolerance
+/// that is not the run band's is mintable only inside `ssi`
+/// ([`MarchTol::decoupled`]), and only that one door reaches for it;
+/// every certifying door derives its own from the run band.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct MarchTol(f64);
 

@@ -61,9 +61,18 @@
 //! assert the budget is D9's, genuinely overrun, at a finer-than-default
 //! ε before they announce.
 //!
-//! **This is not yet the tree's only spelling**: hand-rolled in-row
-//! stand-down `println!`s predate this module and are scheduled for
-//! conversion (S169 / D115).
+//! **Every in-row stand-down in `crates/` goes through this door.** The
+//! hand-rolled `println!`s that predated it are converted. What the
+//! sweep behind that statement matched is `SKIPPED (` / `SKIPPED:` over
+//! `crates/*/{src,tests}`, so it cannot see a stand-down announced
+//! without the word — an `eprintln!("standing down …")`, a `dbg!`, or a
+//! comment where a print should be — and it does not reach `demos/`,
+//! `tools/` or `interval-transcendentals/`.
+//!
+//! The four whole-binary
+//! `interval_lane_skipped_no_certified_coverage_here` rows are a
+//! different idiom and deliberately not converted: their entire body is
+//! the announcement, and `memories/test-suite-cost.md` names them.
 
 use std::collections::BTreeMap;
 

@@ -690,9 +690,10 @@ KLINT_ROWS: tuple[str, ...] = (
 # lanes' shapes: ci.yml archives the same `cargo_scope` for both and the
 # interval lane merely adds `--features interval`, so a pinned run executes the
 # same rows in a stricter compile. The rows it does NOT reach are the ones
-# gated `cfg(not(feature = "interval"))` — legitimate in `crates/*/tests` and
-# nowhere else (`scripts/check-interval-cfg-additive.py` is what holds that
-# line), and enumerable at any time with
+# gated `cfg(not(feature = "interval"))` — which
+# `scripts/check-interval-cfg-additive.py` keeps out of `crates/*/src`
+# entirely and permits, whole-item only, in `crates/*/tests`, where the
+# loud-skip marker rows use it. Enumerable at any time with
 #
 #     grep -rn 'not(feature *= *"interval")' --include=*.rs crates/
 #
@@ -1453,8 +1454,8 @@ def main() -> int:
             "ci-filter: this is not a coverage gap. Both lanes archive the same "
             "scope and the interval lane only adds `--features interval`, so a "
             "pinned run executes the same rows in a stricter compile; what it "
-            "does not reach is code gated `cfg(not(feature = \"interval\"))`, "
-            "which lives only in crates/*/tests.",
+            "does not reach is the loud-skip marker rows gated "
+            "`cfg(not(feature = \"interval\"))` under crates/*/tests.",
             file=sys.stderr,
         )
 

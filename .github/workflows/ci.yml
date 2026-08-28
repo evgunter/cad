@@ -611,14 +611,24 @@ jobs:
       - name: k-probe sweep guard selftest (run_dump)
         run: scripts/rundump-guard-selftest.sh
       # The `interval` feature must stay PURELY ADDITIVE. This is not a
-      # style rule: the `test-interval` legs run only the tests that
-      # feature ADDS (see that job's header), which is sound only while
-      # enabling it cannot change the default build. A gated item that
-      # is not an impl/mod/use/type or test-only code, or any
-      # `cfg(not(feature = "interval"))`, fails here — and the correct
-      # response is to reconsider the run-leg selection, NOT to
-      # allowlist. Stdlib-only python3, so it rides this cheap-tripwire
-      # job. The --selftest pass shows the guard actually fires.
+      # style rule: on an interval draw the default lane does not run at
+      # all, so this lane stands in for it (see `test-interval`'s header),
+      # and the wasm32 guard below runs the interval leg ONLY on the same
+      # premise. Both hold while enabling the feature cannot change what
+      # the default build compiles.
+      #
+      # WHAT ACTUALLY FAILS HERE, at the scope the script walks
+      # (crates/*/{src,tests}): in `src`, a gated item that is not an
+      # impl/mod/use/type or test-only code, and ANY
+      # `cfg(not(feature = "interval"))` at all. In `tests`, negation is
+      # LEGITIMATE and in use — the loud-skip marker rows exist only
+      # without the feature, on purpose — so the rule there is that an
+      # interval cfg of either polarity must gate a WHOLE item, which is
+      # what makes a test present in both builds identical code in both.
+      # The correct response to a red is to reconsider what rests on the
+      # premise, NOT to allowlist. Stdlib-only python3, so it rides this
+      # cheap-tripwire job. The --selftest pass shows the guard actually
+      # fires.
       - name: interval-feature additivity (gates the interval run legs)
         run: |
           python3 scripts/check-interval-cfg-additive.py --selftest
@@ -924,11 +934,15 @@ jobs:
       #      Enabling a feature can add crates and features; it cannot
       #      remove them. That is cargo's design, not this repo's.
       #   2. `scripts/check-interval-cfg-additive.py` forbids any
-      #      `cfg(not(feature = "interval"))` under crates/*/{src,tests},
-      #      so no source in this repo compiles ONLY when the feature is
-      #      off. That gate runs in `discipline`, on the same code-tier
-      #      pull-request runs as this step — the premise is checked
-      #      wherever it is relied on.
+      #      `cfg(not(feature = "interval"))` under crates/*/src, so no
+      #      LIBRARY source in this repo compiles only when the feature is
+      #      off — which is exactly this row's scope, because `cargo check`
+      #      without `--all-targets` builds lib targets and not tests.
+      #      (Under crates/*/tests that gate PERMITS negation, whole-item
+      #      only; those are the loud-skip marker rows, and no target this
+      #      row builds contains one.) That gate runs in `discipline`, on
+      #      the same code-tier pull-request runs as this step — the
+      #      premise is checked wherever it is relied on.
       #
       # THE LINT'S OWN RESIDUAL IS NOW THIS GUARD'S RESIDUAL, and its
       # header states it: the check is SYNTACTIC. It cannot see through a
@@ -1796,12 +1810,21 @@ jobs:
   # THE SOUNDNESS PREMISE IS UNCHANGED AND STILL GATED. The feature is
   # purely ADDITIVE — every `#[cfg(feature = "interval")]` item in
   # crates/*/src is an `impl ... for Interval`, a mod/use/type for
-  # `Interval`, or test-only code; there is no `cfg(not(feature =
-  # "interval"))` in the tree; and Rust has no specialization, so extra
-  # impls cannot move how the f64 paths monomorphize. A test present in both
-  # builds therefore executes the same machine code in both, which is what
-  # makes this lane a legitimate stand-in for the default one on the runs
-  # where it is drawn. That premise is not left to prose —
+  # `Interval`, or test-only code; nothing under crates/*/src compiles
+  # `cfg(not(feature = "interval"))` at all; and Rust has no specialization,
+  # so extra impls cannot move how the f64 paths monomorphize. A test
+  # present in both builds therefore executes the same machine code in both,
+  # which is what makes this lane a legitimate stand-in for the default one
+  # on the runs where it is drawn.
+  #
+  # THE STAND-IN IS NOT TOTAL, and the exception is where the same gate
+  # ALLOWS negation: crates/*/tests, whole-item only. Those rows — the
+  # loud-skip markers — exist only WITHOUT the feature, so a run that lands
+  # on this lane, drawn or pinned (ci-filter.py's `_forces_interval`, which
+  # now says so on stderr), does not execute them. Their whole population
+  # is `grep -rn 'not(feature *= *"interval")' --include=*.rs crates/` —
+  # today, four loud-skip rows in four files, and the grep rather than the
+  # number is what to re-take. That premise is not left to prose —
   # scripts/check-interval-cfg-additive.py GATES it in the `discipline` job,
   # on every code-tier run, and fails loudly the moment it stops holding.
   test-interval:

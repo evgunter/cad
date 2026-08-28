@@ -532,7 +532,7 @@ pub const REGENERATE_RECOURSE: &str = "regenerate the file from its source recip
 impl core::fmt::Display for PersistError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::NonFinite { site } => write!(f, "persist: non-finite float at {site:?}"),
+            Self::NonFinite { site } => write!(f, "persist: non-finite float at {site}"),
             Self::ProfileProgram { node, fault } => write!(
                 f,
                 "persist: profile program fault at node {}: {fault}",
