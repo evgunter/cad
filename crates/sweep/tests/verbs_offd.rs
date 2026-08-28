@@ -560,9 +560,10 @@ fn the_moved_caps_own_seam_keeps_its_declaring_pushforward() {
         b.edges()
             .filter_map(|(k, e)| {
                 let c = b.get_curve_geom(e.curve).and_then(CurveGeom::certified)?;
-                let geom_brep::EdgeAuthority::Declared(
-                    geom_brep::MappedCurve::PlacedSegment { place, .. },
-                ) = c.authority()
+                let geom_brep::EdgeAuthority::Declared(geom_brep::MappedCurve::PlacedSegment {
+                    place,
+                    ..
+                }) = c.authority()
                 else {
                     return None;
                 };

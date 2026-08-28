@@ -1311,26 +1311,27 @@ fn plan_edge<T: Decide>(
     // present, so an edge whose locus nothing declared still crosses a
     // non-translating offset freely — which is what the retirement
     // bought, and this keeps it.
-    let carried_declaration = || -> Result<Option<geom_brep::MappedCurve<T>>, ReplaceFaceError<T>> {
-        match curve.authority() {
-            geom_brep::EdgeAuthority::Derived => Ok(None),
-            geom_brep::EdgeAuthority::Declared(mc) => {
-                let delta = delta.ok_or(ReplaceFaceError::CarrierLaneUnsupported {
-                    edge,
-                    what: "a declared chart image whose surface's offset is not a rigid \
+    let carried_declaration =
+        || -> Result<Option<geom_brep::MappedCurve<T>>, ReplaceFaceError<T>> {
+            match curve.authority() {
+                geom_brep::EdgeAuthority::Derived => Ok(None),
+                geom_brep::EdgeAuthority::Declared(mc) => {
+                    let delta = delta.ok_or(ReplaceFaceError::CarrierLaneUnsupported {
+                        edge,
+                        what: "a declared chart image whose surface's offset is not a rigid \
                            translation (the image transports, its declaring pushforward \
                            cannot)",
-                })?;
-                Ok(Some(translate_mapped(mc, delta).ok_or(
-                    ReplaceFaceError::CarrierLaneUnsupported {
-                        edge,
-                        what: "a rotation-family declaring pushforward (its trajectory \
+                    })?;
+                    Ok(Some(translate_mapped(mc, delta).ok_or(
+                        ReplaceFaceError::CarrierLaneUnsupported {
+                            edge,
+                            what: "a rotation-family declaring pushforward (its trajectory \
                                does not translate)",
-                    },
-                )?))
+                        },
+                    )?))
+                }
             }
-        }
-    };
+        };
 
     let new_description = match description {
         // A seam names a surface and nothing else — its image is
