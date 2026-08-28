@@ -2111,3 +2111,12 @@ corner asked to move nothing short-circuits as no-move before any meter
 runs. BANKED: when a dimensionless quantity needs a lever, the lever
 must come from the geometry being judged, never from the request — or
 the refusal's own words stop being true.
+
+**Coverage note (PR-2a fix pass).** Hosted Actions were down repo-wide
+from 17:27Z to 18:26Z on 2026-08-28 and every fix-pass push landed in
+that window, so the fix pass carried zero check-runs until this commit.
+The re-roll that PR-1 used to chase a k-lint row is retired here in
+favour of the `CI-Config:` trailer that landed on main the same day: it
+pins the dimension on the HEAD COMMIT, so which configuration gated a
+commit is recoverable from the commit — the property the sampling was
+built around and the one a dispatch necessarily breaks.
