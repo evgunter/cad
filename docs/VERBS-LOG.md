@@ -2036,3 +2036,14 @@ gate would have shipped four of them. First fully green fix-pass head:
 74a054e6 at LANE=interval, EPS=default, KLINT_ROW=dev-budget; the
 DEFAULT-lane confirmation C7 owes is drawn separately and named in the
 PR.
+
+## SHELLFIX PR-1 MERGED (#1099) — ordinal-101 row (sample #34); #1082 CLOSED (2026-08-28)
+
+The validated-wrong-body class is dead three ways: the operand
+fixed (canonicalize_chart), the net armed (check 9, now
+escalation-honest at all four sites with the key-shared exemption
+removed under R1's measured tier-1 reading), and the probe that
+let it ship extended. The teapot ships opened; #1082 closes at
+this merge; #1081 is PR-2's, dispatching now. The ε-sampling
+finding (five defects, one per drawn point) is the strongest
+argument yet for #1051's requestable runs — cited there.
