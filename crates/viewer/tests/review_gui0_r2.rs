@@ -214,6 +214,7 @@ fn pan_keeps_the_point_under_the_cursor_at_random_states() {
                 &ViewportEvent::Drag {
                     button: PointerButton::Secondary,
                     shift: false,
+                    alt: false,
                     delta_px: [dx, dy],
                 },
                 size,
@@ -318,6 +319,10 @@ fn map_stream_agrees_with_folding_its_own_output() {
                     ViewportEvent::Drag {
                         button: buttons[rng.below(3)],
                         shift: rng.below(2) == 1,
+                        // Random alt too: the property is about the
+                        // fold agreeing with its own output, whatever
+                        // the events bound to.
+                        alt: rng.below(2) == 1,
                         // Includes exact zeros sometimes, which must
                         // bind to nothing.
                         delta_px: [

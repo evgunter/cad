@@ -1004,6 +1004,7 @@ fn the_two_mappings_partition_the_event_stream() {
         ViewportEvent::Drag {
             button: PointerButton::Middle,
             shift: false,
+            alt: false,
             delta_px: [4.0, 4.0],
         },
         ViewportEvent::Scroll { units: 1.0 },

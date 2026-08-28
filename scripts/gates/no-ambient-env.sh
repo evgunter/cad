@@ -62,6 +62,29 @@
 #    test-utils is a dev-only leaf no shipped build can reach.
 #    This one is discharged by REACHABILITY before the four rows
 #    are reached: there is no shipped behaviour to change.
+#  - viewer frame.rs — the GUI shell's PLATFORM PROBES (#1097
+#    first-light hardening): PATH + DBUS_SESSION_BUS_ADDRESS for
+#    the file-chooser-backend verdict, WSL_DISTRO_NAME/WSL_INTEROP
+#    for the WSLg X11 preference. The data flow is the REVERSE of
+#    NURBS_PROBE's: the environment is the SUBJECT being observed,
+#    not a knob into the model — no read can change what any
+#    document evaluates to; they adapt chrome affordances (disable
+#    a dialog with the reason attached, prefer the X11 backend
+#    where Wayland RAIL is broken). Against the rows: read once at
+#    startup and stored, never re-read under a running app
+#    (commit-once); the chooser verdict is rendered in the UI
+#    itself — the disabled control's tooltip IS the report — and
+#    the WSL preference is in the crate README (reported); the
+#    dialog's own outcome outranks the portal hint, which is
+#    documented as a hint and nothing stronger (reconciled).
+#    CONTRACT-RATIFIED holds vacuously: these are not model
+#    parameters at all, and the windowing/dialog stack underneath
+#    (winit, rfd) already reads WAYLAND_DISPLAY/DISPLAY and the
+#    portal environment ambiently on every start — the probes make
+#    a dependence that already exists visible instead of adding a
+#    new kind. ONE file on purpose: every ambient read the viewer
+#    performs lives in frame.rs, so this entry is a single door,
+#    not a pattern.
 #
 # `env!` is deliberately NOT matched: it is compile-time, baked
 # into the binary, and cannot be an ambient channel.
@@ -80,7 +103,8 @@ gate() {
   hits=$(gate_rust_code "${GATE_SOURCE_FILES[@]}" \
     | grep -P '\benv::vars?(_os)?\s*\(' \
     | grep -vE '^crates/geom-core/src/tolerance\.rs:' \
-    | grep -vE '^crates/test-utils/src/fuzz\.rs:' || true)
+    | grep -vE '^crates/test-utils/src/fuzz\.rs:' \
+    | grep -vE '^crates/viewer/src/frame\.rs:' || true)
   if [ -n "$hits" ]; then
     echo "$hits"
     gate_error "a kernel crate reads the environment at runtime — that is a back channel into shipped code, changing behaviour with no rebuild and no call site to review (NURBS_PROBE was exactly this). Arm it by an explicit call and gate it behind a feature, or ratify this file into the allowlist."
