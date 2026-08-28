@@ -10,7 +10,7 @@
 
 use geom::Surface;
 use geom_core::{Band, Bounds, Interval, Point2, Tol};
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::{Extrusion, extrude};
 use topo::{Body, ChartMove};
 
