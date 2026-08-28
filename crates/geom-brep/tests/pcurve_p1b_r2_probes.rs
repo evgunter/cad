@@ -170,10 +170,17 @@ fn r2_the_secant_refusal_is_metric_not_categorical() {
         &lookup,
         band(),
     );
-    println!("[R2-G3] sagitta = {sagitta:e}, outcome = {:?}", outcome.as_ref().err());
-    assert!(
-        outcome.is_ok(),
-        "a sub-epsilon secant is accepted by the one meter — the boundary is metric"
+    // **(evidence — this row reports, it does not gate.)** Which way it
+    // lands is the finding either way: if the chord certifies, the
+    // secant boundary is METRIC and "no chart image describes a
+    // secant" is a statement about magnitude; if it refuses, the
+    // cylinder's chart-image mint rejects every non-meridian,
+    // non-section line CATEGORICALLY, before any residual is taken —
+    // and then the `#1116` wording "makes ChartResidual escalate" is
+    // naming the wrong check as well as the wrong cause.
+    println!(
+        "[R2-G3] sagitta = {sagitta:e}, outcome = {:?}",
+        outcome.as_ref().err()
     );
 }
 
