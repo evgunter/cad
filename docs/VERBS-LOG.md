@@ -1988,3 +1988,38 @@ refused by the junction gate (JunctionTangent, margin 1.6e-17) —
 the scene authors 70° on its own merits. One clippy red fixed by
 the #971 alias precedent, not allowed. v6 dual, frozen head
 a1aa5289; slot draw lane-private; claim to main at dispatch.
+
+## ORDINAL 101 FIX PASS — SHELLFIX PR-1 union (2026-08-28)
+
+Dual adjudicated A-W-F 0/4/6 and 0/4/6: the central inversion
+HELD under every attack from both arms (wedge, counterbore,
+bottom-opened and Line-carrier shapes all correct-or-typed; the
+byte-diff clean; no validated wrong body found anywhere). Four
+union items, all landed. The HEADLINE was bilateral and was a
+real defect: check 9 matched only `Ok(Sign::Zero)` at all three
+decides, so an `Err(Indeterminate)` read as NO CONTACT — and the
+same drop was a precondition of the GLUE, which proceeded to
+build on an uncertifiable gap. Three-valued verdict now;
+`RingContactEscalated` at rest, `ShellError::Escalated` at the
+door, neither reachable through this verb (the thickness gate
+shields the band) and both there for other producers' bodies.
+Second: a third contact arm (a ring vertex on an outer edge's
+INTERIOR), the collinear arm accepting ANY sample inside the
+trim, and the residue list rewritten from "Ellipse/NURBS" — false
+by omission — to the enumerated set (non-vertex tangency,
+transversal crossings, Ellipse/NURBS). Third: the key-shared
+exemption cited tier 1 on a FALSE premise (R1 read passes 1-13;
+an umbrella pinch passes) and is removed, with its own planted
+red. Fourth: C7's compile-mode sentence was overstated and is
+withdrawn.
+
+Two BANKED lessons, both from the hosted gate rather than from
+reading: metering a coincidence test against eps lands a
+coincident pair's margin ON the band's threshold, where it
+escalates instead of deciding — meter the separation against
+ZERO; and `revolve`'s axis-contact classification is
+epsilon-sensitive, so an axis-touching fixture that builds at the
+default band refuses `NonManifoldAxisContact` at 1e-12. The
+adopted probe rows record that door fact instead of expecting
+past it. Both probe branches adopted authorship-preserving,
+byte-dump harness included. Helper duplication filed as #1123.
