@@ -970,8 +970,7 @@ impl ViewerBehavior<'_> {
                     // of scope for v1 selection, so the kind is not a
                     // variable to render.
                     ui.label(format!("face of feature {}", face.node.0));
-                    if standing.live()
-                        && ui.button(delete_label(self.session, face.node)).clicked()
+                    if standing.live() && ui.button(delete_label(self.session, face.node)).clicked()
                     {
                         self.ops.push(SessionOp::DeleteNode { node: face.node });
                     }
