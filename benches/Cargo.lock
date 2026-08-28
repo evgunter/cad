@@ -231,9 +231,11 @@ dependencies = [
 name = "editor-core"
 version = "0.0.0"
 dependencies = [
+ "bvh",
  "geom",
  "geom-brep",
  "geom-core",
+ "mesh",
  "profile",
  "quantity",
  "rayon",

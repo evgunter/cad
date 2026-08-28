@@ -87,3 +87,107 @@ Board: **P-1b next** — the consumers, the transience fence (`ops.rs`'s
 two mint sites and fillet's six strut sites), `nurbs_iso_derive`'s
 conventional arms, tier 3 switching onto `EdgeAuthority`, and the shim
 field plus 22 deref sites to pay. P-2 (#498's `General` home) follows.
+
+## Census gap 2 MERGED (#1080, 2026-08-27) — the flush seat certifies
+
+Not PCURVE work — a standalone kernel unit (#943's gap 2, issue
+#1063) carried by this orchestrator alongside the program, recorded
+here because this is where the orchestrator's narrative lives.
+
+The obvious way to draw a seated part — a post flush under a shelf —
+could not certify. Two independently authored coincident planes share
+no chart, so Door 2 had nowhere to compute the overlap and declined;
+the demo had been authored with an INSET, its comment saying flush ≡
+inset until this landed. It now takes the pair's shared **world
+carrier** as the chart, and the demo's bench seats are flush with the
+A5 gate ASSERTING `Certified` rather than printing it.
+
+**The unit's real content is the lemma, and it is written where the
+next reader meets it** (at `world_carrier`, not in a PR body): both
+chart maps are isometries, so when `carrier_agreement` decides Zero,
+ψ = φ_B⁻¹ ∘ φ_A is within ε a plane isometry, and every downstream
+quantity is a Euclidean invariant. Orientation — the one thing a
+reflection does not fix, and exactly the field an opposed `Rest` pair
+differs in — is absorbed **structurally** by CCW normalization before
+the machinery runs. Stated honestly beside it: the *certified*
+answers are invariant, the *refusal boundary* is not exactly, because
+`ray_parity`'s schedule rotates with the frame. The reviewer judged
+that concession **the right size** after supplying the rotations the
+shipped corpus never exercised.
+
+**U-R2's ratified justification was FALSE and is corrected.** The
+design argued a plane's world embedding "does not have chart
+parameters"; `Surface::Plane` carries `u_ref`, and `world_carrier`
+returns `s_a` — it picks A's frame as the REPRESENTATIVE. What
+licenses the choice is frame-invariance of the answer, and "exact" is
+too strong besides: `decide`'s `Ok(Zero)` is `|m| ≤ zero`, not
+bit-zero. The honest claim is **certified everywhere within ε**.
+
+**What lifting the scope constraint bought.** Evan cleared the lane to
+edit M9-2's code; auditing the whole door then found TWO more
+asymmetries beyond the reviewer's one — `collinear_offset` also
+one-sided, and `overlap_of_regions`' containment arm refusing on one
+relation's `None` before consulting the other. The fix
+(`|r|` → `min(|r|,|s|)`) is the union-max of the candidate margins,
+so it is symmetric by construction and never less definite: nothing
+that certified before stops certifying.
+
+The dual (ordinal 200 — the first banded claim) is EXCLUDED from the
+tally and the twelve, because the orchestrator relaxed R1's method
+under mutex saturation and not R2's. The fault is the orchestrator's;
+the findings are real and fixed.
+
+## Census gap 2's band-edge row went RED on main, and why (#1102, fixed #1108, 2026-08-27)
+
+**The unit above merged with a stated coverage gap, and the gap was
+the row's own subject.** #1080's CI drew `EPS=default`; the row it
+added is *about* what happens across the ε band. Main went red at the
+1e-12 draw within the day, and two other programs inherited it. The
+orchestrator's fault, stated as a rule so it binds the next unit: **a
+stated coverage gap is a blocker when the untested axis is the row's
+own subject.** Adjacent gaps are follow-ups; the subject is a blocker.
+Hosted CI draws ONE ε per run from the seed, so a green check is
+evidence about that draw and nothing else.
+
+**The defect was exactness, not drift.** The orchestrator's hypothesis
+was that `(10ε).atan().to_degrees()` drifts at tight ε so the fixture
+misses the threshold. Measured, the round trip is **exact to 0 ulp at
+1e-9 and 1e-12** and loses 5e-16 relative at 1e-6. `decide` calls
+`|m| ≥ K·ε` definite, so a fixture placed exactly ON the threshold has
+its side chosen by whatever the kernel's arithmetic adds downstream —
+Newell plane, chart projection, CCW normalization, scaling — and that
+residue moves with ε. The `k = 10` cell is the whole incident:
+
+| ε | A→B | B→A | old row |
+|---|---|---|---|
+| 1e-6 | Escalated | Escalated | green |
+| 1e-9 | Ok(PositiveArea) | Escalated | green **by luck**, one entry in `seen` |
+| 1e-12 | Ok(PositiveArea) | Ok(PositiveArea) | `seen` empty → **red** |
+
+So the row was a coin-flip at *every* ε; default merely landed heads.
+In one sentence: a row whose subject is *"the band edge is where noise
+decides the verdict"* placed a single fixture on that edge, and so
+depended for its own liveness on the coin-flip it exists to document.
+
+**The replacement is stronger, not weaker** — the fix pass was told
+not to weaken the row to make it pass. Operating point fixed, scale
+swept (`sin θ = kε`, k ∈ {5,8,9,10,11,12,20}), asserting three
+properties none of which depends on where a cell lands: no pair is
+ever certified two DIFFERENT answers; co-escalating orders agree in
+margin MAGNITUDE to the derived noise bound `1e3·EPSILON/sin θ`
+(a wrong lever separates them by a length RATIO instead — #1080's
+MAJOR); and a certify-versus-refuse split may occur ONLY within that
+bound of a threshold. The third is a **confinement** claim the old row
+could not state at all, and it fails on a split in the band's
+interior. Non-vacuity is structural rather than lucky: k = 5, 8, 9 sit
+strictly inside `(ε, K·ε)` at every ε, so the asserted
+`escalations >= 3` cannot go quiet unless the band itself moved.
+Verified locally at 1e-6 / 1e-9 / 1e-12, 11 passed 0 failed at each,
+before merge.
+
+**Lane operations, recorded because it cost ~50 minutes.** `-x` waits
+for ALL slots and flock has no queue, so single-slot jobs arriving
+AFTER an `-x` waiter is armed still beat it. A one-lane courtesy yield
+therefore does not clear a path for an exclusive job — that needs a
+machine-wide quiet period. The blocked lane pushed and opened its PR
+while waiting, since hosted CI needs no local slot.

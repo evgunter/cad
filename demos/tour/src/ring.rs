@@ -137,6 +137,30 @@ fn section(radius: f64, tol: Tol) -> ProfileLoop<f64> {
 /// verb, this stops agreeing and the finding is rewritten from what
 /// the assertion says — not the other way round.
 fn through_the_document(tol: Tol) -> Body<f64> {
+    let (doc, revolved) = document(tol);
+    let ev = evaluate::<f64>(
+        &doc,
+        None,
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        tol,
+    );
+    match &ev.value(revolved).expect("the revolve evaluated").payload {
+        ValuePayload::Body(b) => (**b).clone(),
+        other => panic!("expected a body, got {other:?}"),
+    }
+}
+
+/// This scene's recipe, as a document the GUI can open.
+///
+/// The same document `through_the_document` evaluates — the gallery
+/// hands a reader exactly the recipe this scene's claim rests on.
+pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
+    document(tol).0
+}
+
+/// The ring's recipe and its revolve node.
+fn document(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
     let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
     let mut doc: Doc<ProfileProgram> = Doc::empty_derived("hollow-ring", tol);
     let insert = |doc: &mut Doc<ProfileProgram>, node| -> RecipeNodeId {
@@ -176,17 +200,7 @@ fn through_the_document(tol: Tol) -> Body<f64> {
             angle: Expr::literal(core::f64::consts::TAU, Dimension::Angle).expect("an angle"),
         },
     );
-    let ev = evaluate::<f64>(
-        &doc,
-        None,
-        &CancelToken::new(),
-        &EvalOptions::default(),
-        tol,
-    );
-    match &ev.value(revolved).expect("the revolve evaluated").payload {
-        ValuePayload::Body(b) => (**b).clone(),
-        other => panic!("expected a body, got {other:?}"),
-    }
+    (doc, revolved)
 }
 
 pub fn stops(tol: Tol) -> Vec<Stop> {

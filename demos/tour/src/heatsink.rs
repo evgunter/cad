@@ -191,6 +191,15 @@ pub(crate) fn probe_solids<S: Scalar>(tol: Tol) -> Vec<pncad::topo::BooleanBody<
     out
 }
 
+/// This scene's recipe, as a document the GUI can open.
+///
+/// The same `build_doc` the stops walk — the gallery must not be a
+/// second authoring of the scene, or it would stop being evidence
+/// about this one.
+pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
+    build_doc(tol).doc
+}
+
 pub fn stops(tol: Tol) -> Vec<Stop> {
     let r = build_doc(tol);
     let cancel = CancelToken::new();

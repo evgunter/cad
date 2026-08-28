@@ -88,11 +88,28 @@ still shaping a scene and do not intend to commit the frames:
 ```sh
 cd demos/tour
 cargo run --release -- ../out   # build + narrate + export STL/STEP + scenes.json
+cargo run --release -- gallery ../gallery-out  # the document gallery (see below)
 cd ..
 ./render.sh                     # kernel-tessellation montage (renders/montage.png)
 ./render.sh --freecad           # FreeCAD/OCC STEP-lane montage (renders-freecad/montage-freecad.png)
 ./render-uv.sh                  # UV trim-loop sheet (renders-uv/montage-uv.svg)
 ```
+
+### The document gallery
+
+`demo-tour gallery [dir]` (default `gallery/`) writes each
+**document-authored** scene as a `.pncad` file the GUI can open:
+`checks`, `ring`, `diefillet`, `heatsink` as single documents, plus the
+assembly scene's workspace under `assembly/`. It authors them through
+the same functions the tour renders — the gallery is the scenes, saved,
+not a second spelling of them.
+
+The rest of the tour drives the kernel API directly and has no document
+to save; those scenes join the gallery as they are re-authored as
+documents, which is per-scene library work.
+
+Open one with `cargo run -p viewer --features app` and the toolbar's
+`Open…`.
 
 ### Preview mode: the local override
 

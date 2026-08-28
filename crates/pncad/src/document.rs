@@ -44,6 +44,22 @@ pub use editor_core::{
 // MATCH on it rather than pre-check the conditions it refuses.
 pub use editor_core::{Dimension, DimensionError, Expr, ParamEnv, ParseError, parse_expr};
 
+// The expression READ side: an expression's current value under a
+// document's parameter environment (`Doc::param_env`). A panel that
+// shows a slot before editing it needs this — `Expr::literal_value`
+// answers only for a bare literal, and a slot driven by
+// `width/2 - margin` has a value the consumer otherwise cannot obtain
+// without re-implementing the evaluator. `EvalError` rides along so a
+// slot whose value cannot be computed says which parameter is missing
+// rather than displaying a blank.
+//
+// Reached through the `expr` module path rather than through
+// `editor_core::eval`, which names BOTH the evaluation module and this
+// function: a bare `pub use editor_core::eval` would re-export the
+// module too, opening a second door onto the layer this list exists to
+// curate.
+pub use editor_core::expr::{EvalError, eval, eval_count};
+
 // Named document parameters.
 // `ParamName` is a parameter's name — a plain string newtype — and
 // `DocParam` its declared dimension plus exact stored value: recipe
@@ -135,6 +151,16 @@ pub use editor_core::{
     MateSide, SolvedPoses, Subgroup, UNDER_RECOURSE, clusters, gauge_of, reading_edges,
     relative_freedom_components, solve_document,
 };
+
+// The class-admission table (`ClassAdmission`, read through
+// `class_admission`, with `CLASS_DEFERRAL` as the deferral sentence its
+// refusals cite): HOW FAR each contact class gets in v1, as one value
+// both enforcement doors read. A mate-authoring consumer needs it
+// BEFORE committing — the table is what says a class will refuse at
+// the solve or mint door, so exposing it here is what lets a tool
+// offer only what the vocabulary can execute instead of discovering
+// the refusal after the edit lands.
+pub use editor_core::{CLASS_DEFERRAL, ClassAdmission, class_admission};
 
 // **The assembly at-rest gate** (A5): `assemble` gathers a document's
 // product, mints every solved mate's declaration into its contact

@@ -2147,7 +2147,15 @@ fn confirm_curve_and_patch_records<T: Decide + crate::chart_region::ChartRegionL
         // Door 1 — carrier identity + opposed senses, the record
         // standing as its own declaration (C3: rung 2/3, never
         // value-equal; aligned coincidence contradicts).
-        match crate::boolean::contact_pair_verdict(
+        //
+        // INVARIANT: the verdict is CARRIED to Door 2, not discarded.
+        // Door 2's world-carrier arm exists only because this
+        // declaration verified, so it must know which of C4's two
+        // passing lists the pair landed in — `Definite` (the geometry's
+        // own evidence) or `Bridged` (an in-band residue the
+        // declaration covered) — rather than re-deriving or assuming
+        // it.
+        let door_one = match crate::boolean::contact_pair_verdict(
             body,
             c.face_a,
             body,
@@ -2156,7 +2164,7 @@ fn confirm_curve_and_patch_records<T: Decide + crate::chart_region::ChartRegionL
             None,
             band,
         ) {
-            Ok(_) => {}
+            Ok(verdict) => verdict,
             Err(crate::contact::ContactRefusal::Contradicted { diag, steer }) => {
                 errors.push(ValidationError::ContactContradicted {
                     declaration: crate::contact::DeclaredContact {
@@ -2181,10 +2189,12 @@ fn confirm_curve_and_patch_records<T: Decide + crate::chart_region::ChartRegionL
                 });
                 continue;
             }
-        }
-        // Door 2 — region overlap in the shared chart, definitely
-        // positive (the PR-1 predicate through the per-scalar lane).
-        match T::chart_overlap(body, c.face_a, body, c.face_b, band) {
+        };
+        // Door 2 — region overlap in the pair's chart, definitely
+        // positive (the PR-1 predicate through the per-scalar lane),
+        // the chart being either the structural one or the declared
+        // pair's shared world carrier.
+        match T::declared_overlap(body, c.face_a, body, c.face_b, door_one, band) {
             None => {
                 errors.push(ValidationError::CensusUnsupported {
                     entity: EntityId::Face(c.face_a),

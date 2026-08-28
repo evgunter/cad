@@ -97,6 +97,23 @@ fn boolean_doc(
     (doc, root, ev)
 }
 
+/// This scene's recipe, as a document the GUI can open: the two-cube
+/// DISJOINT union the narration checks first.
+///
+/// The same `boolean_doc` the narration walks — a reader who opens
+/// this in the viewer is looking at the document the connectedness
+/// finding was raised against.
+pub fn gallery_document(tol: Tol) -> ProfileDoc {
+    boolean_doc(
+        "pncad-demo-checks-disjoint",
+        BooleanOp::Union,
+        (0.0, 0.5, 0.0, 1.0),
+        (3.0, 0.5, 0.0, 1.0),
+        tol,
+    )
+    .0
+}
+
 pub fn narration(tol: Tol) {
     // (a) Two unit cubes three units apart, deliberately united into
     // one body: the finding fires at the default expectation.

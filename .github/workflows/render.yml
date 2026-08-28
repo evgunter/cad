@@ -438,6 +438,27 @@ jobs:
       - name: demo tour (STL + STEP + UV SVGs + scenes.json)
         if: ${{ env.TOUR_WANTED == 'true' && steps.tour-cache.outputs.cache-hit != 'true' }}
         run: cd demos/tour && cargo run --release -- ../out
+      # THE GUI-4 ACCEPTANCE HALF ON THE REAL GALLERY (two steps, both
+      # riding the tour cache's own gate). The cache key already hashes
+      # `crates/**` and `demos/tour/**` — exactly the sources this
+      # verdict is a function of: the gallery bytes come from the tour
+      # + the kernel, and the probe is the viewer, inside `crates/`.
+      # A cache hit therefore means an earlier run took this same
+      # verdict on identical inputs — the assumed-not-re-earned posture
+      # the tour output itself rides. The gallery is written INSIDE
+      # `demos/out`, so it travels with the cache and the artifact.
+      #
+      # The probe opens every gallery document through the viewer's
+      # typed `Open` door and exits nonzero unless every document
+      # resolves clean and every instance's hide/free-move either takes
+      # visible effect or refuses typed — the accepted-but-inert class
+      # measured on this very directory at GUI-4's review.
+      - name: demo-document gallery (the GUI's acceptance substrate)
+        if: ${{ env.TOUR_WANTED == 'true' && steps.tour-cache.outputs.cache-hit != 'true' }}
+        run: cd demos/tour && cargo run --release -- gallery ../out/gallery
+      - name: the real gallery opens in the viewer (GUI-4 acceptance)
+        if: ${{ env.TOUR_WANTED == 'true' && steps.tour-cache.outputs.cache-hit != 'true' }}
+        run: cargo run --release -p viewer --example r1_gallery_probe -- demos/out/gallery
       - name: wild generator (import + tessellate + STL + scenes.json)
         if: ${{ env.WILD_WANTED == 'true' && steps.wild-cache.outputs.cache-hit != 'true' }}
         run: cd demos/wild && cargo run --release -- out
