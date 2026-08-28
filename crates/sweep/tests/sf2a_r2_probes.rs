@@ -437,11 +437,17 @@ fn r2a_straight_vertex_prism_through_shell_at_head() {
     }
 }
 
-/// **All distances zero refuses as "singular"** — the conditioning
-/// meter is `|det|·Σ|dᵢ|`, so a zero total offset zeroes the meter for
-/// every triple and the refusal message blames the planes ("every
-/// triple ... is singular") on a perfectly conditioned box. Recorded
-/// as a measurement of the meter's edge, not asserted as a defect.
+/// **FLIPPED by the fix pass: a zero offset is a NO-MOVE, not a
+/// singular corner.** As measured, the conditioning meter was
+/// `|det|·Σ|dᵢ|`, so a zero total offset zeroed the meter for every
+/// triple and the refusal blamed the planes — "every triple ... is
+/// singular" — about a perfectly conditioned box. That was the
+/// bilateral finding, and the meter no longer levers by the request at
+/// all: its arm is the corner's own incident edges, and a corner asked
+/// to move nothing is answered as no-move BEFORE any meter runs.
+///
+/// The row keeps its fixture and now pins the positive side: the call
+/// succeeds and leaves every point exactly where it was.
 #[test]
 fn r2a_zero_total_offset_reports_singular() {
     let tol = Tol::witness();
@@ -453,11 +459,24 @@ fn r2a_zero_total_offset_reports_singular() {
             distance: 0.0,
         })
         .collect();
-    let e = topo::offset_planes_together(&mut body, &moves, band(), tol)
-        .expect_err("a zero-offset call has a zero meter");
-    println!("[r2a] all-zero distances: {e}");
-    assert!(
-        matches!(e, ReplaceFaceError::TogetherCorner { .. }),
-        "the meter refuses at the corner gate: {e}"
+    let before: Vec<(f64, f64, f64)> = body
+        .vertices()
+        .filter_map(|(_, v)| body.get_point(v.point).map(|p| (p.x, p.y, p.z)))
+        .collect();
+    topo::offset_planes_together(&mut body, &moves, band(), tol)
+        .expect("a zero offset is a no-move, not a singular corner");
+    let after: Vec<(f64, f64, f64)> = body
+        .vertices()
+        .filter_map(|(_, v)| body.get_point(v.point).map(|p| (p.x, p.y, p.z)))
+        .collect();
+    println!("[r2a] all-zero distances: {} points, unmoved", after.len());
+    assert_eq!(
+        before, after,
+        "a corner asked to move nothing must land exactly where it was"
+    );
+    assert_eq!(
+        topo::validate_geometric(&body, tol),
+        Ok(()),
+        "and the body is still valid"
     );
 }
