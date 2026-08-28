@@ -2048,7 +2048,16 @@ this merge; #1081 is PR-2's, dispatching now. The ε-sampling
 finding (five defects, one per drawn point) is the strongest
 argument yet for #1051's requestable runs — cited there.
 
-## ORDINAL 102 CLAIMED — SHELLFIX PR-2a (2026-08-28)
+## LILYWELD PR-1 MERGED (#1109) — ordinal-102 row (sample #35) (2026-08-28)
+
+The lily's flower and arch now share one exact circle, pinned
+from both carriers; wall 2 waits on PR-2's gate admission +
+carrier_eq rung with its retire note pointing there. The
+wall-text error class scored its fourth instance — caught
+pre-merge for the first time, by the dual. PR-2 dispatches to
+this lane next.
+
+## ORDINAL 103 CLAIMED — SHELLFIX PR-2a (2026-08-28)
 
 PR-2 STOPPED before code on the opening measurement and was
 re-scoped by the orchestrator into 2a (planar corners, M) and 2b
@@ -2076,3 +2085,4 @@ five fixtures. Hexagon/bevel/kite/triangle hollow, the hexagon
 pinned to its closed form; the curved rows still refuse at the
 same door; the teapot's belly is a sphere zone, so its
 un-squaring is honestly PENDING for 2b and is not claimed here.
+
