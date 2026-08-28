@@ -24,6 +24,12 @@ instance is not a viewport drag either: the free-move probe is the
 typed x/y/z fields in the instance section of the Properties panel
 (display-only, mm).
 
+In the Properties panel, the document-parameters list ends with an
+add-parameter row (name + dimension + value, one undoable edit); an
+expression that names an undeclared parameter refuses typed, and the
+refusal offers to create it — prefilled into that row, with the
+dimension left as your pick.
+
 ## Troubleshooting (first light was WSLg — issue #1097)
 
 **Open…/Save As… need a file-chooser backend.** The dialogs go through

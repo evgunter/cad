@@ -516,3 +516,140 @@ fn the_tree_selects_a_node_and_the_property_panel_follows() {
         "a profile's slots are its program's"
     );
 }
+
+/// **The create affordance's whole arc**: create → the parameter
+/// exists → an expression referencing it now parses → one undo
+/// removes it.
+#[test]
+fn create_parameter_reference_it_and_one_undo_removes_it() {
+    let tol = Tol::witness();
+    let (doc, _profile, extrude) = common::parametric_plate(tol);
+    let mut session = DocSession::inline(doc, tol);
+    let margin = pncad::document::ParamName::new("margin");
+
+    // Before: an expression naming the undeclared parameter refuses
+    // typed at the parse door (deliberate typo-safety) and carries
+    // the NAME — the payload the chrome's offer prefills from.
+    let before = session.history().len();
+    let outcome = session.perform(SessionOp::SetSlotExpression {
+        node: extrude,
+        slot: SlotId::Distance,
+        text: "margin * 2.0".to_owned(),
+    });
+    match outcome.refusal {
+        Some(Refusal::Parse(ref error)) => match error.as_ref() {
+            pncad::document::ParseError::UnknownParam { name, .. } => {
+                assert_eq!(name, "margin", "the refusal names the unknown");
+            }
+            other => panic!("expected the unknown-param refusal, got {other:?}"),
+        },
+        ref other => panic!("expected a parse refusal, got {other:?}"),
+    }
+    assert!(outcome.committed.is_empty(), "a refusal commits nothing");
+    assert_eq!(session.history().len(), before, "and mints no history");
+
+    // Create: exactly one committed SetDocParam, one undo step.
+    let outcome = session.perform(SessionOp::CreateParam {
+        name: margin.clone(),
+        value: pncad::document::DocParam::Continuous {
+            dim: pncad::document::Dimension::Length,
+            value: 0.005,
+        },
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert_eq!(outcome.committed.len(), 1);
+    assert!(matches!(
+        outcome.committed.first(),
+        Some(DocEdit::SetDocParam { .. })
+    ));
+    assert_eq!(session.history().len(), before + 1, "one undo step");
+    let row = props::param_rows(session.committed_doc())
+        .into_iter()
+        .find(|row| row.name == margin)
+        .expect("the parameter exists");
+    assert_eq!(row.dimension, pncad::document::Dimension::Length);
+    assert_eq!(row.value, SlotValue::Continuous(0.005));
+
+    // The same expression now parses, commits, and evaluates.
+    let outcome = session.perform(SessionOp::SetSlotExpression {
+        node: extrude,
+        slot: SlotId::Distance,
+        text: "margin * 2.0".to_owned(),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert_eq!(outcome.committed.len(), 1);
+    assert_eq!(
+        props::slot_rows(session.committed_doc(), extrude)
+            .into_iter()
+            .find(|row| row.slot == SlotId::Distance)
+            .expect("still there")
+            .value,
+        Ok(SlotValue::Continuous(0.010))
+    );
+
+    // Undo the expression edit, then ONE undo removes the parameter.
+    session.perform(SessionOp::Undo);
+    assert!(
+        props::param_rows(session.committed_doc())
+            .into_iter()
+            .any(|row| row.name == margin),
+        "the first undo returns only the expression edit"
+    );
+    session.perform(SessionOp::Undo);
+    assert!(
+        !props::param_rows(session.committed_doc())
+            .into_iter()
+            .any(|row| row.name == margin),
+        "one more undo removes the creation"
+    );
+}
+
+/// **Create is not replace.** `DocEdit::SetDocParam` is
+/// create-or-replace at the API; the panel's create door refuses an
+/// already-declared name typed, with the existing declaration's
+/// dimension in the payload — and the replace act stays spellable
+/// through the door that says so (`SetParam`).
+#[test]
+fn the_create_door_refuses_an_existing_name_and_setparam_still_replaces() {
+    let tol = Tol::witness();
+    let (doc, _profile, _extrude) = common::parametric_plate(tol);
+    let mut session = DocSession::inline(doc, tol);
+    let before = session.history().len();
+
+    // Creating over "thickness" — even at a DIFFERENT dimension, the
+    // riskier half of a silent replace — refuses typed and unchanged.
+    let outcome = session.perform(SessionOp::CreateParam {
+        name: common::thickness_param(),
+        value: pncad::document::DocParam::Count { value: 3 },
+    });
+    match outcome.refusal {
+        Some(Refusal::ParamExists {
+            ref name,
+            dimension,
+        }) => {
+            assert_eq!(name, &common::thickness_param());
+            assert_eq!(
+                dimension,
+                pncad::document::Dimension::Length,
+                "the payload carries what already stands there"
+            );
+        }
+        ref other => panic!("expected the already-exists refusal, got {other:?}"),
+    }
+    assert!(outcome.committed.is_empty(), "a refusal commits nothing");
+    assert_eq!(session.history().len(), before, "and mints no history");
+    let rendered = outcome.refusal.expect("asserted above").to_string();
+    assert!(
+        rendered.contains("already exists") && rendered.contains("edit it instead?"),
+        "the refusal offers the edit door: {rendered}"
+    );
+
+    // The REPLACE door still replaces — same underlying edit, spelled
+    // as what it is.
+    let outcome = session.perform(SessionOp::SetParam {
+        name: common::thickness_param(),
+        value: SlotValue::Continuous(0.012),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert_eq!(outcome.committed.len(), 1);
+}

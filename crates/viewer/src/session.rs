@@ -34,9 +34,9 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use pncad::document::{
-    Alignment, Dimension, DimensionError, Doc, DocEdit, EditError, Evaluation, Frame, Node,
-    ParamName, ParseError, PartResolver, ProductError, ProfileProgram, RecipeNodeId, SlotId, apply,
-    assemble, parse_expr, product,
+    Alignment, Dimension, DimensionError, Doc, DocEdit, DocParam, EditError, Evaluation, Frame,
+    Node, ParamName, ParseError, PartResolver, ProductError, ProfileProgram, RecipeNodeId, SlotId,
+    apply, assemble, parse_expr, product,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -233,6 +233,19 @@ pub enum Refusal {
     },
     /// No document parameter by that name.
     NoSuchParam(ParamName),
+    /// The CREATE door was asked for a name that is already declared.
+    ///
+    /// `DocEdit::SetDocParam` is create-or-replace and stays so at the
+    /// API; this refusal is the session keeping "create" and
+    /// "replace" distinct ACTS — see [`SessionOp::CreateParam`]. The
+    /// payload carries the existing declaration's dimension so the
+    /// offer can name what already stands there.
+    ParamExists {
+        /// The name, as asked for.
+        name: ParamName,
+        /// The dimension the existing declaration carries.
+        dimension: Dimension,
+    },
     /// `apply` refused the edit.
     ///
     /// Boxed, as `Io` is below: these two payloads are an order of
@@ -280,6 +293,7 @@ impl Refusal {
             Self::DrivenByExpression { .. } => 0,
             Self::NoSuchSlot { .. }
             | Self::NoSuchParam(_)
+            | Self::ParamExists { .. }
             | Self::Edit(_)
             | Self::Dimension(_)
             | Self::Parse(_)
@@ -331,6 +345,9 @@ impl core::fmt::Display for Refusal {
                 write!(f, "node {node:?} has no {slot:?} slot")
             }
             Self::NoSuchParam(name) => write!(f, "no document parameter named {}", name.0),
+            Self::ParamExists { name, dimension } => {
+                write!(f, "{}", Self::exists_wording(name, *dimension))
+            }
             Self::Edit(error) => write!(f, "the edit was refused: {error}"),
             Self::Dimension(error) => write!(f, "{error}"),
             Self::Parse(error) => write!(f, "the expression did not parse: {error:?}"),
@@ -368,6 +385,24 @@ impl Refusal {
             ),
             None => format!("driven by {over} — edit the expression?"),
         }
+    }
+
+    /// The already-declared sentence, and its one home. The status
+    /// line renders it through [`Refusal::ParamExists`], and the add-
+    /// parameter form shows the same sentence BEFORE the click — one
+    /// composition, so the pre-click notice and the refusal cannot
+    /// drift apart.
+    pub fn exists_wording(name: &ParamName, dimension: Dimension) -> String {
+        format!(
+            "parameter {} already exists ({dimension:?}) — edit it instead?",
+            name.0
+        )
+    }
+
+    /// The create-offer sentence, and its one home — shown over the
+    /// add-parameter form when an expression refused on this name.
+    pub fn offer_wording(name: &ParamName) -> String {
+        format!("create parameter {}?", name.0)
     }
 }
 
@@ -422,6 +457,24 @@ pub enum SessionOp {
         name: ParamName,
         /// The new value.
         value: SlotValue,
+    },
+    /// Declare a NEW document parameter — the panel's create
+    /// affordance, committing exactly one `DocEdit::SetDocParam`.
+    ///
+    /// That edit is create-or-replace, and stays so at the API. This
+    /// door refuses an already-declared name typed
+    /// ([`Refusal::ParamExists`]): a "create" that replaced would
+    /// change not just the value but possibly the declared DIMENSION,
+    /// re-validating every referencing expression — a blast radius no
+    /// plus-shaped button should carry. Replacing stays spellable
+    /// through the door that says so ([`SessionOp::SetParam`], which
+    /// conversely refuses a name that does NOT exist — the two doors
+    /// partition the edit's semantics).
+    CreateParam {
+        /// The new parameter's name.
+        name: ParamName,
+        /// Its declared dimension and exact value.
+        value: DocParam,
     },
     /// Start a continuous gesture over a slot.
     BeginGesture {
@@ -1014,6 +1067,7 @@ impl DocSession {
                 self.set_slot_expression(node, slot, &text)
             }
             SessionOp::SetParam { name, value } => self.set_param(&name, value),
+            SessionOp::CreateParam { name, value } => self.create_param(name, value),
             SessionOp::BeginGesture { node, slot } => self.begin_gesture(node, slot),
             SessionOp::BeginParamGesture { name } => self.begin_param_gesture(&name),
             SessionOp::PreviewGesture { value } => self.preview_gesture(value),
@@ -1170,6 +1224,22 @@ impl DocSession {
             return OpOutcome::refused(Refusal::NoSuchParam(name.clone()));
         };
         self.commit(props::param_edit(name.clone(), dimension, value))
+    }
+
+    /// The create door: refuse an already-declared name typed, commit
+    /// the edit for a new one. See [`SessionOp::CreateParam`] for why
+    /// this door narrows the edit's create-or-replace semantics.
+    fn create_param(&mut self, name: ParamName, value: DocParam) -> OpOutcome {
+        if self.gesture.is_some() {
+            return OpOutcome::refused(Refusal::GestureInFlight);
+        }
+        if let Some(existing) = self.committed_doc().params().get(&name) {
+            return OpOutcome::refused(Refusal::ParamExists {
+                dimension: existing.dim(),
+                name,
+            });
+        }
+        self.commit(DocEdit::SetDocParam { name, value })
     }
 
     fn begin_gesture(&mut self, node: RecipeNodeId, slot: SlotId) -> OpOutcome {

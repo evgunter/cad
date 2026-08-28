@@ -16,7 +16,7 @@
 
 mod common;
 
-use pncad::document::{Doc, Node, ProfileProgram, RecipeNodeId, SlotId};
+use pncad::document::{Doc, Node, ParamName, ProfileProgram, RecipeNodeId, SlotId};
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::select::Ray;
 use viewer::camera::{Camera, CameraOp};
@@ -26,7 +26,7 @@ use viewer::input::{self, InputMap, ViewportSize};
 use viewer::pick::{CacheStep, IdMap, PickCache, PickIndex};
 use viewer::props::SlotValue;
 use viewer::scene::{self, DisplayTolerance, PLATE_EXTENT};
-use viewer::session::{DocSession, FaceSelection, Selection, SessionOp};
+use viewer::session::{DocSession, FaceSelection, Refusal, Selection, SessionOp};
 
 fn delta() -> DisplayTolerance {
     DisplayTolerance::new(2.0e-4).expect("a positive delta")
@@ -625,4 +625,86 @@ fn the_pixel_to_ndc_conversion_round_trips_and_flips_y_once() {
     assert!((ray.dir.x - forward.x).abs() < 1e-12);
     assert!((ray.dir.y - forward.y).abs() < 1e-12);
     assert!((ray.dir.z - forward.z).abs() < 1e-12);
+}
+
+// --- the refuse-then-offer pair for an unknown parameter ------------
+
+/// **The unknown-parameter refusal carries its offer, and the frame
+/// policies hand both to the chrome.** An expression naming an
+/// undeclared parameter refuses at the parse door (typo-safety — text
+/// never creates a parameter); `creation_offer` extracts the name to
+/// prefill the add-parameter affordance, and `retype_draft` hands the
+/// refused text back so acting on the offer does not cost the very
+/// expression that raised it.
+#[test]
+fn an_unknown_parameter_refusal_offers_creation_and_returns_the_draft() {
+    let tol = Tol::witness();
+    let doc: Doc<ProfileProgram> = Doc::empty_derived("frame-offer", tol);
+    let (doc, profile) = common::inserted(&doc, common::square(0.04), tol);
+    let (doc, extrude) = common::inserted(
+        &doc,
+        Node::Extrude {
+            profile,
+            distance: common::len(0.008),
+        },
+        tol,
+    );
+    let mut session = DocSession::inline(doc, tol);
+
+    // The frame loop's exact shape: perform the batch, collect the
+    // preferred refusal, then ask the policies.
+    let batch = vec![SessionOp::SetSlotExpression {
+        node: extrude,
+        slot: SlotId::Distance,
+        text: "margin * 2.0".to_owned(),
+    }];
+    let mut refusal = None;
+    for op in batch.clone() {
+        if let Some(next) = session.perform(op).refusal {
+            refusal = Refusal::preferred(refusal, next);
+        }
+    }
+    assert_eq!(
+        frame::creation_offer(refusal.as_ref()),
+        Some(ParamName::new("margin")),
+        "the offer is the undeclared name"
+    );
+    assert_eq!(
+        frame::retype_draft(&batch, refusal.as_ref()),
+        Some((extrude, SlotId::Distance, "margin * 2.0".to_owned())),
+        "and the refused draft comes back"
+    );
+
+    // A parse refusal that names NO parameter restores the draft but
+    // offers nothing to create.
+    let batch = vec![SessionOp::SetSlotExpression {
+        node: extrude,
+        slot: SlotId::Distance,
+        text: "0.008 *".to_owned(),
+    }];
+    let mut refusal = None;
+    for op in batch.clone() {
+        if let Some(next) = session.perform(op).refusal {
+            refusal = Refusal::preferred(refusal, next);
+        }
+    }
+    assert!(refusal.is_some(), "the malformed text refuses");
+    assert_eq!(frame::creation_offer(refusal.as_ref()), None);
+    assert!(frame::retype_draft(&batch, refusal.as_ref()).is_some());
+
+    // And a clean batch offers and restores nothing.
+    let batch = vec![SessionOp::SetSlotExpression {
+        node: extrude,
+        slot: SlotId::Distance,
+        text: "8 mm * 2.0".to_owned(),
+    }];
+    let mut refusal = None;
+    for op in batch.clone() {
+        if let Some(next) = session.perform(op).refusal {
+            refusal = Refusal::preferred(refusal, next);
+        }
+    }
+    assert!(refusal.is_none(), "{refusal:?}");
+    assert_eq!(frame::creation_offer(refusal.as_ref()), None);
+    assert_eq!(frame::retype_draft(&batch, refusal.as_ref()), None);
 }
