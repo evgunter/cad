@@ -4091,6 +4091,7 @@ dependencies = [
  "pncad",
  "rfd",
  "test-utils",
+ "winit",
 ]
 
 [[package]]

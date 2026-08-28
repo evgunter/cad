@@ -607,13 +607,32 @@ impl egui_tiles::Behavior<Pane> for ViewerBehavior<'_> {
         }
     }
 
-    fn pane_ui(&mut self, ui: &mut egui::Ui, _tile_id: TileId, pane: &mut Pane) -> UiResponse {
-        match pane {
-            Pane::Viewport => self.viewport_ui(ui),
-            Pane::Features => self.features_ui(ui),
-            Pane::Properties => self.properties_ui(ui),
-            Pane::View => self.view_ui(ui),
+    fn pane_ui(&mut self, ui: &mut egui::Ui, tile_id: TileId, pane: &mut Pane) -> UiResponse {
+        // The viewport IS its rectangle: it allocates exactly the
+        // available size and paints into it, so a scroll container
+        // around it would have nothing true to say.
+        if *pane == Pane::Viewport {
+            self.viewport_ui(ui);
+            return UiResponse::None;
         }
+        // Every CHROME pane scrolls its own overflow — the class of
+        // panes, not the one that happened to clip. First light
+        // (#1097): the Properties pane's lower content was unreachable
+        // at any window height, clipped with no scrollbar. auto_shrink
+        // is off on both axes so the pane fills its tile (a scrollbar
+        // at the tile's edge, no collapse under short content); the
+        // salt is the tile id, so two tabs of one tile scroll
+        // independently.
+        egui::ScrollArea::vertical()
+            .auto_shrink([false, false])
+            .id_salt(tile_id)
+            .show(ui, |ui| match pane {
+                // Handled above; this arm cannot be reached.
+                Pane::Viewport => {}
+                Pane::Features => self.features_ui(ui),
+                Pane::Properties => self.properties_ui(ui),
+                Pane::View => self.view_ui(ui),
+            });
         UiResponse::None
     }
 }
@@ -813,13 +832,13 @@ impl ViewerBehavior<'_> {
         });
         ui.separator();
         // A face picked in the viewport highlights its owning
-        // feature here — one selection value, one inversion.
+        // feature here — one selection value, one inversion. Overflow
+        // is `pane_ui`'s scroll container's job, the same one every
+        // chrome pane sits in; a second ScrollArea here would nest.
         let selected = self.session.selection().node();
-        egui::ScrollArea::vertical().show(ui, |ui| {
-            for row in &rows {
-                self.feature_row(ui, row, selected == Some(row.id));
-            }
-        });
+        for row in &rows {
+            self.feature_row(ui, row, selected == Some(row.id));
+        }
     }
 
     /// One feature-tree row.
@@ -1442,6 +1461,15 @@ pub fn initial_layout() -> Tree<Pane> {
     Tree::new("viewer_tree", root, tiles)
 }
 
+/// Whether this process runs inside WSL, read off the environment
+/// markers WSL itself sets for every process (`WSL_DISTRO_NAME`,
+/// `WSL_INTEROP`). Either suffices; both are checked because WSL1
+/// and WSL2 differ in which they guarantee.
+#[cfg(target_os = "linux")]
+fn running_under_wsl() -> bool {
+    std::env::var_os("WSL_DISTRO_NAME").is_some() || std::env::var_os("WSL_INTEROP").is_some()
+}
+
 /// Column-major `f64` matrix to the `f32` the GPU consumes.
 ///
 /// Written as a `map` rather than an indexed loop on purpose: the
@@ -1468,7 +1496,8 @@ fn to_f32(matrix: &[[f64; 4]; 4]) -> [[f32; 4]; 4] {
 /// a viewer that cannot build its scene reports why and exits rather
 /// than opening a window onto nothing.
 pub fn run(tol: Tol, open: Option<std::path::PathBuf>) -> eframe::Result<()> {
-    let options = eframe::NativeOptions {
+    #[allow(unused_mut)] // mutated only on the cfg(linux) arm below
+    let mut options = eframe::NativeOptions {
         // EXPLICIT, not defaulted (first light, #1097): a bare
         // `NativeOptions::default()` leaves resizability and the
         // window's size to whatever the winit backend negotiates with
@@ -1485,6 +1514,20 @@ pub fn run(tol: Tol, open: Option<std::path::PathBuf>) -> eframe::Result<()> {
         depth_buffer: DEPTH_BITS,
         ..Default::default()
     };
+    // WSLg: PREFER the X11 (XWayland) backend. Confirmed on the
+    // first-light box (#1097): the horizontally-unresizable window is
+    // WSLg's Wayland RAIL-shell CSD path, and `WAYLAND_DISPLAY=` —
+    // the same X11 preference by hand — fixes resizing entirely. The
+    // hook fires ONLY when WSL is detected (the env markers WSL
+    // itself sets), so every other environment keeps winit's own
+    // backend choice and needs nothing unset.
+    #[cfg(target_os = "linux")]
+    if running_under_wsl() {
+        options.event_loop_builder = Some(Box::new(|builder| {
+            use winit::platform::x11::EventLoopBuilderExtX11 as _;
+            builder.with_x11();
+        }));
+    }
     eframe::run_native(
         WINDOW_TITLE,
         options,

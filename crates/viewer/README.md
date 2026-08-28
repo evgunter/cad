@@ -41,12 +41,22 @@ cancel does (`rfd` cannot tell the two apart), which is why a
 plausibly-present backend that still never shows a dialog reads as
 quiet cancels — if that is what you see, install `zenity`.
 
-**Window resize quirks under WSLg.** WSLg presents Wayland windows
-through an RDP RAIL shell whose client-side-decoration negotiation is
-a known limitation — the first-light symptom was a window resizable
-vertically but not horizontally. The viewer requests an explicitly
-resizable window with sane default/minimum sizes; if resizing still
-misbehaves, force XWayland for the session:
+**Zenity renders every character as boxes (tofu).** A bare WSL distro
+has no fonts for GTK to draw with (the viewer itself is unaffected —
+egui bundles its fonts). Remedy:
+
+```sh
+sudo apt install fontconfig fonts-dejavu-core   # then `fc-cache -f` if needed
+```
+
+**Window won't resize horizontally under WSLg — CONFIRMED root cause.**
+WSLg presents Wayland windows through an RDP RAIL shell whose
+client-side-decoration negotiation breaks horizontal resizing; forcing
+the X11/XWayland path fixes it entirely (verified on the first-light
+box). The viewer now detects WSL (`WSL_DISTRO_NAME`/`WSL_INTEROP`) and
+prefers the X11 backend automatically; non-WSL environments are
+untouched and need nothing set or unset. On a build without that
+preference, the manual equivalent is:
 
 ```sh
 WAYLAND_DISPLAY= cargo run -p viewer --features app
