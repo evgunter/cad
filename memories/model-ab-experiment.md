@@ -41,6 +41,28 @@ cost — measured, not vibed ("with actual random numbers").
   commits: reviews are protocol-fable, so authorship-preserving
   adoption into the implementation branch does not break blinding.
 
+- **A warning ABOUT a blinding leak, posted where the blinded party
+  reads, is itself a leak** (2026-08-28, mine). Trying to stop GUI-4's
+  reviewers from being un-blinded, this orchestrator quoted the arm
+  token verbatim in a comment on the PR under review; R1 disclosed
+  that comment as its exposure source. Route protocol warnings to a
+  surface the blinded party does not read — the away-channel issue
+  reaches the other orchestrator without touching reviewers' binding
+  material. Corollary the GUI lane supplied: **re-read the PR thread
+  immediately before briefing reviewers**; a warning sent 50 minutes
+  earlier reaches nobody if the dispatcher never re-reads.
+
+- **Block pre-registration leaks every unstarted slot** — publishing
+  "byte N ⇒ fable at slot K" determines each remaining slot's arm by
+  arithmetic, and a no-arms-in-unit-entries check does not catch it
+  because the block record is a different surface. Fix proposed and
+  supported by two orchestrators, PENDING EVAN: commit
+  `sha256(byte ‖ block ‖ nonce)` at block open; open it only when the
+  block's LAST slot's reviews conclude (opening at the first unit's
+  merge re-leaks the rest — the GUI orchestrator's correction); flag
+  already-exposed blocks' remaining duals as contaminated on the row,
+  on the EXPOSURE, not on whether a reviewer discloses noticing.
+
 - **Protocol v4 (Evan, 2026-08-11)** — four amendments, full text
   in the log: (1) STOPPING RULE — the DUAL-REVIEW
   experiment (only) ends at the 6th dual where ≥1 reviewer

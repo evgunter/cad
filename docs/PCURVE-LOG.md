@@ -136,3 +136,58 @@ The dual (ordinal 200 — the first banded claim) is EXCLUDED from the
 tally and the twelve, because the orchestrator relaxed R1's method
 under mutex saturation and not R2's. The fault is the orchestrator's;
 the findings are real and fixed.
+
+## Census gap 2's band-edge row went RED on main, and why (#1102, fixed #1108, 2026-08-27)
+
+**The unit above merged with a stated coverage gap, and the gap was
+the row's own subject.** #1080's CI drew `EPS=default`; the row it
+added is *about* what happens across the ε band. Main went red at the
+1e-12 draw within the day, and two other programs inherited it. The
+orchestrator's fault, stated as a rule so it binds the next unit: **a
+stated coverage gap is a blocker when the untested axis is the row's
+own subject.** Adjacent gaps are follow-ups; the subject is a blocker.
+Hosted CI draws ONE ε per run from the seed, so a green check is
+evidence about that draw and nothing else.
+
+**The defect was exactness, not drift.** The orchestrator's hypothesis
+was that `(10ε).atan().to_degrees()` drifts at tight ε so the fixture
+misses the threshold. Measured, the round trip is **exact to 0 ulp at
+1e-9 and 1e-12** and loses 5e-16 relative at 1e-6. `decide` calls
+`|m| ≥ K·ε` definite, so a fixture placed exactly ON the threshold has
+its side chosen by whatever the kernel's arithmetic adds downstream —
+Newell plane, chart projection, CCW normalization, scaling — and that
+residue moves with ε. The `k = 10` cell is the whole incident:
+
+| ε | A→B | B→A | old row |
+|---|---|---|---|
+| 1e-6 | Escalated | Escalated | green |
+| 1e-9 | Ok(PositiveArea) | Escalated | green **by luck**, one entry in `seen` |
+| 1e-12 | Ok(PositiveArea) | Ok(PositiveArea) | `seen` empty → **red** |
+
+So the row was a coin-flip at *every* ε; default merely landed heads.
+In one sentence: a row whose subject is *"the band edge is where noise
+decides the verdict"* placed a single fixture on that edge, and so
+depended for its own liveness on the coin-flip it exists to document.
+
+**The replacement is stronger, not weaker** — the fix pass was told
+not to weaken the row to make it pass. Operating point fixed, scale
+swept (`sin θ = kε`, k ∈ {5,8,9,10,11,12,20}), asserting three
+properties none of which depends on where a cell lands: no pair is
+ever certified two DIFFERENT answers; co-escalating orders agree in
+margin MAGNITUDE to the derived noise bound `1e3·EPSILON/sin θ`
+(a wrong lever separates them by a length RATIO instead — #1080's
+MAJOR); and a certify-versus-refuse split may occur ONLY within that
+bound of a threshold. The third is a **confinement** claim the old row
+could not state at all, and it fails on a split in the band's
+interior. Non-vacuity is structural rather than lucky: k = 5, 8, 9 sit
+strictly inside `(ε, K·ε)` at every ε, so the asserted
+`escalations >= 3` cannot go quiet unless the band itself moved.
+Verified locally at 1e-6 / 1e-9 / 1e-12, 11 passed 0 failed at each,
+before merge.
+
+**Lane operations, recorded because it cost ~50 minutes.** `-x` waits
+for ALL slots and flock has no queue, so single-slot jobs arriving
+AFTER an `-x` waiter is armed still beat it. A one-lane courtesy yield
+therefore does not clear a path for an exclusive job — that needs a
+machine-wide quiet period. The blocked lane pushed and opened its PR
+while waiting, since hosted CI needs no local slot.

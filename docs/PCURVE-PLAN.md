@@ -118,13 +118,19 @@ descriptions); M10's clearance certificate. Naming them because
   and is called at ops.rs:1064, the D6 conventional re-description
   lane M9-3 shipped. The seam MINT path is a different site, and
   M9-3's own PR body said plainly it stays a straight chord.)
-- **OPEN, and it needs Evan**: the ratified scaffold answer (Q2 —
-  `MappedCurve` retained as a description SOLELY for pre-body edges)
-  **is not implementable as written**. `MappedCurve` reaches REST
-  through `describe_minted_edges` and six fillet strut sites, so
-  "pre-body" does not fence it. The implementable fence is
-  **transience**, not pre-body. Recorded as a design question, not
-  decided here.
+- **RESOLVED (was "OPEN, needs Evan"; corrected 2026-08-27)**: the
+  ratified scaffold answer (Q2 — `MappedCurve` retained as a
+  description SOLELY for pre-body edges) **was not implementable as
+  written**. `MappedCurve` reaches REST through `describe_minted_edges`
+  and six fillet strut sites, so "pre-body" never fenced it. **Evan
+  ratified the corrected criterion in chat: the boundary is
+  TRANSIENCE.** Q2's substance — narrow `MappedCurve` rather than a
+  dedicated `Scaffold` rung — is UNCHANGED and was explicitly not
+  revisited ("i think i don't want to revisit Scaffold"); only the
+  doc's account of where the fence falls was wrong. Carried into U2's
+  STATUS line and binding on P-1b item 2. This bullet said the question
+  was undecided for a day after it was decided — the stale half of a
+  correction that landed in U2 and not here.
 - **Free retirement, unclaimed by any plan**: `replace_face.rs:1249`'s
   "a v-row is not an `IsoCurve`" refusal retires with the
   representation change.
