@@ -514,3 +514,104 @@ fn a_body_the_door_did_not_touch_is_bit_identical() {
         "and no other face"
     );
 }
+
+/// **The replaced face's OWN boundary keeps its declaring pushforward**
+/// — the sibling of `the_untouched_cap_seams_are_re_anchored`, on the
+/// other side of the door.
+///
+/// That row watches an edge the offset re-ANCHORS (its endpoint moved
+/// with a neighbour). This one watches an edge the offset TRANSPORTS:
+/// the moved cap's own radial seam, which travels bodily with the face.
+///
+/// **Why it exists.** U2 split what used to be one datum in two. The
+/// locus is now a chart image, stated in the chart's own coordinates —
+/// so the offset re-parameterizes the chart and the image needs no
+/// transport at all, which is exactly the argument that let P-1b retire
+/// the *"not a rigid translation"* refusal for conventional edges. The
+/// DECLARATION beside it is the other half: a `MappedCurve`, sketch
+/// data under a 3-space placement, which does have to be carried. The
+/// retirement's argument covers the first half and not the second, and
+/// the boundary lane initially wrote `declared: None` — destroying the
+/// provenance record for every edge the fence had converted.
+///
+/// **Measured on one head, not argued.** Same body, same door, same
+/// offset, differing only in which arm the edge's description sends it
+/// down:
+///
+/// | the seam's description | authority afterwards |
+/// |---|---|
+/// | `Chart { declared: Some(mc) }` (this branch) | `Derived` — destroyed |
+/// | `Scaffold(mc)` (what `main` stores) | `Declared`, placement translated by `d·n` |
+///
+/// So the branch CHANGED this lane rather than inheriting a defect, and
+/// the fix restores what the other arm always did. The row asserts the
+/// restored behaviour, and the arithmetic is exact: a plane offset is a
+/// rigid translation, so the placement moves by exactly `d` along the
+/// normal and nothing else moves at all.
+#[test]
+fn the_moved_caps_own_seam_keeps_its_declaring_pushforward() {
+    let d = 0.05_f64;
+    let mut body = tube();
+    let cap = plane_face(&body, 0.6);
+
+    // Both caps' radial seams are chart images the profile segment
+    // declared; only the y = 0.6 one is on the face being replaced.
+    let declared_seams = |b: &Body<f64>| -> Vec<(topo::EdgeKey, geom_core::Vec3<f64>)> {
+        b.edges()
+            .filter_map(|(k, e)| {
+                let c = b.get_curve_geom(e.curve).and_then(CurveGeom::certified)?;
+                let geom_brep::EdgeAuthority::Declared(
+                    geom_brep::MappedCurve::PlacedSegment { place, .. },
+                ) = c.authority()
+                else {
+                    return None;
+                };
+                matches!(c.description(), geom_brep::EdgeDescription::Chart(_))
+                    .then_some((k, place.translation))
+            })
+            .collect()
+    };
+    let before = declared_seams(&body);
+    assert_eq!(
+        before.len(),
+        2,
+        "the tube's two cap seams are declared chart images, got {before:?}"
+    );
+    assert!(
+        before
+            .iter()
+            .all(|(_, t)| (t.x, t.y, t.z) == (0.0, 0.0, 0.0)),
+        "both are minted at the identity placement, got {before:?}"
+    );
+
+    topo::replace_face_offset(&mut body, cap, d, FIT_TOL, band(), Tol::witness())
+        .expect("the cap offset lands");
+
+    let after = declared_seams(&body);
+    assert_eq!(
+        after.len(),
+        2,
+        "both declarations SURVIVE the offset — the transported one is \
+         not silently demoted to Derived; got {after:?}"
+    );
+    // One seam travelled with the face, by exactly the offset; the
+    // other never moved. Both are read off the same list, so a lane
+    // that translated the wrong one fails here too.
+    let mut moved: Vec<geom_core::Vec3<f64>> = after.iter().map(|(_, t)| *t).collect();
+    moved.sort_by(|a, b| a.y.total_cmp(&b.y));
+    assert_eq!(
+        (moved[0].x, moved[0].y, moved[0].z),
+        (0.0, 0.0, 0.0),
+        "the untouched cap's seam did not move"
+    );
+    assert_eq!(
+        (moved[1].x, moved[1].z),
+        (0.0, 0.0),
+        "a plane offset moves along its normal and nowhere else"
+    );
+    assert!(
+        (moved[1].y - d).abs() < 1e-15,
+        "the moved cap's seam was carried by exactly d = {d}, got {:?}",
+        moved[1]
+    );
+}

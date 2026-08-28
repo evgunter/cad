@@ -1272,6 +1272,66 @@ fn plan_edge<T: Decide>(
         })?;
     let new_mid = carrier.eval((t0 + t1) * T::from_f64(0.5));
 
+    // **The declaring pushforward travels with the face** (PCURVE
+    // P-1b), and it travels the same way whichever arm below the
+    // edge's description takes — so it is answered once, here, rather
+    // than three times inside the match.
+    //
+    // U2 split what used to be one datum in two. The LOCUS is a chart
+    // image, stated in the chart's own coordinates, so the offset
+    // re-parameterizes the chart and the image needs no transport —
+    // that argument is what let this unit retire the *"not a rigid
+    // translation"* refusal for conventional edges, and it is right.
+    // The DECLARATION beside it is the other half: a `MappedCurve`,
+    // sketch data under a 3-SPACE placement, which is exactly the
+    // thing that must be carried bodily with the face. Before the
+    // collapse that payload WAS the description and went down the
+    // scaffolding arm, which translated it; writing `declared: None`
+    // at its new home silently destroyed it for every edge the fence
+    // had converted.
+    //
+    // Measured, not reasoned: offsetting the tube's `y = 0.6` cap by
+    // `d = 0.05` and reading the moved cap seam's authority back —
+    //
+    //   as `Chart { declared: … }`, dropped → `Derived` (destroyed)
+    //   as `Scaffold(mc)`, what `main` stores → `Declared`, placement
+    //                                           translated by `(0, d, 0)`
+    //
+    // — same body, same door, same offset, differing only in which arm
+    // the description sends it down. So the branch CHANGED this lane
+    // rather than inheriting a defect, which is what puts it in scope
+    // here. Dropping it also flips `EdgeAuthority::is_declared`, which
+    // tier 3's prefer-intrinsic rules read — a verdict change, which
+    // this unit does not make.
+    //
+    // The `delta` requirement is the pre-collapse one, unchanged and
+    // for the pre-collapse reason: a pushforward can only be carried
+    // when the offset is a rigid translation of a family that
+    // translates. It is asked for ONLY when a declaration is actually
+    // present, so an edge whose locus nothing declared still crosses a
+    // non-translating offset freely — which is what the retirement
+    // bought, and this keeps it.
+    let carried_declaration = || -> Result<Option<geom_brep::MappedCurve<T>>, ReplaceFaceError<T>> {
+        match curve.authority() {
+            geom_brep::EdgeAuthority::Derived => Ok(None),
+            geom_brep::EdgeAuthority::Declared(mc) => {
+                let delta = delta.ok_or(ReplaceFaceError::CarrierLaneUnsupported {
+                    edge,
+                    what: "a declared chart image whose surface's offset is not a rigid \
+                           translation (the image transports, its declaring pushforward \
+                           cannot)",
+                })?;
+                Ok(Some(translate_mapped(mc, delta).ok_or(
+                    ReplaceFaceError::CarrierLaneUnsupported {
+                        edge,
+                        what: "a rotation-family declaring pushforward (its trajectory \
+                               does not translate)",
+                    },
+                )?))
+            }
+        }
+    };
+
     let new_description = match description {
         // A seam names a surface and nothing else — its image is
         // DERIVED from the transported carrier against the new chart,
@@ -1280,18 +1340,27 @@ fn plan_edge<T: Decide>(
         // fall-through so the contrast with the line below is on the
         // page.
         EdgeDescription::Chart(ref c) if c.surface == old_key && c.seam => {
-            EdgeDescriptionSpec::seam(old_key)
+            EdgeDescriptionSpec::Chart {
+                surface: old_key,
+                image: None,
+                seam: true,
+                declared: carried_declaration()?,
+            }
         }
         // Every other image on the MOVED chart shifts with the chart's
         // own offset action: `d·cot α` in `v` on a cone, zero on every
         // other kind.
-        EdgeDescription::Chart(ref c) if c.surface == old_key => EdgeDescriptionSpec::chart_image(
-            old_key,
-            shift_chart_v(&c.pcurve, shift).ok_or(ReplaceFaceError::CarrierLaneUnsupported {
-                edge,
-                what: "a fitted chart image whose v channel has no closed-form parameter shift",
-            })?,
-        ),
+        EdgeDescription::Chart(ref c) if c.surface == old_key => EdgeDescriptionSpec::Chart {
+            surface: old_key,
+            image: Some(shift_chart_v(&c.pcurve, shift).ok_or(
+                ReplaceFaceError::CarrierLaneUnsupported {
+                    edge,
+                    what: "a fitted chart image whose v channel has no closed-form parameter shift",
+                },
+            )?),
+            seam: false,
+            declared: carried_declaration()?,
+        },
         EdgeDescription::Intersection { s1, s2, .. }
         | EdgeDescription::TangentIntersection { s1, s2, .. }
             if s1 == old_key || s2 == old_key =>
@@ -1362,11 +1431,15 @@ fn plan_edge<T: Decide>(
         // face — its carrier transports, and whether the untouched
         // surface it names still holds the moved locus is a question
         // the attach layer's certification answers, not this door.
+        //
+        // Its chart did not move, but the EDGE did — so the image
+        // stands and the declaring pushforward still travels with the
+        // face, by the same transport as every other arm.
         EdgeDescription::Chart(ref c) => EdgeDescriptionSpec::Chart {
             surface: c.surface,
             image: Some(c.pcurve.clone()),
             seam: c.seam,
-            declared: None,
+            declared: carried_declaration()?,
         },
         EdgeDescription::Intersection { s1, s2, witness } => {
             EdgeDescriptionSpec::Intersection { s1, s2, witness }
