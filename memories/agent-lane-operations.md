@@ -79,7 +79,12 @@ self-acquire; wrap raw `cargo` invocations yourself.
   ran; the other read the RUN's jobs API and saw `skipped` — the run
   record is the instrument, the workflow source is not. Verify
   coverage at the STEP level (`gh api .../jobs`, step conclusions),
-  never by job-name green. (Ordinal 100, 2026-08-27.)
+  never by job-name green. (Ordinal 100, 2026-08-27.) **Since
+  2026-08-28 a missing row can be ASKED FOR rather than re-rolled for:
+  a `CI-Config: klint=dev-probe` trailer on the head commit, or ci.yml's
+  `workflow_dispatch` inputs, pin lane/eps/klint for one run — see
+  docs/CI-MINUTES-2026-08.md, *asking for a point instead of drawing
+  one*.**
 - **A detached job whose evidence is SUPERSEDED still takes the mutex
   (2026-08-27, PCURVE P-1a).** The `setsid` rule keeps a long job alive
   through a harness reap — but alive is not the same as useful. A P-1a
