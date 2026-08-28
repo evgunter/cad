@@ -39,9 +39,13 @@
 //!   sphere zone truncated at both poles — a wide belly, a NECK cone
 //!   narrowing to a throat disk the arch's tube exactly fills, and a
 //!   puckered conical mouth closing to a small disk. Sphere zone +
-//!   two cones + two planes, all exact. The neck is the globe's own
-//!   tangent cone, cut at the arch's radius, so the flower and the
-//!   stem meet along one shared circle (probe 2).
+//!   two cones + two planes, all exact. The neck is an AUTHORED cone
+//!   (70 degrees; the globe's own tangent cone is 65.38 and the
+//!   authoring algebra REFUSES it — see [`FLOWER_NECK_HALF_ANGLE`]).
+//!   Its angle is not what makes the flower and the stem meet along
+//!   one shared circle: what does that is the cone being CUT at the
+//!   arch's radius, at the station whose spine tangent the flower
+//!   axis is (probe 2).
 //! - the **bud** is the same meridian said THREE times, PARTIALLY:
 //!   three pre-tepals of 156 degrees each, on three axes forming a
 //!   narrow tripod about the bud's own, and rolled so they nest like a
@@ -1072,8 +1076,9 @@ fn try_lofted_blade<S: Scalar>(
 /// # They meet the globe TANGENTIALLY, and provably never re-enter it
 ///
 /// Two bodies that overlap are not a modelling error in this scene —
-/// nothing here is joined, and the pedicel is deliberately set back
-/// INSIDE the lantern so its end cap cannot z-fight. But a sepal that
+/// nothing here is joined, and the flower's own throat disk and the
+/// arch's end cap are exactly coincident where the two abut. But a
+/// sepal that
 /// merely *starts near* the flower and hopes to miss it is a fudge,
 /// and this one does not have to be: the tangency is exact
 /// arithmetic, and the staying-out is a two-line proof.
@@ -1305,7 +1310,8 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
     // the flower's throat circle and the tube's terminal meridian
     // circle are then the SAME circle, which is what makes the weld a
     // shared-circle contact instead of a transverse one (see
-    // [`weld_circle_is_shared`]).
+    // [`weld_circle`], pinned by
+    // `review_probes::the_flower_and_the_arch_share_one_circle`).
     let flower_attach = at_flower.p;
     // The sepal plan: a narrow strap at the neck easing to a lance,
     // then tapering hard to a near-point. The roll is gentle and
@@ -1688,6 +1694,15 @@ struct TorusCarrier {
 }
 
 /// The body's single stored torus carrier.
+///
+/// **There are two readers of the same data**, deliberately: this one
+/// (the weld path's, generic over the run scalar, first-match) and
+/// `review_probes::torus`, which walks EVERY torus face and asserts
+/// the half-bands share one carrier. Neither checks the other; what
+/// ties them is that the review helper's half-band assertion is what
+/// makes "first match" a complete answer here, so if the seam ever
+/// split a torus wall onto two carriers the review row fails and this
+/// one silently picks one. That row is the tie.
 fn torus_carrier<S: Scalar>(body: &Body<S>) -> TorusCarrier {
     for (_, f) in body.faces() {
         if let Some(&pncad::geom::Surface::Torus {
@@ -1751,15 +1766,25 @@ fn meridian_residuals(circle: Circle, torus: TorusCarrier) -> (f64, f64, f64) {
 /// than a transverse SSI curve nobody has a closed form for.
 ///
 /// Stated as a MEASUREMENT, not a search. The lantern's cones offer
-/// four station circles at the tube's minor radius (two cones, two
-/// nappes); the best of them must satisfy the torus's meridian
-/// membership to the last bit the arithmetic carries, the runner-up
-/// must miss by a distance no tolerance could confuse with zero, and
-/// the winner must sit on the tube's END — the frame
-/// `sweep::revolved_caps` reports — rather than somewhere along it.
+/// EIGHT station circles at the tube's minor radius — two conical
+/// WALLS, each halved at the full revolve's seam, each half-band
+/// offering both nappes; the best of them must satisfy the torus's
+/// meridian membership, the nearest DISTINCT one must miss by a
+/// distance no tolerance could confuse with zero, and the winner must
+/// sit on the tube's END — the frame `sweep::revolved_caps` reports —
+/// rather than somewhere along it.
+///
+/// **Two of the three residuals are checks; the third is
+/// bookkeeping.** The RADIUS residual cannot fail for any body:
+/// [`cone_station_circles`] builds every candidate with `r` set to
+/// the torus's own `minor_radius`, so its vanishing is definitional
+/// and is carried only so the triple reads as one circle-equality.
+/// The off-spine and normal residuals are the checks, and their
+/// 1e-12 windows are what binds.
+///
 /// Returns the neck cone's face key, the circle, its residuals and
-/// the runner-up's score, for narration and for the probes that need
-/// to talk about the OTHER cone.
+/// the nearest distinct station circle's score, for narration and for
+/// the probes that need to talk about the PUCKER.
 fn weld_circle<S: Scalar>(
     lantern: &Body<S>,
     arch: &Body<S>,
@@ -1910,7 +1935,8 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         "   the weld circle — centre ({:.6}, {:.6}, {:.6}), r = {:.3}, normal \
          ({:.6}, {:.6}, {:.6}): the arch's terminal meridian circle and the \
          lantern's neck-cone rim, off-spine {:.3e} / radius {:.3e} / normal \
-         {:.3e}; nearest other cone station misses by {:.3e}",
+         {:.3e}; nearest DISTINCT station circle — the neck cone's own \
+         other nappe — misses by {:.3e}",
         weld.c.0,
         weld.c.1,
         weld.c.2,
@@ -1970,18 +1996,21 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    `gate_operand_pairs` (boolean/reduce.rs), which asks whether
     //    a boolean arm exists for the pair and lets boxes decide only
     //    whether the pair can matter. It reads kinds, never loci — so
-    //    it cannot see the coincidence, and a declared cone x torus
-    //    has no admission to reach it with. That is the whole of the
+    //    it cannot see the coincidence. This union is UNDECLARED, and
+    //    a DECLARED cone x torus has no admission to reach the gate
+    //    with either. That is the whole of the
     //    remaining ask, and it is #968's shape rather than an SSI
     //    one: gate admission for the declared pair, plus a cone/torus
     //    rung in `carrier_eq` for the descent to consume. #1059 is
     //    the derivation; VERBS-LILYWELD PR-2 is the unit.
     wall(
         2,
-        "weld the lantern onto the arch (declared cone x torus, meeting on \
-         one shared circle)",
+        "weld the lantern onto the arch (cone x torus, meeting on one \
+         shared circle)",
         pncad::topo::union(lant, arch, tol),
         |e| {
+            // Reviewer pin (lilyweld r1 + r2 probes): PR body claims
+            // (Cone, Torus), re-measured on the re-authored pair.
             matches!(
                 e,
                 BooleanError::CurvedPairUnsupported {
@@ -2099,7 +2128,9 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    longitudinal grooves. Carving one is a sphere-on-sphere
     //    subtract — and the GEOMETRY agrees: the ball meets the
     //    spherical zone and clears the conical pucker's exact frustum
-    //    by 0.29 (measured in this module's `verbs_gate_r1_probes`).
+    //    by 0.4131 (measured in this module's `verbs_gate_r1_probes`;
+    //    the figure moved with the flower when the weld was
+    //    re-authored, and the probe is where it is read).
     //
     //    The pair-scoped gate ADMITS this cut: the pucker's box
     //    clears the ball's, so no unsupported KIND can enter the
@@ -2360,6 +2391,11 @@ mod review_probes {
     }
 
     /// The body's single stored torus carrier: (center, axis, R, r, u_ref).
+    ///
+    /// The half-band assertion below is what licenses the weld path's
+    /// [`super::torus_carrier`] to take the FIRST torus face it finds
+    /// and call it the body's: this row is the check that there is
+    /// only one carrier to find.
     fn torus(b: &Body<f64>) -> (Point3<f64>, Vec3<f64>, f64, f64, Vec3<f64>) {
         let mut found = None;
         for (_, f) in b.faces() {
@@ -2574,8 +2610,9 @@ mod review_probes {
         );
         println!(
             "weld circle: centre {:?}, r {}, normal {:?}; meridian residuals \
-             (off-spine, radius, normal) {res:?}; nearest station circle on the \
-             OTHER cone misses by {runner_up:e}",
+             (off-spine, radius — definitional — normal) {res:?}; nearest \
+             DISTINCT station circle (the neck cone's own other nappe) misses \
+             by {runner_up:e}",
             circle.c, circle.r, circle.n
         );
         assert_eq!(circle.r, ARCH_R, "the weld circle is the tube's own");
@@ -2674,6 +2711,13 @@ mod review_probes {
         println!("lantern census (shells, faces, edges, vertices) = {census:?}");
         assert_eq!(census, (1, 10, 18, 10), "the re-authored lantern's census");
         let props = pncad::topo::mass_properties(lant, Tol::witness()).expect("mass properties");
+        // The literal, DELIBERATELY: this row and
+        // `finding_13_tessellation_table_reproduces` must not agree by
+        // sharing an expression. That row builds the closed form from
+        // the profile's own constants and compares a MESH against it;
+        // this one compares the kernel's `mass_properties` door
+        // against a transcribed number, so a change to the closed-form
+        // expression cannot move both readings together.
         let exact = 0.36455193285177373;
         assert!(
             (props.volume - exact).abs() < 1e-12,
