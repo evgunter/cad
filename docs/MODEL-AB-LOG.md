@@ -1696,7 +1696,8 @@ number assigned AT MERGE. Row at merge.
 ## PCURVE block-draw redaction (2026-08-28, orchestrator's, complying with Evan's ruling)
 
 **What was removed and why.** Both PCURVE-1 records above published the
-block draw in the form "byte 251 ⇒ fable at slot 4". Slots 1 and 2 are
+block draw in the form "byte N ⇒ fable at slot K", with both values
+given. Slots 1 and 2 are
 recorded OPUS at merge, so that line **determined P-1b's arm by
 arithmetic** for anyone reading main — including its reviewers, who had
 not been dispatched. The blinding-leak rule (GUI-LOG, 2026-08-27) says
@@ -1735,3 +1736,13 @@ the arm token verbatim; GUI-4's R1 disclosed that comment as its exposure
 source. Redacted in place at #1113 with a note. Recorded here because
 the lesson generalizes past one lane — **a warning about a blinding leak,
 delivered where the blinded party reads, is itself a leak.**
+
+**Correction to this note, same day, same orchestrator.** As first
+written, the paragraph above **restated the redacted draw verbatim**
+while explaining that it had been redacted — reproducing the exact
+leak one paragraph after recording the lesson that a warning about a
+blinding leak, delivered where the blinded party reads, is itself a
+leak. It is the second instance of that error by this orchestrator
+within an hour. The values are now given as N and K. Corrected on
+main rather than quietly, because a redaction note that leaks is
+worse than no note: it advertises where to look.
