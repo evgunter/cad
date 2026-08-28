@@ -6,8 +6,8 @@ metadata:
 ---
 
 **A refusal's text — or any prose naming a blocker — is not evidence
-of its cause. The payload and the raising site are.** Five measured
-instances by 2026-08-28, each found the same way (someone measured
+of its cause. The payload and the raising site are.** Six instances
+by 2026-08-28, each found the same way (someone measured
 instead of trusting the sentence) and each with the same tell: the
 assumed fix had nothing to act on.
 
@@ -29,6 +29,16 @@ assumed fix had nothing to act on.
    the lesson: a measurement that dissolves a premise can smuggle
    in its own — "nothing can build it" needs the constructive
    search, not just the enumeration of two routes.
+6. #1116's fillet-strut secant claim (P-1b's filing): the cited
+   fixture (die_fillet) has ALL-PLANAR supports — a plane's chord IS
+   in the plane, so no secant exists in the measured body; the
+   escalation's true cause is unmeasured (A/B pending). Spread
+   through THREE orchestrators' comments (PCURVE's sharpening, the
+   VERBS register ack) before a blinded reviewer attacked the
+   diagnosis. The cross-orchestrator corollary: the lesson applies to
+   PEER filings exactly as to one's own — an ack that repeats a
+   claim is a second publication of it.
+
 
 **How to apply:** the measure-first checkpoint is mandatory before
 building against any stated blocker — run the failing operation, read
