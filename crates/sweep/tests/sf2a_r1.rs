@@ -90,13 +90,12 @@ type PlaneFrame = (Point3<f64>, Vec3<f64>);
 fn planes(body: &Body<f64>) -> Vec<PlaneFrame> {
     let mut out: Vec<PlaneFrame> = Vec::new();
     for (_, f) in body.faces() {
-        if let Some(geom::Surface::Plane { origin, normal, .. }) = body.get_surface(f.surface) {
-            if !out
+        if let Some(geom::Surface::Plane { origin, normal, .. }) = body.get_surface(f.surface)
+            && !out
                 .iter()
                 .any(|(o, n)| (*n - *normal).norm() < 1e-12 && (n.dot(*o - *origin)).abs() < 1e-12)
-            {
-                out.push((*origin, *normal));
-            }
+        {
+            out.push((*origin, *normal));
         }
     }
     out
@@ -263,10 +262,10 @@ fn r1c_chamfered_cube_is_a_valence_four_planar_corner() {
             let lk = chamfered.get_half_edge(he).unwrap().parent_loop;
             let fk = chamfered.get_loop(lk).unwrap().face;
             let f = chamfered.get_face(fk).unwrap();
-            if let Some(geom::Surface::Plane { normal, .. }) = chamfered.get_surface(f.surface) {
-                if !ns.iter().any(|n| (*n - *normal).norm() < 1e-12) {
-                    ns.push(*normal);
-                }
+            if let Some(geom::Surface::Plane { normal, .. }) = chamfered.get_surface(f.surface)
+                && !ns.iter().any(|n| (*n - *normal).norm() < 1e-12)
+            {
+                ns.push(*normal);
             }
         }
         *hist.entry(ns.len()).or_default() += 1;
