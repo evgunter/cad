@@ -53,6 +53,24 @@ revival was tried and dropped (2026-08-18). Judging another
 session dead from outside is unreliable, and the recovery action
 was keystroke injection into someone else's session.
 
+**RESET events can name the 7-DAY window while the 5-hour one is
+still full** (2026-08-28, learned by resuming and being STOP-NOW'd
+seconds later). The event text says only "window rolled over", and the
+percentage quoted is the 7d one. **Do not infer the 5h state from a
+RESET.** Read the ground truth instead — the last line of the agent's
+own `events/claude/usage/events.jsonl` carries
+`rate_limits.five_hour.used_percentage` and `.seven_day...` in one
+`cost_snapshot`:
+
+```
+tail -1 <agent-dir>/events/claude/usage/events.jsonl | python3 -c \
+  "import sys,json; print(json.load(sys.stdin)['rate_limits'])"
+```
+
+One read settles it and costs nothing. Resuming on a misread costs a
+cold cache each time, and resuming wrongly at 99% risks the dialog that
+kills the session for the day.
+
 **Orchestrator protocol on its events** (scoped to your account):
 - `USAGE WARN` (≥90%): wind down that account's lanes — finish the
   current unit, start nothing new that won't land quickly.
