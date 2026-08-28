@@ -73,10 +73,13 @@ pub fn batch_status(ops: &[SessionOp], refusal: Option<&Refusal>) -> StatusUpdat
 /// expression's context does not determine the new parameter's
 /// DIMENSION, so that stays the user's explicit pick there). `None`
 /// for every other refusal and for a clean batch.
-pub fn creation_offer(refusal: Option<&Refusal>) -> Option<&ParamName> {
+pub fn creation_offer(refusal: Option<&Refusal>) -> Option<ParamName> {
     match refusal {
         Some(Refusal::Parse(error)) => match error.as_ref() {
-            ParseError::UnknownParam { name, .. } => Some(name),
+            // The parse error carries the identifier as text (it is a
+            // fact about the SOURCE); the offer mints the name the
+            // create door would declare.
+            ParseError::UnknownParam { name, .. } => Some(ParamName::new(name.as_str())),
             _ => None,
         },
         _ => None,
