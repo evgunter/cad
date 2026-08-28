@@ -5426,9 +5426,10 @@ mod tests {
         // than asserting full tier-3 cleanliness — the holed box has
         // its own epsilon-sensitive rows at 1e-12, which are not this
         // test's subject.
-        let ours: Vec<&ValidationError> = match validate_geometric(&body, tol) {
+        let report = validate_geometric(&body, tol);
+        let ours: Vec<&ValidationError> = match &report {
             Ok(()) => Vec::new(),
-            Err(ref errors) => errors
+            Err(errors) => errors
                 .iter()
                 .filter(|e| {
                     matches!(
