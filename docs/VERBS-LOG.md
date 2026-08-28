@@ -2007,3 +2007,22 @@ benign, recorded) and misled it into killing an
 already-exited stale driver it took for its own — the
 logs-are-lane-private rule now in lane-ops memory. SHELLFIX R1
 verified unharmed. Union waits on R2's arm.
+
+## ORDINAL 101 RETURNED AND ADJUDICATED; THE PAIR SELF-EXCLUDED (2026-08-28)
+
+R1 A-W-F 0/4/6, R2 A-W-F 0/4/6 — near-perfect convergence: the
+Indeterminate swallow at check 9's three decides AND the glue
+precondition (bilateral, the headline), the edge arm's missed
+contact shapes (bilateral), the C7 compile-mode overstatement
+(bilateral); R1's unique find is the tier-1 FALSE PREMISE behind
+the key-shared guards (tier 1 read end-to-end: an umbrella pinch
+passes). The central inversion held under every attack — the
+counterbore refuses upstream at OpenFacesDisconnect, the
+Line-carrier split builds at (4,1), the byte-diff is clean. NO
+MAJ either arm; tally unchanged at 0. **Pair excluded under the
+#1090 clause, self-applied**: my deliver-with-labeled-gaps
+instruction to R1 under mutex starvation was a completion-bar
+relaxation R2 never received — the same shape that excluded
+PCURVE's census pair, and consistency is the standard's whole
+value. Clean pairs toward twelve: 1 (TEAPOT). Union fix pass
+dispatched; reviewer lanes swept.
