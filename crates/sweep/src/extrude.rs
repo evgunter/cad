@@ -823,8 +823,21 @@ fn sweep_loop<T: Decide>(
             // edge — the wrap lands on the antipodal meridian, where
             // D1's wrong-side excess is the whole diameter. The strut
             // is an ordinary chart image and owes the one meter.
-            let spec =
-                EdgeCurveSpec::line_between(qs[j], qs[j] + w).at_rest_in_chart(k_prev, false);
+            // **The carrier is RESTATED, never rebuilt.** Re-deriving
+            // it here (`line_between(qs[j], qs[j] + w)`) recomputes the
+            // direction and the parameter interval from endpoints that
+            // need not be bitwise the ones the strut was minted with —
+            // which silently moves the geometry in a pass whose whole
+            // contract is that only the DESCRIPTION moves. The edge's
+            // own certified curve is the only honest source.
+            let curve = body
+                .get_edge(struts[j].edge)
+                .and_then(|e| body.get_curve_geom(e.curve))
+                .and_then(topo::CurveGeom::certified)
+                .ok_or(EulerOpError::StaleKey {
+                    key: topo::EntityId::Edge(struts[j].edge),
+                })?;
+            let spec = curve.restated_spec().at_rest_in_chart(k_prev, false);
             body.set_edge_curve(struts[j].edge, spec, tol)?;
             continue;
         }
