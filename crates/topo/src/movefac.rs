@@ -166,7 +166,7 @@ impl<T: Decide> Body<T> {
             }
             let Some(solid_data) = self.get_solid_mut(solid) else {
                 unreachable!(
-                    "movefac: `solid` proven live by the plan phase's `contains_key` and \
+                    "movefac: `solid` proven live by the plan phase's `require_key` and \
                      this op kills no solid"
                 )
             };
