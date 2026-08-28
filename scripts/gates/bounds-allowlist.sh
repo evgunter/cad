@@ -348,26 +348,6 @@ plant_sole_bracket_bounds() {
   } > "$1/crates/planted/src/lib.rs"
 }
 
-# gate_selftest_case's negative twin: the fixture must PASS. lib.sh has no
-# such helper -- its only passing fixture is the empty clean tree, which
-# proves nothing about a spelling that must not fire. Named for this gate
-# rather than generically, so that promoting one into lib.sh (F3's file)
-# cannot be silently shadowed by this definition, which is sourced after
-# it.
-bounds_selftest_passes() {
-  local what=$1; shift
-  local tmp out
-  tmp=$(mktemp -d)
-  gate_plant_clean "$tmp"
-  "$@" "$tmp"
-  if ! out=$(cd "$tmp" && gate 2>&1); then
-    rm -rf "$tmp"
-    printf 'SELFTEST FAILED: the gate FIRED on %s, which is not a violation\n%s\n' "$what" "$out" >&2
-    exit 1
-  fi
-  rm -rf "$tmp"
-}
-
 # The definition skip is NARROW, and these two fixtures are what hold it
 # narrow. The first is real.rs carrying BOTH skipped definition lines AND
 # an ordinary compound signature below them: the gate must still fire, so
@@ -406,9 +386,9 @@ gate_selftest() {
   gate_selftest_case "$want" plant_real_rs_signature
   gate_selftest_case "no longer in crates/geom-core/src/real.rs verbatim" plant_real_rs_alias_redefined
   gate_selftest_case "$want" plant_dual_equivalent_spelling
-  bounds_selftest_passes "a sole bracket bound" plant_sole_bracket_bounds
+  gate_selftest_passes "a sole bracket bound" plant_sole_bracket_bounds
   printf '%s selftest OK: passes a clean fixture and a sole bracket bound; fires on both operand orders of Decide+Bounds and of Decide+CertifiedBounds, on a path-qualified alias after the plus, on an alias name not in the tree today, on all three spellings of a non-Bounds-named alias DECLARATION (GAP 4 mitigation: pair, sole supertrait, where-clause), on a compound bound in real.rs beside the skipped definition lines, on real.rs redefining the alias to carry Decide (through the definition-skip subject check), and on the equivalent spelling of dual.rs Bounds impl (GAP 2)\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"
-gate_main "compound Bounds bound outside the ratified seams" plant_decide_first
+gate_main

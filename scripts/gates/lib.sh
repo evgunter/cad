@@ -480,9 +480,7 @@ gate_selftest_case() {
 # NEAR-MISS twin, and the case that keeps a widening honest. The only
 # passing fixture the harness had was the empty clean tree, which proves
 # nothing about a spelling that must not fire; every widened matcher in
-# this directory needs a fixture saying where it stops. Reported by lane
-# F-e, which wrote a gate-local copy (`bounds_selftest_passes`) rather
-# than reach into this file.
+# this directory needs a fixture saying where it stops.
 gate_selftest_passes() {
   local what=$1; shift
   local tmp out

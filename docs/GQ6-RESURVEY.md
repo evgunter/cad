@@ -276,8 +276,11 @@ superset of what default features compile. Two independent reasons:
 cargo features are purely additive for the **dependency graph** (a
 feature can add crates, never remove them — cargo's design, not ours);
 and `scripts/check-interval-cfg-additive.py` forbids any
-`cfg(not(feature = "interval"))` under `crates/*/{src,tests}`, so no
-source here compiles *only* when the feature is off. That lint runs in
+`cfg(not(feature = "interval"))` under `crates/*/src`, so no library
+source here compiles *only* when the feature is off. Under
+`crates/*/tests` the gate holds a different rule and the negation is
+legitimate and in use; that does not reach this row, which builds no
+test targets. That lint runs in
 `discipline`, on the same runs — the premise is checked wherever it is
 relied on. **Evan's ruling, 2026-08-21:** *"do add wasm cross compiling
 for the interval build only. the lint for having interval be purely

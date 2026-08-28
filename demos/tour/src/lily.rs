@@ -1346,13 +1346,6 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
     // built with rather than copied: the NECK's drop plus
     // `FLOWER_TOP`, along the flower axis from the attachment point.
     // The sepals then stand on the sphere the lantern actually has.
-    //
-    // `theta` must clear `acos(FLOWER_TOP / FLOWER_GLOBE)` = 24.6
-    // degrees, the polar angle where the sphere is TRUNCATED by the
-    // neck's shoulder circle: above that the sphere is not part of the
-    // body, so a sepal standing there would be tangent to a surface
-    // that is not there. 38 degrees puts them on the shoulder of the
-    // globe.
     let flower_globe_depth =
         neck_drop(FLOWER_GLOBE, FLOWER_TOP, ARCH_R, FLOWER_NECK_HALF_ANGLE) + FLOWER_TOP;
     // The BUD: three pre-tepals, not a small flower. A much smaller
@@ -1376,6 +1369,12 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
         tol,
     );
 
+    // The sepals' polar angle must CLEAR `acos(FLOWER_TOP /
+    // FLOWER_GLOBE)`, the angle at which the sphere is truncated by
+    // the neck's shoulder circle: nearer the pole than that the sphere
+    // is not part of the body, so a sepal standing there would be
+    // tangent to a surface that is not there. The margin below is the
+    // clearance, and it puts them on the shoulder of the globe.
     let sepal_bodies: [Body<S>; 3] = sepals(
         (
             flower_attach.0 + flower_globe_depth * at_flower.t.0,
