@@ -181,7 +181,11 @@ fn r1_the_minted_alignment_is_the_placement_inverse_of_the_picked_world_pose() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     session.pump();
     for row in session.tree_rows() {
-        assert_eq!(row.status, RowStatus::Ok, "the rotated bench resolves: {row:?}");
+        assert_eq!(
+            row.status,
+            RowStatus::Ok,
+            "the rotated bench resolves: {row:?}"
+        );
     }
 
     let index = asm::index_of(&session);
@@ -229,10 +233,7 @@ fn r1_the_minted_alignment_is_the_placement_inverse_of_the_picked_world_pose() {
             .placement(doc, pick_ref.node)
             .expect("the instance is placed");
         let u_ref = pose.u_ref.expect("a cap fixes a roll reference");
-        let want_origin = world_to_part(
-            &placement,
-            [pose.origin.x, pose.origin.y, pose.origin.z],
-        );
+        let want_origin = world_to_part(&placement, [pose.origin.x, pose.origin.y, pose.origin.z]);
         let want_axis = world_to_part_vec(&placement, [pose.axis.x, pose.axis.y, pose.axis.z]);
         let want_ref = world_to_part_vec(&placement, [u_ref.x, u_ref.y, u_ref.z]);
         close(
@@ -357,10 +358,7 @@ fn r1_a_rotated_probe_is_drawn_picked_and_reported_in_world() {
     let quiet = index
         .pick_for(
             eval,
-            &asm::down_at(
-                asm::POST_B_AT[0] + s / 2.0,
-                asm::POST_B_AT[1] + s / 2.0,
-            ),
+            &asm::down_at(asm::POST_B_AT[0] + s / 2.0, asm::POST_B_AT[1] + s / 2.0),
             &view,
         )
         .expect("the pick answers");
@@ -462,7 +460,9 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
     let rows = session.tree_rows();
     let all_ok = rows.iter().all(|r| r.status == RowStatus::Ok);
     assert!(
-        second.refusal.is_some() || !all_ok || rows.iter().filter(|r| r.kind == "Mate").count() == 2,
+        second.refusal.is_some()
+            || !all_ok
+            || rows.iter().filter(|r| r.kind == "Mate").count() == 2,
         "a second mate on the same pair is either refused at the door or visible in \
          the tree; it is never invisible: refusal={:?} rows={rows:?}",
         second.refusal
