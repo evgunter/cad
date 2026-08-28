@@ -588,16 +588,23 @@ pub fn shell_open<T: Decide + PropsQuadLane>(
                 distance: inward(&cavity, group[0], thickness)?,
             });
         }
-        let named = charts
-            .first()
-            .and_then(|g| g.first())
-            .copied()
-            .ok_or(ShellError::Corrupt {
-                key: EntityId::Solid(solid),
-            })?;
+        // `ShellError::Face` carries ONE face, and on this branch the
+        // honest one is the face the door's own refusal is about — not
+        // the first chart's first face, which names the operand's arena
+        // order and nothing about the failure. The door's typed
+        // refusals carry a face, a vertex or an edge; the last two are
+        // resolved to a face they touch.
+        let fallback =
+            charts
+                .first()
+                .and_then(|g| g.first())
+                .copied()
+                .ok_or(ShellError::Corrupt {
+                    key: EntityId::Solid(solid),
+                })?;
         crate::offset_planes_together(&mut cavity, &moves, band, tol).map_err(|error| {
             ShellError::Face {
-                face: named,
+                face: offending_face(&cavity, &error).unwrap_or(fallback),
                 error: Box::new(error),
             }
         })?;
@@ -1209,6 +1216,28 @@ fn mean_radius<T: Real>(points: &[geom_core::Point3<T>], centre: geom_core::Poin
         sum = sum + (*p - centre).norm();
     }
     sum / T::from_f64(points.len() as f64)
+}
+
+/// The face a simultaneous-door refusal is about, where it names one
+/// or names an entity that touches one.
+fn offending_face<T: Real>(body: &Body<T>, error: &ReplaceFaceError<T>) -> Option<FaceKey> {
+    let face_of_he =
+        |he| -> Option<FaceKey> { Some(body.get_loop(body.get_half_edge(he)?.parent_loop)?.face) };
+    match error {
+        ReplaceFaceError::StaleFace { face }
+        | ReplaceFaceError::TogetherNonPlanar { face, .. }
+        | ReplaceFaceError::TogetherPartialSet { face }
+        | ReplaceFaceError::TogetherChartMixed { face, .. }
+        | ReplaceFaceError::TogetherFaceRepeated { face } => Some(*face),
+        ReplaceFaceError::TogetherCorner { vertex, .. } => {
+            face_of_he(body.get_vertex(*vertex)?.emanating?)
+        }
+        ReplaceFaceError::TogetherEdgeDisagreement { edge, .. }
+        | ReplaceFaceError::ReanchorOffCarrier { edge, .. } => {
+            face_of_he(body.get_edge(*edge)?.he_plus)
+        }
+        _ => None,
+    }
 }
 
 /// The signed distance along `from`'s chart normal that lands it on

@@ -389,6 +389,16 @@ pub fn offset_planes_together<T: Decide + PropsQuadLane>(
 /// its (about to be remapped) surfaces with the witness at the new
 /// mid-parameter; a mapped one translates by the edge's own rigid
 /// displacement.
+///
+/// **A near-twin of `replace_face::plan_edge`'s description arm, and
+/// the difference is why it is not shared.** That one re-states a
+/// description in which exactly ONE named surface moved, so it must
+/// pick out the moved key and route the pair through the C5 table;
+/// here EVERY named surface moves, the pair is unchanged, and the
+/// remap is a bulk pass at the end. Sharing them would mean a
+/// parameter selecting which of two different obligations to
+/// discharge. The duplication is one `match` over five variants and
+/// this note is its disclosure.
 fn restate<T: Real>(
     description: EdgeGeometry<T>,
     mid: Point3<T>,
