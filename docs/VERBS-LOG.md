@@ -2047,3 +2047,32 @@ let it ship extended. The teapot ships opened; #1082 closes at
 this merge; #1081 is PR-2's, dispatching now. The ε-sampling
 finding (five defects, one per drawn point) is the strongest
 argument yet for #1051's requestable runs — cited there.
+
+## ORDINAL 102 CLAIMED — SHELLFIX PR-2a (2026-08-28)
+
+PR-2 STOPPED before code on the opening measurement and was
+re-scoped by the orchestrator into 2a (planar corners, M) and 2b
+(curved corners, L). The spec's stated fix — "re-anchor against
+the neighbour's MOVED carrier when it is in the same group" —
+was falsified twice over: the refusing edge's two faces are BOTH
+outside the group (shell offsets one chart per call), and
+re-anchoring alone would have shipped a wrong body, because the
+corner is transported once per chart and accumulates `Σ dᵢ·nᵢ`
+where the offset needs the simultaneous solution. Measured on
+the hexagon at t = 0.02: 11.5 mm from the true corner, 30 mm of
+wall where 20 mm was asked for, and no tier catches it.
+ReanchorOffCarrier was the gate PREVENTING that body — the
+#1082 class one PR earlier — so it stays load-bearing for
+everything the new door does not cover.
+
+2a lands `topo::offset_planes_together`: each corner solved once
+against every moved plane meeting it (Cramer on the first
+well-conditioned triple, every further plane VERIFIED), each
+edge its own line translated perpendicular to itself with the
+endpoints re-read. Carrying the carrier's CONVENTIONAL data
+rather than re-deriving an origin is what keeps #1048's corpus
+byte-identical — measured with PR-1's adopted dump harness, all
+five fixtures. Hexagon/bevel/kite/triangle hollow, the hexagon
+pinned to its closed form; the curved rows still refuse at the
+same door; the teapot's belly is a sphere zone, so its
+un-squaring is honestly PENDING for 2b and is not claimed here.
