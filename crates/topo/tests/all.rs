@@ -98,6 +98,8 @@ mod m9_c1_r1_probes;
 mod m9_c1_rest_face_rung;
 #[path = "merge_skip.rs"]
 mod merge_skip;
+#[path = "review_f7_pole_r1_probes.rs"]
+mod review_f7_pole_r1_probes;
 #[path = "review_m1_pr5.rs"]
 mod review_m1_pr5;
 #[path = "review_m2_pr3.rs"]
@@ -140,8 +142,6 @@ mod review_s1_controls;
 mod review_s1_probes;
 #[path = "review_s6_probe.rs"]
 mod review_s6_probe;
-#[path = "review_f7_pole_r1_probes.rs"]
-mod review_f7_pole_r1_probes;
 #[path = "review_ssiflat_r1_probes.rs"]
 mod review_ssiflat_r1_probes;
 #[path = "review_ssiflat_r2_probes.rs"]
