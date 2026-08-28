@@ -2192,3 +2192,15 @@ adopted byte-dump harness caught it); the hexagon carries the
 closed form because a wrong corner BUILDS. The planar fixtures
 flip; every curved row and the teapot honestly unchanged
 (2b's). Full dual (valve lifted), frozen head 0954c4e4.
+
+## ORDINAL 104 CLAIMED — the F7 pole exemption's dual (#1131) (2026-08-28)
+
+The (d) build green: pole_split_cap structural (per-edge, so a
+pair is admitted only if EVERY shared edge is exempt — the
+teapot's valence-4 pair still refuses with the exemption live),
+the honest residue argued at the site (structure certified, not
+provenance), wall 7 MOVED to the curved-pierce door, the merge
+probe answered (MergedFaceRoleAmbiguous — half B stays a KERNEL
+question), and the steer deviation flagged with both framings
+(the lane's dump + PCURVE's ownership of the a/b offer) for
+Evan's retroactive 👍. Full dual, frozen head af04ee7a.
