@@ -1542,7 +1542,8 @@ ordinal. Both briefs carry v6 item 5's lane-isolation READ rule
 until its own report is delivered; an accidental glimpse is
 disclosed). Pre-draw fields logged at the spec: difficulty **L**,
 task-class **STRUCTURAL**, implementer arm **OPUS** (block PCURVE-1
-slot 1, byte 251 ⇒ fable at slot 4). This is the PCURVE program's
+slot 1; block draw REDACTED — see the redaction note below). This
+is the PCURVE program's
 first row and the first dual drawn under v6's randomized slots.
 Row at merge.
 
@@ -1585,7 +1586,7 @@ byte **101** (<252, accepted), 101 mod 4 = 1 = fable's position
 So: slot 1 GUI-0 = OPUS, slot 2 GUI-1 = FABLE, slots 3–4 = OPUS
 (GUI-2/GUI-3, arms read back from this record at dispatch per the
 VERBS-4 deviation remedy).
-| P-1a | 2026-08-27 | PCURVE's first unit — the collapsed edge description, the unified meter, the authority record (`geom-brep` only, behind a thin shim; consumers/fence/test-rewrites are P-1b's). `EdgeDescription` collapses D2's conventional variants to one `Chart(ChartCurve{surface,pcurve,seam})` arm plus a fenced `Scaffold`; `Pcurve::General` lands at the Fitted grade through `certify_general` (running `run_fitted_checks` VERBATIM, with a row asserting both doors produce identical certificates on identical inputs); D1's unified meter `|C(t) − S(P(t))| ≤ ε` with the two seam predicates retained as a periodic-chart obligation; `EdgeAuthority::{Derived,Declared}` stored per edge; D4's mint wired at certification. The `Copy` loss resolved by BORROW — `EdgeGeometry` stays `Copy` as the consumers' vocabulary, so the 22 deref sites are untouched and P-1b pays them against a borrowable type | **L** / STRUCTURAL (pre-logged at the spec) | OPUS (block PCURVE-1 slot 1; block byte 251, mod 4 = 3 ⇒ fable at slot 4) | **DUAL (ordinal 84, sample #27, CROSS-MODEL, v6's FIRST randomized-slot draw — byte 238, parity 0 ⇒ R1 opus + R2 fable, frozen `af0aebb5`). BOTH ARMS NOT-MERGEABLE-AS-IS, converged on the core defect from different angles.** R1: the gate was red at the frozen head (the `d2` row failing at ε=1e-12 and `demos/tour` not compiling — a `Pcurve::General` arm missed because `demos/tour` is outside the workspace, so `--workspace` never sees it); the D2 row generalized ONE ε point into a class fact; **the seam meter changed QUANTITY not bits — cone perpendicular-to-generator vs radial chord, ratio sec α, and an edge that certifies on main now ESCALATES**; the iso move unbounded in anchor offset (t0 1e6 → 7.0e14 ULP). R2: the same gate red; **the same seam finding reached independently and wider — sphere 2.35e9 ULP, cone 6.7e14 verdict-flipping, and cylinder at r=1e-4 moving 6.0e9, so the row's r=2 fixture was exactly where the move rounds away**; and the D2 tripwire BLIND to the laundering it existed to catch (iso slope exactly 1.0 — two mutants survived it). **PAIR EXCLUDED from the v6 tally and from the twelve** under item 3(e): R2's batteries were killed twice by the express-lane cap and it needed a correction to resume — work lost, so the arms are not comparable. Findings fully recorded and fully fixed; simply not scored | **0 silent** — every deviation reported in the PR body before review | 4 | 4 | 5 | substantial, IMPLEMENTER-INHERITED, TWO ROUNDS. Round 1: the seam disposition ruled `|C − S(P)|` the RIGHT quantity and re-baselined deliberately — the decisive ground VERIFIED not argued, that the pcurve CACHE lane already imposed exactly this statement on exactly this geometry through exactly this mint (demonstrated by running the fixture through `PcurveCache::certify`, code the unit does not touch), so the collapse removes a place where the kernel said two different things about one edge rather than inventing a rule; the price pinned as an assertion of the NEW behaviour; the implementer WITHDREW its own 'the new meter is conservative' claim on R2's small-cylinder evidence and replaced it with the narrower `|C − S(P)| ≥ dist(C, surface)`; the D2 tripwire rebuilt onto the mint's OUTPUT bits after finding TWO MORE blindnesses the review had not (v0=0 degeneracy, quadratic swamping). Round 2 (delta re-verification, required by the NOT-MERGEABLE verdict): the delta EXECUTED and FALSIFIED the implementer's 'no-op, not a survivor' claim — two re-associations passed all three D2 rows while moving minted bits at ~52%% and ~1.2%% of random anchors, coinciding only at the four pinned ones; two separating anchors added (six total, each documented with why), all four mutants now die, and the PR record corrected in place because a false 'we checked, it was a no-op' retires the question for the next reader | hosted CI green on every head; the branch's union drew BOTH compile modes on fix-pass code — default @ 1e-12 (`a6f3fcd6`) and interval @ 1e-6 (`54b542f0`, `a030c694`), k-lint gate green throughout (a metered-quantity change did not trip it). Merged #1073 at `9fa321d4` | impl ~443k / reviews R1 ~201k + R2 ~280k (incl. delta round) | impl ~6h across two fix rounds; reviews ~5.6h wall including a 2h18m self-inflicted mutex starvation (the implementer's own superseded footnote battery — the incident that produced the lane-ops rule at #1085) |
+| P-1a | 2026-08-27 | PCURVE's first unit — the collapsed edge description, the unified meter, the authority record (`geom-brep` only, behind a thin shim; consumers/fence/test-rewrites are P-1b's). `EdgeDescription` collapses D2's conventional variants to one `Chart(ChartCurve{surface,pcurve,seam})` arm plus a fenced `Scaffold`; `Pcurve::General` lands at the Fitted grade through `certify_general` (running `run_fitted_checks` VERBATIM, with a row asserting both doors produce identical certificates on identical inputs); D1's unified meter `|C(t) − S(P(t))| ≤ ε` with the two seam predicates retained as a periodic-chart obligation; `EdgeAuthority::{Derived,Declared}` stored per edge; D4's mint wired at certification. The `Copy` loss resolved by BORROW — `EdgeGeometry` stays `Copy` as the consumers' vocabulary, so the 22 deref sites are untouched and P-1b pays them against a borrowable type | **L** / STRUCTURAL (pre-logged at the spec) | OPUS (block PCURVE-1 slot 1; block draw REDACTED 2026-08-28 — see the redaction note) | **DUAL (ordinal 84, sample #27, CROSS-MODEL, v6's FIRST randomized-slot draw — byte 238, parity 0 ⇒ R1 opus + R2 fable, frozen `af0aebb5`). BOTH ARMS NOT-MERGEABLE-AS-IS, converged on the core defect from different angles.** R1: the gate was red at the frozen head (the `d2` row failing at ε=1e-12 and `demos/tour` not compiling — a `Pcurve::General` arm missed because `demos/tour` is outside the workspace, so `--workspace` never sees it); the D2 row generalized ONE ε point into a class fact; **the seam meter changed QUANTITY not bits — cone perpendicular-to-generator vs radial chord, ratio sec α, and an edge that certifies on main now ESCALATES**; the iso move unbounded in anchor offset (t0 1e6 → 7.0e14 ULP). R2: the same gate red; **the same seam finding reached independently and wider — sphere 2.35e9 ULP, cone 6.7e14 verdict-flipping, and cylinder at r=1e-4 moving 6.0e9, so the row's r=2 fixture was exactly where the move rounds away**; and the D2 tripwire BLIND to the laundering it existed to catch (iso slope exactly 1.0 — two mutants survived it). **PAIR EXCLUDED from the v6 tally and from the twelve** under item 3(e): R2's batteries were killed twice by the express-lane cap and it needed a correction to resume — work lost, so the arms are not comparable. Findings fully recorded and fully fixed; simply not scored | **0 silent** — every deviation reported in the PR body before review | 4 | 4 | 5 | substantial, IMPLEMENTER-INHERITED, TWO ROUNDS. Round 1: the seam disposition ruled `|C − S(P)|` the RIGHT quantity and re-baselined deliberately — the decisive ground VERIFIED not argued, that the pcurve CACHE lane already imposed exactly this statement on exactly this geometry through exactly this mint (demonstrated by running the fixture through `PcurveCache::certify`, code the unit does not touch), so the collapse removes a place where the kernel said two different things about one edge rather than inventing a rule; the price pinned as an assertion of the NEW behaviour; the implementer WITHDREW its own 'the new meter is conservative' claim on R2's small-cylinder evidence and replaced it with the narrower `|C − S(P)| ≥ dist(C, surface)`; the D2 tripwire rebuilt onto the mint's OUTPUT bits after finding TWO MORE blindnesses the review had not (v0=0 degeneracy, quadratic swamping). Round 2 (delta re-verification, required by the NOT-MERGEABLE verdict): the delta EXECUTED and FALSIFIED the implementer's 'no-op, not a survivor' claim — two re-associations passed all three D2 rows while moving minted bits at ~52%% and ~1.2%% of random anchors, coinciding only at the four pinned ones; two separating anchors added (six total, each documented with why), all four mutants now die, and the PR record corrected in place because a false 'we checked, it was a no-op' retires the question for the next reader | hosted CI green on every head; the branch's union drew BOTH compile modes on fix-pass code — default @ 1e-12 (`a6f3fcd6`) and interval @ 1e-6 (`54b542f0`, `a030c694`), k-lint gate green throughout (a metered-quantity change did not trip it). Merged #1073 at `9fa321d4` | impl ~443k / reviews R1 ~201k + R2 ~280k (incl. delta round) | impl ~6h across two fix rounds; reviews ~5.6h wall including a 2h18m self-inflicted mutex starvation (the implementer's own superseded footnote battery — the incident that produced the lane-ops rule at #1085) |
 
 GUI-0 review ordinal fixed at dispatch (2026-08-27, PR #1094 open —
 frozen head `f511a00`): **ordinal 400 — the FIRST claim in GUI's
@@ -1690,3 +1691,47 @@ leak's rule observed (no reviewer-visible text names this unit's
 arm). Pre-draw fields at the block GUI-B2 record above: M-L /
 STRUCTURAL, implementer arm read from block GUI-B2 slot 1. Sample
 number assigned AT MERGE. Row at merge.
+
+
+## PCURVE block-draw redaction (2026-08-28, orchestrator's, complying with Evan's ruling)
+
+**What was removed and why.** Both PCURVE-1 records above published the
+block draw in the form "byte 251 ⇒ fable at slot 4". Slots 1 and 2 are
+recorded OPUS at merge, so that line **determined P-1b's arm by
+arithmetic** for anyone reading main — including its reviewers, who had
+not been dispatched. The blinding-leak rule (GUI-LOG, 2026-08-27) says
+reviewer-visible logs never name an arm for a unit whose reviews have
+not concluded; a block draw names every unstarted slot at once, and a
+no-arms-in-unit-entries check does not catch it because the block record
+is a different surface.
+
+**Evan's ruling (in-conversation, 2026-08-28), quoted:** *"i don't think
+you have to verifiably precommit, but you can use hashes if you want to
+anyway."* Verifiable precommitment is therefore NOT required.
+
+**PCURVE adopts the GUI program's branch-side shape**, not the hash
+variant — one format across programs is worth more to the experiment's
+analysis than a per-program preference, and the hash bought exactly the
+property the ruling says is optional. Effective now: **block draws are
+recorded at draw time on the orchestrator branch (pushed, so durable,
+and read back at dispatch per the VERBS-4 remedy); the block record
+merges to main only once that block's LAST slot's reviews conclude.**
+The per-block opening point is the GUI orchestrator's correction to this
+orchestrator's original proposal — opening at the first unit's merge
+re-leaks every remaining slot, which is the same arithmetic delayed.
+
+**P-1b's dual carries a CONTAMINATION FLAG**, on the exposure and not on
+whether a reviewer discloses noticing it. Stated precisely rather than
+flatteringly: the draw stood on main from P-1a's spec until this
+redaction, P-1b's reviewers had not been dispatched in that window, and
+**git history retains the redacted text** — so this reduces the exposure
+for a reader of current main without eliminating it. The blinded
+adjudication should treat the pair as contaminated and may discount it
+on that basis. Same handling as GUI-2's and GUI-4's rows.
+
+**Related, and the orchestrator's own worse error:** the warning that
+surfaced this class was posted as a comment on GUI-4's own PR and quoted
+the arm token verbatim; GUI-4's R1 disclosed that comment as its exposure
+source. Redacted in place at #1113 with a note. Recorded here because
+the lesson generalizes past one lane — **a warning about a blinding leak,
+delivered where the blinded party reads, is itself a leak.**
