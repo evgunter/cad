@@ -3667,6 +3667,95 @@ mod verbs_gate_r1_probes {
         );
     }
 
+    /// R1 SCAFFOLD ROW (ordinal 104, probe branch only): the weld
+    /// chain's next door with the operand KIND gate widened in
+    /// `reduce.rs` — reproduces the PR downstream-table row
+    /// (`CurvedPierceUnsupported {{ A, face 3v1, edge 2v1 }}`) and the
+    /// LILYWELD spec's door-3 payload. Declared and undeclared both.
+    #[test]
+    fn r1_scaffold_weld_next_door_with_kind_gate_widened() {
+        let tol = Tol::witness();
+        let pieces = plant::<f64>(tol);
+        let by = |name: &str| {
+            &pieces
+                .iter()
+                .find(|p| p.name == name)
+                .expect("named lily piece")
+                .body
+        };
+        let (lant, arch) = (by("lily_lantern"), by("lily_arch"));
+        let decls = crate::booleans::flush_declarations(lant, arch, tol);
+        let declared = pncad::topo::union_with(lant, arch, &decls, tol)
+            .expect_err("the declared weld still refuses somewhere");
+        let undeclared = pncad::topo::union(lant, arch, tol)
+            .expect_err("the undeclared weld still refuses somewhere");
+        println!("[r1-scaffold] declared:   {declared:?}");
+        println!("[r1-scaffold] undeclared: {undeclared:?}");
+    }
+
+    /// R1 SCAFFOLD ROW 2 (ordinal 104, probe branch only): wall 7's
+    /// new payload, located entity by entity — which BODY owns the
+    /// `face` in `CurvedPierceUnsupported`, and what the named edge
+    /// is. The wall comment says "the lantern's own lip disk at one
+    /// of its seam struts"; the variant doc says the face is in the
+    /// OTHER operand. Measure, don't argue.
+    #[test]
+    fn r1_wall7_payload_locus_dump() {
+        let tol = Tol::witness();
+        let pieces = plant::<f64>(tol);
+        let by = |name: &str| {
+            &pieces
+                .iter()
+                .find(|p| p.name == name)
+                .expect("named lily piece")
+                .body
+        };
+        let lant = by("lily_lantern");
+        let ball_body = ball::<f64>((-2.80, 0.90), 0.16, tol);
+        let refusal = pncad::topo::subtract(lant, &ball_body, tol)
+            .expect_err("wall 7 still refuses somewhere");
+        println!("[r1-wall7] payload: {refusal:?}");
+        if let BooleanError::CurvedPierceUnsupported { face, edge, .. } = refusal {
+            for (tag, b) in [("lant", lant), ("ball", &ball_body)] {
+                let kind = b
+                    .get_face(face)
+                    .and_then(|f| b.get_surface(f.surface))
+                    .map(|s| format!("{s:?}"));
+                println!(
+                    "[r1-wall7] face {face:?} in {tag}: {}",
+                    kind.map_or("does not resolve".to_string(), |k| {
+                        let mut k = k;
+                        k.truncate(80);
+                        k
+                    })
+                );
+                if let Some(e) = b.get_edge(edge) {
+                    let face_of = |he| {
+                        let p = b.get_half_edge(he)?.parent_loop;
+                        Some(b.get_loop(p)?.face)
+                    };
+                    let fs = (face_of(e.he_plus), face_of(e.he_minus));
+                    let kinds: Vec<String> = [fs.0, fs.1]
+                        .into_iter()
+                        .flatten()
+                        .filter_map(|fk| {
+                            b.get_face(fk)
+                                .and_then(|f| b.get_surface(f.surface))
+                                .map(|s| {
+                                    let mut k = format!("{fk:?}:{s:?}");
+                                    k.truncate(60);
+                                    k
+                                })
+                        })
+                        .collect();
+                    println!("[r1-wall7] edge {edge:?} in {tag}: between {kinds:?}");
+                } else {
+                    println!("[r1-wall7] edge {edge:?} in {tag}: does not resolve");
+                }
+            }
+        }
+    }
+
     /// The plant's other two boolean walls, as a TEST — same reason
     /// the bottle's are (`klein::verbs_gate_r1_probes`): the gate
     /// names a PAIR, so a change under the boxes moves them, and

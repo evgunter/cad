@@ -337,15 +337,12 @@ pub(super) fn gate_operand_pairs<T: Decide + Bounds>(
     for (operand, body) in [(Operand::A, a), (Operand::B, b)] {
         gate_operand_edges(body, operand)?;
     }
+    // R1 SCAFFOLD (ordinal 104, probe branch ONLY — reverted before the
+    // report): the pair-scoped kind gate is WIDENED so the weld-chain
+    // measurement can read the next door, reproducing the PR's
+    // downstream-table row. Never ship this.
     if let Some(p) = first_unsupported_pair(a, b, band, boolean_arm_exists)? {
-        return Err(BooleanError::CurvedPairUnsupported {
-            op: None,
-            operand: p.operand,
-            face: p.face,
-            kind: p.kind,
-            other_face: p.other_face,
-            other_kind: p.other_kind,
-        });
+        let _ = p;
     }
     Ok(())
 }
