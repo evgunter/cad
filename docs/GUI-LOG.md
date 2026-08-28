@@ -275,3 +275,17 @@ format ruling landed mid-review). v1 status: **GUI-0…GUI-4 all
 merged, samples #29–#33, ordinals 400–404; v6 tally 0 confirmed +
 1 candidate pending blinded coding.** Next: the exit walk with
 Evan.
+
+## Exit walk RATIFIED (2026-08-28 05:13Z — Evan merged #1121)
+
+The v1 GUI's required path is complete and signed off:
+GUI-0…GUI-4 merged (samples #29–#33, ordinals 400–404), acceptance
+evidenced on the real gallery hosted, the egui GO authoritative,
+residue banked (#1097, #1111, #1117, #1120, GUI-6). The walk's
+second question — **GUI-5 (the threaded web lane): dispatch,
+defer, or drop** — received no answer with the merge and stays
+OPEN as Evan's call; block GUI-B2 slot 2 stands ready, and the
+block record's remaining-slot handling follows the branch-side
+ruling either way. Program state: idle on that one decision; no
+lanes running; the PR subscription and fallback watches are
+retired.
