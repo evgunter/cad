@@ -2267,3 +2267,12 @@ probe answered (MergedFaceRoleAmbiguous — half B stays a KERNEL
 question), and the steer deviation flagged with both framings
 (the lane's dump + PCURVE's ownership of the a/b offer) for
 Evan's retroactive 👍. Full dual, frozen head af04ee7a.
+
+## SHELLFIX PR-2a MERGED (#1126) — ordinal-103 row (sample #36) (2026-08-28)
+
+The planar half of #1081 closes: oblique-junction bodies hollow
+through the simultaneous-offset door with closed-form nets at
+every corner class, and the conditioning meter judges geometry,
+not requests. #1081 stays open for 2b (the curved corners — the
+teapot's belly). The banked meter law and the
+conventional-data-is-data lesson ride the row.
