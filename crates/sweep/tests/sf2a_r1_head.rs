@@ -26,10 +26,17 @@ fn chamfered_cube() -> Body<f64> {
         .body
 }
 
+/// One chart as this file reads it: the faces wearing it, and the
+/// plane's origin and stored normal.
+type Chart = (Vec<FaceKey>, Point3<f64>, Vec3<f64>);
+
+/// A [`Chart`] still carrying the surface key it was grouped by.
+type KeyedChart = (topo::SurfaceKey, Vec<FaceKey>, Point3<f64>, Vec3<f64>);
+
 /// Charts: faces grouped by surface key, with the plane's origin and
 /// stored normal.
-fn charts(body: &Body<f64>) -> Vec<(Vec<FaceKey>, Point3<f64>, Vec3<f64>)> {
-    let mut out: Vec<(topo::SurfaceKey, Vec<FaceKey>, Point3<f64>, Vec3<f64>)> = Vec::new();
+fn charts(body: &Body<f64>) -> Vec<Chart> {
+    let mut out: Vec<KeyedChart> = Vec::new();
     for (k, f) in body.faces() {
         match out.iter_mut().find(|(s, _, _, _)| *s == f.surface) {
             Some((_, v, _, _)) => v.push(k),

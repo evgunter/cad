@@ -83,9 +83,12 @@ fn wall_volume(pts: &[(f64, f64)], h: f64, t: f64) -> f64 {
     area(pts) * h - area(&offset_in(pts, t)) * (h - 2.0 * t)
 }
 
+/// A plane as this file reads it: an origin and a unit normal.
+type PlaneFrame = (Point3<f64>, Vec3<f64>);
+
 /// Every distinct plane (origin, unit normal) of a body's faces.
-fn planes(body: &Body<f64>) -> Vec<(Point3<f64>, Vec3<f64>)> {
-    let mut out: Vec<(Point3<f64>, Vec3<f64>)> = Vec::new();
+fn planes(body: &Body<f64>) -> Vec<PlaneFrame> {
+    let mut out: Vec<PlaneFrame> = Vec::new();
     for (_, f) in body.faces() {
         if let Some(geom::Surface::Plane { origin, normal, .. }) = body.get_surface(f.surface) {
             if !out
