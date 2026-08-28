@@ -212,7 +212,6 @@ fn p2_counterbore_mouth_two_half_annuli_split_into_two_rims() {
         Err(ShellError::OpenFacesDisconnect { components, .. }) => {
             println!("[p2] refused typed at the designation gate: {components} components");
             assert_eq!(components, 2);
-            return;
         }
         Err(e) => panic!("[p2] expected the disconnect gate or a build, got {e}"),
         Ok(cup) => {
