@@ -31,24 +31,33 @@
 //!
 //! # Findings this scene records (the demo-purpose rule)
 //!
-//! 1. **`shell` survives exactly ONE junction shape, and it is not
-//!    about curvature.** The verb replaces one chart at a time and
-//!    re-anchors the neighbours' edges on carriers that have not moved
-//!    yet, so a junction survives exactly when the neighbouring
-//!    surface is invariant under the moved face's own offset motion:
-//!    a plane normal to a cylinder's axis, both ways, and nothing
-//!    else. The pot's belly is therefore SQUARED — foot, shoulder,
-//!    belly, shoulder, neck, all right angles — and the arc a potter
-//!    would draw is wall 1. The class is not curvature: a right prism
-//!    on a TRIANGLE refuses the same way, and a cone frustum between
-//!    two caps refuses the same way, while a box and an L-prism
-//!    hollow. A curved neighbour refuses at a SECOND door
-//!    (`CarrierLaneUnsupported`), and that door is about the
-//!    neighbour's offset not being a rigid translation rather than
-//!    about tangency — a dome whose centre is lifted clear of the
-//!    wall's top is definitely not tangent and refuses identically.
+//! 1. **`shell`'s sealed arm survived exactly ONE junction shape, and
+//!    it was never about curvature.** The verb replaced one chart at a
+//!    time and re-anchored the neighbours' edges on carriers that had
+//!    not moved yet, so a junction survived exactly when the
+//!    neighbouring surface was invariant under the moved face's own
+//!    offset motion: a plane normal to a cylinder's axis, both ways,
+//!    and nothing else. A right prism on a TRIANGLE refused the same
+//!    way as a cone frustum, which is what ruled curvature out.
+//!
+//!    **The PLANAR half of that is repaired (#1081 PR-2a) and the
+//!    curved half is not.** An all-planar body's corners are now solved
+//!    SIMULTANEOUSLY — each against every moved plane meeting it —
+//!    so the hexagon, the bevel, the kite and the triangular prism
+//!    hollow. A body with any curved face still moves chart by chart
+//!    and still refuses at `ReanchorOffCarrier`, which is the gate
+//!    standing between that path and a wrong corner. **The pot's belly
+//!    is a SPHERE ZONE**, so it is on the curved side: the belly stays
+//!    squared — foot, shoulder, belly, shoulder, neck, all right
+//!    angles — and the arc a potter would draw is still wall 1, now
+//!    waiting on PR-2b's curved-corner solves rather than on the class
+//!    being unknown. A curved neighbour can also refuse at a THIRD
+//!    door (`CarrierLaneUnsupported`), which is about the neighbour's
+//!    offset not being a rigid translation rather than about tangency
+//!    — a dome whose centre is lifted clear of the wall's top is
+//!    definitely not tangent and refuses identically.
 //!    `tests/verbs_teapot.rs` is that table, its sweep, and the
-//!    sweep's stated blind spot. This is not a gap the verb
+//!    sweep's stated blind spot. This was not a gap the verb
 //!    announced: `shell`'s acceptance corpus is a box, a cylinder
 //!    between two caps and a tube between two caps — every fixture in
 //!    the surviving class, and the class was never named.
@@ -1053,13 +1062,17 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              {reach} m of realized inner radius left. Note the sense bit in that scan: \
              {stored_plus} of this pot's {} planar FACES store a +y normal and only the \
              face's own orientation says which way each looks, so a sense-blind scan \
-             finds no antiparallel pair here at all. THE BELLY IS SQUARED, AND THAT IS \
-             THE SCENE'S FIRST FINDING: the same pot with its shoulders turned into one \
-             sphere zone REFUSES (wall 1) — and so does a cone frustum, and so does a \
-             triangular prism (all planes, dihedrals 58/58/64), and so does a quarter \
-             revolve's meridian cap, so the class is OBLIQUE junctions and not \
-             curvature. A CURVED neighbour refuses at a second door, and that door is \
-             the neighbour's offset not being a rigid translation rather than tangency: \
+             finds no antiparallel pair here at all. THE BELLY IS STILL SQUARED, AND THAT \
+             IS THE SCENE'S FIRST FINDING, NOW HALF-REPAIRED: the same pot with its \
+             shoulders turned into one sphere zone REFUSES (wall 1). The class was \
+             OBLIQUE junctions and not curvature — a triangular prism, all planes, \
+             dihedrals 58/58/64, refused exactly like a cone frustum — and #1081's \
+             PLANAR half is fixed: an all-planar body's corners are solved \
+             SIMULTANEOUSLY now, so that prism and the hexagon, bevel and kite hollow. \
+             The belly is a SPHERE ZONE, which is the curved half and is PR-2b's, so \
+             this pot keeps its right angles and wall 1 keeps its pin. A CURVED \
+             neighbour can also refuse at a further door, and that door is the \
+             neighbour's offset not being a rigid translation rather than tangency: \
              a lifted, definitely-non-tangent dome refuses identically \
              (`tests/verbs_teapot.rs` carries the table, the discriminator and the \
              sweep's blind spot). THE MOUTH IS \

@@ -98,6 +98,21 @@ fn tube(ri: f64, ro: f64, h: f64) -> Body<f64> {
     .body
 }
 
+/// A right prism on a polygon.
+fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
+    let lp = ProfileLoop::new(
+        pts.iter()
+            .map(|&(x, y)| ProfileVertex::new(p2(x, y), 0.0))
+            .collect(),
+    );
+    let profile = Profile::new(SketchPlane::xy(), vec![lp])
+        .validate(Tol::witness())
+        .expect("a polygon is a valid profile");
+    extrude(&profile, Extrusion::Distance(h), Tol::witness())
+        .expect("a polygon extrudes")
+        .body
+}
+
 /// The planar face whose origin sits at height `y` (the caps).
 fn plane_face_at(body: &Body<f64>, y: f64) -> FaceKey {
     body.faces()
@@ -906,4 +921,273 @@ fn a_ring_standing_on_its_outer_loop_refuses_at_tier_3() {
             );
         }
     }
+}
+
+// ---------------------------------------------------------------------
+// The oblique junction, after the simultaneous door (#1081, PR-2a)
+// ---------------------------------------------------------------------
+
+/// **Every all-planar oblique prism hollows, and the hexagon says so
+/// in closed form.**
+///
+/// These four were the ordinal-100/101 rows that PINNED the defect:
+/// each refused `ReanchorOffCarrier` with a gap of exactly
+/// `t·|cos θ|`. The law was never wrong — it was measuring a corner
+/// transported once per chart, which accumulates `Σ dᵢ·nᵢ` where an
+/// offset body needs the point satisfying every `nᵢ·x = nᵢ·oᵢ + dᵢ` at
+/// once. `offset_planes_together` solves that point instead, so the
+/// gap has nowhere to open.
+///
+/// The hexagon carries the closed form because "it hollows" is not the
+/// claim: a regular hexagon's INRADIUS shrinks by exactly the wall, so
+/// the cavity is the hexagon of circumradius `R − 2t/√3` over a height
+/// short by `2t`. A corner solved to the wrong point would still
+/// produce a valid two-shell body — that is the whole reason #1081's
+/// gate had to stay load-bearing until this door existed — and only
+/// the volume catches it.
+#[test]
+fn oblique_planar_prisms_hollow_with_their_closed_forms() {
+    let tol = Tol::witness();
+    let t = 0.02;
+    let s3 = 3.0_f64.sqrt();
+    let r = 0.2;
+    let hex: Vec<(f64, f64)> = (0..6)
+        .map(|i| {
+            let a = core::f64::consts::TAU * f64::from(i) / 6.0;
+            (r * a.cos(), r * a.sin())
+        })
+        .collect();
+    let area = |r: f64| 1.5 * s3 * r * r;
+    let hex_want = area(r) * 0.25 - area(r - 2.0 * t / s3) * (0.25 - 2.0 * t);
+
+    // The other three carry closed forms too, from the footprint's own
+    // INSET polygon (each edge line moved in by `t`, re-crossed with
+    // its neighbours) — the same shape as the hexagon's, derived
+    // generally instead of per fixture. Shipping these rows on
+    // "hollows, two shells, tier 3" alone was an undisclosed narrowing
+    // of this unit's acceptance: a corner solved to the wrong point
+    // satisfies every one of those three.
+    let want_of =
+        |pts: &[(f64, f64)]| shoelace(pts) * 0.25 - shoelace(&inset(pts, t)) * (0.25 - 2.0 * t);
+    let bevel = vec![(0.0, 0.0), (0.4, 0.0), (0.3, 0.3), (0.0, 0.3)];
+    let kite = vec![(0.0, 0.0), (0.2, -0.1), (0.4, 0.0), (0.2, 0.3)];
+    let triangle = vec![(0.0, 0.0), (0.3, 0.0), (0.15, 0.26)];
+    for (what, pts, want) in [
+        ("a regular hexagon (120 deg)", hex, Some(hex_want)),
+        (
+            "a box with ONE bevelled side (135 deg)",
+            bevel.clone(),
+            Some(want_of(&bevel)),
+        ),
+        (
+            "a kite (no right angle anywhere)",
+            kite.clone(),
+            Some(want_of(&kite)),
+        ),
+        (
+            "a triangle (58/58/64)",
+            triangle.clone(),
+            Some(want_of(&triangle)),
+        ),
+    ] {
+        let body = prism(&pts, 0.25);
+        let hollow = topo::shell(&body, t, FIT_TOL, band(), tol)
+            .unwrap_or_else(|e| panic!("{what}: an oblique planar junction hollows now, got {e}"));
+        assert_eq!(
+            topo::validate_geometric(&hollow, tol),
+            Ok(()),
+            "{what}: tier 3"
+        );
+        assert_eq!(hollow.shells().count(), 2, "{what}: outer + cavity");
+        let props = topo::mass_properties(&hollow, tol).expect("props");
+        println!("[oblique] {what}: wall volume {}", props.volume);
+        if let Some(want) = want {
+            assert!(
+                (props.volume - want).abs() <= 1e-12,
+                "{what}: the wall's closed form is {want}, got {}",
+                props.volume
+            );
+        }
+    }
+}
+
+/// **The differential: a CURVED face at the junction still refuses,
+/// and at the same door it always did.**
+///
+/// This is the boundary of PR-2a's scope stated as a measurement
+/// rather than as a sentence. `shell` takes the simultaneous branch
+/// only when every face is a plane, so a body with one curved face
+/// still moves chart by chart — and `ReanchorOffCarrier` is still the
+/// gate that refuses to build the corner that transport would get
+/// wrong. Those corners are the C5-table work that follows, and the
+/// teapot's belly is one of them: a sphere zone, which is why this
+/// unit does not un-square the pot and does not claim to.
+#[test]
+fn a_curved_face_at_the_junction_still_refuses_where_it_did() {
+    let tol = Tol::witness();
+    let (r, h, t) = (0.5, 0.4, 0.05);
+    // A CONE FRUSTUM between two caps — one of the ordinal-100 rows,
+    // and the cheapest curved junction there is: the slant meets both
+    // caps obliquely and the cone's offset is not a translation.
+    let frustum = revolve(
+        &Profile::new(
+            SketchPlane::xy(),
+            vec![ProfileLoop::new(vec![
+                ProfileVertex::new(p2(0.0, 0.0), 0.0),
+                ProfileVertex::new(p2(0.30, 0.0), 0.0),
+                ProfileVertex::new(p2(0.20, 0.40), 0.0),
+                ProfileVertex::new(p2(0.0, 0.40), 0.0),
+            ])],
+        )
+        .validate(tol)
+        .expect("the frustum meridian validates"),
+        RevolveAxis {
+            origin: p2(0.0, 0.0),
+            dir: Vec2::new(0.0, 1.0),
+        },
+        Revolution::Full,
+        tol,
+    )
+    .expect("the frustum revolves")
+    .body;
+    let what = "a cone frustum between two caps";
+    let e = topo::shell(&frustum, t, FIT_TOL, band(), tol)
+        .expect_err("a curved junction is outside this door's scope");
+    let ShellError::Face { error, .. } = e else {
+        panic!("{what}: not the offset door's refusal: {e}");
+    };
+    assert!(
+        matches!(*error, topo::ReplaceFaceError::ReanchorOffCarrier { .. }),
+        "{what}: the door that refuses is part of the finding: {error}"
+    );
+    // And the drum still hollows, because a cylinder between two caps
+    // NORMAL to its axis was always inside the surviving class — the
+    // simultaneous branch is not what makes it work, and this row says
+    // so by taking the other branch entirely.
+    let drum = vessel(r, h);
+    topo::shell(&drum, t, FIT_TOL, band(), tol).expect("the drum still hollows, on the old branch");
+}
+
+/// **The simultaneous door names its own scope, at the door.**
+///
+/// Both gates are structural and both are checked before anything is
+/// written: a corner's answer is a system of PLANE equations, so a
+/// curved face has no equation to contribute, and a face the door was
+/// not told about is a plane missing from every corner it touches.
+/// Refused typed rather than solved on what happened to be passed.
+#[test]
+fn the_simultaneous_door_names_its_scope() {
+    let tol = Tol::witness();
+    let charts = |body: &Body<f64>| -> Vec<Vec<FaceKey>> {
+        let mut out: Vec<(topo::SurfaceKey, Vec<FaceKey>)> = Vec::new();
+        for (k, f) in body.faces() {
+            match out.iter_mut().find(|(s, _)| *s == f.surface) {
+                Some((_, v)) => v.push(k),
+                None => out.push((f.surface, vec![k])),
+            }
+        }
+        out.into_iter().map(|(_, v)| v).collect()
+    };
+    let move_all = |body: &Body<f64>, d: f64| -> Vec<topo::ChartMove<f64>> {
+        charts(body)
+            .into_iter()
+            .map(|faces| topo::ChartMove { faces, distance: d })
+            .collect()
+    };
+
+    // A curved face has no plane equation to bring to its corners.
+    let mut vessel_body = vessel(1.0, 2.0);
+    let moves = move_all(&vessel_body, -0.1);
+    let e = topo::offset_planes_together(&mut vessel_body, &moves, band(), tol)
+        .expect_err("a cylinder has no plane equation");
+    assert!(
+        matches!(e, topo::ReplaceFaceError::TogetherNonPlanar { .. }),
+        "the scope gate names the non-planar face: {e}"
+    );
+
+    // A face the door was not told about is a plane missing from every
+    // corner it touches.
+    let mut boxy_body = boxy(2.0, 3.0, 4.0);
+    let mut partial = move_all(&boxy_body, -0.1);
+    partial.pop();
+    let e = topo::offset_planes_together(&mut boxy_body, &partial, band(), tol)
+        .expect_err("a partial moving set has corners this door cannot solve");
+    assert!(
+        matches!(e, topo::ReplaceFaceError::TogetherPartialSet { .. }),
+        "the scope gate names the face nothing moved: {e}"
+    );
+
+    // **The third gate: a corner whose planes do not determine a
+    // point.** A footprint with a STRAIGHT vertex extrudes into two
+    // side faces that are COPLANAR and share an edge — and MEASURED
+    // here, `extrude` gives them one surface key, so the corner where
+    // that edge meets a cap has exactly TWO distinct planes. Two
+    // planes determine a line, not a point: solved on what it has, the
+    // door would place the corner anywhere along that line. Refused
+    // instead, naming the shape and the count.
+    let mut straight = prism(
+        &[(0.0, 0.0), (0.5, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
+        0.4,
+    );
+    let moves = move_all(&straight, -0.05);
+    let e = topo::offset_planes_together(&mut straight, &moves, band(), tol)
+        .expect_err("a coplanar-adjacent corner determines no point");
+    let topo::ReplaceFaceError::TogetherCorner { planes, what, .. } = &e else {
+        panic!("the corner gate must name the shape, got {e}");
+    };
+    println!("[scope] coplanar-adjacent corner: {planes} planes — {what}");
+    assert_eq!(*planes, 2, "the two coplanar side faces share one key");
+    assert!(
+        what.contains("fewer than three distinct planes"),
+        "the refusal must say what is missing, got {what}"
+    );
+
+    // And the body is UNTOUCHED by either refusal — every decision is
+    // taken before the clone is written and the clone is dropped.
+    assert_eq!(
+        topo::validate_geometric(&boxy_body, tol),
+        Ok(()),
+        "a refused call leaves the operand exactly as it was"
+    );
+}
+
+/// Twice the signed area of a simple polygon, halved — the footprint
+/// area the wall's closed form is built from.
+fn shoelace(pts: &[(f64, f64)]) -> f64 {
+    let n = pts.len();
+    (0..n)
+        .map(|i| {
+            let (x0, y0) = pts[i];
+            let (x1, y1) = pts[(i + 1) % n];
+            x0 * y1 - x1 * y0
+        })
+        .sum::<f64>()
+        / 2.0
+}
+
+/// The footprint inset by `t`: every edge line moved inward by `t`
+/// along its own left normal (inward for a CCW loop), then re-crossed
+/// with its neighbours. This is the 2-D shadow of exactly what the
+/// simultaneous door does in 3-D, which is why it is the right closed
+/// form to check the door against — and it is derived here rather than
+/// read off the door, so the two are independent.
+fn inset(pts: &[(f64, f64)], t: f64) -> Vec<(f64, f64)> {
+    let n = pts.len();
+    let line = |i: usize| -> (f64, f64, f64, f64) {
+        let (px, py) = pts[i];
+        let (qx, qy) = pts[(i + 1) % n];
+        let (dx, dy) = (qx - px, qy - py);
+        let l = dx.hypot(dy);
+        let (nx, ny) = (-dy / l, dx / l);
+        (px + t * nx, py + t * ny, dx, dy)
+    };
+    (0..n)
+        .map(|i| {
+            let (x0, y0, dx0, dy0) = line((i + n - 1) % n);
+            let (x1, y1, dx1, dy1) = line(i);
+            let det = dx0 * (-dy1) - (-dx1) * dy0;
+            let a = ((x1 - x0) * (-dy1) - (-dx1) * (y1 - y0)) / det;
+            (x0 + a * dx0, y0 + a * dy0)
+        })
+        .collect()
 }
