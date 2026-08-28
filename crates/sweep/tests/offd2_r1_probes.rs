@@ -364,9 +364,15 @@ fn probe_opened_vessel_cup() {
         .filter(|(_, y)| (*y - ymax).abs() < 1e-9)
         .map(|(k, _)| *k)
         .collect();
+    // The refusal arm is an ASSERT, not a print. As a print it made
+    // this row unfalsifiable in the one direction that matters: a
+    // regression that turned the revolved cup into a typed refusal
+    // would have read as a green probe. The verb builds this rim, so
+    // anything else reds here.
     match topo::shell_open(&v, t, &top, FIT_TOL, band(), Tol::witness()) {
-        Err(e) => println!(
-            "[probe] vessel cup ({} top faces): typed refusal: {e}",
+        Err(e) => panic!(
+            "the revolved vessel cup must BUILD ({} top faces designated); the verb \
+             refused with {e}",
             top.len()
         ),
         Ok(cup) => {

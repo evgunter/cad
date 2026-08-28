@@ -682,6 +682,19 @@ pub fn shell_open<T: Decide + PropsQuadLane>(
                     face: designated,
                     error,
                 })?;
+            // The promoted face inherits the RIM's orientation, not
+            // the counterpart's: `mfkrh` with a `Shared` surface mints
+            // `sense: true`, and the counterpart is a cavity wall whose
+            // outward normal points the other way. The winding works
+            // out by construction — a ring of the counterpart is wound
+            // opposite to the counterpart's outer loop, i.e. the way an
+            // outer loop of a rim-facing face must be — and it is not
+            // asserted here on that argument alone: tier 3's check 6
+            // reads `sense` against the stored loop windings on every
+            // planar face, and check 7 reads the volume the same
+            // windings integrate, so a flip either way reds at the
+            // verb's own closing `validate_geometric` rather than
+            // shipping.
             out.set_face_sense(made.face, rim_sense)
                 .map_err(|error| ShellError::Rim {
                     face: designated,
@@ -707,12 +720,50 @@ pub fn shell_open<T: Decide + PropsQuadLane>(
                 key: EntityId::Face(rim),
             })?
             .outer;
-        if crate::validate::ring_outer_contact(&out, rim_outer, source_outer, band).is_some() {
-            return Err(ShellError::OpenFaceRimNotExpressible {
-                face: designated,
-                what: "the cavity counterpart's boundary meets the designated face's own \
-                       boundary, so it cannot become an interior-disjoint ring of it",
-            });
+        //
+        // An UNDECIDABLE separation refuses too, and does not proceed:
+        // the glue is a write, and building on a gap the predicate
+        // layer could not certify is exactly the guess D4 forbids.
+        // **On the way in through this verb the band is door-shielded**
+        // — `shell_thickness` has already decided the wall certifiably
+        // positive and every rim it builds is that wall wide — so the
+        // escalation arm is not reachable from `shell_open`'s own
+        // fixtures. It is here for the bodies OTHER producers hand the
+        // same predicate at rest, which is where check 9 does its work.
+        match crate::validate::ring_outer_contact(&out, rim_outer, source_outer, band) {
+            crate::validate::RingOuterVerdict::Disjoint => {}
+            crate::validate::RingOuterVerdict::Contact(_) => {
+                return Err(ShellError::OpenFaceRimNotExpressible {
+                    face: designated,
+                    what: "the cavity counterpart's boundary meets the designated face's own \
+                           boundary, so it cannot become an interior-disjoint ring of it",
+                });
+            }
+            crate::validate::RingOuterVerdict::Escalated(source) => {
+                return Err(ShellError::Escalated { source });
+            }
+        }
+
+        // The SPLIT path's promoted pair, checked the same way and
+        // before the glue rather than after it: a promoted rim face's
+        // own outer loop and the hole it is about to be handed must be
+        // disjoint too, or the second rim region is the first one's
+        // defect one ring in. Refused typed, naming the shape, rather
+        // than arriving as a generic `NotValid` on a built body.
+        for &(source_ring, rim_ring) in &pairs {
+            match crate::validate::ring_outer_contact(&out, source_ring, rim_ring, band) {
+                crate::validate::RingOuterVerdict::Disjoint => {}
+                crate::validate::RingOuterVerdict::Contact(_) => {
+                    return Err(ShellError::OpenFaceRimNotExpressible {
+                        face: designated,
+                        what: "a promoted rim face's own boundary meets the hole it would \
+                               carry, so that rim region is not a ring inside a region either",
+                    });
+                }
+                crate::validate::RingOuterVerdict::Escalated(source) => {
+                    return Err(ShellError::Escalated { source });
+                }
+            }
         }
 
         // The connected sum: the counterpart dies, its outer loop
@@ -787,7 +838,7 @@ fn canonicalize_chart<T: Decide>(
         let edges: Vec<crate::entity::EdgeKey> = body.edges().map(|(k, _)| k).collect();
         let mut acted = false;
         for edge in edges {
-            let Some((fp, fm)) = edge_faces(body, edge) else {
+            let Some((fp, fm)) = crate::replace_face::edge_faces(body, edge) else {
                 continue;
             };
             if fp == fm || !alive.contains(&fp) || !alive.contains(&fm) {
@@ -944,14 +995,6 @@ fn pair_rings<T: Decide>(
              hole, and this door pairs no more than one",
         )),
     }
-}
-
-/// The two faces an edge separates.
-fn edge_faces<T: Real>(body: &Body<T>, edge: crate::entity::EdgeKey) -> Option<(FaceKey, FaceKey)> {
-    let data = body.get_edge(edge)?;
-    let face_of =
-        |he| -> Option<FaceKey> { Some(body.get_loop(body.get_half_edge(he)?.parent_loop)?.face) };
-    Some((face_of(data.he_plus)?, face_of(data.he_minus)?))
 }
 
 /// A loop of `face` that walks one edge in BOTH directions, with the
