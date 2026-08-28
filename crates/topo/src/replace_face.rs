@@ -265,9 +265,23 @@ pub enum ReplaceFaceError<T: Real> {
         /// meters.
         gap: T,
     },
-    /// An edge ending at a moved vertex, but not on the replaced face's
-    /// boundary, could not be re-anchored: its new endpoint is
-    /// definitely off its (unchanged) carrier.
+    /// **The PER-FACE door's finding**: an edge ending at a moved
+    /// vertex, but not on the replaced face's boundary, could not be
+    /// re-anchored — its new endpoint is definitely off its own
+    /// carrier, which did not move because the surfaces holding it did
+    /// not.
+    ///
+    /// This is the gate that stands between the per-face door and an
+    /// OBLIQUE junction's wrong body: composing that door over a whole
+    /// boundary transports each corner once per chart, which is not the
+    /// point an offset body needs, and the `gap` is the difference.
+    /// `offset_planes_together` solves such corners simultaneously and
+    /// does not reach here; everything outside that door's scope —
+    /// every curved corner — still does.
+    ///
+    /// The simultaneous door has its OWN disagreement finding,
+    /// [`ReplaceFaceError::TogetherEdgeDisagreement`]; this variant is
+    /// not reused for it.
     ReanchorOffCarrier {
         /// The edge whose carrier the moved vertex left.
         edge: EdgeKey,
@@ -308,6 +322,35 @@ pub enum ReplaceFaceError<T: Real> {
         planes: usize,
         /// Which of the shapes above it is.
         what: &'static str,
+    },
+    /// **The simultaneous door: two chart moves disagree about one
+    /// face**, or one chart's faces do not all wear the same surface.
+    TogetherChartMixed {
+        /// The face whose surface differs.
+        face: FaceKey,
+        /// The chart's first face, whose surface it should have worn.
+        other: FaceKey,
+    },
+    /// **The simultaneous door: a face was named by more than one chart
+    /// move**, so its offset is two different numbers.
+    TogetherFaceRepeated {
+        /// The face named twice.
+        face: FaceKey,
+    },
+    /// **The simultaneous door: two corner solves disagree about where
+    /// an edge ends.** Distinct from
+    /// [`ReplaceFaceError::ReanchorOffCarrier`], which is the per-face
+    /// door's finding about a moved vertex leaving an UNMOVED
+    /// neighbour's carrier. This one is the simultaneous door's: the
+    /// edge's own line was carried to where its two moved planes put
+    /// it, and the far endpoint — solved independently, against a
+    /// different triple of planes — did not land on it. Two solves
+    /// agreeing is the claim; this is it failing.
+    TogetherEdgeDisagreement {
+        /// The edge whose two ends were solved apart.
+        edge: EdgeKey,
+        /// How far the far endpoint missed the line, in meters.
+        gap: T,
     },
     /// A margined predicate escalated: the margin landed in the
     /// ambiguity band or was poisoned (escalate-never-guess, D4 ¶3).
@@ -447,6 +490,21 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
             Self::Pcurve { source } => {
                 write!(f, "replace_face_offset: the pcurve mint refused: {source}")
             }
+            Self::TogetherChartMixed { face, other } => write!(
+                f,
+                "offset_planes_together: {face:?} does not wear the same surface as its chart's \
+                 {other:?} — a chart move names ONE chart"
+            ),
+            Self::TogetherFaceRepeated { face } => write!(
+                f,
+                "offset_planes_together: {face:?} is named by more than one chart move, so its \
+                 offset is two different numbers"
+            ),
+            Self::TogetherEdgeDisagreement { edge, gap } => write!(
+                f,
+                "offset_planes_together: {edge:?}'s two ends were solved {gap:?} m apart — the \
+                 far corner's own solve did not land on the line its two moved planes carry"
+            ),
             Self::TogetherNonPlanar { face, kind } => write!(
                 f,
                 "offset_planes_together: {face:?} carries a {kind:?}, and this door solves \

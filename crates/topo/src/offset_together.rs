@@ -44,7 +44,9 @@
 //!
 //! 1. **the corner** — `nᵢ·x = cᵢ` over the distinct moved planes at
 //!    the vertex, solved by Cramer on the first well-conditioned
-//!    triple in arena order; any further plane is VERIFIED against the
+//!    triple in ORBIT order — the order the vertex's own fan is walked,
+//!    which is what makes the choice reproducible, not the face
+//!    arena's; any further plane is VERIFIED against the
 //!    solution rather than assumed
 //!    ([`ReplaceFaceError::TogetherCorner`] when it disagrees, which is
 //!    the valence-past-3 shape);
@@ -64,12 +66,20 @@
 //! The conditioning of step 1 is metered, not assumed. A corner's
 //! solve amplifies each plane's position error by `1/|det|`, and
 //! `|det|` — a triple product of UNIT normals — is a pure number, which
-//! no band in meters can classify. It is therefore metered by the total
-//! offset the call is asking the body to absorb: that is the quantity
-//! the ill conditioning would be amplifying, it is exact, and it needs
-//! no comparison to compute. A corner that fails it is singular
-//! (coplanar-adjacent faces, or three planes sharing a line) and
-//! refuses typed.
+//! no band in meters can classify. Its arm is the corner's OWN
+//! geometry: the EDGES that end there ([`Margin::levered`]'s
+//! documented shape, a dimensionless quantity times a length). The
+//! question the margin asks is whether the displacement `ε/|det|`
+//! induced by a plane's own tolerance stays below the lengths that make
+//! this a corner at all.
+//!
+//! **It is deliberately NOT levered by the offset.** That would make
+//! the verdict a statement about the REQUEST wearing the words of a
+//! statement about the geometry: a cube's corner would read "singular"
+//! at a small enough thickness, and a near-degenerate prism would build
+//! at a large enough one. A corner asked to move nothing is answered
+//! before any meter runs — it does not move — so the only shape that
+//! reaches the word "singular" is one that is.
 
 use geom::{Curve3, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeGeometry};
@@ -85,8 +95,16 @@ use crate::replace_face::ReplaceFaceError;
 
 /// One chart's move: the faces wearing it, and the signed distance
 /// along its stored normal.
+///
+/// Both structural preconditions — the faces share ONE surface key,
+/// and no face is named twice across the whole call — are ENFORCED at
+/// the door ([`ReplaceFaceError::TogetherChartMixed`],
+/// [`ReplaceFaceError::TogetherFaceRepeated`]). They were documented
+/// and unenforced once, and a violation then arrived as a loud but
+/// MISATTRIBUTED refusal from somewhere downstream; an arena scan is
+/// cheap and names the true cause.
 pub struct ChartMove<T: Real> {
-    /// The faces wearing the chart. They must share one surface key.
+    /// The faces wearing the chart. They share one surface key.
     pub faces: Vec<FaceKey>,
     /// The signed offset along the chart's stored normal.
     pub distance: T,
@@ -118,6 +136,35 @@ pub fn offset_planes_together<T: Decide + PropsQuadLane>(
     band: Band,
     tol: Tol,
 ) -> Result<(), ReplaceFaceError<T>> {
+    // ---- Decide: the chart moves are well formed. ----
+    //
+    // One surface key per chart and no face named twice: both are
+    // structural, both are one arena scan, and both are named HERE so
+    // a caller's mistake does not surface as a downstream refusal
+    // about something else.
+    let mut seen: Vec<FaceKey> = Vec::new();
+    for m in moves {
+        let Some(&first) = m.faces.first() else {
+            return Err(ReplaceFaceError::EmptyGroup);
+        };
+        let key = body
+            .get_face(first)
+            .ok_or(ReplaceFaceError::StaleFace { face: first })?
+            .surface;
+        for &face in &m.faces {
+            let data = body
+                .get_face(face)
+                .ok_or(ReplaceFaceError::StaleFace { face })?;
+            if data.surface != key {
+                return Err(ReplaceFaceError::TogetherChartMixed { face, other: first });
+            }
+            if seen.contains(&face) {
+                return Err(ReplaceFaceError::TogetherFaceRepeated { face });
+            }
+            seen.push(face);
+        }
+    }
+
     // ---- Decide: the scope gate. ----
     let mut planes: Vec<(FaceKey, MovedPlane<T>)> = Vec::new();
     for m in moves {
@@ -153,19 +200,6 @@ pub fn offset_planes_together<T: Decide + PropsQuadLane>(
     }
     let plane_of = |face: FaceKey| planes.iter().find(|(k, _)| *k == face).map(|(_, p)| p);
 
-    // ---- The scale every dimensionless margin is metered by. ----
-    //
-    // A corner's solve and an edge's plane pair both turn on quantities
-    // that are pure numbers — a triple product of unit normals, the
-    // sine between two of them — and a pure number cannot be classified
-    // against a band in meters. The lever is the total offset the
-    // operation is asking the body to absorb: it is what the ill
-    // conditioning would be amplifying, it is available exactly, and it
-    // needs no comparison to compute.
-    let scale = moves
-        .iter()
-        .fold(T::zero(), |acc, m| acc + m.distance.abs());
-
     // ---- Decide: every corner, before anything is written. ----
     let mut moved: Vec<(VertexKey, Point3<T>)> = Vec::new();
     for (vertex, _) in body.vertices() {
@@ -176,7 +210,12 @@ pub fn offset_planes_together<T: Decide + PropsQuadLane>(
                 at.push(p);
             }
         }
-        moved.push((vertex, solve_corner(vertex, &at, scale, band)?));
+        let here = body
+            .get_vertex(vertex)
+            .and_then(|v| body.get_point(v.point).copied())
+            .ok_or(ReplaceFaceError::Corrupt)?;
+        let arms = corner_arms(body, vertex, here)?;
+        moved.push((vertex, solve_corner(vertex, here, &at, &arms, band)?));
     }
     let point_at = |v: VertexKey| moved.iter().find(|(k, _)| *k == v).map(|(_, p)| *p);
 
@@ -246,7 +285,7 @@ pub fn offset_planes_together<T: Decide + PropsQuadLane>(
             let gap = (origin + dir * t1).distance(p_end);
             match decide("offset_together_edge_agreement", Margin::of(gap), band) {
                 Ok(Sign::Zero) => {}
-                Ok(_) => return Err(ReplaceFaceError::ReanchorOffCarrier { edge, gap }),
+                Ok(_) => return Err(ReplaceFaceError::TogetherEdgeDisagreement { edge, gap }),
                 Err(source) => return Err(ReplaceFaceError::Escalated { source }),
             }
             (
@@ -325,6 +364,18 @@ pub fn offset_planes_together<T: Decide + PropsQuadLane>(
     // pcurve row is stale — re-minted here for the same reason
     // `replace_faces_offset` re-mints, and before the tier-2 gate that
     // adopts the clone.
+    //
+    // **KEPT although it is inert today, deliberately.** Only MINTING
+    // charts carry pcurve rows and a plane is not one, so on every body
+    // this door currently accepts the pass clears nothing and cannot go
+    // red — which means it is also not covered by any row here, and
+    // that is said rather than left for a reader to discover. It stays
+    // because the door's scope gate is the only thing making it inert:
+    // the curved corners that follow bring charts that DO mint, and a
+    // door that re-describes every edge in the body without re-minting
+    // would be storing stale rows the moment they arrive. The census
+    // posture (`Maintains`, by re-minting) is therefore honest now and
+    // stays honest then.
     crate::pcurves::mint_pcurves(&mut work, tol)
         .map_err(|source| ReplaceFaceError::Pcurve { source })?;
     if let Err(errors) = crate::validate::validate_closed(&work) {
@@ -371,8 +422,9 @@ fn restate<T: Real>(
 /// The corner: `nᵢ·x = cᵢ` over the distinct moved planes at a vertex.
 fn solve_corner<T: Decide>(
     vertex: VertexKey,
+    here: Point3<T>,
     at: &[&MovedPlane<T>],
-    scale: T,
+    arms: &[T],
     band: Band,
 ) -> Result<Point3<T>, ReplaceFaceError<T>> {
     let non_simple = |what: &'static str| ReplaceFaceError::TogetherCorner {
@@ -380,40 +432,69 @@ fn solve_corner<T: Decide>(
         planes: at.len(),
         what,
     };
+    // **A corner that is not asked to move does not move**, and it is
+    // answered before any meter runs. Metering a motion of zero would
+    // classify every corner of a stationary body as unsolvable and say
+    // "singular" about geometry that is nothing of the kind — the
+    // refusal's own words have to stay true.
+    let requested = at.iter().fold(T::zero(), |acc, p| acc + p.delta.norm());
+    match decide("offset_together_request", Margin::of(requested), band) {
+        Ok(Sign::Zero) => return Ok(here),
+        Ok(_) => {}
+        Err(source) => return Err(ReplaceFaceError::Escalated { source }),
+    }
     if at.len() < 3 {
         return Err(non_simple(
             "fewer than three distinct planes meet here, so no point is determined",
         ));
     }
-    // The first well-conditioned triple in arena order (D9).
+    // The first well-conditioned triple in ORBIT order (the order
+    // `faces_at_vertex` walks the vertex's own fan, which is what makes
+    // the choice reproducible — not the face arena's).
+    //
+    // **The conditioning arm is the corner's OWN geometry, never the
+    // request.** A triple product of unit normals is dimensionless and
+    // the solve amplifies each plane's ε by `1/|det|`, so the question
+    // is whether that induced displacement stays below a length at
+    // which this is still a corner — and the lengths that answer it are
+    // the EDGES that end here. Levering by the offset instead would
+    // make the verdict depend on how far the body was asked to move: a
+    // cube's corner would read "singular" at a small enough thickness
+    // and a near-degenerate prism would build at a large enough one,
+    // which is a statement about the request wearing the words of a
+    // statement about the geometry.
     let mut solved = None;
-    for i in 0..at.len() {
-        for j in i + 1..at.len() {
-            for k in j + 1..at.len() {
-                let (a, b, c) = (at[i], at[j], at[k]);
+    'triples: for (i, a) in at.iter().enumerate() {
+        for (j, b) in at.iter().enumerate().skip(i + 1) {
+            for c in at.iter().skip(j + 1) {
                 let det = a.normal.dot(b.normal.cross(c.normal));
-                match decide(
-                    "offset_together_corner",
-                    Margin::of(det.abs() * scale),
-                    band,
-                ) {
-                    Ok(Sign::Positive) => {}
-                    Ok(_) => continue,
-                    Err(source) => return Err(ReplaceFaceError::Escalated { source }),
+                let mut resolvable = true;
+                for &arm in arms {
+                    match decide(
+                        "offset_together_corner",
+                        Margin::levered(det.abs(), arm),
+                        band,
+                    ) {
+                        Ok(Sign::Positive) => {}
+                        Ok(_) => {
+                            resolvable = false;
+                            break;
+                        }
+                        Err(source) => return Err(ReplaceFaceError::Escalated { source }),
+                    }
                 }
-                solved = Some(cramer(a, b, c, det));
-                break;
+                if resolvable {
+                    solved = Some(cramer(a, b, c, det));
+                    break 'triples;
+                }
             }
-            if solved.is_some() {
-                break;
-            }
-        }
-        if solved.is_some() {
-            break;
         }
     }
     let point = solved.ok_or_else(|| {
-        non_simple("every triple of planes here is singular (they share a line or a plane)")
+        non_simple(
+            "no triple of the planes here resolves this corner against the edges that end at \
+             it — they share a line or a plane",
+        )
     })?;
     // Any further plane is VERIFIED, never assumed: a valence-past-3
     // corner whose planes do not concur has no offset point at all,
@@ -447,6 +528,35 @@ fn cramer<T: Real>(a: &MovedPlane<T>, b: &MovedPlane<T>, c: &MovedPlane<T>, det:
 /// equation's `n · x` needs.
 fn radius<T: Real>(p: Point3<T>) -> Vec3<T> {
     Vec3::new(p.x, p.y, p.z)
+}
+
+/// The chord length of every edge ending at a vertex — the lengths the
+/// corner's conditioning is levered by (see [`solve_corner`]).
+fn corner_arms<T: Real>(
+    body: &Body<T>,
+    vertex: VertexKey,
+    here: Point3<T>,
+) -> Result<Vec<T>, ReplaceFaceError<T>> {
+    let Some(emanating) = body
+        .get_vertex(vertex)
+        .ok_or(ReplaceFaceError::Corrupt)?
+        .emanating
+    else {
+        return Ok(Vec::new());
+    };
+    let orbit = body
+        .vertex_orbit(emanating)
+        .ok_or(ReplaceFaceError::Corrupt)?;
+    let mut out = Vec::new();
+    for he in orbit {
+        let far = body.half_edge_end(he).ok_or(ReplaceFaceError::Corrupt)?;
+        let there = body
+            .get_vertex(far)
+            .and_then(|v| body.get_point(v.point).copied())
+            .ok_or(ReplaceFaceError::Corrupt)?;
+        out.push((there - here).norm());
+    }
+    Ok(out)
 }
 
 /// Every face incident to a vertex, in orbit order.
