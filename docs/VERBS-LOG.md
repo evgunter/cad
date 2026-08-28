@@ -1988,3 +1988,22 @@ refused by the junction gate (JunctionTangent, margin 1.6e-17) —
 the scene authors 70° on its own merits. One clippy red fixed by
 the #971 alias precedent, not allowed. v6 dual, frozen head
 a1aa5289; slot draw lane-private; claim to main at dispatch.
+
+## LILYWELD R1 ARM IN; A SCRATCHPAD-SHARING LESSON (2026-08-28)
+
+R1 (opus): A-W-F 1/6/5 — the coincidence re-derived bit-exact
+from scene constants alone; the MAJ is the catch of the cycle:
+the module header claims the neck IS the globe's tangent cone
+while the PR's own probe records that cone being REFUSED — a
+freshly-minted instance of the wall-text error class this very
+unit exists to fix (#1059's fourth instance, caught pre-merge
+this time). Also: the res.1==0.0 assert is x−x (cannot red);
+the f64 exactness is 39%-luck atop geometric necessity (the
+in-code 1e-12 guard is the honest one); the sepal baseline
+drift under-reported by three columns. Isolation disclosures:
+the shared session scratchpad exposed the IMPLEMENTER lane's log
+filenames to the reviewer (provenance-grepped only, no content;
+benign, recorded) and misled it into killing an
+already-exited stale driver it took for its own — the
+logs-are-lane-private rule now in lane-ops memory. SHELLFIX R1
+verified unharmed. Union waits on R2's arm.
