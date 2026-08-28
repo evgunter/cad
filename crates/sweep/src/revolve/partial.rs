@@ -19,7 +19,7 @@ use topo::{Body, EdgeKey, FaceKey, FaceSurface, MefSite, MevSite};
 use super::axis::{AxisFrame, LoopClasses, WallClass};
 use super::chain::build_chain;
 use super::surfaces::{strut_spec, wall_surface};
-use super::upgrade::upgrade_intersection;
+use super::upgrade::{describe_at_rest, upgrade_intersection};
 use super::{RevolveError, Revolved, RevolvedKind, SweptSeg, WALL_COSURFACE};
 use crate::swept::{cap_points, cosurface, face_surface_key, placed_segment_spec, turn_axis};
 use geom_core::Tol;
@@ -486,6 +486,7 @@ pub(super) fn sweep_loop<T: Decide>(
         let k_prev = face_surface_key(body, fp)?;
         let k_next = face_surface_key(body, fnx)?;
         if k_prev == k_next {
+            describe_at_rest(body, strut.edge, k_prev, tol)?;
             continue;
         }
         let vertex_index = segs[j].canonical_vertex;
