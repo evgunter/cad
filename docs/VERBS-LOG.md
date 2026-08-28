@@ -2023,3 +2023,14 @@ default band refuses `NonManifoldAxisContact` at 1e-12. The
 adopted probe rows record that door fact instead of expecting
 past it. Both probe branches adopted authorship-preserving,
 byte-dump harness included. Helper duplication filed as #1123.
+
+**Fix-pass gate coverage (PR #1099).** The sampled matrix earned its
+keep here: five separate defects surfaced one per drawn point, none of
+them reachable from the point before it — the planted red's arm-order
+assumption (interval, default), `revolve`'s epsilon-sensitive axis
+contact (interval, 1e-12), #1081's epsilon-shielded re-anchor door on
+an oblique probe meridian (default, 1e-12), the offset door's
+mapped-description lane on the two-holed row (interval, 1e-12), and a
+borrow the default lane never compiled (interval, 1e-6). A single-point
+gate would have shipped four of them. First fully green fix-pass head:
+74a054e6 at LANE=interval, EPS=default, KLINT_ROW=dev-budget.
