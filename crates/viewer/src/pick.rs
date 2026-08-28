@@ -6,10 +6,11 @@
 //! [`PickIndex`] is built once per evaluation generation and answers
 //! everything the viewport asks about what is under the cursor:
 //!
-//! - the **ray path** — [`PickIndex::pick`] un-projects nothing itself;
-//!   it takes a ray (from [`crate::Camera::ray_through`]) and hands it
-//!   to the shipped `pick_face` service, whose answer is a
-//!   `StableName`;
+//! - the **ray path** — [`PickIndex::pick_for`] (and its
+//!   display-view-less wrapper [`PickIndex::pick`]) un-projects
+//!   nothing itself; it takes a ray (from
+//!   [`crate::Camera::ray_through`]) and hands it to the shipped
+//!   `pick_face` service, whose answer is a `StableName`;
 //! - the **id map** — [`PickIndex::ids`], the pure pair
 //!   `id ↔ (node, body, patch)` that the GPU id-buffer pass writes and
 //!   reads back;
@@ -403,9 +404,12 @@ impl PickIndex {
     ///
     /// # Errors
     ///
-    /// As [`PickIndex::scene`], plus [`SceneError::EmptyMesh`] when
-    /// hiding leaves nothing drawn — an honest "nothing to look at",
-    /// not a broken scene.
+    /// As [`PickIndex::scene`]. Hiding EVERYTHING is not an error:
+    /// when the index has parts and the view hides all of them, the
+    /// answer is [`SceneMesh::empty`] — an honest blank picture whose
+    /// bounds are the hidden geometry's, so the camera keeps a real
+    /// extent to frame against and the picture is never left stale
+    /// behind a refusal.
     pub fn scene_for(&self, display: &DisplayView) -> Result<SceneMesh, SceneError> {
         let mut parts: Vec<ScenePart<'_>> = Vec::with_capacity(self.parts.len());
         let mut next = 0usize;
@@ -416,14 +420,23 @@ impl PickIndex {
             // this order — the same loop that built `names`.
             let ids = self.id_slice.get(next..next + patches).unwrap_or_default();
             next += patches;
-            if display.hidden.contains(&part.node()) {
+            if display.hidden_roots.contains(&part.node()) {
                 continue;
             }
             parts.push(ScenePart {
                 mesh: part.mesh(),
                 ids,
-                probe: display.moved.get(&part.node()).copied(),
+                probe: display.moved_roots.get(&part.node()).copied(),
             });
+        }
+        if parts.is_empty() && !self.parts.is_empty() {
+            let bounds = bvh::Aabb::from_points(
+                self.parts
+                    .iter()
+                    .flat_map(|part| part.mesh().positions.iter().copied()),
+            )
+            .ok_or(SceneError::EmptyMesh)?;
+            return Ok(SceneMesh::empty(bounds, self.delta));
         }
         SceneMesh::build_parts(&parts, self.delta)
     }
@@ -466,17 +479,17 @@ impl PickIndex {
         ray: &Ray,
         display: &DisplayView,
     ) -> Result<Option<PickHit>, HitTestError> {
-        let visible = |part: &&NodePick| !display.hidden.contains(&part.node());
+        let visible = |part: &&NodePick| !display.hidden_roots.contains(&part.node());
         let unmoved: Vec<PickTarget<'_>> = self
             .parts
             .iter()
             .filter(visible)
-            .filter(|part| !display.moved.contains_key(&part.node()))
+            .filter(|part| !display.moved_roots.contains_key(&part.node()))
             .map(NodePick::target)
             .collect();
         let mut best = pick_face(eval, &unmoved, ray)?;
-        for (&node, frame) in &display.moved {
-            if display.hidden.contains(&node) {
+        for (&node, frame) in &display.moved_roots {
+            if display.hidden_roots.contains(&node) {
                 continue;
             }
             let targets: Vec<PickTarget<'_>> = self

@@ -89,6 +89,14 @@ pub struct TreeRow {
     pub root: bool,
     /// What the evaluation said about it.
     pub status: RowStatus,
+    /// A standing caveat about the NODE itself, independent of any
+    /// run's status — today: a mate whose declared class carries no
+    /// at-rest record ([`pncad::document::ClassAdmission`], the
+    /// kernel's own reason). The admission verdict shown at the mate
+    /// tool's commit persists here on the node's own row, so a
+    /// committed `Tangent` is not a green row indistinguishable from
+    /// a certifiable one.
+    pub note: Option<String>,
 }
 
 /// The kind name of a recipe node — the node vocabulary's own
@@ -148,9 +156,29 @@ pub fn rows(doc: &Doc<ProfileProgram>, evaluation: Option<&Evaluation<f64>>) -> 
             depth,
             root: roots.contains(&id),
             status: status_of(id, evaluation),
+            note: node_note(node),
         });
     }
     rows
+}
+
+/// The standing caveat for a node, when it has one — the kernel's own
+/// words, never a sentence composed here (the same rule the badges
+/// follow).
+fn node_note(node: &Node<ProfileProgram>) -> Option<String> {
+    match node {
+        Node::Mate { class, .. } => {
+            match pncad::document::class_admission(*class) {
+                pncad::document::ClassAdmission::Mints => None,
+                other => Some(format!(
+                    "{}: {}",
+                    class.name(),
+                    other.no_record_reason()
+                )),
+            }
+        }
+        _ => None,
+    }
 }
 
 /// One node's status, read out of the result DAG.

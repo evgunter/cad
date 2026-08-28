@@ -164,7 +164,7 @@ impl ViewportRenderer {
     pub(crate) fn new(device: &wgpu::Device, target_format: wgpu::TextureFormat) -> Self {
         let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("viewer_scene_shader"),
-            source: wgpu::ShaderSource::Wgsl(SHADER.into()),
+            source: wgpu::ShaderSource::Wgsl(shader_source().into()),
         });
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("viewer_scene_uniforms_layout"),
@@ -727,6 +727,20 @@ impl egui_wgpu::CallbackTrait for ViewportCallback {
 /// Flat-shaded Lambert with an ambient floor. The normal arrives per
 /// vertex and is constant across a triangle (see `scene`'s
 /// flat-shading note), so no interpolation smooths the facets away.
+/// The WGSL, with the Rust-side constants substituted in — the flag
+/// value crosses the string boundary exactly once, here, so the
+/// shader cannot hold a second spelling of `SceneMesh::FLAG_PROBE`
+/// that drifts from the one the scene writes into the vertex buffer.
+/// (`IdMap::NOTHING` is still mirrored as `0u`/`!= 0u` in the source
+/// below — pre-existing, and pinned by the fact that the clear value
+/// is hardcoded 0 on both sides.)
+fn shader_source() -> String {
+    SHADER.replace(
+        "{{FLAG_PROBE}}",
+        &crate::scene::SceneMesh::FLAG_PROBE.to_string(),
+    )
+}
+
 const SHADER: &str = r#"
 struct Uniforms {
     view_projection: mat4x4<f32>,
@@ -784,7 +798,7 @@ fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
     let lambert = max(dot(n, to_light), 0.0);
     let ambient = uniforms.base_color.w;
     var base = uniforms.base_color.xyz;
-    if ((in.flag & 1u) != 0u) {
+    if ((in.flag & {{FLAG_PROBE}}u) != 0u) {
         base = mix(base, PROBE_TINT, PROBE_STRENGTH);
     }
     if (in.id != 0u && in.id == uniforms.highlight.x) {

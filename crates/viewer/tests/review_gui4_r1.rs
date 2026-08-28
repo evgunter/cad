@@ -592,23 +592,20 @@ fn r1_the_memo_bounds_scan_at_resolution_a_changed_store_is_not_re_read() {
     assert_eq!(broken.tree_rows().len(), 3, "the tree is whole");
 }
 
-/// **Save-as rebinds the resolver, and the rebind is inert.**
+/// **Save-as rebinds the resolver, and the rebind RE-RESOLVES** (the
+/// fix-pass behaviour: the seam primes its memo only under the SAME
+/// resolver, by `Arc` identity, so a rebind's next run consults the
+/// new directory for every reference).
 ///
-/// `save` really does replace the resolver with one over the new
-/// parent — `resolve_dir()` moves, asserted below. What it does not do
-/// is change anything anyone can see: the re-evaluation it requests is
-/// primed from the previous run, so every reference answers from the
-/// memo and the new directory is never consulted. Saving the assembly
-/// into a directory holding no parts leaves every row reading OK over
-/// geometry that directory cannot supply; reopening the file it just
-/// wrote badges them.
-///
-/// Pinned as shipped. The stated intent — "a save into a different
-/// directory rebinds the resolver there and re-evaluates (references
-/// may resolve differently)" — is what this row would assert instead,
-/// and this row is where to make that swap.
+/// This row pinned the opposite as shipped — the rebind was inert
+/// because the memo answered every instantiate node — and went red
+/// when the memo gained its resolver gate, exactly as its own comment
+/// said it would. It now asserts the stated intent: saving the
+/// assembly into a directory holding no parts turns the live session's
+/// instance rows RED, typed, naming the missing ids; a fresh open of
+/// the moved file says the same.
 #[test]
-fn r1_save_as_rebinds_the_directory_but_the_memo_makes_the_rebind_inert() {
+fn r1_save_as_rebinds_the_directory_and_the_rebind_re_resolves() {
     let tol = Tol::witness();
     let bench = asm::bench("r1saveas", tol);
     let mut session = asm::open_bench(&bench, tol);
@@ -627,14 +624,21 @@ fn r1_save_as_rebinds_the_directory_but_the_memo_makes_the_rebind_inert() {
         elsewhere,
         "the resolver followed the file"
     );
+    let mut failed = 0usize;
     for row in session.tree_rows() {
-        assert_eq!(
-            row.status,
-            RowStatus::Ok,
-            "SHIPPED BEHAVIOUR, recorded not endorsed: the rebind changed no \
-             answer, because nothing re-resolved: {row:?}"
-        );
+        if let RowStatus::Failed { message } = &row.status {
+            assert!(
+                message.contains("no document with id"),
+                "the LIVE session re-resolved against the new directory and \
+                 says what it lacks: {message}"
+            );
+            failed += 1;
+        }
     }
+    assert_eq!(
+        failed, 3,
+        "every instance re-resolved against the partless directory and refused"
+    );
 
     // What the file actually means in its new home.
     let mut reopened = DocSession::inline(pncad::document::Doc::empty_derived("r1-boot", tol), tol);
@@ -875,29 +879,24 @@ fn r1_two_faces_of_one_instance_refuse_before_any_edit() {
 
 // ── 8. An instance a `Pattern` consumes ──────────────────────────
 
-/// **Both G3 display operations are accepted and silently inert on an
-/// instance a `Pattern` consumes.**
+/// **Both G3 display operations PROPAGATE to an instance a `Pattern`
+/// consumes** (the fix-pass rule; this row pinned the silent no-op as
+/// shipped and went red when propagation landed).
 ///
-/// Hide and free-move admit any live `InstantiatePart` node, but the
-/// scene drops and displaces parts by the node that OWNS the drawn
-/// geometry — the product's roots. A patterned instance is not a root:
-/// the `Pattern` above it is. So hiding it changes no triangle, and
-/// probing it draws nothing displaced and marks nothing distinct,
-/// while the display state, the tree checkbox, and `free_move_of` all
-/// report the operation as in force.
+/// Display state names the INSTANCE; the drawn scene is keyed by
+/// product roots; `display::drawn_targets` resolves one to the other.
+/// Hiding a patterned instance therefore hides every placed copy (the
+/// pattern's whole drawn root), and probing it displaces and marks
+/// them — the pattern replicates the instance, and the display fact
+/// is the instance's. The `Pattern` node itself still has no display
+/// identity (`NotAnInstance`), which is right: the instance is the
+/// thing with an identity a user hides or probes.
 ///
-/// This is not hypothetical: the tour's flat-pack layout — one of the
-/// gallery documents the exit demo opens — has exactly this shape, and
-/// the shipped rows cannot see it because `common::asm`'s fixture has
-/// no `Pattern`. Measured on the real gallery at review time
-/// (`examples/r1_gallery_probe.rs`): `3888f1…` node 0 hide 60 → 60
-/// triangles, probe `probe_parts = 0`.
-///
-/// Pinned as shipped. When the fix lands — whether by refusing the op
-/// on a non-root instance or by carrying display state through the
-/// pattern — this row goes red and is the place to state the new rule.
+/// The shape is the tour's flat-pack layout, where the original
+/// silent no-op was measured (`examples/r1_gallery_probe.rs`, which
+/// now asserts the propagated behaviour on the real gallery).
 #[test]
-fn r1_a_patterned_instance_accepts_hide_and_probe_and_neither_does_anything() {
+fn r1_a_patterned_instance_propagates_hide_and_probe_to_the_drawn_pattern() {
     let tol = Tol::witness();
     let bench = asm::bench("r1pattern", tol);
     let scope = std::collections::BTreeMap::new();
@@ -952,7 +951,8 @@ fn r1_a_patterned_instance_accepts_hide_and_probe_and_neither_does_anything() {
         .stats()
         .triangles;
 
-    // HIDE: accepted, and the picture does not move.
+    // HIDE: accepted, and the pattern's whole drawn root leaves the
+    // picture — hiding the instance hides its placed copies.
     assert!(
         session
             .perform(SessionOp::SetInstanceHidden {
@@ -961,12 +961,38 @@ fn r1_a_patterned_instance_accepts_hide_and_probe_and_neither_does_anything() {
             })
             .refusal
             .is_none(),
-        "hide is ACCEPTED on the patterned instance"
+        "hide is accepted on the patterned instance"
     );
     assert!(
         session.display().is_hidden(instance),
         "the state says hidden"
     );
+    let hidden_scene = index.scene_for(&session.display_view()).expect("a scene");
+    assert_eq!(
+        hidden_scene.stats().triangles,
+        0,
+        "the pattern is the document's ONLY drawn root, so hiding its \
+         instance draws the honest empty picture — not the stale one"
+    );
+    // …and the pick index dropped it with the picture.
+    {
+        let (_, eval) = session.landed_pair().expect("landed");
+        assert!(
+            index
+                .pick_for(
+                    eval,
+                    &asm::down_at(asm::POST_SECTION / 2.0, asm::POST_SECTION / 2.0),
+                    &session.display_view()
+                )
+                .expect("the pick answers")
+                .is_none(),
+            "a hidden pattern copy is out of the pick index"
+        );
+    }
+    session.perform(SessionOp::SetInstanceHidden {
+        instance,
+        hidden: false,
+    });
     assert_eq!(
         index
             .scene_for(&session.display_view())
@@ -974,15 +1000,11 @@ fn r1_a_patterned_instance_accepts_hide_and_probe_and_neither_does_anything() {
             .stats()
             .triangles,
         baseline,
-        "SHIPPED BEHAVIOUR, recorded not endorsed: the drawn picture is unchanged, so \
-         the checkbox and the viewport disagree"
+        "unhiding restores every copy"
     );
-    session.perform(SessionOp::SetInstanceHidden {
-        instance,
-        hidden: false,
-    });
 
-    // FREE-MOVE: eligible, committed, and nothing is displaced or marked.
+    // FREE-MOVE: eligible, committed, and every placed copy is drawn
+    // displaced and marked distinct under the one probe frame.
     assert!(
         viewer::display::free_move_check(session.doc(), instance).is_ok(),
         "the patterned instance is 'completely unconstrained' by the document test"
@@ -1002,18 +1024,17 @@ fn r1_a_patterned_instance_accepts_hide_and_probe_and_neither_does_anything() {
     let probed = index.scene_for(&session.display_view()).expect("a scene");
     assert_eq!(
         probed.stats().probe_parts,
-        0,
-        "SHIPPED BEHAVIOUR, recorded not endorsed: G3's distinctness marking reaches \
-         nothing, because the drawn geometry belongs to the Pattern node"
+        3,
+        "every placed copy — one drawn part per pattern body — is marked"
     );
     assert!(
-        probed.flags().iter().all(|&f| f == 0),
-        "…and no corner carries the flag"
+        probed.flags().contains(&SceneMesh::FLAG_PROBE),
+        "…its corners carry the flag"
     );
-    assert_eq!(
-        probed.stats().triangles,
-        baseline,
-        "…and the probe displaced nothing"
+    assert!(
+        probed.bounds().max_x > 0.5,
+        "…and the copies are DRAWN displaced by the probe: {:?}",
+        probed.bounds()
     );
 
     // The `Pattern` node itself, which is what IS drawn, refuses both.

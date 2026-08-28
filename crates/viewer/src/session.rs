@@ -36,7 +36,7 @@ use std::sync::Arc;
 use pncad::document::{
     Alignment, Dimension, DimensionError, Doc, DocEdit, EditError, Evaluation, Frame, Node,
     ParamName, ParseError, PartResolver, ProductError, ProfileProgram, RecipeNodeId, SlotId, apply,
-    parse_expr, product,
+    assemble, parse_expr, product,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -637,6 +637,10 @@ pub struct DocSession {
     /// The gather's refusal for the landed pair, computed once when it
     /// lands ([`DocSession::product_fault`]).
     landed_fault: Option<ProductError>,
+    /// The A5 at-rest verdict for the landed pair, computed once when
+    /// it lands ([`DocSession::at_rest`]); `None` for a document that
+    /// is not assembly-shaped, or before anything lands.
+    landed_at_rest: Option<AtRestBadge>,
     path: Option<PathBuf>,
     /// Layer-3 display state — hide and free-move — with its one home
     /// here (the seam-friction inventory rule). Never persisted; reset
@@ -650,6 +654,34 @@ pub struct DocSession {
     /// document can never silently resolve against the previous
     /// document's directory.
     resolver: Option<Arc<DirResolver>>,
+}
+
+/// The A5 at-rest verdict for the landed pair — a mated document's
+/// declarations run through the kernel's own verification door
+/// (`assemble`), once per landed evaluation, so a committed mate's
+/// class verdict does not die at the commit: a `Tangent` that solves
+/// green still shows the gate refusing it, and an undeclared contact
+/// between instances surfaces on the draw path instead of waiting for
+/// an export.
+///
+/// Taken only for assembly-shaped documents (one holding at least one
+/// `InstantiatePart`) — a part document's tiers are not this badge's
+/// subject, and the gate's cost is not spent where it answers nothing
+/// the badges do not already say.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum AtRestBadge {
+    /// The gate certified the assembled product; how many declarations
+    /// its mates minted.
+    Certified {
+        /// The minted declaration count.
+        minted: usize,
+    },
+    /// The gate refused — its own rendering, never a sentence composed
+    /// here.
+    Refused {
+        /// The typed refusal's `Display`.
+        message: String,
+    },
 }
 
 /// What happened to a result the seam handed back.
@@ -690,6 +722,7 @@ impl DocSession {
             landed: None,
             landed_doc: None,
             landed_fault: None,
+            landed_at_rest: None,
             landed_generation: None,
             path: None,
             display: DisplayState::new(),
@@ -793,6 +826,13 @@ impl DocSession {
         self.landed_fault.as_ref()
     }
 
+    /// The A5 at-rest verdict for the landed pair ([`AtRestBadge`]),
+    /// when the landed document is assembly-shaped. `None` for a part
+    /// document, and before anything lands.
+    pub fn at_rest(&self) -> Option<&AtRestBadge> {
+        self.landed_at_rest.as_ref()
+    }
+
     /// The file this session is backed by, if any.
     pub fn path(&self) -> Option<&Path> {
         self.path.as_deref()
@@ -805,7 +845,7 @@ impl DocSession {
 
     /// The display snapshot the scene and pick paths consume.
     pub fn display_view(&self) -> DisplayView {
-        self.display.view()
+        self.display.view(self.doc())
     }
 
     /// The directory this session resolves part references against —
@@ -933,6 +973,10 @@ impl DocSession {
         // Computed HERE because here is the one place a result becomes
         // the session's, so it cannot be run twice or skipped.
         self.landed_fault = product(self.requested_doc.as_ref(), &done.evaluation, self.tol).err();
+        // The A5 verdict, in the same once-per-landing spot and for
+        // the same reason: nowhere else can it run exactly once per
+        // result that becomes the session's.
+        self.landed_at_rest = at_rest_of(self.requested_doc.as_ref(), &done.evaluation, self.tol);
         self.landed = Some(done.evaluation);
         self.landed_doc = Some(Arc::clone(&self.requested_doc));
         Landing::Landed
@@ -1245,6 +1289,7 @@ impl DocSession {
                 self.landed = None;
                 self.landed_doc = None;
                 self.landed_fault = None;
+                self.landed_at_rest = None;
                 self.landed_generation = None;
                 self.scratch = None;
                 self.path = Some(path.to_path_buf());
@@ -1321,6 +1366,32 @@ impl DocSession {
                 .map(|ws| Arc::clone(ws) as Arc<dyn PartResolver>),
         });
     }
+}
+
+/// The at-rest verdict for one landed pair, taken only for
+/// assembly-shaped documents (see [`AtRestBadge`]). The gate's own
+/// vocabulary either way: a certification with its minted count, or
+/// the typed refusal rendered by its own `Display`.
+fn at_rest_of(
+    doc: &Doc<ProfileProgram>,
+    eval: &Evaluation<f64>,
+    tol: Tol,
+) -> Option<AtRestBadge> {
+    let assembly_shaped = doc
+        .order()
+        .iter()
+        .any(|&id| matches!(doc.node(id), Some(Node::InstantiatePart { .. })));
+    if !assembly_shaped {
+        return None;
+    }
+    Some(match assemble(doc, eval, tol) {
+        Ok(assembly) => AtRestBadge::Certified {
+            minted: assembly.minted.len(),
+        },
+        Err(refusal) => AtRestBadge::Refused {
+            message: refusal.to_string(),
+        },
+    })
 }
 
 /// The directory a document at `path` resolves against — its parent,

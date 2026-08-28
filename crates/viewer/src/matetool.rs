@@ -28,14 +28,16 @@
 //!
 //! # What the picked frames admit
 //!
-//! The class choice is exposed through the kernel's own
-//! [`ClassAdmission`] table ([`admitted_classes`]): `Rest` mints,
-//! `Tangent` solves but carries no at-rest record, and everything the
+//! The class choice is exposed through the kernel's own vocabulary
+//! ([`admitted_classes`]): the class LIST is [`ContactClass::ALL`] and
+//! the verdicts are the [`ClassAdmission`] table — both read, neither
+//! restated, so a class the kernel grows cannot be silently absent
+//! here and a verdict cannot drift. Today: `Rest` mints, `Tangent`
+//! solves but carries no at-rest record, and everything the
 //! vocabulary cannot name — `Fit { g₀ }` first — is the
 //! [`pncad::document::CLASS_DEFERRAL`] deferral, refused typed at
 //! [`MateTool::proposal`] rather than discovered as a failed node
-//! after the edit lands. The table is read, never restated, so the
-//! tool can never advertise what the doors will not execute.
+//! after the edit lands.
 //!
 //! # Survival
 //!
@@ -46,6 +48,15 @@
 //! one-pick step with the first held; a lost first pick with a live
 //! second keeps the second as the held pick. No crash, no silent
 //! clear: every drop is a [`MateToolEvent`] the chrome renders.
+//!
+//! **`reconcile` is the consumer's obligation, and it is forgettable.**
+//! The tool is a value beside the session, not inside it, so nothing
+//! drives the survival step automatically — the application calls it
+//! once per frame (`sync_scene`); a headless consumer that forgets
+//! sees nothing until a stale pick refuses at [`MateTool::proposal`],
+//! typed but late. The cost of the tool living outside the session is
+//! exactly this call; it is stated here so the contract is a sentence
+//! a consumer reads rather than a defect they meet.
 
 use pncad::document::{
     Alignment, AxisSense, CLASS_DEFERRAL, ClassAdmission, Doc, Evaluation, Frame, MateFault,
@@ -71,15 +82,24 @@ pub struct MateAdmission {
 /// Every contact class the vocabulary can NAME, with the kernel's
 /// admission verdict for each — what the tool's class choice offers.
 ///
+/// Both halves come from the kernel: the CLASS LIST is
+/// [`ContactClass::ALL`] (the enum is `#[non_exhaustive]`, so no
+/// enumeration written here could see a variant land — a hand-kept
+/// list compiled clean and silently omitted a planted one), and the
+/// VERDICTS are [`class_admission`]. A class the kernel grows appears
+/// here automatically, carrying whatever verdict the table gives it —
+/// `NotAdmitted` by that table's own wildcard until it is admitted
+/// deliberately.
+///
 /// `Fit { g₀ }` does not appear because the kernel enum has no such
 /// variant to name: its absence IS the v1 deferral, and the sentence
 /// for it is [`CLASS_DEFERRAL`], which [`MateToolError::ClassRefused`]
 /// carries for any class the table answers
 /// [`ClassAdmission::NotAdmitted`] on.
 pub fn admitted_classes() -> Vec<MateAdmission> {
-    [ContactClass::Rest, ContactClass::Tangent]
-        .into_iter()
-        .map(|class| MateAdmission {
+    ContactClass::ALL
+        .iter()
+        .map(|&class| MateAdmission {
             class,
             admission: class_admission(class),
         })
@@ -218,6 +238,21 @@ pub enum MateToolEvent {
     },
 }
 
+impl core::fmt::Display for MateToolEvent {
+    /// A sentence for the status line — the payload stays typed and
+    /// full in the value; this is what a person reads.
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::PickLost { side, pick, .. } => write!(
+                f,
+                "pick {} (a face of instance {}) no longer resolves; the tool dropped it",
+                side.name(),
+                pick.node.0
+            ),
+        }
+    }
+}
+
 /// The user's class/alignment choice — what the chrome's controls
 /// select between picks and commit.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -339,6 +374,14 @@ impl MateTool {
     /// user's choice: each pick's world frame through the shipped
     /// interrogation door, pulled back into its instance's part
     /// coordinates through the instance's current placement.
+    ///
+    /// **`doc` and `eval` must be the LANDED PAIR** (the session's
+    /// `landed_pair()`): the face pose is read from `eval` and the
+    /// placement it is divided by is solved from `doc`, so a document
+    /// the evaluation never saw would mint an alignment against the
+    /// wrong placement — silently, since both reads succeed. Nothing
+    /// in the types can enforce the pairing; this sentence is the
+    /// contract, and the application's one call site satisfies it.
     ///
     /// # Errors
     ///

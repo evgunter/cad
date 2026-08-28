@@ -280,7 +280,7 @@ impl ViewerApp {
             (self.mate_tool.as_mut(), self.session.landed_pair())
         {
             for event in tool.reconcile(doc, eval) {
-                self.status = Some(format!("mate tool: {event:?}"));
+                self.status = Some(format!("mate tool: {event}"));
             }
         }
         // The cache owns the retry policy: one attempt per (landed
@@ -304,13 +304,17 @@ impl ViewerApp {
         if !rebuilt && self.scene_display == Some(display_revision) {
             return;
         }
-        self.scene_generation = self.session.landed_generation();
-        self.scene_display = Some(display_revision);
         let Some(index) = self.picks.index() else {
             return;
         };
         match index.scene_for(&self.session.display_view()) {
             Ok(mesh) => {
+                // Marked current ONLY on success: a refused build must
+                // not consume this (generation, display) pair, or the
+                // stale picture stays on screen marked as the current
+                // one and is never retried.
+                self.scene_generation = self.session.landed_generation();
+                self.scene_display = Some(display_revision);
                 self.scene = Arc::new(mesh);
                 self.revision = self.revision.wrapping_add(1);
                 if self.fit_on_scene {
@@ -460,6 +464,19 @@ impl eframe::App for ViewerApp {
                             ops.push(SessionOp::Reevaluate);
                         }
                     }
+                }
+                // The A5 at-rest badge, for assembly-shaped documents:
+                // the verification verdict living past the commit.
+                match self.session.at_rest() {
+                    Some(crate::session::AtRestBadge::Certified { minted }) => {
+                        ui.separator();
+                        ui.weak(format!("at rest: certified ({minted} declaration(s))"));
+                    }
+                    Some(crate::session::AtRestBadge::Refused { message }) => {
+                        ui.separator();
+                        ui.colored_label(UNRESOLVED_COLOR, format!("at rest: {message}"));
+                    }
+                    None => {}
                 }
                 if let Some(status) = &self.status {
                     ui.separator();
@@ -810,6 +827,14 @@ impl ViewerBehavior<'_> {
                 ui.weak(message);
             });
         }
+        // The node's standing caveat (a mate class with no at-rest
+        // record) — the admission verdict, outliving the commit.
+        if let Some(note) = &row.note {
+            ui.horizontal(|ui| {
+                ui.add_space(indent(row.depth) + INDENT_STEP);
+                ui.weak(note);
+            });
+        }
     }
 
     /// The property panel.
@@ -865,9 +890,13 @@ impl ViewerBehavior<'_> {
                         &widget,
                         value,
                         SessionOp::BeginParamGesture { name: name.clone() },
-                        |value| SessionOp::SetParam {
-                            name: name.clone(),
-                            value: SlotValue::of(row.dimension, value),
+                        |value| SessionOp::PreviewGesture { value },
+                        SessionOp::CommitGesture,
+                        |value| {
+                            vec![SessionOp::SetParam {
+                                name: name.clone(),
+                                value: SlotValue::of(row.dimension, value),
+                            }]
                         },
                         self.ops,
                     );
@@ -990,33 +1019,37 @@ impl ViewerBehavior<'_> {
                     .map_or([0.0; 3], |frame| frame.translation);
                 ui.label("free-move probe (mm, display only):");
                 let mut mm = current.map(|v| v * 1000.0);
-                let mut began = false;
-                let mut previewed = false;
-                let mut stopped = false;
+                // The G1 gesture triple over DISPLAY state, through the
+                // one widget→gesture mapping (`drag_ops`) so the typed-
+                // input arm exists here too: typing a value performs a
+                // one-shot begin/preview/commit, exactly one committed
+                // display value. Each component's preview composes the
+                // FULL frame from all three, so dragging x does not
+                // zero y and z. The chrome offers the translation
+                // components; the op vocabulary takes any rigid frame.
                 ui.horizontal(|ui| {
-                    for value in &mut mm {
-                        let widget = ui.add(egui::DragValue::new(value).speed(0.5));
-                        began |= widget.drag_started();
-                        previewed |= widget.dragged() && widget.changed();
-                        stopped |= widget.drag_stopped();
+                    for axis in 0..3 {
+                        let mut value = mm[axis];
+                        let widget = ui.add(egui::DragValue::new(&mut value).speed(0.5));
+                        mm[axis] = value;
+                        let frame_of = |mm: [f64; 3]| Frame::translation(mm.map(|v| v / 1000.0));
+                        drag_ops(
+                            &widget,
+                            value,
+                            SessionOp::BeginFreeMove { instance: node },
+                            |_| SessionOp::PreviewFreeMove { frame: frame_of(mm) },
+                            SessionOp::CommitFreeMove,
+                            |_| {
+                                vec![
+                                    SessionOp::BeginFreeMove { instance: node },
+                                    SessionOp::PreviewFreeMove { frame: frame_of(mm) },
+                                    SessionOp::CommitFreeMove,
+                                ]
+                            },
+                            self.ops,
+                        );
                     }
                 });
-                // The G1 gesture triple, over DISPLAY state: begin on
-                // the first drag, one preview per changed frame, one
-                // committed value on release. The chrome offers the
-                // translation components; the op vocabulary takes any
-                // rigid frame.
-                if began {
-                    self.ops.push(SessionOp::BeginFreeMove { instance: node });
-                }
-                if previewed {
-                    self.ops.push(SessionOp::PreviewFreeMove {
-                        frame: Frame::translation(mm.map(|v| v / 1000.0)),
-                    });
-                }
-                if stopped {
-                    self.ops.push(SessionOp::CommitFreeMove);
-                }
             }
         }
     }
@@ -1062,7 +1095,16 @@ impl ViewerBehavior<'_> {
             }
         });
         if let Some(entry) = classes.get(self.drafts.mate_class) {
-            ui.weak(format!("admission: {:?}", entry.admission));
+            // The verdict in the table's own words: a minting class
+            // says so; a class with no at-rest record shows the
+            // table's reason, never a Debug dump of it.
+            ui.weak(format!(
+                "admission: {}",
+                match entry.admission {
+                    pncad::document::ClassAdmission::Mints => "mints an at-rest record",
+                    other => other.no_record_reason(),
+                }
+            ));
         }
         ui.horizontal(|ui| {
             for (ix, (_, label)) in MATE_PRIMITIVES.iter().enumerate() {
@@ -1138,10 +1180,14 @@ impl ViewerBehavior<'_> {
                             node,
                             slot: row.slot,
                         },
-                        |number| SessionOp::SetSlot {
-                            node,
-                            slot: row.slot,
-                            value: SlotValue::of(row.dimension, number),
+                        |value| SessionOp::PreviewGesture { value },
+                        SessionOp::CommitGesture,
+                        |number| {
+                            vec![SessionOp::SetSlot {
+                                node,
+                                slot: row.slot,
+                                value: SlotValue::of(row.dimension, number),
+                            }]
                         },
                         self.ops,
                     );
@@ -1256,24 +1302,34 @@ impl ViewerBehavior<'_> {
 /// per frame. Two spellings of a ratified rule is one spelling too
 /// many. Any future dragged number in this file calls this; nothing but
 /// this comment enforces that, which is the honest state of it.
+/// Generalized over the GESTURE VOCABULARY (`preview`/`commit` are
+/// parameters) because the free-move probe runs the same triple over
+/// display ops rather than document ops — one mapping, two
+/// vocabularies, and the typed-input arm (`changed() && !dragged()`)
+/// covered for BOTH, which is the arm a hand-mapped copy of this
+/// function silently dropped once already.
 fn drag_ops(
     widget: &egui::Response,
     value: f64,
     begin: SessionOp,
-    typed: impl Fn(f64) -> SessionOp,
+    preview: impl Fn(f64) -> SessionOp,
+    commit: SessionOp,
+    typed: impl Fn(f64) -> Vec<SessionOp>,
     ops: &mut Vec<SessionOp>,
 ) {
     if widget.drag_started() {
         ops.push(begin);
     }
     if widget.dragged() && widget.changed() {
-        ops.push(SessionOp::PreviewGesture { value });
+        ops.push(preview(value));
     }
     if widget.drag_stopped() {
-        ops.push(SessionOp::CommitGesture);
+        ops.push(commit);
     } else if widget.changed() && !widget.dragged() {
-        // Typed, not dragged: one edit, no gesture.
-        ops.push(typed(value));
+        // Typed, not dragged: whatever the vocabulary spells a direct
+        // value entry as — one edit for a document slot, a one-shot
+        // begin/preview/commit for the display probe.
+        ops.extend(typed(value));
     }
 }
 
@@ -1362,10 +1418,10 @@ pub fn run(tol: Tol, open: Option<std::path::PathBuf>) -> eframe::Result<()> {
         Box::new(move |cc| {
             let mut app = ViewerApp::new(cc, tol).map_err(|error| format!("{error:?}"))?;
             if let Some(path) = open {
+                // A successful open books the re-frame itself (the
+                // success-only arm in `perform_batch`); a refused one
+                // must not — the picture is still the startup scene.
                 app.perform_batch(vec![SessionOp::Open(path)]);
-                // The opened document's scene lands asynchronously;
-                // re-frame when it does, not on the outgoing picture.
-                app.fit_on_scene = true;
             }
             Ok(Box::new(app))
         }),

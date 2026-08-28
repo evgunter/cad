@@ -23,6 +23,22 @@
 //! pose is mate-derived and a display value contradicting it would
 //! draw a relation the document does not have.
 //!
+//! # Display state names instances; the picture is drawn under roots
+//!
+//! The scene and the pick index emit geometry per PRODUCT ROOT, and an
+//! instance a `Pattern` or `Transform` consumes is not a root — the
+//! node above it is. Display state therefore PROPAGATES: an operation
+//! names the instance, and [`drawn_targets`] resolves it to every root
+//! whose geometry derives from that instance alone (hiding a patterned
+//! instance hides all its placed copies; probing it displaces them
+//! under one frame — the pattern replicates the instance, and the
+//! display fact is the instance's). A root that fuses SEVERAL
+//! instances' geometry (a cross-instance boolean) can be addressed by
+//! none of them separately, and the op refuses typed
+//! ([`DisplayFault::FusedGeometry`]) — the alternative, accepting the
+//! op and drawing nothing different, is the silent no-op G3's honesty
+//! rule forbids.
+//!
 //! # Supersession: the probe dies when the mate lands
 //!
 //! When an edit makes a free-moved instance mate-constrained, its
@@ -90,6 +106,21 @@ pub enum DisplayFault {
         /// The offending frame's determinant (NaN when non-finite).
         determinant: f64,
     },
+    /// The instance's geometry is FUSED into a drawn product together
+    /// with other instances' (a boolean or placed union consumes
+    /// both), so no display operation can address this instance
+    /// separately — hiding or displacing it would have to hide or
+    /// displace material that is not its. Refused typed rather than
+    /// accepted-and-inert: an op that cannot take effect must say so
+    /// (G3's honesty rule).
+    FusedGeometry {
+        /// The instance named.
+        instance: RecipeNodeId,
+        /// The drawn root its geometry is fused into.
+        root: RecipeNodeId,
+        /// The other instances fused into the same root.
+        others: Vec<RecipeNodeId>,
+    },
     /// A free-move gesture operation arrived with no gesture in
     /// flight.
     NoFreeMove,
@@ -121,6 +152,21 @@ impl core::fmt::Display for DisplayFault {
             ),
             Self::NoFreeMove => write!(f, "no free-move is in progress"),
             Self::FreeMoveInFlight => write!(f, "finish the free-move first"),
+            Self::FusedGeometry {
+                instance,
+                root,
+                others,
+            } => {
+                let list: Vec<String> = others.iter().map(|o| o.0.to_string()).collect();
+                write!(
+                    f,
+                    "instance {}'s geometry is fused into node {} together with instance(s) {} — \
+                     a display operation cannot address it separately",
+                    instance.0,
+                    root.0,
+                    list.join(", ")
+                )
+            }
         }
     }
 }
@@ -148,18 +194,100 @@ pub fn is_instance(doc: &Doc<ProfileProgram>, node: RecipeNodeId) -> bool {
     matches!(doc.node(node), Some(Node::InstantiatePart { .. }))
 }
 
-/// The free-move admission test: a live instance that no mate names.
+/// For each product root, the instances whose geometry it draws: the
+/// `InstantiatePart` nodes in its consuming-edge ancestry (the root
+/// itself included).
+///
+/// This is the map display state PROPAGATES through: the drawn scene
+/// is keyed by product roots, and an instance a `Pattern` (or a
+/// `Transform` chain) consumes is not a root — the node above it is.
+/// Display state names the INSTANCE (the thing with an identity a user
+/// hides or probes); this map says which drawn roots that names.
+fn instances_by_root(
+    doc: &Doc<ProfileProgram>,
+) -> Vec<(RecipeNodeId, BTreeSet<RecipeNodeId>)> {
+    doc.roots()
+        .iter()
+        .map(|&root| {
+            let mut instances = BTreeSet::new();
+            let mut stack = vec![root];
+            let mut seen = BTreeSet::new();
+            while let Some(id) = stack.pop() {
+                if !seen.insert(id) {
+                    continue;
+                }
+                if let Some(node) = doc.node(id) {
+                    if matches!(node, Node::InstantiatePart { .. }) {
+                        instances.insert(id);
+                    }
+                    stack.extend(node.inputs());
+                }
+            }
+            (root, instances)
+        })
+        .collect()
+}
+
+/// **The drawn roots a display operation on `instance` governs**, or
+/// the typed refusal that says why none can be: every product root
+/// whose geometry derives from the instance alone. A root whose
+/// geometry fuses this instance with others (a cross-instance boolean)
+/// refuses [`DisplayFault::FusedGeometry`] — the op could not take
+/// effect without moving material that is not the instance's, and an
+/// accepted-but-inert op is the dishonesty G3 forbids.
 ///
 /// # Errors
 ///
-/// [`DisplayFault::NotAnInstance`], [`DisplayFault::MateConstrained`].
+/// [`DisplayFault::NotAnInstance`], [`DisplayFault::FusedGeometry`].
+pub fn drawn_targets(
+    doc: &Doc<ProfileProgram>,
+    instance: RecipeNodeId,
+) -> Result<BTreeSet<RecipeNodeId>, DisplayFault> {
+    if !is_instance(doc, instance) {
+        return Err(DisplayFault::NotAnInstance { node: instance });
+    }
+    let mut targets = BTreeSet::new();
+    for (root, instances) in instances_by_root(doc) {
+        if !instances.contains(&instance) {
+            continue;
+        }
+        if instances.len() > 1 {
+            return Err(DisplayFault::FusedGeometry {
+                instance,
+                root,
+                others: instances.into_iter().filter(|&i| i != instance).collect(),
+            });
+        }
+        targets.insert(root);
+    }
+    Ok(targets)
+}
+
+/// The display admission test both operations share: a live instance
+/// whose drawn geometry can be addressed separately.
+///
+/// # Errors
+///
+/// As [`drawn_targets`].
+pub fn display_check(
+    doc: &Doc<ProfileProgram>,
+    instance: RecipeNodeId,
+) -> Result<(), DisplayFault> {
+    drawn_targets(doc, instance).map(|_| ())
+}
+
+/// The free-move admission test: [`display_check`] plus no mate names
+/// the instance.
+///
+/// # Errors
+///
+/// [`DisplayFault::NotAnInstance`], [`DisplayFault::FusedGeometry`],
+/// [`DisplayFault::MateConstrained`].
 pub fn free_move_check(
     doc: &Doc<ProfileProgram>,
     instance: RecipeNodeId,
 ) -> Result<(), DisplayFault> {
-    if !is_instance(doc, instance) {
-        return Err(DisplayFault::NotAnInstance { node: instance });
-    }
+    display_check(doc, instance)?;
     let mates = mates_naming(doc, instance);
     if mates.is_empty() {
         Ok(())
@@ -200,19 +328,31 @@ struct FreeMoveGesture {
     preview: Option<Frame>,
 }
 
-/// What the scene and pick paths read: the hidden set and the
-/// effective per-instance probe frames, snapshotted as values.
+/// What the scene and pick paths read: the display state snapshotted
+/// as a value, in BOTH keyings — the raw instance-keyed facts (what
+/// the chrome's checkboxes and panels show) and their resolution onto
+/// the PRODUCT ROOTS the scene is actually drawn under
+/// ([`drawn_targets`] — a patterned instance's geometry is emitted
+/// under the `Pattern` root, and this resolution is what makes hide
+/// and free-move reach it there).
 ///
 /// Owned rather than borrowed so a caller can hold one across the
-/// mutation that would invalidate a borrow, and because both maps are
+/// mutation that would invalidate a borrow, and because the maps are
 /// a handful of entries.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct DisplayView {
-    /// Instances the picture drops.
+    /// Instances the picture drops (instance-keyed; the chrome's
+    /// reading).
     pub hidden: BTreeSet<RecipeNodeId>,
     /// Instance → the display frame composed over its drawn placement.
     /// An in-flight preview overrides that instance's committed value.
     pub moved: BTreeMap<RecipeNodeId, Frame>,
+    /// The drawn roots the hidden instances govern — what the scene
+    /// and the pick index drop.
+    pub hidden_roots: BTreeSet<RecipeNodeId>,
+    /// Drawn root → the probe frame governing it — what the scene
+    /// displaces and marks, and the pick carries rays into.
+    pub moved_roots: BTreeMap<RecipeNodeId, Frame>,
 }
 
 impl DisplayView {
@@ -271,17 +411,40 @@ impl DisplayState {
         self.gesture.as_ref().map(|g| g.instance)
     }
 
-    /// The snapshot the scene and pick paths consume.
-    pub fn view(&self) -> DisplayView {
+    /// The snapshot the scene and pick paths consume, resolved onto
+    /// `doc`'s product roots ([`drawn_targets`]).
+    ///
+    /// Resolution failures are skipped rather than surfaced here: the
+    /// operations that write this state run the same check and refuse
+    /// typed, and [`DisplayState::prune`] discards entries the
+    /// document has since made illegal — so a skip is only reachable
+    /// in the one-frame window between an edit and its prune.
+    pub fn view(&self, doc: &Doc<ProfileProgram>) -> DisplayView {
         let mut moved = self.moves.clone();
         if let Some(gesture) = &self.gesture
             && let Some(frame) = gesture.preview
         {
             moved.insert(gesture.instance, frame);
         }
+        let mut hidden_roots = BTreeSet::new();
+        for &instance in &self.hidden {
+            if let Ok(targets) = drawn_targets(doc, instance) {
+                hidden_roots.extend(targets);
+            }
+        }
+        let mut moved_roots = BTreeMap::new();
+        for (&instance, &frame) in &moved {
+            if let Ok(targets) = drawn_targets(doc, instance) {
+                for root in targets {
+                    moved_roots.insert(root, frame);
+                }
+            }
+        }
         DisplayView {
             hidden: self.hidden.clone(),
             moved,
+            hidden_roots,
+            moved_roots,
         }
     }
 
@@ -291,16 +454,16 @@ impl DisplayState {
     ///
     /// [`DisplayFault::NotAnInstance`] — hiding is a per-instance
     /// operation; other node kinds draw through their own roots and
-    /// have no instance identity to hide by.
+    /// have no instance identity to hide by — and
+    /// [`DisplayFault::FusedGeometry`] for an instance the drawn
+    /// picture cannot address separately.
     pub fn set_hidden(
         &mut self,
         doc: &Doc<ProfileProgram>,
         instance: RecipeNodeId,
         hidden: bool,
     ) -> Result<(), DisplayFault> {
-        if !is_instance(doc, instance) {
-            return Err(DisplayFault::NotAnInstance { node: instance });
-        }
+        display_check(doc, instance)?;
         let changed = if hidden {
             self.hidden.insert(instance)
         } else {
@@ -399,12 +562,15 @@ impl DisplayState {
     }
 
     /// Reconcile this state with a new document: DISCARD every probe
-    /// whose instance is now mate-constrained or gone (the
-    /// supersession rule, module docs), drop hidden entries for nodes
-    /// no longer in the recipe, and kill an in-flight gesture whose
-    /// instance became ineligible. Returns the instances whose probes
-    /// were discarded, so a caller can report the supersession rather
-    /// than infer it.
+    /// whose instance is now mate-constrained, fused, or gone (the
+    /// supersession rule, module docs), drop hidden entries whose
+    /// instance the picture can no longer address, and kill an
+    /// in-flight gesture whose instance became ineligible. Returns the
+    /// instances whose COMMITTED probes were discarded, so a caller
+    /// can report the supersession rather than infer it. A killed
+    /// in-flight gesture is NOT in that list (it committed nothing);
+    /// the caller observes it through [`DisplayState::probing`] going
+    /// `None`, and the next gesture op refuses typed.
     pub fn prune(&mut self, doc: &Doc<ProfileProgram>) -> Vec<RecipeNodeId> {
         let mut discarded = Vec::new();
         self.moves.retain(|&instance, _| {
@@ -418,7 +584,7 @@ impl DisplayState {
             .hidden
             .iter()
             .copied()
-            .filter(|&i| !is_instance(doc, i))
+            .filter(|&i| display_check(doc, i).is_err())
             .collect();
         for id in &dead_hidden {
             self.hidden.remove(id);

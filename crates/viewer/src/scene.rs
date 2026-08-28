@@ -235,6 +235,29 @@ impl SceneMesh {
     /// The per-corner flag marking a free-move probe's corners.
     pub const FLAG_PROBE: u32 = 1;
 
+    /// The empty picture: what a scene where EVERYTHING is hidden
+    /// draws. Zero triangles, legally — an honest blank viewport, not
+    /// an error — with `bounds` carried from the geometry that exists
+    /// but is not drawn, so a camera still has something real to frame
+    /// against. Distinct from [`SceneError::EmptyMesh`], which remains
+    /// the refusal for a document that has nothing to draw at all.
+    pub fn empty(bounds: Aabb, delta: DisplayTolerance) -> Self {
+        Self {
+            positions: Vec::new(),
+            normals: Vec::new(),
+            indices: Vec::new(),
+            ids: Vec::new(),
+            flags: Vec::new(),
+            bounds,
+            stats: SceneStats {
+                faces: 0,
+                triangles: 0,
+                display_delta: delta.get(),
+                probe_parts: 0,
+            },
+        }
+    }
+
     /// Build a drawable scene from a tessellated body.
     ///
     /// Winding comes from `mesh::FacePatch`'s documented contract —
