@@ -148,6 +148,10 @@ RUN_FLOOR=(
   plain:geom-brep:span_meter_dim_twins:5
   plain:geom-core:certified_door:6
   plain:geom-core:k_stats_doors:2
+  plain:profile:review_m2_pr2_probe:2
+  plain:profile:review_s2_probe:1
+  plain:profile:scalar_channels_probe:4
+  plain:profile:validate_ok_probe:1
   plain:sweep:k_report:0
   plain:sweep:review_chamfer_r1_probes:7
   plain:topo:probe_census:1
