@@ -105,9 +105,9 @@ Draft's natural spelling is "every face whose outward normal leans
 against the pull direction". No such predicate exists — `GeomPred`
 carries curve-kind, surface-kind, adjacent-kinds and datum-distance
 arms only, and SELECT-DESIGN makes any new geometric predicate a
-DECIDED one with
-its own `sel_*` K-funnel row and in-band refusal. **Recommendation**:
-a `GeomPred::NormalLeans { direction, comparison }`-shaped predicate
+DECIDED one with its own `sel_*` K-funnel row and in-band refusal.
+**Recommendation**: a
+`GeomPred::NormalLeans { direction, comparison }`-shaped predicate
 (margin = the lever-folded sine against the pull direction,
 trilean, in-band refusal per the selection ladder) lands as a small
 co-requisite unit, proposed as a SELECT-DESIGN amendment in the same

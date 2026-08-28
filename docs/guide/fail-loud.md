@@ -173,7 +173,7 @@ so it refuses to guess, and asks you.**
 You answer by *declaring* the contact. The declaration is data
 attached to the operation — `union_with(&a, &b, &decls)` — and it is
 verified, not believed: a declaration whose planes are in fact
-distinct is `ContradictedDeclaration`. So the fail-loud property
+distinct is `DeclarationContradicted`. So the fail-loud property
 survives the escape hatch.
 
 Working examples of the declared path, in increasing order of realism:

@@ -21,7 +21,7 @@ a reader entering here should know all of them exist.
 | `docs/SELECT-DESIGN.md` | RATIFIED (#286) | Geometric selectors, the detect/declare protocol, and the GQ7 re-homing |
 | `docs/GUI-DESIGN.md` | RATIFIED (G1–G5) | GUI/editor architecture: three-layer split, document-as-value, edit vocabulary; the v1 GUI program is CLOSED — plan `docs/GUI-PLAN.md`, exit walk `docs/GUI-EXIT-WALK.md` (ratified #1121, 2026-08-28); GUI-5 and GUI-6 banked post-v1 |
 | `docs/ASSEMBLY-DESIGN.md` | RATIFIED (#333) | Band 3 assemblies A1–A13 + AQ1–AQ8: scope ladder, assembly-evaluates-to-a-body, mates-as-declarations, pins/split-inline, validity, mirror, relative freedom, product roots, the constructive-solve boundary; implementation ladder R0–R4, CLOSED at v1 scope through R1–R2 (`docs/ASM-EXIT-WALK.md`) |
-| `docs/LIBRARY-DESIGN.md` | RATIFIED (#229) | Usable-as-a-library program L1–L7: façade, Python bindings via the document layer, v2-fronted PATHS, authoring-ergonomics unit ladder; the program is running (`docs/LIB-LOG.md`) |
+| `docs/LIBRARY-DESIGN.md` | RATIFIED (#229) | Usable-as-a-library program L1–L8: façade, Python bindings via the document layer, v2-fronted PATHS, authoring-ergonomics unit ladder; the program is OPEN and resting — dispatchable column at the `docs/LIB-LOG.md` tail |
 | `docs/DISCIPLINES-DESIGN.md` | WIP — provisionally accepted (2026-08-25) | Disciplines/checks registry DS1–DS9: the identification criterion, the severity invariant, the four grades, the recording dial, out-of-tree checks; first resident SHIPPED (`editor_core::checks`, connectedness) |
 | `docs/PCURVE-UNIFY-DESIGN.md` | RATIFIED (#514) | Pcurve unification (#427): `EdgeGeometry`'s conventional variants collapse to ONE (surface, `Pcurve`) form, the exact variants kept as certification lanes; `MappedCurve` demotes to an authority record behind a transience fence. Executed by the PCURVE program (`docs/PCURVE-PLAN.md` / `docs/PCURVE-LOG.md`) |
 | `docs/CENSUS-REST-CLOSURE-DESIGN.md` | RATIFIED (#965) | At-rest census structural identity (#943 + #591 Door-2): the world-space Door 2 for declared planar pairs with its C3/C4 revision; cross-instance curved declared `Rest` as named residue |
@@ -1790,8 +1790,7 @@ precursor of the error-propagation feature.
 - **M8** — the kernel residuals the demos raised: the Newell
   chart-frame re-anchor, the rational-carrier span meter, rational-
   patch-flux quadrature, and the `nurbs_iso_derive` Intersection
-  arm. Plan and narrative: `docs/M8-PLAN.md` / `docs/M8-LOG.md`.
-  *(Complete 2026-08-15; the done-state of record is
+  arm. *(Complete 2026-08-15; the done-state of record is
   `docs/M8-EXIT-WALK.md`.)*
 - **M9** — the declared-contact join lane: CONTACT-DESIGN C7, the
   at-rest census door ASSEMBLY-DESIGN A5 that binds to it, and the
@@ -1823,8 +1822,7 @@ precursor of the error-propagation feature.
   no usability payoff is deliberately *not* sequenced here — it is
   [Tabled](#tabled-far-future) until a trigger pulls it forward.
 - **Assemblies** — Band 3, designed as `docs/ASSEMBLY-DESIGN.md`
-  and executed by the ASM program (`docs/ASM-PLAN.md` /
-  `docs/ASM-LOG.md`). *(CLOSED at v1 scope 2026-08-23; the
+  and executed by the ASM program. *(CLOSED at v1 scope 2026-08-23; the
   done-state of record is `docs/ASM-EXIT-WALK.md`. Banked
   successors: ASM-XSPLIT and #945.)*
 - **Modeling-verb breadth** — the missing modeling verbs whose

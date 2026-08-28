@@ -5,9 +5,10 @@ verbs whose prerequisites are already ratified, in dependency order,
 plus the register's verb-gating defect rows. Kicked off by Evan
 in-chat 2026-08-21. Branch prefix **`verbs/`** (orchestrator worktree
 branch `mngr/kernel-verbs` predates the prefix and is armed
-alongside). Narrative record: `docs/VERBS-LOG.md`. The register stays
-the reference view; rows scheduled here are marked there only by this
-plan's existence — the register itself never schedules.
+alongside). Narrative record and live state: `docs/VERBS-LOG.md`'s
+tail, never this file. The register stays the reference view; rows
+scheduled here are marked there only by this plan's existence — the
+register itself never schedules.
 
 **Kickoff rulings (Evan, in-chat 2026-08-21):**
 
@@ -31,6 +32,9 @@ plan's existence — the register itself never schedules.
   written.
 
 ## Wave 1 — cheap, already-ratified plumbing
+
+**Every row here has MERGED**: RIM #910, CHAMFER #920, ARMS-1 #932,
+ARMS-2 #962, ARMS-3 #1028, TUBEWALL #960, RING #933.
 
 1. **VERBS-RIM (#554, M)** — the fillet battery's lever arm is the
    endpoint chord, ~0 on every closed rim, so full revolves get a
@@ -97,7 +101,9 @@ plan's existence — the register itself never schedules.
 ## Wave 2 — curved boolean breadth
 
 The banked germ-chord lanes (DESIGN frontier (d)); the SSI lift
-already removed the storage half. Each lane its own unit:
+already removed the storage half. Each lane its own unit. **Rows 6
+and 7 have MERGED** (GATE #1001; CYLCYL #1021 + #1044); 8-10 are
+uncut:
 
 6. **VERBS-GATE (M)** — the operand gate is per-face-KIND over the
    whole body, so one cone/torus face makes every boolean unavailable
@@ -109,39 +115,25 @@ already removed the storage half. Each lane its own unit:
    live wrong answer: #862's axial-slab over-widening (37% measured)
    feeding false `CensusUndecidable`, with #700's lapsed-premise
    duplicate. Dispatch after Wave 1 lands evidence.
-   *(Steered demand signal — Evan's ruling on #966, 2026-08-23,
-   recorded by the M9 orchestrator: lily wall 7, the tepal seam —
-   `lily.rs:1563`, a sphere×sphere SUBTRACT refused at the
-   non-union kind gate ops.rs:415-427 before the cut is attempted —
-   waits on THIS item plus item 9; its probe's retirement text
-   executes when both land. docs/M9-5-SPEC.md seam K2 carries the
-   measured detail. CORRECTED TWICE, then RESOLVED at #1001's fix
-   pass (2026-08-26): the interim (Cone, Sphere) attribution was a
-   BOX ARTIFACT (two layers of inflation — the full-cone slab, then
-   tilted-axis corner projection; the exact frustum clears the ball
-   by 0.2909). With honest boxes the gate ADMITS the cut, and the
-   true refusal is `NonMaximalFaces` — CAUSE CORRECTED a third
-   time (M9-5's measurement, 2026-08-26): NOT the zone's curved
-   half-bands (same-key CURVED adjacency is canonical per
-   gate_maximal_faces' own text) but the AXIS-TOUCHING PLANAR
-   CAPS, born as two half-faces on one plane key — the F7 defect —
-   with merge_coplanar_faces refusing the repair
-   (MergedFaceRoleAmbiguous). The named repair question is its own
-   issue (filed at the correction); Wave-2 items 6+9 are NOT
-   sufficient to flip wall 7 without it. Wall 7 is therefore NOT a demand signal for rows 6/9/10
-   — its retirement text re-points at the face-maximality
-   precondition; the sphere×sphere germ arm was never reached.)*
+   *(Wall 7 — the lily's tepal seam, `lily.rs:1563` — is NOT a
+   demand signal for rows 6/9/10. With this row's honest boxes the
+   operand gate ADMITS the cut; what refuses is the face-maximality
+   precondition on the lantern's two axis-touching planar caps (the
+   F7 defect, #1031), one door before any germ pair, and the probe's
+   retirement text re-points there. `docs/M9-5-SPEC.md` seam K2
+   carries the measured detail.)*
 7. **VERBS-CYLCYL (two PRs: A = shared germ substrate L, B = the
    arms M)** — cylinder×cylinder germ lane. Spec:
    docs/VERBS-CYLCYL-SPEC.md (2026-08-26 survey; the SEQUENCE
    REORDERS 7 → 9 → 8 — SPHSPH promoted, CYLSPH last and alone on
    the fitted rung). Klein wall 3 is gated by row 10's cone lane,
    NOT rows 7-9 (measured at #1001). Promoted into
-   the wave by the scan: #347 is the strongest live demand signal
-   (two `circle`-derived cylinders refuse to union AT ALL;
-   `examples/bracket.py` rounds at 3 mm instead of 6 mm). #347's
-   carrier-vs-trimmed-arc conservatism is a SEPARATE predicate bug
-   that rides whichever unit opens that code.
+   the wave by the scan: #347 is the strongest live demand signal,
+   and the half that stays open is the union — two `circle`-derived
+   cylinders refuse to union AT ALL. Its carrier-vs-trimmed-arc
+   conservatism was the other half and is fixed, so
+   `crates/pncad-py/examples/bracket.py` asks for the 6 mm corner it
+   actually wants.
 8. **VERBS-CYLSPH (L)** — cylinder×sphere germ lane (the #250
    re-banked row; the SSI lift removed the storage half).
 9. **VERBS-SPHSPH (M/L)** — sphere×sphere germ lane. Sphere polar
@@ -149,9 +141,7 @@ already removed the storage half. Each lane its own unit:
    certified volume through a pole-crossing meridian arc; #893
    near-polar lever collapse) — a lane minting sphere faces with
    polar rims must not treat `props_rim_level` as a closed premise.
-   *(The wall-7 steering formerly recorded here RESOLVED elsewhere:
-   see item 6's note — with honest boxes the blocker is a
-   full-revolve face-maximality precondition, not this lane.)*
+   *(Wall 7 is not this lane's demand signal — see item 6.)*
 10. **VERBS-CONE (L)** — cone (and torus) operand lanes, sequenced
     on what 6–9 learn. #226 residual 1 (conic-trimmed cylinder walls
     slip both sense gates) is the known trap; #685 (cone-wedge grid
@@ -165,22 +155,22 @@ arrangement; read both before wiring protection transitively).
 
 ## Wave 3 — Q8: offset → shell → the teapot
 
-Gated on the Q8 design conversation (below). Anticipated cut, to be
-re-cut at ratification: **VERBS-OFF-A** (analytic kinds, closed under
-offset — D3 payoff); **VERBS-OFF-N** (the approximating-surface
-machinery: intensional `Offset(S,d)`, fit, certified residual ≤ ε,
-mirroring fitted intersection curves); **VERBS-SHELL** (open-shell /
-face-removal vocabulary per D1 + the verb); the **Utah teapot demo**
-(the verb's designated demo, Evan 2026-08-09) with the Klein bottle's
-hand-authored double-offset walls as the second consumer.
+**MERGED, whole**, in the cut ratification produced:
+**VERBS-OFF-A** (#994 — the analytic kinds, closed under offset, the
+D3 payoff); **VERBS-OFF-B/C** (#1003, #1012 — the approximating-
+surface machinery: intensional `Offset(S,d)`, fit, certified residual
+≤ ε, at rest as `Surface::Approx`); **VERBS-OFF-D** (#1043 the
+face-replacement door, #1048 the shell verb — open-shell /
+face-removal vocabulary per D1 + the verb); and the **Utah teapot
+demo** (#1078, the verb's designated demo, Evan 2026-08-09).
 
 Wave-3 substrate the scan pins (the conversation must account for
 them): #453/#390 — rational-patch quadrature hull FLOORS the
 enclosure, so a fitted (likely rational) offset surface today could
 not certify volume: shell rides that lane or schedules it; #528
-(lower stretch bounds restricted to constant-arm charts); #427 (the
-pcurve-unification design conversation is OPEN — a W3 spec must not
-pre-empt it); #870 (the area enclosure is unmetered, and shell is an
+(lower stretch bounds restricted to constant-arm charts); #427 (the pcurve
+unification is RATIFIED — U2, #514 — and executes as the PCURVE
+program); #870 (the area enclosure is unmetered, and shell is an
 area-and-thickness verb). The teapot demo will meet #757/#758/#759/
 #796 (API gaps demos already route around) and #743 (StlOptions
 header panic on plausible part names) — demo findings, recorded not
@@ -200,13 +190,14 @@ analytic surgery does: the face-replacement unit.
 
 ## Design conversations (Evan-paced; open as info firms up)
 
-- **Q8 offset/shell elaboration** — first; gates Wave 3.
-- **Draft** — "no design record yet — needs its own conversation"
-  (register). Face-replacement surgery generalized + tapered mint.
-- **Patterns/mirror (D8)** — recipe-level instancing; pattern indices
-  are a ratified naming-doc requirement; mirror needs reflection
-  instancing + the D9 conv. 4 equivariance frame. Blocks hole
-  features.
+- **Q8 offset/shell elaboration** — RATIFIED (#907,
+  `docs/OFFSET-DESIGN.md`); Wave 3 executed it.
+- **Draft** — RATIFIED (#908, `docs/DRAFT-DESIGN.md`): plane-wall v1,
+  the cylinder arm its own later plane×cone fitted-SSI lane. The VERB
+  is unscheduled — no unit cut.
+- **Patterns/mirror (D8)** — the patterns half is SHIPPED; MIRROR is
+  RATIFIED (#909, `docs/MIRROR-DESIGN.md`: its own door, u↦−u, the
+  audit-checklist scope) and unscheduled. Blocks hole features.
 - **Sheet bodies (D1 extension)** — the named non-manifold trigger;
   a real D1 conversation, not a feature.
 - **Point-section loft tier 1** — cheap when a consumer appears; by
@@ -242,7 +233,7 @@ per kickoff ruling).
 ## Protocol
 
 Implementer dispatches ride the A/B ledger (`docs/MODEL-AB-LOG.md` on
-main at dispatch — block draws, ordinals, dual-review sampling, v5
+main at dispatch — block draws, ordinals, dual-review sampling, v6
 review lanes). Briefs point at `docs/prompts/implementer-discipline.md`
 and reviews at `docs/prompts/reviewer-style-lane.md`, by path. Unit
 branches `verbs/<unit>`; lanes via `local-scripts/new-lane.sh`;

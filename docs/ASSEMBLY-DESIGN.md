@@ -16,7 +16,7 @@ it:
 Decisions are **A1–A13**; open questions **AQ1–AQ8** (AQ3
 discharged by A11; AQ7 by A12; AQ2 by A13). This doc schedules nothing; the implementation
 ladder below names homes, and the program that worked through it is
-`docs/ASM-PLAN.md`, CLOSED at v1 scope — its done-state of record
+the ASM program, CLOSED at v1 scope — its done-state of record
 is `docs/ASM-EXIT-WALK.md`. Chat/issue rulings
 incorporated: the scope ladder, materialized evaluation, and the
 key-identity relaxation are Evan's calls of 2026-08-09/10 (#328).
@@ -611,7 +611,7 @@ recipe DAG itself):
 
 ## Implementation ladder
 
-Worked through by the ASM program (`docs/ASM-PLAN.md`), CLOSED at
+Worked through by the ASM program, CLOSED at
 v1 scope; the state of record is `docs/ASM-EXIT-WALK.md`, never
 this list.
 
