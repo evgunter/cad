@@ -87,11 +87,12 @@ pub fn recorded_program_error_tag(err: &RecordedProgramError) -> &'static str {
 /// `src/tests.rs`'s `select_refusal_tags_are_stable` constructs arms
 /// by name and asserts their tags; it cannot construct — and so
 /// cannot fail on — an arm the kernel has not shipped yet. What the
-/// pin gives is the enumeration the wildcard hides: the arms this
-/// binding speaks are a list, and one added to the kernel without a
-/// line here is an absence in that list. The safety property is the
-/// crossing itself — an unknown arm refuses typed as `unclassified`
-/// (`py/select.rs`), never dropped.
+/// pin gives is the enumeration the wildcard hides — every arm whose
+/// payload it can construct, one assertion each — so an arm added to
+/// the kernel is an absence in a list rather than invisible behind
+/// the wildcard. The safety property is the crossing itself: an
+/// unknown arm refuses typed as `unclassified` (`py/select.rs`),
+/// never dropped.
 pub fn select_refusal_tag(err: &pncad::select::SelectRefusal) -> &'static str {
     use pncad::select::SelectRefusal as R;
     match err {

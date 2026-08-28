@@ -3,16 +3,13 @@
 //! the carrier's true locus over the stated span lies inside it — and
 //! every computation here errs outward only.
 //!
-//! **Outward is the only sound direction; it is not the free one, and
-//! nothing here may say otherwise.** A wider box is a weaker answer,
-//! not a cheaper one: what a consumer loses to width depends on which
-//! way that consumer reads a box, and the consumers are a crate up
-//! (`topo` depends on `geom`, not the reverse) reading in more than
-//! one direction — a wider box costs a candidate pair at a pruner and
-//! costs an ANSWER at a door seeking non-overlap. So these docs state
-//! the containment contract and stop: they do not characterise what
-//! looseness or poison costs downstream, because that is not knowable
-//! from here.
+//! **Outward is the only sound direction; it is not a free one.** A
+//! wider box is a weaker answer, not a cheaper one: a consumer that
+//! reads non-overlap as its ANSWER loses that answer to width, and
+//! which consumers read a box that way is not visible from here —
+//! `topo` depends on `geom`, not the reverse. So these docs state the
+//! containment contract and stop. What looseness costs is the reading
+//! door's to state, per door, where the doors are.
 //!
 //! These land now and are consumed later (the planar boolean consumes
 //! only vertex-extent boxes in PR 8); they live HERE, not in the `bvh`
@@ -114,8 +111,8 @@ fn pfold(a: f64, b: f64, f: fn(f64, f64) -> f64) -> f64 {
 /// test below: it absorbs `libm::atan2`'s deviation from the exact
 /// value (observed ≤ 4 ulps in the geom-core census — this is 6+ orders
 /// more) plus the membership arithmetic's own rounding. Slack only ever
-/// *includes* more extrema, so it errs outward, which is the sound
-/// direction and the priced one (module docs).
+/// *includes* more extrema, so it errs outward — the sound direction,
+/// and not a free one (module docs).
 const ANGLE_SLOP: f64 = 1e-6;
 
 /// Whether some 2πk-translate of the angle INTERVAL `[phi_lo, phi_hi]`
@@ -305,7 +302,7 @@ fn axis_extremum(min: &mut f64, max: &mut f64, c: Brk, u: Brk, v: Brk, r: Brk, l
 /// as an INTERVAL over the scaled-bracket corners, branch-cut wedges
 /// (and possibly-origin rectangles) include BOTH extrema, span
 /// membership is `ANGLE_SLOP`-widened and conservative-inclusive, and
-/// poison flows outward to the poison box.
+/// poison flows to the poison box.
 ///
 /// `None` when `carrier` is not an `Ellipse` (wrong lane — refuse
 /// loudly rather than guess). Residual padding stays the caller's
