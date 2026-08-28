@@ -23,6 +23,10 @@ fn band() -> Band {
 }
 const FIT_TOL: f64 = 1e-6;
 
+/// **One of NINE copies of this helper across five crates (#1123).**
+/// `demos/tour` is a separate workspace and an integration test cannot
+/// import a binary's module, so no existing home covers them all; the
+/// issue carries the list and the shared-test-support fix.
 fn rings_of(body: &Body<f64>) -> usize {
     body.faces().map(|(_, f)| f.rings.len()).sum()
 }

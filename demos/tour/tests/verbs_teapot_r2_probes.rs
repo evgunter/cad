@@ -89,6 +89,10 @@ fn extruded(lp: ProfileLoop<f64>, h: f64, tol: Tol) -> Body<f64> {
     .body
 }
 
+/// **One of NINE copies of this helper across five crates (#1123).**
+/// `demos/tour` is a separate workspace and an integration test cannot
+/// import a binary's module, so no existing home covers them all; the
+/// issue carries the list and the shared-test-support fix.
 fn rings(body: &Body<f64>) -> usize {
     body.faces().map(|(_, f)| f.rings.len()).sum()
 }
@@ -130,14 +134,21 @@ fn offset_refusal(e: &ShellError<f64>) -> String {
 }
 
 // =====================================================================
-// #1082 — the validated wrong body
+// #1082 — the validated wrong body, and what these rows read after the
+// repair. Every claim below is written in the PAST tense where it
+// describes the defect: these rows measured it, the fix landed on that
+// measurement, and a row whose prose still says "is wrong" would be
+// stating a falsehood about the door it runs against.
 // =====================================================================
 
 /// **R2-1: MY OWN revolved profile, not the pot's and not the drum's.**
 /// A three-step waisted silhouette on non-dyadic stations, opened at a
-/// chart the PR never touches. If #1082 is real this reproduces.
+/// chart the PR never touches. Written to reproduce #1082 on a fixture
+/// outside their enumeration, which it did; it now instruments the
+/// REPAIRED rim on that same fixture, and its printout is what a
+/// reader compares against the numbers pinned in `verbs_teapot`.
 #[test]
-fn r2_my_own_revolve_opens_wrong() {
+fn r2_my_own_revolve_opens_at_a_chart_they_never_touch() {
     let tol = Tol::witness();
     let top = 0.37;
     let lp: ProfileLoop<f64> = Open
@@ -240,9 +251,12 @@ fn r2_revolved_tube_separates_seam_from_axis() {
 
 /// **R2-3: a PARTIAL revolve — one cap face, still a revolve.** The
 /// other half of the same separation: a wedge's top is ONE planar face
-/// (no seam split at all) and it touches the axis. If the opened rim is
-/// right here, the seam split is the variable; if it is wrong here too,
-/// "two half-discs sharing a chart" is not the mechanism.
+/// (no seam split at all) and it touches the axis. The question it was
+/// written to settle — if the opened rim were right here the seam
+/// split would be the variable, and if wrong here too then "two
+/// half-discs sharing a chart" was not the mechanism — was settled
+/// against the seam-split story, and the repair was built to what this
+/// and R2-2 measured rather than to that story.
 #[test]
 fn r2_partial_revolve_one_cap_face() {
     let tol = Tol::witness();
@@ -714,11 +728,13 @@ fn r2_the_two_union_walls_on_my_operands() {
 
 /// **R2-10: the ANNULAR-mouth revolve, in full.** R2-2 showed a
 /// revolved tube's mouth chart is ONE face (a full revolve of a CLOSED
-/// off-axis profile closes its seam) and that opening it ALSO produces
-/// an untessellatable body — with different wrong numbers. So "two
-/// half-discs sharing a chart" cannot be the discriminator. This row
-/// dumps what the surgery actually left, and checks the SEALED arm on
-/// the same body as the control.
+/// off-axis profile closes its seam) and that opening it ALSO
+/// PRODUCED an untessellatable body — with different wrong numbers —
+/// so "two half-discs sharing a chart" was never the discriminator.
+/// This row dumps what the surgery leaves, and checks the SEALED arm
+/// on the same body as the control; what it dumps now is the face
+/// SPLIT the repair builds, pinned with its radii and closed-form
+/// volume in `verbs_teapot::the_annular_mouth_opens_to_two_disjoint_rims`.
 #[test]
 fn r2_annular_mouth_anatomy() {
     let tol = Tol::witness();

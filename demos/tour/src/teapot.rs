@@ -507,6 +507,10 @@ fn describe<T, E: core::fmt::Debug>(outcome: &Result<T, E>) -> String {
 /// copies are three lines of a published identity rather than a shared
 /// invariant. The tie between them is that both are checked against
 /// the same measured censuses.
+/// **One of NINE copies of this helper across five crates (#1123).**
+/// `demos/tour` is a separate workspace and an integration test cannot
+/// import a binary's module, so no existing home covers them all; the
+/// issue carries the list and the shared-test-support fix.
 fn genus(body: &Body<f64>) -> i64 {
     let (v, e, f) = (
         body.vertices().count() as i64,

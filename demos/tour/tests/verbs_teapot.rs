@@ -635,6 +635,10 @@ fn plane_chart_at(body: &Body<f64>, y: f64) -> Vec<pncad::topo::FaceKey> {
 
 /// Duplicated from the scene for the same reason as
 /// [`plane_chart_at`]; see [`genus`].
+/// **One of NINE copies of this helper across five crates (#1123).**
+/// `demos/tour` is a separate workspace and an integration test cannot
+/// import a binary's module, so no existing home covers them all; the
+/// issue carries the list and the shared-test-support fix.
 fn rings(body: &Body<f64>) -> usize {
     body.faces().map(|(_, f)| f.rings.len()).sum()
 }
@@ -646,6 +650,10 @@ fn rings(body: &Body<f64>) -> usize {
 /// dividing, because an odd `v − e + f − r` is a census that does not
 /// satisfy the identity at all and halving it would turn that into a
 /// plausible number.
+/// **One of NINE copies of this helper across five crates (#1123).**
+/// `demos/tour` is a separate workspace and an integration test cannot
+/// import a binary's module, so no existing home covers them all; the
+/// issue carries the list and the shared-test-support fix.
 fn genus(body: &Body<f64>) -> i64 {
     let (v, e, f) = (
         body.vertices().count() as i64,

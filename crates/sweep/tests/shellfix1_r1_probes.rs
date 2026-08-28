@@ -92,6 +92,10 @@ fn plane_chart_at_z(body: &Body<f64>, z: f64) -> Vec<FaceKey> {
         .collect()
 }
 
+/// **One of NINE copies of this helper across five crates (#1123).**
+/// `demos/tour` is a separate workspace and an integration test cannot
+/// import a binary's module, so no existing home covers them all; the
+/// issue carries the list and the shared-test-support fix.
 fn rings_of(body: &Body<f64>) -> usize {
     body.faces().map(|(_, f)| f.rings.len()).sum()
 }

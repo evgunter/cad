@@ -5372,6 +5372,60 @@ mod tests {
         assert_eq!(validate_closed(&ops_genus2(Tol::witness())), Ok(()));
     }
 
+    /// **Check 9 decides KEY-SHARED loop pairs, and the guards that
+    /// exempted them are gone.**
+    ///
+    /// Those two guards (`ov == rv`, `oedge == redge`) cited tier 1 as
+    /// the net for a key-shared vertex or edge between a face's outer
+    /// loop and its own ring. The citation was FALSE — passes 1 to 13
+    /// were read end to end and none of them refuses that
+    /// configuration; an umbrella pinch, whose two loops meet at a
+    /// vertex they share by key rather than by position, walks a
+    /// single orbit and validates. An exemption resting on a net that
+    /// does not exist leaves exactly the shape this check is for
+    /// unguarded, so it was removed.
+    ///
+    /// What is pinned here is the removal, in the maximal form of the
+    /// case: a loop compared against ITSELF shares every vertex key
+    /// and every edge key with itself, so both guards would have fired
+    /// and both arms must now report a contact instead. It is a
+    /// property of the predicate, asserted as one; the shapes it lets
+    /// through when the keys are DISTINCT are pinned on real bodies by
+    /// `verbs_shell::a_ring_standing_on_its_outer_loop_refuses_at_tier_3`.
+    #[test]
+    fn check_9_decides_a_key_shared_loop_pair() {
+        let tol = Tol::witness();
+        let body = ops_holed_box(tol).body;
+        let band = Band::linear(tol).expect("the run's band");
+        let mut seen = 0;
+        for (_, face) in body.faces() {
+            for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
+                let Some(cycle) = loop_cycle_of(&body, lk) else {
+                    continue;
+                };
+                if cycle.is_empty() {
+                    continue;
+                }
+                seen += 1;
+                match ring_outer_contact(&body, lk, lk, band) {
+                    RingOuterVerdict::Contact(_) => {}
+                    RingOuterVerdict::Disjoint => panic!(
+                        "loop {lk:?} does not meet ITSELF — the key-shared exemption is \
+                         back, and with it the umbrella pinch tier 1 does not refuse"
+                    ),
+                    RingOuterVerdict::Escalated(source) => {
+                        panic!("loop {lk:?} escalated against itself: {source}")
+                    }
+                }
+            }
+        }
+        assert!(seen > 0, "the fixture must carry loops to compare");
+        // And the fixture itself is CLEAN at rest: distinct loops of
+        // one face do not meet, so the arms are not simply reporting
+        // everything.
+        assert_eq!(validate_geometric(&body, tol), Ok(()));
+    }
+
     /// Gives every face of `body` the Newell plane of its outer loop —
     /// the minimum needed to reach check 6 from [`ops_cube`], whose
     /// faces are raw `Nurbs` placeholders (check 6 only inspects
