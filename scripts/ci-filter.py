@@ -112,6 +112,13 @@ matching every other signal here. local-scripts/ci-local.sh passes no seed
 and therefore still runs the whole matrix: it is not billed by the minute,
 and with the hosted gate sampling, the local gate is now the only lane that
 runs every point of the matrix on one tree.
+
+A PIN IS ANNOUNCED ON STDERR, never on stdout. `LANE` is not always drawn —
+`_forces_interval` pins it, ahead of the seed — and a pin no reader can see is
+how a branch spends every run of its life on an axis nobody chose (#1122).
+stdout stays exactly the KEY=value stream above, because both halves append it
+to $GITHUB_OUTPUT or read it with `IFS='=' read -r k v`, where one extra line
+would be one bogus output key.
 """
 
 from __future__ import annotations
@@ -674,19 +681,41 @@ KLINT_ROWS: tuple[str, ...] = (
 # the backend is its own workspace root. It is a HEURISTIC over names, not a
 # proof over the feature graph: a change to an interval-gated block inside a
 # file with an ordinary name is not matched, and falls back to the sampling
-# like anything else. That residue is acceptable precisely because the
-# sampling is the floor — the rule only ever ADDS certainty, never removes it.
-def _forces_interval(files: list[str] | None) -> bool:
+# like anything else.
+#
+# WHAT THE PIN COSTS, stated because the earlier wording here — "the rule only
+# ever ADDS certainty, never removes it" — is not true as written and reading
+# it cost a full ruling cycle (#1122). The pin SUBSTITUTES a lane; it does not
+# add one. What makes the substitution nearly free is not the rule but the two
+# lanes' shapes: ci.yml archives the same `cargo_scope` for both and the
+# interval lane merely adds `--features interval`, so a pinned run executes the
+# same rows in a stricter compile. The rows it does NOT reach are the ones
+# gated `cfg(not(feature = "interval"))` — legitimate in `crates/*/tests` and
+# nowhere else (`scripts/check-interval-cfg-additive.py` is what holds that
+# line), and enumerable at any time with
+#
+#     grep -rn 'not(feature *= *"interval")' --include=*.rs crates/
+#
+# so the pin's real cost is those marker rows, not the battery.
+#
+# AND IT IS ANNOUNCED. A pin is not defeatable by re-pushing — it runs before
+# the seeded draw and short-circuits it — so a branch that trips it silently
+# spends every one of its runs on an axis nobody chose. `main` prints the pin
+# and its reason to stderr, which is why this returns the REASON rather than a
+# bool. Nothing else about the return changed: a reason string is truthy and
+# `None` is falsy, exactly where the bool was read.
+def _forces_interval(files: list[str] | None) -> str | None:
+    """Why the lane is pinned to `interval`, or `None` if it is not pinned."""
     # Fail CLOSED like every other signal here: an unresolved file list cannot
     # prove interval code held still, so pin the lane rather than sample it.
     if not files:
-        return True
+        return "the changed-file list could not be resolved"
     for f in files:
         if f.startswith("interval-transcendentals/"):
-            return True
+            return f"{f} is under interval-transcendentals/"
         if "interval" in f.rsplit("/", 1)[-1]:
-            return True
-    return False
+            return f"{f} has `interval` in its basename"
+    return None
 
 
 def _sample(seed: str, salt: str, choices: tuple[str, ...]) -> str:
@@ -782,7 +811,9 @@ def decorate(
         res["LANE"], res["EPS"], res["KLINT_ROW"] = "both", "all", "all"
     else:
         res["LANE"] = (
-            "interval" if _forces_interval(files) else _sample(seed, "lane", LANES)
+            "interval"
+            if _forces_interval(files) is not None
+            else _sample(seed, "lane", LANES)
         )
         res["EPS"] = _sample(seed, "eps", EPS_ROWS)
         # A THIRD SALT, drawn off the same seed and independent of the other
@@ -1338,7 +1369,28 @@ def main() -> int:
     # allowlist, so the very changes the oracle cares about arrive here as
     # TIER=all with a perfectly good file list. Only a failure to resolve
     # the diff at all leaves `files` None, and that is the case that runs.
-    for key, val in decorate(res, files, args.seed).items():
+    out = decorate(res, files, args.seed)
+
+    # THE PIN, SAID OUT LOUD. `decorate` stays free of I/O — `_selftest_sampling`
+    # calls it 4000 times in-process — so the announcement is made here, off a
+    # second call to the same pure function rather than off a channel through
+    # the result dict, whose every key is printed as machine-readable output.
+    # Guarded on the seed because an unseeded run draws nothing to pin: it is
+    # LANE=both, which already runs both compile modes.
+    if args.seed is not None and (pin := _forces_interval(files)) is not None:
+        print(
+            f"ci-filter: LANE=interval is PINNED, not drawn: {pin}.\n"
+            "ci-filter: re-pushing cannot change it — the pin runs before the "
+            "seeded draw and short-circuits it.\n"
+            "ci-filter: this is not a coverage gap. Both lanes archive the same "
+            "scope and the interval lane only adds `--features interval`, so a "
+            "pinned run executes the same rows in a stricter compile; what it "
+            "does not reach is code gated `cfg(not(feature = \"interval\"))`, "
+            "which lives only in crates/*/tests.",
+            file=sys.stderr,
+        )
+
+    for key, val in out.items():
         print(f"{key}={val}")
     return 0
 

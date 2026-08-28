@@ -237,7 +237,12 @@ mod chords;
 mod curved;
 mod nurbs_cert;
 mod planar;
-pub mod sizing;
+// The sizing vocabulary is this crate's own: every name in it is
+// `pub(crate)`, and no consumer outside these walls calls one. It is
+// `mod` rather than `pub mod` so `unreachable_pub` and `dead_code` can
+// see a name the crate stops using; `--document-private-items` keeps
+// its prose in the rendered docs.
+mod sizing;
 mod tessellate;
 mod trimmed;
 pub mod types;

@@ -166,7 +166,7 @@ pub(crate) fn cap_angular(step: f64) -> f64 {
 /// radius `rho`, capped at [`MAX_ANGULAR_STEP`]. Total (poison-free
 /// for positive inputs): if δ_s ≥ ρ the sagitta constraint is vacuous
 /// and the cap rules.
-pub fn sagitta_step(delta_s: f64, rho: f64) -> f64 {
+pub(crate) fn sagitta_step(delta_s: f64, rho: f64) -> f64 {
     if delta_s < rho {
         cap_angular(2.0 * (1.0 - delta_s / rho).acos())
     } else {
@@ -195,7 +195,7 @@ pub(crate) fn curvature_step(delta_s: f64, m: f64) -> f64 {
 /// `R_eff = major·(major/minor)²`. Coarser than the circle's exact
 /// sagitta near `major = minor` — conservative is the promised
 /// direction.
-pub fn ellipse_step(delta_s: f64, major: f64, minor: f64) -> f64 {
+pub(crate) fn ellipse_step(delta_s: f64, major: f64, minor: f64) -> f64 {
     let r_eff = major * (major / minor) * (major / minor);
     cap_angular(curvature_step(delta_s, r_eff))
 }
@@ -245,7 +245,7 @@ pub(crate) fn torus_step(surface: &geom::Surface<f64>, delta_s: f64) -> Option<f
 ///
 /// [`TessellateError::ResolutionOverflow`] when the count is
 /// non-finite or at/above the cap.
-pub fn ceil_count(span: f64, step: f64) -> Result<usize, TessellateError> {
+pub(crate) fn ceil_count(span: f64, step: f64) -> Result<usize, TessellateError> {
     let raw = (span / step).ceil();
     if !(raw.is_finite() && raw < MAX_COUNT) {
         return Err(TessellateError::ResolutionOverflow { count: raw });

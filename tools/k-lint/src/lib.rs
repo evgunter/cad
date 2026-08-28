@@ -328,6 +328,88 @@ pub struct Scan {
     pub proximity_capped: Option<(f64, f64)>,
 }
 
+/// The sweep's CSV header: the column order [`FLOAT_COLUMNS`] indexes
+/// against and the only header [`lint_csv`] accepts.
+const EXPECTED_HEADER: &str = "shape,predicate,margin,band_zero,band_escalate,outcome";
+
+/// What a numeric column of the sweep may say.
+///
+/// **A reading the lint cannot read is not a sample that passed.** Every
+/// rule in [`lint_sample`] is an `m < t` or `m > t` comparison, so a
+/// `NaN` margin makes all of them false and the row scores CLEAN while
+/// still counting in [`Scan::scanned`]; a `NaN` `band_zero` misses the
+/// `band_zero >= AMBIENT_BAND_MIN` guard on every arm and answers to no
+/// rule at all. So a value outside its column's policy is refused as
+/// harness breakage, for the same reason the `outcome` allow-list beside
+/// it already gives (review MIN-2): the instrument's answer to an
+/// unreadable measurement must not be its own pass value.
+///
+/// The recorder is the authority for both policies. `k_stats::record`
+/// writes the margin `Decide for f64` classified together with the
+/// thresholds of the `Band` it was classified against, and `Band::new`
+/// refuses a threshold that is not finite and strictly positive — so a
+/// zero or negative band is drift, not a loose band.
+#[derive(Clone, Copy, Debug)]
+enum Admissible {
+    /// A classified margin: any FINITE value, of either sign — a margin
+    /// is a signed length and the corpus records both signs and exact
+    /// zeros. The two non-finite spellings are admitted only against
+    /// the outcomes that produce them: `NaN` is the poison
+    /// `Decide for f64` reports as `invalid`, and ±∞ is documented
+    /// there as maximally definite, so it can only accompany a definite
+    /// outcome. Neither is admitted against an outcome that would score
+    /// the row clean.
+    Margin,
+    /// A band threshold: finite and strictly positive, which is
+    /// `Band::new`'s own contract.
+    BandThreshold,
+}
+
+impl Admissible {
+    /// Whether `v` is a reading of this kind of column on a row whose
+    /// recorded outcome is `outcome` (already checked against the
+    /// outcome allow-list by [`lint_csv`]).
+    fn admits(self, v: f64, outcome: &str) -> bool {
+        match self {
+            Self::Margin => {
+                if v.is_nan() {
+                    outcome == "invalid"
+                } else if v.is_infinite() {
+                    matches!(outcome, "positive" | "negative")
+                } else {
+                    true
+                }
+            }
+            Self::BandThreshold => v.is_finite() && v > 0.0,
+        }
+    }
+
+    /// What this column may say, for the harness message.
+    fn expects(self) -> &'static str {
+        match self {
+            Self::Margin => {
+                "a margin: finite, or NaN on an `invalid` outcome, or ±inf on a definite one"
+            }
+            Self::BandThreshold => "a band threshold, finite and above zero",
+        }
+    }
+}
+
+/// Where the float block starts in [`EXPECTED_HEADER`].
+const FLOAT_FIRST: usize = 2;
+
+/// The float block — every column [`lint_sample`] compares against, in
+/// [`EXPECTED_HEADER`]'s order, with what each may say. One table
+/// rather than three hand-written checks so that the block the parser
+/// polices and the block the header declares can be compared to each
+/// other, which this module's tests do: a fourth float column added
+/// without an entry here would otherwise reach the rules unpoliced.
+const FLOAT_COLUMNS: [(&str, Admissible); 3] = [
+    ("margin", Admissible::Margin),
+    ("band_zero", Admissible::BandThreshold),
+    ("band_escalate", Admissible::BandThreshold),
+];
+
 /// A malformed input line: HARNESS BREAKAGE — the lint could not run.
 /// Findings fail the CI row too, but in their own voice and with their
 /// own exit code (`main.rs`); the two are never blurred.
@@ -398,7 +480,7 @@ pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
     let mut proximity_capped = None;
     for (i, line) in text.lines().enumerate() {
         if i == 0 {
-            if line != "shape,predicate,margin,band_zero,band_escalate,outcome" {
+            if line != EXPECTED_HEADER {
                 return Err(ParseError {
                     line: 1,
                     text: line.to_string(),
@@ -425,18 +507,40 @@ pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
         ) else {
             return Err(err());
         };
-        let margin: f64 = m.parse().map_err(|_| err())?;
-        let band_zero: f64 = bz.parse().map_err(|_| err())?;
-        let band_escalate: f64 = be.parse().map_err(|_| err())?;
         // An unknown outcome string is harness breakage, exactly like
         // a malformed float: scoring it silently CLEAN would let a
-        // sweep-format drift disarm the whole lint (review MIN-2).
+        // sweep-format drift disarm the whole lint (review MIN-2). It
+        // is checked FIRST because the margin's policy is stated
+        // against it (`Admissible::Margin`).
         if !matches!(
             out,
             "zero" | "positive" | "negative" | "indeterminate" | "invalid"
         ) {
             return Err(err());
         }
+        // An unreadable measurement is harness breakage too, and for
+        // the same reason — see `Admissible`.
+        // The column index carries BOTH halves of the policy — the name
+        // the message reports and the rule it was refused by — so the
+        // two cannot drift apart per column.
+        let admit = |field: &str, col: usize| -> Result<f64, ParseError> {
+            let (name, kind) = FLOAT_COLUMNS[col];
+            let v: f64 = field.parse().map_err(|_| err())?;
+            if kind.admits(v, out) {
+                Ok(v)
+            } else {
+                Err(ParseError {
+                    line: i + 1,
+                    text: format!(
+                        "{name} = {v:e} is not {} (sweep drift?): {line}",
+                        kind.expects()
+                    ),
+                })
+            }
+        };
+        let margin = admit(m, 0)?;
+        let band_zero = admit(bz, 1)?;
+        let band_escalate = admit(be, 2)?;
         scanned += 1;
         // Record (once) that rule (2)-above is running capped on this
         // file's ambient rows, so the CLI can say so out loud.

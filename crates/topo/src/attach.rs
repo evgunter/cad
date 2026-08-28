@@ -102,9 +102,10 @@ impl<T: Decide> Body<T> {
     /// constructor-facing writer of the S10 orientation bit, opened in
     /// M5 S11.
     ///
-    /// The Euler operators mint every face `sense: true` because the
-    /// material side is not op-level knowledge: `mef` sees two chords,
-    /// not the profile. Whether a swept wall's material lies with or
+    /// An Euler operator mints `sense: true` on a face it puts on a
+    /// NEW surface, because the material side is not op-level
+    /// knowledge: `mef` sees two chords, not the profile. Whether a
+    /// swept wall's material lies with or
     /// against its surface's chart normal is the **constructor's**
     /// knowledge, decided from exact stored structure (a concave arc
     /// segment's turn sign against its loop's canonical winding — the
@@ -121,22 +122,18 @@ impl<T: Decide> Body<T> {
     /// decision (a `bool` is written, nothing compared); tier 1 is
     /// trivially preserved.
     ///
-    /// **KNOWN HAZARD — splitting does not inherit the bit yet (M5
-    /// S11 audit finding, banked for the curved-boolean/revert
-    /// units).** Every `mef` mints its new face `sense: true`,
-    /// including the boolean splitting/reassembly re-mints
-    /// (`chord_join.rs`, `splitting/reassembly.rs`), so splitting
-    /// a `sense: false` face today would silently stamp `true` on the
-    /// pieces — a piece of a reversed wall is the same surface region
-    /// with the same material side and MUST inherit the parent face's
-    /// bit. Unreachable in the current battery: curved
-    /// subtract/intersect refuse at the front door, and touching
-    /// curved unions refuse typed before any reversed face splits
-    /// (pinned by the sweep-side guard
-    /// `review_s11_adv::adv_touching_union_with_reversed_faces_refuses_typed`,
-    /// which fails loudly the day such a union starts answering). The
-    /// inheritance fix must land WITH the unit that makes those splits
-    /// reachable, not after it.
+    /// **Splitting inherits the bit exactly where the fragment is the
+    /// same region.** A `mef` or `mfkrh` re-mint that keeps the
+    /// parent's surface takes the parent's `sense` — a piece of a
+    /// reversed wall is the same surface region with the same material
+    /// side — and stamps `true` only when it mints a NEW surface,
+    /// which is not the parent's region at all and whose honest bit is
+    /// this door's to attach. [`Body::mint_face_surface_and_sense`]
+    /// owns that rule; the boolean's chord re-mints (`chord_join.rs`)
+    /// pass `FaceSurface::Inherit` and so inherit, while
+    /// `splitting/finish.rs`'s section promotion is the live case of
+    /// the mint. Guard: sweep's `m5_s12_curved_ops.rs`, the row named
+    /// `a_boolean_that_splits_a_reversed_wall_inherits_the_parent_bit`.
     ///
     /// # Errors
     ///
