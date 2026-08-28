@@ -1,18 +1,27 @@
-//! **Review probe (GUI-4 R1): open the REAL gallery through the
-//! viewer's typed `Open` door and report what the tree says.**
+//! **The REAL gallery, opened through the viewer's typed doors — and
+//! asserted on** (GUI-4 acceptance, the render-lane half).
 //!
 //! The exit-demo walk (`tests/assembly_walk.rs`) drives a
-//! gallery-SHAPED fixture built in-crate, disclosed as a deviation
-//! because the tour lives outside the workspace and a `viewer` test
-//! cannot depend on it. This example closes that gap from the outside:
-//! it takes a directory the tour's `gallery` mode wrote and opens every
-//! `.pncad` in it (and in `assembly/`) through `SessionOp::Open`,
-//! printing each document's tree rows and each instance's free-move
-//! eligibility.
+//! gallery-SHAPED fixture built in-crate, because the tour lives
+//! outside the workspace and a `viewer` test cannot depend on it; its
+//! module doc carries the argument. This example closes the gap from
+//! the outside: it takes a directory the tour's `gallery` mode wrote,
+//! opens every `.pncad` in it (and in `assembly/`) through
+//! `SessionOp::Open`, and CHECKS, per document:
 //!
-//! An EXAMPLE, not a test: it needs an argument that only
-//! `demo-tour gallery <dir>` produces, so it can never be a gate. It
-//! prints; it asserts nothing beyond the open itself.
+//! - the open succeeds and every tree row evaluates `Ok` (the
+//!   resolver, on the real store);
+//! - per instance, hide either takes visible effect (the drawn
+//!   triangle count moves) or refuses typed — never
+//!   accepted-and-inert (the M1 class, measured on exactly this
+//!   directory when it shipped);
+//! - per eligible instance, a committed probe marks at least one
+//!   drawn part distinct — same rule, other op.
+//!
+//! Any violation prints and the process exits nonzero, so the
+//! render-lane step that runs it is a real verdict. It stays an
+//! EXAMPLE (not a test) because its input exists only where
+//! `demo-tour gallery <dir>` ran first:
 //!
 //! ```text
 //! cargo run --manifest-path demos/tour/Cargo.toml -- gallery /tmp/gal
@@ -73,9 +82,13 @@ fn main() {
         files.append(&mut here);
     }
     println!("gallery {} — {} document(s)", dir.display(), files.len());
+    // An empty directory is a broken invocation, not a green run.
+    let mut violations: Vec<String> = if files.is_empty() {
+        vec!["no .pncad documents found — was the gallery generated?".to_owned()]
+    } else {
+        Vec::new()
+    };
 
-    let mut opened = 0usize;
-    let mut with_failed_rows = 0usize;
     for path in files {
         let mut session = viewer::session::DocSession::inline(
             pncad::document::Doc::empty_derived("r1-gallery-boot", tol),
@@ -87,10 +100,9 @@ fn main() {
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_default();
         if let Some(refusal) = outcome.refusal {
-            println!("  {name}: OPEN REFUSED — {refusal}");
+            violations.push(format!("{name}: OPEN REFUSED — {refusal}"));
             continue;
         }
-        opened += 1;
         session.pump();
         let rows = session.tree_rows();
         let instances: Vec<_> = rows
@@ -99,55 +111,58 @@ fn main() {
             .collect();
         let failed: Vec<_> = rows
             .iter()
-            .filter(|r| matches!(r.status, viewer::tree::RowStatus::Failed { .. }))
+            .filter(|r| !matches!(r.status, viewer::tree::RowStatus::Ok))
             .collect();
-        if !failed.is_empty() {
-            with_failed_rows += 1;
-        }
         println!(
-            "  {name}: {} row(s), {} instance(s), {} failed",
+            "  {name}: {} row(s), {} instance(s), {} not-ok",
             rows.len(),
             instances.len(),
             failed.len()
         );
         for row in &failed {
-            if let viewer::tree::RowStatus::Failed { message } = &row.status {
-                println!("      node {} FAILED: {message}", row.id.0);
-            }
+            violations.push(format!(
+                "{name}: node {} is {:?} — the real gallery must resolve clean",
+                row.id.0, row.status
+            ));
         }
-        // The G3 items, per instance: is the free-move probe available,
-        // and does hiding the instance change the DRAWN picture?
+        // The G3 items, per instance: hide takes effect or refuses
+        // typed; a committed probe marks something. Never a silent
+        // no-op. (The baseline tessellation is paid only for
+        // documents that HAVE instances — the part documents' cost
+        // here is the open and the tree.)
+        if instances.is_empty() {
+            continue;
+        }
         let baseline = index_triangles(&session);
         for row in &instances {
-            match viewer::display::free_move_check(session.doc(), row.id) {
-                Ok(()) => println!("      node {}: free-move ELIGIBLE", row.id.0),
-                Err(fault) => println!("      node {}: free-move refused — {fault}", row.id.0),
-            }
-            let accepted = session
+            let hide = session
                 .perform(viewer::session::SessionOp::SetInstanceHidden {
                     instance: row.id,
                     hidden: true,
                 })
-                .refusal
-                .is_none();
-            let after = index_triangles(&session);
-            println!(
-                "      node {}: hide accepted={accepted}, drawn triangles {:?} -> {:?}{}",
-                row.id.0,
-                baseline,
-                after,
-                if accepted && after == baseline {
-                    "   <-- ACCEPTED BUT DREW NOTHING DIFFERENT"
-                } else {
-                    ""
+                .refusal;
+            match hide {
+                None => {
+                    let after = index_triangles(&session);
+                    println!(
+                        "      node {}: hide accepted, drawn triangles {baseline:?} -> {after:?}",
+                        row.id.0
+                    );
+                    if after == baseline {
+                        violations.push(format!(
+                            "{name}: node {} hide ACCEPTED BUT DREW NOTHING DIFFERENT",
+                            row.id.0
+                        ));
+                    }
+                    session.perform(viewer::session::SessionOp::SetInstanceHidden {
+                        instance: row.id,
+                        hidden: false,
+                    });
                 }
-            );
-            session.perform(viewer::session::SessionOp::SetInstanceHidden {
-                instance: row.id,
-                hidden: false,
-            });
-            // And the probe: does a displaced instance draw displaced,
-            // and marked? Same question, the other G3 item.
+                Some(refusal) => {
+                    println!("      node {}: hide refused typed — {refusal}", row.id.0);
+                }
+            }
             if session
                 .perform(viewer::session::SessionOp::BeginFreeMove { instance: row.id })
                 .refusal
@@ -159,41 +174,38 @@ fn main() {
                 session.perform(viewer::session::SessionOp::CommitFreeMove);
                 let marked = probe_parts(&session);
                 println!(
-                    "      node {}: free-move committed, scene probe_parts={marked:?}{}",
-                    row.id.0,
-                    if marked == Some(0) {
-                        "   <-- COMMITTED BUT MARKED NOTHING"
-                    } else {
-                        ""
-                    }
+                    "      node {}: free-move committed, scene probe_parts={marked:?}",
+                    row.id.0
                 );
+                if marked == Some(0) {
+                    violations.push(format!(
+                        "{name}: node {} probe COMMITTED BUT MARKED NOTHING",
+                        row.id.0
+                    ));
+                }
+                // Discard the probe so the next instance's baseline is
+                // clean.
                 session.perform(viewer::session::SessionOp::BeginFreeMove { instance: row.id });
                 session.perform(viewer::session::SessionOp::PreviewFreeMove {
                     frame: pncad::document::Frame::IDENTITY,
                 });
                 session.perform(viewer::session::SessionOp::CommitFreeMove);
+            } else {
+                println!("      node {}: free-move refused typed", row.id.0);
             }
         }
         let mates = rows.iter().filter(|r| r.kind == "Mate").count();
         if mates > 0 {
             println!("      ({mates} authored mate node(s))");
         }
-        // Every OTHER drawn root: can the G3 hide reach it? Hide and
-        // free-move key on `InstantiatePart` ids, so a `Pattern` over an
-        // instance — the flat-pack's four posts — has no per-part
-        // display identity at all.
-        for row in rows.iter().filter(|r| r.kind != "InstantiatePart") {
-            let refused = session
-                .perform(viewer::session::SessionOp::SetInstanceHidden {
-                    instance: row.id,
-                    hidden: true,
-                })
-                .refusal;
-            match refused {
-                None => println!("      node {} ({}): hide ACCEPTED", row.id.0, row.kind),
-                Some(r) => println!("      node {} ({}): hide refused — {r}", row.id.0, row.kind),
-            }
-        }
     }
-    println!("opened {opened} document(s); {with_failed_rows} with at least one failed row");
+    if violations.is_empty() {
+        println!("gallery probe: OK");
+    } else {
+        for violation in &violations {
+            eprintln!("VIOLATION: {violation}");
+        }
+        eprintln!("gallery probe: {} violation(s)", violations.len());
+        std::process::exit(1);
+    }
 }

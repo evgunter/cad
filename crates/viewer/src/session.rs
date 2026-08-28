@@ -472,6 +472,16 @@ pub enum SessionOp {
     /// Replace the session's document with a file's.
     Open(PathBuf),
     /// Write the current path to a file.
+    ///
+    /// **Saving a COPY beside the original bricks the store for both**
+    /// (issue #1117): the copy claims the same document id, so the
+    /// directory then holds two files with one identity and every
+    /// resolution through it refuses `DuplicateId` — typed and
+    /// recoverable (delete either file), but a surprising blast
+    /// radius for an ordinary act. The identity is the document's, not
+    /// the file's, so a cheap rename-on-save cannot fix it without
+    /// forking the document; the issue carries the design question.
+    /// Save over the original, or save into a different directory.
     Save(PathBuf),
     /// Hide or show one instance (G3): a DISPLAY operation — the
     /// scene and the pick index drop a hidden instance; the document
