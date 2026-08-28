@@ -27,8 +27,8 @@ the M7-4 record. Findings where the two disagree are in **Deltas**, at the end.
 | `adafruit/805_slide_switch.step` | adafruit | ↑ `805 slide switch/805 slide switch.step` | MIT | **yes** | **YES** | imports |
 | `adafruit/931_OLED_128x32_I2C.step` | adafruit | ↑ `931 OLED 128x32 I2C/…step` | MIT | **yes** | **YES** | imports |
 | `nist/nist_ftc_09_asme1_rd.stp` | nist | NIST MBE PMI Validation & Conformance Testing test cases | US Gov work, **PD-equivalent** | courtesy only | **YES** | imports; no-endorsement line required |
-| `nist/nist_ftc_11_asme1_rb.stp` | nist | ↑ same project | US Gov work, **PD-equivalent** | courtesy only | **YES** (moot) | refuses today (seamless periodic band) |
-| `occ-oss/cq_red_cube_blue_cylinder.step` | occ-oss | `CadQuery/cadquery` → `tests/testdata/red_cube_blue_cylinder.step` | Apache-2.0 | **yes** | **YES** (moot) | refuses today; Onshape header (D4) |
+| `nist/nist_ftc_11_asme1_rb.stp` | nist | ↑ same project | US Gov work, **PD-equivalent** | courtesy only | **YES** | imports since the M7-5 band-seam re-mint (#252); no-endorsement line required |
+| `occ-oss/cq_red_cube_blue_cylinder.step` | occ-oss | `CadQuery/cadquery` → `tests/testdata/red_cube_blue_cylinder.step` | Apache-2.0 | **yes** | **YES** | imports since #252; Onshape header (D4) |
 | `occ-oss/b123d_nema17_bracket.step` | occ-oss | `gumyr/build123d` → `docs/topology_selection/examples/nema-17-bracket.step` | Apache-2.0 | **yes, incl. upstream NOTICE** | **YES** (moot) | refuses today; **see D1** |
 | `stepcode/sg1-c5-214.stp` | stepcode | `stepcode/stepcode` → `data/ap214e3/sg1-c5-214.stp` | BSD-3-Clause *as redistributed* — origin unclear | **yes** | **EXCLUDED — UNCLEAR (D2)** | imports; the one import-class exclusion |
 | `stepcode/dm1-id-214.stp` | stepcode | ↑ `data/ap214e3/dm1-id-214.stp` | ↑ same | **yes** | **EXCLUDED — UNCLEAR (D2)** | refuses (`B_SPLINE_SURFACE`) |
@@ -40,10 +40,12 @@ Source URLs: `github.com/adafruit/Adafruit_CAD_Parts` · `github.com/CadQuery/ca
 `nist.gov/ctl/smart-connected-systems-division/smart-connected-manufacturing-systems-group/mbe-pmi-0`
 
 **Verdict distribution: 9 render-OK · 7 of those require attribution · 4
-EXCLUDED (all stepcode).** Of the 9 cleared, only 6 import at all today (the 5
-Adafruit files + `nist_ftc_09`), so **the montage buildable now is exactly those
-6**, and it clears cleanly. `sg1-c5-214.stp` is the only file this audit removes
-from a montage the kernel could otherwise produce.
+EXCLUDED (all stepcode).** Of the 9 cleared, 8 import today (the 5 Adafruit
+files, both NIST files and the CadQuery cube — the last two joined at the M7-5
+band-seam re-mint, #252); only `b123d_nema17_bracket` still refuses, so **the
+montage is exactly those 8** — `demos/wild`'s pinned cell set — and it clears
+cleanly. `sg1-c5-214.stp` is the only file this audit removes from a montage the
+kernel could otherwise produce.
 
 ## What each license says about a committed render
 
@@ -94,23 +96,26 @@ from a montage the kernel could otherwise produce.
 > nor the U.S. Government endorses, recommends, or has any connection with this
 > software; no NIST name or logo is used to imply endorsement.*
 
-*(If a future montage adds the Apache-2.0 files once the periodic-band gap closes,
-extend the block with: source URL, "used under the Apache License, Version 2.0"
-linking the committed license text, a statement that the geometry was modified
-only by our own tessellation, and — for build123d — the NOTICE text from D1.)*
+*(The montage has since added `nist_ftc_11` and the CadQuery cube (#252), and the
+shipped block in `demos/README.md` carries both — the second NIST file under the
+NIST terms above, and the CadQuery entry with its source URL, "used under the
+Apache License, Version 2.0" linking the committed license text, and the
+statement that the geometry was modified only by our own tessellation. If
+`b123d_nema17_bracket` ever imports, extend it the same way, plus the NOTICE text
+from D1.)*
 
 ## Deltas — where this audit differs from the M7-4 record
 
-**D1 — FINDING: build123d ships a NOTICE file that this repo does not
-reproduce.** `crates/step-import/NOTICE` records build123d as plain Apache-2.0
-and stops there. Upstream `gumyr/build123d` has a root `NOTICE` (625 bytes,
-confirmed present today), and Apache-2.0 §4(d) makes reproducing it a *condition*
-of redistributing the work or a derivative. Its text: *"Copyright (c) 2022–2025
-The build123d Contributors. Licensed under the Apache License, Version 2.0…"*
-plus an acknowledgement that build123d originated from CadQuery code. **Action:**
-add this to `crates/step-import/NOTICE`. The obligation exists **now**, for the
-committed fixture — it does not wait for the montage. This is the one live
-compliance gap the audit found.
+**D1 — FINDING (DISCHARGED): build123d ships a NOTICE file, and the M7-4 record
+did not reproduce it.** That record had `crates/step-import/NOTICE` calling
+build123d plain Apache-2.0 and stopping there. Upstream `gumyr/build123d` has a
+root `NOTICE` (625 bytes, confirmed present today), and Apache-2.0 §4(d) makes
+reproducing it a *condition* of redistributing the work or a derivative. Its
+text: *"Copyright (c) 2022–2025 The build123d Contributors. Licensed under the
+Apache License, Version 2.0…"* plus an acknowledgement that build123d originated
+from CadQuery code. The obligation is the committed fixture's — it does not wait
+for the montage — and it is met: `crates/step-import/NOTICE`'s `occ-oss/` section
+reproduces that text. It was the one live compliance gap the audit found.
 
 **D2 — FINDING (upholds and sharpens M7-4's own flag): the STEPcode data files'
 license is UNCLEAR, and the audit excludes all four from any montage.** M7-4

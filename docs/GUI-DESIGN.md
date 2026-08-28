@@ -2,21 +2,26 @@
 
 **Status: RATIFIED architecture (G1–G5 agreed; GQ1–GQ5 resolved,
 with the `editor-core` substrate shipped — the freshness note below
-is the verified shipped-vs-absent inventory; GQ6–GQ7 deferred to
-GUI time by design — except GQ6's toolkit row, ratified 2026-08-16
-off the mandated re-survey in `docs/GQ6-RESURVEY.md`: **egui**, with
-iced as the named fallback); the GUI layer itself remains unbuilt as
-sequenced.** Companion to
+is the verified shipped-vs-absent inventory; GQ6's toolkit row
+ratified 2026-08-16 off the mandated re-survey in
+`docs/GQ6-RESURVEY.md` — **egui**, with iced as the named fallback —
+and its remaining rows settled inside the v1 GUI units; GQ7's
+general-purpose clauses re-homed to `docs/SELECT-DESIGN.md` §4, the
+slimmed remainder still deferred to sketcher/tree design). The v1
+GUI layer is built: units GUI-0…GUI-4 merged (PRs #1094, #1093,
+#1101, #1106, #1113) against `docs/GUI-PLAN.md`, and the program
+CLOSED 2026-08-28 on the ratified `docs/GUI-EXIT-WALK.md`.**
+Companion to
 `DESIGN.md` (read that first; this doc never overrides D1–D9). GUI
 work is sequenced **after** "usable as a library" (DESIGN.md, Beyond
 the kernel), but the decisions here were banked early because they
 are cheap at design time and expensive to retrofit — several
-constrained M4's recipe/naming design, not just the eventual GUI.
+constrained M4's recipe/naming design, not just the GUI itself.
 Same conventions as DESIGN.md: decisions marked *agreed* are
 settled.
 
-*Freshness note (verified against the code 2026-08-06; supersedes
-the M4 8c note):* the middle layer this doc banks on is REAL —
+*Freshness note (verified against the code 2026-08-28):* the middle
+layer this doc banks on is REAL —
 `editor-core` ships the recipe substrate (`Doc`/`DocEdit`/pure
 `apply`, #81), the GQ2 per-node result DAG with descendants-only
 poisoning plus memoized incremental evaluation and cooperative
@@ -26,14 +31,17 @@ carried forward through a series of pre-release clean breaks; the
 live number is `persist::SCHEMA_VERSION`) — StableName-
 keyed appearance with the N3/N5 loss semantics (#92), the
 dimension-checked total expression AST (GQ5's restrictive
-dimension answer), and arena-key→stable-name hit inversion. Still
-ABSENT, so nobody reads more than shipped: progress reporting and
-in-op yield points; ray picking (mesh back-references exist, no
-ray query anywhere); GQ5's units/display layer (values are
-canonical meters/radians; dimension checking only); any
-undo/history type (the substrate makes it cheap; nothing is
-built); and the GUI layer itself, as sequenced. References in the
-body to M4 as future work are historical.
+dimension answer) with the text door and display-unit round-trip
+the library program added, and arena-key→stable-name hit
+inversion. Layer 3 is real too: the `viewer` crate ships the
+camera and document-session operation vocabularies, the `Bvh::ray`
+and GPU-id pick paths, the feature tree, the property panel, and
+tree-shaped undo behind linear chrome. Still ABSENT, so nobody
+reads more than shipped: progress reporting and in-op yield points
+(v1 rules a busy indicator over the shipped `CancelToken`); the
+sketcher and everything solver-shaped (M10); and the history
+sidecar with its branch-picker UI, banked as GUI-6. References in
+the body to M4 as future work are historical.
 
 ## G1 (agreed 2026-07-19): Three layers, and the boundary rules
 
@@ -44,8 +52,8 @@ recipe is data*; the extension is: **changes to the recipe are data
 too.**
 
 1. **Kernel**: `build(params) → solid`. Unchanged.
-2. **`editor-core`** (headless, no rendering dependency; slotted into
-   DESIGN.md's crate table between `model` and `viewer`):
+2. **`editor-core`** (headless, no rendering dependency; its own row
+   in DESIGN.md's crate table, under `viewer`):
    - **The document is a value**: recipe DAG (D8) + document metadata
      (appearance, named views, …).
    - **The edit vocabulary**: a sum type of abstract moves (`DocEdit`:
@@ -126,6 +134,11 @@ the minimum useful GUI needs exactly —
   involvement, purely a display transform on unmated parts),
 - hiding parts in an assembly (see behind them).
 
+One addition was ruled onto these four at v1 planning (Evan,
+2026-08-27, `docs/GUI-PLAN.md`): **defining a mate between
+previously-unmated parts**, ruled in because free-move fit-probing
+exists precisely to precede it.
+
 **Live dragging/editing of partly-constrained geometry is NOT on
 the scheduled path.** Everything drag-shaped in this document (the
 UI-ideas sketchpad below: wall-mode drag, solved-assignment drag
@@ -160,7 +173,7 @@ requirement, not a solver one).
   here makes "preview disagreed with commit" conceptually impossible
   rather than merely tested-against.
 
-## GQ items (GQ1–GQ5 RATIFIED and shipped — kept as the rationale record; GQ6's toolkit row RATIFIED 2026-08-16, its remaining rows and GQ7 deliberately deferred to GUI time)
+## GQ items (GQ1–GQ5 RATIFIED and shipped — kept as the rationale record; GQ6's toolkit row RATIFIED 2026-08-16 and its remaining rows settled in the v1 GUI units; GQ7 slimmed by the SELECT-DESIGN re-homing, its remainder deferred to sketcher/tree design)
 
 ### GQ1 (RATIFIED 2026-07-19 round 4): The solver/replay boundary — witness as authoritative branch selection
 
@@ -346,17 +359,17 @@ dimension lattice and forbidding dimension-changing operations in
 v1 (D6's "~five quantities, not the SI lattice" stance suggests the
 restrictive answer). Fold into D8 at M4 planning.
 
-*Status (verified 2026-08-06): the restrictive dimension answer
-shipped — `Dimension = Length | Angle | Count | Scalar`, every
-constructor dimension-checked, dimension-changing products refused,
-the AST total and finite by charter. The units/display layer is NOT
-built: values are canonical meters/radians, display units are
-punted to free-form metadata, and no expression text parser exists.
-Both land in the library program (LIBRARY-DESIGN U8 — bindings are
-the first consumer of round-tripping `25 mm`), ahead of any GUI
-need.*
+*Status: the restrictive dimension answer shipped — `Dimension =
+Length | Angle | Count | Scalar`, every constructor
+dimension-checked, dimension-changing products refused, the AST
+total and finite by charter. The units/display layer landed with
+the library program (LIB U8a/U8b, as banked): the `quantity`
+newtypes and unit table at the D6 API boundary, the expression TEXT
+door (`editor-core::parse`), and stored display units that
+round-trip `25 mm`. The v1 GUI panels sit on canonical
+meters/radians by ruling regardless (`docs/GUI-PLAN.md`).*
 
-### GQ6: Toolkit and platform (toolkit RATIFIED 2026-08-16; the rest still decided at GUI time)
+### GQ6: Toolkit and platform (toolkit RATIFIED 2026-08-16; the remaining rows settled inside the v1 GUI units)
 
 **The mandated re-survey was performed 2026-08-16 →
 `docs/GQ6-RESURVEY.md`**, which supersedes the snapshot below as the
@@ -376,6 +389,16 @@ which is also why the fallback is cheap: switching costs the
 interaction layer and nothing beneath it. The conditions that would
 trigger the fallback are written down in advance in the re-survey's
 §5.
+
+**Settled inside the v1 units** (`docs/GUI-PLAN.md`, evidenced in
+`docs/GUI-EXIT-WALK.md`): the viewport is a thin custom wgpu pass
+under eframe's wgpu renderer; picking is a GPU ID-buffer pass over
+our own deterministic `Bvh::ray` rather than parry3d; the docking
+chrome is `egui_tiles` (MIT OR Apache-2.0, and a `Tree<Pane>` value
+the app owns); and the immediate-mode seam measured GO with no §5
+fallback condition met, so the iced fallback is not in play for v1.
+The browser lane is deferred post-v1; the wasm guard below keeps
+the compile-level option green.
 
 Two candidates left the slate for good: **Slint** (its only
 OSI-approved branch is GPL-3.0-only, which cannot ship in an
@@ -447,14 +470,18 @@ on 2026-08-16 and the toolkit row is now settled on top of it; see
 `docs/GQ6-RESURVEY.md` for the current facts, the measured wasm
 result, and the conditions that would trigger the iced fallback.)*
 
-### GQ7: Selection mechanics
+### GQ7: Selection mechanics (slimmed — the general-purpose clauses re-homed to `docs/SELECT-DESIGN.md` §4)
 
-Multi-select and heterogeneous sets, selection filters, and the
-convention that selection does **not** participate in document
-history (undo never changes what is selected, but tools must survive
-the referenced entity vanishing under them — a consumer of the GQ4/
-naming-doc resolution-failure semantics). Details at sketcher/tree
-design time.
+What stays a GUI question: multi-select UX — click/drag/modifier
+mechanics, hover, which filters are offered where, and pick-priority
+when a click hits several entities — plus the convention that
+selection does **not** participate in document history (undo never
+changes what is selected). v1 ruled single-select
+(`docs/GUI-PLAN.md`); the rest waits on sketcher/tree design.
+Selection filters, heterogeneous sets as values, and
+survive-the-vanishing-entity semantics are library surface, owned by
+`docs/SELECT-DESIGN.md` and the naming doc's resolution-failure
+semantics.
 
 ## UI ideas (non-binding sketchpad)
 
@@ -530,10 +557,12 @@ changed (a semantic diff between branches, something git can never
 give us). CRDTs (automerge/yrs) tabled: they solve concurrent
 merging, not single-user branching.
 
-Persistence: schema v1 (PR 6) is a linear snapshot + edit log; the
+Persistence: the on-disk schema is a linear snapshot + edit log; the
 history tree is the additive evolution (log entries gain a parent
-pointer) via the F3 migration chain when the GUI needs it.
-Non-binding until a GUI milestone picks it up.
+pointer) via the F3 migration chain when the GUI needs it. v1 ships
+the tree-shaped *state* under linear chrome (`viewer::history`: an
+edit after undo mints a sibling, nothing is destroyed); the branch
+picker and the sidecar are GUI-6.
 
 Visualization sketch (Evan, 2026-08-27; non-binding like the rest
 of this section): render the history as a graph with the linear
@@ -550,7 +579,7 @@ What the undo-tree concept above still owed a name: Evan wants it
 POSSIBLE to share a document's state without bringing its entire
 history — the state and the edit DAG should be separable artifacts,
 not one inseparable file. Design facts already in place: F3's
-schema v1 is snapshot + edit log, so "state without history" is
+schema is snapshot + edit log, so "state without history" is
 structurally just a save with a compacted (empty) log — an
 export/compact operation, not a format change; the future history
 TREE (parent-pointer log evolution) can live as a separable sidecar

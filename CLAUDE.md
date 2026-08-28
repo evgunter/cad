@@ -1,16 +1,18 @@
 # CLAUDE.md
 
-Greenfield B-rep CAD kernel in Rust. API-first (GUI last), functional
-style, fail-loud.
+Greenfield B-rep CAD kernel in Rust. API-first (the GUI is a thin
+client over the API), functional style, fail-loud.
 
 ## Read before working
 
 - `docs/DESIGN.md` — the **ratified design contract** (decisions D1–D9 +
   open questions). Do not re-litigate settled decisions; propose changes
   as revisions to the doc, discussed with Evan first.
-- The current milestone's work order and log — the highest-numbered
-  `docs/M*-PLAN.md` / `docs/M*-LOG.md`; earlier milestones' plans/logs
-  are the historical record.
+- The live programs' plans and logs — each program is a
+  `docs/<NAME>-PLAN.md` / `docs/<NAME>-LOG.md` pair, and the tail of a
+  log is that program's live status. A program is closed when its
+  `docs/<NAME>-EXIT-WALK.md` is ratified; that walk is then its
+  done-state of record.
 - `memories/MEMORY.md` — memory index; read it, follow pointers as
   relevant.
 
