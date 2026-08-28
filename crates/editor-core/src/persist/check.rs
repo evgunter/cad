@@ -683,7 +683,10 @@ impl core::fmt::Display for ProgramFault {
                 state,
                 verb,
             } => {
-                write!(f, "loop {loop_} step {step} is not a legal chain-lattice walk: ")?;
+                write!(
+                    f,
+                    "loop {loop_} step {step} is not a legal chain-lattice walk: "
+                )?;
                 match verb {
                     Some(verb) => write!(f, "a {verb:?} verb at tip state {state:?}"),
                     None => write!(f, "the chain is unclosed at tip state {state:?}"),
