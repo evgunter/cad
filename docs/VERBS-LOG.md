@@ -1975,3 +1975,16 @@ the band's own threshold and escalates; a real bug hosted CI
 caught, banked). v6 dual, frozen head 66071862; slot draw in the
 lane-private file; claim to main at dispatch per the standing
 carve-out.
+
+## ORDINAL 102 CLAIMED — LILYWELD PR-1 dual (2026-08-28)
+
+PR-1 (#1109) green: the weld circle EXACTLY coincident (off-spine
+and radius residuals 0.0; normal 1.9e-16), the setback's
+z-fight intent re-achieved by abutment, wall 2 re-pinned to the
+operand gate's measured payload with PR-2 as the retire note, the
+finding-13 lantern rows re-cut argued (+106/half, the neck cone),
+and a live refusal banked: the globe's TANGENT cone neck is
+refused by the junction gate (JunctionTangent, margin 1.6e-17) —
+the scene authors 70° on its own merits. One clippy red fixed by
+the #971 alias precedent, not allowed. v6 dual, frozen head
+a1aa5289; slot draw lane-private; claim to main at dispatch.
