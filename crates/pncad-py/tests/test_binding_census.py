@@ -519,6 +519,7 @@ NOT_BOUND = {
     "NodeResult": SHAPE,
     "NonFiniteSite": SHAPE,
     "PartialPath": SHAPE,
+    "PathNoCornerReason": SHAPE,
     "Point2": SHAPE,
     "Point3": SHAPE,
     "ProfileDoc": SHAPE,

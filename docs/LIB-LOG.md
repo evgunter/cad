@@ -1189,18 +1189,34 @@ test that would have made the drift loud.
    leans on. Nothing compares the page's row set against the tour's
    stop set. Measured at this entry's writing: the table holds 34
    numbered rows (`docs/guide/north-star-audit.md:197-230`) and
-   twelve of the tour's named stops appear nowhere on it —
+   thirteen of the tour's named stops appear nowhere on it —
    `bench`, `benchlayout`, `budfillet`, `diechamfer`,
    `diechamferblank`, `hollowelbow`, `hollowring`, `hollowtorus`,
-   `klein`, `teapot`, `twopeg`, `twopeg_apart`. Row 10's `lily
+   `klein`, `spacer`, `teapot`, `twopeg`, `twopeg_apart`. (This
+   entry first said twelve, off by `spacer`: the hand grep behind
+   it reads `name: "…"` literals, and `bodies.rs` builds its six
+   stops through a helper whose name is a parameter. The roster
+   guard below extracts all three spellings, which is why it can
+   be trusted where the grep could not.) Row 10's `lily
    (8 bodies)` is stale by the same mechanism: `plant()` returns
    fifteen pieces (nine in the literal, plus three bud and three
    sepal; `demos/tour/src/lily.rs:1395-1545`), and the scene's own
-   doc comment still says eight (`lily.rs:1275`). **A concurrent
-   unit in this PR re-cuts the page and adds the roster guard** —
-   what is recorded here is the state as measured BEFORE that unit
-   landed, deliberately, so the reason the guard exists stays
-   legible.
+   doc comment still says eight (`lily.rs:1275`). **The same PR re-cuts the page and
+   adds the guards** (`the_north_star_audit_has_a_row_for_every_tour_stop`
+   and `the_north_star_audits_tallies_are_derived_from_its_rows`,
+   `crates/pncad/tests/all.rs`): the roster is 47, the thirteen rows
+   are added, `lily` reads fifteen, and every headline number and
+   per-gap stops column is re-derived off the rows rather than
+   carried forward — the tally guard caught G2's stale `6` on its
+   first run. What is recorded above is the state as measured BEFORE
+   that landed, deliberately, so the reason the guards exist stays
+   legible. Four gap ids were minted for the new NO rows: **G16**
+   (chamfer node), **G17** (shell node), **G18** (the Python assembly
+   series), **G19** (declared contact beyond the plane — whose
+   diagnosis was refuted then refined: `Declare` is carrier-agnostic
+   and `topo::carrier_pair_relation` exists, so the blocker is
+   narrower than "the detector is plane-only" — `FlushFinding` is the
+   declare arm's sole input and is unconstructible from Python).
 2. **The Python bindings have no coverage guard at all.**
    `crates/pncad-py/tests/test_stubs.py` checks `.pyi` <-> module
    drift at NAME level and nothing else; no test compares the Rust
@@ -1219,8 +1235,21 @@ test that would have made the drift loud.
    (`select.rs:84`), the expression read side
    `eval`/`eval_count`/`EvalError` (`document.rs:61`), and
    `ClassAdmission`/`class_admission`/`CLASS_DEFERRAL`
-   (`document.rs:163`). **A concurrent unit in this PR adds the
-   Python-side guard**; same reading as above.
+   (`document.rs:163`). **The same PR adds the Python-side
+   guard** (`crates/pncad-py/tests/test_binding_census.py`): every
+   name a `pub use` introduces in the façade's document/select/prelude
+   lists is bound top-level, mapped through `BOUND_AS` to a Python
+   spelling the stub is verified to declare, or listed in `NOT_BOUND`
+   with its family — 323 curated names, of which **112 are `gap:`
+   entries carrying the pointer that owns them**. Both rosters decay
+   in the other direction, as the Rust guard's stale check does. The
+   census reads source text only, so it runs with no compiled module.
+   Its own finding, which this register should carry: the audit's gap
+   list is SCENE-driven, so the debt no tour scene exercises had no
+   gap id anywhere — assembly, checks, picking, mates and class
+   admission, split/inline, product roots, name resolution, the
+   read-back doors and the expression read side reach the record for
+   the first time as census families.
 
 **The register fold (done in this entry's change).** Nineteen
 library-shaped issues filed by other programs were recorded NOWHERE

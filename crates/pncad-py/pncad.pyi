@@ -1230,10 +1230,15 @@ class PlaneRelation:
     Distinct: Final[PlaneRelation]
 
 class ContactClass:
-    """The contact class a declaration asserts. v1 carries `Rest`
-    (coincident planes) — the only demand-evidenced detector."""
+    """The contact class a declaration asserts. `Rest` (coincident
+    planes) is the only class the flush DETECTOR mints, so it is the
+    only one a `FlushFinding` from `find_flush_candidates` carries;
+    `Tangent` crossed the mirror with M9-1 and is nameable here
+    because a class the binding cannot name would refuse typed at the
+    crossing instead."""
 
     Rest: Final[ContactClass]
+    Tangent: Final[ContactClass]
 
 class FlushRung:
     """Which rung of the verify ladder decided a finding:
