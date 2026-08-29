@@ -1,0 +1,523 @@
+//! **The v1 measurement primitives** (ERROR-DESIGN E3, CONTACT-DESIGN
+//! C5): closed forms over the carriers the referenced entities sit on.
+//!
+//! # The scope, stated honestly
+//!
+//! Every arm below is a CLOSED FORM with its lever named. There is no
+//! general point-set distance here and no sampling: a carrier pair
+//! this table has no row for refuses typed
+//! ([`MeasureUnsupported`]) naming the pair class, and the general
+//! pair arrives with the clearance machinery, not by silently
+//! degrading to the nearest arm that compiles.
+//!
+//! | primitive | pair | closed form | lever |
+//! |-----------|------|-------------|-------|
+//! | `distance` | vertex x vertex | `‖p_b − p_a‖` | none — an exact norm |
+//! | `distance` | vertex x plane face | `\|(p − o)·n̂\|` | none — a metre projection on a unit normal |
+//! | `distance` | plane face x plane face | `\|(o_b − o_a)·n̂_a\|`, PARALLEL required | `bool_plane_parallel` at the centre separation |
+//! | `distance` | cylinder face x cylinder face | axis-line distance minus nothing: `‖Δo − (Δo·â)â‖`, PARALLEL required | `carrier_cyl_axis_parallel` at the axis separation |
+//! | `angle` | plane face x plane face | `atan2(‖n̂_a × n̂_b‖, n̂_a·n̂_b)` | none — a ratio of unit quantities |
+//! | `angle` | line edge x line edge | `atan2(‖d̂_a × d̂_b‖, d̂_a·d̂_b)` | none |
+//! | `gap` | plane face x plane face | `(o_i − o_o)·n̂_o` (SIGNED) | `bool_plane_parallel` |
+//! | `gap` | sphere face x sphere face | `R − r − ‖Δc‖` | none |
+//! | `gap` | cylinder face x cylinder face | `r_bore − r_pin − d` | `carrier_cyl_axis_parallel` |
+//!
+//! Everything else — a cone, a torus, a NURBS patch, a curved edge, a
+//! whole body, and every mixed pair not listed — refuses.
+//!
+//! # Which trileans this module consumes
+//!
+//! Two, and both are EXISTING funnel predicates called at their
+//! existing margin shapes: `bool_plane_parallel`
+//! (`Margin::levered(‖n̂_a × n̂_b‖, arm)`, the sine of the normals'
+//! disagreement priced at the arm over which the answer is consumed)
+//! and `carrier_cyl_axis_parallel` (the same shape on the axes). No
+//! third margined compare is minted here; a distance whose
+//! parallelism escalates refuses typed rather than reporting a number
+//! whose meaning depends on an undecided fact.
+//!
+//! The C5 sign convention is binding and lives in exactly one place:
+//! [`gap`]. `g > 0` is clearance, `g = 0` contact, `g < 0`
+//! interference, for all three carrier pairs.
+
+use geom::{Curve3, Surface};
+use geom_core::k_stats::decide;
+use geom_core::{Band, Decide, Margin, Point3, Sign, Vec3};
+use topo::Body;
+
+use crate::measure::{MeasureExpr, MeasureKind, MeasurePrimitive};
+use crate::names::{EntityKey, EntityRef};
+
+/// A carrier pair this unit has no closed form for, named by the pair
+/// it was asked about (E3's honest refusal, never a guess).
+///
+/// The pair CLASS is what the message carries — "a cone and a plane",
+/// not two arena keys — because that is the fact a reader can act on:
+/// the general pair is the clearance machinery's, and no rewording of
+/// the reference changes it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MeasureUnsupported {
+    /// Which primitive was asked.
+    pub verb: &'static str,
+    /// The first operand's carrier class.
+    pub a: &'static str,
+    /// The second operand's carrier class.
+    pub b: &'static str,
+}
+
+impl core::fmt::Display for MeasureUnsupported {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(
+            f,
+            "`{}` has no closed form for {} against {} — the v1 vocabulary is the pair table \
+             in `eval::measure`, and the general pair belongs to the clearance machinery, \
+             not to a degraded version of one of these arms",
+            self.verb, self.a, self.b
+        )
+    }
+}
+
+impl core::error::Error for MeasureUnsupported {}
+
+/// A referenced entity, resolved to the carrier the closed forms read.
+///
+/// This is a VALUE read of stored geometry — `topo::readback`'s rule 1
+/// verbatim: nothing here decides what kind of carrier something is,
+/// it reports what the body stores. The decisions happen in the arms
+/// below, at named funnel predicates.
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum Carrier<T: geom_core::Real> {
+    /// A vertex's stored position.
+    Point(Point3<T>),
+    /// A planar face's carrier: a point on it and its UNIT chart
+    /// normal (the chart's, uncorrected by the face's sense — the
+    /// sense is a separate fact, and folding it in would make two
+    /// questions share one answer).
+    Plane {
+        /// A point on the plane.
+        origin: Point3<T>,
+        /// The unit chart normal.
+        normal: Vec3<T>,
+    },
+    /// A cylindrical face's carrier: a point on the axis, the unit
+    /// axis direction, and the radius.
+    Cylinder {
+        /// A point on the axis.
+        origin: Point3<T>,
+        /// The unit axis direction.
+        axis: Vec3<T>,
+        /// The radius, positive by the surface's own convention.
+        radius: T,
+    },
+    /// A spherical face's carrier: centre and radius.
+    Sphere {
+        /// The centre.
+        center: Point3<T>,
+        /// The radius.
+        radius: T,
+    },
+    /// A straight edge's carrier: its unit direction.
+    ///
+    /// The line's own origin is deliberately absent. The v1 table's
+    /// only line consumer is `angle`, which reads directions; carrying
+    /// a point nothing reads would be a field a reader has to check
+    /// the uses of to know is inert.
+    Line {
+        /// The unit direction.
+        dir: Vec3<T>,
+    },
+    /// A carrier outside the v1 table, kept as its CLASS so a refusal
+    /// can name it.
+    Other(&'static str),
+}
+
+impl<T: geom_core::Real> Carrier<T> {
+    /// The carrier's class, for a refusal's prose.
+    pub(crate) fn class(&self) -> &'static str {
+        match self {
+            Self::Point(_) => "a vertex",
+            Self::Plane { .. } => "a plane face",
+            Self::Cylinder { .. } => "a cylinder face",
+            Self::Sphere { .. } => "a sphere face",
+            Self::Line { .. } => "a line edge",
+            Self::Other(what) => what,
+        }
+    }
+}
+
+/// Reads the carrier a resolved entity sits on, out of the body its
+/// reference lands in.
+///
+/// A dangling arena key is a KERNEL BUG, not a document fault: the
+/// entity came out of the very table this evaluation emitted for this
+/// body. It comes back as [`Carrier::Other`] naming the state rather
+/// than as a panic, so the refusal ladder above still gets to say
+/// which measurement could not be taken.
+pub(crate) fn carrier_of<T: Decide>(body: &Body<T>, ent: EntityRef) -> Carrier<T> {
+    match ent.key {
+        EntityKey::Body => Carrier::Other("a whole body"),
+        EntityKey::Vertex(v) => match topo::readback::vertex_point(body, v) {
+            Ok(p) => Carrier::Point(p),
+            Err(_) => Carrier::Other("an unreadable vertex"),
+        },
+        EntityKey::Face(k) => {
+            let Some(face) = body.get_face(k) else {
+                return Carrier::Other("an unreadable face");
+            };
+            match body.get_surface(face.surface) {
+                Some(Surface::Plane { origin, normal, .. }) => Carrier::Plane {
+                    origin: *origin,
+                    normal: *normal,
+                },
+                Some(Surface::Cylinder {
+                    origin,
+                    axis,
+                    radius,
+                    ..
+                }) => Carrier::Cylinder {
+                    origin: *origin,
+                    axis: *axis,
+                    radius: *radius,
+                },
+                Some(Surface::Sphere { center, radius, .. }) => Carrier::Sphere {
+                    center: *center,
+                    radius: *radius,
+                },
+                Some(Surface::Cone { .. }) => Carrier::Other("a cone face"),
+                Some(Surface::Torus { .. }) => Carrier::Other("a torus face"),
+                Some(_) => Carrier::Other("a free-form face"),
+                None => Carrier::Other("an unreadable face"),
+            }
+        }
+        EntityKey::Edge(k) => {
+            let Some(edge) = body.get_edge(k) else {
+                return Carrier::Other("an unreadable edge");
+            };
+            let carrier = body
+                .get_curve_geom(edge.curve)
+                .and_then(|g| g.certified())
+                .map(topo::EdgeCurve::carrier);
+            match carrier {
+                Some(Curve3::Line { dir, .. }) => Carrier::Line { dir: *dir },
+                Some(Curve3::Circle { .. }) => Carrier::Other("a circular edge"),
+                Some(_) => Carrier::Other("a curved edge"),
+                None => Carrier::Other("an unreadable edge"),
+            }
+        }
+    }
+}
+
+/// How a primitive could not be taken.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum PrimitiveRefusal {
+    /// No closed form for this carrier pair.
+    Unsupported(MeasureUnsupported),
+    /// A parallelism or coaxiality trilean landed in the band: the
+    /// measurement's MEANING depends on a fact the run cannot decide,
+    /// so no number is reported.
+    Escalated {
+        /// The existing funnel predicate that escalated.
+        predicate: &'static str,
+        /// The escalation, unaltered.
+        source: geom_core::Indeterminate,
+    },
+}
+
+/// **The v1 primitive evaluator.** One closed form per row of the
+/// module's table; every other pair refuses.
+pub(crate) fn primitive<T: Decide>(
+    prim: MeasurePrimitive,
+    a: &Carrier<T>,
+    b: &Carrier<T>,
+    band: Band,
+) -> Result<T, PrimitiveRefusal> {
+    match prim {
+        MeasurePrimitive::Distance { .. } => distance(a, b, band),
+        MeasurePrimitive::Angle { .. } => angle(a, b),
+        MeasurePrimitive::Gap { .. } => gap(a, b, band),
+    }
+}
+
+fn unsupported<T: geom_core::Real, X>(
+    verb: &'static str,
+    a: &Carrier<T>,
+    b: &Carrier<T>,
+) -> Result<X, PrimitiveRefusal> {
+    Err(PrimitiveRefusal::Unsupported(MeasureUnsupported {
+        verb,
+        a: a.class(),
+        b: b.class(),
+    }))
+}
+
+/// The parallelism trilean, at an EXISTING funnel predicate and its
+/// existing margin shape: the sine of two unit directions'
+/// disagreement, levered at the arm over which the verdict is
+/// consumed. The arm is the operands' own separation — the distance
+/// the misalignment is about to be quoted over — falling back to unit
+/// arm when the two carriers pass through one point, where there is
+/// no separation to price.
+fn parallel<T: Decide>(
+    predicate: &'static str,
+    u: Vec3<T>,
+    v: Vec3<T>,
+    arm: T,
+    band: Band,
+) -> Result<bool, PrimitiveRefusal> {
+    match decide(predicate, Margin::levered(u.cross(v).norm(), arm), band) {
+        Ok(Sign::Zero) => Ok(true),
+        Ok(Sign::Positive | Sign::Negative) => Ok(false),
+        Err(source) => Err(PrimitiveRefusal::Escalated { predicate, source }),
+    }
+}
+
+/// The lever arm a parallelism verdict is consumed over: how far apart
+/// the two carriers are. A zero separation gives unit arm — the
+/// misalignment is then quoted over no distance at all, and pricing it
+/// at zero would classify every tilt as parallel.
+fn arm<T: Decide>(from: Point3<T>, to: Point3<T>) -> T {
+    let separation = (to - from).norm();
+    separation.max(T::one())
+}
+
+/// `distance(a, b)` -> Length. Unsigned throughout: a distance is a
+/// magnitude, and the signed object is [`gap`].
+fn distance<T: Decide>(a: &Carrier<T>, b: &Carrier<T>, band: Band) -> Result<T, PrimitiveRefusal> {
+    match (a, b) {
+        // Vertex x vertex: an exact norm, no decision.
+        (Carrier::Point(p), Carrier::Point(q)) => Ok((*q - *p).norm()),
+        // Vertex x plane face: the point's coordinate along the unit
+        // normal, in metres by construction.
+        (Carrier::Point(p), Carrier::Plane { origin, normal })
+        | (Carrier::Plane { origin, normal }, Carrier::Point(p)) => {
+            let d = (*p - *origin).dot(*normal);
+            Ok(d.max(-d))
+        }
+        // Plane x plane: defined ONLY between parallel planes — the
+        // distance between non-parallel planes is zero along their
+        // line of intersection and unbounded away from it, so there is
+        // no number to report rather than a number to approximate.
+        (
+            Carrier::Plane {
+                origin: oa,
+                normal: na,
+            },
+            Carrier::Plane {
+                origin: ob,
+                normal: nb,
+            },
+        ) => {
+            if !parallel("bool_plane_parallel", *na, *nb, arm(*oa, *ob), band)? {
+                return unsupported("distance", a, b);
+            }
+            let d = (*ob - *oa).dot(*na);
+            Ok(d.max(-d))
+        }
+        // Cylinder x cylinder: the distance between the two AXIS LINES
+        // — the worked example's web is this minus the two radii, and
+        // the subtraction is the author's arithmetic, not a hidden
+        // convention. Parallel axes only: skew axes have a distance
+        // this formula computes but a common perpendicular no wall
+        // pair shares, which is `gap`'s refusal for the same reason.
+        (
+            Carrier::Cylinder {
+                origin: oa,
+                axis: aa,
+                ..
+            },
+            Carrier::Cylinder {
+                origin: ob,
+                axis: ab,
+                ..
+            },
+        ) => {
+            if !parallel("carrier_cyl_axis_parallel", *aa, *ab, arm(*oa, *ob), band)? {
+                return unsupported("distance", a, b);
+            }
+            Ok(axis_offset(*oa, *aa, *ob))
+        }
+        _ => unsupported("distance", a, b),
+    }
+}
+
+/// The perpendicular distance from a point to a line — the component
+/// of the separation orthogonal to a UNIT direction. A metre quantity
+/// throughout.
+fn axis_offset<T: Decide>(origin: Point3<T>, axis: Vec3<T>, point: Point3<T>) -> T {
+    let rel = point - origin;
+    (rel - axis * rel.dot(axis)).norm()
+}
+
+/// `angle(a, b)` -> Angle: the unsigned angle in `[0, pi]` between two
+/// plane normals or two line directions.
+///
+/// `atan2(‖u x v‖, u·v)` rather than `acos(u·v)`: the four-quadrant
+/// form is accurate at both ends of the range, where the cosine form
+/// loses every digit. No decision is taken — an angle is defined for
+/// every pair of unit directions, including parallel ones.
+fn angle<T: Decide>(a: &Carrier<T>, b: &Carrier<T>) -> Result<T, PrimitiveRefusal> {
+    let pair = match (a, b) {
+        (Carrier::Plane { normal: u, .. }, Carrier::Plane { normal: v, .. })
+        | (Carrier::Line { dir: u, .. }, Carrier::Line { dir: v, .. }) => (*u, *v),
+        _ => return unsupported("angle", a, b),
+    };
+    let (u, v) = pair;
+    Ok(u.cross(v).norm().atan2(u.dot(v)))
+}
+
+/// **C5's signed gap.** `g > 0` clearance, `g = 0` contact, `g < 0`
+/// interference — the ONE sign convention, defined here and nowhere
+/// else.
+///
+/// Argument order is the mating ROLE: `outer` contains, `inner` is
+/// contained. That is why the sphere arm is `R − r − ‖Δc‖` and not its
+/// negation, and it is authored rather than inferred from which radius
+/// is larger — inferring it would be a decided comparison dressed as a
+/// definition, and it would silently flip the sign of an interference
+/// fit, which is exactly the case C6 exists for.
+fn gap<T: Decide>(
+    outer: &Carrier<T>,
+    inner: &Carrier<T>,
+    band: Band,
+) -> Result<T, PrimitiveRefusal> {
+    match (outer, inner) {
+        // Parallel planes: the signed inter-plane offset along the
+        // OUTER plane's normal — linear in the authored offsets, so
+        // smooth everywhere (C5's ideal M10 citizen).
+        (
+            Carrier::Plane {
+                origin: oo,
+                normal: no,
+            },
+            Carrier::Plane {
+                origin: oi,
+                normal: ni,
+            },
+        ) => {
+            if !parallel("bool_plane_parallel", *no, *ni, arm(*oo, *oi), band)? {
+                return unsupported("gap", outer, inner);
+            }
+            Ok((*oi - *oo).dot(*no))
+        }
+        // Concentric spheres, ball r in socket R: g = R − r − ‖Δc‖.
+        // The norm kink at Δc = 0 is C5's stated semismooth point, and
+        // it is the nominal operating point of every real fit — the
+        // ratified `Dual<Interval>` straddle-hull treatment applies
+        // there with no new machinery.
+        (
+            Carrier::Sphere {
+                center: co,
+                radius: r_out,
+            },
+            Carrier::Sphere {
+                center: ci,
+                radius: r_in,
+            },
+        ) => Ok(*r_out - *r_in - (*ci - *co).norm()),
+        // Coaxial cylinders, pin r_p in bore r_b: g = r_b − r_p − d.
+        // Parallel axes only — a skewed "fit" is not a fit, and it
+        // refuses typed rather than reporting the closest approach of
+        // two lines as though it were a clearance.
+        (
+            Carrier::Cylinder {
+                origin: oo,
+                axis: ao,
+                radius: r_bore,
+            },
+            Carrier::Cylinder {
+                origin: oi,
+                axis: ai,
+                radius: r_pin,
+            },
+        ) => {
+            if !parallel("carrier_cyl_axis_parallel", *ao, *ai, arm(*oo, *oi), band)? {
+                return unsupported("gap", outer, inner);
+            }
+            Ok(*r_bore - *r_pin - axis_offset(*oo, *ao, *oi))
+        }
+        _ => unsupported("gap", outer, inner),
+    }
+}
+
+/// Evaluates a whole measured expression: the primitives against the
+/// resolved carriers, the arithmetic in between, and the value leaves
+/// read off the vector the node's leaf stage already evaluated.
+///
+/// Both vectors arrive INDEX-ALIGNED with this walk — the carriers
+/// with the node's references, the leaves with
+/// [`MeasureExpr::value_leaves`]'s pre-order — so nothing here
+/// resolves a name or re-evaluates an expression: resolution ran once,
+/// leaf evaluation ran once, and the content key saw exactly the
+/// values this arithmetic sees.
+pub(crate) fn eval_measure<T: Decide>(
+    expr: &MeasureExpr,
+    carriers: &[Carrier<T>],
+    leaves: &[T],
+    cursor: &mut usize,
+    band: Band,
+) -> Result<T, PrimitiveRefusal> {
+    let binary = |a: &MeasureExpr, b: &MeasureExpr, cursor: &mut usize| {
+        let x = eval_measure(a, carriers, leaves, cursor, band)?;
+        let y = eval_measure(b, carriers, leaves, cursor, band)?;
+        Ok::<(T, T), PrimitiveRefusal>((x, y))
+    };
+    match expr.kind() {
+        MeasureKind::Primitive(p) => {
+            let [ia, ib] = p.refs();
+            // Both indices were bounds-checked at the node door and
+            // re-checked at load, so a miss is a kernel bug: it is
+            // announced as one rather than carried as a refusal a
+            // caller could believe in.
+            let (Some(a), Some(b)) = (carriers.get(ia as usize), carriers.get(ib as usize)) else {
+                unreachable!(
+                    "`{}` reads references {ia} and {ib} of {} resolved carriers, yet \
+                     `Node::measure_fault` bounds every index against the node's reference \
+                     list at both the construction and the load door",
+                    p.verb(),
+                    carriers.len()
+                )
+            };
+            primitive(*p, a, b, band)
+        }
+        MeasureKind::Value(_) => {
+            let i = *cursor;
+            *cursor += 1;
+            // Same reasoning: the leaf vector IS this expression's own
+            // `value_leaves` walked in this very order, so a short
+            // vector is a kernel bug, not a document fault.
+            match leaves.get(i) {
+                Some(v) => Ok(*v),
+                None => unreachable!(
+                    "measure value leaf {i} of {} evaluated leaves is missing, yet the leaf \
+                     vector is this expression's own `value_leaves` in this very order",
+                    leaves.len()
+                ),
+            }
+        }
+        MeasureKind::Neg(a) => Ok(-eval_measure(a, carriers, leaves, cursor, band)?),
+        MeasureKind::Add(a, b) => {
+            let (x, y) = binary(a, b, cursor)?;
+            Ok(x + y)
+        }
+        MeasureKind::Sub(a, b) => {
+            let (x, y) = binary(a, b, cursor)?;
+            Ok(x - y)
+        }
+        MeasureKind::Mul(a, b) => {
+            let (x, y) = binary(a, b, cursor)?;
+            Ok(x * y)
+        }
+        MeasureKind::Div(a, b) => {
+            let (x, y) = binary(a, b, cursor)?;
+            Ok(x / y)
+        }
+        MeasureKind::Min(a, b) => {
+            let (x, y) = binary(a, b, cursor)?;
+            Ok(x.min(y))
+        }
+        MeasureKind::Max(a, b) => {
+            let (x, y) = binary(a, b, cursor)?;
+            Ok(x.max(y))
+        }
+    }
+}

@@ -33,6 +33,7 @@ macro_rules! name_free_node {
             | $crate::node::Node::Pattern { .. }
             | $crate::node::Node::PlacedUnion { .. }
             | $crate::node::Node::InstantiatePart { .. }
+            | $crate::node::Node::Assertion { .. }
     };
 }
 
@@ -578,6 +579,81 @@ pub enum PatternKind {
     Explicit(Vec<crate::placement::Frame>),
 }
 
+/// **The `Expr`s a node carries OUTSIDE its slots**, in deterministic
+/// order — `None` for the nodes that carry none, which is every node
+/// but the two the measurement vocabulary adds.
+///
+/// The slot vocabulary is the ordinary home for a node's expressions,
+/// and it stays so: this is the escape hatch for the two expressions
+/// whose dimension a slot ADDRESS cannot fix — a measured
+/// expression's value leaves (they live inside a `MeasureExpr`, not
+/// beside it) and an assertion's bound (its dimension is the measure's).
+///
+/// One order, three consumers: the evaluator resolves these once, the
+/// content key hashes the resolved values, and the op reads the same
+/// vector. `None` rather than an empty vector for a slot-only node —
+/// the key writes nothing at all for those, so no existing document's
+/// content key moves.
+pub fn payload_exprs<P>(node: &Node<P>) -> Option<Vec<&Expr>> {
+    match node {
+        Node::Measure { expr, .. } => {
+            let mut leaves = Vec::new();
+            expr.value_leaves(&mut leaves);
+            Some(leaves)
+        }
+        Node::Assertion { bound, .. } => Some(vec![bound]),
+        Node::Datum(_)
+        | Node::Profile(_)
+        | Node::Extrude { .. }
+        | Node::Revolve { .. }
+        | Node::Loft { .. }
+        | Node::Sweep { .. }
+        | Node::Fillet { .. }
+        | Node::Split { .. }
+        | Node::Boolean { .. }
+        | Node::Transform { .. }
+        | Node::Pattern { .. }
+        | Node::PlacedUnion { .. }
+        | Node::Declare { .. }
+        | Node::InstantiatePart { .. }
+        | Node::Mate { .. } => None,
+    }
+}
+
+/// What makes a [`Node::Measure`]'s expression unusable
+/// ([`Node::measure_fault`]) — one vocabulary for the construction
+/// door and the load door's re-check.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MeasureNodeFault {
+    /// A primitive addresses a reference the node does not carry. The
+    /// expression indexes `refs` positionally, so an index past its
+    /// end names nothing at all — a corrupt recipe, refused rather
+    /// than resolved to whatever happens to sit at the last position.
+    RefIndexOutOfRange {
+        /// The primitive that reads it.
+        verb: &'static str,
+        /// The out-of-range index.
+        index: u32,
+        /// How many references the node carries.
+        refs: usize,
+    },
+}
+
+// The ONE prose vocabulary for this fault, forwarded by every door
+// that renders it rather than restated.
+impl core::fmt::Display for MeasureNodeFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::RefIndexOutOfRange { verb, index, refs } => write!(
+                f,
+                "`{verb}` reads reference {index}, and the measure carries {refs} — the                  expression indexes the node's reference list, so this names nothing"
+            ),
+        }
+    }
+}
+
+impl core::error::Error for MeasureNodeFault {}
+
 /// What makes a placement-rule node's rule unusable
 /// ([`Node::placement_rule_fault`]) — one vocabulary for the edit
 /// door, the persist re-check and the evaluation backstop.
@@ -946,6 +1022,84 @@ pub enum Node<P> {
         /// clocking (A3's alignment datum).
         alignment: crate::mate::Alignment,
     },
+    /// **A measurement sink** (ERROR-DESIGN E3): one dimension-generic
+    /// node that denotes NO body and evaluates to a typed F1 quantity.
+    ///
+    /// There is one `Measure` variant, not one per measured kind: the
+    /// quantity's dimension rides the EXPRESSION through the existing
+    /// lattice, so `distance` and `angle` are values of one node kind
+    /// rather than a parallel type vocabulary beside F1.
+    ///
+    /// # References
+    ///
+    /// `refs` is the frozen, canonical entity selection — the
+    /// [`Node::Fillet`] `selection` precedent — and the expression
+    /// addresses it by INDEX. Unlike a fillet's selection the order is
+    /// MEANINGFUL (it is argument order: `gap`'s first reference is the
+    /// containing carrier), so the vector is neither sorted nor
+    /// deduplicated; what canonicalization buys elsewhere — bit-equal
+    /// recipes for equal selections — is bought here by the indices
+    /// being part of the expression.
+    ///
+    /// # These name references ARE edges
+    ///
+    /// `Declare` and `Mate` carry names that are not DAG edges (the
+    /// spec D3 carve-out): they pass their names through as data and
+    /// something downstream resolves them. A measure resolves its own,
+    /// against values it needs to already exist — so the referenced
+    /// nodes are exactly its data dependencies, and
+    /// [`Node::inputs`] reports them. A deleted reference contributes
+    /// no edge (the schedule filters dangling inputs) and the
+    /// resolution then refuses with NAMING-DESIGN N5's typed
+    /// vocabulary, which is the same dangling-reference semantics
+    /// `Rebind` repairs; blocking the delete is not the trade this
+    /// project makes.
+    ///
+    /// # What a reference denotes
+    ///
+    /// The entity in the value of the node that MINTED it — its
+    /// carrier as authored. A downstream rigid transform re-emits the
+    /// same name for a moved entity, and a measure over the minted
+    /// name reports the unmoved carrier; measuring the moved one means
+    /// referencing the moving node's own emission. That is a stated
+    /// scope, not an accident: the alternative — scanning the whole
+    /// evaluation for a carrying table — makes what a measure means
+    /// depend on which other nodes happen to exist.
+    Measure {
+        /// The measured expression: `Expr` arithmetic over
+        /// [`crate::MeasurePrimitive`] leaves that index `refs`.
+        expr: crate::measure::MeasureExpr,
+        /// The referenced entities, in argument order, frozen at
+        /// authoring time.
+        refs: Vec<StableName>,
+    },
+    /// **A recorded tolerance requirement** (ERROR-DESIGN E10): design
+    /// intent as document data — "this web is at least 0.5 mm" lives
+    /// in the versioned, diffable recipe, not in a script beside it.
+    ///
+    /// **Report-only, structurally.** The node's value is a verdict
+    /// ([`crate::AssertionVerdict`]) and no op in the vocabulary
+    /// accepts a verdict as an operand, so a `Violated` assertion
+    /// cannot reach any downstream outcome even by mistake: it denotes
+    /// no body, the product gather skips it as it skips a
+    /// declaration, and `build()` never consults it. E10 v1 rules that
+    /// assertions report; a gating mode is additive policy, not a
+    /// default this node quietly implements.
+    Assertion {
+        /// The measure node this constrains — an ordinary DAG edge, so
+        /// a failed or poisoned measure poisons its assertions (F2)
+        /// rather than producing a verdict about nothing.
+        measure: RecipeNodeId,
+        /// The bound. Recipe payload rather than a slot: a slot's
+        /// address fixes its dimension, and this one's is fixed by the
+        /// MEASURE it constrains. It must type-check against that
+        /// measure's dimension; a mismatch is a typed document error at
+        /// every door, never a silent comparison of radians with
+        /// metres.
+        bound: Expr,
+        /// Which side of the bound the measure must fall on.
+        dir: crate::measure::AssertionDir,
+    },
 }
 
 impl Axis3 {
@@ -1038,6 +1192,18 @@ impl<P> Node<P> {
             // (A12's reading edges are recomputed, never stored here).
             | Node::Mate { .. }
             | Node::InstantiatePart { .. } => Vec::new(),
+            // A measure's references ARE its data dependencies (the
+            // variant's docs state why this kind departs from the D3
+            // carve-out). Distinct minting nodes, ascending, so the
+            // edge list is a function of the reference SET and a
+            // repeated reference does not repeat an edge.
+            Node::Measure { refs, .. } => {
+                let mut v: Vec<RecipeNodeId> = refs.iter().map(|n| n.node).collect();
+                v.sort_unstable();
+                v.dedup();
+                v
+            }
+            Node::Assertion { measure, .. } => vec![*measure],
             Node::Extrude { profile, .. } => vec![*profile],
             Node::Revolve { profile, axis, .. } => vec![*profile, *axis],
             Node::Loft { profiles, .. } => profiles.clone(),
@@ -1095,6 +1261,21 @@ impl<P> Node<P> {
             // continuous slot — a mate has no expression to drive.
             | Node::Mate { .. }
             | Node::InstantiatePart { .. } => Vec::new(),
+            // The measured expression is NOT a slot: it is a
+            // `MeasureExpr`, not an `Expr`, and the slot vocabulary is
+            // the domain of `expr()`. It feeds the content key as
+            // recipe payload instead, where the fillet's selection
+            // feeds.
+            // Neither carries a SLOT. A slot's address fixes its
+            // dimension ([`SlotId::dimension`]) — that is the
+            // vocabulary's contract, read by the edit door, the load
+            // re-check and the GUI alike. A measured expression is not
+            // an `Expr` at all, and an assertion's bound takes its
+            // dimension from the MEASURE it constrains, which no slot
+            // address can state. Both are recipe payload instead, fed
+            // to the content key where a fillet's selection is fed and
+            // evaluated in their own stage.
+            Node::Measure { .. } | Node::Assertion { .. } => Vec::new(),
             Node::Extrude { .. } => vec![SlotId::Distance],
             Node::Fillet { .. } => vec![SlotId::Radius],
             Node::Revolve { .. } => vec![SlotId::RevolveAngle],
@@ -1174,7 +1355,9 @@ impl<P> Node<P> {
                 | Node::Transform { .. }
                 | Node::Declare { .. }
                 | Node::InstantiatePart { .. }
-                | Node::Mate { .. },
+                | Node::Mate { .. }
+                | Node::Measure { .. }
+                | Node::Assertion { .. },
                 _,
             ) => None,
         }
@@ -1228,7 +1411,9 @@ impl<P> Node<P> {
                 | Node::Transform { .. }
                 | Node::Declare { .. }
                 | Node::InstantiatePart { .. }
-                | Node::Mate { .. },
+                | Node::Mate { .. }
+                | Node::Measure { .. }
+                | Node::Assertion { .. },
                 _,
             ) => None,
         }
@@ -1251,6 +1436,9 @@ impl<P> Node<P> {
             // A12: a mate's two heads are the instance-qualified
             // references its reading edges are recomputed from.
             Node::Mate { a, b, .. } => vec![a, b],
+            // A measure's references are argument-ORDERED, so they are
+            // listed in that order rather than a canonical one.
+            Node::Measure { refs, .. } => refs.iter().collect(),
             name_free_node!() => Vec::new(),
         }
     }
@@ -1292,6 +1480,15 @@ impl<P> Node<P> {
             Node::Mate { a, b, .. } => {
                 hits += rewrite(a, from, to);
                 hits += rewrite(b, from, to);
+            }
+            // No re-canonicalization: the order IS argument order, and
+            // a rebind onto an already-referenced entity must leave two
+            // arguments naming one entity rather than shrink the list
+            // and renumber every index the expression holds.
+            Node::Measure { refs, .. } => {
+                for name in refs.iter_mut() {
+                    hits += rewrite(name, from, to);
+                }
             }
             name_free_node!() => {}
         }
@@ -1381,7 +1578,9 @@ impl<P> Node<P> {
             | Node::Transform { .. }
             | Node::Declare { .. }
             | Node::InstantiatePart { .. }
-            | Node::Mate { .. } => return None,
+            | Node::Mate { .. }
+            | Node::Measure { .. }
+            | Node::Assertion { .. } => return None,
         };
         let Some(frames) = kind.placements() else {
             // A stepped rule needs its count slot and nothing else.
@@ -1430,6 +1629,48 @@ impl<P> Node<P> {
         }
     }
 
+    /// Builds a [`Node::Measure`], checking that every primitive's
+    /// reference index addresses a reference the node actually carries
+    /// — the ONE door, so an expression whose leaf points past the end
+    /// of `refs` is unconstructable rather than an evaluation-time
+    /// surprise. The load door re-runs the same check on file data
+    /// ([`Node::measure_fault`]).
+    pub fn measure(
+        expr: crate::measure::MeasureExpr,
+        refs: Vec<StableName>,
+    ) -> Result<Self, MeasureNodeFault> {
+        let node = Node::Measure { expr, refs };
+        match node.measure_fault() {
+            Some(fault) => Err(fault),
+            None => Ok(node),
+        }
+    }
+
+    /// What is wrong with this node's measured expression, if anything
+    /// — the one answer the construction door and the persistence
+    /// re-check both read, so the two can never disagree about which
+    /// trees are well-formed. `None` for every non-measure node.
+    pub fn measure_fault(&self) -> Option<MeasureNodeFault> {
+        let Node::Measure { expr, refs } = self else {
+            return None;
+        };
+        let mut prims = Vec::new();
+        expr.primitives(&mut prims);
+        let arity = u32::try_from(refs.len()).unwrap_or(u32::MAX);
+        for prim in prims {
+            for index in prim.refs() {
+                if index >= arity {
+                    return Some(MeasureNodeFault::RefIndexOutOfRange {
+                        verb: prim.verb(),
+                        index,
+                        refs: refs.len(),
+                    });
+                }
+            }
+        }
+        None
+    }
+
     /// Builds a [`Node::Fillet`] with a CANONICAL selection (sorted,
     /// deduplicated) — the one construction door, so a recipe's bits
     /// do not depend on the order a user clicked in.
@@ -1458,6 +1699,15 @@ impl<P: PartialEq> Node<P> {
     {
         if self != other {
             return false;
+        }
+        // A measure's expression is recipe payload rather than a slot,
+        // so the slot walk below cannot see its literals: compare them
+        // here or `0.0` and `-0.0` bounds inside a measured expression
+        // would be one node to every D7 comparator.
+        if let (Node::Measure { expr: a, .. }, Node::Measure { expr: b, .. }) = (self, other) {
+            if !a.bit_eq(b) {
+                return false;
+            }
         }
         // Equal payloads have identical slot sets; compare each
         // slot's literal bits (slots() order is deterministic).

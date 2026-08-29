@@ -93,6 +93,7 @@ pub(crate) fn run_op<T>(
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
     vals: &SlotValues<T>,
+    payload_values: Option<&[T]>,
     profile_pre: Option<&ProfilePre>,
     env: &OpEnv<'_, T>,
     tol: Tol,
@@ -142,6 +143,14 @@ where
             ValuePayload::Declarations(pairs.clone()),
             names::empty(),
         )),
+        Node::Measure { expr, refs } => {
+            wire_measure(node, expr, refs, payload_values, doc, results, tol)
+        }
+        Node::Assertion {
+            measure,
+            bound,
+            dir,
+        } => wire_assertion(*measure, bound, *dir, payload_values, results, tol),
         Node::InstantiatePart {
             doc_ref, interface, ..
         } => {
@@ -871,6 +880,127 @@ fn resolve_selection(
     // duplicate that survived canonicalization still fails loudly.
     keys.sort_unstable();
     Ok(keys)
+}
+
+/// **A measurement sink** (E3): resolve the node's references, read
+/// the carriers they sit on, run the closed form, hand back a typed F1
+/// quantity. No body in, no body out.
+///
+/// # Where a reference resolves
+///
+/// Against the value of the node that MINTED it — the node the name
+/// itself names (N1: names embed their minting node), which
+/// [`Node::inputs`] therefore reports as an edge, so it has evaluated
+/// by the time this runs. Resolution takes the SAME mid-evaluation
+/// [`ladder`] the fillet selection and the declare door take: rung 1
+/// is the live-node check, then the tie, then the vanished row, with
+/// N5's typed trio coming out of all three.
+fn wire_measure<T: Decide>(
+    node: &Node<ProfileProgram>,
+    expr: &crate::measure::MeasureExpr,
+    refs: &[names::StableName],
+    leaves: Option<&[T]>,
+    doc: &crate::doc::Doc<ProfileProgram>,
+    results: &Results<T>,
+    tol: Tol,
+) -> OpResult<T> {
+    // The backstop for a node that reached evaluation malformed: the
+    // construction and load doors both refuse this, so reaching it
+    // means a hand-built value bypassed them — refused typed rather
+    // than indexed past the end of the reference list.
+    if let Some(fault) = node.measure_fault() {
+        return Err(NodeErrorKind::MeasureMalformed(fault));
+    }
+    let mut carriers = Vec::with_capacity(refs.len());
+    for name in refs {
+        let refused = |error| NodeErrorKind::MeasureRefResolve { error };
+        let live = ladder::live(name, doc).map_err(refused)?;
+        let value = value_of(results, name.node)?;
+        let landing = ladder::landing(&live, &value.name_table);
+        let ent = ladder::resolve(live, landing).map_err(refused)?;
+        let body =
+            crate::names::interrogate::output_body(&value.payload, ent.body).map_err(|error| {
+                NodeErrorKind::MeasureRefUnreadable {
+                    name: Box::new(name.clone()),
+                    error,
+                }
+            })?;
+        carriers.push(super::measure::carrier_of(body, ent));
+    }
+    let mut cursor = 0usize;
+    let value = super::measure::eval_measure(
+        expr,
+        &carriers,
+        leaves.unwrap_or(&[]),
+        &mut cursor,
+        band(tol)?,
+    )
+    .map_err(|refusal| match refusal {
+        super::measure::PrimitiveRefusal::Unsupported(u) => NodeErrorKind::MeasureUnsupported(u),
+        super::measure::PrimitiveRefusal::Escalated { predicate, source } => {
+            NodeErrorKind::Escalated { predicate, source }
+        }
+    })?;
+    Ok(OpOut::plain(
+        ValuePayload::Measure {
+            value,
+            dim: expr.dim(),
+        },
+        names::empty(),
+    ))
+}
+
+/// **An assertion's verdict** (E10): compare the measure this node
+/// references against its bound, and report.
+///
+/// Report-ONLY, and the shape says so: the value that comes out is a
+/// verdict, no op in the vocabulary accepts a verdict as an operand,
+/// and nothing here touches the measure's own value or the document.
+/// A `Violated` verdict costs the run exactly one payload.
+fn wire_assertion<T: Decide>(
+    measure: RecipeNodeId,
+    bound_expr: &crate::expr::Expr,
+    dir: crate::measure::AssertionDir,
+    payload_values: Option<&[T]>,
+    results: &Results<T>,
+    tol: Tol,
+) -> OpResult<T> {
+    let mv = value_of(results, measure)?;
+    let ValuePayload::Measure { value, dim } = &mv.payload else {
+        return Err(NodeErrorKind::WrongOperand {
+            input: measure,
+            expected: "measure",
+            found: mv.payload.kind_name(),
+        });
+    };
+    // The bound's DECLARED dimension is what must agree — read off the
+    // expression, never inferred from the evaluated number, which has
+    // no dimension left (units erase at the evaluation boundary).
+    if bound_expr.dim() != *dim {
+        return Err(NodeErrorKind::AssertionDimension {
+            measured: *dim,
+            bound: bound_expr.dim(),
+        });
+    }
+    // The bound is this node's ONE payload expression, evaluated in
+    // the same stage every other payload expression is: a miss means
+    // `payload_exprs` and this arm disagree about what the node
+    // carries, which is a kernel bug, not a document fault.
+    let Some(bound) = payload_values.and_then(|v| v.first().copied()) else {
+        unreachable!(
+            "an assertion's bound is its only payload expression, yet the evaluated payload \
+             vector has none"
+        )
+    };
+    Ok(OpOut::plain(
+        ValuePayload::Assertion(crate::measure::decide_assertion(
+            *value,
+            bound,
+            dir,
+            band(tol)?,
+        )),
+        names::empty(),
+    ))
 }
 
 fn wire_split<T: Decide>(

@@ -343,6 +343,8 @@ pub fn sub_kinds(node: &Node<ProfileProgram>) -> Vec<&'static str> {
         | Node::Sweep { .. }
         | Node::Declare { .. }
         | Node::Mate { .. }
+        | Node::Measure { .. }
+        | Node::Assertion { .. }
         | Node::InstantiatePart { .. } => Vec::new(),
     }
 }
@@ -364,6 +366,12 @@ pub fn node_kind(node: &Node<ProfileProgram>) -> &'static str {
         Node::Sweep { .. } => "Sweep",
         Node::Declare { .. } => "Declare",
         Node::Mate { .. } => "Mate",
+        // Not in NODE_KINDS, for the reason Mate and InstantiatePart
+        // are not: the measurement sinks have no registered corpus
+        // document yet, and a listed-but-uncovered kind fails the
+        // tally. Their coverage lives in `m10_2_measure.rs`.
+        Node::Measure { .. } => "Measure",
+        Node::Assertion { .. } => "Assertion",
         Node::InstantiatePart { .. } => "InstantiatePart",
     }
 }

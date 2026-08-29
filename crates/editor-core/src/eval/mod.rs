@@ -16,6 +16,7 @@
 //! and slot it came from.
 
 mod anchor;
+pub mod measure;
 mod memo;
 pub(crate) mod parts;
 
@@ -269,6 +270,22 @@ pub enum ValuePayload<T: Decide> {
     /// it exactly as it skips a `Declare` — which is what "an ordinary
     /// non-body root" means in code.
     Mate(crate::mate::MateRole),
+    /// A `Measure` node's typed F1 quantity (E3): the measured value
+    /// in kernel units with the dimension it was measured in. Not
+    /// body-denoting — the product gather skips it exactly as it skips
+    /// a declaration.
+    Measure {
+        /// The measured value, in canonical kernel units.
+        value: T,
+        /// Its F1 dimension, carried FROM the expression rather than
+        /// re-derived: the quantity kind rides the expression (E3), so
+        /// a reader never has to reconstruct it from the number.
+        dim: crate::expr::Dimension,
+    },
+    /// An `Assertion` node's verdict (E10). REPORT-ONLY: no op in the
+    /// vocabulary takes a verdict as an operand, so this payload is
+    /// consumed by reports and by nothing else.
+    Assertion(crate::measure::AssertionVerdict<T>),
 }
 
 impl<T: Decide> ValuePayload<T> {
@@ -283,6 +300,8 @@ impl<T: Decide> ValuePayload<T> {
             Self::Instances(_) => "instances",
             Self::Declarations(_) => "declarations",
             Self::Mate(_) => "mate",
+            Self::Measure { .. } => "measure",
+            Self::Assertion(_) => "assertion",
         }
     }
 }
@@ -645,6 +664,54 @@ pub enum NodeErrorKind {
         /// The part-side reference that did not resolve.
         name: Box<crate::names::StableName>,
     },
+    /// A `Node::Measure` reference failed to resolve against the value
+    /// of the node that minted it (E3) — the same N5 typed trio as
+    /// [`NodeErrorKind::FilletSelectionResolve`], and for the same
+    /// reason: a measurement's references are a commitment, so a name
+    /// that stopped resolving refuses loudly rather than measuring
+    /// whatever is left.
+    MeasureRefResolve {
+        /// The resolution failure (N5's closed trio).
+        error: Box<crate::resolve::ResolveError>,
+    },
+    /// A `Node::Measure` reference resolved into a value that carries
+    /// no bodies, or into an output body its value does not have — the
+    /// naming emission and the value disagree, or the reference names
+    /// a datum. Carries the interrogation layer's own words.
+    MeasureRefUnreadable {
+        /// The reference.
+        name: Box<crate::names::StableName>,
+        /// Why it could not be read back.
+        error: crate::names::InterrogateError,
+    },
+    /// The measured expression has no closed form for the carrier pair
+    /// it was asked about (E3's honest v1 scope).
+    MeasureUnsupported(measure::MeasureUnsupported),
+    /// A `Node::Measure` carries an expression whose primitive reads a
+    /// reference the node does not have. Refused at the construction
+    /// and load doors; this is the evaluation backstop, so a corrupt
+    /// node reaches a typed refusal rather than a panic.
+    MeasureMalformed(crate::node::MeasureNodeFault),
+    /// A VALUE leaf of a measured expression failed to evaluate. The
+    /// leaf's position in the expression's `value_leaves` pre-order is
+    /// the address — a measured expression has no slot vocabulary, so
+    /// this is the honest one rather than a slot name borrowed from a
+    /// node that does.
+    MeasureLeafExpr {
+        /// The leaf's index in `value_leaves` order.
+        leaf: usize,
+        /// The expression evaluator's refusal, unaltered.
+        source: EvalError,
+    },
+    /// An `Assertion`'s bound is dimensioned differently from the
+    /// measure it constrains — comparing metres with radians is a
+    /// document fault, refused rather than compared.
+    AssertionDimension {
+        /// The measure's dimension.
+        measured: crate::expr::Dimension,
+        /// The bound's.
+        bound: crate::expr::Dimension,
+    },
 }
 
 /// The undeclared-contact refusal as a document-layer finding
@@ -871,6 +938,24 @@ impl core::fmt::Display for NodeErrorKind {
             ),
             Self::FilletSelectionEmpty => f.write_str(
                 "the fillet selection is empty — an unfinished recipe, not the identity",
+            ),
+            Self::MeasureRefResolve { error } => {
+                write!(f, "a measure reference failed to resolve: {error}")
+            }
+            Self::MeasureRefUnreadable { name, error } => write!(
+                f,
+                "the measure reference minted by node {} could not be read back: {error}",
+                name.node.0
+            ),
+            Self::MeasureUnsupported(refusal) => write!(f, "{refusal}"),
+            Self::MeasureLeafExpr { leaf, source } => write!(
+                f,
+                "value leaf {leaf} of the measured expression failed to evaluate: {source}"
+            ),
+            Self::MeasureMalformed(fault) => write!(f, "{fault}"),
+            Self::AssertionDimension { measured, bound } => write!(
+                f,
+                "the assertion's bound is {bound:?} and the measure it constrains is                  {measured:?} — an assertion compares like with like or not at all"
             ),
             Self::WitnessBifurcation(refusal) => {
                 write!(f, "{}", crate::witness::BranchSelectionRefused(refusal))
@@ -1308,9 +1393,36 @@ where
         _ => None,
     };
 
+    // PAYLOAD EXPRESSIONS (E3/E10): the measurement vocabulary carries
+    // `Expr`s that are not slots — a measured expression's value
+    // leaves, and an assertion's bound. They are still ordinary
+    // document expressions and are evaluated exactly once here, under
+    // the discipline `slots` states and for the same reason: these
+    // values feed BOTH the content key and the op, so a parameter edit
+    // under a bound moves the key rather than serving a stale memo.
+    let payload_values = match crate::node::payload_exprs(node) {
+        None => None,
+        Some(exprs) => {
+            let mut values = Vec::with_capacity(exprs.len());
+            for leaf in exprs {
+                match crate::expr::eval(leaf, env) {
+                    Ok(v) => values.push(v),
+                    Err(source) => {
+                        return fail(NodeErrorKind::MeasureLeafExpr {
+                            leaf: values.len(),
+                            source,
+                        });
+                    }
+                }
+            }
+            Some(values)
+        }
+    };
+
     let content_key = content_key(
         node,
         &slot_values,
+        payload_values.as_deref(),
         resolved_program.as_deref(),
         &upstream_keys,
         doc.witness(id),
@@ -1350,6 +1462,7 @@ where
         doc,
         results,
         &slot_values,
+        payload_values.as_deref(),
         profile_pre.as_ref(),
         op_env,
         tol,
@@ -1385,6 +1498,7 @@ where
 fn content_key<T>(
     node: &crate::node::Node<ProfileProgram>,
     slot_values: &slots::SlotValues<T>,
+    payload_values: Option<&[T]>,
     resolved_program: Option<&[Vec<profile::Step<f64>>]>,
     upstream_keys: &[ContentKey],
     witness: Option<&crate::witness::WitnessDatum>,
@@ -1450,6 +1564,10 @@ where
         // for a new meaning (M5 PR 10's rule), so the mate takes the
         // next free number rather than the one its unit first wrote.
         Node::Mate { .. } => 23,
+        // M10-2. Tags APPEND — an existing one must never be reused
+        // for a new meaning.
+        Node::Measure { .. } => 24,
+        Node::Assertion { .. } => 25,
     };
     h.write_tag(tag);
     // Structural payloads beyond the tag — everything a node carries
@@ -1604,6 +1722,27 @@ where
                 feed_stable_name(&mut h, n);
             }
         }
+        // A measure's REFERENCES and its measured EXPRESSION are both
+        // recipe payload rather than slots: two measures with the same
+        // tag differ in exactly those. The references feed in argument
+        // order (the order is meaning here, not a click sequence), and
+        // the expression feeds structurally — its shape, its primitive
+        // indices, and its value leaves' literal BITS, so a `-0.0`
+        // bound inside a measured expression is not the same node as a
+        // `0.0` one.
+        Node::Measure { expr, refs } => {
+            h.write_u64(refs.len() as u64);
+            for n in refs {
+                feed_stable_name(&mut h, n);
+            }
+            feed_measure_expr(&mut h, expr);
+        }
+        // The DIRECTION is payload; the bound is a slot (fed below) and
+        // the measure is an input edge (its own key carries it).
+        Node::Assertion { dir, .. } => h.write_tag(match dir {
+            crate::measure::AssertionDir::AtLeast => 1,
+            crate::measure::AssertionDir::AtMost => 2,
+        }),
         // Fully expressed by tag plus slots: their whole recipe payload
         // is either an input edge (excluded from the key by design — the
         // inputs' own keys carry it) or a slot expression, fed below.
@@ -1622,6 +1761,18 @@ where
         match val {
             slots::SlotVal::Scalar(v) => v.feed(&mut h),
             slots::SlotVal::Count(n) => h.write_i64(*n),
+        }
+    }
+    // The node's evaluated PAYLOAD expressions, in `payload_exprs`
+    // order — the same resolved-value convention the slots above
+    // follow, so a parameter under a measured bound moves the key
+    // exactly as one under an extrude's distance does. Absent (not
+    // empty) for every node kind that carries none, so no existing
+    // document's key moves by a byte.
+    if let Some(values) = payload_values {
+        h.write_u64(values.len() as u64);
+        for v in values {
+            v.feed(&mut h);
         }
     }
     // Upstream identity, by CONTENT (never by id — ids are stable
@@ -1927,6 +2078,72 @@ fn contact_class_tag(class: topo::ContactClass) -> u8 {
 
 /// Feeds a [`StableName`] structurally into the content key (names
 /// are float-free by construction — pure tags and integers).
+/// Feeds a measured expression: one tag per AST node, then each
+/// node's own payload. The tag space is closed and the match is
+/// EXHAUSTIVE, so a new arithmetic arm cannot default to hashing like
+/// an existing one — the S4 lesson (a step verb's key tag collided
+/// with another's and served the wrong geometry from the memo).
+fn feed_measure_expr(h: &mut KeyHasher, expr: &crate::measure::MeasureExpr) {
+    use crate::measure::{MeasureKind as K, MeasurePrimitive as P};
+    let binary = |h: &mut KeyHasher, tag, a: &crate::measure::MeasureExpr, b: &_| {
+        h.write_tag(tag);
+        feed_measure_expr(h, a);
+        feed_measure_expr(h, b);
+    };
+    match expr.kind() {
+        K::Primitive(p) => {
+            h.write_tag(1);
+            h.write_tag(match p {
+                P::Distance { .. } => 1,
+                P::Angle { .. } => 2,
+                P::Gap { .. } => 3,
+            });
+            for index in p.refs() {
+                h.write_u64(u64::from(index));
+            }
+        }
+        K::Value(e) => {
+            h.write_tag(2);
+            // The value leaf's literal BITS and parameter names — the
+            // same two facts `Expr::bit_eq` compares, so two leaves
+            // that are bit-equal hash equal and no others do.
+            let mut bits = Vec::new();
+            e.literal_bits(&mut bits);
+            h.write_u64(bits.len() as u64);
+            for b in bits {
+                h.write_u64(b);
+            }
+            let mut params = Vec::new();
+            e.param_refs(&mut params);
+            h.write_u64(params.len() as u64);
+            for (name, dim) in params {
+                h.write_str(&name.0);
+                h.write_tag(dimension_tag(dim));
+            }
+        }
+        K::Neg(a) => {
+            h.write_tag(3);
+            feed_measure_expr(h, a);
+        }
+        K::Add(a, b) => binary(h, 4, a, b),
+        K::Sub(a, b) => binary(h, 5, a, b),
+        K::Mul(a, b) => binary(h, 6, a, b),
+        K::Div(a, b) => binary(h, 7, a, b),
+        K::Min(a, b) => binary(h, 8, a, b),
+        K::Max(a, b) => binary(h, 9, a, b),
+    }
+}
+
+/// The closed dimension lattice as key tags.
+fn dimension_tag(dim: crate::expr::Dimension) -> u8 {
+    match dim {
+        crate::expr::Dimension::Length => 1,
+        crate::expr::Dimension::Angle => 2,
+        crate::expr::Dimension::Count => 3,
+        crate::expr::Dimension::Scalar => 4,
+    }
+}
+
 fn feed_stable_name(h: &mut KeyHasher, name: &StableName) {
     use crate::names::EntityKind;
     h.write_tag(match name.kind {

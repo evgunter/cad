@@ -291,11 +291,17 @@ pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<
                 .collect(),
         ),
         // A12: the gather IGNORES a mate — it is a non-body root, and
-        // "ignored by the gather" is exactly this arm.
+        // "ignored by the gather" is exactly this arm. E3/E10's two
+        // sinks join it for the same reason: a measured quantity and an
+        // an assertion's verdict denote no material, so a document
+        // whose only addition is an assertion has the same product it
+        // had without one.
         ValuePayload::Datum(_)
         | ValuePayload::Profile(_)
         | ValuePayload::Declarations(_)
-        | ValuePayload::Mate(_) => None,
+        | ValuePayload::Mate(_)
+        | ValuePayload::Measure { .. }
+        | ValuePayload::Assertion(_) => None,
     }
 }
 

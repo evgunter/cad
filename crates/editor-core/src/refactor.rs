@@ -775,6 +775,23 @@ fn remap_node(
             class: *class,
             alignment: *alignment,
         },
+        // A measure's references are BOTH names and edges, so they
+        // remap through the name door exactly once — `nm` rewrites the
+        // embedded minting node id, which is what the edge is derived
+        // from.
+        Node::Measure { expr, refs } => Node::Measure {
+            expr: expr.clone(),
+            refs: refs.iter().map(nm).collect::<Result<_, _>>()?,
+        },
+        Node::Assertion {
+            measure,
+            bound,
+            dir,
+        } => Node::Assertion {
+            measure: id(*measure)?,
+            bound: bound.clone(),
+            dir: *dir,
+        },
     })
 }
 
@@ -785,6 +802,12 @@ fn node_param_refs(node: &Node<ProfileProgram>) -> BTreeSet<crate::doc::ParamNam
         if let Some(expr) = node.expr(slot) {
             expr.param_refs(&mut refs);
         }
+    }
+    // The expressions no slot addresses count too: a measured bound
+    // referencing a parameter is exactly as much a reason to copy that
+    // parameter into a split part as an extrude's distance is.
+    for expr in crate::node::payload_exprs(node).into_iter().flatten() {
+        expr.param_refs(&mut refs);
     }
     refs.into_iter().map(|(name, _)| name).collect()
 }
