@@ -511,3 +511,48 @@ in the tree dev-depends on `test-utils`**, and between them the two lanes have
 verified it against four crates and fourteen. A workspace-wide `cargo check` is
 owed on the integration branch before this reaches hosted CI, and it is the
 orchestrator's to run.
+
+## `w2`'s style review — the re-mint moved up one level, and the diff names it itself
+
+The lane did **not** re-mint at the helper: `keeping` is genuinely the only lexer
+in `source.rs`, verified rather than asserted. It re-minted one level up, three
+times, and the sharpest instance is stated in its own docstring.
+
+**`source.rs` says, in this diff, that sharing the *predicate* and re-forking the
+*traversal* "leaves each guard free to miss a subdirectory, silently and in the
+green direction" — and all thirteen converted mount guards still walk `tests/`
+with a flat `read_dir`.** The drift has already happened in exactly that
+direction: hash the thirteen bodies and twelve share a digest while `geom`'s is
+**recursive** and carries a **converse assertion** (one `#[path]` per file, no
+orphan mounts) the other twelve lack. One of the thirteen is a strictly stronger
+guard and nothing records that the rest are the weak variant.
+
+Two more at the same altitude: `without_module_mounts` is **a hand-rolled source
+reader inside the file whose stated rule is "do not write one"**, and `repo_root`
+is the **third verbatim copy** of the "both ways the suite runs" resolver — in
+the crate that exists to end that shape. And five bracket/brace-depth scanners
+appear over the shared blanked view, in two incompatible algorithms, because
+*"carve out the balanced region"* is what every converted call site actually
+wanted and the three views do not serve it.
+
+**The census has the silent direction it was built to close.** Only `NotRust` is
+checked: nothing verifies that a line dispositioned `Shared` still reaches
+`test_utils::source`, so a site that reverts to a hand-rolled reader keeps its
+line and the census stays green. And the ratchet does not ratchet — the ceiling
+is `<=` at exactly the current count, so converting one entry while adding one
+new reader nets zero, which is what the doc two lines above says cannot happen.
+
+**A live instruction now points into the defect.** `docs/SMELL-I-LOG.md:200-202`
+tells lanes *"do not mint a thirteenth hand-rolled reader; reuse the shared
+`fixtures::code_only` walk"* — and `fixtures::code_only` is now line 192 of this
+lane's own debt list. A lane obeying the tree's written rule would be directed
+into the class. That is Q4's dangerous half, and it is worse than the silence it
+replaced.
+
+**The pattern across the session, now with a name.** Four units reviewed, four
+fixes that reproduced the defect they closed — `k1` a missing admissions test on
+the third of three tables, `w1` and `p1` a helper the tree already had, `w2` the
+traversal half of the walk it shared the predicate of. **None was caught by its
+author, and every one was caught by the first reader who did not write it.** §D
+rule 5 held at eight of eight on Track F and every unit on Track G; it is now
+holding at four of four here.
