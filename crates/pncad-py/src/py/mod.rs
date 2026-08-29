@@ -110,9 +110,8 @@ pyo3::create_exception!(
      The offending face or edge is an arena KEY and does not cross — \
      the curation exists to keep those unnameable — so a refusal names \
      WHICH arm fired and, where the arm carries one, the number that \
-     makes it actionable. The message is a `Debug` rendering rather \
-     than the kernel's own prose because `mesh::TessellateError` \
-     implements no `Display`; the tag is the branchable part."
+     makes it actionable. The message is the tessellator's own prose; \
+     the tag is the branchable part."
 );
 pyo3::create_exception!(
     pncad,

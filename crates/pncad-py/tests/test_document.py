@@ -246,12 +246,16 @@ class TestDetectDeclareDoors(unittest.TestCase):
         with self.assertRaises(EditError) as caught:
             doc.declare_all([])
         self.assertEqual(caught.exception.variant, "no_findings")
-        # The human message is real prose, not a mangled literal
-        # (review MINOR-1: a doubled-space run shipped once because
-        # nothing pinned the text).
+        # The human message is the declare door's own prose, not a
+        # mangled literal (review MINOR-1: a doubled-space run shipped
+        # once because nothing pinned the text) and not a struct dump.
         message = str(caught.exception)
-        self.assertIn("an empty Declare node records no intent", message)
+        self.assertIn("declare", message)
+        self.assertIn("records no intent", message)
+        self.assertIn("pass the findings", message)
         self.assertNotIn("  ", message)
+        self.assertNotIn("{", message)
+        self.assertNotIn("NoFindings", message)
         self.assertEqual(len(doc), 0, "a refused declare inserts nothing")
         with self.assertRaises(EditError) as caught:
             Node.declare([])
