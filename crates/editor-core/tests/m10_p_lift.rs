@@ -27,10 +27,9 @@ mod corpus;
 mod fixture;
 
 use editor_core::{
-    CancelToken, EvalOptions, Node, NodeResult, ParamName, ParamValue, ProfileLift, ValuePayload,
-    evaluate,
+    CancelToken, EvalOptions, Node, NodeResult, ParamValue, ProfileLift, ValuePayload, evaluate,
 };
-use geom_core::{Real, Tol};
+use geom_core::Tol;
 
 /// Every body point of an evaluation, by bits — the comparable surface.
 fn body_bits(ev: &editor_core::Evaluation<f64>) -> Vec<u64> {
