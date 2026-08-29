@@ -1768,3 +1768,10 @@ head 0e9ef0b4, v5 instrument.
 **M10-DI dispatch (branch-side, 2026-08-29).** Block M10-B1 slot 2
 (arm per the block draw above). Difficulty pre-logged M at
 dispatch. Spec docs/M10-DI-SPEC.md (merged main 8dc2a459).
+
+**M10-DI dual draw (branch-side, 2026-08-29 06:30Z).** Ordinal 501
+(claim issue files at review dispatch). Slot byte 252, parity 0 ⇒
+R1 OPUS + R2 FABLE, frozen head 2435345d, v5 instrument. Reviewer
+dispatch deferred ~30m on disk (the M10-1 fix lane holds the last
+free target-sized block); both reviewers dispatch concurrently on
+the frozen head when it frees.
