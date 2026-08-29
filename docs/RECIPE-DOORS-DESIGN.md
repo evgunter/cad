@@ -1,10 +1,14 @@
 # Recipe doors for the shipped surgery verbs — chamfer, tube, shell
 
-**Status: DESIGN CONVERSATION — awaits Evan's sign-off. Nothing here
-is ratified; the register items are G16 (#918), the audit's tube row
-(24, widened by VERBS-TUBEWALL), and G17.** Mechanics below are
-measured (file:line), not assumed; the design content is the five
-decisions D1–D5.
+**Status: RATIFIED (Evan, in-chat, 2026-08-29): D2, D3, D4, D5
+signed off ("sounds good" ×3; D4 "sure", with the one-kind-vs-two
+consideration restated in-conversation). D1 was probed as "design or
+just sequencing?" and is RECLASSIFIED below as orchestrator
+sequencing — it rides the persist ledger's already-ratified
+one-meaning-per-version rule and needed no sign-off.** The register
+items are G16 (#918), the audit's tube row (24, widened by
+VERBS-TUBEWALL), and G17. Mechanics are measured (file:line), not
+assumed.
 
 ## The problem, priced
 
@@ -20,7 +24,7 @@ sweep the v13 `Node::Mate` precedent enumerates. Schema is v15; no
 migration machinery exists by LQ7a ruling — every bump is a clean
 break with typed regenerate recourse.
 
-## D1 — three units, three bumps, fixed order: chamfer, tube, shell
+## D1 — three units, three bumps, fixed order (SEQUENCING, the orchestrator's — not a ratified design decision)
 
 One shared bump would need the trio argued as one vocabulary change
 (the v12 precedent). Against it: the units are wildly unequal (see
