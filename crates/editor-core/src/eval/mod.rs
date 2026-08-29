@@ -123,11 +123,23 @@ pub struct NodeValue<T: Decide> {
     /// (body, arena key). Rides the value, so memo reuse transfers
     /// names with geometry (the content key is the proof).
     pub name_table: Arc<NameTable>,
+    /// The node's verdict log (M4 PR 4, N5): every definite predicate
+    /// decision the node's op made, in decision order, recorded
+    /// through the one `k_stats` funnel. Scalar-independent data —
+    /// same verdicts at f64 and Interval — and the diff-engine
+    /// substrate ("both evaluations' verdict logs exist"). Rides the
+    /// value, so memo reuse transfers the log with the geometry it
+    /// certified (same content key ⇒ same decisions, D9).
+    pub verdicts: Arc<VerdictLog>,
     /// RESERVED empty slot: the solved witness assignment (M6 fills).
     pub witness: WitnessSlot,
     /// The node's input-content hash (spec D4) — the memo currency.
     pub content_key: ContentKey,
 }
+
+/// One evaluation's per-node verdict vector (the [`NodeValue::verdicts`]
+/// payload): [`geom_core::k_stats::Verdict`]s in decision order.
+pub type VerdictLog = Vec<geom_core::k_stats::Verdict>;
 
 /// M6's solved-assignment slot, as a type stub (spec D2).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -333,6 +345,12 @@ pub enum NodeErrorKind {
     /// emission bug, a kernel-emission gap, or an in-band N2
     /// discriminator escalation — carried unaltered.
     Naming(NamingError),
+    /// A sketch node's branch selection refused (SOLVER-DESIGN W3;
+    /// M4 PR 4 pins the document semantics — a per-node failure
+    /// poisoning descendants only, GQ2/W5). NEVER constructed before
+    /// the M6 solver: the arm exists so the solver lands as logic,
+    /// not a schema change.
+    WitnessBifurcation(crate::witness::WitnessBifurcation),
 }
 
 /// An evaluation's identity token (spec D5, GQ2): callers tag each
@@ -575,7 +593,7 @@ where
         Err((slot, source)) => return fail(NodeErrorKind::Expr { slot, source }),
     };
 
-    let content_key = content_key(node, &slot_values, &upstream_keys);
+    let content_key = content_key(node, &slot_values, &upstream_keys, doc.witness(id));
 
     // Memo (spec D4): same key ⇒ same inputs ⇒ (D9) same output.
     if let Some(NodeResult::Ok(v)) = prior.and_then(|p| p.nodes.get(&id))
@@ -587,11 +605,21 @@ where
         };
     }
 
-    match wire::run_op(id, node, results, &slot_values) {
+    // Verdict-log bracket (M4 PR 4): every definite decision the op
+    // makes — kernel predicates and N2 discriminators alike — lands in
+    // this node's log through the one `k_stats` funnel. The bracket is
+    // per-node and thread-confined (kernel ops are single-threaded;
+    // idiom-1 parallelism runs whole nodes on one worker each), so
+    // logs never interleave across nodes.
+    geom_core::k_stats::start_verdict_log();
+    let op = wire::run_op(id, node, results, &slot_values);
+    let verdicts = geom_core::k_stats::take_verdict_log();
+    match op {
         Ok((payload, name_table)) => NodeStep {
             result: NodeResult::Ok(NodeValue {
                 payload,
                 name_table,
+                verdicts: Arc::new(verdicts),
                 witness: WitnessSlot {},
                 content_key,
             }),
@@ -604,11 +632,18 @@ where
 /// The content key (spec D4): op kind, structural params, evaluated
 /// expression values AS BITS, upstream keys — plus the ambient
 /// tolerance (ε, k), which parameterizes every decision the kernel
-/// ops make, and a leading format version.
+/// ops make, and a leading format version. M4 PR 4: the node's
+/// recorded witness datum (if any) is an input too — `solution
+/// (constraints, params, witness)` is pure in exactly those three
+/// (W5), so a witness change must move the key (v1 evaluation does
+/// not read the witness, so the recompute reproduces identical
+/// results — W4's "semantically invisible", honestly re-derived
+/// rather than assumed).
 fn content_key<T>(
     node: &crate::node::Node<ProfileDesc>,
     slot_values: &slots::SlotValues<T>,
     upstream_keys: &[ContentKey],
+    witness: Option<&crate::witness::WitnessDatum>,
 ) -> ContentKey
 where
     T: Decide + ContentBits,
@@ -670,6 +705,17 @@ where
     h.write_u64(upstream_keys.len() as u64);
     for k in upstream_keys {
         h.write_key(*k);
+    }
+    // The recorded witness datum (M4 PR 4). The tag is fed in BOTH
+    // cases — a datum's absence is content too (recording, then
+    // clearing, a witness must not alias the never-recorded key).
+    match witness {
+        None => h.write_tag(0),
+        Some(w) => {
+            h.write_tag(1);
+            h.write_u64(u64::from(w.schema));
+            h.write_bytes(&w.bytes);
+        }
     }
     h.finish()
 }

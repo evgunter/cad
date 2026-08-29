@@ -87,6 +87,15 @@ impl KeyHasher {
         }
     }
 
+    /// Feeds raw bytes, length-prefixed (opaque payloads — the
+    /// witness datum's exact representation, M4 PR 4).
+    pub fn write_bytes(&mut self, bytes: &[u8]) {
+        self.write_u64(bytes.len() as u64);
+        for b in bytes {
+            self.write_u64(u64::from(*b));
+        }
+    }
+
     /// The finished key.
     pub fn finish(&self) -> ContentKey {
         ContentKey((u128::from(self.hi) << 64) | u128::from(self.lo))
