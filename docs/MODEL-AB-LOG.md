@@ -188,8 +188,9 @@ amended:
      fact. Bands, allocated at this entry:
      **VERBS 100–199 · PCURVE 200–299 · LIB 300–399 · GUI 400–499
      (claimed 2026-08-27 at the GUI program's opening —
-     `docs/GUI-LOG.md`)**, with
-     **500+ unallocated** — the orchestrator opening the next
+     `docs/GUI-LOG.md`) · M10 500–599 (claimed 2026-08-29 at the
+     M10 program's opening — `docs/M10-LOG.md`)**, with
+     **600+ unallocated** — the orchestrator opening the next
      program takes the next free band and records it HERE in the
      same commit that opens the program. **1–99 is CLOSED
      HISTORY**: the pre-banding global sequence, which reached 85.
