@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1556" height="5844" viewBox="0 0 1556 5844">
-<rect x="0" y="0" width="1556" height="5844" fill="#ffffff"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="1556" height="5859" viewBox="0 0 1556 5859">
+<rect x="0" y="0" width="1556" height="5859" fill="#ffffff"/>
 <text x="18" y="40" font-family="sans-serif" font-size="19" font-weight="bold" fill="#111">UV trim loops — a face is a bounded patch of an UNBOUNDED surface; this is that boundary, drawn in the surface’s own chart</text>
 <text x="18" y="59" font-family="sans-serif" font-size="12" fill="#555">Kernel-only lane: no camera, no projection, no silhouettes, no external renderer. Compare renders/montage.png (our tessellation) and renders-freecad/montage-freecad.png (OCC’s).</text>
 <text x="18" y="76" font-family="monospace" font-size="11" fill="#555">67 cell(s) = one representative per (body, chart) + every failed walk; 317 further curved and 943 planar face(s) not shown (all 1327 are in out/uv/)</text>
@@ -7,9 +7,11 @@
 <line x1="418" y1="92" x2="440" y2="92" stroke="#b03060" stroke-width="2.4" stroke-dasharray="5 3"/><text x="446" y="96" font-family="monospace" font-size="10.5" fill="#444">the chart’s periodic seam (u = k·2π)</text>
 <line x1="18" y1="107" x2="40" y2="107" stroke="#1b7a3d" stroke-width="2.4"/><text x="46" y="111" font-family="monospace" font-size="10.5" fill="#444">isoline — the exact u/v-const image (NURBS walls)</text>
 <line x1="418" y1="107" x2="440" y2="107" stroke="#1f4e79" stroke-width="2.4" stroke-dasharray="5 3"/><text x="446" y="111" font-family="monospace" font-size="10.5" fill="#444">dashed, in the form’s own color — pcurve DERIVED, not cached</text>
-<line x1="18" y1="122" x2="40" y2="122" stroke="#c1590a" stroke-width="2.4"/><text x="46" y="126" font-family="monospace" font-size="10.5" fill="#444">fitted — the rung-3 SSI-trace chart projection</text>
+<line x1="18" y1="122" x2="40" y2="122" stroke="#6b2fa0" stroke-width="2.4"/><text x="46" y="126" font-family="monospace" font-size="10.5" fill="#444">isoarc — the rational cap rim, uneven in u</text>
 <line x1="418" y1="122" x2="440" y2="122" stroke="#333" stroke-width="2.4"/><text x="446" y="126" font-family="monospace" font-size="10.5" fill="#444">dot — a loop junction;  arrow — traversal direction</text>
-<g transform="translate(18, 148)">
+<line x1="18" y1="137" x2="40" y2="137" stroke="#c1590a" stroke-width="2.4"/><text x="46" y="141" font-family="monospace" font-size="10.5" fill="#444">fitted — the rung-3 SSI-trace chart projection</text>
+<line x1="418" y1="137" x2="440" y2="137" stroke="#a01c3c" stroke-width="2.4"/><text x="446" y="141" font-family="monospace" font-size="10.5" fill="#444">general — a curve-in-UV with no construction provenance</text>
+<g transform="translate(18, 163)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">bossplate  ·  face 6</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">cylinder chart — 1 loop(s), 4 half-edge(s), 4 cached, harmonic</text>
@@ -35,7 +37,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(398, 148)">
+<g transform="translate(398, 163)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">bracket  ·  face 5</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">cylinder chart — 1 loop(s), 4 half-edge(s), 0 cached, harmonic</text>
@@ -61,7 +63,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(778, 148)">
+<g transform="translate(778, 163)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">budfillet  ·  face 3</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">cone chart — 1 loop(s), 4 half-edge(s), 4 cached, harmonic</text>
@@ -87,7 +89,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(1158, 148)">
+<g transform="translate(1158, 163)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">budfillet  ·  face 1</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">cylinder chart — 1 loop(s), 4 half-edge(s), 4 cached, harmonic</text>
@@ -115,7 +117,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(18, 482)">
+<g transform="translate(18, 497)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">budfillet  ·  face 4</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">sphere chart — 1 loop(s), 4 half-edge(s), 4 cached, harmonic</text>
@@ -143,7 +145,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(398, 482)">
+<g transform="translate(398, 497)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">budfillet  ·  face 0</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">torus chart — 1 loop(s), 4 half-edge(s), 4 cached, harmonic</text>
@@ -171,7 +173,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(778, 482)">
+<g transform="translate(778, 497)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">chute  ·  face 2</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">cylinder chart — 1 loop(s), 4 half-edge(s), 4 cached, harmonic</text>
@@ -197,7 +199,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(1158, 482)">
+<g transform="translate(1158, 497)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">diechamfer  ·  face 6</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">sphere chart — 1 loop(s), 3 half-edge(s), 3 cached, harmonic</text>
@@ -221,7 +223,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777">chart jump 6.2832 rad at a junction — seam or pole, not a gap</text>
 </g>
 
-<g transform="translate(18, 816)">
+<g transform="translate(18, 831)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">diecomposed  ·  face 57</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">cylinder chart — 1 loop(s), 4 half-edge(s), 4 cached, harmonic</text>
@@ -247,7 +249,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(398, 816)">
+<g transform="translate(398, 831)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">diecomposed  ·  face 7</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">sphere chart — 1 loop(s), 3 half-edge(s), 3 cached, harmonic</text>
@@ -269,7 +271,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777">chart jump 6.2832 rad at a junction — seam or pole, not a gap</text>
 </g>
 
-<g transform="translate(778, 816)">
+<g transform="translate(778, 831)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">diecomposed  ·  face 6</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">torus chart — 1 loop(s), 6 half-edge(s), 6 cached, harmonic</text>
@@ -303,7 +305,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(1158, 816)">
+<g transform="translate(1158, 831)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">diefillet  ·  face 9</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">cylinder chart — 1 loop(s), 4 half-edge(s), 4 cached, harmonic</text>
@@ -329,7 +331,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(18, 1150)">
+<g transform="translate(18, 1165)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">diefillet  ·  face 6</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">sphere chart — 1 loop(s), 3 half-edge(s), 3 cached, harmonic</text>
@@ -351,7 +353,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777">chart jump 1.5708 rad at a junction — seam or pole, not a gap</text>
 </g>
 
-<g transform="translate(398, 1150)">
+<g transform="translate(398, 1165)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">diepips  ·  face 6</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">sphere chart — 1 loop(s), 3 half-edge(s), 3 cached, harmonic</text>
@@ -375,7 +377,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777">chart jump 6.2832 rad at a junction — seam or pole, not a gap</text>
 </g>
 
-<g transform="translate(778, 1150)">
+<g transform="translate(778, 1165)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">hollowelbow  ·  face 2</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">torus chart — 1 loop(s), 4 half-edge(s), 4 cached, harmonic</text>
@@ -401,7 +403,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(1158, 1150)">
+<g transform="translate(1158, 1165)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">hollowring  ·  face 0</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">torus chart — 1 loop(s), 4 half-edge(s), 4 cached, harmonic</text>
@@ -429,7 +431,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(18, 1484)">
+<g transform="translate(18, 1499)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">hollowtorus  ·  face 0</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">torus chart — 1 loop(s), 4 half-edge(s), 4 cached, harmonic</text>
@@ -457,7 +459,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(398, 1484)">
+<g transform="translate(398, 1499)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">klein_bulb  ·  face 4</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">cone chart — 1 loop(s), 4 half-edge(s), 4 cached, harmonic</text>
@@ -483,7 +485,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(778, 1484)">
+<g transform="translate(778, 1499)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">klein_bulb  ·  face 0</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">cylinder chart — 1 loop(s), 4 half-edge(s), 4 cached, harmonic</text>
@@ -511,7 +513,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(1158, 1484)">
+<g transform="translate(1158, 1499)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">klein_bulb  ·  face 3</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">torus chart — 1 loop(s), 4 half-edge(s), 4 cached, harmonic</text>
@@ -539,7 +541,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(18, 1818)">
+<g transform="translate(18, 1833)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">klein_loop_into  ·  face 2</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">torus chart — 1 loop(s), 4 half-edge(s), 4 cached, harmonic</text>
@@ -565,7 +567,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(398, 1818)">
+<g transform="translate(398, 1833)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">klein_loop_over  ·  face 2</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">torus chart — 1 loop(s), 4 half-edge(s), 4 cached, harmonic</text>
@@ -591,7 +593,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(778, 1818)">
+<g transform="translate(778, 1833)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">lily_arch  ·  face 2</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">torus chart — 1 loop(s), 4 half-edge(s), 4 cached, harmonic</text>
@@ -617,7 +619,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(1158, 1818)">
+<g transform="translate(1158, 1833)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">lily_bud_a  ·  face 3</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">cone chart — 1 loop(s), 4 half-edge(s), 4 cached, harmonic</text>
@@ -641,7 +643,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(18, 2152)">
+<g transform="translate(18, 2167)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">lily_bud_a  ·  face 4</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">sphere chart — 1 loop(s), 4 half-edge(s), 4 cached, harmonic</text>
@@ -667,7 +669,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(398, 2152)">
+<g transform="translate(398, 2167)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">lily_bud_b  ·  face 3</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">cone chart — 1 loop(s), 4 half-edge(s), 4 cached, harmonic</text>
@@ -691,7 +693,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(778, 2152)">
+<g transform="translate(778, 2167)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">lily_bud_b  ·  face 4</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">sphere chart — 1 loop(s), 4 half-edge(s), 4 cached, harmonic</text>
@@ -717,7 +719,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(1158, 2152)">
+<g transform="translate(1158, 2167)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">lily_bud_c  ·  face 3</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">cone chart — 1 loop(s), 4 half-edge(s), 4 cached, harmonic</text>
@@ -741,7 +743,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(18, 2486)">
+<g transform="translate(18, 2501)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">lily_bud_c  ·  face 4</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">sphere chart — 1 loop(s), 4 half-edge(s), 4 cached, harmonic</text>
@@ -767,7 +769,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(398, 2486)">
+<g transform="translate(398, 2501)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">lily_corm  ·  face 0</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">cylinder chart — 1 loop(s), 4 half-edge(s), 4 cached, harmonic</text>
@@ -795,7 +797,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(778, 2486)">
+<g transform="translate(778, 2501)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">lily_corm  ·  face 2</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">sphere chart — 1 loop(s), 4 half-edge(s), 4 cached, harmonic</text>
@@ -823,7 +825,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(1158, 2486)">
+<g transform="translate(1158, 2501)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">lily_foot  ·  face 2</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">cylinder chart — 1 loop(s), 4 half-edge(s), 0 cached, harmonic</text>
@@ -849,7 +851,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(18, 2820)">
+<g transform="translate(18, 2835)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">lily_lantern  ·  face 2</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">cone chart — 1 loop(s), 4 half-edge(s), 4 cached, harmonic</text>
@@ -875,7 +877,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(398, 2820)">
+<g transform="translate(398, 2835)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">lily_lantern  ·  face 3</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">sphere chart — 1 loop(s), 4 half-edge(s), 4 cached, harmonic</text>
@@ -901,7 +903,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(778, 2820)">
+<g transform="translate(778, 2835)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">lily_leaf_a  ·  face 2</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">nurbs chart — 1 loop(s), 4 half-edge(s), 4 cached, isoline</text>
@@ -925,7 +927,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(1158, 2820)">
+<g transform="translate(1158, 2835)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">lily_leaf_b  ·  face 2</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">nurbs chart — 1 loop(s), 4 half-edge(s), 4 cached, isoline</text>
@@ -949,7 +951,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(18, 3154)">
+<g transform="translate(18, 3169)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">lily_leaf_c  ·  face 2</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">nurbs chart — 1 loop(s), 4 half-edge(s), 4 cached, isoline</text>
@@ -973,7 +975,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(398, 3154)">
+<g transform="translate(398, 3169)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">lily_pedicel  ·  face 2</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">torus chart — 1 loop(s), 4 half-edge(s), 4 cached, harmonic</text>
@@ -999,7 +1001,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(778, 3154)">
+<g transform="translate(778, 3169)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">lily_sepal_a  ·  face 2</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">nurbs chart — 1 loop(s), 4 half-edge(s), 4 cached, isoline</text>
@@ -1023,7 +1025,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(1158, 3154)">
+<g transform="translate(1158, 3169)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">lily_sepal_b  ·  face 2</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">nurbs chart — 1 loop(s), 4 half-edge(s), 4 cached, isoline</text>
@@ -1047,7 +1049,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(18, 3488)">
+<g transform="translate(18, 3503)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">lily_sepal_c  ·  face 2</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">nurbs chart — 1 loop(s), 4 half-edge(s), 4 cached, isoline</text>
@@ -1071,7 +1073,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(398, 3488)">
+<g transform="translate(398, 3503)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">lily_stem  ·  face 2</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">torus chart — 1 loop(s), 4 half-edge(s), 4 cached, harmonic</text>
@@ -1097,7 +1099,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(778, 3488)">
+<g transform="translate(778, 3503)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">loft_prism  ·  face 2</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">nurbs chart — 1 loop(s), 4 half-edge(s), 4 cached, isoline</text>
@@ -1121,7 +1123,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(1158, 3488)">
+<g transform="translate(1158, 3503)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">nonuniform_loft  ·  face 2</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">nurbs chart — 1 loop(s), 4 half-edge(s), 4 cached, isoline</text>
@@ -1145,7 +1147,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(18, 3822)">
+<g transform="translate(18, 3837)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">plate  ·  face 6</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">cylinder chart — 1 loop(s), 4 half-edge(s), 0 cached, harmonic</text>
@@ -1171,7 +1173,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(398, 3822)">
+<g transform="translate(398, 3837)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">rocker  ·  face 2</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">cylinder chart — 1 loop(s), 4 half-edge(s), 0 cached, harmonic</text>
@@ -1197,7 +1199,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(778, 3822)">
+<g transform="translate(778, 3837)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">s_duct  ·  face 2</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">nurbs chart — 1 loop(s), 4 half-edge(s), 4 cached, isoline</text>
@@ -1221,7 +1223,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(1158, 3822)">
+<g transform="translate(1158, 3837)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">sheave  ·  face 6</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">cone chart — 1 loop(s), 4 half-edge(s), 4 cached, harmonic</text>
@@ -1247,7 +1249,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(18, 4156)">
+<g transform="translate(18, 4171)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">sheave  ·  face 0</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">cylinder chart — 1 loop(s), 4 half-edge(s), 4 cached, harmonic</text>
@@ -1275,7 +1277,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(398, 4156)">
+<g transform="translate(398, 4171)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">sheave  ·  face 7</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">torus chart — 1 loop(s), 4 half-edge(s), 4 cached, harmonic</text>
@@ -1303,7 +1305,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(778, 4156)">
+<g transform="translate(778, 4171)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">teapothandle  ·  face 2</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">torus chart — 1 loop(s), 4 half-edge(s), 4 cached, harmonic</text>
@@ -1329,7 +1331,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(1158, 4156)">
+<g transform="translate(1158, 4171)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">teapotlid  ·  face 1</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">cylinder chart — 1 loop(s), 4 half-edge(s), 4 cached, harmonic</text>
@@ -1357,7 +1359,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(18, 4490)">
+<g transform="translate(18, 4505)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">teapotlid  ·  face 4</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">sphere chart — 1 loop(s), 4 half-edge(s), 4 cached, harmonic</text>
@@ -1385,7 +1387,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(398, 4490)">
+<g transform="translate(398, 4505)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">teapotlid  ·  face 0</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">torus chart — 1 loop(s), 4 half-edge(s), 4 cached, harmonic</text>
@@ -1413,7 +1415,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(778, 4490)">
+<g transform="translate(778, 4505)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">teapotspout  ·  face 1</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">cone chart — 1 loop(s), 4 half-edge(s), 4 cached, harmonic</text>
@@ -1439,7 +1441,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(1158, 4490)">
+<g transform="translate(1158, 4505)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">teapotvessel  ·  face 1</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">cylinder chart — 1 loop(s), 4 half-edge(s), 4 cached, harmonic</text>
@@ -1465,7 +1467,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(18, 4824)">
+<g transform="translate(18, 4839)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">tiltedcut_above  ·  face 1</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">cylinder chart — 1 loop(s), 4 half-edge(s), 4 cached, harmonic</text>
@@ -1491,7 +1493,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(398, 4824)">
+<g transform="translate(398, 4839)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">tiltedcut_below  ·  face 1</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">cylinder chart — 1 loop(s), 4 half-edge(s), 4 cached, harmonic</text>
@@ -1517,7 +1519,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(778, 4824)">
+<g transform="translate(778, 4839)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">tube_along_arc  ·  face 2</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">torus chart — 1 loop(s), 4 half-edge(s), 4 cached, harmonic</text>
@@ -1543,7 +1545,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(1158, 4824)">
+<g transform="translate(1158, 4839)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">twisted_duct  ·  face 2</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">nurbs chart — 1 loop(s), 4 half-edge(s), 4 cached, isoline</text>
@@ -1567,7 +1569,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(18, 5158)">
+<g transform="translate(18, 5173)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">twisted_duct_shadow_y  ·  face 2</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">nurbs chart — 1 loop(s), 4 half-edge(s), 4 cached, isoline</text>
@@ -1591,7 +1593,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(398, 5158)">
+<g transform="translate(398, 5173)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">twisted_duct_shadow_z  ·  face 2</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">nurbs chart — 1 loop(s), 4 half-edge(s), 4 cached, isoline</text>
@@ -1615,7 +1617,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(778, 5158)">
+<g transform="translate(778, 5173)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">twopeg_apart_p  ·  face 6</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">cylinder chart — 1 loop(s), 4 half-edge(s), 4 cached, harmonic</text>
@@ -1641,7 +1643,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(1158, 5158)">
+<g transform="translate(1158, 5173)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">twopeg_apart_q  ·  face 6</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">cylinder chart — 1 loop(s), 4 half-edge(s), 4 cached, harmonic</text>
@@ -1665,7 +1667,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(18, 5492)">
+<g transform="translate(18, 5507)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">vase  ·  face 2</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">cone chart — 1 loop(s), 4 half-edge(s), 4 cached, harmonic</text>
@@ -1691,7 +1693,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(398, 5492)">
+<g transform="translate(398, 5507)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">vase  ·  face 4</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">cylinder chart — 1 loop(s), 4 half-edge(s), 4 cached, harmonic</text>
@@ -1717,7 +1719,7 @@
 <text x="54" y="322" font-family="monospace" font-size="9.5" fill="#777"></text>
 </g>
 
-<g transform="translate(778, 5492)">
+<g transform="translate(778, 5507)">
 <rect x="0" y="0" width="380" height="334" fill="#ffffff" stroke="#b8b8b8" stroke-width="1"/>
 <text x="10" y="19" font-family="monospace" font-size="12" font-weight="bold" fill="#222">vase  ·  face 3</text>
 <text x="10" y="34" font-family="monospace" font-size="10.5" fill="#555">sphere chart — 1 loop(s), 4 half-edge(s), 4 cached, harmonic</text>

@@ -229,3 +229,21 @@ and any reviewer sharing a worktree brackets every measurement with
 `git diff --quiet HEAD` before and after — is relocated into
 `memories/agent-lane-operations.md` at integration. Both live pairs were warned
 mid-flight.
+
+## A merge that silently under-counted, and it did not conflict
+
+Merging `origin/main` (carrying #1169) into this branch conflicted on exactly
+one line — Track X's item count — and **the damage was on a line that did not
+conflict**. #1169 closed a Track W row and wrote `14 → 13`; this branch had
+moved `D107` off W and written `14 → 13` independently. Identical text, so git
+took it once and the merged tree declared **13 against 12 actual rows**.
+
+This is `memories/agent-lane-operations.md`'s stated rule firing in a form the
+rule does not quite name — it warns that resolving a conflict where *both sides
+deleted* something must take the union derived from `main`, and that the
+post-condition is checked **against the merged tree, not against your diff,
+because a row you never touched cannot appear in your diff**. Here there was no
+conflict to resolve at all: two independent decrements of one counter collided
+into one. The check that caught it is the one the rule prescribes — re-derive
+every track's count from its own table after the merge, never transcribe. Both
+counts and the 100-item total now agree with the tables.

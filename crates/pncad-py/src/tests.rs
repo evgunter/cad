@@ -62,11 +62,14 @@ fn error_classes_name_the_python_hierarchy() {
             ErrorClass::Literal => "LiteralError",
             ErrorClass::Persist => "PersistError",
             ErrorClass::Export => "ExportError",
+            ErrorClass::Tessellate => "TessellateError",
+            ErrorClass::StlExport => "StlError",
             ErrorClass::StepImport => "StepImportError",
             ErrorClass::Path => "PathError",
             ErrorClass::Select => "SelectRefusal",
             ErrorClass::Frame => "FrameError",
             ErrorClass::Identity => "IdentityError",
+            ErrorClass::Workspace => "WorkspaceError",
         }
     }
     for class in [
@@ -77,11 +80,14 @@ fn error_classes_name_the_python_hierarchy() {
         ErrorClass::Literal,
         ErrorClass::Persist,
         ErrorClass::Export,
+        ErrorClass::Tessellate,
+        ErrorClass::StlExport,
         ErrorClass::StepImport,
         ErrorClass::Path,
         ErrorClass::Select,
         ErrorClass::Frame,
         ErrorClass::Identity,
+        ErrorClass::Workspace,
     ] {
         assert_eq!(class.class_name(), expected(class));
     }
