@@ -36,10 +36,21 @@ STL out. The mesh-vs-exact cross-check is a computation the CALLER
 writes over those triangles — `docs/guide/meshing.md` shows it — so
 it is genuinely a second measure and not a second reading.
 
+The ASSEMBLY vocabulary is the layer above a single document:
+`Workspace` holds the parts, `Node.instantiate_part` references one,
+`DocEdit.set_placement` places its cluster, `Node.mate` says how two
+instances meet, `solve_document` poses them, `product` gathers what
+the document IS and `assemble` says whether it is valid at rest.
+`split` and `inline` refactor across the seam, and
+`update_references` moves a pin at its sites.
+
 Deliberately ABSENT, and tracked as named gaps in
-`docs/guide/north-star-audit.md`: sweep and tube, the pattern node,
-chamfer and shell (which have no recipe node at all), and the whole
-assembly series.
+`docs/guide/north-star-audit.md`: sweep and tube, the pattern node
+(`placed_union` says a placed family whose value is one body; the
+plural-payload node stays unbound), chamfer and shell (which have no
+recipe node at all), and the geometry read-back doors — a name is
+carried, compared and handed back, and where it SITS is not yet
+readable.
 """
 
 from typing import Any, Final, Generic, Optional, TypeAlias, TypeVar, overload
