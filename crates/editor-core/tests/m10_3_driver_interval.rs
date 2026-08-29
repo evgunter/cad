@@ -316,6 +316,40 @@ fn the_split_rule_is_relative_width_with_a_lowest_index_tie() {
 
 // -------------------------------------------------------------- e2e
 
+/// **The limit, pinned rather than described.** A MACROSCOPIC tolerance
+/// box — the ±0.05 band on a 1.0 nominal a real study would ask for —
+/// certifies nothing at either shipped budget, and the whole of it comes
+/// back as priced `Budget` mass.
+///
+/// This is the honest state of the deliverable and it is a regression
+/// pin in both directions: the day the certification predicates stop
+/// widening with the box (the issue-1191 class), this row fails and the
+/// number it is asserting becomes a real answer instead of a refusal.
+#[test]
+fn a_macroscopic_box_refuses_all_of_its_mass_as_budget_today() {
+    let doc = slab(1.0, 0.05);
+    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+    let v = drive(&doc, &analyzed, &config(32), Tol::witness()).unwrap();
+    assert!(v.receipt().holds());
+    assert!(
+        v.certified().is_empty(),
+        "a macroscopic box certified {} leaves — the widening limit moved, and this row's \
+         number is now a real answer",
+        v.certified().len()
+    );
+    assert!(
+        v.refused()
+            .iter()
+            .all(|l| matches!(l.reason, RefusalReason::Budget(_)))
+    );
+    // Priced, not silent: the refusal covers the whole box.
+    let budget = v.accounting().refused[&ReasonClass::Budget]
+        .clone()
+        .unwrap();
+    assert!((budget - 1.0).abs() <= 1e-9, "budget mass {budget}");
+    assert!((v.accounting().total().unwrap() - 1.0).abs() <= 1e-9);
+}
+
 /// **The worked example's driver half**, on the two-parameter document:
 /// leaves certify after real bisection, the receipt identity holds, and
 /// the accounting sums to 1.

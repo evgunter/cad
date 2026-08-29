@@ -800,11 +800,20 @@ pub fn drive(
         refused: refused.len(),
         splits,
     };
-    // The receipt identity, checked on EVERY drive. It is a theorem
-    // about the loop above — each box is certified, refused, or split
-    // in two — so a violation is a bug in this module and not a
-    // property of any document; the assertion is where that claim
-    // stops being a comment.
+    // The receipt identity, checked on EVERY drive — D9 row 5's
+    // tripwire class, and a tripwire rather than a proof by the same
+    // rule's clause (i): nothing typed rides on it, and the identity
+    // itself is shipped on the verdict, so a consumer re-checks it
+    // without trusting this module ([`Receipt::holds`]).
+    //
+    // Calibration (clause iii): the population is every box the loop
+    // above pops, and the margin is zero — this is an exact integer
+    // identity over a binary tree, not an estimated ceiling. Each box
+    // is certified, refused, or split into exactly two, so a firing
+    // assertion means a box escaped its bucket, which is a bug in this
+    // module and cannot be caused by any document. Every drive in
+    // `m10_3_driver_interval.rs` asserts it on the shipped value too,
+    // which is what keeps it checked in a release build.
     debug_assert!(
         receipt.holds(),
         "receipt identity broken: {receipt:?} — a box escaped its bucket"
