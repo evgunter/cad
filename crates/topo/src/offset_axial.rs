@@ -1153,8 +1153,10 @@ fn nearest<T: Decide>(
 // The edge
 // ---------------------------------------------------------------------
 
-/// The moved edge's carrier and — when its motion IS a rigid
-/// translation — the vector a mapped description travels by.
+/// The moved edge's carrier: its KIND and conventional frame carried
+/// from the operand, its position taken from the corner solves. The
+/// caller reads both endpoints back onto it and meters the result, and
+/// meters its midpoint against both moved surfaces.
 fn mint_carrier<T: Decide>(
     edge: EdgeKey,
     old: &Curve3<T>,

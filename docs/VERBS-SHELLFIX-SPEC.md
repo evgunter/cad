@@ -147,6 +147,59 @@ surfaces. Split accordingly:
   un-squaring is therefore honestly PENDING until 2b and must not be
   half-claimed in 2a.
 
+## CORRECTION (2026-08-29, PR-2b's opening measurement)
+
+**PR-2b's corner shapes above are wrong, and the door was built to the
+measured ones.** Taken at head before any 2b code, by the probe that
+ships as `crates/sweep/tests/sf2b_head.rs`.
+
+**1. The dominant curved corner has TWO surfaces, not three.** The
+split above says the curved corners are "the plane∩cylinder / sphere /
+cone per-corner solves", carrying PR-2a's 3×3 frame across. Measured,
+a full revolve's rim vertex is incident to exactly two distinct
+surfaces:
+
+```
+sphere-zone vase   4 corners  2 [plane ∩ sphere]     + 2 axis poles
+cone frustum       4 corners  2 [plane ∩ cone]       + 2 axis poles
+drum               4 corners  2 [plane ∩ cylinder]   + 2 axis poles
+bellied pot        2 [plane ∩ sphere], 2 [cylinder ∩ sphere],
+                   2 [plane ∩ cylinder], 2 axis poles
+partial wedge      4 corners  3 [cylinder ∩ plane ∩ plane]
+                   2 corners  3 [plane ∩ plane ∩ plane]
+```
+
+Two surfaces determine a CURVE, not a point. What pins the vertex on
+it is the revolve's seam, whose azimuth is conventional data (D2)
+carried from the operand — the same law PR-2a applies to a line's
+`t = 0` anchor. There is no `plane∩curved∩curved` corner anywhere in
+the corpus, and none is built.
+
+**2. The teapot's belly is not only a sphere zone.** The spec says
+"the teapot's belly, which is a sphere zone". The bellied pot carries a
+FOOT CYLINDER below it, so two of its four junction corners are
+`cylinder ∩ sphere` — a pair `intersect::route` sends to rung 3. The
+door answers it without the table and without marching: in the meridian
+half-plane a cylinder is a line and a sphere is a circle, and that
+meeting is a quadratic. Nothing widened the table; a torus, whose pair
+has no arm at all, never reaches the door and keeps the table's own
+refusal.
+
+**3. Two latent defects, both found by fixtures rather than by
+reading.** `geom_brep::offset_surface`'s cone arm is NAPPE-BLIND — the
+apex slide moves the surface `+d` along its own normal on the `v > 0`
+nappe and `−d` on the other — so the cone frustum GREW when asked to
+shrink (cavity 0.001058 against an operand of 0.000895). And
+`shell_open`'s rim LIFT transported a rim rather than solving it, which
+coincides on a cylinder and is 6.2 mm wrong on a sphere; the lift now
+takes the same simultaneous door with every other chart at distance
+zero.
+
+**4. The conditioning lever is the incident edges' ARC LENGTH**, not
+their chord. A chart with one seam closes on itself and its chord is
+exactly zero, which made every meter read `Zero` and called a perfectly
+transversal corner degenerate. Measured on the revolved tube.
+
 ## Fences
 
 - No SSI, no crossing-pipeline entry (the no-crossing pin stands).
