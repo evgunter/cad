@@ -7,8 +7,11 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)]
 
-use geom_core::{Band, Point2, Point3, Tol, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use geom_core::{Band, MarginDiag, Point2, Point3, Tol, Vec3};
+use profile::{
+    EscalationSite, Profile, ProfileError, ProfileLoop, ProfileVertex, RawLoop, SegmentRef,
+    SketchPlane, ValidatedProfile,
+};
 use sweep::{Extrusion, extrude};
 use topo::Body;
 
@@ -22,16 +25,22 @@ fn band() -> Band {
 
 const FIT_TOL: f64 = 1e-6;
 
-/// A right prism on a polygon (the PR's own helper, copied).
-fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
+/// The validated profile of a polygon, or the door's typed refusal —
+/// the fallible half of [`prism`], so a row whose fixture is only
+/// constructible at some ε rows can *state* what the door said there
+/// instead of panicking through `prism`'s `expect` (R1-E).
+fn try_polygon(pts: &[(f64, f64)]) -> Result<ValidatedProfile<f64>, ProfileError> {
     let lp = ProfileLoop::new(
         pts.iter()
             .map(|&(x, y)| ProfileVertex::new(p2(x, y), 0.0))
             .collect(),
     );
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .expect("a polygon is a valid profile");
+    Profile::new(SketchPlane::xy(), vec![lp]).validate(Tol::witness())
+}
+
+/// A right prism on a polygon (the PR's own helper, copied).
+fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
+    let profile = try_polygon(pts).expect("a polygon is a valid profile");
     extrude(&profile, Extrusion::Distance(h), Tol::witness())
         .expect("a polygon extrudes")
         .body
@@ -330,21 +339,131 @@ fn r1d_the_straight_footprint_vertex_through_shell() {
 // meters, so its verdict is a function of the offset asked for and of
 // how many charts the call names — neither of which is a property of
 // the corner's conditioning.
+//
+// THE ROW'S OWN ε POSTURE. The fixture is parameterized by an absolute
+// `delta` ladder, and `delta` is a LENGTH in the same meters the run's
+// band is stated in — so the ladder meets the band head-on, and which
+// rungs are even constructible is a function of the ε the matrix drew.
+// The quantity that decides it is the profile validator's `chord_side`
+// margin at the near-straight vertex (`near_straight_chord_margin`
+// below, ~2·delta), and at ε = 1e-6 the delta = 1e-6 rung lands at
+// 2e-6 — strictly inside (ε, 10ε) — so `Profile::validate` escalates
+// and the conditioning meter is never reached. That was this file's
+// red at (·, eps = 1e-6): the FIXTURE, not the meter. So each rung
+// states which arm it takes and pins it, in the #1035 two-arm shape:
+// definite above the band, the honest typed escalation inside it,
+// definite-zero below it, all three pinned — and the margin pinned by
+// `==` against the closed form, both directions, so a partial
+// re-tuning of the band or the predicate cannot leave this row's arm
+// selection silently stale. The lesson is already recorded next door
+// in `verbs_rim_r1_probes.rs` ("small kinks land the profile
+// validator's `chord_side` margin (~kink·a) in the ε = 1e-6 band").
 // =====================================================================
+
+/// R1-E's footprint: the unit square with an extra vertex pushed
+/// `delta` OUTWARD at the middle of the bottom edge, so the loop stays
+/// convex and CCW.
+fn near_straight_footprint(delta: f64) -> Vec<(f64, f64)> {
+    vec![
+        (0.0, 0.0),
+        (0.5, -delta),
+        (1.0, 0.0),
+        (1.0, 1.0),
+        (0.0, 1.0),
+    ]
+}
+
+/// The `chord_side` margin `Profile::validate` meters at that vertex,
+/// in closed form — the replica this row's arm selection reads.
+///
+/// The joint is line/line, so the validator's carrier-identity question
+/// is `chord_side(seg0, seg1.b)` = `seg0.unit.perp_dot((1,0) − (0,0))`
+/// = `delta / ‖(0.5, −delta)‖`, and the kernel spells that norm
+/// `(0.5.powi(2) + delta.powi(2)).sqrt()` — reproduced here term for
+/// term, so the equality below is bit-exact and not a tolerance.
+fn near_straight_chord_margin(delta: f64) -> f64 {
+    delta / (0.25 + delta * delta).sqrt()
+}
+
+/// The one site that margin is metered at: the near-straight vertex,
+/// between the loop's first two segments.
+fn near_straight_site() -> EscalationSite {
+    EscalationSite::SegmentPair(
+        SegmentRef {
+            loop_index: 0,
+            segment_index: 0,
+        },
+        SegmentRef {
+            loop_index: 0,
+            segment_index: 1,
+        },
+    )
+}
 
 #[test]
 fn r1e_conditioning_verdict_moves_with_the_offset_alone() {
     let h = 0.4;
+    let b = band();
     for delta in [1e-2, 1e-4, 1e-6, 1e-8] {
-        let pts = vec![
-            (0.0, 0.0),
-            (0.5, -delta),
-            (1.0, 0.0),
-            (1.0, 1.0),
-            (0.0, 1.0),
-        ];
-        // the near-straight vertex at (0.5, -delta) bulges OUTWARD, so
-        // the loop stays convex and CCW.
+        let pts = near_straight_footprint(delta);
+        let margin = near_straight_chord_margin(delta);
+        // The arm selection mirrors `Decide for f64` exactly: |m| ≥
+        // escalate ⇒ definite, |m| ≤ zero ⇒ Zero, strictly between ⇒
+        // escalation.
+        if margin < b.escalate() {
+            let refusal = try_polygon(&pts).err();
+            if margin > b.zero() {
+                // IN-BAND ARM. The corner is a genuine sliver at this
+                // ε: the fixture cannot be built, and the door must say
+                // so by name rather than build something arbitrary.
+                let Some(ProfileError::Escalated { site, source }) = refusal else {
+                    panic!(
+                        "delta={delta:e}: chord_side margin {margin:e} is in band \
+                         ({:e}, {:e}) — the profile door must escalate, got {refusal:?}",
+                        b.zero(),
+                        b.escalate()
+                    );
+                };
+                assert_eq!(site, near_straight_site());
+                assert_eq!(source.predicate, Some("chord_side"));
+                assert_eq!(source.band, b);
+                // `==`, not a ceiling: the replica above and the
+                // kernel's own arithmetic must agree bit for bit.
+                assert_eq!(source.margin, MarginDiag::Value(margin));
+                println!(
+                    "[r1e] delta={delta:e}: chord_side margin {margin:e} IN BAND ({:e}, {:e}) \
+                     — the profile escalates honestly; the conditioning meter is not reached",
+                    b.zero(),
+                    b.escalate()
+                );
+            } else {
+                // BELOW-THE-BAND ARM. The vertex is certainly ON the
+                // chord: this is R1-D's straight footprint, a definite
+                // verdict and a build, not a refusal — and not a
+                // conditioning fixture, so no offset is swept.
+                assert!(
+                    refusal.is_none(),
+                    "delta={delta:e}: chord_side margin {margin:e} is below the band's zero \
+                     ({:e}) — the vertex is definitely straight and the profile must validate, \
+                     got {refusal:?}",
+                    b.zero()
+                );
+                println!(
+                    "[r1e] delta={delta:e}: chord_side margin {margin:e} BELOW zero ({:e}) \
+                     — the corner is definitely straight (R1-D's fixture), not a near-straight \
+                     one; no conditioning question to ask",
+                    b.zero()
+                );
+            }
+            continue;
+        }
+        // DEFINITE ARM — the row's measurement, unchanged.
+        assert!(
+            try_polygon(&pts).is_ok(),
+            "delta={delta:e}: chord_side margin {margin:e} is definite (≥ {:e}); \
+             the near-straight footprint must validate",
+            b.escalate()
+        );
         for t in [0.05, 1e-3, 1e-5, 1e-7] {
             let body = prism(&pts, h);
             let want = wall_volume(&pts, h, t);
