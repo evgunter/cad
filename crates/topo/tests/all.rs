@@ -48,6 +48,8 @@ mod corner_table;
 mod crosslap_rest;
 #[path = "cube_by_hand.rs"]
 mod cube_by_hand;
+#[path = "display_contract.rs"]
+mod display_contract;
 #[path = "geometric_cube.rs"]
 mod geometric_cube;
 #[path = "graft_disjoint.rs"]

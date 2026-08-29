@@ -670,6 +670,24 @@ pub struct MigrationError {
     pub reason: String,
 }
 
+// The human-readable rendering (LIB-DOORS F6 shape): the step names
+// the version it was migrating FROM and forwards the step's own
+// reason. The chain runs forward only and a step is written for one
+// version pair, so which pair failed is the fact a reader needs; the
+// reason is the step's words and is not re-stated here.
+impl core::fmt::Display for MigrationError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let Self { from, reason } = self;
+        write!(
+            f,
+            "persist: the migration step from schema version {from} to {} failed: {reason}",
+            from + 1
+        )
+    }
+}
+
+impl core::error::Error for MigrationError {}
+
 /// A migration step: `from_version` → `from_version + 1`, on the raw
 /// JSON body (spec D1's ratified mechanism).
 pub type MigrationStep = fn(serde_json::Value) -> Result<serde_json::Value, MigrationError>;
