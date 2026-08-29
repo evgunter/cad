@@ -1705,3 +1705,23 @@ micro-unit queue. Process lesson kept honest: two lanes were
 reported reclaimed in prose without the command having run —
 reclaims are now verified by listing, the GUIDE-ASM lesson's
 sibling.
+
+**TESS-REBASELINE MERGED (2026-08-29, #1243; orchestrator-direct —
+the #1223 repair, the gate's own recourse ladder executed).** The
+teapot budget baseline re-cut for #1180's sphere-zone belly: reading
+done first (face genuinely replaced cylinder→sphere; growth is
+authored curvature; slack table untouched), the re-cut made with the
+sweep script's own invocation, and the diff verified row-by-row
+before committing (13 changed + 12 vanished rows, all teapot;
+non-teapot byte-identical; cross-machine byte-consistency with CI's
+own generation). Two instrument lessons paid for en route and kept:
+a sweep without `--deviation` NaN'd 77 cells and was caught by the
+pre-commit diff, not by any gate; and the FIRST gate run of this PR
+was green with the tess steps SKIPPED — the klint pin vocabulary is
+row-specific (`release-budget` is the budget row; `release-default`
+is the tour suite) and a baseline-CSV-only diff does not trigger the
+gate that reads the baseline, so a re-baseline PR must pin the
+budget row explicitly or its green verifies nothing. This commit
+carries that pin.
+
+CI-Config: klint=release-budget
