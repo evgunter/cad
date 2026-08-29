@@ -30,11 +30,17 @@
 //! Two, and both are EXISTING funnel predicates called at their
 //! existing margin shapes: `bool_plane_parallel`
 //! (`Margin::levered(‖n̂_a × n̂_b‖, arm)`, the sine of the normals'
-//! disagreement priced at the arm over which the answer is consumed)
-//! and `carrier_cyl_axis_parallel` (the same shape on the axes). No
-//! third margined compare is minted here; a distance whose
-//! parallelism escalates refuses typed rather than reporting a number
-//! whose meaning depends on an undecided fact.
+//! disagreement priced at a lever arm) and
+//! `carrier_cyl_axis_parallel` (the same shape on the axes). No third
+//! margined compare is minted here; a distance whose parallelism
+//! escalates refuses typed rather than reporting a number whose
+//! meaning depends on an undecided fact.
+//!
+//! **That arm is `max(separation, 1 m)`, and for any part smaller than
+//! a metre the FLOOR is the lever** — the separation never enters. See
+//! [`arm`] for what that costs and why the redesign is owed rather
+//! than taken here. The table's "lever" column below names the arm the
+//! call site passes, not a promise that the separation dominates it.
 //!
 //! The C5 sign convention is binding and lives in exactly one place:
 //! [`gap`]. `g > 0` is clearance, `g = 0` contact, `g < 0`
@@ -331,10 +337,33 @@ fn parallel<T: Decide>(
     }
 }
 
-/// The lever arm a parallelism verdict is consumed over: how far apart
-/// the two carriers are. A zero separation gives unit arm — the
-/// misalignment is then quoted over no distance at all, and pricing it
-/// at zero would classify every tilt as parallel.
+/// The lever arm a parallelism verdict is consumed over.
+///
+/// **The floor is the operative lever for most parts, and this comment
+/// used to bury that.** The arm is `max(separation, 1 m)`, so for
+/// every model smaller than a metre — which is most of them — the
+/// separation never participates and the lever is the CONSTANT 1 m.
+/// Two walls 10 mm apart tilted by 1e-8 rad induce a deviation of
+/// 1e-10 m across their own separation, a tenth of a default eps, and
+/// the measure refuses them as non-parallel anyway, because the tilt
+/// was priced at a metre it does not span.
+///
+/// The floor is not gratuitous: a zero separation would price the
+/// misalignment at zero and classify every tilt as parallel, which
+/// fails in the direction that reports numbers rather than refusing
+/// them. What is wrong is the CHOICE of 1 m as the floor — an ad-hoc
+/// absolute constant standing in for a model scale nobody asked for,
+/// exactly the shape `chart_region.rs`'s standing criticism of pinned
+/// arms names.
+///
+/// **Not redesigned here, deliberately.** An honest arm for a
+/// parallelism verdict is a design question (the carriers' own extent?
+/// the consuming model's? the document's bounding box?) that reaches
+/// past this unit into every levered predicate in the kernel; picking
+/// one here would set a precedent by accident. It is recorded as owed
+/// work against the same conversation `chart_region.rs:804` points at,
+/// and the over-refusal direction is the safe one to be wrong in
+/// meanwhile.
 fn arm<T: Decide>(from: Point3<T>, to: Point3<T>) -> T {
     let separation = (to - from).norm();
     separation.max(T::one())

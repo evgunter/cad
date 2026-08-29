@@ -47,7 +47,8 @@ pub use editor_core::{
 // the funnel site name, carried like `SEL_DATUM_DISTANCE` so a
 // K-census consumer can name the row rather than spell the string.
 pub use editor_core::{
-    ASSERT_BOUND, AssertionDir, AssertionVerdict, MeasureExpr, MeasurePrimitive, UnevaluatedReason,
+    ASSERT_BOUND, AssertionDir, AssertionVerdict, MeasureExpr, MeasurePrimitive, MeasureRef,
+    UnevaluatedReason,
 };
 
 // Expressions and their text door.

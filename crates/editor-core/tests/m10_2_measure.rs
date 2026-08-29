@@ -358,10 +358,9 @@ fn the_two_hole_plate_web_measures_and_its_assertion_flips() {
         other => panic!("0.2 >= {MIN_WEB} holds; got {other:?}"),
     }
 
-    // ONE parameter edit: grow the holes until they nearly touch. The
-    // web becomes 0.60 - 0.598 = 0.002... no: 0.299 each leaves
-    // 0.6 - 0.598 = 0.002, still clearing. 0.29999 leaves 2e-5, under
-    // the 5e-4 bound.
+    // ONE parameter edit: grow each hole to 0.29999, so the two walls
+    // very nearly touch. The web becomes 2*0.30 - 2*0.29999 = 2e-5,
+    // which is under the 5e-4 bound and must flip the verdict.
     let doc = push(
         &doc,
         &DocEdit::SetDocParamValue {

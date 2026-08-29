@@ -114,7 +114,7 @@ pub enum ProductError {
         /// The failed root.
         node: RecipeNodeId,
     },
-    /// A root never ran: an ancestor failed.
+    /// A root never ran: ancestor failed.
     RootPoisoned {
         /// The poisoned root.
         node: RecipeNodeId,

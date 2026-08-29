@@ -738,14 +738,19 @@ pub enum NodeErrorKind {
     /// and load doors; this is the evaluation backstop, so a corrupt
     /// node reaches a typed refusal rather than a panic.
     MeasureMalformed(crate::node::MeasureNodeFault),
-    /// A VALUE leaf of a measured expression failed to evaluate. The
-    /// leaf's position in the expression's `value_leaves` pre-order is
-    /// the address — a measured expression has no slot vocabulary, so
-    /// this is the honest one rather than a slot name borrowed from a
-    /// node that does.
-    MeasureLeafExpr {
-        /// The leaf's index in `value_leaves` order.
-        leaf: usize,
+    /// A node's PAYLOAD expression failed to evaluate — a measured
+    /// expression's value leaf, or an assertion's bound.
+    ///
+    /// The address is the expression's position in `payload_exprs`
+    /// order, because neither carrier has a slot vocabulary to name.
+    /// The rendering says WHICH kind it is: calling an assertion's
+    /// failed bound "value leaf 0 of the measured expression" named a
+    /// thing an assertion does not have.
+    PayloadExpr {
+        /// Which node kind's payload this is, for the message.
+        what: &'static str,
+        /// The expression's index in `payload_exprs` order.
+        index: usize,
         /// The expression evaluator's refusal, unaltered.
         source: EvalError,
     },
@@ -1024,14 +1029,16 @@ impl core::fmt::Display for NodeErrorKind {
                 f,
                 "the measured expression did not evaluate to a finite value: {source}"
             ),
-            Self::MeasureLeafExpr { leaf, source } => write!(
-                f,
-                "value leaf {leaf} of the measured expression failed to evaluate: {source}"
-            ),
+            Self::PayloadExpr {
+                what,
+                index,
+                source,
+            } => write!(f, "{what} {index} failed to evaluate: {source}"),
             Self::MeasureMalformed(fault) => write!(f, "{fault}"),
             Self::AssertionDimension { measured, bound } => write!(
                 f,
-                "the assertion's bound is {bound:?} and the measure it constrains is                  {measured:?} — an assertion compares like with like or not at all"
+                "the assertion's bound is {bound:?} and the measure it constrains is \
+                 {measured:?} — an assertion compares like with like or not at all"
             ),
             Self::WitnessBifurcation(refusal) => {
                 write!(f, "{}", crate::witness::BranchSelectionRefused(refusal))
@@ -1532,8 +1539,13 @@ where
                 match crate::expr::eval(leaf, env) {
                     Ok(v) => values.push(v),
                     Err(source) => {
-                        return fail(NodeErrorKind::MeasureLeafExpr {
-                            leaf: values.len(),
+                        let what = match node {
+                            crate::node::Node::Assertion { .. } => "the assertion's bound,",
+                            _ => "value leaf of the measured expression,",
+                        };
+                        return fail(NodeErrorKind::PayloadExpr {
+                            what,
+                            index: values.len(),
                             source,
                         });
                     }
@@ -1694,6 +1706,26 @@ where
     // pre-bump process is reused by a post-bump one, anywhere, which is
     // exactly what a format version is for. Keys are process-internal
     // and never persisted (spec D3), so nothing on disk is affected.
+    // M10-2 GREW THE INPUT SET AGAIN AND DID NOT BUMP, which
+    // contradicts the rule stated above unless the exception is
+    // written down — so here it is.
+    //
+    // The measurement vocabulary added the payload-expression channel
+    // (a measured expression's value leaves, an assertion's bound).
+    // The channel writes NOTHING for a node that carries none:
+    // `node::payload_exprs` answers `None`, not an empty vector, and
+    // the `if let Some` below skips the length word entirely. So every
+    // key a document without measures can produce is byte-identical to
+    // the pre-M10-2 one.
+    //
+    // Bumping would have moved all of them — the radius paragraph
+    // above says every node — and broken the very claim the unit is
+    // measured against: a document that uses no measure is untouched.
+    // The rule the comment states is about input sets that could
+    // COLLIDE or DRIFT two different nodes onto one key; a channel no
+    // existing node reaches is strictly additive and is the case the
+    // rule does not cover. A future channel that any existing node
+    // writes into gets the bump.
     h.write_tag(3);
     let tol = tol.get();
     h.write_f64_bits(tol.eps);
@@ -1940,8 +1972,10 @@ where
             }
             feed_measure_expr(&mut h, expr);
         }
-        // The DIRECTION is payload; the bound is a slot (fed below) and
-        // the measure is an input edge (its own key carries it).
+        // The DIRECTION is payload. The bound is NOT a slot — it is a
+        // payload expression, and its evaluated value is fed with the
+        // others below; the measure is an input edge, so its own key
+        // carries it.
         Node::Assertion { dir, .. } => h.write_tag(match dir {
             crate::measure::AssertionDir::AtLeast => 1,
             crate::measure::AssertionDir::AtMost => 2,
@@ -2451,6 +2485,10 @@ fn dimension_tag(dim: crate::expr::Dimension) -> u8 {
     }
 }
 
+/// Feeds one stable name: its entity kind as a tag, its minting node,
+/// then its role path segment by segment. Every field participates —
+/// a name is an identity, and two names differing anywhere are two
+/// different recipe payloads.
 fn feed_stable_name(h: &mut KeyHasher, name: &StableName) {
     use crate::names::EntityKind;
     h.write_tag(match name.kind {

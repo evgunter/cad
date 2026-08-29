@@ -1266,9 +1266,15 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
         )
         .expect("the surface-kind atom is exact");
         found.sort();
-        found.truncate(2);
-        assert_eq!(found.len(), 2, "the plate's holes have cylindrical walls");
-        found
+        // Each hole's wall is TWO faces sharing one cylinder carrier, so
+        // the first two in canonical order are one hole's halves and
+        // measure zero apart. Take the first and the LAST, which are
+        // different holes, so the measure is the holes' axis separation
+        // and the Python row that reads it has a real number to pin.
+        assert_eq!(found.len(), 4, "two holes, two wall faces each");
+        let last = found.pop().expect("four walls");
+        let first = found.remove(0);
+        vec![first, last]
     };
     let (doc, measure) = doors_insert(
         doc,
@@ -1277,7 +1283,13 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
                 a: 0,
                 b: 1,
             }),
-            walls,
+            // Read AT the plate extrude the walls were selected from —
+            // nothing places this geometry, so the reading site is that
+            // node, spelled explicitly rather than assumed.
+            walls
+                .into_iter()
+                .map(|name| pncad::document::MeasureRef::new(plate, name))
+                .collect(),
         )
         .expect("both indices address a reference"),
     );

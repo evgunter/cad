@@ -414,6 +414,12 @@ class TestPlateParam(unittest.TestCase):
         self.assertEqual(ctx.exception.reason, "node_failed")
         self.assertEqual(ctx.exception.kind, "profile_replay")
 
+    # The holes sit at x = 1.0 and x = 2.2 (see `plate_profile` in
+    # crates/pncad/tests/all.rs), so the axis separation the fixture's
+    # measure reports is exactly 1.2 — the number the SCENE was
+    # authored with, not one read off a previous run.
+    WEB_ORACLE = 2.2 - 1.0
+
     def test_a_measure_and_its_verdict_read_back_from_python(self):
         """The READ half of the measurement vocabulary (ERROR-DESIGN
         E3/E10), which is what the binding census says SHOULD ship:
@@ -426,11 +432,11 @@ class TestPlateParam(unittest.TestCase):
 
         measurement = ev.value(doc.order()[self.MEASURE]).measure()
         self.assertEqual(measurement.dimension, "Length")
-        # A distance is a magnitude: the number is finite and >= 0.
-        # WHICH walls the fixture selected is not this row's business
-        # (the closed-form oracles live in editor-core's suite); that
-        # the quantity arrives typed and readable is.
-        self.assertGreaterEqual(measurement.value, 0.0)
+        # The scene's own oracle. The row this replaces asserted only
+        # `value >= 0.0`, which the fixture satisfied VACUOUSLY: it was
+        # measuring one hole's two wall halves against each other and
+        # reporting 0.0. Pinning the number caught that.
+        self.assertAlmostEqual(measurement.value, self.WEB_ORACLE, places=9)
         self.assertIsNotNone(measurement.length)
         self.assertAlmostEqual(
             measurement.length.in_unit(m), measurement.value, places=12
@@ -439,25 +445,49 @@ class TestPlateParam(unittest.TestCase):
         verdict = ev.value(doc.order()[self.ASSERTION]).assertion()
         self.assertEqual(verdict.status, "Holds")
         self.assertIs(verdict.holds, True)
-        self.assertIsNotNone(verdict.measured)
-        self.assertIsNotNone(verdict.bound)
-        self.assertIsNone(verdict.reason)
+        # The verdict reports the measure's OWN number, and its flag
+        # agrees with the relation it claims to have decided.
         self.assertAlmostEqual(verdict.measured, measurement.value, places=12)
+        self.assertIsNotNone(verdict.bound)
+        self.assertGreaterEqual(verdict.measured, verdict.bound)
+        self.assertIsNone(verdict.reason)
 
     def test_reading_a_verdict_changes_nothing(self):
-        """E10's report-only rule, from the consumer's seat: the
-        product is the same body before and after a verdict is read,
-        and asking a non-assertion for one is a typed refusal rather
-        than a guess."""
+        """E10's report-only rule, from the consumer's seat.
+
+        The claim is not "reading is a pure getter" — that is true of
+        every property and cannot fail. It is that the ASSERTION'S
+        PRESENCE changes no outcome: delete it, and the document's
+        product and its measured value are bit-identical. That is what
+        a gating assertion would break, so this is the row that would
+        go red if one ever appeared."""
         import pncad
 
         doc, solid = self.plate()
         ev = evaluate(doc)
-        before = ev.value(solid).body().mass_properties().volume
-        ev.value(doc.order()[self.ASSERTION]).assertion()
-        after = ev.value(solid).body().mass_properties().volume
-        self.assertEqual(before, after)
+        with_volume = ev.value(solid).body().mass_properties().volume
+        with_web = ev.value(doc.order()[self.MEASURE]).measure().value
+        verdict = ev.value(doc.order()[self.ASSERTION]).assertion()
+        self.assertEqual(verdict.status, "Holds")
 
+        # The SAME document with the assertion deleted. `Doc.apply`
+        # edits in place, so this is a second load of the fixture.
+        without, _ = self.plate()
+        without.apply(DocEdit.delete_node(without.order()[self.ASSERTION]))
+        ev2 = evaluate(without)
+        self.assertEqual(
+            ev2.value(solid).body().mass_properties().volume,
+            with_volume,
+            "an assertion is report-only: the product cannot see it",
+        )
+        self.assertEqual(
+            ev2.value(without.order()[self.MEASURE]).measure().value,
+            with_web,
+            "an assertion is report-only: the measure cannot see it either",
+        )
+
+        # And asking a non-assertion for a verdict is a typed refusal,
+        # not a guess.
         with self.assertRaises(pncad.EvaluationError) as ctx:
             ev.value(solid).assertion()
         self.assertEqual(ctx.exception.reason, "wrong_kind")

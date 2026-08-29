@@ -252,7 +252,7 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
         NodeErrorKind::MeasureNotParallel { .. } => "measure_not_parallel",
         NodeErrorKind::MeasureNonFinite { .. } => "measure_non_finite",
         NodeErrorKind::MeasureMalformed(_) => "measure_malformed",
-        NodeErrorKind::MeasureLeafExpr { .. } => "measure_leaf_expr",
+        NodeErrorKind::PayloadExpr { .. } => "payload_expr",
         NodeErrorKind::AssertionDimension { .. } => "assertion_dimension",
         NodeErrorKind::ToleranceConflict { .. } => "tolerance_conflict",
         NodeErrorKind::WrongOperand { .. } => "wrong_operand",

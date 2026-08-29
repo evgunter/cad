@@ -993,6 +993,7 @@ NOT_BOUND = {
     # is listed here is the authoring vocabulary alone.
     "AssertionDir": f"{GAP}: B-MEASURES measurement authoring",
     "MeasureExpr": f"{GAP}: B-MEASURES measurement authoring",
+    "MeasureRef": f"{GAP}: B-MEASURES measurement authoring",
     "MeasureNodeFault": f"{GAP}: B-MEASURES measurement authoring",
     "MeasurePrimitive": f"{GAP}: B-MEASURES measurement authoring",
     "Distribution": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",

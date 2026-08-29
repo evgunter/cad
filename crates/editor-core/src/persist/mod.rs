@@ -438,13 +438,16 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 /// degenerate carry, not the format claim, exactly as v15's all-`None`
 /// distributions were.
 ///
-/// This number was taken by an explicit by-eye read of main's constant
-/// at the final re-merge (`git show
-/// origin/main:crates/editor-core/src/persist/mod.rs | grep
-/// SCHEMA_VERSION`), the only thing that has ever caught the
-/// same-number race, and the claim also lives as prose in
-/// `docs/MODEL-AB-LOG.md`, where a second claimant collides instead of
-/// merging clean.
+/// Taken by the same by-eye read of main's constant at the re-merge
+/// that every entry above describes, and not re-described here.
+/// What IS specific to this number: it was read again at each of this
+/// branch's re-merges (main sat at 15 throughout), and it has a KNOWN
+/// LIVE RIVAL — LIB-G16's `Node::Chamfer`, whose dispatch record
+/// claims 16 as well. Two claims on one number are resolved by order
+/// of merge, not by either paragraph: whichever lands first keeps 16
+/// and the other moves to 17, repairing its ledger entry, its
+/// `assert_eq!(SCHEMA_VERSION, ..)` rows, its golden filename and the
+/// `plate_param`, bench-corpus and `gallery_ring` fixtures with it.
 ///
 /// Bump ONLY with a ratified format change — plus its
 /// [`migration_step`] entry, or a ratified break like these fifteen.

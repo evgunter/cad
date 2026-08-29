@@ -687,7 +687,8 @@ impl core::fmt::Display for MeasureNodeFault {
         match self {
             Self::RefIndexOutOfRange { verb, index, refs } => write!(
                 f,
-                "`{verb}` reads reference {index}, and the measure carries {refs} — the                  expression indexes the node's reference list, so this names nothing"
+                "`{verb}` reads reference {index}, and the measure carries {refs} — the \
+                 expression indexes the node's reference list, so this names nothing"
             ),
         }
     }
@@ -1321,11 +1322,6 @@ impl<P> Node<P> {
             // continuous slot — a mate has no expression to drive.
             | Node::Mate { .. }
             | Node::InstantiatePart { .. } => Vec::new(),
-            // The measured expression is NOT a slot: it is a
-            // `MeasureExpr`, not an `Expr`, and the slot vocabulary is
-            // the domain of `expr()`. It feeds the content key as
-            // recipe payload instead, where the fillet's selection
-            // feeds.
             // Neither carries a SLOT. A slot's address fixes its
             // dimension ([`SlotId::dimension`]) — that is the
             // vocabulary's contract, read by the edit door, the load
