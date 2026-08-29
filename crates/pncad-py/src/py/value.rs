@@ -226,6 +226,17 @@ impl Body {
         self.run_validator(py, "validate_closed", topo::validate_closed(&self.inner))
     }
 
+    /// Tessellate at a chordal budget — the ladder's step 4.
+    ///
+    /// `chordal` is a DISTANCE: the maximum the piecewise-linear mesh
+    /// may sag from the exact surface. It is deliberately not the
+    /// kernel's ε, which `DocEdit.set_tolerance` sets and which
+    /// decides what the model IS; this decides how coarsely a view of
+    /// it may approximate it. Two budgets see the same body.
+    fn tessellate(&self, py: Python<'_>, chordal: &Length) -> PyResult<super::mesh::Mesh> {
+        super::mesh::tessellate(py, &self.inner, chordal)
+    }
+
     /// Geometric validation only.
     fn validate_geometric(&self, py: Python<'_>) -> PyResult<()> {
         let tol = Tol::witness();

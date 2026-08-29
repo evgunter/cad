@@ -791,7 +791,8 @@ where
 /// where that condition currently fails, and is issue **#874**.
 /// One `Decide + Bounds` door *grants* without that guard
 /// (`topo::separation`, sound at a dual by delegation); the scope rule in
-/// `real.rs` is the home for both that and the fillet seam's obligation.
+/// `real.rs` is the home for that, and its DL5 delegation rule is the
+/// standing criterion the fillet seam's audit discharged into.
 ///
 /// # On the spelling
 ///

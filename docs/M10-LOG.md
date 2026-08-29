@@ -103,3 +103,17 @@ Process findings recorded in the row: R2's rubric is missing data
 "reclaim a lane's TARGET freely once its report is in; remove the
 WORKTREE only when the unit fully concludes"), and the fix pass ran
 on a fresh same-arm lane for the same reason.
+
+## M10-DI MERGED (2026-08-29)
+
+The Dual contract is implemented: the e4 door is OPEN
+(`evaluate::<Dual64>` builds the whole corpus, value channel
+bit-identical per-node), the policy seam is typed
+(`AtRestOutcome`), the Enclosure gate fires, and the delegation
+rule is the ledger's standing criterion. Sample #40, ordinal 501.
+Both review arms independently proved correctness by differential;
+the findings were all guards and honesty, the sharpest being R1's
+mutation testing (three certifying arms could be gutted green —
+now each is pinned to its validation door). Issues 687 and 701
+close with this merge. The E4 pairing hook (DL3's own sentence)
+is a NAMED obligation on M10-4's spec.
