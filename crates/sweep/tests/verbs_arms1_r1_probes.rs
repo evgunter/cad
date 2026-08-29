@@ -310,14 +310,15 @@ fn both_zone_rims_in_one_call_refuse_on_the_shared_support() {
     }
 }
 
-/// **The unbored hemisphere refuses typed.** A profile touching the
-/// axis mints HALF-walls (two seam azimuths): the equator is two open
-/// arcs over two half-disc plane supports, outside both closed-rim
-/// doors. The PR's "full solids of revolution" are the annular-profile
-/// ones; this row pins that the boundary is a typed refusal, not a
-/// panic and not silent geometry.
+/// **The unbored hemisphere's equator carves as ONE band.** A profile
+/// touching the axis mints HALF-walls (two seam azimuths): the equator
+/// is two arcs over two half-disc plane supports, which is a rim a
+/// chart seam has split rather than a rim of one edge. The annulus door
+/// takes it whole — one torus band over both arcs, the walk carrying
+/// through the two seam vertices — so an on-axis profile is no longer
+/// the boundary of the closed-rim doors.
 #[test]
-fn the_unbored_hemisphere_equator_refuses_typed() {
+fn the_unbored_hemisphere_equator_carves_as_one_band() {
     let body = hemisphere();
     assert!(
         closed_rims(&body).is_empty(),
@@ -340,14 +341,11 @@ fn the_unbored_hemisphere_equator_refuses_typed() {
         })
         .collect();
     assert_eq!(arcs.len(), 2, "the equator is two half-circle arcs");
-    match fillet_edges(&body, &arcs, 0.1, band(), tol()) {
-        Err(
-            FilletError::UnsupportedChain { .. }
-            | FilletError::FilletCornerUnsupported { .. }
-            | FilletError::UnsupportedRunOut { .. },
-        ) => {}
-        other => panic!("the hemisphere equator must refuse typed, got {other:?}"),
-    }
+    let out = fillet_edges(&body, &arcs, 0.1, band(), tol())
+        .unwrap_or_else(|e| panic!("the hemisphere equator carves whole, got {e:?}"));
+    validate_geometric(&out.body, tol())
+        .unwrap_or_else(|e| panic!("the filleted hemisphere must be tier-3 valid, got {e:?}"));
+    assert_eq!(out.band_faces.len(), 1, "one band over both arcs");
 }
 
 /// **Near-limit radii refuse typed.** `s ≤ r` is predicate 3's

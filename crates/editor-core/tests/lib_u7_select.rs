@@ -221,7 +221,7 @@ fn a_path_pattern_matches_length_for_length() {
 
 /// **An empty selector selects nothing** — and says so here rather
 /// than at the fillet, which is where an empty SELECTION refuses
-/// (`FilletSelectionEmpty`, one door for that refusal).
+/// (`BlendSelectionEmpty`, one door for that refusal).
 #[test]
 fn an_empty_selector_matches_nothing() {
     let (doc, cube) = box_doc();

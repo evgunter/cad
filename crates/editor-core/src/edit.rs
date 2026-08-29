@@ -1097,8 +1097,8 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             // a typo. They are not DAG edges: later deletes may strand
             // them (N5), so this is the ONLY door that checks, for
             // every payload that carries a name (`Node::payload_names`
-            // — Declare pairs, a fillet's selection under M6-5, a
-            // mate's two heads under A12).
+            // — Declare pairs, a BLEND's selection (fillet under M6-5,
+            // chamfer alongside it), a mate's two heads under A12).
             for name in node.payload_names() {
                 if !new.nodes.contains_key(&name.node) {
                     return Err(EditError::DeclareNamesMissingNode { name: name.clone() });
@@ -1250,13 +1250,16 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
                 return Err(EditError::RebindUnknownName { name: from.clone() });
             }
             // One-shot rewrite of every EXACT reference (sites:
-            // Declare pairs, fillet selections, appearance-store
-            // keys). Zero sites = nothing to repair, refused.
+            // Declare pairs, blend selections — fillet and chamfer
+            // alike — appearance-store keys). Zero sites = nothing to
+            // repair, refused.
             // Every payload site, by the one list that says which
             // payloads carry a name (`Node::payload_names`' twin): the
             // rewrite reaches a mate's heads exactly as it reaches a
-            // Declare pair, and a fillet selection's GROWTH PATH (M6-5,
-            // ruled #217) re-canonicalizes there.
+            // Declare pair, and a blend selection's GROWTH PATH (M6-5,
+            // ruled #217) re-canonicalizes there — for a chamfer's
+            // selection exactly as for a fillet's, since both are the
+            // same canonical set.
             let mut declare_sites = 0usize;
             for node in new.nodes.values_mut() {
                 declare_sites += node.rebind_payload_names(from, to);
@@ -1299,7 +1302,7 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
             reconcile = true;
             EditRecord {
                 minted: None,
-                // Declare payloads or fillet selections changed:
+                // Declare payloads or blend selections changed:
                 // content keys move and the threading consumes them
                 // — structural. An appearance-only rebind is
                 // presentation motion: no content key moves, nothing

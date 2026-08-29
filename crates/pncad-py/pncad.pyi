@@ -331,8 +331,13 @@ class ReadbackError(PncadError):
     `wrong_kind`, `whole_body`, `no_bodies`, `no_such_body`, and the
     node ladder `node_not_evaluated` / `node_failed` /
     `node_poisoned`); the GEOMETRY half reads the carrier and arrives
-    under its OWN tags rather than a wrapper tag (`dangling`,
-    `no_canonical_frame`, `no_carrier`).
+    under its OWN tags rather than a wrapper tag (`dangling_entity`,
+    `dangling_geometry`, `no_canonical_frame`, `no_carrier`).
+
+    The two dangling tags stay apart because they are different facts
+    about the model: `dangling_entity` is a stale or foreign handle,
+    `dangling_geometry` is a live entity naming geometry the body
+    itself no longer has.
 
     `ambiguous` is the one to read twice: a tie is a naming success
     and a referencing failure, and the door refuses rather than
@@ -1012,6 +1017,17 @@ class Node:
     def revolve(profile: NodeId, axis: NodeId, angle: Angle) -> Node: ...
     @staticmethod
     def loft(profiles: list[NodeId], v_degree: int) -> Node: ...
+    @staticmethod
+    def chamfer(target: NodeId, distance: Length, selection: list[str]) -> Node:
+        """Equal-setback flat chamfers on named edges of `target`.
+
+        `Node.fillet`'s twin: `selection` is edge names as TEXT and the
+        set FREEZES at authoring time. `distance` is the SETBACK along
+        each support, not a radius. An empty selection, an unresolvable
+        name, or an edge whose supports are not both planes refuses
+        typed at `evaluate`.
+        """
+
     @staticmethod
     def datum_axis(
         origin: tuple[Length, Length, Length],

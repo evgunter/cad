@@ -605,13 +605,11 @@ fn a_rim_free_cone_refuses_at_both_doors() {
 /// which would take `Δu = π` for a domain of width `π/2` and measure
 /// twice its area — is refused.
 ///
-/// **What neither row can claim, because the code does not establish
-/// it:** that the arcs run pole to pole. `(lo, hi)` is still `min_max`
-/// over meridian ENDPOINT latitudes. Split the same hemisphere at ±π/4
-/// instead of at its poles and both poles fall in the arcs' interiors:
-/// accepted, and short by **29.3%** (measured on this branch). That is
-/// **#723**'s mechanism reaching the one arm #723's text does not
-/// mention, and it is #723's to fix, not a style pass's.
+/// **What these rows do not carry:** the arcs' `v`-extent. The fold
+/// carries each arc's span-derived pole extremes, so the arcs need
+/// not run pole to pole — the same hemisphere split at ±π/4 instead
+/// of at its poles still measures `2πR²`, and that row lives in
+/// `cert1_sphere_polar.rs` with the rest of the polar-extent pins.
 #[test]
 fn the_rimless_band_measures_the_hemisphere_it_is_written_for() {
     let rs = 0.010;
