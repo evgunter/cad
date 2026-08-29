@@ -122,6 +122,9 @@ pub(crate) struct ProfilePre {
     pub profile_f64: Profile<f64>,
     /// The canonical→program naming anchor.
     pub naming: ProfileNaming,
+    /// The discrete decisions this f64 pass made — the witness the
+    /// lift's second pass consumes and re-verifies at its own scalar.
+    pub structure: profile::ProfileStructure,
 }
 
 /// Derives the anchor by bit-matching the canonical f64 loops against

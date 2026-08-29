@@ -166,7 +166,7 @@ fn variant_name(debug: &str) -> String {
 fn every_table_verb_is_a_document_program() {
     let authored = chain_steps();
     let resolved = corpus()
-        .resolve(&ParamEnv::default())
+        .resolve(&ParamEnv::<f64>::default())
         .expect("the corpus resolves at f64");
 
     let chain: Vec<Verb> = resolved[0].iter().map(profile::Step::verb).collect();

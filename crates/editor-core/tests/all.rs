@@ -152,6 +152,8 @@ mod m4_pr6_roundtrip_interval;
 mod m4_pr7_appearance;
 #[path = "m4_pr7_appearance_interval.rs"]
 mod m4_pr7_appearance_interval;
+#[path = "m10_p_fence.rs"]
+mod m10_p_fence;
 #[path = "m4_pr8_corpus.rs"]
 mod m4_pr8_corpus;
 #[path = "m4_pr8_corpus_interval.rs"]

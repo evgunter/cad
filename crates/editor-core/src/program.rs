@@ -34,7 +34,7 @@
 //! is persisted — the derived-value list in `persist`'s module docs
 //! gains the segments. D9 makes the load-time rebuild exact.
 
-use geom_core::Point2;
+use geom_core::{Decide, Point2};
 use profile::{ArcSweep, SketchPlane, Step, Target};
 
 use crate::expr::{Dimension, DimensionError, EvalError, Expr, ParamEnv, eval};
@@ -649,27 +649,34 @@ impl LoopProgram {
 }
 
 // ------------------------------------------------------------------
-// Resolution (V2: at f64, the C6-pinned lane)
+// Resolution (the C6 lane, plus the lift's second pass)
+//
+// Resolution itself is scalar-generic: an expression evaluates at
+// whatever scalar its environment binds. What is C6-pinned is not the
+// arithmetic but the STRUCTURE the resolved values then feed — which
+// is why the second pass resolves at `T` and replays GUIDED, rather
+// than replaying freely at `T`.
 // ------------------------------------------------------------------
 
-/// Resolves one expression at f64, tagging failures with the slot.
-fn res(
+/// Resolves one expression at the resolution scalar, tagging failures
+/// with the slot.
+fn res<T: Decide>(
     e: &Expr,
-    env: &ParamEnv<f64>,
+    env: &ParamEnv<T>,
     loop_: u32,
     step: u32,
     arg: StepArg,
-) -> Result<f64, (SlotId, EvalError)> {
-    eval::<f64>(e, env).map_err(|source| (SlotId::Profile { loop_, step, arg }, source))
+) -> Result<T, (SlotId, EvalError)> {
+    eval::<T>(e, env).map_err(|source| (SlotId::Profile { loop_, step, arg }, source))
 }
 
 /// Resolves a target's expressions.
-fn res_target(
+fn res_target<T: Decide>(
     t: &ProgramTarget,
-    env: &ParamEnv<f64>,
+    env: &ParamEnv<T>,
     loop_: u32,
     step: u32,
-) -> Result<profile::Target<f64>, (SlotId, EvalError)> {
+) -> Result<profile::Target<T>, (SlotId, EvalError)> {
     Ok(match t {
         ProgramTarget::Start => profile::Target::Start,
         ProgramTarget::Point(p) => profile::Target::Point(Point2::new(
@@ -685,14 +692,14 @@ fn res_target(
 /// [`ProgramStep`] and CONSTRUCTS a [`Step`], so a verb `profile`'s
 /// table gains is invisible here. The census in
 /// `tests/switch_program_vocabulary.rs` is what sees it.
-fn res_step(
+fn res_step<T: Decide>(
     s: &ProgramStep,
-    env: &ParamEnv<f64>,
+    env: &ParamEnv<T>,
     loop_: u32,
     i: u32,
-) -> Result<Step<f64>, (SlotId, EvalError)> {
+) -> Result<Step<T>, (SlotId, EvalError)> {
     use StepArg as A;
-    let pt = |p: &[Expr; 2], ax: StepArg, ay: StepArg| -> Result<Point2<f64>, _> {
+    let pt = |p: &[Expr; 2], ax: StepArg, ay: StepArg| -> Result<Point2<T>, _> {
         Ok(Point2::new(
             res(&p[0], env, loop_, i, ax)?,
             res(&p[1], env, loop_, i, ay)?,
@@ -739,23 +746,23 @@ fn res_step(
 
 /// Resolves an arc spec to its scalar-valued mirror (`second` selects
 /// the spec₂ role twins, exactly as [`spec_slots`] enumerates them).
-fn res_spec(
+fn res_spec<T: Decide>(
     spec: &ProgramArcData,
-    env: &ParamEnv<f64>,
+    env: &ParamEnv<T>,
     loop_: u32,
     i: u32,
     second: bool,
-) -> Result<profile::ArcData<f64>, (SlotId, EvalError)> {
+) -> Result<profile::ArcData<T>, (SlotId, EvalError)> {
     use StepArg as A;
     let pick = |a: StepArg, b: StepArg| if second { b } else { a };
     let pt2 =
-        |p: &[Expr; 2], ax: StepArg, ay: StepArg| -> Result<Point2<f64>, (SlotId, EvalError)> {
+        |p: &[Expr; 2], ax: StepArg, ay: StepArg| -> Result<Point2<T>, (SlotId, EvalError)> {
             Ok(Point2::new(
                 res(&p[0], env, loop_, i, ax)?,
                 res(&p[1], env, loop_, i, ay)?,
             ))
         };
-    let tgt = |t: &ProgramTarget| -> Result<profile::Target<f64>, (SlotId, EvalError)> {
+    let tgt = |t: &ProgramTarget| -> Result<profile::Target<T>, (SlotId, EvalError)> {
         Ok(match t {
             ProgramTarget::Start => profile::Target::Start,
             ProgramTarget::Point(p) => profile::Target::Point(pt2(
@@ -808,11 +815,11 @@ impl LoopProgram {
     /// # Errors
     ///
     /// The failing slot plus the evaluator's refusal, unaltered.
-    pub fn resolve(
+    pub fn resolve<T: Decide>(
         &self,
-        env: &ParamEnv<f64>,
+        env: &ParamEnv<T>,
         loop_: u32,
-    ) -> Result<Vec<Step<f64>>, (SlotId, EvalError)> {
+    ) -> Result<Vec<Step<T>>, (SlotId, EvalError)> {
         use StepArg as A;
         match self {
             LoopProgram::Chain(steps) => steps
@@ -856,7 +863,10 @@ impl ProfileProgram {
     /// # Errors
     ///
     /// The failing slot plus the evaluator's refusal, unaltered.
-    pub fn resolve(&self, env: &ParamEnv<f64>) -> Result<Vec<Vec<Step<f64>>>, (SlotId, EvalError)> {
+    pub fn resolve<T: Decide>(
+        &self,
+        env: &ParamEnv<T>,
+    ) -> Result<Vec<Vec<Step<T>>>, (SlotId, EvalError)> {
         self.loops
             .iter()
             .enumerate()

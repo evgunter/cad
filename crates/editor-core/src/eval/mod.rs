@@ -377,6 +377,24 @@ pub enum NodeErrorKind {
         /// The driver's refusal, unaltered.
         error: profile::ReplayError<f64>,
     },
+    /// **The lift's second pass**: one profile loop's program refused
+    /// its GUIDED elaboration at the lane scalar.
+    ///
+    /// `structure` is the load-bearing half and names the consumed
+    /// decision that could not be honoured — indeterminate here (the
+    /// cue to narrow the parameter box) or classified definitely
+    /// otherwise (this binding leaves the elaborated structure).
+    /// `None` means the lane's own geometry refused at this binding;
+    /// that refusal's payloads are scalar-valued and stay in the lane,
+    /// the f64 pass being the one whose refusals carry numbers.
+    ProfileLaneReplay {
+        /// The refusing loop (program order).
+        loop_: u32,
+        /// The step it refused at.
+        step: usize,
+        /// The consumed decision, when the wall was the record.
+        structure: Option<profile::StructureRefusal>,
+    },
     /// The program-anchor derivation failed to match a canonical loop
     /// back to a program loop — an internal invariant break
     /// (validate's canonical form is an exact reindexing of its
@@ -729,6 +747,22 @@ impl core::fmt::Display for NodeErrorKind {
                 )
             }
             Self::Profile(e) => write!(f, "the replayed profile failed validation: {e}"),
+            Self::ProfileLaneReplay {
+                loop_,
+                step,
+                structure,
+            } => match structure {
+                Some(r) => write!(
+                    f,
+                    "profile loop {loop_}'s lane elaboration refused at step {step}: {r}"
+                ),
+                None => write!(
+                    f,
+                    "profile loop {loop_}'s lane elaboration refused at step {step} on its \
+                     own geometry under this binding (the f64 pass is the one whose \
+                     refusals carry numbers)"
+                ),
+            },
             Self::ProfileReplay { loop_, error } => {
                 write!(
                     f,
@@ -974,6 +1008,40 @@ pub struct EvalOptions {
     /// kernel-only evaluation, in which every instantiate node refuses
     /// typed rather than pretending a part is empty.
     pub resolver: Option<Arc<dyn crate::part::PartResolver>>,
+    /// Whether profile GEOMETRY is a function of the parameters at
+    /// this evaluation's scalar. Default [`ProfileLift::Pinned`] — the
+    /// build path, unchanged.
+    pub profile_lift: ProfileLift,
+}
+
+/// Where profile geometry comes from at a non-`f64` scalar.
+///
+/// The document's parameters feed two kinds of slot, and until the
+/// lift they behaved differently: a node's MAGNITUDE argument (an
+/// extrude distance) is lane-live, so the interval lane sees a
+/// genuinely interval-evaluated expression, while profile geometry is
+/// f64-pinned — the lanes consume the f64 elaboration's bits through
+/// `from_f64`. The asymmetry is inherited from the substrate and is
+/// correct for building: structure must be selected once, identically
+/// for every lane.
+///
+/// It is wrong for ANALYSIS. A `Dual` seed on a profile dimension
+/// propagates no tangent through a constant, and an interval profile
+/// parameter does not widen anything downstream of it — silent zeros
+/// and points exactly where a sensitivity or an enclosure needs
+/// signal. The second pass exists for those lanes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ProfileLift {
+    /// Profile geometry is the f64 elaboration, embedded through
+    /// `from_f64` — the build path, bit for bit.
+    #[default]
+    Pinned,
+    /// Profile geometry is elaborated at THIS evaluation's scalar,
+    /// GUIDED by the f64 pass's structure record: every discrete
+    /// decision is consumed and re-verified here, and none is remade.
+    /// A decision this scalar cannot confirm refuses the node typed
+    /// rather than quietly keeping the nominal structure.
+    Guided,
 }
 
 impl Default for EvalOptions {
@@ -983,6 +1051,7 @@ impl Default for EvalOptions {
             parallel: false,
             boolean_sweep: topo::SweepStrategy::Realized,
             resolver: None,
+            profile_lift: ProfileLift::Pinned,
         }
     }
 }
@@ -1051,7 +1120,13 @@ where
         return refuse_tolerance_conflict(doc, sched, opts, process_eps);
     }
     let env = doc.param_env::<T>();
-    let parts = parts::PartCache::<T>::new(opts.resolver.as_ref(), chain, opts.boolean_sweep, tol);
+    let parts = parts::PartCache::<T>::new(
+        opts.resolver.as_ref(),
+        chain,
+        opts.boolean_sweep,
+        opts.profile_lift,
+        tol,
+    );
     // The mate solve is a WHOLE-DOCUMENT computation over recipe data
     // (A11): one spanning tree per cluster, folded once, read by every
     // instance and every mate below. Running it here rather than per
@@ -1062,6 +1137,7 @@ where
         boolean_sweep: opts.boolean_sweep,
         parts: &parts,
         poses: &poses,
+        profile_lift: opts.profile_lift,
     };
     let mut nodes: BTreeMap<RecipeNodeId, NodeResult<T>> = BTreeMap::new();
     let mut recomputed = 0usize;
@@ -1305,10 +1381,28 @@ where
         _ => None,
     };
 
+    // The lift's second pass resolves the SAME program at the lane
+    // scalar (M10-P PP5). It feeds the content key so a seeded or
+    // widened profile parameter moves the key the way a magnitude slot
+    // already does — otherwise two evaluations differing only in a
+    // profile seed would hit each other's memo. Not computed at all
+    // when the lift is off, which is what keeps the f64 build path
+    // exactly where it was.
+    let lane_program = match (op_env.profile_lift, node, &resolved_program) {
+        (ProfileLift::Guided, crate::node::Node::Profile(program), Some(_)) => {
+            match program.resolve(&doc.param_env::<T>()) {
+                Ok(r) => Some(r),
+                Err((slot, source)) => return fail(NodeErrorKind::Expr { slot, source }),
+            }
+        }
+        _ => None,
+    };
+
     let content_key = content_key(
         node,
         &slot_values,
         resolved_program.as_deref(),
+        lane_program.as_deref(),
         &upstream_keys,
         doc.witness(id),
         op_env.poses.placement(doc, id).ok(),
@@ -1383,6 +1477,7 @@ fn content_key<T>(
     node: &crate::node::Node<ProfileProgram>,
     slot_values: &slots::SlotValues<T>,
     resolved_program: Option<&[Vec<profile::Step<f64>>]>,
+    lane_program: Option<&[Vec<profile::Step<T>>]>,
     upstream_keys: &[ContentKey],
     witness: Option<&crate::witness::WitnessDatum>,
     placement: Option<crate::placement::Frame>,
@@ -1400,7 +1495,13 @@ where
     // D3: never persisted), so no migration machinery exists or is
     // wanted; any future persistence of keys inherits this honest
     // version. Bump AGAIN whenever the hashed input set changes.
-    h.write_tag(2);
+    //
+    // Key format v3 (M10-P PP5): the input set grew again — a profile
+    // node's LANE-resolved program feeds the key when the lift's
+    // second pass runs, so that a `Dual` seed or an interval box on a
+    // profile dimension moves the key instead of aliasing the nominal
+    // evaluation's memo entry.
+    h.write_tag(3);
     let tol = tol.get();
     h.write_f64_bits(tol.eps);
     h.write_f64_bits(tol.k);
@@ -1490,6 +1591,21 @@ where
                     }
                 }
                 None => h.write_tag(0),
+            }
+            // The f64 stream above IS the structure identity and stays
+            // in the key unconditionally, lane-independent as ever.
+            // What follows is the lane's own geometry, and only when
+            // the second pass computed any: tag 41 opens it, so a
+            // pinned evaluation's key is the v3 tag away from what it
+            // has always been and cannot alias a lifted one's.
+            if let Some(lane) = lane_program {
+                h.write_tag(41);
+                for steps in lane {
+                    h.write_tag(1); // LoopStart
+                    for step in steps {
+                        feed_lane_step(&mut h, step);
+                    }
+                }
             }
         }
         // ASM-2A D-1/D-2: WHICH document (id + pin — the pin IS the
@@ -1716,6 +1832,110 @@ const RETIRED_VERB_TAGS: &[(u8, &str)] = &[
 /// feeds payloads only. Both are exhaustive over the transition
 /// table's vocabulary, so a verb the table gains breaks this file at
 /// compile — the loud half of the projection. That a verb the table
+/// Feeds one LANE-resolved program step's continuous arguments into
+/// the content key, through [`ContentBits`] (M10-P PP5).
+///
+/// Structural tags are deliberately absent: the f64 stream that ran
+/// just before this one already carries every verb tag, target kind and
+/// winding, and structure is lane-independent by construction — so
+/// repeating it here would hash the same facts twice and say nothing.
+/// What this adds is exactly what the lane sees and the f64 pass does
+/// not: the seed riding a `Dual`'s tangent channel, the width of an
+/// `Interval` box. Both channels of a dual feed, which is what makes a
+/// seeded memo entry sound rather than aliasing the unseeded one.
+///
+/// Exhaustive over the step vocabulary for the same reason
+/// [`feed_step`] is: a verb the transition table gains must break this
+/// file at compile rather than fall silently out of the key.
+fn feed_lane_step<T: ContentBits>(h: &mut KeyHasher, step: &profile::Step<T>) {
+    use profile::{ArcData, Step, Target};
+    fn f<T: ContentBits>(h: &mut KeyHasher, v: &T) {
+        h.write_tag(42);
+        v.feed(h);
+    }
+    fn pt<T: ContentBits>(h: &mut KeyHasher, p: &geom_core::Point2<T>) {
+        f(h, &p.x);
+        f(h, &p.y);
+    }
+    fn target<T: ContentBits>(h: &mut KeyHasher, t: &Target<T>) {
+        match t {
+            // The Start/Point distinction is structural and rides the
+            // f64 stream; only a Point's coordinates are lane data.
+            Target::Start => {}
+            Target::Point(p) => pt(h, p),
+        }
+    }
+    fn spec<T: ContentBits>(h: &mut KeyHasher, s: &ArcData<T>) {
+        match s {
+            ArcData::Radius { r, .. } => f(h, r),
+            ArcData::Bulge { target: t, b } => {
+                target(h, t);
+                f(h, b);
+            }
+            ArcData::Via { q, target: t } => {
+                pt(h, q);
+                target(h, t);
+            }
+            ArcData::Center { c, target: t, .. } => {
+                pt(h, c);
+                target(h, t);
+            }
+            ArcData::Sweep { r, angle, .. } => {
+                f(h, r);
+                f(h, angle);
+            }
+            ArcData::ArcLen { r, len, .. } => {
+                f(h, r);
+                f(h, len);
+            }
+        }
+    }
+    match step {
+        Step::At(p) | Step::ArcContinue(p) | Step::FarEndTo(p) => pt(h, p),
+        Step::Angle(v) | Step::Turn(v) | Step::Line(v) => f(h, v),
+        Step::Toward { dx, dy } => {
+            f(h, dx);
+            f(h, dy);
+        }
+        Step::Tangent | Step::CloseTo => {}
+        Step::LineTo(t) | Step::TangentArcTo(t) => target(h, t),
+        Step::ArcTo(s) => spec(h, s),
+        Step::Fillet { radius } => f(h, radius),
+        Step::FilletArc { radius, spec: s } => {
+            f(h, radius);
+            spec(h, s);
+        }
+        Step::ArcFillet { spec: s, radius } => {
+            spec(h, s);
+            f(h, radius);
+        }
+        Step::ArcFilletArc {
+            spec: s,
+            radius,
+            spec2,
+        } => {
+            spec(h, s);
+            f(h, radius);
+            spec(h, spec2);
+        }
+        Step::Circle { centre, radius } => {
+            pt(h, centre);
+            f(h, radius);
+        }
+        // `n` is a structural count and rides the f64 stream.
+        Step::CircleSplit {
+            centre,
+            radius,
+            phase,
+            ..
+        } => {
+            pt(h, centre);
+            f(h, radius);
+            f(h, phase);
+        }
+    }
+}
+
 /// gains also reaches the DOCUMENT vocabulary is not compile-checked
 /// and is a census: `tests/switch_program_vocabulary.rs`.
 fn feed_step(h: &mut KeyHasher, step: &profile::Step<f64>) {
