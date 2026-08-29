@@ -83,6 +83,18 @@ is process-per-test, so a `OnceLock` shares nothing and each pays in
 full. Compensate by LABELLING each assertion so the failing property is
 unambiguous from the message alone.
 
+**A vacuous assertion standing beside a real one is invisible to the
+obvious detector.** A rule of the form *"a test whose EVERY assertion is
+weak"* cannot see it. The narrowest shape is an assertion whose condition
+is the value's own **codomain** — `assert!(sup >= 0.0 || sup.is_nan())` on
+a fold of nonnegative magnitudes, `prop_assert!(r >= 0.0)` on
+`sqrt(x)` for positive finite `x` — which can only ever change a panic
+message, and which typically sits one line from the ceiling that does the
+work. It reads like a soundness check, which is why a reader walks past
+it. Anyone sweeping for this must key on the **assertion**, not on the
+test; the fix is a deletion, not a repair, and the surviving message is
+then unambiguous.
+
 **A test that asserts nothing is never a gate.** It cannot fail, so it
 cannot gate; it is evidence for a reviewer at the time. See
 [[review-and-dependency-policy]] — this is the class to drop first.

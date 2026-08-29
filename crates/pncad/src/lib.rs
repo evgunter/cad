@@ -103,6 +103,9 @@
 //!   materializers, the pattern language, the geometric filters, and
 //!   the detect/declare protocol. The worked examples for
 //!   [`select`].
+//! - [`guide::meshing`] — the ladder's tessellate and cross-check
+//!   rungs from the bindings' side: what a mesh carries across, and
+//!   how a caller re-derives closure and volume from it.
 //! - [`guide::north_star_audit`] — what the Python bindings can
 //!   author today, and the named gaps.
 //!
