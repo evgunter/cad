@@ -52,7 +52,10 @@ largest real-defect group in the tracker and nobody's territory:
   applied: the interval lane may be reformulated only where the f64
   expression's bits do not move.
 - **The #1143 poison-vs-widen contract is M10-D's (ratified)**: this
-  program supplies instances, never the answer.
+  program supplies instances, never the answer. Concretely (PCURVE,
+  on the opening PR): a correlated expression evaluated naively
+  under `Interval` — #1157's shape — goes to #1143's audit as a
+  member, not to a new issue.
 - **H-R3 / #867**: "tightening to `CertifiedBounds` works at least
   for now" — governs track M's trait ground; **read `H-R16` before
   starting `H5` or `S90-impl`**, and **#883 stays parked** (reserved
@@ -69,11 +72,13 @@ largest real-defect group in the tracker and nobody's territory:
   fixture by another route or a recorded verdict that none exists);
   and the issue's NaN-dropping `max` fold and `exhaust.rs:285`
   rewording want verifying before #762 closes.
-- **PCURVE P-2 (#1177, wind-down WIP with a declared resume) carries
-  the #1157 `orthonormal_basis` fix**, written and measured in
-  `geom-core/src/linalg/vec.rs`. The cut's keep-out concretizes to:
-  no S-CERT unit edits `vec.rs`; #924's unit works in `affine.rs`
-  beside it and merges main frequently.
+- **PCURVE P-2 (#1177, in blinded review on frozen head `0ecd3f7e`)
+  carries the #1157 `orthonormal_basis` fix**, written and measured
+  in `geom-core/src/linalg/vec.rs`. The keep-out, time-boxed by the
+  PCURVE orchestrator on the opening PR: no S-CERT unit **edits**
+  `vec.rs` until #1177 lands; the frozen head is readable now.
+  #924's unit works in `affine.rs` beside it and merges main
+  frequently.
 - **#723's mechanism is confirmed live** (`props/curved.rs` sphere
   arms still fold endpoint latitudes through `min_max`), on both the
   rim-bearing and the rimless (two-band) arm — the second instance is
@@ -91,10 +96,17 @@ largest real-defect group in the tracker and nobody's territory:
   `props_rim_level` as a closed premise. CERT-1 is therefore this
   program's first dispatch, ahead of everything.
 - **#390's route 2** (tighten M7-6's CYLINDER certificate via exact
-  spline-product hulls) lives in recognition machinery adjacent to
-  PCURVE's fence; **route 1** (tighten the rational patch-flux
-  enclosure) is in-fence for this program and is the route CERT-5
-  takes — it also serves #453, which route 2 cannot.
+  spline-product hulls) is surface-certification work and reads
+  **unclaimed** (PCURVE orchestrator on the opening PR: PCURVE is
+  edge-description work and goes to its exit walk after P-2, so a
+  reservation there would park the route on a closing program).
+  **Route 1** (tighten the rational patch-flux enclosure) is
+  in-fence for this program and is the route CERT-5 takes — it also
+  serves #453, which route 2 cannot. Whoever ever takes route 2
+  should know it has a second beneficiary: promoting the wall to an
+  analytic `Cylinder` makes its interior isos analytic, which
+  sidesteps #1195's missing knot-insertion machinery (PCURVE's
+  observation, offered unmeasured).
 
 ## The slate
 
@@ -233,9 +245,11 @@ S-MESH's future owner inherits the `closing_column` assertion note.
    fences wherever #1191's sites live. Both grounds have no live
    claimant and both issues are assigned here by the merged cut.
 4. **Q4 — #390 route choice**: CERT-5 takes route 1 (the flux
-   enclosure); route 2 (the algebraic CYLINDER certificate) stays
-   available to PCURVE if they want the recognition win
-   independently. Veto if you want route 2 led from here instead.
+   enclosure); route 2 (the algebraic CYLINDER certificate) reads
+   **unclaimed** — the PCURVE orchestrator answered on this PR that
+   a PCURVE reservation would lapse onto a closing program, and
+   concurred with route 1 for CERT-5. Veto if you want route 2 led
+   from here instead.
 
 ## Process
 
