@@ -86,6 +86,9 @@ fn accessors_read_back_everything_the_doors_wrote() {
 /// comment.
 #[test]
 fn neither_type_can_be_deserialized() {
+    // The manifest is TOML, not Rust: its own comment rule (`#` to end
+    // of line) is the reader here, and the shared Rust lexer is not
+    // what it wants.
     let manifest = include_str!("../Cargo.toml");
     for line in manifest.lines() {
         let l = line.trim();
@@ -99,7 +102,18 @@ fn neither_type_can_be_deserialized() {
         );
     }
 
-    let src = include_str!("../src/lib.rs");
+    // Comments blanked, string literals KEPT. The needles are an item
+    // head, a derive, and a path in a `use` — but a FOURTH spelling
+    // reaches the same place and is a literal: a `#[cfg(feature =
+    // "serde")]` gate names the feature in quotes, and `code_only`
+    // blanks it, so the whole-module clause below would pass over a
+    // serde-gated module. Prose naming serde is still prose.
+    //
+    // Two other things police this edge, so what a blanked literal
+    // would have cost is defence in depth rather than the outer wall:
+    // `scripts/gates/kernel-serde-free.sh` polices the dependency
+    // itself, and the manifest loop above polices this crate's.
+    let src = test_utils::source::code_and_literals(include_str!("../src/lib.rs"));
     let seal_offsets = [
         "pub struct ProfileVertex<T: Real>",
         "pub struct ProfileLoop<T: Real>",

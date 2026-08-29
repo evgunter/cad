@@ -22,8 +22,16 @@
 
 use editor_core::SCHEMA_VERSION;
 
-/// The ledger's source, read at compile time — the entries are doc
-/// comments, so there is nothing else to read them from.
+/// The ledger's PROSE — the entries are doc comments, so the module is
+/// read through [`test_utils::source::comments_only`], the view that
+/// blanks code and literals and leaves the docs.
+///
+/// The view is what makes the search mean what it says: an entry is a
+/// paragraph a reader will find, so a `format!("Version {n} is …")` in
+/// code, or the heading quoted inside a string, must not answer for
+/// one. [`test_utils::source::code_only`] would blank exactly what
+/// this row looks for, which is why the class needs the inverse view
+/// and not one helper.
 ///
 /// `include_str!` of one known file, where `topo::sector_shape`'s
 /// twin-guard deliberately walks `src/` instead: that guard's subject
@@ -31,7 +39,9 @@ use editor_core::SCHEMA_VERSION;
 /// ledger has exactly one home, and moving it should fail this row
 /// rather than silently narrow it. The failure mode of the wrong guess
 /// here is a false RED, which is the safe direction.
-const LEDGER: &str = include_str!("../src/persist/mod.rs");
+fn ledger() -> String {
+    test_utils::source::comments_only(include_str!("../src/persist/mod.rs"))
+}
 
 /// The committed save for version `n`, if there is one.
 fn golden(n: u32) -> Option<String> {
@@ -52,8 +62,9 @@ fn golden(n: u32) -> Option<String> {
 /// names, or is a bare placeholder line passes.
 #[test]
 fn every_version_has_a_ledger_entry() {
+    let prose = ledger();
     let missing: Vec<u32> = (2..=SCHEMA_VERSION)
-        .filter(|n| !LEDGER.contains(&format!("Version {n} is")))
+        .filter(|n| !prose.contains(&format!("Version {n} is")))
         .collect();
     assert!(
         missing.is_empty(),
