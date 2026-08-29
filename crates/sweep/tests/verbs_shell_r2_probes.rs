@@ -297,21 +297,35 @@ fn r2_stepped_meridian_vase_mints_one_annular_rim() {
     println!("vase: mouth chart has {} face(s)", chart.len());
     let opened = topo::shell_open(&body, t, &chart, FIT_TOL, band(), tol);
     report("stepped vase", &opened);
-    // This meridian is OBLIQUE at two of its steps, so the SEALED
-    // offset meets #1081's re-anchor door — and that door is
-    // epsilon-shielded: the gap decides `Zero` inside the default
-    // band and `Positive` at eps = 1e-12, where the same body refuses
-    // `ReanchorOffCarrier`. #1081 is PR-2's territory, not this
-    // change's, and a rim is unreachable on an operand that will not
-    // hollow, so the row records that refusal and stops rather than
-    // demanding a fix it is not testing.
+    // This meridian is OBLIQUE at two of its steps, which revolve into
+    // CONES, so the SEALED offset used to meet #1081's re-anchor door
+    // and this row recorded that refusal and stopped. **The sealed
+    // offset now succeeds** — the axial door solves those corners — and
+    // that half is asserted here rather than skipped.
+    topo::shell(&body, t, FIT_TOL, band(), tol)
+        .expect("the stepped vase's SEALED hollow is inside the axial door");
+
+    // The OPENED arm's boundary has moved with it, to a stage this unit
+    // does not touch: the rim's outward LIFT puts one chart back on the
+    // designated plane while its neighbours — the cavity's own cones —
+    // genuinely do not move, so the moved rim vertex leaves the cone's
+    // rim circle by `t·|cos θ|` and the per-face door refuses. That is
+    // the same arithmetic #1081 measured, at the lift rather than at
+    // the offset, and the simultaneous door does not reach it: the lift
+    // moves ONE chart by construction. Recorded, named, and not
+    // demanded of a unit that is not testing it.
     let cup = match opened {
         Ok(cup) => cup,
+        Err(ShellError::Lift { error, .. })
+            if matches!(*error, topo::ReplaceFaceError::ReanchorOffCarrier { .. }) =>
+        {
+            println!("[r2] the vase hollows; its RIM LIFT is the surviving boundary: {error}");
+            return;
+        }
         Err(ShellError::Face { error, .. })
             if matches!(*error, topo::ReplaceFaceError::ReanchorOffCarrier { .. }) =>
         {
-            println!("[r2] the vase does not hollow at this epsilon (#1081's door): {error}");
-            return;
+            panic!("the sealed offset must not refuse any more: {error}");
         }
         Err(e) => panic!("the vase's stepped meridian must open (claim 3's MINT): {e:?}"),
     };

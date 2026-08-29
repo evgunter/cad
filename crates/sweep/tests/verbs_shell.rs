@@ -1011,24 +1011,28 @@ fn oblique_planar_prisms_hollow_with_their_closed_forms() {
     }
 }
 
-/// **The differential: a CURVED face at the junction still refuses,
-/// and at the same door it always did.**
+/// **The differential, MOVED: a curved junction on a body of
+/// REVOLUTION now hollows; a curved junction the axial reduction has no
+/// coordinates for still refuses.**
 ///
-/// This is the boundary of PR-2a's scope stated as a measurement
-/// rather than as a sentence. `shell` takes the simultaneous branch
-/// only when every face is a plane, so a body with one curved face
-/// still moves chart by chart — and `ReanchorOffCarrier` is still the
-/// gate that refuses to build the corner that transport would get
-/// wrong. Those corners are the C5-table work that follows, and the
-/// teapot's belly is one of them: a sphere zone, which is why this
-/// unit does not un-square the pot and does not claim to.
+/// This row was the boundary of PR-2a's scope, stated as a measurement.
+/// The boundary has moved, and it is re-measured here rather than
+/// re-argued: `shell` now takes an AXIAL branch for a body whose
+/// surfaces are all planes, cylinders, cones or spheres about one axis,
+/// and solves each corner in the meridian half-plane. The cone frustum
+/// — the cheapest curved junction there is — hollows, and
+/// `sf2b_axial.rs` pins its wall to the difference of two frusta.
+///
+/// What still refuses is what the reduction has no frame for: a TORUS
+/// wall, which is outside the axial kinds and therefore never reaches
+/// the door, and keeps the C5 table's own refusal about the pair. That
+/// is the honest boundary of a unit that widened no table.
 #[test]
-fn a_curved_face_at_the_junction_still_refuses_where_it_did() {
+fn a_curved_face_at_the_junction_moves_by_its_kind() {
     let tol = Tol::witness();
     let (r, h, t) = (0.5, 0.4, 0.05);
-    // A CONE FRUSTUM between two caps — one of the ordinal-100 rows,
-    // and the cheapest curved junction there is: the slant meets both
-    // caps obliquely and the cone's offset is not a translation.
+    // A CONE FRUSTUM between two caps: the slant meets both caps
+    // obliquely and the cone's offset is not a translation.
     let frustum = revolve(
         &Profile::new(
             SketchPlane::xy(),
@@ -1050,22 +1054,18 @@ fn a_curved_face_at_the_junction_still_refuses_where_it_did() {
     )
     .expect("the frustum revolves")
     .body;
-    let what = "a cone frustum between two caps";
-    let e = topo::shell(&frustum, t, FIT_TOL, band(), tol)
-        .expect_err("a curved junction is outside this door's scope");
-    let ShellError::Face { error, .. } = e else {
-        panic!("{what}: not the offset door's refusal: {e}");
-    };
-    assert!(
-        matches!(*error, topo::ReplaceFaceError::ReanchorOffCarrier { .. }),
-        "{what}: the door that refuses is part of the finding: {error}"
-    );
+    let hollow = topo::shell(&frustum, t, FIT_TOL, band(), tol)
+        .expect("a cone frustum's junction is inside the axial door");
+    assert_eq!(topo::validate_geometric(&hollow, tol), Ok(()), "tier 3");
+    assert_eq!(hollow.shells().count(), 2, "outer + cavity");
+
     // And the drum still hollows, because a cylinder between two caps
-    // NORMAL to its axis was always inside the surviving class — the
-    // simultaneous branch is not what makes it work, and this row says
-    // so by taking the other branch entirely.
+    // NORMAL to its axis was always inside the surviving class. It
+    // takes the axial branch now rather than the per-chart one, and
+    // `sf2b_axial.rs` carries the closed form that says the branch
+    // change did not move the answer.
     let drum = vessel(r, h);
-    topo::shell(&drum, t, FIT_TOL, band(), tol).expect("the drum still hollows, on the old branch");
+    topo::shell(&drum, t, FIT_TOL, band(), tol).expect("the drum still hollows");
 }
 
 /// **The simultaneous door names its own scope, at the door.**

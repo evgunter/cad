@@ -314,7 +314,7 @@ pub fn offset_charts_together<T: Decide + PropsQuadLane>(
             .get_vertex(vertex)
             .and_then(|v| body.get_point(v.point).copied())
             .ok_or(ReplaceFaceError::Corrupt)?;
-        let arms = crate::offset_together::corner_arms(body, vertex, here)?;
+        let arms = corner_arms(body, vertex)?;
         moved.push((
             vertex,
             solve_corner(vertex, here, &at, &arms, &frame, band)?,
@@ -495,10 +495,20 @@ fn axial_frame<T: Real>(body: &Body<T>) -> Result<Frame<T>, ReplaceFaceError<T>>
             break;
         }
     }
-    let (origin, dir) = seed.ok_or(ReplaceFaceError::TogetherAxialUnsupported {
+    let (seed_origin, dir) = seed.ok_or(ReplaceFaceError::TogetherAxialUnsupported {
         face: first,
         kind: SurfaceKind::Plane,
     })?;
+    // **The axis point is CANONICALIZED to its own foot at the world
+    // origin**, not left as whichever chart happened to seed it. A
+    // station is then a world coordinate along the axis rather than a
+    // difference from an arbitrary point, and rebuilding a corner from
+    // it is exact where the arbitrary point's round trip was not: on a
+    // vessel whose cylinder stores its origin at the far cap, a cavity
+    // station of `0.2` came back `0.19999999999999996` purely from
+    // subtracting and re-adding `2.0`. Measured on the byte-dump
+    // harness, which now reports the curved fixtures unchanged.
+    let origin = seed_origin - dir * (vec_of(seed_origin)).dot(dir);
     // The extent is the body's own furthest vertex from the axis point:
     // the length a direction error would move a corner by, which is the
     // geometry every alignment verdict here is about.
@@ -643,6 +653,56 @@ fn classify<T: Decide>(
             });
         }
     })
+}
+
+/// The ARC LENGTH of every edge ending at a vertex — the lengths this
+/// door's conditioning is levered by.
+///
+/// The planar door levers by each edge's CHORD, which is the same
+/// length there because a planar body's edges are straight. Here they
+/// are not: a full revolve's rim arc runs half a turn and a chart with
+/// ONE seam closes on itself, whose chord is exactly zero — and a zero
+/// arm makes every meter read `Zero` and calls a perfectly transversal
+/// corner degenerate. Measured on the revolved TUBE, which refused that
+/// way before this. The arc length is the length that was always meant.
+fn corner_arms<T: Decide>(
+    body: &Body<T>,
+    vertex: VertexKey,
+) -> Result<Vec<T>, ReplaceFaceError<T>> {
+    let Some(emanating) = body
+        .get_vertex(vertex)
+        .ok_or(ReplaceFaceError::Corrupt)?
+        .emanating
+    else {
+        return Ok(Vec::new());
+    };
+    let orbit = body
+        .vertex_orbit(emanating)
+        .ok_or(ReplaceFaceError::Corrupt)?;
+    let mut out = Vec::new();
+    for he in orbit {
+        let edge = body
+            .get_edge(
+                body.get_half_edge(he)
+                    .ok_or(ReplaceFaceError::Corrupt)?
+                    .edge,
+            )
+            .ok_or(ReplaceFaceError::Corrupt)?;
+        let curve = body
+            .get_curve_geom(edge.curve)
+            .and_then(crate::null::CurveGeom::certified)
+            .ok_or(ReplaceFaceError::Corrupt)?;
+        let (t0, t1) = curve.params();
+        out.push(match curve.carrier() {
+            // A line's parameter IS arc length; a circle's is an angle
+            // levered by its own radius. Anything else falls back to
+            // the endpoints' chord, which is what the carrier can say.
+            Curve3::Line { .. } => (t1 - t0).abs(),
+            Curve3::Circle { radius, .. } => (t1 - t0).abs() * *radius,
+            other => other.eval(t1).distance(other.eval(t0)),
+        });
+    }
+    Ok(out)
 }
 
 /// `distance` in [`geom_brep::offset_surface`]'s own sign convention.
