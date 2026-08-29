@@ -1,6 +1,12 @@
 # The profile-parameter lift (M10-P): guided replay at the lane scalar
 
-**Status: DRAFT — design conversation, awaiting Evan's sign-off.**
+**Status: RATIFIED WITH A RECORDED HEDGE (Evan, PR #1151,
+2026-08-29: "i'm not totally sure about this one, but i think we
+can proceed with this").** The hedge binds the implementation's
+posture: the lift is additive machinery beside a bit-identical f64
+path (PP6), so reversal stays cheap, and the implementing unit's
+review should treat "would this design decision survive Evan
+becoming sure?" as a live question rather than settled ground.
 The design pass the M10 plan's post-ratification amendment added:
 profile GEOMETRY becomes a function of the parameters at the lane
 scalar, while structure selection stays f64-once. This elaborates
