@@ -23,11 +23,13 @@
 //! is deferred to the unit that binds the complete surface.
 
 use pncad::document::{
-    AssemblyError, DimensionError, EditError, InlineError, MateFault, NodeErrorKind, PersistError,
-    PlacementRuleFault, RecordedProgramError, RefusedRef, RootFault, SplitError, UpdateError,
+    AssemblyError, CheckEvidence, ChecksError, DimensionError, EditError, InlineError, MateFault,
+    NodeErrorKind, PersistError, PlacementRuleFault, RecordedProgramError, RefusedRef, RootFault,
+    SplitError, UpdateError,
 };
 use pncad::geom_core::{FrameError, FrameInput};
 use pncad::mesh::TessellateError;
+use pncad::prelude::BlendKind;
 use pncad::profile::PathError;
 use pncad::select::{InterrogateError, ReadbackError};
 use pncad::step_import::StepImportError;
@@ -233,7 +235,13 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
         NodeErrorKind::Extrude { .. } => "extrude",
         NodeErrorKind::Revolve { .. } => "revolve",
         NodeErrorKind::Split { .. } => "split",
-        NodeErrorKind::Fillet { .. } => "fillet",
+        // The two blends share one kernel error type, so the tag is
+        // read off the VERB the node is: a chamfer's refusal must not
+        // reach Python calling itself a fillet's.
+        NodeErrorKind::Blend { verb, .. } => match verb {
+            BlendKind::Fillet => "fillet",
+            BlendKind::Chamfer => "chamfer",
+        },
         NodeErrorKind::Boolean { .. } => "boolean",
         NodeErrorKind::Transform { .. } => "transform",
         NodeErrorKind::Skin { .. } => "skin",
@@ -261,9 +269,18 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
         // declaration; the `finding` payload crosses as a typed
         // attribute beside this tag.
         NodeErrorKind::UndeclaredContact { .. } => "undeclared_contact",
-        NodeErrorKind::FilletSelectionResolve { .. } => "fillet_selection_resolve",
-        NodeErrorKind::FilletSelectionKind { .. } => "fillet_selection_kind",
-        NodeErrorKind::FilletSelectionEmpty => "fillet_selection_empty",
+        NodeErrorKind::BlendSelectionResolve { verb, .. } => match verb {
+            BlendKind::Fillet => "fillet_selection_resolve",
+            BlendKind::Chamfer => "chamfer_selection_resolve",
+        },
+        NodeErrorKind::BlendSelectionKind { verb, .. } => match verb {
+            BlendKind::Fillet => "fillet_selection_kind",
+            BlendKind::Chamfer => "chamfer_selection_kind",
+        },
+        NodeErrorKind::BlendSelectionEmpty { verb } => match verb {
+            BlendKind::Fillet => "fillet_selection_empty",
+            BlendKind::Chamfer => "chamfer_selection_empty",
+        },
         NodeErrorKind::WitnessBifurcation { .. } => "witness_bifurcation",
         // The seam faults stay separable at the tag level:
         // "the pin does not hold" and "the tolerances disagree" are
@@ -660,5 +677,45 @@ pub fn interrogate_error_tag(err: &InterrogateError) -> &'static str {
         InterrogateError::NoBodies { .. } => "no_bodies",
         InterrogateError::NoSuchBody { .. } => "no_such_body",
         InterrogateError::Readback(err) => readback_error_tag(err),
+    }
+}
+
+/// The stable tag for a refusal of the advisory-check registry ITSELF
+/// (DISCIPLINES-DESIGN DS6) — the checks could not be run.
+///
+/// A check that ran and disagreed is a FINDING and never reaches this
+/// map; [`check_evidence_tag`] is that vocabulary. Keeping the two
+/// namespaces apart is the report/gate posture at the tag level:
+/// "not checked" and "checked and wrong" are different answers.
+///
+/// The `Product` arm cannot delegate the way [`assembly_error_tag`]
+/// does — the kernel carries the gather's refusal as its RENDERED
+/// message, not as a `ProductError` value (a report is `Clone` and
+/// `PartialEq` and that type is neither) — so the tag names the stage
+/// that refused and the message carries the gather's own prose.
+pub fn checks_error_tag(err: &ChecksError) -> &'static str {
+    match err {
+        ChecksError::Root { .. } => "root_without_value",
+        ChecksError::Band { .. } => "band",
+        ChecksError::Product { .. } => "product_unavailable",
+    }
+}
+
+/// The stable tag for one finding's evidence.
+///
+/// A VALUE's discriminant rather than a refusal's, on the
+/// [`refused_ref_tag`] / [`mate_fault_tag`] precedent: what a caller
+/// branches on is which fact was found, and `Display` prose is not a
+/// stable interface for that. It lives here, beside the refusal maps
+/// and not in the PyO3 layer, so the exhaustive match compiles — and
+/// the drift alarm fires — on the default no-Python build.
+pub fn check_evidence_tag(evidence: &CheckEvidence) -> &'static str {
+    match evidence {
+        CheckEvidence::Connectedness { .. } => "connectedness",
+        CheckEvidence::Escalated { .. } => "escalated",
+        CheckEvidence::Unsupported { .. } => "unsupported",
+        CheckEvidence::StaleExpectation { .. } => "stale_expectation",
+        CheckEvidence::NotSeparated { .. } => "not_separated",
+        CheckEvidence::SeparationUnavailable { .. } => "separation_unavailable",
     }
 }

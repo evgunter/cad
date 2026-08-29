@@ -663,7 +663,13 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
         // ladder's radius is. `powi(2)`, never `t.x * t.x`.
         let t = pcurve.deriv(T::from_f64(m));
         let tn = (t.x.powi(2) + t.y.powi(2)).sqrt().hi();
-        if tn.is_nan() || tn <= 0.0 {
+        // Positive FINITE only — the same class the chart-speed guards
+        // refuse. An admitted `+∞` here does not certify a wrong
+        // number today (`ex`/`ey` become `0` or NaN and the stretch
+        // guard below catches the residue), but which guard answers
+        // would then depend on the poison's arithmetic path rather
+        // than on this test saying what it means.
+        if !tn.is_finite() || tn <= 0.0 {
             return None;
         }
         let (tx, ty) = (t.x.hi(), t.y.hi());
@@ -686,7 +692,11 @@ fn probe_tube_chart<T: Decide + Bounds + CertifiedEnclosure>(
         };
         let stretch =
             (vt.x.mag() * vt.x.mag() + vt.y.mag() * vt.y.mag() + vt.z.mag() * vt.z.mag()).sqrt();
-        if stretch.is_nan() || stretch <= 0.0 {
+        // Positive FINITE only: an admitted `+∞` stretch divides the
+        // margin to an exact `0`, which the fold below then records as
+        // the certificate's worst transversality — a definite-looking
+        // number manufactured from an overflow, not a measurement.
+        if !stretch.is_finite() || stretch <= 0.0 {
             return None;
         }
         let margin = zero_free_lower_bound(phi_u * ex + phi_v * ey) / stretch;

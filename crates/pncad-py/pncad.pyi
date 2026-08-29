@@ -44,6 +44,13 @@ the document IS and `assemble` says whether it is valid at rest.
 `split` and `inline` refactor across the seam, and
 `update_references` moves a pin at its sites.
 
+The advisory CHECKS registry is `run_checks`: a report over an
+evaluated document — component counts and product separation — that
+gates nothing. `evaluate` does not run it and no finding stops
+anything; `enforce_checks` is the one door that turns findings the
+caller marked `Severity.Error` into a refusal, which is how a program
+chooses to gate rather than having the kernel choose for it.
+
 Deliberately ABSENT, and tracked as named gaps in
 `docs/guide/north-star-audit.md`: sweep and tube, the pattern node
 (`placed_union` says a placed family whose value is one body; the
@@ -344,6 +351,33 @@ class ReadbackError(PncadError):
     index: Optional[int]
     payload: Optional[str]
     carrier: Optional[str]
+class ChecksError(PncadError):
+    """The advisory-check registry could not RUN.
+
+    `variant` is `root_without_value` (a root produced no value in this
+    evaluation — checks are defined over roots that evaluated, and a
+    report over a partial one would claim more than was checked),
+    `band` (the tolerance forms no band) or `product_unavailable` (the
+    roots gather into no product, so the separation resident has no
+    subject). `node` names the root on the first arm and is `None` on
+    the others.
+
+    NOT a finding. A check that ran and disagreed is a value in the
+    report; this class means nothing was checked."""
+
+    variant: str
+    node: Optional[NodeId]
+
+class CheckRefusal(PncadError):
+    """`enforce_checks` refused: the report carries findings whose
+    check the CALLER configured at `Severity.Error`.
+
+    The registry's one refusing path, and it refuses on nothing the
+    caller did not ask to be refused on — no resident defaults to
+    `Error`, and the separation resident's knob cannot express it.
+    `findings` is every refusing finding, in report order."""
+
+    findings: list[CheckFinding]
 
 class FrameError(PncadError):
     """A frame constructor refused its inputs — a direction that was
@@ -978,6 +1012,17 @@ class Node:
     def revolve(profile: NodeId, axis: NodeId, angle: Angle) -> Node: ...
     @staticmethod
     def loft(profiles: list[NodeId], v_degree: int) -> Node: ...
+    @staticmethod
+    def chamfer(target: NodeId, distance: Length, selection: list[str]) -> Node:
+        """Equal-setback flat chamfers on named edges of `target`.
+
+        `Node.fillet`'s twin: `selection` is edge names as TEXT and the
+        set FREEZES at authoring time. `distance` is the SETBACK along
+        each support, not a radius. An empty selection, an unresolvable
+        name, or an edge whose supports are not both planes refuses
+        typed at `evaluate`.
+        """
+
     @staticmethod
     def datum_axis(
         origin: tuple[Length, Length, Length],
@@ -2661,6 +2706,213 @@ def update_references(doc: Doc, id: str, new_pin: ContentPin) -> list[DocEdit]:
     Raises UpdateError, typed: `no_such_reference` when no live node
     instantiates the id, `already_pinned` when every site already
     names it. Separate arms because the recourses differ."""
+
+# --- the advisory checks (DISCIPLINES-DESIGN DS6) ----------------------
+# `run_checks` REPORTS and `enforce_checks` is the one refusing path,
+# on what the CALLER set to Severity.Error. Nothing else in this module
+# runs a check: `evaluate` does not, `Doc.apply` does not, `load` does
+# not. A document with findings still draws, measures and exports.
+
+class CheckKind:
+    """A check's honesty label: `Certified` = the finding is a theorem
+    about the evaluated geometry, `Heuristic` = a labeled judgment that
+    can be wrong in both directions. A default level and a promise
+    about language, never a cap on what a caller may refuse on."""
+
+    Certified: Final[CheckKind]
+    Heuristic: Final[CheckKind]
+
+class CheckId:
+    """Which check fired — the registry's closed set. `Connectedness`
+    counts a subject's components; `Separation` holds the product's
+    cross-root solid pairs to a disjointness certificate."""
+
+    Connectedness: Final[CheckId]
+    Separation: Final[CheckId]
+
+    @property
+    def kind(self) -> CheckKind:
+        """This check's honesty label, read from the kernel's own
+        table rather than restated — so it cannot disagree with the
+        label the check ships under."""
+
+class Severity:
+    """A check's knob. `Off` does not run it (and says so in
+    `ChecksReport.skipped`); `Warn` and `Error` produce IDENTICAL
+    findings and differ only at `enforce_checks`, which refuses on the
+    `Error` ones. No position ever changes an evaluated body."""
+
+    Off: Final[Severity]
+    Warn: Final[Severity]
+    Error: Final[Severity]
+
+class Advisory:
+    """The knob of a resident that may not refuse — `Severity` minus
+    `Error`.
+
+    DS6's waiver rule is an *iff*: a check may offer `error` only if it
+    ships a per-finding acknowledgment record with a staleness
+    direction. The separation resident ships none, so its refusing
+    position is not merely discouraged, it is UNSPELLABLE."""
+
+    Off: Final[Advisory]
+    Warn: Final[Advisory]
+
+class ChecksConfig:
+    """Per-run check configuration: a plain argument to the door, no
+    ambient state, nothing persisted.
+
+    `expected_components` is the connectedness resident's
+    acknowledgment record — `(root, output_ix, expected)` triples,
+    keyed by the same pair a finding is attributed to. A list, not a
+    dict, because a node/index pair is not a Python key (the
+    `SplitOutcome.node_map` spelling); a subject stated twice is
+    refused rather than silently resolved last-wins.
+
+    The two knobs are two TYPES, which is DS6's waiver rule made
+    static: `separation` cannot be set to `Severity.Error`."""
+
+    def __init__(
+        self,
+        connectedness: Severity = ...,
+        expected_components: Optional[list[tuple[NodeId, int, int]]] = None,
+        separation: Advisory = ...,
+    ) -> None: ...
+    @property
+    def connectedness(self) -> Severity: ...
+    @property
+    def separation(self) -> Advisory: ...
+    @property
+    def expected_components(self) -> list[tuple[NodeId, int, int]]:
+        """The stated expectations, ascending by subject."""
+
+    def severity(self, check: CheckId) -> Severity:
+        """This configuration's severity for `check` — the widening an
+        `Advisory` goes through, so a caller reads one vocabulary."""
+
+    def __eq__(self, other: object) -> bool: ...
+
+class CheckEvidence:
+    """What one finding found. `variant` is the branchable tag and the
+    payload rides as attributes, `None` where the arm does not carry
+    one — read `err.actual` without branching first.
+
+    `connectedness` (`actual`, `expected`) — the count disagreed,
+    compared exactly, with no epsilon anywhere in it. `escalated` /
+    `unsupported` (`reason`) — a shell's orientation read could not be
+    decided at this tolerance, so the count is UNKNOWABLE and says so
+    rather than guessing. `stale_expectation` (`expected`) — an
+    expectation no subject consumed. `not_separated` (`other_root`,
+    `other_output`) — a pair the box certificate could not prove apart,
+    which is a fact about the CERTIFICATE and never a claim that the
+    two overlap. `separation_unavailable` (`reason`) — the machinery
+    could not be built over the product, so there is no verdict for any
+    pair."""
+
+    @property
+    def variant(self) -> str: ...
+    @property
+    def actual(self) -> Optional[int]: ...
+    @property
+    def expected(self) -> Optional[int]: ...
+    @property
+    def other_root(self) -> Optional[NodeId]: ...
+    @property
+    def other_output(self) -> Optional[int]: ...
+    @property
+    def reason(self) -> Optional[str]: ...
+    def __eq__(self, other: object) -> bool: ...
+
+class CheckFinding:
+    """One finding of one check on one subject — a body-denoting root
+    output, attributed as `(root, output_ix)`.
+
+    A REPORT about geometry, not a verdict on the program: holding one
+    changes nothing. `subject_body` resolves the attribution back to
+    the body it names; `str()` renders it the way the library renders
+    a finding, recourse included."""
+
+    @property
+    def check(self) -> CheckId: ...
+    @property
+    def root(self) -> NodeId: ...
+    @property
+    def output_ix(self) -> int: ...
+    @property
+    def evidence(self) -> CheckEvidence: ...
+    def __eq__(self, other: object) -> bool: ...
+
+class ChecksReport:
+    """One run's report: the findings, and the checks that did not run.
+
+    `skipped` is why this is a report and not a list — "checked and
+    fine" and "not checked" are different answers, and an empty
+    `findings` read without `skipped` confuses them. `len(report)`
+    counts findings."""
+
+    @property
+    def findings(self) -> list[CheckFinding]:
+        """Deterministic order: each resident's own pass by root-list
+        position then output index, residents in registry order. NOT
+        one global sort."""
+
+    @property
+    def skipped(self) -> list[CheckId]:
+        """The checks the caller set `Off`."""
+
+    def __len__(self) -> int: ...
+    def __eq__(self, other: object) -> bool: ...
+
+def run_checks(
+    doc: Doc, evaluation: Evaluation, config: Optional[ChecksConfig] = None
+) -> ChecksReport:
+    """Run every configured check over an evaluated document and
+    REPORT.
+
+    Never gates. Nothing here refuses on a finding, nothing
+    re-evaluates, and neither `doc` nor `evaluation` changes — the
+    evaluation is read. Acting on a finding is the caller's move, and
+    `enforce_checks` is the only door that turns one into a refusal.
+
+    `evaluation` must be an evaluation OF `doc` that ran to completion:
+    subjects are the body-denoting outputs of the document's roots, so
+    a root that failed or was poisoned refuses `root_without_value`
+    rather than reporting over a partial evaluation.
+
+    Expectations are TWO-DIRECTIONAL — an `expected_components` entry
+    no subject consumed (a vanished body, a dead root, a mistyped key)
+    comes back as a `stale_expectation` finding, because a stale
+    acknowledgment must not read as "checked and fine".
+
+    Raises ChecksError, typed, when the checks could not RUN. A check
+    that ran and disagreed is a finding, never an exception."""
+
+def enforce_checks(
+    report: ChecksReport, config: Optional[ChecksConfig] = None
+) -> None:
+    """The registry's ONE refusing path: raise iff `report` carries a
+    finding whose check `config` sets to `Severity.Error`.
+
+    Consumes a FINISHED report — evaluates nothing, checks nothing
+    further, changes nothing. The caller chooses where to gate, and
+    this is the door that lets them. Under the default configuration
+    it can never refuse: no resident defaults to `Error` and the
+    separation resident cannot be set to it at all. A program that
+    gates does so because it SAID so.
+
+    Raises CheckRefusal, carrying `findings` — every `Error`-severity
+    finding in report order."""
+
+def subject_body(
+    evaluation: Evaluation, root: NodeId, output_ix: int
+) -> Optional[Body]:
+    """The body a finding's attribution names, in this evaluation.
+
+    Walks the same enumeration `run_checks` does, so a finding
+    produced from this evaluation always resolves. `None` where the
+    root has no value, denotes no body, or has no output at that index
+    — exactly the attributions a `stale_expectation` finding names,
+    which is what makes that `None` an answer and not a failure."""
 
 def import_step(text: str) -> Body:
     """Parse a STEP text with the kernel's importer and adopt its

@@ -548,6 +548,10 @@ guard fails on one no entry cites: `B-READBACK` was chartered here
 and closed at LIB-B-READBACK, and what records that is the four
 read-back verbs sitting in the census's `BOUND_AS` with the unit
 named beside them. The
+
+family id — `B-PICKING`, `B-RESOLVE`, `B-READBACK`, `B-EXPR-READ`,
+`B-CANCEL`, `B-FORMAT`, `B-VALIDATE4`, `B-DISTRIBUTIONS` — each carrying
+a one-line charter saying what a unit closing it would deliver. The
 `B-` is this category's own letter: the census owns the surface-debt
 id space, this register points AT it, and the census's own test fails
 when a pointer stops resolving in either direction (a citation the
@@ -1705,3 +1709,65 @@ micro-unit queue. Process lesson kept honest: two lanes were
 reported reclaimed in prose without the command having run —
 reclaims are now verified by listing, the GUIDE-ASM lesson's
 sibling.
+
+**B-CHECKS MERGED (2026-08-29, #1215; mechanical under the 08-29
+ruling, no A/B row). Census family B-CHECKS CLOSED — the DS6
+advisory registry crosses whole.** 13/13 names bound name-for-name
+(`run_checks` answers a value, `enforce_checks` refuses typed — two
+exception classes that cannot be confused; the waiver rule is a TYPE:
+`separation` takes `Advisory`, so waiving `Error` is unspellable,
+pinned in the ty illegal fixture); 19 tests, every document authored
+through public doors, both residents exercised. **MERGED RED on the
+main-inherited teapot k-lint leg, on Evan's explicit in-chat
+authorization** — every row the unit owns green; the re-baseline
+(#1223's reading done, geometry-change arm) is in flight on
+lib/tess-rebaseline. Union note: merged after B-READBACK with a
+clean textual merge; the source-level census guard passed 7/7 on the
+union, the compiled-module stub check rides the next gated PR.
+Banked: a charter is written when a family is NAMED, not closed
+(B-CHECKS' said "the connectedness check" and there were two
+residents by closing time) — recorded in the census's closure
+paragraph. The register's census-id sentence corrected in passing
+(B-DISTRIBUTIONS was chartered but unlisted).
+
+**TESS-REBASELINE MERGED (2026-08-29, #1243; orchestrator-direct —
+the #1223 repair, the gate's own recourse ladder executed).** The
+teapot budget baseline re-cut for #1180's sphere-zone belly: reading
+done first (face genuinely replaced cylinder→sphere; growth is
+authored curvature; slack table untouched), the re-cut made with the
+sweep script's own invocation, and the diff verified row-by-row
+before committing (13 changed + 12 vanished rows, all teapot;
+non-teapot byte-identical; cross-machine byte-consistency with CI's
+own generation). Two instrument lessons paid for en route and kept:
+a sweep without `--deviation` NaN'd 77 cells and was caught by the
+pre-commit diff, not by any gate; and the FIRST gate run of this PR
+was green with the tess steps SKIPPED — the klint pin vocabulary is
+row-specific (`release-budget` is the budget row; `release-default`
+is the tour suite) and a baseline-CSV-only diff does not trigger the
+gate that reads the baseline, so a re-baseline PR must pin the
+budget row explicitly or its green verifies nothing — and the pin
+must ride the HEAD commit, because a CI-Config trailer voids on any
+later commit: the post-conflict merge of main voided the first pin
+and this addendum re-carries it (the lane-ops note, met live).
+
+CI-Config: klint=release-budget
+
+**G16 MERGED (2026-08-29, #1224 — ordinal 301, sample #47, row in
+MODEL-AB-LOG). Audit G16 CLOSED; RECIPE-DOORS unit 1 of 3 complete;
+schema v16.** `Node::Chamfer` lands as the fillet's twin with the
+#708 tie-deferral debt paid to ZERO sites (both emitters on
+`names/defer.rs`; the shared `name_blend` makes the twins unable to
+drift), rows 2/11/12 flip YES with derived closed-form oracles, and
+the census/audit re-cuts hold (47 = 33+4*+10). The dual converged
+A-W-F/A-W-F with no MAJOR either arm and produced permanent gates:
+the corpus NAME-TABLE digests (19 documents — a surface nothing
+committed covered), the blend message gates, the v15→v16
+demonstration row, and the D3-discrimination probe. Banked with
+homes: (1) register the tour composed-die as a CORPUS document (the
+argued decline's right shape — a reviewer's transcription measured
+it byte-identical but a copy would drift; the registration is a
+small mechanical unit); (2) the #917 vocabulary exemption at the
+chamfer op message (carries FilletError per D2, argued in place —
+folds into #917's rename when taken). Next per ratified D1
+sequencing: tube (HELD behind #1205's mode-flag ruling), then shell
+(HELD behind #1202's kernel birth channel).

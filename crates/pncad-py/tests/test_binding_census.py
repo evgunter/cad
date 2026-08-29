@@ -59,6 +59,12 @@ accounted for in exactly one of three ways:
    would be a stale claim rather than a checked one (the guard's own
    floors, in `the_scanners_read_something`, are what stop a scanner
    from passing vacuously).
+1. `pncad.pyi` declares a top-level name spelled identically. A
+   hundred and twenty-four names land here — `Doc`, `Node`,
+   `Selector`, `SegTag`, `circle`. (A SNAPSHOT, like every count in
+   this file: measured at LIB-B-CHECKS' merge, where it had stood at
+   111 and read "sixty-two" — nothing checks a prose count, so it
+   decays silently between the units that re-measure it.)
 2. `BOUND_AS` maps it to the Python spelling that answers the same
    question, and THAT SPELLING IS VERIFIED to exist in the stub — a
    mapping naming a spelling the stub does not declare fails. Without
@@ -114,7 +120,7 @@ WHAT THIS DOES NOT CLAIM
   each entry names the id that owns it.
 - Not that a cited id is the RIGHT owner. The cross-doc check asks
   only whether the pointer RESOLVES — that `G18` is a gap the audit
-  page defines, that `B-CHECKS` is a family this file charters. Which
+  page defines, that `B-PICKING` is a family this file charters. Which
   id owns which door is a judgement made by hand, at the entry.
 - Not that the audit page's ids are all readable from here. The
   extraction reads TABLE ROWS whose first cell is `G` + digits, in the
@@ -309,7 +315,7 @@ def audit_gap_ids():
     FIRST cell is `G` + digits — the shape the Rust tally guard uses to
     tell a gap row from the prose and headers around it. The open list
     and the closed list are read alike: a closed gap keeps its id, and
-    an entry citing one (`G1`'s Expr residue, `G16`'s chamfer node) is
+    an entry citing one (`G1`'s Expr residue, `G2`'s tube node) is
     citing a row that is still there to be read.
 
     What this cannot see is stated in the module docstring: a gap named
@@ -445,6 +451,7 @@ BOUND_AS = {
     "declare_all": "Doc.declare_all",
     "declare_node": "Node.declare",
     "extrude": "Node.extrude",
+    "chamfer_edges": "Node.chamfer",
     "fillet_edges": "Node.fillet",
     "find_flush_candidates": "Evaluation.find_flush_candidates",
     "intersect": "Node.boolean",
@@ -483,8 +490,7 @@ GAP = "gap"
 #: reason the module docstring's id-space section splits the two
 #: spaces the way it does. Where the audit page DOES define an id, an
 #: entry cites that instead and nothing is minted here: `G2` (sweep
-#: and tube), `G16` (chamfer's missing recipe
-#: node), `G18` (the
+#: and tube), `G18` (the
 #: whole Python assembly series, whose row enumerates `assemble`,
 #: `solve_document`, `product`, `split` and `inline` by name), and
 #: `G1` for the Expr-in-a-profile-step residue its row records.
@@ -519,12 +525,6 @@ GAP = "gap"
 #: LIB-B-READBACK, the first family to close, and the four verbs it
 #: chartered say so where they now sit in `BOUND_AS`.
 FAMILIES = {
-    "B-CHECKS": (
-        "the advisory report-never-gate checks registry "
-        "(DISCIPLINES-DESIGN DS6); closing it binds `run_checks` / "
-        "`enforce_checks` and the findings they report, with `CheckId` "
-        "and `Severity` as values a Python caller can dispatch on"
-    ),
     "B-PICKING": (
         "picking, the fourth door onto a name — ray in, `StableName` "
         "out; closing it binds `pick_face` with its ray/target/hit "
@@ -729,8 +729,8 @@ FAMILIES = {
 #: **`gap` — genuinely unbound doors, and each is OWED WORK.** This is
 #: the family that makes the census worth having: these are not
 #: decisions, they are debt, and the id after the colon says what owns
-#: each. Four of the ids are the audit page's, cited (`G1`, `G2`,
-#: `G16`, `G18`); the other seven are `FAMILIES` keys
+#: each. TWO of the ids are the audit page's, cited (`G1`, `G2`); the
+#: other seven are `FAMILIES` keys
 #: this census owns, because the audit's SCENE-driven list does not
 #: reach a door no tour scene exercises — which is exactly why those
 #: accumulated unnoticed and why this census exists.
@@ -772,13 +772,28 @@ FAMILIES = {
 #: `DocEdit.set_placement` changed nothing about it, because that
 #: edit's own refusals are separate `EditError` arms sharing the tag
 #: namespace.
-#: - **B-CHECKS — the advisory checks (DISCIPLINES-DESIGN DS6).**
-#:   `run_checks`, `enforce_checks`, `subject_body`, `ChecksReport`,
-#:   `ChecksConfig`, `ChecksError`, `CheckFinding`, `CheckEvidence`,
-#:   `CheckId`, `CheckKind`, `CheckRefusal`, `Severity`, `Advisory`.
-#:   The report-never-gate registry, and the largest census-owned
-#:   family. (`Advisory` is `Severity` minus `Error`, the knob a
-#:   resident takes when it ships no DS6 waiver vocabulary.)
+#: **B-CHECKS is CLOSED and no longer a `gap` id here**
+#: (LIB-B-CHECKS). It held thirteen names, the largest census-owned
+#: family: `run_checks`, `enforce_checks`, `subject_body`,
+#: `ChecksReport`, `ChecksConfig`, `ChecksError`, `CheckFinding`,
+#: `CheckEvidence`, `CheckId`, `CheckKind`, `CheckRefusal`,
+#: `Severity` and `Advisory`. All thirteen are top-level names in
+#: `pncad.pyi` and none needed `BOUND_AS` — the report/gate split
+#: crossed with the same shape it has in Rust, a value out of
+#: `run_checks` and a typed refusal out of `enforce_checks`, and the
+#: two knob TYPES crossed as two types because their difference is
+#: DS6's waiver rule (`Advisory` is `Severity` minus `Error`, so a
+#: resident shipping no acknowledgment record cannot be set to refuse
+#: — unspellable in Python as in Rust).
+#:
+#: The closing measured one thing worth recording: the charter named
+#: "the connectedness check" as the family's resident, and by the
+#: time it was closed the registry had TWO — the product-separation
+#: resident shipped 2026-08-29, and it is the one that carries the
+#: `Advisory` knob. A charter is written when a family is named, not
+#: when it is closed, and this is what that gap looks like in
+#: practice: the id and the door list stayed right, the resident
+#: count did not.
 #: - **B-PICKING — picking.** `pick_face`, `PickTarget`, `PickHit`,
 #:   `NodePick`, `NodePickError`, `HitTestError`, `Ray`. The fourth
 #:   door onto a name — ray in, `StableName` out, the same alphabet
@@ -802,13 +817,19 @@ FAMILIES = {
 #: - **B-VALIDATE4 — the fourth validator rung.**
 #:   `validate_pseudomanifold`. `Body` binds three of the ladder's
 #:   four; this one is simply missing.
-#: - **G16 — chamfer.** `chamfer_edges`, `Chamfered`. The fillet's
-#:   ruled sibling, and the reason it cannot be bound the way
-#:   `Node.fillet` was is one level down: `editor-core` has no
-#:   `Chamfer` node, so this is a document-layer unit before it is a
-#:   binding one — which IS G16, whose row says the same thing from
-#:   the scene side ("**Not a bindings gap.** The day `Node::Chamfer`
-#:   lands, binding it is the mechanical LIB-PYBUNDLE shape").
+#: **G16 is CLOSED and no longer a `gap` id here** (LIB-G16). It held
+#: `chamfer_edges` and `Chamfered`, and its own row said what would
+#: close it: "the day `Node::Chamfer` lands, binding it is the
+#: mechanical LIB-PYBUNDLE shape". `Node::Chamfer` landed at schema
+#: v16, `Node.chamfer` binds it, and the two names moved to the
+#: dispositions their fillet twins already carry — the kernel verb to
+#: `BOUND_AS` (`Node.chamfer` is the Python spelling of the question
+#: `chamfer_edges` answers) and the record to `INTERIOR`, where
+#: `Filleted` already sits. `BlendKind` joins them as `INTERIOR`:
+#: which blend a shared refusal came from IS visible in Python, as the
+#: error `kind` tag (`fillet`/`chamfer` and the three
+#: `*_selection_*` tags), so the discriminant crosses — just not as a
+#: type.
 #: - **B-CANCEL — cooperative cancellation.** `CancelToken`.
 #:   `evaluate(doc)` takes none, so a Python caller cannot stop a long
 #:   evaluation.
@@ -901,11 +922,13 @@ NOT_BOUND = {
     # --- behind-a-door --------------------------------------------
     "Band": INTERIOR,
     "BandError": INTERIOR,
+    "BlendKind": INTERIOR,
     "BooleanBody": INTERIOR,
     "BooleanDeclarations": INTERIOR,
     "BooleanResult": INTERIOR,
     "BooleanResultKind": INTERIOR,
     "BooleanValue": INTERIOR,
+    "Chamfered": INTERIOR,
     "ContactRecords": INTERIOR,
     "ContactRefusal": INTERIOR,
     "ContactVerdict": INTERIOR,
@@ -961,20 +984,14 @@ NOT_BOUND = {
     # because their Python shape differs (`NodeMap`, `RootFault`,
     # `PlacementRuleFault`, and `MateSide`, which is both). The
     # positive form is `tests/test_assembly_author.py`.
-    # --- gap: advisory checks DS6 (census-owned) ------------------
-    "CheckEvidence": f"{GAP}: B-CHECKS advisory checks",
-    "CheckFinding": f"{GAP}: B-CHECKS advisory checks",
-    "Advisory": f"{GAP}: B-CHECKS advisory checks",
-    "CheckId": f"{GAP}: B-CHECKS advisory checks",
-    "CheckKind": f"{GAP}: B-CHECKS advisory checks",
-    "CheckRefusal": f"{GAP}: B-CHECKS advisory checks",
-    "ChecksConfig": f"{GAP}: B-CHECKS advisory checks",
-    "ChecksError": f"{GAP}: B-CHECKS advisory checks",
-    "ChecksReport": f"{GAP}: B-CHECKS advisory checks",
-    "Severity": f"{GAP}: B-CHECKS advisory checks",
-    "enforce_checks": f"{GAP}: B-CHECKS advisory checks",
-    "run_checks": f"{GAP}: B-CHECKS advisory checks",
-    "subject_body": f"{GAP}: B-CHECKS advisory checks",
+    # B-CHECKS IS GONE FROM THIS ROSTER, closed at LIB-B-CHECKS, and
+    # the id is gone from `FAMILIES` with it — a charter no entry
+    # cites is what `test_every_gap_entry_names_a_defined_id`'s
+    # decay half fails on. Its thirteen names are all top-level in
+    # `pncad.pyi`, name for name, so none of them needed `BOUND_AS`:
+    # the registry's shape crossed unchanged, including the two knob
+    # TYPES whose difference is DS6's waiver rule. The positive form
+    # is `tests/test_checks.py`.
     # --- gap: picking (census-owned) ------------------------------
     "HitTestError": f"{GAP}: B-PICKING ray onto a name",
     "NodePick": f"{GAP}: B-PICKING ray onto a name",
@@ -998,9 +1015,7 @@ NOT_BOUND = {
     # --- gap: geometry read-back doors (census-owned) -------------
     # --- gap: assorted single doors -------------------------------
     "CancelToken": f"{GAP}: B-CANCEL cooperative cancellation",
-    "Chamfered": f"{GAP}: G16 chamfer has no recipe node",
     "FmtQuantityError": f"{GAP}: B-FORMAT the D6 display formatter",
-    "chamfer_edges": f"{GAP}: G16 chamfer has no recipe node",
     "fmt_angle": f"{GAP}: B-FORMAT the D6 display formatter",
     "fmt_length": f"{GAP}: B-FORMAT the D6 display formatter",
     "validate_pseudomanifold": f"{GAP}: B-VALIDATE4 the fourth validator rung",
