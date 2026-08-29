@@ -158,6 +158,23 @@ if running_under_wsl; then
   echo "serve-wasm:              -LocalPort $FWD_PORT -Protocol TCP -Action Allow -Profile Private" >&2
   echo "serve-wasm:      then the phone opens port $FWD_PORT on the Windows LAN address." >&2
   echo >&2
+  # The rule above matches only networks Windows has categorised
+  # Private, and Windows categorises EVERY new network Public until
+  # someone says otherwise — a home Wi-Fi included. So the common case
+  # is a rule that exists, reads correctly, and matches nothing, with
+  # the packets hitting the default inbound DROP: a third way to reach
+  # the same timeout. Check before assuming the rule is live.
+  echo "serve-wasm:      CHECK THE PROFILE — a rule scoped Private matches nothing" >&2
+  echo "serve-wasm:      on a network Windows calls Public, which is the DEFAULT" >&2
+  echo "serve-wasm:      for a home Wi-Fi. In the same admin PowerShell:" >&2
+  echo "serve-wasm:          Get-NetConnectionProfile" >&2
+  echo "serve-wasm:      and if NetworkCategory is Public, classify it honestly" >&2
+  echo "serve-wasm:      rather than widening the rule to Public — Private is" >&2
+  echo "serve-wasm:      remembered per-network, where a Public rule would open" >&2
+  echo "serve-wasm:      the port on every network the laptop later joins:" >&2
+  echo "serve-wasm:          Set-NetConnectionProfile -Name '<your SSID>' \\" >&2
+  echo "serve-wasm:              -NetworkCategory Private" >&2
+  echo >&2
   # connectaddress is 127.0.0.1 rather than the WSL address deliberately.
   # The distro's IP is re-assigned on every WSL restart, so a rule naming
   # it goes stale silently — the symptom is a timeout again, with the
