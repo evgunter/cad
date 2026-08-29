@@ -230,6 +230,12 @@ pub enum SlotId {
     Distance,
     /// A fillet's constant blend radius (Length).
     Radius,
+    /// A chamfer's setback along both supports (Length). Named apart
+    /// from [`SlotId::Radius`] because it is a different quantity: a
+    /// radius is a rolling ball's, a setback is a distance measured
+    /// along each support face from the source edge, and a panel that
+    /// spelled both "radius" would be lying about one of them.
+    ChamferDistance,
     /// A revolve's sweep angle (Angle).
     RevolveAngle,
     /// A transform's translation component (Length).
@@ -363,6 +369,7 @@ impl SlotId {
             Self::Origin(_)
             | Self::Distance
             | Self::Radius
+            | Self::ChamferDistance
             | Self::Translation(_)
             | Self::Spacing => Dimension::Length,
             Self::Normal(_) | Self::Direction(_) | Self::RotationAxis(_) => Dimension::Scalar,
@@ -399,6 +406,7 @@ impl SlotId {
         match self {
             Self::Distance => "distance".to_owned(),
             Self::Radius => "radius".to_owned(),
+            Self::ChamferDistance => "chamfer distance".to_owned(),
             Self::RevolveAngle => "revolve angle".to_owned(),
             Self::RotationAngle => "rotation angle".to_owned(),
             Self::Spacing => "spacing".to_owned(),
@@ -436,6 +444,7 @@ impl SlotId {
             Self::RotationAxis(axis) => Some((VectorSlot::RotationAxis, axis)),
             Self::Distance
             | Self::Radius
+            | Self::ChamferDistance
             | Self::RevolveAngle
             | Self::RotationAngle
             | Self::Spacing
@@ -732,7 +741,7 @@ pub enum Node<P> {
     /// The op is [`sweep::fillet::build::fillet_edges`] over the
     /// resolved selection; anything outside its two assembly front
     /// doors is a typed refusal
-    /// ([`crate::eval::NodeErrorKind::Fillet`]), never a silent
+    /// ([`crate::eval::NodeErrorKind::Blend`]), never a silent
     /// pass-through of the input body.
     ///
     /// # The selection FREEZES (ruled, #217)
@@ -777,6 +786,50 @@ pub enum Node<P> {
         /// The constant blend radius ([`SlotId::Radius`]).
         radius: Expr,
         /// The edges to blend, by stable name — canonical (sorted,
+        /// deduplicated), frozen at authoring time.
+        selection: Vec<StableName>,
+    },
+    /// Equal-setback flat chamfers on a SELECTION of `target`'s edges
+    /// — [`Node::Fillet`]'s twin.
+    ///
+    /// The op is [`sweep::fillet::build::chamfer_edges`], which is
+    /// `fillet_edges` modulo the size's meaning: `distance` is the
+    /// SETBACK measured along each support from the source edge, not a
+    /// rolling ball's radius. Everything else this node says is the
+    /// fillet's, and deliberately so — the same two assembly front
+    /// doors, the same typed refusal on anything outside them
+    /// ([`crate::eval::NodeErrorKind::Blend`] carrying
+    /// [`sweep::fillet::BlendKind::Chamfer`]), never a silent
+    /// pass-through of the input body.
+    ///
+    /// # The selection FREEZES, and the canonical form
+    ///
+    /// Both exactly as [`Node::Fillet`] states them: a set of stable
+    /// names and nothing else, no "every edge" variant,
+    /// [`crate::DocEdit::Rebind`] the one repair, stored sorted and
+    /// deduplicated by [`Node::chamfer`], and a non-canonical set on
+    /// the wire is a corrupt file. The freeze argument does not depend
+    /// on which blend the surgery performs, so it is not restated
+    /// here — read it there.
+    ///
+    /// # Why this is a separate variant and not a flag on `Fillet`
+    ///
+    /// The two carry different quantities in their size slot
+    /// ([`SlotId::Radius`] vs [`SlotId::ChamferDistance`]), and a
+    /// stored recipe that changed which one a number meant on a
+    /// boolean's value would be a document whose geometry depends on a
+    /// field a reader can miss. Separate variants make the size's
+    /// meaning readable off the node kind, and make the naming
+    /// discrimination structural: the minting node is what tells a
+    /// chamfer's blend from a fillet's at every selector
+    /// (RECIPE-DOORS D3), so the two must be different nodes.
+    Chamfer {
+        /// The body whose edges are chamfered.
+        target: RecipeNodeId,
+        /// The setback along both supports
+        /// ([`SlotId::ChamferDistance`]).
+        distance: Expr,
+        /// The edges to chamfer, by stable name — canonical (sorted,
         /// deduplicated), frozen at authoring time.
         selection: Vec<StableName>,
     },
@@ -1042,7 +1095,7 @@ impl<P> Node<P> {
             Node::Revolve { profile, axis, .. } => vec![*profile, *axis],
             Node::Loft { profiles, .. } => profiles.clone(),
             Node::Sweep { profile, path, .. } => vec![*profile, *path],
-            Node::Fillet { target, .. } => vec![*target],
+            Node::Fillet { target, .. } | Node::Chamfer { target, .. } => vec![*target],
             Node::Split { target, tool } => vec![*target, *tool],
             Node::Boolean { a, b, declare, .. } => {
                 let mut v = vec![*a, *b];
@@ -1097,6 +1150,7 @@ impl<P> Node<P> {
             | Node::InstantiatePart { .. } => Vec::new(),
             Node::Extrude { .. } => vec![SlotId::Distance],
             Node::Fillet { .. } => vec![SlotId::Radius],
+            Node::Chamfer { .. } => vec![SlotId::ChamferDistance],
             Node::Revolve { .. } => vec![SlotId::RevolveAngle],
             Node::Loft { .. } => vec![SlotId::VDegree],
             Node::Sweep { .. } => vec![SlotId::Stations, SlotId::VDegree],
@@ -1142,6 +1196,7 @@ impl<P> Node<P> {
             }
             (Node::Extrude { distance, .. }, S::Distance) => Some(distance),
             (Node::Fillet { radius, .. }, S::Radius) => Some(radius),
+            (Node::Chamfer { distance, .. }, S::ChamferDistance) => Some(distance),
             (Node::Revolve { angle, .. }, S::RevolveAngle) => Some(angle),
             (Node::Loft { v_degree, .. }, S::VDegree)
             | (Node::Sweep { v_degree, .. }, S::VDegree) => Some(v_degree),
@@ -1169,6 +1224,7 @@ impl<P> Node<P> {
                 | Node::Loft { .. }
                 | Node::Sweep { .. }
                 | Node::Fillet { .. }
+                | Node::Chamfer { .. }
                 | Node::Split { .. }
                 | Node::Boolean { .. }
                 | Node::Transform { .. }
@@ -1200,6 +1256,7 @@ impl<P> Node<P> {
             }
             (Node::Extrude { distance, .. }, S::Distance) => Some(distance),
             (Node::Fillet { radius, .. }, S::Radius) => Some(radius),
+            (Node::Chamfer { distance, .. }, S::ChamferDistance) => Some(distance),
             (Node::Revolve { angle, .. }, S::RevolveAngle) => Some(angle),
             (Node::Loft { v_degree, .. }, S::VDegree)
             | (Node::Sweep { v_degree, .. }, S::VDegree) => Some(v_degree),
@@ -1223,6 +1280,7 @@ impl<P> Node<P> {
                 | Node::Loft { .. }
                 | Node::Sweep { .. }
                 | Node::Fillet { .. }
+                | Node::Chamfer { .. }
                 | Node::Split { .. }
                 | Node::Boolean { .. }
                 | Node::Transform { .. }
@@ -1247,7 +1305,9 @@ impl<P> Node<P> {
     pub fn payload_names(&self) -> Vec<&StableName> {
         match self {
             Node::Declare { pairs } => pairs.iter().flat_map(|((a, b), _)| [a, b]).collect(),
-            Node::Fillet { selection, .. } => selection.iter().collect(),
+            Node::Fillet { selection, .. } | Node::Chamfer { selection, .. } => {
+                selection.iter().collect()
+            }
             // A12: a mate's two heads are the instance-qualified
             // references its reading edges are recomputed from.
             Node::Mate { a, b, .. } => vec![a, b],
@@ -1280,7 +1340,7 @@ impl<P> Node<P> {
                     hits += rewrite(name, from, to);
                 }
             }
-            Node::Fillet { selection, .. } => {
+            Node::Fillet { selection, .. } | Node::Chamfer { selection, .. } => {
                 for name in selection.iter_mut() {
                     hits += rewrite(name, from, to);
                 }
@@ -1376,6 +1436,7 @@ impl<P> Node<P> {
             | Node::Loft { .. }
             | Node::Sweep { .. }
             | Node::Fillet { .. }
+            | Node::Chamfer { .. }
             | Node::Split { .. }
             | Node::Boolean { .. }
             | Node::Transform { .. }
@@ -1440,6 +1501,21 @@ impl<P> Node<P> {
         Node::Fillet {
             target,
             radius,
+            selection,
+        }
+    }
+
+    /// Builds a [`Node::Chamfer`] with a CANONICAL selection (sorted,
+    /// deduplicated) — the one construction door, for the reason
+    /// [`Node::fillet`] is: a recipe's bits must not depend on the
+    /// order a user clicked in.
+    pub fn chamfer(target: RecipeNodeId, distance: Expr, selection: Vec<StableName>) -> Self {
+        let mut selection = selection;
+        selection.sort();
+        selection.dedup();
+        Node::Chamfer {
+            target,
+            distance,
             selection,
         }
     }
