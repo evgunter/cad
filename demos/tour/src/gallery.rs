@@ -26,7 +26,9 @@
 
 use std::path::{Path, PathBuf};
 
-use pncad::document::{ProfileDoc, save};
+use pncad::document::{
+    CancelToken, CheckId, ChecksConfig, EvalOptions, ProfileDoc, evaluate, run_checks, save,
+};
 use pncad::geom_core::Tol;
 
 /// Write the gallery into `dir` (default `gallery/`).
@@ -86,8 +88,196 @@ fn write_one(dir: &Path, name: &str, doc: &ProfileDoc, tol: Tol) {
     std::fs::write(&path, &text)
         .unwrap_or_else(|error| panic!("cannot write {}: {error}", path.display()));
     println!(
-        "   {name}.pncad — {} node(s), {} byte(s)",
+        "   {name}.pncad — {} node(s), {} product root(s), {} byte(s){}",
         doc.len(),
-        text.len()
+        doc.roots().len(),
+        text.len(),
+        advisory(doc, tol)
     );
+}
+
+/// What the advisory registry says about the document being written,
+/// as a phrase for the line above.
+///
+/// **Why the exporter says it at all.** A gallery document's whole job
+/// is to be opened in the viewer, and the viewer runs this same
+/// registry on every landing — so a scene whose document reports a
+/// finding ships a picture that is wrong in a way only the badge
+/// explains. The die shipped exactly that for as long as this exporter
+/// has existed: two product roots, one sitting on the other, the pips
+/// filled in and the outer faces z-fighting (#1162 diagnosed it; its
+/// separation resident is what reports it). Writing the count here
+/// means the next one is noticed when it is WRITTEN rather than when
+/// someone opens the file and wonders what they are looking at.
+///
+/// A count, never a verdict: the registry reports, it does not gate
+/// (`editor_core::checks`), and the one scene that legitimately
+/// reports today — the heatsink, whose fins are unioned into its base
+/// in this demo's own `solidify()` and never in the recipe — is a
+/// scene-authoring gap, not a reason to refuse to write its file.
+fn advisory(doc: &ProfileDoc, tol: Tol) -> String {
+    let evaluation = evaluate::<f64>(doc, None, &CancelToken::new(), &EvalOptions::default(), tol);
+    match run_checks(doc, &evaluation, &ChecksConfig::default(), tol) {
+        Err(error) => format!(" — the check registry refused: {error}"),
+        Ok(report) if report.findings.is_empty() => String::new(),
+        Ok(report) => {
+            let separation = report
+                .findings
+                .iter()
+                .filter(|finding| finding.check == CheckId::Separation)
+                .count();
+            format!(
+                " — {} finding(s), {separation} of them separation",
+                report.findings.len()
+            )
+        }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::*;
+    use pncad::topo::mass_properties;
+
+    /// What one gallery scene is expected to PRODUCE.
+    struct Shape {
+        name: &'static str,
+        doc: ProfileDoc,
+        /// Product roots. One, unless the scene has a reason.
+        roots: usize,
+        /// Separation findings, and why any of them are there.
+        separation: usize,
+        why: &'static str,
+    }
+
+    /// **A gallery document must denote what its scene means, or say
+    /// why not.**
+    ///
+    /// The gallery's whole purpose is to be opened in the viewer, and
+    /// the viewer draws the PRODUCT: the gather of every root. A scene
+    /// that authors a body for narration authors a DAG sink, the root
+    /// set is exactly the sink set (`editor_core::roots`), and a sink
+    /// nobody meant as a product is a second body in the picture.
+    ///
+    /// That is the bug this row exists for. `diefillet` shipped with
+    /// two roots — the blank and the composed die, the blank being the
+    /// die's own outer shape with no pips cut — so the file drew one
+    /// die-shaped thing with its pips filled in, its faces z-fighting,
+    /// and twice the material (115 faces, V = 1.918146). It looked
+    /// almost right, which is why it survived: every local battery
+    /// passes, because each root's body is individually perfect.
+    ///
+    /// The row is a TABLE rather than a blanket "no findings", because
+    /// one scene legitimately reports and hiding that would be the
+    /// same silence in a different place. Changing any number here is
+    /// a claim about what a scene produces, so it should cost a
+    /// sentence in `why`.
+    #[test]
+    fn each_gallery_document_denotes_its_scene_or_says_why_not() {
+        let tol = Tol::witness();
+        let shapes = [
+            Shape {
+                name: "checks",
+                doc: crate::checks::gallery_document(tol),
+                roots: 1,
+                separation: 0,
+                why: "one root; its connectedness finding is the scene's own subject                       and is not a separation one",
+            },
+            Shape {
+                name: "ring",
+                doc: crate::ring::gallery_document(tol),
+                roots: 1,
+                separation: 0,
+                why: "one revolve, one root",
+            },
+            Shape {
+                name: "diefillet",
+                doc: crate::diefillet::gallery_document(tol),
+                roots: 1,
+                separation: 0,
+                why: "the composed die alone — the blank is a narration body and                       `gallery_document` deletes it, which is what this row guards",
+            },
+            Shape {
+                name: "heatsink",
+                doc: crate::heatsink::gallery_document(tol),
+                roots: 2,
+                separation: 5,
+                why: "KNOWN AND NOT FIXED HERE: the base and the five-fin pattern are                       two roots that genuinely interpenetrate, because the union that                       makes them one solid lives in this demo's `solidify()` and never                       in the recipe. Unlike the die's, this is a missing feature in the                       scene, not a spare body: the fix is to author the union, which                       changes what the scene demonstrates",
+            },
+        ];
+
+        for shape in &shapes {
+            let evaluation = evaluate::<f64>(
+                &shape.doc,
+                None,
+                &CancelToken::new(),
+                &EvalOptions::default(),
+                tol,
+            );
+            assert_eq!(
+                shape.doc.roots().len(),
+                shape.roots,
+                "{}: product roots ({})",
+                shape.name,
+                shape.why
+            );
+            let report = run_checks(&shape.doc, &evaluation, &ChecksConfig::default(), tol)
+                .unwrap_or_else(|error| panic!("{}: the registry refused: {error}", shape.name));
+            let separation = report
+                .findings
+                .iter()
+                .filter(|finding| finding.check == CheckId::Separation)
+                .count();
+            assert_eq!(
+                separation, shape.separation,
+                "{}: separation findings ({}) — {report}",
+                shape.name, shape.why
+            );
+        }
+    }
+
+    /// The die, by the numbers its own scene already knows.
+    ///
+    /// `diefillet::stops` asserts the composed BODY is 26 + 21·3 faces
+    /// and tier-3 valid. This asserts the same thing one level up, of
+    /// the document's PRODUCT — which is the thing the viewer draws
+    /// and the thing that was wrong. The volume is the composed die's,
+    /// not twice it.
+    #[test]
+    fn the_die_document_produces_one_die() {
+        let tol = Tol::witness();
+        let doc = crate::diefillet::gallery_document(tol);
+        let evaluation = evaluate::<f64>(
+            &doc,
+            None,
+            &CancelToken::new(),
+            &EvalOptions::default(),
+            tol,
+        );
+        let product =
+            pncad::document::product(&doc, &evaluation, tol).expect("the die document gathers");
+        assert_eq!(
+            product.faces().count(),
+            26 + 21 * 3,
+            "the product is the composed die's own face count, not it plus a blank"
+        );
+        let volume = mass_properties(&product, tol)
+            .expect("the product has mass properties")
+            .volume;
+        // MEASURED, not a closed form: the scene closes the BLANK's
+        // volume in `diefillet::blank_volume` (core + slabs + quarter
+        // cylinders + octants), and the composed die — 21 spherical
+        // caps out, 21 torus bands in — has no such form written
+        // anywhere, so this is a pin on the value the gather answers.
+        // What makes it worth pinning is the defect's signature: with
+        // the blank still a root the product answered 1.918146, which
+        // is this number DOUBLED, because the same material was
+        // gathered twice.
+        let want = 0.952_914_984_014_647_f64;
+        assert!(
+            (volume - want).abs() < 1.0e-9 * want,
+            "the product's volume is the composed die's: {volume} vs {want}"
+        );
+    }
 }
