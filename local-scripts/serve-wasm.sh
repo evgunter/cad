@@ -127,40 +127,62 @@ if running_under_wsl; then
   WIN_IP=$(powershell.exe -NoProfile -Command \
     '(Get-NetIPConfiguration | Where-Object { $_.IPv4DefaultGateway -ne $null }).IPv4Address.IPAddress' \
     2>/dev/null | tr -d "\r" | head -1 || true)
+  # The forward listens on a DIFFERENT port than the server, and that is
+  # not a style choice: a portproxy listening on 0.0.0.0:$PORT and
+  # connecting to 127.0.0.1:$PORT would forward to ITSELF, because
+  # 0.0.0.0 includes loopback.
+  FWD_PORT=$((PORT + 1))
   echo "serve-wasm: WSL DETECTED — the phone cannot reach this address directly." >&2
-  echo "serve-wasm:   WSL-internal: http://${LAN_IP:-unknown}:$PORT/  (works in the Windows browser)" >&2
+  echo "serve-wasm:   WSL-internal: http://${LAN_IP:-unknown}:$PORT/" >&2
+  echo "serve-wasm:   Windows can already reach http://localhost:$PORT/ — WSL2" >&2
+  echo "serve-wasm:   forwards Windows' loopback into the distro. It does NOT" >&2
+  echo "serve-wasm:   forward the LAN interface, which is why the phone times out." >&2
   echo >&2
-  echo "serve-wasm:   Two ways to reach it from the phone:" >&2
+  echo "serve-wasm:   Two ways to fix it. BOTH also need the firewall rule:" >&2
+  echo "serve-wasm:   Windows Defender drops inbound by default, and a DROP is" >&2
+  echo "serve-wasm:   a timeout rather than a refusal — indistinguishable from" >&2
+  echo "serve-wasm:   the NAT problem itself unless you know to look." >&2
   echo >&2
   echo "serve-wasm:   1. Mirrored networking (Windows 11 22H2+, simplest):" >&2
-  echo "serve-wasm:      put this in %USERPROFILE%\\.wslconfig, then \`wsl --shutdown\`:" >&2
+  echo "serve-wasm:      put this in %USERPROFILE%\\.wslconfig, then \`wsl --shutdown\`" >&2
+  echo "serve-wasm:      and restart this script:" >&2
   echo "serve-wasm:          [wsl2]" >&2
   echo "serve-wasm:          networkingMode=mirrored" >&2
-  echo "serve-wasm:      then the Windows LAN address below just works." >&2
+  echo "serve-wasm:      then the phone opens port $PORT on the Windows LAN address." >&2
   echo >&2
   echo "serve-wasm:   2. Port-forward from Windows (any version), in an" >&2
   echo "serve-wasm:      ADMINISTRATOR PowerShell:" >&2
-  echo "serve-wasm:          netsh interface portproxy add v4tov4 listenport=$PORT \\" >&2
-  echo "serve-wasm:              listenaddress=0.0.0.0 connectport=$PORT connectaddress=${LAN_IP:-<wsl-ip>}" >&2
+  echo "serve-wasm:          netsh interface portproxy add v4tov4 listenport=$FWD_PORT \\" >&2
+  echo "serve-wasm:              listenaddress=0.0.0.0 connectport=$PORT connectaddress=127.0.0.1" >&2
   echo "serve-wasm:          New-NetFirewallRule -DisplayName 'wasm spike' -Direction Inbound \\" >&2
-  echo "serve-wasm:              -LocalPort $PORT -Protocol TCP -Action Allow -Profile Private" >&2
+  echo "serve-wasm:              -LocalPort $FWD_PORT -Protocol TCP -Action Allow -Profile Private" >&2
+  echo "serve-wasm:      then the phone opens port $FWD_PORT on the Windows LAN address." >&2
   echo >&2
-  # -Profile Private and the teardown are not tidiness. Both of these
-  # changes OUTLIVE the script: a portproxy entry survives reboots, and
-  # an unscoped firewall rule re-opens the port on every network the
-  # laptop later joins — a coffee shop included. The default profile
-  # set is Domain+Private+Public, so naming Private is what keeps this
-  # to networks Windows already considers trusted.
+  # connectaddress is 127.0.0.1 rather than the WSL address deliberately.
+  # The distro's IP is re-assigned on every WSL restart, so a rule naming
+  # it goes stale silently — the symptom is a timeout again, with the
+  # rule still present and looking correct. Windows' own loopback already
+  # reaches the distro (that is the forwarding described above), and
+  # unlike the WSL address it does not move.
+  #
+  # -Profile Private and the teardown are not tidiness either. Both of
+  # these changes OUTLIVE the script: a portproxy entry survives reboots,
+  # and an unscoped firewall rule re-opens the port on every network the
+  # laptop later joins — a coffee shop included. The default profile set
+  # is Domain+Private+Public, so naming Private is what keeps this to
+  # networks Windows already considers trusted.
   echo "serve-wasm:      UNDO BOTH WHEN DONE — they persist across reboots:" >&2
-  echo "serve-wasm:          netsh interface portproxy delete v4tov4 listenport=$PORT \\" >&2
+  echo "serve-wasm:          netsh interface portproxy delete v4tov4 listenport=$FWD_PORT \\" >&2
   echo "serve-wasm:              listenaddress=0.0.0.0" >&2
   echo "serve-wasm:          Remove-NetFirewallRule -DisplayName 'wasm spike'" >&2
   echo >&2
   if [ -n "$WIN_IP" ]; then
-    echo "serve-wasm:   Either way, the phone opens ->  http://$WIN_IP:$PORT/" >&2
+    echo "serve-wasm:   The Windows LAN address is $WIN_IP, so that is" >&2
+    echo "serve-wasm:     mirrored     ->  http://$WIN_IP:$PORT/" >&2
+    echo "serve-wasm:     port-forward ->  http://$WIN_IP:$FWD_PORT/" >&2
   else
-    echo "serve-wasm:   Then open http://<the-windows-LAN-ip>:$PORT/ on the phone" >&2
-    echo "serve-wasm:   (\`ipconfig\` in a Windows shell; the Wi-Fi adapter's IPv4)." >&2
+    echo "serve-wasm:   Find the Windows LAN address with \`ipconfig\` in a Windows" >&2
+    echo "serve-wasm:   shell (the Wi-Fi adapter's IPv4 Address)." >&2
   fi
 elif [ -n "$LAN_IP" ]; then
   echo "serve-wasm: OPEN THIS ON THE PHONE ->  http://$LAN_IP:$PORT/"
