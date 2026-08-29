@@ -1778,12 +1778,21 @@ jobs:
       # currently means either "no failures" or "failures, first one only" and
       # a reader cannot tell which. The Actions `Run …` group carries the
       # command but is collapsed and, on the eps legs, is a `${{ }}` expansion
-      # the reader has to evaluate. One line at the top of the step's own
-      # output removes the archaeology.
+      # the reader has to evaluate.
+      #
+      # SAID TWICE, AND THE SECOND ONE IS THE LOAD-BEARING ONE. The reader this
+      # is for is looking at a RED run, and where they land is the bottom of
+      # this step, immediately under nextest's failure summary — which is where
+      # "is that all of them?" gets asked and where nextest's own truncation
+      # warning prints, for the same reason. A line at the top of a
+      # two-thousand-line step is not where that question is.
       - name: run archived tests
         run: |
-          echo "fail-fast mode: --no-fail-fast — every test in this shard runs, so the summary below is the failure SURFACE, not the first failure."
-          ${{ needs.filter.outputs.eps != 'default' && format('CAD_TOLERANCE_EPS={0}', needs.filter.outputs.eps) || '' }} cargo nextest run --archive-file nextest-default.tar.zst --workspace-remap . --partition count:${{ matrix.shard }}/2 --no-fail-fast
+          echo "fail-fast mode: --no-fail-fast — every test in this shard runs to completion."
+          status=0
+          ${{ needs.filter.outputs.eps != 'default' && format('CAD_TOLERANCE_EPS={0}', needs.filter.outputs.eps) || '' }} cargo nextest run --archive-file nextest-default.tar.zst --workspace-remap . --partition count:${{ matrix.shard }}/2 --no-fail-fast || status=$?
+          echo "fail-fast mode was --no-fail-fast: the summary above is this shard's whole failure SURFACE, not its first failure. (This shard is half the suite; the other shard is a job of its own.)"
+          exit $status
 
   # THE RELEASE-PROFILE ROW. Three adversarial suites in `crates/topo` feed
   # tier-1-INVALID bodies to the Euler operators and are written about
@@ -2183,8 +2192,11 @@ jobs:
       # was measured: 22 failures locally against 1-2 here, same tree.
       - name: run archived tests
         run: |
-          echo "fail-fast mode: --no-fail-fast — every test in this shard runs, so the summary below is the failure SURFACE, not the first failure."
-          ${{ needs.filter.outputs.eps != 'default' && format('CAD_TOLERANCE_EPS={0}', needs.filter.outputs.eps) || 'env -u CAD_TOLERANCE_EPS' }} cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . --partition count:${{ matrix.shard }}/2 --no-fail-fast
+          echo "fail-fast mode: --no-fail-fast — every test in this shard runs to completion."
+          status=0
+          ${{ needs.filter.outputs.eps != 'default' && format('CAD_TOLERANCE_EPS={0}', needs.filter.outputs.eps) || 'env -u CAD_TOLERANCE_EPS' }} cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . --partition count:${{ matrix.shard }}/2 --no-fail-fast || status=$?
+          echo "fail-fast mode was --no-fail-fast: the summary above is this shard's whole failure SURFACE, not its first failure. (This shard is half the suite; the other shard is a job of its own.)"
+          exit $status
       # M4 PR 6 D6.1, Interval member: the save/load/replay-identity row
       # at the certified interval scalar (already inside the full archive
       # run above; named here so the obligation is visible). One leg only
