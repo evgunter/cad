@@ -135,3 +135,6 @@ fn every_suite_file_is_aggregated() {
          is silently dropping them: {missing:?}. Add a `#[path]` line for each."
     );
 }
+
+#[path = "r1_p2_onb_probes.rs"]
+mod r1_p2_onb_probes;
