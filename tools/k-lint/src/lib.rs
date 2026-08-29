@@ -556,7 +556,9 @@ pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
             return Err(ParseError {
                 line: i + 1,
                 text: format!(
-                    "band_zero = {band_zero:e} must be strictly below                      band_escalate = {band_escalate:e} (the ambiguity band is a                      nonempty open interval; sweep drift?): {line}"
+                    "band_zero = {band_zero:e} must be strictly below band_escalate = \
+                     {band_escalate:e} (the ambiguity band is a nonempty open interval; \
+                     sweep drift?): {line}"
                 ),
             });
         }
@@ -905,8 +907,16 @@ mod tests {
             let e =
                 lint_csv(&row("2e0", bz, be, "positive")).expect_err("an empty band is not a band");
             assert_eq!(e.line, 2);
+            // The phrase is asserted ACROSS the line continuation the
+            // literal is written over: a wrapped message that loses its
+            // `\` reads back with a run of indentation in the middle,
+            // and half of it still contains "strictly below".
+            assert!(
+                e.text.contains("strictly below band_escalate"),
+                "{}",
+                e.text
+            );
             assert!(e.text.contains("band_zero"), "{}", e.text);
-            assert!(e.text.contains("strictly below"), "{}", e.text);
         }
         // A hairline band is REPRESENTABLY empty and mathematically
         // nonempty, and `Band::new` accepts it — so this lint must too,
