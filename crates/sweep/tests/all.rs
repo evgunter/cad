@@ -81,6 +81,8 @@ mod verbs_shell;
 
 #[path = "bitdump.rs"]
 mod bitdump;
+#[path = "blend1_r1_probes.rs"]
+mod blend1_r1_probes;
 #[path = "blend_seam_split_rim.rs"]
 mod blend_seam_split_rim;
 #[path = "extrude_acceptance.rs"]
