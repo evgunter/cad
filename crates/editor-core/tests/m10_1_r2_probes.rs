@@ -98,6 +98,59 @@ fn the_normal_tail_is_the_exterior_mass_not_merely_one_minus_inside() {
     }
 }
 
+/// **The tail column loses its relative precision in the deep tail,
+/// and reaches bit-exact zero while real mass remains.** `tail_mass`
+/// computes the exterior as `1 - 0.5*(erf(hi/s) - erf(lo/s))`, and the
+/// subtraction cancels: at ±8σ the reported tail is ~2% wrong, and
+/// from ~±8.5σ outward it is exactly `0.0` for a distribution whose
+/// support is the whole line. The `erfc` route below shares no
+/// arithmetic with it and stays exact throughout.
+///
+/// E2 makes the tail an explicit additive term in every result
+/// ("reported, never dropped") and E10 builds the unresolved-mass
+/// budget on it, so this row asserts the DISAGREEMENT that exists
+/// today rather than the accuracy that does not — it is the
+/// falsifying witness, and the fix pass should invert it.
+#[test]
+fn the_deep_tail_is_lost_to_cancellation() {
+    let sigma = 1.0;
+    let dist = Distribution::Normal { sigma };
+    // Where it still holds: the ±3σ default is accurate.
+    let near = OffsetInterval { lo: -3.0, hi: 3.0 };
+    let near_reported = tail_mass(&p("n"), &dist, &near).expect("priceable");
+    let near_exact = normal_upper_tail(sigma, 3.0) * 2.0;
+    assert!(
+        (near_reported - near_exact).abs() / near_exact < 1e-12,
+        "at 3 sigma the tail is accurate: {near_reported} vs {near_exact}"
+    );
+    // Where it does not: 8 sigma.
+    let far = OffsetInterval { lo: -8.0, hi: 8.0 };
+    let far_reported = tail_mass(&p("n"), &dist, &far).expect("priceable");
+    let far_exact = normal_upper_tail(sigma, 8.0) * 2.0;
+    assert!(
+        far_exact > 0.0,
+        "there really is mass out there: {far_exact}"
+    );
+    let rel = (far_reported - far_exact).abs() / far_exact;
+    assert!(
+        rel > 1e-3,
+        "PIN OF A DEFECT: at 8 sigma the reported tail {far_reported} is expected to \
+         disagree with the erfc exterior {far_exact} by more than 0.1% (saw {rel}). \
+         If this row goes red because the disagreement SHRANK, the tail door was \
+         fixed — invert this assertion."
+    );
+    // And the endpoint: real mass, reported as a bit-exact zero.
+    let wider = OffsetInterval { lo: -9.0, hi: 9.0 };
+    let wider_reported = tail_mass(&p("n"), &dist, &wider).expect("priceable");
+    let wider_exact = normal_upper_tail(sigma, 9.0) * 2.0;
+    assert!(wider_exact > 0.0, "{wider_exact}");
+    assert_eq!(
+        wider_reported.to_bits(),
+        0.0f64.to_bits(),
+        "PIN OF A DEFECT: {wider_exact} of mass is reported as exactly zero"
+    );
+}
+
 /// **The analyzed box really holds the mass the policy asked for.**
 /// The bisection's job is `erf(z/sqrt 2) = mass`; this checks the
 /// answer against the measure rather than against the bisection, over
@@ -121,10 +174,11 @@ fn the_analyzed_box_holds_the_requested_mass_for_random_policies() {
             "case {case}: the quantile box must be symmetric to the bit; {}",
             fuzz::replay()
         );
-        let held = box_mass(&p("n"), &Distribution::Normal { sigma }, (
-            axis.offsets.lo,
-            axis.offsets.hi,
-        ))
+        let held = box_mass(
+            &p("n"),
+            &Distribution::Normal { sigma },
+            (axis.offsets.lo, axis.offsets.hi),
+        )
         .expect("a normal prices");
         assert!(
             (held - mass).abs() < 1e-12,
@@ -334,7 +388,16 @@ fn the_quantile_bisection_is_deterministic_and_monotone() {
         assert_eq!(a.hi.to_bits(), b.hi.to_bits(), "bit-identical on replay");
     }
     let mut prev = 0.0;
-    for mass in [1e-6, 0.01, 0.25, 0.5, 0.9, 0.99, DEFAULT_QUANTILE_MASS, 0.999_999_9] {
+    for mass in [
+        1e-6,
+        0.01,
+        0.25,
+        0.5,
+        0.9,
+        0.99,
+        DEFAULT_QUANTILE_MASS,
+        0.999_999_9,
+    ] {
         let w = width(mass).width();
         assert!(
             w >= prev,
