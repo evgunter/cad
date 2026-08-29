@@ -442,6 +442,55 @@ tour tolerates exactly those three, per scene, and panics on anything
 else. That is the right posture to copy: enumerate the refusals you
 accept, and let every other one be loud.
 
+## 8. The mesh door: budgets and files
+
+Tessellation refuses on the SAME principle, one layer further out. δ
+is refused rather than clamped — a zero, negative or non-finite
+budget is not a request the kernel can round into a sensible one —
+and the STL writers refuse a name or header they cannot write AT THE
+CALL rather than emitting a file that no reader can parse.
+
+```python
+from pncad import Doc, Node, PncadError, StlError, TessellateError, evaluate, m, mm
+
+doc = Doc()
+sketch = doc.insert(
+    Node.polygon([(0 * m, 0 * m), (1 * m, 0 * m), (1 * m, 1 * m), (0 * m, 1 * m)])
+)
+cube = doc.insert(Node.extrude(sketch, 1 * m))
+body = evaluate(doc).value(cube).body()
+
+# Refused, never clamped. `value` is the budget that was rejected.
+try:
+    body.tessellate(-1 * mm)
+    raise AssertionError("expected a typed refusal")
+except TessellateError as refusal:
+    assert refusal.variant == "invalid_chordal_tolerance"
+    assert refusal.value == -0.001
+    # The payload attributes are always PRESENT, `None` where this arm
+    # has nothing to put there — so a caller reads without a trap.
+    assert refusal.bound is None and refusal.note is None
+
+# Sanitizing a name would produce a file that parses to the wrong
+# thing, which is worse than not writing one.
+mesh = body.tessellate(1 * mm)
+try:
+    mesh.to_stl_ascii(solid_name="two\nlines")
+    raise AssertionError("expected a typed refusal")
+except StlError as refusal:
+    assert refusal.variant == "solid_name_unrepresentable"
+
+assert issubclass(TessellateError, PncadError)
+assert issubclass(StlError, PncadError)
+```
+
+One honest wrinkle, since this page is about reading refusals:
+`TessellateError`'s human message is a `Debug` rendering rather than
+the door's own prose, because `mesh::TessellateError` implements no
+`Display`. The `variant` tag is unaffected and is what a caller
+branches on — which is the general rule this page teaches, holding up
+in the one place the prose is weakest.
+
 ## Reading a refusal, in general
 
 1. **Match the variant.** It names the class of thing that went
