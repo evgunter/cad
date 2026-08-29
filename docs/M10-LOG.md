@@ -182,3 +182,38 @@ touched crates (`-p ...`) unless the unit's sweep demands the
 world — the hosted gate covers the rest (local-battery-scope's
 time argument, now applied to disk). Reclaim-at-report remains
 the transient's fix.
+
+## M10-2 dual review adjudication (2026-08-29)
+
+Split verdict on frozen e0cc0b20: R1 MERGEABLE-with-one-MAJOR
+(rubric 4/3/4), R2 REQUEST CHANGES (4/2/2, 3 MAJ). Both reviewer
+lanes were killed mid-review by the same account-limit wave and
+resumed — a symmetric interruption, recorded for the row. The
+transform/minted-carrier finding is bilateral and the center: a
+measure over a transform-descended ref silently reads the UNMOVED
+carrier (0.5 where the placed geometry sits at 0.75; 5 where it
+sits at 95) and deviation 3's documented recourse — "the moving
+node's own emission" — does not exist (wire_transform Arc-clones
+the table through and mints nothing). R2 showed the interrogation
+layer already takes `(ev, node, name)`, so the fix direction is
+read-at-the-referenced-node, typed refusal as the fallback, plus
+the schedule deviation 3 owed (Q6). R2's unilateral M1 is the
+severity headline: `eval_measure` restates `expr::eval`'s
+arithmetic without its non-finite door, so `13/s` at `s = 0`
+measures `inf` and the assertion over it reports `Holds` — a false
+PASS from the node whose job is certifying intent. The plane-gap
+sign was bilateral at different severities (R1 MINOR, R2 MAJOR
+with the role-swap-does-not-negate table over disjoint slabs);
+adjudicated MAJOR — the plane arm folds sense (the carrier_eq S10
+discipline) so g means material separation and role swap negates.
+Fix pass IMPLEMENTER-INHERITED, adjudicated union: the 3 MAJ, both
+probe suites adopted (six of nine closed-form arms had no
+red-capable oracle in the PR's own suite — all six verified CORRECT
+under both reviewers' independent oracles), the misattributed
+parallelism refusal, the 1 m arm-floor honesty (docs must name the
+floor as the operative sub-metre lever; the lever redesign banks on
+chart_region.rs:804's standing criticism), the unreachable digest
+arms (a corpus doc carrying Measure+Assertion makes them live), the
+weak Python rows, and the accumulated prose/doc sweep (the
+key-format bump-rule tension disclosed; this log's own
+deviation-count line corrected by the fix pass).
