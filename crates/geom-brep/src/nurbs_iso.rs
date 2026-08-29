@@ -18,7 +18,7 @@
 //!
 //! # Why this lives in `geom-brep` and not beside the payloads
 //!
-//! **Iso-curve extraction belongs to the EdgeGeometry layer, not to
+//! **Iso-curve extraction belongs to the EdgeDescription layer, not to
 //! the evaluator layer**, and that is a placement rule rather than an
 //! accident of which crate the types used to sit in. Extraction is the
 //! step that turns one entity's data into *another entity's carrier*:
@@ -127,7 +127,7 @@ impl<T: Real> std::error::Error for IsoRowError<T> {}
 /// **The `u = const` boundary row of a chart, selected by the stored
 /// parameter** — [`boundary_iso_u`] with the end decided rather than
 /// passed, which is what a consumer holding an
-/// [`crate::EdgeGeometry::IsoCurve`]'s `u` actually has.
+/// an iso chart image's `u` actually has.
 ///
 /// Returns the row together with the DOMAIN endpoint it sits at, so
 /// the caller re-states the description against the chart's own float

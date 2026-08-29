@@ -32,7 +32,7 @@ use pncad::geom_core::{Point2, Point3, Vec3};
 use pncad::profile::{Profile, SketchPlane, ValidatedProfile};
 use pncad::sweep::{Extrusion, extrude};
 use pncad::topo::splitting::{SplitPart, SplitPlane, split};
-use pncad::topo::{Body, Curve3, EdgeGeometry};
+use pncad::topo::{Body, Curve3, EdgeDescription};
 
 use crate::scalar::Scalar;
 use crate::{SceneBody, Stop, View};
@@ -102,7 +102,7 @@ fn section_narration<S: Scalar>(label: &str, body: &Body<S>, tol: Tol) -> String
             minor.f()
         );
         assert!(
-            matches!(curve.description(), EdgeGeometry::Intersection { .. }),
+            matches!(curve.description(), EdgeDescription::Intersection { .. }),
             "{label}: a section edge must be described as the wall x plane intersection"
         );
         worst = worst.max(curve.certificate().max_residual.f());

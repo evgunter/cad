@@ -101,7 +101,7 @@ use std::collections::HashMap;
 
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::EdgeGeometry;
+use geom_brep::EdgeDescription;
 use geom_core::{Point3, Vec3};
 use topo::{Body, EdgeKey, FaceKey, LoopBoundary, LoopKey};
 
@@ -431,7 +431,7 @@ fn classify(
     curve: &geom_brep::EdgeCurve<f64>,
     _ek: EdgeKey,
 ) -> Result<TravKind, TessellateError> {
-    if matches!(curve.description(), EdgeGeometry::Seam { .. }) {
+    if matches!(curve.description(), EdgeDescription::Chart(c) if c.seam) {
         return Ok(TravKind::Meridian {
             u_raw: mid_azimuth(chart, curve),
         });

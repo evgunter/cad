@@ -5,7 +5,7 @@
 #![allow(dead_code)] // loaded once per consumer; each uses a subset
 #![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
-use geom_brep::EdgeGeometry;
+use geom_brep::{EdgeAuthority, EdgeDescription};
 use geom_core::Tol;
 use geom_core::{Point2, Point3, Vec2};
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile};
@@ -53,14 +53,68 @@ pub fn counts(body: &Body<f64>) -> (usize, usize, usize, usize) {
 }
 
 /// The edge's stored description.
-pub fn description(body: &Body<f64>, edge: EdgeKey) -> EdgeGeometry<f64> {
+pub fn description(body: &Body<f64>, edge: EdgeKey) -> EdgeDescription<f64> {
     let curve = body.get_edge(edge).unwrap().curve;
-    *body
-        .get_curve_geom(curve)
+    body.get_curve_geom(curve)
         .unwrap()
         .certified()
         .unwrap()
         .description()
+        .clone()
+}
+
+/// The edge's **authority record** (U2 Q3): who determined its locus.
+///
+/// This is the datum that survived the `IsoCurve` / `MappedCurve`
+/// collapse. Before U2 a revolve suite read the description's VARIANT
+/// to tell a natively-derived chart curve from a profile entity's
+/// pushforward; both are chart images now, and the difference — who
+/// determined the locus — is exactly what this record says.
+pub fn authority(body: &Body<f64>, edge: EdgeKey) -> EdgeAuthority<f64> {
+    let curve = body.get_edge(edge).unwrap().curve;
+    body.get_curve_geom(curve)
+        .unwrap()
+        .certified()
+        .unwrap()
+        .authority()
+}
+
+/// The chart image an edge's conventional description draws, or a
+/// panic naming what it found instead. Read `.surface` for the chart,
+/// `.seam` for D1's seam obligation.
+pub fn chart_image(body: &Body<f64>, edge: EdgeKey) -> geom_brep::ChartCurve<f64> {
+    match description(body, edge) {
+        EdgeDescription::Chart(c) => c,
+        other => panic!("expected a conventional chart image, got {other:?}"),
+    }
+}
+
+/// **A meridian the revolve DECLARED**: an image in the wall's own
+/// chart that is not the chart's parameterization seam, carrying the
+/// profile entity's pushforward as its authority. The post-collapse
+/// spelling of "this edge keeps the conventional `MappedCurve`" — and
+/// a stricter one, since it pins the chart as well as the class.
+pub fn assert_declared_image_in(body: &Body<f64>, edge: EdgeKey, chart: topo::SurfaceKey) {
+    let c = chart_image(body, edge);
+    assert_eq!(c.surface, chart, "the image must be drawn in {chart:?}");
+    assert!(!c.seam, "a declared image is not the chart's seam");
+    assert!(
+        authority(body, edge).is_declared(),
+        "a sketch entity under the sweep map determined this locus"
+    );
+}
+
+/// **The chart's own parameterization seam**: derived by the kernel
+/// (no declaring sketch entity) and carrying D1's seam obligation.
+/// The post-collapse spelling of "this edge re-describes as `Seam`".
+pub fn assert_seam_of(body: &Body<f64>, edge: EdgeKey, chart: topo::SurfaceKey) {
+    let c = chart_image(body, edge);
+    assert_eq!(c.surface, chart, "the seam must be that of {chart:?}");
+    assert!(c.seam, "the seam obligation must be carried");
+    assert!(
+        !authority(body, edge).is_declared(),
+        "a seam is derived by the kernel, not declared"
+    );
 }
 
 /// Probe points of a loop in `next` order: each start vertex plus

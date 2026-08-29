@@ -32,7 +32,7 @@ fn band(name: &str) -> String {
     std::fs::read_to_string(p).unwrap()
 }
 
-/// Every `EdgeGeometry::Seam` edge of the body: (both half-edges'
+/// Every the seam chart image edge of the body: (both half-edges'
 /// faces, endpoint positions).
 #[allow(clippy::type_complexity)]
 fn seam_edges(
@@ -50,7 +50,7 @@ fn seam_edges(
         let Some(topo::CurveGeom::Certified(c)) = body.get_curve_geom(e.curve) else {
             continue;
         };
-        if !matches!(*c.description(), geom_brep::EdgeGeometry::Seam { .. }) {
+        if !matches!(c.description(), geom_brep::EdgeDescription::Chart(cc) if cc.seam) {
             continue;
         }
         let hp = body.get_half_edge(e.he_plus).unwrap();
@@ -66,7 +66,7 @@ fn seam_edges(
 }
 
 /// C2 at rest: the two flipped fixtures' minted seams are
-/// `EdgeGeometry::Seam`, both half-edges on ONE face, and every seam
+/// the seam chart image, both half-edges on ONE face, and every seam
 /// endpoint lies in the surface's u_ref half-plane (positions derived
 /// by the reviewer from the raw STEP entities, in kernel metres).
 /// One surface's u_ref half-plane, as raw triples: (a point on the
@@ -302,7 +302,7 @@ fn r1_washer90_imports_the_true_region() {
 /// off the seam azimuth — inside the mint's ε_in vertex budget
 /// (1e-5 m), outside ambient certification. The minted generator is
 /// D1's spatial statement of the u_ref half-plane, so adoption offers
-/// it ONLY as `EdgeGeometry::Seam`: certification fails and the
+/// it ONLY as the seam chart image: certification fails and the
 /// import refuses typed with the ladder's own report — never the old
 /// silent MappedCurve downgrade that imported green with 3 of 4
 /// seams.

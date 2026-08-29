@@ -12,7 +12,7 @@
 //!
 //! - **Points**: `geom_core::Point3<T>` (real since M0).
 //! - **Curves**: [`geom_brep::EdgeCurve<T>`] — D2's intensional
-//!   [`geom_brep::EdgeGeometry`] description plus its certified
+//!   [`geom_brep::EdgeDescription`] description plus its certified
 //!   `geom::Curve3` carrier cache and certification record
 //!   (D4 ¶2). Constructible only through certification
 //!   (`EdgeCurve::certify`), so an uncertified carrier can never enter

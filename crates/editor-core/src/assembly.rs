@@ -696,6 +696,7 @@ fn attribute(error: &ValidationError, minted: &[MintedDeclaration]) -> Attributi
         | ValidationError::SliverDihedral { .. }
         | ValidationError::TransverseNotIntrinsic { .. }
         | ValidationError::TangentNotIntrinsic { .. }
+        | ValidationError::ScaffoldAtRest { .. }
         | ValidationError::LoopRoleInverted { .. }
         | ValidationError::CurvedSenseInverted { .. }
         | ValidationError::NegativeVolume

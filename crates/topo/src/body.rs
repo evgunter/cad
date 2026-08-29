@@ -50,7 +50,7 @@
 //! [`Body`] docs on lineage-scoped keys.
 
 use geom::Surface;
-use geom_brep::{EdgeCurve, EdgeGeometry, PcurveCache};
+use geom_brep::{EdgeCurve, EdgeDescription, PcurveCache};
 use geom_core::{Point3, Real};
 use slotmap::{SecondaryMap, SlotMap};
 
@@ -455,19 +455,18 @@ impl<T: Real> Body<T> {
         removed
     }
 
-    /// The surface keys an edge description references: `Intersection`'s
-    /// two, `Seam`'s and `IsoCurve`'s one, none for `MappedCurve`
-    /// (which carries its own defining data). Consulted by orphan
-    /// hygiene and by the validator's referential-integrity pass.
+    /// The surface keys an edge description references: the two
+    /// intrinsic arms' pair, a chart image's chart, none for the
+    /// scaffolding door (whose pushforward carries its own defining
+    /// data and names no surface). Consulted by orphan hygiene and by
+    /// the validator's referential-integrity pass.
     pub(crate) fn description_surfaces(curve: &CurveGeom<T>) -> Vec<SurfaceKey> {
         match curve {
-            CurveGeom::Certified(curve) => match *curve.description() {
-                EdgeGeometry::Intersection { s1, s2, .. }
-                | EdgeGeometry::TangentIntersection { s1, s2, .. } => vec![s1, s2],
-                EdgeGeometry::Seam { surface } | EdgeGeometry::IsoCurve { surface, .. } => {
-                    vec![surface]
-                }
-                EdgeGeometry::MappedCurve(_) => Vec::new(),
+            CurveGeom::Certified(curve) => match curve.description() {
+                EdgeDescription::Intersection { s1, s2, .. }
+                | EdgeDescription::TangentIntersection { s1, s2, .. } => vec![*s1, *s2],
+                EdgeDescription::Chart(c) => vec![c.surface],
+                EdgeDescription::Scaffold(_) => Vec::new(),
             },
             // Null scaffolding has no description and keeps no surface
             // alive.

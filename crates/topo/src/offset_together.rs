@@ -82,7 +82,7 @@
 //! reaches the word "singular" is one that is.
 
 use geom::{Curve3, Surface};
-use geom_brep::{EdgeCurveSpec, EdgeGeometry};
+use geom_brep::{EdgeAuthority, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec};
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Tol, Vec3};
 
@@ -245,7 +245,8 @@ pub fn offset_planes_together<T: Decide + PropsQuadLane>(
             .ok_or(ReplaceFaceError::Corrupt)?;
         let old_carrier = curve.carrier().clone();
         let (t0_old, t1_old) = curve.params();
-        let description = *curve.description();
+        let description = curve.description().clone();
+        let authority = curve.authority();
         let old_start = old_carrier.eval(t0_old);
 
         // A SEAM between two faces of one chart is not an intersection
@@ -300,7 +301,7 @@ pub fn offset_planes_together<T: Decide + PropsQuadLane>(
         specs.push((
             edge,
             EdgeCurveSpec {
-                description: restate(description, mid, displacement, edge)?,
+                description: restate(description, authority, mid, displacement, edge)?,
                 carrier,
                 param_start: t0,
                 param_end: t1,
@@ -400,32 +401,61 @@ pub fn offset_planes_together<T: Decide + PropsQuadLane>(
 /// discharge. The duplication is one `match` over five variants and
 /// this note is its disclosure.
 fn restate<T: Real>(
-    description: EdgeGeometry<T>,
+    description: EdgeDescription<T>,
+    authority: EdgeAuthority<T>,
     mid: Point3<T>,
     displacement: Vec3<T>,
     edge: EdgeKey,
-) -> Result<EdgeGeometry<T>, ReplaceFaceError<T>> {
+) -> Result<EdgeDescriptionSpec<T>, ReplaceFaceError<T>> {
+    // **The pushforward is carried, wherever it lives** (PCURVE P-1b,
+    // at the merge). This function was written against the
+    // pre-collapse taxonomy, where a conventional locus WAS a
+    // `MappedCurve` and translating the description was the whole job.
+    // U2 restated such loci as chart images and moved the pushforward
+    // beside them as the authority record, so the job splits in two:
+    // the image is in the chart's own coordinates and a rigid
+    // displacement of the chart leaves it alone, while the declaration
+    // is 3-space sketch data and still has to be translated.
+    //
+    // Getting only the first half right is exactly the defect this
+    // unit shipped and had to fix in `replace_face`'s offset lane
+    // (`declared: None` silently destroying the record); the same
+    // question is answered the same way here rather than rediscovered.
+    // Unlike that lane, `offset_together` moves planes RIGIDLY by
+    // construction, so a displacement always exists and only the
+    // rotation-family refusal remains reachable.
+    let carried = |mc: geom_brep::MappedCurve<T>| {
+        crate::replace_face::translate_mapped(mc, displacement).ok_or(
+            ReplaceFaceError::CarrierLaneUnsupported {
+                edge,
+                what: "a rotation-family mapped description (its trajectory does not \
+                       translate)",
+            },
+        )
+    };
     Ok(match description {
-        EdgeGeometry::Intersection { s1, s2, .. } => EdgeGeometry::Intersection {
+        EdgeDescription::Intersection { s1, s2, .. } => EdgeDescriptionSpec::Intersection {
             s1,
             s2,
             witness: mid,
         },
-        EdgeGeometry::TangentIntersection { s1, s2, .. } => EdgeGeometry::TangentIntersection {
-            s1,
-            s2,
-            witness: mid,
+        EdgeDescription::TangentIntersection { s1, s2, .. } => {
+            EdgeDescriptionSpec::TangentIntersection {
+                s1,
+                s2,
+                witness: mid,
+            }
+        }
+        EdgeDescription::Chart(c) => EdgeDescriptionSpec::Chart {
+            surface: c.surface,
+            image: Some(c.pcurve),
+            seam: c.seam,
+            declared: match authority {
+                EdgeAuthority::Derived => None,
+                EdgeAuthority::Declared(mc) => Some(carried(mc)?),
+            },
         },
-        EdgeGeometry::MappedCurve(m) => EdgeGeometry::MappedCurve(
-            crate::replace_face::translate_mapped(m, displacement).ok_or(
-                ReplaceFaceError::CarrierLaneUnsupported {
-                    edge,
-                    what: "a rotation-family mapped description (its trajectory does not \
-                           translate)",
-                },
-            )?,
-        ),
-        other => other,
+        EdgeDescription::Scaffold(m) => EdgeDescriptionSpec::Scaffold(carried(m)?),
     })
 }
 

@@ -11,7 +11,7 @@ mod revolve_common;
 use core::f64::consts::{FRAC_PI_2, PI};
 use profile::RawLoop;
 
-use geom_brep::EdgeGeometry;
+use geom_brep::EdgeDescription;
 use geom_core::Tol;
 use profile::ProfileLoop;
 use revolve_common::*;
@@ -48,7 +48,7 @@ fn check_wedge(theta: f64) {
     let axis_edge = start_meridians[0][3];
     assert!(matches!(
         description(&t.body, axis_edge),
-        EdgeGeometry::Intersection { .. }
+        EdgeDescription::Intersection { .. }
     ));
     // Walled segments have distinct start/end meridians, upgraded to
     // cap–wall Intersections.
@@ -58,7 +58,7 @@ fn check_wedge(theta: f64) {
         for e in [start_meridians[0][j], end_meridians[0][j]] {
             assert!(matches!(
                 description(&t.body, e),
-                EdgeGeometry::Intersection { .. }
+                EdgeDescription::Intersection { .. }
             ));
         }
     }
@@ -70,7 +70,7 @@ fn check_wedge(theta: f64) {
         let e = t.rims[0][v].expect("off-axis strut");
         assert!(matches!(
             description(&t.body, e),
-            EdgeGeometry::Intersection { .. }
+            EdgeDescription::Intersection { .. }
         ));
     }
     // Orientation oracle holds for BOTH sweep directions.
@@ -90,21 +90,31 @@ fn wedge_negative_angle() {
 #[test]
 fn half_revolve_axis_edge_stays_conventional() {
     // θ = π: the two cap planes are coplanar — the axis edge's
-    // dihedral is definitely smooth, so it keeps its conventional
-    // MappedCurve description (the D2 split; tier 3 permits it).
+    // dihedral is definitely smooth, so the surfaces UNDER-determine
+    // its locus and the description stays conventional (the D2 split;
+    // tier 3 permits it).
+    //
+    // **Re-expressed at PCURVE P-1b.** "Conventional" used to be a
+    // variant test (`MappedCurve`). U2 collapsed the conventional
+    // forms into one, and a smooth join at rest now says where it
+    // rests — an image in the start cap's chart — while the
+    // pushforward the sweep scaffolded it from stays beside it as the
+    // authority record (U2 Q3). Both halves are asserted: the locus is
+    // NOT intrinsically described (no Intersection the coplanar pair
+    // could not support), and a profile entity is what determined it.
     let vp = validated(vec![square()]);
     let t = revolve(&vp, axis_y(), Revolution::Partial(PI), Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
     let RevolvedKind::Partial {
-        start_meridians, ..
+        start_meridians,
+        start_cap,
+        ..
     } = &t.kind
     else {
         panic!("partial revolve");
     };
-    assert!(matches!(
-        description(&t.body, start_meridians[0][3]),
-        EdgeGeometry::MappedCurve(_)
-    ));
+    let start_key = t.body.get_face(*start_cap).unwrap().surface;
+    assert_declared_image_in(&t.body, start_meridians[0][3], start_key);
     assert!(signed_volume(&t.body) > 0.0);
 }
 

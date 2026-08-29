@@ -129,7 +129,7 @@ pub(crate) struct SolidSpec {
     /// Edge ids of seam generators MINTED by the band re-mint
     /// (M7-5): D1 states each one spatially as its surface's u_ref
     /// half-plane, so adoption must certify it as
-    /// [`geom_brep::EdgeGeometry::Seam`] or refuse — the conventional
+    /// the seam image or refuse — the conventional
     /// mapped-curve fallback is withheld for these ids
     /// ([`crate::adopt`]).
     pub(crate) band_seams: std::collections::BTreeSet<u64>,
