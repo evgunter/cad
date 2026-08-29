@@ -556,3 +556,44 @@ traversal half of the walk it shared the predicate of. **None was caught by its
 author, and every one was caught by the first reader who did not write it.** §D
 rule 5 held at eight of eight on Track F and every unit on Track G; it is now
 holding at four of four here.
+
+## `p1`'s fix pass — a lane that withdrew its own case, and answered row 4 with row 0
+
+Two things here are better than what was asked.
+
+**It withdrew its constructed case and proved the withdrawal two ways.** Asked to
+restate `D88`'s disposition honestly, the lane did not soften — it verified by
+reading that `kef` re-derives the same face key in its plan phase and refuses
+`StaleKey` before any mutation, then reverted its own fix in the worktree and ran
+all six probes green, confirming the reviewer's result against itself. And it
+went further than the reviewer had: **the two arms are provably indistinguishable
+from outside**, since reaching the ring lookup's `None` while `kef`'s succeeds
+would need one key to resolve two ways in one arena with no mutation between. So
+the announce the lane put there is itself unreachable — exactly as the default
+was. What `D88` actually names is a **legibility** defect, and it closes by
+announcing, which changes no reachable behaviour.
+
+**And it discharged the `unreachable!` demonstration by removal.** The ratified
+standard says every such arm must be demonstrated live by poisoning its key. The
+lane instead made `edge_faces` return a `HalfEdgeFacts{loop, face, start}` — the
+facts the proving walk had already read — so **all three new arms were deleted
+rather than asserted about**. Net `unreachable!` added: zero. That is row 0 of
+the D2 addendum (*can the type stop representing the state?*) answered in place
+of row 4, and it is strictly stronger than the demonstration it replaces.
+
+The ruling landed as `is_arena_fault`: `Op{StaleKey|StaleGeometry}` refuses the
+call under both regimes, so `GroupRegime` governs inventory refusals only. The
+false premise a reviewer found is gone — `group_regime` now asks **every**
+member and refuses a `GroupKindSplit` when they disagree. And `ResultNotClosed`
+split from `GroupNotClosed` puts the scope in the type rather than in prose.
+
+**Three rows minted from it.** `D262` (P) — the four predicate helpers still
+answer on an unresolved lookup: eleven discard arms and one **value
+substitution**, `edge_chord_len(...).unwrap_or_else(T::one)`, which feeds a
+unitless `1` as a *length* lever arm into a `decide` site, so a failed lookup
+re-scales the margin rather than merely answering the question. The lane's own
+earlier disclosure named three; the file holds twelve. `D263` (P) — the regime
+test asks *"is it a plane"*, and a face on the `mvfs` `Nurbs` placeholder
+answers *"is it curved"* by default, found only because the new kind-split probe
+failed against `ops_cube`. `D288` (Q) — the sentence `D38` corrected at its
+origin has a second copy across a fence, and both halves of it are now false.
