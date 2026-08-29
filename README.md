@@ -1,8 +1,9 @@
 # CAD Kernel (name pending)
 
 A greenfield B-rep solid-modeling kernel in Rust, built API-first: the kernel
-and its programmatic modeling API are the product; any GUI is a thin client
-added later. The design contract — decisions, layering, and open questions —
+and its programmatic modeling API are the product, and the GUI is a thin
+client over them — every operation it performs is itself API, testable with
+no renderer present. The design contract — decisions, layering, and open questions —
 lives in [`docs/DESIGN.md`](docs/DESIGN.md). The project name is still pending
 (see Q9); the workspace is deliberately nameless until it lands, and `pncad`
 appears throughout as a greppable placeholder.
@@ -15,8 +16,8 @@ cross-check, export — worked in both languages. Every code block in it is
 executed, as a doctest or by the Python test runner.
 
 - [`docs/guide/examples.md`](docs/guide/examples.md) — the corpus as the
-  example set: all 34 demo-tour stops and all 16 document-corpus entries,
-  mapped to what each demonstrates.
+  example set: every demo-tour stop and document-corpus entry, mapped to
+  what each demonstrates.
 - [`docs/guide/fail-loud.md`](docs/guide/fail-loud.md) — this kernel refuses
   rather than guessing. What the refusals look like, and how to read one.
 - [`docs/guide/selecting.md`](docs/guide/selecting.md) — naming and
@@ -30,6 +31,7 @@ $ cargo build                                  # the kernel and the pncad façad
 $ cargo test --doc -p pncad                    # runs every Rust block in the guide
 $ cd demos/tour && cargo run --release -- ../out   # render the example corpus
 $ ./crates/pncad-py/run-python-tests.sh        # build and exercise the bindings
+$ cargo run -p viewer --features app -- [document.pncad]   # the v1 GUI
 ```
 
 Depend on the façade crate `pncad` and nothing else — it re-exports every

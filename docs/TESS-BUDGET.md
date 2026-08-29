@@ -85,8 +85,9 @@ the file, not this sentence, for the current count.
 It is NOT the cut this document's measurement was taken from and its
 numbers are not the ones quoted below: "The finding" reports 1,025
 faces and 390,100 grid cells against the shipped whole-patch schedule
-of the time, where the committed file's own `grid_cells` sum is
-46,102 (the TESS-SPAN re-cut's was 163,182), and the total-slack
+of the time, where the committed file's own `grid_cells` sum was
+46,102 at the TESS-SPLIT re-cut (the TESS-SPAN re-cut's was 163,182)
+and grows with the tour like the row count, and the total-slack
 figures come from that same pre-TESS-SPAN cut. Read the committed file as the gate's reference point and the
 figures below as the pre-fix record they are labelled as. CI runs the
 sweep `--sizing-only` and gates on REGRESSION against it: a scene's
@@ -372,7 +373,8 @@ The #547 measurement located the dominant sizing slack (~4.1x,
 every NURBS wall) in `grid_steps`' AM-GM u/v decoupling. Fixing
 it means choosing a different point on the same certified ellipse
 — and the unconstrained optimum is a degenerate STRIP (leaf_a f2:
-70×328 today, 1×4905 at the optimum; parameter aspect ~5·10³).
+70×328 under the AM-GM schedule, 1×4905 at the optimum; parameter
+aspect ~5·10³).
 Nothing downstream (render normals, sliver-sensitive consumers)
 has been polled on strips, and an honest aspect cap cannot use
 parameter aspect (parameter ≠ 3-D shape) — it needs the first
@@ -394,5 +396,6 @@ fundamental form. The options:
 
 **RATIFIED: option (ii) with A = 16** (Evan's approval on the
 #568 thread, 2026-08-16, noting correctly that (ii) strictly
-generalizes both extremes — A is the dial). Opens the TESS-SPLIT
-unit, sequenced AFTER TESS-SPAN's merge (same sizing functions).
+generalizes both extremes — A is the dial). Executed by TESS-SPLIT
+(#951) over TESS-SPAN's sizing functions; `NurbsFaceBound::split_steps`
+and `mesh::nurbs_cert::ASPECT_CAP` are the shipped statement of record.

@@ -18,14 +18,25 @@ governs how the gaps get treated:
 > library — never quietly work around it, and never contort the demo
 > to hide it.
 
-**Result: 28 of the 34 tour stops are authorable through Python
-today** — 25 outright, and 3 more only if you re-author by hand what
-the scene says structurally. 6 are blocked by a missing door.
+**Result: 32 of the 47 tour stops are authorable through Python
+today** — 29 outright, and 3 more only if you re-author by hand what
+the scene says structurally. 15 are blocked by a missing door.
 
 (Those three numbers are counted off the table below at each
-revision, never carried forward: the previous revision's headline
-read 26 = 23 + 3 against a table that already said 25 + 3, and the
-tally section further down had it right. The rows are the record.)
+revision, never carried forward, and two mechanisms now hold that
+discipline rather than this sentence. The tour's roster and this
+table's rows are compared in
+`crates/pncad/tests/all.rs::the_north_star_audit_has_a_row_for_every_tour_stop`,
+which reads the stop names out of `demos/tour/src/`'s own source and
+fails in BOTH directions — a stop with no row, and a row for a scene
+the tour no longer builds. The headline above and each gap's `stops`
+column are re-counted off the rows by its sibling,
+`the_north_star_audits_tallies_are_derived_from_its_rows`. Both were
+written because the page had drifted twice over: the previous
+revision's headline read 26 = 23 + 3 against a table that already
+said 25 + 3, and — the larger miss — the table sat at 34 rows while
+the tour had grown to 47. The rows are the record; nothing here is
+carried forward.)
 
 The count climbed from 7 as each binding unit closed its gap:
 **LIB-PYG1** bound the PATHS lattice, closing G1 (`bracket`, `vase`,
@@ -81,6 +92,24 @@ enclosure — `loft_prism`'s is additionally the bracket pin in
 absence in the same file, so **the day a gap closes, this audit fails
 and must be updated**.
 
+Four rows arrived with the roster re-cut, and each is executed against
+whatever its scene actually pins rather than against a volume it does
+not have. `hollowring` is the easiest case in the tour to be sure of:
+the Rust scene ALREADY builds the ring twice — once through the plain
+revolve door and once as a three-node recipe — and asserts the two
+bodies agree bit for bit, so the Python row rebuilds that recipe and
+checks the same torus closed forms (V = 2π²R(rₒ² − rᵢ²),
+A = 4π²R(rₒ + rᵢ)) plus the scene's absolute 4/8/4 census. `klein`'s
+two elbows carry a Pappus closed form the scene asserts and the Python
+row asserts the same numbers; its bulb has none, so the row asserts
+instead the scene's own discriminating pin — twelve faces, of which
+exactly four are cylinders. `budfillet` has no closed form either and
+the row carries the scene's three checkable proofs: the census before
+and after (5/10/5 → 8/16/8, three annulus bands), three torus faces,
+and the volume drop inside the scene's own Pappus bracket.
+`twopeg_apart` asserts the two parts' volumes, which are the numbers
+the scene's own union ladder checks as it builds them.
+
 ## The bound surface
 
 Everything Python can say about geometry, in full:
@@ -127,7 +156,8 @@ Everything Python can say about geometry, in full:
   `declare` is the DATA door for a declared contact: it names a
   `Declare` node the boolean consumes — and since LIB-PYG5 Python can
   BUILD one: `Evaluation.find_flush_candidates(a, b)` reports the
-  flush pairs as typed `FlushFinding` values, `Node.declare(findings)`
+  flush pairs as typed `FlushFinding` values — **planar pairs only**,
+  which is G19 — `Node.declare(findings)`
   (or the `Doc.declare`/`Doc.declare_all` sugar) turns inspected
   findings into the `Declare` node, and the undeclared refusal itself
   is the MENU (`EvaluationError.kind == "undeclared_contact"`, the
@@ -189,45 +219,69 @@ resolves in the gap list below, and each gap there points onward to
 the LIB residual register (`docs/LIB-LOG.md`, "LIB residual register",
 category B) and to any design doc or register item that owns it. The
 `gap` column is the row's *primary* blocker — the most fundamental
-missing door — so the ids partition the 6 NO rows exactly; secondary
+missing door — so the ids partition the 15 NO rows exactly; secondary
 blockers stay named in the last column.
+
+The rows are in TOUR ORDER: `walk_tour` in `demos/tour/src/main.rs` is
+the one enumeration of what the tour contains, and this table walks it.
+One row per `Stop`, which is what the roster guard compares against —
+so the narration-only passes `walk_tour` also makes (`checks`, the
+wall-probe batteries, the coincidence-ladder narrations) have no row
+here. They build no stop and render nothing; `checks` says so in its
+own module doc, *"narration-only (no render stop): the subject is a
+REPORT, and its `Display` is the picture."* A row for one of them
+would fail the guard's decay direction, which is the right answer:
+this page grades BODIES against the bound surface.
 
 | # | scene | Python? | gap | the missing door |
 |---|---|---|---|---|
 | 1 | `bracket` | **YES** | — | — |
-| 2 | `plate` | **YES** | — | — |
-| 3 | `vase` | **YES** | — | — |
-| 4 | `sheave` | **YES** | — | — |
-| 5 | `chute` | **YES** | — | — |
-| 6 | `rocker` | **YES** | — | — |
-| 7 | `diefillet` | **YES** | — | — |
-| 8 | `diepips` | **YES** | — | — |
-| 9 | `diecomposed` | **YES** | — | — |
-| 10 | `lily` (8 bodies) | NO | G2 | tube/sweep, both banked (below); placement (G7) |
-| 11 | `tiltedcut` | **YES** | — | — |
-| 12 | `bossplate` | **YES** | — | — |
-| 13 | `loft_prism` | **YES** | — | — |
-| 14 | `nonuniform_loft` | **YES** | — | body transfers; the scene's `loft_parameters` read-back does not — a named residue, not a gap |
-| 15 | `s_duct` | NO | G2 | sweep is BANKED, not unbound: `wire_sweep` refuses unconditionally (`SWEEP_FRONTIER`) |
-| 16 | `twisted_duct` | NO | G2 | same `SWEEP_FRONTIER` bank; a non-planar spine also needs the 3-D-path tail (U4/LQ3) |
-| 17 | `twisted_duct_shadow_z` | NO | G2 | same body — the `SWEEP_FRONTIER` bank |
-| 18 | `twisted_duct_shadow_y` | NO | G2 | same body — the `SWEEP_FRONTIER` bank |
-| 19 | `tube_along_arc` | NO | G2 | no `Node::Tube` at all: a new node kind is a SCHEMA-VERSION break, so it has to be sequenced against whatever bump is in flight. **Widened by VERBS-TUBEWALL:** the door now has a hollow sibling (`tube_along_arc_hollow`, outer minor radius + wall), so the missing node has to carry the wall too — one node kind, not two, and the same bump |
-| 20 | `die` | **YES** | — | — |
-| 21 | `table` | **YES** | — | — |
-| 22 | `silhouette` | **YES** | — | — |
-| 23 | `silhouette3` | **YES** | — | — |
-| 24 | `silhouette3_shadow_z` | **YES** | — | same body as row 23 (a camera, not a construction) |
-| 25 | `silhouette3_shadow_x` | **YES** | — | same body as row 23 |
-| 26 | `silhouette3_shadow_y` | **YES** | — | same body as row 23 |
-| 27 | `az` | **YES** | — | — |
-| 28 | `crosslap` (glued) | **YES** | — | the mate still refuses undeclared — now as the typed menu; a named residue: declaring the detector's merge-stage (`SameOriented`) bottom pairs trips the naming emitter (pinned in `TestCrosslapGlued`), the scene's own mate needs none of them |
-| 29 | `crosslap_exploded` | **YES** | — | — |
-| 30 | `projectbox` | **YES** | — | — |
-| 31 | `cutaway` | **YES** | — | — |
-| 32 | `heatsink5` | YES\* | G8 | fin family is ONE node with a param-driven count (LIB-PYPU); the fins-into-base fusion is still hand-authored |
-| 33 | `heatsink7` | YES\* | G8 | same |
-| 34 | `heatsink9` | YES\* | G8 | same |
+| 2 | `spacer` | NO | G16 | `chamfer_edges` has no recipe node, so a consumer wanting a chamfer in a RECIPE — with names, with a rebuild — cannot have one; the scene's own second recorded friction, on a part with no recipe behind it |
+| 3 | `plate` | **YES** | — | — |
+| 4 | `vase` | **YES** | — | — |
+| 5 | `sheave` | **YES** | — | — |
+| 6 | `chute` | **YES** | — | — |
+| 7 | `rocker` | **YES** | — | — |
+| 8 | `diefillet` | **YES** | — | — |
+| 9 | `diepips` | **YES** | — | — |
+| 10 | `diecomposed` | **YES** | — | — |
+| 11 | `diechamferblank` | NO | G16 | same missing node, on the blank |
+| 12 | `diechamfer` | NO | G16 | same missing node, on the die — and the scene's second finding is the narrower one this page cares about: `select_where`'s answer (stable names) cannot be handed to a KERNEL verb (arena keys), so even with the body in hand the selection has to be re-said by hand |
+| 13 | `lily` (15 bodies) | NO | G2 | tube/sweep, both banked (below); placement (G7) |
+| 14 | `budfillet` | **YES** | — | the curved-support arms reach through `Node.fillet` unchanged; the rims are named by `select_where(adjacent_kinds)` plus a `datum_distance` station, which is the scene's own by-description selection said in the document layer's words |
+| 15 | `klein` | **YES** | — | three revolves and no boolean — the meridian band's `.fillet`/`.tangent_arc_to` chain is on the lattice, and the elbows are a two-loop profile partially revolved about a datum axis at a negative angle |
+| 16 | `tiltedcut` | **YES** | — | — |
+| 17 | `bossplate` | **YES** | — | — |
+| 18 | `loft_prism` | **YES** | — | — |
+| 19 | `nonuniform_loft` | **YES** | — | body transfers; the scene's `loft_parameters` read-back does not — a named residue, not a gap |
+| 20 | `s_duct` | NO | G2 | sweep is BANKED, not unbound: `wire_sweep` refuses unconditionally (`SWEEP_FRONTIER`) |
+| 21 | `twisted_duct` | NO | G2 | same `SWEEP_FRONTIER` bank; a non-planar spine also needs the 3-D-path tail (U4/LQ3) |
+| 22 | `twisted_duct_shadow_z` | NO | G2 | same body — the `SWEEP_FRONTIER` bank |
+| 23 | `twisted_duct_shadow_y` | NO | G2 | same body — the `SWEEP_FRONTIER` bank |
+| 24 | `tube_along_arc` | NO | G2 | no `Node::Tube` at all: a new node kind is a SCHEMA-VERSION break, so it has to be sequenced against whatever bump is in flight. **Widened by VERBS-TUBEWALL:** the door now has a hollow sibling (`tube_along_arc_hollow`, outer minor radius + wall), so the missing node has to carry the wall too — one node kind, not two, and the same bump |
+| 25 | `hollowring` | **YES** | — | the scene settles this itself: `ring::through_the_document` builds the same ring as a three-node recipe — a two-loop `Profile`, a `Datum::Axis`, a full `Revolve` — and asserts the two doors agree bit for bit on volume. Those are exactly the three doors Python binds |
+| 26 | `hollowelbow` | NO | G2 | the same missing `Node::Tube`, now carrying the wall (row 24). A partial revolve of an annulus makes this SHAPE, but the scene's subject is the parameter door's storage contract — both outer half-walls store the caller's `minor_radius` bit for bit and both inner ones store `minor_radius - wall` — which a revolve reconstructs rather than stores |
+| 27 | `hollowtorus` | NO | G2 | same door at the full period. `hollowring` next door is this census through the PROFILE door, which is why the two rows differ: that scene's claim is about a holed profile, this one's is about stored intent parameters |
+| 28 | `teapot` | NO | G17 | `shell`/`shell_open` shipped at #1048 and have no recipe node, so the vessel — the whole point of the scene — has no document. The handle is `tube_along_arc` (G2) as well; the lid (revolve + fillet) and the spout (revolve + transform) are sayable today |
+| 29 | `die` | **YES** | — | — |
+| 30 | `table` | **YES** | — | — |
+| 31 | `silhouette` | **YES** | — | — |
+| 32 | `silhouette3` | **YES** | — | — |
+| 33 | `silhouette3_shadow_z` | **YES** | — | same body as row 32 (a camera, not a construction) |
+| 34 | `silhouette3_shadow_x` | **YES** | — | same body as row 32 |
+| 35 | `silhouette3_shadow_y` | **YES** | — | same body as row 32 |
+| 36 | `az` | **YES** | — | — |
+| 37 | `crosslap` (glued) | **YES** | — | the mate still refuses undeclared — now as the typed menu; a named residue: declaring the detector's merge-stage (`SameOriented`) bottom pairs trips the naming emitter (pinned in `TestCrosslapGlued`), the scene's own mate needs none of them |
+| 38 | `crosslap_exploded` | **YES** | — | — |
+| 39 | `twopeg` | NO | G19 | the mate's three declared contacts are one planar `Rest` and two CYLINDRICAL ones, and Python can say only the planar third: the detector is plane-only and a `FlushFinding` is the sole input to the declare arm. Measured, not inferred — see the gap |
+| 40 | `twopeg_apart` | **YES** | — | the apart framing is the two PARTS, which are ordinary transverse booleans plus a rigid lift; only the mate needs G19 |
+| 41 | `projectbox` | **YES** | — | — |
+| 42 | `cutaway` | **YES** | — | — |
+| 43 | `heatsink5` | YES\* | G8 | fin family is ONE node with a param-driven count (LIB-PYPU); the fins-into-base fusion is still hand-authored |
+| 44 | `heatsink7` | YES\* | G8 | same |
+| 45 | `heatsink9` | YES\* | G8 | same |
+| 46 | `bench` | NO | G18 | the whole assembly vocabulary is unbound, and structurally FIRST `evaluate(doc)` takes no resolver, so an `InstantiatePart` node cannot evaluate from Python at all. Secondary: G15, whose four doors are this series' first half |
+| 47 | `benchlayout` | NO | G18 | same series; the layout also wants the plain N-bodies `Pattern`, which is G8's deliberately-unbound node |
 
 **YES** = the exact body is reproducible with the bound surface.
 **YES\*** = the exact body is reproducible, but only by hand-authoring
@@ -301,8 +355,7 @@ body.validate()
 assert abs(body.mass_properties().volume - 8.505859375) < 1e-12
 ```
 
-let tol = Tol::witness();
-Rows 24–26 are the same body as row 23 seen down a different axis, so
+Rows 33–35 are the same body as row 32 seen down a different axis, so
 they flip together and the Python rows read one node three times
 rather than rebuilding three solids — exactly what the Rust scene does
 with `three.body.clone()`. The sharing is true BY CONSTRUCTION, not by
@@ -332,30 +385,59 @@ is named too.
 
 | # | gap | stops | register / pointer | note |
 |---|---|---|---|---|
-| G2 | **Sweep and tube** (loft closed) | 6 | register B ("the big three") | Loft left this gap when LIB-PYG23A bound `Node.loft`. What remains is not an unbound door but two BANKED ones. **Sweep**: `wire_sweep` refuses unconditionally (`SWEEP_FRONTIER`, `editor-core/src/eval/wire.rs`) — the path-composition lane banked past M6 by the PR 10 MAJ ruling, so binding it would flip no row and un-banking is kernel-side. **Tube**: there is no `Node::Tube` at all, and adding a node kind is a schema-version break (the precedent was exactly Loft/Sweep landing), so it has to be sequenced against whatever bump is in flight. The tube/sweep/3-D-path tail is a design conversation: U4's measured spec, and **LQ3, ratified 2026-08-10 (#362, LIBRARY-DESIGN §L7)** — which names the discharge site rather than building it. A `geom-curves` chain→curve composition door is what would narrow `wire_sweep`'s refusal from everything to genuinely-unjoinable chains, and that un-banking is kernel-side work needing the kernel program's concurrence. Ratified direction, landed door not yet: rows 15–18 stay NO until U4's units land, and `Node::Tube`'s schema bump stays a separate coordination item with ASM's version sequence |
+| G2 | **Sweep and tube** (loft closed) | 8 | register B ("the big three") | Loft left this gap when LIB-PYG23A bound `Node.loft`. What remains is not an unbound door but two BANKED ones. **Sweep**: `wire_sweep` refuses unconditionally (`SWEEP_FRONTIER`, `editor-core/src/eval/wire.rs`) — the path-composition lane banked past M6 by the PR 10 MAJ ruling, so binding it would flip no row and un-banking is kernel-side. **Tube**: there is no `Node::Tube` at all, and adding a node kind is a schema-version break (the precedent was exactly Loft/Sweep landing), so it has to be sequenced against whatever bump is in flight. The tube/sweep/3-D-path tail is a design conversation: U4's measured spec, and **LQ3, ratified 2026-08-10 (#362, LIBRARY-DESIGN §L7)** — which names the discharge site rather than building it. A `geom-curves` chain→curve composition door is what would narrow `wire_sweep`'s refusal from everything to genuinely-unjoinable chains, and that un-banking is kernel-side work needing the kernel program's concurrence. Ratified direction, landed door not yet: rows 20–23 stay NO until U4's units land, and `Node::Tube`'s schema bump stays a separate coordination item with ASM's version sequence. **What VERBS-TUBEWALL added to the count**: the tube door's hollow sibling put two more stops behind the same missing node (`hollowelbow`, `hollowtorus`), so this gap now partitions eight rows rather than six. The hollow pair is the sharpest statement of what the node has to carry: the wall is one number the parameter door STORES (both inner half-walls hold `minor_radius - wall`, one IEEE subtraction of the caller's own two numbers), and a revolve of an annulus — which Python CAN say, and `hollowring` is the row where it says it — reconstructs that radius instead of storing it. Same shape, different claim, which is why `hollowring` is YES and `hollowtorus` is not |
+| G16 | **Chamfer has no recipe node** | 3 | register B; issue **#918** (scheduled at VERBS-CHAMFER's merge as one of its three named deviations, beside #917 and #919 — `docs/VERBS-LOG.md`) | The verb SHIPPED and is curated: `sweep::chamfer_edges` is on the façade (`pncad::prelude`, beside `Chamfered`), plane–plane at a symmetric setback. What does not exist is a `Node::Chamfer` — `Node`'s variant list runs Datum, Profile, Extrude, Revolve, Loft, Sweep, Fillet, Split, Boolean, Transform, Pattern, PlacedUnion, Declare, InstantiatePart, Mate, and there is no chamfer among them. So a chamfered part has no document: no node, no stable names, no rebuild. `bodies::spacer` records this on a part with no recipe behind it and `diechamfer` on one that HAS a recipe and has to leave it — take the source body out, do the surgery beside it, and hand back something the document cannot name. The second half is narrower and is `diechamfer`'s own finding 2: `select_where` answers stable NAMES and `chamfer_edges` takes arena KEYS, so even calling the kernel verb next to a document cannot reuse that document's selection — "the twelve box edges" is re-said as a hand-rolled carrier-kind loop. **Not a bindings gap.** The day `Node::Chamfer` lands, binding it is the mechanical LIB-PYBUNDLE shape — `Node.fillet`'s twin, same frozen text selection |
+| G18 | **The Python assembly series** | 2 | register B; the ASM cross-program deposit at the tail of `docs/LIB-LOG.md` (2026-08-23, recorded at Evan's direction), which is where the series and its order are stated | The assembly surface is entirely absent from `pncad-py`: no `instantiate_part` / `mate` (+ `Alignment`, `MateFrame`, `MatePrimitive`, `AxisSense`), no plain N-bodies `Pattern`, no `Workspace`/`DocRef`/`ContentPin` family, no `set_placement` / `set_roots` / `update_reference` / `mixed_pins` / `solve_document` / `product` / `assemble` / `split` / `inline`. And structurally FIRST, before any of those: **`evaluate(doc)` takes no resolver**, so an `InstantiatePart` node cannot evaluate from Python at all — a document that references another document has nothing to resolve the reference against. That is why the deposit states an ORDER: the resolver/workspace door first (small, possibly wanting a short design conversation on the workspace-from-Python shape), then the node/edit/refactoring bindings, which are mechanical once evaluation can resolve. The Rust side is curated already — `pncad::document` carries the authoring vocabulary, and the validation half (`assemble`, `Assembly`, `AssemblyError`, `AtRestFinding`, `Attribution`, `MintedDeclaration`, `RefusedRef`) landed in #938's fix pass — so this is a binding unit and not a kernel one. **G15 is this series' first half**, and the two bench rows are what stopped it being hypothetical: the day the tour grew an assembly stop, "a Python author can produce two documents a workspace will accept side by side, and cannot then assemble them" acquired the two rows it had always predicted |
+| G17 | **Shell has no recipe node** | 1 | register B; `docs/KERNEL-VERBS.md`'s shell row (**SHIPPED at #1048**, the Q8 substrate arc) | The same shape as G16, one verb over. `topo::shell` and `topo::shell_open` shipped, and `Node` has no shell variant either — so the vessel that is `shell`'s DESIGNATED demo (Evan, 2026-08-09: *"a vessel is a shelled revolve"*) is the one part of the teapot with no document. The scene's other three bodies are not what blocks it: the lid is a revolve plus a `Node.fillet`, the spout a revolve plus a `Node.transform`, both sayable today; the handle is `tube_along_arc`, so it waits on G2. Klein is `shell`'s other consumer and does NOT appear here, which is the distinction worth keeping: that scene pays for the verb's absence by authoring every wall as its own two offsets by hand, and the result is a body Python can build (row 15). Paying a cost is not the same as being blocked |
+| G19 | **Declared contact beyond the plane** | 1 | register B; `docs/SELECT-DESIGN.md` §3 (the detect/declare protocol G5 closed **for planes**); the kernel side is M9-3's declared cylindrical `Rest`, which `twopeg` renders | G5 bound the protocol whole and the protocol's v1 detector is planar. Three facts, each measured rather than read off a signature: (1) the declare arm takes `FlushFinding` VALUES and nothing else — `Node.declare` / `Doc.declare` / `Doc.declare_all` have no other input; (2) a `FlushFinding` cannot be built by hand from Python (`TypeError: cannot create 'pncad.FlushFinding' instances` — it is a report type by construction, which is the no-fusion boundary doing its job); (3) the detector that produces them is plane-only — `find_flush_candidates`'s probe calls `topo::flush_pair_relation`, whose `face_plane` answers `None` for any curved carrier, and the probe's own comment says it: *"Not a planar pair: not a v1 candidate, honestly."* So the two CYLINDRICAL `Rest`s `twopeg`'s mate declares have no Python path. **What is NOT the blocker**, checked so the gap points at the right door: the document layer's `Declare` is carrier-agnostic (`resolve_declarations` resolves a cross-operand FACE pair and pushes a `FacePairDeclaration` whatever the surface kind), and `topo` already has the curved verifier — `carrier_pair_relation`, *"the one carrier-pair door"*, which the planar arm delegates into. What is missing is the DETECTOR's curved arm and a Python route to a finding it produces. `TestTwopeg` executes all of it: the detector reports **7** findings on this scene's two parts, all planar (one `SameOpposite` — the mating plane — and six `SameOriented`); declaring every one of them still refuses, and refuses in the reduction's CURVED-face arm, which is exactly the arm the scene says a cylindrical declaration unlocks; and a pair whose ONLY coincidence is cylindrical reports nothing at all |
 | G8 | **Multi-solid boolean operand** (replication + structural params CLOSED) | degrades 3 | register B | **Re-diagnosed at LIB-PYPU, from executed evidence.** The row used to read "no pattern node and no `SetStructuralParam` edit". Two of those three halves are now bound: `Node.placed_union`/`placed_union_at` say a whole placed family in ONE node whose value is an ordinary `body` (`TestHeatsinkFins`, `tests/test_placed_union.py`), and `DocEdit.bind_count_param` binds its Count slot to a document parameter, so `heatsink`'s 5 → 7 → 9 is ONE `set_doc_param` edit each against the corpus's own dyadic pins. What is left is the residual the old entry hid behind the binding question: the heat sink's shape is that family UNIONED INTO A BASE, and the kernel's `combine` door takes two SINGLE-SOLID operands (`JoinDesync`: "operand A/B is not a single-solid body"), so the fusion needs a kernel door that does not exist. That is why the rows stay YES\* rather than flipping — the gap is the kernel operand, not the binding, exactly as the old entry's own reasoning ran, one level down. `Node::Pattern` stays deliberately UNBOUND for the unchanged reason: its value is a plural `Instances` payload no boolean can consume, so binding it would still flip no row (`test_a_plural_payload_cannot_feed_a_boolean` executes the split's refusal and asserts the group's singular `body` as the contrast). One further residue, measured here and NOT a row-blocker: `evaluate` takes no prior evaluation as a memo, so the scene's *memoized recompute* — its third claim — is unobservable from Python even though the count edit itself is now sayable |
 | G14 | **Split naming: chord multiplicity + tied upstreams** | 0 (**CLOSED**, LIB-G14) | closed by LIB-G14 against `docs/NAMING-DESIGN.md`'s split-naming-walls section (RATIFIED, #512); the `NamingError`-`Display` gap it hid behind is #380, closed separately | The row's original diagnosis — "a plane crossing boolean-minted faces" — was WRONG, and the survey (`cad-work/g14-survey.md`) is how that surfaced: a split ACROSS boolean-minted faces named fine all along. TWO disjoint M4-era deferrals refused, and the one this scene hit involves no boolean at all — a section line that re-enters ONE operand face (an inner loop, or any non-convex face) would mint `SectionEdge{side, face}` twice; a plain L-shaped single-loop extrude reproduced it. The second wall refused a split whenever ANY operand-table entry was tied, even for pass-throughs nowhere near the tie. Both were logged as one M4 PR-3 sentence and read as one refusal because `NamingError` had no `Display`. Fixed as ratified: the chords become an N2 TIE (A2), and tied upstreams PROPAGATE as tied (B1), matching `name_pattern`/`name_in_part`/`graft_names` |
 
-G2 alone partitions the 6 NO rows: rows 10, 15–19, counted off the
-table above (G5's two closed at LIB-PYG5, G14's one at LIB-G14 —
-concurrent units, merged counts re-derived here). G8 still degrades
-three, which is what makes three rows YES\* rather than YES (32, 33,
-34): LIB-PYPU narrowed what G8 IS without moving a mark, because the
-half it closed was never the half the mark depended on.
-Authorable = 25 outright + 3 YES\* = 28, and 28 + 6 = 34.
+The five gaps partition the 15 NO rows exactly, counted off the table
+above: **G2** takes 8 (rows 13, 20–24, 26, 27), **G16** 3 (rows 2, 11,
+12), **G18** 2 (rows 46, 47), **G17** 1 (row 28) and **G19** 1 (row 39)
+— 8 + 3 + 2 + 1 + 1 = 15. G8 blocks none and still degrades three,
+which is what makes three rows YES\* rather than YES (43, 44, 45):
+LIB-PYPU narrowed what G8 IS without moving a mark, because the half it
+closed was never the half the mark depended on.
+Authorable = 29 outright + 3 YES\* = 32, and 32 + 15 = 47.
 
-Two counts in this list were off by one before LIB-PYG1 recounted
-them: G1 read 7 stops against 6 table rows, and G6 read 1 against 2.
-The rows are the record and the tallies are derived — every number
-above is counted off the table just now, never carried forward from
-the previous revision.
+The rows are the record and the tallies are derived. That used to be a
+promise in prose, and it was broken three times: two of this list's
+counts were off by one before LIB-PYG1 recounted them (G1 read 7 stops
+against 6 table rows, G6 read 1 against 2), the headline once read 26 =
+23 + 3 against a table saying 25 + 3, and the table itself sat at 34
+rows while the tour grew to 47. Every number above is now counted off
+the table by a test —
+`the_north_star_audits_tallies_are_derived_from_its_rows` re-derives the
+headline and each gap's `stops` column, and
+`the_north_star_audit_has_a_row_for_every_tour_stop` re-derives the
+table's own roster from `demos/tour/src/`. Both are in
+`crates/pncad/tests/all.rs`.
 
-Two further gaps block no tour scene but matter to the library:
+Two further gaps are no row's PRIMARY blocker but matter to the
+library:
 
 | # | gap | register / pointer | why it matters |
 |---|---|---|---|
 | G11 | **Tessellation and STL** | register B (named there as completing the ladder) | No mesh door, so Python loses steps 4 and 5 of the guide's ladder — no tessellate, and therefore no mesh-vs-exact cross-check. Step 6 does work: `Evaluation.step_string` exports STEP, and re-importing it is the strongest check available from Python |
-| G15 | **The workspace store, content pins, and cross-document references** | THIS PAGE (`test_the_named_gaps_are_still_gaps` asserts the absence of `Workspace`, `ContentPin`, `DocRef` and `random_document_id`, so the row fails the day a door lands) | Identity itself is bound now — `Doc()` mints a distinct id per document and `Doc.id` reads it — but the surface identity EXISTS FOR is not. Python can save a document to text and load one back; it cannot open a directory of them, resolve a `DocRef`, compute or compare a `ContentPin`, or say "this part instantiates that one". So a Python author can produce two documents a workspace will accept side by side, and cannot then assemble them. The doors are `pncad::workspace::{Workspace, random_document_id, update_to_store}` and `pncad::document::{DocRef, ContentPin, content_pin}` — all curated in Rust already, so this is a binding unit and not a kernel one. The identity half is what made the rest sayable: before it, every Python document was the same part |
+| G15 | **The workspace store, content pins, and cross-document references** | THIS PAGE (`test_the_named_gaps_are_still_gaps` asserts the absence of `Workspace`, `ContentPin`, `DocRef` and `random_document_id`, so the row fails the day a door lands) | Identity itself is bound now — `Doc()` mints a distinct id per document and `Doc.id` reads it — but the surface identity EXISTS FOR is not. Python can save a document to text and load one back; it cannot open a directory of them, resolve a `DocRef`, compute or compare a `ContentPin`, or say "this part instantiates that one". So a Python author can produce two documents a workspace will accept side by side, and cannot then assemble them. The doors are `pncad::workspace::{Workspace, random_document_id, update_to_store}` and `pncad::document::{DocRef, ContentPin, content_pin}` — all curated in Rust already, so this is a binding unit and not a kernel one. The identity half is what made the rest sayable: before it, every Python document was the same part. **This row stopped being hypothetical when the tour grew its assembly stops.** Its four doors are G18's first half, so it is now the named SECONDARY blocker on rows 46 and 47 — the bench documents are exactly the "two documents a workspace will accept side by side" this row predicted, and they are exactly what cannot be assembled |
+
+**What this page structurally cannot see.** Every id above is
+SCENE-ANCHORED: a gap is named here because the tour puts the missing
+door in view — a stop blocked, a stop degraded, or the generic ladder
+every scene is held to (which is G11's anchor) — and the partition
+just above means something only because that holds. So library debt no
+scene exercises gets no id on this page — a curated door with no
+Python spelling, in a family the tour never walks through, is
+invisible to this measurement however plainly it is missing. That
+surface is enumerated by the BINDING CENSUS instead
+(`crates/pncad-py/tests/test_binding_census.py`), which asks the other
+question — can a caller REACH this door? — over the façade's curated
+lists, name by name, and fails when one is neither bound nor listed.
+It cites the ids above wherever one owns the door, and owns its own
+`B-*` ids where none does. The two lists together are the debt;
+reading only this page under-counts it.
 
 ## Closed gaps
 
@@ -376,7 +458,8 @@ Two further gaps block no tour scene but matter to the library:
 
 ## How to read this page next quarter
 
-Run the verification:
+Run both halves of the verification. The Python suite is the one that
+checks what the rows SAY:
 
 ```console
 $ ./crates/pncad-py/run-python-tests.sh
@@ -386,3 +469,19 @@ If `test_the_named_gaps_are_still_gaps` fails, someone built a door —
 promote the rows it unblocks. If a YES row's oracle fails, either the
 scene changed or the bindings regressed, and the audit is the thing
 that noticed.
+
+The Rust guards are the ones that check the page's SHAPE — that there
+is a row per scene at all, and that the numbers are the rows' own:
+
+```console
+$ cargo test -p pncad --test all north_star
+```
+
+If `the_north_star_audit_has_a_row_for_every_tour_stop` fails, the
+tour moved: it names the stops with no row (grade each and add one) or
+the rows with no stop (delete them). If
+`the_north_star_audits_tallies_are_derived_from_its_rows` fails, a
+count above stopped agreeing with the table — re-count, never
+re-word. The three failures those two guards exist for are named in
+the parenthetical at the top of this page; all three were found by
+reading, months late, which is why they are tests now.

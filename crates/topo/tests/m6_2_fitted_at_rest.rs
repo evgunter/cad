@@ -199,6 +199,7 @@ mod certified {
     use geom_brep::{EnvelopeStatement, Pcurve};
     use geom_core::Tol;
     use geom_core::{Band, Bounds, Interval};
+    use test_utils::vacuity;
 
     /// The same body, at the interval scalar: the C2 certificate is
     /// DERIVED there, every claim is a bracketing claim — **and it

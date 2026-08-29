@@ -70,7 +70,7 @@
 //! knowing it is the only one**: `docs/TESS-BUDGET.md`'s *split
 //! schedule's aspect policy* (2026-08-16, PR #568) rules the NURBS
 //! split schedule's 3-D aspect cap at A = 16, and
-//! `docs/TESS-SPLIT-SPEC.md` binds its execution. Both are scoped
+//! the TESS-SPLIT unit executed it (#951). Both are scoped
 //! entirely to `nurbs_cert`'s per-cell step derivation. Nothing covers
 //! the analytic charts, the sizing target itself, or the retry and
 //! refinement budgets.

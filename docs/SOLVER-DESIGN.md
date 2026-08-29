@@ -164,7 +164,9 @@ WitnessBifurcation {
 - K telemetry: `solver_branch_margin` is the first genuinely
   ill-conditioned predicate family the K funnel will see (T6) —
   K-REPORT's "K rarely binds" evidence is all well-conditioned
-  construction; the M10 corpus must re-examine K here.
+  construction, so an in-band landing here is exactly K-REPORT's
+  stated re-open trigger (#89 CLOSED — K = 10 is the permanent
+  ratified default).
 
 ## W4 — Witness update policy: commits only, repair explicit
 
@@ -352,9 +354,6 @@ first genuinely ill-conditioned predicate family K will see).
   constants, bordered-system fold localization, the layer-1
   decomposition design, and the mate-solver mechanism (W8's proof
   obligation). None are M4 blockers.
-- Whether `ReWitness` should ever be offered automatically in bulk
-  (e.g. after a large certified-clean parameter change) — UI-policy
-  territory, revisit with editor-core experience.
 - The chamber-map upgrade (precomputed parameter-range intervals per
   van der Meiden — closed-form fold distances for decomposable
   steps) as a cheap early-warning margin — banked as an M10 option.

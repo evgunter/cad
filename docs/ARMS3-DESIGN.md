@@ -1,12 +1,12 @@
 # ARMS-3 — general sphere×sphere, and what a run-out at a seam vertex IS
 
-**Status: RATIFIED** (Evan, 2026-08-25; #992). Implemented by
-VERBS-ARMS-3, with one correction recorded below — A3-2's RECOURSE
-rested on a premise the implementation lane found false when it
-reproduced the witness. (VERBS program; the ARMS cut's third unit,
-whose corner half OQ6 explicitly reserved for Evan: "run-out
-policies are a taxonomy decision Evan should own before any
-lands".) Proposals A3-1..A3-3.
+**Status: RATIFIED** (Evan's 👍 on #992). Implemented by
+VERBS-ARMS-3 (#1028), with one correction recorded below — A3-2's
+RECOURSE rested on a premise the implementation lane found false
+when it reproduced the witness. (VERBS program; the ARMS cut's
+third unit, whose corner half OQ6 explicitly reserved for Evan:
+"run-out policies are a taxonomy decision Evan should own before
+any lands".) Proposals A3-1..A3-3.
 
 ## A3-1 — the sphere×sphere arm is plumbing; it dispatches on ratification
 
@@ -15,10 +15,12 @@ circle; no coaxiality condition), already derived by ARMS-2's
 circle×circle sheet-crossing closed form — the meridian sheet
 through the rim contains both centres' traces. It rides the
 existing family: material sides from stored sense bits, both
-configurations unit-rowed, poison at tangency. Consumer: the
-snowman waist (two overlapping spheres), whose rims are FULL
-closed rims — served by ARMS-1's annulus door. **No conversation
-content here**; listed so the unit's scope is visible.
+configurations unit-rowed, poison at tangency. The consumer is a
+lentil (the solid between two unit spheres, bored), whose CONVEX
+equator is a full closed rim ARMS-1's annulus door serves; a
+two-sphere snowman's waist is CONCAVE and the arm refuses it on
+convexity. **No conversation content here**; listed so the unit's
+scope is visible.
 
 ## A3-2 — the valence-4 "corner" is not a corner, and v1 should say so
 
@@ -102,10 +104,10 @@ records the parked pair.
 
 ## Sequencing
 
-On ratification: ONE implementation unit (sphere×sphere arm +
-the `SeamVertex` refusal + register/vocabulary sync). #319 closes
-fully at its merge (the coaxial half closed at ARMS-2; the corner
-finding resolves as A3-2's re-description). The parked run-out
+ONE implementation unit (sphere×sphere arm + the `SeamVertex`
+refusal + register/vocabulary sync). #319 closed fully at its
+merge (the coaxial half closed at ARMS-2; the corner finding
+resolved as A3-2's re-description). The parked run-out
 pair joins the register with this doc as its design record.
 
 **Delivered** (VERBS-ARMS-3): the arm as one row in `coaxial_arm`

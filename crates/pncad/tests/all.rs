@@ -3014,3 +3014,629 @@ fn the_authoring_seam_roster_is_what_the_crate_doc_claims() {
          claim needs re-wording"
     );
 }
+
+// ---------------------------------------------------------------
+// The north-star audit's roster, guarded.
+// ---------------------------------------------------------------
+
+/// Every `demos/tour/src/*.rs` file, by file name and comment-stripped
+/// text, read from disk rather than `include_str!`-ed one by one.
+///
+/// Read from disk ON PURPOSE: `demos/tour` is a workspace-EXCLUDED
+/// root, so this crate cannot depend on it and cannot see its types —
+/// the tour's roster is only ever available here as source TEXT. A
+/// fixed list of `include_str!`s would also be a second hand-kept
+/// roster, which is exactly the drift the guard below exists to
+/// catch: a new scene module has to be picked up by the scan itself,
+/// with no edit here.
+///
+/// `main.rs` is excluded: it DEFINES `struct Stop` and builds none.
+/// Files behind a cargo feature (`probe`, `tessbudget`) are read like
+/// any other — a text scan cannot see `cfg`, and reading them is the
+/// safe direction, since a stop the tour builds only sometimes is
+/// still a stop the audit owes a row.
+fn tour_sources() -> Vec<(String, String)> {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../demos/tour/src");
+    let entries =
+        std::fs::read_dir(&dir).unwrap_or_else(|e| panic!("reading {}: {e}", dir.display()));
+    let mut out: Vec<(String, String)> = Vec::new();
+    for entry in entries {
+        let path = entry.expect("a readable directory entry").path();
+        if path.extension().and_then(|e| e.to_str()) != Some("rs") {
+            continue;
+        }
+        let name = path
+            .file_name()
+            .and_then(|n| n.to_str())
+            .expect("a UTF-8 file name")
+            .to_string();
+        if name == "main.rs" {
+            continue;
+        }
+        let text = std::fs::read_to_string(&path)
+            .unwrap_or_else(|e| panic!("reading {}: {e}", path.display()));
+        out.push((name, code_without_comments(&text)));
+    }
+    out.sort();
+    assert!(
+        !out.is_empty(),
+        "no tour scene sources at {}",
+        dir.display()
+    );
+    out
+}
+
+/// The text of a struct literal's FIRST field: everything from `from`
+/// (the index just past the literal's opening brace) to the first
+/// comma at nesting depth zero, with runs of whitespace collapsed.
+///
+/// Depth tracking is what lets a `match` arm list or a nested call sit
+/// inside the field without ending it, and string tracking is what
+/// keeps a comma inside a caption from ending it.
+fn first_struct_field(code: &str, from: usize) -> String {
+    let b = code.as_bytes();
+    let (mut i, mut depth, mut in_str) = (from, 0usize, false);
+    let mut out = String::new();
+    while i < b.len() {
+        let c = b[i] as char;
+        if in_str {
+            if c == '\\' {
+                out.push(c);
+                i += 1;
+                if i < b.len() {
+                    out.push(b[i] as char);
+                    i += 1;
+                }
+                continue;
+            }
+            if c == '"' {
+                in_str = false;
+            }
+            out.push(c);
+            i += 1;
+            continue;
+        }
+        match c {
+            '"' => in_str = true,
+            '(' | '[' | '{' => depth += 1,
+            ')' | ']' | '}' => {
+                if depth == 0 {
+                    break;
+                }
+                depth -= 1;
+            }
+            ',' if depth == 0 => break,
+            _ => {}
+        }
+        out.push(c);
+        i += 1;
+    }
+    out.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// Every string literal in `s`, in order.
+fn string_literals(s: &str) -> Vec<String> {
+    let b = s.as_bytes();
+    let (mut i, mut out) = (0usize, Vec::new());
+    while i < b.len() {
+        if b[i] == b'"' {
+            let mut lit = String::new();
+            i += 1;
+            while i < b.len() && b[i] != b'"' {
+                if b[i] == b'\\' {
+                    i += 1;
+                }
+                if i < b.len() {
+                    lit.push(b[i] as char);
+                    i += 1;
+                }
+            }
+            i += 1;
+            out.push(lit);
+        } else {
+            i += 1;
+        }
+    }
+    out
+}
+
+/// True when the byte at `at` starts a whole identifier token (the
+/// character before it cannot continue an identifier).
+fn token_starts_at(code: &str, at: usize) -> bool {
+    !code[..at]
+        .chars()
+        .next_back()
+        .is_some_and(|c| c.is_alphanumeric() || c == '_')
+}
+
+/// Every first-position string-literal argument of a call to `ident`
+/// in `code` — the resolver for a stop name that arrives as a
+/// `&'static str` PARAMETER rather than as a literal at the struct.
+/// Definitions (`fn ident(`) are skipped; only calls are read.
+fn first_arg_literals(code: &str, ident: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut from = 0usize;
+    while let Some(off) = code[from..].find(ident) {
+        let at = from + off;
+        from = at + ident.len();
+        if !token_starts_at(code, at) {
+            continue;
+        }
+        let rest = &code[at + ident.len()..];
+        let paren = rest.len() - rest.trim_start().len();
+        if rest.as_bytes().get(paren) != Some(&b'(') {
+            continue;
+        }
+        let before = code[..at].trim_end();
+        if before.ends_with("fn") || before.ends_with("let") {
+            continue;
+        }
+        let arg = first_struct_field(code, at + ident.len() + paren + 1);
+        let lits = string_literals(&arg);
+        if lits.len() == 1 && arg == format!("\"{}\"", lits[0]) {
+            out.push(lits.into_iter().next().expect("one literal"));
+        }
+    }
+    out
+}
+
+/// **The tour's stop roster, read out of its own source text.**
+///
+/// Returns the names, the number of `Stop { … }` literal sites the
+/// scan found, and one complaint per site it could not resolve. A
+/// complaint is a FAILURE, never a silent omission: the whole point
+/// is that the guard below cannot under-report the roster.
+///
+/// The scan walks every `Stop {` struct literal (a `-> Stop {`
+/// function signature is not one) and reads its FIRST field, which is
+/// `name` in every case because that is the field's position in
+/// `main.rs`'s definition. Three forms are understood, and they are
+/// the three the tour actually writes:
+///
+/// 1. `name: "literal"` — the common case;
+/// 2. `name: match … { … "a", … "b" }` — every literal in the arms
+///    (`letterforms`' shadow trio);
+/// 3. `name,` — the field-init shorthand, where the name is either a
+///    `let name: &'static str = match …` a few lines up (`heatsink`)
+///    or a `&'static str` PARAMETER of the enclosing `fn` or closure,
+///    in which case the names are the first-position literals at that
+///    helper's call sites (`bodies`' `stop`, `skinned`'s `shadow`).
+///
+/// **What this scan can and cannot see, stated rather than assumed.**
+/// It can see any stop whose name reaches `Stop.name` as a literal by
+/// one of those three routes, which is every stop the tour has. It
+/// CANNOT see a name computed at run time (a `format!`, a name read
+/// from a file, a literal reached through a second helper hop) — and
+/// it does not pretend to: such a site produces a complaint naming
+/// the file and the field text, so the failure mode is a red build
+/// asking for the scan to be taught, never a quietly short roster.
+/// It also cannot see `cfg`, so it reads feature-gated modules too
+/// (the safe direction — see [`tour_sources`]).
+fn tour_stop_roster() -> (std::collections::BTreeSet<String>, usize, Vec<String>) {
+    const DECL: &str = "name: &'static str";
+    let mut names = std::collections::BTreeSet::new();
+    let mut sites = 0usize;
+    let mut complaints: Vec<String> = Vec::new();
+
+    for (file, code) in tour_sources() {
+        let mut from = 0usize;
+        while let Some(off) = code[from..].find("Stop") {
+            let at = from + off;
+            from = at + "Stop".len();
+            if !token_starts_at(&code, at) {
+                continue;
+            }
+            let rest = &code[at + "Stop".len()..];
+            let gap = rest.len() - rest.trim_start().len();
+            if rest.as_bytes().get(gap) != Some(&b'{') {
+                continue;
+            }
+            // `-> Stop {` opens a function body, not a literal.
+            if code[..at].trim_end().ends_with("->") {
+                continue;
+            }
+            sites += 1;
+            let field = first_struct_field(&code, at + "Stop".len() + gap + 1);
+            let found: Vec<String> = if field == "name" {
+                // The shorthand: resolve the binding that dominates.
+                let Some(decl) = code[..at].rfind(DECL) else {
+                    complaints.push(format!(
+                        "{file}: a `name,` shorthand with no `{DECL}` before it"
+                    ));
+                    continue;
+                };
+                let after = code[decl + DECL.len()..].trim_start();
+                if let Some(init) = after.strip_prefix('=') {
+                    let end = init.find(';').unwrap_or(init.len());
+                    string_literals(&init[..end])
+                } else {
+                    // A parameter: find the `(` or `|` that opens the
+                    // list, then the `fn`/`let` name in front of it.
+                    let head = &code[..decl];
+                    let Some(open) = head.rfind(['(', '|']) else {
+                        complaints.push(format!(
+                            "{file}: `{DECL}` with no parameter-list opener before it"
+                        ));
+                        continue;
+                    };
+                    let owner: String = head[..open]
+                        .trim_end()
+                        .trim_end_matches('=')
+                        .trim_end()
+                        .chars()
+                        .rev()
+                        .take_while(|c| c.is_alphanumeric() || *c == '_')
+                        .collect::<Vec<_>>()
+                        .into_iter()
+                        .rev()
+                        .collect();
+                    if owner.is_empty() {
+                        complaints.push(format!(
+                            "{file}: `{DECL}` in a parameter list with no named owner"
+                        ));
+                        continue;
+                    }
+                    first_arg_literals(&code, &owner)
+                }
+            } else if let Some(expr) = field.strip_prefix("name:") {
+                let expr = expr.trim();
+                let lits = string_literals(expr);
+                // Form 1 (one literal, and the expression IS that
+                // literal) or form 2 (a `match` whose arms are
+                // literals) — the same answer either way, the two
+                // shapes kept apart so a third form falls through.
+                let one_literal = lits.len() == 1 && expr == format!("\"{}\"", lits[0]);
+                if one_literal || (expr.starts_with("match") && !lits.is_empty()) {
+                    lits
+                } else {
+                    complaints.push(format!(
+                        "{file}: a `Stop` whose name is neither a literal nor a \
+                         match over literals: `{expr}`"
+                    ));
+                    continue;
+                }
+            } else {
+                complaints.push(format!(
+                    "{file}: a `Stop` literal whose FIRST field is not `name`: `{field}`"
+                ));
+                continue;
+            };
+            if found.is_empty() {
+                complaints.push(format!("{file}: a `Stop` site resolved to no name at all"));
+            }
+            names.extend(found);
+        }
+    }
+    (names, sites, complaints)
+}
+
+/// The page's own text, so the guards below read exactly what
+/// `guide::north_star_audit` renders.
+const AUDIT_PAGE: &str = include_str!("../../../docs/guide/north-star-audit.md");
+
+/// The body of one `## `-level section of a Markdown page: everything
+/// after the heading line, up to the next `## ` heading or the end.
+///
+/// Scoping every table read to its own section is what keeps a row of
+/// one table from being read as a row of another — the audit's row
+/// numbers and the gap list's ids live in different sections and are
+/// parsed by different rules.
+fn markdown_section<'a>(page: &'a str, heading: &str) -> &'a str {
+    let at = page
+        .find(heading)
+        .unwrap_or_else(|| panic!("the audit page has no `{heading}` heading"));
+    let rest = &page[at + heading.len()..];
+    match rest.find("\n## ") {
+        Some(end) => &rest[..end],
+        None => rest,
+    }
+}
+
+/// One Markdown table row's cells, or `None` for a line that is not a
+/// row (or is the `|---|` separator).
+fn table_cells(line: &str) -> Option<Vec<&str>> {
+    let t = line.trim();
+    if !t.starts_with('|') {
+        return None;
+    }
+    let cells: Vec<&str> = t.trim_matches('|').split('|').map(str::trim).collect();
+    if cells
+        .iter()
+        .all(|c| !c.is_empty() && c.chars().all(|ch| ch == '-' || ch == ':'))
+    {
+        return None;
+    }
+    Some(cells)
+}
+
+/// The first backtick-quoted run in a cell — a row's scene name, kept
+/// apart from the annotations the cell also carries (`(glued)`,
+/// `(15 bodies)`).
+fn first_backticked(cell: &str) -> Option<&str> {
+    let start = cell.find('`')? + 1;
+    let len = cell[start..].find('`')?;
+    Some(&cell[start..start + len])
+}
+
+/// One audit row: its number, its scene, its verdict text and its gap
+/// cell.
+struct AuditRow {
+    number: usize,
+    scene: String,
+    verdict: String,
+    gap: String,
+}
+
+/// Every row of the audit table — the rows of the `## The audit`
+/// section whose first cell is a number, which is what tells a scene
+/// row apart from that section's prose and its header.
+fn audit_rows() -> Vec<AuditRow> {
+    let mut out = Vec::new();
+    for line in markdown_section(AUDIT_PAGE, "\n## The audit\n").lines() {
+        let Some(cells) = table_cells(line) else {
+            continue;
+        };
+        let Ok(number) = cells[0].parse::<usize>() else {
+            continue;
+        };
+        assert!(
+            cells.len() >= 4,
+            "audit row {number} has {} cells, not the table's five",
+            cells.len()
+        );
+        let scene = first_backticked(cells[1])
+            .unwrap_or_else(|| panic!("audit row {number} names no scene in backticks"));
+        out.push(AuditRow {
+            number,
+            scene: scene.to_string(),
+            verdict: cells[2].to_string(),
+            gap: cells[3].to_string(),
+        });
+    }
+    out
+}
+
+/// **The audit page has a row for every tour stop, and every row is a
+/// tour stop.**
+///
+/// `docs/guide/north-star-audit.md` measures the tour against the
+/// ratified goal — every demo authorable through the Python bindings
+/// — scene by scene. Its test (`crates/pncad-py/tests/test_north_star.py`)
+/// checks that its YES rows still build and that its NO rows' gaps
+/// are still absent, so a door LANDING fails loudly. Nothing checked
+/// the other axis: a tour stop ARRIVING was a silent non-row, and the
+/// page sat at 34 rows against a tour of 47 until this guard was
+/// written.
+///
+/// So this is that axis, in both directions:
+///
+/// - **growth** — a stop with no row fails here, naming itself;
+/// - **decay** — a row naming a scene the tour no longer builds fails
+///   too, because a stale row is a measurement of nothing.
+///
+/// The roster comes from the tour's own source text
+/// ([`tour_stop_roster`], whose docs state exactly what that scan can
+/// and cannot see), because `demos/tour` is a workspace-excluded root
+/// this crate cannot depend on. The scan REFUSES rather than
+/// under-reports: a `Stop` whose name it cannot resolve is a
+/// complaint here, not a missing row.
+///
+/// **Not guarded, stated:** that each row's verdict is CORRECT. That
+/// is what the Python suite executes for the YES rows and pins as
+/// absences for the NO rows; a text scan can only insist that every
+/// scene is graded.
+#[test]
+fn the_north_star_audit_has_a_row_for_every_tour_stop() {
+    let (roster, sites, complaints) = tour_stop_roster();
+    assert!(
+        complaints.is_empty(),
+        "the tour builds {} `Stop` value(s) this scan cannot resolve to a name — \
+         teach it the new form rather than letting the roster run short:\n  {}",
+        complaints.len(),
+        complaints.join("\n  ")
+    );
+    // Vacuity floors: a scan that found almost nothing would pass
+    // every set comparison below while measuring nothing at all.
+    assert!(
+        sites >= 30,
+        "the scan found only {sites} `Stop` literal site(s) in the tour — its \
+         source shape changed and this guard was about to pass vacuously"
+    );
+    assert!(
+        roster.len() >= 40,
+        "the scan resolved only {} stop name(s) — same alarm",
+        roster.len()
+    );
+
+    let rows = audit_rows();
+    assert!(
+        rows.len() >= 40,
+        "the audit table parsed to only {} row(s) — its shape changed and this \
+         guard was about to pass vacuously",
+        rows.len()
+    );
+    let numbering: Vec<usize> = rows.iter().map(|r| r.number).collect();
+    assert_eq!(
+        numbering,
+        (1..=rows.len()).collect::<Vec<_>>(),
+        "the audit table's row numbers are not 1..{} in order — the count in \
+         the page's headline is read off them",
+        rows.len()
+    );
+
+    let listed: std::collections::BTreeSet<String> = rows.iter().map(|r| r.scene.clone()).collect();
+    assert_eq!(
+        listed.len(),
+        rows.len(),
+        "the audit table names a scene twice"
+    );
+
+    let unrowed: Vec<&String> = roster.difference(&listed).collect();
+    assert!(
+        unrowed.is_empty(),
+        "the tour builds {} stop(s) the north-star audit has no row for:\n  {}\n\
+         Grade each against the bound surface and add its row (and re-derive \
+         every count on the page off the table you end up with).",
+        unrowed.len(),
+        unrowed
+            .iter()
+            .map(|s| s.as_str())
+            .collect::<Vec<_>>()
+            .join("\n  ")
+    );
+    let retired: Vec<&String> = listed.difference(&roster).collect();
+    assert!(
+        retired.is_empty(),
+        "the north-star audit has {} row(s) for scene(s) the tour no longer \
+         builds:\n  {}\n\
+         Remove each and re-derive the counts.",
+        retired.len(),
+        retired
+            .iter()
+            .map(|s| s.as_str())
+            .collect::<Vec<_>>()
+            .join("\n  ")
+    );
+}
+
+/// **The audit page's tallies are counted off its own rows.**
+///
+/// The page says so in terms — *"the rows are the record and the
+/// tallies are derived — every number above is counted off the table
+/// just now, never carried forward"* — and it says so because the
+/// discipline has failed twice in its history (a headline that read
+/// 26 = 23 + 3 against a table saying 25 + 3; two gap counts off by
+/// one). Prose cannot hold a promise like that; this does.
+///
+/// Two tallies are checked, both purely mechanical:
+///
+/// 1. the **headline paragraph** — every number it writes, in order:
+///    authorable of total, then the outright/degraded split, then the
+///    blocked count — against the rows' own YES/YES\*/NO verdicts.
+///    The whole paragraph rather than its first clause, because the
+///    drift that happened was BETWEEN the headline's total and its
+///    own split;
+/// 2. each gap's **stops** column against the number of rows naming
+///    that gap as their primary blocker.
+///
+/// **Not guarded, stated:** the prose arithmetic sentence under the
+/// gap list, which re-says the partition row by row, and the per-row
+/// narrative in the last column. Those are re-derived by hand at each
+/// revision; what this guard buys is that the numbers they are
+/// derived FROM cannot drift unnoticed.
+#[test]
+fn the_north_star_audits_tallies_are_derived_from_its_rows() {
+    let rows = audit_rows();
+    let (mut yes, mut yes_star, mut no) = (0usize, 0usize, 0usize);
+    for row in &rows {
+        if row.verdict.contains("NO") {
+            no += 1;
+        } else if row.verdict.contains("YES") {
+            // The page writes an outright YES in bold (`**YES**`) and
+            // the degraded mark as `YES` plus an ESCAPED asterisk, so
+            // the backslash is what tells them apart — the bold
+            // markers are asterisks too.
+            if row.verdict.contains('\\') {
+                yes_star += 1;
+            } else {
+                yes += 1;
+            }
+        } else {
+            panic!(
+                "audit row {} has an unreadable verdict: `{}`",
+                row.number, row.verdict
+            );
+        }
+    }
+    assert_eq!(
+        yes + yes_star + no,
+        rows.len(),
+        "every row is YES, YES* or NO"
+    );
+
+    // The headline PARAGRAPH — every number in it, in the order it
+    // writes them: authorable of total, then the outright/degraded
+    // split, then the blocked count. Reading the whole paragraph
+    // rather than one clause is deliberate: the drift that happened
+    // was between the headline's total and its own split, which a
+    // guard reading only the first clause would have missed.
+    let head = "**Result: ";
+    let at = AUDIT_PAGE
+        .find(head)
+        .expect("the audit page opens with its Result headline");
+    let tail = &AUDIT_PAGE[at + head.len()..];
+    let end = tail.find("\n\n").expect("the headline is a paragraph");
+    let sentence: String = tail[..end].split_whitespace().collect::<Vec<_>>().join(" ");
+    let numbers: Vec<usize> = sentence
+        .split(|c: char| !c.is_ascii_digit())
+        .filter(|w| !w.is_empty())
+        .map(|w| w.parse::<usize>().expect("a decimal count"))
+        .collect();
+    assert_eq!(
+        numbers,
+        vec![yes + yes_star, rows.len(), yes, yes_star, no],
+        "the headline reads `{sentence}`, but the table says {} of {} \
+         (YES {yes} + YES* {yes_star}, NO {no})",
+        yes + yes_star,
+        rows.len()
+    );
+
+    // The gap list's `stops` column, per gap id.
+    let mut blocked: std::collections::BTreeMap<String, usize> = std::collections::BTreeMap::new();
+    for row in &rows {
+        if let Some(id) = row.gap.strip_prefix('G')
+            && id.chars().all(|c| c.is_ascii_digit())
+        {
+            *blocked.entry(row.gap.clone()).or_default() += 1;
+        }
+    }
+
+    let section = markdown_section(AUDIT_PAGE, "\n## The gap list\n");
+    let mut stops_col: Option<usize> = None;
+    let mut checked = 0usize;
+    for line in section.lines() {
+        let Some(cells) = table_cells(line) else {
+            // A blank line or prose ends the table that was in flight.
+            if !line.trim().starts_with('|') {
+                stops_col = None;
+            }
+            continue;
+        };
+        if let Some(col) = cells.iter().position(|c| *c == "stops") {
+            stops_col = Some(col);
+            continue;
+        }
+        let Some(col) = stops_col else { continue };
+        let id = cells[0];
+        if !(id.starts_with('G') && id[1..].chars().all(|c| c.is_ascii_digit())) {
+            continue;
+        }
+        let claimed: usize = cells[col]
+            .split(|c: char| !c.is_ascii_digit())
+            .find(|w| !w.is_empty())
+            .unwrap_or_else(|| panic!("gap {id}'s `stops` cell states no number"))
+            .parse()
+            .expect("a decimal count");
+        let actual = blocked.get(id).copied().unwrap_or(0);
+        assert_eq!(
+            claimed, actual,
+            "gap {id} claims it blocks {claimed} stop(s); {actual} row(s) name \
+             it as their primary blocker"
+        );
+        checked += 1;
+    }
+    assert!(
+        checked >= 3,
+        "only {checked} gap row(s) were read out of the gap list — the table's \
+         shape changed and this guard was about to pass vacuously"
+    );
+    let unlisted: Vec<&String> = blocked
+        .keys()
+        .filter(|id| !section.contains(&format!("| {id} |")))
+        .collect();
+    assert!(
+        unlisted.is_empty(),
+        "rows name gap id(s) the gap list does not carry: {:?}",
+        unlisted
+    );
+}

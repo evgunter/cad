@@ -259,25 +259,25 @@ fn p1_shell_open_is_a_disjoint_ring_on_my_own_revolve() {
     );
 }
 
-/// **P2 — #1081's class claim tested OUTSIDE the PR's enumeration.**
-/// The claimed law: a junction survives `shell` exactly when the
-/// neighbouring surface is invariant under the moved face's own offset
-/// motion — so obliquity, not curvature, is the class. Two all-plane
-/// fixtures the PR never built:
+/// **P2 — FLIPPED by #1081's PR-2a.** This row measured the class on
+/// two all-plane fixtures the PR under review never built: a right
+/// prism on a REGULAR HEXAGON (every side-to-side dihedral 120°) and a
+/// right prism on a RIGHT TRAPEZOID (a box with ONE beveled side).
+/// Both refused `ReanchorOffCarrier`, and the hexagon's gap was
+/// checked QUANTITATIVELY against `t·|cos θ| = t/2` — the measurement
+/// that made the class a law rather than an observation.
 ///
-/// - a right prism on a REGULAR HEXAGON (every side-to-side dihedral
-///   120°, every side-to-cap 90°) must refuse `ReanchorOffCarrier`;
-/// - a right prism on a RIGHT TRAPEZOID (a box with ONE beveled side;
-///   three square footprint corners, two oblique ones) must refuse the
-///   same way — one oblique junction is enough.
-///
-/// The mechanism is also checked QUANTITATIVELY on the hexagon: the
-/// re-anchor gap is the distance from a moved vertex to the
-/// neighbour's edge carrier, which for two planes meeting at dihedral
-/// θ under wall t is t·|cos θ| — here t/2 exactly (θ = 60° between
-/// normals). A tag masquerading as a length would not land there.
+/// Both HOLLOW now. The law was never wrong; what it was measuring was
+/// a corner transported once per chart, and the simultaneous door
+/// solves an all-planar corner against every moved plane at once, so
+/// the gap it predicted has nowhere to open. The row keeps its
+/// fixtures and its thickness and now pins the positive side: both
+/// bodies hollow into two shells, and the hexagon's wall is checked
+/// against its own closed form — a regular hexagon's inradius shrinks
+/// by exactly `t`, so the cavity is the hexagon of circumradius
+/// `R − 2t/√3` over a height short by `2t`.
 #[test]
-fn p2_the_oblique_class_holds_outside_the_enumeration() {
+fn p2_the_oblique_class_hollows_outside_the_enumeration() {
     let tol = Tol::witness();
     let t = 0.02;
     let s3 = 3.0_f64.sqrt();
@@ -313,24 +313,35 @@ fn p2_the_oblique_class_holds_outside_the_enumeration() {
         0.25,
         tol,
     );
-    for (what, body, expect_gap) in [
-        ("a right prism on a regular hexagon", hexagon, Some(t / 2.0)),
+    // The hexagon's closed form: circumradius 0.2, height 0.25. Its
+    // inradius is R·√3/2 and shrinks by exactly t, so the cavity is
+    // the hexagon of circumradius R − 2t/√3 over a height short by 2t.
+    let area = |r: f64| 1.5 * s3 * r * r;
+    let r_out = 0.2;
+    let hex_want = area(r_out) * 0.25 - area(r_out - 2.0 * t / s3) * (0.25 - 2.0 * t);
+    for (what, body, want) in [
+        (
+            "a right prism on a regular hexagon",
+            hexagon,
+            Some(hex_want),
+        ),
         ("a box with one beveled side", beveled_box, None),
     ] {
-        let e = pncad::topo::shell(&body, t, FIT_TOL, band(tol), tol)
-            .expect_err("an oblique all-plane junction must refuse");
-        let ShellError::Face { error, .. } = e else {
-            panic!("{what}: not the offset door's refusal: {e}");
-        };
-        let ReplaceFaceError::ReanchorOffCarrier { gap, .. } = *error else {
-            panic!("{what}: not the re-anchor refusal: {error}");
-        };
-        assert!(gap > 0.0, "{what}: the gap is a length, got {gap}");
-        println!("{what}: ReanchorOffCarrier gap = {gap}");
-        if let Some(want) = expect_gap {
+        let hollow = pncad::topo::shell(&body, t, FIT_TOL, band(tol), tol)
+            .unwrap_or_else(|e| panic!("{what}: an oblique all-plane junction hollows now: {e}"));
+        assert_eq!(
+            pncad::topo::validate_geometric(&hollow, tol),
+            Ok(()),
+            "{what}: tier 3"
+        );
+        assert_eq!(hollow.shells().count(), 2, "{what}: outer + cavity");
+        let props = pncad::topo::mass_properties(&hollow, tol).expect("props");
+        println!("{what}: hollows, wall volume {}", props.volume);
+        if let Some(want) = want {
             assert!(
-                (gap - want).abs() < 1e-12,
-                "{what}: the mechanism predicts gap = t·cos60° = {want}, got {gap}"
+                (props.volume - want).abs() <= 1e-12,
+                "{what}: the wall's closed form is {want}, got {}",
+                props.volume
             );
         }
     }

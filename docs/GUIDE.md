@@ -191,7 +191,7 @@ make. Section 2.3 and the fail-loud tour return to this.
 
 `crates/pncad-py/examples/bracket.py` builds this model with one
 addition the table cannot hold: since the PATHS lattice crossed to
-Python, its base plate carries a 3 mm round at each of its four
+Python, its base plate carries a 6 mm round at each of its four
 corners, authored as fillets rather than as a rounded outline. The
 extents, the web and the pocket are these ones, so the two languages
 below are building one solid, and the plate's own closed form is the
@@ -347,7 +347,6 @@ area = 0.040 * 0.030 - (0.006**2 - math.pi * 0.006**2 / 4)
 assert abs(ev.value(plate).body().mass_properties().volume - area * 0.008) < 1e-15
 ```
 
-let tol = Tol::witness();
 **Corners between a line and a CIRCLE.** A fillet's two sides do not
 have to be straight, and a side that rides a carrier is authored in
 the SAME act as the fillet: `arc_fillet(spec, r)` gives the corner an
@@ -446,7 +445,6 @@ else:
     raise AssertionError("plane= and elevation= must be mutually exclusive")
 ```
 
-let tol = Tol::witness();
 **Stacked sections make a loft.** `Node.loft(profiles, v_degree)`
 skins a solid through two or more section profiles in skin order — and
 takes no placement argument, because each section rides its own
@@ -822,7 +820,7 @@ Python does not mirror the Rust calls above. It speaks the **document
 layer**: you insert nodes describing what to build, evaluate the
 document, and read typed values out. This is deliberate (LIBRARY-DESIGN
 §L3) — the document layer is the single API surface shared by the
-future GUI, macro recording, and the bindings, so a Python script is a
+GUI, macro recording, and the bindings, so a Python script is a
 recipe that persists, replays, and undoes, rather than a pile of
 opaque kernel calls.
 
@@ -1099,8 +1097,8 @@ The **document layer** records it. A document is a DAG of nodes — a
 recipe — and `evaluate` turns the recipe into values. Edits are data
 (`DocEdit`), so the history is inspectable, persistable, undoable, and
 replayable, and evaluation reuses everything an edit did not touch.
-This is the same surface the Python bindings speak and the future GUI
-will speak; there is deliberately only one.
+This is the same surface the Python bindings and the GUI speak;
+there is deliberately only one.
 
 Since the profiles-as-programs switch, **a profile's geometry is a
 program too**: the loops are `LoopProgram` values whose coordinates
