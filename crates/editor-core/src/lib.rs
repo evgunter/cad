@@ -16,10 +16,12 @@
 //! parameter, never a re-model); [`ProfileDoc`] is the canonical
 //! instantiation at the profile crate's public description type.
 
+pub mod analysis;
 pub mod appearance;
 pub mod assembly;
 pub mod checks;
 pub mod diff;
+pub mod distribution;
 pub mod doc;
 pub mod edit;
 pub mod eval;
@@ -53,7 +55,12 @@ pub use checks::{
     CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal, ChecksConfig, ChecksError,
     ChecksReport, Severity, enforce_checks, run_checks, subject_body,
 };
+pub use analysis::{
+    AnalysisPolicy, AnalysisPolicyError, AnalyzedBox, AnalyzedParam, DEFAULT_QUANTILE_MASS,
+    MeasureUnavailable, OffsetInterval, analyzed_box, box_mass, tail_mass,
+};
 pub use diff::{DocDiff, NodeChange};
+pub use distribution::{Distribution, DistributionFault, DistributionField};
 pub use doc::{Doc, DocParam, ParamName};
 pub use edit::{Applied, DocEdit, EditError, EditRecord, apply};
 pub use eval::{

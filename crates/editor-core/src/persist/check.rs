@@ -21,6 +21,12 @@
 //!   the tripwire. (Post-parse this walk cannot fire — JSON has no
 //!   non-finite tokens — which is the asymmetry being BYTE-level, not
 //!   a reason to fork the validator.)
+//! - [`first_distribution_fault`] — the E2 invariants of every doc
+//!   param's distribution beyond finiteness, by the same
+//!   `Distribution::check` the edit door runs. It walks the SNAPSHOT
+//!   only: a `SetDocParam` in the log carries its distribution through
+//!   `apply` on replay, which is the same door and the same check
+//!   (the shape the alignment and placement notes below already take).
 //! - [`first_program_fault`] — profile PROGRAM structure: per-slot
 //!   dimension agreement (V2's role table) and a REPLAY PROBE under
 //!   the document's params whose LATTICE violations refuse (the
@@ -43,6 +49,7 @@
 //! [`crate::edit::apply`].
 
 use crate::appearance::AppearanceRecord;
+use crate::distribution::DistributionFault;
 use crate::doc::{DocParam, ParamName};
 use crate::edit::DocEdit;
 use crate::expr::Dimension;
@@ -130,8 +137,9 @@ impl core::fmt::Display for NonFiniteSite {
 
 /// The shared validator (module docs): every direction-independent
 /// document check, in one place, invoked by both doors. Check order
-/// is float walk → program walk → structural invariants (the save
-/// door's historical precedence, pinned by the refusal suite).
+/// is float walk → distribution walk → program walk → structural
+/// invariants (the save door's historical precedence, pinned by the
+/// refusal suite).
 pub(crate) fn validate_document(
     snapshot: &ProfileDoc,
     edits: &[DocEdit<ProfileProgram>],
@@ -139,6 +147,9 @@ pub(crate) fn validate_document(
 ) -> Result<(), super::PersistError> {
     if let Some(site) = first_non_finite(snapshot, edits) {
         return Err(super::PersistError::NonFinite { site });
+    }
+    if let Some((name, fault)) = first_distribution_fault(snapshot) {
+        return Err(super::PersistError::Distribution { name, fault });
     }
     if let Some((node, fault)) = first_program_fault(snapshot, tol) {
         return Err(super::PersistError::ProfileProgram { node, fault });
@@ -194,16 +205,42 @@ fn first_non_finite(
 }
 
 fn param_site(name: &ParamName, p: &DocParam) -> Option<NonFiniteSite> {
+    let site = || NonFiniteSite::DocParam { name: name.clone() };
     match p {
-        DocParam::Continuous { value, .. } if !value.is_finite() => {
-            Some(NonFiniteSite::DocParam { name: name.clone() })
-        }
+        DocParam::Continuous { value, .. } if !value.is_finite() => Some(site()),
+        // The distribution's offsets are floats the format writes, so
+        // they belong to THIS walk rather than to a second spelling of
+        // the same defect; the shape invariants are
+        // `first_distribution_fault`'s.
+        DocParam::Continuous {
+            distribution: Some(d),
+            ..
+        } if d.first_non_finite().is_some() => Some(site()),
         // EXHAUSTIVE on purpose: a guarded arm does not count towards
         // exhaustiveness, so the finite `Continuous` case is spelled
         // out alongside the float-free ones rather than swept up by a
         // wildcard that would also swallow a future float carrier.
         DocParam::Continuous { .. } | DocParam::Count { .. } => None,
     }
+}
+
+/// The first document parameter whose distribution breaks an E2
+/// invariant other than finiteness (`sigma > 0`; bounds containing the
+/// nominal), by the SAME [`crate::Distribution::check`] the edit door
+/// runs —
+/// so a hand-written file with `sigma: -1` refuses at LOAD with the
+/// diagnostics SAVE refuses with, and never loads best-effort.
+///
+/// Runs after the float walk, so a non-finite offset is reported as a
+/// non-finite float rather than as a shape fault.
+fn first_distribution_fault(snapshot: &ProfileDoc) -> Option<(ParamName, DistributionFault)> {
+    snapshot
+        .params
+        .iter()
+        .find_map(|(name, p)| match p.distribution()?.check() {
+            Ok(()) => None,
+            Err(fault) => Some((name.clone(), fault)),
+        })
 }
 
 /// Walks the program payload's RAW floats — exactly the 12 plane

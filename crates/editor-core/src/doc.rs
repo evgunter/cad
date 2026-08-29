@@ -10,6 +10,7 @@ use std::collections::BTreeMap;
 use geom_core::Real;
 
 use crate::appearance::{AppearanceMap, AppearanceRecord};
+use crate::distribution::Distribution;
 use crate::expr::{Dimension, Expr, ExprPath, ParamEnv, ParamValue};
 use crate::ident::DocumentId;
 use crate::names::StableName;
@@ -42,8 +43,21 @@ pub enum DocParam {
         dim: Dimension,
         /// The value, exact `f64`.
         value: f64,
+        /// Optional uncertainty about this parameter (ERROR-DESIGN
+        /// E1/E2), as offsets from `value` in the parameter's own
+        /// `dim`. Document metadata read ONLY by
+        /// [`crate::analysis`]: it enters no evaluation, no content
+        /// key and no predicate, and `None` — the default — means the
+        /// parameter is FIXED, not that its uncertainty is unknown.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        distribution: Option<Distribution>,
     },
     /// An integer Count parameter (structural material, spec D3).
+    ///
+    /// Carries NO distribution, and cannot: structural parameters are
+    /// fixed under any error analysis (E11.3), which comes out
+    /// UNREPRESENTABLE here rather than as a refusal — there is no
+    /// spelling to refuse.
     Count {
         /// The exact value.
         value: i64,
@@ -59,6 +73,25 @@ impl DocParam {
         }
     }
 
+    /// A continuous parameter with no distribution — the plain
+    /// authoring spelling.
+    pub fn continuous(dim: Dimension, value: f64) -> Self {
+        Self::Continuous {
+            dim,
+            value,
+            distribution: None,
+        }
+    }
+
+    /// This parameter's distribution, if it is continuous and carries
+    /// one.
+    pub fn distribution(&self) -> Option<&Distribution> {
+        match self {
+            Self::Continuous { distribution, .. } => distribution.as_ref(),
+            Self::Count { .. } => None,
+        }
+    }
+
     /// Bit-semantic equality (spec D7): continuous values compare by
     /// BITS (`0.0` ≠ `-0.0` here), everything else structurally.
     ///
@@ -71,8 +104,27 @@ impl DocParam {
     /// identity and the document diff reading the same wrong answer.
     pub fn bit_eq(&self, other: &DocParam) -> bool {
         match (self, other) {
-            (Self::Continuous { dim: da, value: va }, Self::Continuous { dim: db, value: vb }) => {
-                da == db && va.to_bits() == vb.to_bits()
+            (
+                Self::Continuous {
+                    dim: da,
+                    value: va,
+                    distribution: ha,
+                },
+                Self::Continuous {
+                    dim: db,
+                    value: vb,
+                    distribution: hb,
+                },
+            ) => {
+                da == db
+                    && va.to_bits() == vb.to_bits()
+                    // Present-vs-present compares BIT-exact on the
+                    // offsets; present-vs-absent differs.
+                    && match (ha, hb) {
+                        (None, None) => true,
+                        (Some(a), Some(b)) => a.bit_eq(b),
+                        (None, Some(_)) | (Some(_), None) => false,
+                    }
             }
             (Self::Count { value: a }, Self::Count { value: b }) => a == b,
             (Self::Continuous { .. }, Self::Count { .. })
@@ -307,8 +359,11 @@ impl<P> Doc<P> {
             .params
             .iter()
             .map(|(name, p)| {
+                // The nominal alone crosses into evaluation: a
+                // distribution is document metadata the scalar channel
+                // never sees (E1).
                 let v = match *p {
-                    DocParam::Continuous { dim, value } => ParamValue::Continuous {
+                    DocParam::Continuous { dim, value, .. } => ParamValue::Continuous {
                         dim,
                         value: T::from_f64(value),
                     },

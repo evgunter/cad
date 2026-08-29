@@ -5,6 +5,7 @@
 //! this layer (spec D2).
 
 use crate::appearance::{Attr, AttrKind};
+use crate::distribution::DistributionFault;
 use crate::doc::{Doc, DocParam, ParamName};
 use crate::expr::{Dimension, DimensionError, Expr, ExprPath};
 use crate::meta::{MetaValue, MetaVersionError};
@@ -361,12 +362,23 @@ pub enum EditError {
         /// The name whose node is not live.
         name: StableName,
     },
-    /// A non-finite (NaN/inf) continuous doc-param value — refused at
-    /// the edit door (ruled door 1 of the non-finite policy; F3's
+    /// A non-finite (NaN/inf) float on a continuous doc param — its
+    /// value or one of its distribution's offsets — refused at the
+    /// edit door (ruled door 1 of the non-finite policy; F3's
     /// persist-time refusal then has nothing to catch).
     NonFiniteDocParam {
         /// The parameter.
         name: ParamName,
+    },
+    /// A doc param's distribution breaks an E2 invariant other than
+    /// finiteness: `sigma > 0`, or bounds containing the nominal.
+    /// The SAME check the persistence doors run, so a document that
+    /// would refuse to load cannot be authored.
+    InvalidDistribution {
+        /// The parameter.
+        name: ParamName,
+        /// The invariant that failed.
+        fault: DistributionFault,
     },
     /// A `Rebind` whose target name's node is not live (the selection
     /// must denote something the recipe still has — best-diagnostics
@@ -663,8 +675,13 @@ impl core::fmt::Display for EditError {
                 f,
                 "edit: declared name {name:?} refers to a node that is not live"
             ),
-            Self::NonFiniteDocParam { name } => {
-                write!(f, "edit: parameter {:?}: the value must be finite", name.0)
+            Self::NonFiniteDocParam { name } => write!(
+                f,
+                "edit: parameter {:?}: the value and every distribution offset must be finite",
+                name.0
+            ),
+            Self::InvalidDistribution { name, fault } => {
+                write!(f, "edit: parameter {:?}: {fault}", name.0)
             }
             Self::RebindTargetMissingNode { name } => write!(
                 f,
@@ -1078,11 +1095,32 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
                 return Err(EditError::ContinuousParamCannotBeCount { name: name.clone() });
             }
             // Ruled door 1 (non-finite policy): recipe data never
-            // carries NaN/inf.
+            // carries NaN/inf — the nominal and the distribution
+            // offsets alike.
             if let DocParam::Continuous { value: v, .. } = value
                 && !v.is_finite()
             {
                 return Err(EditError::NonFiniteDocParam { name: name.clone() });
+            }
+            // Every E2 invariant, from the ONE shared check the
+            // persistence doors also run: a non-finite offset joins
+            // the non-finite class above, the rest refuse as a
+            // distribution fault.
+            if let Some(d) = value.distribution()
+                && let Err(fault) = d.check()
+            {
+                return Err(match fault {
+                    DistributionFault::NonFinite { .. } => {
+                        EditError::NonFiniteDocParam { name: name.clone() }
+                    }
+                    DistributionFault::SigmaNotPositive { .. }
+                    | DistributionFault::NominalOutsideSupport { .. } => {
+                        EditError::InvalidDistribution {
+                            name: name.clone(),
+                            fault,
+                        }
+                    }
+                });
             }
             let structural = matches!(value, DocParam::Count { .. });
             new.params.insert(name.clone(), value.clone());

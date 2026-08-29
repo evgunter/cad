@@ -369,9 +369,41 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 /// in `docs/MODEL-AB-LOG.md`, where a second claimant collides
 /// instead of merging clean.
 ///
+/// Version 15 is **distributions in the document** (ERROR-DESIGN
+/// E1/E2, ratified; M10-1): [`crate::DocParam::Continuous`] gained an
+/// optional [`crate::Distribution`] — the parameter's uncertainty as
+/// offsets from its own nominal, in its own dimension. Document
+/// metadata read only by [`crate::analysis`]; it enters no evaluation
+/// and no content key.
+///
+/// The claim reasoning, stated because a schema number is the one
+/// thing in this repo that two units can silently agree on: the field
+/// is `skip_serializing_if = "Option::is_none"`, so a document that
+/// declares no distribution writes the v14 bytes exactly — that is the
+/// DEGENERATE CARRY, not the format claim. The format claim is the
+/// populated key: a v14 reader handed a param carrying
+/// `"distribution"` meets a field its `deny_unknown_fields` document
+/// types have no name for and dies inside serde rather than at the
+/// version door, which is exactly the direction the gate exists to
+/// fail cleanly. Forward-additive as ever (a v14 file declares no
+/// distributions), and the migration table stays empty: a v14 file
+/// refuses TYPED with the regenerate recourse.
+///
+/// [`crate::DocParam::Count`] parameters gained nothing, deliberately:
+/// structural parameters are fixed under any error analysis, which
+/// comes out unrepresentable rather than as a refusal.
+///
+/// This number was taken by an explicit by-eye read of main's constant
+/// at the final re-merge (`git show
+/// origin/main:crates/editor-core/src/persist/mod.rs | grep
+/// SCHEMA_VERSION`), the only thing that has ever caught the
+/// same-number race, and the claim also lives as prose in
+/// `docs/MODEL-AB-LOG.md`, where a second claimant collides instead of
+/// merging clean.
+///
 /// Bump ONLY with a ratified format change — plus its
-/// [`migration_step`] entry, or a ratified break like these thirteen.
-pub const SCHEMA_VERSION: u32 = 14;
+/// [`migration_step`] entry, or a ratified break like these fourteen.
+pub const SCHEMA_VERSION: u32 = 15;
 
 /// The serialized body under the header: snapshot + edit log (D1).
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -423,6 +455,18 @@ pub enum PersistError {
         node: crate::node::RecipeNodeId,
         /// The typed fault.
         fault: check::ProgramFault,
+    },
+    /// A document parameter's distribution breaks an E2 invariant
+    /// (ERROR-DESIGN E2; finiteness is [`Self::NonFinite`]'s half).
+    /// Shared-validator check, by the same `Distribution::check` the
+    /// edit door runs: save refuses before a byte is written, and a
+    /// hand-written file refuses at LOAD with the same diagnostics —
+    /// never a best-effort load.
+    Distribution {
+        /// The parameter carrying the fault.
+        name: crate::doc::ParamName,
+        /// The invariant that failed.
+        fault: crate::distribution::DistributionFault,
     },
     /// The serializer itself failed (I/O-free here, so effectively
     /// unreachable; surfaced rather than swallowed).
@@ -537,6 +581,11 @@ impl core::fmt::Display for PersistError {
                 f,
                 "persist: profile program fault at node {}: {fault}",
                 node.0
+            ),
+            Self::Distribution { name, fault } => write!(
+                f,
+                "persist: document parameter {:?}: {fault}",
+                name.0
             ),
             Self::Serialize { message } => write!(f, "persist: serializer failed: {message}"),
             Self::Header { found } => {
