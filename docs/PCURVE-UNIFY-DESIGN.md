@@ -13,14 +13,15 @@ revisit Scaffold"); only the doc's description of where the fence
 falls was wrong. Legal as a description only through the scaffolding
 door; tier 3 refuses it at rest;
 Seam folds in as drafted. Q3 (the authority record's home) adopted
-by dominant argument with Evan's pushback window open: per-edge
-KERNEL data — forced because tier-3's prefer-intrinsic enforcement
+by dominant argument, its pushback window closed unexercised at
+M9's ratification (#1041): per-edge KERNEL data — forced because
+tier-3's prefer-intrinsic enforcement
 (validate.rs's TransverseNotIntrinsic/TangentNotIntrinsic) must
 read the record replacing MappedCurve's negative space, and the
 naming layer is editor-core, invisible to the kernel; the same
 layering argument that moved ContactClass down. Scheduling
-(delegated): the migration is a post-M9 kernel candidate,
-revisited after M9-3 if the milestone has room.** This is M9-D (M9-PLAN,
+(delegated): the migration is the PCURVE program,
+`docs/PCURVE-PLAN.md`.** This is M9-D (M9-PLAN,
 ratified #509): the ratification pass that must precede any code,
 sequenced before M9-3's seam minting hardens new edge
 descriptions. Substrate: fresh exploration 2026-08-15 (file:line
@@ -108,9 +109,11 @@ M9-core code): M9-3 mints within today's taxonomy but chooses
 emission shapes that map 1:1 onto (surface, pcurve) — the design
 pass exists precisely so M9-3 doesn't harden against the target —
 and **M9-4 collapses into M9-3** (mark-wiring only). Lily wall
-8's `CurvedEdgeUnsupported` dependency resolves at the migration
-unit, not before; #388 takes its option (a) unblocked; #498
-inherits `General` as its named home when the migration lands.
+8's `CurvedEdgeUnsupported` does NOT resolve here —
+`gate_operand_edges` refuses on the edge CARRIER's kind, which the
+migration never touches (PCURVE-PLAN P-3); #388 takes its option (a)
+unblocked; #498 inherits `General` as its named home when the
+migration lands.
 
 ## Questions for Evan
 

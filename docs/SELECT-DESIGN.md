@@ -148,6 +148,7 @@ GeomPred =                       -- a CONJUNCTION of atoms
 select_where<T: Decide>(
     ev: &Evaluation<T>, node: RecipeNodeId,
     sel: &Selector, geom: &[GeomPred],
+    params: &ParamEnv<T>, tol: Tol,
 ) -> Result<Vec<StableName>, SelectRefusal>
 ```
 
@@ -206,6 +207,7 @@ library form is three separated pieces:
 ```text
 find_flush_candidates<T: Decide>(
     ev: &Evaluation<T>, a: RecipeNodeId, b: RecipeNodeId,
+    tol: Tol,
 ) -> Result<Vec<FlushFinding>, SelectRefusal>
 
 FlushFinding {
@@ -264,9 +266,8 @@ contact, matching C4's failure table verbatim. The error message
 renders the finding; the GUI renders the same finding as its
 declare-affordance dialog (§4's one-type rule at work).
 
-**What ships first**: flush/`Rest` planes is the whole v1 detector —
-it is the only demand-evidenced case (the flush helper, the boolean
-test suites,
+**The v1 detector is flush/`Rest` planes** — the only
+demand-evidenced case (the flush helper, the boolean test suites,
 the M4 declarer), and `Rest`'s verify ladder is the most mature.
 `Tangent` and `Fit` findings reuse the same `FlushFinding`/
 `ContactClass` shape when their demand arrives; the type is built
@@ -347,34 +348,18 @@ and from that point the GUI is indistinguishable from a library
 caller. No parallel "GUI selection object", no conversion layer,
 no second staleness story.
 
-## 5. Sequencing and sizing
+## 5. What this design does not depend on
 
-**No SWITCH dependency.** Selectors interrogate EVALUATED bodies
-through the name table; nothing here touches profile representation,
-schema v4, or Expr binding. `Node::Declare` is shipped vocabulary,
-so §3's sugar adds no schema change. The one soft ordering:
-implementation extends `names/select.rs` and `pncad::select`, which
-U7's R2/fix-pass is still churning — start after U7's merge settles
-(days, not units).
+**No representation dependency.** Selectors interrogate EVALUATED
+bodies through the name table; nothing here touches profile
+representation, the persisted schema, or Expr binding.
+`Node::Declare` is shipped vocabulary, so §3's sugar adds no schema
+change.
 
-**Position in the ladder**: parallel with SWITCH-P/E, before U9 —
-U9 (Python bindings) wants this surface bound once, not rebound
-(the same reason U7 preceded it), and the GUI's G3 minimum consumes
-§4's one-type rule. The datum-distance predicate takes an `Expr`
-value; if U8b's unit storage lands first it inherits units for
-free, but a plain `Expr` is correct either way — soft, not a gate.
-
-**Sizing** (house scale): the whole design is **L, staged as two
-PRs / one A/B unit**:
-- PR-1 (**M**): `GeomPred` + `select_where` + Tied/in-band refusals
-  + pncad doors + tour demo rework (the hand-written filters
-  become the acceptance evidence — diefillet's two filters rewrite
-  to one `select_where` call each).
-- PR-2 (**M**): `find_flush_candidates` on the C4 verify ladder +
-  declare sugar + the `UndeclaredContact` menu carrying
-  `FlushFinding` + flush-helper demo rework. (If the verifier needs
-  refactoring to expose candidate-generation mode, PR-2 leans L —
-  the named spec risk.)
+**The datum-distance predicate takes an `Expr` value**, never a bare
+float: a selection rule written against a named document parameter
+is the whole point of the value type. Unit storage rides along
+wherever it exists; a plain `Expr` is correct either way.
 
 ## 6. Out of scope, recorded
 

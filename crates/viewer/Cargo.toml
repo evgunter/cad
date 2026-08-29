@@ -130,6 +130,12 @@ app = [
     "dep:rfd",
     "dep:winit",
 ]
+# Forwards the interval feature so the workspace-wide `--features
+# interval` lane builds uniformly (the viewer itself is f64-only; the
+# feature only propagates to the façade). Every other workspace crate
+# already carries this forward; a `-p viewer`-scoped CI run that draws
+# the interval lane fails at `cargo`'s door without it.
+interval = ["pncad/interval"]
 
 [[bin]]
 name = "viewer"

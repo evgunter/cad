@@ -245,6 +245,7 @@ Diagnosis =
   | StructuralParam { node, param }
   | RecipeEdit { edit }
   | Cascade { through: StableName }                                    // operand vanished upstream
+  | WitnessBifurcation(WitnessBifurcation)                             // SOLVER-DESIGN W3's payload
 ```
 
 - The **diagnosis is computable** because both evaluations' verdict
@@ -295,12 +296,13 @@ GeomSource = { node: RecipeNodeId, expr: ExprPath, orient: Or }   // Or ∈ {Id,
   comparison survives only as `debug_assert!(same_source ⇒ eq_bits)`
   — the "records agree with bits" assertion DESIGN.md's M4 entry
   promises, now with a definition that can actually hold.
-- Migration of the allowlisted consumers: `merge_faces.rs` and
-  `plane_eq.rs` (oriented_plane_eq) move to `(GeomSource, orient)`
-  comparison; `bit_identity.rs` becomes debug/test-only;
-  `interval.rs`'s use is scalar plumbing unrelated to coincidence and
-  keeps its own allowlist entry with a renamed justification. CI
-  tripwires stay until the last production consumer is gone.
+- The allowlisted consumers: `merge_faces.rs` and `plane_eq.rs`
+  (oriented_plane_eq) compare `(GeomSource, orient)`;
+  `bit_identity.rs` is debug/test-only; `interval.rs`'s use is scalar
+  plumbing unrelated to coincidence and keeps its own allowlist entry
+  with a renamed justification. The CI tripwires stay ARMED over an
+  empty production-consumer allowlist — a new production consumer is
+  a regression against the retirement, not a step in a migration.
 
 ## N7 — What the pillar now says, exhaustively
 
@@ -319,17 +321,11 @@ contract).
 
 ## Open after this doc
 
-- GQ1 mechanism details (witness representation for constraint
-  branches) — next doc; N5's `Diagnosis` deliberately leaves room for
-  a `WitnessBifurcation` arm.
 - Out-of-family detection (lit mode 7): a typed resolution failure
   says the name broke, not that the edit left the design family; a
   family-membership predicate (Raghothama–Shapiro necessary, Wang
   sufficient — nothing tight exists) is far-future, and honestly may
   never be decidable in the useful generality.
-- The concrete Rust shape of `RolePath` segments per existing op
-  (extrude/revolve/split/booleans) — M4 PR-level work; the vocabulary
-  above is the contract, the enums are implementation.
 - Which (if any) rebinding policies to ratify after v1 experience;
   the menu starts empty by decision.
 

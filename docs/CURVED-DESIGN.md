@@ -851,10 +851,9 @@ records, the Rest/Tangent/Fit declaration vocabulary with
 per-class verification tables, the signed gap co-designed for
 M10, interference-fit semantics, the join-lane target, and the
 disposition itself). Ratification changes no verdict on any body
-(CONTACT-DESIGN C8's invariant); implementation is sequenced
-separately (banked past M6 unless M7 adoption pulls it). The
-refusal-text migration named in CONTACT-DESIGN C8 rides any
-touching PR.
+(CONTACT-DESIGN C8's invariant); the C7 join lane and the A5
+at-rest census door shipped in M9, and the refusal-text migration
+named in CONTACT-DESIGN C8 landed with them (#588).
 
 **OQ6 — Fillet scope box.** Closed smooth chains + three-convex-edge
 sphere corner, everything else `FilletCornerUnsupported` (C8's
@@ -925,8 +924,8 @@ long shadow.
 
 **DECIDED (Evan, #85, 2026-07-24) — pending whole-doc ratification:**
 the in-house ring is approved, doubling as the seed of the eventual
-inari replacement; see the C9 transition note for the temporary
-inari-on-default-path allowance while the ring lands.
+inari replacement; the temporary inari-on-default-path allowance C9
+sketched was never needed (see C9's decision note).
 
 **OQ9 — Q5 closure trigger.** The curvo audit verdict will land
 during M5 planning; if it recommends vendoring specific algorithms

@@ -25,8 +25,8 @@ it), everything explicit, no assumptions/silent fudging.
 - All 7 backups (Scruple, Quiddity, Apartness, Realizer, Quadrance,
   Esakia, Glivenko) remain free on both registries.
 
-## Shortlist (Evan-liked, all crates.io-AVAILABLE; first three checked
-2026-07-23, Tertium 2026-07-25)
+## Shortlist (Evan-liked; availability per the re-sweep above — Selvage
+LOST; first three checked 2026-07-23, Tertium 2026-07-25)
 
 - **Intension** — the philosopher's term for exactly the architecture:
   the definitional content of a thing vs its *extension* (the point
@@ -42,8 +42,8 @@ it), everything explicit, no assumptions/silent fudging.
   on crates.io; only tiny GitHub repos.
 - **Selvage** — the woven edge that cannot fray → watertight
   boundaries by construction. Evan likes it a lot but judges it
-  slightly tangential to the intensional core. crates.io free; tiny
-  GitHub collisions only.
+  slightly tangential to the intensional core. crates.io CLAIMED
+  2026-07-24 and PyPI taken — off the board (re-sweep above).
 - **Tertium** (added 2026-07-25, from the constructive-logic vein) —
   from *tertium non datur*, the excluded middle: "no third is given."
   The trilean predicates give a third; the tagline is *tertium datur*.
@@ -157,7 +157,8 @@ Ruled out in this vein:
 - crates.io TAKEN: dyad, dyadic, trit, plumb, ambit.
 
 Before ratifying any pick into Q9: re-run the crates.io/GitHub sweep
-(fresh — the 2026-07-23 checks go stale) and a trademark sanity look;
+(fresh — even the 2026-08-08 re-sweep goes stale) and a trademark
+sanity look;
 then DESIGN.md Q9 closes + crate-prefix rename as a mechanical PR.
 
 ## Placeholder in use (2026-08-06, Evan-approved)

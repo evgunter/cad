@@ -324,3 +324,18 @@ platform probes (environment-as-subject, argued in the gate
 header). No A/B ceremony per the post-close maintenance precedent
 (#1108); orchestrator-reviewed. Next: the add-parameter affordance
 PR (queued behind this merge).
+
+**Post-close maintenance (2026-08-28, PR #1129 — the add-parameter
+affordance, Evan-requested):** the panel creates document
+parameters (name + dimension + value, one `SetDocParam`, one undo
+step) and the expression box's unknown-name refusal now OFFERS
+creation with the draft restored — the ratified
+refuse-then-offer pattern completed. The create door refuses an
+existing name typed (`ParamExists`; the edit door conversely
+refuses a missing one — the two chrome doors partition the API's
+create-or-replace, which is untouched). Rider fix for a latent
+class: `viewer` now forwards the `interval` feature like every
+other workspace crate — found when the lane's first run drew the
+interval lane with `-p viewer` scope; any viewer-only diff would
+have hit it. Orchestrator-reviewed, no A/B ceremony (maintenance
+precedent).

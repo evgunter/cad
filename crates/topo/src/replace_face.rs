@@ -12,8 +12,20 @@
 //! # What moves and what does not
 //!
 //! **The neighbours' surfaces are untouched.** Only the named face's
-//! surface is replaced; every other face keeps the chart it had. What
-//! must then be re-derived is everything the replaced chart carries:
+//! surface is replaced; every other face keeps the chart it had.
+//!
+//! **That premise is this door's, not the verb's**, and it is what
+//! bounds the door: composing it over a whole boundary transports each
+//! corner once per chart, which is the offset body's corner only where
+//! the normals are mutually perpendicular. At an OBLIQUE junction it is
+//! not, and [`ReplaceFaceError::ReanchorOffCarrier`] is what refuses to
+//! build the difference (#1081). A body whose faces are ALL PLANES has
+//! another route — [`crate::offset_planes_together`], which moves every
+//! chart at once and solves each corner simultaneously; this door is
+//! what everything else still takes.
+//!
+//! What must then be re-derived is everything the replaced chart
+//! carries:
 //!
 //! - the face's boundary edges' carriers and descriptions,
 //! - the points of the vertices those edges end at,
@@ -265,14 +277,91 @@ pub enum ReplaceFaceError<T: Real> {
         /// meters.
         gap: T,
     },
-    /// An edge ending at a moved vertex, but not on the replaced face's
-    /// boundary, could not be re-anchored: its new endpoint is
-    /// definitely off its (unchanged) carrier.
+    /// **The PER-FACE door's finding**: an edge ending at a moved
+    /// vertex, but not on the replaced face's boundary, could not be
+    /// re-anchored — its new endpoint is definitely off its own
+    /// carrier, which did not move because the surfaces holding it did
+    /// not.
+    ///
+    /// This is the gate that stands between the per-face door and an
+    /// OBLIQUE junction's wrong body: composing that door over a whole
+    /// boundary transports each corner once per chart, which is not the
+    /// point an offset body needs, and the `gap` is the difference.
+    /// `offset_planes_together` solves such corners simultaneously and
+    /// does not reach here; everything outside that door's scope —
+    /// every curved corner — still does.
+    ///
+    /// The simultaneous door has its OWN disagreement finding,
+    /// [`ReplaceFaceError::TogetherEdgeDisagreement`]; this variant is
+    /// not reused for it.
     ReanchorOffCarrier {
         /// The edge whose carrier the moved vertex left.
         edge: EdgeKey,
         /// The measured distance from the moved point to the carrier,
         /// in meters.
+        gap: T,
+    },
+    /// **The simultaneous door's scope gate**: a face it was asked to
+    /// move is not a plane. Its corner solve is three plane equations,
+    /// and a curved face has no such equation — the C5-table work that
+    /// follows this unit is where those corners land. Until then they
+    /// refuse where they always did, at
+    /// [`ReplaceFaceError::ReanchorOffCarrier`].
+    TogetherNonPlanar {
+        /// The face that is not a plane.
+        face: FaceKey,
+        /// What it carries instead.
+        kind: SurfaceKind,
+    },
+    /// **The simultaneous door's other scope gate**: a face of the body
+    /// was not in the moving set. Every corner's answer depends on all
+    /// the planes meeting it, so a set the door was not told about in
+    /// full is a set it cannot solve against.
+    TogetherPartialSet {
+        /// A face of the body that no chart move named.
+        face: FaceKey,
+    },
+    /// **A corner the simultaneous door cannot solve.** Either fewer
+    /// than three distinct planes meet there, or every triple of them
+    /// is singular, or — the valence-past-3 shape — the planes do not
+    /// concur after the offset, so no point satisfies them all. Refused
+    /// rather than solved on a subset and hoped over: a corner placed
+    /// off one of its own planes is a wrong body no tier catches.
+    TogetherCorner {
+        /// The vertex.
+        vertex: VertexKey,
+        /// How many distinct planes meet there.
+        planes: usize,
+        /// Which of the shapes above it is.
+        what: &'static str,
+    },
+    /// **The simultaneous door: two chart moves disagree about one
+    /// face**, or one chart's faces do not all wear the same surface.
+    TogetherChartMixed {
+        /// The face whose surface differs.
+        face: FaceKey,
+        /// The chart's first face, whose surface it should have worn.
+        other: FaceKey,
+    },
+    /// **The simultaneous door: a face was named by more than one chart
+    /// move**, so its offset is two different numbers.
+    TogetherFaceRepeated {
+        /// The face named twice.
+        face: FaceKey,
+    },
+    /// **The simultaneous door: two corner solves disagree about where
+    /// an edge ends.** Distinct from
+    /// [`ReplaceFaceError::ReanchorOffCarrier`], which is the per-face
+    /// door's finding about a moved vertex leaving an UNMOVED
+    /// neighbour's carrier. This one is the simultaneous door's: the
+    /// edge's own line was carried to where its two moved planes put
+    /// it, and the far endpoint — solved independently, against a
+    /// different triple of planes — did not land on it. Two solves
+    /// agreeing is the claim; this is it failing.
+    TogetherEdgeDisagreement {
+        /// The edge whose two ends were solved apart.
+        edge: EdgeKey,
+        /// How far the far endpoint missed the line, in meters.
         gap: T,
     },
     /// A margined predicate escalated: the margin landed in the
@@ -413,6 +502,41 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
             Self::Pcurve { source } => {
                 write!(f, "replace_face_offset: the pcurve mint refused: {source}")
             }
+            Self::TogetherChartMixed { face, other } => write!(
+                f,
+                "offset_planes_together: {face:?} does not wear the same surface as its chart's \
+                 {other:?} — a chart move names ONE chart"
+            ),
+            Self::TogetherFaceRepeated { face } => write!(
+                f,
+                "offset_planes_together: {face:?} is named by more than one chart move, so its \
+                 offset is two different numbers"
+            ),
+            Self::TogetherEdgeDisagreement { edge, gap } => write!(
+                f,
+                "offset_planes_together: {edge:?}'s two ends were solved {gap:?} m apart — the \
+                 far corner's own solve did not land on the line its two moved planes carry"
+            ),
+            Self::TogetherNonPlanar { face, kind } => write!(
+                f,
+                "offset_planes_together: {face:?} carries a {kind:?}, and this door solves \
+                 corners as plane equations — a curved corner has none"
+            ),
+            Self::TogetherPartialSet { face } => write!(
+                f,
+                "offset_planes_together: {face:?} is a face of the body that no chart move \
+                 named — every corner's answer depends on all the planes meeting it, so a \
+                 partial set has corners this door cannot solve"
+            ),
+            Self::TogetherCorner {
+                vertex,
+                planes,
+                what,
+            } => write!(
+                f,
+                "offset_planes_together: the corner at {vertex:?} ({planes} distinct planes) \
+                 has no offset point — {what}"
+            ),
             Self::ResultNotClosed { errors } => write!(
                 f,
                 "replace_face_offset: the re-described body is not tier-2 valid ({} errors); \
@@ -635,7 +759,7 @@ fn mid_domain_normal<T: Decide>(s: &NurbsSurface<T>) -> Option<Vec3<T>> {
 /// `curve` translated by `delta` — exact on every carrier kind (a
 /// translation acts on the stored anchor and leaves every frame,
 /// radius and weight alone).
-fn translate_curve<T: Real>(
+pub(crate) fn translate_curve<T: Real>(
     curve: &Curve3<T>,
     delta: Vec3<T>,
 ) -> Result<Curve3<T>, geom_core::spline::SplineError> {
@@ -1356,7 +1480,7 @@ fn plan_edge<T: Decide>(
 /// `mapped` under the translation `delta` — the placement's own
 /// translation absorbs it. `None` on the rotation family, whose
 /// trajectory is not a rigid function of the placement's translation.
-fn translate_mapped<T: Real>(
+pub(crate) fn translate_mapped<T: Real>(
     mapped: geom_brep::MappedCurve<T>,
     delta: Vec3<T>,
 ) -> Option<geom_brep::MappedCurve<T>> {

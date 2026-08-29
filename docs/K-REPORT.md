@@ -174,9 +174,12 @@ gathered across M2's full pipeline.
   executed set is `scripts/gates/probe-suite-census.sh`'s `RUN_FLOOR`,
   and `scripts/k_probe_sweep.sh` is what runs it: two `--ignored` dump
   invocations (`m4_pr8_k_probe::` in `editor-core`, `k_report::` in
-  `sweep`) inside the ε loop, and two default-selection preconditions
-  before it (`m4_pr8_k_probe::` and `m5_pr5_corpus_probe::`, both in
-  `editor-core`). Every other censused suite is compiled and not run, and
+  `sweep`) inside the ε loop, and five default-selection runs before it
+  (`m4_pr8_k_probe::` and `m5_pr5_corpus_probe::` in `editor-core`,
+  `certified_door::` in `geom-core`, `k_report::` and
+  `review_chamfer_r1_probes::` in `sweep` — `k_report::` runs no test
+  under that selection and is rostered so its row reports the
+  complement). Every other censused suite is compiled and not run, and
   each of them says so in its own header — the census gate refuses a
   probe suite that is on neither side, so a new one has to pick.
 
