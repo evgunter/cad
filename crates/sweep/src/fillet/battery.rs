@@ -1305,6 +1305,34 @@ fn edge_surfaces<T: Decide>(body: &Body<T>, edge: EdgeKey) -> Option<(SurfaceKey
 /// not a corner, no run-out policy addresses it, and the door that does
 /// is the closed-rim one — which is what [`CornerConfig::SeamVertex`]
 /// says.
+///
+/// # One rule, three readings, and which is the weakest
+///
+/// The same incidence is spelled at three sites, deliberately not
+/// shared, because each answers a different question and two of them
+/// run against a body the third has already mutated:
+///
+/// - **here** — a REFUSAL classifier over a chain end's edge orbit. It
+///   reads incidence and nothing else: no convexity, no arm, no
+///   support-face resolution. It is the WEAKEST of the three, and that
+///   is load-bearing rather than incidental — a tag that fired only
+///   where the carve succeeds could not name a door in its recourse at
+///   all, and the price is that the recourse's carve half must be
+///   CONDITIONED (see `FILLET3_SEAM_VERTEX_RECOURSE`, whose hedge exists
+///   exactly because this predicate is blind to convexity);
+/// - `surgery::resolve_seam_split_rim` — the multi-arc ADMISSION,
+///   which adds everything this one omits (one support pair for the
+///   whole rim, ring-free half-band supports each carrying one arc, the
+///   arcs walking one cycle) and so is strictly stronger;
+/// - `surgery::resolve_annulus` / `wall_seam` — the ONE-EDGE admission,
+///   whose set-equality on the rim vertex's orbit is the same shape
+///   read against a single self-closed edge and its doubly-traversed
+///   wall seams.
+///
+/// The intended relation is: this one ADMITS every site the other two
+/// do, and more. Anything that narrows it must narrow the recourse with
+/// it; anything that widens the other two must not silently assume this
+/// one already screened it.
 fn is_seam_vertex<T: Decide>(body: &Body<T>, edges: &[EdgeKey]) -> bool {
     let mut seams: Vec<SurfaceKey> = Vec::new();
     let mut rim: Vec<(SurfaceKey, SurfaceKey)> = Vec::new();

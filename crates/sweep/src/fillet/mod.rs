@@ -321,15 +321,35 @@ pub const FILLET3_CORNER_RECOURSE: &str = "fillet a chain that terminates in a t
 ///
 /// It names the REQUEST that describes what the caller wants — the rim
 /// entire, which is a closed chain — rather than a run-out policy,
-/// because a run-out at a smooth point is not what is missing. Whether
-/// that closed chain's band is then carved is the closed-rim surgery's
-/// own question and it answers it in its own words: today the ring-free
-/// annulus band is a ONE-EDGE rim's, so a rim a seam has split still
-/// meets that door's frontier. This sentence deliberately stops short of
-/// promising the carve.
+/// because a run-out at a smooth point is not what is missing. The
+/// closed-rim surgery CARVES that request where the rim is CONVEX: its
+/// annulus band takes a multi-link closed chain whose links are one
+/// rim's arcs across chart seams, walking through the seam vertices and
+/// resting on several faces of one surface per side.
+///
+/// **The carve half is CONDITIONED, and the condition is not
+/// decoration.** This tag's firing rule
+/// ([`battery::is_seam_vertex`](battery)) is purely INCIDENCE — two rim
+/// arcs carrying one support pair, plus two co-surface seam meridians —
+/// and never reads convexity, while the convexity gate sits downstream
+/// in the surgery's own rim resolution. So the tag fires at a CONCAVE
+/// seam-split rim's vertex exactly as readily, and an unconditional
+/// promise would be false there: the whole-rim request answers with the
+/// material-side refusal instead (the concave closed-rim band is
+/// unbuilt, filed as evgunter/cad issue 1244). Naming a door that
+/// cannot serve the caller who was just refused is precisely the defect
+/// the A3-2 correction records; keeping this sentence true on BOTH
+/// material sides is what that standard costs.
+///
+/// Held to it by
+/// `sweep/tests/review_blend1_r2_probes.rs::the_seam_vertex_recourse_is_true_at_every_site_the_tag_fires`,
+/// which asserts the sentence and the whole-rim answer TOGETHER, convex
+/// and concave, so neither half can drift alone.
 pub const FILLET3_SEAM_VERTEX_RECOURSE: &str = "request the rim whole — every arc the chart seam split it into — rather than a \
      chain that stops at the seam, which is a chart artifact the surface is smooth \
-     through";
+     through; where that rim is CONVEX the closed-rim band carves it as one annulus, \
+     and where it is concave the whole-rim request meets the material-side refusal \
+     instead (a concave band adds material, which no closed-rim carve builds)";
 /// The recourse for a CHAIN whose shape is outside the front door of
 /// the in-place composition surgery. True of exactly the chain-shape
 /// refusals: what remains outside is junction carry-through, concave

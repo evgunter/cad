@@ -174,3 +174,46 @@ pub fn closed_plane_sphere_rim(body: &Body<f64>, rim_r: f64) -> EdgeKey {
     );
     hits[0]
 }
+
+/// **Every arc of the latitude rim at radius `rim_r` and station
+/// `rim_y`**, in key order — the selector four suites had each
+/// hand-rolled a copy of.
+///
+/// A rim a chart seam has SPLIT is several edges, and the fillet verbs
+/// take exactly its set: adding one edge more refuses `TangentialEdge`
+/// at margin zero, one edge fewer stops at a seam vertex. So the scan
+/// has two halves and the second is the one that is easy to omit:
+///
+/// 1. circular carriers on the given radius and centre station, and
+/// 2. **only those whose two supports are DIFFERENT surfaces**. A
+///    sphere's seam meridian is a great circle that can share a rim's
+///    radius and centre exactly, so a radius scan alone returns the
+///    chart seams too — and a request carrying one of those refuses on
+///    the co-surface tangency before any rim door is reached.
+///
+/// Comparison is against a fixed `1e-9`: fixtures state their rims
+/// analytically, so this is a fixture-selection tolerance and not a
+/// kernel predicate. There is no PUBLIC door for this yet (the kernel
+/// offers no "give me this rim's arcs" selector; that gap is
+/// evgunter/cad issue 1246, filed on two independent consumer reports),
+/// which is exactly why the test-side copy is homed here rather than
+/// left in four suites.
+#[must_use]
+pub fn rim_arcs_at(body: &Body<f64>, rim_r: f64, rim_y: f64) -> Vec<EdgeKey> {
+    let surface_of = |he| -> Option<topo::SurfaceKey> {
+        let l = body.get_half_edge(he)?.parent_loop;
+        Some(body.get_face(body.get_loop(l)?.face)?.surface)
+    };
+    body.edges()
+        .filter_map(|(k, e)| {
+            let c = body.get_curve_geom(e.curve)?.certified()?;
+            let geom::Curve3::Circle { radius, center, .. } = *c.carrier() else {
+                return None;
+            };
+            if (radius - rim_r).abs() >= 1e-9 || (center.y - rim_y).abs() >= 1e-9 {
+                return None;
+            }
+            (surface_of(e.he_plus)? != surface_of(e.he_minus)?).then_some(k)
+        })
+        .collect()
+}
