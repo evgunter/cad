@@ -5,9 +5,11 @@
 //!
 //! - [`fuzz`], the harness every randomized falsification sweep draws
 //!   its RNG, its per-run seed and its EFFORT dial from.
-//! - [`source`], the tree's one Rust lexer for guards that pin a claim
-//!   about the code against the code, and the three views of a file it
-//!   supports — code only, code with literals, and prose alone.
+//! - [`source`], the SHARED Rust lexer for guards that pin a claim
+//!   about the code against the code — three views of a file (code
+//!   only, code with literals, prose alone) plus the traversals and
+//!   balanced-text operations that read them. The readers still
+//!   outside it are enumerated in `tests/reader_census.rs`.
 //! - [`vacuity`], the **anti-vacuity floor** — a statement of how much a
 //!   sampling guard actually exercised, printed every run and asserted,
 //!   so a run that exercised nothing goes red instead of green.

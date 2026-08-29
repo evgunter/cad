@@ -590,45 +590,52 @@ fn no_arena_key_type_appears_on_a_public_line_of_the_service() {
     // a public function's body is not public surface and is skipped —
     // which is exactly where `pick_face` legitimately holds a
     // `FaceKey`.
+    //
     // Comments and literal bodies blanked once, for the whole file:
-    // the needles are TYPE NAMES, a key named in prose is not a field,
-    // and the brace depth below counts only real braces. The view keeps
-    // line structure, so a line index is still a line number.
+    // the needles are TYPE NAMES, so a key named in prose is not a
+    // field, and every brace below is a real brace — the precondition
+    // `test_utils::source::balanced_end` carves the item body on. The
+    // view keeps byte offsets, so a position is still a line number.
     let code = test_utils::source::code_only(&src);
     let lines: Vec<&str> = code.lines().collect();
+    let starts: Vec<usize> = std::iter::once(0)
+        .chain(code.match_indices('\n').map(|(at, _)| at + 1))
+        .collect();
+    let line_of = |off: usize| starts.partition_point(|&s| s <= off) - 1;
     let mut surface: Vec<(usize, &str)> = Vec::new();
-    let mut i = 0;
-    while i < lines.len() {
-        let t = lines[i].trim_start();
-        if t.starts_with("pub struct") || t.starts_with("pub enum") {
-            let mut depth = 0i32;
-            let mut j = i;
-            loop {
-                let c = lines[j];
-                depth += c.matches('{').count() as i32 - c.matches('}').count() as i32;
-                surface.push((j + 1, c));
-                if (depth <= 0 && j > i) || c.trim_end().ends_with(';') || j + 1 == lines.len() {
-                    break;
-                }
-                j += 1;
-            }
-            i = j + 1;
+    for (i, line) in lines.iter().enumerate() {
+        let t = line.trim_start();
+        let item = t.starts_with("pub struct") || t.starts_with("pub enum");
+        if !item && !t.starts_with("pub fn") {
             continue;
         }
-        if t.starts_with("pub fn") {
-            let mut j = i;
-            loop {
-                let c = lines[j];
-                surface.push((j + 1, c));
-                if c.contains('{') || c.trim_end().ends_with(';') || j + 1 == lines.len() {
-                    break;
-                }
-                j += 1;
-            }
-            i = j + 1;
-            continue;
-        }
-        i += 1;
+        // Where the head ends: the `{` opening a body, or the `;` of a
+        // unit struct or a bodiless declaration, whichever comes first.
+        let from = starts[i];
+        let brace = code[from..].find('{').map(|o| from + o);
+        let semi = code[from..].find(';').map(|o| from + o);
+        let head_end = match (brace, semi) {
+            (Some(b), Some(sc)) if sc < b => sc,
+            (Some(b), _) => b,
+            (None, Some(sc)) => sc,
+            (None, None) => code.len() - 1,
+        };
+        // A `pub fn`'s surface is its signature; an item's surface is
+        // its whole body, because the fields ARE the surface.
+        let last = if item && Some(head_end) == brace {
+            line_of(
+                test_utils::source::balanced_end(&code, head_end).unwrap_or_else(|| {
+                    panic!(
+                        "{}:{}: a public item that never closes",
+                        src_path.display(),
+                        i + 1
+                    )
+                }),
+            )
+        } else {
+            line_of(head_end)
+        };
+        surface.extend((i..=last).map(|n| (n + 1, lines[n])));
     }
     assert!(
         surface.len() > 20,

@@ -5,25 +5,37 @@
 //! # Why this is here rather than in each guard
 //!
 //! A guard that greps its own crate's sources needs an answer to *is
-//! this text code, prose, or a literal*, and the tree's answer used to
-//! be one hand-rolled reader per guard — five of them, no two lexing
-//! the same language, most knowing only a line-leading `//`. The
-//! direction that costs is the silent one: a real site commented out
-//! leaves its text in the file, so a count does not move and the guard
-//! stays green over exactly the change it exists to catch.
+//! this text code, prose, or a literal*, and the answer each guard
+//! reached for was its own — no two lexing the same language, most
+//! knowing only a line-leading `//`. The direction that costs is the
+//! silent one: a real site commented out leaves its text in the file,
+//! so a count does not move and the guard stays green over exactly the
+//! change it exists to catch.
 //!
-//! This crate is where the answer lives because it is a
-//! zero-dependency leaf every crate in the tree already takes as a
-//! dev-dependency, so a guard anywhere can share one lexer instead of
-//! minting the next copy of it.
+//! **This is the shared answer, not the only one in the tree.**
+//! `crates/test-utils/tests/reader_census.rs` enumerates every site
+//! that reads Rust source as text and says which reader each uses; the
+//! readers still outside this module are named there with the track
+//! that owns each, and the shell gates under `scripts/gates/` have a
+//! second home of their own in awk. **Read the ledger for the count —
+//! this paragraph deliberately carries none**, because a number here
+//! is a copy that goes stale in the direction that matters.
+//!
+//! This crate is where the shared answer lives because it is a
+//! zero-dependency leaf that can sit below everything. Most crates
+//! already dev-depend on it; `pncad`, `pncad-py` and `quantity` do
+//! not, and that is not a detail — `pncad/tests/all.rs` holds the
+//! class's largest unconverted reader, and adding the dev-dependency
+//! is the first step of converting it.
 //!
 //! # One lexer, three views, and why the count is three
 //!
-//! [`keeping`] is the only thing here that knows Rust's lexical
-//! grammar. Everything else is a SELECTION over its output, which is
-//! the structural rule: a guard whose needle is a shape the three
-//! named views do not cover asks [`keeping`] for the region set it
-//! wants, and does not write a second lexer to get it.
+//! [`keeping`] is the only thing in this module that knows Rust's
+//! lexical grammar. Everything else is a SELECTION over its output, or
+//! an operation that reads its output as balanced text, which is the
+//! structural rule: a guard whose needle is a shape the three named
+//! views do not cover asks [`keeping`] for the region set it wants,
+//! and does not write a second lexer to get it.
 //!
 //! The three named views are the three a needle can want:
 //!
@@ -39,6 +51,15 @@
 //!   heading that is itself the ledger being pinned). The inverse
 //!   view: code and literals blanked, so a heading spelled in a
 //!   `format!` cannot satisfy a guard that means to read the docs.
+//!
+//! # Three operations over a blanked view
+//!
+//! A blanked view has a property raw source does not: **every bracket
+//! in it is a real bracket**, because one inside a literal or a comment
+//! is a space. Three operations depend on exactly that precondition,
+//! which is why they live beside the lexer rather than at each call
+//! site — [`balanced_end`], [`top_level_split`] and the traversals
+//! [`rust_sources`] and [`suite_files`].
 //!
 //! # What it does not model
 //!
@@ -84,10 +105,12 @@ pub enum Region {
 /// in this one. A multi-byte character is blanked byte for byte, so it
 /// is never half-erased.
 ///
-/// **This is the tree's only Rust lexer for source-text guards, and
-/// the region set is the knob.** The three named views below are
-/// selections over it; a needle wanting a fourth combination passes
-/// the combination, and does not fork the lexer to get it.
+/// **This is the only Rust lexer in this module, and the region set is
+/// the knob.** The three named views below are selections over it; a
+/// needle wanting a fourth combination passes the combination, and
+/// does not fork the lexer to get it. Other Rust lexers do exist in
+/// the tree — `crates/test-utils/tests/reader_census.rs` names each
+/// with the track that owes its conversion.
 #[must_use]
 pub fn keeping(text: &str, keep: &[Region]) -> String {
     let b = text.as_bytes();
@@ -111,6 +134,14 @@ pub fn code_only(text: &str) -> String {
 /// Rust source with every comment blanked and literals KEPT — the view
 /// for a needle that **contains a string literal**, which
 /// [`code_only`] would erase and leave the guard vacuous.
+///
+/// The tree's largest caller is the `every_suite_file_is_aggregated`
+/// row each crate's `tests/all.rs` carries, whose needle is the mount
+/// `#[path = "<suite>.rs"]`. **The argument is stated here so it is
+/// stated once**: a mount that has been commented out must not answer
+/// for the file it names, because `autotests = false` then drops a
+/// whole suite from the build with the guard still green — the silent
+/// direction, at its largest.
 #[must_use]
 pub fn code_and_literals(text: &str) -> String {
     keeping(text, &[Region::Code, Region::Literal])
@@ -307,6 +338,144 @@ pub fn rust_sources(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
     out
 }
 
+/// The byte offset of the delimiter closing the bracket that opens at
+/// `open`, or `None` if it never closes.
+///
+/// **`blanked` must be a view from [`keeping`] that drops literals and
+/// comments** — that is the precondition the whole operation rests on:
+/// in such a view every bracket is a real bracket, so depth counting
+/// IS the parse and no literal tracker is needed. Run over raw source
+/// it is wrong, silently.
+///
+/// `(`, `[` and `{` all count, because a call's argument list can
+/// contain either of the others and a guard that carves one wants the
+/// region, not the kind.
+#[must_use]
+pub fn balanced_end(blanked: &str, open: usize) -> Option<usize> {
+    let mut depth = 0usize;
+    for (off, c) in blanked[open..].char_indices() {
+        match c {
+            '(' | '[' | '{' => depth += 1,
+            ')' | ']' | '}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some(open + off);
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
+/// The byte ranges of the `sep`-separated items of `blanked` at bracket
+/// depth zero.
+///
+/// Same precondition as [`balanced_end`], and the same reason it is
+/// here rather than at its call site: over a blanked view a comma
+/// inside a string literal is a space, so splitting an argument list
+/// needs no literal tracking — and a copy of this loop at the call
+/// site is a copy of a lexer's postcondition, which is how the tree
+/// got its readers in the first place.
+///
+/// `<` and `>` count as brackets: an argument list is the caller, and
+/// a turbofish or a generic argument must not split one.
+#[must_use]
+pub fn top_level_split(blanked: &str, sep: char) -> Vec<std::ops::Range<usize>> {
+    let mut depth = 0usize;
+    let mut out = Vec::new();
+    let mut start = 0usize;
+    for (off, c) in blanked.char_indices() {
+        match c {
+            '(' | '[' | '{' | '<' => depth += 1,
+            ')' | ']' | '}' | '>' => depth = depth.saturating_sub(1),
+            c if c == sep && depth == 0 => {
+                out.push(start..off);
+                start = off + c.len_utf8();
+            }
+            _ => {}
+        }
+    }
+    out.push(start..blanked.len());
+    out
+}
+
+/// The directory of the crate whose `CARGO_MANIFEST_DIR` is `baked`.
+///
+/// **Both ways a suite runs.** A plain `cargo test` resolves the path
+/// baked in at compile time; a nextest ARCHIVE replayed on another
+/// runner has no such directory, and `--workspace-remap` has instead
+/// pointed the per-test cwd at the crate root. Every guard that opens
+/// a file relative to its own crate needs both, and each one that
+/// worked it out again wrote the same paragraph next to the same six
+/// lines.
+///
+/// **Panics** when neither candidate holds a `Cargo.toml`: a guard
+/// that silently resolved to the wrong root would read the wrong
+/// tree.
+#[must_use]
+pub fn crate_dir(baked: &str) -> std::path::PathBuf {
+    let baked = std::path::PathBuf::from(baked);
+    if baked.join("Cargo.toml").is_file() {
+        return baked;
+    }
+    let cwd = std::env::current_dir().expect("a working directory");
+    assert!(
+        cwd.join("Cargo.toml").is_file(),
+        "neither {} nor {} is a crate root",
+        baked.display(),
+        cwd.display()
+    );
+    cwd
+}
+
+/// Every SUITE file under a crate's `tests/` directory, relative to it,
+/// `/`-separated and sorted, with `all.rs` itself excluded.
+///
+/// Recursive, and shared for the reason [`rust_sources`] is: thirteen
+/// crates carry a row asserting every suite is mounted in `tests/all.rs`,
+/// and while they each walked `tests/` themselves twelve used a FLAT
+/// `read_dir` and one recursed — so twelve of them could not see a
+/// suite in a group directory at all, and nothing recorded that they
+/// were the weaker variant.
+///
+/// **A suite and a shared HELPER are told apart by Rust's own module
+/// rule, not by a list.** A subdirectory holding a `mod.rs` is a module
+/// directory: its files are reached through `mod <name>;` inside
+/// whatever suite declares it, so they are not test targets and owe no
+/// `#[path]` line. A subdirectory without one is a group of suites,
+/// each of which does. That is why `tests/common/mod.rs` is not
+/// reported and `tests/curves/boxes.rs` is.
+#[must_use]
+pub fn suite_files(tests_dir: &std::path::Path) -> Vec<String> {
+    rust_sources(tests_dir)
+        .iter()
+        .filter_map(|path| {
+            let rel = path
+                .strip_prefix(tests_dir)
+                .expect("a walked file lies under tests/")
+                .to_string_lossy()
+                .replace('\\', "/");
+            if rel == "all.rs" {
+                return None;
+            }
+            // A module directory anywhere above it: its files are
+            // reached through `mod <name>;`, never through `#[path]`.
+            let mut dir = path.parent();
+            while let Some(d) = dir {
+                if d == tests_dir {
+                    break;
+                }
+                if d.join("mod.rs").is_file() {
+                    return None;
+                }
+                dir = d.parent();
+            }
+            Some(rel)
+        })
+        .collect()
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
@@ -315,7 +484,9 @@ mod tests {
     // swaps the process-wide panic hook from parallel test threads and
     // flakes about one run in thirteen (15/200; **issue #882**). Do not
     // copy that shape here.
-    use super::{Region, code_and_literals, code_only, comments_only, keeping};
+    use super::{
+        Region, balanced_end, code_and_literals, code_only, comments_only, keeping, top_level_split,
+    };
 
     /// Every construct a needle can hide in, and the code read each one
     /// must not cost. Written once and asserted from three directions
@@ -489,5 +660,71 @@ mod tests {
         assert_eq!(found.len(), 2, "{found:?}");
         assert!(found.iter().any(|p| p.ends_with("hidden.rs")), "{found:?}");
         std::fs::remove_dir_all(&dir).expect("cleanup");
+    }
+
+    /// **The precondition is the operation.** Over a blanked view every
+    /// bracket is a real bracket, so depth counting is the whole parse
+    /// — including when a literal holds an unbalanced one, which is the
+    /// case a call-site copy gets wrong.
+    #[test]
+    fn the_balanced_region_is_carved_over_the_blanked_view() {
+        let raw = "f(a, g(b), \"(((\", [c]) tail";
+        let code = code_only(raw);
+        let open = code.find('(').expect("an opener");
+        let end = balanced_end(&code, open).expect("it closes");
+        assert_eq!(&raw[open..=end], "(a, g(b), \"(((\", [c])", "{code}");
+        // Raw text is the direction this exists to stop: the literal's
+        // three unbalanced parens run the scan off the end.
+        assert_eq!(balanced_end(raw, open), None, "raw source must not be used");
+        assert_eq!(balanced_end(&code_only("f(a"), 1), None, "never closes");
+    }
+
+    /// Splitting an argument list: a comma inside a nested bracket, a
+    /// generic argument or a blanked literal is not a separator.
+    #[test]
+    fn a_top_level_split_ignores_nested_and_generic_commas() {
+        let raw = "name, Probe<A, B>, f(x, y), \"a,b\"";
+        let code = code_only(raw);
+        let parts: Vec<&str> = top_level_split(&code, ',')
+            .into_iter()
+            .map(|r| raw[r].trim())
+            .collect();
+        assert_eq!(
+            parts,
+            ["name", "Probe<A, B>", "f(x, y)", "\"a,b\""],
+            "{code}"
+        );
+    }
+
+    /// A suite in a group directory is a suite; a file under a `mod.rs`
+    /// directory is a helper, reached through `mod <name>;`. Twelve of
+    /// the thirteen mount guards could see neither.
+    #[test]
+    fn the_suite_walk_recurses_and_skips_module_directories() {
+        let root = std::env::temp_dir().join(format!("tu-suites-{}", std::process::id()));
+        let group = root.join("curves");
+        let module = root.join("common");
+        std::fs::create_dir_all(&group).expect("dirs");
+        std::fs::create_dir_all(module.join("deep")).expect("dirs");
+        for (path, text) in [
+            (root.join("all.rs"), "// aggregator"),
+            (root.join("flat.rs"), "// suite"),
+            (group.join("boxes.rs"), "// suite in a group"),
+            (module.join("mod.rs"), "// shared helper"),
+            (module.join("deep").join("more.rs"), "// under the helper"),
+        ] {
+            std::fs::write(path, text).expect("write");
+        }
+        let mut found = super::suite_files(&root);
+        found.sort();
+        assert_eq!(found, ["curves/boxes.rs", "flat.rs"], "{found:?}");
+        std::fs::remove_dir_all(&root).expect("cleanup");
+    }
+
+    #[test]
+    fn a_crate_dir_is_the_one_holding_a_manifest() {
+        let here = super::crate_dir(env!("CARGO_MANIFEST_DIR"));
+        assert!(here.join("Cargo.toml").is_file(), "{here:?}");
+        assert!(here.ends_with("test-utils"), "{here:?}");
     }
 }

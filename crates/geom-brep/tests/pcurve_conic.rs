@@ -406,20 +406,10 @@ fn route_table_has_no_wildcard_arm() {
     // Brace-matched, not cut at the first `\n}\n`: that slice is a
     // guess about formatting that ends the table at the first nested
     // block closing in column zero. In the blanked view a brace is
-    // always a brace, which is what makes the match exact.
+    // always a brace, which is the precondition
+    // `test_utils::source::balanced_end` is documented on.
     let open = start + src[start..].find('{').expect("route fn has a body");
-    let mut depth = 0i32;
-    let end = src[open..]
-        .char_indices()
-        .find_map(|(off, c)| {
-            match c {
-                '{' => depth += 1,
-                '}' => depth -= 1,
-                _ => {}
-            }
-            (depth == 0 && c == '}').then_some(open + off)
-        })
-        .expect("route fn closes");
+    let end = test_utils::source::balanced_end(&src, open).expect("route fn closes");
     let table = &src[start..end];
     for forbidden in ["_ =>", "(_,", ", _)", "| _", "_ |"] {
         assert!(

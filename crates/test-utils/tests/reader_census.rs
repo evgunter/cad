@@ -30,26 +30,23 @@ use std::path::{Path, PathBuf};
 
 use test_utils::source::{code_and_literals, rust_sources};
 
-/// The Rust trees this census covers. `crates/`, `demos/`, `tools/`
-/// and `benches/` are the whole of the workspace; `interval-
-/// transcendentals/` is a separate workspace root the kernel
-/// path-depends on and is included because a guard there would be
-/// exactly as invisible as one anywhere else.
+/// The repository's own directories, skipped by NAME rather than by a
+/// roster: a build directory, and anything hidden.
 ///
-/// **`scripts/` is deliberately absent and is not a gap in the class**:
-/// the gates there read Rust source too, through `scripts/gates/`
-/// `lib.sh`'s `gate_rust_code`, which is their own shared awk lexer
-/// with its own selftests. Two homes in two languages is a stated
-/// state of the tree, not an accident this row can catch; what it
-/// could catch — a gate that stops using `gate_rust_code` — is a
-/// shell-side row on the track that owns `scripts/gates/`.
-const TREES: [&str; 5] = [
-    "crates",
-    "demos",
-    "tools",
-    "benches",
-    "interval-transcendentals",
-];
+/// **There is no list of trees to cover.** One recursive walk from the
+/// repository root sees every `.rs` file the repository tracks, so a
+/// new top-level Rust tree is covered the day it lands; a
+/// five-element roster with a `continue` on a missing entry narrows
+/// coverage silently on a rename, which is the class this whole file
+/// is about.
+///
+/// **`scripts/` needs no exclusion and is not a gap in the class**: it
+/// holds no `.rs` file, so the walk never reaches it. Its gates read
+/// Rust source through `scripts/gates/lib.sh`'s `gate_rust_code`, a
+/// second shared reader written in awk with its own selftests — a
+/// second home, in a second language, which this row cannot see and
+/// does not claim to.
+const SKIPPED_DIRS: [&str; 1] = ["target"];
 
 /// A site that reads Rust source as text, and what reader it uses.
 struct Entry {
@@ -67,10 +64,11 @@ enum Disposition {
     Home,
     /// Reads Rust source through something other than
     /// [`test_utils::source`] — a hand-rolled reader, or one of
-    /// `topo`'s two crate-private blankers — with the track that owns
-    /// its file. **Every one of these is a defect with an owner**, and
-    /// the list only ever shrinks: a lane that converts one deletes its
-    /// line, and no lane may add one.
+    /// `topo`'s two crate-private blankers. The payload names the
+    /// track that owes the conversion, **or `unowned` where the
+    /// partition has no track for the file**; an unowned entry is not
+    /// an exemption, it is a second finding stacked on the first, and
+    /// it says so in its own text.
     Unconverted(&'static str),
     /// Reads a language that is not Rust, so the Rust lexer is not what
     /// it wants. The named language is the claim.
@@ -222,38 +220,26 @@ const LEDGER: &[Entry] = &[
     },
 ];
 
-/// The repository root, for both ways the suite runs: a plain
-/// `cargo test` against the baked manifest dir, and a nextest ARCHIVE
-/// replayed with the per-test cwd remapped to the crate root.
-fn repo_root() -> PathBuf {
-    let baked = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    if baked.join("Cargo.toml").is_file() {
-        return baked;
-    }
-    let cwd = std::env::current_dir().expect("a working directory");
-    let up = cwd.join("../..");
-    assert!(
-        up.join("Cargo.toml").is_file(),
-        "neither {baked:?} nor {up:?} is the repository root"
-    );
-    up
-}
-
-/// `code` with every `#[path = "…"]` module mount blanked.
+/// The repository root: this crate's directory, two levels up.
 ///
-/// A mount names a `.rs` file and reads nothing; leaving it in makes
-/// every `tests/all.rs` in the tree a hit and drowns the signal.
-fn without_module_mounts(code: &str) -> String {
-    let mut out = String::with_capacity(code.len());
-    let mut rest = code;
-    while let Some(at) = rest.find("#[path") {
-        out.push_str(&rest[..at]);
-        rest = &rest[at..];
-        let end = rest.find(']').map_or(rest.len(), |e| e + 1);
-        rest = &rest[end..];
-    }
-    out.push_str(rest);
-    out
+/// The "both ways the suite runs" resolution is
+/// [`test_utils::source::crate_dir`]'s, shared — three copies of that
+/// six-line fallback and its paragraph existed in this tree, which is
+/// the same defect one level up from the one this file guards.
+fn repo_root() -> PathBuf {
+    let root = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR"))
+        .join("../..")
+        // Canonical, so `..` is not a path COMPONENT: the skip below
+        // reads components, and a relative one matched every file in
+        // the tree at once — which looked exactly like a clean walk.
+        .canonicalize()
+        .expect("the repository root resolves");
+    assert!(
+        root.join("Cargo.toml").is_file(),
+        "{} is not the repository root",
+        root.display()
+    );
+    root
 }
 
 /// Whether `code` (a comments-blanked view) reads Rust source as text.
@@ -264,13 +250,30 @@ fn without_module_mounts(code: &str) -> String {
 /// name a `.rs` file without spelling a comment delimiter; it can walk
 /// a source tree without naming any file; and it can lex Rust comments
 /// over text it obtained some third way.
+///
+/// **Shape (1) is line-wise, and that is the whole of how a module
+/// mount is told from a read.** `#[path = "x.rs"]` names a `.rs` file
+/// and reads nothing, so every `tests/all.rs` in the tree would be a
+/// hit; a read spells the file name and the reading operation on one
+/// line. The obvious alternative — slice the `#[path … ]` attributes
+/// out first — is an ad-hoc source slicer inside the file whose whole
+/// rule is *do not write one*, with that shape's failure modes (a
+/// `#[path` inside a string literal, an attribute with no `]`).
 fn reads_rust_source(code: &str) -> bool {
-    // (1) Names a `.rs` file for something other than a module mount.
-    let names_a_source_file = without_module_mounts(code).contains(".rs\"");
+    const READS: [&str; 4] = ["include_str!", "include_bytes!", "read_to_string", ".join("];
+    // (1) Names a `.rs` file ON THE SAME LINE as a read of it.
+    let names_a_source_file = code
+        .lines()
+        .any(|l| l.contains(".rs\"") && READS.iter().any(|r| l.contains(r)));
     // (2) Walks a source tree.
-    let walks_a_source_tree = ["rust_sources(", "crate_sources(", "src_root("]
-        .iter()
-        .any(|n| code.contains(n))
+    let walks_a_source_tree = [
+        "rust_sources(",
+        "crate_sources(",
+        "src_root(",
+        "suite_files(",
+    ]
+    .iter()
+    .any(|n| code.contains(n))
         || (code.contains("read_dir(") && code.contains("\"rs\""));
     // (3) Spells a Rust comment delimiter as a literal — the tell of a
     // hand-rolled lexer, wherever its text came from.
@@ -280,40 +283,42 @@ fn reads_rust_source(code: &str) -> bool {
     names_a_source_file || walks_a_source_tree || lexes_rust_comments
 }
 
+/// Every path under the repository root that reads Rust source as text.
+fn sites_reading_rust_source(root: &Path) -> Vec<String> {
+    rust_sources(root)
+        .iter()
+        .filter(|path| {
+            !path.components().any(|c| {
+                let c = c.as_os_str().to_string_lossy();
+                SKIPPED_DIRS.contains(&c.as_ref()) || c.starts_with('.')
+            }) && path.starts_with(root)
+        })
+        .filter_map(|path| {
+            let text = std::fs::read_to_string(path).expect("a readable source file");
+            reads_rust_source(&code_and_literals(&text)).then(|| {
+                path.strip_prefix(root)
+                    .expect("a walked file lies under the root")
+                    .to_string_lossy()
+                    .replace('\\', "/")
+            })
+        })
+        .collect()
+}
+
+/// **The ledger is the tree's set, not a subset of it.**
+///
+/// A WALK THAT MATCHED NOTHING IS NOT A PASS, and the equality is what
+/// says so: an empty or broken traversal reports all 34 entries as
+/// stale and reds, so this row needs no separate count floor (an
+/// earlier one asserted `found.len() >= 20`, which set equality had
+/// already subsumed and which could not fail for the reason it
+/// stated). [`test_utils::source::rust_sources`] panics on an empty
+/// directory underneath it as well.
 #[test]
 fn every_site_that_reads_rust_source_is_in_the_ledger() {
     let root = repo_root();
-    let mut found: Vec<String> = Vec::new();
-    for tree in TREES {
-        let dir = root.join(tree);
-        if !dir.is_dir() {
-            continue;
-        }
-        for path in rust_sources(&dir) {
-            if path.components().any(|c| c.as_os_str() == "target") {
-                continue;
-            }
-            let text = std::fs::read_to_string(&path).expect("a readable source file");
-            if reads_rust_source(&code_and_literals(&text)) {
-                let rel = path
-                    .strip_prefix(&root)
-                    .expect("a walked file lies under the root")
-                    .to_string_lossy()
-                    .replace('\\', "/");
-                found.push(rel);
-            }
-        }
-    }
+    let mut found = sites_reading_rust_source(&root);
     found.sort();
-    // A WALK THAT MATCHES NOTHING IS NOT A PASS. The set is derived
-    // from the tree, so a broken traversal or a detector that stopped
-    // matching looks exactly like a clean one.
-    assert!(
-        found.len() >= 20,
-        "the census found only {} source-reading sites — the walk or the detector \
-         stopped working, and an empty ledger would agree with it: {found:#?}",
-        found.len()
-    );
     let ledger: Vec<&str> = LEDGER.iter().map(|e| e.path).collect();
     let unlisted: Vec<&String> = found
         .iter()
@@ -331,14 +336,54 @@ fn every_site_that_reads_rust_source_is_in_the_ledger() {
     );
 }
 
-/// **The debt, and it only shrinks.** Every [`Unconverted`] entry is a
-/// site reading Rust source through something other than the shared
-/// lexer, with the track that owns its file. A lane that converts one
-/// deletes its line and lowers this number; **nothing may raise it**,
-/// which is the half of this row that makes a new hand-rolled reader
-/// cost something rather than merely being visible.
+/// **A `Shared` line is a CLAIM, and this is what checks it.**
+///
+/// Without this row the ledger's own silent direction is the one it
+/// exists to close: a converted site that reverts to a hand-rolled
+/// reader keeps its `Shared` line, keeps tripping the detector, and the
+/// census stays green over exactly the change it was built to catch.
 #[test]
-fn the_unconverted_readers_only_ever_shrink() {
+fn every_shared_entry_actually_reaches_the_shared_lexer() {
+    let root = repo_root();
+    let liars: Vec<&str> = LEDGER
+        .iter()
+        .filter(|e| matches!(e.disposition, Shared))
+        .filter(|e| {
+            let text = std::fs::read_to_string(root.join(e.path))
+                .unwrap_or_else(|err| panic!("reading {}: {err}", e.path));
+            // The code view: a mention in prose is not a call.
+            !test_utils::source::code_only(&text).contains("test_utils::source")
+        })
+        .map(|e| e.path)
+        .collect();
+    assert!(
+        liars.is_empty(),
+        "these entries are dispositioned Shared but no longer call \
+         `test_utils::source` — either they reverted to a hand-rolled reader, or \
+         the line is stale: {liars:#?}"
+    );
+}
+
+/// **The debt, stated as an equality and hand-synced loudly.**
+///
+/// Every [`Unconverted`] entry is a site reading Rust source through
+/// something other than the shared lexer, with the track that owes its
+/// conversion. Converting one means deleting its line AND lowering
+/// [`UNCONVERTED_TODAY`] — two edits, on purpose.
+///
+/// **What equality catches and what it does not.** It catches a reader
+/// added without one being converted, which a `<=` ceiling does not: a
+/// lane that converts one and adds one nets zero and slides under a
+/// ceiling silently. It does NOT catch that same swap here either —
+/// nothing a single number can do will — so the swap is caught one
+/// row up instead: `every_site_that_reads_rust_source_is_in_the_ledger`
+/// forces the new reader to arrive as a NAMED PATH in this file, and
+/// `every_shared_entry_actually_reaches_the_shared_lexer` stops it
+/// hiding behind a `Shared` line. **The number is the tripwire; the
+/// paths are the guard.** The failure below prints the paths for that
+/// reason.
+#[test]
+fn the_unconverted_readers_are_the_ones_this_tree_still_owes() {
     let outstanding: Vec<String> = LEDGER
         .iter()
         .filter_map(|e| match e.disposition {
@@ -346,31 +391,40 @@ fn the_unconverted_readers_only_ever_shrink() {
             Home | Shared | NotRust(_) => None,
         })
         .collect();
-    assert!(
-        outstanding.len() <= UNCONVERTED_CEILING,
-        "{} readers outside the shared lexer, ceiling {UNCONVERTED_CEILING}. This is a \
-         DEBT, not a budget: converting one lowers it and nothing raises it. \
-         Outstanding: {outstanding:#?}",
+    assert_eq!(
+        outstanding.len(),
+        UNCONVERTED_TODAY,
+        "the ledger holds {} readers outside the shared lexer and \
+         UNCONVERTED_TODAY says {UNCONVERTED_TODAY}. That constant is HAND-SYNCED: \
+         converting one lowers it, and it may not be raised without the row that \
+         licenses a new reader. Outstanding: {outstanding:#?}",
         outstanding.len()
     );
 }
 
 /// The number of sites still reading Rust source through something
-/// other than [`test_utils::source`]. **A ceiling, never a target.**
-const UNCONVERTED_CEILING: usize = 11;
+/// other than [`test_utils::source`]. **Hand-synced with the ledger
+/// above, and it goes one way.**
+const UNCONVERTED_TODAY: usize = 11;
 
 /// **A disposition that says "not Rust" must say which language.** The
 /// escape hatch in this ledger is the `NotRust` line, so it is the one
 /// that has to carry its reason: *"the shared Rust lexer is not what
 /// this wants"* is a claim about a language, and an unnamed language
-/// is not a claim.
+/// is not a claim. `Unconverted` carries the same obligation for its
+/// owner.
 #[test]
-fn every_not_rust_entry_names_its_language() {
+fn every_disposition_that_carries_a_reason_states_one() {
     for entry in LEDGER {
-        if let NotRust(language) = entry.disposition {
+        let reason = match entry.disposition {
+            NotRust(language) => Some(("NotRust", language)),
+            Unconverted(owner) => Some(("Unconverted", owner)),
+            Home | Shared => None,
+        };
+        if let Some((kind, text)) = reason {
             assert!(
-                !language.trim().is_empty(),
-                "{} is dispositioned NotRust with no language named",
+                !text.trim().is_empty(),
+                "{} is dispositioned {kind} with nothing named",
                 entry.path
             );
         }

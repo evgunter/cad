@@ -117,69 +117,40 @@ mod surfaces_span_window_pairing;
 
 /// Guards the `autotests = false` hazard: a suite file added under
 /// `tests/` but not declared above would silently stop being compiled
-/// and run. Walks the group directories, not just `tests/` itself, and
-/// checks the declaration COUNT against what is on disk so no number
-/// about this file can be asserted in prose without being computed.
+/// and run. Both directions are asserted — every file on disk is
+/// declared, and every declaration answers to a file, so no number
+/// about this file is stated in prose without being computed.
 ///
-/// One shape to know before you trip it: this guard treats every `.rs`
-/// file under `tests/` as a suite, so a shared HELPER placed in a group
-/// directory is reported as an undeclared suite. None exist today; the
-/// header above anticipates a suite growing a `mod <helper>;`, and when
-/// one does the helper belongs beside it with a `#[path]` line of its
-/// own, or the guard needs a stated exclusion — not a silent one.
+/// The walk is `test_utils::source::suite_files`, which recurses into
+/// group directories and tells a suite from a shared helper by Rust's
+/// own module rule; read it before adding either.
 #[test]
 // Scoped to this fn on purpose: a crate-root `#![allow]` in this file would
 // weaken the lint gate for every suite module included above.
 #[allow(clippy::expect_used)]
 fn every_suite_file_is_aggregated() {
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests");
-    // Comments blanked, string literals KEPT: the needle IS a string
-    // literal, and a mount that has been commented out must not answer
-    // for the file it names — that is the silent direction, and it
-    // drops a whole suite from the build with the guard still green.
+    let root = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("tests");
+    // Comments blanked, string literals KEPT — see
+    // `test_utils::source::code_and_literals`, which states why.
     let src = test_utils::source::code_and_literals(include_str!("all.rs"));
-    let mut missing: Vec<String> = Vec::new();
-    let mut found = 0usize;
-    let mut pending = vec![root.clone()];
-    while let Some(dir) = pending.pop() {
-        for entry in std::fs::read_dir(&dir).expect("tests/ subtree is readable") {
-            let path = entry.expect("readable dir entry").path();
-            if path.is_dir() {
-                pending.push(path);
-                continue;
-            }
-            if path.extension().and_then(|e| e.to_str()) != Some("rs") {
-                continue;
-            }
-            let rel = path
-                .strip_prefix(&root)
-                .expect("entry is under tests/")
-                .to_string_lossy()
-                .replace('\\', "/");
-            if rel == "all.rs" {
-                continue;
-            }
-            found += 1;
-            if !src.contains(&format!("#[path = \"{rel}\"]")) {
-                missing.push(rel);
-            }
-        }
-    }
-    missing.sort();
+    let found = test_utils::source::suite_files(&root);
+    let missing: Vec<&String> = found
+        .iter()
+        .filter(|rel| !src.contains(&format!("#[path = \"{rel}\"]")))
+        .collect();
     assert!(
         missing.is_empty(),
         "suites under tests/ are not declared in tests/all.rs, so `autotests = false` \
          is silently dropping them: {missing:?}. Add a `#[path]` line for each."
     );
-
-    // The count, computed rather than restated. `missing` proves every
-    // file on disk is declared; this proves the converse is not padded
-    // — one `#[path]` line per suite file, no orphan declarations. The
-    // `format!` call above spells its quote escaped, so it is not one
-    // of these matches.
+    // The converse, computed rather than restated: one `#[path]` line
+    // per suite file, no orphan declaration. The `format!` above spells
+    // its quote ESCAPED, so it is not one of these matches.
     let declared = src.matches("#[path = \"").count();
     assert_eq!(
-        declared, found,
-        "tests/all.rs declares {declared} suites but {found} suite files exist under tests/"
+        declared,
+        found.len(),
+        "tests/all.rs declares {declared} suites but {} suite files exist under tests/",
+        found.len()
     );
 }
