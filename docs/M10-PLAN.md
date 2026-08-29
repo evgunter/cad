@@ -69,6 +69,41 @@ function-call or entity-reference vocabulary (16 arithmetic
 variants), so E3's measurement primitives are new language surface;
 the F1 lattice has no Length-power dimensions.
 
+**Substrate correction (2026-08-29, post-ratification; found
+drafting M10-D): the C6 f64 pin blocks E4/E6 on profile-driven
+parameters.** Profile programs resolve their parameter expressions
+at f64 and the lanes consume the elaborated segments via `embed`
+(`eval/slots.rs:27-30`, `eval/wire.rs:475`; PROFILES-V2's recorded
+asymmetry — profile GEOMETRY is f64-pinned while magnitude slots
+are lane-live, flagged there as "deserves Evan's explicit eyes,
+because under v2 the SAME document parameter can feed both kinds
+of slot"). Consequence, measured against the ratified semantics: a
+`Dual` seed on a profile dimension propagates NO tangent (E4 would
+report ∂m/∂p = 0 silently — the exact stackup lie E4 exists to
+kill), and an interval-valued profile parameter does not widen the
+leaf replay (E6 would certify leaves as if profile parameters were
+fixed at nominal). Today's builds are unaffected (parameters are
+points). The worked example's hole diameters are profile
+dimensions, so the milestone cannot close around this. **M10-P**
+below is the added unit; M10-3/M10-4 gain it as a dependency for
+profile-driven parameters.
+
+- **M10-P — the profile-parameter lift (design pass first; its
+  design PR waits for Evan, since it elaborates the PROFILES-V2
+  asymmetry that doc explicitly reserved for his eyes).** The
+  proposal to be argued there: C6's principle (structure —
+  fillet fits, junction classes — selected ONCE, at f64) is
+  exactly E6's certified-leaf posture (leaves certify against the
+  NOMINAL build's verdict vector; a flip is refused mass), so the
+  lift keeps structure selection f64-once and makes profile
+  GEOMETRY evaluate at the lane scalar on the f64-selected
+  structure, with the structure predicates re-verified at `T`
+  (the existing verified-never-trusted flag machinery is already
+  half of this) — indeterminate re-verification aborts to the
+  driver's bisection, definite-other-branch is `FlipCrossing`.
+  Scope guard: this is the analysis lane's need, not a
+  re-litigation of V1–V8; naming/anchor derivation stays f64.
+
 **One fact that re-scopes E8: the W2 sketch solver was never
 built.** `WitnessSlot` is an empty struct; there is no constraint
 type, no contraction-from-f64-witness, no `solver_branch_margin`.
@@ -142,7 +177,11 @@ ERROR-DESIGN's own "Open after this doc" list.
   existing service; resolution failures typed through N-machinery;
   content-keyed like every node. Mass-property primitives and the
   F1 Length-power lattice growth are banked (Q2). Schema step v16.
-- **M10-3 — the E6 subdivision driver.** The interval parameter
+- **M10-3 — the E6 subdivision driver; profile-driven parameters
+  via M10-P** (dispatchable before M10-P lands at
+  magnitude-parameter scope — extrude distances and other
+  lane-live slots — with the profile gap stated typed, never
+  silent). The interval parameter
   door (`param_env` learns non-degenerate intervals);
   `drive(doc, box) -> ParamBoxVerdict`; leaf replay at
   `T = Interval` with certification = every predicate definite AND
@@ -157,7 +196,9 @@ ERROR-DESIGN's own "Open after this doc" list.
   `Infeasible`/`Bifurcation` variants present, unreachable-in-v1
   documented at the type.
 - **M10-4 — sensitivities and the stackup (E4/E5); after M10-D and
-  M10-2.** `evaluate::<Dual64>` opens (the `e4_dual_door` suite
+  M10-2; profile-driven parameters via M10-P (same valve as
+  M10-3: dispatchable at magnitude-parameter scope with the
+  profile gap typed).** `evaluate::<Dual64>` opens (the `e4_dual_door` suite
   flips to its successor law); n seeded passes, pure and parallel;
   every sensitivity carries a chamber certificate (an M10-3 leaf)
   or `local_only` — no third state; the `Stackup` report with
