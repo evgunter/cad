@@ -263,7 +263,7 @@ CITATION_EXEMPT=(
 # every run. A new suite lands in its own crate's scope either way.
 CLIPPY_ROW_RE='cargo clippy .*cargo_scope.*--all-targets.*-D warnings'
 # The other way to re-open the hole: silence the lint at the site.
-CFG_LINT_SILENCED_RE='(allow|expect)\(unexpected_cfgs\)|unexpected_cfgs[[:space:]]*=[[:space:]]*"allow"'
+CFG_LINT_SILENCED_RE='(allow|expect)\(unexpected_cfgs\)|unexpected_cfgs[[:space:]]*=[[:space:]]*"allow"\9|(?'
 
 CENSUS_CRATES=false
 CENSUS_CITATIONS=false
