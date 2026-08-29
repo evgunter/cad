@@ -1,4 +1,4 @@
 CERT-B1 (drawn 2026-08-29, v4 block-of-4 rule per MODEL-AB-LOG read on main at dispatch)
 byte=104 (od /dev/urandom, reject >=252), 104 mod 4 = 0 = fable position
-slots: 0=CERT-1 (difficulty M, logged pre-draw in docs/CERT-1-SPEC.md), 1..3 unassigned
+slots: 0=CERT-1 (difficulty M, logged pre-draw in docs/CERT-1-SPEC.md), 1=CERT-2 (difficulty S, logged pre-draw in docs/CERT-2-SPEC.md), 2..3 unassigned
 Branch-side block record per the v6 convention; reviewers are never pointed here.
