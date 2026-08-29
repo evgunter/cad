@@ -54,3 +54,12 @@ recorded for Evan's retroactive read):**
 **Live gates being watched:** #1180 (SHELLFIX 2b — its merge lifts
 the shell/offset keep-out and triggers the track T claim);
 LIB-G16's PR when it opens (lifts the emitter seam for BLEND-5/6).
+
+## BLEND-B1 draw (2026-08-29, BRANCH-SIDE RECORD — merges to main only when slot 3's reviews conclude)
+
+Protocol v3 triple, drawn after BLEND-1's pre-draw difficulty was
+logged (**M-L**). One `/dev/urandom` byte: **193** (< 252, no
+redraw); 193 mod 3 = **1** = fable's position (0-indexed). Block
+**BLEND-B1 = (slot 1 OPUS, slot 2 FABLE, slot 3 OPUS)**. Slots are
+consumed in dispatch order; arms are never restated on main while a
+slot is unstarted (the 2026-08-29 LIB redaction precedent).
