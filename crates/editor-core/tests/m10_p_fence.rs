@@ -33,6 +33,14 @@
 //! covers the three scalars the review names rather than the value lane
 //! alone.
 //!
+//! THE DIGEST IS EPS-INDEPENDENT BY CONSTRUCTION, and has to be: the
+//! hosted matrix samples a tolerance row per run, so a golden number
+//! that moved with eps would be a fence that only ever gated one row of
+//! three. Nothing rendered from a classification band enters it — see
+//! the outcome arms below — and the rows assert the SAME constant at
+//! every eps, which is itself a claim this file makes and a reason for
+//! a reader to be suspicious if one ever needs a second number.
+//!
 //! WHAT THE INTERVAL ROW IS NOT. It pins that the lift OFF changes
 //! nothing at `Interval`; it is not evidence that a WIDE interval
 //! parameter can be driven through this door, because it cannot be
@@ -118,10 +126,20 @@ where
                     d.text("poisoned");
                     d.u64(through.0);
                 }
-                NodeResult::Failed(e) => {
-                    d.text("failed");
-                    d.text(&e.to_string());
-                }
+                // The OUTCOME, not the rendered message. A refusal's
+                // text embeds the classification band, so digesting it
+                // would make this whole fence eps-dependent — one
+                // golden number per tolerance row, in a repo whose CI
+                // deliberately samples three of them. What belongs in a
+                // bit-identity fence is that the same nodes succeeded
+                // and the same geometry came out; that a refusal is
+                // also the SAME refusal is a claim about the lift
+                // setting rather than about two trees, and it is
+                // carried at full text by `m10_p_lift`'s pinned-vs-
+                // guided comparison, which runs both sides in one
+                // process at one eps and so can compare messages
+                // honestly.
+                NodeResult::Failed(_) => d.text("failed"),
                 NodeResult::Ok(v) => {
                     d.text(v.payload.kind_name());
                     if let ValuePayload::Body(b) = &v.payload {
@@ -232,10 +250,9 @@ fn fixture_digest<T: profile::ArcCarrierScalar>(d: &mut Digest, bits: impl Fn(&m
                     bits(d, v.bulge());
                 }
             }
-            Err(e) => {
-                d.text("refused");
-                d.text(&e.to_string());
-            }
+            // Same reason as the corpus arm above: the eye's interval
+            // refusal names its band, and the band is the eps.
+            Err(_) => d.text("refused"),
         }
     }
 }
@@ -281,7 +298,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0x41c3_cf8f_b52a_8de4, 0x5343_766e_9bfe_dc00),
+        (0x6c3f_436b_41ec_d1b4, 0xe7db_67ef_2cff_e270),
         "the corpus's Interval evaluation moved"
     );
 }
