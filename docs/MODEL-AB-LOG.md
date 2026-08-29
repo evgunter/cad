@@ -2134,3 +2134,17 @@ branch-side). Impl phase (for the row at merge): ~275k tokens
 (harness), ~62m wall, impl CI 33281016034 GREEN on `c742fc5c`
 ({interval, 1e-6} drawn; profile suite locally at 1e-6/1e-9/1e-12,
 workspace once at default). Row at merge.
+
+LIB-TUBE DISPATCHED (2026-08-29, block LIB-12 slot 4 — the LAST
+banked slot consumed; arm read back from the redacted draw via git
+history per the 2026-08-29 redaction entry, and NOT restated here.
+When this unit's reviews conclude the block OPENS in full, per the
+per-block opening rule the PCURVE-1 closure applied). Spec:
+docs/LIB-TUBE-SPEC.md under RECIPE-DOORS D4 AS REVISED by the #1205
+ruling (Evan: split the vocabulary — Node::Tube + Node::HollowTube,
+wall required, kernel unchanged; ratified in-chat same day, binding
+at dispatch). Pre-draw fields logged at spec ratification: **M-L /
+STRUCTURAL**. Lane lib-tube, branch lib/tube. The unit's dual
+carries the standing LIB-12 CONTAMINATION FLAG. Ordinal claimed
+from the LIB band (300–399) at review dispatch, per protocol. Row
+at merge.
