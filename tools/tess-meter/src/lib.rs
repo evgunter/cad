@@ -169,9 +169,11 @@
 //! arithmetic rather than taste — every fallback available is a small
 //! count, the gate fires only on GROWTH, and a small count is in band
 //! on the fresh row and hides growth on the baseline row. `divisions`'
-//! fallback was `1.0`, which is the exact floor `tess-lint`'s parse
-//! guard refuses one crate downstream; the fix is not to refuse it
-//! twice but to stop producing it.
+//! fallback was `1.0`, and **nothing downstream would have caught
+//! it**: `tess-lint`'s `Admissible::CellCount` admits
+//! `v.is_finite() && v >= 1.0`, so `1.0` is exactly the smallest value
+//! it calls a reading. A parse guard bounds what a column may SAY; it
+//! cannot know whether the producer measured it.
 //!
 //! **The counterfactual columns are not an exception to this**, though
 //! the argument for one is real: `nu`, `nv`, `patch_cells` and
@@ -564,14 +566,27 @@ impl From<&CellMeasure> for Bound {
 /// invented in-band value hides a regression on one of them whichever
 /// way it leans. Note that without the step assertion `.max(1.0)` would
 /// swallow a NaN silently — `f64::max` prefers its non-NaN argument —
-/// and hand the gate a fabricated single division, which is the exact
-/// floor `tess-lint`'s parse guard refuses one crate downstream.
+/// and hand the gate a fabricated single division, which `tess-lint`
+/// ADMITS (`Admissible::CellCount` is `v.is_finite() && v >= 1.0`)
+/// rather than refuses.
 ///
 /// This is the meter's second divergence from `ceil_count`, in the
-/// stricter direction: the lane answers one for a NEGATIVE step (its
-/// `raw` is then negative, finite, and floored) and refuses only a NaN.
-/// A negative step is not a smaller counterfactual, it is a reading
-/// that did not happen.
+/// stricter direction: the lane refuses a NaN and a zero step (both
+/// make its `raw` non-finite) and answers ONE for a negative step,
+/// whose `raw` is negative, finite and floored. A negative step is not
+/// a smaller counterfactual; it is a reading that did not happen.
+///
+/// **Nothing in the tree reaches these assertions, and that is a trace
+/// rather than a hope.** Two kernel gates run strictly before
+/// `mesh::budget::note_face` and admit strictly less than this refuses:
+/// `mesh::tessellate` returns `InvalidChordalTolerance` unless
+/// `chordal` is finite and positive, and `δ_s` is `chordal · 0.5`; and
+/// `nurbs_cert`'s `nurbs_face_bound` and `nurbs_cell_grid` both return
+/// `UnsupportedNurbsFace` (*"second-derivative hull is
+/// unbounded/poisoned"*) unless every component of the bound is finite.
+/// Non-negativity rides along with those components being sups of
+/// norms. So the refusals guard the meter against a kernel that stopped
+/// doing that, not against inputs it meets today.
 pub fn divisions(extent: f64, h: f64) -> f64 {
     assert!(
         h > 0.0,
@@ -595,12 +610,24 @@ pub fn divisions(extent: f64, h: f64) -> f64 {
 /// # What boxes these two, and what nothing can box
 ///
 /// **What they guarantee is a resolution in aspect ratio, and not a
-/// bound on the answer** — so that is what carries the guard.
-/// [`split_scan_worst_excess`] is that guarantee in closed form, and
-/// `tests/derivations.rs` boxes both of its failure modes separately:
-/// a RANGE too narrow to bracket the optimum (the scan's argmin lands
-/// on an endpoint) and a STEP too coarse to resolve it (the closed
-/// form exceeds the ceiling the split column's consumer can absorb).
+/// bound on the answer** — so that is what carries the guard, and
+/// `tests/derivations.rs` boxes its two failure modes separately: a
+/// RANGE too narrow to bracket the optimum (the scan's argmin lands on
+/// an endpoint) and a STEP too coarse to resolve it
+/// ([`unfloored_worst_excess`] over the ceiling the split column's
+/// consumer can absorb).
+///
+/// **The guarantee is analytic on one class and measured on the
+/// other**, and the difference is `divisions`' one-division floor. Where
+/// the optimum is the interior stationary point
+/// ([`optimum_is_unfloored`]) the excess is bounded in closed form.
+/// Where the floor binds, the objective has a kink instead, the excess
+/// grows linearly rather than quadratically in the distance to the
+/// nearest sample, and **no bound over that class is written** — the
+/// worst found by a 200,000-bound random search at the shipped pair is
+/// 2.09%, against `tess-lint`'s whole 5% growth margin. That is a
+/// measurement, not a certificate, and the class contains the ruled
+/// wall this scan exists for.
 ///
 /// **The cell count these columns report cannot carry a guard, and
 /// nobody should re-attempt one.** The two `ceil`s in [`divisions`]
@@ -624,59 +651,207 @@ pub const SPLIT_SCAN_SAMPLES: usize = 321;
 /// The aspect ratios `t = h_v / h_u` a scan of `decades` either side of
 /// square visits at `samples` points, log-uniformly and in order.
 ///
-/// **The one derivation of the scan's lattice.** [`best_split_steps`]
-/// runs it at [`SPLIT_SCAN_DECADES`] / [`SPLIT_SCAN_SAMPLES`] and the
-/// derivations suite runs it at other pairs, to measure what those two
-/// constants buy. A second spelling of the placement would turn that
-/// measurement into a statement about the copy.
+/// **The one derivation of the scan's lattice**, driven at the shipped
+/// pair by [`shipped_split_scan_aspects`] and at other pairs by the
+/// derivations suite, to measure what those two constants buy. A second
+/// spelling of the placement would turn that measurement into a
+/// statement about the copy.
 ///
 /// # Panics
 ///
 /// If `samples < 2`: a scan of one point has no sampling step, and the
 /// resolution these constants exist to set is undefined without one.
 pub fn split_scan_aspects(decades: f64, samples: usize) -> impl Iterator<Item = f64> {
-    assert!(
-        samples >= 2,
-        "a split scan of {samples} sample(s) has no sampling step"
-    );
+    let step = split_scan_half_step(decades, samples);
     (0..samples).map(move |k| {
         #[allow(clippy::cast_precision_loss)]
-        let f = k as f64 / (samples - 1) as f64;
-        10.0f64.powf(decades * f.mul_add(2.0, -1.0))
+        10.0f64.powf(2.0 * step * k as f64 - decades)
     })
 }
 
-/// The worst relative excess a scan at `(decades, samples)` can leave
-/// on the CONTINUOUS objective — [`best_split_cells`]'s cost with the
-/// two `ceil`s of [`divisions`] removed — over every bound whose
-/// optimum the range brackets.
+/// The aspect lattice the shipped optimizer scans.
 ///
-/// **Derivation.** Above the one-division floor the continuous cost at
-/// aspect `t` is `U·V·(muu/t + 2·muv + mvv·t) / δ_s`, minimized at the
-/// interior `t* = √(muu/mvv)`. Writing `t = t*·10^x`, the ratio to the
-/// optimum is `1 + (cosh(x·ln 10) − 1) / (1 + muv/√(muu·mvv))`, so a
-/// live cross term only ever shrinks it and the worst case is
-/// `muv = 0`. No aspect sits further than half a sampling step from a
-/// sample, and half the step is `decades/(samples − 1)` decades, which
-/// gives the value below.
+/// **One call site for the pair, and it is this one.** The derivations
+/// suite drives [`split_scan`] through this same function, so the
+/// lattice the guard measures is the lattice [`best_split_steps`] uses.
+/// A second call site carrying its own literals would be invisible to
+/// that guard — the constants would still be boxed and the scan would
+/// still be wrong — which is the failure this function exists to make
+/// unspellable.
+pub fn shipped_split_scan_aspects() -> impl Iterator<Item = f64> {
+    split_scan_aspects(SPLIT_SCAN_DECADES, SPLIT_SCAN_SAMPLES)
+}
+
+/// Half the scan's sampling step, in decades of aspect ratio: the
+/// furthest any aspect can sit from the nearest sample, and the only
+/// thing [`SPLIT_SCAN_DECADES`] and [`SPLIT_SCAN_SAMPLES`] jointly fix.
 ///
-/// **It is attained, not conservative**: an isotropic bound puts `t*`
-/// at exactly `1`, and at an even `samples` the lattice straddles `1`
-/// half a step either side. The derivations suite measures a family
-/// against this bound for that reason — a closed form nothing witnesses
-/// is theory, not a guard.
+/// # Panics
 ///
-/// It bounds nothing when the optimum lies OUTSIDE `10^±decades`; that
-/// is the range failure, and it is guarded separately.
-#[must_use]
-pub fn split_scan_worst_excess(decades: f64, samples: usize) -> f64 {
+/// If `samples < 2`.
+fn split_scan_half_step(decades: f64, samples: usize) -> f64 {
     assert!(
         samples >= 2,
         "a split scan of {samples} sample(s) has no sampling step"
     );
     #[allow(clippy::cast_precision_loss)]
     let half_step = decades / (samples - 1) as f64;
-    (half_step * std::f64::consts::LN_10).cosh() - 1.0
+    half_step
+}
+
+/// The worst relative excess a scan at `(decades, samples)` can leave on
+/// the CONTINUOUS objective — [`best_split_cells`]'s cost with the two
+/// `ceil`s of [`divisions`] removed — **over the bounds whose optimum
+/// lies strictly above the one-division floor**, which is the domain
+/// [`optimum_is_unfloored`] answers and NOT every bound.
+///
+/// **Derivation, and the domain is where it comes from.** Above the
+/// floor the continuous cost at aspect `t` is
+/// `U·V·(muu/t + 2·muv + mvv·t) / δ_s`, whose interior stationary point
+/// is `t* = √(muu/mvv)`. Writing `t = t*·10^x`, the ratio to the
+/// optimum is `1 + (cosh(x·ln 10) − 1) / (1 + muv/√(muu·mvv))`, so a
+/// live cross term only ever shrinks it and the worst case is
+/// `muv = 0`; no aspect sits further than half a sampling step from a
+/// sample, and half the step is `decades/(samples − 1)` decades. **Every
+/// line of that assumes `t*` is the optimum**, and it is not when
+/// `divisions`' floor binds there: the objective then has a KINK rather
+/// than a smooth minimum, its excess grows linearly in the distance to
+/// the nearest sample rather than quadratically, and this value bounds
+/// nothing. For `muv = 0` and a unit box the condition is
+/// `muu ≥ δ_s/2` and `mvv ≥ δ_s/2`.
+///
+/// **On its own domain it is attained, not conservative**: an isotropic
+/// bound puts `t*` at exactly `1`, and at an even `samples` the lattice
+/// straddles `1` half a step either side. The derivations suite
+/// measures a family against it for that reason — a closed form nothing
+/// witnesses is theory, not a guard — and carries the floored class as
+/// its own members, measured rather than bounded.
+///
+/// It bounds nothing either when the optimum lies OUTSIDE `10^±decades`;
+/// that is the range failure, guarded separately.
+///
+/// # Panics
+///
+/// If `samples < 2`.
+#[must_use]
+pub fn unfloored_worst_excess(decades: f64, samples: usize) -> f64 {
+    (split_scan_half_step(decades, samples) * std::f64::consts::LN_10).cosh() - 1.0
+}
+
+/// Whether `bound`'s continuous optimum over `du × dv` at `delta_s` is
+/// the interior stationary point `t* = √(muu/mvv)` rather than a kink
+/// on [`divisions`]' one-division floor — i.e. whether
+/// [`unfloored_worst_excess`] says anything about it.
+///
+/// It takes `delta_s` and the box because the condition is on them: the
+/// steps at `t*` are `h_u = √(δ_s/Q(t*))` and `h_v = t*·h_u`, and the
+/// floor binds exactly when either exceeds its extent. A bound with no
+/// interior stationary point at all — a ruled direction's `muu = 0`, or
+/// a vanishing `mvv` — is outside the domain by the same test.
+#[must_use]
+pub fn optimum_is_unfloored(bound: Bound, du: f64, dv: f64, delta_s: f64) -> bool {
+    let (muu, muv, mvv) = (bound.muu, bound.muv, bound.mvv);
+    if !(muu > 0.0 && mvv > 0.0) {
+        return false;
+    }
+    let t = (muu / mvv).sqrt();
+    let q = mvv.mul_add(t * t, 2.0f64.mul_add(muv * t, muu));
+    let hu = (delta_s / q).sqrt();
+    hu <= du && t * hu <= dv
+}
+
+/// One split scan's answer: the cheapest grid it found, the steps that
+/// give it, and which sample won — `None` when the seed did.
+#[derive(Clone, Copy, Debug)]
+pub struct SplitScan {
+    /// The counted grid at [`SplitScan::steps`], in whatever `count`
+    /// the scan was driven with.
+    pub cells: f64,
+    /// The `(h_u, h_v)` that count belongs to.
+    pub steps: (f64, f64),
+    /// The index into `aspects` that won, or `None` for the seed.
+    pub sample: Option<usize>,
+}
+
+/// **The split scan, once, with its counting function as a parameter.**
+///
+/// [`best_split_steps`] is this over [`shipped_split_scan_aspects`],
+/// counting with [`divisions`] and seeded with the lane's own grid. The
+/// derivations suite is this over the same aspects, counting with the
+/// same expression MINUS its `ceil`, and unseeded — which is the only
+/// way a guard on the scan's resolution can be a guard on THIS scan.
+/// Everything that could drift between the two is derived once, here:
+/// the lattice, `Q(t)`, the step the constraint fixes, the running
+/// minimum. A guard that re-spelled any of them would be measuring its
+/// own copy, which is this crate's own rule about the lane's schedule
+/// applied to itself.
+///
+/// # Panics
+///
+/// On a bound or a sizing target that is not a reading (module docs).
+/// The certified sups are non-negative by construction — they are sups
+/// of norms — so a NEGATIVE one is a sign error rather than a
+/// measurement, and it is checked HERE rather than through `Q(t)`,
+/// which a negative `muv` passes at every sampled `t` whenever
+/// `muv² ≤ muu·mvv`.
+pub fn split_scan<F: Fn(f64, f64) -> f64>(
+    bound: Bound,
+    du: f64,
+    dv: f64,
+    delta_s: f64,
+    aspects: impl Iterator<Item = f64>,
+    seed: Option<(f64, f64)>,
+    count: F,
+) -> SplitScan {
+    let (muu, muv, mvv) = (bound.muu, bound.muv, bound.mvv);
+    assert!(
+        muu >= 0.0
+            && muv >= 0.0
+            && mvv >= 0.0
+            && muu.is_finite()
+            && muv.is_finite()
+            && mvv.is_finite(),
+        "a certified bound of muu={muu}, muv={muv}, mvv={mvv} is not a reading: \
+         the meter has no cheapest split to report"
+    );
+    assert!(
+        delta_s > 0.0 && delta_s.is_finite(),
+        "a sizing target of {delta_s} is not a reading: \
+         the meter has no cheapest split to report"
+    );
+    let mut best = seed.map(|(hu, hv)| SplitScan {
+        cells: count(du, hu) * count(dv, hv),
+        steps: (hu, hv),
+        sample: None,
+    });
+    for (k, t) in aspects.enumerate() {
+        // The steps at aspect ratio `t = h_v / h_u`: the constraint is
+        // homogeneous of degree 2 in h_u, so h_u falls straight out.
+        // `Q(t) = 0` is a reading — a certified-flat cell constrains
+        // nothing and takes one division per axis, which is what an
+        // infinite step gives.
+        let q = mvv.mul_add(t * t, 2.0f64.mul_add(muv * t, muu));
+        assert!(
+            q.is_finite(),
+            "the certificate overflows at t={t}: a scan this wide cannot be \
+             evaluated on muu={muu}, muv={muv}, mvv={mvv}"
+        );
+        let hu = if q > 0.0 {
+            (delta_s / q).sqrt()
+        } else {
+            f64::INFINITY
+        };
+        let (hu, hv) = (hu, t * hu);
+        let cells = count(du, hu) * count(dv, hv);
+        if best.is_none_or(|b| cells < b.cells) {
+            best = Some(SplitScan {
+                cells,
+                steps: (hu, hv),
+                sample: Some(k),
+            });
+        }
+    }
+    best.expect("a split scan visits at least two aspects")
 }
 
 /// The cheapest uniform grid a bound admits over one box: minimize
@@ -703,44 +878,27 @@ pub fn best_split_cells(bound: Bound, du: f64, dv: f64, delta_s: f64) -> f64 {
 /// Split out so the constraint can be asserted on the ANSWER and not
 /// merely on the formula that produced it (see this crate's tests).
 ///
+/// It is [`split_scan`] over [`shipped_split_scan_aspects`], counted
+/// with [`divisions`] and seeded with the lane's own grid so the answer
+/// can never come out worse than what the lane already does. Written as
+/// that composition and not as its own loop, so the derivations suite
+/// can drive the same scan with the same lattice and a different count.
+///
 /// # Panics
 ///
-/// On a bound that is not a reading — a NaN or negative sup, a `δ_s`
-/// that drives a step to zero. `Q(t) = 0` is a reading, not a failure:
-/// a certified-flat cell constrains nothing and takes one division per
-/// axis, which is what an infinite step gives.
+/// On a bound or a sizing target that is not a reading — see
+/// [`split_scan`] and [`divisions`].
 pub fn best_split_steps(bound: Bound, du: f64, dv: f64, delta_s: f64) -> (f64, f64, f64) {
-    let (muu, muv, mvv) = (bound.muu, bound.muv, bound.mvv);
-    // The steps at aspect ratio `t = h_v / h_u`: the constraint is
-    // homogeneous of degree 2 in h_u, so h_u falls straight out.
-    let steps = |t: f64| -> (f64, f64) {
-        let q = mvv.mul_add(t.powi(2), 2.0f64.mul_add(muv * t, muu));
-        assert!(
-            q >= 0.0 && q.is_finite(),
-            "a certificate value of {q} is not a reading: the meter has no cheapest \
-             split to report for muu={muu}, muv={muv}, mvv={mvv} at t={t}"
-        );
-        let hu = if q > 0.0 {
-            (delta_s / q).sqrt()
-        } else {
-            f64::INFINITY
-        };
-        (hu, t * hu)
-    };
-    let (lane_u, lane_v) = bound.steps;
-    let mut best = (
-        divisions(du, lane_u) * divisions(dv, lane_v),
-        lane_u,
-        lane_v,
+    let best = split_scan(
+        bound,
+        du,
+        dv,
+        delta_s,
+        shipped_split_scan_aspects(),
+        Some(bound.steps),
+        divisions,
     );
-    for t in split_scan_aspects(SPLIT_SCAN_DECADES, SPLIT_SCAN_SAMPLES) {
-        let (hu, hv) = steps(t);
-        let n = divisions(du, hu) * divisions(dv, hv);
-        if n < best.0 {
-            best = (n, hu, hv);
-        }
-    }
-    best
+    (best.cells, best.steps.0, best.steps.1)
 }
 
 /// The pure per-cell ideal over the trim box: each cell's own RAW
