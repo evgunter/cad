@@ -1729,3 +1729,25 @@ Banked: a charter is written when a family is NAMED, not closed
 residents by closing time) — recorded in the census's closure
 paragraph. The register's census-id sentence corrected in passing
 (B-DISTRIBUTIONS was chartered but unlisted).
+
+**TESS-REBASELINE MERGED (2026-08-29, #1243; orchestrator-direct —
+the #1223 repair, the gate's own recourse ladder executed).** The
+teapot budget baseline re-cut for #1180's sphere-zone belly: reading
+done first (face genuinely replaced cylinder→sphere; growth is
+authored curvature; slack table untouched), the re-cut made with the
+sweep script's own invocation, and the diff verified row-by-row
+before committing (13 changed + 12 vanished rows, all teapot;
+non-teapot byte-identical; cross-machine byte-consistency with CI's
+own generation). Two instrument lessons paid for en route and kept:
+a sweep without `--deviation` NaN'd 77 cells and was caught by the
+pre-commit diff, not by any gate; and the FIRST gate run of this PR
+was green with the tess steps SKIPPED — the klint pin vocabulary is
+row-specific (`release-budget` is the budget row; `release-default`
+is the tour suite) and a baseline-CSV-only diff does not trigger the
+gate that reads the baseline, so a re-baseline PR must pin the
+budget row explicitly or its green verifies nothing — and the pin
+must ride the HEAD commit, because a CI-Config trailer voids on any
+later commit: the post-conflict merge of main voided the first pin
+and this addendum re-carries it (the lane-ops note, met live).
+
+CI-Config: klint=release-budget
