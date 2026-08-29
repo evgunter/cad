@@ -557,15 +557,21 @@ impl From<&CellMeasure> for Bound {
 ///
 /// # Panics
 ///
-/// On a step or an extent that is not a reading — a NaN, a negative or
-/// zero step, a non-finite extent. That is this crate's fallback rule
-/// (module docs) applied where the number is produced: every column
-/// here is read by a differential gate on TWO rows, so an invented
-/// in-band value hides a regression on one of them whichever way it
-/// leans. Note that without the step assertion `.max(1.0)` would
+/// On a step or an extent that is not a reading — a NaN or non-positive
+/// step, a non-finite or negative extent. That is this crate's fallback
+/// rule (module docs) applied where the number is produced: every
+/// column here is read by a differential gate on TWO rows, so an
+/// invented in-band value hides a regression on one of them whichever
+/// way it leans. Note that without the step assertion `.max(1.0)` would
 /// swallow a NaN silently — `f64::max` prefers its non-NaN argument —
 /// and hand the gate a fabricated single division, which is the exact
 /// floor `tess-lint`'s parse guard refuses one crate downstream.
+///
+/// This is the meter's second divergence from `ceil_count`, in the
+/// stricter direction: the lane answers one for a NEGATIVE step (its
+/// `raw` is then negative, finite, and floored) and refuses only a NaN.
+/// A negative step is not a smaller counterfactual, it is a reading
+/// that did not happen.
 pub fn divisions(extent: f64, h: f64) -> f64 {
     assert!(
         h > 0.0,
