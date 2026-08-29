@@ -1948,3 +1948,19 @@ dispatch).** Ordinal 502. Slot byte 169, parity 1 ⇒ R1 FABLE +
 R2 OPUS, concurrent, frozen head 55b1fd13, v5 instrument. Block
 M10-B1's LAST slot — this record and the block record above merge
 to main when this dual concludes.
+
+LIB-G16 review ordinal fixed at dispatch (2026-08-29, PR #1224 open
+— frozen head `36e3b83b`): **ordinal 301** (LIB band; claimed
+branch-side per the #1095 shape, single claimant). Protocol v6 dual:
+draw = `/dev/urandom` byte **176**, parity 0 ⇒ **R1 = OPUS, R2 =
+FABLE**. Method as ordinal 300's, recorded before either review
+runs: SEQUENTIAL same-head (host disk), both briefs authored and
+stored before R1 dispatches, neither reviewer sees the other's
+report, v6 item 5 isolation in both briefs; the standing LIB-12
+CONTAMINATION FLAG rides the pair (slot 3's arm was the arithmetic
+residue). Pre-draw fields at the spec: M-L / STRUCTURAL. Impl phase
+(for the row): ~410k tokens lane-reported, ~2h35m wall (large share
+CI polling + four re-merges against a fast-moving main); impl CI
+33273733447 GREEN (interval, default ε; zero non-success jobs) at
+36e3b83b; schema v16 taken with the constant read by eye at branch
+and at each re-merge. Row at merge.
