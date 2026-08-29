@@ -93,6 +93,80 @@ impl<T: Real> Mat3<T> {
         )
     }
 
+    /// `I − R` for the rotation `R = rotation_about(axis, angle)` — the
+    /// operator that carries an anchor displacement to the translation
+    /// of the rotation anchored there (`Affine3::rotation_about_axis`).
+    ///
+    /// **Assembled so the vanishing factor multiplies**, which is the
+    /// whole point of the method existing: `I − R` is `−s·[n]× − t·[n]×²`
+    /// with `s = sin θ` and `t = 1 − cos θ`, so every entry already
+    /// carries a factor that vanishes with the angle — but only if it is
+    /// *built* that way. Spelled `Mat3::identity() − rotation_about(…)`
+    /// the diagonal would come out as `1 − (t·nᵢ² + c)`, two near-unit
+    /// quantities differenced, and its ulp-of-1 cancellation error would
+    /// swamp the entry's own magnitude (`≈ θ²/2`) for every angle below
+    /// `θ ≈ 1e-8`. Here instead:
+    ///
+    /// - **The factors come from the half angle**: `t = 2·sin²(θ/2)` and
+    ///   `s = 2·sin(θ/2)·cos(θ/2)`, one `sin_cos` of `θ/2`. Both are
+    ///   exact identities for the full-angle forms, and both make
+    ///   `sin(θ/2)` a syntactic factor of every entry — so the operator
+    ///   vanishes with the angle *by construction* rather than by
+    ///   cancellation. The full-angle `1 − cos θ` cannot: its enclosure
+    ///   at the exact point `θ = 0` is `[0, 4.44e-16]` (the interval
+    ///   `cos` rounds outward from 1), a floor that has nothing to do
+    ///   with the angle. This form's is `[0, 2.5e-323]`.
+    /// - `t` uses the **tight square** `powi(2)`: `sin(θ/2)`'s enclosure
+    ///   straddles zero near `θ = 0`, and `hs·hs` would return a
+    ///   straddling product where the square is one-sided.
+    /// - The diagonal is `t·(nⱼ² + nₖ²)` — the two *other* squared
+    ///   components, which is `t·(1 − nᵢ²)` for a normalized axis, but
+    ///   without the cancellation: near a coordinate axis `nᵢ` rounds to
+    ///   1 and `1 − nᵢ²` collapses to exactly zero, while the sum of
+    ///   squares stays tight. They agree over the reals through
+    ///   `|n| = 1`, exactly so on the coordinate axes.
+    /// - The off-diagonals are the entries of `R` negated, term for term
+    ///   in the same order — the same expressions, evaluated on the
+    ///   half-angle `s` and `t`.
+    ///
+    /// The `f64` zero-angle case is therefore exactly the zero matrix.
+    /// The `Interval` one is not *bitwise* zero — `sin`'s enclosure at
+    /// the exact point 0 is `[−2e-323, 2e-323]` rather than `[0, 0]`, a
+    /// backend property no spelling here can undo — but it is zero to
+    /// within subnormal dust, and, decisively, **independent of the
+    /// operand it multiplies**.
+    ///
+    /// Same totality contract as [`Mat3::rotation_about`]: the axis is
+    /// normalized internally, so a zero or poisoned axis yields an
+    /// all-NaN operator (`0·NaN` is NaN — the poison survives even the
+    /// zero-angle case). Evaluation order fixed as written (D9).
+    pub fn identity_minus_rotation_about(axis: Vec3<T>, angle: T) -> Self {
+        let n = axis.normalize();
+        let (hs, hc) = (angle * T::from_f64(0.5)).sin_cos();
+        let two = T::from_f64(2.0);
+        let s = two * hs * hc;
+        let t = two * hs.powi(2);
+        let (x, y, z) = (n.x, n.y, n.z);
+        Self::from_cols(
+            Vec3::new(
+                t * (y.powi(2) + z.powi(2)),
+                -(t * x * y + s * z),
+                -(t * x * z - s * y),
+            ),
+            Vec3::new(
+                -(t * x * y - s * z),
+                t * (x.powi(2) + z.powi(2)),
+                -(t * y * z + s * x),
+            ),
+            Vec3::new(
+                -(t * x * z + s * y),
+                -(t * y * z - s * x),
+                t * (x.powi(2) + y.powi(2)),
+            ),
+        )
+    }
+
+
     /// The inverse via the adjugate: the rows of `M⁻¹` are
     /// `(c1 × c2)/det`, `(c2 × c0)/det`, `(c0 × c1)/det`, with `det`
     /// computed as `c0 · (c1 × c2)` — bit-identical to

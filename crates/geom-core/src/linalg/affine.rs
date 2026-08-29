@@ -49,14 +49,26 @@ impl<T: Real> Affine3<T> {
     /// `point` from the coordinate origin; computed directly as
     /// `linear = R` ([`Mat3::rotation_about`], which **normalizes the
     /// axis internally** — a zero/poisoned axis yields an all-NaN map,
-    /// same contract) and `translation = q − R·q`, evaluated in exactly
-    /// that order (rotate `q` once, subtract componentwise — D9; the
-    /// composed triple-product form would round differently). Fixed
+    /// same contract) and `translation = (I − R)·q`, one application of
+    /// the anchor operator ([`Mat3::identity_minus_rotation_about`]) to
+    /// the anchor displacement, in exactly that order (D9). Fixed
     /// points: the axis line, up to rounding.
+    ///
+    /// **The anchor is mentioned once.** The equivalent `q − R·q` is
+    /// the same point over the reals, but it subtracts and re-adds the
+    /// anchor, and interval arithmetic cannot cancel a repeated
+    /// operand: at `T = Interval` that spelling returns the identity
+    /// map (`angle = 0`) carrying `2·width(point)` of translation,
+    /// which `transform_point` then adds to every point the map
+    /// touches. Here the factors that vanish with the angle multiply
+    /// the anchor instead — exactly zero at `angle = 0`, `≈ θ·width`
+    /// near it.
     pub fn rotation_about_axis(point: Point3<T>, axis: Vec3<T>, angle: T) -> Self {
-        let linear = Mat3::rotation_about(axis, angle);
         let q = point - Point3::origin();
-        Self::from_parts(linear, q - linear * q)
+        Self::from_parts(
+            Mat3::rotation_about(axis, angle),
+            Mat3::identity_minus_rotation_about(axis, angle) * q,
+        )
     }
 
     /// Applies the map to a point: `linear·p + translation`, where `p`'s
@@ -322,8 +334,181 @@ mod tests {
         assert!((image.y - -1.0).abs() <= 1e-15);
         assert!(image.z.abs() <= 1e-15);
         // Zero axis: all-NaN map (Mat3::rotation_about's documented
-        // poison), translation poisoned through R·q.
+        // poison), translation poisoned through the anchor operator.
         let bad = Affine3::rotation_about_axis(Point3::new(1.0f64, 2.0, 3.0), Vec3::zero(), 1.0);
         assert!(bad.translation.x.is_nan());
+    }
+
+    /// The anchored rotation at `angle = 0` carries **no width from its
+    /// anchor** — the enclosure form of "it is the identity".
+    ///
+    /// The translation is the whole story. `R` is `I` at angle zero, so
+    /// over the reals `q − R·q` is zero; but that spelling mentions the
+    /// anchor twice and interval arithmetic cannot cancel a repeated
+    /// operand — `x − x = [lo − hi, hi − lo]` — so it leaves the
+    /// identity map carrying **2·width(anchor)** per component, which
+    /// `transform_point` then adds to every point it touches.
+    /// `(I − R)·q` pays the anchor once, against an operator every entry
+    /// of which has `sin(θ/2)` as a syntactic factor
+    /// ([`Mat3::identity_minus_rotation_about`]).
+    ///
+    /// **What is asserted, and why it is not literal zero.** At `f64`
+    /// the translation is bitwise `0.0`. At `Interval` it is not: the
+    /// backend's `sin` at the exact point `0` encloses `[−2e-323,
+    /// 2e-323]` rather than `[0, 0]`, so the operator carries subnormal
+    /// dust, and no spelling on this side can remove it. What the row
+    /// pins instead is the property that actually failed — the residue
+    /// is **independent of the anchor**: the anchor enclosure is
+    /// widened by six orders between the two measurements and the
+    /// translation width does not move. Under `q − R·q` it moves by
+    /// exactly those six orders.
+    ///
+    /// The axis is oblique **and itself an enclosure**: the claim is not
+    /// "the axis happens to normalize exactly", it is that the vanishing
+    /// factor multiplies, which holds whatever the axis is. The row is
+    /// ε-free — it measures enclosure width and asserts no tolerance, so
+    /// it reads identically at every tolerance row.
+    #[cfg(feature = "interval")]
+    #[test]
+    fn zero_angle_anchored_rotation_carries_no_anchor_width() {
+        use crate::interval::Interval;
+        use crate::real::Bounds;
+
+        let width = |e: Interval| e.hi() - e.lo();
+        // Subdivision-scale and box-scale anchor enclosures: six orders
+        // apart, so anything proportional to the anchor's width is
+        // visible as a six-order difference between the two rows.
+        let mut residue = [0.0f64; 2];
+        for (row, h) in [1.0e-9f64, 1.0e-3].into_iter().enumerate() {
+            let wide = |c: f64| Interval::from_bounds(c - h, c + h);
+            let anchor = Point3::new(wide(1.0), wide(2.0), wide(-3.0));
+            assert!(
+                width(anchor.x) >= h,
+                "FIXTURE: the anchor must carry width, else the row is vacuous"
+            );
+            // Oblique, and wide in its own right.
+            let axis = Vec3::new(wide(1.0), wide(-2.0), wide(2.0));
+
+            let rot = Affine3::rotation_about_axis(anchor, axis, Interval::zero());
+            let w = width(rot.translation.x)
+                .max(width(rot.translation.y))
+                .max(width(rot.translation.z));
+            residue[row] = w;
+            assert!(
+                w <= 1.0e-320,
+                "zero-angle translation is {w:e} wide on an anchor of width {:e} \
+                 — the anchor is being subtracted and re-added rather than \
+                 multiplied by a vanishing operator",
+                width(anchor.x),
+            );
+        }
+        assert!(
+            residue[1] <= 16.0 * residue[0].max(f64::MIN_POSITIVE),
+            "the zero-angle translation width tracks the anchor width \
+             ({:e} at half-width 1e-9 against {:e} at 1e-3)",
+            residue[0],
+            residue[1],
+        );
+
+        // The guard with teeth: the retired spelling, measured on this
+        // very fixture, must still be two anchor widths. If it ever
+        // stops being, the bound above has stopped discriminating and
+        // this row reds instead of going quiet.
+        let h = 1.0e-9;
+        let wide = |c: f64| Interval::from_bounds(c - h, c + h);
+        let anchor = Point3::new(wide(1.0), wide(2.0), wide(-3.0));
+        let q = anchor - Point3::origin();
+        let linear =
+            Mat3::rotation_about(Vec3::new(wide(1.0), wide(-2.0), wide(2.0)), Interval::zero());
+        let retired = q - linear * q;
+        assert!(
+            width(retired.x) >= 1.9 * width(anchor.x),
+            "the `q − R·q` spelling is supposed to pay 2·width(anchor) = {:e} here; \
+             it paid {:e} — if this now holds, the guard is stale",
+            2.0 * width(anchor.x),
+            width(retired.x),
+        );
+
+        // The same at `f64`, where the operator is exactly zero and the
+        // anchored identity is therefore bitwise the identity.
+        let anchor = Point3::new(1.0f64, 2.0, -3.0);
+        let rot = Affine3::rotation_about_axis(anchor, Vec3::new(1.0, -2.0, 2.0), 0.0);
+        // Zero, though two components carry the negative sign (the
+        // off-diagonal entries are negations, and `−(0 − 0)` is `−0.0`):
+        // the same number, and it adds exactly, which is what the
+        // bitwise round trip below actually needs.
+        assert_eq!(rot.translation.x, 0.0);
+        assert_eq!(rot.translation.y, 0.0);
+        assert_eq!(rot.translation.z, 0.0);
+        let image = rot.transform_point(anchor);
+        assert_eq!(image.x.to_bits(), anchor.x.to_bits());
+        assert_eq!(image.y.to_bits(), anchor.y.to_bits());
+        assert_eq!(image.z.to_bits(), anchor.z.to_bits());
+    }
+
+    /// The same claim off the exact-zero point: at small angles the
+    /// anchor-attributable width **scales with the angle** rather than
+    /// sitting on a constant floor.
+    ///
+    /// `(I − R)·q` has entries of size `|sin θ|` and `1 − cos θ`, so
+    /// the width the anchor contributes is `≈ θ·width(q)` — it goes to
+    /// zero with the angle, continuously into the identity case above.
+    /// The subtract-then-re-add spelling pays `2·width(q)` at *every*
+    /// angle, so the upper bounds below are three to seven orders under
+    /// it. Both sides are asserted: the lower bound is what keeps the
+    /// row from passing vacuously if the width ever collapsed to a
+    /// constant (a floor would break the proportionality, not the
+    /// ceiling).
+    ///
+    /// Axis `+z` and anchor `(1, 2, −3)` make the arithmetic readable:
+    /// `translation.x = t·q.x + s·q.y`, so the width is
+    /// `(|t| + |s|)·width(q) ≈ θ·width(q)` plus the interval `cos`'s
+    /// own ulp-scale enclosure at the point angle — 1.1e-16 against
+    /// `|q|`, five orders below the smallest bound here, which is why
+    /// the row does not need a floor term.
+    #[cfg(feature = "interval")]
+    #[test]
+    fn small_angle_anchored_rotation_width_scales_with_the_angle() {
+        use crate::interval::Interval;
+        use crate::real::Bounds;
+
+        let width = |e: Interval| e.hi() - e.lo();
+        let h = 1.0e-6;
+        let wide = |c: f64| Interval::from_bounds(c - h, c + h);
+        let anchor = Point3::new(wide(1.0), wide(2.0), wide(-3.0));
+        let qw = width(anchor.x);
+        let axis = Vec3::new(Interval::zero(), Interval::zero(), Interval::one());
+
+        let mut measured = [0.0f64; 3];
+        for (i, theta) in [1.0e-2f64, 1.0e-4, 1.0e-6].into_iter().enumerate() {
+            let rot = Affine3::rotation_about_axis(anchor, axis, Interval::from_f64(theta));
+            let w = width(rot.translation.x)
+                .max(width(rot.translation.y))
+                .max(width(rot.translation.z));
+            measured[i] = w;
+            assert!(
+                w <= 2.0 * theta * qw,
+                "at angle {theta:e} the translation is {w:e} wide against \
+                 anchor width {qw:e} — expected ≈ θ·width(q) = {:e}",
+                theta * qw,
+            );
+            assert!(
+                w >= 0.5 * theta * qw,
+                "at angle {theta:e} the translation is {w:e} wide, under the \
+                 ≈ θ·width(q) = {:e} the anchor must still contribute — the row \
+                 is measuring the wrong thing",
+                theta * qw,
+            );
+        }
+        // Proportionality across two decades of angle, stated as a
+        // ratio so a constant floor cannot satisfy it.
+        assert!(
+            measured[0] >= 50.0 * measured[1] && measured[1] >= 50.0 * measured[2],
+            "widths {:e} / {:e} / {:e} at angles 1e-2 / 1e-4 / 1e-6 are not \
+             scaling with the angle",
+            measured[0],
+            measured[1],
+            measured[2],
+        );
     }
 }
