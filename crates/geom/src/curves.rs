@@ -396,6 +396,71 @@ impl<T: SpanLocate> Curve3<T> {
             Curve3::Nurbs(n) => n.deriv2(t),
         }
     }
+
+    /// The parameter of a point **on** this carrier, on the branch
+    /// nearest `near` — the one body for point-on-carrier parameter
+    /// recovery, and pure carrier arithmetic. `None` for the kinds
+    /// whose inversion is a solve rather than a closed form.
+    ///
+    /// - **`Line`**: the projection `t = (p − origin)·dir`. A line's
+    ///   parameterization is injective, so there is no branch to pick
+    ///   and `near` is unused — the argument belongs to the periodic
+    ///   kind and costs this arm nothing.
+    /// - **`Circle`**: `near + δ` with `δ = atan2(w·τ̂, w·r̂)`,
+    ///   `w = p − center`, and the frame at `near` read from the public
+    ///   evaluators (`r̂·radius = eval(near) − center`,
+    ///   `τ̂·radius = deriv(near)`). The common positive factor `radius`
+    ///   sits on both `atan2` arguments and is `atan2`'s to quotient
+    ///   away, so no division enters and no frame is re-derived here.
+    /// - **`Ellipse`, `Nurbs`**: `None`. The eccentric anomaly is not
+    ///   the polar angle of the point, and a spline's inversion is
+    ///   Newton on the foot-point condition (`project`) — a different
+    ///   machine with a different refusal, not a branch policy.
+    ///
+    /// **Anchoring at `near` is what removes the branch cut.** `atan2`
+    /// returns its principal value in `(−π, π]`, so `near + δ` is by
+    /// construction the unique branch within half a turn of `near`:
+    /// there is no `k·2π` to select, hence no ordering decision and no
+    /// lane fork. A SEAM anchor would need that selection, which on a
+    /// bare `Real` costs either an ordering (not available) or a
+    /// `floor` whose interval answer widens across the integer. Here
+    /// the interval scalar's `atan2` encloses the same value, and a
+    /// `near` whose half-turn window straddles the cut widens the
+    /// enclosure rather than mis-selecting a branch — degradation the
+    /// consumer's own gate can see, never a silent turn.
+    ///
+    /// **Two preconditions, neither checked here**, because neither is
+    /// this arithmetic's to decide:
+    ///
+    /// - `p` must be ON the carrier. Off it, the circle arm answers
+    ///   about `p`'s radial projection and the line arm about its
+    ///   axial one.
+    /// - The branch the caller wants must be the one nearest `near`.
+    ///   A caller recovering a parameter INSIDE a stored span
+    ///   `[t₀, t₁]` gets that by passing the span's MIDPOINT, and only
+    ///   while the span is at most one period: then `|t − mid|` is at
+    ///   most half a period for every `t` in the span, so the nearest
+    ///   branch to the midpoint IS the in-span one. Past a period the
+    ///   answer aliases by `2π` and nothing downstream can see it, so
+    ///   a caller with a span that long owes a period guard.
+    ///
+    /// At `|δ| = π` exactly — the two ends of a full-period span read
+    /// from its midpoint — the principal branch collapses the two into
+    /// ONE answer, and which end that is comes down to the last bit of
+    /// `sin(π)`. Both are endpoints, so a consumer whose interiority
+    /// gate refuses a split at either is unaffected whichever it names.
+    pub fn param_near(&self, p: Point3<T>, near: T) -> Option<T> {
+        match self {
+            Curve3::Line { origin, dir } => Some((p - *origin).dot(*dir)),
+            Curve3::Circle { center, .. } => {
+                let w = p - *center;
+                let r_near = self.eval(near) - *center;
+                let tau_near = self.deriv(near);
+                Some(near + w.dot(tau_near).atan2(w.dot(r_near)))
+            }
+            Curve3::Ellipse { .. } | Curve3::Nurbs(_) => None,
+        }
+    }
 }
 
 #[cfg(test)]
