@@ -137,3 +137,25 @@ dispatch: issues 1234 (reader_census dot-path), 1235 (m10_p_lift
 clippy). The impl lane is kept intact for the fix pass (the M10-1
 worktree-reclaim lesson); only review targets are reclaimed at
 report time.
+
+## R1 DELIVERED; R2 DISPATCHED (2026-08-29 ~20:45Z)
+
+R1 (blind, sequential slot 1): **APPROVE-WITH-FIXES 1/2/2, rubric
+4/4/4**, probes on `blend/rimwhole-r1-probes`, ~300K/~75m. Headline
+MAJOR by execution: the rewritten `SeamVertex` recourse
+OVER-PROMISES at concave seam-split rims (the tag fires before the
+convexity door; measured on the PR's own waisted revolve AND the
+lily mouth rim) — the A3-2 failure shape recurring one door later.
+MINORs: carry-through-crossing vertex-birth rows mutation-invisible
+in the totality row; the boolean-repaired pole-touching body
+(merged caps) falls to the ladder and refuses — a third shape
+neither door serves, overspoken in KERNEL-VERBS. Also: the concave
+closed-rim band frontier has NO issue number (deviation disclosed
+but unscheduled), and the A3-2 correction paragraph is now stale
+(code drifted from a meant-to-hold sentence — kept as the standard,
+not deleted). Both bit-level differentials and an independent
+Pappus oracle CONFIRM the carve. R1's target reclaimed at report;
+the impl lane's 13G target also reclaimed (clone kept — the
+worktree, not the target, is the resume-critical half). R2
+dispatched from the STORED brief, read-isolated, same frozen head.
+Adjudication at R2's delivery.
