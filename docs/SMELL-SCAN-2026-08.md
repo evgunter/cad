@@ -7523,7 +7523,7 @@ grows after dispatch. **This row needs a lane and does not have one.**
 > `docs/SMELL-{C,E,F,G,H,I}-LOG.md` are the execution record for six of the
 > nine. **A, B and D left no log and none is owed**; what they did is in their
 > merged PRs. The rulings the logged tracks made are cited from here by number
-> (`F-R11`, `H-R2`, `I-R8`, …) and are read there. **117 open items** are
+> (`F-R11`, `H-R2`, `I-R8`, …) and are read there. **119 open items** are
 > carried below, partitioned by file territory so that no two tracks edit one
 > file and no branch waits on, fences against, or re-derives another's scope.
 
@@ -7612,7 +7612,7 @@ its orchestrator stopped, and §C3 says a deferral that lands nowhere that
 executes is the failure this document keeps re-finding. **This section is the
 one register for all of it.**
 
-**117 open items, repartitioned into twelve tracks by FILE TERRITORY.** The
+**119 open items, repartitioned into twelve tracks by FILE TERRITORY.** The
 partition rule is the only one that matters here: **no two tracks may edit the
 same file**, so no branch waits on, fences against, or re-derives another's
 scope. Dependencies *inside* a track are its own orchestrator's to sequence —
@@ -7686,12 +7686,12 @@ re-scoped or re-argued by being moved.
 | Track | Territory (the fence) | Block | Items |
 |---|---|---|---|
 | **J** | `.github/workflows/`, `local-scripts/`, `scripts/doc-gate.sh`, `scripts/gates/{gate-roster,probe-suite-census}.sh`, **every `*.py` in the repo**, root `Cargo.toml`'s `[workspace.lints]` | `D180`–`D199` / `S250`–`S269` | 4 |
-| **K** | `scripts/gates/` (everything J does not name), `tools/`, `docs/K-REPORT.md` | `D200`–`D219` / `S270`–`S289` | 14 |
+| **K** | `scripts/gates/` (everything J does not name), `tools/`, `docs/K-REPORT.md` | `D200`–`D219` / `S270`–`S289` | 15 |
 | **M** | `crates/geom-core/src/{real,ring_interval,dual,interval,k_stats}.rs`, `interval-transcendentals/`, `crates/bvh/` | `D220`–`D239` / `S290`–`S309` | 7 |
 | **N** | `crates/geom/src/`, `crates/geom-core/src/{spline/,linalg/}` | `D240`–`D259` / `S310`–`S329` | 7 |
 | **P** | `crates/topo/src/{euler.rs,euler_ring.rs,euler_kill.rs,split.rs,attach.rs,movefac.rs,revert.rs,live.rs,merge_faces.rs,seqgen.rs,validate.rs,review_d18.rs,review_d18_probes.rs,fixtures.rs,source_walk.rs}` | `D260`–`D279` / `S330`–`S349` | 11 |
 | **Q** | `crates/topo/src/{boolean/,splitting/,census.rs,chord_join.rs,chart_region.rs,face_normal.rs}`, `crates/geom-brep/src/{ssi*,pcurve_cache.rs,nurbs_iso.rs,edge_nurbs.rs}`, `docs/predicate-dimension-audit.md` | `D280`–`D299` / `S350`–`S369` | 18 |
-| **R** | `crates/geom-brep/src/` **less the four paths Q names**, `crates/mesh/` | `D300`–`D319` / `S370`–`S389` | 11 |
+| **R** | `crates/geom-brep/src/` **less the four paths Q names**, `crates/mesh/` | `D300`–`D319` / `S370`–`S389` | 12 |
 | **T** | `crates/sweep/` | `D320`–`D339` / `S390`–`S409` | 10 |
 | **U** | `crates/step-import/`, `crates/step-export/`, `crates/stl/`, `crates/pncad-py/`, `crates/pncad/` | `D340`–`D359` / `S410`–`S429` | 7 |
 | **V** | `crates/editor-core/`, `crates/profile/` | `D360`–`D379` / `S430`–`S449` | 12 |
@@ -7767,6 +7767,7 @@ a place where a reasonable reader would think the fence ambiguous:
 | **D203** | **A per-column admissions table cannot state a cross-column invariant, and the class now has two instances filed nowhere together.** `tess-lint`'s `Admissible::Extent` documents that the trim box's own non-degeneracy (`u0 < u1`, `v0 < v1`) is beyond what its per-column table can say; `D200` was the same shape one crate over (`Band::new`'s `zero < escalate`, which `lint_csv` had to check in the harness voice because `Admissible::BandThreshold` is per column). Both instruments answer it the same way and neither says so at the other's site. The row is the **rule** — where a cross-column check belongs when the admission table is per column — not either instance | `C15` residue |
 | **D204** | **`tess-lint`'s `CHART_TAGS` is a gate input with no cross-root pin, and its asymmetry is undisclosed on the producing side.** `C15` made `chart` a precondition column, so the lint now polices a roster of the meter's tag vocabulary. A tag the meter **renames** is caught here and reads as drift, which is right. A tag the meter **adds** arrives as harness breakage on every row carrying it, and nothing in `tools/tess-meter` says so. `EXPECTED_HEADER` has the shape this wants — `tess-meter`'s `the_lints_expected_header_is_this_one` reaches into the lint's source with `include_str!` precisely to pin a constant across the cargo-root boundary without a dependency — and `CHART_TAGS` has no equivalent. The pin belongs on the meter's side, which is why `C15` could not write it | `C15` residue |
 | **D205** | **A seventh hand-rolled Rust reader, in `tools/`** — `tools/tess-meter/tests/derivations.rs:210` runs its own string-continuation lexer over `tools/tess-lint/src/lib.rs` to pin a constant across the cargo-root boundary. Outside both of `S117`'s sweeps because neither covered `tools/`. The cross-root pin is the right shape and is cited approvingly elsewhere; the lexer under it is the eighth spelling `S117` predicted. the source-text guard class's shared home is `crates/test-utils/src/source.rs` (one lexer, three views: `code_only`, `code_and_literals`, `comments_only`), and the census that keeps the population honest is `crates/test-utils/tests/reader_census.rs`, whose `Unconverted` ceiling this row lowers by its own member count | `D61` residue |
+| **D206** | **The instrument's own resolution may exceed the gate's whole tolerance, which would make this a finding about `tess-lint` rather than about `tess-meter`.** `D105` boxes the split scan's excess analytically on the unfloored class and by measurement on the floored one (worst 2.088% at the shipped pair). The crude slope envelope for the floored class is `10^(decades/(samples−1)) − 1` = **5.93%**, and a two-sided kink-slope argument tightens it only to 3.91% — both **above `tess_lint::GROWTH_TOLERANCE − 1` = 5% / near it**. If the true worst is anywhere near the envelope rather than near the measurement, then a face whose bound moves relative to the scan lattice under a **pure geometry change** can move `span_opt_cells` by more than the budget gate's entire margin, from the instrument alone — so the gate would fire, or fail to fire, on lattice placement rather than on tessellation. **This is bigger than `D105` and is not closed by it**: `D105`'s residue is a certificate for the kink case; this row is what that certificate would *mean* for the consumer. Not takeable until the certificate exists, and the first thing to do with it | `D105` residue |
 
 ## Track M — the scalar and certification traits
 
@@ -7882,6 +7883,7 @@ because `mesh` is what consumes it; Q keeps the four paths it names.
 **Evan's decision**, not this track's row. Its equipped statement, the three
 options and the measured price are at `S65`; issues #896 and #897 carry what
 #872 could route. When it is ruled, the implementation is this track's.)*
+| **D303** | **`mesh::sizing::ceil_count` answers `1` for a NEGATIVE step**, in the function about to allocate that many grid points: `raw` is negative, finite, and floors to one, so it refuses only what makes `raw` non-finite (a NaN, a zero step, a count ≥ 2^24). `tess_meter::divisions`, the consumer-side second spelling, now refuses a negative step under `D105`, so **the kernel is the laxer of the pair** — and a negative step is not a smaller grid, it is a reading that did not happen. The fail-loud side of a two-spelling pair should be the one holding the allocation. Unreachable today only because every step reaching it is `sqrt`- or `cap_angular`-derived | `D105` residue |
 
 ## Track T — `sweep/`
 

@@ -597,3 +597,51 @@ test asks *"is it a plane"*, and a face on the `mvfs` `Nurbs` placeholder
 answers *"is it curved"* by default, found only because the new kind-split probe
 failed against `ops_cube`. `D288` (Q) — the sentence `D38` corrected at its
 origin has a second copy across a fence, and both halves of it are now false.
+
+## `k2`'s fix pass — and the finding that outgrew its own row
+
+The guard now drives the **shipped** scan: `split_scan` is one function with the
+counting rule as a parameter, `best_split_steps` is that composition, and a new
+**claim 0** asserts the lattice under test is the one the constants describe.
+The call-site hole is closed — the substitution that inflated cell counts 12.73%
+with every test green is now caught, and the lane re-measured what it costs
+(+29.77% on the new floored ruled wall). The closed form is renamed
+`unfloored_worst_excess`, carries `δ_s` in its signature, and has a companion
+predicate expressing its domain; the family grew 6 → 8 with both counterexamples
+as members, each declaring a `Shape` that is **checked** rather than asserted.
+Both ceilings are now read out of `tess_lint::GROWTH_TOLERANCE` by the
+`include_str!` idiom the file already argued for 280 lines below — the mechanism
+the lane had said was unavailable and I had ruled was not.
+
+**And the true relationship is now written down instead of the one that was
+wanted**: the worst member sits at 2.088%, which is **42% of the gate's whole
+margin — the same order as its tolerance, not an order below it.**
+
+**One declined item, and the argument is right.** Told that `SPLIT_SCAN_DECADES`
+could be cut 8.0 → 3.7 with every claim green, the lane declined: that no family
+member lives above `t = 1` is a property of *the family*, not of the tour, so
+narrowing the range to the members that happen to exist is fitting the constant
+to the test — which is the move `F-R14` killed. Correct, and it is the second
+time this session a lane has refused an instruction on better grounds than the
+instruction had.
+
+### `D206` — the finding is probably about the gate, not the meter
+
+The lane raised this and did not file it, saying it was bigger than its row. It
+is. The crude slope envelope for the floored class is **5.93%** at the shipped
+pair, and a two-sided kink-slope argument tightens it only to 3.91% — both at or
+above `tess-lint`'s **entire 5% growth margin**. If the true worst is anywhere
+near the envelope rather than near the 2.088% two searches found, then **a face
+whose bound moves relative to the scan lattice under a pure geometry change can
+move `span_opt_cells` by more than the budget gate's whole tolerance, from the
+instrument alone** — the gate would fire, or fail to fire, on lattice placement
+rather than on tessellation. `D105`'s residue is the certificate for the kink
+case; `D206` is what that certificate would *mean* for the consumer, and it is
+the first thing to do with it. The delta review is briefed to establish how close
+the true worst is to the envelope, because that number decides whether this is a
+documentation gap or a live defect in a shipping gate.
+
+Two rows minted: `D206` above, and `D303` (Track R) — `mesh::sizing::ceil_count`
+answers `1` for a **negative** step in the function about to allocate that many
+grid points, so after `D105` the kernel is the laxer of a two-spelling pair. A
+negative step is not a smaller grid; it is a reading that did not happen.
