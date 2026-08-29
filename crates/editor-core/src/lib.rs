@@ -45,8 +45,9 @@ pub mod update;
 pub mod witness;
 
 pub use analysis::{
-    AnalysisPolicy, AnalysisPolicyError, AnalyzedBox, AnalyzedParam, DEFAULT_QUANTILE_MASS,
-    MeasureUnavailable, OffsetInterval, analyzed_box, box_mass, tail_mass,
+    AnalysisPolicy, AnalysisPolicyError, AnalyzedBox, AnalyzedParam, AxisScalar, BoxAxis,
+    DEFAULT_QUANTILE_MASS, MeasureUnavailable, OffsetInterval, ParamBox, ParamBoxError,
+    analyzed_box, box_mass, param_env_over, tail_mass,
 };
 pub use appearance::{
     AppearanceLoss, AppearanceLossCause, AppearanceMap, AppearanceRecord, AppearanceResolution,

@@ -63,8 +63,8 @@
 mod corpus;
 mod fixture;
 
-use editor_core::{CancelToken, ContentBits, EvalOptions, NodeResult, ValuePayload, evaluate};
-use geom_core::{Decide, Tol};
+use editor_core::{CancelToken, EvalOptions, NodeResult, ValuePayload, evaluate};
+use geom_core::Tol;
 
 /// A 128-bit FNV-1a over the evaluation's observable bits.
 struct Digest {
@@ -102,7 +102,7 @@ impl Digest {
 /// door, which is what lets it compile against a pre-lift tree.
 fn corpus_digest<T, F, S>(bits: F, scalar: S) -> (u64, u64)
 where
-    T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::AtRestPolicy,
+    T: editor_core::EvalScalar,
     F: Fn(&mut Digest, &geom_core::Point3<T>),
     S: Fn(&mut Digest, T),
 {
