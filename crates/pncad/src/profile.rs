@@ -78,6 +78,21 @@ pub use ::profile::{
     ProfileError, SegmentKind, SegmentRef, ValidatedLoop, ValidatedProfile, ValidatedSegment,
 };
 
+// **The structure record and the guided doors.** One vocabulary, and
+// it is carried whole for a reason the split would break: a lifted
+// evaluation hands a caller a refusal that NAMES the decision it could
+// not confirm, so `StructureRefusal` and everything reachable from it
+// is already in that caller's hands — and a caller who can match a
+// refusal about a record but cannot name the record it refused about
+// has half a door. The record types are also the driver's input: a
+// bisecting lane records at f64 and replays guided at its own scalar
+// through exactly these two functions.
+pub use ::profile::{
+    CanonicalStructure, CornerGate, Decision, DecisionValue, FilletDecision, LoopCanonical,
+    ProfileStructure, ReplayStructure, SegmentShape, StructureRefusal, StructureRefusalKind,
+    replay_guided, replay_recording, structure,
+};
+
 // The lift door (recorded programs back to loops) and its verdicts.
 pub use ::profile::{Fidelity, LiftOutcome, LiftRefusal, lift_checked};
 // `lift` the FUNCTION shares its name with `lift` the module above; one
