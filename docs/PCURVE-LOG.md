@@ -236,3 +236,14 @@ are the six anchors on `main` today. The residue named in both PR
 bodies closed on its own, one commit before the merge that shipped it,
 and nobody said so. Recorded here so the log's tail is honest about
 it: **closed, not open.**
+
+(A footnote this entry's own PR paid for: `ci-filter.py`'s trailer
+regex reads the HEAD COMMIT MESSAGE only, matches case-insensitively
+at the start of ANY line, and rejects a token list that isn't
+`key=value` rather than falling back to sampling. The first commit
+message for this entry described the closing run in prose starting a
+line with "CI-Config: lane=both trailer..." -- read literally as a
+malformed configuration REQUEST, not as prose -- and failed `change
+filter` with exactly the error the docstring promises for that case.
+Fixed by rewording the commit message; the file text above was never
+the problem.)
