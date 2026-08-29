@@ -349,6 +349,16 @@ const EXPECTED_HEADER: &str = "shape,predicate,margin,band_zero,band_escalate,ou
 /// thresholds of the `Band` it was classified against, and `Band::new`
 /// refuses a threshold that is not finite and strictly positive — so a
 /// zero or negative band is drift, not a loose band.
+///
+/// **`Band::new`'s third invariant is not one of these**, and cannot be:
+/// `BandError::Empty` is `zero < escalate`, a relation between two
+/// columns that each admit alone. A row inverting them was classified
+/// against a band the recorder could not have built, and rule (2)'s two
+/// arms would then sit on opposite sides of a band that does not exist —
+/// `m < EPS_COUPLED_FLOOR_RATIO * band_zero` for the ε-coupled
+/// predicates and `m < proximity_above_threshold(band_escalate)` for the
+/// rest — making the verdict incoherent rather than wrong in a stated
+/// direction. [`lint_csv`] checks it where the two admissions meet.
 #[derive(Clone, Copy, Debug)]
 enum Admissible {
     /// A classified margin: any FINITE value, of either sign — a margin
@@ -540,6 +550,18 @@ pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
         let margin = admit(m, 0)?;
         let band_zero = admit(bz, 1)?;
         let band_escalate = admit(be, 2)?;
+        // The band property no per-column policy can state, because it
+        // is a RELATION between two columns that each admit alone.
+        if band_zero >= band_escalate {
+            return Err(ParseError {
+                line: i + 1,
+                text: format!(
+                    "band_zero = {band_zero:e} must be strictly below band_escalate = \
+                     {band_escalate:e} (the ambiguity band is a nonempty open interval; \
+                     sweep drift?): {line}"
+                ),
+            });
+        }
         scanned += 1;
         // Record (once) that rule (2)-above is running capped on this
         // file's ambient rows, so the CLI can say so out loud.
@@ -865,6 +887,51 @@ mod tests {
         let scan = lint_csv(&row("NaN", "1e-9", "1e-8", "invalid")).expect("poison is a reading");
         assert_eq!(scan.scanned, 1);
         assert_eq!(scan.flags[0].reasons, vec![Reason::Invalid]);
+    }
+
+    /// `Band::new`'s third invariant, which the per-column admissions
+    /// structurally cannot carry: each threshold is checked alone and
+    /// the PAIR never was, so an inverted or degenerate band parsed,
+    /// counted in [`Scan::scanned`], and was linted against a band the
+    /// recorder could not have built.
+    #[test]
+    fn an_empty_band_is_harness_breakage_however_admissible_its_columns() {
+        // Both columns are finite and strictly positive on every row
+        // here, so `Admissible::BandThreshold` admits all of them —
+        // which is the point.
+        for (bz, be) in [
+            ("1e-8", "1e-9"),     // inverted
+            ("1e-9", "1e-9"),     // equal: `zero >= escalate` is closed
+            ("1e-323", "5e-324"), // the ambient tie-break band, inverted
+        ] {
+            let e =
+                lint_csv(&row("2e0", bz, be, "positive")).expect_err("an empty band is not a band");
+            assert_eq!(e.line, 2);
+            // The phrase is asserted ACROSS the line continuation the
+            // literal is written over: a wrapped message that loses its
+            // `\` reads back with a run of indentation in the middle,
+            // and half of it still contains "strictly below".
+            assert!(
+                e.text.contains("strictly below band_escalate"),
+                "{}",
+                e.text
+            );
+            assert!(e.text.contains("band_zero"), "{}", e.text);
+        }
+        // A hairline band is REPRESENTABLY empty and mathematically
+        // nonempty, and `Band::new` accepts it — so this lint must too,
+        // or the instrument is stricter than the thing it measures.
+        let t = 1e-9f64;
+        assert!(
+            lint_csv(&row(
+                "2e0",
+                "1e-9",
+                &format!("{:e}", t.next_up()),
+                "positive"
+            ))
+            .is_ok(),
+            "a hairline band is a band"
+        );
     }
 
     /// The refusal names the column and the policy it broke, not just

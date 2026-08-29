@@ -1451,3 +1451,79 @@ grep the target symbols on a FRESH clone of main before spending the
 lane — a register item can be discharged by an adjacent commit
 without the register moving. The lane's façade Display-gap re-sweep
 (12 real gaps, 4 new to #1111) is recorded on #1111 itself.
+
+**GUARD-SIBS MERGED (2026-08-29, #1166; mechanical under the 08-29
+ruling, no A/B row).** The carried-or-listed guard family completes —
+with the unit's own measurement CORRECTING the dispatch premise: only
+TWO façade layers are curated per-name (`editor_core`, already
+guarded, and `profile`, the hole R2 sat in); the other ten are
+whole-crate re-exports whose surfaces cannot drift by construction, so
+the brief's "at minimum profile, topo, mesh, quantity" would have
+minted three vacuous guards. What landed instead: the assertion tail
+extracted (one function, not four copies), the profile-layer guard
+(root declarations scanned too — that layer DECLARES types at root,
+closing blind spot #2 for it), and the classification guard
+(`every_facade_layer_is_whole_re_exported_or_per_name_guarded`) that
+buckets every manifest path-dep exactly once — so a layer narrowing
+out of whole-re-export into curation FAILS on that commit instead of
+silently joining the unwatched case. Negative checks reproduced the
+real R2 hole (deleting PathNoCornerReason's carriage reds the guard;
+the historical gap was 20 days, df89aff8→09dbd562, longer than the
+register knew). **Banked, register category A (curation candidate):
+`profile::BlendArc`** — the one unargued entry in either list; return
+type of a carried type's method, cross-referenced from carried docs,
+matching neither withholding family. Fold into the next curation
+pass.
+
+**G11 MERGED (2026-08-29, #1165; mechanical under the 08-29 ruling,
+no A/B row). Audit G11 CLOSED — the guide ladder's steps 4–5 are
+sayable from Python.** `Body.tessellate(chordal: Length)` → `Mesh`
+(shared position buffer + per-face patches both cross, so
+watertightness is index-checkable and the mesh-vs-exact cross-check
+is the CALLER's computation — argued as the better step-5 shape, a
+genuinely independent second measure, since `mesh::validate`'s
+re-derivations are not curated and binding them would have reached
+past the façade); `to_stl_ascii`/`to_stl_binary`; `TessellateError` +
+`StlError` typed with exhaustive tag maps (kernel-side arm additions
+arrive as compile errors). Census: all eleven `gap: G11` entries
+dispositioned; audit page re-cut (G11 → closed gaps, no mark moved —
+its anchor was the ladder, not a stop); new guide page `meshing.md`
+under test_guide. Register effects and banked findings, each with a
+home: (1) **`StlError` uncurated** (the R2 shape — prelude carries
+the writers and their option error types, not the writers' own
+refusal): joins BlendArc as the pending **curation micro-unit**,
+category A. (2) **Kernel Display gaps** (`mesh::TessellateError`,
+plus #1111's re-sweep quartet: `ContactRefusal`, `ReadbackError`,
+`FmtQuantityError`): a dispatchable mechanical unit
+(**DISPLAY-KERNEL**), recorded on #1111. (3) **No patch→StableName
+door on either side of the boundary** — the next picking/rendering
+consumer's ask, adjacent to census `B-PICKING`/`B-READBACK`;
+design-shaped, recorded in the audit page's G11 residue. The
+picking-chain keys stay unnameable by curation, correctly.
+
+**G15 MERGED (2026-08-29, #1164; mechanical under the 08-29 ruling,
+no A/B row). Audit G15 CLOSED — the workspace store crosses whole.**
+`Workspace(path)` (scan-by-header, `documents()`, `create`/`resave`,
+`resolve` with A4's Cargo.lock pin semantics un-softened —
+`pin_mismatch` refuses typed with `wanted`/`found` +
+`PIN_MISMATCH_RECOURSE`), `ContentPin`/`DocRef`/`content_pin`/
+`canonical_bytes`/`header_document_id`/`random_document_id`, one
+typed `WorkspaceError` with every attribute present on every arm.
+The unit's argued deviation ADOPTED at adjudication: the pin-UPDATE
+family (`update_to_store`, `update_references`, `mixed_pins`,
+`UpdateError`, `PinMultiplicity`, `PinSites`) is NOT bound and
+re-cited to G18 — a site is an `InstantiatePart` node's `DocRef`, so
+on any Python-authorable document those doors answer only
+"referenced nowhere"; the audit page's own test already grouped them
+with G18, and the page was cut in the test's favor. Its measured
+finding kept as a test: a pin says which VERSION, never which PART
+(`canonical_bytes` strips `id` by design). **The re-survey map's
+"G15 dispatchable" bullet retires at this row** (the lane flagged it
+as the stale line it would become). Sequencing note: merged after
+G11 and GUARD-SIBS with a union conflict resolution in the census
+docstring, the audit page's further-gaps section (now empty — both
+its rows closed in one wave) and the closed-gaps table; census green
+on the union pre-push, hosted CI the gate as always. The
+resolver-door design conversation this unit's report sharpened is
+RATIFIED and specced: `docs/LIB-G18A-SPEC.md` (Evan, in-chat,
+2026-08-29) — the next unit, full A/B protocol.
