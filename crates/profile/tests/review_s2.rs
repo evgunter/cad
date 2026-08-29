@@ -77,7 +77,7 @@ use common::tol;
 use geom_core::Point2;
 use geom_core::Tol;
 use profile::path::PathNoCornerReason;
-use profile::{ArcSweep, Center, NoCornerReason, Open, PathError, ProfileLoop, Start};
+use profile::{ArcSweep, Center, Open, PathError, ProfileLoop, Start};
 use test_utils::fuzz;
 
 const TAU: f64 = core::f64::consts::TAU;
