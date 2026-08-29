@@ -613,6 +613,18 @@ pub trait Real:
 /// tighter one failing, or it is an argument that a bound suffices —
 /// which is not what this rule asks.
 ///
+/// **The tightening has a consequence that crosses a unit boundary,
+/// recorded here because that is where it will be looked for.** No
+/// [`Dual`](crate::Dual) implements [`CertifiedEnclosure`], so
+/// `editor_core::run_checks` is no longer callable at one. M10-DI's
+/// `r1_dual_probes` had been observing exactly that reachability and
+/// calling it "a gap DL3 does not cover"; it is now CLOSED rather than
+/// merely unobserved, and those rows say so. Closing it is DL1 holding
+/// one door further out — the registry's separation resident GRANTS a
+/// certificate (box non-overlap is a genuine separation claim), and a
+/// dual never certifies, which is the sentence `topo::AtRestPolicy` is
+/// itself built on.
+///
 /// **And the precedent had been read backwards.** The `separation`
 /// entry's "passes keep their lanes" turns on its caller being a mixed
 /// pass BENEATH `evaluate<T>`, which a [`CertifiedBounds`] bound would
