@@ -1916,3 +1916,35 @@ lane targets; reducing concurrency, not narrowing method — identical
 stored briefs, R2 gets no access to R1's report or probes).
 Implementer difficulty S (pre-drawn at spec). Sample number at merge,
 per the banding entry's rule. Row at merge.
+
+## Block M10-B1 — CONCLUDED record (merged from `m10/orchestrator` at the last slot's conclusion, per the branch-side shape; 2026-08-29)
+
+**Block M10-B1 (recorded branch-side on `m10/orchestrator` at draw,
+2026-08-29, per the branch-side shape — merges to main when this
+block's last slot's reviews conclude).** v3 triple {opus, opus,
+fable}. Slot 1 = M10-1 (distributions; difficulty pre-logged M
+before the draw, in the dispatch task record). Draw: /dev/urandom
+byte 85, no rejections ⇒ fable position 1 (0-indexed) ⇒ slot 1
+OPUS, slot 2 FABLE, slot 3 OPUS.
+
+**M10-DI dispatch (branch-side, 2026-08-29).** Block M10-B1 slot 2
+(arm per the block draw above). Difficulty pre-logged M at
+dispatch. Spec docs/M10-DI-SPEC.md (merged main 8dc2a459).
+
+**M10-1 dual draw (branch-side, 2026-08-29, at review dispatch).**
+Ordinal 500 (band's first claim; claim issue filed at dispatch).
+Slot byte 165, parity 1 ⇒ R1 FABLE + R2 OPUS, concurrent, frozen
+head 0e9ef0b4, v5 instrument.
+
+**M10-DI dual draw (branch-side, 2026-08-29 06:30Z).** Ordinal 501
+(claim issue files at review dispatch). Slot byte 252, parity 0 ⇒
+R1 OPUS + R2 FABLE, frozen head 2435345d, v5 instrument. Reviewer
+dispatch deferred ~30m on disk (the M10-1 fix lane holds the last
+free target-sized block); both reviewers dispatch concurrently on
+the frozen head when it frees.
+
+**M10-P dual draw (branch-side, 2026-08-29 15:5xZ, at review
+dispatch).** Ordinal 502. Slot byte 169, parity 1 ⇒ R1 FABLE +
+R2 OPUS, concurrent, frozen head 55b1fd13, v5 instrument. Block
+M10-B1's LAST slot — this record and the block record above merge
+to main when this dual concludes.
