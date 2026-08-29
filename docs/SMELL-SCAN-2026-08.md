@@ -1677,7 +1677,7 @@ be unified."
 
 Six error surfaces answer unrelated questions through one variant name, and
 most of them drop the payload that would tell the answers apart. Row by row in
-the table below; the live placements are **D36**–**D39**, **D47** and **D48**.
+the table below; the live placements are **D36**, **D37**, **D39**, **D47** and **D48**.
 
 **The per-site standard for calling a state a kernel bug rather than invalid
 input** (both clauses required): **(i)** every arena key the site dereferences
@@ -1699,7 +1699,6 @@ D2 addendum's row 0 asked at a lookup site.
 | `UnsupportedCarrier` — **placed as D36** | 22 | Re-derived: 22 construction sites, all in `geom-brep/src/pcurve_cache.rs`, carrying **three** unrelated meanings under one payload-free name, beside a sibling `IsoUnsupported { what }` at 16 sites in the same file that names its refused class every time |
 | `ValidationError` | 59 variants | Spans four validity tiers; tier membership lives in doc-comment prose, so `validate()`'s signature promises nothing and no consumer can exhaustively handle "the structural failures" as a set |
 | `pncad-py/tags.rs` — **REFUTED as stated; residue placed as D37** | 383 lines | A discriminant tag map is the right FFI shape and *does not* "drop the payload": the payload path is the exception's `Display` message plus its per-variant fields, and the map's exhaustiveness is a drift alarm that fires in CI. What survives is a **duplicated** discriminant (`path_error_tag` re-derives in `pncad-py` what belongs on `PathError`) and an unowned deferral (*"full per-variant field projection … deferred to the unit that binds the complete surface"* — no such unit exists). One more in the same crate is placed beside it: **D47** (the *"never a `Debug` dump"* rule's two remaining sites, and nothing guarding it) |
-| `SkippedMerge { reason: String }` — **placed as D38** | 2 | Confirmed live at `merge_faces.rs:496` and `:508` (the row's `:489` is the `match`, seven lines up). `merge_coplanar_faces` runs two incompatible failure regimes on one door — unlicensed planar groups propagate a typed `MergeCoplanarError` and refuse the whole call, licensed-or-curved groups `format!` the same typed errors into a skip record — and one of the two `format!`s `{:?}`-dumps a `ValidationError` that has a `Display` |
 | `ProgramRefusal::Geometry` — **placed as D39** | 1 | The constraint still holds exactly as stated: `EditError` derives `PartialEq` (`edit.rs:246`), `PathError<T: Real>` derives only `Clone, Debug` (`path.rs:516`). The degradation is at `program.rs:862` (`:846` is the enclosing `check`). Its cost is now visible in the tree: `editor-core/tests/switch_slots.rs:191` can only identify *which* geometry refusal fired by `rendered.contains("radius")` |
 
 **Verdict:** ACCEPTED (Evan, 2026-08-18). "Ha these are funny (and also show
@@ -1733,18 +1732,6 @@ highest-volume rows, and S43 turns out to be their generator.**
   `NodeErrorKind` implemented `Display`. **FLAGGED AND PARTLY FIXED** — #308's
   F6 was *"REOPENED on review and implemented"*, landing `Display` on 34 + 33
   arms.
-- **`SkippedMerge { reason: String }`** — **the reverse of the others.** Born
-  with a generic label; **the reviewer killed the label**. F3, verbatim:
-  *"`Err(_)` catch-all launders tier-2 diagnostics → preserve real reasons."*
-  The implementer discharged "carry the actual diagnostics" with `format!`
-  rather than an enum. (`DESIGN.md` does **not** cite that outcome as a
-  precedent — `SkippedMerge` appears nowhere in it, and D4 commitment 2(ii)
-  cites `merge_coplanar_faces`' *already-collapsed error* as precedent for a
-  **message-level** sweep. The citation that reads the other way is in the
-  tree: `boolean/mod.rs:828` calls `SkippedMerge` the precedent for *"refused
-  typed, never a laundered catch-all"*.)
-  *Lesson: a finding phrased as an **information** requirement gets discharged
-  by `format!` unless phrased as a **type** requirement.*
 - **`ProgramRefusal::Geometry`** — `EditError` requires `PartialEq`;
   `profile::PathError` deliberately derives no equality. **NEVER FLAGGED**, and
   #291 is the strongest possible "we looked": a **dual** review, two MAJORs
@@ -7414,7 +7401,7 @@ grows after dispatch. **This row needs a lane and does not have one.**
 > `docs/SMELL-{C,E,F,G,H,I}-LOG.md` are the execution record for six of the
 > nine. **A, B and D left no log and none is owed**; what they did is in their
 > merged PRs. The rulings the logged tracks made are cited from here by number
-> (`F-R11`, `H-R2`, `I-R8`, …) and are read there. **118 open items** are
+> (`F-R11`, `H-R2`, `I-R8`, …) and are read there. **117 open items** are
 > carried below, partitioned by file territory so that no two tracks edit one
 > file and no branch waits on, fences against, or re-derives another's scope.
 
@@ -7503,7 +7490,7 @@ its orchestrator stopped, and §C3 says a deferral that lands nowhere that
 executes is the failure this document keeps re-finding. **This section is the
 one register for all of it.**
 
-**118 open items, repartitioned into twelve tracks by FILE TERRITORY.** The
+**117 open items, repartitioned into twelve tracks by FILE TERRITORY.** The
 partition rule is the only one that matters here: **no two tracks may edit the
 same file**, so no branch waits on, fences against, or re-derives another's
 scope. Dependencies *inside* a track are its own orchestrator's to sequence —
@@ -7580,7 +7567,7 @@ re-scoped or re-argued by being moved.
 | **K** | `scripts/gates/` (everything J does not name), `tools/`, `docs/K-REPORT.md` | `D200`–`D219` / `S270`–`S289` | 16 |
 | **M** | `crates/geom-core/src/{real,ring_interval,dual,interval,k_stats}.rs`, `interval-transcendentals/`, `crates/bvh/` | `D220`–`D239` / `S290`–`S309` | 7 |
 | **N** | `crates/geom/src/`, `crates/geom-core/src/{spline/,linalg/}` | `D240`–`D259` / `S310`–`S329` | 7 |
-| **P** | `crates/topo/src/{euler.rs,euler_ring.rs,euler_kill.rs,split.rs,attach.rs,movefac.rs,revert.rs,live.rs,merge_faces.rs,seqgen.rs,validate.rs,review_d18.rs,review_d18_probes.rs,fixtures.rs,source_walk.rs}` | `D260`–`D279` / `S330`–`S349` | 12 |
+| **P** | `crates/topo/src/{euler.rs,euler_ring.rs,euler_kill.rs,split.rs,attach.rs,movefac.rs,revert.rs,live.rs,merge_faces.rs,seqgen.rs,validate.rs,review_d18.rs,review_d18_probes.rs,fixtures.rs,source_walk.rs}` | `D260`–`D279` / `S330`–`S349` | 11 |
 | **Q** | `crates/topo/src/{boolean/,splitting/,census.rs,chord_join.rs,chart_region.rs,face_normal.rs}`, `crates/geom-brep/src/{ssi*,pcurve_cache.rs,nurbs_iso.rs,edge_nurbs.rs}`, `docs/predicate-dimension-audit.md` | `D280`–`D299` / `S350`–`S369` | 18 |
 | **R** | `crates/geom-brep/src/` **less the four paths Q names**, `crates/mesh/` | `D300`–`D319` / `S370`–`S389` | 12 |
 | **T** | `crates/sweep/` | `D320`–`D339` / `S390`–`S409` | 10 |
@@ -7703,8 +7690,6 @@ plus `crates/topo/src/{review_d18.rs,review_d18_probes.rs,fixtures.rs,source_wal
 | # | What | Was |
 |---|---|---|
 | **D50** | `Live`'s unforgeability is guarded by nothing the repo runs — a `compile_fail` doctest cannot name a `pub(crate)` type, so the test that would try the forge cannot be written where the claim is | Track E |
-| **D88** | A fourth spelling of the discard idiom, and the one site `D21` found that cannot meet #720's standard: `absorb` drops every ring of an absorbed face and returns `Ok`. **ADV** | Track E |
-| **D38** | `merge_coplanar_faces` runs two incompatible failure regimes on one door, and the one that `format!`s is cited in the tree as the precedent for the other | Track E |
 | **D20** | D5's +46% on the `seqgen` lane is real and, after #722 excluded the candidate it was charged to, unattributed. **Closes on an attribution off hosted CI — a number, or a written finding that it is inherent** | Track E |
 | **S69** | `kfmrh`'s shell-fusion form is outside the fuzz catalog, and the `Ledger` counts solids, so it cannot notice | unrowed |
 | **S93** | #713's prose-held-invariant sweep minted two new prose-held caller obligations, at `mev`'s fan site and `kev`'s fan merge | unrowed |
@@ -7713,6 +7698,7 @@ plus `crates/topo/src/{review_d18.rs,review_d18_probes.rs,fixtures.rs,source_wal
 | **D262** | **`merge_faces`' four predicate helpers answer on an unresolved lookup instead of announcing — eleven discard arms and one value substitution.** After `D38`/`D88` the door's call chain announces every failed lookup and the helpers it consults do not. `planes_declared_equal` returns `Ok(None)` on four lookup arms, silently dropping a mergeable adjacency; `redundant_subdivision_vertex` returns `Ok(false)` on **seven**, each of which routes the seam repair from `kev` to `kemr` and therefore **changes the group's Euler delta**; `merged_outline_ring`'s `_ => Ok(None)` conflates *not a plane* with *surface key does not resolve* and means *"roles already correct"*; `loop_winding`'s `all_lines` chain conflates a torn half-edge, edge or curve with a curved carrier. The substitution is `edge_chord_len(edge).unwrap_or_else(T::one)`, feeding a unitless `1` as a **length** lever arm into `oriented_plane_eq`'s `decide` site — so a failed lookup does not merely answer the question, it **re-scales the margin**. The closing lane's own disclosure named three of these; the file holds twelve | `D38`/`D88` residue |
 | **D263** | **The regime test asks *"is it a plane"* and a placeholder answers *"is it curved"* by default.** `group_regime` classifies with `matches!(s, Surface::Plane { .. })`, and a face carrying the `mvfs` `Nurbs` placeholder — which `ops_cube`'s faces do — is therefore classed curved and takes the recording regime. Pre-existing and outside `D38`'s rows; surfaced only because the kind-split probe added by that unit failed against it. The same *"a default answers a question nobody asked"* shape the two rows above closed, one level out: the predicate's negative arm carries two meanings and the door cannot tell them apart. **Measured, and currently unreachable**: over 3,033 door decisions the corpus shows zero `Nurbs`, zero mixed kind sets and every group kind-uniform, and no in-tree path can mint a false split because the only kernel stamper gives every surface its own `idx`. So this is a latent classification defect, not a live one — the raw `mvfs` body silently takes the *softer* regime | `D38` residue |
 | **D264** | `topo/src/source_walk.rs:116`, `:120`, `:391` carry three surviving `[`self::tests`]` intra-doc links. They resolve today only because the module is `#[cfg(test)]`, so rustdoc never documents it and the doc gate never sees them — and they become a `-D warnings` failure the moment such a module moves anywhere documented, which is exactly what `D61` did to its own copy in `test-utils`. `clippy` is blind to the lint; only `doc-gate.sh` catches it. **Cheapest taken with `D261`**, which already collapses this file | `D61` residue |
+| **D265** | **Is `euler.rs`'s tier-1-corruption row complete?** `D38` widened `merge_coplanar_faces`' arena-fault escape from two variants to **nine**, taking membership from the seven `EulerOpError` variants whose own docs say *tier-1-invalid input* — and the class now lives on the enum as an **exhaustive match**, so a new variant does not compile until someone places it. One name was **declined on evidence**: `NotSameLoop` is not in that table, though at this door `merge_group` verifies `hp.loop == hm.loop` itself before calling `kemr`, so a `NotSameLoop` from there does contradict a fact the call established. **The site-level argument sweeps in `FaceHasRings`, `SameLoop` and others** — i.e. it is the claim that at this door nearly every `EulerOpError` is unreachable except by corruption, which needs the table restructured rather than one row added. Measured harmless today: zero arena faults in 3,033 door decisions. **But if the table is incomplete the door's published sentence is false for at least one variant**, and the sentence is what callers read | `D38` residue |
 
 *(`S94`'s two hand-maintained `VARIANTS` ladders sit in `euler.rs` and
 `validate.rs` — both this track's files. It is folded into whichever lane opens

@@ -809,3 +809,48 @@ a poisoned run, it does not stop one, and the cost is a reviewer's time and a
 finding that had to be thrown away. The rule to relocate is stronger than the one
 already written — **a reviewer that mutates gets its own checkout, and reviewers
 that share a worktree must not run concurrently at all.**
+
+## `D38` and `D88` landed — five units in, and the last one declined a name
+
+The escape widened from **two variants to nine**, and the class went where it
+belongs: `EulerOpError::reports_tier1_corruption` is an **exhaustive match over
+all 27 variants**, on the enum whose own docs define the class, so a new variant
+**does not compile** until someone places it on a side. `merge_faces`' predicate
+is three lines of delegation. Copying the list into `merge_faces.rs` is exactly
+how the door came to promise a rule it kept for two of nine, and the lane said so.
+
+**It declined one name on evidence, and the reasoning is the valuable part.**
+`NotSameLoop` was in my list and is **not** in `euler.rs`'s tier-1 table. There
+is a site-level argument for it — `merge_group` verifies `hp.loop == hm.loop`
+itself before calling `kemr`, so a `NotSameLoop` from there contradicts a fact
+the call established — but that argument **also sweeps in `FaceHasRings`,
+`SameLoop` and others**, i.e. it is the claim that at this door nearly every
+`EulerOpError` is unreachable except by corruption. A strictly larger claim
+needing the table restructured, not a row. Minted as `D265`.
+
+**And the partition still has not moved, now measured after the widening**:
+3,033 decisions, 22 refuse / 3,011 record — an exact match with the pre-widening
+run. Of the 2,912 refusals reaching the recording arm, **every one is
+`arena=false`**, so the widening is an Ok→Err change over an empty set in this
+corpus: predicted, then measured rather than asserted. The lane also disclosed an
+instrument bug — its first pass read 3,031 because `writeln!` was issuing several
+write syscalls and two lines interleaved; it switched to one atomic `write_all`
+and re-ran. **The wrong number came from the instrument, not the kernel**, and
+saying so is what makes the right one worth anything.
+
+All three central hunks are now pinned by tests that red when their own hunk is
+reverted, verified by reverting each. Two are function-level and say so: the
+escape cannot be pinned through the door — the tier-2 entry gate refuses a torn
+body before any group is staged — and that unreachability *is* the escape's point.
+
+### One standing rule relocated before its record was deleted
+
+`S19`'s postmortem carried a lesson with no other home, and §D rule 3 says to
+relocate such a sentence **in full** into text that survives. It is now
+`docs/REVIEW-STYLE-DISPATCH.md` §2, beside the two shapes that document already
+names: **a finding phrased as an INFORMATION requirement gets discharged by
+`format!` unless it is phrased as a TYPE requirement.** A reviewer killed a
+generic label with *"preserve real reasons"*; the implementer preserved them — as
+a `String`. It belongs with the dispatcher's material because it is a rule about
+how a finding is *written*, and it reaches any ask of the form *"carry the
+reason"*, *"say which"*, *"record what happened"*.
