@@ -42,6 +42,37 @@ pub enum ResolveFault {
     Unresolved,
 }
 
+// The human-readable rendering (LIB-DOORS F6 shape): the classification
+// on its own, in the same seam vocabulary the evaluation layer's
+// `PartFault` uses when it has the resolver's message to append. Only
+// the two RATIFIED seam refusals carry a recourse — a pin moves by its
+// own recorded edit, a process holds one ε — because the third arm's
+// remedy is store-level detail this layer deliberately does not model
+// and [`ResolveFailure`] carries instead.
+//
+// No `Error` impl: neither [`ResolveFailure`] nor the evaluation
+// layer's fault type has one, and a classification is not the error.
+impl core::fmt::Display for ResolveFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::PinMismatch => f.write_str(
+                "the reference's pin does not hold — the referenced document is not the one \
+                 this reference was pinned to; references are never retargeted silently, so \
+                 moving the pin is its own recorded edit",
+            ),
+            Self::EpsilonSeam => f.write_str(
+                "the referenced document's recorded tolerance disagrees with this process's — \
+                 every predicate below it would decide at the wrong tolerance; one process, \
+                 one ε",
+            ),
+            Self::Unresolved => f.write_str(
+                "the reference did not resolve — an unknown id, an unreadable file, or a \
+                 document that would not parse",
+            ),
+        }
+    }
+}
+
 /// A typed resolution failure: the classified fault, plus the
 /// resolver's own rendering (which carries the store-level detail and
 /// recourse the kernel deliberately does not model).

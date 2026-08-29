@@ -406,6 +406,30 @@ pub enum DeclareError {
     NoMintedId,
 }
 
+// The human-readable rendering (LIB-DOORS F6 shape): each arm states
+// the PROBLEM in the declare sugar's own vocabulary — findings, the
+// node it would insert, the id an insert owes. The `Edit` arm forwards
+// the document edit's own refusal, which already carries its node and
+// its recourse; re-stating it here would give one refusal two voices.
+impl core::fmt::Display for DeclareError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::NoFindings => f.write_str(
+                "declare: no findings were passed — an empty declaration records no intent and \
+                 would only pretend something was declared; pass the findings the inspection \
+                 actually returned",
+            ),
+            Self::Edit(error) => write!(f, "declare: the document edit refused: {error}"),
+            Self::NoMintedId => f.write_str(
+                "declare: the insert applied but minted no node id — an insert always mints \
+                 one, so this is a kernel bug",
+            ),
+        }
+    }
+}
+
+impl core::error::Error for DeclareError {}
+
 /// The [`Node::Declare`] payload for explicitly-passed findings — the
 /// buildable rung under [`declare`]/[`declare_all`] for callers that
 /// record their own edit logs (the corpus `Recorder`, an undo stack).

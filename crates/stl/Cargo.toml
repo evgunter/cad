@@ -30,6 +30,8 @@ probe = ["mesh/probe"]
 mesh = { path = "../mesh" }
 
 [dev-dependencies]
+# The shared Rust reader for this crate's source-text guards.
+test-utils = { path = "../test-utils" }
 # Building acceptance bodies end-to-end for the export tests and the
 # CI-facing acceptance-export example (examples compile against
 # dev-dependencies).

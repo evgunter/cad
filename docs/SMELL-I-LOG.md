@@ -196,9 +196,13 @@ the scan's *reachable wrong answers* live. Three shapes to write against:
   list leaves the next reader with the same unguarded list. Ask whether the
   claim can be **computed**, deleted, or narrowed to what its evidence
   supports — and if it can only be restated, say at the claim site why.
-  **Do not mint a thirteenth hand-rolled source-text reader** to compute it
-  (S117); if a guard is the answer, reuse the shared `fixtures::code_only`
-  walk that #834 established, or say why it does not reach.
+  **Do not mint another hand-rolled source-text reader** to compute it
+  (S117); if a guard is the answer, reuse `test_utils::source` — the shared
+  lexer, its three views of a file, and its traversals — or say why it does
+  not reach. `crates/test-utils/tests/reader_census.rs` is the ledger of
+  every site that reads Rust source and of the readers still outside it;
+  `topo::fixtures::code_only` is one of those, so it is a destination for
+  nothing.
 
 **Write claims you can survive having re-derived rather than re-read.** State
 the qualifier that makes a claim exactly true, and scope your evidence out

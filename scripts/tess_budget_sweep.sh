@@ -33,8 +33,9 @@
 #
 # The CI `k-lint` job runs it into target/ WITH `--sizing-only` and
 # lints the fresh rows against that baseline with tools/tess-lint: the
-# gate reads triangle counts and the sizing columns only, so paying for
-# the resampling there would buy nothing.
+# gate reads triangle counts, the sizing columns and the chart/trim-box
+# columns its per-face join checks itself against — never `worst_dev`,
+# so paying for the resampling there would buy nothing.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 root=$(pwd)

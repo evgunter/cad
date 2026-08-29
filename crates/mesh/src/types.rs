@@ -258,3 +258,107 @@ pub enum TessellateError {
         max_distance: f64,
     },
 }
+
+// The human-readable rendering (LIB-DOORS F6 shape): each arm states
+// the PROBLEM in tessellation's own vocabulary — δ, chart, walk, trim
+// loop, at-rest body — plus the recourse where a caller has one. Arena
+// keys are topo-private handles that mean nothing to a person, so an
+// arm names the entity by KIND ("a face", "an edge") and spends its
+// words on the payload a caller can act on: the note naming the
+// unbuilt lane, the counts, the distances. The arms whose own doc says
+// no at-rest construction mints them state that they are kernel bugs
+// rather than offering a recourse that does not exist.
+impl core::fmt::Display for TessellateError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::InvalidChordalTolerance { value } => write!(
+                f,
+                "tessellate: chordal tolerance δ = {value:e} is not a finite, \
+                 strictly positive length — δ is refused rather than clamped; \
+                 ask for a real sag budget",
+            ),
+            Self::UnsupportedSurface { .. } => f.write_str(
+                "tessellate: a face's NURBS surface is still the mvfs \
+                 placeholder — there is no description to tessellate against; \
+                 give the face its surface before meshing the body",
+            ),
+            Self::UnsupportedNurbsFace { note, .. } => write!(
+                f,
+                "tessellate: a NURBS face is outside the trimmed-NURBS lane's \
+                 certified inventory — {note}",
+            ),
+            Self::UnsupportedCurve { note, .. } => write!(
+                f,
+                "tessellate: an edge's carrier is outside the certified \
+                 inventory — {note}",
+            ),
+            Self::NullScaffoldEdge { .. } => f.write_str(
+                "tessellate: an edge is null-edge scaffolding and has no \
+                 carrier by type — the body is mid-surgery; tessellation is \
+                 defined on at-rest bodies, so finish the surgery first",
+            ),
+            Self::RingOnCurvedFace { .. } => f.write_str(
+                "tessellate: a curved face carries an interior ring — curved \
+                 patches are swept UV rectangles and no construction produces \
+                 one, so this is a kernel bug rather than a mesh to guess at",
+            ),
+            Self::EmptyLoop { .. } => f.write_str(
+                "tessellate: a face has an empty loop — that is a tier-1 \
+                 scaffolding state; tessellation is defined on at-rest bodies, \
+                 so finish the surgery first",
+            ),
+            Self::MissingEntity { what } => write!(
+                f,
+                "tessellate: a key the body's own topology references failed to \
+                 resolve ({what}) — a tier-valid body cannot reach this, so the \
+                 input is corrupt",
+            ),
+            Self::ResolutionOverflow { count } => write!(
+                f,
+                "tessellate: δ is so small that one edge or face would need \
+                 {count:e} chords or grid divisions, past the ~2²⁴ sanity cap — \
+                 refused before allocating; ask for a coarser δ",
+            ),
+            Self::CertificateExceeded {
+                bound, requested, ..
+            } => write!(
+                f,
+                "tessellate: a face's worst triangle certifies to only {bound:e} \
+                 m of deviation against the requested δ = {requested:e} m — the \
+                 conservative promise could not be established, and an \
+                 uncertified mesh is never shipped; this is a kernel-side defect \
+                 or degenerate geometry",
+            ),
+            Self::Triangulation { .. } => f.write_str(
+                "tessellate: the CDT rejected a point insertion on a face — a \
+                 non-finite or out-of-range chart coordinate, i.e. corrupt \
+                 geometry",
+            ),
+            Self::SelfTouchingTrimLoop { .. } => f.write_str(
+                "tessellate: a trimmed face's boundary passes exactly through \
+                 another chord point of the same loop, so the neighbouring \
+                 faces would disagree about that vertex — a 3-D T-junction no \
+                 grid retry repairs. No at-rest construction mints a \
+                 self-touching trim loop, so this is a kernel bug",
+            ),
+            Self::UnsupportedCurvedDomain {
+                off_bbox,
+                first_uv: (u, v),
+                max_distance,
+                ..
+            } => write!(
+                f,
+                "tessellate: a curved face's boundary walk does not trace its \
+                 own UV rectangle — {off_bbox} walk entries lie strictly \
+                 inside it, the first at chart (u = {u:e}, v = {v:e}), by up to \
+                 {max_distance:e} m. The interior grid assumes the swept \
+                 rectangle, so a notched domain is refused rather than meshed \
+                 with ghost triangles: a feature-sized distance means the face \
+                 really is notched — re-author it, or wait for the lane — while \
+                 a distance near ε is a kernel bug report",
+            ),
+        }
+    }
+}
+
+impl core::error::Error for TessellateError {}
