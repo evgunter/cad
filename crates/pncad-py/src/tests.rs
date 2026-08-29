@@ -69,6 +69,7 @@ fn error_classes_name_the_python_hierarchy() {
             ErrorClass::Select => "SelectRefusal",
             ErrorClass::Frame => "FrameError",
             ErrorClass::Identity => "IdentityError",
+            ErrorClass::Workspace => "WorkspaceError",
         }
     }
     for class in [
@@ -86,6 +87,7 @@ fn error_classes_name_the_python_hierarchy() {
         ErrorClass::Select,
         ErrorClass::Frame,
         ErrorClass::Identity,
+        ErrorClass::Workspace,
     ] {
         assert_eq!(class.class_name(), expected(class));
     }
