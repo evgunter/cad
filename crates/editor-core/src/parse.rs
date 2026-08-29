@@ -151,6 +151,78 @@ pub enum ParseError {
     },
 }
 
+// The human-readable rendering (LIB-DOORS F6 shape): each arm states
+// the PROBLEM in the text door's own vocabulary — the byte offset,
+// what the grammar wanted, what it found — which for a parser IS the
+// recourse: the position plus the expectation is what tells an author
+// where to edit. The `Dimension` arm adds position and forwards the
+// smart constructor's own refusal rather than re-stating it, because
+// the constructors are the only door and their words are the ones that
+// hold.
+impl core::fmt::Display for ParseError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::UnexpectedChar { pos, ch } => write!(
+                f,
+                "parse: byte {pos}: {ch:?} is outside this grammar's alphabet"
+            ),
+            Self::UnexpectedEnd { pos, expected } => write!(
+                f,
+                "parse: byte {pos}: the expression ends where {expected} was required"
+            ),
+            Self::UnexpectedToken {
+                pos,
+                found,
+                expected,
+            } => write!(
+                f,
+                "parse: byte {pos}: found {found:?} where {expected} was required"
+            ),
+            Self::TrailingInput { pos, found } => write!(
+                f,
+                "parse: byte {pos}: {found:?} follows a complete expression — the whole text \
+                 has to be one expression"
+            ),
+            Self::MalformedNumber { pos, text } => write!(
+                f,
+                "parse: byte {pos}: the number {text:?} is malformed and does not read"
+            ),
+            Self::IntegerOverflow { pos, text } => write!(
+                f,
+                "parse: byte {pos}: the count {text:?} does not fit a 64-bit integer — counts \
+                 are exact, so an unrepresentable one refuses rather than rounds"
+            ),
+            Self::UnknownUnit { pos, symbol } => write!(
+                f,
+                "parse: byte {pos}: {symbol:?} is not a unit symbol, and an identifier directly \
+                 after a number means nothing else in this grammar — the unit table is closed"
+            ),
+            Self::UnknownFunction { pos, name } => write!(
+                f,
+                "parse: byte {pos}: {name:?} is not a function this expression vocabulary has"
+            ),
+            Self::WrongArity {
+                pos,
+                name,
+                expected,
+                found,
+            } => write!(
+                f,
+                "parse: byte {pos}: {name} takes {expected} argument(s), called with {found}"
+            ),
+            Self::UnknownParam { pos, name } => write!(
+                f,
+                "parse: byte {pos}: {name:?} is not a parameter this document declares"
+            ),
+            Self::Dimension { pos, error } => {
+                write!(f, "parse: byte {pos}: {error}")
+            }
+        }
+    }
+}
+
+impl core::error::Error for ParseError {}
+
 /// One lexed token.
 #[derive(Debug, Clone, PartialEq)]
 enum Tok {

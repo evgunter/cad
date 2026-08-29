@@ -19,6 +19,7 @@
 //! forbids.
 
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyString};
@@ -250,6 +251,24 @@ pub(crate) struct Workspace {
     inner: ws::Workspace,
 }
 
+impl Workspace {
+    /// This store AS the document seam an evaluation crosses — the
+    /// `resolver=` argument of [`super::value::evaluate`].
+    ///
+    /// A store IS a `PartResolver` (`pncad::workspace`'s own impl), so
+    /// nothing is adapted here; what this door adds is a SNAPSHOT.
+    /// The kernel wants an owned `Arc<dyn PartResolver>` and the
+    /// Python object is mutable through `create`/`resave`, so the scan
+    /// is copied as of the call: the evaluation resolves against the
+    /// store the caller passed, and a `create` made while it runs
+    /// cannot change what it already resolved. The copy is the id →
+    /// path map, not the documents — bodies are read from disk at
+    /// resolve time either way.
+    pub(crate) fn resolver(&self) -> Arc<dyn d::PartResolver> {
+        Arc::new(self.inner.clone())
+    }
+}
+
 #[pymethods]
 impl Workspace {
     /// Scan `path` for `*.pncad` files and read each one's `id:`
@@ -302,7 +321,10 @@ impl Workspace {
         let tol = Tol::witness();
         self.inner
             .resolve(&reference.0, tol)
-            .map(|inner| super::doc::Doc { inner })
+            .map(|inner| super::doc::Doc {
+                inner,
+                maintenance: Vec::new(),
+            })
             .map_err(|err| workspace_err(py, &err))
     }
 
@@ -353,6 +375,50 @@ impl Workspace {
         self.inner
             .resave(&doc.inner, tol)
             .map(|p| p.display().to_string())
+            .map_err(|err| workspace_err(py, &err))
+    }
+
+    /// The edits that move every reference to `id` onto the version
+    /// the STORE currently holds — `update_references` with the pin
+    /// computed from disk.
+    ///
+    /// **When this reads the store: once, now.** The current pin is
+    /// recomputed from the file on disk at this call, and the returned
+    /// edits carry it as a literal. Nothing re-reads later: a resave
+    /// between this call and the caller's `apply` leaves the applied
+    /// pin naming the older version, because the edits are a snapshot
+    /// of the store at this instant and not a subscription to it. Nor
+    /// does applying them check that the pin resolves — a pin is
+    /// recipe data, and whether it resolves is evaluation's question.
+    ///
+    /// **What it does NOT read: `doc` from the store.** The document
+    /// passed here is the caller's in-memory value, and the edits are
+    /// computed against ITS reference sites. Passing a document the
+    /// store has never seen is legal and normal — a document being
+    /// authored has no file yet.
+    ///
+    /// Pure: nothing is applied and nothing is written. The caller
+    /// applies the whole list or none of it.
+    ///
+    /// Raises `WorkspaceError`, typed. The store's own arms fire when
+    /// the id is unknown or its file will not load; the elaboration's
+    /// refusal arrives under `variant == "update"` — the store did its
+    /// part and the refusal is about the ASSEMBLY (the id is
+    /// referenced nowhere, or every site already names that pin).
+    fn update_to_store(
+        &self,
+        py: Python<'_>,
+        doc: &super::doc::Doc,
+        id: &str,
+    ) -> PyResult<Vec<super::doc::DocEdit>> {
+        let tol = Tol::witness();
+        ws::update_to_store(&doc.inner, document_id(id)?, &self.inner, tol)
+            .map(|edits| {
+                edits
+                    .into_iter()
+                    .map(|inner| super::doc::DocEdit { inner })
+                    .collect()
+            })
             .map_err(|err| workspace_err(py, &err))
     }
 

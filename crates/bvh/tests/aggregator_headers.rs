@@ -8,6 +8,14 @@
 //! number but the **uniformity**: twelve paraphrases of one rule is the
 //! same defect one level up.
 //!
+//! WHAT EACH HALF READS. The three header rows below are about
+//! PROSE, so they read [`test_utils::source::comments_only`]: a rule
+//! restated in a `format!` is not a header carrying it, and a retired
+//! phrase quoted in code is not a header using it. The aggregator
+//! SELECTION is about a mount, whose needle is a string literal, so it
+//! reads [`test_utils::source::code_and_literals`] — a `#[path]` line
+//! that has been commented out aggregates nothing.
+//!
 //! WHY IT LIVES IN `bvh`. Its subject is workspace-wide, so no crate owns
 //! it and any home is arbitrary; this is the cheapest test binary in the
 //! workspace and it is built by every shard, so the check costs a file
@@ -34,6 +42,8 @@
 #![allow(clippy::expect_used)]
 
 use std::path::{Path, PathBuf};
+
+use test_utils::source::{code_and_literals, comments_only};
 
 /// The rule, verbatim. Every aggregating `tests/all.rs` carries exactly
 /// this, so there is one spelling to change if it ever changes.
@@ -65,7 +75,10 @@ fn aggregators() -> Vec<(String, String)> {
         let Ok(src) = std::fs::read_to_string(&all) else {
             continue;
         };
-        if !src.contains("#[path = \"") {
+        // Comments blanked, string literals KEPT: the mount is a
+        // string literal, and a `#[path]` line inside a comment does
+        // not aggregate anything.
+        if !code_and_literals(&src).contains("#[path = \"") {
             continue; // pncad's binary is one file, not an aggregator
         }
         let name = krate
@@ -98,7 +111,7 @@ fn the_aggregator_set_is_not_empty() {
 fn every_aggregator_header_states_the_rule_in_one_spelling() {
     let missing: Vec<String> = aggregators()
         .into_iter()
-        .filter(|(_, src)| !src.contains(RULE))
+        .filter(|(_, src)| !comments_only(src).contains(RULE))
         .map(|(k, _)| k)
         .collect();
     assert!(
@@ -114,7 +127,7 @@ fn every_aggregator_header_states_the_rule_in_one_spelling() {
 fn no_aggregator_header_restates_a_suite_count() {
     let offenders: Vec<String> = aggregators()
         .into_iter()
-        .filter(|(_, src)| src.contains(RETIRED))
+        .filter(|(_, src)| comments_only(src).contains(RETIRED))
         .map(|(k, _)| k)
         .collect();
     assert!(
@@ -138,7 +151,10 @@ fn no_aggregator_header_restates_the_build_cost_measurement() {
     const FIGURES: [&str; 2] = ["494 of the 514", "1.9 s"];
     let offenders: Vec<String> = aggregators()
         .into_iter()
-        .filter(|(_, src)| FIGURES.iter().any(|f| src.contains(f)))
+        .filter(|(_, src)| {
+            let prose = comments_only(src);
+            FIGURES.iter().any(|f| prose.contains(f))
+        })
         .map(|(k, _)| k)
         .collect();
     assert!(

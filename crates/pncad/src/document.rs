@@ -34,6 +34,7 @@ pub use editor_core::{Applied, Doc, DocEdit, EditError, EditRecord, apply};
 // spell the whole node vocabulary through one module.
 pub use editor_core::{
     Axis3, BooleanOp, Datum, Node, PatternKind, PlacementRuleFault, RecipeNodeId, SlotId,
+    VectorSlot,
 };
 
 // Expressions and their text door.
@@ -233,8 +234,8 @@ pub use editor_core::{PinMultiplicity, PinSites, UpdateError, mixed_pins, update
 // `subject_body` resolves a finding's (root, output_ix) attribution
 // back to the flagged body in the same evaluation.
 pub use editor_core::{
-    CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal, ChecksConfig, ChecksError,
-    ChecksReport, Severity, enforce_checks, run_checks, subject_body,
+    Advisory, CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal, ChecksConfig,
+    ChecksError, ChecksReport, Severity, enforce_checks, run_checks, subject_body,
 };
 
 // The profile description node type and its document alias.

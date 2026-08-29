@@ -43,7 +43,7 @@ use corpus::{documents, eval, failures};
 use editor_core::eval::KeyHasher;
 use editor_core::{
     BooleanValue, CancelToken, ContentKey, Datum, DatumValue, EvalOptions, Evaluation, LoopProgram,
-    Node, NodeResult, ProfileProgram, SplitSide, ValuePayload, assemble, evaluate,
+    Node, NodeResult, ProductError, ProfileProgram, SplitSide, ValuePayload, assemble, evaluate,
     product_recorded,
 };
 use geom::{Curve3, Surface};
@@ -497,13 +497,32 @@ fn own_document_builds_at_dual64_with_f64_value_channel() {
     let tol = Tol::witness();
     let p_f = product_recorded(&doc, &ev_f, tol);
     let p_d = product_recorded(&doc, &ev_d, tol);
-    assert_eq!(
-        p_f.is_ok(),
-        p_d.is_ok(),
-        "product door arm mismatch: f64 {:?} vs Dual64 {:?}",
-        p_f.as_ref().err(),
-        p_d.as_ref().err()
-    );
+    // The two arms agree EXCEPT where the certified at-rest gate
+    // decides: `SolidInvalid` is minted only by `gate_at_rest`, which
+    // is structurally absent at `Dual` (DUAL-DESIGN DL3), so an f64
+    // gate refusal — which this document produces at tight ε, where
+    // `props_quad_converged` escalates on the arc-walled split — is
+    // the RATIFIED divergence, and Dual64 gathering Ok beside it is
+    // the design working. Any other refusal runs identical code on a
+    // bit-identical value channel and must agree exactly.
+    match &p_f {
+        Ok(_) => assert!(
+            p_d.is_ok(),
+            "f64 gathered but Dual64 refused: {:?}",
+            p_d.as_ref().err()
+        ),
+        Err(ProductError::SolidInvalid { .. }) => assert!(
+            p_d.is_ok(),
+            "the at-rest gate is structurally absent at Dual64 (DL3), so an \
+             f64 gate refusal must leave the Dual64 gather Ok; got {:?}",
+            p_d.as_ref().err()
+        ),
+        Err(other) => assert_eq!(
+            format!("{other:?}"),
+            format!("{:?}", p_d.as_ref().err().unwrap()),
+            "non-gate refusals must agree across arms"
+        ),
+    }
 }
 
 /// EVIDENCE-ONLY (review record; retire freely): the DIRECT validation

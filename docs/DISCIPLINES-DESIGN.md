@@ -330,6 +330,39 @@ needs it). Two corrections earned on contact:
   clean. The waiver rule's staleness clause above is thereby
   confirmed by its first resident within one review cycle.
 
+**Second resident SHIPPED (2026-08-29): the product-separation
+check.** Resident `CheckId::Separation`, kind Certified, over every
+pair of gathered solids the product took from DIFFERENT root subjects,
+held to `topo::SolidSeparation`'s box-level certificate. It discharges
+the obligation `topo::graft_disjoint_all_keyed` leaves to its callers
+(that door asserts nothing about its operands, so someone must
+establish disjointness) for the caller that had none — the product
+gather. It REPORTS: a document whose roots interpenetrate still draws,
+because the finding is the only thing that says the almost-right
+picture is wrong.
+
+**Its severity knob is `Advisory` (Off/Warn), not `Severity`, and that
+is this doc's waiver rule biting for the first time.** The rule above
+is an *iff*, and this resident ships no acknowledgment record — so
+`error` is not merely unset, it is unrepresentable, enforced by the
+type rather than by a comment asking callers not to reach for it. The
+declared-contact suppression it does have is NOT a waiver and must not
+be counted as one: it is derived from mates rather than authored about
+a finding, keyed by kernel arena entities rather than stable names,
+carries no provenance, and has no staleness direction.
+
+**This is the resident that makes the waiver vocabulary stop being
+paper.** The note above records it as deferred "until a resident needs
+it"; one now does. `demos/tour`'s `heatsink.pncad` produces five
+findings that are all CORRECT — its fins are unioned into its base
+only in demo-side code, so its product genuinely is overlapping solids
+— and there is no way to acknowledge them short of turning the
+resident off wholesale, which turns it off for the diefillet defect
+too. The shape it wants is `expected_components`' one subject up:
+keyed by the `(root, output)` PAIR a finding names, with the same
+two-directional staleness. Until it exists, `Advisory` is the honest
+knob and the noise is the standing demonstration of the gap.
+
 **Recommendation, refining I1's warn-never-refuse at the severity
 knob (round 3, per Evan: blocking is fine if exceptions are
 declarable).** Any check — certified or labeled-heuristic — may

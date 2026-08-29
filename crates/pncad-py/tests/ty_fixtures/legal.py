@@ -7,7 +7,10 @@ the guide's own executed blocks.
 """
 
 from pncad import (
+    Alignment,
     ArcSweep,
+    Assembly,
+    AxisSense,
     Bulge,
     BooleanOp,
     CapEnd,
@@ -16,20 +19,33 @@ from pncad import (
     ContactClass,
     ContentPin,
     CurveKind,
+    ClassAdmission,
+    ClusterMaintenance,
     Doc,
     DocEdit,
     DocRef,
+    InlineOutcome,
+    InterfaceRecord,
     EntityKind,
+    Evaluation,
     FlushFinding,
     FlushRung,
     Frame,
     GeomPred,
     Length,
+    Body,
+    MateFault,
+    MateFrame,
+    MatePrimitive,
+    MateRole,
     NamePat,
     Node,
     NodeId,
+    PinMultiplicity,
     ParamName,
     PatternKind,
+    SolvedPoses,
+    SplitOutcome,
     Via,
     Open,
     PlaneRelation,
@@ -40,15 +56,28 @@ from pncad import (
     Start,
     SurfaceKind,
     Workspace,
+    assemble,
     canonical_bytes,
     circle,
+    class_admission,
+    clusters,
     content_pin,
     deg,
     evaluate,
+    gauge_of,
     header_document_id,
+    inline,
     m,
+    mixed_pins,
     mm,
+    product,
+    product_named,
     random_document_id,
+    reading_edges,
+    relative_freedom_components,
+    solve_document,
+    split,
+    update_references,
 )
 
 outline = (
@@ -269,3 +298,68 @@ rewritten: str = store.resave(doc)
 resolved: Doc = store.resolve(reference)
 current: ContentPin = store.current_pin(doc.id)
 held: int = len(store)
+
+# LIB-G18a: the document seam and the memo, `evaluate`'s two keyword
+# doors. A store is passed AS the resolver — it IS one — and a prior
+# evaluation is the memo, whose reuse the two counters make readable.
+seamed: Evaluation = evaluate(doc, resolver=store)
+memoized: Evaluation = evaluate(doc, prior=seamed)
+both: Evaluation = evaluate(doc, resolver=store, prior=memoized)
+reused_nodes: int = both.reused
+recomputed_nodes: int = both.recomputed
+crossings: int = both.part_evaluations
+
+# LIB-G18b: the assembly authoring vocabulary. A reference becomes an
+# instance, an edit places its cluster, a mate says how two instances
+# meet, and the gate says whether the result is valid at rest.
+instance: NodeId = doc.insert(Node.instantiate_part(reference))
+placed: DocEdit = DocEdit.set_placement(instance, here)
+designated: DocEdit = DocEdit.set_roots([instance])
+repinned: DocEdit = DocEdit.update_reference(instance, pin)
+product_roots: list[NodeId] = doc.roots
+cluster_frame: Frame = doc.placement(instance)
+registry: dict[NodeId, Frame] = doc.placements()
+carried: DocRef | None = doc.reference(instance)
+seam_record: InterfaceRecord | None = doc.interface(instance)
+after_edit: list[ClusterMaintenance] = doc.last_maintenance
+
+# The authored mate datum: two frames, a primitive, an axis sense, and
+# an optional clocking rider.
+side_a: MateFrame = MateFrame((0 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0), (1.0, 0.0, 0.0))
+side_b: MateFrame = MateFrame((0 * m, 0 * m, 1 * m), (0.0, 0.0, 1.0), (1.0, 0.0, 0.0))
+seated: MatePrimitive = MatePrimitive.planar_rest(0 * m)
+datum: Alignment = Alignment(side_a, side_b, seated, AxisSense.Aligned)
+clocked: Alignment = Alignment(
+    side_a, side_b, MatePrimitive.coaxial(), AxisSense.Opposed, 90 * deg
+)
+arm: Length = datum.lever_arm
+seat_pose: Frame = side_a.placement()
+joint: NodeId = doc.insert(
+    Node.mate("a-name", "b-name", ContactClass.Rest, datum)
+)
+
+# The solve's read side, and the admission table a tool asks first.
+poses: SolvedPoses = solve_document(doc)
+gauge: NodeId | None = poses.gauge(instance)
+role: MateRole | None = poses.role(joint)
+refusal: MateFault | None = poses.fault(joint)
+world: Frame = poses.placement(doc, instance)
+groups: list[list[NodeId]] = clusters(doc)
+keyed_by: NodeId = gauge_of(doc, instance)
+edges: list[tuple[NodeId, NodeId]] = reading_edges(doc)
+partition: list[list[NodeId]] = relative_freedom_components(doc)
+admission: ClassAdmission = class_admission(ContactClass.Rest)
+mintable: bool = admission.mints
+
+# The gather and the gate.
+gathered: Body = product(doc, seamed)
+named_gather: tuple[Body, list[str]] = product_named(doc, seamed)
+checked: Assembly = assemble(doc, seamed)
+declared: int = len(checked.minted)
+
+# The refactorings and the pin-update door.
+cut: SplitOutcome = split(doc, [instance], minted)
+spliced: InlineOutcome = inline(cut.remainder, cut.instance, store)
+lint: list[PinMultiplicity] = mixed_pins(doc)
+moves: list[DocEdit] = update_references(doc, doc.id, pin)
+to_store: list[DocEdit] = store.update_to_store(doc, doc.id)

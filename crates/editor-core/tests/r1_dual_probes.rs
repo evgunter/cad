@@ -572,10 +572,17 @@ fn r1_e2e_consumer_drive_at_dual64() {
                         ),
                     }
                 }
-                // The advisory registry, which DL3 does not cover.
-                let checks =
-                    editor_core::run_checks(doc, &ev_d, &editor_core::ChecksConfig::default(), tol);
-                println!("R1E2E {name}: run_checks at Dual64 -> {checks:?}");
+                // The advisory registry USED to be probed here, as a
+                // gap DL3 did not cover. It is no longer reachable at a
+                // dual: `run_checks` is `Decide + AtRestPolicy +
+                // CertifiedBounds`, and no `Dual` implements
+                // `CertifiedEnclosure`. That is DL1 holding one door
+                // further out — the registry's separation resident
+                // GRANTS a certificate (box non-overlap is a genuine
+                // separation claim), and a dual never certifies. The
+                // gap this row recorded is closed rather than
+                // unobserved.
+                println!("R1E2E {name}: run_checks is not callable at Dual64 (CertifiedBounds)");
             }
             Err(e) => println!("R1E2E {name}: product REFUSED at Dual64: {e:?}"),
         }
@@ -614,10 +621,9 @@ fn r1_e2e_consumer_drive_at_dual64() {
                 Err(errs) => format!("{} refusal(s): {:?}", errs.len(), errs.first()),
             }
         );
-        // And the advisory registry, which DL3 does not cover.
-        let checks =
-            editor_core::run_checks(&study, &ev_d, &editor_core::ChecksConfig::default(), tol);
-        println!("R1E2E run_checks at Dual64: {checks:?}");
+        // The advisory registry is no longer callable at a dual —
+        // see the sibling row above for why (DL1, one door out).
+        println!("R1E2E run_checks is not callable at Dual64 (CertifiedBounds)");
     }
 
     // A parameter bump through the public door with a threaded prior —

@@ -1563,3 +1563,114 @@ in this workspace (five collision examples recorded in the PR) —
 façade sweeps should origin-resolve through the pub-use graph first.
 Stale-comment follow-up for the next pncad-py sweep: the reach-past
 note at mesh.rs's StlError import.
+
+**G18A MERGED (2026-08-29, #1176 — LIB's first full-protocol unit
+since reactivation; ordinal 300, sample #41, row in MODEL-AB-LOG).**
+`evaluate(doc, *, resolver=, prior=)` per the ratified spec: the
+assembly seam opens from Python (a document carrying InstantiatePart
+nodes, loaded from a Workspace, evaluates; refusal family typed), the
+memo becomes a measurement (PYPU's banked finding CLOSED), and the
+tour bench corpus rides as committed bytes with a three-axis honesty
+header. The dual's headline (bilateral): a `prior=` serves memo hits
+WITHOUT re-running the seam's gates — contract now stated at the door
+in both reviewers' framings, pinned on both availability arms, and
+the kernel design question filed as **#1185** (the class: "an
+argument that silently voids another argument's gate"; two sibling
+sites named for future sweeps). **#1186** schedules the corpus
+structural hole. Register effects: G18's first half SPENT — the
+node/edit bindings (**G18b**) are now dispatchable-mechanical per the
+standing split; rows 46/47 stay NO until they land. The audit's G8
+row prose corrected (counter invariant). The delta re-verification
+round (R1 resumed, narrow scope) is the shape to reuse: cheap (~40k
+tokens), executes rather than reads, and the resumed reviewer's
+context made it 12 minutes.
+
+**DISPLAY-KERNEL MERGED (2026-08-29, #1175; mechanical under the
+08-29 ruling, no A/B row).** All ten façade-carried refusal types
+the #1111 re-sweep measured without a `Display` now render
+F6-shape prose (`TessellateError`, `ContactRefusal`, `ReadbackError`,
+`FmtQuantityError`, `DeclareError`, `InterrogateError`,
+`SelectRefusal`, `ResolveFault`, `ParseError`, `MigrationError`),
+each with a struct-dump-fingerprint contract test; four arms listed
+recourse-less for a design pass rather than minting recourse prose
+(#947's lesson applied prospectively). The unit's ARC is the record:
+its 1e-12 draw exposed a main red no main head had drawn
+(`r2_m10_di_probes` — filed as #1178, fixed by M10 as #1193 per
+ratified DL3), the fix was PORTED onto this branch per the
+drive-to-green rule, and the port's CI-Config pin re-drew the exact
+failing point GREEN (run 33265053740) — the red closed honestly, not
+re-drawn away. Lane process finding kept: the lane pushed a tree it
+had not re-verified once (one red run, disclosed, fixed next
+commit). Python `{:?}` message sites now flippable to the new
+Displays: listed in the PR for the next pncad-py sweep.
+
+**G18B MERGED (2026-08-29, #1192; mechanical under the 08-29 ruling,
+no A/B row). Audit G18 CLOSED — the assembly series is COMPLETE, and
+the north star reads 34 of 47 (30 + 4 YES*).** The whole authoring/
+edit/refactoring vocabulary crosses: `Node.instantiate_part`/`mate`
+(+ payload and solve read side), `set_placement`/`set_roots`/
+`update_reference` + the pin-update family (`update_to_store` with
+its snapshot contract STATED at the door per #1185's class — and
+executed as contract tests on three doors), `product`/`solve_document`
+/`assemble` + the A5 gate family typed, `split`/`inline`. **Row 46
+(`bench`) flips YES outright** — TestBenchStand authors the scene
+from nothing against the scene's own expectations, gate CERTIFIES.
+**Row 47 (`benchlayout`) flips YES\*** on the honest mark: authorable
+end to end via `placed_union` where the scene says `Node::Pattern`
+(G8's deliberately-unbound plural payload — a THIRD caveat flavor,
+added to the headline gloss rather than overclaimed; G8's stops
+3→4). All 43 census `gap: G18` entries dispositioned; the
+PlacementRuleFault census reason corrected by execution. The ASM
+deposit of 2026-08-23 is fully discharged. Banked with homes:
+(1) **#1185's second live site** — `product`/`assemble`/
+`SolvedPoses.placement` take a document plus something that must be
+OF it, uncheckable because an evaluation carries no document
+identity; kernel-shape question, stated at each door, recorded on
+#1185's thread by this entry's merge. (2) #947's doubled recourse now
+asserted from Python too (goes red in two places when fixed).
+(3) Three RefusedRef arms measured unreachable-one-door-earlier from
+Python authoring; negatives recorded in the test file. Two scene
+claims not reproducible (`shells().count()`, `face_frame`) — both
+census-owned (`B-READBACK`), named in row 47.
+
+**PYDISP MERGED (2026-08-29, #1196; mechanical under the 08-29
+ruling, no A/B row).** Nine pncad-py sites flipped from `{:?}` to the
+DISPLAY-KERNEL prose; four stale "no Display" comments truthed — one
+of them a `create_exception!` docstring whose false Debug-rendering
+sentence was shipping in Python `help()`. Two same-class sites beyond
+#1175's list found by the re-sweep and flipped with disclosure. The
+deliberate asymmetry recorded: `select_refusal`'s per-arm prose KEPT
+(a candidate is spelled through `name_text`, the StableName alphabet
+Python speaks — flipping would regress the boundary's naming
+contract), while `declare_err`'s hand prose retired (no such reason).
+The CUR2-flagged reach-past comment located at tags.rs (not mesh.rs
+as the register said) and truthed. Banked: prelude-curation vs
+pncad-py-import-comment drift is a recurring class (the StlError
+comment survived three units) — a periodic grep of "is NOT
+prelude-curated" claims against the actual prelude is cheap and
+worth a future polish unit's line item.
+
+**GUIDE-ASM MERGED (2026-08-29, #1198; mechanical under the 08-29
+ruling, no A/B row).** `docs/guide/assembly.md` — the assembly
+surface's user story, nine executed Python blocks under test_guide's
+no-rot machinery: the three vocabularies (identity/pin/reference with
+the pin_mismatch refusal executed, recourse asserted), authoring
+(instantiate/mate/cluster-gauge), the seam (`resolver=`, and the
+memo's seam-gate contract QUOTED from the door, unsoftened, #1185
+named), solve + A5 gate, four refusals each reached by authoring the
+mistake, split/inline/pin-door with the three-door what-reads-when
+table. G18a's "a user learns resolver= from the stub alone" banked
+finding CLOSED. Two pre-existing registration gaps fixed in passing
+(GUIDE.md §4 missed meshing.md; examples.md missed assembly.rs) —
+adjacent-list repairs, kept. **Usability finding banked per
+demo-purpose (real friction, stated in the page, not smoothed): a
+MATE NODE IS A PRODUCT ROOT** — `Doc.roots` answers instances AND
+mates (roots = live nodes nothing consumes), so `set_roots` on three
+solids names five nodes and omitting the mates refuses
+`root_uncovered`, while the door's prose says "ordered PRODUCT
+ROOTS" and `product` gathers only body-denoting ones. Vocabulary
+evidence for a future design conversation, not a unit. Orchestrator
+process note, honestly: the pre-merge "lane stalled" read was WRONG —
+liveness was judged from processes and branch pushes without checking
+the PR list; the lane had been done and gated for an hour. Check
+open PRs before declaring a lane stalled.

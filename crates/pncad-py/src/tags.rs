@@ -23,16 +23,15 @@
 //! is deferred to the unit that binds the complete surface.
 
 use pncad::document::{
-    DimensionError, EditError, MateFault, NodeErrorKind, PersistError, PlacementRuleFault,
-    RecordedProgramError, RootFault,
+    AssemblyError, DimensionError, EditError, InlineError, MateFault, NodeErrorKind, PersistError,
+    PlacementRuleFault, RecordedProgramError, RefusedRef, RootFault, SplitError, UpdateError,
 };
 use pncad::geom_core::{FrameError, FrameInput};
 use pncad::mesh::TessellateError;
 use pncad::profile::PathError;
 use pncad::step_import::StepImportError;
-// `SolidNameError` and `BinaryHeaderError` are prelude-curated;
-// `StlError` — the writers' own refusal — is NOT, and is reached
-// through the façade's wholesale `pub use stl`.
+// All three STL refusals are prelude-curated; the module path is the
+// spelling this file uses throughout, not a reach past the façade.
 use pncad::stl::{BinaryHeaderError, SolidNameError, StlError};
 use pncad::workspace::WorkspaceError;
 
@@ -307,24 +306,29 @@ pub fn declare_error_tag(err: &pncad::select::DeclareError) -> &'static str {
     }
 }
 
+/// The stable tag for a document-seam resolution failure — the
+/// vocabulary EVERY door that crosses the seam speaks.
+///
+/// Two doors cross it: evaluation, through [`part_fault_tag`]'s
+/// `Unresolved` arm, and `inline`, which resolves the referenced
+/// document in order to splice it. A stale pin is the same fact at
+/// both, so it carries the same tag at both; the `part_` prefix names
+/// the SEAM, not evaluation.
+pub fn resolve_fault_tag(fault: &pncad::document::ResolveFault) -> &'static str {
+    use pncad::document::ResolveFault as R;
+    match fault {
+        R::PinMismatch => "part_pin_mismatch",
+        R::EpsilonSeam => "part_epsilon_seam",
+        R::Unresolved => "part_unresolved",
+    }
+}
+
 /// The stable tag for an instantiation refusal.
 pub fn part_fault_tag(fault: &pncad::document::PartFault) -> &'static str {
     use pncad::document::PartFault as F;
-    use pncad::document::ResolveFault as R;
     match fault {
         F::NoResolver => "part_no_resolver",
-        F::Unresolved {
-            fault: R::PinMismatch,
-            ..
-        } => "part_pin_mismatch",
-        F::Unresolved {
-            fault: R::EpsilonSeam,
-            ..
-        } => "part_epsilon_seam",
-        F::Unresolved {
-            fault: R::Unresolved,
-            ..
-        } => "part_unresolved",
+        F::Unresolved { fault, .. } => resolve_fault_tag(fault),
         F::PartRootFailed { .. } => "part_root_failed",
         F::PartProduct { .. } => "part_product",
         F::ReferenceCycle { .. } => "part_reference_cycle",
@@ -481,12 +485,9 @@ pub fn expr_dimension_error_tag(err: &DimensionError) -> &'static str {
 
 /// The stable tag for a tessellation refusal.
 ///
-/// `TessellateError` implements neither `Display` nor
-/// `core::error::Error`, so unlike every other map in this module the
-/// human message beside this tag is a `Debug` rendering — the
-/// treatment [`persist_error_tag`] exists to avoid. That is a curation
-/// gap on the kernel type, not a choice here, and the tag is what
-/// carries the branchable discriminant in the meantime.
+/// Like every other map in this module the tag carries the branchable
+/// discriminant beside the kernel's own `Display` prose, which is the
+/// human message — the split [`persist_error_tag`] documents.
 ///
 /// The arena keys the arms carry (`FaceKey`, `EdgeKey`) do NOT cross:
 /// the whole curation exists to keep them unnameable, so the payload a
@@ -537,5 +538,84 @@ pub fn binary_header_error_tag(err: &BinaryHeaderError) -> &'static str {
     match err {
         BinaryHeaderError::TooLong { .. } => "binary_header_too_long",
         BinaryHeaderError::SniffsAscii => "binary_header_sniffs_ascii",
+    }
+}
+
+/// The stable tag for a mate reference that named no product face
+/// (the assembly gate's `Reference` arm rides one).
+pub fn refused_ref_tag(why: &RefusedRef) -> &'static str {
+    match why {
+        RefusedRef::NodeGone => "ref_node_gone",
+        RefusedRef::Vanished => "ref_vanished",
+        RefusedRef::Ambiguous { .. } => "ref_ambiguous",
+        RefusedRef::NotAFace { .. } => "ref_not_a_face",
+    }
+}
+
+/// The stable tag for an at-rest gate refusal.
+///
+/// The `Product` arm delegates to [`product_error_tag`] rather than
+/// collapsing every gather refusal to one tag: a caller branching on
+/// "why did my assembly not gather" wants the gather's own answer,
+/// and the wrapper adds nothing they can act on. The two namespaces
+/// do not collide — the gather's tags are bare (`no_body_roots`), the
+/// gate's carry their own words.
+pub fn assembly_error_tag(err: &AssemblyError) -> &'static str {
+    match err {
+        AssemblyError::Product(inner) => product_error_tag(inner),
+        AssemblyError::Reference { .. } => "mate_reference_refused",
+        AssemblyError::NoAtRestRecord { .. } => "no_at_rest_record",
+        AssemblyError::AtRest { .. } => "at_rest",
+        AssemblyError::Uncertified { .. } => "uncertified",
+    }
+}
+
+/// The stable tag for a split refusal.
+pub fn split_error_tag(err: &SplitError) -> &'static str {
+    match err {
+        SplitError::EmptyCut => "empty_cut",
+        SplitError::UnknownCutNode { .. } => "unknown_cut_node",
+        SplitError::PartIdCollides { .. } => "part_id_collides",
+        SplitError::SeveredEdge { .. } => "severed_edge",
+        SplitError::TornCluster { .. } => "torn_cluster",
+        SplitError::UncutParamReference { .. } => "uncut_param_reference",
+        SplitError::PartNameReachesRemainder { .. } => "part_name_reaches_remainder",
+        SplitError::NameStraddlesCut { .. } => "name_straddles_cut",
+        SplitError::BodyNameCrossesCut { .. } => "body_name_crosses_cut",
+        SplitError::Pin { .. } => "split_pin",
+        SplitError::PartEdit { .. } => "part_edit",
+        SplitError::RemainderEdit { .. } => "remainder_edit",
+    }
+}
+
+/// The stable tag for an inline refusal.
+///
+/// `Unresolved` delegates to [`part_fault_tag`]'s sibling vocabulary
+/// through [`resolve_fault_tag`]: inline crosses the SAME document
+/// seam evaluation does, and a stale pin refused here is the stale
+/// pin refused there. One vocabulary, so a caller who learned to read
+/// `part_pin_mismatch` off an evaluation reads it here too.
+pub fn inline_error_tag(err: &InlineError) -> &'static str {
+    match err {
+        InlineError::UnknownNode { .. } => "unknown_node",
+        InlineError::NotAnInstance { .. } => "not_an_instance",
+        InlineError::InstanceConsumed { .. } => "instance_consumed",
+        InlineError::Unresolved { failure } => resolve_fault_tag(&failure.fault),
+        InlineError::EpsilonSeam { .. } => "epsilon_seam",
+        InlineError::PartCarriesMetadata { .. } => "part_carries_metadata",
+        InlineError::ParamConflict { .. } => "param_conflict",
+        InlineError::UnplaceableFrame { .. } => "unplaceable_frame",
+        InlineError::InstanceBodyNameReferenced { .. } => "instance_body_name_referenced",
+        InlineError::ForeignInstanceName { .. } => "foreign_instance_name",
+        InlineError::StrandedPartName { .. } => "stranded_part_name",
+        InlineError::Edit { .. } => "inline_edit",
+    }
+}
+
+/// The stable tag for a whole-document pin update's refusal.
+pub fn update_error_tag(err: &UpdateError) -> &'static str {
+    match err {
+        UpdateError::NoSuchReference { .. } => "no_such_reference",
+        UpdateError::AlreadyPinned { .. } => "already_pinned",
     }
 }
