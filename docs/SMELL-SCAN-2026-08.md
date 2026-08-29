@@ -5645,7 +5645,7 @@ see §C.
   over-gating only costs tightness, and the one number in that crate
   that is chosen rather than proven.
 
-## S117. Twelve source-text guards, five hand-rolled Rust readers, and no two of them lex the same language
+## S117. Every guard that reads Rust source rolls its own reader, and the population is not a list
 
 Raised by **#788** (S92) while closing that finding's two members. Every
 guard below reads `.rs` source and asserts a count or a presence over
@@ -5765,9 +5765,13 @@ of the twelve are outside `topo` entirely, where `source_walk` cannot be
 named (it is `pub(crate)` and `#[cfg(test)]`, so sharing it means a
 test-support crate — which is this row's real question). The other four
 need a helper that does not exist.
-**This row closes on the helper shapes plus the twelve conversions**, and
-`topo/src/{face_normal,chord_join}.rs` are Track G's **G8/G9** — a taker
-must sequence with them.
+**This row closed on the helper shapes plus a mechanism, not on the list** —
+which is what its own count history predicted. `test_utils::source` is the home:
+one lexer, three views (`code_only`, `code_and_literals`, `comments_only`) over a
+public `keeping(text, &[Region])`, so a fourth combination is an argument rather
+than a fourth reader, and four shared operations over the blanked view
+(`balanced_end`, `top_level_split`, `crate_dir`, `suite_files`). What remains is
+the `topo/src` readers, filed as rows on the tracks that own them.
 
 **Update, #872 (Track I / I-c): the test-support crate this row names as
 its real question now EXISTS.** Ruling **I-R8** put S64's ε inventory on
@@ -5776,7 +5780,7 @@ a computed pin, and the justification for *not* computing it had cited
 of the obstacle**: the row's own answer, a test-support crate, was
 already in the tree as `crates/test-utils`, a zero-dependency leaf that
 `topo` and `mesh` both already dev-depend on. #872 added
-`test_utils::source` with `code_only`, `mentions_raw_string`, and
+`test_utils::source` with `code_only` and
 `rust_sources` — the recursive traversal, added because sharing the
 *predicate* and re-forking the *walk* reproduced exactly the defect the
 sharing was for (a flat `read_dir` left a subdirectory invisible and the
@@ -5814,20 +5818,13 @@ adversarial inputs across `/ * " ' \ # r`, `//!`, `///`, `'a`, `'é'`,
 against `fixtures::code_only`; the only body difference is
 `i + 1; k += 1` → `i + 2`.
 
-**One member of the class was fixed on the way, and it is D61's third
-occurrence.** `mentions_raw_string` originally missed `br"…"` and
-`cr"…"` — the prefix byte satisfied its non-identifier-predecessor
-guard — which is the exact `br"x\"` spelling **D61 records #788 fixing
-in `CodeOnly` and G-g re-introducing in `fixtures::code_only`**. Third
-time, in the function whose whole job is to tell a caller its tree is
-free of that construct. Fixed in #872 with a row per prefix; it could
-not have bitten `mesh/src`, which is the argument for fixing it before
-there is a caller who trusts it, not against.
-
-**What is still open**: the **second** helper shape (the needle that IS
-a comment or a literal — the four members `CodeOnly` cannot serve),
-the twelve conversions, the raw-string port above, and the deletion of
-the private copies. A taker starts by moving, not by writing.
+**What is still open**: the six `topo/src` conversions (Track Q's `D287`,
+Track P's `D261`), `pncad/tests/all.rs` under Track E's **#763**, and the
+deletion of `topo`'s two private blankers — both now strict subsets of the
+shared home, the raw-string prerequisite having been paid, so each collapse is a
+**deletion rather than a port**. The population was never twelve: the census at
+`crates/test-utils/tests/reader_census.rs` puts it at **34** and is the thing
+that keeps it honest.
 
 **Verdict:**
 
@@ -6428,7 +6425,7 @@ blind spot (a marker in fresh words) is untested here and stays open.
 
 ---
 
-## S172. Five spellings of "is this line code", beside seven guards that already share the walk
+## S172. Five spellings of "is this line code", beside the guards that already share the walk
 
 **[verified]** Raised by #834's style review over its own new guard.
 The textual guards that walk a crate's own sources each carry their own
@@ -6449,7 +6446,7 @@ line. Four instances:
 - `step-import/tests/tier_gate.rs:787`
 
 **The class is the finding, and the walk was already consolidated.**
-Seven guards in `topo/src` share `fixtures::crate_sources()`
+Guards in `topo/src` share `fixtures::crate_sources()`
 (`chord_join.rs:2490`, `pcurves.rs:1621`,
 `review_m1_pr5_internal.rs:323`, `sector_shape.rs:508`,
 `review_d18_probes.rs:252`, and two rows in `face_normal.rs`) — the
@@ -6467,10 +6464,12 @@ five times in `//!`/`///` prose — the whole zero rested on one prefix
 test, so a single block comment in that file would have reddened its
 own guard.
 
-**Scope:** the three remaining instances, in three crates. `topo`'s is
-a lift into `fixtures::code_only`; the other two are in crates with no
-such shared home, and whether one is minted or the predicate is copied
-twice more is the scheduling question, not the lane's. **Row: D80.**
+**Scope:** one remaining instance, `topo/src/review_d18_probes.rs:263`, which is
+Track P's `D261`. The scheduling question this row posed — whether a home is
+minted or the predicate copied twice more — is answered: `test_utils::source` is
+the home, with three views of a file plus the traversals and balanced-text
+operations that read them, and `crates/test-utils/tests/reader_census.rs` is the
+ledger of what still sits outside it.
 
 ## S173. The curved generalization of the one door lives inside `boolean/`, which is what the door's own header argues against
 
