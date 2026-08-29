@@ -283,6 +283,9 @@ pyo3::create_exception!(
      and a referencing failure, and the door refuses rather than \
      picking a candidate. `Evaluation.denotation` is how a caller \
      asks BEFORE reading a frame."
+);
+pyo3::create_exception!(
+    pncad,
     ChecksError,
     PncadError,
     "The advisory-check registry could not RUN. Carries `variant`, the \
