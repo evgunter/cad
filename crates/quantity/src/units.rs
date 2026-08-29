@@ -19,6 +19,13 @@
 //!   last-ulp identity is defined by this constant (bit-stable: the
 //!   constant is a compile-time literal expression, not a runtime
 //!   computation).
+//! * `PI` is the half-turn, factor `f64::consts::PI` — the unit that
+//!   is not a unit. It measures an angle exactly as `DEG` does and is
+//!   carried here for the same reason every other row is: a literal
+//!   REMEMBERS the unit it was authored in, so `0.5 pi` is how a user
+//!   says "write this angle as a multiple of π" and get it back that
+//!   way. Nothing downstream distinguishes it from `DEG` — an angle is
+//!   canonical radians whichever row produced it.
 //! * `M`/`RAD` are the canonical units themselves, factor exactly 1.0
 //!   — multiplication by them is the f64 identity, which is what makes
 //!   them the formatter's always-exact fallback rendering.
@@ -170,7 +177,7 @@ impl UnitDef {
 /// The whole closed unit table, as data — the expression text parser's
 /// suffix vocabulary and the formatter's display vocabulary are both
 /// exactly this list, and a typed view is an index into it.
-pub const UNITS: [UnitDef; 6] = [
+pub const UNITS: [UnitDef; 7] = [
     // Millimeter: a `MILLI`-prefixed metre.
     UnitDef {
         symbol: "mm",
@@ -208,6 +215,14 @@ pub const UNITS: [UnitDef; 6] = [
         quantity: UnitQuantity::Angle,
         factor: 1.0,
     },
+    // Half-turn: π radians — the "unit" that is a notation (module
+    // docs). Inexact for the same reason `deg` is, and by the same
+    // constant.
+    UnitDef {
+        symbol: "pi",
+        quantity: UnitQuantity::Angle,
+        factor: core::f64::consts::PI,
+    },
 ];
 
 // A typed view is one byte, so the table it indexes must fit in one —
@@ -241,7 +256,7 @@ const fn str_eq(a: &str, b: &str) -> bool {
 /// table does not have.
 ///
 /// Two callers, both of which make the miss unreachable rather than
-/// merely unlikely: the six unit constants, where a miss is a
+/// merely unlikely: the unit constants, where a miss is a
 /// compile-time const-eval failure, and [`UnitDef::as_length`] /
 /// [`UnitDef::as_angle`], where the argument is a sealed row and so is
 /// a copy of an entry of this very array. D2 addendum row 4 — a kernel
@@ -463,8 +478,12 @@ pub const DEG: AngleUnit = AngleUnit::of_row("deg");
 /// Radian — the canonical angle unit, factor exactly 1.0.
 pub const RAD: AngleUnit = AngleUnit::of_row("rad");
 
+/// Half-turn: π radians, so `0.5 * PI` is a right angle and `2.0 * PI`
+/// a full turn. The notation-as-a-unit row (module docs).
+pub const PI: AngleUnit = AngleUnit::of_row("pi");
+
 /// The table row for a surface symbol, or `None` when the symbol is
-/// not one of the six.
+/// not one the table carries.
 pub fn unit_by_symbol(symbol: &str) -> Option<UnitDef> {
     UNITS.iter().find(|u| u.symbol == symbol).copied()
 }
