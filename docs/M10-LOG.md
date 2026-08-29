@@ -117,3 +117,41 @@ mutation testing (three certifying arms could be gutted green —
 now each is pinned to its validation door). Issues 687 and 701
 close with this merge. The E4 pairing hook (DL3's own sentence)
 is a NAMED obligation on M10-4's spec.
+
+## M10-2 DELIVERED (2026-08-29)
+
+Measure and Assertion exist. `Node::Measure { expr, refs }` is E3's
+one dimension-generic sink — a `MeasureExpr` over `Primitive` leaves
+that index the node's frozen `StableName` list, with the F1 lattice
+asked (not restated) at every constructor. `Node::Assertion
+{ measure, bound, dir }` is E10's persisted half, report-only by
+construction: no op in the vocabulary takes a verdict as an operand,
+so a `Violated` assertion cannot reach any downstream outcome.
+
+The v1 primitive table ships with its scope stated: vertex x vertex,
+vertex x plane, parallel plane x plane and parallel cylinder x
+cylinder for `distance`; plane x plane and line x line for `angle`;
+C5's three carrier pairs for the signed `gap`, sign convention
+binding. Every other pair refuses typed naming the pair class. Two
+trileans are consumed, both EXISTING funnel predicates at their
+existing margin shapes (`bool_plane_parallel`,
+`carrier_cyl_axis_parallel`); one new margined compare is minted, the
+assertion comparison, and it took ledger row F16 with the honest
+argument that E3 forecloses its own repair.
+
+Schema v16 (claimed by an explicit by-eye read of main's constant),
+populated goldens, prior-version refusal fixtures, load-door
+re-checks for both node kinds. The binding census closed with a
+SPLIT disposition, which is this unit's own judgement: the READING
+door ships (`Value.measure` → `Measurement`, `Value.assertion` →
+`Verdict`, both readable off a document authored elsewhere), and the
+AUTHORING vocabulary is chartered as `B-MEASURES`. The friction the
+R-series keeps finding is unreadable results, so that is the half
+that shipped.
+
+Two deviations, both stated in the PR: measure references are
+CONSUMING DAG edges (nothing else can order a sink after the geometry
+it measures), which makes deleting a referenced node a delete-door
+refusal rather than N5 stranding; and `gap` takes its pair as two
+carrier references in mating-role order rather than a `Declare` node
+id plus a pair index. `min_clearance` does not exist here.

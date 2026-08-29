@@ -192,7 +192,7 @@ fn verdict(ev: &Evaluation<f64>, id: RecipeNodeId) -> AssertionVerdict<f64> {
 /// The typed refusal a node was expected to fail with, rendered — the
 /// kind is not `Clone`, so rows match on it through a borrow and this
 /// helper only asserts that the node failed at all.
-fn failed_kind<'e>(ev: &'e Evaluation<f64>, id: RecipeNodeId) -> &'e NodeErrorKind {
+fn failed_kind(ev: &Evaluation<f64>, id: RecipeNodeId) -> &NodeErrorKind {
     match ev.nodes.get(&id) {
         Some(NodeResult::Failed(e)) => &e.kind,
         other => panic!("node {id:?} was expected to fail, got {other:?}"),

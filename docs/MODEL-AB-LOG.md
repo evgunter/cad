@@ -1216,6 +1216,21 @@ branch claiming 15 collides HERE, because the constant will not.
 field would take — a hypothetical in a spec, not a claim on a branch,
 but the nearest thing to a rival and worth an eye if PL lands first.
 
+**M10-2 SCHEMA CLAIM: v16** (2026-08-29, branch m10/m10-2-measures) —
+`Node` gained TWO variants, `Measure` (a measured expression over a
+frozen `StableName` reference list) and `Assertion` (a measure's node
+id, a bound expression, a direction), plus the new `WireMeasureExpr`
+vocabulary the first serializes through. A new node arm is the case
+v7/v13 bumped for: a v15 reader's `deny_unknown_fields` node enum has
+no name for either variant and dies inside serde rather than at the
+version door. Claimed as main's next number after reading main's
+ACTUAL constant by eye at the final re-merge (`git show
+origin/main:crates/editor-core/src/persist/mod.rs | grep
+SCHEMA_VERSION` → 15, at c6a7088e). This paragraph is the tripwire:
+any other in-flight branch claiming 16 collides HERE, because the
+constant will not. Known rivals surveyed at claim time: none — LIB's
+G18a took no schema number, and M10-P/M10-DI carry no schema claim.
+
 Review
 ordinal claims at review dispatch (note: the next third is 48 —
 the pending dual, tally 5-of-6).

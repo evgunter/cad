@@ -1495,6 +1495,11 @@ where
 /// not read the witness, so the recompute reproduces identical
 /// results — W4's "semantically invisible", honestly re-derived
 /// rather than assumed).
+// The 8th is the measurement vocabulary's payload-expression channel,
+// not a duty of its own: the resolved values are the same INPUT the
+// slot values are, arriving by a second route because a `MeasureExpr`
+// is not a slot.
+#[allow(clippy::too_many_arguments)]
 fn content_key<T>(
     node: &crate::node::Node<ProfileProgram>,
     slot_values: &slots::SlotValues<T>,

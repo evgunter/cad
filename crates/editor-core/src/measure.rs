@@ -197,6 +197,12 @@ fn lattice(op: Binop, left: Dimension, right: Dimension) -> Result<Dimension, Di
     .map(|e| e.dim())
 }
 
+// The arithmetic constructors share names with the std ops traits for
+// the reason `Expr`'s do (they ARE this language's add/sub/...), and
+// they cannot implement them for the same reason: they are FALLIBLE
+// (the F1 checker runs at construction) and associated functions, not
+// methods.
+#[allow(clippy::should_implement_trait)]
 impl MeasureExpr {
     /// This expression's dimension (cached; correct by construction).
     pub fn dim(&self) -> Dimension {
