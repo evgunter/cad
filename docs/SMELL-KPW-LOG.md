@@ -138,3 +138,42 @@ worth more than the row:
 
 The `D65` members are closed; `S121`'s `mesh/src/nurbs_cert.rs` member is Track
 R's `D300` and stays.
+
+## `k1`'s reviews, and the rule the adjudication turned on
+
+Both reviews broke the same claim, from opposite directions. The precondition
+`k1` built is a check on the **per-ordinal lane sequence**, not on the roster:
+the adversarial lane constructed a roster move that preserves it — one wall
+removed, a different one added inside the same run — and the gate stays green
+over a surviving face that regressed **+10.9%**, double the growth tolerance,
+across eight real measurements. The style lane measured why that is general
+rather than a corner: of 70 scenes, exactly **12 carry a sized face and every
+one of them has 4 or 8 NURBS faces**, so in every scene where the slack rule
+can fire, at least four faces are mutually indistinguishable to
+`(chart, sized)`. **The disclosed blind spot was the whole gated population,
+disclosed as an edge case** — §D rule 5's shape, and neither the author nor the
+dispatcher saw it.
+
+**The ruling, and it is the part worth keeping past this row: a join's
+precondition goes over the columns the comparison does not read.** `chart`,
+`nu`, `nv` and the trim box are surface-and-trim identity and are compared by
+no rule, so a precondition over them is not circular — which is the ground on
+which `k1` had correctly rejected them as a *key*. The distinction the first
+pass missed is that a key needs uniqueness and a pointwise precondition does
+not, so the eight collisions that disqualify one are harmless to the other.
+The alternative the adversarial lane proposed — a multiset over the *measured*
+columns — is rejected for the reason `k1` originally gave: it fires on every
+change the gate exists to measure.
+
+Two further decisions taken by the orchestrator rather than the lane:
+
+- **Findings below the first disagreement are reported, not discarded.** They
+  are provably still aligned, and suppressing them let a 30% slack regression
+  hide behind a roster finding whose printed recourse is *"re-cut the
+  baseline"* — the fix re-minting rule 3's own silent-coverage-loss shape.
+- **The roster rule reds only where it can cost a measurement**, and reports
+  elsewhere. The lane's justifying analogy does not hold: a vanished scene
+  loses the triangle rule too, so it always announces lost coverage, whereas a
+  roster move in an unsized scene loses nothing because that rule still runs.
+  As shipped it would red-line 58 of 70 scenes where it gates nothing, and
+  cry-wolf-then-allowlist is a measured outcome in this tree, not a hypothesis.
