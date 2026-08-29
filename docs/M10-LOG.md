@@ -142,3 +142,32 @@ posted to #1143 with the fixture named; the E4 pairing hook is a
 named obligation for M10-4's spec; `real.rs`'s ~270-line Bounds
 ledger accumulation (both arms flagged the shape) banks as a
 docs-home candidate rather than riding any unit.
+
+## M10-P dual review adjudication (2026-08-29)
+
+Both arms APPROVE-WITH-FIXES on frozen 55b1fd13, both re-deriving
+the bit-identity fence independently on the TRUE merge base
+(5fed0960 — the PR's provenance cited a stale one) and at greater
+depth than the unit's own instrument; R2 additionally covered
+Probe, which CI never runs. Every machinery claim held: guided ≡
+plain at f64 (adversarial families included), no structure
+selection at the lane scalar (the other-pocket consumption receipt
+is the elegant proof), canonicalization structurally pinned with a
+live-control decide-count row, ladders fork-proof by construction.
+The MAJORs are reach/receipt/disclosure: the typed `Structure`
+vocabulary covers 1 of the record's 11 decision classes vs the
+claim (bilateral); the periodic-reduction class receipt missed
+seven same-spelling sites and four same-shape floor-folds in topo
+(bilateral — the class gets its own issue from the fix pass); the
+interval-box door's unreachability through `evaluate` was
+undisclosed (adjudicated: it IS M10-3's first spec bullet —
+disclosure fix, not machinery). Fix pass IMPLEMENTER-INHERITED.
+
+Durable homes at adjudication: the floor-based period-fold class →
+its own issue (fix pass files, full both-spellings hit list); for
+M10-3's spec — the interval parameter door is where R2's M1
+friction dissolves, `ProfileLaneReplay` deliberately dropping lane
+scalar payloads (R1 friction 2) should be revisited when the
+driver wants the lane pass's refusal payloads, and the guided
+enclosure being node-dependent (extrude widens, loft stays f64 by
+C6/D9) needs stating in the driver's leaf semantics.
