@@ -267,6 +267,12 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
          and one point re-write per vertex, and gates the clone on `validate_closed` before \
          adopting it",
     ),
+    (
+        "offset_charts_together",
+        "the axial spelling of `offset_planes_together`, with the same mutation surface: a \
+         clone written only through `set_face_surface`/`set_edge_curve` (both asserting) and \
+         one point re-write per vertex, gated on `validate_closed` before it is adopted",
+    ),
     // ---- Setters carrying their own tier-1 debug_assert. ----
     (
         "set_face_surface",
