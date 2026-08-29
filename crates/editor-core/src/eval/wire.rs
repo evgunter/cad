@@ -102,7 +102,7 @@ pub(crate) fn run_op<T>(
     tol: Tol,
 ) -> OpResult<T>
 where
-    T: Decide + super::ContentBits + geom_core::Bounds + Send + Sync + topo::PropsQuadLane,
+    T: Decide + super::ContentBits + geom_core::Bounds + Send + Sync + topo::AtRestPolicy,
 {
     match node {
         Node::Datum(d) => Ok(OpOut::plain(wire_datum(d, vals, tol)?, names::empty())),
@@ -198,7 +198,7 @@ fn wire_instantiate_part<T>(
     tol: Tol,
 ) -> OpResult<T>
 where
-    T: Decide + super::ContentBits + geom_core::Bounds + Send + Sync + topo::PropsQuadLane,
+    T: Decide + super::ContentBits + geom_core::Bounds + Send + Sync + topo::AtRestPolicy,
 {
     let part = env
         .parts

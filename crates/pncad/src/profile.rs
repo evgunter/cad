@@ -73,8 +73,11 @@ pub use ::profile::{
 };
 
 // Validation: the gate, its typed refusals, and the canonical output.
+// `BlendArc` is in this family because it is what
+// `ValidatedLoop::blend_arcs` hands back — a read-back door on a type
+// this list carries, whose return type a caller must be able to name.
 pub use ::profile::{
-    ContactKind, EscalationSite, FilletLeg, FilletLegCarrier, LoopRole, NoCornerReason,
+    BlendArc, ContactKind, EscalationSite, FilletLeg, FilletLegCarrier, LoopRole, NoCornerReason,
     ProfileError, SegmentKind, SegmentRef, ValidatedLoop, ValidatedProfile, ValidatedSegment,
 };
 

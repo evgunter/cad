@@ -42,7 +42,15 @@
 //! body is gated on its own when the product holds more than one solid
 //! (with one, the per-solid and aggregate subjects are the same body
 //! and the call is skipped as an identity, never as an exemption), then the
-//! aggregate is gated. Disjoint multi-solid bodies are tier-3 legal.
+//! aggregate is gated. Both gates go through the SCALAR'S at-rest
+//! policy ([`topo::AtRestPolicy`], `docs/DUAL-DESIGN.md` DL3):
+//! certifying scalars run [`topo::validate_geometric`] verbatim; at a
+//! dual the gates are structurally absent, and their success arm SAYS
+//! so ([`topo::AtRestOutcome::NotRunAtThisScalar`]). The PAIRING
+//! OBLIGATION rides with that: at a non-certifying scalar a gathered
+//! product is NOT a validated product — the base-scalar evaluation
+//! beside it, whose value channel is bit-identical, is the validation
+//! of record. Disjoint multi-solid bodies are tier-3 legal.
 //! Know what the aggregate gate proves: tier 3 is a LOCAL battery
 //! (per-face, per-edge, per-edge–face-pair, plus one whole-body signed
 //! volume that SUMS), so solids that OVERLAP pass it undetected —
@@ -54,7 +62,7 @@
 use std::sync::Arc;
 
 use geom_core::Decide;
-use topo::{Body, ContactRecords, PropsQuadLane, ValidationError};
+use topo::{AtRestPolicy, Body, ContactRecords, ValidationError};
 
 use crate::doc::Doc;
 use crate::eval::{BooleanValue, Evaluation, NodeResult, NodeValue, SplitSide, ValuePayload};
@@ -285,7 +293,7 @@ pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<
 /// is absent from this evaluation; a document whose roots denote no
 /// body ([`ProductError::NoBodyRoots`]); the kernel's graft and
 /// at-rest validity refusals.
-pub fn product<P, T: Decide + PropsQuadLane>(
+pub fn product<P, T: Decide + AtRestPolicy>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
     tol: Tol,
@@ -330,7 +338,7 @@ pub struct Product<T: Decide> {
 /// Every arm of [`ProductError`], including [`ProductError::Naming`]
 /// when two roots' rows would name one aggregate entity or collide on
 /// one name — an aliasing bug surfaced, never resolved silently.
-pub fn product_named<P, T: Decide + PropsQuadLane>(
+pub fn product_named<P, T: Decide + AtRestPolicy>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
     tol: Tol,
@@ -357,7 +365,7 @@ pub fn product_named<P, T: Decide + PropsQuadLane>(
 /// Every arm of [`ProductError`], including
 /// [`ProductError::ContactLineage`] when the graft's bridge has no
 /// image for a record's entity.
-pub fn product_recorded<P, T: Decide + PropsQuadLane>(
+pub fn product_recorded<P, T: Decide + AtRestPolicy>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
     tol: Tol,
@@ -407,11 +415,9 @@ pub fn product_recorded<P, T: Decide + PropsQuadLane>(
         .sum();
     if total_solids > 1 {
         for (node, _, body, _, _) in &sources {
-            topo::validate_geometric(body.as_ref(), tol).map_err(|errors| {
-                ProductError::SolidInvalid {
-                    node: *node,
-                    errors,
-                }
+            T::gate_at_rest(body.as_ref(), tol).map_err(|errors| ProductError::SolidInvalid {
+                node: *node,
+                errors,
             })?;
         }
     }
@@ -442,8 +448,7 @@ pub fn product_recorded<P, T: Decide + PropsQuadLane>(
         carry_contacts(&mut contacts, records, &keys)
             .map_err(|what| ProductError::ContactLineage { node: *node, what })?;
     }
-    topo::validate_geometric(&aggregate, tol)
-        .map_err(|errors| ProductError::ProductInvalid { errors })?;
+    T::gate_at_rest(&aggregate, tol).map_err(|errors| ProductError::ProductInvalid { errors })?;
     Ok(Product {
         body: aggregate,
         names,
