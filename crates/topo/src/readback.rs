@@ -148,6 +148,51 @@ pub enum ReadbackError {
     NoCarrier,
 }
 
+// The human-readable rendering (LIB-DOORS F6 shape): each arm states
+// the PROBLEM in read-back's own vocabulary — which lookup came back
+// empty, and what that emptiness means about the model. The two
+// `Dangling` lanes are kept apart in the prose because they are
+// different facts: a topological key that does not resolve is a stale
+// or foreign handle, while a geometry key reached FROM a live entity
+// that does not resolve is a dangling reference inside the body. The
+// keys render through [`EntityId`]/[`GeomRef`]'s own `Display`, this
+// crate's noun functions, so a read-back refusal reads exactly like
+// the euler-layer stale-key refusal its arms map across to.
+impl core::fmt::Display for ReadbackError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Dangling {
+                what: DanglingRef::Entity(key),
+            } => write!(
+                f,
+                "read-back: {key} does not resolve in this body — the handle is \
+                 stale, or it belongs to another body's lineage"
+            ),
+            Self::Dangling {
+                what: DanglingRef::Geometry(key),
+            } => write!(
+                f,
+                "read-back: a live entity names {key}, which does not resolve — \
+                 the body's own geometry reference is dangling"
+            ),
+            Self::NoCanonicalFrame { carrier } => write!(
+                f,
+                "read-back: a {carrier} carrier stores no canonical frame, so \
+                 there is none to report — it has no distinguished origin or \
+                 axis, and picking one would fabricate a convention the model \
+                 never chose"
+            ),
+            Self::NoCarrier => f.write_str(
+                "read-back: the edge carries null-edge scaffolding rather than a \
+                 certified carrier — a transient state tier 2 refuses at rest; \
+                 let the body reach rest before reading it back",
+            ),
+        }
+    }
+}
+
+impl std::error::Error for ReadbackError {}
+
 /// **A face's carrier frame** — the stored plane/axis data of the
 /// surface the face is a region of, copied out.
 ///
