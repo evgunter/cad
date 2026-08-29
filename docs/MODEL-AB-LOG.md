@@ -1775,3 +1775,9 @@ R1 OPUS + R2 FABLE, frozen head 2435345d, v5 instrument. Reviewer
 dispatch deferred ~30m on disk (the M10-1 fix lane holds the last
 free target-sized block); both reviewers dispatch concurrently on
 the frozen head when it frees.
+
+**M10-P dual draw (branch-side, 2026-08-29 15:5xZ, at review
+dispatch).** Ordinal 502. Slot byte 169, parity 1 ⇒ R1 FABLE +
+R2 OPUS, concurrent, frozen head 55b1fd13, v5 instrument. Block
+M10-B1's LAST slot — this record and the block record above merge
+to main when this dual concludes.
