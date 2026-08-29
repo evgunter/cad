@@ -1160,20 +1160,22 @@ fn sphere<T: Decide>(
 /// attained at the two poles; the arc attains one exactly when that
 /// pole's angular offset from `t0` lands inside the span.
 ///
-/// That containment is `props_meridian_pole`: the signed angular
-/// distance from the pole to the nearer end of the span, levered at
-/// the sphere radius (the point deviation of moving the pole along
-/// the arc). `Positive` = interior, `Zero` = at a span end,
-/// `Negative` = outside. The extreme is pushed on `Positive` AND on
-/// `Zero` — at a span end the endpoint latitude already sits within
-/// band² of the pole's (the latitude is quadratic at its extremum),
-/// so the two choices agree far inside any honest tolerance and the
-/// folded extent is continuous across the decision.
+/// That containment is `props_meridian_pole`: the chord from the
+/// pole's span-relative direction to the nearer span endpoint,
+/// carrying the membership sign, levered at the sphere radius — the
+/// point deviation of moving the pole onto the span boundary.
+/// `Positive` = interior, `Zero` = at a span end, `Negative` =
+/// outside. The extreme is pushed on `Positive` AND on `Zero` — at a
+/// span end the endpoint latitude already sits within band² of the
+/// pole's (the latitude is quadratic at its extremum), so the two
+/// choices agree far inside any honest tolerance and the folded
+/// extent is continuous across the decision.
 ///
-/// The `atan2` here locates ONE fixed point relative to the STORED
-/// span. It is not the wedge-unwrap trap the module docs forbid —
-/// that is two endpoint chart inversions differenced, which loses the
-/// winding; the interval below stays the stored `t1 − t0`.
+/// The pole is located relative to the STORED span, as directions —
+/// no chart inversion at all, so this is not the wedge-unwrap trap
+/// the module docs forbid (two endpoint inversions differenced,
+/// which loses the winding); the interval stays the stored
+/// `t1 − t0`.
 fn sphere_meridian_span_levels<T: Decide>(
     e: &LoopEdge<T>,
     center: Point3<T>,
@@ -1190,17 +1192,34 @@ fn sphere_meridian_span_levels<T: Decide>(
     // so the sqrt stays fully in-domain (as in `level_gap`).
     let r0 = (sa.powi(2) + ca.powi(2)).sqrt();
     let dt = e.t1 - e.t0;
-    let tau = T::pi() + T::pi();
-    // The north pole (λ = +r0) sits at θ ≡ atan2(ca, sa) (mod 2π);
-    // the south pole (λ = −r0) half a turn later.
-    let phi = ca.atan2(sa);
-    for (pole, extreme) in [(phi, r0), (phi + T::pi(), -r0)] {
-        let th = pole - tau * (pole / tau).floor();
-        // `min` against both span ends; the `max` keeps the margin an
-        // honest distance when the pole sits just BEHIND `t0`
-        // (θ ≈ 2π ≡ 0⁻), where the reduced representative alone would
-        // overstate how far outside it is.
-        let m = th.min(dt - th).max(th - tau);
+    // The north pole (λ = +r0) sits at the span-relative direction
+    // `(sa, ca)` on the parameter circle; the south pole (λ = −r0)
+    // at its antipode. Everything below is direction arithmetic — no
+    // `atan2`, no range reduction: an angle extraction is wide at its
+    // branch cut (an arc anchored at a pole put an interval enclosure
+    // exactly there, live on the die-fillet corpus), and a mod-2π
+    // `floor` spans its integer step at a period boundary; either
+    // widens the margin to the whole period and forces an escalation
+    // the scalar lane does not have.
+    let half = T::from_f64(0.5);
+    let (sd2, cd2) = (dt * half).sin_cos();
+    let (sdt, cdt) = dt.sin_cos();
+    for (ps, pc, extreme) in [(sa, ca, r0), (-sa, -ca, -r0)] {
+        // Sign: the pole lies in the closed span iff its direction is
+        // within `dt/2` of the span's midpoint direction — one dot
+        // test, `⟨P, M⟩ − cos(dt/2)`, whose zero set on the circle is
+        // exactly the two span endpoints.
+        let f = ps * cd2 + pc * sd2 - cd2;
+        // Magnitude: the CHORD to the nearer span endpoint — levered
+        // by R below, that is the point deviation of moving the pole
+        // onto the span boundary. powi(2), not x*x, as in `level_gap`.
+        let chord_a = ((ps - T::one()).powi(2) + pc.powi(2)).sqrt();
+        let chord_b = ((ps - cdt).powi(2) + (pc - sdt).powi(2)).sqrt();
+        // `copysign` transfers the membership sign onto the chord; at
+        // an interval scalar a sign enclosure straddling zero yields
+        // the two-sided hull `±chord`, which is tight exactly where
+        // it happens — the pole at a span endpoint, chord ≈ 0.
+        let m = chord_a.min(chord_b).copysign(f);
         match classify("props_meridian_pole", Margin::levered(m, radius), band)? {
             Sign::Positive | Sign::Zero => levels.push(extreme),
             Sign::Negative => {}
