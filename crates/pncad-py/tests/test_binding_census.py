@@ -364,6 +364,7 @@ def audit_gap_ids():
 BOUND_AS = {
     "CM": "cm",
     "DEG": "deg",
+    "AssertionVerdict": "Verdict",
     "DatumValue": "Value.datum",
     "DocumentId": "Doc.id",
     "IN": "inch",
@@ -371,6 +372,7 @@ BOUND_AS = {
     "MM": "mm",
     "NodeErrorKind": "EvaluationError.kind",
     "NodeValue": "Value",
+    "UnevaluatedReason": "Verdict.reason",
     "PI": "pi",
     # The document seam, and the two enums that say why it did not
     # open. `Workspace` IS a `PartResolver` (the document layer's own
@@ -546,6 +548,24 @@ FAMILIES = {
         "`set_doc_param_value` is the value-only door that carries the "
         "declaration forward and is what a Python caller moving a "
         "number must use until this family closes"
+    ),
+    "B-MEASURES": (
+        "AUTHORING a measurement (ERROR-DESIGN E3/E10); closing it "
+        "binds `MeasureExpr`'s constructors, `MeasurePrimitive`'s "
+        "three verbs and `AssertionDir` onto `Node.measure` / "
+        "`Node.assertion` constructors, with `MeasureNodeFault` as the "
+        "refusal a caller dispatches on. The READ half already ships "
+        "and is deliberately not in this gap: `Value.measure` answers "
+        "with a `Measurement` (value plus the F1 dimension it rides) "
+        "and `Value.assertion` with a `Verdict` (three states kept "
+        "three, both numbers on a decided one). That split is the "
+        "unit's own disposition: the friction the R-series reviews "
+        "keep finding is unreadable RESULTS, and a Python caller can "
+        "now read a web and its verdict off any evaluation, including "
+        "one loaded from a file authored elsewhere. What a Python "
+        "caller cannot yet do is WRITE one — the same asymmetry "
+        "B-DISTRIBUTIONS records, and without B-DISTRIBUTIONS's sharp "
+        "edge, because no existing write door silently drops a measure"
     ),
     "B-VALIDATE4": (
         "the fourth validator rung; closing it binds "
@@ -832,6 +852,7 @@ NOT_BOUND = {
     "RolePath": SHAPE,
     "RoleSeg": SHAPE,
     "SCHEMA_VERSION": SHAPE,
+    "ASSERT_BOUND": SHAPE,
     "SEL_DATUM_DISTANCE": SHAPE,
     "Side": SHAPE,
     "SlotId": SHAPE,
@@ -916,6 +937,13 @@ NOT_BOUND = {
     "tube_along_arc": f"{GAP}: G2 sweep/tube",
     "tube_along_arc_hollow": f"{GAP}: G2 sweep/tube",
     # --- gap: parameter distributions and the analysis lane -------
+    # --- gap: authoring a measurement (census-owned) --------------
+    # The READING half ships (`Value.measure`, `Value.assertion`); what
+    # is listed here is the authoring vocabulary alone.
+    "AssertionDir": f"{GAP}: B-MEASURES measurement authoring",
+    "MeasureExpr": f"{GAP}: B-MEASURES measurement authoring",
+    "MeasureNodeFault": f"{GAP}: B-MEASURES measurement authoring",
+    "MeasurePrimitive": f"{GAP}: B-MEASURES measurement authoring",
     "Distribution": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",
     "DistributionFault": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",
     "DistributionField": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",

@@ -316,12 +316,20 @@ class TestPlateParam(unittest.TestCase):
 
     FIXTURE = (
         Path(__file__).resolve().parents[3]
-        / "crates" / "pncad" / "tests" / "plate_param.v15.pncad"
+        / "crates" / "pncad" / "tests" / "plate_param.v16.pncad"
     )
+
+    # Insert order: profile, plate, tab profile, tab, union, measure,
+    # assertion. The union is index 4 and no longer the last insert —
+    # the fixture gained the measurement pair so the READ doors below
+    # have a document to read.
+    UNION = 4
+    MEASURE = 5
+    ASSERTION = 6
 
     def plate(self):
         doc = load(self.FIXTURE.read_text(encoding="utf-8")).doc
-        return doc, doc.order()[-1]  # the union is the last insert
+        return doc, doc.order()[self.UNION]
 
     # Plate + tab − their overlap − two cylinders of radius r: the
     # closed form the Rust rows assert, tab included.
@@ -405,6 +413,57 @@ class TestPlateParam(unittest.TestCase):
             ev.value(profile)
         self.assertEqual(ctx.exception.reason, "node_failed")
         self.assertEqual(ctx.exception.kind, "profile_replay")
+
+    def test_a_measure_and_its_verdict_read_back_from_python(self):
+        """The READ half of the measurement vocabulary (ERROR-DESIGN
+        E3/E10), which is what the binding census says SHOULD ship:
+        Python cannot author a measure (`B-MEASURES`), but it can read
+        one — and its assertion's verdict — off any evaluation,
+        including this document, which was authored elsewhere and
+        crossed through the persistence door."""
+        doc, _ = self.plate()
+        ev = evaluate(doc)
+
+        measurement = ev.value(doc.order()[self.MEASURE]).measure()
+        self.assertEqual(measurement.dimension, "Length")
+        # A distance is a magnitude: the number is finite and >= 0.
+        # WHICH walls the fixture selected is not this row's business
+        # (the closed-form oracles live in editor-core's suite); that
+        # the quantity arrives typed and readable is.
+        self.assertGreaterEqual(measurement.value, 0.0)
+        self.assertIsNotNone(measurement.length)
+        self.assertAlmostEqual(
+            measurement.length.in_unit(m), measurement.value, places=12
+        )
+
+        verdict = ev.value(doc.order()[self.ASSERTION]).assertion()
+        self.assertEqual(verdict.status, "Holds")
+        self.assertIs(verdict.holds, True)
+        self.assertIsNotNone(verdict.measured)
+        self.assertIsNotNone(verdict.bound)
+        self.assertIsNone(verdict.reason)
+        self.assertAlmostEqual(verdict.measured, measurement.value, places=12)
+
+    def test_reading_a_verdict_changes_nothing(self):
+        """E10's report-only rule, from the consumer's seat: the
+        product is the same body before and after a verdict is read,
+        and asking a non-assertion for one is a typed refusal rather
+        than a guess."""
+        import pncad
+
+        doc, solid = self.plate()
+        ev = evaluate(doc)
+        before = ev.value(solid).body().mass_properties().volume
+        ev.value(doc.order()[self.ASSERTION]).assertion()
+        after = ev.value(solid).body().mass_properties().volume
+        self.assertEqual(before, after)
+
+        with self.assertRaises(pncad.EvaluationError) as ctx:
+            ev.value(solid).assertion()
+        self.assertEqual(ctx.exception.reason, "wrong_kind")
+        with self.assertRaises(pncad.EvaluationError) as ctx:
+            ev.value(solid).measure()
+        self.assertEqual(ctx.exception.reason, "wrong_kind")
 
 
 # ------------------------------------------------------------------

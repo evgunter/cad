@@ -94,7 +94,9 @@ mod m10_1_analysis;
 mod m10_1_r2_probes;
 #[path = "m10_1_schema_v15.rs"]
 mod m10_1_schema_v15;
+#[path = "m10_2_measure.rs"]
 mod m10_2_measure;
+#[path = "m10_2_schema_v16.rs"]
 mod m10_2_schema_v16;
 #[path = "m10_di_dual_corpus.rs"]
 mod m10_di_dual_corpus;

@@ -1229,12 +1229,74 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
             declare: None,
         },
     );
+    // A MEASURE and its ASSERTION (ERROR-DESIGN E3/E10), so the
+    // fixture the Python audit loads carries the two node kinds whose
+    // READING door Python ships (`Value.measure`, `Value.assertion`).
+    // Python cannot author one — that is B-MEASURES in the binding
+    // census — so, exactly as with this profile's circles, the
+    // document crosses through the persistence door and this pin keeps
+    // the crossing honest.
+    //
+    // The references are the plate's own cylindrical walls, selected
+    // through the public door rather than hand-written as role paths.
+    // Which two of the four the canonical order yields is not asserted
+    // here: the geometric oracles for the closed forms live in
+    // `editor-core`'s `m10_2_measure.rs`, and what this fixture owes
+    // is a document a Python caller can READ a measure and a verdict
+    // out of.
+    let walls = {
+        let ev = evaluate::<f64>(
+            &doc,
+            None,
+            &CancelToken::new(),
+            &EvalOptions::default(),
+            Tol::witness(),
+        );
+        let mut found = pncad::select::select_where(
+            &ev,
+            plate,
+            &pncad::select::Selector::of(pncad::select::NamePat::of_kind(
+                pncad::select::EntityKind::Face,
+            )),
+            &[pncad::select::GeomPred::SurfaceKind(
+                pncad::select::SurfaceKindSet::just(pncad::geom_brep::SurfaceKind::Cylinder),
+            )],
+            &doc.param_env::<f64>(),
+            Tol::witness(),
+        )
+        .expect("the surface-kind atom is exact");
+        found.sort();
+        found.truncate(2);
+        assert_eq!(found.len(), 2, "the plate's holes have cylindrical walls");
+        found
+    };
+    let (doc, measure) = doors_insert(
+        doc,
+        Node::measure(
+            pncad::document::MeasureExpr::primitive(pncad::document::MeasurePrimitive::Distance {
+                a: 0,
+                b: 1,
+            }),
+            walls,
+        )
+        .expect("both indices address a reference"),
+    );
+    // A distance is a magnitude, so `>= 0` holds for any selection —
+    // the verdict is about the READ door, not about the geometry.
+    let (doc, _) = doors_insert(
+        doc,
+        Node::Assertion {
+            measure,
+            bound: lit(0.0),
+            dir: pncad::document::AssertionDir::AtLeast,
+        },
+    );
     (doc, solid)
 }
 
 /// R1-PARAMS: `plate_param` authors façade-only, evaluates to the
 /// corpus scene's analytic oracle, and its saved text is pinned as
-/// `tests/plate_param.v15.pncad` — the fixture the Python audit loads
+/// `tests/plate_param.v16.pncad` — the fixture the Python audit loads
 /// (`crates/pncad-py/tests/test_north_star.py`) to author the
 /// `set_doc_param` edit from Python. Python cannot yet author this
 /// profile from scratch (audit gaps G1/G9: circles, multi-loop), so
@@ -1282,7 +1344,7 @@ fn plate_param_authors_facade_only_and_its_saved_text_is_pinned() {
 
     let text = pncad::document::save(&doc, &[], Tol::witness()).expect("the document saves");
     if std::env::var_os("PNCAD_BLESS").is_some() {
-        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/plate_param.v15.pncad");
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/plate_param.v16.pncad");
         std::fs::write(path, &text).expect("the fixture writes");
         return; // freshly written; the next compile pins it
     }
@@ -1305,7 +1367,7 @@ fn plate_param_authors_facade_only_and_its_saved_text_is_pinned() {
     };
     assert_eq!(
         sans_epsilon(&text),
-        sans_epsilon(include_str!("plate_param.v15.pncad")),
+        sans_epsilon(include_str!("plate_param.v16.pncad")),
         "the saved plate_param text moved — regenerate the fixture with \
          `PNCAD_BLESS=1 cargo test -p pncad plate_param` (default env) and re-run"
     );
