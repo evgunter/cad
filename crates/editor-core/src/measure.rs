@@ -42,7 +42,7 @@ use crate::expr::{Dimension, DimensionError, Expr};
 /// [`mod@crate::eval::measure`], where the closed forms live: this
 /// enum names WHAT is measured, and a pair of carriers the closed form
 /// has no arm for is a typed evaluation refusal
-/// ([`MeasureUnsupported`](crate::eval::MeasureUnsupported)), never a
+/// ([`MeasureUnsupported`](crate::eval::measure::MeasureUnsupported)), never a
 /// guess.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
