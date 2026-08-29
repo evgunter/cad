@@ -373,7 +373,7 @@ impl<T: Real> Vec3<T> {
     /// propagates poison.
     pub fn orthonormal_basis(self) -> (Self, Self) {
         let s = T::one().copysign(self.z);
-        let r = T::one() / (T::one() + s * self.z);
+        let r = T::one() / (T::one() + self.z.abs());
         let br = (self.x * self.y) * r;
         let b1 = Self::new(T::one() - self.x.powi(2) * r, -br, -(s * self.x));
         let b2 = Self::new(-(s * br), s - s * (self.y.powi(2) * r), -self.y);
