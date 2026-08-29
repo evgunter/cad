@@ -191,3 +191,59 @@ AFTER an `-x` waiter is armed still beat it. A one-lane courtesy yield
 therefore does not clear a path for an exclusive job — that needs a
 machine-wide quiet period. The blocked lane pushed and opened its PR
 while waiting, since hosted CI needs no local slot.
+
+## P-1a's six-anchor bits row: the stated residue was already closed, unannounced (2026-08-29)
+
+P-1a's PR body (#1073) and P-1b's spec both flagged the same gap:
+`certify::tests::d2_the_mint_arithmetic_is_pinned_in_bits` — the D2
+mint tripwire, `crates/geom-brep/src/certify.rs` — had only ever drawn
+the interval compile lane, never default, for a row whose entire
+subject is bit-level reproduction. P-1b's spec named the fix directly:
+*"if this unit's heads draw default, say so, since that closes a gap
+P-1a flagged honestly."* Its own heads never drew default —
+`extrude_interval.rs` in the diff pinned `LANE=interval` throughout —
+and the PR body said so and left it open.
+
+**Measured before acting, per this repo's standing rule that a
+refusal's text is not evidence of its cause: the row was never
+gated.** No `cfg(feature = "interval")` anywhere in `certify.rs`;
+`cargo test -p geom-brep --lib d2_the_mint_arithmetic_is_pinned_in_bits`
+with no `interval` feature passes locally, unsurprising for a row that
+mints and compares plain `f64` bits. The gap was purely a lane draw
+that never landed on default — until it did.
+
+**It already drew default, one commit before merge, unrelated to this
+row.** P-1b's tip commit (`3e82959b`, "interval lane: the census row
+behind the feature gate…") carries `CI-Config: lane=both` for its own
+reasons — surfacing a different interval-gated row. That trailer
+overrides `_forces_interval`'s pin per-dimension (`ci-filter.py`,
+`decorate`), so its hosted run drew **both** lanes. In the default
+half — [`test (eps = 1e-12, 1/2)`](https://github.com/evgunter/cad/actions/runs/33238268448/job/99064063771)
+of [run 33238268448](https://github.com/evgunter/cad/actions/runs/33238268448) —
+the row ran and passed:
+
+```
+PASS [   0.006s] ( 439/2086) geom-brep certify::tests::d2_the_mint_arithmetic_is_pinned_in_bits
+```
+
+`change filter`'s own output on that run reports
+`CONFIG_SOURCE=lane:commit-trailer …` — the draw was requested, not
+sampled, so this is not a lucky coin-flip masquerading as coverage.
+`3e82959b` is the second parent of `9b8e9013` (`#1107`'s merge into
+`main`), and `certify.rs`'s tripwire body is byte-identical between
+that commit and `main`'s current tip — the six anchors that ran there
+are the six anchors on `main` today. The residue named in both PR
+bodies closed on its own, one commit before the merge that shipped it,
+and nobody said so. Recorded here so the log's tail is honest about
+it: **closed, not open.**
+
+(A footnote this entry's own PR paid for: `ci-filter.py`'s trailer
+regex reads the HEAD COMMIT MESSAGE only, matches case-insensitively
+at the start of ANY line, and rejects a token list that isn't
+`key=value` rather than falling back to sampling. The first commit
+message for this entry described the closing run in prose starting a
+line with "CI-Config: lane=both trailer..." -- read literally as a
+malformed configuration REQUEST, not as prose -- and failed `change
+filter` with exactly the error the docstring promises for that case.
+Fixed by rewording the commit message; the file text above was never
+the problem.)
