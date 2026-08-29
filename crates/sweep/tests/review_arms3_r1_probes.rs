@@ -27,7 +27,7 @@ use sweep::Revolution;
 use sweep::fillet::build::fillet_edges;
 use sweep::fillet::{CornerConfig, FilletError, RunOutPolicy};
 use sweep::test_support::revolved_about_y;
-use topo::{Body, EdgeKey, SurfaceKey, transform_rigid};
+use topo::{Body, EdgeKey, SurfaceKey, transform_rigid, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -523,10 +523,10 @@ fn spinning_top() -> Body<f64> {
 /// **The seam-vertex story, reproduced on a body the unit never
 /// built.** One arc of the cone×sphere rim refuses `SeamVertex` with no
 /// policy; the rim requested WHOLE gets past every corner door and
-/// meets the closed-rim frontier (#1022) — the measured impossibility
-/// this reviewer re-verifies.
+/// CARVES — the recourse's promise, taken literally on a second
+/// pole-touching body.
 #[test]
-fn a_spinning_top_seam_vertex_refuses_and_the_whole_rim_meets_the_closed_door() {
+fn a_spinning_top_seam_vertex_refuses_and_the_whole_rim_carves() {
     let body = spinning_top();
     let arcs = rims_of_radius(&body, 0.6);
     assert_eq!(arcs.len(), 2, "the seam splits the rim into two arcs");
@@ -546,17 +546,11 @@ fn a_spinning_top_seam_vertex_refuses_and_the_whole_rim_meets_the_closed_door() 
         }
         other => panic!("one arc refuses SeamVertex, got {other:?}"),
     }
-    // The recourse's request, taken literally: past the seam, into the
-    // closed-rim door's own frontier — the carve is NOT promised, and
-    // indeed does not happen (#1022).
-    match fillet_edges(&body, &arcs, 0.03, band(), tol()) {
-        Err(FilletError::UnsupportedChain { detail, .. }) => assert!(
-            detail.contains("closed chain"),
-            "the whole rim meets the closed-rim frontier, got {detail}"
-        ),
-        Err(FilletError::FilletCornerUnsupported { corner, .. }) => {
-            panic!("the whole rim registers no corner, got {corner}")
-        }
-        other => panic!("expected the closed-rim frontier, got {other:?}"),
-    }
+    // The recourse's request, taken literally: past the seam and
+    // through the closed-rim door, as one annulus over both arcs.
+    let out = fillet_edges(&body, &arcs, 0.03, band(), tol())
+        .unwrap_or_else(|e| panic!("the whole rim carves, got {e:?}"));
+    validate_geometric(&out.body, tol())
+        .unwrap_or_else(|e| panic!("the carved top must be tier-3 valid, got {e:?}"));
+    assert_eq!(out.band_faces.len(), 1, "one annulus band over both arcs");
 }

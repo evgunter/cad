@@ -33,8 +33,9 @@
 //!   `TangentialEdge` at margin exactly zero in its own right), and two
 //!   rim arcs carrying ONE support pair between them.
 //! - **Asking for the rim whole gets past the seam** — no corner
-//!   refusal at all — and lands on the closed-rim door's own frontier,
-//!   which is where a seam-split rim's band is still not carved.
+//!   refusal at all — and carves: one annulus band over both arcs, the
+//!   walk carrying through the seam vertices rather than stopping at
+//!   them, which is what makes the tag's recourse true.
 //! - **A one-edge rim registers no seam vertex**, so the new tag cannot
 //!   fire on a rim the charts did not split.
 
@@ -402,27 +403,43 @@ fn a_chain_stopping_at_a_seam_vertex_refuses_seam_vertex() {
 
 /// **The recourse's own content, checked.** Asking for the rim WHOLE
 /// gets past the seam entirely — no corner refusal of any kind — and
-/// meets the closed-rim door's own frontier instead.
+/// the closed-rim door CARVES it.
 ///
-/// That frontier is real and it is named here rather than implied: the
-/// closed-rim band is carved from a ONE-EDGE rim, and a rim a chart seam
-/// has split is never one edge. So the request the recourse names is the
-/// right request, and the band behind it is still the annulus door's own
-/// unfinished business.
+/// That is what makes the `SeamVertex` recourse true rather than a
+/// pointer at a door that is not there. The band is ONE annulus over
+/// both arcs: the walk carries THROUGH the seam vertices, and the row
+/// above is the licence for it — the surface is smooth there, the two
+/// extra edges are co-surface meridians of dihedral zero, and the
+/// vertex is retired with the arcs it joined.
 #[test]
 fn requesting_the_rim_whole_gets_past_the_seam() {
     let body = lantern();
-    let (arcs, _) = mouth(&body);
-    match fillet_edges(&body, &arcs, 0.02, band(), tol()) {
-        Err(FilletError::UnsupportedChain { detail, .. }) => assert!(
-            detail.contains("closed chain"),
-            "the whole-rim request meets the closed-rim door, got {detail}"
-        ),
-        Err(FilletError::FilletCornerUnsupported { corner, .. }) => {
-            panic!("the whole rim registers no corner at all, got {corner}")
-        }
-        other => panic!("expected the closed-rim door's own refusal, got {other:?}"),
-    }
+    let (arcs, vertex) = mouth(&body);
+    let out = fillet_edges(&body, &arcs, 0.02, band(), tol())
+        .unwrap_or_else(|e| panic!("the whole rim carves, got {e:?}"));
+    validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("tier-3 valid, got {e:?}"));
+    assert_eq!(
+        out.band_faces.len(),
+        1,
+        "the two arcs of ONE rim share ONE annulus band"
+    );
+    let naming = out
+        .naming
+        .as_ref()
+        .expect("the rim phase records what it minted");
+    let mut banded: Vec<EdgeKey> = naming
+        .bands
+        .iter()
+        .flat_map(|(_, edges)| edges.iter().copied())
+        .collect();
+    banded.sort_unstable();
+    let mut want = arcs.clone();
+    want.sort_unstable();
+    assert_eq!(banded, want, "both arcs are named by the one band");
+    assert!(
+        naming.dead.vertices.contains(&vertex),
+        "the seam vertex a chain used to STOP at is retired with the rim"
+    );
 }
 
 /// **A one-edge rim registers no seam vertex.** The differential that
