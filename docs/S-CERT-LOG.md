@@ -95,3 +95,24 @@ are folded into the plan at 715a7bb8.
 
 CERT-2 dispatches on Q3's ruling (spec on `cert/orchestrator`;
 block CERT-B1 slot 1). CERT-1 lane still running.
+
+## Seam: Q2 and Q4 ruled (2026-08-29)
+
+Evan, in-chat. **Q2 RULED**: the #1006 trio proceeds (shared home,
+whole-face-arm collapse — tighter or equal by per-cell-then-union —
+magnitude-reading retirement with the re-baseline owned); landed as
+CERT-10 in the slate, after CERT-5/CERT-7 which edit two of its
+sites. The bit principle sharpened: ≪ ε was *sufficient, not
+necessary* — a flipped classification is fine when semantically
+correct and the code cleaner (memory updated). Consequence: CERT-4's
+f64-bit constraint restates SEMANTICALLY — both-lanes reformulation
+permitted if cleaner, provided the exact-fit guarantee survives by a
+preserved structural zero or a re-derived gate. **Q4 RULED**:
+route 1, knot-aligned composite cells primary for CERT-5 (the
+w-uniform-in-v exact arm kept as the strictly-better path where it
+applies; route 2 unclaimed, per the PCURVE answer). Open ruling
+surface is now **Q1 only** (the #870 gauge/scope choice —
+recommendation on record: A′ patch-lanes-only, mean-edge-displacement
+gauge, typed refusal).
+
+Lanes: CERT-1 and CERT-2 implementers both still running.

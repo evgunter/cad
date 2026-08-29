@@ -153,14 +153,19 @@ dispatch; difficulty is logged pre-draw per the protocol.
   constructor sits under every rigid transform). Keep-out: `vec.rs`
   (P-2 in flight). Track N fence ground — the unit re-merges main
   before opening its PR.
-- **CERT-4 — #1191, period-fold widening under the f64-bit
-  constraint (L; possibly two PRs: profile sites, then topo
-  sites).** The deliverable the issue names, minus the decision it
-  reserves: f64 bits do NOT move (the cession's stated constraint),
-  so the work is an interval-lane-honest fold — an enclosure
-  computed from the true angular difference rather than a `floor`
-  over a straddling box — plus straddle-driving rows for the topo
-  sites nothing currently exercises. The hit list in the issue is
+- **CERT-4 — #1191, period-fold widening (L; possibly two PRs:
+  profile sites, then topo sites).** The deliverable: a fold whose
+  interval enclosure is computed from the true angular difference
+  rather than a `floor` over a straddling box, plus
+  straddle-driving rows for the topo sites nothing currently
+  exercises. The cession's f64-bit constraint is RESTATED
+  SEMANTICALLY (Evan, in-chat, 2026-08-29: bit preservation is not
+  the bar; a flipped classification is fine when semantically
+  correct and the code cleaner): the unit may reformulate both
+  lanes if that is the cleaner shape, PROVIDED the exact-fit
+  guarantee survives — a true tangency must still classify as an
+  exact fit, by a preserved structural zero or by a re-derived
+  gate, never by a re-baselined near-miss. The hit list in the issue is
   the scope; its stated blind spots are re-swept at merge base.
   Sequenced early enough that M10-3's driver consumes the fixed
   fold, coordinated with M10 on timing.
@@ -191,7 +196,7 @@ dispatch; difficulty is logged pre-draw per the protocol.
   flip the two reviewer rows back to containment), per-cell
   recentring (#1008 — re-measure the small-|d| row), directional
   refinement with the stall guard (#1007). #1006 is **not** here —
-  it is a design decision (Rulings sought Q2).
+  it is CERT-10, under the Q2 ruling.
 - **CERT-8 — chart-stretch honesty (#501, then #528) (M/L).**
   #501 first: give `topo` the Floater stretch bounds
   (`nurbs_stretch_bounds`) through a properly-layered export, meter
@@ -205,6 +210,18 @@ dispatch; difficulty is logged pre-draw per the protocol.
   interior point (bbox centre), pin the huge-offset probe as a
   gate. Mesh-fence ground with no live claimant; taken because the
   cut assigns it.
+- **CERT-10 — the patch-hull consolidation (#1006, under the Q2
+  ruling) (M/L; after CERT-5 and CERT-7, which edit two of its
+  three sites).** Home the tensor derivative-net assembly in
+  `geom_core::spline` beside `compose`; collapse `nurbs_cert`'s
+  whole-face arm into a fold over `patch_bound`'s cells (bound
+  tightens or holds; fold cost measured against the whole-net
+  hull before the shape is chosen); retire the magnitude reading
+  in favour of the strictly-tighter signed one, with the
+  rational-face grid re-sizing and the render/tess-budget
+  re-baseline owned by this unit's PR — what moved and why stated,
+  per the render-lane conventions. Affected pinned rows re-derived,
+  not preserved.
 - **CERT-M / CERT-N — the absorbed SMELL tracks.** Worked as track
   lanes after the defect cluster clears, sequenced by their own
   tables (`SMELL-SCAN-2026-08.md` §Track M, §Track N), with this
@@ -230,27 +247,33 @@ S-MESH's future owner inherits the `closing_column` assertion note.
    `area.width()` with a floored relative gauge and a typed
    area-side refusal, per the recommendation above? This changes
    which faces certify, so it is a fork, not an elaboration.
-2. **Q2 — #1006**: whether the three patch-hull assemblies share a
-   home in `geom_core::spline`, whether `nurbs_cert`'s whole-face
-   arm collapses into a fold over `patch_bound`'s cells, and who
-   owns the magnitude-reading retirement's re-baseline (it moves
-   render and tess-budget baselines). Recommendation: shared home
-   yes, the collapse yes if bit-preserving on the integral arm's
-   returns, and the retirement scheduled as its own unit with the
-   baseline move attached — but all three are cross-crate design
-   calls.
+2. **Q2 — RULED (Evan, in-chat, 2026-08-29)**: all three proceed —
+   shared home in `geom_core::spline`; the whole-face arm collapses
+   into a fold over `patch_bound`'s cells (per-cell-then-union is
+   tighter or equal, so the bound improves; fold cost measured
+   against the whole-net hull before the shape is chosen); the
+   magnitude-reading retirement scheduled with the re-baseline
+   attached and owned. Bit identity is explicitly NOT the bar
+   (`memories/output-stability-as-justification.md` carries the
+   stated principle); affected pinned rows are re-derived. Landed
+   as CERT-10 in the slate.
 3. **Q3 — RULED (Evan, in-chat, 2026-08-29: not a design question,
    "do as you see fit")**: CERT-2 executes two Q-track rows
    (D285/D286) as #762's named residue; CERT-4's hit list crosses
    profile/topo fences wherever #1191's sites live. Both grounds
    have no live claimant and both issues are assigned here by the
    merged cut.
-4. **Q4 — #390 route choice**: CERT-5 takes route 1 (the flux
-   enclosure); route 2 (the algebraic CYLINDER certificate) reads
-   **unclaimed** — the PCURVE orchestrator answered on this PR that
-   a PCURVE reservation would lapse onto a closing program, and
-   concurred with route 1 for CERT-5. Veto if you want route 2 led
-   from here instead.
+4. **Q4 — RULED (Evan, in-chat, 2026-08-29)**: route 1, with
+   knot-aligned composite cells as CERT-5's primary deliverable.
+   Precision the ruling rests on, stated so it is not fudged:
+   knot-aligned cells restore certified convergence to target
+   (composite, refined) — the analytically *exact* pieces are the
+   `w`-uniform-in-v arm (kept in CERT-5 as the strictly-better
+   path where weights vary in one direction only, which covers
+   loft walls and dm1) and route 2's recognition certificate.
+   Route 2 (the algebraic CYLINDER certificate) reads **unclaimed**
+   per the PCURVE orchestrator's answer on this PR, with #1195
+   recorded as a second beneficiary for whoever takes it.
 
 ## Process
 
