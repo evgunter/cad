@@ -177,3 +177,55 @@ Two further decisions taken by the orchestrator rather than the lane:
   roster move in an unsized scene loses nothing because that rule still runs.
   As shipped it would red-line 58 of 70 scenes where it gates nothing, and
   cry-wolf-then-allowlist is a measured outcome in this tree, not a hypothesis.
+
+## `w1`'s reviews — the re-mint, and an operational finding about this session
+
+**The style lane caught the re-mint cold: `crates/test-utils/src/vacuity.rs`
+already exists.** Its `Exposure::require` is the unit's hand-rolled
+`certified > 0` guard exactly, down to the failure vocabulary; its module doc
+calls itself *"the anti-vacuity floor — the tree's spelling"*; `geom-brep`
+already carries `test-utils` in dev-deps and the sibling suite **in the same
+test binary** imports it. So the Q1 framing this orchestrator gave the reviewer
+— *"N copies and no shared thing"* — was itself wrong, and the reviewer
+corrected it: it is N copies **beside** a shared thing that half the tree
+already imports. That correction is the finding.
+
+**The correctness lane then produced the decisive experiment.** Rather than the
+blanket multiplier the implementer red-proved with, it constructed the real
+degradation — hull-then-difference in `spline/compose/tensor.rs`, the
+span-width-scaled enclosure the comments themselves name — and measured it:
+
+| row | today | cancellation lost | ceiling | outcome |
+|---|---|---|---|---|
+| aligned (pre-existing) | 1.4912 | 20.843 | 10.0 | RED |
+| knots | 1.5199 | 6.730 | 3.0 | RED |
+| straddle | 3.2639 | 5.108 | 6.0 | **GREEN** |
+| bicubic | 1.4434 | 1.809 | 3.0 | **GREEN** |
+
+Two of the three rows the unit added stay green under exactly the degradation
+their own assert messages name. **A ceiling red-proved by a blanket
+multiplicative loosening has been shown to catch loosening, not the named
+mechanism** — that is the durable rule out of this unit, and it generalises past
+`D65` to every threshold in the tree whose red-proof was a scaling.
+
+The two rows want different answers, which is why the rule is not "tighten the
+constants": `straddle` takes `4.0` with 22.5% headroom, while on `bicubic`'s
+geometry a *total* cancellation loss costs only 1.25×, so **no ratio ceiling
+separates the two states at all** and the honest close is `S121`'s licensed
+written verdict. The unit's *"no honest ceiling"* verdict elsewhere
+(`r1_pxn_probes`) was over-broad in the other direction: extending the amplitude
+ladder shows the fixture certifies to `a = 1e-10`, three orders above the
+enclosure floor the verdict rests on.
+
+### Operational: two reviewers in one worktree contaminate each other
+
+The style reviewer got a confident three-leg red that was the correctness
+reviewer's in-flight uncommitted `src/` perturbation, and later hit its
+uncommitted `println!`s. **An unbracketed run in a shared worktree produces a
+detailed, plausible and wrong MAJOR.** This is a defect in how this session
+dispatched, not in either reviewer: they were put in one worktree to save disk.
+The standing rule it earns — the mutating reviewer works in its own checkout,
+and any reviewer sharing a worktree brackets every measurement with
+`git diff --quiet HEAD` before and after — is relocated into
+`memories/agent-lane-operations.md` at integration. Both live pairs were warned
+mid-flight.
