@@ -14,10 +14,13 @@
 //! it moves, the question is whether the new behaviour is correct, not
 //! how to get the old number back. What makes it useful HERE is that
 //! this file uses no API the lift introduced, so the same digest can be
-//! taken on a pre-lift tree and compared. It was: all three numbers
-//! below are the ones a checkout of the PRE-LIFT tree produces from
-//! this same file, which is what "the build path did not move" means
-//! here.
+//! taken on a pre-lift tree and compared. It was: the three numbers
+//! are the ones a checkout of the PRE-LIFT tree produces from this
+//! same file, which is what "the build path did not move" means here.
+//! **That differential was taken against the roster of the day**, and
+//! the roster has since grown twice — see the re-bless paragraphs
+//! below, which say what moved and what evidence stands behind each.
+//! Re-taking it requires the pre-lift tree AND the current registry.
 //!
 //! THE TREE THE COMPARISON WAS MADE AGAINST is `41e32c24` — main at
 //! the fix pass, which is a pre-lift tree because the lift lives only
@@ -33,7 +36,7 @@
 //! covers the three scalars the review names rather than the value lane
 //! alone.
 //!
-//! **The numbers moved once, at M10-2, and NOT because the build path
+//! **The numbers moved again at M10-2, and NOT because the build path
 //! did.** That unit registered a new corpus document (`measured_web`,
 //! carrying the E3/E10 measurement nodes so the Dual/Interval digest
 //! arms are reached rather than merely present). This digest is taken
@@ -41,6 +44,15 @@
 //! moves it by construction: the walk gains the new document's rows,
 //! and every document after it shifts index. Neither is a statement
 //! about evaluation.
+//!
+//! That is the same shape of claim LIB-G16 made below, and this unit
+//! can point at an INDEPENDENT measurement of it that did not exist
+//! then: `lib_g16_corpus_name_digests` pins a per-document digest, and
+//! adding `measured_web` moved exactly one of its twenty rows — its
+//! own — leaving the other nineteen bit-identical. A registry addition
+//! that had disturbed an existing document would have shown up there
+//! as well, on a table where "one row moved" is legible and a
+//! whole-corpus scalar's is not.
 //!
 //! What still makes the fence mean what it says: the corpus's other
 //! rows — `m4_pr8_corpus`'s per-document coverage and cone probes, the
@@ -77,8 +89,11 @@
 //! all three constants came back at their pre-LIB-G16 values
 //! (`f64`/`probe` `ebba499b112fea43, 3350329b8dcf3c2f`, `interval`
 //! `6c3f436b41ecd1b4, e7db67ef2cffe270`), so no EXISTING document's
-//! bits moved. The three numbers below are the same digest over the
-//! grown roster.
+//! bits moved. Those numbers are no longer the ones below: M10-2 grew
+//! the roster a second time (`measured_web`), and the constants here
+//! are the digest over BOTH additions. The LIB-G16 differential is
+//! kept as written because it is still the evidence for its own
+//! re-bless — it just no longer names the current constants.
 //!
 //! The `probe` row is ROSTERED into the K-telemetry sweep's executed
 //! floor. Its claim is not a third copy of the `f64` row's: it says the
@@ -300,7 +315,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x0f7c_dec3_cf38_ad1e, 0x01e0_5bef_0382_adda),
+        (0xb78b_a1d4_1bfb_e2ec, 0xd5e7_4261_4420_b7a8),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -327,7 +342,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0xbfb3_45df_4492_bc11, 0xc835_f9e3_6e69_4ddd),
+        (0xf613_4423_a6e0_2107, 0xcea2_4aa4_75fe_f503),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -351,7 +366,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x0f7c_dec3_cf38_ad1e, 0x01e0_5bef_0382_adda),
+        (0xb78b_a1d4_1bfb_e2ec, 0xd5e7_4261_4420_b7a8),
         "the corpus's Probe evaluation moved"
     );
 }
