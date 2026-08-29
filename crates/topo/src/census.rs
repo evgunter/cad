@@ -2298,7 +2298,7 @@ mod tests {
         sense: bool,
     ) -> (FaceKey, crate::geometry::SurfaceKey) {
         use geom::Curve3;
-        use geom_brep::{EdgeCurveSpec, EdgeGeometry};
+        use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
         let (p00, p10, p11, p01) = (
             cyl_pt(u0, z0),
             cyl_pt(u1, z0),
@@ -2337,7 +2337,7 @@ mod tests {
                 )
             };
             EdgeCurveSpec {
-                description: EdgeGeometry::Intersection {
+                description: EdgeDescriptionSpec::Intersection {
                     s1: cyl,
                     s2: plane,
                     witness: cyl_pt((u0 + u1) * 0.5, z),

@@ -43,6 +43,13 @@ Evan's standing instructions for implementation work:
   `oauthAccount.emailAddress`; the id is in your memory-directory path).
   `usage-watch.sh`'s events carry their own actions. Other accounts'
   alerts are informational — never act on them.
+  **But your own account can cross a threshold while every alert names
+  someone else** — read the truth rather than infer it from an event:
+  `tail -1 <agent-dir>/events/claude/usage/events.jsonl` carries
+  `rate_limits.five_hour` and `.seven_day` percentages together. A RESET
+  event may name only the 7d window while the 5h one is still full
+  (resuming on one and being STOP-NOW'd seconds later is how this was
+  learned). One read settles both; do it before any expensive dispatch.
 - **Away-channel arming**: the script fails loud (exit 78) without its
   routing env — `CAD_CHANNEL_SELF_TAG="(<ROLE> orchestrator)"
   CAD_CHANNEL_BRANCH_PREFIXES=<prefixes> bash .../github-away-channel.sh`.

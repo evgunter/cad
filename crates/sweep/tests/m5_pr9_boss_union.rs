@@ -90,7 +90,7 @@ fn the_boss_union_lands_end_to_end() {
             assert!(
                 matches!(
                     c.description(),
-                    geom_brep::EdgeGeometry::Intersection { .. }
+                    geom_brep::EdgeDescription::Intersection { .. }
                 ),
                 "a transverse curved seam edge is intrinsic (D6)"
             );

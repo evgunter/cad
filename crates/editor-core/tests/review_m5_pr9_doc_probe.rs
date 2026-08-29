@@ -227,7 +227,7 @@ fn tangent_intersection_edges_survive_save_load_at_rest() {
                     body.get_curve_geom(e.curve)
                         .and_then(|g| g.certified())
                         .map(topo::EdgeCurve::description),
-                    Some(topo::EdgeGeometry::TangentIntersection { .. })
+                    Some(topo::EdgeDescription::TangentIntersection { .. })
                 )
             })
             .count()

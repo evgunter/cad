@@ -46,6 +46,8 @@ mod freecad;
 mod inst_review_probes;
 #[path = "nurbs_import.rs"]
 mod nurbs_import;
+#[path = "p1b_r1_import_scan.rs"]
+mod p1b_r1_import_scan;
 #[path = "parser.rs"]
 mod parser;
 #[path = "probe_dup.rs"]

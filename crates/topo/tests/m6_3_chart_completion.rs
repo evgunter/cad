@@ -21,7 +21,7 @@
 //! - the cache survives AT REST: the tier-3 pcurve pass re-derives
 //!   the full C2 certificate, reading the MATE operand from the
 //!   edge's own intensional description
-//!   (`EdgeGeometry::Intersection { sphere, plane }`);
+//!   (`EdgeDescription::Intersection { sphere, plane }`);
 //! - the same body certifies at the INTERVAL scalar
 //!   (`certified` module), enclosure-asserted — the loud-skip pattern
 //!   is not needed here because no march budget is consulted (the
@@ -35,7 +35,7 @@ use std::sync::Arc;
 
 use geom::Surface;
 use geom::{Curve3, NurbsCurve2};
-use geom_brep::{EdgeCurveSpec, EdgeGeometry, EnvelopeStatement, Pcurve, PcurveCache};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, EnvelopeStatement, Pcurve, PcurveCache};
 use geom_core::Tol;
 use geom_core::{Band, Point2, Point3, Real, Vec3};
 use topo::Body;
@@ -174,7 +174,7 @@ where
             },
             p1,
             EdgeCurveSpec {
-                description: EdgeGeometry::Intersection {
+                description: EdgeDescriptionSpec::Intersection {
                     s1: sph_key,
                     s2: pl_key,
                     witness: carrier.eval(mid),

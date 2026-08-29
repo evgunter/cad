@@ -570,7 +570,7 @@ FAMILIES = {
 #: hands to Python.** The operation results and their geometry
 #: (`Extruded`, `Extrusion`, `Revolved`, `Revolution`, `Lofted`,
 #: `Filleted`, `BooleanBody`, `BooleanResult`, `BooleanResultKind`,
-#: `Operand`, `Curve3`, `Surface`, `EdgeGeometry`, `PropsQuadLane`):
+#: `Operand`, `Curve3`, `Surface`, `EdgeDescription`, `PropsQuadLane`):
 #: the document layer consumes them and Python receives a `Value`. The
 #: profile ladder's rungs (`Profile`, `ProfileLoop`, `ProfileVertex`,
 #: `ValidatedLoop`, `ValidatedProfile`, `SegmentKind`,
@@ -787,7 +787,7 @@ NOT_BOUND = {
     "Curve3": INTERIOR,
     "DeclaredContact": INTERIOR,
     "DuplicateName": INTERIOR,
-    "EdgeGeometry": INTERIOR,
+    "EdgeDescription": INTERIOR,
     "Extruded": INTERIOR,
     "Extrusion": INTERIOR,
     "FilletLegShape": INTERIOR,

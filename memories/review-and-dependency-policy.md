@@ -27,6 +27,29 @@ they came to be that way. When you retract one, grep for the claim, not
 the sentence: a correction made where you first wrote it leaves every
 other copy standing.
 
+**A verdict conditioned on a gate is only as good as a check that the
+gate ran** (2026-08-29, PCURVE P-1b's dual, R2's own post-mortem). A
+reviewer wrote "APPROVE WITH FIXES, conditional on that gate being
+green", noted that the unit's suites "ride the PR gate, not me" per the
+reviewer-local-runs rule, and never verified a green existed. It also
+quoted the PR's own citation — "Green in run 33132582293" — into its
+report as supporting text for a verdict move. One `gh run view` showed
+that run **cancelled, on a different SHA**; the reviewed head had **zero**
+runs; and two of the unit's own committed rows were red on it.
+
+**Why:** the reviewer-local-runs rule (unique signal only) presumes the
+gate runs. That premise is not self-verifying, and a verdict resting on
+it is unsupported rather than wrong — quieter and worse. In the
+reviewer's own words, it is [[refusal-text-is-not-cause]] committed by
+the reviewer invoking it: taking a cited artifact's DESCRIPTION for the
+artifact's STATE.
+
+**How to apply:** if a review's verdict says "conditional on green",
+verifying that green exists is part of the review, not the
+orchestrator's follow-up. Resolve every run ID a PR cites — status AND
+head SHA — before quoting it as support. Excluding the unit's own rows
+by policy is fine; assuming something else ran them is not.
+
 **A stated coverage gap is a BLOCKER when the untested axis is the
 row's own subject.** Merging a row whose declared purpose is X, on
 evidence that never exercised X, buys nothing — the row is decorative

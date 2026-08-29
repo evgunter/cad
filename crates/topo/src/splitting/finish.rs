@@ -421,7 +421,7 @@ fn describe_section_boundary<T: Decide>(
                         Some((curve, _, _)) => {
                             let (t0, t1) = curve.params();
                             geom_brep::EdgeCurveSpec {
-                                description: geom_brep::EdgeGeometry::Intersection {
+                                description: geom_brep::EdgeDescriptionSpec::Intersection {
                                     s1: s_self,
                                     s2: s_other,
                                     witness,
@@ -433,7 +433,7 @@ fn describe_section_boundary<T: Decide>(
                         }
                         None => {
                             let mut spec = geom_brep::EdgeCurveSpec::line_between(p0, p1);
-                            spec.description = geom_brep::EdgeGeometry::Intersection {
+                            spec.description = geom_brep::EdgeDescriptionSpec::Intersection {
                                 s1: s_self,
                                 s2: s_other,
                                 witness,

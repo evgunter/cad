@@ -153,7 +153,7 @@ fn a_fillet_grade_tangency_must_carry_and_does() {
                 body.get_curve_geom(e.curve)
                     .and_then(|g| g.certified())
                     .map(geom_brep::EdgeCurve::description),
-                Some(geom_brep::EdgeGeometry::TangentIntersection { .. })
+                Some(geom_brep::EdgeDescription::TangentIntersection { .. })
             )
         })
         .map(|(k, _)| k)
@@ -181,7 +181,7 @@ fn the_must_carry_fires_when_the_description_is_conventional() {
             let c = body.get_curve_geom(e.curve).and_then(|g| g.certified())?;
             matches!(
                 c.description(),
-                geom_brep::EdgeGeometry::TangentIntersection { .. }
+                geom_brep::EdgeDescription::TangentIntersection { .. }
             )
             .then(|| (k, c.clone()))
         })
@@ -193,11 +193,13 @@ fn the_must_carry_fires_when_the_description_is_conventional() {
     // The conventional description extrude would have kept: the
     // extruded profile point under the identity placement.
     let spec = geom_brep::EdgeCurveSpec {
-        description: geom_brep::EdgeGeometry::MappedCurve(geom_brep::MappedCurve::ExtrudedPoint {
-            point: p2(origin.x, origin.y),
-            place: geom_core::Affine3::identity(),
-            vec: dir * (t1 - t0),
-        }),
+        description: geom_brep::EdgeDescriptionSpec::Scaffold(
+            geom_brep::MappedCurve::ExtrudedPoint {
+                point: p2(origin.x, origin.y),
+                place: geom_core::Affine3::identity(),
+                vec: dir * (t1 - t0),
+            },
+        ),
         carrier: geom::Curve3::Line { origin, dir },
         param_start: t0,
         param_end: t1,
@@ -232,14 +234,31 @@ fn a_g2_underdetermined_join_must_not_carry() {
     let body = cylinder_body();
     let marks =
         topo::contact_marks(&body, Tol::witness()).expect("the disc cylinder is tier-3 valid");
+    // **Re-expressed at PCURVE P-1b.** The walk used to select the
+    // struts by the `MappedCurve` VARIANT plus a line carrier. U2
+    // collapsed the conventional forms, so that variant selects
+    // nothing and the row would have counted 0 while asserting 2 —
+    // passing vacuously is the failure mode it just avoided. The fact
+    // the variant stood for is stored in two places now, and both are
+    // read: the description is a CHART image (never an intrinsic
+    // citation, which is the whole point — an under-determined locus
+    // has none to cite), and the authority record says the profile
+    // vertex's extrusion determined it.
     let mut saw_underdetermined = 0;
     for (k, e) in body.edges() {
         let Some(c) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
             continue;
         };
-        if matches!(c.description(), geom_brep::EdgeGeometry::MappedCurve(_))
-            && matches!(c.carrier(), geom::Curve3::Line { .. })
-        {
+        if matches!(c.carrier(), geom::Curve3::Line { .. }) {
+            assert!(
+                matches!(c.description(), geom_brep::EdgeDescription::Chart(_)),
+                "an under-determined locus has no intrinsic description to                  carry, so the strut is a chart image: {:?}",
+                c.description()
+            );
+            assert!(
+                c.authority().is_declared(),
+                "the profile vertex's extrusion declared this locus"
+            );
             assert_eq!(
                 marks.get(k),
                 Some(&topo::ContactMark::SmoothUnderdetermined),

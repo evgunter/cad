@@ -15,10 +15,68 @@
 #![allow(unreachable_pub)] // why: root Cargo.toml, the `unreachable_pub` stanza
 
 use geom::Surface;
-use geom_brep::{EdgeCurveSpec, EdgeGeometry, newell_plane};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, newell_plane};
 use geom_core::Tol;
 use geom_core::{Band, Point3, Real};
 use topo::{Body, FaceSurface, MefCreated, MefSite, MevCreated, MevSite, MvfsCreated};
+
+/// **The two independent at-rest rules a conventional chord breaks**,
+/// asserted as a pair over exactly this body's edges — and nothing
+/// else reported.
+///
+/// A body assembled from Euler ops and then grafted with planes holds
+/// every chord at the SCAFFOLDING door: `mev_line` and `mef_chord`
+/// mint an edge before any face surface exists, so they have no chart
+/// to name. At rest that breaks two rules at once, and the two are
+/// independent, not one report doubled:
+///
+/// - **Prefer-intrinsic** (D2): a definitely-transverse edge whose
+///   locus the modeler DECLARED must instead cite the intersection its
+///   two surfaces determine. It fires on a chart image too — a
+///   declared image is still a declared locus — so it is not about the
+///   scaffolding door.
+/// - **The transience fence** (U2 Q2): an edge with two faces has a
+///   chart, so a scaffold there is a construction that stopped
+///   half-way. It fires regardless of dihedral class — a SMOOTH join,
+///   which prefer-intrinsic exempts, is named by it just the same.
+///
+/// So a conventional chord at rest is named once by each, and the
+/// pairing is what this helper pins: one report per rule per edge,
+/// over exactly the edge arena, in its order, with no third kind and
+/// no cascade. **This is what the pre-P-1b rows' single count meant**;
+/// it is asserted as a bijection rather than re-baselined to twice the
+/// number, so that a rule firing twice on one edge, or missing one,
+/// still fails here.
+pub fn assert_every_chord_named_by_both_rules<T: Real>(
+    body: &Body<T>,
+    errs: &[topo::ValidationError],
+) {
+    let edges: Vec<topo::EdgeKey> = body.edges().map(|(k, _)| k).collect();
+    let named = |pick: fn(&topo::ValidationError) -> Option<topo::EdgeKey>| {
+        errs.iter().filter_map(pick).collect::<Vec<_>>()
+    };
+    let scaffolds = named(|e| match e {
+        topo::ValidationError::ScaffoldAtRest { edge } => Some(*edge),
+        _ => None,
+    });
+    let transverse = named(|e| match e {
+        topo::ValidationError::TransverseNotIntrinsic { edge } => Some(*edge),
+        _ => None,
+    });
+    assert_eq!(
+        scaffolds, edges,
+        "the fence names every chord still at the scaffolding door, once: {errs:?}"
+    );
+    assert_eq!(
+        transverse, edges,
+        "prefer-intrinsic names every declared transverse chord, once: {errs:?}"
+    );
+    assert_eq!(
+        errs.len(),
+        2 * edges.len(),
+        "and nothing else is reported: {errs:?}"
+    );
+}
 
 /// Key bundle for the geometric unit cube.
 #[allow(dead_code)]
@@ -351,7 +409,7 @@ pub fn describe_as_intersections<T: geom_core::Decide>(body: &mut Body<T>) {
             geom_brep::DihedralClass::Transverse => {}
         }
         let mut spec = EdgeCurveSpec::line_between(p0, p1);
-        spec.description = EdgeGeometry::Intersection { s1, s2, witness };
+        spec.description = EdgeDescriptionSpec::Intersection { s1, s2, witness };
         body.set_edge_curve(edge_key, spec, Tol::witness()).unwrap();
     }
 }

@@ -284,7 +284,7 @@ const TANGENT_PLANES_COINCIDE: &str = "tangent planes coincide at interior sampl
 /// At ambient 1e-6 the file's own span decision is in-band too, and it
 /// is reached first — at assembly, before any edge is adopted.
 const PARAM_SPAN_ESCALATED: &str =
-    "ParamSpan at sample 0 escalated: predicate 'interval_span_forward' indeterminate";
+    "ParamSpan (not a sampled check) escalated: predicate 'interval_span_forward' indeterminate";
 /// Naming the MAPPED-CURVE arm pins that BOTH candidates were tried and
 /// both refused definite — the seam arm alone would match a prefix.
 const ENDPOINT_START_MAPPED_CURVE: &str = "mapped curve: geometry attachment gate: certification: EndpointStart residual at sample 0 \

@@ -505,8 +505,27 @@ pub enum ValidationError {
     /// `ContactMark::Unmarked` and NEITHER must-carry attaches: an
     /// exemption by the predicate, like every other one here.)
     TransverseNotIntrinsic {
-        /// The definitely-transverse edge whose description is
-        /// conventional.
+        /// The definitely-transverse edge whose locus the modeler
+        /// declared.
+        edge: EdgeKey,
+    },
+    /// Tier 3, **the transience fence** (U2's Q2 as corrected by Evan
+    /// 2026-08-27): a body at rest carries an edge still described by
+    /// the SCAFFOLDING door — a sketch pushforward standing in for a
+    /// description while the edge's surfaces do not exist yet.
+    ///
+    /// The door is legal and load-bearing: an Euler-op ring's null
+    /// edges and a sweep's struts are certified before any surface
+    /// they could be charted in exists. What makes it legal is that
+    /// they are TRANSIENT. An edge that reaches a valid body has two
+    /// faces, so it has a chart, so it can say where its locus lies —
+    /// and a scaffold at rest says instead that a construction stopped
+    /// half-way and nobody noticed. The fence is transience, not
+    /// "pre-body": `MappedCurve` measurably reached rest through the
+    /// boolean join's re-description lanes and the fillet's struts,
+    /// which is exactly what "pre-body" failed to catch.
+    ScaffoldAtRest {
+        /// The edge still carrying a scaffolding description.
         edge: EdgeKey,
     },
     /// Tier 3, the symmetric must-carry (OQ7's two-level shape, level
@@ -1301,17 +1320,35 @@ impl fmt::Display for ValidationError {
             ),
             Self::TransverseNotIntrinsic { edge } => write!(
                 f,
-                "edge {edge:?} is definitely transverse at every interior sample but \
-                 carries a conventional MappedCurve description — transverse edges must \
+                "edge {edge:?} is definitely transverse at every interior sample but its \
+                 locus is recorded as DECLARED by a sketch entity — transverse edges must \
                  be described intrinsically as the Intersection of their faces' surfaces \
                  (prefer-intrinsic, D2)"
+            ),
+            // The message states what is WRONG and stops there. An
+            // earlier wording added "so it has a chart to be described
+            // in" — asserting that a chart image necessarily exists —
+            // which this unit's own findings deny: a fillet strut on a
+            // curved support (#1116) and a diagonal chord across a
+            // cylinder are SECANTS, lying in neither adjacent surface,
+            // and no chart image describes them. For those the fence
+            // is naming a construction that cannot come to rest as
+            // built, which is a sharper and more useful report than a
+            // claim the reader can falsify.
+            Self::ScaffoldAtRest { edge } => write!(
+                f,
+                "edge {edge:?} is still described by the scaffolding door (a sketch \
+                 pushforward standing in for a description) in a body at rest — the door \
+                 is for edges whose surfaces do not exist yet, and this edge has two \
+                 faces (U2's transience fence). Either describe it in a chart it lies \
+                 in, or the construction that built it stopped half-way"
             ),
             Self::TangentNotIntrinsic { edge } => write!(
                 f,
                 "edge {edge:?} is a jet-determinate tangency (definitely smooth at \
                  every interior sample, second-order separation definitely positive — \
-                 the surfaces DETERMINE the locus) but carries a conventional \
-                 MappedCurve description — such edges must be described intrinsically \
+                 the surfaces DETERMINE the locus) but its locus is recorded as \
+                 DECLARED by a sketch entity — such edges must be described intrinsically \
                  as the TangentIntersection of their faces' surfaces (prefer-intrinsic \
                  one order up; a G2 join is exempt by its zero-side \
                  second-order margin, never by a list)"
@@ -2151,20 +2188,33 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
         else {
             continue;
         };
-        let adjacent = match *curve.description() {
-            geom_brep::EdgeGeometry::Intersection { s1, s2, .. }
-            | geom_brep::EdgeGeometry::TangentIntersection { s1, s2, .. } => {
-                (s1 == fs_plus && s2 == fs_minus) || (s1 == fs_minus && s2 == fs_plus)
+        // **The transience fence** (U2's Q2 as corrected): the
+        // scaffolding door is for edges whose surfaces do not exist
+        // yet. This edge has two faces — the lookup above answered —
+        // so it has a chart, and a scaffold here is a construction
+        // that stopped half-way.
+        if matches!(curve.description(), geom_brep::EdgeDescription::Scaffold(_)) {
+            errors.push(ValidationError::ScaffoldAtRest { edge: edge_key });
+        }
+        let adjacent = match curve.description() {
+            geom_brep::EdgeDescription::Intersection { s1, s2, .. }
+            | geom_brep::EdgeDescription::TangentIntersection { s1, s2, .. } => {
+                (*s1 == fs_plus && *s2 == fs_minus) || (*s1 == fs_minus && *s2 == fs_plus)
             }
-            geom_brep::EdgeGeometry::Seam { surface } => surface == fs_plus && surface == fs_minus,
-            // Iso adjacency (M6-3, the M5-LOG item 6(iii) rule): the
+            // Chart adjacency (M6-3, the M5-LOG item 6(iii) rule): the
             // described chart is ONE of the edge's two adjacent faces'
             // surfaces — a wall–wall seam is the u-boundary iso of
-            // either wall, and the minted convention names one.
-            geom_brep::EdgeGeometry::IsoCurve { surface, .. } => {
-                surface == fs_plus || surface == fs_minus
+            // either wall, and the minted convention names one. An
+            // image that claims to BE the chart's parameterization
+            // seam owes more: both sides of a seam are one surface.
+            geom_brep::EdgeDescription::Chart(c) if c.seam => {
+                c.surface == fs_plus && c.surface == fs_minus
             }
-            geom_brep::EdgeGeometry::MappedCurve(_) => true,
+            geom_brep::EdgeDescription::Chart(c) => c.surface == fs_plus || c.surface == fs_minus,
+            // A scaffold names no surface; the fence above is the
+            // complaint it earns, and stacking a second one on the
+            // same edge would report one fault twice.
+            geom_brep::EdgeDescription::Scaffold(_) => true,
         };
         if !adjacent {
             errors.push(ValidationError::DescriptionNotAdjacent { edge: edge_key });
@@ -2329,10 +2379,12 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
                     }
                 }
             }
-            if !escalated
-                && all_transverse
-                && matches!(curve.description(), geom_brep::EdgeGeometry::MappedCurve(_))
-            {
+            // The prefer-intrinsic rule reads the AUTHORITY record
+            // (U2 Q3), not the description's shape: since the
+            // conventional forms collapsed there is no shape left that
+            // means "the modeler declared this locus", so the
+            // declaration is the datum it always was.
+            if !escalated && all_transverse && curve.authority().is_declared() {
                 errors.push(ValidationError::TransverseNotIntrinsic { edge: edge_key });
             }
         }
@@ -2358,7 +2410,10 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
             ContactMark::Unmarked
         } else if escalated {
             ContactMark::Unmarked
-        } else if matches!(curve.description(), geom_brep::EdgeGeometry::Seam { .. }) {
+        } else if matches!(
+            curve.description(),
+            geom_brep::EdgeDescription::Chart(c) if c.seam
+        ) {
             ContactMark::Seam
         } else if all_transverse {
             ContactMark::Transverse
@@ -2400,7 +2455,7 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
             ContactMark::Unmarked
         };
         if mark == ContactMark::Tangent
-            && matches!(curve.description(), geom_brep::EdgeGeometry::MappedCurve(_))
+            && curve.authority().is_declared()
             && geom_brep::tangent_certificate_lane(curve.carrier(), s_plus, s_minus)
         {
             // The lane condition IS the jet certificate's per-class
@@ -4764,7 +4819,7 @@ mod tests {
         // `EnumCount` derive or the workspace's first proc-macro crate —
         // and neither is bought here. When you add an arm, its index is
         // the new `VARIANTS - 1`.
-        const VARIANTS: usize = 66;
+        const VARIANTS: usize = 67;
         fn variant_index(e: &ValidationError) -> usize {
             match e {
                 ValidationError::Band { .. } => 0,
@@ -4833,6 +4888,7 @@ mod tests {
                 ValidationError::ApproxLaneUnsupported { .. } => 63,
                 ValidationError::RingMeetsOuter { .. } => 64,
                 ValidationError::RingContactEscalated { .. } => 65,
+                ValidationError::ScaffoldAtRest { .. } => 66,
             }
         }
         fn band_error() -> geom_core::BandError {
@@ -4998,6 +5054,7 @@ mod tests {
                 cause: indeterminate(),
             },
             ValidationError::TransverseNotIntrinsic { edge: e },
+            ValidationError::ScaffoldAtRest { edge: e },
             ValidationError::TangentNotIntrinsic { edge: e },
             ValidationError::LoopRoleInverted {
                 face: t.face_a,
@@ -5499,19 +5556,51 @@ mod tests {
     /// multiply is `· +1`) — pinned here as "no `LoopRoleInverted`
     /// before the flip". The fixture is [`ops_cube`] with real planes
     /// grafted on; its twelve chords stay conventional, so the honest
-    /// report is the twelve `TransverseNotIntrinsic` complaints and
-    /// nothing else. (The all-green variant of this row, on the fully
-    /// certified cube, lives in `tests/geometric_cube.rs`.)
+    /// report is about those chords and nothing else. (The all-green
+    /// variant of this row, on the fully certified cube, lives in
+    /// `tests/geometric_cube.rs`.)
+    ///
+    /// **Re-expressed at PCURVE P-1b.** The honest report used to be
+    /// twelve `TransverseNotIntrinsic` complaints; U2's transience
+    /// fence added a second, independent at-rest rule that the same
+    /// twelve chords break — they were minted through the Euler-op
+    /// door, which describes an edge before any face surface exists,
+    /// and `plane_every_face` grafts the planes without restating
+    /// them. The row asserts the PAIR — one report per rule per chord
+    /// and nothing else — rather than widening the `matches!` to admit
+    /// a second variant, which would have let a body with eleven of
+    /// one and thirteen of the other through.
     #[test]
     fn tier_three_refuses_a_hand_flipped_face_sense() {
         let mut cube = ops_cube(Tol::witness()).body;
         plane_every_face(&mut cube);
         let honest = validate_geometric(&cube, Tol::witness()).unwrap_err();
-        assert!(
-            honest
-                .iter()
-                .all(|e| matches!(e, ValidationError::TransverseNotIntrinsic { .. })),
-            "the grafted cube's only complaint is the conventional \
+        let edges: Vec<EdgeKey> = cube.edges().map(|(k, _)| k).collect();
+        let named = |pick: fn(&ValidationError) -> Option<EdgeKey>| {
+            honest.iter().filter_map(pick).collect::<Vec<_>>()
+        };
+        assert_eq!(
+            named(|e| match e {
+                ValidationError::ScaffoldAtRest { edge } => Some(*edge),
+                _ => None,
+            }),
+            edges,
+            "the fence names every chord still at the scaffolding \
+             door, once; got {honest:?}"
+        );
+        assert_eq!(
+            named(|e| match e {
+                ValidationError::TransverseNotIntrinsic { edge } => Some(*edge),
+                _ => None,
+            }),
+            edges,
+            "prefer-intrinsic names every declared transverse chord, \
+             once; got {honest:?}"
+        );
+        assert_eq!(
+            honest.len(),
+            2 * edges.len(),
+            "the grafted cube's only complaints are its conventional \
              chords; got {honest:?}"
         );
 

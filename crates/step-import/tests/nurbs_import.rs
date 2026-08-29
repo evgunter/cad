@@ -459,40 +459,69 @@ fn loft_prism_walls_get_distinct_surface_keys() {
     );
 }
 
-/// **The description state, re-pinned at M7-6** (stage-1 promotion).
-/// The four wall–wall seams still adopt as `IsoCurve` — each seam has
-/// at least one stays-NURBS wall beside it, and its carrier
-/// bitwise-matches that wall's boundary column (the native at-rest
-/// preference, undisturbed by the neighbour's promotion). The cap
-/// rims split by wall class: the four rims on the stays-NURBS walls
-/// keep the conventional `MappedCurve` (the Nurbs-adjacency
-/// exemption), while the four rims on the PROMOTED walls become
-/// honest cap-plane × wall-plane `Intersection`s — a strictly
-/// stronger description (certified against both surfaces) that
-/// promotion unlocked; the ruling accepts the divergence and this
-/// row enumerates it.
+/// **The description state, re-pinned at M7-6** (stage-1 promotion),
+/// **re-expressed at PCURVE P-1b over the collapsed taxonomy**.
+///
+/// The three NUMBERS below are unchanged and so is every fact they
+/// state; what changed is that two of the class names they used to
+/// count no longer exist. U2 collapsed `IsoCurve` and `MappedCurve`
+/// into the one conventional form, so counting them would now read
+/// `(8, 0, 4)` — the same body, described the same way, with the
+/// row's whole discriminating power thrown away. **This row therefore
+/// counts the distinction that survived rather than the names that
+/// did not**: which CHART each image is drawn in.
+///
+/// - The four wall–wall seams are images in a **spline wall's** own
+///   chart — each seam has at least one stays-NURBS wall beside it and
+///   its carrier bitwise-matches that wall's boundary column (the
+///   native at-rest preference, undisturbed by the neighbour's
+///   promotion).
+/// - The four rims on the stays-NURBS walls are images in the **cap
+///   PLANE**, which is the analytic side of their own
+///   NURBS-plus-plane pair. Before the collapse these were the
+///   conventional `MappedCurve` rung (the Nurbs-adjacency exemption);
+///   they say the same thing about the same locus, in the chart the
+///   rim actually lies in.
+/// - The four rims on the PROMOTED walls are honest cap-plane ×
+///   wall-plane `Intersection`s — a strictly stronger description
+///   (certified against both surfaces) that promotion unlocked; the
+///   ruling accepts the divergence and this row still enumerates it.
+///
+/// So the split is 4 / 4 / 4 exactly as before, and a regression that
+/// merged the two chart populations would still be caught.
+///
+/// **The principle, because the alternative was available and worse.**
+/// Re-baselining this row to `(8, 0, 4)` would have kept its SHAPE and
+/// thrown away its TEETH: every body in which the cap rims stopped
+/// being described in the cap plane would still read `(8, 0, 4)` and
+/// pass. A re-baseline over a retired taxonomy should re-express what
+/// the row was actually discriminating, not adjust the number until
+/// it matches.
 #[test]
 fn loft_prism_descriptions_land_in_the_native_classes() {
     let (body, _) = import_body("loft_prism");
-    let mut iso = 0;
-    let mut mapped = 0;
+    let mut on_wall_chart = 0;
+    let mut on_cap_plane = 0;
     let mut intersection = 0;
     for (_, edge) in body.edges() {
         match body.get_curve_geom(edge.curve) {
             Some(topo::CurveGeom::Certified(curve)) => match curve.description() {
-                geom_brep::EdgeGeometry::IsoCurve { .. } => iso += 1,
-                geom_brep::EdgeGeometry::MappedCurve(_) => mapped += 1,
-                geom_brep::EdgeGeometry::Intersection { .. } => intersection += 1,
+                geom_brep::EdgeDescription::Chart(chart) => match body.get_surface(chart.surface) {
+                    Some(topo::Surface::Nurbs(_)) => on_wall_chart += 1,
+                    Some(topo::Surface::Plane { .. }) => on_cap_plane += 1,
+                    other => panic!("a chart image on neither wall nor cap: {other:?}"),
+                },
+                geom_brep::EdgeDescription::Intersection { .. } => intersection += 1,
                 other => panic!("unexpected description class on a loft edge: {other:?}"),
             },
             other => panic!("every imported edge is certified, got: {other:?}"),
         }
     }
     assert_eq!(
-        (iso, mapped, intersection),
+        (on_wall_chart, on_cap_plane, intersection),
         (4, 4, 4),
-        "4 wall–wall seams under IsoCurve, 4 stays-NURBS-wall cap rims under \
-         MappedCurve, 4 promoted-wall cap rims under Intersection"
+        "4 wall–wall seams as images in a spline wall's chart, 4 stays-NURBS-wall cap \
+         rims as images in the cap PLANE, 4 promoted-wall cap rims as Intersection"
     );
 }
 
@@ -539,8 +568,11 @@ fn an_adopted_iso_column_is_a_knot_domain_end() {
     let mut columns: Vec<f64> = body
         .curves()
         .filter_map(|(_, geom)| match geom {
-            topo::CurveGeom::Certified(c) => match *c.description() {
-                geom_brep::EdgeGeometry::IsoCurve { surface, u, .. } if surface == wall => Some(u),
+            topo::CurveGeom::Certified(c) => match c.description() {
+                geom_brep::EdgeDescription::Chart(cc) if cc.surface == wall => match cc.pcurve {
+                    geom_brep::Pcurve::IsoLine { p0, .. } => Some(p0.x),
+                    _ => None,
+                },
                 _ => None,
             },
             _ => None,

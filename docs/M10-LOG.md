@@ -91,7 +91,7 @@ without it); the design fork itself is reserved for M10-P's PR.
 ## M10-1 MERGED (2026-08-29)
 
 The program's first unit is in: distributions in the document, PR
-#1147 at sample #37 (ordinal 500, the band's first). The dual
+#1147 at sample #39 (ordinal 500, the band's first). The dual
 review's headline is R2's unilateral silent MAJOR — the deep-tail
 `1 − erf` cancellation on exactly the number E2 forbids dropping —
 fixed with one shared exterior/CDF pair that `quantile_z` also
