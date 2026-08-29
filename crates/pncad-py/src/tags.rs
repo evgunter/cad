@@ -27,8 +27,13 @@ use pncad::document::{
     RecordedProgramError, RootFault,
 };
 use pncad::geom_core::{FrameError, FrameInput};
+use pncad::mesh::TessellateError;
 use pncad::profile::PathError;
 use pncad::step_import::StepImportError;
+// `SolidNameError` and `BinaryHeaderError` are prelude-curated;
+// `StlError` — the writers' own refusal — is NOT, and is reached
+// through the façade's wholesale `pub use stl`.
+use pncad::stl::{BinaryHeaderError, SolidNameError, StlError};
 use pncad::workspace::WorkspaceError;
 
 /// The stable tag for a PATHS authoring refusal.
@@ -471,5 +476,66 @@ pub fn expr_dimension_error_tag(err: &DimensionError) -> &'static str {
         DimensionError::NonFiniteLiteral => "non_finite",
         DimensionError::DisplayUnitMismatch { .. } => "display_unit_mismatch",
         DimensionError::UnknownDisplayUnit { .. } => "unknown_display_unit",
+    }
+}
+
+/// The stable tag for a tessellation refusal.
+///
+/// `TessellateError` implements neither `Display` nor
+/// `core::error::Error`, so unlike every other map in this module the
+/// human message beside this tag is a `Debug` rendering — the
+/// treatment [`persist_error_tag`] exists to avoid. That is a curation
+/// gap on the kernel type, not a choice here, and the tag is what
+/// carries the branchable discriminant in the meantime.
+///
+/// The arena keys the arms carry (`FaceKey`, `EdgeKey`) do NOT cross:
+/// the whole curation exists to keep them unnameable, so the payload a
+/// caller reads is the arms' NUMBERS and prose notes.
+pub fn tessellate_error_tag(err: &TessellateError) -> &'static str {
+    match err {
+        TessellateError::InvalidChordalTolerance { .. } => "invalid_chordal_tolerance",
+        TessellateError::UnsupportedSurface { .. } => "unsupported_surface",
+        TessellateError::UnsupportedNurbsFace { .. } => "unsupported_nurbs_face",
+        TessellateError::UnsupportedCurve { .. } => "unsupported_curve",
+        TessellateError::NullScaffoldEdge { .. } => "null_scaffold_edge",
+        TessellateError::RingOnCurvedFace { .. } => "ring_on_curved_face",
+        TessellateError::EmptyLoop { .. } => "empty_loop",
+        TessellateError::MissingEntity { .. } => "missing_entity",
+        TessellateError::ResolutionOverflow { .. } => "resolution_overflow",
+        TessellateError::CertificateExceeded { .. } => "certificate_exceeded",
+        TessellateError::Triangulation { .. } => "triangulation",
+        TessellateError::SelfTouchingTrimLoop { .. } => "self_touching_trim_loop",
+        TessellateError::UnsupportedCurvedDomain { .. } => "unsupported_curved_domain",
+    }
+}
+
+/// The stable tag for an STL writer refusal.
+pub fn stl_error_tag(err: &StlError) -> &'static str {
+    match err {
+        StlError::DegenerateTriangle { .. } => "degenerate_triangle",
+        StlError::IndexOutOfRange { .. } => "index_out_of_range",
+        StlError::TooManyTriangles { .. } => "too_many_triangles",
+        StlError::Io(_) => "io",
+    }
+}
+
+/// The stable tag for an ASCII solid-name refusal.
+///
+/// One namespace with [`stl_error_tag`]'s: a Python caller passes the
+/// name as a `str` keyword argument, so the newtype's refusal and the
+/// writer's arrive on the same exception class and must stay
+/// distinguishable. The `solid_name_` prefix is what keeps them so.
+pub fn solid_name_error_tag(err: &SolidNameError) -> &'static str {
+    match err {
+        SolidNameError::Unrepresentable { .. } => "solid_name_unrepresentable",
+    }
+}
+
+/// The stable tag for a binary-header refusal, in
+/// [`stl_error_tag`]'s namespace for the same reason.
+pub fn binary_header_error_tag(err: &BinaryHeaderError) -> &'static str {
+    match err {
+        BinaryHeaderError::TooLong { .. } => "binary_header_too_long",
+        BinaryHeaderError::SniffsAscii => "binary_header_sniffs_ascii",
     }
 }

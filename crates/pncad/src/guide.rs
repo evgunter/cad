@@ -44,6 +44,12 @@ pub mod selecting {
     #![doc = include_str!("../../../docs/guide/selecting.md")]
 }
 
+/// Meshing: the ladder's tessellate and cross-check rungs, what a
+/// `Mesh` carries across the Python boundary, and STL.
+pub mod meshing {
+    #![doc = include_str!("../../../docs/guide/meshing.md")]
+}
+
 /// The north-star audit: which demos are authorable through the
 /// Python bindings today, and the named gap for each that is not.
 pub mod north_star_audit {
