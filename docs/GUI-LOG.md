@@ -339,3 +339,75 @@ other workspace crate — found when the lane's first run drew the
 interval lane with `-p viewer` scope; any viewer-only diff would
 have hit it. Orchestrator-reviewed, no A/B ceremony (maintenance
 precedent).
+
+**Post-close maintenance (2026-08-29 — four display/editing tweaks,
+Evan-requested in chat):** all four asked for as GUI tweaks; each
+landed as values with headless rows, no A/B ceremony (maintenance
+precedent, #1108/#1125/#1129).
+
+1. **A 3-vector is one panel row.** `SlotId::component` /
+   `VectorSlot` name the vector families in the NODE VOCABULARY
+   (an exhaustive match, so a vector-valued slot added later
+   cannot reach a consumer as three unrelated scalars), and
+   `props::group_rows` folds a node's rows on it. A datum plane is
+   two rows instead of six. An incomplete family degrades to
+   scalars rather than drawing a vector with a hole in it.
+
+2. **`pi` is a row of the unit table**, quantity Angle, factor π —
+   a NOTATION carried as a unit, which is exactly what a stored
+   per-literal display unit is for ("here is how I want this
+   number written"). `0.5 pi` parses and formats back bit-exactly
+   through the existing machinery; nothing downstream
+   distinguishes it from `deg`. Evan's own framing, taken as
+   stated: it is not a unit and the module docs say so.
+
+3. **The GUI's canonical-units ruling is SUPERSEDED** (GUI-PLAN's
+   units row, edited in place with the date). Panels render and
+   author in the display unit each literal remembers, with a
+   picker per row and per vector; `SessionOp::SetSlotUnit` moves
+   the notation and provably not the bits. Everything crossing
+   into the session is still canonical. Document PARAMETERS are
+   the one asymmetry and it is the storage's — `DocParam` has no
+   unit field — recorded rather than papered over.
+
+4. **The drawing marks what the side panel is showing.**
+   `pick::focus` turns a selection into the set of drawn patch ids
+   it is responsible for: every patch a feature drew; for a node
+   that draws nothing itself (a profile, a datum) the geometry
+   built from it; for a document parameter every feature it
+   drives. Carried as a per-corner `FLAG_FOCUS` (the free-move
+   probe's mechanism, second bit), tinted under the existing
+   selection/hover marks. **Known gap, stated as a gap:** the
+   marking is per NODE, so selecting a profile lights the whole
+   body rather than the walls of the one segment being edited. The
+   type is already a set of patch ids, so per-segment marking is
+   expressible; it wants the profile-step ↔
+   `RoleSeg::Lateral(ProfileEdgeRef)` correspondence ESTABLISHED
+   rather than guessed, which is its own small unit.
+
+5. **"How far can this field move before something breaks."**
+   `viewer::bounds` — step outward, then bisect, against a caller-
+   supplied validity oracle; the search evaluates nothing itself,
+   so the part that can be wrong is tested against arithmetic
+   predicates. `SessionOp::ProbeBounds` drives it inline against
+   real evaluations (landed evaluation as memo, so a sample
+   re-runs the edited node's cone), with valid = "the failing-node
+   set did not grow from where the field is now" — which makes the
+   current value valid by construction, in a broken document too.
+   Bounded at 44 samples over both directions.
+
+   **Three limits are stated in the module docs, in the rendered
+   wording, and in the type**, because a probe that read as a
+   derivation would be the confident-wrong-answer class: validity
+   is not monotone, so what is found is the nearest boundary the
+   sampling could SEE; each side reports a BRACKET (furthest
+   valid, nearest invalid) rather than a number; and a side with
+   no failure in reach says how far it looked, never "unbounded".
+
+   **For Evan, the two open design questions this raises**: (a)
+   inline is a hitch of tens of evaluations on a button press —
+   the probe is already a resumable state machine, so moving it
+   behind the eval seam or onto a per-frame drip is mechanical if
+   the hitch is felt; (b) the seed step is one of whatever unit
+   the field is written in, which is a guess at the user's scale
+   and the one number in the feature nothing derives.

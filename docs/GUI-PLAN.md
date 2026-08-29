@@ -31,7 +31,13 @@ residue (the Python assembly series) blocking nothing here.
   visualization sketch is recorded in GUI-DESIGN's undo-tree
   section.
 - **Units: canonical meters/radians in the panels.** U8's
-  units/display layer is not a dependency.
+  units/display layer is not a dependency. *(SUPERSEDED
+  post-close, 2026-08-29, Evan-requested: the panels now show and
+  author each value in the display unit its literal remembers, and
+  a `SetSlotUnit` op changes that notation without touching the
+  value. Everything crossing the panel/session boundary is still
+  canonical — the change is the last inch of rendering, not a new
+  dependency of the model. See `crates/viewer/src/props.rs`.)*
 - **Long evaluations: busy indicator + the shipped `CancelToken`.**
   Progress reporting and in-op yield points stay absent.
 - **Exit demo: an open dialog over the existing demo documents**
