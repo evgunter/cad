@@ -2705,7 +2705,27 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 /// - **`MigrationStep`**: the stated exception in the crate docs —
 ///   its signature speaks `serde_json::Value`, which does not cross
 ///   the curated surface.
-const NOT_CARRIED: [&str; 76] = [
+/// - **The E6 driver and its parameter box** (`drive`, `DriveConfig`,
+///   `DriveRefusal`, `ParamBoxVerdict`, `CertifiedLeaf`,
+///   `RefusedLeaf`, `RefusalReason`, `BudgetKind`, `Flip`,
+///   `ReasonClass`, `Receipt`, `LeafResults`, `MeasureAccounting`,
+///   `ReplayOutcome`, `VerdictVector`, `VerdictRow`,
+///   `VerdictVectorKey`, `DEFAULT_MAX_DEPTH`, `DEFAULT_MAX_LEAVES`,
+///   `ParamBox`, `BoxAxis`, `ParamBoxError`, `AxisScalar`,
+///   `param_env_over`): the analysis lane's subdivision service and
+///   the box it drives over.
+///
+///   Interior because the curated face is a DIFFERENT shape and is
+///   not built yet: what a consumer asks the analysis lane is "does
+///   this measurement hold over its tolerances", and E5's answer to
+///   that is a typed per-measurement stackup report whose INPUT is a
+///   leaf set. Carrying the leaf vocabulary now would door the
+///   intermediate and then have to un-door it. `drive` is also gated
+///   on the `interval` feature — there is no leaf to certify without
+///   the certified scalar — so a façade row for it would be a
+///   conditional door, which this surface does not have and should
+///   not acquire for a type its consumer does not want yet.
+const NOT_CARRIED: [&str; 100] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -2714,21 +2734,32 @@ const NOT_CARRIED: [&str; 76] = [
     "Attr",
     "AttrKind",
     "AttrSet",
+    "AxisScalar",
     "BifurcationKind",
+    "BoxAxis",
     "BranchCertification",
     "BranchMarginEvidence",
+    "BudgetKind",
+    "CertifiedLeaf",
     "ContentKey",
     "Coset",
+    "DEFAULT_MAX_DEPTH",
+    "DEFAULT_MAX_LEAVES",
     "Diagnosis",
     "DocDiff",
+    "DriveConfig",
+    "DriveRefusal",
     "EntityKey",
     "EntityRef",
     "Entry",
     "Epoch",
     "EvalScalar",
     "ExprPath",
+    "Flip",
     "FlipSet",
     "Implicated",
+    "LeafResults",
+    "MeasureAccounting",
     "MeshPatchKey",
     "MeshPick",
     "MeshPickError",
@@ -2741,13 +2772,21 @@ const NOT_CARRIED: [&str; 76] = [
     "NodeChange",
     "NodeVerdictDelta",
     "NodeVerdicts",
+    "ParamBox",
+    "ParamBoxError",
+    "ParamBoxVerdict",
     "ParamValue",
     "PredicateDivergence",
     "Product",
     "ProfilePayload",
     "ProgramRefusal",
     "Qualifier",
+    "ReasonClass",
+    "Receipt",
     "RecipeEditRef",
+    "RefusalReason",
+    "RefusedLeaf",
+    "ReplayOutcome",
     "ResolutionFailure",
     "ResolveError",
     "ResolveIndeterminate",
@@ -2762,7 +2801,10 @@ const NOT_CARRIED: [&str; 76] = [
     "TieWitness",
     "Tombstone",
     "VerdictFlip",
+    "VerdictRow",
     "VerdictSummary",
+    "VerdictVector",
+    "VerdictVectorKey",
     "WitnessAge",
     "WitnessBifurcation",
     "WitnessDatum",
@@ -2772,10 +2814,12 @@ const NOT_CARRIED: [&str; 76] = [
     "derivation_nodes",
     "diff_summaries",
     "diff_verdicts",
+    "drive",
     "enrich_appearance_loss",
     "enrich_appearance_loss_with_prior",
     "entity_name",
     "from_value",
+    "param_env_over",
     "product_recorded",
     "rebind_suggestions",
     "resolve_with_prior",
