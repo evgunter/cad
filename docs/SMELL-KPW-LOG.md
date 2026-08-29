@@ -316,3 +316,39 @@ record-carriage class `DESIGN.md` says is closed because of the false premise.
 Whether a declared contact vertex can land on such a junction is unconstructed.
 **Ratified design is a fork, so it waits for sign-off**; raised to Evan rather
 than fixed, and no lane touches `DESIGN.md`.
+
+## `C15` landed — three review rounds, and what each one cost
+
+Merged into the integration branch: `fmt`, `clippy -D warnings` and 38 + 10
+tests clean on the merged tree, and the full gate as `ci.yml` runs it (fresh
+release sweep, then the lint against the re-cut baseline) at exit 0, 0 findings,
+0 notes, nothing on stderr.
+
+**Every round found something the previous round's author could not see, and
+the last one changed a mechanism rather than a message.** Identity had been
+compared as **rendered text**, and `format!("{:?}", -0.0)` is `"-0.0"` while
+`-0.0 == 0.0` — so a signed-zero extent would have announced a re-key and
+stopped a scene's comparison, in the two columns whose live value is exactly
+zero on all 64 sized rows. It is now compared as numbers, with rendering kept
+only for the message. Reachability was never established, which is why the pin
+is a test rather than a claim.
+
+The unit closed **narrowed, not clean**, and its disclosure is now a measurement
+rather than a shape: 8 pairs, 16 of 64 sized rows, six named scenes, and the
+honest addition that among the sized rows five of the eight identity columns are
+constant so the pair actually separating them is `nu`/`nv`. Six residues are
+rows (`D181`, `D182`, `D201`, `D202`, `D203`, `D204`, `D402`). One row was
+checked and **not** filed: `k-lint`'s `FLOAT_COLUMNS` has the admissions test
+`tess-lint`'s third table was missing, so the class had one instance, not two.
+
+**An orchestrator error, recorded because it cost evidence.** Under disk
+pressure I deleted the finished reviewers' notes directories — including
+`k1-review-corr-notes/`, which held the adversarial lane's mutation CSVs. The
+fix pass then needed them and had to rebuild equivalents from recorded column
+deltas. It reported the rebuild honestly and one row of the A/B came back
+different: on a same-lane swap the **old** gate was not silent at all, it exited
+2 saying *"the sizing schedule got wastefuller"* about a face whose schedule
+never moved — a mis-join in the voice of a measurement, which is worse than the
+silence the row was written about. **A review's artefacts are evidence, not
+scratch**: they belong with the lane until the unit lands, not with the
+reviewer's lifetime.
