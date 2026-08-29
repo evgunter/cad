@@ -21,13 +21,18 @@
 # payloads, i.e. enclosure consumers of exactly the quadrature's
 # class.
 #
-# STANDING OBLIGATION (D1 ruling, 2026-08-19): the fillet seam is
-# the one allowlisted seam with NO refusing lane behind it, and
-# the guard that made that acceptable — `Bounds` having no `Dual`
-# impl — has lapsed. The argument, the reachability check and what
-# is owed live in ONE home: geom-core/src/real.rs, the M5 PR 12
-# entry of the `Bounds` scope rule. Not restated here; keep this a
-# pointer.
+# The fillet seam is the one allowlisted seam with NO refusing lane
+# behind it; the written reason it needs none is the DELEGATION RULE
+# (DUAL-DESIGN DL5) recorded in ONE home: geom-core/src/real.rs, the
+# M5 PR 12 entry of the `Bounds` scope rule. Not restated here; keep
+# this a pointer.
+#
+# `Enclosure` is grepped exactly as `Bounds` (DUAL-DESIGN DL4, the
+# issue-701 hole): the blanket `impl<T: Bounds> Enclosure for T`
+# makes every `Dual` an `Enclosure`, so an `…Enclosure`-named term in
+# a compound bound is the same class of decide-and-bracket parameter
+# and shares this file's allowlist. `CertifiedBounds`'s definition
+# lines stay skipped as exact text, as below.
 # geom-brep/src/{ssi.rs,ssi/certify.rs,pcurve_cache.rs} is the
 # M6-2 SSI generic-T lift: the rung-3 certificate simultaneously
 # DECIDES (its `ssi_*` funnel margins) and reads brackets into the
@@ -100,12 +105,14 @@
 # edit one step earlier. The skip stays exact text because it is the more
 # precise statement of what is exempted; the guarantee is the check's.
 # WHAT THE MATCHER MATCHES, shaped by NAME rather than by a list of names.
-# Three alternatives: an identifier ending in `Bounds` after a `+` (path
-# prefix allowed); one before a `+` (no prefix group and no `\b` -- `\w*`
+# Three alternatives: an identifier ending in `Bounds` or `Enclosure`
+# after a `+` (path prefix allowed); one before a `+` (no prefix group and
+# no `\b` -- `\w*`
 # already spans a path segment and `\b` adds nothing; both verified dead by
 # a tree-wide hit-set diff, and a dead regex element is removed rather than
 # kept as untested reassurance); and a SINGLE-LINE trait DECLARATION whose
-# supertrait or `where` list names a `…Bounds` identifier, which is the
+# supertrait or `where` list names a `…Bounds`/`…Enclosure` identifier,
+# which is the
 # only one that catches an alias spelled without a `+`. Each is planted
 # separately below.
 #
@@ -224,7 +231,7 @@ gate() {
   gate_require_crate_sources
   gate_definition_skip_subject
   local hits
-  hits=$(gate_grep -rnE '(\+\s*(\w+::)*\w*Bounds\b)|(\w*Bounds\s*\+)|(\btrait\s+\w+\b[^;{]*:[^;{]*\w*Bounds\b)' crates/*/src \
+  hits=$(gate_grep -rnE '(\+\s*(\w+::)*\w*(Bounds|Enclosure)\b)|(\w*(Bounds|Enclosure)\s*\+)|(\btrait\s+\w+\b[^;{]*:[^;{]*\w*(Bounds|Enclosure)\b)' crates/*/src \
     | gate_grep -vE ':[0-9]+:\s*(//|///|//!)' \
     | gate_grep -vE ':[0-9]+:pub trait CertifiedBounds: Bounds \+ CertifiedEnclosure \{\}$' \
     | gate_grep -vE ':[0-9]+:impl<T: Bounds \+ CertifiedEnclosure> CertifiedBounds for T \{\}$' \
@@ -239,10 +246,10 @@ gate() {
     | gate_grep -vE '^crates/sweep/src/fillet/(battery|build|surgery)\.rs$')
   if [ -n "$hits" ]; then
     echo "$hits"
-    gate_error "compound Bounds bound outside the ratified seams above — see geom-core/src/real.rs (Bounds scope rule); ratify before allowlisting"
+    gate_error "compound Bounds/Enclosure bound outside the ratified seams above — see geom-core/src/real.rs (Bounds scope rule); ratify before allowlisting"
     exit 1
   fi
-  gate_ok "no compound Bounds bound outside the ratified seams"
+  gate_ok "no compound Bounds/Enclosure bound outside the ratified seams"
 }
 
 # The two operand orders are SEPARATE cases, planted one at a time: a
@@ -329,6 +336,26 @@ plant_unknown_alias() {
   printf 'pub fn f<T: Decide + RingBounds>(_t: T) {}\n' > "$1/crates/planted/src/lib.rs"
 }
 
+# The `Enclosure` rows (DUAL-DESIGN DL4): a `T: Enclosure` bound outside
+# the allowlist must fire, in both operand orders — planted one at a
+# time for the same blindness reason as the `Bounds` pair — and the
+# name-shaped matcher covers an `…Enclosure` alias that does not exist
+# in the tree today, exactly as it covers `RingBounds`.
+plant_enclosure_decide_first() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn f<T: Decide + Enclosure>(_t: T) {}\n' > "$1/crates/planted/src/lib.rs"
+}
+
+plant_enclosure_bounds_side_first() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn f<T: geom_core::Enclosure + Decide>(_t: T) {}\n' > "$1/crates/planted/src/lib.rs"
+}
+
+plant_unknown_enclosure_alias() {
+  mkdir -p "$1/crates/planted/src"
+  printf 'pub fn f<T: Decide + RingEnclosure>(_t: T) {}\n' > "$1/crates/planted/src/lib.rs"
+}
+
 # The NEAR MISS, and the case that keeps the widening honest. A SOLE
 # bracket bound is outside this gate's class by construction; a matcher
 # that fired on it would red geom-brep/src/ssi/enclose.rs, geom/src/net.rs
@@ -372,7 +399,7 @@ plant_real_rs_alias_redefined() {
 }
 
 gate_selftest() {
-  local want="compound Bounds bound outside the ratified seams"
+  local want="compound Bounds/Enclosure bound outside the ratified seams"
   gate_selftest_clean
   # A `grep` that cannot run is the failure this gate cannot see for
   # itself: it produces no hits, and no hits is what a clean tree
@@ -385,6 +412,9 @@ gate_selftest() {
   gate_selftest_case "$want" plant_certified_bounds_first
   gate_selftest_case "$want" plant_certified_path_prefixed
   gate_selftest_case "$want" plant_unknown_alias
+  gate_selftest_case "$want" plant_enclosure_decide_first
+  gate_selftest_case "$want" plant_enclosure_bounds_side_first
+  gate_selftest_case "$want" plant_unknown_enclosure_alias
   gate_selftest_case "$want" plant_non_bounds_alias_declaration
   gate_selftest_case "$want" plant_sole_supertrait_alias
   gate_selftest_case "$want" plant_where_self_alias
@@ -392,7 +422,7 @@ gate_selftest() {
   gate_selftest_case "no longer in crates/geom-core/src/real.rs verbatim" plant_real_rs_alias_redefined
   gate_selftest_case "$want" plant_dual_equivalent_spelling
   gate_selftest_passes "a sole bracket bound" plant_sole_bracket_bounds
-  printf '%s selftest OK: passes a clean fixture and a sole bracket bound; fires on both operand orders of Decide+Bounds and of Decide+CertifiedBounds, on a path-qualified alias after the plus, on an alias name not in the tree today, on all three spellings of a non-Bounds-named alias DECLARATION (GAP 4 mitigation: pair, sole supertrait, where-clause), on a compound bound in real.rs beside the skipped definition lines, on real.rs redefining the alias to carry Decide (through the definition-skip subject check), and on the equivalent spelling of dual.rs Bounds impl (GAP 2); and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture and a sole bracket bound; fires on both operand orders of Decide+Bounds, of Decide+CertifiedBounds and of Decide+Enclosure, on a path-qualified alias after the plus, on Bounds- and Enclosure-shaped alias names not in the tree today, on all three spellings of a non-Bounds-named alias DECLARATION (GAP 4 mitigation: pair, sole supertrait, where-clause), on a compound bound in real.rs beside the skipped definition lines, on real.rs redefining the alias to carry Decide (through the definition-skip subject check), and on the equivalent spelling of dual.rs Bounds impl (GAP 2); and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

@@ -48,7 +48,7 @@
 //! suppresses the F1 `UndeclaredContact` refusal.
 
 use geom_core::Decide;
-use topo::{ContactRecords, FaceKey, PatchContact, PropsQuadLane, ValidationError};
+use topo::{AtRestPolicy, ContactRecords, FaceKey, PatchContact, ValidationError};
 
 use crate::doc::Doc;
 use crate::eval::{Evaluation, NodeResult, ValuePayload};
@@ -373,7 +373,12 @@ impl core::error::Error for AssemblyError {}
 /// This is what "an assembly is valid at rest" MEANS for a document
 /// with mates: not a stronger check bolted onto the product gather,
 /// but the same tier-3′ door the boolean pipeline's results go
-/// through, fed the records the mates declared.
+/// through, fed the records the mates declared. The door is reached
+/// through the SCALAR'S at-rest policy ([`topo::AtRestPolicy`],
+/// `docs/DUAL-DESIGN.md` DL3): certifying scalars run
+/// [`topo::validate_pseudomanifold`] verbatim; at a dual the gate is
+/// structurally absent — validation is the base-scalar evaluation's,
+/// already done on the same bits.
 ///
 /// # Errors
 ///
@@ -386,7 +391,7 @@ impl core::error::Error for AssemblyError {}
 /// so: a document whose mates declare a cross-instance contact
 /// refuses [`AssemblyError::Uncertified`], which a caller must match
 /// separately from the verdicts against their own document.
-pub fn assemble<P, T: Decide + PropsQuadLane>(
+pub fn assemble<P, T: Decide + AtRestPolicy>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
     tol: Tol,
@@ -399,7 +404,7 @@ pub fn assemble<P, T: Decide + PropsQuadLane>(
         mut contacts,
     } = product;
     let minted = mint(doc, evaluation, &names, &mut contacts)?;
-    match topo::validate_pseudomanifold(&body, &contacts, tol) {
+    match T::gate_at_rest_declared(&body, &contacts, tol) {
         Ok(()) => Ok(Assembly {
             body,
             names,
