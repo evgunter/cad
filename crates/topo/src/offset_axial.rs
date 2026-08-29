@@ -161,8 +161,9 @@ struct MovedChart<T: Real> {
     distance: T,
     /// The same motion in [`geom_brep::offset_surface`]'s own sign
     /// convention, which differs from the caller's on a cone below its
-    /// apex (see [`nappe_signed`]). This is the one a chart-parameter
-    /// shift is computed from.
+    /// apex (see [`nappe_signed`]) — the number the surface actually
+    /// moved by, kept beside the number that was asked for so the two
+    /// are never confused at a reader's expense.
     signed: T,
     /// The chart's constraint on a corner, in axial terms.
     constraint: Constraint<T>,
@@ -401,7 +402,6 @@ pub fn offset_charts_together<T: Decide + PropsQuadLane>(
                     mid,
                     &carrier,
                     (p_start, p_end),
-                    (ca, cb),
                     edge,
                 )?,
                 carrier,
@@ -1433,7 +1433,6 @@ fn restate<T: Real>(
     mid: Point3<T>,
     carrier: &Curve3<T>,
     ends: (Point3<T>, Point3<T>),
-    charts: (&MovedChart<T>, &MovedChart<T>),
     edge: EdgeKey,
 ) -> Result<EdgeDescriptionSpec<T>, ReplaceFaceError<T>> {
     let refuse = |what: &'static str| ReplaceFaceError::TogetherAxialEdge { edge, what };
@@ -1462,39 +1461,23 @@ fn restate<T: Real>(
         }
         EdgeDescription::Chart(c) => EdgeDescriptionSpec::Chart {
             surface: c.surface,
-            image: if c.seam {
-                None
-            } else {
-                let (ca, cb) = charts;
-                let host = if ca.old_key == c.surface { ca } else { cb };
-                Some(
-                    crate::replace_face::shift_chart_v(&c.pcurve, chart_v_shift(host)).ok_or(
-                        refuse(
-                            "a fitted chart image whose v channel has no closed-form parameter \
-                             shift",
-                        ),
-                    )?,
-                )
-            },
+            // **`None` is the REQUEST to derive the image from the
+            // carrier**, and it is the right one here for every chart
+            // image, not only for a seam. The per-face door carries an
+            // image forward under a constant `v` shift because it keeps
+            // the edge's parameter WINDOW — it moves one chart and the
+            // endpoints ride along. This door re-solves both endpoints
+            // against every surface meeting them, so an edge SHORTENS
+            // and slides within its own chart, and a constant shift
+            // describes none of that. Measured: shifting it instead
+            // refuses at the attach layer's `ChartResidual` on the cone
+            // frustum's anti-seam, which is the gate doing its job.
+            image: None,
             seam: c.seam,
             declared,
         },
         EdgeDescription::Scaffold(m) => EdgeDescriptionSpec::Scaffold(carried(m)?),
     })
-}
-
-/// The `v` shift a chart's own offset action applies to an image in it:
-/// `d·cot α` on a cone, zero on every other kind this door takes.
-fn chart_v_shift<T: Real>(chart: &MovedChart<T>) -> T {
-    match &chart.old {
-        Surface::Cone {
-            apex,
-            axis,
-            half_angle,
-            ..
-        } => geom_brep::ConeOffset::new(*apex, *axis, *half_angle, chart.signed).shift(),
-        _ => T::zero(),
-    }
 }
 
 /// A mapped description re-authored in its own sketch plane from the

@@ -222,18 +222,26 @@ fn edge_pairs(body: &Body<f64>) -> Vec<(String, usize)> {
             .get_edge(e)
             .and_then(|d| body.get_curve_geom(d.curve))
             .and_then(topo::CurveGeom::certified)
-            .map(|c| match c.description() {
-                geom_brep::EdgeGeometry::Intersection { .. } => "Intersection",
-                geom_brep::EdgeGeometry::TangentIntersection { .. } => "TangentIntersection",
-                geom_brep::EdgeGeometry::Seam { .. } => "Seam",
-                geom_brep::EdgeGeometry::IsoCurve { .. } => "IsoCurve",
-                geom_brep::EdgeGeometry::MappedCurve(m) => match m {
-                    geom_brep::MappedCurve::PlacedSegment { .. } => "Mapped/PlacedSegment",
-                    geom_brep::MappedCurve::ExtrudedPoint { .. } => "Mapped/ExtrudedPoint",
-                    geom_brep::MappedCurve::RevolvedPoint { .. } => "Mapped/RevolvedPoint",
-                },
+            .map(|c| {
+                let kind = match c.description() {
+                    geom_brep::EdgeDescription::Intersection { .. } => "Intersection",
+                    geom_brep::EdgeDescription::TangentIntersection { .. } => "TangentIntersection",
+                    geom_brep::EdgeDescription::Chart(ch) => {
+                        if ch.seam {
+                            "Chart/seam"
+                        } else {
+                            "Chart"
+                        }
+                    }
+                    geom_brep::EdgeDescription::Scaffold(_) => "Scaffold",
+                };
+                let authority = match c.authority() {
+                    geom_brep::EdgeAuthority::Derived => "derived",
+                    geom_brep::EdgeAuthority::Declared(_) => "DECLARED",
+                };
+                format!("{kind}/{authority}")
             })
-            .unwrap_or("none");
+            .unwrap_or_else(|| "none".to_string());
         let form = match kinds[..] {
             [a] => format!("SEAM ({}) carrier {carrier} desc {desc}", a.name()),
             [a, b] => {

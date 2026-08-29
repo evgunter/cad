@@ -1719,10 +1719,7 @@ fn plan_edge<T: Decide>(
 /// `v` channel is a control net rather than a closed form — refused
 /// rather than shifted point-by-point, which would author a fit this
 /// door has no certificate for.
-pub(crate) fn shift_chart_v<T: Real>(
-    pcurve: &geom_brep::Pcurve<T>,
-    shift: T,
-) -> Option<geom_brep::Pcurve<T>> {
+fn shift_chart_v<T: Real>(pcurve: &geom_brep::Pcurve<T>, shift: T) -> Option<geom_brep::Pcurve<T>> {
     use geom_brep::Pcurve;
     Some(match *pcurve {
         Pcurve::Harmonic { p0, pa, pb, pl } => Pcurve::Harmonic {
