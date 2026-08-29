@@ -355,9 +355,11 @@ def audit_gap_ids():
 #:   tag is `EvaluationError.kind`;
 #:   `DocumentId` is the 32 hex digits `Doc.id` answers.
 #: - **A rename.** `RecipeNodeId` is `NodeId` (the stub says what it is
-#:   NOT: an arena key). The six unit constants are lower-cased —
-#:   `IN` is `inch` because `in` is a Python keyword, a shift the stub
-#:   comments on at the declaration.
+#:   NOT: an arena key). The unit constants are lower-cased — `IN` is
+#:   `inch` because `in` is a Python keyword, a shift the stub comments
+#:   on at the declaration. (Not counted here: the table grows a row
+#:   whenever `quantity` does, and a number written beside it would
+#:   date at the next one.)
 BOUND_AS = {
     "CM": "cm",
     "DEG": "deg",
@@ -368,6 +370,7 @@ BOUND_AS = {
     "MM": "mm",
     "NodeErrorKind": "EvaluationError.kind",
     "NodeValue": "Value",
+    "PI": "pi",
     "RAD": "rad",
     "RecipeNodeId": "NodeId",
     "ValuePayload": "Value.kind",
@@ -800,6 +803,11 @@ NOT_BOUND = {
     "UNDER_RECOURSE": SHAPE,
     "Vec2": SHAPE,
     "Vec3": SHAPE,
+    # The slot vocabulary's 3-vector families, beside `Axis3` and
+    # `SlotId` and for their reason: Python addresses a slot through
+    # its own spelling, so the Rust enum that groups three of them is
+    # not a name a Python caller needs.
+    "VectorSlot": SHAPE,
     "VertexKey": SHAPE,
     "bulge_from_center": SHAPE,
     "bulge_from_via": SHAPE,
