@@ -540,8 +540,17 @@ family — and every `gap:` entry names ONE id that owns the work. An
 audit gap id where `docs/guide/north-star-audit.md` defines one
 (cited, never minted, since that page's ids are scene-anchored and
 its tallies depend on staying that way); otherwise a census-owned
-family id — `B-CHECKS`, `B-PICKING`, `B-RESOLVE`, `B-READBACK`,
+family id — `B-CHECKS`, `B-PICKING`, `B-RESOLVE`,
 `B-EXPR-READ`, `B-CANCEL`, `B-FORMAT`, `B-VALIDATE4` — each carrying
+a one-line charter saying what a unit closing it would deliver. A
+closed family leaves no charter behind, because the census's own
+guard fails on one no entry cites: `B-READBACK` was chartered here
+and closed at LIB-B-READBACK, and what records that is the four
+read-back verbs sitting in the census's `BOUND_AS` with the unit
+named beside them. The
+
+family id — `B-PICKING`, `B-RESOLVE`, `B-READBACK`, `B-EXPR-READ`,
+`B-CANCEL`, `B-FORMAT`, `B-VALIDATE4`, `B-DISTRIBUTIONS` — each carrying
 a one-line charter saying what a unit closing it would deliver. The
 `B-` is this category's own letter: the census owns the surface-debt
 id space, this register points AT it, and the census's own test fails
@@ -1674,3 +1683,49 @@ process note, honestly: the pre-merge "lane stalled" read was WRONG —
 liveness was judged from processes and branch pushes without checking
 the PR list; the lane had been done and gated for an hour. Check
 open PRs before declaring a lane stalled.
+
+**B-READBACK MERGED (2026-08-29, #1216; mechanical under the 08-29
+ruling, no A/B row). Census family B-READBACK CLOSED — "a name
+answers with VALUES, never keys" gets its first Python face.**
+`Evaluation.face_frame`/`edge_frame`/`vertex_position`/`denotation`
++ `Pose`/`Denotation`/typed `ReadbackError` (Pose deliberately
+carries no `==`, mirroring geom_core's absent PartialEq; directions
+cross dimensionless per the place.rs rule). The census learned HOW A
+FAMILY CLOSES (no precedent existed; the decay guard forces the
+charter out, the closure paragraph records the unit). Row 47's
+face_frame ask answered against the placement arithmetic, red at a
+1-in-10^4 perturbation. **MERGED RED on two main-inherited legs, on
+Evan's explicit in-chat authorization ("you can merge those PRs red
+if you've already determined it wasn't your fault")**: the
+default-lane clippy red (#1174's — since fixed on main by M10's
+#1226, so moot at this merge) and the teapot k-lint (#1223 — the
+re-baseline is in flight on lib/tess-rebaseline, reading done per
+the gate's own recourse ladder: face genuinely replaced
+cylinder→sphere, growth is #1180's documented curvature, slack table
+untouched). Banked, register category A: **DanglingRef uncurated**
+(ReadbackError::Dangling's payload type absent from the façade's
+lists, so the two dangling lanes share one tag) — joins the curation
+micro-unit queue. Process lesson kept honest: two lanes were
+reported reclaimed in prose without the command having run —
+reclaims are now verified by listing, the GUIDE-ASM lesson's
+sibling.
+
+**B-CHECKS MERGED (2026-08-29, #1215; mechanical under the 08-29
+ruling, no A/B row). Census family B-CHECKS CLOSED — the DS6
+advisory registry crosses whole.** 13/13 names bound name-for-name
+(`run_checks` answers a value, `enforce_checks` refuses typed — two
+exception classes that cannot be confused; the waiver rule is a TYPE:
+`separation` takes `Advisory`, so waiving `Error` is unspellable,
+pinned in the ty illegal fixture); 19 tests, every document authored
+through public doors, both residents exercised. **MERGED RED on the
+main-inherited teapot k-lint leg, on Evan's explicit in-chat
+authorization** — every row the unit owns green; the re-baseline
+(#1223's reading done, geometry-change arm) is in flight on
+lib/tess-rebaseline. Union note: merged after B-READBACK with a
+clean textual merge; the source-level census guard passed 7/7 on the
+union, the compiled-module stub check rides the next gated PR.
+Banked: a charter is written when a family is NAMED, not closed
+(B-CHECKS' said "the connectedness check" and there were two
+residents by closing time) — recorded in the census's closure
+paragraph. The register's census-id sentence corrected in passing
+(B-DISTRIBUTIONS was chartered but unlisted).
