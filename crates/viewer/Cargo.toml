@@ -39,27 +39,20 @@ egui = { version = "0.36.1", optional = true }
 # `wgpu` is eframe's renderer here, not glow: the viewport is a custom
 # wgpu pass and the toolkit's pin IS our wgpu version (GQ6-RESURVEY §1).
 # Default features are off because the default set carries glow.
+# `wayland` and `x11` are the LINUX WINDOWING backends and name no
+# door this crate calls; they live in the `cfg(not(wasm32))` block
+# below, because on wasm32 eframe's windowing is the browser and
+# those features gate winit code that target does not build. What
+# stays here is the portable pair: the fonts and the renderer.
 eframe = { version = "0.36.1", default-features = false, features = [
     "default_fonts",
-    "wayland",
     "wgpu",
-    "x11",
 ], optional = true }
 # The paint-callback door plus the `wgpu` re-export the viewport draws
 # through. Depending on `wgpu` directly would let cargo unify a SECOND
 # major version into the graph; going through this re-export makes the
 # toolkit's pin structurally ours.
 egui-wgpu = { version = "0.36.1", optional = true }
-# A DIRECT edge to the winit eframe already pins (0.30.13 in the
-# lockfile — no new crate, no new version, so the dependency-age rule
-# is untouched), because eframe does not re-export the crate and the
-# WSLg fix needs one trait from it: `EventLoopBuilderExtX11`, to
-# PREFER the X11 backend when WSL is detected (see `app::run` — WSLg's
-# Wayland RAIL shell breaks horizontal resize; X11 verified working,
-# issue #1097). Default features off: the x11/wayland backends are
-# already chosen by the eframe stanza above, and this edge must never
-# be the one that widens them.
-winit = { version = "0.30.13", default-features = false, optional = true }
 # OQ-b, decided here: egui_tiles over egui_dock. Licensing is the first
 # reason — MIT OR Apache-2.0 keeps both branches of this project's dual
 # license alive, where egui_dock is MIT-only. The second is shape: the
@@ -72,6 +65,37 @@ egui_tiles = { version = "0.17.0", optional = true }
 # Vertex/uniform bytes for the wgpu buffers. Zlib OR Apache-2.0 OR MIT;
 # 1.25.2 released 2026-07-19.
 bytemuck = { version = "1.25.2", features = ["derive"], optional = true }
+
+# --- the two toolkit edges that exist only OFF the browser ---
+#
+# Neither names a door the browser has. `winit` is the native event
+# loop, and eframe's windowing on wasm32 IS the browser — the crate is
+# not in that graph at all. `rfd`'s wasm backend exists but exposes
+# only the ASYNC dialog, so the blocking `FileDialog` the open/save
+# path calls is `cfg`-ed out there; the browser build reaches the same
+# refusal through `frame::chooser_backend`, which reports `Absent` on
+# wasm32 and disables the two controls exactly as it does on a Linux
+# box with no portal and no zenity (#1125).
+#
+# Both stay `optional` and both stay reached only through `app`; this
+# block narrows WHERE they apply, not WHETHER the feature owns them.
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# The linux windowing backends, split out of the portable eframe
+# stanza above — see the note there.
+eframe = { version = "0.36.1", default-features = false, features = [
+    "wayland",
+    "x11",
+], optional = true }
+# A DIRECT edge to the winit eframe already pins (0.30.13 in the
+# lockfile — no new crate, no new version, so the dependency-age rule
+# is untouched), because eframe does not re-export the crate and the
+# WSLg fix needs one trait from it: `EventLoopBuilderExtX11`, to
+# PREFER the X11 backend when WSL is detected (see `app::run` — WSLg's
+# Wayland RAIL shell breaks horizontal resize; X11 verified working,
+# issue #1097). Default features off: the x11/wayland backends are
+# already chosen by the eframe stanza above, and this edge must never
+# be the one that widens them.
+winit = { version = "0.30.13", default-features = false, optional = true }
 # The native file dialog — the ONE thing in the open/save path that
 # escapes headless testing. `viewer::docio::{open, save_path}` are
 # ordinary typed functions over a `Path`; this crate chooses the path
@@ -110,6 +134,32 @@ rfd = { version = "0.17.2", default-features = false, features = [
     "xdg-portal",
 ], optional = true }
 
+# --- the browser build's own edges ---
+#
+# `getrandom` is NOT a new dependency: it is already in the graph, as
+# the façade's OS-randomness for interactively-authored document ids
+# (ASM-1 spec D-1). On wasm32 that crate refuses to build until a
+# backend is named, and naming one takes BOTH halves — this feature
+# and `RUSTFLAGS='--cfg getrandom_backend="wasm_js"'`. Setting only
+# the flag is the error `docs/GQ6-RESURVEY.md` §4 records; this stanza
+# is the other half, so the flag is all a builder has to remember.
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { workspace = true, features = ["wasm_js"] }
+# `WebRunner::start` is async and `main` is not, so the entry point
+# hands the future to the browser's own event loop rather than
+# blocking — which on the main thread is not merely slow but illegal.
+# No direct `wasm-bindgen` edge: eframe re-exports both it and
+# `web_sys`, and going through the re-export makes the toolkit's pin
+# structurally ours, the same argument the `egui-wgpu` stanza above
+# makes for the wgpu pin.
+#
+# 0.4.76 is ALREADY IN THE LOCKFILE — eframe's own wasm graph pins it
+# — so this is a direct edge to a crate and version the build already
+# had, and the ~2-week dependency-age rule is untouched. Exactly the
+# `winit` stanza's argument above, for exactly the same reason: the
+# door needed is one eframe does not re-export. MIT OR Apache-2.0.
+wasm-bindgen-futures = { version = "0.4.76", optional = true }
+
 [dev-dependencies]
 # The workspace's shared fuzz harness (seed/effort dial,
 # memories/test-suite-cost.md) — used by the R2 review consumer suite.
@@ -128,6 +178,7 @@ app = [
     "dep:egui-wgpu",
     "dep:egui_tiles",
     "dep:rfd",
+    "dep:wasm-bindgen-futures",
     "dep:winit",
 ]
 # Forwards the interval feature so the workspace-wide `--features
