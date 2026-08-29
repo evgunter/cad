@@ -218,6 +218,10 @@ mod r1_m10_1_corruptions;
 mod r1_m10_1_probes;
 #[path = "r2_m10_di_probes.rs"]
 mod r2_m10_di_probes;
+#[path = "r2_keydiff.rs"]
+mod r2_keydiff;
+#[path = "r2_m10_2_probes.rs"]
+mod r2_m10_2_probes;
 #[path = "respell_schema_v9.rs"]
 mod respell_schema_v9;
 #[path = "review_gui1_r1.rs"]
