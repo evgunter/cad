@@ -83,6 +83,18 @@ impl DocParam {
         }
     }
 
+    /// A continuous parameter carrying `distribution` — the annotated
+    /// authoring spelling. Only continuous parameters can be
+    /// annotated, so this is a constructor rather than a method: there
+    /// is no `Count` case to silently drop the annotation.
+    pub fn continuous_with(dim: Dimension, value: f64, distribution: Distribution) -> Self {
+        Self::Continuous {
+            dim,
+            value,
+            distribution: Some(distribution),
+        }
+    }
+
     /// This parameter's distribution, if it is continuous and carries
     /// one.
     pub fn distribution(&self) -> Option<&Distribution> {

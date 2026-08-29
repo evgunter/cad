@@ -542,8 +542,9 @@ fn this_file_reaches_the_kernel_only_through_pncad() {
 /// source-scanning guards below all read this one list;
 /// `the_boundary_guard_scans_every_facade_source_file` pins it
 /// against the directory, so a new module cannot arrive unguarded.
-const FACADE_SOURCES: [(&str, &str); 10] = [
+const FACADE_SOURCES: [(&str, &str); 11] = [
     ("lib.rs", include_str!("../src/lib.rs")),
+    ("analysis.rs", include_str!("../src/analysis.rs")),
     ("prelude.rs", include_str!("../src/prelude.rs")),
     ("profile.rs", include_str!("../src/profile.rs")),
     ("select.rs", include_str!("../src/select.rs")),
@@ -1233,7 +1234,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
 
 /// R1-PARAMS: `plate_param` authors façade-only, evaluates to the
 /// corpus scene's analytic oracle, and its saved text is pinned as
-/// `tests/plate_param.v14.pncad` — the fixture the Python audit loads
+/// `tests/plate_param.v15.pncad` — the fixture the Python audit loads
 /// (`crates/pncad-py/tests/test_north_star.py`) to author the
 /// `set_doc_param` edit from Python. Python cannot yet author this
 /// profile from scratch (audit gaps G1/G9: circles, multi-loop), so
@@ -1281,7 +1282,7 @@ fn plate_param_authors_facade_only_and_its_saved_text_is_pinned() {
 
     let text = pncad::document::save(&doc, &[], Tol::witness()).expect("the document saves");
     if std::env::var_os("PNCAD_BLESS").is_some() {
-        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/plate_param.v14.pncad");
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/plate_param.v15.pncad");
         std::fs::write(path, &text).expect("the fixture writes");
         return; // freshly written; the next compile pins it
     }
@@ -1304,7 +1305,7 @@ fn plate_param_authors_facade_only_and_its_saved_text_is_pinned() {
     };
     assert_eq!(
         sans_epsilon(&text),
-        sans_epsilon(include_str!("plate_param.v14.pncad")),
+        sans_epsilon(include_str!("plate_param.v15.pncad")),
         "the saved plate_param text moved — regenerate the fixture with \
          `PNCAD_BLESS=1 cargo test -p pncad plate_param` (default env) and re-run"
     );
@@ -3630,4 +3631,126 @@ fn the_north_star_audits_tallies_are_derived_from_its_rows() {
         "rows name gap id(s) the gap list does not carry: {:?}",
         unlisted
     );
+}
+
+// ---- M10-1: distributions authored, saved, reloaded, and read ----
+
+/// **A first-time user's whole loop, façade-only** (ERROR-DESIGN
+/// E1/E2): declare two parameters — one with a normal, one with a
+/// worst-case band — save the document, load it back, then read the
+/// analyzed box and the mass columns.
+///
+/// The two halves the row exists to pin: the annotation survives the
+/// round trip bit for bit, and the band REFUSES to be priced while the
+/// normal answers, so the difference between "I know the spread" and
+/// "I know only the limits" is visible from outside the crate.
+#[test]
+fn distributions_author_save_reload_and_analyze_through_the_facade() {
+    use pncad::analysis::{AnalysisPolicy, MeasureUnavailable, analyzed_box, box_mass, tail_mass};
+    use pncad::document::{
+        Dimension, Distribution, DocEdit, DocParam, ParamName, ProfileDoc, apply, load, save,
+    };
+
+    let declare = |doc: &ProfileDoc, name: &str, value: DocParam| {
+        apply(
+            doc,
+            &DocEdit::SetDocParam {
+                name: ParamName::new(name),
+                value,
+            },
+            Tol::witness(),
+        )
+        .expect("the parameter declaration applies")
+        .doc
+    };
+    let doc = ProfileDoc::empty_derived("m10-1-e2e", Tol::witness());
+    let doc = declare(
+        &doc,
+        "bore_r",
+        DocParam::continuous_with(
+            Dimension::Length,
+            0.004,
+            Distribution::Normal { sigma: 5e-6 },
+        ),
+    );
+    let doc = declare(
+        &doc,
+        "plate_t",
+        DocParam::continuous_with(
+            Dimension::Length,
+            0.012,
+            Distribution::Band {
+                lo: -2e-4,
+                hi: 2e-4,
+            },
+        ),
+    );
+
+    let text = save(&doc, &[], Tol::witness()).expect("the annotated document saves");
+    let back = load(&text, Tol::witness()).expect("and loads").doc;
+    assert!(back.bit_eq(&doc), "the annotation round-trips bit for bit");
+
+    let policy = AnalysisPolicy::default();
+    let boxed = analyzed_box(&back, &policy);
+    let bore = boxed
+        .get(&ParamName::new("bore_r"))
+        .expect("the annotated parameter is an axis");
+    let plate = boxed
+        .get(&ParamName::new("plate_t"))
+        .expect("so is the banded one");
+
+    // The normal's box is the ±3σ quantile box; the band's IS its
+    // support.
+    assert!(
+        (bore.offsets.hi - 15e-6).abs() < 1e-8,
+        "±3σ of 5 µm, got {}",
+        bore.offsets.hi
+    );
+    assert_eq!(plate.offsets.lo, -2e-4);
+    assert_eq!(plate.offsets.hi, 2e-4);
+    assert_eq!(
+        plate.absolute(),
+        (0.012 - 2e-4, 0.012 + 2e-4),
+        "absolute limits read off the nominal"
+    );
+
+    // The tail column: the normal leaves a little outside its box, the
+    // band leaves nothing outside its own support.
+    let bore_tail = tail_mass(
+        &ParamName::new("bore_r"),
+        &bore.distribution.expect("annotated"),
+        &bore.offsets,
+    )
+    .expect("a normal is priceable");
+    assert!(
+        bore_tail > 0.0 && bore_tail < 1e-2,
+        "the ±3σ box leaves ~0.27% outside, got {bore_tail}"
+    );
+    assert_eq!(
+        tail_mass(
+            &ParamName::new("plate_t"),
+            &plate.distribution.expect("annotated"),
+            &plate.offsets
+        ),
+        Ok(0.0)
+    );
+
+    // Pricing a sub-box: the normal answers, the band refuses BY NAME.
+    let half = box_mass(
+        &ParamName::new("bore_r"),
+        &bore.distribution.expect("annotated"),
+        (0.0, bore.offsets.hi),
+    )
+    .expect("a normal prices a leaf");
+    assert!((half - 0.5 * (1.0 - bore_tail)).abs() < 1e-9, "{half}");
+    match box_mass(
+        &ParamName::new("plate_t"),
+        &plate.distribution.expect("annotated"),
+        (0.0, 1e-4),
+    ) {
+        Err(MeasureUnavailable::BandHasNoMeasure { param }) => {
+            assert_eq!(param, ParamName::new("plate_t"));
+        }
+        other => panic!("a band must refuse to price a leaf, got {other:?}"),
+    }
 }
