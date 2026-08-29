@@ -6,14 +6,14 @@
 use proptest::prelude::*;
 
 use crate::{
-    Angle, CENTI, CM, DEG, FmtQuantityError, IN, Length, M, MILLI, MM, RAD, UNITS, UnitDef,
+    Angle, CENTI, CM, DEG, FmtQuantityError, IN, Length, M, MILLI, MM, PI, RAD, UNITS, UnitDef,
     UnitQuantity, fmt_angle, fmt_length, unit_by_symbol,
 };
 
 #[test]
 fn the_unit_table_is_the_whole_closed_set_and_reads_as_data() {
     let symbols: Vec<&str> = UNITS.iter().map(|u| u.symbol()).collect();
-    assert_eq!(symbols, ["mm", "cm", "m", "in", "deg", "rad"]);
+    assert_eq!(symbols, ["mm", "cm", "m", "in", "deg", "rad", "pi"]);
     assert_eq!(MM.factor(), MILLI);
     assert_eq!(MILLI, 1e-3);
     assert_eq!(CM.factor(), CENTI);
@@ -24,6 +24,14 @@ fn the_unit_table_is_the_whole_closed_set_and_reads_as_data() {
     // fl(π/180), pinned by bits: DEG is inexact by nature and this
     // constant is its identity.
     assert_eq!(DEG.factor(), 0.017_453_292_519_943_295_f64);
+    // The half-turn row is π itself, pinned the same way and for the
+    // same reason: `0.5 pi` is canonical-radians data whose last-ulp
+    // identity is this constant.
+    assert_eq!(PI.factor(), core::f64::consts::PI);
+    assert_eq!(
+        unit_by_symbol("pi").expect("pi row").quantity(),
+        UnitQuantity::Angle
+    );
     let mm = unit_by_symbol("mm").expect("mm row");
     assert_eq!(mm.quantity(), UnitQuantity::Length);
     assert_eq!(mm.factor(), MILLI);
@@ -158,6 +166,49 @@ fn values_with_no_preimage_in_the_asked_unit_fall_back_to_canonical() {
     panic!("no 2-ulp step found in 200k quotients — fallback untested");
 }
 
+/// **The half-turn row does the job it was added for**: an angle
+/// authored as a multiple of π comes back written that way.
+///
+/// This is the whole content of "π as a unit" — the row is not a
+/// physical unit and claims nothing physical. What it buys is the same
+/// thing every other row buys: `fmt(parse(text)) == text` for text a
+/// human wrote, so an angle a user chose to say in half-turns is not
+/// silently re-rendered in radians. The values below are the ones a
+/// user actually writes; the general bit-exact statement over random
+/// f64 is `fmt_round_trip_bit_exact_sampled_over_finite_values_and_units`,
+/// which covers this row with every other.
+///
+/// The last row is the point of the pin. `0.5 pi` and `90 deg` are the
+/// SAME canonical value to within the last ulp and neither is exact,
+/// so nothing but the authored unit can distinguish them — which is
+/// why the unit is stored per literal rather than derived from the
+/// number.
+#[test]
+fn the_half_turn_row_writes_angles_the_way_they_were_authored() {
+    for (multiple, text) in [
+        (1.0, "1 pi"),
+        (0.5, "0.5 pi"),
+        (2.0, "2 pi"),
+        (-0.25, "-0.25 pi"),
+    ] {
+        let angle = multiple * PI;
+        assert_eq!(
+            angle.radians().to_bits(),
+            (multiple * core::f64::consts::PI).to_bits(),
+            "{text} is not multiple × π"
+        );
+        assert_eq!(fmt_angle(angle.radians(), PI).unwrap(), text);
+    }
+    // A right angle, said both ways: same quarter turn, each rendered
+    // in the unit it was authored in and neither converted to the
+    // other.
+    let quarter_in_pi = 0.5 * PI;
+    let quarter_in_deg = 90.0 * DEG;
+    assert!((quarter_in_pi.radians() - quarter_in_deg.radians()).abs() < 1e-15);
+    assert_eq!(fmt_angle(quarter_in_pi.radians(), PI).unwrap(), "0.5 pi");
+    assert_eq!(fmt_angle(quarter_in_deg.radians(), DEG).unwrap(), "90 deg");
+}
+
 /// The seal's own claim, as an assertion rather than as prose: the
 /// symbol DETERMINES the row. Every row a caller can obtain comes from
 /// the table, so resolving its symbol must return the same row — which
@@ -273,25 +324,55 @@ fn every_obtainable_typed_view_pairs_its_symbol_with_the_tables_factor() {
     // Counts, so a table that quietly stopped being exercised cannot
     // pass as green — and so that both arms above are known to have run.
     assert_eq!(lengths, 4, "four length rows");
-    assert_eq!(angles, 2, "two angle rows");
-    // The six exported constants are exactly the six rows, so the loop
-    // above covers all of them. What makes that a closure rather than a
+    assert_eq!(angles, 3, "three angle rows");
+    // The exported constants are exactly the rows, so the loop above
+    // covers all of them. What makes that a closure rather than a
     // coincidence is upstream of this assertion: a typed view is an
     // INDEX into `UNITS`, so a constant naming a unit the table does
     // not have fails to compile, and one naming a row it does have is
     // already in the loop. This row catches the remaining case — a row
     // added to the table with no constant exported for it.
-    let constants: [&str; 6] = [
+    let constants: [&str; 7] = [
         MM.symbol(),
         CM.symbol(),
         M.symbol(),
         IN.symbol(),
         DEG.symbol(),
         RAD.symbol(),
+        PI.symbol(),
     ];
     let mut tabled: Vec<&str> = UNITS.iter().map(UnitDef::symbol).collect();
     let mut named = constants.to_vec();
     tabled.sort_unstable();
     named.sort_unstable();
     assert_eq!(named, tabled, "the constants must cover exactly the table");
+}
+
+/// The Display contract (#1111): a façade consumer renders a
+/// `FmtQuantityError` through this module's own words — the refused
+/// value and why it has no display form — and never as the `Debug`
+/// struct dump. The variant identifier and the field-name punctuation
+/// are the dump's fingerprints; asserting their ABSENCE is what keeps
+/// a future `write!(f, "{self:?}")` from passing this test.
+#[test]
+fn fmt_quantity_error_display_names_its_content_not_its_struct() {
+    for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+        let err = FmtQuantityError::NonFinite { value };
+        let shown = err.to_string();
+        for want in ["no display form", "poison", &value.to_string()] {
+            assert!(
+                shown.contains(want),
+                "{err:?} renders as {shown:?}, missing {want:?}"
+            );
+        }
+        assert!(
+            !shown.contains("NonFinite"),
+            "{err:?} renders as {shown:?} — that is the variant name, i.e. a struct dump"
+        );
+        assert!(
+            !shown.contains('{') && !shown.contains("value:"),
+            "{err:?} renders as {shown:?} — that is Debug punctuation, not a sentence"
+        );
+        assert_ne!(shown, format!("{err:?}"));
+    }
 }

@@ -312,8 +312,8 @@ fn every_row_of_the_closed_table_is_a_working_display_unit() {
 /// passed first try, which is a small extra check on the float
 /// rendering. The golden `.cad` documents (`tests/golden/v*.cad`) carry
 /// a `"unit": "mm"` literal each and are the same evidence at document
-/// scale — for one of these six rows at one value.
-const UNIT_WIRE_GOLDEN: [(&str, &str); 6] = [
+/// scale — for one of these rows at one value.
+const UNIT_WIRE_GOLDEN: [(&str, &str); 7] = [
     (
         "mm",
         r#"{"Literal":{"value":0.0025,"dim":"Length","unit":"mm"}}"#,
@@ -337,6 +337,10 @@ const UNIT_WIRE_GOLDEN: [(&str, &str); 6] = [
     (
         "rad",
         r#"{"Literal":{"value":2.5,"dim":"Angle","unit":"rad"}}"#,
+    ),
+    (
+        "pi",
+        r#"{"Literal":{"value":7.853981633974483,"dim":"Angle","unit":"pi"}}"#,
     ),
 ];
 

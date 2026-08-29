@@ -192,7 +192,8 @@ removed.
 `grid_cells` remains and is still the schedule's own sum; what it is
 is stated where it is declared. The report prints `held / split /
 total`; `tess-lint`'s gate rules are unchanged in shape (triangle
-growth, per-face recoverable slack growth, vanished scenes).
+growth, per-face recoverable slack growth, vanished scenes, and the
+re-keyed face that says the per-face join could not run).
 
 ## What the four numbers meant (pre-fix record)
 
@@ -338,6 +339,19 @@ scripts/tess_budget_sweep.sh docs/tess-budget-data/tess-budget-baseline.csv
 and say WHY in the commit. A `vanished` finding is never re-baselined
 without reading it first: a scene the sweep stopped covering improves
 every total it used to appear in.
+
+**A re-keyed face is read before it is re-cut, and for the same
+reason.** The per-face join is by ORDINAL — the only per-face name the
+CSV carries — so `tess-lint` checks at each ordinal that both sides
+describe one face (chart, trim box, whole-patch divisions, and whether
+the row carries the sizing block at all) and stops comparing a scene
+from the first ordinal where they do not. The finding names that
+column and both readings. Establish what moved in the MODEL first: a
+face genuinely replaced is a geometry change, a face merely renumbered
+is not, and a re-cut taken before that reading commits whatever the
+uncompared faces above it were doing. Where the scene carries no
+Hessian-sized face the same event is a NOTE rather than a finding —
+rule 1 still runs over its total, so no comparison was lost.
 
 **A re-cut that FOLDS IN uncovered scenes restores coverage, it does
 not verify it.** This is the sentence to read before treating a fold as

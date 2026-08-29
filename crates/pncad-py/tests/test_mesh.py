@@ -116,6 +116,22 @@ class TestTessellateIsADistance(unittest.TestCase):
             self.body.tessellate(float("inf") * m)
         self.assertEqual(caught.exception.variant, "invalid_chordal_tolerance")
 
+    def test_the_message_is_the_tessellators_prose_not_a_struct_dump(self):
+        """The message is the door's own sentence, not `Debug`.
+
+        `variant` is the branchable part; the message is for a human,
+        so it has to READ as one — the tessellator's vocabulary, and
+        none of the fingerprints a struct dump leaves behind."""
+        with self.assertRaises(pncad.TessellateError) as caught:
+            self.body.tessellate(0 * mm)
+        message = str(caught.exception)
+        self.assertIn("tessellate", message)
+        self.assertIn("chordal tolerance", message)
+        # A struct dump would carry the variant's identifier and the
+        # brace-and-field punctuation; prose carries neither.
+        self.assertNotIn("{", message)
+        self.assertNotIn("InvalidChordalTolerance", message)
+
     def test_the_refusal_is_a_pncad_error(self):
         self.assertTrue(issubclass(pncad.TessellateError, pncad.PncadError))
         self.assertTrue(issubclass(pncad.StlError, pncad.PncadError))

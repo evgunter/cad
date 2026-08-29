@@ -6,7 +6,7 @@
 //! the document layer's own public vocabulary, not a slotmap key.
 
 use pyo3::prelude::*;
-use pyo3::types::PyString;
+use pyo3::types::{PyDict, PyString};
 
 use crate::errors::ErrorClass;
 use crate::py::typed_err;
@@ -32,25 +32,16 @@ fn edit_err(py: Python<'_>, err: &d::EditError) -> PyErr {
 
 /// Raise `EditError` for a declare-sugar refusal.
 ///
-/// `DeclareError` carries no `Display`; the per-arm prose is
-/// hand-written here and the machine payload is the stable tag
-/// (`crate::tags::declare_error_tag` — the `Edit` arm carries the
-/// document layer's own tag through).
+/// `DeclareError` implements `Display`: the human message is the
+/// door's own prose (its `Edit` arm forwards the document layer's
+/// message, so one refusal keeps one voice), and the machine payload
+/// is the stable tag (`crate::tags::declare_error_tag` — the `Edit`
+/// arm carries the document layer's own tag through).
 fn declare_err(py: Python<'_>, err: &pncad::select::DeclareError) -> PyErr {
-    use pncad::select::DeclareError as E;
-    let message = match err {
-        E::NoFindings => "declare of NO findings: an empty Declare node records no intent \
-                          and would only pretend something was declared"
-            .to_string(),
-        E::Edit(inner) => inner.to_string(),
-        E::NoMintedId => {
-            "the Declare insert applied but minted no id (an apply contract violation)".to_string()
-        }
-    };
     typed_err(
         py,
         ErrorClass::Edit,
-        message,
+        err.to_string(),
         &[(
             "variant",
             PyString::new(py, crate::tags::declare_error_tag(err))
@@ -186,6 +177,12 @@ impl NodeId {
 #[pyclass(module = "pncad")]
 pub(crate) struct Doc {
     pub(crate) inner: d::ProfileDoc,
+    /// What the LAST accepted edit did to the placement registry.
+    ///
+    /// The Rust `apply` returns this beside the new document; the
+    /// Python wrapper owns the document and swaps it, so the record
+    /// is held here for the same span the document it describes is.
+    pub(crate) maintenance: Vec<d::ClusterMaintenance>,
 }
 
 #[pymethods]
@@ -231,7 +228,10 @@ impl Doc {
                 )
             })?,
         };
-        Ok(Self { inner })
+        Ok(Self {
+            inner,
+            maintenance: Vec::new(),
+        })
     }
 
     /// This document's identity as 32 lowercase hex digits — the
@@ -248,11 +248,115 @@ impl Doc {
     ///
     /// On refusal the document is unchanged and a typed `EditError` is
     /// raised.
+    ///
+    /// An accepted edit may also have performed **cluster-record
+    /// maintenance** — joins, splits, gauge rewrites and drops the
+    /// mate graph's motion forced on the placement registry. That
+    /// rides the edit rather than being a second edit, so it is read
+    /// off `last_maintenance` instead of returned here: the common
+    /// case is an empty list, and widening every caller's return type
+    /// for it would be paying for mates in documents that have none.
     fn apply(&mut self, py: Python<'_>, edit: &DocEdit) -> PyResult<Option<NodeId>> {
         let tol = Tol::witness();
         let applied = d::apply(&self.inner, &edit.inner, tol).map_err(|err| edit_err(py, &err))?;
         self.inner = applied.doc;
+        self.maintenance = applied.maintenance;
         Ok(applied.record.minted.map(NodeId))
+    }
+
+    /// The cluster-record maintenance the LAST accepted edit
+    /// performed, in the order it was performed.
+    ///
+    /// Empty after any edit that moved no mate graph, and empty on a
+    /// fresh document — a document that has never applied an edit has
+    /// no last edit to report about. A REFUSED edit leaves this
+    /// untouched, exactly as it leaves the document untouched.
+    ///
+    /// Undo is keeping the prior document value, which restores every
+    /// one of these exactly; what the record adds is VISIBILITY — an
+    /// absorbed cluster's frame is consumed here, where a caller can
+    /// read what was consumed.
+    #[getter]
+    fn last_maintenance(&self) -> Vec<super::mate::ClusterMaintenance> {
+        self.maintenance
+            .iter()
+            .cloned()
+            .map(super::mate::ClusterMaintenance)
+            .collect()
+    }
+
+    /// The document's ordered **product roots** — what `product` and
+    /// `assemble` gather, in this order.
+    ///
+    /// Set through `DocEdit.set_roots`. Maintained automatically by
+    /// every other edit (inserting a node that consumes a root
+    /// transfers it), so a document always states its product rather
+    /// than leaving it to be inferred.
+    #[getter]
+    fn roots(&self) -> Vec<NodeId> {
+        self.inner.roots().iter().copied().map(NodeId).collect()
+    }
+
+    /// An instance's **cluster frame**: the placement recorded for the
+    /// cluster this node belongs to, or the identity when nothing was
+    /// recorded.
+    ///
+    /// Total — a node with no recorded row answers the identity, which
+    /// is what an unplaced instance's placement IS. To know whether a
+    /// row exists, compare against `Frame.translation((0*m, 0*m,
+    /// 0*m))`; to know which node the registry is keyed by, ask
+    /// `gauge_of`.
+    ///
+    /// This is the AUTHORED frame, not the solved one: a mated
+    /// instance's world pose is its cluster frame composed with the
+    /// solve's relative pose, which is `SolvedPoses.placement`.
+    fn placement(&self, node: &NodeId) -> super::place::Frame {
+        super::place::Frame(self.inner.placement(node.0))
+    }
+
+    /// The placement **registry itself**: every node with a recorded
+    /// cluster frame, as node → frame.
+    ///
+    /// `placement` is total and answers the identity for a node with
+    /// no row, which is what an unplaced instance's placement IS — so
+    /// this is the door that distinguishes "placed at the identity"
+    /// from "carries no frame of its own". A mated instance that is
+    /// not its cluster's gauge is ABSENT here however it is posed:
+    /// placement lives on the cluster, and its pose is solved.
+    fn placements(&self, py: Python<'_>) -> PyResult<Py<PyDict>> {
+        let out = PyDict::new(py);
+        for (node, frame) in self.inner.placements() {
+            out.set_item(NodeId(*node), super::place::Frame(*frame))?;
+        }
+        Ok(out.unbind())
+    }
+
+    /// The `(id, pin)` reference an instantiate node carries, or
+    /// `None` for any other node.
+    ///
+    /// The read side of `Node.instantiate_part`: what a document says
+    /// about which part it references, at which version — the value
+    /// `mixed_pins` reports over and `update_reference` moves.
+    fn reference(&self, node: &NodeId) -> Option<super::store::DocRef> {
+        match self.inner.node(node.0) {
+            Some(d::Node::InstantiatePart { doc_ref, .. }) => Some(super::store::DocRef(*doc_ref)),
+            _ => None,
+        }
+    }
+
+    /// The **interface record** an instantiate node carries, or `None`
+    /// for any other node.
+    ///
+    /// Empty for a directly-authored instance — an authored instance
+    /// crosses nothing. A non-empty record is minted only by the
+    /// `split` that observed declarations crossing its cut.
+    fn interface(&self, node: &NodeId) -> Option<super::refactor::InterfaceRecord> {
+        match self.inner.node(node.0) {
+            Some(d::Node::InstantiatePart { interface, .. }) => {
+                Some(super::refactor::InterfaceRecord(interface.clone()))
+            }
+            _ => None,
+        }
     }
 
     /// Insert a node and return its minted id — the common case,
@@ -1037,6 +1141,81 @@ impl Node {
             inner: d::Node::placed_union_at(input.0, frames.into_iter().map(|f| f.0).collect()),
         }
     }
+
+    /// An **instance of another document's product**: a leaf whose
+    /// material crosses the document seam rather than arriving from an
+    /// upstream node.
+    ///
+    /// `reference` is the `(id, pin)` pair — which part, at which
+    /// version. Cargo.lock semantics: an edit to the referenced
+    /// document never retargets this reference, and moving the pin is
+    /// its own recorded edit (`DocEdit.update_reference`, or
+    /// `update_references` for every site at once).
+    ///
+    /// **No frame argument.** Placement lives on the CLUSTER, and the
+    /// registry holding it is document data — an instance carries no
+    /// frame of its own, which is what makes zero-anchor and
+    /// multi-anchor states unrepresentable rather than merely refused.
+    /// `DocEdit.set_placement` is the door that places one.
+    ///
+    /// The instance also carries no interface record: an AUTHORED
+    /// instance crosses nothing, and a non-empty record is mintable
+    /// only by the `split` that observed declarations crossing its
+    /// cut. Read one back with `Doc.interface`.
+    ///
+    /// Evaluating this node needs a resolver — `evaluate(doc,
+    /// resolver=workspace)`. Without one it refuses typed
+    /// (`EvaluationError`, `kind == "part_no_resolver"`) rather than
+    /// pretending the part is empty.
+    #[staticmethod]
+    fn instantiate_part(reference: &super::store::DocRef) -> Self {
+        Self {
+            inner: d::Node::instantiate_part(reference.0),
+        }
+    }
+
+    /// A **mate** between two instances: ONE node carrying both the
+    /// placement constraint and the contact declaration, so there is
+    /// no second vocabulary to keep synced.
+    ///
+    /// `a` and `b` are instance-qualified stable references — an
+    /// entity of one instance's product and an entity of the other's.
+    /// They are name REFERENCES, not recipe edges: inserting a mate
+    /// transfers no root, and under consuming edges a mate is an
+    /// ordinary non-body root, denoting no body and ignored by the
+    /// gather.
+    ///
+    /// `class_` is the declared contact class (trailing underscore:
+    /// `class` is a Python keyword). How far each class gets is
+    /// `class_admission` — ask it BEFORE authoring, because a class
+    /// the solve folds may still mint nothing at the at-rest gate.
+    ///
+    /// `alignment` is the authored datum: which frames coincide, at
+    /// which axis sense, with which clocking. It is AUTHORED data, not
+    /// geometry read back — nothing checks it against the faces `a`
+    /// and `b` name (issue #944), so a mate can solve cleanly and
+    /// still be refuted at the gate.
+    ///
+    /// A dangling reference head is not refused here: the solve
+    /// refuses typed naming it (`MateFault`, `mate_dangling_head`),
+    /// which is the ratified dangling-reference semantics.
+    #[staticmethod]
+    fn mate(
+        py: Python<'_>,
+        a: &str,
+        b: &str,
+        class_: super::flush::ContactClass,
+        alignment: &super::mate::Alignment,
+    ) -> PyResult<Self> {
+        Ok(Self {
+            inner: d::Node::Mate {
+                a: name_from_text(a)?,
+                b: name_from_text(b)?,
+                class: class_.to_kernel(py)?,
+                alignment: alignment.0,
+            },
+        })
+    }
 }
 
 /// A document-level parameter name (guide §3.2) — a plain string
@@ -1391,6 +1570,82 @@ impl DocEdit {
             },
         }
     }
+
+    /// Set the document's ordered **product roots** outright.
+    ///
+    /// THE designate/undesignate door: one TOTAL edit rather than
+    /// partial add/remove arms, so the product's solid order is always
+    /// stated rather than inferred from an edit sequence. What the
+    /// roots name is what `product` and `assemble` gather, in this
+    /// order.
+    ///
+    /// Validator-checked like any other apply. The four root
+    /// invariants refuse under their own tags — `root_not_live`,
+    /// `root_duplicate`, `root_ancestor` (one root upstream of
+    /// another would gather its material twice), `root_uncovered` (a
+    /// live node reaching no root is a silently dead subgraph) — on
+    /// `EditError`, because which invariant broke is what a caller
+    /// branches on.
+    #[staticmethod]
+    fn set_roots(roots: Vec<NodeId>) -> Self {
+        Self {
+            inner: d::DocEdit::SetRoots {
+                roots: roots.iter().map(|n| n.0).collect(),
+            },
+        }
+    }
+
+    /// Place an instance's **cluster**.
+    ///
+    /// The target is the instantiate node whose cluster moves, and the
+    /// frame REPLACES whatever was recorded (the identity, if nothing
+    /// was). Placement is per-cluster, not per-instance: an instance
+    /// coupled to others by mates shares their frame, and setting it
+    /// through any member places the whole cluster — `gauge_of` says
+    /// which node the registry is actually keyed by.
+    ///
+    /// Refuses typed on `EditError`: `placement_on_non_instance`,
+    /// `non_finite_placement`, `improper_placement` (determinant ≤ 0
+    /// — a mirror is not a placement).
+    #[staticmethod]
+    fn set_placement(node: &NodeId, frame: &super::place::Frame) -> Self {
+        Self {
+            inner: d::DocEdit::SetPlacement {
+                node: node.0,
+                frame: frame.0,
+            },
+        }
+    }
+
+    /// Move ONE instance's pin to a new version of the same document.
+    ///
+    /// The id does not move: identity and version stay distinct, and
+    /// this edit touches only the version half. `update_references` is
+    /// the whole-document elaboration over this primitive, and
+    /// `Workspace.update_to_store` the one that computes the new pin
+    /// from disk.
+    ///
+    /// **The new pin is RECIPE DATA, not a resolution.** `apply` does
+    /// not reach across the document seam — it has no resolver and no
+    /// store — so a pin naming content that does not exist is accepted
+    /// HERE and refused at EVALUATION, through the seam vocabulary
+    /// that names both pins (`part_pin_mismatch`, `part_unresolved`).
+    /// Checking at the edit door would make the edit's meaning depend
+    /// on which store was mounted when it was recorded, which is
+    /// exactly what a recorded, replayable log must not carry.
+    ///
+    /// Refuses typed: `update_on_non_instance`, and `pin_unchanged`
+    /// when the site already names that version — an update that
+    /// records nothing is never reported as a success.
+    #[staticmethod]
+    fn update_reference(node: &NodeId, new_pin: &super::store::ContentPin) -> Self {
+        Self {
+            inner: d::DocEdit::UpdateReference {
+                node: node.0,
+                new_pin: new_pin.0,
+            },
+        }
+    }
 }
 
 /// A loaded document: what the persistence door
@@ -1411,6 +1666,7 @@ impl Loaded {
     fn doc(&self) -> Doc {
         Doc {
             inner: self.doc.clone(),
+            maintenance: Vec::new(),
         }
     }
 
@@ -1419,6 +1675,7 @@ impl Loaded {
     fn snapshot(&self) -> Doc {
         Doc {
             inner: self.snapshot.clone(),
+            maintenance: Vec::new(),
         }
     }
 

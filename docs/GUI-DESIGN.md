@@ -366,8 +366,13 @@ total and finite by charter. The units/display layer landed with
 the library program (LIB U8a/U8b, as banked): the `quantity`
 newtypes and unit table at the D6 API boundary, the expression TEXT
 door (`editor-core::parse`), and stored display units that
-round-trip `25 mm`. The v1 GUI panels sit on canonical
-meters/radians by ruling regardless (`docs/GUI-PLAN.md`).*
+round-trip `25 mm`. The v1 GUI panels sat on canonical
+meters/radians by ruling; that ruling was superseded post-close
+(2026-08-29) and the panels now render and author in the stored
+display unit — see `docs/GUI-PLAN.md`'s units row and
+`docs/GUI-LOG.md`'s tail. The unit table also gained a `pi` row
+(half-turns), which is a NOTATION rather than a physical unit and
+says so in `quantity::units`' module docs.*
 
 ### GQ6: Toolkit and platform (toolkit RATIFIED 2026-08-16; the remaining rows settled inside the v1 GUI units)
 
