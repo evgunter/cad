@@ -68,10 +68,9 @@ def prism(label, width, depth, height):
     return doc
 
 
-# A workspace is an ordinary directory you keep; this page uses a
-# temporary one so it can run anywhere.
-scratch = tempfile.TemporaryDirectory()
-store = Workspace(scratch.name)
+# A workspace is an ordinary directory of `*.pncad` files that you
+# keep; this page uses a throwaway one so it runs anywhere.
+store = Workspace(tempfile.mkdtemp())
 
 post = prism("bench-post", 0.12, 0.12, 0.5)
 shelf = prism("bench-shelf", 0.9, 0.30, 0.04)
@@ -116,7 +115,8 @@ meant yesterday" a fact rather than a hope.
 
 ## 2. Authoring an assembly
 
-Three doors and one property.
+Three doors — and one property, *placement lives on the cluster*,
+that explains the second of them.
 
 `Node.instantiate_part(reference)` is an instance: a **leaf** whose
 material crosses the document seam. It takes no frame.
@@ -179,8 +179,7 @@ def frame_at(x, y, z):
                      reference=(1.0, 0.0, 0.0))
 
 
-scratch = tempfile.TemporaryDirectory()
-store = Workspace(scratch.name)
+store = Workspace(tempfile.mkdtemp())
 post = prism("bench-post", POST_SECTION, POST_SECTION, POST_HEIGHT)
 shelf = prism("bench-shelf", SHELF_LENGTH, SHELF_DEPTH, SHELF_THICKNESS)
 store.create(post)
@@ -334,8 +333,7 @@ def prism(label, width, depth, height):
     return doc
 
 
-scratch = tempfile.TemporaryDirectory()
-store = Workspace(scratch.name)
+store = Workspace(tempfile.mkdtemp())
 post = prism("bench-post", POST_SECTION, POST_SECTION, POST_HEIGHT)
 shelf = prism("bench-shelf", SHELF_LENGTH, SHELF_DEPTH, SHELF_THICKNESS)
 store.create(post)
@@ -418,8 +416,7 @@ def prism(label, width, depth, height):
     return doc
 
 
-scratch = tempfile.TemporaryDirectory()
-store = Workspace(scratch.name)
+store = Workspace(tempfile.mkdtemp())
 shelf = prism("bench-shelf", 0.9, 0.30, 0.04)
 store.create(shelf)
 
@@ -520,8 +517,7 @@ def instance_cap(ev, instance, side):
     return found
 
 
-scratch = tempfile.TemporaryDirectory()
-store = Workspace(scratch.name)
+store = Workspace(tempfile.mkdtemp())
 post = prism("bench-post", POST_SECTION, POST_SECTION, POST_HEIGHT)
 shelf = prism("bench-shelf", SHELF_LENGTH, SHELF_DEPTH, SHELF_THICKNESS)
 store.create(post)
@@ -592,7 +588,8 @@ assert solved.placement(stand, post_b).columns == (
 assembly = assemble(stand, evaluate(stand, resolver=store))
 assert [d.mate for d in assembly.minted] == list(mates)
 assert [d.class_ for d in assembly.minted] == [ContactClass.Rest] * 2
-expected = 2 * POST_SECTION**2 * POST_HEIGHT + SHELF_LENGTH * SHELF_DEPTH * SHELF_THICKNESS
+expected = (2 * POST_SECTION**2 * POST_HEIGHT
+            + SHELF_LENGTH * SHELF_DEPTH * SHELF_THICKNESS)
 assert abs(assembly.body.mass_properties().volume - expected) < 1e-12
 
 # `assemble` IS the gather plus the check, so its body is the gathered
@@ -644,8 +641,7 @@ def instance_cap(ev, instance, side):
     return found
 
 
-scratch = tempfile.TemporaryDirectory()
-store = Workspace(scratch.name)
+store = Workspace(tempfile.mkdtemp())
 post = prism("bench-post", POST_SECTION, POST_SECTION, POST_HEIGHT)
 shelf = prism("bench-shelf", SHELF_LENGTH, SHELF_DEPTH, SHELF_THICKNESS)
 store.create(post)
@@ -805,8 +801,7 @@ def prism(label, width, depth, height):
     return doc
 
 
-scratch = tempfile.TemporaryDirectory()
-store = Workspace(scratch.name)
+store = Workspace(tempfile.mkdtemp())
 post = prism("bench-post", 0.12, 0.12, 0.5)
 shelf = prism("bench-shelf", 0.9, 0.30, 0.04)
 store.create(post)
@@ -914,8 +909,7 @@ def prism(label, width, depth, height):
     return doc
 
 
-scratch = tempfile.TemporaryDirectory()
-store = Workspace(scratch.name)
+store = Workspace(tempfile.mkdtemp())
 shelf = prism("bench-shelf", 0.9, 0.30, 0.04)
 store.create(shelf)
 old_pin = content_pin(shelf)
@@ -933,7 +927,8 @@ second = doc.insert(Node.instantiate_part(DocRef(shelf.id, new_pin)))
 
 (report,) = mixed_pins(doc)
 assert report.id == shelf.id
-assert [sites.pin for sites in report.pins] == sorted([old_pin, new_pin], key=lambda p: p.hex)
+# Its pins ascend, each with the sites holding it.
+assert {sites.pin for sites in report.pins} == {old_pin, new_pin}
 assert {n for sites in report.pins for n in sites.nodes} == {first, second}
 doc.save()          # it still saves, and it still evaluates
 
@@ -965,8 +960,8 @@ except UpdateError as refusal:
 
 ## Where the edges still are
 
-Two honest limits, so you do not spend an afternoon looking for a door
-that is not there.
+Three honest limits, so you do not spend an afternoon looking for a
+door that is not there.
 
 **Mates and patterns do not compose** (issue #945). A patterned family
 is one node whose placements are a rule; a mate names an instance. The
@@ -977,6 +972,15 @@ this reason, not one.
 the face for the reference and *author* the frame separately, and
 nothing checks that the two agree — which is why the gate exists, and
 why a mate that solves is not yet a mate that certifies.
+
+**A mate is a product root.** Roots are the live nodes nothing else
+consumes, and a mate is consumed by nothing, so `Doc.roots` on the
+bench stand is three instances *and* two mates. `product` gathers only
+the body-denoting ones, so this costs nothing until you call
+`set_roots` — which is total, and therefore wants the mates listed
+alongside the bodies just to reorder the solids. It is coherent (the
+alternative is a live node reaching no root, which is a silently dead
+subgraph) and it is still a surprise the first time.
 
 For the wider picture of what the Python surface can and cannot author
 today, `docs/guide/north-star-audit.md` keeps the row-by-row account.

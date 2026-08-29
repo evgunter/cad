@@ -148,6 +148,9 @@ mm + 90 * deg` is a `DimensionError`, not a number.
   vocabulary, layer by layer.
 - Selecting entities (`docs/guide/selecting.md`) is how you name a
   face or an edge so a later step can refer to it.
+- Assemblies (`docs/guide/assembly.md`) is the step past one
+  document: a workspace of parts, instances of them, mates, and the
+  gate that says the result is valid at rest.
 - The north-star audit (`docs/guide/north-star-audit.md`) says
   exactly which demos Python can author today.
 
@@ -168,6 +171,13 @@ you run them, in order, on the way to your answer. Second, **the
 cross-check is not optional decoration**: the exact B-rep measure and
 the tessellated mesh are computed by independent code paths, and
 comparing them is how you find out that one of them is wrong.
+
+An **assembly** runs this same ladder — on its gathered *product*,
+the body its roots denote — with two rungs of its own in front:
+solving the mates for where each instance sits, and the at-rest gate
+that certifies the parts really meet as the mates declare.
+`docs/guide/assembly.md` is those two rungs, and the workspace store
+the parts come from.
 
 ### 2.1 The worked example
 
@@ -1536,6 +1546,13 @@ decision you can rely on:
   materializers, the structural pattern language, the geometric
   filters, the doors from a name back to geometry, and the
   detect/declare protocol for flush contact.
+- **`docs/guide/meshing.md`** — the tessellate and cross-check rungs
+  from the bindings' side: what a mesh carries across the boundary,
+  how a caller re-derives closure and volume from it, and STL.
+- **`docs/guide/assembly.md`** — assemblies: the workspace store and
+  the identity/pin/reference split, instances and mates, `evaluate`'s
+  resolver and its memo, the solve and the at-rest gate, split/inline
+  and the pin-update door.
 - **`docs/guide/north-star-audit.md`** — which demos are authorable
   through the Python bindings today, and the named gap for each that
   is not.
