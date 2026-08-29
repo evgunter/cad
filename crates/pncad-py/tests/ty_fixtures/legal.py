@@ -7,6 +7,7 @@ the guide's own executed blocks.
 """
 
 from pncad import (
+    Advisory,
     Alignment,
     ArcSweep,
     Assembly,
@@ -15,12 +16,18 @@ from pncad import (
     BooleanOp,
     CapEnd,
     Center,
+    CheckId,
+    CheckKind,
+    ChecksConfig,
+    ChecksReport,
     Cmp,
     ContactClass,
     ContentPin,
     CurveKind,
+    CheckFinding,
     ClassAdmission,
     ClusterMaintenance,
+    Denotation,
     Doc,
     DocEdit,
     DocRef,
@@ -41,6 +48,7 @@ from pncad import (
     NamePat,
     Node,
     NodeId,
+    Pose,
     PinMultiplicity,
     ParamName,
     PatternKind,
@@ -52,6 +60,7 @@ from pncad import (
     SegPat,
     SegTag,
     Selector,
+    Severity,
     SketchPlane,
     Start,
     SurfaceKind,
@@ -63,6 +72,7 @@ from pncad import (
     clusters,
     content_pin,
     deg,
+    enforce_checks,
     evaluate,
     gauge_of,
     header_document_id,
@@ -75,8 +85,10 @@ from pncad import (
     random_document_id,
     reading_edges,
     relative_freedom_components,
+    run_checks,
     solve_document,
     split,
+    subject_body,
     update_references,
 )
 
@@ -363,3 +375,31 @@ spliced: InlineOutcome = inline(cut.remainder, cut.instance, store)
 lint: list[PinMultiplicity] = mixed_pins(doc)
 moves: list[DocEdit] = update_references(doc, doc.id, pin)
 to_store: list[DocEdit] = store.update_to_store(doc, doc.id)
+
+# The read-back doors: a name in, VALUES out. The origin is
+# dimensioned and the directions are not — a position carries a
+# `Length`, a direction is a bare triple — and `u_ref` is OPTIONAL
+# because a carrier that fixes no reference direction says so.
+cap_name: str = seamed.all_faces(upright)[0]
+where: Pose = seamed.face_frame(upright, cap_name)
+sits_at: tuple[Length, Length, Length] = where.origin
+normal: tuple[float, float, float] = where.axis
+clocking: tuple[float, float, float] | None = where.u_ref
+edge_pose: Pose = seamed.edge_frame(upright, seamed.all_edges(upright)[0])
+corner: tuple[Length, Length, Length] = seamed.vertex_position(
+    upright, seamed.all_vertices(upright)[0]
+)
+denotes: Denotation = seamed.denotation(upright, cap_name)
+tied: bool = denotes.tied
+# The advisory checks: a report out of one door, a gate the caller
+# opens at the other, and the subject a finding names.
+report: ChecksReport = run_checks(doc, seamed)
+strict: ChecksConfig = ChecksConfig(
+    connectedness=Severity.Error,
+    expected_components=[(instance, 0, 2)],
+    separation=Advisory.Warn,
+)
+findings: list[CheckFinding] = run_checks(doc, seamed, strict).findings
+label: CheckKind = CheckId.Connectedness.kind
+enforce_checks(report, strict)
+flagged: Body | None = subject_body(seamed, instance, 0)
