@@ -81,6 +81,8 @@ $GITHUB_OUTPUT and to parse with `while IFS='=' read -r k v`.
                                 where each of the three values above came
                                 from: `sampled` (drawn from --seed),
                                 `unsampled` (no seed, so the whole matrix),
+                                `pinned` (lane only — `_forces_interval`
+                                substituted it ahead of the draw),
                                 `requested` (--config) or `commit-trailer`
   RUN_VIEWER_TOOLKIT=true|false the eframe/wgpu rows (`clippy -p viewer
                                 --features app`, the doc gate's
@@ -123,12 +125,21 @@ and therefore still runs the whole matrix: it is not billed by the minute,
 and with the hosted gate sampling, the local gate is now the only lane that
 runs every point of the matrix on one tree.
 
-A PIN IS ANNOUNCED ON STDERR, never on stdout. `LANE` is not always drawn —
-`_forces_interval` pins it, ahead of the seed — and a pin no reader can see is
-how a branch spends every run of its life on an axis nobody chose (#1122).
-stdout stays exactly the KEY=value stream above, because both halves append it
-to $GITHUB_OUTPUT or read it with `IFS='=' read -r k v`, where one extra line
-would be one bogus output key.
+A PIN IS ANNOUNCED TWICE, AND NEITHER HALF IS OPTIONAL. `LANE` is not always
+drawn — `_forces_interval` pins it, ahead of the seed — and a pin no reader can
+see is how a branch spends every run of its life on an axis nobody chose
+(#1122).
+
+  * `CONFIG_SOURCE=lane:pinned` on STDOUT. This is the half a machine and a
+    reader-after-the-fact get: `LANE=interval` reads identically whether the
+    seed chose it or the pin substituted it, so without this the run's own
+    outputs answer "which configuration gated this commit" with `lane:sampled`
+    over a lane no sample touched. It is a SOURCE, not a value — LANE stays
+    `interval` and no job condition reads CONFIG_SOURCE.
+  * THE REASON on STDERR, naming the file that pinned it. A path is not a
+    matrix point and must not enter the KEY=value stream: both halves append
+    stdout to $GITHUB_OUTPUT or read it with `IFS='=' read -r k v`, where one
+    extra line would be one bogus output key.
 
 REQUESTING A POINT INSTEAD OF DRAWING ONE (2026-08-28, Evan's ask). The draw
 is a DEFAULT, not a lock: someone who wants this tree gated at 1e-12, or at
@@ -942,14 +953,15 @@ def decorate(
     # the matrix a run gates is independent of which rows the change filter
     # selected, and keeping the two apart is what lets the local gate consume
     # the same output while ignoring these two keys entirely.
+    pin = None
     if seed is None:
         res["LANE"], res["EPS"], res["KLINT_ROW"] = "both", "all", "all"
     else:
-        res["LANE"] = (
-            "interval"
-            if _forces_interval(files) is not None
-            else _sample(seed, "lane", LANES)
-        )
+        # The pin is held rather than re-derived: it decides the lane AND it is
+        # what `CONFIG_SOURCE` reports below, and two calls could not disagree
+        # only because `_forces_interval` happens to be pure today.
+        pin = _forces_interval(files)
+        res["LANE"] = "interval" if pin is not None else _sample(seed, "lane", LANES)
         res["EPS"] = _sample(seed, "eps", EPS_ROWS)
         # A THIRD SALT, drawn off the same seed and independent of the other
         # two. `_sample`'s docstring says why the salt is not optional: two
@@ -971,6 +983,15 @@ def decorate(
         (key for key, _ in CONFIG_DIMENSIONS.values()),
         "sampled" if seed is not None else "unsampled",
     )
+    # A PIN IS NOT A DRAW, AND THE MACHINE-READABLE OUTPUT HAS TO SAY WHICH.
+    # `LANE=interval` reads identically whether the seed chose it or
+    # `_forces_interval` substituted it, so a reader answering "which
+    # configuration gated this commit" off the outputs alone got `lane:sampled`
+    # for a lane no sample ever touched — the same invisibility #1122 is about,
+    # one level down from the stderr note. `pinned` is a SOURCE, not a value:
+    # LANE is still `interval`, and every job condition reads LANE.
+    if pin is not None:
+        source["LANE"] = "pinned"
     for out_key, (value, src) in (config or {}).items():
         res[out_key] = value
         source[out_key] = src
@@ -1458,8 +1479,10 @@ def selftest() -> None:
         "not on their prose; the three sampled dimensions fail open with no seed, "
         "repeat under the same seed, and are drawn independently enough that every one "
         "of the 30 matrix points is reachable; the lane pin beats a draw that went "
-        "the other way, says so on stderr naming the file that pinned it, stays off "
-        "stdout and out of unpinned and unseeded runs, and goes quiet when a request "
+        "the other way, says so on stderr naming the file that pinned it, is recorded "
+        "as `lane:pinned` in CONFIG_SOURCE so the outputs alone tell a pin from a "
+        "draw, keeps the reason off stdout, stays out of unpinned and unseeded runs, "
+        "and goes quiet in both channels when a request "
         "overrides it; and a configuration REQUESTED by hand "
         "— by flag or by `CI-Config:` commit trailer — reaches the dimension it names "
         "and only that one, beats the interval pin, is recorded in CONFIG_SOURCE, and "
@@ -1525,9 +1548,12 @@ def _selftest_lane_pin(t: str) -> None:
     cost a full ruling cycle (#1122) — the pin was invisible until someone
     re-implemented the filter to find it.
 
-    So this asserts both halves: that the pin beats a draw that went the
-    other way, and that the run says so on stderr and NOT on stdout, where
-    an extra line would become a bogus $GITHUB_OUTPUT key.
+    So this asserts every half: that the pin beats a draw that went the
+    other way; that the REASON is on stderr and not on stdout, where an extra
+    line would become a bogus $GITHUB_OUTPUT key; and that the machine-readable
+    output distinguishes the pin from a draw at all — `CONFIG_SOURCE` carries
+    `lane:pinned`, because `LANE=interval` alone cannot, and a reader
+    reconstructing what gated a commit from the outputs has nothing else.
     """
     # The seed is FOUND, not hardcoded: the pinned case only tests the pin if
     # the draw it overrode was `default`, and a literal SHA here would stop
@@ -1548,6 +1574,9 @@ def _selftest_lane_pin(t: str) -> None:
     if "PINNED" in pinned.stdout:
         raise SystemExit("SELFTEST FAILED: the pin note reached STDOUT, where both halves read "
                          f"KEY=value lines\n{pinned.stdout}")
+    if "CONFIG_SOURCE=lane:pinned eps:sampled klint:sampled" not in pinned.stdout.splitlines():
+        raise SystemExit("SELFTEST FAILED: a pinned lane was recorded as something other than "
+                         f"`lane:pinned` — the outputs cannot tell a pin from a draw\n{pinned.stdout}")
 
     drawn = _selftest_run(t, ["--files", "-", "--seed", seed],
                           "crates/topo/src/lib.rs\n")
@@ -1557,6 +1586,9 @@ def _selftest_lane_pin(t: str) -> None:
     if "PINNED" in drawn.stderr:
         raise SystemExit("SELFTEST FAILED: an unpinned run announced a pin — the note would then "
                          f"say nothing\nstderr: {drawn.stderr!r}")
+    if "lane:pinned" in drawn.stdout:
+        raise SystemExit("SELFTEST FAILED: a drawn lane was recorded as pinned; `lane:pinned` then "
+                         f"says nothing about any run\n{drawn.stdout}")
 
     # A REQUEST OVERRIDES THE PIN, so the note must go quiet. `decorate` lets a
     # requested lane beat `_forces_interval` deliberately; if the announcement
@@ -1573,11 +1605,15 @@ def _selftest_lane_pin(t: str) -> None:
     if "PINNED" in overridden.stderr:
         raise SystemExit("SELFTEST FAILED: the pin note fired over a lane the request "
                          f"overrode\nstderr: {overridden.stderr!r}")
+    if "lane:requested" not in overridden.stdout:
+        raise SystemExit("SELFTEST FAILED: a request that beat the pin was recorded as the pin; "
+                         f"the run would credit its lane to a file nobody chose\n{overridden.stdout}")
 
     # No seed: nothing is drawn, so there is nothing to pin. LANE=both already
     # runs both compile modes, and a note there would be a false alarm.
     unseeded = _selftest_run(t, ["--files", "-"], "crates/topo/src/ring_interval.rs\n")
-    if "LANE=both" not in unseeded.stdout.splitlines() or "PINNED" in unseeded.stderr:
+    if ("LANE=both" not in unseeded.stdout.splitlines() or "PINNED" in unseeded.stderr
+            or "lane:pinned" in unseeded.stdout):
         raise SystemExit("SELFTEST FAILED: an unseeded run must be LANE=both and announce no "
                          f"pin\n{unseeded.stdout}\nstderr: {unseeded.stderr!r}")
 
@@ -1819,19 +1855,19 @@ def main() -> int:
     # the diff at all leaves `files` None, and that is the case that runs.
     out = decorate(res, files, args.seed, config)
 
-    # THE PIN, SAID OUT LOUD. `decorate` stays free of I/O — `_selftest_sampling`
-    # calls it 4000 times in-process — so the announcement is made here, off a
-    # second call to the same pure function rather than off a channel through
-    # the result dict, whose every key is printed as machine-readable output.
-    # Guarded twice: on the seed, because an unseeded run draws nothing to pin
-    # (it is LANE=both, which already runs both compile modes); and on
-    # `lane:sampled`, because a REQUESTED lane overrides the pin, and announcing
-    # one that was overridden would name a lane the run is not on.
-    if (
-        args.seed is not None
-        and "lane:sampled" in out["CONFIG_SOURCE"]
-        and (pin := _forces_interval(files)) is not None
-    ):
+    # THE PIN, SAID OUT LOUD, TWICE OVER. `CONFIG_SOURCE` now carries
+    # `lane:pinned` — that is the machine-readable half, and it is what ci.yml's
+    # always-run "the configuration this run gates" step reads. This is the
+    # human half: the REASON, which is a filename and belongs nowhere near a
+    # KEY=value stream. `decorate` stays free of I/O — `_selftest_sampling`
+    # calls it 4000 times in-process — so it is printed here.
+    #
+    # ONE GUARD, NOT THREE. `lane:pinned` is emitted only under a seed and only
+    # when no request overrode the pin, so both of the conditions that used to
+    # be spelled out here are already inside it; re-deriving them would let the
+    # note and the output key disagree.
+    if "lane:pinned" in out["CONFIG_SOURCE"]:
+        pin = _forces_interval(files)
         print(
             f"ci-filter: LANE=interval is PINNED, not drawn: {pin}.\n"
             "ci-filter: re-pushing cannot change it — the pin runs before the "
