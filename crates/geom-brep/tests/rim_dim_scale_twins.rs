@@ -257,9 +257,11 @@ fn cone_interior_rim(scale: f64, vm_frac: f64) -> (Surface<Probe>, Vec<LoopEdge<
 
 /// The same L, on a sphere of radius `scale`: rims at latitudes
 /// `va`/`vm`/`vb`, meridian sides as great circles through the poles.
-/// Sphere levels are latitude SINES carried as `RimLevel::Unit(s, 0)`,
-/// so the predicate's margin is `|Δ sin v| × R` — the AXIAL separation
-/// of the two rim planes.
+/// Sphere rims carry the latitude direction pair
+/// `RimLevel::Unit(sin v, cos v)`, so the predicate's margin is the
+/// direction CHORD `√((Δ sin v)² + (Δ cos v)²) × R = 2·sin(Δv/2)·R` —
+/// the point deviation between the two rim circles, everywhere on the
+/// sphere.
 fn sphere_interior_rim(scale: f64, vm_frac: f64) -> (Surface<Probe>, Vec<LoopEdge<Probe>>) {
     let surface = Surface::Sphere {
         center: p(0.0, 0.0, 0.0),
@@ -369,51 +371,59 @@ fn cone_rim_level_margin_scales_linearly_with_model_scale() {
     );
 }
 
-/// **Sphere, mm scale and scale twins.** Sphere levels are latitude
-/// sines, so the metering is `|Δ sin v| × R`: the AXIAL separation of
-/// the two rim planes, a length, linear in scale.
-///
-/// **What this pin does NOT claim.** The axial separation is not the
-/// point deviation between the two rim CIRCLES — that is the chord
-/// `R·√((Δ sin v)² + (Δ cos v)²)`, whose second component the
-/// `Unit(s, 0)` representation drops — so the lever UNDERSTATES toward
-/// the poles, in the ACCEPTING direction. That is already recorded, as
-/// **note N7** of `docs/predicate-dimension-audit.md`, against the
-/// grouping predicate; these rows say it now also holds of the
-/// refusing one, because S58 gave `props_rim_level` the same sphere
-/// representation. It is the file's convention, not something S58
-/// introduced (`min_max`, `require_extent` and the rim-side
-/// derivation — now nested inside `linear_rim_side` — all
-/// meter sines at the radius), and the torus — a full `Unit(sin, cos)`
-/// pair — has the exact expression. N7's disposition is unchanged
-/// here: typed-margin conversation input.
+/// **Sphere, mm scale and scale twins.** Sphere rims carry the full
+/// latitude direction pair, so the metering is the chord
+/// `√((Δ sin v)² + (Δ cos v)²) × R = 2·sin(Δv/2)·R`: the point
+/// deviation between the two rim circles, a length, linear in scale —
+/// the same expression the torus's pair has always had. An axial-only
+/// `|Δ sin v| × R` here would shrink by `cos v̄` toward the poles and
+/// merge genuinely distinct near-polar rims in the ACCEPTING
+/// direction (retired audit note N7; the near-polar refusal row lives
+/// in `cert1_sphere_polar.rs`, on CI's roster).
 #[test]
-fn mm_scale_sphere_rim_level_margin_is_the_axial_separation() {
+fn mm_scale_sphere_rim_level_margin_is_the_direction_chord() {
     let scale = 1e-3;
     let (surface, edges) = sphere_interior_rim(scale, 0.5);
     let (margins, refused) = rim_level_margins(&surface, &edges);
     assert!(refused, "the interior rim must be refused");
     let (va, vb) = (0.2_f64, 0.8_f64);
     let vm = 0.5 * (va + vb);
-    let expect = (vm.sin() - va.sin()).abs().min((vb.sin() - vm.sin()).abs()) * scale;
+    let chord = |v0: f64, v1: f64| {
+        ((v0.sin() - v1.sin()).powi(2) + (v0.cos() - v1.cos()).powi(2)).sqrt()
+    };
+    let expect = chord(vm, va).min(chord(vm, vb)) * scale;
     assert!(
         margins
             .iter()
             .any(|m| ((m - expect) / expect).abs() < 1e-12),
-        "no margin is the axial rim separation {expect:e}: {margins:?}"
+        "no margin is the direction-chord rim separation {expect:e}: {margins:?}"
     );
-    let escalate = band().escalate();
+    // Two honest populations and NOTHING in the ambiguity band: a rim
+    // sitting at its own extreme records the lift's rounding-scale
+    // second-component residual (the lift recomputes the extreme's
+    // cosine from its sine; the rim reads its own off stored data) —
+    // decided Zero, far inside the coincidence threshold — while the
+    // interior rim's chord is decisively past escalation.
+    let b = band();
     assert!(
-        margins.iter().all(|m| *m > escalate),
-        "every decided margin must clear this run's escalation threshold \
-         {escalate:e} at mm scale: {margins:?}"
+        margins
+            .iter()
+            .all(|m| *m < b.zero() || *m > b.escalate()),
+        "every margin must be far inside the band or decisively past \
+         escalation (zero {:e}, escalate {:e}) at mm scale: {margins:?}",
+        b.zero(),
+        b.escalate()
     );
 
     let (m, _) = rim_level_margins(
         &sphere_interior_rim(1.0, 0.5).0,
         &sphere_interior_rim(1.0, 0.5).1,
     );
-    let ratio = m[0] / margins[0];
+    // The scale twin compares the CHORD margins — the largest of each
+    // run's population; the rounding-scale residuals are noise-floor
+    // values with no scale law of their own.
+    let big = |ms: &[f64]| ms.iter().copied().fold(f64::MIN, f64::max);
+    let ratio = big(&m) / big(&margins);
     assert!(
         (ratio / 1e3 - 1.0).abs() < 1e-12,
         "margin must scale linearly with the model: ratio {ratio:e}"
