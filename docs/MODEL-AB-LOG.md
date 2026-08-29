@@ -1948,3 +1948,29 @@ dispatch).** Ordinal 502. Slot byte 169, parity 1 ⇒ R1 FABLE +
 R2 OPUS, concurrent, frozen head 55b1fd13, v5 instrument. Block
 M10-B1's LAST slot — this record and the block record above merge
 to main when this dual concludes.
+
+BLEND-1 review ordinal fixed at dispatch (2026-08-29, PR #1222
+open — frozen head `85047cbe`): **ordinal 600** (the BLEND band's
+first claim; single claimant in band; claimed to main on its own
+docs branch at review dispatch, per protocol). Protocol v6 dual:
+draw = `/dev/urandom` byte **77**, parity 1 ⇒ **R1 = FABLE, R2 =
+OPUS**. **Method note, recorded before either review ran and
+applying to BOTH arms identically: the reviews run SEQUENTIALLY on
+the frozen head, not concurrently** — this host cannot safely hold
+two review lanes' build targets (19G free at dispatch), and the
+build mutex serializes their heavy phases anyway. Same-head
+comparison holds by construction; identical briefs, both AUTHORED
+AND STORED before R1 dispatched (so R1's report cannot shape R2's
+brief); neither reviewer sees the other's report, branches, or
+lane; read isolation in both briefs. Symmetric by design — recorded
+so the blinded adjudication can weigh it, not as a relaxation of
+one arm. Pre-draw difficulty: **M-L** (logged before the block
+draw, branch-side record). Impl phase (for the row at merge): ~430k
+tokens lane-reported (~370k harness), ~4h wall (~80m of CI polling
+and eps rows, one disclosed clippy red fixed in-lane), impl CI
+33271411468 GREEN on `85047cbe` ({interval, default eps} drawn;
+sweep suite locally at default/1e-6/1e-12, topo+editor-core at both
+off-default rows, workspace clippy both modes). Base-tree findings
+routed at dispatch: issues 1234 (reader_census dot-path
+blindness), 1235 (m10_p_lift default-features clippy red). Row at
+merge.
