@@ -1063,3 +1063,45 @@ rows the sampling removed. This is the escape hatch, not the new normal.
 The render lanes are the one thing a dispatch skips — no lane reads any
 sampled dimension, they re-baseline against a branch, and `render.yml` has
 its own dispatch for when frames are what is wanted.
+
+## Observed flake: the probe-suite census's own SELFTEST (2026-08-29)
+
+Recorded because it cost a lane a red run over content that was green,
+and because the gate's own comments say this failure mode was already
+seen once and believed structurally fixed.
+
+**What happened.** `probe-suite-census.sh --selftest` failed on the
+hosted runner inside the "CI half parity + gate wiring" job, reporting
+`SELFTEST FAILED: the gate FAILED on a clean fixture with a long
+ci.yml` together with `printf: write error: Broken pipe` and a
+downstream complaint that `span_meter_dim_twins` is rostered with no
+censused file — a suite the failing branch never touched.
+
+**Why it is a flake and not a finding about the tree.** Three
+independent pieces:
+
+- the SAME census inputs passed on the immediately preceding run
+  (33245525736 → 33265515891 green on the gate-wiring job; 33266619334
+  red), and the only tree delta between them was the body of one
+  unrelated test file;
+- in the very run that went red, the REAL gate — the "probe-suite
+  census (crates + floor)" step in `discipline (evaluation-code)`,
+  which runs against the actual tree rather than a synthetic fixture —
+  **passed**;
+- the selftest passes locally on the same tree.
+
+**Where the race is.** `selftest_hosted_half_is_large` exists precisely
+because a `grep -q` that matches near the top of a long `ci.yml` leaves
+the upstream filter writing into a closed pipe, which `pipefail` then
+reports as a failed pipeline. The function pads a fixture past the
+match to make that deterministic. The evidence above says the
+structural fix does not cover every path: the broken-pipe message in
+this failure comes from the census's own `printf` at the roster-listing
+site, not from the padded `grep`.
+
+**What is owed.** Not this note's author's to fix — the gate is the
+disciplines lane's. What a fix needs is for every producer in that
+script's pipelines to tolerate a closed reader (or for the readers to
+drain), rather than one more `grep` being padded around. Until then a
+red on this step alone, with the real census step green in the same
+run, is a re-run and not a diagnosis.

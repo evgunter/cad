@@ -114,6 +114,16 @@ parallel with anything.
    neutral wording) is user-facing refusal prose with several
    viable answers — Evan's call before the ~255-reference rename
    executes. Must not be closed by minting a parallel enum.
+7. **BLEND-7 — the enclosing-tangency refusal (issue 827,
+   ruled).** Executes the ratified
+   `docs/ENCLOSING-TANGENCY-DESIGN.md`: opening measurement (what
+   the lattice serves past the ordinary branch), then the typed
+   refusal, the pins' hedge-drop, and the `sugar.rs` purpose
+   statement. Reaches `crates/profile` — outside this program's
+   sweep fence, taken by exception as the ruling's closing unit
+   (no live program owns profile); the fence note rides the
+   dispatch, and the unit stays off `profile::structure` (M10-P's
+   ground).
 - **BLEND-T — SMELL track T (at 2b's merge).** The track taken
   whole per the partition rule; rows worked as style lanes under
   the SMELL conventions (execution record in `docs/SMELL-T-LOG.md`
@@ -130,10 +140,10 @@ exists today.
 
 ## Design conversations to open with Evan
 
-- **Issue 827** (enclosing ρ < 0 tangency): opened early — either
-  answer closes it; the conversation PR carries a firm
-  recommendation with honest counterarguments and waits for
-  sign-off.
+- **Issue 827** (enclosing ρ < 0 tangency): **RESOLVED — RATIFIED
+  2026-08-29** (`docs/ENCLOSING-TANGENCY-DESIGN.md`): the class is
+  ruled out permanently; an enclosing-demanding request refuses.
+  BLEND-7 is the closing unit.
 - **Issue 917's naming question** — at BLEND-6's turn (above).
 - Any move on the surgery module's decide-before-mutate discipline
   (BLEND-2's escape hatch, above).

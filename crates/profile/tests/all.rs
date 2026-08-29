@@ -44,6 +44,10 @@ mod arc_fillet;
 mod canonical_invariance;
 #[path = "declared_tangency.rs"]
 mod declared_tangency;
+#[path = "generic_replay.rs"]
+mod generic_replay;
+#[path = "guided_replay.rs"]
+mod guided_replay;
 #[path = "interval_lane.rs"]
 mod interval_lane;
 #[path = "lift_census.rs"]
