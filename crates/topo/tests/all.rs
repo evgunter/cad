@@ -187,6 +187,8 @@ fn every_suite_file_is_aggregated() {
          is silently dropping them: {missing:?}. Add a `#[path]` line for each."
     );
 }
+#[path = "f7d_delta_probes.rs"]
+mod f7d_delta_probes;
 #[path = "probe_census.rs"]
 mod probe_census;
 #[path = "probe_f34_review.rs"]

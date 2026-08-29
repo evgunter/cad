@@ -1,5 +1,6 @@
 //! **F7 pole-exemption R1 review probes (ordinal 104, PR #1131)** —
-//! claims-to-falsify, attack fixtures for `pole_split_cap`.
+//! claims-to-falsify, attack fixtures for the WITHDRAWN gate
+//! exemption `pole_split_cap` (see the adoption note below).
 //!
 //! **ADOPTED (VERBS/F7), and RE-POLARISED.** These were written to
 //! falsify a gate exemption that has since been WITHDRAWN — the
@@ -71,7 +72,10 @@ fn he_at(body: &Body<f64>, face: topo::FaceKey, x: f64, y: f64, z: f64) -> topo:
 /// This is `m3_pr4_boolean::non_maximal_operand_refuses` restated in
 /// this file so the differential against P2 is one screen tall: the
 /// chord's endpoints have valence 3, no valence-2 same-pair endpoint
-/// exists, and the gate refuses exactly as before the exemption.
+/// exists, and the gate refuses. (The "exemption" these rows were
+/// written against was WITHDRAWN; what ships is a repair in
+/// `merge_coplanar_faces`, and the gate is unchanged — so this control
+/// and its siblings are the repair trigger's negative rows.)
 #[test]
 fn p1_single_chord_pair_still_refuses() {
     let p = prism_z::<f64>(&[(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)], 0.0, 1.0);
@@ -91,7 +95,8 @@ fn p1_single_chord_pair_still_refuses() {
 /// **P2 (attack): the same mergeable pair with its chord SUBDIVIDED
 /// once slips the gate.** Chain V0 → P → V2 where P is an interior
 /// valence-2 vertex: every shared edge now has a valence-2 endpoint
-/// both of whose edges separate the same pair, so `pole_split_cap`
+/// both of whose edges separate the same pair, so the withdrawn
+/// `pole_split_cap`
 /// admits each of them, and the pair the F7 rule exists for — two
 /// genuinely coplanar faces the producing construction should have
 /// merged — is no longer refused. No revolve, no pole, no axis: the

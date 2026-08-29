@@ -1,5 +1,9 @@
-//! R2 review probes for the F7 pole exemption (PR #1131, #1031 pole
-//! half). Falsification probes only — not acceptance rows.
+//! R2 review probes, ADOPTED (PR #1131, #1031's pole half). They were
+//! written to falsify a GATE EXEMPTION, and they succeeded — the
+//! exemption was withdrawn. What ships is a repair in
+//! `merge_coplanar_faces` licensed by COLLINEARITY, and these
+//! fixtures' bent seams are its negative differential rows: each one
+//! must still refuse `NonMaximalFaces`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -59,11 +63,13 @@ fn r2_control_single_chord_split_still_refuses() {
 /// ATTACK on the structural predicate: the SAME defect, but the
 /// splitting chord carries ONE interior vertex (valence 2, both of
 /// whose edges separate the same face pair). Nothing here is a
-/// revolve, no pole, no axis — yet `pole_split_cap` fires on BOTH
-/// shared edges, so the per-edge admission admits the whole pair.
-///
-/// If this prints anything other than `NonMaximalFaces`, the
-/// exemption admits an ordinary non-maximal body.
+/// revolve, no pole, no axis — yet the gate exemption this probe was
+/// written against fired on BOTH shared edges, admitting the whole
+/// pair. **That exemption was WITHDRAWN because of this row.** What
+/// ships instead is a repair in `merge_coplanar_faces` gated on
+/// COLLINEARITY, and this fixture's mid vertex is deliberately off the
+/// chord — so the pair stays non-maximal and must still refuse
+/// `NonMaximalFaces`, which is what the row now pins.
 #[test]
 fn r2_attack_midvertex_chord_split() {
     let a = brick((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));

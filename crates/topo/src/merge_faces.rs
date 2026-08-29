@@ -60,6 +60,16 @@ pub struct MergedGroup {
     /// Rings minted by intra-face shared-edge kills (`kemr` — a merged
     /// run that surrounds a hole grows a genuine ring), in mint order.
     pub rings_made: Vec<LoopKey>,
+    /// Vertices killed by the straight-seam repair (`kev`), in kill
+    /// order — a junction that was interior to one straight carrier
+    /// and went with its seam.
+    ///
+    /// Recorded rather than left implicit because this is the one
+    /// thing the op destroys that no other field names: `absorbed`
+    /// carries the dead faces and `killed_edges` the dead edges, and
+    /// without this a caller reconciling the Euler delta would find a
+    /// `v −1` with nothing accounting for it.
+    pub killed_vertices: Vec<VertexKey>,
 }
 
 /// A declared-licensed merge group that was NOT glued (M4 PR 5): its
@@ -327,14 +337,34 @@ impl<T: Decide> Body<T> {
     /// mechanism. Until then the convention is simply not detected
     /// wrong) and re-homing absorbed faces' rings onto the survivor.
     ///
+    /// **The straight-seam repair (`kev`).** An intra-face duplicate is
+    /// not always a ring. When the group's shared boundary is exactly
+    /// two edges meeting at a valence-2 vertex whose two departures are
+    /// collinear and OPPOSED — the vertex is interior to one straight
+    /// carrier — the surviving duplicate is a dangling STRUT, and the
+    /// op kills it with `kev` instead of minting a ring with `kemr`.
+    /// The surgery DELETES BOTH seam edges and the junction vertex: the
+    /// `kef` takes one, the `kev` takes the other along with the vertex
+    /// it dangles from. Nothing is re-described, because the removed
+    /// vertex was interior to a straight locus and the union of the two
+    /// collinear pieces is that same locus. The motivating instance is
+    /// a full revolve's axis-touching cap (the two seam edges are the
+    /// halves of the disc's diameter, the vertex is the pole), but the
+    /// licence is collinearity and not provenance
+    /// ([`Body::redundant_subdivision_vertex`]'s docs carry the
+    /// argument and its residue).
+    ///
     /// **Atomic and deterministic (D9)**: the op stages on a clone —
     /// on any refusal `self` is untouched; on success the staged body
     /// replaces `self` wholesale. All scans are arena-order; the
     /// surviving face of each group is its first face in face-arena
     /// order; edges die in edge-arena order. Composite Euler delta per
-    /// group: `f −(n−1)`, `e −k`, plus `r +m` for intra-face kills —
-    /// each step is an Euler operator, so tier 1 holds throughout and
-    /// χ is conserved at every step.
+    /// group: `f −(n−1)`, `e −k`, plus `r +m` for intra-face `kemr`
+    /// kills, and `v −1` for each straight-seam `kev` (which is what
+    /// keeps χ conserved when a ring is NOT minted: `kemr` trades an
+    /// edge for a ring, `kev` trades an edge for a vertex). Each step
+    /// is an Euler operator, so tier 1 holds throughout and χ is
+    /// conserved at every step.
     ///
     /// A body with nothing to merge returns `Ok` with an empty outcome
     /// and is untouched (deterministic no-op).
@@ -733,8 +763,6 @@ impl<T: Decide> Body<T> {
         Some((pb - pa).norm())
     }
 
-    /// Merges one group into its first member (see the public op's
-    /// docs for order and refusals). Runs on the staged clone.
     /// **Is `v` a redundant subdivision vertex of a straight seam?**
     ///
     /// This is the geometric licence for removing a seam vertex, and it
@@ -845,6 +873,8 @@ impl<T: Decide> Body<T> {
         )
     }
 
+    /// Merges one group into its first member (see the public op's
+    /// docs for order and refusals). Runs on the staged clone.
     fn merge_group(
         &mut self,
         members: &[FaceKey],
@@ -856,6 +886,7 @@ impl<T: Decide> Body<T> {
             absorbed: Vec::new(),
             killed_edges: Vec::new(),
             rings_made: Vec::new(),
+            killed_vertices: Vec::new(),
         };
         let in_group = |f: FaceKey| members.contains(&f);
         // **The straight-seam junction, decided ONCE** on the group as
@@ -1013,10 +1044,12 @@ impl<T: Decide> Body<T> {
             } else {
                 None
             };
-            if let Some((from_rim, _)) = tip {
+            if let Some((from_rim, toward)) = tip {
+                let killed = self.get_half_edge(toward).map(|h| h.start);
                 self.kev(from_rim)
                     .map_err(|error| MergeCoplanarError::Op { error })?;
                 group.killed_edges.push(edge_key);
+                group.killed_vertices.extend(killed);
                 continue;
             }
             let result = self

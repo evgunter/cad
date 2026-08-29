@@ -1,5 +1,8 @@
-//! R2 review probes for PR #1131 (F7 pole exemption), sweep side.
-//! Falsification probes, not acceptance rows.
+//! R2 review probes, ADOPTED (PR #1131), sweep side. Written against a
+//! GATE EXEMPTION that was withdrawn on their evidence; what ships is
+//! the collinear-seam repair in `merge_coplanar_faces`. The pole
+//! acceptance row at the foot of this file is the positive pole of
+//! that differential.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -38,7 +41,8 @@ fn is_plane(b: &Body<f64>, f: FaceKey) -> bool {
 }
 
 /// Dumps every valence-2 vertex whose two edges separate the same face
-/// pair — i.e. every site `reduce::pole_split_cap` fires at — and says
+/// pair — i.e. every site the withdrawn `reduce::pole_split_cap` fired
+/// at, which is also where the shipped repair looks — and says
 /// whether the pair is planar.
 fn dump_poles(b: &Body<f64>, label: &str) {
     for (vk, v) in b.vertices() {

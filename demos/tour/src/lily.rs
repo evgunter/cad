@@ -411,13 +411,13 @@ fn lantern<S: Scalar>(
 /// stem's diameter, threaded on the stem's foot. Its two planar caps
 /// are ANNULI, which is load-bearing and not a styling choice: a full
 /// revolve whose planar cap TOUCHES THE AXIS arrives as two half-faces
-/// on one plane key, and that is the F7 maximal-faces defect — such a
-/// body cannot be a boolean operand today, and the merge door refuses
-/// it too (probe 13). That refusal is about the op as written, NOT
-/// about the shape: the one-face cap is reachable from the revolve's
-/// own output by `kef` then `kev`, and teaching the merge that route
-/// is #1031's pole half. An annular cap sidesteps the question
-/// entirely — it revolves to ONE whole face and has no such pair.
+/// on one plane key, and that used to be the F7 maximal-faces defect
+/// with no way out. It is repairable now: the cap's two seam edges are
+/// the halves of the disc's diameter, so the pole is a vertex interior
+/// to one straight carrier, and `merge_coplanar_faces` removes the
+/// seam (`kef` then `kev`) leaving ONE face. An annular cap still
+/// sidesteps the question rather than answering it — it revolves to
+/// one whole face and has no such pair to repair.
 ///
 /// Sketch frame: origin on the corm's top plane, `v` pointing DOWN
 /// into the corm, so `t` is depth. Same axis convention as
@@ -2017,12 +2017,15 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    business at all.** The whole sequence is measured by
     //    `review_probes::the_declared_weld_refuses_exactly_as_the_
     //    undeclared_one_does` and its sibling. Widen the gate and the
-    //    next refusal used to be `NonMaximalFaces` on this very body;
-    //    that door is now OPEN — the lantern's two axis-touching caps
-    //    are pole-split, which `reduce::pole_split_cap` exempts as
-    //    canonical. What answers after it is the curved PIERCE arm
-    //    (wall 12's door), and only after that could a germ-pair
-    //    question arise.
+    //    next refusal is `NonMaximalFaces` on this very body — and it
+    //    still is, because THIS probe passes the UNREPAIRED lantern
+    //    (probe 7 is the one that repairs first). That door is no
+    //    longer a dead end for such a body: `merge_coplanar_faces`
+    //    repairs the pole-split caps. A gate exemption was tried for
+    //    this and WITHDRAWN — the fix is the repair op, not a
+    //    narrowing of `gate_maximal_faces`. After F7 comes the curved
+    //    PIERCE arm (wall 12's door), and only after that could a
+    //    germ-pair question arise.
     //
     //    So wall 2's binding blocker is #1031, not #968's shape. The
     //    gate-admission reading was this unit's SPEC, and measuring it
@@ -2179,8 +2182,12 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    disc's DIAMETER, so the pole is a vertex interior to one
     //    straight carrier and removing it changes no locus. The
     //    licence is collinearity, not poleness
-    //    (`merge_faces::redundant_subdivision_vertex`), which is why
-    //    it is also what refuses the teapot cup's L-shaped seam.
+    //    (`merge_faces::redundant_subdivision_vertex`). The teapot
+    //    cup's coplanar pair is NOT repaired, and what the dump
+    //    actually shows about it is its VALENCE — endpoints of
+    //    valence 4, so there is no valence-2 junction to license
+    //    anything. Its seam's straightness was never measured and no
+    //    claim is made about it here.
     //
     //    #1031 stays open for its OTHER defect: an ordinary coplanar
     //    pair at a full-valence edge, measured on that cup's meridian
@@ -2751,10 +2758,45 @@ mod review_probes {
             (8, 8),
             "each cap became one face and each pole went with its seam"
         );
+        // `topo::validate` is the TIER 1 validator; the claim here is
+        // about the repaired body's tier 2 and tier 3 standing, so it
+        // runs those (delta review MIN-1: the check and the message
+        // disagreed, and the message is what people read).
         assert_eq!(
-            pncad::topo::validate(&repaired),
+            pncad::topo::validate_closed(&repaired),
+            Ok(()),
+            "tier 2 after repair"
+        );
+        assert_eq!(
+            pncad::topo::validate_geometric(&repaired, tol),
             Ok(()),
             "tier 3 after repair"
+        );
+    }
+
+    /// DELTA probe (ordinal-104 verification, `verbs/f7d-probes`),
+    /// ADOPTED: the row above used to label a TIER 1 check "tier 3".
+    /// That row is fixed, and this one stands beside it running both
+    /// real validators, so the PR body's "tier 3 clean" claim is
+    /// measured in-tree rather than inherited from a dev-run log.
+    #[test]
+    fn f7d_delta_repaired_lantern_actual_tiers() {
+        let tol = Tol::witness();
+        let ps = pieces();
+        let lant = body(&ps, "lily_lantern");
+        let mut repaired = lant.clone();
+        repaired
+            .merge_coplanar_faces(tol)
+            .expect("the pole-split caps repair");
+        assert_eq!(
+            pncad::topo::validate_closed(&repaired),
+            Ok(()),
+            "tier 2 after repair (actual)"
+        );
+        assert_eq!(
+            pncad::topo::validate_geometric(&repaired, tol),
+            Ok(()),
+            "tier 3 after repair (actual)"
         );
     }
 
