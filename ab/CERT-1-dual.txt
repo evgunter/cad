@@ -1,0 +1,112 @@
+CERT-1 dual (v6), recorded BEFORE R1 dispatch, 2026-08-29
+ordinal 701 (claimed on main at this dispatch)
+slot byte 243, parity 1 => R1 FABLE + R2 OPUS
+METHOD NOTE (pre-recorded so both arms run identically): reviews run
+SEQUENTIALLY on the frozen head bc815c2c (PR 1220's reviewed head) —
+disk bounds concurrent lane targets; reducing concurrency, never
+narrowing method. R2 dispatches after R1's report with the IDENTICAL
+stored brief below, no access to R1's report, findings, or probe
+branch. Probe branches: cert/1r1-probes, cert/1r2-probes.
+implementer difficulty M (pre-drawn in docs/CERT-1-SPEC.md); impl
+phase wall ~3.6h self-est — held for the row at merge. NOTE for the
+row: this lane's agent also executed CERT-2's fix pass mid-unit (the
+orchestrator's misdispatch, recorded in CERT-2's row), so this
+lane's total token figure is contaminated for CERT-1's impl phase;
+use the self-estimated wall split and mark tokens not-separable.
+
+COMMON BRIEF (stored verbatim; lane plumbing differs per lane):
+---
+You are a blinded adversarial reviewer for unit CERT-1 of the S-CERT
+program (repo evgunter/cad). Review PR 1220 on its FROZEN head
+bc815c2c — do not review any later commit; if the branch has moved,
+say so and still review bc815c2c.
+
+Read first, in order: docs/prompts/reviewer-style-lane.md (binding;
+carry its structural questions and confidence vocabulary),
+docs/CERT-1-SPEC.md (on main), GitHub issues 723 (including all five
+comments — the fourth carries the rimless-arm instance) and 893, then
+the PR 1220 diff and body.
+
+CLAIMS TO FALSIFY (each gets a verdict with evidence; execution
+beats inspection):
+1. The span-derived v-extent is CORRECT on both sphere arms: the
+   latitude along a meridian arc is lam(t) = sa*cos(t) + ca*sin(t)
+   with ca read off the stored tangent, and
+   sphere_meridian_span_levels folds the pole extremes exactly when
+   a pole lies inside the stored span. Attack the parse: arcs
+   anchored AT a pole, arcs spanning BOTH poles, full-circle
+   meridians, spans crossing the chart seam, reversed orientations.
+2. The three red-first rows assert closed forms (R^2*pi*(1-sin b),
+   2*pi*R^2, refusal by predicate name) and are red under the
+   pre-fix code (revert and run) for the recorded reasons.
+3. The rim lever now meters direction separation (~R*dv): the second
+   channel carries cos v = r_c/R from stored data; the
+   scalar-extreme lift's sqrt(max(0,1-s^2)) is sound at Interval
+   (in-domain) and at the poles; NO definite row flipped tree-wide.
+4. props_meridian_pole's margin (signed chord via one midpoint
+   dot-membership test + copysign, levered at R) is honest in BOTH
+   scalar lanes: reproduce the atan2/floor rework story
+   (red-then-green at interval on the die corpora) yourself, and
+   probe the shipped form for its own interval blowups (arcs
+   anchored at chart poles, spans of exactly pi, dt near 0).
+5. The no-split half-cap twin's disposition change (DegenerateFace
+   refusal RETIRED; both twins certify the same exact volume) is
+   semantically correct — the old refusal was an endpoint-fold
+   artifact, not a fact about the geometry — and the D2
+   classification in the PR body holds.
+6. The committed fixtures reproduce issue 723's digits
+   (3.518158565e-7 m^3; 1.635432903567499e-4 m^2) and gen_halfcap.py
+   authors what it claims (3V/4E/3F chi=2 split; 2V/3E/3F no-split).
+7. The min_max sweep's six dispositions hold (cylinder/cone
+   linearity arguments included), and the stated blind spot
+   (non-min_max spellings; torus_ends audited by reading) hides
+   nothing live in curved.rs.
+8. The audit-document edits are truthful (props_rim_level verdict,
+   N7 retirement, the new props_meridian_pole row), and the
+   rim_dim_scale_twins pin move (axial -> chord, second honest
+   cluster) is argued correctly — no baseline is a target, but the
+   new population claims must be measured.
+9. The two declared deviations (chord-not-angle margin;
+   editor-core-visible behavior moved with no editor-core file
+   changed) are acceptable as argued.
+STRUCTURAL (the style lane's stance): does the pole fold mint a
+fresh instance of the class it closes (an extent premise no longer
+stated but still assumed somewhere — e.g. the u-extent/Delta-u side,
+w == Delta-u, rim arms); do the new rows go red when the guarantee
+DEGRADES or only at the chosen fixtures; is a disclosed blind spot
+read as a discharge.
+
+E2E EXERCISE (required): author your own adversarial near-polar
+bodies (native curved_face route AND the STEP import route) —
+pole-crossing arcs at varied anchors, near-polar rims at several
+separations spanning the band, a polar-cap face — and report what
+accepts, refuses, and certifies, with volumes against closed forms
+where you can derive them.
+
+LOCAL RUNS = UNIQUE SIGNAL ONLY: your own probes, planted
+corruptions (revert each fix half separately; confirm the pinned
+rows go red), merge-base differentials. The unit's suites ride the
+PR gate: resolve run 33272543886 yourself — status AND head SHA —
+and state the drawn point (claimed: default features, eps=1e-12)
+and what that leaves unclaimed; note the interval lane's coverage
+came from an earlier head's draw plus local runs, and weigh that
+per the a-verdict-conditioned-on-a-gate rule.
+
+VERDICT: exactly one of APPROVE / APPROVE-WITH-FIXES /
+NOT-MERGEABLE-AS-IS / REJECT, plus the CODE QUALITY REPORT rubric:
+MAJOR/MINOR/NOTE counts; spec deviations reported vs silent;
+ratings 1-5 with one line of evidence each for idiom/structure,
+test quality, doc/comment honesty. Findings ranked, prose per
+MAJOR. "I'm not sure, but this looks off" is complete and welcome.
+
+LANE ISOLATION AND BLINDING: never state or guess who or what model
+implemented the unit; do not read any other review lane's branches,
+notes, or reports (disclose any accidental glimpse); do not post to
+GitHub — push probes to your probe branch and deliver findings in
+your report. No Co-Authored-By trailers in probe-branch commits.
+Foreground discipline: no background waiters for your own
+builds/tests; wrap raw cargo in local-scripts/with-build-slot.sh;
+never end a turn with background work active. Report <= 150 lines,
+naming the questions exercised and carrying the confidence
+vocabulary.
+---
