@@ -450,13 +450,6 @@ fn tangent_bits_separate_keys_and_equal_channels_share_them() {
     assert_eq!(seeded, key(Dual64::variable(3.5)));
 }
 
-/// The corpus rows the `Dual<Interval>` lane runs (budget: one
-/// closed-form and one NURBS-walled document, not the whole corpus —
-/// each row costs two interval evaluations). A LOUD list: a renamed
-/// document fails the lookup rather than silently shrinking the row.
-#[cfg(feature = "interval")]
-const DUAL_INTERVAL_ROWS: [&str; 2] = ["die", "loft_prism"];
-
 /// DL2's `Dual<Interval>` instantiation, through the same generic
 /// impls: the derivative-enclosure scalar walks the whole door too,
 /// with its value channel — `repr_bits`, decoration included —
@@ -465,6 +458,11 @@ const DUAL_INTERVAL_ROWS: [&str; 2] = ["die", "loft_prism"];
 #[test]
 fn dual_interval_evaluates_with_the_interval_value_channel() {
     use geom_core::{DualInterval, Interval};
+    // The rows this lane runs (budget: one closed-form and one
+    // NURBS-walled document, not the whole corpus — each row costs two
+    // interval evaluations). A LOUD list: a renamed document fails the
+    // lookup rather than silently shrinking the row.
+    const DUAL_INTERVAL_ROWS: [&str; 2] = ["die", "loft_prism"];
     let docs = documents();
     for doc in named(&docs, &DUAL_INTERVAL_ROWS) {
         let ev_i = eval::<Interval>(&doc.doc);
