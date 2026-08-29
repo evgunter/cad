@@ -303,7 +303,7 @@ const ENDPOINT_START_MAPPED_CURVE: &str = "mapped curve: geometry attachment gat
 /// Every committed STEP file, with the disposition measured at M7-7.
 /// Paths are relative to this crate's manifest directory (the `../`
 /// rows are `step-export`'s corpus, which this crate imports from).
-const CORPUS: [(&str, Disposition); 64] = [
+const CORPUS: [(&str, Disposition); 66] = [
     ("tests/fixtures/band/band_a.stp", Pass(1, 1, 2, 6, 4)),
     ("tests/fixtures/band/band_a180.stp", Pass(1, 1, 2, 6, 4)),
     ("tests/fixtures/band/band_b180.stp", Pass(1, 1, 2, 6, 4)),
@@ -370,6 +370,18 @@ const CORPUS: [(&str, Disposition); 64] = [
     // pass, and `halfcap_pole.rs` holds both to the exact closed-form
     // volume.
     ("tests/fixtures/halfcap/halfcap.step", Pass(1, 1, 3, 4, 3)),
+    // The near-pole split twins: the same solid with the ordinary
+    // vertex 1e-6 / 1e-7 rad off the pole, landing the
+    // pole-membership margin inside or beside the default band —
+    // refused `Escalated` until the indeterminate outcome folded.
+    (
+        "tests/fixtures/halfcap/halfcap_eps6.step",
+        Pass(1, 1, 3, 4, 3),
+    ),
+    (
+        "tests/fixtures/halfcap/halfcap_eps7.step",
+        Pass(1, 1, 3, 4, 3),
+    ),
     (
         "tests/fixtures/halfcap/halfcap_nosplit.step",
         Pass(1, 1, 3, 3, 2),

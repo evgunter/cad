@@ -86,3 +86,18 @@ fn the_split_half_cap_certifies_the_exact_volume() {
 fn the_no_split_twin_certifies_the_same_volume() {
     certifies_exactly("halfcap_nosplit.step");
 }
+
+/// **The near-pole split twins** — the split vertex 1e-6 / 1e-7 rad
+/// off the pole (10 nm / 1 nm of arc), landing the pole-membership
+/// margin inside or beside the default band. Reviewer-executed red:
+/// before the indeterminate outcome folded, both flipped
+/// certify-exactly into
+/// `TierInvalid { VolumeUncomputable { Escalated { .. "props_meridian_pole" } } }`
+/// — an import refusal of a solid whose exact area is not in doubt
+/// (the fold choices differ by ~band²/2). Both must certify exactly,
+/// like every other authoring of the same solid.
+#[test]
+fn a_split_vertex_a_hair_off_the_pole_certifies_through_the_door() {
+    certifies_exactly("halfcap_eps6.step");
+    certifies_exactly("halfcap_eps7.step");
+}

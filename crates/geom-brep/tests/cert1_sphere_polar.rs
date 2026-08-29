@@ -161,6 +161,60 @@ fn the_rimless_hemisphere_split_off_its_poles_still_measures() {
     );
 }
 
+/// **A split vertex a hair off the pole is ordinary input, not an
+/// escalation.** The split lands the pole within the run's own band
+/// of a span end, so `props_meridian_pole`'s margin is indeterminate
+/// — and an indeterminate here carries no information about the
+/// answer: the two fold choices differ by ~band²/2 in latitude,
+/// utterly sub-band in area (the fn doc's own continuity argument).
+/// The fold must therefore include the pole level on an in-band or
+/// indeterminate outcome rather than refusing a solid whose exact
+/// area is not in doubt. Both reviewer-executed offsets are pinned
+/// (1e-6 and 1e-7 rad off the pole — 10 nm and 1 nm at R = 10 mm,
+/// bracketing the default band), plus a mid-band offset derived from
+/// the run's own band so the row means the same at every ε.
+#[test]
+fn a_split_vertex_a_hair_off_the_pole_still_certifies() {
+    let band = Band::linear(Tol::witness()).unwrap();
+    let b: f64 = 0.5;
+    let exact = RS * RS * core::f64::consts::PI * (1.0 - b.sin());
+    let mid_band = 0.5 * (band.zero() + band.escalate()) / RS;
+    for d in [1.0e-6, 1.0e-7, mid_band] {
+        let split = core::f64::consts::FRAC_PI_2 - d;
+        let half_cap = vec![
+            rim(b, 0.0, core::f64::consts::PI, 0, 1),
+            great(0.0, core::f64::consts::PI - b, split, 1, 2),
+            great(0.0, split, b, 2, 0),
+        ];
+        accepts_exactly(
+            &format!("half-cap split {d:e} rad off the pole"),
+            &half_cap,
+            exact,
+        );
+    }
+}
+
+/// **A span of 2π or more covers every direction, both poles
+/// included.** The membership dot test compares against
+/// `cos(dt/2)`, which swings back positive past `dt = 2π` and
+/// starts EXCLUDING directions a multi-wrap span covers: the
+/// `3π + π` pair below read the north pole `Negative` though the
+/// first arc covers it twice, and the face was ACCEPTED at half its
+/// area — this unit's own thesis (an unstated extent premise)
+/// re-minted at the parse. The import door normalizes spans into
+/// `(0, τ]`, so the shape is native-API-reachable only; the fold
+/// answers it anyway, because a span premise a caller can break is
+/// a premise, not a fact.
+#[test]
+fn a_multi_wrap_span_covers_both_poles() {
+    let pi = core::f64::consts::PI;
+    let pair = vec![
+        great(0.0, 0.0, 3.0 * pi, 0, 1),
+        great(0.0, 3.0 * pi, 4.0 * pi, 1, 0),
+    ];
+    accepts_exactly("rimless pair, spans 3π + π", &pair, 2.0 * pi * RS * RS);
+}
+
 // ---------------------------------------------------------------------
 // Issue 893 — the rim lever, near the pole
 // ---------------------------------------------------------------------
@@ -207,6 +261,33 @@ fn two_distinct_near_polar_rims_are_not_one_level() {
         ),
         "two near-polar rims 10·escalate apart must not pass as one level"
     );
+}
+
+/// **The refusal floor itself, pinned.** The headline near-polar row
+/// pins one decisively-distinct separation (10·escalate); this one
+/// pins the FLOOR the reviews measured: refusal begins as soon as the
+/// rims' true point separation (the direction chord at R) clears the
+/// run's own coincidence threshold. At `3·zero` — above the
+/// coincidence band, inside the escalation band at the default K —
+/// the pair must NOT pass as one level: the honest outcomes are the
+/// iso-rectangle refusal or a typed escalation, never acceptance. A
+/// degraded lever (the axial `(sin v, 0)` collapse) would read this
+/// separation as `~3·zero·δ0 ≪ zero`, decide `Zero`, and accept —
+/// which is what this row exists to redden.
+#[test]
+fn the_near_polar_refusal_floor_is_the_coincidence_threshold() {
+    let band = Band::linear(Tol::witness()).unwrap();
+    let d0 = 0.002;
+    let dv = 3.0 * band.zero() / RS;
+    let v2 = core::f64::consts::FRAC_PI_2 - d0;
+    let edges = near_polar_staircase(0.2, v2 - dv, v2);
+    match curved_face(&sphere(), &edges, 1.0, band) {
+        Err(PropsError::NotIsoRectangle { .. }) | Err(PropsError::Escalated { .. }) => {}
+        other => panic!(
+            "two near-polar rims 3·zero of point separation apart must not \
+             pass as one level: {other:?}"
+        ),
+    }
 }
 
 /// **The floor's other side: a step WITHIN the band is one level.**

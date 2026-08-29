@@ -34,7 +34,18 @@ import sys
 
 R = 10.0            # mm
 B = 0.5             # base latitude, rad
-SPLIT = 1.0         # the ordinary split vertex's latitude parameter
+# The ordinary split vertex's latitude parameter, per split kind. The
+# eps twins put the split 1e-6 / 1e-7 rad off the north pole (10 nm /
+# 1 nm of arc at R = 10 mm) -- inside or beside the default tolerance
+# band, where the pole-membership decide is indeterminate and MUST
+# fold the pole level rather than refuse a solid whose exact area is
+# not in doubt.
+SPLITS = {
+    "halfcap": 1.0,
+    "halfcap_eps6": math.pi / 2.0 - 1.0e-6,
+    "halfcap_eps7": math.pi / 2.0 - 1.0e-7,
+    "halfcap_nosplit": None,
+}
 
 
 def num(c):
@@ -76,11 +87,17 @@ def build(kind):
     # Vertices on the meridian great circle in the xz-plane,
     # parameterized by latitude t on the +x side (axis (0,-1,0),
     # ref (1,0,0)): P(t) = (R cos t, 0, R sin t).
+    split = SPLITS[kind]
     pos = {
         "A": (rc, 0.0, h),                                    # (u=0, v=B)
         "B": (-rc, 0.0, h),                                   # (u=pi, v=B)
-        "C": (R * math.cos(SPLIT), 0.0, R * math.sin(SPLIT)),
     }
+    if split is not None:
+        # Only the kinds that traverse C get its entities: emitting a
+        # VERTEX_POINT for an unused name would leave an orphan
+        # VERTEX_POINT + CARTESIAN_POINT in the no-split file and make
+        # the printed census describe this dict rather than the file.
+        pos["C"] = (R * math.cos(split), 0.0, R * math.sin(split))
 
     s = Step()
     s.add("APPLICATION_PROTOCOL_DEFINITION('international standard','automotive_design',2000,#2)")
@@ -121,18 +138,15 @@ def build(kind):
         return s.add("CIRCLE('',#%d,%s)"
                      % (s.ax2((0, 0, 0), (0, -1, 0), (1, 0, 0)), num(R)))
 
-    if kind == "halfcap":
+    if split is not None:
         E["m1"] = s.add("EDGE_CURVE('',#%d,#%d,#%d,.T.)" % (V["A"], V["C"], meridian_circle()))
         E["m2"] = s.add("EDGE_CURVE('',#%d,#%d,#%d,.T.)" % (V["C"], V["B"], meridian_circle()))
         mer_fwd = [("m1", "T"), ("m2", "T")]          # A -> C -> B
         mer_rev = [("m2", "F"), ("m1", "F")]          # B -> C -> A
-    elif kind == "halfcap_nosplit":
-        del V["C"]
+    else:
         E["m"] = s.add("EDGE_CURVE('',#%d,#%d,#%d,.T.)" % (V["A"], V["B"], meridian_circle()))
         mer_fwd = [("m", "T")]
         mer_rev = [("m", "F")]
-    else:
-        raise ValueError(kind)
 
     # The base diameter: A -> B along -x at z = h.
     line = s.add("LINE('',#%d,#%d)"
@@ -209,6 +223,6 @@ print("exact volume  = %.9e mm^3 = %.9e m^3"
       % (math.pi * hm * hm * (3 * R - hm) / 6,
          math.pi * hm * hm * (3 * R - hm) / 6 * 1e-9))
 d = sys.argv[1]
-for k in ("halfcap", "halfcap_nosplit"):
+for k in ("halfcap", "halfcap_eps6", "halfcap_eps7", "halfcap_nosplit"):
     open("%s/%s.step" % (d, k), "w").write(build(k))
 print("ok")

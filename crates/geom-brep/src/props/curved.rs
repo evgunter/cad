@@ -1164,12 +1164,18 @@ fn sphere<T: Decide>(
 /// pole's span-relative direction to the nearer span endpoint,
 /// carrying the membership sign, levered at the sphere radius — the
 /// point deviation of moving the pole onto the span boundary.
-/// `Positive` = interior, `Zero` = at a span end, `Negative` =
-/// outside. The extreme is pushed on `Positive` AND on `Zero` — at a
-/// span end the endpoint latitude already sits within band² of the
-/// pole's (the latitude is quadratic at its extremum), so the two
-/// choices agree far inside any honest tolerance and the folded
-/// extent is continuous across the decision.
+/// `Negative` = outside, nothing to push; **everything else folds**
+/// — `Positive`, `Zero`, and the indeterminate band alike. At or
+/// near a span end the endpoint latitude already sits within band²
+/// of the pole's (the latitude is quadratic at its extremum), so the
+/// fold choices agree far inside any honest tolerance, the folded
+/// extent is continuous across the decision, and an indeterminate
+/// margin carries no information a refusal could honestly report.
+/// The margin still records through the funnel like any decide.
+///
+/// Total over every positive stored span: a span of `2π` or more
+/// covers the whole parameter circle and folds both poles (the
+/// membership edge saturates at a half-turn).
 ///
 /// The pole is located relative to the STORED span, as directions —
 /// no chart inversion at all, so this is not the wedge-unwrap trap
@@ -1184,7 +1190,7 @@ fn sphere_meridian_span_levels<T: Decide>(
     n_c: Vec3<T>,
     levels: &mut Vec<T>,
     band: Band,
-) -> Result<(), PropsError> {
+) {
     let w0 = e.p0() - center;
     let sa = w0.dot(axis) / radius;
     let ca = n_c.cross(w0).dot(axis) / radius;
@@ -1203,16 +1209,25 @@ fn sphere_meridian_span_levels<T: Decide>(
     // the scalar lane does not have.
     let half = T::from_f64(0.5);
     let (sd2, cd2) = (dt * half).sin_cos();
+    // The membership EDGE saturates at a half-turn: a span of 2π or
+    // more covers every direction of the parameter circle, so its
+    // edge cosine is −1 — while raw `cos(dt/2)` swings back positive
+    // past `dt = 2π` and would EXCLUDE directions a multi-wrap span
+    // covers (executed: a 3π span read the north pole `Negative` and
+    // the face measured half its area). The clamp makes the test
+    // total over every positive stored span.
+    let (_, c_edge) = (dt * half).min(T::pi()).sin_cos();
     let (sdt, cdt) = dt.sin_cos();
     for (ps, pc, extreme) in [(sa, ca, r0), (-sa, -ca, -r0)] {
         // Sign: the pole lies in the closed span iff its direction is
-        // within `dt/2` of the span's midpoint direction — one dot
-        // test, `⟨P, M⟩ − cos(dt/2)`, whose zero set on the circle is
-        // exactly the two span endpoints.
-        let f = ps * cd2 + pc * sd2 - cd2;
+        // within `min(dt/2, π)` of the span's midpoint direction —
+        // one dot test, `⟨P, M⟩ − c_edge`, whose zero set on the
+        // circle is exactly the two span endpoints (empty for a
+        // full-period span, which contains everything).
+        let f = ps * cd2 + pc * sd2 - c_edge;
         // Magnitude: the CHORD to the nearer span endpoint — levered
         // by R below, that is the point deviation of moving the pole
-        // onto the span boundary. powi(2), not x*x, as in `level_gap`.
+        // onto the span boundary. powi(2), not x*x (see `level_gap`).
         let chord_a = ((ps - T::one()).powi(2) + pc.powi(2)).sqrt();
         let chord_b = ((ps - cdt).powi(2) + (pc - sdt).powi(2)).sqrt();
         // `copysign` transfers the membership sign onto the chord; at
@@ -1220,12 +1235,24 @@ fn sphere_meridian_span_levels<T: Decide>(
         // the two-sided hull `±chord`, which is tight exactly where
         // it happens — the pole at a span endpoint, chord ≈ 0.
         let m = chord_a.min(chord_b).copysign(f);
-        match classify("props_meridian_pole", Margin::levered(m, radius), band)? {
-            Sign::Positive | Sign::Zero => levels.push(extreme),
-            Sign::Negative => {}
+        // Decided through the funnel — the margin is RECORDED like
+        // any other — but the indeterminate outcome FOLDS instead of
+        // escalating. In-band, the pole sits within the band of a
+        // span end, where the two fold choices differ by ~band²/2 in
+        // latitude — sub-band in every downstream quantity — so an
+        // indeterminate carries no information about the answer, and
+        // refusing on it would refuse a solid whose area is not in
+        // doubt (executed: a split vertex 1e-6 rad off the pole
+        // flipped certify-exactly into an import refusal). A POISONED
+        // margin lands in the same arm and folding stays loud: sa/ca
+        // poison makes the folded `±r0` poison too, which the extent
+        // and level decides downstream refuse typed; a poisoned span
+        // is refused upstream by certification before this parse.
+        match decide("props_meridian_pole", Margin::levered(m, radius), band) {
+            Ok(Sign::Positive | Sign::Zero) | Err(_) => levels.push(extreme),
+            Ok(Sign::Negative) => {}
         }
     }
-    Ok(())
 }
 
 /// Classify a sphere face's boundary into (rims, meridian great-circle
@@ -1306,7 +1333,7 @@ fn sphere_boundary<T: Decide>(
                 // The arc's extent is its stored span's, not its
                 // endpoints': fold in the pole latitude(s) the span
                 // contains (see `sphere_meridian_span_levels`).
-                sphere_meridian_span_levels(e, center, radius, axis, n_c, &mut levels, band)?;
+                sphere_meridian_span_levels(e, center, radius, axis, n_c, &mut levels, band);
             }
         }
     }
