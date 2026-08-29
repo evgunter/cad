@@ -1,24 +1,20 @@
 //! The successful explicit-[`Tolerance::init`] path.
 //!
-//! This lives in its own integration-test binary — i.e. its own process —
-//! because the global tolerance commits exactly once per process: the lib
-//! test binary's single global-state test exercises the `get()`-from-env
-//! path, so the init-first path needs a fresh process. This file must
-//! contain exactly ONE `#[test]` (a second would race it for first touch
-//! of the global).
+//! The global tolerance commits exactly ONCE PER PROCESS, and this suite
+//! needs to be the first thing to touch it. `tests/all.rs` aggregates
+//! every suite into one binary (one process under `cargo test`), and six
+//! other suites there touch `Tolerance` — so this cannot simply assert
+//! against the ambient global: whichever suite ran first would have
+//! committed it, and `init` would return `AlreadyInitialized`.
 //!
-//! That premise is load-bearing and was once quietly broken: `tests/all.rs`
-//! aggregated every suite into ONE binary to save CI link time, which put
-//! this test in the same process as six other suites that touch
-//! `Tolerance`. `cargo test -p geom-core` then failed on a clean tree —
-//! invisibly, because running it FILTERED still passes (nothing else runs
-//! to claim the lock first), and because CI stayed green: nextest forks
-//! per test, which `ci.yml` calls out as "strictly safer for the tolerance
-//! OnceLock". It now has its own `[[test]]` target again, and
-//! `all.rs`'s aggregation guard exempts it BY NAME so re-adding it is a
-//! deliberate act rather than an accident.
+//! So the assertions run in a FRESH PROCESS, via the same self-re-exec
+//! pattern the multi-ε suites use (`ambiguity_k_env.rs`,
+//! `review_m2_pr7_k.rs`, `sweep/tests/k_report.rs`): an `#[ignore]`d
+//! probe holds the real assertions, and the driver test below re-execs
+//! this binary filtered to exactly that probe, where it is the only test
+//! running and therefore the first toucher of the lock.
 //!
-//! Note this binary passes even under a malformed `CAD_TOLERANCE_EPS`, by
+//! Note this passes even under a malformed `CAD_TOLERANCE_EPS`, by
 //! design: an explicit `init` never consults the environment. The loud
 //! failure for a bogus env value lives in the lib test binary's
 //! `global_get_env_sanity_and_once_semantics`.
@@ -27,8 +23,11 @@
 
 use geom_core::{Tolerance, ToleranceError};
 
+/// The real assertions. `#[ignore]`d because it is only valid as the sole
+/// test in a process; the driver below supplies that.
 #[test]
-fn explicit_init_commits_once_and_ignores_env() {
+#[ignore]
+fn explicit_init_probe() {
     let tolerance = Tolerance::with_eps(2.5e-9);
     assert_eq!(Tolerance::init(tolerance), Ok(()));
 
@@ -50,4 +49,27 @@ fn explicit_init_commits_once_and_ignores_env() {
 
     // The committed value is unchanged.
     assert_eq!(Tolerance::get(), tolerance);
+    println!("TOLERANCE_INIT_PROBE_OK");
+}
+
+#[test]
+fn explicit_init_commits_once_and_ignores_env() {
+    let exe = std::env::current_exe().unwrap();
+    // Name the probe by MODULE PATH, not bare fn name: aggregated into
+    // `tests/all.rs` libtest sees it as `<this_module>::explicit_init_probe`,
+    // while standalone `module_path!()` has no `::` at all.
+    let probe = match module_path!().split_once("::") {
+        Some((_, m)) => format!("{m}::explicit_init_probe"),
+        None => "explicit_init_probe".to_string(),
+    };
+    let out = std::process::Command::new(&exe)
+        .args([probe.as_str(), "--ignored", "--exact", "--nocapture"])
+        .output()
+        .unwrap();
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        out.status.success() && text.contains("TOLERANCE_INIT_PROBE_OK"),
+        "explicit-init probe failed in its fresh process:\n{text}\n{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
 }

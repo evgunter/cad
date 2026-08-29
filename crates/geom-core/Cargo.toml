@@ -42,12 +42,3 @@ num-dual = { workspace = true }
 [[test]]
 name = "all"
 path = "tests/all.rs"
-
-# Its OWN binary, on purpose: the global tolerance commits exactly once
-# per process, and this suite exercises the explicit-`init`-first path.
-# Inside `all` it raced whatever else touched the global and made
-# `cargo test -p geom-core` fail on a clean tree (CI stayed green only
-# because nextest forks per test). See tests/tolerance_init.rs.
-[[test]]
-name = "tolerance_init"
-path = "tests/tolerance_init.rs"
