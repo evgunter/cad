@@ -2368,3 +2368,22 @@ klint=release-default` trailer (#1136's mechanism, landed on
 main today), so the recovery run gates the exact demos row the
 flipped tests live in, recoverable from the commit itself.
 Merge fires when a hosted run gates b42fc653.
+
+## ORDINAL 105 CLAIMED — SHELLFIX PR-2b dual (2026-08-29)
+
+2b green (#1180): THE TEAPOT UN-SQUARES — the pot ships on its
+arc meridian (wall V to closed form at 2e-19 relative; 1.3727 L;
+STEP exports). The corner census corrected the spec a third
+time (a revolve rim vertex has TWO distinct surfaces — two
+surfaces + the seam azimuth determine the point; the 3×3 was
+2a's shape, not the revolve's); the coaxial cylinder∩sphere
+closed-form corner solve accepted at adjudication (no route
+widening, no marcher; non-coaxial refuses typed); the rim-lift
+fix accepted (the opened pot forced it; the fence held). Two
+latent defects for the dual to verify: offset_surface's
+nappe-blind cone arm (a frustum GREW when asked to shrink) and
+the old rim-lift transport error. Two banked laws: the
+dimensionless meter's lever is the ARC length (a one-seam
+chart's chord is zero); axis frames canonicalize at the world
+origin or stations cost the ULP that is a bit-identity claim.
+Full dual, frozen head 00038fe6; claim to main at dispatch.
