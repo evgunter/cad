@@ -219,9 +219,9 @@ fn fourth_argument(blanked: &str, raw: &str) -> std::ops::Range<usize> {
             _ => {}
         }
     }
-    let from = *starts.get(3).unwrap_or_else(|| {
-        panic!("decide_flagged call with fewer than 4 arguments: {raw:.200}")
-    });
+    let from = *starts
+        .get(3)
+        .unwrap_or_else(|| panic!("decide_flagged call with fewer than 4 arguments: {raw:.200}"));
     // The argument ends at the next top-level comma, or at the closing
     // `)` when it is the last one.
     from..starts.get(4).map_or(blanked.len(), |n| n - 1)

@@ -62,7 +62,6 @@ struct Entry {
     disposition: Disposition,
 }
 
-#[derive(PartialEq, Eq)]
 enum Disposition {
     /// Reads Rust source through [`test_utils::source`]. The
     /// destination for every member of this class.
@@ -85,7 +84,144 @@ use Disposition::{Home, NotRust, Shared, Unconverted};
 ///
 /// Sorted by path. Adding a line is a deliberate act and the enum above
 /// says which acts are honest.
-const LEDGER: &[Entry] = &[];
+const LEDGER: &[Entry] = &[
+    Entry {
+        path: "crates/bvh/tests/aggregator_headers.rs",
+        disposition: Shared, // prose + literal views
+    },
+    Entry {
+        path: "crates/bvh/tests/all.rs",
+        disposition: Shared, // mount guard, literal view
+    },
+    Entry {
+        path: "crates/editor-core/tests/all.rs",
+        disposition: Shared, // mount guard, literal view
+    },
+    Entry {
+        path: "crates/editor-core/tests/gui1_pick_r2.rs",
+        disposition: Shared, // public-surface scan, code view
+    },
+    Entry {
+        path: "crates/editor-core/tests/schema_ledger.rs",
+        disposition: Shared, // doc-comment ledger, prose view
+    },
+    Entry {
+        path: "crates/geom-brep/tests/all.rs",
+        disposition: Shared, // mount guard, literal view
+    },
+    Entry {
+        path: "crates/geom-brep/tests/pcurve_conic.rs",
+        disposition: Shared, // wildcard-arm scan, code view
+    },
+    Entry {
+        path: "crates/geom-core/tests/all.rs",
+        disposition: Shared, // mount guard, literal view
+    },
+    Entry {
+        path: "crates/geom-core/tests/flagged_census.rs",
+        disposition: Shared, // call census, code view + offsets
+    },
+    Entry {
+        path: "crates/geom/tests/all.rs",
+        disposition: Shared, // mount guard, literal view
+    },
+    Entry {
+        path: "crates/mesh/tests/all.rs",
+        disposition: Shared, // eps inventory, code view
+    },
+    Entry {
+        path: "crates/pncad/tests/all.rs",
+        disposition: Unconverted("Track E, issue #763 — `code_without_comments`, line-based"),
+    },
+    Entry {
+        path: "crates/profile/tests/all.rs",
+        disposition: Shared, // mount guard, literal view
+    },
+    Entry {
+        path: "crates/profile/tests/seal.rs",
+        disposition: Shared, // serde-free seal, code view
+    },
+    Entry {
+        path: "crates/step-export/tests/all.rs",
+        disposition: Shared, // mount guard, literal view
+    },
+    Entry {
+        path: "crates/step-import/src/parse.rs",
+        disposition: NotRust("STEP Part 21"),
+    },
+    Entry {
+        path: "crates/step-import/tests/all.rs",
+        disposition: Shared, // mount guard, literal view
+    },
+    Entry {
+        path: "crates/step-import/tests/tier_gate.rs",
+        disposition: Shared, // validator call sites, code view
+    },
+    Entry {
+        path: "crates/stl/tests/all.rs",
+        disposition: Shared, // mount guard, literal view
+    },
+    Entry {
+        path: "crates/sweep/src/fillet/admit.rs",
+        disposition: Unconverted("Track T — raw `include_str!`, no reader at all"),
+    },
+    Entry {
+        path: "crates/sweep/tests/all.rs",
+        disposition: Shared, // mount guard, literal view
+    },
+    Entry {
+        path: "crates/test-utils/src/source.rs",
+        disposition: Home,
+    },
+    Entry {
+        path: "crates/test-utils/tests/reader_census.rs",
+        disposition: Shared, // this census, literal view
+    },
+    Entry {
+        path: "crates/topo/src/boolean/boxes.rs",
+        disposition: Unconverted("Track Q — reads through topo's private `source_walk::CodeOnly`"),
+    },
+    Entry {
+        path: "crates/topo/src/chord_join.rs",
+        disposition: Unconverted("Track Q — whitespace-stripped raw text, no reader"),
+    },
+    Entry {
+        path: "crates/topo/src/face_normal.rs",
+        disposition: Unconverted("Track Q — raw text, plus topo's private `fixtures::code_only`"),
+    },
+    Entry {
+        path: "crates/topo/src/fixtures.rs",
+        disposition: Unconverted("unowned — `code_only`, the second topo blanker"),
+    },
+    Entry {
+        path: "crates/topo/src/review_d18.rs",
+        disposition: Unconverted("Track P — raw text and a `\n    }\n` body carve"),
+    },
+    Entry {
+        path: "crates/topo/src/review_d18_probes.rs",
+        disposition: Unconverted("Track P — line-leading `//` only"),
+    },
+    Entry {
+        path: "crates/topo/src/sector_shape.rs",
+        disposition: Unconverted("Track Q — raw text, no reader at all"),
+    },
+    Entry {
+        path: "crates/topo/src/source_walk.rs",
+        disposition: Unconverted("unowned — `CodeOnly`, the other topo blanker"),
+    },
+    Entry {
+        path: "crates/topo/tests/all.rs",
+        disposition: Shared, // mount guard, literal view
+    },
+    Entry {
+        path: "crates/viewer/tests/all.rs",
+        disposition: Shared, // mount guard, literal view
+    },
+    Entry {
+        path: "tools/tess-meter/tests/derivations.rs",
+        disposition: Unconverted("Track K — its own string-continuation lexer"),
+    },
+];
 
 /// The repository root, for both ways the suite runs: a plain
 /// `cargo test` against the baked manifest dir, and a nextest ARCHIVE
@@ -170,9 +306,24 @@ fn every_site_that_reads_rust_source_is_in_the_ledger() {
         }
     }
     found.sort();
+    // A WALK THAT MATCHES NOTHING IS NOT A PASS. The set is derived
+    // from the tree, so a broken traversal or a detector that stopped
+    // matching looks exactly like a clean one.
+    assert!(
+        found.len() >= 20,
+        "the census found only {} source-reading sites — the walk or the detector \
+         stopped working, and an empty ledger would agree with it: {found:#?}",
+        found.len()
+    );
     let ledger: Vec<&str> = LEDGER.iter().map(|e| e.path).collect();
-    let unlisted: Vec<&String> = found.iter().filter(|f| !ledger.contains(&f.as_str())).collect();
-    let stale: Vec<&&str> = ledger.iter().filter(|l| !found.iter().any(|f| f == *l)).collect();
+    let unlisted: Vec<&String> = found
+        .iter()
+        .filter(|f| !ledger.contains(&f.as_str()))
+        .collect();
+    let stale: Vec<&&str> = ledger
+        .iter()
+        .filter(|l| !found.iter().any(|f| f == *l))
+        .collect();
     assert!(
         unlisted.is_empty() && stale.is_empty(),
         "the source-reader ledger no longer matches the tree.\n  \
@@ -181,21 +332,48 @@ fn every_site_that_reads_rust_source_is_in_the_ledger() {
     );
 }
 
+/// **The debt, and it only shrinks.** Every [`Unconverted`] entry is a
+/// site reading Rust source through something other than the shared
+/// lexer, with the track that owns its file. A lane that converts one
+/// deletes its line and lowers this number; **nothing may raise it**,
+/// which is the half of this row that makes a new hand-rolled reader
+/// cost something rather than merely being visible.
 #[test]
-fn the_unconverted_list_only_shrinks() {
-    let unconverted = LEDGER
+fn the_unconverted_readers_only_ever_shrink() {
+    let outstanding: Vec<String> = LEDGER
         .iter()
-        .filter(|e| matches!(e.disposition, Unconverted(_)))
-        .count();
+        .filter_map(|e| match e.disposition {
+            Unconverted(owner) => Some(format!("{} — {owner}", e.path)),
+            Home | Shared | NotRust(_) => None,
+        })
+        .collect();
     assert!(
-        unconverted <= UNCONVERTED_CEILING,
-        "{unconverted} unconverted hand-rolled Rust readers, ceiling {UNCONVERTED_CEILING}. \
-         This number is a debt, not a budget: a lane that converts one lowers it, and \
-         nothing may raise it."
+        outstanding.len() <= UNCONVERTED_CEILING,
+        "{} readers outside the shared lexer, ceiling {UNCONVERTED_CEILING}. This is a \
+         DEBT, not a budget: converting one lowers it and nothing raises it. \
+         Outstanding: {outstanding:#?}",
+        outstanding.len()
     );
-    let _ = (Home, Shared, NotRust(""));
 }
 
-/// The number of hand-rolled Rust readers still outside the shared
-/// lexer. **A ceiling, never a target** — see the row above.
-const UNCONVERTED_CEILING: usize = 0;
+/// The number of sites still reading Rust source through something
+/// other than [`test_utils::source`]. **A ceiling, never a target.**
+const UNCONVERTED_CEILING: usize = 11;
+
+/// **A disposition that says "not Rust" must say which language.** The
+/// escape hatch in this ledger is the `NotRust` line, so it is the one
+/// that has to carry its reason: *"the shared Rust lexer is not what
+/// this wants"* is a claim about a language, and an unnamed language
+/// is not a claim.
+#[test]
+fn every_not_rust_entry_names_its_language() {
+    for entry in LEDGER {
+        if let NotRust(language) = entry.disposition {
+            assert!(
+                !language.trim().is_empty(),
+                "{} is dispositioned NotRust with no language named",
+                entry.path
+            );
+        }
+    }
+}

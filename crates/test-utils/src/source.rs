@@ -128,13 +128,11 @@ pub fn comments_only(text: &str) -> String {
 
 /// Copy `bytes` through, or blank them keeping newlines.
 fn emit(out: &mut Vec<u8>, bytes: &[u8], kept: bool) {
-    out.extend(bytes.iter().map(|&c| {
-        if kept || c == b'\n' {
-            c
-        } else {
-            b' '
-        }
-    }));
+    out.extend(
+        bytes
+            .iter()
+            .map(|&c| if kept || c == b'\n' { c } else { b' ' }),
+    );
 }
 
 /// The end offset and region of the span starting at `i`.
@@ -148,7 +146,10 @@ fn span(b: &[u8], i: usize) -> (usize, Region) {
     }
     match b[i] {
         b'/' if b.get(i + 1) == Some(&b'/') => {
-            let end = b[i..].iter().position(|&c| c == b'\n').map_or(b.len(), |r| i + r);
+            let end = b[i..]
+                .iter()
+                .position(|&c| c == b'\n')
+                .map_or(b.len(), |r| i + r);
             (end, Region::Comment)
         }
         b'/' if b.get(i + 1) == Some(&b'*') => {
@@ -232,7 +233,14 @@ fn raw_string_len(b: &[u8], i: usize) -> Option<usize> {
         if k >= b.len() {
             return Some(b.len() - i);
         }
-        if b[k] == b'"' && b[k + 1..].iter().take(hashes).filter(|c| **c == b'#').count() == hashes {
+        if b[k] == b'"'
+            && b[k + 1..]
+                .iter()
+                .take(hashes)
+                .filter(|c| **c == b'#')
+                .count()
+                == hashes
+        {
             return Some((k + 1 + hashes).min(b.len()) - i);
         }
         k += 1;
@@ -343,7 +351,10 @@ mod tests {
     #[test]
     fn every_hiding_place_is_blanked_and_no_code_read_is_lost() {
         for row in HIDING_PLACES {
-            assert!(row.contains("eps"), "a row cannot hide what it lacks: {row}");
+            assert!(
+                row.contains("eps"),
+                "a row cannot hide what it lacks: {row}"
+            );
             assert_eq!(
                 code_only(row).matches("eps").count(),
                 0,
@@ -370,7 +381,10 @@ mod tests {
         let dead = "// #[path = \"e4_dual_door.rs\"]\n";
         assert!(code_and_literals(live).contains("#[path = \"e4_dual_door.rs\"]"));
         assert!(!code_and_literals(dead).contains("#[path = \"e4_dual_door.rs\"]"));
-        assert!(!code_only(live).contains("e4_dual_door"), "code view blanks it");
+        assert!(
+            !code_only(live).contains("e4_dual_door"),
+            "code view blanks it"
+        );
         // And a literal is a literal wherever it sits: a needle inside
         // a doc comment is prose, not a site.
         assert!(!code_and_literals("/// #[path = \"x.rs\"]").contains("x.rs"));
@@ -419,7 +433,11 @@ mod tests {
     #[test]
     fn line_structure_survives_so_a_caller_can_report_a_line_number() {
         let multi = "a\n// eps\nb\n";
-        for view in [code_only(multi), comments_only(multi), code_and_literals(multi)] {
+        for view in [
+            code_only(multi),
+            comments_only(multi),
+            code_and_literals(multi),
+        ] {
             assert_eq!(view.lines().count(), multi.lines().count());
         }
         assert_eq!(code_only(multi).lines().nth(1).unwrap().trim(), "");
@@ -453,7 +471,10 @@ mod tests {
         assert_eq!(code_only(hashed).matches("eps").count(), 1);
         assert!(!code_only(hashed).contains("quoted"), "body is a literal");
         // An identifier ENDING in b/c/r before a quote is not a prefix.
-        assert!(code_only("let ab = ar\"x\";").contains("ar"), "not a raw string");
+        assert!(
+            code_only("let ab = ar\"x\";").contains("ar"),
+            "not a raw string"
+        );
     }
 
     #[test]
