@@ -1901,3 +1901,29 @@ re-merge; meaning: "Node::Chamfer, the chamfer recipe door".** Lane
 lib-g16, branch lib/g16-chamfer. Ordinal claimed at review dispatch.
 Row at merge.
 | M10-P | 2026-08-29 | M10-P (PR #1174; PROFILE-LIFT-DESIGN PP1–PP6, ratified with Evan's recorded hedge): the profile-parameter lift — the structure record (`profile::structure`), guided replay consuming-and-re-verifying the f64 elaboration's decisions (S8 ladder never runs at the lane; the other-pocket consumption receipt), pinned canonicalization/naming, both editor-core ladders (`section_of` now CALLS `prepare_profile` — fork structurally impossible), lane geometry into content keys via ContentBits (tag v2→v3), bit-identity fence with pass 2 default OFF; the mandated latent-generic first commit found a REAL Interval break (the floor-based period-fold widening, `[−τ,τ]` from exact 0) — pinned as census, filed as class | M–L (pre-draw) | OPUS (block M10-B1 slot 3 — the block's last) | **DUAL (ordinal 502; sample #42 at merge; parity byte 169 ⇒ R1 FABLE + R2 OPUS, concurrent, frozen 55b1fd13, v5 instrument; briefs symmetric, no relaxations; the unit lane died once at a session limit mid-verification and resumed hours later with zero loss — worktree clean at the pushed tip; annotate the wall-clock gap, not the pair). Both arms re-derived the fence independently on the TRUE merge base (5fed0960 — the PR had cited a stale SHA) at greater depth than the unit's instrument; R2 additionally covered Probe, which CI never runs. R1 A-W-F 1/5/5, rubric 4/4/3 — the MAJ: the `reduce_periodic` sweep receipt omitted seven same-spelling sites, so the filed class was misstated (record integrity, by independent sweep). R2 A-W-F 3/10/8, rubric 4/3/3 — unique: the interval-box capability unreachable through any public door with only the Dual half disclosed (adjudicated: the door IS M10-3's first spec bullet — disclosure, not machinery); the typed `Structure` vocabulary reaching 1 of the record's 11 decision classes vs the claim; same-shape floor-folds in topo the helper-name sweep missed. Correspondence: the receipt/class MAJORs bilateral in substance (R1 by spelling, R2 by shape — dedup single); the vocabulary MAJ bilateral with R1's fit-case MINOR. TALLY CANDIDATES: R2's interval-door disclosure MAJ unilateral (doc/disclosure-class annotation for the blinded coding); no execution-class unilateral MAJ either arm | R1 counted 1 silent (the scalar_channels guided extension mandated and undone); R2 counted 4 (the interval half; the vocabulary reach; the key-bump radius; the fence corpus reaching no arc-carrier fillet) | 1 | 4 | 4 | 3 (R1's triple; R2's 4/3/3 in the dual cell) | substantial, IMPLEMENTER-INHERITED: four new decision-naming refusal sites + three claims honestly re-scoped (per-field table in the PR); the class re-swept BY SHAPE (4→15 hits) and FILED as #1191; the interval-door disclosure landed at three homes; fence gains an arc-carrier fixture (the differential now executes `arc_fillet::resolve`), the Probe row rostered, Index/Count made distinct types; `scalar_channels` guided twin added; the per-arm guide convention CHECKED (`GuideNotInstalled` + a seven-verb census); embed_affine one-homed; declines argued. CI's eps-sampling caught a REAL eps-dependence in the lane's own fence (refusal messages carried band text into the digest — outcomes only now); a probe-census selftest broken-pipe flake recorded with evidence in CI-MINUTES rather than worked around | impl CI 3426 GREEN (interval requested, default ε) after two honest reds (a genuine additivity-gate catch; stale-main); fix CI 3477 GREEN 21/21 (interval requested, default ε) after the eps=1e-12 fence draw caught the digest defect; the #1190 main red the lane flagged was fixed orchestrator-direct at #1193 pre-merge | impl ~495K + resume ~44K / fix ~320K / R1 ~304K / R2 ~307K | impl ~4h active (+ a session-limit gap, annotated) / fix ~3h / R1 ~30m / R2 ~30m |
+
+BLEND-1 review ordinal fixed at dispatch (2026-08-29, PR #1222
+open — frozen head `85047cbe`): **ordinal 600** (the BLEND band's
+first claim; single claimant in band; claimed to main on its own
+docs branch at review dispatch, per protocol). Protocol v6 dual:
+draw = `/dev/urandom` byte **77**, parity 1 ⇒ **R1 = FABLE, R2 =
+OPUS**. **Method note, recorded before either review ran and
+applying to BOTH arms identically: the reviews run SEQUENTIALLY on
+the frozen head, not concurrently** — this host cannot safely hold
+two review lanes' build targets (19G free at dispatch), and the
+build mutex serializes their heavy phases anyway. Same-head
+comparison holds by construction; identical briefs, both AUTHORED
+AND STORED before R1 dispatched (so R1's report cannot shape R2's
+brief); neither reviewer sees the other's report, branches, or
+lane; read isolation in both briefs. Symmetric by design — recorded
+so the blinded adjudication can weigh it, not as a relaxation of
+one arm. Pre-draw difficulty: **M-L** (logged before the block
+draw, branch-side record). Impl phase (for the row at merge): ~430k
+tokens lane-reported (~370k harness), ~4h wall (~80m of CI polling
+and eps rows, one disclosed clippy red fixed in-lane), impl CI
+33271411468 GREEN on `85047cbe` ({interval, default eps} drawn;
+sweep suite locally at default/1e-6/1e-12, topo+editor-core at both
+off-default rows, workspace clippy both modes). Base-tree findings
+routed at dispatch: issues 1234 (reader_census dot-path
+blindness), 1235 (m10_p_lift default-features clippy red). Row at
+merge.
