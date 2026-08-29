@@ -1679,3 +1679,29 @@ process note, honestly: the pre-merge "lane stalled" read was WRONG —
 liveness was judged from processes and branch pushes without checking
 the PR list; the lane had been done and gated for an hour. Check
 open PRs before declaring a lane stalled.
+
+**B-READBACK MERGED (2026-08-29, #1216; mechanical under the 08-29
+ruling, no A/B row). Census family B-READBACK CLOSED — "a name
+answers with VALUES, never keys" gets its first Python face.**
+`Evaluation.face_frame`/`edge_frame`/`vertex_position`/`denotation`
++ `Pose`/`Denotation`/typed `ReadbackError` (Pose deliberately
+carries no `==`, mirroring geom_core's absent PartialEq; directions
+cross dimensionless per the place.rs rule). The census learned HOW A
+FAMILY CLOSES (no precedent existed; the decay guard forces the
+charter out, the closure paragraph records the unit). Row 47's
+face_frame ask answered against the placement arithmetic, red at a
+1-in-10^4 perturbation. **MERGED RED on two main-inherited legs, on
+Evan's explicit in-chat authorization ("you can merge those PRs red
+if you've already determined it wasn't your fault")**: the
+default-lane clippy red (#1174's — since fixed on main by M10's
+#1226, so moot at this merge) and the teapot k-lint (#1223 — the
+re-baseline is in flight on lib/tess-rebaseline, reading done per
+the gate's own recourse ladder: face genuinely replaced
+cylinder→sphere, growth is #1180's documented curvature, slack table
+untouched). Banked, register category A: **DanglingRef uncurated**
+(ReadbackError::Dangling's payload type absent from the façade's
+lists, so the two dangling lanes share one tag) — joins the curation
+micro-unit queue. Process lesson kept honest: two lanes were
+reported reclaimed in prose without the command having run —
+reclaims are now verified by listing, the GUIDE-ASM lesson's
+sibling.
