@@ -89,21 +89,37 @@ fn d1_collinear_merges_bent_refuses_asserted() {
     assert_eq!(census(&b), before, "refusal leaves the body untouched");
 }
 
-/// D2 — the meter's three arms at the ε edge (ε = 1e-9, K = 10; the
-/// perpendicular offset of the mid vertex from the diagonal is d/√2 and
-/// the collinear margin is ~0.707·d):
-/// well inside `zero` ⇒ repairs; inside the ambiguity band ⇒ the typed
-/// `Escalated` refusal (the indeterminate arm is honest, not a guess);
-/// beyond `escalate` ⇒ the bent-path refusal.
+/// D2 — the meter's three arms at the ε edge: well inside `zero` ⇒
+/// repairs; inside the ambiguity band ⇒ the typed `Escalated` refusal
+/// (the indeterminate arm is honest, not a guess); beyond `escalate`
+/// ⇒ the bent-path refusal.
+///
+/// **The three offsets are DERIVED from the run's band, not written
+/// for one ε.** As adopted this row hardcoded d = 1e-10 / 5e-9 / 1e-3,
+/// which are the right three arms only at ε = 1e-9: at ε = 1e-12 the
+/// first offset sits ABOVE `escalate` and the mechanism correctly
+/// refuses it, and at ε = 1e-6 the second sits inside `zero` and
+/// correctly merges. The hosted interval shard at eps = 1e-12 caught
+/// exactly that. The reviewer's structure and intent are unchanged;
+/// what moved is that each arm now asks the band where it is. The
+/// perpendicular offset of the mid vertex from the diagonal is d/√2,
+/// so the collinear margin is ~0.707·d and `d = m/0.707` places a
+/// margin `m` — but rather than re-deriving that constant, the three
+/// offsets are simply the reviewer's own (1e-10, 5e-9, 1e-3) expressed
+/// as multiples of `zero` (0.1x, 5x, 1e6x), which reproduces their
+/// values exactly at ε = 1e-9 and tracks the band elsewhere.
 #[test]
 fn d2_near_collinear_band_arms() {
     let tol = Tol::witness();
+    let band = geom_core::Band::linear(tol).expect("linear band");
+    let (zero, escalate) = (band.zero(), band.escalate());
 
-    // (a) d = 1e-10: margin ~7e-11 < ε — decidedly collinear in-band.
-    let mut b = split_top_at(Point3::new(1.0, 1.0 + 1e-10, 1.0));
+    // (a) 0.1x zero — decidedly collinear.
+    let d_a = zero * 0.1;
+    let mut b = split_top_at(Point3::new(1.0, 1.0 + d_a, 1.0));
     let out = b.merge_coplanar_faces(tol);
     println!(
-        "[d2a] d=1e-10 => {:?}",
+        "[d2a] d={d_a:e} (zero={zero:e}) => {:?}",
         out.as_ref().map(|o| o.groups.len())
     );
     let out = out.expect("in-band deviation merges (locus change < eps)");
@@ -114,24 +130,26 @@ fn d2_near_collinear_band_arms() {
         "tier 3 after in-band repair"
     );
 
-    // (b) d = 5e-9: margin ~3.5e-9 in (ε, 10ε) — the ambiguity band.
-    let mut b = split_top_at(Point3::new(1.0, 1.0 + 5e-9, 1.0));
+    // (b) 5x zero — inside the ambiguity band (zero, escalate).
+    let d_b = zero * 5.0;
+    let mut b = split_top_at(Point3::new(1.0, 1.0 + d_b, 1.0));
     let before = census(&b);
     let err = b
         .merge_coplanar_faces(tol)
         .expect_err("the ambiguity band must escalate typed, never guess");
-    println!("[d2b] d=5e-9 => {err:?}");
+    println!("[d2b] d={d_b:e} (band {zero:e}..{escalate:e}) => {err:?}");
     assert!(
         matches!(err, topo::MergeCoplanarError::Escalated { .. }),
         "expected the typed escalation — got {err:?}"
     );
     assert_eq!(census(&b), before, "escalation leaves the body untouched");
 
-    // (c) d = 1e-3: decidedly bent.
-    let mut b = split_top_at(Point3::new(1.0, 1.0 + 1e-3, 1.0));
+    // (c) 1e6x zero — decidedly bent.
+    let d_c = zero * 1.0e6;
+    let mut b = split_top_at(Point3::new(1.0, 1.0 + d_c, 1.0));
     let before = census(&b);
     let err = b.merge_coplanar_faces(tol).expect_err("bent refuses");
-    println!("[d2c] d=1e-3 => {err:?}");
+    println!("[d2c] d={d_c:e} => {err:?}");
     assert_eq!(census(&b), before);
 }
 
