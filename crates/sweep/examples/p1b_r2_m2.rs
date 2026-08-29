@@ -19,6 +19,11 @@
 //!
 //! Prints; asserts nothing. Evidence for a review, not a gate.
 
+// A reviewer's evidence binary, not a library door: it fails LOUDLY on
+// any unexpected state, which is the point. Same allowance the test
+// targets carry, for the same reason.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use geom::Surface;
 use geom_core::{Band, Point2, Tol, Vec2};
 use profile::RawLoop;

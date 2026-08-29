@@ -22,7 +22,7 @@
 use core::f64::consts::PI;
 
 use geom::Surface;
-use geom_brep::{EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, MappedCurve};
+use geom_brep::{EdgeDescription, EdgeDescriptionSpec, MappedCurve};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::fillet::fillet_edges;
@@ -31,7 +31,7 @@ use sweep::{
     tube_along_arc_hollow,
 };
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
-use topo::{Body, BooleanDeclarations, CurveGeom, EdgeKey, ReplaceFaceError, ValidationError};
+use topo::{Body, BooleanDeclarations, CurveGeom, EdgeKey, ValidationError};
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)

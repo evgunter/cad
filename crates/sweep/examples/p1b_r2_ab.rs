@@ -18,6 +18,11 @@
 //! The question: on `die_fillet`'s own shape — a unit cube, all twelve
 //! edges, so every support is a PLANE — does the conversion certify?
 
+// A reviewer's evidence binary, not a library door: it fails LOUDLY on
+// any unexpected state, which is the point. Same allowance the test
+// targets carry, for the same reason.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use geom::Surface;
 use geom_core::{Band, Point2, Tol};
 use profile::RawLoop;

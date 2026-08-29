@@ -9,6 +9,11 @@
 //! Run with `--features interval`; ε comes from `CAD_TOLERANCE_EPS`.
 //! Prints; asserts nothing.
 
+// A reviewer's evidence binary, not a library door: it fails LOUDLY on
+// any unexpected state, which is the point. Same allowance the test
+// targets carry, for the same reason.
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 #[cfg(feature = "interval")]
 fn main() {
     use geom::Surface;

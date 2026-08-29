@@ -159,26 +159,26 @@ fn all_edges(body: &Body<f64>) -> Vec<EdgeKey> {
 /// The row reports EVERY offender before failing.
 #[test]
 fn r2_no_product_verb_hands_back_a_scaffold_at_rest() {
-    let mut bodies: Vec<(&'static str, Body<f64>)> = Vec::new();
-
-    bodies.push(("euler cube", cube(1.0, Tol::witness())));
-    bodies.push(("extrude slab", slab(0.0, 0.0, 2.0, 0.0, 2.0)));
-    bodies.push(("extrude arc prism", arc_prism()));
-    bodies.push(("revolve full tube", tube()));
-    bodies.push((
-        "revolve full ball-ish annulus",
-        revolved(
-            &[(0.2, 0.0), (0.5, 0.0), (0.5, 1.0), (0.2, 1.0)],
-            Revolution::Full,
+    let mut bodies: Vec<(&'static str, Body<f64>)> = vec![
+        ("euler cube", cube(1.0, Tol::witness())),
+        ("extrude slab", slab(0.0, 0.0, 2.0, 0.0, 2.0)),
+        ("extrude arc prism", arc_prism()),
+        ("revolve full tube", tube()),
+        (
+            "revolve full ball-ish annulus",
+            revolved(
+                &[(0.2, 0.0), (0.5, 0.0), (0.5, 1.0), (0.2, 1.0)],
+                Revolution::Full,
+            ),
         ),
-    ));
-    bodies.push((
-        "revolve partial wedge",
-        revolved(
-            &[(0.4, 0.0), (0.8, 0.0), (0.8, 0.6), (0.4, 0.6)],
-            Revolution::Partial(1.1),
+        (
+            "revolve partial wedge",
+            revolved(
+                &[(0.4, 0.0), (0.8, 0.0), (0.8, 0.6), (0.4, 0.6)],
+                Revolution::Partial(1.1),
+            ),
         ),
-    ));
+    ];
 
     // Loft — the cap rims that go through the scaffolding door until
     // their planes exist.
