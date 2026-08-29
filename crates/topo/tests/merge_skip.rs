@@ -9,8 +9,9 @@
 //!   edges are re-described against the ACTUAL adjacency — no stale
 //!   `Intersection`/`Seam` rows citing no-longer-adjacent surfaces);
 //! - the skip is VISIBLE (F2): `BooleanNaming::merge_skipped` carries
-//!   the group's faces and the real refusing diagnostics (F3), never
-//!   a write-only record or a generic label.
+//!   the group's faces and the group's own typed refusal (F3), never
+//!   a write-only record, a generic label, or a rendering a consumer
+//!   would have to parse.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -19,7 +20,9 @@ mod common;
 use common::{flush_declarations, prism_z};
 use geom_core::Tol;
 use topo::validate::{validate_closed, validate_geometric};
-use topo::{Body, BooleanResult, mass_properties, union_with, validate_pseudomanifold};
+use topo::{
+    Body, BooleanResult, MergeCoplanarError, mass_properties, union_with, validate_pseudomanifold,
+};
 
 fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
     prism_z::<f64>(&[(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)], z.0, z.1).body
@@ -63,11 +66,17 @@ fn skipped_declared_merge_is_tier3_green_and_visible() {
     );
     for skip in &bb.naming.merge_skipped {
         assert!(!skip.faces.is_empty(), "skip records name their faces");
-        assert!(
-            skip.reason.contains("never-elide") || skip.reason.contains("refused:"),
-            "skip reason carries the actual diagnostics, got {:?}",
-            skip.reason
-        );
+        // The reason is the refusal ITSELF, matchable, with its
+        // payload intact — not a rendering a consumer must parse.
+        // Both cap groups fail the sub-stage's tier-2 gate, so the
+        // variant is pinned rather than left to a set.
+        let MergeCoplanarError::ResultNotClosed { errors } = &skip.reason else {
+            panic!(
+                "skip carries the group's own typed refusal, got {:?}",
+                skip.reason
+            )
+        };
+        assert!(!errors.is_empty(), "the tier-2 findings ride the refusal");
         // Every recorded face is live in the result (the record
         // describes the shipped body, not a dead intermediate).
         for f in &skip.faces {

@@ -72,21 +72,25 @@ pub struct MergedGroup {
     pub killed_vertices: Vec<VertexKey>,
 }
 
-/// A declared-licensed merge group that was NOT glued (M4 PR 5): its
-/// shape is outside the merge's never-elide Euler inventory. Loud in
-/// the record, never a silent drop — and never a partial commit.
-#[derive(Clone, Debug, PartialEq, Eq)]
+/// A merge group that was NOT glued: its shape is outside the merge's
+/// never-elide Euler inventory. Loud in the record, never a silent
+/// drop — and never a partial commit.
+#[derive(Clone, Debug, PartialEq)]
 pub struct SkippedMerge {
     /// The group's faces (group order).
     pub faces: Vec<FaceKey>,
-    /// Why the glue was not performed — the ACTUAL refusing
-    /// diagnostics, rendered (the sub-stage's Euler/tier-2 error),
-    /// never a generic label (M4 PR 5 review F3).
-    pub reason: String,
+    /// The refusal that stopped the glue, carried whole — the same
+    /// [`MergeCoplanarError`] this group would have refused the whole
+    /// call with under the other regime
+    /// ([`Body::merge_coplanar_faces_declared`] states which group
+    /// gets which). The regime decides what BECOMES of a refusal; it
+    /// never decides what the refusal says, so a caller matches this
+    /// exactly as it would match an `Err`.
+    pub reason: MergeCoplanarError,
 }
 
 /// The outcome of one [`Body::merge_coplanar_faces`] call.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct MergeCoplanarOutcome {
     /// The merged runs, in group order (first face's arena order).
     pub groups: Vec<MergedGroup>,
@@ -103,6 +107,31 @@ enum MergeRung {
     Hard,
     /// A per-call declared surface pair.
     DeclaredPair,
+}
+
+/// What becomes of one group's refusal — the door's two failure
+/// regimes, named so the boundary between them is a value rather than
+/// a condition spelled inline.
+///
+/// Both regimes raise the SAME [`MergeCoplanarError`]; only its fate
+/// differs, which is why nothing here duplicates that enum. A group's
+/// regime is a property of the group (how its adjacency was licensed,
+/// and whether its surface is curved), never of the refusal.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum GroupRegime {
+    /// The refusal is the CALL's refusal: nothing commits and the
+    /// body is untouched. Structural planar runs — the ratified
+    /// whole-refusal semantics.
+    RefusesTheCall,
+    /// The refusal is recorded in [`MergeCoplanarOutcome::skipped`]
+    /// and the remaining groups commit. Declared-licensed runs (the
+    /// declaration served the consuming op's classification even
+    /// where the glue is outside the inventory) and curved runs (a
+    /// full-period closure keeps the operands' cut-carrying canonical
+    /// form). The group is staged on its own clone and adopted only
+    /// after its own tier-2 gate, so a recorded skip is never a
+    /// partial commit.
+    RecordsASkip,
 }
 
 /// A refused [`Body::merge_coplanar_faces`] call (closed enum, D3
@@ -149,6 +178,10 @@ pub enum MergeCoplanarError {
     },
     /// An internal Euler step refused — surfaced typed (unreachable on
     /// tier-2 input in the supported inventory; never a panic, D9).
+    /// Also the spelling for a stale key the surgery's own plan steps
+    /// observe ([`EulerOpError::StaleKey`]): the state is the one the
+    /// operators name and the caller's recourse is identical, so it
+    /// is not given a second name here.
     Op {
         /// The refusing operator's error.
         error: EulerOpError,
@@ -394,6 +427,24 @@ impl<T: Decide> Body<T> {
     /// across shared edges); a pair whose keys do not resolve is a
     /// typed refusal.
     ///
+    /// # Two failure regimes, one refusal vocabulary
+    ///
+    /// A group's refusal either **refuses the call** or is **recorded
+    /// as a [`SkippedMerge`]** while the remaining groups commit, and
+    /// which of the two is a property of the GROUP, never of the
+    /// refusal: declared-licensed and curved runs record, structural
+    /// planar runs refuse. Both raise the same
+    /// [`MergeCoplanarError`] and a recorded one is carried whole in
+    /// [`SkippedMerge::reason`], so the diagnosis a caller can make
+    /// does not depend on which side of the boundary a group fell.
+    ///
+    /// The recording side is bounded the same way the refusing side
+    /// is: each such group is staged on its own clone behind its own
+    /// tier-2 gate, so a recorded skip leaves the run exactly as it
+    /// was — never a partial commit, and the unglued coplanar
+    /// adjacency persists as the operands already carried it (and
+    /// refuses loudly downstream if reused undeclared).
+    ///
     /// # Errors
     ///
     /// [`MergeCoplanarError`], the body untouched in every case.
@@ -487,62 +538,37 @@ impl<T: Decide> Body<T> {
         }
         // ---- Staged surgery on a clone. ----
         //
-        // Structural / same-source groups keep the ratified
-        // whole-refusal semantics. DECLARED-licensed groups (any
-        // member joined through a declared pair) are attempted each
-        // on its own sub-stage: shapes outside the never-elide
-        // inventory (e.g. chain-shaped shared seam edges, whose full
-        // kill would strand interior vertices) are SKIPPED and
-        // recorded in [`MergeCoplanarOutcome::skipped`] — the
-        // declaration still served the consuming op's classification;
-        // the unglued coplanar adjacency persists exactly as the
-        // M3-era output did and refuses loudly downstream if reused
-        // undeclared. Never a partial commit: each sub-stage is
-        // tier-2-gated before adoption.
+        // One refusal vocabulary, two fates for it — see
+        // [`GroupRegime`], which is computed per group and is the only
+        // thing that differs between the two paths below.
         let mut work = self.clone();
         let mut outcome = MergeCoplanarOutcome::default();
         for members in groups {
-            let licensed = members.iter().any(|f| declared_faces.contains(f));
-            // Curved structural runs (C12.5, M5 PR 9) go through the
-            // trial/skip stage too: a run that closes the full period
-            // refuses `PeriodClosure` inside its trial and is recorded
-            // as a LOUD skip (the operands' canonical cut-carrying
-            // form stays), while sub-period re-merges commit. Planar
-            // structural groups keep the ratified whole-refusal
-            // semantics bit-identically.
-            let curved = members.first().is_some_and(|&f| {
-                work.get_face(f)
-                    .and_then(|fd| work.get_surface(fd.surface))
-                    .is_some_and(|s| !matches!(s, Surface::Plane { .. }))
-            });
-            if !licensed && !curved {
-                outcome.groups.push(work.merge_group(&members, tol)?);
-                continue;
-            }
-            let mut trial = work.clone();
-            match trial.merge_group(&members, tol) {
-                Ok(group) => match validate_closed(&trial) {
-                    Ok(()) => {
-                        work = trial;
-                        outcome.groups.push(group);
-                    }
-                    Err(errors) => {
-                        outcome.skipped.push(SkippedMerge {
-                            faces: members,
-                            reason: format!(
-                                "staged declared merge failed tier 2 ({} finding(s), first: \
-                                 {:?}) — shape outside the never-elide inventory",
-                                errors.len(),
-                                errors.first()
-                            ),
-                        });
-                    }
-                },
-                Err(e) => {
-                    outcome.skipped.push(SkippedMerge {
-                        faces: members,
-                        reason: format!("declared merge group refused: {e}"),
+            match work.group_regime(&members, &declared_faces) {
+                GroupRegime::RefusesTheCall => {
+                    outcome.groups.push(work.merge_group(&members, tol)?);
+                }
+                GroupRegime::RecordsASkip => {
+                    let mut trial = work.clone();
+                    // The sub-stage's own tier-2 gate: the group is
+                    // adopted only if its trial validates, so a
+                    // recorded skip leaves `work` exactly as it was.
+                    let staged = trial.merge_group(&members, tol).and_then(|group| {
+                        match validate_closed(&trial) {
+                            Ok(()) => Ok(group),
+                            Err(errors) => Err(MergeCoplanarError::ResultNotClosed { errors }),
+                        }
                     });
+                    match staged {
+                        Ok(group) => {
+                            work = trial;
+                            outcome.groups.push(group);
+                        }
+                        Err(reason) => outcome.skipped.push(SkippedMerge {
+                            faces: members,
+                            reason,
+                        }),
+                    }
                 }
             }
         }
@@ -573,6 +599,35 @@ impl<T: Decide> Body<T> {
         }
         *self = work;
         Ok(outcome)
+    }
+
+    /// Which failure regime one group runs under.
+    ///
+    /// A group records a skip when its adjacency was licensed by a
+    /// declared pair (any member), or when its surface is curved —
+    /// the two cases whose refusals are statements about the merge's
+    /// inventory rather than about the body, and whose unglued
+    /// adjacency is a legal output the operands already carried.
+    /// Everything else — a structural planar run — refuses the call.
+    ///
+    /// A group's members share a surface by construction, so the
+    /// curvature question is asked of one of them.
+    fn group_regime(
+        &self,
+        members: &[FaceKey],
+        declared_faces: &std::collections::BTreeSet<FaceKey>,
+    ) -> GroupRegime {
+        let licensed = members.iter().any(|f| declared_faces.contains(f));
+        let curved = members.first().is_some_and(|&f| {
+            self.get_face(f)
+                .and_then(|fd| self.get_surface(fd.surface))
+                .is_some_and(|s| !matches!(s, Surface::Plane { .. }))
+        });
+        if licensed || curved {
+            GroupRegime::RecordsASkip
+        } else {
+            GroupRegime::RefusesTheCall
+        }
     }
 
     /// The faces of an edge's two halves (via parent loops), if all
@@ -948,11 +1003,25 @@ impl<T: Decide> Body<T> {
             };
             // Re-home the dying face's rings onto the survivor, then
             // kill the shared edge and the face together (kef).
-            let rings = self
-                .get_face(other)
-                .map(|f| f.rings.clone())
-                .unwrap_or_default();
-            for ring in rings {
+            //
+            // The rings are read HERE, in this iteration's plan step:
+            // the scan above is read-only, so nothing has mutated
+            // since it named `other`. A failed lookup is ANNOUNCED,
+            // and announced as a typed refusal rather than as
+            // `unreachable!`, because `other` arrives from a loop's
+            // back-pointer and no check in this call proves it live.
+            // Defaulting to an empty ring list would be
+            // indistinguishable from a face that genuinely has none,
+            // and would silently drop rings the survivor must inherit
+            // before `kef` takes the face they hang from.
+            let Some(dying) = self.get_face(other) else {
+                return Err(MergeCoplanarError::Op {
+                    error: EulerOpError::StaleKey {
+                        key: crate::entity::EntityId::Face(other),
+                    },
+                });
+            };
+            for ring in dying.rings.clone() {
                 self.ring_move(ring, rep)
                     .map_err(|error| MergeCoplanarError::Op { error })?;
             }
@@ -1045,11 +1114,23 @@ impl<T: Decide> Body<T> {
                 None
             };
             if let Some((from_rim, toward)) = tip {
-                let killed = self.get_half_edge(toward).map(|h| h.start);
+                // The vertex `kev` is about to take, read before the
+                // kill and recorded after it. `toward` was resolved by
+                // the orbit walk that selected this tip, in this call,
+                // with nothing mutating in between — so a failed
+                // lookup here is a kernel bug, and announcing it is
+                // what keeps `killed_vertices` a complete account of
+                // the Euler delta rather than a best-effort one.
+                let Some(killed) = self.get_half_edge(toward).map(|h| h.start) else {
+                    unreachable!(
+                        "merge_group: the orbit walk that selected this tip resolved \
+                         `toward` and the selection is read-only"
+                    )
+                };
                 self.kev(from_rim)
                     .map_err(|error| MergeCoplanarError::Op { error })?;
                 group.killed_edges.push(edge_key);
-                group.killed_vertices.extend(killed);
+                group.killed_vertices.push(killed);
                 continue;
             }
             let result = self
@@ -1229,5 +1310,72 @@ impl<T: Decide> Body<T> {
             [Some(i)] => Ok(Some(i)),
             _ => Err(MergeCoplanarError::MergedFaceRoleAmbiguous { face }),
         }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::*;
+    use crate::entity::EntityId;
+    use crate::fixtures::ops_cube;
+
+    /// A shared edge of the ops cube, as the pair of faces meeting
+    /// there — addressed exactly as the absorption scan addresses it,
+    /// through the loops' `face` back-pointers.
+    fn adjacent_pair(body: &Body<f64>) -> (FaceKey, FaceKey) {
+        body.edges()
+            .find_map(|(_, e)| {
+                let (fp, fm) = body.edge_faces(e.he_plus, e.he_minus)?;
+                (fp != fm).then_some((fp, fm))
+            })
+            .expect("a cube has adjacent faces")
+    }
+
+    /// The absorbed face's rings are read through a lookup whose
+    /// failure is **announced**, never defaulted to "that face had no
+    /// rings" — the two are otherwise indistinguishable, and the
+    /// second silently drops rings the survivor must inherit before
+    /// `kef` takes the face they hang from.
+    ///
+    /// The state is only reachable from inside the crate: the key
+    /// comes from a live loop's back-pointer, so producing it means
+    /// tearing the arena behind the door's tier-2 gate. That is why
+    /// the refusal is typed rather than an `unreachable!` — the call
+    /// holds no proof of the key, only the whole body's tier-1
+    /// validity, which is not a proof any single call establishes.
+    #[test]
+    fn absorption_announces_a_face_key_that_does_not_resolve() {
+        let tol = Tol::witness();
+        let mut body = ops_cube(tol).body;
+        let (rep, other) = adjacent_pair(&body);
+        body.faces
+            .remove(other)
+            .expect("the pair's second face is live before the tear");
+
+        assert_eq!(
+            body.merge_group(&[rep, other], tol),
+            Err(MergeCoplanarError::Op {
+                error: EulerOpError::StaleKey {
+                    key: EntityId::Face(other),
+                },
+            }),
+            "a dangling absorbed-face key is refused typed, naming the face"
+        );
+    }
+
+    /// The control for the row above: with the arena intact the same
+    /// call absorbs, so that row pins the tear and not the fixture.
+    #[test]
+    fn absorption_of_the_same_pair_runs_on_an_intact_arena() {
+        let tol = Tol::witness();
+        let mut body = ops_cube(tol).body;
+        let (rep, other) = adjacent_pair(&body);
+
+        let group = body
+            .merge_group(&[rep, other], tol)
+            .expect("an intact adjacent pair absorbs");
+        assert_eq!(group.kept, rep);
+        assert_eq!(group.absorbed, vec![other]);
     }
 }
