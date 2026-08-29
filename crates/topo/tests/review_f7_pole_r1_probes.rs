@@ -1,7 +1,17 @@
 //! **F7 pole-exemption R1 review probes (ordinal 104, PR #1131)** —
 //! claims-to-falsify, attack fixtures for `pole_split_cap`.
 //!
-//! Not part of the PR under review; lives on the probe branch only.
+//! **ADOPTED (VERBS/F7), and RE-POLARISED.** These were written to
+//! falsify a gate exemption that has since been WITHDRAWN — the
+//! attacks succeeded, which is why it was. R1's fixture geometry and
+//! reasoning are preserved verbatim; what changed is the assertions,
+//! which now pin the behaviour the fixtures actually produce: every
+//! one of these bent/ordinary shapes REFUSES `NonMaximalFaces`, and
+//! that is what makes them the negative differential rows for the
+//! repair op's collinearity trigger (`merge_faces::
+//! redundant_subdivision_vertex`). The positive pole of that
+//! differential is `verbs_f7_collinear_seam` and, for a real revolve
+//! cap, `sweep`'s `f7_pole_split_cap_repairs_to_one_face`.
 //! Every fixture here is HAND-BUILT via public euler ops — no revolve
 //! anywhere — so what these rows measure is the structural predicate
 //! itself, divorced from the producer whose shape motivated it.
@@ -91,7 +101,7 @@ fn p1_single_chord_pair_still_refuses() {
 /// present-tense: the site frames the slip-through as reachable by
 /// "some future producer"; plain euler ops reach it today.
 #[test]
-fn p2_subdivided_chord_pair_slips_the_gate() {
+fn p2_subdivided_chord_pair_still_refuses() {
     let p = prism_z::<f64>(&[(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)], 0.0, 1.0);
     let mut b = p.body;
     let tol = Tol::witness();
@@ -117,20 +127,13 @@ fn p2_subdivided_chord_pair_slips_the_gate() {
     )
     .unwrap();
     assert_eq!(validate_closed(&b), Ok(()), "fixture is tier-2 legal");
-    let result = boolean_reduce(BooleanOp::Union, &distant_brick(), &b, tol);
-    match &result {
-        Ok(_) => {}
-        Err(e) => assert!(
-            !matches!(e, BooleanError::NonMaximalFaces { .. }),
-            "if this fires, the exemption did NOT admit the subdivided chord \
-             and the attack failed — got {e:?}"
-        ),
-    }
-    // Record the actual downstream outcome for the review report.
-    match &result {
-        Ok(_) => println!("[p2] subdivided-chord operand passed the F7 gate; reduce: Ok"),
-        Err(e) => println!("[p2] passed the F7 gate; refused later at: {e:?}"),
-    }
+    let err = boolean_reduce(BooleanOp::Union, &distant_brick(), &b, tol)
+        .expect_err("a BENT subdivided chord is an ordinary non-maximal pair");
+    println!("[p2] subdivided (bent) chord operand => {err:?}");
+    assert!(
+        matches!(err, BooleanError::NonMaximalFaces { .. }),
+        "the gate must catch the pair the F7 rule exists for — got {err:?}"
+    );
 }
 
 /// Builds the prism whose top face carries an inset coplanar PATCH:
@@ -214,23 +217,17 @@ fn inset_patch_prism() -> (
 /// one plane, sharing every boundary edge), and nothing about it is a
 /// pole, a revolve, or an axis.
 #[test]
-fn p3_inset_coplanar_patch_slips_the_gate() {
+fn p3_inset_coplanar_patch_still_refuses() {
     let (b, _top, _psrq, _ring) = inset_patch_prism();
     let tol = Tol::witness();
     assert_eq!(validate_closed(&b), Ok(()), "fixture is tier-2 legal");
-    let result = boolean_reduce(BooleanOp::Union, &distant_brick(), &b, tol);
-    match &result {
-        Ok(_) => {}
-        Err(e) => assert!(
-            !matches!(e, BooleanError::NonMaximalFaces { .. }),
-            "if this fires, the exemption did NOT admit the inset patch \
-             and the attack failed — got {e:?}"
-        ),
-    }
-    match &result {
-        Ok(_) => println!("[p3] inset-patch operand passed the F7 gate; reduce: Ok"),
-        Err(e) => println!("[p3] passed the F7 gate; refused later at: {e:?}"),
-    }
+    let err = boolean_reduce(BooleanOp::Union, &distant_brick(), &b, tol)
+        .expect_err("an inset coplanar patch is an ordinary non-maximal pair");
+    println!("[p3] inset-patch operand => {err:?}");
+    assert!(
+        matches!(err, BooleanError::NonMaximalFaces { .. }),
+        "the gate must catch the inset patch — got {err:?}"
+    );
 }
 
 /// **P4 (the brief's differential): a pair sharing BOTH a pole-like
@@ -242,7 +239,7 @@ fn p3_inset_coplanar_patch_slips_the_gate() {
 /// chain; per-edge admission means the exempt chain does not save the
 /// pair, and the refusal names the bridge edge specifically.
 #[test]
-fn p4_mixed_pair_refuses_on_its_ordinary_edge() {
+fn p4_mixed_pair_refuses() {
     let (mut b, top, [pv, _qv, rv, _sv], ring) = inset_patch_prism();
     let tol = Tol::witness();
     let pt = geom_core::Point3::new;
@@ -302,11 +299,18 @@ fn p4_mixed_pair_refuses_on_its_ordinary_edge() {
     .unwrap();
     assert_eq!(validate_closed(&b), Ok(()), "fixture is tier-2 legal");
     let err = boolean_reduce(BooleanOp::Union, &distant_brick(), &b, tol).unwrap_err();
+    // R1's original row demanded the BRIDGE edge by name. That was a
+    // consequence of the exemption: with the chain edges exempt, only
+    // the bridge could fire. With the exemption withdrawn no edge is
+    // exempt, so the gate names the FIRST offender in arena order —
+    // measured as a chain edge here. What the row pins is unchanged in
+    // substance: a pair sharing an ordinary edge refuses, whatever
+    // else it shares.
     match err {
         BooleanError::NonMaximalFaces { edge, .. } => {
-            assert_eq!(
-                edge, bridge.edge,
-                "the refusal must name the ordinary (bridge) edge, not a chain edge"
+            println!(
+                "[p4] mixed pair refused at {edge:?} (bridge is {:?})",
+                bridge.edge
             );
         }
         other => panic!(
