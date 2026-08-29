@@ -217,3 +217,50 @@ arms (a corpus doc carrying Measure+Assertion makes them live), the
 weak Python rows, and the accumulated prose/doc sweep (the
 key-format bump-rule tension disclosed; this log's own
 deviation-count line corrected by the fix pass).
+
+## M10-3 dual review adjudication (2026-08-29)
+
+Both arms on frozen 54a77ad9: R1 NOT-MERGEABLE (1 MAJ, rubric
+4/4/4), R2 REQUEST CHANGES (2 MAJ; rubric requested post-report —
+the lane omitted the triple and was resumed for it, the M9-3
+missing-data shape avoided because the worktree-kept rule held).
+The accounting composition is bilateral and byte-identically
+diagnosed from independent fixtures: the mass columns are
+UNCONDITIONAL (a leaf prices P(offset ∈ leaf), so the leaves
+already sum to 1 − tail) while `total()`/`unresolved()` compose
+`t·(1−tail) + tail` as if conditional — a Normal axis at the
+default ±3σ totals 0.99730729, and the E10 honesty gate
+under-reports unresolved mass by the whole tail, the unsafe
+direction. Invisible to the shipped suite because every fixture is
+bounded (tail ≡ 0) — the premise-excludes-the-failing-mode shape —
+and both arms shipped deliberately-RED counterexample rows. R2's
+unilateral second MAJOR is structural: `drive.rs`'s flip naming is
+a SECOND verdict-diff engine using positional zip, the method
+`resolve/vdiff.rs` ("built once", for exactly the f64-vs-Interval
+case) rejects as unsound in its own 17-line argument; certification
+stays conservative (unequal ⇒ refuse, no false certificate) but
+FlipCrossing evidence can name permutation artifacts and miss true
+flips. Adjudicated: name flips through the built-once engine, or
+carry the confronting paragraph plus an honest best-effort label —
+the missing paragraph is the defect either way. The claim-8 attack
+(a definiteness misclassification that CERTIFIES) came back NOT
+FOUND from both arms independently — the unit's one silent-defect
+shape stood.
+
+Fix pass IMPLEMENTER-INHERITED: the two MAJ, the bilateral
+max_leaves 2× overshoot, the macroscopic pin's budget mismatch and
+the ε/4-vs-ε/8 threshold correction, the irreproducible 26-hit
+sweep receipt (both arms count 23 unique; R2's second sweep adds
+~15 predicates the pattern missed), the containment positive arm
+row (both arms constructed it — code correct, coverage absent),
+deviation 3's missing schedule (an issue gets filed), the k_stats
+narrowing vs E6's "every" disclosed as a deviation, the stale
+deviation 7, and both probe suites adopted (the four red-by-design
+rows go green with the composition fix).
+
+Durable homes at adjudication: deviation 3's escalation-channel
+issue is filed by the fix pass; the extra widening-class hits fold
+into the corrected sweep receipt (the class's home remains #1191);
+the verdict-diff triple-spelling (vdiff / drive.rs / verdict_summary)
+gets a consolidation issue from the fix pass unless the MAJ fix
+itself unifies.
