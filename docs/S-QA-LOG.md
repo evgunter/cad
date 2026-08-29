@@ -53,6 +53,21 @@ the K/P/W session is live on tracks K/P/W and its
 bounds-allowlist rows are contested by live branches — untouched
 here.
 
+**Post-opening substrate correction (same day, pre-dispatch):** PR
+#1138 (the smell-scan issues sweep, merged 2026-08-28 18:12 PT —
+after the cut's survey inputs) had already paid the #888 headline
+(`gate_grep`), #774's generator, the #882/#1134 race
+(`panic_capture`, install-once) and the #808 finish, with all four
+issues still open because commit references do not close. The plan's
+substrate section and slate were amended before any dispatch: QA-1
+narrowed to the residue (the census script's four `|| true` matcher
+sites, `gate-roster.sh`'s one, the selftest arm, the broken-pipe
+flake), QA-4 became the landed-fix close-out unit, the old QA-5
+absorbed into it, later units renumbered up by one. The lesson is
+the program's own charter one level up: a cut surveyed at T is
+stale by T+1 in this repo, so every spec re-verifies its issue's
+premise against main at dispatch.
+
 **Unilateral decisions at opening** (per the orchestration memory's
 log rule):
 

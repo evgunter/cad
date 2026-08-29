@@ -91,7 +91,7 @@ without looking.
   (the five-scene fold; #1023's thread carries the terms). The
   gate-side class fix — distinguishing "never seen" from "the
   baseline's cut point predates it" — remains, and `tools/tess-lint`
-  is Track K's fence: QA-6 dispatches only after coordination with
+  is Track K's fence: QA-5 dispatches only after coordination with
   the K/P/W session (or its successor schedule state).
 - **The probe-suite census's own selftest flakes red over green
   content** (`docs/CI-MINUTES-2026-08.md`, 2026-08-29 note:
@@ -104,6 +104,20 @@ without looking.
   the debt this program inherits: `docs/K-REPORT.md:219` and `:226`
   still say "unconditional" about rows the sampling made 1-in-5, and
   `docs/CI-MINUTES-2026-08.md:335` records the correction owed.
+- **PR #1138 (the smell-scan issues sweep, merged 2026-08-28 18:12
+  PT) paid several charter items before this program opened**, and
+  the issues are still open because commit-message references do not
+  close: the #888 headline fix landed (`lib.sh`'s `gate_grep`,
+  adopted across ten gate scripts — but `probe-suite-census.sh`
+  still carries four `grep … || true` matcher sites and
+  `gate-roster.sh` one documented as load-bearing); #774's
+  generator was rewritten (radii drawn directly, no gap-rescale);
+  the #882/#1134 race was closed structurally
+  (`test_utils::panic_capture::caught` installs the hook once and
+  switches per-thread — the downcast route was rejected because the
+  bit-identity-punning gate forbids it, the exact caveat #1134
+  raised); and #808 was finished. The slate below takes the
+  residues and the close-outs, not the already-landed fixes.
 - **Main's default-lane clippy red today is LIB's** (#1225 in
   flight) — named so nobody double-fixes it.
 - The K/P/W session's bounds-allowlist rows (D102/D103/D106/D109)
@@ -116,23 +130,26 @@ dispatch; difficulty logged pre-draw per the protocol. Everything
 here lands red-first where a red is constructible: a gate fix is
 demonstrated by planting the defect it now refuses.
 
-- **QA-1 — gates that report green without running (#888 + the
-  census-selftest flake) (S/M); dispatchable pre-ratification**
-  (both are charter-named or fence-named defects with the fix shape
-  on record). (i) #888: `interval-square-allowlist.sh`'s `gate()`
-  distinguishes grep exit 1 (no hits) from ≥2 (matcher failed), and
-  fails loud on the latter; a selftest arm plants a malformed
-  pattern and expects refusal. (ii) Sweep the same shape — an
-  exit-status-masking `|| true` (or bare pipeline tail) downstream
-  of a matcher — across `scripts/gates/*.sh`, `scripts/*.sh` and
-  workflow inline shell; hit list with per-hit disposition in the PR
-  body. `bounds-allowlist.sh` is contested ground: if the shape
-  appears there, file it on #888 rather than editing. (iii) The
-  census selftest's broken-pipe race: every producer in
-  `probe-suite-census.sh`'s pipelines tolerates a closed reader (or
-  the readers drain), replacing the per-`grep` padding; the
-  2026-08-29 flake's shape (red selftest, green real census) becomes
-  impossible or loud-by-name.
+- **QA-1 — gates that report green without running: the #888
+  residue + the census-selftest flake (S/M); dispatchable
+  pre-ratification** (fence-named defects with the fix shape on
+  record — `lib.sh`'s own `gate_grep` doctrine). The headline fix
+  landed in #1138; what this unit takes: (i) the remaining
+  `grep … || true` matcher sites — four in `probe-suite-census.sh`,
+  one in `gate-roster.sh` whose comments call it load-bearing —
+  each converted to `gate_grep`, or its exception argued at the
+  site against `lib.sh`'s per-stage rule; a fresh sweep of
+  `scripts/gates/*.sh`, `scripts/*.sh` and workflow inline shell
+  for the shape, hit list with per-hit disposition in the PR body.
+  (ii) A selftest arm proving the malformed-pattern case refuses
+  (the issue's own reproduction, planted). (iii) The census
+  selftest's broken-pipe race (the 2026-08-29 flake): every
+  producer in `probe-suite-census.sh`'s pipelines tolerates a
+  closed reader (or the readers drain), replacing the per-`grep`
+  padding; red-selftest-over-green-content becomes impossible or
+  loud-by-name. (iv) #888 closed on the combined record.
+  `bounds-allowlist.sh` is contested ground: any hit there is filed
+  on the issue, not edited.
 - **QA-2 — the matrix says what it did (#1128 + #1122 + #1051
   close-out) (S); dispatchable pre-ratification.** (i) #1128 by its
   own option 1 + 3: `--no-fail-fast` on both nextest run steps (a
@@ -157,26 +174,18 @@ demonstrated by planting the defect it now refuses.
   persistence argument and is stated at the site, not silently
   accepted. #1023 closes on this plus QA-2's visibility work, with
   the fail-fast shard-erasure half closed by QA-2(i).
-- **QA-4 — the panic-hook race (#882 + #1134, one defect) (S).**
-  `test_utils::vacuity::caught` stops swapping the process-global
-  hook: read the payload via downcast (the issues' own option 1),
-  preserving what `ececabf6`'s bit-identity-punning gate needed —
-  read that commit's reason first; if the hook route is genuinely
-  load-bearing, the fallback is the serialized helper with the
-  coupling stated. Red-first: reproduce the ~1-in-13 rate under the
-  200-run loop, then show the fix makes it structural, not rarer.
-  Fence note: `crates/test-utils` is Track W ground with recent
-  K/P/W landings — the unit re-checks live branches and re-merges
-  main before opening its PR.
-- **QA-5 — the generator that breaks its own premise (#774) (S).**
-  `convex_polygon()` keeps star-shapedness (the issue's option 1 or
-  2 — draw angles directly, bounded max gap), docstring states what
-  is actually guaranteed, and the issue's minimal counterexample is
-  committed as an explicit fixture (per `test-suite-cost`: a pinned
-  counterexample is written out, not seed-compressed). Decide and
-  record the `.proptest-regressions` convention for the tree in the
-  PR description.
-- **QA-6 — the comparison gate that stops comparing (#1038,
+- **QA-4 — landed-fix close-outs (#882 + #1134, #774, the #808
+  finish) (S).** Verification against each issue's own asks, then
+  the close with the record: the panic-hook fix under the issues'
+  200-run reproduction loop (structural, not rarer — the install-
+  once + per-thread-switch design is the claim to falsify); #774's
+  residual asks (docstring states what the strategy guarantees; the
+  minimal counterexample pinned as an explicit fixture per
+  `test-suite-cost`; the `.proptest-regressions` convention decided
+  and recorded); #808 against its checklist. Any ask #1138 did not
+  pay is small and lands here; a pure-verification outcome closes
+  the issues with no PR beyond the record.
+- **QA-5 — the comparison gate that stops comparing (#1038,
   gate side) (M); after K/P/W coordination.** Under the Q3 ruling:
   recommendation is the issue's option 2 (a fresh-sweep scene absent
   from the baseline FAILS the gate, so adding a tour scene forces
@@ -184,7 +193,7 @@ demonstrated by planting the defect it now refuses.
   recorded in the file so "never seen" and "outgrown" stop being
   indistinguishable. Consumes VERBS' five-scene audit (their fold
   restores coverage; this unit makes the decay impossible).
-- **QA-7 — the measured-claim sweep, J-fence legs (#681) (M/L;
+- **QA-6 — the measured-claim sweep, J-fence legs (#681) (M/L;
   possibly one PR per leg).** The legs on this program's ground:
   manifests (`--marker '#'`), `.github/workflows/` + `scripts/`,
   `tools/` lint-threshold provenance, Python (docstring pass),
@@ -194,12 +203,12 @@ demonstrated by planting the defect it now refuses.
   is Track W-adjacent and waits for K/P/W's state; `docs/` prose
   legs deferred with the reason (highest over-match, lowest yield).
   #651 stays open as the class home; #808 stays parked on #763.
-- **QA-8 — CI reports test cost (#469) (S/M).** Slowest-N into
+- **QA-7 — CI reports test cost (#469) (S/M).** Slowest-N into
   `$GITHUB_STEP_SUMMARY`; the this-PR-added diff via the
   `interval-only-selection.py` sibling. Deliberately not a gate, per
   the issue; the two measurement traps (per-leg incomparability,
   head-not-mean) are spec text.
-- **QA-9 — what the rustdoc gate cannot see (D180 + Track R's D301,
+- **QA-8 — what the rustdoc gate cannot see (D180 + Track R's D301,
   landing together) + the false copies (D181, D182) (S/M).** The
   gate gains a `not(feature)` arm (or a recorded refusal naming the
   blind spot), `mesh/src/budget.rs`'s three link errors are fixed in
@@ -208,7 +217,7 @@ demonstrated by planting the defect it now refuses.
   (`ci.yml:2749`, `ci-local.sh:846`) and the `.py` third copy (D182)
   are corrected against C15's actual join. Rows land per §D's
   conventions (delete the row in the landing PR).
-- **QA-10 — the status line that invites wrong action (#1139)
+- **QA-9 — the status line that invites wrong action (#1139)
   (XS).** `with-build-slot.sh`'s annotation becomes
   reader-relative, per the issue's own suggestion. Rides whichever
   early lane touches `local-scripts/` or dispatches solo as a
