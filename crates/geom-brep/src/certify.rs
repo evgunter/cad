@@ -531,12 +531,37 @@ impl<T: Real> EdgeCurveSpec<T> {
     /// any) is recorded rather than re-purposed as a description.
     /// Carrier and interval are untouched: only the description moves.
     ///
-    /// Idempotent — a spec already describing a chart image is
-    /// already at rest and comes back unchanged, which is what lets a
-    /// construction call this on whatever it built without first
-    /// asking what that was.
+    /// **This is the scaffolding door's conversion, and NOTHING else.**
+    /// On a spec that already names a chart it returns unchanged — and
+    /// that means **both arguments are discarded**, `surface`
+    /// included. It is idempotent in the only sense a construction
+    /// needs (call it on whatever you built without first asking what
+    /// that was) and it is emphatically NOT a way to re-home an image
+    /// into a different chart: an already-described edge is re-homed
+    /// by STATING the chart, `EdgeDescriptionSpec::chart(k)` plus
+    /// `declared_by` where a declaration is carried.
+    ///
+    /// Spelled out because the silence bit this unit's own author: a
+    /// test re-homed a strut with `restated_spec().at_rest_in_chart(
+    /// other_chart, false)`, got the original chart back, and read the
+    /// resulting assertion failure as a defect in the kernel. The
+    /// `debug_assert` below turns that silence into a panic wherever
+    /// assertions are on — which is every test binary, i.e. exactly
+    /// where the mistake gets made.
     #[must_use]
     pub fn at_rest_in_chart(self, surface: SurfaceKey, seam: bool) -> Self {
+        debug_assert!(
+            match &self.description {
+                EdgeDescriptionSpec::Chart {
+                    surface: already,
+                    seam: already_seam,
+                    ..
+                } => *already == surface && *already_seam == seam,
+                _ => true,
+            },
+            "at_rest_in_chart on a spec that already names a chart discards both \
+             arguments; state the chart instead of re-asking the scaffolding door"
+        );
         let description = match self.description {
             EdgeDescriptionSpec::Scaffold(mc) => {
                 let chart = if seam {
@@ -1284,6 +1309,22 @@ fn run_checks<T: Decide>(
             /// D1's obligation: this edge claims to BE the chart's
             /// seam meridian.
             seam: bool,
+            /// U2 Q3's authority payload, carried here for ONE reason:
+            /// so the meter that used to run on it still runs.
+            ///
+            /// Pre-collapse a declared locus WAS the description and
+            /// took the scaffolding arm, whose
+            /// `carrier_matches_mapped_source` residual ran on every
+            /// certify. The collapse moved the payload out of the
+            /// description and left the meter behind on an arm the
+            /// payload no longer takes — so a declaration could be
+            /// arbitrarily false and nothing said so (measured by R1:
+            /// a placement ~1000 units off the body certified clean
+            /// and passed tier 3). This is the SAME check, the same
+            /// `CertCheck::MappedSource`, the same quantity and the
+            /// same predicate name, following the datum to where it
+            /// now lives — not a new predicate.
+            declared: Option<crate::mapped::MappedCurve<T>>,
         },
         /// `Intersection` of a PLANE and a described NURBS wall
         /// (M7-8): the declare-and-check lane's shape.
@@ -1348,7 +1389,7 @@ fn run_checks<T: Decide>(
             surface,
             ref image,
             seam,
-            ..
+            ref declared,
         } => {
             let s = if seam {
                 let s = resolve(surface)?;
@@ -1366,6 +1407,7 @@ fn run_checks<T: Decide>(
                 key: surface,
                 image: image.clone(),
                 seam,
+                declared: *declared,
             }
         }
     };
@@ -1513,6 +1555,10 @@ fn run_checks<T: Decide>(
             key,
             ref image,
             seam,
+            // The authority record is built from the SPEC by
+            // `authority_of`, not from this arm; here it has already
+            // done its job at the meter above.
+            declared: _,
         } => {
             let pcurve = match image {
                 // D4, the stated half: a spline chart's image IS the
@@ -1739,7 +1785,12 @@ fn run_checks<T: Decide>(
             // re-baseline row measure it; the live minting class
             // (`sweep/src/revolve/upgrade.rs:219`) mints exact seams
             // and is unaffected, which the whole-body batteries show.
-            Resolved::Chart { surface, seam, .. } => {
+            Resolved::Chart {
+                surface,
+                seam,
+                declared,
+                ..
+            } => {
                 let Some(chart) = canonical.chart() else {
                     return Err(CertifyError::Unimplemented);
                 };
@@ -1752,6 +1803,31 @@ fn run_checks<T: Decide>(
                     band,
                     &mut max_residual,
                 )?;
+                // **The declaration is metered too, or it is not a
+                // record of anything** (P-1b, reinstated in review).
+                // A declared locus says a sketch entity under a sweep
+                // map determined THIS curve; the claim is checkable
+                // and pre-collapse it was checked on every certify,
+                // because the pushforward was the description. It is
+                // the same meter — same name, same `CertCheck`, same
+                // quantity — applied where the datum went.
+                //
+                // Two of this unit's own defects were exactly what it
+                // catches: a re-anchor that left the datum ending at
+                // the wall's old radius, and an offset lane that
+                // dropped it. Both would have been caught here rather
+                // than by a row someone thought to write.
+                if let Some(mc) = declared {
+                    let frac = T::from_f64(f64::from(i) / f64::from(CERT_SAMPLES - 1));
+                    check_residual(
+                        "carrier_matches_mapped_source",
+                        CertCheck::MappedSource,
+                        i,
+                        Margin::of(p.distance(mc.eval(frac))),
+                        band,
+                        &mut max_residual,
+                    )?;
+                }
                 // D1's retained obligation. The unified meter cannot
                 // see the difference between a seam meridian and its
                 // antipode — both ARE chart images of the same

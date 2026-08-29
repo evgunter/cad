@@ -1454,18 +1454,41 @@ fn blank_phase<T: Decide + Bounds>(
                 .ok_or_else(|| not_intact(EntityId::Vertex(v), "a support boundary vertex"))?;
             let fp = station.foot;
             // **NOT re-described at rest, and that is a REPORTED
-            // finding rather than an oversight** (P-1b): this strut is
-            // a straight CHORD between two points of the support
-            // surface, so on a curved support it is a secant — it does
-            // not lie on the surface its two faces share, and no chart
-            // image of that surface describes it. Stating it as one
-            // makes `ChartResidual` escalate at ε = 1e-6 on the die
-            // fixture, which is the geometry saying so. It therefore
-            // reaches rest through the scaffolding door and tier 3's
-            // transience fence names it — the fence working, on a body
-            // whose edge genuinely is not where its faces are. The fix
-            // is fillet-verb work (put the strut ON the support), not
-            // a description change, so it is not taken here.
+            // finding rather than an oversight** (P-1b, #1116; the
+            // CAUSE below is corrected — the first version of this
+            // comment misread it).
+            //
+            // The standing reason: this strut is a straight CHORD
+            // between two points of the support surface, so on a
+            // CURVED support it is a secant — it does not lie on the
+            // surface its two faces share, and no chart image of that
+            // surface describes it. It therefore reaches rest through
+            // the scaffolding door and tier 3's transience fence names
+            // it, on a body whose edge genuinely is not where its
+            // faces are. The fix is fillet-verb work (put the strut ON
+            // the support), not a description change, so it is not
+            // taken here. An independent interval A/B reproduced the
+            // escalation exactly, so declining stands.
+            //
+            // **What was recorded wrongly.** This said stating the
+            // image "makes `ChartResidual` escalate at ε = 1e-6 on the
+            // die fixture, which is the geometry saying so". It is
+            // not the geometry saying anything. The escalation carries
+            // `margin: Invalid`, which is the kernel's POISON outcome
+            // — *the question was never validly posed* — and not a
+            // distance that came out too large. On the die's PLANAR
+            // support the f64 residual is exactly `0e0`: the chord
+            // between two points of a plane lies in that plane, so
+            // there is no disagreement there to report. Reading a
+            // poison verdict as a measurement is the specific mistake,
+            // and it is worth naming because poison and
+            // "definitely too big" are reported through the same
+            // escalation door and read identically at a glance.
+            //
+            // The CLASS — poison reaching this predicate at all — is
+            // #1143 and M10 owns it. What stays here is the mechanism
+            // question this site is the witness for: where poison
+            // enters `pcurve_map_residual` on a secant input.
             let created = body
                 .mev(
                     MevSite::Fan {

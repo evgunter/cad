@@ -333,6 +333,20 @@ fn triangular_prism(tol: Tol) -> Body<f64> {
     )
 }
 
+/// How many of `body`'s edges carry a DECLARED locus — a sketch entity
+/// under a sweep map recorded as the authority (U2 Q3), which since the
+/// collapse is where the 3-space pushforward lives and therefore what
+/// the offset door still has to carry.
+fn declared_descriptions(body: &Body<f64>) -> usize {
+    body.edges()
+        .filter(|(_, e)| {
+            body.get_curve_geom(e.curve)
+                .and_then(pncad::topo::CurveGeom::certified)
+                .is_some_and(|c| c.authority().is_declared())
+        })
+        .count()
+}
+
 /// How many of `body`'s edges are still described through the
 /// SCAFFOLDING door — the arm `CarrierLaneUnsupported`'s "not a rigid
 /// translation" `what` is raised on, and the only one.
@@ -349,27 +363,38 @@ fn scaffold_descriptions(body: &Body<f64>) -> usize {
         .count()
 }
 
-/// **The retired door, demonstrated rather than argued** (PCURVE
-/// P-1b).
+/// **The retirement, NARROWED to what it actually bought** (PCURVE
+/// P-1b — and this row's earlier, wider claim was wrong).
 ///
-/// `CarrierLaneUnsupported`'s *"a mapped description whose surface's
-/// offset is not a rigid translation"* is raised on exactly ONE
-/// description arm — the scaffolding door, whose payload is a
-/// pushforward stated in 3-SPACE and therefore has to be translated
-/// with the face it hangs off. Once U2 collapsed the conventional
-/// descriptions onto a chart image, stated in CHART coordinates, there
-/// is nothing left to translate: the offset re-parameterizes the chart
-/// and the image drawn in it is untouched. So the door stops firing —
-/// not because the obstruction went away, but because that particular
-/// obstruction was an artefact of writing a conventional locus in
-/// 3-space.
+/// The wider claim was: a 3-space pushforward has to be carried
+/// bodily with the face it hangs off, U2 restated conventional loci as
+/// chart images in the chart's OWN coordinates, an offset merely
+/// re-parameterizes the chart, therefore the *"not a rigid
+/// translation"* door has nothing left to refuse and stops firing.
 ///
-/// This asserts the PREMISE on the fixtures themselves rather than
-/// reasoning about it: neither curved-neighbour body carries a
-/// scaffolding description at all, so the arm cannot be entered, and
-/// the refusal necessarily moves to whatever obstruction is really
-/// there. (It is still a refusal — the junction is still not square,
-/// which is finding 1 and is untouched.)
+/// **The first two steps are right and the conclusion does not
+/// follow.** U2 did not delete the pushforward; it MOVED it, out of
+/// the description and into the authority record beside the image (Q3).
+/// The image needs no transport — that half holds. The declaration
+/// beside it is still sketch data under a 3-space placement, and still
+/// has to be carried. So the obstruction survives for any edge whose
+/// locus something DECLARED; what the retirement bought is that an
+/// edge the kernel derived for itself — a seam, an iso boundary, a cap
+/// rim — now crosses such an offset freely where before it refused.
+///
+/// The wider claim looked true only because the boundary lane was
+/// silently DROPPING the declaration (`declared: None`), so nothing
+/// was left to ask the question of. Fixing that drop restored this
+/// refusal, which is why these two bodies land here and not on the
+/// re-anchor door. In other words the earlier "verdict moved" reading
+/// of these rows was reading a bug.
+///
+/// This row asserts both halves on the fixtures themselves rather
+/// than reasoning about either: neither body carries a scaffolding
+/// description, so the SCAFFOLD arm is unreachable; both carry
+/// declarations, so the DECLARED arm is reachable and is what answers.
+/// (It is still a refusal either way — the junction is still not
+/// square, which is finding 1 and is untouched.)
 #[test]
 fn the_not_a_rigid_translation_door_is_unreachable_at_rest() {
     let tol = Tol::witness();
@@ -385,27 +410,34 @@ fn the_not_a_rigid_translation_door_is_unreachable_at_rest() {
             scaffold_descriptions(&body),
             0,
             "{what}: every edge of a body at rest says which chart it lies in, so the \
-             scaffolding arm the retired door hangs off cannot be entered"
+             SCAFFOLD arm the door used to hang off cannot be entered"
+        );
+        assert!(
+            declared_descriptions(&body) > 0,
+            "{what}: and these bodies do carry declared loci — which is what keeps the \
+             obstruction reachable through the authority record instead"
         );
         let e = pncad::topo::shell(&body, 1.0 / 128.0, FIT_TOL, band(tol), tol)
             .expect_err("this junction is not square, so the hollow must refuse");
         doors.push((what, offset_refusal(&e)));
     }
-    // Both fixtures land on the obstruction that is really there —
-    // the same door the table's WEDGE row has always expected.
+    // Both fixtures refuse through the DECLARED arm: the scaffolding
+    // arm is gone from these bodies, the declaration is not, and the
+    // sphere's inward offset is a radius change rather than a
+    // translation, so the pushforward cannot be carried.
     assert_eq!(
         doors,
         vec![
             (
                 "a hemisphere TANGENT to its cylinder",
-                "ReanchorOffCarrier".to_string()
+                "CarrierLaneUnsupported(declared)".to_string()
             ),
             (
                 "a dome whose centre is lifted clear of the wall's top",
-                "ReanchorOffCarrier".to_string()
+                "CarrierLaneUnsupported(declared)".to_string()
             ),
         ],
-        "the retired door is unreachable, so these must refuse elsewhere"
+        "the scaffold arm is unreachable; the declared arm is what answers"
     );
 }
 
@@ -423,13 +455,42 @@ fn offset_refusal(e: &ShellError<f64>) -> String {
             // neighbour's offset is not a rigid translation" is a
             // statement about the neighbouring surface, not about how
             // the meridian was authored.
+            //
+            // **Two arms raise that statement, and they are reported
+            // apart** (PCURVE P-1b). A 3-space pushforward has to be
+            // carried bodily with the face it hangs off; U2 left the
+            // pushforward in place but moved it out of the
+            // DESCRIPTION and into the AUTHORITY record beside a chart
+            // image. Both homes still owe the transport, so both raise
+            // this `what` — and which home the edge's payload sits in
+            // is exactly what the retirement below is about, so the
+            // rows must not be able to confuse them.
             ReplaceFaceError::CarrierLaneUnsupported { what, .. } => {
-                assert_eq!(
-                    *what, "a mapped description whose surface's offset is not a rigid translation",
-                    "this door's OTHER `what` (a carrier that is neither a line nor a circle) \
-                     would be a different finding"
+                // Keyed on the opening NOUN — "a mapped description"
+                // versus "a declared chart image" — because that is
+                // the whole discriminator (which home the pushforward
+                // sits in) and it is the half of the sentence that
+                // cannot drift without the finding itself changing.
+                // Matching the full literal would make this row fail
+                // on a rewrap of the source's line continuations,
+                // which is not a finding.
+                let arm = if what.starts_with("a mapped description") {
+                    "scaffold"
+                } else if what.starts_with("a declared chart image") {
+                    "declared"
+                } else {
+                    panic!(
+                        "this door's OTHER `what`s (a carrier that is neither a line nor \
+                         a circle; a rotation-family trajectory) would be a different \
+                         finding: {what}"
+                    )
+                };
+                assert!(
+                    what.contains("is not a rigid translation"),
+                    "both arms make the same statement about the neighbouring \
+                     SURFACE, not about how the meridian was authored: {what}"
                 );
-                "CarrierLaneUnsupported".to_string()
+                format!("CarrierLaneUnsupported({arm})")
             }
             other => panic!("an unexpected face-offset refusal: {other}"),
         },
@@ -504,36 +565,42 @@ fn the_hollow_survives_exactly_the_square_junction() {
             0.02,
             "ReanchorOffCarrier",
         ),
-        // **These two moved doors in PCURVE P-1b, and the move is the
-        // finding.** They refused through `CarrierLaneUnsupported`'s
-        // "not a rigid translation" `what` while a conventional locus
-        // was written as a pushforward in 3-SPACE, which has to be
-        // carried bodily with the face it hangs off. U2 collapsed
-        // those descriptions onto a chart IMAGE, stated in the chart's
-        // own coordinates, and an offset re-parameterizes the chart
-        // without touching the image drawn in it — so that door has
-        // nothing left to refuse and the obstruction that is really
-        // there answers instead. Demonstrated, not asserted, by
-        // `the_not_a_rigid_translation_door_is_unreachable_at_rest`:
-        // neither body carries a scaffolding description at all, so
-        // the arm that raises the retired `what` cannot be entered.
+        // **These two refuse through the door's DECLARED arm, and
+        // which arm it is IS the finding** (PCURVE P-1b). A
+        // conventional locus written as a 3-space pushforward has to
+        // be carried bodily with the face it hangs off. U2 did not
+        // delete that pushforward — it moved it out of the description
+        // and into the AUTHORITY record beside a chart image — so the
+        // obligation moved with it and the same `what` is raised from
+        // the other arm. The chart image itself needs no transport,
+        // which is the part the retirement really bought: an edge the
+        // kernel DERIVED crosses such an offset freely now.
         //
-        // What did NOT change is finding 1 itself: both still refuse,
+        // An earlier revision of this table read `ReanchorOffCarrier`
+        // here and called that a moved verdict. It was reading a bug:
+        // the boundary lane was dropping the declaration
+        // (`declared: None`), so nothing was left to ask the transport
+        // question of. With the drop fixed the refusal is back where
+        // `main` has it. Kept as a comment rather than deleted,
+        // because "the verdict moved" was published in this PR and the
+        // correction belongs beside the row that carried it.
+        //
+        // What never changed is finding 1 itself: both still refuse,
         // because the junction is still oblique.
         (
             "a hemisphere TANGENT to its cylinder",
             bullet(tol),
             t,
-            "ReanchorOffCarrier",
+            "CarrierLaneUnsupported(declared)",
         ),
         // The discriminator, not a third confirmation: same pair,
         // same door, and NOT tangent. Tangency is not the variable —
-        // and it still is not, now that the door is the other one.
+        // and it still is not.
         (
             "a dome whose centre is lifted clear of the wall's top",
             lifted_dome(tol),
             t,
-            "ReanchorOffCarrier",
+            "CarrierLaneUnsupported(declared)",
         ),
         // The rule reads "a plane NORMAL to a cylinder's axis" — this
         // row comes at it from the direction the rest of the table

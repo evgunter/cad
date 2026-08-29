@@ -1215,6 +1215,29 @@ fn plan_edge<T: Decide>(
         // is the fitted-boundary note below — until every chart
         // bounding an edge moves together, the only reachable exit
         // past this call is a refusal.
+        // **The fourth home of the same question** (PCURVE P-1b, found
+        // in review). This early return mints its own spec and never
+        // reaches `carried_declaration` below, so it too would answer
+        // `declared: None` and destroy the record. There is no `delta`
+        // here to transport with — the carrier is extracted from the
+        // NEW fit's control net rather than transported — and a fit's
+        // offset is not a rigid translation in any case, so the honest
+        // answer for a declared locus is the same refusal the other
+        // arms give rather than a silent drop.
+        //
+        // Latent today: an iso boundary of a face's own fit is minted
+        // by `nurbs_iso_derive`, which declares nothing, so no current
+        // fixture carries a declaration here. Written anyway, because
+        // "no fixture reaches it" is exactly what was true of the
+        // boundary lane's drop until a cap offset reached it.
+        if curve.authority().is_declared() {
+            return Err(ReplaceFaceError::CarrierLaneUnsupported {
+                edge,
+                what: "a declared chart image whose surface's offset is not a rigid \
+                       translation (the image transports, its declaring pushforward \
+                       cannot)",
+            });
+        }
         let (row, u_domain) = geom_brep::iso_boundary_row(approx.fit(), u, band)
             .map_err(|error| ReplaceFaceError::IsoRow { edge, error })?;
         let carrier = Curve3::Nurbs(Arc::new(row));
@@ -1397,25 +1420,48 @@ fn plan_edge<T: Decide>(
                 }
             }
         }
-        // **A refusal the collapse RETIRED for every edge at rest**
-        // (PCURVE P-1b). Both `what`s below say the same thing about
-        // the same thing: a pushforward is stated in 3-SPACE, so it
-        // has to be carried bodily with the face it hangs off, and it
-        // can only be carried when the offset is a rigid translation
-        // of a family that translates. A CHART IMAGE is stated in the
-        // chart's own coordinates — the offset re-parameterizes the
-        // chart and leaves the image drawn in it untouched — so the
-        // question does not arise, and the two refusals stop firing
-        // for the conventional edges that used to raise them.
+        // **A refusal the collapse retired for DERIVED conventional
+        // edges only — narrowed, after the wider claim was published
+        // and proved wrong** (PCURVE P-1b).
         //
-        // They are NOT dead code: the scaffolding door is still real
-        // for edges whose surfaces do not exist yet. They are
-        // unreachable for a body AT REST, because tier 3's transience
-        // fence (`ValidationError::ScaffoldAtRest`) refuses a scaffold
-        // there — which `demos/tour`'s
+        // Both `what`s below say the same thing about the same thing:
+        // a pushforward is stated in 3-SPACE, so it has to be carried
+        // bodily with the face it hangs off, and it can only be
+        // carried when the offset is a rigid translation of a family
+        // that translates.
+        //
+        // The wider claim was that a CHART IMAGE is stated in the
+        // chart's own coordinates — the offset re-parameterizes the
+        // chart and leaves the image untouched — so the question does
+        // not arise at all and these refusals stop firing for every
+        // conventional edge at rest. **The premise is right and the
+        // conclusion overreached.** U2 did not delete the pushforward,
+        // it MOVED it: out of the description, into the authority
+        // record beside the image (Q3). The image needs no transport;
+        // the declaration beside it does, and `carried_declaration`
+        // above raises this same statement from that arm. So what the
+        // retirement actually bought is narrower and still worth
+        // having: an edge the KERNEL derived — a seam, an iso
+        // boundary, a cap rim, anything with no declaring sketch
+        // entity — now crosses a non-translating offset freely, where
+        // before it refused.
+        //
+        // The wider claim looked true only because this lane was
+        // silently dropping the declaration (`declared: None`), so
+        // nothing was left to ask the transport question of. That is
+        // recorded rather than quietly narrowed, because it shipped in
+        // this PR as a "verdict that moved" and the two `demos/tour`
+        // teapot rows were re-baselined onto it.
+        //
+        // The arm below is NOT dead code: the scaffolding door is
+        // still real for edges whose surfaces do not exist yet, and it
+        // is unreachable for a body AT REST because tier 3's
+        // transience fence (`ValidationError::ScaffoldAtRest`) refuses
+        // a scaffold there. `demos/tour`'s
         // `the_not_a_rigid_translation_door_is_unreachable_at_rest`
-        // asserts on the two fixtures that used to reach them, rather
-        // than leaving it as an argument.
+        // asserts both halves on the fixtures: no scaffolds (this arm
+        // unreachable) AND declarations present (the other arm is what
+        // answers).
         EdgeDescription::Scaffold(mapped) => {
             let delta = delta.ok_or(ReplaceFaceError::CarrierLaneUnsupported {
                 edge,

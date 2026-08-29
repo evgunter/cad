@@ -1293,12 +1293,23 @@ impl fmt::Display for ValidationError {
                  be described intrinsically as the Intersection of their faces' surfaces \
                  (prefer-intrinsic, D2)"
             ),
+            // The message states what is WRONG and stops there. An
+            // earlier wording added "so it has a chart to be described
+            // in" — asserting that a chart image necessarily exists —
+            // which this unit's own findings deny: a fillet strut on a
+            // curved support (#1116) and a diagonal chord across a
+            // cylinder are SECANTS, lying in neither adjacent surface,
+            // and no chart image describes them. For those the fence
+            // is naming a construction that cannot come to rest as
+            // built, which is a sharper and more useful report than a
+            // claim the reader can falsify.
             Self::ScaffoldAtRest { edge } => write!(
                 f,
                 "edge {edge:?} is still described by the scaffolding door (a sketch \
                  pushforward standing in for a description) in a body at rest — the door \
                  is for edges whose surfaces do not exist yet, and this edge has two \
-                 faces, so it has a chart to be described in (U2's transience fence)"
+                 faces (U2's transience fence). Either describe it in a chart it lies \
+                 in, or the construction that built it stopped half-way"
             ),
             Self::TangentNotIntrinsic { edge } => write!(
                 f,
