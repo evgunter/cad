@@ -1451,3 +1451,29 @@ grep the target symbols on a FRESH clone of main before spending the
 lane — a register item can be discharged by an adjacent commit
 without the register moving. The lane's façade Display-gap re-sweep
 (12 real gaps, 4 new to #1111) is recorded on #1111 itself.
+
+**G11 MERGED (2026-08-29, #1165; mechanical under the 08-29 ruling,
+no A/B row). Audit G11 CLOSED — the guide ladder's steps 4–5 are
+sayable from Python.** `Body.tessellate(chordal: Length)` → `Mesh`
+(shared position buffer + per-face patches both cross, so
+watertightness is index-checkable and the mesh-vs-exact cross-check
+is the CALLER's computation — argued as the better step-5 shape, a
+genuinely independent second measure, since `mesh::validate`'s
+re-derivations are not curated and binding them would have reached
+past the façade); `to_stl_ascii`/`to_stl_binary`; `TessellateError` +
+`StlError` typed with exhaustive tag maps (kernel-side arm additions
+arrive as compile errors). Census: all eleven `gap: G11` entries
+dispositioned; audit page re-cut (G11 → closed gaps, no mark moved —
+its anchor was the ladder, not a stop); new guide page `meshing.md`
+under test_guide. Register effects and banked findings, each with a
+home: (1) **`StlError` uncurated** (the R2 shape — prelude carries
+the writers and their option error types, not the writers' own
+refusal): joins BlendArc as the pending **curation micro-unit**,
+category A. (2) **Kernel Display gaps** (`mesh::TessellateError`,
+plus #1111's re-sweep quartet: `ContactRefusal`, `ReadbackError`,
+`FmtQuantityError`): a dispatchable mechanical unit
+(**DISPLAY-KERNEL**), recorded on #1111. (3) **No patch→StableName
+door on either side of the boundary** — the next picking/rendering
+consumer's ask, adjacent to census `B-PICKING`/`B-READBACK`;
+design-shaped, recorded in the audit page's G11 residue. The
+picking-chain keys stay unnameable by curation, correctly.
