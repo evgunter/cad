@@ -87,3 +87,33 @@ design PR waits for Evan); M10-3/M10-4 carry the
 magnitude-parameter dispatch valve. Amendment self-merged as a
 faithful elaboration (the ratified exit shape is unreachable
 without it); the design fork itself is reserved for M10-P's PR.
+
+## M10-1 MERGED (2026-08-29)
+
+The program's first unit is in: distributions in the document, PR
+#1147 at sample #39 (ordinal 500, the band's first). The dual
+review's headline is R2's unilateral silent MAJOR — the deep-tail
+`1 − erf` cancellation on exactly the number E2 forbids dropping —
+fixed with one shared exterior/CDF pair that `quantile_z` also
+reads, so the analyzed box always holds the mass the tail column
+complements. The carry-forward class closed structurally
+(`SetDocParamValue`); both probe suites promoted as merge parents.
+Process findings recorded in the row: R2's rubric is missing data
+(orchestrator worktree-reclaim broke the resume — the rule is now
+"reclaim a lane's TARGET freely once its report is in; remove the
+WORKTREE only when the unit fully concludes"), and the fix pass ran
+on a fresh same-arm lane for the same reason.
+
+## M10-DI MERGED (2026-08-29)
+
+The Dual contract is implemented: the e4 door is OPEN
+(`evaluate::<Dual64>` builds the whole corpus, value channel
+bit-identical per-node), the policy seam is typed
+(`AtRestOutcome`), the Enclosure gate fires, and the delegation
+rule is the ledger's standing criterion. Sample #40, ordinal 501.
+Both review arms independently proved correctness by differential;
+the findings were all guards and honesty, the sharpest being R1's
+mutation testing (three certifying arms could be gutted green —
+now each is pinned to its validation door). Issues 687 and 701
+close with this merge. The E4 pairing hook (DL3's own sentence)
+is a NAMED obligation on M10-4's spec.

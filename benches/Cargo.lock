@@ -235,6 +235,7 @@ dependencies = [
  "geom",
  "geom-brep",
  "geom-core",
+ "libm",
  "mesh",
  "profile",
  "quantity",

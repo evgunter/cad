@@ -39,7 +39,10 @@ const V12: &str = include_str!("golden/v12_golden.cad");
 
 #[test]
 fn schema_version_is_current() {
-    assert_eq!(SCHEMA_VERSION, 14);
+    // Named for the PROPERTY, not the number (the `lbret_schema_v8`
+    // precedent): ASM-R2b's own bump was v14; M10-1 took v15 for
+    // parameter distributions, and the number is what keeps moving.
+    assert_eq!(SCHEMA_VERSION, 15);
 }
 
 #[test]

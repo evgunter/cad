@@ -133,6 +133,16 @@ pub enum ErrorClass {
     Persist,
     /// An export the document-layer door refused.
     Export,
+    /// A body the tessellator refused. The Python class keeps the Rust
+    /// type's own name: the refusal IS `TessellateError`, crossing.
+    Tessellate,
+    /// An STL write the writers refused, or a solid name / binary
+    /// header they would not admit. The Python class keeps the
+    /// writers' own error name, `StlError`, and the two
+    /// option-construction refusals ride it under their own tags —
+    /// they refuse the same call, because an option struct is a
+    /// keyword argument here.
+    StlExport,
     /// A STEP text the importer refused, or one that parsed to a
     /// non-solid (the export test oracle's refusal class).
     StepImport,
@@ -155,6 +165,16 @@ pub enum ErrorClass {
     /// a made-up id is a document that collides with another part —
     /// so the refusal surfaces instead.
     Identity,
+    /// The workspace store refused: a scan that could not read a
+    /// file's header, two files claiming one id, an id the store does
+    /// not hold, or — the arm the store exists to make loud — a
+    /// reference whose pin is not the pin the document now hashes to.
+    ///
+    /// Shares its Rust type with [`Self::Identity`] and is
+    /// deliberately a different class: minting an identity is not a
+    /// store operation, and a caller catching one should not catch
+    /// the other.
+    Workspace,
 }
 
 impl ErrorClass {
@@ -168,11 +188,14 @@ impl ErrorClass {
             Self::Literal => "LiteralError",
             Self::Persist => "PersistError",
             Self::Export => "ExportError",
+            Self::Tessellate => "TessellateError",
+            Self::StlExport => "StlError",
             Self::StepImport => "StepImportError",
             Self::Path => "PathError",
             Self::Select => "SelectRefusal",
             Self::Frame => "FrameError",
             Self::Identity => "IdentityError",
+            Self::Workspace => "WorkspaceError",
         }
     }
 }

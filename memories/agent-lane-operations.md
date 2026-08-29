@@ -181,7 +181,12 @@ main gets NO check runs at all — pushes during that window produce
 nothing and merging main afterwards fires nothing retroactively. A run
 can also queue with ZERO jobs behind a superseded run, `mergeable:
 CLEAN`, and never start. And a green job NAME can sit over a SKIPPED
-step (k-lint's demos rows are their own sampled axis). So: merge
+step (k-lint's demos rows are their own sampled axis). A step can also
+be green having EXECUTED nothing: `cargo clippy --all-targets` and
+`cargo check --all-targets` compile the test targets and run none of
+them, so a root whose only gate row is one of those has its assertions
+type-checked and never evaluated — read a row for what it *runs*, not
+for what it names. So: merge
 origin/main immediately before opening a PR and whenever main moves;
 after any push, confirm jobs are actually RUNNING by reading the
 workflow **runs** list, not the PR's checks list; re-roll with a real

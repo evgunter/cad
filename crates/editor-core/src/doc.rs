@@ -10,6 +10,7 @@ use std::collections::BTreeMap;
 use geom_core::Real;
 
 use crate::appearance::{AppearanceMap, AppearanceRecord};
+use crate::distribution::Distribution;
 use crate::expr::{Dimension, Expr, ExprPath, ParamEnv, ParamValue};
 use crate::ident::DocumentId;
 use crate::names::StableName;
@@ -42,12 +43,62 @@ pub enum DocParam {
         dim: Dimension,
         /// The value, exact `f64`.
         value: f64,
+        /// Optional uncertainty about this parameter (ERROR-DESIGN
+        /// E1/E2), as offsets from `value` in the parameter's own
+        /// `dim`. Document metadata read ONLY by
+        /// [`crate::analysis`]: it enters no evaluation, no content
+        /// key and no predicate, and `None` — the default — means the
+        /// parameter is FIXED, not that its uncertainty is unknown.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        distribution: Option<Distribution>,
     },
     /// An integer Count parameter (structural material, spec D3).
+    ///
+    /// Carries NO distribution, and cannot: structural parameters are
+    /// fixed under any error analysis (E11.3), which comes out
+    /// UNREPRESENTABLE here rather than as a refusal — there is no
+    /// spelling to refuse.
     Count {
         /// The exact value.
         value: i64,
     },
+}
+
+/// The VALUE half of a document parameter, with no declaration
+/// attached: what a value-only edit
+/// ([`crate::DocEdit::SetDocParamValue`]) writes.
+///
+/// A parameter's declaration — its dimension, and its optional
+/// [`Distribution`] — belongs to the parameter, not to the number
+/// being typed into it. Carrying only the number is what lets the
+/// value door leave both alone; a caller that rebuilds a whole
+/// [`DocParam`] from `(dim, value)` deletes the annotation, silently,
+/// because [`crate::DocEdit::SetDocParam`] is create-or-replace.
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub enum DocParamValue {
+    /// A continuous parameter's nominal, in its ALREADY-DECLARED
+    /// dimension (canonical kernel units).
+    Continuous(f64),
+    /// A `Count` parameter's exact integer.
+    Count(i64),
+}
+
+impl DocParamValue {
+    /// Whether this is the `Count` arm — the kind a value edit must
+    /// match against the existing declaration.
+    pub fn is_count(&self) -> bool {
+        matches!(self, Self::Count(_))
+    }
+}
+
+impl core::fmt::Display for DocParamValue {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Continuous(v) => write!(f, "continuous {v}"),
+            Self::Count(v) => write!(f, "count {v}"),
+        }
+    }
 }
 
 impl DocParam {
@@ -56,6 +107,69 @@ impl DocParam {
         match self {
             Self::Continuous { dim, .. } => *dim,
             Self::Count { .. } => Dimension::Count,
+        }
+    }
+
+    /// A continuous parameter with no distribution — the plain
+    /// authoring spelling.
+    pub fn continuous(dim: Dimension, value: f64) -> Self {
+        Self::Continuous {
+            dim,
+            value,
+            distribution: None,
+        }
+    }
+
+    /// A continuous parameter carrying `distribution` — the annotated
+    /// authoring spelling. Only continuous parameters can be
+    /// annotated, so this is a constructor rather than a method: there
+    /// is no `Count` case to silently drop the annotation.
+    pub fn continuous_with(dim: Dimension, value: f64, distribution: Distribution) -> Self {
+        Self::Continuous {
+            dim,
+            value,
+            distribution: Some(distribution),
+        }
+    }
+
+    /// This parameter's distribution, if it is continuous and carries
+    /// one.
+    pub fn distribution(&self) -> Option<&Distribution> {
+        match self {
+            Self::Continuous { distribution, .. } => distribution.as_ref(),
+            Self::Count { .. } => None,
+        }
+    }
+
+    /// This parameter with `value` written into it, keeping the whole
+    /// DECLARATION — the dimension and the optional distribution —
+    /// untouched. **The carry-forward, in one place**: every value
+    /// door goes through here rather than rebuilding a parameter from
+    /// parts, so no door can drop an annotation it never mentioned.
+    ///
+    /// `None` when the value's arm does not match the declaration's.
+    /// Changing a parameter's kind is a REDECLARATION — the
+    /// create-or-replace door, where the dimension and the annotation
+    /// are stated afresh — and a value edit that quietly performed one
+    /// would be the same silent deletion in a different disguise.
+    pub fn with_value(&self, value: DocParamValue) -> Option<Self> {
+        match (self, value) {
+            (
+                Self::Continuous {
+                    dim, distribution, ..
+                },
+                DocParamValue::Continuous(value),
+            ) => Some(Self::Continuous {
+                dim: *dim,
+                value,
+                distribution: *distribution,
+            }),
+            (Self::Count { .. }, DocParamValue::Count(value)) => Some(Self::Count { value }),
+            // EXHAUSTIVE on purpose, both sides spelled: a new
+            // `DocParam` arm or a new value arm must say how a value
+            // edit reaches it, or the compile breaks.
+            (Self::Continuous { .. }, DocParamValue::Count(_))
+            | (Self::Count { .. }, DocParamValue::Continuous(_)) => None,
         }
     }
 
@@ -71,8 +185,27 @@ impl DocParam {
     /// identity and the document diff reading the same wrong answer.
     pub fn bit_eq(&self, other: &DocParam) -> bool {
         match (self, other) {
-            (Self::Continuous { dim: da, value: va }, Self::Continuous { dim: db, value: vb }) => {
-                da == db && va.to_bits() == vb.to_bits()
+            (
+                Self::Continuous {
+                    dim: da,
+                    value: va,
+                    distribution: ha,
+                },
+                Self::Continuous {
+                    dim: db,
+                    value: vb,
+                    distribution: hb,
+                },
+            ) => {
+                da == db
+                    && va.to_bits() == vb.to_bits()
+                    // Present-vs-present compares BIT-exact on the
+                    // offsets; present-vs-absent differs.
+                    && match (ha, hb) {
+                        (None, None) => true,
+                        (Some(a), Some(b)) => a.bit_eq(b),
+                        (None, Some(_)) | (Some(_), None) => false,
+                    }
             }
             (Self::Count { value: a }, Self::Count { value: b }) => a == b,
             (Self::Continuous { .. }, Self::Count { .. })
@@ -307,8 +440,11 @@ impl<P> Doc<P> {
             .params
             .iter()
             .map(|(name, p)| {
+                // The nominal alone crosses into evaluation: a
+                // distribution is document metadata the scalar channel
+                // never sees (E1).
                 let v = match *p {
-                    DocParam::Continuous { dim, value } => ParamValue::Continuous {
+                    DocParam::Continuous { dim, value, .. } => ParamValue::Continuous {
                         dim,
                         value: T::from_f64(value),
                     },

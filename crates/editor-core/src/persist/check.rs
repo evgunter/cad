@@ -21,6 +21,12 @@
 //!   the tripwire. (Post-parse this walk cannot fire — JSON has no
 //!   non-finite tokens — which is the asymmetry being BYTE-level, not
 //!   a reason to fork the validator.)
+//! - [`first_distribution_fault`] — the E2 invariants of every doc
+//!   param's distribution beyond finiteness, by the same
+//!   `Distribution::check` the edit door runs. It walks the SNAPSHOT
+//!   only: a `SetDocParam` in the log carries its distribution through
+//!   `apply` on replay, which is the same door and the same check
+//!   (the shape the alignment and placement notes below already take).
 //! - [`first_program_fault`] — profile PROGRAM structure: per-slot
 //!   dimension agreement (V2's role table) and a REPLAY PROBE under
 //!   the document's params whose LATTICE violations refuse (the
@@ -43,6 +49,7 @@
 //! [`crate::edit::apply`].
 
 use crate::appearance::AppearanceRecord;
+use crate::distribution::{DistributionFault, DistributionField};
 use crate::doc::{DocParam, ParamName};
 use crate::edit::DocEdit;
 use crate::expr::Dimension;
@@ -63,6 +70,12 @@ pub enum NonFiniteSite {
     DocParam {
         /// The parameter.
         name: ParamName,
+        /// Which distribution offset is not finite, when the defect
+        /// is in the ANNOTATION rather than in the nominal; `None`
+        /// when it is the nominal itself. The walk has to identify
+        /// the field to decide there is a defect at all, so it says
+        /// which one rather than discarding the answer.
+        field: Option<DistributionField>,
     },
     /// A float of a profile node's PLANE PLACEMENT (snapshot), by
     /// position among the 12 placement floats (columns c0, c1, c2,
@@ -107,7 +120,17 @@ impl core::fmt::Display for NonFiniteSite {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Epsilon => f.write_str("the recorded ε"),
-            Self::DocParam { name } => write!(f, "document parameter {:?}", name.0),
+            Self::DocParam { name, field: None } => {
+                write!(f, "document parameter {:?}", name.0)
+            }
+            Self::DocParam {
+                name,
+                field: Some(field),
+            } => write!(
+                f,
+                "document parameter {:?}, distribution field {field}",
+                name.0
+            ),
             Self::Profile { node, index } => write!(
                 f,
                 "float {index} of the sketch-plane placement on profile node {}",
@@ -130,8 +153,9 @@ impl core::fmt::Display for NonFiniteSite {
 
 /// The shared validator (module docs): every direction-independent
 /// document check, in one place, invoked by both doors. Check order
-/// is float walk → program walk → structural invariants (the save
-/// door's historical precedence, pinned by the refusal suite).
+/// is float walk → distribution walk → program walk → structural
+/// invariants (the save door's historical precedence, pinned by the
+/// refusal suite).
 pub(crate) fn validate_document(
     snapshot: &ProfileDoc,
     edits: &[DocEdit<ProfileProgram>],
@@ -139,6 +163,9 @@ pub(crate) fn validate_document(
 ) -> Result<(), super::PersistError> {
     if let Some(site) = first_non_finite(snapshot, edits) {
         return Err(super::PersistError::NonFinite { site });
+    }
+    if let Some((name, fault)) = first_distribution_fault(snapshot) {
+        return Err(super::PersistError::Distribution { name, fault });
     }
     if let Some((node, fault)) = first_program_fault(snapshot, tol) {
         return Err(super::PersistError::ProfileProgram { node, fault });
@@ -194,16 +221,48 @@ fn first_non_finite(
 }
 
 fn param_site(name: &ParamName, p: &DocParam) -> Option<NonFiniteSite> {
+    let site = |field| NonFiniteSite::DocParam {
+        name: name.clone(),
+        field,
+    };
     match p {
-        DocParam::Continuous { value, .. } if !value.is_finite() => {
-            Some(NonFiniteSite::DocParam { name: name.clone() })
-        }
+        DocParam::Continuous { value, .. } if !value.is_finite() => Some(site(None)),
+        // The distribution's offsets are floats the format writes, so
+        // they belong to THIS walk rather than to a second spelling of
+        // the same defect; the shape invariants are
+        // `first_distribution_fault`'s. The offending field rides
+        // along: the walk computes it to answer at all, and a
+        // diagnostic that names `sigma` beats one that names only the
+        // parameter.
+        DocParam::Continuous {
+            distribution: Some(d),
+            ..
+        } if d.first_non_finite().is_some() => Some(site(d.first_non_finite())),
         // EXHAUSTIVE on purpose: a guarded arm does not count towards
         // exhaustiveness, so the finite `Continuous` case is spelled
         // out alongside the float-free ones rather than swept up by a
         // wildcard that would also swallow a future float carrier.
         DocParam::Continuous { .. } | DocParam::Count { .. } => None,
     }
+}
+
+/// The first document parameter whose distribution breaks an E2
+/// invariant other than finiteness (`sigma > 0`; bounds containing the
+/// nominal), by the SAME [`crate::Distribution::check`] the edit door
+/// runs —
+/// so a hand-written file with `sigma: -1` refuses at LOAD with the
+/// diagnostics SAVE refuses with, and never loads best-effort.
+///
+/// Runs after the float walk, so a non-finite offset is reported as a
+/// non-finite float rather than as a shape fault.
+fn first_distribution_fault(snapshot: &ProfileDoc) -> Option<(ParamName, DistributionFault)> {
+    snapshot
+        .params
+        .iter()
+        .find_map(|(name, p)| match p.distribution()?.check() {
+            Ok(()) => None,
+            Err(fault) => Some((name.clone(), fault)),
+        })
 }
 
 /// Walks the program payload's RAW floats — exactly the 12 plane
@@ -231,6 +290,16 @@ fn edit_non_finite(edit: &DocEdit<ProfileProgram>) -> Option<NonFiniteSite> {
             node: Node::Profile(program),
         } => profile_non_finite(program).map(|index| NonFiniteSite::InsertedProfile { index }),
         DocEdit::SetDocParam { name, value } => param_site(name, value),
+        // The value door carries no distribution of its own — the
+        // declaration it writes into supplies that — but its
+        // continuous arm IS a raw float the format writes.
+        DocEdit::SetDocParamValue {
+            name,
+            value: crate::doc::DocParamValue::Continuous(v),
+        } if !v.is_finite() => Some(NonFiniteSite::DocParam {
+            name: name.clone(),
+            field: None,
+        }),
         DocEdit::SetAppearanceMeta { name, key, value } => {
             value
                 .first_non_finite()
@@ -260,7 +329,8 @@ fn edit_non_finite(edit: &DocEdit<ProfileProgram>) -> Option<NonFiniteSite> {
         //   deliberately does not rely on for the rest of its list.
         // - The `Node` vocabulary is not closed here: this match is
         //   exhaustive on `DocEdit`, not on `Node`.
-        DocEdit::InsertNode { .. }
+        DocEdit::SetDocParamValue { .. }
+        | DocEdit::InsertNode { .. }
         | DocEdit::SetTolerance { .. }
         | DocEdit::DeleteNode { .. }
         | DocEdit::SetParam { .. }
