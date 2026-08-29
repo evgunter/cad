@@ -96,6 +96,12 @@ self-acquire; wrap raw `cargo` invocations yourself.
   (`fuser -v` on the lock, or watch the holder file get rewritten by
   the next lane): "parent dead, lock still held" is the failure mode
   that looks identical to success from outside.
+- **A `CI-Config:` trailer is read from the PR-HEAD commit only — any
+  subsequent commit or merge VOIDS it silently back to sampling**
+  (met twice in one fix pass, ordinal 104). The filter reports
+  `CONFIG_SOURCE=...sampled` instead of `commit-trailer` — check that
+  field, and put the trailer on the FINAL head (an empty trailer-only
+  commit that says so in its message is the clean spelling).
 - **A CONFLICTING PR gets NO CI run — silently, and none retroactively
   once resolved.** GitHub skips the pull_request trigger while a PR is
   CONFLICTING; pushes during that window produce nothing, and merging
