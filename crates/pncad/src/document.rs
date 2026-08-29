@@ -69,7 +69,25 @@ pub use editor_core::expr::{EvalError, eval, eval_count};
 // takes both and `Expr::param` takes a `ParamName`, so without them
 // the parametric flagship (`plate_param`, guide §3.2) could not be
 // authored façade-only.
-pub use editor_core::{DocParam, ParamName};
+// `DocParamValue` is the value half of one, and the reason it is
+// curated is the door it opens: `DocEdit::SetDocParamValue` writes a
+// new number into an already-declared parameter and carries the whole
+// declaration — dimension AND distribution — forward. Rebuilding a
+// `DocParam` from `(dim, value)` to move a value is the natural
+// spelling and it silently DELETES an annotation, because
+// `SetDocParam` is create-or-replace; a façade that curated only the
+// deleting door would be handing every caller that trap.
+pub use editor_core::{DocParam, DocParamValue, ParamName};
+
+// A parameter's optional uncertainty (ERROR-DESIGN E1/E2), and the
+// typed refusals its invariants raise at the edit and persistence
+// doors. It rides on `DocParam::Continuous`, so a façade that can
+// author a parameter but not annotate one could not express an
+// error-analysis document at all; `DistributionFault` is what
+// `EditError::InvalidDistribution` and `PersistError::Distribution`
+// carry, so a caller diagnosing a refusal needs it too. Reading a
+// distribution back is `analysis`'s door, not this one.
+pub use editor_core::{Distribution, DistributionFault, DistributionField};
 
 // Evaluation: the service, its options, its results, and the payloads
 // a result can carry. `NodeResult`/`NodeValue`/`EvalOutcome` complete

@@ -1052,6 +1052,7 @@ pub fn apply_with_names<T: Decide>(
         | DocEdit::SetStructuralParam { .. }
         | DocEdit::SetExpression { .. }
         | DocEdit::SetDocParam { .. }
+        | DocEdit::SetDocParamValue { .. }
         | DocEdit::ReWitness { .. }
         | DocEdit::ReWitnessBulk { .. }
         | DocEdit::SetTolerance { .. }
