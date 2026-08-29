@@ -8,6 +8,7 @@ mod mesh;
 mod path;
 mod place;
 mod quantity;
+mod readback;
 mod refactor;
 mod select;
 mod store;
@@ -262,6 +263,28 @@ pyo3::create_exception!(
 );
 pyo3::create_exception!(
     pncad,
+    ReadbackError,
+    PncadError,
+    "A read-back door could not say what a name denotes or where it \
+     sits. Carries `variant`, the stable tag of the refusing arm, \
+     plus the arm's payload as attributes (`node`, `through`, \
+     `candidates`, `wanted`, `found`, `index`, `payload`, \
+     `carrier`), each present on every arm and `None` where that arm \
+     does not carry it.\n\n\
+     Two refusals share this class because they refuse the same \
+     CALL — \"where is the entity this name denotes\". The name \
+     half resolves the name against the evaluation \
+     (`no_such_name`, `ambiguous`, `wrong_kind`, `whole_body`, the \
+     node ladder); the GEOMETRY half reads the carrier and arrives \
+     under its own tags, not a wrapper tag (`dangling`, \
+     `no_canonical_frame`, `no_carrier`).\n\n\
+     `ambiguous` is the one to read twice: a tie is a naming success \
+     and a referencing failure, and the door refuses rather than \
+     picking a candidate. `Evaluation.denotation` is how a caller \
+     asks BEFORE reading a frame."
+);
+pyo3::create_exception!(
+    pncad,
     FrameError,
     PncadError,
     "A frame constructor refused its inputs — the same typed refusal \
@@ -306,6 +329,7 @@ pub(crate) fn typed_err(
         ErrorClass::Split => SplitError::new_err(message),
         ErrorClass::Inline => InlineError::new_err(message),
         ErrorClass::Update => UpdateError::new_err(message),
+        ErrorClass::Readback => ReadbackError::new_err(message),
     };
     // Attaching attributes needs the instance, which materialises the
     // exception value; a failure here would itself be a Python error,
@@ -355,12 +379,14 @@ fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("SplitError", py.get_type::<SplitError>())?;
     m.add("InlineError", py.get_type::<InlineError>())?;
     m.add("UpdateError", py.get_type::<UpdateError>())?;
+    m.add("ReadbackError", py.get_type::<ReadbackError>())?;
 
     quantity::register(m)?;
     path::register(m)?;
     place::register(m)?;
     doc::register(m)?;
     select::register(m)?;
+    readback::register(m)?;
     store::register(m)?;
     mate::register(m)?;
     assembly::register(m)?;

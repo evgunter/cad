@@ -198,6 +198,16 @@ pub enum ErrorClass {
     /// A whole-document pin update produced no edit list. The Python
     /// class is `UpdateError`.
     Update,
+    /// A read-back door refused to say what a name denotes or where
+    /// it sits. The Python class is `ReadbackError`.
+    ///
+    /// Two Rust types flatten onto it, because they refuse the same
+    /// CALL: the document layer's `InterrogateError`, which resolves
+    /// the name, and the kernel's own `ReadbackError`, which reads
+    /// the carrier — the second is an arm of the first, and its arms
+    /// arrive under their OWN tags rather than a wrapper tag, so
+    /// which invariant broke is what a caller branches on.
+    Readback,
 }
 
 impl ErrorClass {
@@ -225,6 +235,7 @@ impl ErrorClass {
             Self::Split => "SplitError",
             Self::Inline => "InlineError",
             Self::Update => "UpdateError",
+            Self::Readback => "ReadbackError",
         }
     }
 }

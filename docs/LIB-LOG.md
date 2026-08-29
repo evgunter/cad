@@ -540,9 +540,14 @@ family — and every `gap:` entry names ONE id that owns the work. An
 audit gap id where `docs/guide/north-star-audit.md` defines one
 (cited, never minted, since that page's ids are scene-anchored and
 its tallies depend on staying that way); otherwise a census-owned
-family id — `B-CHECKS`, `B-PICKING`, `B-RESOLVE`, `B-READBACK`,
+family id — `B-CHECKS`, `B-PICKING`, `B-RESOLVE`,
 `B-EXPR-READ`, `B-CANCEL`, `B-FORMAT`, `B-VALIDATE4` — each carrying
-a one-line charter saying what a unit closing it would deliver. The
+a one-line charter saying what a unit closing it would deliver. A
+closed family leaves no charter behind, because the census's own
+guard fails on one no entry cites: `B-READBACK` was chartered here
+and closed at LIB-B-READBACK, and what records that is the four
+read-back verbs sitting in the census's `BOUND_AS` with the unit
+named beside them. The
 `B-` is this category's own letter: the census owns the surface-debt
 id space, this register points AT it, and the census's own test fails
 when a pointer stops resolving in either direction (a citation the

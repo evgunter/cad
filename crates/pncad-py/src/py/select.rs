@@ -71,6 +71,21 @@ impl EntityKind {
     }
 }
 
+/// Crossing helper: the kernel kind as the Python mirror.
+///
+/// Exhaustive over the KERNEL enum with no wildcard arm, so a kernel
+/// kind this file does not mirror stops the build — the direction the
+/// tripwire module at the foot of this file asserts for every other
+/// mirrored enum, and which this one asserts by being called.
+pub(crate) fn entity_kind(kind: s::EntityKind) -> EntityKind {
+    match kind {
+        s::EntityKind::Body => EntityKind::Body,
+        s::EntityKind::Face => EntityKind::Face,
+        s::EntityKind::Edge => EntityKind::Edge,
+        s::EntityKind::Vertex => EntityKind::Vertex,
+    }
+}
+
 /// Which role-segment variant a [`SegPat`] names — the fieldless
 /// mirror of the role vocabulary, one tag per op-minted role.
 #[pyclass(eq, eq_int, module = "pncad", from_py_object)]
@@ -764,18 +779,13 @@ pub(crate) fn select_refusal(py: Python<'_>, err: &s::SelectRefusal) -> PyErr {
 )]
 mod growth_tripwire {
     use super::{
-        CapEnd, Cmp, CurveKind, EntityKind, KSurfaceKind, MeridianEnd, OpGroup, RimSupport, SegTag,
-        SideArg, SplitHalf, SurfaceKind, s,
+        CapEnd, Cmp, CurveKind, KSurfaceKind, MeridianEnd, OpGroup, RimSupport, SegTag, SideArg,
+        SplitHalf, SurfaceKind, s,
     };
 
-    fn entity_kind(k: s::EntityKind) -> EntityKind {
-        match k {
-            s::EntityKind::Body => EntityKind::Body,
-            s::EntityKind::Face => EntityKind::Face,
-            s::EntityKind::Edge => EntityKind::Edge,
-            s::EntityKind::Vertex => EntityKind::Vertex,
-        }
-    }
+    // `EntityKind`'s tripwire is `super::entity_kind`, which is the
+    // same exhaustive match with a caller — a mirror that CROSSES
+    // needs no dead twin to assert what the crossing already asserts.
 
     fn seg_tag(k: s::SegTag) -> SegTag {
         match k {
