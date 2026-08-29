@@ -65,6 +65,9 @@ use geom_core::{Band, Bounds, Decide, Margin, Point2, Real, Sign, Tol, Vec2};
 
 use super::{ArcData, Dir, PathError, PathNoCornerReason};
 use crate::fillet_select::nearest_joint;
+use crate::structure::{
+    CornerGate, Decision, DecisionValue, FilletDecision, Guide, StructureRefusal,
+};
 use crate::sugar::{
     ArcFilletCandidate, ArcFilletOutcome, ArcSweep, ArcTrimRefusal, FilletLegShape,
     arc_fillet_trims, signed_swept,
@@ -170,6 +173,12 @@ impl<T: Real> FilletSide<T> {
 /// A carrier pair that admits no corner, named by which way it failed.
 fn no_corner<T: Real>(reason: PathNoCornerReason, radius: T) -> PathError<T> {
     PathError::NoCornerForFillet { reason, radius }
+}
+
+/// A guided pass's refusal on a consumed decision, in the elaboration's
+/// own error vocabulary.
+fn structure<T: Real>(refusal: StructureRefusal) -> PathError<T> {
+    PathError::Structure(refusal)
 }
 
 /// The corners of a **ray × circle** pair, in increasing ray parameter.
@@ -437,11 +446,13 @@ fn map_refusal<T: Bounds>(refusal: ArcTrimRefusal<T>, radius: T) -> PathError<T>
 /// immediately: a joint space one of whose members cannot be classified
 /// cannot be honestly ranked.
 pub(crate) fn resolve<T: Decide + Bounds>(
+    guide: &mut Guide<T>,
     incoming: FilletSide<T>,
     arrival: FilletSide<T>,
     radius: T,
     tol: Tol,
 ) -> Result<ArcFilletTrims<T>, PathError<T>> {
+    let consumed = guide.consume().map_err(structure)?;
     let band = Band::new(tol.eps(), tol.k() * tol.eps()).map_err(PathError::Band)?;
     // Two refusal channels, deliberately. A corner the GATES discard is
     // the weaker story — the author's anchors simply do not bracket it,
@@ -455,18 +466,91 @@ pub(crate) fn resolve<T: Decide + Bounds>(
     // (1/2) derive, then gate — advance on the incoming side, reach on
     // the arrival side. A rejected corner is remembered, not returned:
     // the OTHER root may be the author's corner.
+    //
+    // Under guidance the gates still RUN — re-verifying them at this
+    // scalar is the whole point — but their answers are compared, never
+    // adopted: the corner list the joint space is built from is the
+    // recorded one either way, so a lane that disagrees reports the
+    // disagreement instead of quietly elaborating a different corner
+    // set. An escalation names the corner it could not classify rather
+    // than surfacing as a bare band refusal.
     let mut kept: Vec<Point2<T>> = Vec::new();
-    for corner in derive(&incoming, &arrival, radius, band)? {
-        match advance_gate(&incoming, corner, radius, band)
-            .and_then(|()| reach_gate(&arrival, corner, radius, band))
-        {
-            Ok(()) => kept.push(corner),
-            Err(e @ PathError::Escalated { .. }) => return Err(e),
-            Err(e) => {
+    let mut gates: Vec<CornerGate> = Vec::new();
+    // Deriving the corners is where the joint space comes from, so a
+    // scalar that cannot classify the carrier meet has no survivor list
+    // for the recorded index to address. Under guidance that is named
+    // as the joint space going unconfirmed rather than surfacing as a
+    // bare band refusal about `path_carrier_meet`.
+    let corners = derive(&incoming, &arrival, radius, band).map_err(|e| match (&consumed, &e) {
+        (Some((fillet, _)), PathError::Escalated { source }) => structure(
+            StructureRefusal::indeterminate(Decision::JointSpace { fillet: *fillet }, *source),
+        ),
+        _ => e,
+    })?;
+    for (ci, corner) in corners.into_iter().enumerate() {
+        let outcome = match advance_gate(&incoming, corner, radius, band) {
+            Ok(()) => match reach_gate(&arrival, corner, radius, band) {
+                Ok(()) => Ok(()),
+                Err(e) => Err((CornerGate::RefusedReach, e)),
+            },
+            Err(e) => Err((CornerGate::RefusedAdvance, e)),
+        };
+        let found = match &outcome {
+            Ok(()) => CornerGate::Admitted,
+            Err((g, _)) => *g,
+        };
+        let admit = match &consumed {
+            // Unguided: this pass's own answer IS the decision.
+            None => found == CornerGate::Admitted,
+            Some((fillet, decision)) => {
+                let site = Decision::CornerGate {
+                    fillet: *fillet,
+                    corner: ci,
+                };
+                // A record with no entry for this corner is not about
+                // this program: the carrier pair enumerated a different
+                // number of corners than the elaboration did.
+                let Some(&recorded) = decision.corners.get(ci) else {
+                    return Err(structure(StructureRefusal::flipped(
+                        site,
+                        DecisionValue::Count(decision.corners.len()),
+                        DecisionValue::Count(ci + 1),
+                    )));
+                };
+                match &outcome {
+                    // The escalation NAMES the gate it stopped at
+                    // rather than surfacing as a bare band refusal: a
+                    // driver bisecting the parameter box needs to know
+                    // which decision went unconfirmed.
+                    Err((_, PathError::Escalated { source })) => {
+                        return Err(structure(StructureRefusal::indeterminate(site, *source)));
+                    }
+                    _ if found != recorded => {
+                        return Err(structure(StructureRefusal::flipped(
+                            site,
+                            DecisionValue::Gate(recorded),
+                            DecisionValue::Gate(found),
+                        )));
+                    }
+                    _ => {}
+                }
+                recorded == CornerGate::Admitted
+            }
+        };
+        gates.push(found);
+        match (admit, outcome) {
+            (true, _) => kept.push(corner),
+            // An escalation is fatal here exactly as before: a joint
+            // space one of whose members cannot be classified cannot be
+            // honestly ranked. (A guided pass never reaches this arm —
+            // it has already refused above, naming the corner.)
+            (false, Err((_, e @ PathError::Escalated { .. }))) => return Err(e),
+            (false, Err((_, e))) => {
                 if gate_refused.is_none() {
                     gate_refused = Some(e);
                 }
             }
+            (false, Ok(())) => {}
         }
     }
     // (3) the ratified construction at each surviving corner, fed
@@ -500,7 +584,18 @@ pub(crate) fn resolve<T: Decide + Bounds>(
                 });
             }
             Err(ArcTrimRefusal::Escalated(source)) => {
-                return Err(PathError::Escalated { source });
+                // The fit signs are produced INSIDE this construction,
+                // so a guided pass that cannot get through it has not
+                // reached a sign to compare — it names the resolution
+                // whose construction went unconfirmed, and the payload
+                // carries the predicate that could not be classified.
+                return Err(match &consumed {
+                    Some((fillet, _)) => structure(StructureRefusal::indeterminate(
+                        Decision::FilletConstruction { fillet: *fillet },
+                        source,
+                    )),
+                    None => PathError::Escalated { source },
+                });
             }
             // The M8 conditioning gate ABORTS the resolve exactly as an
             // escalation does, and for the same reason: a joint space
@@ -527,14 +622,90 @@ pub(crate) fn resolve<T: Decide + Bounds>(
             (None, None) => no_corner(PathNoCornerReason::CarriersDoNotMeet, radius),
         });
     }
-    let picked = nearest_joint(&joints);
+    //
+    // A guided pass does not run the ladder AT ALL. That is not
+    // caution about agreement, it is the ladder's own contract: within
+    // a hairline lens the survivors' setback gap can sit inside the
+    // diagnostic channel's enclosure width, and two lanes may then
+    // legally rank them differently — both picks being valid fillets of
+    // the authored legs. Re-running the rule at a second scalar is
+    // therefore a second CHOICE, not a check, so the guided pass takes
+    // the recorded index and verifies only that the joint space it
+    // indexes into still has the shape the index was written against.
+    let (picked, fit_in, fit_out) = match &consumed {
+        None => {
+            let picked = nearest_joint(&joints);
+            (picked, joints[picked].fit_in, joints[picked].fit_out)
+        }
+        Some((fillet, decision)) => {
+            // The index is only meaningful against a joint space of the
+            // shape it was written for, so the shape is what gets
+            // verified — and a differing shape refuses BEFORE the index
+            // is used, never gets clamped into range.
+            if joints.len() != decision.survivors || decision.candidate >= joints.len() {
+                return Err(structure(StructureRefusal::flipped(
+                    Decision::JointSpace { fillet: *fillet },
+                    DecisionValue::Count(decision.survivors),
+                    DecisionValue::Count(joints.len()),
+                )));
+            }
+            // WHY THE INDEX IS SOUND, which is not the reason the
+            // ladder's own docs give. The recorded index addresses a
+            // position in the flattened (corner, candidate) list, so it
+            // means what it meant only if THIS pass built the same list
+            // in the same order. That holds because the list is
+            // produced by one formula from one corner list: `derive`
+            // enumerates corners by the carrier pair's KIND (never by
+            // value), the gate outcomes are consumed from the record so
+            // the kept set is the recorded one by construction, and
+            // `arc_fillet_trims` appends survivors per corner in its
+            // own fixed order. The `survivors` comparison above is what
+            // guards that chain — it is the one observable that a
+            // differing corner list or a differing per-corner survivor
+            // count would move — which is why it is checked BEFORE the
+            // index is used rather than beside it.
+            let picked = decision.candidate;
+            for (site, recorded, found) in [
+                (
+                    Decision::FitIn { fillet: *fillet },
+                    decision.fit_in,
+                    joints[picked].fit_in,
+                ),
+                (
+                    Decision::FitOut { fillet: *fillet },
+                    decision.fit_out,
+                    joints[picked].fit_out,
+                ),
+            ] {
+                if recorded != found {
+                    return Err(structure(StructureRefusal::flipped(
+                        site,
+                        DecisionValue::Sign(recorded),
+                        DecisionValue::Sign(found),
+                    )));
+                }
+            }
+            // The RECORDED fits are what the emission branches read:
+            // a fit sign decides whether a straight piece and its
+            // declared joint exist at all, so adopting this lane's
+            // answer would be selecting structure at the lane.
+            (picked, decision.fit_in, decision.fit_out)
+        }
+    };
     let c = joints[picked];
+    guide.record(FilletDecision {
+        corners: gates,
+        survivors: joints.len(),
+        candidate: picked,
+        fit_in,
+        fit_out,
+    });
     Ok(ArcFilletTrims {
         t1: c.t1,
         t2: c.t2,
         bulge: c.bulge,
-        fit_in: c.fit_in,
-        fit_out: c.fit_out,
+        fit_in,
+        fit_out,
         in_arc: legs_of[picked],
         arc: ArcData {
             center: c.center,

@@ -160,7 +160,7 @@ pub use stl::{
 // the parametric flagship (`plate_param`, guide §3.2) imports both.
 pub use crate::document::{
     CancelToken, Datum, Dimension, Doc, DocEdit, DocParam, EditError, EvalOptions, Evaluation,
-    Expr, LoopProgram, Node, NodeError, ParamEnv, ParamName, ParseError, PatternKind,
+    Expr, LoopProgram, Node, NodeError, ParamEnv, ParamName, ParseError, PatternKind, ProfileLift,
     ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RecordedProgramError,
     SlotId, StepArg, ValuePayload, apply, evaluate, parse_expr,
 };

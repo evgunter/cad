@@ -563,8 +563,8 @@ pub fn shell_open<T: Decide + PropsQuadLane>(
     // is by surface key, in face-arena order, so the walk is
     // deterministic.
     let mut cavity = body.clone();
-    // **All-planar bodies move SIMULTANEOUSLY; everything else still
-    // moves chart by chart.** Composing the per-chart door over a body
+    // **All-planar and AXIAL bodies move SIMULTANEOUSLY; everything
+    // else still moves chart by chart.** Composing the per-chart door over a body
     // cannot offset an OBLIQUE junction: a corner is visited once per
     // chart and transported rigidly each time, so it accumulates
     // `Σ dᵢ·nᵢ` where the offset body needs the point satisfying every
@@ -572,15 +572,32 @@ pub fn shell_open<T: Decide + PropsQuadLane>(
     // are mutually perpendicular — which is why a box was always right
     // — and diverge otherwise. `ReanchorOffCarrier` is what has been
     // refusing the difference rather than building it, and it stays
-    // exactly where it was for every body this branch does not take:
-    // the curved corners are the C5-table work that follows.
+    // exactly where it was for every body neither branch takes — a
+    // torus wall, a cylinder skew to the body's own axis, a NURBS. The
+    // curved corners of a body of REVOLUTION are no longer among them:
+    // `offset_charts_together` solves those in the meridian
+    // half-plane, and the branch below picks it.
     let all_planar = cavity.faces().all(|(_, f)| {
         matches!(
             cavity.get_surface(f.surface),
             Some(geom::Surface::Plane { .. })
         )
     });
-    if all_planar {
+    // **A body of revolution moves through the AXIAL door**, and one
+    // whose surfaces are neither all planar nor all coaxial keeps the
+    // per-chart posture exactly as it had it. The branch is chosen on a
+    // structural property of the operand, decided before anything is
+    // written, so a body outside both doors is not silently downgraded
+    // — it is the same body on the same door it was always on.
+    // An UNDECIDED axis gate is not a `false`: it escalates, and the
+    // verb refuses with it rather than quietly taking the other branch
+    // (see `is_axial`'s own docs).
+    let axial = !all_planar
+        && crate::offset_axial::is_axial(&cavity, band).map_err(|error| ShellError::Face {
+            face: offending_face(&cavity, &error).unwrap_or(charts[0][0]),
+            error: Box::new(error),
+        })?;
+    if all_planar || axial {
         let mut moves: Vec<crate::offset_together::ChartMove<T>> = Vec::with_capacity(charts.len());
         for group in &charts {
             moves.push(crate::offset_together::ChartMove {
@@ -602,11 +619,14 @@ pub fn shell_open<T: Decide + PropsQuadLane>(
                 .ok_or(ShellError::Corrupt {
                     key: EntityId::Solid(solid),
                 })?;
-        crate::offset_planes_together(&mut cavity, &moves, band, tol).map_err(|error| {
-            ShellError::Face {
-                face: offending_face(&cavity, &error).unwrap_or(fallback),
-                error: Box::new(error),
-            }
+        let outcome = if axial {
+            crate::offset_charts_together(&mut cavity, &moves, band, tol)
+        } else {
+            crate::offset_planes_together(&mut cavity, &moves, band, tol)
+        };
+        outcome.map_err(|error| ShellError::Face {
+            face: offending_face(&cavity, &error).unwrap_or(fallback),
+            error: Box::new(error),
         })?;
     } else {
         for group in &charts {
@@ -706,12 +726,49 @@ pub fn shell_open<T: Decide + PropsQuadLane>(
             .map(|(k, _)| k)
             .collect();
         let back = lift_to(&out, sources[0], designated)?;
-        crate::replace_faces_offset(&mut out, &lift_group, back, tolerance, band, tol).map_err(
-            |error| ShellError::Lift {
+        // **The lift is the same corner problem as the cavity**, with
+        // one chart moving instead of all of them: the counterpart's
+        // rim has to land where the moved plane meets the cavity walls
+        // it shares an edge with, and on a CURVED wall that is not
+        // where translating the rim puts it. Measured on the bellied
+        // pot: the per-chart lift leaves the rim 6.2 mm off the
+        // cavity's own sphere and refuses. So an axial body's lift goes
+        // through the same simultaneous door, with every OTHER chart
+        // named at distance zero — which is what makes it a corner
+        // solve rather than a transport, and what keeps those charts
+        // and their corners untouched.
+        let axial_lift =
+            crate::offset_axial::is_axial(&out, band).map_err(|error| ShellError::Lift {
                 face: designated,
                 error: Box::new(error),
-            },
-        )?;
+            })?;
+        let outcome = if axial_lift {
+            let mut moves: Vec<crate::offset_together::ChartMove<T>> = Vec::new();
+            for group in chart_groups(&out) {
+                let key = out
+                    .get_face(group[0])
+                    .ok_or(ShellError::Corrupt {
+                        key: EntityId::Face(group[0]),
+                    })?
+                    .surface;
+                let distance = if key == counterpart_chart {
+                    back
+                } else {
+                    T::zero()
+                };
+                moves.push(crate::offset_together::ChartMove {
+                    faces: group,
+                    distance,
+                });
+            }
+            crate::offset_charts_together(&mut out, &moves, band, tol)
+        } else {
+            crate::replace_faces_offset(&mut out, &lift_group, back, tolerance, band, tol)
+        };
+        outcome.map_err(|error| ShellError::Lift {
+            face: designated,
+            error: Box::new(error),
+        })?;
         // Read AFTER the lift: `FaceSurface::New` minted a fresh key
         // for the moved chart, and that key — not the one the graft
         // brought in — is what the ring's descriptions now name.
@@ -1228,11 +1285,15 @@ fn offending_face<T: Real>(body: &Body<T>, error: &ReplaceFaceError<T>) -> Optio
         | ReplaceFaceError::TogetherNonPlanar { face, .. }
         | ReplaceFaceError::TogetherPartialSet { face }
         | ReplaceFaceError::TogetherChartMixed { face, .. }
-        | ReplaceFaceError::TogetherFaceRepeated { face } => Some(*face),
-        ReplaceFaceError::TogetherCorner { vertex, .. } => {
+        | ReplaceFaceError::TogetherFaceRepeated { face }
+        | ReplaceFaceError::TogetherAxialUnsupported { face, .. }
+        | ReplaceFaceError::TogetherNotAxial { face, .. } => Some(*face),
+        ReplaceFaceError::TogetherCorner { vertex, .. }
+        | ReplaceFaceError::TogetherAxialCorner { vertex, .. } => {
             face_of_he(body.get_vertex(*vertex)?.emanating?)
         }
         ReplaceFaceError::TogetherEdgeDisagreement { edge, .. }
+        | ReplaceFaceError::TogetherAxialEdge { edge, .. }
         | ReplaceFaceError::ReanchorOffCarrier { edge, .. } => {
             face_of_he(body.get_edge(*edge)?.he_plus)
         }

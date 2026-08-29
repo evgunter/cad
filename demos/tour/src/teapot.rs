@@ -31,36 +31,47 @@
 //!
 //! # Findings this scene records (the demo-purpose rule)
 //!
-//! 1. **`shell`'s sealed arm survived exactly ONE junction shape, and
-//!    it was never about curvature.** The verb replaced one chart at a
-//!    time and re-anchored the neighbours' edges on carriers that had
-//!    not moved yet, so a junction survived exactly when the
-//!    neighbouring surface was invariant under the moved face's own
-//!    offset motion: a plane normal to a cylinder's axis, both ways,
-//!    and nothing else. A right prism on a TRIANGLE refused the same
-//!    way as a cone frustum, which is what ruled curvature out.
+//! 1. **`shell`'s sealed arm survived exactly ONE junction shape, it
+//!    was never about curvature, and it is now REPAIRED.** The verb
+//!    replaced one chart at a time and re-anchored the neighbours'
+//!    edges on carriers that had not moved yet, so a junction survived
+//!    exactly when the neighbouring surface was invariant under the
+//!    moved face's own offset motion: a plane normal to a cylinder's
+//!    axis, both ways, and nothing else. A right prism on a TRIANGLE
+//!    refused the same way as a cone frustum, which is what ruled
+//!    curvature out.
 //!
-//!    **The PLANAR half of that is repaired (#1081 PR-2a) and the
-//!    curved half is not.** An all-planar body's corners are now solved
-//!    SIMULTANEOUSLY — each against every moved plane meeting it —
-//!    so the hexagon, the bevel, the kite and the triangular prism
-//!    hollow. A body with any curved face still moves chart by chart
-//!    and still refuses at `ReanchorOffCarrier`, which is the gate
-//!    standing between that path and a wrong corner. **The pot's belly
-//!    is a SPHERE ZONE**, so it is on the curved side: the belly stays
-//!    squared — foot, shoulder, belly, shoulder, neck, all right
-//!    angles — and the arc a potter would draw is still wall 1, now
-//!    waiting on PR-2b's curved-corner solves rather than on the class
-//!    being unknown. A curved neighbour can also refuse at a THIRD
-//!    door (`CarrierLaneUnsupported`), which is about the neighbour's
-//!    offset not being a rigid translation rather than about tangency
-//!    — a dome whose centre is lifted clear of the wall's top is
-//!    definitely not tangent and refuses identically.
-//!    `tests/verbs_teapot.rs` is that table, its sweep, and the
-//!    sweep's stated blind spot. This was not a gap the verb
-//!    announced: `shell`'s acceptance corpus is a box, a cylinder
-//!    between two caps and a tube between two caps — every fixture in
-//!    the surviving class, and the class was never named.
+//!    **#1081 made the offsets SIMULTANEOUS**, in two halves. PR-2a
+//!    solves an all-planar body's corner as `nᵢ·x = cᵢ` over every
+//!    moved plane meeting it, so the hexagon, the bevel, the kite and
+//!    the triangular prism hollow. PR-2b solves a body of REVOLUTION's
+//!    corners in its own meridian half-plane, where a plane normal to
+//!    the axis is a line, a cylinder is a line, a cone is a line and a
+//!    sphere is a circle — so a corner is one line/line or line/circle
+//!    meeting, closed form, with every further surface verified against
+//!    it and the seam's azimuth carried as the conventional datum it
+//!    is. **That is what un-squared this pot.** Its belly was a SPHERE
+//!    ZONE and therefore on the curved side, and the meridian this
+//!    scene ships is now the one the model always wanted: base, foot,
+//!    ONE ARC, mouth. The three squared segments — shoulder, belly,
+//!    shoulder — are gone, and so is the wall that pinned their
+//!    refusal.
+//!
+//!    **The frontier moved rather than vanished**, and the scene's
+//!    wall 1 moved with it. Push the belly's arc centre OFF the axis
+//!    and its wall is a TORUS, which is outside the meridian
+//!    reduction's kinds and whose plane×torus pair the C5 table routes
+//!    to the general rung — a marcher this door does not use. That
+//!    refusal names the PAIR, and it is what wall 1 pins now. A curved
+//!    junction can also be TANGENT, and a tangent junction has no
+//!    transversal corner to solve at all: the conditioning meter says
+//!    so in the geometry's own terms, which is why the bullet still
+//!    refuses where the pot's own foot-to-belly junction — the same
+//!    surface pair — does not. `tests/verbs_teapot.rs` is that table,
+//!    its sweep, and the sweep's stated blind spot. None of this was a
+//!    gap the verb announced: `shell`'s acceptance corpus is a box, a
+//!    cylinder between two caps and a tube between two caps — every
+//!    fixture in the surviving class, and the class was never named.
 //! 2. **The OPENED arm was wrong on every solid of revolution, and is
 //!    the fixed thing this scene now ships.** This scene was specified
 //!    to be `shell_open`'s first consumer past acceptance, opening the
@@ -159,18 +170,19 @@ use crate::{SceneBody, Stop, View};
 // are compared against numbers no rounding entered.
 // ---------------------------------------------------------------------
 
-/// The foot's radius, and the neck's: the pot is waisted at both ends.
-const R_FOOT: f64 = 3.0 / 64.0;
-/// The belly's radius — the pot's widest wall.
+/// The foot's radius — the cylinder the pot stands on.
+const R_FOOT: f64 = 4.0 / 64.0;
+/// The belly's sphere radius — the pot's widest wall, at `Y_BELLY_C`.
 const R_BELLY: f64 = 5.0 / 64.0;
-/// The neck's radius. Equal to the foot's, which is a choice about the
-/// silhouette and not a constraint; the lid's rim reads it.
-const R_NECK: f64 = R_FOOT;
-/// Where the foot ends and the lower shoulder turns out.
+/// The mouth's radius, which the lid's rim reads.
+const R_NECK: f64 = 3.0 / 64.0;
+/// Where the foot ends and the belly's arc begins.
 const Y_FOOT: f64 = 1.0 / 64.0;
-/// Where the belly ends and the upper shoulder turns in.
-const Y_SHOULDER: f64 = 6.0 / 64.0;
-/// The mouth's plane — the top of the neck.
+/// The belly sphere's centre, on the axis. The two junction stations
+/// are the sphere's own 3-4-5 points: `(4/64, 1/64)` at the foot and
+/// `(3/64, 8/64)` at the mouth, both with an exactly zero residual.
+const Y_BELLY_C: f64 = 4.0 / 64.0;
+/// The mouth's plane.
 const Y_MOUTH: f64 = 8.0 / 64.0;
 
 /// The wall thickness. A tenth of the belly's radius, and an eighth of
@@ -254,7 +266,7 @@ const HANDLE_TUBE: f64 = 1.0 / 128.0;
 /// far side stands `HANDLE_R` proud of it.
 const HANDLE_C: Point3<f64> = Point3 {
     x: R_BELLY,
-    y: (Y_FOOT + Y_SHOULDER) / 2.0,
+    y: Y_BELLY_C,
     z: 0.0,
 };
 /// How far past the semicircle each end of the handle runs, in radians
@@ -275,14 +287,6 @@ const HANDLE_C: Point3<f64> = Point3 {
 /// built this way would leak, and re-cutting it is the FIRST thing the
 /// wall-3 retire note asks for if the union ever composes.
 const HANDLE_OVER: f64 = 0.5;
-
-/// The bellied pot's foot radius. Its belly is a sphere zone of the
-/// stepped pot's OWN widest radius (`R_BELLY`) centred on the axis at
-/// `Y_MOUTH / 2`, and it meets the foot and the mouth at that sphere's
-/// two 3-4-5 stations — so the two pots share their widest radius,
-/// their mouth radius and both of those stations, and differ only in
-/// whether the shoulders are turned or squared.
-const BELLIED_FOOT: f64 = 4.0 / 64.0;
 
 /// The scene's chord budget.
 const DELTA: f64 = 2e-4;
@@ -306,43 +310,31 @@ fn revolved(lp: ProfileLoop<f64>, tol: Tol) -> Body<f64> {
     .body
 }
 
-/// **The vessel's meridian**: base, foot, lower shoulder, belly, upper
-/// shoulder, neck, mouth — every junction a right angle, which is the
-/// scene's finding 1 written as geometry.
+/// **The vessel's meridian**: base disc, foot, belly, mouth disc —
+/// the shoulders and the belly are ONE ARC about a centre on the axis,
+/// which makes the wall a SPHERE ZONE and the pot the shape a potter
+/// would throw.
+///
+/// This is the meridian the model always wanted. Until #1081's PR-2b it
+/// was wall 1, pinned by its refusal: `shell` moved one chart at a time
+/// and a corner where a plane meets a sphere is not where transporting
+/// it under either one alone puts it. The simultaneous door solves that
+/// corner against both surfaces at once, so the arc ships.
+///
+/// Every station is a dyadic rational and the sphere is the 3-4-5
+/// triple twice over: radius `5/64` about `(0, 4/64)`, meeting the foot
+/// cylinder at `(4/64, 1/64)` and the mouth at `(3/64, 8/64)`, so both
+/// junctions' residuals `|c − p|² − r²` are exactly `0.0` in f64 and
+/// the closed forms below compare against numbers no rounding entered.
 fn vessel_meridian(tol: Tol) -> ProfileLoop<f64> {
     Open.at(Point2::new(0.0, 0.0))
         .line_to(Point2::new(R_FOOT, 0.0), tol)
         .expect("the base disc")
         .line_to(Point2::new(R_FOOT, Y_FOOT), tol)
         .expect("the foot")
-        .line_to(Point2::new(R_BELLY, Y_FOOT), tol)
-        .expect("the lower shoulder")
-        .line_to(Point2::new(R_BELLY, Y_SHOULDER), tol)
-        .expect("the belly")
-        .line_to(Point2::new(R_NECK, Y_SHOULDER), tol)
-        .expect("the upper shoulder")
-        .line_to(Point2::new(R_NECK, Y_MOUTH), tol)
-        .expect("the neck")
-        .line_to(Point2::new(0.0, Y_MOUTH), tol)
-        .expect("the mouth disc")
-        .line_to(Start, tol)
-        .expect("the axis closes the meridian")
-        .into()
-}
-
-/// **The meridian the model wanted**: the same pot with the shoulders
-/// and the belly replaced by one arc about a centre ON the axis — a
-/// sphere zone, the shape every teapot in the world has. Built only to
-/// be shelled, in wall 1.
-fn bellied_meridian(tol: Tol) -> ProfileLoop<f64> {
-    Open.at(Point2::new(0.0, 0.0))
-        .line_to(Point2::new(BELLIED_FOOT, 0.0), tol)
-        .expect("the base disc")
-        .line_to(Point2::new(BELLIED_FOOT, Y_FOOT), tol)
-        .expect("the foot")
         .arc_to(
             Center {
-                c: Point2::new(0.0, Y_MOUTH / 2.0),
+                c: Point2::new(0.0, Y_BELLY_C),
                 winding: ArcSweep::Ccw,
                 p: Point2::new(R_NECK, Y_MOUTH),
             },
@@ -536,31 +528,48 @@ fn genus(body: &Body<f64>) -> i64 {
     body.shells().count() as i64 - chi / 2
 }
 
-/// The pot's own stack of cylindrical segments, as `(radius, height)`
-/// pairs — the OUTER solid when `d` is zero, and the sealed cavity's
-/// when `d` is the wall: every radius shrinks by `d`, the belly's
-/// segment loses a wall at each shoulder, and the foot's and the
-/// neck's keep their heights because each is bounded by one shoulder
-/// and one cap, which move the same way.
-fn pot_stack(d: f64) -> [(f64, f64); 3] {
-    [
-        (R_FOOT - d, Y_FOOT),
-        (R_BELLY - d, Y_SHOULDER - Y_FOOT - 2.0 * d),
-        (R_NECK - d, Y_MOUTH - Y_SHOULDER),
-    ]
+/// The station where the foot cylinder meets the belly sphere, at
+/// inward offset `d`: the sphere shrinks concentrically and the
+/// cylinder shrinks radially, so their meeting slides ALONG the
+/// meridian. This is the corner the simultaneous door solves, written
+/// independently here — and it is what a transported corner gets
+/// wrong.
+fn pot_junction(d: f64) -> f64 {
+    let (rr, rf) = (R_BELLY - d, R_FOOT - d);
+    Y_BELLY_C - (rr * rr - rf * rf).sqrt()
+}
+
+/// The pot's boundary radius on the belly sphere at station `y` and
+/// inward offset `d`.
+fn belly_radius(y: f64, d: f64) -> f64 {
+    let rr = R_BELLY - d;
+    (rr * rr - (y - Y_BELLY_C) * (y - Y_BELLY_C)).sqrt()
+}
+
+/// The volume the pot's boundary encloses at inward offset `d`: the
+/// foot's cylinder up to the junction, then the SPHERICAL ZONE from
+/// there to the mouth. `π∫ρ²dy` in two pieces, with the second one the
+/// zone integral `π[R²y − y³/3]` about the sphere's own centre.
+fn pot_volume(d: f64) -> f64 {
+    let (rf, rr) = (R_FOOT - d, R_BELLY - d);
+    let (y0, y1) = (pot_junction(d), Y_MOUTH - d);
+    let zone = |y: f64| {
+        let u = y - Y_BELLY_C;
+        rr * rr * u - u * u * u / 3.0
+    };
+    PI * rf * rf * (y0 - d) + PI * (zone(y1) - zone(y0))
 }
 
 /// The area of the pot's boundary at inward offset `d`: the base cap,
-/// the three walls, the two shoulder annuli and the mouth cap.
+/// the foot's wall, the belly zone's lateral area (`2πRh`, Archimedes)
+/// and the mouth cap.
 fn pot_area(d: f64) -> f64 {
-    let [(rf, hf), (rb, hb), (rn, hn)] = pot_stack(d);
+    let (rf, rr) = (R_FOOT - d, R_BELLY - d);
+    let (y0, y1) = (pot_junction(d), Y_MOUTH - d);
     PI * rf * rf
-        + 2.0 * PI * rf * hf
-        + annulus(rb, rf)
-        + 2.0 * PI * rb * hb
-        + annulus(rb, rn)
-        + 2.0 * PI * rn * hn
-        + PI * rn * rn
+        + 2.0 * PI * rf * (y0 - d)
+        + 2.0 * PI * rr * (y1 - y0)
+        + PI * belly_radius(y1, d) * belly_radius(y1, d)
 }
 
 // ---------------------------------------------------------------------
@@ -571,16 +580,17 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     let band = Band::linear(tol).expect("the run's band");
 
     // ---- the vessel, before the wall ----
-    let sharp = revolved(vessel_meridian(tol), tol);
+    let bellied = revolved(vessel_meridian(tol), tol);
     assert_eq!(
         (
-            sharp.vertices().count(),
-            sharp.edges().count(),
-            sharp.faces().count(),
+            bellied.vertices().count(),
+            bellied.edges().count(),
+            bellied.faces().count(),
         ),
-        (14, 26, 14),
-        "seven revolved meridian segments (the eighth is the axis and sweeps nothing), \
-         each cut at the two seam meridians into a pair of half-walls"
+        (8, 14, 8),
+        "four revolved meridian segments (the fifth is the axis and sweeps nothing), \
+         each cut at the two seam meridians into a pair of half-walls — one arc where \
+         the squared pot spent three segments on shoulder, belly, shoulder"
     );
 
     // ---- the gates, MEASURED off the operand before the verb runs ----
@@ -594,9 +604,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // normal and lets the face's orientation say which way each looks,
     // so a sense-blind scan finds NO antiparallel pair on this pot at
     // all. The count that stored `+y` goes in the note, measured.
-    let planes: Vec<(f64, f64)> = sharp
+    let planes: Vec<(f64, f64)> = bellied
         .faces()
-        .filter_map(|(_, f)| match sharp.get_surface(f.surface) {
+        .filter_map(|(_, f)| match bellied.get_surface(f.surface) {
             Some(Surface::Plane { origin, normal, .. }) => {
                 Some((origin.y, if f.sense { normal.y } else { -normal.y }))
             }
@@ -604,10 +614,10 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         })
         .collect();
     let stored_plus = planes.len()
-        - sharp
+        - bellied
             .faces()
             .filter(|(_, f)| {
-                matches!(sharp.get_surface(f.surface),
+                matches!(bellied.get_surface(f.surface),
                     Some(Surface::Plane { normal, .. }) if normal.y < 0.0)
             })
             .count();
@@ -641,9 +651,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         "the closest antiparallel planar pair clears {clearance} m and two walls need {}",
         2.0 * WALL
     );
-    let reach = sharp
+    let reach = bellied
         .faces()
-        .filter_map(|(_, f)| match sharp.get_surface(f.surface) {
+        .filter_map(|(_, f)| match bellied.get_surface(f.surface) {
             Some(Surface::Cylinder { radius, .. }) => Some(*radius - WALL),
             _ => None,
         })
@@ -654,7 +664,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     );
 
     // ---- the sealed hollow: the body the scene SHIPS ----
-    let pot = pncad::topo::shell(&sharp, WALL, FIT_TOL, band, tol)
+    let pot = pncad::topo::shell(&bellied, WALL, FIT_TOL, band, tol)
         .unwrap_or_else(|e| panic!("the pot hollows, got {e}"));
     let (pv, pe, pf) = (
         pot.vertices().count(),
@@ -663,8 +673,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     );
     assert_eq!(
         (pv, pe, pf),
-        (28, 52, 28),
-        "the operand's 14/26/14, twice: the cavity is the same boundary offset inward, \
+        (16, 28, 16),
+        "the operand's 8/14/8, twice: the cavity is the same boundary offset inward, \
          inserted whole through the shared void door"
     );
     assert_eq!(
@@ -677,8 +687,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // The wall as a NUMBER, against the two stacks — and the cavity's
     // capacity asked for DIRECTLY rather than inferred from a
     // difference, which is the number a potter actually wants.
-    let v_out = stack_volume(&pot_stack(0.0));
-    let v_cav = stack_volume(&pot_stack(WALL));
+    let v_out = pot_volume(0.0);
+    let v_cav = pot_volume(WALL);
     let v_want = v_out - v_cav;
     let a_want = pot_area(0.0) + pot_area(WALL);
     let props = pncad::topo::mass_properties(&pot, tol).expect("the pot's props");
@@ -727,8 +737,8 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // stays: it is where the two-shell insertion, the decided Void
     // role and the capacity are read. What the montage draws is the
     // OPENED pot, because a teapot has a mouth.
-    let mouth = plane_chart_at(&sharp, Y_MOUTH);
-    let cup = pncad::topo::shell_open(&sharp, WALL, &mouth, FIT_TOL, band, tol)
+    let mouth = plane_chart_at(&bellied, Y_MOUTH);
+    let cup = pncad::topo::shell_open(&bellied, WALL, &mouth, FIT_TOL, band, tol)
         .unwrap_or_else(|e| panic!("the pot opens at its mouth, got {e}"));
 
     // ---- the lid ----
@@ -895,27 +905,64 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // success, fails the tour — so the findings list in the module
     // docs cannot rot behind a frontier that moved.
 
-    // WALL 1 — the pot the model wanted. The stepped meridian above is
-    // not a stylistic choice; it is what survives, and this is where
-    // that is measured rather than claimed.
-    let bellied = revolved(bellied_meridian(tol), tol);
+    // WALL 1 — RETIRED at #1081's PR-2b, and the retirement is the
+    // pot above: the belly IS the arc now. What this wall pinned was
+    // the sealed hollow of a sphere-zone meridian refusing
+    // `ReanchorOffCarrier`, and it refused because `shell` moved one
+    // chart at a time. The simultaneous door solves each corner
+    // against every surface meeting it, so the arc ships and the
+    // squared shoulders are gone from the scene entirely.
+    //
+    // WALL 1, RE-PLANTED one step further out — the belly the model
+    // might want NEXT. Push the arc's centre OFF the axis and the wall
+    // is no longer a sphere zone but a TORUS, and the C5 intersection
+    // table has no closed-form arm for plane×torus: it routes to the
+    // general rung, which is marching, and this door does not march.
+    // The refusal names the PAIR, which is the honest boundary of a
+    // unit that widened no table.
+    let torus_belly = revolved(
+        Open.at(Point2::new(0.0, 0.0))
+            .line_to(Point2::new(R_FOOT, 0.0), tol)
+            .expect("the base disc")
+            .line_to(Point2::new(R_FOOT, Y_FOOT), tol)
+            .expect("the foot")
+            // The SAME two junction stations and the SAME 5/64 radius,
+            // about the OTHER centre on their perpendicular bisector:
+            // `(7/64, 5/64)`, which is off the axis. Both residuals are
+            // still exactly zero (3-4-5 twice again) — the only thing
+            // that changed is that the revolve now mints a TORUS.
+            .arc_to(
+                Center {
+                    c: Point2::new(7.0 / 64.0, 5.0 / 64.0),
+                    winding: ArcSweep::Cw,
+                    p: Point2::new(R_NECK, Y_MOUTH),
+                },
+                tol,
+            )
+            .expect("a belly about a centre off the axis is a torus")
+            .line_to(Point2::new(0.0, Y_MOUTH), tol)
+            .expect("the mouth disc")
+            .line_to(Start, tol)
+            .expect("the axis closes the meridian")
+            .into(),
+        tol,
+    );
     crate::walls::wall(
         "teapot",
         1,
-        "hollow the pot with a BELLY — the same widest radius, the same mouth, the \
-         shoulders turned into one sphere zone about a centre on the axis",
-        pncad::topo::shell(&bellied, WALL, FIT_TOL, band, tol),
+        "hollow a pot whose belly bulges about a centre OFF the axis — a torus wall \
+         rather than a sphere zone",
+        pncad::topo::shell(&torus_belly, WALL, FIT_TOL, band, tol),
         |e| {
             matches!(
                 e,
                 ShellError::Face { error: b, .. }
-                    if matches!(**b, ReplaceFaceError::ReanchorOffCarrier { .. })
+                    if matches!(**b, ReplaceFaceError::NeighborPairUnroutable { .. })
             )
         },
-        "replace `vessel_meridian` with `bellied_meridian` — one arc for three segments \
-         — re-derive the pot's closed forms from the spherical zone rather than the \
-         cylinder stack, and delete the junction table in `tests/verbs_teapot.rs` with \
-         this probe",
+        "retire the plane×torus arm of `geom_brep::intersect::route` — which needs the \
+         torus's exact meters conversion, not a marcher — and re-derive this pot's \
+         closed forms from the torus's own volume of revolution",
     );
 
     // THE MOUTH, OPENED — the scene's second finding, RETIRED. This
@@ -952,7 +999,19 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // The cup is the sealed wall LESS the disc of wall the mouth cap
     // was: opening lifts the cavity's cap from the mouth plane's own
     // station minus a wall, up to the plane.
-    let cup_want = v_want - PI * (R_NECK - WALL) * (R_NECK - WALL) * WALL;
+    // The lifted mouth disc is NOT a cylinder any more: the cavity's
+    // wall over that slab is the belly SPHERE, so the plug the lift
+    // opens is the zone integral between the cavity's own top station
+    // and the mouth plane. Reading it as a cylinder was right only
+    // while the neck was one.
+    let cup_want = v_want - {
+        let rr = R_BELLY - WALL;
+        let zone = |y: f64| {
+            let u = y - Y_BELLY_C;
+            rr * rr * u - u * u * u / 3.0
+        };
+        PI * (zone(Y_MOUTH) - zone(Y_MOUTH - WALL))
+    };
     assert!(
         ((cup_props.volume - cup_want) / cup_want).abs() < 1e-12,
         "cup V = {} vs the wall's closed form less the lifted mouth disc {cup_want}",
@@ -984,7 +1043,10 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                     op: None,
                     operand: Operand::B,
                     kind: SurfaceKind::Torus,
-                    other_kind: SurfaceKind::Cylinder,
+                    // The pot's belly is a SPHERE now, not the squared
+                    // pot's cylinder: same gate, and the pair it names
+                    // is the pair the geometry actually has.
+                    other_kind: SurfaceKind::Sphere,
                     ..
                 }
             )
@@ -1042,18 +1104,18 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         ops: "revolve(meridian, +y, Full) -> shell_open(pot, t = 7.8125 mm, the mouth's \
               chart) for the vessel; revolve + fillet_edges(the knob's top rim) for the \
               lid; revolve + transform_rigid for the spout; tube_along_arc for the \
-              handle. Three walls pinned: the bellied pot's hollow and both unions",
+              handle. Three walls pinned: a torus-bellied pot's hollow and both unions",
         delta: DELTA,
         note: Some(format!(
             "THE VESSEL, SEALED THEN OPENED. Sealed it is {pv} vertices, {pe} edges, \
-             {pf} faces over TWO shells in one solid — the operand's 14/26/14 twice, \
+             {pf} faces over TWO shells in one solid — the operand's 8/14/8 twice, \
              since the cavity is that same boundary offset inward and inserted whole \
              through the shared void door. Genus 0. V = {:.9} m³ of WALL against the \
-             difference of two closed-form cylinder stacks, and A = {:.9} m² against \
-             the two boundaries' own; zero enclosure pad. The capacity is asked for \
+             difference of two closed-form SPHERICAL ZONES on a foot, and A = {:.9} m² \
+             against the two boundaries' own; zero enclosure pad. The capacity is asked for \
              DIRECTLY of THAT body rather than inferred: `classify_shells` gives the \
-             cavity the Void role and its signed volume is {:.9} m³, the cavity stack's \
-             own {capacity_l:.4} LITRES negated by the orientation convention — a \
+             cavity the Void role and its signed volume is {:.9} m³, the cavity's own closed form, \
+             its {capacity_l:.4} LITRES negated by the orientation convention — a \
              reading the OPENED pot cannot give, because its cavity is no longer a \
              void. The gates, measured on the operand before the verb \
              ran: the closest antiparallel planar pair clears {clearance} m where two \
@@ -1062,20 +1124,23 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              {reach} m of realized inner radius left. Note the sense bit in that scan: \
              {stored_plus} of this pot's {} planar FACES store a +y normal and only the \
              face's own orientation says which way each looks, so a sense-blind scan \
-             finds no antiparallel pair here at all. THE BELLY IS STILL SQUARED, AND THAT \
-             IS THE SCENE'S FIRST FINDING, NOW HALF-REPAIRED: the same pot with its \
-             shoulders turned into one sphere zone REFUSES (wall 1). The class was \
-             OBLIQUE junctions and not curvature — a triangular prism, all planes, \
-             dihedrals 58/58/64, refused exactly like a cone frustum — and #1081's \
-             PLANAR half is fixed: an all-planar body's corners are solved \
-             SIMULTANEOUSLY now, so that prism and the hexagon, bevel and kite hollow. \
-             The belly is a SPHERE ZONE, which is the curved half and is PR-2b's, so \
-             this pot keeps its right angles and wall 1 keeps its pin. A CURVED \
-             neighbour can also refuse at a further door, and that door is the \
-             neighbour's offset not being a rigid translation rather than tangency: \
-             a lifted, definitely-non-tangent dome refuses identically \
-             (`tests/verbs_teapot.rs` carries the table, the discriminator and the \
-             sweep's blind spot). THE MOUTH IS \
+             finds no antiparallel pair here at all. THE BELLY IS AN ARC, AND THAT IS THE \
+             SCENE'S FIRST FINDING RETIRED. It read THE BELLY IS STILL SQUARED for \
+             two waves: `shell` moved ONE chart at a time and re-anchored its \
+             neighbours on carriers that had not moved, so a junction survived only \
+             where the neighbouring surface was invariant under the moved face's own \
+             offset — and the class was OBLIQUE junctions rather than curvature, a \
+             triangular prism of all planes refusing exactly like a cone frustum. \
+             #1081 made the offsets SIMULTANEOUS: every corner is solved against all \
+             the surfaces meeting it at once, planar corners by a 3×3 solve (PR-2a) \
+             and a body of revolution's in its own meridian half-plane (PR-2b), where \
+             a plane is a line, a cylinder is a line, a cone is a line and a sphere is \
+             a circle. So the shoulders are gone: foot cylinder, ONE spherical zone, \
+             mouth. The frontier moved rather than vanished, and wall 1 has moved with \
+             it — push the belly's arc centre OFF the axis and the wall is a TORUS, for \
+             which the C5 table has no closed-form arm at all (`tests/verbs_teapot.rs` \
+             carries the junction table, the tangency discriminator and the sweep's \
+             blind spot). THE MOUTH IS \
              OPEN, AND THAT WAS THE SCENE'S SECOND FINDING BEFORE IT WAS FIXED: \
              `shell_open` used to return a body that passed tiers 1-3 while each \
              designated half-disc carried its own cavity counterpart's boundary as a \
