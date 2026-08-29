@@ -792,14 +792,17 @@ pub fn highlight(
 /// direction: a profile's line and the wall it swept are one thing
 /// seen twice.
 ///
-/// **What it does NOT do yet**, stated so the gap is not mistaken for
-/// a decision: the marking is per NODE, so selecting a profile lights
-/// the whole body built from it rather than the walls of the one
-/// segment being edited. Per-segment marking is expressible in this
-/// type — the answer is a set of patch ids and nothing about the shape
-/// assumes a whole node's worth — and wants the profile-step ↔
-/// `RoleSeg::Lateral(ProfileEdgeRef)` correspondence established
-/// rather than guessed.
+/// **What it does NOT do yet (issue 1182)**, stated so the gap is not
+/// mistaken for a decision: the marking is per NODE, so selecting a
+/// profile lights the whole body built from it rather than the walls of
+/// the one segment being edited. Per-segment marking is expressible in
+/// this type — the answer is a set of patch ids and nothing about the
+/// shape assumes a whole node's worth — and wants the profile-step ↔
+/// `RoleSeg::Lateral(ProfileEdgeRef)` correspondence established rather
+/// than guessed: a slot's `step` is an index in the AUTHORING chain and
+/// the name's `segment` an index in the LOWERED one, and one authored
+/// step can lower to several segments. A wrong guess there lights a
+/// confidently wrong face, silently.
 ///
 /// A selection whose referent is not drawn — vanished, unevaluated,
 /// hidden, or a feature that produces no body at all — answers the

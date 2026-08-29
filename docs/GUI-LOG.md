@@ -383,7 +383,8 @@ precedent, #1108/#1125/#1129).
    type is already a set of patch ids, so per-segment marking is
    expressible; it wants the profile-step ↔
    `RoleSeg::Lateral(ProfileEdgeRef)` correspondence ESTABLISHED
-   rather than guessed, which is its own small unit.
+   rather than guessed, which is its own small unit. Filed as
+   issue 1182.
 
 5. **"How far can this field move before something breaks."**
    `viewer::bounds` — step outward, then bisect, against a caller-
@@ -404,10 +405,27 @@ precedent, #1108/#1125/#1129).
    valid, nearest invalid) rather than a number; and a side with
    no failure in reach says how far it looked, never "unbounded".
 
-   **For Evan, the two open design questions this raises**: (a)
-   inline is a hitch of tens of evaluations on a button press —
-   the probe is already a resumable state machine, so moving it
-   behind the eval seam or onto a per-frame drip is mechanical if
-   the hitch is felt; (b) the seed step is one of whatever unit
-   the field is written in, which is a guess at the user's scale
-   and the one number in the feature nothing derives.
+   **Sampling is a stand-in for a proof, and issue 1183 says so**
+   (Evan's framing, in the conversation that asked for this): the
+   kernel already runs `evaluate::<Interval>` over a whole `Doc`,
+   and `Interval::from_bounds` is the subdivision driver's
+   constructor, so replaying with the field WIDENED and
+   branch-and-bounding the box would give the largest CERTIFIED
+   locally-valid interval instead of the nearest boundary sampling
+   could see. What is missing is kernel tooling, not viewer code —
+   `evaluate` derives its own `ParamEnv` degenerately, a node slot
+   has no name to widen (the widening belongs to the QUERY, so the
+   answer is a driver-side override rather than an interval-valued
+   literal in the recipe), and the verdict contract has to rule
+   that an INDETERMINATE interval decision means subdivide rather
+   than fail, which is adjacent to the enclosure-lane contract open
+   as issue 1143. `BoundsProbe` evaluates nothing itself precisely
+   so the oracle can be replaced without the panel noticing.
+
+   **The two remaining open questions for Evan**: (a) inline is a
+   hitch of tens of evaluations on a button press — the resumable
+   state machine makes moving it behind the eval seam or onto a
+   per-frame drip mechanical if the hitch is felt; (b) the seed
+   step is one of whatever unit the field is written in, which is a
+   guess at the user's scale and the one number in the feature
+   nothing derives.

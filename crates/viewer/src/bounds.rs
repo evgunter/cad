@@ -43,6 +43,33 @@
 //! of confident wrong answer this codebase's fail-loud posture exists
 //! to keep out.
 //!
+//! # The certified answer this method is standing in for (issue 1183)
+//!
+//! Sampling is a guess, and this kernel can in principle do better than
+//! guess. Evaluation is generic over its scalar and `evaluate::<Interval>`
+//! runs a whole `Doc` today; `Interval::from_bounds` is documented as the
+//! SUBDIVISION DRIVER's constructor. Replaying the document with the
+//! field widened to `[a, b]` and reading the verdict would say something
+//! categorically stronger than any number of samples — not "these values
+//! worked" but "no value in this box fails" — and branch-and-bound over
+//! the box would give the largest CERTIFIED locally-valid interval, with
+//! this search demoted to a seed for it.
+//!
+//! Three doors are missing before that is clean, and they are the
+//! kernel's rather than this module's: `evaluate` derives its own
+//! `ParamEnv` through `T::from_f64`, so every binding enters degenerate;
+//! a node SLOT has no name to widen at all (its value is a bit-pinned
+//! `f64` literal, and the widening is a property of the QUERY, not of
+//! the document, so what is wanted is a driver-side override rather than
+//! an interval-valued literal in the recipe); and the verdict contract
+//! has to say what an INDETERMINATE interval decision means — subdivide,
+//! not fail — which is adjacent to the enclosure-lane contract open as
+//! issue 1143.
+//!
+//! What this module is built to survive that change: [`BoundsProbe`]
+//! evaluates nothing itself, so the oracle is replaceable without the
+//! panel noticing.
+//!
 //! # Why it is a resumable state machine
 //!
 //! [`BoundsProbe`] never evaluates anything. It answers "which value
