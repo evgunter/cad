@@ -98,9 +98,7 @@ def opened(directory=CORPUS):
 
 def volumes(evaluation, node):
     """Every body volume the node's value denotes, in canonical units."""
-    return [
-        body.mass_properties().volume for body in evaluation.value(node).bodies()
-    ]
+    return [body.mass_properties().volume for body in evaluation.value(node).bodies()]
 
 
 def failures(evaluation):
@@ -137,8 +135,8 @@ class CorpusCase(unittest.TestCase):
     def assertVolumes(self, found, want):
         """Every volume, in order, to the scene's own agreement bound."""
         self.assertEqual(len(found), len(want), f"{found} vs {want}")
-        for got, expected in zip(found, want):
-            self.assertAlmostEqual(got, expected, delta=self.DELTA)
+        for index, expected in enumerate(want):
+            self.assertAlmostEqual(found[index], expected, delta=self.DELTA)
 
     def scratch(self):
         directory = Path(tempfile.mkdtemp()) / "bench"
@@ -180,9 +178,7 @@ class TestTheSeamIsCrossedOrRefused(CorpusCase):
         store, docs = opened()
         evaluation = evaluate(docs["stand"], resolver=store)
         self.assertEqual(failures(evaluation), {})
-        material = [
-            v for node in evaluation.order() for v in volumes(evaluation, node)
-        ]
+        material = [v for node in evaluation.order() for v in volumes(evaluation, node)]
         self.assertVolumes(sorted(material), sorted([POST_VOLUME] * 2 + [SHELF_VOLUME]))
 
     def test_one_part_document_is_evaluated_once_however_many_instances(self):
@@ -229,7 +225,9 @@ class TestTheResolutionRefusals(CorpusCase):
         )
         store.resave(docs["shelf"])
 
-        refusals = failures(evaluate(docs["layout"], resolver=Workspace(str(directory))))
+        refusals = failures(
+            evaluate(docs["layout"], resolver=Workspace(str(directory)))
+        )
         self.assertEqual(
             [r.kind for r in refusals.values()],
             ["part_pin_mismatch"],
@@ -244,7 +242,9 @@ class TestTheResolutionRefusals(CorpusCase):
         os.remove(directory / f"{names['post']}.pncad")
 
         _, docs = opened()
-        refusals = failures(evaluate(docs["layout"], resolver=Workspace(str(directory))))
+        refusals = failures(
+            evaluate(docs["layout"], resolver=Workspace(str(directory)))
+        )
         self.assertEqual(
             sorted(r.kind for r in refusals.values()),
             ["part_unresolved", "part_unresolved"],
