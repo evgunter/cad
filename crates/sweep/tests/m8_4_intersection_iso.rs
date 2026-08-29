@@ -35,21 +35,14 @@ use topo::{Body, FaceSurface, Pcurve, PcurveMintError};
 
 /// The integral mixed prism (`recognize_pins`'s `offset_square_prism`,
 /// natively built): exactly-planar `y = ±1` walls, bowed `x = ±1`
-/// walls, every weight 1.
-fn offset_square_prism() -> Body<f64> {
-    prism(1.0)
-}
-
-/// The same prism with every length scaled by `scale` — the SAME
-/// construction, since every coordinate is a product with an exact
-/// power of two at the scales used and `scale = 1.0` reproduces
-/// `offset_square_prism`'s literals bit for bit.
-///
+/// walls, every weight 1 — scaled by `scale`, which is `1.0` for every
+/// row but the interior-column one.
 /// The scale is a lever on the ONE ε-conditional thing about this
-/// fixture: the seam's certified between-samples sup is a LENGTH, so
-/// it shrinks with the model while ε does not
-/// (`an_interior_column_intersection_mints_a_general_image` states the
-/// measurement).
+/// fixture: the seam's certified between-samples sup is a LENGTH, so it
+/// shrinks with the model while ε does not
+/// (`INTERIOR_COLUMN_SCALE` states the measurement). Every coordinate
+/// is a product with an exact power of two at the scales used, so
+/// `scale = 1.0` reproduces the original literals bit for bit.
 fn prism(scale: f64) -> Body<f64> {
     let square = move || -> sweep::Section {
         let v = |x: f64, y: f64| profile::ProfileVertex::new(Point2::new(x, y), 0.0);
@@ -421,15 +414,57 @@ fn rechart(body: &mut Body<f64>, old: topo::SurfaceKey, new: Surface<f64>) -> to
         .expect("the wall takes its restated chart")
 }
 
-/// **The excluded class's pin.** An `Intersection` carrier on an
-/// INTERIOR column has no boundary-row closed form, and the arm must
-/// refuse it TYPED rather than reach for the nearest boundary — red the
-/// day the arm over-reaches.
+/// The scale this row's prism is built at, and why it is not 1.
+///
+/// The fixture's ATTACHMENT is ε-conditional at scale 1: the seam's
+/// certified between-samples sup is a LENGTH — 6.217e-12 m — so at
+/// ε_in = 1e-12 the declare-and-check rung refuses and no body is built
+/// at all, which is how the row this replaces came to assert nothing at
+/// one of the three ε the matrix draws (#1167). The sup scales with the
+/// model and ε does not, so the fixture is built small enough that
+/// every cell of the ε table exercises the same thing.
+///
+/// A power of two, so every coordinate stays exact and the construction
+/// is `offset_square_prism`'s, only smaller.
+const INTERIOR_COLUMN_SCALE: f64 = 1.0 / 1024.0;
+
+/// **#498's home for the interior column** — the re-expression of the
+/// row #1167 filed as vacuous.
+///
+/// The same wall geometry on the widened chart, where both seams are
+/// INTERIOR columns. An interior column has no boundary-row closed form
+/// and never will, so U2's answer is the `General` curve in UV at the
+/// honest Fitted grade: the image the wall's own foot schedule
+/// measures, certified against the operand PAIR.
+///
+/// **What the row it replaces did wrong.** `posture()` accepted
+/// `Refused` OR `Escalated` — teeth of "does not mint", which a fixture
+/// that fails to build for an unrelated reason satisfies — and at
+/// ε = 1e-12 the row returned before asserting anything at all, because
+/// the seam does not ATTACH there at scale 1. Both are fixed: the
+/// outcome asserted here is DEFINITE (a `General` image ON the interior
+/// column, with a C2 certificate whose envelope is inside ε), and the
+/// fixture is built at a scale where the attachment is not
+/// ε-conditional (`prism`'s docs: the attachment's certified sup is a
+/// LENGTH and shrinks with the model while ε does not).
+///
+/// **What this row does NOT claim, and why.** The whole-body mint is
+/// blocked on this chart by a DIFFERENT arm: a chart wide enough for a
+/// seam to be an interior column is by construction wider than the face
+/// it trims, so the face's cap rims are not on a chart boundary either,
+/// and the rim arms — which map `u` affinely onto the chart's whole
+/// knot domain and pick `v` from the carrier's start point — refuse
+/// with `"the carrier's start point lies on neither chart boundary"`.
+/// That is asserted below, at a half-edge that is NOT this one, so the
+/// row states exactly whose blocker it is. The certificate is therefore
+/// taken at `PcurveCache::certify_general` directly — the same door
+/// `mint_pcurves` calls, with the same operands — rather than through
+/// the pass.
 #[test]
-fn an_interior_column_intersection_refuses_typed() {
-    let Some((mut body, he, bowed)) = seam_at_eps(false) else {
-        return;
-    };
+fn an_interior_column_intersection_mints_a_general_image() {
+    let eps = Tol::witness().get().eps;
+    let (mut body, he, bowed) = intrinsic_seam_at(false, INTERIOR_COLUMN_SCALE)
+        .expect("the seam attaches at every ε this matrix draws — that is what the scale buys");
     let widened = widened_u_chart(&chart_of(&body, bowed));
     let key = rechart(&mut body, bowed, widened);
     let chart = chart_of(&body, key);
@@ -438,19 +473,116 @@ fn an_interior_column_intersection_refuses_typed() {
         (0.0, 3.0),
         "the widened chart's own domain"
     );
+    // ---- The derivation: U2's General arm, on the interior column. ----
     let out = topo::pcurve_of(&body, he, band());
-    match posture("interior column", &out, &chart) {
-        p @ (MintPosture::Refused | MintPosture::Escalated) => {
-            println!(
-                "M8-4 interior column @ eps={:e}: {p:?} — {out:?}",
-                Tol::witness().get().eps
+    let Ok(Pcurve::General(ref image)) = out else {
+        panic!("an interior column's home is U2's General arm: {out:?}")
+    };
+    // The image IS the column `u = 2`: every control point holds `u`,
+    // and STRICTLY interior — which is the whole difference from the
+    // exact `IsoLine` class, whose certification requires a knot-domain
+    // end (`geom-brep`'s `an_interior_column_still_refuses`, untouched
+    // by this unit). A statement about the image's SHAPE in the chart's
+    // own units; the statement in METRES is the envelope below.
+    for p in image.control() {
+        assert!(
+            (p.x - 2.0).abs() < 1e-9,
+            "a column holds u constant at the chart's own interior knot: {p:?}"
+        );
+    }
+    let (dv0, dv1) = chart.knots_v().domain();
+    let (a, b) = image.domain();
+    for (t, want) in [(a, dv0), (b, dv1)] {
+        assert!(
+            (image.eval(t).y - want).abs() < 1e-9,
+            "and traverses the chart's whole v domain: {:?} vs {want}",
+            image.eval(t)
+        );
+    }
+    // ---- The certificate, at the door the mint pass uses. ----
+    let (carrier, t0, t1, mate) = seam_operands(&body, he);
+    let window = out.as_ref().unwrap().chart_box(t0, t1);
+    let cache = geom_brep::PcurveCache::certify_general(
+        std::sync::Arc::clone(image),
+        t0,
+        t1,
+        &carrier,
+        &Surface::Nurbs(Arc::new(chart.clone())),
+        Some(&mate),
+        window,
+        band(),
+    )
+    .expect("the interior column's image certifies against its operand pair");
+    let cert = cache.certificate();
+    assert!(
+        matches!(cache.pcurve(), Pcurve::General(_)),
+        "the certified cache is the General image: {:?}",
+        cache.pcurve()
+    );
+    assert!(
+        cert.envelope <= eps,
+        "its between-samples bound is inside ε: {:e} vs {eps:e}",
+        cert.envelope
+    );
+    assert!(
+        cert.ssi.is_some(),
+        "and it is the FULL C2 certificate, not the closed-form lane's: {cert:?}"
+    );
+    // ---- Whose blocker the whole-body mint is. ----
+    let mint = topo::mint_pcurves(&mut body, Tol::witness());
+    match mint {
+        Ok(()) => panic!(
+            "the rim arms learned to read a trimmed chart — good news, and this row's \
+             blocker clause is now stale: fold the mint back into the assertions above"
+        ),
+        Err(PcurveMintError::Certify { half_edge, error }) => {
+            assert_ne!(
+                half_edge, he,
+                "the interior column is not what blocks the body: {error:?}"
+            );
+            let geom_brep::PcurveCertifyError::IsoUnsupported { what } = error else {
+                panic!("the rim arms refuse TYPED, naming the class: {error:?}")
+            };
+            assert!(
+                what.contains("neither chart boundary"),
+                "and the blocker is the rim arms' boundary assumption: {what}"
             );
         }
-        MintPosture::Certified(p) => panic!(
-            "an interior column has no boundary-row closed form, yet an image was \
-             minted: {p:?}"
-        ),
+        other => panic!("no other posture is honest for this body: {other:?}"),
     }
+    println!(
+        "M8-4 interior column @ eps={eps:e}: General on u = 2 of [0, 3], envelope {:e} m, {:?}",
+        cert.envelope, cert.statement
+    );
+}
+
+/// The `(carrier, t0, t1, mate)` the fitted-grade certificate needs, read
+/// from the seam's own certified edge — the mate being the operand of
+/// the description's pair that is the PLANE (the face's chart was
+/// restated after the description was written, so `topo`'s own
+/// `mate_surface`, which matches on the face's CURRENT surface key,
+/// cannot find it; that is a fixture fact about `rechart`, not a
+/// kernel one).
+fn seam_operands(
+    body: &Body<f64>,
+    he: topo::HalfEdgeKey,
+) -> (Curve3<f64>, f64, f64, Surface<f64>) {
+    let edge = body.get_edge(body.get_half_edge(he).unwrap().edge).unwrap();
+    let Some(topo::CurveGeom::Certified(c)) = body.get_curve_geom(edge.curve) else {
+        panic!("the seam's carrier is certified")
+    };
+    let geom_brep::EdgeDescription::Intersection { s1, s2, .. } = *c.description() else {
+        panic!("the seam is described as an intersection")
+    };
+    let plane = [s1, s2]
+        .into_iter()
+        .find_map(|k| match body.get_surface(k) {
+            Some(p @ Surface::Plane { .. }) => Some(p.clone()),
+            _ => None,
+        })
+        .expect("one operand of the pair is the plane the flat wall was restated as");
+    let (t0, t1) = c.params();
+    (c.carrier().clone(), t0, t1, plane)
 }
 
 /// **The IMPORTED chart** (#327): the same wall on the file's own
@@ -497,75 +629,4 @@ fn an_imported_domain_chart_mints_the_boundary_intersection() {
         p0.x,
         pl.y
     );
-}
-
-/// TEMPORARY substrate probe (deleted before the branch is final):
-/// one run that measures every number P-2's row needs.
-#[test]
-fn p2_substrate_probe() {
-    let eps = Tol::witness().get().eps;
-    println!("=== P2 PROBE @ eps={eps:e} ===");
-    for scale in [1.0f64, 0.5, 0.125, 1.0 / 1024.0] {
-        match intrinsic_seam_at(false, scale) {
-            Ok((body, he, bowed)) => {
-                println!("scale {scale:e}: ATTACHES");
-                let _ = (&body, he, bowed);
-            }
-            Err(topo::EulerOpError::Certification {
-                error:
-                    geom_brep::CertifyError::Escalated {
-                        check, cause, ..
-                    },
-            }) => println!("scale {scale:e}: refuses {check:?} {cause:?}"),
-            Err(other) => println!("scale {scale:e}: other {other:?}"),
-        }
-    }
-    // The interior-column body, at whichever scale attaches.
-    for scale in [1.0f64, 1.0 / 1024.0] {
-        let Ok((mut body, he, bowed)) = intrinsic_seam_at(false, scale) else {
-            continue;
-        };
-        let widened = widened_u_chart(&chart_of(&body, bowed));
-        let key = rechart(&mut body, bowed, widened);
-        let chart = chart_of(&body, key);
-        println!("scale {scale:e}: widened u domain {:?}", chart.knots_u().domain());
-        match topo::pcurve_of(&body, he, band()) {
-            Ok(Pcurve::General(image)) => {
-                let (a, b) = image.domain();
-                println!(
-                    "  GENERAL image: degree {}, controls {}, domain ({a}, {b})",
-                    image.degree(),
-                    image.control().len()
-                );
-                for i in 0..=4 {
-                    let t = a + (b - a) * f64::from(i) / 4.0;
-                    let uv = image.eval(t);
-                    println!("    t={t:.6} -> u={:.12} v={:.12}", uv.x, uv.y);
-                }
-            }
-            other => println!("  pcurve_of: {other:?}"),
-        }
-        // What the whole-body mint does on this chart.
-        match topo::mint_pcurves(&mut body, Tol::witness()) {
-            Ok(()) => {
-                println!("  mint_pcurves: OK");
-                let findings = topo::pcurves::validate_pcurves(&body, band());
-                println!("  validate_pcurves: {} findings", findings.len());
-                for f in findings.iter().take(3) {
-                    println!("    {f:?}");
-                }
-                if let Some(cache) = body.pcurve(he) {
-                    let c = cache.certificate();
-                    println!(
-                        "  stored: {:?} max_residual {:e} envelope {:e} statement {:?}",
-                        core::mem::discriminant(cache.pcurve()),
-                        c.max_residual,
-                        c.envelope,
-                        c.statement
-                    );
-                }
-            }
-            Err(e) => println!("  mint_pcurves: {e:?}"),
-        }
-    }
 }
