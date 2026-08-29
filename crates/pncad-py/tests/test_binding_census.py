@@ -975,8 +975,10 @@ class TestBindingCensus(unittest.TestCase):
         The Rust guard asserts `exported.len() > 150` for the same
         reason: a scanner that returned nothing would satisfy every
         set difference below and the guard would pass having read
-        nothing. Measured at LIB-G15: 324 curated names, 95 top-level
-        stub names, 357 `Class.member` spellings. The
+        nothing. Measured at LIB-G15's merge base: 328 curated names,
+        96 top-level stub names, 364 `Class.member` spellings — a
+        SNAPSHOT, and the reason the floors below are the assertion
+        and these numbers are not. The
         floors sit below those with room for ordinary shrinkage and
         far above zero.
         """
