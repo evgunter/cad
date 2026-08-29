@@ -121,8 +121,12 @@ pub enum SegmentShape {
 pub struct LoopCanonical {
     /// Outer or hole — the containment forest's verdict for this loop.
     pub role: LoopRole,
-    /// How many loops of the profile contain this one.
-    pub depth: usize,
+    /// The loops of the profile that contain this one, by input index
+    /// and ascending — the containment forest's row for this loop, and
+    /// so its depth. Recorded pairwise rather than as a count because
+    /// the count alone cannot say WHICH answer moved when a lane
+    /// disagrees.
+    pub inside: Vec<usize>,
     /// The lexicographic-minimum vertex of the INPUT chain: the
     /// containment representative point.
     pub representative: usize,
@@ -234,7 +238,7 @@ pub enum DecisionValue {
 }
 
 /// Why a guided pass could not reproduce the recorded structure.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum StructureRefusalKind {
     /// The lane cannot classify the decision's own predicate at all.
     /// The parameter box is too wide to answer the question — the
@@ -252,7 +256,7 @@ pub enum StructureRefusalKind {
 }
 
 /// A guided pass's refusal to proceed on a consumed decision.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct StructureRefusal {
     /// Which decision.
     pub decision: Decision,

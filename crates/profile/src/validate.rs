@@ -108,6 +108,9 @@ use geom_core::{
 };
 
 use crate::seg::{self, CKind, PairOutcome, Seg, SegIssue, SegKind, build_seg};
+use crate::structure::{
+    CanonicalStructure, Decision, DecisionValue, LoopCanonical, SegmentShape, StructureRefusal,
+};
 use crate::{Profile, ProfileLoop, ProfileVertex};
 
 /// Identifies a segment of the *input* profile: `segment_index` k is the
@@ -459,6 +462,11 @@ pub enum ProfileError {
         /// band).
         source: Indeterminate,
     },
+    /// A GUIDED validation could not reproduce, at this scalar, a
+    /// discrete decision the structure record hands it. Unreachable
+    /// for an unguided validation, which has no record to disagree
+    /// with.
+    Structure(crate::structure::StructureRefusal),
 }
 
 impl fmt::Display for ProfileError {
@@ -626,6 +634,7 @@ impl fmt::Display for ProfileError {
                 }
                 Ok(())
             }
+            Self::Structure(r) => write!(f, "guided validation: {r}"),
         }
     }
 }
@@ -895,6 +904,77 @@ impl<T: Decide> Profile<T> {
     /// [`ProfileError::Escalated`] with the named predicate's
     /// diagnostic, never a guess.
     pub fn validate(&self, tol: Tol) -> Result<ValidatedProfile<T>, ProfileError> {
+        self.validate_with(tol, &mut CanonGuide::Recording(Vec::new(), 0))
+    }
+
+    /// [`validate`](Self::validate) keeping the structure record it
+    /// built: the containment forest, the roles, and every loop's
+    /// canonical rotation, reversal and segment shapes.
+    ///
+    /// Recording asks no predicate a different question, so this is
+    /// [`validate`](Self::validate)'s canonical form bit for bit, plus
+    /// the account of how it was reached.
+    ///
+    /// # Errors
+    ///
+    /// [`ProfileError`], exactly as [`validate`](Self::validate).
+    pub fn validate_recording(
+        &self,
+        tol: Tol,
+    ) -> Result<(ValidatedProfile<T>, CanonicalStructure), ProfileError> {
+        let mut guide = CanonGuide::Recording(Vec::new(), 0);
+        let vp = self.validate_with(tol, &mut guide)?;
+        let CanonGuide::Recording(loops, outer_loop) = guide else {
+            unreachable!("the guide was constructed Recording two lines above")
+        };
+        Ok((vp, CanonicalStructure { outer_loop, loops }))
+    }
+
+    /// **Guided validation**: canonicalize at this scalar while
+    /// CONSUMING `structure`'s decisions instead of remaking them.
+    ///
+    /// The two canonicalization predicates are STRUCTURALLY ABSENT
+    /// here, not merely expected to agree. `lex_min`'s ordering runs
+    /// against a band an ulp wide — total at `f64` by that band's
+    /// design, and indeterminate at an interval scalar on essentially
+    /// every input, because two enclosures of nearly-equal coordinates
+    /// overlap. `loop_orientation` is the same story at a sliver.
+    /// Re-running either at a lane scalar would therefore refuse
+    /// almost everything it was asked, so the rotation and the
+    /// reversal are taken from the record, and what this pass verifies
+    /// instead is the VALUE channel that hangs off them: the segments
+    /// the recorded permutation produces, classified here, must have
+    /// the recorded shapes, and the declared joints must land where
+    /// the record says.
+    ///
+    /// The containment forest is a different case and IS re-run: ray
+    /// parity is an ordinary decided predicate, so a lane can honestly
+    /// answer it, and the answers are compared against the record.
+    ///
+    /// # Errors
+    ///
+    /// [`ProfileError`] — validation's own refusals as ever, plus
+    /// [`ProfileError::Structure`] for a decision this scalar cannot
+    /// reproduce.
+    pub fn validate_guided(
+        &self,
+        tol: Tol,
+        structure: &CanonicalStructure,
+    ) -> Result<ValidatedProfile<T>, ProfileError> {
+        if structure.loops.len() != self.loops.len() {
+            return Err(ProfileError::Structure(StructureRefusal::shape(
+                structure.loops.len(),
+                self.loops.len(),
+            )));
+        }
+        self.validate_with(tol, &mut CanonGuide::Guided(structure.clone()))
+    }
+
+    fn validate_with(
+        &self,
+        tol: Tol,
+        guide: &mut CanonGuide,
+    ) -> Result<ValidatedProfile<T>, ProfileError> {
         let band = Band::new(tol.eps(), tol.k() * tol.eps()).map_err(ProfileError::Band)?;
         // The exact-order band for canonical-start selection (module
         // docs): no representable f64 lies strictly inside it.
@@ -953,20 +1033,53 @@ impl<T: Decide> Profile<T> {
 
         // Representative point per loop: the lexicographic minimum
         // vertex (rotation/reversal invariant; needed for both
-        // containment and the canonical start).
+        // containment and the canonical start). PINNED under guidance
+        // — see `validate_guided` for why `lex_min` is not a predicate
+        // a lane scalar can be asked.
         let mut rep: Vec<Point2<T>> = Vec::with_capacity(self.loops.len());
+        let mut rep_index: Vec<usize> = Vec::with_capacity(self.loops.len());
         for (li, lp) in self.loops.iter().enumerate() {
-            let idx = lex_min_index(&lp.vertices, exact, li)?;
-            rep.push(lp.vertices[idx].pos);
+            let idx = match guide.loop_at(li) {
+                Some(rec) => rec.representative,
+                None => lex_min_index(&lp.vertices, exact, li)?,
+            };
+            // A recorded index out of range describes another program.
+            let Some(v) = lp.vertices.get(idx) else {
+                return Err(ProfileError::Structure(StructureRefusal::shape(
+                    idx,
+                    lp.vertices.len(),
+                )));
+            };
+            rep.push(v.pos);
+            rep_index.push(idx);
         }
 
-        // 4: containment forest by ray parity.
+        // 4: containment forest by ray parity — RE-RUN under guidance,
+        // parity being an ordinary decided predicate, and compared.
         let n = self.loops.len();
         let mut depth = vec![0usize; n];
+        let mut within: Vec<Vec<usize>> = vec![Vec::new(); n];
         for i in 0..n {
             for (j, other) in loop_segs.iter().enumerate() {
-                if i != j && point_in_loop(rep[i], other, band, i, j)? {
+                if i == j {
+                    continue;
+                }
+                let inside = point_in_loop(rep[i], other, band, i, j)?;
+                if let Some(rec) = guide.loop_at(i)
+                    && inside != rec.inside.contains(&j)
+                {
+                    return Err(ProfileError::Structure(StructureRefusal::flipped(
+                        Decision::Containment {
+                            loop_: i,
+                            against: j,
+                        },
+                        DecisionValue::Inside(!inside),
+                        DecisionValue::Inside(inside),
+                    )));
+                }
+                if inside {
                     depth[i] += 1;
+                    within[i].push(j);
                 }
             }
         }
@@ -996,15 +1109,36 @@ impl<T: Decide> Profile<T> {
             } else {
                 LoopRole::Hole
             };
-            canonical[li] = Some(canonicalize_loop(
+            if let Some(rec) = guide.loop_at(li)
+                && rec.role != role
+            {
+                return Err(ProfileError::Structure(StructureRefusal::flipped(
+                    Decision::Role { loop_: li },
+                    DecisionValue::Role(rec.role),
+                    DecisionValue::Role(role),
+                )));
+            }
+            let (validated, shapes) = canonicalize_loop(
                 lp,
                 &loop_segs[li],
                 role,
                 li,
                 band,
                 exact,
-            )?);
+                guide.loop_at(li),
+            )?;
+            guide.record(LoopCanonical {
+                role,
+                inside: core::mem::take(&mut within[li]),
+                representative: rep_index[li],
+                reversed: shapes.reversed,
+                start: shapes.start,
+                segments: shapes.segments,
+                tangent_joints: validated.tangent_joints.clone(),
+            });
+            canonical[li] = Some(validated);
         }
+        guide.record_outer(outer_index);
         let mut loops = Vec::with_capacity(n);
         if let Some(outer) = canonical[outer_index].take() {
             loops.push(outer);
@@ -1016,6 +1150,42 @@ impl<T: Decide> Profile<T> {
             plane: self.plane,
             loops,
         })
+    }
+}
+
+/// How a validation treats its own discrete decisions: selecting
+/// freely and writing them down, or consuming a prior pass's and
+/// re-verifying what can be re-verified.
+enum CanonGuide {
+    /// Per-loop records so far, and the outer loop once it is known.
+    Recording(Vec<LoopCanonical>, usize),
+    /// A prior pass's decisions.
+    Guided(CanonicalStructure),
+}
+
+impl CanonGuide {
+    /// The decisions recorded for one input loop, or `None` when this
+    /// pass is selecting freely.
+    fn loop_at(&self, li: usize) -> Option<&LoopCanonical> {
+        match self {
+            Self::Recording(..) => None,
+            Self::Guided(s) => s.loops.get(li),
+        }
+    }
+
+    /// Writes one loop's decisions down (a no-op under guidance, where
+    /// they came from the record).
+    fn record(&mut self, rec: LoopCanonical) {
+        if let Self::Recording(loops, _) = self {
+            loops.push(rec);
+        }
+    }
+
+    /// Writes down which loop the containment forest made outer.
+    fn record_outer(&mut self, outer: usize) {
+        if let Self::Recording(_, slot) = self {
+            *slot = outer;
+        }
     }
 }
 
@@ -1282,31 +1452,39 @@ fn canonicalize_loop<T: Decide>(
     loop_index: usize,
     band: Band,
     exact: Band,
-) -> Result<ValidatedLoop<T>, ProfileError> {
-    let orientation = loop_orientation(segs, band).map_err(|source| ProfileError::Escalated {
-        site: EscalationSite::Loop { loop_index },
-        source,
-    })?;
-    let want_ccw = matches!(role, LoopRole::Outer);
-    let chain = match orientation {
-        Sign::Zero => return Err(ProfileError::SliverLoop { loop_index }),
-        Sign::Positive => {
-            if want_ccw {
-                lp.clone()
-            } else {
-                lp.reversed()
-            }
-        }
-        Sign::Negative => {
-            if want_ccw {
-                lp.reversed()
-            } else {
-                lp.clone()
+    recorded: Option<&LoopCanonical>,
+) -> Result<(ValidatedLoop<T>, LoopPermutation), ProfileError> {
+    // The permutation is PINNED under guidance: neither `lex_min` nor
+    // `loop_orientation` runs at all, because neither is a question a
+    // lane scalar can answer — `lex_min`'s band is an ulp wide, and two
+    // enclosures of nearly-equal coordinates overlap it on essentially
+    // every input. What the guided pass verifies is the value channel
+    // the recorded permutation produces, below.
+    let reversed = match recorded {
+        Some(rec) => rec.reversed,
+        None => {
+            let orientation =
+                loop_orientation(segs, band).map_err(|source| ProfileError::Escalated {
+                    site: EscalationSite::Loop { loop_index },
+                    source,
+                })?;
+            let want_ccw = matches!(role, LoopRole::Outer);
+            match orientation {
+                Sign::Zero => return Err(ProfileError::SliverLoop { loop_index }),
+                Sign::Positive => !want_ccw,
+                Sign::Negative => want_ccw,
             }
         }
     };
-    let start = lex_min_index(&chain.vertices, exact, loop_index)?;
+    let chain = if reversed { lp.reversed() } else { lp.clone() };
+    let start = match recorded {
+        Some(rec) => rec.start,
+        None => lex_min_index(&chain.vertices, exact, loop_index)?,
+    };
     let n = chain.vertices.len();
+    if start >= n {
+        return Err(ProfileError::Structure(StructureRefusal::shape(start, n)));
+    }
     let vertices: Vec<ProfileVertex<T>> = (0..n).map(|k| chain.vertices[(start + k) % n]).collect();
     // Declared joints follow their vertex through the rotation
     // (reversal already remapped them in `reversed()`); indices are
@@ -1324,6 +1502,7 @@ fn canonicalize_loop<T: Decide>(
     // symmetric, negation is exact), so this cannot fail for a chain
     // whose input just passed — mapped defensively all the same.
     let mut segments = Vec::with_capacity(n);
+    let mut shapes = Vec::with_capacity(n);
     for k in 0..n {
         let a = vertices[k];
         let b = vertices[(k + 1) % n];
@@ -1341,26 +1520,77 @@ fn canonicalize_loop<T: Decide>(
                 },
             }
         })?;
+        let kind = match &s.kind {
+            SegKind::Line => SegmentKind::Line,
+            SegKind::Arc(g) => SegmentKind::Arc {
+                center: g.center,
+                radius: g.radius,
+                turn: g.turn,
+            },
+        };
+        // The value-channel check the pinned permutation earns: the
+        // segments the recorded rotation and reversal produce must
+        // classify HERE the way they classified there. A line where an
+        // arc was recorded, or an arc turning the other way, is a
+        // structure the lane is watching change under it.
+        let shape = match kind {
+            SegmentKind::Line => SegmentShape::Line,
+            SegmentKind::Arc { turn, .. } => SegmentShape::Arc { turn },
+        };
+        if let Some(rec) = recorded
+            && rec.segments.get(k) != Some(&shape)
+        {
+            let site = Decision::SegmentShape {
+                loop_: loop_index,
+                segment: k,
+            };
+            return Err(ProfileError::Structure(match rec.segments.get(k) {
+                Some(&was) => StructureRefusal::flipped(
+                    site,
+                    DecisionValue::Shape(was),
+                    DecisionValue::Shape(shape),
+                ),
+                None => StructureRefusal::shape(rec.segments.len(), n),
+            }));
+        }
+        shapes.push(shape);
         segments.push(ValidatedSegment {
             start: s.a,
             end: s.b,
             bulge: s.bulge,
-            kind: match &s.kind {
-                SegKind::Line => SegmentKind::Line,
-                SegKind::Arc(g) => SegmentKind::Arc {
-                    center: g.center,
-                    radius: g.radius,
-                    turn: g.turn,
-                },
-            },
+            kind,
         });
     }
-    Ok(ValidatedLoop {
-        vertices,
-        segments,
-        tangent_joints,
-        role,
-    })
+    if let Some(rec) = recorded
+        && rec.tangent_joints != tangent_joints
+    {
+        return Err(ProfileError::Structure(StructureRefusal::flipped(
+            Decision::TangentJoints { loop_: loop_index },
+            DecisionValue::Index(rec.tangent_joints.len()),
+            DecisionValue::Index(tangent_joints.len()),
+        )));
+    }
+    Ok((
+        ValidatedLoop {
+            vertices,
+            segments,
+            tangent_joints,
+            role,
+        },
+        LoopPermutation {
+            reversed,
+            start,
+            segments: shapes,
+        },
+    ))
+}
+
+/// The permutation one canonicalization applied, and what it produced —
+/// the part of a [`LoopCanonical`] only `canonicalize_loop` knows.
+struct LoopPermutation {
+    reversed: bool,
+    start: usize,
+    segments: Vec<SegmentShape>,
 }
 
 /// The `loop_orientation` margin and classification (see
