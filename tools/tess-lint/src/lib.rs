@@ -100,17 +100,29 @@
 //!
 //! **What it cannot see, measured rather than shaped:** two faces of
 //! one scene agreeing on every identity column and swapping ordinals.
-//! On the committed baseline that is **8 pairs — 16 of the 64 sized
-//! rows, across 6 of the 12 scenes carrying a sized face**
-//! (`lily_leaf_b` ×2, `lily_leaf_c` ×2, `lily_sepal_c`, `loft_prism`,
-//! `nonuniform_loft`, `s_duct`), each two walls of one body with
-//! identical trim box and divisions. Closing it needs a face identity
-//! in a column of the sweep's own, which is `tess_meter`'s half of the
-//! contract.
+//! Counted over the SIZED rows — an unsized swap costs rule 2 nothing,
+//! and that restriction is what makes the number small — the committed
+//! baseline has **8 such pairs, 16 of its 64 sized rows, across 6 of
+//! the 12 scenes carrying a sized face** (`lily_leaf_b` ×2,
+//! `lily_leaf_c` ×2, `lily_sepal_c`, `loft_prism`, `nonuniform_loft`,
+//! `s_duct`), each two walls of one body. Counted over all 1327 rows
+//! it is **22,545**.
 //!
-//! **A re-key is a finding only where it can cost a measurement** —
-//! where the scene carries a sized face on either side. Elsewhere it
-//! is a note: rule 1 still runs over the scene's total, so nothing was
+//! **And among the sized rows the list is mostly constant**, which is
+//! the honest reading of that 8: `chart` is `nurbs` on all 64 and the
+//! trim box is `0e0,1e0,0e0,1e0` on all 64, so five of the eight
+//! entries discriminate nothing there and the live pair is `nu`/`nv`
+//! alone. Across the whole corpus `chart` and the sizing block do
+//! discriminate — six charts appear, and the reroute they catch is a
+//! named case — but a reader sizing up the hole should size up
+//! `(nu, nv)`. Closing it needs a face identity in a column of the
+//! sweep's own, which is `tess_meter`'s half of the contract.
+//!
+//! **A re-key is a finding where it can cost a measurement**, judged
+//! per SCENE: does either side carry a sized face at all. That is
+//! coarser than asking whether THIS re-key cost a comparison, and
+//! deliberately so — it errs toward the finding. Elsewhere it is a
+//! note: rule 1 still runs over the scene's total, so nothing was
 //! lost, and a gate that reds where it gates nothing is one people
 //! learn to route around. Rule 3 only looks like a counter-example: a
 //! vanished scene loses rule 1 with it.
@@ -395,12 +407,18 @@ pub const EXPECTED_HEADER: &str = "scene,face,chart,delta,triangles,u0,u1,v0,v1,
                                    opt_cells,span_opt_cells,worst_cert,worst_dev,\
                                    dev_samples,bands,cap_bands,snap_bands,realized_aspect";
 
-/// Every tag `tess_meter::Chart::tag` emits, pinned HERE as
-/// [`EXPECTED_HEADER`] is pinned and for its reason: the two halves
-/// are separate cargo roots by design, so there is no shared constant
-/// to import, and `chart` is now a column the gate JOINS on. A
-/// renamed tag must fail as harness breakage rather than re-key every
-/// scene that carries it.
+/// Every tag `tess_meter::Chart::tag` emits, restated HERE because
+/// `chart` is a column the gate JOINS on: a renamed tag must fail as
+/// harness breakage rather than re-key every scene that carries it.
+///
+/// **Weaker than [`EXPECTED_HEADER`]'s pin, and the difference is
+/// worth knowing.** That constant is checked against the meter's own
+/// source from the other cargo root; this roster is checked only by
+/// this crate's test, so it catches a tag the meter renames — the row
+/// then reads as drift, which is the point — but a tag the meter ADDS
+/// arrives here as harness breakage on every row carrying it, and
+/// nothing on the meter's side says so. Closing that is `tess-meter`'s
+/// ground, not this crate's.
 pub const CHART_TAGS: [&str; 7] = [
     "plane", "cylinder", "cone", "sphere", "torus", "nurbs", "approx",
 ];
@@ -747,25 +765,46 @@ const IDENTITY_COLUMNS: [&str; 8] = [
     "nv",
 ];
 
-/// One row's reading of [`IDENTITY_COLUMNS`], index for index.
+/// One column's reading, as the precondition compares it.
 ///
-/// Rendered as text because that is what the message needs and because
-/// the values are of three different kinds; equality on these strings
-/// is equality on the parsed values, since `{:?}` round-trips a finite
-/// `f64` and [`parse`] admits no other kind into these columns.
-fn identity(r: &Row) -> [String; IDENTITY_COLUMNS.len()] {
-    let col = |f: fn(&Nurbs) -> f64| {
-        r.nurbs
-            .map_or_else(|| "absent".to_string(), |n| format!("{:?}", f(&n)))
-    };
+/// Numbers are compared as NUMBERS and rendered only for the message.
+/// `-0e0` and `0e0` are the same trim-box edge, and `{:?}` renders
+/// them differently — comparing the renderings would announce a
+/// re-key over a sign bit and stop a scene's comparison from that
+/// ordinal up. `f64`'s `==` is the right test here: [`parse`] admits
+/// nothing non-finite into these columns, so there is no `NaN` to
+/// make it non-reflexive.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Reading<'a> {
+    /// A tag, compared as text.
+    Tag(&'a str),
+    /// A measured column.
+    Number(f64),
+    /// The row does not carry this column.
+    Absent,
+}
+
+impl Reading<'_> {
+    /// This reading as the message spells it.
+    fn show(self) -> String {
+        match self {
+            Self::Tag(s) => s.to_string(),
+            Self::Number(v) => format!("{v:?}"),
+            Self::Absent => "absent".to_string(),
+        }
+    }
+}
+
+/// One row's reading of [`IDENTITY_COLUMNS`], index for index.
+fn identity(r: &Row) -> [Reading<'_>; IDENTITY_COLUMNS.len()] {
+    let col = |f: fn(&Nurbs) -> f64| r.nurbs.map_or(Reading::Absent, |n| Reading::Number(f(&n)));
     [
-        r.chart.clone(),
-        if r.nurbs.is_some() {
+        Reading::Tag(r.chart.as_str()),
+        Reading::Tag(if r.nurbs.is_some() {
             "present"
         } else {
             "absent"
-        }
-        .to_string(),
+        }),
         col(|n| n.u0),
         col(|n| n.u1),
         col(|n| n.v0),
@@ -876,12 +915,17 @@ pub struct Report {
 pub fn compare(baseline: &[Row], fresh: &[Row]) -> Report {
     let mut out = Report::default();
     let base_totals = totals(baseline);
-    let fresh_totals: std::collections::HashMap<String, SceneTotals> =
-        totals(fresh).into_iter().collect();
+    // ONE fold of the fresh side: the same totals answer both the
+    // per-scene rules below and the new-scene notes.
+    let fresh_scenes = totals(fresh);
+    let fresh_totals: std::collections::HashMap<&str, &SceneTotals> = fresh_scenes
+        .iter()
+        .map(|(scene, t)| (scene.as_str(), t))
+        .collect();
     for (scene, was) in &base_totals {
         #[allow(clippy::cast_precision_loss)]
         let w = was.triangles as f64;
-        let Some(now) = fresh_totals.get(scene) else {
+        let Some(now) = fresh_totals.get(scene.as_str()) else {
             out.findings.push(Observation {
                 scene: scene.clone(),
                 kind: Kind::Vanished { was_triangles: w },
@@ -902,12 +946,12 @@ pub fn compare(baseline: &[Row], fresh: &[Row]) -> Report {
     // comparison the gate is making.
     let base_scenes: std::collections::HashSet<&str> =
         baseline.iter().map(|r| r.scene.as_str()).collect();
-    for (scene, t) in totals(fresh) {
+    for (scene, t) in &fresh_scenes {
         if !base_scenes.contains(scene.as_str()) {
             #[allow(clippy::cast_precision_loss)]
             let triangles = t.triangles as f64;
             out.notes.push(Observation {
-                scene,
+                scene: scene.clone(),
                 kind: Kind::NewScene { triangles },
             });
         }
@@ -998,8 +1042,8 @@ fn first_disagreement(base: &Row, fresh: &Row) -> Option<Rekey> {
         .find(|&(i, _)| was[i] != now[i])
         .map(|(i, &name)| Rekey::Column {
             name,
-            was: was[i].clone(),
-            now: now[i].clone(),
+            was: was[i].show(),
+            now: now[i].show(),
         })
 }
 
@@ -1226,6 +1270,57 @@ mod tests {
                 assert_eq!(got, admitted[b], "{name} = {bad}: admitted = {got}");
             }
         }
+    }
+
+    /// The identity block's policing, in the same shape as the other
+    /// two: an unreadable identity column must be harness breakage,
+    /// because rule 4 decides FROM these values and a broken one would
+    /// manufacture a re-key — a scene's comparison stopped by drift
+    /// rather than by geometry.
+    ///
+    /// The expectations are written out rather than derived from
+    /// [`IDENTITY_MEASURES`]: a test that reads the policy it is
+    /// checking asserts nothing. The array's width is the guard
+    /// against the next column.
+    #[test]
+    fn every_identity_column_refuses_the_values_that_would_manufacture_a_re_key() {
+        // `5e-1` separates a DIVISION COUNT, floored at one by
+        // `tess_meter::divisions`, from any merely positive policy;
+        // `inf`/`NaN` separate a finite trim-box edge from no policy at
+        // all; `0e0`/`-1e0` separate an edge, which is a signed
+        // parameter value, from a count.
+        const BAD: [&str; 5] = ["0e0", "-1e0", "inf", "NaN", "5e-1"];
+        const ADMITTED: [(&str, [bool; 5]); IDENTITY_MEASURES.len()] = [
+            ("u0", [true, true, false, false, true]),
+            ("u1", [true, true, false, false, true]),
+            ("v0", [true, true, false, false, true]),
+            ("v1", [true, true, false, false, true]),
+            ("nu", [false, false, false, false, false]),
+            ("nv", [false, false, false, false, false]),
+        ];
+        for (k, (name, admitted)) in ADMITTED.iter().enumerate() {
+            assert_eq!(*name, IDENTITY_MEASURES[k].0, "column {k} of the table");
+            for (b, bad) in BAD.iter().enumerate() {
+                let got = parse(&with_field(&csv(100, 2.5e1), IDENTITY_FIRST + k, bad)).is_ok();
+                assert_eq!(got, admitted[b], "{name} = {bad}: admitted = {got}");
+            }
+        }
+    }
+
+    /// A trim-box edge that reads `-0e0` where the baseline read `0e0`
+    /// is the SAME EDGE, and announcing a re-key over it would stop the
+    /// scene's comparison from that ordinal up. Identity is compared as
+    /// numbers for this reason; `{:?}` renders the two differently.
+    #[test]
+    fn a_signed_zero_extent_is_not_a_re_key() {
+        let base = parse(&csv(100, 2.5e1)).unwrap();
+        let fresh = parse(&with_field(&csv(100, 2.5e1), IDENTITY_FIRST, "-0e0")).unwrap();
+        assert_eq!(fresh[1].nurbs.unwrap().u0, 0.0, "and it parsed as an edge");
+        assert!(
+            fresh[1].nurbs.unwrap().u0.is_sign_negative(),
+            "the sign bit really is there to be tripped over"
+        );
+        assert_eq!(compare(&base, &fresh), Report::default());
     }
 
     /// The block the parser polices is the header's own, bracketed on
@@ -1689,6 +1784,36 @@ mod tests {
         );
     }
 
+    /// The MIGRATION DIRECTION, and the half of the finding/note test
+    /// that a fixture set can miss: the scene carries no sized face in
+    /// the baseline and gains one in the fresh sweep. Rule 2 has
+    /// something to lose here — it is about to start measuring this
+    /// scene — so the re-key is a FINDING, not the note the baseline
+    /// side alone would make it.
+    #[test]
+    fn a_scene_that_gains_its_first_sized_face_reds_rather_than_notes() {
+        let base = parse(&format!(
+            "{EXPECTED_HEADER}\n{}{}",
+            unsized_row(0, "plane", 4),
+            unsized_row(1, "cylinder", 10)
+        ))
+        .unwrap();
+        // The same 14 triangles, so rule 1 cannot speak for it.
+        let fresh = parse(&csv(10, 2.5e1)).unwrap();
+        assert_eq!(noted(&base, &fresh), vec![], "nothing was reported quietly");
+        assert_eq!(
+            fired(&base, &fresh),
+            vec![Kind::Rekeyed {
+                face: 1,
+                how: Rekey::Column {
+                    name: "chart",
+                    was: "cylinder".into(),
+                    now: "nurbs".into()
+                }
+            }]
+        );
+    }
+
     /// Two rows for one `(scene, face)` are two faces wearing one
     /// name, and every index by that key would keep whichever came
     /// last. Refused at the parse boundary, in the harness voice.
@@ -1716,7 +1841,17 @@ mod tests {
         assert_eq!(e.line, 3);
         assert!(e.text.contains("chart"), "{}", e.text);
         assert!(e.text.contains("hessian"), "{}", e.text);
-        // …and every tag the meter can emit is admitted.
+        // …and the roster itself, written out rather than iterated:
+        // reading `CHART_TAGS` to check `CHART_TAGS` would let a tag be
+        // dropped from it in silence, and a dropped tag turns every
+        // scene carrying that chart into harness breakage.
+        assert_eq!(
+            CHART_TAGS,
+            [
+                "plane", "cylinder", "cone", "sphere", "torus", "nurbs", "approx"
+            ],
+            "the tags `tess_meter::Chart::tag` emits"
+        );
         for tag in CHART_TAGS {
             assert!(
                 parse(&with_field(&csv(100, 2.5e1), 2, tag)).is_ok(),

@@ -154,7 +154,10 @@ fn a_re_key_that_costs_nothing_is_a_note_and_exits_zero() {
     ]);
     assert_eq!(out.status.code(), Some(0), "{}", out_of(&out));
     let o = out_of(&out);
-    assert!(o.contains("note: s/b face 1:"), "{o}");
+    // COUNTED, like the findings: an uncounted channel is where
+    // findings go to be forgotten.
+    assert!(o.contains("1 note(s)"), "{o}");
+    assert!(o.contains("s/b face 1: in the baseline, absent"), "{o}");
     assert!(o.contains("0 finding(s)"), "{o}");
     assert!(
         err_of(&out).is_empty(),

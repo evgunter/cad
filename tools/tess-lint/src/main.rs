@@ -61,11 +61,15 @@ fn discipline(findings: usize) -> String {
          \x20    the sweep stopped covering improves every total it used to appear in.\n\
          \x20 4. A re-keyed face is the join refusing to call one ordinal one face.\n\
          \x20    The line names the face, the column that disagreed and both\n\
-         \x20    readings; that face and every face above it went uncompared, which\n\
-         \x20    is what makes it a finding. Establish what changed in the MODEL\n\
-         \x20    first — a face genuinely replaced is a geometry change, a face\n\
-         \x20    merely renumbered is not — because a re-cut taken before that\n\
-         \x20    reading commits whatever the uncompared faces were doing.\n"
+         \x20    readings; that face and every face above it went uncompared. It is\n\
+         \x20    a FINDING because the scene carries a Hessian-sized face, so the\n\
+         \x20    slack rule lost comparisons it would otherwise have made; the same\n\
+         \x20    event in a scene with no sized face is printed as a `note:` above\n\
+         \x20    and exits 0, because rule 1 still runs over that scene's total.\n\
+         \x20    Establish what changed in the MODEL first — a face genuinely\n\
+         \x20    replaced is a geometry change, a face merely renumbered is not —\n\
+         \x20    because a re-cut taken before that reading commits whatever the\n\
+         \x20    uncompared faces were doing.\n"
     )
 }
 
@@ -267,9 +271,17 @@ fn main() {
     let base = read(&baseline_path);
     let report = compare(&base, &rows);
     // Notes first, and on stdout only: they are coverage the gate did
-    // not get to compare, and they never make the row red.
-    for note in &report.notes {
-        println!("{}", line("\nnote:", note));
+    // not get to compare, and they never make the row red. COUNTED,
+    // because an uncounted channel is where findings go to be
+    // forgotten — the line the new-scene summary used to carry.
+    if !report.notes.is_empty() {
+        println!(
+            "\ntess-lint: {} note(s) — coverage the gate could not compare, not a finding:",
+            report.notes.len()
+        );
+        for note in &report.notes {
+            println!("{}", line(" ", note));
+        }
     }
     println!(
         "\ntess-lint: gate vs {baseline_path}: {} finding(s)",
