@@ -1,4 +1,4 @@
-# QA-2 — the matrix says what it did (#1128, #1122's visibility half, #1051 verification)
+# QA-2 — the matrix says what it did (#1128, #1122's visibility half, #1051 verification, #1204's minimum)
 
 Unit spec, S-QA program (`docs/S-QA-PLAN.md`; charter
 `docs/WORK-STREAMS-2026-08.md` §S-QA). Binding alongside
@@ -67,7 +67,21 @@ under specs daily.
    the trailer path on one of your own pushes (`CI-Config:` on the
    head commit) and cite the run. Gaps are fixed if small, filed if
    not.
-6. **PR description** carries: the measured default from
+6. **#1204's minimum (added at dispatch+1, from the PCURVE
+   orchestrator's report on PR #1228)**: a draft PR's run rewrites
+   every `RUN_*` flag to `false` and still reports success with
+   `TIER`/`LANE`/`CARGO_SCOPE` left truthful — three consecutive
+   greens on a 19-kernel-file branch gated nothing, and two
+   experienced readers misread the same run in different
+   directions. Take the issue's option (1): the draft skip prints
+   an unmissable `GATE SKIPPED: draft PR — no RUN_* flags set`
+   line in a step with no `if:` (the `CONFIG_SOURCE` precedent),
+   and the `ready_for_review` escape is documented beside the skip
+   in `ci.yml`. ASSESS option (2) (a non-success conclusion for a
+   gate that did not run) and report its shape and cost in the PR
+   description — do not take it unilaterally; the draft-skip
+   behaviour itself (F5, drafts are cheap) stays.
+7. **PR description** carries: the measured default from
    deliverable 2, the cost statement, the before/after of a red
    run's failure surface if one is cheaply constructible (a planted
    2-failure commit, red run recorded, then reverted in the same
