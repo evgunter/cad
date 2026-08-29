@@ -171,7 +171,12 @@ ERROR-DESIGN's own "Open after this doc" list.
   monotonicity pruning by sign-definite `Dual<Interval>` ∂d/∂pᵢ as
   an accelerator only. Named consumer: **#1055** — the shell verb's
   curved wall-clearance window cites this certificate as what
-  closes it (Q5 below decides where that arm lands).
+  closes it (Q5 below decides where that arm lands). VERBS
+  registered the demand on the plan PR (2026-08-29): the
+  curved-neck shell case is a ready-made acceptance with fixtures
+  in-tree (the ordinal-101/103 probe suites' dumbbell/hexagon
+  families), and #1019's perf box names the shell body as a
+  measurement fixture.
 - **M10-6 — reporting, CI rows, the advisory lanes, the demo
   (E10/E11); after M10-4/M10-5.** Content-key-cached, serializable
   verdicts/stackups for goldening (bits of recipe slice, box, ε, K);
