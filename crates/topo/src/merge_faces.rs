@@ -491,9 +491,9 @@ impl<T: Decide> Body<T> {
             std::collections::BTreeSet::new();
         let mut any = false;
         for (edge_key, edge) in self.edges() {
-            let Some((fp, fm)) = self.edge_faces(edge.he_plus, edge.he_minus) else {
-                continue; // unreachable on tier-2 input
-            };
+            let (fp, fm) = self
+                .edge_faces(edge.he_plus, edge.he_minus)
+                .map_err(|error| MergeCoplanarError::Op { error })?;
             if fp != fm
                 && let Some(rung) =
                     self.planes_declared_equal(fp, fm, edge_key, declared_ctx.as_ref())?
@@ -630,20 +630,39 @@ impl<T: Decide> Body<T> {
         }
     }
 
-    /// The faces of an edge's two halves (via parent loops), if all
-    /// links resolve.
+    /// The faces of an edge's two halves, via the parent loops.
+    ///
+    /// Every link this walks is one tier 1 requires to resolve, so a
+    /// refusal names a torn arena and never an ordinary shape. It is
+    /// returned rather than folded into "this edge is not interesting"
+    /// because the two are indistinguishable to the scans that call
+    /// this, and treating a torn link as an uninteresting edge drops a
+    /// mergeable adjacency or a shared seam without a word.
+    ///
+    /// # Errors
+    ///
+    /// [`EulerOpError::StaleKey`], naming the link that did not
+    /// resolve.
     fn edge_faces(
         &self,
         he_plus: crate::entity::HalfEdgeKey,
         he_minus: crate::entity::HalfEdgeKey,
-    ) -> Option<(FaceKey, FaceKey)> {
-        let fp = self
-            .get_loop(self.get_half_edge(he_plus)?.parent_loop)?
-            .face;
-        let fm = self
-            .get_loop(self.get_half_edge(he_minus)?.parent_loop)?
-            .face;
-        Some((fp, fm))
+    ) -> Result<(FaceKey, FaceKey), EulerOpError> {
+        let face_of = |he: crate::entity::HalfEdgeKey| -> Result<FaceKey, EulerOpError> {
+            let parent = self
+                .get_half_edge(he)
+                .ok_or(EulerOpError::StaleKey {
+                    key: crate::entity::EntityId::HalfEdge(he),
+                })?
+                .parent_loop;
+            Ok(self
+                .get_loop(parent)
+                .ok_or(EulerOpError::StaleKey {
+                    key: crate::entity::EntityId::Loop(parent),
+                })?
+                .face)
+        };
+        Ok((face_of(he_plus)?, face_of(he_minus)?))
     }
 
     /// The F6 ladder's merge test (M4 PR 5, the N6 retirement): same
@@ -957,25 +976,32 @@ impl<T: Decide> Body<T> {
         // chords, not on an inset ring.
         let straight_seam = {
             let band = Band::linear(tol).map_err(|error| MergeCoplanarError::Band { error })?;
-            let shared: Vec<_> = self
-                .edges()
-                .filter_map(|(k, e)| {
-                    let (fp, fm) = self.edge_faces(e.he_plus, e.he_minus)?;
-                    (fp != fm && in_group(fp) && in_group(fm)).then_some((k, e.he_plus, e.he_minus))
-                })
-                .collect();
+            let mut shared = Vec::new();
+            for (k, e) in self.edges() {
+                let (fp, fm) = self
+                    .edge_faces(e.he_plus, e.he_minus)
+                    .map_err(|error| MergeCoplanarError::Op { error })?;
+                if fp != fm && in_group(fp) && in_group(fm) {
+                    shared.push((k, e.he_plus, e.he_minus));
+                }
+            }
             let mut verdict = false;
             if shared.len() == 2 {
-                let ends =
-                    |hp, hm| Some([self.get_half_edge(hp)?.start, self.get_half_edge(hm)?.start]);
-                if let (Some(a), Some(b)) = (
-                    ends(shared[0].1, shared[0].2),
-                    ends(shared[1].1, shared[1].2),
-                ) {
-                    for v in a.iter().filter(|v| b.contains(v)) {
-                        if self.redundant_subdivision_vertex(*v, band)? {
-                            verdict = true;
-                        }
+                // Every half-edge in `shared` was resolved by
+                // `edge_faces` above and this whole block mutates
+                // nothing, so the start vertices are in hand.
+                let start = |he| match self.get_half_edge(he) {
+                    Some(h) => h.start,
+                    None => unreachable!(
+                        "merge_group: the seam scan resolved this half-edge through \
+                         `edge_faces` and mutates nothing"
+                    ),
+                };
+                let a = [start(shared[0].1), start(shared[0].2)];
+                let b = [start(shared[1].1), start(shared[1].2)];
+                for v in a.iter().filter(|v| b.contains(v)) {
+                    if self.redundant_subdivision_vertex(*v, band)? {
+                        verdict = true;
                     }
                 }
             }
@@ -986,9 +1012,9 @@ impl<T: Decide> Body<T> {
         loop {
             let mut found = None;
             for (edge_key, edge) in self.edges() {
-                let Some((fp, fm)) = self.edge_faces(edge.he_plus, edge.he_minus) else {
-                    continue;
-                };
+                let (fp, fm) = self
+                    .edge_faces(edge.he_plus, edge.he_minus)
+                    .map_err(|error| MergeCoplanarError::Op { error })?;
                 if fp == rep && fm != rep && in_group(fm) {
                     found = Some((edge_key, edge.he_minus, fm));
                     break;
@@ -1061,9 +1087,9 @@ impl<T: Decide> Body<T> {
                 ) else {
                     continue;
                 };
-                let Some((fp, fm)) = self.edge_faces(edge.he_plus, edge.he_minus) else {
-                    continue;
-                };
+                let (fp, fm) = self
+                    .edge_faces(edge.he_plus, edge.he_minus)
+                    .map_err(|error| MergeCoplanarError::Op { error })?;
                 if fp == rep && fm == rep {
                     found = Some((
                         edge_key,
@@ -1326,7 +1352,7 @@ mod tests {
     fn adjacent_pair(body: &Body<f64>) -> (FaceKey, FaceKey) {
         body.edges()
             .find_map(|(_, e)| {
-                let (fp, fm) = body.edge_faces(e.he_plus, e.he_minus)?;
+                let (fp, fm) = body.edge_faces(e.he_plus, e.he_minus).ok()?;
                 (fp != fm).then_some((fp, fm))
             })
             .expect("a cube has adjacent faces")
