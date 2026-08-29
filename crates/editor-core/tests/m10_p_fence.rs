@@ -62,7 +62,7 @@
 //! bits moved. The three numbers below are the same digest over the
 //! grown roster.
 //!
-//! //! The `probe` row is ROSTERED into the K-telemetry sweep's executed
+//! The `probe` row is ROSTERED into the K-telemetry sweep's executed
 //! floor. Its claim is not a third copy of the `f64` row's: it says the
 //! telemetry scalar has not started changing decisions, which is a
 //! claim about `Probe` that nothing else in the tree makes, and a claim

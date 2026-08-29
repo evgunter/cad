@@ -296,7 +296,7 @@ this page grades BODIES against the bound surface.
 | # | scene | Python? | gap | the missing door |
 |---|---|---|---|---|
 | 1 | `bracket` | **YES** | — | — |
-| 2 | `spacer` | **YES** | — | LIB-G16. The body is `Node.chamfer` over the twelve names `Evaluation.all_edges` answers with — a rectangular pad with every edge broken, in a recipe, with names and a rebuild. The scene's friction (1) is what the door discharges *for the recipe path*: "break every edge" is one materializer call there, where the plain-body API still enumerates arena keys, which is what this scene, written against that API, still does. Frictions (3) — `Band` beside `Tol` — and the plain-body selector are kernel-side and untouched |
+| 2 | `spacer` | **YES** | — | LIB-G16. The body is `Node.chamfer` over the twelve names `Evaluation.all_edges` answers with — a rectangular pad with every edge broken, in a recipe, with names and a rebuild. **Where the evidence is**: no Python row builds this pad's own 4 × 2.4 × 1 dimensions; what is executed is the same construction on the shared unit cube (`TestDiechamfer`, rows 11/12), and the pad differs from it only in three literals fed to the same two nodes. Said plainly so the row is not read as an executed claim about this scene's numbers. The scene's friction (1) is what the door discharges *for the recipe path*: "break every edge" is one materializer call there, where the plain-body API still enumerates arena keys, which is what this scene, written against that API, still does. Frictions (3) — `Band` beside `Tol` — and the plain-body selector are kernel-side and untouched |
 | 3 | `plate` | **YES** | — | — |
 | 4 | `vase` | **YES** | — | — |
 | 5 | `sheave` | **YES** | — | — |

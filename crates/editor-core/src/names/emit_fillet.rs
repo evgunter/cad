@@ -467,9 +467,48 @@ mod tie_tests {
             crec,
         )
         .expect("a tie propagates through the chamfer emitter too");
+        // Held to the SAME bar as the fillet arm, not a weaker one.
+        // `name_chamfer` delegating to `name_blend` is what makes the
+        // deferral shared, but it is an implementation fact this row
+        // must not assume: assert the property, so that a future
+        // `emit_chamfer` which stops delegating still has to pass.
+        let cwidths: Vec<usize> = cout
+            .iter()
+            .filter_map(|(_, e)| match e {
+                Entry::Tied(es) => Some(es.len()),
+                Entry::Unique(_) => None,
+            })
+            .collect();
         assert!(
-            cout.iter().any(|(_, e)| matches!(e, Entry::Tied(_))),
+            !cwidths.is_empty(),
             "the chamfer emitter must defer tie-descended rows as well"
+        );
+        assert!(
+            cwidths.iter().all(|w| *w >= 2),
+            "a tied entry with one member is a narrowing bug: {cwidths:?}"
+        );
+        let cclean = crate::names::name_chamfer(
+            RecipeNodeId(3),
+            RecipeNodeId(1),
+            &table,
+            &chamfered.body,
+            crec,
+        )
+        .expect("the untied table names as it always did");
+        assert!(
+            cclean.iter().all(|(_, e)| matches!(e, Entry::Unique(_))),
+            "an untied operand must produce no tied rows at the chamfer either"
+        );
+        // The mint id is the discrimination (D3): the same records
+        // under a different node must produce DIFFERENT names, or the
+        // shared role vocabulary would be an aliasing bug rather than a
+        // deliberate reuse. This is what delegation could hide, so it
+        // is asserted here rather than assumed.
+        let fillet_names: BTreeSet<_> = clean.iter().map(|(n, _)| n.clone()).collect();
+        let chamfer_names: BTreeSet<_> = cclean.iter().map(|(n, _)| n.clone()).collect();
+        assert!(
+            fillet_names.is_disjoint(&chamfer_names),
+            "two blends under different nodes must share no name"
         );
     }
 }

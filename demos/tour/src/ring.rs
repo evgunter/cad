@@ -85,9 +85,11 @@
 //!    document path is not a workaround for anything.
 //!
 //!    What this leaves standing is `diechamfer`'s finding on its own
-//!    scene: the chamfer has no node, so THAT die has no document.
-//!    The two verbs are not in the same position, and saying they were
-//!    would have been a finding invented from symmetry.
+//!    scene: the kernel verb takes arena KEYS, so a document's own
+//!    selection cannot be handed to it, and THAT die has no document
+//!    because the scene calls the verb directly. The two verbs are not
+//!    in the same position, and saying they were would have been a
+//!    finding invented from symmetry.
 //! 2. **The cavity's props door is [`pncad::topo::classify_shells`]**
 //!    (this finding used to record its absence; the checks unit built
 //!    it). A consumer wanting the bore's own volume or area (a coolant

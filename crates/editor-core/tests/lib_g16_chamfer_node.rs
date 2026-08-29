@@ -21,10 +21,12 @@
 //! area = 6(L−2d)² + 12√2·d(L−2d) + 4√3·d²
 //! ```
 //!
-//! — six full support squares (each corner patch meets its support at
-//! the single foot point, so it trims no area off them), twelve
-//! rectangular strips `d√2` wide and `L−2d` long, and eight
-//! equilateral corner patches of side `d√2`. Both carry irrationals,
+//! — six SHRUNKEN support squares, each `(L−2d)` on a side (the four
+//! edge chamfers trim a band `d` deep off each of its edges; the corner
+//! patches then meet that square at the single foot point, so they
+//! take no further area off it), twelve rectangular strips `d√2` wide
+//! and `L−2d` long, and eight equilateral corner patches of side
+//! `d√2`. Both carry irrationals,
 //! which is why the corpus document pins no exact mass and these rows
 //! meter at a stated relative tolerance instead.
 
