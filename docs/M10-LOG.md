@@ -171,3 +171,14 @@ scalar payloads (R1 friction 2) should be revisited when the
 driver wants the lane pass's refusal payloads, and the guided
 enclosure being node-dependent (extrude widens, loft stays f64 by
 C6/D9) needs stating in the driver's leaf semantics.
+
+## Operational: disk math on this container (2026-08-29)
+
+Measured under pressure: ONE workspace-wide interval battery in
+debug costs ~15-16G of test artifacts — two concurrent lanes only
+fit if at most one runs a world battery. Standing brief lines from
+here: lane batteries run `CARGO_INCREMENTAL=0`, and scope to
+touched crates (`-p ...`) unless the unit's sweep demands the
+world — the hosted gate covers the rest (local-battery-scope's
+time argument, now applied to disk). Reclaim-at-report remains
+the transient's fix.
