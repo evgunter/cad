@@ -82,6 +82,24 @@ translation, and reports rather than forcing it. This unit does NOT
 touch `wire_sweep`'s banked frontier or the G2 path-composition tail
 (U4/LQ3 — kernel-owned, unchanged).
 
+**Ratified WITH A RECORDED RESERVATION (Evan, in-chat, 2026-08-29,
+after the initial sign-off): "i don't love that but it doesn't sound
+like the issue is new here."** The reservation reads on
+hollowness-as-`Option<wall>` — a mode flag carried as a payload
+field — and the "not new" is exact: the shape was set kernel-side at
+VERBS-TUBEWALL (two public doors over one private `build` with
+`wall: Option<T>`); the node inherits it rather than minting it.
+Standing consequence: the node TRACKS the kernel's vocabulary. If
+the kernel's tube vocabulary is ever re-cut (a VERBS-shaped design
+conversation, not LIB's to open), `Node::Tube` follows at its own
+bump — cheap pre-release. A node vocabulary that split hollow/solid
+against a kernel that does not would assert a distinction the kernel
+lacks, which is the worse shape and is why the reservation lands
+upstream rather than blocking this unit. **The reservation is now
+issue #1205** (filed at Evan's direction, 2026-08-29): the class is
+one vocabulary item covering two different ARTIFACTS via a mode
+flag; the tube unit is HELD behind that issue's ruling.
+
 ## D5 — shell WAITS on a kernel birth channel, and LIB files the ask now
 
 `shell`/`shell_open` return a bare `Body<T>` — no birth record
