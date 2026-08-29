@@ -22,9 +22,13 @@ fix (recorded below as a unilateral decision).
   (the prefix is the merged cut's own designation; the
   harness-designated session branch `claude/s-cert-orchestration-2eafta`
   carries the opening PR and is otherwise unused).
-- **A/B ordinal band: S-CERT = 600–699**, claimed in
-  `docs/MODEL-AB-LOG.md`'s banding entry in the same commit that
-  opens this program, per that entry's rule. Implementer blocks are
+- **A/B ordinal band: S-CERT = 700–799**, claimed in
+  `docs/MODEL-AB-LOG.md`'s banding entry, per that entry's rule.
+  The opening commit claimed 600–699; S-BLEND opened concurrently,
+  drew the same band, and its claim reached main first, so S-CERT
+  renumbered to 700–799 under the main-is-authority tiebreak
+  before any ordinal was assigned (this is the corrected log the
+  banding entry says a collision costs). Implementer blocks are
   named `CERT-B1, CERT-B2, …` (`CERT-<n>` are unit names).
 - **This session runs in a remote container** (the M10/GUI
   precedent): no persistent `~/.local/share/cad-work`, no script

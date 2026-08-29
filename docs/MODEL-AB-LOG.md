@@ -189,10 +189,14 @@ amended:
      **VERBS 100–199 · PCURVE 200–299 · LIB 300–399 · GUI 400–499
      (claimed 2026-08-27 at the GUI program's opening —
      `docs/GUI-LOG.md`) · M10 500–599 (claimed 2026-08-29 at the
-     M10 program's opening — `docs/M10-LOG.md`) · S-CERT 600–699
-     (claimed 2026-08-29 at the S-CERT program's opening —
-     `docs/S-CERT-LOG.md`)**, with
-     **700+ unallocated** — the orchestrator opening the next
+     M10 program's opening — `docs/M10-LOG.md`) · BLEND 600–699
+     (claimed 2026-08-29 at the S-BLEND program's opening —
+     `docs/S-BLEND-LOG.md`) · S-CERT 700–799 (claimed 2026-08-29
+     at the S-CERT program's opening — `docs/S-CERT-LOG.md`;
+     opened concurrently with S-BLEND, both drew 600 within the
+     hour, BLEND's claim reached main first, S-CERT renumbered per
+     the main-is-authority tiebreak)**, with
+     **800+ unallocated** — the orchestrator opening the next
      program takes the next free band and records it HERE in the
      same commit that opens the program. **1–99 is CLOSED
      HISTORY**: the pre-banding global sequence, which reached 85.

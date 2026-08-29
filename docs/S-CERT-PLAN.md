@@ -12,7 +12,7 @@ waits.
 Branch prefix (the #396 convention): **`cert/`** — unit branches
 `cert/<unit>-<slug>`, orchestrator branch `cert/orchestrator`.
 Away-channel tag `(S-CERT orchestrator)`. A/B ordinal band
-**S-CERT = 600–699**, claimed in `docs/MODEL-AB-LOG.md`'s banding
+**S-CERT = 700–799**, claimed in `docs/MODEL-AB-LOG.md`'s banding
 entry in this same PR, per that entry's rule; implementer blocks are
 named `CERT-B1, CERT-B2, …` (unit names occupy `CERT-<n>`). Live
 state is `docs/S-CERT-LOG.md`'s tail, never this file.
@@ -243,7 +243,7 @@ Standard, v6: substrate → binding spec → one implementer + the
 cross-model dual review + union fix pass; implementer arms drawn per
 the current block rule in `docs/MODEL-AB-LOG.md` (read on main at
 each dispatch — that document owns every live number); ordinals
-claimed on main at review dispatch from band 600–699;
+claimed on main at review dispatch from band 700–799;
 record-at-merge with per-phase tokens/wall-clock; blinding
 discipline verbatim (no `Co-Authored-By` in lane commits; no
 arm-naming surface reviewers can read). Hosted CI is the only gate;
