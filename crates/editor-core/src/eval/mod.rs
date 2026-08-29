@@ -1397,6 +1397,18 @@ where
     // profile seed would hit each other's memo. Not computed at all
     // when the lift is off, which is what keeps the f64 build path
     // exactly where it was.
+    //
+    // THE OP RESOLVES IT AGAIN, and that is a considered decline rather
+    // than an oversight. Threading this value into `run_op` would tie
+    // the key's inputs and the op's inputs together through one more
+    // parameter on a function that already carries eight, and buy
+    // nothing about correctness: resolution is a pure function of
+    // (program, environment) evaluated by libm-pure `expr::eval`, so
+    // D9 makes the second call bit-identical to this one by the same
+    // argument that makes the memo's re-runs sound. What it costs is a
+    // few dozen expression evaluations per profile node, in analysis
+    // mode only. If that ever shows up in a profile, the fix is to pass
+    // the value through — not to cache it somewhere both readers reach.
     let lane_program = match (op_env.profile_lift, node, &resolved_program) {
         (ProfileLift::Guided, crate::node::Node::Profile(program), Some(_)) => {
             match program.resolve(&doc.param_env::<T>()) {

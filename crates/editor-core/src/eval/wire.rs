@@ -534,27 +534,12 @@ fn lane_profile<T: Decide + geom_core::Bounds>(
         })?;
         loops.push(lp);
     }
-    let plane = profile::SketchPlane::new(embed_affine::<T>(&program.plane.placement));
+    let plane = profile::SketchPlane::new(anchor::embed_affine::<T>(&program.plane.placement));
     profile::Profile::new(plane, loops)
         .validate_guided(tol, &pre.structure.canonical)
         .map_err(NodeErrorKind::Profile)
 }
 
-/// The sketch plane's placement, embedded exactly (VQ8 keeps the plane
-/// itself outside the parameter layer, so it lifts as constants).
-fn embed_affine<T: geom_core::Real>(a: &geom_core::Affine3<f64>) -> geom_core::Affine3<T> {
-    let v = |w: geom_core::Vec3<f64>| {
-        geom_core::Vec3::new(T::from_f64(w.x), T::from_f64(w.y), T::from_f64(w.z))
-    };
-    geom_core::Affine3::from_parts(
-        geom_core::Mat3::from_cols(v(a.linear.c0), v(a.linear.c1), v(a.linear.c2)),
-        v(a.translation),
-    )
-}
-
-/// The profile node's op: embed the precomputed f64 profile into the
-/// lane scalar and validate under the run tolerance — exactly the
-/// pre-switch op, so the node's logged verdicts are unchanged.
 fn wire_profile<T: Decide + geom_core::Bounds>(
     program: &ProfileProgram,
     doc: &crate::doc::Doc<ProfileProgram>,

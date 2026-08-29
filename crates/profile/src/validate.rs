@@ -904,7 +904,7 @@ impl<T: Decide> Profile<T> {
     /// [`ProfileError::Escalated`] with the named predicate's
     /// diagnostic, never a guess.
     pub fn validate(&self, tol: Tol) -> Result<ValidatedProfile<T>, ProfileError> {
-        self.validate_with(tol, &mut CanonGuide::Recording(Vec::new(), 0))
+        self.validate_with(tol, &mut CanonGuide::Recording(Vec::new()))
     }
 
     /// [`validate`](Self::validate) keeping the structure record it
@@ -922,12 +922,12 @@ impl<T: Decide> Profile<T> {
         &self,
         tol: Tol,
     ) -> Result<(ValidatedProfile<T>, CanonicalStructure), ProfileError> {
-        let mut guide = CanonGuide::Recording(Vec::new(), 0);
+        let mut guide = CanonGuide::Recording(Vec::new());
         let vp = self.validate_with(tol, &mut guide)?;
-        let CanonGuide::Recording(loops, outer_loop) = guide else {
+        let CanonGuide::Recording(loops) = guide else {
             unreachable!("the guide was constructed Recording two lines above")
         };
-        Ok((vp, CanonicalStructure { outer_loop, loops }))
+        Ok((vp, CanonicalStructure { loops }))
     }
 
     /// **Guided validation**: canonicalize at this scalar while
@@ -1161,7 +1161,6 @@ impl<T: Decide> Profile<T> {
             });
             canonical[li] = Some(validated);
         }
-        guide.record_outer(outer_index);
         let mut loops = Vec::with_capacity(n);
         if let Some(outer) = canonical[outer_index].take() {
             loops.push(outer);
@@ -1180,8 +1179,8 @@ impl<T: Decide> Profile<T> {
 /// freely and writing them down, or consuming a prior pass's and
 /// re-verifying what can be re-verified.
 enum CanonGuide {
-    /// Per-loop records so far, and the outer loop once it is known.
-    Recording(Vec<LoopCanonical>, usize),
+    /// Per-loop records so far.
+    Recording(Vec<LoopCanonical>),
     /// A prior pass's decisions.
     Guided(CanonicalStructure),
 }
@@ -1191,7 +1190,7 @@ impl CanonGuide {
     /// pass is selecting freely.
     fn loop_at(&self, li: usize) -> Option<&LoopCanonical> {
         match self {
-            Self::Recording(..) => None,
+            Self::Recording(_) => None,
             Self::Guided(s) => s.loops.get(li),
         }
     }
@@ -1199,15 +1198,8 @@ impl CanonGuide {
     /// Writes one loop's decisions down (a no-op under guidance, where
     /// they came from the record).
     fn record(&mut self, rec: LoopCanonical) {
-        if let Self::Recording(loops, _) = self {
+        if let Self::Recording(loops) = self {
             loops.push(rec);
-        }
-    }
-
-    /// Writes down which loop the containment forest made outer.
-    fn record_outer(&mut self, outer: usize) {
-        if let Self::Recording(_, slot) = self {
-            *slot = outer;
         }
     }
 }

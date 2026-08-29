@@ -290,6 +290,29 @@ fn the_corpus_replays_at_interval_and_encloses_the_f64_lane() {
 /// recorded and pinned rather than repaired here, and the row is a
 /// genuine, corpus-supplied indeterminate case: the shape a guided lane
 /// pass must abort on rather than quietly keep the nominal structure.
+///
+/// # The class, stated by SHAPE rather than by helper name
+///
+/// This is not a fillet defect and not a `signed_swept` defect. The
+/// class is **any floor-based period fold evaluated at `Interval`
+/// whose argument box straddles a period boundary** — `x mod τ`
+/// (`reduce_periodic`), the signed fold `x − τ⌊x/τ + ½⌋`, and every
+/// open-coded `((a − b)/p + ½).floor()` that means the same thing.
+/// `floor` is a step function, so a box spanning one of its steps
+/// enclosing two integers is not a looseness to be tightened away: it
+/// is the honest enclosure of a discontinuous function, and the
+/// widening is proportional to the PERIOD, not to the input box.
+/// Composing two such folds — which is what `signed_swept` does on top
+/// of `swept` — squares the exposure, which is why the eye lands on
+/// exactly `[−τ, τ]`.
+///
+/// Naming it by helper was the first survey's mistake: grepping
+/// `reduce_periodic` alone misses every open-coded fold, and grepping
+/// this crate alone misses `topo`, which carries most of them. The
+/// tree-wide hit list and each site's disposition ride the class issue
+/// filed for it (evgunter/cad#1191), not this comment — a census row should say what shape
+/// it is watching for, and leave the inventory somewhere it can be
+/// updated without editing a test.
 #[cfg(feature = "interval")]
 #[test]
 fn exactly_one_corpus_row_escalates_at_interval() {

@@ -2112,10 +2112,7 @@ fn drive<T: ArcCarrierScalar>(
     for (i, step) in steps.iter().enumerate() {
         let applied =
             apply(tip, *step, tol, &mut guide).map_err(|kind| ReplayError { step: i, kind })?;
-        if i == 0
-            && guide.is_guided()
-            && matches!(applied, Applied::Tip(_))
-        {
+        if i == 0 && guide.is_guided() && matches!(applied, Applied::Tip(_)) {
             return Err(ReplayError {
                 step: 0,
                 kind: ReplayErrorKind::Path(PathError::Structure(

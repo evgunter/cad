@@ -27,8 +27,8 @@ mod corpus;
 mod fixture;
 
 use editor_core::{
-    CancelToken, EvalOptions, Node, NodeResult, ParamName, ParamValue, ProfileLift,
-    ValuePayload, evaluate,
+    CancelToken, EvalOptions, Node, NodeResult, ParamName, ParamValue, ProfileLift, ValuePayload,
+    evaluate,
 };
 use geom_core::{Real, Tol};
 
@@ -420,7 +420,13 @@ fn the_evaluation_door_runs_the_lift_at_dual() {
 fn the_loft_section_stays_f64_while_the_profile_payload_lifts() {
     use geom_core::Interval;
     let run = |doc: &editor_core::ProfileDoc, lift| {
-        evaluate::<Interval>(doc, None, &CancelToken::new(), &options(lift), Tol::witness())
+        evaluate::<Interval>(
+            doc,
+            None,
+            &CancelToken::new(),
+            &options(lift),
+            Tol::witness(),
+        )
     };
     let body_bits = |ev: &editor_core::Evaluation<Interval>| {
         use geom_core::Bounds;

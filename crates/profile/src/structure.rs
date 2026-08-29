@@ -144,10 +144,15 @@ pub struct LoopCanonical {
 }
 
 /// The structure one validation selected, for a whole profile.
+///
+/// There is deliberately no `outer_loop` field. The containment
+/// forest's verdict is already in each loop's [`LoopCanonical::role`],
+/// so a profile-level copy of it would be a second spelling of one
+/// fact — the kind that stays right until the day it does not, and
+/// that a reader then has to decide between. Callers that want the
+/// index read it off the roles.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CanonicalStructure {
-    /// Which input loop the containment forest made the outer one.
-    pub outer_loop: usize,
     /// Per input loop, in input order.
     pub loops: Vec<LoopCanonical>,
 }

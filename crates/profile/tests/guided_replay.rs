@@ -157,6 +157,94 @@ fn guided_validation_at_f64_reproduces_plain_validation() {
     }
 }
 
+/// **Every entry verb installs the guide** — the census that keeps the
+/// per-arm convention honest.
+///
+/// The guide reaches a chain through its core, and only an ENTRY row
+/// mints a core, so exactly the entry rows install it. That is five
+/// hand-written `adopt(guide())` calls today, and a sixth row added
+/// later that mints a core and forgets one would not fail loudly: it
+/// would elaborate under a fresh RECORDING guide, selecting structure
+/// freely while its caller believed it was guided. The driver checks
+/// that invariant directly — a guide no row took is still `Guided` in
+/// its hand after step 0 — and this row is what runs the check across
+/// the whole entry vocabulary instead of on whichever verb a fixture
+/// happened to start with.
+///
+/// Every row here guides against ITS OWN recorded structure, so the
+/// expected outcome is success; a forgotten install turns that into a
+/// `GuideNotInstalled` refusal, which is the failure this census is
+/// for. `Angle` and `Toward` get authored chains because no corpus
+/// program starts with either.
+#[test]
+fn every_entry_verb_installs_the_guide() {
+    use profile::{Step, Verb};
+    use std::f64::consts::FRAC_PI_2;
+
+    let tail_from_directed = |chain: profile::PartialPath<f64, _, _>| {
+        chain
+            .line(3.0, Tol::witness())
+            .expect("line")
+            .turn(FRAC_PI_2, Tol::witness())
+            .expect("turn")
+            .line(3.0, Tol::witness())
+            .expect("line")
+            .turn(FRAC_PI_2, Tol::witness())
+            .expect("turn")
+            .line(3.0, Tol::witness())
+            .expect("line")
+            .line_to(profile::Start, Tol::witness())
+            .expect("close")
+            .program
+    };
+    let angle_first = tail_from_directed(
+        Open.angle(0.0)
+            .at(p2(0.0, 0.0), Tol::witness())
+            .expect("Angle then At binds"),
+    );
+    let toward_first = tail_from_directed(
+        Open.toward(1.0, 0.0, Tol::witness())
+            .expect("Toward binds at entry")
+            .at(p2(0.0, 0.0), Tol::witness())
+            .expect("then At"),
+    );
+
+    let mut seen: Vec<Verb> = Vec::new();
+    let mut rows: Vec<Vec<Step<f64>>> = vec![angle_first, toward_first];
+    rows.extend(coverage_corpus().into_iter().map(|c| c.program));
+    for (i, program) in rows.iter().enumerate() {
+        let entry = program
+            .first()
+            .map(Step::verb)
+            .expect("a program has steps");
+        seen.push(entry);
+        let (_, record) = replay_recording(program, tol()).expect("row records at f64");
+        replay_guided(program, &record, tol()).unwrap_or_else(|e| {
+            panic!(
+                "row {i} (entry verb {entry:?}) failed its own record: {e} — a \
+                 `GuideNotInstalled` here means that entry row minted a core without \
+                 installing the guide"
+            )
+        });
+    }
+    // The census half: every verb an entry row can bind is represented.
+    for want in [
+        Verb::At,
+        Verb::Angle,
+        Verb::Toward,
+        Verb::ArcFillet,
+        Verb::ArcFilletArc,
+        Verb::Circle,
+        Verb::CircleSplit,
+    ] {
+        assert!(
+            seen.contains(&want),
+            "no row starts with {want:?}, so its entry arm's install is unexercised — \
+             add a chain that begins with it rather than letting the arm go uncovered"
+        );
+    }
+}
+
 // ------------------------------------------------------------------
 // 2. Consumption is real
 // ------------------------------------------------------------------
@@ -215,6 +303,21 @@ fn guided_replay_consumes_the_recorded_pick_rather_than_ranking() {
 /// gets no chance to disagree: it re-runs the corner gates, cannot
 /// classify one of them, and refuses TYPED naming that gate. No index
 /// is chosen at `Interval` anywhere in this path.
+///
+/// WHAT THIS ROW DOES NOT DISCRIMINATE, said plainly because the fixture
+/// invites the opposite reading: the abort is NOT caused by the
+/// hairline asymmetry. A lens' two carriers cross at both tips, so the
+/// entry anchor is itself a derived corner and the advance gate's
+/// zero-swept-angle straddles the period fold (the class in
+/// `generic_replay.rs`) — the symmetric lens, `dx = 0`, aborts here for
+/// the same reason and at the same gate. So this row witnesses
+/// verify-or-abort on a configuration where re-deciding would be
+/// legal, which is the claim it is here to make; it does not witness
+/// the ladder being reached and declined. Nothing at `Interval`
+/// currently reaches a two-survivor ranking at all — the row that
+/// carries "the index is consumed, not re-derived" is
+/// `guided_replay_consumes_the_recorded_pick_rather_than_ranking`
+/// above, at `f64`, where the ladder IS reached.
 #[cfg(feature = "interval")]
 #[test]
 fn the_hairline_lens_aborts_typed_at_interval_instead_of_re_picking() {

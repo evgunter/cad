@@ -43,15 +43,13 @@
 //! reachable only one door down, at the program-resolve seam, which is
 //! where `m10_p_lift`'s wide-box row drives it.
 //!
-//! **ITS PROBE-GATED CODE IS NOT EXECUTED BY CI**, and that is the
-//! right disposition rather than an accident of a filter: the `probe`
-//! row asserts the SAME digest the `f64` row does, because `Probe` is a
-//! transparent `f64` whose every operation delegates exactly. It is
-//! there to catch a telemetry scalar that started changing decisions —
-//! a claim about `Probe`, not about this fence — and the fence itself
-//! is carried by the `f64` and `interval` rows, which run on every
-//! merge. Rostering it into the probe sweep would buy a third copy of a
-//! number the sweep has no reason to be the keeper of.
+//! The `probe` row is ROSTERED into the K-telemetry sweep's executed
+//! floor. Its claim is not a third copy of the `f64` row's: it says the
+//! telemetry scalar has not started changing decisions, which is a
+//! claim about `Probe` that nothing else in the tree makes, and a claim
+//! carried by a suite nothing runs is not carried at all. The
+//! `probe`-gated code here therefore executes on the sweep's schedule
+//! rather than on the code tier's.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 mod corpus;
@@ -165,15 +163,31 @@ fn fixture_digest<T: profile::ArcCarrierScalar>(d: &mut Digest, bits: impl Fn(&m
     // ladder actually ranks.
     let programs = [
         Open.arc_fillet_arc(
-            Center { c: p2(-0.5, 0.0), winding: ArcSweep::Ccw, p: p2(0.0, -tip) },
+            Center {
+                c: p2(-0.5, 0.0),
+                winding: ArcSweep::Ccw,
+                p: p2(0.0, -tip),
+            },
             0.35,
-            Center { c: p2(0.5, 0.0), winding: ArcSweep::Ccw, p: Start },
+            Center {
+                c: p2(0.5, 0.0),
+                winding: ArcSweep::Ccw,
+                p: Start,
+            },
             Tol::witness(),
         ),
         Open.arc_fillet_arc(
-            Center { c: p2(-1.0, 0.0), winding: ArcSweep::Ccw, p: p2(0.0, -3.0_f64.sqrt()) },
+            Center {
+                c: p2(-1.0, 0.0),
+                winding: ArcSweep::Ccw,
+                p: p2(0.0, -3.0_f64.sqrt()),
+            },
             0.5,
-            Center { c: p2(1.0, 0.0), winding: ArcSweep::Ccw, p: Start },
+            Center {
+                c: p2(1.0, 0.0),
+                winding: ArcSweep::Ccw,
+                p: Start,
+            },
             Tol::witness(),
         ),
     ];
@@ -184,13 +198,19 @@ fn fixture_digest<T: profile::ArcCarrierScalar>(d: &mut Digest, bits: impl Fn(&m
             Target::Point(p) => Target::Point(pt(p)),
         };
         let spec = |a: ArcData<f64>| match a {
-            ArcData::Center { c, winding, target } => {
-                ArcData::Center { c: pt(c), winding, target: tgt(target) }
-            }
+            ArcData::Center { c, winding, target } => ArcData::Center {
+                c: pt(c),
+                winding,
+                target: tgt(target),
+            },
             _ => unreachable!("this fixture authors Center-mode arcs only"),
         };
         match *step {
-            Step::ArcFilletArc { spec: a, radius, spec2 } => Step::ArcFilletArc {
+            Step::ArcFilletArc {
+                spec: a,
+                radius,
+                spec2,
+            } => Step::ArcFilletArc {
                 spec: spec(a),
                 radius: T::from_f64(radius),
                 spec2: spec(spec2),
