@@ -477,8 +477,15 @@ FAMILIES = {
         "back — the analyzed box, tail mass and leaf mass, with "
         "`DistributionFault` and the band's typed measure refusal as "
         "arms a Python caller can dispatch on. Today Python authors "
-        "unannotated parameters only, and a document read back from a "
-        "file carries an annotation Python can neither see nor set"
+        "unannotated parameters only: a document read back from a file "
+        "carries an annotation Python can READ ONLY THROUGH equality, "
+        "hashing and `repr`, and cannot spell. The sharp edge is the "
+        "WRITE door, not the read one — `set_doc_param` is "
+        "create-or-replace, so passing it a `DocParam` rebuilt from a "
+        "dimension and a number DELETES the annotation silently. "
+        "`set_doc_param_value` is the value-only door that carries the "
+        "declaration forward and is what a Python caller moving a "
+        "number must use until this family closes"
     ),
     "B-VALIDATE4": (
         "the fourth validator rung; closing it binds "

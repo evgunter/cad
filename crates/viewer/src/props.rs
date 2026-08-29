@@ -42,8 +42,8 @@
 //! consumer that wants it; it is not this unit's work.
 
 use pncad::document::{
-    Dimension, Doc, DocEdit, DocParam, EvalError, Expr, Node, ParamName, ProfileProgram,
-    RecipeNodeId, SlotId, eval, eval_count,
+    Dimension, Doc, DocEdit, DocParam, DocParamValue, EvalError, Expr, Node, ParamName,
+    ProfileProgram, RecipeNodeId, SlotId, eval, eval_count,
 };
 
 /// What is in a slot right now.
@@ -287,10 +287,10 @@ pub fn slot_edit(
     })
 }
 
-/// The `DocParam` a dimension and a value mint — one home, shared by
-/// the replace door ([`param_edit`]) and the panel's create-parameter
-/// affordance, so the two cannot disagree about which arm a value
-/// becomes (the dimension decides, [`SlotValue::of`]'s rule).
+/// The `DocParam` a dimension and a value mint — the panel's
+/// CREATE-parameter affordance, where a declaration really is being
+/// authored from parts. Moving an existing parameter's value is
+/// [`param_edit`]'s door, which mints no declaration at all.
 pub fn doc_param(dimension: Dimension, value: SlotValue) -> DocParam {
     match value {
         SlotValue::Count(value) => DocParam::Count { value },
@@ -298,27 +298,24 @@ pub fn doc_param(dimension: Dimension, value: SlotValue) -> DocParam {
     }
 }
 
-/// The edit that replaces a document parameter's value, keeping its
-/// declared dimension AND its distribution.
+/// The edit that writes a new VALUE into an already-declared document
+/// parameter.
 ///
-/// `SetDocParam` is create-or-replace, so the whole parameter is
-/// rewritten: a value edit that did not carry `prior`'s distribution
-/// forward would silently delete it. This panel authors no
-/// distribution of its own — the annotation rides through untouched.
-pub fn param_edit(
-    name: ParamName,
-    dimension: Dimension,
-    value: SlotValue,
-    prior: Option<&DocParam>,
-) -> DocEdit<ProfileProgram> {
-    let carried = prior.and_then(DocParam::distribution).copied();
-    let value = match (doc_param(dimension, value), carried) {
-        (DocParam::Continuous { dim, value, .. }, distribution) => DocParam::Continuous {
-            dim,
-            value,
-            distribution,
+/// The panel authors a number and nothing else, so it spells the edit
+/// that carries a number and nothing else: `SetDocParamValue` reads
+/// the declaration off the document and keeps it — the dimension and
+/// any distribution alike. The panel is therefore structurally unable
+/// to delete an annotation it never mentions, rather than remembering
+/// to copy one across.
+///
+/// The refusals (an undeclared name, a kind mismatch) belong to the
+/// edit door; this is the spelling, not a second validator.
+pub fn param_edit(name: ParamName, value: SlotValue) -> DocEdit<ProfileProgram> {
+    DocEdit::SetDocParamValue {
+        name,
+        value: match value {
+            SlotValue::Count(value) => DocParamValue::Count(value),
+            SlotValue::Continuous(value) => DocParamValue::Continuous(value),
         },
-        (count @ DocParam::Count { .. }, _) => count,
-    };
-    DocEdit::SetDocParam { name, value }
+    }
 }

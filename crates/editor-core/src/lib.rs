@@ -61,7 +61,7 @@ pub use checks::{
 };
 pub use diff::{DocDiff, NodeChange};
 pub use distribution::{Distribution, DistributionFault, DistributionField};
-pub use doc::{Doc, DocParam, ParamName};
+pub use doc::{Doc, DocParam, DocParamValue, ParamName};
 pub use edit::{Applied, DocEdit, EditError, EditRecord, apply};
 pub use eval::{
     BooleanValue, CancelToken, ContentBits, ContentKey, DatumValue, Epoch, EvalOptions,

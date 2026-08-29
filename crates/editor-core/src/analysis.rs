@@ -37,6 +37,19 @@
 //! arithmetic: it decides no geometric predicate, funnels nothing,
 //! and consults no tolerance. Its convergence error only shifts mass
 //! between the analyzed and the tail column.
+//!
+//! **One standard normal, two spellings, no subtraction of ones.**
+//! Every normal quantity here — the mass inside an interval, the mass
+//! outside it, and the `z` the quantile box is drawn at — goes through
+//! [`std_normal_mass`] and [`std_normal_exterior`], which are written
+//! so that neither ever forms `1 - x` for a small `x`: the exterior is
+//! the SUM of two `erfc` half-lines and the interior differences
+//! `erfc` (not `erf`) whenever the interval lies to one side of the
+//! mean. That is what makes "reported, never dropped" true in the deep
+//! tail, where `1 - 0.5·(erf(hi) - erf(lo))` cancels to a bit-exact
+//! zero over mass that is really there. The box door and the tail
+//! column consult the SAME pair, so the analyzed interval always holds
+//! exactly the mass the tail complements.
 
 use std::collections::BTreeMap;
 
@@ -288,7 +301,7 @@ pub fn tail_mass(
     dist: &Distribution,
     analyzed: &OffsetInterval,
 ) -> Result<f64, MeasureUnavailable> {
-    Ok(1.0 - interval_mass(param, dist, (analyzed.lo, analyzed.hi))?)
+    exterior_mass(param, dist, (analyzed.lo, analyzed.hi))
 }
 
 /// The mass a distribution puts INSIDE `sub` — the leaf-pricing door
@@ -372,10 +385,114 @@ fn interval_mass(
     }
 }
 
-/// `P(lo <= X <= hi)` for `X ~ N(0, sigma²)`, via `erf`.
+/// The mass a distribution puts OUTSIDE `[lo, hi]`, computed from the
+/// exterior itself rather than as `1 - inside`.
+///
+/// The two are the same number in exact arithmetic and are NOT the
+/// same number in `f64`: `1 - inside` has no relative precision left
+/// once `inside` rounds to 1, which for a normal happens while there
+/// is still real mass outside the interval. Every arm below therefore
+/// sums the pieces that lie outside.
+fn exterior_mass(
+    param: &ParamName,
+    dist: &Distribution,
+    (lo, hi): (f64, f64),
+) -> Result<f64, MeasureUnavailable> {
+    // An empty interval leaves everything outside, whichever measure.
+    if lo > hi {
+        return Ok(1.0);
+    }
+    match *dist {
+        // The band's two set-theoretic answers, complemented: the
+        // partial overlap that `interval_mass` refuses is refused
+        // here too, and for the same reason.
+        Distribution::Band { .. } => Ok(1.0 - interval_mass(param, dist, (lo, hi))?),
+        Distribution::Uniform { lo: ulo, hi: uhi } => {
+            let support = OffsetInterval { lo: ulo, hi: uhi };
+            let width = support.width();
+            if width > 0.0 {
+                // The support's own two exterior pieces, measured and
+                // added — never one minus the middle.
+                let below = (lo.min(uhi).max(ulo) - ulo).max(0.0);
+                let above = (uhi - hi.max(ulo).min(uhi)).max(0.0);
+                Ok(clamp_unit((below + above) / width))
+            } else {
+                // A point mass at the nominal: it is inside or it is
+                // not.
+                Ok(if lo <= ulo && ulo <= hi { 0.0 } else { 1.0 })
+            }
+        }
+        Distribution::Normal { sigma } => Ok(clamp_unit(std_normal_exterior(lo / sigma, hi / sigma))),
+        Distribution::TruncatedNormal {
+            sigma,
+            lo: tlo,
+            hi: thi,
+        } => {
+            let support = OffsetInterval { lo: tlo, hi: thi };
+            let Some((a, b)) = support.overlap(&OffsetInterval { lo, hi }) else {
+                return Ok(1.0);
+            };
+            let total = std_normal_mass(tlo / sigma, thi / sigma);
+            if total > 0.0 {
+                // The truncation window minus the overlap is two
+                // sub-windows; each is measured directly, so the
+                // numerator never subtracts two near-equal masses.
+                let outside =
+                    std_normal_mass(tlo / sigma, a / sigma) + std_normal_mass(b / sigma, thi / sigma);
+                Ok(clamp_unit(outside / total))
+            } else {
+                // A zero-width window is the point mass at the
+                // nominal, held whole by any window containing it.
+                Ok(0.0)
+            }
+        }
+    }
+}
+
+/// `P(lo <= X <= hi)` for `X ~ N(0, sigma²)`.
 fn normal_mass(sigma: f64, lo: f64, hi: f64) -> f64 {
-    let scale = sigma * core::f64::consts::SQRT_2;
-    0.5 * (libm::erf(hi / scale) - libm::erf(lo / scale))
+    std_normal_mass(lo / sigma, hi / sigma)
+}
+
+/// `1 / √2`, the argument scale that turns standard deviations into
+/// `erf`/`erfc` arguments.
+const ERF_SCALE: f64 = core::f64::consts::FRAC_1_SQRT_2;
+
+/// `P(z_lo <= Z <= z_hi)` for the STANDARD normal `Z`, in standard
+/// deviations.
+///
+/// Three branches, one reason: `erf` loses its relative precision
+/// where it saturates and `erfc` loses its where it approaches 1, so
+/// each half-line is measured by whichever of the two is still
+/// resolving there. An interval on one side of the mean differences
+/// `erfc` (both terms small, no cancellation); an interval straddling
+/// the mean adds two `erf` values (both positive, no cancellation).
+fn std_normal_mass(z_lo: f64, z_hi: f64) -> f64 {
+    // A degenerate or empty interval holds no mass of a continuous
+    // measure.
+    if z_hi <= z_lo {
+        return 0.0;
+    }
+    if z_lo >= 0.0 {
+        0.5 * (libm::erfc(z_lo * ERF_SCALE) - libm::erfc(z_hi * ERF_SCALE))
+    } else if z_hi <= 0.0 {
+        0.5 * (libm::erfc(-z_hi * ERF_SCALE) - libm::erfc(-z_lo * ERF_SCALE))
+    } else {
+        0.5 * (libm::erf(-z_lo * ERF_SCALE) + libm::erf(z_hi * ERF_SCALE))
+    }
+}
+
+/// `P(Z < z_lo) + P(Z > z_hi)` for the STANDARD normal `Z` — the mass
+/// the interval `[z_lo, z_hi]` leaves out, as the SUM of its two
+/// exterior half-lines.
+///
+/// This is the whole point of the pair: `erfc` keeps its relative
+/// precision arbitrarily far into the tail, so a `±9σ` box reports the
+/// `~2e-19` of mass it excludes instead of the bit-exact zero that
+/// `1 - erf(9/√2)` rounds to. The number under-flows to zero only when
+/// the mass itself under-flows, at roughly `±38σ`.
+fn std_normal_exterior(z_lo: f64, z_hi: f64) -> f64 {
+    0.5 * (libm::erfc(-z_lo * ERF_SCALE) + libm::erfc(z_hi * ERF_SCALE))
 }
 
 /// Rounding can push a probability a few ulps outside `[0, 1]`; the
@@ -388,32 +505,45 @@ fn clamp_unit(p: f64) -> f64 {
 /// holding `mass` of a normal: the `z` solving
 /// `erf(z / √2) = mass`.
 ///
-/// Monotone bisection on `libm::erf` — deterministic, dependency-free,
-/// and with no tolerance in sight. `erf` is strictly increasing, so
-/// the bracket `[0, hi]` is found by doubling and the interval halves
-/// to the `f64` grid: the loop runs until the bracket can no longer be
-/// split, so the result is the best `f64` the predicate admits rather
-/// than an ε-decided approximation.
+/// Monotone bisection on [`std_normal_mass`] — the SAME measure the
+/// mass doors report, so the box this draws holds exactly the mass
+/// [`box_mass`] will later say it holds, and [`tail_mass`] complements
+/// exactly that. Deterministic, dependency-free, and with no tolerance
+/// in sight: the bracket halves to the `f64` grid and the loop runs
+/// until it can no longer be split, so the result is the smallest `f64`
+/// the predicate admits rather than an ε-decided approximation.
 ///
-/// `mass` is a policy value already checked into `(0, 1)`.
+/// The bracket is FIXED rather than found by doubling, and that closes
+/// the one failure this function could have had. `mass` is a policy
+/// value already checked into `(0, 1)`, and `std_normal_mass(-z, z)`
+/// reaches exactly `1.0` in `f64` by `z ≈ 8.3`, so [`Z_BRACKET`]
+/// satisfies the predicate for EVERY admissible mass: there is no
+/// "the bracket ran out" branch to fall out of with a silently wrong
+/// `z`.
 fn quantile_z(mass: f64) -> f64 {
-    let f = |z: f64| libm::erf(z / core::f64::consts::SQRT_2);
-    let mut hi = 1.0;
-    // `erf` saturates to 1.0 in f64 near z ≈ 5.9σ, so this terminates
-    // for every representable mass < 1.
-    while f(hi) < mass && hi < 1e3 {
-        hi *= 2.0;
-    }
-    let mut lo = 0.0;
+    let holds = |z: f64| std_normal_mass(-z, z) >= mass;
+    debug_assert!(
+        holds(Z_BRACKET),
+        "the fixed bracket must satisfy every mass a policy admits"
+    );
+    let (mut lo, mut hi) = (0.0, Z_BRACKET);
     loop {
         let mid = 0.5 * (lo + hi);
         if mid <= lo || mid >= hi {
             return hi;
         }
-        if f(mid) < mass {
-            lo = mid;
-        } else {
+        if holds(mid) {
             hi = mid;
+        } else {
+            lo = mid;
         }
     }
 }
+
+/// The upper end of [`quantile_z`]'s bracket, in standard deviations.
+///
+/// Comfortably past the `z ≈ 8.3` where a standard normal's symmetric
+/// interval mass rounds to exactly `1.0` in `f64`, so it holds any
+/// mass strictly below 1. Widening it costs one bisection step and
+/// nothing else.
+const Z_BRACKET: f64 = 16.0;

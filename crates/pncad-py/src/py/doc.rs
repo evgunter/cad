@@ -1075,6 +1075,39 @@ impl ParamName {
     }
 }
 
+/// `-0.0` folded to `0.0`, every other value untouched — the
+/// normalization a hash must apply wherever the equality it mirrors is
+/// IEEE (`-0.0 == 0.0`).
+fn fold_zero(v: f64) -> f64 {
+    if v == 0.0 { 0.0 } else { v }
+}
+
+/// [`fold_zero`] applied to every offset of a distribution.
+///
+/// EXHAUSTIVE on purpose: a new form, or a new field on one, must say
+/// how it normalizes here or the compile breaks — the alternative is a
+/// field that silently splits the hash of two equal parameters.
+fn fold_distribution_zeros(d: d::Distribution) -> d::Distribution {
+    match d {
+        d::Distribution::Band { lo, hi } => d::Distribution::Band {
+            lo: fold_zero(lo),
+            hi: fold_zero(hi),
+        },
+        d::Distribution::Uniform { lo, hi } => d::Distribution::Uniform {
+            lo: fold_zero(lo),
+            hi: fold_zero(hi),
+        },
+        d::Distribution::Normal { sigma } => d::Distribution::Normal {
+            sigma: fold_zero(sigma),
+        },
+        d::Distribution::TruncatedNormal { sigma, lo, hi } => d::Distribution::TruncatedNormal {
+            sigma: fold_zero(sigma),
+            lo: fold_zero(lo),
+            hi: fold_zero(hi),
+        },
+    }
+}
+
 /// A named parameter's declared dimension and exact stored value
 /// (guide §3.2): what `DocEdit.set_doc_param` writes.
 ///
@@ -1154,14 +1187,16 @@ impl DocParam {
             } => {
                 0u8.hash(&mut h);
                 format!("{dim:?}").hash(&mut h);
-                let normalized = if *value == 0.0 { 0.0 } else { *value };
-                normalized.to_bits().hash(&mut h);
+                fold_zero(*value).to_bits().hash(&mut h);
                 // The distribution is part of the parameter, so it is
-                // part of the equality this hash mirrors. Hashed
-                // through its debug spelling, which distinguishes the
-                // forms and their offsets without a second float
-                // normalization rule to keep in step.
-                format!("{distribution:?}").hash(&mut h);
+                // part of the equality this hash mirrors — and it gets
+                // the SAME `-0.0` fold the nominal gets, per field,
+                // before its debug spelling is hashed. Without the
+                // fold, `Band { lo: -0.0, .. }` and `Band { lo: 0.0,
+                // .. }` compare EQUAL (Rust's `PartialEq` on `f64` is
+                // IEEE) and hash APART, which is the one thing a
+                // Python dict may not survive.
+                format!("{:?}", distribution.map(fold_distribution_zeros)).hash(&mut h);
             }
             d::DocParam::Count { value } => {
                 1u8.hash(&mut h);
@@ -1185,6 +1220,81 @@ impl DocParam {
             } => format!("DocParam({dim:?} {value} {d:?})"),
             d::DocParam::Count { value } => format!("DocParam(Count {value})"),
         }
+    }
+}
+
+/// The VALUE half of a document parameter: what
+/// `DocEdit.set_doc_param_value` writes into an ALREADY-DECLARED
+/// parameter.
+///
+/// This is the safe "just change the number" spelling. `set_doc_param`
+/// is create-or-replace and takes a whole `DocParam`, so using it to
+/// move a value rebuilds the declaration from parts — and a parameter
+/// read back from a file carrying a distribution (ERROR-DESIGN E1/E2)
+/// loses it, silently, because Python has no way to spell the
+/// annotation it would need to copy across. The value door carries the
+/// declaration forward instead: the dimension and the annotation stay
+/// exactly as the document has them.
+///
+/// Continuous values arrive as typed quantities for the same reason
+/// `DocParam`'s do — except that here the dimension is NOT being
+/// declared, it is being matched: the quantity says which unit the
+/// number is in, and the parameter's own declaration is what rules.
+#[pyclass(frozen, module = "pncad", from_py_object)]
+#[derive(Clone)]
+pub(crate) struct DocParamValue(pub(crate) d::DocParamValue);
+
+#[pymethods]
+impl DocParamValue {
+    /// A continuous value in Length units.
+    #[staticmethod]
+    fn length(value: &super::quantity::Length) -> Self {
+        Self(d::DocParamValue::Continuous(value.0.meters()))
+    }
+
+    /// A continuous value in Angle units.
+    #[staticmethod]
+    fn angle(value: &super::quantity::Angle) -> Self {
+        Self(d::DocParamValue::Continuous(value.0.radians()))
+    }
+
+    /// A dimensionless continuous value.
+    #[staticmethod]
+    fn scalar(value: f64) -> Self {
+        Self(d::DocParamValue::Continuous(value))
+    }
+
+    /// An exact integer, for a `Count` parameter.
+    #[staticmethod]
+    fn count(value: i64) -> Self {
+        Self(d::DocParamValue::Count(value))
+    }
+
+    /// Rust's `PartialEq`, mirrored — IEEE on the stored number, so
+    /// the two spellings of zero are the same value.
+    fn __eq__(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+
+    /// Consistent with [`Self::__eq__`]: `-0.0` folds to `0.0`.
+    fn __hash__(&self) -> u64 {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::hash::DefaultHasher::new();
+        match self.0 {
+            d::DocParamValue::Continuous(v) => {
+                0u8.hash(&mut h);
+                fold_zero(v).to_bits().hash(&mut h);
+            }
+            d::DocParamValue::Count(v) => {
+                1u8.hash(&mut h);
+                v.hash(&mut h);
+            }
+        }
+        h.finish()
+    }
+
+    fn __repr__(&self) -> String {
+        format!("DocParamValue({})", self.0)
     }
 }
 
@@ -1245,6 +1355,33 @@ impl DocEdit {
             inner: d::DocEdit::SetDocParam {
                 name: name.0.clone(),
                 value: value.0.clone(),
+            },
+        }
+    }
+
+    /// Write a new VALUE into an already-declared document parameter,
+    /// keeping its declaration — its dimension and, if a file gave it
+    /// one, its distribution (ERROR-DESIGN E1/E2).
+    ///
+    /// **Prefer this over `set_doc_param` whenever the parameter
+    /// already exists.** `set_doc_param` is create-or-replace: handed
+    /// a `DocParam` rebuilt from a dimension and a number — the only
+    /// shape Python can spell — it REPLACES the declaration, and any
+    /// annotation the parameter carried is gone with no refusal and no
+    /// diagnostic. This door cannot do that, because it never names a
+    /// declaration at all.
+    ///
+    /// Refuses typed on a name the document does not declare
+    /// (`doc_param_not_declared`) and on a kind mismatch — a count for
+    /// a continuous parameter or the reverse
+    /// (`doc_param_value_kind_mismatch`), which is a redeclaration and
+    /// belongs to the other door.
+    #[staticmethod]
+    fn set_doc_param_value(name: &ParamName, value: &DocParamValue) -> Self {
+        Self {
+            inner: d::DocEdit::SetDocParamValue {
+                name: name.0.clone(),
+                value: value.0,
             },
         }
     }
@@ -1349,6 +1486,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<DocEdit>()?;
     m.add_class::<ParamName>()?;
     m.add_class::<DocParam>()?;
+    m.add_class::<DocParamValue>()?;
     m.add_class::<Node>()?;
     m.add_class::<SketchPlane>()?;
     m.add_class::<BooleanOp>()?;

@@ -49,7 +49,7 @@
 //! [`crate::edit::apply`].
 
 use crate::appearance::AppearanceRecord;
-use crate::distribution::DistributionFault;
+use crate::distribution::{DistributionFault, DistributionField};
 use crate::doc::{DocParam, ParamName};
 use crate::edit::DocEdit;
 use crate::expr::Dimension;
@@ -70,6 +70,12 @@ pub enum NonFiniteSite {
     DocParam {
         /// The parameter.
         name: ParamName,
+        /// Which distribution offset is not finite, when the defect
+        /// is in the ANNOTATION rather than in the nominal; `None`
+        /// when it is the nominal itself. The walk has to identify
+        /// the field to decide there is a defect at all, so it says
+        /// which one rather than discarding the answer.
+        field: Option<DistributionField>,
     },
     /// A float of a profile node's PLANE PLACEMENT (snapshot), by
     /// position among the 12 placement floats (columns c0, c1, c2,
@@ -114,7 +120,17 @@ impl core::fmt::Display for NonFiniteSite {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::Epsilon => f.write_str("the recorded ε"),
-            Self::DocParam { name } => write!(f, "document parameter {:?}", name.0),
+            Self::DocParam { name, field: None } => {
+                write!(f, "document parameter {:?}", name.0)
+            }
+            Self::DocParam {
+                name,
+                field: Some(field),
+            } => write!(
+                f,
+                "document parameter {:?}, distribution field {field}",
+                name.0
+            ),
             Self::Profile { node, index } => write!(
                 f,
                 "float {index} of the sketch-plane placement on profile node {}",
@@ -205,17 +221,23 @@ fn first_non_finite(
 }
 
 fn param_site(name: &ParamName, p: &DocParam) -> Option<NonFiniteSite> {
-    let site = || NonFiniteSite::DocParam { name: name.clone() };
+    let site = |field| NonFiniteSite::DocParam {
+        name: name.clone(),
+        field,
+    };
     match p {
-        DocParam::Continuous { value, .. } if !value.is_finite() => Some(site()),
+        DocParam::Continuous { value, .. } if !value.is_finite() => Some(site(None)),
         // The distribution's offsets are floats the format writes, so
         // they belong to THIS walk rather than to a second spelling of
         // the same defect; the shape invariants are
-        // `first_distribution_fault`'s.
+        // `first_distribution_fault`'s. The offending field rides
+        // along: the walk computes it to answer at all, and a
+        // diagnostic that names `sigma` beats one that names only the
+        // parameter.
         DocParam::Continuous {
             distribution: Some(d),
             ..
-        } if d.first_non_finite().is_some() => Some(site()),
+        } if d.first_non_finite().is_some() => Some(site(d.first_non_finite())),
         // EXHAUSTIVE on purpose: a guarded arm does not count towards
         // exhaustiveness, so the finite `Continuous` case is spelled
         // out alongside the float-free ones rather than swept up by a
@@ -268,6 +290,16 @@ fn edit_non_finite(edit: &DocEdit<ProfileProgram>) -> Option<NonFiniteSite> {
             node: Node::Profile(program),
         } => profile_non_finite(program).map(|index| NonFiniteSite::InsertedProfile { index }),
         DocEdit::SetDocParam { name, value } => param_site(name, value),
+        // The value door carries no distribution of its own — the
+        // declaration it writes into supplies that — but its
+        // continuous arm IS a raw float the format writes.
+        DocEdit::SetDocParamValue {
+            name,
+            value: crate::doc::DocParamValue::Continuous(v),
+        } if !v.is_finite() => Some(NonFiniteSite::DocParam {
+            name: name.clone(),
+            field: None,
+        }),
         DocEdit::SetAppearanceMeta { name, key, value } => {
             value
                 .first_non_finite()
@@ -297,7 +329,8 @@ fn edit_non_finite(edit: &DocEdit<ProfileProgram>) -> Option<NonFiniteSite> {
         //   deliberately does not rely on for the rest of its list.
         // - The `Node` vocabulary is not closed here: this match is
         //   exhaustive on `DocEdit`, not on `Node`.
-        DocEdit::InsertNode { .. }
+        DocEdit::SetDocParamValue { .. }
+        | DocEdit::InsertNode { .. }
         | DocEdit::SetTolerance { .. }
         | DocEdit::DeleteNode { .. }
         | DocEdit::SetParam { .. }

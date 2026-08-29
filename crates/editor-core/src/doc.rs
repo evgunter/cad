@@ -64,6 +64,43 @@ pub enum DocParam {
     },
 }
 
+/// The VALUE half of a document parameter, with no declaration
+/// attached: what a value-only edit
+/// ([`crate::DocEdit::SetDocParamValue`]) writes.
+///
+/// A parameter's declaration — its dimension, and its optional
+/// [`Distribution`] — belongs to the parameter, not to the number
+/// being typed into it. Carrying only the number is what lets the
+/// value door leave both alone; a caller that rebuilds a whole
+/// [`DocParam`] from `(dim, value)` deletes the annotation, silently,
+/// because [`crate::DocEdit::SetDocParam`] is create-or-replace.
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub enum DocParamValue {
+    /// A continuous parameter's nominal, in its ALREADY-DECLARED
+    /// dimension (canonical kernel units).
+    Continuous(f64),
+    /// A `Count` parameter's exact integer.
+    Count(i64),
+}
+
+impl DocParamValue {
+    /// Whether this is the `Count` arm — the kind a value edit must
+    /// match against the existing declaration.
+    pub fn is_count(&self) -> bool {
+        matches!(self, Self::Count(_))
+    }
+}
+
+impl core::fmt::Display for DocParamValue {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Continuous(v) => write!(f, "continuous {v}"),
+            Self::Count(v) => write!(f, "count {v}"),
+        }
+    }
+}
+
 impl DocParam {
     /// The parameter's dimension.
     pub fn dim(&self) -> Dimension {
@@ -101,6 +138,38 @@ impl DocParam {
         match self {
             Self::Continuous { distribution, .. } => distribution.as_ref(),
             Self::Count { .. } => None,
+        }
+    }
+
+    /// This parameter with `value` written into it, keeping the whole
+    /// DECLARATION — the dimension and the optional distribution —
+    /// untouched. **The carry-forward, in one place**: every value
+    /// door goes through here rather than rebuilding a parameter from
+    /// parts, so no door can drop an annotation it never mentioned.
+    ///
+    /// `None` when the value's arm does not match the declaration's.
+    /// Changing a parameter's kind is a REDECLARATION — the
+    /// create-or-replace door, where the dimension and the annotation
+    /// are stated afresh — and a value edit that quietly performed one
+    /// would be the same silent deletion in a different disguise.
+    pub fn with_value(&self, value: DocParamValue) -> Option<Self> {
+        match (self, value) {
+            (
+                Self::Continuous {
+                    dim, distribution, ..
+                },
+                DocParamValue::Continuous(value),
+            ) => Some(Self::Continuous {
+                dim: *dim,
+                value,
+                distribution: *distribution,
+            }),
+            (Self::Count { .. }, DocParamValue::Count(value)) => Some(Self::Count { value }),
+            // EXHAUSTIVE on purpose, both sides spelled: a new
+            // `DocParam` arm or a new value arm must say how a value
+            // edit reaches it, or the compile breaks.
+            (Self::Continuous { .. }, DocParamValue::Count(_))
+            | (Self::Count { .. }, DocParamValue::Continuous(_)) => None,
         }
     }
 

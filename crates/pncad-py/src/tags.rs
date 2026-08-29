@@ -125,6 +125,8 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::UnknownDocParam { .. } => "unknown_doc_param",
         EditError::DocParamDimensionMismatch { .. } => "doc_param_dimension_mismatch",
         EditError::ContinuousParamCannotBeCount { .. } => "continuous_param_cannot_be_count",
+        EditError::DocParamNotDeclared { .. } => "doc_param_not_declared",
+        EditError::DocParamValueKindMismatch { .. } => "doc_param_value_kind_mismatch",
         EditError::PathOffTree { .. } => "path_off_tree",
         EditError::Dimension { .. } => "dimension",
         EditError::DeclareNamesMissingNode { .. } => "declare_names_missing_node",

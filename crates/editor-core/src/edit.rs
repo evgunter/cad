@@ -6,7 +6,7 @@
 
 use crate::appearance::{Attr, AttrKind};
 use crate::distribution::DistributionFault;
-use crate::doc::{Doc, DocParam, ParamName};
+use crate::doc::{Doc, DocParam, DocParamValue, ParamName};
 use crate::expr::{Dimension, DimensionError, Expr, ExprPath};
 use crate::meta::{MetaValue, MetaVersionError};
 use crate::names::EntityKind;
@@ -80,6 +80,29 @@ pub enum DocEdit<P> {
         name: ParamName,
         /// The declared dimension and exact value.
         value: DocParam,
+    },
+    /// Write a NEW VALUE into an already-declared document parameter,
+    /// keeping its declaration: its dimension and its optional
+    /// distribution ride through untouched
+    /// ([`DocParam::with_value`]).
+    ///
+    /// The door [`Self::SetDocParam`] cannot be. That one is
+    /// create-or-replace, so it takes a whole `DocParam` and a caller
+    /// who assembled one from `(dim, value)` — the natural spelling,
+    /// and the only one a value-editing panel, gesture or binding
+    /// wants — deletes any annotation the parameter carried, with no
+    /// refusal and no diagnostic. This edit removes the way to make
+    /// that mistake: there is nothing here to omit.
+    ///
+    /// Refuses typed on a name the document does not declare (there is
+    /// no declaration to carry forward) and on a kind mismatch (a
+    /// count for a continuous parameter or the reverse — that is a
+    /// redeclaration, and belongs to the other door).
+    SetDocParamValue {
+        /// The parameter name — must already be declared.
+        name: ParamName,
+        /// The replacement value.
+        value: DocParamValue,
     },
     /// The explicit name repair (N5, spec D3): rewrite every document
     /// site that references `from` EXACTLY (Declare pairs and
@@ -344,6 +367,28 @@ pub enum EditError {
     ContinuousParamCannotBeCount {
         /// The parameter.
         name: ParamName,
+    },
+    /// A value-only edit ([`DocEdit::SetDocParamValue`]) named a
+    /// parameter this document does not declare. The value door
+    /// carries an existing declaration forward, so there has to be
+    /// one; declaring a parameter is [`DocEdit::SetDocParam`]'s job.
+    DocParamNotDeclared {
+        /// The undeclared parameter.
+        name: ParamName,
+    },
+    /// A value-only edit offered a value of the wrong kind — a count
+    /// for a continuous parameter or a continuous value for a count.
+    /// Changing a parameter's kind is a REDECLARATION
+    /// ([`DocEdit::SetDocParam`]), where the dimension and the
+    /// distribution are stated afresh rather than carried.
+    DocParamValueKindMismatch {
+        /// The parameter.
+        name: ParamName,
+        /// The dimension the document declares (`Count` for a count
+        /// parameter).
+        declared: Dimension,
+        /// The value the edit offered.
+        offered: DocParamValue,
     },
     /// A `SetExpression` path runs off the expression tree (spec D5).
     PathOffTree {
@@ -667,6 +712,22 @@ impl core::fmt::Display for EditError {
                 "edit: parameter {:?}: a continuous parameter cannot be Count — use a Count parameter",
                 name.0
             ),
+            Self::DocParamNotDeclared { name } => write!(
+                f,
+                "edit: parameter {:?} is not declared, so a value edit has no declaration to carry \
+                 forward — declare it first",
+                name.0
+            ),
+            Self::DocParamValueKindMismatch {
+                name,
+                declared,
+                offered,
+            } => write!(
+                f,
+                "edit: parameter {:?} is declared {declared:?} but the value edit offered a \
+                 {offered} — changing a parameter's kind is a redeclaration",
+                name.0
+            ),
             Self::PathOffTree { path } => {
                 write!(f, "edit: expression path {path:?} runs off the tree")
             }
@@ -879,6 +940,69 @@ fn check_param_refs<P>(
 
 /// Validate every slot of a node payload against slot dimensions and
 /// the param table, keyed as `id` for error reporting.
+/// Write a fully-formed [`DocParam`] into the document: the shared
+/// tail of both parameter doors, so the create-or-replace door and the
+/// value door cannot come to disagree about what a legal parameter is.
+///
+/// **The check order is the LOAD door's** (`persist::check`'s
+/// `validate_document`): floats first, then the distribution's shape,
+/// then the structural `dim: Count` fault that
+/// [`validate_snapshot`](crate::persist) reports last. A document
+/// broken in two ways at once therefore names the same fault whichever
+/// door refuses it, which is the property a caller comparing an edit
+/// refusal against a load refusal actually relies on.
+fn write_doc_param<P: Clone + crate::ProfilePayload>(
+    new: &mut Doc<P>,
+    name: &ParamName,
+    value: DocParam,
+) -> Result<EditRecord, EditError> {
+    // Ruled door 1 (non-finite policy): recipe data never carries
+    // NaN/inf — the nominal and the distribution offsets alike.
+    if let DocParam::Continuous { value: v, .. } = value
+        && !v.is_finite()
+    {
+        return Err(EditError::NonFiniteDocParam { name: name.clone() });
+    }
+    // Every E2 invariant, from the ONE shared check the persistence
+    // doors also run: a non-finite offset joins the non-finite class
+    // above, the rest refuse as a distribution fault.
+    if let Some(d) = value.distribution()
+        && let Err(fault) = d.check()
+    {
+        return Err(match fault {
+            DistributionFault::NonFinite { .. } => {
+                EditError::NonFiniteDocParam { name: name.clone() }
+            }
+            DistributionFault::SigmaNotPositive { .. }
+            | DistributionFault::NominalOutsideSupport { .. } => EditError::InvalidDistribution {
+                name: name.clone(),
+                fault,
+            },
+        });
+    }
+    if let DocParam::Continuous {
+        dim: Dimension::Count,
+        ..
+    } = value
+    {
+        return Err(EditError::ContinuousParamCannotBeCount { name: name.clone() });
+    }
+    let structural = matches!(value, DocParam::Count { .. });
+    new.params.insert(name.clone(), value);
+    // A (re)declaration can change the dimension out from under
+    // referencing expressions: re-validate every slot (documents are
+    // small; spec D6's re-run requirement).
+    for &id in &new.order {
+        if let Some(node) = new.nodes.get(&id) {
+            check_node_slots(new, id, node)?;
+        }
+    }
+    Ok(EditRecord {
+        minted: None,
+        structural,
+    })
+}
+
 fn check_node_slots<P: crate::ProfilePayload>(
     doc: &Doc<P>,
     id: RecipeNodeId,
@@ -1086,56 +1210,22 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
                 structural,
             }
         }
-        DocEdit::SetDocParam { name, value } => {
-            if let DocParam::Continuous {
-                dim: Dimension::Count,
-                ..
-            } = value
-            {
-                return Err(EditError::ContinuousParamCannotBeCount { name: name.clone() });
-            }
-            // Ruled door 1 (non-finite policy): recipe data never
-            // carries NaN/inf — the nominal and the distribution
-            // offsets alike.
-            if let DocParam::Continuous { value: v, .. } = value
-                && !v.is_finite()
-            {
-                return Err(EditError::NonFiniteDocParam { name: name.clone() });
-            }
-            // Every E2 invariant, from the ONE shared check the
-            // persistence doors also run: a non-finite offset joins
-            // the non-finite class above, the rest refuse as a
-            // distribution fault.
-            if let Some(d) = value.distribution()
-                && let Err(fault) = d.check()
-            {
-                return Err(match fault {
-                    DistributionFault::NonFinite { .. } => {
-                        EditError::NonFiniteDocParam { name: name.clone() }
-                    }
-                    DistributionFault::SigmaNotPositive { .. }
-                    | DistributionFault::NominalOutsideSupport { .. } => {
-                        EditError::InvalidDistribution {
-                            name: name.clone(),
-                            fault,
-                        }
-                    }
+        DocEdit::SetDocParam { name, value } => write_doc_param(&mut new, name, value.clone())?,
+        DocEdit::SetDocParamValue { name, value } => {
+            let Some(declared) = new.params.get(name) else {
+                return Err(EditError::DocParamNotDeclared { name: name.clone() });
+            };
+            // THE carry-forward: the declaration is read off the
+            // document and reused whole, so the dimension and the
+            // distribution cannot be dropped by an omission here.
+            let Some(written) = declared.with_value(*value) else {
+                return Err(EditError::DocParamValueKindMismatch {
+                    name: name.clone(),
+                    declared: declared.dim(),
+                    offered: *value,
                 });
-            }
-            let structural = matches!(value, DocParam::Count { .. });
-            new.params.insert(name.clone(), value.clone());
-            // A (re)declaration can change the dimension out from
-            // under referencing expressions: re-validate every slot
-            // (documents are small; spec D6's re-run requirement).
-            for &id in &new.order {
-                if let Some(node) = new.nodes.get(&id) {
-                    check_node_slots(&new, id, node)?;
-                }
-            }
-            EditRecord {
-                minted: None,
-                structural,
-            }
+            };
+            write_doc_param(&mut new, name, written)?
         }
         DocEdit::Rebind { from, to } => {
             if from == to {

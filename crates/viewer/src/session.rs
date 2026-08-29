@@ -35,7 +35,7 @@ use std::sync::Arc;
 
 use pncad::document::{
     Alignment, Dimension, DimensionError, Doc, DocEdit, DocParam, EditError, Evaluation, Frame,
-    Node, ParamName, ParseError, PartResolver, ProductError, ProfileDoc, ProfileProgram,
+    Node, ParamName, ParseError, PartResolver, ProductError, ProfileProgram,
     RecipeNodeId, SlotId, apply, assemble, parse_expr, product,
 };
 use pncad::geom_core::Tol;
@@ -640,22 +640,15 @@ impl GestureTarget {
         SlotValue::of(self.dimension(), value)
     }
 
-    /// The edit that writes `value` into this target, against the
-    /// document it will be applied to (a parameter's edit carries the
-    /// parameter's existing distribution forward).
-    fn edit(
-        &self,
-        doc: &ProfileDoc,
-        value: SlotValue,
-    ) -> Result<DocEdit<ProfileProgram>, DimensionError> {
+    /// The edit that writes `value` into this target.
+    ///
+    /// A parameter's edit is the VALUE door, so the parameter's
+    /// declaration — its dimension and any distribution — is read off
+    /// the document by the edit itself rather than reassembled here.
+    fn edit(&self, value: SlotValue) -> Result<DocEdit<ProfileProgram>, DimensionError> {
         match self {
             Self::Slot { node, slot } => props::slot_edit(*node, *slot, value),
-            Self::Param { name, dimension } => Ok(props::param_edit(
-                name.clone(),
-                *dimension,
-                value,
-                doc.params().get(name),
-            )),
+            Self::Param { name, .. } => Ok(props::param_edit(name.clone(), value)),
         }
     }
 }
@@ -1229,16 +1222,10 @@ impl DocSession {
         if self.gesture.is_some() {
             return OpOutcome::refused(Refusal::GestureInFlight);
         }
-        let Some(dimension) = self.committed_doc().params().get(name).map(|p| p.dim()) else {
+        if !self.committed_doc().params().contains_key(name) {
             return OpOutcome::refused(Refusal::NoSuchParam(name.clone()));
-        };
-        let prior = self.committed_doc().params().get(name).cloned();
-        self.commit(props::param_edit(
-            name.clone(),
-            dimension,
-            value,
-            prior.as_ref(),
-        ))
+        }
+        self.commit(props::param_edit(name.clone(), value))
     }
 
     /// The create door: refuse an already-declared name typed, commit
@@ -1295,7 +1282,7 @@ impl DocSession {
             return OpOutcome::refused(Refusal::NoGesture);
         };
         let slot_value = gesture.target.value_of(value);
-        let edit = match gesture.target.edit(&gesture.base, slot_value) {
+        let edit = match gesture.target.edit(slot_value) {
             Ok(edit) => edit,
             Err(error) => return OpOutcome::refused(Refusal::Dimension(error)),
         };
@@ -1334,7 +1321,7 @@ impl DocSession {
             }
             return OpOutcome::default();
         };
-        match gesture.target.edit(&gesture.base, value) {
+        match gesture.target.edit(value) {
             Ok(edit) => self.commit(edit),
             Err(error) => OpOutcome::refused(Refusal::Dimension(error)),
         }
