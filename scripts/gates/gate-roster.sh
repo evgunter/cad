@@ -107,16 +107,18 @@ OUTLIER_GATES=(scripts/doc-gate.sh)
 # `grep -q` exits on its first match, which SIGPIPEs the upstream
 # `grep -v`, which `pipefail` then reports as a failed pipeline. That
 # made this check flaky — it fired against a correctly wired ci.yml
-# depending on which side won the race. `|| true` for the same reason a
-# matcher below carries one: a file of nothing but comments is an empty
-# result, not a reason to die before the diagnosis.
+# depending on which side won the race. `gate_grep` draws the per-stage
+# distinction the old `|| true` could not: a file of nothing but
+# comments is an empty result (exit 1, folded to 0), while a filter that
+# could not read its file ends the gate with a diagnosis instead of
+# reading as an empty half.
 #
 # One home per file, and this is the third spelling of it in the repo
 # (`probe-suite-census.sh` has the fourth). The shared home is
 # `scripts/gates/lib.sh`, which lane F-g owns; this note is here so
 # whoever takes it can lift all four at once.
 non_comment() {
-  grep -vE '^[[:space:]]*#' "$1" || true
+  gate_grep -vE '^[[:space:]]*#' "$1"
 }
 
 gate() {
@@ -174,7 +176,7 @@ gate() {
       gate_error "$HOSTED_HALF invokes scripts/gates/$name, which is not a gate in this directory — a renamed or deleted gate leaves a step running a stale name"
       rc=1
     fi
-  done < <(grep -oE 'scripts/gates/[A-Za-z0-9_-]+\.sh' <<<"$cmds" \
+  done < <(gate_grep -oE 'scripts/gates/[A-Za-z0-9_-]+\.sh' <<<"$cmds" \
            | sed 's#^scripts/gates/##' | sort -u)
 
   # THE LOCAL HALF. It has no roster to drift because it runs the
@@ -182,19 +184,25 @@ gate() {
   # there, which is the whole reason this gate now reads this file. The
   # loop variable is read out of the `for` line rather than assumed, so
   # renaming it is not a way to fail this check.
-  # `|| true` ON EVERY MATCHER, and it is load-bearing rather than tidy.
-  # Under `set -euo pipefail` a command substitution whose pipeline fails
-  # kills the script AT THE ASSIGNMENT — so the first version of this
-  # block died before reaching the `gate_error` three lines down, and the
-  # gate reported the failure it was written to explain as a bare `exit
-  # 1` with no message. No self-test could see it while the harness ran
-  # the gate in-process inside an `if` condition, where bash suppresses
-  # errexit; lib.sh now runs every case as a real subprocess, so dropping
-  # one of these `|| true`s reds this gate's own self-test (S157).
+  # EVERY MATCHER TOLERATES "NO MATCH" WITHOUT DYING AT THE ASSIGNMENT,
+  # and that tolerance is load-bearing rather than tidy: under `set -euo
+  # pipefail` a command substitution whose pipeline fails kills the
+  # script AT THE ASSIGNMENT — so the first version of this block died
+  # before reaching the `gate_error` three lines down, and the gate
+  # reported the failure it was written to explain as a bare `exit 1`
+  # with no message. It used to be bought with `|| true`, which also
+  # swallowed a matcher that could not search; `gate_grep` folds only
+  # exit 1, so a loop that is genuinely absent still reaches the
+  # diagnosis below while a matcher that died ends the gate loudly.
+  # lib.sh's harness runs every self-test case as a real subprocess, so
+  # losing either property reds this gate's own self-test (S157).
+  # `-m1` in place of a downstream `head -1`: `head` closes the pipe
+  # after one line and SIGPIPEs the matcher, which is the same race the
+  # `non_comment` header banishes — grep stops itself instead.
   local body
   body=$(non_comment "$LOCAL_HALF")
-  loopvar=$(grep -oE 'for[[:space:]]+[A-Za-z_][A-Za-z0-9_]*[[:space:]]+in[[:space:]]+scripts/gates/\*\.sh' <<<"$body" \
-            | head -1 | awk '{print $2}' || true)
+  loopvar=$(gate_grep -m1 -oE 'for[[:space:]]+[A-Za-z_][A-Za-z0-9_]*[[:space:]]+in[[:space:]]+scripts/gates/\*\.sh' <<<"$body" \
+            | awk '{print $2}')
   if [ -z "$loopvar" ]; then
     gate_error "$LOCAL_HALF no longer loops \`scripts/gates/*.sh\` — that loop is the ONLY reason the local half has no hand-written roster to drift from this directory, and this gate's header says so. Restore the loop, or give the local half a roster and a check on it"
     rc=1
@@ -399,8 +407,9 @@ plant_lib_invoked() {
 
 # Fourteen known evasions, all permanent fixture cases, all run as real
 # subprocesses by lib.sh's harness — the property this gate needs most,
-# because the `|| true` on every matcher in `gate()` is load-bearing and
-# nothing could observe its absence while the harness ran a gate
+# because `gate()`'s matchers must survive "no match" at an assignment
+# under errexit (see the block above the loop-variable read), and
+# nothing could observe the loss of that while the harness ran a gate
 # in-process (S157).
 gate_selftest() {
   gate_selftest_clean
