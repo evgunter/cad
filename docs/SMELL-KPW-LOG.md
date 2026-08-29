@@ -115,3 +115,26 @@ construct one.
 `docs/TESS-BUDGET.md`'s enumeration of the gate's rules as three is falsified by
 this change and is corrected with it (Q4's first sub-case: the doc rotted, the
 code is right).
+
+## `w1` — what it found beyond its row
+
+All five in-fence `D65` sites got a measured ceiling and an anti-vacuity floor,
+each red-proved by a perturbation that degrades the guarantee. Two results are
+worth more than the row:
+
+- **`r1_pxn_probes.rs` admits no honest *ratio* ceiling, and the measurement is
+  why.** `hull_sup/truth` falls monotonically as the amplitude rises
+  (inf → 4.58 → 1.10) because every amplitude the fixture probes sits at or
+  below the lane's own enclosure floor — so the ratio measures that floor, not
+  the envelope. The row is now guarded additively instead. `S121` licenses
+  *"no honest ceiling here"* as a passing answer; whether an additive absolute
+  constant is an improvement or a re-pin wearing a threshold's clothes is the
+  question its style review carries.
+- **The sweep for the shape found ten more sites**, in seven files across three
+  crates, after the finding's own sweep had filed five and a reviewer had found
+  three of those. That is `S121`'s own history repeating: a single-shaped sweep
+  under-reports this class. One row on Track W at integration, since the
+  deliverable is identical per site.
+
+The `D65` members are closed; `S121`'s `mesh/src/nurbs_cert.rs` member is Track
+R's `D300` and stays.
