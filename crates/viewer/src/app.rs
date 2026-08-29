@@ -441,6 +441,14 @@ impl ViewerApp {
                 // not a node failure, so no tree badge carries it and
                 // the viewport would otherwise draw a product nothing
                 // says is malformed.
+                //
+                // The budget's verdict is NOT here, and the reason is
+                // worth writing down: this line is transient — a
+                // camera fold clears it through `land`, which every
+                // re-frame performs, including the one an Open books —
+                // and a coarsened δ is not transient, it is a standing
+                // fact about the picture on screen. It is a BADGE, up
+                // with the at-rest and checks reads.
                 self.status = self
                     .session
                     .product_fault()
@@ -675,6 +683,20 @@ impl eframe::App for ViewerApp {
                         }
                     });
                 }
+                // The display budget's badge: shown only when the
+                // picture on screen is NOT at the δ that was asked
+                // for. A read of held state, like the two badges
+                // above, which is why it is here rather than in the
+                // status line below — that line is cleared by the next
+                // camera fold, and "you are not looking at what you
+                // asked for" has to outlive a mouse drag.
+                if let Some(fitted) = self.picks.fitted()
+                    && let Some(wording) = fitted.wording()
+                {
+                    ui.separator();
+                    ui.weak(format!("δ {:.3} mm drawn", fitted.delta.get() * 1.0e3))
+                        .on_hover_text(wording);
+                }
                 if let Some(status) = &self.status {
                     ui.separator();
                     ui.label(status.as_str());
@@ -687,6 +709,7 @@ impl eframe::App for ViewerApp {
             let mut behavior = ViewerBehavior {
                 session: &self.session,
                 delta: self.delta,
+                fitted: self.picks.fitted(),
                 scene: &self.scene,
                 index: self.picks.index(),
                 revision: self.revision,
@@ -724,7 +747,11 @@ impl eframe::App for ViewerApp {
 /// application's state for the duration of one frame.
 struct ViewerBehavior<'a> {
     session: &'a DocSession,
+    /// The δ that was ASKED for. What is drawn may be coarser — see
+    /// `fitted`, and `scene::TRIANGLE_BUDGET` for why.
     delta: DisplayTolerance,
+    /// What the triangle budget made of `delta` on the held index.
+    fitted: Option<crate::scene::FittedDelta>,
     scene: &'a Arc<SceneMesh>,
     index: Option<&'a PickIndex>,
     revision: u64,
@@ -1785,7 +1812,19 @@ impl ViewerBehavior<'_> {
     fn view_ui(&mut self, ui: &mut egui::Ui) {
         let stats = self.scene.stats();
         ui.heading("View");
-        ui.label(format!("display δ: {:.3} mm", self.delta.get() * 1000.0));
+        // The requested δ and the drawn one, and only one line when
+        // they are the same number. The budget's own sentence is in
+        // the status line; this pane's job is the reading.
+        let drawn = self.fitted.map_or(self.delta, |fitted| fitted.delta);
+        if drawn == self.delta {
+            ui.label(format!("display δ: {:.3} mm", self.delta.get() * 1000.0));
+        } else {
+            ui.label(format!(
+                "display δ: {:.3} mm asked, {:.3} mm drawn",
+                self.delta.get() * 1000.0,
+                drawn.get() * 1000.0
+            ));
+        }
         ui.label(format!("faces: {}", stats.faces));
         ui.label(format!("triangles: {}", stats.triangles));
         ui.separator();
