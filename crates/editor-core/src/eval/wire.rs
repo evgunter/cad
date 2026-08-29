@@ -818,7 +818,7 @@ fn wire_fillet<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
 /// is the whole discrimination (RECIPE-DOORS D3): the role vocabulary
 /// is shared, and what tells a chamfer's strip from a fillet's blend
 /// at a selector is which node minted it.
-fn wire_chamfer<T: Decide + geom_core::Bounds>(
+fn wire_chamfer<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     id: RecipeNodeId,
     target: RecipeNodeId,
     selection: &[names::StableName],
