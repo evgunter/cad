@@ -1256,6 +1256,17 @@ fn r2_e2e_ball_in_socket_authored_and_saved() {
             let text = editor_core::save(&d4, &[], Tol::witness()).expect("the fit document saves");
             let path =
                 std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/r2_fit.pncad");
+            // The DIRECTORY is created first, and that is not
+            // belt-and-braces. Under `cargo test` `target/` is always
+            // there, but the hosted matrix runs from a NEXTEST ARCHIVE
+            // on a runner that never built anything, so the path's
+            // parent does not exist and the write failed the whole
+            // shard. The path itself is kept because
+            // `crates/pncad-py/examples/r2_read_a_verdict.py` reads
+            // exactly this file.
+            if let Some(dir) = path.parent() {
+                std::fs::create_dir_all(dir).expect("the fixture's directory");
+            }
             std::fs::write(&path, &text).expect("write the e2e fixture");
             eprintln!("R2/e2e: wrote {}", path.display());
         }
