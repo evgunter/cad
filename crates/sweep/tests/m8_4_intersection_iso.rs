@@ -563,10 +563,7 @@ fn an_interior_column_intersection_mints_a_general_image() {
 /// `mate_surface`, which matches on the face's CURRENT surface key,
 /// cannot find it; that is a fixture fact about `rechart`, not a
 /// kernel one).
-fn seam_operands(
-    body: &Body<f64>,
-    he: topo::HalfEdgeKey,
-) -> (Curve3<f64>, f64, f64, Surface<f64>) {
+fn seam_operands(body: &Body<f64>, he: topo::HalfEdgeKey) -> (Curve3<f64>, f64, f64, Surface<f64>) {
     let edge = body.get_edge(body.get_half_edge(he).unwrap().edge).unwrap();
     let Some(topo::CurveGeom::Certified(c)) = body.get_curve_geom(edge.curve) else {
         panic!("the seam's carrier is certified")

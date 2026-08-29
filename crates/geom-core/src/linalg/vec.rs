@@ -1079,43 +1079,54 @@ mod tests {
                 let (b1, b2) = n.orthonormal_basis();
                 let f = Vec3::new(x, y, zero).orthonormal_basis();
                 for (e, v, which) in [
-                    (b1.x, f.0.x, "b1.x"), (b1.y, f.0.y, "b1.y"), (b1.z, f.0.z, "b1.z"),
-                    (b2.x, f.1.x, "b2.x"), (b2.y, f.1.y, "b2.y"), (b2.z, f.1.z, "b2.z"),
+                    (b1.x, f.0.x, "b1.x"),
+                    (b1.y, f.0.y, "b1.y"),
+                    (b1.z, f.0.z, "b1.z"),
+                    (b2.x, f.1.x, "b2.x"),
+                    (b2.y, f.1.y, "b2.y"),
+                    (b2.z, f.1.z, "b2.z"),
                 ] {
                     assert!(
                         e.lo().is_finite() && e.hi().is_finite(),
                         "{which} at n = ({x}, {y}, {zero}) is unbounded: [{}, {}]",
-                        e.lo(), e.hi()
+                        e.lo(),
+                        e.hi()
                     );
                     assert!(
                         e.is_certified(),
                         "{which} at n = ({x}, {y}, {zero}) cannot decide: [{}, {}]",
-                        e.lo(), e.hi()
+                        e.lo(),
+                        e.hi()
                     );
                     assert!(
                         e.lo() <= v && v <= e.hi(),
                         "{which} at n = ({x}, {y}, {zero}): f64 {v} outside [{}, {}]",
-                        e.lo(), e.hi()
+                        e.lo(),
+                        e.hi()
                     );
                 }
                 // The frame flip is enclosed on BOTH sides, never decided.
                 assert!(
                     b1.z.lo() <= -x && x <= b1.z.hi(),
                     "b1.z at n = ({x}, {y}, {zero}) drops a hemisphere: [{}, {}]",
-                    b1.z.lo(), b1.z.hi()
+                    b1.z.lo(),
+                    b1.z.hi()
                 );
             }
             // `newell_plane`'s own case: an axis-aligned vertical plane
             // with `n.x = 0` gets the exact frame, not merely a bounded
             // one — the chart residual it feeds is then exactly zero.
             let (b1, _) = Vec3::new(iv(0.0), iv(-1.0), iv(zero)).orthonormal_basis();
-            for (e, want, which) in
-                [(b1.x, 1.0, "b1.x"), (b1.y, 0.0, "b1.y"), (b1.z, 0.0, "b1.z")]
-            {
+            for (e, want, which) in [
+                (b1.x, 1.0, "b1.x"),
+                (b1.y, 0.0, "b1.y"),
+                (b1.z, 0.0, "b1.z"),
+            ] {
                 assert!(
                     e.lo() == want && e.hi() == want,
                     "{which}: [{}, {}] is not the exact {want}",
-                    e.lo(), e.hi()
+                    e.lo(),
+                    e.hi()
                 );
             }
         }

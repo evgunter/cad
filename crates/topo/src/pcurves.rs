@@ -621,8 +621,8 @@ fn nurbs_iso_derive<T: PcurveFittedLane>(
             let spans = ku.knots().iter().filter(|k| **k > d0 && **k < d1).count() / 2 + 1;
             let breaks = uniform_breaks(spans)
                 .ok_or_else(|| refuse("an arc rim whose chart has no usable sub-arc structure"))?;
-            let v = side_pick(&|cand| surface.eval(cu0, cand), &[cv0, cv1])?
-                .ok_or_else(no_boundary)?;
+            let v =
+                side_pick(&|cand| surface.eval(cu0, cand), &[cv0, cv1])?.ok_or_else(no_boundary)?;
             // **The u-DIRECTION pick (#327).** M8-3's arm assumed the
             // rim's increasing carrier parameter runs with the chart's
             // increasing `u` — true by construction for a wall the
@@ -1169,7 +1169,10 @@ struct Walked<T: Real> {
 /// [`PcurveMintError`] — a certification refusal, a discontinuous or
 /// unclosed loop walk, or an escalated classification. Never a silent
 /// skip of a face the lane covers.
-pub fn mint_pcurves<T: PcurveFittedLane>(body: &mut Body<T>, tol: Tol) -> Result<(), PcurveMintError> {
+pub fn mint_pcurves<T: PcurveFittedLane>(
+    body: &mut Body<T>,
+    tol: Tol,
+) -> Result<(), PcurveMintError> {
     let band = Band::linear(tol).map_err(PcurveMintError::Band)?;
     // Start from empty. A body reaching this pass may have been carved
     // from a scratch clone that inherited rows for half-edges the

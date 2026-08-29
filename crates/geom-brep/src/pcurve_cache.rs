@@ -156,8 +156,8 @@
 
 use std::sync::Arc;
 
-use geom::{NurbsSurface, Surface};
 use geom::{Curve3, NurbsCurve2, NurbsCurve3};
+use geom::{NurbsSurface, Surface};
 use geom_core::k_stats::decide;
 use geom_core::predicate::{Band, BandError};
 use geom_core::spline::{KnotVector, SpanLocate};
@@ -1074,7 +1074,6 @@ pub trait PcurveFittedLane: Decide {
         band: Band,
     ) -> Result<Option<SsiCertificate<Self>>, PcurveCertifyError>;
 
-
     /// **The chart image of a spline carrier on a NURBS wall**, or
     /// `None` when this scalar has no certified lane.
     ///
@@ -1154,8 +1153,9 @@ fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclos
             // way the schedule computes it — not the sample index dressed
             // up as one.
             magnitude: Some(FittedMagnitude::LastFootDistance {
-                t: t0 + (t1 - t0) * f64::from(sample)
-                    / f64::from(crate::edge_nurbs::PXN_FIT_SAMPLES - 1),
+                t: t0
+                    + (t1 - t0) * f64::from(sample)
+                        / f64::from(crate::edge_nurbs::PXN_FIT_SAMPLES - 1),
                 last_distance,
             }),
         }),
