@@ -277,12 +277,8 @@ fn the_gather_opens_at_dual64_and_the_witness_set_is_pinned() {
         let ev_d = eval::<Dual64>(&doc.doc);
         let product_f = product_recorded(&doc.doc, &ev_f, tol)
             .unwrap_or_else(|e| panic!("{}: the f64 product gather refused: {e}", doc.name));
-        let product_d = product_recorded(&doc.doc, &ev_d, tol).unwrap_or_else(|e| {
-            panic!(
-                "{}: gathers at f64 but refused at Dual64: {e}",
-                doc.name
-            )
-        });
+        let product_d = product_recorded(&doc.doc, &ev_d, tol)
+            .unwrap_or_else(|e| panic!("{}: gathers at f64 but refused at Dual64: {e}", doc.name));
         let (mut df, mut dd) = (Digest::new(), Digest::new());
         df.body(&product_f.body);
         dd.body(&product_d.body);

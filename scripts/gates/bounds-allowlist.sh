@@ -31,7 +31,11 @@
 # issue-701 hole): the blanket `impl<T: Bounds> Enclosure for T`
 # makes every `Dual` an `Enclosure`, so an `…Enclosure`-named term in
 # a compound bound is the same class of decide-and-bracket parameter
-# and shares this file's allowlist. `CertifiedBounds`'s definition
+# and shares this file's allowlist. KNOW THE SCOPE CONSEQUENCE: the
+# allowlist is per-FILE, so every file ratified for its `Bounds`
+# compounds is thereby exempt for `Enclosure` compounds too — a new
+# `Decide + Enclosure` inside an allowlisted file rides that file's
+# ratification and never fires here. `CertifiedBounds`'s definition
 # lines stay skipped as exact text, as below.
 # geom-brep/src/{ssi.rs,ssi/certify.rs,pcurve_cache.rs} is the
 # M6-2 SSI generic-T lift: the rung-3 certificate simultaneously

@@ -471,14 +471,21 @@ pub trait Real:
 /// **The delegation rule (DUAL-DESIGN DL5) — the standing criterion
 /// for a lane-less `Bounds` seam.** A `Bounds` read is lane-exempt
 /// when it (a) feeds an error payload or report, or (b) selects among
-/// constructions whose classification is value-channel-decided — both
-/// sound at ANY scalar by value-part delegation: a dual's bracket is
-/// its value channel's ([`Dual`](crate::Dual)'s `Bounds` impl), so
-/// the read's branch is the base scalar's branch and no wrong answer
-/// exists to guard against. A read that MINTS a certificate object or
-/// feeds a [`CertifiedEnclosure`] consumer is never exempt: it needs
-/// a refusing lane in the `PropsQuadLane` shape, or a ratified entry
-/// of its own in this rule.
+/// constructions whose classification is value-channel-decided AND
+/// whose selected quantity is locally constant in the parameters —
+/// sound by value-part delegation: a dual's bracket is its value
+/// channel's ([`Dual`](crate::Dual)'s `Bounds` impl), so the read's
+/// branch is the base scalar's branch. The locally-constant condition
+/// is load-bearing, not decoration: a frozen `f64` choice is
+/// tangent-sound only while the chosen quantity cannot move with a
+/// seed — `geom::projection`'s `mid` freeze (issue 874's class, the
+/// `separation` entry above and `dual.rs`'s harvest note both name
+/// it) is the live counterexample shape when it is not. A read that
+/// MINTS a certificate object or feeds a [`CertifiedEnclosure`]
+/// consumer is never exempt: it needs a refusing lane in the
+/// `PropsQuadLane` shape, and admitting one without a lane would be a
+/// ratified REVERSAL of DL5 on its own evidence — not an entry this
+/// rule can grow.
 ///
 /// **Extension (M6-2, authorized under the PR 11/PR 12 precedent;
 /// retroactive Evan review per the self-merge convention):** the **SSI rung-3 certificate** —

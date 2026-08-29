@@ -39,15 +39,15 @@ mod fixture;
 
 use corpus::{Recorder, documents, eval, failures};
 use editor_core::eval::{ContentBits, KeyHasher};
+use editor_core::{BooleanValue, DatumValue, Evaluation, NodeResult, SplitSide};
 use editor_core::{
     ContentKey, Datum, DocEdit, LoopProgram, Node, ProfileDoc, ProfileProgram, SlotId,
     ValuePayload, product_recorded,
 };
 use fixture::{len, scl};
-use editor_core::{BooleanValue, DatumValue, Evaluation, NodeResult, SplitSide};
 use geom_core::{Bounds, Decide, Dual64, Tol};
-use topo::Body;
 use profile::SketchPlane;
+use topo::Body;
 
 /// FNV-1a 64 over whatever is fed. Not a content key — a probe digest.
 struct D(u64);
@@ -521,20 +521,19 @@ fn r1_e2e_consumer_drive_at_dual64() {
         let mut points = 0usize;
         let mut tangents_nonzero = 0usize;
         for &id in &ev_d.order {
-            if let Some(editor_core::NodeResult::Ok(v)) = ev_d.result(id) {
-                if let ValuePayload::Body(b) | ValuePayload::Boolean(
-                    editor_core::BooleanValue::Body { body: b, .. },
-                ) = &v.payload
-                {
-                    for (_k, p) in b.points() {
-                        points += 1;
-                        if p.x.deriv != 0.0 || p.y.deriv != 0.0 || p.z.deriv != 0.0 {
-                            tangents_nonzero += 1;
-                        }
-                        // `Bounds` is the value channel and only it.
-                        assert_eq!(p.x.lo(), p.x.hi());
-                        assert_eq!(p.x.lo(), p.x.value);
+            if let Some(editor_core::NodeResult::Ok(v)) = ev_d.result(id)
+                && let ValuePayload::Body(b)
+                | ValuePayload::Boolean(editor_core::BooleanValue::Body { body: b, .. }) =
+                    &v.payload
+            {
+                for (_k, p) in b.points() {
+                    points += 1;
+                    if p.x.deriv != 0.0 || p.y.deriv != 0.0 || p.z.deriv != 0.0 {
+                        tangents_nonzero += 1;
                     }
+                    // `Bounds` is the value channel and only it.
+                    assert_eq!(p.x.lo(), p.x.hi());
+                    assert_eq!(p.x.lo(), p.x.value);
                 }
             }
         }
@@ -602,29 +601,23 @@ fn r1_e2e_consumer_drive_at_dual64() {
             )
         })
         .copied();
-    if let Some(id) = body_node {
-        if let Some(editor_core::NodeResult::Ok(v)) = ev_d.result(id) {
-            if let ValuePayload::Split { above, .. } = &v.payload {
-                if let editor_core::SplitSide::Body(b) = above {
-                    let direct = topo::validate_geometric(b.as_ref(), tol);
-                    println!(
-                        "R1E2E direct validate_geometric at Dual64: {}",
-                        match &direct {
-                            Ok(()) => "PASSED (no refusal)".to_string(),
-                            Err(errs) => format!("{} refusal(s): {:?}", errs.len(), errs.first()),
-                        }
-                    );
-                    // And the advisory registry, which DL3 does not cover.
-                    let checks = editor_core::run_checks(
-                        &study,
-                        &ev_d,
-                        &editor_core::ChecksConfig::default(),
-                        tol,
-                    );
-                    println!("R1E2E run_checks at Dual64: {checks:?}");
-                }
+    if let Some(id) = body_node
+        && let Some(editor_core::NodeResult::Ok(v)) = ev_d.result(id)
+        && let ValuePayload::Split { above, .. } = &v.payload
+        && let editor_core::SplitSide::Body(b) = above
+    {
+        let direct = topo::validate_geometric(b.as_ref(), tol);
+        println!(
+            "R1E2E direct validate_geometric at Dual64: {}",
+            match &direct {
+                Ok(()) => "PASSED (no refusal)".to_string(),
+                Err(errs) => format!("{} refusal(s): {:?}", errs.len(), errs.first()),
             }
-        }
+        );
+        // And the advisory registry, which DL3 does not cover.
+        let checks =
+            editor_core::run_checks(&study, &ev_d, &editor_core::ChecksConfig::default(), tol);
+        println!("R1E2E run_checks at Dual64: {checks:?}");
     }
 
     // A parameter bump through the public door with a threaded prior —

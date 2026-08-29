@@ -666,14 +666,16 @@ pub trait PropsQuadLane:
     /// `k_stats` name). This is the one accessor that answers it.
     ///
     /// **Why a method and not `PropsQuadLane: Enclosure`.**
-    /// `geom-core`'s `real.rs` says in as many words that a new
-    /// `T: Enclosure` bound *on anything that certifies* would be an
-    /// ungated hole (issue #701), and `PropsQuadLane` is exactly "this
-    /// scalar can certify a body at rest". So the bracket arrives
-    /// through one named accessor whose four implementations live in
-    /// this file — the one already ratified for the compound `Bounds`
-    /// seam — instead of through a blanket bound that would let any
-    /// certifying signature read brackets silently. The distinct name
+    /// `PropsQuadLane` is exactly "this scalar can certify a body at
+    /// rest", and a supertrait `Enclosure` would hand every certifying
+    /// signature silent bracket extraction through the blanket
+    /// `impl<T: Bounds> Enclosure for T`. `scripts/gates/`
+    /// `bounds-allowlist.sh` greps `Enclosure` exactly as `Bounds`
+    /// (DUAL-DESIGN DL4), but this file is on its allowlist, so the
+    /// gate would not refuse the supertrait here — the named accessor
+    /// is what keeps the bracket read explicit and single-doored. Its
+    /// four implementations live in this file, the seam already
+    /// ratified for the compound `Bounds` bound. The distinct name
     /// also keeps `lo`/`hi` unshadowed at every concrete call site.
     fn datum_lo(self) -> f64;
 
@@ -1042,6 +1044,7 @@ where
 
 #[cfg(test)]
 mod at_rest_policy_tests {
+    #![allow(clippy::expect_used)]
     //! The certifying policy arms ARE the validation doors — pinned on
     //! a REFUSING subject, because the passing direction is pinned all
     //! day by every green corpus gather while an arm gutted into a
