@@ -87,6 +87,24 @@ pub(crate) fn plane_relation(rel: KPlaneRelation) -> PlaneRelation {
     }
 }
 
+impl ContactClass {
+    /// The kernel class this mirror names.
+    ///
+    /// Total over the MIRROR, which is the safe direction: every
+    /// variant Python can spell has a kernel counterpart, so this
+    /// cannot fail today. It takes `py` and returns a `PyResult`
+    /// anyway, because the kernel enum is `#[non_exhaustive]` and a
+    /// class that lands there without a mirror variant would make
+    /// this a partial map — and a door that has to refuse later is
+    /// better than a signature that has to change.
+    pub(crate) fn to_kernel(self, _py: Python<'_>) -> PyResult<s::ContactClass> {
+        match self {
+            Self::Rest => Ok(s::ContactClass::Rest),
+            Self::Tangent => Ok(s::ContactClass::Tangent),
+        }
+    }
+}
+
 /// Crossing helper: the kernel contact class as the Python mirror.
 ///
 /// `ContactClass` is `#[non_exhaustive]` kernel-side, so unlike the

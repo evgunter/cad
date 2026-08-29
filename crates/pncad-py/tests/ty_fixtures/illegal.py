@@ -29,12 +29,22 @@ from pncad import (
     SurfaceKind,
     Sweep,
     Workspace,
+    Alignment,
+    AxisSense,
+    ContactClass,
+    MateFrame,
+    MatePrimitive,
+    assemble,
     circle,
     content_pin,
     deg,
     evaluate,
     m,
     mm,
+    product,
+    solve_document,
+    split,
+    update_references,
 )
 
 # A second director on a tip whose angle slot is already full.
@@ -194,3 +204,66 @@ evaluate(doc, prior=doc)  # ty: error
 
 # Neither substitutes for the other: an evaluation resolves nothing.
 evaluate(doc, resolver=evaluate(doc))  # ty: error
+
+# LIB-G18b: the assembly vocabulary's own off-lattice lines.
+
+# An instance names a REFERENCE — (id, pin) — never a bare identity.
+# The pin is half the value, and that half is what Cargo.lock
+# semantics live in.
+Node.instantiate_part(doc.id)  # ty: error
+
+# Placement is a FRAME on a node, not a coordinate triple: an improper
+# or non-rigid map is refused at the edit door, and there is no
+# translation-only shortcut that would hide it.
+DocEdit.set_placement(solid, (0 * m, 0 * m, 1 * m))  # ty: error
+
+# The designate door is TOTAL and takes the whole list; one node is
+# not a root list.
+DocEdit.set_roots(solid)  # ty: error
+
+# A mate's references are stable NAME TEXT, the alphabet
+# `Evaluation.select` answers in — never node ids, which name a
+# recipe step and not an entity of its product.
+seat = MateFrame((0 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0), (1.0, 0.0, 0.0))
+meeting = Alignment(seat, seat, MatePrimitive.frame_coincidence(), AxisSense.Aligned)
+Node.mate(solid, solid, ContactClass.Rest, meeting)  # ty: error
+
+# A mate frame's origin is three LENGTHS and its axis three plain
+# numbers: a direction carries no dimension, and swapping the two is
+# the mistake the split spelling exists to catch.
+MateFrame((0.0, 0.0, 0.0), (0 * m, 0 * m, 1 * m), (1.0, 0.0, 0.0))  # ty: error
+
+# The planar rest's standoff is a LENGTH — it is a distance along an
+# axis, not a bare number.
+MatePrimitive.planar_rest(0.0)  # ty: error
+
+# The gather and the gate take a document AND an evaluation of it:
+# neither is derivable from the other, and the pair is the signature.
+product(doc)  # ty: error
+assemble(evaluate(doc), doc)  # ty: error
+
+# The solve is a whole-DOCUMENT fold; there is no per-mate door.
+solve_document(doc, solid)  # ty: error
+
+# A split's cut is a SET OF NODES and its new identity is the
+# canonical hex text; identity is never defaulted, so there is no
+# one-argument form.
+split(doc, solid, "fresh")  # ty: error
+
+# `update_references` takes the pin as a VALUE. Passing its text would
+# make the door do the parsing the type already did.
+update_references(doc, doc.id, content_pin(doc).hex)  # ty: error
+
+# A read-back door takes the NODE the name was minted against and the
+# name's opaque text, in that order — a name alone does not say which
+# evaluation it should be read on.
+evaluate(doc).face_frame(solid)  # ty: error
+
+# A pose's origin is three LENGTHS: reading it as bare floats is the
+# same dimension mistake `MateFrame` catches above.
+pose = evaluate(doc).face_frame(solid, "a-name")
+origin_floats: tuple[float, float, float] = pose.origin  # ty: error
+
+# `vertex_position` answers a POSITION, not a pose — there is no frame
+# at a point, and no `axis` to read off one.
+no_axis: object = evaluate(doc).vertex_position(solid, "a-name").axis  # ty: error

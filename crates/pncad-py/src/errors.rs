@@ -175,6 +175,39 @@ pub enum ErrorClass {
     /// store operation, and a caller catching one should not catch
     /// the other.
     Workspace,
+    /// A mate the solve refused. The Python class is `MateError`, and
+    /// the solve itself is TOTAL — this is raised only by the doors
+    /// that must answer with a pose or not at all, never by
+    /// `solve_document`, which records the fault per node instead.
+    Mate,
+    /// The at-rest assembly gate refused. The Python class is
+    /// `AssemblyError`, and its arms are NOT interchangeable: a
+    /// verdict against the document (`at_rest`) and the declared
+    /// direction's frontier (`uncertified`) are different facts, so
+    /// `variant` is what a caller must branch on.
+    Assembly,
+    /// A whole-document gather refused. The Python class is
+    /// `ProductError`.
+    Product,
+    /// A `split` refactoring refused. The Python class is
+    /// `SplitError`.
+    Split,
+    /// An `inline` refactoring refused. The Python class is
+    /// `InlineError`.
+    Inline,
+    /// A whole-document pin update produced no edit list. The Python
+    /// class is `UpdateError`.
+    Update,
+    /// A read-back door refused to say what a name denotes or where
+    /// it sits. The Python class is `ReadbackError`.
+    ///
+    /// Two Rust types flatten onto it, because they refuse the same
+    /// CALL: the document layer's `InterrogateError`, which resolves
+    /// the name, and the kernel's own `ReadbackError`, which reads
+    /// the carrier — the second is an arm of the first, and its arms
+    /// arrive under their OWN tags rather than a wrapper tag, so
+    /// which invariant broke is what a caller branches on.
+    Readback,
 }
 
 impl ErrorClass {
@@ -196,6 +229,13 @@ impl ErrorClass {
             Self::Frame => "FrameError",
             Self::Identity => "IdentityError",
             Self::Workspace => "WorkspaceError",
+            Self::Mate => "MateError",
+            Self::Assembly => "AssemblyError",
+            Self::Product => "ProductError",
+            Self::Split => "SplitError",
+            Self::Inline => "InlineError",
+            Self::Update => "UpdateError",
+            Self::Readback => "ReadbackError",
         }
     }
 }

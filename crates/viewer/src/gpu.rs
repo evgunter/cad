@@ -735,10 +735,15 @@ impl egui_wgpu::CallbackTrait for ViewportCallback {
 /// below — pre-existing, and pinned by the fact that the clear value
 /// is hardcoded 0 on both sides.)
 fn shader_source() -> String {
-    SHADER.replace(
-        "{{FLAG_PROBE}}",
-        &crate::scene::SceneMesh::FLAG_PROBE.to_string(),
-    )
+    SHADER
+        .replace(
+            "{{FLAG_PROBE}}",
+            &crate::scene::SceneMesh::FLAG_PROBE.to_string(),
+        )
+        .replace(
+            "{{FLAG_FOCUS}}",
+            &crate::scene::SceneMesh::FLAG_FOCUS.to_string(),
+        )
 }
 
 const SHADER: &str = r#"
@@ -790,6 +795,14 @@ const TINT_STRENGTH: f32 = 0.55;
 // constant is only how it looks.
 const PROBE_TINT: vec3<f32> = vec3<f32>(0.62, 0.35, 0.95);
 const PROBE_STRENGTH: f32 = 0.65;
+// What the side panel is showing, marked across every patch of it
+// (`pick::focus`). Weaker than SELECTED_TINT and in the same hue
+// family, because the two are one relation seen at two scales: the
+// focus is the extent of the thing being edited, and the selection
+// tint is the patch within it the cursor actually landed on. A focus
+// as strong as the selection would bury that distinction.
+const FOCUS_TINT: vec3<f32> = vec3<f32>(1.0, 0.78, 0.42);
+const FOCUS_STRENGTH: f32 = 0.24;
 
 @fragment
 fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
@@ -800,6 +813,12 @@ fn fs_main(in: VertexOut) -> @location(0) vec4<f32> {
     var base = uniforms.base_color.xyz;
     if ((in.flag & {{FLAG_PROBE}}u) != 0u) {
         base = mix(base, PROBE_TINT, PROBE_STRENGTH);
+    }
+    // Applied BEFORE the selection and hover tints so that the picked
+    // patch of a focused feature still reads as the picked one: the
+    // stronger mark lands on top of the weaker.
+    if ((in.flag & {{FLAG_FOCUS}}u) != 0u) {
+        base = mix(base, FOCUS_TINT, FOCUS_STRENGTH);
     }
     if (in.id != 0u && in.id == uniforms.highlight.x) {
         base = mix(base, SELECTED_TINT, TINT_STRENGTH);

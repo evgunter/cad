@@ -42,7 +42,7 @@ fn unit_suffixed_literals_land_in_canonical_units() {
         bits(&p("2 deg")),
         vec![(2.0 * quantity::DEG).radians().to_bits()]
     );
-    // All six symbols, juxtaposed form included.
+    // Every table symbol, juxtaposed form included.
     for (src, dim) in [
         ("1 mm", Dimension::Length),
         ("1 cm", Dimension::Length),
@@ -50,6 +50,7 @@ fn unit_suffixed_literals_land_in_canonical_units() {
         ("1 in", Dimension::Length),
         ("1 deg", Dimension::Angle),
         ("1 rad", Dimension::Angle),
+        ("1 pi", Dimension::Angle),
         ("25mm", Dimension::Length),
         ("2.5e1 mm", Dimension::Length),
     ] {
@@ -366,7 +367,7 @@ fn arb_text_of(dim: Dimension, depth: u32) -> BoxedStrategy<String> {
         Dimension::Length => (arb_real_text(), prop_oneof!["mm", "cm", "m", "in"])
             .prop_map(|(n, u)| format!("{n} {u}"))
             .boxed(),
-        Dimension::Angle => (arb_real_text(), prop_oneof!["deg", "rad"])
+        Dimension::Angle => (arb_real_text(), prop_oneof!["deg", "rad", "pi"])
             .prop_map(|(n, u)| format!("{n} {u}"))
             .boxed(),
         Dimension::Scalar => prop_oneof![arb_real_text(), Just("S".to_string())].boxed(),

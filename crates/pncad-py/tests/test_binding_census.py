@@ -52,8 +52,13 @@ for `apply` — and renames where a Python keyword or convention demands
 it (`IN` is `inch`; `RecipeNodeId` is `NodeId`). So a curated name is
 accounted for in exactly one of three ways:
 
-1. `pncad.pyi` declares a top-level name spelled identically. Sixty-two
-   names land here — `Doc`, `Node`, `Selector`, `SegTag`, `circle`.
+1. `pncad.pyi` declares a top-level name spelled identically —
+   `Doc`, `Node`, `Selector`, `SegTag`, `circle`, `Pose`. This is
+   where MOST curated names land, and no count is written down: the
+   number moves whenever either side grows, and one written here
+   would be a stale claim rather than a checked one (the guard's own
+   floors, in `the_scanners_read_something`, are what stop a scanner
+   from passing vacuously).
 2. `BOUND_AS` maps it to the Python spelling that answers the same
    question, and THAT SPELLING IS VERIFIED to exist in the stub — a
    mapping naming a spelling the stub does not declare fails. Without
@@ -124,8 +129,9 @@ WHAT THIS DOES NOT CLAIM
   document layer and the common surface. `workspace::Workspace`,
   `random_document_id` and `update_to_store` are therefore NOT counted
   here — the audit page's `test_the_named_gaps_are_still_gaps` is what
-  watches those, and it is where the first two landing and the third
-  not is recorded.
+  watches those, and it is where all three landing is recorded
+  (`update_to_store` is a `Workspace` METHOD, so what watches it is
+  `tests/test_assembly_author.py`, which walks the door).
 - Not that a bound name is bound WELL. Coverage, not quality.
 """
 
@@ -355,9 +361,11 @@ def audit_gap_ids():
 #:   tag is `EvaluationError.kind`;
 #:   `DocumentId` is the 32 hex digits `Doc.id` answers.
 #: - **A rename.** `RecipeNodeId` is `NodeId` (the stub says what it is
-#:   NOT: an arena key). The six unit constants are lower-cased —
-#:   `IN` is `inch` because `in` is a Python keyword, a shift the stub
-#:   comments on at the declaration.
+#:   NOT: an arena key). The unit constants are lower-cased — `IN` is
+#:   `inch` because `in` is a Python keyword, a shift the stub comments
+#:   on at the declaration. (Not counted here: the table grows a row
+#:   whenever `quantity` does, and a number written beside it would
+#:   date at the next one.)
 BOUND_AS = {
     "CM": "cm",
     "DEG": "deg",
@@ -368,6 +376,7 @@ BOUND_AS = {
     "MM": "mm",
     "NodeErrorKind": "EvaluationError.kind",
     "NodeValue": "Value",
+    "PI": "pi",
     # The document seam, and the two enums that say why it did not
     # open. `Workspace` IS a `PartResolver` (the document layer's own
     # impl) and is passed as itself to `evaluate(doc, resolver=...)`;
@@ -381,6 +390,48 @@ BOUND_AS = {
     # `part_no_resolver` was the only one an evaluation could produce.
     "PartFault": "EvaluationError.kind",
     "PartResolver": "Workspace",
+    # The read-back doors, which hang off the evaluation because a
+    # name is only meaningful against the run that minted it — so the
+    # free functions arrive as `Evaluation` methods, beside the
+    # materializers that answer the names they take. `Pose`,
+    # `Denotation` and `ReadbackError` are spelled identically and are
+    # accounted by rule 1, not here. They left the `gap` roster at
+    # LIB-B-READBACK, which closed the family that chartered them.
+    "denotation": "Evaluation.denotation",
+    "edge_frame": "Evaluation.edge_frame",
+    "face_frame": "Evaluation.face_frame",
+    "vertex_position": "Evaluation.vertex_position",
+    # The four different-shape entries LIB-G18b left behind after
+    # binding the rest of the assembly vocabulary name-for-name.
+    #
+    # `NodeMap` is a type ALIAS for a map, and Python spells the two
+    # maps that ride it as ordered PAIR LISTS
+    # (`SplitOutcome.node_map`, `InlineOutcome.node_map`) — a
+    # `dict[NodeId, NodeId]` would need `NodeId` hashable-and-ordered
+    # as a key type for no gain, since both are read in order and
+    # never looked up by one id.
+    #
+    # `RootFault` crosses as `EditError.variant`, and the tags are the
+    # FAULT's, not a wrapper's — `root_not_live`, `root_duplicate`,
+    # `root_ancestor`, `root_uncovered` — because which invariant
+    # broke is what a caller branches on. Shared by the edit door and
+    # the persistence validator, exactly as the one Rust type is.
+    #
+    # `PlacementRuleFault` likewise crosses as `EditError.variant`
+    # (`placement_rule_mismatch`, `empty_placement_list`,
+    # `non_finite_placement`, `improper_placement`). It sat in the
+    # `gap` roster carrying the reason "a placement is set by an edit
+    # Python cannot author" — MEASURED WRONG, and corrected here: the
+    # fault is the GROUP BOOLEAN's placement-rule fault, not the
+    # assembly registry's, and `Node.placed_union_at` has reached it
+    # since LIB-PYPU (an improper frame raises `improper_placement`
+    # today). `DocEdit.set_placement`'s own refusals are separate
+    # `EditError` arms that share the tag namespace, so binding it
+    # changed nothing about this entry except who noticed.
+    #
+    "NodeMap": "SplitOutcome.node_map",
+    "PlacementRuleFault": "EditError.variant",
+    "RootFault": "EditError.variant",
     "RAD": "rad",
     "RecipeNodeId": "NodeId",
     "ResolveFault": "EvaluationError.kind",
@@ -453,6 +504,20 @@ GAP = "gap"
 #: brief's job, not the census's. What the charter buys is that a
 #: dispatcher reading an id knows what closing it means, which is
 #: exactly what "register B" as a prose paragraph did not give them.
+#:
+#: **How a family CLOSES.** When the unit that owns an id binds its
+#: doors, every `gap:` entry citing that id moves off the roster —
+#: into `BOUND_AS`, or off it entirely where Python now spells the
+#: name identically — and the charter goes with them. It has to:
+#: [`TestBindingCensus.test_every_gap_entry_names_a_defined_id`] fails
+#: on a `FAMILIES` key no entry cites, because a charter nobody is
+#: working from is a decoration, and this file's whole argument is
+#: that a roster which only grows is a roster nobody reads. So a
+#: closed family leaves NO stub here, and the guard keeps passing in
+#: both directions. What records the closure is the ENTRIES, each
+#: carrying the unit that moved it — `B-READBACK` closed at
+#: LIB-B-READBACK, the first family to close, and the four verbs it
+#: chartered say so where they now sit in `BOUND_AS`.
 FAMILIES = {
     "B-CHECKS": (
         "the advisory report-never-gate checks registry "
@@ -471,12 +536,6 @@ FAMILIES = {
         "`resolve` and its `Resolution` verdict — the question every "
         "consumer that STORES names must ask on the next run, which is "
         "every consumer the stub tells to store one"
-    ),
-    "B-READBACK": (
-        "the geometry read-back doors; closing it binds `face_frame` / "
-        "`edge_frame` / `vertex_position` / `denotation` and the `Pose` "
-        "they answer in, giving `crate::select`'s third invariant — a "
-        "name answers with VALUES, never keys — its first Python face"
     ),
     "B-EXPR-READ": (
         "the expression READ side; closing it binds `eval` / "
@@ -560,7 +619,12 @@ FAMILIES = {
 #:   revolve refusals; `PathError` for `ProfileError` and
 #:   `RecordedProgramError`; `ValidationError.door` for
 #:   `MassPropsError`; `ExportError` for `StepExportError`;
-#:   `SelectRefusal` for `DeclareError` and `InterrogateError`;
+#:   `SelectRefusal` for `DeclareError` and, where a selection wraps
+#:   one, `InterrogateError`; `ReadbackError.variant` for
+#:   `InterrogateError` at the read-back doors themselves, where the
+#:   kernel's own `ReadbackError` arms arrive under their own tags
+#:   rather than a wrapper's — one Rust type, two Python classes,
+#:   because the two doors refuse different CALLS;
 #:   `EvaluationError.kind` for `ResolveFailure`, whose classified
 #:   fault IS the `part_*` tag (`ResolveFault` and `PartFault` are in
 #:   `BOUND_AS` at that spelling) and whose `message` is the
@@ -592,14 +656,34 @@ FAMILIES = {
 #:   so D9's determinism cross-check can compare both schedules in one
 #:   run, `boolean_sweep`'s two paths are bit-identical by the BVH
 #:   differential suite's own pin), so no ANSWER is unreachable
-#:   through them. A PERFORMANCE door — "evaluate this in parallel" —
+#:   through them. `profile_lift` (M10-P) is a FOURTH such field and
+#:   its argument is a different one, because it is not
+#:   answer-preserving in general: it decides whether profile geometry
+#:   is elaborated at the evaluation's own scalar. What makes it
+#:   unreachable-without-loss here is that Python evaluates at `f64`
+#:   ALONE, and at `f64` the lift is a no-op by construction — guided
+#:   elaboration reproduces the pinned one bitwise, which
+#:   `editor-core`'s `m10_p_lift` suite pins over the whole corpus. The
+#:   field starts changing answers exactly when Python gains a non-f64
+#:   evaluation, and it should gain a spelling in the same unit that
+#:   brings one. A PERFORMANCE door — "evaluate this in parallel" —
 #:   would be a new unit and a new entry, not this one.
 #: - *Recourse and deferral sentences.* `CONTACT_RECOURSE`,
-#:   `FIT_DEFERRAL`, `SEL_DATUM_DISTANCE`, `REGENERATE_RECOURSE`,
-#:   `UNDER_RECOURSE` and `CLASS_DEFERRAL` are the prose a Rust refusal
-#:   cites; Python's refusals carry theirs in the exception's message.
-#:   `SCHEMA_VERSION` is the same shape of constant on the persistence
-#:   door, which Python reaches only through `load`.
+#:   `FIT_DEFERRAL`, `SEL_DATUM_DISTANCE` and `REGENERATE_RECOURSE`
+#:   are the prose a Rust refusal cites; Python's refusals carry theirs
+#:   in the exception's message. `SCHEMA_VERSION` is the same shape of
+#:   constant on the persistence door, which Python reaches only
+#:   through `load`.
+#:
+#:   `UNDER_RECOURSE` and `CLASS_DEFERRAL` left this bullet at
+#:   LIB-G18b and are bound top-level, on `PIN_MISMATCH_RECOURSE`'s
+#:   precedent: an assembly author's two most-hit refusals are an
+#:   under-determined mate and a class outside v1, and a test that
+#:   wants to say "the refusal ends on its recourse" must not do it by
+#:   re-typing the sentence. `CLASS_DEFERRAL` is also what
+#:   `ClassAdmission.why` answers for the `not_admitted` arm, from the
+#:   table rather than restated — so the constant and the door agree
+#:   by construction.
 #: - *Structures Python's authoring surface replaces with its own.*
 #:   `Applied` and `EditRecord` are `apply`'s pair, and `Doc.apply`
 #:   mutates in place and answers `Optional[NodeId]`, so there is no
@@ -646,7 +730,7 @@ FAMILIES = {
 #: the family that makes the census worth having: these are not
 #: decisions, they are debt, and the id after the colon says what owns
 #: each. Four of the ids are the audit page's, cited (`G1`, `G2`,
-#: `G16`, `G18`); the other eight are `FAMILIES` keys
+#: `G16`, `G18`); the other seven are `FAMILIES` keys
 #: this census owns, because the audit's SCENE-driven list does not
 #: reach a door no tour scene exercises — which is exactly why those
 #: accumulated unnoticed and why this census exists.
@@ -655,68 +739,39 @@ FAMILIES = {
 #:   `tube_along_arc_hollow`, `TubeError`, `TubeWindow`. Banked, not
 #:   merely unbound: `wire_sweep` refuses unconditionally and
 #:   `Node::Tube` does not exist (a schema-version break).
-#: - **G18 — the pin-update door.** `update_references`,
-#:   `UpdateError`, `mixed_pins`, `PinMultiplicity`, `PinSites`.
-#:   This entry USED to read G15 and cover the whole content-pin
-#:   family; LIB-G15 bound the rest of it (`ContentPin`,
-#:   `content_pin`, `canonical_bytes`, `DocRef`,
-#:   `header_document_id`, and `workspace::Workspace` /
-#:   `random_document_id` beside them), so what remains is only the
-#:   door that moves a pin AT ITS SITES. A site is an
-#:   `InstantiatePart` node's `DocRef` and Python can author none — so
-#:   every one of these doors would answer the "referenced nowhere"
-#:   refusal on any document Python can build. That is G18's
-#:   dependency, not a residue of the closed row, and the citation
-#:   moved with it. LIB-G18a moved the OTHER half of the sentence this
-#:   entry used to carry — `evaluate` now takes a resolver — and it
-#:   changes nothing here: a document Python LOADS can carry sites,
-#:   and moving one still needs the edit only G18b brings.
-#: - **G18 — assembly, the at-rest gate (A5).** `assemble`,
-#:   `Assembly`, `AssemblyError`, `AtRestFinding`, `Attribution`,
-#:   `MintedDeclaration`, `RefusedRef`. The façade carried these
-#:   BECAUSE a consumer could build an assembly and not check it; the
-#:   same argument applies one layer out, and Python cannot check one
-#:   at all. The audit's G18 row names this half by name, down to the
-#:   list of types, and records that #938's fix pass curated it — so
-#:   the id exists and is cited rather than minted.
-#: - **G18 — mates and the solve.** `Alignment`, `MateFrame`,
-#:   `MatePrimitive`, `MateRole`, `MateSide`, `AxisSense`,
-#:   `SolvedPoses`, `Subgroup`, `MateFault`, `ClusterMaintenance`,
-#:   `clusters`, `gauge_of`, `reading_edges`,
-#:   `relative_freedom_components`, `solve_document` — plus the
-#:   admission table a tool must read BEFORE committing
-#:   (`ClassAdmission`, `class_admission`). Python can author no mate,
-#:   so it cannot reach the assembly gate above even if that were
-#:   bound. G18's row names `mate`, its four frame types and
-#:   `solve_document`; the admission table it does not name, and this
-#:   entry is where that reaches the record.
-#: - **G18 — instantiated parts.** `PlacementRuleFault`, and only it.
-#:   This entry used to hold the whole document seam —
-#:   `PartResolver`, `PartFault`, `ResolveFailure`, `ResolveFault` —
-#:   because G18's row put the seam FIRST in the series' stated order
-#:   and `evaluate(doc)` took no resolver, so an `InstantiatePart`
-#:   node could not evaluate from Python at all. LIB-G18a closed that:
-#:   `evaluate(doc, resolver=store)` passes a `Workspace` as the
-#:   `PartResolver` it already IS, and the seam's whole refusal family
-#:   crosses as `EvaluationError.kind` — so those four are in
-#:   `BOUND_AS` and the flattened-payload bullet. `PlacementRuleFault`
-#:   stays for a reason that is measured and not inherited: it crosses
-#:   as a tag like the rest, and the fault is a PLACEMENT's, so
-#:   reaching one needs a document carrying an invalid placement —
-#:   which Python cannot author (G18b's `set_placement`) and the tour
-#:   corpus does not contain.
-#: - **G18 — split and inline, the recorded refactorings.** `split`,
-#:   `inline`, `SplitOutcome`, `InlineOutcome`, `SplitError`,
-#:   `InlineError`, `NodeMap`, `InterfaceRecord`, `InterfaceCrossing`.
-#:   NOTE the collision: this `split` is the document refactoring, NOT
-#:   the geometry `Node.split` Python binds. A looser mapping rule
-#:   would have matched them and hidden the gap. G18's row names both
-#:   verbs in its list of what is absent.
-#: - **G18 — explicit product roots.** `product`, `product_named`,
-#:   `ProductError`, `RootFault`. `Doc` has no `roots` reader and
-#:   `DocEdit` no `SetRoots`, so Python cannot say what a document's
-#:   product IS — which is `set_roots` and `product`, two more of the
-#:   names G18's row lists.
+#: **G18 is CLOSED and no longer a `gap` id here** (LIB-G18b). It
+#: held six families and 43 names: the pin-update door
+#: (`update_references`, `UpdateError`, `mixed_pins`,
+#: `PinMultiplicity`, `PinSites`), the at-rest gate (`assemble`,
+#: `Assembly`, `AssemblyError`, `AtRestFinding`, `Attribution`,
+#: `MintedDeclaration`, `RefusedRef`), mates and the solve
+#: (`Alignment`, `MateFrame`, `MatePrimitive`, `MateRole`, `MateSide`,
+#: `AxisSense`, `SolvedPoses`, `Subgroup`, `MateFault`,
+#: `ClusterMaintenance`, `clusters`, `gauge_of`, `reading_edges`,
+#: `relative_freedom_components`, `solve_document`, `ClassAdmission`,
+#: `class_admission`), instantiated parts (`PlacementRuleFault`),
+#: split and inline (`split`, `inline`, `SplitOutcome`,
+#: `InlineOutcome`, `SplitError`, `InlineError`, `NodeMap`,
+#: `InterfaceRecord`, `InterfaceCrossing`) and explicit product roots
+#: (`product`, `product_named`, `ProductError`, `RootFault`).
+#:
+#: Thirty-nine are top-level names in `pncad.pyi`; four are in
+#: `BOUND_AS` and the comment there says why each has a different
+#: Python shape. NOTE the collision the mapping rule kept honest:
+#: top-level `split` is the document REFACTORING, and `Node.split` is
+#: the geometry verb — two different doors that a looser rule would
+#: have matched to each other, which is exactly how this family stayed
+#: invisible for as long as it did.
+#:
+#: One correction the closing measured, recorded rather than quietly
+#: fixed: `PlacementRuleFault` carried the reason "no document Python
+#: can produce reaches one — a placement is set by an edit Python
+#: cannot author". That was measured against the wrong door. The fault
+#: is the GROUP BOOLEAN's placement-rule fault, and
+#: `Node.placed_union_at` has reached it since LIB-PYPU; binding
+#: `DocEdit.set_placement` changed nothing about it, because that
+#: edit's own refusals are separate `EditError` arms sharing the tag
+#: namespace.
 #: - **B-CHECKS — the advisory checks (DISCIPLINES-DESIGN DS6).**
 #:   `run_checks`, `enforce_checks`, `subject_body`, `ChecksReport`,
 #:   `ChecksConfig`, `ChecksError`, `CheckFinding`, `CheckEvidence`,
@@ -744,12 +799,6 @@ FAMILIES = {
 #:   has no door from an expression to its value. One family, two ids,
 #:   because the entries are what carry an id and only one half of
 #:   this family has one.
-#: - **B-READBACK — the geometry read-back doors.** `face_frame`,
-#:   `edge_frame`, `vertex_position`, `denotation`, `Denotation`, and
-#:   the `Pose` / `ReadbackError` they answer in. `crate::select`'s
-#:   third invariant — "a name answers with values, never keys" — has
-#:   no Python face: `Evaluation.all_faces` hands back names and
-#:   nothing asks one where it is.
 #: - **B-VALIDATE4 — the fourth validator rung.**
 #:   `validate_pseudomanifold`. `Body` binds three of the ladder's
 #:   four; this one is simply missing.
@@ -778,7 +827,6 @@ NOT_BOUND = {
     "BinaryHeaderError": SHAPE,
     "BinaryOptions": SHAPE,
     "BooleanError": SHAPE,
-    "CLASS_DEFERRAL": SHAPE,
     "CONTACT_RECOURSE": SHAPE,
     "CurveKindSet": SHAPE,
     "DeclareError": SHAPE,
@@ -807,6 +855,7 @@ NOT_BOUND = {
     "Point3": SHAPE,
     "ProfileDoc": SHAPE,
     "ProfileError": SHAPE,
+    "ProfileLift": SHAPE,
     "ProgramFault": SHAPE,
     "REGENERATE_RECOURSE": SHAPE,
     "Real": SHAPE,
@@ -833,9 +882,13 @@ NOT_BOUND = {
     "Tol": SHAPE,
     "Tolerance": SHAPE,
     "TransformError": SHAPE,
-    "UNDER_RECOURSE": SHAPE,
     "Vec2": SHAPE,
     "Vec3": SHAPE,
+    # The slot vocabulary's 3-vector families, beside `Axis3` and
+    # `SlotId` and for their reason: Python addresses a slot through
+    # its own spelling, so the Rust enum that groups three of them is
+    # not a name a Python caller needs.
+    "VectorSlot": SHAPE,
     "VertexKey": SHAPE,
     "bulge_from_center": SHAPE,
     "bulge_from_via": SHAPE,
@@ -900,72 +953,14 @@ NOT_BOUND = {
     "Distribution": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",
     "DistributionFault": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",
     "DistributionField": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",
-    # --- gap: the pin-UPDATE door (audit G18) ---------------------
-    # G15's own doors are bound (`ContentPin`, `DocRef`,
-    # `content_pin`, `canonical_bytes`, `header_document_id`, and
-    # `Workspace` beside them). What is left of the pin family is the
-    # door that moves a pin AT ITS SITES, and a site is an
-    # `InstantiatePart` node's `DocRef` — the one thing Python cannot
-    # author. So these are cited to the series that would bring the
-    # node, not to the closed row.
-    "PinMultiplicity": f"{GAP}: G18 the pin-update door",
-    "PinSites": f"{GAP}: G18 the pin-update door",
-    "UpdateError": f"{GAP}: G18 the pin-update door",
-    "mixed_pins": f"{GAP}: G18 the pin-update door",
-    "update_references": f"{GAP}: G18 the pin-update door",
-    # --- gap: assembly at-rest gate (audit G18) -------------------
-    "Assembly": f"{GAP}: G18 assembly at-rest gate",
-    "AssemblyError": f"{GAP}: G18 assembly at-rest gate",
-    "AtRestFinding": f"{GAP}: G18 assembly at-rest gate",
-    "Attribution": f"{GAP}: G18 assembly at-rest gate",
-    "MintedDeclaration": f"{GAP}: G18 assembly at-rest gate",
-    "RefusedRef": f"{GAP}: G18 assembly at-rest gate",
-    "assemble": f"{GAP}: G18 assembly at-rest gate",
-    # --- gap: mates and the solve (audit G18) ---------------------
-    "Alignment": f"{GAP}: G18 mates and the solve",
-    "AxisSense": f"{GAP}: G18 mates and the solve",
-    "ClassAdmission": f"{GAP}: G18 mates and the solve",
-    "ClusterMaintenance": f"{GAP}: G18 mates and the solve",
-    "MateFault": f"{GAP}: G18 mates and the solve",
-    "MateFrame": f"{GAP}: G18 mates and the solve",
-    "MatePrimitive": f"{GAP}: G18 mates and the solve",
-    "MateRole": f"{GAP}: G18 mates and the solve",
-    "MateSide": f"{GAP}: G18 mates and the solve",
-    "SolvedPoses": f"{GAP}: G18 mates and the solve",
-    "Subgroup": f"{GAP}: G18 mates and the solve",
-    "class_admission": f"{GAP}: G18 mates and the solve",
-    "clusters": f"{GAP}: G18 mates and the solve",
-    "gauge_of": f"{GAP}: G18 mates and the solve",
-    "reading_edges": f"{GAP}: G18 mates and the solve",
-    "relative_freedom_components": f"{GAP}: G18 mates and the solve",
-    "solve_document": f"{GAP}: G18 mates and the solve",
-    # --- gap: instantiated parts (audit G18) ----------------------
-    # `PartResolver`, `PartFault` and `ResolveFault` LEFT this family
-    # at LIB-G18a and are in `BOUND_AS`; `ResolveFailure` left it for
-    # the flattened-payload bullet, since what Python gets is the
-    # fault as `kind` and the resolver's diagnosis as the message.
-    # `PlacementRuleFault` stays, measured rather than assumed: it
-    # crosses as an `EvaluationError.kind` tag like its siblings, and
-    # no document Python can produce reaches one — the fault is a
-    # PLACEMENT's, a placement is set by an edit Python cannot author,
-    # and the tour corpus carries only valid ones. It moves with the
-    # node/edit half.
-    "PlacementRuleFault": f"{GAP}: G18 instantiated parts",
-    # --- gap: split/inline refactorings (audit G18) ---------------
-    "InlineError": f"{GAP}: G18 split/inline refactorings",
-    "InlineOutcome": f"{GAP}: G18 split/inline refactorings",
-    "InterfaceCrossing": f"{GAP}: G18 split/inline refactorings",
-    "InterfaceRecord": f"{GAP}: G18 split/inline refactorings",
-    "NodeMap": f"{GAP}: G18 split/inline refactorings",
-    "SplitError": f"{GAP}: G18 split/inline refactorings",
-    "SplitOutcome": f"{GAP}: G18 split/inline refactorings",
-    "inline": f"{GAP}: G18 split/inline refactorings",
-    "split": f"{GAP}: G18 split/inline refactorings",
-    # --- gap: explicit product roots (audit G18) ------------------
-    "ProductError": f"{GAP}: G18 explicit product roots",
-    "RootFault": f"{GAP}: G18 explicit product roots",
-    "product": f"{GAP}: G18 explicit product roots",
-    "product_named": f"{GAP}: G18 explicit product roots",
+    # G18 IS GONE FROM THIS ROSTER, closed at LIB-G18b. Its six
+    # families held 43 names — the pin-update door, the at-rest gate,
+    # mates and the solve, instantiated parts, split/inline, explicit
+    # product roots — and every one of them is now accounted for:
+    # thirty-nine name-for-name in `pncad.pyi`, and four in `BOUND_AS`
+    # because their Python shape differs (`NodeMap`, `RootFault`,
+    # `PlacementRuleFault`, and `MateSide`, which is both). The
+    # positive form is `tests/test_assembly_author.py`.
     # --- gap: advisory checks DS6 (census-owned) ------------------
     "CheckEvidence": f"{GAP}: B-CHECKS advisory checks",
     "CheckFinding": f"{GAP}: B-CHECKS advisory checks",
@@ -1001,13 +996,6 @@ NOT_BOUND = {
     "eval_count": f"{GAP}: B-EXPR-READ an expression's value",
     "parse_expr": f"{GAP}: G1 Expr-bearing authoring steps",
     # --- gap: geometry read-back doors (census-owned) -------------
-    "Denotation": f"{GAP}: B-READBACK a name answers with values",
-    "Pose": f"{GAP}: B-READBACK a name answers with values",
-    "ReadbackError": f"{GAP}: B-READBACK a name answers with values",
-    "denotation": f"{GAP}: B-READBACK a name answers with values",
-    "edge_frame": f"{GAP}: B-READBACK a name answers with values",
-    "face_frame": f"{GAP}: B-READBACK a name answers with values",
-    "vertex_position": f"{GAP}: B-READBACK a name answers with values",
     # --- gap: assorted single doors -------------------------------
     "CancelToken": f"{GAP}: B-CANCEL cooperative cancellation",
     "Chamfered": f"{GAP}: G16 chamfer has no recipe node",

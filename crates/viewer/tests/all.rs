@@ -50,12 +50,16 @@ mod doc_io;
 mod error_display;
 #[path = "eval_seam.rs"]
 mod eval_seam;
+#[path = "focus_highlight.rs"]
+mod focus_highlight;
 #[path = "frame_policy.rs"]
 mod frame_policy;
 #[path = "input_mapping.rs"]
 mod input_mapping;
 #[path = "mate_tool_flow.rs"]
 mod mate_tool_flow;
+#[path = "panel_display.rs"]
+mod panel_display;
 #[path = "panel_edits.rs"]
 mod panel_edits;
 #[path = "review_gui0_r1.rs"]
@@ -84,6 +88,8 @@ mod select_pick;
 mod tree_badges;
 #[path = "undo_tree.rs"]
 mod undo_tree;
+#[path = "valid_range.rs"]
+mod valid_range;
 
 /// Guards the `autotests = false` hazard: a suite file added under
 /// `tests/` but not declared above would silently stop being compiled

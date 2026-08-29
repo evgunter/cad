@@ -58,7 +58,7 @@ pub use geom_core::{
 // `MILLI`, `CENTI`) stay one module hop away at `pncad::quantity`,
 // per the corpus-measured prelude rule (module docs above).
 pub use quantity::{
-    Angle, AngleUnit, CM, Count, DEG, FmtQuantityError, IN, Length, LengthUnit, M, MM, RAD,
+    Angle, AngleUnit, CM, Count, DEG, FmtQuantityError, IN, Length, LengthUnit, M, MM, PI, RAD,
     fmt_angle, fmt_length,
 };
 
@@ -160,7 +160,7 @@ pub use stl::{
 // the parametric flagship (`plate_param`, guide §3.2) imports both.
 pub use crate::document::{
     CancelToken, Datum, Dimension, Doc, DocEdit, DocParam, EditError, EvalOptions, Evaluation,
-    Expr, LoopProgram, Node, NodeError, ParamEnv, ParamName, ParseError, PatternKind,
+    Expr, LoopProgram, Node, NodeError, ParamEnv, ParamName, ParseError, PatternKind, ProfileLift,
     ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RecordedProgramError,
     SlotId, StepArg, ValuePayload, apply, evaluate, parse_expr,
 };

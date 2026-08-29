@@ -34,6 +34,7 @@ pub use editor_core::{Applied, Doc, DocEdit, EditError, EditRecord, apply};
 // spell the whole node vocabulary through one module.
 pub use editor_core::{
     Axis3, BooleanOp, Datum, Node, PatternKind, PlacementRuleFault, RecipeNodeId, SlotId,
+    VectorSlot,
 };
 
 // Expressions and their text door.
@@ -100,7 +101,7 @@ pub use editor_core::{Distribution, DistributionFault, DistributionField};
 // enum that carries them.
 pub use editor_core::{
     BooleanValue, CancelToken, DatumValue, EvalOptions, EvalOutcome, Evaluation, NodeError,
-    NodeErrorKind, NodeResult, NodeValue, SplitSide, ValuePayload, evaluate,
+    NodeErrorKind, NodeResult, NodeValue, ProfileLift, SplitSide, ValuePayload, evaluate,
 };
 
 // Persistence: the schema-v4 doors, verbatim.

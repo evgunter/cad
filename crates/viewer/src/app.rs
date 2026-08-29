@@ -37,13 +37,15 @@
 //! else is the seam's vocabulary, which the wasm build satisfies with
 //! no thread at all.
 
+use std::collections::BTreeSet;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use eframe::egui;
 use egui_tiles::{TileId, Tiles, Tree, UiResponse};
-use pncad::document::{Dimension, ParamName, RecipeNodeId, SlotId};
+use pncad::document::{Axis3, Dimension, ParamName, RecipeNodeId, SlotId};
 use pncad::geom_core::Tol;
+use pncad::quantity::UnitDef;
 
 use crate::camera::{self, Camera, CameraOp};
 use crate::display::{DisplayView, free_move_check};
@@ -55,9 +57,9 @@ use crate::gpu::{DEPTH_BITS, IdQuery, ViewportCallback, ViewportRenderer};
 use crate::input::{self, InputMap, PointerButton, ViewportEvent, ViewportSize};
 use crate::matetool::{MateChoice, MateTool, MateToolState, admitted_classes};
 use crate::pick::{self, PickCache, PickIndex};
-use crate::props::{SlotDriver, SlotRow, SlotValue};
+use crate::props::{self, SlotDriver, SlotGroup, SlotRow, SlotValue};
 use crate::scene::{self, DisplayTolerance, SceneMesh};
-use crate::session::{DocSession, Refusal, Selection, SessionOp, Standing};
+use crate::session::{BoundsTarget, DocSession, Refusal, Selection, SessionOp, Standing};
 use crate::tree::{RowStatus, TreeRow};
 use pncad::document::{AxisSense, Frame, MatePrimitive};
 
@@ -193,6 +195,17 @@ pub struct ViewerApp {
     /// free-move are scene inputs too, so a display change owes a
     /// rebuild exactly as a new evaluation does.
     scene_display: Option<u64>,
+    /// The focus set `scene` was built under — the ids of what the side
+    /// panel is showing (`pick::focus`), which the scene carries as a
+    /// per-corner flag and therefore has to be rebuilt for.
+    ///
+    /// Compared as a SET rather than counted by a revision, because
+    /// unlike hide and free-move the focus is DERIVED (from the
+    /// selection and the index), so there is no mutation to hang a
+    /// counter off and no owner to bump one. Moving the selection
+    /// between two faces of the same feature leaves the set equal and
+    /// correctly rebuilds nothing.
+    scene_focus: BTreeSet<u32>,
     /// The modal mate tool, when active. `None` is "not in the mate
     /// tool"; the tool's own state (the held picks) lives inside it.
     mate_tool: Option<MateTool>,
@@ -352,6 +365,7 @@ impl ViewerApp {
             revision: 1,
             scene_generation: None,
             scene_display: None,
+            scene_focus: BTreeSet::new(),
             mate_tool: None,
             camera,
             input: InputMap::default(),
@@ -396,16 +410,18 @@ impl ViewerApp {
             pick::CacheStep::Rebuilt => true,
             pick::CacheStep::Current => false,
         };
-        // The scene is a function of (index, display state): a display
-        // change over a current index still owes exactly one rebuild.
+        // The scene is a function of (index, display state, focus): a
+        // display or selection change over a current index still owes
+        // exactly one rebuild.
         let display_revision = self.session.display().revision();
-        if !rebuilt && self.scene_display == Some(display_revision) {
-            return;
-        }
         let Some(index) = self.picks.index() else {
             return;
         };
-        match index.scene_for(&self.session.display_view()) {
+        let focus = pick::focus(index, self.session.doc(), self.session.selection());
+        if !rebuilt && self.scene_display == Some(display_revision) && self.scene_focus == focus {
+            return;
+        }
+        match index.scene_focused(&self.session.display_view(), &focus) {
             Ok(mesh) => {
                 // Marked current ONLY on success: a refused build must
                 // not consume this (generation, display) pair, or the
@@ -413,6 +429,7 @@ impl ViewerApp {
                 // one and is never retried.
                 self.scene_generation = self.session.landed_generation();
                 self.scene_display = Some(display_revision);
+                self.scene_focus = focus;
                 self.scene = Arc::new(mesh);
                 self.revision = self.revision.wrapping_add(1);
                 if self.fit_on_scene {
@@ -1052,24 +1069,24 @@ impl ViewerBehavior<'_> {
                 ui.weak("select a feature");
             }
             Selection::Node(node) => {
-                let rows = self.session.slot_rows();
-                if rows.is_empty() {
+                let groups = self.session.slot_groups();
+                if groups.is_empty() {
                     ui.weak("this feature carries no parameters");
                 }
-                for row in &rows {
-                    self.slot_ui(ui, node, row);
+                for group in &groups {
+                    self.slot_group_ui(ui, node, group);
                 }
             }
             Selection::Face(face) => {
                 // Slot rows for the OWNING node: a face pick is a way
                 // of reaching the feature that made it, which is what
                 // G3's click-to-select is for.
-                let rows = self.session.slot_rows();
-                if rows.is_empty() && standing.live() {
+                let groups = self.session.slot_groups();
+                if groups.is_empty() && standing.live() {
                     ui.weak("this feature carries no parameters");
                 }
-                for row in &rows {
-                    self.slot_ui(ui, face.node, row);
+                for group in &groups {
+                    self.slot_group_ui(ui, face.node, group);
                 }
             }
             Selection::Param(name) => {
@@ -1100,6 +1117,7 @@ impl ViewerBehavior<'_> {
                         },
                         self.ops,
                     );
+                    self.param_bounds_ui(ui, &name, row.dimension);
                 } else {
                     ui.weak("that parameter is gone");
                 }
@@ -1455,52 +1473,190 @@ impl ViewerBehavior<'_> {
         ui.separator();
     }
 
-    /// One slot row, with the expression-driven refusal's affordance
-    /// attached to it.
-    fn slot_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId, row: &SlotRow) {
-        ui.horizontal(|ui| {
-            ui.label(format!("{:?}", row.slot));
-            match row.value {
-                Ok(value) => {
-                    let mut number = value.as_f64();
-                    let widget =
-                        ui.add(egui::DragValue::new(&mut number).speed(if row.structural {
-                            1.0
-                        } else {
-                            0.0005
-                        }));
-                    drag_ops(
-                        &widget,
-                        number,
-                        SessionOp::BeginGesture {
-                            node,
-                            slot: row.slot,
-                        },
-                        |value| SessionOp::PreviewGesture { value },
-                        SessionOp::CommitGesture,
-                        |number| {
-                            vec![SessionOp::SetSlot {
+    /// One PANEL ROW: a scalar slot on its own, or a 3-vector's three
+    /// components on one line.
+    ///
+    /// The grouping is `props::SlotGroup`'s and the vocabulary's (see
+    /// its docs); this function only lays it out. What the two arms
+    /// share — the number widget, the gesture mapping, the driven
+    /// affordance, the expression door, the range probe — is called
+    /// once per COMPONENT, so a component of a vector is edited by
+    /// exactly the operations a stand-alone slot is.
+    ///
+    /// **Three lines per group at most, whatever its arity.** Folding
+    /// three slots onto one line buys nothing if their doors then take
+    /// three lines each, so the doors are a single line of small
+    /// buttons tagged by axis rather than a stacked block per
+    /// component.
+    fn slot_group_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId, group: &SlotGroup) {
+        match group {
+            SlotGroup::Scalar(row) => {
+                ui.horizontal(|ui| {
+                    ui.label(row.slot.label());
+                    self.slot_value_ui(ui, node, row);
+                    self.slot_unit_ui(ui, node, core::slice::from_ref(row));
+                    ui.weak(format!("{:?}", row.dimension));
+                    if row.structural {
+                        ui.weak("structural");
+                    }
+                });
+                self.slot_notes_ui(ui, node, row);
+                ui.horizontal(|ui| {
+                    self.expression_button(ui, node, row, "expression…");
+                    self.range_button(ui, node, row, "range?");
+                });
+            }
+            SlotGroup::Vector { family, rows } => {
+                ui.horizontal(|ui| {
+                    ui.label(family.label());
+                    for (axis, row) in Axis3::ALL.iter().zip(rows.iter()) {
+                        ui.weak(axis.label());
+                        self.slot_value_ui(ui, node, row);
+                    }
+                    // ONE picker for the vector: three components of a
+                    // point are written in one unit or the user is
+                    // being told something they did not mean to say.
+                    // The picker reports a disagreement rather than
+                    // hiding it (`slot_unit_ui`'s mixed arm).
+                    self.slot_unit_ui(ui, node, rows.as_slice());
+                    ui.weak(format!("{:?}", family.dimension()));
+                });
+                // The notes stay PER COMPONENT: an affordance names the
+                // parameters driving one component, and a range is one
+                // field's. Each names its axis.
+                for (axis, row) in Axis3::ALL.iter().zip(rows.iter()) {
+                    self.slot_notes_ui(ui, node, row);
+                    let _ = axis;
+                }
+                ui.horizontal(|ui| {
+                    ui.weak("expression");
+                    for (axis, row) in Axis3::ALL.iter().zip(rows.iter()) {
+                        self.expression_button(ui, node, row, axis.label());
+                    }
+                    ui.weak("range");
+                    for (axis, row) in Axis3::ALL.iter().zip(rows.iter()) {
+                        self.range_button(ui, node, row, axis.label());
+                    }
+                });
+            }
+        }
+    }
+
+    /// The number itself: shown in the unit the slot is WRITTEN in,
+    /// authored back through the same factor.
+    ///
+    /// The conversion is `props::in_written` / `props::from_written`,
+    /// which is the text door's one-multiply semantics — so a number
+    /// typed here and the same number typed into the expression field
+    /// land on identical bits. Everything crossing into the session
+    /// below is canonical, exactly as it was.
+    fn slot_value_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId, row: &SlotRow) {
+        let Ok(value) = row.value else {
+            if let Err(ref error) = row.value {
+                ui.weak(format!("{error}"));
+            }
+            return;
+        };
+        let unit = props::written_unit(row.dimension, row.unit);
+        let mut number = props::in_written(value.as_f64(), unit);
+        // The drag speed is in WRITTEN units now, so it has to be
+        // scaled with them: 0.0005 was a half-micron step when the
+        // field held metres, and would be a half-micron step in
+        // millimetres too — i.e. a thousand times finer than the same
+        // gesture used to be — if the divide were not applied.
+        let speed = if row.structural {
+            1.0
+        } else {
+            props::in_written(0.0005, unit)
+        };
+        let mut widget = egui::DragValue::new(&mut number).speed(speed);
+        if let Some(unit) = unit {
+            widget = widget.suffix(format!(" {}", unit.symbol()));
+        }
+        let widget = ui.add(widget);
+        drag_ops(
+            &widget,
+            props::from_written(number, unit),
+            SessionOp::BeginGesture {
+                node,
+                slot: row.slot,
+            },
+            |value| SessionOp::PreviewGesture { value },
+            SessionOp::CommitGesture,
+            |value| {
+                vec![SessionOp::SetSlot {
+                    node,
+                    slot: row.slot,
+                    value: SlotValue::of(row.dimension, value),
+                }]
+            },
+            self.ops,
+        );
+    }
+
+    /// The written-unit picker for one slot or for a whole vector.
+    ///
+    /// **"How do I want this number written" is an edit, not a view
+    /// setting** — the unit is stored per literal and persists — so the
+    /// picker emits `SessionOp::SetSlotUnit`, one per component.
+    ///
+    /// A vector whose components disagree shows `mixed` and is not
+    /// quietly normalized: the document says what it says until someone
+    /// picks. Choosing a unit then writes it to every component, which
+    /// is the only reading of a single picker over three slots.
+    ///
+    /// Nothing is drawn at all for a dimension with no units (`Scalar`,
+    /// `Count`) — there is no notation to offer for a number that is
+    /// not a quantity.
+    fn slot_unit_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId, rows: &[SlotRow]) {
+        let Some(first) = rows.first() else {
+            return;
+        };
+        let options = props::unit_options(first.dimension);
+        if options.is_empty() {
+            return;
+        }
+        let written: Vec<Option<UnitDef>> = rows
+            .iter()
+            .map(|row| props::written_unit(row.dimension, row.unit))
+            .collect();
+        let common = written
+            .iter()
+            .all(|unit| *unit == written[0])
+            .then_some(written[0])
+            .flatten();
+        let label = common.as_ref().map_or("mixed", UnitDef::symbol);
+        // `id_salt` off the first component's slot: two vectors on one
+        // node (a plane's origin and its normal) draw two pickers, and
+        // egui identifies a popup by its id.
+        egui::ComboBox::from_id_salt((node.0, format!("{:?}", first.slot), "unit"))
+            .selected_text(label)
+            .width(52.0)
+            .show_ui(ui, |ui| {
+                for option in options {
+                    let picked = common == Some(option);
+                    if ui.selectable_label(picked, option.symbol()).clicked() && !picked {
+                        for row in rows {
+                            self.ops.push(SessionOp::SetSlotUnit {
                                 node,
                                 slot: row.slot,
-                                value: SlotValue::of(row.dimension, number),
-                            }]
-                        },
-                        self.ops,
-                    );
+                                unit: Some(option),
+                            });
+                        }
+                    }
                 }
-                Err(ref error) => {
-                    ui.weak(format!("{error}"));
-                }
-            }
-            ui.weak(format!("{:?}", row.dimension));
-            if row.structural {
-                ui.weak("structural");
-            }
-        });
-        // The affordance. It is attached to the row rather than raised
-        // on refusal alone so the user can see WHY the number will not
-        // move before they fight it — the refusal itself still
-        // surfaces in the status line when they try.
+            });
+    }
+
+    /// What a slot has to SAY, under its number: the expression-driven
+    /// refusal's affordance, the range reading when one has been taken
+    /// for this field, and the expression editor while it is open.
+    ///
+    /// The affordance is attached to the row rather than raised on
+    /// refusal alone so the user can see WHY the number will not move
+    /// before they fight it — the refusal itself still surfaces in the
+    /// status line when they try.
+    fn slot_notes_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId, row: &SlotRow) {
         if let SlotDriver::Expression { params } = &row.driver {
             ui.horizontal(|ui| {
                 // The ratified wording, from its one home — the same
@@ -1518,11 +1674,22 @@ impl ViewerBehavior<'_> {
                 }
             });
         }
-        // The expression text door, offered on every slot: the way to
-        // replace a computation is to write a new one.
-        let target = (node, row.slot);
-        if self.drafts.expr_target == Some(target) {
+        let target = BoundsTarget::Slot {
+            node,
+            slot: row.slot,
+        };
+        if let Some((probed, result)) = self.session.bounds()
+            && *probed == target
+        {
+            ui.weak(format!(
+                "{}: {}",
+                row.slot.label(),
+                result.wording(props::written_unit(row.dimension, row.unit))
+            ));
+        }
+        if self.drafts.expr_target == Some((node, row.slot)) {
             ui.horizontal(|ui| {
+                ui.label(format!("{} =", row.slot.label()));
                 ui.text_edit_singleline(&mut self.drafts.expr_text);
                 if ui.button("Set").clicked() {
                     self.ops.push(SessionOp::SetSlotExpression {
@@ -1538,14 +1705,79 @@ impl ViewerBehavior<'_> {
                     self.drafts.expr_text.clear();
                 }
             });
-        } else if ui.small_button("expression…").clicked() {
-            // Deliberately EMPTY rather than pre-filled: the
-            // expression API has no text rendering, so a pre-filled
-            // field would be this crate's guess at what the slot says.
-            // See the module docs of `props`.
-            self.drafts.expr_target = Some(target);
+        }
+    }
+
+    /// The button that opens the expression text door for one slot.
+    ///
+    /// The field is deliberately EMPTY rather than pre-filled: the
+    /// expression API has no text rendering, so a pre-filled field
+    /// would be this crate's guess at what the slot says. See the
+    /// module docs of `props`.
+    fn expression_button(
+        &mut self,
+        ui: &mut egui::Ui,
+        node: RecipeNodeId,
+        row: &SlotRow,
+        label: &str,
+    ) {
+        if ui.small_button(label).clicked() {
+            self.drafts.expr_target = Some((node, row.slot));
             self.drafts.expr_text.clear();
         }
+    }
+
+    /// The button that asks for one slot's locally-valid range.
+    ///
+    /// **Asked for, not automatic** — see `SessionOp::ProbeBounds` for
+    /// why. Offered only where a number can actually be written: a
+    /// driven slot's value is not the user's to move, so a range for it
+    /// would answer a question they cannot act on. The reading itself
+    /// lands in [`Self::slot_notes_ui`], in the slot's own written unit.
+    fn range_button(&mut self, ui: &mut egui::Ui, node: RecipeNodeId, row: &SlotRow, label: &str) {
+        let offered = !row.driver.is_driven() && row.value.is_ok();
+        let button = ui.add_enabled(offered, egui::Button::new(label).small());
+        let button = if offered {
+            button.on_hover_text(
+                "probe how far this can move before something new fails (tens of evaluations)",
+            )
+        } else {
+            button.on_disabled_hover_text("a computed slot has no range of its own to probe")
+        };
+        if button.clicked() {
+            self.ops.push(SessionOp::ProbeBounds {
+                target: BoundsTarget::Slot {
+                    node,
+                    slot: row.slot,
+                },
+            });
+        }
+    }
+
+    /// The range probe's button and reading for a DOCUMENT PARAMETER —
+    /// the one field that is not a slot.
+    fn param_bounds_ui(&mut self, ui: &mut egui::Ui, name: &ParamName, dimension: Dimension) {
+        let target = BoundsTarget::Param { name: name.clone() };
+        ui.horizontal(|ui| {
+            if let Some((probed, result)) = self.session.bounds()
+                && *probed == target
+            {
+                // A document parameter stores no display unit
+                // (`props`' module docs name the asymmetry), so its
+                // range reads in the canonical one.
+                ui.weak(result.wording(props::written_unit(dimension, None)));
+            }
+            if ui
+                .small_button("range?")
+                .on_hover_text(
+                    "probe how far this can move before something new fails \
+                     (tens of evaluations)",
+                )
+                .clicked()
+            {
+                self.ops.push(SessionOp::ProbeBounds { target });
+            }
+        });
     }
 
     /// The view pane: the numbers the camera and the tessellation are

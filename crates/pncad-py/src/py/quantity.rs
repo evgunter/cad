@@ -299,5 +299,6 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("inch", LengthUnit(q::IN))?;
     m.add("deg", AngleUnit(q::DEG))?;
     m.add("rad", AngleUnit(q::RAD))?;
+    m.add("pi", AngleUnit(q::PI))?;
     Ok(())
 }

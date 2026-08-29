@@ -50,6 +50,7 @@
 //! in this crate (the ratified micro-decision in GUI-DESIGN, and
 //! `mesh`'s own δ-is-not-ε contract).
 
+pub mod bounds;
 pub mod camera;
 pub mod display;
 pub mod docio;

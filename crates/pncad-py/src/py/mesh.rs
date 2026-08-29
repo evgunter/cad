@@ -57,10 +57,9 @@ use pncad::stl;
 /// as attributes, always present and `None` where inapplicable so a
 /// stub-guided read cannot `AttributeError`.
 ///
-/// The message is a `Debug` rendering rather than the door's own
-/// prose, because `mesh::TessellateError` implements no `Display` —
-/// the one refusal type on this surface that does not. The tag carries
-/// the branchable content in the meantime.
+/// The human message is the kernel's own `Display` prose, as at every
+/// other door on this surface; the machine payload is the `variant`
+/// tag (see `crate::tags`).
 fn tessellate_err(py: Python<'_>, err: &mesh::TessellateError) -> PyErr {
     use mesh::TessellateError as T;
     let none = || py.None().into_any();
@@ -114,12 +113,7 @@ fn tessellate_err(py: Python<'_>, err: &mesh::TessellateError) -> PyErr {
     if let Err(failed) = projected {
         return failed;
     }
-    typed_err(
-        py,
-        ErrorClass::Tessellate,
-        format!("tessellate refused: {err:?}"),
-        &fields,
-    )
+    typed_err(py, ErrorClass::Tessellate, err.to_string(), &fields)
 }
 
 /// Raise `StlError` with the writer's own message and a stable
