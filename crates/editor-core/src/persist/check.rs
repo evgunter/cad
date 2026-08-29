@@ -354,11 +354,11 @@ pub enum SnapshotError {
     /// `order` and the node map disagree (missing, extra, or
     /// duplicated ids).
     OrderMismatch,
-    /// A `Node::Fillet` selection is not in canonical form (sorted
+    /// A blend node's selection is not in canonical form (sorted
     /// and deduplicated) — a corrupt file, refused rather than
     /// repaired (M6-5).
-    FilletSelectionNotCanonical {
-        /// The offending fillet node.
+    BlendSelectionNotCanonical {
+        /// The offending fillet or chamfer node.
         node: RecipeNodeId,
     },
     /// An id at or beyond the mint counter appears in the document.
@@ -498,9 +498,9 @@ impl core::fmt::Display for SnapshotError {
                 "the `order` list and the node map disagree — an id is missing, extra or \
                  duplicated",
             ),
-            Self::FilletSelectionNotCanonical { node } => write!(
+            Self::BlendSelectionNotCanonical { node } => write!(
                 f,
-                "fillet node {}'s selection is not sorted and deduplicated — a corrupt \
+                "blend node {}'s selection is not sorted and deduplicated — a corrupt \
                  selection is refused, never repaired",
                 node.0
             ),
@@ -656,16 +656,16 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
                 check_id(n)?;
             }
         }
-        // The fillet selection carries one check of its own (M6-5): the
-        // canonical form. `Node::fillet` is the only construction door
-        // and it canonicalizes, so a non-canonical selection on the
-        // wire is a CORRUPT file — refused, never quietly re-sorted (a
-        // repair would change the node's content key behind the
-        // caller's back).
-        if let Node::Fillet { selection, .. } = node
+        // A blend's selection carries one check of its own (M6-5): the
+        // canonical form. `Node::fillet`/`Node::chamfer` are the only
+        // construction doors and they canonicalize, so a non-canonical
+        // selection on the wire is a CORRUPT file — refused, never
+        // quietly re-sorted (a repair would change the node's content
+        // key behind the caller's back).
+        if let Node::Fillet { selection, .. } | Node::Chamfer { selection, .. } = node
             && selection.windows(2).any(|w| w[0] >= w[1])
         {
-            return Err(SnapshotError::FilletSelectionNotCanonical { node: id });
+            return Err(SnapshotError::BlendSelectionNotCanonical { node: id });
         }
         // The placement RULE (GROUP-BOOLEAN-DESIGN), re-checked for the
         // same reason the A11 registry is below: a saved file is DATA,

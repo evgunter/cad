@@ -3,7 +3,7 @@ id: 7ddec231df0049f879136a2f7624647d
 {
   "snapshot": {
     "id": "7ddec231df0049f879136a2f7624647d",
-    "next_id": 6,
+    "next_id": 7,
     "nodes": {
       "0": {
         "Profile": {
@@ -450,51 +450,302 @@ id: 7ddec231df0049f879136a2f7624647d
         }
       },
       "4": {
-        "Measure": {
-          "expr": {
-            "Sub": [
-              {
-                "Value": {
-                  "Param": {
-                    "name": "depth",
-                    "dim": "Length"
-                  }
-                }
-              },
-              {
-                "Value": {
-                  "Literal": {
-                    "value": 0.25,
-                    "dim": "Length"
-                  }
-                }
-              }
+        "Profile": {
+          "plane": {
+            "basis": [
+              [
+                1.0,
+                0.0,
+                0.0
+              ],
+              [
+                0.0,
+                1.0,
+                0.0
+              ],
+              [
+                0.0,
+                0.0,
+                1.0
+              ]
+            ],
+            "origin": [
+              0.0,
+              0.0,
+              0.0
             ]
           },
-          "refs": [
+          "loops": [
             {
-              "at": 1,
-              "name": {
-                "kind": "Body",
-                "node": 1,
-                "path": [
-                  "OutputBody"
-                ]
-              }
+              "Chain": [
+                {
+                  "At": [
+                    {
+                      "Literal": {
+                        "value": 0.0,
+                        "dim": "Length"
+                      }
+                    },
+                    {
+                      "Literal": {
+                        "value": 0.0,
+                        "dim": "Length"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "LineTo": {
+                    "Point": [
+                      {
+                        "Literal": {
+                          "value": 1.0,
+                          "dim": "Length"
+                        }
+                      },
+                      {
+                        "Literal": {
+                          "value": 0.0,
+                          "dim": "Length"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "LineTo": {
+                    "Point": [
+                      {
+                        "Literal": {
+                          "value": 1.0,
+                          "dim": "Length"
+                        }
+                      },
+                      {
+                        "Literal": {
+                          "value": 1.0,
+                          "dim": "Length"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "LineTo": {
+                    "Point": [
+                      {
+                        "Literal": {
+                          "value": 0.0,
+                          "dim": "Length"
+                        }
+                      },
+                      {
+                        "Literal": {
+                          "value": 1.0,
+                          "dim": "Length"
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "LineTo": "Start"
+                }
+              ]
             }
           ]
         }
       },
       "5": {
-        "Assertion": {
-          "measure": 4,
-          "bound": {
+        "Extrude": {
+          "profile": 4,
+          "distance": {
+            "Literal": {
+              "value": 0.5,
+              "dim": "Length"
+            }
+          }
+        }
+      },
+      "6": {
+        "Chamfer": {
+          "target": 5,
+          "distance": {
             "Literal": {
               "value": 0.1,
               "dim": "Length"
             }
           },
-          "dir": "AtLeast"
+          "selection": [
+            {
+              "kind": "Edge",
+              "node": 5,
+              "path": [
+                {
+                  "RimEdge": [
+                    "Top",
+                    {
+                      "loop_index": 0,
+                      "segment": 0
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "Edge",
+              "node": 5,
+              "path": [
+                {
+                  "RimEdge": [
+                    "Top",
+                    {
+                      "loop_index": 0,
+                      "segment": 1
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "Edge",
+              "node": 5,
+              "path": [
+                {
+                  "RimEdge": [
+                    "Top",
+                    {
+                      "loop_index": 0,
+                      "segment": 2
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "Edge",
+              "node": 5,
+              "path": [
+                {
+                  "RimEdge": [
+                    "Top",
+                    {
+                      "loop_index": 0,
+                      "segment": 3
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "Edge",
+              "node": 5,
+              "path": [
+                {
+                  "RimEdge": [
+                    "Bottom",
+                    {
+                      "loop_index": 0,
+                      "segment": 0
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "Edge",
+              "node": 5,
+              "path": [
+                {
+                  "RimEdge": [
+                    "Bottom",
+                    {
+                      "loop_index": 0,
+                      "segment": 1
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "Edge",
+              "node": 5,
+              "path": [
+                {
+                  "RimEdge": [
+                    "Bottom",
+                    {
+                      "loop_index": 0,
+                      "segment": 2
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "Edge",
+              "node": 5,
+              "path": [
+                {
+                  "RimEdge": [
+                    "Bottom",
+                    {
+                      "loop_index": 0,
+                      "segment": 3
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "Edge",
+              "node": 5,
+              "path": [
+                {
+                  "LateralEdge": {
+                    "loop_index": 0,
+                    "vertex": 0
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "Edge",
+              "node": 5,
+              "path": [
+                {
+                  "LateralEdge": {
+                    "loop_index": 0,
+                    "vertex": 1
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "Edge",
+              "node": 5,
+              "path": [
+                {
+                  "LateralEdge": {
+                    "loop_index": 0,
+                    "vertex": 2
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "Edge",
+              "node": 5,
+              "path": [
+                {
+                  "LateralEdge": {
+                    "loop_index": 0,
+                    "vertex": 3
+                  }
+                }
+              ]
+            }
+          ]
         }
       }
     },
@@ -504,12 +755,14 @@ id: 7ddec231df0049f879136a2f7624647d
       2,
       3,
       4,
-      5
+      5,
+      6
     ],
     "roots": [
-      5,
+      1,
       2,
-      3
+      3,
+      6
     ],
     "placements": {},
     "params": {

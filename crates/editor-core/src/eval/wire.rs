@@ -9,6 +9,7 @@ use std::sync::Arc;
 
 use geom_core::k_stats::decide;
 use geom_core::{Affine3, Band, Decide, Margin, Mat3, Point2, Point3, Sign, Tol, Vec2, Vec3};
+use sweep::fillet::BlendKind;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::splitting::{SplitPart, SplitPlane, split};
 use topo::transform::transform_rigid;
@@ -122,6 +123,9 @@ where
         Node::Fillet {
             target, selection, ..
         } => wire_fillet(id, *target, selection, doc, results, vals, tol),
+        Node::Chamfer {
+            target, selection, ..
+        } => wire_chamfer(id, *target, selection, doc, results, vals, tol),
         Node::Split { target, tool } => wire_split(id, *target, *tool, results, tol),
         Node::Boolean { op, a, b, declare } => wire_boolean(
             id,
@@ -626,7 +630,7 @@ fn wire_extrude<T: Decide>(
     ))
 }
 
-fn wire_revolve<T: Decide>(
+fn wire_revolve<T: Decide + geom_brep::PcurveFittedLane>(
     id: RecipeNodeId,
     profile: RecipeNodeId,
     axis: RecipeNodeId,
@@ -736,12 +740,12 @@ fn wire_revolve<T: Decide>(
 ///
 /// The selection resolves through the TARGET's name table into edge
 /// keys. Resolution failures are the N5 typed trio VERBATIM
-/// ([`NodeErrorKind::FilletSelectionResolve`]) — a selection is a
+/// ([`NodeErrorKind::BlendSelectionResolve`]) — a selection is a
 /// commitment (`Node::Fillet`'s freeze semantics), so a name that
 /// stopped resolving refuses loudly rather than shrinking the set.
 ///
 /// Failure of the op itself is a TYPED refusal
-/// ([`NodeErrorKind::Fillet`]) carrying the kernel's own error
+/// ([`NodeErrorKind::Blend`]) carrying the kernel's own error
 /// unaltered, exactly as the split/boolean arms carry theirs. The
 /// input body is never passed through: a fillet that did not happen
 /// must read as a failed node, not as a silently sharp solid.
@@ -764,7 +768,7 @@ fn wire_revolve<T: Decide>(
 /// result carries, even against a disjoint operand — and that
 /// frontier, which predates M6-5, is pinned executed in the same
 /// file. The naming side is ready; the kernel side is not.
-fn wire_fillet<T: Decide + geom_core::Bounds>(
+fn wire_fillet<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     id: RecipeNodeId,
     target: RecipeNodeId,
     selection: &[names::StableName],
@@ -776,9 +780,12 @@ fn wire_fillet<T: Decide + geom_core::Bounds>(
     let body = body_operand(results, target)?;
     let radius = need_scalar(vals, SlotId::Radius)?;
     let target_table = Arc::clone(&value_of(results, target)?.name_table);
-    let edges = resolve_selection(selection, doc, &target_table)?;
+    let edges = resolve_selection(BlendKind::Fillet, selection, doc, &target_table)?;
     let filleted = sweep::fillet::build::fillet_edges(&body, &edges, radius, band(tol)?, tol)
-        .map_err(NodeErrorKind::Fillet)?;
+        .map_err(|error| NodeErrorKind::Blend {
+            verb: BlendKind::Fillet,
+            error,
+        })?;
     // The assembly always keeps records, so `None` is a kernel bug:
     // refuse loudly rather than fall back to an empty table, which
     // would leave every downstream reference into this body silently
@@ -796,6 +803,64 @@ fn wire_fillet<T: Decide + geom_core::Bounds>(
     // The blend's own surfaces/curves/points are minted HERE (D1/N6);
     // the supports' pass-through descriptions keep the source they
     // arrived with.
+    stamp_minted(&mut out, id);
+    Ok(OpOut::plain(ValuePayload::Body(Arc::new(out)), table))
+}
+
+/// **Equal-setback flat chamfers on a SELECTION of the target's
+/// edges** — [`wire_fillet`]'s twin, arm for arm.
+///
+/// The selection resolves through the TARGET's name table into edge
+/// keys, resolution failures are the N5 typed trio verbatim, the op's
+/// own failure is a typed refusal carrying the kernel's error
+/// unaltered ([`NodeErrorKind::Blend`] with [`BlendKind::Chamfer`]),
+/// and the input body is never passed through. Every one of those
+/// sentences is [`wire_fillet`]'s and holds here for the same reasons
+/// — read them there.
+///
+/// # Naming
+///
+/// The chamfer surgery IS the fillet surgery: `chamfer_edges` returns
+/// the same birth records, so this door refuses `naming: None` exactly
+/// as the fillet's does and hands the records to
+/// [`names::name_chamfer`], which mints under THIS node's id. That id
+/// is the whole discrimination (RECIPE-DOORS D3): the role vocabulary
+/// is shared, and what tells a chamfer's strip from a fillet's blend
+/// at a selector is which node minted it.
+fn wire_chamfer<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
+    id: RecipeNodeId,
+    target: RecipeNodeId,
+    selection: &[names::StableName],
+    doc: &crate::doc::Doc<ProfileProgram>,
+    results: &Results<T>,
+    vals: &SlotValues<T>,
+    tol: Tol,
+) -> OpResult<T> {
+    let body = body_operand(results, target)?;
+    let distance = need_scalar(vals, SlotId::ChamferDistance)?;
+    let target_table = Arc::clone(&value_of(results, target)?.name_table);
+    let edges = resolve_selection(BlendKind::Chamfer, selection, doc, &target_table)?;
+    let chamfered = sweep::fillet::build::chamfer_edges(&body, &edges, distance, band(tol)?, tol)
+        .map_err(|error| NodeErrorKind::Blend {
+        verb: BlendKind::Chamfer,
+        error,
+    })?;
+    // The assembly always keeps records, so `None` is a kernel bug —
+    // the fillet door's argument unchanged: an empty table would leave
+    // every downstream reference into this body silently unresolvable.
+    let rec =
+        chamfered
+            .naming
+            .as_ref()
+            .ok_or(NodeErrorKind::Naming(names::NamingError::Emission {
+                what: "the chamfer returned a body with no birth records",
+            }))?;
+    let table = names::name_chamfer(id, target, &target_table, &chamfered.body, rec)
+        .map_err(NodeErrorKind::Naming)?;
+    let mut out = chamfered.body;
+    // The strips' and patches' own surfaces, curves and points are
+    // minted HERE (D1/N6); the supports' pass-through descriptions keep
+    // the source they arrived with.
     stamp_minted(&mut out, id);
     Ok(OpOut::plain(ValuePayload::Body(Arc::new(out)), table))
 }
@@ -941,6 +1006,7 @@ mod ladder {
 /// so the kernel sees the deterministic order every derived list in
 /// this kernel inherits (D9) regardless of how the recipe sorted.
 fn resolve_selection(
+    verb: BlendKind,
     selection: &[names::StableName],
     doc: &crate::doc::Doc<ProfileProgram>,
     target: &NameTable,
@@ -948,16 +1014,17 @@ fn resolve_selection(
     use crate::names::EntityKey;
 
     if selection.is_empty() {
-        return Err(NodeErrorKind::FilletSelectionEmpty);
+        return Err(NodeErrorKind::BlendSelectionEmpty { verb });
     }
     let mut keys = Vec::with_capacity(selection.len());
     for name in selection {
-        let refused = |error| NodeErrorKind::FilletSelectionResolve { error };
+        let refused = |error| NodeErrorKind::BlendSelectionResolve { verb, error };
         let live = ladder::live(name, doc).map_err(refused)?;
         let landing = ladder::landing(&live, target);
         let ent = ladder::resolve(live, landing).map_err(refused)?;
         let EntityKey::Edge(k) = ent.key else {
-            return Err(NodeErrorKind::FilletSelectionKind {
+            return Err(NodeErrorKind::BlendSelectionKind {
+                verb,
                 name: Box::new(name.clone()),
                 found: ent.key.kind(),
             });
@@ -1130,7 +1197,7 @@ fn wire_assertion<T: Decide>(
     ))
 }
 
-fn wire_split<T: Decide>(
+fn wire_split<T: Decide + geom_brep::PcurveFittedLane>(
     id: RecipeNodeId,
     target: RecipeNodeId,
     tool: RecipeNodeId,
@@ -1187,7 +1254,7 @@ fn wire_split<T: Decide>(
 // BVH candidate generation reads coordinate brackets — the L7 driver-code
 // allowance, threaded from `run_op`'s service bound.
 #[allow(clippy::too_many_arguments)] // one parameter per named input; strategy is the §4.4 door
-fn wire_boolean<T: Decide + geom_core::Bounds>(
+fn wire_boolean<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     id: RecipeNodeId,
     op: BooleanOp,
     a: RecipeNodeId,
@@ -1464,7 +1531,7 @@ fn resolve_declarations(
     Ok(out)
 }
 
-fn wire_transform<T: Decide>(
+fn wire_transform<T: Decide + geom_brep::PcurveFittedLane>(
     id: RecipeNodeId,
     input: RecipeNodeId,
     results: &Results<T>,
@@ -1548,7 +1615,7 @@ fn stepped_map<T: Decide>(
     }
 }
 
-fn wire_pattern<T: Decide>(
+fn wire_pattern<T: Decide + geom_brep::PcurveFittedLane>(
     id: RecipeNodeId,
     input: RecipeNodeId,
     kind: &PatternKind,
@@ -1618,7 +1685,7 @@ fn wire_pattern<T: Decide>(
 /// node, which may hand back the prototype verbatim for its identity
 /// instance, a placed union has no reason to special-case a map that an
 /// explicit rule need not make the identity.
-fn wire_placed_union<T: Decide + geom_core::Bounds>(
+fn wire_placed_union<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     id: RecipeNodeId,
     input: RecipeNodeId,
     kind: &PatternKind,
@@ -1801,7 +1868,7 @@ fn need_count(vals: &SlotValues<impl Decide>, slot: SlotId) -> Result<usize, Nod
 /// The Loft node (M6-3: the frontier flipped to the BUILDER — the
 /// §10.3 walls plus the M5-LOG item-6 assembly, tiers 1–3 green at
 /// rest).
-fn wire_loft<T: Decide + geom_core::Bounds>(
+fn wire_loft<T: Decide + geom_brep::PcurveFittedLane + geom_core::Bounds>(
     id: RecipeNodeId,
     profiles: &[RecipeNodeId],
     doc: &crate::doc::Doc<ProfileProgram>,

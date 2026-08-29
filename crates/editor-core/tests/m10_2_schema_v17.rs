@@ -1,17 +1,17 @@
 //! **The measurement vocabulary on the wire** (ERROR-DESIGN E3/E10,
-//! CONTACT-DESIGN C5) — schema **v16**, and the gate that refuses
+//! CONTACT-DESIGN C5) — schema **v17**, and the gate that refuses
 //! everything older.
 //!
-//! Before v16 the node enum had no `Measure` and no `Assertion`. A v15
+//! Before v17 the node enum had no `Measure` and no `Assertion`. A v16
 //! reader handed either meets a variant its `deny_unknown_fields` node
 //! enum has no name for and dies inside serde rather than at the
 //! version door — which is exactly the direction the gate buys. The
-//! other direction is forgiving by construction (a v15 file contains
+//! other direction is forgiving by construction (a v16 file contains
 //! neither node), so the disposition is the family's: the older file
 //! refuses TYPED with the regenerate recourse, and the migration table
 //! stays empty.
 //!
-//! **Why 16.** Read by eye from main's constant at the final re-merge
+//! **Why 17.** Read by eye from main's constant at the final re-merge
 //! (`git show origin/main:crates/editor-core/src/persist/mod.rs | grep
 //! SCHEMA_VERSION`), because units have repeatedly had a same-number
 //! claim merge CLEAN — both sides write the identical line, so git
@@ -63,47 +63,47 @@ fn two_named_nodes(doc: &ProfileDoc) -> ProfileDoc {
 
 /// The prior live golden, kept as the REFUSAL fixture: a break nobody
 /// can demonstrate is a break nobody can trust.
-const V15: &str = include_str!("golden/v15_golden.cad");
+const V16: &str = include_str!("golden/v16_golden.cad");
 /// One further back, to show the gate has no notion of "nearly
 /// current".
-const V14: &str = include_str!("golden/v14_golden.cad");
+const V15: &str = include_str!("golden/v15_golden.cad");
 
 #[test]
 fn schema_version_is_current() {
-    assert_eq!(SCHEMA_VERSION, 16);
+    assert_eq!(SCHEMA_VERSION, 17);
 }
 
 #[test]
 fn the_checked_in_older_goldens_are_really_older() {
+    assert_eq!(V16.lines().next(), Some("schema: 16"));
     assert_eq!(V15.lines().next(), Some("schema: 15"));
-    assert_eq!(V14.lines().next(), Some("schema: 14"));
 }
 
-/// The break, demonstrated in the direction that matters: a v15 file
+/// The break, demonstrated in the direction that matters: a v16 file
 /// refuses TYPED at the version door, naming the version found, the
 /// version supported, and the step that does not exist.
 #[test]
-fn v15_refuses_too_old() {
-    match load(V15, Tol::witness()) {
+fn v16_refuses_too_old() {
+    match load(V16, Tol::witness()) {
         Err(PersistError::SchemaTooOld {
             found,
             supported,
             missing,
         }) => {
-            assert_eq!(found, 15);
+            assert_eq!(found, 16);
             assert_eq!(supported, SCHEMA_VERSION);
             assert_eq!(
-                missing, 15,
-                "the 15 -> 16 step is the one that does not exist"
+                missing, 16,
+                "the 16 -> 17 step is the one that does not exist"
             );
         }
-        other => panic!("v15 must refuse SchemaTooOld, got {other:?}"),
+        other => panic!("v16 must refuse SchemaTooOld, got {other:?}"),
     }
 }
 
 #[test]
 fn the_refusal_carries_the_regenerate_recourse() {
-    for (label, bytes) in [("v15", V15), ("v14", V14)] {
+    for (label, bytes) in [("v16", V16), ("v15", V15)] {
         let msg = match load(bytes, Tol::witness()) {
             Err(e) => e.to_string(),
             Ok(_) => panic!("{label} must refuse"),
@@ -237,7 +237,7 @@ fn angular() -> ProfileDoc {
 /// the measured expression is the point — a value-blind comparator
 /// would pass here with `0.0` on the wire.
 #[test]
-fn every_measure_form_round_trips_at_v16() {
+fn every_measure_form_round_trips_at_v17() {
     for doc in [every_form(), angular()] {
         let text = save(&doc, &[], Tol::witness()).expect("the document saves");
         assert_eq!(

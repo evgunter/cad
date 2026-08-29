@@ -723,6 +723,15 @@ fn remap_node(
             radius.clone(),
             selection.iter().map(nm).collect::<Result<_, _>>()?,
         ),
+        Node::Chamfer {
+            target,
+            distance,
+            selection,
+        } => Node::chamfer(
+            id(*target)?,
+            distance.clone(),
+            selection.iter().map(nm).collect::<Result<_, _>>()?,
+        ),
         Node::Split { target, tool } => Node::Split {
             target: id(*target)?,
             tool: id(*tool)?,

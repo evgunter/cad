@@ -428,18 +428,27 @@ pub enum NodeErrorKind {
     Revolve(RevolveError),
     /// The split op refused.
     Split(SplitError),
-    /// The constant-radius fillet op refused (M5 PR 12): a structural
-    /// precondition on the requested chain, one of the numbered
-    /// rolling-ball predicates, a corner or spine class the in-place
+    /// A BLEND op refused — the fillet's (M5 PR 12) or the chamfer's:
+    /// a structural precondition on the requested chain, one of the
+    /// numbered predicates, a corner or spine class the in-place
     /// surgery has not been built for, or an escalation. Which door
     /// refused, and what it refused about, is stated on
     /// [`sweep::fillet::FilletError`]'s own variants and rendered by
     /// its `Display` — this doc names no predicate of its own, so it
     /// cannot drift from one.
     ///
+    /// `verb` is which blend asked, because the two share one kernel
+    /// error type and a reader must not be told a chamfer's refusal
+    /// was a fillet's.
+    ///
     /// Carried UNALTERED like every other kernel refusal; the node
     /// never passes its input body through.
-    Fillet(sweep::fillet::FilletError),
+    Blend {
+        /// Which blend the refusing node is.
+        verb: sweep::fillet::BlendKind,
+        /// The kernel's own refusal.
+        error: sweep::fillet::FilletError,
+    },
     /// The boolean op refused.
     Boolean(BooleanError),
     /// The rigid-transform op refused.
@@ -622,30 +631,41 @@ pub enum NodeErrorKind {
         /// The refusing predicate's diagnostics, unaltered.
         diag: Indeterminate,
     },
-    /// A `Node::Fillet` selection name failed to resolve through the
+    /// A blend node's selection name failed to resolve through the
     /// TARGET's name table (M6-5) — the same N5 typed trio as
     /// [`NodeErrorKind::DeclareResolve`], and for the same reason: a
     /// selection is a commitment, so a name that no longer resolves
     /// refuses loudly instead of silently shrinking the set.
-    FilletSelectionResolve {
+    ///
+    /// The edge-selection ladder is ONE door serving both blend nodes,
+    /// so its refusals carry `verb` rather than being written twice —
+    /// a chamfer's refusal says "chamfer".
+    BlendSelectionResolve {
+        /// Which blend the refusing node is.
+        verb: sweep::fillet::BlendKind,
         /// The resolution failure (N5's closed trio).
         error: Box<crate::resolve::ResolveError>,
     },
-    /// A `Node::Fillet` selection named something that is not an EDGE
+    /// A blend node's selection named something that is not an EDGE
     /// of the target (a face, a vertex, the body). The op blends
     /// edges; a mis-kinded selection is a recipe bug, refused rather
     /// than reinterpreted.
-    FilletSelectionKind {
+    BlendSelectionKind {
+        /// Which blend the refusing node is.
+        verb: sweep::fillet::BlendKind,
         /// The offending name.
         name: Box<crate::names::StableName>,
         /// What it actually denotes.
         found: crate::names::EntityKind,
     },
-    /// A `Node::Fillet` selection is EMPTY. A fillet of nothing is not
+    /// A blend node's selection is EMPTY. A blend of nothing is not
     /// the identity — it is an unfinished recipe, refused rather than
     /// passed through (the fail-loud voice: no op silently returns its
     /// input).
-    FilletSelectionEmpty,
+    BlendSelectionEmpty {
+        /// Which blend the refusing node is.
+        verb: sweep::fillet::BlendKind,
+    },
     /// A sketch node's branch selection refused (SOLVER-DESIGN W3;
     /// M4 PR 4 pins the document semantics — a per-node failure
     /// poisoning descendants only, GQ2/W5). NEVER constructed before
@@ -892,7 +912,7 @@ impl core::fmt::Display for NodeErrorKind {
             Self::Extrude(e) => write!(f, "the extrude op refused: {e}"),
             Self::Revolve(e) => write!(f, "the revolve op refused: {e}"),
             Self::Split(e) => write!(f, "the split op refused: {e}"),
-            Self::Fillet(e) => write!(f, "the fillet op refused: {e}"),
+            Self::Blend { verb, error } => write!(f, "the {verb} op refused: {error}"),
             Self::Boolean(e) => write!(
                 f,
                 "the Boolean op refused its operands (undeclared coincidence is the \
@@ -994,17 +1014,18 @@ impl core::fmt::Display for NodeErrorKind {
             Self::UndeclaredContact { finding, diag } => {
                 crate::finding::compose(f, &UndeclaredContactFinding { finding, diag })
             }
-            Self::FilletSelectionResolve { error } => {
-                write!(f, "a fillet selection name failed to resolve: {error}")
+            Self::BlendSelectionResolve { verb, error } => {
+                write!(f, "a {verb} selection name failed to resolve: {error}")
             }
-            Self::FilletSelectionKind { name, found } => write!(
+            Self::BlendSelectionKind { verb, name, found } => write!(
                 f,
-                "the fillet selection name minted by node {} denotes a {}, not an edge",
+                "the {verb} selection name minted by node {} denotes a {}, not an edge",
                 name.node.0,
                 found.noun()
             ),
-            Self::FilletSelectionEmpty => f.write_str(
-                "the fillet selection is empty — an unfinished recipe, not the identity",
+            Self::BlendSelectionEmpty { verb } => write!(
+                f,
+                "the {verb} selection is empty — an unfinished recipe, not the identity"
             ),
             Self::MeasureRefResolve { error } => {
                 write!(f, "a measure reference failed to resolve: {error}")
@@ -1773,10 +1794,17 @@ where
         // for a new meaning (M5 PR 10's rule), so the mate takes the
         // next free number rather than the one its unit first wrote.
         Node::Mate { .. } => 23,
+        // LIB-G16. Appended, never a reused tag: a chamfer and a
+        // fillet of the same size on the same edges are different
+        // geometry, so they must not share a key.
+        Node::Chamfer { .. } => 24,
         // M10-2. Tags APPEND — an existing one must never be reused
-        // for a new meaning.
-        Node::Measure { .. } => 24,
-        Node::Assertion { .. } => 25,
+        // for a new meaning. Both of these claimed 24 on their own
+        // branches; LIB-G16 merged first, so they take the next free
+        // numbers rather than the ones this unit first wrote. Keys are
+        // process-internal, so the renumber costs nothing on disk.
+        Node::Measure { .. } => 25,
+        Node::Assertion { .. } => 26,
     };
     h.write_tag(tag);
     // Structural payloads beyond the tag — everything a node carries
@@ -1936,11 +1964,11 @@ where
                 }
             }
         }
-        // The fillet SELECTION is recipe payload, not a slot: two
-        // fillets of the same radius on different edges are different
-        // nodes (M6-5). Canonical order (`Node::fillet`) is what makes
-        // this a set hash rather than an order hash.
-        Node::Fillet { selection, .. } => {
+        // A blend's SELECTION is recipe payload, not a slot: two
+        // blends of the same size on different edges are different
+        // nodes (M6-5). Canonical order (the construction doors) is
+        // what makes this a set hash rather than an order hash.
+        Node::Fillet { selection, .. } | Node::Chamfer { selection, .. } => {
             h.write_u64(selection.len() as u64);
             for n in selection {
                 feed_stable_name(&mut h, n);

@@ -292,10 +292,12 @@ fn pipped_node(doc: &mut Doc<ProfileProgram>, cube: RecipeNodeId, tol: Tol) -> R
 /// **The source solid as BODIES** — `(sharp cube, pipped cube)` off
 /// one evaluation of the shared recipe above.
 ///
-/// `diechamfer` starts here: its verb has no recipe node to be
-/// (`Node::fillet` has no chamfer sibling), so it cannot continue this
-/// document and takes the source out as geometry instead. What it can
-/// share is the model above the blends, and this is that door.
+/// `diechamfer` starts here: it exercises `chamfer_edges` from the
+/// PLAIN-body seat, so it takes the source out as geometry rather than
+/// continuing this document. (`Node::Chamfer` exists since LIB-G16 —
+/// that scene's choice is about which seat it is evidence for, not
+/// about an absent node.) What it can share is the model above the
+/// blends, and this is that door.
 pub fn source_bodies(tol: Tol) -> (Body<f64>, Body<f64>) {
     let mut doc: Doc<ProfileProgram> = Doc::empty_derived("die-source", tol);
     let cube = cube_node(&mut doc, tol);

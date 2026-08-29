@@ -45,6 +45,7 @@ use topo::Body;
 pub mod boss;
 pub mod cut_cylinder;
 pub mod die;
+pub mod die_chamfer;
 pub mod die_composed;
 pub mod die_fillet;
 pub mod die_pips;
@@ -149,6 +150,11 @@ pub fn documents() -> Vec<CorpusDoc> {
         // like every other row. It stays additionally pinned at both
         // scalars by `m5_pr12_fillet_node.rs`.
         die_fillet::document(),
+        // `die_chamfer` (LIB-G16): `die_fillet`'s recipe with the
+        // blend swapped, so the chamfer node carries the full registry
+        // battery — every ε, the Interval lane, persistence, latency —
+        // and the two documents are comparable at every row.
+        die_chamfer::document(),
         die_pips::document(),
         // LIB-PLACEDUNION's two register payoffs, each the grouped
         // TWIN of a document already here (`heat_sink`; the die tour's
@@ -234,7 +240,7 @@ pub fn body_of<T: Decide>(ev: &Evaluation<T>, id: RecipeNodeId) -> &Body<T> {
 }
 
 /// The node kinds a document exercises (the coverage tally's domain).
-pub const NODE_KINDS: [&str; 15] = [
+pub const NODE_KINDS: [&str; 16] = [
     "Datum",
     "Profile",
     "Extrude",
@@ -245,6 +251,9 @@ pub const NODE_KINDS: [&str; 15] = [
     // `documents()`). Not an exemption: `Loft`/`Sweep` below still
     // are.
     "Fillet",
+    // LIB-G16's twin — COVERED, by the registered `die_chamfer`
+    // document.
+    "Chamfer",
     "Split",
     "Boolean",
     "Transform",
@@ -349,6 +358,7 @@ pub fn sub_kinds(node: &Node<ProfileProgram>) -> Vec<&'static str> {
         | Node::Extrude { .. }
         | Node::Revolve { .. }
         | Node::Fillet { .. }
+        | Node::Chamfer { .. }
         | Node::Split { .. }
         | Node::Transform { .. }
         | Node::Loft { .. }
@@ -369,6 +379,7 @@ pub fn node_kind(node: &Node<ProfileProgram>) -> &'static str {
         Node::Extrude { .. } => "Extrude",
         Node::Revolve { .. } => "Revolve",
         Node::Fillet { .. } => "Fillet",
+        Node::Chamfer { .. } => "Chamfer",
         Node::Split { .. } => "Split",
         Node::Boolean { .. } => "Boolean",
         Node::Transform { .. } => "Transform",

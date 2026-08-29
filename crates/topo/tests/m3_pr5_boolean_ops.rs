@@ -78,7 +78,7 @@ fn assert_tier3_posture(body: &Body<f64>) {
 /// Generic op-runner for the interval lane: censuses + kinds only
 /// (exact-value oracles are the f64 lane's; Interval has no PartialEq
 /// by design).
-fn generic_scenarios<T: Decide + geom_core::Bounds>() {
+fn generic_scenarios<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>() {
     let (a, b) = two_bricks::<T>();
     for (op, faces) in [
         (topo::intersect_with as BoolOp<T>, 6),

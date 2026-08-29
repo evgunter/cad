@@ -78,6 +78,12 @@ mod lbret_schema_v8;
 mod lib_doors_node_result;
 #[path = "lib_g14_split_walls.rs"]
 mod lib_g14_split_walls;
+#[path = "lib_g16_blend_messages.rs"]
+mod lib_g16_blend_messages;
+#[path = "lib_g16_chamfer_node.rs"]
+mod lib_g16_chamfer_node;
+#[path = "lib_g16_corpus_name_digests.rs"]
+mod lib_g16_corpus_name_digests;
 #[path = "lib_placedunion.rs"]
 mod lib_placedunion;
 #[path = "lib_sel1_geoselect.rs"]
@@ -98,8 +104,8 @@ mod m10_1_schema_v15;
 mod m10_2_measure;
 #[path = "m10_2_r1_probes.rs"]
 mod m10_2_r1_probes;
-#[path = "m10_2_schema_v16.rs"]
-mod m10_2_schema_v16;
+#[path = "m10_2_schema_v17.rs"]
+mod m10_2_schema_v17;
 #[path = "m10_di_dual_corpus.rs"]
 mod m10_di_dual_corpus;
 #[path = "m10_p_fence.rs"]
@@ -302,3 +308,6 @@ fn every_suite_file_is_aggregated() {
         found.len()
     );
 }
+
+#[path = "r1_probe_v15.rs"]
+mod r1_probe_v15;

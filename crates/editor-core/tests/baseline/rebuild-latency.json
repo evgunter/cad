@@ -50,6 +50,11 @@
       "nodes": 3,
       "cone": 2
     },
+    "die_chamfer": {
+      "about": "every edge of a unit cube chamfered at a setback of 0.125",
+      "nodes": 3,
+      "cone": 2
+    },
     "die_pips": {
       "about": "M5 shape (v) stage 2: a spherical pip cut into a cube face (the corpus's first sphere)",
       "nodes": 7,
