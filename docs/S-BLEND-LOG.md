@@ -87,3 +87,18 @@ Evan's 👍 — never self-merged. Pointer comment left on issue 827.
 PR 1180 (2b merge ⇒ track T claim + shell/offset keep-out lifts)
 and PR 1210 (Evan); LIB-G16's PR checked at check-ins (⇒ BLEND-5/6
 unlock). Session check-ins armed ~hourly.
+
+## SMELL TRACK T CLAIMED (2026-08-29, at SHELLFIX 2b's merge)
+
+VERBS-SHELLFIX PR-2b merged to main at `74e7d36f` (its A/B row,
+ordinal 105 / sample 42, rides the unit PR). Per the plan and the
+ratified survey: **S-BLEND now holds SMELL track T whole**
+(`crates/sweep/`, fence as the partition states it, block
+D320–D339 / S390–S409), and the shell/offset keep-out in
+`crates/sweep` + `topo/replace_face.rs` is lifted. Track-T lanes
+serialize behind BLEND-1 — most rows touch the same `fillet/`
+files (D90, D321, D124) — with `docs/SMELL-T-LOG.md` opening when
+the first lane starts. D320 stays filed-not-takeable (follows
+track N's D240); C-e/H13 gets its 779 contradiction verified
+before staffing. BLEND-1's lane owes a merge of main (2b + M10-P
+landed) before its PR opens; its brief already carries the rule.
