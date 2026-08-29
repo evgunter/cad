@@ -119,6 +119,8 @@ pub fn node_kind(node: &Node<ProfileProgram>) -> &'static str {
         Node::Sweep { .. } => "Sweep",
         Node::InstantiatePart { .. } => "InstantiatePart",
         Node::Mate { .. } => "Mate",
+        Node::Measure { .. } => "Measure",
+        Node::Assertion { .. } => "Assertion",
     }
 }
 

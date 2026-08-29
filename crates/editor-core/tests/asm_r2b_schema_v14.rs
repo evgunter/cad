@@ -42,7 +42,7 @@ fn schema_version_is_current() {
     // Named for the PROPERTY, not the number (the `lbret_schema_v8`
     // precedent): ASM-R2b's own bump was v14; M10-1 took v15 for
     // parameter distributions, and the number is what keeps moving.
-    assert_eq!(SCHEMA_VERSION, 15);
+    assert_eq!(SCHEMA_VERSION, 16);
 }
 
 #[test]

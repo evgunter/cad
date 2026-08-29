@@ -695,6 +695,27 @@ Flagged, NOT fixed here (dispositions):
   rows into the N5 verdict-log channel) remains the editor-layer
   owner's scope call.
 
+- **F16** (added by M10-2, the measurement vocabulary)
+  `editor-core/src/measure.rs` `assert_bound`: an assertion's
+  comparison is `measured − bound` (negated for `AtMost`) in the
+  MEASURE's own dimension, classified against the linear band. For a
+  `Length` measure that comparand is honest metres and the site would
+  take `of`; for an `Angle` measure it is **radians** against a metre
+  band — the audit's class-(c) shape, and it is the same site, so the
+  site is flagged rather than split into an honest lane and a
+  dishonest one under one predicate name.
+  The obvious repair is foreclosed BY RATIFIED DESIGN, which is why
+  this row is a disposition rather than a to-do: ERROR-DESIGN E3
+  rejects lever-arm unification of angle with distance by name —
+  "it requires a chosen length scale — an ad-hoc constant, exactly the
+  class this project refuses". An angular assertion's honest arm is
+  therefore a design question (what extent is an angular tolerance
+  consumed over?) and not something one unit may invent. Two things
+  bound the exposure meanwhile: the comparison is REPORT-ONLY (E10 v1
+  — no gate, no geometry, no downstream outcome reads it), and its
+  band arm is `Unevaluated`, which reports the indeterminacy rather
+  than picking a side. Carried as `decide_flagged(.., "F16")`.
+
 **Every `props/curved.rs` row above is cited BY TARGET NAME, not by
 line** (S176(a)). The line numbers they carried were written against a
 2026-08 tree and had already rotted at #877's merge base; #877 moved

@@ -1046,14 +1046,21 @@ pub enum Node<P> {
     /// `Declare` and `Mate` carry names that are not DAG edges (the
     /// spec D3 carve-out): they pass their names through as data and
     /// something downstream resolves them. A measure resolves its own,
-    /// against values it needs to already exist — so the referenced
-    /// nodes are exactly its data dependencies, and
-    /// [`Node::inputs`] reports them. A deleted reference contributes
-    /// no edge (the schedule filters dangling inputs) and the
-    /// resolution then refuses with NAMING-DESIGN N5's typed
-    /// vocabulary, which is the same dangling-reference semantics
-    /// `Rebind` repairs; blocking the delete is not the trade this
-    /// project makes.
+    /// against values that must ALREADY EXIST when it runs — so the
+    /// referenced nodes are exactly its data dependencies, and
+    /// [`Node::inputs`] reports them. Nothing else can order the sink
+    /// after the geometry it measures: the schedule is edge-driven, so
+    /// an edgeless measure would be scheduled at level 0 and resolve
+    /// against nothing.
+    ///
+    /// **The consequence, stated because it departs from the
+    /// carve-out**: deleting a referenced node is refused at the
+    /// delete door (`DeleteWouldDangle`) exactly as it is for any
+    /// consumer's input, where a `Declare` would have let the delete
+    /// through and stranded the name. N5's dangling semantics still
+    /// govern the case they were written for — a name that stops
+    /// resolving in a still-live node's table, which the typed
+    /// resolution refusal reports and `Rebind` repairs.
     ///
     /// # What a reference denotes
     ///
@@ -1700,14 +1707,29 @@ impl<P: PartialEq> Node<P> {
         if self != other {
             return false;
         }
-        // A measure's expression is recipe payload rather than a slot,
-        // so the slot walk below cannot see its literals: compare them
-        // here or `0.0` and `-0.0` bounds inside a measured expression
-        // would be one node to every D7 comparator.
-        if let (Node::Measure { expr: a, .. }, Node::Measure { expr: b, .. }) = (self, other) {
-            if !a.bit_eq(b) {
-                return false;
+        // The expressions no slot addresses ([`payload_exprs`]) are
+        // invisible to the slot walk below, so they are compared here:
+        // otherwise a `0.0` and a `-0.0` assertion bound would be one
+        // node to every D7 comparator. Equal payloads carry the same
+        // payload expressions in the same order (`self != other` has
+        // already returned), so the two vectors align.
+        match (payload_exprs(self), payload_exprs(other)) {
+            (Some(a), Some(b)) => {
+                if a.len() != b.len() || !a.iter().zip(&b).all(|(x, y)| x.bit_eq(y)) {
+                    return false;
+                }
             }
+            (None, None) => {}
+            _ => return false,
+        }
+        // A measured expression's own literals live inside the
+        // `MeasureExpr`, which `payload_exprs` reaches only the value
+        // leaves of — the primitives and the tree shape are compared by
+        // `PartialEq` above, and the leaves' bits here.
+        if let (Node::Measure { expr: a, .. }, Node::Measure { expr: b, .. }) = (self, other)
+            && !a.bit_eq(b)
+        {
+            return false;
         }
         // Equal payloads have identical slot sets; compare each
         // slot's literal bits (slots() order is deterministic).

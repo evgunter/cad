@@ -416,9 +416,39 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 /// `docs/MODEL-AB-LOG.md`, where a second claimant collides instead of
 /// merging clean.
 ///
+/// Version 16 is **the measurement vocabulary** (ERROR-DESIGN E3/E10,
+/// CONTACT-DESIGN C5; M10-2): [`crate::Node`] gained TWO variants —
+/// `Measure`, carrying a measured expression over a frozen
+/// [`crate::names::StableName`] reference list, and `Assertion`,
+/// carrying a measure's node id, a bound expression and a direction.
+/// Both are file data, and the measured expression is a NEW wire
+/// vocabulary (`WireMeasureExpr`) beside the existing one.
+///
+/// The claim reasoning, stated because a schema number is the one
+/// thing in this repo that two units can silently agree on: this is
+/// the case v7, v13 and v2/v3/v8 bumped for — a new node arm.
+/// Forward-additive (a v15 file contains no measure), while the gate
+/// buys the direction that fails badly: a v16 file handed to a v15
+/// reader meets a variant its `deny_unknown_fields` node enum has no
+/// name for and dies inside serde rather than at the version door.
+/// The migration table stays empty and a v15 file refuses TYPED with
+/// the regenerate recourse.
+///
+/// A document with neither node writes the v15 bytes exactly — the
+/// degenerate carry, not the format claim, exactly as v15's all-`None`
+/// distributions were.
+///
+/// This number was taken by an explicit by-eye read of main's constant
+/// at the final re-merge (`git show
+/// origin/main:crates/editor-core/src/persist/mod.rs | grep
+/// SCHEMA_VERSION`), the only thing that has ever caught the
+/// same-number race, and the claim also lives as prose in
+/// `docs/MODEL-AB-LOG.md`, where a second claimant collides instead of
+/// merging clean.
+///
 /// Bump ONLY with a ratified format change — plus its
-/// [`migration_step`] entry, or a ratified break like these fourteen.
-pub const SCHEMA_VERSION: u32 = 15;
+/// [`migration_step`] entry, or a ratified break like these fifteen.
+pub const SCHEMA_VERSION: u32 = 16;
 
 /// The serialized body under the header: snapshot + edit log (D1).
 #[derive(serde::Serialize, serde::Deserialize)]

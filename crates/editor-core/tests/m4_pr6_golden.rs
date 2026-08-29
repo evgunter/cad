@@ -31,8 +31,8 @@ use editor_core::{
 use fixture::desc;
 use geom_core::Tol;
 
-const GOLDEN: &str = include_str!("golden/v15_golden.cad");
-const GOLDEN_PATH: &str = "tests/golden/v15_golden.cad";
+const GOLDEN: &str = include_str!("golden/v16_golden.cad");
+const GOLDEN_PATH: &str = "tests/golden/v16_golden.cad";
 
 /// The golden document: deterministic (no ambient reads — ε pinned by
 /// the SetTolerance edit) and shape-covering: params, an arc-bearing
@@ -215,9 +215,47 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     doc = push(
         &doc,
         &DocEdit::SetAppearanceMeta {
-            name: body,
+            name: body.clone(),
             key: "tool.example/pin".into(),
             value: MetaValue::Map(m),
+        },
+    );
+    // v16: the measurement vocabulary on the wire (E3/E10) — a
+    // `Measure` carrying a reference list and a measured expression,
+    // and an `Assertion` bounding it. The measured expression is
+    // arithmetic over a parameter and a literal rather than a
+    // primitive: the golden must evaluate GREEN, and a primitive over
+    // this document's only well-known name (a whole BODY) has no
+    // closed form. The primitive leaves' wire forms are pinned by
+    // round-trip in `m10_2_schema_v16.rs`, where a document with real
+    // carriers can be built.
+    doc = push(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::measure(
+                editor_core::MeasureExpr::sub(
+                    editor_core::MeasureExpr::value(Expr::param(
+                        ParamName::new("depth"),
+                        Dimension::Length,
+                    )),
+                    editor_core::MeasureExpr::value(
+                        Expr::literal(0.25, Dimension::Length).expect("finite"),
+                    ),
+                )
+                .expect("same-dimension subtraction"),
+                vec![body.clone()],
+            )
+            .expect("every index addresses a reference"),
+        },
+    );
+    doc = push(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::Assertion {
+                measure: editor_core::RecipeNodeId(4),
+                bound: Expr::literal(0.1, Dimension::Length).expect("finite"),
+                dir: editor_core::AssertionDir::AtLeast,
+            },
         },
     );
     // The committed EDIT LOG half: one trailing continuous edit —
