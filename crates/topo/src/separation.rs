@@ -349,6 +349,22 @@ struct SolidBoxes {
 /// box (overlaps everything, so it refuses rather than certifies), the
 /// same sufficient-not-necessary contract.
 ///
+/// # What it inherits from [`Separation`], said rather than implied
+///
+/// The bound is `T: Decide + Bounds` with no
+/// [`geom_core::CertifiedEnclosure`], which is the sibling door's
+/// signature verbatim and carries the sibling's ratified answer with
+/// it: `geom-core/src/real.rs`'s `Bounds` scope rule settled that
+/// question for `separation` as **NO — the caller decides it, not the
+/// door** (doors tighten; passes keep their lanes). This door is
+/// reached from `editor_core::checks`, a pass, and the rule's
+/// 2026-08-29 entry is where that caller is recorded.
+///
+/// So it admits a `Dual` exactly as [`Separation`] does, and for the
+/// same reason: a `SolidsMeet` is a pair of arena keys, not a value in
+/// `T`, and a box's non-overlap at a dual is its value channel's,
+/// which is the base scalar's (D9).
+///
 /// # Why this exists
 ///
 /// [`crate::graft_disjoint_all_keyed`] asserts nothing about its

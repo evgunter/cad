@@ -71,6 +71,18 @@
 # refusing impl is still not redundant with that. WHY both are needed
 # has ONE home: geom-core/src/real.rs, the M9-2 entry of the `Bounds`
 # scope rule. Not restated here; keep this a pointer.
+# editor-core/src/checks.rs is the advisory-check registry, the
+# SECOND production caller of topo::separation (2026-08-29). It
+# inherits SolidSeparation's signature rather than widening
+# anything, and the `separation` entry at the head of the real.rs
+# rule already decided what such a caller owes — "the CALLER
+# decides it, not the door; doors tighten, passes keep their
+# lanes", and run_checks is a pass. PROPOSED, NOT RATIFIED: unlike
+# the seams above this one is not covered by the self-merge
+# convention — it arose in conversation with Evan and is his to
+# rule on. The argument and that caveat have ONE home:
+# geom-core/src/real.rs, the 2026-08-29 entry. Pointer only.
+#
 # A NEW file writing a compound Bounds bound fails here until it
 # is ratified into the real.rs rule AND this allowlist.
 # profile/src/path/arc_fillet.rs is the LIB-G2 PATHS arc-carrier
@@ -234,6 +246,7 @@ gate() {
     | gate_grep -vE '^crates/topo/src/props\.rs$' \
     | gate_grep -vE '^crates/topo/src/chart_region\.rs$' \
     | gate_grep -vE '^crates/editor-core/src/eval/(mod|wire)\.rs$' \
+    | gate_grep -vE '^crates/editor-core/src/checks\.rs$' \
     | gate_grep -vE '^crates/profile/src/path/arc_fillet\.rs$' \
     | gate_grep -vE '^crates/geom-brep/src/(pcurve_cache|ssi|ssi/certify|edge_nurbs)\.rs$' \
     | gate_grep -vE '^crates/sweep/src/fillet/(battery|build|surgery)\.rs$')

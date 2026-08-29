@@ -556,6 +556,47 @@ pub trait Real:
 /// shares the property and was NOT tightened, the difference being that
 /// nothing generic calls this door (the `separation` entry above).
 ///
+/// **Extension (2026-08-29, PROPOSED — NOT YET RATIFIED; see the note
+/// at the end of this entry):** `editor_core::checks` — the advisory-check
+/// registry — joins the compound allowlist as the **second production
+/// caller** of `topo::separation`, alongside
+/// `editor_core::eval::wire::wire_placed_union`.
+///
+/// It adds no new obligation and opens no new class. The registry's
+/// separation resident calls `topo::SolidSeparation`, the solid-pair
+/// sibling of `Separation`, and inherits that door's signature
+/// verbatim — the same [`face_box`](topo) rule, the same pad, the same
+/// poison reading. The `separation` entry at the head of this rule
+/// already decided what a caller of that door owes: **"Answered NO, and
+/// the CALLER decides it, not the door … Doors tighten; passes keep
+/// their lanes."** `run_checks` is a pass of exactly the kind that
+/// sentence contemplates — a registry of residents whose other member
+/// (connectedness) classifies shells and certifies nothing — so it
+/// keeps its lane, and `T: Decide + Bounds` rather than
+/// `Decide + `[`CertifiedBounds`] is the reading that entry prescribes.
+///
+/// **The split is empty here, and that is stated rather than
+/// discovered.** Since the D1 ruling every scalar carries a bracket,
+/// so a `PropsQuadLane`-style lane would have nothing to refuse — the
+/// PR 12 fillet seam's shape, not M6-2's. What keeps that from being
+/// the fillet seam's *standing obligation* is that this door mints no
+/// certificate object and its answer is not generic in `T`: a
+/// `SolidsMeet` is a pair of arena keys, and a box's non-overlap at a
+/// dual is the value channel's non-overlap, which is the base scalar's
+/// (D9). The resident REPORTS and never gates, so no refusal, mutation
+/// or classification hangs off the read.
+///
+/// **What is owed, and to whom.** This entry was written by an agent
+/// applying the `separation` entry's own ruling, and it is NOT covered
+/// by the self-merge convention the PR 11/PR 12/M6-2/M9-2 extensions
+/// above invoke: those record an orchestrator ruling taken while Evan
+/// was not in the loop, whereas this one arose in conversation with him
+/// and is his to rule on before the PR that carries it merges. Until
+/// then this paragraph and the `bounds-allowlist.sh` entry beside it
+/// are a PROPOSAL that happens to be green, which is exactly the state
+/// a gate cannot distinguish from a ratification — so it is said here,
+/// where a reader consults.
+///
 /// **Not an extension — a spelling.** The pair
 /// `Bounds + CertifiedEnclosure` — both bracket doors, no `Decide` — is
 /// spelled [`CertifiedBounds`] and is therefore a **sole** bound by
