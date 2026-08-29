@@ -590,20 +590,23 @@ fn no_arena_key_type_appears_on_a_public_line_of_the_service() {
     // a public function's body is not public surface and is skipped —
     // which is exactly where `pick_face` legitimately holds a
     // `FaceKey`.
-    let lines: Vec<&str> = src.lines().collect();
-    let code_of = |s: &str| s.split("//").next().unwrap_or("").to_string();
-    let mut surface: Vec<(usize, String)> = Vec::new();
+    // Comments and literal bodies blanked once, for the whole file:
+    // the needles are TYPE NAMES, a key named in prose is not a field,
+    // and the brace depth below counts only real braces. The view keeps
+    // line structure, so a line index is still a line number.
+    let code = test_utils::source::code_only(&src);
+    let lines: Vec<&str> = code.lines().collect();
+    let mut surface: Vec<(usize, &str)> = Vec::new();
     let mut i = 0;
     while i < lines.len() {
-        let code = code_of(lines[i]);
-        let t = code.trim_start();
+        let t = lines[i].trim_start();
         if t.starts_with("pub struct") || t.starts_with("pub enum") {
             let mut depth = 0i32;
             let mut j = i;
             loop {
-                let c = code_of(lines[j]);
+                let c = lines[j];
                 depth += c.matches('{').count() as i32 - c.matches('}').count() as i32;
-                surface.push((j + 1, c.clone()));
+                surface.push((j + 1, c));
                 if (depth <= 0 && j > i) || c.trim_end().ends_with(';') || j + 1 == lines.len() {
                     break;
                 }
@@ -615,8 +618,8 @@ fn no_arena_key_type_appears_on_a_public_line_of_the_service() {
         if t.starts_with("pub fn") {
             let mut j = i;
             loop {
-                let c = code_of(lines[j]);
-                surface.push((j + 1, c.clone()));
+                let c = lines[j];
+                surface.push((j + 1, c));
                 if c.contains('{') || c.trim_end().ends_with(';') || j + 1 == lines.len() {
                     break;
                 }
@@ -634,10 +637,10 @@ fn no_arena_key_type_appears_on_a_public_line_of_the_service() {
         surface.len()
     );
     let mut offenders = Vec::new();
-    for (n, code) in &surface {
+    for (n, line) in &surface {
         for key in ["FaceKey", "EdgeKey", "VertexKey", "ShellKey", "LoopKey"] {
-            if code.contains(key) {
-                offenders.push(format!("{}:{n}: {}", src_path.display(), code.trim()));
+            if line.contains(key) {
+                offenders.push(format!("{}:{n}: {}", src_path.display(), line.trim()));
             }
         }
     }
@@ -649,7 +652,7 @@ fn no_arena_key_type_appears_on_a_public_line_of_the_service() {
     );
     // Anti-vacuity: the scan must have seen the public items at all.
     assert!(
-        src.contains("pub struct PickHit") && src.contains("pub fn pick_face"),
+        code.contains("pub struct PickHit") && code.contains("pub fn pick_face"),
         "the scanner found neither PickHit nor pick_face — the file's \
          shape changed and this guard was about to pass vacuously"
     );

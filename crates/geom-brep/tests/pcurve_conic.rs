@@ -398,11 +398,27 @@ fn ellipse_differential_interval_lane() {
 /// doc-note on `route`, not a committed test).
 #[test]
 fn route_table_has_no_wildcard_arm() {
-    let src = include_str!("../src/intersect.rs");
+    // Comments and literal bodies blanked: the needles are match-arm
+    // TOKENS, so a comment inside `route` naming a wildcard shape is
+    // not an arm and each arm's `note:` string cannot manufacture one.
+    let src = test_utils::source::code_only(include_str!("../src/intersect.rs"));
     let start = src.find("pub fn route(").expect("route fn present");
-    let end = src[start..]
-        .find("\n}\n")
-        .map(|i| start + i)
+    // Brace-matched, not cut at the first `\n}\n`: that slice is a
+    // guess about formatting that ends the table at the first nested
+    // block closing in column zero. In the blanked view a brace is
+    // always a brace, which is what makes the match exact.
+    let open = start + src[start..].find('{').expect("route fn has a body");
+    let mut depth = 0i32;
+    let end = src[open..]
+        .char_indices()
+        .find_map(|(off, c)| {
+            match c {
+                '{' => depth += 1,
+                '}' => depth -= 1,
+                _ => {}
+            }
+            (depth == 0 && c == '}').then_some(open + off)
+        })
         .expect("route fn closes");
     let table = &src[start..end];
     for forbidden in ["_ =>", "(_,", ", _)", "| _", "_ |"] {

@@ -59,7 +59,11 @@ mod review_m3_pr6_e2e;
 #[allow(clippy::expect_used)]
 fn every_suite_file_is_aggregated() {
     let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests");
-    let src = include_str!("all.rs");
+    // Comments blanked, string literals KEPT: the needle IS a string
+    // literal, and a mount that has been commented out must not answer
+    // for the file it names — that is the silent direction, and it
+    // drops a whole suite from the build with the guard still green.
+    let src = test_utils::source::code_and_literals(include_str!("all.rs"));
     let mut missing: Vec<String> = Vec::new();
     for entry in std::fs::read_dir(&dir).expect("tests/ is readable") {
         let path = entry.expect("readable dir entry").path();

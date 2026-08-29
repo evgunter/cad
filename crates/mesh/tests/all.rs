@@ -91,7 +91,11 @@ mod wedge;
 #[allow(clippy::expect_used)]
 fn every_suite_file_is_aggregated() {
     let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests");
-    let src = include_str!("all.rs");
+    // Comments blanked, string literals KEPT: the needle IS a string
+    // literal, and a mount that has been commented out must not answer
+    // for the file it names — that is the silent direction, and it
+    // drops a whole suite from the build with the guard still green.
+    let src = test_utils::source::code_and_literals(include_str!("all.rs"));
     let mut missing: Vec<String> = Vec::new();
     for entry in std::fs::read_dir(&dir).expect("tests/ is readable") {
         let path = entry.expect("readable dir entry").path();
@@ -230,9 +234,11 @@ fn every_suite_file_is_aggregated() {
 /// 4. **Compensating changes inside one file.** A read deleted and
 ///    another added in the same file leaves the total unmoved. A read
 ///    MOVED between files IS caught — both counts change.
-/// 5. **Raw strings**, which [`test_utils::source::code_only`] does not
-///    model — so this row asserts `crates/mesh/src` contains none
-///    (all four prefixes, `r`/`br`/`cr`) rather than assuming it.
+/// 5. **An identifier a macro assembles** (`concat_idents!`, `paste!`),
+///    or one inside an `include!`d file. [`test_utils::source::code_only`]
+///    is a lexer, not an expander, and no textual walk can see either.
+///    `crates/mesh/src` contains neither today and nothing checks that
+///    it stays so.
 ///
 /// # The walk is shared, and that was not free
 ///
@@ -274,12 +280,6 @@ fn the_eps_inventory_is_pinned() {
             .to_string_lossy()
             .replace('\\', "/");
         let text = std::fs::read_to_string(&path).expect("a readable source file");
-        assert!(
-            !test_utils::source::mentions_raw_string(&text),
-            "{name} mentions a raw string, which `code_only` does not model — this \
-             inventory's blanking may now be wrong. Check the site, then either \
-             rewrite it or teach `test_utils::source` the construct."
-        );
         let code = test_utils::source::code_only(&text);
         let cuts = code.lines().filter(|l| *l == "#[cfg(test)]").count();
         assert!(

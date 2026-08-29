@@ -819,27 +819,14 @@ fn every_corpus_import_passes_the_shared_gate() {
 fn exactly_one_validation_call_site_in_the_reader() {
     let src = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src");
     let mut sites = Vec::new();
-    let mut files = Vec::new();
-    let mut stack = vec![src];
-    while let Some(dir) = stack.pop() {
-        for entry in std::fs::read_dir(&dir).unwrap() {
-            let p = entry.unwrap().path();
-            if p.is_dir() {
-                stack.push(p);
-            } else if p.extension().is_some_and(|e| e == "rs") {
-                files.push(p);
-            }
-        }
-    }
-    files.sort();
-    for path in files {
+    // The needle is a CALL, so comments and literal bodies are both
+    // blanked: a commented-out door must not answer for a live one,
+    // and prose naming the validator must not manufacture a site. The
+    // blanked view keeps line structure, so the line number is real.
+    for path in test_utils::source::rust_sources(&src) {
         let text = std::fs::read_to_string(&path).unwrap();
-        for (i, line) in text.lines().enumerate() {
-            let code = line.trim_start();
-            if code.starts_with("//") {
-                continue;
-            }
-            if code.contains("validate_geometric(") || code.contains("validate_pseudomanifold(") {
+        for (i, line) in test_utils::source::code_only(&text).lines().enumerate() {
+            if line.contains("validate_geometric(") || line.contains("validate_pseudomanifold(") {
                 sites.push(format!("{}:{}", path.display(), i + 1));
             }
         }

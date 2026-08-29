@@ -86,6 +86,9 @@ fn accessors_read_back_everything_the_doors_wrote() {
 /// comment.
 #[test]
 fn neither_type_can_be_deserialized() {
+    // The manifest is TOML, not Rust: its own comment rule (`#` to end
+    // of line) is the reader here, and the shared Rust lexer is not
+    // what it wants.
     let manifest = include_str!("../Cargo.toml");
     for line in manifest.lines() {
         let l = line.trim();
@@ -99,7 +102,11 @@ fn neither_type_can_be_deserialized() {
         );
     }
 
-    let src = include_str!("../src/lib.rs");
+    // Comments and literal bodies blanked: every needle below is CODE
+    // (an item head, a derive, a path in a `use`), so prose naming
+    // serde is prose and a `#[derive(Deserialize)]` that has been
+    // commented out is not a derive.
+    let src = test_utils::source::code_only(include_str!("../src/lib.rs"));
     let seal_offsets = [
         "pub struct ProfileVertex<T: Real>",
         "pub struct ProfileLoop<T: Real>",
