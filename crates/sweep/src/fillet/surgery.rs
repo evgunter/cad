@@ -2566,6 +2566,14 @@ fn mef_trim<T: Decide + Bounds>(
     .map_err(|e| op(site, e))
 }
 
+/// Where one crossing's two feet go, and the arc whose stored frame put
+/// them there — which is the arc a refusal at that crossing names.
+struct FootTarget<T: Real> {
+    host: Point3<T>,
+    mate: Point3<T>,
+    named: EdgeKey,
+}
+
 /// One rim arc's two trimlines, in each support's own traversal, and
 /// the crossings its host-side traversal runs between.
 struct ArcPlan<T: Real> {
@@ -2698,18 +2706,18 @@ fn rim_phase_annulus<T: Decide + Bounds>(
     // azimuths come from ONE arc's stored frame. The host trimline runs
     // with the host loop and the mate trimline against it, which is why
     // the mate foot is the mate window's FAR end.
-    let mut targets: Vec<Option<(Point3<T>, Point3<T>, EdgeKey)>> = vec![None; n];
-    for (i, (a, l)) in arcs.iter().zip(rim.chain.links()).enumerate() {
-        let _ = i;
-        targets[a.at.0] = Some((
-            a.host_curve.eval(a.host_window.0),
-            a.mate_curve.eval(a.mate_window.1),
-            l.edge,
-        ));
+    let mut targets: Vec<Option<FootTarget<T>>> =
+        core::iter::repeat_with(|| None).take(n).collect();
+    for (a, l) in arcs.iter().zip(rim.chain.links()) {
+        targets[a.at.0] = Some(FootTarget {
+            host: a.host_curve.eval(a.host_window.0),
+            mate: a.mate_curve.eval(a.mate_window.1),
+            named: l.edge,
+        });
     }
     let mut feet_targets = Vec::with_capacity(n);
-    for (ix, c) in ann.crossings.iter().enumerate() {
-        let Some(t) = targets[ix] else {
+    for (slot, c) in targets.drain(..).zip(ann.crossings.iter()) {
+        let Some(t) = slot else {
             return Err(not_intact(
                 EntityId::Vertex(c.vertex),
                 "a rim crossing no arc's host-side traversal starts at",
@@ -2739,25 +2747,23 @@ fn rim_phase_annulus<T: Decide + Bounds>(
     };
     let mut mate_feet = Vec::with_capacity(n);
     for (ix, c) in ann.crossings.iter().enumerate() {
-        let (_, mate_target, named) = feet_targets[ix];
         mate_feet.push(split(
             body,
             c.mate_seam,
             c.vertex,
-            mate_target,
-            named,
+            feet_targets[ix].mate,
+            feet_targets[ix].named,
             "annulus mate seam split",
         )?);
     }
     let mut host_feet = Vec::with_capacity(n);
     for (ix, c) in ann.crossings.iter().enumerate() {
-        let (host_target, _, named) = feet_targets[ix];
         host_feet.push(split(
             body,
             c.host_seam,
             c.vertex,
-            host_target,
-            named,
+            feet_targets[ix].host,
+            feet_targets[ix].named,
             "annulus host seam split",
         )?);
     }
@@ -2874,7 +2880,7 @@ fn rim_phase_annulus<T: Decide + Bounds>(
         .position(|a| a.at.0 == ann.closure)
         .unwrap_or_default();
     let (cc, cr) = arcs[closure_arc].host_circle;
-    let radial = (feet_targets[ann.closure].0 - cc) / cr;
+    let radial = (feet_targets[ann.closure].host - cc) / cr;
     let band_surface = Surface::Torus {
         center: tc,
         axis: taxis,

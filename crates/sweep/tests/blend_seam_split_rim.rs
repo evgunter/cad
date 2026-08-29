@@ -53,6 +53,7 @@ use geom_core::{Band, Point2, Point3, Tol, Vec3};
 use profile::ProfileVertex;
 use sweep::Revolution;
 use sweep::fillet::FilletError;
+use sweep::fillet::blend::{Meridian, SupportTrace, sheet_center};
 use sweep::fillet::build::fillet_edges;
 use sweep::test_support::revolved_about_y;
 use topo::{Body, EdgeKey, FaceKey, SurfaceKey, mass_properties, validate_geometric};
@@ -167,9 +168,12 @@ fn lip_center(r: f64) -> (f64, f64) {
     (SHOULDER.0 + SHOULDER.1 - y - r * SQRT_2, y)
 }
 
-/// The three rims: name, the rim circle's radius and station, and the
-/// ball centre its two supports put the ball at.
-fn rims() -> [(&'static str, f64, f64, fn(f64) -> (f64, f64)); 3] {
+/// One rim of the lantern: its name, its circle's radius and station,
+/// and the ball centre its two supports put the ball at.
+type Rim = (&'static str, f64, f64, fn(f64) -> (f64, f64));
+
+/// The three rims a pole-touching revolve of this profile splits.
+fn rims() -> [Rim; 3] {
     [
         (
             "the plane×sphere neck",
@@ -186,6 +190,22 @@ fn rims() -> [(&'static str, f64, f64, fn(f64) -> (f64, f64)); 3] {
         ("the cone×plane lip", LIP_R, TOP, lip_center),
     ]
 }
+
+/// One support pair, as the sense-bit row reads it: its name, the rim
+/// point its sheet is taken at, the two traces as functions of their
+/// stored sense bit, the two signed distances in the supports' own
+/// closed forms, and whether a ball rests there at all.
+type TraceOf<'a> = Box<dyn Fn(f64) -> SupportTrace<f64> + 'a>;
+type DistOf<'a> = Box<dyn Fn(Point3<f64>) -> f64 + 'a>;
+type ArmRow<'a> = (
+    &'static str,
+    Point3<f64>,
+    TraceOf<'a>,
+    TraceOf<'a>,
+    DistOf<'a>,
+    DistOf<'a>,
+    Box<dyn Fn(f64, f64) -> bool + 'a>,
+);
 
 // ------------------------------------------------------------------
 // Reading the fixture.
@@ -449,7 +469,6 @@ fn the_three_rims_fillet_in_sequence_to_one_valid_solid() {
 /// why the row below this one exists.
 #[test]
 fn the_lanterns_arms_fold_both_sense_bits() {
-    use sweep::fillet::blend::{Meridian, SupportTrace, sheet_center};
     let r = 0.05;
     let (nx, ny) = cone_normal();
     let origin = Point3::new(0.0, 0.0, 0.0);
@@ -479,16 +498,7 @@ fn the_lanterns_arms_fold_both_sense_bits() {
         offset_radius > 0.0 && ((origin - rim).dot(n) + r * straight).abs() <= offset_radius
     };
 
-    type Trace = SupportTrace<f64>;
-    let rows: [(
-        &str,
-        Point3<f64>,
-        Box<dyn Fn(f64) -> Trace>,
-        Box<dyn Fn(f64) -> Trace>,
-        Box<dyn Fn(Point3<f64>) -> f64>,
-        Box<dyn Fn(Point3<f64>) -> f64>,
-        Box<dyn Fn(f64, f64) -> bool>,
-    ); 3] = [
+    let rows: [ArmRow<'_>; 3] = [
         (
             "plane×sphere",
             Point3::new(1.0, 0.0, 0.0),
