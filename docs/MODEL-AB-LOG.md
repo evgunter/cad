@@ -1815,3 +1815,24 @@ STRUCTURAL**. Lane lib-g18a, branch lib/g18a-evaluate. The unit's
 dual carries the standing LIB-12 CONTAMINATION FLAG. Ordinal claimed
 from the LIB band (300–399) on main at review dispatch, per protocol.
 Row at merge.
+
+LIB-G18a review ordinal fixed at dispatch (2026-08-29, PR #1176
+open — frozen head `773d95af`): **ordinal 300** (LIB band's first
+claim; claimed on the LIB orchestrator branch per the #1095 shape,
+single claimant in band). Protocol v6 dual: draw = `/dev/urandom`
+byte **226**, parity 0 ⇒ **R1 = OPUS, R2 = FABLE**. **Method note,
+recorded before either review ran and applying to BOTH arms
+identically: the reviews run SEQUENTIALLY on the frozen head, not
+concurrently** — this host cannot safely hold two review lanes'
+build targets (11G free at dispatch), and the build mutex serializes
+their heavy phases anyway. Same-head comparison holds by
+construction; identical briefs, both AUTHORED AND STORED before R1
+dispatched (so R1's report cannot shape R2's brief); neither
+reviewer sees the other's report, branches, or lane; v6 item 5 read
+isolation in both briefs. Symmetric by design — recorded so the
+blinded adjudication can weigh it, not as a relaxation of one arm.
+The dual carries the standing LIB-12 CONTAMINATION FLAG. Pre-draw
+fields at the spec: M / STRUCTURAL. Impl phase (for the row at
+merge): ~295k tokens lane-reported (~299k harness), ~2h05m wall
+(~50m CI polling), impl CI 33244842151 GREEN (default, 1e-6). Row
+at merge.
