@@ -18,9 +18,10 @@
 //! - **`a_strict_subset_of_a_seam_split_rims_arcs_refuses_typed`** —
 //!   asking for ONE arc of a two-arc rim must still refuse at the seam
 //!   vertex, not carve half a band.
-//! - **`two_rims_sharing_a_wall_in_one_call_refuse_typed`** — the
+//! - **`two_rims_sharing_a_wall_in_one_call_carve_both_bands`** — the
 //!   lantern's neck and shoulder share the sphere wall; all four arcs
-//!   in one request must refuse before any mutation.
+//!   in one request carve both bands (FLIPPED at #935 — the reviewer
+//!   pinned the refusal this request met at BLEND-1's merge).
 //! - **`arcs_of_two_different_rims_refuse_typed`** — a closed-looking
 //!   request whose arcs are not one rim.
 //! - **`a_seam_split_bands_birth_rows_key_uniquely`** — no two rows of
@@ -278,31 +279,24 @@ fn a_strict_subset_of_a_seam_split_rims_arcs_refuses_typed() {
     }
 }
 
-/// **Two rims sharing a wall, in ONE call, refuse.** The lantern's neck
-/// and shoulder rims both rest on the sphere wall's two half-bands.
-/// Whatever the detail says, it must be a typed refusal and it must
-/// happen before anything is built.
+/// **Two rims sharing a wall, in ONE call, carve** — FLIPPED
+/// DELIBERATELY at #935 (BLEND-2). The reviewer pinned the upfront
+/// refusal this request met at BLEND-1's merge; the seam-key refresh
+/// now serves it, and what the row keeps of the reviewer's claim is
+/// the half that is still true: nothing is half-built — the request
+/// carves BOTH bands to a tier-3-valid solid. The widened door's own
+/// rows (equality with the sequential composition to the bit, naming
+/// totality, the colliding-band boundary) live in `blend_tworims.rs`.
 #[test]
-fn two_rims_sharing_a_wall_in_one_call_refuse_typed() {
+fn two_rims_sharing_a_wall_in_one_call_carve_both_bands() {
     let source = lantern();
     let mut both = rim_arcs_at(&source, 1.0, 0.0);
     both.extend(rim_arcs_at(&source, SHOULDER.0, SHOULDER.1));
     assert_eq!(both.len(), 4, "two seam-split rims are four arcs");
-    match fillet_edges(&source, &both, 0.05, band(), tol()) {
-        Err(e) => {
-            let s = format!("{e:?}");
-            println!("two-rims-one-call refusal: {s}");
-            assert!(
-                matches!(
-                    e,
-                    FilletError::UnsupportedChain { .. }
-                        | FilletError::FilletCornerUnsupported { .. }
-                ),
-                "a typed frontier refusal, got {s}"
-            );
-        }
-        Ok(_) => panic!("two rims sharing the sphere wall must not carve in one call"),
-    }
+    let out = fillet_edges(&source, &both, 0.05, band(), tol())
+        .unwrap_or_else(|e| panic!("the shared-wall pair carves in one call (#935), got {e:?}"));
+    assert_eq!(out.band_faces.len(), 2, "one band per rim");
+    validate_geometric(&out.body, tol()).unwrap_or_else(|e| panic!("tier 3, got {e:?}"));
 }
 
 /// **Arcs from two DIFFERENT rims are not one rim.** One arc of the

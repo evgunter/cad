@@ -85,6 +85,8 @@ mod bitdump;
 mod blend1_r1_probes;
 #[path = "blend_seam_split_rim.rs"]
 mod blend_seam_split_rim;
+#[path = "blend_tworims.rs"]
+mod blend_tworims;
 #[path = "extrude_acceptance.rs"]
 mod extrude_acceptance;
 #[path = "extrude_interval.rs"]
