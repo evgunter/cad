@@ -1466,6 +1466,14 @@ fn blank_phase<T: Decide + Bounds>(
             // whose edge genuinely is not where its faces are. The fix
             // is fillet-verb work (put the strut ON the support), not
             // a description change, so it is not taken here.
+            // ARM B (R2 A/B, not for merge): the conversion PCURVE
+            // P-1b's spec item 2 ordered, reinstated. The strut rests
+            // between two faces that are BOTH this support, so the
+            // chart it lies in is the support's own surface.
+            let chart = body
+                .get_face(f)
+                .ok_or_else(|| not_intact(EntityId::Face(f), "a support face"))?
+                .surface;
             let created = body
                 .mev(
                     MevSite::Fan {
@@ -1473,7 +1481,7 @@ fn blank_phase<T: Decide + Bounds>(
                         he2: station.half_edge,
                     },
                     fp,
-                    EdgeCurveSpec::line_between(p, fp),
+                    EdgeCurveSpec::line_between(p, fp).at_rest_in_chart(chart, false),
                     tol,
                 )
                 .map_err(|e| op("strut mev", e))?;
