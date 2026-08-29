@@ -547,7 +547,7 @@ impl<T: Decide> Body<T> {
         let mut work = self.clone();
         let mut outcome = MergeCoplanarOutcome::default();
         for members in groups {
-            match work.group_regime(&members, &declared_faces) {
+            match work.group_regime(&members, &declared_faces)? {
                 GroupRegime::RefusesTheCall => {
                     outcome.groups.push(work.merge_group(&members, tol)?);
                 }
@@ -614,23 +614,45 @@ impl<T: Decide> Body<T> {
     /// Everything else — a structural planar run — refuses the call.
     ///
     /// A group's members share a surface by construction, so the
-    /// curvature question is asked of one of them.
+    /// curvature question is asked of one of them. A group is never
+    /// empty — the labeling seeds each with its own face — so an
+    /// empty one answers nothing rather than defaulting to a regime.
+    ///
+    /// # Errors
+    ///
+    /// [`MergeCoplanarError::Op`] carrying the unresolved key. The
+    /// curvature lookups are ANNOUNCED rather than read as "not
+    /// curved": this decides which contract the group is handed, and
+    /// a failed lookup silently spelled "planar" would move a group
+    /// from the recording regime to the refusing one on a torn arena.
     fn group_regime(
         &self,
         members: &[FaceKey],
         declared_faces: &std::collections::BTreeSet<FaceKey>,
-    ) -> GroupRegime {
+    ) -> Result<GroupRegime, MergeCoplanarError> {
         let licensed = members.iter().any(|f| declared_faces.contains(f));
-        let curved = members.first().is_some_and(|&f| {
-            self.get_face(f)
-                .and_then(|fd| self.get_surface(fd.surface))
-                .is_some_and(|s| !matches!(s, Surface::Plane { .. }))
-        });
-        if licensed || curved {
+        let mut curved = false;
+        if let Some(&f) = members.first() {
+            let surface = self
+                .get_face(f)
+                .ok_or(MergeCoplanarError::Op {
+                    error: EulerOpError::StaleKey {
+                        key: crate::entity::EntityId::Face(f),
+                    },
+                })?
+                .surface;
+            let described = self.get_surface(surface).ok_or(MergeCoplanarError::Op {
+                error: EulerOpError::StaleGeometry {
+                    key: crate::entity::GeomRef::Surface(surface),
+                },
+            })?;
+            curved = !matches!(described, Surface::Plane { .. });
+        }
+        Ok(if licensed || curved {
             GroupRegime::RecordsASkip
         } else {
             GroupRegime::RefusesTheCall
-        }
+        })
     }
 
     /// The faces of an edge's two halves, via the parent loops.
