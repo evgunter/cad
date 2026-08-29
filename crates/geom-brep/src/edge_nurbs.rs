@@ -382,6 +382,17 @@ where
     T: Decide + Bounds + geom_core::CertifiedEnclosure,
     F: FnMut(u32, Point2<f64>) -> Result<(), PlaneNurbsRefusal>,
 {
+    if wall.is_placeholder() {
+        // The same refusal [`lane`] states before it gets here, kept at
+        // the producer too: the mvfs placeholder is a mid-surgery "no
+        // description yet" fact, and projecting onto it would return
+        // feet of a surface that does not exist. `lane` still checks
+        // first, so its own refusal ORDER is unchanged.
+        return Err(PlaneNurbsRefusal::Unsupported {
+            what: "the mvfs placeholder is a mid-surgery 'no description yet' fact, never a \
+                   surface to derive a chart image on",
+        });
+    }
     let (t0, t1) = carrier.domain();
     // The schedule is a SUPERSET of the certificate's own
     // ([`CERT_SAMPLES`] divides it), so limb 1 re-projects at

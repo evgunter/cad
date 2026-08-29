@@ -721,11 +721,12 @@ pub enum PcurveCertifyError {
     /// whose weights are not positive (the convex-hull hypothesis
     /// itself); a seam-class image over a non-spline carrier; a LINE
     /// cap rim on a RATIONAL column (the Greville hull is a
-    /// linear-precision fact the rational basis does not have); and,
-    /// at the mint, an intersection locus that is not a boundary
-    /// column. A rational CHART and an ARC-parameterized cap rim are
-    /// not in that set — both certify, through the seam and arc-rim
-    /// classes. Typed and permanent until a unit moves it — never a
+    /// linear-precision fact the rational basis does not have). A
+    /// rational CHART and an ARC-parameterized cap rim are not in that
+    /// set — both certify, through the seam and arc-rim classes. Nor is
+    /// an intersection locus that is not a boundary column: since
+    /// PCURVE P-2 (#498) the mint derives its image and stores it as
+    /// [`Pcurve::General`] instead of refusing. Typed and permanent until a unit moves it — never a
     /// runtime fallback (C5).
     IsoUnsupported {
         /// The refused class, named.

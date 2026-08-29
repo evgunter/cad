@@ -140,7 +140,7 @@ struct Segment {
 /// The `Decide + Bounds` compound bound is the boolean-seam bound
 /// (ratified 2026-07-29 — see geom-core `real.rs`, Bounds scope
 /// rule); this module is part of that seam alongside `ops`/`reduce`.
-pub(super) fn try_rest_union<T: Decide + Bounds>(
+pub(super) fn try_rest_union<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     mut red: BooleanReduction<T>,
     a_pristine: &Body<T>,
     b_pristine: &Body<T>,

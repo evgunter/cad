@@ -464,8 +464,10 @@ fn uniform_breaks(spans: usize) -> Option<geom_core::spline::KnotVector> {
 ///   line the `IsoCurve` arm mints, recovered from the carrier because
 ///   the intrinsic description names no chart coordinate. The residency
 ///   is a pick over the columns and the two `v` directions, definite or
-///   escalated; an interior or diagonal intersection locus has no
-///   boundary-row closed form and refuses typed.
+///   escalated. A locus that is NOT a boundary column — an INTERIOR
+///   column is the executed case (#498) — has no exact closed form and
+///   takes U2's `General` curve-in-UV arm at the honest Fitted grade,
+///   derived from the wall's own foot schedule.
 /// - Everything else on a NURBS chart refuses typed with the class
 ///   named.
 fn nurbs_iso_derive<T: PcurveFittedLane>(
@@ -743,7 +745,7 @@ fn nurbs_iso_derive<T: PcurveFittedLane>(
             // it refuses earlier, at edge certification, on
             // `PXN_IMAGE_DEGREE` (`geom-brep/src/edge_nurbs.rs`, banked
             // to #264), so no body carrying one reaches this pass.
-            let image = match derive_general_image(carrier, surface, half_edge) {
+            let image = match derive_general_image(&carrier, surface, half_edge) {
                 Ok(image) => image,
                 // An escalated candidate still outranks a derivation
                 // refusal: a row that escalates today keeps escalating,

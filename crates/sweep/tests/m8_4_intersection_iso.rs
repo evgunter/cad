@@ -37,20 +37,34 @@ use topo::{Body, FaceSurface, Pcurve, PcurveMintError};
 /// natively built): exactly-planar `y = ±1` walls, bowed `x = ±1`
 /// walls, every weight 1.
 fn offset_square_prism() -> Body<f64> {
-    let square = || -> sweep::Section {
+    prism(1.0)
+}
+
+/// The same prism with every length scaled by `scale` — the SAME
+/// construction, since every coordinate is a product with an exact
+/// power of two at the scales used and `scale = 1.0` reproduces
+/// `offset_square_prism`'s literals bit for bit.
+///
+/// The scale is a lever on the ONE ε-conditional thing about this
+/// fixture: the seam's certified between-samples sup is a LENGTH, so
+/// it shrinks with the model while ε does not
+/// (`an_interior_column_intersection_mints_a_general_image` states the
+/// measurement).
+fn prism(scale: f64) -> Body<f64> {
+    let square = move || -> sweep::Section {
         let v = |x: f64, y: f64| profile::ProfileVertex::new(Point2::new(x, y), 0.0);
         vec![profile::ProfileLoop::new(vec![
-            v(-1.0, -1.0),
-            v(1.0, -1.0),
-            v(1.0, 1.0),
-            v(-1.0, 1.0),
+            v(-scale, -scale),
+            v(scale, -scale),
+            v(scale, scale),
+            v(-scale, scale),
         ])]
     };
     let sections = vec![square(), square(), square()];
     let places = vec![
         Affine3::identity(),
-        Affine3::translation(Vec3::new(0.5, 0.0, 1.0)),
-        Affine3::translation(Vec3::new(0.0, 0.0, 2.0)),
+        Affine3::translation(Vec3::new(0.5 * scale, 0.0, 1.0 * scale)),
+        Affine3::translation(Vec3::new(0.0, 0.0, 2.0 * scale)),
     ];
     sweep::loft_body::<f64>(&sections, &places, 2, Tol::witness())
         .expect("the offset square prism builds")
@@ -63,15 +77,15 @@ fn band() -> Band {
 
 /// Is this face's surface a described NURBS wall whose control net lies
 /// exactly on `y = -1` (the planar wall a promotion restates)?
-fn is_flat_wall(body: &Body<f64>, key: topo::SurfaceKey) -> bool {
+fn is_flat_wall(body: &Body<f64>, key: topo::SurfaceKey, scale: f64) -> bool {
     matches!(body.get_surface(key), Some(Surface::Nurbs(n))
-        if !n.is_placeholder() && n.control().iter().all(|p| p.y == -1.0))
+        if !n.is_placeholder() && n.control().iter().all(|p| p.y == -scale))
 }
 
-fn is_bowed_wall(body: &Body<f64>, key: topo::SurfaceKey) -> bool {
+fn is_bowed_wall(body: &Body<f64>, key: topo::SurfaceKey, scale: f64) -> bool {
     matches!(body.get_surface(key), Some(Surface::Nurbs(n))
-        if !n.is_placeholder() && n.control().iter().any(|p| p.y != -1.0)
-            && n.control().iter().any(|p| p.x.abs() == 1.0))
+        if !n.is_placeholder() && n.control().iter().any(|p| p.y != -scale)
+            && n.control().iter().any(|p| p.x.abs() == scale))
 }
 
 /// The face a half-edge bounds.
@@ -85,6 +99,7 @@ fn he_surface(body: &Body<f64>, he: topo::HalfEdgeKey) -> topo::SurfaceKey {
 /// `(edge, flat surface, bowed surface, half-edge on the bowed side)`.
 fn flat_bowed_seam(
     body: &Body<f64>,
+    scale: f64,
 ) -> (
     topo::EdgeKey,
     topo::SurfaceKey,
@@ -103,10 +118,10 @@ fn flat_bowed_seam(
         if !carrier_is_spline {
             continue;
         }
-        if is_flat_wall(body, sp) && is_bowed_wall(body, sm) {
+        if is_flat_wall(body, sp, scale) && is_bowed_wall(body, sm, scale) {
             return (ek, sp, sm, edge.he_minus);
         }
-        if is_flat_wall(body, sm) && is_bowed_wall(body, sp) {
+        if is_flat_wall(body, sm, scale) && is_bowed_wall(body, sp, scale) {
             return (ek, sm, sp, edge.he_plus);
         }
     }
@@ -122,8 +137,17 @@ fn flat_bowed_seam(
 fn intrinsic_seam(
     swap: bool,
 ) -> Result<(Body<f64>, topo::HalfEdgeKey, topo::SurfaceKey), topo::EulerOpError> {
-    let mut body = offset_square_prism();
-    let (edge, flat, bowed, he_bowed) = flat_bowed_seam(&body);
+    intrinsic_seam_at(swap, 1.0)
+}
+
+/// [`intrinsic_seam`] on a prism scaled by `scale`.
+#[allow(clippy::type_complexity)] // one tuple per named handle, like its callers
+fn intrinsic_seam_at(
+    swap: bool,
+    scale: f64,
+) -> Result<(Body<f64>, topo::HalfEdgeKey, topo::SurfaceKey), topo::EulerOpError> {
+    let mut body = prism(scale);
+    let (edge, flat, bowed, he_bowed) = flat_bowed_seam(&body, scale);
     let flat_face = {
         let (fk, _) = body
             .faces()
@@ -145,7 +169,7 @@ fn intrinsic_seam(
         .set_face_surface(
             flat_face,
             FaceSurface::New(Surface::Plane {
-                origin: Point3::new(0.0, -1.0, 0.0),
+                origin: Point3::new(0.0, -scale, 0.0),
                 normal: Vec3::new(0.0, -1.0, 0.0),
                 u_ref: Vec3::new(1.0, 0.0, 0.0),
             }),
@@ -473,4 +497,75 @@ fn an_imported_domain_chart_mints_the_boundary_intersection() {
         p0.x,
         pl.y
     );
+}
+
+/// TEMPORARY substrate probe (deleted before the branch is final):
+/// one run that measures every number P-2's row needs.
+#[test]
+fn p2_substrate_probe() {
+    let eps = Tol::witness().get().eps;
+    println!("=== P2 PROBE @ eps={eps:e} ===");
+    for scale in [1.0f64, 0.5, 0.125, 1.0 / 1024.0] {
+        match intrinsic_seam_at(false, scale) {
+            Ok((body, he, bowed)) => {
+                println!("scale {scale:e}: ATTACHES");
+                let _ = (&body, he, bowed);
+            }
+            Err(topo::EulerOpError::Certification {
+                error:
+                    geom_brep::CertifyError::Escalated {
+                        check, cause, ..
+                    },
+            }) => println!("scale {scale:e}: refuses {check:?} {cause:?}"),
+            Err(other) => println!("scale {scale:e}: other {other:?}"),
+        }
+    }
+    // The interior-column body, at whichever scale attaches.
+    for scale in [1.0f64, 1.0 / 1024.0] {
+        let Ok((mut body, he, bowed)) = intrinsic_seam_at(false, scale) else {
+            continue;
+        };
+        let widened = widened_u_chart(&chart_of(&body, bowed));
+        let key = rechart(&mut body, bowed, widened);
+        let chart = chart_of(&body, key);
+        println!("scale {scale:e}: widened u domain {:?}", chart.knots_u().domain());
+        match topo::pcurve_of(&body, he, band()) {
+            Ok(Pcurve::General(image)) => {
+                let (a, b) = image.domain();
+                println!(
+                    "  GENERAL image: degree {}, controls {}, domain ({a}, {b})",
+                    image.degree(),
+                    image.control().len()
+                );
+                for i in 0..=4 {
+                    let t = a + (b - a) * f64::from(i) / 4.0;
+                    let uv = image.eval(t);
+                    println!("    t={t:.6} -> u={:.12} v={:.12}", uv.x, uv.y);
+                }
+            }
+            other => println!("  pcurve_of: {other:?}"),
+        }
+        // What the whole-body mint does on this chart.
+        match topo::mint_pcurves(&mut body, Tol::witness()) {
+            Ok(()) => {
+                println!("  mint_pcurves: OK");
+                let findings = topo::validate_pcurves(&body, band());
+                println!("  validate_pcurves: {} findings", findings.len());
+                for f in findings.iter().take(3) {
+                    println!("    {f:?}");
+                }
+                if let Some(cache) = body.pcurve(he) {
+                    let c = cache.certificate();
+                    println!(
+                        "  stored: {:?} max_residual {:e} envelope {:e} statement {:?}",
+                        core::mem::discriminant(cache.pcurve()),
+                        c.max_residual,
+                        c.envelope,
+                        c.statement
+                    );
+                }
+            }
+            Err(e) => println!("  mint_pcurves: {e:?}"),
+        }
+    }
 }
