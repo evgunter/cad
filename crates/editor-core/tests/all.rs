@@ -100,6 +100,10 @@ mod m10_2_measure;
 mod m10_2_schema_v16;
 #[path = "m10_di_dual_corpus.rs"]
 mod m10_di_dual_corpus;
+#[path = "m10_p_fence.rs"]
+mod m10_p_fence;
+#[path = "m10_p_lift.rs"]
+mod m10_p_lift;
 #[path = "m4_pr1_dims.rs"]
 mod m4_pr1_dims;
 #[path = "m4_pr1_doc.rs"]

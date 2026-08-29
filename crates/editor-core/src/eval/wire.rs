@@ -79,6 +79,10 @@ pub(crate) struct OpEnv<'a, T: Decide> {
     /// D-5): every instance's pose relative to its cluster gauge, and
     /// every mate's role.
     pub poses: &'a crate::mate::SolvedPoses,
+    /// Where profile geometry comes from at this evaluation's scalar
+    /// (M10-P PP5): the f64 elaboration embedded, or a guided
+    /// elaboration at `T`.
+    pub profile_lift: super::ProfileLift,
 }
 
 /// Runs one node's op against its (already Ok) inputs and evaluated
@@ -103,16 +107,18 @@ where
 {
     match node {
         Node::Datum(d) => Ok(OpOut::plain(wire_datum(d, vals, tol)?, names::empty())),
-        Node::Profile(_) => Ok(OpOut::plain(
-            wire_profile(profile_pre, tol)?,
+        Node::Profile(program) => Ok(OpOut::plain(
+            wire_profile(program, doc, profile_pre, env.profile_lift, tol)?,
             names::empty(),
         )),
         Node::Extrude { profile, .. } => wire_extrude(id, *profile, results, vals, tol),
         Node::Revolve { profile, axis, .. } => {
             wire_revolve(id, *profile, *axis, results, vals, tol)
         }
-        Node::Loft { profiles, .. } => wire_loft(id, profiles, doc, vals, tol),
-        Node::Sweep { profile, path, .. } => wire_sweep(*profile, *path, doc, vals, tol),
+        Node::Loft { profiles, .. } => wire_loft(id, profiles, doc, vals, env.profile_lift, tol),
+        Node::Sweep { profile, path, .. } => {
+            wire_sweep(*profile, *path, doc, vals, env.profile_lift, tol)
+        }
         Node::Fillet {
             target, selection, ..
         } => wire_fillet(id, *target, selection, doc, results, vals, tol),
@@ -446,15 +452,21 @@ pub(crate) fn prepare_profile(
     tol: Tol,
 ) -> Result<ProfilePre, NodeErrorKind> {
     let mut loops = Vec::with_capacity(resolved.len());
+    let mut replay_records = Vec::with_capacity(resolved.len());
     for (li, steps) in resolved.iter().enumerate() {
-        let lp = profile::replay(steps, tol).map_err(|error| NodeErrorKind::ProfileReplay {
-            loop_: li as u32,
-            error,
+        let (lp, record) = profile::replay_recording(steps, tol).map_err(|error| {
+            NodeErrorKind::ProfileReplay {
+                loop_: li as u32,
+                error,
+            }
         })?;
         loops.push(lp);
+        replay_records.push(record);
     }
     let profile_f64 = profile::Profile::new(program.plane, loops);
-    let validated_f64 = profile_f64.validate(tol).map_err(NodeErrorKind::Profile)?;
+    let (validated_f64, canonical) = profile_f64
+        .validate_recording(tol)
+        .map_err(NodeErrorKind::Profile)?;
     let naming = anchor::derive_naming(&validated_f64, &profile_f64.loops).ok_or({
         // A canonical loop failed to match any program loop — an
         // internal invariant break, typed (the loop coordinate is not
@@ -464,13 +476,86 @@ pub(crate) fn prepare_profile(
     Ok(ProfilePre {
         profile_f64,
         naming,
+        structure: profile::ProfileStructure {
+            replay: replay_records,
+            canonical,
+        },
     })
 }
 
-/// The profile node's op: embed the precomputed f64 profile into the
-/// lane scalar and validate under the run tolerance — exactly the
-/// pre-switch op, so the node's logged verdicts are unchanged.
-fn wire_profile<T: Decide>(pre: Option<&ProfilePre>, tol: Tol) -> PayloadResult<T> {
+/// The lift's SECOND PASS (M10-P PP1/PP5): the same program resolved at
+/// the lane scalar and elaborated there, GUIDED by pass 1's record.
+///
+/// This is where a profile parameter finally reaches the lane — a
+/// `Dual` seed on a fillet radius carries its tangent all the way to
+/// the vertex it moves, an interval parameter widens the loop it
+/// describes — while structure stays exactly what the f64 pass chose.
+///
+/// **NEITHER OF THOSE TWO IS REACHABLE THROUGH THIS DOOR YET**, and
+/// the machinery being ready is not the same fact as the capability
+/// being available. [`crate::doc::Doc::param_env`] embeds every
+/// document parameter through `from_f64`, so an evaluation's bindings
+/// are constants: a `Dual` binding has a zero tangent and an `Interval`
+/// binding is a degenerate point. The lane pass therefore runs, and
+/// correctly, over an environment with nothing in it to propagate.
+/// Both halves are scheduled and neither is this unit's: the interval
+/// half — `param_env` learning non-degenerate intervals — is M10-3's
+/// first spec bullet, and the dual half, document-level seeding, is
+/// M10-4's. Until they land, the capability is exercised one door down,
+/// at the program-resolve seam this function calls, which is where
+/// `editor-core`'s `m10_p_lift` suite drives both.
+/// The naming is pass 1's verbatim (PP4): names are program-structural
+/// indices, and the canonical permutation they hang off is pinned by
+/// the record, so `T`-valued geometry changes no name.
+fn lane_profile<T: Decide + geom_core::Bounds>(
+    program: &ProfileProgram,
+    doc: &crate::doc::Doc<ProfileProgram>,
+    pre: &ProfilePre,
+    tol: Tol,
+) -> Result<profile::ValidatedProfile<T>, NodeErrorKind> {
+    let resolved = program
+        .resolve(&doc.param_env::<T>())
+        .map_err(|(slot, source)| NodeErrorKind::Expr { slot, source })?;
+    let mut loops = Vec::with_capacity(resolved.len());
+    for (li, steps) in resolved.iter().enumerate() {
+        // One record per program loop, by construction of pass 1.
+        //
+        // The fallback is an EMPTY record, and what that buys depends on
+        // the loop: a loop with a fillet in it refuses loudly at the
+        // first resolution (the guide runs off the end of the record,
+        // which `Guide::consume` refuses rather than falling through to
+        // free selection), while a loop with NO fillet — a rectangle, a
+        // circle — has nothing to consume and would elaborate happily
+        // against an empty record. The missing record is an internal
+        // break either way; this comment says which half of the
+        // vocabulary is actually holding the line, because the other
+        // half is the shape check in `replay_guided`, not this.
+        let record = pre.structure.replay.get(li).cloned().unwrap_or_default();
+        let lp = profile::replay_guided(steps, &record, tol).map_err(|error| {
+            NodeErrorKind::ProfileLaneReplay {
+                loop_: li as u32,
+                step: error.step,
+                structure: match error.kind {
+                    profile::ReplayErrorKind::Path(profile::PathError::Structure(r)) => Some(r),
+                    _ => None,
+                },
+            }
+        })?;
+        loops.push(lp);
+    }
+    let plane = profile::SketchPlane::new(anchor::embed_affine::<T>(&program.plane.placement));
+    profile::Profile::new(plane, loops)
+        .validate_guided(tol, &pre.structure.canonical)
+        .map_err(NodeErrorKind::Profile)
+}
+
+fn wire_profile<T: Decide + geom_core::Bounds>(
+    program: &ProfileProgram,
+    doc: &crate::doc::Doc<ProfileProgram>,
+    pre: Option<&ProfilePre>,
+    lift: super::ProfileLift,
+    tol: Tol,
+) -> PayloadResult<T> {
     let Some(pre) = pre else {
         // Unreachable by eval_node's stage order; typed, never a panic.
         return Err(NodeErrorKind::MissingSlot {
@@ -481,9 +566,12 @@ fn wire_profile<T: Decide>(pre: Option<&ProfilePre>, tol: Tol) -> PayloadResult<
             },
         });
     };
-    let validated = anchor::embed_profile::<T>(&pre.profile_f64)
-        .validate(tol)
-        .map_err(NodeErrorKind::Profile)?;
+    let validated = match lift {
+        super::ProfileLift::Pinned => anchor::embed_profile::<T>(&pre.profile_f64)
+            .validate(tol)
+            .map_err(NodeErrorKind::Profile)?,
+        super::ProfileLift::Guided => lane_profile::<T>(program, doc, pre, tol)?,
+    };
     Ok(ValuePayload::Profile(Arc::new(ProfileValue {
         validated,
         naming: pre.naming.clone(),
@@ -1618,9 +1706,10 @@ pub(crate) const SWEEP_FRONTIER: &str = "a swept solid: the recipe's path operan
 /// embedded through `from_f64`. Taking the description directly is
 /// therefore not a shortcut — it is the only way the Interval lane
 /// encloses the SAME surface the `f64` lane defines.
-fn section_of(
+fn section_of<T: Decide + geom_core::Bounds>(
     doc: &crate::doc::Doc<ProfileProgram>,
     id: RecipeNodeId,
+    lift: super::ProfileLift,
     tol: Tol,
 ) -> Result<(sweep::Section, Affine3<f64>, ProfileNaming), NodeErrorKind> {
     let Some(Node::Profile(program)) = doc.nodes.get(&id) else {
@@ -1640,23 +1729,28 @@ fn section_of(
     let resolved = program
         .resolve(&doc.param_env::<f64>())
         .map_err(|(slot, source)| NodeErrorKind::Expr { slot, source })?;
-    let mut loops = Vec::with_capacity(resolved.len());
-    for (li, steps) in resolved.iter().enumerate() {
-        let lp = profile::replay(steps, tol).map_err(|error| NodeErrorKind::ProfileReplay {
-            loop_: li as u32,
-            error,
-        })?;
-        loops.push(lp);
+    // The f64 ladder is `prepare_profile` ITSELF, not a copy of it:
+    // this seam and the profile node's used to run the same four steps
+    // side by side, and two copies of a pipeline are two places for a
+    // gate to be added to only one. Sharing the function is what makes
+    // "the duplicate ladder did not fork" a fact about the code rather
+    // than a claim about two diffs.
+    let pre = prepare_profile(program, &resolved, tol)?;
+    // The lift's second pass runs HERE TOO, as a GATE. A loft's or a
+    // sweep's section stays f64 — the skinned surface's knots, degrees
+    // and control bits must be identical in every lane, which is the
+    // C6/D9 argument above and is untouched — but the certify-or-abort
+    // answer must not depend on which node consumes the profile. A
+    // parameter box the extrude ladder refuses to certify is refused
+    // here as well, and by the same predicate.
+    if lift == super::ProfileLift::Guided {
+        lane_profile::<T>(program, doc, &pre, tol)?;
     }
-    let profile_f64 = profile::Profile::new(program.plane, loops.clone());
-    let validated = profile_f64.validate(tol).map_err(NodeErrorKind::Profile)?;
-    let naming = anchor::derive_naming(&validated, &loops)
-        .ok_or(NodeErrorKind::ProfileAnchor { loop_: 0 })?;
-    let place = validated.plane().placement;
+    let place = pre.profile_f64.plane.placement;
     // The sections are the REPLAYED loops (program order — exactly
     // the stored-loop handoff LIB-U3 established, one derivation
     // earlier): positions, bulges, declared joints verbatim.
-    Ok((loops, place, naming))
+    Ok((pre.profile_f64.loops, place, pre.naming))
 }
 
 /// A structural (Count) slot, refused typed when absent or unusable.
@@ -1668,11 +1762,12 @@ fn need_count(vals: &SlotValues<impl Decide>, slot: SlotId) -> Result<usize, Nod
 /// The Loft node (M6-3: the frontier flipped to the BUILDER — the
 /// §10.3 walls plus the M5-LOG item-6 assembly, tiers 1–3 green at
 /// rest).
-fn wire_loft<T: Decide>(
+fn wire_loft<T: Decide + geom_core::Bounds>(
     id: RecipeNodeId,
     profiles: &[RecipeNodeId],
     doc: &crate::doc::Doc<ProfileProgram>,
     vals: &SlotValues<T>,
+    lift: super::ProfileLift,
     tol: Tol,
 ) -> OpResult<T> {
     let v_degree = need_count(vals, SlotId::VDegree)?;
@@ -1680,7 +1775,7 @@ fn wire_loft<T: Decide>(
     let mut places = Vec::with_capacity(profiles.len());
     let mut first_naming = ProfileNaming::default();
     for (i, pid) in profiles.iter().enumerate() {
-        let (chain, place, naming) = section_of(doc, *pid, tol)?;
+        let (chain, place, naming) = section_of::<T>(doc, *pid, lift, tol)?;
         sections.push(chain);
         places.push(place);
         if i == 0 {
@@ -1724,17 +1819,18 @@ fn wire_loft<T: Decide>(
 /// with a bad Count, is a recipe error and must read as one. What the
 /// node cannot do is reach the geometry: see [`SWEEP_FRONTIER`] for
 /// why no recipe-expressible path exists to sweep.
-fn wire_sweep<T: Decide>(
+fn wire_sweep<T: Decide + geom_core::Bounds>(
     profile: RecipeNodeId,
     path: RecipeNodeId,
     doc: &crate::doc::Doc<ProfileProgram>,
     vals: &SlotValues<T>,
+    lift: super::ProfileLift,
     tol: Tol,
 ) -> OpResult<T> {
     let _stations = need_count(vals, SlotId::Stations)?;
     let _v_degree = need_count(vals, SlotId::VDegree)?;
-    let _ = section_of(doc, profile, tol)?;
-    let _ = section_of(doc, path, tol)?;
+    let _ = section_of::<T>(doc, profile, lift, tol)?;
+    let _ = section_of::<T>(doc, path, lift, tol)?;
     Err(NodeErrorKind::CurvedSolidFrontier {
         what: SWEEP_FRONTIER,
     })

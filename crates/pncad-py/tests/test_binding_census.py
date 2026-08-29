@@ -647,7 +647,17 @@ FAMILIES = {
 #:   so D9's determinism cross-check can compare both schedules in one
 #:   run, `boolean_sweep`'s two paths are bit-identical by the BVH
 #:   differential suite's own pin), so no ANSWER is unreachable
-#:   through them. A PERFORMANCE door — "evaluate this in parallel" —
+#:   through them. `profile_lift` (M10-P) is a FOURTH such field and
+#:   its argument is a different one, because it is not
+#:   answer-preserving in general: it decides whether profile geometry
+#:   is elaborated at the evaluation's own scalar. What makes it
+#:   unreachable-without-loss here is that Python evaluates at `f64`
+#:   ALONE, and at `f64` the lift is a no-op by construction — guided
+#:   elaboration reproduces the pinned one bitwise, which
+#:   `editor-core`'s `m10_p_lift` suite pins over the whole corpus. The
+#:   field starts changing answers exactly when Python gains a non-f64
+#:   evaluation, and it should gain a spelling in the same unit that
+#:   brings one. A PERFORMANCE door — "evaluate this in parallel" —
 #:   would be a new unit and a new entry, not this one.
 #: - *Recourse and deferral sentences.* `CONTACT_RECOURSE`,
 #:   `FIT_DEFERRAL`, `SEL_DATUM_DISTANCE` and `REGENERATE_RECOURSE`
@@ -842,6 +852,7 @@ NOT_BOUND = {
     "Point3": SHAPE,
     "ProfileDoc": SHAPE,
     "ProfileError": SHAPE,
+    "ProfileLift": SHAPE,
     "ProgramFault": SHAPE,
     "REGENERATE_RECOURSE": SHAPE,
     "Real": SHAPE,
