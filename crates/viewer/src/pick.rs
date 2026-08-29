@@ -52,7 +52,7 @@ use crate::camera::{Camera, CameraError};
 use crate::display::DisplayView;
 use crate::evalseam::Generation;
 use crate::input::{PickAction, ViewportSize};
-use crate::scene::{self, DisplayTolerance, FittedDelta, SceneError, SceneMesh, ScenePart};
+use crate::scene::{DisplayTolerance, SceneError, SceneMesh, ScenePart};
 use crate::session::{DocSession, FaceSelection, Selection, SessionOp};
 
 /// One drawn face patch, addressed the way selection speaks: the node
@@ -910,16 +910,9 @@ pub fn cursor_projection(
 #[derive(Debug, Default)]
 pub struct PickCache {
     index: Option<PickIndex>,
-    /// What the last attempt was for — the (generation, **requested**
-    /// δ) pair, which is the cache's key. `Some` after any attempt,
-    /// successful or not, which is what stops the retry loop.
+    /// What the last attempt was for. `Some` after any attempt,
+    /// successful or not — which is what stops the retry loop.
     attempted: Option<(Generation, DisplayTolerance)>,
-    /// What the budget made of the requested δ on that attempt (see
-    /// [`PickCache::fitted`]). Held because the index is built at the
-    /// FITTED δ while the cache is keyed by the requested one, so the
-    /// currency check has to compare the index against this and not
-    /// against the key.
-    fitted: Option<FittedDelta>,
     error: Option<PickIndexError>,
 }
 
@@ -946,53 +939,37 @@ impl PickCache {
     }
 
     /// Bring the cache in line with the session's landed evaluation at
-    /// the REQUESTED `delta`, at most one build attempt per
-    /// (generation, requested δ).
+    /// `delta`, at most one build attempt per (generation, δ).
     ///
-    /// **The δ asked for and the δ built at are two different
-    /// numbers.** `scene::fit_delta` decides the second from the first
-    /// and [`scene::TRIANGLE_BUDGET`], because an absolute chord
-    /// tolerance knows nothing about how big or how curved a document
-    /// is and the application's own starting δ asks the tour's ring
-    /// for four million triangles. The request is the cache's KEY —
-    /// asking twice for the same δ must not build twice — and the
-    /// fitted δ is what the index carries, which is why the currency
-    /// check below reads [`PickCache::fitted`] rather than the
-    /// argument.
-    ///
-    /// A fit that REFUSES falls back to the request, which is exactly
-    /// the behaviour that shipped before the budget existed: the
-    /// document is one whose roots do not gather or whose probe will
-    /// not tessellate, and the index build below is about to say so
-    /// with its own typed refusal. Two opinions about that would be
-    /// one too many.
+    /// **δ is built at, verbatim.** `scene::TRIANGLE_BUDGET` chooses
+    /// the δ a document OPENS at (`app`'s `fit_delta_on_scene`), and
+    /// that is the whole of the budget's authority: once a δ is in
+    /// force it is the value someone asked for, and a cache that
+    /// quietly built a different picture would make `Finer δ` a button
+    /// that does nothing.
     pub fn sync(&mut self, session: &DocSession, delta: DisplayTolerance) -> CacheStep {
         let Some(generation) = session.landed_generation() else {
             return CacheStep::Nothing;
         };
+        if self
+            .index
+            .as_ref()
+            .is_some_and(|index| index.current_for(Some(generation), delta))
+        {
+            return CacheStep::Current;
+        }
         if self.attempted == Some((generation, delta)) {
-            return match (self.fitted, self.index.as_ref()) {
-                (Some(fitted), Some(index))
-                    if index.current_for(Some(generation), fitted.delta) =>
-                {
-                    CacheStep::Current
-                }
-                // Attempted and refused for this exact picture.
-                // Retrying is the per-frame rebuild loop; the error is
-                // already recorded and the caller has already seen it.
-                _ => CacheStep::Held,
-            };
+            // Attempted and refused for this exact picture. Retrying
+            // is the per-frame rebuild loop; the error is already
+            // recorded and the caller has already seen it.
+            return CacheStep::Held;
         }
         self.attempted = Some((generation, delta));
         self.index = None;
-        self.fitted = None;
         let Some((doc, eval)) = session.landed_pair() else {
             return CacheStep::Nothing;
         };
-        let fitted = scene::fit_delta(doc, eval, delta, session.tol())
-            .unwrap_or_else(|_| scene::FittedDelta::as_requested(delta));
-        self.fitted = Some(fitted);
-        match PickIndex::build(doc, eval, generation, fitted.delta, session.tol()) {
+        match PickIndex::build(doc, eval, generation, delta, session.tol()) {
             Ok(index) => {
                 self.index = Some(index);
                 self.error = None;
@@ -1003,13 +980,6 @@ impl PickCache {
                 CacheStep::Refused
             }
         }
-    }
-
-    /// What the budget made of the last requested δ — the δ the held
-    /// index was built at, and what the request would have cost.
-    /// `None` before any attempt.
-    pub fn fitted(&self) -> Option<FittedDelta> {
-        self.fitted
     }
 
     /// The held index, if the last attempt produced one.

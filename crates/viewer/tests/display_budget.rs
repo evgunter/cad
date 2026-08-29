@@ -149,9 +149,10 @@ fn a_document_inside_the_budget_is_drawn_as_asked() {
 }
 
 /// The report, when there is one: the sentence names both δ and the
-/// budget, because a picture that is not what was asked for has to say
+/// budget, because a picture opened at a δ nobody asked for has to say
 /// what it is and why (#1097's posture: a door that cannot open says
-/// so).
+/// so) — and it has to say that the budget is not a cap, which is the
+/// next question a reader has.
 #[test]
 fn a_coarsened_picture_says_so_in_both_numbers() {
     let tol = Tol::witness();
@@ -165,6 +166,7 @@ fn a_coarsened_picture_says_so_in_both_numbers() {
         &format!("{:.3}", fitted.delta.get() * 1.0e3),
         &format!("{:.3}", INITIAL_DELTA * 1.0e3),
         &TRIANGLE_BUDGET.to_string(),
+        &"not a cap".to_owned(),
     ] {
         assert!(
             wording.contains(needle.as_str()),

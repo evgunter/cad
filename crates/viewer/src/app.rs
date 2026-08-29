@@ -206,6 +206,23 @@ pub struct ViewerApp {
     /// between two faces of the same feature leaves the set equal and
     /// correctly rebuilds nothing.
     scene_focus: BTreeSet<u32>,
+    /// Whether the next scene to land should have its δ CHOSEN by the
+    /// triangle budget, rather than drawn at the δ already in force.
+    ///
+    /// Set at startup and on every successful `Open`, and cleared the
+    /// moment it is spent. It is what makes the budget a DEFAULT: a
+    /// document arrives, the budget picks a δ that draws it in a
+    /// reasonable time, and from then on δ is whatever the user asked
+    /// for. Anything stronger — clamping every rebuild — would make
+    /// `Finer δ` a button that does nothing on exactly the documents
+    /// someone would want it for.
+    fit_delta_on_scene: bool,
+    /// The budget's verdict, while the δ it chose is still the δ in
+    /// force. `None` once the user has moved δ themselves
+    /// ([`ViewerApp::rescale_delta`] clears it), because from there
+    /// the number on screen is theirs and the badge would be claiming
+    /// a choice it did not make.
+    budget_delta: Option<crate::scene::FittedDelta>,
     /// The modal mate tool, when active. `None` is "not in the mate
     /// tool"; the tool's own state (the held picks) lives inside it.
     mate_tool: Option<MateTool>,
@@ -366,6 +383,13 @@ impl ViewerApp {
             scene_generation: None,
             scene_display: None,
             scene_focus: BTreeSet::new(),
+            // The startup document goes through the same door an
+            // opened one does: it is small enough that the budget will
+            // not move its δ, and a first picture that took a
+            // different path from every later one is a difference
+            // waiting to be a bug.
+            fit_delta_on_scene: true,
+            budget_delta: None,
             mate_tool: None,
             camera,
             input: InputMap::default(),
@@ -393,6 +417,25 @@ impl ViewerApp {
         {
             for event in tool.reconcile(doc, eval) {
                 self.status = Some(format!("mate tool: {event}"));
+            }
+        }
+        // **The budget picks the δ a document opens at**, once, before
+        // anything is built at the δ in force — so the un-budgeted
+        // build is never paid for, only avoided. `scene::fit_delta`
+        // carries the method and the numbers; `TRIANGLE_BUDGET` says
+        // why there is a budget at all.
+        //
+        // A fit that refuses leaves δ alone: the document is one whose
+        // roots do not gather or whose probe will not tessellate, and
+        // the index build below is about to say so with its own typed
+        // refusal. Two opinions about that would be one too many.
+        if self.fit_delta_on_scene
+            && let Some((doc, evaluation)) = self.session.landed_pair()
+        {
+            self.fit_delta_on_scene = false;
+            if let Ok(fitted) = scene::fit_delta(doc, evaluation, self.delta, self.session.tol()) {
+                self.delta = fitted.delta;
+                self.budget_delta = fitted.requested_cost.map(|_| fitted);
             }
         }
         // The cache owns the retry policy: one attempt per (landed
@@ -465,6 +508,11 @@ impl ViewerApp {
         match self.delta.scaled(factor) {
             Ok(delta) => {
                 self.delta = delta;
+                // From here the number is the user's. The budget chose
+                // an opening δ and has no further say — including no
+                // say over a δ finer than it would have picked, which
+                // is the whole difference between a default and a cap.
+                self.budget_delta = None;
                 self.sync_scene();
             }
             Err(error) => self.status = Some(format!("{error}")),
@@ -498,10 +546,17 @@ impl ViewerApp {
             let opened = matches!(op, SessionOp::Open(_));
             match self.session.perform(op).refusal {
                 Some(next) => refusal = Refusal::preferred(refusal, next),
-                // A replaced document owes a re-frame — taken when
-                // its scene actually lands, not on the outgoing
-                // picture.
-                None if opened => self.fit_on_scene = true,
+                // A replaced document owes a re-frame AND a fresh δ
+                // — both taken when its scene actually lands, not on
+                // the outgoing picture. The δ the last document was
+                // being read at says nothing about this one: it is a
+                // length in metres, and the new document may be a
+                // different size and a different shape.
+                None if opened => {
+                    self.fit_on_scene = true;
+                    self.fit_delta_on_scene = true;
+                    self.budget_delta = None;
+                }
                 None => {}
             }
         }
@@ -683,18 +738,19 @@ impl eframe::App for ViewerApp {
                         }
                     });
                 }
-                // The display budget's badge: shown only when the
-                // picture on screen is NOT at the δ that was asked
-                // for. A read of held state, like the two badges
+                // The display budget's badge: shown while the δ on
+                // screen is the one the budget CHOSE when the document
+                // opened, and gone the moment the user picks their
+                // own. A read of held state, like the two badges
                 // above, which is why it is here rather than in the
                 // status line below — that line is cleared by the next
-                // camera fold, and "you are not looking at what you
-                // asked for" has to outlive a mouse drag.
-                if let Some(fitted) = self.picks.fitted()
+                // camera fold (issue filed), and "this δ was chosen
+                // for you" has to outlive a mouse drag.
+                if let Some(fitted) = self.budget_delta
                     && let Some(wording) = fitted.wording()
                 {
                     ui.separator();
-                    ui.weak(format!("δ {:.3} mm drawn", fitted.delta.get() * 1.0e3))
+                    ui.weak(format!("δ {:.3} mm chosen", fitted.delta.get() * 1.0e3))
                         .on_hover_text(wording);
                 }
                 if let Some(status) = &self.status {
@@ -709,7 +765,7 @@ impl eframe::App for ViewerApp {
             let mut behavior = ViewerBehavior {
                 session: &self.session,
                 delta: self.delta,
-                fitted: self.picks.fitted(),
+                budget_delta: self.budget_delta,
                 scene: &self.scene,
                 index: self.picks.index(),
                 revision: self.revision,
@@ -747,11 +803,11 @@ impl eframe::App for ViewerApp {
 /// application's state for the duration of one frame.
 struct ViewerBehavior<'a> {
     session: &'a DocSession,
-    /// The δ that was ASKED for. What is drawn may be coarser — see
-    /// `fitted`, and `scene::TRIANGLE_BUDGET` for why.
+    /// The δ the picture is drawn at.
     delta: DisplayTolerance,
-    /// What the triangle budget made of `delta` on the held index.
-    fitted: Option<crate::scene::FittedDelta>,
+    /// Set while `delta` is the one the triangle budget chose when the
+    /// document opened, rather than one the user picked.
+    budget_delta: Option<crate::scene::FittedDelta>,
     scene: &'a Arc<SceneMesh>,
     index: Option<&'a PickIndex>,
     revision: u64,
@@ -1812,18 +1868,13 @@ impl ViewerBehavior<'_> {
     fn view_ui(&mut self, ui: &mut egui::Ui) {
         let stats = self.scene.stats();
         ui.heading("View");
-        // The requested δ and the drawn one, and only one line when
-        // they are the same number. The budget's own sentence is in
-        // the status line; this pane's job is the reading.
-        let drawn = self.fitted.map_or(self.delta, |fitted| fitted.delta);
-        if drawn == self.delta {
-            ui.label(format!("display δ: {:.3} mm", self.delta.get() * 1000.0));
-        } else {
-            ui.label(format!(
-                "display δ: {:.3} mm asked, {:.3} mm drawn",
-                self.delta.get() * 1000.0,
-                drawn.get() * 1000.0
-            ));
+        // One δ, because there is only ever one: the budget chose it
+        // when the document opened or the user did, and the note says
+        // which. The triangle count below is the picture's own, so
+        // nothing here is a prediction.
+        ui.label(format!("display δ: {:.3} mm", self.delta.get() * 1000.0));
+        if self.budget_delta.is_some() {
+            ui.weak("chosen for the triangle budget; δ is yours from here");
         }
         ui.label(format!("faces: {}", stats.faces));
         ui.label(format!("triangles: {}", stats.triangles));

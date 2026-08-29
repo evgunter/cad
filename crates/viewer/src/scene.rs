@@ -727,7 +727,7 @@ const PROBE_FACTOR: f64 = 8.0;
 /// say it and a row can assert it.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FittedDelta {
-    /// The δ to draw at. Equal to [`FittedDelta::requested`] unless
+    /// The δ to open at. Equal to [`FittedDelta::requested`] unless
     /// the budget moved it.
     pub delta: DisplayTolerance,
     /// The δ that was asked for.
@@ -767,20 +767,32 @@ impl FittedDelta {
         }
     }
 
-    /// The sentence the status line shows, or `None` when the request
-    /// was drawn as asked and there is nothing to report.
+    /// The sentence the chrome shows, or `None` when the δ asked for
+    /// was affordable and there is nothing to report.
+    ///
+    /// It ends by saying the budget is not a cap, because that is the
+    /// question a reader has the moment they see a δ they did not
+    /// choose, and a chosen default that read as a clamp would be
+    /// worse than no default at all.
     pub fn wording(&self) -> Option<String> {
         let requested = self.requested_cost?;
+        let opened = self.delta.get() * 1.0e3;
+        let asked = self.requested.get() * 1.0e3;
         Some(format!(
-            "drawn at δ = {:.3} mm: {:.3} mm needs about {requested} triangles,              over the {TRIANGLE_BUDGET} budget",
-            self.delta.get() * 1.0e3,
-            self.requested.get() * 1.0e3,
+            "opened at δ = {opened:.3} mm: {asked:.3} mm needs about {requested} triangles, over the {TRIANGLE_BUDGET} budget. Finer δ is still honoured — this is a starting point, not a cap"
         ))
     }
 }
 
-/// Choose the δ to draw a document at: the requested one, or the
+/// Choose the δ to OPEN a document at: the requested one, or the
 /// finest coarser one predicted to fit [`TRIANGLE_BUDGET`].
+///
+/// **A default, not a clamp.** The caller applies this once per
+/// document that arrives (`app`'s `fit_delta_on_scene`); from there δ
+/// is whatever the user asks for, `Finer δ` included, and nothing
+/// re-reads it. A budget that bound every rebuild would take the
+/// coarsening buttons away on exactly the documents someone would
+/// want them for.
 ///
 /// # The method: predict, do not ladder
 ///
