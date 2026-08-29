@@ -1103,7 +1103,7 @@ else from the smell scan; no other error surface changes.
 **PERR MERGED (2026-08-18, #622, merge ecf43ab6; ordinal-59
 APPROVE — row in MODEL-AB-LOG). LIB's claimed #614 item is
 discharged.** Resting state: NO active lanes; LIB-12 slots 2-4
-banked (opus ×3). Everything scheduled is done — remaining
+banked (arms redacted 2026-08-29 — see this log's tail). Everything scheduled is done — remaining
 register items need Evan (enclosing-tangency vocabulary, Wave 0
 D1-D4, Q9) or another program (G8 kernel gap, G2 sweep/tube),
 or a #614 routing.
@@ -1114,7 +1114,7 @@ DISPATCHABLE-NOW column is not empty — it has one item:
 **G11 (mesh/tessellation door from Python)** — blocks no audit
 row but completes the guide's ladder (steps 4-5: tessellate +
 mesh-vs-exact cross-check); register category B names it; a
-banked LIB-12 slot (opus) covers its draw; no design conversation
+banked LIB-12 slot covers its draw; no design conversation
 needed (the Rust mesh door exists — this is a bindings unit of
 the PYG-family shape). Also dispatchable when wanted, smaller:
 the **evaluate-memo door** (PYPU's banked finding — evaluate
@@ -1169,7 +1169,7 @@ for the whole series, per the standing tour-corpus rule.
 ## in the session that wrote it.
 
 **State.** No active LIB lanes since PERR merged (#622, 2026-08-18);
-LIB-12 slots 2-4 still banked (opus x3). The only movement in this
+LIB-12 slots 2-4 still banked (arms redacted 2026-08-29). The only movement in this
 file since is the ASM cross-program deposit of 2026-08-23. Nothing
 LIB dispatched has come back unmerged, and nothing in the register's
 SCHEDULED column has re-filled.
@@ -1358,3 +1358,74 @@ file.
 The pickup path is unchanged in shape and now actually complete:
 this log's tail + the residual register (categories A-F) +
 `memories/MEMORY.md`.
+
+## LIB reactivated (2026-08-29) — new orchestrator, remote host
+
+**Session opening (Evan, in-chat).** LIB resumes after eleven days at
+rest, with a new orchestrator on a remote preemptible container
+(4 CPUs / 15G RAM / ~29G disk) rather than the tmux host the standing
+memories assume. Host adaptations, stated once: lanes are full clones
+via `new-lane.sh` (3–4 in parallel per Evan), heavy cargo stays behind
+the build-slot mutex, hosted CI remains the verification of record, no
+monitor scripts or away-channel (Evan is present in-session; the
+tracker is read at check-ins), GitHub via MCP tools rather than `gh`.
+Program prefix `lib/` reconfirmed; orchestrator branch
+`lib/orchestrator`.
+
+**Rulings recorded (Evan, in-chat, this session):**
+1. **Mechanical units run outside the model A/B** — opus implementer,
+   no review lane, merged on green hosted CI + the orchestrator's own
+   read of the diff, logged here per unit. Full text and the readout
+   population note: MODEL-AB-LOG's 2026-08-29 entry.
+2. **Banked LIB-12 slots are untouched by mechanical units** — they
+   remain the draws for LIB's next A/B (substantive) rows.
+3. The proposed mechanical/substantive split of the re-survey's map was
+   approved as proposed: mechanical = R2, #1111's editor-core slice,
+   G11, G15, the evaluate-memo door, die_tool's re-authoring, the
+   assembly node/edit bindings (G18's second half); substantive (full
+   protocol) = the resolver/workspace door, and any chamfer/shell/tube
+   node unit its design conversation produces.
+
+**Blinding repair, done before any A/B dispatch:** the LIB-12 block
+record on main named the banked slots' arms by arithmetic (the exact
+class of the PCURVE 2026-08-28 redaction). Redacted in place in
+MODEL-AB-LOG and at this log's two restatements; exposure and the
+contamination flag for consuming duals recorded in MODEL-AB-LOG's
+entry. This log stays append-only for entries; blinding redactions
+edit in place by the standing precedent.
+
+**Register correction (measured on the tracker and in
+`docs/SMELL-SCAN-2026-08.md` this session): the "needs Evan" column's
+"Wave 0 D1–D4" is STALE.** It was written 2026-08-18 and carried
+forward unre-checked by the 08-28 re-survey. As of 08-19/08-20: D1
+RULED (a `Dual` may not certify but may have `Bounds`), D2 RATIFIED
+into DESIGN.md (#628), D4 DECIDED (delete), and D3 resolved as
+deliberate-frontier via the closed `Surface` enum. What actually
+remains Evan-paced from LIB's map: the enclosing-tangency vocabulary
+(#608's residue, explicitly low-priority) and Q9 + the U9 release
+checklist (urgent only when release is wanted). #741/#742/#944 wait on
+LIB drafting plans, not on Evan. (The smell-scan §D's open-decision
+table — D6, S14(b), S65/S70/S82/S90/S107/S116(p) — is that program's
+queue, not LIB's; noted so no successor re-mistakes it for ours.)
+
+**Wave 1 DISPATCHED (2026-08-29, all mechanical under ruling 1,
+implementer arm opus by that ruling's own text):**
+- **G11** (`lib/g11-mesh`, lane lib-g11): the mesh/tessellation door
+  from Python — completes the guide ladder's steps 4–5; audit G11 row
+  + census `gap: G11` entries are the oracles.
+- **G15** (`lib/g15-workspace`, lane lib-g15): the Workspace/DocRef/
+  ContentPin bindings — the assembly series' first half; hard-fenced
+  off `evaluate`'s signature (the resolver door stays a design
+  conversation) and off all G18 vocabulary.
+- **CUR** (`lib/curation-r2`, lane lib-cur): R2 (PathNoCornerReason
+  carried beside PathError at its three sites) + #1111's editor-core
+  slice (`HitTestError` Display), with the Display-gap class swept
+  and listed, not fixed.
+
+All three briefs point at `docs/prompts/implementer-discipline.md` by
+path, carry the foreground-polling rule, and expect census/pyi/audit
+merge contention (merge main before opening; re-merge on movement).
+Orchestrator holds: the workspace-from-Python resolver-door design
+conversation (opens after G15's dependency report), the retroactive
+curation review of #938's A5 re-export block (orchestrator's own,
+next), and the #742/#741/#944 plans (drafted when their turns come).
