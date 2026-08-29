@@ -460,3 +460,54 @@ anchor on `## Track Q` appends to Track **P**. The per-track counts still
 agreed, because each track had gained exactly one row; only reading the rows
 back caught it. **A count that reconciles is not evidence the rows are in the
 right table.**
+
+## `w1`'s fix pass — and a ruling of mine it correctly declined
+
+The pass built **`test_utils::tightness`** beside the existing `vacuity`: the
+ceiling half of a discipline whose floor half already had a home, with `Sup` and
+`Meter` taking a measured ceiling per site and **owning no constant** — a shared
+ceiling being this defect at a higher altitude. It also **moved** `caught` out of
+`vacuity`'s test module rather than copying it, which is the same rule applied to
+its own new code.
+
+Two outcomes are better than the instruction that produced them.
+
+**The bicubic ceiling was removed, not tightened.** A total cancellation loss
+costs 1.25× on that geometry while the box rule admits 1.757×, so **no number is
+simultaneously above the healthy state and below the broken one** — the fixture
+has a residual of 0.910 m on an object 1.600 m across, so there is almost nothing
+for tightness to be tight about. The row now claims completion and soundness
+only, and points at the file's actual cancellation witness. An assert-nothing
+`no_ceiling(why)` API was declined on the ground that a test asserting nothing is
+never a gate; the verdict is prose at the claim site with both measured endpoints.
+
+**And it declined my anchor, correctly.** I ruled the aligned row's ceiling
+should be anchored on its comment's `~1e-1` span-width figure. Applying that same
+anchor to the sibling row on the *same wall* would have declared a shipped,
+sound, measured-tight bound (1.286e-1) already degenerate — so `~1e-1` is a
+remark about one carrier, not a scale property of the geometry, and it cannot
+serve as the rule. The lane used the **computed whole-object box diagonal**
+instead, which is the durable form of what I meant, re-derives itself when a
+fixture moves, and is now guarded by its own red-proof (`CEILING IS NOT A GUARD`
+fires when a ceiling is raised above it even though the bound is well under it).
+It deleted the unsourced sentence rather than leaving it standing.
+
+Two further repairs worth naming: `truth * 0.99` is gone — `dense_true_sup` now
+**reports unconverged foot points** (0 of 4097 on every carrier), the row pins
+that at zero, and domination is exact. And the speed meter's constant is
+re-justified from the **integral** arm's own nineteen-carrier population rather
+than from rational rows that run a different arm, two of which sit inside the
+band the guard forbids.
+
+### An exposure this session created and has not yet paid
+
+`w1` and `w2` **both edit `crates/test-utils/`** — one adding `tightness` and
+`panic_capture`, the other rewriting `source`. Both touch `src/lib.rs`. That is a
+collision *inside* Track W, and the partition does not prevent it: its rule is
+that no two **tracks** share a file, and sequencing within a track is the
+orchestrator's job. It was not sequenced. The conflict is textual (two module
+declarations) rather than semantic, but the real exposure is wider: **every crate
+in the tree dev-depends on `test-utils`**, and between them the two lanes have
+verified it against four crates and fourteen. A workspace-wide `cargo check` is
+owed on the integration branch before this reaches hosted CI, and it is the
+orchestrator's to run.

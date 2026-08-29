@@ -7523,7 +7523,7 @@ grows after dispatch. **This row needs a lane and does not have one.**
 > `docs/SMELL-{C,E,F,G,H,I}-LOG.md` are the execution record for six of the
 > nine. **A, B and D left no log and none is owed**; what they did is in their
 > merged PRs. The rulings the logged tracks made are cited from here by number
-> (`F-R11`, `H-R2`, `I-R8`, …) and are read there. **113 open items** are
+> (`F-R11`, `H-R2`, `I-R8`, …) and are read there. **114 open items** are
 > carried below, partitioned by file territory so that no two tracks edit one
 > file and no branch waits on, fences against, or re-derives another's scope.
 
@@ -7612,7 +7612,7 @@ its orchestrator stopped, and §C3 says a deferral that lands nowhere that
 executes is the failure this document keeps re-finding. **This section is the
 one register for all of it.**
 
-**113 open items, repartitioned into twelve tracks by FILE TERRITORY.** The
+**114 open items, repartitioned into twelve tracks by FILE TERRITORY.** The
 partition rule is the only one that matters here: **no two tracks may edit the
 same file**, so no branch waits on, fences against, or re-derives another's
 scope. Dependencies *inside* a track are its own orchestrator's to sequence —
@@ -7695,7 +7695,7 @@ re-scoped or re-argued by being moved.
 | **T** | `crates/sweep/` | `D320`–`D339` / `S390`–`S409` | 10 |
 | **U** | `crates/step-import/`, `crates/step-export/`, `crates/stl/`, `crates/pncad-py/`, `crates/pncad/` | `D340`–`D359` / `S410`–`S429` | 7 |
 | **V** | `crates/editor-core/`, `crates/profile/` | `D360`–`D379` / `S430`–`S449` | 12 |
-| **W** | `crates/*/tests/` (all crates), `crates/test-utils/` | `D380`–`D399` / `S450`–`S469` | 13 |
+| **W** | `crates/*/tests/` (all crates), `crates/test-utils/` | `D380`–`D399` / `S450`–`S469` | 14 |
 | **X** | `demos/` (Rust and Markdown; its Python is J's), `docs/DESIGN.md`'s companion table | `D400`–`D419` / `S470`–`S489` | 2 |
 
 **Three seams are stated rather than left to be discovered**, because each is
@@ -7956,10 +7956,11 @@ its own tests in its own PR, as always.
 | **D70** | The silent whole-row stand-down: a population of 13 — a FLOOR, not an enumeration — in three files (S126) | Track F |
 | **D72** | Re-mine the ε-keyed conditioning pin so its building bands exercise the collapse (S128) — #831 turned the defect into an assertion, which is a tripwire and not a fix | Track G |
 | **C18** | Three residues of H12's own enumeration, left open by #734 — a tests-only unit, so all three are coverage or prose | Track C |
-| **S230** | Certified widths with no ceiling, in crates no live track owned — `editor-core/tests/`, `pncad-py`'s and three in `sweep/tests/`. **All four sites are test targets and therefore this track's** | Track I |
+| **S230** | Certified widths with no ceiling, in crates no live track owned — `editor-core/tests/`, `pncad-py`'s and three in `sweep/tests/`. **All four sites are test targets and therefore this track's** **Same class as `D383` above, under another name — the two want one lane**, and `D383` carries the home (`test_utils::tightness`) that both close onto | Track I |
 | **D65** | **Bound-domination rows with no ceiling and no floor** (`S121`) — five sites in four crates: `geom-core/tests/m5_pr7b_tensor_compose.rs:222, :244, :425-426`; `geom-brep/tests/r1_pxn_probes.rs:176`; `geom/tests/curves/m5_pr7_speed_meter.rs:36`; and `mesh/src/nurbs_cert.rs:1538`, **which is Track R's `D300` and not this row**. Each asserts that a certified bound dominates a sampled true value and nothing else — monotone in the safe direction, so an arbitrarily loose bound passes; most also lack the anti-vacuity floor that keeps a collapsed fixture from satisfying the comparison for free. The discipline is written in the tree at `m5_pr7b_tensor_compose.rs:195-207`, which carries both halves and says why. **The deliverable is a measured ratio per site at more than one ε, not a transplanted `10.0`** — a threshold that re-pins today's output is `memories/output-stability-as-justification.md`'s shape. A written verdict that some site admits no honest ceiling is a passing answer. Check `geom-brep/tests/m5_pr7_ssi.rs`'s neighbourhood against **#734** before opening | Track F, unplaced |
 | **D380** | A band-keyed row's NAME asserts an arm the shipped default does not take (`S136`) — `profile/tests/review_s2.rs`, plus two more members in `step-import/tests/recognize_pins.rs`. **Not takeable as a rename alone**: `profile/src/sugar.rs`'s `LEVER_ULPS` doc cites the row by name, so closing it reaches one file on Track V, which is that track's row to file | unrowed |
 | **D381** | **`RecipeEditRef::ForeignNode` is unpinned at both mid-evaluation doors.** `editor-core`'s selection and declare doors resolve authored names through one shared ladder (`eval/wire.rs`'s `mod ladder`), whose rung 1 splits a missing minting node into `NodeDeleted` (id below the mint counter) and `ForeignNode` (id at or above it). `m6_5_selection_refusals.rs` and `m4_pr5_declare.rs` pin every other arm of that ladder and **neither pins `ForeignNode`**; the crate's only pin of it, `m4_pr4_resolve.rs:423`, is the *whole-evaluation* resolve door, which is a different ladder. The arm is reachable only across documents — the edit door refuses never-existed ids before evaluation — which is why it was left unpinned, not why it should stay so: #670 collapsed the two doors onto one implementation, so one fixture now covers both. Disclosed by that PR and never rowed | unrowed |
+| **D383** | **The bound-domination class, its home, and the three helpers that already compute its answer.** `S121`'s shape generalises well past `D65`'s five sites: an assertion comparing a certified quantity against a sampled one with nothing on the other side. Enumerated so far, all on this track's fence: `geom-core/tests/review_m5_pr7b_tensor.rs:141` and `:487`; `geom-brep/tests/offb_r1_probes.rs:202`; `geom-brep/tests/pcurve_p1a_meter.rs:245`; `geom-brep/tests/offset_fit.rs:233`, `:364`, `:369`; `geom-brep/tests/m5_pr7_ssi.rs:1414` (ceiling present, anti-vacuity floor absent); `geom/tests/curves/review_m5_pr2_e2e.rs:214` and `:218`; `geom/tests/curves/m8_14_long_turn_meter.rs:109`, a **helper** over eight carriers and now the best-measured member of the class — nineteen integral-arm ratios with a floor of 0.9600 — so it is one call from being fixed. **A reviewer sweep puts the true count near fifteen across at least six naming vocabularies, so this enumeration is a floor, not a census.** Three helpers already compute the exact ratio the discipline asks for **and discard it**: `m5_pr7_speed_meter.rs`'s `assert_real_and_sound` returns `m / lo` to ten call sites and the one caller that reads it uses it for scale covariance, not tightness; `mesh/src/nurbs_cert.rs`'s `assert_dominates` *prints* the ratio to eight; `review_m5_pr7b_tensor.rs`'s `falsify` returns it and the battery `eprintln!`s the worst one. Those three are the cheapest members. **The home now exists** — `test_utils::tightness` (`Sup`/`Meter`), which owns no constant, takes a measured ceiling per site, and refuses a ceiling that sits at or above the fixture's whole-object box. `S230` below is the same class under another name and **the two want one lane**. `mesh/src/nurbs_cert.rs:1538` stays Track R's `D300` | `D65` residue |
 | **D382** | **`every_suite_file_is_aggregated` is duplicated thirteen times, once per crate**, and `D61` converted all thirteen onto the shared lexer without collapsing them — an `S4` instance inside this track's own fence, surfaced by the lane that touched every copy. Collapsing it needs a shared helper in `crates/test-utils/` and a fourteenth caller; the reason it was not taken is that it is a scoping call rather than a lane one | `D61` residue |
 
 *(**Standing, and stated here because nothing else in this document carries it.** There are exactly
