@@ -16,14 +16,23 @@ under specs daily.
   ~1 failure per shard, not the failure surface (measured 22 vs 1-2
   in the issue). The `fail-fast: false` at the matrix level is the
   shard-cancellation setting and does not touch this.
-- **#1122 (partially paid at dispatch)**: `scripts/ci-filter.py`'s
-  header now says "A PIN IS ANNOUNCED ON STDERR … a pin no reader
-  can see is …" — some or all of the issue's option 3 (say it
-  pinned, and why) may already be landed. `_forces_interval`
-  returns a reason string. Establish exactly what is landed, what
-  reaches the hosted run's visible output, and what gap remains.
-  The issue's option 2 (`LANE=both` on pin) is EXPLICITLY NOT in
-  this unit — it awaits a ruling (plan §Rulings Q2).
+- **#1122 (RULED, 2026-08-29 — this deliverable was re-cut
+  mid-flight; the ruling supersedes the earlier verify-the-pin
+  framing)**: Evan ruled the basename-substring half of
+  `_forces_interval` (the `"interval" in basename` arm) is
+  **removed** in favour of the manual-request convention — a
+  change to interval semantics asks for its lane with
+  `CI-Config: lane=interval` (the landed request-a-point door).
+  The `interval-transcendentals/` arm **stays** (exact by
+  construction; the crate's own guard jobs complement it). In
+  place of the dropped pin, the filter prints an ADVISORY when a
+  changed file's basename contains `interval`: the diff touched
+  `*interval*` files, and if interval semantics changed the lane
+  should be requested. **The load-bearing half (Evan): the
+  convention lands in `docs/prompts/implementer-discipline.md`**,
+  replacing its §2 paragraph that documents the basename rule —
+  every lane reads that file, and a convention only a filter
+  message states is one nobody follows. `LANE=both` is moot.
 - **#1051 (landed 2026-08-28, open)**: the request-a-point feature
   (`workflow_dispatch` inputs + `CI-Config:` head-commit trailer +
   `CONFIG_SOURCE` line) is in the tree —
@@ -50,15 +59,20 @@ under specs daily.
    without archaeology (the run line itself carrying the flag
    suffices if it is visible in the step's log header; otherwise an
    explicit echo).
-4. **#1122's visibility half, verified end-to-end**: from a hosted
-   run of a branch that trips `_forces_interval` (your own PR can
-   plant a scratch `*_interval.rs`-touching commit and revert it, or
-   read a recent real run), confirm the pin announcement appears in
-   the filter job's visible output with the reason, and that
-   `CONFIG_SOURCE` distinguishes a pin from a draw. Fix any gap
-   between "announced on stderr" and "a reader of the run can see
-   it". Report what remains for option 2 so the ruling lands on
-   facts.
+4. **#1122 per the ruling**: remove the basename arm of
+   `_forces_interval`, keep the `interval-transcendentals/` arm and
+   the fail-closed unresolved-file-list arm, add the advisory print
+   for `*interval*` basenames (visible in the filter job's output,
+   like the pin announcements are), update the filter's header
+   prose and its self-tests (the file carries test cases asserting
+   the basename pin — they flip to asserting the advisory + draw),
+   and rewrite `docs/prompts/implementer-discipline.md` §2's
+   lane-pin paragraph to the request convention (how to request:
+   `CI-Config: lane=interval` on the head commit, or the dispatch
+   door; and say in the PR which lane gated). One PR carries the
+   pin removal and the doc, so they cannot drift apart. Close
+   issue 1122 is NOT yours — the orchestrator closes on your
+   record.
 5. **#1051 verification report** against the issue's notes: (a) a
    requested point is recorded as requested, not an unbiased draw
    (`CONFIG_SOURCE` per dimension); (b) a dispatch run cannot
