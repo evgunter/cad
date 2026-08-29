@@ -337,6 +337,11 @@ pub enum ReplaceFaceError<T: Real> {
     },
     /// **The simultaneous door: two chart moves disagree about one
     /// face**, or one chart's faces do not all wear the same surface.
+    ///
+    /// Raised by BOTH simultaneous doors, which is why its Display
+    /// names the OPERATION rather than one of them: a message that said
+    /// `offset_planes_together` under a body of revolution would send a
+    /// reader to the wrong file.
     TogetherChartMixed {
         /// The face whose surface differs.
         face: FaceKey,
@@ -363,6 +368,55 @@ pub enum ReplaceFaceError<T: Real> {
         edge: EdgeKey,
         /// How far the far endpoint missed the line, in meters.
         gap: T,
+    },
+    /// **The axial door's kind gate**: a face wears a surface that is
+    /// not a plane, cylinder, cone or sphere. The axial reduction reads
+    /// each surface as a line or a circle in the meridian half-plane,
+    /// and a torus or a NURBS is neither — such bodies keep the
+    /// per-chart door and the refusal it gives them.
+    TogetherAxialUnsupported {
+        /// The face.
+        face: FaceKey,
+        /// What it carries.
+        kind: SurfaceKind,
+    },
+    /// **The axial door's axis gate**: a face's surface is one of the
+    /// door's kinds but is not a surface of revolution about the body's
+    /// axis — a cylinder skew to it, a sphere centred off it, a plane
+    /// cutting it obliquely. The meridian reduction has no coordinates
+    /// for such a corner, so it refuses rather than solving in a frame
+    /// the geometry does not live in.
+    TogetherNotAxial {
+        /// The face.
+        face: FaceKey,
+        /// Which shape it is.
+        what: &'static str,
+    },
+    /// **A curved corner the axial door cannot solve.** Fewer than two
+    /// profile constraints and not an axis pole; a pair too tangent to
+    /// resolve the corner against its own edge chords; surfaces that do
+    /// not concur after the offset; or an azimuth more than one plane
+    /// through the axis over-determines. Refused rather than solved on
+    /// a subset: a corner placed off one of its own surfaces is a wrong
+    /// body no tier catches.
+    TogetherAxialCorner {
+        /// The vertex.
+        vertex: VertexKey,
+        /// How many distinct surfaces meet there.
+        surfaces: usize,
+        /// Which of the shapes above it is.
+        what: &'static str,
+    },
+    /// **An edge the axial door cannot re-derive.** Its carrier kind,
+    /// or its chart's offset map, is outside the closed forms this door
+    /// carries — a mapped description on a chart whose motion is a
+    /// radius change, a circular edge whose plane is not normal to the
+    /// axis, a carrier that is neither a line nor a circle.
+    TogetherAxialEdge {
+        /// The edge.
+        edge: EdgeKey,
+        /// Which shape it is.
+        what: &'static str,
     },
     /// A margined predicate escalated: the margin landed in the
     /// ambiguity band or was poisoned (escalate-never-guess, D4 ¶3).
@@ -489,6 +543,30 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
                 "replace_face_offset: {edge:?} ends at a moved vertex that is {gap:?} m off its \
                  own carrier, so its parameter cannot be re-anchored"
             ),
+            Self::TogetherAxialUnsupported { face, kind } => write!(
+                f,
+                "offset_charts_together: {face:?} carries a {}, which the axial reduction has \
+                 no meridian curve for — this body keeps the per-chart door",
+                kind.name()
+            ),
+            Self::TogetherNotAxial { face, what } => write!(
+                f,
+                "offset_charts_together: {face:?} is {what}, so it is not a surface of \
+                 revolution about this body's axis and its corners have no meridian coordinates"
+            ),
+            Self::TogetherAxialCorner {
+                vertex,
+                surfaces,
+                what,
+            } => write!(
+                f,
+                "offset_charts_together: {vertex:?} has {surfaces} distinct moved surfaces and \
+                 {what}"
+            ),
+            Self::TogetherAxialEdge { edge, what } => write!(
+                f,
+                "offset_charts_together: {edge:?} cannot be re-derived — {what}"
+            ),
             Self::Escalated { source } => {
                 write!(f, "replace_face_offset escalated: {source}")
             }
@@ -504,18 +582,19 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
             }
             Self::TogetherChartMixed { face, other } => write!(
                 f,
-                "offset_planes_together: {face:?} does not wear the same surface as its chart's \
-                 {other:?} — a chart move names ONE chart"
+                "the simultaneous offset: {face:?} does not wear the same surface as its \
+                 chart's {other:?} — a chart move names ONE chart"
             ),
             Self::TogetherFaceRepeated { face } => write!(
                 f,
-                "offset_planes_together: {face:?} is named by more than one chart move, so its \
-                 offset is two different numbers"
+                "the simultaneous offset: {face:?} is named by more than one chart move, so \
+                 its offset is two different numbers"
             ),
             Self::TogetherEdgeDisagreement { edge, gap } => write!(
                 f,
-                "offset_planes_together: {edge:?}'s two ends were solved {gap:?} m apart — the \
-                 far corner's own solve did not land on the line its two moved planes carry"
+                "the simultaneous offset: {edge:?}'s two ends were solved {gap:?} m apart — \
+                 the far corner's own solve did not land on the carrier its two moved \
+                 SURFACES give it"
             ),
             Self::TogetherNonPlanar { face, kind } => write!(
                 f,
@@ -524,9 +603,9 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
             ),
             Self::TogetherPartialSet { face } => write!(
                 f,
-                "offset_planes_together: {face:?} is a face of the body that no chart move \
-                 named — every corner's answer depends on all the planes meeting it, so a \
-                 partial set has corners this door cannot solve"
+                "the simultaneous offset: {face:?} is a face of the body that no chart move \
+                 named — every corner's answer depends on all the surfaces meeting it, so a \
+                 partial set has corners no simultaneous door can solve"
             ),
             Self::TogetherCorner {
                 vertex,
@@ -534,8 +613,8 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
                 what,
             } => write!(
                 f,
-                "offset_planes_together: the corner at {vertex:?} ({planes} distinct planes) \
-                 has no offset point — {what}"
+                "the simultaneous corner solve: the corner at {vertex:?} ({planes} distinct \
+                 planes) has no offset point — {what}"
             ),
             Self::ResultNotClosed { errors } => write!(
                 f,
@@ -1114,6 +1193,22 @@ fn mint_offset<T: Decide + PropsQuadLane>(
             Some(Err(error)) => Err(ReplaceFaceError::Fit { face, error }),
         };
     }
+    // **A cone's mirror nappe is a consumer obligation this door does
+    // not discharge (#1199).** `ConeOffset`'s header ratifies that `n₊`
+    // does not flip across the apex and states the consequence: a
+    // mirror-nappe face's material moves `−d` along its OWN chart
+    // normal. `d` arrives here along the FACE's outward direction
+    // (`shell::inward` reads the sense bit), so on a face below its
+    // apex the two conventions are opposite and this call turns the
+    // offset the wrong way. `offset_axial::nappe_signed` discharges the
+    // same obligation for the simultaneous door.
+    //
+    // No wrong body ships from it today, measured on both review arms
+    // of #1180: on every reachable fixture the neighbouring caps refuse
+    // first at `ReanchorOffCarrier`, so the turned sign never reaches a
+    // body that gets built. A latent hazard behind a gate, filed with
+    // both arms' evidence rather than fixed in a unit that is not
+    // sweeping this door.
     geom_brep::offset_surface(old, d, band)
         .map_err(|error| ReplaceFaceError::Offset { face, error })
 }

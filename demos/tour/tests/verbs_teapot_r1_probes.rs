@@ -8,13 +8,15 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use core::f64::consts::PI;
+
 use pncad::authoring::{p2, validated};
 use pncad::geom::{Curve3, Surface};
 use pncad::geom_core::{Band, Point2, Point3, Tol, Vec2};
 use pncad::prelude::{Open, Start};
 use pncad::profile::{ProfileLoop, SketchPlane};
 use pncad::sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
-use pncad::topo::{Body, FaceKey, LoopBoundary, ReplaceFaceError, ShellError};
+use pncad::topo::{Body, FaceKey, LoopBoundary};
 
 const FIT_TOL: f64 = 1e-6;
 
@@ -388,56 +390,93 @@ fn p2b_an_all_square_plus_prism_still_hollows() {
     assert_eq!(hollow.shells().count(), 2, "outer + cavity");
 }
 
-/// **P3 — the bellied pot's wall-1 gap, re-derived in closed form.**
-/// The PR pins `gap: 0.006097308927399331` for the sphere-zone pot.
-/// Under the re-anchor mechanism (the foot cylinder shrinks by t and
-/// the sphere's seam-meridian arc is asked to end at the moved
-/// vertex), the gap is the moved vertex's distance to that meridian
-/// circle: R − √((r_foot − t)² + (y_foot − c)²) with R = 5/64 the
-/// sphere radius, r_foot = 4/64, c = 1/16 the sphere centre, t =
-/// 1/128. This probe re-runs the PR's own fixture and checks the
-/// payload equals the closed form to 1e-15 — the strongest available
-/// evidence that the gap is the mechanism's number, not a tag.
+/// **P3, FLIPPED: wall 1's body HOLLOWS, and its wall is the closed
+/// form.**
+///
+/// This probe pinned the refusal's payload: the bellied pot's
+/// foot-to-belly junction is a cylinder meeting a sphere, `shell`
+/// transported the corner under one chart at a time, and the gap the
+/// refusal carried was the moved vertex's distance to the meridian
+/// circle it had left — `R − √((r_foot − t)² + (y_foot − c)²)`, matched
+/// to 1e-15. That was the strongest available evidence that the gap
+/// was the mechanism's number rather than a tag, and it did its job.
+///
+/// #1081's PR-2b solves that corner instead of transporting it, so the
+/// pot hollows and there is no gap to pin. The probe keeps its
+/// fixture and its standard of evidence and moves both to the other
+/// side: the WALL VOLUME, against the difference of two closed forms
+/// derived here — a foot cylinder up to the junction the offset moves,
+/// then a spherical zone to the mouth. A corner solved to the wrong
+/// point still builds a valid two-shell body, so the volume is the
+/// only thing that catches one, and the junction station is exactly
+/// where a transported corner would go wrong.
 #[test]
-fn p3_wall1_gap_matches_the_reanchor_closed_form() {
+fn p3_wall1_hollows_to_its_closed_form() {
     let tol = Tol::witness();
     let t = 1.0 / 128.0;
+    let (r_foot, r_belly, r_neck) = (4.0 / 64.0, 5.0 / 64.0, 3.0 / 64.0);
+    let (y_foot, y_c, y_mouth) = (1.0 / 64.0, 4.0 / 64.0, 8.0 / 64.0);
     let bellied = revolved(
         Open.at(Point2::new(0.0, 0.0))
-            .line_to(Point2::new(4.0 / 64.0, 0.0), tol)
+            .line_to(Point2::new(r_foot, 0.0), tol)
             .expect("base")
-            .line_to(Point2::new(4.0 / 64.0, 1.0 / 64.0), tol)
+            .line_to(Point2::new(r_foot, y_foot), tol)
             .expect("foot")
             .arc_to(
                 pncad::profile::Center {
-                    c: Point2::new(0.0, 4.0 / 64.0),
+                    c: Point2::new(0.0, y_c),
                     winding: pncad::profile::ArcSweep::Ccw,
-                    p: Point2::new(3.0 / 64.0, 8.0 / 64.0),
+                    p: Point2::new(r_neck, y_mouth),
                 },
                 tol,
             )
             .expect("belly")
-            .line_to(Point2::new(0.0, 8.0 / 64.0), tol)
+            .line_to(Point2::new(0.0, y_mouth), tol)
             .expect("mouth")
             .line_to(Start, tol)
             .expect("axis")
             .into(),
         tol,
     );
-    let e = pncad::topo::shell(&bellied, t, FIT_TOL, band(tol), tol)
-        .expect_err("the bellied pot refuses (wall 1)");
-    let ShellError::Face { error, .. } = e else {
-        panic!("not the offset door: {e}");
+    let pot = pncad::topo::shell(&bellied, t, FIT_TOL, band(tol), tol)
+        .expect("the bellied pot hollows now — wall 1 retired");
+    assert_eq!(
+        pncad::topo::validate_geometric(&pot, tol),
+        Ok(()),
+        "tier 3 on the bellied pot"
+    );
+    assert_eq!(pot.shells().count(), 2, "outer + cavity");
+
+    // The boundary's own volume at inward offset `d`. The foot cylinder
+    // shrinks radially and the belly sphere concentrically, so their
+    // junction SLIDES along the meridian — which is the corner the
+    // simultaneous door solves and the one a transported corner gets
+    // wrong.
+    let enclosed = |d: f64| -> f64 {
+        let (rf, rr) = (r_foot - d, r_belly - d);
+        let y0 = y_c - (rr * rr - rf * rf).sqrt();
+        let y1 = y_mouth - d;
+        let zone = |y: f64| {
+            let u = y - y_c;
+            rr * rr * u - u * u * u / 3.0
+        };
+        PI * rf * rf * (y0 - d) + PI * (zone(y1) - zone(y0))
     };
-    let ReplaceFaceError::ReanchorOffCarrier { gap, .. } = *error else {
-        panic!("not the re-anchor refusal: {error}");
-    };
-    let r = 5.0 / 64.0;
-    let dy: f64 = 1.0 / 64.0 - 4.0 / 64.0;
-    let want = r - ((4.0 / 64.0 - t).powi(2) + dy.powi(2)).sqrt();
-    println!("wall-1 gap = {gap}, closed form = {want}");
+    // The offset junction is a real motion, not a fixed station: it is
+    // this probe's own discriminator, and it is printed rather than
+    // only used.
+    println!(
+        "wall-1 junction: {} at d = 0, {} at d = t",
+        y_c - (r_belly * r_belly - r_foot * r_foot).sqrt(),
+        y_c - ((r_belly - t) * (r_belly - t) - (r_foot - t) * (r_foot - t)).sqrt()
+    );
+    let want = enclosed(0.0) - enclosed(t);
+    let got = pncad::topo::mass_properties(&pot, tol)
+        .expect("the pot's props")
+        .volume;
+    println!("wall-1 wall volume = {got}, closed form = {want}");
     assert!(
-        (gap - want).abs() < 1e-15,
-        "the payload is the mechanism's own length: got {gap}, want {want}"
+        (got - want).abs() < 1e-15,
+        "the wall is the difference of two closed forms: got {got}, want {want}"
     );
 }
