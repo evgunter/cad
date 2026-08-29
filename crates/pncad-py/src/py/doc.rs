@@ -6,7 +6,7 @@
 //! the document layer's own public vocabulary, not a slotmap key.
 
 use pyo3::prelude::*;
-use pyo3::types::PyString;
+use pyo3::types::{PyDict, PyString};
 
 use crate::errors::ErrorClass;
 use crate::py::typed_err;
@@ -321,6 +321,23 @@ impl Doc {
     /// solve's relative pose, which is `SolvedPoses.placement`.
     fn placement(&self, node: &NodeId) -> super::place::Frame {
         super::place::Frame(self.inner.placement(node.0))
+    }
+
+    /// The placement **registry itself**: every node with a recorded
+    /// cluster frame, as node → frame.
+    ///
+    /// `placement` is total and answers the identity for a node with
+    /// no row, which is what an unplaced instance's placement IS — so
+    /// this is the door that distinguishes "placed at the identity"
+    /// from "carries no frame of its own". A mated instance that is
+    /// not its cluster's gauge is ABSENT here however it is posed:
+    /// placement lives on the cluster, and its pose is solved.
+    fn placements(&self, py: Python<'_>) -> PyResult<Py<PyDict>> {
+        let out = PyDict::new(py);
+        for (node, frame) in self.inner.placements() {
+            out.set_item(NodeId(*node), super::place::Frame(*frame))?;
+        }
+        Ok(out.unbind())
     }
 
     /// The `(id, pin)` reference an instantiate node carries, or
