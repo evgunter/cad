@@ -80,9 +80,10 @@ its absence. That is a track.
    envelope findings. The identical loci certify at 2.7e-11-1.5e-10 m
    through the SSI's own degree-3 image. **So the refusal's TEXT names
    the diagonal class; the CAUSE for that class is a degree constant
-   in another crate at another lifecycle stage** — the sixth instance
-   of [[refusal-text-is-not-cause]] in this project, and the second
-   time a PCURVE substrate has corrected this plan.
+   in another crate at another lifecycle stage** — another instance
+   of [[refusal-text-is-not-cause]] (the memory does not enumerate, so
+   no ordinal is claimed), and the second time a PCURVE substrate has
+   corrected this plan.
 
    **`General` costs nothing on the certification side.** Measured:
    BOTH sub-classes certify through `certify_general` today,
