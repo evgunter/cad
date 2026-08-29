@@ -73,11 +73,12 @@
 # scope rule. Not restated here; keep this a pointer.
 # editor-core/src/checks.rs is the advisory-check registry, the
 # SECOND production caller of topo::separation (ratified by Evan
-# 2026-08-29). It inherits SolidSeparation's signature rather than
-# widening anything, and the `separation` entry at the head of the
-# real.rs rule already decided what such a caller owes — "the
-# CALLER decides it, not the door; doors tighten, passes keep their
-# lanes", and run_checks is a pass.
+# 2026-08-29). Its bound is `Decide + CertifiedBounds` — TIGHTENED,
+# per the M9-2 entry's discriminator ("nothing generic calls this
+# door"), which is what the real.rs rule actually prescribes here;
+# the `separation` entry's "passes keep their lanes" does not
+# apply, its caller being a mixed pass beneath evaluate<T> and
+# run_checks being beneath nothing.
 #
 # THE RULING ALSO SAYS WHAT THIS GATE IS FOR, and it binds every
 # future row here: the gate avoids the dangerous pattern WHEN NOT
@@ -92,6 +93,14 @@
 # site, and boxes only ever prune. That is the thing this grep
 # exists to catch, and it is checked FIRST — a necessity argument
 # for a deciding read is an argument for a different design.
+#
+# AND A NECESSITY ARGUMENT MUST NAME THE WEAKEST BOUND THAT WORKS,
+# showing the next tighter one FAILING. This row's first draft did
+# not, argued for `Decide + Bounds`, and was refuted by a reviewer
+# compiling `Decide + CertifiedBounds` — which works, because
+# nothing generic calls run_checks. The row now carries the tighter
+# bound. An argument that a bound SUFFICES is not the argument this
+# rule asks for.
 #
 # That ordering, the two negative results that carried this row,
 # and what a future row owes instead of citing them, have ONE home:

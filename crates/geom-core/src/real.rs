@@ -557,20 +557,19 @@ pub trait Real:
 /// nothing generic calls this door (the `separation` entry above).
 ///
 /// **Extension (2026-08-29, ratified by Evan in conversation):**
-/// `editor_core::checks` — the advisory-check
-/// registry — joins the compound allowlist as the **second production
-/// caller** of `topo::separation`, alongside
-/// `editor_core::eval::wire::wire_placed_union`.
+/// `editor_core::checks` — the advisory-check registry — joins the
+/// compound allowlist as the **second production caller** of
+/// `topo::separation`, alongside
+/// `editor_core::eval::wire::wire_placed_union`. Its bound is
+/// `Decide + `[`CertifiedBounds`], **not** `Decide + `[`Bounds`].
 ///
 /// **What the ruling says the rule is FOR**, in Evan's words: the gate
 /// exists "to avoid the dangerous pattern when not necessary, so if it
-/// is necessary it's fine". That is the reading to apply to every
-/// entry above and every one that follows — the rule is not a budget
-/// on how many seams may exist, and an extension is not earned by
-/// resembling one already listed. **What a candidate owes is a
-/// demonstration of NECESSITY**, and the demonstration is the
-/// ratifiable artifact: show that the bound cannot be avoided, not
-/// that it would be convenient.
+/// is necessary it's fine". That reading applies to every entry above
+/// and every one that follows — the rule is not a budget on how many
+/// seams may exist, and an extension is not earned by RESEMBLING one
+/// already listed. What a candidate owes is a demonstration of
+/// **necessity**, and the demonstration is the ratifiable artifact.
 ///
 /// **Necessity is a filter on a candidate, never a licence.** What is
 /// NEVER allowed, whatever the necessity argument, is the thing the
@@ -580,63 +579,55 @@ pub trait Real:
 /// [`Decide`](crate::predicate::Decide) call site — a trilean, with
 /// its in-band arm — and a bracket may prune a candidate set, drive a
 /// subdivision, or be reported; it may not be read off and branched on
-/// to reach an evaluated answer. A parameter that needs [`Bounds`] in
+/// to reach an evaluated answer. A parameter that needs a bracket in
 /// order to decide something OUTSIDE the trilean is not a weak seam
 /// candidate, it is precisely the escape hatch the CI grep was written
 /// to catch, and no demonstration of necessity redeems it — such a
 /// candidate is refused rather than weighed. So an entry owes two
 /// things, and the ORDER matters: first that its reads stay on the
-/// prune/report side, then that the bound is unavoidable. Necessity
-/// argued for a deciding read is an argument for the wrong design.
+/// prune/report side, then that the bound is unavoidable.
 ///
-/// This row clears the first before it argues the second.
-/// `editor_core::checks` reads no bracket at all — no `lo`/`hi` call
-/// appears in the file — and the single bracket-derived verdict it
-/// consumes is `topo::SolidSeparation::certify`'s, whose whole
-/// consequence is whether a FINDING is emitted. No body, no topology
-/// and no evaluated value moves on it: the resident REPORTS and never
-/// gates, which is `editor_core::checks`'s own ratified posture (DS6).
-/// That is strictly weaker than what this seam's other caller does
-/// with the same grant, where it licenses a GRAFT.
+/// This row clears the first: `editor_core::checks` reads no bracket
+/// at all — no `lo`/`hi` call appears in the file — and its
+/// bracket-derived verdicts (`SolidSeparation::certify`'s, and
+/// `classify_shells`' through the `props_quad_*` funnel) decide only
+/// whether a FINDING is emitted. No body, no topology and no evaluated
+/// value moves on them: the resident REPORTS and never gates, which is
+/// `editor_core::checks`'s own ratified posture (DS6).
 ///
-/// Two negative results then carried the necessity half, and a future
-/// entry owes its own pair rather than a citation of these:
+/// **On the second: this entry got it wrong once, and the correction
+/// is the entry's most useful content.** It first carried
+/// `Decide + `[`Bounds`] and argued necessity from two negative
+/// results — that `topo::PropsQuadLane` does not imply [`Bounds`]
+/// (true, and checked by deleting the term), and that a
+/// `PropsQuadLane`-style lane would have an empty refusing side since
+/// the D1 ruling (also true). **Neither reaches the question.** They
+/// establish that SOME bracket bound is needed, never that the WEAK
+/// one is, and the tighter bound was never tried. It compiles:
+/// `Decide + PropsQuadLane + `[`CertifiedBounds`] builds the workspace
+/// with zero errors, because nothing generic calls `run_checks` — its
+/// callers are the viewer at a concrete `f64`, the tour, and tests.
 ///
-/// - `topo::PropsQuadLane` — the bound `run_checks` already carried —
-///   does NOT imply [`Bounds`], checked by deleting the term and
-///   failing to compile. So the compound bound is genuinely new here
-///   rather than a spelling of something already present.
-/// - A `PropsQuadLane`-style lane trait, the M6-2/M7-8 move that keeps
-///   `Bounds` off a crate's signatures, would have an **empty refusing
-///   side**: since the D1 ruling every scalar carries a bracket, so
-///   there is no scalar for the lane to decline. That is the PR 12
-///   fillet seam's shape — the one entry above with a standing
-///   obligation — and reaching for it here would have bought the
-///   rule's text at the cost of its meaning.
+/// A reviewer found that with a one-line experiment the entry itself
+/// should have run. The lesson generalises past this row: a necessity
+/// argument must name the WEAKEST bound that works and show the next
+/// tighter one failing, or it is an argument that a bound suffices —
+/// which is not what this rule asks.
 ///
-/// It adds no new obligation and opens no new class. The registry's
-/// separation resident calls `topo::SolidSeparation`, the solid-pair
-/// sibling of `Separation`, and inherits that door's signature
-/// verbatim — the same [`face_box`](topo) rule, the same pad, the same
-/// poison reading. The `separation` entry at the head of this rule
-/// already decided what a caller of that door owes: **"Answered NO, and
-/// the CALLER decides it, not the door … Doors tighten; passes keep
-/// their lanes."** `run_checks` is a pass of exactly the kind that
-/// sentence contemplates — a registry of residents whose other member
-/// (connectedness) classifies shells and certifies nothing — so it
-/// keeps its lane, and `T: Decide + Bounds` rather than
-/// `Decide + `[`CertifiedBounds`] is the reading that entry prescribes.
+/// **And the precedent had been read backwards.** The `separation`
+/// entry's "passes keep their lanes" turns on its caller being a mixed
+/// pass BENEATH `evaluate<T>`, which a [`CertifiedBounds`] bound would
+/// reach by propagation; `run_checks` is not beneath `evaluate` and
+/// propagates to nothing. The M9-2 entry states the actual
+/// discriminator — `topo::chart_region` WAS tightened, "the difference
+/// being that nothing generic calls this door" — and by that sentence
+/// `run_checks` falls on the tighten side. It is now tightened, so the
+/// two doors agree.
 ///
-/// **The split is empty here, and that is stated rather than
-/// discovered.** Since the D1 ruling every scalar carries a bracket,
-/// so a `PropsQuadLane`-style lane would have nothing to refuse — the
-/// PR 12 fillet seam's shape, not M6-2's. What keeps that from being
-/// the fillet seam's *standing obligation* is that this door mints no
-/// certificate object and its answer is not generic in `T`: a
-/// `SolidsMeet` is a pair of arena keys, and a box's non-overlap at a
-/// dual is the value channel's non-overlap, which is the base scalar's
-/// (D9). The resident REPORTS and never gates, so no refusal, mutation
-/// or classification hangs off the read.
+/// The allowlist row is owed either way: the gate's matcher is shaped
+/// by the trait NAME and reads `Decide + CertifiedBounds` as a
+/// compound bound in both operand orders, which is correct — that is a
+/// parameter that decides AND brackets.
 ///
 /// **Provenance.** Unlike the PR 11/PR 12/M6-2/M9-2 extensions above,
 /// this one did not go through the self-merge convention: it arose in

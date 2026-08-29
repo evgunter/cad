@@ -50,8 +50,8 @@ pub use assembly::{
     Assembly, AssemblyError, AtRestFinding, Attribution, MintedDeclaration, RefusedRef, assemble,
 };
 pub use checks::{
-    CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal, ChecksConfig, ChecksError,
-    ChecksReport, Severity, enforce_checks, run_checks, subject_body,
+    Advisory, CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal, ChecksConfig,
+    ChecksError, ChecksReport, Severity, enforce_checks, run_checks, subject_body,
 };
 pub use diff::{DocDiff, NodeChange};
 pub use doc::{Doc, DocParam, ParamName};

@@ -1,4 +1,4 @@
-//! The check registry and its first resident (DISCIPLINES-DESIGN DS6;
+//! The check registry and its residents (DISCIPLINES-DESIGN DS6;
 //! LONGTERM-IDEAS I1(0b)): `run_checks` / `enforce_checks` over real
 //! evaluated documents.
 //!
@@ -22,8 +22,8 @@ mod fixture;
 use std::collections::BTreeMap;
 
 use editor_core::{
-    BooleanOp, CancelToken, CheckEvidence, CheckFinding, CheckId, CheckKind, ChecksConfig,
-    ChecksReport, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId, Severity,
+    Advisory, BooleanOp, CancelToken, CheckEvidence, CheckFinding, CheckId, CheckKind,
+    ChecksConfig, ChecksReport, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId, Severity,
     enforce_checks, run_checks, subject_body,
 };
 use fixture::{desc, insert, len, square};
@@ -430,11 +430,17 @@ fn touching_roots_are_reported_as_uncertified_not_as_overlapping() {
 /// finding.
 ///
 /// **What this does NOT prove**, said here because the row's first
-/// name claimed it did: `disjoint_union`'s two solids are 3.0 apart,
-/// so `certify` GRANTS and the same-subject guard in
-/// `checks::separation` never executes — this row goes green against a
-/// build with that guard deleted, which is how a deletion of it once
-/// survived a full local suite. The guard's own row is
+/// name claimed it did: `disjoint_union` is ONE root denoting ONE
+/// SOLID with two outer shells, not two solids, so the pair walk emits
+/// no same-subject pair for it at any separation and the guard in
+/// `checks::separation` never executes. (An earlier draft of this note
+/// said the two solids were "3.0 apart" so `certify` granted — also
+/// true of the shells' boxes, but not the mechanism: there is no pair
+/// here to certify. A boolean union of separated operands yields one
+/// multi-SHELL solid; the document-layer shape that yields a
+/// multi-SOLID body is an instantiated part.) This row goes green
+/// against a build with the guard deleted, which is how a deletion of
+/// it once survived a full local suite. The guard's own row is
 /// `asm_r2b_assembly::two_solids_of_one_subject_are_skipped_by_the_guard_not_by_geometry`,
 /// where the two solids are COINCIDENT and nothing but the guard can
 /// keep the resident quiet. What this row still pins is worth pinning
@@ -458,7 +464,7 @@ fn a_deliberately_disjoint_body_draws_no_separation_finding() {
 fn separation_off_is_visibly_skipped_and_independent() {
     let (doc, _, _) = two_roots(0.0);
     let cfg = ChecksConfig {
-        separation: Severity::Off,
+        separation: Advisory::Off,
         ..ChecksConfig::default()
     };
     let report = checks(&doc, &cfg);
@@ -479,20 +485,30 @@ fn separation_off_is_visibly_skipped_and_independent() {
     assert_eq!(report.findings[0].check, CheckId::Separation);
 }
 
+/// INVARIANT: this resident cannot refuse, and the TYPE is what says
+/// so — DS6 lets a check offer `error` only *iff* it ships a waiver
+/// vocabulary, and this one ships none.
+///
+/// `ChecksConfig::separation` is an [`Advisory`], which has no `Error`
+/// position to set, so `enforce_checks` cannot refuse on a separation
+/// finding however the config is written. The row that used to live
+/// here asserted the opposite (it set `Severity::Error` and checked
+/// that `enforce_checks` refused), which is exactly the DS6 violation
+/// the narrower type retired.
 #[test]
-fn separation_severity_changes_only_what_is_accepted() {
+fn separation_cannot_refuse_because_it_ships_no_waiver() {
     let (doc, _, _) = two_roots(0.0);
-    let warn = ChecksConfig::default();
-    let error = ChecksConfig {
-        separation: Severity::Error,
-        ..ChecksConfig::default()
-    };
-    let (a, b) = (checks(&doc, &warn), checks(&doc, &error));
-    // Identical reports: severity is a position on what is ACCEPTED,
-    // never on what is found.
-    assert_eq!(a, b);
-    assert!(enforce_checks(&a, &warn).is_ok());
-    assert!(enforce_checks(&b, &error).is_err());
+    let cfg = ChecksConfig::default();
+    let report = checks(&doc, &cfg);
+    assert_eq!(report.findings.len(), 1);
+    assert!(
+        enforce_checks(&report, &cfg).is_ok(),
+        "a finding from a waiver-less resident never gates"
+    );
+    // Every position this knob HAS maps below `Error`.
+    for advisory in [Advisory::Off, Advisory::Warn] {
+        assert_ne!(advisory.severity(), Severity::Error);
+    }
 }
 
 #[test]

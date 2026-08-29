@@ -42,6 +42,18 @@ fn two_cubes(dx: f64) -> topo::Body<f64> {
     dst
 }
 
+/// Three unit cubes in one body, spread well clear of one another —
+/// for the key that a two-solid index cannot resolve.
+fn three_cubes() -> topo::Body<f64> {
+    let mut dst = two_cubes(10.0);
+    let mut src = geometric_cube::<f64>().body;
+    describe_as_intersections(&mut src);
+    let map = Affine3::translation(Vec3::new(20.0, 0.0, 0.0));
+    let placed = topo::transform_rigid(&src, &map, Tol::witness()).expect("a rigid map");
+    topo::graft_disjoint(&mut dst, &placed, Tol::witness()).expect("a placed graft");
+    dst
+}
+
 fn keys(body: &topo::Body<f64>) -> (topo::SolidKey, topo::SolidKey) {
     let mut it = body.solids().map(|(k, _)| k);
     let a = it.next().expect("a first solid");
@@ -96,12 +108,33 @@ fn a_self_pair_and_an_unknown_key_deny() {
     // would let a caller's self-pair read as a certificate.
     assert_eq!(sep.certify(a, a), Err(SolidsMeet { a, b: a }));
 
-    // A key from a DIFFERENT body is not in the index. It cannot be
-    // certified against anything, so it denies, naming the pair as
-    // given rather than inventing an arena order it has no place in.
-    let other = two_cubes(10.0);
-    let (stranger, _) = keys(&other);
-    assert_eq!(sep.certify(a, stranger), Err(SolidsMeet { a, b: stranger }));
+    // A key the index cannot RESOLVE denies. Reaching that arm needs a
+    // key past the end of this body's arena — a foreign key from a
+    // same-shaped body does NOT reach it, because the index is a
+    // `SecondaryMap` keyed by slot and version and the sibling body's
+    // first solid occupies the same slot as this one's. That is the
+    // door's stated PRECONDITION rather than a defect, and this row
+    // pins the distinction so nobody re-derives the reassuring version
+    // (the first draft of this row asserted on `stranger` and did not
+    // notice that `stranger == a`, which made it the self-pair
+    // assertion written twice).
+    let sibling = two_cubes(10.0);
+    let (sibling_first, _) = keys(&sibling);
+    assert_eq!(
+        sibling_first, a,
+        "a same-shaped body's first solid IS this body's first key, so a \
+         foreign key is not detectable here"
+    );
+
+    // The genuinely unresolvable case: a body with MORE solids has a
+    // key at a slot this two-solid index never filled.
+    let bigger = three_cubes();
+    let third = bigger
+        .solids()
+        .map(|(k, _)| k)
+        .nth(2)
+        .expect("a third solid");
+    assert_eq!(sep.certify(a, third), Err(SolidsMeet { a, b: third }));
 }
 
 #[test]

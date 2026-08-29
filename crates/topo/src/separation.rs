@@ -356,9 +356,12 @@ struct SolidBoxes {
 /// signature verbatim and carries the sibling's ratified answer with
 /// it: `geom-core/src/real.rs`'s `Bounds` scope rule settled that
 /// question for `separation` as **NO — the caller decides it, not the
-/// door** (doors tighten; passes keep their lanes). This door is
-/// reached from `editor_core::checks`, a pass, and the rule's
-/// 2026-08-29 entry is where that caller is recorded and ratified.
+/// door**. Its callers have decided differently from one another, and
+/// the rule expects that: `editor_core::eval::wire` keeps the loose
+/// lane (it is beneath `evaluate<T>`, which a tighter bound would
+/// reach by propagation), while `editor_core::checks` is TIGHTENED to
+/// `Decide + CertifiedBounds` because nothing generic calls it. The
+/// rule's 2026-08-29 entry records that second caller.
 ///
 /// So it admits a `Dual` exactly as [`Separation`] does, and for the
 /// same reason: a `SolidsMeet` is a pair of arena keys, not a value in
@@ -444,11 +447,21 @@ impl SolidSeparation {
     /// The returned pair is ordered by arena position, so it does not
     /// depend on the order the arguments were passed in.
     ///
-    /// A key this was not built over cannot be certified against
-    /// anything: it denies, naming the pair as given. A solid compared
-    /// against itself denies too — a solid is not disjoint from itself,
-    /// and answering `Ok` there would let a caller's self-pair silently
-    /// read as a certificate.
+    /// A solid compared against itself denies — a solid is not disjoint
+    /// from itself, and answering `Ok` there would let a caller's
+    /// self-pair silently read as a certificate.
+    ///
+    /// **PRECONDITION: both keys are `body`'s.** This is the caller's
+    /// obligation and the type system does not carry it — the graft
+    /// door's arity rule, one dimension over. A key the index cannot
+    /// resolve denies, but do not read that as detection: the index is
+    /// a `SecondaryMap`, which resolves any key whose slot and version
+    /// are live, and a key from a DIFFERENT body of the same shape has
+    /// live slots here. Such a key silently addresses whichever solid
+    /// occupies that slot, and the answer is about that solid, not
+    /// about the caller's. The door cannot tell the difference and
+    /// does not claim to; only a key past the end of this body's arena
+    /// reliably lands in the denying arm.
     ///
     /// # Errors
     ///

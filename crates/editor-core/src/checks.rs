@@ -1,5 +1,7 @@
 //! The advisory-check registry (DISCIPLINES-DESIGN DS6, grade 4) and
-//! its first resident, the connectedness check (LONGTERM-IDEAS I1(0b)).
+//! its two residents: the connectedness check (LONGTERM-IDEAS I1(0b))
+//! and the product-separation check (the establishment of disjointness
+//! `topo::graft_disjoint_all_keyed` leaves to its callers).
 //!
 //! A check is a **pure analysis over a finished evaluation** producing
 //! findings — no declaration vocabulary, no verify table, and by
@@ -32,7 +34,7 @@ use std::sync::Arc;
 
 use core::fmt;
 
-use geom_core::{BandError, Bounds, Decide, Tol};
+use geom_core::{BandError, CertifiedBounds, Decide, Tol};
 use topo::{Body, PropsQuadLane, ShellClassifyError, ShellRole, classify_shells};
 
 use crate::doc::Doc;
@@ -121,6 +123,36 @@ pub enum Severity {
     Error,
 }
 
+/// A severity knob for a resident that may not refuse — [`Severity`]
+/// minus `Error`.
+///
+/// DS6 lets a check offer `error` only if it ships a waiver
+/// vocabulary. A resident without one needs a knob whose refusing
+/// position does not exist, rather than a full [`Severity`] and a
+/// comment asking callers not to use it: the check registry is a
+/// public API, and "cannot be spelled" is the only form of that rule
+/// a caller cannot get wrong.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Advisory {
+    /// The check does not run; it is listed in
+    /// [`ChecksReport::skipped`].
+    Off,
+    /// Findings are reported; nothing refuses.
+    Warn,
+}
+
+impl Advisory {
+    /// This knob as a [`Severity`] — the widening the registry's one
+    /// severity match goes through. Total and injective, and it never
+    /// produces `Error`, which is the whole point.
+    pub fn severity(self) -> Severity {
+        match self {
+            Self::Off => Severity::Off,
+            Self::Warn => Severity::Warn,
+        }
+    }
+}
+
 /// Per-run check configuration (the [`crate::EvalOptions`] mold: a
 /// plain argument to the door, no ambient state, nothing persisted).
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -133,12 +165,31 @@ pub struct ChecksConfig {
     /// resident's acknowledgment mechanism: a deliberately disjoint
     /// body is EXPECTED disjoint, stated as data, and stays clean.
     pub expected_components: BTreeMap<(RecipeNodeId, u32), u32>,
-    /// [`CheckId::Separation`]'s severity. Default `Warn`: a product
-    /// whose roots interpenetrate is very likely a mistake, but
-    /// interference fits are legitimate documents (C6) and a viewer
-    /// must keep drawing one, so the finding reports and the caller
-    /// decides where — if anywhere — to gate on it.
-    pub separation: Severity,
+    /// [`CheckId::Separation`]'s severity — [`Advisory`], NOT
+    /// [`Severity`], so `Error` is unrepresentable here.
+    ///
+    /// **DS6's waiver rule is an `iff`** (DISCIPLINES-DESIGN, round 3,
+    /// Evan): a check may offer `error` *iff* it ships a per-finding,
+    /// stable-name-keyed acknowledgment record with a staleness
+    /// direction. The connectedness resident satisfies it through
+    /// `expected_components` + [`CheckEvidence::StaleExpectation`].
+    /// This resident ships nothing analogous, so it may not offer
+    /// `error`, and the type says so rather than a comment asking the
+    /// caller not to.
+    ///
+    /// **The declared-contact suppression is NOT that waiver** and
+    /// must not be mistaken for one: it is derived from mates rather
+    /// than authored about a finding, it is keyed by kernel arena
+    /// entities rather than stable names, it carries no provenance,
+    /// and it has no staleness direction — a declaration that stops
+    /// matching any pair is never flagged. A real waiver would be
+    /// keyed by the `(root, output)` PAIR a finding names, which is
+    /// the shape `expected_components` has one subject down; it is
+    /// what this resident owes before `Error` becomes representable,
+    /// and `heatsink.pncad` is the standing demonstration that it is
+    /// owed (five findings that are all correct and none of which can
+    /// be acknowledged short of turning the resident off).
+    pub separation: Advisory,
 }
 
 impl Default for ChecksConfig {
@@ -146,7 +197,7 @@ impl Default for ChecksConfig {
         Self {
             connectedness: Severity::Warn,
             expected_components: BTreeMap::new(),
-            separation: Severity::Warn,
+            separation: Advisory::Warn,
         }
     }
 }
@@ -157,7 +208,7 @@ impl ChecksConfig {
     pub fn severity(&self, check: CheckId) -> Severity {
         match check {
             CheckId::Connectedness => self.connectedness,
-            CheckId::Separation => self.separation,
+            CheckId::Separation => self.separation.severity(),
         }
     }
 }
@@ -358,7 +409,11 @@ impl fmt::Display for CheckFinding {
 /// because "checked and fine" and "not checked" are different answers.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct ChecksReport {
-    /// Findings, ordered by root-list position then output index (D9).
+    /// Findings in deterministic order (D9): each resident's own
+    /// findings by root-list position then output index, residents in
+    /// registry order. NOT one global sort — root 5's connectedness
+    /// finding precedes root 1's separation finding, because each
+    /// resident appends its own pass in sequence.
     pub findings: Vec<CheckFinding>,
     /// Checks that did not run because their severity is `Off`.
     pub skipped: Vec<CheckId>,
@@ -483,7 +538,7 @@ impl core::error::Error for CheckRefusal {}
 /// [`ChecksError`] — a root without a value in `ev`, or a band the
 /// tolerance cannot form. These mean the checks could not run at all;
 /// a check that ran and disagreed is a FINDING, not an error.
-pub fn run_checks<P, T: Decide + PropsQuadLane + Bounds>(
+pub fn run_checks<P, T: Decide + PropsQuadLane + CertifiedBounds>(
     doc: &Doc<P>,
     ev: &Evaluation<T>,
     cfg: &ChecksConfig,
@@ -635,16 +690,30 @@ fn connectedness<P, T: Decide + PropsQuadLane>(
 /// too would make a correctly-mated assembly noisy about the thing it
 /// got right. The suppression reads the declarations only — it never
 /// blesses a contact from discovery (F1).
-fn separation<P, T: Decide + PropsQuadLane + Bounds>(
+fn separation<P, T: Decide + PropsQuadLane + CertifiedBounds>(
     doc: &Doc<P>,
     ev: &Evaluation<T>,
     tol: Tol,
     report: &mut ChecksReport,
 ) -> Result<(), ChecksError> {
-    let gathered =
-        product::product_recorded(doc, ev, tol).map_err(|source| ChecksError::Product {
-            reason: source.to_string(),
-        })?;
+    let gathered = match product::product_recorded(doc, ev, tol) {
+        Ok(gathered) => gathered,
+        // A document whose roots denote no body has no SUBJECT for this
+        // resident — an empty document, or one holding only sketches
+        // and datums. That is not a failure to RUN the registry, and
+        // sinking the whole report on it would make the checks go
+        // silent on the most common document in the GUI (a new one, on
+        // its first frame) with no reason given, since the viewer takes
+        // the report through an `.ok()`. The other arms ARE refusals: a
+        // root that failed to evaluate, a naming collision across
+        // roots, a source body invalid at rest.
+        Err(product::ProductError::NoBodyRoots) => return Ok(()),
+        Err(source) => {
+            return Err(ChecksError::Product {
+                reason: source.to_string(),
+            });
+        }
+    };
     // Fewer than two gathered solids cannot make a pair.
     if gathered.solid_roots.len() < 2 {
         return Ok(());
@@ -718,9 +787,16 @@ fn declared_pairs<P, T: Decide>(
     // the same door `assemble` uses — one implementation of what a
     // mate declares, never a second opinion here.
     //
-    // A refusal to mint suppresses nothing (the `unwrap_or_default`):
-    // the strict direction, so a broken declaration can only make this
-    // check louder, never quieter.
+    // A mint that refuses is DISCARDED rather than propagated, and the
+    // honest reading of that is narrower than "suppresses nothing":
+    // `mint` walks `doc.order()` pushing records as it goes and returns
+    // on the FIRST mate it cannot mint, so mates before that one are
+    // already in `contacts` and do suppress. What the discard buys is
+    // that a document with one bad mate still gets a report about its
+    // other pairs rather than the resident going silent; it does not
+    // buy "a broken declaration can only make this check louder". The
+    // unresolvable-ENTITY direction IS strict, and that is `note`'s
+    // doing below, not this line's.
     let mut contacts = gathered.contacts.clone();
     let _ = crate::assembly::mint(doc, ev, &gathered.names, &mut contacts);
     let owner = topo::SolidOwners::of(&gathered.body);
