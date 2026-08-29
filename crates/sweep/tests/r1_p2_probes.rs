@@ -697,3 +697,77 @@ fn r1_a_partial_column_restatement_takes_general_and_certifies() {
         cert.envelope
     );
 }
+
+/// **The cap-rim widening's CERTIFICATION, which nothing else covers.**
+///
+/// `r1_cap_rim_widening_measures_the_face_not_the_chart` proves the
+/// measured map is geometrically right; it stops at the derivation. The
+/// whole-body mint cannot carry the check the rest of the way, because
+/// the loop walk refuses at the OTHER seam (`16v1`, an interior column
+/// through a `Chart` description — issue #1195) before any face-level
+/// certification runs. So the widened rim images ship with a measured
+/// derivation and, without this row, ZERO certification coverage.
+///
+/// Forced here at the door the mint would use: the closed-form
+/// `PcurveCache::certify`, each rim against its own chart box. A rim is
+/// an exact `v`-constant boundary row, so the envelope is exactly `0`
+/// — asserted as `0.0`, not as a tolerance, because anything else means
+/// the image is no longer the control-net copy the class rests on.
+#[test]
+fn r1_cap_rim_measured_map_certifies() {
+    let (mut body, seam_he, key) = widened_fixture(false, 1);
+    let all: Vec<_> = body
+        .edges()
+        .flat_map(|(_, e)| [e.he_plus, e.he_minus])
+        .filter(|he| he_surface(&body, *he) == key)
+        .collect();
+    for he in &all {
+        body.detach_pcurve(*he);
+    }
+    let chart = chart_of(&body, key);
+    let surface = Surface::Nurbs(Arc::new(chart.clone()));
+    let mut certified = 0;
+    for he in all {
+        if he == seam_he {
+            continue;
+        }
+        let (carrier, t0, t1) = carrier_of(&body, he);
+        if !matches!(carrier, Curve3::Line { .. }) {
+            continue;
+        }
+        let Ok(pcurve) = topo::pcurve_of(&body, he, band()) else {
+            panic!("the rim derives")
+        };
+        let window = pcurve.chart_box(t0, t1);
+        let cache = geom_brep::PcurveCache::certify(
+            pcurve.clone(),
+            t0,
+            t1,
+            &carrier,
+            &surface,
+            window,
+            band(),
+        )
+        .unwrap_or_else(|e| {
+            panic!("the measured rim map certifies at the closed-form door: {e:?}")
+        });
+        let cert = cache.certificate();
+        assert_eq!(
+            cert.envelope, 0.0,
+            "an exact boundary row's envelope is EXACTLY zero, not merely small: \
+             {:e} (image {pcurve:?})",
+            cert.envelope
+        );
+        assert_eq!(
+            cert.max_residual, 0.0,
+            "and so is its sampled max: {:e}",
+            cert.max_residual
+        );
+        certified += 1;
+    }
+    assert_eq!(
+        certified, 2,
+        "both cap rims of the widened face were certified, not zero of them"
+    );
+    println!("R1: both widened cap rims certify at envelope 0e0");
+}
