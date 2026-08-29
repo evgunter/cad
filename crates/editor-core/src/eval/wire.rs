@@ -731,12 +731,12 @@ fn wire_revolve<T: Decide>(
 ///
 /// The selection resolves through the TARGET's name table into edge
 /// keys. Resolution failures are the N5 typed trio VERBATIM
-/// ([`NodeErrorKind::FilletSelectionResolve`]) — a selection is a
+/// ([`NodeErrorKind::BlendSelectionResolve`]) — a selection is a
 /// commitment (`Node::Fillet`'s freeze semantics), so a name that
 /// stopped resolving refuses loudly rather than shrinking the set.
 ///
 /// Failure of the op itself is a TYPED refusal
-/// ([`NodeErrorKind::Fillet`]) carrying the kernel's own error
+/// ([`NodeErrorKind::Blend`]) carrying the kernel's own error
 /// unaltered, exactly as the split/boolean arms carry theirs. The
 /// input body is never passed through: a fillet that did not happen
 /// must read as a failed node, not as a silently sharp solid.

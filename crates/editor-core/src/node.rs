@@ -741,7 +741,7 @@ pub enum Node<P> {
     /// The op is [`sweep::fillet::build::fillet_edges`] over the
     /// resolved selection; anything outside its two assembly front
     /// doors is a typed refusal
-    /// ([`crate::eval::NodeErrorKind::Fillet`]), never a silent
+    /// ([`crate::eval::NodeErrorKind::Blend`]), never a silent
     /// pass-through of the input body.
     ///
     /// # The selection FREEZES (ruled, #217)
