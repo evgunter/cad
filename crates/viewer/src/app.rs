@@ -42,8 +42,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use eframe::egui;
 use egui_tiles::{TileId, Tiles, Tree, UiResponse};
-use pncad::document::{Dimension, ParamName, RecipeNodeId, SlotId};
+use pncad::document::{Axis3, Dimension, ParamName, RecipeNodeId, SlotId};
 use pncad::geom_core::Tol;
+use pncad::quantity::UnitDef;
 
 use crate::camera::{self, Camera, CameraOp};
 use crate::display::{DisplayView, free_move_check};
@@ -55,7 +56,7 @@ use crate::gpu::{DEPTH_BITS, IdQuery, ViewportCallback, ViewportRenderer};
 use crate::input::{self, InputMap, PointerButton, ViewportEvent, ViewportSize};
 use crate::matetool::{MateChoice, MateTool, MateToolState, admitted_classes};
 use crate::pick::{self, PickCache, PickIndex};
-use crate::props::{SlotDriver, SlotRow, SlotValue};
+use crate::props::{self, SlotDriver, SlotGroup, SlotRow, SlotValue};
 use crate::scene::{self, DisplayTolerance, SceneMesh};
 use crate::session::{DocSession, Refusal, Selection, SessionOp, Standing};
 use crate::tree::{RowStatus, TreeRow};
@@ -1031,24 +1032,24 @@ impl ViewerBehavior<'_> {
                 ui.weak("select a feature");
             }
             Selection::Node(node) => {
-                let rows = self.session.slot_rows();
-                if rows.is_empty() {
+                let groups = self.session.slot_groups();
+                if groups.is_empty() {
                     ui.weak("this feature carries no parameters");
                 }
-                for row in &rows {
-                    self.slot_ui(ui, node, row);
+                for group in &groups {
+                    self.slot_group_ui(ui, node, group);
                 }
             }
             Selection::Face(face) => {
                 // Slot rows for the OWNING node: a face pick is a way
                 // of reaching the feature that made it, which is what
                 // G3's click-to-select is for.
-                let rows = self.session.slot_rows();
-                if rows.is_empty() && standing.live() {
+                let groups = self.session.slot_groups();
+                if groups.is_empty() && standing.live() {
                     ui.weak("this feature carries no parameters");
                 }
-                for row in &rows {
-                    self.slot_ui(ui, face.node, row);
+                for group in &groups {
+                    self.slot_group_ui(ui, face.node, group);
                 }
             }
             Selection::Param(name) => {
@@ -1434,48 +1435,166 @@ impl ViewerBehavior<'_> {
         ui.separator();
     }
 
-    /// One slot row, with the expression-driven refusal's affordance
-    /// attached to it.
-    fn slot_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId, row: &SlotRow) {
-        ui.horizontal(|ui| {
-            ui.label(format!("{:?}", row.slot));
-            match row.value {
-                Ok(value) => {
-                    let mut number = value.as_f64();
-                    let widget =
-                        ui.add(egui::DragValue::new(&mut number).speed(if row.structural {
-                            1.0
-                        } else {
-                            0.0005
-                        }));
-                    drag_ops(
-                        &widget,
-                        number,
-                        SessionOp::BeginGesture {
-                            node,
-                            slot: row.slot,
-                        },
-                        |value| SessionOp::PreviewGesture { value },
-                        SessionOp::CommitGesture,
-                        |number| {
-                            vec![SessionOp::SetSlot {
+    /// One PANEL ROW: a scalar slot on its own, or a 3-vector's three
+    /// components on one line.
+    ///
+    /// The grouping is `props::SlotGroup`'s and the vocabulary's (see
+    /// its docs); this function only lays it out. What the two arms
+    /// share — the number widget, the gesture mapping, the driven
+    /// affordance, the expression door — is [`App::slot_value_ui`] and
+    /// [`App::slot_doors_ui`], called once per COMPONENT, so a
+    /// component of a vector is edited by exactly the operations a
+    /// stand-alone slot is.
+    fn slot_group_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId, group: &SlotGroup) {
+        match group {
+            SlotGroup::Scalar(row) => {
+                ui.horizontal(|ui| {
+                    ui.label(format!("{:?}", row.slot));
+                    self.slot_value_ui(ui, node, row);
+                    self.slot_unit_ui(ui, node, core::slice::from_ref(row));
+                    ui.weak(format!("{:?}", row.dimension));
+                    if row.structural {
+                        ui.weak("structural");
+                    }
+                });
+                self.slot_doors_ui(ui, node, row);
+            }
+            SlotGroup::Vector { family, rows } => {
+                ui.horizontal(|ui| {
+                    ui.label(family.label());
+                    for (axis, row) in Axis3::ALL.iter().zip(rows.iter()) {
+                        ui.weak(axis.label());
+                        self.slot_value_ui(ui, node, row);
+                    }
+                    // ONE picker for the vector: three components of a
+                    // point are written in one unit or the user is
+                    // being told something they did not mean to say.
+                    // The picker reports a disagreement rather than
+                    // hiding it (`slot_unit_ui`'s mixed arm).
+                    self.slot_unit_ui(ui, node, rows.as_slice());
+                    ui.weak(format!("{:?}", family.dimension()));
+                });
+                // The doors stay PER COMPONENT: an affordance names the
+                // parameters driving one component, and an expression
+                // is written for one slot. A vector-wide door would
+                // have to invent a meaning for "the expression of a
+                // point", which the recipe does not have.
+                for row in rows.iter() {
+                    self.slot_doors_ui(ui, node, row);
+                }
+            }
+        }
+    }
+
+    /// The number itself: shown in the unit the slot is WRITTEN in,
+    /// authored back through the same factor.
+    ///
+    /// The conversion is `props::in_written` / `props::from_written`,
+    /// which is the text door's one-multiply semantics — so a number
+    /// typed here and the same number typed into the expression field
+    /// land on identical bits. Everything crossing into the session
+    /// below is canonical, exactly as it was.
+    fn slot_value_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId, row: &SlotRow) {
+        let Ok(value) = row.value else {
+            if let Err(ref error) = row.value {
+                ui.weak(format!("{error}"));
+            }
+            return;
+        };
+        let unit = props::written_unit(row.dimension, row.unit);
+        let mut number = props::in_written(value.as_f64(), unit);
+        // The drag speed is in WRITTEN units now, so it has to be
+        // scaled with them: 0.0005 was a half-micron step when the
+        // field held metres, and would be a half-micron step in
+        // millimetres too — i.e. a thousand times finer than the same
+        // gesture used to be — if the divide were not applied.
+        let speed = if row.structural {
+            1.0
+        } else {
+            props::in_written(0.0005, unit)
+        };
+        let mut widget = egui::DragValue::new(&mut number).speed(speed);
+        if let Some(unit) = unit {
+            widget = widget.suffix(format!(" {}", unit.symbol()));
+        }
+        let widget = ui.add(widget);
+        drag_ops(
+            &widget,
+            props::from_written(number, unit),
+            SessionOp::BeginGesture {
+                node,
+                slot: row.slot,
+            },
+            |value| SessionOp::PreviewGesture { value },
+            SessionOp::CommitGesture,
+            |value| {
+                vec![SessionOp::SetSlot {
+                    node,
+                    slot: row.slot,
+                    value: SlotValue::of(row.dimension, value),
+                }]
+            },
+            self.ops,
+        );
+    }
+
+    /// The written-unit picker for one slot or for a whole vector.
+    ///
+    /// **"How do I want this number written" is an edit, not a view
+    /// setting** — the unit is stored per literal and persists — so the
+    /// picker emits `SessionOp::SetSlotUnit`, one per component.
+    ///
+    /// A vector whose components disagree shows `mixed` and is not
+    /// quietly normalized: the document says what it says until someone
+    /// picks. Choosing a unit then writes it to every component, which
+    /// is the only reading of a single picker over three slots.
+    ///
+    /// Nothing is drawn at all for a dimension with no units (`Scalar`,
+    /// `Count`) or for a slot whose value could not be read — there is
+    /// no notation to offer for a number that is not a quantity.
+    fn slot_unit_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId, rows: &[SlotRow]) {
+        let Some(first) = rows.first() else {
+            return;
+        };
+        let options = props::unit_options(first.dimension);
+        if options.is_empty() {
+            return;
+        }
+        let written: Vec<Option<UnitDef>> = rows
+            .iter()
+            .map(|row| props::written_unit(row.dimension, row.unit))
+            .collect();
+        let common = written
+            .iter()
+            .all(|unit| *unit == written[0])
+            .then_some(written[0])
+            .flatten();
+        let label = common.as_ref().map_or("mixed", UnitDef::symbol);
+        // `id_salt` off the first component's slot: two vectors on one
+        // node (a plane's origin and its normal) draw two pickers, and
+        // egui identifies a popup by its id.
+        egui::ComboBox::from_id_salt((node.0, format!("{:?}", first.slot), "unit"))
+            .selected_text(label)
+            .width(52.0)
+            .show_ui(ui, |ui| {
+                for option in options {
+                    let picked = common == Some(option);
+                    if ui.selectable_label(picked, option.symbol()).clicked() && !picked {
+                        for row in rows {
+                            self.ops.push(SessionOp::SetSlotUnit {
                                 node,
                                 slot: row.slot,
-                                value: SlotValue::of(row.dimension, number),
-                            }]
-                        },
-                        self.ops,
-                    );
+                                unit: Some(option),
+                            });
+                        }
+                    }
                 }
-                Err(ref error) => {
-                    ui.weak(format!("{error}"));
-                }
-            }
-            ui.weak(format!("{:?}", row.dimension));
-            if row.structural {
-                ui.weak("structural");
-            }
-        });
+            });
+    }
+
+    /// The two doors under a slot: the expression-driven affordance,
+    /// and the expression text field.
+    fn slot_doors_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId, row: &SlotRow) {
         // The affordance. It is attached to the row rather than raised
         // on refusal alone so the user can see WHY the number will not
         // move before they fight it — the refusal itself still
@@ -1517,7 +1636,10 @@ impl ViewerBehavior<'_> {
                     self.drafts.expr_text.clear();
                 }
             });
-        } else if ui.small_button("expression…").clicked() {
+        } else if ui
+            .small_button(format!("expression… ({:?})", row.slot))
+            .clicked()
+        {
             // Deliberately EMPTY rather than pre-filled: the
             // expression API has no text rendering, so a pre-filled
             // field would be this crate's guess at what the slot says.

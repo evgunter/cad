@@ -84,7 +84,7 @@ pub use names::{
 };
 pub use node::{
     Axis3, BooleanOp, Datum, InterfaceCrossing, InterfaceRecord, Node, PatternKind,
-    PlacementRuleFault, RecipeNodeId, SlotId, StepArg,
+    PlacementRuleFault, RecipeNodeId, SlotId, StepArg, VectorSlot,
 };
 pub use parse::{ParseError, parse_expr};
 pub use part::{PartResolver, ResolveFailure, ResolveFault};

@@ -75,9 +75,10 @@ pub enum UnitQuantity {
 /// [`UNITS`], so "is a row of the table" is what the value is, not a
 /// convention about how it is built. [`UnitDef::as_length`] and
 /// [`UnitDef::as_angle`] are the public route from a row to its view;
-/// `LengthUnit::def` / `AngleUnit::def` are the inverse and stay
-/// `pub(crate)` only because nothing outside the crate needs them —
-/// the seal no longer depends on their visibility.
+/// [`LengthUnit::def`] / [`AngleUnit::def`] are the inverse, and are
+/// public because the seal never depended on their visibility — a view
+/// IS an index into this table, so handing back the row it indexes
+/// cannot produce a pairing the table does not have.
 ///
 /// **This rustdoc is the one home of that narrative.** Everything else
 /// that touches the seal points here rather than restating it.
@@ -425,9 +426,9 @@ mod view {
 
         /// The table row this view indexes — the inverse of
         /// [`UnitDef::as_length`], and total, because the view IS an
-        /// index. `pub(crate)` because nothing outside the crate needs
-        /// it, not because the seal depends on it.
-        pub(crate) const fn def(self) -> UnitDef {
+        /// index. Public: it can only ever answer a row of [`UNITS`],
+        /// which is what the seal is about.
+        pub const fn def(self) -> UnitDef {
             UNITS[self.0 as usize]
         }
     }
@@ -454,7 +455,7 @@ mod view {
         }
 
         /// The table row this view indexes — see [`LengthUnit::def`].
-        pub(crate) const fn def(self) -> UnitDef {
+        pub const fn def(self) -> UnitDef {
             UNITS[self.0 as usize]
         }
     }

@@ -56,6 +56,8 @@ mod frame_policy;
 mod input_mapping;
 #[path = "mate_tool_flow.rs"]
 mod mate_tool_flow;
+#[path = "panel_display.rs"]
+mod panel_display;
 #[path = "panel_edits.rs"]
 mod panel_edits;
 #[path = "review_gui0_r1.rs"]

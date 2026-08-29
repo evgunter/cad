@@ -40,6 +40,7 @@ use pncad::document::{
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
+use pncad::quantity::UnitDef;
 use pncad::select::{ContactClass, Resolution, RunCtx, resolve};
 
 use crate::display::{DisplayFault, DisplayState, DisplayView};
@@ -270,6 +271,9 @@ pub enum Refusal {
     /// free-move on a mate-constrained instance, a gesture out of
     /// order) — the fault's own typed vocabulary, unaltered.
     Display(DisplayFault),
+    /// A written-unit change refused — the panel model's own typed
+    /// vocabulary, unaltered.
+    SlotUnit(props::SlotUnitFault),
 }
 
 impl Refusal {
@@ -297,6 +301,7 @@ impl Refusal {
             | Self::Edit(_)
             | Self::Dimension(_)
             | Self::Parse(_)
+            | Self::SlotUnit(_)
             | Self::Io(_) => 1,
             // The two gesture-order arms rank with their document
             // twins; the substantive display refusals rank with the
@@ -356,6 +361,7 @@ impl core::fmt::Display for Refusal {
             Self::Io(error) => write!(f, "{error}"),
             Self::NothingToDo => write!(f, "nothing to undo or redo"),
             Self::Display(fault) => write!(f, "{fault}"),
+            Self::SlotUnit(fault) => write!(f, "{fault}"),
         }
     }
 }
@@ -439,6 +445,27 @@ pub enum SessionOp {
         slot: SlotId,
         /// The new value.
         value: SlotValue,
+    },
+    /// Change how a slot's literal is WRITTEN — its display unit —
+    /// leaving the canonical value bit-identical.
+    ///
+    /// A separate door from [`SessionOp::SetSlot`] because the value
+    /// and its notation are independent facts about a literal (D7 keeps
+    /// the display unit out of expression identity entirely), and an
+    /// operation that moved both could not move either alone. `None`
+    /// means "remember no unit": the value renders canonically, which
+    /// is what a literal authored without a suffix already does.
+    ///
+    /// It is a document edit and enters the history like any other:
+    /// the unit is stored in the document and persists, so changing it
+    /// is a change to the document, not to the picture.
+    SetSlotUnit {
+        /// The node.
+        node: RecipeNodeId,
+        /// The slot.
+        slot: SlotId,
+        /// The unit to write it in, or `None` for canonical.
+        unit: Option<UnitDef>,
     },
     /// Replace a slot's expression from source text, through the
     /// shipped `parse_expr` door. This is the affordance's editing
@@ -615,8 +642,19 @@ impl OpOutcome {
 /// What a gesture is dragging.
 #[derive(Clone, Debug)]
 enum GestureTarget {
-    /// A node's named slot.
-    Slot { node: RecipeNodeId, slot: SlotId },
+    /// A node's named slot, with the display unit that slot's literal
+    /// remembered when the gesture opened.
+    ///
+    /// Captured at `begin_gesture` rather than re-read per preview
+    /// because a gesture is defined against its BASE document (the one
+    /// every preview is applied to), and the notation is a fact about
+    /// that base. Re-reading it would read the scratch document the
+    /// previews are writing — the gesture's own output.
+    Slot {
+        node: RecipeNodeId,
+        slot: SlotId,
+        unit: Option<UnitDef>,
+    },
     /// A document parameter, with the dimension it is declared at.
     Param {
         name: ParamName,
@@ -643,7 +681,7 @@ impl GestureTarget {
     /// The edit that writes `value` into this target.
     fn edit(&self, value: SlotValue) -> Result<DocEdit<ProfileProgram>, DimensionError> {
         match self {
-            Self::Slot { node, slot } => props::slot_edit(*node, *slot, value),
+            Self::Slot { node, slot, unit } => props::slot_edit(*node, *slot, value, *unit),
             Self::Param { name, dimension } => {
                 Ok(props::param_edit(name.clone(), *dimension, value))
             }
@@ -994,6 +1032,18 @@ impl DocSession {
         }
     }
 
+    /// The property rows as the panel LAYS THEM OUT — [`Self::slot_rows`]
+    /// folded so that the three components of a 3-vector arrive as one
+    /// group (`props::group_rows`).
+    ///
+    /// A second door rather than a replacement because the two answer
+    /// different questions: a test asserting what a node's slots are
+    /// wants the flat list, and a panel deciding how many lines to draw
+    /// wants this. Both are the same rows — the grouping only bundles.
+    pub fn slot_groups(&self) -> Vec<props::SlotGroup> {
+        props::group_rows(self.slot_rows())
+    }
+
     /// Take whatever the seam has finished, discarding results for
     /// documents the session has moved past.
     ///
@@ -1063,6 +1113,7 @@ impl DocSession {
                 self.commit(DocEdit::DeleteNode { id: node })
             }
             SessionOp::SetSlot { node, slot, value } => self.set_slot(node, slot, value),
+            SessionOp::SetSlotUnit { node, slot, unit } => self.set_slot_unit(node, slot, unit),
             SessionOp::SetSlotExpression { node, slot, text } => {
                 self.set_slot_expression(node, slot, &text)
             }
@@ -1182,9 +1233,32 @@ impl DocSession {
         if let Err(refusal) = self.guard_driven(node, slot) {
             return OpOutcome::refused(refusal);
         }
-        match props::slot_edit(node, slot, value) {
+        let unit = props::slot_unit(self.committed_doc(), node, slot);
+        match props::slot_edit(node, slot, value, unit) {
             Ok(edit) => self.commit(edit),
             Err(error) => OpOutcome::refused(Refusal::Dimension(error)),
+        }
+    }
+
+    /// Rewrite a slot literal's display unit — the value stays put.
+    ///
+    /// No `guard_driven` here, and deliberately: the driven refusal
+    /// protects a computed slot from being overwritten with a NUMBER,
+    /// and this op writes no number. What a driven slot refuses is the
+    /// narrower `SlotUnitFault::NotALiteral` the panel model raises —
+    /// an expression has no authored notation to change.
+    fn set_slot_unit(
+        &mut self,
+        node: RecipeNodeId,
+        slot: SlotId,
+        unit: Option<UnitDef>,
+    ) -> OpOutcome {
+        if self.gesture.is_some() {
+            return OpOutcome::refused(Refusal::GestureInFlight);
+        }
+        match props::slot_unit_edit(self.committed_doc(), node, slot, unit) {
+            Ok(edit) => self.commit(edit),
+            Err(fault) => OpOutcome::refused(Refusal::SlotUnit(fault)),
         }
     }
 
@@ -1249,7 +1323,8 @@ impl DocSession {
         if let Err(refusal) = self.guard_driven(node, slot) {
             return OpOutcome::refused(refusal);
         }
-        self.start(GestureTarget::Slot { node, slot })
+        let unit = props::slot_unit(self.committed_doc(), node, slot);
+        self.start(GestureTarget::Slot { node, slot, unit })
     }
 
     fn begin_param_gesture(&mut self, name: &ParamName) -> OpOutcome {
