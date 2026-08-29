@@ -310,6 +310,40 @@ fn cavity_report(what: &str, body: &Body<f64>, t: f64) {
     }
 }
 
+/// **The teapot's own two arms**, measured: the SEALED hollow and the
+/// OPENED one, on the bellied pot the scene wants to ship.
+#[test]
+fn sf2b_bellied_pot_sealed_and_opened() {
+    let tol = Tol::witness();
+    let t = 1.0 / 128.0;
+    let body = bellied_pot();
+    match topo::shell(&body, t, FIT_TOL, band(), tol) {
+        Ok(p) => println!(
+            "[pot] SEALED hollows: {} shells, props {:?}",
+            p.shells().count(),
+            topo::mass_properties(&p, tol).map(|x| (x.volume, x.surface_area))
+        ),
+        Err(e) => println!("[pot] SEALED REFUSED: {e:?}"),
+    }
+    let mouth: Vec<topo::FaceKey> = body
+        .faces()
+        .filter(|(_, f)| {
+            matches!(body.get_surface(f.surface),
+                Some(geom::Surface::Plane { origin, .. }) if (origin.y - 8.0 / 64.0).abs() < 1e-12)
+        })
+        .map(|(k, _)| k)
+        .collect();
+    println!("[pot] mouth chart: {} face(s)", mouth.len());
+    match topo::shell_open(&body, t, &mouth, FIT_TOL, band(), tol) {
+        Ok(p) => println!(
+            "[pot] OPENED: {} shells, props {:?}",
+            p.shells().count(),
+            topo::mass_properties(&p, tol).map(|x| (x.volume, x.surface_area))
+        ),
+        Err(e) => println!("[pot] OPENED REFUSED: {e:?}"),
+    }
+}
+
 /// **The measurement.** Run at head, before any 2b code.
 #[test]
 fn sf2b_head_measurement() {

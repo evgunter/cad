@@ -716,12 +716,44 @@ pub fn shell_open<T: Decide + PropsQuadLane>(
             .map(|(k, _)| k)
             .collect();
         let back = lift_to(&out, sources[0], designated)?;
-        crate::replace_faces_offset(&mut out, &lift_group, back, tolerance, band, tol).map_err(
-            |error| ShellError::Lift {
-                face: designated,
-                error: Box::new(error),
-            },
-        )?;
+        // **The lift is the same corner problem as the cavity**, with
+        // one chart moving instead of all of them: the counterpart's
+        // rim has to land where the moved plane meets the cavity walls
+        // it shares an edge with, and on a CURVED wall that is not
+        // where translating the rim puts it. Measured on the bellied
+        // pot: the per-chart lift leaves the rim 6.2 mm off the
+        // cavity's own sphere and refuses. So an axial body's lift goes
+        // through the same simultaneous door, with every OTHER chart
+        // named at distance zero — which is what makes it a corner
+        // solve rather than a transport, and what keeps those charts
+        // and their corners untouched.
+        let outcome = if crate::offset_axial::is_axial(&out, band) {
+            let mut moves: Vec<crate::offset_together::ChartMove<T>> = Vec::new();
+            for group in chart_groups(&out) {
+                let key = out
+                    .get_face(group[0])
+                    .ok_or(ShellError::Corrupt {
+                        key: EntityId::Face(group[0]),
+                    })?
+                    .surface;
+                let distance = if key == counterpart_chart {
+                    back
+                } else {
+                    T::zero()
+                };
+                moves.push(crate::offset_together::ChartMove {
+                    faces: group,
+                    distance,
+                });
+            }
+            crate::offset_charts_together(&mut out, &moves, band, tol)
+        } else {
+            crate::replace_faces_offset(&mut out, &lift_group, back, tolerance, band, tol)
+        };
+        outcome.map_err(|error| ShellError::Lift {
+            face: designated,
+            error: Box::new(error),
+        })?;
         // Read AFTER the lift: `FaceSurface::New` minted a fresh key
         // for the moved chart, and that key — not the one the graft
         // brought in — is what the ring's descriptions now name.

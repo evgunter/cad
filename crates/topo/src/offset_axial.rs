@@ -403,6 +403,16 @@ pub fn offset_charts_together<T: Decide + PropsQuadLane>(
             return Err(ReplaceFaceError::EmptyGroup);
         };
         let c = chart_of(first).ok_or(ReplaceFaceError::Corrupt)?;
+        // **A chart asked to move nothing keeps its chart.** Re-minting
+        // it would put a fresh key in the arena describing the same
+        // surface — which is not a no-op to anything reading keys, and
+        // this door is called with a mixed set (the rim LIFT moves ONE
+        // chart of a body whose others must hold still).
+        match decide("offset_axial_chart_motion", Margin::of(m.distance), band) {
+            Ok(Sign::Zero) => continue,
+            Ok(_) => {}
+            Err(source) => return Err(ReplaceFaceError::Escalated { source }),
+        }
         let new_key = work
             .set_face_surface(first, FaceSurface::New(c.new.clone()))
             .map_err(|error| ReplaceFaceError::Op { edge: None, error })?;
