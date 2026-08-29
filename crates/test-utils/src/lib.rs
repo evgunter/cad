@@ -1,7 +1,7 @@
 //! Shared test scaffolding for the whole tree — the pieces several
 //! suites would otherwise each hand-roll a copy of.
 //!
-//! Three things today:
+//! Today it holds:
 //!
 //! - [`fuzz`], the harness every randomized falsification sweep draws
 //!   its RNG, its per-run seed and its EFFORT dial from.
@@ -11,6 +11,10 @@
 //! - [`vacuity`], the **anti-vacuity floor** — a statement of how much a
 //!   sampling guard actually exercised, printed every run and asserted,
 //!   so a run that exercised nothing goes red instead of green.
+//! - [`tightness`], its companion for a certified bound: the CEILING a
+//!   `bound >= truth` row cannot state, measured per site, plus the
+//!   check that the ceiling sits below the scale at which the
+//!   enclosure has degenerated to the whole object.
 //!
 //! # DEV-ONLY, by convention
 //!
@@ -25,6 +29,10 @@
 //! without inverting the layering. Below everything, there is no cycle
 //! to create.
 
+#[cfg(test)]
+mod panic_capture;
+
 pub mod fuzz;
 pub mod source;
+pub mod tightness;
 pub mod vacuity;
