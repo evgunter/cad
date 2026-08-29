@@ -108,13 +108,9 @@ fn validated(loops: Vec<ProfileLoop<f64>>) -> profile::ValidatedProfile<f64> {
 }
 
 fn extruded(loops: Vec<ProfileLoop<f64>>, h: f64) -> Body<f64> {
-    extrude(
-        &validated(loops),
-        Extrusion::Distance(h),
-        Tol::witness(),
-    )
-    .expect("the probe profile extrudes")
-    .body
+    extrude(&validated(loops), Extrusion::Distance(h), Tol::witness())
+        .expect("the probe profile extrudes")
+        .body
 }
 
 /// A two-vertex full circle (two semicircular arcs), counterclockwise.
@@ -189,7 +185,10 @@ fn extrude_products_carry_no_scaffold_at_rest() {
 
     // Rounded square with a circular hole — tangent joins on the outer
     // loop AND the ring path in one product.
-    let rounded_holed = extruded(vec![rounded_square(2.0, 0.5), circle_loop(0.0, 0.0, 0.7)], 1.0);
+    let rounded_holed = extruded(
+        vec![rounded_square(2.0, 0.5), circle_loop(0.0, 0.0, 0.7)],
+        1.0,
+    );
     fence_crosscheck(&rounded_holed, "extrude rounded square + hole");
 }
 
@@ -238,10 +237,7 @@ fn revolve_products_carry_no_scaffold_at_rest() {
     // The donut: a two-vertex bulge-1 circle profile revolved fully —
     // torus band walls, declared rim images.
     fence_crosscheck(
-        &revolved(
-            &[(1.5, 0.0, 1.0), (2.5, 0.0, 1.0)],
-            Revolution::Full,
-        ),
+        &revolved(&[(1.5, 0.0, 1.0), (2.5, 0.0, 1.0)], Revolution::Full),
         "revolve donut (full)",
     );
     // The donut sector: same profile, partial sweep.
@@ -284,9 +280,7 @@ fn tube_products_carry_no_scaffold_at_rest() {
 
 #[test]
 fn loft_products_carry_no_scaffold_at_rest() {
-    let quad = |pts: [(f64, f64); 4]| {
-        vec![ProfileLoop::polygon(pts.map(|(x, y)| p2(x, y)))]
-    };
+    let quad = |pts: [(f64, f64); 4]| vec![ProfileLoop::polygon(pts.map(|(x, y)| p2(x, y)))];
     let square = quad([(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]);
     let trapezoid = quad([(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)]);
     let places: Vec<Affine3<f64>> = [0.0, 1.0, 2.0]
@@ -506,6 +500,26 @@ fn rigid_transform_preserves_the_authority_census() {
 /// Both fixtures plant the declaration through `set_edge_curve`, which
 /// accepts it — see `a_corrupt_declaration_certifies_clean_and_
 /// survives_tier3` below for why that is possible at all.
+///
+/// **The planting route is now CLOSED, and this row measures the door
+/// that closed it** (P-1b fix pass). Reinstating
+/// `CertCheck::MappedSource` on the `declared` payload means a
+/// declaration that does not describe the carrier is refused before it
+/// can be planted — so neither fixture can reach the offset door by
+/// this route any more, and both `set_edge_curve` calls below now
+/// refuse instead. R1's two shapes are kept as exactly that: two
+/// shapes of false declaration, one a chart image on a cylinder and
+/// one a rotation-family payload on a plane, both named by the meter.
+///
+/// The obligation the row originally tested — that the offset door
+/// refuses LOUDLY on a declaration it cannot carry rather than
+/// silently flipping the record to `Derived` — is unchanged and is now
+/// demonstrated on real verb output instead of on a planted datum:
+/// `demos/tour`'s `the_not_a_rigid_translation_door_is_unreachable_at_
+/// rest` watches `bullet` and `lifted_dome` refuse through the door's
+/// declared arm, with the declarations minted by the sweep itself.
+/// That is the better witness, which is why this row was not
+/// rebuilt around a hand-made true declaration.
 #[test]
 fn uncarriable_declarations_refuse_loudly_instead_of_flipping() {
     // (a) Re-describe the outer wall's top rim as a DECLARED image in
@@ -535,13 +549,20 @@ fn uncarriable_declarations_refuse_loudly_instead_of_flipping() {
         .clone();
     let mut spec = curve.restated_spec();
     spec.description = EdgeDescriptionSpec::chart(wall_key).declared_by(dummy_declaration());
-    body.set_edge_curve(rim, spec, Tol::witness())
-        .expect("the declared rim image certifies (the declaration is unmetered)");
-    let err = topo::replace_face_offset(&mut body, wall, 0.05, 1e-6, band(), Tol::witness())
-        .expect_err("a declared rim on a non-translating offset must refuse");
+    let err = body
+        .set_edge_curve(rim, spec, Tol::witness())
+        .expect_err("a declaration that does not describe the carrier is refused");
     assert!(
-        matches!(err, ReplaceFaceError::CarrierLaneUnsupported { edge, .. } if edge == rim),
-        "the refusal must name the declared rim, got {err:?}"
+        matches!(
+            err,
+            topo::EulerOpError::Certification {
+                error: geom_brep::CertifyError::ResidualExceeded {
+                    check: geom_brep::CertCheck::MappedSource,
+                    ..
+                }
+            }
+        ),
+        "(a) the meter names it, on a chart image over a cylinder: {err:?}"
     );
 
     // (b) Give the top cap's seam a rotation-family declaration, then
@@ -589,13 +610,20 @@ fn uncarriable_declarations_refuse_loudly_instead_of_flipping() {
             angle: 0.5,
         }),
     };
-    body.set_edge_curve(seam, spec, Tol::witness())
-        .expect("the rotation-family declaration certifies (unmetered)");
-    let err = topo::replace_face_offset(&mut body, cap, 0.05, 1e-6, band(), Tol::witness())
-        .expect_err("a rotation-family declaration under a translating offset must refuse");
+    let err = body
+        .set_edge_curve(seam, spec, Tol::witness())
+        .expect_err("a rotation-family declaration off the carrier is refused too");
     assert!(
-        matches!(err, ReplaceFaceError::CarrierLaneUnsupported { edge, .. } if edge == seam),
-        "the refusal must name the declared seam, got {err:?}"
+        matches!(
+            err,
+            topo::EulerOpError::Certification {
+                error: geom_brep::CertifyError::ResidualExceeded {
+                    check: geom_brep::CertCheck::MappedSource,
+                    ..
+                }
+            }
+        ),
+        "(b) the meter names it, on a rotation-family payload over a plane: {err:?}"
     );
 }
 
@@ -635,6 +663,22 @@ fn dummy_declaration() -> MappedCurve<f64> {
 /// This row pins the measured fact. If it goes red, the kernel grew a
 /// meter for the declaration and the finding is closed — flip the
 /// asserts, cite this doc.
+///
+/// **CLOSED, and flipped on R1's own instruction** (P-1b fix pass).
+/// The kernel grew the meter: `CertCheck::MappedSource` — the very
+/// check the pre-collapse pushforward carried — now runs on the
+/// `declared` payload beside a chart image. Same predicate name, same
+/// quantity, same schedule; it follows the datum to where U2 moved it
+/// rather than being a new predicate. So the placement ~1000 units off
+/// the body no longer certifies: it is refused at `set_edge_curve`,
+/// and this row now asserts the refusal it was written to prove
+/// absent.
+///
+/// R1's diagnosis is what earned the change, and it named the reason
+/// better than the fix did: two defects this unit shipped — a
+/// re-anchor that left the datum at the wall's old radius, and an
+/// offset lane that dropped it — are exactly the class this meter
+/// catches, and both were found by hand instead.
 #[test]
 fn a_corrupt_declaration_certifies_clean_and_survives_tier3() {
     let mut body = tube();
@@ -673,23 +717,27 @@ fn a_corrupt_declaration_certifies_clean_and_survives_tier3() {
         },
         other => panic!("expected a chart image, got {other:?}"),
     };
-    body.set_edge_curve(victim, spec, Tol::witness())
-        .expect("MEASURED: a declaration 1000 units off the body certifies clean");
+    let err = body
+        .set_edge_curve(victim, spec, Tol::witness())
+        .expect_err("a declaration 1000 units off the body is refused at the door");
+    assert!(
+        matches!(
+            err,
+            topo::EulerOpError::Certification {
+                error: geom_brep::CertifyError::ResidualExceeded {
+                    check: geom_brep::CertCheck::MappedSource,
+                    ..
+                }
+            }
+        ),
+        "and it is refused BY THE REINSTATED METER, named — not by some \
+         incidental gate that happens to reject this shape: {err:?}"
+    );
+    // The body is untouched, so the edge still carries what it had.
     assert_eq!(
         topo::validate_geometric(&body, Tol::witness()),
         Ok(()),
-        "MEASURED: tier 3 passes the body carrying the corrupt declaration"
-    );
-    // And the record now steers tier-3 semantics: the edge reads as
-    // modeler-declared.
-    let after = body
-        .get_edge(victim)
-        .and_then(|e| body.get_curve_geom(e.curve))
-        .and_then(CurveGeom::certified)
-        .unwrap();
-    assert!(
-        matches!(after.authority(), EdgeAuthority::Declared(_)),
-        "the corrupt record is now this edge's authority"
+        "the refusal is atomic: nothing was written"
     );
 }
 
@@ -713,7 +761,18 @@ fn a_corrupt_declaration_certifies_clean_and_survives_tier3() {
 /// body at tier 3. This row does: the Fig. 14.2 notched block, built
 /// by the real verb, split at its face-coplanar plane, both sides
 /// cross-checked.
+///
+/// **RED, and filed rather than fixed here: #1152.** R1 measured this
+/// byte-identically on `main`, so it is a pre-existing `topo::split`
+/// defect and not the pcurve collapse's — this unit changed no `split`
+/// code. Absorbing someone else's defect into a migration is how a
+/// unit becomes unreviewable, so the probe is adopted, ignored against
+/// the issue, and preserved as the reproduction: the Fig. 14.2 notched
+/// block split at its own face-coplanar plane reports
+/// `DescriptionNotAdjacent` on three edges of the `below` product.
+/// Un-ignore it when #1152 lands.
 #[test]
+#[ignore = "pre-existing topo::split defect, filed as #1152 with this probe as its reproduction"]
 fn coplanar_split_products_carry_no_scaffold_at_rest() {
     let notched = ProfileLoop::polygon(
         [

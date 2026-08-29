@@ -31,8 +31,9 @@ fn p(x: f64, y: f64, z: f64) -> Point3<f64> {
 
 /// A surface table and its resolver (the injected lookup the door
 /// takes — keys never resolve inside `geom-brep`).
-fn table(surfs: Vec<Surface<f64>>) -> (Vec<SurfaceKey>, impl Fn(SurfaceKey) -> Option<Surface<f64>>)
-{
+fn table(
+    surfs: Vec<Surface<f64>>,
+) -> (Vec<SurfaceKey>, impl Fn(SurfaceKey) -> Option<Surface<f64>>) {
     let mut map: SlotMap<SurfaceKey, Surface<f64>> = SlotMap::with_key();
     let keys: Vec<SurfaceKey> = surfs.into_iter().map(|s| map.insert(s)).collect();
     (keys, move |k| map.get(k).cloned())
@@ -261,7 +262,21 @@ fn r2_the_rest_conversion_moves_only_the_description() {
 /// state D1's seam obligation on an edge already described without
 /// it, gets no error and no change. This row records that as a
 /// measured property of the one conversion door the fence depends on.
+///
+/// **CLOSED, and the row is flipped to pin the fix** (P-1b fix pass).
+/// The silence is now a `debug_assert` at the door, so the discard
+/// panics wherever assertions are on — which is every test binary,
+/// i.e. exactly where the mistake gets made. The behaviour in release
+/// is unchanged (an already-described spec still comes back
+/// unchanged), so this is a louder door and not a new refusal; the
+/// production callers that legitimately re-state the SAME chart are
+/// untouched, which is what keeps `#[should_panic]` here honest rather
+/// than a way of hiding a regression.
+///
+/// R2's measurement stands as written above — it is what the door did
+/// — and this row now measures that it says so.
 #[test]
+#[should_panic(expected = "discards both arguments")]
 fn r2_the_rest_door_silently_ignores_its_arguments_on_an_at_rest_spec() {
     let (keys, _lookup) = table(vec![unit_cylinder(), unit_cylinder()]);
     let spec = EdgeCurveSpec {
@@ -428,17 +443,14 @@ fn r2_a_param_span_refusal_says_it_is_not_a_sampled_check() {
 fn r2_the_scaffolding_door_certifies_with_no_surface_at_all() {
     let (_keys, lookup) = table(vec![]);
     let (q0, q1) = (p(0.0, 0.0, 0.0), p(0.0, 0.0, 3.0));
-    let edge = EdgeCurve::certify(
-        EdgeCurveSpec::line_between(q0, q1),
-        q0,
-        q1,
-        &lookup,
-        band(),
-    )
-    .expect("scaffolding needs no chart");
+    let edge = EdgeCurve::certify(EdgeCurveSpec::line_between(q0, q1), q0, q1, &lookup, band())
+        .expect("scaffolding needs no chart");
     assert!(matches!(edge.description(), EdgeDescription::Scaffold(_)));
     assert!(
-        matches!(edge.authority(), EdgeAuthority::Declared(MappedCurve::ExtrudedPoint { .. })),
+        matches!(
+            edge.authority(),
+            EdgeAuthority::Declared(MappedCurve::ExtrudedPoint { .. })
+        ),
         "a scaffold's pushforward IS its declaration"
     );
 }
