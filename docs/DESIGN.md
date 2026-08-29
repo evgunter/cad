@@ -609,12 +609,17 @@ component-aware E–P form found and corrected in M1 PR 4).**
   certify through the fitted door (`certify_fitted`'s Circle-carrier
   rational-chain arm, `OnLocusHull`), and the ball/cone/donut and
   the filleted die's eight sphere octants carry stored pcurves at
-  rest. Still open from this line: MINT-side wiring of the fitted
-  general-circle route (the oblique-trihedron octant faces stay
-  legally uncached — the mint pass needs the `PcurveFittedLane`
-  bound on every constructor), and the cone/torus oblique classes,
-  which have no ring-computable meters composite and refuse with the
-  class named.
+  rest. The mint pass now carries the
+  `PcurveFittedLane` bound (PCURVE P-2, #498), so the bound that
+  blocked the fitted routes from the mint side is PAID; it is
+  signature churn and not a capability loss, since `Dual<T>`
+  implements the trait with a statically refusing impl and no scalar
+  is excluded. What that unit wired through it is U2's `General` arm
+  for interior-column `Intersection` carriers; MINT-side wiring of
+  the fitted general-CIRCLE route is still open (the
+  oblique-trihedron octant faces stay legally uncached), as are the
+  cone/torus oblique classes, which have no ring-computable meters
+  composite and refuse with the class named.
   **(d) cyl×sphere germ chords** — only `(Plane, Cylinder)` and
   `(Plane, Sphere)` germ arms are wired. (b) has landed, so the
   storage half of the blocker is gone: a fitted carrier's chart image

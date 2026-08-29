@@ -156,7 +156,7 @@
 
 use std::sync::Arc;
 
-use geom::Surface;
+use geom::{NurbsSurface, Surface};
 use geom::{Curve3, NurbsCurve2, NurbsCurve3};
 use geom_core::k_stats::decide;
 use geom_core::predicate::{Band, BandError};
@@ -1073,8 +1073,78 @@ pub trait PcurveFittedLane: Decide {
         band: Band,
     ) -> Result<Option<SsiCertificate<Self>>, PcurveCertifyError>;
 
+
+    /// **The chart image of a spline carrier on a NURBS wall**, or
+    /// `None` when this scalar has no certified lane.
+    ///
+    /// The producer is `edge_nurbs`'s — the one derivation of this
+    /// object in the tree (`edge_nurbs::chart_image`): foot points at
+    /// the D9-fixed schedule, interpolated on the carrier's own
+    /// parameter. It is EVIDENCE and certifies nothing by itself; the
+    /// caller's next move is [`PcurveCache::certify_general`], which
+    /// bounds `sup_t |S(P(t)) − C(t)|` over the whole span against the
+    /// operand pair.
+    ///
+    /// It sits on THIS trait rather than beside its producer because
+    /// the derivation and the certificate are the same static split —
+    /// both need the C9 ring, both are absent at [`geom_core::Dual`] —
+    /// and a mint that had to name two lane traits for one image would
+    /// carry the split twice. `edge_nurbs::EdgeNurbsLane` keeps its own
+    /// door for the ADOPT path, which certifies the same image with the
+    /// plane operand's limbs beside it.
+    ///
+    /// # Errors
+    ///
+    /// [`PcurveCertifyError::FittedCertificate`] when a foot point of
+    /// the schedule will not converge or the interpolation is
+    /// degenerate. Never from the "no lane" arm, which returns
+    /// `Ok(None)`.
+    fn general_image(
+        carrier: &NurbsCurve3<Self>,
+        wall: &NurbsSurface<Self>,
+    ) -> Result<Option<NurbsCurve2<Self>>, PcurveCertifyError>;
     /// The lane's name, for the typed refusal's text.
     fn lane_name() -> &'static str;
+}
+
+/// The image producer's body, shared by every bracket-carrying scalar
+/// ([`PcurveFittedLane::general_image`]).
+///
+/// The `edge_nurbs` schedule with no per-sample hook: the transversality
+/// sweep the adopt path runs there is a statement about the PLANE
+/// operand, which the mint does not have in hand and does not need —
+/// the mint's next step re-derives the whole C2 certificate against the
+/// operand pair anyway.
+fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
+    carrier: &NurbsCurve3<T>,
+    wall: &NurbsSurface<T>,
+) -> Result<Option<NurbsCurve2<T>>, PcurveCertifyError> {
+    let (t0, t1) = carrier.domain();
+    match crate::edge_nurbs::chart_image(carrier, wall, |_, _| Ok(())) {
+        Ok(image) => Ok(Some(image)),
+        Err(crate::edge_nurbs::PlaneNurbsRefusal::FootPointInconclusive {
+            sample,
+            last_distance,
+        }) => Err(PcurveCertifyError::FittedCertificate {
+            limb: Some(SsiLimb::OnLocus),
+            what: "a foot point of the chart-image schedule would not converge, so this \
+                   locus has no derived image to certify",
+            // The schedule's own parameter at that sample, computed the
+            // way the schedule computes it — not the sample index dressed
+            // up as one.
+            magnitude: Some(FittedMagnitude::LastFootDistance {
+                t: t0 + (t1 - t0) * f64::from(sample)
+                    / f64::from(crate::edge_nurbs::PXN_FIT_SAMPLES - 1),
+                last_distance,
+            }),
+        }),
+        Err(_) => Err(PcurveCertifyError::FittedCertificate {
+            limb: None,
+            what: "the chart image could not be interpolated through the schedule's foot \
+                   points (a degenerate parameterization)",
+            magnitude: None,
+        }),
+    }
 }
 
 /// The certified lane's body, shared by every bracket-carrying scalar.
@@ -1356,6 +1426,13 @@ impl PcurveFittedLane for f64 {
         fitted_lane(carrier, t0, t1, image, surface, mate, band)
     }
 
+    fn general_image(
+        carrier: &NurbsCurve3<Self>,
+        wall: &NurbsSurface<Self>,
+    ) -> Result<Option<NurbsCurve2<Self>>, PcurveCertifyError> {
+        general_image_lane(carrier, wall)
+    }
+
     fn lane_name() -> &'static str {
         "f64"
     }
@@ -1375,6 +1452,13 @@ impl PcurveFittedLane for geom_core::Probe {
         fitted_lane(carrier, t0, t1, image, surface, mate, band)
     }
 
+    fn general_image(
+        carrier: &NurbsCurve3<Self>,
+        wall: &NurbsSurface<Self>,
+    ) -> Result<Option<NurbsCurve2<Self>>, PcurveCertifyError> {
+        general_image_lane(carrier, wall)
+    }
+
     fn lane_name() -> &'static str {
         "telemetry probe"
     }
@@ -1392,6 +1476,13 @@ impl PcurveFittedLane for geom_core::interval::Interval {
         band: Band,
     ) -> Result<Option<SsiCertificate<Self>>, PcurveCertifyError> {
         fitted_lane(carrier, t0, t1, image, surface, mate, band)
+    }
+
+    fn general_image(
+        carrier: &NurbsCurve3<Self>,
+        wall: &NurbsSurface<Self>,
+    ) -> Result<Option<NurbsCurve2<Self>>, PcurveCertifyError> {
+        general_image_lane(carrier, wall)
     }
 
     fn lane_name() -> &'static str {
@@ -1417,6 +1508,13 @@ where
         _mate: &Surface<Self>,
         _band: Band,
     ) -> Result<Option<SsiCertificate<Self>>, PcurveCertifyError> {
+        Ok(None)
+    }
+
+    fn general_image(
+        _carrier: &NurbsCurve3<Self>,
+        _wall: &NurbsSurface<Self>,
+    ) -> Result<Option<NurbsCurve2<Self>>, PcurveCertifyError> {
         Ok(None)
     }
 
@@ -1566,16 +1664,20 @@ impl<T: PcurveFittedLane> PcurveCache<T> {
     ///
     /// 1. **Mint-side wiring of the general-circle route** — the
     ///    oblique-trihedron octant faces whose boundary circles are
-    ///    GENERAL sphere circles stay legally uncached because
-    ///    `topo::mint_pcurves` cannot reach this door without the
-    ///    [`PcurveFittedLane`] bound on every constructor. Named as an
-    ///    open frontier in `docs/DESIGN.md`, and currently in **no**
-    ///    milestone plan and no carried-items register.
-    /// 2. The `General` curve-in-UV arm of the ratified pcurve
-    ///    unification (`docs/PCURVE-UNIFY-DESIGN.md` U2), which
-    ///    defines that arm as certifying at this lane's grade.
-    /// 3. The cyl×sphere germ-chord lane, banked with the join-lane
+    ///    GENERAL sphere circles stay legally uncached. The BOUND is no
+    ///    longer what blocks it: `topo::mint_pcurves` carries
+    ///    [`PcurveFittedLane`] since PCURVE P-2 (#498), which wired
+    ///    [`PcurveCache::certify_general`] through it. What is left is
+    ///    this door's own wiring for a Circle carrier, which no mint
+    ///    site reaches. Named as an open frontier in `docs/DESIGN.md`,
+    ///    and in **no** milestone plan and no carried-items register.
+    /// 2. The cyl×sphere germ-chord lane, banked with the join-lane
     ///    analog.
+    ///
+    /// The `General` curve-in-UV arm of the ratified pcurve unification
+    /// (`docs/PCURVE-UNIFY-DESIGN.md` U2) is no longer among them: it
+    /// certifies through [`PcurveCache::certify_general`] beside this
+    /// door, and `topo::mint_pcurves` mints it.
     ///
     /// Same five checks in the same fixed order as
     /// [`PcurveCache::certify`], with two differences that are the
