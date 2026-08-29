@@ -171,7 +171,7 @@ fn an_inadmissible_radius_fails_the_node_typed() {
     let ev = eval::<f64>(&doc);
     match ev.nodes.get(&head) {
         Some(NodeResult::Failed(e)) => match &e.kind {
-            NodeErrorKind::Fillet(inner) => {
+            NodeErrorKind::Blend { error: inner, .. } => {
                 let text = format!("{inner}");
                 assert!(
                     text.contains("cannot certify"),

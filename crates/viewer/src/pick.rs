@@ -940,6 +940,13 @@ impl PickCache {
 
     /// Bring the cache in line with the session's landed evaluation at
     /// `delta`, at most one build attempt per (generation, δ).
+    ///
+    /// **δ is built at, verbatim.** `scene::TRIANGLE_BUDGET` chooses
+    /// the δ a document OPENS at (`app`'s `fit_delta_on_scene`), and
+    /// that is the whole of the budget's authority: once a δ is in
+    /// force it is the value someone asked for, and a cache that
+    /// quietly built a different picture would make `Finer δ` a button
+    /// that does nothing.
     pub fn sync(&mut self, session: &DocSession, delta: DisplayTolerance) -> CacheStep {
         let Some(generation) = session.landed_generation() else {
             return CacheStep::Nothing;

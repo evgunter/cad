@@ -27,10 +27,11 @@ TWO THINGS THIS FILE CANNOT SAY, AND THEY ARE NOT DEFECTS OF IT
    solids is the sum the shell count is being used to check, plus the
    per-instance name set, which is structural. Binding a solid count
    is a `Body` question and not this unit's.
-2. `face_frame`. "Instance 2's post cap sits at (x, y, z)" is the
-   scene's name-lookup stop, and the geometry read-back doors are
-   their own named gap (`B-READBACK` in the census). The NAMES are
-   reachable and asserted; where they sit is not.
+2. Nothing else. "Instance 2's post cap sits at (x, y, z)" — the
+   scene's name-lookup stop — was the second entry here until
+   LIB-B-READBACK bound `face_frame`; it is now asserted below,
+   against the placement arithmetic rather than against a
+   transcribed coordinate.
 
 WHICH `RefusedRef` ARMS THIS FILE REACHES, AND WHY NOT THE OTHERS
 ----------------------------------------------------------------
@@ -277,6 +278,82 @@ class TestBenchLayout(BenchWorkspace):
             PATTERN_COUNT * POST_VOLUME + SHELF_VOLUME,
             delta=1e-12,
         )
+
+    def test_a_patterned_caps_frame_is_where_the_placement_puts_it(self):
+        """The scene's name-lookup stop: where does instance 2's post
+        cap SIT?
+
+        The oracle is the model asked twice, never a transcribed
+        coordinate. The PART document answers where its own cap sits,
+        on its own evaluation; the placement `set_placement` was given
+        maps that point into the assembly; and the pattern rule steps
+        it along +y once per instance. What `face_frame` answers on
+        the LAYOUT must be that ladder, one rung per instance.
+
+        The index is read off the GEOMETRY, not off the name: an
+        instance-qualified name is opaque text and the role segment
+        the Rust tour filters on (`Instance { i: 2 }`) is deliberately
+        unreadable from Python. Which is the honest shape here — the
+        question is where a cap sits, and the answer is what
+        identifies it.
+        """
+        doc, family, post_i, _ = self.layout()
+        ev = evaluate(doc, resolver=self.ws)
+
+        # Rung 1: the part's own cap, in the part's own coordinates.
+        part_ev = evaluate(self.post)
+        part_root = self.post.roots[0]
+        part_cap = one(part_ev.select(part_root, cap_selector(CapEnd.Top)))
+        local = part_ev.face_frame(part_root, part_cap).origin
+
+        # Rung 2: the placement the layout gave that instance, applied
+        # as the affine map it is — the frame's own columns and
+        # origin, not a hand-written matrix.
+        frame = doc.placement(post_i)
+        cols, shift = frame.columns, frame.origin
+        placed = tuple(
+            sum(cols[j][axis] * local[j].meters for j in range(3)) + shift[axis].meters
+            for axis in range(3)
+        )
+
+        # Rung 3: the pattern steps +y once per instance.
+        expected = [
+            (placed[0], placed[1] + i * PATTERN_STEP, placed[2])
+            for i in range(PATTERN_COUNT)
+        ]
+
+        caps = ev.select(
+            family, cap_selector(CapEnd.Top, [SegTag.Instance, SegTag.InPart])
+        )
+        read = sorted(
+            tuple(c.meters for c in ev.face_frame(family, cap).origin) for cap in caps
+        )
+        self.assertEqual(len(read), PATTERN_COUNT)
+        for got, want in zip(read, sorted(expected), strict=True):
+            for got_axis, want_axis in zip(got, want, strict=True):
+                self.assertAlmostEqual(got_axis, want_axis, delta=1e-12)
+
+        # And the scene's own sentence, which is about instance 2:
+        # two 200 mm steps along +y put its post between y = 0.4 and
+        # y = 0.4 + section, and exactly one cap frame lies there.
+        band = [o for o in read if 0.4 <= o[1] <= 0.4 + POST_SECTION]
+        self.assertEqual(len(band), 1, f"instance 2's cap alone: {read}")
+
+    def test_a_cap_name_denotes_one_face_and_says_so_before_it_is_read(self):
+        """`denotation` is the door to ask BEFORE a frame: the frame
+        doors refuse a tie rather than picking a candidate, and this
+        says whether one is coming. The scene's names are all
+        unique — which is a fact worth ASSERTING, because it is why
+        every `face_frame` above answered at all."""
+        doc, family, _, _ = self.layout()
+        ev = evaluate(doc, resolver=self.ws)
+        caps = ev.select(
+            family, cap_selector(CapEnd.Top, [SegTag.Instance, SegTag.InPart])
+        )
+        for cap in caps:
+            denotation = ev.denotation(family, cap)
+            self.assertFalse(denotation.tied)
+            self.assertEqual(denotation.candidates, 1)
 
     def test_an_instance_carries_no_frame_until_one_is_set(self):
         doc = Doc("unplaced")
