@@ -115,3 +115,30 @@ Class findings given homes at adjudication (the standing rule):
   none), so users can hold state they cannot see; the census
   records Python's gap, nothing records the GUI's. GUI follow-up
   slate (R1 NOTE).
+
+## M10-DI dual review adjudication (2026-08-29)
+
+Both arms confirm CORRECTNESS with independent byte-identical
+merge-base differentials (three lanes each); every finding is
+guarding, coverage, or text. R1 (4 MAJ, by mutation testing and
+witness re-measurement): three of four certifying policy arms
+gut-to-green; the Dual arm's `Ok(())` grant + the unenforced E4
+pairing hook (a silent deviation — DL3's own sentence); DL3
+witnesses named wrongly (the real ones are cut_cylinder and
+loft_prism, 2/18); the DL5 selection clause contradicting the
+projection::mid counterexample class named sixty lines above it.
+R2 (0 MAJ, APPROVE): the assemble-at-Dual availability inversion
+pinned (same class as R1's second MAJOR), the digest-depth
+overclaim, the DL5 surplus remedy clause. Fix pass dispatched
+IMPLEMENTER-INHERITED (the worktree-kept rule worked — resume
+succeeded). Tally candidates recorded at the row for the blinded
+coding with class annotations (test/doc-class per the LILYWELD
+3b precedent is the likely coding; not this log's call).
+
+Durable homes at adjudication: R1's free DL6-class datum (an
+EXACTLY coincident flush pair refusing `margin: Invalid` at plain
+f64 — the class's third member, and its first on the default lane)
+posted to #1143 with the fixture named; the E4 pairing hook is a
+named obligation for M10-4's spec; `real.rs`'s ~270-line Bounds
+ledger accumulation (both arms flagged the shape) banks as a
+docs-home candidate rather than riding any unit.
