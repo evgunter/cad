@@ -703,8 +703,8 @@ pub enum NodeErrorKind {
         name: Box<crate::names::StableName>,
     },
     /// A `Node::Measure` reference failed to resolve against the value
-    /// of the node that minted it (E3) — the same N5 typed trio as
-    /// [`NodeErrorKind::FilletSelectionResolve`], and for the same
+    /// of the node it is read AT (E3) — the same N5 typed trio as
+    /// [`NodeErrorKind::BlendSelectionResolve`], and for the same
     /// reason: a measurement's references are a commitment, so a name
     /// that stopped resolving refuses loudly rather than measuring
     /// whatever is left.
