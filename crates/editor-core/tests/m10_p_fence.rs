@@ -50,6 +50,17 @@
 //! The two claims stay separate because the fence's subject is that
 //! the lift changed nothing where nothing should change.
 //!
+//! RE-BLESSED at LIB-G16, and the reason is a ROSTER change rather
+//! than a build-path one: the corpus registry gained `die_chamfer`,
+//! and this digest walks `corpus::documents()`, so a new document
+//! moves it by construction. That claim was MEASURED, not asserted —
+//! with `die_chamfer::document()` alone removed from `documents()`,
+//! all three constants came back at their pre-LIB-G16 values
+//! (`f64`/`probe` `ebba499b112fea43, 3350329b8dcf3c2f`, `interval`
+//! `6c3f436b41ecd1b4, e7db67ef2cffe270`), so no EXISTING document's
+//! bits moved. The three numbers below are the same digest over the
+//! grown roster.
+//!
 //! The `probe` row is ROSTERED into the K-telemetry sweep's executed
 //! floor. Its claim is not a third copy of the `f64` row's: it says the
 //! telemetry scalar has not started changing decisions, which is a
@@ -270,7 +281,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0xebba_499b_112f_ea43, 0x3350_329b_8dcf_3c2f),
+        (0x0f7c_dec3_cf38_ad1e, 0x01e0_5bef_0382_adda),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -297,7 +308,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0x6c3f_436b_41ec_d1b4, 0xe7db_67ef_2cff_e270),
+        (0xbfb3_45df_4492_bc11, 0xc835_f9e3_6e69_4ddd),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -321,7 +332,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0xebba_499b_112f_ea43, 0x3350_329b_8dcf_3c2f),
+        (0x0f7c_dec3_cf38_ad1e, 0x01e0_5bef_0382_adda),
         "the corpus's Probe evaluation moved"
     );
 }

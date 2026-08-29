@@ -101,6 +101,11 @@ Node.fillet(solid, 1 * m, [solid])  # ty: error
 # A blend radius is a Length, not a bare number.
 Node.fillet(solid, 1.0, [])  # ty: error
 
+# The chamfer's setback is a Length as well, and its selection is
+# names — the twin holds the same two lines.
+Node.chamfer(solid, 1.0, [])  # ty: error
+Node.chamfer(solid, 1 * m, [solid])  # ty: error
+
 # A transform's axis is dimensionless and its angle is an Angle; the
 # two do not stand in for each other.
 Node.transform(solid, (0 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0), 1 * m)  # ty: error

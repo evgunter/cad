@@ -9,6 +9,7 @@ use std::sync::Arc;
 
 use geom_core::k_stats::decide;
 use geom_core::{Affine3, Band, Decide, Margin, Mat3, Point2, Point3, Sign, Tol, Vec2, Vec3};
+use sweep::fillet::BlendKind;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::splitting::{SplitPart, SplitPlane, split};
 use topo::transform::transform_rigid;
@@ -150,6 +151,9 @@ where
         Node::Fillet {
             target, selection, ..
         } => wire_fillet(id, *target, selection, doc, results, vals, tol),
+        Node::Chamfer {
+            target, selection, ..
+        } => wire_chamfer(id, *target, selection, doc, results, vals, tol),
         Node::Split { target, tool } => wire_split(id, *target, *tool, results, tol),
         Node::Boolean { op, a, b, declare } => wire_boolean(
             id,
@@ -756,12 +760,12 @@ fn wire_revolve<T: Decide + geom_brep::PcurveFittedLane>(
 ///
 /// The selection resolves through the TARGET's name table into edge
 /// keys. Resolution failures are the N5 typed trio VERBATIM
-/// ([`NodeErrorKind::FilletSelectionResolve`]) — a selection is a
+/// ([`NodeErrorKind::BlendSelectionResolve`]) — a selection is a
 /// commitment (`Node::Fillet`'s freeze semantics), so a name that
 /// stopped resolving refuses loudly rather than shrinking the set.
 ///
 /// Failure of the op itself is a TYPED refusal
-/// ([`NodeErrorKind::Fillet`]) carrying the kernel's own error
+/// ([`NodeErrorKind::Blend`]) carrying the kernel's own error
 /// unaltered, exactly as the split/boolean arms carry theirs. The
 /// input body is never passed through: a fillet that did not happen
 /// must read as a failed node, not as a silently sharp solid.
@@ -796,9 +800,12 @@ fn wire_fillet<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     let body = body_operand(results, target)?;
     let radius = need_scalar(vals, SlotId::Radius)?;
     let target_table = Arc::clone(&value_of(results, target)?.name_table);
-    let edges = resolve_selection(selection, doc, &target_table)?;
+    let edges = resolve_selection(BlendKind::Fillet, selection, doc, &target_table)?;
     let filleted = sweep::fillet::build::fillet_edges(&body, &edges, radius, band(tol)?, tol)
-        .map_err(NodeErrorKind::Fillet)?;
+        .map_err(|error| NodeErrorKind::Blend {
+            verb: BlendKind::Fillet,
+            error,
+        })?;
     // The assembly always keeps records, so `None` is a kernel bug:
     // refuse loudly rather than fall back to an empty table, which
     // would leave every downstream reference into this body silently
@@ -816,6 +823,64 @@ fn wire_fillet<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     // The blend's own surfaces/curves/points are minted HERE (D1/N6);
     // the supports' pass-through descriptions keep the source they
     // arrived with.
+    stamp_minted(&mut out, id);
+    Ok(OpOut::plain(ValuePayload::Body(Arc::new(out)), table))
+}
+
+/// **Equal-setback flat chamfers on a SELECTION of the target's
+/// edges** — [`wire_fillet`]'s twin, arm for arm.
+///
+/// The selection resolves through the TARGET's name table into edge
+/// keys, resolution failures are the N5 typed trio verbatim, the op's
+/// own failure is a typed refusal carrying the kernel's error
+/// unaltered ([`NodeErrorKind::Blend`] with [`BlendKind::Chamfer`]),
+/// and the input body is never passed through. Every one of those
+/// sentences is [`wire_fillet`]'s and holds here for the same reasons
+/// — read them there.
+///
+/// # Naming
+///
+/// The chamfer surgery IS the fillet surgery: `chamfer_edges` returns
+/// the same birth records, so this door refuses `naming: None` exactly
+/// as the fillet's does and hands the records to
+/// [`names::name_chamfer`], which mints under THIS node's id. That id
+/// is the whole discrimination (RECIPE-DOORS D3): the role vocabulary
+/// is shared, and what tells a chamfer's strip from a fillet's blend
+/// at a selector is which node minted it.
+fn wire_chamfer<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
+    id: RecipeNodeId,
+    target: RecipeNodeId,
+    selection: &[names::StableName],
+    doc: &crate::doc::Doc<ProfileProgram>,
+    results: &Results<T>,
+    vals: &SlotValues<T>,
+    tol: Tol,
+) -> OpResult<T> {
+    let body = body_operand(results, target)?;
+    let distance = need_scalar(vals, SlotId::ChamferDistance)?;
+    let target_table = Arc::clone(&value_of(results, target)?.name_table);
+    let edges = resolve_selection(BlendKind::Chamfer, selection, doc, &target_table)?;
+    let chamfered = sweep::fillet::build::chamfer_edges(&body, &edges, distance, band(tol)?, tol)
+        .map_err(|error| NodeErrorKind::Blend {
+        verb: BlendKind::Chamfer,
+        error,
+    })?;
+    // The assembly always keeps records, so `None` is a kernel bug —
+    // the fillet door's argument unchanged: an empty table would leave
+    // every downstream reference into this body silently unresolvable.
+    let rec =
+        chamfered
+            .naming
+            .as_ref()
+            .ok_or(NodeErrorKind::Naming(names::NamingError::Emission {
+                what: "the chamfer returned a body with no birth records",
+            }))?;
+    let table = names::name_chamfer(id, target, &target_table, &chamfered.body, rec)
+        .map_err(NodeErrorKind::Naming)?;
+    let mut out = chamfered.body;
+    // The strips' and patches' own surfaces, curves and points are
+    // minted HERE (D1/N6); the supports' pass-through descriptions keep
+    // the source they arrived with.
     stamp_minted(&mut out, id);
     Ok(OpOut::plain(ValuePayload::Body(Arc::new(out)), table))
 }
@@ -961,6 +1026,7 @@ mod ladder {
 /// so the kernel sees the deterministic order every derived list in
 /// this kernel inherits (D9) regardless of how the recipe sorted.
 fn resolve_selection(
+    verb: BlendKind,
     selection: &[names::StableName],
     doc: &crate::doc::Doc<ProfileProgram>,
     target: &NameTable,
@@ -968,16 +1034,17 @@ fn resolve_selection(
     use crate::names::EntityKey;
 
     if selection.is_empty() {
-        return Err(NodeErrorKind::FilletSelectionEmpty);
+        return Err(NodeErrorKind::BlendSelectionEmpty { verb });
     }
     let mut keys = Vec::with_capacity(selection.len());
     for name in selection {
-        let refused = |error| NodeErrorKind::FilletSelectionResolve { error };
+        let refused = |error| NodeErrorKind::BlendSelectionResolve { verb, error };
         let live = ladder::live(name, doc).map_err(refused)?;
         let landing = ladder::landing(&live, target);
         let ent = ladder::resolve(live, landing).map_err(refused)?;
         let EntityKey::Edge(k) = ent.key else {
-            return Err(NodeErrorKind::FilletSelectionKind {
+            return Err(NodeErrorKind::BlendSelectionKind {
+                verb,
                 name: Box::new(name.clone()),
                 found: ent.key.kind(),
             });
