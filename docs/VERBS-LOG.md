@@ -2293,3 +2293,97 @@ face (a merge/subsequent commit silently reverts CI-Config to
 sampling — met twice in one pass) joins the coverage classes in
 lane-ops memory. Wall 7 authored-repairs; half B stays open;
 Evan's retroactive 👍 requested on the arc in the PR.
+## ORDINAL 104 RETURNED: BOTH ARMS NMAI; THE EXEMPTION WITHDRAWN (2026-08-28)
+
+R1 fable 3/3/4, R2 opus 2/3/3 — converging on both foundations:
+the predicate admits ordinary coplanar splits (mid-vertex chords,
+inset-patch rings — all tier-2-legal and non-revolve), and the
+impossibility premise is FALSE (both arms reached the one-face
+cap via public kef→kev; tier 2 binds at-rest bodies, not
+intermediates). Evan's original steer was RIGHT — the deviation
+flag is retracted, the memory's instance 5 corrected to the
+double-instance form (a measurement that dissolves a premise can
+smuggle in its own). R1's unilateral MAJ-3 (the pure pole-split
+revolve still dead-ends at the boolean's merge OUTPUT stage —
+the exemption unlocked nobody) is **the FIRST TALLY-ELIGIBLE
+UNILATERAL MAJOR: tally 1 of 8**, on a fair clean pair (counts
+toward the twelve as pair 2). Redirect ruled: the exemption
+reverts; merge_coplanar_faces learns the POLE case via the
+kef→kev route; wall 7 repairs by authoring; the ordinary half
+stays open. The dual system's clearest win yet — a wrong gate
+change stopped pre-merge by two independent arms.
+
+## ORDINAL 103 RETURNED AND ADJUDICATED; PAIR EXCLUDED (2026-08-28)
+
+R1 NMAI 3/8/6, R2 A-W-F 0/3/5 — the corner solve held against
+every attack from both arms (R2's concurring valence-4 build at
+1 ulp; the door's first interval instantiation, green), and the
+adjudication resolves the severity gap: the one code fix is the
+conditioning meter (it measures the REQUEST — a perfect cube
+refused as "singular" at small legal offsets; the fix is a
+local-geometry lever + a zero-move short-circuit + honest
+payloads); the rest is record corrections (the "built silently"
+cell false at base — both arms; the six-site stale-prose sweep;
+the three unpinned closed forms, both arms' independent pins
+agreeing to 1e-16). Union fix pass out. **Pair EXCLUDED
+(#1090/#1091 self-applied): the deliver-with-labeled-gaps
+allowance went to R2 only.** No tally candidates survived coding
+regardless. State: tally 1/8; clean pairs toward twelve: 2
+(TEAPOT, F7). Reviewer lanes swept.
+
+## THE F7 REDIRECT'S TRIGGER FALSIFIED BY CORPUS; COLLINEARITY RULED (2026-08-28)
+
+The lane's third STOP: the ruled trigger (whole-shared-set = two
+edges at a valence-2 vertex) also admits merge_skip's L-shaped
+brick seam — structurally identical to a pole at every level the
+lane probed. Its diagnosis (the difference is semantic) pointed
+at the answer: the difference is GEOMETRIC — a pole-split cap's
+two shared edges are halves of one DIAMETER, collinear on one
+carrier line, so the vertex removal preserves every locus; the
+L-corner's edges meet at an angle. Ruled: collinearity (certified
+line-carrier equality, exact) is the license; the repair is
+honestly GENERAL (remove a redundant subdivision vertex on a
+shared collinear seam), not pole-specific. The lane's own
+method proposal adopted as program rule: candidate predicates run
+against the full corpus BEFORE building (three predicates in one
+family argued from imagined shapes, all falsified by in-repo
+fixtures — the method note ships in the PR verbatim). The 25x
+slowdown measured environmental (a REVERTED tree slower than the
+blamed one) and routed to the #1134 neighborhood.
+
+## SHELLFIX 2a FIX PASS COMPLETE; HELD ON THE ACTIONS OUTAGE (2026-08-28)
+
+The union executed in full — the meter's defect fixed at the
+root (Margin::levered(|det|, the corner's own incident edge
+chords) with a no-move short-circuit; the banked law: when a
+dimensionless quantity needs a lever, the lever comes from the
+GEOMETRY BEING JUDGED, never the request — otherwise the
+refusal's words stop being true and it says "singular" about a
+cube); R2's zero-offset row flipped positive; all six prose
+sites swept by sentence; both probe branches adopted. BLOCKED at
+merge: a repo-wide Actions outage (no runs since 18:26Z) has
+left every fix-pass push ungated — report-and-hold per the
+outage precedent. The head carries a `CI-Config:
+klint=release-default` trailer (#1136's mechanism, landed on
+main today), so the recovery run gates the exact demos row the
+flipped tests live in, recoverable from the commit itself.
+Merge fires when a hosted run gates b42fc653.
+
+## ORDINAL 105 CLAIMED — SHELLFIX PR-2b dual (2026-08-29)
+
+2b green (#1180): THE TEAPOT UN-SQUARES — the pot ships on its
+arc meridian (wall V to closed form at 2e-19 relative; 1.3727 L;
+STEP exports). The corner census corrected the spec a third
+time (a revolve rim vertex has TWO distinct surfaces — two
+surfaces + the seam azimuth determine the point; the 3×3 was
+2a's shape, not the revolve's); the coaxial cylinder∩sphere
+closed-form corner solve accepted at adjudication (no route
+widening, no marcher; non-coaxial refuses typed); the rim-lift
+fix accepted (the opened pot forced it; the fence held). Two
+latent defects for the dual to verify: offset_surface's
+nappe-blind cone arm (a frustum GREW when asked to shrink) and
+the old rim-lift transport error. Two banked laws: the
+dimensionless meter's lever is the ARC length (a one-seam
+chart's chord is zero); axis frames canonicalize at the world
+origin or stations cost the ULP that is a bit-identity claim.
+Full dual, frozen head 00038fe6; claim to main at dispatch.
