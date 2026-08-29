@@ -54,10 +54,19 @@
 //! (`scripts/tess_budget_sweep.sh`) and lints the fresh CSV against
 //! `docs/tess-budget-data/tess-budget-baseline.csv` in
 //! `tessellation-budget lint (gate — a grown budget fails this row)`.
-//! The job is unconditional on anything that builds, so the SIZING
-//! columns — triangle counts and `grid_cells / span_opt_cells`, which
-//! is what `compare` reads — are a scheduled register, re-measured per
-//! merge.
+//!
+//! **Those rows are SAMPLED, not unconditional.** Each carries an
+//! `if:` on the drawn `klint_row` — the sweep and its lint on
+//! `release-budget`, this crate's derivations on `dev-default`, one of
+//! five rows drawn per run from the head SHA. So the SIZING columns —
+//! triangle counts and `grid_cells / span_opt_cells`, which is what
+//! `compare` reads — are re-measured on about one merge in five, and
+//! so is the guard on the split scan's two constants below. Neither
+//! quantity drifts between merges: both are functions of this tree
+//! alone. What the sampling costs is therefore latency and not
+//! staleness — a retune can land unmeasured and be caught by a later
+//! draw — which is a weaker thing than the per-merge register the
+//! sizing columns have been read as.
 //!
 //! **The deviation half is not.** CI runs that sweep with
 //! `--sizing-only`, which skips the |S - Pi| resample, so `worst_dev`
@@ -135,6 +144,41 @@
 //! over-reports the available saving. The counted-grid columns carry
 //! no such caveat: they are computed from certified bounds and the
 //! lane's own step rule, with each cell's `ceil` paid honestly.
+//!
+//! # Which columns may carry a fallback: none of them
+//!
+//! **Every column here is read by a DIFFERENTIAL gate, so a reading
+//! this crate could not take has two ways to lie and not one.**
+//! `tools/tess-lint` fires on `now > was · GROWTH_TOLERANCE`. In the
+//! FRESH row an invented in-band number pushes the verdict one way; in
+//! the COMMITTED BASELINE the same number pushes it the other, by
+//! inflating `was` until a real regression fits underneath. A
+//! disposition that reasons about the direction on one of those rows
+//! has answered half the question and reads as if it answered all of
+//! it, so the question is settled here for every column at once rather
+//! than per site.
+//!
+//! **The line is not which column, it is what the value means.** An
+//! unconstrained direction is a READING: `h = ∞`, or a certified
+//! `Q(t) = 0`, says this direction constrains nothing, the answer is
+//! one division, and that answer is as correct in the gated
+//! `span_opt_cells` as in the counterfactual `nu`. A value that could
+//! not be read is not a reading, and nothing here answers one: a NaN
+//! sup, a negative or zero step, a NaN extent, a cell box with a NaN
+//! corner. Those panic. The reason they may not fall back is
+//! arithmetic rather than taste — every fallback available is a small
+//! count, the gate fires only on GROWTH, and a small count is in band
+//! on the fresh row and hides growth on the baseline row. `divisions`'
+//! fallback was `1.0`, which is the exact floor `tess-lint`'s parse
+//! guard refuses one crate downstream; the fix is not to refuse it
+//! twice but to stop producing it.
+//!
+//! **The counterfactual columns are not an exception to this**, though
+//! the argument for one is real: `nu`, `nv`, `patch_cells` and
+//! `opt_cells` are diagnostics no rule reads, so a fabricated value
+//! there decides nothing today. It would decide something the moment a
+//! rule read them, and a fallback whose safety is a property of the
+//! consumer roster is a fallback waiting for a consumer.
 //!
 //! # What is measured for which chart
 //!
@@ -492,34 +536,46 @@ impl From<&CellMeasure> for Bound {
 
 /// Grid divisions an extent needs at step `h`. An unconstrained
 /// direction (`h = ∞`, e.g. the ruled direction of a wall with
-/// `muv = 0`) takes one.
+/// `muv = 0`) takes one, and `ceil(extent / ∞)` floored at one already
+/// says so — the arithmetic answers it, so no arm decides it.
 ///
 /// **It is the second spelling of the lane's `sizing::ceil_count`, and
 /// it deliberately does not match it.** They cannot share an import —
-/// two cargo roots — so the divergences are stated instead of left to
-/// be discovered:
-///
-/// * `ceil_count` REFUSES a count at or above its `MAX_COUNT` (2^24) with
-///   a typed error, because it is about to allocate that many grid
-///   points. This one counts and returns, because it sizes nothing:
-///   an absurd counterfactual is a number in a diagnostic column, and
-///   turning it into a refusal would make the meter able to fail a
-///   tessellation that succeeded.
-/// * `ceil_count` treats a non-positive step as the caller's error.
-///   This one answers 1, because an unconstrained direction is a
-///   normal thing for a counterfactual to be asked about.
+/// two cargo roots — so the divergence is stated instead of left to be
+/// discovered: `ceil_count` REFUSES a count at or above its
+/// `MAX_COUNT` (2^24) with a typed error, because it is about to
+/// allocate that many grid points. This one counts and returns,
+/// because it sizes nothing: an absurd counterfactual is a large
+/// number in a diagnostic column, and turning it into a refusal would
+/// make the meter able to fail a tessellation that succeeded.
 ///
 /// The shared part — `ceil(extent / h)`, floored at one — is the part
 /// the columns are comparable through, and it is identical. The
 /// different NAME is the tell: the lane says *count* for a `usize`
 /// division count it is about to allocate for, and this says
 /// *divisions* for an `f64` counterfactual that allocates nothing.
+///
+/// # Panics
+///
+/// On a step or an extent that is not a reading — a NaN, a negative or
+/// zero step, a non-finite extent. That is this crate's fallback rule
+/// (module docs) applied where the number is produced: every column
+/// here is read by a differential gate on TWO rows, so an invented
+/// in-band value hides a regression on one of them whichever way it
+/// leans. Note that without the step assertion `.max(1.0)` would
+/// swallow a NaN silently — `f64::max` prefers its non-NaN argument —
+/// and hand the gate a fabricated single division, which is the exact
+/// floor `tess-lint`'s parse guard refuses one crate downstream.
 pub fn divisions(extent: f64, h: f64) -> f64 {
-    if h.is_finite() && h > 0.0 {
-        (extent / h).ceil().max(1.0)
-    } else {
-        1.0
-    }
+    assert!(
+        h > 0.0,
+        "a grid step of {h} is not a reading: the meter has no division count to report"
+    );
+    assert!(
+        extent.is_finite() && extent >= 0.0,
+        "an extent of {extent} is not a reading: the meter has no division count to report"
+    );
+    (extent / h).ceil().max(1.0)
 }
 
 /// How many `t = h_v / h_u` aspect ratios [`best_split_cells`] tries,
@@ -530,37 +586,92 @@ pub fn divisions(extent: f64, h: f64) -> f64 {
 /// and pushes the optimum onto the `h_u ≤ extent` boundary — and the
 /// two `ceil`s make the true objective a step function anyway.
 ///
-/// # Why these two carry no mechanical guard
+/// # What boxes these two, and what nothing can box
 ///
-/// **Not an omission: the quantity anyone would guard — the cell count
-/// this scan produces — is DISCONTINUOUS in the parameters they would
-/// guard it against.** Moving the sample count by one moves the worst
-/// relative excess by percentage points in either direction, with no
-/// convergence, so no tolerance on it can admit every refinement and
-/// exclude every degradation: wide enough to survive the jumps is too
-/// weak to catch anything, tight enough to catch a degradation is a
-/// lottery on which lattice the count lands.
+/// **What they guarantee is a resolution in aspect ratio, and not a
+/// bound on the answer** — so that is what carries the guard.
+/// [`split_scan_worst_excess`] is that guarantee in closed form, and
+/// `tests/derivations.rs` boxes both of its failure modes separately:
+/// a RANGE too narrow to bracket the optimum (the scan's argmin lands
+/// on an endpoint) and a STEP too coarse to resolve it (the closed
+/// form exceeds the ceiling the split column's consumer can absorb).
 ///
-/// **The discontinuity is the two `ceil`s, not the scan.** The same
-/// worst-excess computed WITHOUT them — the cost as a continuous
-/// function of `t` — falls smoothly with resolution and depends on the
-/// sampling step `2·DECADES/(SAMPLES−1)` and the range, which is what
-/// these two constants actually set. A guard on THAT quantity is
-/// continuous where a guard on the cell count cannot be; it is not
-/// written here because it measures something these columns do not
-/// report.
-///
-/// **So what these constants guarantee is a resolution in aspect
-/// ratio, and not a bound on the answer.** The `ceil` quantisation on
-/// top of it is real and is not theirs to control. Anyone re-tuning
-/// them should know that the shipped pair is not even locally best on
-/// the cell count, and that this is exactly the kind of fact a step
-/// function produces and no amount of tuning removes.
-const SPLIT_SCAN_DECADES: f64 = 8.0;
+/// **The cell count these columns report cannot carry a guard, and
+/// nobody should re-attempt one.** The two `ceil`s in [`divisions`]
+/// make it DISCONTINUOUS in the parameters a guard would be written
+/// against: the worst relative excess moves ~4 percentage points
+/// between ADJACENT sample counts (321: 5.88%, 322: 3.64%, 323: 5.24%,
+/// 324: 1.79%, 325: 3.94%) and does not converge — 2,000 samples is
+/// still 0.79%. A tolerance wide enough to survive the jumps catches
+/// nothing; one tight enough to catch a degradation is a lottery on
+/// which lattice the count lands. Two instruments were built against
+/// that quantity and both failed, `323` being the witness that killed
+/// the second. The `ceil` quantisation sits on TOP of the resolution
+/// these constants buy and is not theirs to control, which is why the
+/// shipped pair is not even locally best on the cell count.
+pub const SPLIT_SCAN_DECADES: f64 = 8.0;
 /// Samples per scan (fixed, so the answer is deterministic — D9).
 /// SAMPLES, not steps: a step in this crate's vocabulary is a UV
 /// increment, and these are trial aspect ratios.
-const SPLIT_SCAN_SAMPLES: usize = 321;
+pub const SPLIT_SCAN_SAMPLES: usize = 321;
+
+/// The aspect ratios `t = h_v / h_u` a scan of `decades` either side of
+/// square visits at `samples` points, log-uniformly and in order.
+///
+/// **The one derivation of the scan's lattice.** [`best_split_steps`]
+/// runs it at [`SPLIT_SCAN_DECADES`] / [`SPLIT_SCAN_SAMPLES`] and the
+/// derivations suite runs it at other pairs, to measure what those two
+/// constants buy. A second spelling of the placement would turn that
+/// measurement into a statement about the copy.
+///
+/// # Panics
+///
+/// If `samples < 2`: a scan of one point has no sampling step, and the
+/// resolution these constants exist to set is undefined without one.
+pub fn split_scan_aspects(decades: f64, samples: usize) -> impl Iterator<Item = f64> {
+    assert!(
+        samples >= 2,
+        "a split scan of {samples} sample(s) has no sampling step"
+    );
+    (0..samples).map(move |k| {
+        #[allow(clippy::cast_precision_loss)]
+        let f = k as f64 / (samples - 1) as f64;
+        10.0f64.powf(decades * f.mul_add(2.0, -1.0))
+    })
+}
+
+/// The worst relative excess a scan at `(decades, samples)` can leave
+/// on the CONTINUOUS objective — [`best_split_cells`]'s cost with the
+/// two `ceil`s of [`divisions`] removed — over every bound whose
+/// optimum the range brackets.
+///
+/// **Derivation.** Above the one-division floor the continuous cost at
+/// aspect `t` is `U·V·(muu/t + 2·muv + mvv·t) / δ_s`, minimized at the
+/// interior `t* = √(muu/mvv)`. Writing `t = t*·10^x`, the ratio to the
+/// optimum is `1 + (cosh(x·ln 10) − 1) / (1 + muv/√(muu·mvv))`, so a
+/// live cross term only ever shrinks it and the worst case is
+/// `muv = 0`. No aspect sits further than half a sampling step from a
+/// sample, and half the step is `decades/(samples − 1)` decades, which
+/// gives the value below.
+///
+/// **It is attained, not conservative**: an isotropic bound puts `t*`
+/// at exactly `1`, and at an even `samples` the lattice straddles `1`
+/// half a step either side. The derivations suite measures a family
+/// against this bound for that reason — a closed form nothing witnesses
+/// is theory, not a guard.
+///
+/// It bounds nothing when the optimum lies OUTSIDE `10^±decades`; that
+/// is the range failure, and it is guarded separately.
+#[must_use]
+pub fn split_scan_worst_excess(decades: f64, samples: usize) -> f64 {
+    assert!(
+        samples >= 2,
+        "a split scan of {samples} sample(s) has no sampling step"
+    );
+    #[allow(clippy::cast_precision_loss)]
+    let half_step = decades / (samples - 1) as f64;
+    (half_step * std::f64::consts::LN_10).cosh() - 1.0
+}
 
 /// The cheapest uniform grid a bound admits over one box: minimize
 /// `divisions(U, h_u) · divisions(V, h_v)` subject to the SAME
@@ -585,12 +696,24 @@ pub fn best_split_cells(bound: Bound, du: f64, dv: f64, delta_s: f64) -> f64 {
 /// [`best_split_cells`] with the steps it chose: `(cells, h_u, h_v)`.
 /// Split out so the constraint can be asserted on the ANSWER and not
 /// merely on the formula that produced it (see this crate's tests).
+///
+/// # Panics
+///
+/// On a bound that is not a reading — a NaN or negative sup, a `δ_s`
+/// that drives a step to zero. `Q(t) = 0` is a reading, not a failure:
+/// a certified-flat cell constrains nothing and takes one division per
+/// axis, which is what an infinite step gives.
 pub fn best_split_steps(bound: Bound, du: f64, dv: f64, delta_s: f64) -> (f64, f64, f64) {
     let (muu, muv, mvv) = (bound.muu, bound.muv, bound.mvv);
     // The steps at aspect ratio `t = h_v / h_u`: the constraint is
     // homogeneous of degree 2 in h_u, so h_u falls straight out.
     let steps = |t: f64| -> (f64, f64) {
         let q = mvv.mul_add(t.powi(2), 2.0f64.mul_add(muv * t, muu));
+        assert!(
+            q >= 0.0 && q.is_finite(),
+            "a certificate value of {q} is not a reading: the meter has no cheapest \
+             split to report for muu={muu}, muv={muv}, mvv={mvv} at t={t}"
+        );
         let hu = if q > 0.0 {
             (delta_s / q).sqrt()
         } else {
@@ -604,10 +727,8 @@ pub fn best_split_steps(bound: Bound, du: f64, dv: f64, delta_s: f64) -> (f64, f
         lane_u,
         lane_v,
     );
-    for k in 0..SPLIT_SCAN_SAMPLES {
-        #[allow(clippy::cast_precision_loss)]
-        let f = k as f64 / (SPLIT_SCAN_SAMPLES - 1) as f64;
-        let (hu, hv) = steps(10.0f64.powf(SPLIT_SCAN_DECADES * f.mul_add(2.0, -1.0)));
+    for t in split_scan_aspects(SPLIT_SCAN_DECADES, SPLIT_SCAN_SAMPLES) {
+        let (hu, hv) = steps(t);
         let n = divisions(du, hu) * divisions(dv, hv);
         if n < best.0 {
             best = (n, hu, hv);
@@ -632,12 +753,31 @@ pub fn best_split_steps(bound: Bound, du: f64, dv: f64, delta_s: f64) -> (f64, f
 /// certificate is built on needs only an a.e. bound. That is the same
 /// fact the shipped whole-patch assembly already rests on at its own
 /// interior knots (`mesh::nurbs_cert` docs).
+///
+/// # Panics
+///
+/// On a trim box or a cell box that is not a reading. The overlap test
+/// below is an EMPTINESS test and nothing else: written as
+/// `!(du > 0.0 && dv > 0.0)` it also swallows a NaN extent, dropping
+/// the cell from a sum the gate divides by — which lowers the
+/// denominator, raises the reported slack, and so hides a regression
+/// wherever it lands in the committed baseline.
 fn span_opt_cells(cells: &[CellMeasure], u: (f64, f64), v: (f64, f64), delta_s: f64) -> f64 {
+    assert!(
+        u.0.is_finite() && u.1.is_finite() && v.0.is_finite() && v.1.is_finite(),
+        "a trim box of {u:?} x {v:?} is not a reading: the meter has no per-cell ideal to report"
+    );
     let mut opt = 0.0;
     for c in cells {
+        assert!(
+            c.u.0.is_finite() && c.u.1.is_finite() && c.v.0.is_finite() && c.v.1.is_finite(),
+            "a cell box of {:?} x {:?} is not a reading: the meter has no per-cell ideal to report",
+            c.u,
+            c.v
+        );
         let du = c.u.1.min(u.1) - c.u.0.max(u.0);
         let dv = c.v.1.min(v.1) - c.v.0.max(v.0);
-        if !(du > 0.0 && dv > 0.0) {
+        if du <= 0.0 || dv <= 0.0 {
             continue; // cell outside the trim box
         }
         opt += best_split_cells(c.into(), du, dv, delta_s);
