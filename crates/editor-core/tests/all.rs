@@ -88,6 +88,10 @@ mod lib_u5_interrogate;
 mod lib_u7_select;
 #[path = "m10_di_dual_corpus.rs"]
 mod m10_di_dual_corpus;
+#[path = "r1_mb_diff.rs"]
+mod r1_mb_diff;
+#[path = "r1_dual_probes.rs"]
+mod r1_dual_probes;
 #[path = "m4_pr1_dims.rs"]
 mod m4_pr1_dims;
 #[path = "m4_pr1_doc.rs"]
