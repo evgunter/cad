@@ -206,6 +206,41 @@ impl Distribution {
         }
     }
 
+    /// This distribution with every `-0.0` offset folded to `0.0`.
+    ///
+    /// The counterpart of [`Self::bit_eq`], and it exists for the
+    /// consumers that mirror the OTHER equality. `Distribution`'s
+    /// derived `PartialEq` is IEEE on its floats, so `-0.0` and `0.0`
+    /// are the same offset to it and different offsets to `bit_eq`.
+    /// Anything that HASHES a distribution has to agree with the
+    /// equality it is paired with, and a hash built from the raw bits
+    /// (or from a debug spelling, which shows the sign) splits two
+    /// values `PartialEq` calls equal — which is the one thing a hash
+    /// may not do. Folding first is the fix, and it lives here so
+    /// there is one statement of it rather than one per consumer.
+    ///
+    /// EXHAUSTIVE on purpose: a new form, or a new field on one, must
+    /// say how it folds or the compile breaks.
+    pub fn fold_signed_zeros(self) -> Self {
+        let f = |v: f64| if v == 0.0 { 0.0 } else { v };
+        match self {
+            Self::Band { lo, hi } => Self::Band {
+                lo: f(lo),
+                hi: f(hi),
+            },
+            Self::Uniform { lo, hi } => Self::Uniform {
+                lo: f(lo),
+                hi: f(hi),
+            },
+            Self::Normal { sigma } => Self::Normal { sigma: f(sigma) },
+            Self::TruncatedNormal { sigma, lo, hi } => Self::TruncatedNormal {
+                sigma: f(sigma),
+                lo: f(lo),
+                hi: f(hi),
+            },
+        }
+    }
+
     /// Bit-exact equality on the floats — the document's replay
     /// identity (D7), where `0.0` and `-0.0` are different offsets.
     ///

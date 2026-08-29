@@ -28,6 +28,7 @@ from pncad import (
     Doc,
     DocEdit,
     DocParam,
+    DocParamValue,
     EditError,
     EntityKind,
     EvaluationError,
@@ -339,6 +340,51 @@ class TestPlateParam(unittest.TestCase):
                 self.assertAlmostEqual(
                     volume_of(doc, solid), self.oracle(r), delta=1e-6
                 )
+
+    def test_the_value_door_moves_the_holes_and_keeps_the_declaration(self):
+        """`set_doc_param_value` is the SAFE spelling of a value change.
+
+        `set_doc_param` is create-or-replace: passing it a `DocParam`
+        rebuilt from a dimension and a number replaces the declaration,
+        and any distribution the parameter carried (ERROR-DESIGN E1/E2 —
+        which Python cannot spell) is deleted with no refusal. The value
+        door carries the declaration forward instead. Here it is doing
+        the ordinary job as well: the same oracle, through the other
+        door."""
+        for r in (0.25, 0.4):
+            with self.subTest(hole_r=r):
+                doc, solid = self.plate()
+                doc.apply(
+                    DocEdit.set_doc_param_value(
+                        ParamName("hole_r"), DocParamValue.length(r * m)
+                    )
+                )
+                self.assertAlmostEqual(
+                    volume_of(doc, solid), self.oracle(r), delta=1e-6
+                )
+
+    def test_the_value_door_refuses_typed(self):
+        """Its two refusals, both typed: there is no declaration to
+        carry forward, and a kind change is a redeclaration."""
+        import pncad
+
+        doc, _solid = self.plate()
+        with self.assertRaises(pncad.EditError) as ctx:
+            doc.apply(
+                DocEdit.set_doc_param_value(
+                    ParamName("never_declared"), DocParamValue.length(1 * m)
+                )
+            )
+        self.assertEqual(ctx.exception.variant, "doc_param_not_declared")
+        with self.assertRaises(pncad.EditError) as ctx:
+            doc.apply(
+                DocEdit.set_doc_param_value(
+                    ParamName("hole_r"), DocParamValue.count(3)
+                )
+            )
+        self.assertEqual(
+            ctx.exception.variant, "doc_param_value_kind_mismatch"
+        )
 
     def test_the_edit_is_legal_at_rest_and_replay_refuses_r_zero(self):
         """The acceptance suite's deliberate asymmetry: `set_doc_param`
@@ -2074,7 +2120,7 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             sorted(n for n in dir(DocEdit) if not n.startswith("_")),
             [
                 "bind_count_param", "delete_node", "insert_node",
-                "set_doc_param", "set_tolerance",
+                "set_doc_param", "set_doc_param_value", "set_tolerance",
             ],
         )
 

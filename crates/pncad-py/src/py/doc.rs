@@ -1082,32 +1082,6 @@ fn fold_zero(v: f64) -> f64 {
     if v == 0.0 { 0.0 } else { v }
 }
 
-/// [`fold_zero`] applied to every offset of a distribution.
-///
-/// EXHAUSTIVE on purpose: a new form, or a new field on one, must say
-/// how it normalizes here or the compile breaks — the alternative is a
-/// field that silently splits the hash of two equal parameters.
-fn fold_distribution_zeros(d: d::Distribution) -> d::Distribution {
-    match d {
-        d::Distribution::Band { lo, hi } => d::Distribution::Band {
-            lo: fold_zero(lo),
-            hi: fold_zero(hi),
-        },
-        d::Distribution::Uniform { lo, hi } => d::Distribution::Uniform {
-            lo: fold_zero(lo),
-            hi: fold_zero(hi),
-        },
-        d::Distribution::Normal { sigma } => d::Distribution::Normal {
-            sigma: fold_zero(sigma),
-        },
-        d::Distribution::TruncatedNormal { sigma, lo, hi } => d::Distribution::TruncatedNormal {
-            sigma: fold_zero(sigma),
-            lo: fold_zero(lo),
-            hi: fold_zero(hi),
-        },
-    }
-}
-
 /// A named parameter's declared dimension and exact stored value
 /// (guide §3.2): what `DocEdit.set_doc_param` writes.
 ///
@@ -1196,7 +1170,7 @@ impl DocParam {
                 // .. }` compare EQUAL (Rust's `PartialEq` on `f64` is
                 // IEEE) and hash APART, which is the one thing a
                 // Python dict may not survive.
-                format!("{:?}", distribution.map(fold_distribution_zeros)).hash(&mut h);
+                format!("{:?}", distribution.map(d::Distribution::fold_signed_zeros)).hash(&mut h);
             }
             d::DocParam::Count { value } => {
                 1u8.hash(&mut h);

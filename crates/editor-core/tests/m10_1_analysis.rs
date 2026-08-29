@@ -332,3 +332,64 @@ fn a_distribution_does_not_reach_the_parameter_environment() {
         "the nominal alone crosses into evaluation"
     );
 }
+
+/// **The signed-zero fold reconciles the two equalities.** A
+/// distribution's derived `PartialEq` is IEEE, so `-0.0` and `0.0` are
+/// the same offset to it and different offsets to `bit_eq`. Any
+/// consumer that HASHES a distribution mirrors the first and must not
+/// split what it calls equal — the Python binding's `__hash__` is one,
+/// and it used to hash the debug spelling, which shows the sign. This
+/// pins the one home of the fix: IEEE-equal distributions fold to
+/// BIT-equal ones, and the fold moves nothing else.
+#[test]
+fn the_signed_zero_fold_makes_ieee_equal_distributions_bit_equal() {
+    let pairs = [
+        (
+            Distribution::Band { lo: -0.0, hi: 0.0 },
+            Distribution::Band { lo: 0.0, hi: -0.0 },
+        ),
+        (
+            Distribution::Uniform { lo: -0.0, hi: 0.5 },
+            Distribution::Uniform { lo: 0.0, hi: 0.5 },
+        ),
+        (
+            Distribution::TruncatedNormal {
+                sigma: 0.5,
+                lo: -0.0,
+                hi: -0.0,
+            },
+            Distribution::TruncatedNormal {
+                sigma: 0.5,
+                lo: 0.0,
+                hi: 0.0,
+            },
+        ),
+    ];
+    for (a, b) in pairs {
+        assert_eq!(a, b, "IEEE equality already calls these the same");
+        assert!(!a.bit_eq(&b), "and bit_eq already calls them different");
+        assert!(
+            a.fold_signed_zeros().bit_eq(&b.fold_signed_zeros()),
+            "so the fold must make them bit-equal: {a:?} vs {b:?}"
+        );
+    }
+    // Idempotent, and it moves nothing that is not a signed zero.
+    for d in [
+        Distribution::Normal { sigma: 1e-6 },
+        Distribution::TruncatedNormal {
+            sigma: 2.0,
+            lo: -1.0,
+            hi: 3.0,
+        },
+    ] {
+        assert!(d.fold_signed_zeros().bit_eq(&d), "{d:?} is untouched");
+    }
+    // The sign really is the only thing it takes: a Normal cannot have
+    // a zero sigma, so the fold has nothing to do there.
+    assert!(
+        Distribution::Normal { sigma: -0.0 }
+            .fold_signed_zeros()
+            .bit_eq(&Distribution::Normal { sigma: 0.0 }),
+        "even the inhabitant `check` refuses folds consistently"
+    );
+}
