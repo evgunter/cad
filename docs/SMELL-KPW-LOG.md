@@ -765,3 +765,47 @@ be scoped to a fence and goes with `L1`–`L3`.
 how it was written: `C15` narrowed, `D65` closed with one of its verdicts
 retracted, `D105` closed a residue it had filed. In no case was the finding's own
 statement of the problem the last word on it.
+
+## `w2`'s correctness review — a lexer checked against rustc, and a regression I caused
+
+**The method is the part worth keeping.** The reviewer extracted the lexer into a
+standalone binary and used **rustc's own name resolver as ground truth**: plant
+`NEEDLE()` inside a construct, compile, and take `E0425 cannot find function
+NEEDLE` as *"this text is code"*. Agreement is then mechanical in both
+directions. **2,125 snippets, 0 divergences**; a 200,000-input property test for
+identity, byte-length preservation and exact partition; and all 991 `.rs` files
+in the tree, with `{`/`}` balanced in the `code_only` view of every one — a
+mis-lexed raw string would unbalance them. An old-vs-new differential over those
+files found **17 that differ, every one in the direction of the new lexer being
+right.** For a shared lexer that every guard in the tree will rest on, that is
+the right amount of evidence, and it cost one standalone binary.
+
+**And it found that my own fix-pass instruction cost the census coverage.** I
+called `without_module_mounts` a hand-rolled reader inside the file whose rule
+forbids one — correct — and the lane replaced it with a **line-wise** detector,
+which requires the `.rs"` literal and the read call on the same line. Two readers
+the *previous* version caught now pass: a `rustfmt`-wrapped `include_str!`, which
+is simply what the formatter produces for a long path, and a path held in a named
+`const`. Neither is the disclosed blind spot. **The slicer and the line-wise
+shape have complementary holes**, so neither alone is the answer — which is the
+thing to know before replacing a detector rather than after.
+
+**One conversion weakened a guard, proved by A/B.** `profile/tests/seal.rs`'s
+final clause is `!src.contains("serde")`, and the only `serde` in a
+`#[cfg(feature = "serde")]` gate is a **string literal** — which `code_only`
+blanks. So the converted guard passes where the raw one failed, and the guard's
+own new comment (*"every needle below is CODE"*) is wrong: **a cfg feature name
+is a fourth spelling of the needle, and it is a literal.** Defence-in-depth lost
+rather than the outer wall, since two other gates police the dependency edge.
+
+### The shared-worktree hazard cost real work a second time
+
+Three of the reviewer's whole-workspace runs were contaminated by the concurrent
+style reviewer — including one detailed *"editor-core does not compile"* finding
+that was purely mid-merge noise and was correctly discarded. Every number it kept
+is bracketed by an md5 of every tracked `.rs` and `.toml` before and after. **The
+standing rule earned earlier in this session was not enough**: bracketing catches
+a poisoned run, it does not stop one, and the cost is a reviewer's time and a
+finding that had to be thrown away. The rule to relocate is stronger than the one
+already written — **a reviewer that mutates gets its own checkout, and reviewers
+that share a worktree must not run concurrently at all.**
