@@ -38,9 +38,16 @@ fn d5_repair_with_stored_pcurves_stays_cache_clean() {
     let band = Band::linear(tol).unwrap();
     let mut c = cone();
     mint_pcurves(&mut c, tol).expect("the cone's caches mint");
-    let cached = |b: &Body<f64>| b.half_edges().filter(|(k, _)| b.pcurve(*k).is_some()).count();
+    let cached = |b: &Body<f64>| {
+        b.half_edges()
+            .filter(|(k, _)| b.pcurve(*k).is_some())
+            .count()
+    };
     let rows_before = cached(&c);
-    assert!(rows_before > 0, "the probe needs stored caches to attack with");
+    assert!(
+        rows_before > 0,
+        "the probe needs stored caches to attack with"
+    );
     let out = c
         .merge_coplanar_faces(tol)
         .expect("the pole-split cap repairs with caches present");
@@ -73,12 +80,8 @@ fn d6_repaired_cone_operand_door_measured() {
     let b = {
         use profile::{Profile, SketchPlane};
         use sweep::{Extrusion, extrude};
-        let loop_ = ProfileLoop::polygon([
-            p2(-0.5, -0.5),
-            p2(0.5, -0.5),
-            p2(0.5, 0.5),
-            p2(-0.5, 0.5),
-        ]);
+        let loop_ =
+            ProfileLoop::polygon([p2(-0.5, -0.5), p2(0.5, -0.5), p2(0.5, 0.5), p2(-0.5, 0.5)]);
         let vp = Profile::new(SketchPlane::xy(), vec![loop_])
             .validate(tol)
             .unwrap();

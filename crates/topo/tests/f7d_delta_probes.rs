@@ -98,10 +98,17 @@ fn d2_near_collinear_band_arms() {
     // (a) d = 1e-10: margin ~7e-11 < ε — decidedly collinear in-band.
     let mut b = split_top_at(Point3::new(1.0, 1.0 + 1e-10, 1.0));
     let out = b.merge_coplanar_faces(tol);
-    println!("[d2a] d=1e-10 => {:?}", out.as_ref().map(|o| o.groups.len()));
+    println!(
+        "[d2a] d=1e-10 => {:?}",
+        out.as_ref().map(|o| o.groups.len())
+    );
     let out = out.expect("in-band deviation merges (locus change < eps)");
     assert_eq!(out.groups.len(), 1);
-    assert_eq!(validate_geometric(&b, tol), Ok(()), "tier 3 after in-band repair");
+    assert_eq!(
+        validate_geometric(&b, tol),
+        Ok(()),
+        "tier 3 after in-band repair"
+    );
 
     // (b) d = 5e-9: margin ~3.5e-9 in (ε, 10ε) — the ambiguity band.
     let mut b = split_top_at(Point3::new(1.0, 1.0 + 5e-9, 1.0));
@@ -171,9 +178,19 @@ fn d3_four_sector_pole_is_not_licensed() {
     let fk2 = fragment_with(&b, 0.0, 2.0).expect("a fragment holds both M and (0,2)");
     let he_m2 = he_at(&b, fk2, 1.0, 1.0);
     let he_c2 = he_at(&b, fk2, 0.0, 2.0);
-    b.mef_chord(MefSite::Chords { he1: he_c2, he2: he_m2 }, tol)
-        .unwrap();
-    assert_eq!(validate_closed(&b), Ok(()), "four-sector fixture is tier-2 legal");
+    b.mef_chord(
+        MefSite::Chords {
+            he1: he_c2,
+            he2: he_m2,
+        },
+        tol,
+    )
+    .unwrap();
+    assert_eq!(
+        validate_closed(&b),
+        Ok(()),
+        "four-sector fixture is tier-2 legal"
+    );
     // The pole M is valence 4 with two collinear+opposed spoke pairs.
     let before = census(&b);
     let res = b.merge_coplanar_faces(tol);
