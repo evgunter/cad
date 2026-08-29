@@ -352,3 +352,59 @@ never moved — a mis-join in the voice of a measurement, which is worse than th
 silence the row was written about. **A review's artefacts are evidence, not
 scratch**: they belong with the lane until the unit lands, not with the
 reviewer's lifetime.
+
+## `k2`'s reviews — a certificate that does not cover its own headline case
+
+Two reviewers, two methods, one break. The style lane brute-forced a
+counterexample; the correctness lane reproduced it independently and then
+characterised the class analytically.
+
+**`split_scan_worst_excess` documents itself as the worst excess *"over every
+bound whose optimum the range brackets"*, and the derivation printed beneath it
+assumes the interior stationary point — which is the optimum only when the
+one-division floor does not bind.** For `muv = 0` the closed form applies **iff
+`muu ≥ δ_s/2` and `mvv ≥ δ_s/2`**. At the shipped pair, `(2.9808e-4, 0,
+1.9437e-2)` scores **2.09%** against a claimed 0.166% and a ceiling of 0.5%,
+with the scan's argmin interior so the range claim passes and nothing reds.
+**91,506 of 300,000** random floored-class triples exceed the closed form, and
+**two of the six family members are outside its domain — including the ruled
+wall, the member the row is named for**, which passes at 0.017% by lattice luck
+rather than by the bound.
+
+The consumer-derived ceiling inherits the break. Its *cancellation* half is
+sound and was verified — the scan sits in the ratio's denominator on both rows,
+so a static excess cancels exactly — but the magnitude half bounds the closed
+form rather than the excess: at the coarsest step the ceiling admits, the true
+worst is **3.54%, 71% of the gate's whole margin rather than a tenth.**
+
+**And the guard never calls the code it is about.** The objective is a hand
+re-spelling of the shipped one, so retuning the *call site* rather than the
+constants — `split_scan_aspects(DECADES, 21)` — inflates cell counts by
+**12.73%, 2.5× the gate's entire margin, with every test green.**
+
+**Ruling: `D105` narrows.** The range claim is sound and provably so
+(quasiconvexity in `log t`, 0 violations in 60,000 triples). What lands is the
+guard with its domain stated, the family extended into the floored class, and
+the objective called rather than re-spelled; the floored-class certificate
+becomes a row. The lane's own summary is the sentence to keep: **the pair is
+defensible; the certificate attached to it is not.**
+
+### A rule §D does not currently state, earned by this row
+
+`S160`'s measurements were taken on a six-member family that was **deleted with
+the instrument it belonged to**, so the evidence that persuaded an orchestrator
+to place `D105` over a standing prohibition was unreproducible from the repo:
+the taker had to *fit* the missing member back and cross-check it against a
+percentage in a closed track's log. §D rule 3 binds a closing PR to relocate a
+standing **rule** *"into text that survives, in full"*; its nouns are *sentence*
+and *standing rule*, and they do not reach an artefact. **A closing PR that
+deletes a measurement's fixture owes the fixture the same relocation the rule
+already gives the sentence.** Stated here rather than only in a report, which is
+the rule applied to itself.
+
+Related, and it is why the row cannot cite its own evidence: **`S160`'s
+published continuous table is a *seeded* measurement and the shipped guard is
+unseeded.** Both reviewers reproduced the published column exactly, and only by
+admitting the seed the lane's own test refuses. Unseeded, `S160`'s *"falls
+smoothly with resolution"* is **false** of the shipped quantity — 400 samples is
+6× worse than 321, because the bound is attained at even sample counts.
