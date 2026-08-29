@@ -678,3 +678,47 @@ and is never compiled by a downstream dev-dependent, `vacuity`'s public surface
 is byte-for-byte unchanged, and the crate has no dependencies to unify. The
 workspace-wide check is no longer owed for *this* reason; it is still owed for
 `w2`, which rewrites `source.rs` in the same crate.
+
+## `k2`'s delta review — `D206` confirmed, and the certificate written after all
+
+Two results, and both change what the row is.
+
+**The claim-0 hole moved one function inward rather than closing.** Claim 0
+asserts properties of `shipped_split_scan_aspects()`; nothing asserts that
+`best_split_steps` **calls** it. Three retunes at the call site are green on the
+entire gated job — including **the prior round's own counterexample**, unchanged
+— at a measured cost of **mean +14.93%, max +100%** on the gated column over
+200,000 bounds. A guard that catches a substitution inside the helper and not the
+substitution of the helper has relocated the defect. The fix is an assertion on
+the composition, and it is one line.
+
+**The certificate the row filed as unwritten exists.** For `muv = 0` with the
+floor binding, put `r = muu/δ_s`; the optimum is the kink, the slopes are `−r`
+and `1 − 2r`, and worst-case sampling gives `10^(s·r(1−2r)/(1−r)) − 1`,
+maximised at `r = (2−√2)/2` → **1.995%**. The lane's own floored counterexample
+has `r = 0.29808` — **it is the analytic argmax**, which is why two independent
+searches converged on it. So claim 3 stops being a measurement and `D105`'s
+residue closes rather than files. An independent 4.6 M-bound sweep put the class
+sup at 2.0918% against the lane's 2.088%.
+
+### `D206` is real, and it is about the gate
+
+The decisive distinction is one nobody had drawn: **claim 3 is stated on the
+continuous objective and `tess-lint` reads the `ceil`'d one.** On the shipped
+counting function the lane's own family member `anisotropic, live cross term`
+scores **5.8824%** — already above the gate's whole 5% margin, a number sitting
+in the tree twice and never joined to its consequence — and a **single smooth
+geometry change** (`mvv` 1× → 100×, counts 10,580 → 105,760) walks the scan/true
+ratio from 1.00000 to **1.05948**. The instrument alone moves `span_opt_cells`
+past `GROWTH_TOLERANCE` from lattice placement, not from tessellation.
+
+The lever is cheap and now measured — `SPLIT_SCAN_SAMPLES ≥ 379` at 8 decades
+puts the envelope under 5% — and I have ruled it **out of `D105`**: raising it
+moves every committed budget number and re-cuts the baseline, which is a unit of
+its own rather than a rider on a guard's fix pass. `D206` carries it, with the
+number recorded so the taker does not re-derive it.
+
+**And the lane's decline of the range narrowing was right on its own axis and
+answered the wrong question** — the reviewer's phrasing, and it is the better
+one: *the range question is open and the resolution question has a cheaper
+answer.*
