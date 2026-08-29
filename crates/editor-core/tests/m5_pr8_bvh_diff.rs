@@ -41,7 +41,7 @@ where
         + geom_core::Bounds
         + Send
         + Sync
-        + topo::PropsQuadLane,
+        + topo::AtRestPolicy,
 {
     let opts = EvalOptions {
         boolean_sweep: strategy,

@@ -92,10 +92,88 @@ const PAD_R: f64 = 14.0;
 const PAD_T: f64 = 48.0;
 const PAD_B: f64 = 62.0;
 
-/// Stroke color per pcurve form — the legend of every cell.
+/// Stroke color per pcurve form — the legend of every cell. One
+/// `const` per [`Form`], which is what `compose_uv_montage.py`'s
+/// legend selftest reads.
 const COLOR_HARMONIC: &str = "#1f4e79";
 const COLOR_ISOLINE: &str = "#1b7a3d";
+const COLOR_ISOARC: &str = "#6b2fa0";
 const COLOR_FITTED: &str = "#c1590a";
+const COLOR_GENERAL: &str = "#a01c3c";
+
+/// The pcurve form a half-edge's chart image was drawn from.
+///
+/// Every ladder over it below is an exhaustive `match`, and that is the
+/// point: the roster this type replaced was a hand-written
+/// `["harmonic", "isoline", "fitted"]` filter, so an `IsoArc` or a
+/// `General` half-edge was dropped from the cell subtitle and from
+/// `uv.json`, and its stroke fell through a `_` arm to the harmonic
+/// color — drawing a rational iso-arc as if it were harmonic, which is
+/// the one thing the `IsoArc` arm below says this sheet exists to show.
+/// A sixth `Pcurve` variant is now a compile error here rather than a
+/// silent omission there.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Form {
+    Harmonic,
+    IsoLine,
+    /// The RATIONAL wall's arc cap rim (M8-3). Its chart image is the
+    /// same straight boundary line `IsoLine` draws, but its moving
+    /// channel is the chart's own rational-quadratic parameter, so the
+    /// samples are NOT evenly spaced in `u` — which is exactly what
+    /// this sheet is for showing.
+    IsoArc,
+    Fitted,
+    /// U2's general curve-in-UV: the same spline shape as the fitted
+    /// arm without its construction provenance, and the sheet names the
+    /// class it drew rather than merging the two.
+    General,
+}
+
+impl Form {
+    fn of(pcurve: &Pcurve<f64>) -> Self {
+        match pcurve {
+            Pcurve::Harmonic { .. } => Form::Harmonic,
+            Pcurve::IsoLine { .. } => Form::IsoLine,
+            Pcurve::IsoArc { .. } => Form::IsoArc,
+            Pcurve::Fitted(_) => Form::Fitted,
+            Pcurve::General(_) => Form::General,
+        }
+    }
+
+    fn name(self) -> &'static str {
+        match self {
+            Form::Harmonic => "harmonic",
+            Form::IsoLine => "isoline",
+            Form::IsoArc => "isoarc",
+            Form::Fitted => "fitted",
+            Form::General => "general",
+        }
+    }
+
+    fn color(self) -> &'static str {
+        match self {
+            Form::Harmonic => COLOR_HARMONIC,
+            Form::IsoLine => COLOR_ISOLINE,
+            Form::IsoArc => COLOR_ISOARC,
+            Form::Fitted => COLOR_FITTED,
+            Form::General => COLOR_GENERAL,
+        }
+    }
+
+    /// Report order for the roster a cell's subtitle prints. A rank
+    /// rather than a `const ALL: [Form; N]` because a hand-kept array
+    /// is the shape of the defect this type closed: the compiler checks
+    /// this ladder and cannot check that one.
+    fn rank(self) -> u8 {
+        match self {
+            Form::Harmonic => 0,
+            Form::IsoLine => 1,
+            Form::IsoArc => 2,
+            Form::Fitted => 3,
+            Form::General => 4,
+        }
+    }
+}
 
 /// One face's manifest entry, written to `<outdir>/uv.json` for the
 /// montage composer.
@@ -124,7 +202,7 @@ pub struct FaceDump {
 /// draws.
 struct Traversal {
     pts: Vec<(f64, f64)>,
-    form: &'static str,
+    form: Form,
     /// `false` when the pcurve was derived on demand rather than read
     /// from the body's stored cache.
     stored: bool,
@@ -204,21 +282,7 @@ fn traverse(body: &Body<f64>, hek: HalfEdgeKey, band: Band) -> Result<Traversal,
             false,
         ),
     };
-    let form = match &pcurve {
-        Pcurve::Harmonic { .. } => "harmonic",
-        Pcurve::IsoLine { .. } => "isoline",
-        // The RATIONAL wall's arc cap rim (M8-3). Its chart image is
-        // the same straight boundary line `IsoLine` draws, but its
-        // moving channel is the chart's own rational-quadratic
-        // parameter, so the samples below are NOT evenly spaced in
-        // `u` — which is exactly what this sheet is for showing.
-        Pcurve::IsoArc { .. } => "isoarc",
-        Pcurve::Fitted(_) => "fitted",
-        // U2's general curve-in-UV: the same spline shape as the
-        // fitted arm without its construction provenance, and the
-        // sheet names the class it drew rather than merging the two.
-        Pcurve::General(_) => "general",
-    };
+    let form = Form::of(&pcurve);
     let n = if straight || matches!(pcurve, Pcurve::IsoLine { .. }) {
         2
     } else {
@@ -271,8 +335,8 @@ pub struct FaceStats {
     /// How many of those read a **stored** pcurve cache (the rest were
     /// derived on demand — the tessellator would refuse them).
     pub cached: usize,
-    /// Which pcurve forms appear, in `harmonic`/`isoline`/`fitted`
-    /// order.
+    /// Which pcurve forms appear, in [`Form::rank`] order — every one
+    /// the walk met, not a filtered subset.
     pub forms: Vec<&'static str>,
     /// The outer loop's signed chart area (negative = wound CW).
     ///
@@ -336,10 +400,17 @@ fn measure(loops: &[Vec<Traversal>], sense: bool) -> (Vec<Vec<(f64, f64)>>, Face
             chart_jump = chart_jump.max(((ax - bx).powi(2) + (ay - by).powi(2)).sqrt());
         }
     }
-    let forms = ["harmonic", "isoline", "fitted"]
-        .into_iter()
-        .filter(|f| loops.iter().flatten().any(|t| t.form == *f))
-        .collect();
+    // Every form the walk actually met, deduplicated and sorted into
+    // report order — never a filter against a list of the forms someone
+    // remembered to name.
+    let mut seen: Vec<Form> = Vec::new();
+    for t in loops.iter().flatten() {
+        if !seen.contains(&t.form) {
+            seen.push(t.form);
+        }
+    }
+    seen.sort_by_key(|f| f.rank());
+    let forms: Vec<&'static str> = seen.into_iter().map(Form::name).collect();
     // The winding CHECK, not a winding alarm: `sense` says which way
     // the outer loop must run in the chart, so a bore's CW loop is a
     // pass and only a disagreement is a finding. Skipped entirely when
@@ -561,11 +632,7 @@ fn draw_face(
     // this" is the thing worth seeing at a glance.
     for l in loops {
         for tr in l {
-            let color = match tr.form {
-                "isoline" => COLOR_ISOLINE,
-                "fitted" => COLOR_FITTED,
-                _ => COLOR_HARMONIC,
-            };
+            let color = tr.form.color();
             let dash = if tr.stored {
                 ""
             } else {
