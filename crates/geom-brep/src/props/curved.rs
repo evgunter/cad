@@ -345,8 +345,12 @@ enum RimLevel<T: Real> {
     /// ([`RimArms::level`], meters) — on both kinds that chord IS the
     /// point deviation, everywhere on the surface (an axial-only pair
     /// would shrink by `cos v̄` toward the sphere's poles and merge
-    /// genuinely distinct rims). The primary component alone is what
-    /// the side test in [`linear_rim_side`] reads, at the same arm.
+    /// genuinely distinct rims). **That claim is the chord's**, not
+    /// every sphere margin's: the side test in [`linear_rim_side`]
+    /// reads the primary component alone (`lo + hi − 2s`, at the same
+    /// arm), and `require_extent`'s sphere margin is the axial sine
+    /// difference `(hi − lo)·R` — both still shrink by `cos v̄` near
+    /// the poles, in the REFUSING direction only (audit note N8).
     Unit(T, T),
 }
 
@@ -433,7 +437,11 @@ impl<T: Real> RimArms<T> {
 ///   separation). The sphere's pair carries its `cos v` for exactly
 ///   this — an axial-only `(sin v, 0)` pair shrinks by `cos v̄`
 ///   toward the poles and merges genuinely distinct near-polar rims
-///   in the ACCEPTING direction (retired audit note N7).
+///   in the ACCEPTING direction (retired audit note N7). The
+///   retirement is the CHORD's: the sphere's `props_rim_side` and
+///   `props_face_extent` margins still meter axial sine differences
+///   and understate near the poles in the refusing direction — open
+///   as audit note N8, deliberately untouched here.
 /// * **the lever.** The chord is metered at [`RimArms::level`], which
 ///   on the torus is `minor`. Metering it at `major` overstates by
 ///   `major / minor` — audit note N1, now retired: the arms are
@@ -1194,8 +1202,7 @@ fn sphere_meridian_span_levels<T: Decide>(
     let w0 = e.p0() - center;
     let sa = w0.dot(axis) / radius;
     let ca = n_c.cross(w0).dot(axis) / radius;
-    // powi(2), not x*x: the interval square is tight and nonnegative,
-    // so the sqrt stays fully in-domain (as in `level_gap`).
+    // powi(2), not x*x (the one argument lives at `level_gap`).
     let r0 = (sa.powi(2) + ca.powi(2)).sqrt();
     let dt = e.t1 - e.t0;
     // The north pole (λ = +r0) sits at the span-relative direction

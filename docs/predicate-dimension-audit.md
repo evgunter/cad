@@ -319,15 +319,15 @@ which is what actually moves the number.
 | props/curved.rs (`level_coincides`, `props_rim_level_group` call) | props_rim_level_group (Unit) | rooted (sin,cos) CHORD × `RimArms::level` (sphere ×R, torus ×minor) | m | **FIXED — N1 RETIRED** (S81: one rule, one arm. Was Δ(sin,cos) componentwise × `major` on the torus) |
 | props/curved.rs (`du_of_rims`) | props_rim_dir_group | (±1 diff) × `RimArms::azimuth` ∈ {0, ±2·arm} | m | OK (note N2) |
 | props/curved.rs (`du_of_rims`) | props_du_consistent | Δu (rad) × `RimArms::azimuth` | m | OK |
-| props/curved.rs (`linear_rim_side`'s nested `side`) | props_rim_side | per-kind: bare (Length) / × `RimArms::level` (Unit) | m | FIXED (#89's unit) |
+| props/curved.rs (`linear_rim_side`'s nested `side`) | props_rim_side | per-kind: bare (Length) / × `RimArms::level` (Unit) | m | FIXED (#89's unit); note N8 open — the sphere margin reads the PRIMARY component (`lo + hi − 2·sin v`), an axial quantity that shrinks by `cos v̄` near the poles, refusing direction |
 | props/curved.rs (`cylinder_boundary`'s line arm / `cone_boundary`'s line arm) | props_meridian_axial / props_meridian_generator | sin (or cos-diff) × parameter span (m for lines) | m | OK |
 | props/curved.rs (the four `*_boundary` parses) | props_meridian_on_surface / props_rim_fit (all kinds) | residuals; sphere/torus fits ROOTED before compare | m | OK |
 | props/curved.rs (the four `*_boundary` parses) | props_circle_axis_class | cos × r_c | m | OK (note N3) |
-| props/curved.rs (`require_extent`, called from all four flux lanes) | props_face_extent | m levels; sin-levels ×R; dt×minor | m | OK |
+| props/curved.rs (`require_extent`, called from all four flux lanes) | props_face_extent | m levels; sin-levels ×R; dt×minor | m | OK (note N8 open on the sphere arm — `(hi − lo)·R` is the AXIAL extent, which shrinks by `cos v̄` for a near-polar band, refusing direction) |
 | props/curved.rs (`cone_boundary`'s line arm) | props_meridian_apex | apex-line distance | m | OK |
 | props/curved.rs (`cone`'s single-nappe check) | props_cone_nappe | slant levels (m) bare | m | OK |
 | props/curved.rs (`sphere_boundary`'s meridian arm, `torus_boundary`, `torus_meridian_orient`) | props_meridian_great / props_band_coplanar / props_meridian_orient | lengths / sin×R / cos×minor | m | OK |
-| props/curved.rs (`sphere_meridian_span_levels`) | props_meridian_pole | chord from the pole's span-relative direction to the nearer span endpoint, carrying the membership sign (`copysign` of a midpoint dot test) × R — the point deviation of moving the pole onto the span boundary | m | OK (added with the span-derived sphere extent, issue 723 / S-CERT: Positive = pole interior to the span, its latitude joins the level fold; Zero = at a span end, folded too — the endpoint latitude is within band² of the pole's, so the fold is continuous across the decision; Negative = outside. Direction arithmetic throughout — no `atan2`, no mod-2π `floor`: either is wide at its cut/step for an interval enclosure of an arc anchored at a pole, forcing an escalation the scalar lane does not have, live on the die-fillet corpus) |
+| props/curved.rs (`sphere_meridian_span_levels`) | props_meridian_pole | chord from the pole's span-relative direction to the nearer span endpoint, carrying the membership sign (`copysign` of a midpoint dot test) × R — the point deviation of moving the pole onto the span boundary | m | OK (added with the span-derived sphere extent, issue 723 / S-CERT: Negative = pole outside the span, nothing folds; **everything else folds the pole latitude — Positive, Zero, and the indeterminate band alike**. Near a span end the endpoint latitude is within band² of the pole's, so the fold choices agree far inside tolerance, the folded extent is continuous across the decision, and an in-band margin carries no information a refusal could report — refusing there flipped certify-exactly into an import escalation for a split vertex 1e-6 rad off the pole. The site still RECORDS through `decide` like any classify site; it just never escalates, so its in-band population is expected (issue 1251 schedules the K-baseline fold-in). Total over every positive span: ≥ 2π covers the whole circle, both poles fold. Direction arithmetic throughout — no `atan2`, no mod-2π `floor`: either is wide at its cut/step for an interval enclosure of an arc anchored at a pole, forcing an escalation the scalar lane does not have, live on the die-fillet corpus) |
 | props/curved.rs (`require_rims_at_extremes`, through `level_coincides`) | props_rim_level | per-kind: bare level difference (cylinder/cone `Length`) / rooted (sin,cos) chord × `RimArms::level` (sphere ×R, torus ×minor) | m | **FIXED — N7 RETIRED** (N1 RETIRED earlier. Generalised from the torus-only site to all four kinds by S58/#649, and unified with its sibling `props_rim_level_group` by S81 — ONE rule (`level_coincides`), one metric (the chord), one arm (`RimArms::level`), one fail direction; the two names are the funnel's recording channels, not two rules, and the metering is still carried by [`RimLevel`]. N7's near-polar sphere understatement — an axial-only `(sin v, 0)` pair whose chord collapsed by `cos v̄`, merging distinct near-polar rims in the ACCEPTING direction on both names, this refusing one included — is retired by the full `(sin v, cos v)` pair (issue 893 / S-CERT; this verdict column previously said `OK` while N7's own prose recorded the collapse). Pinned as scale twins by `geom-brep/tests/rim_dim_scale_twins.rs` and, in suites CI runs, by `geom-brep/tests/s81_one_rim_level_rule.rs` and the near-polar rows of `geom-brep/tests/cert1_sphere_polar.rs`.) |
 | props/quad.rs:453 | props_quad_converged | ε·F − flux-width(m³)/(3·area(m²)) | m | OK |
 | props/quad.rs:461 | props_quad_face_extent | area/perimeter (mean width) | m | OK |
@@ -789,4 +789,21 @@ Notes (verified honest, kept for the design conversation):
   `geom-brep/tests/cert1_sphere_polar.rs`
   (`two_distinct_near_polar_rims_are_not_one_level`, with its
   within-band accepting control beside it); the chord pin is
-  `rim_dim_scale_twins.rs`'s sphere twin.
+  `rim_dim_scale_twins.rs`'s sphere twin. **The retirement is scoped
+  to the chord** (`level_coincides`, both recording names): the
+  sphere's other polar-shrinking margins are note N8's, still open.
+
+- **N8 — open, refusing direction only (recorded at the issue-893
+  close-out; outside that issue's accepting-direction ask).** Two
+  sphere margins still meter AXIAL sine differences that shrink by
+  `cos v̄` toward the poles: `props_rim_side`'s side margin
+  (`lo + hi − 2·sin v`, the `Unit` primary component × R) and
+  `props_face_extent`'s sphere margin (`(hi − lo) × R`). Neither can
+  ACCEPT wrongly — an understated side margin escalates or refuses a
+  genuine side, and an understated extent refuses a genuinely thin
+  near-polar band as degenerate (a `DegenerateFace` where a serving
+  lane could measure) — so both sit in the refusing direction, the
+  direction a precondition may err. Retiring them means giving the
+  side test a direction-pair comparand and the extent a geodesic
+  `Δv`-scaled one; both are lever changes at one site each, N1/N7's
+  family. No arithmetic moved here.

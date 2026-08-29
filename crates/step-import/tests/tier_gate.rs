@@ -303,7 +303,7 @@ const ENDPOINT_START_MAPPED_CURVE: &str = "mapped curve: geometry attachment gat
 /// Every committed STEP file, with the disposition measured at M7-7.
 /// Paths are relative to this crate's manifest directory (the `../`
 /// rows are `step-export`'s corpus, which this crate imports from).
-const CORPUS: [(&str, Disposition); 66] = [
+const CORPUS: [(&str, Disposition); 70] = [
     ("tests/fixtures/band/band_a.stp", Pass(1, 1, 2, 6, 4)),
     ("tests/fixtures/band/band_a180.stp", Pass(1, 1, 2, 6, 4)),
     ("tests/fixtures/band/band_b180.stp", Pass(1, 1, 2, 6, 4)),
@@ -358,6 +358,28 @@ const CORPUS: [(&str, Disposition); 66] = [
     (
         "tests/fixtures/freecad/twobody_importexport.step",
         Pass(2, 2, 8, 14, 10),
+    ),
+    // -- tests/fixtures/cert1-r1/ (reviewer probes, adopted) ----------
+    // R1's adversarial near-polar variants of the halfcap generator:
+    // `nearpolar_*` puts the rim 0.0208 rad off the pole; `polesplit_*`
+    // is issue 723's body with the split vertex EXACTLY on the pole
+    // (the pole-membership decide sits on its Zero through this door).
+    // `cert1_r1_import_probes.rs` holds all four to the closed form.
+    (
+        "tests/fixtures/cert1-r1/nearpolar_nosplit.step",
+        Pass(1, 1, 3, 3, 2),
+    ),
+    (
+        "tests/fixtures/cert1-r1/nearpolar_split.step",
+        Pass(1, 1, 3, 4, 3),
+    ),
+    (
+        "tests/fixtures/cert1-r1/polesplit_nosplit.step",
+        Pass(1, 1, 3, 3, 2),
+    ),
+    (
+        "tests/fixtures/cert1-r1/polesplit_split.step",
+        Pass(1, 1, 3, 4, 3),
     ),
     // -- tests/fixtures/halfcap/ (issue 723) --------------------------
     // Half of a spherical cap, whose sphere face's meridian side is one

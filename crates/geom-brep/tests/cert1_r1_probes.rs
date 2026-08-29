@@ -190,8 +190,13 @@ fn probe_interval_pole_anchored_hemisphere_certifies() {
         great(0.0, h, 3.0 * h, 0, 1),
         great(0.0, 3.0 * h, 5.0 * h, 1, 0),
     ];
-    let fc = curved_face(&sphere::<Interval>(), &edges, Interval::from_f64(1.0), band())
-        .expect("pole-anchored hemisphere must certify at interval");
+    let fc = curved_face(
+        &sphere::<Interval>(),
+        &edges,
+        Interval::from_f64(1.0),
+        band(),
+    )
+    .expect("pole-anchored hemisphere must certify at interval");
     let exact = 2.0 * PI * RS * RS;
     let (lo, hi) = (fc.area.lo(), fc.area.hi());
     assert!(
@@ -213,8 +218,13 @@ fn probe_interval_half_cap_certifies() {
         great(0.0, PI - b, 1.0, 1, 2),
         great(0.0, 1.0, b, 2, 0),
     ];
-    let fc = curved_face(&sphere::<Interval>(), &edges, Interval::from_f64(1.0), band())
-        .expect("split half-cap must certify at interval");
+    let fc = curved_face(
+        &sphere::<Interval>(),
+        &edges,
+        Interval::from_f64(1.0),
+        band(),
+    )
+    .expect("split half-cap must certify at interval");
     let exact = RS * RS * PI * (1.0 - 0.5_f64.sin());
     let (lo, hi) = (fc.area.lo(), fc.area.hi());
     assert!(
