@@ -95,8 +95,7 @@ fn rims_of_radius(body: &Body<f64>, r: f64) -> Vec<EdgeKey> {
         .filter(|k| {
             let ed = body.get_edge(*k).unwrap();
             let (a, b) = (face_of(ed.he_plus), face_of(ed.he_minus));
-            a != b
-                && body.get_face(a).unwrap().surface != body.get_face(b).unwrap().surface
+            a != b && body.get_face(a).unwrap().surface != body.get_face(b).unwrap().surface
         })
         .collect()
 }
@@ -108,13 +107,7 @@ fn t1_wall_6_as_authored_still_refuses_tangential_at_margin_zero() {
     let tol = Tol::witness();
     let lant = lily_lantern(tol);
     let all: Vec<EdgeKey> = lant.edges().map(|(k, _)| k).collect();
-    match fillet_edges(
-        &lant,
-        &all,
-        0.02,
-        Band::linear(tol).expect("band"),
-        tol,
-    ) {
+    match fillet_edges(&lant, &all, 0.02, Band::linear(tol).expect("band"), tol) {
         Err(FilletError::TangentialEdge { margin, .. }) => {
             assert_eq!(margin, 0.0, "a co-surface seam, not a near-tangency");
         }
@@ -130,20 +123,14 @@ fn t2_the_three_convex_rims_fillet_whole_at_the_named_radii() {
     let lant = lily_lantern(tol);
     let r_top = (GLOBE.powi(2) - TOP.powi(2)).sqrt();
     for (name, rim_r) in [
-        ("the lip rim", LIP_R),          // ~0.090
-        ("the shoulder rim", r_top),     // ~0.183
-        ("the throat rim", NECK_R),      // ~0.052
+        ("the lip rim", LIP_R),      // ~0.090
+        ("the shoulder rim", r_top), // ~0.183
+        ("the throat rim", NECK_R),  // ~0.052
     ] {
         let arcs = rims_of_radius(&lant, rim_r);
         assert_eq!(arcs.len(), 2, "{name} is seam-split into two arcs");
-        let out = fillet_edges(
-            &lant,
-            &arcs,
-            0.02,
-            Band::linear(tol).expect("band"),
-            tol,
-        )
-        .unwrap_or_else(|e| panic!("{name} fillets whole at r = 0.02, got {e:?}"));
+        let out = fillet_edges(&lant, &arcs, 0.02, Band::linear(tol).expect("band"), tol)
+            .unwrap_or_else(|e| panic!("{name} fillets whole at r = 0.02, got {e:?}"));
         pncad::topo::validate_geometric(&out.body, tol)
             .unwrap_or_else(|e| panic!("{name} carves tier-3 valid, got {e:?}"));
         assert_eq!(out.band_faces.len(), 1, "{name} leaves one band");
@@ -159,13 +146,7 @@ fn t3_the_mouth_rim_refuses_concave() {
     assert!((r_mouth - 0.253).abs() < 5e-4, "the PR's fourth radius");
     let arcs = rims_of_radius(&lant, r_mouth);
     assert_eq!(arcs.len(), 2, "the mouth rim is seam-split too");
-    match fillet_edges(
-        &lant,
-        &arcs,
-        0.02,
-        Band::linear(tol).expect("band"),
-        tol,
-    ) {
+    match fillet_edges(&lant, &arcs, 0.02, Band::linear(tol).expect("band"), tol) {
         Err(FilletError::UnsupportedChain { detail, .. }) => assert!(
             detail.contains("concave"),
             "the mouth refuses as concave, got {detail}"

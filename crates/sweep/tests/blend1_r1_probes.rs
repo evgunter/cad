@@ -277,9 +277,7 @@ fn p3_a_petrie_hexagon_cycle_never_assembles_into_a_closed_chain() {
         ((0.0, 0.0, 1.0), (0.0, 0.0, 0.0)),
     ];
     let point_of = |vk| {
-        let p: Point3<f64> = *body
-            .get_point(body.get_vertex(vk).unwrap().point)
-            .unwrap();
+        let p: Point3<f64> = *body.get_point(body.get_vertex(vk).unwrap().point).unwrap();
         p
     };
     let ends_of = |e: EdgeKey| {
@@ -298,8 +296,7 @@ fn p3_a_petrie_hexagon_cycle_never_assembles_into_a_closed_chain() {
                 .map(|(k, _)| k)
                 .find(|&k| {
                     let (s, t) = ends_of(k);
-                    (matches_pt(s, a) && matches_pt(t, b))
-                        || (matches_pt(s, b) && matches_pt(t, a))
+                    (matches_pt(s, a) && matches_pt(t, b)) || (matches_pt(s, b) && matches_pt(t, a))
                 })
                 .expect("a cube edge between two named corners")
         })
@@ -451,6 +448,9 @@ fn p6_one_edge_rims_bit_dump_for_the_merge_base_differential() {
         println!("P6 {name} feet_rows={:?}", naming.rim_feet);
         println!("P6 {name} trim_rows={:?}", naming.rim_trims);
         println!("P6 {name} slit_rows={:?}", naming.slits);
-        println!("P6 {name} dead={:?}/{:?}", naming.dead.edges, naming.dead.vertices);
+        println!(
+            "P6 {name} dead={:?}/{:?}",
+            naming.dead.edges, naming.dead.vertices
+        );
     }
 }
