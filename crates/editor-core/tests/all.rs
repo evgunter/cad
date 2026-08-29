@@ -78,6 +78,8 @@ mod lbret_schema_v8;
 mod lib_doors_node_result;
 #[path = "lib_g14_split_walls.rs"]
 mod lib_g14_split_walls;
+#[path = "lib_g16_chamfer_node.rs"]
+mod lib_g16_chamfer_node;
 #[path = "lib_placedunion.rs"]
 mod lib_placedunion;
 #[path = "lib_sel1_geoselect.rs"]

@@ -160,7 +160,7 @@ fn fit_payload(e: &pncad::geom::FitError) {
 // refusal, including the third buried type, sweep::fillet::FilletError.
 fn node_error_payload(e: &pncad::document::NodeErrorKind) {
     match e {
-        pncad::document::NodeErrorKind::Fillet(inner) => named::<&FilletError>(inner),
+        pncad::document::NodeErrorKind::Blend { error, .. } => named::<&FilletError>(error),
         pncad::document::NodeErrorKind::Boolean(inner) => named::<&BooleanError>(inner),
         pncad::document::NodeErrorKind::Transform(inner) => named::<&TransformError>(inner),
         _ => {}

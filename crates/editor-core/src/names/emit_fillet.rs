@@ -307,3 +307,169 @@ pub(super) fn name_blend<T: geom_core::Real>(
     check_total(&t, body, 0)?;
     Ok(Arc::new(t))
 }
+
+#[cfg(test)]
+mod tie_tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use std::sync::Arc;
+
+    use geom_core::{Point2, Tol, Vec3};
+    use topo::Body;
+
+    use super::*;
+    use crate::names::emit_sweep::name_extrude;
+    use crate::names::table::{EntityRef, Entry};
+    use profile::RawLoop;
+
+    /// A unit cube and the extrude table that names it.
+    fn cube() -> (Body<f64>, Arc<NameTable>) {
+        let plane = profile::SketchPlane::from_frame(
+            geom_core::Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+        );
+        let square = profile::ProfileLoop::polygon(
+            [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
+                .into_iter()
+                .map(|(x, y)| Point2::new(x, y)),
+        );
+        let prof = profile::Profile::new(plane, vec![square])
+            .validate(Tol::witness())
+            .unwrap();
+        let built = sweep::extrude(&prof, sweep::Extrusion::Distance(1.0_f64), Tol::witness())
+            .expect("a unit cube extrudes");
+        let table = name_extrude(RecipeNodeId(1), &built).expect("the extrude names");
+        (built.body, table)
+    }
+
+    /// Rebuilds `table` with `a` and `b` TIED under `a`'s name — the
+    /// planted upstream tie. Everything else is copied across
+    /// unchanged, so the only difference from the real table is the one
+    /// row under test.
+    fn with_tie(table: &NameTable, a: EntityRef, b: EntityRef) -> NameTable {
+        let tied_name = table.name_of(&a).expect("a is named").clone();
+        let b_name = table.name_of(&b).expect("b is named").clone();
+        let mut out = NameTable::new();
+        for (name, entry) in table.iter() {
+            if *name == tied_name || *name == b_name {
+                continue;
+            }
+            match entry {
+                Entry::Unique(e) => out.insert(name.clone(), *e).expect("a fresh row"),
+                Entry::Tied(es) => out
+                    .insert_tied(name.clone(), es.clone())
+                    .expect("a fresh row"),
+            }
+        }
+        let mut ents = vec![a, b];
+        ents.sort();
+        out.insert_tied(tied_name, ents).expect("the planted tie");
+        out
+    }
+
+    /// Every edge of the cube, in arena order — the whole-body request
+    /// `die_fillet` authors, which the assembly's front door admits.
+    fn all_edges(body: &Body<f64>) -> Vec<topo::EdgeKey> {
+        body.edges().map(|(k, _)| k).collect()
+    }
+
+    /// **A planted upstream tie flows through the deferral** — the
+    /// #708 row, executed rather than described.
+    ///
+    /// Both members of an `Entry::Tied` row are blended, so both mints
+    /// compose the SAME upstream name. Before the deferral the second
+    /// insertion refused `Duplicate`, reporting the no-silent-aliasing
+    /// bug for a legitimate N2 tie. Now the rows are deferred and
+    /// flushed together, and the result carries one TIED entry.
+    ///
+    /// This is a unit test of the deferral path itself: today's tree
+    /// mints no first tie, so no document reaches this state, and that
+    /// is exactly why the emitter's behaviour under one has to be
+    /// planted rather than waited for.
+    #[test]
+    fn a_planted_upstream_tie_reaches_the_output_table_as_a_tie() {
+        let (body, table) = cube();
+        let edges = all_edges(&body);
+        let (a, b) = (edges[0], edges[1]);
+        let planted = with_tie(
+            &table,
+            ent(0, EntityKey::Edge(a)),
+            ent(0, EntityKey::Edge(b)),
+        );
+
+        let blended = sweep::fillet::build::fillet_edges(
+            &body,
+            &edges,
+            0.125_f64,
+            geom_core::Band::linear(Tol::witness()).expect("a band"),
+            Tol::witness(),
+        )
+        .expect("every edge of a cube blends");
+        let rec = blended.naming.as_ref().expect("the surgery keeps records");
+
+        let out = name_blend(
+            RecipeNodeId(2),
+            RecipeNodeId(1),
+            &planted,
+            &blended.body,
+            rec,
+        )
+        .expect("a tie propagates rather than refusing Duplicate");
+
+        let widths: Vec<usize> = out
+            .iter()
+            .filter_map(|(_, e)| match e {
+                Entry::Tied(es) => Some(es.len()),
+                Entry::Unique(_) => None,
+            })
+            .collect();
+        assert!(
+            !widths.is_empty(),
+            "the tie-descended rows must land as TIED entries, not be lost"
+        );
+        assert!(
+            widths.iter().all(|w| *w >= 2),
+            "a tied entry with one member is a narrowing bug, not a tie: {widths:?}"
+        );
+
+        // The CONTROL, and what makes the row above mean anything: the
+        // same body, the same request, the untouched table — no tie
+        // upstream, no tie downstream, and every row went through the
+        // strict `insert`.
+        let clean = name_blend(RecipeNodeId(2), RecipeNodeId(1), &table, &blended.body, rec)
+            .expect("the untied table names as it always did");
+        assert!(
+            clean.iter().all(|(_, e)| matches!(e, Entry::Unique(_))),
+            "an untied operand must produce no tied rows"
+        );
+
+        // The chamfer emitter is the same translation under a
+        // different minting id, so the deferral reaches it by
+        // construction — asserted, not assumed.
+        let chamfered = sweep::fillet::build::chamfer_edges(
+            &body,
+            &edges,
+            0.125_f64,
+            geom_core::Band::linear(Tol::witness()).expect("a band"),
+            Tol::witness(),
+        )
+        .expect("every edge of a cube chamfers");
+        let crec = chamfered
+            .naming
+            .as_ref()
+            .expect("the surgery keeps records");
+        let cout = crate::names::name_chamfer(
+            RecipeNodeId(3),
+            RecipeNodeId(1),
+            &planted,
+            &chamfered.body,
+            crec,
+        )
+        .expect("a tie propagates through the chamfer emitter too");
+        assert!(
+            cout.iter().any(|(_, e)| matches!(e, Entry::Tied(_))),
+            "the chamfer emitter must defer tie-descended rows as well"
+        );
+    }
+}
