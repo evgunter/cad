@@ -632,7 +632,7 @@ impl MateFault {
     #[getter]
     fn residual(&self) -> Option<Subgroup> {
         match &self.0 {
-            d::MateFault::Under { residual, .. } => Some(Subgroup(residual.clone())),
+            d::MateFault::Under { residual, .. } => Some(Subgroup(*residual)),
             _ => None,
         }
     }

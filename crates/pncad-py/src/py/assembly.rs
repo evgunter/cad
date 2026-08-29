@@ -457,8 +457,7 @@ fn assembly_err(py: Python<'_>, err: &d::AssemblyError) -> PyErr {
                 .map(|f| AtRestFinding(f.clone()))
                 .collect::<Vec<_>>()
                 .into_pyobject(py)
-                .map(|v| v.unbind().into_any())
-                .map_err(PyErr::from)),
+                .map(|v| v.unbind().into_any())),
         ),
     };
     typed_err(
