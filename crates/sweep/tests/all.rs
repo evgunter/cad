@@ -183,6 +183,8 @@ mod review_arceval_r1_probes;
 mod review_arms2_r1_probes;
 #[path = "review_arms3_r1_probes.rs"]
 mod review_arms3_r1_probes;
+#[path = "review_blend1_r2_probes.rs"]
+mod review_blend1_r2_probes;
 #[path = "review_chamfer_r1_probes.rs"]
 mod review_chamfer_r1_probes;
 #[path = "review_d2_adv_probes.rs"]
