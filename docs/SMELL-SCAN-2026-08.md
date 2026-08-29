@@ -6654,39 +6654,6 @@ write the missing row. The second is available — `sweep` can build the
 placeholder operand, and a row there would make both blockers loud in
 the file the sentence already points at. Placed as **D66**. **That row was placed by Track F and never carried into Tracks J–X, so it is OPEN AND UNSCHEDULED — the missing row is not evidence it landed.**
 
-## S123. Assertions whose condition is the value's own codomain
-
-The narrowest member of S110's class and the one a reader is most
-likely to walk past, because it looks like a soundness check:
-
-- `geom-core/tests/review_m5_pr7b_tensor.rs:520` —
-  `assert!(sup_far >= 0.0 || sup_far.is_nan(), "bound must stay sound")`.
-  `SurfaceResidual::sup_bound`'s own doc (`tensor.rs:252-255`) says the
-  value is a fold of **nonnegative magnitudes**, `NaN` on every poison
-  path. The disjunction is the function's entire range, so the row can
-  only ever change a panic message — **S110(h)'s exact shape**, and it
-  sits one line above a genuine ceiling (`sup_far <= 1e-8`) that does
-  the work. This is in the file S121's text cites as its cancellation
-  witness.
-- `geom-core/src/real.rs:1393` — `prop_assert!(r >= 0.0)` on
-  `Real::sqrt(x)` for `x in 1.0e-12..1.0e12`. IEEE `sqrt` of a positive
-  finite is positive finite; the line below it (`(r*r - x).abs() <=
-  1e-15 * x`) is the property.
-
-Both are cheap deletions rather than repairs: the real assertion is
-already adjacent in each case, and removing the redundant one makes the
-surviving message unambiguous, which is what
-`memories/test-suite-cost.md` asks of a merged row. Neither is a
-correctness risk. Placed as **D67**. **That row was placed by Track F and never carried into Tracks J–X, so it is OPEN AND UNSCHEDULED — the missing row is not evidence it landed.**
-
-**This shape is invisible to the obvious detector**, which is why it is
-recorded separately from S121: a rule of the form *"a test whose EVERY
-assertion is weak"* cannot see a vacuous assertion standing beside a
-real one, and both members here do exactly that — as does S110(h), and
-as did the `nurbs_edges > 0` assertion #790 wrote and removed in
-S110(d). Anyone sweeping for this must key on the assertion, not the
-test.
-
 ## S124. A compound bound given a NAME is invisible at its use sites, and the gate header says the opposite
 
 **[verified]** `crates/profile/src/path/arc_fillet.rs:593` declares
@@ -7591,7 +7558,7 @@ grows after dispatch. **This row needs a lane and does not have one.**
 > `docs/SMELL-{C,E,F,G,H,I}-LOG.md` are the execution record for six of the
 > nine. **A, B and D left no log and none is owed**; what they did is in their
 > merged PRs. The rulings the logged tracks made are cited from here by number
-> (`F-R11`, `H-R2`, `I-R8`, …) and are read there. **104 open items** are
+> (`F-R11`, `H-R2`, `I-R8`, …) and are read there. **103 open items** are
 > carried below, partitioned by file territory so that no two tracks edit one
 > file and no branch waits on, fences against, or re-derives another's scope.
 
@@ -7680,7 +7647,7 @@ its orchestrator stopped, and §C3 says a deferral that lands nowhere that
 executes is the failure this document keeps re-finding. **This section is the
 one register for all of it.**
 
-**104 open items, repartitioned into twelve tracks by FILE TERRITORY.** The
+**103 open items, repartitioned into twelve tracks by FILE TERRITORY.** The
 partition rule is the only one that matters here: **no two tracks may edit the
 same file**, so no branch waits on, fences against, or re-derives another's
 scope. Dependencies *inside* a track are its own orchestrator's to sequence —
@@ -7763,7 +7730,7 @@ re-scoped or re-argued by being moved.
 | **T** | `crates/sweep/` | `D320`–`D339` / `S390`–`S409` | 8 |
 | **U** | `crates/step-import/`, `crates/step-export/`, `crates/stl/`, `crates/pncad-py/`, `crates/pncad/` | `D340`–`D359` / `S410`–`S429` | 7 |
 | **V** | `crates/editor-core/`, `crates/profile/` | `D360`–`D379` / `S430`–`S449` | 12 |
-| **W** | `crates/*/tests/` (all crates), `crates/test-utils/` | `D380`–`D399` / `S450`–`S469` | 14 |
+| **W** | `crates/*/tests/` (all crates), `crates/test-utils/` | `D380`–`D399` / `S450`–`S469` | 13 |
 | **X** | `demos/` (Rust and Markdown; its Python is J's), `docs/DESIGN.md`'s companion table | `D400`–`D419` / `S470`–`S489` | 3 |
 
 **Three seams are stated rather than left to be discovered**, because each is
@@ -8015,7 +7982,6 @@ its own tests in its own PR, as always.
 | **C18** | Three residues of H12's own enumeration, left open by #734 — a tests-only unit, so all three are coverage or prose | Track C |
 | **S230** | Certified widths with no ceiling, in crates no live track owned — `editor-core/tests/`, `pncad-py`'s and three in `sweep/tests/`. **All four sites are test targets and therefore this track's** | Track I |
 | **D65** | **Bound-domination rows with no ceiling and no floor** (`S121`) — five sites in four crates: `geom-core/tests/m5_pr7b_tensor_compose.rs:222, :244, :425-426`; `geom-brep/tests/r1_pxn_probes.rs:176`; `geom/tests/curves/m5_pr7_speed_meter.rs:36`; and `mesh/src/nurbs_cert.rs:1538`, **which is Track R's `D300` and not this row**. Each asserts that a certified bound dominates a sampled true value and nothing else — monotone in the safe direction, so an arbitrarily loose bound passes; most also lack the anti-vacuity floor that keeps a collapsed fixture from satisfying the comparison for free. The discipline is written in the tree at `m5_pr7b_tensor_compose.rs:195-207`, which carries both halves and says why. **The deliverable is a measured ratio per site at more than one ε, not a transplanted `10.0`** — a threshold that re-pins today's output is `memories/output-stability-as-justification.md`'s shape. A written verdict that some site admits no honest ceiling is a passing answer. Check `geom-brep/tests/m5_pr7_ssi.rs`'s neighbourhood against **#734** before opening | Track F, unplaced |
-| **D67** | **An assertion whose condition is the value's own codomain** (`S123`) — `geom-core/tests/review_m5_pr7b_tensor.rs:520`. Its `geom-core/src/real.rs` sibling was this row's other member and has landed, so what is left is the tests-side one. It is `S110(h)`'s shape standing beside a real assertion rather than alone, so it is a deletion rather than a repair; the surviving message is then unambiguous, which is what `memories/test-suite-cost.md` asks of a merged row. Cheap and edge-free. Recorded apart from `D65` because the detector shape differs: an *"every assertion is weak"* rule cannot see either of them, and that blind spot is what made the first pass under-report the class | Track F, unplaced |
 | **D380** | A band-keyed row's NAME asserts an arm the shipped default does not take (`S136`) — `profile/tests/review_s2.rs`, plus two more members in `step-import/tests/recognize_pins.rs`. **Not takeable as a rename alone**: `profile/src/sugar.rs`'s `LEVER_ULPS` doc cites the row by name, so closing it reaches one file on Track V, which is that track's row to file | unrowed |
 | **D381** | **`RecipeEditRef::ForeignNode` is unpinned at both mid-evaluation doors.** `editor-core`'s selection and declare doors resolve authored names through one shared ladder (`eval/wire.rs`'s `mod ladder`), whose rung 1 splits a missing minting node into `NodeDeleted` (id below the mint counter) and `ForeignNode` (id at or above it). `m6_5_selection_refusals.rs` and `m4_pr5_declare.rs` pin every other arm of that ladder and **neither pins `ForeignNode`**; the crate's only pin of it, `m4_pr4_resolve.rs:423`, is the *whole-evaluation* resolve door, which is a different ladder. The arm is reachable only across documents — the edit door refuses never-existed ids before evaluation — which is why it was left unpinned, not why it should stay so: #670 collapsed the two doors onto one implementation, so one fixture now covers both. Disclosed by that PR and never rowed | unrowed |
 
