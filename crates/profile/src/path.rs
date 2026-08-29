@@ -768,6 +768,12 @@ pub enum PathError<T: Real> {
     },
     /// The run tolerance could not form a classification band.
     Band(geom_core::BandError),
+    /// A GUIDED elaboration could not reproduce, at this scalar, a
+    /// discrete decision the structure record hands it: the deciding
+    /// predicate is indeterminate here, or it comes out definitely
+    /// otherwise. Unreachable for an unguided pass, which has no
+    /// record to disagree with.
+    Structure(crate::structure::StructureRefusal),
     /// Elaborator backstop (PATHS-DESIGN §5): a leg reached emission
     /// without the bindings the surface guarantees. Expected
     /// unreachable from the typed surface; reaching it is a design
@@ -968,6 +974,7 @@ impl<T: Real> core::fmt::Display for PathError<T> {
             ),
             Self::Escalated { source } => write!(f, "path junction classification: {source}"),
             Self::Band(e) => write!(f, "path tolerance band: {e}"),
+            Self::Structure(r) => write!(f, "guided elaboration: {r}"),
             Self::UnderdeterminedLeg { site } => write!(
                 f,
                 "elaborator backstop UnderdeterminedLeg at {site}: expected unreachable from \
@@ -1168,6 +1175,12 @@ pub struct Core<T: Real> {
     /// they lower. Each binder pushes exactly its own step, so one
     /// chain yields both the lowered loop and its program.
     program: Vec<Step<T>>,
+    /// How this lowering treats the discrete decisions inside it:
+    /// selecting freely and recording what it selected, or consuming a
+    /// prior elaboration's selections and re-verifying each at this
+    /// scalar. A chain carries one guide from its entry verb to its
+    /// close, so every fillet resolution along it reaches the same one.
+    guide: crate::structure::Guide<T>,
 }
 
 impl<T: Real> Core<T> {
@@ -1182,7 +1195,26 @@ impl<T: Real> Core<T> {
             pending_meta: None,
             last_arc: None,
             program: Vec::new(),
+            guide: crate::structure::Guide::recording(),
         }
+    }
+
+    /// Installs the guide this lowering runs under, replacing the
+    /// fresh recording one [`Core::empty`] mints.
+    pub(crate) fn adopt(&mut self, guide: crate::structure::Guide<T>) {
+        self.guide = guide;
+    }
+
+    /// The structure this lowering selected — taken at the close,
+    /// where the chain's core is consumed.
+    pub(crate) fn take_structure(&mut self) -> crate::structure::Guide<T> {
+        core::mem::replace(&mut self.guide, crate::structure::Guide::recording())
+    }
+
+    /// The guide, for the resolution machinery that reads and writes
+    /// it.
+    pub(crate) fn guide_mut(&mut self) -> &mut crate::structure::Guide<T> {
+        &mut self.guide
     }
 
     /// Records one authoring verb (record-as-you-lower).
@@ -1275,13 +1307,15 @@ impl<T: Real> Core<T> {
 
     /// Finishes the loop, returning it PAIRED with the program that
     /// produced it (see [`ClosedLoop`]).
-    fn build(self) -> ClosedLoop<T> {
+    fn build(mut self) -> ClosedLoop<T> {
+        let structure = self.take_structure();
         ClosedLoop {
             loop_: ProfileLoop {
                 vertices: self.verts,
                 tangent_joints: self.tangent,
             },
             program: self.program,
+            structure: structure.into_record(),
         }
     }
 }
@@ -1494,7 +1528,7 @@ impl<T: Decide> Core<T> {
             anchor: arr_pos,
             carrier: arc_fillet::SideCarrier::Ray(arr_ang.unit),
         };
-        let trims = (arc.resolver)(incoming, arrival, arc.radius, tol)?;
+        let trims = (arc.resolver)(self.guide_mut(), incoming, arrival, arc.radius, tol)?;
         self.emit_fillet_in(&trims, meta.extends_carrier, tol)?;
         match kind {
             ArrivalKind::Seam => {
@@ -1607,8 +1641,15 @@ impl<T: Decide> Core<T> {
         let corner = pending.origin + u1 * t_ray;
         // (4) the shared line×line closed form, anchored: head = the
         // ray's origin, next = the arrival's anchor.
-        let trims = line_line_fillet_trims(pending.origin, corner, arr_pos, pending.radius)
+        let mut trims = line_line_fillet_trims(pending.origin, corner, arr_pos, pending.radius)
             .map_err(map_fillet_err)?;
+        // A straight carrier pair derives ONE corner and its
+        // construction admits one candidate, so the fit signs are this
+        // resolution's whole discrete content.
+        (trims.fit_in, trims.fit_out) = self
+            .guide
+            .line_fits(trims.fit_in, trims.fit_out)
+            .map_err(PathError::Structure)?;
         let arc = fillet_arc_carrier(&trims, u2, pending.radius);
         // (5) incoming side emission: Positive fit emits the straight
         // piece + declared joint (exactly the raw fillet's rule); Zero
