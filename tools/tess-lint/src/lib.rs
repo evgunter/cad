@@ -1236,6 +1236,22 @@ mod tests {
     #[test]
     fn the_policed_block_is_the_headers_sizing_block() {
         let cols: Vec<&str> = EXPECTED_HEADER.split(',').collect();
+        // The identity block first, bracketed the same way: a column
+        // inserted at its head would slide every identity reading
+        // under the wrong policy AND re-key every scene at once.
+        assert_eq!(
+            cols[IDENTITY_FIRST - 1],
+            "triangles",
+            "the identity block starts too late"
+        );
+        for (k, (name, _)) in IDENTITY_MEASURES.iter().enumerate() {
+            assert_eq!(cols[IDENTITY_FIRST + k], *name, "identity column {k}");
+        }
+        assert_eq!(
+            cols[IDENTITY_FIRST + IDENTITY_MEASURES.len()],
+            "muu",
+            "the identity block ends too late"
+        );
         assert_eq!(cols[SIZING_FIRST - 1], "cells", "the block starts too late");
         for (k, (name, _)) in SIZING_COLUMNS.iter().enumerate() {
             assert_eq!(cols[SIZING_FIRST + k], *name, "column {k}");

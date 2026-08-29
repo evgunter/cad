@@ -34,7 +34,11 @@ fn scene(tris: usize, span_opt: f64) -> String {
 /// the header, never typed: a schema change must not turn a fixture
 /// into a short row that fails for the wrong reason.
 fn unsized_row(face: usize, chart: &str, tris: usize) -> String {
-    let blanks = ",".repeat(HEADER.split(',').count() - 5);
+    let first = HEADER
+        .split(',')
+        .position(|c| c == "u0")
+        .expect("the header names the first NURBS column");
+    let blanks = ",".repeat(HEADER.split(',').count() - first);
     format!("s/b,{face},{chart},2e-3,{tris}{blanks}\n")
 }
 
