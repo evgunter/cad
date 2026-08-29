@@ -143,7 +143,18 @@ if running_under_wsl; then
   echo "serve-wasm:          netsh interface portproxy add v4tov4 listenport=$PORT \\" >&2
   echo "serve-wasm:              listenaddress=0.0.0.0 connectport=$PORT connectaddress=${LAN_IP:-<wsl-ip>}" >&2
   echo "serve-wasm:          New-NetFirewallRule -DisplayName 'wasm spike' -Direction Inbound \\" >&2
-  echo "serve-wasm:              -LocalPort $PORT -Protocol TCP -Action Allow" >&2
+  echo "serve-wasm:              -LocalPort $PORT -Protocol TCP -Action Allow -Profile Private" >&2
+  echo >&2
+  # -Profile Private and the teardown are not tidiness. Both of these
+  # changes OUTLIVE the script: a portproxy entry survives reboots, and
+  # an unscoped firewall rule re-opens the port on every network the
+  # laptop later joins — a coffee shop included. The default profile
+  # set is Domain+Private+Public, so naming Private is what keeps this
+  # to networks Windows already considers trusted.
+  echo "serve-wasm:      UNDO BOTH WHEN DONE — they persist across reboots:" >&2
+  echo "serve-wasm:          netsh interface portproxy delete v4tov4 listenport=$PORT \\" >&2
+  echo "serve-wasm:              listenaddress=0.0.0.0" >&2
+  echo "serve-wasm:          Remove-NetFirewallRule -DisplayName 'wasm spike'" >&2
   echo >&2
   if [ -n "$WIN_IP" ]; then
     echo "serve-wasm:   Either way, the phone opens ->  http://$WIN_IP:$PORT/" >&2

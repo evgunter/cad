@@ -135,3 +135,22 @@ include `wgpu/webgl` — putting `default-features = false` on that edge
 would leave the phone with no adapter. The page prints
 `secureContext` / `navigator.gpu` / `webgl2` in its error box so this
 diagnoses itself rather than presenting as a blank screen.
+
+### What serving it exposes
+
+`serve-wasm.sh` runs an **unauthenticated** static server bound to
+`0.0.0.0`, so anyone on the same network can fetch the build for as
+long as it runs. The directory it serves holds only the three
+wasm-bindgen output files, and it serves nothing else — but a
+`--release` build of this workspace keeps `debug-assertions` on (the
+root `Cargo.toml` says why), so the binary carries assertion strings
+and local source paths. Treat it as handing the LAN a copy of an
+unreleased kernel: fine on a home network, not on café or conference
+Wi-Fi. It is a foreground process; Ctrl-C ends the exposure.
+
+The WSL port-forward the script prints is the sharper edge, because
+both halves of it **outlive the script**: a `netsh portproxy` entry
+survives reboots, and a firewall rule with no `-Profile` re-opens the
+port on every network the machine later joins. The printed commands
+scope the rule to `Private` and are followed by the two lines that
+undo them; run those when the demo is over.
