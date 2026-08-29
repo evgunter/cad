@@ -15,6 +15,7 @@ a reader entering here should know all of them exist.
 | `docs/NAMING-DESIGN.md` | RATIFIED (#74) | Persistent naming N1–N7 (derivation-path names, split/merge policy, name table) |
 | `docs/SOLVER-DESIGN.md` | RATIFIED (#79) | GQ1 witness mechanism W1–W9 (solved assignments, certification, `WitnessBifurcation`) |
 | `docs/ERROR-DESIGN.md` | RATIFIED (#110) | Error-propagation program E1–E11 (duals, stackups, subdivision driver, trichotomy); RUNNING as the M10 program (`docs/M10-PLAN.md` / `docs/M10-LOG.md`) |
+| `docs/DUAL-DESIGN.md` | RATIFIED (#1146) | The Dual contract DL1–DL6 (M10-D): a Dual is tangent transport and never certifies (D1's hedge closed); ContentBits feeds both channels; certified gates absent at Dual by scalar policy; Enclosure gated; the delegation rule; poison-vs-widen in certified lanes |
 | `docs/CONTACT-DESIGN.md` | RATIFIED (#178) | Contact census & declared contact C1–C8 (closes CURVED OQ5); the C7 join lane shipped at M9 |
 | `docs/PATHS-DESIGN.md` | RATIFIED (#124) | PartialPath authoring algebra (S5); implemented at LIB U2 |
 | `docs/PROFILES-V2-DESIGN.md` | RATIFIED (#242) | Profiles-as-programs V1–V8: the stored profile-program, Expr-bearing steps, the replay driver; implemented at the LIB SWITCH units |
@@ -1804,14 +1805,10 @@ precursor of the error-propagation feature.
   `docs/ERROR-DESIGN.md`. The sketch solver is NOT in the M10
   slate (plan Q1): it re-opens as its own design pass when
   constraint-driven sketches have a consumer.
-  **Note, carried in as an open question (Evan, 2026-08-21):** *figure
-  out what a `Dual` actually has to do*, and clean up the `Bounds` /
-  `CertifiedEnclosure` split on that answer. **D1**'s *"at least for
-  now"* is what this collects — since 2026-08-19 the dual's refusal
-  rests on the ruling rather than on its lack of a bracket, so what a
-  dual may do is a decision rather than a fact about the type.
-  **Owned by the plan's M10-D design pass**, which answers it with
-  Evan before any unit implements against `Dual`.
+  The carried Dual question (*what does a `Dual` actually have to
+  do*) is **ANSWERED — ratified as `docs/DUAL-DESIGN.md` DL1–DL6
+  (#1146, 2026-08-29)**: a Dual is tangent transport and never
+  certifies; D1's *"at least for now"* hedge is closed.
 - **The usability program** — see
   [Beyond the kernel](#beyond-the-kernel-the-usability-gap) below.
   Its library half is designed and RATIFIED as
