@@ -195,8 +195,9 @@ amended:
      at the S-CERT program's opening — `docs/S-CERT-LOG.md`;
      opened concurrently with S-BLEND, both drew 600 within the
      hour, BLEND's claim reached main first, S-CERT renumbered per
-     the main-is-authority tiebreak)**, with
-     **800+ unallocated** — the orchestrator opening the next
+     the main-is-authority tiebreak) · S-QA 800–899 (claimed
+     2026-08-29 at the S-QA program's opening — `docs/S-QA-LOG.md`)**,
+     with **900+ unallocated** — the orchestrator opening the next
      program takes the next free band and records it HERE in the
      same commit that opens the program. **1–99 is CLOSED
      HISTORY**: the pre-banding global sequence, which reached 85.
