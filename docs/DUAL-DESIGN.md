@@ -1,6 +1,7 @@
 # The Dual contract — what a `Dual` actually has to do (M10-D)
 
-**Status: DRAFT — design conversation, awaiting Evan's sign-off.**
+**Status: RATIFIED (Evan, PR #1146, 2026-08-29 — in-conversation
+sign-off on the draft as written).**
 This is the design pass the DESIGN.md M10 roadmap entry reserved:
 it answers the collected question (*what does a `Dual` actually
 have to do*), cleans up the `Bounds` / `CertifiedEnclosure` split
