@@ -37,9 +37,9 @@ use editor_core::{
 // trait.
 #[cfg(feature = "interval")]
 use editor_core::ParamName;
-use geom_core::Tol;
 #[cfg(feature = "interval")]
 use geom_core::Real;
+use geom_core::Tol;
 
 /// Every body point of an evaluation, by bits — the comparable surface.
 fn body_bits(ev: &editor_core::Evaluation<f64>) -> Vec<u64> {
