@@ -180,6 +180,46 @@ fn r2_per_chart_door_on_a_mirror_nappe_cone() {
     }
 }
 
+/// **A CONICAL wedge: `meridian plane ∩ cone`.** The PR body's edge
+/// table claims that posture is an EXACT translation ("direction kept
+/// (axis-parallel or generator), re-anchored from the corner — yes").
+/// A plane parallel to a cone's axis cuts it in a HYPERBOLA, not a
+/// line, so the offset edge is not the old line moved. This row asks
+/// what actually happens: a refusal (the midpoint/endpoint meters doing
+/// their job) or a body.
+#[test]
+fn r2_a_conical_wedge_meridian_edge() {
+    let tol = Tol::witness();
+    let (r0, r1, h) = (4.0 / 64.0, 2.0 / 64.0, 8.0 / 64.0);
+    for (what, turn) in [("a quarter turn", PI / 2.0), ("a 1/12 turn", PI / 6.0)] {
+        let body = revolved(
+            ProfileLoop::new(vec![
+                ProfileVertex::new(p2(0.0, 0.0), 0.0),
+                ProfileVertex::new(p2(r0, 0.0), 0.0),
+                ProfileVertex::new(p2(r1, h), 0.0),
+                ProfileVertex::new(p2(0.0, h), 0.0),
+            ]),
+            Revolution::Partial(turn),
+        );
+        let v0 = topo::mass_properties(&body, tol).expect("props").volume;
+        match topo::shell(&body, T, FIT_TOL, band(), tol) {
+            Ok(hollow) => {
+                let v = topo::mass_properties(&hollow, tol).expect("props").volume;
+                println!(
+                    "[r2] conical wedge {what}: HOLLOWS operand {v0} wall {v} tier3 {:?} shells {}",
+                    topo::validate_geometric(&hollow, tol).is_ok(),
+                    hollow.shells().count()
+                );
+                assert!(
+                    v < v0,
+                    "conical wedge {what}: a wall cannot exceed its operand"
+                );
+            }
+            Err(e) => println!("[r2] conical wedge {what}: REFUSED {e}"),
+        }
+    }
+}
+
 /// **The wedge at degenerate turns.** The azimuth solve's two roots are
 /// separated by `2 rho sin d`; a wedge whose two meridian caps are
 /// nearly parallel (a half turn) or very sharp should refuse rather
