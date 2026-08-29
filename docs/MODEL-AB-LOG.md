@@ -1781,3 +1781,11 @@ dispatch).** Ordinal 502. Slot byte 169, parity 1 ⇒ R1 FABLE +
 R2 OPUS, concurrent, frozen head 55b1fd13, v5 instrument. Block
 M10-B1's LAST slot — this record and the block record above merge
 to main when this dual concludes.
+
+**Block M10-B2 (recorded branch-side on `m10/orchestrator` at draw,
+2026-08-29, per the branch-side shape — merges to main when this
+block's last slot's reviews conclude).** v3 triple {opus, opus,
+fable}. Slot 1 = M10-2 (Measure nodes + Assertions; difficulty
+pre-logged M before the draw). Draw: /dev/urandom byte 197, no
+rejections ⇒ fable position 2 (0-indexed) ⇒ slot 1 OPUS, slot 2
+OPUS, slot 3 FABLE.
