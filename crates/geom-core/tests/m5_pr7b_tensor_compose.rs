@@ -1,10 +1,13 @@
 //! **M5 PR 7b acceptance — tensor-product Bernstein composition**
 //! (spec §5's tensor-compose unit rows):
 //!
-//! 1. The hull bound is a **true sup bound**: dense-scan falsification
-//!    probe, ≥1e5 samples against an independent `f64` rational
-//!    oracle, ratio ≥ 1.0 — on an aligned pair, on a knot-mismatched
-//!    pair (the merged-break path), and on a cell-straddling pcurve.
+//! 1. The hull bound is a **true sup bound and a tight one**:
+//!    dense-scan falsification probe, ≥1e5 samples against an
+//!    independent `f64` rational oracle, bounded on BOTH sides — the
+//!    bound dominates the scanned max and stays scaled to it, at a
+//!    ceiling each row measures for its own geometry — on an aligned
+//!    pair, on a knot-mismatched pair (the merged-break path), and on
+//!    a cell-straddling pcurve.
 //! 2. The cancellation row: a constructed `S`, `P`, `C` with
 //!    `S(P(t)) ≡ C(t)` exactly — the composite bound lands at ring
 //!    rounding (~1e-15), where any hull-then-difference enclosure is
@@ -219,7 +222,21 @@ fn the_bound_dominates_when_the_two_curves_disagree_on_knots() {
     let z = vec![0.08, 0.25, 0.45, 0.5, 0.6, 0.72];
     let ca = (kv, vec![1.0; 6], vec![x, y, z]);
     let (sup, max) = falsify(&w, &p, &ca, &[], 100_000);
+    // The carrier is authored ~1e-2 off the composite; a fixture whose
+    // residual collapsed would satisfy the domination below for free.
+    assert!(
+        max > 1e-2,
+        "the fixture's residual must be genuine: {max:e}"
+    );
     assert!(sup.is_finite() && sup >= max, "sup {sup:e}, max {max:e}");
+    // Exact insertion costs no tightness: the merged-break bound tracks
+    // the residual's own scale (1.52× here) as closely as the aligned
+    // pair's does (1.49×), and the ceiling says so rather than letting
+    // an enclosure that reverted to span width still read as sound.
+    assert!(
+        sup <= 3.0 * max,
+        "the merged-break path lost the cancellation: {sup:e} vs true {max:e}"
+    );
 }
 
 #[test]
@@ -241,7 +258,22 @@ fn the_bound_dominates_when_the_pcurve_straddles_surface_cells() {
     let w = (ku, kvv, vec![1.0; 8], vec![x, y, z]);
     let (p, c) = (pcurve_data(), carrier_data());
     let (sup, max) = falsify(&w, &p, &c, &[], 100_000);
+    // A pcurve that never left one cell would make the cross-cell hull
+    // below untested while the domination still passed.
+    assert!(
+        max > 1e-2,
+        "the fixture's residual must be genuine: {max:e}"
+    );
     assert!(sup.is_finite() && sup >= max, "sup {sup:e}, max {max:e}");
+    // Straddling costs tightness and this states how much: the window
+    // is hulled across BOTH cells, so the enclosure is a union of two
+    // cells' boxes — 3.26× the true residual here, against the aligned
+    // pair's 1.49×. The ceiling admits that cost and nothing that
+    // scales with the cell count.
+    assert!(
+        sup <= 6.0 * max,
+        "the cross-cell hull is no longer residual-scaled: {sup:e} vs true {max:e}"
+    );
 }
 
 #[test]
@@ -418,12 +450,26 @@ fn elevated_patch(du: usize, dv: usize) -> (KnotVector, KnotVector, Vec<f64>, Ve
 fn a_bicubic_bicubic_composition_completes_within_the_budget() {
     // The largest SSI-realistic shape: bicubic × bicubic wall, cubic
     // pcurve and carrier — composite degree 3·(3+3)+3 = 21 of the 54
-    // budget. It must complete with a finite, sound bound.
+    // budget. It must complete with a finite, sound bound, and the
+    // budget must not be bought with tightness.
     let w = elevated_patch(3, 3);
     let (p, c) = (pcurve_data(), carrier_data());
     let (sup, max) = falsify(&w, &p, &c, &[], 100_000);
     assert!(sup.is_finite(), "in-budget composition poisoned: {sup:e}");
+    // The paraboloid patch and the carrier are genuinely apart, so the
+    // two comparisons below are statements about a real function.
+    assert!(
+        max > 1e-1,
+        "the fixture's residual must be genuine: {max:e}"
+    );
     assert!(sup >= max, "sup {sup:e} < max {max:e}");
+    // At degree 21 the composite still tracks the residual's own scale
+    // (1.44× here) — the difference between completing and completing
+    // usefully, which `is_finite` alone cannot tell apart.
+    assert!(
+        sup <= 3.0 * max,
+        "the in-budget composition lost the cancellation: {sup:e} vs true {max:e}"
+    );
 }
 
 #[test]

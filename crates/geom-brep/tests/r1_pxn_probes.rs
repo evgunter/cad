@@ -154,12 +154,30 @@ fn an_off_plane_wiggle_must_refuse_via_the_plane_envelope() {
     }
 }
 
+/// The lane's own enclosure floor on this fixture, in metres. The
+/// `a = 0` carrier lies EXACTLY on both operands, so its true sup is
+/// zero and whatever the lane certifies for it is the envelope's own
+/// noise over the wall's rational control net — 1.1e-13 m here. This
+/// is one order above that.
+///
+/// The ceiling it feeds is **absolute rather than a ratio of the
+/// truth**, and deliberately: every amplitude this row probes is at or
+/// below that floor, so `hull_sup / truth` measures the floor and not
+/// the envelope (4.6× at a = 1e-13, 1.1× at a = 1e-12 — the ratio
+/// falls as the amplitude rises, which is the floor talking). Losing
+/// the between-samples cancellation puts the enclosure at the wall's
+/// own span scale, ~1e-2 m, so this fires ten orders before the
+/// enclosure is merely useless.
+const ENVELOPE_FLOOR: f64 = 1e-12;
+
 /// ATTACK 1b: envelope soundness on the ACCEPT side — a certifying
-/// carrier's certified sup must bound its dense-sampled true sup.
+/// carrier's certified sup must bound its dense-sampled true sup, and
+/// must not stand a floor's width above it.
 #[test]
 fn the_certified_sup_bounds_the_dense_sampled_true_sup() {
     let wall = quarter_cylinder_wall();
     let plane = transverse_plane();
+    let mut certified = 0usize;
     for a in [0.0, 1e-13, 1e-12] {
         let carrier = if a == 0.0 {
             segment(Point3::new(1.0, 0.0, 0.0), Point3::new(1.0, 0.0, 1.0))
@@ -167,8 +185,16 @@ fn the_certified_sup_bounds_the_dense_sampled_true_sup() {
             wiggle_carrier(a)
         };
         let truth = dense_true_sup(&carrier, &wall);
+        // The fit must carry the wiggle it was given: an interpolation
+        // that flattened it leaves a truth of ~0, and every comparison
+        // below then holds for free.
+        assert!(
+            truth >= 0.5 * a,
+            "the a={a:e} wiggle did not survive the fit: true sup {truth:e}"
+        );
         match f64::plane_nurbs_limbs(&carrier, &plane, &wall, 1.0, band()) {
             Ok(limbs) => {
+                certified += 1;
                 println!(
                     "R1 sup-bound a={a:e}: certified {:e} vs true {truth:e}",
                     limbs.hull_sup
@@ -178,10 +204,23 @@ fn the_certified_sup_bounds_the_dense_sampled_true_sup() {
                     "UNSOUND: certified sup {:e} below the true sup {truth:e}",
                     limbs.hull_sup
                 );
+                assert!(
+                    limbs.hull_sup <= truth + ENVELOPE_FLOOR,
+                    "the envelope is no longer residual-scaled: certified {:e} \
+                     against a true sup of {truth:e}",
+                    limbs.hull_sup
+                );
             }
             Err(e) => println!("R1 sup-bound a={a:e}: refused {e:?} (true {truth:e})"),
         }
     }
+    // Every amplitude refusing is a green run that compared nothing —
+    // the exact carrier lies on both operands and certifies at every
+    // battery ε, so this fires only if the accept side went away.
+    assert!(
+        certified > 0,
+        "no amplitude certified, so nothing here was compared against its truth"
+    );
 }
 
 /// ATTACK 2: the refusal boundary — uniform radial (in-plane) and

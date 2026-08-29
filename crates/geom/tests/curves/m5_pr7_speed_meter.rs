@@ -48,6 +48,8 @@ fn the_meter_lower_bounds_the_real_speed() {
         "a monotone carrier must have a positive meter: {m}"
     );
     // Sampled speeds must never fall below the certified meter.
+    let mut lo = f64::INFINITY;
+    let mut hi = 0.0f64;
     for i in 0..=200 {
         let t = f64::from(i) / 200.0;
         let s = c.deriv(t).norm();
@@ -55,7 +57,30 @@ fn the_meter_lower_bounds_the_real_speed() {
             s >= m - 1e-12,
             "meter {m} exceeds the real speed {s} at t = {t}"
         );
+        lo = lo.min(s);
+        hi = hi.max(s);
     }
+    // Anti-vacuity: this carrier crosses a full unit in x over the unit
+    // domain, so its speed cannot sit near zero. A fixture edit that
+    // flattened it would leave `m > 0` and the domination above
+    // satisfiable by an arbitrarily small meter.
+    assert!(
+        lo > 1.0,
+        "this carrier advances in +x, so its true minimum speed cannot be {lo}"
+    );
+    // The meter is a LOWER bound, so its loose direction is downward
+    // and `s >= m` alone never sees it — a meter of 1e-300 satisfies
+    // that forever. This carrier's true speed varies by 0.10% end to
+    // end ({lo} … {hi}), so a per-span hull that is working gives away
+    // about as much; it gives away 0.61% here. The guard admits 10%,
+    // a hundred times the curve's own variation, and goes red long
+    // before the assembly is hulling as coarsely as it does on the
+    // adversarial nets below (32% on the degree-5 alternating-weight
+    // one).
+    assert!(
+        m >= 0.9 * lo,
+        "the meter gave away more than a tenth of the true speed: {m} against {lo}"
+    );
 }
 
 #[test]
