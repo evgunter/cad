@@ -41,14 +41,14 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom::{Curve3, Surface};
+use geom::Surface;
 use geom_core::{Band, Point2, Point3, Tol, Vec3};
 use profile::ProfileVertex;
 use sweep::Revolution;
 use sweep::fillet::battery::{FilletRequest, run_battery};
 use sweep::fillet::build::fillet_edges;
 use sweep::fillet::{BlendArm, CornerConfig, FilletError};
-use sweep::test_support::revolved_about_y;
+use sweep::test_support::{revolved_about_y, rim_arcs_at};
 use topo::{Body, EdgeKey, SurfaceKey, VertexKey, validate_geometric};
 
 fn tol() -> Tol {
@@ -126,38 +126,6 @@ fn supports(body: &Body<f64>, edge: EdgeKey) -> (SurfaceKey, SurfaceKey) {
     };
     let (a, b) = (face(e.he_plus), face(e.he_minus));
     if a <= b { (a, b) } else { (b, a) }
-}
-
-/// Every circular edge of `body` whose carrier has radius `r` and
-/// centre station `y`, in key order.
-fn circles_at(body: &Body<f64>, r: f64, y: f64) -> Vec<EdgeKey> {
-    body.edges()
-        .filter_map(|(k, e)| {
-            let c = body.get_curve_geom(e.curve)?.certified()?;
-            match *c.carrier() {
-                Curve3::Circle { radius, center, .. }
-                    if (radius - r).abs() < 1e-9 && (center.y - y).abs() < 1e-9 =>
-                {
-                    Some(k)
-                }
-                _ => None,
-            }
-        })
-        .collect()
-}
-
-/// The one rim of `body` at radius `r` and station `y` whose two
-/// supports are DIFFERENT surfaces — which excludes a chart seam, whose
-/// carrier can share a rim's radius and centre exactly (a sphere's seam
-/// meridian is a great circle).
-fn rim_arcs_at(body: &Body<f64>, r: f64, y: f64) -> Vec<EdgeKey> {
-    circles_at(body, r, y)
-        .into_iter()
-        .filter(|k| {
-            let (a, b) = supports(body, *k);
-            a != b
-        })
-        .collect()
 }
 
 fn band_torus(body: &Body<f64>, face: topo::FaceKey) -> (Point3<f64>, f64, f64) {

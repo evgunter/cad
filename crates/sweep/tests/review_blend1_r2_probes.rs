@@ -40,22 +40,24 @@
 //!   — the PR's concave fixture reaches this unit's door on its other
 //!   rims, so its concave refusal is about convexity and not about the
 //!   body.
-//! - **`the_seam_vertex_recourse_is_false_at_a_concave_rim`** — the
-//!   review's MAJOR: the tag fires at a CONCAVE rim's seam vertex and
-//!   promises a carve that then refuses. Green while the defect stands.
+//! - **`the_seam_vertex_recourse_is_true_at_every_site_the_tag_fires`**
+//!   — the review's MAJOR, converted into its own regression pin: the
+//!   tag fires at a CONCAVE rim's seam vertex as readily as a convex
+//!   one, so the sentence must be true there too. The row now composes
+//!   the recourse and the whole-rim answer on BOTH material sides, so
+//!   neither half can drift alone.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::{PI, SQRT_2};
 
-use geom::Curve3;
 use geom_core::{Band, Point2, Tol};
 use profile::ProfileVertex;
 use sweep::Revolution;
-use sweep::fillet::FilletError;
 use sweep::fillet::build::fillet_edges;
-use sweep::test_support::revolved_about_y;
-use topo::{Body, EdgeKey, FaceKey, SurfaceKey, mass_properties, validate_geometric};
+use sweep::fillet::{CornerConfig, FILLET3_SEAM_VERTEX_RECOURSE, FilletError};
+use sweep::test_support::{revolved_about_y, rim_arcs_at};
+use topo::{Body, EdgeKey, mass_properties, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -69,7 +71,6 @@ fn v(x: f64, y: f64, bulge: f64) -> ProfileVertex<f64> {
     ProfileVertex::new(Point2::new(x, y), bulge)
 }
 
-const SPHERE_R: f64 = 1.0;
 const SHOULDER: (f64, f64) = (0.8, 0.6);
 const TOP: f64 = 1.2;
 const LIP_R: f64 = 0.2;
@@ -107,45 +108,6 @@ fn bored_lantern() -> Body<f64> {
         Revolution::Full,
         tol(),
     )
-}
-
-fn surface_of(body: &Body<f64>, f: FaceKey) -> SurfaceKey {
-    body.get_face(f).unwrap().surface
-}
-
-fn faces_of(body: &Body<f64>, e: EdgeKey) -> (FaceKey, FaceKey) {
-    let ed = body.get_edge(e).unwrap();
-    let f = |he| {
-        body.get_loop(body.get_half_edge(he).unwrap().parent_loop)
-            .unwrap()
-            .face
-    };
-    (f(ed.he_plus), f(ed.he_minus))
-}
-
-/// Circular edges at radius `r`, station `y`, whose two supports are
-/// different surfaces (so a chart seam is excluded).
-fn rim_arcs(body: &Body<f64>, r: f64, y: f64) -> Vec<EdgeKey> {
-    let mut out: Vec<EdgeKey> = body
-        .edges()
-        .filter_map(|(k, e)| {
-            let c = body.get_curve_geom(e.curve)?.certified()?;
-            match *c.carrier() {
-                Curve3::Circle { radius, center, .. }
-                    if (radius - r).abs() < 1e-9 && (center.y - y).abs() < 1e-9 =>
-                {
-                    Some(k)
-                }
-                _ => None,
-            }
-        })
-        .filter(|k| {
-            let (a, b) = faces_of(body, *k);
-            surface_of(body, a) != surface_of(body, b)
-        })
-        .collect();
-    out.sort_unstable();
-    out
 }
 
 fn volume(body: &Body<f64>) -> f64 {
@@ -219,9 +181,12 @@ fn lip_center(r: f64) -> (f64, f64) {
     (SHOULDER.0 + SHOULDER.1 - y - r * SQRT_2, y)
 }
 
-/// The lip carve's three defining points: the corner, the tangent point
-/// on the top plane, and the tangent point on the cone.
-fn lip_geometry(r: f64) -> ((f64, f64), (f64, f64), (f64, f64), (f64, f64)) {
+/// A point in the meridian half-plane: `(radial, axial)`.
+type Meridian2 = (f64, f64);
+
+/// The lip carve's four defining points: the corner, the ball centre,
+/// the tangent point on the top plane, and the one on the cone.
+fn lip_geometry(r: f64) -> (Meridian2, Meridian2, Meridian2, Meridian2) {
     let c = lip_center(r);
     let corner = (LIP_R, TOP);
     let t_top = (c.0, TOP);
@@ -242,7 +207,7 @@ fn the_lip_bands_removed_volume_matches_a_hand_quadrature() {
     let source = lantern();
     let before = volume(&source);
     for r in [0.02, 0.05, 0.08] {
-        let arcs = rim_arcs(&source, LIP_R, TOP);
+        let arcs = rim_arcs_at(&source, LIP_R, TOP);
         assert_eq!(arcs.len(), 2, "the lip rim is seam-split");
         let out = fillet_edges(&source, &arcs, r, band(), tol())
             .unwrap_or_else(|e| panic!("the lip fillets at r={r}, got {e:?}"));
@@ -269,7 +234,7 @@ fn the_same_hand_quadrature_holds_for_the_one_edge_twin() {
     let source = bored_lantern();
     let before = volume(&source);
     for r in [0.02, 0.05, 0.08] {
-        let arcs = rim_arcs(&source, LIP_R, TOP);
+        let arcs = rim_arcs_at(&source, LIP_R, TOP);
         assert_eq!(arcs.len(), 1, "the twin's lip rim is one closed edge");
         let out = fillet_edges(&source, &arcs, r, band(), tol())
             .unwrap_or_else(|e| panic!("the twin's lip fillets at r={r}, got {e:?}"));
@@ -299,7 +264,7 @@ fn a_strict_subset_of_a_seam_split_rims_arcs_refuses_typed() {
         ("shoulder", SHOULDER.0, SHOULDER.1),
         ("lip", LIP_R, TOP),
     ] {
-        let arcs = rim_arcs(&source, rr, ry);
+        let arcs = rim_arcs_at(&source, rr, ry);
         assert_eq!(arcs.len(), 2, "{name} is seam-split");
         for one in &arcs {
             match fillet_edges(&source, &[*one], 0.05, band(), tol()) {
@@ -320,8 +285,8 @@ fn a_strict_subset_of_a_seam_split_rims_arcs_refuses_typed() {
 #[test]
 fn two_rims_sharing_a_wall_in_one_call_refuse_typed() {
     let source = lantern();
-    let mut both = rim_arcs(&source, 1.0, 0.0);
-    both.extend(rim_arcs(&source, SHOULDER.0, SHOULDER.1));
+    let mut both = rim_arcs_at(&source, 1.0, 0.0);
+    both.extend(rim_arcs_at(&source, SHOULDER.0, SHOULDER.1));
     assert_eq!(both.len(), 4, "two seam-split rims are four arcs");
     match fillet_edges(&source, &both, 0.05, band(), tol()) {
         Err(e) => {
@@ -346,8 +311,8 @@ fn two_rims_sharing_a_wall_in_one_call_refuse_typed() {
 #[test]
 fn arcs_of_two_different_rims_refuse_typed() {
     let source = lantern();
-    let neck = rim_arcs(&source, 1.0, 0.0);
-    let shoulder = rim_arcs(&source, SHOULDER.0, SHOULDER.1);
+    let neck = rim_arcs_at(&source, 1.0, 0.0);
+    let shoulder = rim_arcs_at(&source, SHOULDER.0, SHOULDER.1);
     let mixed = [neck[0], shoulder[0]];
     match fillet_edges(&source, &mixed, 0.05, band(), tol()) {
         Err(e) => println!("mixed-rim refusal: {e:?}"),
@@ -371,7 +336,7 @@ fn a_seam_split_bands_birth_rows_key_uniquely() {
         ("shoulder", SHOULDER.0, SHOULDER.1),
         ("lip", LIP_R, TOP),
     ] {
-        let arcs = rim_arcs(&source, rr, ry);
+        let arcs = rim_arcs_at(&source, rr, ry);
         let out = fillet_edges(&source, &arcs, 0.05, band(), tol())
             .unwrap_or_else(|e| panic!("{name} fillets, got {e:?}"));
         let rec = out.naming.as_ref().expect("birth records");
@@ -482,7 +447,7 @@ fn the_one_edge_annulus_fingerprint_is_stable() {
         ("shoulder", SHOULDER.0, SHOULDER.1),
         ("lip", LIP_R, TOP),
     ] {
-        let arcs = rim_arcs(&source, rr, ry);
+        let arcs = rim_arcs_at(&source, rr, ry);
         assert_eq!(arcs.len(), 1, "{name} is one closed edge on the twin");
         let fp = fingerprint(&source, &arcs, 0.05);
         println!("FINGERPRINT {name}: {fp}");
@@ -525,7 +490,7 @@ fn a_cylinder_capped_both_ends_carves_both_seam_split_rims() {
     let mut body = source.clone();
     let mut bands = 0;
     for (name, ry) in [("base", 0.0), ("top", 1.0)] {
-        let arcs = rim_arcs(&body, 1.0, ry);
+        let arcs = rim_arcs_at(&body, 1.0, ry);
         assert_eq!(arcs.len(), 2, "{name} rim is seam-split");
         let out = fillet_edges(&body, &arcs, r, band(), tol())
             .unwrap_or_else(|e| panic!("{name} rim fillets, got {e:?}"));
@@ -565,7 +530,7 @@ fn the_seam_vertex_recourse_names_a_door_that_answers() {
         Revolution::Full,
         tol(),
     );
-    let arcs = rim_arcs(&source, 1.0, 0.0);
+    let arcs = rim_arcs_at(&source, 1.0, 0.0);
     assert_eq!(arcs.len(), 2);
     // The refusal fires...
     let refused = fillet_edges(&source, &arcs[..1], 0.1, band(), tol());
@@ -616,7 +581,7 @@ fn waisted() -> Body<f64> {
 fn the_waisted_bodys_convex_rims_carve_so_its_concave_row_is_not_vacuous() {
     let source = waisted();
     for (name, ry) in [("base", 0.0), ("top", 1.0)] {
-        let arcs = rim_arcs(&source, 1.0, ry);
+        let arcs = rim_arcs_at(&source, 1.0, ry);
         assert_eq!(arcs.len(), 2, "{name} rim is seam-split");
         let out = fillet_edges(&source, &arcs, 0.05, band(), tol())
             .unwrap_or_else(|e| panic!("{name} rim of the waisted body carves, got {e:?}"));
@@ -625,57 +590,91 @@ fn the_waisted_bodys_convex_rims_carve_so_its_concave_row_is_not_vacuous() {
     }
 }
 
-/// **FINDING (MAJOR): the rewritten recourse is FALSE at a concave seam
-/// vertex.**
+/// **The composed honesty pin: the recourse is TRUE at every site the
+/// tag fires.**
 ///
-/// `is_seam_vertex` (battery.rs:1308) classifies purely on incidence —
-/// two rim arcs on one surface pair plus two co-surface seams — and
-/// never reads convexity. So a chain stopping at a CONCAVE rim's seam
-/// vertex is tagged `SeamVertex` and told, in this PR's new wording,
-/// "request the rim whole … which the closed-rim band carves as one
-/// annulus". At that site the whole-rim request then refuses "a concave
-/// chain adds material".
+/// This row began as the r2 review's MAJOR — the rewritten recourse
+/// promised "carves as one annulus" unconditionally, while
+/// `is_seam_vertex` classifies purely on INCIDENCE (two rim arcs on one
+/// support pair plus two co-surface seams) and never reads convexity.
+/// The tag therefore fires at a CONCAVE rim's seam vertex too, where
+/// the promised whole-rim request refuses `"a concave chain adds
+/// material"` — a recourse naming a door that cannot serve the caller
+/// who was just refused, which is the exact A3-2 defect.
 ///
-/// This is the exact shape of the A3-2 correction the PR cites: a
-/// recourse that names a door which cannot serve the caller who was
-/// just refused. The previous wording deliberately stopped short of
-/// promising the carve; this PR removed the hedge without narrowing the
-/// tag or widening the carve.
+/// The fix conditioned the SENTENCE rather than widening the carve
+/// (the concave closed-rim band is unbuilt and filed as issue 1244;
+/// widening a material gate is not the seam-split door's business).
+/// So this row now composes the two halves that must never drift
+/// apart, on BOTH material sides:
 ///
-/// The PR's own suite contains both halves — `a_concave_seam_split_rim_
-/// still_refuses` and the recourse rewrite — and never composes them.
+/// - the sentence still names the REQUEST unconditionally, and states
+///   the carve only for the convex side — asserted on the rendered
+///   refusal, not on the constant alone;
+/// - the whole-rim request then does what the sentence says it does:
+///   it CARVES at the convex rim, and answers with the material-side
+///   refusal at the concave one.
 ///
-/// This row is GREEN while the defect stands, and goes RED as soon as
-/// either the sentence is re-hedged or the concave carve is built.
+/// Red if the hedge is dropped, red if the tag narrows to convex rims
+/// only without the sentence following, and red if issue 1244 lands
+/// without this sentence being re-widened.
 #[test]
-fn the_seam_vertex_recourse_is_false_at_a_concave_rim() {
+fn the_seam_vertex_recourse_is_true_at_every_site_the_tag_fires() {
     let source = waisted();
-    let arcs = rim_arcs(&source, 0.5, 0.5);
-    assert_eq!(arcs.len(), 2, "the waist rim is seam-split");
-
-    let one = fillet_edges(&source, &arcs[..1], 0.05, band(), tol());
-    let Err(e) = &one else {
-        panic!("one arc of the concave waist must refuse")
-    };
+    // The sentence conditions its carve half. Spelled against the
+    // constant so the assertion names what the hedge IS, not a
+    // substring of one phrasing of it.
     assert!(
-        matches!(e, FilletError::FilletCornerUnsupported { .. }),
-        "the tag fires here, got {e:?}"
-    );
-    let msg = format!("{e}");
-    println!("recourse rendered: {msg}");
-    assert!(
-        msg.contains("carves as one annulus"),
-        "the tag PROMISES the carve in this PR's wording, got {msg}"
+        FILLET3_SEAM_VERTEX_RECOURSE.contains("CONVEX"),
+        "the carve half is conditioned on the side the door serves: \
+         {FILLET3_SEAM_VERTEX_RECOURSE}"
     );
 
-    let whole = fillet_edges(&source, &arcs, 0.05, band(), tol());
-    let Err(w) = &whole else {
-        panic!("if this now carves, the recourse became true — revisit this row")
-    };
-    let wmsg = format!("{w:?}");
-    println!("the promised door answers with: {wmsg}");
-    assert!(
-        wmsg.contains("concave chain adds material"),
-        "the promised door refuses as concave, got {wmsg}"
-    );
+    for (name, rim_r, rim_y, convex) in [
+        ("the concave waist", 0.5, 0.5, false),
+        ("the convex base", 1.0, 0.0, true),
+        ("the convex top", 1.0, 1.0, true),
+    ] {
+        let arcs = rim_arcs_at(&source, rim_r, rim_y);
+        assert_eq!(arcs.len(), 2, "{name} is seam-split");
+
+        // Half one: the tag fires, and shows the conditioned sentence.
+        let Err(one) = fillet_edges(&source, &arcs[..1], 0.05, band(), tol()) else {
+            panic!("{name}: one arc stops at a seam vertex and must refuse")
+        };
+        assert!(
+            matches!(
+                one,
+                FilletError::FilletCornerUnsupported {
+                    corner: CornerConfig::SeamVertex,
+                    policy: None,
+                    ..
+                }
+            ),
+            "{name}: the incidence-only tag fires on both material sides, got {one:?}"
+        );
+        let shown = one.to_string();
+        assert!(
+            shown.contains(FILLET3_SEAM_VERTEX_RECOURSE),
+            "{name}: the seam recourse is the one appended: {shown}"
+        );
+
+        // Half two: the request that sentence names, answered.
+        let whole = fillet_edges(&source, &arcs, 0.05, band(), tol());
+        if convex {
+            let out =
+                whole.unwrap_or_else(|e| panic!("{name}: the promised carve happens, got {e:?}"));
+            assert_eq!(out.band_faces.len(), 1, "{name}: one annulus band");
+            validate_geometric(&out.body, tol())
+                .unwrap_or_else(|e| panic!("{name}: tier-3 valid, got {e:?}"));
+        } else {
+            let Err(FilletError::UnsupportedChain { detail, .. }) = whole else {
+                panic!("{name}: the whole-rim request meets the material-side refusal")
+            };
+            assert!(
+                detail.contains("concave"),
+                "{name}: and it is the material side that refuses, got {detail}"
+            );
+        }
+    }
 }

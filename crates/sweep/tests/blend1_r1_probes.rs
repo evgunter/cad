@@ -2,12 +2,12 @@
 //! load-bearing claims, beside the suite the PR ships. Each probe is
 //! designed to be evidence the PR's own rows cannot already be.
 //!
-//! - **The recourse's reach** (claim 8): `FILLET3_SEAM_VERTEX_RECOURSE`
-//!   now PROMISES the carve. The tag fires from the battery's corner
-//!   classifier, which runs before any convexity door — so a chain
-//!   stopping at a CONCAVE rim's seam vertex is shown the promise, and
-//!   the whole-rim request it names then refuses `concave`. Measured
-//!   here rather than argued.
+//! - **The recourse's reach** (claim 8): the tag fires from the
+//!   battery's corner classifier, which runs before any convexity door,
+//!   so a chain stopping at a CONCAVE rim's seam vertex meets it too.
+//!   That was the review's MAJOR while the sentence promised the carve
+//!   unconditionally; it is now the premise the conditioned sentence
+//!   rests on, measured here rather than argued.
 //! - **An independent closed form** (claim 3): the suite's volume
 //!   oracle is a differential against the one-edge twin, which could
 //!   share a defect with the door under test. The lip rim's removal is
@@ -19,19 +19,20 @@
 //! - **Resolution violations** (claim 4): a planted ring on a half-band
 //!   support; a request that adds a seam meridian to the rim's arcs.
 //!
-//! Review-lane only; not part of the PR under review.
+//! Authored in the review lane and ADOPTED into the unit at its fix
+//! pass, so the findings below are re-taken by the suite on every run
+//! rather than living only in a review thread.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::SQRT_2;
 
-use geom::Curve3;
 use geom_core::{Band, Point2, Point3, Tol};
 use profile::ProfileVertex;
 use sweep::Revolution;
 use sweep::fillet::build::fillet_edges;
 use sweep::fillet::{CornerConfig, FILLET3_SEAM_VERTEX_RECOURSE, FilletError};
-use sweep::test_support::{cube, revolved_about_y};
+use sweep::test_support::{cube, revolved_about_y, rim_arcs_at};
 use topo::{Body, EdgeKey, FaceKey, SurfaceKey, mass_properties, validate_geometric};
 
 fn tol() -> Tol {
@@ -116,27 +117,6 @@ fn faces_of(body: &Body<f64>, e: EdgeKey) -> (FaceKey, FaceKey) {
     (f(ed.he_plus), f(ed.he_minus))
 }
 
-/// Circular edges at radius `r`, station `y`, on two DISTINCT surfaces.
-fn rim_arcs(body: &Body<f64>, r: f64, y: f64) -> Vec<EdgeKey> {
-    body.edges()
-        .filter_map(|(k, e)| {
-            let c = body.get_curve_geom(e.curve)?.certified()?;
-            match *c.carrier() {
-                Curve3::Circle { radius, center, .. }
-                    if (radius - r).abs() < 1e-9 && (center.y - y).abs() < 1e-9 =>
-                {
-                    Some(k)
-                }
-                _ => None,
-            }
-        })
-        .filter(|k| {
-            let (a, b) = faces_of(body, *k);
-            surface_of(body, a) != surface_of(body, b)
-        })
-        .collect()
-}
-
 fn volume(body: &Body<f64>) -> f64 {
     let props = mass_properties(body, tol()).expect("mass properties compute");
     assert_eq!(props.volume_pad, 0.0, "closed-form faces only");
@@ -147,46 +127,55 @@ fn volume(body: &Body<f64>) -> f64 {
 // P1 — the recourse's promise, measured where the tag fires (claim 8).
 // ------------------------------------------------------------------
 
-/// **The rewritten recourse over-promises at a concave seam vertex.**
+/// **The tag's firing rule never reads convexity — which is why the
+/// recourse's carve half is conditioned.**
 ///
-/// A chain stopping at a seam vertex of the CONCAVE waist rim is
-/// refused `SeamVertex` — the corner classifier runs before any
-/// convexity door — and the recourse it carries now says the whole-rim
-/// request "the closed-rim band carves as one annulus". Taking that
-/// request literally refuses `concave`. Before this PR the sentence
-/// deliberately stopped short of promising the carve; the promise is
-/// true on convex rims only, and this site shows the tag firing where
-/// it is false.
+/// This row began as the r1 review's MAJOR: the rewritten recourse
+/// promised the carve unconditionally, and the corner classifier runs
+/// BEFORE any convexity door, so a chain stopping at a CONCAVE rim's
+/// seam vertex was shown a promise its own whole-rim request then
+/// refused.
+///
+/// It is now the MECHANISM half of that finding, kept because it is
+/// what the conditioning rests on: the tag is incidence-only, so the
+/// site set it fires over spans both material sides, and any sentence
+/// it carries must be true across that whole set. The composed
+/// promise-and-answer pin lives in the r2 suite
+/// (`the_seam_vertex_recourse_is_true_at_every_site_the_tag_fires`);
+/// this row pins the premise it argues from.
+///
+/// Red if the tag ever learns convexity — at which point the sentence
+/// may drop its hedge, and should.
 #[test]
-fn p1_the_seam_vertex_recourse_promises_a_carve_a_concave_rim_refuses() {
+fn p1_the_seam_vertex_tag_fires_without_reading_convexity() {
+    // A CONCAVE seam-split rim, and a CONVEX one on the same body.
     let body = waisted();
-    let arcs = rim_arcs(&body, 0.5, 0.5);
-    assert_eq!(arcs.len(), 2, "the waist rim is seam-split");
-
-    // One arc: the tag fires, carrying the carve-promising recourse.
-    match fillet_edges(&body, &arcs[..1], 0.05, band(), tol()) {
-        Err(FilletError::FilletCornerUnsupported { corner, .. }) => {
-            assert!(
+    for (name, rim_r, rim_y) in [
+        ("the concave waist", 0.5, 0.5),
+        ("the convex base", 1.0, 0.0),
+    ] {
+        let arcs = rim_arcs_at(&body, rim_r, rim_y);
+        assert_eq!(arcs.len(), 2, "{name} is seam-split");
+        match fillet_edges(&body, &arcs[..1], 0.05, band(), tol()) {
+            Err(FilletError::FilletCornerUnsupported { corner, .. }) => assert!(
                 matches!(corner, CornerConfig::SeamVertex),
-                "the classifier reads the seam vertex, got {corner}"
-            );
+                "{name}: the classifier reads incidence and tags the seam vertex, \
+                 got {corner}"
+            ),
+            other => panic!("{name}: one arc stops at a seam vertex, got {other:?}"),
         }
-        other => panic!("one concave arc stops at a seam vertex, got {other:?}"),
     }
+    // So the sentence the tag carries has to hold on both sides, and it
+    // does that by conditioning its carve half rather than by promising
+    // one door for two configurations.
     assert!(
-        FILLET3_SEAM_VERTEX_RECOURSE.contains("carves as one annulus"),
-        "the recourse now promises the carve: {FILLET3_SEAM_VERTEX_RECOURSE}"
+        FILLET3_SEAM_VERTEX_RECOURSE.contains("CONVEX"),
+        "the carve half names the side the door serves: {FILLET3_SEAM_VERTEX_RECOURSE}"
     );
-
-    // The promised request: refused, and not by a door the recourse
-    // names.
-    match fillet_edges(&body, &arcs, 0.05, band(), tol()) {
-        Err(FilletError::UnsupportedChain { detail, .. }) => assert!(
-            detail.contains("concave"),
-            "the whole-rim request the recourse promised refuses: {detail}"
-        ),
-        other => panic!("the promised request does not carve here, got {other:?}"),
-    }
+    assert!(
+        !FILLET3_SEAM_VERTEX_RECOURSE.contains("which the closed-rim band carves as one"),
+        "the unconditional promise is gone: {FILLET3_SEAM_VERTEX_RECOURSE}"
+    );
 }
 
 // ------------------------------------------------------------------
@@ -206,7 +195,7 @@ fn p1_the_seam_vertex_recourse_promises_a_carve_a_concave_rim_refuses() {
 fn p2_the_lip_rim_removal_matches_a_hand_pappus_closed_form() {
     let r = 0.05;
     let source = lantern();
-    let arcs = rim_arcs(&source, LIP_R, TOP);
+    let arcs = rim_arcs_at(&source, LIP_R, TOP);
     assert_eq!(arcs.len(), 2, "the lip rim is seam-split");
     let out = fillet_edges(&source, &arcs, r, band(), tol())
         .unwrap_or_else(|e| panic!("the lip fillets whole, got {e:?}"));
@@ -334,7 +323,7 @@ fn p4_the_repaired_lantern_neck_rim_is_outside_both_closed_rim_doors() {
     source
         .merge_coplanar_faces(tol())
         .expect("the pole-split caps repair (#1031's pole half)");
-    let arcs = rim_arcs(&source, 1.0, 0.0);
+    let arcs = rim_arcs_at(&source, 1.0, 0.0);
     assert_eq!(arcs.len(), 2, "the neck rim is still two arcs");
     let (a0, b0) = faces_of(&source, arcs[0]);
     let (a1, b1) = faces_of(&source, arcs[1]);
@@ -383,7 +372,7 @@ fn p4_the_repaired_lantern_neck_rim_is_outside_both_closed_rim_doors() {
 #[test]
 fn p5_the_rim_arcs_plus_a_seam_meridian_refuse_at_the_battery() {
     let body = lantern();
-    let mut req = rim_arcs(&body, SHOULDER.0, SHOULDER.1);
+    let mut req = rim_arcs_at(&body, SHOULDER.0, SHOULDER.1);
     assert_eq!(req.len(), 2);
     // A co-surface edge: same surface on both sides.
     let seam = body
@@ -419,7 +408,7 @@ fn p6_one_edge_rims_bit_dump_for_the_merge_base_differential() {
         ("lip", LIP_R, TOP),
     ];
     for (name, r, y) in rims {
-        let arcs = rim_arcs(&source, r, y);
+        let arcs = rim_arcs_at(&source, r, y);
         assert_eq!(arcs.len(), 1, "{name} is one closed edge on the twin");
         let out = fillet_edges(&source, &arcs, 0.05, band(), tol())
             .unwrap_or_else(|e| panic!("{name} carves on the twin, got {e:?}"));

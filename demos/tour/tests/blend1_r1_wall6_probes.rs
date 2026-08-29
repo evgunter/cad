@@ -14,7 +14,9 @@
 //! 0.16, neck (0.052, 70°)) at identity placement — carrier radii are
 //! profile-intrinsic, so the PR's numbers must reproduce.
 //!
-//! Review-lane only; not part of the PR under review.
+//! Authored in the review lane and ADOPTED into the unit at its fix
+//! pass, so the findings below are re-taken by the suite on every run
+//! rather than living only in a review thread.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -137,7 +139,10 @@ fn t2_the_three_convex_rims_fillet_whole_at_the_named_radii() {
     }
 }
 
-/// The mouth rim (~0.253) is the real other frontier: concave.
+/// The mouth rim (~0.253) is the real other frontier: CONCAVE, which
+/// no closed-rim carve in the module builds — the material-adding band,
+/// filed as evgunter/cad issue 1244. So the lily's fourth transverse
+/// rim is not this door's business and says so in its own words.
 #[test]
 fn t3_the_mouth_rim_refuses_concave() {
     let tol = Tol::witness();
@@ -155,13 +160,16 @@ fn t3_the_mouth_rim_refuses_concave() {
     }
 }
 
-/// A real consumer meets the over-promise: ONE arc of the lily's own
-/// concave mouth rim refuses `SeamVertex`, whose recourse now says the
-/// whole-rim request "the closed-rim band carves as one annulus" — and
-/// t3 above is that very request refusing `concave`. The recourse's
-/// promise is false at this reachable site.
+/// **The recourse stays true at a REACHABLE concave site.** One arc of
+/// the lily's own concave mouth rim refuses `SeamVertex` — the tag
+/// reads incidence and never convexity — and t3 above is the whole-rim
+/// request it names, refusing `concave`. This row was the r1 review's
+/// consumer-side witness for the MAJOR while the sentence promised the
+/// carve unconditionally; it now pins the CONDITIONED sentence at the
+/// same site, so a re-widening without issue 1244 would go red here on
+/// a body a real user holds rather than only on a synthetic fixture.
 #[test]
-fn t4_one_mouth_arc_gets_the_carve_promising_recourse_the_rim_then_refuses() {
+fn t4_one_mouth_arc_gets_the_conditioned_recourse_and_the_rim_refuses_concave() {
     let tol = Tol::witness();
     let lant = lily_lantern(tol);
     let r_mouth = (GLOBE.powi(2) - MOUTH.powi(2)).sqrt();
@@ -183,4 +191,10 @@ fn t4_one_mouth_arc_gets_the_carve_promising_recourse_the_rim_then_refuses() {
         }
         other => panic!("one mouth arc refuses SeamVertex, got {other:?}"),
     }
+    // And the sentence it carries does not promise this rim a carve.
+    let shown = pncad::sweep::fillet::FILLET3_SEAM_VERTEX_RECOURSE;
+    assert!(
+        shown.contains("CONVEX"),
+        "the carve half names the side the door serves: {shown}"
+    );
 }

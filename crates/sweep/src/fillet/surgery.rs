@@ -959,6 +959,40 @@ fn resolve_rim<'a, T: Decide + Bounds>(
 ///   one cycle in the host side's own traversal;
 /// - at every such vertex, incidence is exactly the two arcs plus ONE
 ///   co-surface seam meridian per side.
+///
+/// **One rule, three readings.** This incidence is also spelled by
+/// [`super::battery`]'s `is_seam_vertex` (the refusal classifier, which
+/// reads incidence and NOTHING else — no convexity, no support
+/// resolution, so it is strictly weaker than this) and by
+/// [`resolve_annulus`]/[`wall_seam`] (the same shape on a rim of ONE
+/// self-closed edge and its doubly-traversed wall seams). They are not
+/// shared because each answers a different question at a different
+/// phase; the intended relation is that the battery's ADMITS every site
+/// these two do and more, which is why the seam tag's recourse
+/// conditions its carve half.///
+/// # Why this is not merged with the other annulus resolver
+///
+/// [`resolve_annulus`] (one self-closed edge) and this one (several
+/// arcs) resolve the SAME band onto the same two surfaces, and a
+/// unified resolver is structurally available: the one-edge case is
+/// this one with a single crossing whose two seams are its wall's
+/// doubly-traversed ones. It is deliberately NOT taken here, and the
+/// cost is stated so it is a decision rather than an oversight:
+///
+/// - the one-edge path's gates are load-bearing in a way this one's are
+///   not — `wall_seam`'s "traversed exactly twice by ONE loop" is the
+///   revolution-wall shape itself, and it has no counterpart here,
+///   where a seam is traversed once by each of two half-band faces;
+/// - its refusal strings are the ones several existing suites read, and
+///   merging would either change them or freeze this resolver's
+///   wording to theirs.
+///
+/// **The hazard the decline accepts is DRIFT**: two admissions of one
+/// carve can diverge silently, since the phase below serves both from
+/// one representation. What bounds it is that the representation is
+/// shared — both produce [`AnnulusRim`] crossings, and
+/// [`rim_phase_annulus`] has no branch on which resolver made them — so
+/// a divergence has to be in what is ADMITTED, not in what is built.
 fn resolve_seam_split_rim<'a, T: Decide + Bounds>(
     body: &Body<T>,
     chain: &'a Chain<T>,
@@ -1193,8 +1227,8 @@ fn shared_support_gate<T: Real>(rims: &[RimPlan<'_, T>]) -> Result<(), FilletErr
             if shares {
                 return Err(unbuilt_chain(
                     b.chain.first().edge,
-                    "two closed rims of one request share a support face, and a one-edge \
-                     rim's band consumes that face's seam meridian — fillet them in \
+                    "two closed rims of one request share a support face, and an annulus \
+                     band consumes that face's seam meridian — fillet them in \
                      SEQUENTIAL calls (the second on the first's result), which composes \
                      exactly; one call is not implemented",
                 ));
@@ -1279,6 +1313,19 @@ fn resolve_annulus<T: Decide + Bounds>(
 
 /// The seam meridian of a revolution wall's boundary cycle: the one
 /// edge the cycle traverses TWICE and which meets the rim at `vertex`.
+///
+/// **One rule, three readings** — this is the ONE-EDGE reading of the
+/// seam incidence that [`resolve_seam_split_rim`] spells for several
+/// arcs and that [`super::battery`]'s `is_seam_vertex` spells weakest,
+/// as a refusal classifier over incidence alone. See either for the
+/// intended relation between them.
+///
+/// **Not merged with the multi-arc resolver, deliberately**, and the
+/// drift hazard that decline accepts is stated at
+/// [`resolve_seam_split_rim`]. The gate this function is here for —
+/// a seam traversed exactly TWICE by one loop — is the
+/// revolution-wall shape and has no counterpart on a seam-split body,
+/// where each seam is traversed once by each of two half-band faces.
 /// The rim itself must be carried once, so the wall really is the
 /// one-rim-per-side shape the band replacement assumes.
 fn wall_seam<T: Decide>(
@@ -1546,9 +1593,17 @@ fn ring_clearance_pass<T: Decide + Bounds>(
     // (b) Rims: each widened trim circle against the host face's
     // OTHER rings and its straight outer boundary edges.
     for rim in rims {
-        // A seam-split rim's host side is several faces of one surface,
-        // and each one's rings are its own question.
+        // A rim's host side may be several faces (of one surface), and
+        // each face's rings are its own question — so the walk is over
+        // the DISTINCT host faces, once each. A ladder rim repeats one
+        // plane in `hosts`, and metering its rings once per link would
+        // be the same decision taken N times.
+        let mut seen: Vec<FaceKey> = Vec::with_capacity(rim.hosts.len());
         for (l, &host) in rim.chain.links().zip(rim.hosts.iter()) {
+            if seen.contains(&host) {
+                continue;
+            }
+            seen.push(host);
             let ((ci, si), _) = rim_trim_circles(l.edge, &l.blend, l.face_a == host)?;
             let fd = body
                 .get_face(host)
@@ -2644,6 +2699,19 @@ fn rim_phase_annulus<T: Decide + Bounds>(
     // every other arc's trimline is described against it, so an arc
     // whose own blend disagreed is reported at rest rather than blended
     // away here.
+    //
+    // **What that leaves unchecked AT THIS DOOR, said plainly.** The
+    // arcs' tori are not compared to each other here, and nothing in
+    // this phase re-derives geometry: the door checks STRUCTURE (the
+    // plan's gates, all against the source body) and mints, while every
+    // geometric claim it makes — each trimline lying on the tangential
+    // contact locus of the band and its support, the slit lying in the
+    // band chart's own `u_ref` half-plane, the band being a torus at
+    // all — is re-derived by tier 3 at rest, on the caller's side of
+    // `fillet_edges`. So a disagreement between two arcs' blends is
+    // DETECTED, but by `validate_geometric` and not here, which is why
+    // every fixture row for this door validates rather than trusting
+    // the mint.
     let Surface::Torus {
         center: tc,
         axis: taxis,
@@ -2875,10 +2943,14 @@ fn rim_phase_annulus<T: Decide + Bounds>(
     // a Seam edge lie in its surface's own `u_ref` half-plane; the chart
     // reference is conventional data, D2). ----
     let closure = &ann.crossings[ann.closure];
-    let closure_arc = arcs
-        .iter()
-        .position(|a| a.at.0 == ann.closure)
-        .unwrap_or_default();
+    let Some(closure_arc) = arcs.iter().position(|a| a.at.0 == ann.closure) else {
+        unreachable!(
+            "annulus band: every crossing is the host-side START of exactly one arc — \
+             the plan checked it (`resolve_seam_split_rim`'s one-cycle gate, and a \
+             one-edge rim's single crossing is its arc's own two ends), and the feet \
+             above were derived through that same correspondence"
+        )
+    };
     let (cc, cr) = arcs[closure_arc].host_circle;
     let radial = (feet_targets[ann.closure].host - cc) / cr;
     let band_surface = Surface::Torus {
