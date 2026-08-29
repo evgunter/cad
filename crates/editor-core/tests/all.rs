@@ -98,6 +98,10 @@ mod m10_di_dual_corpus;
 mod r1_mb_diff;
 #[path = "r1_dual_probes.rs"]
 mod r1_dual_probes;
+#[path = "r2_m10_di_probes.rs"]
+mod r2_m10_di_probes;
+#[path = "r2_differential.rs"]
+mod r2_differential;
 #[path = "m4_pr1_dims.rs"]
 mod m4_pr1_dims;
 #[path = "m4_pr1_doc.rs"]
