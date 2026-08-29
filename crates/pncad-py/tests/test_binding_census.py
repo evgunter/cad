@@ -123,8 +123,9 @@ WHAT THIS DOES NOT CLAIM
   all ten façade files, this one reads the three that curate the
   document layer and the common surface. `workspace::Workspace`,
   `random_document_id` and `update_to_store` are therefore NOT counted
-  here even though they are part of gap G15 — the audit page's
-  `test_the_named_gaps_are_still_gaps` is what watches those.
+  here — the audit page's `test_the_named_gaps_are_still_gaps` is what
+  watches those, and it is where the first two landing and the third
+  not is recorded.
 - Not that a bound name is bound WELL. Coverage, not quality.
 """
 
@@ -407,8 +408,8 @@ GAP = "gap"
 #: reason the module docstring's id-space section splits the two
 #: spaces the way it does. Where the audit page DOES define an id, an
 #: entry cites that instead and nothing is minted here: `G2` (sweep
-#: and tube), `G8` (the memo), `G11` (tessellation and STL), `G15`
-#: (content pins), `G16` (chamfer's missing recipe node), `G18` (the
+#: and tube), `G8` (the memo), `G11` (tessellation and STL),
+#: `G16` (chamfer's missing recipe node), `G18` (the
 #: whole Python assembly series, whose row enumerates `assemble`,
 #: `solve_document`, `product`, `split` and `inline` by name), and
 #: `G1` for the Expr-in-a-profile-step residue its row records.
@@ -574,8 +575,8 @@ FAMILIES = {
 #: **`gap` — genuinely unbound doors, and each is OWED WORK.** This is
 #: the family that makes the census worth having: these are not
 #: decisions, they are debt, and the id after the colon says what owns
-#: each. Seven of the ids are the audit page's, cited (`G1`, `G2`, `G8`,
-#: `G11`, `G15`, `G16`, `G18`); the other eight are `FAMILIES` keys
+#: each. Six of the ids are the audit page's, cited (`G1`, `G2`, `G8`,
+#: `G11`, `G16`, `G18`); the other eight are `FAMILIES` keys
 #: this census owns, because the audit's SCENE-driven list does not
 #: reach a door no tour scene exercises — which is exactly why those
 #: accumulated unnoticed and why this census exists.
@@ -591,13 +592,19 @@ FAMILIES = {
 #:   `TessellateError`, and the STL writers with their options and
 #:   header vocabulary. Python loses steps 4 and 5 of the guide's
 #:   ladder, so there is no mesh-vs-exact cross-check.
-#: - **G15 — content pins and cross-document references.**
-#:   `ContentPin`, `content_pin`, `canonical_bytes`, `DocRef`,
-#:   `header_document_id`, and the pin-update door
-#:   (`update_references`, `UpdateError`, `mixed_pins`,
-#:   `PinMultiplicity`, `PinSites`). The audit's G15 row already
-#:   watches the `workspace::` half; this is the `document::` half, in
-#:   the census the audit's absence test cannot see.
+#: - **G18 — the pin-update door.** `update_references`,
+#:   `UpdateError`, `mixed_pins`, `PinMultiplicity`, `PinSites`.
+#:   This entry USED to read G15 and cover the whole content-pin
+#:   family; LIB-G15 bound the rest of it (`ContentPin`,
+#:   `content_pin`, `canonical_bytes`, `DocRef`,
+#:   `header_document_id`, and `workspace::Workspace` /
+#:   `random_document_id` beside them), so what remains is only the
+#:   door that moves a pin AT ITS SITES. A site is an
+#:   `InstantiatePart` node's `DocRef`, Python can author none, and
+#:   `evaluate(doc)` takes no resolver — so every one of these doors
+#:   would answer the "referenced nowhere" refusal on any document
+#:   Python can build. That is G18's dependency, not a residue of the
+#:   closed row, and the citation moved with it.
 #: - **G18 — assembly, the at-rest gate (A5).** `assemble`,
 #:   `Assembly`, `AssemblyError`, `AtRestFinding`, `Attribution`,
 #:   `MintedDeclaration`, `RefusedRef`. The façade carried these
@@ -620,11 +627,15 @@ FAMILIES = {
 #: - **G18 — instantiated parts.** `PartResolver`, `PartFault`,
 #:   `ResolveFailure`, `ResolveFault`, `PlacementRuleFault` — the
 #:   document seam evaluation crosses to reach a referenced document.
-#:   G15's neighbour and the reason its row says a Python author "can
-#:   produce two documents a workspace will accept side by side, and
-#:   cannot then assemble them". G18's row puts it FIRST in the
-#:   series' stated order: `evaluate(doc)` takes no resolver, so an
-#:   `InstantiatePart` node cannot evaluate from Python at all.
+#:   What is left of the sentence G15's row used to own: a Python
+#:   author can now produce two documents a workspace will accept
+#:   side by side — LIB-G15 bound that half — and still cannot
+#:   assemble them. G18's row puts this FIRST in the series' stated
+#:   order: `evaluate(doc)` takes no resolver, so an
+#:   `InstantiatePart` node cannot evaluate from Python at all. Note
+#:   which side of the seam that is: `Workspace` IS the `PartResolver`
+#:   implementation in Rust, and Python can now build one — what is
+#:   missing is the parameter `evaluate` would take it through.
 #: - **G18 — split and inline, the recorded refactorings.** `split`,
 #:   `inline`, `SplitOutcome`, `InlineOutcome`, `SplitError`,
 #:   `InlineError`, `NodeMap`, `InterfaceRecord`, `InterfaceCrossing`.
@@ -820,17 +831,19 @@ NOT_BOUND = {
     "tessellate": f"{GAP}: G11 tessellation/STL",
     "write_ascii": f"{GAP}: G11 tessellation/STL",
     "write_binary": f"{GAP}: G11 tessellation/STL",
-    # --- gap: content pins and cross-document refs (audit G15) ----
-    "ContentPin": f"{GAP}: G15 content pins",
-    "DocRef": f"{GAP}: G15 content pins",
-    "PinMultiplicity": f"{GAP}: G15 content pins",
-    "PinSites": f"{GAP}: G15 content pins",
-    "UpdateError": f"{GAP}: G15 content pins",
-    "canonical_bytes": f"{GAP}: G15 content pins",
-    "content_pin": f"{GAP}: G15 content pins",
-    "header_document_id": f"{GAP}: G15 content pins",
-    "mixed_pins": f"{GAP}: G15 content pins",
-    "update_references": f"{GAP}: G15 content pins",
+    # --- gap: the pin-UPDATE door (audit G18) ---------------------
+    # G15's own doors are bound (`ContentPin`, `DocRef`,
+    # `content_pin`, `canonical_bytes`, `header_document_id`, and
+    # `Workspace` beside them). What is left of the pin family is the
+    # door that moves a pin AT ITS SITES, and a site is an
+    # `InstantiatePart` node's `DocRef` — the one thing Python cannot
+    # author. So these are cited to the series that would bring the
+    # node, not to the closed row.
+    "PinMultiplicity": f"{GAP}: G18 the pin-update door",
+    "PinSites": f"{GAP}: G18 the pin-update door",
+    "UpdateError": f"{GAP}: G18 the pin-update door",
+    "mixed_pins": f"{GAP}: G18 the pin-update door",
+    "update_references": f"{GAP}: G18 the pin-update door",
     # --- gap: assembly at-rest gate (audit G18) -------------------
     "Assembly": f"{GAP}: G18 assembly at-rest gate",
     "AssemblyError": f"{GAP}: G18 assembly at-rest gate",
@@ -857,7 +870,7 @@ NOT_BOUND = {
     "reading_edges": f"{GAP}: G18 mates and the solve",
     "relative_freedom_components": f"{GAP}: G18 mates and the solve",
     "solve_document": f"{GAP}: G18 mates and the solve",
-    # --- gap: instantiated parts (audit G18, G15's neighbour) -----
+    # --- gap: instantiated parts (audit G18) ----------------------
     "PartFault": f"{GAP}: G18 instantiated parts",
     "PartResolver": f"{GAP}: G18 instantiated parts",
     "PlacementRuleFault": f"{GAP}: G18 instantiated parts",
@@ -941,8 +954,8 @@ class TestBindingCensus(unittest.TestCase):
         The Rust guard asserts `exported.len() > 150` for the same
         reason: a scanner that returned nothing would satisfy every
         set difference below and the guard would pass having read
-        nothing. Measured at the time of writing: 323 curated names,
-        86 top-level stub names, 332 `Class.member` spellings. The
+        nothing. Measured at LIB-G15: 324 curated names, 95 top-level
+        stub names, 357 `Class.member` spellings. The
         floors sit below those with room for ordinary shrinkage and
         far above zero.
         """
@@ -1015,7 +1028,8 @@ class TestBindingCensus(unittest.TestCase):
         too, and it matters most here): not that the cited id is the
         RIGHT owner for that door, only that it RESOLVES. `G18` being
         a defined gap is checkable; `assemble` being G18's work rather
-        than G15's is a reading, made by hand at the entry. Nor does
+        than the closed G15's is a reading, made by hand at the entry.
+        Nor does
         it claim the prose after the id is accurate — only that there
         IS prose, because an entry reduced to a bare tag loses the one
         thing a human reader can use.
