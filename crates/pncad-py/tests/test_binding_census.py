@@ -688,8 +688,10 @@ FAMILIES = {
 #: - **B-CHECKS — the advisory checks (DISCIPLINES-DESIGN DS6).**
 #:   `run_checks`, `enforce_checks`, `subject_body`, `ChecksReport`,
 #:   `ChecksConfig`, `ChecksError`, `CheckFinding`, `CheckEvidence`,
-#:   `CheckId`, `CheckKind`, `CheckRefusal`, `Severity`. The
-#:   report-never-gate registry, and the largest census-owned family.
+#:   `CheckId`, `CheckKind`, `CheckRefusal`, `Severity`, `Advisory`.
+#:   The report-never-gate registry, and the largest census-owned
+#:   family. (`Advisory` is `Severity` minus `Error`, the knob a
+#:   resident takes when it ships no DS6 waiver vocabulary.)
 #: - **B-PICKING — picking.** `pick_face`, `PickTarget`, `PickHit`,
 #:   `NodePick`, `NodePickError`, `HitTestError`, `Ray`. The fourth
 #:   door onto a name — ray in, `StableName` out, the same alphabet
@@ -929,6 +931,7 @@ NOT_BOUND = {
     # --- gap: advisory checks DS6 (census-owned) ------------------
     "CheckEvidence": f"{GAP}: B-CHECKS advisory checks",
     "CheckFinding": f"{GAP}: B-CHECKS advisory checks",
+    "Advisory": f"{GAP}: B-CHECKS advisory checks",
     "CheckId": f"{GAP}: B-CHECKS advisory checks",
     "CheckKind": f"{GAP}: B-CHECKS advisory checks",
     "CheckRefusal": f"{GAP}: B-CHECKS advisory checks",
