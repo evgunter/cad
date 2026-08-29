@@ -2186,8 +2186,15 @@ mod tests {
     ///   and the WALL-PAIR gate reads two [`face_box`]es, one per
     ///   operand, on the same rule. **Refuses**: whichever box fails
     ///   to clear turns the pair into `FallbackExtentUnsupported`.
-    /// - `separation.rs` — the placement certificate. **Refuses**:
-    ///   non-overlap IS the grant.
+    /// - `separation.rs` — the two separation certificates, the
+    ///   placement one and the solid-pair one, on one rule.
+    ///   **Refuses**, both of them and for the same reason:
+    ///   non-overlap IS the grant, so a loose box withholds a
+    ///   certificate it should have given and can never manufacture
+    ///   one. The second door added no direction to weigh — it is the
+    ///   first read in the body's own frame instead of through a
+    ///   placement's affine image, which drops the image step and
+    ///   changes nothing about what looseness costs.
     /// - `census.rs` — `reach_box` and `edge_reach`, this module's
     ///   extents entered at the census's own scalar. **Refuses**:
     ///   arm 2 clears only on a definitely negative margin against a
@@ -2231,7 +2238,7 @@ mod tests {
             ("boolean/ops.rs", 5),
             ("boolean/reduce.rs", 5),
             ("census.rs", 3),
-            ("separation.rs", 1),
+            ("separation.rs", 2),
         ];
         const HOME: &str = "boolean/boxes.rs";
         const DOORS: [&str; 4] = ["face_box(", "face_box_rule(", "edge_box(", "edge_box_rule("];

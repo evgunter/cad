@@ -1,6 +1,13 @@
-//! **Certified separation of repeated placements** (GROUP-BOOLEAN-DESIGN,
-//! ratified A′): given ONE prototype body and N rigid placements of it,
-//! prove that no two placed copies can touch — or refuse honestly.
+//! **Certified separation** (GROUP-BOOLEAN-DESIGN, ratified A′): prove
+//! that two solids cannot touch — or refuse honestly.
+//!
+//! Two doors, one box rule. [`Separation`] takes ONE prototype body and
+//! N rigid placements of it and proves that no two placed copies can
+//! touch, BEFORE a graft, in the prototype's frame. [`SolidSeparation`]
+//! takes one body and proves that two of its solids cannot touch,
+//! AFTER one, in the body's own frame. Both discharge the same
+//! obligation for a different caller, and the second door's own header
+//! says why it exists.
 //!
 //! The recipe layer's group boolean (`PlacedUnion`) fuses N copies of one
 //! prototype into ONE body through the disjoint-graft door
@@ -102,6 +109,7 @@ use geom_core::{Affine3, Band, Bounds, Decide, Tol};
 use crate::body::Body;
 use crate::boolean::BooleanError;
 use crate::boolean::boxes::{face_box, sweep_pad};
+use crate::entity::SolidKey;
 
 /// A pair of placements the certificate could not separate: their padded
 /// boxes meet, so the union of those two copies is not provably a
@@ -286,5 +294,241 @@ fn image<T: Decide + Bounds>(b: &Aabb, m: &Affine3<T>) -> Aabb {
         max_x: hi[0],
         max_y: hi[1],
         max_z: hi[2],
+    }
+}
+
+// ---------------------------------------------------------------------
+// The SOLID-PAIR door
+// ---------------------------------------------------------------------
+
+/// A pair of SOLIDS the certificate could not separate: their padded
+/// face boxes meet, so this body is not provably a disjoint union of
+/// those two solids.
+///
+/// Keys are the body's own, and a producer of these orders them by the
+/// body's solid-arena order (D9) so a report does not depend on
+/// iteration luck.
+///
+/// **Not a claim that the solids overlap.** Like [`PlacementsMeet`],
+/// this is the failure of a SUFFICIENT test: two solids that merely
+/// touch, and two that interpenetrate, both land here, and so does a
+/// disjoint pair whose boxes happen to interpenetrate. What it denies
+/// is the certificate, and denying the certificate is the honest
+/// output — the module's opening contract, read at solid granularity.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SolidsMeet {
+    /// The earlier solid in arena order.
+    pub a: SolidKey,
+    /// The later solid in arena order.
+    pub b: SolidKey,
+}
+
+/// One solid's separation machinery: its padded face boxes, their hull,
+/// and the tree over them.
+#[derive(Debug, Clone)]
+struct SolidBoxes {
+    /// The padded per-face boxes, in this solid's own face order.
+    boxes: Vec<Aabb>,
+    /// The hull of every box: the pair prefilter's operand.
+    hull: Aabb,
+    /// The tree over `boxes`.
+    tree: Bvh,
+}
+
+/// **Certified separation of the solids of ONE body** — the
+/// multi-solid sibling of [`Separation`], for a gather that has
+/// already happened.
+///
+/// [`Separation`] answers "can these N placements of one prototype
+/// touch", before a graft, in the prototype's frame. This answers "can
+/// these two solids of one body touch", after it, in the body's own
+/// frame — so there is no affine image step and no `Bounds` bracketing
+/// to be conservative about: the boxes are compared where they were
+/// built. Everything else is the same door, and deliberately so — the
+/// same [`face_box`] rule, the same pad, the same reading of a poison
+/// box (overlaps everything, so it refuses rather than certifies), the
+/// same sufficient-not-necessary contract.
+///
+/// # Why this exists
+///
+/// [`crate::graft_disjoint_all_keyed`] asserts nothing about its
+/// operands, so every caller owes an establishment of disjointness.
+/// The recipe layer's group boolean discharges it with [`Separation`].
+/// The document layer's product gather — which grafts one body per
+/// product ROOT — had no establishment at all, so a document whose
+/// roots denote overlapping solids gathered them into a product that
+/// counted the same material twice and said nothing. This is that
+/// layer's establishment, and `editor_core`'s separation check is its
+/// consumer.
+#[derive(Debug, Clone)]
+pub struct SolidSeparation {
+    /// Per-solid machinery, in the body's solid-arena order.
+    solids: Vec<(SolidKey, SolidBoxes)>,
+    /// Position in `solids` for each key, so a pair query is a lookup
+    /// rather than a scan.
+    index: slotmap::SecondaryMap<SolidKey, usize>,
+}
+
+impl SolidSeparation {
+    /// Builds every solid's boxes and tree, once.
+    ///
+    /// # Errors
+    ///
+    /// [`BooleanError`] — the box builder's own corruption refusals (a
+    /// face whose loop is unwalkable is not a body), a shell or face
+    /// the body cannot resolve, and `ClassificationInvariant` when the
+    /// ambient band is unusable.
+    pub fn of<T: Decide + Bounds>(body: &Body<T>, tol: Tol) -> Result<Self, BooleanError> {
+        let band = Band::linear(tol).map_err(|_| BooleanError::ClassificationInvariant {
+            what: "solid separation: the ambient tolerance band is unusable",
+        })?;
+        let pad = sweep_pad(band);
+        let mut solids = Vec::new();
+        let mut index = slotmap::SecondaryMap::new();
+        for (key, solid) in body.solids() {
+            let mut boxes = Vec::new();
+            for &shell_key in &solid.shells {
+                let shell =
+                    body.get_shell(shell_key)
+                        .ok_or(BooleanError::ClassificationInvariant {
+                            what: "solid separation: a solid names a shell the body lost",
+                        })?;
+                for &face in &shell.faces {
+                    boxes.push(face_box(body, face, pad)?);
+                }
+            }
+            // A face-less solid encloses nothing, and the hull of
+            // nothing is poison — which overlaps everything, so such a
+            // solid is never certified against anything. That is the
+            // fail-loud direction: a solid the box rule cannot describe
+            // must not read as separated from its neighbours.
+            let hull = boxes
+                .iter()
+                .copied()
+                .reduce(|a, b| a.hull(&b))
+                .unwrap_or_else(Aabb::poison);
+            let tree = Bvh::build(&boxes);
+            index.insert(key, solids.len());
+            solids.push((key, SolidBoxes { boxes, hull, tree }));
+        }
+        Ok(Self { solids, index })
+    }
+
+    /// The solids this was built over, in arena order — the order a
+    /// caller should enumerate pairs in to keep its report
+    /// deterministic (D9).
+    pub fn keys(&self) -> impl Iterator<Item = SolidKey> + '_ {
+        self.solids.iter().map(|(k, _)| *k)
+    }
+
+    /// Certifies that solids `a` and `b` cannot touch.
+    ///
+    /// `Ok(())` is the certificate. `Err(SolidsMeet)` is the typed
+    /// denial — see [`SolidsMeet`] for what it does and does not claim.
+    /// The returned pair is ordered by arena position, so it does not
+    /// depend on the order the arguments were passed in.
+    ///
+    /// A key this was not built over cannot be certified against
+    /// anything: it denies, naming the pair as given. A solid compared
+    /// against itself denies too — a solid is not disjoint from itself,
+    /// and answering `Ok` there would let a caller's self-pair silently
+    /// read as a certificate.
+    ///
+    /// # Errors
+    ///
+    /// [`SolidsMeet`] — see above.
+    pub fn certify(&self, a: SolidKey, b: SolidKey) -> Result<(), SolidsMeet> {
+        let (Some(&ia), Some(&ib)) = (self.index.get(a), self.index.get(b)) else {
+            return Err(SolidsMeet { a, b });
+        };
+        let (lo, hi) = if ia <= ib { (ia, ib) } else { (ib, ia) };
+        let pair = SolidsMeet {
+            a: self.solids[lo].0,
+            b: self.solids[hi].0,
+        };
+        if lo == hi {
+            return Err(pair);
+        }
+        let (x, y) = (&self.solids[lo].1, &self.solids[hi].1);
+        if !x.hull.overlaps(&y.hull) {
+            return Ok(());
+        }
+        // The hulls meet, so descend to faces. An empty box list makes
+        // the hull poison, which the prefilter above could not have
+        // cleared — so reaching here with no boxes is the poison case
+        // and it denies, rather than falling through the loop as a
+        // vacuous certificate.
+        if x.boxes.is_empty() || y.boxes.is_empty() {
+            return Err(pair);
+        }
+        for b in &x.boxes {
+            if !y.tree.overlapping(b).is_empty() {
+                return Err(pair);
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Which solid each face and each vertex of a body belongs to.
+///
+/// The multi-solid companion to [`SolidSeparation`]: that door decides
+/// whether two solids can touch, this one says which solid an entity
+/// is part of, so a caller holding entity-keyed records (declared
+/// contacts, a picked face) can ask its question at solid
+/// granularity.
+///
+/// Built from the STORED back-pointers — a half-edge names its loop, a
+/// loop its face, a face its shell, a shell its solid — every one of
+/// which tier 1 validates. So this is a read of structure and never a
+/// geometric decision: no tolerance enters, and a body that passes
+/// tier 1 has a total map.
+#[derive(Debug, Clone, Default)]
+pub struct SolidOwners {
+    faces: slotmap::SecondaryMap<crate::entity::FaceKey, SolidKey>,
+    vertices: slotmap::SecondaryMap<crate::entity::VertexKey, SolidKey>,
+}
+
+impl SolidOwners {
+    /// Builds the map in one pass over the shells and one over the
+    /// half-edge arena.
+    ///
+    /// An entity whose back-pointer chain does not resolve is simply
+    /// absent, never guessed at: the map is a lookup, and a caller that
+    /// gets `None` learns that this body does not place the entity,
+    /// which is a fact it can act on.
+    pub fn of<T: geom_core::Real>(body: &Body<T>) -> Self {
+        let mut faces = slotmap::SecondaryMap::new();
+        let mut vertices = slotmap::SecondaryMap::new();
+        for (solid_key, solid) in body.solids() {
+            for &shell_key in &solid.shells {
+                let Some(shell) = body.get_shell(shell_key) else {
+                    continue;
+                };
+                for &face in &shell.faces {
+                    faces.insert(face, solid_key);
+                }
+            }
+        }
+        for (_, he) in body.half_edges() {
+            let Some(r#loop) = body.get_loop(he.parent_loop) else {
+                continue;
+            };
+            let Some(&solid) = faces.get(r#loop.face) else {
+                continue;
+            };
+            vertices.insert(he.start, solid);
+        }
+        Self { faces, vertices }
+    }
+
+    /// The solid this face belongs to.
+    pub fn face(&self, face: crate::entity::FaceKey) -> Option<SolidKey> {
+        self.faces.get(face).copied()
+    }
+
+    /// The solid this vertex belongs to.
+    pub fn vertex(&self, vertex: crate::entity::VertexKey) -> Option<SolidKey> {
+        self.vertices.get(vertex).copied()
     }
 }

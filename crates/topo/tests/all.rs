@@ -153,6 +153,8 @@ mod rim_dim_boolean_twins;
 mod rim_dim_review_probes;
 #[path = "shell_roles.rs"]
 mod shell_roles;
+#[path = "solid_separation.rs"]
+mod solid_separation;
 #[path = "void_door.rs"]
 mod void_door;
 

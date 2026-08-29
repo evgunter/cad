@@ -337,3 +337,159 @@ fn a_findings_attribution_resolves_to_its_subject() {
     // resolves to None, not to a wrong body.
     assert!(subject_body(&ev, finding.root, 7).is_none());
 }
+
+// ---------------------------------------------------------------------
+// The separation resident
+// ---------------------------------------------------------------------
+//
+// Claims pinned below:
+// - two roots occupying the same space are ONE finding naming BOTH, and
+//   the same two roots moved apart are clean — the resident's whole
+//   subject, and the diefillet gallery bug that motivated it;
+// - roots that merely TOUCH are reported too: the certificate is
+//   sufficient, not necessary, and the finding says "not certifiably
+//   disjoint", never "these overlap";
+// - one root's own multi-solid body is NOT this resident's subject
+//   (the gather did not put those solids together);
+// - `Off` is visibly skipped, independently of the other resident;
+// - `Error` refuses at `enforce_checks` and nowhere else;
+// - the report is deterministic across runs.
+
+/// Two slabs as two SEPARATE product roots (no boolean joining them),
+/// `b` centered at `cx`. The gather lists both as sinks, which is
+/// exactly the shape a recipe grows when a feature is left dangling.
+fn two_roots(cx: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+    let doc = ProfileDoc::empty_derived("dsc-checks-two-roots", Tol::witness());
+    let (doc, a) = slab(doc, 0.0, 0.5, 0.0, 1.0);
+    let (doc, b) = slab(doc, cx, 0.5, 0.0, 1.0);
+    (doc, a, b)
+}
+
+#[test]
+fn overlapping_roots_are_one_finding_naming_both() {
+    // Concentric: the two roots are the same cube twice over, which is
+    // the die's blank-over-composed shape in miniature.
+    let (doc, a, b) = two_roots(0.0);
+    let report = checks(&doc, &ChecksConfig::default());
+    assert_eq!(report.skipped, Vec::<CheckId>::new());
+    assert_eq!(
+        report.findings,
+        vec![CheckFinding {
+            check: CheckId::Separation,
+            root: a,
+            output_ix: 0,
+            evidence: CheckEvidence::NotSeparated {
+                other_root: b,
+                other_output: 0,
+            },
+        }]
+    );
+    // The finding names both roots in its own sentence, so a reader
+    // never has to consult the attribution separately to know what it
+    // is about.
+    let rendered = report.findings[0].to_string();
+    assert!(rendered.contains(&format!("root {}", a.0)), "{rendered}");
+    assert!(rendered.contains(&format!("root {}", b.0)), "{rendered}");
+    // And it denies the CERTIFICATE — it never claims the two overlap,
+    // which the boxes do not decide.
+    assert!(rendered.contains("not certifiably disjoint"), "{rendered}");
+}
+
+#[test]
+fn roots_moved_apart_are_clean() {
+    // Same two roots, far enough apart that the padded face boxes
+    // cannot meet: the certificate is granted and nothing is reported.
+    let (doc, _, _) = two_roots(3.0);
+    let report = checks(&doc, &ChecksConfig::default());
+    assert_eq!(report.findings, Vec::new());
+    assert_eq!(report.skipped, Vec::<CheckId>::new());
+}
+
+#[test]
+fn touching_roots_are_reported_as_uncertified_not_as_overlapping() {
+    // Face-to-face at x = 0.5: disjoint interiors, shared boundary.
+    // The box rule cannot separate them and says so — the
+    // sufficient-not-necessary contract, visible.
+    let (doc, a, b) = two_roots(1.0);
+    let report = checks(&doc, &ChecksConfig::default());
+    assert_eq!(
+        report.findings,
+        vec![CheckFinding {
+            check: CheckId::Separation,
+            root: a,
+            output_ix: 0,
+            evidence: CheckEvidence::NotSeparated {
+                other_root: b,
+                other_output: 0,
+            },
+        }]
+    );
+}
+
+#[test]
+fn one_roots_own_disjoint_body_is_not_this_residents_subject() {
+    // `disjoint_union` is ONE root carrying two solids. The gather did
+    // not put them together, so the separation resident says nothing
+    // about them — only the connectedness resident does.
+    let (doc, _) = disjoint_union();
+    let report = checks(&doc, &ChecksConfig::default());
+    assert!(
+        report
+            .findings
+            .iter()
+            .all(|f| f.check == CheckId::Connectedness),
+        "{report}"
+    );
+}
+
+#[test]
+fn separation_off_is_visibly_skipped_and_independent() {
+    let (doc, _, _) = two_roots(0.0);
+    let cfg = ChecksConfig {
+        separation: Severity::Off,
+        ..ChecksConfig::default()
+    };
+    let report = checks(&doc, &cfg);
+    assert_eq!(report.skipped, vec![CheckId::Separation]);
+    assert_eq!(report.findings, Vec::new());
+
+    // The other direction: turning connectedness off leaves the
+    // separation resident running. Before this resident existed the
+    // dispatch returned early on a single `Off`, which would have
+    // silently taken the second one with it.
+    let cfg = ChecksConfig {
+        connectedness: Severity::Off,
+        ..ChecksConfig::default()
+    };
+    let report = checks(&doc, &cfg);
+    assert_eq!(report.skipped, vec![CheckId::Connectedness]);
+    assert_eq!(report.findings.len(), 1);
+    assert_eq!(report.findings[0].check, CheckId::Separation);
+}
+
+#[test]
+fn separation_severity_changes_only_what_is_accepted() {
+    let (doc, _, _) = two_roots(0.0);
+    let warn = ChecksConfig::default();
+    let error = ChecksConfig {
+        separation: Severity::Error,
+        ..ChecksConfig::default()
+    };
+    let (a, b) = (checks(&doc, &warn), checks(&doc, &error));
+    // Identical reports: severity is a position on what is ACCEPTED,
+    // never on what is found.
+    assert_eq!(a, b);
+    assert!(enforce_checks(&a, &warn).is_ok());
+    assert!(enforce_checks(&b, &error).is_err());
+}
+
+#[test]
+fn separation_findings_are_certified_and_deterministic() {
+    // The honesty label: what this resident stays SILENT about is a
+    // theorem (the box rule is a sound superset), so it is not a
+    // heuristic dressed up.
+    assert_eq!(CheckId::Separation.kind(), CheckKind::Certified);
+    let (doc, _, _) = two_roots(0.0);
+    let cfg = ChecksConfig::default();
+    assert_eq!(checks(&doc, &cfg), checks(&doc, &cfg));
+}

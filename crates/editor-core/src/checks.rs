@@ -32,7 +32,7 @@ use std::sync::Arc;
 
 use core::fmt;
 
-use geom_core::{BandError, Decide, Tol};
+use geom_core::{BandError, Bounds, Decide, Tol};
 use topo::{Body, PropsQuadLane, ShellClassifyError, ShellRole, classify_shells};
 
 use crate::doc::Doc;
@@ -49,6 +49,16 @@ pub enum CheckId {
     /// counted as `Outer` shells ([`topo::classify_shells`]); internal
     /// voids are boundary, not components, and are never counted.
     Connectedness,
+    /// The product-separation check: two solids the gather contributed
+    /// from DIFFERENT root subjects that are not certifiably disjoint
+    /// ([`topo::SolidSeparation`]).
+    ///
+    /// The gather gathers, it does not fuse — a product's solids are
+    /// disjoint solids of one aggregate, and
+    /// [`topo::graft_disjoint_all_keyed`] asserts nothing about that,
+    /// so every caller owes an establishment of disjointness. This is
+    /// the document layer's, run as a report.
+    Separation,
 }
 
 impl CheckId {
@@ -61,6 +71,14 @@ impl CheckId {
     pub fn kind(self) -> CheckKind {
         match self {
             Self::Connectedness => CheckKind::Certified,
+            // Certified in the direction it stays SILENT: a pair this
+            // check does not report is one the box rule PROVED apart,
+            // and the box rule is a sound superset for every surface
+            // kind. What it reports is the denial of that certificate,
+            // which is a fact about the certificate and is exactly what
+            // the finding says — never "these two overlap", which the
+            // boxes do not decide. See `topo::SolidsMeet`.
+            Self::Separation => CheckKind::Certified,
         }
     }
 }
@@ -69,6 +87,7 @@ impl fmt::Display for CheckId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Connectedness => f.write_str("connectedness"),
+            Self::Separation => f.write_str("separation"),
         }
     }
 }
@@ -114,6 +133,12 @@ pub struct ChecksConfig {
     /// resident's acknowledgment mechanism: a deliberately disjoint
     /// body is EXPECTED disjoint, stated as data, and stays clean.
     pub expected_components: BTreeMap<(RecipeNodeId, u32), u32>,
+    /// [`CheckId::Separation`]'s severity. Default `Warn`: a product
+    /// whose roots interpenetrate is very likely a mistake, but
+    /// interference fits are legitimate documents (C6) and a viewer
+    /// must keep drawing one, so the finding reports and the caller
+    /// decides where — if anywhere — to gate on it.
+    pub separation: Severity,
 }
 
 impl Default for ChecksConfig {
@@ -121,6 +146,7 @@ impl Default for ChecksConfig {
         Self {
             connectedness: Severity::Warn,
             expected_components: BTreeMap::new(),
+            separation: Severity::Warn,
         }
     }
 }
@@ -131,6 +157,7 @@ impl ChecksConfig {
     pub fn severity(&self, check: CheckId) -> Severity {
         match check {
             CheckId::Connectedness => self.connectedness,
+            CheckId::Separation => self.separation,
         }
     }
 }
@@ -173,6 +200,35 @@ pub enum CheckEvidence {
     StaleExpectation {
         /// The entry's stated component count.
         expected: u32,
+    },
+    /// Two solids the gather contributed from different root subjects
+    /// could not be certified apart. The finding's own `(root,
+    /// output_ix)` is the FIRST subject in gather order; this names the
+    /// second.
+    ///
+    /// Not a claim that the two overlap — see [`topo::SolidsMeet`].
+    /// What it denies is the certificate, and a pair that merely
+    /// touches lands here too.
+    NotSeparated {
+        /// The counterpart root.
+        other_root: RecipeNodeId,
+        /// The counterpart root's output-body index.
+        other_output: u32,
+    },
+    /// The separation machinery could not be built over the product at
+    /// all — the box builder's typed refusal. The check has no verdict
+    /// for ANY pair, which is a finding, never a silent pass (F6).
+    SeparationUnavailable {
+        /// The kernel's own refusal, rendered.
+        ///
+        /// The message and not the value because `topo::BooleanError`
+        /// is neither `Clone` nor `PartialEq` and a report is both.
+        /// The payload's own `Display` is the vocabulary this module
+        /// forwards (the one-story rule at `crate::finding`), so
+        /// nothing about what the caller reads changes; what is lost
+        /// is matching on the arm, which no consumer of an advisory
+        /// report does.
+        reason: String,
     },
 }
 
@@ -248,6 +304,20 @@ impl crate::finding::Finding for CheckFinding {
                  no root output; remove the ChecksConfig::expected_components entry or \
                  fix the root"
             ),
+            CheckEvidence::NotSeparated {
+                other_root,
+                other_output,
+            } => write!(
+                f,
+                "not certifiably disjoint from root {} output {other_output}: the \
+                 product gathers both, so any space they share is gathered twice",
+                other_root.0
+            ),
+            CheckEvidence::SeparationUnavailable { reason } => write!(
+                f,
+                "no pair of this product's solids could be checked for separation: \
+                 {reason}"
+            ),
         }
     }
 
@@ -263,7 +333,16 @@ impl crate::finding::Finding for CheckFinding {
                  orientation read; thicken or remove the degenerate geometry, or lower \
                  the tolerance"
             }
-            CheckEvidence::Unsupported { .. } | CheckEvidence::StaleExpectation { .. } => "",
+            CheckEvidence::NotSeparated { .. } => {
+                "usually a recipe that grew a second sink by accident: a feature left \
+                 dangling when its consumer was rewired is still a product root, so \
+                 delete it or feed it into the root downstream of it. Two roots meant \
+                 to TOUCH want a mate, whose declaration the assembly door certifies; \
+                 two meant to INTERPENETRATE want a boolean, not a gather"
+            }
+            CheckEvidence::Unsupported { .. }
+            | CheckEvidence::StaleExpectation { .. }
+            | CheckEvidence::SeparationUnavailable { .. } => "",
         }
     }
 }
@@ -322,6 +401,16 @@ pub enum ChecksError {
         /// The band construction failure.
         error: BandError,
     },
+    /// The document's roots did not gather into a product, so the
+    /// separation resident has no subject. The gather's own refusal,
+    /// forwarded — this layer has no second opinion about what a
+    /// product is.
+    Product {
+        /// The gather's own refusal, rendered — see
+        /// [`CheckEvidence::SeparationUnavailable`] for why the message
+        /// and not the value.
+        reason: String,
+    },
 }
 
 impl fmt::Display for ChecksError {
@@ -334,6 +423,7 @@ impl fmt::Display for ChecksError {
                 node.0
             ),
             Self::Band { error } => write!(f, "checks: {error}"),
+            Self::Product { reason } => write!(f, "checks: {reason}"),
         }
     }
 }
@@ -393,7 +483,7 @@ impl core::error::Error for CheckRefusal {}
 /// [`ChecksError`] — a root without a value in `ev`, or a band the
 /// tolerance cannot form. These mean the checks could not run at all;
 /// a check that ran and disagreed is a FINDING, not an error.
-pub fn run_checks<P, T: Decide + PropsQuadLane>(
+pub fn run_checks<P, T: Decide + PropsQuadLane + Bounds>(
     doc: &Doc<P>,
     ev: &Evaluation<T>,
     cfg: &ChecksConfig,
@@ -402,8 +492,27 @@ pub fn run_checks<P, T: Decide + PropsQuadLane>(
     let mut report = ChecksReport::default();
     if cfg.severity(CheckId::Connectedness) == Severity::Off {
         report.skipped.push(CheckId::Connectedness);
-        return Ok(report);
+    } else {
+        connectedness(doc, ev, cfg, tol, &mut report)?;
     }
+    if cfg.severity(CheckId::Separation) == Severity::Off {
+        report.skipped.push(CheckId::Separation);
+    } else {
+        separation(doc, ev, tol, &mut report)?;
+    }
+    Ok(report)
+}
+
+/// The connectedness resident's own pass (I1(0b)) — [`run_checks`]'s
+/// body before the registry grew a second resident, moved out
+/// unchanged so each resident is independently `Off`-able.
+fn connectedness<P, T: Decide + PropsQuadLane>(
+    doc: &Doc<P>,
+    ev: &Evaluation<T>,
+    cfg: &ChecksConfig,
+    tol: Tol,
+    report: &mut ChecksReport,
+) -> Result<(), ChecksError> {
     // Entries not yet consumed by a subject; whatever remains after
     // the walk is stale (an expectation with no subject).
     let mut unconsumed = cfg.expected_components.clone();
@@ -477,7 +586,165 @@ pub fn run_checks<P, T: Decide + PropsQuadLane>(
             evidence: CheckEvidence::StaleExpectation { expected },
         });
     }
-    Ok(report)
+    Ok(())
+}
+
+/// The separation resident's pass: every pair of gathered solids that
+/// came from DIFFERENT root subjects, held to the kernel's box-level
+/// separation certificate.
+///
+/// # What "different subjects" excludes, and why
+///
+/// Two solids of ONE root output are that node's own body, validated
+/// on its own by the gather (`product`'s per-source tier-3 pass) and
+/// the responsibility of whatever constructed it — a pattern's
+/// instances, a multi-solid import. The gather did not put them
+/// together, so their relationship is not the gather's to answer for.
+/// What the gather DID do is place different roots' bodies in one
+/// aggregate without establishing that they may share the space, and
+/// that is exactly the pair set this walks.
+///
+/// # Determinism (D9)
+///
+/// `solid_roots` is in gather order, which is root-list order then
+/// output order then the source body's own solid order. The walk is
+/// `i < j` over that list, so the findings come out in a stable order
+/// that does not depend on arena iteration luck.
+///
+/// # Cost, and the shape it would grow if it mattered
+///
+/// One box per face, one small tree per solid, then a hull test per
+/// cross-subject pair — quadratic in the SOLID count, not in the
+/// entity count, which is the whole reason this resident exists
+/// instead of running the tier-3′ census over the aggregate. Measured
+/// on the heatsink's fin pattern (`docs/PERF-PLAN.md`'s discipline:
+/// brute force until a measurement says otherwise), the whole
+/// registry costs ~28 ms at 161 solids / 966 faces where the census
+/// costs ~1.1 s, and the gather rather than the pair walk dominates.
+/// A document with solids in the thousands would make the pair walk
+/// the term that matters, and the fix is already sitting here — one
+/// `Bvh` over the per-solid hulls, queried instead of the `S²` loop.
+/// Not built, because nothing has measured it as the bottleneck.
+///
+/// # Declared contact suppresses
+///
+/// A pair whose contact the product DECLARES is not reported: a mate
+/// that says two faces rest on each other has said the solids touch,
+/// and the assembly door ([`crate::assemble`]) is where that
+/// declaration is certified against the geometry. Reporting it here
+/// too would make a correctly-mated assembly noisy about the thing it
+/// got right. The suppression reads the declarations only — it never
+/// blesses a contact from discovery (F1).
+fn separation<P, T: Decide + PropsQuadLane + Bounds>(
+    doc: &Doc<P>,
+    ev: &Evaluation<T>,
+    tol: Tol,
+    report: &mut ChecksReport,
+) -> Result<(), ChecksError> {
+    let gathered =
+        product::product_recorded(doc, ev, tol).map_err(|source| ChecksError::Product {
+            reason: source.to_string(),
+        })?;
+    // Fewer than two gathered solids cannot make a pair.
+    if gathered.solid_roots.len() < 2 {
+        return Ok(());
+    }
+    let boxes = match topo::SolidSeparation::of(&gathered.body, tol) {
+        Ok(boxes) => boxes,
+        Err(source) => {
+            // No pair has a verdict. One finding against the first
+            // subject says so rather than a silent clean report (F6).
+            let first = gathered.solid_roots[0];
+            report.findings.push(CheckFinding {
+                check: CheckId::Separation,
+                root: first.node,
+                output_ix: first.output,
+                evidence: CheckEvidence::SeparationUnavailable {
+                    reason: source.to_string(),
+                },
+            });
+            return Ok(());
+        }
+    };
+    let declared = declared_pairs(doc, ev, &gathered);
+    for (j, later) in gathered.solid_roots.iter().enumerate() {
+        for earlier in &gathered.solid_roots[..j] {
+            if (earlier.node, earlier.output) == (later.node, later.output) {
+                continue;
+            }
+            if boxes.certify(earlier.solid, later.solid).is_ok() {
+                continue;
+            }
+            let pair = if earlier.solid <= later.solid {
+                (earlier.solid, later.solid)
+            } else {
+                (later.solid, earlier.solid)
+            };
+            if declared.contains(&pair) {
+                continue;
+            }
+            report.findings.push(CheckFinding {
+                check: CheckId::Separation,
+                root: earlier.node,
+                output_ix: earlier.output,
+                evidence: CheckEvidence::NotSeparated {
+                    other_root: later.node,
+                    other_output: later.output,
+                },
+            });
+        }
+    }
+    Ok(())
+}
+
+/// Which solid pairs are DECLARED to touch, keyed as an ordered pair
+/// of solid keys.
+///
+/// Every record kind that names two entities contributes the pair of
+/// solids those entities live in. A record whose entity the aggregate
+/// cannot resolve contributes nothing — the strict direction: an
+/// unresolvable declaration suppresses no finding, so a broken record
+/// can only make this check louder, never quieter.
+fn declared_pairs<P, T: Decide>(
+    doc: &Doc<P>,
+    ev: &Evaluation<T>,
+    gathered: &product::Product<T>,
+) -> std::collections::BTreeSet<(topo::SolidKey, topo::SolidKey)> {
+    // The gather carries only the records that rode UP from its source
+    // bodies. A mate's declaration is minted by the assembly door,
+    // after the gather, so asking `gathered.contacts` alone would miss
+    // exactly the documents that got this right and report a
+    // correctly-mated assembly as a finding. Mint into a copy, through
+    // the same door `assemble` uses — one implementation of what a
+    // mate declares, never a second opinion here.
+    //
+    // A refusal to mint suppresses nothing (the `unwrap_or_default`):
+    // the strict direction, so a broken declaration can only make this
+    // check louder, never quieter.
+    let mut contacts = gathered.contacts.clone();
+    let _ = crate::assembly::mint(doc, ev, &gathered.names, &mut contacts);
+    let owner = topo::SolidOwners::of(&gathered.body);
+    let mut out = std::collections::BTreeSet::new();
+    let mut note = |a: Option<topo::SolidKey>, b: Option<topo::SolidKey>| {
+        if let (Some(a), Some(b)) = (a, b)
+            && a != b
+        {
+            out.insert(if a <= b { (a, b) } else { (b, a) });
+        }
+    };
+    for c in &contacts.vv {
+        note(owner.vertex(c.a), owner.vertex(c.b));
+    }
+    for c in contacts.a_on_b.iter().chain(&contacts.b_on_a) {
+        note(owner.vertex(c.vertex), owner.face(c.face));
+    }
+    for c in &contacts.curves {
+        note(owner.face(c.face_a), owner.face(c.face_b));
+    }
+    for c in &contacts.patches {
+        note(owner.face(c.face_a), owner.face(c.face_b));
+    }
+    out
 }
 
 /// The door from a finding's attribution back to its subject: the body

@@ -1785,3 +1785,51 @@ fn the_gather_refusals_render_prose_never_debug_guts() {
         }
     }
 }
+
+/// INVARIANT: the separation resident (`CheckId::Separation`) is
+/// SILENT on a correctly-mated assembly, and it is the DECLARATION
+/// that silences it — not the geometry.
+///
+/// The two halves matter together. A seated pair TOUCHES, so the
+/// box-level certificate is withheld: asked directly, the kernel door
+/// denies the pair. What makes the check say nothing anyway is that
+/// the mate declared the contact, and the resident mints through the
+/// same door `assemble` does before asking what is declared. Without
+/// that mint the resident would read the gather's own records — which
+/// are empty here, as `row2_a_solved_rest_mate_mints_its_declaration`
+/// pins — and report every correctly-mated assembly in the corpus.
+#[test]
+fn a_mated_assembly_is_silent_and_the_declaration_is_why() {
+    let (doc, _ids, _mate, store) = stacked("asm-r2b-separation", 1.0);
+    let ev = run(&doc, &opts(store));
+    let product = product_recorded(&doc, &ev, Tol::witness()).expect("gathers");
+
+    // The geometry alone does NOT certify: the two instances are
+    // seated flush, so their padded boxes meet and the kernel door
+    // denies the pair. This is the half that would make the resident
+    // fire if the declaration were not consulted.
+    assert_eq!(product.solid_roots.len(), 2, "two placed solids");
+    let sep = topo::SolidSeparation::of(&product.body, Tol::witness()).expect("boxes");
+    let (a, b) = (product.solid_roots[0].solid, product.solid_roots[1].solid);
+    assert!(
+        sep.certify(a, b).is_err(),
+        "a flush-seated pair is not box-separable — if this ever passes, \
+         the row below stops proving anything about declarations"
+    );
+
+    // And the resident is silent anyway, because the mate said so.
+    let report = editor_core::run_checks(
+        &doc,
+        &ev,
+        &editor_core::ChecksConfig::default(),
+        Tol::witness(),
+    )
+    .expect("checks run over a completed evaluation");
+    assert!(
+        report
+            .findings
+            .iter()
+            .all(|f| f.check != editor_core::CheckId::Separation),
+        "a mated assembly must not be reported as unseparated: {report}"
+    );
+}
