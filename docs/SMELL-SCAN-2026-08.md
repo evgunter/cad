@@ -4403,28 +4403,33 @@ and remaps as it goes, with no atomicity added anywhere in the diff.
 
 **Verdict:**
 
-## S73. The tessellation budget gate joins on the face ORDINAL — Track C's `C15` (issue #746)
+## S73. The budget gate's per-face join has no stable face identity to key on — Track K's `C15` (issue #746)
 
-On `tools/`, which is where the project's measure-don't-guess rule
-(`memories/tessellation-budget.md`) is implemented. Unstaffed; Track C's row
-`C15` and issue **#746**.
+On `tools/tess-lint`, whose per-face join is by face ORDINAL because the budget
+CSV carries no other per-face name — the ground where the project's
+measure-don't-guess rule (`memories/tessellation-budget.md`) is implemented.
 
-**The slack rule joins on a face ordinal that any geometry change
-re-keys.** `tools/tess-lint/src/lib.rs:451-460` keys per-face slack on
-`(scene, face_ordinal)`, the positional index into `mesh.patches`. Any
-change adding or removing a face renumbers every face after it, so
-surviving faces are compared against a *different* face's baseline row —
-a mis-join, not a measurement, in either direction. The `else { continue }`
-branch's comment (*"the scene's absence is already a Vanished
-finding"*) is false whenever the scene is present and only the ordinal
-moved; `Vanished` is scene-granular. The same path silently swallows a
-NURBS face that reroutes to a non-NURBS lane, which is the *"silent
-coverage loss reads as an improvement"* case `lib.rs:79-81` calls a
-finding rather than a footnote. No test covers scene-present-face-missing.
+**The mis-join is closed.** The join runs under a pointwise precondition over
+the columns no rule compares — `chart`, the sizing block's presence, the trim
+box, the whole-patch divisions — a disagreeing ordinal is announced with the
+column and both readings, and ordinals below it are still compared.
 
-*Line numbers are as found and have moved since; the join is `compare`'s
-`key` closure and the `else { continue }` arm below it, both marked at the
-site.*
+**What survives is what the CSV cannot express.** Two faces of one scene
+agreeing on every one of those columns and swapping ordinals are
+indistinguishable, and they are not rare: on the committed baseline that is
+**8 pairs — 16 of the 64 sized rows, across 6 of the 12 scenes carrying a sized
+face** (`lily_leaf_b` ×2, `lily_leaf_c` ×2, `lily_sepal_c`, `loft_prism`,
+`nonuniform_loft`, `s_duct`), each two walls of one body with identical trim box
+and identical divisions. The same count taken across all 1327 rows rather than
+the sized ones is **22,545**; the restriction doing the work is that an unsized
+swap costs the slack rule nothing. And among the sized rows **five of the eight
+identity entries are constant** — `chart` is `nurbs` on all 64 and the trim box
+is `0e0,1e0,0e0,1e0` on all 64 — so the pair actually separating them there is
+`nu`/`nv`. Corpus-wide the other entries do discriminate, which is what makes
+the reroute case real.
+
+Closing it needs a face identity in a column of the sweep's own: the
+producer-side row is `D201`.
 
 **Verdict:**
 
@@ -7518,7 +7523,7 @@ grows after dispatch. **This row needs a lane and does not have one.**
 > `docs/SMELL-{C,E,F,G,H,I}-LOG.md` are the execution record for six of the
 > nine. **A, B and D left no log and none is owed**; what they did is in their
 > merged PRs. The rulings the logged tracks made are cited from here by number
-> (`F-R11`, `H-R2`, `I-R8`, …) and are read there. **107 open items** are
+> (`F-R11`, `H-R2`, `I-R8`, …) and are read there. **108 open items** are
 > carried below, partitioned by file territory so that no two tracks edit one
 > file and no branch waits on, fences against, or re-derives another's scope.
 
@@ -7607,7 +7612,7 @@ its orchestrator stopped, and §C3 says a deferral that lands nowhere that
 executes is the failure this document keeps re-finding. **This section is the
 one register for all of it.**
 
-**107 open items, repartitioned into twelve tracks by FILE TERRITORY.** The
+**108 open items, repartitioned into twelve tracks by FILE TERRITORY.** The
 partition rule is the only one that matters here: **no two tracks may edit the
 same file**, so no branch waits on, fences against, or re-derives another's
 scope. Dependencies *inside* a track are its own orchestrator's to sequence —
@@ -7681,7 +7686,7 @@ re-scoped or re-argued by being moved.
 | Track | Territory (the fence) | Block | Items |
 |---|---|---|---|
 | **J** | `.github/workflows/`, `local-scripts/`, `scripts/doc-gate.sh`, `scripts/gates/{gate-roster,probe-suite-census}.sh`, **every `*.py` in the repo**, root `Cargo.toml`'s `[workspace.lints]` | `D180`–`D199` / `S250`–`S269` | 4 |
-| **K** | `scripts/gates/` (everything J does not name), `tools/`, `docs/K-REPORT.md` | `D200`–`D219` / `S270`–`S289` | 12 |
+| **K** | `scripts/gates/` (everything J does not name), `tools/`, `docs/K-REPORT.md` | `D200`–`D219` / `S270`–`S289` | 13 |
 | **M** | `crates/geom-core/src/{real,ring_interval,dual,interval,k_stats}.rs`, `interval-transcendentals/`, `crates/bvh/` | `D220`–`D239` / `S290`–`S309` | 7 |
 | **N** | `crates/geom/src/`, `crates/geom-core/src/{spline/,linalg/}` | `D240`–`D259` / `S310`–`S329` | 7 |
 | **P** | `crates/topo/src/{euler.rs,euler_ring.rs,euler_kill.rs,split.rs,attach.rs,movefac.rs,revert.rs,live.rs,merge_faces.rs,seqgen.rs,validate.rs,review_d18.rs,review_d18_probes.rs,fixtures.rs}` | `D260`–`D279` / `S330`–`S349` | 8 |
@@ -7755,11 +7760,12 @@ a place where a reasonable reader would think the fence ambiguous:
 | **D109** | What the F3 sweep left open in `scripts/gates/` (S163) — four members, one row, because each is a disclosed blind spot of the same sweep | Track F |
 | **D64** | What the tessellation and K instruments still cannot see after F6 (S120, four members) — including a fallback inside a comparison having two sides | Track F |
 | **D105** | The split scan's constants can be guarded, on the continuous objective, which the cell count is not (S160) — `tools/tess-meter`. **Row announced in prose and never tabled; tabled here** | Track F |
-| **C15** | `tess-lint`'s budget gate joins baseline to fresh rows on the face ORDINAL, so a reorder compares two unrelated faces or drops one with no finding (#746) | Track C |
+| **C15** | The budget gate's per-face join has no stable face identity to key on. The mis-join is closed; what survives is the 8 same-shape face pairs the CSV cannot tell apart — 16 of 64 sized rows, where five of the eight identity columns are constant and only `nu`/`nv` separate them (`S73`). The producer-side half is `D201` (#746) | Track C |
 | **D114** | The recording scalar's wrapper property is checked by no test (S168) — greenness at `Probe` is asserted, bit-identity against f64 is not. **The differential test is this track's; a `geom-core/src` change it turns up is Track M's row** | Track F |
 | **D201** | **The budget CSV carries no stable face identity, and the producer throws one away.** `tools/tess-meter`'s `face_rows` holds a `topo::FaceKey` in `patch.face` and writes only `enumerate()`'s ordinal, so `tess-lint`'s join has nothing but the ordinal to key on and 8 same-shape face pairs stay indistinguishable — `S73`'s open half. A `FaceKey` is an allocation ordinal in disguise, so this is not a column rename: what a DURABLE per-face name would be reaches `crates/topo` and `demos/` and must be settled before the column is added. **The design question may want an issue rather than a lane** | `C15` residue |
 | **D202** | `tess_meter::face_rows`'s `nurbs: by_face.get(&patch.face).map(columns)` turns a MISSING measurement into *"this face is not on the sized lane"* — a silent miss reading as a lane fact, one level upstream of the join `C15` just fixed and the same shape | `C15` residue |
 | **D203** | **A per-column admissions table cannot state a cross-column invariant, and the class now has two instances filed nowhere together.** `tess-lint`'s `Admissible::Extent` documents that the trim box's own non-degeneracy (`u0 < u1`, `v0 < v1`) is beyond what its per-column table can say; `D200` was the same shape one crate over (`Band::new`'s `zero < escalate`, which `lint_csv` had to check in the harness voice because `Admissible::BandThreshold` is per column). Both instruments answer it the same way and neither says so at the other's site. The row is the **rule** — where a cross-column check belongs when the admission table is per column — not either instance | `C15` residue |
+| **D204** | **`tess-lint`'s `CHART_TAGS` is a gate input with no cross-root pin, and its asymmetry is undisclosed on the producing side.** `C15` made `chart` a precondition column, so the lint now polices a roster of the meter's tag vocabulary. A tag the meter **renames** is caught here and reads as drift, which is right. A tag the meter **adds** arrives as harness breakage on every row carrying it, and nothing in `tools/tess-meter` says so. `EXPECTED_HEADER` has the shape this wants — `tess-meter`'s `the_lints_expected_header_is_this_one` reaches into the lint's source with `include_str!` precisely to pin a constant across the cargo-root boundary without a dependency — and `CHART_TAGS` has no equivalent. The pin belongs on the meter's side, which is why `C15` could not write it | `C15` residue |
 
 ## Track M — the scalar and certification traits
 
