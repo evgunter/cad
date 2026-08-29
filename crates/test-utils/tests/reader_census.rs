@@ -1,19 +1,16 @@
 //! **The census of source-text guards, and the reason it is a test.**
 //!
-//! A guard that reads `.rs` text needs a Rust reader, and for most of
-//! this tree's history each one wrote its own: five in Rust, at
-//! whatever competence its author needed that day, plus an awk lexer
-//! under `scripts/gates/`. The count went 7 → 9 → 11 → 12 in a single
-//! session, each step a differently-*shaped* sweep rather than a
-//! deeper one, and then moved a fourth time by a lane LANDING a new
-//! reader while the finding was in review.
+//! A guard that reads `.rs` text needs a Rust reader, and each one used
+//! to write its own. **The population of such guards is not a list.**
+//! Four sweeps of it returned four different counts, none by looking
+//! harder in the same place, and the last of them moved because a lane
+//! LANDED a new reader while the sweep was being reviewed — so a fix
+//! that converts today's members and stops closes the smaller half.
 //!
-//! So the population is not a list, and a fix that converts today's
-//! members closes the smaller half. What closes the larger half is
-//! this: **every site that reads Rust source as text is enumerated
-//! here, and a new one reds this row until someone writes its line.**
-//! The next reader cannot arrive silently, because arriving is what
-//! this row detects.
+//! What closes the larger half is this row: **every site that reads
+//! Rust source as text is enumerated here, and a new one reds until
+//! someone writes its line.** The next reader cannot arrive silently,
+//! because arriving is what this row detects.
 //!
 //! # What a red here means
 //!
@@ -68,10 +65,12 @@ enum Disposition {
     Shared,
     /// The home itself.
     Home,
-    /// A hand-rolled Rust reader that has not been converted yet, with
-    /// the track that owns its file. **Every one of these is a defect
-    /// with an owner**, and the list only ever shrinks: a lane that
-    /// converts one deletes its line, and no lane may add one.
+    /// Reads Rust source through something other than
+    /// [`test_utils::source`] — a hand-rolled reader, or one of
+    /// `topo`'s two crate-private blankers — with the track that owns
+    /// its file. **Every one of these is a defect with an owner**, and
+    /// the list only ever shrinks: a lane that converts one deletes its
+    /// line, and no lane may add one.
     Unconverted(&'static str),
     /// Reads a language that is not Rust, so the Rust lexer is not what
     /// it wants. The named language is the claim.
