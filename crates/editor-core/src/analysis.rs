@@ -324,7 +324,7 @@ pub fn analyzed_box<P>(doc: &Doc<P>, policy: &AnalysisPolicy) -> AnalyzedBox {
 /// in it is not a narrower answer, it is a different question, and the
 /// evaluation service refuses it rather than silently evaluating at the
 /// nominals.
-pub trait AxisScalar: geom_core::Real + Sized {
+pub trait AxisScalar: geom_core::Real {
     /// The tightest enclosure of the offset span `[lo, hi]`, or `None`
     /// when this scalar cannot represent it.
     fn axis(lo: f64, hi: f64) -> Option<Self>;

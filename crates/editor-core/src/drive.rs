@@ -10,8 +10,8 @@
 //!
 //! # The leaf protocol, and what "certified" is allowed to mean
 //!
-//! A leaf replays the recipe at [`Interval`] over the leaf's own
-//! parameter environment (E8: the committed witness data verbatim; the
+//! A leaf replays the recipe at [`geom_core::Interval`] over the leaf's
+//! own parameter environment (E8: the committed witness verbatim; the
 //! profile lift GUIDED, so profile geometry is a function of the
 //! leaf's parameters and every consumed structure decision is
 //! re-verified there). It certifies when, and only when:
@@ -56,7 +56,7 @@
 //!
 //! # Read-only (E8)
 //!
-//! [`drive`] takes `&Doc` and returns a value. There is no `&mut` in
+//! [`drive()`] takes `&Doc` and returns a value. There is no `&mut` in
 //! its signature, no interior mutability on the path, and no
 //! re-witnessing however clean a certificate comes out: a document
 //! write is not something this API can express, which is a stronger
