@@ -139,9 +139,19 @@ existing margin shapes (`bool_plane_parallel`,
 assertion comparison, and it took ledger row F16 with the honest
 argument that E3 forecloses its own repair.
 
-Schema v16 (claimed by an explicit by-eye read of main's constant),
-populated goldens, prior-version refusal fixtures, load-door
-re-checks for both node kinds. The binding census closed with a
+Schema v17, populated goldens, prior-version refusal fixtures,
+load-door re-checks for both node kinds. The number MOVED at the fix
+pass's re-merge and that is worth recording, because it is the case
+this repo's ledger keeps warning about: this unit claimed v16 by an
+explicit by-eye read of main's constant and named LIB-G16's
+`Node::Chamfer` as a live rival for the same number, with the rule
+stated in advance as order of merge. LIB-G16 landed first
+(`a0427344`) and kept 16, so this unit took 17 and repaired what the
+rule says it owes — the ledger paragraph, the
+`assert_eq!(SCHEMA_VERSION, ..)` rows, the golden filename, and the
+`plate_param`, bench-corpus and `gallery_ring` fixtures. The
+constant itself merged CLEAN (both sides wrote `= 16`), which is
+exactly why the read is by eye and not by git. The binding census closed with a
 SPLIT disposition, which is this unit's own judgement: the READING
 door ships (`Value.measure` → `Measurement`, `Value.assertion` →
 `Verdict`, both readable off a document authored elsewhere), and the
@@ -161,7 +171,7 @@ than restated):
    rather than a `Declare` node id plus a pair index.
 3. The frozen golden carries no PRIMITIVE leaf (its document must
    evaluate green and its only well-known reference is a whole body);
-   the three primitive leaves are pinned by round trip in the v16
+   the three primitive leaves are pinned by round trip in the v17
    schema suite instead.
 
 **RETIRED — the "carrier as minted" deviation.** The first draft
@@ -189,6 +199,7 @@ normal, so its sign was a charting artifact — half the parallel pairs
 over two disjoint slabs read C5 "interference" with 2 m of air between
 them (the S10 sense bit is now folded in, as `carrier_eq`'s plane arm
 already did).
+
 ## M10-P MERGED (2026-08-29)
 
 The profile-parameter lift is in: sample #42, ordinal 502, block

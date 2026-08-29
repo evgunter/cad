@@ -618,6 +618,7 @@ pub fn payload_exprs<P>(node: &Node<P>) -> Option<Vec<&Expr>> {
         | Node::Loft { .. }
         | Node::Sweep { .. }
         | Node::Fillet { .. }
+        | Node::Chamfer { .. }
         | Node::Split { .. }
         | Node::Boolean { .. }
         | Node::Transform { .. }

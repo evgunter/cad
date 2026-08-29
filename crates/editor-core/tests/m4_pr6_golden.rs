@@ -310,7 +310,12 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
         &doc,
         &DocEdit::InsertNode {
             node: Node::Assertion {
-                measure: editor_core::RecipeNodeId(4),
+                // The `Measure` pushed immediately above. Ids in this
+                // document are positional, so a node inserted EARLIER
+                // shifts this one — the insert door catches that
+                // typed (`AssertionTarget`) rather than letting a
+                // golden freeze an assertion over the wrong node.
+                measure: editor_core::RecipeNodeId(7),
                 bound: Expr::literal(0.1, Dimension::Length).expect("finite"),
                 dir: editor_core::AssertionDir::AtLeast,
             },
