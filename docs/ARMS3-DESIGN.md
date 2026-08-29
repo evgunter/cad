@@ -72,13 +72,37 @@ including #319's own plane×sphere neck rim.
 
 **What shipped instead**: the tag and its substantive claim are
 unchanged (the vertex is not a corner; no run-out policy applies;
-`policy` is `None`). The recourse names the REQUEST rather than
+`policy` is `None`). The recourse named the REQUEST rather than
 promising the carve — *"request the rim whole — every arc the chart
 seam split it into — rather than a chain that stops at the seam,
 which is a chart artifact the surface is smooth through"* — and the
-missing door is filed as **#1022** and carried in the register's
-run-out row. That keeps the refusal true, which was the whole point
+missing door was filed as **#1022** and carried in the register's
+run-out row. That kept the refusal true, which was the whole point
 of A3-2.
+
+### Where that stands now (BLEND-1, #1022 closed)
+
+The missing door was built: the closed-rim annulus band accepts a
+MULTI-LINK closed chain whose links are one rim's arcs across chart
+seams, so the request the recourse names is CARVED. The sentence
+gained that half — and kept a hedge, by the same standard.
+
+**The standard, restated because it is what this section is for.**
+The tag's firing rule is pure INCIDENCE and never reads convexity,
+so it fires at a CONCAVE seam-split rim's vertex exactly as readily;
+the material-adding closed-rim band is unbuilt (**#1244**), so an
+unconditional promise would be false at those sites — the same
+defect shape this correction records, one door further on. The
+recourse therefore states the carve for the CONVEX side and names
+what a concave rim meets instead. A boolean-repaired pole-touching
+body is a second such boundary (**#1245**), recorded in the
+register's row rather than in the sentence, because the tag does not
+fire there at all (that rim's ends are trivalent).
+
+The rule this section stands for is unchanged and is what both
+hedges cost: **a recourse must be true at every site its tag can
+fire**, and narrowing the sentence is always available where
+widening the carve is not.
 
 ## A3-3 — the genuine mid-curve run-out is REAL, parked, and named
 
