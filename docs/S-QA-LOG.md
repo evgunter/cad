@@ -68,6 +68,20 @@ the program's own charter one level up: a cut surveyed at T is
 stale by T+1 in this repo, so every spec re-verifies its issue's
 premise against main at dispatch.
 
+## Seam: first dispatches (2026-08-29)
+
+QA-1 and QA-2 dispatched per the plan's pre-ratification decision:
+specs `docs/QA-1-SPEC.md` / `docs/QA-2-SPEC.md` on
+`qa/orchestrator` (6829ca82), lanes on `qa/1-silent-green` and
+`qa/2-matrix-speaks`, block **QA-B1 slots 1 and 2** (difficulty
+pre-logged S/M and S; the draw byte and arms are recorded at merge
+per the blinding rule). Both lanes are shell/python-shaped — no
+kernel builds expected, which is why two run concurrently within
+the disk budget. The opening PR (#1228) carries the Q1–Q3 rulings
+conversation; QA-3 waits on Q1, QA-2's `LANE=both` half on Q2,
+QA-5 on K/P/W coordination. #1102 closed at opening per unilateral
+decision 3.
+
 **Unilateral decisions at opening** (per the orchestration memory's
 log rule):
 
