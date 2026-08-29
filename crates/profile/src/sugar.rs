@@ -354,6 +354,29 @@ pub(crate) enum ArcTrimRefusal<T: Real> {
         /// The gate's margin |ρ| − least_lever, meters.
         margin: T,
     },
+    /// `fillet_enclosing_carrier` Negative: the requested radius demands
+    /// the **enclosing** tangency on this leg — its signed offset radius
+    /// ρ = R − σ·τ·r is negative, which is exactly σ·τ = +1 with r > R.
+    /// The only circle of radius `r` tangent to a radius-R carrier with
+    /// those senses contains that carrier whole, and the corner is a
+    /// point of the carrier, so the corner is strictly inside the blend
+    /// circle: the arc cannot touch the corner it would round. That is
+    /// not a fillet OF the corner, and `docs/ENCLOSING-TANGENCY-DESIGN.md`
+    /// rules the class permanently unreachable — so the demand refuses
+    /// here, before any candidate centre exists, rather than being ranked
+    /// away downstream by whichever gate happens to catch it.
+    EnclosesLegCarrier {
+        /// The leg whose carrier the requested radius would swallow.
+        leg: FilletLeg,
+        /// That leg's carrier radius R — the bound the recourse names: a
+        /// fillet of this corner needs r < R on this side.
+        carrier_radius: T,
+        /// Its signed offset radius ρ = R − σ·τ·r, the negative margin
+        /// the gate classified.
+        offset_radius: T,
+        /// The authored radius.
+        radius: T,
+    },
     /// A Negative `fillet_leg_fit` on a corner-side candidate: the
     /// radius pushes a tangent point off the far end of its leg.
     DoesNotFit {
@@ -390,7 +413,8 @@ pub(crate) enum ArcTrimRefusal<T: Real> {
 /// **One consumer, `path::arc_fillet`'s lowering**, which calls this
 /// ratified construction rather than carrying a second copy of it.
 ///
-/// Runs the arm gate, the turn gate, the offset-carrier intersection and
+/// Runs the arm gate, the turn gate, the enclosing-class gate, the
+/// offset-carrier intersection and
 /// the per-candidate reach/fit pass, in exactly the shipped order and
 /// with exactly the shipped `decide` sequence, and returns EVERY
 /// surviving candidate rather than one pick. The selection is the
@@ -447,6 +471,37 @@ pub(crate) fn arc_fillet_trims<T: Decide>(
             });
         }
     };
+
+    // (2b) the enclosing class, refused before it can be constructed.
+    // With σ decided, each circular leg's signed offset radius
+    // ρ = R − σ·τ·r is defined, and ρ < 0 says the requested radius
+    // demands a blend circle that SWALLOWS that leg's carrier: the
+    // corner lies on the carrier, so it lies strictly inside the blend
+    // circle, and the arc cannot touch the corner it was asked to round
+    // (`docs/ENCLOSING-TANGENCY-DESIGN.md`). No door serves that
+    // construction, so the demand refuses here rather than downstream —
+    // where the honest answer would arrive dressed as a disjoint-offset,
+    // no-corner-side or anchor-fit refusal depending only on how far past
+    // the bound the radius sits.
+    //
+    // A Zero classification is r within the band of that leg's carrier
+    // radius: the collapsed lever, which `fillet_offset_lever` refuses in
+    // its own currency below, and not this gate's to claim.
+    for leg in [&leg_in, &leg_out] {
+        let Some(arc) = leg.arc else { continue };
+        let rho = offset_radius(&arc, sgn, radius);
+        if decide("fillet_enclosing_carrier", Margin::of(rho), band)
+            .map_err(ArcTrimRefusal::Escalated)?
+            == Sign::Negative
+        {
+            return Err(ArcTrimRefusal::EnclosesLegCarrier {
+                leg: leg.side,
+                carrier_radius: arc.radius,
+                offset_radius: rho,
+                radius,
+            });
+        }
+    }
 
     // (3) the offset carriers' intersection — the candidate centers.
     let centers = match (leg_in.arc, leg_out.arc) {
@@ -644,6 +699,19 @@ pub(crate) struct Leg<T: Real> {
 
 /// A circular leg's **signed** offset radius ρ = R − σ·τ·r (the
 /// construction section of [`arc_fillet_trims`]).
+///
+/// # The sign is a classification, and it is the one this construction
+/// owns
+///
+/// ρ > 0 is the ordinary tangency; ρ < 0 is the ENCLOSING one — the
+/// blend circle contains the leg's carrier, hence the corner. That class
+/// is permanently refused (`docs/ENCLOSING-TANGENCY-DESIGN.md`), and this
+/// function is where the refusal reads its verdict: `arc_fillet_trims`'
+/// `fillet_enclosing_carrier` gate classifies this value, so the
+/// construction's own ρ decides the class rather than a second
+/// re-derivation kept in step with this one by hand. Everything below —
+/// the offset intersections, the measured-spoke projection with its
+/// signed flip — takes ρ as given and never re-decides it.
 fn offset_radius<T: Real>(arc: &ArcCarrier<T>, sgn: T, radius: T) -> T {
     arc.radius - sgn * arc.turn * radius
 }
@@ -733,6 +801,19 @@ impl<T: Real> Leg<T> {
     /// side, and that sign is geometry, not roundoff). The returned point
     /// then lies on the carrier BY CONSTRUCTION, to a relative ulp of R,
     /// for any `center` whatever.
+    ///
+    /// # The ρ < 0 flip is kept, and no door reaches it
+    ///
+    /// The antipodal flip is the ENCLOSING tangency's tangent point, and
+    /// that class is refused before a candidate centre is ever computed
+    /// (`arc_fillet_trims`' `fillet_enclosing_carrier` gate, per
+    /// `docs/ENCLOSING-TANGENCY-DESIGN.md`), so no shipped door arrives
+    /// here with a negative ρ. The general form stays for the same reason
+    /// [`fillet_bulge`]'s major-arc branch does: the sign rule is the
+    /// closed form's, not a property of which corners the gates admit,
+    /// and a form that silently mirrored the point would be wrong rather
+    /// than merely unreachable. It is pinned directly, at
+    /// `tangent_point_flips_across_the_centre_at_a_negative_offset_radius`.
     ///
     /// # Why this reduces the error rather than hiding it
     ///
@@ -1167,6 +1248,50 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// [`Leg::tangent_point`]'s antipodal flip: the ENCLOSING tangency's
+    /// tangent point, which no door reaches (the
+    /// `fillet_enclosing_carrier` gate refuses the class first — see
+    /// `docs/ENCLOSING-TANGENCY-DESIGN.md`), pinned here directly so the
+    /// closed form stays honest about the sign it is defined for.
+    ///
+    /// A radius-2 blend circle centred at the carrier's own centre plus a
+    /// nudge: with ρ = R − r = −1.5 the tangent point sits on the FAR
+    /// side of the carrier from the spoke, at distance R from the centre,
+    /// and the blend circle contains the carrier whole.
+    #[test]
+    fn tangent_point_flips_across_the_centre_at_a_negative_offset_radius() {
+        let centre = p2(0.3, -0.7);
+        let carrier = ArcCarrier {
+            center: centre,
+            radius: 0.5,
+            turn: 1.0,
+            sweep: ArcSweep::Ccw,
+            corner_angle: 0.0,
+        };
+        let leg = Leg {
+            dir: Vec2::new(0.0, 1.0),
+            arc: Some(carrier),
+            len: 1.0,
+            arm: 0.5,
+            side: FilletLeg::Incoming,
+        };
+        let (sgn, radius) = (1.0, 2.0);
+        assert!(offset_radius(&carrier, sgn, radius) < 0.0, "the row is the enclosing one");
+        // The blend centre sits |ρ| = 1.5 from the carrier centre, which
+        // is what an enclosing candidate's offset intersection would
+        // deliver.
+        let blend = p2(centre.x + 1.5, centre.y);
+        let t = leg.tangent_point(blend, sgn, radius);
+        // On the carrier, at radius R from its centre...
+        let on_carrier = (t.x - centre.x).hypot(t.y - centre.y);
+        assert!((on_carrier - carrier.radius).abs() < 1e-15, "off carrier by {on_carrier}");
+        // ...on the far side of the centre from the blend circle...
+        assert!(t.x < centre.x, "the flip did not cross the centre: {t:?}");
+        // ...and at r from the blend centre, which is the tangency.
+        let spoke = (t.x - blend.x).hypot(t.y - blend.y);
+        assert!((spoke - radius).abs() < 1e-15, "|t - P| = {spoke}, not r");
     }
 
     #[test]

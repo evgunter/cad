@@ -1054,10 +1054,19 @@ fn the_carrier_bound_lens_lowers_and_keeps_its_authored_point() {
 /// A radius far too large for the lens refuses typed. This row carries
 /// TWO pins, both of which have been mutation-checked:
 ///
-/// 1. the **§3c payload**: the refusal carries the arc side's CARRIER
-///    KIND, so the diagnostic is metered in that carrier's own currency
-///    (an arc-length setback and an ANGULAR margin in radians) instead
-///    of a bare linear number that means nothing on a circle;
+/// 1. the **enclosing class**: r = 5 against unit lobes puts both offset
+///    radii at ρ = 1 − 5 = −4, so the requested circle would contain
+///    each lobe whole and the corner with it. No fillet of this corner
+///    exists at this radius and none ever will
+///    (`docs/ENCLOSING-TANGENCY-DESIGN.md`), so the refusal is the
+///    enclosing one and it names the lobe radius as the bound. The
+///    §3c CARRIER-KIND payload this row used to pin — an arc side's
+///    arc-length setback and ANGULAR margin — has its own home at
+///    `arc_fillet::oversized_radius_on_an_arc_side_names_the_carrier_and_angular_margin`,
+///    on an ordinary corner that actually overruns its anchor; this
+///    lens never reached that gate honestly, because on this geometry
+///    every radius past the waist (1/2) is either offset-disjoint or
+///    enclosing;
 /// 2. the boundary's **refusal precedence**: `resolve` keeps gate
 ///    refusals and construction refusals in two channels and lets the
 ///    CONSTRUCTION one win. Here the discarded root's advance gate also
@@ -1066,29 +1075,29 @@ fn the_carrier_bound_lens_lowers_and_keeps_its_authored_point() {
 ///    which is in fact ahead of the anchor is behind it — and this
 ///    assertion fails. Do not weaken it to `matches!(.., PathError::_)`.
 #[test]
-fn an_oversized_carrier_fillet_refuses_with_the_arc_sides_angular_story() {
+fn an_oversized_carrier_fillet_refuses_as_the_enclosing_class() {
     let err = lens(5.0).unwrap_err();
-    let PathError::AnchorOutsideTrimmedExtent {
-        carrier, setback, ..
+    let PathError::FilletEnclosesLegCarrier {
+        carrier_radius,
+        offset_radius,
+        radius,
+        ..
     } = err
     else {
-        panic!("expected the anchor-fit refusal, got {err:?}");
+        panic!("expected the enclosing-class refusal, got {err:?}");
     };
-    let profile::FilletLegCarrier::Arc {
-        radius,
-        angular_margin,
-    } = carrier
-    else {
-        panic!("an arc side must report an arc carrier, got {carrier:?}");
-    };
-    assert!((radius - 1.0).abs() < 1e-12, "the lens's lobes are R = 1");
     assert!(
-        angular_margin < 0.0,
-        "an overrun leg's angular margin is negative: {angular_margin}"
+        (carrier_radius - 1.0).abs() < 1e-12,
+        "the lens's lobes are R = 1, got {carrier_radius}"
     );
-    // The setback is an ARC LENGTH on this side, so it exceeds the
-    // leg's swept extent rather than some linear distance.
-    assert!(setback > 0.0, "arc-length setback: {setback}");
+    assert!(
+        (offset_radius + 4.0).abs() < 1e-12,
+        "rho = R - sigma*tau*r = 1 - 5 = -4, got {offset_radius}"
+    );
+    assert_eq!(radius, 5.0);
+    // The bound the message offers is real on this geometry: the lens
+    // does round, at radii below the lobe radius.
+    assert!(lens(0.25).is_ok(), "the lens rounds at an ordinary radius");
 }
 
 /// Carriers that never meet name their own reason — distinct from the

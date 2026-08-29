@@ -72,6 +72,7 @@
 //! | `fillet_offset_circles_external` | \|ρ₁\|+\|ρ₂\| − d | linear band; offset-carrier intersection (M5 S2) |
 //! | `fillet_offset_circles_internal` | d − \|\|ρ₁\|−\|ρ₂\|\| | linear band; offset-carrier intersection (M5 S2) |
 //! | `fillet_offset_lever` | \|ρ₂\| − C·R₂·scale²/(d·ε) | linear band; the arc×arc offset intersection's conditioning (M8) |
+//! | `fillet_enclosing_carrier` | ρ = R − σ·τ·r, one per circular leg | linear band; Negative is the permanently refused enclosing class (`docs/ENCLOSING-TANGENCY-DESIGN.md`) |
 //!
 //! Every `fillet_*` row above fires in
 //! the arc-carrier fillet construction (construction sugar's one
@@ -323,6 +324,24 @@ const FILLET_OFFSET_LEVER_RECOURSE: &str = "the tangent point is recovered by pr
      fillet radius this close to the leg's carrier radius cannot place the tangent point \
      within tolerance: move the fillet radius away from that leg's carrier radius, or bring \
      the corner's carriers closer together (or lower the tolerance)";
+
+/// The recourse for a fillet radius sitting within the band of a leg's
+/// own carrier radius, where the sign of ρ = R − σ·τ·r — and with it
+/// whether the requested fillet would SWALLOW that carrier, the
+/// permanently refused enclosing class
+/// (`docs/ENCLOSING-TANGENCY-DESIGN.md`) — is below the tolerance.
+///
+/// One sentence for the in-band escalation of `fillet_enclosing_carrier`
+/// and for its definite sibling [`crate::PathError::FilletEnclosesLegCarrier`]
+/// alike (D4 ¶1 clause (iv)). It names the same lever the author can
+/// move as the conditioning gate's recourse does, because at ρ ≈ 0 the
+/// two situations are the same degenerate one: a fillet radius equal to
+/// the leg's carrier radius.
+const FILLET_ENCLOSING_RECOURSE: &str = "on the side the corner turns toward, a fillet radius above the leg's own carrier radius \
+     puts the leg's carrier INSIDE the fillet circle, and the corner with it, so the arc \
+     could not touch the corner it would round — and whether this radius is above or below \
+     that carrier radius is itself below the tolerance here: use a radius clearly smaller \
+     than that leg's carrier radius";
 
 /// The recourse for a radius whose tangent points fall outside their
 /// legs — shared by the definite refusal and the in-band escalation.
@@ -628,6 +647,13 @@ impl fmt::Display for ProfileError {
                         // D4 ¶1 (iv).
                         Some("fillet_offset_lever") => {
                             write!(f, " — {FILLET_OFFSET_LEVER_RECOURSE}")?;
+                        }
+                        // The enclosing-class gate's in-band arm: the
+                        // same one story as its definite sibling
+                        // `PathError::FilletEnclosesLegCarrier`, per
+                        // D4 ¶1 (iv).
+                        Some("fillet_enclosing_carrier") => {
+                            write!(f, " — {FILLET_ENCLOSING_RECOURSE}")?;
                         }
                         _ => {}
                     }

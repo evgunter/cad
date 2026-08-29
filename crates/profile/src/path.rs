@@ -624,6 +624,30 @@ pub enum PathError<T: Real> {
         /// The classified margin |ρ| − `least_lever`, meters.
         margin: T,
     },
+    /// The requested radius demands the **enclosing** tangency at this
+    /// corner: on the named side the signed offset radius ρ = R − σ·τ·r
+    /// is negative (σ·τ = +1 with r > R), so every circle of that radius
+    /// tangent to that side's carrier with this corner's turn sense
+    /// contains the carrier whole — and the corner with it, the corner
+    /// being a point of that carrier. An arc that cannot touch the corner
+    /// is not a fillet OF that corner, so no fillet of this corner exists
+    /// at this radius, and none ever will: the class is permanently out
+    /// of reach by design (`docs/ENCLOSING-TANGENCY-DESIGN.md`), which is
+    /// why it is its own refusal rather than one of the "no corner"
+    /// ones — those would send the author looking for a corner that is
+    /// right there. The bound is the named side's carrier radius; the
+    /// recourse is a smaller radius.
+    FilletEnclosesLegCarrier {
+        /// The side whose carrier the radius would swallow.
+        side: FilletLeg,
+        /// That side's carrier radius R, meters — the bound: a fillet of
+        /// this corner needs r < R on this side.
+        carrier_radius: T,
+        /// Its signed offset radius ρ = R − σ·τ·r, meters (negative).
+        offset_radius: T,
+        /// The requested radius, meters.
+        radius: T,
+    },
     /// A sharp arc LEG was reached while a fillet is still open (its
     /// arrival direction unbound). §2c binds an arc arrival by its own
     /// CARRIER, inside the fused verb — `fillet_arc(r, spec)` /
@@ -881,6 +905,22 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                  carrier, and dividing by a lever that short cannot place the point within \
                  tolerance — move the fillet radius away from that side's carrier radius, \
                  or bring the corner's carriers closer together"
+            ),
+            Self::FilletEnclosesLegCarrier {
+                side,
+                carrier_radius,
+                offset_radius,
+                radius,
+            } => write!(
+                f,
+                "a radius-{radius:?} m fillet of this corner would SWALLOW the {side} side's \
+                 carrier (radius {carrier_radius:?} m): the offset radius \
+                 rho = R - sigma*tau*r is {offset_radius:?} m, and a negative rho means every \
+                 circle of that radius tangent to that carrier on this corner's turn side \
+                 contains the carrier whole — the corner with it, since the corner sits on \
+                 that carrier — so the arc could never touch the corner it was asked to \
+                 round. That is not a fillet of this corner, and no door builds it: use a \
+                 radius below that side's carrier radius ({carrier_radius:?} m)"
             ),
             Self::ArcLegOnOpenFillet { site } => write!(f, "{site}"),
             Self::DegenerateArcSpec { value } => write!(

@@ -51,6 +51,7 @@ pub fn path_error_tag(err: &PathError<f64>) -> &'static str {
         PathError::NoCornerForFillet { .. } => "no_corner_for_fillet",
         PathError::AnchorOutsideTrimmedExtent { .. } => "anchor_outside_trimmed_extent",
         PathError::FilletOffsetLeverTooShort { .. } => "fillet_offset_lever_too_short",
+        PathError::FilletEnclosesLegCarrier { .. } => "fillet_encloses_leg_carrier",
         PathError::ArcLegOnOpenFillet { .. } => "arc_leg_on_open_fillet",
         PathError::SeamRetrimsArcFirstSide => "seam_retrims_arc_first_side",
         PathError::Structure { .. } => "guided_structure",

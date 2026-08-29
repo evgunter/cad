@@ -416,22 +416,30 @@ fn a_negative_radius_is_refused_by_the_sign_gate_at_the_verb() {
     }
 }
 
-/// `NoCornerSideCandidate` on an **arc×arc** corner — unreachable before
-/// the signed-setback fix (review MAJOR-1), because an arc side's
-/// setback was reduced into [0, 2π) and so could never classify
-/// Negative.
+/// **A radius larger than BOTH leg carriers is the enclosing class, and
+/// it refuses as that class.** The corner is the origin, where a
+/// radius-1 carrier about (0, −1) meets a radius-1/2 carrier about
+/// (1/2, 0). Both sides wind counterclockwise, so the path arrives
+/// travelling −x and leaves travelling −y (a left turn, σ = +1). A
+/// radius-2 fillet is larger than *both* carriers, so both offset radii
+/// go negative (ρ₁ = −1, ρ₂ = −3/2): every circle of that radius tangent
+/// to either carrier on this turn side contains the carrier whole, and
+/// the corner sits on both carriers, so no such circle can touch the
+/// corner it would round. `docs/ENCLOSING-TANGENCY-DESIGN.md` rules that
+/// class permanently out, and the door names it before a candidate
+/// centre exists.
 ///
-/// The corner is the origin, where a radius-1 carrier about (0, −1)
-/// meets a radius-1/2 carrier about (1/2, 0). Both sides wind
-/// counterclockwise, so the path arrives travelling −x and leaves
-/// travelling −y (a left turn, σ = +1). A radius-2 fillet is larger
-/// than *both* carriers, so both offset radii go negative (ρ₁ = −1,
-/// ρ₂ = −3/2) and the offset circles still meet — twice. But a circle
-/// that big can only touch these two small carriers on the far side
-/// from the origin, so both tangent circles reach their sides past the
-/// corner and neither is a candidate.
+/// This row used to be the arc×arc witness for
+/// `NoCornerSideCandidate` — the offset circles do meet here, twice, and
+/// both tangent circles reach their sides past the corner. That reading
+/// was true and less useful: it described where the candidates landed
+/// rather than why the request could never be served. The reason it
+/// named keeps its home in the construction; what it has lost is this
+/// witness, and a 1.24M-corner grid over ordinary (ρ > 0) arc×arc
+/// corners found no replacement (see the unit's PR for the grid and its
+/// blind spots).
 #[test]
-fn an_arc_arc_corner_can_have_no_corner_side_candidate() {
+fn an_arc_arc_radius_larger_than_both_carriers_refuses_as_the_enclosing_class() {
     // Anchors one radian along each carrier, so both sides have real
     // extent and the arm/turn gates pass cleanly.
     let along = |cx: f64, cy: f64, r: f64, delta: f64| {
@@ -453,23 +461,36 @@ fn an_arc_arc_corner_can_have_no_corner_side_candidate() {
             },
             Tol::witness(),
         )
-        .expect_err("every tangent circle of radius 2 touches past the corner");
+        .expect_err("a radius that swallows both carriers cannot round their corner");
     match err {
-        PathError::NoCornerForFillet { reason, radius } => {
-            // NOT OffsetCarriersDisjoint — the offset carriers do meet.
-            assert_eq!(
-                reason,
-                PathNoCornerReason::NoTangentCircle(NoCornerReason::NoCornerSideCandidate)
+        PathError::FilletEnclosesLegCarrier {
+            side,
+            carrier_radius,
+            offset_radius,
+            radius,
+        } => {
+            // The incoming side is reported: its ρ is classified first,
+            // and one swallowed carrier is already the whole answer.
+            assert_eq!(side, FilletLeg::Incoming);
+            assert!(
+                (carrier_radius - 1.0).abs() < 1e-15,
+                "the incoming carrier is R = 1, got {carrier_radius}"
+            );
+            assert!(
+                (offset_radius + 1.0).abs() < 1e-15,
+                "rho = R - sigma*tau*r = 1 - 2 = -1, got {offset_radius}"
             );
             assert_eq!(radius, 2.0);
         }
-        other => panic!("expected NoCornerSideCandidate, got {other:?}"),
+        other => panic!("expected FilletEnclosesLegCarrier, got {other:?}"),
     }
-    // The refusal renders the constructor door's own sentence: the
-    // radius fits nowhere on the corner SIDE of either carrier.
+    // The refusal renders the constructor door's own sentence: the bound
+    // is the swallowed carrier's radius, and the recourse a smaller one.
+    let rendered = err.to_string();
+    assert!(rendered.contains("SWALLOW"), "situation: {rendered}");
     assert!(
-        err.to_string().contains("past the corner"),
-        "recourse: {err}"
+        rendered.contains("use a radius below that side's carrier radius"),
+        "recourse: {rendered}"
     );
 }
 
