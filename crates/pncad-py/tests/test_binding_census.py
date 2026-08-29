@@ -52,7 +52,7 @@ for `apply` — and renames where a Python keyword or convention demands
 it (`IN` is `inch`; `RecipeNodeId` is `NodeId`). So a curated name is
 accounted for in exactly one of three ways:
 
-1. `pncad.pyi` declares a top-level name spelled identically. Sixty
+1. `pncad.pyi` declares a top-level name spelled identically. Sixty-two
    names land here — `Doc`, `Node`, `Selector`, `SegTag`, `circle`.
 2. `BOUND_AS` maps it to the Python spelling that answers the same
    question, and THAT SPELLING IS VERIFIED to exist in the stub — a
@@ -333,7 +333,14 @@ def audit_gap_ids():
 #: - **A free function became a method on the value it takes.** The
 #:   kernel's `validate*` / `mass_properties` are `Body`'s; the
 #:   selector and materializer doors are `Evaluation`'s, which is the
-#:   evaluation they answer "as of"; `apply` and `save` are `Doc`'s.
+#:   evaluation they answer "as of"; `apply` and `save` are `Doc`'s;
+#:   `tessellate` is `Body`'s, beside them.
+#: - **A writer into a sink became a door that answers the bytes.**
+#:   `write_ascii` and `write_binary` take a Rust `Write`, which is not
+#:   a value Python holds; `Mesh.to_stl_ascii` answers the text and
+#:   `Mesh.to_stl_binary` the bytes, and Python writes the file. Their
+#:   two option structs are keyword arguments, listed under
+#:   `different-shape` with `StepOptions`.
 #: - **A kernel body operation became a recipe-node constructor.**
 #:   Python speaks the document layer (the stub says so in its first
 #:   paragraph), so `extrude`, `revolve`, `loft_body`, `fillet_edges`
@@ -384,6 +391,7 @@ BOUND_AS = {
     "select_where": "Evaluation.select_where",
     "step_string": "Evaluation.step_string",
     "subtract": "Node.boolean",
+    "tessellate": "Body.tessellate",
     "subtract_with": "Node.boolean",
     "transform_rigid": "Node.transform",
     "union": "Node.boolean",
@@ -391,6 +399,8 @@ BOUND_AS = {
     "validate": "Body.validate",
     "validate_closed": "Body.validate_closed",
     "validate_geometric": "Body.validate_geometric",
+    "write_ascii": "Mesh.to_stl_ascii",
+    "write_binary": "Mesh.to_stl_binary",
 }
 
 # The family tags a NOT_BOUND entry may carry. A `gap:` entry names the
@@ -407,7 +417,7 @@ GAP = "gap"
 #: reason the module docstring's id-space section splits the two
 #: spaces the way it does. Where the audit page DOES define an id, an
 #: entry cites that instead and nothing is minted here: `G2` (sweep
-#: and tube), `G8` (the memo), `G11` (tessellation and STL), `G15`
+#: and tube), `G8` (the memo), `G15`
 #: (content pins), `G16` (chamfer's missing recipe node), `G18` (the
 #: whole Python assembly series, whose row enumerates `assemble`,
 #: `solve_document`, `product`, `split` and `inline` by name), and
@@ -518,9 +528,21 @@ FAMILIES = {
 #:   revolve refusals; `PathError` for `ProfileError` and
 #:   `RecordedProgramError`; `ValidationError.door` for
 #:   `MassPropsError`; `ExportError` for `StepExportError`;
-#:   `SelectRefusal` for `DeclareError` and `InterrogateError`.
+#:   `SelectRefusal` for `DeclareError` and `InterrogateError`;
+#:   `StlError.variant` for `SolidNameError` and `BinaryHeaderError`,
+#:   which refuse the same CALL the writers do because the options
+#:   they validate are that call's keyword arguments.
 #: - *An option struct that became keyword arguments.* `StepOptions` is
-#:   `Evaluation.step_string`'s `product_name=`; `ImportOptions` is
+#:   `Evaluation.step_string`'s `product_name=`; `AsciiOptions` and
+#:   `BinaryOptions` are `Mesh.to_stl_ascii`'s `solid_name=` and
+#:   `Mesh.to_stl_binary`'s `header=`, and their two VALIDATED
+#:   newtypes cross as the `str` those arguments take — `SolidName`
+#:   and `BinaryHeader` protect an invariant, not a vocabulary, and
+#:   the invariant is checked at the call rather than at a
+#:   constructor Python would otherwise have to name. Their refusals
+#:   ride `StlError.variant` under `solid_name_*` / `binary_header_*`
+#:   tags, which is why `SolidNameError` and `BinaryHeaderError` are
+#:   in the flattened-payload bullet above too; `ImportOptions` is
 #:   `import_step`'s absent second argument; `EvalOptions` has no
 #:   Python spelling because `evaluate(doc)` takes none (its one
 #:   consequence that IS owed work — the memo — is filed under `gap`
@@ -546,8 +568,10 @@ FAMILIES = {
 #:   `SplitSide` is the position in `Value.split`'s tuple.
 #: - *A write sink Python does not need.* `write_step` takes a Rust
 #:   `Write`; `Evaluation.step_string` answers the text and Python
-#:   writes it. (`write_ascii`/`write_binary` are NOT here — STL is a
-#:   gap, below, and the sink is not what is missing.)
+#:   writes it. (`write_ascii`/`write_binary` are not here either, and
+#:   for the same reason — they are in `BOUND_AS`, as the two `Mesh`
+#:   doors that answer the bytes. The sink was never what was
+#:   missing.)
 #:
 #: **`behind-a-door` — kernel machinery a bound door uses and never
 #: hands to Python.** The operation results and their geometry
@@ -574,8 +598,8 @@ FAMILIES = {
 #: **`gap` — genuinely unbound doors, and each is OWED WORK.** This is
 #: the family that makes the census worth having: these are not
 #: decisions, they are debt, and the id after the colon says what owns
-#: each. Seven of the ids are the audit page's, cited (`G1`, `G2`, `G8`,
-#: `G11`, `G15`, `G16`, `G18`); the other eight are `FAMILIES` keys
+#: each. Six of the ids are the audit page's, cited (`G1`, `G2`, `G8`,
+#: `G15`, `G16`, `G18`); the other eight are `FAMILIES` keys
 #: this census owns, because the audit's SCENE-driven list does not
 #: reach a door no tour scene exercises — which is exactly why those
 #: accumulated unnoticed and why this census exists.
@@ -587,10 +611,6 @@ FAMILIES = {
 #: - **G8 — the memo.** `EvalOptions`' consequence: `evaluate(doc)`
 #:   takes no prior evaluation, so memoized recompute is unobservable
 #:   from Python. The audit's G8 row measures this residue by name.
-#: - **G11 — tessellation and STL.** `Mesh`, `tessellate`,
-#:   `TessellateError`, and the STL writers with their options and
-#:   header vocabulary. Python loses steps 4 and 5 of the guide's
-#:   ladder, so there is no mesh-vs-exact cross-check.
 #: - **G15 — content pins and cross-document references.**
 #:   `ContentPin`, `content_pin`, `canonical_bytes`, `DocRef`,
 #:   `header_document_id`, and the pin-update door
@@ -691,6 +711,10 @@ NOT_BOUND = {
     "Affine3": SHAPE,
     "Applied": SHAPE,
     "Axis3": SHAPE,
+    "AsciiOptions": SHAPE,
+    "BinaryHeader": SHAPE,
+    "BinaryHeaderError": SHAPE,
+    "BinaryOptions": SHAPE,
     "BooleanError": SHAPE,
     "CLASS_DEFERRAL": SHAPE,
     "CONTACT_RECOURSE": SHAPE,
@@ -733,6 +757,8 @@ NOT_BOUND = {
     "Side": SHAPE,
     "SlotId": SHAPE,
     "SnapshotError": SHAPE,
+    "SolidName": SHAPE,
+    "SolidNameError": SHAPE,
     "SplitSide": SHAPE,
     "StableName": SHAPE,
     "StepExportError": SHAPE,
@@ -808,18 +834,6 @@ NOT_BOUND = {
     "tube_along_arc_hollow": f"{GAP}: G2 sweep/tube",
     # --- gap: the memo (audit G8's measured residue) --------------
     "EvalOptions": f"{GAP}: G8 memoized recompute",
-    # --- gap: tessellation and STL (audit G11) --------------------
-    "AsciiOptions": f"{GAP}: G11 tessellation/STL",
-    "BinaryHeader": f"{GAP}: G11 tessellation/STL",
-    "BinaryHeaderError": f"{GAP}: G11 tessellation/STL",
-    "BinaryOptions": f"{GAP}: G11 tessellation/STL",
-    "Mesh": f"{GAP}: G11 tessellation/STL",
-    "SolidName": f"{GAP}: G11 tessellation/STL",
-    "SolidNameError": f"{GAP}: G11 tessellation/STL",
-    "TessellateError": f"{GAP}: G11 tessellation/STL",
-    "tessellate": f"{GAP}: G11 tessellation/STL",
-    "write_ascii": f"{GAP}: G11 tessellation/STL",
-    "write_binary": f"{GAP}: G11 tessellation/STL",
     # --- gap: content pins and cross-document refs (audit G15) ----
     "ContentPin": f"{GAP}: G15 content pins",
     "DocRef": f"{GAP}: G15 content pins",
@@ -941,8 +955,8 @@ class TestBindingCensus(unittest.TestCase):
         The Rust guard asserts `exported.len() > 150` for the same
         reason: a scanner that returned nothing would satisfy every
         set difference below and the guard would pass having read
-        nothing. Measured at the time of writing: 323 curated names,
-        86 top-level stub names, 332 `Class.member` spellings. The
+        nothing. Measured at the time of writing: 324 curated names,
+        89 top-level stub names, 347 `Class.member` spellings. The
         floors sit below those with room for ordinary shrinkage and
         far above zero.
         """
