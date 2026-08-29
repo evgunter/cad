@@ -192,6 +192,45 @@ pub enum PickIndexError {
     Ids(IdMapError),
 }
 
+impl core::fmt::Display for IdMapError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Duplicate { key } => write!(
+                f,
+                "patch {} of body {} on node {} was offered twice; an id assignment \
+                 is a bijection",
+                key.patch, key.body, key.node.0
+            ),
+            Self::TooManyPatches { patches } => write!(
+                f,
+                "{patches} patches is more than a 32-bit id buffer can address"
+            ),
+        }
+    }
+}
+
+impl core::error::Error for IdMapError {}
+
+impl core::fmt::Display for PickIndexError {
+    /// The [`PickIndexError::Ids`] arm forwards to [`IdMapError`]'s own
+    /// `Display`. The [`PickIndexError::Node`] arm cannot forward:
+    /// `editor-core`'s `NodePickError` has no `Display`, so its value
+    /// reaches a reader as a debug rendering until it grows one (issue
+    /// #1111). The root it names is this layer's own contribution.
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Node { node, error } => write!(
+                f,
+                "root {}'s bodies could not be tessellated or indexed: {error:?}",
+                node.0
+            ),
+            Self::Ids(error) => write!(f, "{error}"),
+        }
+    }
+}
+
+impl core::error::Error for PickIndexError {}
+
 /// The pick index for one evaluation generation.
 ///
 /// Built from the document's roots, one [`NodePick`] per output body,
@@ -630,21 +669,16 @@ pub enum PickError {
 }
 
 impl core::fmt::Display for PickError {
-    /// Both payloads show a debug rendering, because neither
-    /// `CameraError` nor `HitTestError` has a `Display` — and the rule
-    /// this crate follows is that the layer which raised a failure
-    /// names it, never a sentence composed here about somebody else's
-    /// refusal.
-    ///
-    /// **That absence is a CLASS, and it is scheduled: issue #1111.**
-    /// It covers both of these and the six other public error types
-    /// whose values reach a string a person reads (`SceneError`,
-    /// `PickIndexError` and the rest). Reported as one instance in this
-    /// unit's PR; swept into the issue at the fix pass, because "worth
-    /// an issue" is not a schedule.
+    /// The rule this crate follows is that the layer which raised a
+    /// failure names it, never a sentence composed here about somebody
+    /// else's refusal. [`PickError::Camera`] forwards to
+    /// [`CameraError`]'s own `Display`. [`PickError::HitTest`] cannot:
+    /// `editor-core`'s `HitTestError` has no `Display`, so its value
+    /// reaches a reader as a debug rendering until it grows one (issue
+    /// #1111).
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Camera(error) => write!(f, "the cursor names no ray: {error:?}"),
+            Self::Camera(error) => write!(f, "the cursor names no ray: {error}"),
             Self::HitTest(error) => write!(f, "the hit test refused: {error:?}"),
         }
     }

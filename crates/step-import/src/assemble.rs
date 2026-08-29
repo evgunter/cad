@@ -822,28 +822,19 @@ fn assemble_solid(
     adopt::finish(body, solid, &assembled, tol)
 }
 
-/// One `MANIFOLD_SOLID_BREP` assembled into a body of its OWN, so the
-/// shared at-rest gate can be asked about that solid alone: the
-/// whole-body invariants the gate checks include summed ones (the +V
-/// flux sum over every shell), which cannot see a single inside-out
-/// solid whose neighbours cancel it. Same assembly, same pcurve mint,
-/// same geometry — only the arena's contents differ.
-pub(crate) fn build_one_solid(solid: &SolidSpec, tol: Tol) -> Result<Body<f64>, StepImportError> {
-    build(std::slice::from_ref(solid), tol)
-}
-
-/// The assembly proper: every solid in `solids` into one arena, then
-/// one pcurve mint over the whole body.
+/// The assembly proper: one `MANIFOLD_SOLID_BREP` into a body of its
+/// OWN (phase A + verification + adoption), then one pcurve mint over
+/// that body.
 ///
-/// One door reaches it today — [`build_one_solid`], always with a
-/// one-element slice. The multi-solid door retired with M8 instancing,
-/// which builds each instance in a body of its own and grafts the
-/// copies (`lib.rs`), so no caller assembles two specs into one arena.
-fn build(solids: &[SolidSpec], tol: Tol) -> Result<Body<f64>, StepImportError> {
+/// A body per solid is what lets the shared at-rest gate be asked
+/// about that solid alone: the whole-body invariants the gate checks
+/// include summed ones (the +V flux sum over every shell), which
+/// cannot see a single inside-out solid whose neighbours cancel it.
+/// Nothing assembles two specs into one arena — each instance is
+/// built into a body of its own and the copies are grafted (`lib.rs`).
+pub(crate) fn build_one_solid(solid: &SolidSpec, tol: Tol) -> Result<Body<f64>, StepImportError> {
     let mut body = Body::new();
-    for solid in solids {
-        assemble_solid(&mut body, solid, tol)?;
-    }
+    assemble_solid(&mut body, solid, tol)?;
     topo::mint_pcurves(&mut body, tol).map_err(|source| StepImportError::Pcurves { source })?;
     Ok(body)
 }

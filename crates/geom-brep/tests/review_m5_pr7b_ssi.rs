@@ -12,6 +12,7 @@ use geom_core::Tol;
 use geom_core::spline::KnotVector;
 use geom_core::spline::compose::ComposeError;
 use geom_core::{Band, Point3, Vec3};
+use test_utils::vacuity;
 
 fn eps() -> f64 {
     Tol::witness().get().eps
@@ -165,14 +166,13 @@ fn deviation2a_the_inflected_wall_deviation_is_real_geometry() {
     // green in silence.
     let w = nurbs_wall();
     let Some((max, u_at_max)) = trace_deviation(&w, 1e-9, 200_000) else {
-        println!(
-            "SKIPPED (inflected-wall deviation reproduction, ambient eps = {:e}): the \
-             1e-9 march exceeded the fit budget on this band, so THIS RUN ASSERTS \
+        vacuity::stood_down(
+            &format!("inflected-wall deviation reproduction, eps = {:e}", eps()),
+            "the 1e-9 march exceeded the fit budget on this band, so THIS RUN ASSERTS \
              NEITHER that the reported deviation reproduces NOR that it sits at the \
              section's curvature zero. Measured 2026-08-13: this does not happen at \
              1e-6, 1e-9 or 1e-12 — if you are reading this line, the fit budget's \
              ambient coupling has changed and that is the finding.",
-            eps()
         );
         return;
     };
@@ -213,12 +213,11 @@ fn deviation2b_march_eps_scaling_measured_not_assumed() {
     // improve, but by materially less than 16×.
     let w = nurbs_wall();
     let Some((base, _)) = trace_deviation(&w, 1e-9, 100_000) else {
-        println!(
-            "SKIPPED (march-ε scaling, ambient eps = {:e}): the 1e-9 march wants more \
-             samples than the SSI fit budget allows at this ambient band, so there is no \
-             baseline fit pair. THIS RUN ASSERTS NOTHING about how the fit deviation \
-             scales with the march ε.",
-            eps()
+        vacuity::stood_down(
+            &format!("march-ε scaling, eps = {:e}", eps()),
+            "the 1e-9 march wants more samples than the SSI fit budget allows at this \
+             ambient band, so there is no baseline fit pair. THIS RUN ASSERTS NOTHING \
+             about how the fit deviation scales with the march ε.",
         );
         return;
     };
@@ -226,10 +225,12 @@ fn deviation2b_march_eps_scaling_measured_not_assumed() {
     let mut measured = 0;
     for factor in [4.0f64, 16.0, 64.0] {
         let Some((tight, _)) = trace_deviation(&w, 1e-9 / factor, 100_000) else {
-            println!(
-                "SKIPPED ({factor}x tighter march-ε, ambient eps = {:e}): exceeds the SSI \
-                 fit budget — this factor's scaling row did not execute",
-                eps()
+            vacuity::stood_down(
+                &format!("{factor}x tighter march-ε, eps = {:e}", eps()),
+                &format!(
+                    "this factor exceeds the SSI fit budget, so ITS SCALING ROW DID NOT \
+                     EXECUTE: nothing is asserted about the deviation gain at {factor}x"
+                ),
             );
             continue;
         };

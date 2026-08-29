@@ -4088,9 +4088,11 @@ dependencies = [
  "egui",
  "egui-wgpu",
  "egui_tiles",
+ "getrandom 0.3.4",
  "pncad",
  "rfd",
  "test-utils",
+ "wasm-bindgen-futures",
  "winit",
 ]
 

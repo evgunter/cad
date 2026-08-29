@@ -342,7 +342,7 @@ impl core::fmt::Display for Refusal {
                 params, current, ..
             } => write!(f, "{}", Self::affordance(params, *current)),
             Self::NoSuchSlot { node, slot } => {
-                write!(f, "node {node:?} has no {slot:?} slot")
+                write!(f, "node {} has no {slot:?} slot", node.0)
             }
             Self::NoSuchParam(name) => write!(f, "no document parameter named {}", name.0),
             Self::ParamExists { name, dimension } => {

@@ -34,11 +34,11 @@ gate() {
   gate_require_crate_sources
   local hits
   hits=$(gate_rust_code "${GATE_SOURCE_FILES[@]}" \
-    | grep -E 'bit_identity::|repr_bits|eq_bits' \
-    | grep -vE '^crates/geom-core/src/bit_identity\.rs:' \
-    | grep -vE '^crates/geom-core/src/interval\.rs:' \
-    | grep -vE '^crates/topo/src/source\.rs:' \
-    | grep -vE '^crates/editor-core/src/eval/memo\.rs:' || true)
+    | gate_grep -E 'bit_identity::|repr_bits|eq_bits' \
+    | gate_grep -vE '^crates/geom-core/src/bit_identity\.rs:' \
+    | gate_grep -vE '^crates/geom-core/src/interval\.rs:' \
+    | gate_grep -vE '^crates/topo/src/source\.rs:' \
+    | gate_grep -vE '^crates/editor-core/src/eval/memo\.rs:')
   if [ -n "$hits" ]; then
     printf '%s\n' "$hits"
     gate_error "bit-identity channel use above — the channel is RETIRED from production (M4 PR 5, N6); use GeomSource, or revise DESIGN.md before adding any consumer"
@@ -79,10 +79,15 @@ plant_prose_only() {
 gate_selftest() {
   local want="bit-identity channel use above"
   gate_selftest_clean
+  # A `grep` that cannot run is the failure this gate cannot see for
+  # itself: it produces no hits, and no hits is what a clean tree
+  # produces. Proved here rather than asserted, because before
+  # `gate_grep` this exact fixture printed OK and exited 0.
+  gate_selftest_without_tool grep "it is grep saying it could not search"
   gate_selftest_case "$want" plant
   gate_selftest_case "$want" plant_after_block_comment
   gate_selftest_passes "prose, doc comments and a string literal naming the channel" plant_prose_only
-  printf '%s selftest OK: passes a clean fixture and prose/doc/string mentions of the channel; fires on a use, and on a use hidden behind a block comment\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture and prose/doc/string mentions of the channel; fires on a use, and on a use hidden behind a block comment; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

@@ -419,8 +419,10 @@ wasm32-unknown-unknown`. That is the `--features interval` half
 directly; the default-features half rides on it, because enabling a
 cargo feature is additive for the dependency graph and
 `scripts/check-interval-cfg-additive.py` forbids any
-`cfg(not(feature = "interval"))` in this repo's crates, so the interval
-build compiles a superset. **Evan's ruling, 2026-08-21:** *"do add wasm
+`cfg(not(feature = "interval"))` under `crates/*/src`, so the interval
+build compiles a superset of the library sources. Under `crates/*/tests`
+the gate holds a different rule and the negation is legitimate; that does
+not reach this guard, whose step builds no test targets. **Evan's ruling, 2026-08-21:** *"do add wasm
 cross compiling for the interval build only. the lint for having
 interval be purely additive suffices."*
 

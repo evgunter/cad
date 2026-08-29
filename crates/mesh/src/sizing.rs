@@ -32,9 +32,15 @@
 //! the identifiers — a rename that leaves a doc sentence calling a
 //! count a step has not landed.
 //!
-//! **Scope, and what enforces it.** The rule is this crate's; the
-//! nearest violation outside it is `step-import`'s `STEPS: usize`
-//! sample count. Nothing mechanical enforces either half today — the
+//! **Scope, and what enforces it.** The rule is this crate's. No
+//! violation of it is known outside the crate: the three integer
+//! constants elsewhere whose names carry "steps" — `bvh`'s
+//! `ITEM_WIDEN_STEPS` and `HULL_WIDEN_STEPS`, and `geom-brep`'s
+//! `SSI_MAX_STEPS` — each count a step actually taken (ULP widenings,
+//! marching iterations) rather than a sampling density, which is the
+//! shape this rule forbids. No sweep has read the whole tree for that
+//! shape, so read it as no KNOWN violation, not a checked absence.
+//! Nothing mechanical enforces either half today — the
 //! guard this wants is a source-scraping row in the shape of this
 //! crate's own `tests/all.rs`, which `include_str!`s its own source to
 //! prove every test file is registered — and, since the ε ledger,
@@ -166,7 +172,7 @@ pub(crate) fn cap_angular(step: f64) -> f64 {
 /// radius `rho`, capped at [`MAX_ANGULAR_STEP`]. Total (poison-free
 /// for positive inputs): if δ_s ≥ ρ the sagitta constraint is vacuous
 /// and the cap rules.
-pub fn sagitta_step(delta_s: f64, rho: f64) -> f64 {
+pub(crate) fn sagitta_step(delta_s: f64, rho: f64) -> f64 {
     if delta_s < rho {
         cap_angular(2.0 * (1.0 - delta_s / rho).acos())
     } else {
@@ -195,7 +201,7 @@ pub(crate) fn curvature_step(delta_s: f64, m: f64) -> f64 {
 /// `R_eff = major·(major/minor)²`. Coarser than the circle's exact
 /// sagitta near `major = minor` — conservative is the promised
 /// direction.
-pub fn ellipse_step(delta_s: f64, major: f64, minor: f64) -> f64 {
+pub(crate) fn ellipse_step(delta_s: f64, major: f64, minor: f64) -> f64 {
     let r_eff = major * (major / minor) * (major / minor);
     cap_angular(curvature_step(delta_s, r_eff))
 }
@@ -245,7 +251,7 @@ pub(crate) fn torus_step(surface: &geom::Surface<f64>, delta_s: f64) -> Option<f
 ///
 /// [`TessellateError::ResolutionOverflow`] when the count is
 /// non-finite or at/above the cap.
-pub fn ceil_count(span: f64, step: f64) -> Result<usize, TessellateError> {
+pub(crate) fn ceil_count(span: f64, step: f64) -> Result<usize, TessellateError> {
     let raw = (span / step).ceil();
     if !(raw.is_finite() && raw < MAX_COUNT) {
         return Err(TessellateError::ResolutionOverflow { count: raw });

@@ -568,17 +568,27 @@ impl KnotVector {
     /// knot-algebra plans, whose outputs preserve the invariants by
     /// construction (each op inserts/removes copies of interior values
     /// within the multiplicity budget, or re-clamps ends explicitly).
-    /// Debug builds re-validate.
+    ///
+    /// **A plan whose output [`KnotVector::clamped`] would refuse is a
+    /// kernel bug detectable only by re-deriving that validation — D2
+    /// addendum row 5, whose mechanism is `debug_assert`, and this is
+    /// it.** The refusal names the violation, so the assert reports
+    /// which invariant the plan broke rather than that one did. Where
+    /// debug assertions are compiled out the constructor is total and
+    /// the structure is re-checked by any subsequent `clamped` round
+    /// trip; the root `[profile.release]` sets `debug-assertions =
+    /// true`, so today they are not compiled out anywhere.
     pub(crate) fn from_algebra(knots: Vec<f64>, degree: usize) -> Self {
         #[cfg(debug_assertions)]
         {
-            match Self::clamped(knots.clone(), degree) {
-                Ok(kv) => kv,
-                // A plan producing invalid structure is a kernel bug;
-                // still total in release (validity re-checked by any
-                // subsequent `clamped` round trip).
-                Err(_) => Self { knots, degree },
-            }
+            let revalidated = Self::clamped(knots.clone(), degree);
+            debug_assert!(
+                revalidated.is_ok(),
+                "a knot-algebra plan produced structure `clamped` refuses \
+                 ({:?}): degree {degree}, knots {knots:?}",
+                revalidated.as_ref().err(),
+            );
+            revalidated.unwrap_or(Self { knots, degree })
         }
         #[cfg(not(debug_assertions))]
         {

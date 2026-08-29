@@ -123,6 +123,13 @@ and therefore still runs the whole matrix: it is not billed by the minute,
 and with the hosted gate sampling, the local gate is now the only lane that
 runs every point of the matrix on one tree.
 
+A PIN IS ANNOUNCED ON STDERR, never on stdout. `LANE` is not always drawn —
+`_forces_interval` pins it, ahead of the seed — and a pin no reader can see is
+how a branch spends every run of its life on an axis nobody chose (#1122).
+stdout stays exactly the KEY=value stream above, because both halves append it
+to $GITHUB_OUTPUT or read it with `IFS='=' read -r k v`, where one extra line
+would be one bogus output key.
+
 REQUESTING A POINT INSTEAD OF DRAWING ONE (2026-08-28, Evan's ask). The draw
 is a DEFAULT, not a lock: someone who wants this tree gated at 1e-12, or at
 the k-lint row the draw keeps missing, says so and gets it. Two spellings,
@@ -739,19 +746,42 @@ KLINT_ROWS: tuple[str, ...] = (
 # the backend is its own workspace root. It is a HEURISTIC over names, not a
 # proof over the feature graph: a change to an interval-gated block inside a
 # file with an ordinary name is not matched, and falls back to the sampling
-# like anything else. That residue is acceptable precisely because the
-# sampling is the floor — the rule only ever ADDS certainty, never removes it.
-def _forces_interval(files: list[str] | None) -> bool:
+# like anything else.
+#
+# WHAT THE PIN COSTS, stated because the earlier wording here — "the rule only
+# ever ADDS certainty, never removes it" — is not true as written and reading
+# it cost a full ruling cycle (#1122). The pin SUBSTITUTES a lane; it does not
+# add one. What makes the substitution nearly free is not the rule but the two
+# lanes' shapes: ci.yml archives the same `cargo_scope` for both and the
+# interval lane merely adds `--features interval`, so a pinned run executes the
+# same rows in a stricter compile. The rows it does NOT reach are the ones
+# gated `cfg(not(feature = "interval"))` — which
+# `scripts/check-interval-cfg-additive.py` keeps out of `crates/*/src`
+# entirely and permits, whole-item only, in `crates/*/tests`, where the
+# loud-skip marker rows use it. Enumerable at any time with
+#
+#     grep -rn 'not(feature *= *"interval")' --include=*.rs crates/
+#
+# so the pin's real cost is those marker rows, not the battery.
+#
+# AND IT IS ANNOUNCED. A pin is not defeatable by re-pushing — it runs before
+# the seeded draw and short-circuits it — so a branch that trips it silently
+# spends every one of its runs on an axis nobody chose. `main` prints the pin
+# and its reason to stderr, which is why this returns the REASON rather than a
+# bool. Nothing else about the return changed: a reason string is truthy and
+# `None` is falsy, exactly where the bool was read.
+def _forces_interval(files: list[str] | None) -> str | None:
+    """Why the lane is pinned to `interval`, or `None` if it is not pinned."""
     # Fail CLOSED like every other signal here: an unresolved file list cannot
     # prove interval code held still, so pin the lane rather than sample it.
     if not files:
-        return True
+        return "the changed-file list could not be resolved"
     for f in files:
         if f.startswith("interval-transcendentals/"):
-            return True
+            return f"{f} is under interval-transcendentals/"
         if "interval" in f.rsplit("/", 1)[-1]:
-            return True
-    return False
+            return f"{f} has `interval` in its basename"
+    return None
 
 
 def _sample(seed: str, salt: str, choices: tuple[str, ...]) -> str:
@@ -916,7 +946,9 @@ def decorate(
         res["LANE"], res["EPS"], res["KLINT_ROW"] = "both", "all", "all"
     else:
         res["LANE"] = (
-            "interval" if _forces_interval(files) else _sample(seed, "lane", LANES)
+            "interval"
+            if _forces_interval(files) is not None
+            else _sample(seed, "lane", LANES)
         )
         res["EPS"] = _sample(seed, "eps", EPS_ROWS)
         # A THIRD SALT, drawn off the same seed and independent of the other
@@ -1094,7 +1126,14 @@ def _plant_fixture(t: str) -> str:
     return t
 
 
-def _selftest_invoke(t: str, argv: list[str], stdin: str = "") -> dict[str, str]:
+def _selftest_run(t: str, argv: list[str], stdin: str = ""):
+    """One invocation of this script as a SUBPROCESS, both streams kept.
+
+    Separate from `_selftest_invoke` because stdout and stderr carry
+    different contracts here — stdout is the machine-readable KEY=value
+    stream, stderr is what a human reads — and the pin battery is the one
+    case that has to look at the second.
+    """
     env = dict(os.environ)
     env["PATH"] = os.path.join(t, "bin") + os.pathsep + env.get("PATH", "")
     r = subprocess.run(
@@ -1103,6 +1142,11 @@ def _selftest_invoke(t: str, argv: list[str], stdin: str = "") -> dict[str, str]
     )
     if r.returncode != 0:
         raise SystemExit(f"SELFTEST FAILED: {argv} exited {r.returncode}\n{r.stdout}{r.stderr}")
+    return r
+
+
+def _selftest_invoke(t: str, argv: list[str], stdin: str = "") -> dict[str, str]:
+    r = _selftest_run(t, argv, stdin)
     out: dict[str, str] = {}
     for line in r.stdout.splitlines():
         k, _, v = line.partition("=")
@@ -1362,6 +1406,9 @@ def selftest() -> None:
                 _selftest_invoke(t, ["--files", "-"], "docs/guide/PYPAGE.md\n"),
                 {"TIER": "all", "RUN_BUILD": "true"})
 
+    with tempfile.TemporaryDirectory() as t:
+        _plant_fixture(t)
+        _selftest_lane_pin(t)
     # --- THE REQUEST PATH THROUGH THE CLI. `_selftest_config` covers the
     # applier as a function; what only a subprocess can show is the wiring —
     # that the flags reach it, that a bad request exits NONZERO rather than
@@ -1410,7 +1457,10 @@ def selftest() -> None:
         "edges upward only; the oracle signal fires on certified sources and lockfile and "
         "not on their prose; the three sampled dimensions fail open with no seed, "
         "repeat under the same seed, and are drawn independently enough that every one "
-        "of the 30 matrix points is reachable; and a configuration REQUESTED by hand "
+        "of the 30 matrix points is reachable; the lane pin beats a draw that went "
+        "the other way, says so on stderr naming the file that pinned it, stays off "
+        "stdout and out of unpinned and unseeded runs, and goes quiet when a request "
+        "overrides it; and a configuration REQUESTED by hand "
         "— by flag or by `CI-Config:` commit trailer — reaches the dimension it names "
         "and only that one, beats the interval pin, is recorded in CONFIG_SOURCE, and "
         "reds the step rather than falling back to the draw when it names no real point"
@@ -1464,6 +1514,72 @@ def _selftest_sampling() -> None:
             "one) collapse into a single number and make part of the product "
             "unreachable — check `_sample`'s salt argument at every call site in "
             "`decorate`")
+
+
+def _selftest_lane_pin(t: str) -> None:
+    """THE PIN OVER THE DRAW, AND THE FACT THAT IT SAYS SO.
+
+    `_forces_interval` runs BEFORE the seeded draw and short-circuits it, so
+    a branch that trips it is on the interval lane for every push it ever
+    makes. That is defensible; being unable to SEE it is not, and it is what
+    cost a full ruling cycle (#1122) — the pin was invisible until someone
+    re-implemented the filter to find it.
+
+    So this asserts both halves: that the pin beats a draw that went the
+    other way, and that the run says so on stderr and NOT on stdout, where
+    an extra line would become a bogus $GITHUB_OUTPUT key.
+    """
+    # The seed is FOUND, not hardcoded: the pinned case only tests the pin if
+    # the draw it overrode was `default`, and a literal SHA here would stop
+    # being that the moment `LANES` or the salt moved.
+    seed = next(
+        s for s in (f"{i:040x}" for i in range(1000))
+        if _sample(s, "lane", LANES) == "default"
+    )
+
+    pinned = _selftest_run(t, ["--files", "-", "--seed", seed],
+                           "crates/topo/src/ring_interval.rs\n")
+    if "LANE=interval" not in pinned.stdout.splitlines():
+        raise SystemExit("SELFTEST FAILED: a basename carrying `interval` did not pin the "
+                         f"lane\n{pinned.stdout}")
+    if "PINNED" not in pinned.stderr or "ring_interval.rs" not in pinned.stderr:
+        raise SystemExit("SELFTEST FAILED: the lane was pinned and the run did not say so, or "
+                         f"did not name the file that pinned it\nstderr: {pinned.stderr!r}")
+    if "PINNED" in pinned.stdout:
+        raise SystemExit("SELFTEST FAILED: the pin note reached STDOUT, where both halves read "
+                         f"KEY=value lines\n{pinned.stdout}")
+
+    drawn = _selftest_run(t, ["--files", "-", "--seed", seed],
+                          "crates/topo/src/lib.rs\n")
+    if "LANE=default" not in drawn.stdout.splitlines():
+        raise SystemExit("SELFTEST FAILED: an ordinary basename did not fall through to the "
+                         f"draw\n{drawn.stdout}")
+    if "PINNED" in drawn.stderr:
+        raise SystemExit("SELFTEST FAILED: an unpinned run announced a pin — the note would then "
+                         f"say nothing\nstderr: {drawn.stderr!r}")
+
+    # A REQUEST OVERRIDES THE PIN, so the note must go quiet. `decorate` lets a
+    # requested lane beat `_forces_interval` deliberately; if the announcement
+    # did not know that, a run gating `default` by request would print that it
+    # was pinned to `interval` — naming a lane the run is not on. This case is
+    # the seam between the pin and the request path, and neither one's own
+    # cases cover it.
+    overridden = _selftest_run(
+        t, ["--files", "-", "--seed", seed, "--config", "lane=default"],
+        "crates/topo/src/ring_interval.rs\n")
+    if "LANE=default" not in overridden.stdout.splitlines():
+        raise SystemExit("SELFTEST FAILED: a requested lane did not beat the pin\n"
+                         f"{overridden.stdout}")
+    if "PINNED" in overridden.stderr:
+        raise SystemExit("SELFTEST FAILED: the pin note fired over a lane the request "
+                         f"overrode\nstderr: {overridden.stderr!r}")
+
+    # No seed: nothing is drawn, so there is nothing to pin. LANE=both already
+    # runs both compile modes, and a note there would be a false alarm.
+    unseeded = _selftest_run(t, ["--files", "-"], "crates/topo/src/ring_interval.rs\n")
+    if "LANE=both" not in unseeded.stdout.splitlines() or "PINNED" in unseeded.stderr:
+        raise SystemExit("SELFTEST FAILED: an unseeded run must be LANE=both and announce no "
+                         f"pin\n{unseeded.stdout}\nstderr: {unseeded.stderr!r}")
 
 
 def _selftest_config() -> None:
@@ -1701,7 +1817,34 @@ def main() -> int:
     # allowlist, so the very changes the oracle cares about arrive here as
     # TIER=all with a perfectly good file list. Only a failure to resolve
     # the diff at all leaves `files` None, and that is the case that runs.
-    for key, val in decorate(res, files, args.seed, config).items():
+    out = decorate(res, files, args.seed, config)
+
+    # THE PIN, SAID OUT LOUD. `decorate` stays free of I/O — `_selftest_sampling`
+    # calls it 4000 times in-process — so the announcement is made here, off a
+    # second call to the same pure function rather than off a channel through
+    # the result dict, whose every key is printed as machine-readable output.
+    # Guarded twice: on the seed, because an unseeded run draws nothing to pin
+    # (it is LANE=both, which already runs both compile modes); and on
+    # `lane:sampled`, because a REQUESTED lane overrides the pin, and announcing
+    # one that was overridden would name a lane the run is not on.
+    if (
+        args.seed is not None
+        and "lane:sampled" in out["CONFIG_SOURCE"]
+        and (pin := _forces_interval(files)) is not None
+    ):
+        print(
+            f"ci-filter: LANE=interval is PINNED, not drawn: {pin}.\n"
+            "ci-filter: re-pushing cannot change it — the pin runs before the "
+            "seeded draw and short-circuits it.\n"
+            "ci-filter: this is not a coverage gap. Both lanes archive the same "
+            "scope and the interval lane only adds `--features interval`, so a "
+            "pinned run executes the same rows in a stricter compile; what it "
+            "does not reach is the loud-skip marker rows gated "
+            "`cfg(not(feature = \"interval\"))` under crates/*/tests.",
+            file=sys.stderr,
+        )
+
+    for key, val in out.items():
         print(f"{key}={val}")
     return 0
 

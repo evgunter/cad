@@ -30,8 +30,8 @@ gate() {
   gate_require_crate_sources
   local hits
   hits=$(gate_rust_code --statements "${GATE_SOURCE_FILES[@]}" \
-    | grep -E '(:|\+)[[:space:]]*(editor_core::)?EvalScalar([^A-Za-z0-9_]|$)' \
-    | grep -vE '^crates/editor-core/src/eval/(mod|parts)\.rs:' || true)
+    | gate_grep -E '(:|\+)[[:space:]]*(editor_core::)?EvalScalar([^A-Za-z0-9_]|$)' \
+    | gate_grep -vE '^crates/editor-core/src/eval/(mod|parts)\.rs:')
   if [ -n "$hits" ]; then
     echo "$hits"
     gate_error "EvalScalar (a compound Bounds bound by another name) outside the evaluation-service seam — see geom-core/src/real.rs (Bounds scope rule) and editor-core/src/eval/mod.rs; ratify before allowlisting"
@@ -83,12 +83,17 @@ plant_prose_only() {
 gate_selftest() {
   local want="EvalScalar (a compound Bounds bound by another name)"
   gate_selftest_clean
+  # A `grep` that cannot run is the failure this gate cannot see for
+  # itself: it produces no hits, and no hits is what a clean tree
+  # produces. Proved here rather than asserted, because before
+  # `gate_grep` this exact fixture printed OK and exited 0.
+  gate_selftest_without_tool grep "it is grep saying it could not search"
   gate_selftest_case "$want" plant
   gate_selftest_case "$want" plant_plus_position
   gate_selftest_case "$want" plant_plus_wrapped
   gate_selftest_case "$want" plant_after_block_comment
   gate_selftest_passes "prose, doc comments, a string literal and a longer name starting with EvalScalar" plant_prose_only
-  printf '%s selftest OK: passes a clean fixture, prose/doc/string mentions and `EvalScalarish`; fires in both bound positions, on a rustfmt-wrapped plus, and on a bound hidden behind a block comment\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture, prose/doc/string mentions and `EvalScalarish`; fires in both bound positions, on a rustfmt-wrapped plus, and on a bound hidden behind a block comment; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

@@ -1,6 +1,8 @@
 //! The façade's acceptance suite — ONE test binary for the whole
-//! crate (each extra test target cost ~1.9 s of codegen+link on the
-//! 2-vCPU CI runner).
+//! crate: on the 2-vCPU CI runner the per-binary codegen+link constant
+//! dominated the build job. The figure is not restated here — the
+//! LINK/DEBUGINFO note in .github/workflows/ci.yml carries it with its
+//! date and provenance run.
 //!
 //! What this file pins is the **closure property** (the crate docs'
 //! contract clause 1): every type reachable through the public API of
