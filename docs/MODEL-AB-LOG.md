@@ -1789,3 +1789,7 @@ fable}. Slot 1 = M10-2 (Measure nodes + Assertions; difficulty
 pre-logged M before the draw). Draw: /dev/urandom byte 197, no
 rejections ⇒ fable position 2 (0-indexed) ⇒ slot 1 OPUS, slot 2
 OPUS, slot 3 FABLE.
+
+**M10-3 dispatch (branch-side, 2026-08-29).** Block M10-B2 slot 2
+(arm per the block draw above). Difficulty pre-logged L at
+dispatch. Spec docs/M10-3-SPEC.md (merged main fed57094).
