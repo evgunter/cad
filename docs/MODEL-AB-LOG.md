@@ -1975,3 +1975,23 @@ draw; any partial probe branch stays on origin as the discarded
 attempt's record and is not an input; the fresh R1's probes go to
 `lib/g16-r1b-probes`. R2 stays queued behind the fresh R1.
 Adjudication weighs it as with ordinal 300.
+
+LIB-G16 R1 DELIVERED (2026-08-29, the fresh dispatch after the
+recorded death; frozen 36e3b83b): **APPROVE-WITH-FIXES 0/3/4, rubric
+4/4/3** — no MAJOR. The decisive instrument: the re-shape reduced to
+an identity argument (put_row(_, _, false, _) IS insert; flush
+no-ops) then an ARMED ASSERT inside the deferral lane run across the
+whole editor-core suite, the full tour walk and the python suite —
+zero trips, so byte-identity holds by construction over the true
+reachable set, beyond the PR's own two-document bar. Claim-3 fence
+question adjudicated WITHIN fence (the #917 fence is the OpGroup
+group-name; role.rs untouched; the NodeErrorKind generalization is
+the spec's own named site) with the fillet strings/tags proven
+byte-identical by execution. Row-11 closed form re-derived + Monte
+Carlo. Two SILENT deviations found: the tour scenes' stale
+no-such-node oracles (printed to users every run; class of 4 sites)
+and the undemonstrated 15→16 break (R1 wrote and pushed the missing
+row, red-capable, on lib/g16-r1b-probes). m10-p roster-only claim
+re-run independently, exact match. Disclosures clean; ~200k tokens,
+~1h20m. R2 (fable) dispatched sequentially after, brief verbatim
+from the pre-committed store. Row at merge.
