@@ -160,7 +160,16 @@ demonstrated by planting the defect it now refuses.
   and why); option 2 (`LANE=both` on pin) under the Q2 ruling.
   (iii) #1051: verify the landed request-a-point feature against the
   issue's three notes (record-which-point conventions, tier
-  handling) and close it with the pointer. Fence: `ci.yml`,
+  handling) and close it with the pointer. (iv) **#1204's minimum**
+  (adopted at the PCURVE orchestrator's report on the opening PR —
+  the sharpest member of the class: a draft PR's run rewrites every
+  `RUN_*` flag to false and still reports success with
+  `TIER`/`LANE`/`CARGO_SCOPE` truthful, so three greens on a
+  19-kernel-file branch gated nothing): the draft skip prints
+  itself in a step with no `if:`, and the `ready_for_review` escape
+  is documented beside it; the issue's option 2 (a non-success
+  conclusion) is assessed and reported, not taken — the F5
+  draft-skip behaviour itself stays. Fence: `ci.yml`,
   `scripts/ci-filter.py`.
 - **QA-3 — the debt-charging class (#1023 + D183) (M); under the Q1
   ruling.** The no-spend shape (recommended below): path-pin the
