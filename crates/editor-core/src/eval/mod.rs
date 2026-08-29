@@ -931,18 +931,21 @@ impl CancelToken {
 
 /// What a scalar must satisfy to be evaluated: decided predicates, the
 /// memo's content bits, the certification brackets the props lane
-/// needs, and `Send + Sync` for the rayon schedule. ONE name for the
-/// set, stated at the evaluation-service seam that owns it — so the
-/// modules below this one (`parts`) name the requirement rather than
-/// restate it, and the compound `Bounds` bound stays inside the seam
-/// the 2026-07-29 Bounds scope rule ratified.
+/// needs, the scalar's at-rest gate policy (`topo::AtRestPolicy`,
+/// which carries `topo::PropsQuadLane` as its supertrait — the part
+/// seam gathers a referenced document's product, so evaluation owns a
+/// gate policy per scalar), and `Send + Sync` for the rayon schedule.
+/// ONE name for the set, stated at the evaluation-service seam that
+/// owns it — so the modules below this one (`parts`) name the
+/// requirement rather than restate it, and the compound `Bounds` bound
+/// stays inside the seam the 2026-07-29 Bounds scope rule ratified.
 pub trait EvalScalar:
-    Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::PropsQuadLane
+    Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::AtRestPolicy
 {
 }
 
 impl<T> EvalScalar for T where
-    T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::PropsQuadLane
+    T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::AtRestPolicy
 {
 }
 
@@ -1007,7 +1010,7 @@ pub fn evaluate<T>(
     tol: Tol,
 ) -> Evaluation<T>
 where
-    T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::PropsQuadLane,
+    T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::AtRestPolicy,
 {
     evaluate_at_descent(doc, prior, cancel, opts, &[], tol)
 }
@@ -1026,7 +1029,7 @@ pub(crate) fn evaluate_nested<T>(
     tol: Tol,
 ) -> Evaluation<T>
 where
-    T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::PropsQuadLane,
+    T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::AtRestPolicy,
 {
     evaluate_at_descent(doc, None, cancel, opts, chain, tol)
 }
@@ -1040,7 +1043,7 @@ fn evaluate_at_descent<T>(
     tol: Tol,
 ) -> Evaluation<T>
 where
-    T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::PropsQuadLane,
+    T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::AtRestPolicy,
 {
     let sched = schedule::schedule(doc);
     // D4 door (M4 PR 6): the recorded ε must BE the committed process
@@ -1231,7 +1234,7 @@ fn eval_node<T>(
     tol: Tol,
 ) -> NodeStep<T>
 where
-    T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::PropsQuadLane,
+    T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::AtRestPolicy,
 {
     let fail = |kind: NodeErrorKind| NodeStep {
         result: NodeResult::Failed(NodeError { node: id, kind }),

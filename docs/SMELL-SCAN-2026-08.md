@@ -3477,6 +3477,9 @@ signature remains in `crates/*/src` — but it is **ungated**:
 `bounds-allowlist.sh` greps `Bounds`, not `Enclosure`, so a future
 `T: Enclosure` bound on something that certifies would be a hole with no CI row
 against it. The stale sentence is fixed; the gate gap is issue **#701**.
+**RESOLVED (M10-DI, 2026-08-29, DUAL-DESIGN DL4):** `bounds-allowlist.sh`
+now greps `Enclosure` exactly as `Bounds`, same allowlist, with planted
+selftest rows for both operand orders and an unknown `…Enclosure` alias.
 
 **One more residue, from the sweep rather than from the review.**
 `topo::census`'s duplicated `boolean::boxes` min/max justified itself with
@@ -3535,6 +3538,11 @@ post-classification picks, and the `sugar.rs` precedent does not cover them.
 So the seam owes either the lane or a written reason it needs none, and it
 owes it on the **public** surface rather than from the day E4 seeds a dual.
 Recorded in `real.rs` (the home) and pointed at from the gate header.
+**DISCHARGED (M10-DI, 2026-08-29, DUAL-DESIGN DL5):** the written reason is
+the delegation rule, ratified as the standing criterion on the `Bounds`
+ledger in `real.rs` — payload/report reads and value-channel-decided
+selections are lane-exempt; certificate-minting reads never are. The
+obligation text there retired into the rule.
 
 ### E4's door: the `Bounds` lock is open, and there is a second lock
 
@@ -3560,6 +3568,16 @@ memo, which belongs to whoever builds E4. **Filed as issue #687.** The
 suite's negative row — a `compile_fail,E0277` doctest on `ContentBits` in
 `editor-core/src/eval/memo.rs` — is what goes red the day #687 lands, so this
 record cannot silently outlive it.
+
+**LANDED (M10-DI, 2026-08-29, DUAL-DESIGN DL2):** `ContentBits for Dual<T>`
+feeds BOTH channels through the base scalar's own `feed`, so the seed rides
+the tangent bits and no memo entry can serve one parameter's pass from
+another's. The `compile_fail` row flipped to a passing companion at its
+definition site, and `e4_dual_door.rs` now pins the OPEN door — `Dual64`
+(and `Dual<Interval>` under the feature) satisfies every one of `evaluate`'s
+bounds; `m10_di_dual_corpus.rs` is the runtime half. The bound set the
+paragraph above quotes gained the DL3 policy term (`topo::AtRestPolicy`,
+which subsumes `topo::PropsQuadLane`).
 
 ### What this does NOT settle
 
