@@ -76,6 +76,9 @@ fn error_classes_name_the_python_hierarchy() {
             ErrorClass::Split => "SplitError",
             ErrorClass::Inline => "InlineError",
             ErrorClass::Update => "UpdateError",
+            ErrorClass::Readback => "ReadbackError",
+            ErrorClass::Checks => "ChecksError",
+            ErrorClass::Enforce => "CheckRefusal",
         }
     }
     for class in [
@@ -100,9 +103,64 @@ fn error_classes_name_the_python_hierarchy() {
         ErrorClass::Split,
         ErrorClass::Inline,
         ErrorClass::Update,
+        ErrorClass::Readback,
+        ErrorClass::Checks,
+        ErrorClass::Enforce,
     ] {
         assert_eq!(class.class_name(), expected(class));
     }
+}
+
+/// LIB-B-READBACK: the read-back doors' tag map, arm by arm.
+///
+/// Unlike `SelectRefusal`'s, this map IS the compile-time drift
+/// alarm: neither `InterrogateError` nor `ReadbackError` is
+/// `#[non_exhaustive]`, so a kernel arm added without a tag stops
+/// this crate compiling. What the pin adds on top is the tag TEXT,
+/// which the alarm cannot see — a renamed tag compiles fine and
+/// silently breaks every caller branching on it.
+///
+/// ONE ARM IS ABSENT AND IT IS NOT AN OVERSIGHT: `dangling` cannot be
+/// constructed here, because `ReadbackError::Dangling`'s field is a
+/// `DanglingRef`, which the façade's three curated lists do not
+/// carry. The compile alarm still covers it — the match arm exists —
+/// and the tag text is the only thing unpinned. That the payload of a
+/// CURATED refusal is itself uncurated is banked as a curation
+/// finding, not worked around here.
+#[test]
+fn readback_refusal_tags_are_stable() {
+    use crate::tags::interrogate_error_tag as tag;
+    use pncad::document::RecipeNodeId;
+    use pncad::select::{EntityKind, InterrogateError as E, ReadbackError as R};
+
+    let node = RecipeNodeId(0);
+    assert_eq!(tag(&E::NodeNotEvaluated { node }), "node_not_evaluated");
+    assert_eq!(tag(&E::NodeFailed { node }), "node_failed");
+    assert_eq!(
+        tag(&E::NodePoisoned {
+            node,
+            through: node
+        }),
+        "node_poisoned"
+    );
+    assert_eq!(tag(&E::NoSuchName), "no_such_name");
+    assert_eq!(tag(&E::Ambiguous { candidates: 2 }), "ambiguous");
+    assert_eq!(
+        tag(&E::WrongKind {
+            wanted: EntityKind::Face,
+            found: EntityKind::Edge,
+        }),
+        "wrong_kind"
+    );
+    assert_eq!(tag(&E::WholeBody), "whole_body");
+    assert_eq!(tag(&E::NoBodies { payload: "datum" }), "no_bodies");
+    assert_eq!(tag(&E::NoSuchBody { index: 1 }), "no_such_body");
+    // The geometry half arrives under its OWN tag, not a wrapper's.
+    assert_eq!(
+        tag(&E::Readback(R::NoCanonicalFrame { carrier: "nurbs" })),
+        "no_canonical_frame"
+    );
+    assert_eq!(tag(&E::Readback(R::NoCarrier)), "no_carrier");
 }
 
 /// LIB-PYSEL: `SelectRefusal` is `#[non_exhaustive]`, so the tag
@@ -606,5 +664,61 @@ fn a_labelled_document_is_the_same_part_every_time() {
     assert_ne!(
         crate::identity::derived("plate-param", Tol::witness()).id(),
         crate::identity::derived("bracket", Tol::witness()).id()
+    );
+}
+
+/// The registry's two tag namespaces are pinned, and stated honestly:
+/// this constructs every arm the curated surface can BUILD and asserts
+/// its tag. Two arms of each map carry kernel internals with no public
+/// constructor — [`ChecksError::Band`]'s `BandError`, and the shell
+/// door's refusal behind `Escalated`/`Unsupported` — so their tags are
+/// covered by the exhaustive match alone, which is the real alarm
+/// here: neither enum is `#[non_exhaustive]`, so a kernel arm added
+/// without a tag stops this crate compiling.
+///
+/// What the pin adds over the match is the STRINGS. A tag is the
+/// branchable half of a typed refusal, so renaming one is a surface
+/// break the compiler cannot see.
+#[test]
+fn check_registry_tags_are_stable() {
+    use crate::tags::{check_evidence_tag, checks_error_tag};
+    use pncad::document::{CheckEvidence, ChecksError, RecipeNodeId};
+
+    assert_eq!(
+        checks_error_tag(&ChecksError::Root {
+            node: RecipeNodeId(3)
+        }),
+        "root_without_value"
+    );
+    assert_eq!(
+        checks_error_tag(&ChecksError::Product {
+            reason: "no body roots".into()
+        }),
+        "product_unavailable"
+    );
+
+    assert_eq!(
+        check_evidence_tag(&CheckEvidence::Connectedness {
+            actual: 2,
+            expected: 1
+        }),
+        "connectedness"
+    );
+    assert_eq!(
+        check_evidence_tag(&CheckEvidence::StaleExpectation { expected: 1 }),
+        "stale_expectation"
+    );
+    assert_eq!(
+        check_evidence_tag(&CheckEvidence::NotSeparated {
+            other_root: RecipeNodeId(4),
+            other_output: 0
+        }),
+        "not_separated"
+    );
+    assert_eq!(
+        check_evidence_tag(&CheckEvidence::SeparationUnavailable {
+            reason: "boxes refused".into()
+        }),
+        "separation_unavailable"
     );
 }

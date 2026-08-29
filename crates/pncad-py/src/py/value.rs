@@ -391,7 +391,7 @@ fn dimension_name(dim: d::Dimension) -> &'static str {
 }
 
 /// Project a canonical-metre point into typed `Length`s.
-fn lengths(p: pncad::geom_core::Point3<f64>) -> (Length, Length, Length) {
+pub(crate) fn lengths(p: pncad::geom_core::Point3<f64>) -> (Length, Length, Length) {
     (
         Length(pncad::quantity::Length::from_meters(p.x)),
         Length(pncad::quantity::Length::from_meters(p.y)),
@@ -717,6 +717,99 @@ impl Evaluation {
             Ok(found) => names(py, found),
             Err(refusal) => Err(super::select::select_refusal(py, &refusal)),
         }
+    }
+
+    /// **Where is the face I selected?** — the named face's carrier
+    /// frame, as of THIS evaluation.
+    ///
+    /// The forward twin of the materializers: they hand out names,
+    /// and this asks one where it SITS. `name` is one of the opaque
+    /// texts `all_faces` / `select` / `select_where` answered with,
+    /// handed back unread.
+    ///
+    /// The answer is the CARRIER's frame, copied out of stored
+    /// geometry — a definitional re-read, so no pad and no
+    /// measurement. It is not a verdict: no door here says whether a
+    /// face is planar or where it is relative to anything, which is
+    /// `select_where`'s decided half.
+    ///
+    /// Raises `ReadbackError`, typed: `no_such_name` for a stale
+    /// selection, `ambiguous` for an N2 tie (ask
+    /// [`Self::denotation`] first), `wrong_kind` for an edge or
+    /// vertex name, `no_canonical_frame` for a NURBS carrier, and the
+    /// node ladder for a node this evaluation did not produce.
+    fn face_frame(
+        &self,
+        py: Python<'_>,
+        node: &NodeId,
+        name: &str,
+    ) -> PyResult<super::readback::Pose> {
+        let name = super::doc::name_from_text(name)?;
+        pncad::select::face_frame(&self.inner, node.0, &name)
+            .map(super::readback::Pose)
+            .map_err(|err| super::readback::readback_err(py, &err))
+    }
+
+    /// **Where is the edge I selected?** — the named edge's certified
+    /// carrier frame, [`Self::face_frame`]'s sibling.
+    ///
+    /// A straight edge answers with `u_ref is None`: a line has a
+    /// direction and no distinguished perpendicular, and the door
+    /// says so rather than inventing one.
+    ///
+    /// Raises `ReadbackError` as [`Self::face_frame`] does, with
+    /// `wrong_kind` for a non-edge name and `no_carrier` for an edge
+    /// still carrying null-edge scaffolding.
+    fn edge_frame(
+        &self,
+        py: Python<'_>,
+        node: &NodeId,
+        name: &str,
+    ) -> PyResult<super::readback::Pose> {
+        let name = super::doc::name_from_text(name)?;
+        pncad::select::edge_frame(&self.inner, node.0, &name)
+            .map(super::readback::Pose)
+            .map_err(|err| super::readback::readback_err(py, &err))
+    }
+
+    /// **Where is the vertex I selected?** — the named vertex's
+    /// stored position, dimensioned.
+    ///
+    /// Raises `ReadbackError` as [`Self::face_frame`] does, with
+    /// `wrong_kind` for a non-vertex name.
+    fn vertex_position(
+        &self,
+        py: Python<'_>,
+        node: &NodeId,
+        name: &str,
+    ) -> PyResult<(Length, Length, Length)> {
+        let name = super::doc::name_from_text(name)?;
+        pncad::select::vertex_position(&self.inner, node.0, &name)
+            .map(lengths)
+            .map_err(|err| super::readback::readback_err(py, &err))
+    }
+
+    /// **How does this name resolve — uniquely, or as a tie?** The
+    /// referencing question, answered without exposing what it
+    /// resolves to.
+    ///
+    /// This is the door to ask BEFORE a frame: the three frame doors
+    /// refuse an N2 tie (`ambiguous`) rather than picking a
+    /// candidate, and this says whether one is coming. It answers a
+    /// COUNT, never the candidates — those are arena keys, which do
+    /// not cross.
+    ///
+    /// Raises `ReadbackError` for the node ladder and `no_such_name`.
+    fn denotation(
+        &self,
+        py: Python<'_>,
+        node: &NodeId,
+        name: &str,
+    ) -> PyResult<super::readback::Denotation> {
+        let name = super::doc::name_from_text(name)?;
+        pncad::select::denotation(&self.inner, node.0, &name)
+            .map(super::readback::Denotation)
+            .map_err(|err| super::readback::readback_err(py, &err))
     }
 
     /// **The cross-body flush-plane candidates between `a`'s and
