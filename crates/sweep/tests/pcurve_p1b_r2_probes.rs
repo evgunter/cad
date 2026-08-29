@@ -61,9 +61,7 @@ fn scaffold_descriptions(body: &Body<f64>) -> Vec<EdgeKey> {
         .filter(|(_, e)| {
             body.get_curve_geom(e.curve)
                 .and_then(topo::CurveGeom::certified)
-                .is_some_and(|c| {
-                    matches!(c.description(), geom_brep::EdgeDescription::Scaffold(_))
-                })
+                .is_some_and(|c| matches!(c.description(), geom_brep::EdgeDescription::Scaffold(_)))
         })
         .map(|(k, _)| k)
         .collect()
@@ -135,7 +133,10 @@ fn revolved(points: &[(f64, f64)], revolution: Revolution<f64>) -> Body<f64> {
 }
 
 fn tube() -> Body<f64> {
-    revolved(&[(0.4, 0.0), (0.8, 0.0), (0.8, 0.6), (0.4, 0.6)], Revolution::Full)
+    revolved(
+        &[(0.4, 0.0), (0.8, 0.0), (0.8, 0.6), (0.4, 0.6)],
+        Revolution::Full,
+    )
 }
 
 fn all_edges(body: &Body<f64>) -> Vec<EdgeKey> {
@@ -166,7 +167,10 @@ fn r2_no_product_verb_hands_back_a_scaffold_at_rest() {
     bodies.push(("revolve full tube", tube()));
     bodies.push((
         "revolve full ball-ish annulus",
-        revolved(&[(0.2, 0.0), (0.5, 0.0), (0.5, 1.0), (0.2, 1.0)], Revolution::Full),
+        revolved(
+            &[(0.2, 0.0), (0.5, 0.0), (0.5, 1.0), (0.2, 1.0)],
+            Revolution::Full,
+        ),
     ));
     bodies.push((
         "revolve partial wedge",
@@ -226,7 +230,13 @@ fn r2_no_product_verb_hands_back_a_scaffold_at_rest() {
     }
 
     // Shell.
-    if let Ok(body) = topo::shell(&cube(1.0, Tol::witness()), 0.1, 1e-9, band(), Tol::witness()) {
+    if let Ok(body) = topo::shell(
+        &cube(1.0, Tol::witness()),
+        0.1,
+        1e-9,
+        band(),
+        Tol::witness(),
+    ) {
         bodies.push(("shell cube", body));
     }
     if let Ok(body) = topo::shell(&tube(), 0.05, 1e-9, band(), Tol::witness()) {
@@ -393,7 +403,10 @@ fn r2_a_rigid_transform_preserves_every_authority() {
 /// through.
 #[test]
 fn r2_an_undeclared_edge_still_crosses_a_non_translating_offset() {
-    let base = revolved(&[(0.4, 0.0), (0.8, 0.0), (0.8, 0.3), (0.4, 0.6)], Revolution::Full);
+    let base = revolved(
+        &[(0.4, 0.0), (0.8, 0.0), (0.8, 0.3), (0.4, 0.6)],
+        Revolution::Full,
+    );
     let cone = base
         .faces()
         .find(|(_, f)| matches!(base.get_surface(f.surface), Some(Surface::Cone { .. })))

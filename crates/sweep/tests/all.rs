@@ -40,16 +40,16 @@
 
 #[path = "offb_r1_loft_probes.rs"]
 mod offb_r1_loft_probes;
-#[path = "p1b_r1_probes.rs"]
-mod p1b_r1_probes;
-#[path = "pcurve_p1b_r2_probes.rs"]
-mod pcurve_p1b_r2_probes;
 #[path = "offc_r1_probes.rs"]
 mod offc_r1_probes;
 #[path = "offd2_r1_probes.rs"]
 mod offd2_r1_probes;
 #[path = "offd_r1_probes.rs"]
 mod offd_r1_probes;
+#[path = "p1b_r1_probes.rs"]
+mod p1b_r1_probes;
+#[path = "pcurve_p1b_r2_probes.rs"]
+mod pcurve_p1b_r2_probes;
 #[path = "sf2a_r1.rs"]
 mod sf2a_r1;
 #[path = "sf2a_r1_head.rs"]

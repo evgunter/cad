@@ -58,9 +58,7 @@ fn main() {
         .filter(|(_, e)| {
             ball.get_curve_geom(e.curve)
                 .and_then(topo::CurveGeom::certified)
-                .is_some_and(|c| {
-                    matches!(c.description(), geom_brep::EdgeDescription::Scaffold(_))
-                })
+                .is_some_and(|c| matches!(c.description(), geom_brep::EdgeDescription::Scaffold(_)))
         })
         .count();
 
@@ -78,7 +76,10 @@ fn main() {
         "[M2] ball at rest: {} edges | scaffold descriptions = {scaffolds} | declared = {declared}",
         ball.edges().count()
     );
-    println!("[M2] tier3 at rest: {:?}", topo::validate_geometric(&ball, Tol::witness()).is_ok());
+    println!(
+        "[M2] tier3 at rest: {:?}",
+        topo::validate_geometric(&ball, Tol::witness()).is_ok()
+    );
 
     // Both bands share ONE sphere key, so the chart moves as a group.
     let Some(sphere_key) = ball.faces().find_map(|(_, f)| {
@@ -100,7 +101,11 @@ fn main() {
             println!("[M2] REFUSED CarrierLaneUnsupported: {what}");
             println!(
                 "[M2] declared-arm? {}",
-                if what.contains("declared") { "YES" } else { "no" }
+                if what.contains("declared") {
+                    "YES"
+                } else {
+                    "no"
+                }
             );
         }
         Err(e) => println!("[M2] refused through another door: {e:?}"),

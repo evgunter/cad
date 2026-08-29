@@ -52,9 +52,7 @@ fn scaffold_descriptions(body: &Body<f64>) -> usize {
         .filter(|(_, e)| {
             body.get_curve_geom(e.curve)
                 .and_then(topo::CurveGeom::certified)
-                .is_some_and(|c| {
-                    matches!(c.description(), geom_brep::EdgeDescription::Scaffold(_))
-                })
+                .is_some_and(|c| matches!(c.description(), geom_brep::EdgeDescription::Scaffold(_)))
         })
         .count()
 }
