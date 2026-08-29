@@ -223,12 +223,21 @@ fn r2b_one_holed_extrusion() {
     }
 }
 
-/// **A PARTIAL revolve** — round 1 measured that it never reaches the
-/// rim surgery: the sealed offset refuses first (`ReanchorOffCarrier`,
-/// #1081 / PR-2). Kept as an instrument that the refusal is TYPED and
-/// no body comes back.
+/// **A PARTIAL revolve, through the rim surgery it used to be stopped
+/// short of.** Round 1 measured that the sealed offset refused first
+/// (`ReanchorOffCarrier`, #1081), so this row could only instrument
+/// that the refusal was typed and no body came back. #1081's PR-2b
+/// solves those corners — a wedge's meridian caps are planes CONTAINING
+/// the axis, which is the door's azimuth arm — so the sealed offset
+/// succeeds and the reachable outcomes are now the RIM's.
+///
+/// The row stays print-shaped on purpose: what it reports per θ is the
+/// operand door's own verdict as well as the rim's, because the
+/// axis-touching partial revolve's `NonManifoldAxisContact` is decided
+/// against the RUN's epsilon and a meridian the sweep will not build
+/// never reaches the verb at all.
 #[test]
-fn r2b_partial_revolve_refuses_before_the_rim() {
+fn r2b_partial_revolve_reaches_the_rim() {
     let tol = Tol::witness();
     let (r, h, t) = (0.5, 0.4, 0.05);
     for theta in [core::f64::consts::FRAC_PI_2, 2.4] {
