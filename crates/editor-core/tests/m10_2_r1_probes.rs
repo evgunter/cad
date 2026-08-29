@@ -658,9 +658,25 @@ fn r1_skew_cylinder_axes_refuse_typed() {
     let ev = eval(&doc);
     for id in [g, d] {
         let err = failed_kind(&ev, id);
+        // The fix pass sharpened this refusal (review MINOR-3). Skew
+        // cylinders are a pair the v1 table DOES have an arm for; what
+        // it lacks is their PARALLELISM. `MeasureUnsupported` said the
+        // false thing — "no closed form for a cylinder against a
+        // cylinder" — and sent the author hunting a missing feature
+        // instead of at their tilt. The row keeps its subject (skew
+        // axes refuse typed, never guess) at the corrected arm.
+        let NodeErrorKind::MeasureNotParallel { predicate, .. } = err else {
+            panic!("skew axes must refuse NotParallel, got {err:?}");
+        };
+        assert_eq!(*predicate, "carrier_cyl_axis_parallel");
+        let rendered = ev.node_error(id).map(|e| e.to_string()).unwrap_or_default();
         assert!(
-            matches!(err, NodeErrorKind::MeasureUnsupported(_)),
-            "skew axes must refuse typed, got {err:?}"
+            rendered.contains("parallel"),
+            "the refusal must name the tilt: {rendered}"
+        );
+        assert!(
+            !rendered.contains("no closed form"),
+            "the refusal must not claim the pair is unsupported: {rendered}"
         );
     }
 }
@@ -739,7 +755,7 @@ fn r1_gap_and_angle_at_interval_contain_the_f64_values() {
         &doc,
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
-            vec![wall(&ev, bore), wall(&ev, pin)],
+            at_mint([wall(&ev, bore), wall(&ev, pin)]),
         )
         .expect("indices in range"),
     );

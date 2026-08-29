@@ -473,11 +473,14 @@ id: 7ddec231df0049f879136a2f7624647d
           },
           "refs": [
             {
-              "kind": "Body",
-              "node": 1,
-              "path": [
-                "OutputBody"
-              ]
+              "at": 1,
+              "name": {
+                "kind": "Body",
+                "node": 1,
+                "path": [
+                  "OutputBody"
+                ]
+              }
             }
           ]
         }

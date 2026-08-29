@@ -21,7 +21,7 @@ use editor_core::{
     MeasureRef, Node, NodeErrorKind, NodeResult, ParamName, ProfileDoc, ProfileProgram,
     ProgramStep, ProgramTarget, RecipeNodeId, SlotId, StableName, ValuePayload, apply, evaluate,
 };
-use fixture::len;
+use fixture::{ang, len, scl};
 use geom_core::Tol;
 use profile::SketchPlane;
 
@@ -173,6 +173,98 @@ fn hole_walls(ev: &Evaluation<f64>, holes: [RecipeNodeId; 2]) -> Vec<MeasureRef>
             walls.remove(0)
         })
         .collect()
+}
+
+/// The air between the two slabs of [`two_slabs`].
+const SLAB_GAP: f64 = 2.0;
+
+/// Two DISJOINT axis-aligned slabs, the lower occupying z in [0, 1]
+/// and the upper z in [1 + SLAB_GAP, 2 + SLAB_GAP]. Returns
+/// (doc, lower, upper).
+fn two_slabs() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+    let mut doc = ProfileDoc::empty(DocumentId::derive("m10-2-slabs"), Tol::witness());
+    let square = || {
+        LoopProgram::Chain(vec![
+            ProgramStep::At([len(0.0), len(0.0)]),
+            ProgramStep::LineTo(ProgramTarget::Point([len(1.0), len(0.0)])),
+            ProgramStep::LineTo(ProgramTarget::Point([len(1.0), len(1.0)])),
+            ProgramStep::LineTo(ProgramTarget::Point([len(0.0), len(1.0)])),
+            ProgramStep::LineTo(ProgramTarget::Start),
+        ])
+    };
+    for z in [0.0, 1.0 + SLAB_GAP] {
+        doc = push(
+            &doc,
+            &DocEdit::InsertNode {
+                node: Node::Profile(ProfileProgram {
+                    plane: SketchPlane::new(geom_core::Affine3::translation(geom_core::Vec3::new(
+                        0.0, 0.0, z,
+                    ))),
+                    loops: vec![square()],
+                }),
+            },
+        );
+        let profile = RecipeNodeId(doc.len() as u64 - 1);
+        doc = push(
+            &doc,
+            &DocEdit::InsertNode {
+                node: Node::Extrude {
+                    profile,
+                    distance: len(1.0),
+                },
+            },
+        );
+    }
+    (doc, RecipeNodeId(1), RecipeNodeId(3))
+}
+
+/// A named cap of a prism, read at the node that owns it.
+fn cap(ev: &Evaluation<f64>, node: RecipeNodeId, end: editor_core::CapEnd) -> MeasureRef {
+    use editor_core::{EntityKind, NamePat, SegPat, SegTag, Selector, select};
+    let sel =
+        Selector::of(NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(end)));
+    let mut found = select(ev, node, &sel);
+    assert_eq!(found.len(), 1, "one {end:?} cap on node {node:?}");
+    MeasureRef::new(node, found.remove(0))
+}
+
+/// One cylindrical wall of a circular extrude, read at that extrude.
+fn hole_wall_of(ev: &Evaluation<f64>, node: RecipeNodeId) -> MeasureRef {
+    let mut walls = faces_of_kind(ev, node, geom_brep::SurfaceKind::Cylinder);
+    assert!(!walls.is_empty(), "node {node:?} has a cylindrical wall");
+    walls.remove(0)
+}
+
+/// A bore and a pin on ONE axis (the z axis through the origin), so
+/// the C5 cylinder arm's axis offset `d` is exactly zero and the gap
+/// is exactly `r_bore - r_pin`. Returns (doc, bore, pin).
+fn coaxial_pair(bore_r: f64, pin_r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
+    let mut doc = ProfileDoc::empty(DocumentId::derive("m10-2-coaxial"), Tol::witness());
+    for r in [bore_r, pin_r] {
+        doc = push(
+            &doc,
+            &DocEdit::InsertNode {
+                node: Node::Profile(ProfileProgram {
+                    plane: SketchPlane::xy(),
+                    loops: vec![LoopProgram::Circle {
+                        centre: [len(0.0), len(0.0)],
+                        radius: len(r),
+                    }],
+                }),
+            },
+        );
+        let profile = RecipeNodeId(doc.len() as u64 - 1);
+        doc = push(
+            &doc,
+            &DocEdit::InsertNode {
+                node: Node::Extrude {
+                    profile,
+                    distance: len(0.5),
+                },
+            },
+        );
+    }
+    (doc, RecipeNodeId(1), RecipeNodeId(3))
 }
 
 fn measured(ev: &Evaluation<f64>, id: RecipeNodeId) -> (f64, Dimension) {
@@ -396,22 +488,40 @@ fn cylinder_distance_is_the_axis_separation() {
     );
 }
 
-/// `angle` between two plane faces of the plate: the extrude's two
-/// caps are parallel with OPPOSED chart normals, so the angle between
-/// their carriers' normals is pi. The oracle is the authoring: a
-/// prism's caps face apart.
+/// `angle` between the plate's two CAPS is exactly pi: an extruded
+/// prism's caps are parallel with OPPOSED chart normals, so the angle
+/// between the carriers is a straight angle.
+///
+/// The oracle is the authoring, not the codomain. The row this
+/// replaces asserted only `0 <= a <= pi`, which every possible answer
+/// satisfies — it could not have gone red for any bug in the arm.
 #[test]
-fn plane_angle_reads_the_carriers_normals() {
+fn plane_angle_between_opposed_caps_is_pi() {
     let (doc, body, _) = plate();
     let ev = eval(&doc);
     let planes = faces_of_kind(&ev, body, geom_brep::SurfaceKind::Plane);
     assert!(planes.len() >= 2, "a prism has at least two planar faces");
+    // The caps are the two faces whose chart normals are +/-z; the
+    // side walls are the rest. Picked by NAME (the cap role), not by
+    // measuring, so the oracle stays independent of the arm.
+    let caps: Vec<MeasureRef> = {
+        use editor_core::{CapEnd, EntityKind, NamePat, SegPat, SegTag, Selector, select};
+        let pick = |end| {
+            let sel = Selector::of(
+                NamePat::of_kind(EntityKind::Face).seg(SegPat::tag(SegTag::Cap).side(end)),
+            );
+            let mut found = select(&ev, body, &sel);
+            assert_eq!(found.len(), 1, "one {end:?} cap");
+            MeasureRef::new(body, found.remove(0))
+        };
+        vec![pick(CapEnd::Top), pick(CapEnd::Bottom)]
+    };
     let doc = push(
         &doc,
         &DocEdit::InsertNode {
             node: Node::measure(
                 MeasureExpr::primitive(MeasurePrimitive::Angle { a: 0, b: 1 }),
-                planes,
+                caps,
             )
             .expect("indices in range"),
         },
@@ -419,68 +529,342 @@ fn plane_angle_reads_the_carriers_normals() {
     let (a, dim) = measured(&eval(&doc), RecipeNodeId(6));
     assert_eq!(dim, Dimension::Angle, "an angle is an Angle");
     assert!(
-        (0.0..=std::f64::consts::PI + 1e-12).contains(&a),
-        "an unsigned angle lies in [0, pi], got {a}"
+        (a - std::f64::consts::PI).abs() < 1e-12,
+        "opposed caps subtend pi, got {a}"
     );
 }
 
-/// **C5's sign convention, in all three regimes** — the coaxial
-/// cylinder arm, driven by the hole radius so one document walks
-/// clearance, contact and interference.
+/// **MAJ-3: a plane gap is a MATERIAL separation, and its sign says
+/// so.** Two disjoint slabs, 2 m of air between them: the facing pair
+/// must read `+2`, never negative, whichever way round the roles go.
 ///
-/// `gap(bore, pin) = r_bore - r_pin - d`. Here the two hole walls are
-/// coaxial-parallel with `d = 2*HOLE_X`, so the sign is decided by the
-/// radii against that separation, and the oracle is arithmetic on the
-/// numbers the author wrote.
+/// Before the sense fold this arm read the raw chart normal, so the
+/// sign was an artifact of how each face happened to be charted:
+/// half the parallel pairs over exactly this geometry read NEGATIVE —
+/// C5 "interference" with 2 m of air in between.
 #[test]
-fn the_gap_sign_convention_holds_in_all_three_regimes() {
-    let (doc, _, holes) = plate();
-    let walls = hole_walls(&eval(&doc), holes);
-    let doc = push(
-        &doc,
-        &DocEdit::InsertNode {
-            node: Node::measure(
-                MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
-                walls,
-            )
-            .expect("indices in range"),
-        },
-    );
-    // Both walls share the parameter, so r_bore - r_pin is 0 and the
-    // gap is -d: interference, by C5's sign, which is the honest
-    // reading of two equal-radius cylinders 0.6 apart being asked to
-    // mate.
-    let (g, dim) = measured(&eval(&doc), RecipeNodeId(6));
-    assert_eq!(dim, Dimension::Length, "a gap is a signed Length");
-    assert!(
-        (g + 2.0 * HOLE_X).abs() < 1e-12,
-        "equal radii at separation d give g = -d = {}, got {g}",
-        -2.0 * HOLE_X
-    );
-    assert!(g < 0.0, "C5: g < 0 is interference");
+fn a_plane_gap_over_disjoint_slabs_is_positive_both_ways() {
+    let (doc, lower, upper) = two_slabs();
+    let ev = eval(&doc);
+    let top_of_lower = cap(&ev, lower, editor_core::CapEnd::Top);
+    let bottom_of_upper = cap(&ev, upper, editor_core::CapEnd::Bottom);
+
+    // Forward, then the roles swapped.
+    for (o, i) in [
+        (top_of_lower.clone(), bottom_of_upper.clone()),
+        (bottom_of_upper, top_of_lower),
+    ] {
+        let doc = push(
+            &doc,
+            &DocEdit::InsertNode {
+                node: Node::measure(
+                    MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
+                    vec![o, i],
+                )
+                .expect("indices in range"),
+            },
+        );
+        let (g, dim) = measured(&eval(&doc), RecipeNodeId(4));
+        assert_eq!(dim, Dimension::Length);
+        assert!(
+            (g - SLAB_GAP).abs() < 1e-12,
+            "two slabs {SLAB_GAP} m apart have a +{SLAB_GAP} gap, got {g}"
+        );
+        assert!(g > 0.0, "C5: air between the faces is CLEARANCE, not {g}");
+    }
 }
 
-/// The three regimes as pure arithmetic on the formula's own terms —
-/// clearance, contact, interference — so the convention is pinned
-/// without a geometry fixture per sign.
+/// The same geometry, the ALIGNED pair (both material sides facing the
+/// same way): there the role swap negates, which is the other half of
+/// the convention and the half that does carry information.
 #[test]
-fn the_three_regimes_are_the_formulas_own_signs() {
-    // g = r_bore - r_pin - d, with d = 0 (coaxial by construction).
-    for (bore, pin, expect) in [
+fn a_plane_gap_over_an_aligned_pair_negates_under_a_role_swap() {
+    let (doc, lower, upper) = two_slabs();
+    let ev = eval(&doc);
+    let top_of_lower = cap(&ev, lower, editor_core::CapEnd::Top);
+    let top_of_upper = cap(&ev, upper, editor_core::CapEnd::Top);
+
+    let read = |o: MeasureRef, i: MeasureRef| {
+        let doc = push(
+            &doc,
+            &DocEdit::InsertNode {
+                node: Node::measure(
+                    MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
+                    vec![o, i],
+                )
+                .expect("indices in range"),
+            },
+        );
+        measured(&eval(&doc), RecipeNodeId(4)).0
+    };
+    let forward = read(top_of_lower.clone(), top_of_upper.clone());
+    let swapped = read(top_of_upper, top_of_lower);
+    assert!(
+        (forward + swapped).abs() < 1e-12,
+        "an aligned pair negates under a role swap: {forward} vs {swapped}"
+    );
+    assert!(
+        forward.abs() > 1e-9,
+        "the reading must be nonzero for the negation to say anything"
+    );
+}
+
+/// **C5's three regimes, through the door under test** — coaxial
+/// cylinders at a shared axis, with the radii driven so one document
+/// walks clearance, contact and interference.
+///
+/// The row this replaces computed `let g = bore - pin;` in the test
+/// and asserted its sign: it called nothing under test and could not
+/// have failed for any bug in `gap`.
+#[test]
+fn the_gap_sign_convention_walks_all_three_regimes() {
+    // A bore and a pin on ONE axis, so the axis offset d is 0 and the
+    // sign is exactly r_bore - r_pin.
+    for (bore_r, pin_r, expect) in [
         (0.51_f64, 0.50_f64, 1_i32),
         (0.50, 0.50, 0),
         (0.49, 0.50, -1),
     ] {
-        let g = bore - pin;
-        let sign = if g > 0.0 {
+        let (doc, bore, pin) = coaxial_pair(bore_r, pin_r);
+        let ev = eval(&doc);
+        let refs = vec![hole_wall_of(&ev, bore), hole_wall_of(&ev, pin)];
+        let doc = push(
+            &doc,
+            &DocEdit::InsertNode {
+                node: Node::measure(
+                    MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
+                    refs,
+                )
+                .expect("indices in range"),
+            },
+        );
+        let (g, dim) = measured(&eval(&doc), RecipeNodeId(4));
+        assert_eq!(dim, Dimension::Length, "a gap is a signed Length");
+        let want = bore_r - pin_r;
+        assert!(
+            (g - want).abs() < 1e-12,
+            "coaxial g = r_bore - r_pin = {want}, got {g}"
+        );
+        let sign = if g > 1e-12 {
             1
-        } else if g < 0.0 {
+        } else if g < -1e-12 {
             -1
         } else {
             0
         };
-        assert_eq!(sign, expect, "g = {g} for bore {bore} pin {pin}");
+        assert_eq!(sign, expect, "C5 regime for bore {bore_r} pin {pin_r}");
     }
+}
+
+// ---- The three review MAJORs, each pinned red-capable ----
+
+/// **MAJ-1: a non-finite measure refuses, and NO verdict is produced
+/// over it.**
+///
+/// `13 / s` at `s = 0` is `inf`. In an extrude slot `expr::eval`'s
+/// door 2 has always refused it; the measurement sublanguage restated
+/// the arithmetic without that door, so the same division came back a
+/// typed SUCCESS and an assertion over it reported
+/// `Holds { measured: inf }` — a false PASS from the node whose whole
+/// job is certifying intent.
+#[test]
+fn a_non_finite_measure_refuses_and_asserts_nothing() {
+    let mut doc = ProfileDoc::empty(DocumentId::derive("m10-2-inf"), Tol::witness());
+    doc = push(
+        &doc,
+        &DocEdit::SetDocParam {
+            name: ParamName::new("s"),
+            value: DocParam::Continuous {
+                dim: Dimension::Scalar,
+                value: 0.0,
+                distribution: None,
+            },
+        },
+    );
+    // 13 m / s, with s bound to zero.
+    let over_zero = MeasureExpr::div(
+        MeasureExpr::value(Expr::literal(13.0, Dimension::Length).expect("finite")),
+        MeasureExpr::value(Expr::param(ParamName::new("s"), Dimension::Scalar)),
+    )
+    .expect("Length / Scalar");
+    doc = push(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::measure(over_zero, Vec::new()).expect("no references to bound"),
+        },
+    );
+    let measure = RecipeNodeId(0);
+    doc = push(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::Assertion {
+                measure,
+                bound: Expr::literal(1.0, Dimension::Length).expect("finite"),
+                dir: AssertionDir::AtLeast,
+            },
+        },
+    );
+    let ev = eval(&doc);
+
+    let err = failed_kind(&ev, measure);
+    assert!(
+        matches!(err, NodeErrorKind::MeasureNonFinite { .. }),
+        "a division by zero must refuse, got {err:?}"
+    );
+    // And the assertion produces NO verdict at all: it is poisoned
+    // through the DAG edge, never `Holds` over infinity.
+    assert!(
+        matches!(
+            ev.nodes.get(&RecipeNodeId(1)),
+            Some(NodeResult::Poisoned { .. })
+        ),
+        "no verdict may be reported over a non-finite measure, got {:?}",
+        ev.nodes.get(&RecipeNodeId(1))
+    );
+}
+
+/// The same expression in an ordinary SLOT has always refused — the
+/// row that shows the measure lane was the one out of step, not the
+/// door.
+#[test]
+fn the_same_division_in_a_slot_has_always_refused() {
+    let mut doc = ProfileDoc::empty(DocumentId::derive("m10-2-inf-slot"), Tol::witness());
+    doc = push(
+        &doc,
+        &DocEdit::SetDocParam {
+            name: ParamName::new("s"),
+            value: DocParam::Continuous {
+                dim: Dimension::Scalar,
+                value: 0.0,
+                distribution: None,
+            },
+        },
+    );
+    doc = push(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::Profile(ProfileProgram {
+                plane: SketchPlane::xy(),
+                loops: vec![LoopProgram::Circle {
+                    centre: [len(0.0), len(0.0)],
+                    radius: len(0.2),
+                }],
+            }),
+        },
+    );
+    doc = push(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::Extrude {
+                profile: RecipeNodeId(0),
+                distance: Expr::div(
+                    Expr::literal(13.0, Dimension::Length).expect("finite"),
+                    Expr::param(ParamName::new("s"), Dimension::Scalar),
+                )
+                .expect("Length / Scalar"),
+            },
+        },
+    );
+    let ev = eval(&doc);
+    let err = failed_kind(&ev, RecipeNodeId(1));
+    assert!(
+        matches!(
+            err,
+            NodeErrorKind::Expr {
+                source: editor_core::EvalError::NonFiniteResult,
+                ..
+            }
+        ),
+        "the slot lane refuses non-finite, got {err:?}"
+    );
+}
+
+/// **MAJ-2: a measure reads the PLACED carrier.**
+///
+/// A box is built at the origin and translated 100 m. A vertex
+/// selected from the TRANSFORM (`at` = the transform) must measure
+/// against the placed geometry; reading it at the minting extrude
+/// gives the authored position, and the two must differ by exactly the
+/// translation. Before the fix both spellings returned the authored
+/// number and said `Ok`.
+#[test]
+fn a_measure_at_a_transform_reads_the_placed_carrier() {
+    use editor_core::{EntityKind, NamePat, Selector, select};
+    const SHIFT: f64 = 100.0;
+    let mut doc = ProfileDoc::empty(DocumentId::derive("m10-2-placed"), Tol::witness());
+    doc = push(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::Profile(ProfileProgram {
+                plane: SketchPlane::xy(),
+                loops: vec![LoopProgram::Chain(vec![
+                    ProgramStep::At([len(0.0), len(0.0)]),
+                    ProgramStep::LineTo(ProgramTarget::Point([len(1.0), len(0.0)])),
+                    ProgramStep::LineTo(ProgramTarget::Point([len(1.0), len(1.0)])),
+                    ProgramStep::LineTo(ProgramTarget::Point([len(0.0), len(1.0)])),
+                    ProgramStep::LineTo(ProgramTarget::Start),
+                ])],
+            }),
+        },
+    );
+    let solid = RecipeNodeId(1);
+    doc = push(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::Extrude {
+                profile: RecipeNodeId(0),
+                distance: len(1.0),
+            },
+        },
+    );
+    let placed = RecipeNodeId(2);
+    doc = push(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::Transform {
+                input: solid,
+                translation: [len(SHIFT), len(0.0), len(0.0)],
+                rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
+                rotation_angle: ang(0.0),
+            },
+        },
+    );
+
+    let ev = eval(&doc);
+    // ONE vertex name, measured against itself at two different
+    // reading sites: the only thing that differs is `at`.
+    let vname = {
+        let mut vs = select(
+            &ev,
+            placed,
+            &Selector::of(NamePat::of_kind(EntityKind::Vertex)),
+        );
+        vs.sort();
+        assert!(!vs.is_empty(), "the box has vertices");
+        vs.remove(0)
+    };
+    // The SAME vertex name, read at the two sites: the distance between
+    // the authored carrier and the placed one is exactly the
+    // translation. Nothing else in the document differs.
+    let doc = push(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::measure(
+                MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
+                vec![
+                    MeasureRef::new(solid, vname.clone()),
+                    MeasureRef::new(placed, vname),
+                ],
+            )
+            .expect("indices in range"),
+        },
+    );
+    let (d, _) = measured(&eval(&doc), RecipeNodeId(3));
+    assert!(
+        (d - SHIFT).abs() < 1e-9,
+        "the same vertex read at the extrude and at the transform is {SHIFT} m apart, got {d} \
+         — a measure at the transform must see the PLACED carrier"
+    );
 }
 
 // ---- Review claim 5: scalar genericity ----

@@ -33,6 +33,24 @@
 //! covers the three scalars the review names rather than the value lane
 //! alone.
 //!
+//! **The numbers moved once, at M10-2, and NOT because the build path
+//! did.** That unit registered a new corpus document (`measured_web`,
+//! carrying the E3/E10 measurement nodes so the Dual/Interval digest
+//! arms are reached rather than merely present). This digest is taken
+//! over the WHOLE corpus in registry order, so growing the registry
+//! moves it by construction: the walk gains the new document's rows,
+//! and every document after it shifts index. Neither is a statement
+//! about evaluation.
+//!
+//! What still makes the fence mean what it says: the corpus's other
+//! rows — `m4_pr8_corpus`'s per-document coverage and cone probes, the
+//! Dual/Interval corpus digests, and the persistence round trip — all
+//! hold across the same change, and a measurement sink denotes no
+//! body, so it contributes no geometry to any pre-existing document.
+//! Re-running the pre-lift differential means taking these numbers on
+//! a pre-lift tree WITH the same registry; comparing across a registry
+//! change compares two different corpora and answers nothing.
+//!
 //! THE DIGEST IS EPS-INDEPENDENT BY CONSTRUCTION, and has to be: the
 //! hosted matrix samples a tolerance row per run, so a golden number
 //! that moved with eps would be a fence that only ever gated one row of
@@ -271,7 +289,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0xebba_499b_112f_ea43, 0x3350_329b_8dcf_3c2f),
+        (0xa14a_5c0c_91cb_6e99, 0x864b_3d87_a012_eb85),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -298,7 +316,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0x6c3f_436b_41ec_d1b4, 0xe7db_67ef_2cff_e270),
+        (0x247e_6737_4e47_866a, 0x143b_ccdd_78a0_b756),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -322,7 +340,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0xebba_499b_112f_ea43, 0x3350_329b_8dcf_3c2f),
+        (0xa14a_5c0c_91cb_6e99, 0x864b_3d87_a012_eb85),
         "the corpus's Probe evaluation moved"
     );
 }

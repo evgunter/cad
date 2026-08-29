@@ -53,6 +53,7 @@ pub mod heatsink;
 pub mod heatsink_union;
 pub mod islands;
 pub mod loft_prism;
+pub mod measured_web;
 pub mod plate_param;
 pub mod sink;
 pub mod slots;
@@ -133,6 +134,10 @@ pub fn documents() -> Vec<CorpusDoc> {
         tangency::document(),
         sink::document(),
         cut_cylinder::document(),
+        // M10-2: the measurement vocabulary, so the Dual/Interval
+        // digests' Measure and Assertion arms are REACHED rather than
+        // merely present.
+        measured_web::document(),
         boss::document(),
         // `die_fillet` IS registered, as of the PR 12 gate fix
         // `5c8540f`. It was held out while the fillet battery's
@@ -229,7 +234,7 @@ pub fn body_of<T: Decide>(ev: &Evaluation<T>, id: RecipeNodeId) -> &Body<T> {
 }
 
 /// The node kinds a document exercises (the coverage tally's domain).
-pub const NODE_KINDS: [&str; 13] = [
+pub const NODE_KINDS: [&str; 15] = [
     "Datum",
     "Profile",
     "Extrude",
@@ -255,6 +260,13 @@ pub const NODE_KINDS: [&str; 13] = [
     "Loft",
     "Sweep",
     "Declare",
+    // M10-2's measurement sinks. Listed because `measured_web` now
+    // registers them: the hold-out that kept them off this roster was
+    // correct only while no corpus document carried one, and a
+    // listed-but-uncovered kind fails the tally in the other
+    // direction.
+    "Measure",
+    "Assertion",
 ];
 
 /// The edit kinds a document exercises (the coverage tally's domain).
@@ -366,10 +378,6 @@ pub fn node_kind(node: &Node<ProfileProgram>) -> &'static str {
         Node::Sweep { .. } => "Sweep",
         Node::Declare { .. } => "Declare",
         Node::Mate { .. } => "Mate",
-        // Not in NODE_KINDS, for the reason Mate and InstantiatePart
-        // are not: the measurement sinks have no registered corpus
-        // document yet, and a listed-but-uncovered kind fails the
-        // tally. Their coverage lives in `m10_2_measure.rs`.
         Node::Measure { .. } => "Measure",
         Node::Assertion { .. } => "Assertion",
         Node::InstantiatePart { .. } => "InstantiatePart",
