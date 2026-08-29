@@ -217,7 +217,31 @@ fn eps_in_rows_for(rel: &str) -> &'static [(&'static str, Option<f64>)] {
 ///   the NIST inch translator prints ~12 significant digits, so the
 ///   file does not state itself to 1e-12 m, and the adoption ladder
 ///   says so by name instead of certifying a carrier it cannot.
-const EPS_ROWS: [(&str, f64, &str, Disposition); 15] = [
+const EPS_ROWS: [(&str, f64, &str, Disposition); 21] = [
+    // -- tests/fixtures/cert1-r1/nearpolar_*.step ---------------------
+    // The AMBIENT sweep only, at the files' own ε_in (they state
+    // themselves to full double precision). At ambient 1e-6 both
+    // twins refuse at EDGE ADOPTION — the rim/plane wedge angle's
+    // certification margin (~8.6e-6 rad) is inside the ambiguity
+    // band, so no props arithmetic is even reached; at the default
+    // and fine bands both certify with the exact closed-form volume
+    // (`cert1_r1_import_probes.rs` holds the value).
+    (NEARPOLAR_SPLIT, 1e-9, "file", Pass(1, 1, 3, 4, 3)),
+    (
+        NEARPOLAR_SPLIT,
+        1e-6,
+        "file",
+        Refused(NEARPOLAR_WEDGE_ESCALATED),
+    ),
+    (NEARPOLAR_SPLIT, 1e-12, "file", Pass(1, 1, 3, 4, 3)),
+    (NEARPOLAR_NOSPLIT, 1e-9, "file", Pass(1, 1, 3, 3, 2)),
+    (
+        NEARPOLAR_NOSPLIT,
+        1e-6,
+        "file",
+        Refused(NEARPOLAR_WEDGE_ESCALATED),
+    ),
+    (NEARPOLAR_NOSPLIT, 1e-12, "file", Pass(1, 1, 3, 3, 2)),
     // -- tests/fixtures/band/ftc11_uref_off.stp -----------------------
     (FTC11, 1e-9, "file", Refused(SEAM_HALFPLANE_DEFINITE)),
     (FTC11, 1e-9, "1e-6", Refused(TANGENT_PLANES_COINCIDE)),
@@ -262,6 +286,12 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 15] = [
 ];
 
 const FTC11: &str = "tests/fixtures/band/ftc11_uref_off.stp";
+const NEARPOLAR_SPLIT: &str = "tests/fixtures/cert1-r1/nearpolar_split.step";
+const NEARPOLAR_NOSPLIT: &str = "tests/fixtures/cert1-r1/nearpolar_nosplit.step";
+/// The nearpolar twins' coarse-band sub-reason: the rim/plane wedge
+/// angle's adoption certification, by predicate name, so a regression
+/// that moves the refusal to another door fails these cells.
+const NEARPOLAR_WEDGE_ESCALATED: &str = "predicate 'dihedral_wedge' indeterminate";
 const DM1: &str = "tests/fixtures/wild/stepcode/dm1-id-214.stp";
 /// dm1's fine-band sub-reason: the shared at-rest gate cannot compute
 /// the exact-B-rep volume of a RATIONAL cylinder wall — the banked
@@ -365,14 +395,17 @@ const CORPUS: [(&str, Disposition); 70] = [
     // is issue 723's body with the split vertex EXACTLY on the pole
     // (the pole-membership decide sits on its Zero through this door).
     // `cert1_r1_import_probes.rs` holds all four to the closed form.
+    // The nearpolar twins are AMBIENT-sensitive: their rim sits
+    // 0.0208 rad off the pole on a 0.208 mm circle, and at ambient
+    // 1e-6 the rim/plane wedge angle's adoption margin (~8.6e-6)
+    // lands in the escalation band — the coarse band honestly cannot
+    // tell this near-tangency from a tangency. Pinned cell by cell
+    // in `EPS_ROWS`.
     (
         "tests/fixtures/cert1-r1/nearpolar_nosplit.step",
-        Pass(1, 1, 3, 3, 2),
+        EpsSensitive,
     ),
-    (
-        "tests/fixtures/cert1-r1/nearpolar_split.step",
-        Pass(1, 1, 3, 4, 3),
-    ),
+    ("tests/fixtures/cert1-r1/nearpolar_split.step", EpsSensitive),
     (
         "tests/fixtures/cert1-r1/polesplit_nosplit.step",
         Pass(1, 1, 3, 3, 2),

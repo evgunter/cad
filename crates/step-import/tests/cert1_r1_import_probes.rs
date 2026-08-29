@@ -49,6 +49,29 @@ fn certifies_exactly(name: &str, r: f64, b: f64) {
 /// no-split twins: both certify the closed form exactly.
 #[test]
 fn probe_near_polar_half_cap_twins_certify() {
+    // ε-three-outcome honesty: at ambient 1e-6 these twins never
+    // reach props — the rim/plane wedge angle's ADOPTION margin
+    // (~8.6e-6 rad) is inside that band's escalation window, and the
+    // coarse band honestly cannot tell this near-tangency from a
+    // tangency. That cell is pinned by predicate name here and in
+    // `tier_gate.rs`'s EPS_ROWS; the default and fine bands certify
+    // the exact closed form.
+    if (geom_core::Tol::witness().eps() - 1e-6).abs() < 1e-18 {
+        for f in ["nearpolar_split.step", "nearpolar_nosplit.step"] {
+            let err =
+                step_import::import_step(&fixture(f), &ImportOptions::default(), Tol::witness())
+                    .err()
+                    .unwrap_or_else(|| {
+                        panic!("{f}: expected the adoption escalation at ambient 1e-6")
+                    })
+                    .to_string();
+            assert!(
+                err.contains("predicate 'dihedral_wedge' indeterminate"),
+                "{f}: the coarse-band refusal must be the wedge adoption escalation, got: {err}"
+            );
+        }
+        return;
+    }
     certifies_exactly("nearpolar_split.step", 0.010, 1.55);
     certifies_exactly("nearpolar_nosplit.step", 0.010, 1.55);
 }
