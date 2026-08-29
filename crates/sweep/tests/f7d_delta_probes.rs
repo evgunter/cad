@@ -10,7 +10,7 @@
 mod revolve_common;
 
 use geom_core::{Band, Tol};
-use profile::ProfileLoop;
+use profile::{ProfileLoop, RawLoop};
 use revolve_common::*;
 use sweep::{Revolution, revolve};
 use topo::{Body, BooleanOp, boolean_reduce, mint_pcurves, validate_closed, validate_geometric};
