@@ -7,6 +7,8 @@ declares unrepresentable, plus the typed-quantity boundary.
 
 from pncad import (
     ArcSide,
+    ChecksConfig,
+    Severity,
     Bulge,
     Cmp,
     CurveKind,
@@ -29,6 +31,9 @@ from pncad import (
     SurfaceKind,
     Sweep,
     Workspace,
+    enforce_checks,
+    run_checks,
+    subject_body,
     Alignment,
     AxisSense,
     ContactClass,
@@ -253,3 +258,19 @@ split(doc, solid, "fresh")  # ty: error
 # `update_references` takes the pin as a VALUE. Passing its text would
 # make the door do the parsing the type already did.
 update_references(doc, doc.id, content_pin(doc).hex)  # ty: error
+
+# DS6's waiver rule is a TYPE here, not a comment asking callers not
+# to reach: the separation resident ships no acknowledgment record, so
+# its knob is an `Advisory` and `Error` is not a position it has.
+ChecksConfig(separation=Severity.Error)  # ty: error
+
+# The report door takes a document AND an evaluation of it, in that
+# order; the gate door takes the finished REPORT. Neither is derivable
+# from the other, and swapping them is the mistake the pair exists to
+# catch.
+run_checks(doc)  # ty: error
+enforce_checks(doc)  # ty: error
+
+# A subject is named by a node and an OUTPUT INDEX — the same
+# attribution a finding carries — never by the finding's rendering.
+subject_body(evaluate(doc), solid)  # ty: error

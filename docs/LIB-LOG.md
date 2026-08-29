@@ -540,8 +540,8 @@ family — and every `gap:` entry names ONE id that owns the work. An
 audit gap id where `docs/guide/north-star-audit.md` defines one
 (cited, never minted, since that page's ids are scene-anchored and
 its tallies depend on staying that way); otherwise a census-owned
-family id — `B-CHECKS`, `B-PICKING`, `B-RESOLVE`, `B-READBACK`,
-`B-EXPR-READ`, `B-CANCEL`, `B-FORMAT`, `B-VALIDATE4` — each carrying
+family id — `B-PICKING`, `B-RESOLVE`, `B-READBACK`, `B-EXPR-READ`,
+`B-CANCEL`, `B-FORMAT`, `B-VALIDATE4`, `B-DISTRIBUTIONS` — each carrying
 a one-line charter saying what a unit closing it would deliver. The
 `B-` is this category's own letter: the census owns the surface-debt
 id space, this register points AT it, and the census's own test fails

@@ -1,6 +1,7 @@
 //! The PyO3 surface. Compiled only under the `python` feature.
 
 mod assembly;
+mod checks;
 mod doc;
 mod flush;
 mod mate;
@@ -262,6 +263,28 @@ pyo3::create_exception!(
 );
 pyo3::create_exception!(
     pncad,
+    ChecksError,
+    PncadError,
+    "The advisory-check registry could not RUN. Carries `variant`, the \
+     stable tag of the refusing arm (`root_without_value`, `band`, \
+     `product_unavailable`), and `node` — the root without a value, \
+     `None` on the other arms.\n\n\
+     NOT a finding. A check that ran and disagreed is a value in the \
+     report; this class means nothing was checked."
+);
+pyo3::create_exception!(
+    pncad,
+    CheckRefusal,
+    PncadError,
+    "`enforce_checks` refused: the report carries findings whose check \
+     the CALLER configured at `Severity.Error`. Carries `findings`, \
+     every refusing `CheckFinding` in report order.\n\n\
+     The registry's one refusing path, and it refuses on nothing the \
+     caller did not ask to be refused on — no default severity is \
+     `Error`, and the separation resident cannot be set to it at all."
+);
+pyo3::create_exception!(
+    pncad,
     FrameError,
     PncadError,
     "A frame constructor refused its inputs — the same typed refusal \
@@ -306,6 +329,8 @@ pub(crate) fn typed_err(
         ErrorClass::Split => SplitError::new_err(message),
         ErrorClass::Inline => InlineError::new_err(message),
         ErrorClass::Update => UpdateError::new_err(message),
+        ErrorClass::Checks => ChecksError::new_err(message),
+        ErrorClass::Enforce => CheckRefusal::new_err(message),
     };
     // Attaching attributes needs the instance, which materialises the
     // exception value; a failure here would itself be a Python error,
@@ -355,6 +380,8 @@ fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("SplitError", py.get_type::<SplitError>())?;
     m.add("InlineError", py.get_type::<InlineError>())?;
     m.add("UpdateError", py.get_type::<UpdateError>())?;
+    m.add("ChecksError", py.get_type::<ChecksError>())?;
+    m.add("CheckRefusal", py.get_type::<CheckRefusal>())?;
 
     quantity::register(m)?;
     path::register(m)?;
@@ -366,6 +393,7 @@ fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     assembly::register(m)?;
     refactor::register(m)?;
     flush::register(m)?;
+    checks::register(m)?;
     mesh::register(m)?;
     value::register(m)?;
 
