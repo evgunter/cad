@@ -1049,7 +1049,9 @@ class TestDiechamfer(unittest.TestCase):
     (`crates/editor-core/tests/lib_g16_chamfer_node.rs` carries the
     derivation and meters the surface area too)."""
 
-    L, D = 1.0, 0.125
+    # `demos/tour/src/diefillet.rs`: L and the blend size the
+    # chamfered pair sets as its SETBACK, so this IS the scene.
+    L, D = 1.0, 0.12
 
     def build(self):
         doc = Doc()
@@ -1368,6 +1370,48 @@ class TestDiecomposed(DieScene, unittest.TestCase):
         # land on the same number, or it is not the scene's oracle.
         self.assertEqual(round(want, 6), 0.952915)
         self.assertAlmostEqual(volume_of(doc, composed), want, delta=1e-9 * want)
+
+
+class TestDiechamferDie(DieScene, unittest.TestCase):
+    """Tour scene `diechamfer`, the die stop (row 12): the pipped cube's
+    twelve box edges CHAMFERED in place, the 21 pip cavities carried
+    through as sharp rings.
+
+    This row is what the scene's finding 2 asked for. The Rust scene
+    has to say "the twelve box edges" as a hand-rolled carrier-kind
+    loop over the kernel body, because `select_where` answers stable
+    NAMES and `chamfer_edges` takes arena KEYS. Here the same
+    `select_where` call feeds `Node.chamfer` directly — the identical
+    line `TestDiecomposed` feeds `Node.fillet`, one verb over.
+
+    The pip rims stay sharp on purpose: the chamfer's v1 door is
+    plane-plane only, so a plane-sphere rim would refuse
+    `ChamferArmUnsupported`. That is the door's scope, not an
+    omission, and the scene says so."""
+
+    DIE_D = 0.12  # the box-edge SETBACK, the filleted die's radius
+
+    def test_the_box_edges_chamfer_through_select_where(self):
+        doc = Doc()
+        die = self.pipped_die(doc)
+        edges = Selector.of(NamePat.of_kind(EntityKind.Edge))
+        straight = evaluate(doc).select_where(
+            die, edges, [GeomPred.curve_kind(CurveKind.Line)]
+        )
+        self.assertEqual(len(straight), 12)
+        chamfered = doc.insert(Node.chamfer(die, self.DIE_D * m, straight))
+
+        # It evaluates, and it is not the fillet: at the same size the
+        # flat strip cuts the corner the ball rides around.
+        filleted = doc.insert(Node.fillet(die, self.DIE_D * m, straight))
+        self.assertLess(volume_of(doc, chamfered), volume_of(doc, filleted))
+
+        # The scene's own census for the chamfered BOX, plus the 21
+        # pip cavities carried through: the box contributes 26 faces
+        # (6 shrunk supports + 12 strips + 8 corner patches) and each
+        # pip cavity is a sphere in two half-faces.
+        faces = evaluate(doc).all_faces(chamfered)
+        self.assertEqual(len(faces), 26 + 21 * 2)
 
 
 class TestTiltedcut(unittest.TestCase):
