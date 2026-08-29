@@ -30,11 +30,16 @@ kinds, datum distance). Every answer is opaque name TEXT, the one
 alphabet `Node.fillet` reads; narrowing happens through these doors,
 never by parsing a name.
 
+The mesh door is `Body.tessellate(chordal)` and the `Mesh` it
+answers: one shared position buffer, one triangle patch per face, and
+STL out. The mesh-vs-exact cross-check is a computation the CALLER
+writes over those triangles — `docs/guide/meshing.md` shows it — so
+it is genuinely a second measure and not a second reading.
+
 Deliberately ABSENT, and tracked as named gaps in
-`docs/guide/north-star-audit.md`: sweep and tube, tessellation and
-STL, the pattern node with its structural-parameter edit, and the
-detect/declare protocol that would build the `Node.declare`
-`Node.boolean`'s `declare=` consumes.
+`docs/guide/north-star-audit.md`: sweep and tube, the pattern node,
+chamfer and shell (which have no recipe node at all), and the whole
+assembly series.
 """
 
 from typing import Any, Final, Generic, Optional, TypeAlias, TypeVar, overload
