@@ -54,8 +54,8 @@ its body. Its write side is deliberately two doors — `create` and
 import tempfile
 
 from pncad import (
-    ContentPin, Doc, DocRef, Node, Workspace, WorkspaceError,
-    content_pin, m,
+    PIN_MISMATCH_RECOURSE, ContentPin, Doc, DocRef, Node, Workspace,
+    WorkspaceError, content_pin, m,
 )
 
 
@@ -99,6 +99,9 @@ except WorkspaceError as refusal:
     assert refusal.variant == "pin_mismatch"
     assert refusal.wanted == content_pin(shelf)
     assert refusal.found == content_pin(thicker)
+    # The recourse is IN the refusal, not in a doc: the library's own
+    # sentence, which the message ends on.
+    assert PIN_MISMATCH_RECOURSE in str(refusal)
 
 # `current_pin` is the door that says what the new version IS —
 # `resolve` minus the expected pin, so there is nothing to disagree
@@ -752,8 +755,17 @@ except ProductError as refusal:
 ```
 
 Read an `AssemblyError`'s `variant` first, and read it as three
-groups. `at_rest` is a verdict **against** the document — a refuted
-declaration, or an undeclared contact. `uncertified` is the declared
+groups. `at_rest` is a verdict **against** the document, and it
+carries the findings: each `AtRestFinding`'s `attribution.relation`
+says which of the three things happened — `refuted` (the faces do not
+meet as the declaration claims), `declined` (no certifier lane for a
+face the declaration names, so nothing was decided either way), or
+`unattributed` (no declaration answers at all — an **undeclared
+contact**, which is the hard error by definition, and the same refusal
+the fail-loud tour meets on a single-document boolean). Where a
+finding is `refuted` or `unattributed`, `attribution.declaration`
+names the minted declaration it is about, by the two stable names the
+mate was authored in — the recourse is in the error. `uncertified` is the declared
 direction's **frontier**: nothing refuted, nothing undeclared, the
 census simply declined to certify, so nothing was decided either way.
 Everything else — `mate_reference_refused`, `no_at_rest_record`, and
