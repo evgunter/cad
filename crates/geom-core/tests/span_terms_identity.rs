@@ -3,6 +3,8 @@
 //! of from `degree`, and D9 makes any drift a re-baseline, not a
 //! refactor. This is the test that earns the claim.
 
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
 use geom_core::spline::basis::{basis_funs, span_terms};
 use geom_core::spline::{KnotVector, Span};
 
@@ -41,7 +43,10 @@ fn check(kv: &KnotVector, t: f64) {
 
 #[test]
 fn matches_basis_funs_bit_for_bit_uniform() {
-    let k = kv(vec![0.0, 0.0, 0.0, 0.0, 1.0, 2.0, 3.0, 4.0, 4.0, 4.0, 4.0], 3);
+    let k = kv(
+        vec![0.0, 0.0, 0.0, 0.0, 1.0, 2.0, 3.0, 4.0, 4.0, 4.0, 4.0],
+        3,
+    );
     for step in 0..=40 {
         check(&k, step as f64 * 0.1);
     }
@@ -81,7 +86,10 @@ fn matches_basis_funs_bit_for_bit_degree_one_and_high_degree() {
 
 #[test]
 fn span_window_is_the_control_window() {
-    let k = kv(vec![0.0, 0.0, 0.0, 0.0, 1.0, 2.0, 3.0, 4.0, 4.0, 4.0, 4.0], 3);
+    let k = kv(
+        vec![0.0, 0.0, 0.0, 0.0, 1.0, 2.0, 3.0, 4.0, 4.0, 4.0, 4.0],
+        3,
+    );
     let span: Span = k.span_at(1.5);
     assert_eq!(span.degree(), 3);
     assert_eq!(*span.window().start(), span.index() - 3);
@@ -104,8 +112,8 @@ fn span_window_is_the_control_window() {
 /// BOTH bounds — checked here rather than argued.
 #[cfg(feature = "interval")]
 mod interval_lane {
-    use geom_core::spline::basis::{basis_funs, span_terms};
     use geom_core::spline::KnotVector;
+    use geom_core::spline::basis::{basis_funs, span_terms};
     use geom_core::{Bounds, Interval, Real};
 
     struct Ctl(usize);
@@ -125,6 +133,12 @@ mod interval_lane {
                     (term.basis.lo().to_bits(), term.basis.hi().to_bits()),
                     (w.lo().to_bits(), w.hi().to_bits()),
                     "enclosure bits differ at span {index}, r {r}, t {t}"
+                );
+                // The pairing is the window here too, in ascending order.
+                assert_eq!(
+                    term.control.0,
+                    index - kv.degree() + r,
+                    "control pairing at span {index}, r {r}"
                 );
             }
         }
@@ -158,14 +172,11 @@ mod interval_lane {
 /// discriminating inputs, and they are cheap to keep.
 #[test]
 fn signed_zero_survives_the_shift_and_add() {
-    let k = kv(vec![0.0, 0.0, 0.0, 0.0, 1.0, 2.0, 3.0, 4.0, 4.0, 4.0, 4.0], 3);
-    for t in [
-        -0.0,
-        -f64::MIN_POSITIVE,
-        -1e-320,
-        -5e-324,
-        -1e-300,
-    ] {
+    let k = kv(
+        vec![0.0, 0.0, 0.0, 0.0, 1.0, 2.0, 3.0, 4.0, 4.0, 4.0, 4.0],
+        3,
+    );
+    for t in [-0.0, -f64::MIN_POSITIVE, -1e-320, -5e-324, -1e-300] {
         check(&k, t);
     }
     // The exact witness the scan reported, spelled out: at t = -0.0 the
