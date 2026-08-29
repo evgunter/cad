@@ -1964,3 +1964,14 @@ CI polling + four re-merges against a fast-moving main); impl CI
 33273733447 GREEN (interval, default ε; zero non-success jobs) at
 36e3b83b; schema v16 taken with the constant read by eye at branch
 and at each re-merge. Row at merge.
+
+LIB-G16 R1 FIRST DISPATCH DIED (2026-08-29 ~20:55Z): killed
+mid-review by the model's session usage limit (resets 21:00Z), no
+report delivered — the same shape as ordinal 300's R1, handled
+identically and recorded before the delivered review runs: partial
+DISCARDED, not resumed; fresh complete R1 from the SAME stored brief
+on the same frozen head 36e3b83b, same slot model per the byte-176
+draw; any partial probe branch stays on origin as the discarded
+attempt's record and is not an input; the fresh R1's probes go to
+`lib/g16-r1b-probes`. R2 stays queued behind the fresh R1.
+Adjudication weighs it as with ordinal 300.
