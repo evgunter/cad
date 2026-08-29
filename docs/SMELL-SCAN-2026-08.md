@@ -7591,7 +7591,7 @@ grows after dispatch. **This row needs a lane and does not have one.**
 > `docs/SMELL-{C,E,F,G,H,I}-LOG.md` are the execution record for six of the
 > nine. **A, B and D left no log and none is owed**; what they did is in their
 > merged PRs. The rulings the logged tracks made are cited from here by number
-> (`F-R11`, `H-R2`, `I-R8`, …) and are read there. **105 open items** are
+> (`F-R11`, `H-R2`, `I-R8`, …) and are read there. **104 open items** are
 > carried below, partitioned by file territory so that no two tracks edit one
 > file and no branch waits on, fences against, or re-derives another's scope.
 
@@ -7680,7 +7680,7 @@ its orchestrator stopped, and §C3 says a deferral that lands nowhere that
 executes is the failure this document keeps re-finding. **This section is the
 one register for all of it.**
 
-**105 open items, repartitioned into twelve tracks by FILE TERRITORY.** The
+**104 open items, repartitioned into twelve tracks by FILE TERRITORY.** The
 partition rule is the only one that matters here: **no two tracks may edit the
 same file**, so no branch waits on, fences against, or re-derives another's
 scope. Dependencies *inside* a track are its own orchestrator's to sequence —
@@ -7764,7 +7764,7 @@ re-scoped or re-argued by being moved.
 | **U** | `crates/step-import/`, `crates/step-export/`, `crates/stl/`, `crates/pncad-py/`, `crates/pncad/` | `D340`–`D359` / `S410`–`S429` | 7 |
 | **V** | `crates/editor-core/`, `crates/profile/` | `D360`–`D379` / `S430`–`S449` | 12 |
 | **W** | `crates/*/tests/` (all crates), `crates/test-utils/` | `D380`–`D399` / `S450`–`S469` | 14 |
-| **X** | `demos/` (Rust and Markdown; its Python is J's), `docs/DESIGN.md`'s companion table | `D400`–`D419` / `S470`–`S489` | 4 |
+| **X** | `demos/` (Rust and Markdown; its Python is J's), `docs/DESIGN.md`'s companion table | `D400`–`D419` / `S470`–`S489` | 3 |
 
 **Three seams are stated rather than left to be discovered**, because each is
 a place where a reasonable reader would think the fence ambiguous:
@@ -8037,7 +8037,7 @@ thirteen that does not exist, and these two are not it.)*
 
 **Fence:** `demos/` (Rust and Markdown; its Python is Track J's),
 `docs/DESIGN.md`'s companion table. **Block:** `D400`–`D419` / `S470`–`S489`.
-**Four items, and it is small because its ground is small.** It shares no
+**Three items, and it is small because its ground is small.** It shares no
 file with anything above, so it can be taken alongside another track by one
 orchestrator without breaking the partition.
 
@@ -8046,7 +8046,6 @@ orchestrator without breaking the partition.
 | **D79** | `lily.rs`, read end to end for the first time (**`S130`**, whose members are this row's members) — a shadow tuple vector algebra in bare `(f64, f64, f64)` beside `Vec3` (whose *reason* is #796), an `assert_cap` existential over two frames that gets easier as the caps converge, a `cap_frames` that asserts an arity per face and none over the `Vec<Cap>` it returns, and a 137-line header at 41% comment | Track G |
 | **S129** | `demos/` has assertions and no runner — nothing runs `cargo test` under `demos/`. **Its "two rows are red" premise is now in doubt: see `D400`** | Track G |
 | **D400** | **Issue #782's premise does not hold on this tree, and `S129` rests on it.** #782 says two rows of `finding_13_tessellation_table_reproduces` are red on `main`; **both are green here**, and the pinned figures match neither the `976/826` #782 records as pinned nor the `1016/854` it records as measured — `lily.rs`'s table now reads `lily_leaf_b` **468** and `lily_leaf_c` **414** at δ = 2e-3. Either the pin or the geometry moved since #782 was written, and nothing says which. `S129`'s *"arming them lands a red gate"* is the whole reason the `--bin demo-tour` unit tests are deliberately unarmed, so **that premise needs re-deriving before anyone acts on either row** — including the widening `S129` says is owed the moment #782 is decided | unrowed |
-| **D401** | **`demos/tour/src/uvdump.rs` classifies five pcurve forms and reports three.** The `form` match names `harmonic`, `isoline`, `isoarc`, `fitted` and `general`; `FaceStats::forms` is then built by filtering against a hardcoded `["harmonic", "isoline", "fitted"]`. An `IsoArc` or `General` half-edge is dropped from the cell subtitle and from `uv.json`, and the stroke-colour match falls through its `_ => COLOR_HARMONIC` arm — **drawing a rational iso-arc as if it were harmonic, which is the exact thing the `IsoArc` arm's own comment says the sheet exists to show** (*"NOT evenly spaced in `u` — which is exactly what this sheet is for showing"*). Unexercised by the corpus today: every face measured on this tree is `harmonic` or `isoline`, so the committed output is not wrong and nothing would announce it when the first rational cap rim arrives | unrowed |
 
 ## What this partition leaves out, said explicitly
 
