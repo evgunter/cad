@@ -34,15 +34,16 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use pncad::document::{
-    Alignment, Dimension, DimensionError, Doc, DocEdit, DocParam, EditError, Evaluation, Frame,
-    Node, ParamName, ParseError, PartResolver, ProductError, ProfileProgram, RecipeNodeId, SlotId,
-    apply, assemble, parse_expr, product,
+    Alignment, CancelToken, Dimension, DimensionError, Doc, DocEdit, DocParam, EditError,
+    EvalOptions, Evaluation, Frame, Node, ParamName, ParseError, PartResolver, ProductError,
+    ProfileProgram, RecipeNodeId, SlotId, apply, assemble, evaluate, parse_expr, product,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
 use pncad::quantity::UnitDef;
 use pncad::select::{ContactClass, Resolution, RunCtx, resolve};
 
+use crate::bounds;
 use crate::display::{DisplayFault, DisplayState, DisplayView};
 use crate::docio::{self, DirResolver, DocIoError};
 use crate::evalseam::{EvalRequest, EvalService, Generation, InlineEvaluator};
@@ -446,6 +447,23 @@ pub enum SessionOp {
         /// The new value.
         value: SlotValue,
     },
+    /// Take a locally-valid-range probe for one field: how far it can
+    /// move, in each direction, before the document acquires a failure
+    /// it does not have now.
+    ///
+    /// **Explicitly asked for, never automatic.** The probe costs tens
+    /// of evaluations (`bounds`'s cost note), which is a price worth
+    /// paying when a user is about to change a number and not worth
+    /// paying on every selection. The answer lands in the session
+    /// ([`DocSession::bounds`]) and is discarded on the next document
+    /// change.
+    ///
+    /// It changes no document, commits nothing and enters no history:
+    /// every candidate is applied to a scratch copy that is dropped.
+    ProbeBounds {
+        /// The field to probe.
+        target: BoundsTarget,
+    },
     /// Change how a slot's literal is WRITTEN — its display unit —
     /// leaving the canonical value bit-identical.
     ///
@@ -755,6 +773,39 @@ pub struct DocSession {
     /// document can never silently resolve against the previous
     /// document's directory.
     resolver: Option<Arc<DirResolver>>,
+    /// The last locally-valid-range probe, and the field it was taken
+    /// for — layer-3 state, never persisted, and its one home.
+    ///
+    /// Kept rather than recomputed per frame because a probe costs tens
+    /// of evaluations: it is taken when asked for
+    /// ([`SessionOp::ProbeBounds`]) and DISCARDED, never repaired, the
+    /// moment the document changes. A range is a statement about one
+    /// document, and showing yesterday's range beside today's number is
+    /// the class of stale-confident answer this crate's staleness rules
+    /// exist to prevent.
+    bounds: Option<(BoundsTarget, bounds::Bounds)>,
+}
+
+/// The field a locally-valid-range probe was taken for.
+///
+/// Two arms rather than one with an `Option`, for the reason
+/// `BeginGesture` and `BeginParamGesture` are two doors: a slot and a
+/// document parameter are addressed differently, and collapsing them
+/// puts an `Option` in every arm that reads one.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum BoundsTarget {
+    /// A node's named slot.
+    Slot {
+        /// The node.
+        node: RecipeNodeId,
+        /// The slot.
+        slot: SlotId,
+    },
+    /// A document parameter.
+    Param {
+        /// The parameter.
+        name: ParamName,
+    },
 }
 
 /// The A5 at-rest verdict for the landed pair — a mated document's
@@ -828,6 +879,7 @@ impl DocSession {
             path: None,
             display: DisplayState::new(),
             resolver: None,
+            bounds: None,
         };
         session.request_eval();
         session
@@ -932,6 +984,13 @@ impl DocSession {
     /// document, and before anything lands.
     pub fn at_rest(&self) -> Option<&AtRestBadge> {
         self.landed_at_rest.as_ref()
+    }
+
+    /// The last locally-valid-range probe, with the field it was taken
+    /// for. `None` before any probe, and after every document change
+    /// (`request_eval`'s discard).
+    pub fn bounds(&self) -> Option<&(BoundsTarget, bounds::Bounds)> {
+        self.bounds.as_ref()
     }
 
     /// The file this session is backed by, if any.
@@ -1113,6 +1172,7 @@ impl DocSession {
                 self.commit(DocEdit::DeleteNode { id: node })
             }
             SessionOp::SetSlot { node, slot, value } => self.set_slot(node, slot, value),
+            SessionOp::ProbeBounds { target } => self.probe_bounds(target),
             SessionOp::SetSlotUnit { node, slot, unit } => self.set_slot_unit(node, slot, unit),
             SessionOp::SetSlotExpression { node, slot, text } => {
                 self.set_slot_expression(node, slot, &text)
@@ -1237,6 +1297,138 @@ impl DocSession {
         match props::slot_edit(node, slot, value, unit) {
             Ok(edit) => self.commit(edit),
             Err(error) => OpOutcome::refused(Refusal::Dimension(error)),
+        }
+    }
+
+    /// Run one locally-valid-range probe, inline.
+    ///
+    /// The oracle is the whole of what "valid" means here: apply the
+    /// candidate value to the shown document, evaluate, and ask whether
+    /// the failing set grew ([`bounds::Verdict::no_worse_than`]). An
+    /// edit the door itself REFUSES — a profile program that stops
+    /// being a legal walk, a non-finite literal — counts as invalid
+    /// without an evaluation, which is the same answer for the same
+    /// reason: at that value the document does not stand.
+    ///
+    /// Every sample runs against the landed evaluation as its memo, so
+    /// it re-runs the edited node's downstream cone rather than the
+    /// whole recipe.
+    fn probe_bounds(&mut self, target: BoundsTarget) -> OpOutcome {
+        if self.gesture.is_some() {
+            return OpOutcome::refused(Refusal::GestureInFlight);
+        }
+        let base = self.doc().clone();
+        let (origin, seed, integral) = match self.probe_scale(&target) {
+            Ok(scale) => scale,
+            Err(refusal) => return OpOutcome::refused(refusal),
+        };
+        let tol = self.tol;
+        let prior = self.landed.clone();
+        let resolver = self
+            .resolver
+            .as_ref()
+            .map(|ws| Arc::clone(ws) as Arc<dyn PartResolver>);
+        // The baseline is taken at the value the field HAS, from the
+        // same oracle every sample goes through — so "no worse than the
+        // baseline" compares two runs of one function rather than a run
+        // against the landed evaluation, which may have been taken at a
+        // different memo state.
+        let baseline = bounds::Verdict::of(&evaluate_with(&base, prior.as_deref(), &resolver, tol));
+        let result = bounds::probe(
+            bounds::BoundsProbe::new(origin, seed, integral),
+            |candidate| {
+                let Some(edit) = Self::probe_edit(&base, &target, candidate) else {
+                    return false;
+                };
+                match apply(&base, &edit, tol) {
+                    Ok(applied) => {
+                        let eval = evaluate_with(&applied.doc, prior.as_deref(), &resolver, tol);
+                        bounds::Verdict::of(&eval).no_worse_than(&baseline)
+                    }
+                    // The edit door refused: at this value there is no
+                    // document to evaluate, which is as invalid as a
+                    // value gets.
+                    Err(_) => false,
+                }
+            },
+        );
+        self.bounds = Some((target, result));
+        OpOutcome::default()
+    }
+
+    /// The probe's three inputs, read off the field: where it is now,
+    /// the step to search by, and whether its answer is an integer.
+    ///
+    /// The seed is ONE of whatever unit the field is written in — one
+    /// millimetre for a slot written in millimetres, one radian for one
+    /// written canonically, 1 for a count or a bare scalar. That is the
+    /// scale a user thinks in, which is the scale a range should be
+    /// searched and reported at.
+    fn probe_scale(&self, target: &BoundsTarget) -> Result<(f64, f64, bool), Refusal> {
+        match target {
+            BoundsTarget::Slot { node, slot } => {
+                let rows = props::slot_rows(self.doc(), *node);
+                // One refusal for both misses — the node does not carry
+                // the slot, and the slot carries no readable value —
+                // because a probe needs a place to search FROM and
+                // neither case gives it one.
+                let found = rows
+                    .into_iter()
+                    .find(|row| row.slot == *slot)
+                    .and_then(|row| Some((row.value.ok()?, row.dimension, row.unit)));
+                let Some((value, dimension, remembered)) = found else {
+                    return Err(Refusal::NoSuchSlot {
+                        node: *node,
+                        slot: *slot,
+                    });
+                };
+                let value = value.as_f64();
+                let unit = props::written_unit(dimension, remembered);
+                Ok((
+                    value,
+                    props::from_written(1.0, unit),
+                    dimension == Dimension::Count,
+                ))
+            }
+            BoundsTarget::Param { name } => {
+                let Some(param) = self.committed_doc().params().get(name) else {
+                    return Err(Refusal::NoSuchParam(name.clone()));
+                };
+                let value = match param {
+                    DocParam::Continuous { value, .. } => *value,
+                    DocParam::Count { value } => *value as f64,
+                };
+                // A parameter stores no display unit (`props`' module
+                // docs name the asymmetry), so its seed is one CANONICAL
+                // unit.
+                Ok((value, 1.0, param.dim() == Dimension::Count))
+            }
+        }
+    }
+
+    /// The edit that puts `value` into the probed field, or `None` when
+    /// the value cannot be expressed there at all.
+    fn probe_edit(
+        doc: &Doc<ProfileProgram>,
+        target: &BoundsTarget,
+        value: f64,
+    ) -> Option<DocEdit<ProfileProgram>> {
+        match target {
+            BoundsTarget::Slot { node, slot } => props::slot_edit(
+                *node,
+                *slot,
+                SlotValue::of(slot.dimension(), value),
+                props::slot_unit(doc, *node, *slot),
+            )
+            .ok(),
+            BoundsTarget::Param { name } => {
+                let dimension = doc.params().get(name)?.dim();
+                Some(props::param_edit(
+                    name.clone(),
+                    dimension,
+                    SlotValue::of(dimension, value),
+                ))
+            }
         }
     }
 
@@ -1504,6 +1696,14 @@ impl DocSession {
     /// **The one submit**: mint the next generation and hand the shown
     /// document to the seam.
     fn request_eval(&mut self) {
+        // **Every route that changes the shown document passes here**,
+        // which is why the range probe is discarded here and nowhere
+        // else: a commit, a gesture preview, an undo, an open. The one
+        // caller that does not change the document is `Reevaluate`, and
+        // discarding for it too is the conservative direction — a range
+        // recomputed on request costs a button press, a stale one costs
+        // a wrong decision.
+        self.bounds = None;
         self.generation = self.generation.next();
         // ONE clone of the shown document per request: into the
         // `Arc` the session keeps, then out of it into the request the
@@ -1521,6 +1721,35 @@ impl DocSession {
                 .map(|ws| Arc::clone(ws) as Arc<dyn PartResolver>),
         });
     }
+}
+
+/// One evaluation of one document, outside the seam.
+///
+/// **The seam is for the PICTURE**; this is for a question asked about
+/// a document nobody is going to look at (a range probe's candidate).
+/// Routing it through the seam would cancel the run the viewport is
+/// waiting for — the seam's ruled cancel-and-restart policy — which is
+/// exactly the wrong trade for a query the user asked for BESIDE the
+/// picture rather than instead of it.
+///
+/// A fresh `CancelToken` per call, never set: these runs are bounded by
+/// the probe's sample cap, and nothing exists to cancel them from.
+fn evaluate_with(
+    doc: &Doc<ProfileProgram>,
+    prior: Option<&Evaluation<f64>>,
+    resolver: &Option<Arc<dyn PartResolver>>,
+    tol: Tol,
+) -> Evaluation<f64> {
+    evaluate(
+        doc,
+        prior,
+        &CancelToken::new(),
+        &EvalOptions {
+            resolver: resolver.clone(),
+            ..EvalOptions::default()
+        },
+        tol,
+    )
 }
 
 /// The at-rest verdict for one landed pair, taken only for

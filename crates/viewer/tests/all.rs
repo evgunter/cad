@@ -86,6 +86,8 @@ mod select_pick;
 mod tree_badges;
 #[path = "undo_tree.rs"]
 mod undo_tree;
+#[path = "valid_range.rs"]
+mod valid_range;
 
 /// Guards the `autotests = false` hazard: a suite file added to `tests/`
 /// but not declared above would silently stop being compiled and run.

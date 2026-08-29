@@ -59,7 +59,7 @@ use crate::matetool::{MateChoice, MateTool, MateToolState, admitted_classes};
 use crate::pick::{self, PickCache, PickIndex};
 use crate::props::{self, SlotDriver, SlotGroup, SlotRow, SlotValue};
 use crate::scene::{self, DisplayTolerance, SceneMesh};
-use crate::session::{DocSession, Refusal, Selection, SessionOp, Standing};
+use crate::session::{BoundsTarget, DocSession, Refusal, Selection, SessionOp, Standing};
 use crate::tree::{RowStatus, TreeRow};
 use pncad::document::{AxisSense, Frame, MatePrimitive};
 
@@ -1096,6 +1096,14 @@ impl ViewerBehavior<'_> {
                         },
                         self.ops,
                     );
+                    self.bounds_ui(
+                        ui,
+                        &BoundsTarget::Param { name: name.clone() },
+                        // A document parameter stores no display unit
+                        // (`props`' module docs), so its range reads in
+                        // the canonical one.
+                        props::written_unit(row.dimension, None),
+                    );
                 } else {
                     ui.weak("that parameter is gone");
                 }
@@ -1473,6 +1481,7 @@ impl ViewerBehavior<'_> {
                         ui.weak("structural");
                     }
                 });
+                self.slot_bounds_ui(ui, node, row);
                 self.slot_doors_ui(ui, node, row);
             }
             SlotGroup::Vector { family, rows } => {
@@ -1496,6 +1505,7 @@ impl ViewerBehavior<'_> {
                 // have to invent a meaning for "the expression of a
                 // point", which the recipe does not have.
                 for row in rows.iter() {
+                    self.slot_bounds_ui(ui, node, row);
                     self.slot_doors_ui(ui, node, row);
                 }
             }
@@ -1606,6 +1616,60 @@ impl ViewerBehavior<'_> {
                     }
                 }
             });
+    }
+
+    /// [`App::bounds_ui`] for one slot row, in that slot's own written
+    /// unit.
+    ///
+    /// Offered only where a number can actually be written: a driven
+    /// slot's value is not the user's to move, so a range for it would
+    /// answer a question they cannot act on.
+    fn slot_bounds_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId, row: &SlotRow) {
+        if row.driver.is_driven() || row.value.is_err() {
+            return;
+        }
+        self.bounds_ui(
+            ui,
+            &BoundsTarget::Slot {
+                node,
+                slot: row.slot,
+            },
+            props::written_unit(row.dimension, row.unit),
+        );
+    }
+
+    /// The locally-valid range for one field: the button that asks for
+    /// it, and the bracket that comes back.
+    ///
+    /// **Asked for, not automatic** — see `SessionOp::ProbeBounds` for
+    /// why. The reading is rendered in the field's own written unit, so
+    /// the numbers beside a millimetre field are millimetres.
+    ///
+    /// The rendering shows what the search ESTABLISHED and no more (the
+    /// `bounds` module's probe caveats): an open side reads `≥` / `≤`
+    /// against how far it looked, and a bracketed side reads the
+    /// furthest value found valid. The `…` between the two is not a
+    /// claim that everything inside is valid — it is where the boundary
+    /// was found to be.
+    fn bounds_ui(&mut self, ui: &mut egui::Ui, target: &BoundsTarget, unit: Option<UnitDef>) {
+        ui.horizontal(|ui| {
+            let taken = matches!(self.session.bounds(), Some((probed, _)) if probed == target);
+            if taken && let Some((_, result)) = self.session.bounds() {
+                ui.weak(result.wording(unit));
+            }
+            let button = if taken {
+                ui.small_button("↻").on_hover_text("probe again")
+            } else {
+                ui.small_button("range?").on_hover_text(
+                    "probe how far this can move before something new fails (tens of evaluations)",
+                )
+            };
+            if button.clicked() {
+                self.ops.push(SessionOp::ProbeBounds {
+                    target: target.clone(),
+                });
+            }
+        });
     }
 
     /// The two doors under a slot: the expression-driven affordance,
