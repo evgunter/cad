@@ -471,7 +471,7 @@ mod interval_lane {
                 "{name}: the certifying scalars disagreed — f64 {a:?} vs interval"
             );
             match (&a, &bb) {
-                (Ok(x), Ok(y)) => println!("      f64 area={:.12e}   interval area encl", x.area),
+                (Ok(x), Ok(_)) => println!("      f64 area={:.12e}   interval area encl", x.area),
                 (Err(x), Err(y)) => {
                     println!("      f64: {x:?}");
                     println!("      itv: {y:?}");
