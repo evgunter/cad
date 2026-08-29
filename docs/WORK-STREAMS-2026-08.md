@@ -41,6 +41,9 @@ Most contested files: `crates/geom-brep/`, `crates/sweep/`,
 
 ### S-CERT — certified-enclosure soundness (`cert/`)
 
+**GRADUATED (2026-08-29): opened as the S-CERT program —
+`docs/S-CERT-PLAN.md` / `docs/S-CERT-LOG.md`, A/B band 700–799.**
+
 The wrong-but-green and uselessly-wide certificate cluster — the
 largest real-defect group in the tracker and nobody's territory.
 
