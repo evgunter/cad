@@ -33,9 +33,11 @@
 //!
 //! A leaf that is fully definite on a DIFFERENT vector is not a
 //! failure of the analysis — it is the finding. It refuses
-//! [`RefusalReason::FlipCrossing`] with the flipped predicates named
-//! from the vector diff (no-flips v1: no branch enumeration, no
-//! analysis of the far side).
+//! [`RefusalReason::FlipCrossing`], and the flipped predicates are
+//! NAMED by `resolve::vdiff` — the verdict-diff engine this tree
+//! declares built once — rather than by a second diff of this
+//! module's own (no-flips v1: no branch enumeration, no analysis of
+//! the far side). [`FlipEvidence`] carries the argument.
 //!
 //! # The receipt identity
 //!
@@ -74,11 +76,12 @@ use crate::analysis::BoxAxis;
 use crate::analysis::{AnalyzedBox, MeasureUnavailable, ParamBox};
 use crate::doc::{Doc, ParamName};
 use crate::eval::{
-    CancelToken, ContentKey, Epoch, EvalOptions, Evaluation, KeyHasher, NodeErrorKind, NodeResult,
+    CancelToken, ContentKey, EvalOptions, Evaluation, KeyHasher, NodeErrorKind, NodeResult,
     ProfileLift, evaluate,
 };
 use crate::node::RecipeNodeId;
 use crate::program::ProfileProgram;
+use crate::resolve::{FlipSet, diff_verdicts};
 use crate::witness::WitnessBifurcation;
 
 /// The per-axis split budget: how many times ONE axis of the box may be
@@ -94,6 +97,12 @@ pub const DEFAULT_MAX_DEPTH: u32 = 24;
 
 /// The whole-drive leaf budget: how many leaves one drive may produce
 /// before the rest of the frontier refuses [`RefusalReason::Budget`].
+///
+/// ENFORCED AT ADMISSION, so it is a bound and not a target: a split
+/// that would commit the drive past this number is refused instead of
+/// taken, and `certified + refused` never exceeds it (except at
+/// `max_leaves = 0`, where the root alone is one leaf and refusing it
+/// is still one leaf — a subdivision has no empty answer).
 ///
 /// A recorded run dial. `65_536` is `2^16` — sixteen bisections' worth
 /// of frontier — which bounds a drive's cost at the same order as its
@@ -143,6 +152,30 @@ pub enum KProbe {
     /// inside a leaf the driver proved definite, which is exactly the
     /// population E6 wants K to see: margins driven toward zero by
     /// refinement, sampled where refinement stopped.
+    ///
+    /// **This is NARROWER than E6's sentence, which is "every
+    /// driver-path predicate sample lands in the k_stats funnel", and
+    /// the gap is disclosed rather than closed here.** Three
+    /// narrowings, each with its reason:
+    ///
+    /// - **Certified leaves only.** A REFUSED leaf's margins are the
+    ///   ones nearest a flip, so they are the more interesting half of
+    ///   the population — but a refused leaf has no single parameter
+    ///   point that represents it (its midpoint is a point the driver
+    ///   proved nothing about, and for an indeterminate leaf the whole
+    ///   question is that no point speaks for the box). Sampling one
+    ///   anyway would put margins in K's distribution under a claim
+    ///   the driver did not make. Widening this — a rule for which
+    ///   point of a refused leaf to sample, argued rather than
+    ///   assumed — is banked.
+    /// - **A replay, not the drive itself.** The drive runs at
+    ///   `Interval`; `Probe` is an `f64` scalar, so the driver's own
+    ///   interval decisions cannot be recorded by it at all. What
+    ///   reaches K is the f64 decision at a point the interval pass
+    ///   certified around.
+    /// - **Off by default, and only in a `probe` build.** The sink it
+    ///   writes to does not exist otherwise, and the replay doubles a
+    ///   certified leaf's evaluation cost.
     CertifiedMidpoints,
 }
 
@@ -190,6 +223,28 @@ pub struct VerdictRow {
 ///
 /// Float-free, so equality is exact and means what it says. This is the
 /// object leaf certification compares, and the ONLY thing it compares.
+///
+/// # Why this is not `resolve::vdiff`'s `NodeVerdicts`
+///
+/// Two shapes, two questions, and the driver asks both.
+///
+/// - **"Is this leaf the witness build?"** wants the STRICTEST
+///   available test, because a false yes is a false certificate. Order
+///   included, outcome tags included, no cancellation anywhere: that is
+///   this type, and it is what [`drive`] gates on.
+/// - **"What differs, and what should the report call it?"** wants a
+///   test that survives permutation, because construction order inside
+///   an op is itself predicate-steered — `vdiff`'s populations, which
+///   [`FlipEvidence`] carries verbatim.
+///
+/// The population form is deliberately WEAKER (a pure sign exchange in
+/// one node nets to nothing), so it can name but must not gate; this
+/// form cannot explain a difference it detects, so it gates but does
+/// not name. Neither subsumes the other. `NodeVerdicts` is `vdiff`'s
+/// own serializable spelling of its population form, so the tree
+/// carries two shapes for verdicts and not three — consolidation of
+/// the remaining pair is tracked as an issue referenced from this
+/// unit's PR.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct VerdictVector {
     /// The rows, in evaluation order.
@@ -260,51 +315,68 @@ fn sign_tag(s: geom_core::Sign) -> u8 {
     }
 }
 
-/// One flipped decision, named — the evidence a
-/// [`RefusalReason::FlipCrossing`] carries.
+/// **The flip evidence a [`RefusalReason::FlipCrossing`] carries.**
+///
+/// The verdict half is [`diff_verdicts`]' answer VERBATIM — the engine
+/// `resolve::vdiff` declares built ONCE, whose signature is already
+/// generic over two different scalars (`Evaluation<T>` against
+/// `Evaluation<U>`), which is exactly the f64-witness-against-
+/// interval-leaf comparison this driver makes. Nothing here re-diffs.
+///
+/// **Why not a positional pairing**, which is what this driver first
+/// shipped: `vdiff`'s own module docs rule it out, and the argument
+/// applies here unchanged. Construction order inside an op is itself
+/// steered by recorded exact-order predicates, so a legitimate flip can
+/// permute the entire remaining decision sequence — and a positional
+/// pairing then reports pure permutation noise as flips and misses the
+/// real ones. The engine compares per-predicate sign POPULATIONS, which
+/// are permutation-invariant; the residual is the net verdict change.
+/// Its documented blind spot rides along with it: two instances of one
+/// predicate trading opposite signs inside one node cancel.
+///
+/// **The blind spot cannot weaken a certificate**, because certification
+/// does not consult this at all. A leaf certifies on EXACT
+/// [`VerdictVector`] equality (that type's own docs say why the two
+/// questions want two shapes); this evidence only NAMES a divergence
+/// the strict comparison already found. The strict test gates; the
+/// permutation-invariant engine explains.
 #[derive(Debug, Clone, PartialEq)]
-pub enum Flip {
-    /// A predicate both builds decided, decided differently.
-    Predicate {
-        /// The node that decided it.
-        node: RecipeNodeId,
-        /// The funnel's name for the predicate.
-        predicate: &'static str,
-        /// The sign the witness build decided.
-        witness: geom_core::Sign,
-        /// The sign this leaf decided.
-        leaf: geom_core::Sign,
-    },
-    /// A decision one build made and the other did not — the two
-    /// builds' decision SEQUENCES diverged at this node, which is a
-    /// structural difference and not a sign difference.
-    Sequence {
-        /// The node whose decision sequence diverged.
-        node: RecipeNodeId,
-        /// How many decisions the witness build made there.
-        witness: usize,
-        /// How many this leaf made.
-        leaf: usize,
-    },
-    /// A node that built in one and refused in the other.
-    Outcome {
-        /// The node.
-        node: RecipeNodeId,
-        /// The witness build's outcome.
-        witness: ReplayOutcome,
-        /// This leaf's outcome.
-        leaf: ReplayOutcome,
-    },
-    /// A GUIDED structure decision the lane classified definitely
-    /// otherwise: this binding provably leaves the nominal
-    /// elaboration's structure. Carried unaltered, so the refusal names
-    /// the decision the profile lift itself named.
-    Structure {
-        /// The profile node.
-        node: RecipeNodeId,
-        /// The lift's refusal, verbatim.
-        refusal: Box<profile::StructureRefusal>,
-    },
+pub struct FlipEvidence {
+    /// The verdict-diff engine's answer: per node, the net sign flips
+    /// and the structurally-diverged predicates, plus each node's
+    /// standing in the two runs.
+    pub verdicts: FlipSet,
+    /// Guided structure decisions the lane classified DEFINITELY
+    /// otherwise. Not verdict rows — a consumed elaboration decision is
+    /// not a `k_stats` verdict — so they are not the engine's business
+    /// and ride beside its answer.
+    pub structure: Vec<StructureFlip>,
+}
+
+impl FlipEvidence {
+    /// Whether this evidence names anything at all.
+    ///
+    /// An empty evidence set is possible and is honest rather than a
+    /// bug: the leaf's verdict VECTOR differs from the witness's (that
+    /// is why it refused at all), and the population engine's blind
+    /// spot — a pure sign exchange within one node — nets to nothing.
+    /// The receipt prose says so rather than implying that a named
+    /// cause always exists.
+    pub fn is_empty(&self) -> bool {
+        self.verdicts.is_empty() && self.structure.is_empty()
+    }
+}
+
+/// A GUIDED structure decision the lane classified definitely
+/// otherwise: this binding provably leaves the nominal elaboration's
+/// structure. Carried unaltered, so the refusal names the decision the
+/// profile lift itself named.
+#[derive(Debug, Clone, PartialEq)]
+pub struct StructureFlip {
+    /// The profile node.
+    pub node: RecipeNodeId,
+    /// The lift's refusal, verbatim.
+    pub refusal: Box<profile::StructureRefusal>,
 }
 
 /// Why a leaf is refused mass.
@@ -323,7 +395,7 @@ pub enum RefusalReason {
     /// No-flips v1 — the far side is refused mass, never analyzed.
     FlipCrossing {
         /// The decisions that differ, named.
-        flipped: Vec<Flip>,
+        flipped: Box<FlipEvidence>,
     },
     /// **Unreachable in v1**, and pinned so at the type: no machinery
     /// in this module constructs it. The variant exists because E6's
@@ -564,6 +636,16 @@ impl ParamBoxVerdict {
 }
 
 /// The E2 accounting: where the box's mass went.
+///
+/// Bare public fields, where [`ParamBoxVerdict`] keeps its own behind
+/// accessors, and the difference is deliberate: a verdict has an
+/// INVARIANT its accessors protect (the receipt identity ties its two
+/// leaf lists together, so handing out `&mut` to one of them would let
+/// a caller break it), while this is a record of four independently
+/// meaningful numbers with no relation to enforce between them. A
+/// consumer builds one to ask [`Self::total`] what it composes to —
+/// which is exactly what the accounting probe does — and no accessor
+/// would add a guarantee.
 #[derive(Debug, Clone, PartialEq)]
 pub struct MeasureAccounting {
     /// Mass on certified leaves.
@@ -583,9 +665,28 @@ pub struct MeasureAccounting {
 }
 
 impl MeasureAccounting {
-    /// Certified + every refused column + tail, which is 1 up to the
-    /// `f64` error of summing the leaf masses. Refuses when any column
-    /// refuses — a total over an unpriceable column is not a total.
+    /// **Every column here is an UNCONDITIONAL mass** — a share of the
+    /// whole measure, not a share of the analyzed box.
+    ///
+    /// A leaf is priced by [`crate::analysis::box_mass`], which answers
+    /// "the mass this distribution puts INSIDE `sub`" under the
+    /// parameter's own law; nothing divides by the analyzed box's mass
+    /// anywhere on the path. So the leaves already sum to
+    /// `∏(1 - tᵢ) = 1 - tail`, and the tail is E2's "explicit ADDITIVE
+    /// term" rather than a factor. Composition is therefore addition,
+    /// and the two doors below are the only place it happens.
+    ///
+    /// This sentence is load-bearing and was wrong once: the columns
+    /// were composed as `t·(1 - tail) + tail`, which is the right
+    /// arithmetic for CONDITIONAL columns and understates a normal
+    /// axis's total by `tail·(1 - tail)` — 0.27% at the ±3σ default
+    /// policy, and it understated the unresolved budget by the whole
+    /// tail, which is the unsafe direction for E10's honesty gate.
+    ///
+    /// Certified + every refused column + tail. On a drive whose
+    /// columns all price, this is 1 up to the `f64` error of summing
+    /// the leaf masses. Refuses when any column refuses — a total over
+    /// an unpriceable column is not a total.
     ///
     /// # Errors
     ///
@@ -595,30 +696,23 @@ impl MeasureAccounting {
         for m in self.refused.values() {
             t += m.clone()?;
         }
-        // The analyzed columns sum to the mass INSIDE the box; the tail
-        // is the rest, and the two are complements by construction of
-        // the analysis module's mass pair.
-        t = t * (1.0 - self.unanalyzed.clone()?) + self.unanalyzed.clone()?;
-        Ok(t)
+        Ok(t + self.unanalyzed.clone()?)
     }
 
     /// The **unresolved-mass budget** (E2/E10's single honesty gate):
-    /// refused mass plus tail. `containment` says whether it is exact
-    /// or conservative.
+    /// refused mass plus tail, both unconditional (see [`Self::total`]).
+    /// `containment` says whether it is exact or conservative.
     ///
     /// # Errors
     ///
     /// The first [`MeasureUnavailable`] among the refused columns or
     /// the tail.
     pub fn unresolved(&self) -> Result<f64, MeasureUnavailable> {
-        let mut inside = 0.0;
+        let mut unresolved = self.unanalyzed.clone()?;
         for m in self.refused.values() {
-            inside += m.clone()?;
+            unresolved += m.clone()?;
         }
-        let tail = self.unanalyzed.clone()?;
-        // `inside` is conditional on being in the box; compose with the
-        // tail without ever forming `1 - small`.
-        Ok(inside * (1.0 - tail) + tail)
+        Ok(unresolved)
     }
 
     /// The goldening form's accounting block.
@@ -723,7 +817,11 @@ pub fn drive(
     }
     let witness_vector = Arc::new(VerdictVector::of(&witness));
     let witness_key = witness_vector.key();
-    drop(witness);
+    // The witness EVALUATION stays alive for the whole drive, not just
+    // long enough to take its vector: `diff_verdicts` names a leaf's
+    // flips against it, and the engine takes the two evaluations rather
+    // than two digests of them. One build's worth of geometry, held
+    // once per drive.
 
     let mut certified: Vec<CertifiedLeaf> = Vec::new();
     let mut refused: Vec<RefusedLeaf> = Vec::new();
@@ -756,33 +854,62 @@ pub fn drive(
             use rayon::prelude::*;
             frontier
                 .par_iter()
-                .map(|b| classify(doc, &b.box_, &witness_vector, witness_key, tol))
+                .map(|b| classify(doc, &b.box_, &witness, &witness_vector, witness_key, tol))
                 .collect()
         } else {
             frontier
                 .iter()
-                .map(|b| classify(doc, &b.box_, &witness_vector, witness_key, tol))
+                .map(|b| classify(doc, &b.box_, &witness, &witness_vector, witness_key, tol))
                 .collect()
         };
         let mut next = Vec::new();
-        for (b, v) in frontier.drain(..).zip(verdicts) {
+        let level = frontier.len();
+        for (i, (b, v)) in frontier.drain(..).zip(verdicts).enumerate() {
             match v {
                 LeafVerdict::Certified(leaf) => certified.push(leaf),
                 LeafVerdict::Refused(reason) => refused.push(RefusedLeaf {
                     box_: b.box_,
                     reason,
                 }),
-                LeafVerdict::Bisect => match bisect(&b, &root, config.max_depth) {
-                    Ok((a, c)) => {
-                        splits += 1;
-                        next.push(a);
-                        next.push(c);
+                // The budget is enforced AT ADMISSION, not after the
+                // fact: splitting turns one box into two, so the split
+                // is refused unless the leaf count it commits to still
+                // fits. The lower bound counts what is already final
+                // (`certified + refused`), what this level has left to
+                // fold (each of which becomes at least one leaf), what
+                // is already queued for the next level, and the two
+                // halves this split would add.
+                //
+                // Checking after the level instead admitted a frontier
+                // of exactly `max_leaves` and then split every box in
+                // it, overshooting the bound by up to 2x. The receipt
+                // held either way — nothing was ever dropped — but
+                // "how many leaves one drive may produce" has to be
+                // the number it says.
+                LeafVerdict::Bisect => {
+                    let pending = level - i - 1;
+                    let committed = certified.len() + refused.len() + pending + next.len();
+                    if committed + 2 > config.max_leaves {
+                        refused.push(RefusedLeaf {
+                            box_: b.box_,
+                            reason: RefusalReason::Budget(BudgetKind::Leaves {
+                                max_leaves: config.max_leaves,
+                            }),
+                        });
+                    } else {
+                        match bisect(&b, &root, config.max_depth) {
+                            Ok((a, c)) => {
+                                splits += 1;
+                                next.push(a);
+                                next.push(c);
+                            }
+                            Err(kind) => refused.push(RefusedLeaf {
+                                box_: b.box_,
+                                reason: RefusalReason::Budget(kind),
+                            }),
+                        }
                     }
-                    Err(kind) => refused.push(RefusedLeaf {
-                        box_: b.box_,
-                        reason: RefusalReason::Budget(kind),
-                    }),
-                },
+                }
             }
         }
         frontier = next;
@@ -835,8 +962,13 @@ pub fn drive(
 /// (leaf-level parallelism is the driver's, and nesting a rayon scope
 /// per leaf inside one buys nothing), and no memo.
 fn lane_opts() -> EvalOptions {
+    // `EvalOptions::default()` already mints an epoch; minting a second
+    // one to overwrite it burnt a process-global counter per leaf, and
+    // a drive is tens of thousands of leaves. The epoch is a
+    // stale-result discrimination token for a caller holding several
+    // in-flight evaluations, which a drive is not: each leaf's result
+    // is consumed before the next is asked for.
     EvalOptions {
-        epoch: Epoch::mint(),
         profile_lift: ProfileLift::Guided,
         ..EvalOptions::default()
     }
@@ -860,6 +992,7 @@ enum LeafVerdict {
 fn classify(
     doc: &Doc<ProfileProgram>,
     box_: &ParamBox,
+    witness: &Evaluation<f64>,
     witness_vector: &VerdictVector,
     witness_key: VerdictVectorKey,
     tol: Tol,
@@ -883,6 +1016,15 @@ fn classify(
     // never decided. The two arms it does prove — the funnel's own
     // escalation and the profile lift's guided abort — are the two E6
     // names as the cue to bisect.
+    // ITERATION ORDER IS NODE ID, and where a leaf carries several
+    // refusing nodes that decides which one speaks: the FIRST
+    // indeterminacy in node-id order settles the leaf as a sliver or a
+    // bisect, and a definite structure flip at a later node never gets
+    // to argue. Deterministic (a `BTreeMap` walk, same in both
+    // schedules) but arbitrary — node id is a minting counter, not a
+    // ranking of causes. It is stated rather than defended because
+    // nothing downstream depends on which cause wins: every arm here
+    // is refused mass either way, and the receipt does not change.
     let mut structure_flips = Vec::new();
     for (&node, result) in &leaf.nodes {
         let NodeResult::Failed(err) = result else {
@@ -908,7 +1050,7 @@ fn classify(
                     return LeafVerdict::Bisect;
                 }
                 profile::StructureRefusalKind::Flipped { .. } => {
-                    structure_flips.push(Flip::Structure {
+                    structure_flips.push(StructureFlip {
                         node,
                         refusal: Box::new(refusal.clone()),
                     });
@@ -934,9 +1076,15 @@ fn classify(
             },
         });
     }
-    let mut flipped = structure_flips;
-    flipped.extend(diff(witness_vector, &vector));
-    LeafVerdict::Refused(RefusalReason::FlipCrossing { flipped })
+    // NAMED by the built-once engine, not by a second diff of our own
+    // (see `FlipEvidence`): the two evaluations go in, its `FlipSet`
+    // comes out unaltered.
+    LeafVerdict::Refused(RefusalReason::FlipCrossing {
+        flipped: Box::new(FlipEvidence {
+            verdicts: diff_verdicts(witness, &leaf),
+            structure: structure_flips,
+        }),
+    })
 }
 
 /// The predicate name of an escalation whose enclosure sits WHOLLY
@@ -958,56 +1106,6 @@ fn sliver(source: &geom_core::Indeterminate) -> Option<&'static str> {
     let (zero, escalate) = (source.band.zero(), source.band.escalate());
     let inside = (zero < lo && hi < escalate) || (-escalate < lo && hi < -zero);
     inside.then_some(source.predicate.unwrap_or("<unnamed>"))
-}
-
-/// The flipped decisions between two verdict vectors, named.
-fn diff(witness: &VerdictVector, leaf: &VerdictVector) -> Vec<Flip> {
-    let mut out = Vec::new();
-    let by_node: BTreeMap<RecipeNodeId, &VerdictRow> =
-        leaf.rows.iter().map(|r| (r.node, r)).collect();
-    for w in &witness.rows {
-        let Some(l) = by_node.get(&w.node) else {
-            out.push(Flip::Outcome {
-                node: w.node,
-                witness: w.outcome,
-                leaf: ReplayOutcome::Poisoned,
-            });
-            continue;
-        };
-        if w.outcome != l.outcome {
-            out.push(Flip::Outcome {
-                node: w.node,
-                witness: w.outcome,
-                leaf: l.outcome,
-            });
-        }
-        for (a, b) in w.verdicts.iter().zip(&l.verdicts) {
-            if a.predicate != b.predicate {
-                out.push(Flip::Sequence {
-                    node: w.node,
-                    witness: w.verdicts.len(),
-                    leaf: l.verdicts.len(),
-                });
-                break;
-            }
-            if a.sign != b.sign {
-                out.push(Flip::Predicate {
-                    node: w.node,
-                    predicate: a.predicate,
-                    witness: a.sign,
-                    leaf: b.sign,
-                });
-            }
-        }
-        if w.verdicts.len() != l.verdicts.len() {
-            out.push(Flip::Sequence {
-                node: w.node,
-                witness: w.verdicts.len(),
-                leaf: l.verdicts.len(),
-            });
-        }
-    }
-    out
 }
 
 /// The D9 split: the axis of greatest relative width, ties to the
@@ -1066,6 +1164,18 @@ fn account(
 /// Folds one leaf's mass into a column, keeping the FIRST refusal: a
 /// column that cannot be priced names the parameter that stopped it,
 /// and a later priceable leaf does not un-refuse it.
+///
+/// **ONE parameter, not all of them**, where E2 says a report over a
+/// band refuses "naming the Band params". The narrowing is in the
+/// carried type, not here: [`MeasureUnavailable`] is a single-parameter
+/// refusal, and widening it to a set is a change to the analysis lane's
+/// vocabulary that M10-1 owns. What a consumer loses is a list; what it
+/// keeps is a true statement and a name to act on — and every band
+/// parameter is visible without this door at all, by walking
+/// [`crate::analysis::AnalyzedBox::params`] for
+/// [`crate::Distribution::Band`]. Recorded as a deviation on the unit
+/// rather than papered over with a first-of-several presented as the
+/// whole set.
 fn add_mass(column: &mut Result<f64, MeasureUnavailable>, m: Result<f64, MeasureUnavailable>) {
     if let Ok(acc) = column {
         match m {
@@ -1075,7 +1185,10 @@ fn add_mass(column: &mut Result<f64, MeasureUnavailable>, m: Result<f64, Measure
     }
 }
 
-/// The mass OUTSIDE the analyzed box under the product measure.
+/// The mass OUTSIDE the analyzed box under the product measure —
+/// UNCONDITIONAL, like every other column ([`MeasureAccounting::total`]
+/// states why that matters). The leaves inside the box sum to
+/// `∏(1 - tᵢ)` and this is exactly its complement, so the two ADD to 1.
 ///
 /// `1 - ∏(1 - tᵢ)` folded as `out ← out + t - out·t`, which never forms
 /// `1 - x` for a small `x` — the same discipline the per-axis tail
@@ -1123,12 +1236,17 @@ fn contained(root: &ParamBox, certified: &[CertifiedLeaf], refused: &[RefusedLea
 /// parameter points get sampled.
 #[cfg(feature = "probe")]
 fn probe_midpoint(doc: &Doc<ProfileProgram>, box_: &ParamBox, tol: Tol) {
+    // THE SAME MIDPOINT THE SPLIT RULE USES, through the same door
+    // (`BoxAxis::midpoint`). Writing `0.5 * (lo + hi)` here as well
+    // would let a change to the split rule silently detach the K
+    // population from the leaves it is supposed to describe: these are
+    // the points the driver certified AROUND, and "around" is defined
+    // by where it split.
     let mid: BTreeMap<ParamName, BoxAxis> = box_
         .axes()
         .iter()
         .map(|(n, a)| {
-            let (lo, hi) = a.span();
-            let m = 0.5 * (lo + hi);
+            let m = a.midpoint();
             (n.clone(), BoxAxis::Varying { lo: m, hi: m })
         })
         .collect();
@@ -1166,28 +1284,41 @@ fn render_reason(r: &RefusalReason) -> String {
         RefusalReason::SliverTerminal { predicate } => format!("sliver_terminal {predicate}"),
         RefusalReason::FlipCrossing { flipped } => {
             let mut s = String::from("flip_crossing");
-            for f in flipped {
-                let _ = match f {
-                    Flip::Predicate {
-                        node,
-                        predicate,
-                        witness,
-                        leaf,
-                    } => write!(s, " {}:{predicate}:{witness:?}->{leaf:?}", node.0),
-                    Flip::Sequence {
-                        node,
-                        witness,
-                        leaf,
-                    } => write!(s, " {}:seq:{witness}->{leaf}", node.0),
-                    Flip::Outcome {
-                        node,
-                        witness,
-                        leaf,
-                    } => write!(s, " {}:out:{witness:?}->{leaf:?}", node.0),
-                    Flip::Structure { node, refusal } => {
-                        write!(s, " {}:structure:{:?}", node.0, refusal.decision)
-                    }
-                };
+            // Deterministic by construction: `FlipSet` is a `BTreeMap`
+            // by node id, and each node's flips and divergences are
+            // already sorted by the engine.
+            for (node, delta) in &flipped.verdicts.nodes {
+                if delta.old_status != delta.new_status {
+                    let _ = write!(
+                        s,
+                        " {}:status:{:?}->{:?}",
+                        node.0, delta.old_status, delta.new_status
+                    );
+                }
+                for f in &delta.flips {
+                    let _ = write!(
+                        s,
+                        " {}:{}:{:?}->{:?}x{}",
+                        node.0, f.predicate, f.from, f.to, f.count
+                    );
+                }
+                for d in &delta.diverged {
+                    let _ = write!(
+                        s,
+                        " {}:{}:count {}->{}",
+                        node.0, d.predicate, d.old_count, d.new_count
+                    );
+                }
+            }
+            for f in &flipped.structure {
+                let _ = write!(s, " {}:structure:{:?}", f.node.0, f.refusal.decision);
+            }
+            if flipped.is_empty() {
+                // The population engine's blind spot netted to nothing.
+                // Said out loud in the goldening form, because a bare
+                // `flip_crossing` would read as "no evidence gathered"
+                // rather than "the evidence cancelled".
+                s.push_str(" unnamed");
             }
             s
         }

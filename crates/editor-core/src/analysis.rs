@@ -330,10 +330,15 @@ pub trait AxisScalar: geom_core::Real {
     fn axis(lo: f64, hi: f64) -> Option<Self>;
 }
 
-/// A point scalar carries only a degenerate axis, and compares by BITS:
-/// `-0.0` and `0.0` are the same offset in every arithmetic sense, and
-/// this door is asked once per parameter per evaluation, so the stricter
-/// comparison costs nothing and cannot admit a span by rounding.
+/// A point scalar carries only a degenerate axis, and the comparison is
+/// by BITS — which is STRICTER than `==` and deliberately so. `-0.0`
+/// and `0.0` are the same offset arithmetically, so `[-0.0, 0.0]` is a
+/// degenerate axis that this door nonetheless refuses. That is the
+/// conservative direction: an axis whose two ends were written
+/// differently is refused rather than quietly accepted, the door is
+/// asked once per parameter per evaluation so the strictness costs
+/// nothing, and a caller who means "fixed" has [`BoxAxis::Fixed`] to
+/// say it with.
 impl AxisScalar for f64 {
     fn axis(lo: f64, hi: f64) -> Option<Self> {
         (lo.to_bits() == hi.to_bits()).then_some(lo)
@@ -409,6 +414,21 @@ impl BoxAxis {
     pub fn width(&self) -> f64 {
         let (lo, hi) = self.span();
         hi - lo
+    }
+
+    /// The axis midpoint, `0.5 * (lo + hi)` — a pure function of the
+    /// two endpoints, so the same axis bisects the same way on every
+    /// machine and in every schedule (D9).
+    ///
+    /// ONE home, because two consumers must not drift apart:
+    /// [`ParamBox::split`] cuts here, and the driver's K-telemetry
+    /// replay samples here. The second is only meaningful because it is
+    /// the same point as the first — the margins it feeds the funnel
+    /// are "where refinement stopped", which is a claim about where
+    /// the splits were.
+    pub fn midpoint(&self) -> f64 {
+        let (lo, hi) = self.span();
+        0.5 * (lo + hi)
     }
 }
 
@@ -555,7 +575,7 @@ impl ParamBox {
         let BoxAxis::Varying { lo, hi } = *self.axes.get(name)? else {
             return None;
         };
-        let mid = 0.5 * (lo + hi);
+        let mid = BoxAxis::Varying { lo, hi }.midpoint();
         if !(lo < mid && mid < hi) {
             return None;
         }
@@ -583,8 +603,18 @@ impl ParamBox {
                 BoxAxis::Fixed => 1.0,
                 BoxAxis::Varying { lo, hi } => match analyzed.axis_box_mass(name, (lo, hi)) {
                     Some(r) => r?,
-                    // An axis the analyzed box does not carry prices
-                    // nothing: it is not this door's job to invent one.
+                    // AN AXIS `analyzed` DOES NOT CARRY PRICES ZERO,
+                    // and that is a contract on the caller rather than
+                    // a measure claim: this door prices a box against
+                    // the analyzed box it is a sub-box OF, and a name
+                    // the analyzed box has never heard of is not a
+                    // parameter of that document. Unreachable through
+                    // [`crate::drive::drive`], which only ever prices
+                    // `split` descendants of `ParamBox::of(analyzed)`;
+                    // reachable by pairing a [`ParamBox::from_axes`]
+                    // box with a foreign `analyzed`, which is a caller
+                    // error, and zero is the answer that makes it show
+                    // up as missing mass rather than as invented mass.
                     None => 0.0,
                 },
             };
@@ -598,6 +628,11 @@ impl ParamBox {
     /// The free predicate E2's chamber-containment amendment asks for:
     /// containment holds when every boundary-touching leaf is
     /// `FlipCrossing`-refused.
+    /// An axis `root` does not carry reads as the degenerate span
+    /// `(0.0, 0.0)`, so any varying axis of `self` counts as touching
+    /// it — the same caller contract [`Self::mass`] states, resolved in
+    /// the same conservative direction (a box whose root is not its own
+    /// root is reported as reaching the boundary, never as interior).
     pub fn touches_boundary_of(&self, root: &Self) -> bool {
         self.varying().any(|(name, lo, hi)| {
             let (rlo, rhi) = root.get(name).map_or((0.0, 0.0), |a| a.span());

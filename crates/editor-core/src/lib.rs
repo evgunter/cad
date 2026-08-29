@@ -73,8 +73,9 @@ pub use doc::{Doc, DocParam, DocParamValue, ParamName};
 #[cfg(feature = "interval")]
 pub use drive::{
     BudgetKind, CertifiedLeaf, DEFAULT_MAX_DEPTH, DEFAULT_MAX_LEAVES, DriveConfig, DriveRefusal,
-    Flip, LeafResults, MeasureAccounting, ParamBoxVerdict, ReasonClass, Receipt, RefusalReason,
-    RefusedLeaf, ReplayOutcome, VerdictRow, VerdictVector, VerdictVectorKey, drive,
+    FlipEvidence, LeafResults, MeasureAccounting, ParamBoxVerdict, ReasonClass, Receipt,
+    RefusalReason, RefusedLeaf, ReplayOutcome, StructureFlip, VerdictRow, VerdictVector,
+    VerdictVectorKey, drive,
 };
 pub use edit::{Applied, DocEdit, EditError, EditRecord, apply};
 pub use eval::{

@@ -68,10 +68,6 @@ type OpResult<T> = Result<OpOut<T>, NodeErrorKind>;
 /// A bare payload (datum/profile lanes — empty tables).
 type PayloadResult<T> = Result<ValuePayload<T>, NodeErrorKind>;
 
-/// The evaluation-wide context an op may need beyond its own inputs:
-/// the boolean candidate-generation switch, and the document seam.
-/// Bundled rather than passed one by one — an op's ARGUMENTS are its
-/// inputs and slots, and everything here is ambient to the run.
 /// The LANE half of an evaluation's environment: where profile
 /// geometry comes from at `T`, and the parameter environment it is
 /// elaborated over. The two travel together because they are one
@@ -98,6 +94,11 @@ impl<T> Clone for LaneEnv<'_, T> {
 
 impl<T> Copy for LaneEnv<'_, T> {}
 
+/// The evaluation-wide context an op may need beyond its own inputs:
+/// the boolean candidate-generation switch, the document seam, the
+/// mate solve, and the lane environment. Bundled rather than passed
+/// one by one — an op's ARGUMENTS are its inputs and slots, and
+/// everything here is ambient to the run.
 pub(crate) struct OpEnv<'a, T: Decide> {
     pub boolean_sweep: topo::SweepStrategy,
     pub parts: &'a super::parts::PartCache<'a, T>,
