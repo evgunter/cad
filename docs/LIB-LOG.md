@@ -1543,3 +1543,23 @@ on the union pre-push, hosted CI the gate as always. The
 resolver-door design conversation this unit's report sharpened is
 RATIFIED and specced: `docs/LIB-G18A-SPEC.md` (Evan, in-chat,
 2026-08-29) — the next unit, full A/B protocol.
+
+**CUR2 MERGED (2026-08-29, #1173; mechanical under the 08-29 ruling,
+no A/B row).** The two banked curation carriages land: `StlError`
+beside its writers in the prelude's section 7 (G11's banked R2-shape
+finding closed), `BlendArc` on the curated `profile` module — and NOT
+in the prelude, by measurement (the prelude carries the validate
+family's gate/refusal/output tier only, and no consumer outside
+`crates/profile` names `BlendArc`; the corpus rule agrees). The
+profile guard's interior list is down to `RawLoop`, its one argued
+name. The R2-class re-sweep at the merge base: 57 prelude doors
+origin-resolved, two hits, one fixed here, one a non-instance
+(`HitTestError` IS carried beside its carrier in select.rs; prelude
+lift would be a minimality question, not R2). Banked findings kept:
+(1) the census scans document/select/prelude ONLY — a name carried
+onto `profile.rs` alone incurs no census obligation (worth knowing
+before assuming a Python consequence); (2) symbol-name greps mislead
+in this workspace (five collision examples recorded in the PR) —
+façade sweeps should origin-resolve through the pub-use graph first.
+Stale-comment follow-up for the next pncad-py sweep: the reach-past
+note at mesh.rs's StlError import.
