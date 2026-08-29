@@ -4019,3 +4019,6 @@ fn distributions_author_save_reload_and_analyze_through_the_facade() {
         other => panic!("a band must refuse to price a leaf, got {other:?}"),
     }
 }
+
+#[path = "g16_r2_tour_digest.rs"]
+mod g16_r2_tour_digest;

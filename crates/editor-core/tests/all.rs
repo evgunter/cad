@@ -68,6 +68,10 @@ mod display_contract;
 mod dsc_checks;
 #[path = "e4_dual_door.rs"]
 mod e4_dual_door;
+#[path = "g16_r2_corpus_digest.rs"]
+mod g16_r2_corpus_digest;
+#[path = "g16_r2_msg_probe.rs"]
+mod g16_r2_msg_probe;
 #[path = "gui1_pick.rs"]
 mod gui1_pick;
 #[path = "gui1_pick_r2.rs"]
