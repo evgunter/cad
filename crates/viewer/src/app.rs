@@ -1096,14 +1096,7 @@ impl ViewerBehavior<'_> {
                         },
                         self.ops,
                     );
-                    self.bounds_ui(
-                        ui,
-                        &BoundsTarget::Param { name: name.clone() },
-                        // A document parameter stores no display unit
-                        // (`props`' module docs), so its range reads in
-                        // the canonical one.
-                        props::written_unit(row.dimension, None),
-                    );
+                    self.param_bounds_ui(ui, &name, row.dimension);
                 } else {
                     ui.weak("that parameter is gone");
                 }
@@ -1465,10 +1458,15 @@ impl ViewerBehavior<'_> {
     /// The grouping is `props::SlotGroup`'s and the vocabulary's (see
     /// its docs); this function only lays it out. What the two arms
     /// share — the number widget, the gesture mapping, the driven
-    /// affordance, the expression door — is [`App::slot_value_ui`] and
-    /// [`App::slot_doors_ui`], called once per COMPONENT, so a
-    /// component of a vector is edited by exactly the operations a
-    /// stand-alone slot is.
+    /// affordance, the expression door, the range probe — is called
+    /// once per COMPONENT, so a component of a vector is edited by
+    /// exactly the operations a stand-alone slot is.
+    ///
+    /// **Three lines per group at most, whatever its arity.** Folding
+    /// three slots onto one line buys nothing if their doors then take
+    /// three lines each, so the doors are a single line of small
+    /// buttons tagged by axis rather than a stacked block per
+    /// component.
     fn slot_group_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId, group: &SlotGroup) {
         match group {
             SlotGroup::Scalar(row) => {
@@ -1481,8 +1479,11 @@ impl ViewerBehavior<'_> {
                         ui.weak("structural");
                     }
                 });
-                self.slot_bounds_ui(ui, node, row);
-                self.slot_doors_ui(ui, node, row);
+                self.slot_notes_ui(ui, node, row);
+                ui.horizontal(|ui| {
+                    self.expression_button(ui, node, row, "expression…");
+                    self.range_button(ui, node, row, "range?");
+                });
             }
             SlotGroup::Vector { family, rows } => {
                 ui.horizontal(|ui| {
@@ -1499,15 +1500,23 @@ impl ViewerBehavior<'_> {
                     self.slot_unit_ui(ui, node, rows.as_slice());
                     ui.weak(format!("{:?}", family.dimension()));
                 });
-                // The doors stay PER COMPONENT: an affordance names the
-                // parameters driving one component, and an expression
-                // is written for one slot. A vector-wide door would
-                // have to invent a meaning for "the expression of a
-                // point", which the recipe does not have.
-                for row in rows.iter() {
-                    self.slot_bounds_ui(ui, node, row);
-                    self.slot_doors_ui(ui, node, row);
+                // The notes stay PER COMPONENT: an affordance names the
+                // parameters driving one component, and a range is one
+                // field's. Each names its axis.
+                for (axis, row) in Axis3::ALL.iter().zip(rows.iter()) {
+                    self.slot_notes_ui(ui, node, row);
+                    let _ = axis;
                 }
+                ui.horizontal(|ui| {
+                    ui.weak("expression");
+                    for (axis, row) in Axis3::ALL.iter().zip(rows.iter()) {
+                        self.expression_button(ui, node, row, axis.label());
+                    }
+                    ui.weak("range");
+                    for (axis, row) in Axis3::ALL.iter().zip(rows.iter()) {
+                        self.range_button(ui, node, row, axis.label());
+                    }
+                });
             }
         }
     }
@@ -1576,8 +1585,8 @@ impl ViewerBehavior<'_> {
     /// is the only reading of a single picker over three slots.
     ///
     /// Nothing is drawn at all for a dimension with no units (`Scalar`,
-    /// `Count`) or for a slot whose value could not be read — there is
-    /// no notation to offer for a number that is not a quantity.
+    /// `Count`) — there is no notation to offer for a number that is
+    /// not a quantity.
     fn slot_unit_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId, rows: &[SlotRow]) {
         let Some(first) = rows.first() else {
             return;
@@ -1618,67 +1627,15 @@ impl ViewerBehavior<'_> {
             });
     }
 
-    /// [`App::bounds_ui`] for one slot row, in that slot's own written
-    /// unit.
+    /// What a slot has to SAY, under its number: the expression-driven
+    /// refusal's affordance, the range reading when one has been taken
+    /// for this field, and the expression editor while it is open.
     ///
-    /// Offered only where a number can actually be written: a driven
-    /// slot's value is not the user's to move, so a range for it would
-    /// answer a question they cannot act on.
-    fn slot_bounds_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId, row: &SlotRow) {
-        if row.driver.is_driven() || row.value.is_err() {
-            return;
-        }
-        self.bounds_ui(
-            ui,
-            &BoundsTarget::Slot {
-                node,
-                slot: row.slot,
-            },
-            props::written_unit(row.dimension, row.unit),
-        );
-    }
-
-    /// The locally-valid range for one field: the button that asks for
-    /// it, and the bracket that comes back.
-    ///
-    /// **Asked for, not automatic** — see `SessionOp::ProbeBounds` for
-    /// why. The reading is rendered in the field's own written unit, so
-    /// the numbers beside a millimetre field are millimetres.
-    ///
-    /// The rendering shows what the search ESTABLISHED and no more (the
-    /// `bounds` module's probe caveats): an open side reads `≥` / `≤`
-    /// against how far it looked, and a bracketed side reads the
-    /// furthest value found valid. The `…` between the two is not a
-    /// claim that everything inside is valid — it is where the boundary
-    /// was found to be.
-    fn bounds_ui(&mut self, ui: &mut egui::Ui, target: &BoundsTarget, unit: Option<UnitDef>) {
-        ui.horizontal(|ui| {
-            let taken = matches!(self.session.bounds(), Some((probed, _)) if probed == target);
-            if taken && let Some((_, result)) = self.session.bounds() {
-                ui.weak(result.wording(unit));
-            }
-            let button = if taken {
-                ui.small_button("↻").on_hover_text("probe again")
-            } else {
-                ui.small_button("range?").on_hover_text(
-                    "probe how far this can move before something new fails (tens of evaluations)",
-                )
-            };
-            if button.clicked() {
-                self.ops.push(SessionOp::ProbeBounds {
-                    target: target.clone(),
-                });
-            }
-        });
-    }
-
-    /// The two doors under a slot: the expression-driven affordance,
-    /// and the expression text field.
-    fn slot_doors_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId, row: &SlotRow) {
-        // The affordance. It is attached to the row rather than raised
-        // on refusal alone so the user can see WHY the number will not
-        // move before they fight it — the refusal itself still
-        // surfaces in the status line when they try.
+    /// The affordance is attached to the row rather than raised on
+    /// refusal alone so the user can see WHY the number will not move
+    /// before they fight it — the refusal itself still surfaces in the
+    /// status line when they try.
+    fn slot_notes_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId, row: &SlotRow) {
         if let SlotDriver::Expression { params } = &row.driver {
             ui.horizontal(|ui| {
                 // The ratified wording, from its one home — the same
@@ -1696,11 +1653,22 @@ impl ViewerBehavior<'_> {
                 }
             });
         }
-        // The expression text door, offered on every slot: the way to
-        // replace a computation is to write a new one.
-        let target = (node, row.slot);
-        if self.drafts.expr_target == Some(target) {
+        let target = BoundsTarget::Slot {
+            node,
+            slot: row.slot,
+        };
+        if let Some((probed, result)) = self.session.bounds()
+            && *probed == target
+        {
+            ui.weak(format!(
+                "{:?}: {}",
+                row.slot,
+                result.wording(props::written_unit(row.dimension, row.unit))
+            ));
+        }
+        if self.drafts.expr_target == Some((node, row.slot)) {
             ui.horizontal(|ui| {
+                ui.label(format!("{:?} =", row.slot));
                 ui.text_edit_singleline(&mut self.drafts.expr_text);
                 if ui.button("Set").clicked() {
                     self.ops.push(SessionOp::SetSlotExpression {
@@ -1716,17 +1684,79 @@ impl ViewerBehavior<'_> {
                     self.drafts.expr_text.clear();
                 }
             });
-        } else if ui
-            .small_button(format!("expression… ({:?})", row.slot))
-            .clicked()
-        {
-            // Deliberately EMPTY rather than pre-filled: the
-            // expression API has no text rendering, so a pre-filled
-            // field would be this crate's guess at what the slot says.
-            // See the module docs of `props`.
-            self.drafts.expr_target = Some(target);
+        }
+    }
+
+    /// The button that opens the expression text door for one slot.
+    ///
+    /// The field is deliberately EMPTY rather than pre-filled: the
+    /// expression API has no text rendering, so a pre-filled field
+    /// would be this crate's guess at what the slot says. See the
+    /// module docs of `props`.
+    fn expression_button(
+        &mut self,
+        ui: &mut egui::Ui,
+        node: RecipeNodeId,
+        row: &SlotRow,
+        label: &str,
+    ) {
+        if ui.small_button(label).clicked() {
+            self.drafts.expr_target = Some((node, row.slot));
             self.drafts.expr_text.clear();
         }
+    }
+
+    /// The button that asks for one slot's locally-valid range.
+    ///
+    /// **Asked for, not automatic** — see `SessionOp::ProbeBounds` for
+    /// why. Offered only where a number can actually be written: a
+    /// driven slot's value is not the user's to move, so a range for it
+    /// would answer a question they cannot act on. The reading itself
+    /// lands in [`App::slot_notes_ui`], in the slot's own written unit.
+    fn range_button(&mut self, ui: &mut egui::Ui, node: RecipeNodeId, row: &SlotRow, label: &str) {
+        let offered = !row.driver.is_driven() && row.value.is_ok();
+        let button = ui.add_enabled(offered, egui::Button::new(label).small());
+        let button = if offered {
+            button.on_hover_text(
+                "probe how far this can move before something new fails (tens of evaluations)",
+            )
+        } else {
+            button.on_disabled_hover_text("a computed slot has no range of its own to probe")
+        };
+        if button.clicked() {
+            self.ops.push(SessionOp::ProbeBounds {
+                target: BoundsTarget::Slot {
+                    node,
+                    slot: row.slot,
+                },
+            });
+        }
+    }
+
+    /// The range probe's button and reading for a DOCUMENT PARAMETER —
+    /// the one field that is not a slot.
+    fn param_bounds_ui(&mut self, ui: &mut egui::Ui, name: &ParamName, dimension: Dimension) {
+        let target = BoundsTarget::Param { name: name.clone() };
+        ui.horizontal(|ui| {
+            if let Some((probed, result)) = self.session.bounds()
+                && *probed == target
+            {
+                // A document parameter stores no display unit
+                // (`props`' module docs name the asymmetry), so its
+                // range reads in the canonical one.
+                ui.weak(result.wording(props::written_unit(dimension, None)));
+            }
+            if ui
+                .small_button("range?")
+                .on_hover_text(
+                    "probe how far this can move before something new fails \
+                     (tens of evaluations)",
+                )
+                .clicked()
+            {
+                self.ops.push(SessionOp::ProbeBounds { target });
+            }
+        });
     }
 
     /// The view pane: the numbers the camera and the tessellation are
