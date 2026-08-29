@@ -40,6 +40,11 @@
       "nodes": 8,
       "cone": 3
     },
+    "die_composed_tour": {
+      "about": "the demo tour's die: 21 pips cut in one grouped tool, then 12 box edges and 42 rim arcs blended behind names 20 unions deep",
+      "nodes": 49,
+      "cone": 24
+    },
     "die_fillet": {
       "about": "M5 shape (v) stage 1: every edge of a unit cube blended at r = 0.125",
       "nodes": 3,
