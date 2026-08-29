@@ -54,3 +54,17 @@ recorded for Evan's retroactive read):**
 **Live gates being watched:** #1180 (SHELLFIX 2b — its merge lifts
 the shell/offset keep-out and triggers the track T claim);
 LIB-G16's PR when it opens (lifts the emitter seam for BLEND-5/6).
+
+## BLEND-1 MERGED (2026-08-29)
+
+PR 1222 merged at sample 46 (ordinal 600; full record in
+MODEL-AB-LOG's row). The multi-link closed-rim door is live: a
+seam-split rim's band is one annulus, routing by host side, the
+lantern's rims fillet whole, and the SeamVertex recourse is TRUE at
+every site the tag fires — conditioned on the side the door serves,
+pinned composed on both material sides. The A3-2 promise is served.
+Handoffs into the backlog: issue 1244 (concave closed-rim band —
+the lily's fourth rim), 1245 (boolean-repaired pole-touching rim),
+1246 (public rim-arc selector; consumer evidence from both e2e
+reports). Next per the plan: BLEND-2 (issue 935), with BLEND-7
+(profile crate, ruled 827) able to interleave.

@@ -27,6 +27,7 @@ a reader entering here should know all of them exist.
 | `docs/DISCIPLINES-DESIGN.md` | WIP — provisionally accepted (2026-08-25) | Disciplines/checks registry DS1–DS9: the identification criterion, the severity invariant, the four grades, the recording dial, out-of-tree checks; two residents SHIPPED (`editor_core::checks`: connectedness, separation) |
 | `docs/PCURVE-UNIFY-DESIGN.md` | RATIFIED (#514) | Pcurve unification (#427): `EdgeGeometry`'s conventional variants collapse to ONE (surface, `Pcurve`) form, the exact variants kept as certification lanes; `MappedCurve` demotes to an authority record behind a transience fence. Executed by the PCURVE program (`docs/PCURVE-PLAN.md` / `docs/PCURVE-LOG.md`) |
 | `docs/CENSUS-REST-CLOSURE-DESIGN.md` | RATIFIED (#965) | At-rest census structural identity (#943 + #591 Door-2): the world-space Door 2 for declared planar pairs with its C3/C4 revision; cross-instance curved declared `Rest` as named residue |
+| `docs/RECIPE-DOORS-DESIGN.md` | RATIFIED (2026-08-29, in-chat: D2–D5; D1 reclassified as orchestrator sequencing) | Recipe doors for the shipped surgery verbs — chamfer, tube, shell. D2/D3: `Node::Chamfer` is `Node::Fillet`'s twin and reuses the fillet ROLE vocabulary (the minting node is the discrimination); the emitter pays #708's tie-deferral debt at the same time. D4: `Node::Tube` is ONE node kind carrying `wall: Option<Expr>`. D5: shell WAITS on a kernel `ShellNaming` birth record. D2/D3 implemented at LIB-G16 (schema v16, #918) |
 | `docs/GROUP-BOOLEAN-DESIGN.md` | RATIFIED (#496, option A′) | Group boolean in the recipe layer (D2 + F4): `PlacedUnion` — "a Pattern that fuses", one prototype, one body out, `Instance{i}` naming unchanged; implemented by LIB (#571, schema v12) |
 | `docs/OFFSET-DESIGN.md` | RATIFIED (#907) | Offset & shell O1–O6: analytic offsets minted by struct-update, the approximating-surface lift, the offset certificate and its two meters, what shell IS. DESIGN.md Q8 is its ratified seed; implemented across VERBS Wave 3 (OFF-A…OFF-D + the teapot) |
 | `docs/MIRROR-DESIGN.md` | RATIFIED (#909) | Patterns & mirror P1–P6: the chart-handedness convention (u ↦ −u), mirror's own door beside rigid transform, and the boundary of ASSEMBLY-DESIGN A6's equivariance audit (VERBS) |
@@ -609,12 +610,17 @@ component-aware E–P form found and corrected in M1 PR 4).**
   certify through the fitted door (`certify_fitted`'s Circle-carrier
   rational-chain arm, `OnLocusHull`), and the ball/cone/donut and
   the filleted die's eight sphere octants carry stored pcurves at
-  rest. Still open from this line: MINT-side wiring of the fitted
-  general-circle route (the oblique-trihedron octant faces stay
-  legally uncached — the mint pass needs the `PcurveFittedLane`
-  bound on every constructor), and the cone/torus oblique classes,
-  which have no ring-computable meters composite and refuse with the
-  class named.
+  rest. The mint pass now carries the
+  `PcurveFittedLane` bound (PCURVE P-2, #498), so the bound that
+  blocked the fitted routes from the mint side is PAID; it is
+  signature churn and not a capability loss, since `Dual<T>`
+  implements the trait with a statically refusing impl and no scalar
+  is excluded. What that unit wired through it is U2's `General` arm
+  for interior-column `Intersection` carriers; MINT-side wiring of
+  the fitted general-CIRCLE route is still open (the
+  oblique-trihedron octant faces stay legally uncached), as are the
+  cone/torus oblique classes, which have no ring-computable meters
+  composite and refuse with the class named.
   **(d) cyl×sphere germ chords** — only `(Plane, Cylinder)` and
   `(Plane, Sphere)` germ arms are wired. (b) has landed, so the
   storage half of the blocker is gone: a fitted carrier's chart image

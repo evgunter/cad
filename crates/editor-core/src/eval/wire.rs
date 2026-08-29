@@ -9,6 +9,7 @@ use std::sync::Arc;
 
 use geom_core::k_stats::decide;
 use geom_core::{Affine3, Band, Decide, Margin, Mat3, Point2, Point3, Sign, Tol, Vec2, Vec3};
+use sweep::fillet::BlendKind;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::splitting::{SplitPart, SplitPlane, split};
 use topo::transform::transform_rigid;
@@ -68,10 +69,37 @@ type OpResult<T> = Result<OpOut<T>, NodeErrorKind>;
 /// A bare payload (datum/profile lanes — empty tables).
 type PayloadResult<T> = Result<ValuePayload<T>, NodeErrorKind>;
 
+/// The LANE half of an evaluation's environment: where profile
+/// geometry comes from at `T`, and the parameter environment it is
+/// elaborated over. The two travel together because they are one
+/// decision — a guided elaboration is guided over SOME environment,
+/// and a call site that could pass the lift without the environment
+/// could elaborate the lift's second pass over a different box than
+/// the node's slots were evaluated at.
+#[derive(Debug)]
+pub(crate) struct LaneEnv<'a, T> {
+    /// Where profile geometry comes from at this evaluation's scalar
+    /// (M10-P PP5): the f64 elaboration embedded, or a guided
+    /// elaboration at `T`.
+    pub lift: super::ProfileLift,
+    /// The evaluation's parameter environment — nominals, or nominals
+    /// widened by [`crate::analysis::ParamBox`] (E6's leaf replay).
+    pub params: &'a crate::expr::ParamEnv<T>,
+}
+
+impl<T> Clone for LaneEnv<'_, T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T> Copy for LaneEnv<'_, T> {}
+
 /// The evaluation-wide context an op may need beyond its own inputs:
-/// the boolean candidate-generation switch, and the document seam.
-/// Bundled rather than passed one by one — an op's ARGUMENTS are its
-/// inputs and slots, and everything here is ambient to the run.
+/// the boolean candidate-generation switch, the document seam, the
+/// mate solve, and the lane environment. Bundled rather than passed
+/// one by one — an op's ARGUMENTS are its inputs and slots, and
+/// everything here is ambient to the run.
 pub(crate) struct OpEnv<'a, T: Decide> {
     pub boolean_sweep: topo::SweepStrategy,
     pub parts: &'a super::parts::PartCache<'a, T>,
@@ -79,10 +107,8 @@ pub(crate) struct OpEnv<'a, T: Decide> {
     /// D-5): every instance's pose relative to its cluster gauge, and
     /// every mate's role.
     pub poses: &'a crate::mate::SolvedPoses,
-    /// Where profile geometry comes from at this evaluation's scalar
-    /// (M10-P PP5): the f64 elaboration embedded, or a guided
-    /// elaboration at `T`.
-    pub profile_lift: super::ProfileLift,
+    /// Where profile geometry comes from, and over which environment.
+    pub lane: LaneEnv<'a, T>,
 }
 
 /// Runs one node's op against its (already Ok) inputs and evaluated
@@ -102,25 +128,32 @@ pub(crate) fn run_op<T>(
     tol: Tol,
 ) -> OpResult<T>
 where
-    T: Decide + super::ContentBits + geom_core::Bounds + Send + Sync + topo::AtRestPolicy,
+    T: Decide
+        + super::ContentBits
+        + geom_core::Bounds
+        + Send
+        + Sync
+        + topo::AtRestPolicy
+        + crate::analysis::AxisScalar,
 {
     match node {
         Node::Datum(d) => Ok(OpOut::plain(wire_datum(d, vals, tol)?, names::empty())),
         Node::Profile(program) => Ok(OpOut::plain(
-            wire_profile(program, doc, profile_pre, env.profile_lift, tol)?,
+            wire_profile(program, profile_pre, env.lane, tol)?,
             names::empty(),
         )),
         Node::Extrude { profile, .. } => wire_extrude(id, *profile, results, vals, tol),
         Node::Revolve { profile, axis, .. } => {
             wire_revolve(id, *profile, *axis, results, vals, tol)
         }
-        Node::Loft { profiles, .. } => wire_loft(id, profiles, doc, vals, env.profile_lift, tol),
-        Node::Sweep { profile, path, .. } => {
-            wire_sweep(*profile, *path, doc, vals, env.profile_lift, tol)
-        }
+        Node::Loft { profiles, .. } => wire_loft(id, profiles, doc, vals, env.lane, tol),
+        Node::Sweep { profile, path, .. } => wire_sweep(*profile, *path, doc, vals, env.lane, tol),
         Node::Fillet {
             target, selection, ..
         } => wire_fillet(id, *target, selection, doc, results, vals, tol),
+        Node::Chamfer {
+            target, selection, ..
+        } => wire_chamfer(id, *target, selection, doc, results, vals, tol),
         Node::Split { target, tool } => wire_split(id, *target, *tool, results, tol),
         Node::Boolean { op, a, b, declare } => wire_boolean(
             id,
@@ -196,7 +229,13 @@ fn wire_instantiate_part<T>(
     tol: Tol,
 ) -> OpResult<T>
 where
-    T: Decide + super::ContentBits + geom_core::Bounds + Send + Sync + topo::AtRestPolicy,
+    T: Decide
+        + super::ContentBits
+        + geom_core::Bounds
+        + Send
+        + Sync
+        + topo::AtRestPolicy
+        + crate::analysis::AxisScalar,
 {
     let part = env
         .parts
@@ -482,30 +521,25 @@ pub(crate) fn prepare_profile(
 /// the vertex it moves, an interval parameter widens the loop it
 /// describes — while structure stays exactly what the f64 pass chose.
 ///
-/// **NEITHER OF THOSE TWO IS REACHABLE THROUGH THIS DOOR YET**, and
-/// the machinery being ready is not the same fact as the capability
-/// being available. [`crate::doc::Doc::param_env`] embeds every
-/// document parameter through `from_f64`, so an evaluation's bindings
-/// are constants: a `Dual` binding has a zero tangent and an `Interval`
-/// binding is a degenerate point. The lane pass therefore runs, and
-/// correctly, over an environment with nothing in it to propagate.
-/// Both halves are scheduled and neither is this unit's: the interval
-/// half — `param_env` learning non-degenerate intervals — is M10-3's
-/// first spec bullet, and the dual half, document-level seeding, is
-/// M10-4's. Until they land, the capability is exercised one door down,
-/// at the program-resolve seam this function calls, which is where
-/// `editor-core`'s `m10_p_lift` suite drives both.
+/// **The interval half is reachable**: the environment is the
+/// evaluation's own ([`LaneEnv::params`]), so an evaluation carrying a
+/// [`crate::analysis::ParamBox`] widens the loops this program
+/// describes. The DUAL half — document-level seeding, a binding with a
+/// non-zero tangent — has no door yet; a `Dual` binding's tangent is
+/// still zero, and until seeding lands the capability is exercised one
+/// door down, at the program-resolve seam this function calls, which is
+/// where `editor-core`'s `m10_p_lift` suite drives it.
 /// The naming is pass 1's verbatim (PP4): names are program-structural
 /// indices, and the canonical permutation they hang off is pinned by
 /// the record, so `T`-valued geometry changes no name.
 fn lane_profile<T: Decide + geom_core::Bounds>(
     program: &ProfileProgram,
-    doc: &crate::doc::Doc<ProfileProgram>,
+    lane: LaneEnv<'_, T>,
     pre: &ProfilePre,
     tol: Tol,
 ) -> Result<profile::ValidatedProfile<T>, NodeErrorKind> {
     let resolved = program
-        .resolve(&doc.param_env::<T>())
+        .resolve(lane.params)
         .map_err(|(slot, source)| NodeErrorKind::Expr { slot, source })?;
     let mut loops = Vec::with_capacity(resolved.len());
     for (li, steps) in resolved.iter().enumerate() {
@@ -542,9 +576,8 @@ fn lane_profile<T: Decide + geom_core::Bounds>(
 
 fn wire_profile<T: Decide + geom_core::Bounds>(
     program: &ProfileProgram,
-    doc: &crate::doc::Doc<ProfileProgram>,
     pre: Option<&ProfilePre>,
-    lift: super::ProfileLift,
+    lane: LaneEnv<'_, T>,
     tol: Tol,
 ) -> PayloadResult<T> {
     let Some(pre) = pre else {
@@ -557,11 +590,11 @@ fn wire_profile<T: Decide + geom_core::Bounds>(
             },
         });
     };
-    let validated = match lift {
+    let validated = match lane.lift {
         super::ProfileLift::Pinned => anchor::embed_profile::<T>(&pre.profile_f64)
             .validate(tol)
             .map_err(NodeErrorKind::Profile)?,
-        super::ProfileLift::Guided => lane_profile::<T>(program, doc, pre, tol)?,
+        super::ProfileLift::Guided => lane_profile::<T>(program, lane, pre, tol)?,
     };
     Ok(ValuePayload::Profile(Arc::new(ProfileValue {
         validated,
@@ -617,7 +650,7 @@ fn wire_extrude<T: Decide>(
     ))
 }
 
-fn wire_revolve<T: Decide>(
+fn wire_revolve<T: Decide + geom_brep::PcurveFittedLane>(
     id: RecipeNodeId,
     profile: RecipeNodeId,
     axis: RecipeNodeId,
@@ -727,12 +760,12 @@ fn wire_revolve<T: Decide>(
 ///
 /// The selection resolves through the TARGET's name table into edge
 /// keys. Resolution failures are the N5 typed trio VERBATIM
-/// ([`NodeErrorKind::FilletSelectionResolve`]) — a selection is a
+/// ([`NodeErrorKind::BlendSelectionResolve`]) — a selection is a
 /// commitment (`Node::Fillet`'s freeze semantics), so a name that
 /// stopped resolving refuses loudly rather than shrinking the set.
 ///
 /// Failure of the op itself is a TYPED refusal
-/// ([`NodeErrorKind::Fillet`]) carrying the kernel's own error
+/// ([`NodeErrorKind::Blend`]) carrying the kernel's own error
 /// unaltered, exactly as the split/boolean arms carry theirs. The
 /// input body is never passed through: a fillet that did not happen
 /// must read as a failed node, not as a silently sharp solid.
@@ -755,7 +788,7 @@ fn wire_revolve<T: Decide>(
 /// result carries, even against a disjoint operand — and that
 /// frontier, which predates M6-5, is pinned executed in the same
 /// file. The naming side is ready; the kernel side is not.
-fn wire_fillet<T: Decide + geom_core::Bounds>(
+fn wire_fillet<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     id: RecipeNodeId,
     target: RecipeNodeId,
     selection: &[names::StableName],
@@ -767,9 +800,12 @@ fn wire_fillet<T: Decide + geom_core::Bounds>(
     let body = body_operand(results, target)?;
     let radius = need_scalar(vals, SlotId::Radius)?;
     let target_table = Arc::clone(&value_of(results, target)?.name_table);
-    let edges = resolve_selection(selection, doc, &target_table)?;
+    let edges = resolve_selection(BlendKind::Fillet, selection, doc, &target_table)?;
     let filleted = sweep::fillet::build::fillet_edges(&body, &edges, radius, band(tol)?, tol)
-        .map_err(NodeErrorKind::Fillet)?;
+        .map_err(|error| NodeErrorKind::Blend {
+            verb: BlendKind::Fillet,
+            error,
+        })?;
     // The assembly always keeps records, so `None` is a kernel bug:
     // refuse loudly rather than fall back to an empty table, which
     // would leave every downstream reference into this body silently
@@ -787,6 +823,64 @@ fn wire_fillet<T: Decide + geom_core::Bounds>(
     // The blend's own surfaces/curves/points are minted HERE (D1/N6);
     // the supports' pass-through descriptions keep the source they
     // arrived with.
+    stamp_minted(&mut out, id);
+    Ok(OpOut::plain(ValuePayload::Body(Arc::new(out)), table))
+}
+
+/// **Equal-setback flat chamfers on a SELECTION of the target's
+/// edges** — [`wire_fillet`]'s twin, arm for arm.
+///
+/// The selection resolves through the TARGET's name table into edge
+/// keys, resolution failures are the N5 typed trio verbatim, the op's
+/// own failure is a typed refusal carrying the kernel's error
+/// unaltered ([`NodeErrorKind::Blend`] with [`BlendKind::Chamfer`]),
+/// and the input body is never passed through. Every one of those
+/// sentences is [`wire_fillet`]'s and holds here for the same reasons
+/// — read them there.
+///
+/// # Naming
+///
+/// The chamfer surgery IS the fillet surgery: `chamfer_edges` returns
+/// the same birth records, so this door refuses `naming: None` exactly
+/// as the fillet's does and hands the records to
+/// [`names::name_chamfer`], which mints under THIS node's id. That id
+/// is the whole discrimination (RECIPE-DOORS D3): the role vocabulary
+/// is shared, and what tells a chamfer's strip from a fillet's blend
+/// at a selector is which node minted it.
+fn wire_chamfer<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
+    id: RecipeNodeId,
+    target: RecipeNodeId,
+    selection: &[names::StableName],
+    doc: &crate::doc::Doc<ProfileProgram>,
+    results: &Results<T>,
+    vals: &SlotValues<T>,
+    tol: Tol,
+) -> OpResult<T> {
+    let body = body_operand(results, target)?;
+    let distance = need_scalar(vals, SlotId::ChamferDistance)?;
+    let target_table = Arc::clone(&value_of(results, target)?.name_table);
+    let edges = resolve_selection(BlendKind::Chamfer, selection, doc, &target_table)?;
+    let chamfered = sweep::fillet::build::chamfer_edges(&body, &edges, distance, band(tol)?, tol)
+        .map_err(|error| NodeErrorKind::Blend {
+        verb: BlendKind::Chamfer,
+        error,
+    })?;
+    // The assembly always keeps records, so `None` is a kernel bug —
+    // the fillet door's argument unchanged: an empty table would leave
+    // every downstream reference into this body silently unresolvable.
+    let rec =
+        chamfered
+            .naming
+            .as_ref()
+            .ok_or(NodeErrorKind::Naming(names::NamingError::Emission {
+                what: "the chamfer returned a body with no birth records",
+            }))?;
+    let table = names::name_chamfer(id, target, &target_table, &chamfered.body, rec)
+        .map_err(NodeErrorKind::Naming)?;
+    let mut out = chamfered.body;
+    // The strips' and patches' own surfaces, curves and points are
+    // minted HERE (D1/N6); the supports' pass-through descriptions keep
+    // the source they arrived with.
     stamp_minted(&mut out, id);
     Ok(OpOut::plain(ValuePayload::Body(Arc::new(out)), table))
 }
@@ -932,6 +1026,7 @@ mod ladder {
 /// so the kernel sees the deterministic order every derived list in
 /// this kernel inherits (D9) regardless of how the recipe sorted.
 fn resolve_selection(
+    verb: BlendKind,
     selection: &[names::StableName],
     doc: &crate::doc::Doc<ProfileProgram>,
     target: &NameTable,
@@ -939,16 +1034,17 @@ fn resolve_selection(
     use crate::names::EntityKey;
 
     if selection.is_empty() {
-        return Err(NodeErrorKind::FilletSelectionEmpty);
+        return Err(NodeErrorKind::BlendSelectionEmpty { verb });
     }
     let mut keys = Vec::with_capacity(selection.len());
     for name in selection {
-        let refused = |error| NodeErrorKind::FilletSelectionResolve { error };
+        let refused = |error| NodeErrorKind::BlendSelectionResolve { verb, error };
         let live = ladder::live(name, doc).map_err(refused)?;
         let landing = ladder::landing(&live, target);
         let ent = ladder::resolve(live, landing).map_err(refused)?;
         let EntityKey::Edge(k) = ent.key else {
-            return Err(NodeErrorKind::FilletSelectionKind {
+            return Err(NodeErrorKind::BlendSelectionKind {
+                verb,
                 name: Box::new(name.clone()),
                 found: ent.key.kind(),
             });
@@ -961,7 +1057,7 @@ fn resolve_selection(
     Ok(keys)
 }
 
-fn wire_split<T: Decide>(
+fn wire_split<T: Decide + geom_brep::PcurveFittedLane>(
     id: RecipeNodeId,
     target: RecipeNodeId,
     tool: RecipeNodeId,
@@ -1018,7 +1114,7 @@ fn wire_split<T: Decide>(
 // BVH candidate generation reads coordinate brackets — the L7 driver-code
 // allowance, threaded from `run_op`'s service bound.
 #[allow(clippy::too_many_arguments)] // one parameter per named input; strategy is the §4.4 door
-fn wire_boolean<T: Decide + geom_core::Bounds>(
+fn wire_boolean<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     id: RecipeNodeId,
     op: BooleanOp,
     a: RecipeNodeId,
@@ -1295,7 +1391,7 @@ fn resolve_declarations(
     Ok(out)
 }
 
-fn wire_transform<T: Decide>(
+fn wire_transform<T: Decide + geom_brep::PcurveFittedLane>(
     id: RecipeNodeId,
     input: RecipeNodeId,
     results: &Results<T>,
@@ -1379,7 +1475,7 @@ fn stepped_map<T: Decide>(
     }
 }
 
-fn wire_pattern<T: Decide>(
+fn wire_pattern<T: Decide + geom_brep::PcurveFittedLane>(
     id: RecipeNodeId,
     input: RecipeNodeId,
     kind: &PatternKind,
@@ -1449,7 +1545,7 @@ fn wire_pattern<T: Decide>(
 /// node, which may hand back the prototype verbatim for its identity
 /// instance, a placed union has no reason to special-case a map that an
 /// explicit rule need not make the identity.
-fn wire_placed_union<T: Decide + geom_core::Bounds>(
+fn wire_placed_union<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     id: RecipeNodeId,
     input: RecipeNodeId,
     kind: &PatternKind,
@@ -1579,7 +1675,7 @@ pub(crate) const SWEEP_FRONTIER: &str = "a swept solid: the recipe's path operan
 fn section_of<T: Decide + geom_core::Bounds>(
     doc: &crate::doc::Doc<ProfileProgram>,
     id: RecipeNodeId,
-    lift: super::ProfileLift,
+    lane: LaneEnv<'_, T>,
     tol: Tol,
 ) -> Result<(sweep::Section, Affine3<f64>, ProfileNaming), NodeErrorKind> {
     let Some(Node::Profile(program)) = doc.nodes.get(&id) else {
@@ -1613,8 +1709,8 @@ fn section_of<T: Decide + geom_core::Bounds>(
     // answer must not depend on which node consumes the profile. A
     // parameter box the extrude ladder refuses to certify is refused
     // here as well, and by the same predicate.
-    if lift == super::ProfileLift::Guided {
-        lane_profile::<T>(program, doc, &pre, tol)?;
+    if lane.lift == super::ProfileLift::Guided {
+        lane_profile::<T>(program, lane, &pre, tol)?;
     }
     let place = pre.profile_f64.plane.placement;
     // The sections are the REPLAYED loops (program order — exactly
@@ -1632,12 +1728,12 @@ fn need_count(vals: &SlotValues<impl Decide>, slot: SlotId) -> Result<usize, Nod
 /// The Loft node (M6-3: the frontier flipped to the BUILDER — the
 /// §10.3 walls plus the M5-LOG item-6 assembly, tiers 1–3 green at
 /// rest).
-fn wire_loft<T: Decide + geom_core::Bounds>(
+fn wire_loft<T: Decide + geom_brep::PcurveFittedLane + geom_core::Bounds>(
     id: RecipeNodeId,
     profiles: &[RecipeNodeId],
     doc: &crate::doc::Doc<ProfileProgram>,
     vals: &SlotValues<T>,
-    lift: super::ProfileLift,
+    lane: LaneEnv<'_, T>,
     tol: Tol,
 ) -> OpResult<T> {
     let v_degree = need_count(vals, SlotId::VDegree)?;
@@ -1645,7 +1741,7 @@ fn wire_loft<T: Decide + geom_core::Bounds>(
     let mut places = Vec::with_capacity(profiles.len());
     let mut first_naming = ProfileNaming::default();
     for (i, pid) in profiles.iter().enumerate() {
-        let (chain, place, naming) = section_of::<T>(doc, *pid, lift, tol)?;
+        let (chain, place, naming) = section_of::<T>(doc, *pid, lane, tol)?;
         sections.push(chain);
         places.push(place);
         if i == 0 {
@@ -1694,13 +1790,13 @@ fn wire_sweep<T: Decide + geom_core::Bounds>(
     path: RecipeNodeId,
     doc: &crate::doc::Doc<ProfileProgram>,
     vals: &SlotValues<T>,
-    lift: super::ProfileLift,
+    lane: LaneEnv<'_, T>,
     tol: Tol,
 ) -> OpResult<T> {
     let _stations = need_count(vals, SlotId::Stations)?;
     let _v_degree = need_count(vals, SlotId::VDegree)?;
-    let _ = section_of::<T>(doc, profile, lift, tol)?;
-    let _ = section_of::<T>(doc, path, lift, tol)?;
+    let _ = section_of::<T>(doc, profile, lane, tol)?;
+    let _ = section_of::<T>(doc, path, lane, tol)?;
     Err(NodeErrorKind::CurvedSolidFrontier {
         what: SWEEP_FRONTIER,
     })

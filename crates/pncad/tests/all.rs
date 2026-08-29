@@ -160,7 +160,7 @@ fn fit_payload(e: &pncad::geom::FitError) {
 // refusal, including the third buried type, sweep::fillet::FilletError.
 fn node_error_payload(e: &pncad::document::NodeErrorKind) {
     match e {
-        pncad::document::NodeErrorKind::Fillet(inner) => named::<&FilletError>(inner),
+        pncad::document::NodeErrorKind::Blend { error, .. } => named::<&FilletError>(error),
         pncad::document::NodeErrorKind::Boolean(inner) => named::<&BooleanError>(inner),
         pncad::document::NodeErrorKind::Transform(inner) => named::<&TransformError>(inner),
         _ => {}
@@ -1234,7 +1234,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
 
 /// R1-PARAMS: `plate_param` authors façade-only, evaluates to the
 /// corpus scene's analytic oracle, and its saved text is pinned as
-/// `tests/plate_param.v15.pncad` — the fixture the Python audit loads
+/// `tests/plate_param.v16.pncad` — the fixture the Python audit loads
 /// (`crates/pncad-py/tests/test_north_star.py`) to author the
 /// `set_doc_param` edit from Python. Python cannot yet author this
 /// profile from scratch (audit gaps G1/G9: circles, multi-loop), so
@@ -1282,7 +1282,7 @@ fn plate_param_authors_facade_only_and_its_saved_text_is_pinned() {
 
     let text = pncad::document::save(&doc, &[], Tol::witness()).expect("the document saves");
     if std::env::var_os("PNCAD_BLESS").is_some() {
-        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/plate_param.v15.pncad");
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/plate_param.v16.pncad");
         std::fs::write(path, &text).expect("the fixture writes");
         return; // freshly written; the next compile pins it
     }
@@ -1305,7 +1305,7 @@ fn plate_param_authors_facade_only_and_its_saved_text_is_pinned() {
     };
     assert_eq!(
         sans_epsilon(&text),
-        sans_epsilon(include_str!("plate_param.v15.pncad")),
+        sans_epsilon(include_str!("plate_param.v16.pncad")),
         "the saved plate_param text moved — regenerate the fixture with \
          `PNCAD_BLESS=1 cargo test -p pncad plate_param` (default env) and re-run"
     );
@@ -2705,7 +2705,27 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 /// - **`MigrationStep`**: the stated exception in the crate docs —
 ///   its signature speaks `serde_json::Value`, which does not cross
 ///   the curated surface.
-const NOT_CARRIED: [&str; 76] = [
+/// - **The E6 driver and its parameter box** (`drive`, `DriveConfig`,
+///   `DriveRefusal`, `ParamBoxVerdict`, `CertifiedLeaf`,
+///   `RefusedLeaf`, `RefusalReason`, `BudgetKind`, `FlipEvidence`, `StructureFlip`,
+///   `ReasonClass`, `Receipt`, `LeafResults`, `MeasureAccounting`,
+///   `ReplayOutcome`, `VerdictVector`, `VerdictRow`,
+///   `VerdictVectorKey`, `DEFAULT_MAX_DEPTH`, `DEFAULT_MAX_LEAVES`,
+///   `ParamBox`, `BoxAxis`, `ParamBoxError`, `AxisScalar`,
+///   `param_env_over`): the analysis lane's subdivision service and
+///   the box it drives over.
+///
+///   Interior because the curated face is a DIFFERENT shape and is
+///   not built yet: what a consumer asks the analysis lane is "does
+///   this measurement hold over its tolerances", and E5's answer to
+///   that is a typed per-measurement stackup report whose INPUT is a
+///   leaf set. Carrying the leaf vocabulary now would door the
+///   intermediate and then have to un-door it. `drive` is also gated
+///   on the `interval` feature — there is no leaf to certify without
+///   the certified scalar — so a façade row for it would be a
+///   conditional door, which this surface does not have and should
+///   not acquire for a type its consumer does not want yet.
+const NOT_CARRIED: [&str; 101] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -2714,21 +2734,32 @@ const NOT_CARRIED: [&str; 76] = [
     "Attr",
     "AttrKind",
     "AttrSet",
+    "AxisScalar",
     "BifurcationKind",
+    "BoxAxis",
     "BranchCertification",
     "BranchMarginEvidence",
+    "BudgetKind",
+    "CertifiedLeaf",
     "ContentKey",
     "Coset",
+    "DEFAULT_MAX_DEPTH",
+    "DEFAULT_MAX_LEAVES",
     "Diagnosis",
     "DocDiff",
+    "DriveConfig",
+    "DriveRefusal",
     "EntityKey",
     "EntityRef",
     "Entry",
     "Epoch",
     "EvalScalar",
     "ExprPath",
+    "FlipEvidence",
     "FlipSet",
     "Implicated",
+    "LeafResults",
+    "MeasureAccounting",
     "MeshPatchKey",
     "MeshPick",
     "MeshPickError",
@@ -2741,13 +2772,21 @@ const NOT_CARRIED: [&str; 76] = [
     "NodeChange",
     "NodeVerdictDelta",
     "NodeVerdicts",
+    "ParamBox",
+    "ParamBoxError",
+    "ParamBoxVerdict",
     "ParamValue",
     "PredicateDivergence",
     "Product",
     "ProfilePayload",
     "ProgramRefusal",
     "Qualifier",
+    "ReasonClass",
+    "Receipt",
     "RecipeEditRef",
+    "RefusalReason",
+    "RefusedLeaf",
+    "ReplayOutcome",
     "ResolutionFailure",
     "ResolveError",
     "ResolveIndeterminate",
@@ -2755,6 +2794,7 @@ const NOT_CARRIED: [&str; 76] = [
     "Rgba8",
     "RunStatus",
     "SideVerdict",
+    "StructureFlip",
     "SummaryDelta",
     "SummaryDivergence",
     "SummaryFlip",
@@ -2762,7 +2802,10 @@ const NOT_CARRIED: [&str; 76] = [
     "TieWitness",
     "Tombstone",
     "VerdictFlip",
+    "VerdictRow",
     "VerdictSummary",
+    "VerdictVector",
+    "VerdictVectorKey",
     "WitnessAge",
     "WitnessBifurcation",
     "WitnessDatum",
@@ -2772,10 +2815,12 @@ const NOT_CARRIED: [&str; 76] = [
     "derivation_nodes",
     "diff_summaries",
     "diff_verdicts",
+    "drive",
     "enrich_appearance_loss",
     "enrich_appearance_loss_with_prior",
     "entity_name",
     "from_value",
+    "param_env_over",
     "product_recorded",
     "rebind_suggestions",
     "resolve_with_prior",

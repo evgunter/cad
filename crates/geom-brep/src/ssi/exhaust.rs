@@ -256,8 +256,9 @@ pub(crate) fn seed_r3(
 ///
 /// [`SsiError::ExhaustivenessInconclusive`] at the floor,
 /// [`SsiError::CellBudget`] if the enumeration exceeds
-/// [`SSI_MAX_CELLS`], [`SsiError::UnsupportedCertificate`] when a
-/// surface kind has no ring-computable enclosure.
+/// [`SSI_MAX_CELLS`], [`SsiError::UnsupportedCertificate`] when an
+/// operand admits no ring-computable enclosure — which, behind this
+/// door, means a degenerate instance of a supported kind.
 pub(crate) fn account_r3(
     s1: &Surface<f64>,
     s2: &Surface<f64>,
@@ -283,10 +284,17 @@ fn sweep_r3(
         let e1 = implicit_enclosure(s1, cell);
         let e2 = implicit_enclosure(s2, cell);
         if e1.is_poison() || e2.is_poison() {
+            // The kind list in this sentence is held true by the lane
+            // gate: `cylinder_sphere_ssi` refuses `WrongLane` for
+            // every operand that is not a cylinder or a sphere.
+            // Widening that gate (admitting Cone/Torus/Nurbs to this
+            // lane) must revisit this sentence with it, or the arm
+            // starts blaming kinds it never sees.
             return Err(SsiError::UnsupportedCertificate {
-                what: "this surface kind has no ring-computable implicit \
-                       enclosure, so its domain cannot be proved exhausted \
-                       (arms retire one at a time, each with its proof)",
+                what: "a degenerate operand — a sphere or cylinder of zero \
+                       radius, whose implicit form divides by that radius — \
+                       has no ring-computable implicit enclosure, so its \
+                       domain cannot be proved exhausted",
             });
         }
         Ok(excludes_zero(e1) || excludes_zero(e2))
@@ -435,9 +443,14 @@ fn sweep_chart_plane(
             + RingInterval::point(plane_normal.y) * (b.y - RingInterval::point(plane_origin.y))
             + RingInterval::point(plane_normal.z) * (b.z - RingInterval::point(plane_origin.z));
         if phi.is_poison() {
+            // The one measured route here is weight underflow: the
+            // seeding guard refuses every net whose homogeneous
+            // arithmetic leaves the finite range before this sweep
+            // runs, so that cause is named nowhere below.
             return Err(SsiError::UnsupportedCertificate {
-                what: "the NURBS control-net enclosure poisoned (a malformed \
-                       net or a weight hull touching zero)",
+                what: "the NURBS control-net enclosure poisoned over a cell — \
+                       a weight so small that the rational's own denominator \
+                       underflows to zero",
             });
         }
         Ok(excludes_zero(phi))
