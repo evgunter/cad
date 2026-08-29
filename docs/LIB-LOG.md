@@ -1603,3 +1603,32 @@ re-drawn away. Lane process finding kept: the lane pushed a tree it
 had not re-verified once (one red run, disclosed, fixed next
 commit). Python `{:?}` message sites now flippable to the new
 Displays: listed in the PR for the next pncad-py sweep.
+
+**G18B MERGED (2026-08-29, #1192; mechanical under the 08-29 ruling,
+no A/B row). Audit G18 CLOSED — the assembly series is COMPLETE, and
+the north star reads 34 of 47 (30 + 4 YES*).** The whole authoring/
+edit/refactoring vocabulary crosses: `Node.instantiate_part`/`mate`
+(+ payload and solve read side), `set_placement`/`set_roots`/
+`update_reference` + the pin-update family (`update_to_store` with
+its snapshot contract STATED at the door per #1185's class — and
+executed as contract tests on three doors), `product`/`solve_document`
+/`assemble` + the A5 gate family typed, `split`/`inline`. **Row 46
+(`bench`) flips YES outright** — TestBenchStand authors the scene
+from nothing against the scene's own expectations, gate CERTIFIES.
+**Row 47 (`benchlayout`) flips YES\*** on the honest mark: authorable
+end to end via `placed_union` where the scene says `Node::Pattern`
+(G8's deliberately-unbound plural payload — a THIRD caveat flavor,
+added to the headline gloss rather than overclaimed; G8's stops
+3→4). All 43 census `gap: G18` entries dispositioned; the
+PlacementRuleFault census reason corrected by execution. The ASM
+deposit of 2026-08-23 is fully discharged. Banked with homes:
+(1) **#1185's second live site** — `product`/`assemble`/
+`SolvedPoses.placement` take a document plus something that must be
+OF it, uncheckable because an evaluation carries no document
+identity; kernel-shape question, stated at each door, recorded on
+#1185's thread by this entry's merge. (2) #947's doubled recourse now
+asserted from Python too (goes red in two places when fixed).
+(3) Three RefusedRef arms measured unreachable-one-door-earlier from
+Python authoring; negatives recorded in the test file. Two scene
+claims not reproducible (`shells().count()`, `face_frame`) — both
+census-owned (`B-READBACK`), named in row 47.

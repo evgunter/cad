@@ -36,10 +36,21 @@ STL out. The mesh-vs-exact cross-check is a computation the CALLER
 writes over those triangles — `docs/guide/meshing.md` shows it — so
 it is genuinely a second measure and not a second reading.
 
+The ASSEMBLY vocabulary is the layer above a single document:
+`Workspace` holds the parts, `Node.instantiate_part` references one,
+`DocEdit.set_placement` places its cluster, `Node.mate` says how two
+instances meet, `solve_document` poses them, `product` gathers what
+the document IS and `assemble` says whether it is valid at rest.
+`split` and `inline` refactor across the seam, and
+`update_references` moves a pin at its sites.
+
 Deliberately ABSENT, and tracked as named gaps in
-`docs/guide/north-star-audit.md`: sweep and tube, the pattern node,
-chamfer and shell (which have no recipe node at all), and the whole
-assembly series.
+`docs/guide/north-star-audit.md`: sweep and tube, the pattern node
+(`placed_union` says a placed family whose value is one body; the
+plural-payload node stays unbound), chamfer and shell (which have no
+recipe node at all), and the geometry read-back doors — a name is
+carried, compared and handed back, and where it SITS is not yet
+readable.
 """
 
 from typing import Any, Final, Generic, Optional, TypeAlias, TypeVar, overload
@@ -209,6 +220,99 @@ class SelectRefusal(PncadError):
     datum: Optional[NodeId]
     found: Optional[str]
     dim: Optional[str]
+
+class MateError(PncadError):
+    """The mate solve could not place an instance.
+
+    `variant` is the refusing arm's stable tag; `fault` is the
+    `MateFault` VALUE carrying the arm's payload.
+
+    The solve itself is TOTAL and never raises — a refusing cluster
+    must not fail an unrelated one, so `solve_document` records the
+    fault per node and `SolvedPoses.fault` hands back the same value
+    this exception carries. Raised only where an answer is a pose or
+    nothing: `SolvedPoses.placement`."""
+
+    variant: str
+    fault: MateFault
+
+class AssemblyError(PncadError):
+    """The at-rest assembly gate refused.
+
+    `variant` is the refusing arm's stable tag; `mate`, `side`,
+    `name`, `why`, `class_`, `findings`, `node`, `through` are the
+    arms' payloads, present on every arm and `None` where that arm
+    does not carry one.
+
+    The two verdict arms are NOT interchangeable. `at_rest` is a
+    finding AGAINST the document — a refuted declaration or an
+    undeclared contact. `uncertified` is the declared direction's
+    FRONTIER: nothing refuted, nothing undeclared, the census simply
+    declined to certify, so nothing was decided about the geometry
+    either way. A gather refusal arrives under the GATHER's own tag
+    (`no_body_roots`, `root_failed`, ...), not a wrapper tag."""
+
+    variant: str
+    mate: Optional[NodeId]
+    side: Optional[MateSide]
+    name: Optional[str]
+    why: Optional[RefusedRef]
+    class_: Optional[ContactClass]
+    findings: Optional[list[AtRestFinding]]
+    node: Optional[NodeId]
+    through: Optional[NodeId]
+
+class ProductError(PncadError):
+    """The whole-document gather refused. A product is all of the
+    roots or none of them — there are no partial products."""
+
+    variant: str
+    node: Optional[NodeId]
+    through: Optional[NodeId]
+    name: Optional[str]
+
+class SplitError(PncadError):
+    """The `split` refactoring refused."""
+
+    variant: str
+    node: Optional[NodeId]
+    consumer: Optional[NodeId]
+    input: Optional[NodeId]
+    gauge: Optional[NodeId]
+    instance: Optional[NodeId]
+    param: Optional[str]
+    name: Optional[str]
+    id: Optional[str]
+
+class InlineError(PncadError):
+    """The `inline` refactoring refused.
+
+    Inline crosses the same document seam evaluation does, so a
+    reference that will not resolve refuses under the SEAM's tags —
+    `part_pin_mismatch`, `part_epsilon_seam`, `part_unresolved`. A
+    stale pin is refused, never silently retargeted."""
+
+    variant: str
+    node: Optional[NodeId]
+    by: Optional[NodeId]
+    name: Optional[str]
+    param: Optional[str]
+    key: Optional[str]
+    root: Optional[NodeId]
+    host_epsilon: Optional[float]
+    part_epsilon: Optional[float]
+
+class UpdateError(PncadError):
+    """A whole-document pin update produced no edit list.
+
+    `variant` is `no_such_reference` (a typo or a stale id — never a
+    silent success) or `already_pinned` (a completed update). Both
+    name `id`, because "which part did you mean" is the only question
+    an author can act on here; `pin` rides `already_pinned` alone."""
+
+    variant: str
+    id: str
+    pin: Optional[ContentPin]
 
 class FrameError(PncadError):
     """A frame constructor refused its inputs — a direction that was
@@ -924,6 +1028,55 @@ class Node:
         non-finite frame, or an improper one raises EditError at
         insert."""
 
+    @staticmethod
+    def instantiate_part(reference: DocRef) -> Node:
+        """An instance of another document's product: a LEAF whose
+        material crosses the document seam.
+
+        `reference` is which part, at which version — Cargo.lock
+        semantics, so an edit to the referenced document never
+        retargets it and moving the pin is its own recorded edit
+        (`DocEdit.update_reference`, or `update_references` for every
+        site at once).
+
+        No frame argument: placement lives on the CLUSTER, which is
+        what makes zero-anchor and multi-anchor states
+        unrepresentable rather than merely refused —
+        `DocEdit.set_placement` is the door. No interface record
+        either: an AUTHORED instance crosses nothing, and a non-empty
+        record is mintable only by the `split` that observed
+        declarations crossing its cut.
+
+        Evaluating one needs a resolver: `evaluate(doc,
+        resolver=workspace)`. Without one it refuses typed
+        (`part_no_resolver`) rather than pretending the part is
+        empty."""
+
+    @staticmethod
+    def mate(
+        a: str,
+        b: str,
+        class_: ContactClass,
+        alignment: Alignment,
+    ) -> Node:
+        """A mate between two instances: ONE node carrying both the
+        placement constraint and the contact declaration.
+
+        `a` and `b` are instance-qualified names — an entity of one
+        instance's product and an entity of the other's, the text
+        `Evaluation.select` answers with when queried on an
+        instantiate node. They are name REFERENCES, not recipe edges:
+        inserting a mate transfers no root.
+
+        `class_` is the declared contact class; ask `class_admission`
+        BEFORE authoring, because a class the solve folds may still
+        mint nothing at the at-rest gate. `alignment` is AUTHORED
+        data — nothing checks it against the faces `a` and `b` name,
+        so a mate can solve cleanly and still be refuted at the gate.
+
+        A dangling reference head is not refused here: the solve
+        refuses typed naming it (`mate_dangling_head`)."""
+
 class ParamName:
     """A document-level parameter name (guide §3.2). NOT an arena
     key: the same plain name the recipe's expressions reference."""
@@ -999,6 +1152,46 @@ class DocEdit:
         undeclared name (`doc_param_not_declared`) and on a kind
         mismatch (`doc_param_value_kind_mismatch`)."""
     @staticmethod
+    @staticmethod
+    def set_roots(roots: list[NodeId]) -> DocEdit:
+        """Set the document's ordered PRODUCT ROOTS outright.
+
+        The designate/undesignate door: one TOTAL edit rather than
+        partial add/remove arms, so the product's solid order is
+        always stated rather than inferred from an edit sequence. The
+        four root invariants refuse under their own tags on
+        `EditError` — `root_not_live`, `root_duplicate`,
+        `root_ancestor` (one root upstream of another would gather its
+        material twice), `root_uncovered` (a live node reaching no
+        root is a silently dead subgraph)."""
+
+    @staticmethod
+    def set_placement(node: NodeId, frame: Frame) -> DocEdit:
+        """Place an instance's CLUSTER.
+
+        The frame REPLACES whatever was recorded. Placement is
+        per-cluster, not per-instance: an instance coupled to others
+        by mates shares their frame, and `gauge_of` says which node
+        the registry is actually keyed by. Refuses typed on
+        `EditError`: `placement_on_non_instance`,
+        `non_finite_placement`, `improper_placement`."""
+
+    @staticmethod
+    def update_reference(node: NodeId, new_pin: ContentPin) -> DocEdit:
+        """Move ONE instance's pin to a new version of the same
+        document. The id does not move.
+
+        The new pin is RECIPE DATA, not a resolution: `apply` has no
+        resolver and no store, so a pin naming content that does not
+        exist is accepted here and refused at EVALUATION. Checking at
+        the edit door would make the edit's meaning depend on which
+        store was mounted when it was recorded — which is exactly what
+        a recorded, replayable log must not carry.
+
+        Refuses `update_on_non_instance`, and `pin_unchanged` when the
+        site already names that version."""
+
+    @staticmethod
     def bind_count_param(node: NodeId, name: ParamName) -> DocEdit:
         """Bind `node`'s STRUCTURAL count slot to the document
         parameter `name`, so one `set_doc_param` re-counts the
@@ -1029,6 +1222,42 @@ class Doc:
         save file's `id:` header, and the workspace store's key.
         Identity survives every edit; it is not a content hash."""
     def apply(self, edit: DocEdit) -> Optional[NodeId]: ...
+    @property
+    def last_maintenance(self) -> list[ClusterMaintenance]:
+        """The cluster-record maintenance the LAST accepted edit
+        performed. Empty after an edit that moved no mate graph, and
+        on a document that has applied none; a REFUSED edit leaves it
+        untouched, as it leaves the document untouched."""
+
+    @property
+    def roots(self) -> list[NodeId]:
+        """The document's ordered product roots — what `product` and
+        `assemble` gather, in this order. Set through
+        `DocEdit.set_roots`; maintained by every other edit, so a
+        document always states its product rather than leaving it to
+        be inferred."""
+
+    def placement(self, node: NodeId) -> Frame:
+        """An instance's CLUSTER frame, or the identity when nothing
+        was recorded. Total — use `placements` to tell "placed at the
+        identity" from "carries no frame of its own". This is the
+        AUTHORED frame; a mated instance's world pose is
+        `SolvedPoses.placement`."""
+
+    def placements(self) -> dict[NodeId, Frame]:
+        """The placement registry itself: every node with a recorded
+        cluster frame. A mated instance that is not its cluster's
+        gauge is ABSENT here however it is posed."""
+
+    def reference(self, node: NodeId) -> Optional[DocRef]:
+        """The `(id, pin)` an instantiate node carries, or `None` for
+        any other node — the read side of `Node.instantiate_part`."""
+
+    def interface(self, node: NodeId) -> Optional[InterfaceRecord]:
+        """The interface record an instantiate node carries, or `None`
+        for any other node. Empty for a directly-authored instance;
+        non-empty only on one a `split` minted."""
+
     def insert(self, node: Node) -> NodeId: ...
     def declare(self, finding: FlushFinding) -> NodeId:
         """Insert a `Declare` node for ONE inspected finding and
@@ -1166,6 +1395,29 @@ class Workspace:
         content is not, so references by id stay valid and references
         by PIN go stale — which is the point. Raises WorkspaceError,
         typed."""
+
+    def update_to_store(self, doc: Doc, id: str) -> list[DocEdit]:
+        """The edits that move every reference to `id` onto the
+        version the STORE currently holds — `update_references` with
+        the pin computed from disk.
+
+        WHEN THIS READS THE STORE: once, now. The pin is recomputed
+        from the file at this call and the returned edits carry it as
+        a literal. Nothing re-reads later, so a resave between this
+        call and the caller's `apply` leaves the applied pin naming
+        the older version — the edits are a snapshot, not a
+        subscription. Nor does applying them check that the pin
+        resolves: a pin is recipe data, and whether it resolves is
+        evaluation's question.
+
+        What it does NOT read is `doc` from the store: the document
+        passed here is the caller's in-memory value and the edits are
+        computed against ITS sites, so a document the store has never
+        seen is legal and normal.
+
+        Pure — nothing is applied, nothing is written. Raises
+        WorkspaceError, typed; the elaboration's own refusal arrives
+        under `variant == "update"`."""
 
     def __len__(self) -> int: ...
 
@@ -1703,6 +1955,592 @@ def evaluate(
     never asks does not re-assert it. Pass no prior when the question
     is whether the document still resolves against the store as it
     stands."""
+
+# --- the assembly vocabulary ------------------------------------------
+# Two part documents in a store, instances of them in a third, mates
+# saying how the instances meet, and one gate that says whether the
+# result is valid at rest. Authoring is `Node.instantiate_part` +
+# `Node.mate` + `DocEdit.set_placement`; reading is `solve_document`,
+# `product` and `assemble`; refactoring is `split` / `inline`.
+#
+# Placement lives on the CLUSTER, never on the instance: mated
+# instances share one recorded frame — the earliest of them in
+# document order, their GAUGE — and every other member's world pose is
+# SOLVED from the mates and composed outward. That is why
+# `Doc.placement` and `SolvedPoses.placement` are two different
+# questions, and why a document can carry three instances and one
+# frame.
+
+class MateFrame:
+    """One side's mate frame, in that instance's own part coordinates.
+
+    AUTHORED data, not geometry read back: the solve is structural
+    plus decided predicates over exactly these numbers, so a frame
+    that does not match the face its mate names is a disagreement
+    nothing here can see.
+
+    `axis` need not be unit and `reference` need not be perpendicular
+    to it — only the axis's direction and the reference's
+    perpendicular part are read. Both are plain numbers (a direction
+    carries no dimension); `origin` is three lengths."""
+
+    def __init__(
+        self,
+        origin: tuple[Length, Length, Length],
+        axis: tuple[float, float, float],
+        reference: tuple[float, float, float],
+    ) -> None: ...
+    @property
+    def origin(self) -> tuple[Length, Length, Length]: ...
+    @property
+    def axis(self) -> tuple[float, float, float]: ...
+    @property
+    def reference(self) -> tuple[float, float, float]: ...
+    def placement(self) -> Frame:
+        """The rigid placement this frame denotes: local +Z is `axis`,
+        roll fixed by `reference`. Raises FrameError when the axis has
+        no definite direction or the reference no definite
+        perpendicular — the refusal the solve would meet, reachable
+        BEFORE authoring the mate that carries it."""
+
+class AxisSense:
+    """Which way the two sides' axes point at each other. `Opposed` is
+    what kills every pi-flip ambiguity: the senses are AUTHORED, never
+    inferred."""
+
+    Aligned: Final[AxisSense]
+    Opposed: Final[AxisSense]
+
+class MateSide:
+    """Which side of a mate a diagnostic is about."""
+
+    A: Final[MateSide]
+    B: Final[MateSide]
+
+class MatePrimitive:
+    """Which coset of rigid motions a mate pins the pair's relative
+    pose to.
+
+    Four constructors and no bare enum, because one carries a length.
+    `clocking` is representable precisely so it can be REFUSED — the
+    coset table has no entry for a bare angular relation, and an
+    unrepresentable refusal is an untestable one."""
+
+    @staticmethod
+    def frame_coincidence() -> MatePrimitive:
+        """The two mate frames coincide outright — residual trivial."""
+
+    @staticmethod
+    def coaxial() -> MatePrimitive:
+        """The two axes coincide as a LINE — residual cylindrical."""
+
+    @staticmethod
+    def planar_rest(offset: Length) -> MatePrimitive:
+        """`b`'s plane rests on `a`'s, displaced by `offset` along
+        `a`'s axis — residual planar. Zero is the flush rest; nonzero
+        is an authored standoff, never a designed clearance."""
+
+    @staticmethod
+    def clocking() -> MatePrimitive:
+        """Clocking with no carrying primitive: refused at the
+        solve."""
+    @property
+    def variant(self) -> str: ...
+    @property
+    def offset(self) -> Optional[Length]:
+        """The planar rest's standoff, `None` for the others."""
+
+class Alignment:
+    """The alignment datum: which frames coincide, at which axis
+    sense, with which clocking rider.
+
+    `clocking` is a RIDER, never a primitive: on `coaxial` it cuts the
+    residual to prismatic; on `frame_coincidence` it is
+    redundant-or-contradictory and gets decided; on a planar rest the
+    table has no entry and the solve refuses typed."""
+
+    def __init__(
+        self,
+        a: MateFrame,
+        b: MateFrame,
+        primitive: MatePrimitive,
+        sense: AxisSense,
+        clocking: Optional[Angle] = None,
+    ) -> None: ...
+    @property
+    def a(self) -> MateFrame: ...
+    @property
+    def b(self) -> MateFrame: ...
+    @property
+    def primitive(self) -> MatePrimitive: ...
+    @property
+    def sense(self) -> AxisSense: ...
+    @property
+    def clocking(self) -> Optional[Angle]: ...
+    @property
+    def lever_arm(self) -> Length:
+        """The largest distance in this mate's own authored data over
+        which an angular error accumulates into a gap. Floored at one
+        metre, so a mate authored AT the origin cannot claim an
+        arbitrarily tight angular threshold."""
+
+class ClassAdmission:
+    """How far a contact class gets in v1, as a value BOTH enforcing
+    doors read.
+
+    The solve needs a coset the alignment table can fold; the gate's
+    mint needs a kernel record type that can carry the declaration at
+    rest. A class can satisfy the first and not the second — which is
+    why a tool asks this table before committing an edit rather than
+    discovering the refusal after it lands."""
+
+    @property
+    def variant(self) -> str:
+        """`mints`, `no_at_rest_record`, or `not_admitted`."""
+
+    @property
+    def mints(self) -> bool:
+        """Whether both doors admit it."""
+
+    @property
+    def solves(self) -> bool:
+        """Whether the SOLVE admits it. A class the solve refuses
+        never reaches the gate at all."""
+
+    @property
+    def why(self) -> Optional[str]:
+        """Why the gate carries nothing at rest for this class, in the
+        class's own terms; `None` for `mints`, which carries one."""
+
+def class_admission(class_: ContactClass) -> ClassAdmission:
+    """How far `class_` gets in v1 — the table, read. Nothing is
+    restated here: `assemble` and `solve_document` read this same
+    table."""
+
+CLASS_DEFERRAL: Final[str]
+"""The v1 class restriction, named: what a class outside the admitted
+vocabulary refuses with."""
+
+UNDER_RECOURSE: Final[str]
+"""The recourse an under-determined tree mate's refusal ends on."""
+
+class MateRole:
+    """What a mate did in the solve: `Determining` (a tree mate — it
+    placed its child), `Declaring` (it solved nothing and is carried
+    to evaluation as a pure contact declaration), `Refused`."""
+
+    Determining: Final[MateRole]
+    Declaring: Final[MateRole]
+    Refused: Final[MateRole]
+
+class Subgroup:
+    """A residual subgroup: what a fold left free.
+
+    `normal`, `point` and `direction` are present on every arm and
+    `None` where that arm does not carry one. `planar` and `prismatic`
+    are point-FREE on purpose: rotations about any parallel axis, and
+    translations along any parallel line, are in the group."""
+
+    @property
+    def variant(self) -> str:
+        """`se3`, `planar`, `cylindrical`, `prismatic`, `revolute`,
+        `trivial`, or `empty`."""
+
+    @property
+    def normal(self) -> Optional[tuple[float, float, float]]: ...
+    @property
+    def point(self) -> Optional[tuple[Length, Length, Length]]: ...
+    @property
+    def direction(self) -> Optional[tuple[float, float, float]]: ...
+
+class MateFault:
+    """Why the solve refused for one node — a VALUE, because the solve
+    is total and records a refusal per node rather than failing the
+    document. `str(fault)` is the kernel's own prose."""
+
+    @property
+    def variant(self) -> str: ...
+    @property
+    def mate(self) -> Optional[NodeId]: ...
+    @property
+    def side(self) -> Optional[MateSide]: ...
+    @property
+    def head(self) -> Optional[NodeId]: ...
+    @property
+    def instance(self) -> Optional[NodeId]: ...
+    @property
+    def parent(self) -> Optional[NodeId]: ...
+    @property
+    def child(self) -> Optional[NodeId]: ...
+    @property
+    def residual(self) -> Optional[Subgroup]: ...
+    @property
+    def held(self) -> Optional[NodeId]: ...
+    @property
+    def added(self) -> Optional[NodeId]: ...
+    @property
+    def predicate(self) -> Optional[str]: ...
+    @property
+    def clash(self) -> Optional[Length]: ...
+    @property
+    def what(self) -> Optional[str]: ...
+
+class SolvedPoses:
+    """The document's solved poses: each instance's pose relative to
+    its cluster gauge, each mate's role, and the per-node refusals."""
+
+    def fault(self, node: NodeId) -> Optional[MateFault]:
+        """The node's recorded fault. Recorded against the refusing
+        MATE and against every instance in its cluster that
+        consequently has no pose — and no further."""
+
+    def role(self, mate: NodeId) -> Optional[MateRole]: ...
+    def gauge(self, instance: NodeId) -> Optional[NodeId]:
+        """The instance's cluster gauge. A singleton is its own."""
+
+    def relative(self, instance: NodeId) -> Optional[Frame]:
+        """Its pose relative to that gauge. The gauge's own entry is
+        the identity, bit-exactly."""
+
+    def placement(self, doc: Doc, instance: NodeId) -> Frame:
+        """The instance's WORLD placement: the cluster's recorded
+        frame composed onto the solved relative pose. A singleton
+        returns its recorded frame verbatim.
+
+        `doc` must be the document this solve is OF — passing another
+        composes this document's relative poses onto that one's
+        cluster frames, which is a pose of neither, and nothing here
+        can check it. Raises MateError when the cluster did not
+        solve."""
+
+def solve_document(doc: Doc) -> SolvedPoses:
+    """Solve the document's mates: the per-pair coset fold along a
+    deterministic spanning tree.
+
+    TOTAL — this never raises. A refusing cluster must not fail an
+    unrelated one, so refusals are read back through
+    `SolvedPoses.fault`.
+
+    Nothing here inspects geometry. In particular it does NOT check
+    that a mate's frames match the faces its references name, which is
+    why a document can solve cleanly and still refuse at the gate."""
+
+def clusters(doc: Doc) -> list[list[NodeId]]:
+    """The placement clusters: instances coupled by mates, members in
+    document order. The partition placement is keyed by."""
+
+def gauge_of(doc: Doc, instance: NodeId) -> NodeId:
+    """An instance's cluster GAUGE — the document-order-first instance
+    of its cluster, whose recorded frame places the whole cluster.
+    Answers the node itself when it is in no cluster."""
+
+def reading_edges(doc: Doc) -> list[tuple[NodeId, NodeId]]:
+    """For each mate, the instantiate node each of its references
+    resolves through. Recomputed every time, never stored."""
+
+def relative_freedom_components(doc: Doc) -> list[list[NodeId]]:
+    """The relative-freedom partition: components over consuming
+    union reading edges, so mates couple what they constrain. Coarser
+    than `clusters`, which partitions instances alone."""
+
+class ClusterMaintenance:
+    """One recorded act of cluster-record maintenance: what an
+    ordinary edit's motion of the mate graph forced on the placement
+    registry.
+
+    It rides the accepted edit rather than being an edit of its own —
+    deterministic from the edit, so a replay reproduces it and undo
+    restores it exactly. What the record adds is VISIBILITY: an
+    absorbed cluster's frame is consumed here.
+
+    `source` and `target` rather than `from`/`to`: `from` is a Python
+    keyword."""
+
+    @property
+    def variant(self) -> str:
+        """`join`, `split`, `gauge_rewrite`, or `drop`."""
+
+    @property
+    def survived(self) -> Optional[NodeId]: ...
+    @property
+    def absorbed(self) -> Optional[NodeId]: ...
+    @property
+    def absorbed_frame(self) -> Optional[Frame]: ...
+    @property
+    def source(self) -> Optional[NodeId]: ...
+    @property
+    def target(self) -> Optional[NodeId]: ...
+    @property
+    def frame(self) -> Optional[Frame]: ...
+    @property
+    def gauge(self) -> Optional[NodeId]: ...
+
+# --- the gather and the at-rest gate ----------------------------------
+
+def product(doc: Doc, evaluation: Evaluation) -> Body:
+    """The document's PRODUCT: every body-denoting root's solids,
+    gathered in root-list order into one body.
+
+    What a document IS — and for an assembly the only useful reading,
+    because an assembly's nodes are instances and mates and no single
+    node's value is the assembly. A pure function of the root list and
+    the evaluation.
+
+    `evaluation` must be an evaluation OF `doc`: node ids are minted
+    per document, so a foreign one refuses `unknown_node` rather than
+    answering about the wrong document. Raises ProductError, typed."""
+
+def product_named(doc: Doc, evaluation: Evaluation) -> tuple[Body, list[str]]:
+    """The product with the stable names its entities answer to —
+    same gather, one more field. The names are the product's own
+    alphabet, so "the third post's top cap" is one name rather than a
+    coordinate. Raises ProductError, typed."""
+
+class RefusedRef:
+    """Why a mate reference named no product face."""
+
+    @property
+    def variant(self) -> str:
+        """`ref_node_gone`, `ref_vanished`, `ref_ambiguous`, or
+        `ref_not_a_face`."""
+
+    @property
+    def width(self) -> Optional[int]:
+        """How many entities a tie holds. A mate declaration must name
+        ONE face, and a tie is never broken by picking."""
+
+    @property
+    def kind(self) -> Optional[str]:
+        """What a non-face reference did name."""
+
+class MintedDeclaration:
+    """One declaration the gate minted from a solved mate.
+
+    The face keys the kernel matched do NOT cross — arena keys never
+    leave the document layer — so the pair is identified by the two
+    stable names, the alphabet the mate was authored in."""
+
+    @property
+    def mate(self) -> NodeId: ...
+    @property
+    def a(self) -> str: ...
+    @property
+    def b(self) -> str: ...
+    @property
+    def class_(self) -> ContactClass: ...
+
+class Attribution:
+    """What a kernel finding says about the document's declarations.
+
+    One value rather than a declaration plus a flag: the relation and
+    the declaration it names are decided together and cannot
+    disagree."""
+
+    @property
+    def relation(self) -> str:
+        """`refuted` (the faces do not meet as declared — a finding
+        against the document), `declined` (the census has no certifier
+        lane for a face the declaration names, so nothing was decided
+        either way), or `unattributed` (no declaration answers — an
+        UNDECLARED contact, the hard error by definition)."""
+
+    @property
+    def declaration(self) -> Optional[MintedDeclaration]: ...
+
+class AtRestFinding:
+    """One at-rest refusal. `str(finding)` composes it the way the
+    library renders one: the mate a user can act on, then the kernel's
+    own story, which carries its own recourse."""
+
+    @property
+    def attribution(self) -> Attribution: ...
+
+class Assembly:
+    """A validated assembly: the gathered body, its product names, and
+    one minted declaration per solved mate.
+
+    Reaching one means the kernel's at-rest door PASSED over the
+    product and its records together."""
+
+    @property
+    def body(self) -> Body: ...
+    @property
+    def names(self) -> list[str]: ...
+    @property
+    def minted(self) -> list[MintedDeclaration]:
+        """Empty for a mate-less assembly, which is what a disjoint
+        layout is."""
+
+def assemble(doc: Doc, evaluation: Evaluation) -> Assembly:
+    """The AT-REST ASSEMBLY GATE: gather the product, mint every
+    solved mate's declaration into its contact records, and run the
+    kernel's own at-rest door over the two together.
+
+    The check the authoring vocabulary can otherwise construct and
+    never make. `evaluation` must be an evaluation of `doc` that
+    RESOLVED — an instantiate node with no resolver produced no body,
+    so the gather refuses `root_failed` before the gate runs.
+
+    Raises AssemblyError, typed. Read `variant` first: `at_rest` is a
+    verdict AGAINST the document, `uncertified` is the declared
+    direction's FRONTIER where nothing was decided either way, and the
+    remaining arms (`mate_reference_refused`, `no_at_rest_record`, the
+    gather's own tags) refuse before any verdict."""
+
+# --- the recorded refactorings ----------------------------------------
+# Both are PURE: they hand back the new document VALUES plus the
+# ordinary recorded edits that produce them, and mutate nothing. That
+# is what makes them atomic at the caller's single step. Persisting a
+# result is the store's write side.
+
+class InterfaceCrossing:
+    """One declaration that crossed a split's cut: a mate whose two
+    ends landed on opposite sides.
+
+    `outer` stayed in the remainder; `inner` moved into the part and
+    is spelled in the PART's own names, unwrapped, because that is
+    what the part's product answers to."""
+
+    @property
+    def variant(self) -> str:
+        """`mate` — a crossing is whatever KIND of edge crossed, and
+        mates are the only kind that can."""
+
+    @property
+    def mate(self) -> NodeId: ...
+    @property
+    def class_(self) -> ContactClass: ...
+    @property
+    def outer(self) -> str: ...
+    @property
+    def inner(self) -> str: ...
+
+class InterfaceRecord:
+    """The interface record of an instantiate seam: the declarations
+    that crossed the cut when the referenced document was split out.
+    Empty for a directly-authored instance."""
+
+    @property
+    def crossings(self) -> list[InterfaceCrossing]: ...
+    def __len__(self) -> int: ...
+
+class SplitOutcome:
+    """What a split produced: the two document VALUES and the recorded
+    edits that make each. Nothing is persisted and nothing is
+    mutated."""
+
+    @property
+    def remainder(self) -> Doc:
+        """The original with the cut nodes replaced by ONE instance of
+        the new part."""
+
+    @property
+    def part(self) -> Doc:
+        """The new part document, carrying the cut nodes."""
+
+    @property
+    def remainder_edits(self) -> list[DocEdit]: ...
+    @property
+    def part_edits(self) -> list[DocEdit]: ...
+    @property
+    def instance(self) -> NodeId:
+        """The instantiate node left behind in the remainder."""
+
+    @property
+    def node_map(self) -> list[tuple[NodeId, NodeId]]:
+        """Cut node -> its id in the part document."""
+
+def split(doc: Doc, cut: list[NodeId], part_id: str) -> SplitOutcome:
+    """Cut a closed node set out into a NEW document, leaving one
+    instance of it behind.
+
+    `part_id` is the new document's identity, supplied by the caller
+    (`random_document_id()` for interactive authoring): identity is
+    never defaulted, and a fresh one is what lets both documents live
+    in one store.
+
+    The cut must be ancestor- and consumer-closed and a union of WHOLE
+    placement clusters. Pure — `doc` is untouched. Raises SplitError,
+    typed, naming the offending edge, cluster, parameter or name."""
+
+class InlineOutcome:
+    """What an inline produced: the spliced document value and the
+    recorded edits that make it."""
+
+    @property
+    def doc(self) -> Doc: ...
+    @property
+    def edits(self) -> list[DocEdit]: ...
+    @property
+    def node_map(self) -> list[tuple[NodeId, NodeId]]:
+        """Part node -> its id in the spliced document."""
+
+def inline(doc: Doc, instance: NodeId, resolver: Workspace) -> InlineOutcome:
+    """Splice a referenced document back in, replacing the instantiate
+    node with the part's own nodes — `split`'s inverse.
+
+    `resolver` crosses the document seam AT THIS CALL, under the full
+    pin gate: a reference whose pinned version is not what the store
+    holds refuses `part_pin_mismatch`, never silently splices the
+    version on disk. Pure — `doc` is untouched. Raises InlineError,
+    typed."""
+
+# --- the pin-update door ----------------------------------------------
+
+class PinSites:
+    """One pin of one id, and the instantiate nodes that name it."""
+
+    @property
+    def pin(self) -> ContentPin: ...
+    @property
+    def nodes(self) -> list[NodeId]:
+        """The referencing nodes, in document order. Non-empty by
+        construction."""
+
+class PinMultiplicity:
+    """One referenced document id carrying more than one pin, with the
+    sites holding each."""
+
+    @property
+    def id(self) -> str: ...
+    @property
+    def pins(self) -> list[PinSites]:
+        """Its pins, ascending. At least two by construction — a
+        single-pin id is not a multiplicity and is not reported."""
+
+def mixed_pins(doc: Doc) -> list[PinMultiplicity]:
+    """The mixed-pin LINT: every referenced id whose pin multiplicity
+    exceeds one.
+
+    REPORTS, never gates. Nothing calls this from `apply`, `load` or
+    evaluation — a document in mixed-pin state is valid at all three
+    and stays that way, because a staged migration IS this state. A
+    clean document returns an empty list, which is the whole
+    difference between "checked and fine" and "not checked".
+
+    Reads the DOCUMENT and no store. Deterministic: ids ascending,
+    pins ascending within an id, nodes in document order."""
+
+def update_references(doc: Doc, id: str, new_pin: ContentPin) -> list[DocEdit]:
+    """The edits that move EVERY reference to `id` onto `new_pin`, in
+    document order, one per site whose pin actually moves.
+
+    PURE, AND IT READS NO STORE. `doc` is untouched, nothing is
+    applied, and `new_pin` is taken as given — whether it names
+    content anything holds is not asked here and cannot be, because
+    this layer has no store. Where that pin came from and how stale it
+    is stays the caller's fact; `Workspace.update_to_store` is the
+    door that computes one from disk, and it says exactly when it
+    reads.
+
+    The caller applies the whole list or none of it, and that
+    all-or-nothing is what atomic means here. A site already pinning
+    `new_pin` contributes NO edit, so "update everywhere" stays usable
+    from the staged state where some sites already moved.
+
+    Raises UpdateError, typed: `no_such_reference` when no live node
+    instantiates the id, `already_pinned` when every site already
+    names it. Separate arms because the recourses differ."""
 
 def import_step(text: str) -> Body:
     """Parse a STEP text with the kernel's importer and adopt its

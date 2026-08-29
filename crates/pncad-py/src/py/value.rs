@@ -440,7 +440,7 @@ impl Value {
 /// The result of evaluating a document: the per-node result DAG.
 #[pyclass(frozen, module = "pncad")]
 pub(crate) struct Evaluation {
-    inner: d::Evaluation<f64>,
+    pub(crate) inner: d::Evaluation<f64>,
     /// The evaluated document's parameter bindings, captured at
     /// `evaluate` — `select_where`'s decided atoms state their value
     /// as an `Expr`, which cannot be evaluated without them. Captured
