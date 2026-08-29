@@ -176,4 +176,4 @@ DocEdit.bind_count_param(solid, "fins")  # ty: error
 DocRef(content_pin(doc), doc.id)  # ty: error
 
 # The store resolves a reference, never a bare identity.
-Workspace("/tmp/pncad-store").resolve(doc.id)  # ty: error
+Workspace("parts").resolve(doc.id)  # ty: error

@@ -261,7 +261,7 @@ minted: str = random_document_id()
 preimage: bytes = canonical_bytes(doc)
 scanned: str = header_document_id(doc.save())
 
-store: Workspace = Workspace("/tmp/pncad-store")
+store: Workspace = Workspace("parts")
 store_root: str = store.root
 listing: dict[str, str] = store.documents()
 written: str = store.create(doc)
