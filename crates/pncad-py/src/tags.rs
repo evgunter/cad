@@ -661,6 +661,9 @@ pub fn interrogate_error_tag(err: &InterrogateError) -> &'static str {
         InterrogateError::NoBodies { .. } => "no_bodies",
         InterrogateError::NoSuchBody { .. } => "no_such_body",
         InterrogateError::Readback(err) => readback_error_tag(err),
+    }
+}
+
 /// The stable tag for a refusal of the advisory-check registry ITSELF
 /// (DISCIPLINES-DESIGN DS6) — the checks could not be run.
 ///
