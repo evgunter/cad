@@ -22,10 +22,10 @@
 use core::f64::consts::PI;
 
 use geom::Surface;
-use geom_brep::{EdgeAuthority, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, MappedCurve};
+use geom_brep::{EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, MappedCurve};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
-use sweep::fillet::build::fillet_edges;
+use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use sweep::fillet::fillet_edges;
 use sweep::{
     Extrusion, Revolution, RevolveAxis, TubeWindow, extrude, loft_body, revolve, tube_along_arc,
     tube_along_arc_hollow,
@@ -690,5 +690,62 @@ fn a_corrupt_declaration_certifies_clean_and_survives_tier3() {
     assert!(
         matches!(after.authority(), EdgeAuthority::Declared(_)),
         "the corrupt record is now this edge's authority"
+    );
+}
+
+// =====================================================================
+// 4. The split verb's flush lane — a conversion family the unit did
+//    not visit.
+// =====================================================================
+
+/// **`split` at a face-coplanar plane, cross-checked at tier 3.**
+///
+/// `splitting/finish.rs`'s `describe_section_boundary` upgrades a
+/// section-boundary edge to `Intersection` when the dihedral is
+/// transverse and — its own comment — *"Smooth: the conventional chord
+/// stays (D2)"*, an EMPTY arm. That is the exact pre-collapse shape
+/// `extrude`'s eighth family had: doing nothing used to keep a legal
+/// conventional description, and since U2 it keeps whatever the edge
+/// happens to carry — a scaffolding chord, or a stale citation.
+///
+/// The committed coplanar-split row (`m3_pr3_split::notched_block_end_
+/// to_end`) asserts tier 2 only, so the battery never measured this
+/// body at tier 3. This row does: the Fig. 14.2 notched block, built
+/// by the real verb, split at its face-coplanar plane, both sides
+/// cross-checked.
+#[test]
+fn coplanar_split_products_carry_no_scaffold_at_rest() {
+    let notched = ProfileLoop::polygon(
+        [
+            (0.0, 0.0),
+            (8.0, 0.0),
+            (8.0, 2.0),
+            (7.0, 1.0),
+            (6.0, 1.0),
+            (5.0, 2.0),
+            (4.0, 1.0),
+            (3.0, 2.0),
+            (0.0, 2.0),
+        ]
+        .map(|(x, y)| p2(x, y)),
+    );
+    let body = extruded(vec![notched], 1.0);
+    fence_crosscheck(&body, "notched block (extruded)");
+    let result = topo::split(
+        &body,
+        &topo::SplitPlane {
+            origin: Point3::new(0.0, 1.0, 0.0),
+            normal: Vec3::new(0.0, 1.0, 0.0),
+        },
+        Tol::witness(),
+    )
+    .expect("the face-coplanar split runs");
+    fence_crosscheck(
+        result.above.body().expect("above has material"),
+        "notched block split: above",
+    );
+    fence_crosscheck(
+        result.below.body().expect("below has material"),
+        "notched block split: below",
     );
 }
