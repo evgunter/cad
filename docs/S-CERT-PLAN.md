@@ -239,11 +239,12 @@ S-MESH's future owner inherits the `closing_column` assertion note.
    returns, and the retirement scheduled as its own unit with the
    baseline move attached — but all three are cross-crate design
    calls.
-3. **Q3 — two stated fence seams**, recorded for veto rather than
-   ratification: CERT-2 executes two Q-track rows (D285/D286) as
-   #762's named residue; CERT-4's hit list crosses profile/topo
-   fences wherever #1191's sites live. Both grounds have no live
-   claimant and both issues are assigned here by the merged cut.
+3. **Q3 — RULED (Evan, in-chat, 2026-08-29: not a design question,
+   "do as you see fit")**: CERT-2 executes two Q-track rows
+   (D285/D286) as #762's named residue; CERT-4's hit list crosses
+   profile/topo fences wherever #1191's sites live. Both grounds
+   have no live claimant and both issues are assigned here by the
+   merged cut.
 4. **Q4 — #390 route choice**: CERT-5 takes route 1 (the flux
    enclosure); route 2 (the algebraic CYLINDER certificate) reads
    **unclaimed** — the PCURVE orchestrator answered on this PR that

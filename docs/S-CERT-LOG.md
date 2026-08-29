@@ -75,3 +75,23 @@ log rule):
    for this session's own pushes; unit lanes use `cert/` per the
    cut. If Evan prefers the orchestrator branch spelling, it is a
    rename at the next seam.
+
+## Seam: first rulings in from the opening conversation (2026-08-29)
+
+Evan, in-chat: **Q3 RULED** — not a design question, orchestrator's
+call; CERT-2 and CERT-4's fence seams proceed as planned. Q1/Q2/Q4
+got elaboration requests (answered in-chat; outcomes fold into the
+plan when ruled). Alongside Q2 Evan stated the general bar — a bit
+change ≪ ε is always acceptable when it buys cleaner code — now
+recorded in `memories/output-stability-as-justification.md`.
+Consequence for CERT-4: the interval-lane-only reformulation stays
+the default because #1191's exact-fit rows ride a *structural*
+bit-zero (`extent − setback`), which is not ≪-ε drift; if the unit
+finds the both-lanes rewrite cleaner it must bring the re-derived
+gate design back for a look, not just re-baseline. The PCURVE
+orchestrator's PR answers (route 2 unclaimed; vec.rs keep-out
+time-boxed to PR 1177; correlated-Interval sites to the 1143 audit)
+are folded into the plan at 715a7bb8.
+
+CERT-2 dispatches on Q3's ruling (spec on `cert/orchestrator`;
+block CERT-B1 slot 1). CERT-1 lane still running.
