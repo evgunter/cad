@@ -69,7 +69,7 @@ fn main() {
         doc = apply(
             &doc,
             &DocEdit::SetDocParam {
-                name: ParamName::new(name),
+                name: ParamName::new(*name),
                 value: value.clone(),
             },
             tol,
