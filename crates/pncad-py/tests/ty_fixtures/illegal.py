@@ -177,3 +177,17 @@ DocRef(content_pin(doc), doc.id)  # ty: error
 
 # The store resolves a reference, never a bare identity.
 Workspace("parts").resolve(doc.id)  # ty: error
+
+# The seam and the memo are KEYWORD-only: `evaluate` takes exactly one
+# positional argument, the document, and the two doors are named.
+evaluate(doc, Workspace("parts"))  # ty: error
+
+# A resolver is a STORE, not the directory one was opened on — the
+# scan is what resolves, and it happens once, at `Workspace(...)`.
+evaluate(doc, resolver="parts")  # ty: error
+
+# The memo is a prior EVALUATION, not the document it evaluated.
+evaluate(doc, prior=doc)  # ty: error
+
+# Neither substitutes for the other: an evaluation resolves nothing.
+evaluate(doc, resolver=evaluate(doc))  # ty: error

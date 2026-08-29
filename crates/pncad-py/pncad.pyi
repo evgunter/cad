@@ -1630,17 +1630,47 @@ class Evaluation:
         (`pair_in_band`, `tied_disagrees`, `unreadable`, `band`) —
         an ambiguous pair is never silently included or dropped."""
     @property
-    def recomputed(self) -> int: ...
+    def recomputed(self) -> int:
+        """How many nodes ran their op. With no `prior=` that is every
+        live node; with one it is the changed cone, and
+        `recomputed + reused` is the live node count either way."""
     @property
-    def reused(self) -> int: ...
+    def reused(self) -> int:
+        """How many nodes came from `evaluate`'s `prior=` memo without
+        re-running their op. Zero when no prior was passed."""
+    @property
+    def part_evaluations(self) -> int:
+        """How many REFERENCED documents this run crossed the seam to
+        evaluate — `resolver=`'s sharing evidence. N instances of one
+        part count 1; a part that instantiates a part counts here too.
+        Zero without a resolver: nothing crosses."""
     def step_string(
         self,
         node: NodeId,
         product_name: Optional[str] = None,
     ) -> str: ...
 
-def evaluate(doc: Doc) -> Evaluation:
-    """Evaluate a document. Total — never raises."""
+def evaluate(
+    doc: Doc,
+    *,
+    resolver: Optional[Workspace] = None,
+    prior: Optional[Evaluation] = None,
+) -> Evaluation:
+    """Evaluate a document. Total — never raises.
+
+    `resolver` is the DOCUMENT SEAM: what an `InstantiatePart` node
+    reaches the document it pins through. A `Workspace` IS a resolver,
+    so the store is passed as itself. `None` — the default — is a
+    kernel-only evaluation, in which every instantiate node refuses
+    typed (`EvaluationError`, `kind == "part_no_resolver"`) rather
+    than pretending a part is empty.
+
+    `prior` is the MEMO: a node whose content and naming keys match
+    its result in `prior` reuses that value instead of re-running its
+    op, so only the changed cone costs anything. `Evaluation.reused`
+    and `Evaluation.recomputed` count it. An evaluation of a DIFFERENT
+    document is a well-defined prior and reuses whatever keys
+    coincide — a key is content, not position."""
 
 def import_step(text: str) -> Body:
     """Parse a STEP text with the kernel's importer and adopt its

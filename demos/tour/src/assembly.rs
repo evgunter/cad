@@ -1597,3 +1597,53 @@ pub fn stops(work: &Path, tol: Tol) -> Vec<Stop> {
         },
     ]
 }
+
+/// The four AUTHORED documents of this scene, written into `dir` as a
+/// workspace and nothing more: the two parts, the flat-pack layout,
+/// and the mated stand — each pinning the version of the parts the
+/// store holds when this returns.
+///
+/// [`stops`] is the walk, and a walk MOVES the store: its update door
+/// resaves the shelf as a thicker board on purpose, so the state it
+/// leaves behind is a store whose assemblies pin a version that is no
+/// longer there. That is the right end state for a demo about the pin
+/// gate and the wrong one for a corpus, which is why this door exists
+/// beside it rather than inside it. Same authoring functions, so
+/// there is still exactly one place these documents are written.
+pub fn corpus(dir: &Path, tol: Tol) {
+    let (mut ws, parts) = workspace(dir, tol);
+    let (layout, _, _) = layout_doc(parts.post, parts.shelf, tol);
+    ws.create(&layout, tol).expect("the layout is stored");
+    let stand = stand_doc(
+        parts.post,
+        parts.shelf,
+        &parts.post_top,
+        &parts.shelf_bottom,
+        MatePrimitive::FrameCoincidence,
+        tol,
+    );
+    ws.create(&stand.doc, tol).expect("the stand is stored");
+
+    // A store names its files by IDENTITY, which is a hash — so a
+    // consumer that wants "the layout" needs the one thing the scan
+    // cannot tell it. The manifest is that and nothing else: the label
+    // each identity was derived from, beside the documents it names.
+    // Not a `.pncad`, so the scan ignores it.
+    let mut manifest = String::new();
+    for (label, id) in [
+        ("post", parts.post.id),
+        ("shelf", parts.shelf.id),
+        ("layout", layout.id()),
+        ("stand", stand.doc.id()),
+    ] {
+        manifest.push_str(&format!("{label} {}\n", id.hex()));
+    }
+    std::fs::write(dir.join("MANIFEST"), &manifest).expect("the manifest writes");
+
+    println!(
+        "assembly corpus → {} ({} document(s))",
+        dir.display(),
+        ws.documents().len()
+    );
+    print!("{manifest}");
+}
