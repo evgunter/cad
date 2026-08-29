@@ -194,8 +194,18 @@ fn r2_no_product_verb_hands_back_a_scaffold_at_rest() {
     bodies.push(("loft prism", lofted.body));
 
     // Booleans — the two lanes the spec named by file:line, plus a
-    // curved pair. These are the verbs whose own acceptance rows stop
-    // at tier 2.
+    // curved pair.
+    //
+    // **Correcting my own first note here.** I originally wrote that
+    // these are "the verbs whose own acceptance rows stop at tier 2",
+    // having read `m3_pr5_extrude_booleans.rs`, which does. Checked
+    // across the workspace, that is false as a general claim: 30+ test
+    // files call a boolean op AND a tier-3 entry point. So these rows
+    // add little fence coverage over the existing gate; what they add
+    // is the DESCRIPTION read below (a scaffold on an edge tier 3
+    // cannot reach is invisible to the validator and visible here) and
+    // a single place that lists every offender instead of stopping at
+    // the first.
     let a = slab(0.0, 0.0, 2.0, 0.0, 2.0);
     let b = slab(1.0, 1.0, 2.0, 1.0, 2.0);
     for (name, r) in [
