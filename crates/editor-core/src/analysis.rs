@@ -160,7 +160,10 @@ pub struct AnalyzedParam {
 impl AnalyzedParam {
     /// The analyzed interval in absolute parameter values.
     pub fn absolute(&self) -> (f64, f64) {
-        (self.nominal + self.offsets.lo, self.nominal + self.offsets.hi)
+        (
+            self.nominal + self.offsets.lo,
+            self.nominal + self.offsets.hi,
+        )
     }
 }
 
@@ -349,8 +352,8 @@ fn interval_mass(
             lo: tlo,
             hi: thi,
         } => {
-            let Some((a, b)) = (OffsetInterval { lo: tlo, hi: thi })
-                .overlap(&OffsetInterval { lo, hi })
+            let Some((a, b)) =
+                (OffsetInterval { lo: tlo, hi: thi }).overlap(&OffsetInterval { lo, hi })
             else {
                 return Ok(0.0);
             };

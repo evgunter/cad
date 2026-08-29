@@ -294,22 +294,31 @@ pub fn slot_edit(
 pub fn doc_param(dimension: Dimension, value: SlotValue) -> DocParam {
     match value {
         SlotValue::Count(value) => DocParam::Count { value },
-        SlotValue::Continuous(value) => DocParam::Continuous {
-            dim: dimension,
-            value,
-        },
+        SlotValue::Continuous(value) => DocParam::continuous(dimension, value),
     }
 }
 
 /// The edit that replaces a document parameter's value, keeping its
-/// declared dimension.
+/// declared dimension AND its distribution.
+///
+/// `SetDocParam` is create-or-replace, so the whole parameter is
+/// rewritten: a value edit that did not carry `prior`'s distribution
+/// forward would silently delete it. This panel authors no
+/// distribution of its own — the annotation rides through untouched.
 pub fn param_edit(
     name: ParamName,
     dimension: Dimension,
     value: SlotValue,
+    prior: Option<&DocParam>,
 ) -> DocEdit<ProfileProgram> {
-    DocEdit::SetDocParam {
-        name,
-        value: doc_param(dimension, value),
-    }
+    let carried = prior.and_then(DocParam::distribution).copied();
+    let value = match (doc_param(dimension, value), carried) {
+        (DocParam::Continuous { dim, value, .. }, distribution) => DocParam::Continuous {
+            dim,
+            value,
+            distribution,
+        },
+        (count @ DocParam::Count { .. }, _) => count,
+    };
+    DocEdit::SetDocParam { name, value }
 }

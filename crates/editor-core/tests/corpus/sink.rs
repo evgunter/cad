@@ -44,10 +44,7 @@ pub fn document() -> CorpusDoc {
     r.push(DocEdit::SetTolerance { eps: ambient });
     r.push(DocEdit::SetDocParam {
         name: ParamName::new("h"),
-        value: DocParam::Continuous {
-            dim: Dimension::Length,
-            value: 1.25,
-        },
+        value: DocParam::continuous(Dimension::Length, 1.25),
     });
     r.push(DocEdit::SetDocParam {
         name: ParamName::new("n"),

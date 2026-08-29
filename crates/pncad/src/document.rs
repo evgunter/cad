@@ -70,6 +70,16 @@ pub use editor_core::expr::{EvalError, eval, eval_count};
 // authored façade-only.
 pub use editor_core::{DocParam, ParamName};
 
+// A parameter's optional uncertainty (ERROR-DESIGN E1/E2), and the
+// typed refusals its invariants raise at the edit and persistence
+// doors. It rides on `DocParam::Continuous`, so a façade that can
+// author a parameter but not annotate one could not express an
+// error-analysis document at all; `DistributionFault` is what
+// `EditError::InvalidDistribution` and `PersistError::Distribution`
+// carry, so a caller diagnosing a refusal needs it too. Reading a
+// distribution back is `analysis`'s door, not this one.
+pub use editor_core::{Distribution, DistributionFault, DistributionField};
+
 // Evaluation: the service, its options, its results, and the payloads
 // a result can carry. `NodeResult`/`NodeValue`/`EvalOutcome` complete
 // the result vocabulary: `Evaluation::result` and

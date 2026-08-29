@@ -40,10 +40,7 @@ fn small() -> (ProfileDoc, String) {
         &doc,
         &DocEdit::SetDocParam {
             name: ParamName::new("q"),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value: 2.5,
-            },
+            value: DocParam::continuous(Dimension::Length, 2.5),
         },
         Tol::witness(),
     )
@@ -253,10 +250,7 @@ fn attack_all_fourteen_edit_variants_round_trip() {
         &mut doc,
         DocEdit::SetDocParam {
             name: ParamName::new("d"),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value: 1.5,
-            },
+            value: DocParam::continuous(Dimension::Length, 1.5),
         },
     );
     // 2 InsertNode xN

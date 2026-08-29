@@ -1092,19 +1092,19 @@ impl DocParam {
     /// A continuous Length parameter.
     #[staticmethod]
     fn length(value: &super::quantity::Length) -> Self {
-        Self(d::DocParam::Continuous {
-            dim: d::Dimension::Length,
-            value: value.0.meters(),
-        })
+        Self(d::DocParam::continuous(
+            d::Dimension::Length,
+            value.0.meters(),
+        ))
     }
 
     /// A continuous Angle parameter.
     #[staticmethod]
     fn angle(value: &super::quantity::Angle) -> Self {
-        Self(d::DocParam::Continuous {
-            dim: d::Dimension::Angle,
-            value: value.0.radians(),
-        })
+        Self(d::DocParam::continuous(
+            d::Dimension::Angle,
+            value.0.radians(),
+        ))
     }
 
     /// A continuous dimensionless parameter.

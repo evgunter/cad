@@ -551,10 +551,7 @@ fn create_parameter_reference_it_and_one_undo_removes_it() {
     // Create: exactly one committed SetDocParam, one undo step.
     let outcome = session.perform(SessionOp::CreateParam {
         name: margin.clone(),
-        value: pncad::document::DocParam::Continuous {
-            dim: pncad::document::Dimension::Length,
-            value: 0.005,
-        },
+        value: pncad::document::DocParam::continuous(pncad::document::Dimension::Length, 0.005),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(outcome.committed.len(), 1);

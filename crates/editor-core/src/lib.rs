@@ -44,6 +44,10 @@ pub mod roots;
 pub mod update;
 pub mod witness;
 
+pub use analysis::{
+    AnalysisPolicy, AnalysisPolicyError, AnalyzedBox, AnalyzedParam, DEFAULT_QUANTILE_MASS,
+    MeasureUnavailable, OffsetInterval, analyzed_box, box_mass, tail_mass,
+};
 pub use appearance::{
     AppearanceLoss, AppearanceLossCause, AppearanceMap, AppearanceRecord, AppearanceResolution,
     Attr, AttrKind, AttrSet, Rgba8,
@@ -54,10 +58,6 @@ pub use assembly::{
 pub use checks::{
     CheckEvidence, CheckFinding, CheckId, CheckKind, CheckRefusal, ChecksConfig, ChecksError,
     ChecksReport, Severity, enforce_checks, run_checks, subject_body,
-};
-pub use analysis::{
-    AnalysisPolicy, AnalysisPolicyError, AnalyzedBox, AnalyzedParam, DEFAULT_QUANTILE_MASS,
-    MeasureUnavailable, OffsetInterval, analyzed_box, box_mass, tail_mass,
 };
 pub use diff::{DocDiff, NodeChange};
 pub use distribution::{Distribution, DistributionFault, DistributionField};

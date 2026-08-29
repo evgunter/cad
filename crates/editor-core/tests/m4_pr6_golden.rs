@@ -65,10 +65,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
         &doc,
         &DocEdit::SetDocParam {
             name: ParamName::new("depth"),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value: 0.75,
-            },
+            value: DocParam::continuous(Dimension::Length, 0.75),
         },
     );
     // v4 re-authoring (content-preserving): the quad with one arc

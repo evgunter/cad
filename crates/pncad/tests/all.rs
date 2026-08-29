@@ -1174,10 +1174,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
         &doc,
         &DocEdit::SetDocParam {
             name: ParamName::new("hole_r"),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value: 0.25,
-            },
+            value: DocParam::continuous(Dimension::Length, 0.25),
         },
         Tol::witness(),
     )
@@ -1430,10 +1427,7 @@ fn workspace_pin_mismatch_refuses_with_both_pins_and_recourse() {
         &doc,
         &DocEdit::SetDocParam {
             name: ParamName::new("depth"),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value: 0.75,
-            },
+            value: DocParam::continuous(Dimension::Length, 0.75),
         },
         Tol::witness(),
     )
@@ -1512,10 +1506,7 @@ fn workspace_resolve_pins_replayed_state_not_snapshot() {
     let (origin, _) = ws_doc("ws-logged");
     let edit = DocEdit::SetDocParam {
         name: ParamName::new("depth"),
-        value: DocParam::Continuous {
-            dim: Dimension::Length,
-            value: 0.9,
-        },
+        value: DocParam::continuous(Dimension::Length, 0.9),
     };
     // Save snapshot + ONE-edit log; the file's current state is the
     // replayed result, and that is what a resolve must pin.

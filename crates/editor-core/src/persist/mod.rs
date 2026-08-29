@@ -582,11 +582,9 @@ impl core::fmt::Display for PersistError {
                 "persist: profile program fault at node {}: {fault}",
                 node.0
             ),
-            Self::Distribution { name, fault } => write!(
-                f,
-                "persist: document parameter {:?}: {fault}",
-                name.0
-            ),
+            Self::Distribution { name, fault } => {
+                write!(f, "persist: document parameter {:?}: {fault}", name.0)
+            }
             Self::Serialize { message } => write!(f, "persist: serializer failed: {message}"),
             Self::Header { found } => {
                 write!(

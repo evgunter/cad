@@ -1192,10 +1192,7 @@ fn update_door(ws: &mut Workspace, stand: &Stand, shelf: DocRef, tol: Tol) {
         &mut thicker,
         &DocEdit::SetDocParam {
             name: ParamName::new("thickness"),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value: SHELF_THICKNESS * 1.5,
-            },
+            value: DocParam::continuous(Dimension::Length, SHELF_THICKNESS * 1.5),
         },
         tol,
     );
@@ -1290,10 +1287,7 @@ fn update_door(ws: &mut Workspace, stand: &Stand, shelf: DocRef, tol: Tol) {
         &mut shorter,
         &DocEdit::SetDocParam {
             name: ParamName::new("height"),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value: POST_HEIGHT - 0.04,
-            },
+            value: DocParam::continuous(Dimension::Length, POST_HEIGHT - 0.04),
         },
         tol,
     );
@@ -1394,10 +1388,7 @@ fn update_door(ws: &mut Workspace, stand: &Stand, shelf: DocRef, tol: Tol) {
         &mut shorter,
         &DocEdit::SetDocParam {
             name: ParamName::new("height"),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value: POST_HEIGHT,
-            },
+            value: DocParam::continuous(Dimension::Length, POST_HEIGHT),
         },
         tol,
     );
@@ -1406,10 +1397,7 @@ fn update_door(ws: &mut Workspace, stand: &Stand, shelf: DocRef, tol: Tol) {
         &mut thicker,
         &DocEdit::SetDocParam {
             name: ParamName::new("thickness"),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value: SHELF_THICKNESS,
-            },
+            value: DocParam::continuous(Dimension::Length, SHELF_THICKNESS),
         },
         tol,
     );

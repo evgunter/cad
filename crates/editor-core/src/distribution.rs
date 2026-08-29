@@ -143,8 +143,9 @@ impl Distribution {
     pub fn first_non_finite(&self) -> Option<DistributionField> {
         let bad = |field: DistributionField, v: f64| (!v.is_finite()).then_some(field);
         match *self {
-            Self::Band { lo, hi } | Self::Uniform { lo, hi } => bad(DistributionField::Lo, lo)
-                .or_else(|| bad(DistributionField::Hi, hi)),
+            Self::Band { lo, hi } | Self::Uniform { lo, hi } => {
+                bad(DistributionField::Lo, lo).or_else(|| bad(DistributionField::Hi, hi))
+            }
             Self::Normal { sigma } => bad(DistributionField::Sigma, sigma),
             Self::TruncatedNormal { sigma, lo, hi } => bad(DistributionField::Sigma, sigma)
                 .or_else(|| bad(DistributionField::Lo, lo))
@@ -169,8 +170,9 @@ impl Distribution {
         }
         // Every field is finite here, so the two comparisons are the
         // exact negation of `lo <= 0 <= hi`.
-        if let Self::Band { lo, hi } | Self::Uniform { lo, hi } | Self::TruncatedNormal { lo, hi, .. } =
-            *self
+        if let Self::Band { lo, hi }
+        | Self::Uniform { lo, hi }
+        | Self::TruncatedNormal { lo, hi, .. } = *self
             && (lo > 0.0 || hi < 0.0)
         {
             return Err(DistributionFault::NominalOutsideSupport { lo, hi });
@@ -182,9 +184,9 @@ impl Distribution {
     /// unbounded [`Self::Normal`].
     pub fn support(&self) -> Option<(f64, f64)> {
         match *self {
-            Self::Band { lo, hi } | Self::Uniform { lo, hi } | Self::TruncatedNormal { lo, hi, .. } => {
-                Some((lo, hi))
-            }
+            Self::Band { lo, hi }
+            | Self::Uniform { lo, hi }
+            | Self::TruncatedNormal { lo, hi, .. } => Some((lo, hi)),
             Self::Normal { .. } => None,
         }
     }
@@ -218,9 +220,18 @@ impl Distribution {
                     && la.to_bits() == lb.to_bits()
                     && ha.to_bits() == hb.to_bits()
             }
-            (Self::Band { .. }, Self::Uniform { .. } | Self::Normal { .. } | Self::TruncatedNormal { .. })
-            | (Self::Uniform { .. }, Self::Band { .. } | Self::Normal { .. } | Self::TruncatedNormal { .. })
-            | (Self::Normal { .. }, Self::Band { .. } | Self::Uniform { .. } | Self::TruncatedNormal { .. })
+            (
+                Self::Band { .. },
+                Self::Uniform { .. } | Self::Normal { .. } | Self::TruncatedNormal { .. },
+            )
+            | (
+                Self::Uniform { .. },
+                Self::Band { .. } | Self::Normal { .. } | Self::TruncatedNormal { .. },
+            )
+            | (
+                Self::Normal { .. },
+                Self::Band { .. } | Self::Uniform { .. } | Self::TruncatedNormal { .. },
+            )
             | (
                 Self::TruncatedNormal { .. },
                 Self::Band { .. } | Self::Uniform { .. } | Self::Normal { .. },
