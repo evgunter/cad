@@ -133,6 +133,16 @@ pub enum ErrorClass {
     Persist,
     /// An export the document-layer door refused.
     Export,
+    /// A body the tessellator refused. The Python class keeps the Rust
+    /// type's own name: the refusal IS `TessellateError`, crossing.
+    Tessellate,
+    /// An STL write the writers refused, or a solid name / binary
+    /// header they would not admit. The Python class keeps the
+    /// writers' own error name, `StlError`, and the two
+    /// option-construction refusals ride it under their own tags —
+    /// they refuse the same call, because an option struct is a
+    /// keyword argument here.
+    StlExport,
     /// A STEP text the importer refused, or one that parsed to a
     /// non-solid (the export test oracle's refusal class).
     StepImport,
@@ -168,6 +178,8 @@ impl ErrorClass {
             Self::Literal => "LiteralError",
             Self::Persist => "PersistError",
             Self::Export => "ExportError",
+            Self::Tessellate => "TessellateError",
+            Self::StlExport => "StlError",
             Self::StepImport => "StepImportError",
             Self::Path => "PathError",
             Self::Select => "SelectRefusal",
