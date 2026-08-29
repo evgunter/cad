@@ -35,7 +35,10 @@ const V13: &str = include_str!("golden/v13_golden.cad");
 
 #[test]
 fn schema_version_is_current() {
-    assert_eq!(SCHEMA_VERSION, 15);
+    // Named for the PROPERTY, not the number (the `lbret_schema_v8`
+    // precedent): M10-1's own bump was v15; LIB-G16 took v16 for the
+    // chamfer recipe node, and the number is what keeps moving.
+    assert_eq!(SCHEMA_VERSION, 16);
 }
 
 #[test]

@@ -108,10 +108,9 @@
 //!   **rimless sphere band**, which carries no rim, so the predicate
 //!   is vacuous on it rather than satisfied by it. What that arm does
 //!   establish (its meridians all lie on ONE great circle, which is
-//!   where `Δu = π` comes from) and what it does not (its `v`-extent,
-//!   still `min_max` over meridian ENDPOINT latitudes — #723's
-//!   mechanism, reaching the one arm #723's text does not name) is
-//!   stated at `curved::sphere`, at the arm.
+//!   where `Δu = π` comes from; its `v`-extent, from the fold that
+//!   carries each arc's span-derived pole extremes) is stated at
+//!   `curved::sphere`, at the arm.
 //! * **[`boundary_material_sign`] runs it too, on ALL FOUR arms**,
 //!   because every one of them reaches a side derivation that rests
 //!   on this premise. It was listed here as a second exemption, on the
@@ -146,15 +145,16 @@
 //!   flux lane uses.
 //! * `w ≡ Δu` is **one** of the two premises `area = r·Δu·(hi − lo)`
 //!   needs. The other is that `(lo, hi)` is the face's true
-//!   `v`-extent, and **this predicate does not establish it**. The
-//!   torus derives its extent from the anchor meridian's stored span
-//!   and is sound; the linearly-leveled kinds take theirs from
-//!   `min_max` over edge ENDPOINT levels, and on the sphere a meridian
-//!   arc crossing a pole reaches ±1 in its interior, unseen — a −47%
-//!   certified volume at `pad = 0.0`, tier 3 green. That is **open at
-//!   issue #723**, pre-existing and untouched by S58. A face can pass
-//!   `props_rim_level` at margin 0 and still be measured wrong that
-//!   way.
+//!   `v`-extent, and **this predicate does not establish it** — each
+//!   kind's own derivation does. The torus's ends are the anchor
+//!   meridian's stored span. The cylinder's and cone's are `min_max`
+//!   over edge ENDPOINT levels, exact because their meridians are
+//!   lines, monotone in `v`. The sphere's meridians are great-circle
+//!   arcs whose latitude peaks at a pole the arc may contain in its
+//!   interior, so its fold also carries each arc's span-derived pole
+//!   extremes (`curved::sphere_meridian_span_levels`, decided through
+//!   `props_meridian_pole`) — the stored-span derivation in fold
+//!   form.
 //!
 //! Outside that verification: the loop-local vertex **tags** are
 //! trusted as declared (the [`LoopEdge`] trust boundary), and the

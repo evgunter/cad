@@ -674,6 +674,215 @@ pub fn scene_of_evaluation(
     SceneMesh::build(&mesh, delta)
 }
 
+/// **The picture's triangle budget**: the most a scene may carry
+/// before the viewer draws it at a coarser δ than it was asked for.
+///
+/// # Why there is a budget at all
+///
+/// δ is a chord tolerance in metres, and nothing about an absolute
+/// length knows how big a model is or how curved. The application
+/// starts at 0.1 mm, which is a fine picture of the startup plate and
+/// a 4·10⁶-triangle picture of the tour's `hollowring` (a torus of
+/// R = 0.30 m) — 13 s of tessellation and index build with the window
+/// frozen, still showing the previous document, which is what "Open
+/// does nothing" looked like. A budget is what stops an absolute δ
+/// from asking for a picture nobody can wait for.
+///
+/// # Why one million
+///
+/// Two independent anchors, and they agree, which is the argument:
+///
+/// - **The screen.** A viewport pane on a 1280×800 window is about
+///   0.65 Mpx, and roughly half of a closed body's triangles face
+///   away. One million is therefore already about one front-facing
+///   triangle per pixel for a body filling the pane: past it the
+///   tessellation is finer than the display can resolve, and the
+///   detail is paid for and thrown away.
+/// - **The corpus, by eye.** At this budget both curved gallery
+///   documents draw at δ ≈ 0.2–0.4 mm. Measured on the tour's own
+///   scenes, the fillet corners of `diefillet` read clean there and
+///   visibly band one doubling coarser, so it is also the first
+///   budget that keeps the demo documents looking right.
+///
+/// **The consequence worth stating**: if this number ever has to be
+/// RAISED to make something look right, the fault is upstream in the
+/// sizing, not here — a budget cannot buy detail the tessellator is
+/// spending elsewhere. The ring's 4·10⁶ triangles at 0.1 mm are about
+/// 65× what the per-direction sagitta asks for
+/// (`mesh::sizing::torus_grid_step` sizes both chart directions off
+/// one conservative step); that is TESS-BUDGET's question, and this
+/// constant is a safety net under it, never its answer.
+pub const TRIANGLE_BUDGET: usize = 1_000_000;
+
+/// How much coarser than the requested δ the cost probe runs.
+///
+/// Eight doublings-worth of cost is ~1/8 of the requested δ's
+/// tessellation, which is what makes the probe affordable; and it is
+/// close enough to the target that the 1/δ law below still holds
+/// tightly (it softens at genuinely coarse δ, where planar faces have
+/// stopped subdividing and only the curved ones still respond).
+const PROBE_FACTOR: f64 = 8.0;
+
+/// What [`fit_delta`] decided, and why — a value, so the chrome can
+/// say it and a row can assert it.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct FittedDelta {
+    /// The δ to open at. Equal to [`FittedDelta::requested`] unless
+    /// the budget moved it.
+    pub delta: DisplayTolerance,
+    /// The δ that was asked for.
+    pub requested: DisplayTolerance,
+    /// The triangle count predicted at [`FittedDelta::delta`] — an
+    /// UPPER bound, not a measurement of the picture that gets built
+    /// (`fit_delta` says why it is not verified).
+    ///
+    /// Upper in both of the ways it is wrong, which is the direction
+    /// that makes a budget safe. The 1/δ law describes the CURVED
+    /// faces; planar ones stop subdividing and then cost the same at
+    /// every δ, so extrapolating from a coarse probe over-counts them
+    /// — the tour's all-planar `heatsink` probes at 72 triangles and
+    /// this reads 576, against 72 actually drawn. On the curved
+    /// documents, where the number is load-bearing because the budget
+    /// binds, it is over by 0.4% (`hollowring`) and 2.6%
+    /// (`diefillet`). Over-counting cost means choosing a δ slightly
+    /// coarser than needed; under-counting would mean drawing a
+    /// picture over budget, and this cannot do that by this route.
+    pub predicted: usize,
+    /// What the requested δ was predicted to cost, when the budget
+    /// moved δ; `None` when the request was affordable and nothing
+    /// was changed.
+    pub requested_cost: Option<usize>,
+}
+
+impl FittedDelta {
+    /// The verdict for a δ the budget did not have to move — the
+    /// fallback when the fit itself refuses, and the shape every
+    /// document under the budget lands on.
+    pub fn as_requested(requested: DisplayTolerance) -> Self {
+        Self {
+            delta: requested,
+            requested,
+            predicted: 0,
+            requested_cost: None,
+        }
+    }
+
+    /// The sentence the chrome shows, or `None` when the δ asked for
+    /// was affordable and there is nothing to report.
+    ///
+    /// It ends by saying the budget is not a cap, because that is the
+    /// question a reader has the moment they see a δ they did not
+    /// choose, and a chosen default that read as a clamp would be
+    /// worse than no default at all.
+    pub fn wording(&self) -> Option<String> {
+        let requested = self.requested_cost?;
+        let opened = self.delta.get() * 1.0e3;
+        let asked = self.requested.get() * 1.0e3;
+        Some(format!(
+            "opened at δ = {opened:.3} mm: {asked:.3} mm needs about {requested} triangles, over the {TRIANGLE_BUDGET} budget. Finer δ is still honoured — this is a starting point, not a cap"
+        ))
+    }
+}
+
+/// Choose the δ to OPEN a document at: the requested one, or the
+/// finest coarser one predicted to fit [`TRIANGLE_BUDGET`].
+///
+/// **A default, not a clamp.** The caller applies this once per
+/// document that arrives (`app`'s `fit_delta_on_scene`); from there δ
+/// is whatever the user asks for, `Finer δ` included, and nothing
+/// re-reads it. A budget that bound every rebuild would take the
+/// coarsening buttons away on exactly the documents someone would
+/// want them for.
+///
+/// # The method: predict, do not ladder
+///
+/// A ladder — try δ, halve until it fits — pays for the tessellation
+/// it then throws away, and the one it throws away is the expensive
+/// one. So this probes ONCE, at [`PROBE_FACTOR`] × the request, and
+/// solves.
+///
+/// The law it solves is `triangles ≈ C/δ`, which is what a chord-sized
+/// grid over a fixed surface gives: each direction is cut ∝ 1/√δ, so
+/// their product is ∝ 1/δ. It is not an assumption — measured on the
+/// tour's `hollowring` the doubling ratios are 1.999, 1.996, 1.997,
+/// 1.999 across four doublings, and on `diefillet` 1.99, 1.97, 1.98,
+/// 1.94. So `C` is read off the probe and δ* = C / budget.
+///
+/// **The prediction is not verified, and that is deliberate.**
+/// Verifying costs a second tessellation of the accepted size, which
+/// is the whole expense this function exists to avoid, to correct an
+/// error the measurements above bound at a few percent — and an error
+/// whose SIGN is the safe one: the law describes curved faces, planar
+/// ones stop subdividing and are therefore over-counted from a coarse
+/// probe, so the fit errs coarse ([`FittedDelta::predicted`] carries
+/// the measurements). Drawn against a 10⁶ budget the two curved
+/// gallery documents land at 998 576 and 974 526 triangles.
+///
+/// # What it costs, and what it costs on a document that fits
+///
+/// One tessellation of the gathered product at the probe δ — about an
+/// eighth of the request's. On a document already inside the budget
+/// the prediction returns a δ* below the request, the request is kept,
+/// and the probe was a tessellation of a small mesh: `checks` and
+/// `heatsink` are 24 and 72 triangles at every δ, because an
+/// all-planar body never subdivides.
+///
+/// # The count is the picture's, not an estimate of it
+///
+/// The probe tessellates the GATHERED product, while the picture is
+/// built per root by `crate::pick::PickIndex`. Those are the same
+/// number: measured across four δ on both multi-root gallery
+/// documents, gathered and per-root triangle counts agree exactly
+/// (0.000%), because the graft moves solids into one body without
+/// re-cutting their faces.
+///
+/// # Errors
+///
+/// [`SceneError::NoProduct`] if the roots do not gather,
+/// [`SceneError::NotTessellated`] if the probe refuses, and
+/// [`SceneError::InvalidDisplayTolerance`] if the solved δ is not a
+/// usable one.
+pub fn fit_delta(
+    doc: &Doc<ProfileProgram>,
+    evaluation: &pncad::document::Evaluation<f64>,
+    requested: DisplayTolerance,
+    tol: Tol,
+) -> Result<FittedDelta, SceneError> {
+    let body = product(doc, evaluation, tol).map_err(SceneError::NoProduct)?;
+    let probe_delta = requested.scaled(PROBE_FACTOR)?;
+    let probe = tessellate(&body, probe_delta.get(), tol).map_err(SceneError::NotTessellated)?;
+    let probe_triangles: usize = probe
+        .patches
+        .iter()
+        .map(|patch| patch.triangles.len())
+        .sum();
+    // C, in triangle·metres. A body that tessellates to nothing at the
+    // probe δ has no curvature to spend on, so it costs the same at
+    // every δ and the request stands.
+    let constant = probe_triangles as f64 * probe_delta.get();
+    #[allow(clippy::cast_precision_loss)]
+    let budget = TRIANGLE_BUDGET as f64;
+    let solved = constant / budget;
+    if solved <= requested.get() {
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let predicted = (constant / requested.get()) as usize;
+        return Ok(FittedDelta {
+            delta: requested,
+            requested,
+            predicted,
+            requested_cost: None,
+        });
+    }
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+    let requested_cost = (constant / requested.get()) as usize;
+    Ok(FittedDelta {
+        delta: DisplayTolerance::new(solved)?,
+        requested,
+        predicted: TRIANGLE_BUDGET,
+        requested_cost: Some(requested_cost),
+    })
+}
+
 /// The whole path: document → evaluated product → tessellation at δ →
 /// drawable scene.
 ///

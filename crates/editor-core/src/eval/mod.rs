@@ -409,18 +409,27 @@ pub enum NodeErrorKind {
     Revolve(RevolveError),
     /// The split op refused.
     Split(SplitError),
-    /// The constant-radius fillet op refused (M5 PR 12): a structural
-    /// precondition on the requested chain, one of the numbered
-    /// rolling-ball predicates, a corner or spine class the in-place
+    /// A BLEND op refused — the fillet's (M5 PR 12) or the chamfer's:
+    /// a structural precondition on the requested chain, one of the
+    /// numbered predicates, a corner or spine class the in-place
     /// surgery has not been built for, or an escalation. Which door
     /// refused, and what it refused about, is stated on
     /// [`sweep::fillet::FilletError`]'s own variants and rendered by
     /// its `Display` — this doc names no predicate of its own, so it
     /// cannot drift from one.
     ///
+    /// `verb` is which blend asked, because the two share one kernel
+    /// error type and a reader must not be told a chamfer's refusal
+    /// was a fillet's.
+    ///
     /// Carried UNALTERED like every other kernel refusal; the node
     /// never passes its input body through.
-    Fillet(sweep::fillet::FilletError),
+    Blend {
+        /// Which blend the refusing node is.
+        verb: sweep::fillet::BlendKind,
+        /// The kernel's own refusal.
+        error: sweep::fillet::FilletError,
+    },
     /// The boolean op refused.
     Boolean(BooleanError),
     /// The rigid-transform op refused.
@@ -466,6 +475,16 @@ pub enum NodeErrorKind {
         document_eps: f64,
         /// The process's committed ε.
         process_eps: f64,
+    },
+    /// The evaluation's parameter box could not bind an environment at
+    /// this scalar (E6's leaf-replay door): the box names a parameter
+    /// the document does not carry, or the scalar cannot represent a
+    /// widened axis. Refused on EVERY node, like the ε conflict above
+    /// and for the same reason — the alternative is answering a
+    /// different question in the same shape.
+    ParamBox {
+        /// The door's refusal, unaltered.
+        source: crate::analysis::ParamBoxError,
     },
     /// An input's value family does not fit this operand (e.g. a
     /// boolean fed a split's two-part value — selecting a part needs
@@ -603,30 +622,41 @@ pub enum NodeErrorKind {
         /// The refusing predicate's diagnostics, unaltered.
         diag: Indeterminate,
     },
-    /// A `Node::Fillet` selection name failed to resolve through the
+    /// A blend node's selection name failed to resolve through the
     /// TARGET's name table (M6-5) — the same N5 typed trio as
     /// [`NodeErrorKind::DeclareResolve`], and for the same reason: a
     /// selection is a commitment, so a name that no longer resolves
     /// refuses loudly instead of silently shrinking the set.
-    FilletSelectionResolve {
+    ///
+    /// The edge-selection ladder is ONE door serving both blend nodes,
+    /// so its refusals carry `verb` rather than being written twice —
+    /// a chamfer's refusal says "chamfer".
+    BlendSelectionResolve {
+        /// Which blend the refusing node is.
+        verb: sweep::fillet::BlendKind,
         /// The resolution failure (N5's closed trio).
         error: Box<crate::resolve::ResolveError>,
     },
-    /// A `Node::Fillet` selection named something that is not an EDGE
+    /// A blend node's selection named something that is not an EDGE
     /// of the target (a face, a vertex, the body). The op blends
     /// edges; a mis-kinded selection is a recipe bug, refused rather
     /// than reinterpreted.
-    FilletSelectionKind {
+    BlendSelectionKind {
+        /// Which blend the refusing node is.
+        verb: sweep::fillet::BlendKind,
         /// The offending name.
         name: Box<crate::names::StableName>,
         /// What it actually denotes.
         found: crate::names::EntityKind,
     },
-    /// A `Node::Fillet` selection is EMPTY. A fillet of nothing is not
+    /// A blend node's selection is EMPTY. A blend of nothing is not
     /// the identity — it is an unfinished recipe, refused rather than
     /// passed through (the fail-loud voice: no op silently returns its
     /// input).
-    FilletSelectionEmpty,
+    BlendSelectionEmpty {
+        /// Which blend the refusing node is.
+        verb: sweep::fillet::BlendKind,
+    },
     /// A sketch node's branch selection refused (SOLVER-DESIGN W3;
     /// M4 PR 4 pins the document semantics — a per-node failure
     /// poisoning descendants only, GQ2/W5). NEVER constructed before
@@ -792,7 +822,7 @@ impl core::fmt::Display for NodeErrorKind {
             Self::Extrude(e) => write!(f, "the extrude op refused: {e}"),
             Self::Revolve(e) => write!(f, "the revolve op refused: {e}"),
             Self::Split(e) => write!(f, "the split op refused: {e}"),
-            Self::Fillet(e) => write!(f, "the fillet op refused: {e}"),
+            Self::Blend { verb, error } => write!(f, "the {verb} op refused: {error}"),
             Self::Boolean(e) => write!(
                 f,
                 "the Boolean op refused its operands (undeclared coincidence is the \
@@ -814,6 +844,7 @@ impl core::fmt::Display for NodeErrorKind {
                 "document ε {document_eps:e} conflicts with the process ε {process_eps:e} \
                  (one process, one ε)"
             ),
+            Self::ParamBox { source } => write!(f, "parameter box: {source}"),
             Self::WrongOperand {
                 input,
                 expected,
@@ -894,17 +925,18 @@ impl core::fmt::Display for NodeErrorKind {
             Self::UndeclaredContact { finding, diag } => {
                 crate::finding::compose(f, &UndeclaredContactFinding { finding, diag })
             }
-            Self::FilletSelectionResolve { error } => {
-                write!(f, "a fillet selection name failed to resolve: {error}")
+            Self::BlendSelectionResolve { verb, error } => {
+                write!(f, "a {verb} selection name failed to resolve: {error}")
             }
-            Self::FilletSelectionKind { name, found } => write!(
+            Self::BlendSelectionKind { verb, name, found } => write!(
                 f,
-                "the fillet selection name minted by node {} denotes a {}, not an edge",
+                "the {verb} selection name minted by node {} denotes a {}, not an edge",
                 name.node.0,
                 found.noun()
             ),
-            Self::FilletSelectionEmpty => f.write_str(
-                "the fillet selection is empty — an unfinished recipe, not the identity",
+            Self::BlendSelectionEmpty { verb } => write!(
+                f,
+                "the {verb} selection is empty — an unfinished recipe, not the identity"
             ),
             Self::WitnessBifurcation(refusal) => {
                 write!(f, "{}", crate::witness::BranchSelectionRefused(refusal))
@@ -974,12 +1006,24 @@ impl CancelToken {
 /// requirement rather than restate it, and the compound `Bounds` bound
 /// stays inside the seam the 2026-07-29 Bounds scope rule ratified.
 pub trait EvalScalar:
-    Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::AtRestPolicy
+    Decide
+    + ContentBits
+    + geom_core::Bounds
+    + Send
+    + Sync
+    + topo::AtRestPolicy
+    + crate::analysis::AxisScalar
 {
 }
 
 impl<T> EvalScalar for T where
-    T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::AtRestPolicy
+    T: Decide
+        + ContentBits
+        + geom_core::Bounds
+        + Send
+        + Sync
+        + topo::AtRestPolicy
+        + crate::analysis::AxisScalar
 {
 }
 
@@ -1015,6 +1059,17 @@ pub struct EvalOptions {
     /// this evaluation's scalar. Default [`ProfileLift::Pinned`] — the
     /// build path, unchanged.
     pub profile_lift: ProfileLift,
+    /// The PARAMETER BOX this evaluation runs over (E6's leaf replay):
+    /// each named axis binds `nominal + [lo, hi]` instead of the
+    /// nominal. `None` — the default — is the nominal build, and is
+    /// what every build-path evaluation passes.
+    ///
+    /// Scalar-free by construction: the box is offsets, and the
+    /// evaluation's own scalar decides whether it can carry them
+    /// ([`crate::analysis::AxisScalar`]). A scalar that cannot refuses
+    /// the whole evaluation, node by node, rather than quietly
+    /// evaluating at the nominals.
+    pub param_box: Option<Arc<crate::analysis::ParamBox>>,
 }
 
 /// Where profile geometry comes from at a non-`f64` scalar.
@@ -1055,6 +1110,7 @@ impl Default for EvalOptions {
             boolean_sweep: topo::SweepStrategy::Realized,
             resolver: None,
             profile_lift: ProfileLift::Pinned,
+            param_box: None,
         }
     }
 }
@@ -1079,7 +1135,7 @@ pub fn evaluate<T>(
     tol: Tol,
 ) -> Evaluation<T>
 where
-    T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::AtRestPolicy,
+    T: EvalScalar,
 {
     evaluate_at_descent(doc, prior, cancel, opts, &[], tol)
 }
@@ -1098,7 +1154,7 @@ pub(crate) fn evaluate_nested<T>(
     tol: Tol,
 ) -> Evaluation<T>
 where
-    T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::AtRestPolicy,
+    T: EvalScalar,
 {
     evaluate_at_descent(doc, None, cancel, opts, chain, tol)
 }
@@ -1112,7 +1168,7 @@ fn evaluate_at_descent<T>(
     tol: Tol,
 ) -> Evaluation<T>
 where
-    T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::AtRestPolicy,
+    T: EvalScalar,
 {
     let sched = schedule::schedule(doc);
     // D4 door (M4 PR 6): the recorded ε must BE the committed process
@@ -1122,7 +1178,18 @@ where
     if doc.epsilon().to_bits() != process_eps.to_bits() {
         return refuse_tolerance_conflict(doc, sched, opts, process_eps);
     }
-    let env = doc.param_env::<T>();
+    // The lane environment, built ONCE and shared by every reader
+    // below (slot evaluation, the lift's second pass, the two profile
+    // ladders): one environment per evaluation is what makes "this run
+    // evaluated over that box" a fact about the run rather than about
+    // each call site.
+    let env = match opts.param_box.as_deref() {
+        None => doc.param_env::<T>(),
+        Some(b) => match crate::analysis::param_env_over::<T, _>(doc, b) {
+            Ok(env) => env,
+            Err(source) => return refuse_param_box(doc, sched, opts, source),
+        },
+    };
     let parts = parts::PartCache::<T>::new(
         opts.resolver.as_ref(),
         chain,
@@ -1140,7 +1207,10 @@ where
         boolean_sweep: opts.boolean_sweep,
         parts: &parts,
         poses: &poses,
-        profile_lift: opts.profile_lift,
+        lane: wire::LaneEnv {
+            lift: opts.profile_lift,
+            params: &env,
+        },
     };
     let mut nodes: BTreeMap<RecipeNodeId, NodeResult<T>> = BTreeMap::new();
     let mut recomputed = 0usize;
@@ -1228,15 +1298,50 @@ where
     }
 }
 
-/// The all-nodes ToleranceConflict refusal (spec D4 door): a TOTAL
-/// evaluation in which every live node fails typed and the appearance
-/// store resolves against all-failed states (typed losses, nothing
-/// silent).
+/// The all-nodes ToleranceConflict refusal (spec D4 door).
 fn refuse_tolerance_conflict<T>(
     doc: &Doc<ProfileProgram>,
     sched: schedule::Schedule,
     opts: &EvalOptions,
     process_eps: f64,
+) -> Evaluation<T>
+where
+    T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
+{
+    let document_eps = doc.epsilon();
+    refuse_every_node(doc, sched, opts, move || NodeErrorKind::ToleranceConflict {
+        document_eps,
+        process_eps,
+    })
+}
+
+/// The all-nodes parameter-box refusal: the box named a parameter the
+/// document does not have, or this evaluation's scalar cannot carry a
+/// widened axis. Loud on every node rather than narrowed to the
+/// nominals — an `f64` run that silently ignored its box would report
+/// the nominal build's answer for a question about a box.
+fn refuse_param_box<T>(
+    doc: &Doc<ProfileProgram>,
+    sched: schedule::Schedule,
+    opts: &EvalOptions,
+    source: crate::analysis::ParamBoxError,
+) -> Evaluation<T>
+where
+    T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
+{
+    refuse_every_node(doc, sched, opts, move || NodeErrorKind::ParamBox {
+        source: source.clone(),
+    })
+}
+
+/// A TOTAL evaluation in which every live node fails typed with the
+/// same document-level cause, and the appearance store resolves against
+/// all-failed states (typed losses, nothing silent).
+fn refuse_every_node<T>(
+    doc: &Doc<ProfileProgram>,
+    sched: schedule::Schedule,
+    opts: &EvalOptions,
+    kind: impl Fn() -> NodeErrorKind,
 ) -> Evaluation<T>
 where
     T: Decide + ContentBits + geom_core::Bounds + Send + Sync,
@@ -1250,10 +1355,7 @@ where
                 id,
                 NodeResult::Failed(NodeError {
                     node: id,
-                    kind: NodeErrorKind::ToleranceConflict {
-                        document_eps: doc.epsilon(),
-                        process_eps,
-                    },
+                    kind: kind(),
                 }),
             )
         })
@@ -1310,7 +1412,7 @@ fn eval_node<T>(
     tol: Tol,
 ) -> NodeStep<T>
 where
-    T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::AtRestPolicy,
+    T: EvalScalar,
 {
     let fail = |kind: NodeErrorKind| NodeStep {
         result: NodeResult::Failed(NodeError { node: id, kind }),
@@ -1409,9 +1511,9 @@ where
     // few dozen expression evaluations per profile node, in analysis
     // mode only. If that ever shows up in a profile, the fix is to pass
     // the value through — not to cache it somewhere both readers reach.
-    let lane_program = match (op_env.profile_lift, node, &resolved_program) {
+    let lane_program = match (op_env.lane.lift, node, &resolved_program) {
         (ProfileLift::Guided, crate::node::Node::Profile(program), Some(_)) => {
-            match program.resolve(&doc.param_env::<T>()) {
+            match program.resolve(env) {
                 Ok(r) => Some(r),
                 Err((slot, source)) => return fail(NodeErrorKind::Expr { slot, source }),
             }
@@ -1583,6 +1685,10 @@ where
         // for a new meaning (M5 PR 10's rule), so the mate takes the
         // next free number rather than the one its unit first wrote.
         Node::Mate { .. } => 23,
+        // LIB-G16. Appended, never a reused tag: a chamfer and a
+        // fillet of the same size on the same edges are different
+        // geometry, so they must not share a key.
+        Node::Chamfer { .. } => 24,
     };
     h.write_tag(tag);
     // Structural payloads beyond the tag — everything a node carries
@@ -1742,11 +1848,11 @@ where
                 }
             }
         }
-        // The fillet SELECTION is recipe payload, not a slot: two
-        // fillets of the same radius on different edges are different
-        // nodes (M6-5). Canonical order (`Node::fillet`) is what makes
-        // this a set hash rather than an order hash.
-        Node::Fillet { selection, .. } => {
+        // A blend's SELECTION is recipe payload, not a slot: two
+        // blends of the same size on different edges are different
+        // nodes (M6-5). Canonical order (the construction doors) is
+        // what makes this a set hash rather than an order hash.
+        Node::Fillet { selection, .. } | Node::Chamfer { selection, .. } => {
             h.write_u64(selection.len() as u64);
             for n in selection {
                 feed_stable_name(&mut h, n);

@@ -414,7 +414,7 @@ fn all_edges_materializes_exactly_the_authored_every_edge_set() {
 
 /// The empty case is handed back as empty rather than guessed at: a
 /// node with no value, no table, or no edges yields no names, and the
-/// FILLET is where that refuses (`FilletSelectionEmpty`) — one door
+/// FILLET is where that refuses (`BlendSelectionEmpty`) — one door
 /// for the refusal, not two.
 #[test]
 fn all_edges_of_a_nameless_node_is_empty() {

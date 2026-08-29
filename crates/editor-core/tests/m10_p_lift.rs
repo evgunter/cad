@@ -27,10 +27,9 @@ mod corpus;
 mod fixture;
 
 use editor_core::{
-    CancelToken, EvalOptions, Node, NodeResult, ParamName, ParamValue, ProfileLift, ValuePayload,
-    evaluate,
+    CancelToken, EvalOptions, Node, NodeResult, ParamValue, ProfileLift, ValuePayload, evaluate,
 };
-use geom_core::{Real, Tol};
+use geom_core::Tol;
 
 /// Every body point of an evaluation, by bits — the comparable surface.
 fn body_bits(ev: &editor_core::Evaluation<f64>) -> Vec<u64> {
@@ -190,7 +189,11 @@ fn a_dual_seed_on_a_profile_parameter_now_carries_a_tangent() {
 #[cfg(feature = "interval")]
 #[test]
 fn a_wide_interval_binding_aborts_typed_rather_than_certifying() {
-    use geom_core::Interval;
+    // Both of these are used ONLY by this interval-gated row, so they
+    // are imported here rather than at module scope, where the default
+    // build would carry them unused.
+    use editor_core::ParamName;
+    use geom_core::{Interval, Real};
     /// The nominal f64 loops, replayed for the record's sake.
     fn nominal_loops(resolved: &[Vec<profile::Step<f64>>]) -> Vec<profile::ProfileLoop<f64>> {
         resolved
@@ -465,10 +468,12 @@ fn the_loft_section_stays_f64_while_the_profile_payload_lifts() {
 
     // The extrude half: the profile node's own payload IS elaborated at
     // the lane, which is the other side of the asymmetry. Both lanes
-    // enclose the same point here (the plate's parameters are
-    // degenerate intervals until M10-3 widens `param_env`), so what is
-    // asserted is that the payload is produced and encloses the
-    // nominal — not that it is wider, which it cannot yet be.
+    // enclose the same point here — this evaluation carries no
+    // parameter box, so its bindings are the document's nominals and
+    // the enclosure is degenerate by construction. What is asserted is
+    // that the payload is produced and encloses the nominal, not that
+    // it is wider; a widened binding is `EvalOptions::param_box`'s
+    // door and is driven in `m10_3_driver_interval`.
     let plate = plate();
     let g = run(&plate.doc, ProfileLift::Guided);
     let mut profiles = 0usize;
