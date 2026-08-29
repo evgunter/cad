@@ -57,17 +57,14 @@ fn the_meter_lower_bounds_the_real_speed() {
         m > 0.0,
         "a monotone carrier must have a positive meter: {m}"
     );
-    // Sampled speeds must never fall below the certified meter.
-    let mut lo = f64::INFINITY;
-    let mut hi = 0.0f64;
+    let (mut lo, mut hi, mut t_lo) = (f64::INFINITY, 0.0f64, 0.0f64);
     for i in 0..=200 {
         let t = f64::from(i) / 200.0;
         let s = c.deriv(t).norm();
-        assert!(
-            s >= m - 1e-12,
-            "meter {m} exceeds the real speed {s} at t = {t}"
-        );
-        lo = lo.min(s);
+        if s < lo {
+            lo = s;
+            t_lo = t;
+        }
         hi = hi.max(s);
     }
     // **What the floor proves and where it stops.** `interpolate`
@@ -76,17 +73,15 @@ fn the_meter_lower_bounds_the_real_speed() {
     // crosses in x. That argument does not reach the MINIMUM; what
     // carries the last step is that chord-length parameterization makes
     // the speed nearly constant, which this row measures rather than
-    // assumes — `hi / lo` below. So `1.0` is a derived floor for the
-    // mean and an empirical one for the minimum, and it is stated as
-    // both. Without it a fixture edit that shortened the curve would
-    // leave `m > 0` and every clause here satisfiable by an
-    // arbitrarily small meter.
+    // assumes. So `1.0` is a derived floor for the mean and an
+    // empirical one for the minimum, and it is stated as both.
     let variation = hi / lo;
     assert!(
         variation < 1.01,
         "the floor below leans on this carrier's speed being nearly constant \
-         (chord-length parameterization), but it varies by {variation} over \
-         [{lo}, {hi}]"
+         (chord-length parameterization), and it measures 1.00102 here; this run \
+         has it varying by {variation} over [{lo}, {hi}], so the chord-length \
+         premise no longer carries the floor"
     );
     // The ceiling, in the form a lower bound takes. The comparison
     // population is the INTEGRAL arm — this carrier is polynomial, so
@@ -96,20 +91,36 @@ fn the_meter_lower_bounds_the_real_speed() {
     // `m8_14_long_turn_meter` the give-away runs 0.02% to 4.00%,
     // bottoming out at the helices (0.9600 of the true minimum) with
     // `arc_curl_6.0` next at 3.66%; this carrier gives away 0.61%. The
-    // admitted 10% therefore sits 2.5x under the worst the arm
-    // actually produces, in the shape `mesh/tests/budget_meter.rs`'s
+    // admitted 10% therefore sits 2.5x ABOVE the worst the arm actually
+    // produces — the slack that keeps the guard off the legitimate
+    // population, in the shape `mesh/tests/budget_meter.rs`'s
     // `RATIO_FLOOR` uses. (The rational rows below run 2.8% to 14.25%,
     // and `quintic_net([1.0, 0.5, 2.0, 0.5, 2.0, 1.0])` reaches 32.4%
     // — a different arm, and two of them are already inside the 10%
     // this row forbids, which is why they are not the population.)
+    //
+    // `1.0` is the give-away at which THIS meter has degenerated:
+    // `speed_lower_bound` reports a non-positive metre-per-parameter
+    // when it gives up (`a_rational_carrier_whose_speed_collapses_
+    // still_refuses`), and a give-away of 1 puts the floor at zero,
+    // which that answer already meets.
     Meter::new("gently curved cubic", m, lo)
         .truth_at_least(
             1.0,
             "this carrier crosses a full unit in x under chord-length \
              parameterization, so its speed cannot sit near zero",
         )
+        .dominates(
+            1e-12,
+            &format!(
+                "the meter and `deriv` are two evaluation paths for the same \
+                 derivative at magnitudes near 1, so this is a rounding budget \
+                 of about 4e3 ulps; the sampled minimum is at t = {t_lo}"
+            ),
+        )
         .gives_away_at_most(
             0.1,
+            1.0,
             "the per-span hull is no longer tracking the true speed",
         );
 }

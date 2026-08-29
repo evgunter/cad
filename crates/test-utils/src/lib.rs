@@ -1,7 +1,7 @@
 //! Shared test scaffolding for the whole tree — the pieces several
 //! suites would otherwise each hand-roll a copy of.
 //!
-//! Four things today:
+//! Today it holds:
 //!
 //! - [`fuzz`], the harness every randomized falsification sweep draws
 //!   its RNG, its per-run seed and its EFFORT dial from.
