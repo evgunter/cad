@@ -328,6 +328,86 @@ pub struct Scan {
     pub proximity_capped: Option<(f64, f64)>,
 }
 
+/// The sweep's CSV header: the column order this file's rules are
+/// stated against, and the only header [`lint_csv`] accepts.
+const EXPECTED_HEADER: &str = "shape,predicate,margin,band_zero,band_escalate,outcome";
+
+/// What a numeric column of the sweep may say.
+///
+/// **A reading the lint cannot read is not a sample that passed.** Every
+/// rule in [`lint_sample`] is an `m < t` or `m > t` comparison, so a
+/// `NaN` margin makes all of them false and the row scores CLEAN while
+/// still counting in [`Scan::scanned`]; a `NaN` `band_zero` misses the
+/// `band_zero >= AMBIENT_BAND_MIN` guard on every arm and answers to no
+/// rule at all. So a value outside its column's policy is refused as
+/// harness breakage, for the same reason the `outcome` allow-list beside
+/// it already gives (review MIN-2): the instrument's answer to an
+/// unreadable measurement must not be its own pass value.
+///
+/// The recorder is the authority for both policies. `k_stats::record`
+/// writes the margin `Decide for f64` classified together with the
+/// thresholds of the `Band` it was classified against, and `Band::new`
+/// refuses a threshold that is not finite and strictly positive — so a
+/// zero or negative band is drift, not a loose band.
+#[derive(Clone, Copy, Debug)]
+enum Admissible {
+    /// A classified margin: any FINITE value, of either sign — a margin
+    /// is a signed length and the corpus records both signs and exact
+    /// zeros. The two non-finite spellings are admitted only against
+    /// the outcomes that produce them: `NaN` is the poison
+    /// `Decide for f64` reports as `invalid`, and ±∞ is documented
+    /// there as maximally definite, so it can only accompany a definite
+    /// outcome. A pairing the recorder could not have written is drift,
+    /// and the one this rule exists for is `NaN` on an outcome whose
+    /// every comparison it makes false.
+    Margin,
+    /// A band threshold: finite and strictly positive, which is
+    /// `Band::new`'s own contract.
+    BandThreshold,
+}
+
+impl Admissible {
+    /// Whether `v` is a reading of this kind of column on a row whose
+    /// recorded outcome is `outcome` (already checked against the
+    /// outcome allow-list by [`lint_csv`]).
+    fn admits(self, v: f64, outcome: &str) -> bool {
+        match self {
+            Self::Margin => {
+                if v.is_nan() {
+                    outcome == "invalid"
+                } else if v.is_infinite() {
+                    matches!(outcome, "positive" | "negative")
+                } else {
+                    true
+                }
+            }
+            Self::BandThreshold => v.is_finite() && v > 0.0,
+        }
+    }
+
+    /// What this column may say, for the harness message.
+    fn expects(self) -> &'static str {
+        match self {
+            Self::Margin => {
+                "a margin: finite, or NaN on an `invalid` outcome, or ±inf on a definite one"
+            }
+            Self::BandThreshold => "a band threshold, finite and above zero",
+        }
+    }
+}
+
+/// The float block — every column [`lint_sample`] compares against, in
+/// [`EXPECTED_HEADER`]'s order, with what each may say. One table
+/// rather than three hand-written checks so that the block the parser
+/// polices and the block the header declares can be compared to each
+/// other, which this module's tests do: a fourth float column added
+/// without an entry here would otherwise reach the rules unpoliced.
+const FLOAT_COLUMNS: [(&str, Admissible); 3] = [
+    ("margin", Admissible::Margin),
+    ("band_zero", Admissible::BandThreshold),
+    ("band_escalate", Admissible::BandThreshold),
+];
+
 /// A malformed input line: HARNESS BREAKAGE — the lint could not run.
 /// Findings fail the CI row too, but in their own voice and with their
 /// own exit code (`main.rs`); the two are never blurred.
@@ -388,17 +468,18 @@ pub fn lint_sample(
 ///
 /// # Errors
 ///
-/// The first malformed line — bad column count, unparseable float, or
-/// an UNKNOWN outcome string — harness breakage. A FINDING is never an
-/// `Err`: it comes back in [`Scan::flags`], and the CLI turns it into
-/// its own failure voice.
+/// The first malformed line — bad column count, unparseable float, an
+/// UNKNOWN outcome string, or a float outside its column's policy
+/// (`Admissible`) — harness breakage. A FINDING is never an `Err`: it
+/// comes back in [`Scan::flags`], and the CLI turns it into its own
+/// failure voice.
 pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
     let mut flags = Vec::new();
     let mut scanned = 0usize;
     let mut proximity_capped = None;
     for (i, line) in text.lines().enumerate() {
         if i == 0 {
-            if line != "shape,predicate,margin,band_zero,band_escalate,outcome" {
+            if line != EXPECTED_HEADER {
                 return Err(ParseError {
                     line: 1,
                     text: line.to_string(),
@@ -425,18 +506,40 @@ pub fn lint_csv(text: &str) -> Result<Scan, ParseError> {
         ) else {
             return Err(err());
         };
-        let margin: f64 = m.parse().map_err(|_| err())?;
-        let band_zero: f64 = bz.parse().map_err(|_| err())?;
-        let band_escalate: f64 = be.parse().map_err(|_| err())?;
         // An unknown outcome string is harness breakage, exactly like
         // a malformed float: scoring it silently CLEAN would let a
-        // sweep-format drift disarm the whole lint (review MIN-2).
+        // sweep-format drift disarm the whole lint (review MIN-2). It
+        // is checked FIRST because the margin's policy is stated
+        // against it (`Admissible::Margin`).
         if !matches!(
             out,
             "zero" | "positive" | "negative" | "indeterminate" | "invalid"
         ) {
             return Err(err());
         }
+        // An unreadable measurement is harness breakage too, and for
+        // the same reason — see `Admissible`.
+        // The column index carries BOTH halves of the policy — the name
+        // the message reports and the rule it was refused by — so the
+        // two cannot drift apart per column.
+        let admit = |field: &str, col: usize| -> Result<f64, ParseError> {
+            let (name, kind) = FLOAT_COLUMNS[col];
+            let v: f64 = field.parse().map_err(|_| err())?;
+            if kind.admits(v, out) {
+                Ok(v)
+            } else {
+                Err(ParseError {
+                    line: i + 1,
+                    text: format!(
+                        "{name} = {v:e} is not {} (sweep drift?): {line}",
+                        kind.expects()
+                    ),
+                })
+            }
+        };
+        let margin = admit(m, 0)?;
+        let band_zero = admit(bz, 1)?;
+        let band_escalate = admit(be, 2)?;
         scanned += 1;
         // Record (once) that rule (2)-above is running capped on this
         // file's ambient rows, so the CLI can say so out loud.
@@ -666,5 +769,111 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    /// One row, with each float column settable.
+    fn row(margin: &str, band_zero: &str, band_escalate: &str, outcome: &str) -> String {
+        format!("{EXPECTED_HEADER}\ndemo/x,p,{margin},{band_zero},{band_escalate},{outcome}\n")
+    }
+
+    /// The block the parser polices is the header's own, bracketed on
+    /// both sides: a column inserted into the float run would slide
+    /// every reading under the wrong policy, and the drifting header
+    /// this file already refuses is the same failure one step earlier.
+    #[test]
+    fn the_policed_block_is_the_headers_float_block() {
+        /// Where the float block starts in [`EXPECTED_HEADER`]. Only
+        /// the bracket test needs it — `lint_csv` destructures the row
+        /// positionally, so the offset it uses IS this header's.
+        const FLOAT_FIRST: usize = 2;
+        let cols: Vec<&str> = EXPECTED_HEADER.split(',').collect();
+        assert_eq!(
+            cols[FLOAT_FIRST - 1],
+            "predicate",
+            "the block starts too late"
+        );
+        for (k, (name, _)) in FLOAT_COLUMNS.iter().enumerate() {
+            assert_eq!(cols[FLOAT_FIRST + k], *name, "column {k}");
+        }
+        assert_eq!(
+            cols[FLOAT_FIRST + FLOAT_COLUMNS.len()],
+            "outcome",
+            "the block ends too early"
+        );
+        assert_eq!(
+            cols.len(),
+            FLOAT_FIRST + FLOAT_COLUMNS.len() + 1,
+            "a float column past `outcome` would reach the rules unpoliced"
+        );
+    }
+
+    /// The question this parser exists to answer. Every rule is an
+    /// `m < t` or `m > t` comparison, so an unreadable value resolves
+    /// every rule to false and the row scores CLEAN — the instrument's
+    /// failure mode would be its own pass condition. Each of these rows
+    /// scored clean before it was refused.
+    ///
+    /// The expectations are written out rather than derived from
+    /// [`FLOAT_COLUMNS`]: a test that reads the policy it is checking
+    /// asserts nothing.
+    #[test]
+    fn every_float_column_refuses_the_readings_that_would_score_a_row_clean() {
+        // `0e0` is the value that discriminates a band threshold's
+        // "above zero" from a mere "non-negative": relax
+        // `Admissible::BandThreshold` to `v >= 0.0` and this loop reds
+        // rather than only some fixture breaking.
+        for bad in ["0e0", "-1e0", "inf", "-inf", "NaN"] {
+            assert!(
+                lint_csv(&row("2e0", bad, "1e-8", "positive")).is_err(),
+                "band_zero = {bad} must be harness breakage"
+            );
+            assert!(
+                lint_csv(&row("2e0", "1e-9", bad, "positive")).is_err(),
+                "band_escalate = {bad} must be harness breakage"
+            );
+        }
+        // A margin is a SIGNED length: both signs and an exact zero are
+        // readings, and the corpus records all three.
+        for good in ["2e0", "-2e0", "0e0"] {
+            assert!(
+                lint_csv(&row(good, "1e-9", "1e-8", "positive")).is_ok(),
+                "margin = {good} is a reading"
+            );
+        }
+        // The two non-finite spellings belong to the outcomes that
+        // produce them and to no others: `NaN` is the poison reported
+        // as `invalid`, ±∞ is maximally definite.
+        const OUTCOMES: [&str; 5] = ["zero", "positive", "negative", "indeterminate", "invalid"];
+        const NAN_ADMITTED: [bool; 5] = [false, false, false, false, true];
+        const INF_ADMITTED: [bool; 5] = [false, true, true, false, false];
+        for (k, outcome) in OUTCOMES.iter().enumerate() {
+            assert_eq!(
+                lint_csv(&row("NaN", "1e-9", "1e-8", outcome)).is_ok(),
+                NAN_ADMITTED[k],
+                "margin NaN at outcome {outcome}"
+            );
+            for inf in ["inf", "-inf"] {
+                assert_eq!(
+                    lint_csv(&row(inf, "1e-9", "1e-8", outcome)).is_ok(),
+                    INF_ADMITTED[k],
+                    "margin {inf} at outcome {outcome}"
+                );
+            }
+        }
+        // And the one row NaN belongs on is still a FINDING, not an
+        // error: rule (1) names it.
+        let scan = lint_csv(&row("NaN", "1e-9", "1e-8", "invalid")).expect("poison is a reading");
+        assert_eq!(scan.scanned, 1);
+        assert_eq!(scan.flags[0].reasons, vec![Reason::Invalid]);
+    }
+
+    /// The refusal names the column and the policy it broke, not just
+    /// the line — the harness voice `lint_csv` already owns.
+    #[test]
+    fn the_refusal_names_the_column_that_broke_its_policy() {
+        let e = lint_csv(&row("2e0", "-1e-9", "1e-8", "positive")).expect_err("negative band");
+        assert_eq!(e.line, 2);
+        assert!(e.text.contains("band_zero"), "{}", e.text);
+        assert!(e.text.contains("above zero"), "{}", e.text);
     }
 }

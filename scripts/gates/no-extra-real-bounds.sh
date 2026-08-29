@@ -127,12 +127,15 @@ gate() {
   # the token `Real` in the same statement, so the two matchers only
   # ever see statements that contain one. No line window, and therefore
   # no assumption about which lines are adjacent.
-  near=$(gate_rust_code --statements "${GATE_SOURCE_FILES[@]}" | grep -F Real || true)
+  near=$(gate_rust_code --statements "${GATE_SOURCE_FILES[@]}" | gate_grep -F Real)
   plus=$(printf '%s\n' "$near" \
-    | grep -E '(\+[[:space:]]*([A-Za-z0-9_]+::)*Real([^A-Za-z0-9_]|$))|((^|[^A-Za-z0-9_])Real[[:space:]]*\+)' \
-    | grep -vE "^$SEALED_HOME_RE:[0-9]+: $SEALED_DECL_RE\$" || true)
-  twice=$(printf '%s\n' "$near" | compound_without_plus || true)
-  hits=$(printf '%s\n%s\n' "$plus" "$twice" | grep -v '^$' | sort -u || true)
+    | gate_grep -E '(\+[[:space:]]*([A-Za-z0-9_]+::)*Real([^A-Za-z0-9_]|$))|((^|[^A-Za-z0-9_])Real[[:space:]]*\+)' \
+    | gate_grep -vE "^$SEALED_HOME_RE:[0-9]+: $SEALED_DECL_RE\$")
+  # `compound_without_plus` is awk, which has no "no match" status: it
+  # exits 0 having printed nothing. A non-zero from it is a reader that
+  # died, so it is NOT tolerated here either.
+  twice=$(printf '%s\n' "$near" | compound_without_plus)
+  hits=$(printf '%s\n%s\n' "$plus" "$twice" | gate_grep -v '^$' | sort -u)
   if [ -n "$hits" ]; then
     printf '%s\n' "$hits"
     gate_error "found extra bound(s) on Real above — evaluation-code discipline forbids extra bounds on scalar type parameters, in either operand order, whether or not a \`+\` is written, and however rustfmt wrapped it"
@@ -297,6 +300,11 @@ plant_sealed_decl_elsewhere() {
 gate_selftest() {
   local want="found extra bound(s) on Real above"
   gate_selftest_clean
+  # A `grep` that cannot run is the failure this gate cannot see for
+  # itself: it produces no hits, and no hits is what a clean tree
+  # produces. Proved here rather than asserted, because before
+  # `gate_grep` this exact fixture printed OK and exited 0.
+  gate_selftest_without_tool grep "it is grep saying it could not search"
   gate_selftest_case "$want" plant_real_first
   gate_selftest_case "$want" plant_real_second
   gate_selftest_case "$want" plant_path_qualified
@@ -312,7 +320,7 @@ gate_selftest() {
   gate_selftest_case "no longer in crates/geom-core/src/spline/locate.rs verbatim" plant_sealed_decl_changed
   gate_selftest_passes "prose, string literals and sole Real bounds" plant_prose_and_sole_bounds
   gate_selftest_passes "the ratified SpanLocate declaration" plant_sealed_home_clean
-  printf '%s selftest OK: passes a clean fixture, prose/strings/sole bounds, and the ratified SpanLocate line in its own file; fires on both operand orders, on a path-qualified Real after the plus, on rustfmt-wrapped plus in the where clause AND in the generic list, on the one-line and wrapped two-predicate spellings, across a blank line inside a where clause, on a predicate split between the generic list and the where clause, on a bound hidden behind a block comment, on the ratified declaration copied into another file, on a violation beside the skipped declaration, and on that declaration being given a bound with a surface\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture, prose/strings/sole bounds, and the ratified SpanLocate line in its own file; fires on both operand orders, on a path-qualified Real after the plus, on rustfmt-wrapped plus in the where clause AND in the generic list, on the one-line and wrapped two-predicate spellings, across a blank line inside a where clause, on a predicate split between the generic list and the where clause, on a bound hidden behind a block comment, on the ratified declaration copied into another file, on a violation beside the skipped declaration, and on that declaration being given a bound with a surface; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

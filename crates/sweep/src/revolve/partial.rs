@@ -18,7 +18,7 @@ use topo::{Body, EdgeKey, FaceKey, FaceSurface, MefSite, MevSite};
 
 use super::axis::{AxisFrame, LoopClasses, WallClass};
 use super::chain::build_chain;
-use super::surfaces::{strut_spec, wall_surface};
+use super::surfaces::{revolved_strut_spec, wall_surface};
 use super::upgrade::upgrade_intersection;
 use super::{RevolveError, Revolved, RevolvedKind, SweptSeg, WALL_COSURFACE};
 use crate::swept::{cap_points, cosurface, face_surface_key, placed_segment_spec, turn_axis};
@@ -387,7 +387,7 @@ pub(super) fn sweep_loop<T: Decide>(
                 he2: hes[j],
             },
             rq[j],
-            strut_spec(segs[j].a, cls.verts[j].r, qs[j], frame, theta, axis_c),
+            revolved_strut_spec(segs[j].a, cls.verts[j].r, qs[j], frame, theta, axis_c),
             tol,
         )?;
         struts.push(Some(m));

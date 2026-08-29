@@ -323,6 +323,22 @@ mod threaded {
         Thread(std::io::Error),
     }
 
+    impl core::fmt::Display for SpawnError {
+        fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+            match self {
+                Self::Thread(error) => {
+                    write!(
+                        f,
+                        "the evaluation worker could not be started: the OS refused \
+                         the thread: {error}"
+                    )
+                }
+            }
+        }
+    }
+
+    impl core::error::Error for SpawnError {}
+
     /// A background-thread evaluation seam.
     ///
     /// **At most one job is ever with the worker.** A submit while the

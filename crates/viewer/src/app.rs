@@ -227,6 +227,35 @@ pub enum StartupError {
     Evaluator(crate::evalseam::SpawnError),
 }
 
+impl core::fmt::Display for StartupError {
+    /// Every payload arm forwards to the refusing layer's own
+    /// `Display`; the prefix is only which startup step was standing
+    /// when it refused.
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Document(error) => {
+                write!(f, "the starting document could not be authored: {error}")
+            }
+            Self::Scene(error) => {
+                write!(f, "the starting document draws no scene: {error}")
+            }
+            Self::Camera(error) => {
+                write!(
+                    f,
+                    "no camera could be framed on the starting scene: {error}"
+                )
+            }
+            Self::NoWgpuRenderState => f.write_str(
+                "eframe handed the viewer no wgpu render state: this build was linked \
+                 against a renderer it does not have",
+            ),
+            Self::Evaluator(error) => write!(f, "{error}"),
+        }
+    }
+}
+
+impl core::error::Error for StartupError {}
+
 impl ViewerApp {
     /// Build the application: author the starting document, evaluate
     /// it, tessellate at the initial δ, frame a camera on the result,
@@ -311,7 +340,7 @@ impl ViewerApp {
                 self.status = self
                     .picks
                     .error()
-                    .map(|error| format!("pick index: {error:?}"));
+                    .map(|error| format!("pick index: {error}"));
                 return;
             }
             pick::CacheStep::Rebuilt => true,
@@ -350,7 +379,7 @@ impl ViewerApp {
                     .product_fault()
                     .map(|fault| format!("product: {fault}"));
             }
-            Err(error) => self.status = Some(format!("scene: {error:?}")),
+            Err(error) => self.status = Some(format!("scene: {error}")),
         }
     }
 
@@ -363,7 +392,7 @@ impl ViewerApp {
                 self.delta = delta;
                 self.sync_scene();
             }
-            Err(error) => self.status = Some(format!("display tolerance: {error:?}")),
+            Err(error) => self.status = Some(format!("{error}")),
         }
     }
 
@@ -620,7 +649,7 @@ fn land(camera: &mut Camera, status: &mut Option<String>, folded: &camera::Folde
     *status = folded
         .refused
         .as_ref()
-        .map(|(op, error)| format!("camera: {error:?} (from {op:?})"));
+        .map(|(op, error)| format!("camera: {error} (from {op})"));
 }
 
 impl egui_tiles::Behavior<Pane> for ViewerBehavior<'_> {
@@ -802,7 +831,7 @@ impl ViewerBehavior<'_> {
         let matrix = match self.camera.view_projection(aspect) {
             Ok(matrix) => matrix,
             Err(error) => {
-                *self.status = Some(format!("projection: {error:?}"));
+                *self.status = Some(format!("projection: {error}"));
                 return;
             }
         };
@@ -1640,7 +1669,7 @@ pub fn run(tol: Tol, open: Option<std::path::PathBuf>) -> eframe::Result<()> {
         WINDOW_TITLE,
         options,
         Box::new(move |cc| {
-            let mut app = ViewerApp::new(cc, tol).map_err(|error| format!("{error:?}"))?;
+            let mut app = ViewerApp::new(cc, tol).map_err(|error| error.to_string())?;
             if let Some(path) = open {
                 // A successful open books the re-frame itself (the
                 // success-only arm in `perform_batch`); a refused one

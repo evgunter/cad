@@ -1346,13 +1346,6 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
     // built with rather than copied: the NECK's drop plus
     // `FLOWER_TOP`, along the flower axis from the attachment point.
     // The sepals then stand on the sphere the lantern actually has.
-    //
-    // `theta` must clear `acos(FLOWER_TOP / FLOWER_GLOBE)` = 24.6
-    // degrees, the polar angle where the sphere is TRUNCATED by the
-    // neck's shoulder circle: above that the sphere is not part of the
-    // body, so a sepal standing there would be tangent to a surface
-    // that is not there. 38 degrees puts them on the shoulder of the
-    // globe.
     let flower_globe_depth =
         neck_drop(FLOWER_GLOBE, FLOWER_TOP, ARCH_R, FLOWER_NECK_HALF_ANGLE) + FLOWER_TOP;
     // The BUD: three pre-tepals, not a small flower. A much smaller
@@ -1376,6 +1369,12 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
         tol,
     );
 
+    // The sepals' polar angle must CLEAR `acos(FLOWER_TOP /
+    // FLOWER_GLOBE)`, the angle at which the sphere is truncated by
+    // the neck's shoulder circle: nearer the pole than that the sphere
+    // is not part of the body, so a sepal standing there would be
+    // tangent to a surface that is not there. The margin below is the
+    // clearance, and it puts them on the shoulder of the globe.
     let sepal_bodies: [Body<S>; 3] = sepals(
         (
             flower_attach.0 + flower_globe_depth * at_flower.t.0,
@@ -2424,11 +2423,33 @@ mod review_probes {
             {
                 let t = (*center, *axis, *major_radius, *minor_radius, *u_ref);
                 if let Some(prev) = &found {
-                    // Both torus half-bands must share ONE carrier.
-                    let (pc, pa, pr, pm, _): &(Point3<f64>, Vec3<f64>, f64, f64, Vec3<f64>) = prev;
-                    assert!((pc.x - t.0.x).abs() < 1e-15 && (pc.z - t.0.z).abs() < 1e-15);
-                    assert!((pa.y.abs() - t.1.y.abs()).abs() < 1e-15);
-                    assert!((pr - t.2).abs() < 1e-15 && (pm - t.3).abs() < 1e-15);
+                    // Both torus half-bands must share ONE carrier, and
+                    // that means EVERY component of it: a comparison
+                    // that skips a component is a comparison two
+                    // different tori can pass, which is exactly what
+                    // this assertion exists to rule out.
+                    let (pc, pa, pr, pm, pu): &(Point3<f64>, Vec3<f64>, f64, f64, Vec3<f64>) = prev;
+                    assert!(
+                        (*pc - t.0).norm() < 1e-15,
+                        "two torus faces, two centers: {pc:?} vs {:?}",
+                        t.0
+                    );
+                    assert!(
+                        (*pa - t.1).norm() < 1e-15,
+                        "two torus faces, two axes: {pa:?} vs {:?}",
+                        t.1
+                    );
+                    assert!(
+                        (*pu - t.4).norm() < 1e-15,
+                        "two torus faces, two u_ref: {pu:?} vs {:?}",
+                        t.4
+                    );
+                    assert!(
+                        (pr - t.2).abs() < 1e-15 && (pm - t.3).abs() < 1e-15,
+                        "two torus faces, two radius pairs: ({pr}, {pm}) vs ({}, {})",
+                        t.2,
+                        t.3
+                    );
                 } else {
                     found = Some(t);
                 }
@@ -3151,7 +3172,7 @@ mod review_probes {
         // and a 1.05 m sepal reaches 0.027 m inside it — this assert
         // is what caught that, and reds if the phase is dropped.
         for seg in ["lily_bud_a", "lily_bud_b", "lily_bud_c"] {
-            let (bc, br) = sphere_of(body(&ps, seg));
+            let (bc, br, _) = sphere_of(body(&ps, seg));
             for name in ["lily_sepal_a", "lily_sepal_b", "lily_sepal_c"] {
                 let sb = body(&ps, name);
                 for (_, v) in sb.vertices() {
@@ -3183,23 +3204,15 @@ mod review_probes {
         let segs: Vec<(Point3<f64>, Vec3<f64>)> = ["lily_bud_a", "lily_bud_b", "lily_bud_c"]
             .into_iter()
             .map(|n| {
-                let b = body(&ps, n);
-                let mut found = None;
-                for (_, f) in b.faces() {
-                    if let Some(pncad::geom::Surface::Sphere { center, axis, .. }) =
-                        b.get_surface(f.surface)
-                    {
-                        // Stored axes may point either way along the
-                        // line; orient them all into the bud.
-                        let a = if axis.dot(bud_axis) < 0.0 {
-                            -*axis
-                        } else {
-                            *axis
-                        };
-                        found = Some((*center, a));
-                    }
-                }
-                found.expect("a bud segment stores its globe")
+                let (center, _, axis) = sphere_of(body(&ps, n));
+                // Stored axes may point either way along the line;
+                // orient them all into the bud.
+                let a = if axis.dot(bud_axis) < 0.0 {
+                    -axis
+                } else {
+                    axis
+                };
+                (center, a)
             })
             .collect();
         for (i, (_, a)) in segs.iter().enumerate() {
@@ -3366,16 +3379,45 @@ mod review_probes {
             .collect()
     }
 
-    /// The single stored sphere of a body: (centre, radius).
-    fn sphere_of(b: &Body<f64>) -> (Point3<f64>, f64) {
+    /// Everything a stored sphere holds: (centre, radius, axis,
+    /// `u_ref`). Named so the agreement check below can compare the
+    /// whole of one against the whole of another.
+    type SphereCarrier = (Point3<f64>, f64, Vec3<f64>, Vec3<f64>);
+
+    /// The body's single stored sphere: (centre, radius, axis).
+    ///
+    /// Single is CHECKED, not assumed. Every caller reads one sphere
+    /// face and treats what it stores as the body's, so a second face
+    /// carrying a different sphere would make that reading arbitrary —
+    /// the same licence [`torus`] asserts for its own two half-bands,
+    /// and asserted the same way: over the WHOLE carrier, `u_ref`
+    /// included, because a partial comparison is one two different
+    /// spheres can pass.
+    fn sphere_of(b: &Body<f64>) -> (Point3<f64>, f64, Vec3<f64>) {
+        let mut found: Option<SphereCarrier> = None;
         for (_, f) in b.faces() {
-            if let Some(pncad::geom::Surface::Sphere { center, radius, .. }) =
-                b.get_surface(f.surface)
+            if let Some(pncad::geom::Surface::Sphere {
+                center,
+                radius,
+                axis,
+                u_ref,
+            }) = b.get_surface(f.surface)
             {
-                return (*center, *radius);
+                let s = (*center, *radius, *axis, *u_ref);
+                match found {
+                    Some(p) => assert!(
+                        (p.0 - s.0).norm() < 1e-15
+                            && (p.1 - s.1).abs() < 1e-15
+                            && (p.2 - s.2).norm() < 1e-15
+                            && (p.3 - s.3).norm() < 1e-15,
+                        "two sphere faces, two carriers: {p:?} vs {s:?}"
+                    ),
+                    None => found = Some(s),
+                }
             }
         }
-        panic!("body stores no sphere")
+        let (center, radius, axis, _) = found.expect("body stores no sphere");
+        (center, radius, axis)
     }
 
     /// One planar cap of a lofted blade, reduced to the numbers the

@@ -739,9 +739,11 @@ pub(crate) fn select_refusal(py: Python<'_>, err: &s::SelectRefusal) -> PyErr {
             .to_string(),
         // `SelectRefusal` is `#[non_exhaustive]`: a kernel arm this
         // binding does not know crosses with its `Debug` rendering and
-        // the `unclassified` tag rather than being dropped — the tag
-        // pin in `src/tests.rs` is the alarm that a new arm needs a
-        // real tag.
+        // the `unclassified` tag rather than being dropped. That typed
+        // crossing is the whole guard — no compile-time alarm is
+        // possible here, and the tag pin in `src/tests.rs` enumerates
+        // the arms this binding speaks without being able to fail on a
+        // new one.
         other => format!("selection refused: {other:?}"),
     };
     typed_err(py, ErrorClass::Select, message, &fields)

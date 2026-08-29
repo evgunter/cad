@@ -97,9 +97,9 @@ gate() {
     exit 1
   fi
   hits=$(gate_rust_code --window 6 "${files[@]}" \
-    | grep -vE "^$HOME_FILE:" \
-    | grep -E "$PAT_BRANCH|$PAT_ADD|$PAT_ADD_REVERSED" \
-    | cut -c1-140 || true)
+    | gate_grep -vE "^$HOME_FILE:" \
+    | gate_grep -E "$PAT_BRANCH|$PAT_ADD|$PAT_ADD_REVERSED" \
+    | cut -c1-140)
   if [ -n "$hits" ]; then
     printf '%s\n' "$hits"
     gate_error "a negative-zero flush outside the sanctioned home ($HOME_FILE) — call crate::signed_zero instead of re-deriving it"
@@ -235,6 +235,11 @@ RS
 
 gate_selftest() {
   gate_selftest_clean
+  # A `grep` that cannot run is the failure this gate cannot see for
+  # itself: it produces no hits, and no hits is what a clean tree
+  # produces. Proved here rather than asserted, because before
+  # `gate_grep` this exact fixture printed OK and exited 0.
+  gate_selftest_without_tool grep "it is grep saying it could not search"
   local want="outside the sanctioned home"
   gate_selftest_case "$want" plant_flush_after_a_string_with_slashes
   gate_selftest_case "$want" plant_rustfmt_branch
@@ -245,7 +250,7 @@ gate_selftest() {
   gate_selftest_case "$want" plant_in_tests
   gate_selftest_passes "innocent literals" plant_innocent_literals
   gate_selftest_passes "a comment-only mention" plant_comment_only
-  printf '%s selftest OK: 7 planted spellings fire (rustfmt-wrapped, one-line, add, deref-add, reversed, in tests/, and after a string literal containing `//`); clean fixture, innocent literals and comment-only mentions stay green\n' \
+  printf '%s selftest OK: 7 planted spellings fire (rustfmt-wrapped, one-line, add, deref-add, reversed, in tests/, and after a string literal containing `//`); clean fixture, innocent literals and comment-only mentions stay green; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' \
     "$(gate_name)"
 }
 

@@ -27,6 +27,7 @@ use geom_core::{Band, Point2, Point3, Vec3};
 use mesh::TessellateError;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use sweep::{Extrusion, extrude, loft_body};
+use test_utils::vacuity;
 use topo::splitting::{SplitPart, SplitPlane, split};
 use topo::{Body, HalfEdgeKey};
 
@@ -245,11 +246,15 @@ fn a_fitted_cache_refuses_typed_at_the_chord_pass_and_in_the_trim_walk() {
     let Some(cache) = build_fitted_cache() else {
         // The SSI fit-budget stand-down (fixture docs), said out loud:
         // a bare `return` here reports coverage this run does not have.
-        println!(
-            "SKIPPED: the cylinder×sphere fixture stood down on the SSI door's typed \
+        vacuity::stood_down(
+            &format!(
+                "fitted-cache refusals, both arms, eps = {:e}",
+                common::eps()
+            ),
+            "the cylinder×sphere fixture stood down on the SSI door's typed \
              FitSampleBudget refusal at this ε — THIS RUN EXECUTES NEITHER FITTED \
              REFUSAL ARM (no chord-pass row, no trim-walk row); both are confirmed by \
-             reading only"
+             reading only",
         );
         return;
     };

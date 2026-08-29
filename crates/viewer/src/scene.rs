@@ -141,6 +141,45 @@ pub enum SceneError {
     },
 }
 
+impl core::fmt::Display for SceneError {
+    /// [`SceneError::NoProduct`] forwards to [`ProductError`]'s own
+    /// `Display`: the layer that raised a failure names it.
+    /// [`SceneError::NotTessellated`] cannot — `mesh`'s
+    /// `TessellateError` has no `Display`, so its value reaches a
+    /// reader as a debug rendering until it grows one (issue #1111).
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::InvalidDisplayTolerance { delta } => write!(
+                f,
+                "{delta} is not a finite, strictly positive display tolerance"
+            ),
+            Self::NoProduct(error) => write!(f, "{error}"),
+            Self::NotTessellated(error) => {
+                write!(
+                    f,
+                    "the body did not tessellate at this display tolerance: {error:?}"
+                )
+            }
+            Self::EmptyMesh => f.write_str(
+                "the tessellation drew nothing — there is no picture to show and no \
+                 bounds to frame a camera against",
+            ),
+            Self::MispairedIds { ids, patches } => write!(
+                f,
+                "a part offered {ids} patch ids for {patches} patches; a part carries \
+                 either no ids at all or exactly one per patch"
+            ),
+            Self::BrokenPatchIndex { index, positions } => write!(
+                f,
+                "a face patch names vertex {index}, but the mesh's shared position \
+                 table holds only {positions} positions"
+            ),
+        }
+    }
+}
+
+impl core::error::Error for SceneError {}
+
 /// A drawable scene: triangles with flat normals, plus what they came
 /// from.
 ///
@@ -522,6 +561,23 @@ pub enum SceneDocError {
     /// carried as a value rather than asserted away.
     NoNodeMinted,
 }
+
+impl core::fmt::Display for SceneDocError {
+    /// Both payload arms forward to the document layer's own
+    /// `Display`; only the postcondition arm is this layer's sentence.
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Dimension(error) => write!(f, "{error}"),
+            Self::Edit(error) => write!(f, "{error}"),
+            Self::NoNodeMinted => f.write_str(
+                "an insert minted no node id, so the authored node cannot be referred \
+                 to",
+            ),
+        }
+    }
+}
+
+impl core::error::Error for SceneDocError {}
 
 /// Evaluate a document and gather its product body.
 ///

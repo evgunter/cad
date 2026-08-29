@@ -129,13 +129,13 @@ use geom_core::{Band, Indeterminate, Margin, Point3};
 pub use certify::{SSI_CERT_SPANS, SSI_TUBE_RADIUS, SsiCertificate, SsiLimb};
 pub use exhaust::{Exhaustiveness, SSI_FLOOR, SSI_MAX_CELLS, SSI_SEED_FLOOR};
 pub use march::{
-    BranchEnd, MarchTol, SSI_IDEALIZED_STEP, SSI_NEWTON_ITERS, SSI_NEWTON_TOL, SSI_STEP_DEVIATION,
+    BranchEnd, SSI_IDEALIZED_STEP, SSI_NEWTON_ITERS, SSI_NEWTON_TOL, SSI_STEP_DEVIATION,
     SSI_STEP_MAX, StepperMode,
 };
 
 use enclose::{Box3, NurbsBoxes};
 use exhaust::UvRect;
-use march::{MarchContext, Trace, march_both, trace_points};
+use march::{MarchContext, MarchTol, Trace, march_both, trace_points};
 use system::{Chart, ImplicitPairR3, ParametricPairR4};
 
 /// The two chart-parameter sample sequences of an ℝ⁴ trace — the
@@ -975,11 +975,30 @@ pub fn plane_nurbs_ssi(
     let dv = nb.deriv_box(ud.0, ud.1, vd.0, vd.1, false);
     let mag =
         |b: Box3| (b.x.mag() * b.x.mag() + b.y.mag() * b.y.mag() + b.z.mag() * b.z.mag()).sqrt();
-    let speed = mag(du).max(mag(dv));
-    if speed.is_nan() || speed <= 0.0 {
+    // A NaN-propagating fold: `f64::max` returns the non-NaN operand, so
+    // a lone poisoned derivative box would be dropped before the guard
+    // below could see it.
+    let (su, sv) = (mag(du), mag(dv));
+    let speed = if su.is_nan() || sv.is_nan() {
+        f64::NAN
+    } else {
+        su.max(sv)
+    };
+    // Only a POSITIVE FINITE speed translates a floor. `floor / ∞` is
+    // exactly zero — a floor no cell can ever reach — so a non-finite
+    // speed would let the sweep run to its cell budget and answer in
+    // this guard's place with the wrong diagnosis.
+    if !speed.is_finite() {
         return Err(SsiError::UnsupportedCertificate {
-            what: "the NURBS wall's certified chart speed is zero or poison, so no \
-                   floor in meters can be translated into its parameter domain",
+            what: "the NURBS wall's certified chart speed is not finite — its \
+                   derivative bound overflowed or is poison — so no floor in \
+                   meters can be translated into its parameter domain",
+        });
+    }
+    if speed <= 0.0 {
+        return Err(SsiError::UnsupportedCertificate {
+            what: "the NURBS wall's certified chart speed is zero, so no floor in \
+                   meters can be translated into its parameter domain",
         });
     }
 
@@ -1137,7 +1156,7 @@ fn finish_r4(
 /// `march_tol` is the marcher's step tolerance in meters; every
 /// certifying door derives its own from `band` and has no such
 /// parameter. This door takes a bare `f64` and mints the private
-/// [`MarchTol`] itself, which is what keeps a decoupled tolerance
+/// `MarchTol` itself, which is what keeps a decoupled tolerance
 /// unmintable anywhere else — including inside a certifying door, whose
 /// maintainer is the caller who would otherwise reach for it.
 ///

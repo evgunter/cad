@@ -170,6 +170,43 @@ pub enum CameraError {
     },
 }
 
+impl core::fmt::Display for CameraError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::NotFinite { what, value } => {
+                write!(
+                    f,
+                    "the camera's {what} is {value}, which is not a finite number"
+                )
+            }
+            Self::DegenerateScene { radius } => write!(
+                f,
+                "the scene bounds give a radius of {radius}, which is not a positive \
+                 extent to frame against"
+            ),
+            Self::FieldOfViewOutOfRange { fov_y } => write!(
+                f,
+                "a vertical field of view of {fov_y} rad is not strictly inside (0, pi)"
+            ),
+            Self::UnusableBounds => f.write_str(
+                "the framing request names no view — the bounds are empty or carry a \
+                 NaN bound, or the viewport aspect is not a positive finite ratio",
+            ),
+            Self::Unfittable {
+                required,
+                max_distance,
+                aspect,
+            } => write!(
+                f,
+                "fitting the scene at aspect {aspect} needs a stand-off of {required}, \
+                 past the zoom band's furthest distance of {max_distance}"
+            ),
+        }
+    }
+}
+
+impl core::error::Error for CameraError {}
+
 /// A move on a [`Camera`]: the whole navigation vocabulary.
 ///
 /// Angles are radians, lengths are world units (the kernel's meters),
@@ -233,6 +270,46 @@ pub enum CameraOpError {
     /// A [`CameraOp::Frame`] whose bounds or aspect could not produce
     /// a camera.
     Unframeable(CameraError),
+}
+
+impl core::fmt::Display for CameraOpError {
+    /// The [`CameraOpError::Unframeable`] arm forwards to
+    /// [`CameraError`]'s own `Display`: the framing layer named that
+    /// failure and this layer does not restate it.
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::NotFinite { what, value } => write!(
+                f,
+                "the operation's {what} is {value}, which is not a finite number"
+            ),
+            Self::NonPositiveDolly { factor } => write!(
+                f,
+                "a dolly factor of {factor} is not a positive scale for a viewing \
+                 distance"
+            ),
+            Self::Unframeable(error) => write!(f, "{error}"),
+        }
+    }
+}
+
+impl core::error::Error for CameraOpError {}
+
+/// The vocabulary in prose, for the status line that reports which
+/// move was refused. Deltas are the operation's own units — radians
+/// for angles, world units for lengths.
+impl core::fmt::Display for CameraOp {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Orbit { yaw, pitch } => {
+                write!(f, "orbit by yaw {yaw} rad, pitch {pitch} rad")
+            }
+            Self::Pan { right, up } => write!(f, "pan by right {right}, up {up}"),
+            Self::Dolly { factor } => write!(f, "dolly by a factor of {factor}"),
+            Self::Frame { aspect, .. } => {
+                write!(f, "frame the given bounds at aspect {aspect}")
+            }
+        }
+    }
 }
 
 impl Camera {

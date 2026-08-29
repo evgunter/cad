@@ -125,3 +125,27 @@ fn no_aggregator_header_restates_a_suite_count() {
          `every_suite_file_is_aggregated` is what knows the set."
     );
 }
+
+/// **The build-cost measurement is not restated in any header.** The two
+/// figures behind WHY ONE BINARY were measured once, on a dated run, and
+/// nothing in this repo re-takes them; the LINK/DEBUGINFO note in
+/// `.github/workflows/ci.yml` is the one place that carries them with
+/// their date, their provenance run and the record of what has since
+/// changed. A header that restates one is a copy that goes stale in
+/// silence — which is what happened, in eleven headers at once.
+#[test]
+fn no_aggregator_header_restates_the_build_cost_measurement() {
+    const FIGURES: [&str; 2] = ["494 of the 514", "1.9 s"];
+    let offenders: Vec<String> = aggregators()
+        .into_iter()
+        .filter(|(_, src)| FIGURES.iter().any(|f| src.contains(f)))
+        .map(|(k, _)| k)
+        .collect();
+    assert!(
+        offenders.is_empty(),
+        "these crates' tests/all.rs headers restate a build-cost figure: \
+         {offenders:?}. State the mechanism and point at the LINK/DEBUGINFO \
+         note in .github/workflows/ci.yml, which owns the numbers; copy the \
+         paragraph from crates/bvh/tests/all.rs."
+    );
+}

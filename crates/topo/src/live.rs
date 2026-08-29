@@ -29,6 +29,13 @@
 //! `compile_fail` doctest cannot name a `pub(crate)` type. A
 //! source-level guard can, and is placed as `SMELL-SCAN-2026-08.md`'s
 //! **D50**; until it lands the claim rests on review of this file.
+//!
+//! # The other arenas
+//!
+//! A plan phase that only needs to REFUSE a stale key — no proof to
+//! carry into a splice — calls [`require_key`], which lives here for
+//! the same reason `Live` does: one statement of what a liveness check
+//! is and which [`EntityId`] a failed one names.
 use crate::body::Body;
 use crate::entity::{EntityId, HalfEdge, HalfEdgeKey};
 use crate::euler::EulerOpError;
@@ -60,6 +67,27 @@ impl Live {
     /// discards it, which is always sound.
     pub(crate) fn key(self) -> HalfEdgeKey {
         self.0
+    }
+}
+
+/// Requires a key to be live in its arena, refusing a stale one as the
+/// plan phase's typed error — the obligation [`Body::require_live`]
+/// carries for half-edges, for the arenas that have no proof token.
+///
+/// Only half-edges are spliced through a key the caller holds across a
+/// `&mut` call, so only they need a [`Live`] to carry the lookup
+/// forward; every other arena's plan phase wants the refusal and
+/// nothing else. One body for all of them, so the check and the
+/// [`EntityId`] it names cannot drift arena by arena.
+pub(crate) fn require_key<K: slotmap::Key, V>(
+    arena: &slotmap::SlotMap<K, V>,
+    key: K,
+    id: fn(K) -> EntityId,
+) -> Result<(), EulerOpError> {
+    if arena.contains_key(key) {
+        Ok(())
+    } else {
+        Err(EulerOpError::StaleKey { key: id(key) })
     }
 }
 

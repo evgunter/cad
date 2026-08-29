@@ -37,7 +37,7 @@ a reader entering here should know all of them exist.
 | `docs/LONGTERM-IDEAS.md` | Parked, non-binding | Idea bank with a graduation rule |
 | `docs/MODEL-AB-LOG.md` | Experiment log | Model A/B protocol + running data; process data, not design |
 | `docs/NAME-CANDIDATES.md` | Reference | Q9 project-name candidates and registry availability (re-sweep before ratifying) |
-| `docs/predicate-dimension-audit.md` | LIVE working audit | Dimensional-analysis sweep; open findings F2, F8–F15 (F6 and F7 RETIRED at M8's #502; F6's residue is cross-crate, issue #501) |
+| `docs/predicate-dimension-audit.md` | LIVE working audit | Dimensional-analysis sweep of predicate comparands against D4's ε semantics; its own *Findings (dispositions)* section is the live list of what is open, and a restatement here would drift out of step with it |
 
 ## Vision
 

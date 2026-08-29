@@ -176,9 +176,8 @@ fn wire_door_refuses_a_tabled_unit_on_the_wrong_dimension() {
             .expect_err("a tabled unit on the wrong dimension must refuse");
         let text = err.to_string();
         assert!(
-            text.contains("DisplayUnitMismatch")
-                && text.contains(&format!("unit: {unit_dim}"))
-                && text.contains(&format!("literal: {literal_dim}")),
+            text.contains(&format!("measures {unit_dim}"))
+                && text.contains(&format!("literal is {literal_dim}")),
             "the refusal must name the pair it read, got {text}"
         );
     }

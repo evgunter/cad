@@ -224,19 +224,19 @@ gate() {
   gate_require_crate_sources
   gate_definition_skip_subject
   local hits
-  hits=$(grep -rnE '(\+\s*(\w+::)*\w*Bounds\b)|(\w*Bounds\s*\+)|(\btrait\s+\w+\b[^;{]*:[^;{]*\w*Bounds\b)' crates/*/src \
-    | grep -vE ':[0-9]+:\s*(//|///|//!)' \
-    | grep -vE ':[0-9]+:pub trait CertifiedBounds: Bounds \+ CertifiedEnclosure \{\}$' \
-    | grep -vE ':[0-9]+:impl<T: Bounds \+ CertifiedEnclosure> CertifiedBounds for T \{\}$' \
+  hits=$(gate_grep -rnE '(\+\s*(\w+::)*\w*Bounds\b)|(\w*Bounds\s*\+)|(\btrait\s+\w+\b[^;{]*:[^;{]*\w*Bounds\b)' crates/*/src \
+    | gate_grep -vE ':[0-9]+:\s*(//|///|//!)' \
+    | gate_grep -vE ':[0-9]+:pub trait CertifiedBounds: Bounds \+ CertifiedEnclosure \{\}$' \
+    | gate_grep -vE ':[0-9]+:impl<T: Bounds \+ CertifiedEnclosure> CertifiedBounds for T \{\}$' \
     | cut -d: -f1 | sort -u \
-    | grep -vE '^crates/topo/src/boolean/(boxes|mod|ops|reduce|rest)\.rs$' \
-    | grep -vE '^crates/topo/src/separation\.rs$' \
-    | grep -vE '^crates/topo/src/props\.rs$' \
-    | grep -vE '^crates/topo/src/chart_region\.rs$' \
-    | grep -vE '^crates/editor-core/src/eval/(mod|wire)\.rs$' \
-    | grep -vE '^crates/profile/src/path/arc_fillet\.rs$' \
-    | grep -vE '^crates/geom-brep/src/(pcurve_cache|ssi|ssi/certify|edge_nurbs)\.rs$' \
-    | grep -vE '^crates/sweep/src/fillet/(battery|build|surgery)\.rs$' || true)
+    | gate_grep -vE '^crates/topo/src/boolean/(boxes|mod|ops|reduce|rest)\.rs$' \
+    | gate_grep -vE '^crates/topo/src/separation\.rs$' \
+    | gate_grep -vE '^crates/topo/src/props\.rs$' \
+    | gate_grep -vE '^crates/topo/src/chart_region\.rs$' \
+    | gate_grep -vE '^crates/editor-core/src/eval/(mod|wire)\.rs$' \
+    | gate_grep -vE '^crates/profile/src/path/arc_fillet\.rs$' \
+    | gate_grep -vE '^crates/geom-brep/src/(pcurve_cache|ssi|ssi/certify|edge_nurbs)\.rs$' \
+    | gate_grep -vE '^crates/sweep/src/fillet/(battery|build|surgery)\.rs$')
   if [ -n "$hits" ]; then
     echo "$hits"
     gate_error "compound Bounds bound outside the ratified seams above — see geom-core/src/real.rs (Bounds scope rule); ratify before allowlisting"
@@ -348,26 +348,6 @@ plant_sole_bracket_bounds() {
   } > "$1/crates/planted/src/lib.rs"
 }
 
-# gate_selftest_case's negative twin: the fixture must PASS. lib.sh has no
-# such helper -- its only passing fixture is the empty clean tree, which
-# proves nothing about a spelling that must not fire. Named for this gate
-# rather than generically, so that promoting one into lib.sh (F3's file)
-# cannot be silently shadowed by this definition, which is sourced after
-# it.
-bounds_selftest_passes() {
-  local what=$1; shift
-  local tmp out
-  tmp=$(mktemp -d)
-  gate_plant_clean "$tmp"
-  "$@" "$tmp"
-  if ! out=$(cd "$tmp" && gate 2>&1); then
-    rm -rf "$tmp"
-    printf 'SELFTEST FAILED: the gate FIRED on %s, which is not a violation\n%s\n' "$what" "$out" >&2
-    exit 1
-  fi
-  rm -rf "$tmp"
-}
-
 # The definition skip is NARROW, and these two fixtures are what hold it
 # narrow. The first is real.rs carrying BOTH skipped definition lines AND
 # an ordinary compound signature below them: the gate must still fire, so
@@ -394,6 +374,11 @@ plant_real_rs_alias_redefined() {
 gate_selftest() {
   local want="compound Bounds bound outside the ratified seams"
   gate_selftest_clean
+  # A `grep` that cannot run is the failure this gate cannot see for
+  # itself: it produces no hits, and no hits is what a clean tree
+  # produces. Proved here rather than asserted, because before
+  # `gate_grep` this exact fixture printed OK and exited 0.
+  gate_selftest_without_tool grep "it is grep saying it could not search"
   gate_selftest_case "$want" plant_decide_first
   gate_selftest_case "$want" plant_bounds_first
   gate_selftest_case "$want" plant_certified_decide_first
@@ -406,9 +391,9 @@ gate_selftest() {
   gate_selftest_case "$want" plant_real_rs_signature
   gate_selftest_case "no longer in crates/geom-core/src/real.rs verbatim" plant_real_rs_alias_redefined
   gate_selftest_case "$want" plant_dual_equivalent_spelling
-  bounds_selftest_passes "a sole bracket bound" plant_sole_bracket_bounds
-  printf '%s selftest OK: passes a clean fixture and a sole bracket bound; fires on both operand orders of Decide+Bounds and of Decide+CertifiedBounds, on a path-qualified alias after the plus, on an alias name not in the tree today, on all three spellings of a non-Bounds-named alias DECLARATION (GAP 4 mitigation: pair, sole supertrait, where-clause), on a compound bound in real.rs beside the skipped definition lines, on real.rs redefining the alias to carry Decide (through the definition-skip subject check), and on the equivalent spelling of dual.rs Bounds impl (GAP 2)\n' "$(gate_name)"
+  gate_selftest_passes "a sole bracket bound" plant_sole_bracket_bounds
+  printf '%s selftest OK: passes a clean fixture and a sole bracket bound; fires on both operand orders of Decide+Bounds and of Decide+CertifiedBounds, on a path-qualified alias after the plus, on an alias name not in the tree today, on all three spellings of a non-Bounds-named alias DECLARATION (GAP 4 mitigation: pair, sole supertrait, where-clause), on a compound bound in real.rs beside the skipped definition lines, on real.rs redefining the alias to carry Decide (through the definition-skip subject check), and on the equivalent spelling of dual.rs Bounds impl (GAP 2); and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"
-gate_main "compound Bounds bound outside the ratified seams" plant_decide_first
+gate_main
