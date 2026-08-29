@@ -65,6 +65,10 @@ geom-brep = { path = "../geom-brep" }
 # M4 PR 3: the naming layer reads face carrier PLANES (side-of
 # discriminators against cutting carriers, N2) from the result body.
 geom = { path = "../geom" }
+# D9: the analysis lane's normal-quantile bisection and tail-mass
+# accounting read `erf` from the workspace's ONE transcendental source
+# (a system libm differs across platforms in the last ulp).
+libm = { workspace = true }
 profile = { path = "../profile" }
 # LIB-U8a: the expression TEXT parser's unit-suffix vocabulary is the
 # quantity crate's closed unit table (a leaf crate — no dependency

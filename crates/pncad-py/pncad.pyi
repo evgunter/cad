@@ -914,6 +914,25 @@ class DocParam:
     # stored value, NOT `DocParam::bit_eq`'s. So the two spellings of
     # zero are the same parameter, and the hash folds `-0.0` to match.
 
+class DocParamValue:
+    """The VALUE half of a document parameter: what
+    `DocEdit.set_doc_param_value` writes into an ALREADY-DECLARED one.
+
+    The safe "just change the number" spelling. It carries no
+    declaration, so it cannot replace one — the parameter keeps its
+    dimension and any distribution a file gave it."""
+
+    @staticmethod
+    def length(value: Length) -> DocParamValue: ...
+    @staticmethod
+    def angle(value: Angle) -> DocParamValue: ...
+    @staticmethod
+    def scalar(value: float) -> DocParamValue: ...
+    @staticmethod
+    def count(value: int) -> DocParamValue: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+
 class DocEdit:
     """A single edit — the one edit vocabulary the GUI, the bindings and
     headless tests all speak."""
@@ -926,6 +945,17 @@ class DocEdit:
     def set_tolerance(eps: float) -> DocEdit: ...
     @staticmethod
     def set_doc_param(name: ParamName, value: DocParam) -> DocEdit: ...
+    @staticmethod
+    def set_doc_param_value(name: ParamName, value: DocParamValue) -> DocEdit:
+        """Write a new VALUE into an already-declared parameter, keeping
+        its declaration — dimension and distribution alike.
+
+        Prefer this over `set_doc_param` whenever the parameter already
+        exists: that one is create-or-replace, so rebuilding a
+        `DocParam` to move a number DELETES any distribution the
+        parameter carried, with no refusal. Refuses typed on an
+        undeclared name (`doc_param_not_declared`) and on a kind
+        mismatch (`doc_param_value_kind_mismatch`)."""
     @staticmethod
     def bind_count_param(node: NodeId, name: ParamName) -> DocEdit:
         """Bind `node`'s STRUCTURAL count slot to the document
