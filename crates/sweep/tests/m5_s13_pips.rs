@@ -326,11 +326,17 @@ fn certified_disjoint_and_contained_shells_keep_their_answers() {
     assert_eq!(cut.shells().count(), 2, "outer shell + reverted void");
 }
 
-/// Sphere-vs-sphere boundaries the scan cannot certify refuse TYPED
-/// (the sphere×sphere germ arm has no join lane). The pair is offset
-/// VERTICALLY so neither ball's seam edges enter the other's certified
-/// box — the poking-but-not-crossing shape again, this time between
-/// two spheres, which only the scan can see.
+/// Sphere-vs-sphere boundaries the scan cannot certify refuse TYPED.
+/// The section circle is exact and the germ frame names it; what is
+/// absent is the JOIN's arm for a curved×curved germ pair. The pair is
+/// offset VERTICALLY, so neither ball's seam edges enter the other's
+/// certified box — the poking-but-not-crossing shape again, this time
+/// between two spheres, which only the scan can see. That direction is
+/// not a depth choice: a seam great circle lies in the plane `z = c_z`
+/// with the ball's own radius, so a Z-offset seam is equidistant from
+/// the other centre all the way round and never crosses it. Every
+/// offset that DOES cross a seam pierces a curved face and stops a
+/// layer higher.
 #[test]
 fn overlapping_sphere_pair_refuses_typed_at_the_scan() {
     let b1 = ball_at(1.0, Vec3::new(2.0, 2.0, 0.5));

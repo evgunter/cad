@@ -624,7 +624,13 @@ fn section_case<T: Decide>(
             return Err(invariant(
                 "a chord's section pair has no plane — the C5 arms this lane reads are \
                  plane×cylinder and plane×sphere, and a curved×curved pair has no arc-side \
-                 rule to run; refused typed rather than defaulted to a straight chord",
+                 rule to run; refused typed rather than defaulted to a straight chord. A \
+                 SPHERE PAIR is the sharp case: its section IS an exact closed-form Circle \
+                 (sphere_sphere_section), so what is missing is not the locus but the \
+                 CHART the arc-side rule reads — the azimuth-anchored rule premises \
+                 azimuth monotone along the carrier, which holds on a sphere chart only \
+                 for a POLAR section, and a sphere pair's section axis is the centre line, \
+                 polar for neither operand unless both charts already aim along it",
             ));
         }
     };

@@ -1688,9 +1688,13 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                                             face,
                                             what: "two sphere boundaries meet (neither \
                                                    separated nor strictly nested) — the \
-                                                   sphere×sphere germ arm (a closed-form \
-                                                   Circle) has no join lane in this \
-                                                   build",
+                                                   sphere×sphere section is the exact \
+                                                   closed-form Circle and the germ frame \
+                                                   names it, but the JOIN has no arm for a \
+                                                   curved×curved germ pair: its arc-side \
+                                                   rule needs a chart the pair does not \
+                                                   have, and a crossing found here would \
+                                                   pierce a curved face first",
                                         });
                                     }
                                 }
