@@ -113,10 +113,10 @@ OUTLIER_GATES=(scripts/doc-gate.sh)
 # could not read its file ends the gate with a diagnosis instead of
 # reading as an empty half.
 #
-# One home per file, and this is the third spelling of it in the repo
-# (`probe-suite-census.sh` has the fourth). The shared home is
-# `scripts/gates/lib.sh`, which lane F-g owns; this note is here so
-# whoever takes it can lift all four at once.
+# This strip is spelled three times in the repo — here and twice in
+# `probe-suite-census.sh` — and its natural shared home is
+# `scripts/gates/lib.sh`; the lift is left for whoever next touches all
+# three, so the three do not drift in the meantime.
 non_comment() {
   gate_grep -vE '^[[:space:]]*#' "$1"
 }
@@ -194,8 +194,15 @@ gate() {
   # swallowed a matcher that could not search; `gate_grep` folds only
   # exit 1, so a loop that is genuinely absent still reaches the
   # diagnosis below while a matcher that died ends the gate loudly.
-  # lib.sh's harness runs every self-test case as a real subprocess, so
-  # losing either property reds this gate's own self-test (S157).
+  # WHAT THE SELF-TEST ENFORCES OF THAT, precisely (S157 harness, real
+  # subprocesses): the broken-grep arm reds this gate if a dead matcher
+  # can reach the OK line — that is the marker path through `gate_ok` —
+  # and the planted local-half cases red it if THIS read stops folding
+  # exit 1, because their diagnosis then never prints and
+  # gate_selftest_assert_diagnosed refuses the bare death. The exit-1
+  # fold at the other gate_grep sites is the same mechanism but has no
+  # plant of its own: the fixture halves always carry non-comment
+  # content, so nothing drives them to "no match".
   # `-m1` in place of a downstream `head -1`: `head` closes the pipe
   # after one line and SIGPIPEs the matcher, which is the same race the
   # `non_comment` header banishes — grep stops itself instead.
@@ -203,6 +210,9 @@ gate() {
   body=$(non_comment "$LOCAL_HALF")
   loopvar=$(gate_grep -m1 -oE 'for[[:space:]]+[A-Za-z_][A-Za-z0-9_]*[[:space:]]+in[[:space:]]+scripts/gates/\*\.sh' <<<"$body" \
             | awk '{print $2}')
+  # `-m1` stops at the first matching LINE but still prints every match
+  # ON that line, one per output row; the read means the first.
+  loopvar=${loopvar%%$'\n'*}
   if [ -z "$loopvar" ]; then
     gate_error "$LOCAL_HALF no longer loops \`scripts/gates/*.sh\` — that loop is the ONLY reason the local half has no hand-written roster to drift from this directory, and this gate's header says so. Restore the loop, or give the local half a roster and a check on it"
     rc=1
@@ -251,8 +261,13 @@ gate() {
 
   [ "$rc" -eq 0 ] || exit 1
   GATE_SCAN_FILES=$((${#roster[@]} + ${#OUTLIER_GATES[@]}))
-  printf '%s OK: ci.yml wires a self-tested step for all %s gates in scripts/gates/ and for %s under lib.sh'"'"'s contract sited outside it, and %s runs the directory in a self-testing loop and names the outliers too (wiring, not execution — see the header on `if:`)\n' \
-    "$(gate_name)" "${#roster[@]}" "${#OUTLIER_GATES[@]}" "$LOCAL_HALF"
+  GATE_SCAN_NOUN='registered gate'
+  # `gate_ok`, NEVER a bare printf. This gate ended in its own OK line
+  # for its whole first life, and that line was the hole: `gate_ok` is
+  # the one place that reads the marker a `gate_grep` leaves when a
+  # matcher dies inside a process substitution, so an OK printed past it
+  # reported green with the matcher's diagnosis already on stderr.
+  gate_ok "ci.yml wires a self-tested step for all ${#roster[@]} gates in scripts/gates/ and for ${#OUTLIER_GATES[@]} under lib.sh's contract sited outside it, and $LOCAL_HALF runs the directory in a self-testing loop and names the outliers too (wiring, not execution — see the header on \`if:\`)"
 }
 
 # This gate's subject is ci.yml, the gate directory, and the local
@@ -405,14 +420,24 @@ plant_lib_invoked() {
   printf '          scripts/gates/lib.sh\n' >> "$1/.github/workflows/ci.yml"
 }
 
-# Fourteen known evasions, all permanent fixture cases, all run as real
-# subprocesses by lib.sh's harness — the property this gate needs most,
-# because `gate()`'s matchers must survive "no match" at an assignment
-# under errexit (see the block above the loop-variable read), and
-# nothing could observe the loss of that while the harness ran a gate
-# in-process (S157).
+# Fourteen known evasions plus the matcher-death arm, all permanent
+# fixture cases, all run as real subprocesses by lib.sh's harness —
+# what that buys, stated once and precisely, is the block above the
+# loop-variable read in `gate()`.
 gate_selftest() {
   gate_selftest_clean
+  # MATCHER DEATH CANNOT END GREEN. The scan of ci.yml's named gate
+  # paths runs inside a process substitution, where its exit status is
+  # invisible to the caller by construction — only the marker
+  # `gate_grep` leaves, read at `gate_ok`, can red the gate. This arm is
+  # what holds that path shut: it broke green once, with the diagnosis
+  # on stderr and OK printed after it, while this gate ended in a bare
+  # printf. The shim fails only a call whose first argument is `-oE`
+  # (that one scan), so the gate gets past every earlier matcher the way
+  # a healthy run does.
+  gate_selftest_with_broken_tool grep 'a matcher failed to run during this pass' \
+    'case "$1" in -oE) exec "$GATE_REAL_TOOL" -E '\''\9|(?'\'' ;; esac
+exec "$GATE_REAL_TOOL" "$@"'
   gate_selftest_case "never RUNS scripts/gates/unwired-gate.sh" plant_unwired
   gate_selftest_case "never RUNS scripts/gates/commented-gate.sh" plant_comment_only
   gate_selftest_case "never RUNS scripts/gates/selftest-only-gate.sh" plant_selftest_only
@@ -429,7 +454,7 @@ gate_selftest() {
   gate_selftest_case "runs ${OUTLIER_GATES[0]} without its --selftest" \
     plant_outlier_local_selftest_deleted
   gate_selftest_case "which is not an executable file" plant_outlier_missing
-  printf '%s selftest OK: every case is a REAL subprocess invocation, so a diagnosis lost to errexit fails the self-test. Passes a clean fixture; fires on an unwired gate, a comment-only mention, a selftest-only call, a ghost step, a gate that landed mode 0644, a deleted local loop, a local loop that stopped self-testing, a local loop that went back to excluding lib.sh by mode, a step running lib.sh, and — for a gate sited outside scripts/gates/ — either half dropping its real call or its --selftest, and a list entry naming a file that is not there\n' "$(gate_name)"
+  printf '%s selftest OK: every case is a REAL subprocess invocation, so a diagnosis lost to errexit fails the self-test. Passes a clean fixture; refuses to go green when a matcher dies mid-scan inside a process substitution (the marker path through gate_ok); fires on an unwired gate, a comment-only mention, a selftest-only call, a ghost step, a gate that landed mode 0644, a deleted local loop, a local loop that stopped self-testing, a local loop that went back to excluding lib.sh by mode, a step running lib.sh, and — for a gate sited outside scripts/gates/ — either half dropping its real call or its --selftest, and a list entry naming a file that is not there\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"
