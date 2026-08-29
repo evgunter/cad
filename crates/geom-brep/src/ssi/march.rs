@@ -420,10 +420,15 @@ where
         // Meters per unit of the march parameter (the state-space
         // tangent is a unit vector; the 3-D speed converts it).
         let speed = sys.tangent_speed(&x, &d1);
-        if speed.is_nan() || speed <= 0.0 {
-            // A collapsed chart speed: the state moves and the point
-            // does not. Nothing downstream can be stated in meters,
-            // so refuse rather than divide by it.
+        if !speed.is_finite() || speed <= 0.0 {
+            // Only a POSITIVE FINITE speed converts a state step into
+            // meters. At zero the state moves and the point does not;
+            // at `±∞` or poison the step in state units divides to `0`
+            // and the meters it claims are indeterminate. Nothing
+            // downstream can be stated in meters in either case, so
+            // refuse rather than divide by it — and refuse HERE, so
+            // the caller is told the speed is unusable rather than
+            // being handed the step predicate's answer in its place.
             return Err(SsiError::StepCollapsed {
                 mode: mode.name(),
                 step_meters: 0.0,
@@ -865,8 +870,108 @@ where
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
-    use super::{MarchTol, SsiError};
-    use geom_core::Band;
+    use super::{
+        LocalSystem, MarchContext, MarchTol, NormalPair, SsiError, StepperMode,
+        TransversalityData, march,
+    };
+    use geom_core::{Band, Point3, Vec3};
+
+    /// A two-plane system in ℝ³ whose locus is the `x` axis, with the
+    /// chart speed dictated by the row. The residual is exact at the
+    /// seed, the Jacobian is constant, and the two normals meet at a
+    /// right angle with an unbounded lever arm — so the only thing a
+    /// march over this system can refuse on is the speed, and the
+    /// refusal it produces is the speed guard's own.
+    struct FixedSpeedR3 {
+        speed: f64,
+    }
+
+    impl LocalSystem<2, 3> for FixedSpeedR3 {
+        fn residual(&self, x: &[f64; 3]) -> [f64; 2] {
+            [x[1], x[2]]
+        }
+
+        fn jacobian(&self, _x: &[f64; 3]) -> [[f64; 3]; 2] {
+            [[0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
+        }
+
+        fn rhs2(&self, _x: &[f64; 3], _d1: &[f64; 3]) -> [f64; 2] {
+            [0.0, 0.0]
+        }
+
+        fn rhs3(&self, _x: &[f64; 3], _d1: &[f64; 3], _d2: &[f64; 3]) -> [f64; 2] {
+            [0.0, 0.0]
+        }
+
+        fn point(&self, x: &[f64; 3]) -> Point3<f64> {
+            Point3::new(x[0], x[1], x[2])
+        }
+
+        fn coordinate_scale(&self, _x: &[f64; 3]) -> [f64; 3] {
+            [1.0, 1.0, 1.0]
+        }
+
+        fn tangent_speed(&self, _x: &[f64; 3], _d: &[f64; 3]) -> f64 {
+            self.speed
+        }
+    }
+
+    impl TransversalityData<3> for FixedSpeedR3 {
+        fn normals(&self, _x: &[f64; 3]) -> NormalPair {
+            (Vec3::new(0.0, 1.0, 0.0), Vec3::new(0.0, 0.0, 1.0))
+        }
+
+        fn lever_arm(&self, _x: &[f64; 3]) -> f64 {
+            f64::MAX
+        }
+    }
+
+    /// **The stepper's chart-speed guard**: only a POSITIVE FINITE
+    /// speed converts a state step into meters, and every value that is
+    /// not one is refused by the guard's own name.
+    ///
+    /// `+∞` is the case a `is_nan() || <= 0.0` test admits, and what
+    /// follows it is not a silent wrong answer but a wrong DIAGNOSIS:
+    /// the idealized step `h = (step · extent)/∞` is exactly `0`, the
+    /// meters it claims are `0 · ∞ = NaN`, and `ssi_step_progress`
+    /// escalates on an indeterminate margin — telling the caller the
+    /// stepper cannot progress at this ε when the truth is that this
+    /// system has no usable chart speed and no ε would have helped.
+    /// The chart lane states the same duty one door over, in
+    /// `plane_nurbs_ssi`'s seeding guard.
+    ///
+    /// All four non-positive-finite values are pinned together because
+    /// the guard's obligation is the class, not the one member of it a
+    /// predicate happened to miss.
+    #[test]
+    fn a_non_finite_chart_speed_refuses_by_the_speeds_own_name() {
+        let band = Band::new(1.0e-9, 1.0e-8).unwrap();
+        let ctx = MarchContext::<3> {
+            domain: [[-1.0, 1.0], [-1.0, 1.0], [-1.0, 1.0]],
+            extent: 1.0,
+            tol: MarchTol::from_band(band),
+            max_steps: 64,
+        };
+        for speed in [f64::INFINITY, f64::NEG_INFINITY, f64::NAN, 0.0, -1.0] {
+            let sys = FixedSpeedR3 { speed };
+            match march(&sys, [0.0, 0.0, 0.0], ctx, StepperMode::Idealized, 1.0, band) {
+                Err(SsiError::StepCollapsed { mode, step_meters }) => {
+                    assert_eq!(mode, StepperMode::Idealized.name());
+                    assert!(
+                        !step_meters.is_nan(),
+                        "the refusal must carry a number a reader can act on, \
+                         not the indeterminate the speed produced"
+                    );
+                }
+                Err(SsiError::Escalated(diag)) => panic!(
+                    "WRONG DIAGNOSIS: a chart speed of {speed:e} escalated on \
+                     {:?} instead of being refused as the speed it is",
+                    diag.predicate
+                ),
+                other => panic!("expected the speed guard for {speed:e}, got {other:?}"),
+            }
+        }
+    }
 
     /// The bridge, stated as a row: a marcher tolerance derived from a
     /// band **is** that band's coincidence threshold. Nothing scales it,
