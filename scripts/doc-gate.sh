@@ -271,7 +271,19 @@ workspace_manifests() {
     gate_error "$(gate_name): cargo metadata failed in $PWD, so the gate cannot tell which manifests the workspace pass covered — it would document the members twice and the roots outside the workspace not at all"
     exit 1
   fi
-  printf '%s' "$meta" | grep -o '"manifest_path":"[^"]*"' | cut -d'"' -f4
+  # MATERIALISED, THEN CHECKED. Through `gate_grep`, a matcher that
+  # cannot search ends this reader loudly instead of as a bare failed
+  # assignment; and because `gate_grep` folds "no match" to an empty
+  # result, the emptiness is diagnosed here — a metadata reply naming no
+  # manifest at all would otherwise hand the caller an empty member list
+  # and pass 2 would cover nothing while reading as covered.
+  local manifests
+  manifests=$(printf '%s' "$meta" | gate_grep -o '"manifest_path":"[^"]*"' | cut -d'"' -f4) || return 1
+  if [ -z "$manifests" ]; then
+    gate_error "$(gate_name): cargo metadata succeeded but named no manifest_path — the member list is unreadable, so the outside-roots derivation cannot run"
+    return 1
+  fi
+  printf '%s\n' "$manifests"
 }
 
 # One pass, its own diagnosis, and TWO cargo invocations — because
