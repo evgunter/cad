@@ -1674,3 +1674,23 @@ process note, honestly: the pre-merge "lane stalled" read was WRONG —
 liveness was judged from processes and branch pushes without checking
 the PR list; the lane had been done and gated for an hour. Check
 open PRs before declaring a lane stalled.
+
+**B-CHECKS MERGED (2026-08-29, #1215; mechanical under the 08-29
+ruling, no A/B row). Census family B-CHECKS CLOSED — the DS6
+advisory registry crosses whole.** 13/13 names bound name-for-name
+(`run_checks` answers a value, `enforce_checks` refuses typed — two
+exception classes that cannot be confused; the waiver rule is a TYPE:
+`separation` takes `Advisory`, so waiving `Error` is unspellable,
+pinned in the ty illegal fixture); 19 tests, every document authored
+through public doors, both residents exercised. **MERGED RED on the
+main-inherited teapot k-lint leg, on Evan's explicit in-chat
+authorization** — every row the unit owns green; the re-baseline
+(#1223's reading done, geometry-change arm) is in flight on
+lib/tess-rebaseline. Union note: merged after B-READBACK with a
+clean textual merge; the source-level census guard passed 7/7 on the
+union, the compiled-module stub check rides the next gated PR.
+Banked: a charter is written when a family is NAMED, not closed
+(B-CHECKS' said "the connectedness check" and there were two
+residents by closing time) — recorded in the census's closure
+paragraph. The register's census-id sentence corrected in passing
+(B-DISTRIBUTIONS was chartered but unlisted).
