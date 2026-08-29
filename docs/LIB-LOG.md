@@ -1430,6 +1430,22 @@ conversation (opens after G15's dependency report), the retroactive
 curation review of #938's A5 re-export block (orchestrator's own,
 next), and the #742/#741/#944 plans (drafted when their turns come).
 
+**#938 A5 re-export block curation review CLOSED (2026-08-29,
+orchestrator's own — the deposit's owed retroactive review).** The
+block (`crates/pncad/src/document.rs:165-179`: Assembly, AssemblyError,
+AtRestFinding, Attribution, MintedDeclaration, RefusedRef, assemble)
+stands AS LANDED. Checked: payload closure — every type the carried
+names expose in fields/arms (RecipeNodeId, ContactClass, FaceKey,
+NameTable, ContactRecords, ValidationError, EntityKind, MateSide,
+StableName, ProductError) is carried on the façade's curated lists
+(document.rs, select.rs, or prelude), so the block introduces no
+R2-class "payload not carried beside carrier" gap; the rationale
+comment states the gate's why in the file's house style; placement
+beside the authoring vocabulary matches the deposit's own argument
+(the gate the vocabulary can construct-and-not-check). No comment owed
+on #938's thread — the deposit asked for one only if a different shape
+was wanted.
+
 **CUR MERGED (2026-08-29, #1161 — Wave 1's first return; mechanical
 under the 08-29 ruling, no A/B row).** `HitTestError` gains the
 LIB-DOORS-F6-shape `Display` + `Error` impl (arena key deliberately
