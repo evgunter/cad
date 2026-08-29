@@ -295,3 +295,32 @@ fn every_obtainable_typed_view_pairs_its_symbol_with_the_tables_factor() {
     named.sort_unstable();
     assert_eq!(named, tabled, "the constants must cover exactly the table");
 }
+
+/// The Display contract (#1111): a façade consumer renders a
+/// `FmtQuantityError` through this module's own words — the refused
+/// value and why it has no display form — and never as the `Debug`
+/// struct dump. The variant identifier and the field-name punctuation
+/// are the dump's fingerprints; asserting their ABSENCE is what keeps
+/// a future `write!(f, "{self:?}")` from passing this test.
+#[test]
+fn fmt_quantity_error_display_names_its_content_not_its_struct() {
+    for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+        let err = FmtQuantityError::NonFinite { value };
+        let shown = err.to_string();
+        for want in ["no display form", "poison", &value.to_string()] {
+            assert!(
+                shown.contains(want),
+                "{err:?} renders as {shown:?}, missing {want:?}"
+            );
+        }
+        assert!(
+            !shown.contains("NonFinite"),
+            "{err:?} renders as {shown:?} — that is the variant name, i.e. a struct dump"
+        );
+        assert!(
+            !shown.contains('{') && !shown.contains("value:"),
+            "{err:?} renders as {shown:?} — that is Debug punctuation, not a sentence"
+        );
+        assert_ne!(shown, format!("{err:?}"));
+    }
+}

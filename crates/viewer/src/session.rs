@@ -34,9 +34,9 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use pncad::document::{
-    Alignment, Dimension, DimensionError, Doc, DocEdit, DocParam, EditError, Evaluation, Frame,
-    Node, ParamName, ParseError, PartResolver, ProductError, ProfileProgram, RecipeNodeId, SlotId,
-    apply, assemble, parse_expr, product,
+    Alignment, ChecksConfig, ChecksReport, Dimension, DimensionError, Doc, DocEdit, DocParam,
+    EditError, Evaluation, Frame, Node, ParamName, ParseError, PartResolver, ProductError,
+    ProfileProgram, RecipeNodeId, SlotId, apply, assemble, parse_expr, product, run_checks,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -706,6 +706,10 @@ pub struct DocSession {
     /// it lands ([`DocSession::at_rest`]); `None` for a document that
     /// is not assembly-shaped, or before anything lands.
     landed_at_rest: Option<AtRestBadge>,
+    /// The advisory-check report for the landed pair, computed once
+    /// when it lands ([`DocSession::checks`]); `None` before anything
+    /// lands, or when the registry itself refused.
+    landed_checks: Option<ChecksReport>,
     path: Option<PathBuf>,
     /// Layer-3 display state — hide and free-move — with its one home
     /// here (the seam-friction inventory rule). Never persisted; reset
@@ -788,6 +792,7 @@ impl DocSession {
             landed_doc: None,
             landed_fault: None,
             landed_at_rest: None,
+            landed_checks: None,
             landed_generation: None,
             path: None,
             display: DisplayState::new(),
@@ -896,6 +901,15 @@ impl DocSession {
     /// document, and before anything lands.
     pub fn at_rest(&self) -> Option<&AtRestBadge> {
         self.landed_at_rest.as_ref()
+    }
+
+    /// The advisory-check report for the landed pair — findings in
+    /// deterministic order, and the residents that were configured
+    /// `Off`. `None` before anything lands, or when the registry
+    /// refused (which is distinct from an empty report: "not checked"
+    /// and "checked and fine" are different answers).
+    pub fn checks(&self) -> Option<&ChecksReport> {
+        self.landed_checks.as_ref()
     }
 
     /// The file this session is backed by, if any.
@@ -1042,6 +1056,20 @@ impl DocSession {
         // the same reason: nowhere else can it run exactly once per
         // result that becomes the session's.
         self.landed_at_rest = at_rest_of(self.requested_doc.as_ref(), &done.evaluation, self.tol);
+        // The advisory registry, same spot and same reason. It REPORTS
+        // — a document with findings still draws, which is the whole
+        // point of running it on the draw path: a product whose roots
+        // interpenetrate renders a picture that looks almost right,
+        // and the finding is the only thing that says otherwise.
+        // A refusal of the registry itself leaves no report rather
+        // than a clean one: "not checked" is not "checked and fine".
+        self.landed_checks = run_checks(
+            self.requested_doc.as_ref(),
+            &done.evaluation,
+            &ChecksConfig::default(),
+            self.tol,
+        )
+        .ok();
         self.landed = Some(done.evaluation);
         self.landed_doc = Some(Arc::clone(&self.requested_doc));
         Landing::Landed
@@ -1372,6 +1400,7 @@ impl DocSession {
                 self.landed_doc = None;
                 self.landed_fault = None;
                 self.landed_at_rest = None;
+                self.landed_checks = None;
                 self.landed_generation = None;
                 self.scratch = None;
                 self.path = Some(path.to_path_buf());

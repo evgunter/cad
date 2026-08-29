@@ -20,6 +20,7 @@ from pncad import (
     DocEdit,
     DocRef,
     EntityKind,
+    Evaluation,
     FlushFinding,
     FlushRung,
     Frame,
@@ -269,3 +270,13 @@ rewritten: str = store.resave(doc)
 resolved: Doc = store.resolve(reference)
 current: ContentPin = store.current_pin(doc.id)
 held: int = len(store)
+
+# LIB-G18a: the document seam and the memo, `evaluate`'s two keyword
+# doors. A store is passed AS the resolver — it IS one — and a prior
+# evaluation is the memo, whose reuse the two counters make readable.
+seamed: Evaluation = evaluate(doc, resolver=store)
+memoized: Evaluation = evaluate(doc, prior=seamed)
+both: Evaluation = evaluate(doc, resolver=store, prior=memoized)
+reused_nodes: int = both.reused
+recomputed_nodes: int = both.recomputed
+crossings: int = both.part_evaluations

@@ -206,67 +206,7 @@ pub fn stood_down(label: &str, what_is_not_asserted: &str) {
 #[allow(clippy::panic, clippy::expect_used)]
 mod tests {
     use super::*;
-
-    thread_local! {
-        /// The last panic seen on THIS thread while it was intercepting.
-        /// The hook runs on the panicking thread, so a thread-local keeps
-        /// two concurrent rows' messages apart.
-        static LAST_PANIC: core::cell::RefCell<Option<String>> =
-            const { core::cell::RefCell::new(None) };
-
-        /// Whether THIS thread is inside [`caught`]. The hook is
-        /// process-global and every thread in the binary runs through it,
-        /// so this is what makes its behaviour per-thread: set, the
-        /// message is stashed; clear, it goes to the default hook and an
-        /// unrelated row's failure still prints.
-        static INTERCEPTING: core::cell::Cell<bool> = const { core::cell::Cell::new(false) };
-    }
-
-    /// The panic message a floor produces, or `None` if it passed. The
-    /// module's whole content is assertions that must fire, so every row
-    /// below drives one across its boundary in BOTH directions.
-    ///
-    /// The message is taken from a **panic hook**, not by downcasting
-    /// the unwind payload: `downcast_ref` is a second bit channel and
-    /// `scripts/gates/bit-identity-punning.sh` forbids it outside
-    /// `geom-core/src/bit_identity.rs`.
-    ///
-    /// `set_hook` / `take_hook` are process-global, so this installs the
-    /// hook **exactly once** and switches it per thread through
-    /// `INTERCEPTING` instead. Taking and restoring the hook around each
-    /// call is what raced (#1134): two concurrent rows interleaved, one
-    /// restored the original hook while the other was still inside
-    /// `catch_unwind`, and that row's message was printed by the default
-    /// hook rather than stashed. Serializing the calls would have closed
-    /// that alone; installing once closes the other half too, which is
-    /// that an unrelated thread panicking during the window had its
-    /// message swallowed.
-    fn caught(f: impl FnOnce() + std::panic::UnwindSafe) -> Option<String> {
-        static INSTALL: std::sync::Once = std::sync::Once::new();
-        INSTALL.call_once(|| {
-            let default = std::panic::take_hook();
-            std::panic::set_hook(Box::new(move |info| {
-                if INTERCEPTING.with(core::cell::Cell::get) {
-                    let seen = info.to_string();
-                    LAST_PANIC.with(|c| *c.borrow_mut() = Some(seen));
-                } else {
-                    default(info);
-                }
-            }));
-        });
-        LAST_PANIC.with(|c| c.borrow_mut().take());
-        INTERCEPTING.with(|c| c.set(true));
-        let out = std::panic::catch_unwind(f);
-        INTERCEPTING.with(|c| c.set(false));
-        match out {
-            Ok(()) => None,
-            Err(_) => Some(
-                LAST_PANIC
-                    .with(|c| c.borrow_mut().take())
-                    .unwrap_or_default(),
-            ),
-        }
-    }
+    use crate::panic_capture::caught;
 
     fn three() -> Exposure {
         let mut e = Exposure::new("row");

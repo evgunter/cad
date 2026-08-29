@@ -11,6 +11,7 @@ A row that stops being true fails this file. A gap that CLOSES makes
 prompt to move a NO row to YES.
 """
 
+import inspect
 import math
 import unittest
 from pathlib import Path
@@ -2276,10 +2277,11 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             # `DimensionError` means the quantity boundary. Whoever
             # binds it decides which class those arms raise.
             "Expr",
-            # G18: the assembly surface. `evaluate(doc)` taking no
-            # resolver is the STRUCTURAL first door and cannot be
-            # spelled as an absent name, so it is pinned separately
-            # below; these are the vocabulary the series would bring.
+            # G18: the assembly surface. Its STRUCTURAL first door —
+            # `evaluate` taking no resolver — is CLOSED (LIB-G18a),
+            # and what that closed is pinned positively below and in
+            # `tests/test_assembly_eval.py`; these are the AUTHORING
+            # vocabulary the rest of the series would bring.
             # `update_to_store` is HERE and not with the store doors
             # above, measured rather than assumed: what it moves is a
             # pin AT ITS SITES, a site is an `InstantiatePart` node's
@@ -2298,11 +2300,17 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             with self.subTest(door=door):
                 self.assertFalse(hasattr(pncad, door), f"{door} is now bound")
 
-        # G18's structural door, which is a SIGNATURE and not a name:
-        # `evaluate` takes the document and nothing else, so an
-        # `InstantiatePart` node has nothing to resolve its reference
-        # against. Pinned by arity, since a resolver would arrive as a
-        # second argument.
+        # G18's structural door was a SIGNATURE and not a name, and
+        # it is the half that CLOSED: `evaluate` takes the seam and
+        # the memo, both keyword-only, so an `InstantiatePart` node
+        # has a store to resolve its reference against. Pinned here as
+        # the shape — `tests/test_assembly_eval.py` is what evaluates
+        # the tour's own assembly documents through it — and by the
+        # arity that stays refused, since a door named at the call
+        # cannot be passed by position.
+        self.assertEqual(
+            list(inspect.signature(evaluate).parameters), ["doc", "resolver", "prior"]
+        )
         with self.assertRaises(TypeError):
             evaluate(Doc(), None)
 

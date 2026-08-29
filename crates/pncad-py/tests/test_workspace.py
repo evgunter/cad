@@ -11,11 +11,13 @@ retargeting, and the store's uniqueness invariant refusing two files
 that claim one identity.
 
 What is deliberately NOT here, because it is not bound: the assembly
-half. No `InstantiatePart`, no mate, no `update_to_store` — a
-reference SITE inside a document is what those need, and
-`evaluate(doc)` takes no resolver, so a document that references
-another has nothing to resolve against from Python. `test_north_star`
-pins that absence; this file pins the half that landed.
+AUTHORING half. No `InstantiatePart`, no mate, no `update_to_store` —
+a reference SITE inside a document is what those need, and a site is
+a node Python cannot write. The USING half landed at LIB-G18a and has
+its own file: `test_assembly_eval.py` passes a store to
+`evaluate(doc, resolver=...)` and evaluates the tour's own assembly
+documents through it. `test_north_star` pins what is still absent;
+these two pin the halves that landed.
 """
 
 import hashlib

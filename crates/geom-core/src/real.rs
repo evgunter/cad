@@ -555,6 +555,96 @@ pub trait Real:
 /// shares the property and was NOT tightened, the difference being that
 /// nothing generic calls this door (the `separation` entry above).
 ///
+/// **Extension (2026-08-29, ratified by Evan in conversation):**
+/// `editor_core::checks` — the advisory-check registry — joins the
+/// compound allowlist as the **second production caller** of
+/// `topo::separation`, alongside
+/// `editor_core::eval::wire::wire_placed_union`. Its bound is
+/// `Decide + `[`CertifiedBounds`], **not** `Decide + `[`Bounds`].
+///
+/// **What the ruling says the rule is FOR**, in Evan's words: the gate
+/// exists "to avoid the dangerous pattern when not necessary, so if it
+/// is necessary it's fine". That reading applies to every entry above
+/// and every one that follows — the rule is not a budget on how many
+/// seams may exist, and an extension is not earned by RESEMBLING one
+/// already listed. What a candidate owes is a demonstration of
+/// **necessity**, and the demonstration is the ratifiable artifact.
+///
+/// **Necessity is a filter on a candidate, never a licence.** What is
+/// NEVER allowed, whatever the necessity argument, is the thing the
+/// sole-bound rule exists to prevent and the 2026-07-29 amendment
+/// restates in its last clause: **brackets never decide.** Every
+/// topology-determining branch stays a
+/// [`Decide`](crate::predicate::Decide) call site — a trilean, with
+/// its in-band arm — and a bracket may prune a candidate set, drive a
+/// subdivision, or be reported; it may not be read off and branched on
+/// to reach an evaluated answer. A parameter that needs a bracket in
+/// order to decide something OUTSIDE the trilean is not a weak seam
+/// candidate, it is precisely the escape hatch the CI grep was written
+/// to catch, and no demonstration of necessity redeems it — such a
+/// candidate is refused rather than weighed. So an entry owes two
+/// things, and the ORDER matters: first that its reads stay on the
+/// prune/report side, then that the bound is unavoidable.
+///
+/// This row clears the first: `editor_core::checks` reads no bracket
+/// at all — no `lo`/`hi` call appears in the file — and its
+/// bracket-derived verdicts (`SolidSeparation::certify`'s, and
+/// `classify_shells`' through the `props_quad_*` funnel) decide only
+/// whether a FINDING is emitted. No body, no topology and no evaluated
+/// value moves on them: the resident REPORTS and never gates, which is
+/// `editor_core::checks`'s own ratified posture (DS6).
+///
+/// **On the second: this entry got it wrong once, and the correction
+/// is the entry's most useful content.** It first carried
+/// `Decide + `[`Bounds`] and argued necessity from two negative
+/// results — that `topo::PropsQuadLane` does not imply [`Bounds`]
+/// (true, and checked by deleting the term), and that a
+/// `PropsQuadLane`-style lane would have an empty refusing side since
+/// the D1 ruling (also true). **Neither reaches the question.** They
+/// establish that SOME bracket bound is needed, never that the WEAK
+/// one is, and the tighter bound was never tried. It compiles:
+/// `Decide + PropsQuadLane + `[`CertifiedBounds`] builds the workspace
+/// with zero errors, because nothing generic calls `run_checks` — its
+/// callers are the viewer at a concrete `f64`, the tour, and tests.
+///
+/// A reviewer found that with a one-line experiment the entry itself
+/// should have run. The lesson generalises past this row: a necessity
+/// argument must name the WEAKEST bound that works and show the next
+/// tighter one failing, or it is an argument that a bound suffices —
+/// which is not what this rule asks.
+///
+/// **The tightening has a consequence that crosses a unit boundary,
+/// recorded here because that is where it will be looked for.** No
+/// [`Dual`](crate::Dual) implements [`CertifiedEnclosure`], so
+/// `editor_core::run_checks` is no longer callable at one. M10-DI's
+/// `r1_dual_probes` had been observing exactly that reachability and
+/// calling it "a gap DL3 does not cover"; it is now CLOSED rather than
+/// merely unobserved, and those rows say so. Closing it is DL1 holding
+/// one door further out — the registry's separation resident GRANTS a
+/// certificate (box non-overlap is a genuine separation claim), and a
+/// dual never certifies, which is the sentence `topo::AtRestPolicy` is
+/// itself built on.
+///
+/// **And the precedent had been read backwards.** The `separation`
+/// entry's "passes keep their lanes" turns on its caller being a mixed
+/// pass BENEATH `evaluate<T>`, which a [`CertifiedBounds`] bound would
+/// reach by propagation; `run_checks` is not beneath `evaluate` and
+/// propagates to nothing. The M9-2 entry states the actual
+/// discriminator — `topo::chart_region` WAS tightened, "the difference
+/// being that nothing generic calls this door" — and by that sentence
+/// `run_checks` falls on the tighten side. It is now tightened, so the
+/// two doors agree.
+///
+/// The allowlist row is owed either way: the gate's matcher is shaped
+/// by the trait NAME and reads `Decide + CertifiedBounds` as a
+/// compound bound in both operand orders, which is correct — that is a
+/// parameter that decides AND brackets.
+///
+/// **Provenance.** Unlike the PR 11/PR 12/M6-2/M9-2 extensions above,
+/// this one did not go through the self-merge convention: it arose in
+/// conversation with Evan and he ruled on it directly, before the PR
+/// carrying it merged. No retroactive review is owed.
+///
 /// **Not an extension — a spelling.** The pair
 /// `Bounds + CertifiedEnclosure` — both bracket doors, no `Decide` — is
 /// spelled [`CertifiedBounds`] and is therefore a **sole** bound by

@@ -1563,3 +1563,43 @@ in this workspace (five collision examples recorded in the PR) —
 façade sweeps should origin-resolve through the pub-use graph first.
 Stale-comment follow-up for the next pncad-py sweep: the reach-past
 note at mesh.rs's StlError import.
+
+**G18A MERGED (2026-08-29, #1176 — LIB's first full-protocol unit
+since reactivation; ordinal 300, sample #41, row in MODEL-AB-LOG).**
+`evaluate(doc, *, resolver=, prior=)` per the ratified spec: the
+assembly seam opens from Python (a document carrying InstantiatePart
+nodes, loaded from a Workspace, evaluates; refusal family typed), the
+memo becomes a measurement (PYPU's banked finding CLOSED), and the
+tour bench corpus rides as committed bytes with a three-axis honesty
+header. The dual's headline (bilateral): a `prior=` serves memo hits
+WITHOUT re-running the seam's gates — contract now stated at the door
+in both reviewers' framings, pinned on both availability arms, and
+the kernel design question filed as **#1185** (the class: "an
+argument that silently voids another argument's gate"; two sibling
+sites named for future sweeps). **#1186** schedules the corpus
+structural hole. Register effects: G18's first half SPENT — the
+node/edit bindings (**G18b**) are now dispatchable-mechanical per the
+standing split; rows 46/47 stay NO until they land. The audit's G8
+row prose corrected (counter invariant). The delta re-verification
+round (R1 resumed, narrow scope) is the shape to reuse: cheap (~40k
+tokens), executes rather than reads, and the resumed reviewer's
+context made it 12 minutes.
+
+**DISPLAY-KERNEL MERGED (2026-08-29, #1175; mechanical under the
+08-29 ruling, no A/B row).** All ten façade-carried refusal types
+the #1111 re-sweep measured without a `Display` now render
+F6-shape prose (`TessellateError`, `ContactRefusal`, `ReadbackError`,
+`FmtQuantityError`, `DeclareError`, `InterrogateError`,
+`SelectRefusal`, `ResolveFault`, `ParseError`, `MigrationError`),
+each with a struct-dump-fingerprint contract test; four arms listed
+recourse-less for a design pass rather than minting recourse prose
+(#947's lesson applied prospectively). The unit's ARC is the record:
+its 1e-12 draw exposed a main red no main head had drawn
+(`r2_m10_di_probes` — filed as #1178, fixed by M10 as #1193 per
+ratified DL3), the fix was PORTED onto this branch per the
+drive-to-green rule, and the port's CI-Config pin re-drew the exact
+failing point GREEN (run 33265053740) — the red closed honestly, not
+re-drawn away. Lane process finding kept: the lane pushed a tree it
+had not re-verified once (one red run, disclosed, fixed next
+commit). Python `{:?}` message sites now flippable to the new
+Displays: listed in the PR for the next pncad-py sweep.

@@ -179,6 +179,60 @@ pub enum ContactRefusal {
     },
 }
 
+// The human-readable rendering (LIB-DOORS F6 shape): each arm states
+// the PROBLEM in the contact vocabulary — declaration, definite
+// counter-evidence, in-band residue, the certifiable set — plus the
+// recourse where an author has one.
+//
+// The diagnostics render through `Indeterminate::payload`, never the
+// bare `Indeterminate` Display: the bare one ends in
+// `COINCIDENCE_RECOURSE`, whose "lower the tolerance" arm is wrong at
+// a contact site, and these arms supply [`CONTACT_RECOURSE`]
+// themselves. That is the same composition the tier-3′ census and the
+// boolean's own refusals make, so one contact story is told in one
+// sentence shape wherever it surfaces.
+//
+// [`Self::NotCertifiable`] carries no recourse: a declaration cannot
+// move a configuration inside the certifiable set, so the two-arm menu
+// would be a false lead, and `what` is the only honest steering there
+// is.
+impl core::fmt::Display for ContactRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Contradicted { diag, steer } => write!(
+                f,
+                "contact: the declaration is contradicted by {} — every definite \
+                 verdict wins over every declaration; {CONTACT_RECOURSE}{}",
+                diag.payload(),
+                steer.map(|s| format!(" — {s}")).unwrap_or_default(),
+            ),
+            Self::Escalated { diag } => write!(
+                f,
+                "contact: {} — the margin escalated with no declaration able to \
+                 bridge it, which is terminal rather than guessed at; \
+                 {CONTACT_RECOURSE}",
+                diag.payload()
+            ),
+            Self::Undeclared { diag } => write!(
+                f,
+                "contact: the faces touch on the geometry's own evidence ({}) \
+                 with no declaration behind them — near-coincidence never \
+                 silently becomes contact; {CONTACT_RECOURSE}",
+                diag.payload()
+            ),
+            Self::NotCertifiable { what } => write!(
+                f,
+                "contact: the configuration is outside this class's certifiable \
+                 set ({what}) — the demanded set IS the certifiable set, so this \
+                 refuses rather than sampling for a verdict it cannot stand \
+                 behind"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for ContactRefusal {}
+
 /// **A contact CLAIM**: this face pair, asserted to be in contact of
 /// this class. What a declaration says, and what a refusal quotes back.
 ///

@@ -412,6 +412,7 @@ pub fn assemble<P, T: Decide + AtRestPolicy>(
         body,
         names,
         mut contacts,
+        ..
     } = product;
     let minted = mint(doc, evaluation, &names, &mut contacts)?;
     match T::gate_at_rest_declared(&body, &contacts, tol) {
@@ -466,7 +467,7 @@ pub fn assemble<P, T: Decide + AtRestPolicy>(
 /// already refused the document in that case, so reaching here means
 /// every root evaluated, and a mate value that is absent is a node
 /// that is not live.
-fn mint<P, T: Decide>(
+pub(crate) fn mint<P, T: Decide>(
     doc: &Doc<P>,
     evaluation: &Evaluation<T>,
     names: &NameTable,

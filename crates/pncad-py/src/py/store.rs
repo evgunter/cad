@@ -19,6 +19,7 @@
 //! forbids.
 
 use std::path::PathBuf;
+use std::sync::Arc;
 
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict, PyString};
@@ -248,6 +249,24 @@ impl DocRef {
 #[pyclass(module = "pncad")]
 pub(crate) struct Workspace {
     inner: ws::Workspace,
+}
+
+impl Workspace {
+    /// This store AS the document seam an evaluation crosses — the
+    /// `resolver=` argument of [`super::value::evaluate`].
+    ///
+    /// A store IS a `PartResolver` (`pncad::workspace`'s own impl), so
+    /// nothing is adapted here; what this door adds is a SNAPSHOT.
+    /// The kernel wants an owned `Arc<dyn PartResolver>` and the
+    /// Python object is mutable through `create`/`resave`, so the scan
+    /// is copied as of the call: the evaluation resolves against the
+    /// store the caller passed, and a `create` made while it runs
+    /// cannot change what it already resolved. The copy is the id →
+    /// path map, not the documents — bodies are read from disk at
+    /// resolve time either way.
+    pub(crate) fn resolver(&self) -> Arc<dyn d::PartResolver> {
+        Arc::new(self.inner.clone())
+    }
 }
 
 #[pymethods]
