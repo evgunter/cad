@@ -1,13 +1,13 @@
 # S-CERT — certified-enclosure soundness (plan)
 
-**STATUS: DRAFT (design conversation).** Opened on Evan's direction
-(in-chat, 2026-08-29: "can you orchestrate its program") from the
-ratified stream cut in `docs/WORK-STREAMS-2026-08.md` (§S-CERT, merged
-at #1200 with the M10 territory fold). The cut is the charter and is
-cited, not re-litigated; what needs Evan here is the **Rulings sought**
-section below. Units marked *dispatchable pre-ratification* are defect
-fixes named in the charter itself and proceed while this document
-waits.
+**STATUS: RATIFIED (Evan's in-chat rulings, 2026-08-29, all four
+folded at Rulings below; the opening PR merges on Evan's sign-off of
+the D9 row-5-boundary addendum text riding with it).** Opened on
+Evan's direction (in-chat, 2026-08-29: "can you orchestrate its
+program") from the ratified stream cut in
+`docs/WORK-STREAMS-2026-08.md` (§S-CERT, merged at #1200 with the M10
+territory fold). The cut is the charter and is cited, not
+re-litigated.
 
 Branch prefix (the #396 convention): **`cert/`** — unit branches
 `cert/<unit>-<slug>`, orchestrator branch `cert/orchestrator`.
@@ -179,17 +179,25 @@ dispatch; difficulty is logged pre-draw per the protocol.
   conditions carried in the spec: dm1 first-class (`WILD_IMPORTS`
   9→10), the lily leaf demos certify and their flip-when-fixed
   paragraph retires.
-- **CERT-6 — #870, the area-enclosure meter (design conversation
-  PR, Evan-ratified; then implementation).** The issue supplies the
-  measurements; the proposal to be argued: the funnel reads
-  `area.width()` against a relative gauge on `area.lo()` with a
-  floor set from the issue's fixture-B anchor; `QUAD2_AREA_PIECES`
-  recomputed per round; a typed area-side budget refusal (the flux
-  side's `QuadratureBudget` shape) — acknowledging it changes which
-  faces certify, which is exactly why it waits for the ruling.
-  Re-derives `review_m6_3_chart_probes.rs:354` rather than deleting
-  it; #873's ceilings and S230's unrouted consumers named in the
-  spec.
+- **CERT-6 — #870, the area-gauge tripwire and its calibration
+  (under the Q1 ruling) (S/M).** No always-on metering. (i) The A2
+  gauge — `area.width()` against a certified perimeter lower bound,
+  a mean edge displacement, the direct analogue of the flux
+  funnel's mean-boundary-displacement gauge — asserted as a
+  row-5-boundary `debug_assert` at the patch lanes' area pass, with
+  a GENEROUS ceiling calibrated from the corpus and the calibration
+  documented in-file (the `closing_column` model; its
+  nine-orders-off estimate on the #723 input is the cautionary
+  half). Falls back to the relative gauge on `area.lo()` if a
+  certified perimeter is not cheaply reachable in the lane. (ii)
+  #873's ceilings re-derived as the calibration record;
+  `review_m6_3_chart_probes.rs:354`'s deliberate lower-bound row
+  re-derived, not deleted. (iii) The opt-in refinement door
+  (caller-requested area target, per-round resolution, typed
+  refusal) filed as a demand-triggered valve, NOT built — no
+  consumer asks today. (iv) The order bump on
+  `area_midpoint_taylor` optional if it falls out cheap. S26/S230
+  pointers updated at merge.
 - **CERT-7 — the offset_fit family (#1005, #1008, #1007) (M).**
   One unit, three commits' worth of coherent scope in
   `geom-brep/src/offset_fit.rs`: the weighted composite (#1005 —
@@ -241,12 +249,22 @@ P-2's until #1177 lands; #1018–#1020 are OFF-D's under VERBS;
 `props/quad.rs` consolidation is Track R's C3, gated behind CERT-1;
 S-MESH's future owner inherits the `closing_column` assertion note.
 
-## Rulings sought (Evan)
+## Rulings (Evan, in-chat, 2026-08-29)
 
-1. **Q1 — the #870 proposal** (CERT-6): does the area funnel read
-   `area.width()` with a floored relative gauge and a typed
-   area-side refusal, per the recommendation above? This changes
-   which faces certify, so it is a fork, not an elaboration.
+1. **Q1 — RULED (Evan, in-chat, 2026-08-29)**: no always-on area
+   metering — the intent is that any realized geometry everywhere
+   within ε of correct is valid, so the wide-but-sound default
+   bracket stands and no funnel target is built (the O(h) cost
+   arithmetic independently supports this: an ε-scale area target
+   is a ~10³–10⁴× piece-count multiplier under the current rule).
+   The check lands as a hefty `debug_assert` on the A2 gauge
+   instead, under the row-5-boundary class this ruling also
+   ratified into the D2 addendum (`docs/DESIGN.md`): expensive
+   checks whose failure probably indicates a bug — currently on in
+   every profile (`debug-assertions = true` in release), eventually
+   debug/CI-only. Purchasable tightness (a caller-requested area
+   target with typed refusal) is a demand-triggered valve, filed
+   not built. CERT-6 is cut to this ruling.
 2. **Q2 — RULED (Evan, in-chat, 2026-08-29)**: all three proceed —
    shared home in `geom_core::spline`; the whole-face arm collapses
    into a fold over `patch_bound`'s cells (per-cell-then-union is

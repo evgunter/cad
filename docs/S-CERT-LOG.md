@@ -116,3 +116,19 @@ recommendation on record: A′ patch-lanes-only, mean-edge-displacement
 gauge, typed refusal).
 
 Lanes: CERT-1 and CERT-2 implementers both still running.
+
+## Seam: Q1 ruled; plan RATIFIED (2026-08-29)
+
+Evan, in-chat: **Q1 RULED** — no always-on area metering (the
+ε-validity intent: any realized geometry everywhere within ε of
+correct is valid); the check is a hefty `debug_assert` on the A2
+gauge. In the same exchange Evan clarified the debug_assert doctrine
+— the instrument is right for expensive checks whose failure
+PROBABLY indicates a bug, not only for guaranteed ones, and they are
+on in release today (`debug-assertions = true`), eventually
+debug/CI-only — ratified into DESIGN.md's D2 addendum as the
+row-5-boundary note in this branch. CERT-6 re-cut to the ruling
+(tripwire + calibration; the opt-in tightness door filed as a
+demand-triggered valve, not built). All four rulings are now in;
+the plan is marked RATIFIED, with the opening PR held for Evan's
+sign-off of the D9 addendum wording it carries.
