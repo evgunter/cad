@@ -101,10 +101,10 @@ gate() {
   gate_require_crate_sources
   local hits
   hits=$(gate_rust_code "${GATE_SOURCE_FILES[@]}" \
-    | grep -P '\benv::vars?(_os)?\s*\(' \
-    | grep -vE '^crates/geom-core/src/tolerance\.rs:' \
-    | grep -vE '^crates/test-utils/src/fuzz\.rs:' \
-    | grep -vE '^crates/viewer/src/frame\.rs:' || true)
+    | gate_grep -P '\benv::vars?(_os)?\s*\(' \
+    | gate_grep -vE '^crates/geom-core/src/tolerance\.rs:' \
+    | gate_grep -vE '^crates/test-utils/src/fuzz\.rs:' \
+    | gate_grep -vE '^crates/viewer/src/frame\.rs:')
   if [ -n "$hits" ]; then
     echo "$hits"
     gate_error "a kernel crate reads the environment at runtime — that is a back channel into shipped code, changing behaviour with no rebuild and no call site to review (NURBS_PROBE was exactly this). Arm it by an explicit call and gate it behind a feature, or ratify this file into the allowlist."
@@ -142,10 +142,15 @@ plant_prose_only() {
 gate_selftest() {
   local want="a kernel crate reads the environment at runtime"
   gate_selftest_clean
+  # A `grep` that cannot run is the failure this gate cannot see for
+  # itself: it produces no hits, and no hits is what a clean tree
+  # produces. Proved here rather than asserted, because before
+  # `gate_grep` this exact fixture printed OK and exited 0.
+  gate_selftest_without_tool grep "it is grep saying it could not search"
   gate_selftest_case "$want" plant
   gate_selftest_case "$want" plant_after_block_comment
   gate_selftest_passes "prose, a block comment and a string literal naming the call" plant_prose_only
-  printf '%s selftest OK: passes a clean fixture and prose/block-comment/string-literal mentions of the call; fires on a read, and on one hidden behind a block comment\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture and prose/block-comment/string-literal mentions of the call; fires on a read, and on one hidden behind a block comment; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

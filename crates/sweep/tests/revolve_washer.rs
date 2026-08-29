@@ -8,7 +8,7 @@
 mod revolve_common;
 
 use geom::Surface;
-use geom_brep::EdgeGeometry;
+use geom_brep::EdgeDescription;
 use geom_core::Tol;
 use profile::ProfileLoop;
 use profile::RawLoop;
@@ -53,11 +53,21 @@ fn washer_full_revolve_is_genus_one_and_tier_valid() {
         let e = r.expect("no on-axis vertices");
         assert!(matches!(
             description(&t.body, e),
-            EdgeGeometry::Intersection { .. }
+            EdgeDescription::Intersection { .. }
         ));
     }
-    // Meridians: cylinder walls carry Seam, plane walls keep the
-    // conventional MappedCurve (module-doc exception).
+    // Meridians: the cylinder walls' carry their chart's own seam,
+    // the plane walls' do not (module-doc exception — a plane chart is
+    // not periodic) and stay images the profile segment declared.
+    //
+    // **Re-expressed at PCURVE P-1b.** The (2, 2) split is unchanged
+    // and so is every fact it states; what changed is that the two
+    // classes it counted were collapsed into one conventional form, so
+    // a variant census would read (4, 0) and discriminate nothing. The
+    // distinction that survived is the one this row was always about:
+    // the seam obligation, and — the other half, now checked too —
+    // whether a profile entity DECLARED the locus (U2 Q3's authority
+    // record) or the kernel derived it.
     let RevolvedKind::Full {
         meridians,
         pi_walls,
@@ -73,15 +83,19 @@ fn washer_full_revolve_is_genus_one_and_tier_valid() {
     assert!(pi_meridians.iter().all(Option::is_none));
     assert!(pi_rims.iter().all(Option::is_none));
     let mut seams = 0;
-    let mut mapped = 0;
+    let mut declared = 0;
     for m in meridians {
-        match description(&t.body, m.expect("no omitted segments")) {
-            EdgeGeometry::Seam { .. } => seams += 1,
-            EdgeGeometry::MappedCurve(_) => mapped += 1,
-            other => panic!("unexpected meridian description {other:?}"),
+        let e = m.expect("no omitted segments");
+        let c = chart_image(&t.body, e);
+        match (c.seam, authority(&t.body, e).is_declared()) {
+            (true, false) => seams += 1,
+            (false, true) => declared += 1,
+            (seam, decl) => {
+                panic!("a meridian that is neither: seam = {seam}, declared = {decl}")
+            }
         }
     }
-    assert_eq!((seams, mapped), (2, 2));
+    assert_eq!((seams, declared), (2, 2));
     // Orientation oracle: positive material volume (exact value
     // 2π·R̄·A = 2π·1.5·1 ≈ 9.42; chordal sampling only bounds it
     // loosely — the SIGN is the oracle).
@@ -114,23 +128,24 @@ fn donut_two_arc_profile_shares_one_torus() {
         t.body.get_surface(k0),
         Some(Surface::Torus { .. })
     ));
-    // Full-period rims stay conventional (same surface key each side).
+    // Full-period rims stay conventional (same surface key each side,
+    // so the surfaces under-determine the locus): images in that one
+    // torus chart, declared by the profile's revolved vertex — never
+    // the chart's seam, which the two meridians below are.
     for r in &t.rims[0] {
-        assert!(matches!(
-            description(&t.body, r.unwrap()),
-            EdgeGeometry::MappedCurve(_)
-        ));
+        assert_declared_image_in(&t.body, r.unwrap(), k0);
     }
-    // Both meridians are the torus's seam.
+    // Both meridians ARE the torus's seam: derived, seam obligation
+    // carried. (Pre-U2 this pair of loops read `MappedCurve` against
+    // `IsoCurve`; the taxonomy collapse merged those names, and the
+    // seam flag plus the authority record are what the row was
+    // discriminating with them.)
     let RevolvedKind::Full { meridians, .. } = &t.kind else {
         panic!("full revolve");
     };
     let meridians = &meridians[0];
     for m in meridians {
-        assert!(matches!(
-            description(&t.body, m.unwrap()),
-            EdgeGeometry::Seam { .. }
-        ));
+        assert_seam_of(&t.body, m.unwrap(), k0);
     }
     assert!(signed_volume(&t.body) > 0.0);
 }

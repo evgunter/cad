@@ -14,10 +14,13 @@
 //! CONTAINING the path file, i.e. `tests/`, exactly as when each file was
 //! its own crate root.
 //!
-//! WHY: on the CI runner (2 vCPU) each extra test binary cost ~1.9 s of
-//! codegen+link — measured at 494 of the 514 s of the workspace build job
-//! (see the LINK/DEBUGINFO note in .github/workflows/ci.yml). The suites
-//! are small; the per-binary constant was the bill.
+//! WHY ONE BINARY: on the CI runner (2 vCPU) the per-binary codegen+link
+//! constant dominated the workspace build job — the suites are small, so
+//! that constant was the bill. The figures are deliberately NOT restated
+//! here: they were measured once, nothing in the repo re-takes them, and
+//! the LINK/DEBUGINFO note in .github/workflows/ci.yml is the one place
+//! that carries them with their date, their provenance run and the record
+//! of what has since changed.
 //!
 //! ADDING A SUITE: drop the file in `tests/` AND add a `#[path]` line
 //! below. `autotests = false` in Cargo.toml means a file that is not
@@ -78,6 +81,8 @@ mod pcurve_conic;
 mod pcurve_general;
 #[path = "pcurve_p1a_meter.rs"]
 mod pcurve_p1a_meter;
+#[path = "pcurve_p1b_r2_probes.rs"]
+mod pcurve_p1b_r2_probes;
 #[path = "pcurve_parameter_finding.rs"]
 mod pcurve_parameter_finding;
 #[path = "r1_pxn_probes.rs"]

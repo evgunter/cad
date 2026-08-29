@@ -2056,6 +2056,69 @@ carrier_eq rung with its retire note pointing there. The
 wall-text error class scored its fourth instance — caught
 pre-merge for the first time, by the dual. PR-2 dispatches to
 this lane next.
+
+## ORDINAL 103 CLAIMED — SHELLFIX PR-2a (2026-08-28)
+
+PR-2 STOPPED before code on the opening measurement and was
+re-scoped by the orchestrator into 2a (planar corners, M) and 2b
+(curved corners, L). The spec's stated fix — "re-anchor against
+the neighbour's MOVED carrier when it is in the same group" —
+was falsified twice over: the refusing edge's two faces are BOTH
+outside the group (shell offsets one chart per call), and
+re-anchoring alone would have shipped a wrong body, because the
+corner is transported once per chart and accumulates `Σ dᵢ·nᵢ`
+where the offset needs the simultaneous solution. Measured on
+the hexagon at t = 0.02: 11.5 mm from the true corner, 30 mm of
+wall where 20 mm was asked for, and no tier catches it.
+ReanchorOffCarrier was the gate PREVENTING that body — the
+#1082 class one PR earlier — so it stays load-bearing for
+everything the new door does not cover.
+
+2a lands `topo::offset_planes_together`: each corner solved once
+against every moved plane meeting it (Cramer on the first
+well-conditioned triple, every further plane VERIFIED), each
+edge its own line translated perpendicular to itself with the
+endpoints re-read. Carrying the carrier's CONVENTIONAL data
+rather than re-deriving an origin is what keeps #1048's corpus
+byte-identical — measured with PR-1's adopted dump harness, all
+five fixtures. Hexagon/bevel/kite/triangle hollow, the hexagon
+pinned to its closed form; the curved rows still refuse at the
+same door; the teapot's belly is a sphere zone, so its
+un-squaring is honestly PENDING for 2b and is not claimed here.
+
+Gate: first fully green fix head 83031612 at LANE=default,
+EPS=default, KLINT_ROW=dev-budget (17 pass, 4 skipping, no
+neutral rows — the scene is unchanged, so no lane drifted);
+second point 163143e5 at default/1e-12, also green. Two
+door CENSUSES caught the new public mutation path before CI's
+test row did anything else: it neither re-minted pcurves nor
+declared a posture. It re-mints now, for the same reason
+replace_faces_offset does — every edge of the body is
+re-described, so every stored row is stale.
+
+**PR-2a fix pass (R1 NMAI 3/8/6; R2 A-W-F 0/3/5).** The corner solve
+itself held against both arms, including R2's concurring valence-4
+build at 1 ulp and the door's first interval instantiation. ONE code
+defect, bilateral: the conditioning meter levered `|det|` by the
+REQUEST (`Σ|dᵢ|` over the call), so the verdict moved with how far the
+body was asked to move — a cube read "singular" at a small enough
+thickness, a 4e-4-rad prism built at a large enough one, and a
+zero-offset box refused as "singular" about geometry that is nothing of
+the kind. The arm is now the corner's OWN incident edge lengths
+(`Margin::levered`'s documented dimensionless-times-length shape) and a
+corner asked to move nothing short-circuits as no-move before any meter
+runs. BANKED: when a dimensionless quantity needs a lever, the lever
+must come from the geometry being judged, never from the request — or
+the refusal's own words stop being true.
+
+**Coverage note (PR-2a fix pass).** Hosted Actions were down repo-wide
+from 17:27Z to 18:26Z on 2026-08-28 and every fix-pass push landed in
+that window, so the fix pass carried zero check-runs until this commit.
+The re-roll that PR-1 used to chase a k-lint row is retired here in
+favour of the `CI-Config:` trailer that landed on main the same day: it
+pins the dimension on the HEAD COMMIT, so which configuration gated a
+commit is recoverable from the commit — the property the sampling was
+built around and the one a dispatch necessarily breaks.
 ## LILYWELD R1 ARM IN; A SCRATCHPAD-SHARING LESSON (2026-08-28)
 
 R1 (opus): A-W-F 1/6/5 — the coincidence re-derived bit-exact
@@ -2205,6 +2268,31 @@ question), and the steer deviation flagged with both framings
 (the lane's dump + PCURVE's ownership of the a/b offer) for
 Evan's retroactive 👍. Full dual, frozen head af04ee7a.
 
+## SHELLFIX PR-2a MERGED (#1126) — ordinal-103 row (sample #36) (2026-08-28)
+
+The planar half of #1081 closes: oblique-junction bodies hollow
+through the simultaneous-offset door with closed-form nets at
+every corner class, and the conditioning meter judges geometry,
+not requests. #1081 stays open for 2b (the curved corners — the
+teapot's belly). The banked meter law and the
+conventional-data-is-data lesson ride the row.
+
+## F7 POLE HALF MERGED (#1131) — ordinal-104 row (sample #37); THE ARC CLOSES (2026-08-29)
+
+SUPERSEDES the 2026-08-28 ordinal-104 claim entry's description
+(which named the withdrawn build): the merged mechanism is
+merge_coplanar_faces' general collinear-seam repair, per the row.
+The unit's arc — steer, impossibility claim, exemption, dual
+falsification, withdrawal, vindication, trigger falsification,
+collinearity ruling, corpus-first law, the delta verification —
+is the program's fullest demonstration of measure-first and the
+dual system working together: THREE wrong premises died before
+merge, and the thing that shipped is smaller, more general, and
+more honest than anything first proposed. The trailer-voiding
+face (a merge/subsequent commit silently reverts CI-Config to
+sampling — met twice in one pass) joins the coverage classes in
+lane-ops memory. Wall 7 authored-repairs; half B stays open;
+Evan's retroactive 👍 requested on the arc in the PR.
 ## ORDINAL 104 RETURNED: BOTH ARMS NMAI; THE EXEMPTION WITHDRAWN (2026-08-28)
 
 R1 fable 3/3/4, R2 opus 2/3/3 — converging on both foundations:

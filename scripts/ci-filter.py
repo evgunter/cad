@@ -50,6 +50,11 @@ Usage:
   ci-filter.py --files <path|->    classify an explicit newline-separated list
   ci-filter.py --selftest          run the fixture battery below and exit
   ci-filter.py ... --seed <sha>    also SAMPLE the configuration matrix (below)
+  ci-filter.py ... --config lane=interval eps=1e-12 klint=dev-probe
+                                   REQUEST points instead of drawing them (below)
+  ci-filter.py ... --config-from-message <file>
+                                   read that same request out of a commit message
+  ci-filter.py --force-all         take no diff at all; return the `all` tier
 
 Output: KEY=value lines on stdout, one per line, safe to append to
 $GITHUB_OUTPUT and to parse with `while IFS='=' read -r k v`.
@@ -72,6 +77,11 @@ $GITHUB_OUTPUT and to parse with `while IFS='=' read -r k v`.
                                 unifications this run gates (see below)
   SEEDS=<comma-separated members whose OWN files changed, empty for
                                 docs and for `all`>
+  CONFIG_SOURCE=lane:<src> eps:<src> klint:<src>
+                                where each of the three values above came
+                                from: `sampled` (drawn from --seed),
+                                `unsampled` (no seed, so the whole matrix),
+                                `requested` (--config) or `commit-trailer`
   RUN_VIEWER_TOOLKIT=true|false the eframe/wgpu rows (`clippy -p viewer
                                 --features app`, the doc gate's
                                 --all-features pass over viewer) — keyed on
@@ -112,6 +122,68 @@ matching every other signal here. local-scripts/ci-local.sh passes no seed
 and therefore still runs the whole matrix: it is not billed by the minute,
 and with the hosted gate sampling, the local gate is now the only lane that
 runs every point of the matrix on one tree.
+
+A PIN IS ANNOUNCED ON STDERR, never on stdout. `LANE` is not always drawn —
+`_forces_interval` pins it, ahead of the seed — and a pin no reader can see is
+how a branch spends every run of its life on an axis nobody chose (#1122).
+stdout stays exactly the KEY=value stream above, because both halves append it
+to $GITHUB_OUTPUT or read it with `IFS='=' read -r k v`, where one extra line
+would be one bogus output key.
+
+REQUESTING A POINT INSTEAD OF DRAWING ONE (2026-08-28, Evan's ask). The draw
+is a DEFAULT, not a lock: someone who wants this tree gated at 1e-12, or at
+the k-lint row the draw keeps missing, says so and gets it. Two spellings,
+one applier, and the only thing either does is replace a drawn value before
+it is printed — no job condition, no matrix and no cache key reads anything
+but the LANE / EPS / KLINT_ROW lines, so a requested point runs the identical
+gate that point would have run had the SHA drawn it.
+
+  --config lane=interval eps=1e-12 klint=dev-probe   THE INVOCATION says it.
+      ci.yml's `workflow_dispatch` inputs land here, so a run can be aimed at
+      a configuration with no commit and no push.
+  --config-from-message <file>                       THE COMMIT says it, in a
+      `CI-Config:` trailer line in the message (see `CONFIG_TRAILER`). ci.yml
+      reads the PR's HEAD commit, not the merge ref it is checked out at, so
+      what gates the run is what the author wrote.
+
+WHY BOTH, when either alone answers the ask. They fail at opposite ends. A
+dispatch cannot put its verdict on a pull request — its checks belong to the
+run, not to the head commit's status — so it cannot be the thing a reviewer
+looks at before merging. A trailer cannot re-gate a commit that is already
+written, which is the whole of "that landed, now run it at 1e-12", because
+this repo does not rewrite history. And the trailer keeps the property the
+sampling was built around and a dispatch necessarily breaks: WHICH
+CONFIGURATION GATED THIS COMMIT IS RECOVERABLE FROM THE COMMIT. A dispatch's
+answer lives in one run's inputs, which is why CONFIG_SOURCE exists and why
+ci.yml prints it in a step that always runs.
+
+PRECEDENCE is invocation over trailer over draw, PER DIMENSION: the flag was
+typed by whoever is standing here now, the trailer by whoever wrote the
+commit. A dimension nobody named is still drawn, so `--config eps=1e-12`
+means "1e-12, and surprise me twice".
+
+A REQUEST THAT NAMES NO REAL POINT IS A HARD FAILURE, not a fallback to the
+draw: an unknown key, an unknown value, a repeated key, a token that is not
+`key=value`. This is the one place in this script that does not fail into
+more work, and the asymmetry is the point — every other failure here is an
+inability to classify, where running everything is the safe answer, while
+this one is an INPUT ERROR whose author is standing there reading the result.
+Failing open would hand them a green run over a configuration they did not
+ask for, which is exactly the question they were asking.
+
+`eps=all` IS NOT A LEGAL REQUEST, though the no-seed path above prints it: it
+means "every row" to the local half, which loops over them, while the hosted
+eps rows put the value straight into CAD_TOLERANCE_EPS, where `all` is a
+parse error by design. `lane=both` and `klint=all` ARE legal — every job
+condition already spells those as "run every row of that dimension".
+
+`--force-all` TAKES NO DIFF AT ALL and returns the `all` tier: everything
+runs, unscoped. It is for the dispatch aimed at a ref whose diff against a
+base is not the question — main after a merge, most often — where classifying
+against the default branch comes back empty. It is not a workaround for a
+base that is hard to name: with no file list the path-keyed signals fail
+CLOSED, so such a run certifies the oracle and reads `lane` as `interval`
+unless the request names a lane.
 """
 
 from __future__ import annotations
@@ -674,19 +746,42 @@ KLINT_ROWS: tuple[str, ...] = (
 # the backend is its own workspace root. It is a HEURISTIC over names, not a
 # proof over the feature graph: a change to an interval-gated block inside a
 # file with an ordinary name is not matched, and falls back to the sampling
-# like anything else. That residue is acceptable precisely because the
-# sampling is the floor — the rule only ever ADDS certainty, never removes it.
-def _forces_interval(files: list[str] | None) -> bool:
+# like anything else.
+#
+# WHAT THE PIN COSTS, stated because the earlier wording here — "the rule only
+# ever ADDS certainty, never removes it" — is not true as written and reading
+# it cost a full ruling cycle (#1122). The pin SUBSTITUTES a lane; it does not
+# add one. What makes the substitution nearly free is not the rule but the two
+# lanes' shapes: ci.yml archives the same `cargo_scope` for both and the
+# interval lane merely adds `--features interval`, so a pinned run executes the
+# same rows in a stricter compile. The rows it does NOT reach are the ones
+# gated `cfg(not(feature = "interval"))` — which
+# `scripts/check-interval-cfg-additive.py` keeps out of `crates/*/src`
+# entirely and permits, whole-item only, in `crates/*/tests`, where the
+# loud-skip marker rows use it. Enumerable at any time with
+#
+#     grep -rn 'not(feature *= *"interval")' --include=*.rs crates/
+#
+# so the pin's real cost is those marker rows, not the battery.
+#
+# AND IT IS ANNOUNCED. A pin is not defeatable by re-pushing — it runs before
+# the seeded draw and short-circuits it — so a branch that trips it silently
+# spends every one of its runs on an axis nobody chose. `main` prints the pin
+# and its reason to stderr, which is why this returns the REASON rather than a
+# bool. Nothing else about the return changed: a reason string is truthy and
+# `None` is falsy, exactly where the bool was read.
+def _forces_interval(files: list[str] | None) -> str | None:
+    """Why the lane is pinned to `interval`, or `None` if it is not pinned."""
     # Fail CLOSED like every other signal here: an unresolved file list cannot
     # prove interval code held still, so pin the lane rather than sample it.
     if not files:
-        return True
+        return "the changed-file list could not be resolved"
     for f in files:
         if f.startswith("interval-transcendentals/"):
-            return True
+            return f"{f} is under interval-transcendentals/"
         if "interval" in f.rsplit("/", 1)[-1]:
-            return True
-    return False
+            return f"{f} has `interval` in its basename"
+    return None
 
 
 def _sample(seed: str, salt: str, choices: tuple[str, ...]) -> str:
@@ -700,10 +795,79 @@ def _sample(seed: str, salt: str, choices: tuple[str, ...]) -> str:
     return choices[int.from_bytes(digest, "big") % len(choices)]
 
 
+class ConfigError(Exception):
+    """A configuration request that names no real point of the matrix."""
+
+
+# THE DIMENSIONS A HUMAN CAN NAME: what they write -> (output key, legal
+# values). The legal sets are NOT the sampled tuples: each is the sampled
+# tuple plus whatever "every row of this dimension" is spelled as in the job
+# conditions that read it — `both` for the lane, `all` for the k-lint row.
+#
+# EPS HAS NO SUCH MEMBER, and the asymmetry is real rather than an oversight.
+# `EPS=all` is a LOCAL word: ci-local.sh loops the rows, while the hosted rows
+# interpolate the value into CAD_TOLERANCE_EPS, where `all` is a parse error
+# by design (geom-core/src/tolerance.rs). Requesting it hosted would ask for a
+# run whose test rows cannot start, so it is not offered.
+CONFIG_DIMENSIONS: dict[str, tuple[str, tuple[str, ...]]] = {
+    "lane": ("LANE", (*LANES, "both")),
+    "eps": ("EPS", EPS_ROWS),
+    "klint": ("KLINT_ROW", (*KLINT_ROWS, "all")),
+}
+
+# THE COMMIT-MESSAGE SPELLING, deliberately shaped so it cannot happen by
+# accident: a git trailer at the START of a line, which prose about this
+# feature (indented, quoted, or mid-sentence) does not match. Case-insensitive
+# on purpose — `CI-config:` is a typo, and a typo that reads as "no request"
+# would put a sampled run in front of someone who asked for a chosen one, with
+# nothing anywhere saying their line was ignored.
+CONFIG_TRAILER = re.compile(r"^ci-config:[ \t]*(\S.*?)[ \t]*$", re.M | re.I)
+
+
+def parse_config(tokens: list[str], source: str) -> dict[str, tuple[str, str]]:
+    """`["lane=interval", ...]` -> `{"LANE": ("interval", source)}`, or raise.
+
+    Raises rather than skipping: see the docstring's REQUEST section — an
+    input error is the one failure here that must not fail open.
+    """
+    legal_keys = ", ".join(sorted(CONFIG_DIMENSIONS))
+    out: dict[str, tuple[str, str]] = {}
+    for token in tokens:
+        key, sep, value = token.partition("=")
+        if not sep or not key or not value:
+            raise ConfigError(
+                f"{source}: {token!r} is not `key=value` (keys: {legal_keys})"
+            )
+        if key not in CONFIG_DIMENSIONS:
+            raise ConfigError(f"{source}: no configuration dimension {key!r} (keys: {legal_keys})")
+        out_key, choices = CONFIG_DIMENSIONS[key]
+        if value not in choices:
+            raise ConfigError(
+                f"{source}: {key}={value!r} is not one of {', '.join(choices)}"
+            )
+        if out_key in out:
+            raise ConfigError(f"{source}: {key} named twice; say it once")
+        out[out_key] = (value, source)
+    return out
+
+
+def config_from_message(message: str) -> dict[str, tuple[str, str]]:
+    """The `CI-Config:` trailer(s) of one commit message, parsed like a flag.
+
+    Several trailer lines are read as one request, so a repeated dimension is
+    the same error across lines as within one.
+    """
+    tokens: list[str] = []
+    for line in CONFIG_TRAILER.findall(message):
+        tokens.extend(line.split())
+    return parse_config(tokens, "commit-trailer")
+
+
 def decorate(
     res: dict[str, str],
     files: list[str] | None = None,
     seed: str | None = None,
+    config: dict[str, tuple[str, str]] | None = None,
 ) -> dict[str, str]:
     tier = res["TIER"]
     pkgs = set(p for p in res["PKGS"].split(",") if p)
@@ -782,7 +946,9 @@ def decorate(
         res["LANE"], res["EPS"], res["KLINT_ROW"] = "both", "all", "all"
     else:
         res["LANE"] = (
-            "interval" if _forces_interval(files) else _sample(seed, "lane", LANES)
+            "interval"
+            if _forces_interval(files) is not None
+            else _sample(seed, "lane", LANES)
         )
         res["EPS"] = _sample(seed, "eps", EPS_ROWS)
         # A THIRD SALT, drawn off the same seed and independent of the other
@@ -791,6 +957,26 @@ def decorate(
         # tie the k-lint row to the lane and leave 20 of the 30 points of this
         # matrix unreachable for the rest of the project's life.
         res["KLINT_ROW"] = _sample(seed, "klint", KLINT_ROWS)
+    # THE REQUEST IS THE LAST WORD OF THE LAST WORD, and it is recorded in the
+    # same breath. A run that gates a point nobody drew is only honest if the
+    # output says so: CONFIG_SOURCE is per-dimension because the mixed case is
+    # the common one — one dimension asked for, the other two still drawn.
+    #
+    # This deliberately also overrides `_forces_interval`'s pin. The pin
+    # protects a SAMPLED run from skipping the lane the change is about;
+    # someone typing `lane=default` over an interval change has answered that
+    # question themselves, and CONFIG_SOURCE says `lane:requested` so the
+    # answer is legible in the run rather than inferred from the tree.
+    source = dict.fromkeys(
+        (key for key, _ in CONFIG_DIMENSIONS.values()),
+        "sampled" if seed is not None else "unsampled",
+    )
+    for out_key, (value, src) in (config or {}).items():
+        res[out_key] = value
+        source[out_key] = src
+    res["CONFIG_SOURCE"] = " ".join(
+        f"{name}:{source[out_key]}" for name, (out_key, _) in CONFIG_DIMENSIONS.items()
+    )
     return res
 
 
@@ -940,7 +1126,14 @@ def _plant_fixture(t: str) -> str:
     return t
 
 
-def _selftest_invoke(t: str, argv: list[str], stdin: str = "") -> dict[str, str]:
+def _selftest_run(t: str, argv: list[str], stdin: str = ""):
+    """One invocation of this script as a SUBPROCESS, both streams kept.
+
+    Separate from `_selftest_invoke` because stdout and stderr carry
+    different contracts here — stdout is the machine-readable KEY=value
+    stream, stderr is what a human reads — and the pin battery is the one
+    case that has to look at the second.
+    """
     env = dict(os.environ)
     env["PATH"] = os.path.join(t, "bin") + os.pathsep + env.get("PATH", "")
     r = subprocess.run(
@@ -949,6 +1142,11 @@ def _selftest_invoke(t: str, argv: list[str], stdin: str = "") -> dict[str, str]
     )
     if r.returncode != 0:
         raise SystemExit(f"SELFTEST FAILED: {argv} exited {r.returncode}\n{r.stdout}{r.stderr}")
+    return r
+
+
+def _selftest_invoke(t: str, argv: list[str], stdin: str = "") -> dict[str, str]:
+    r = _selftest_run(t, argv, stdin)
     out: dict[str, str] = {}
     for line in r.stdout.splitlines():
         k, _, v = line.partition("=")
@@ -957,6 +1155,26 @@ def _selftest_invoke(t: str, argv: list[str], stdin: str = "") -> dict[str, str]
         if key not in out:
             raise SystemExit(f"SELFTEST FAILED: {argv} printed no {key} line\n{r.stdout}{r.stderr}")
     return out
+
+
+def _selftest_invoke_must_fail(t: str, argv: list[str], stdin: str = "") -> str:
+    """The other half of `_selftest_invoke`: an invocation that must NOT be
+    served. Returns stderr, so the caller can require the message to name the
+    thing that was wrong — a nonzero exit that says nothing is a worse gate
+    than the one that fails open, because it fails in front of someone who now
+    has to guess what to type instead."""
+    env = dict(os.environ)
+    env["PATH"] = os.path.join(t, "bin") + os.pathsep + env.get("PATH", "")
+    r = subprocess.run(
+        [sys.executable, os.path.join(t, "scripts", "ci-filter.py"), *argv],
+        input=stdin, capture_output=True, text=True, env=env, cwd=t,
+    )
+    if r.returncode == 0:
+        raise SystemExit(
+            f"SELFTEST FAILED: {argv} was served (exit 0) — a configuration request "
+            f"that names no real point must red the step, not fall back to the draw\n{r.stdout}"
+        )
+    return r.stderr
 
 
 def _expect(what: str, got: dict[str, str], want: dict[str, str]) -> None:
@@ -1188,8 +1406,42 @@ def selftest() -> None:
                 _selftest_invoke(t, ["--files", "-"], "docs/guide/PYPAGE.md\n"),
                 {"TIER": "all", "RUN_BUILD": "true"})
 
+    with tempfile.TemporaryDirectory() as t:
+        _plant_fixture(t)
+        _selftest_lane_pin(t)
+    # --- THE REQUEST PATH THROUGH THE CLI. `_selftest_config` covers the
+    # applier as a function; what only a subprocess can show is the wiring —
+    # that the flags reach it, that a bad request exits NONZERO rather than
+    # printing a fallback, and that `--force-all` returns a tier without
+    # touching a diff. All three are what ci.yml actually invokes.
+    with tempfile.TemporaryDirectory() as t:
+        _plant_fixture(t)
+        _expect("a requested point must reach the output through the flag",
+                _selftest_invoke(t, ["--files", "-", "--seed", "deadbeef",
+                                     "--config", "lane=interval", "eps=1e-12"],
+                                 "crates/geom-core/src/lib.rs\n"),
+                {"LANE": "interval", "EPS": "1e-12",
+                 "CONFIG_SOURCE": "lane:requested eps:requested klint:sampled"})
+        with open(os.path.join(t, "msg.txt"), "w") as fh:
+            fh.write("topo: a commit\n\nCI-Config: lane=both\n")
+        _expect("a requested point must reach the output through the commit trailer",
+                _selftest_invoke(t, ["--files", "-", "--seed", "deadbeef",
+                                     "--config-from-message", "msg.txt"],
+                                 "crates/geom-core/src/lib.rs\n"),
+                {"LANE": "both", "CONFIG_SOURCE": "lane:commit-trailer eps:sampled klint:sampled"})
+        err = _selftest_invoke_must_fail(
+            t, ["--files", "-", "--seed", "deadbeef", "--config", "eps=1e-13"],
+            "crates/geom-core/src/lib.rs\n")
+        if "1e-13" not in err:
+            raise SystemExit(f"SELFTEST FAILED: the refusal must name the value refused: {err!r}")
+        _expect("--force-all must return the all tier with no diff taken",
+                _selftest_invoke(t, ["--force-all", "--seed", "deadbeef"]),
+                {"TIER": "all", "RUN_BUILD": "true", "RUN_INTERVAL_ORACLE": "true",
+                 "LANE": "interval"})
+
     _selftest_docs_premise()
     _selftest_sampling()
+    _selftest_config()
     print(
         "ci-filter selftest OK: the docs tier is reached by prose, memories/, "
         "local-scripts/ and .claude/ and by nothing else here — not a .rs beside a .md, "
@@ -1203,9 +1455,15 @@ def selftest() -> None:
         "executes, including one named by a spelling the scan cannot resolve; "
         "the closure follows dev-dependency "
         "edges upward only; the oracle signal fires on certified sources and lockfile and "
-        "not on their prose; and the three sampled dimensions fail open with no seed, "
+        "not on their prose; the three sampled dimensions fail open with no seed, "
         "repeat under the same seed, and are drawn independently enough that every one "
-        "of the 30 matrix points is reachable"
+        "of the 30 matrix points is reachable; the lane pin beats a draw that went "
+        "the other way, says so on stderr naming the file that pinned it, stays off "
+        "stdout and out of unpinned and unseeded runs, and goes quiet when a request "
+        "overrides it; and a configuration REQUESTED by hand "
+        "— by flag or by `CI-Config:` commit trailer — reaches the dimension it names "
+        "and only that one, beats the interval pin, is recorded in CONFIG_SOURCE, and "
+        "reds the step rather than falling back to the draw when it names no real point"
     )
 
 
@@ -1258,6 +1516,182 @@ def _selftest_sampling() -> None:
             "`decorate`")
 
 
+def _selftest_lane_pin(t: str) -> None:
+    """THE PIN OVER THE DRAW, AND THE FACT THAT IT SAYS SO.
+
+    `_forces_interval` runs BEFORE the seeded draw and short-circuits it, so
+    a branch that trips it is on the interval lane for every push it ever
+    makes. That is defensible; being unable to SEE it is not, and it is what
+    cost a full ruling cycle (#1122) — the pin was invisible until someone
+    re-implemented the filter to find it.
+
+    So this asserts both halves: that the pin beats a draw that went the
+    other way, and that the run says so on stderr and NOT on stdout, where
+    an extra line would become a bogus $GITHUB_OUTPUT key.
+    """
+    # The seed is FOUND, not hardcoded: the pinned case only tests the pin if
+    # the draw it overrode was `default`, and a literal SHA here would stop
+    # being that the moment `LANES` or the salt moved.
+    seed = next(
+        s for s in (f"{i:040x}" for i in range(1000))
+        if _sample(s, "lane", LANES) == "default"
+    )
+
+    pinned = _selftest_run(t, ["--files", "-", "--seed", seed],
+                           "crates/topo/src/ring_interval.rs\n")
+    if "LANE=interval" not in pinned.stdout.splitlines():
+        raise SystemExit("SELFTEST FAILED: a basename carrying `interval` did not pin the "
+                         f"lane\n{pinned.stdout}")
+    if "PINNED" not in pinned.stderr or "ring_interval.rs" not in pinned.stderr:
+        raise SystemExit("SELFTEST FAILED: the lane was pinned and the run did not say so, or "
+                         f"did not name the file that pinned it\nstderr: {pinned.stderr!r}")
+    if "PINNED" in pinned.stdout:
+        raise SystemExit("SELFTEST FAILED: the pin note reached STDOUT, where both halves read "
+                         f"KEY=value lines\n{pinned.stdout}")
+
+    drawn = _selftest_run(t, ["--files", "-", "--seed", seed],
+                          "crates/topo/src/lib.rs\n")
+    if "LANE=default" not in drawn.stdout.splitlines():
+        raise SystemExit("SELFTEST FAILED: an ordinary basename did not fall through to the "
+                         f"draw\n{drawn.stdout}")
+    if "PINNED" in drawn.stderr:
+        raise SystemExit("SELFTEST FAILED: an unpinned run announced a pin — the note would then "
+                         f"say nothing\nstderr: {drawn.stderr!r}")
+
+    # A REQUEST OVERRIDES THE PIN, so the note must go quiet. `decorate` lets a
+    # requested lane beat `_forces_interval` deliberately; if the announcement
+    # did not know that, a run gating `default` by request would print that it
+    # was pinned to `interval` — naming a lane the run is not on. This case is
+    # the seam between the pin and the request path, and neither one's own
+    # cases cover it.
+    overridden = _selftest_run(
+        t, ["--files", "-", "--seed", seed, "--config", "lane=default"],
+        "crates/topo/src/ring_interval.rs\n")
+    if "LANE=default" not in overridden.stdout.splitlines():
+        raise SystemExit("SELFTEST FAILED: a requested lane did not beat the pin\n"
+                         f"{overridden.stdout}")
+    if "PINNED" in overridden.stderr:
+        raise SystemExit("SELFTEST FAILED: the pin note fired over a lane the request "
+                         f"overrode\nstderr: {overridden.stderr!r}")
+
+    # No seed: nothing is drawn, so there is nothing to pin. LANE=both already
+    # runs both compile modes, and a note there would be a false alarm.
+    unseeded = _selftest_run(t, ["--files", "-"], "crates/topo/src/ring_interval.rs\n")
+    if "LANE=both" not in unseeded.stdout.splitlines() or "PINNED" in unseeded.stderr:
+        raise SystemExit("SELFTEST FAILED: an unseeded run must be LANE=both and announce no "
+                         f"pin\n{unseeded.stdout}\nstderr: {unseeded.stderr!r}")
+
+
+def _selftest_config() -> None:
+    """THE REQUEST PATH, in-process where it is a pure function and through the
+    CLI where the wiring is.
+
+    WHAT IS ACTUALLY AT RISK HERE, and it is not "does an override override".
+    It is the two SILENT failures either spelling can have:
+
+      * a request that is READ BUT NOT APPLIED, or applied to the wrong
+        dimension. Nothing reds; the run gates the drawn point and reports a
+        green that answers a question nobody asked.
+      * a request that is NOT READ — the trailer regex drifting, most likely,
+        since it is the half nobody types twice. Same green, same wrong
+        question, and the author's line sits in the commit forever looking
+        like it did something.
+
+    So every legal value of every dimension is requested and checked, the
+    dimensions nobody named are required to still match the draw, and the
+    trailer's near-misses (indented, mid-sentence) are required NOT to be read
+    while the typo case (wrong case) is required to be."""
+    files = ["crates/geom-core/src/lib.rs"]
+    base = {"TIER": "closure", "PKGS": "geom-core", "CARGO_SCOPE": "-p geom-core"}
+    seed = "deadbeef"
+    drawn = decorate(dict(base), files, seed)
+    keys = [out_key for out_key, _ in CONFIG_DIMENSIONS.values()]
+
+    if drawn["CONFIG_SOURCE"] != "lane:sampled eps:sampled klint:sampled":
+        raise SystemExit("SELFTEST FAILED: an unrequested run must record every dimension as "
+                         f"sampled — CONFIG_SOURCE is {drawn['CONFIG_SOURCE']!r}")
+    if decorate(dict(base), files, None)["CONFIG_SOURCE"] != (
+        "lane:unsampled eps:unsampled klint:unsampled"
+    ):
+        raise SystemExit("SELFTEST FAILED: the no-seed path must record itself as unsampled")
+
+    for name, (out_key, choices) in CONFIG_DIMENSIONS.items():
+        for value in choices:
+            got = decorate(dict(base), files, seed, parse_config([f"{name}={value}"], "requested"))
+            if got[out_key] != value:
+                raise SystemExit(f"SELFTEST FAILED: {name}={value} was requested and {out_key} came "
+                                 f"back {got[out_key]!r} — the request is being read and dropped")
+            if f"{name}:requested" not in got["CONFIG_SOURCE"]:
+                raise SystemExit(f"SELFTEST FAILED: {name}={value} was requested and CONFIG_SOURCE "
+                                 f"says {got['CONFIG_SOURCE']!r} — an unrecorded override is a run "
+                                 "that cannot be read back")
+            for other in keys:
+                if other != out_key and got[other] != drawn[other]:
+                    raise SystemExit(f"SELFTEST FAILED: requesting {name} moved {other} as well "
+                                     "— the dimensions nobody named must still be drawn")
+
+    # THE INTERVAL PIN IS A FLOOR OVER THE DRAW, NOT OVER A PERSON. Requesting
+    # `lane=default` on a change `_forces_interval` pins must win, and must say
+    # in CONFIG_SOURCE that it did.
+    pinned = ["crates/geom-core/src/interval.rs"]
+    if decorate(dict(base), pinned, seed)["LANE"] != "interval":
+        raise SystemExit("SELFTEST FAILED: the interval pin no longer fires — this case is "
+                         "checking nothing")
+    got = decorate(dict(base), pinned, seed, parse_config(["lane=default"], "requested"))
+    if got["LANE"] != "default" or "lane:requested" not in got["CONFIG_SOURCE"]:
+        raise SystemExit("SELFTEST FAILED: a requested lane must override the interval pin and "
+                         f"record it — got {got['LANE']!r}, {got['CONFIG_SOURCE']!r}")
+
+    # PRECEDENCE, per dimension: the invocation over the trailer over the draw.
+    merged = dict(config_from_message("t\n\nCI-Config: lane=both eps=1e-6\n"))
+    merged.update(parse_config(["lane=interval"], "requested"))
+    got = decorate(dict(base), files, seed, merged)
+    if (got["LANE"], got["EPS"], got["KLINT_ROW"]) != ("interval", "1e-6", drawn["KLINT_ROW"]):
+        raise SystemExit(f"SELFTEST FAILED: precedence is invocation > trailer > draw; got {got}")
+    if got["CONFIG_SOURCE"] != "lane:requested eps:commit-trailer klint:sampled":
+        raise SystemExit(f"SELFTEST FAILED: a mixed run must say which dimension came from where "
+                         f"— got {got['CONFIG_SOURCE']!r}")
+
+    # THE TRAILER, read out of a message shaped like a real one.
+    real = (
+        "topo: split the half-edge link\n"
+        "\n"
+        "Body prose that mentions ci-config: lane=both in passing.\n"
+        "    CI-Config: klint=all\n"
+        "\n"
+        "CI-Config: eps=1e-12 klint=dev-probe\n"
+    )
+    if config_from_message(real) != {
+        "EPS": ("1e-12", "commit-trailer"),
+        "KLINT_ROW": ("dev-probe", "commit-trailer"),
+    }:
+        raise SystemExit("SELFTEST FAILED: the trailer must be read at the start of a line and "
+                         f"nowhere else — got {config_from_message(real)}")
+    if config_from_message("no request here\n\nSigned-off-by: someone\n"):
+        raise SystemExit("SELFTEST FAILED: a message with no trailer must request nothing")
+    # A TYPO IN THE CASE IS STILL A REQUEST. The alternative reading — silence
+    # — is the failure this whole function is about.
+    if config_from_message("t\n\nci-Config: eps=1e-6\n") != {"EPS": ("1e-6", "commit-trailer")}:
+        raise SystemExit("SELFTEST FAILED: the trailer must be case-insensitive; a miscased line "
+                         "that reads as `no request` gates the wrong point silently")
+
+    # LOUD ON EVERY MALFORMED REQUEST, from either spelling.
+    for bad in (["lane"], ["lane="], ["=interval"], ["mode=interval"], ["lane=fast"],
+                ["eps=all"], ["lane=default", "lane=interval"]):
+        try:
+            parse_config(bad, "requested")
+        except ConfigError:
+            continue
+        raise SystemExit(f"SELFTEST FAILED: {bad} was accepted as a configuration request")
+    for bad_msg in ("t\n\nCI-Config: eps=1e-13\n", "t\n\nCI-Config: lane=x eps=1e-6\n",
+                    "t\n\nCI-Config: lane=both\nCI-Config: lane=interval\n"):
+        try:
+            config_from_message(bad_msg)
+        except ConfigError:
+            continue
+        raise SystemExit(f"SELFTEST FAILED: {bad_msg!r} was accepted as a configuration request")
+
+
 def _selftest_docs_premise() -> None:
     """THE PREMISE THE DOCS TIER RESTS ON, read off the REAL tree rather than
     asserted in a header.
@@ -1298,6 +1732,14 @@ def main() -> int:
     src.add_argument("--base", help="git ref/sha to diff HEAD against")
     src.add_argument("--files", help="file with a newline-separated list, or -")
     src.add_argument("--selftest", action="store_true", help="run the fixture battery")
+    # In the `src` group because it is the third way to answer "what changed":
+    # by declining to ask. It takes no diff, so it cannot be combined with one.
+    src.add_argument(
+        "--force-all",
+        action="store_true",
+        help="take no diff at all and return the `all` tier (everything runs, "
+        "unscoped; the path-keyed signals then fail closed)",
+    )
     # NOT in the mutually-exclusive `src` group: the seed selects a matrix
     # point and is orthogonal to how the file list was obtained, so it rides
     # alongside --base or --files rather than instead of them.
@@ -1306,10 +1748,40 @@ def main() -> int:
         help="head SHA to key the configuration sample on; omit to run the "
         "whole matrix (LANE=both, EPS=all, KLINT_ROW=all)",
     )
+    ap.add_argument(
+        "--config",
+        action="extend",
+        nargs="+",
+        metavar="KEY=VALUE",
+        help="request a matrix point rather than drawing it, e.g. "
+        "`--config lane=interval eps=1e-12 klint=dev-probe`; unnamed "
+        "dimensions are still drawn",
+    )
+    ap.add_argument(
+        "--config-from-message",
+        metavar="FILE",
+        help="read the same request from the `CI-Config:` trailer of a commit "
+        "message in FILE; --config wins per dimension",
+    )
     args = ap.parse_args()
     if args.selftest:
         selftest()
         return 0
+
+    # BEFORE ANY WORK, AND OUTSIDE THE FAIL-CLOSED WRAPPER BELOW. A malformed
+    # request is not a classification that could not be made, so it does not
+    # become TIER=all — it becomes a red step under the person who typed it.
+    config: dict[str, tuple[str, str]] = {}
+    try:
+        if args.config_from_message:
+            with open(args.config_from_message) as fh:
+                config.update(config_from_message(fh.read()))
+        if args.config:
+            config.update(parse_config(args.config, "requested"))
+    except (ConfigError, OSError) as exc:
+        print(f"ci-filter: {exc}", file=sys.stderr)
+        return 2
+
     root = _repo_root()
 
     # `None` until a file list is actually in hand, so that a failure ANYWHERE
@@ -1317,8 +1789,15 @@ def main() -> int:
     # reaches the path-keyed signals as "unknown", which they read as run.
     files: list[str] | None = None
     try:
-        if args.files:
+        if args.force_all:
+            # `files` stays None, and that is the honest reading: nothing was
+            # diffed, so nothing here can prove the oracle sources or the
+            # interval lane held still. Both signals run.
+            res = _all_tier(root)
+        elif args.files:
             raw = sys.stdin.read() if args.files == "-" else open(args.files).read()
+            files = [ln.strip() for ln in raw.splitlines() if ln.strip()]
+            res = classify(files, root)
         else:
             try:
                 raw = _run(["git", "diff", *_DIFF_FLAGS, f"{args.base}...HEAD"], root)
@@ -1326,8 +1805,8 @@ def main() -> int:
                 # Unrelated histories / shallow clone: fall back to the
                 # two-dot form rather than guessing.
                 raw = _run(["git", "diff", *_DIFF_FLAGS, args.base, "HEAD"], root)
-        files = [ln.strip() for ln in raw.splitlines() if ln.strip()]
-        res = classify(files, root)
+            files = [ln.strip() for ln in raw.splitlines() if ln.strip()]
+            res = classify(files, root)
     except Exception as exc:  # noqa: BLE001 — fail CLOSED on anything at all
         print(f"ci-filter: falling back to TIER=all: {exc}", file=sys.stderr)
         res = _all_tier(root)
@@ -1338,7 +1817,34 @@ def main() -> int:
     # allowlist, so the very changes the oracle cares about arrive here as
     # TIER=all with a perfectly good file list. Only a failure to resolve
     # the diff at all leaves `files` None, and that is the case that runs.
-    for key, val in decorate(res, files, args.seed).items():
+    out = decorate(res, files, args.seed, config)
+
+    # THE PIN, SAID OUT LOUD. `decorate` stays free of I/O — `_selftest_sampling`
+    # calls it 4000 times in-process — so the announcement is made here, off a
+    # second call to the same pure function rather than off a channel through
+    # the result dict, whose every key is printed as machine-readable output.
+    # Guarded twice: on the seed, because an unseeded run draws nothing to pin
+    # (it is LANE=both, which already runs both compile modes); and on
+    # `lane:sampled`, because a REQUESTED lane overrides the pin, and announcing
+    # one that was overridden would name a lane the run is not on.
+    if (
+        args.seed is not None
+        and "lane:sampled" in out["CONFIG_SOURCE"]
+        and (pin := _forces_interval(files)) is not None
+    ):
+        print(
+            f"ci-filter: LANE=interval is PINNED, not drawn: {pin}.\n"
+            "ci-filter: re-pushing cannot change it — the pin runs before the "
+            "seeded draw and short-circuits it.\n"
+            "ci-filter: this is not a coverage gap. Both lanes archive the same "
+            "scope and the interval lane only adds `--features interval`, so a "
+            "pinned run executes the same rows in a stricter compile; what it "
+            "does not reach is the loud-skip marker rows gated "
+            "`cfg(not(feature = \"interval\"))` under crates/*/tests.",
+            file=sys.stderr,
+        )
+
+    for key, val in out.items():
         print(f"{key}={val}")
     return 0
 

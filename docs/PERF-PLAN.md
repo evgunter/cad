@@ -20,7 +20,8 @@ do that, especially before quoting a cost as current.
 
 ### 1.1 Assumed workload (stated, not ratified)
 
-The GUI is unbuilt; these are the standard interactive-CAD envelope,
+Nothing here has been measured against the shipped v1 GUI
+(`crates/viewer`); these are the standard interactive-CAD envelope,
 assumed not measured: **~16 ms**/frame (camera, hover, selection);
 **~50–150 ms** per gesture preview (drag a dimension → new solid);
 **~1 s** per committed edit; background for the rest. Scale per
@@ -87,7 +88,7 @@ findings, whose numbering is kept so the two docs cross-reference.
 | `graft_solid` is O(E²) | `boolean/combine.rs:411` — `.find(\|(_, e)\| e.curve == k)` inside the per-curve loop | missing inverse map | commit | 14 |
 | `StableName` nests one `Box` per boolean | `editor-core/src/names/role.rs:290-382` | O(chain²) on a long boolean chain | commit | 15 |
 | Tier-3 runs twice on the product path | `editor-core/src/product.rs:410` and `:445` | duplicated over the same entities | commit | 16 |
-| Tier-1 pass 13 is quadratic in null scaffolds | `topo/src/validate.rs:3430-3443` — per null-scaffold curve, a full edge-arena `filter().count()` | worst exactly mid-boolean | commit | 5 |
+| Tier-1 pass 13 is quadratic in null scaffolds | `topo/src/validate.rs:3876-3890` — per null-scaffold curve, a full edge-arena `filter().count()` | worst exactly mid-boolean | commit | 5 |
 | Per-op debug full-body tier-1 | `topo/src/euler.rs:60-72` — D1's **ratified** postcondition clause | body construction Θ(ops × N) in every debug/CI row; **measured 2026-08-27 at 6.5× on an extrude build and 5.2× on the two-brick boolean**, and free on validation, mass props and tessellation | CI/dev | 5 |
 | `point_in_loop` re-decides loop-intrinsic facts per query | `topo/src/splitting/containment.rs:238` | per-query work that is per-loop | commit | 8 |
 | `geom-core` has 2 `#[inline]` attributes total | `crates/geom-core/src/` | cross-crate call overhead on the hottest scalars | CI/dev | 17 |
@@ -219,20 +220,21 @@ entry's confidence interval is not the resolution of a comparison.
   bits ⇒ same mesh patch" into a theorem. An edit that moves one boss
   re-tessellates only changed faces. The biggest preview-lane win
   available, and it is keyed work, not speculative.
-- **One BVH crate, three consumers — two wired.** `crates/bvh` is a
+- **One BVH crate, four duties — three wired.** `crates/bvh` is a
   deterministic AABB-BVH built in arena order with fixed splits and
   total tie-breaks (no hash order, no parallel-build nondeterminism).
   Live consumers: the boolean edge×face sweep
-  (`topo/src/boolean/reduce.rs:626`) and the placement-separation
-  certificate (`topo/src/separation.rs:164`). Still pending: **SSI
+  (`topo/src/boolean/reduce.rs:626`), the placement-separation
+  certificate (`topo/src/separation.rs:164`), and viewport picking —
+  `Bvh::ray` under editor-core's hit-test service, live since GUI-1
+  (`editor-core/src/resolve/pick.rs:162`). Still pending: **SSI
   seeding / C3 exhaustiveness** — `geom-brep/src/ssi/exhaust.rs` still
   enumerates cells by recursive bisection with a linear scan over
   tubes and says so ("Brute force, deliberately, for now"), which is
-  this doc's trigger discipline working, not a missed delivery — and
-  **viewport picking**, blocked on there being a GUI.
-  `crates/bvh/src/lib.rs`'s header still says "one of them wired so
-  far" and lists only three duties; it has not caught up with the
-  separation consumer.
+  this doc's trigger discipline working, not a missed delivery.
+  `crates/bvh/src/lib.rs`'s header still says "two of them wired so
+  far" over its four duties; it has not caught up with the picking
+  consumer.
 
   The **conservative-superset contract** is the D9 obligation: a BVH
   may only prune pairs the exact predicate would reject, so the result
@@ -307,9 +309,9 @@ exercised — not as a fix for the corpus timings.
   document.
 - **Opt-level is now a measured, moving setting — do not hard-code a
   belief about it.** The `[profile.dev.package]` opt-2 overrides for
-  `spade` and `mesh` are in `Cargo.toml:240-243` and stand. What has
+  `spade` and `mesh` are in `Cargo.toml:246-249` and stand. What has
   moved is the workspace-wide level: the old "blanket opt-2 in CI is
-  net-slower" verdict (#52/#53) was **reversed** — `ci.yml:1037`
+  net-slower" verdict (#52/#53) was **reversed** — `ci.yml:1141`
   records why, both premises having expired (261 test binaries became
   one per crate; execution became ~79% of run wall) — and then the
   tree moved to **opt-level 1 on 2026-08-25**. `docs/perf-data/opt-level/`
@@ -346,7 +348,9 @@ exercised — not as a fix for the corpus timings.
   GPU ID-buffer picking + CPU ray-cast confirm. Viewport LOD,
   silhouettes, section views live here. The kernel's whole obligation
   is meshes with stable back-references, which it already produces.
-  No kernel changes; the GUI milestone owns it.
+  No kernel changes: v1 shipped the wgpu viewport and the ID-buffer
+  pass (`crates/viewer`), and LOD, silhouettes and section views stay
+  on that side of the line.
 - **Preview-grade tessellation — plausible, display-lane only.** A
   compute-shader evaluator for analytic surface grids could produce
   *uncertified preview* meshes for drag feedback — exactly parallel
@@ -503,14 +507,15 @@ developer run to re-check what CI checks better. The shape instead:
 
 ## 5. What to do next
 
-**The benchmark harness was the blocking item for a year and it landed
-on 2026-08-27.** What follows is ordered against what it now says.
+**The benchmark harness was this document's blocking item from the
+start, and it landed on 2026-08-27.** What follows is ordered against
+what it now says.
 
 1. **Read the criterion trend before optimizing anything.** The harness
    landed 2026-08-27 (`benches/`, the nightly's `criterion benchmarks
    (reporting)` job, `docs/perf-data/criterion/`), which is what opened
    §2.3's gate. The first readings, on a 4-core box, are the numbers
-   this document lacked for a year:
+   this document had lacked until then:
 
    | row | median |
    |---|---|
@@ -554,10 +559,10 @@ and the harness does not benchmark SSI, so that trigger needs a row
 before it can fire. Per-face tessellation parallelism (§2.2) — the
 tessellation rows above are the case for it.
 
-**GUI milestone owns** everything in §3.1: wgpu rendering, ID-buffer
-picking, LOD, the preview-tessellation experiment. The kernel's
-deliverables to it are already scoped (meshes with back-refs,
-cancelable evaluation service, BVH).
+**The GUI side owns** everything in §3.1. v1 shipped wgpu rendering
+and ID-buffer picking on the kernel's deliverables (meshes with
+back-refs, cancelable evaluation service, BVH); LOD and the
+preview-tessellation experiment are still unbuilt there.
 
 **M10 owns** the parallel subdivision driver (idiom 1 over sub-boxes)
 and interval-lane throughput work if certification wall-times demand

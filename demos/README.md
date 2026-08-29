@@ -196,9 +196,13 @@ Consequences worth stating:
   consecutive traversals. Winding is a *check*, not a readout: it is
   compared against the face's own `Face::sense` bit, since a bore or a
   concave groove carries `sense = false` and its outer loop is
-  legitimately CW. 879 of the 982 M7 faces are checkable (the rest
-  carry a branch jump) and all 879 agree, so the alarm colour is
-  reserved for a real contradiction rather than spent on every hole.
+  legitimately CW. Not every face is checkable — a chart carrying a
+  branch jump has no meaningful shoelace — so the tour prints the
+  split (checkable / branch-jumped / disagreeing) on every run and
+  **fails outright on a disagreement**, which is why the alarm colour
+  here is reserved for a real contradiction rather than spent on every
+  hole. The counts are that printed line and are not restated here:
+  the corpus grows and the sentence would not.
   Periodic charts get their seams (`u = k·2π`)
   drawn as dashed magenta lines, so a seam-crossing loop is visible
   rather than inferred. Strokes are colored by pcurve form —
@@ -206,18 +210,23 @@ Consequences worth stating:
 * **Closure is measured in 3-D, not in the chart**, and that
   distinction is load-bearing. A chart-space closure metric
   false-alarms on every face touching a chart singularity or a seam,
-  because at a sphere's pole an entire `u`-line is one 3-D point: 103
-  of the 982 M7 faces show such a jump, every one of them exactly π/2,
-  π or 2π. Measured off the carriers instead, the true closure gap
-  never exceeds 9e-16 m anywhere in the corpus. The chart jump is
-  still printed — greyed, and named as seam/pole structure — so it
-  informs instead of alarming.
+  because at a sphere's pole an entire `u`-line is one 3-D point, so
+  every face that touches a seam or a pole reads one. Measured off the
+  carriers instead, the closure gap stays at round-off. The tour
+  prints how many charts carry a jump and the worst value of **both**
+  measures per run; that line, not this one, says how big they are on
+  the tree in front of you. The chart jump is still drawn — greyed,
+  and named as seam/pole structure — so it informs instead of
+  alarming.
 * **The interior fill is drawn only when it means something.** A ring
   that contains a branch jump — a loop crossing the seam or running
   through a pole — closes in the chart through a straight segment that
   is not boundary, so even-odd would shade a region that is not the
-  face. Those cells (3 of 36 on the sheet) show the strokes alone and
-  say why; the signed area and winding are likewise not claimed there.
+  face. Those cells show the strokes alone and say why; the signed
+  area and winding are likewise not claimed there. How many of them a
+  given sheet carries is not stated, because nothing computes it: the
+  jump is the tour's measurement and the selection is the composer's,
+  and no run crosses the two.
 * **There is a CI drift gate**, and this is still the only lane that
   can have one — but the reason has moved. CI *can* run FreeCAD (both
   `step-import` and the hosted render lanes provision the same pinned
@@ -229,8 +238,8 @@ Consequences worth stating:
   geometry change — a standing CI gate for the PNG lanes still needs
   the pinned-container work described in render.yml. This lane draws no 3-D, so its sheet is byte-reproducible
   anywhere. `uv sheet drift (demos)` regenerates it and diffs it (the
-  tour is ~3s once built, and the sheet is text, so a firing diff is
-  readable). A failure is either an uncommitted regeneration or a D9
+  tour is seconds once built, and the sheet is text, so a firing diff
+  is readable). A failure is either an uncommitted regeneration or a D9
   determinism finding.
 * **Nothing is refused.** Unlike the tessellator's trim walk, this one
   accepts every pcurve form and falls back to `topo::pcurve_of`'s
@@ -238,23 +247,32 @@ Consequences worth stating:
   the face worth looking at. A face whose loops cannot be walked at all
   gets a cell naming the reason, first on the sheet — never a gap.
 * **Selection is stated, never silent.** `out/uv.json` carries *every*
-  face of every tour body (982 at M7). The sheet takes one
-  representative per (body, chart kind) among the curved charts — the
+  face of every tour body — the tour prints how many. The sheet takes
+  one representative per (body, chart kind) among the curved charts — the
   richest, by distinct pcurve forms then loop count then face ordinal —
   plus every failed walk unconditionally. Planar charts are dropped as
   a class: a plane chart's picture is the face's own outline, which the
   two 3-D lanes already show. The composer prints every count it
-  dropped, and all 982 SVGs stay in `out/uv/`.
+  dropped — cells, rows, and the curved and planar faces left off —
+  and every SVG stays in `out/uv/` whether or not the sheet took it.
 
 Read it in a browser; nested-SVG-shy rasterizers are why the cells are
 placed with `transform="translate(…)"` rather than nested `<svg x= y=>`.
 
-### What the sheet says about the corpus today (M7)
+### What the sheet says about the corpus
 
 Most cells are rectangles, and that is a fact about the corpus rather
-than a limitation of the drawing. Of the 238 curved faces, **234 have
-boundaries built entirely from iso-curves of their own chart; only 4
-do not, and all 4 are the tilted cut.**
+than a limitation of the drawing: **a face whose surface came out of a
+sweep has a boundary built entirely from iso-curves of its own chart,
+and only a face cut obliquely to its chart carries a real trim.** In
+this corpus the oblique cut is the tilted one.
+
+No count is given, and none can be read off what the lane writes: an
+iso-curve of a swept chart is stored as a `Pcurve::Harmonic` whose
+`cos`/`sin` coefficients are zero — the same variant carries every
+line and conic of an affine plane chart — so neither `uv.json`'s form
+list nor any printed line separates it from a genuine trim. The sheet
+is where you see which faces those are.
 
 The reason is that every curved face here is *sweep-native*. Extrude,
 revolve, loft and sweep choose the surface's chart so that one

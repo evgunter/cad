@@ -532,10 +532,11 @@ pub const REGENERATE_RECOURSE: &str = "regenerate the file from its source recip
 impl core::fmt::Display for PersistError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::NonFinite { site } => write!(f, "persist: non-finite float at {site:?}"),
+            Self::NonFinite { site } => write!(f, "persist: non-finite float at {site}"),
             Self::ProfileProgram { node, fault } => write!(
                 f,
-                "persist: profile program fault at node {node:?}: {fault:?}"
+                "persist: profile program fault at node {}: {fault}",
+                node.0
             ),
             Self::Serialize { message } => write!(f, "persist: serializer failed: {message}"),
             Self::Header { found } => {
@@ -579,9 +580,9 @@ impl core::fmt::Display for PersistError {
                 column,
                 message,
             } => write!(f, "persist: body line {line} column {column}: {message}"),
-            Self::Snapshot(e) => write!(f, "persist: invalid snapshot: {e:?}"),
+            Self::Snapshot(e) => write!(f, "persist: invalid snapshot: {e}"),
             Self::EditReplay { index, error } => {
-                write!(f, "persist: edit {index} refused on replay: {error:?}")
+                write!(f, "persist: edit {index} refused on replay: {error}")
             }
             Self::ToleranceConflict { process, document } => write!(
                 f,

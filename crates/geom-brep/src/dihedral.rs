@@ -6,7 +6,7 @@
 //! [`classify_dihedral`] classifies the wedge:
 //!
 //! - **Transverse** — tangent planes definitely distinct: the edge is a
-//!   genuine corner, and an [`crate::EdgeGeometry::Intersection`]
+//!   genuine corner, and an [`crate::EdgeDescription::Intersection`]
 //!   description is well-conditioned there (the margin below *is* D2's
 //!   transversality margin).
 //! - **Smooth** — tangent planes coincide at tolerance: the legal

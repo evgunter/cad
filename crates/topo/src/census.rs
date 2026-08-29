@@ -163,6 +163,7 @@ use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Vec3};
 
 use crate::body::Body;
 use crate::boolean::{ContactRecords, ContainError, FaceContainment, contfp};
+use crate::chart_region::ChartRegionError;
 use crate::entity::{EdgeKey, EntityId, FaceKey, LoopBoundary, VertexKey};
 use crate::null::CurveGeom;
 use crate::validate::{CensusContact, StaleDeclaration, ValidationError, decide};
@@ -588,10 +589,16 @@ fn contain<T: Decide>(
             errors.push(ValidationError::CensusEscalated { cause });
             None
         }
-        // An arc-bearing loop the polygon walk cannot express: the
-        // census asks the same question through the same door, and
-        // gets the same honest nothing (issue #1076).
-        Err(ContainError::ArcLoopUnsupported { .. }) | Err(_) => {
+        // An arc-bearing loop the polygon walk cannot express, an
+        // exhausted ray schedule, unwalkable topology: the census asks
+        // the same question through the same door and gets the same
+        // honest nothing (issue #1076). Listed rather than wildcarded,
+        // so a new `ContainError` arm is classified here deliberately.
+        Err(
+            ContainError::ArcLoopUnsupported { .. }
+            | ContainError::RayExhausted
+            | ContainError::Corrupt,
+        ) => {
             errors.push(ValidationError::CensusEscalated {
                 cause: invalid(band, "pm_census_containment"),
             });
@@ -1107,15 +1114,31 @@ fn sweep_conformal_patches<T: Decide + crate::chart_region::ChartRegionLane>(
                             });
                         }
                     }
-                    Some(Err(crate::chart_region::ChartRegionError::Escalated(cause))) => {
+                    Some(Err(ChartRegionError::Escalated(cause))) => {
                         errors.push(ValidationError::CensusEscalated { cause });
                     }
-                    Some(Err(_)) => {
-                        // Typed predicate refusals (unbounded arms, seam
-                        // branches, non-planar trims, touching
-                        // boundaries): the pair is outside the certified
-                        // overlap lane — refused as unsupported
-                        // inventory, never skipped silently.
+                    // Every other typed predicate refusal: the pair is
+                    // outside the certified overlap lane — refused as
+                    // unsupported inventory, never skipped silently.
+                    // Spelled out rather than matched by wildcard,
+                    // because this arm is one half of the
+                    // `Escalated`/`Unsupported` discrimination
+                    // `editor_core::attribute` turns into `AtRest`
+                    // against `Uncertified`: a new `ChartRegionError`
+                    // arm must be classified here deliberately rather
+                    // than default into an unrefuted frontier.
+                    Some(Err(
+                        ChartRegionError::ChartDivergence { .. }
+                        | ChartRegionError::NonPlanarTrim { .. }
+                        | ChartRegionError::MissingCache { .. }
+                        | ChartRegionError::ArmUnbounded { .. }
+                        | ChartRegionError::SeamBranch
+                        | ChartRegionError::CarrierTilt
+                        | ChartRegionError::TouchingBoundary
+                        | ChartRegionError::DegenerateLoop { .. }
+                        | ChartRegionError::RayExhausted
+                        | ChartRegionError::Corrupt,
+                    )) => {
                         errors.push(ValidationError::CensusUnsupported {
                             entity: EntityId::Face(fa),
                         });
@@ -2202,10 +2225,25 @@ fn confirm_curve_and_patch_records<T: Decide + crate::chart_region::ChartRegionL
             }
             Some(Ok(crate::chart_region::ChartOverlap::PositiveArea)) => {}
             Some(Ok(crate::chart_region::ChartOverlap::Empty)) => errors.push(stale),
-            Some(Err(crate::chart_region::ChartRegionError::Escalated(cause))) => {
+            Some(Err(ChartRegionError::Escalated(cause))) => {
                 errors.push(ValidationError::CensusEscalated { cause });
             }
-            Some(Err(_)) => {
+            // As the sweep arm: every other typed refusal is unsupported
+            // inventory, and the list is exhaustive so a new
+            // `ChartRegionError` arm is a compile error here rather than
+            // a silent promotion to an unrefuted frontier.
+            Some(Err(
+                ChartRegionError::ChartDivergence { .. }
+                | ChartRegionError::NonPlanarTrim { .. }
+                | ChartRegionError::MissingCache { .. }
+                | ChartRegionError::ArmUnbounded { .. }
+                | ChartRegionError::SeamBranch
+                | ChartRegionError::CarrierTilt
+                | ChartRegionError::TouchingBoundary
+                | ChartRegionError::DegenerateLoop { .. }
+                | ChartRegionError::RayExhausted
+                | ChartRegionError::Corrupt,
+            )) => {
                 errors.push(ValidationError::CensusUnsupported {
                     entity: EntityId::Face(c.face_a),
                 });
@@ -2260,7 +2298,7 @@ mod tests {
         sense: bool,
     ) -> (FaceKey, crate::geometry::SurfaceKey) {
         use geom::Curve3;
-        use geom_brep::{EdgeCurveSpec, EdgeGeometry};
+        use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
         let (p00, p10, p11, p01) = (
             cyl_pt(u0, z0),
             cyl_pt(u1, z0),
@@ -2299,7 +2337,7 @@ mod tests {
                 )
             };
             EdgeCurveSpec {
-                description: EdgeGeometry::Intersection {
+                description: EdgeDescriptionSpec::Intersection {
                     s1: cyl,
                     s2: plane,
                     witness: cyl_pt((u0 + u1) * 0.5, z),

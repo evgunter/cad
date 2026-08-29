@@ -4,7 +4,7 @@
 //! in `topo`'s `Body<T>` (points, curves, surfaces), which re-exports
 //! these types unchanged. They are defined **here**, one layer below
 //! `topo`, because D2's intensional edge descriptions reference surfaces
-//! *by arena key* ([`crate::EdgeGeometry::Intersection`] holds two
+//! *by arena key* ([`crate::EdgeDescription::Intersection`] holds two
 //! `SurfaceKey`s) — the description layer has to be able to name arena
 //! slots without depending on the arena store above it.
 //!

@@ -411,10 +411,13 @@ fn lantern<S: Scalar>(
 /// stem's diameter, threaded on the stem's foot. Its two planar caps
 /// are ANNULI, which is load-bearing and not a styling choice: a full
 /// revolve whose planar cap TOUCHES THE AXIS arrives as two half-faces
-/// on one plane key, and that is the F7 maximal-faces defect — such a
-/// body can never be a boolean operand, and `merge_coplanar_faces`
-/// cannot repair it either (probe 13). An annular cap revolves to ONE
-/// whole face and has no such defect.
+/// on one plane key, and that used to be the F7 maximal-faces defect
+/// with no way out. It is repairable now: the cap's two seam edges are
+/// the halves of the disc's diameter, so the pole is a vertex interior
+/// to one straight carrier, and `merge_coplanar_faces` removes the
+/// seam (`kef` then `kev`) leaving ONE face. An annular cap still
+/// sidesteps the question rather than answering it — it revolves to
+/// one whole face and has no such pair to repair.
 ///
 /// Sketch frame: origin on the corm's top plane, `v` pointing DOWN
 /// into the corm, so `t` is depth. Same axis convention as
@@ -1346,13 +1349,6 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
     // built with rather than copied: the NECK's drop plus
     // `FLOWER_TOP`, along the flower axis from the attachment point.
     // The sepals then stand on the sphere the lantern actually has.
-    //
-    // `theta` must clear `acos(FLOWER_TOP / FLOWER_GLOBE)` = 24.6
-    // degrees, the polar angle where the sphere is TRUNCATED by the
-    // neck's shoulder circle: above that the sphere is not part of the
-    // body, so a sepal standing there would be tangent to a surface
-    // that is not there. 38 degrees puts them on the shoulder of the
-    // globe.
     let flower_globe_depth =
         neck_drop(FLOWER_GLOBE, FLOWER_TOP, ARCH_R, FLOWER_NECK_HALF_ANGLE) + FLOWER_TOP;
     // The BUD: three pre-tepals, not a small flower. A much smaller
@@ -1376,6 +1372,12 @@ pub fn plant<S: Scalar>(tol: Tol) -> Vec<Piece<S>> {
         tol,
     );
 
+    // The sepals' polar angle must CLEAR `acos(FLOWER_TOP /
+    // FLOWER_GLOBE)`, the angle at which the sphere is truncated by
+    // the neck's shoulder circle: nearer the pole than that the sphere
+    // is not part of the body, so a sepal standing there would be
+    // tangent to a surface that is not there. The margin below is the
+    // clearance, and it puts them on the shoulder of the globe.
     let sepal_bodies: [Body<S>; 3] = sepals(
         (
             flower_attach.0 + flower_globe_depth * at_flower.t.0,
@@ -1921,6 +1923,18 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
             .body
     };
     let (stem, arch, lant) = (by("lily_stem"), by("lily_arch"), by("lily_lantern"));
+    // **The authored repair.** #1031's pole half made a full revolve's
+    // axis-touching caps mergeable, so the scene now asks for that
+    // repair rather than working around it: probe 7 subtracts from the
+    // REPAIRED lantern, which is what a user would do the day the door
+    // opened. The un-repaired body stays available above, and probe 13
+    // is the row that pins the door open.
+    let repaired_lantern = {
+        let mut b = lant.clone();
+        b.merge_coplanar_faces(tol)
+            .expect("the lantern's pole-split caps repair (#1031's pole half)");
+        b
+    };
     let arch_caps = pieces
         .iter()
         .find(|p| p.name == "lily_arch")
@@ -1998,15 +2012,17 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    decide only whether the pair can matter. It reads kinds,
     //    never loci — so it cannot see the coincidence.
     //
-    //    **What BINDS is one door further down, and it is not this
-    //    pair's business at all.** The whole sequence is measured by
+    //    **What BINDS is further down, and it is not this pair's
+    //    business at all.** The whole sequence is measured by
     //    `review_probes::the_declared_weld_refuses_exactly_as_the_
-    //    undeclared_one_does` and its sibling: widen the gate and the
-    //    next refusal is `NonMaximalFaces` on this very body — the
-    //    lantern's two axis-touching planar caps, the F7 defect, which
-    //    `merge_coplanar_faces` will not repair. No boolean can take
-    //    the lantern as an operand until **#1031** lands, whatever the
-    //    gate learns about cone x torus. After that comes the curved
+    //    undeclared_one_does` and its sibling. Widen the gate and the
+    //    next refusal is `NonMaximalFaces` on this very body — and it
+    //    still is, because THIS probe passes the UNREPAIRED lantern
+    //    (probe 7 is the one that repairs first). That door is no
+    //    longer a dead end for such a body: `merge_coplanar_faces`
+    //    repairs the pole-split caps. A gate exemption was tried for
+    //    this and WITHDRAWN — the fix is the repair op, not a
+    //    narrowing of `gate_maximal_faces`. After F7 comes the curved
     //    PIERCE arm (wall 12's door), and only after that could a
     //    germ-pair question arise.
     //
@@ -2036,8 +2052,9 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
                 }
             )
         },
-        "join flower to stem — #1031 (the F7 caps) is what unblocks it, \
-         measured, not guessed",
+        "join flower to stem — #1031's pole half is NECESSARY BUT NOT \
+         SUFFICIENT: the measured chain runs gate -> F7 -> the curved \
+         pierce arm, and only the first two are anyone's current unit",
     );
 
     // 3. The lily's leaves DO leave their own plane now — each blade
@@ -2149,33 +2166,31 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //
     //    The pair-scoped gate ADMITS this cut: the pucker's box
     //    clears the ball's, so no unsupported KIND can enter the
-    //    operation. What refuses is one door later, and it is not a
-    //    germ class: the operand is not maximal-faced
-    //    (`NonMaximalFaces`, the F7 door).
+    //    operation. The F7 door used to answer next; it no longer
+    //    does, because the scene REPAIRS the operand first (below) and
+    //    a repaired lantern is maximal-faced. What answers now is the
+    //    reduction's curved PIERCE arm — wall 12's door — and the
+    //    payload is quoted rather than described, the wall-7 lesson
+    //    about reading a locus off a comment instead of a dump.
     //
-    //    WHICH faces, corrected at M9-5 — this sentence used to name
-    //    the spherical zone's two half-bands on one surface key, and
-    //    that is not the defect. `boolean::reduce`'s
-    //    `gate_maximal_faces` says so in terms: same-key CURVED
-    //    adjacency is the CANONICAL maximal form (a periodic wall
-    //    cannot be one face without its parameterization cut), and
-    //    only the PLANAR same-key pair is the F7 defect. The lantern's
-    //    real defect is its AXIS-TOUCHING PLANAR CAPS: a full revolve
-    //    of a profile that touches the axis emits each such cap as two
-    //    half-faces on one plane key, and that pair is the refusal.
+    //    **#1031's POLE HALF has landed, and this is what it bought.**
+    //    The lantern's two axis-touching caps were each two half-faces
+    //    on one plane key; `merge_coplanar_faces` now repairs both —
+    //    faces 10 to 8, vertices 10 to 8, edges 18 to 14, tier 3
+    //    clean — because each cap's seam is the two halves of the
+    //    disc's DIAMETER, so the pole is a vertex interior to one
+    //    straight carrier and removing it changes no locus. The
+    //    licence is collinearity, not poleness
+    //    (`merge_faces::redundant_subdivision_vertex`). The teapot
+    //    cup's coplanar pair is NOT repaired, and what the dump
+    //    actually shows about it is its VALENCE — endpoints of
+    //    valence 4, so there is no valence-2 junction to license
+    //    anything. Its seam's straightness was never measured and no
+    //    claim is made about it here.
     //
-    //    That makes this wall's blocker a PRECONDITION rather than a
-    //    breadth gap — and the obvious repair does not work either,
-    //    which probe 13 measures: `merge_coplanar_faces` REFUSES on
-    //    those caps (`MergedFaceRoleAmbiguous`), because killing both
-    //    seam struts leaves a loop the winding resolution cannot
-    //    assign a role to. So the precondition is a door-widening or
-    //    an authoring change (the corm avoids the class entirely by
-    //    having ANNULAR caps), not a call the scene forgot to make.
-    //    The open REPAIR question — teach `merge_coplanar_faces` the
-    //    cap pair, or have `revolve` mint maximal caps — is **#1031**;
-    //    the mechanism is `gate_maximal_faces` in
-    //    `crates/topo/src/boolean/reduce.rs`.
+    //    #1031 stays open for its OTHER defect: an ordinary coplanar
+    //    pair at a full-valence edge, measured on that cup's meridian
+    //    plane (endpoints valence 4, no pole).
     //
     //    What is left after that is the breadth half, DEPENDENCY-STATED
     //    like probe 8's: it waits on the verbs/breadth slate,
@@ -2190,11 +2205,11 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         7,
         "carve a tepal seam into the lantern (sphere x sphere by geometry; the \
          operand's own shape answers first)",
-        pncad::topo::subtract(lant, &ball::<S>((-2.80, 0.90), 0.16, tol), tol),
+        pncad::topo::subtract(&repaired_lantern, &ball::<S>((-2.80, 0.90), 0.16, tol), tol),
         |e| {
             matches!(
                 e,
-                BooleanError::NonMaximalFaces {
+                BooleanError::CurvedPierceUnsupported {
                     operand: Operand::A,
                     ..
                 }
@@ -2321,37 +2336,53 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
          claim about what a cylindrical mate needs beside it",
     );
 
-    // 13. The door UNDER probe 7, said out loud and probed on its own.
-    //     A full revolve whose planar cap TOUCHES THE AXIS arrives as
-    //     two half-faces on one plane key — the F7 maximal-faces
-    //     defect (`reduce.rs`'s `gate_maximal_faces`, which says in
-    //     terms that same-key CURVED adjacency is the canonical
-    //     maximal form and only the PLANAR same-key pair is the
-    //     defect) — so no such body can ever be a boolean operand. The
-    //     obvious repair is the merge door, and the merge door refuses
-    //     too: killing both seam struts leaves a loop the winding
-    //     resolution cannot assign a role to, and the op declines to
-    //     guess. The corm avoids the whole class by being authored
-    //     with ANNULAR caps, which is why it is a legal operand at all
-    //     (probe 12 gets one door further than probe 7 does).
+    // 13 — RETIRED, and this is its retirement. It pinned the merge
+    //      door SHUT on a full revolve's axis-touching caps: two
+    //      half-faces on one plane key, which `merge_coplanar_faces`
+    //      refused as `MergedFaceRoleAmbiguous` because its intra-face
+    //      arm minted a ring from the surviving seam strut and the
+    //      winding pass could then find no unique outline.
     //
-    //     The open REPAIR question is **#1031** — whether
-    //     `merge_coplanar_faces` learns the cap pair, or `revolve`
-    //     mints maximal caps. This probe holds the mechanism; the
-    //     issue holds the choice.
-    wall(
-        13,
-        "merge the lantern's seam-split caps so it can be a boolean operand at all",
-        lant.clone().merge_coplanar_faces(tol),
-        |e| {
-            matches!(
-                e,
-                pncad::topo::MergeCoplanarError::MergedFaceRoleAmbiguous { .. }
-            )
-        },
-        "make a revolve with an axis-touching flat cap usable as a boolean \
-         operand, and re-derive probe 7's blocker sentence",
-    );
+    //      #1031's pole half opened it. The strut is not a ring: the
+    //      cap's two seam edges are the two halves of the disc's
+    //      DIAMETER, so the pole is interior to one straight carrier,
+    //      `kev` removes it without changing any locus, and the cap
+    //      comes back as ONE face. The wall's own retire note asked
+    //      for exactly this — "make a revolve with an axis-touching
+    //      flat cap usable as a boolean operand, and re-derive probe
+    //      7's blocker sentence" — and both halves are done: probe 7
+    //      now runs on the repaired body and names the door after.
+    //
+    //      What replaces the wall is the measurement it becomes: the
+    //      repair, asserted on this scene's own lantern.
+    {
+        let mut before = lant.clone();
+        let (f0, v0, e0) = (
+            before.faces().count(),
+            before.vertices().count(),
+            before.edges().count(),
+        );
+        let outcome = before
+            .merge_coplanar_faces(tol)
+            .expect("probe 13 RETIRED: the lantern's caps now merge");
+        println!(
+            "   wall 13 — RETIRED: the lantern's two axis-touching caps MERGE \
+             ({} group(s), {} skipped); faces {f0} -> {}, vertices {v0} -> {}, \
+             edges {e0} -> {}",
+            outcome.groups.len(),
+            outcome.skipped.len(),
+            before.faces().count(),
+            before.vertices().count(),
+            before.edges().count()
+        );
+        assert_eq!(outcome.groups.len(), 2, "both caps repair");
+        assert_eq!(before.faces().count(), f0 - 2, "each cap became ONE face");
+        assert_eq!(
+            before.vertices().count(),
+            v0 - 2,
+            "each pole went with its seam"
+        );
+    }
 
     println!(
         "   (wall 9 — a TAPERING SWEEP — is still an ABSENCE rather than a \
@@ -2424,11 +2455,33 @@ mod review_probes {
             {
                 let t = (*center, *axis, *major_radius, *minor_radius, *u_ref);
                 if let Some(prev) = &found {
-                    // Both torus half-bands must share ONE carrier.
-                    let (pc, pa, pr, pm, _): &(Point3<f64>, Vec3<f64>, f64, f64, Vec3<f64>) = prev;
-                    assert!((pc.x - t.0.x).abs() < 1e-15 && (pc.z - t.0.z).abs() < 1e-15);
-                    assert!((pa.y.abs() - t.1.y.abs()).abs() < 1e-15);
-                    assert!((pr - t.2).abs() < 1e-15 && (pm - t.3).abs() < 1e-15);
+                    // Both torus half-bands must share ONE carrier, and
+                    // that means EVERY component of it: a comparison
+                    // that skips a component is a comparison two
+                    // different tori can pass, which is exactly what
+                    // this assertion exists to rule out.
+                    let (pc, pa, pr, pm, pu): &(Point3<f64>, Vec3<f64>, f64, f64, Vec3<f64>) = prev;
+                    assert!(
+                        (*pc - t.0).norm() < 1e-15,
+                        "two torus faces, two centers: {pc:?} vs {:?}",
+                        t.0
+                    );
+                    assert!(
+                        (*pa - t.1).norm() < 1e-15,
+                        "two torus faces, two axes: {pa:?} vs {:?}",
+                        t.1
+                    );
+                    assert!(
+                        (*pu - t.4).norm() < 1e-15,
+                        "two torus faces, two u_ref: {pu:?} vs {:?}",
+                        t.4
+                    );
+                    assert!(
+                        (pr - t.2).abs() < 1e-15 && (pm - t.3).abs() < 1e-15,
+                        "two torus faces, two radius pairs: ({pr}, {pm}) vs ({}, {})",
+                        t.2,
+                        t.3
+                    );
                 } else {
                     found = Some(t);
                 }
@@ -2661,27 +2714,25 @@ mod review_probes {
         );
     }
 
-    /// **The lantern's F7 defect, named face by face** — the door
-    /// UNDER the operand gate, and the reason the weld's acceptance is
-    /// not this unit's to give.
+    /// **The lantern's two pole-split caps, named face by face** —
+    /// the shape the F7 rule used to call a defect and no longer does.
     ///
-    /// `gate_maximal_faces` refuses an operand carrying a PLANAR
-    /// same-key adjacency. The lantern has two, and this row says
-    /// which: the LIP disk and the THROAT disk, each a full revolve's
-    /// cap that touches the axis and therefore arrives as two
-    /// half-faces on one plane key. The body's curved same-key
-    /// adjacencies (the two cones and the sphere zone) are the
-    /// CANONICAL maximal form and are not defects — this row asserts
-    /// that split, so a change that started treating curved same-key
-    /// pairs as defects would fail here rather than silently.
+    /// The lantern carries two PLANAR same-key adjacencies, the LIP
+    /// disk and the THROAT disk, each a full revolve's cap that
+    /// touches the axis and therefore arrives as two half-faces on one
+    /// plane key. Its CURVED same-key adjacencies (two cones, one
+    /// sphere zone) are the same structure with a different carrier.
+    /// This row asserts the split — four planar half-faces, six curved
+    /// — so a change that stopped telling the two apart fails here
+    /// rather than silently.
     ///
-    /// The repair door is still shut: `merge_coplanar_faces` refuses
-    /// on the re-authored lantern exactly as probe 13 pins it. **#1031
-    /// holds the choice**, and until it lands no boolean can take this
-    /// body as an operand, whatever the operand gate learns about
-    /// cone×torus.
+    /// The MERGE door is now OPEN on exactly this shape: each cap's
+    /// two seam edges are the halves of the disc's diameter, so the
+    /// pole is interior to one straight carrier and
+    /// `merge_coplanar_faces` repairs the pair to ONE face. This row
+    /// pins both halves — the split as it arrives, and the repair.
     #[test]
-    fn the_lanterns_two_axis_touching_caps_are_the_f7_defect() {
+    fn the_lanterns_two_pole_split_caps() {
         let tol = Tol::witness();
         let ps = pieces();
         let lant = body(&ps, "lily_lantern");
@@ -2718,12 +2769,55 @@ mod review_probes {
             "two planar caps (the lip disk and the throat disk) and three curved \
              walls (two cones, one sphere zone), each split at its seam"
         );
-        assert!(
-            matches!(
-                lant.clone().merge_coplanar_faces(tol),
-                Err(pncad::topo::MergeCoplanarError::MergedFaceRoleAmbiguous { .. })
-            ),
-            "the merge door is still shut on the re-authored lantern (#1031)"
+        let mut repaired = lant.clone();
+        let outcome = repaired
+            .merge_coplanar_faces(tol)
+            .expect("the pole-split caps repair (#1031's pole half)");
+        assert_eq!(outcome.groups.len(), 2, "both caps merged");
+        assert_eq!(
+            (repaired.faces().count(), repaired.vertices().count()),
+            (8, 8),
+            "each cap became one face and each pole went with its seam"
+        );
+        // `topo::validate` is the TIER 1 validator; the claim here is
+        // about the repaired body's tier 2 and tier 3 standing, so it
+        // runs those (delta review MIN-1: the check and the message
+        // disagreed, and the message is what people read).
+        assert_eq!(
+            pncad::topo::validate_closed(&repaired),
+            Ok(()),
+            "tier 2 after repair"
+        );
+        assert_eq!(
+            pncad::topo::validate_geometric(&repaired, tol),
+            Ok(()),
+            "tier 3 after repair"
+        );
+    }
+
+    /// DELTA probe (ordinal-104 verification, `verbs/f7d-probes`),
+    /// ADOPTED: the row above used to label a TIER 1 check "tier 3".
+    /// That row is fixed, and this one stands beside it running both
+    /// real validators, so the PR body's "tier 3 clean" claim is
+    /// measured in-tree rather than inherited from a dev-run log.
+    #[test]
+    fn f7d_delta_repaired_lantern_actual_tiers() {
+        let tol = Tol::witness();
+        let ps = pieces();
+        let lant = body(&ps, "lily_lantern");
+        let mut repaired = lant.clone();
+        repaired
+            .merge_coplanar_faces(tol)
+            .expect("the pole-split caps repair");
+        assert_eq!(
+            pncad::topo::validate_closed(&repaired),
+            Ok(()),
+            "tier 2 after repair (actual)"
+        );
+        assert_eq!(
+            pncad::topo::validate_geometric(&repaired, tol),
+            Ok(()),
+            "tier 3 after repair (actual)"
         );
     }
 
@@ -3151,7 +3245,7 @@ mod review_probes {
         // and a 1.05 m sepal reaches 0.027 m inside it — this assert
         // is what caught that, and reds if the phase is dropped.
         for seg in ["lily_bud_a", "lily_bud_b", "lily_bud_c"] {
-            let (bc, br) = sphere_of(body(&ps, seg));
+            let (bc, br, _) = sphere_of(body(&ps, seg));
             for name in ["lily_sepal_a", "lily_sepal_b", "lily_sepal_c"] {
                 let sb = body(&ps, name);
                 for (_, v) in sb.vertices() {
@@ -3183,23 +3277,15 @@ mod review_probes {
         let segs: Vec<(Point3<f64>, Vec3<f64>)> = ["lily_bud_a", "lily_bud_b", "lily_bud_c"]
             .into_iter()
             .map(|n| {
-                let b = body(&ps, n);
-                let mut found = None;
-                for (_, f) in b.faces() {
-                    if let Some(pncad::geom::Surface::Sphere { center, axis, .. }) =
-                        b.get_surface(f.surface)
-                    {
-                        // Stored axes may point either way along the
-                        // line; orient them all into the bud.
-                        let a = if axis.dot(bud_axis) < 0.0 {
-                            -*axis
-                        } else {
-                            *axis
-                        };
-                        found = Some((*center, a));
-                    }
-                }
-                found.expect("a bud segment stores its globe")
+                let (center, _, axis) = sphere_of(body(&ps, n));
+                // Stored axes may point either way along the line;
+                // orient them all into the bud.
+                let a = if axis.dot(bud_axis) < 0.0 {
+                    -axis
+                } else {
+                    axis
+                };
+                (center, a)
             })
             .collect();
         for (i, (_, a)) in segs.iter().enumerate() {
@@ -3366,16 +3452,45 @@ mod review_probes {
             .collect()
     }
 
-    /// The single stored sphere of a body: (centre, radius).
-    fn sphere_of(b: &Body<f64>) -> (Point3<f64>, f64) {
+    /// Everything a stored sphere holds: (centre, radius, axis,
+    /// `u_ref`). Named so the agreement check below can compare the
+    /// whole of one against the whole of another.
+    type SphereCarrier = (Point3<f64>, f64, Vec3<f64>, Vec3<f64>);
+
+    /// The body's single stored sphere: (centre, radius, axis).
+    ///
+    /// Single is CHECKED, not assumed. Every caller reads one sphere
+    /// face and treats what it stores as the body's, so a second face
+    /// carrying a different sphere would make that reading arbitrary —
+    /// the same licence [`torus`] asserts for its own two half-bands,
+    /// and asserted the same way: over the WHOLE carrier, `u_ref`
+    /// included, because a partial comparison is one two different
+    /// spheres can pass.
+    fn sphere_of(b: &Body<f64>) -> (Point3<f64>, f64, Vec3<f64>) {
+        let mut found: Option<SphereCarrier> = None;
         for (_, f) in b.faces() {
-            if let Some(pncad::geom::Surface::Sphere { center, radius, .. }) =
-                b.get_surface(f.surface)
+            if let Some(pncad::geom::Surface::Sphere {
+                center,
+                radius,
+                axis,
+                u_ref,
+            }) = b.get_surface(f.surface)
             {
-                return (*center, *radius);
+                let s = (*center, *radius, *axis, *u_ref);
+                match found {
+                    Some(p) => assert!(
+                        (p.0 - s.0).norm() < 1e-15
+                            && (p.1 - s.1).abs() < 1e-15
+                            && (p.2 - s.2).norm() < 1e-15
+                            && (p.3 - s.3).norm() < 1e-15,
+                        "two sphere faces, two carriers: {p:?} vs {s:?}"
+                    ),
+                    None => found = Some(s),
+                }
             }
         }
-        panic!("body stores no sphere")
+        let (center, radius, axis, _) = found.expect("body stores no sphere");
+        (center, radius, axis)
     }
 
     /// One planar cap of a lofted blade, reduced to the numbers the
@@ -3642,7 +3757,11 @@ mod verbs_gate_r1_probes {
              frustum, not contact"
         );
         let ball_body = ball::<f64>((-2.80, 0.90), 0.16, tol);
-        let refusal = pncad::topo::subtract(lant, &ball_body, tol)
+        let mut repaired = lant.clone();
+        repaired
+            .merge_coplanar_faces(tol)
+            .expect("the lantern's caps repair (#1031's pole half)");
+        let refusal = pncad::topo::subtract(&repaired, &ball_body, tol)
             .expect_err("the tepal seam is still refused, somewhere");
         println!("wall-7 probe: the kernel answers {refusal:?}");
         // **The measured outcome, and it is neither branch the review
@@ -3650,22 +3769,23 @@ mod verbs_gate_r1_probes {
         // boundary's own locus, the pucker's box clears the ball by
         // {tightest} on its tightest axis, so the pair-scoped gate
         // ADMITS — and what answers is not a germ class at all but
-        // the operand-shape precondition: the lantern is a full
-        // revolve, so its zone is two half-bands on one surface key
-        // and it is not maximal-faced.
+        // the operand-shape precondition. WHICH faces, corrected at
+        // M9-5 and re-measured here: NOT the zone's two half-bands —
+        // same-key CURVED adjacency is the canonical maximal form —
+        // but the lantern's two AXIS-TOUCHING PLANAR CAPS.
         //
         // So the sphere×sphere germ arm is not even reached. This
-        // wall's dependency is now `merge_coplanar_faces` on the
-        // operand (or the F7 door widening), and only THEN row 9.
+        // wall's dependency is #1031's pole half (the repair op), and
+        // only THEN row 9.
         assert!(
             tightest < 0.0,
             "the pucker's box must clear the ball's for the gate to admit; it does \
              not, so this row's reading of the refusal below is wrong"
         );
         assert!(
-            matches!(refusal, BooleanError::NonMaximalFaces { .. }),
-            "the operand gate admits now, so what refuses is the maximal-faces \
-             precondition — got {refusal:?}"
+            matches!(refusal, BooleanError::CurvedPierceUnsupported { .. }),
+            "the gate admits and the REPAIRED lantern is maximal-faced, so what \
+             refuses is the curved pierce arm — got {refusal:?}"
         );
     }
 

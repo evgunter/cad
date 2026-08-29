@@ -1,11 +1,9 @@
 # Group boolean in the recipe layer — D2 + F4 (ratified: A′)
 
-STATUS: **SHAPE RATIFIED — option A′ ("a Pattern that fuses"),
-Evan's 👍 on the #496 thread (comment 5303065667), 2026-08-15,
-confirmed directly in-session.** Scheduling of the implementation
-unit is deliberately OPEN (Evan's question 3): it is an M9-seam
-carried item, to run M9-adjacent or LIB-side with the schema-v9
-claim coordinated either way. The option analysis that led here
+STATUS: **RATIFIED — option A′ ("a Pattern that fuses"), Evan's 👍
+on the #496 thread (comment 5303065667), 2026-08-15. IMPLEMENTED by
+the LIB program: `Node::PlacedUnion` at #571 (schema v12), its
+Python/audit slice at #604.** The option analysis that led here
 (A: heterogeneous BooleanGroup; B: sugar; C: n-ary kernel op; the
 Pattern-kind and balanced-tree alternatives argued on the #496
 thread) is preserved in this document's git history and the PR
@@ -13,19 +11,19 @@ conversation.
 
 ## The problem, measured (unchanged)
 
-`Node::Boolean` is strictly binary (node.rs:411). The die tour's
+`Node::Boolean` is strictly binary (node.rs:606). The die tour's
 21-shell cutting tool costs twenty union nodes, and the fold's
 accumulator side nests: the FIRST ball's cavity faces end up 21
 role segments deep. Three costs: authoring (twenty nodes for one
 thing); naming/selection (`NamePat` matches exact
 segment-for-segment paths, so "any face of ball 7" is unwritable);
-and F4 — `body_operand` (wire.rs:221–236) refuses a Pattern's
-`Instances`, which is why the heatsink's union-to-one-solid lives
-in demo code. The pips are Transforms of ONE ball with
+and F4 — `body_operand` (wire.rs:345) refuses a Pattern's
+`Instances`, which is why the tour heatsink's union-to-one-solid
+lives in demo code. The pips are Transforms of ONE ball with
 bit-identical StableNames, so any flat grouping must mint a
 per-instance discriminator or alias.
 
-## The ratified shape — `PlacedUnion` (name provisional)
+## The ratified shape — `PlacedUnion`
 
 A new node kind — NOT a `PatternKind` (Pattern's N-bodies-unfused
 output contract stays untouched; forking a node's result type on a
@@ -37,8 +35,9 @@ variant is the silent-dispatch-trap shape D3 forbids):
 - **Placement rule = `PatternKind`**, reusing the existing rule
   vocabulary, plus one NEW kind `Explicit(Vec<Placement>)`
   (absolute frames; order is data, index is D8-structural). The
-  heatsink says `PlacedUnion(fin, Linear{..})` — F4's
-  out-of-document union retires at its origin site. The die's
+  heat-sink document says `PlacedUnion(fin, Linear{..})` (corpus
+  `heat_sink_fins`) — F4's out-of-document union retires wherever
+  it is re-authored. The die's
   whole tool is ONE node: all 21 pips are the same ball —
   `PlacedUnion(ball, Explicit(21 frames))`.
 - **Naming: the vocabulary does not grow.** Per-instance
@@ -95,18 +94,16 @@ variant is the silent-dispatch-trap shape D3 forbids):
 
 ## Costs, eyes open
 
-- **Schema v9**: the node variant + the new `PatternKind` = ONE
-  vocabulary change, one version (persist/mod.rs:176–186's
-  one-meaning-per-version rule). Costs the v8 pattern: golden +
-  SchemaTooOld/UnknownSchema rows both directions, version-pin
-  asserts, Python mirror. The bump claim goes to main AT DISPATCH
-  (the LBRET double-claim corollary), coordinated with LIB/ASM's
-  version sequence.
+- **ONE schema version** (claimed as v12): the node variant + the
+  new `PatternKind` = ONE vocabulary change, one version
+  (persist/mod.rs's one-meaning-per-version rule). It costs the
+  standard pattern: golden + SchemaTooOld/UnknownSchema rows both
+  directions, version-pin asserts, Python mirror.
 - New arms at every `Node` dispatch site (inputs/slots/run_op/
   content_key/appearance/diff/edit validation/Python constructor),
   compiler-guided per D3.
 
-## Acceptance (binding on the eventual unit spec)
+## Acceptance (pinned at `editor-core/tests/lib_placedunion.rs`)
 
 The die tour's tool collapses to one node; the first ball's cavity
 faces go from 21 segments to ≤3; a `select_where`/name row

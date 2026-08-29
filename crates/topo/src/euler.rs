@@ -234,7 +234,7 @@ use crate::entity::{
     LoopKey, Shell, ShellKey, Solid, SolidKey, Vertex, VertexKey,
 };
 use crate::geometry::{CurveKey, PointKey, SurfaceKey};
-use crate::live::Live;
+use crate::live::{Live, require_key};
 use crate::provenance::Provenance;
 #[cfg(debug_assertions)]
 use crate::test_support_impl::ArenaCounts;
@@ -1733,11 +1733,7 @@ impl<T: Decide> Body<T> {
         })?;
         let (inherit_surface, inherit_sense, shell_key) =
             (face_data.surface, face_data.sense, face_data.shell);
-        if !self.shells.contains_key(shell_key) {
-            return Err(EulerOpError::StaleKey {
-                key: EntityId::Shell(shell_key),
-            });
-        }
+        require_key(&self.shells, shell_key, EntityId::Shell)?;
         let p1 = self.resolve_vertex_point(u1)?;
         // he_minus is minted with start = u2; its point is the
         // certification's end endpoint (he_plus runs u1 → u2).
@@ -1836,11 +1832,7 @@ impl<T: Decide> Body<T> {
         })?;
         let (inherit_surface, inherit_sense, shell_key) =
             (face_data.surface, face_data.sense, face_data.shell);
-        if !self.shells.contains_key(shell_key) {
-            return Err(EulerOpError::StaleKey {
-                key: EntityId::Shell(shell_key),
-            });
-        }
+        require_key(&self.shells, shell_key, EntityId::Shell)?;
         // ---- Geometry gates (still no mutation): the self-loop edge
         // closes at the lone vertex — both endpoints are its point.
         self.check_face_surface(&surface)?;

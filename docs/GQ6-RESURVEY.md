@@ -10,10 +10,10 @@ GUI-DESIGN's GQ6 section as the current factual record.
 if egui does not work out.** Evan's ruling on this survey: "egui
 sounds enough better than iced that I'd switch the framing to
 'egui, unless that doesn't work, then try iced'." §1 is written in
-that frame. The remaining rows are unchanged in status: viewport
-(§2) and picking (§3) are recommendations carrying no ratification,
-the wasm row (§4) is measurement rather than decision, and GQ7 is
-untouched.
+that frame. The remaining rows: viewport (§2) and picking (§3) are
+recommendations carrying no ratification, both taken by the v1 GUI;
+the wasm row (§4) is measurement, guarded in CI since Evan's
+2026-08-21 ruling; and GQ7 is untouched.
 
 ## Method, and what is *not* evidence here
 
@@ -264,8 +264,13 @@ by step and not by job — see GUI-DESIGN §GQ6):
 
 ```
 cargo check --workspace --exclude pncad --exclude pncad-py \
-    --features interval --target wasm32-unknown-unknown
+    --exclude viewer --features interval --target wasm32-unknown-unknown
 ```
+
+(`viewer` is excluded for the same reason `pncad` is: it sits on the
+façade, so a leg excluding the façade cannot include it. The GUI's own
+wasm lane is GUI-5's, deferred post-v1; this guard's subject is the
+kernel plus `editor-core`.)
 
 **Row 2 (`geom-core --features interval`) is guarded directly** — it is
 that command.
@@ -276,8 +281,11 @@ superset of what default features compile. Two independent reasons:
 cargo features are purely additive for the **dependency graph** (a
 feature can add crates, never remove them — cargo's design, not ours);
 and `scripts/check-interval-cfg-additive.py` forbids any
-`cfg(not(feature = "interval"))` under `crates/*/{src,tests}`, so no
-source here compiles *only* when the feature is off. That lint runs in
+`cfg(not(feature = "interval"))` under `crates/*/src`, so no library
+source here compiles *only* when the feature is off. Under
+`crates/*/tests` the gate holds a different rule and the negation is
+legitimate and in use; that does not reach this row, which builds no
+test targets. That lint runs in
 `discipline`, on the same runs — the premise is checked wherever it is
 relied on. **Evan's ruling, 2026-08-21:** *"do add wasm cross compiling
 for the interval build only. the lint for having interval be purely
@@ -345,13 +353,13 @@ than an architecture. G1 stays agnostic; the option is real.
 
 ## 5. What "doesn't work out" would look like
 
-The toolkit is decided, so the spike is no longer a bake-off — the
-first GUI increment is simply built in egui: a docked side panel
-plus a wgpu viewport drawing one M5 tessellation, with click →
-`ray → stable ref` through the `editor-core` hit-test service. What
-that increment measures is the one thing this survey could not —
-how much friction the immediate-mode/retained-document seam actually
-creates.
+The toolkit is decided, so the spike was never a bake-off — the v1
+GUI is built in egui (GUI-0…GUI-4): docked chrome, a wgpu viewport,
+and click → `ray → stable ref` through the `editor-core` hit-test
+service. It measured the one thing this survey could not: the
+immediate-mode/retained-document seam is a **GO**, no condition
+below is met, and the iced fallback is closed for v1
+(`docs/GUI-EXIT-WALK.md`). The churn condition stays a live watch.
 
 This section exists so the fallback has teeth: the conditions below
 are what would send us to iced, written down in advance so the
@@ -388,13 +396,16 @@ without re-ranking the toolkit).
    pinned toolchain?* **Answered by the same ruling: yes**, and §5
    keeps it under watch as the fallback condition with the earliest
    warning signal.
-3. **Still open:** does the wasm result change sequencing — is "the
-   kernel runs in a browser" something to protect with a CI target
-   check now (cheap, and it would catch a regression the day it
-   lands) rather than rediscover at GUI time? Note this is now a
-   question about a *property we have*, not a strategic bet: nothing
-   in the toolkit ruling depends on it, since egui runs on wasm too.
+3. *Does the wasm result change sequencing — is "the kernel runs in a
+   browser" something to protect with a CI target check now (cheap,
+   and it would catch a regression the day it lands) rather than
+   rediscover at GUI time?* **Answered 2026-08-21 (Evan): yes, for
+   the interval build only** — the guard is one step on every
+   code-tier PR run (§4). It was a question about a *property we
+   have*, not a strategic bet: nothing in the toolkit ruling depends
+   on it, since egui runs on wasm too.
 
-What stays deferred regardless: the viewport (§2) and picking (§3)
-recommendations are engineering calls for whoever builds the first
-GUI increment, and GQ7 (selection mechanics) is untouched.
+The viewport (§2) and picking (§3) recommendations were the v1 GUI's
+engineering calls and it took both — wgpu 30 under egui, and a
+`Bvh::ray` query plus the GPU id-buffer pass rather than `parry3d`.
+GQ7 (selection mechanics) is untouched.

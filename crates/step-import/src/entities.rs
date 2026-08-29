@@ -129,7 +129,7 @@ pub(crate) struct SolidSpec {
     /// Edge ids of seam generators MINTED by the band re-mint
     /// (M7-5): D1 states each one spatially as its surface's u_ref
     /// half-plane, so adoption must certify it as
-    /// [`geom_brep::EdgeGeometry::Seam`] or refuse — the conventional
+    /// the seam image or refuse — the conventional
     /// mapped-curve fallback is withheld for these ids
     /// ([`crate::adopt`]).
     pub(crate) band_seams: std::collections::BTreeSet<u64>,
@@ -2033,15 +2033,15 @@ fn loop_u_wrap(
     edges: &BTreeMap<u64, EdgeSpec>,
 ) -> Option<f64> {
     use core::f64::consts::{PI, TAU};
-    // 16 steps per edge puts adjacent samples of a full-period rim
-    // ~0.39 rad apart — far inside the unwrap threshold below.
-    const STEPS: usize = 16;
+    // 16 divisions per edge put adjacent samples of a full-period
+    // rim ~0.39 rad apart — far inside the unwrap threshold below.
+    const DIVISIONS: usize = 16;
     let mut total = 0.0;
     let mut prev: Option<f64> = None;
     for use_ in &lp.uses {
         let spec = edges.get(&use_.edge)?;
-        for k in 0..=STEPS {
-            let f = k as f64 / STEPS as f64;
+        for k in 0..=DIVISIONS {
+            let f = k as f64 / DIVISIONS as f64;
             let f = if use_.forward { f } else { 1.0 - f };
             let t = spec.t0 + (spec.t1 - spec.t0) * f;
             let u = chart::uv_of(surface, spec.carrier.eval(t))?.x;

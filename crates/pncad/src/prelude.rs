@@ -88,8 +88,8 @@ pub use ::profile::{
 // `bossplate` scene's three-arc rim IS one), so `circle` alone left
 // half of the closed-carrier vocabulary a crate away.
 pub use ::profile::{
-    ArcLen, ArcSide, Bulge, Center, ClosedLoop, LineTarget, Open, PartialPath, PathError, Radius,
-    Start, Sweep, TangentArcTarget, Via, circle, circle_split,
+    ArcLen, ArcSide, Bulge, Center, ClosedLoop, LineTarget, Open, PartialPath, PathError,
+    PathNoCornerReason, Radius, Start, Sweep, TangentArcTarget, Via, circle, circle_split,
 };
 
 // --- 3. The four body operations ------------------------------
@@ -116,7 +116,7 @@ pub use geom_brep::SurfaceKind;
 // SameOriented = flush walls), so code inspecting findings names it.
 pub use topo::{
     Body, BooleanBody, BooleanDeclarations, BooleanError, BooleanOp, BooleanResult,
-    BooleanResultKind, ContactRecords, Curve3, EdgeGeometry, EdgeKey, FaceKey, Operand,
+    BooleanResultKind, ContactRecords, Curve3, EdgeDescription, EdgeKey, FaceKey, Operand,
     PlaneRelation, Surface, TransformError, VertexKey, intersect, intersect_with, subtract,
     subtract_with, transform_rigid, union, union_with,
 };

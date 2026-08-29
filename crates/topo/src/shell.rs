@@ -17,9 +17,18 @@
 //! bodies the construction has already proven nested. The sealed shell
 //! therefore executes as the boolean's DEGENERATE NO-CROSSING ARM:
 //!
-//! 1. one clone, every boundary face replaced by its inward offset
-//!    ([`crate::replace_face_offset`] per face) — the result is the
-//!    material to remove, a positively oriented closed body;
+//! 1. one clone, every boundary face moved to its inward offset — the
+//!    result is the material to remove, a positively oriented closed
+//!    body. **Two doors do that, and which one runs is decided by the
+//!    body**: an ALL-PLANAR operand goes through
+//!    [`crate::offset_planes_together`], which moves every chart at
+//!    once and solves each corner against all the moved planes meeting
+//!    it; anything with a curved face goes chart by chart through
+//!    [`crate::replace_faces_offset`], whose corners are transported
+//!    once per chart and whose OBLIQUE ones therefore refuse
+//!    (`ReanchorOffCarrier`) rather than build. The split is #1081's:
+//!    the planar half of that class is repaired and the curved half is
+//!    not;
 //! 2. that body inserted through the shared void-insertion door
 //!    ([`crate::boolean::voids::insert_void`]) with carried evidence;
 //! 3. one validation.
@@ -554,15 +563,62 @@ pub fn shell_open<T: Decide + PropsQuadLane>(
     // is by surface key, in face-arena order, so the walk is
     // deterministic.
     let mut cavity = body.clone();
-    for group in &charts {
-        let face = group[0];
-        let d = inward(&cavity, face, thickness)?;
-        crate::replace_faces_offset(&mut cavity, group, d, tolerance, band, tol).map_err(
-            |error| ShellError::Face {
-                face,
+    // **All-planar bodies move SIMULTANEOUSLY; everything else still
+    // moves chart by chart.** Composing the per-chart door over a body
+    // cannot offset an OBLIQUE junction: a corner is visited once per
+    // chart and transported rigidly each time, so it accumulates
+    // `Σ dᵢ·nᵢ` where the offset body needs the point satisfying every
+    // `nᵢ·x = nᵢ·oᵢ + dᵢ` at once. Those agree exactly when the normals
+    // are mutually perpendicular — which is why a box was always right
+    // — and diverge otherwise. `ReanchorOffCarrier` is what has been
+    // refusing the difference rather than building it, and it stays
+    // exactly where it was for every body this branch does not take:
+    // the curved corners are the C5-table work that follows.
+    let all_planar = cavity.faces().all(|(_, f)| {
+        matches!(
+            cavity.get_surface(f.surface),
+            Some(geom::Surface::Plane { .. })
+        )
+    });
+    if all_planar {
+        let mut moves: Vec<crate::offset_together::ChartMove<T>> = Vec::with_capacity(charts.len());
+        for group in &charts {
+            moves.push(crate::offset_together::ChartMove {
+                faces: group.clone(),
+                distance: inward(&cavity, group[0], thickness)?,
+            });
+        }
+        // `ShellError::Face` carries ONE face, and on this branch the
+        // honest one is the face the door's own refusal is about — not
+        // the first chart's first face, which names the operand's arena
+        // order and nothing about the failure. The door's typed
+        // refusals carry a face, a vertex or an edge; the last two are
+        // resolved to a face they touch.
+        let fallback =
+            charts
+                .first()
+                .and_then(|g| g.first())
+                .copied()
+                .ok_or(ShellError::Corrupt {
+                    key: EntityId::Solid(solid),
+                })?;
+        crate::offset_planes_together(&mut cavity, &moves, band, tol).map_err(|error| {
+            ShellError::Face {
+                face: offending_face(&cavity, &error).unwrap_or(fallback),
                 error: Box::new(error),
-            },
-        )?;
+            }
+        })?;
+    } else {
+        for group in &charts {
+            let face = group[0];
+            let d = inward(&cavity, face, thickness)?;
+            crate::replace_faces_offset(&mut cavity, group, d, tolerance, band, tol).map_err(
+                |error| ShellError::Face {
+                    face,
+                    error: Box::new(error),
+                },
+            )?;
+        }
     }
 
     // ---- The evidence: the construction's own decides, carried. ----
@@ -1162,6 +1218,28 @@ fn mean_radius<T: Real>(points: &[geom_core::Point3<T>], centre: geom_core::Poin
     sum / T::from_f64(points.len() as f64)
 }
 
+/// The face a simultaneous-door refusal is about, where it names one
+/// or names an entity that touches one.
+fn offending_face<T: Real>(body: &Body<T>, error: &ReplaceFaceError<T>) -> Option<FaceKey> {
+    let face_of_he =
+        |he| -> Option<FaceKey> { Some(body.get_loop(body.get_half_edge(he)?.parent_loop)?.face) };
+    match error {
+        ReplaceFaceError::StaleFace { face }
+        | ReplaceFaceError::TogetherNonPlanar { face, .. }
+        | ReplaceFaceError::TogetherPartialSet { face }
+        | ReplaceFaceError::TogetherChartMixed { face, .. }
+        | ReplaceFaceError::TogetherFaceRepeated { face } => Some(*face),
+        ReplaceFaceError::TogetherCorner { vertex, .. } => {
+            face_of_he(body.get_vertex(*vertex)?.emanating?)
+        }
+        ReplaceFaceError::TogetherEdgeDisagreement { edge, .. }
+        | ReplaceFaceError::ReanchorOffCarrier { edge, .. } => {
+            face_of_he(body.get_edge(*edge)?.he_plus)
+        }
+        _ => None,
+    }
+}
+
 /// The signed distance along `from`'s chart normal that lands it on
 /// `onto`'s plane. Both are planar — a curved designation is refused
 /// upstream — so this is one dot product and no solve.
@@ -1225,7 +1303,7 @@ fn rename_loop_surface<T: Decide>(
             edge,
             geom_brep::EdgeCurveSpec {
                 description: crate::replace_face::remap_description(
-                    *curve.description(),
+                    curve.restated_description(),
                     dead,
                     live,
                 ),

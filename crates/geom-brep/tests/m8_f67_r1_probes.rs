@@ -10,11 +10,11 @@
 //! - The pcurve gate's own reparametrization invariance, sampled at
 //!   `Probe` through the iso lane.
 //!
-//! **NO TEST IN THIS FILE IS EXECUTED BY CI.** The probe suites CI runs are
-//! rostered in `scripts/gates/probe-suite-census.sh` (`RUN_FLOOR`) and run
-//! by `scripts/k_probe_sweep.sh`; this one is on neither list, so nothing
-//! here can go red on a merge and its assertions are evidence for a reader
-//! rather than a gate. By hand:
+//! **CI EXECUTES THIS SUITE.** It is rostered in
+//! `scripts/gates/probe-suite-census.sh` (`RUN_FLOOR`) and run under the
+//! DEFAULT selection by `scripts/k_probe_sweep.sh`, whose tally is floored
+//! by `--check-executed`, so every assertion below is a gate and a red here
+//! fails the merge. By hand:
 //! `cargo test -p geom-brep --features probe --test all -- m8_f67_r1_probes::`.
 
 #![cfg(feature = "probe")]
@@ -27,7 +27,7 @@ use geom::{Curve3, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_brep::keys::SurfaceKey;
 use geom_brep::{
-    CertifyError, ChartWindow, EdgeCurve, EdgeCurveSpec, EdgeGeometry, Pcurve, PcurveCache,
+    CertifyError, ChartWindow, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, Pcurve, PcurveCache,
     PcurveCertifyError, PcurveCheck,
 };
 use geom_core::Tol;
@@ -192,7 +192,7 @@ fn certify_axis(carrier: Curve3<f64>, t0: f64, t1: f64) -> Result<EdgeCurve<f64>
     let witness = carrier.eval((t0 + t1) * 0.5);
     let (start, end) = (carrier.eval(t0), carrier.eval(t1));
     let spec = EdgeCurveSpec {
-        description: EdgeGeometry::Intersection { s1, s2, witness },
+        description: EdgeDescriptionSpec::Intersection { s1, s2, witness },
         carrier,
         param_start: t0,
         param_end: t1,

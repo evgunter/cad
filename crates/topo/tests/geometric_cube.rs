@@ -9,7 +9,7 @@
 
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::{CertCheck, CertifyError, EdgeCurveSpec, EdgeGeometry};
+use geom_brep::{CertCheck, CertifyError, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec};
 use geom_core::{Point3, Vec3};
 use topo::{
     Body, EulerOpError, FaceSurface, MefSite, MevSite, validate, validate_closed,
@@ -17,7 +17,9 @@ use topo::{
 };
 
 mod common;
-use common::{GeoCube, describe_as_intersections, geometric_cube};
+use common::{
+    GeoCube, assert_every_chord_named_by_both_rules, describe_as_intersections, geometric_cube,
+};
 use geom_core::Tol;
 
 #[test]
@@ -35,16 +37,22 @@ fn geometric_cube_passes_all_three_tiers() {
             .surfaces()
             .all(|(_, s)| matches!(s, Surface::Plane { .. }))
     );
-    // Prefer-intrinsic enforcement (D2, M2 PR 4 fix pass): every cube
-    // edge is a definitely-transverse plane-pair corner, so at rest the
-    // un-upgraded chords are named — all twelve, nothing else.
+    // At rest the un-upgraded chords are named — all twelve, once by
+    // each of the two rules they break, and nothing else.
+    //
+    // **Re-expressed at PCURVE P-1b.** Before this unit the only
+    // at-rest rule a conventional chord broke was prefer-intrinsic
+    // (D2), so the row counted twelve. U2's transience fence added a
+    // second, independent one: this cube is built entirely through the
+    // Euler-op door, which describes chords BEFORE any face surface
+    // exists, so every chord is still a scaffold once the body comes
+    // to rest. Rewriting `12` as `24` would have kept the row's shape
+    // and thrown away its content; `assert_every_chord_named_by_both_
+    // rules` asserts the bijection instead — one report per rule per
+    // edge, in arena order, no third kind — and says at its own doc
+    // why the two rules are independent rather than one doubled.
     let errs = validate_geometric(&t.body, Tol::witness()).unwrap_err();
-    assert_eq!(errs.len(), 12, "{errs:?}");
-    assert!(
-        errs.iter()
-            .all(|e| matches!(e, topo::ValidationError::TransverseNotIntrinsic { .. })),
-        "{errs:?}"
-    );
+    assert_every_chord_named_by_both_rules(&t.body, &errs);
     // Upgraded (the construction-discipline the rule enforces), the
     // cube passes all three tiers.
     let mut body = t.body;
@@ -181,7 +189,7 @@ fn cube_edges_upgrade_to_intersections_and_pass_tier3() {
     assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
     assert!(body.curves().all(|(_, c)| matches!(
         c.certified().map(topo::EdgeCurve::description),
-        Some(EdgeGeometry::Intersection { .. })
+        Some(EdgeDescription::Intersection { .. })
     )));
 
     // Teeth: an Intersection naming a NON-adjacent pair is refused by
@@ -199,7 +207,7 @@ fn cube_edges_upgrade_to_intersections_and_pass_tier3() {
         .set_face_surface(t.seed.face, FaceSurface::Inherit)
         .unwrap(); // the top face's key — not this bottom edge's face
     let mut spec = EdgeCurveSpec::line_between(p0, p1);
-    spec.description = EdgeGeometry::Intersection {
+    spec.description = EdgeDescriptionSpec::Intersection {
         s1: foreign1,
         s2: foreign1,
         witness: p0.lerp(p1, 0.5),
@@ -310,7 +318,7 @@ fn near_tangent_intersection_attachment_escalates() {
         .unwrap();
     let flat = body.get_face(split.face).unwrap().surface;
     let mut spec = EdgeCurveSpec::line_between(c(0.0, 0.0, 0.0), c(1.0, 0.0, 0.0));
-    spec.description = EdgeGeometry::Intersection {
+    spec.description = EdgeDescriptionSpec::Intersection {
         s1: flat,
         s2: tilted,
         witness: c(0.5, 0.0, 0.0),

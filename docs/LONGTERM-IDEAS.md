@@ -4,14 +4,17 @@ Evan's running list of things the kernel should eventually support
 (2026-08-03 batch, in-session). NON-BINDING: nothing here is
 scheduled; each idea names its natural prerequisites so the
 milestone that makes one cheap can pick it up deliberately. GUI-
-specific ideas live at the bottom of GUI-DESIGN.md instead.
+specific ideas live in GUI-DESIGN.md's UI-ideas sketchpad instead.
 
 ## I1 — Custom "unit tests" for parts
 
 A part carries user-defined checks that run like the kernel's own
 validity gates — certified where the geometry supports it, honest
 heuristics where it doesn't (labeled as such, never silently
-mixed). Named instances Evan wants eventually:
+mixed). The lane's ratified shape is DISCIPLINES-DESIGN DS6 — grade 4,
+the advisory-check registry (`editor_core::checks`); members still
+graduate by the process note below. Named instances Evan wants
+eventually:
 
 - **(0) The scale-relative sliver lint — the FIRST and easiest
   member (Evan, 2026-08-03, resolving #89's display half).** A
@@ -51,13 +54,15 @@ mixed). Named instances Evan wants eventually:
   certified-geometry check (hull bounds on surface normals vs the
   pull direction — C9-class machinery; the tessellation/normal
   enclosures built in M5 are the substrate). Nearest-term of the
-  four.
+  four, and the only one with a design record: DRAFT-DESIGN DR6
+  sequences it as the draft verb's checker twin and settles its reach
+  as kind-general, not plane-limited.
 - **(b) Thermal expansion**: materials in metadata; at target
   temperatures, scale each part by its CTE and re-run the
   constraint/clearance checks — do all mates/fits still hold?
   Prerequisite: M10 signed clearance + material metadata vocabulary
   (and the interference-fit declarations, which are temperature-
-  dependent by nature — see #161's declared-contact doc).
+  dependent by nature — CONTACT-DESIGN C6).
 - **(c) Tool access**: can a hand holding a screwdriver reach each
   screw (wrench equivalents etc.)? Swept-volume / clearance-corridor
   queries against the assembly — needs assemblies, swept volumes,

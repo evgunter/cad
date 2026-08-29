@@ -1,64 +1,40 @@
 ---
 name: git-workflow
-description: Merge-only workflow — messy commits fine, PR descriptions carry the documentation, agents self-merge to main
+description: The GitHub hazards around this repo's merge-only workflow — issue-closing keywords in PR bodies, stacked branches, unprotected main — plus what never goes in a public artifact
 metadata:
   type: feedback
 ---
 
-Two streams: **commits** are the honest record of actual work done
-(frequent, potentially messy, never rewritten); **PR descriptions** are
-the sanitized, logical documentation of the change. Merge-only — no
-squash, no rebase, no force-push, no history rewriting. Push branches to
-the private remote freely. Agents own this greenfield codebase and are
-encouraged to merge their own PRs to main.
+The workflow itself is in CLAUDE.md (merge-only, never rewritten;
+commits are the honest messy record, PR descriptions carry the
+documentation; agents self-merge except PRs that ratify open design
+questions). What follows is what that leaves out.
 
-**Why:** Evan wants both an unfalsified history of what actually happened
-and a clean logical narrative of what changed — keeping them in separate
-streams beats compromising either.
+**Push branches early and often** — after each meaningful commit,
+before review. Evan follows work in progress remotely.
 
-**A PR body can close an issue by describing it.** GitHub scans the PR
-**body** (and commit messages, never the diff) for
-`close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved` immediately
-followed by an issue reference, with **no negation, tense or subject
-analysis** — so *"whoever closes #723 finds the lane waiting there"* and
-*"a style track does not fix #723"* both close the issue on merge. This
-repo's documents park lanes *at* the issue they wait on and PR bodies
-narrate that constantly, so the hazard is structural, not a slip:
-**#723 was closed twice in three hours by two different authors, the
-second time by the PR documenting the first.** There is no way to write
-about the failure mode without triggering it — quoting fires it too. The
-only safe forms break the token adjacency (drop the `#`, or put a word
-between). **Scan every PR body and commit message before publishing;
-make it mechanical, not remembered** — the one lane that was told to scan
-found a live hit, and the orchestrator who told it did not scan its own.
+**A PR body closes an issue by DESCRIBING it.** GitHub scans PR bodies
+and commit messages (never the diff) for
+`close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved`
+immediately followed by an issue reference, with no negation, tense or
+subject analysis — so *"a style track does not fix #N"* closes it, and
+quoting the hazard fires it. This repo's documents park lanes AT the
+issue they wait on, so the collision is structural, not a slip. Scan
+every PR body and commit message before publishing, mechanically. The
+only safe forms break the token adjacency: drop the `#`, or put a word
+between.
 
-**How to apply:** commit early and often without polishing messages; put
-the careful writeup in the PR description; merge with a merge commit
-(`gh pr merge --merge`, never `--squash`/`--rebase`). Exception (confirmed
-by Evan): PRs that ratify open design questions in DESIGN.md are design
-conversations — wait for Evan's sign-off before merging; routine
-implementation self-merges. See [[cad-working-style]].
+**Never delete a branch another PR is stacked on** — GitHub auto-closes
+the stacked PR, and a PR whose base branch was deleted can never be
+reopened. Retarget to main first, or just keep branches (private
+remote, cheap).
 
-**Push early, push often (added 2026-07-16, M1):** implementer agents
-push their branches to origin early and often — after each meaningful
-commit, before review — because Evan follows work-in-progress remotely.
-Don't sit on local commits until the work is "ready".
+**main has no branch protection**, so `gh pr merge --auto` merges
+IMMEDIATELY. Verify the checks yourself — see [[agent-lane-operations]]
+on what merging destroys.
 
-**Stacked-PR gotcha (learned M0, 2026-07-16):** deleting a merged PR's
-branch while another open PR still targets it makes GitHub auto-CLOSE
-the stacked PR, and a PR whose base branch was deleted cannot be
-reopened — a fresh PR must be opened (losing thread continuity).
-Retarget stacked PRs to main BEFORE deleting the base branch, or just
-don't delete branches (private remote; cheap to keep).
-
-**Merge gate = hosted Actions (2026-07-25)**: PR checks green =
-mergeable. gate.sh is a billing-outage FALLBACK only (its runner
-target/ is not kept warm; cold rebuild on fallback use). Agents
-never run gate.sh; reviewers run targeted cargo lanes in their own
-clones. Rationale: Actions runs the same matrix in parallel on
-GitHub hardware, on the PR's merge ref; the local gate was
-serialized (sum-of-rows), held a cache big enough to matter, and
-contributed to two disk-crash incidents on the developer box.
-Caveat (still true 2026-07-25): main has NO branch
-protection, so `gh pr merge --auto` merges IMMEDIATELY — verify
-the checks are green yourself; never rely on --auto to wait.
+**Account identifiers stay off GitHub (Evan, #355; the repo may go
+public):** no email addresses or personal identifiers beyond the
+commit-signing identity `evgunter` in issues, PRs, comments, commits or
+committed files. Name accounts by role; concrete addresses live only in
+local cad-work logs.

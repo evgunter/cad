@@ -1,154 +1,118 @@
 ---
 name: review-and-dependency-policy
-description: Evan's rules for reviews (hands-on e2e demos, not just diff reading) and for adding dependencies (fine to install; ~2-week minimum release age)
+description: Evan's rules for reviews (hands-on e2e exercise, unique-signal-only local runs, when a stated gap blocks) and for adding dependencies
 metadata:
   type: feedback
 ---
 
-Two standing rules from Evan (2026-07-15), applying to any agent working
-on this project:
+**Reviews must include end-to-end exercise, when applicable.** Reading
+the diff is not enough: a reviewer writes and runs real programs
+against the functionality under review, to check not just in-scope
+correctness but that the thing solves the right problem and isn't
+missing something that matters in practice. Report what the exercise
+revealed about scope and ergonomics alongside the ranked findings. For
+pure-scaffolding diffs with no runtime surface, running the
+toolchain/CI commands is the e2e equivalent.
 
-**Reviews must include end-to-end exercise, when applicable.** Code
-review alone is not enough: reviewer agents should walk through a few
-real demos — write and run actual programs against the functionality
-under review — to check not only in-scope correctness but that the thing
-*solves the right problems* and isn't missing something that matters in
-practice.
-
-**Why:** a diff can be locally correct while the API is unusable or
-misses a practically important case; only driving it end-to-end surfaces
-that.
-
-**How to apply:** reviewer prompts should require writing/running small
-realistic usage programs (not just the crate's own tests) and reporting
-what the exercise revealed about scope/ergonomics, alongside the ranked
-findings. For pure-scaffolding diffs with no runtime surface, running
-the toolchain/CI commands is the e2e equivalent.
-
-**Reviewer local runs = unique signal only (2026-08-01, from
-Evan's iteration-speed principle, [[local-battery-scope]]):**
-review charters enumerate the runs only the reviewer can do —
-their own probes, merge-base differentials, planted corruptions,
-and any non-CI rows (e.g. the demo tour's ε battery) — and say
-explicitly "existing pinned suites ride the PR gate; verdict
-conditional on green." Re-running CI-covered suites in a review
-clone is duplication (3 of the session's 4 waiter-parks happened
-grinding exactly such runs).
+**Reviewer local runs = unique signal only.** Review charters enumerate
+the runs only the reviewer can do — their own probes, merge-base
+differentials, planted corruptions, non-CI rows — and say explicitly
+"existing pinned suites ride the PR gate; verdict conditional on
+green." Re-running CI-covered suites in a review clone is duplication
+([[local-battery-scope]]).
 
 **Never enshrine a causal story you have not checked** — a lane's, a
-reviewer's, or a warning's. Fix the facts and write no account of how they came
-to be that way. And when you retract one, grep for the claim, not the sentence —
-a correction made where you first wrote it leaves every other copy standing.
+reviewer's, or a warning's. Fix the facts and write no account of how
+they came to be that way. When you retract one, grep for the claim, not
+the sentence: a correction made where you first wrote it leaves every
+other copy standing.
+
+**A verdict conditioned on a gate is only as good as a check that the
+gate ran** (2026-08-29, PCURVE P-1b's dual, R2's own post-mortem). A
+reviewer wrote "APPROVE WITH FIXES, conditional on that gate being
+green", noted that the unit's suites "ride the PR gate, not me" per the
+reviewer-local-runs rule, and never verified a green existed. It also
+quoted the PR's own citation — "Green in run 33132582293" — into its
+report as supporting text for a verdict move. One `gh run view` showed
+that run **cancelled, on a different SHA**; the reviewed head had **zero**
+runs; and two of the unit's own committed rows were red on it.
+
+**Why:** the reviewer-local-runs rule (unique signal only) presumes the
+gate runs. That premise is not self-verifying, and a verdict resting on
+it is unsupported rather than wrong — quieter and worse. In the
+reviewer's own words, it is [[refusal-text-is-not-cause]] committed by
+the reviewer invoking it: taking a cited artifact's DESCRIPTION for the
+artifact's STATE.
+
+**How to apply:** if a review's verdict says "conditional on green",
+verifying that green exists is part of the review, not the
+orchestrator's follow-up. Resolve every run ID a PR cites — status AND
+head SHA — before quoting it as support. Excluding the unit's own rows
+by policy is fine; assuming something else ran them is not.
 
 **A stated coverage gap is a BLOCKER when the untested axis is the
 row's own subject.** Merging a row whose declared purpose is X, on
 evidence that never exercised X, buys nothing — the row is decorative
-until the axis it names is drawn. Census G2 (#1080) merged a band-edge
-row on a CI draw of `EPS=default`; the row's whole subject is what
-happens across the eps band, and it went red on main at 1e-12 within
-the day. Hosted CI draws ONE eps per run from the seed, so a green
-check is evidence about that draw and nothing else — a row parameterised
+until the axis it names is drawn, and an accepted gap of that shape is
+usually a liveness bug in disguise rather than a scoping decision.
+Hosted CI draws ONE eps per run from the seed, so a row parameterised
 on eps must be run locally at every eps it claims to cover, before
-merge.
+merge. When an implementer names a gap, ask whether the untested axis
+is the row's subject or merely adjacent: adjacent is a follow-up, the
+subject is a blocker.
 
-**Why:** an accepted gap sounds like a scoping decision and is usually a
-liveness bug in disguise — the failing row was passing at default eps
-BY LUCK (one argument order certified, the other escalated, so its
-`seen` set had exactly one entry). It was a coin-flip at every eps; the
-default draw just landed heads.
-
-**How to apply:** when an implementer names a gap, ask whether the
-untested axis is the row's subject or merely adjacent. Adjacent is a
-follow-up; the subject is a blocker. See also [[agent-lane-operations]]
-on eps-matrix draws.
-
-**Reviewer suites get promoted into CI.** A review charter has the
-reviewer write their OWN consumer test suite — an independent
-derivation of what the PR claims, not a re-reading of its diff. After
-that PR's fix pass, **that suite is committed into the repo** as a
-normal test file (the original example: `crates/topo/tests/
-review_m1_prN*.rs`), where the aggregation guard picks it up and it
-becomes a permanent gate like any other test (Evan, PR #17 thread).
-That commit is what "promotion" means below. The suites are
-independent derivations and that independence is their regression
-value.
+**Reviewer suites get promoted into CI.** A charter has the reviewer
+write their OWN consumer suite — an independent derivation of what the
+PR claims, not a re-reading of its diff — and after the fix pass that
+suite is committed as a normal test file, where the aggregation guard
+picks it up and it becomes a permanent gate (Evan, PR #17). That
+independence is its regression value.
 
 **Promotion stays cheap; RETIREMENT IS ALWAYS PERMITTED (Evan,
-2026-08-13 — amends how the PR #17 clause has been read).** Three
-parts, and note what is deliberately NOT being added:
+2026-08-13).** Three parts:
 
 1. **The conventions bind the reviewer WRITING the suite**, not the
-   person promoting it. A reviewer authoring a consumer suite follows
-   [[test-suite-cost]] as they write: no fixed seeds, counts on the
-   EFFORT dial, and be aware that a `println!` probe, a census, a
-   truth-table dump or a latency table cannot fail and therefore
-   cannot gate — those are evidence for the review, and should be
-   marked as such rather than left to become permanent rows.
-2. **Promotion takes the suite AS-IS.** It is not an audit. There is NO
-   obligation to comb a suite row by row at the fix pass, and adding
-   one would be a recurring tax on every review to pay for a problem
-   that is cheap to fix later.
-3. **Full license to fix them afterwards.** If a promoted suite becomes
-   a problem — slow, redundant, asserting nothing — trim or retire it
-   then, freely, without ceremony. Do not "simplify" a row that is
-   pulling its weight to match shipped fixtures (that is the
-   independence above, and it is worth keeping); but that protection
-   was NEVER a prohibition on retiring ones that are not, and reading
-   it as one is what let the suites accumulate.
+   person promoting it: [[test-suite-cost]] as they write — no fixed
+   seeds, counts on the EFFORT dial, and mark evidence-only rows (a
+   `println!` probe, a census, a truth-table dump, a latency table
+   cannot fail and therefore cannot gate) as such rather than letting
+   them become permanent rows.
+2. **Promotion takes the suite AS-IS.** It is not an audit; combing a
+   suite row by row at every fix pass would be a recurring tax to pay
+   for a problem that is cheap to fix later.
+3. **Full license to fix them afterwards** — trim or retire a promoted
+   suite that turns out slow, redundant or assertion-free, freely and
+   without ceremony. Do not "simplify" a row that is pulling its weight
+   to match shipped fixtures (that independence is worth keeping), but
+   that protection was never a prohibition on retiring the rest.
 
-When retiring, name the gate that now owns the claim (a stronger
-permanent row, or a new one written for it). "It is not an exact
-duplicate" is not a reason to keep something — an assertion-free probe
-is never an exact duplicate of anything, which is precisely how
-`step-export`'s `rev_probe` rows survived as five-ε-row gates while
-their own file header said "Not in the `all` aggregator".
+Each crate's `every_suite_file_is_aggregated` guard plus
+`autotests = false` means any file dropped into `tests/` is forced into
+the `all` binary and runs on every ε row — so "review artifact" and
+"permanent gate" are the same thing by default. That default is fine
+*provided* clearing up afterwards is uncontroversial. When retiring,
+name the gate that now owns the claim. "It is not an exact duplicate"
+is not a reason to keep something: an assertion-free probe is never an
+exact duplicate of anything.
 
-**Why the license needs stating:** each crate's
-`every_suite_file_is_aggregated` guard plus `autotests = false` means
-any file dropped into `tests/` is forced into the `all` binary and runs
-on every ε row. So "review artifact" and "permanent gate" are the SAME
-THING by default. That default is fine — cheap promotion is worth it —
-*provided* clearing up afterwards is uncontroversial. When it was last
-measured, most of the workspace's test time sat in modules named after
-a specific past review or PR, and it got there because the clause above
-read as forbidding exactly that clear-up.
+Three levers, not one:
 
-Three levers, not one — reach for the right one:
-
-- **Delete** it, when a stronger permanent row already owns the claim.
-  Name that row.
-- **`#[ignore]` it**, when the row REPORTS rather than gates. That
+- **Delete** it, when a stronger permanent row already owns the claim —
+  name that row.
+- **`#[ignore]` it**, when the row REPORTS rather than gates: that
   takes it out of the ε matrix while leaving it runnable. If something
-  still wants the report, that runner needs `--ignored` added to it.
-  Worked example, `m4_pr8_latency::rebuild_latency_table` (#462): its
-  own header says "REPORTING (measured, never gated) … there is no
-  threshold gate", and a dedicated `rebuild latency (reporting)` job
-  had existed for it since 2026-07-26 — yet the aggregation guard was
-  ALSO running it in all five ε rows, where its green-document and
-  counted-reuse assertions are a strict subset of `m4_pr8_corpus`'s.
-  Six payments for one report. (It has since grown assertions of its
-  OWN — the corpus manifest's nodes/cone pins, 2026-08-17 — so it is no
-  longer wholly redundant with the corpus row; the ignore still holds,
-  because those pins are ε-independent by construction and one run per
-  gate covers them.) Note
-  the shape: the job already existed, so the fix was one attribute and
-  one flag. Reach for this lever when a reporting row is being paid for
-  by the matrix as well; it is not an instruction to stand up a new job
-  per retired test.
-- **Gate it on the change filter**, when it is a randomized sweep — see
-  [[test-suite-cost]]. Runs only when the code it tests moved.
+  still consumes the report, its runner needs `--ignored`. Reach for
+  this when a reporting row is being paid for by the matrix as well;
+  it is not an instruction to stand up a job per retired test.
+- **Gate it on the change filter**, when it is a randomized sweep
+  ([[test-suite-cost]]) — it then runs only when the code it tests
+  moved.
 
-What is NOT available is an automatic check: a probe that only prints
-still `unwrap`s, so "has no assertions" is not reliably greppable. So
-this cannot be enforced at promotion even if we wanted to — another
-reason to put the convention on the author and the license on whoever
-cleans up later.
-
-Suites hit by later API changes (e.g. PR 5's raw-builder demotion)
-migrate or get pruned at that PR like any other test.
+No automatic check is available: a probe that only prints still
+`unwrap`s, so "has no assertions" is not reliably greppable. Hence the
+convention on the author and the license on whoever cleans up later.
 
 **Dependencies: install freely, with supply-chain sanity.** Installing
-tools/crates as needed is fine, as long as it isn't genuinely risky
-supply-chain-wise; put roughly a **2-week minimum age** on dependency
-versions (avoid brand-new releases). Combine with the existing
+tools/crates as needed is fine unless genuinely risky; put roughly a
+**2-week minimum age** on dependency versions. Combine with the
 crate-landscape vetting in DESIGN.md.

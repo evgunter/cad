@@ -1071,6 +1071,19 @@ fn r1_both_sweep_strategies_agree_on_a_part_carrying_a_boolean() {
 /// MINOR-5 — `Frame::rotate_then_translate` really does agree with the
 /// `Transform` node, BIT FOR BIT, including for a NON-UNIT axis (the
 /// case the claim used to get wrong).
+///
+/// **This is an AGREEMENT row between two callers, not a value pin on
+/// `Mat3::rotation_about`, and the axis list makes it read like one.**
+/// The expected side below re-spells `eval::wire::wire_transform`'s
+/// own expression — deliberately, because that is the right oracle for
+/// agreement — so it calls `Mat3::rotation_about` itself and both
+/// sides move together. **Any change INSIDE the rotation is invisible
+/// here**, oblique axis and `to_bits()` notwithstanding. Smell-scan
+/// **S215**. The value pins that do object live next to the subject,
+/// in `geom-core`'s `linalg::mat` test module — the two rows named
+/// `rotation_diagonal_takes_the_square_before_the_scale` and
+/// `rotation_off_diagonals_scale_by_t_before_the_second_component`.
+/// Strengthen those, not this.
 #[test]
 fn r1_the_placement_frame_matches_the_transform_node_bit_for_bit() {
     let angle = 0.37;
