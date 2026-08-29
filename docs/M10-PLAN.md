@@ -109,8 +109,17 @@ ERROR-DESIGN's own "Open after this doc" list.
   lapsed `sweep::fillet` seam justification recorded in #687, and
   whether the four refusing lane splits stay as-is (the lean: yes —
   *a dual may not certify* stands; E4/E9 need tangent data, never
-  certification). No unit implements against `Dual` before this
-  ratifies.
+  certification). (iv) The poison-vs-widen boundary at certified
+  enclosure lanes, made concrete by a measured live case handed
+  over by PCURVE on this plan's PR (2026-08-29): a chart residual
+  provably exact at f64 (`0e0`) reaches the caller as
+  `margin: Invalid` — poison, "never validly posed" — at Interval
+  with a conversion present, A/B-controlled on one head; the class
+  gets its own issue (PCURVE files it at M10's request; the
+  instance's mechanism stays with P-1b), and M10-D consumes it as
+  evidence, since a refusal that says *ill-posed* over exact
+  geometry differs visibly from *the enclosure was too wide*. No
+  unit implements against `Dual` before this ratifies.
 - **M10-1 — distributions in the document (E1/E2).**
   `DocParam::Continuous` gains the optional `Distribution` (Band /
   Uniform / Normal / TruncatedNormal, offsets dimensioned by the
