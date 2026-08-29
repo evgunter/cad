@@ -2387,3 +2387,20 @@ dimensionless meter's lever is the ARC length (a one-seam
 chart's chord is zero); axis frames canonicalize at the world
 origin or stations cost the ULP that is a bit-identity claim.
 Full dual, frozen head 00038fe6; claim to main at dispatch.
+
+## ORDINAL 105 RETURNED: BOTH ARMS MERGEABLE 0-MAJ; UNION OUT (2026-08-29)
+
+R1 0/4/4, R2 0/6/4 — the unit's substance held completely: both
+arms re-derived the teapot's closed forms to the digit, both
+re-ran the bitdump clean, R1's chord-mutation run proved the
+arc-length lever red-able, R2 closed the canonical-nappe side.
+The headline correction is ATTRIBUTION, not substance: both
+"latent defects" are FIXED IN THE PR (at the consumer), and the
+cone framing contradicted ordinal 79's ratified contract — the
+home says the non-flipping normal IS the contract and the nappe
+question is the consumer's; the axial door now honors it, the
+sibling consumer (replace_face.rs:1190, shielded by the caps'
+refusals) gets its issue. All items prose/doc/test-hygiene; the
+one code fix is is_axial's Escalated swallow (D4). CLEAN PAIR —
+pair 3 toward twelve; tally 1/8 unchanged. Union fix pass out;
+reviewer lanes swept.
