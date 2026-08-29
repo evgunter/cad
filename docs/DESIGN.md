@@ -16,6 +16,7 @@ a reader entering here should know all of them exist.
 | `docs/SOLVER-DESIGN.md` | RATIFIED (#79) | GQ1 witness mechanism W1–W9 (solved assignments, certification, `WitnessBifurcation`) |
 | `docs/ERROR-DESIGN.md` | RATIFIED (#110) | Error-propagation program E1–E11 (duals, stackups, subdivision driver, trichotomy); RUNNING as the M10 program (`docs/M10-PLAN.md` / `docs/M10-LOG.md`) |
 | `docs/DUAL-DESIGN.md` | RATIFIED (#1146) | The Dual contract DL1–DL6 (M10-D): a Dual is tangent transport and never certifies (D1's hedge closed); ContentBits feeds both channels; certified gates absent at Dual by scalar policy; Enclosure gated; the delegation rule; poison-vs-widen in certified lanes |
+| `docs/PROFILE-LIFT-DESIGN.md` | RATIFIED with a recorded hedge (#1151) | The profile-parameter lift PP1–PP6 (M10-P): guided replay — structure f64-once as the witness, geometry at the lane scalar with every consumed decision re-verified at `T`; canonicalization and naming pinned; the f64 build path bit-identical |
 | `docs/CONTACT-DESIGN.md` | RATIFIED (#178) | Contact census & declared contact C1–C8 (closes CURVED OQ5); the C7 join lane shipped at M9 |
 | `docs/PATHS-DESIGN.md` | RATIFIED (#124) | PartialPath authoring algebra (S5); implemented at LIB U2 |
 | `docs/PROFILES-V2-DESIGN.md` | RATIFIED (#242) | Profiles-as-programs V1–V8: the stored profile-program, Expr-bearing steps, the replay driver; implemented at the LIB SWITCH units |
