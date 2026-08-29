@@ -62,8 +62,10 @@ fn discipline(findings: usize) -> String {
          \x20 4. A `face roster` finding says the scene's FACES moved — one added,\n\
          \x20    dropped, or rerouted to another chart — so the per-face join names\n\
          \x20    different faces on the two sides and NO face in that scene was\n\
-         \x20    compared. Read which face moved and why; re-cutting the baseline is\n\
-         \x20    what restores the per-face gate over that scene.\n"
+         \x20    compared. What that costs depends on the scene: nothing where it has\n\
+         \x20    no Hessian-sized face, the whole slack rule where it has one. Read\n\
+         \x20    which face moved and why; re-cutting the baseline is what restores\n\
+         \x20    the per-face gate over that scene.\n"
     )
 }
 
