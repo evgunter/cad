@@ -121,3 +121,26 @@ with the delta; option 2 (a non-success conclusion) is assessed and
 reported by the lane, not taken. Unilateral ground: no new spend,
 the issue's own author calls option 1 the minimum regardless, and
 the fence is already this program's.
+
+## Seam: all three rulings in; plan RATIFIED (2026-08-29)
+
+Evan, in-chat. **Q1 RULED**: the k-lint path pin at `tools/` scope
+(~7% of code merges, measured over 14 days; `demos/` at ~29%
+explicitly excluded — determinism there would erode the sampling).
+**Q2 RULED**: the basename-substring lane pin drops in favour of the
+manual-request convention (`CI-Config: lane=interval`), advisory
+print kept ("sure why not"), with Evan's emphasis that the
+load-bearing half is the DOC — the convention goes into
+`docs/prompts/implementer-discipline.md`, the file every lane
+reads, in the same PR that drops the pin. The
+`interval-transcendentals/` pin stays (0.7%, exact; the crate's own
+guard jobs complement it). `LANE=both` moot. **Q3 RULED**: #1038's
+option 2 (uncovered scene fails the gate; ~2-3 firings/week at
+current churn, each just the growing PR folding its own rows).
+
+Consequences: the plan is RATIFIED; the opening PR merges; QA-2's
+#1122 deliverable re-cut to the Q2 shape (spec amended, lane
+messaged mid-flight); QA-3 unblocked but sequenced AFTER QA-2 lands
+— both edit `ci-filter.py`/`ci.yml` and two lanes on one file is a
+conflict by construction. QA-5's shape is settled; its dispatch
+still waits on the K/P/W fence coordination.

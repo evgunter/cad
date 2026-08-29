@@ -1,8 +1,7 @@
 # S-QA — gates that lie (plan)
 
-**STATUS: DRAFT — design conversation for the Rulings sought section;
-the opening PR is the conversation and merges on Evan's answers (or
-his "orchestrator's call") folding in.** Opened on Evan's direction
+**STATUS: RATIFIED (Evan's in-chat rulings, 2026-08-29, all three
+folded at Rulings below).** Opened on Evan's direction
 (in-chat, 2026-08-29: "can you orchestrate its program S-QA") from the
 ratified stream cut in `docs/WORK-STREAMS-2026-08.md` (§S-QA, merged
 at #1200). The cut is the charter and is cited, not re-litigated.
@@ -156,8 +155,11 @@ demonstrated by planting the defect it now refuses.
   green run does identical work; only a red run does more), the mode
   printed in the run, and the nextest-default mechanism confirmed
   against the pinned 0.9.140 rather than trusted from the issue.
-  (ii) #1122 option 3 unconditionally (the filter SAYS it pinned,
-  and why); option 2 (`LANE=both` on pin) under the Q2 ruling.
+  (ii) #1122 per the Q2 ruling: the basename half of
+  `_forces_interval` is removed, the `interval-transcendentals/`
+  half stays, an advisory prints when `*interval*` basenames appear
+  in the diff, and `docs/prompts/implementer-discipline.md`'s lane
+  paragraph is rewritten to the request convention in the same PR.
   (iii) #1051: verify the landed request-a-point feature against the
   issue's three notes (record-which-point conventions, tier
   handling) and close it with the pointer. (iv) **#1204's minimum**
@@ -171,18 +173,18 @@ demonstrated by planting the defect it now refuses.
   conclusion) is assessed and reported, not taken — the F5
   draft-skip behaviour itself stays. Fence: `ci.yml`,
   `scripts/ci-filter.py`.
-- **QA-3 — the debt-charging class (#1023 + D183) (M); under the Q1
-  ruling.** The no-spend shape (recommended below): path-pin the
-  k-lint row the way the filter already path-pins the interval
-  lane — a change under `tools/tess-meter/` (D183's ask), `tools/`
-  or `demos/` forces the row that compiles what changed, so
-  path-correlated breakage cannot land on an undrawn row; plus the
-  three owed sentence corrections (`docs/K-REPORT.md:219`, `:226`,
-  the `KLINT_ROWS` header's third instance). The residue — breakage
-  uncorrelated with its paths — stays covered by the ratified
-  persistence argument and is stated at the site, not silently
-  accepted. #1023 closes on this plus QA-2's visibility work, with
-  the fail-fast shard-erasure half closed by QA-2(i).
+- **QA-3 — the debt-charging class (#1023 + D183) (M); Q1 RULED,
+  sequenced AFTER QA-2 lands (same files: `ci-filter.py`,
+  `ci.yml`).** The ruled shape: a change under `tools/` path-pins
+  the k-lint row that compiles it (`demos/` explicitly excluded per
+  the ruling), so path-correlated breakage cannot land on an
+  undrawn row; plus the three owed sentence corrections
+  (`docs/K-REPORT.md:219`, `:226`, the `KLINT_ROWS` header's third
+  instance). The residue — breakage uncorrelated with its paths —
+  stays covered by the ratified persistence argument and is stated
+  at the site, not silently accepted. #1023 closes on this plus
+  QA-2's visibility work, with the fail-fast shard-erasure half
+  closed by QA-2(i).
 - **QA-4 — landed-fix close-outs (#882 + #1134, #774, the #808
   finish) (S).** Verification against each issue's own asks, then
   the close with the record: the panic-hook fix under the issues'
@@ -249,34 +251,43 @@ is LIB's #1225; k-lint distribution semantics (what a fired lint
 means) are the K-telemetry ground (`docs/K-REPORT.md`), not this
 program's to reinterpret.
 
-## Rulings sought
+## Rulings (Evan, in-chat, 2026-08-29)
 
-1. **Q1 — #1023's lever.** The instance class: a conditionally
-   scheduled gate accumulates debt charged to the next lane that
-   trips the condition. Recommendation: **the no-spend shape** —
-   path-pin the k-lint row on changes to what it compiles (D183's
-   mechanism, the same substitution `ci-filter.py` already makes for
-   the interval lane), plus QA-2's visibility work; explicitly NOT
-   an unconditional k-lint row (~+7-8 billed min/run, reversing the
-   2026-08-22 saving) and NOT a scheduled full run (declined twice).
-   The accepted residue is stated: path-uncorrelated breakage lands
-   and persists until a later draw, per the sampling design's own
-   argument. Asked rather than taken because it amends what a PR run
-   gates, which has been Evan's call each time.
-2. **Q2 — #1122's pin disposition.** Recommendation: option 3
-   (say it pinned) unconditionally, plus option 2 — a pinned branch
-   draws `LANE=both` rather than `interval`, so the fail-closed rule
-   adds work instead of substituting the wrong axis. Cost lands only
-   on branches that touch `*interval*` basenames (~+12 billed
-   min/run on those runs only). If ruled "say-only", the pin stays
-   and QA-2 ships option 3 alone.
-3. **Q3 — #1038's gate shape.** Recommendation: option 2 —
-   uncovered-scene is a FAILURE, so corpus growth forces the re-cut
-   in the growing PR (the panic-on-move analogue); the alternative
-   (option 1, visible decay in the gate's own voice) preserves
-   today's workflow at the cost of a standing "someone should fold
-   this" queue. Asked because it changes what a tour-scene PR owes
-   at merge time, which is every program's workflow.
+1. **Q1 — RULED: the k-lint path pin lands at `tools/` scope.**
+   A change under `tools/` forces the k-lint row that compiles it
+   (D183's mechanism, the same substitution `ci-filter.py` makes
+   for the interval lane); measured over the prior 14 days of main
+   that fires on ~7% of code-shaped merges (`tools/tess-meter`
+   alone is ~3%). `demos/` is explicitly NOT in the pin (~29% —
+   demos churn would make the drawn row deterministic on a third
+   of runs and erode the sampling, while the demos failure shape
+   that actually bit is caught by any row that runs). No
+   unconditional row, no scheduled full run (declined twice). The
+   residue — path-uncorrelated breakage waiting for a later draw —
+   stays accepted per the sampling design's own argument. QA-3
+   executes.
+2. **Q2 — RULED: the basename-substring lane pin is DROPPED in
+   favour of the manual-request convention.** A change to interval
+   semantics requests its lane (`CI-Config: lane=interval`, the
+   landed request-a-point door); the filter prints an ADVISORY when
+   `*interval*` basenames appear in the diff (fired ~10% of recent
+   code merges as a pin, much of it rename noise per #1122's
+   measurement). **The load-bearing half of the ruling is the
+   doc, not the advisory (Evan)**: the convention lands in
+   `docs/prompts/implementer-discipline.md` — the file every lane
+   reads — in the same PR that drops the pin, replacing its current
+   path-rule paragraph. The `interval-transcendentals/` pin stays
+   (0.7% fire rate, exact by construction; the crate's own guard
+   jobs complement rather than replace the lane draw). `LANE=both`
+   is moot — no substitution remains to widen. QA-2's #1122
+   deliverable is re-cut to this ruling.
+3. **Q3 — RULED: #1038's option 2.** An uncovered fresh-sweep
+   scene FAILS the gate, so corpus growth forces the baseline
+   re-cut in the growing PR; the baseline's cut commit is recorded
+   in the file. At current churn that fires on ~2-3 scene-adding
+   PRs a week, and each firing's cost is folding the PR's own rows
+   — what well-behaved scene PRs already do voluntarily. QA-5
+   remains gated only on the K/P/W fence coordination.
 
 ## Process
 
