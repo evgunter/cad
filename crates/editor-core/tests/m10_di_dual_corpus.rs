@@ -1,22 +1,32 @@
 //! **The runtime half of E4's door** (`docs/DUAL-DESIGN.md` DL2/DL3;
 //! `docs/M10-DI-SPEC.md`): the whole Band 4 corpus evaluates AND
 //! gathers at `Dual64`, with the value channel bit-identical to the
-//! plain `f64` run — the dual contract, measured over every node
-//! rather than only final bodies — and the memo behaves soundly when
-//! a prior `Evaluation<Dual64>` is threaded.
+//! plain `f64` run, and the memo behaves soundly when a prior
+//! `Evaluation<Dual64>` is threaded.
 //!
-//! # What the value-channel digest reads
+//! # What the value-channel digest reads — and does not
 //!
 //! For every node in evaluation order: the result's arm
 //! (`Ok`/`Failed`/`Poisoned`), the payload's arm, and the payload's
-//! geometry through the scalar's OWN bracket (`geom_core::Bounds` —
-//! at `f64` the bracket ends are the value; at a dual they are the
-//! value channel's, by the `Bounds for Dual` delegation): every body
-//! point's coordinates, every datum frame, every profile loop's
-//! vertices and bulges, plus arena counts. Declarations and mate
-//! roles carry no `T` geometry and are pinned by arm tag. Equal
-//! digests therefore assert bit-equal value channels at every
-//! geometric datum the evaluation stores, node by node.
+//! stored geometry read through each scalar's OWN value channel
+//! ([`ValueChannelBits`] below — `f64` bits at `f64`, the value
+//! channel's bits at `Dual64`, `repr_bits` with the decoration at the
+//! interval pair): every body point, every datum frame, every profile
+//! loop's vertices and bulges, plus arena counts. It does NOT read
+//! curve carriers, surface geometry, or pcurves — the adopted review
+//! digests do (`r1_dual_probes`'s lattice-sampled carriers,
+//! `r2_m10_di_probes`'s control nets/weights/knots), and those rows
+//! gate beside these.
+//!
+//! # The DL3 witnesses, by name
+//!
+//! Two corpus documents are the measured reason the policy seam
+//! exists: `cut_cylinder` (ellipse-trimmed cylinder) and `loft_prism`
+//! (NURBS walls) both gather green at `Dual64` while the DIRECT
+//! certified door refuses their product bodies at that scalar with
+//! `VolumeUncomputable`. The gather rows below pin that set by name in
+//! both directions, so a witness silently going green (or a new one
+//! appearing) is loud.
 //!
 //! # What the memo rows assert
 //!
@@ -33,14 +43,56 @@
 mod corpus;
 mod fixture;
 
-use corpus::{cone, documents, eval, failures};
+use corpus::{CorpusDoc, cone, documents, eval, failures};
 use editor_core::eval::KeyHasher;
 use editor_core::{
     BooleanValue, CancelToken, ContentKey, DatumValue, EvalOptions, EvalOutcome, Evaluation,
     NodeResult, SplitSide, ValuePayload, evaluate, product_recorded,
 };
-use geom_core::{Bounds, Decide, Dual64, Tol};
+use geom_core::{Decide, Dual64, Tol};
 use topo::Body;
+
+/// The gather-door witness pair (module docs): gathers at `Dual64`
+/// because the policy gate is absent; refused by the DIRECT certified
+/// door at that scalar.
+const DUAL_REFUSED_BY_DIRECT_DOOR: [&str; 2] = ["cut_cylinder", "loft_prism"];
+
+/// A scalar's VALUE CHANNEL as exact bits — what "bit-identical to the
+/// base scalar's run" quantifies over. At the interval pair this is
+/// `repr_bits`, decoration included, so a decoration drift cannot hide
+/// behind equal endpoints.
+trait ValueChannelBits: Copy {
+    fn feed(self, d: &mut Digest);
+}
+
+impl ValueChannelBits for f64 {
+    fn feed(self, d: &mut Digest) {
+        d.u64(self.to_bits());
+    }
+}
+
+impl ValueChannelBits for Dual64 {
+    fn feed(self, d: &mut Digest) {
+        d.u64(self.value.to_bits());
+    }
+}
+
+#[cfg(feature = "interval")]
+impl ValueChannelBits for geom_core::Interval {
+    fn feed(self, d: &mut Digest) {
+        let (lo, hi, dec) = self.repr_bits();
+        d.u64(lo);
+        d.u64(hi);
+        d.u64(u64::from(dec));
+    }
+}
+
+#[cfg(feature = "interval")]
+impl ValueChannelBits for geom_core::DualInterval {
+    fn feed(self, d: &mut Digest) {
+        self.value.feed(d);
+    }
+}
 
 /// FNV-1a 64 over the evaluation's value-channel bits (module docs).
 struct Digest(u64);
@@ -57,26 +109,23 @@ impl Digest {
         }
     }
 
-    /// Both bracket ends, as bits — the value channel exactly, at
-    /// `f64` and at `Dual64` alike (module docs).
-    fn scalar<T: Bounds>(&mut self, x: T) {
-        self.u64(x.lo().to_bits());
-        self.u64(x.hi().to_bits());
+    fn scalar<T: ValueChannelBits>(&mut self, x: T) {
+        x.feed(self);
     }
 
-    fn point3<T: Decide + Bounds>(&mut self, p: geom_core::Point3<T>) {
+    fn point3<T: Decide + ValueChannelBits>(&mut self, p: geom_core::Point3<T>) {
         self.scalar(p.x);
         self.scalar(p.y);
         self.scalar(p.z);
     }
 
-    fn vec3<T: Decide + Bounds>(&mut self, v: geom_core::Vec3<T>) {
+    fn vec3<T: Decide + ValueChannelBits>(&mut self, v: geom_core::Vec3<T>) {
         self.scalar(v.x);
         self.scalar(v.y);
         self.scalar(v.z);
     }
 
-    fn body<T: Decide + Bounds>(&mut self, body: &Body<T>) {
+    fn body<T: Decide + ValueChannelBits>(&mut self, body: &Body<T>) {
         self.u64(body.solids().count() as u64);
         self.u64(body.faces().count() as u64);
         self.u64(body.edges().count() as u64);
@@ -87,7 +136,7 @@ impl Digest {
     }
 }
 
-fn value_digest<T: Decide + Bounds>(ev: &Evaluation<T>) -> u64 {
+fn value_digest<T: Decide + ValueChannelBits>(ev: &Evaluation<T>) -> u64 {
     let mut d = Digest::new();
     for &id in &ev.order {
         d.u64(id.0);
@@ -163,6 +212,20 @@ fn value_digest<T: Decide + Bounds>(ev: &Evaluation<T>) -> u64 {
     d.0
 }
 
+/// The corpus documents a NAMED witness list addresses, looked up
+/// loudly: a renamed or retired witness fails here instead of
+/// silently emptying the row.
+fn named<'a>(docs: &'a [CorpusDoc], names: &[&str]) -> Vec<&'a CorpusDoc> {
+    names
+        .iter()
+        .map(|n| {
+            docs.iter()
+                .find(|d| d.name == *n)
+                .unwrap_or_else(|| panic!("witness `{n}` is not in the corpus — re-derive the set"))
+        })
+        .collect()
+}
+
 /// DL2 + DL3, end to end: every corpus document evaluates green at
 /// `Dual64` and its value channel is bit-identical, node by node, to
 /// the `f64` evaluation of the same document.
@@ -195,45 +258,108 @@ fn every_document_evaluates_at_dual64_with_the_f64_value_channel() {
     }
 }
 
-/// DL3 working at the gather: the product door opens at `Dual64` for
-/// every document it opens at `f64` for — including the documents
-/// whose faces the certified gates could not validate at a dual
-/// (`die_fillet`'s trimmed blends, `loft_prism`'s NURBS walls,
-/// `die_composed`'s torus band) — and gathers the same solids.
+/// DL3 working at the gather, with its witness sets pinned BY NAME:
+/// every corpus product gathers at `f64` (the refusal set is EMPTY —
+/// if a refusing document ever joins the corpus, this row is where the
+/// f64 `gate_at_rest` arm gains its corpus-level witness; today that
+/// arm's refusing pin is `topo`'s `at_rest_policy_tests`), every one
+/// gathers at `Dual64` too with a bit-equal value channel, and the
+/// documents whose product bodies the DIRECT certified door refuses at
+/// `Dual64` are exactly [`DUAL_REFUSED_BY_DIRECT_DOOR`] — gathered
+/// green only because the policy gate is absent there.
 #[test]
-fn every_f64_product_gathers_at_dual64_too() {
+fn the_gather_opens_at_dual64_and_the_witness_set_is_pinned() {
     let tol = Tol::witness();
-    let mut gathered = 0usize;
-    for doc in documents() {
+    let docs = documents();
+    let mut direct_door_refused: Vec<&'static str> = Vec::new();
+    for doc in &docs {
         let ev_f = eval::<f64>(&doc.doc);
         let ev_d = eval::<Dual64>(&doc.doc);
-        match product_recorded(&doc.doc, &ev_f, tol) {
-            Ok(product_f) => {
-                let product_d = product_recorded(&doc.doc, &ev_d, tol).unwrap_or_else(|e| {
-                    panic!(
-                        "{}: the product gathers at f64 but refused at Dual64: {e}",
-                        doc.name
-                    )
-                });
-                let (mut df, mut dd) = (Digest::new(), Digest::new());
-                df.body(&product_f.body);
-                dd.body(&product_d.body);
-                assert_eq!(df.0, dd.0, "{}: product value channel", doc.name);
-                gathered += 1;
-            }
-            Err(e) => {
-                // A document with no body product refuses identically
-                // at both scalars — never a Dual-only refusal.
-                let dual = product_recorded(&doc.doc, &ev_d, tol);
-                assert!(
-                    dual.is_err(),
-                    "{}: refused at f64 ({e}) but gathered at Dual64",
-                    doc.name
-                );
-            }
+        let product_f = product_recorded(&doc.doc, &ev_f, tol)
+            .unwrap_or_else(|e| panic!("{}: the f64 product gather refused: {e}", doc.name));
+        let product_d = product_recorded(&doc.doc, &ev_d, tol).unwrap_or_else(|e| {
+            panic!(
+                "{}: gathers at f64 but refused at Dual64: {e}",
+                doc.name
+            )
+        });
+        let (mut df, mut dd) = (Digest::new(), Digest::new());
+        df.body(&product_f.body);
+        dd.body(&product_d.body);
+        assert_eq!(df.0, dd.0, "{}: product value channel", doc.name);
+        if topo::validate_geometric(&product_d.body, tol).is_err() {
+            direct_door_refused.push(doc.name);
         }
     }
-    assert!(gathered > 0, "the corpus gathered no products at all");
+    assert_eq!(
+        direct_door_refused,
+        DUAL_REFUSED_BY_DIRECT_DOOR.to_vec(),
+        "the direct-door-refuses-at-Dual64 witness set moved — re-derive \
+         DL3's witnesses and update the module docs"
+    );
+}
+
+/// Item-by-name confirmation that each witness's refusal is the
+/// measured class: `VolumeUncomputable` through the dual's refusing
+/// quadrature arms — the exact refusal DL3's design text names.
+#[test]
+fn each_dual_witness_refuses_the_direct_door_with_volume_uncomputable() {
+    let tol = Tol::witness();
+    let docs = documents();
+    for doc in named(&docs, &DUAL_REFUSED_BY_DIRECT_DOOR) {
+        let ev_d = eval::<Dual64>(&doc.doc);
+        let product = product_recorded(&doc.doc, &ev_d, tol)
+            .unwrap_or_else(|e| panic!("{}: must gather at Dual64: {e}", doc.name));
+        let errors = topo::validate_geometric(&product.body, tol)
+            .expect_err("a named witness must refuse the direct door at Dual64");
+        assert!(
+            errors
+                .iter()
+                .any(|e| matches!(e, topo::ValidationError::VolumeUncomputable { .. })),
+            "{}: expected a VolumeUncomputable refusal, got {errors:?}",
+            doc.name
+        );
+    }
+}
+
+/// The census arm at `Interval` (the certifying scalar the hosted
+/// interval lane gates): `assemble` refuses and accepts on exactly the
+/// same corpus documents as at `f64`. This is the corpus-level pin of
+/// `Interval::gate_at_rest_declared` actually validating — gutting it
+/// flips the refusing documents green and reds this row. (The f64
+/// side of the same pin is `r2_m10_di_probes`'s divergence row; the
+/// refusing-subject pins for every certifying arm are `topo`'s
+/// `at_rest_policy_tests`.)
+#[cfg(feature = "interval")]
+#[test]
+fn assemble_census_verdicts_match_f64_at_interval() {
+    use editor_core::assemble;
+    use geom_core::Interval;
+    let tol = Tol::witness();
+    let mut refused: Vec<&'static str> = Vec::new();
+    for doc in documents() {
+        let ev_f = eval::<f64>(&doc.doc);
+        let ev_i = eval::<Interval>(&doc.doc);
+        let f = assemble(&doc.doc, &ev_f, tol);
+        let i = assemble(&doc.doc, &ev_i, tol);
+        assert_eq!(
+            f.is_ok(),
+            i.is_ok(),
+            "{}: the census door disagreed across certifying scalars \
+             (f64 {:?} vs Interval {:?})",
+            doc.name,
+            f.as_ref().err().map(|e| e.to_string()),
+            i.as_ref().err().map(|e| e.to_string())
+        );
+        if i.is_err() {
+            refused.push(doc.name);
+        }
+    }
+    assert!(
+        !refused.is_empty(),
+        "no corpus document refuses the census at Interval — this row \
+         no longer pins the Interval census arm; find a refusing witness"
+    );
 }
 
 /// Same-seed replay: threading a prior `Evaluation<Dual64>` of the
@@ -300,7 +426,8 @@ fn tangent_bits_separate_keys_and_equal_channels_share_them() {
     use editor_core::ContentBits;
     let key = |x: Dual64| -> ContentKey {
         let mut h = KeyHasher::new();
-        x.feed(&mut h);
+        // Disambiguated: the memo's own feed, not this file's digest.
+        ContentBits::feed(&x, &mut h);
         h.finish()
     };
     let seeded = key(Dual64::variable(3.5));
@@ -309,28 +436,41 @@ fn tangent_bits_separate_keys_and_equal_channels_share_them() {
         seeded, unseeded,
         "a seeded and an unseeded pass over the same value must not share a key"
     );
-    // Position separates the channels: value and tangent bits cannot
-    // alias each other.
+    // The channels stay distinguishable because each scalar's feed has
+    // a FIXED width (two words at `Dual64`) and the evaluator's key
+    // prefixes every slot with its index and every list with its
+    // length (`eval::content_key`), so value words can never slide
+    // into tangent positions across slots. This row checks only the
+    // one-slot swap; the cross-slot re-grouping measurement is
+    // `r1_dual_probes`' collision-search row and
+    // `r2_m10_di_probes::cross_scalar_feed_streams_alias...`'s second
+    // half.
     assert_ne!(
         key(Dual64::new(2.0, 5.0)),
         key(Dual64::new(5.0, 2.0)),
-        "value and tangent channels must be position-separated in the feed"
+        "swapping the channels within one scalar must move the key"
     );
     // Bit-equal channels reproduce the key — the reuse direction.
     assert_eq!(seeded, key(Dual64::variable(3.5)));
 }
 
+/// The corpus rows the `Dual<Interval>` lane runs (budget: one
+/// closed-form and one NURBS-walled document, not the whole corpus —
+/// each row costs two interval evaluations). A LOUD list: a renamed
+/// document fails the lookup rather than silently shrinking the row.
+#[cfg(feature = "interval")]
+const DUAL_INTERVAL_ROWS: [&str; 2] = ["die", "loft_prism"];
+
 /// DL2's `Dual<Interval>` instantiation, through the same generic
 /// impls: the derivative-enclosure scalar walks the whole door too,
-/// with its value channel bit-identical to the plain `Interval` run.
+/// with its value channel — `repr_bits`, decoration included —
+/// identical to the plain `Interval` run's.
 #[cfg(feature = "interval")]
 #[test]
 fn dual_interval_evaluates_with_the_interval_value_channel() {
     use geom_core::{DualInterval, Interval};
-    for doc in documents() {
-        if !matches!(doc.name, "die" | "loft_prism") {
-            continue; // one closed-form and one NURBS-walled row
-        }
+    let docs = documents();
+    for doc in named(&docs, &DUAL_INTERVAL_ROWS) {
         let ev_i = eval::<Interval>(&doc.doc);
         let ev_d = eval::<DualInterval>(&doc.doc);
         let bad = failures(&ev_d);

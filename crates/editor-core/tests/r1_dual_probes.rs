@@ -26,15 +26,17 @@
 //!    here, driven through the public evaluation door at `Dual64`,
 //!    with the value channel read back and the certified doors poked.
 //!
-//! EVIDENCE-ONLY where marked; the value-channel and aliasing rows do
-//! assert and would gate if adopted.
+//! EVIDENCE-ONLY where marked; the value-channel and aliasing rows
+//! assert and gate. The deep-digest instrument (`D`, `body_deep`,
+//! `eval_deep`) lives here since the one-shot merge-base differential
+//! that first carried it (`r1_mb_diff`) expired with its comparison,
+//! per its own in-file note.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 mod corpus;
 mod fixture;
 
-use crate::r1_mb_diff::{D, body_deep, eval_deep};
 use corpus::{Recorder, documents, eval, failures};
 use editor_core::eval::{ContentBits, KeyHasher};
 use editor_core::{
@@ -42,8 +44,181 @@ use editor_core::{
     ValuePayload, product_recorded,
 };
 use fixture::{len, scl};
-use geom_core::{Bounds, Dual64, Tol};
+use editor_core::{BooleanValue, DatumValue, Evaluation, NodeResult, SplitSide};
+use geom_core::{Bounds, Decide, Dual64, Tol};
+use topo::Body;
 use profile::SketchPlane;
+
+/// FNV-1a 64 over whatever is fed. Not a content key — a probe digest.
+struct D(u64);
+
+impl D {
+    fn new() -> Self {
+        Self(0xcbf2_9ce4_8422_2325)
+    }
+
+    fn u64(&mut self, x: u64) {
+        for b in x.to_le_bytes() {
+            self.0 ^= u64::from(b);
+            self.0 = self.0.wrapping_mul(0x0000_0100_0000_01b3);
+        }
+    }
+
+    fn s(&mut self, t: &str) {
+        self.u64(t.len() as u64);
+        for b in t.as_bytes() {
+            self.u64(u64::from(*b));
+        }
+    }
+
+    /// A scalar through its own bracket — the value channel at every
+    /// scalar this probe instantiates (`f64`, `Interval`, `Dual`).
+    fn sc<T: Bounds>(&mut self, x: T) {
+        self.u64(x.lo().to_bits());
+        self.u64(x.hi().to_bits());
+    }
+
+    fn p3<T: Decide + Bounds>(&mut self, p: geom_core::Point3<T>) {
+        self.sc(p.x);
+        self.sc(p.y);
+        self.sc(p.z);
+    }
+
+    fn v3<T: Decide + Bounds>(&mut self, v: geom_core::Vec3<T>) {
+        self.sc(v.x);
+        self.sc(v.y);
+        self.sc(v.z);
+    }
+}
+
+/// The (u, v) lattice every surface is sampled on, and the parameters
+/// every curve carrier is sampled at. Fixed, dyadic, and off the
+/// origin so a frame's translation and its rotation both move a
+/// sample.
+const UV: [f64; 5] = [-1.5, -0.25, 0.0, 0.375, 2.0];
+
+/// The whole `T`-geometry of a body: counts, every stored point, every
+/// stored SURFACE sampled on the lattice, every stored CURVE carrier
+/// sampled at the lattice parameters plus its stored parameter pair.
+fn body_deep<T>(d: &mut D, body: &Body<T>)
+where
+    T: Decide + Bounds + geom_core::SpanLocate,
+{
+    d.u64(body.solids().count() as u64);
+    d.u64(body.faces().count() as u64);
+    d.u64(body.edges().count() as u64);
+    d.u64(body.vertices().count() as u64);
+    for (_k, p) in body.points() {
+        d.p3(*p);
+    }
+    for (_k, s) in body.surfaces() {
+        for u in UV {
+            for v in UV {
+                d.p3(s.eval(T::from_f64(u), T::from_f64(v)));
+            }
+        }
+    }
+    for (_k, c) in body.curves() {
+        match c.certified() {
+            None => d.u64(0),
+            Some(ec) => {
+                d.u64(1);
+                let (t0, t1) = ec.params();
+                d.sc(t0);
+                d.sc(t1);
+                for t in UV {
+                    d.p3(ec.carrier().eval(T::from_f64(t)));
+                }
+            }
+        }
+    }
+}
+
+/// Every node of the evaluation, in order, with its full `T` payload.
+fn eval_deep<T>(ev: &Evaluation<T>) -> u64
+where
+    T: Decide + Bounds + geom_core::SpanLocate,
+{
+    let mut d = D::new();
+    for &id in &ev.order {
+        d.u64(id.0);
+        match ev.result(id) {
+            None => d.u64(0),
+            Some(NodeResult::Failed(e)) => {
+                d.u64(1);
+                d.s(&format!("{e:?}"));
+            }
+            Some(NodeResult::Poisoned { through }) => {
+                d.u64(2);
+                d.s(&format!("{through:?}"));
+            }
+            Some(NodeResult::Ok(v)) => {
+                d.u64(3);
+                match &v.payload {
+                    ValuePayload::Datum(DatumValue::Plane { origin, normal }) => {
+                        d.u64(10);
+                        d.p3(*origin);
+                        d.v3(*normal);
+                    }
+                    ValuePayload::Datum(DatumValue::Axis { origin, dir }) => {
+                        d.u64(11);
+                        d.p3(*origin);
+                        d.v3(*dir);
+                    }
+                    ValuePayload::Datum(DatumValue::Point { position }) => {
+                        d.u64(12);
+                        d.p3(*position);
+                    }
+                    ValuePayload::Profile(p) => {
+                        d.u64(13);
+                        for lp in p.validated.loops() {
+                            d.u64(lp.vertices().len() as u64);
+                            for vx in lp.vertices() {
+                                d.sc(vx.pos().x);
+                                d.sc(vx.pos().y);
+                                d.sc(vx.bulge());
+                            }
+                        }
+                    }
+                    ValuePayload::Body(b) => {
+                        d.u64(14);
+                        body_deep(&mut d, b);
+                    }
+                    ValuePayload::Boolean(BooleanValue::Empty) => d.u64(15),
+                    ValuePayload::Boolean(BooleanValue::Body { body, .. }) => {
+                        d.u64(16);
+                        body_deep(&mut d, body);
+                    }
+                    ValuePayload::Split { above, below } => {
+                        d.u64(17);
+                        for side in [above, below] {
+                            match side {
+                                SplitSide::Empty => d.u64(0),
+                                SplitSide::Body(b) => {
+                                    d.u64(1);
+                                    body_deep(&mut d, b);
+                                }
+                            }
+                        }
+                    }
+                    ValuePayload::Instances(bodies) => {
+                        d.u64(18);
+                        d.u64(bodies.len() as u64);
+                        for b in bodies {
+                            body_deep(&mut d, b);
+                        }
+                    }
+                    ValuePayload::Declarations(pairs) => {
+                        d.u64(19);
+                        d.u64(pairs.len() as u64);
+                    }
+                    ValuePayload::Mate(_) => d.u64(20),
+                }
+            }
+        }
+    }
+    d.0
+}
 
 // ---------------------------------------------------------------- 1
 

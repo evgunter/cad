@@ -45,9 +45,12 @@
 //! aggregate is gated. Both gates go through the SCALAR'S at-rest
 //! policy ([`topo::AtRestPolicy`], `docs/DUAL-DESIGN.md` DL3):
 //! certifying scalars run [`topo::validate_geometric`] verbatim; at a
-//! dual the gates are structurally absent, because the dual's value
-//! channel is bit-identical to the base-scalar build these same gates
-//! validate. Disjoint multi-solid bodies are tier-3 legal.
+//! dual the gates are structurally absent, and their success arm SAYS
+//! so ([`topo::AtRestOutcome::NotRunAtThisScalar`]). The PAIRING
+//! OBLIGATION rides with that: at a non-certifying scalar a gathered
+//! product is NOT a validated product — the base-scalar evaluation
+//! beside it, whose value channel is bit-identical, is the validation
+//! of record. Disjoint multi-solid bodies are tier-3 legal.
 //! Know what the aggregate gate proves: tier 3 is a LOCAL battery
 //! (per-face, per-edge, per-edge–face-pair, plus one whole-body signed
 //! volume that SUMS), so solids that OVERLAP pass it undetected —

@@ -377,8 +377,18 @@ impl core::error::Error for AssemblyError {}
 /// through the SCALAR'S at-rest policy ([`topo::AtRestPolicy`],
 /// `docs/DUAL-DESIGN.md` DL3): certifying scalars run
 /// [`topo::validate_pseudomanifold`] verbatim; at a dual the gate is
-/// structurally absent — validation is the base-scalar evaluation's,
-/// already done on the same bits.
+/// structurally absent, and its success arm says so
+/// ([`topo::AtRestOutcome::NotRunAtThisScalar`]).
+///
+/// **The pairing obligation (DL3), stated at this door**: at a
+/// non-certifying scalar an `Ok(Assembly)` here is NOT a
+/// certification — a document the `f64` census refuses assembles
+/// green at `Dual64`, because nothing gated it. A dual evaluation is
+/// sound only BESIDE a certifying-scalar run of the same recipe,
+/// whose bit-identical value channel this same door validated; that
+/// paired run is the validation of record. Nothing in the type
+/// system enforces the pairing here; the E4 driver's content-key
+/// equality assertion is the named banked obligation (M10-4).
 ///
 /// # Errors
 ///
@@ -405,7 +415,7 @@ pub fn assemble<P, T: Decide + AtRestPolicy>(
     } = product;
     let minted = mint(doc, evaluation, &names, &mut contacts)?;
     match T::gate_at_rest_declared(&body, &contacts, tol) {
-        Ok(()) => Ok(Assembly {
+        Ok(_) => Ok(Assembly {
             body,
             names,
             contacts,

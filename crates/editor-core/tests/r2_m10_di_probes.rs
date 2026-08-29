@@ -352,10 +352,14 @@ fn deep_value_channel_identity_f64_vs_dual64_including_carrier_arenas() {
 #[test]
 fn deep_value_channel_identity_interval_vs_dual_interval() {
     use geom_core::{DualInterval, Interval};
-    for doc in documents() {
-        if !matches!(doc.name, "die" | "loft_prism") {
-            continue;
-        }
+    // A LOUD row list (the unit suite's shape): a renamed document
+    // fails the lookup rather than silently emptying the row.
+    let docs = documents();
+    for name in ["die", "loft_prism"] {
+        let doc = docs
+            .iter()
+            .find(|d| d.name == name)
+            .unwrap_or_else(|| panic!("row `{name}` is not in the corpus"));
         let ev_i = eval::<Interval>(&doc.doc);
         let ev_d = eval::<DualInterval>(&doc.doc);
         assert_eq!(
@@ -510,9 +514,10 @@ fn own_document_builds_at_dual64_with_f64_value_channel() {
 /// all-planar body it returns `Ok(())` — a tier-3 pass computed at a
 /// dual, sound by value-channel delegation but indistinguishable at
 /// the call site from a certified-scalar pass. Beside it,
-/// `AtRestPolicy::gate_at_rest::<Dual64>` returns `Ok(())` meaning
-/// "policy: not run" — two adjacent public doors whose `Ok(())`s mean
-/// different things. On record for the fix pass to weigh.
+/// `AtRestPolicy::gate_at_rest::<Dual64>` returns
+/// `Ok(NotRunAtThisScalar)` — the fix pass made the two adjacent
+/// doors' successes different WORDS (`topo::AtRestOutcome`), which is
+/// what this row originally put on record.
 #[test]
 fn direct_validation_door_behavior_at_dual64() {
     let tol = Tol::witness();
@@ -524,7 +529,11 @@ fn direct_validation_door_behavior_at_dual64() {
     // closed-form; what matters here is the door RUNS and answers.
     let direct = topo::validate_geometric(body, tol);
     let policy = <Dual64 as topo::AtRestPolicy>::gate_at_rest(body, tol);
-    assert_eq!(policy, Ok(()), "the policy arm must be the no-op grant");
+    assert_eq!(
+        policy,
+        Ok(topo::AtRestOutcome::NotRunAtThisScalar),
+        "the policy arm must say it did not run — never a grant"
+    );
     if let Some(nurbs) = docs.iter().find(|d| d.name == "loft_prism")
         && let Some(result) = nurbs.result
     {
