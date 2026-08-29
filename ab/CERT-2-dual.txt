@@ -88,3 +88,36 @@ scratchpad. Foreground discipline: no background waiters for your
 own builds/tests; wrap raw cargo in local-scripts/with-build-slot.sh;
 never end a turn with background work active. Report <= 150 lines.
 ---
+
+REVIEWS DELIVERED (2026-08-29, both on frozen 0da940d2, sequential
+per the pre-recorded method note; R2 had no access to R1's report or
+probes — both disclosed clean isolation):
+R1 (fable): APPROVE-WITH-FIXES 1/4/4, rubric 4/3/4; ~187k tokens,
+~22m harness wall. MAJOR: the wrong-diagnosis class survives just
+inside the new admission set (speed 1e-320 -> SeedRefinementFailed;
+1e-300 -> silent Ok, ~2e297 m step; net 1e150 -> CellBudget from the
+public door). Probes cert/2r1-probes @ 9bff2af1.
+R2 (opus): APPROVE-WITH-FIXES 2/4/4, rubric 4/4/3; ~160k tokens,
+~13m harness wall. MAJOR-1: three live siblings of D285's own
+predicate shape in-fence (certify.rs:666, :689, jet.rs:153) — sweep
+covered the fold shape only; reachability unmeasured (inspection).
+MAJOR-2: the reworded R^4 sentence's second disjunct unproducible;
+it is also what fires for issue 1218's plane-origin input. Probes
+cert/2r2-probes @ 555b7166.
+CORRESPONDENCE PRE-NOTE (full coding at the blinded adjudication):
+R1-MAJOR <-> R2-MINOR-1 = ONE underlying class (admission-gap wrong
+diagnoses at finite-but-unusable speeds), BILATERAL at differing
+severity — no tally candidate. R2-MAJOR-2 <-> R1-MINOR-2 likewise
+BILATERAL at differing severity (R^4 sentence) — no tally candidate.
+R2-MAJOR-1 (predicate siblings) is UNILATERAL-MAJOR by
+correspondence but accepted-by-inspection (no execution at the three
+sites), so 3(d) likely excludes it from the tally — adjudication's
+call, not claimed here. Bilateral small stuff: garbled panic strings
+(R1-MINOR-1 = R2-N1). Notable contradiction to resolve cheaply in
+the fix pass: R1-MINOR-4 (zero-speed arm looks unreachable, hull
+inflation keeps speeds positive) vs R2 probe G (tiny-spread nets ->
+speed exactly zero, caught by ssi.rs's zero arm) — different probes,
+check which arm fires.
+Fix pass: IMPLEMENTER-INHERITED, dispatched off the adjudicated
+union; both verdicts A-W-F so the orchestrator adjudicates the fix
+diff, no re-review round. v6 tally: no change claimed here.
