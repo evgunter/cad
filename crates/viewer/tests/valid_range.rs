@@ -213,13 +213,46 @@ fn the_session_probes_a_real_slots_range() {
     assert_eq!(probed, target);
     assert_eq!(result.origin, 0.008);
     let Bound::Edge { valid, invalid } = result.low else {
-        panic!("a zero-height extrude fails, so there is a floor: {result:?}");
+        panic!("a thin extrude fails, so there is a floor below 8 mm: {result:?}");
     };
-    assert!(invalid <= 0.0, "the floor is at zero, not above it");
+    // **The shape, not the location.** WHERE the floor sits is the
+    // kernel's business and it moves with ε — a sub-tolerance height is
+    // refused long before zero, so an assertion that the floor is at
+    // zero passes at the witness ε and fails at a coarser one. (It did:
+    // this row named `invalid <= 0.0` and went red on the interval lane
+    // at ε = 1e-6, which is the lane doing its job.) What the probe
+    // PROMISES is ε-independent and is what is asserted: a real bracket,
+    // at or below where the field is now, narrowed to within one seed
+    // step.
+    assert!(invalid < valid, "a bracket straddles: {invalid}..{valid}");
+    assert!(valid <= 0.008, "the floor is at or below the current value");
     assert!(
-        valid > 0.0 && valid < 0.008,
-        "the floor sits between 0 and the current value: {valid}"
+        valid - invalid <= 0.001,
+        "the bracket should close to within one seed (1 mm): {invalid}..{valid}"
     );
+    // And the reported numbers are checked against the document rather
+    // than trusted: setting the field to the valid end introduces no
+    // failure the baseline lacks, and setting it to the invalid end
+    // does. That is the claim a bisection bug would break, and it is
+    // the same statement at any ε.
+    let baseline = Verdict::of(session.evaluation().expect("an evaluation landed"));
+    for (value, want_ok, what) in [(valid, true, "valid"), (invalid, false, "invalid")] {
+        session.perform(SessionOp::SetSlot {
+            node: extrude,
+            slot: SlotId::Distance,
+            value: props::SlotValue::Continuous(value),
+        });
+        session.pump();
+        let here = Verdict::of(session.evaluation().expect("an evaluation landed"));
+        assert_eq!(
+            here.no_worse_than(&baseline),
+            want_ok,
+            "the probe reported {value} as the {what} end"
+        );
+        session.perform(SessionOp::Undo);
+        session.pump();
+    }
+
     // The reading comes back in the unit the field is written in.
     let words = result.wording(props::written_unit(Dimension::Length, Some(MM.def())));
     assert!(words.contains("mm"), "{words}");
@@ -227,6 +260,12 @@ fn the_session_probes_a_real_slots_range() {
     // A document change discards it: a range is a statement about one
     // document, and a stale one beside a fresh number is exactly the
     // confident wrong answer to avoid.
+    //
+    // Re-probed first, so this is not vacuous: the verification loop
+    // above edited the document and therefore already discarded the
+    // original reading.
+    session.perform(SessionOp::ProbeBounds { target });
+    assert!(session.bounds().is_some(), "a fresh probe landed");
     session.perform(SessionOp::SetSlot {
         node: extrude,
         slot: SlotId::Distance,
