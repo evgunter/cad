@@ -63,3 +63,14 @@ redraw); 193 mod 3 = **1** = fable's position (0-indexed). Block
 **BLEND-B1 = (slot 1 OPUS, slot 2 FABLE, slot 3 OPUS)**. Slots are
 consumed in dispatch order; arms are never restated on main while a
 slot is unstarted (the 2026-08-29 LIB redaction precedent).
+
+## BLEND-1 DISPATCHED (2026-08-29)
+
+Unit BLEND-1 (the multi-link closed-rim door, issue 1022) dispatched:
+lane `blend-1`, branch `blend/rimwhole`, brief carrying the A3-2
+handoff, the SHELLFIX/G16/vocabulary/run-out fences, and the
+blinding rules. Pre-draw difficulty **M-L** (logged in the draw
+record above before the byte was drawn). Arm = BLEND-B1 slot 1,
+read from this branch's draw record, not restated where reviewers
+read. v6 dual at review; ordinal claimed from band 600–699 on main
+at review dispatch. Row at merge.
