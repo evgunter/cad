@@ -101,10 +101,7 @@ pub fn document() -> CorpusDoc {
     let mut r = Recorder::new();
     r.push(DocEdit::SetDocParam {
         name: ParamName::new(HOLE_R),
-        value: DocParam::Continuous {
-            dim: Dimension::Length,
-            value: HOLE_R_VALUE,
-        },
+        value: DocParam::continuous(Dimension::Length, HOLE_R_VALUE),
     });
 
     let plate_p = r.insert(Node::Profile(plate_profile()));

@@ -1258,7 +1258,7 @@ let mut doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
 // undoable like any other.
 doc = apply(&doc, &DocEdit::SetDocParam {
     name: ParamName::new("hole_r"),
-    value: DocParam::Continuous { dim: Dimension::Length, value: 0.25 },
+    value: DocParam::continuous(Dimension::Length, 0.25),
 }, tol)?.doc;
 
 let mut insert = |doc: &Doc<ProfileProgram>, node| {
@@ -1321,7 +1321,7 @@ assert!((volume(&ev, solid) - v(0.25)).abs() < 1e-6);
 // One `SetDocParam` moves BOTH holes; the tab branch never re-runs.
 let bigger = apply(&doc, &DocEdit::SetDocParam {
     name: ParamName::new("hole_r"),
-    value: DocParam::Continuous { dim: Dimension::Length, value: 0.4 },
+    value: DocParam::continuous(Dimension::Length, 0.4),
 }, tol)?.doc;
 let ev2 = evaluate::<f64>(&bigger, Some(&ev), &CancelToken::new(), &EvalOptions::default(), tol);
 assert_eq!(ev2.recomputed, 3); // the profile, the plate, the union
@@ -1344,6 +1344,114 @@ profile step whose argument is an EXPRESSION rather than a literal —
 the holes above are `LoopProgram::Circle { radius: Expr::param(…) }`,
 and `pncad.circle(centre, radius)` takes a `Length`, so the radius
 crosses as a number and the parameter link is lost.
+
+### 3.3 Distributions: saying how much a parameter varies
+
+A parameter's value is one number. What a real part has is a number
+*and* a spread, and `DocParam::Continuous` carries an optional
+`Distribution` to say so — offsets from the parameter's own nominal, in
+the parameter's own dimension. Four forms, and the differences between
+them are claims, not conveniences:
+
+| form | what it claims |
+| --- | --- |
+| `Band { lo, hi }` | limits, and **no shape** — "I know the extremes, not the distribution" |
+| `Uniform { lo, hi }` | limits, and every value between them equally likely |
+| `Normal { sigma }` | zero-mean normal, unbounded support |
+| `TruncatedNormal { sigma, lo, hi }` | that normal, restricted to `[lo, hi]` and renormalized |
+
+Annotating is opt-in and it means something: a continuous parameter
+with **no** distribution is FIXED — the analysis varies exactly what you
+declared variable, and never guesses a spread you did not state.
+`Count` parameters cannot be annotated at all; there is no spelling for
+it, because a structural count is fixed under any error analysis.
+
+Reading an annotation is `pncad::analysis`'s job and nobody else's: the
+kernel and the geometry lanes never see a probability. Three
+consumables come out of it — the **analyzed box** (the offset interval
+the analysis varies each parameter over), the **tail mass** (what the
+box left out), and the **leaf mass** (what the distribution puts inside
+any sub-interval).
+
+```
+use pncad::prelude::*;
+use pncad::analysis::{AnalysisPolicy, MeasureUnavailable, analyzed_box, box_mass, tail_mass};
+use pncad::document::{Distribution, DocParamValue};
+
+let tol = Tol::witness();
+let mut doc = Doc::<ProfileProgram>::empty_derived("guide-distributions", tol);
+
+let declare = |doc: &Doc<ProfileProgram>, name: &str, value: DocParam| {
+    apply(doc, &DocEdit::SetDocParam { name: ParamName::new(name), value }, tol)
+        .expect("the declaration applies").doc
+};
+
+// A measured bore: 4 mm, one micron of spread, normal.
+doc = declare(&doc, "bore_r", DocParam::continuous_with(
+    Dimension::Length, 0.004, Distribution::Normal { sigma: 1e-6 }));
+// Vendor stock: the catalogue gives limits and states no shape.
+doc = declare(&doc, "plate_t", DocParam::continuous_with(
+    Dimension::Length, 0.010, Distribution::Band { lo: -1e-4, hi: 1e-4 }));
+// Unannotated: FIXED, on purpose.
+doc = declare(&doc, "web_t", DocParam::continuous(Dimension::Length, 0.003));
+
+// The box, under the ±3σ default policy (0.9973 per parameter).
+let policy = AnalysisPolicy::default();
+let boxed = analyzed_box(&doc, &policy);
+
+// The normal's box is the symmetric quantile interval, so it is
+// roughly ±3σ and it leaves the rest OUTSIDE.
+let bore = boxed.get(&ParamName::new("bore_r")).expect("an axis");
+assert!((bore.offsets.hi / 1e-6 - 3.0).abs() < 0.01);
+let tail = tail_mass(&ParamName::new("bore_r"),
+                     &bore.distribution.expect("annotated"), &bore.offsets)
+    .expect("a normal prices");
+assert!((tail - (1.0 - policy.quantile_mass())).abs() < 1e-12);
+
+// The band's box IS its support, so nothing escapes it...
+let plate = boxed.get(&ParamName::new("plate_t")).expect("an axis");
+assert_eq!(plate.offsets.lo, -1e-4);
+// ...and the unannotated parameter is a width-zero axis at its nominal.
+assert!(boxed.get(&ParamName::new("web_t")).expect("an axis").offsets.is_fixed());
+assert_eq!(boxed.varying().count(), 2);
+
+// The band refuses to price anything its shape would decide, and the
+// refusal NAMES the parameter rather than quietly assuming uniform.
+let refusal = box_mass(&ParamName::new("plate_t"),
+                       &plate.distribution.expect("annotated"), (-5e-5, 5e-5));
+assert!(matches!(refusal, Err(MeasureUnavailable::BandHasNoMeasure { .. })));
+assert!(format!("{}", refusal.unwrap_err()).contains("plate_t"));
+
+// Moving a value KEEPS the annotation — use the value door, never a
+// rebuilt `DocParam`.
+doc = apply(&doc, &DocEdit::SetDocParamValue {
+    name: ParamName::new("bore_r"),
+    value: DocParamValue::Continuous(0.0045),
+}, tol)?.doc;
+assert!(doc.params()[&ParamName::new("bore_r")].distribution().is_some());
+# Ok::<(), Box<dyn std::error::Error>>(())
+```
+
+Three things in that listing are the whole design, and each is a
+decision you can rely on:
+
+- **The box is the analysis's knob, not the distribution's property.**
+  A normal has unbounded support; `quantile_mass` decides how much of
+  it to analyze. Moving the knob moves mass between the analyzed and
+  the tail columns — it never moves truth, and the tail is *reported*,
+  never dropped.
+- **A band prices nothing whose answer depends on its shape.** It will
+  answer the two set-theoretic cases (an interval covering its whole
+  support holds mass 1; a disjoint one holds 0), because every measure
+  consistent with the band agrees on those. Anything finer refuses,
+  typed, naming the parameter. Promoting a band to a uniform would be a
+  strictly stronger claim than the author made.
+- **Value edits carry the annotation.** `SetDocParam` is
+  create-or-replace: handing it a `DocParam` you rebuilt from a
+  dimension and a number replaces the declaration and silently deletes
+  the distribution. `SetDocParamValue` writes the number and carries
+  the declaration forward, which is why the panel, the drag gesture and
+  the Python binding (`DocEdit.set_doc_param_value`) all speak it.
 
 ## 4. The rest of the documentation
 

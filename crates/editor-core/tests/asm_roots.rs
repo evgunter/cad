@@ -540,12 +540,13 @@ fn minting_nodes(body: &topo::Body<f64>, solid: topo::SolidKey) -> Vec<u64> {
 /// the migration table stays empty.
 #[test]
 fn row6a_v5_refuses_too_old_with_the_regenerate_recourse() {
-    // Moved seven times since this row was written (ASM-2A's v7,
+    // Moved nine times since this row was written (ASM-2A's v7,
     // LIB-LBRET's v8, LIB-RESPELL's v9, ASM-UPD's v10, M9-1's v11,
-    // LIB-PLACEDUNION's v12, ASM-R2a's v13) — the repo's
+    // LIB-PLACEDUNION's v12, ASM-R2a's v13, ASM-R2b's v14, M10-1's
+    // v15) — the repo's
     // convention is that a bump updates every pin it invalidates, so
     // the number stays exact here.
-    assert_eq!(SCHEMA_VERSION, 14);
+    assert_eq!(SCHEMA_VERSION, 15);
     assert_eq!(V5.lines().next(), Some("schema: 5"));
     match load(V5, Tol::witness()) {
         Err(PersistError::SchemaTooOld {

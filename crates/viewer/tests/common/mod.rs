@@ -138,10 +138,7 @@ pub fn parametric_plate(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeN
         &doc,
         DocEdit::SetDocParam {
             name: thickness_param(),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value: 0.008,
-            },
+            value: DocParam::continuous(Dimension::Length, 0.008),
         },
         tol,
     );

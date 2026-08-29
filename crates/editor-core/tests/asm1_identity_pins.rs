@@ -50,10 +50,7 @@ fn exemplar(
         doc,
         DocEdit::SetDocParam {
             name: ParamName::new("depth"),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value: 0.75,
-            },
+            value: DocParam::continuous(Dimension::Length, 0.75),
         },
     );
     (doc, profile, extrude)
@@ -83,10 +80,7 @@ fn row2_two_edit_paths_one_snapshot_equal_pins() {
         base.clone(),
         DocEdit::SetDocParam {
             name: ParamName::new("depth"),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value: 0.9,
-            },
+            value: DocParam::continuous(Dimension::Length, 0.9),
         },
     );
     // Path B: wander through 0.1 first, then land on 0.9.
@@ -94,20 +88,14 @@ fn row2_two_edit_paths_one_snapshot_equal_pins() {
         base,
         DocEdit::SetDocParam {
             name: ParamName::new("depth"),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value: 0.1,
-            },
+            value: DocParam::continuous(Dimension::Length, 0.1),
         },
     );
     let (b, _) = step(
         b,
         DocEdit::SetDocParam {
             name: ParamName::new("depth"),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value: 0.9,
-            },
+            value: DocParam::continuous(Dimension::Length, 0.9),
         },
     );
     assert_eq!(
@@ -119,17 +107,11 @@ fn row2_two_edit_paths_one_snapshot_equal_pins() {
     let (origin, _, _) = exemplar("asm1-row2");
     let log_a = vec![DocEdit::SetDocParam {
         name: ParamName::new("depth"),
-        value: DocParam::Continuous {
-            dim: Dimension::Length,
-            value: 0.9,
-        },
+        value: DocParam::continuous(Dimension::Length, 0.9),
     }];
     let mut log_b = vec![DocEdit::SetDocParam {
         name: ParamName::new("depth"),
-        value: DocParam::Continuous {
-            dim: Dimension::Length,
-            value: 0.1,
-        },
+        value: DocParam::continuous(Dimension::Length, 0.1),
     }];
     log_b.extend(log_a.clone());
     let loaded_a = load(
@@ -172,10 +154,7 @@ fn row2_undone_edit_pin_unchanged() {
         doc,
         DocEdit::SetDocParam {
             name: ParamName::new("depth"),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value: 0.9,
-            },
+            value: DocParam::continuous(Dimension::Length, 0.9),
         },
     );
     assert_ne!(
@@ -187,10 +166,7 @@ fn row2_undone_edit_pin_unchanged() {
         edited,
         DocEdit::SetDocParam {
             name: ParamName::new("depth"),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value: 0.75,
-            },
+            value: DocParam::continuous(Dimension::Length, 0.75),
         },
     );
     assert_eq!(content_pin(&undone, Tol::witness()).unwrap(), before);
@@ -236,10 +212,7 @@ fn row4_param_edit_moves_pin() {
         doc,
         DocEdit::SetDocParam {
             name: ParamName::new("depth"),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value: 0.8,
-            },
+            value: DocParam::continuous(Dimension::Length, 0.8),
         },
     );
     assert_ne!(content_pin(&edited, Tol::witness()).unwrap(), before);

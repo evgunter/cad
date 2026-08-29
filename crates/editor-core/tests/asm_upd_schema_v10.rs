@@ -33,9 +33,9 @@ const V9: &str = include_str!("golden/v9_golden.cad");
 fn schema_version_is_current() {
     // Named for the PROPERTY, not the number (the `lbret_schema_v8`
     // precedent): ASM-UPD's own bump was v10; M9-1 took v11,
-    // LIB-PLACEDUNION v12, ASM-R2a v13 and ASM-R2b v14, and the number is
-    // what keeps moving.
-    assert_eq!(SCHEMA_VERSION, 14);
+    // LIB-PLACEDUNION v12, ASM-R2a v13, ASM-R2b v14 and M10-1 v15, and
+    // the number is what keeps moving.
+    assert_eq!(SCHEMA_VERSION, 15);
 }
 
 #[test]

@@ -1200,6 +1200,22 @@ SCHEMA_VERSION` → 13, at the merge that brought M9-2 PR-2 #564 in).
 This paragraph is the tripwire: any other in-flight branch claiming
 14 collides HERE, because the constant will not.
 
+**M10-1 SCHEMA CLAIM: v15** (2026-08-29, branch
+m10/m10-1-distributions) — `DocParam::Continuous` gained the optional
+`Distribution` of ERROR-DESIGN E1/E2: the parameter's uncertainty as
+offsets from its own nominal. The field is
+`skip_serializing_if = "Option::is_none"`, so an unannotated document
+writes the v14 bytes exactly; the FORMAT claim is the populated key,
+which a v14 reader's `deny_unknown_fields` document types have no
+name for. Claimed as main's next number after reading main's ACTUAL
+constant by eye at the final re-merge (`git show
+origin/main:crates/editor-core/src/persist/mod.rs | grep
+SCHEMA_VERSION`). This paragraph is the tripwire: any other in-flight
+branch claiming 15 collides HERE, because the constant will not.
+`docs/PARAM-LINT-SPEC.md` names v15 as the number a persisted PL
+field would take — a hypothetical in a spec, not a claim on a branch,
+but the nearest thing to a rival and worth an eye if PL lands first.
+
 Review
 ordinal claims at review dispatch (note: the next third is 48 —
 the pending dual, tally 5-of-6).
@@ -1788,3 +1804,4 @@ any readout window spanning this date should treat LIB rows accordingly.
 The classification call is recorded per unit in LIB-LOG; the first wave
 under the ruling is G11 (`lib/g11-mesh`), G15 (`lib/g15-workspace`), and
 the R2+#1111-slice curation unit (`lib/curation-r2`).
+| M10-1 | 2026-08-29 | M10-1 (PR #1147; ERROR-DESIGN E1/E2, spec M10-1-SPEC): the parameter `Distribution` vocabulary (Band/Uniform/Normal/TruncatedNormal on `DocParam::Continuous`; Count unrepresentable), one `check()` at edit AND load doors classifying identically, schema v15 clean break with populated goldens, `editor_core::analysis` (quantile box by erf-bisection, tail/leaf mass, Band refuses typed); the unit found and fixed its own compiler-invisible defect (GUI `param_edit` silently deleting annotations) | M (pre-draw) | OPUS (block M10-B1 slot 1) | **DUAL (ordinal 500 — the M10 band's first; sample #39 at merge; parity byte 165 ⇒ R1 FABLE + R2 OPUS, concurrent, frozen 0e9ef0b4, v5 instrument; briefs symmetric, no relaxations, neither arm interrupted — pair COUNTS toward the twelve). R1 A-W-F 0/3/3, rubric 5/4/4 — all eight charter claims confirmed incl. a bit-identical f64 merge-base differential over the corpus; unique: the Python ±0.0 hash/eq break, the unpinned GUI fix (supplied the three pins), the Python write-door deletion as the class's remaining member. R2 A-W-F 3/5/4, **rubric MISSING** — the report omitted the triple and the lane could not be resumed for it (the orchestrator had reclaimed the review worktree at report time — the SECOND worktree-reclaim resume break this unit; per the M9-3 attested-but-unscored precedent the analysis treats R2's rubric cells as missing data; findings are complete). R2 unique: **the deep-tail cancellation (MAJ-1, SILENT: `1 − erf` bit-zeros the tail from ~8.5σ while real mass remains — E2's "reported, never dropped" number; UNILATERAL by execution, adjudicated REAL and fixed — TALLY CANDIDATE, +1 pending blinded coding)**, the erfc/quantile_z one-CDF coupling class, and the two tautological accounting rows. Correspondence: the carry-forward class and the unpinned-fix bilateral at differing severities; dedup single each | R1 0 silent; R2 counted 3 silent (the deep tail; the class beyond the GUI instance; Band's covering/disjoint answers vs the spec's literal sentence) | 5 | 4 | 4 (R1's triple; R2's missing per the dual cell) | substantial, EXECUTED BY A FRESH SAME-ARM LANE (original lane unresumable — worktree reclaimed; executor covariate per the recording discipline): all seven adjudicated items (shared `erfc` exterior/CDF pair also under `quantile_z`; `DocEdit::SetDocParamValue` closing the deletion class structurally on the v15 break; R1's viewer pins adopted; the ±0.0 fold one-homed; both probe suites adopted as merge parents with tautologies demoted; five prose/diagnostic fixes; GUIDE §3.3 doctest), two optional taken (name-keyed mass doors killing the mispairing; 16σ bracket), zero-width forms declined with argument | impl CI 33233982049 GREEN (all, interval, 1e-6) after one disclosed doc-test red; fix CI 33238624726 GREEN (all, default, default) after one disclosed k-lint fmt red (demos/tour is its own cargo root); interval lane covered locally at the fix head (687 rows) since the fix draw missed it | impl ~1.35M / fix ~360K / R1 ~239K / R2 ~233K | impl ~1h55m / fix ~1h50m / R1 ~18m / R2 ~18m |

@@ -325,10 +325,7 @@ fn attribute_survives_no_flip_parameter_motion_on_the_die() {
         doc,
         DocEdit::SetDocParam {
             name: ParamName::new("pip_depth"),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value: DEPTH * 1.5,
-            },
+            value: DocParam::continuous(Dimension::Length, DEPTH * 1.5),
         },
     );
     let ev2 = rerun(&doc2, &ev1);

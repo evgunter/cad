@@ -27,9 +27,10 @@ fn schema_version_is_current() {
     // LIB-LBRET's step-vocabulary growth (v8), by LIB-RESPELL's §2c
     // re-spell (v9), by ASM-UPD's `UpdateReference` edit arm (v10), by
     // M9-1's declaration class (v11), by LIB-PLACEDUNION's group
-    // boolean (v12), and by ASM-R2a's `Node::Mate` arm (v13); this
-    // file keeps pinning the v3 refusal fixture below.
-    assert_eq!(SCHEMA_VERSION, 14);
+    // boolean (v12), by ASM-R2a's `Node::Mate` arm (v13), by ASM-R2b's
+    // interface record (v14), and by M10-1's parameter distributions
+    // (v15); this file keeps pinning the v3 refusal fixture below.
+    assert_eq!(SCHEMA_VERSION, 15);
 }
 
 #[test]
