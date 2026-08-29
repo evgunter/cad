@@ -73,7 +73,16 @@ pub enum OpGroup {
     Boolean,
     /// Split.
     Split,
-    /// Fillet (M6-5's composition-surgery vocabulary).
+    /// Fillet (M6-5's composition-surgery vocabulary) — and the
+    /// CHAMFER's, which reuses these roles deliberately: the shapes
+    /// are the same (a band face off a source edge, a corner patch off
+    /// a source vertex), and a `StableName` carries the minting node,
+    /// which is what tells the two apart (RECIPE-DOORS D3).
+    ///
+    /// The group's NAME therefore under-describes what it groups.
+    /// Renaming it is #917 — a ~255-reference rename with its own
+    /// scale, deliberately not this door's.
+    // #917: the group name still speaks as the fillet.
     Fillet,
     /// Pattern.
     Pattern,

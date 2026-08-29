@@ -274,7 +274,8 @@ fn forwarding_cases() -> Vec<editor_core::NodeErrorKind> {
                 },
             }),
         },
-        K::FilletSelectionResolve {
+        K::BlendSelectionResolve {
+            verb: sweep::fillet::BlendKind::Fillet,
             error: Box::new(editor_core::ResolveError::Ambiguous {
                 name: name(editor_core::EntityKind::Edge),
                 candidates: vec![],
@@ -303,9 +304,12 @@ fn forwarding_cases() -> Vec<editor_core::NodeErrorKind> {
         K::Revolve(sweep::RevolveError::DegenerateAxis),
         K::Skin(sweep::SkinError::TooFewSections { have: 1, need: 2 }),
         K::Loft(sweep::LoftError::SeamStructure),
-        K::Fillet(sweep::fillet::FilletError::RepeatedEdge {
-            edge: topo::EdgeKey::default(),
-        }),
+        K::Blend {
+            verb: sweep::fillet::BlendKind::Chamfer,
+            error: sweep::fillet::FilletError::RepeatedEdge {
+                edge: topo::EdgeKey::default(),
+            },
+        },
         K::Transform(topo::transform::TransformError::NurbsPlaceholder),
         K::Split(topo::SplitError::Finish(topo::SplitFinishError::Band(
             geom_core::BandError::Empty {
@@ -339,14 +343,14 @@ fn a_kernel_payload_arm_forwards_the_payloads_own_message() {
             K::Profile(e) => e.to_string(),
             K::Expr { source, .. } => source.to_string(),
             K::DeclareResolve { error } => error.to_string(),
-            K::FilletSelectionResolve { error } => error.to_string(),
+            K::BlendSelectionResolve { error, .. } => error.to_string(),
             K::WitnessBifurcation(e) => e.to_string(),
             K::PlacementRule(e) => e.to_string(),
             K::Extrude(e) => e.to_string(),
             K::Revolve(e) => e.to_string(),
             K::Skin(e) => e.to_string(),
             K::Loft(e) => e.to_string(),
-            K::Fillet(e) => e.to_string(),
+            K::Blend { error, .. } => error.to_string(),
             K::Transform(e) => e.to_string(),
             K::Split(e) => e.to_string(),
             other => panic!("add the new case's payload here: {other:?}"),

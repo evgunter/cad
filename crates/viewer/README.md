@@ -82,6 +82,69 @@ WAYLAND_DISPLAY= cargo run -p viewer --features app
 Findings record: issue
 [#1097](https://github.com/evgunter/cad/issues/1097).
 
+## Driving it with no display (headless, confirmed)
+
+The whole application runs on a virtual X server with a software
+Vulkan rasteriser — window, dialog, GPU picking and all. `tests/` is
+where the interaction layer belongs and this is not a substitute for
+it, but there are two things only this can do: **look at what the app
+actually draws**, and **run two builds of the app in one environment**,
+which is how the "Open… is broken" report was shown to be a freeze
+rather than a regression.
+
+```sh
+apt-get install -y libxkbcommon-x11-0 mesa-vulkan-drivers libegl1 \
+                   libgl1-mesa-dri zenity xdotool imagemagick xvfb
+
+Xvfb :99 -screen 0 1400x900x24 &
+export DISPLAY=:99
+cargo run --release -p viewer --features app -- document.pncad
+import -window root shot.png            # -crop WxH+X+Y +repage to trim
+xdotool mousemove 95 11 click 1         # read coordinates off a screenshot
+```
+
+Each package earns its line. Without `libxkbcommon-x11-0` winit panics
+before the window exists (`Library libxkbcommon-x11.so could not be
+loaded`). `mesa-vulkan-drivers` supplies lavapipe, the software ICD
+wgpu lands on — **`WGPU_BACKEND=gl` is a dead end**, refusing with
+`CreateSurfaceError(Hal(FailedToCreateSurfaceForAnyBackend({})))`,
+while Vulkan needs no environment variable once the ICD is installed.
+Without `zenity` the chooser probe correctly reports `Absent` and
+disables Open…/Save As…, so everything but the dialog still works. The
+`libEGL warning: DRI3 error` lines on stderr are noise.
+
+**Build `--release`.** In a debug build the tessellation and BVH index
+of a few million triangles take minutes, which is indistinguishable
+from a hang and has been mistaken for one.
+
+Interaction notes, all learned the hard way:
+
+- **`pkill -f 'target/release/viewer'` kills the invoking shell**,
+  whose own command line contains that string. Use `pkill -x viewer`.
+- The file dialog is a separate window and is slow to appear; a fixed
+  `sleep` before typing races it. Poll for the window instead.
+- In the dialog, `ctrl+l` then a path NAVIGATES, and Return on a
+  directory navigates rather than confirming — click the file row,
+  then OK.
+- While the dialog is up the app is genuinely frozen: `rfd`'s blocking
+  call stalls the frame loop mid-`ui()`. Expected, not the bug you are
+  looking for.
+- An apparent hang is worth a `gdb -p <pid> -batch -ex "thread apply
+  all bt"` early. `top` reporting 0% CPU is an artifact of a
+  single-sample read and is not evidence of blocking.
+
+To TIME an interaction reproducibly, hash a crop of the region that
+will change and poll it, jiggling the pointer to force a repaint:
+
+```sh
+BASE=$(import -window root -crop 300x40+845+45 png:- | md5sum)
+```
+
+**What it is not good for.** Rendering is on the CPU, so wall-clock
+readings mean something for the CPU-bound work (evaluation,
+tessellation, index build) and mislead for anything GPU-bound. And it
+is not CI: the packages are an install, and the timings are noisy.
+
 ## Running it in a browser (spike — compile/link first light only)
 
 ```sh

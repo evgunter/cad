@@ -45,7 +45,7 @@ fn schema_version_is_current() {
     // precedent): ASM-R2a's own bump was v13; ASM-R2b took v14 when it
     // inhabited the interface record and M10-1 took v15 for parameter
     // distributions, and the number is exactly what keeps moving.
-    assert_eq!(SCHEMA_VERSION, 15);
+    assert_eq!(SCHEMA_VERSION, 16);
 }
 
 #[test]
