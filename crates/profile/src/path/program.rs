@@ -95,6 +95,7 @@ use super::{
     PathError, Plain, Start, Via, WithIncoming,
 };
 use crate::ProfileLoop;
+use crate::structure::{Guide, ReplayStructure, StructureRefusal};
 use crate::sugar::ArcSweep;
 use geom_core::Tol;
 
@@ -262,6 +263,7 @@ macro_rules! transition_table {
         // `apply` binds share a hygiene context (a name minted inside the
         // macro would be invisible to the arms).
         witness $tolid:ident ;
+        guide $guideid:ident ;
         $(
             $(#[doc = $doc:literal])*
             verb $name:ident
@@ -342,7 +344,22 @@ macro_rules! transition_table {
         /// (state, verb) pair no row declares, which is therefore a
         /// pair the authoring surface cannot spell.
         #[allow(clippy::too_many_lines)]
-        fn apply<T: ArcCarrierScalar>(tip: DynTip<T>, step: Step<T>, $tolid: Tol) -> Applying<T> {
+        fn apply<T: ArcCarrierScalar>(
+            tip: DynTip<T>,
+            step: Step<T>,
+            $tolid: Tol,
+            $guideid: &mut crate::structure::Guide<T>,
+        ) -> Applying<T> {
+            // The chain's guide belongs to its CORE, which only an
+            // ENTRY verb mints; every later state carries it forward
+            // with the core it moves. So the driver hands the guide in
+            // here and the entry rows — and only they — install it,
+            // which is why `$guideid` appears in five arms and nowhere
+            // else. Taking it leaves a fresh recording guide behind, so
+            // a second read cannot silently re-install the first one.
+            let $guideid = &mut || {
+                core::mem::replace($guideid, crate::structure::Guide::recording())
+            };
             match (tip, step) {
                 $($(
                     ($tip0, Step::$name $bind) => $arm0,
@@ -362,6 +379,7 @@ macro_rules! transition_table {
 
 transition_table! {
     witness tol;
+    guide guide;
     #[doc = " `.at(p)` — bind the position bit."]
     verb At(Point2<T>) bind (p) rows {
         row {
@@ -375,7 +393,11 @@ transition_table! {
                 path
             }
             arms {
-                DynTip::Entry => Ok(Applied::Tip(DynTip::PlainPoint(Open.at(p)))),
+                DynTip::Entry => {
+                    let mut p0 = Open.at(p);
+                    p0.core.adopt(guide());
+                    Ok(Applied::Tip(DynTip::PlainPoint(p0)))
+                }
             }
         }
         row {
@@ -435,7 +457,11 @@ transition_table! {
                 path
             }
             arms {
-                DynTip::Entry => Ok(Applied::Tip(DynTip::Angle(Open.angle(theta)))),
+                DynTip::Entry => {
+                    let mut p0 = Open.angle(theta);
+                    p0.core.adopt(guide());
+                    Ok(Applied::Tip(DynTip::Angle(p0)))
+                }
             }
         }
         row {
@@ -508,7 +534,7 @@ transition_table! {
                 self.angle_kernel(Step::Angle(theta), theta, tol)
             }
             arms {
-                DynTip::ViaArrivalStart(p0) => Ok(Applied::Closed(p0.angle(theta, tol)?.loop_)),
+                DynTip::ViaArrivalStart(p0) => Ok(Applied::Closed(p0.angle(theta, tol)?)),
             }
         }
     }
@@ -537,7 +563,11 @@ transition_table! {
                 Ok(path)
             }
             arms {
-                DynTip::Entry => Ok(Applied::Tip(DynTip::Angle(Open.toward(dx, dy, tol)?))),
+                DynTip::Entry => {
+                    let mut p0 = Open.toward(dx, dy, tol)?;
+                    p0.core.adopt(guide());
+                    Ok(Applied::Tip(DynTip::Angle(p0)))
+                }
             }
         }
         row {
@@ -614,7 +644,7 @@ transition_table! {
                 self.toward_kernel(Step::Toward { dx, dy }, dx, dy, tol)
             }
             arms {
-                DynTip::ViaArrivalStart(p0) => Ok(Applied::Closed(p0.toward(dx, dy, tol)?.loop_)),
+                DynTip::ViaArrivalStart(p0) => Ok(Applied::Closed(p0.toward(dx, dy, tol)?)),
             }
         }
     }
@@ -990,7 +1020,11 @@ transition_table! {
                 self.arc_fillet_kernel(step, spec, radius, tol)
             }
             arms {
-                DynTip::Entry => Ok(Applied::Tip(DynTip::Open(do_fused_entry(spec, radius, tol)?))),
+                DynTip::Entry => {
+                    let mut p0 = do_fused_entry(spec, radius, tol)?;
+                    p0.core.adopt(guide());
+                    Ok(Applied::Tip(DynTip::Open(p0)))
+                }
             }
         }
         row {
@@ -1119,13 +1153,15 @@ transition_table! {
                 self.arc_fillet_arc_kernel(step, spec, radius, spec2, tol)
             }
             arms {
-                DynTip::Entry => do_arrival(
-                    do_fused_entry(spec, radius, tol)?,
-                    spec2,
-                    TipState::Entry,
-                    Verb::ArcFilletArc,
-                    tol,
-                ),
+                // The one entry row that both OPENS and RESOLVES a
+                // fillet in a single step (the eye): the guide has to
+                // be in the core before the arrival half runs, not
+                // after the step lands.
+                DynTip::Entry => {
+                    let mut open = do_fused_entry(spec, radius, tol)?;
+                    open.core.adopt(guide());
+                    do_arrival(open, spec2, TipState::Entry, Verb::ArcFilletArc, tol)
+                }
             }
         }
         row {
@@ -1325,7 +1361,7 @@ transition_table! {
                 self.close_at_seam(tol)
             }
             arms {
-                DynTip::Open(p0) => Ok(Applied::Closed(p0.to(Start, tol)?.loop_)),
+                DynTip::Open(p0) => Ok(Applied::Closed(p0.to(Start, tol)?)),
             }
         }
     }
@@ -1369,10 +1405,13 @@ transition_table! {
                         centre: center,
                         radius,
                     }],
+                    // A closed carrier resolves no fillet: no gate, no
+                    // ladder, nothing discrete to record.
+                    structure: ReplayStructure::default(),
                 })
             }
             arms {
-                DynTip::Entry => Ok(Applied::Closed(circle(centre, radius, tol)?.loop_)),
+                DynTip::Entry => Ok(Applied::Closed(circle(centre, radius, tol)?)),
             }
         }
     }
@@ -1426,11 +1465,14 @@ transition_table! {
                         n,
                         phase,
                     }],
+                    // Structural subdivisions of one carrier: still no
+                    // fillet resolution anywhere in the form.
+                    structure: ReplayStructure::default(),
                 })
             }
             arms {
                 DynTip::Entry => Ok(Applied::Closed(
-                    circle_split(centre, radius, n, phase, tol)?.loop_,
+                    circle_split(centre, radius, n, phase, tol)?,
                 )),
             }
         }
@@ -1451,6 +1493,11 @@ pub struct ClosedLoop<T: Real> {
     pub loop_: ProfileLoop<T>,
     /// The recorded program: replaying it reproduces `loop_` exactly.
     pub program: Vec<Step<T>>,
+    /// The discrete choices this lowering made — the third value one
+    /// chain yields, beside the loop and the program it recorded. A
+    /// derived value like the other two: never persisted, and rebuilt
+    /// by any replay of the program.
+    pub structure: crate::structure::ReplayStructure,
 }
 
 impl<T: Real> From<ClosedLoop<T>> for ProfileLoop<T> {
@@ -1630,8 +1677,9 @@ impl<T: Real> DynTip<T> {
 enum Applied<T: Real> {
     /// The chain continues at this tip.
     Tip(DynTip<T>),
-    /// The step closed the loop.
-    Closed(ProfileLoop<T>),
+    /// The step closed the loop, yielding the chain's whole result:
+    /// the loop, the program, and the structure its resolutions chose.
+    Closed(ClosedLoop<T>),
 }
 
 type Applying<T> = Result<Applied<T>, ReplayErrorKind<T>>;
@@ -1653,7 +1701,7 @@ fn do_line_to<T: Decide, F: Flavor>(
 ) -> Applying<T> {
     match t {
         Target::Point(q) => Ok(Applied::Tip(DynTip::DirectedPoint(p.line_to(q, tol)?))),
-        Target::Start => Ok(Applied::Closed(p.line_to(Start, tol)?.loop_)),
+        Target::Start => Ok(Applied::Closed(p.line_to(Start, tol)?)),
     }
 }
 
@@ -1676,7 +1724,7 @@ fn do_arc_to_point<T: ArcCarrierScalar, F: Flavor>(
         ArcData::Bulge {
             target: Target::Start,
             b,
-        } => Ok(Applied::Closed(p.arc_to(Bulge { p: Start, b }, tol)?.loop_)),
+        } => Ok(Applied::Closed(p.arc_to(Bulge { p: Start, b }, tol)?)),
         ArcData::Via {
             q,
             target: Target::Point(t),
@@ -1686,7 +1734,7 @@ fn do_arc_to_point<T: ArcCarrierScalar, F: Flavor>(
         ArcData::Via {
             q,
             target: Target::Start,
-        } => Ok(Applied::Closed(p.arc_to(Via { q, p: Start }, tol)?.loop_)),
+        } => Ok(Applied::Closed(p.arc_to(Via { q, p: Start }, tol)?)),
         ArcData::Center {
             c,
             winding,
@@ -1698,17 +1746,14 @@ fn do_arc_to_point<T: ArcCarrierScalar, F: Flavor>(
             c,
             winding,
             target: Target::Start,
-        } => Ok(Applied::Closed(
-            p.arc_to(
-                Center {
-                    c,
-                    winding,
-                    p: Start,
-                },
-                tol,
-            )?
-            .loop_,
-        )),
+        } => Ok(Applied::Closed(p.arc_to(
+            Center {
+                c,
+                winding,
+                p: Start,
+            },
+            tol,
+        )?)),
         ArcData::Radius { .. } | ArcData::Sweep { .. } | ArcData::ArcLen { .. } => {
             violation(state, Verb::ArcTo)
         }
@@ -1747,7 +1792,7 @@ fn do_tangent_arc_to<T: Decide, F: Flavor>(
         Target::Point(q) => Ok(Applied::Tip(DynTip::DirectedPoint(
             p.tangent_arc_to(q, tol)?,
         ))),
-        Target::Start => Ok(Applied::Closed(p.tangent_arc_to(Start, tol)?.loop_)),
+        Target::Start => Ok(Applied::Closed(p.tangent_arc_to(Start, tol)?)),
     }
 }
 
@@ -1777,18 +1822,15 @@ fn do_arrival<T: ArcCarrierScalar>(
             c,
             winding,
             target: Target::Start,
-        } => Ok(Applied::Closed(
-            ArrivalSpec::apply(
-                core,
-                super::Center {
-                    c,
-                    winding,
-                    p: Start,
-                },
-                tol,
-            )?
-            .loop_,
-        )),
+        } => Ok(Applied::Closed(ArrivalSpec::apply(
+            core,
+            super::Center {
+                c,
+                winding,
+                p: Start,
+            },
+            tol,
+        )?)),
         ArcData::Radius { r, side } => Ok(Applied::Tip(DynTip::RadiusArrival(ArrivalSpec::apply(
             core,
             super::Radius { r, side },
@@ -1979,19 +2021,115 @@ pub fn replay<T: ArcCarrierScalar>(
     steps: &[Step<T>],
     tol: Tol,
 ) -> Result<ProfileLoop<T>, ReplayError<T>> {
+    drive(steps, tol, Guide::recording()).map(|closed| closed.loop_)
+}
+
+/// [`replay`] keeping the STRUCTURE RECORD it built: the discrete
+/// choices this elaboration made, ready for another scalar to consume
+/// through [`replay_guided`].
+///
+/// Recording changes nothing about what is computed — no predicate is
+/// asked a different question and no arithmetic moves — so this is
+/// [`replay`]'s loop, bit for bit, plus the account of how it was
+/// chosen.
+///
+/// # Errors
+///
+/// [`ReplayError`], exactly as [`replay`].
+pub fn replay_recording<T: ArcCarrierScalar>(
+    steps: &[Step<T>],
+    tol: Tol,
+) -> Result<(ProfileLoop<T>, ReplayStructure), ReplayError<T>> {
+    drive(steps, tol, Guide::recording()).map(|closed| (closed.loop_, closed.structure))
+}
+
+/// **Guided replay**: elaborate `steps` at this scalar while CONSUMING
+/// `structure`'s discrete decisions instead of remaking them.
+///
+/// Every consumed decision's own predicate re-runs here, at this
+/// scalar. Agreement proceeds. A predicate this scalar cannot classify
+/// refuses [`PathError::Structure`] with the indeterminate arm — the
+/// cue to narrow the parameter box, and never grounds to assume the
+/// recorded answer held. A predicate that classifies DEFINITELY
+/// otherwise refuses the same way with the flipped arm, naming the
+/// decision that moved: this binding provably leaves the recorded
+/// elaboration's structure, which is an answer about the geometry and
+/// not a failure to paper over.
+///
+/// What the pass never does is SELECT. The selection ladder is not
+/// re-run, the corner gates do not re-populate the joint space, and fit
+/// signs are taken from the record — so a scalar whose enclosures
+/// cannot separate two valid fillet pockets cannot pick the other one,
+/// by construction rather than by luck.
+///
+/// # Errors
+///
+/// [`ReplayError`] — the elaboration's own refusals as ever, plus
+/// [`PathError::Structure`] for a decision that could not be
+/// reproduced. A record describing a different number of resolutions
+/// than the program reaches is refused the same way.
+pub fn replay_guided<T: ArcCarrierScalar>(
+    steps: &[Step<T>],
+    structure: &ReplayStructure,
+    tol: Tol,
+) -> Result<ProfileLoop<T>, ReplayError<T>> {
+    let want = structure.fillets.len();
+    let closed = drive(steps, tol, Guide::guided(structure.clone()))?;
+    // Reaching FEWER resolutions than the record describes is not a
+    // per-decision disagreement — no single predicate moved — so it is
+    // reported at the record's own shape.
+    let got = closed.structure.fillets.len();
+    if got == want {
+        Ok(closed.loop_)
+    } else {
+        Err(ReplayError {
+            step: steps.len(),
+            kind: ReplayErrorKind::Path(PathError::Structure(StructureRefusal::shape(want, got))),
+        })
+    }
+}
+
+/// The driver proper: one walk over the steps, one guide, one chain.
+fn drive<T: ArcCarrierScalar>(
+    steps: &[Step<T>],
+    tol: Tol,
+    mut guide: Guide<T>,
+) -> Result<ClosedLoop<T>, ReplayError<T>> {
+    // THE INSTALL INVARIANT. Exactly the entry rows put the guide into
+    // the chain's core, by TAKING it — so after the first step a guide
+    // still sitting here is one no row took, and everything downstream
+    // would select structure freely while calling itself guided. That
+    // is the one way this machinery can fail without saying anything,
+    // so it is checked rather than commented: a row added to the table
+    // that mints a core and forgets the install fails here, at its
+    // first use, instead of quietly degrading a lane pass.
+    //
+    // The complete-loop forms (`Circle`, `CircleSplit`) mint no core at
+    // all and resolve no fillet, so they are exempt by construction —
+    // they close in the same step, and the check runs only where a
+    // chain continues.
     let mut tip = DynTip::Entry;
     for (i, step) in steps.iter().enumerate() {
-        let applied = apply(tip, *step, tol).map_err(|kind| ReplayError { step: i, kind })?;
+        let applied =
+            apply(tip, *step, tol, &mut guide).map_err(|kind| ReplayError { step: i, kind })?;
+        if i == 0 && guide.is_guided() && matches!(applied, Applied::Tip(_)) {
+            return Err(ReplayError {
+                step: 0,
+                kind: ReplayErrorKind::Path(PathError::Structure(
+                    StructureRefusal::guide_not_installed(),
+                )),
+            });
+        }
         match applied {
             Applied::Tip(next) => tip = next,
-            Applied::Closed(lowered) => {
+            Applied::Closed(closed) => {
                 return match steps.get(i + 1) {
                     Some(extra) => Err(ReplayError::transition(
                         i + 1,
                         TipState::Closed,
                         extra.verb(),
                     )),
-                    None => Ok(lowered),
+                    None => Ok(closed),
                 };
             }
         }

@@ -58,6 +58,16 @@ mod sf2a_r1_head;
 mod sf2a_r2_interval_probe;
 #[path = "sf2a_r2_probes.rs"]
 mod sf2a_r2_probes;
+#[path = "sf2b_axial.rs"]
+mod sf2b_axial;
+#[path = "sf2b_head.rs"]
+mod sf2b_head;
+#[path = "sf2b_interval_probe.rs"]
+mod sf2b_interval_probe;
+#[path = "sf2b_r1_probes.rs"]
+mod sf2b_r1_probes;
+#[path = "sf2b_r2_probes.rs"]
+mod sf2b_r2_probes;
 #[path = "shellfix1_bitdump.rs"]
 mod shellfix1_bitdump;
 #[path = "shellfix1_r1_probes.rs"]
@@ -352,3 +362,6 @@ mod verbs_f7_r2_probes;
 mod verbs_shell_r2_probes;
 #[path = "verbs_shell_r2b.rs"]
 mod verbs_shell_r2b;
+
+#[path = "r1_p2_probes.rs"]
+mod r1_p2_probes;

@@ -41,6 +41,9 @@ Most contested files: `crates/geom-brep/`, `crates/sweep/`,
 
 ### S-CERT — certified-enclosure soundness (`cert/`)
 
+**GRADUATED (2026-08-29): opened as the S-CERT program —
+`docs/S-CERT-PLAN.md` / `docs/S-CERT-LOG.md`, A/B band 700–799.**
+
 The wrong-but-green and uselessly-wide certificate cluster — the
 largest real-defect group in the tracker and nobody's territory.
 
@@ -120,6 +123,9 @@ cut.
   PCURVE.
 
 ### S-QA — gates that lie (`qa/`)
+
+**GRADUATED (2026-08-29): opened as the S-QA program —
+`docs/S-QA-PLAN.md` / `docs/S-QA-LOG.md`, A/B band 800–899.**
 
 The meta-cluster: test and CI infrastructure that reports green
 without looking. Distinctive, urgent (main is red at one matrix

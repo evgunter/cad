@@ -108,3 +108,81 @@ fn padded_grows_strictly_and_never_shrinks() {
     assert!(neg.min_x.is_nan());
     assert!(neg.overlaps(&boxed([900.0; 3], [901.0; 3])));
 }
+
+/// **Two inputs the 80-item property rows do not reach**, both asserted
+/// against the same brute-force oracle above.
+///
+/// Neither row pins the SPLIT RULE — nothing can, from outside: a
+/// query re-tests the exact item box at every leaf it reaches, so any
+/// partition of the range answers the same candidate set, and a
+/// changed rule shows up as tree shape and cost, not as a wrong
+/// answer. What these two DO pin is the thing a partition can break
+/// and a sort cannot: the permutation. A leaf range that lost an
+/// item, double-counted one, or ran off its `start .. start + count`
+/// window is invisible at 80 items and on distinct centroids, and is
+/// exactly what the universe query below would show.
+///
+/// Every box here is centred on the origin, so the centroid-bounds
+/// extent is zero on all three axes and the centroid term ties for
+/// every pair — the input-index tie-break is the whole of the ranking.
+#[test]
+fn co_located_centroids_keep_the_whole_permutation() {
+    let boxes: Vec<Aabb> = (0..200)
+        .map(|i| {
+            let e = 1.0 + f64::from(i);
+            boxed([-e, -e, -e], [e, e, e])
+        })
+        .collect();
+    let tree = Bvh::build(&boxes);
+    // Inside every box, inside the outermost few only, disjoint from
+    // all of them.
+    for query in [
+        boxed([-0.5, -0.5, -0.5], [0.5, 0.5, 0.5]),
+        boxed([190.0, 0.0, 0.0], [190.5, 0.5, 0.5]),
+        boxed(
+            [1.0e6, 1.0e6, 1.0e6],
+            [1.0e6 + 1.0, 1.0e6 + 1.0, 1.0e6 + 1.0],
+        ),
+    ] {
+        assert_eq!(
+            tree.overlapping(&query),
+            brute(&boxes, &query),
+            "the tree and brute force disagree on {query:?}"
+        );
+    }
+}
+
+/// The same equality at a depth the 80-item rows never reach: 20 000
+/// items is ~11 levels of partitioning, and the second query covers
+/// every box, so it reads back the entire permutation in ascending
+/// input order.
+#[test]
+fn a_deep_tree_answers_the_brute_force_set_and_its_whole_permutation() {
+    // A deterministic spread, no rng: the three axes get different
+    // extents so the split axis actually moves between levels.
+    let boxes: Vec<Aabb> = (0..20_000u32)
+        .map(|i| {
+            let t = f64::from(i);
+            let c = [
+                t * 0.618_034 % 100.0,
+                t * 0.414_214 % 60.0,
+                t * 0.302_775 % 30.0,
+            ];
+            let e = 0.05 + (t * 0.1 % 0.5);
+            boxed(
+                [c[0] - e, c[1] - e, c[2] - e],
+                [c[0] + e, c[1] + e, c[2] + e],
+            )
+        })
+        .collect();
+    let tree = Bvh::build(&boxes);
+    for query in [
+        boxed([10.0, 10.0, 10.0], [12.0, 12.0, 12.0]),
+        boxed([-1.0, -1.0, -1.0], [101.0, 61.0, 31.0]),
+        boxed([500.0, 500.0, 500.0], [501.0, 501.0, 501.0]),
+    ] {
+        assert_eq!(tree.overlapping(&query), brute(&boxes, &query));
+    }
+    let everything = boxed([-1.0, -1.0, -1.0], [101.0, 61.0, 31.0]);
+    assert_eq!(tree.overlapping(&everything).len(), boxes.len());
+}

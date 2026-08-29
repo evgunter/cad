@@ -671,7 +671,7 @@ pub(super) use crate::swept::{SweptSeg, swept_segments};
 /// angle, half-plane violations, sliver radii, unsupported toroids,
 /// non-manifold axis contact, sliver dihedrals, Newell failures, and
 /// every operator/certification refusal.
-pub fn revolve<T: Decide>(
+pub fn revolve<T: Decide + geom_brep::PcurveFittedLane>(
     profile: &ValidatedProfile<T>,
     axis: RevolveAxis<T>,
     revolution: Revolution<T>,
