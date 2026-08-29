@@ -379,8 +379,7 @@ fn distance<T: Decide>(a: &Carrier<T>, b: &Carrier<T>, band: Band) -> Result<T, 
         // normal, in metres by construction.
         (Carrier::Point(p), Carrier::Plane { origin, normal, .. })
         | (Carrier::Plane { origin, normal, .. }, Carrier::Point(p)) => {
-            let d = (*p - *origin).dot(*normal);
-            Ok(d.max(-d))
+            Ok(magnitude((*p - *origin).dot(*normal)))
         }
         // Plane x plane: defined ONLY between parallel planes — the
         // distance between non-parallel planes is zero along their
@@ -401,8 +400,7 @@ fn distance<T: Decide>(a: &Carrier<T>, b: &Carrier<T>, band: Band) -> Result<T, 
             if !parallel("bool_plane_parallel", *na, *nb, arm(*oa, *ob), band)? {
                 return not_parallel("distance", "bool_plane_parallel", a, b);
             }
-            let d = (*ob - *oa).dot(*na);
-            Ok(d.max(-d))
+            Ok(magnitude((*ob - *oa).dot(*na)))
         }
         // Cylinder x cylinder: the distance between the two AXIS LINES
         // — the worked example's web is this minus the two radii, and
@@ -429,6 +427,22 @@ fn distance<T: Decide>(a: &Carrier<T>, b: &Carrier<T>, band: Band) -> Result<T, 
         }
         _ => unsupported("distance", a, b),
     }
+}
+
+/// **|d|, as a bracket that cannot contain a negative.**
+///
+/// `d.max(-d)` alone is SOUND at every scalar — it contains the true
+/// magnitude — but at `Interval` it is loose in a way that
+/// contradicts the thing it computes: for `d = [-1, 2]` it yields
+/// `[-1, 2]`, so a value this module documents as a magnitude brackets
+/// negative lengths. Clamping at zero afterwards costs one operation,
+/// tightens the bracket to `[0, 2]`, and makes the documented
+/// contract true rather than merely defensible.
+///
+/// It is a value operation, not a decision: `max` is `Real`'s, the
+/// same lattice `Expr::max` uses, and no comparison is reified.
+fn magnitude<T: Decide>(d: T) -> T {
+    d.max(-d).max(T::zero())
 }
 
 /// The perpendicular distance from a point to a line — the component

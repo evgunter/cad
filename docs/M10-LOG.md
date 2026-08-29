@@ -149,12 +149,46 @@ AUTHORING vocabulary is chartered as `B-MEASURES`. The friction the
 R-series keeps finding is unreadable results, so that is the half
 that shipped.
 
-Two deviations, both stated in the PR: measure references are
-CONSUMING DAG edges (nothing else can order a sink after the geometry
-it measures), which makes deleting a referenced node a delete-door
-refusal rather than N5 stranding; and `gap` takes its pair as two
-carrier references in mating-role order rather than a `Declare` node
-id plus a pair index. `min_clearance` does not exist here.
+THREE deviations after the fix pass, all stated in the PR (the first
+draft of this entry said "two" while the PR disclosed four — the
+review caught the miscount, and one of the four is now retired rather
+than restated):
+
+1. Measure references are CONSUMING DAG edges. Nothing else can order
+   a sink after the geometry it measures, so deleting a referenced
+   node is a delete-door refusal rather than N5 stranding.
+2. `gap` takes its pair as two carrier references in mating-role order
+   rather than a `Declare` node id plus a pair index.
+3. The frozen golden carries no PRIMITIVE leaf (its document must
+   evaluate green and its only well-known reference is a whole body);
+   the three primitive leaves are pinned by round trip in the v16
+   schema suite instead.
+
+**RETIRED — the "carrier as minted" deviation.** The first draft
+resolved a reference at the node that MINTED its name and documented
+the recourse as "measure the moved one by referencing the moving
+node's own emission". Both reviewers found that independently, and the
+recourse was factually impossible: `wire_transform` is
+identity-preserving, hands the input's table through by `Arc::clone`
+and mints no name, so there was no transform-minted name to reference
+and a transformed wall measured its UNMOVED carrier — a box translated
+100 m measured 5 where the placed answer is 95, reported as plain
+`Ok`. Fixed at the root rather than documented: a reference is now a
+`MeasureRef { at, name }` pair naming the node to READ AT, which is
+what the interrogation doors have always taken. Silent wrong numbers
+are not a deviation to state.
+
+`min_clearance` does not exist here.
+
+The fix pass also closed three review MAJORs: the measurement
+sublanguage restated `Expr`'s arithmetic without its non-finite door,
+so `13/0` came back a typed success and an assertion reported
+`Holds { measured: inf }` (both evaluators now share
+`expr::refuse_non_finite`); and the plane `gap` arm read the raw chart
+normal, so its sign was a charting artifact — half the parallel pairs
+over two disjoint slabs read C5 "interference" with 2 m of air between
+them (the S10 sense bit is now folded in, as `carrier_eq`'s plane arm
+already did).
 ## M10-P MERGED (2026-08-29)
 
 The profile-parameter lift is in: sample #42, ordinal 502, block

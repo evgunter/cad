@@ -149,7 +149,7 @@ fn caps(ev: &Evaluation<f64>, slab: RecipeNodeId) -> [StableName; 2] {
             .into_iter()
             .filter_map(|name| {
                 let pose = face_frame(ev, slab, &name).expect("a plane face has a frame");
-                (pose.axis.z.abs() > 0.99).then(|| (pose.origin.z, name))
+                (pose.axis.z.abs() > 0.99).then_some((pose.origin.z, name))
             })
             .collect();
     z_faces.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
