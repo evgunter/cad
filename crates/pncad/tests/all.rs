@@ -1234,7 +1234,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
 
 /// R1-PARAMS: `plate_param` authors façade-only, evaluates to the
 /// corpus scene's analytic oracle, and its saved text is pinned as
-/// `tests/plate_param.v15.pncad` — the fixture the Python audit loads
+/// `tests/plate_param.v16.pncad` — the fixture the Python audit loads
 /// (`crates/pncad-py/tests/test_north_star.py`) to author the
 /// `set_doc_param` edit from Python. Python cannot yet author this
 /// profile from scratch (audit gaps G1/G9: circles, multi-loop), so
@@ -1282,7 +1282,7 @@ fn plate_param_authors_facade_only_and_its_saved_text_is_pinned() {
 
     let text = pncad::document::save(&doc, &[], Tol::witness()).expect("the document saves");
     if std::env::var_os("PNCAD_BLESS").is_some() {
-        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/plate_param.v15.pncad");
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/plate_param.v16.pncad");
         std::fs::write(path, &text).expect("the fixture writes");
         return; // freshly written; the next compile pins it
     }
@@ -1305,7 +1305,7 @@ fn plate_param_authors_facade_only_and_its_saved_text_is_pinned() {
     };
     assert_eq!(
         sans_epsilon(&text),
-        sans_epsilon(include_str!("plate_param.v15.pncad")),
+        sans_epsilon(include_str!("plate_param.v16.pncad")),
         "the saved plate_param text moved — regenerate the fixture with \
          `PNCAD_BLESS=1 cargo test -p pncad plate_param` (default env) and re-run"
     );

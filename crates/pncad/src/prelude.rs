@@ -98,6 +98,10 @@ pub use sweep::fillet::{FilletError, Filleted, fillet_edges};
 // (`FilletError`, above): one verb, one edge-blend front door, the
 // band the only difference.
 pub use sweep::chamfer::{Chamfered, chamfer_edges};
+// `BlendKind` names WHICH blend a shared refusal came from — the
+// recipe layer's `Node::Chamfer` and `Node::Fillet` carry one kernel
+// error type between them, so the discriminant has to cross with it.
+pub use sweep::fillet::BlendKind;
 pub use sweep::{
     ExtrudeError, Extruded, Extrusion, LoftError, Lofted, Revolution, RevolveAxis, RevolveError,
     Revolved, TubeError, TubeWindow, extrude, loft_body, revolve, sweep_body, tube_along_arc,

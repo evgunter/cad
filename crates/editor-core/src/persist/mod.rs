@@ -408,7 +408,8 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 /// the same gate. A v15 file whose log contains no value edits is the
 /// degenerate carry, exactly as an all-`None` distribution is.
 ///
-/// # v16 — `Node::Chamfer` joins the node vocabulary
+/// Version 16 is **the chamfer recipe node** (RECIPE-DOORS D2,
+/// issue #918).
 ///
 /// The fifteenth break, and the node vocabulary's own kind of break:
 /// [`crate::Node`] gains a `Chamfer` variant (RECIPE-DOORS D2, issue

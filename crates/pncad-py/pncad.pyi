@@ -948,6 +948,17 @@ class Node:
     @staticmethod
     def loft(profiles: list[NodeId], v_degree: int) -> Node: ...
     @staticmethod
+    def chamfer(target: NodeId, distance: Length, selection: list[str]) -> Node:
+        """Equal-setback flat chamfers on named edges of `target`.
+
+        `Node.fillet`'s twin: `selection` is edge names as TEXT and the
+        set FREEZES at authoring time. `distance` is the SETBACK along
+        each support, not a radius. An empty selection, an unresolvable
+        name, or an edge whose supports are not both planes refuses
+        typed at `evaluate`.
+        """
+
+    @staticmethod
     def datum_axis(
         origin: tuple[Length, Length, Length],
         direction: tuple[float, float, float],

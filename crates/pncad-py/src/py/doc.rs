@@ -968,6 +968,45 @@ impl Node {
         })
     }
 
+    /// Equal-setback flat chamfers on a SELECTION of `target`'s
+    /// edges — `Node.fillet`'s twin.
+    ///
+    /// `selection` is edge names as text, exactly as `Node.fillet`
+    /// takes them: the strings `Evaluation.all_edges` answers with,
+    /// CARRIED and never composed, with no "every edge" spelling and
+    /// no way to filter a materialized set. THE SELECTION FREEZES, in
+    /// the same sense and for the same reason — read `Node.fillet`.
+    ///
+    /// `distance` is the SETBACK along each support from the edge,
+    /// not a radius. That is the one thing this door does not share
+    /// with its twin.
+    ///
+    /// Nothing is pre-checked beyond the text being a name at all. An
+    /// EMPTY selection (`chamfer_selection_empty`), a name that
+    /// resolves to nothing (`chamfer_selection_resolve`), a name of
+    /// the wrong kind (`chamfer_selection_kind`), an edge whose two
+    /// supports are not both planes (`chamfer`) — every one of those
+    /// is the kernel's own typed refusal at `evaluate`.
+    ///
+    /// The node is built through Rust's `Node::chamfer`, the one
+    /// construction door, so the stored set is canonical.
+    #[staticmethod]
+    fn chamfer(
+        py: Python<'_>,
+        target: &NodeId,
+        distance: &super::quantity::Length,
+        selection: Vec<String>,
+    ) -> PyResult<Self> {
+        let distance = literal(py, distance.0.meters(), d::Dimension::Length)?;
+        let selection = selection
+            .iter()
+            .map(|text| name_from_text(text))
+            .collect::<PyResult<Vec<_>>>()?;
+        Ok(Self {
+            inner: d::Node::chamfer(target.0, distance, selection),
+        })
+    }
+
     /// Split a target body by a tool — today a `Node.datum_plane`.
     ///
     /// The value is a SPLIT, not a body: read it with `Value.split()`,

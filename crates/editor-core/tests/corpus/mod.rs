@@ -337,6 +337,7 @@ pub fn sub_kinds(node: &Node<ProfileProgram>) -> Vec<&'static str> {
         | Node::Extrude { .. }
         | Node::Revolve { .. }
         | Node::Fillet { .. }
+        | Node::Chamfer { .. }
         | Node::Split { .. }
         | Node::Transform { .. }
         | Node::Loft { .. }
@@ -355,6 +356,7 @@ pub fn node_kind(node: &Node<ProfileProgram>) -> &'static str {
         Node::Extrude { .. } => "Extrude",
         Node::Revolve { .. } => "Revolve",
         Node::Fillet { .. } => "Fillet",
+        Node::Chamfer { .. } => "Chamfer",
         Node::Split { .. } => "Split",
         Node::Boolean { .. } => "Boolean",
         Node::Transform { .. } => "Transform",

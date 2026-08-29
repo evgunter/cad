@@ -28,6 +28,7 @@ use pncad::document::{
 };
 use pncad::geom_core::{FrameError, FrameInput};
 use pncad::mesh::TessellateError;
+use pncad::prelude::BlendKind;
 use pncad::profile::PathError;
 use pncad::step_import::StepImportError;
 // All three STL refusals are prelude-curated; the module path is the
@@ -230,7 +231,13 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
         NodeErrorKind::Extrude { .. } => "extrude",
         NodeErrorKind::Revolve { .. } => "revolve",
         NodeErrorKind::Split { .. } => "split",
-        NodeErrorKind::Fillet { .. } => "fillet",
+        // The two blends share one kernel error type, so the tag is
+        // read off the VERB the node is: a chamfer's refusal must not
+        // reach Python calling itself a fillet's.
+        NodeErrorKind::Blend { verb, .. } => match verb {
+            BlendKind::Fillet => "fillet",
+            BlendKind::Chamfer => "chamfer",
+        },
         NodeErrorKind::Boolean { .. } => "boolean",
         NodeErrorKind::Transform { .. } => "transform",
         NodeErrorKind::Skin { .. } => "skin",
@@ -258,9 +265,18 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
         // declaration; the `finding` payload crosses as a typed
         // attribute beside this tag.
         NodeErrorKind::UndeclaredContact { .. } => "undeclared_contact",
-        NodeErrorKind::FilletSelectionResolve { .. } => "fillet_selection_resolve",
-        NodeErrorKind::FilletSelectionKind { .. } => "fillet_selection_kind",
-        NodeErrorKind::FilletSelectionEmpty => "fillet_selection_empty",
+        NodeErrorKind::BlendSelectionResolve { verb, .. } => match verb {
+            BlendKind::Fillet => "fillet_selection_resolve",
+            BlendKind::Chamfer => "chamfer_selection_resolve",
+        },
+        NodeErrorKind::BlendSelectionKind { verb, .. } => match verb {
+            BlendKind::Fillet => "fillet_selection_kind",
+            BlendKind::Chamfer => "chamfer_selection_kind",
+        },
+        NodeErrorKind::BlendSelectionEmpty { verb } => match verb {
+            BlendKind::Fillet => "fillet_selection_empty",
+            BlendKind::Chamfer => "chamfer_selection_empty",
+        },
         NodeErrorKind::WitnessBifurcation { .. } => "witness_bifurcation",
         // The seam faults stay separable at the tag level:
         // "the pin does not hold" and "the tolerances disagree" are
