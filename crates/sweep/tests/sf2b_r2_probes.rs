@@ -385,3 +385,40 @@ fn r2_stepped_vase_lift_branch() {
         Err(e) => println!("[r2] stepped vase OPENED: REFUSED {e}"),
     }
 }
+
+/// **Which BRANCH does each fixture take?** `shell` picks the axial
+/// door on `topo::is_axial`, and that predicate swallows an escalated
+/// margin as `false` — so a body inside the axial class can be routed
+/// to the per-chart door without anything saying so. This row prints
+/// the branch for every fixture in the corpus, including the ones that
+/// refuse.
+#[test]
+fn r2_which_branch_each_fixture_takes() {
+    let (r, h) = (3.0 / 64.0, 8.0 / 64.0);
+    let square = |turn| {
+        revolved(
+            ProfileLoop::new(vec![
+                ProfileVertex::new(p2(0.0, 0.0), 0.0),
+                ProfileVertex::new(p2(r, 0.0), 0.0),
+                ProfileVertex::new(p2(r, h), 0.0),
+                ProfileVertex::new(p2(0.0, h), 0.0),
+            ]),
+            turn,
+        )
+    };
+    for (what, body) in [
+        ("drum (full)", square(Revolution::Full)),
+        ("wedge 1/64 turn", square(Revolution::Partial(PI / 32.0))),
+        ("wedge 1/12 turn", square(Revolution::Partial(PI / 6.0))),
+        ("wedge quarter", square(Revolution::Partial(PI / 2.0))),
+        ("wedge half", square(Revolution::Partial(PI))),
+        ("frustum narrowing", frustum(4.0 / 64.0, 2.0 / 64.0, h)),
+        ("frustum widening", frustum(2.0 / 64.0, 4.0 / 64.0, h)),
+    ] {
+        println!(
+            "[r2] branch {what}: is_axial = {}  ({} faces)",
+            topo::is_axial(&body, band()),
+            body.faces().count()
+        );
+    }
+}
