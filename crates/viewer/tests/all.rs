@@ -50,6 +50,8 @@ mod doc_io;
 mod error_display;
 #[path = "eval_seam.rs"]
 mod eval_seam;
+#[path = "focus_highlight.rs"]
+mod focus_highlight;
 #[path = "frame_policy.rs"]
 mod frame_policy;
 #[path = "input_mapping.rs"]

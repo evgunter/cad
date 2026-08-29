@@ -37,6 +37,7 @@
 //! else is the seam's vocabulary, which the wasm build satisfies with
 //! no thread at all.
 
+use std::collections::BTreeSet;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -194,6 +195,17 @@ pub struct ViewerApp {
     /// free-move are scene inputs too, so a display change owes a
     /// rebuild exactly as a new evaluation does.
     scene_display: Option<u64>,
+    /// The focus set `scene` was built under — the ids of what the side
+    /// panel is showing (`pick::focus`), which the scene carries as a
+    /// per-corner flag and therefore has to be rebuilt for.
+    ///
+    /// Compared as a SET rather than counted by a revision, because
+    /// unlike hide and free-move the focus is DERIVED (from the
+    /// selection and the index), so there is no mutation to hang a
+    /// counter off and no owner to bump one. Moving the selection
+    /// between two faces of the same feature leaves the set equal and
+    /// correctly rebuilds nothing.
+    scene_focus: BTreeSet<u32>,
     /// The modal mate tool, when active. `None` is "not in the mate
     /// tool"; the tool's own state (the held picks) lives inside it.
     mate_tool: Option<MateTool>,
@@ -353,6 +365,7 @@ impl ViewerApp {
             revision: 1,
             scene_generation: None,
             scene_display: None,
+            scene_focus: BTreeSet::new(),
             mate_tool: None,
             camera,
             input: InputMap::default(),
@@ -397,16 +410,18 @@ impl ViewerApp {
             pick::CacheStep::Rebuilt => true,
             pick::CacheStep::Current => false,
         };
-        // The scene is a function of (index, display state): a display
-        // change over a current index still owes exactly one rebuild.
+        // The scene is a function of (index, display state, focus): a
+        // display or selection change over a current index still owes
+        // exactly one rebuild.
         let display_revision = self.session.display().revision();
-        if !rebuilt && self.scene_display == Some(display_revision) {
-            return;
-        }
         let Some(index) = self.picks.index() else {
             return;
         };
-        match index.scene_for(&self.session.display_view()) {
+        let focus = pick::focus(index, self.session.doc(), self.session.selection());
+        if !rebuilt && self.scene_display == Some(display_revision) && self.scene_focus == focus {
+            return;
+        }
+        match index.scene_focused(&self.session.display_view(), &focus) {
             Ok(mesh) => {
                 // Marked current ONLY on success: a refused build must
                 // not consume this (generation, display) pair, or the
@@ -414,6 +429,7 @@ impl ViewerApp {
                 // one and is never retried.
                 self.scene_generation = self.session.landed_generation();
                 self.scene_display = Some(display_revision);
+                self.scene_focus = focus;
                 self.scene = Arc::new(mesh);
                 self.revision = self.revision.wrapping_add(1);
                 if self.fit_on_scene {
