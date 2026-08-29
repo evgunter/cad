@@ -332,11 +332,11 @@ mod r1_probes_m9_3;
 #[path = "verbs_gate_r1_probes.rs"]
 mod verbs_gate_r1_probes;
 
+#[path = "f7d_delta_probes.rs"]
+mod f7d_delta_probes;
 #[path = "verbs_f7_r2_probes.rs"]
 mod verbs_f7_r2_probes;
 #[path = "verbs_shell_r2_probes.rs"]
 mod verbs_shell_r2_probes;
 #[path = "verbs_shell_r2b.rs"]
 mod verbs_shell_r2b;
-#[path = "f7d_delta_probes.rs"]
-mod f7d_delta_probes;
