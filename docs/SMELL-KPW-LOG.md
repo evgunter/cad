@@ -408,3 +408,55 @@ unseeded.** Both reviewers reproduced the published column exactly, and only by
 admitting the seed the lane's own test refuses. Unseeded, `S160`'s *"falls
 smoothly with resolution"* is **false** of the shipped quantity — 400 samples is
 6× worse than 321, because the bound is attained at even sample counts.
+
+## `w2` — the first unit that did not re-mint, and the mechanism it built
+
+`D61`/`D80` landed as one lane. Two things distinguish it from every other unit
+this session.
+
+**It found the home instead of re-forking it.** `crates/test-utils/src/source.rs`
+already existed — #872 had ported the *weaker* of `topo`'s two blankers into it
+— so the lane upgraded it in place and paid `S117`'s stated prerequisite
+(`raw_string_len`, `char_literal_len`), which turns collapsing
+`topo::source_walk::CodeOnly` onto it from a downgrade into a deletion. Three
+lanes before it hand-rolled a helper the tree already had; this one looked.
+
+**The shape answers the row rather than the list.** One lexer plus a public
+`keeping(text, &[Region])` and three named selections — so **a fourth
+combination is an argument, not a fourth reader**, which is the exact trap
+`S117` describes (its own count moved a fourth time when a sibling lane landed
+a new reader *during the finding's review*). A test pins that the three views
+partition a file byte for byte, so there is nothing outside them to build a
+fourth lexer from.
+
+**And it built the thing that makes the next reader visible**, which is the half
+`S117` said a taker who works the twelve would miss:
+`crates/test-utils/tests/reader_census.rs` walks five roots, asserts **set
+equality** against a committed ledger, caps `Unconverted` as a ratchet, forbids
+a `NotRust` entry that names no language, and carries a vacuity floor so a
+broken walk reds rather than passes. **The population was 34, not 12.** Ground
+both prior sweeps missed includes a *seventh* reader in `tools/`, and
+`sweep/src/fillet/admit.rs`, which reads its own source with **no reader at
+all** — its author spliced string literals to avoid self-matching rather than
+lex, the same tell `S117` names on the class's worst member.
+
+The red-proofs are the strongest of the session because each is an **A/B against
+the pre-conversion spelling**, showing both directions: the old guard green over
+a block-commented real site (the silent miss), and falsely red over a comment
+that merely mentions the needle (F3's cry-wolf, already realised once in this
+tree).
+
+**Five rows minted from its residues**, grouped per track as the partition
+requires rather than one per reader: `D287` (Q, four `topo/src` readers), `D261`
+(P, the two remaining plus both blanker collapses), `D321` (T, `admit.rs`),
+`D205` (K, the seventh reader), and `D382` — this track's own, for the **13-fold
+duplication of `every_suite_file_is_aggregated`** that the lane surfaced by
+being the first thing to touch all thirteen copies. `crates/topo/src/source_walk.rs`
+is drawn into Track P's fence with them, for the same reason `fixtures.rs` was.
+
+**Bookkeeping error worth recording**: minting those rows, two landed in the
+adjacent track — a row is inserted *before* the next track's heading, so an
+anchor on `## Track Q` appends to Track **P**. The per-track counts still
+agreed, because each track had gained exactly one row; only reading the rows
+back caught it. **A count that reconciles is not evidence the rows are in the
+right table.**

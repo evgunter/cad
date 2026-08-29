@@ -7523,7 +7523,7 @@ grows after dispatch. **This row needs a lane and does not have one.**
 > `docs/SMELL-{C,E,F,G,H,I}-LOG.md` are the execution record for six of the
 > nine. **A, B and D left no log and none is owed**; what they did is in their
 > merged PRs. The rulings the logged tracks made are cited from here by number
-> (`F-R11`, `H-R2`, `I-R8`, …) and are read there. **108 open items** are
+> (`F-R11`, `H-R2`, `I-R8`, …) and are read there. **113 open items** are
 > carried below, partitioned by file territory so that no two tracks edit one
 > file and no branch waits on, fences against, or re-derives another's scope.
 
@@ -7612,7 +7612,7 @@ its orchestrator stopped, and §C3 says a deferral that lands nowhere that
 executes is the failure this document keeps re-finding. **This section is the
 one register for all of it.**
 
-**108 open items, repartitioned into twelve tracks by FILE TERRITORY.** The
+**113 open items, repartitioned into twelve tracks by FILE TERRITORY.** The
 partition rule is the only one that matters here: **no two tracks may edit the
 same file**, so no branch waits on, fences against, or re-derives another's
 scope. Dependencies *inside* a track are its own orchestrator's to sequence —
@@ -7686,16 +7686,16 @@ re-scoped or re-argued by being moved.
 | Track | Territory (the fence) | Block | Items |
 |---|---|---|---|
 | **J** | `.github/workflows/`, `local-scripts/`, `scripts/doc-gate.sh`, `scripts/gates/{gate-roster,probe-suite-census}.sh`, **every `*.py` in the repo**, root `Cargo.toml`'s `[workspace.lints]` | `D180`–`D199` / `S250`–`S269` | 4 |
-| **K** | `scripts/gates/` (everything J does not name), `tools/`, `docs/K-REPORT.md` | `D200`–`D219` / `S270`–`S289` | 13 |
+| **K** | `scripts/gates/` (everything J does not name), `tools/`, `docs/K-REPORT.md` | `D200`–`D219` / `S270`–`S289` | 14 |
 | **M** | `crates/geom-core/src/{real,ring_interval,dual,interval,k_stats}.rs`, `interval-transcendentals/`, `crates/bvh/` | `D220`–`D239` / `S290`–`S309` | 7 |
 | **N** | `crates/geom/src/`, `crates/geom-core/src/{spline/,linalg/}` | `D240`–`D259` / `S310`–`S329` | 7 |
-| **P** | `crates/topo/src/{euler.rs,euler_ring.rs,euler_kill.rs,split.rs,attach.rs,movefac.rs,revert.rs,live.rs,merge_faces.rs,seqgen.rs,validate.rs,review_d18.rs,review_d18_probes.rs,fixtures.rs}` | `D260`–`D279` / `S330`–`S349` | 8 |
-| **Q** | `crates/topo/src/{boolean/,splitting/,census.rs,chord_join.rs,chart_region.rs,face_normal.rs}`, `crates/geom-brep/src/{ssi*,pcurve_cache.rs,nurbs_iso.rs,edge_nurbs.rs}`, `docs/predicate-dimension-audit.md` | `D280`–`D299` / `S350`–`S369` | 16 |
+| **P** | `crates/topo/src/{euler.rs,euler_ring.rs,euler_kill.rs,split.rs,attach.rs,movefac.rs,revert.rs,live.rs,merge_faces.rs,seqgen.rs,validate.rs,review_d18.rs,review_d18_probes.rs,fixtures.rs,source_walk.rs}` | `D260`–`D279` / `S330`–`S349` | 9 |
+| **Q** | `crates/topo/src/{boolean/,splitting/,census.rs,chord_join.rs,chart_region.rs,face_normal.rs}`, `crates/geom-brep/src/{ssi*,pcurve_cache.rs,nurbs_iso.rs,edge_nurbs.rs}`, `docs/predicate-dimension-audit.md` | `D280`–`D299` / `S350`–`S369` | 17 |
 | **R** | `crates/geom-brep/src/` **less the four paths Q names**, `crates/mesh/` | `D300`–`D319` / `S370`–`S389` | 11 |
-| **T** | `crates/sweep/` | `D320`–`D339` / `S390`–`S409` | 9 |
+| **T** | `crates/sweep/` | `D320`–`D339` / `S390`–`S409` | 10 |
 | **U** | `crates/step-import/`, `crates/step-export/`, `crates/stl/`, `crates/pncad-py/`, `crates/pncad/` | `D340`–`D359` / `S410`–`S429` | 7 |
 | **V** | `crates/editor-core/`, `crates/profile/` | `D360`–`D379` / `S430`–`S449` | 12 |
-| **W** | `crates/*/tests/` (all crates), `crates/test-utils/` | `D380`–`D399` / `S450`–`S469` | 12 |
+| **W** | `crates/*/tests/` (all crates), `crates/test-utils/` | `D380`–`D399` / `S450`–`S469` | 13 |
 | **X** | `demos/` (Rust and Markdown; its Python is J's), `docs/DESIGN.md`'s companion table | `D400`–`D419` / `S470`–`S489` | 2 |
 
 **Three seams are stated rather than left to be discovered**, because each is
@@ -7766,6 +7766,7 @@ a place where a reasonable reader would think the fence ambiguous:
 | **D202** | `tess_meter::face_rows`'s `nurbs: by_face.get(&patch.face).map(columns)` turns a MISSING measurement into *"this face is not on the sized lane"* — a silent miss reading as a lane fact, one level upstream of the join `C15` just fixed and the same shape | `C15` residue |
 | **D203** | **A per-column admissions table cannot state a cross-column invariant, and the class now has two instances filed nowhere together.** `tess-lint`'s `Admissible::Extent` documents that the trim box's own non-degeneracy (`u0 < u1`, `v0 < v1`) is beyond what its per-column table can say; `D200` was the same shape one crate over (`Band::new`'s `zero < escalate`, which `lint_csv` had to check in the harness voice because `Admissible::BandThreshold` is per column). Both instruments answer it the same way and neither says so at the other's site. The row is the **rule** — where a cross-column check belongs when the admission table is per column — not either instance | `C15` residue |
 | **D204** | **`tess-lint`'s `CHART_TAGS` is a gate input with no cross-root pin, and its asymmetry is undisclosed on the producing side.** `C15` made `chart` a precondition column, so the lint now polices a roster of the meter's tag vocabulary. A tag the meter **renames** is caught here and reads as drift, which is right. A tag the meter **adds** arrives as harness breakage on every row carrying it, and nothing in `tools/tess-meter` says so. `EXPECTED_HEADER` has the shape this wants — `tess-meter`'s `the_lints_expected_header_is_this_one` reaches into the lint's source with `include_str!` precisely to pin a constant across the cargo-root boundary without a dependency — and `CHART_TAGS` has no equivalent. The pin belongs on the meter's side, which is why `C15` could not write it | `C15` residue |
+| **D205** | **A seventh hand-rolled Rust reader, in `tools/`** — `tools/tess-meter/tests/derivations.rs:210` runs its own string-continuation lexer over `tools/tess-lint/src/lib.rs` to pin a constant across the cargo-root boundary. Outside both of `S117`'s sweeps because neither covered `tools/`. The cross-root pin is the right shape and is cited approvingly elsewhere; the lexer under it is the eighth spelling `S117` predicted. the source-text guard class's shared home is `crates/test-utils/src/source.rs` (one lexer, three views: `code_only`, `code_and_literals`, `comments_only`), and the census that keeps the population honest is `crates/test-utils/tests/reader_census.rs`, whose `Unconverted` ceiling this row lowers by its own member count | `D61` residue |
 
 ## Track M — the scalar and certification traits
 
@@ -7803,7 +7804,7 @@ three sub-lanes inside the track.
 ## Track P — `topo`'s Euler surgery, liveness and the generator
 
 **Fence:** `crates/topo/src/{euler.rs,euler_ring.rs,euler_kill.rs,split.rs,attach.rs,movefac.rs,revert.rs,live.rs,merge_faces.rs,seqgen.rs,validate.rs}`,
-plus `crates/topo/src/{review_d18.rs,review_d18_probes.rs,fixtures.rs}` — **added 2026-08-29, because they belonged to no track.** `D107` was on Track W and its ground is `src/`; neither this track's eleven files nor Track Q's six paths named `review_d18*`, which is the `geom-brep` hole §D already had to state once. They come here because this track owns the euler operators `review_d18` hammers and `fixtures.rs` feeds. `D107` moves with them.
+plus `crates/topo/src/{review_d18.rs,review_d18_probes.rs,fixtures.rs,source_walk.rs}` — **added 2026-08-29, because they belonged to no track.** `D107` was on Track W and its ground is `src/`; neither this track's eleven files nor Track Q's six paths named `review_d18*`, which is the `geom-brep` hole §D already had to state once. They come here because this track owns the euler operators `review_d18` hammers and `fixtures.rs` feeds. `D107` moves with them.
 **Block:** `D260`–`D279` / `S330`–`S349`.
 
 | # | What | Was |
@@ -7820,6 +7821,7 @@ plus `crates/topo/src/{review_d18.rs,review_d18_probes.rs,fixtures.rs}` — **ad
 *(`S94`'s two hand-maintained `VARIANTS` ladders sit in `euler.rs` and
 `validate.rs` — both this track's files. It is folded into whichever lane opens
 `validate.rs` first and is not a separate row.)*
+| **D261** | **`topo/src`'s two remaining hand-rolled readers and the two private blankers, on this track's newly-drawn ground.** `review_d18.rs` reads raw text plus a `\n    }\n` body carve (`code_only` plus a brace match); `review_d18_probes.rs` reads message text inside `unreachable!(…)` with line-leading `//` awareness only (`code_and_literals`) and is **`D80`'s last member**. With them, `fixtures.rs::code_only` and `source_walk.rs::CodeOnly` are both now strict subsets of the shared home — the raw-string prerequisite having been paid — so each collapse is a **deletion**, not a port; `public_fns` and `mutation_doors` stay in `topo`. the source-text guard class's shared home is `crates/test-utils/src/source.rs` (one lexer, three views: `code_only`, `code_and_literals`, `comments_only`), and the census that keeps the population honest is `crates/test-utils/tests/reader_census.rs`, whose `Unconverted` ceiling this row lowers by its own member count | `D61` residue |
 
 ## Track Q — `topo`'s boolean, census and charts, and the predicate ledger
 
@@ -7845,6 +7847,7 @@ plus `crates/topo/src/{review_d18.rs,review_d18_probes.rs,fixtures.rs}` — **ad
 | **D284** | **`boolean/join.rs` classifies an unnamed `geom_brep::SectionError` as a desync, twice.** `pair_section_frame`'s plane×sphere arm and its plane×cylinder tail each end `Err(_) => Err(FrameError::Desync("germ pair's section refused at match time"))`, and each sits immediately below an explicit `Err(SectionError::Escalated(diag)) => Err(FrameError::Escalated(diag))` — so the wildcard is doing classification with the named arm in view. `SectionError` has six variants today (`WrongLane`, `Escalated`, `RoutesToGeneralRung`, `RadiusDeclarationContradicted`, `CoincidentSurfaces`, `Carrier`); a seventh becomes `Desync`, which reports a reduction bug the germ pair did not commit. Structurally identical to the sites `D120` closed, and outside `S192`'s stated clause only because the enum lives in `geom-brep` rather than `topo` | unrowed |
 | **D285** | **`ssi/march.rs`'s chart-speed guard is the sibling of the one #762 fixed in `ssi.rs`, and the sweep did not reach it.** It reads `speed.is_nan() || speed <= 0.0`, so `+∞` passes. `h` is then `(SSI_IDEALIZED_STEP * ctx.extent) / ∞` = `0`, `h_meters` is `0 * ∞` = `NaN`, and `decide("ssi_step_progress")` refuses it as indeterminate. **Loud, but not by the speed's name**: the caller gets a step-progress escalation instead of the `SsiError::StepCollapsed` the guard ten lines above exists to raise, and `StepCollapsed`'s own comment (*"nothing downstream can be stated in meters, so refuse rather than divide by it"*) is the argument for catching `+∞` there. `ssi.rs` now spells the same test `!speed.is_finite()` | unrowed |
 | **D286** | **A COVERAGE loss #762 created, and measured rather than suspected.** With the seeding guard now refusing a non-finite chart speed before `seed_chart_plane` runs, the ℝ⁴ control-net poison arm is unreachable **by magnitude**: a value enclosure poisons only once `w·P` overflows near `1e308`, while `mag` squares components before the `sqrt`, so the speed is already `+∞` above about `1.3e154`. The obvious alternative route — a modest-point, huge-weight net — clears the guard and then escalates on `ssi_transversality_arm`, a different arm. So the poison arm is live code with no input that can now enter it. **What it wants is a fixture that reaches it by some route other than magnitude, or an issue recording that none exists and why** | unrowed |
+| **D287** | **Four `topo/src` readers of Rust source text, converted onto the shared home** (`S117`/`S172`): `sector_shape.rs` (needle is a quoted name, so `code_and_literals`), `chord_join.rs` (a whitespace-stripped raw copy, needle `decide("split_arc_window"`, `code_and_literals`), `face_normal.rs:113` (`code_only`; its `:206` already reads a shared walk), and `boolean/boxes.rs` (already reads `source_walk::CodeOnly`, so it converts with that collapse). the source-text guard class's shared home is `crates/test-utils/src/source.rs` (one lexer, three views: `code_only`, `code_and_literals`, `comments_only`), and the census that keeps the population honest is `crates/test-utils/tests/reader_census.rs`, whose `Unconverted` ceiling this row lowers by its own member count | `D61` residue |
 
 ## Track R — the measuring consumers: `geom-brep` and `mesh/`
 
@@ -7894,6 +7897,7 @@ options and the measured price are at `S65`; issues #896 and #897 carry what
 | **C-e/H13** | `sweep/tests/`'s helix orientation coverage — the row §D twice records as having no home. **Verify against #779 before staffing**: Track C recorded H13 FIXED by that PR and the H/I handover recorded it open, and both statements are in this document | neither |
 | **D90** | `octant_chart` scores a chart off two faces it never checks belong to the corner, and a wrong chart is the failure mode nothing downstream would catch. **ADV**. **Placed on Track P until 2026-08-29 and moved here on the fence rule** — `octant_chart` is defined at `fillet/build.rs` and consumed from `fillet/surgery.rs`, and no `sweep` path is among Track P's eleven files. Number, mark and provenance unchanged | Track E |
 | **D320** | `sweep/src/skin.rs:774`'s per-variant scalar-lift ladder — the one production copy of `D240`'s class outside `geom/`. **Filed by Track N, not takeable ahead of `D240`**: the shape of this site follows whatever `D240` mints, and closing it first mints a fifth ladder | Track N, filed |
+| **D321** | **`crates/sweep/src/fillet/admit.rs:467` reads its own source with no reader at all** — `include_str!("admit.rs")` counting `Self {`, whose author spliced string literals to avoid self-matching rather than lex. That is the same tell as the reader `S117` calls the class's worst member, and it was outside both of that finding's sweeps. the source-text guard class's shared home is `crates/test-utils/src/source.rs` (one lexer, three views: `code_only`, `code_and_literals`, `comments_only`), and the census that keeps the population honest is `crates/test-utils/tests/reader_census.rs`, whose `Unconverted` ceiling this row lowers by its own member count | `D61` residue |
 
 ## Track U — the exchange surface and the bindings
 
@@ -7956,6 +7960,7 @@ its own tests in its own PR, as always.
 | **D65** | **Bound-domination rows with no ceiling and no floor** (`S121`) — five sites in four crates: `geom-core/tests/m5_pr7b_tensor_compose.rs:222, :244, :425-426`; `geom-brep/tests/r1_pxn_probes.rs:176`; `geom/tests/curves/m5_pr7_speed_meter.rs:36`; and `mesh/src/nurbs_cert.rs:1538`, **which is Track R's `D300` and not this row**. Each asserts that a certified bound dominates a sampled true value and nothing else — monotone in the safe direction, so an arbitrarily loose bound passes; most also lack the anti-vacuity floor that keeps a collapsed fixture from satisfying the comparison for free. The discipline is written in the tree at `m5_pr7b_tensor_compose.rs:195-207`, which carries both halves and says why. **The deliverable is a measured ratio per site at more than one ε, not a transplanted `10.0`** — a threshold that re-pins today's output is `memories/output-stability-as-justification.md`'s shape. A written verdict that some site admits no honest ceiling is a passing answer. Check `geom-brep/tests/m5_pr7_ssi.rs`'s neighbourhood against **#734** before opening | Track F, unplaced |
 | **D380** | A band-keyed row's NAME asserts an arm the shipped default does not take (`S136`) — `profile/tests/review_s2.rs`, plus two more members in `step-import/tests/recognize_pins.rs`. **Not takeable as a rename alone**: `profile/src/sugar.rs`'s `LEVER_ULPS` doc cites the row by name, so closing it reaches one file on Track V, which is that track's row to file | unrowed |
 | **D381** | **`RecipeEditRef::ForeignNode` is unpinned at both mid-evaluation doors.** `editor-core`'s selection and declare doors resolve authored names through one shared ladder (`eval/wire.rs`'s `mod ladder`), whose rung 1 splits a missing minting node into `NodeDeleted` (id below the mint counter) and `ForeignNode` (id at or above it). `m6_5_selection_refusals.rs` and `m4_pr5_declare.rs` pin every other arm of that ladder and **neither pins `ForeignNode`**; the crate's only pin of it, `m4_pr4_resolve.rs:423`, is the *whole-evaluation* resolve door, which is a different ladder. The arm is reachable only across documents — the edit door refuses never-existed ids before evaluation — which is why it was left unpinned, not why it should stay so: #670 collapsed the two doors onto one implementation, so one fixture now covers both. Disclosed by that PR and never rowed | unrowed |
+| **D382** | **`every_suite_file_is_aggregated` is duplicated thirteen times, once per crate**, and `D61` converted all thirteen onto the shared lexer without collapsing them — an `S4` instance inside this track's own fence, surfaced by the lane that touched every copy. Collapsing it needs a shared helper in `crates/test-utils/` and a fourteenth caller; the reason it was not taken is that it is a scoping call rather than a lane one | `D61` residue |
 
 *(**Standing, and stated here because nothing else in this document carries it.** There are exactly
 **two** `#[ignore]`d collection runs in this tree —
