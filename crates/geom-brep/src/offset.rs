@@ -127,6 +127,15 @@ use crate::intersect::SurfaceKind;
 /// of translating the parameter. A mirror-nappe face's material
 /// therefore moves `−d` along its OWN chart normal — the same locus the
 /// mint produces, read from the same side.
+///
+/// **Consumers owe the turn, and one of them does not pay it.**
+/// `topo::offset_axial::nappe_signed` reads the nappe from the face's
+/// own corners and turns a face-outward distance before it reaches this
+/// action; `topo::replace_face::mint_offset` does not (#1199, with both
+/// review arms' evidence that nothing wrong ships from it today). The
+/// SWEEP that closes it must include [`ConeOffset::displacement`]:
+/// its `copysign` on the radial term is a second, separate reading of
+/// the same nappe question.
 #[derive(Clone, Copy, Debug)]
 pub struct ConeOffset<T: geom_core::Real> {
     apex: geom_core::Point3<T>,

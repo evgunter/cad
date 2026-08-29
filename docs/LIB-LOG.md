@@ -1632,3 +1632,45 @@ asserted from Python too (goes red in two places when fixed).
 Python authoring; negatives recorded in the test file. Two scene
 claims not reproducible (`shells().count()`, `face_frame`) — both
 census-owned (`B-READBACK`), named in row 47.
+
+**PYDISP MERGED (2026-08-29, #1196; mechanical under the 08-29
+ruling, no A/B row).** Nine pncad-py sites flipped from `{:?}` to the
+DISPLAY-KERNEL prose; four stale "no Display" comments truthed — one
+of them a `create_exception!` docstring whose false Debug-rendering
+sentence was shipping in Python `help()`. Two same-class sites beyond
+#1175's list found by the re-sweep and flipped with disclosure. The
+deliberate asymmetry recorded: `select_refusal`'s per-arm prose KEPT
+(a candidate is spelled through `name_text`, the StableName alphabet
+Python speaks — flipping would regress the boundary's naming
+contract), while `declare_err`'s hand prose retired (no such reason).
+The CUR2-flagged reach-past comment located at tags.rs (not mesh.rs
+as the register said) and truthed. Banked: prelude-curation vs
+pncad-py-import-comment drift is a recurring class (the StlError
+comment survived three units) — a periodic grep of "is NOT
+prelude-curated" claims against the actual prelude is cheap and
+worth a future polish unit's line item.
+
+**GUIDE-ASM MERGED (2026-08-29, #1198; mechanical under the 08-29
+ruling, no A/B row).** `docs/guide/assembly.md` — the assembly
+surface's user story, nine executed Python blocks under test_guide's
+no-rot machinery: the three vocabularies (identity/pin/reference with
+the pin_mismatch refusal executed, recourse asserted), authoring
+(instantiate/mate/cluster-gauge), the seam (`resolver=`, and the
+memo's seam-gate contract QUOTED from the door, unsoftened, #1185
+named), solve + A5 gate, four refusals each reached by authoring the
+mistake, split/inline/pin-door with the three-door what-reads-when
+table. G18a's "a user learns resolver= from the stub alone" banked
+finding CLOSED. Two pre-existing registration gaps fixed in passing
+(GUIDE.md §4 missed meshing.md; examples.md missed assembly.rs) —
+adjacent-list repairs, kept. **Usability finding banked per
+demo-purpose (real friction, stated in the page, not smoothed): a
+MATE NODE IS A PRODUCT ROOT** — `Doc.roots` answers instances AND
+mates (roots = live nodes nothing consumes), so `set_roots` on three
+solids names five nodes and omitting the mates refuses
+`root_uncovered`, while the door's prose says "ordered PRODUCT
+ROOTS" and `product` gathers only body-denoting ones. Vocabulary
+evidence for a future design conversation, not a unit. Orchestrator
+process note, honestly: the pre-merge "lane stalled" read was WRONG —
+liveness was judged from processes and branch pushes without checking
+the PR list; the lane had been done and gated for an hour. Check
+open PRs before declaring a lane stalled.

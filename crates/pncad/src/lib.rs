@@ -106,6 +106,10 @@
 //! - [`guide::meshing`] — the ladder's tessellate and cross-check
 //!   rungs from the bindings' side: what a mesh carries across, and
 //!   how a caller re-derives closure and volume from it.
+//! - [`guide::assembly`] — parts, instances and mates: the workspace
+//!   store, the identity/pin/reference split, `evaluate`'s resolver
+//!   and memo, the solve and the at-rest gate, split/inline and the
+//!   pin-update door.
 //! - [`guide::north_star_audit`] — what the Python bindings can
 //!   author today, and the named gaps.
 //!

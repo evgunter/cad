@@ -253,13 +253,12 @@ impl Body {
     /// `Result<(), Vec<ValidationError>>`.
     ///
     /// `ValidationError` has no curated tag mapping, so the exception
-    /// carries the failure COUNT as structured data and a rendering of
-    /// the whole list as the human message. Per-variant tags are the
-    /// same mechanical work `crate::tags` does for edits, deferred
-    /// with the rest of the read-back surface — and so is the choice
-    /// to render the list with `Debug`: the enum does implement
-    /// `Display`, one prose sentence with recourse per finding, and
-    /// nothing composes it here.
+    /// carries the failure COUNT as structured data and the findings
+    /// themselves as the human message — each through the enum's own
+    /// `Display`, one prose sentence with recourse per finding, joined
+    /// because a `Vec` has no rendering of its own. Per-variant tags
+    /// are the same mechanical work `crate::tags` does for edits,
+    /// deferred with the rest of the read-back surface.
     fn run_validator(
         &self,
         py: Python<'_>,
@@ -274,8 +273,13 @@ impl Body {
             py,
             ErrorClass::Validation,
             format!(
-                "{door} reported {} failure(s): {failures:?}",
-                failures.len()
+                "{door} reported {} failure(s): {}",
+                failures.len(),
+                failures
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("; ")
             ),
             &[
                 ("door", PyString::new(py, door).unbind().into_any()),
