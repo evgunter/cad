@@ -25,7 +25,7 @@
 //!
 //! # Why the base is owned, not an arena key
 //!
-//! `EdgeGeometry::Intersection` names its surfaces by arena key, and
+//! `EdgeDescription::Intersection` names its surfaces by arena key, and
 //! that is the precedent this description would otherwise follow. Two
 //! concrete obstructions rule it out here:
 //!

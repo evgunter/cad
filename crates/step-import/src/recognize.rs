@@ -53,7 +53,7 @@
 //!   projected ⊥ axis; the exact circumcenter solve for center and
 //!   radius; `u_ref` toward the first sample (the patch's u-start
 //!   azimuth — the seam, so a full-period patch's seam generator
-//!   certifies as [`geom_brep::EdgeGeometry::Seam`]). Closed form
+//!   certifies as the seam image). Closed form
 //!   throughout.
 //!
 //! Each estimator only PROPOSES; the certificate above decides. A

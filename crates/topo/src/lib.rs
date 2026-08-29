@@ -295,8 +295,8 @@ pub use chart_region::{
 pub use geom::Curve3;
 pub use geom::Surface;
 pub use geom_brep::{
-    CertifyError, ChartWindow, EdgeCurve, EdgeCurveSpec, EdgeGeometry, EdgeNurbsLane, Pcurve,
-    PcurveCache, PcurveCertifyError,
+    CertifyError, ChartCurve, ChartWindow, EdgeAuthority, EdgeCurve, EdgeCurveSpec,
+    EdgeDescription, EdgeDescriptionSpec, EdgeNurbsLane, Pcurve, PcurveCache, PcurveCertifyError,
 };
 pub use geometry::{CurveKey, PointKey, SurfaceKey};
 pub use instance::{
@@ -308,8 +308,8 @@ pub use null::{CurveGeom, NewVertexSide, NullEdge, NullFacePair};
 pub use offset_together::{ChartMove, offset_planes_together};
 pub use pcurves::{PcurveMintError, mint_pcurves, pcurve_of};
 pub use props::{
-    MassProperties, MassPropsError, PropsQuadLane, ShellClassification, ShellClassifyError,
-    ShellRole, classify_shells, mass_properties,
+    AtRestOutcome, AtRestPolicy, MassProperties, MassPropsError, PropsQuadLane,
+    ShellClassification, ShellClassifyError, ShellRole, classify_shells, mass_properties,
 };
 pub use provenance::Provenance;
 pub use readback::{DanglingRef, Pose, ReadbackError};

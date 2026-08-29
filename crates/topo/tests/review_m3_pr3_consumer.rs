@@ -60,15 +60,14 @@ fn audit_geometry(body: &Body<f64>) {
     let mut live_s: Vec<_> = body.faces().map(|(_, f)| f.surface).collect();
     for (_, e) in body.edges() {
         if let Some(topo::CurveGeom::Certified(c)) = body.get_curve_geom(e.curve) {
-            match *c.description() {
-                geom_brep::EdgeGeometry::Intersection { s1, s2, .. }
-                | geom_brep::EdgeGeometry::TangentIntersection { s1, s2, .. } => {
-                    live_s.push(s1);
-                    live_s.push(s2);
+            match c.description() {
+                geom_brep::EdgeDescription::Intersection { s1, s2, .. }
+                | geom_brep::EdgeDescription::TangentIntersection { s1, s2, .. } => {
+                    live_s.push(*s1);
+                    live_s.push(*s2);
                 }
-                geom_brep::EdgeGeometry::Seam { surface }
-                | geom_brep::EdgeGeometry::IsoCurve { surface, .. } => live_s.push(surface),
-                geom_brep::EdgeGeometry::MappedCurve(_) => {}
+                geom_brep::EdgeDescription::Chart(c) => live_s.push(c.surface),
+                geom_brep::EdgeDescription::Scaffold(_) => {}
             }
         }
     }

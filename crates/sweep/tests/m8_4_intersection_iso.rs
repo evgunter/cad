@@ -25,7 +25,7 @@
 
 use geom::Curve3;
 use geom::{NurbsSurface, Surface};
-use geom_brep::{EdgeCurveSpec, EdgeGeometry};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
 use geom_core::Tol;
 use geom_core::spline::KnotVector;
 use geom_core::{Affine3, Band, Point2, Point3, Vec3};
@@ -155,7 +155,7 @@ fn intrinsic_seam(
     body.set_edge_curve_nurbs_lane(
         edge,
         EdgeCurveSpec {
-            description: EdgeGeometry::Intersection {
+            description: EdgeDescriptionSpec::Intersection {
                 s1,
                 s2,
                 witness: carrier.eval((t0 + t1) * 0.5),

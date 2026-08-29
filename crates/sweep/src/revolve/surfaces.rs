@@ -13,7 +13,7 @@
 
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::{EdgeCurveSpec, EdgeGeometry, MappedCurve};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve};
 use geom_core::{Point2, Point3, Real, Vec3};
 
 use super::SweptSeg;
@@ -87,7 +87,7 @@ pub(super) fn revolved_strut_spec<T: Real>(
 ) -> EdgeCurveSpec<T> {
     let center = frame.foot3(point);
     EdgeCurveSpec {
-        description: EdgeGeometry::MappedCurve(MappedCurve::RevolvedPoint {
+        description: EdgeDescriptionSpec::Scaffold(MappedCurve::RevolvedPoint {
             point,
             place: frame.place,
             axis_origin: frame.o3,

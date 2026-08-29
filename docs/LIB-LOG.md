@@ -1103,7 +1103,7 @@ else from the smell scan; no other error surface changes.
 **PERR MERGED (2026-08-18, #622, merge ecf43ab6; ordinal-59
 APPROVE — row in MODEL-AB-LOG). LIB's claimed #614 item is
 discharged.** Resting state: NO active lanes; LIB-12 slots 2-4
-banked (opus ×3). Everything scheduled is done — remaining
+banked (arms redacted 2026-08-29 — see this log's tail). Everything scheduled is done — remaining
 register items need Evan (enclosing-tangency vocabulary, Wave 0
 D1-D4, Q9) or another program (G8 kernel gap, G2 sweep/tube),
 or a #614 routing.
@@ -1114,7 +1114,7 @@ DISPATCHABLE-NOW column is not empty — it has one item:
 **G11 (mesh/tessellation door from Python)** — blocks no audit
 row but completes the guide's ladder (steps 4-5: tessellate +
 mesh-vs-exact cross-check); register category B names it; a
-banked LIB-12 slot (opus) covers its draw; no design conversation
+banked LIB-12 slot covers its draw; no design conversation
 needed (the Rust mesh door exists — this is a bindings unit of
 the PYG-family shape). Also dispatchable when wanted, smaller:
 the **evaluate-memo door** (PYPU's banked finding — evaluate
@@ -1169,7 +1169,7 @@ for the whole series, per the standing tour-corpus rule.
 ## in the session that wrote it.
 
 **State.** No active LIB lanes since PERR merged (#622, 2026-08-18);
-LIB-12 slots 2-4 still banked (opus x3). The only movement in this
+LIB-12 slots 2-4 still banked (arms redacted 2026-08-29). The only movement in this
 file since is the ASM cross-program deposit of 2026-08-23. Nothing
 LIB dispatched has come back unmerged, and nothing in the register's
 SCHEDULED column has re-filled.
@@ -1358,3 +1358,208 @@ file.
 The pickup path is unchanged in shape and now actually complete:
 this log's tail + the residual register (categories A-F) +
 `memories/MEMORY.md`.
+
+## LIB reactivated (2026-08-29) — new orchestrator, remote host
+
+**Session opening (Evan, in-chat).** LIB resumes after eleven days at
+rest, with a new orchestrator on a remote preemptible container
+(4 CPUs / 15G RAM / ~29G disk) rather than the tmux host the standing
+memories assume. Host adaptations, stated once: lanes are full clones
+via `new-lane.sh` (3–4 in parallel per Evan), heavy cargo stays behind
+the build-slot mutex, hosted CI remains the verification of record, no
+monitor scripts or away-channel (Evan is present in-session; the
+tracker is read at check-ins), GitHub via MCP tools rather than `gh`.
+Program prefix `lib/` reconfirmed; orchestrator branch
+`lib/orchestrator`.
+
+**Rulings recorded (Evan, in-chat, this session):**
+1. **Mechanical units run outside the model A/B** — opus implementer,
+   no review lane, merged on green hosted CI + the orchestrator's own
+   read of the diff, logged here per unit. Full text and the readout
+   population note: MODEL-AB-LOG's 2026-08-29 entry.
+2. **Banked LIB-12 slots are untouched by mechanical units** — they
+   remain the draws for LIB's next A/B (substantive) rows.
+3. The proposed mechanical/substantive split of the re-survey's map was
+   approved as proposed: mechanical = R2, #1111's editor-core slice,
+   G11, G15, the evaluate-memo door, die_tool's re-authoring, the
+   assembly node/edit bindings (G18's second half); substantive (full
+   protocol) = the resolver/workspace door, and any chamfer/shell/tube
+   node unit its design conversation produces.
+
+**Blinding repair, done before any A/B dispatch:** the LIB-12 block
+record on main named the banked slots' arms by arithmetic (the exact
+class of the PCURVE 2026-08-28 redaction). Redacted in place in
+MODEL-AB-LOG and at this log's two restatements; exposure and the
+contamination flag for consuming duals recorded in MODEL-AB-LOG's
+entry. This log stays append-only for entries; blinding redactions
+edit in place by the standing precedent.
+
+**Register correction (measured on the tracker and in
+`docs/SMELL-SCAN-2026-08.md` this session): the "needs Evan" column's
+"Wave 0 D1–D4" is STALE.** It was written 2026-08-18 and carried
+forward unre-checked by the 08-28 re-survey. As of 08-19/08-20: D1
+RULED (a `Dual` may not certify but may have `Bounds`), D2 RATIFIED
+into DESIGN.md (#628), D4 DECIDED (delete), and D3 resolved as
+deliberate-frontier via the closed `Surface` enum. What actually
+remains Evan-paced from LIB's map: the enclosing-tangency vocabulary
+(#608's residue, explicitly low-priority) and Q9 + the U9 release
+checklist (urgent only when release is wanted). #741/#742/#944 wait on
+LIB drafting plans, not on Evan. (The smell-scan §D's open-decision
+table — D6, S14(b), S65/S70/S82/S90/S107/S116(p) — is that program's
+queue, not LIB's; noted so no successor re-mistakes it for ours.)
+
+**Wave 1 DISPATCHED (2026-08-29, all mechanical under ruling 1,
+implementer arm opus by that ruling's own text):**
+- **G11** (`lib/g11-mesh`, lane lib-g11): the mesh/tessellation door
+  from Python — completes the guide ladder's steps 4–5; audit G11 row
+  + census `gap: G11` entries are the oracles.
+- **G15** (`lib/g15-workspace`, lane lib-g15): the Workspace/DocRef/
+  ContentPin bindings — the assembly series' first half; hard-fenced
+  off `evaluate`'s signature (the resolver door stays a design
+  conversation) and off all G18 vocabulary.
+- **CUR** (`lib/curation-r2`, lane lib-cur): R2 (PathNoCornerReason
+  carried beside PathError at its three sites) + #1111's editor-core
+  slice (`HitTestError` Display), with the Display-gap class swept
+  and listed, not fixed.
+
+All three briefs point at `docs/prompts/implementer-discipline.md` by
+path, carry the foreground-polling rule, and expect census/pyi/audit
+merge contention (merge main before opening; re-merge on movement).
+Orchestrator holds: the workspace-from-Python resolver-door design
+conversation (opens after G15's dependency report), the retroactive
+curation review of #938's A5 re-export block (orchestrator's own,
+next), and the #742/#741/#944 plans (drafted when their turns come).
+
+**#938 A5 re-export block curation review CLOSED (2026-08-29,
+orchestrator's own — the deposit's owed retroactive review).** The
+block (`crates/pncad/src/document.rs:165-179`: Assembly, AssemblyError,
+AtRestFinding, Attribution, MintedDeclaration, RefusedRef, assemble)
+stands AS LANDED. Checked: payload closure — every type the carried
+names expose in fields/arms (RecipeNodeId, ContactClass, FaceKey,
+NameTable, ContactRecords, ValidationError, EntityKind, MateSide,
+StableName, ProductError) is carried on the façade's curated lists
+(document.rs, select.rs, or prelude), so the block introduces no
+R2-class "payload not carried beside carrier" gap; the rationale
+comment states the gate's why in the file's house style; placement
+beside the authoring vocabulary matches the deposit's own argument
+(the gate the vocabulary can construct-and-not-check). No comment owed
+on #938's thread — the deposit asked for one only if a different shape
+was wanted.
+
+**CUR MERGED (2026-08-29, #1161 — Wave 1's first return; mechanical
+under the 08-29 ruling, no A/B row).** `HitTestError` gains the
+LIB-DOORS-F6-shape `Display` + `Error` impl (arena key deliberately
+not printed — kind + body index instead) with a contract test whose
+negative half pins against a future struct-dump regression. #1111's
+editor-core slice DISCHARGED; the issue stays open for its GUI half.
+**R2 was found ALREADY DISCHARGED** — carried at all three sites by
+09dbd562 (2026-08-28, an adjacent lane's cleanup), one day after the
+re-survey's "checked live and STILL OPEN" paragraph; that paragraph is
+hereby corrected rather than edited (append-only). Register effects:
+R2 CLOSED; #1111's A-slice closed. Two lane findings with homes:
+(1) **GUARD-SIBS joins the dispatchable column** (mechanical-shaped):
+`every_document_layer_root_export_is_carried_or_listed` reads
+`editor-core/src/lib.rs` ONLY — no sibling guard for the profile/
+topo/mesh/quantity layers, so an R2-shaped gap outside the document
+layer is mechanically invisible (exactly how R2 sat 18 days); the
+unit is the sibling guards. (2) Process rule for curation briefs:
+grep the target symbols on a FRESH clone of main before spending the
+lane — a register item can be discharged by an adjacent commit
+without the register moving. The lane's façade Display-gap re-sweep
+(12 real gaps, 4 new to #1111) is recorded on #1111 itself.
+
+**GUARD-SIBS MERGED (2026-08-29, #1166; mechanical under the 08-29
+ruling, no A/B row).** The carried-or-listed guard family completes —
+with the unit's own measurement CORRECTING the dispatch premise: only
+TWO façade layers are curated per-name (`editor_core`, already
+guarded, and `profile`, the hole R2 sat in); the other ten are
+whole-crate re-exports whose surfaces cannot drift by construction, so
+the brief's "at minimum profile, topo, mesh, quantity" would have
+minted three vacuous guards. What landed instead: the assertion tail
+extracted (one function, not four copies), the profile-layer guard
+(root declarations scanned too — that layer DECLARES types at root,
+closing blind spot #2 for it), and the classification guard
+(`every_facade_layer_is_whole_re_exported_or_per_name_guarded`) that
+buckets every manifest path-dep exactly once — so a layer narrowing
+out of whole-re-export into curation FAILS on that commit instead of
+silently joining the unwatched case. Negative checks reproduced the
+real R2 hole (deleting PathNoCornerReason's carriage reds the guard;
+the historical gap was 20 days, df89aff8→09dbd562, longer than the
+register knew). **Banked, register category A (curation candidate):
+`profile::BlendArc`** — the one unargued entry in either list; return
+type of a carried type's method, cross-referenced from carried docs,
+matching neither withholding family. Fold into the next curation
+pass.
+
+**G11 MERGED (2026-08-29, #1165; mechanical under the 08-29 ruling,
+no A/B row). Audit G11 CLOSED — the guide ladder's steps 4–5 are
+sayable from Python.** `Body.tessellate(chordal: Length)` → `Mesh`
+(shared position buffer + per-face patches both cross, so
+watertightness is index-checkable and the mesh-vs-exact cross-check
+is the CALLER's computation — argued as the better step-5 shape, a
+genuinely independent second measure, since `mesh::validate`'s
+re-derivations are not curated and binding them would have reached
+past the façade); `to_stl_ascii`/`to_stl_binary`; `TessellateError` +
+`StlError` typed with exhaustive tag maps (kernel-side arm additions
+arrive as compile errors). Census: all eleven `gap: G11` entries
+dispositioned; audit page re-cut (G11 → closed gaps, no mark moved —
+its anchor was the ladder, not a stop); new guide page `meshing.md`
+under test_guide. Register effects and banked findings, each with a
+home: (1) **`StlError` uncurated** (the R2 shape — prelude carries
+the writers and their option error types, not the writers' own
+refusal): joins BlendArc as the pending **curation micro-unit**,
+category A. (2) **Kernel Display gaps** (`mesh::TessellateError`,
+plus #1111's re-sweep quartet: `ContactRefusal`, `ReadbackError`,
+`FmtQuantityError`): a dispatchable mechanical unit
+(**DISPLAY-KERNEL**), recorded on #1111. (3) **No patch→StableName
+door on either side of the boundary** — the next picking/rendering
+consumer's ask, adjacent to census `B-PICKING`/`B-READBACK`;
+design-shaped, recorded in the audit page's G11 residue. The
+picking-chain keys stay unnameable by curation, correctly.
+
+**G15 MERGED (2026-08-29, #1164; mechanical under the 08-29 ruling,
+no A/B row). Audit G15 CLOSED — the workspace store crosses whole.**
+`Workspace(path)` (scan-by-header, `documents()`, `create`/`resave`,
+`resolve` with A4's Cargo.lock pin semantics un-softened —
+`pin_mismatch` refuses typed with `wanted`/`found` +
+`PIN_MISMATCH_RECOURSE`), `ContentPin`/`DocRef`/`content_pin`/
+`canonical_bytes`/`header_document_id`/`random_document_id`, one
+typed `WorkspaceError` with every attribute present on every arm.
+The unit's argued deviation ADOPTED at adjudication: the pin-UPDATE
+family (`update_to_store`, `update_references`, `mixed_pins`,
+`UpdateError`, `PinMultiplicity`, `PinSites`) is NOT bound and
+re-cited to G18 — a site is an `InstantiatePart` node's `DocRef`, so
+on any Python-authorable document those doors answer only
+"referenced nowhere"; the audit page's own test already grouped them
+with G18, and the page was cut in the test's favor. Its measured
+finding kept as a test: a pin says which VERSION, never which PART
+(`canonical_bytes` strips `id` by design). **The re-survey map's
+"G15 dispatchable" bullet retires at this row** (the lane flagged it
+as the stale line it would become). Sequencing note: merged after
+G11 and GUARD-SIBS with a union conflict resolution in the census
+docstring, the audit page's further-gaps section (now empty — both
+its rows closed in one wave) and the closed-gaps table; census green
+on the union pre-push, hosted CI the gate as always. The
+resolver-door design conversation this unit's report sharpened is
+RATIFIED and specced: `docs/LIB-G18A-SPEC.md` (Evan, in-chat,
+2026-08-29) — the next unit, full A/B protocol.
+
+**CUR2 MERGED (2026-08-29, #1173; mechanical under the 08-29 ruling,
+no A/B row).** The two banked curation carriages land: `StlError`
+beside its writers in the prelude's section 7 (G11's banked R2-shape
+finding closed), `BlendArc` on the curated `profile` module — and NOT
+in the prelude, by measurement (the prelude carries the validate
+family's gate/refusal/output tier only, and no consumer outside
+`crates/profile` names `BlendArc`; the corpus rule agrees). The
+profile guard's interior list is down to `RawLoop`, its one argued
+name. The R2-class re-sweep at the merge base: 57 prelude doors
+origin-resolved, two hits, one fixed here, one a non-instance
+(`HitTestError` IS carried beside its carrier in select.rs; prelude
+lift would be a minimality question, not R2). Banked findings kept:
+(1) the census scans document/select/prelude ONLY — a name carried
+onto `profile.rs` alone incurs no census obligation (worth knowing
+before assuming a Python consequence); (2) symbol-name greps mislead
+in this workspace (five collision examples recorded in the PR) —
+façade sweeps should origin-resolve through the pub-use graph first.
+Stale-comment follow-up for the next pncad-py sweep: the reach-past
+note at mesh.rs's StlError import.

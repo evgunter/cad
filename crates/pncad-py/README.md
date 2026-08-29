@@ -1,8 +1,8 @@
 # pncad — Python bindings
 
 Python bindings for the `pncad` B-rep CAD kernel: author exact
-solids, validate them, measure them, export STEP — headless, from a
-script.
+solids, validate them, measure them, tessellate and cross-check the
+mesh, export STEP and STL — headless, from a script.
 
 `pncad` is a **placeholder name**. The project has not been named yet
 (design question Q9), and the crate, the module and the docs will all
@@ -112,6 +112,9 @@ guide:
   canonical journey.
 - `docs/guide/fail-loud.md` — the refusal vocabulary, with executed
   Python examples.
+- `docs/guide/meshing.md` — the ladder's tessellate and cross-check
+  rungs: what a `Mesh` carries across, and how a caller re-derives
+  closure and volume from it.
 - `docs/guide/north-star-audit.md` — **what is not bound yet**, gap by
   gap. Read this before assuming a feature exists.
 - `pncad.pyi` — the stubs, checked against the compiled module by
@@ -126,7 +129,8 @@ $ ./crates/pncad-py/run-python-tests.sh [python-binary]
 ```
 
 Covers the document surface, quantities, stub drift, D9 bit-identical
-replay, persistence and STEP round-trips, plus every Python block in
+replay, persistence and STEP round-trips, the mesh door and its STL
+exports, plus every Python block in
 the guide (`tests/test_guide.py` reads the Markdown directly, so the
 documentation cannot rot).
 

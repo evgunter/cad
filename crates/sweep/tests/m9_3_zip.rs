@@ -337,7 +337,7 @@ fn tube_chain_rim_unions_and_carries_the_tangent_intersection() {
             assert!(
                 matches!(
                     c.description(),
-                    geom_brep::EdgeGeometry::TangentIntersection { .. }
+                    geom_brep::EdgeDescription::TangentIntersection { .. }
                 ),
                 "the G1 rim is intrinsically described: {:?}",
                 c.description()

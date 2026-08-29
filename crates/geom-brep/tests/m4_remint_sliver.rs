@@ -10,7 +10,7 @@
 
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::{CERT_SAMPLES, CertifyError, EdgeCurve, EdgeCurveSpec, EdgeGeometry};
+use geom_brep::{CERT_SAMPLES, CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec};
 use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};
 
@@ -56,7 +56,7 @@ fn certify_with_offset(offset: f64) -> Result<EdgeCurve<f64>, CertifyError> {
     // isolated two-class knob.
     let witness = Point3::new(true_mid.x + offset, 0.0, 0.0);
     let spec = EdgeCurveSpec {
-        description: EdgeGeometry::Intersection {
+        description: EdgeDescriptionSpec::Intersection {
             s1: keys[0],
             s2: keys[1],
             witness,

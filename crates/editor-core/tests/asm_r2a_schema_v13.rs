@@ -43,9 +43,9 @@ const V11: &str = include_str!("golden/v11_golden.cad");
 fn schema_version_is_current() {
     // Named for the PROPERTY, not the number (the `lbret_schema_v8`
     // precedent): ASM-R2a's own bump was v13; ASM-R2b took v14 when it
-    // inhabited the interface record, and the number is exactly what
-    // keeps moving.
-    assert_eq!(SCHEMA_VERSION, 14);
+    // inhabited the interface record and M10-1 took v15 for parameter
+    // distributions, and the number is exactly what keeps moving.
+    assert_eq!(SCHEMA_VERSION, 15);
 }
 
 #[test]

@@ -119,7 +119,7 @@
 use std::sync::Arc;
 
 use geom::{Curve3, NurbsCurve3, NurbsSurface, Surface};
-use geom_brep::{EdgeCurveSpec, EdgeGeometry, SurfaceKind};
+use geom_brep::{EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, SurfaceKind};
 use geom_core::k_stats::decide;
 use geom_core::{Affine3, Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Tol, Vec3};
 
@@ -1293,7 +1293,7 @@ fn plan_edge<T: Decide>(
         .ok_or(ReplaceFaceError::Corrupt)?;
     let (t0, t1) = curve.params();
     let old_carrier = curve.carrier().clone();
-    let description = *curve.description();
+    let description = curve.description().clone();
     let mid = old_carrier.eval((t0 + t1) * T::from_f64(0.5));
 
     // The one description that gets an EXACT carrier rather than a
@@ -1301,14 +1301,15 @@ fn plan_edge<T: Decide>(
     // fit's own control net, so extracting it lands the carrier in the
     // fit's spline space — its degree and its refined interior knots —
     // without elevating or refining anything.
-    if let (
-        EdgeGeometry::IsoCurve {
-            surface, u, v0, v1, ..
-        },
-        Surface::Approx(approx),
-    ) = (&description, new_surface)
-        && *surface == old_key
+    if let (EdgeDescription::Chart(c), Surface::Approx(approx)) = (&description, new_surface)
+        && c.surface == old_key
+        && let geom_brep::Pcurve::IsoLine { p0, pl } = c.pcurve
     {
+        // An iso image on a DESCRIPTION is u-const by construction —
+        // `EdgeDescriptionSpec::iso` is the only door that mints one,
+        // and it fixes `u` and moves `v`. (The u-moving `IsoLine` the
+        // cap-rim lane mints is a stored CACHE, never a description.)
+        let (u, v0, v1) = (p0.x, p0.y + pl.y * t0, p0.y + pl.y * t1);
         // The seam this row carries is shared with whatever face
         // sits on the other side. If THAT face is a bounded chart
         // too, it would have to move with this one to keep holding
@@ -1338,23 +1339,41 @@ fn plan_edge<T: Decide>(
         // is the fitted-boundary note below — until every chart
         // bounding an edge moves together, the only reachable exit
         // past this call is a refusal.
-        let (row, u_domain) = geom_brep::iso_boundary_row(approx.fit(), *u, band)
+        // **The fourth home of the same question** (PCURVE P-1b, found
+        // in review). This early return mints its own spec and never
+        // reaches `carried_declaration` below, so it too would answer
+        // `declared: None` and destroy the record. There is no `delta`
+        // here to transport with — the carrier is extracted from the
+        // NEW fit's control net rather than transported — and a fit's
+        // offset is not a rigid translation in any case, so the honest
+        // answer for a declared locus is the same refusal the other
+        // arms give rather than a silent drop.
+        //
+        // Latent today: an iso boundary of a face's own fit is minted
+        // by `nurbs_iso_derive`, which declares nothing, so no current
+        // fixture carries a declaration here. Written anyway, because
+        // "no fixture reaches it" is exactly what was true of the
+        // boundary lane's drop until a cap offset reached it.
+        if curve.authority().is_declared() {
+            return Err(ReplaceFaceError::CarrierLaneUnsupported {
+                edge,
+                what: "a declared chart image whose surface's offset is not a rigid \
+                       translation (the image transports, its declaring pushforward \
+                       cannot)",
+            });
+        }
+        let (row, u_domain) = geom_brep::iso_boundary_row(approx.fit(), u, band)
             .map_err(|error| ReplaceFaceError::IsoRow { edge, error })?;
         let carrier = Curve3::Nurbs(Arc::new(row));
-        let p_start = carrier.eval(*v0);
-        let p_end = carrier.eval(*v1);
+        let p_start = carrier.eval(v0);
+        let p_end = carrier.eval(v1);
         return Ok(EdgePlan {
             edge,
             spec: EdgeCurveSpec {
-                description: EdgeGeometry::IsoCurve {
-                    surface: old_key,
-                    u: u_domain,
-                    v0: *v0,
-                    v1: *v1,
-                },
+                description: EdgeDescriptionSpec::iso(old_key, u_domain, v0, v1, v0, v1),
                 carrier,
-                param_start: *v0,
-                param_end: *v1,
+                param_start: v0,
+                param_end: v1,
             },
             start,
             end,
@@ -1369,15 +1388,22 @@ fn plan_edge<T: Decide>(
     if matches!(new_surface, Surface::Approx(_)) {
         return Err(ReplaceFaceError::FittedBoundaryUnsupported {
             edge,
+            // The pre-collapse refusal "a mapped rim (a v-row is not
+            // an `IsoCurve`)" is GONE with the taxonomy that made it:
+            // a rim is a chart image like any other, and a u-const one
+            // takes the exact-row lane above whatever minted it. What
+            // is left refuses on GEOMETRY — the fit's rows run u-const
+            // — rather than on which variant the description was.
             what: match description {
-                EdgeGeometry::IsoCurve { .. } => "an iso-curve of a neighbour's chart",
-                EdgeGeometry::Seam { .. } => "a periodic seam",
-                EdgeGeometry::MappedCurve(_) => {
-                    "a mapped rim (a v-row is not an `IsoCurve`, which is u-const by definition)"
+                EdgeDescription::Chart(ref c) if c.surface == old_key => {
+                    "a chart image of this face's own fit that is not one of its u-const rows"
                 }
-                EdgeGeometry::Intersection { .. } | EdgeGeometry::TangentIntersection { .. } => {
+                EdgeDescription::Chart(_) => "a chart image of a neighbour's chart",
+                EdgeDescription::Intersection { .. }
+                | EdgeDescription::TangentIntersection { .. } => {
                     "an intrinsic intersection with an untouched neighbour"
                 }
+                EdgeDescription::Scaffold(_) => "scaffolding that never came to rest",
             },
         });
     }
@@ -1393,23 +1419,98 @@ fn plan_edge<T: Decide>(
         })?;
     let new_mid = carrier.eval((t0 + t1) * T::from_f64(0.5));
 
+    // **The declaring pushforward travels with the face** (PCURVE
+    // P-1b), and it travels the same way whichever arm below the
+    // edge's description takes — so it is answered once, here, rather
+    // than three times inside the match.
+    //
+    // U2 split what used to be one datum in two. The LOCUS is a chart
+    // image, stated in the chart's own coordinates, so the offset
+    // re-parameterizes the chart and the image needs no transport —
+    // that argument is what let this unit retire the *"not a rigid
+    // translation"* refusal for conventional edges, and it is right.
+    // The DECLARATION beside it is the other half: a `MappedCurve`,
+    // sketch data under a 3-SPACE placement, which is exactly the
+    // thing that must be carried bodily with the face. Before the
+    // collapse that payload WAS the description and went down the
+    // scaffolding arm, which translated it; writing `declared: None`
+    // at its new home silently destroyed it for every edge the fence
+    // had converted.
+    //
+    // Measured, not reasoned: offsetting the tube's `y = 0.6` cap by
+    // `d = 0.05` and reading the moved cap seam's authority back —
+    //
+    //   as `Chart { declared: … }`, dropped → `Derived` (destroyed)
+    //   as `Scaffold(mc)`, what `main` stores → `Declared`, placement
+    //                                           translated by `(0, d, 0)`
+    //
+    // — same body, same door, same offset, differing only in which arm
+    // the description sends it down. So the branch CHANGED this lane
+    // rather than inheriting a defect, which is what puts it in scope
+    // here. Dropping it also flips `EdgeAuthority::is_declared`, which
+    // tier 3's prefer-intrinsic rules read — a verdict change, which
+    // this unit does not make.
+    //
+    // The `delta` requirement is the pre-collapse one, unchanged and
+    // for the pre-collapse reason: a pushforward can only be carried
+    // when the offset is a rigid translation of a family that
+    // translates. It is asked for ONLY when a declaration is actually
+    // present, so an edge whose locus nothing declared still crosses a
+    // non-translating offset freely — which is what the retirement
+    // bought, and this keeps it.
+    let carried_declaration =
+        || -> Result<Option<geom_brep::MappedCurve<T>>, ReplaceFaceError<T>> {
+            match curve.authority() {
+                geom_brep::EdgeAuthority::Derived => Ok(None),
+                geom_brep::EdgeAuthority::Declared(mc) => {
+                    let delta = delta.ok_or(ReplaceFaceError::CarrierLaneUnsupported {
+                        edge,
+                        what: "a declared chart image whose surface's offset is not a rigid \
+                           translation (the image transports, its declaring pushforward \
+                           cannot)",
+                    })?;
+                    Ok(Some(translate_mapped(mc, delta).ok_or(
+                        ReplaceFaceError::CarrierLaneUnsupported {
+                            edge,
+                            what: "a rotation-family declaring pushforward (its trajectory \
+                               does not translate)",
+                        },
+                    )?))
+                }
+            }
+        };
+
     let new_description = match description {
-        // A seam names a surface and nothing else — no parameter to
-        // shift, unlike an iso-curve's `v` on a cone. Stated rather
-        // than left to the fall-through so the contrast is on the page.
-        EdgeGeometry::Seam { surface } if surface == old_key => {
-            EdgeGeometry::Seam { surface: old_key }
+        // A seam names a surface and nothing else — its image is
+        // DERIVED from the transported carrier against the new chart,
+        // exactly as it was derived from the old one, so there is no
+        // parameter to shift. Stated rather than left to the
+        // fall-through so the contrast with the line below is on the
+        // page.
+        EdgeDescription::Chart(ref c) if c.surface == old_key && c.seam => {
+            EdgeDescriptionSpec::Chart {
+                surface: old_key,
+                image: None,
+                seam: true,
+                declared: carried_declaration()?,
+            }
         }
-        EdgeGeometry::IsoCurve {
-            surface, u, v0, v1, ..
-        } if surface == old_key => EdgeGeometry::IsoCurve {
+        // Every other image on the MOVED chart shifts with the chart's
+        // own offset action: `d·cot α` in `v` on a cone, zero on every
+        // other kind.
+        EdgeDescription::Chart(ref c) if c.surface == old_key => EdgeDescriptionSpec::Chart {
             surface: old_key,
-            u,
-            v0: v0 + shift,
-            v1: v1 + shift,
+            image: Some(shift_chart_v(&c.pcurve, shift).ok_or(
+                ReplaceFaceError::CarrierLaneUnsupported {
+                    edge,
+                    what: "a fitted chart image whose v channel has no closed-form parameter shift",
+                },
+            )?),
+            seam: false,
+            declared: carried_declaration()?,
         },
-        EdgeGeometry::Intersection { s1, s2, .. }
-        | EdgeGeometry::TangentIntersection { s1, s2, .. }
+        EdgeDescription::Intersection { s1, s2, .. }
+        | EdgeDescription::TangentIntersection { s1, s2, .. }
             if s1 == old_key || s2 == old_key =>
         {
             let other = if s1 == old_key { s2 } else { s1 };
@@ -1423,32 +1524,74 @@ fn plan_edge<T: Decide>(
                     other_kind,
                 });
             }
-            let tangent = matches!(description, EdgeGeometry::TangentIntersection { .. });
+            let tangent = matches!(description, EdgeDescription::TangentIntersection { .. });
             let (n1, n2) = if s1 == old_key {
                 (old_key, s2)
             } else {
                 (s1, old_key)
             };
             if tangent {
-                EdgeGeometry::TangentIntersection {
+                EdgeDescriptionSpec::TangentIntersection {
                     s1: n1,
                     s2: n2,
                     witness: new_mid,
                 }
             } else {
-                EdgeGeometry::Intersection {
+                EdgeDescriptionSpec::Intersection {
                     s1: n1,
                     s2: n2,
                     witness: new_mid,
                 }
             }
         }
-        EdgeGeometry::MappedCurve(mapped) => {
+        // **A refusal the collapse retired for DERIVED conventional
+        // edges only — narrowed, after the wider claim was published
+        // and proved wrong** (PCURVE P-1b).
+        //
+        // Both `what`s below say the same thing about the same thing:
+        // a pushforward is stated in 3-SPACE, so it has to be carried
+        // bodily with the face it hangs off, and it can only be
+        // carried when the offset is a rigid translation of a family
+        // that translates.
+        //
+        // The wider claim was that a CHART IMAGE is stated in the
+        // chart's own coordinates — the offset re-parameterizes the
+        // chart and leaves the image untouched — so the question does
+        // not arise at all and these refusals stop firing for every
+        // conventional edge at rest. **The premise is right and the
+        // conclusion overreached.** U2 did not delete the pushforward,
+        // it MOVED it: out of the description, into the authority
+        // record beside the image (Q3). The image needs no transport;
+        // the declaration beside it does, and `carried_declaration`
+        // above raises this same statement from that arm. So what the
+        // retirement actually bought is narrower and still worth
+        // having: an edge the KERNEL derived — a seam, an iso
+        // boundary, a cap rim, anything with no declaring sketch
+        // entity — now crosses a non-translating offset freely, where
+        // before it refused.
+        //
+        // The wider claim looked true only because this lane was
+        // silently dropping the declaration (`declared: None`), so
+        // nothing was left to ask the transport question of. That is
+        // recorded rather than quietly narrowed, because it shipped in
+        // this PR as a "verdict that moved" and the two `demos/tour`
+        // teapot rows were re-baselined onto it.
+        //
+        // The arm below is NOT dead code: the scaffolding door is
+        // still real for edges whose surfaces do not exist yet, and it
+        // is unreachable for a body AT REST because tier 3's
+        // transience fence (`ValidationError::ScaffoldAtRest`) refuses
+        // a scaffold there. `demos/tour`'s
+        // `the_not_a_rigid_translation_door_is_unreachable_at_rest`
+        // asserts both halves on the fixtures: no scaffolds (this arm
+        // unreachable) AND declarations present (the other arm is what
+        // answers).
+        EdgeDescription::Scaffold(mapped) => {
             let delta = delta.ok_or(ReplaceFaceError::CarrierLaneUnsupported {
                 edge,
                 what: "a mapped description whose surface's offset is not a rigid translation",
             })?;
-            EdgeGeometry::MappedCurve(translate_mapped(mapped, delta).ok_or(
+            EdgeDescriptionSpec::Scaffold(translate_mapped(mapped, delta).ok_or(
                 ReplaceFaceError::CarrierLaneUnsupported {
                     edge,
                     what: "a rotation-family mapped description (its trajectory does not translate)",
@@ -1459,7 +1602,22 @@ fn plan_edge<T: Decide>(
         // face — its carrier transports, and whether the untouched
         // surface it names still holds the moved locus is a question
         // the attach layer's certification answers, not this door.
-        other => other,
+        //
+        // Its chart did not move, but the EDGE did — so the image
+        // stands and the declaring pushforward still travels with the
+        // face, by the same transport as every other arm.
+        EdgeDescription::Chart(ref c) => EdgeDescriptionSpec::Chart {
+            surface: c.surface,
+            image: Some(c.pcurve.clone()),
+            seam: c.seam,
+            declared: carried_declaration()?,
+        },
+        EdgeDescription::Intersection { s1, s2, witness } => {
+            EdgeDescriptionSpec::Intersection { s1, s2, witness }
+        }
+        EdgeDescription::TangentIntersection { s1, s2, witness } => {
+            EdgeDescriptionSpec::TangentIntersection { s1, s2, witness }
+        }
     };
 
     Ok(EdgePlan {
@@ -1474,6 +1632,47 @@ fn plan_edge<T: Decide>(
         end,
         p_start: carrier.eval(t0),
         p_end: carrier.eval(t1),
+    })
+}
+
+/// A chart image with its `v` channel shifted by `shift` — the cone
+/// offset's `d·cot α` parameter action, and the identity on every
+/// other chart kind (`shift` is zero there).
+///
+/// The shift lands on the image's CONSTANT term, which is the only
+/// place a `v` translation can go for an image whose moving channels
+/// are the chart's own: the offset re-parameterizes the chart, it does
+/// not bend the curve drawn in it. `None` for a fitted image, whose
+/// `v` channel is a control net rather than a closed form — refused
+/// rather than shifted point-by-point, which would author a fit this
+/// door has no certificate for.
+fn shift_chart_v<T: Real>(pcurve: &geom_brep::Pcurve<T>, shift: T) -> Option<geom_brep::Pcurve<T>> {
+    use geom_brep::Pcurve;
+    Some(match *pcurve {
+        Pcurve::Harmonic { p0, pa, pb, pl } => Pcurve::Harmonic {
+            p0: geom_core::Point2::new(p0.x, p0.y + shift),
+            pa,
+            pb,
+            pl,
+        },
+        Pcurve::IsoLine { p0, pl } => Pcurve::IsoLine {
+            p0: geom_core::Point2::new(p0.x, p0.y + shift),
+            pl,
+        },
+        Pcurve::IsoArc {
+            p0,
+            pd,
+            t0,
+            angle,
+            ref breaks,
+        } => Pcurve::IsoArc {
+            p0: geom_core::Point2::new(p0.x, p0.y + shift),
+            pd,
+            t0,
+            angle,
+            breaks: breaks.clone(),
+        },
+        Pcurve::Fitted(_) | Pcurve::General(_) => return None,
     })
 }
 
@@ -1506,34 +1705,38 @@ pub(crate) fn translate_mapped<T: Real>(
 /// `description` with every occurrence of `old` re-pointed at `new` —
 /// the stale-key step a fresh surface mint forces.
 pub(crate) fn remap_description<T: Real>(
-    description: EdgeGeometry<T>,
+    description: EdgeDescriptionSpec<T>,
     old: SurfaceKey,
     new: SurfaceKey,
-) -> EdgeGeometry<T> {
+) -> EdgeDescriptionSpec<T> {
     let map = |k: SurfaceKey| if k == old { new } else { k };
     match description {
-        EdgeGeometry::Intersection { s1, s2, witness } => EdgeGeometry::Intersection {
-            s1: map(s1),
-            s2: map(s2),
-            witness,
-        },
-        EdgeGeometry::TangentIntersection { s1, s2, witness } => {
-            EdgeGeometry::TangentIntersection {
+        EdgeDescriptionSpec::Intersection { s1, s2, witness } => {
+            EdgeDescriptionSpec::Intersection {
                 s1: map(s1),
                 s2: map(s2),
                 witness,
             }
         }
-        EdgeGeometry::Seam { surface } => EdgeGeometry::Seam {
+        EdgeDescriptionSpec::TangentIntersection { s1, s2, witness } => {
+            EdgeDescriptionSpec::TangentIntersection {
+                s1: map(s1),
+                s2: map(s2),
+                witness,
+            }
+        }
+        EdgeDescriptionSpec::Chart {
+            surface,
+            image,
+            seam,
+            declared,
+        } => EdgeDescriptionSpec::Chart {
             surface: map(surface),
+            image,
+            seam,
+            declared,
         },
-        EdgeGeometry::IsoCurve { surface, u, v0, v1 } => EdgeGeometry::IsoCurve {
-            surface: map(surface),
-            u,
-            v0,
-            v1,
-        },
-        EdgeGeometry::MappedCurve(m) => EdgeGeometry::MappedCurve(m),
+        EdgeDescriptionSpec::Scaffold(m) => EdgeDescriptionSpec::Scaffold(m),
     }
 }
 
@@ -1575,7 +1778,7 @@ fn plan_reanchors<T: Decide>(
             .ok_or(ReplaceFaceError::Corrupt)?;
         let carrier = curve.carrier().clone();
         let (mut t0, mut t1) = curve.params();
-        let mut description = *curve.description();
+        let mut description = curve.restated_description();
         for (point, is_start) in [(new_start, true), (new_end, false)] {
             let Some(point) = point else { continue };
             let t_old = if is_start { t0 } else { t1 };
@@ -1596,17 +1799,56 @@ fn plan_reanchors<T: Decide>(
                 Sign::Positive | Sign::Zero => {}
                 Sign::Negative => return Err(ReplaceFaceError::ReanchorOffCarrier { edge, gap }),
             }
-            if let EdgeGeometry::MappedCurve(m) = description {
-                description =
-                    EdgeGeometry::MappedCurve(move_mapped_endpoint(m, point, is_start).ok_or(
-                        ReplaceFaceError::CarrierLaneUnsupported {
-                            edge,
-                            what: "a re-anchored mapped description that is not a placed line \
-                                   segment (an arc's bulge and a trajectory's family are sketch \
-                                   data this door does not author)",
-                        },
-                    )?);
-            }
+            // **The door RE-STATES the sketch datum; it does not
+            // patch the carrier around it.** The datum is the placed
+            // segment whose pushforward determined this locus, and it
+            // has to end where the edge now ends.
+            //
+            // **Both homes of that datum, since PCURVE P-1b.** It
+            // still IS the description while an edge is transient
+            // (the scaffolding door), and on an edge AT REST it is the
+            // AUTHORITY record beside a chart image (U2 Q3). Moving
+            // only the first was this unit's own miss: an at-rest cap
+            // seam re-anchored fine and kept a `declared` segment that
+            // still ended at the wall's OLD radius — a provenance
+            // record contradicting the geometry it claims to have
+            // determined. `verbs_offd::the_untouched_cap_seams_are_
+            // re_anchored` reads the datum where it now lives and is
+            // what caught it.
+            //
+            // The refusal is mirrored onto the new home DELIBERATELY,
+            // not by omission: an arc's bulge and a trajectory's
+            // family are sketch data this door cannot author, and that
+            // was a refusal before the collapse. Dropping the
+            // declaration instead would silently flip
+            // `EdgeAuthority::is_declared`, which tier 3's
+            // prefer-intrinsic rules read — a verdict change, which
+            // this unit does not make.
+            let restate = |m| {
+                move_mapped_endpoint(m, point, is_start).ok_or(
+                    ReplaceFaceError::CarrierLaneUnsupported {
+                        edge,
+                        what: "a re-anchored mapped description that is not a placed line \
+                               segment (an arc's bulge and a trajectory's family are sketch \
+                               data this door does not author)",
+                    },
+                )
+            };
+            description = match description {
+                EdgeDescriptionSpec::Scaffold(m) => EdgeDescriptionSpec::Scaffold(restate(m)?),
+                EdgeDescriptionSpec::Chart {
+                    surface,
+                    image,
+                    seam,
+                    declared: Some(mc),
+                } => EdgeDescriptionSpec::Chart {
+                    surface,
+                    image,
+                    seam,
+                    declared: Some(restate(mc)?),
+                },
+                other => other,
+            };
             if is_start {
                 t0 = t_new;
             } else {
@@ -1622,16 +1864,18 @@ fn plan_reanchors<T: Decide>(
         // read at the new midpoint.
         let mid = carrier.eval((t0 + t1) * T::from_f64(0.5));
         description = match description {
-            EdgeGeometry::Intersection { s1, s2, .. } => EdgeGeometry::Intersection {
+            EdgeDescriptionSpec::Intersection { s1, s2, .. } => EdgeDescriptionSpec::Intersection {
                 s1,
                 s2,
                 witness: mid,
             },
-            EdgeGeometry::TangentIntersection { s1, s2, .. } => EdgeGeometry::TangentIntersection {
-                s1,
-                s2,
-                witness: mid,
-            },
+            EdgeDescriptionSpec::TangentIntersection { s1, s2, .. } => {
+                EdgeDescriptionSpec::TangentIntersection {
+                    s1,
+                    s2,
+                    witness: mid,
+                }
+            }
             other => other,
         };
         out.push((

@@ -641,12 +641,14 @@ impl GestureTarget {
     }
 
     /// The edit that writes `value` into this target.
+    ///
+    /// A parameter's edit is the VALUE door, so the parameter's
+    /// declaration — its dimension and any distribution — is read off
+    /// the document by the edit itself rather than reassembled here.
     fn edit(&self, value: SlotValue) -> Result<DocEdit<ProfileProgram>, DimensionError> {
         match self {
             Self::Slot { node, slot } => props::slot_edit(*node, *slot, value),
-            Self::Param { name, dimension } => {
-                Ok(props::param_edit(name.clone(), *dimension, value))
-            }
+            Self::Param { name, .. } => Ok(props::param_edit(name.clone(), value)),
         }
     }
 }
@@ -1248,10 +1250,10 @@ impl DocSession {
         if self.gesture.is_some() {
             return OpOutcome::refused(Refusal::GestureInFlight);
         }
-        let Some(dimension) = self.committed_doc().params().get(name).map(|p| p.dim()) else {
+        if !self.committed_doc().params().contains_key(name) {
             return OpOutcome::refused(Refusal::NoSuchParam(name.clone()));
-        };
-        self.commit(props::param_edit(name.clone(), dimension, value))
+        }
+        self.commit(props::param_edit(name.clone(), value))
     }
 
     /// The create door: refuse an already-declared name typed, commit

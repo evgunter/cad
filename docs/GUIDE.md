@@ -874,10 +874,80 @@ rather than hiding:
   failure, the `through` node that actually broke. Failure does not
   propagate as an exception up your call stack; it sits in the result
   DAG where you can inspect all of it at once.
-- **There is no `tessellate` in Python.** Steps 2.5 and 2.6 of the
-  ladder have no binding yet, so the mesh cross-check is not
-  available from Python. That is a named gap, not an oversight — see
-  the north-star audit.
+- **Tessellation is a `Body` method.** The free `tessellate` above is
+  `body.tessellate(chordal)` here, beside `mass_properties` and the
+  validators, and δ crosses as a `Length` because it is a distance.
+  The mesh cross-check that follows is not a second reading of the
+  kernel: `mesh::validate`'s helpers are not bound, so the Python
+  ladder's step 5 is a sum the CALLER writes over the mesh's own
+  triangles — which is what makes agreeing with the exact measure
+  evidence rather than a tautology. `docs/guide/meshing.md` is the
+  page for it.
+
+Steps 2.5 and 2.6 finish the same way. The mesh crosses with its
+shared position buffer and its per-face patches intact, so both of
+the ladder's claims are checkable from Python — closure on INDICES,
+volume on the triangles:
+
+```python
+from pncad import BooleanOp, Doc, Node, evaluate, m, mm
+
+doc = Doc()
+profile = doc.insert(
+    Node.polygon([(0 * m, 0 * m), (2 * m, 0 * m), (2 * m, 3 * m), (0 * m, 3 * m)])
+)
+block = doc.insert(Node.extrude(profile, 1 * m))
+body = evaluate(doc).value(block).body()
+body.validate()
+
+# 4. Tessellate. The budget is a DISTANCE (delta), not the kernel's
+#    epsilon: how coarsely a view of the model may approximate it,
+#    not what the model is.
+mesh = body.tessellate(0.5 * mm)
+assert mesh.patch_count == 6            # one patch per face, addressable
+assert mesh.triangle_count == 12
+
+# 5. Cross-check, two independent ways.
+#
+#    Closure first, on INDICES: adjacent faces share position indices
+#    along their common boundary, so every directed triangle edge has
+#    exactly one opposite twin. No coordinates and no tolerance.
+half_edges = {}
+for i, j, k in mesh.triangles:
+    for a, b in ((i, j), (j, k), (k, i)):
+        half_edges[(a, b)] = half_edges.get((a, b), 0) + 1
+assert all(
+    n == 1 and half_edges.get(e[::-1]) == 1 for e, n in half_edges.items()
+), "watertight and consistently wound"
+
+#    Then volume, by the divergence theorem over the same triangles.
+#    The winding is OUTWARD, so this is positive for a closed body.
+points = [tuple(q.meters for q in p) for p in mesh.positions]
+measured = 0.0
+for i, j, k in mesh.triangles:
+    (ax, ay, az), (bx, by, bz), (cx, cy, cz) = points[i], points[j], points[k]
+    measured += (
+        ax * (by * cz - bz * cy)
+        - ay * (bx * cz - bz * cx)
+        + az * (bx * cy - by * cx)
+    )
+measured /= 6.0
+
+exact = body.mass_properties().volume
+assert abs(measured - exact) / exact < 1e-12, "mesh vs exact"
+
+# 6. Export the mesh. Both writers ANSWER the bytes rather than take
+#    a sink, and their options are keyword arguments.
+text = mesh.to_stl_ascii(solid_name="block")
+assert text.startswith("solid block\n")
+data = mesh.to_stl_binary(header="pncad")
+assert int.from_bytes(data[80:84], "little") == mesh.triangle_count
+```
+
+This body is all planar, so its triangulation is exact and the two
+measures agree at rounding level. On a curved body they differ by the
+budget, and the difference shrinks with it — `docs/guide/meshing.md`
+runs that convergence.
 
 Python's document also persists and replays bit-identically:
 
@@ -1258,7 +1328,7 @@ let mut doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
 // undoable like any other.
 doc = apply(&doc, &DocEdit::SetDocParam {
     name: ParamName::new("hole_r"),
-    value: DocParam::Continuous { dim: Dimension::Length, value: 0.25 },
+    value: DocParam::continuous(Dimension::Length, 0.25),
 }, tol)?.doc;
 
 let mut insert = |doc: &Doc<ProfileProgram>, node| {
@@ -1321,7 +1391,7 @@ assert!((volume(&ev, solid) - v(0.25)).abs() < 1e-6);
 // One `SetDocParam` moves BOTH holes; the tab branch never re-runs.
 let bigger = apply(&doc, &DocEdit::SetDocParam {
     name: ParamName::new("hole_r"),
-    value: DocParam::Continuous { dim: Dimension::Length, value: 0.4 },
+    value: DocParam::continuous(Dimension::Length, 0.4),
 }, tol)?.doc;
 let ev2 = evaluate::<f64>(&bigger, Some(&ev), &CancelToken::new(), &EvalOptions::default(), tol);
 assert_eq!(ev2.recomputed, 3); // the profile, the plate, the union
@@ -1344,6 +1414,114 @@ profile step whose argument is an EXPRESSION rather than a literal —
 the holes above are `LoopProgram::Circle { radius: Expr::param(…) }`,
 and `pncad.circle(centre, radius)` takes a `Length`, so the radius
 crosses as a number and the parameter link is lost.
+
+### 3.3 Distributions: saying how much a parameter varies
+
+A parameter's value is one number. What a real part has is a number
+*and* a spread, and `DocParam::Continuous` carries an optional
+`Distribution` to say so — offsets from the parameter's own nominal, in
+the parameter's own dimension. Four forms, and the differences between
+them are claims, not conveniences:
+
+| form | what it claims |
+| --- | --- |
+| `Band { lo, hi }` | limits, and **no shape** — "I know the extremes, not the distribution" |
+| `Uniform { lo, hi }` | limits, and every value between them equally likely |
+| `Normal { sigma }` | zero-mean normal, unbounded support |
+| `TruncatedNormal { sigma, lo, hi }` | that normal, restricted to `[lo, hi]` and renormalized |
+
+Annotating is opt-in and it means something: a continuous parameter
+with **no** distribution is FIXED — the analysis varies exactly what you
+declared variable, and never guesses a spread you did not state.
+`Count` parameters cannot be annotated at all; there is no spelling for
+it, because a structural count is fixed under any error analysis.
+
+Reading an annotation is `pncad::analysis`'s job and nobody else's: the
+kernel and the geometry lanes never see a probability. Three
+consumables come out of it — the **analyzed box** (the offset interval
+the analysis varies each parameter over), the **tail mass** (what the
+box left out), and the **leaf mass** (what the distribution puts inside
+any sub-interval).
+
+```
+use pncad::prelude::*;
+use pncad::analysis::{AnalysisPolicy, MeasureUnavailable, analyzed_box, box_mass, tail_mass};
+use pncad::document::{Distribution, DocParamValue};
+
+let tol = Tol::witness();
+let mut doc = Doc::<ProfileProgram>::empty_derived("guide-distributions", tol);
+
+let declare = |doc: &Doc<ProfileProgram>, name: &str, value: DocParam| {
+    apply(doc, &DocEdit::SetDocParam { name: ParamName::new(name), value }, tol)
+        .expect("the declaration applies").doc
+};
+
+// A measured bore: 4 mm, one micron of spread, normal.
+doc = declare(&doc, "bore_r", DocParam::continuous_with(
+    Dimension::Length, 0.004, Distribution::Normal { sigma: 1e-6 }));
+// Vendor stock: the catalogue gives limits and states no shape.
+doc = declare(&doc, "plate_t", DocParam::continuous_with(
+    Dimension::Length, 0.010, Distribution::Band { lo: -1e-4, hi: 1e-4 }));
+// Unannotated: FIXED, on purpose.
+doc = declare(&doc, "web_t", DocParam::continuous(Dimension::Length, 0.003));
+
+// The box, under the ±3σ default policy (0.9973 per parameter).
+let policy = AnalysisPolicy::default();
+let boxed = analyzed_box(&doc, &policy);
+
+// The normal's box is the symmetric quantile interval, so it is
+// roughly ±3σ and it leaves the rest OUTSIDE.
+let bore = boxed.get(&ParamName::new("bore_r")).expect("an axis");
+assert!((bore.offsets.hi / 1e-6 - 3.0).abs() < 0.01);
+let tail = tail_mass(&ParamName::new("bore_r"),
+                     &bore.distribution.expect("annotated"), &bore.offsets)
+    .expect("a normal prices");
+assert!((tail - (1.0 - policy.quantile_mass())).abs() < 1e-12);
+
+// The band's box IS its support, so nothing escapes it...
+let plate = boxed.get(&ParamName::new("plate_t")).expect("an axis");
+assert_eq!(plate.offsets.lo, -1e-4);
+// ...and the unannotated parameter is a width-zero axis at its nominal.
+assert!(boxed.get(&ParamName::new("web_t")).expect("an axis").offsets.is_fixed());
+assert_eq!(boxed.varying().count(), 2);
+
+// The band refuses to price anything its shape would decide, and the
+// refusal NAMES the parameter rather than quietly assuming uniform.
+let refusal = box_mass(&ParamName::new("plate_t"),
+                       &plate.distribution.expect("annotated"), (-5e-5, 5e-5));
+assert!(matches!(refusal, Err(MeasureUnavailable::BandHasNoMeasure { .. })));
+assert!(format!("{}", refusal.unwrap_err()).contains("plate_t"));
+
+// Moving a value KEEPS the annotation — use the value door, never a
+// rebuilt `DocParam`.
+doc = apply(&doc, &DocEdit::SetDocParamValue {
+    name: ParamName::new("bore_r"),
+    value: DocParamValue::Continuous(0.0045),
+}, tol)?.doc;
+assert!(doc.params()[&ParamName::new("bore_r")].distribution().is_some());
+# Ok::<(), Box<dyn std::error::Error>>(())
+```
+
+Three things in that listing are the whole design, and each is a
+decision you can rely on:
+
+- **The box is the analysis's knob, not the distribution's property.**
+  A normal has unbounded support; `quantile_mass` decides how much of
+  it to analyze. Moving the knob moves mass between the analyzed and
+  the tail columns — it never moves truth, and the tail is *reported*,
+  never dropped.
+- **A band prices nothing whose answer depends on its shape.** It will
+  answer the two set-theoretic cases (an interval covering its whole
+  support holds mass 1; a disjoint one holds 0), because every measure
+  consistent with the band agrees on those. Anything finer refuses,
+  typed, naming the parameter. Promoting a band to a uniform would be a
+  strictly stronger claim than the author made.
+- **Value edits carry the annotation.** `SetDocParam` is
+  create-or-replace: handing it a `DocParam` you rebuilt from a
+  dimension and a number replaces the declaration and silently deletes
+  the distribution. `SetDocParamValue` writes the number and carries
+  the declaration forward, which is why the panel, the drag gesture and
+  the Python binding (`DocEdit.set_doc_param_value`) all speak it.
 
 ## 4. The rest of the documentation
 

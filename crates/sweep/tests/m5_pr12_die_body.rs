@@ -12,7 +12,7 @@
 
 use core::f64::consts::PI;
 
-use geom_brep::EdgeGeometry;
+use geom_brep::EdgeDescription;
 use geom_core::Band;
 use geom_core::Tol;
 use sweep::fillet::{FilletError, Filleted, fillet_edges};
@@ -96,15 +96,16 @@ fn filleting_every_edge_of_a_box_yields_a_tier3_valid_rounded_solid() {
     for &face in f.blend_faces.iter().chain(&f.corner_faces) {
         for edge in face_edges(&f.body, face) {
             let curve = f.body.get_edge(edge).unwrap().curve;
-            let described = *f
+            let described = f
                 .body
                 .get_curve_geom(curve)
                 .unwrap()
                 .certified()
                 .unwrap()
-                .description();
+                .description()
+                .clone();
             assert!(
-                matches!(described, EdgeGeometry::TangentIntersection { .. }),
+                matches!(described, EdgeDescription::TangentIntersection { .. }),
                 "edge {edge:?} of face {face:?} is {described:?}, not a tangential contact locus",
             );
             checked += 1;

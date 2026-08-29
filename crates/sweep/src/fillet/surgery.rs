@@ -123,7 +123,7 @@
 
 use geom::Curve3;
 use geom::Surface;
-use geom_brep::{EdgeCurveSpec, EdgeGeometry};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Vec3};
 use topo::{
     Body, EdgeKey, EntityId, FaceKey, FaceSurface, HalfEdgeKey, LoopKey, MefSite, MevSite,
@@ -1399,7 +1399,7 @@ enum ContactCarrier<T: Real> {
     /// An exact stored arc (the rim trim circles — π-safe).
     Exact(Curve3<T>, T, T),
     /// A torus band's SLIT: a double-traversed minor-circle arc
-    /// described as a [`EdgeGeometry::Seam`] of the band's own
+    /// described as the SEAM image of the band's own
     /// surface (sweep < π; the donut's representation).
     SeamArc { center: Point3<T>, radius: T },
 }
@@ -1453,6 +1453,42 @@ fn blank_phase<T: Decide + Bounds>(
                 .and_then(|x| body.get_point(x.point))
                 .ok_or_else(|| not_intact(EntityId::Vertex(v), "a support boundary vertex"))?;
             let fp = station.foot;
+            // **NOT re-described at rest, and that is a REPORTED
+            // finding rather than an oversight** (P-1b, #1116; the
+            // CAUSE below is corrected — the first version of this
+            // comment misread it).
+            //
+            // The standing reason: this strut is a straight CHORD
+            // between two points of the support surface, so on a
+            // CURVED support it is a secant — it does not lie on the
+            // surface its two faces share, and no chart image of that
+            // surface describes it. It therefore reaches rest through
+            // the scaffolding door and tier 3's transience fence names
+            // it, on a body whose edge genuinely is not where its
+            // faces are. The fix is fillet-verb work (put the strut ON
+            // the support), not a description change, so it is not
+            // taken here. An independent interval A/B reproduced the
+            // escalation exactly, so declining stands.
+            //
+            // **What was recorded wrongly.** This said stating the
+            // image "makes `ChartResidual` escalate at ε = 1e-6 on the
+            // die fixture, which is the geometry saying so". It is
+            // not the geometry saying anything. The escalation carries
+            // `margin: Invalid`, which is the kernel's POISON outcome
+            // — *the question was never validly posed* — and not a
+            // distance that came out too large. On the die's PLANAR
+            // support the f64 residual is exactly `0e0`: the chord
+            // between two points of a plane lies in that plane, so
+            // there is no disagreement there to report. Reading a
+            // poison verdict as a measurement is the specific mistake,
+            // and it is worth naming because poison and
+            // "definitely too big" are reported through the same
+            // escalation door and read identically at a glance.
+            //
+            // The CLASS — poison reaching this predicate at all — is
+            // #1143 and M10 owns it. What stays here is the mechanism
+            // question this site is the witness for: where poison
+            // enters `pcurve_map_residual` on a secant input.
             let created = body
                 .mev(
                     MevSite::Fan {
@@ -1925,6 +1961,10 @@ fn rim_phase<T: Decide + Bounds>(
         // The foot inherits the rim vertex's own parameter on the
         // scaled carrier — azimuth preserved exactly, no atan2.
         let fp = curve.eval(t0);
+        // Same reported finding as the support strut above: a radial
+        // chord of the ring is a chord, not an image of the ring's
+        // chart, so it reaches rest through the scaffolding door and
+        // the fence names it.
         let created = body
             .mev(
                 MevSite::Fan { he1: he, he2: he },
@@ -2561,7 +2601,7 @@ fn attach_contact<T: Decide + Bounds>(
                  close as an annulus",
             ));
         }
-        EdgeGeometry::Seam { surface: s1 }
+        EdgeDescriptionSpec::seam(s1)
     } else if transverse {
         // The chamfer's edges: two surfaces crossing at a definite
         // angle, so the intrinsic description is the plain
@@ -2569,10 +2609,10 @@ fn attach_contact<T: Decide + Bounds>(
         // claim normal-parallelism along the locus that the geometry
         // does not have, and certification measures exactly that.
         let witness = curve.eval((t0 + t1) * T::from_f64(0.5));
-        EdgeGeometry::Intersection { s1, s2, witness }
+        EdgeDescriptionSpec::Intersection { s1, s2, witness }
     } else {
         let witness = curve.eval((t0 + t1) * T::from_f64(0.5));
-        EdgeGeometry::TangentIntersection { s1, s2, witness }
+        EdgeDescriptionSpec::TangentIntersection { s1, s2, witness }
     };
     body.set_edge_curve(
         edge,
