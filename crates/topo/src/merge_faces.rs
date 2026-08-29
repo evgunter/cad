@@ -76,6 +76,14 @@ pub struct MergedGroup {
 /// A merge group that was NOT glued: its shape is outside the merge's
 /// never-elide Euler inventory. Loud in the record, never a silent
 /// drop — and never a partial commit.
+///
+/// **The scope statements below are the KERNEL's, not the type's.**
+/// Both fields are public and there is no private constructor, so
+/// anything outside this crate can build a `SkippedMerge` holding any
+/// [`MergeCoplanarError`] at all. What the kernel guarantees is about
+/// the values IT produces — the ones reached through
+/// [`MergeCoplanarOutcome::skipped`]; a record an external caller
+/// mints carries no such promise and none is claimed for it.
 #[derive(Clone, Debug, PartialEq)]
 pub struct SkippedMerge {
     /// The group's faces (group order).
@@ -160,6 +168,21 @@ enum GroupRegime {
     RecordsASkip,
 }
 
+impl GroupRegime {
+    /// Whether one group's refusal is RECORDED (`true`) or refuses
+    /// the whole call (`false`).
+    ///
+    /// This is the whole of the regime split, in one place with one
+    /// production call site, so the rule and the code that applies it
+    /// cannot drift: a refusal is recorded only under
+    /// [`GroupRegime::RecordsASkip`] **and** only when it is an
+    /// inventory refusal rather than an arena fault
+    /// ([`MergeCoplanarError::is_arena_fault`]).
+    fn records(self, reason: &MergeCoplanarError) -> bool {
+        self == Self::RecordsASkip && !reason.is_arena_fault()
+    }
+}
+
 /// A refused [`Body::merge_coplanar_faces`] call (closed enum, D3
 /// style). **Returned as an `Err`, the body is untouched on every
 /// variant** — the op stages its work on a clone and commits only a
@@ -189,10 +212,11 @@ pub enum MergeCoplanarError {
     /// ONE group's staged trial failed tier 2, so that group is not
     /// adopted. Scope is the single group, named by the record that
     /// carries this ([`SkippedMerge::faces`]); the run continues and
-    /// `work` is exactly as it was before the trial. Reachable only
-    /// under [`GroupRegime::RecordsASkip`] — the refusing regime runs
-    /// no sub-stage gate — which is why it never appears as an `Err`
-    /// of the door.
+    /// `work` is exactly as it was before the trial. The kernel
+    /// raises it only under [`GroupRegime::RecordsASkip`] — the
+    /// refusing regime runs no sub-stage gate — so it never appears
+    /// as an `Err` of the door. That is a fact about where the kernel
+    /// constructs it, not something the type enforces.
     GroupNotClosed {
         /// The tier-1/2 failures of the abandoned trial.
         errors: Vec<ValidationError>,
@@ -412,13 +436,19 @@ impl MergeCoplanarError {
     /// both regimes: recording one as a skip would return `Ok` from a
     /// door that has just observed a kernel bug. Every other variant
     /// — the inventory refusals — is the regime's to place.
+    ///
+    /// The class is **not enumerated here**. Every arena fault this
+    /// door can raise arrives from the operator layer, so membership
+    /// is asked of the operator layer
+    /// ([`EulerOpError::reports_tier1_corruption`], whose exhaustive
+    /// match is what stops the two lists drifting apart). A second
+    /// copy of the list in this file is exactly how the door came to
+    /// promise a rule it kept for two variants out of nine.
     fn is_arena_fault(&self) -> bool {
-        matches!(
-            self,
-            Self::Op {
-                error: EulerOpError::StaleKey { .. } | EulerOpError::StaleGeometry { .. },
-            }
-        )
+        match self {
+            Self::Op { error } => error.reports_tier1_corruption(),
+            _ => false,
+        }
     }
 }
 
@@ -552,10 +582,24 @@ impl<T: Decide> Body<T> {
     /// fell.
     ///
     /// **A refusal that reports a torn ARENA is not an inventory
-    /// refusal and never becomes a record**: a stale key or a stale
-    /// geometry reference says nothing about the group, so it refuses
-    /// the call under both regimes rather than returning `Ok` from a
-    /// door that has just observed a kernel bug.
+    /// refusal and never becomes a record**: it says nothing about
+    /// the group, so it refuses the call under both regimes rather
+    /// than returning `Ok` from a door that has just observed a
+    /// kernel bug. The class is the operator layer's
+    /// ([`EulerOpError::reports_tier1_corruption`]) — a dangling
+    /// reference and the walks and bijections that cannot fail on a
+    /// tier-1-valid body — not a list kept here.
+    ///
+    /// [`MergeCoplanarError::GroupKindSplit`] also refuses under both
+    /// regimes, but for a different reason and with a cost worth
+    /// stating: it is raised while the regime is being COMPUTED, so
+    /// there is no regime yet to record it under. **A
+    /// declared-licensed group that straddles two surface kinds
+    /// therefore loses the recording semantics its declaration bought
+    /// it** — the call refuses where a kind-uniform licensed group
+    /// would have carried on. That is the honest outcome of having no
+    /// contract to give such a group, not a decision to refuse
+    /// licensed work.
     ///
     /// The recording side is bounded the same way the refusing side
     /// is: each such group is staged on its own clone behind its own
@@ -690,13 +734,18 @@ impl<T: Decide> Body<T> {
                             work = trial;
                             outcome.groups.push(group);
                         }
-                        // An arena fault is not this group's failure
-                        // to be recorded; it reports the body.
-                        Err(reason) if reason.is_arena_fault() => return Err(reason),
-                        Err(reason) => outcome.skipped.push(SkippedMerge {
-                            faces: core::iter::once(rep).chain(rest).collect(),
-                            reason,
-                        }),
+                        Err(reason) => {
+                            // An arena fault is not this group's
+                            // failure to be recorded; it reports the
+                            // body, so it refuses here too.
+                            if !GroupRegime::RecordsASkip.records(&reason) {
+                                return Err(reason);
+                            }
+                            outcome.skipped.push(SkippedMerge {
+                                faces: core::iter::once(rep).chain(rest).collect(),
+                                reason,
+                            });
+                        }
                     }
                 }
             }
@@ -745,6 +794,26 @@ impl<T: Decide> Body<T> {
             .get_surface(surface)
             .ok_or(DanglingRef::Geometry(GeomRef::Surface(surface)))?;
         Ok(matches!(described, Surface::Plane { .. }))
+    }
+
+    /// **Does `toward` dangle alone at its start vertex** — the
+    /// condition that licenses `kev` over `kemr` on a straight seam's
+    /// surviving duplicate?
+    ///
+    /// A BROKEN orbit is ANNOUNCED, not read as "no tip". `kev` and
+    /// `kemr` are different operators with different Euler deltas, so
+    /// a torn arena answering this question silently chooses which
+    /// surgery runs and which delta the group reports.
+    ///
+    /// # Errors
+    ///
+    /// [`EulerOpError::OrbitBroken`], naming the half-edge whose
+    /// start vertex's orbit failed to close.
+    fn strut_tip(&self, toward: crate::entity::HalfEdgeKey) -> Result<bool, EulerOpError> {
+        let orbit = self
+            .vertex_orbit(toward)
+            .ok_or(EulerOpError::OrbitBroken { he: toward })?;
+        Ok(orbit.len() == 1)
     }
 
     /// Which failure regime one group's INVENTORY refusals run under.
@@ -1054,6 +1123,12 @@ impl<T: Decide> Body<T> {
         let Some(em) = self.get_vertex(v).and_then(|vd| vd.emanating) else {
             return Ok(false);
         };
+        // PAIRED, deliberately unfixed here: this reads a broken
+        // orbit as "not a redundant vertex", where `strut_tip` — the
+        // other consumer of the identical condition, forty lines down
+        // the same surgery — announces it. The two answers are the
+        // open row's subject and moving one without the other would
+        // hide the pair rather than settle it.
         let Some(orbit) = self.vertex_orbit(em) else {
             return Ok(false);
         };
@@ -1286,10 +1361,7 @@ impl<T: Decide> Body<T> {
                 for (from_rim, toward, killed) in
                     [(he_plus, he_minus, hm.start), (he_minus, he_plus, hp.start)]
                 {
-                    let orbit = self
-                        .vertex_orbit(toward)
-                        .ok_or(EulerOpError::OrbitBroken { he: toward })?;
-                    if orbit.len() == 1 {
+                    if self.strut_tip(toward)? {
                         tip = Some((from_rim, killed));
                         break;
                     }
@@ -1542,46 +1614,163 @@ mod tests {
         assert_eq!(group.absorbed, vec![other]);
     }
 
-    /// **A stale reference escapes the regime split.** The classifier
-    /// is the whole mechanism, so it is pinned per variant rather
-    /// than through a door that refuses torn input before reaching
-    /// it: a new variant filed on the wrong side of this line would
-    /// otherwise turn a kernel bug into an `Ok` with a skip record.
+    /// **The regime split, wired.** `records` is the whole of it and
+    /// has one production call site, so this reds if the arena-fault
+    /// conjunct is deleted from it — which pinning the classifier
+    /// alone did not.
+    ///
+    /// A behavioural pin through the public door is impossible and
+    /// that is the point of the escape: the door's tier-2 entry gate
+    /// refuses a torn body before any group is staged, so no valid
+    /// input reaches a corruption refusal under either regime. The
+    /// escape states what the door promises, and this states that the
+    /// promise is applied.
     #[test]
-    fn only_stale_references_are_arena_faults() {
-        let face = FaceKey::default();
-        let arena = [
-            MergeCoplanarError::Op {
-                error: EulerOpError::StaleKey {
-                    key: EntityId::Face(face),
-                },
+    fn only_inventory_refusals_are_ever_recorded() {
+        let arena = MergeCoplanarError::Op {
+            error: EulerOpError::OrbitBroken {
+                he: crate::entity::HalfEdgeKey::default(),
             },
-            MergeCoplanarError::Op {
-                error: EulerOpError::StaleGeometry {
-                    key: GeomRef::Surface(SurfaceKey::default()),
-                },
+        };
+        let inventory = MergeCoplanarError::GroupNotClosed { errors: Vec::new() };
+        assert!(
+            GroupRegime::RecordsASkip.records(&inventory),
+            "the recording regime records an inventory refusal"
+        );
+        assert!(
+            !GroupRegime::RecordsASkip.records(&arena),
+            "a torn arena refuses the call even where the group would record"
+        );
+        assert!(
+            !GroupRegime::RefusesTheCall.records(&inventory),
+            "the refusing regime records nothing"
+        );
+        assert!(!GroupRegime::RefusesTheCall.records(&arena));
+    }
+
+    /// **The corruption class is the operator layer's, and it is
+    /// nine variants wide, not two.** The door's docs promise that a
+    /// refusal reporting a torn arena never becomes a record; this
+    /// pins the membership that promise needs, at the sample the
+    /// merge can actually raise, and pins that inventory refusals
+    /// stay out of it.
+    #[test]
+    fn the_arena_fault_class_is_the_operator_layers_tier_one_row() {
+        let he = crate::entity::HalfEdgeKey::default();
+        let torn = [
+            EulerOpError::StaleKey {
+                key: EntityId::Face(FaceKey::default()),
+            },
+            EulerOpError::StaleGeometry {
+                key: GeomRef::Surface(SurfaceKey::default()),
+            },
+            EulerOpError::OrbitBroken { he },
+            EulerOpError::LoopCycleBroken {
+                r#loop: LoopKey::default(),
+            },
+            EulerOpError::UnclaimedHalfEdge {
+                he,
+                edge: EdgeKey::default(),
             },
         ];
-        for e in &arena {
-            assert!(e.is_arena_fault(), "{e} must refuse under both regimes");
+        for error in torn {
+            assert!(
+                error.reports_tier1_corruption(),
+                "{error} is tier-1-invalid input by its own docs"
+            );
+            assert!(MergeCoplanarError::Op { error }.is_arena_fault());
         }
+        // Facts about the operation, legal to meet on a valid body.
         let inventory = [
-            MergeCoplanarError::ResultNotClosed { errors: Vec::new() },
-            MergeCoplanarError::GroupNotClosed { errors: Vec::new() },
-            MergeCoplanarError::PeriodClosure {
-                edge: EdgeKey::default(),
+            EulerOpError::FaceHasRings {
+                face: FaceKey::default(),
             },
-            MergeCoplanarError::UnsupportedConfiguration {
-                edge: EdgeKey::default(),
-            },
-            MergeCoplanarError::MergedFaceRoleAmbiguous { face },
-            MergeCoplanarError::Op {
-                error: EulerOpError::FaceHasRings { face },
+            EulerOpError::SameFace {
+                face: FaceKey::default(),
             },
         ];
-        for e in &inventory {
-            assert!(!e.is_arena_fault(), "{e} is the regime's to place");
+        for error in inventory {
+            assert!(!error.reports_tier1_corruption());
+            assert!(!MergeCoplanarError::Op { error }.is_arena_fault());
         }
+        // A merge-local refusal is never an arena fault.
+        assert!(!MergeCoplanarError::GroupNotClosed { errors: Vec::new() }.is_arena_fault());
+        assert!(
+            !MergeCoplanarError::PeriodClosure {
+                edge: EdgeKey::default()
+            }
+            .is_arena_fault()
+        );
+    }
+
+    /// **`edge_halves` announces a torn link; it does not skip the
+    /// edge.** Reds against the `else { continue }` it replaced: with
+    /// the discard, the poisoned edge is passed over, the absorption
+    /// finds nothing, and the group merges nothing while reporting
+    /// `Ok`.
+    #[test]
+    fn a_torn_parent_loop_link_refuses_rather_than_skipping_the_edge() {
+        let tol = Tol::witness();
+        let mut body = ops_cube(tol).body;
+        let (rep, other, he_plus) = body
+            .edges()
+            .find_map(|(_, e)| {
+                let (hp, hm) = body.edge_halves(e.he_plus, e.he_minus).ok()?;
+                (hp.face != hm.face).then_some((hp.face, hm.face, e.he_plus))
+            })
+            .expect("a cube has adjacent faces");
+        body.half_edges
+            .get_mut(he_plus)
+            .expect("the shared edge's plus half is live")
+            .parent_loop = LoopKey::default();
+
+        assert_eq!(
+            body.merge_group(rep, &[other], tol),
+            Err(MergeCoplanarError::Op {
+                error: EulerOpError::StaleKey {
+                    key: EntityId::Loop(LoopKey::default()),
+                },
+            }),
+            "a torn parent-loop link is announced, never passed over"
+        );
+    }
+
+    /// **A broken orbit is announced, not read as "no tip".** Reds
+    /// against the `is_some_and` it replaced, which answered `false`
+    /// — routing the seam repair from `kev` to `kemr` and changing
+    /// the group's Euler delta on a torn arena.
+    ///
+    /// It pins `strut_tip` rather than the surgery: reaching the tip
+    /// search with a broken orbit needs the arena torn BETWEEN the
+    /// straight-seam decision and the strut test, inside one call,
+    /// which no test can do. `strut_tip` is that decision and has one
+    /// production call site.
+    #[test]
+    fn a_broken_vertex_orbit_refuses_rather_than_answering_no_tip() {
+        let tol = Tol::witness();
+        let mut body = ops_cube(tol).body;
+        let he = body
+            .edges()
+            .map(|(_, e)| e.he_plus)
+            .next()
+            .expect("a cube has edges");
+        assert_eq!(
+            body.strut_tip(he),
+            Ok(false),
+            "an intact cube's half-edge has a two-member orbit"
+        );
+
+        // Tear the edge back-pointer so the orbit's `mate` step
+        // cannot resolve; the half-edge itself stays live.
+        body.half_edges
+            .get_mut(he)
+            .expect("the half-edge is live")
+            .edge = EdgeKey::default();
+        assert_eq!(
+            body.strut_tip(he),
+            Err(EulerOpError::OrbitBroken { he }),
+            "a broken orbit is a refusal, not a `false`"
+        );
     }
 
     /// **The kind question is asked of every member.** A group whose

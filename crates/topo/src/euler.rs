@@ -891,6 +891,65 @@ impl fmt::Display for EulerOpError {
 
 impl std::error::Error for EulerOpError {}
 
+impl EulerOpError {
+    /// Whether this refusal reports a **torn arena** — a body that is
+    /// already tier-1-invalid — rather than a fact about the
+    /// operation that was asked for.
+    ///
+    /// The membership is this enum's own documentation: a variant
+    /// answers `true` exactly when its doc comment says the state is
+    /// tier-1-invalid input, plus the two dangling-reference variants
+    /// whose whole subject is a key that did not resolve. Callers
+    /// that place a refusal — a driver deciding whether to record it
+    /// and carry on, or to refuse — ask here instead of keeping a
+    /// second copy of the list.
+    ///
+    /// The match is exhaustive on purpose: a new variant does not
+    /// compile until someone says which side of this line it is on.
+    #[must_use]
+    pub fn reports_tier1_corruption(&self) -> bool {
+        match self {
+            // A key that did not resolve, whichever arena it names.
+            Self::StaleKey { .. } | Self::StaleGeometry { .. } => true,
+            // The walks that cannot fail on a tier-1-valid body.
+            Self::FanOrbitBroken { .. }
+            | Self::LoopCycleBroken { .. }
+            | Self::OrbitBroken { .. } => true,
+            // A half-edge whose parent loop is empty, and the two
+            // corrupt edge <-> half-edge bijections.
+            Self::LoopNotCycle { .. }
+            | Self::NotSameEdge { .. }
+            | Self::UnclaimedHalfEdge { .. } => true,
+            // "Believed unreachable through valid operator sequences
+            // (the offending inputs are already tier-1-invalid)".
+            Self::EmptyAnchorsCollide { .. } => true,
+            // Facts about the operation that was asked for: a
+            // certification verdict, a site or argument that does not
+            // meet the operator's precondition, a shape the operator
+            // does not cover. Every one of these is legal to meet on
+            // a tier-1-valid body.
+            Self::Certification { .. }
+            | Self::DescriptionNotAdjacent { .. }
+            | Self::FanStartMismatch { .. }
+            | Self::NotSameLoop { .. }
+            | Self::LoopNotEmpty { .. }
+            | Self::SelfLoopEdge { .. }
+            | Self::SameLoop { .. }
+            | Self::NotSameFace { .. }
+            | Self::RingIsOuter { .. }
+            | Self::SameFace { .. }
+            | Self::CrossShell { .. }
+            | Self::FaceHasRings { .. }
+            | Self::SolidNotSingleShell { .. }
+            | Self::ShellNotSingleFace { .. }
+            | Self::NullScaffoldCurve { .. }
+            | Self::SplitParamNotInterior { .. }
+            | Self::SplitParamEscalated { .. }
+            | Self::CrossSolid { .. } => false,
+        }
+    }
+}
+
 /// One operator's signed shift of the seven topology-arena lengths.
 ///
 /// A different quantity from the six-component Euler vector
