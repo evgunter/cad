@@ -331,8 +331,13 @@ class ReadbackError(PncadError):
     `wrong_kind`, `whole_body`, `no_bodies`, `no_such_body`, and the
     node ladder `node_not_evaluated` / `node_failed` /
     `node_poisoned`); the GEOMETRY half reads the carrier and arrives
-    under its OWN tags rather than a wrapper tag (`dangling`,
-    `no_canonical_frame`, `no_carrier`).
+    under its OWN tags rather than a wrapper tag (`dangling_entity`,
+    `dangling_geometry`, `no_canonical_frame`, `no_carrier`).
+
+    The two dangling tags stay apart because they are different facts
+    about the model: `dangling_entity` is a stale or foreign handle,
+    `dangling_geometry` is a live entity naming geometry the body
+    itself no longer has.
 
     `ambiguous` is the one to read twice: a tie is a naming success
     and a referencing failure, and the door refuses rather than
