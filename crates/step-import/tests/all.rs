@@ -46,6 +46,9 @@ mod freecad;
 mod cert1_r1_import_probes;
 #[path = "halfcap_pole.rs"]
 mod halfcap_pole;
+
+#[path = "r2_probe_halfcap_e2e.rs"]
+mod r2_probe_halfcap_e2e;
 #[path = "inst_review_probes.rs"]
 mod inst_review_probes;
 #[path = "nurbs_import.rs"]

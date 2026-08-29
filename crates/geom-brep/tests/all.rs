@@ -46,6 +46,9 @@ mod arc_eval_anchor;
 mod cert1_r1_probes;
 #[path = "cert1_sphere_polar.rs"]
 mod cert1_sphere_polar;
+
+#[path = "r2_probe_sphere_polar.rs"]
+mod r2_probe_sphere_polar;
 #[path = "decoration_plane_mint.rs"]
 mod decoration_plane_mint;
 #[path = "imported_chart_arc_rim.rs"]
