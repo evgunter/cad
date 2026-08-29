@@ -216,7 +216,11 @@ pub(super) fn name_blend<T: geom_core::Real>(
     }
     for (foot, v) in &rec.rim_feet {
         let v = up_v(*v)?;
-        put(EntityKey::Vertex(*foot), RoleSeg::BandFoot(b(v.name)), v.tied)?;
+        put(
+            EntityKey::Vertex(*foot),
+            RoleSeg::BandFoot(b(v.name)),
+            v.tied,
+        )?;
     }
     for (v, m) in &rec.meridian_splits {
         let m = up_e(*m)?;
@@ -289,7 +293,13 @@ pub(super) fn name_blend<T: geom_core::Real>(
                 (RoleSeg::FromTarget(b(u.name)), u.tied)
             }
         };
-        put_row(&mut t, &mut tie, from_tie, name1(kind, node, seg), ent(0, key))?;
+        put_row(
+            &mut t,
+            &mut tie,
+            from_tie,
+            name1(kind, node, seg),
+            ent(0, key),
+        )?;
     }
     // ONE stage, so one flush — and it must precede the totality
     // check, which reads the table this drains into.

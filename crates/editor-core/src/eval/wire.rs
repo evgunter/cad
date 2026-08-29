@@ -745,9 +745,9 @@ fn wire_chamfer<T: Decide + geom_core::Bounds>(
     let edges = resolve_selection(BlendKind::Chamfer, selection, doc, &target_table)?;
     let chamfered = sweep::fillet::build::chamfer_edges(&body, &edges, distance, band(tol)?, tol)
         .map_err(|error| NodeErrorKind::Blend {
-            verb: BlendKind::Chamfer,
-            error,
-        })?;
+        verb: BlendKind::Chamfer,
+        error,
+    })?;
     // The assembly always keeps records, so `None` is a kernel bug —
     // the fillet door's argument unchanged: an empty table would leave
     // every downstream reference into this body silently unresolvable.
