@@ -242,9 +242,9 @@ pub struct VerdictRow {
 /// form cannot explain a difference it detects, so it gates but does
 /// not name. Neither subsumes the other. `NodeVerdicts` is `vdiff`'s
 /// own serializable spelling of its population form, so the tree
-/// carries two shapes for verdicts and not three — consolidation of
-/// the remaining pair is tracked as an issue referenced from this
-/// unit's PR.
+/// carries two derived shapes over one substrate rather than three
+/// unrelated ones. Whether the split should stay a split is issue
+/// #1255, filed so it is a decision on the record.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct VerdictVector {
     /// The rows, in evaluation order.
@@ -1016,6 +1016,19 @@ fn classify(
     // never decided. The two arms it does prove — the funnel's own
     // escalation and the profile lift's guided abort — are the two E6
     // names as the cue to bisect.
+    //
+    // WHY IT CANNOT SIMPLY ASK. `k_stats` records definite outcomes
+    // (the verdict log) and nothing at all for indeterminate ones, so
+    // "was every predicate here definite" has no observable form; an
+    // escalation reaches this loop wrapped inside whichever op's error
+    // enum raised it, ~40 variants across five crates. The channel that
+    // would answer it directly is issue #1254 — filed together with the
+    // verdict log's own banked redo, because both are one mechanism and
+    // `k_stats`' module docs forbid deepening the current one. Until it
+    // lands, a terminal sliver that surfaces through an op's own error
+    // (rather than through `NodeErrorKind::Escalated`) is priced
+    // `Budget` instead of `SliverTerminal`: a worse answer for the same
+    // mass, never a wrong one.
     // ITERATION ORDER IS NODE ID, and where a leaf carries several
     // refusing nodes that decides which one speaks: the FIRST
     // indeterminacy in node-id order settles the leaf as a sliver or a

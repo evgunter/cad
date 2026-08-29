@@ -2707,7 +2707,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   the curated surface.
 /// - **The E6 driver and its parameter box** (`drive`, `DriveConfig`,
 ///   `DriveRefusal`, `ParamBoxVerdict`, `CertifiedLeaf`,
-///   `RefusedLeaf`, `RefusalReason`, `BudgetKind`, `Flip`,
+///   `RefusedLeaf`, `RefusalReason`, `BudgetKind`, `FlipEvidence`, `StructureFlip`,
 ///   `ReasonClass`, `Receipt`, `LeafResults`, `MeasureAccounting`,
 ///   `ReplayOutcome`, `VerdictVector`, `VerdictRow`,
 ///   `VerdictVectorKey`, `DEFAULT_MAX_DEPTH`, `DEFAULT_MAX_LEAVES`,
@@ -2725,7 +2725,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   the certified scalar — so a façade row for it would be a
 ///   conditional door, which this surface does not have and should
 ///   not acquire for a type its consumer does not want yet.
-const NOT_CARRIED: [&str; 100] = [
+const NOT_CARRIED: [&str; 101] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -2755,7 +2755,7 @@ const NOT_CARRIED: [&str; 100] = [
     "Epoch",
     "EvalScalar",
     "ExprPath",
-    "Flip",
+    "FlipEvidence",
     "FlipSet",
     "Implicated",
     "LeafResults",
@@ -2794,6 +2794,7 @@ const NOT_CARRIED: [&str; 100] = [
     "Rgba8",
     "RunStatus",
     "SideVerdict",
+    "StructureFlip",
     "SummaryDelta",
     "SummaryDivergence",
     "SummaryFlip",

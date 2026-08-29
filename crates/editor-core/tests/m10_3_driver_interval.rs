@@ -31,8 +31,15 @@
 //! such a box today's verdict is `Budget`-refused mass, priced and
 //! reported — never a silent partial and never a false certificate,
 //! but not yet the "2.1% of the tolerance mass has no valid build"
-//! sentence either. This is the same widening class as issue 1191,
-//! observed on a different family of predicates.
+//! sentence either.
+//!
+//! This is the same widening class as **issue #1191**, observed on a
+//! different family of predicates; that issue is the class's home and
+//! this unit consumes it rather than fixing it. The by-shape sweep for
+//! its siblings, its commands and its blind spots are recorded in this
+//! unit's PR — 57 identity- and gap-shaped funnel names, of which the
+//! fixtures here observe three (`carrier_endpoint_start`,
+//! `carrier_endpoint_end`, `side_planes_cosurface`).
 //!
 //! The file's basename carries `interval` deliberately: the driver is
 //! gated on that feature (there is no leaf to certify without the
