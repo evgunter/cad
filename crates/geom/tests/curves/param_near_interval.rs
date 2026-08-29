@@ -190,3 +190,56 @@ fn the_line_arm_has_no_cut_to_widen_at() {
     }
     assert!(first.lo() <= 3.25 && 3.25 <= first.hi());
 }
+
+/// **What the anchored form costs the interval lane, measured.** The
+/// retired spellings read the seam frame directly — `atan2(w·v_ref,
+/// w·u_ref)` on the stored vectors — and then SELECTED a turn, by
+/// `floor` in one copy and by a five-candidate `.lo()` scan in the
+/// other. This form re-frames at the anchor instead, so its `atan2`
+/// arguments carry the enclosure of one `sin_cos`, and the row pins
+/// what that is worth: both forms land within a handful of ulps of a
+/// radian — measured across this grid, the anchored one runs from
+/// narrower than the bare seam read to about four times its width, and
+/// never leaves the ulp scale.
+///
+/// That is the whole price, and it buys the removal of the selection
+/// step — where `floor` across an integer widens to a WHOLE TURN and a
+/// fixed `k` window cannot reach a span more than two turns out. A few
+/// ulps against an unbounded widening mode is the trade this
+/// consolidation makes, stated as a number so a future change that
+/// makes it structural goes red here.
+#[test]
+fn the_anchored_form_costs_the_lane_a_few_ulps_and_no_selection() {
+    let (carrier64, carrier) = pair();
+    let Curve3::Circle {
+        center,
+        axis,
+        u_ref,
+        ..
+    } = carrier
+    else {
+        panic!("a circle fixture")
+    };
+    let v_ref = axis.cross(u_ref);
+    for near in [0.0_f64, 0.3, 1.0, 2.031_350_318_476_219_4, 3.0] {
+        for delta in [-1.0_f64, -0.1, 0.0, 0.1, 1.0] {
+            let p = lift_p(carrier64.eval(near + delta));
+            let anchored = carrier.param_near(p, Interval::from_f64(near)).unwrap();
+            let w = p - center;
+            let seam = w.dot(v_ref).atan2(w.dot(u_ref));
+            let (wa, ws) = (anchored.hi() - anchored.lo(), seam.hi() - seam.lo());
+            // A few ulps of a radian, both of them. The absolute cap is
+            // what catches a STRUCTURAL widening; the ratio would only
+            // catch a change in the constant.
+            assert!(
+                wa < 1e-14 && ws < 1e-14,
+                "near={near} delta={delta}: anchored {wa:e}, seam {ws:e}"
+            );
+            // No RATIO is asserted. At an anchor whose own frame makes
+            // the seam read's arguments exact, that read has zero
+            // width, and a ratio against zero is a claim about the
+            // fixture rather than about the two forms. The cap above is
+            // the claim; the prose carries the comparison.
+        }
+    }
+}

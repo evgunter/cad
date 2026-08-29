@@ -33,6 +33,19 @@
 //! covers the three scalars the review names rather than the value lane
 //! alone.
 //!
+//! THE INTERVAL NUMBER MOVED ONCE, and the `f64` one did not. Point
+//! parameter recovery on a periodic carrier used to be spelled three
+//! times, two of them SELECTING a `2π` branch — by `floor` in one copy,
+//! by a five-candidate scan in the other — where the surviving body
+//! (`geom::Curve3::param_near`) anchors the `atan2` and so selects
+//! nothing. The corpus's VALUES are unchanged by that, which is what
+//! the untouched `f64` digest above says; what moved is the ENCLOSURE,
+//! because an anchored read re-frames through one `sin_cos` and the
+//! seam read did not. The cost is a few ulps of a radian, pinned in
+//! `geom`'s `curves/param_near_interval.rs`, and what it buys is that
+//! `floor` across an integer — a whole-turn widening — is gone from
+//! the lane. New behaviour, judged correct; not a number restored.
+//!
 //! THE DIGEST IS EPS-INDEPENDENT BY CONSTRUCTION, and has to be: the
 //! hosted matrix samples a tolerance row per run, so a golden number
 //! that moved with eps would be a fence that only ever gated one row of
@@ -298,7 +311,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0x6c3f_436b_41ec_d1b4, 0xe7db_67ef_2cff_e270),
+        (0x8188_854f_4516_c9e2, 0x028c_0002_8e5f_e1a6),
         "the corpus's Interval evaluation moved"
     );
 }
