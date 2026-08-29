@@ -80,6 +80,41 @@
 # refusing impl is still not redundant with that. WHY both are needed
 # has ONE home: geom-core/src/real.rs, the M9-2 entry of the `Bounds`
 # scope rule. Not restated here; keep this a pointer.
+# editor-core/src/checks.rs is the advisory-check registry, the
+# SECOND production caller of topo::separation (ratified by Evan
+# 2026-08-29). Its bound is `Decide + CertifiedBounds` — TIGHTENED,
+# per the M9-2 entry's discriminator ("nothing generic calls this
+# door"), which is what the real.rs rule actually prescribes here;
+# the `separation` entry's "passes keep their lanes" does not
+# apply, its caller being a mixed pass beneath evaluate<T> and
+# run_checks being beneath nothing.
+#
+# THE RULING ALSO SAYS WHAT THIS GATE IS FOR, and it binds every
+# future row here: the gate avoids the dangerous pattern WHEN NOT
+# NECESSARY, so a necessary one is fine. What a candidate owes is
+# therefore a demonstration of necessity — that the bound cannot be
+# avoided — not a resemblance to a seam already listed.
+#
+# NECESSITY IS A FILTER, NOT A LICENCE. A candidate that needs the
+# bracket in order to DECIDE something outside the trilean is
+# refused rather than weighed, however necessary: brackets never
+# decide, every topology-determining branch stays a Decide call
+# site, and boxes only ever prune. That is the thing this grep
+# exists to catch, and it is checked FIRST — a necessity argument
+# for a deciding read is an argument for a different design.
+#
+# AND A NECESSITY ARGUMENT MUST NAME THE WEAKEST BOUND THAT WORKS,
+# showing the next tighter one FAILING. This row's first draft did
+# not, argued for `Decide + Bounds`, and was refuted by a reviewer
+# compiling `Decide + CertifiedBounds` — which works, because
+# nothing generic calls run_checks. The row now carries the tighter
+# bound. An argument that a bound SUFFICES is not the argument this
+# rule asks for.
+#
+# That ordering, the two negative results that carried this row,
+# and what a future row owes instead of citing them, have ONE home:
+# geom-core/src/real.rs, the 2026-08-29 entry. Pointer only.
+#
 # A NEW file writing a compound Bounds bound fails here until it
 # is ratified into the real.rs rule AND this allowlist.
 # profile/src/path/arc_fillet.rs is the LIB-G2 PATHS arc-carrier
@@ -245,6 +280,7 @@ gate() {
     | gate_grep -vE '^crates/topo/src/props\.rs$' \
     | gate_grep -vE '^crates/topo/src/chart_region\.rs$' \
     | gate_grep -vE '^crates/editor-core/src/eval/(mod|wire)\.rs$' \
+    | gate_grep -vE '^crates/editor-core/src/checks\.rs$' \
     | gate_grep -vE '^crates/profile/src/path/arc_fillet\.rs$' \
     | gate_grep -vE '^crates/geom-brep/src/(pcurve_cache|ssi|ssi/certify|edge_nurbs)\.rs$' \
     | gate_grep -vE '^crates/sweep/src/fillet/(battery|build|surgery)\.rs$')

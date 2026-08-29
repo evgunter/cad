@@ -1563,3 +1563,24 @@ in this workspace (five collision examples recorded in the PR) —
 façade sweeps should origin-resolve through the pub-use graph first.
 Stale-comment follow-up for the next pncad-py sweep: the reach-past
 note at mesh.rs's StlError import.
+
+**G18A MERGED (2026-08-29, #1176 — LIB's first full-protocol unit
+since reactivation; ordinal 300, sample #41, row in MODEL-AB-LOG).**
+`evaluate(doc, *, resolver=, prior=)` per the ratified spec: the
+assembly seam opens from Python (a document carrying InstantiatePart
+nodes, loaded from a Workspace, evaluates; refusal family typed), the
+memo becomes a measurement (PYPU's banked finding CLOSED), and the
+tour bench corpus rides as committed bytes with a three-axis honesty
+header. The dual's headline (bilateral): a `prior=` serves memo hits
+WITHOUT re-running the seam's gates — contract now stated at the door
+in both reviewers' framings, pinned on both availability arms, and
+the kernel design question filed as **#1185** (the class: "an
+argument that silently voids another argument's gate"; two sibling
+sites named for future sweeps). **#1186** schedules the corpus
+structural hole. Register effects: G18's first half SPENT — the
+node/edit bindings (**G18b**) are now dispatchable-mechanical per the
+standing split; rows 46/47 stay NO until they land. The audit's G8
+row prose corrected (counter invariant). The delta re-verification
+round (R1 resumed, narrow scope) is the shape to reuse: cheap (~40k
+tokens), executes rather than reads, and the resumed reviewer's
+context made it 12 minutes.

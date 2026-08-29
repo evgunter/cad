@@ -115,13 +115,15 @@ uncut:
    live wrong answer: #862's axial-slab over-widening (37% measured)
    feeding false `CensusUndecidable`, with #700's lapsed-premise
    duplicate. Dispatch after Wave 1 lands evidence.
-   *(Wall 7 — the lily's tepal seam, `lily.rs:1563` — is NOT a
-   demand signal for rows 6/9/10. With this row's honest boxes the
-   operand gate ADMITS the cut; what refuses is the face-maximality
-   precondition on the lantern's two axis-touching planar caps (the
-   F7 defect, #1031), one door before any germ pair, and the probe's
-   retirement text re-points there. `docs/M9-5-SPEC.md` seam K2
-   carries the measured detail.)*
+   *(Wall 7 — the lily's tepal seam, `demos/tour/src/lily.rs:2206` —
+   with this row's honest boxes the operand gate ADMITS the cut. The
+   face-maximality precondition answered next until #1031's pole half
+   landed (#1131); the scene now REPAIRS the lantern's caps first, so
+   wall 7 reaches the reduction's curved PIERCE arm and pins
+   `CurvedPierceUnsupported`. No germ pair has yet been exercised by
+   it. Measured detail: `git show
+   4eda8abec43166ec4c027bb401a8f2cf9f3f7a9f:docs/M9-5-SPEC.md`, seam
+   K2.)*
 7. **VERBS-CYLCYL (two PRs: A = shared germ substrate L, B = the
    arms M)** — cylinder×cylinder germ lane. Spec:
    docs/VERBS-CYLCYL-SPEC.md (2026-08-26 survey; the SEQUENCE
@@ -141,15 +143,21 @@ uncut:
    certified volume through a pole-crossing meridian arc; #893
    near-polar lever collapse) — a lane minting sphere faces with
    polar rims must not treat `props_rim_level` as a closed premise.
-   *(Wall 7 is not this lane's demand signal — see item 6.)*
+   *(Wall 7 is a demand signal for this lane, but not a sufficient
+   one: `lily.rs:2192-2201` names items 6 and 9 as its dependency
+   slate, and with #1131 landed the wall now stops at the curved
+   PIERCE arm before any germ pair is reached. A sphere×sphere arm
+   alone does not flip it.)*
 10. **VERBS-CONE (L)** — cone (and torus) operand lanes, sequenced
     on what 6–9 learn. #226 residual 1 (conic-trimmed cylinder walls
     slip both sense gates) is the known trap; #685 (cone-wedge grid
     sizing drops `nv` at `nu == 1`) sits on the mesh side.
 
-Wave-2 substrate riders, folded into whichever lane first opens the
-file: #762 (`plane_nurbs_ssi` chart-speed guard admits `+∞` — three-
-line fix), #726/#727 (the iso-rectangle refusal's owner — the
+Wave-2 substrate riders: **#762 is DONE** — the guard refuses
+non-finite at `crates/geom-brep/src/ssi.rs:991`, landed outside VERBS
+at `91164e3b` (the issue wants closing). Still riding, folded into
+whichever lane first opens the file: #726/#727 (the iso-rectangle
+refusal's owner — the
 curved-pierce door these lanes build inherits the pre-#648
 arrangement; read both before wiring protection transitively).
 
@@ -188,6 +196,37 @@ representable and there is no apex band for an approximating
 surface to window around. The predicate arises where mixed
 analytic surgery does: the face-replacement unit.
 
+## Wave 4 — what the consumers measured (opened 2026-08-27, unplanned)
+
+Not cut at kickoff. Waves 1-3 shipped the verbs; the demos then asked
+them for real parts and the answers cut this wave. Every unit here was
+opened by a MEASUREMENT on a shipped verb, not by a scan row.
+
+11. **VERBS-TESSFOLD (#1045)** — the five uncovered tess-lint scenes
+    audited and folded, 146 rows, verified-not-blessed. #1038 (the gate
+    class) stays open.
+12. **VERBS-DEMO2 (#1054)** — the `hollowtorus` scene; #986's content.
+13. **VERBS-PIERCE (#1068)** — the curved pierce/split substrate.
+14. **VERBS-TEAPOT (#1078)** — shell's designated demo, which measured
+    both of the shell defects below.
+15. **VERBS-SHELLFIX** — #1082 (`shell_open`'s rim, PR-1 #1099) and
+    #1081 (the oblique junction): **PR-2a #1126** landed the planar half
+    (`topo::offset_planes_together`), **PR-2b is IN FLIGHT** for the
+    curved corners via the C5 table (#1057). Spec:
+    `docs/VERBS-SHELLFIX-SPEC.md` — the one VERBS spec sweep 3 kept,
+    because it still binds.
+16. **VERBS-LILYWELD** — PR-1 #1109 re-authored the flower/arch junction
+    circle-coincident on Evan's content call; PR-2 #1127 closed as a
+    MEASUREMENT that dissolved its own premise (the plan note below).
+17. **VERBS-F7POLE (#1131)** — #1031's POLE half, as a REPAIR in
+    `merge_coplanar_faces`, not a gate narrowing. #1031 stays open for
+    the ordinary coplanar pair at a full-valence edge.
+
+Open shell residue this wave has not scheduled: #1055 (the curved
+wall-clearance window), #1056 (shell of an already-hollow body), #1058
+(curved-rim narrowing / winding predicate / per-call pcurve mint),
+#1018/#1019/#1020 (the `Approx` face's mesh, perf and transform lanes).
+
 ## Design conversations (Evan-paced; open as info firms up)
 
 - **Q8 offset/shell elaboration** — RATIFIED (#907,
@@ -206,8 +245,9 @@ analytic surgery does: the face-replacement unit.
 ## Out of this program
 
 C7/REST joins (M9); variable-radius fillet (frontier (f),
-consumer-gated); hole features / rib / text / datums (behind patterns
-or far tail); spheroid primitive (unclaimed, no consumer pressure
+consumer-gated); hole features / rib / text (behind patterns or far
+tail); **datums SHIPPED** outside this program (register row 49);
+spheroid primitive (unclaimed, no consumer pressure
 beyond lily wall 4); #555 and the loft U-turn gate (not verb-gating,
 per kickoff ruling).
 
@@ -217,13 +257,18 @@ per kickoff ruling).
   `T: Decide + Bounds` on the fillet signatures and do NOT re-attempt
   the `CertifiedBounds` tightening as a side effect (its lone blocker
   is `wire_fillet`; #687 and #279 sit behind any signature touch).
-- **Tessellation-gate claims are suspect until #746 resolves**:
-  tess-lint joins on face ORDINAL (a reorder compares the wrong faces
-  or drops them silently — `diefillet` already has 16 permuted
-  ordinals). A VERBS spec claims a tessellation acceptance row only
-  with the join fixed or the row hand-verified. #782's half is gone:
-  finding-13 was re-pinned against the shipped split schedule and the
-  whole `demos/tour` suite runs in k-lint's release-default row.
+- **Tessellation-gate claims stay suspect**, on two live defects:
+  **#746** (tess-lint joins on face ORDINAL — a reorder compares the
+  wrong faces or drops them silently; `diefillet` already has 16
+  permuted ordinals) and **#1038** (the gate stops comparing when the
+  corpus outgrows its reference and reports green by not looking).
+  VERBS-TESSFOLD (#1045) closed the coverage half — the five uncovered
+  scenes' 146 rows are folded, verified rather than blessed — and left
+  #1038's class fix open. A VERBS spec claims a tessellation
+  acceptance row only with the join fixed or the row hand-verified.
+  #782's substance is discharged (finding-13 re-pinned at
+  `demos/tour/src/lily.rs:2984`; the whole `demos/tour` suite runs in
+  k-lint's release-default row) and the issue wants closing.
 - **#555 stays out of VERBS** (kickoff ruling) but is a live wall in
   front of meshing full-revolve products — W1 acceptance rows that
   tessellate revolves must not wire that refusal into a gate.
@@ -250,8 +295,12 @@ junction is authored circle-coincident (VERBS-LILYWELD, #1109).
 Measured there, the weld's declared contact is plane×plane and no
 declaration covers the cone×torus pair, so the #968-shaped gate
 admission has nothing to consult — it is DEFERRED, and the
-`carrier_eq` rung has no consumer. Wall 2's binding blocker is
-#1031, then the curved-pierce door. The germ-chord lane has no
+`carrier_eq` rung has no consumer. Wall 2's measured chain is
+gate → F7 → the curved-pierce door. #1031's POLE half landed at
+#1131 — necessary, not sufficient; the wall-2 probe deliberately
+still passes the UNREPAIRED lantern (`lily.rs:2019-2021`), so the
+widened-gate sequence has not been re-measured on the repaired
+one. The germ-chord lane has no
 other near-term consumer, so its banking deepens. Probe texts are
 not evidence of cause — payload + raising site are
 (`memories/refusal-text-is-not-cause.md`).
@@ -272,9 +321,16 @@ both leaves the pole interior to the face, which is exactly the
 one-face cap to mint or to repair, so what is wrong is the RULE —
 F7's planar same-key refusal over-reaching onto revolve poles,
 where the identical CURVED shape is already canonical. #1031
-therefore splits: the POLE half (the gate exemption; demanded by
-lily walls 2 and 7 and the teapot's caps) and the ordinary
-coplanar pair, which keeps the issue and stays a kernel question.
+therefore split: the POLE half and the ordinary coplanar pair. The
+POLE half LANDED at #1131 — and **not** as the gate exemption this
+note anticipated. Two structural exemptions were tried and each
+admitted a shape it claimed to exclude, both falsified by fixtures
+already in the repo and both withdrawn; what shipped is a REPAIR in
+`merge_coplanar_faces` (`crates/topo/src/merge_faces.rs:794`),
+removing a redundant subdivision vertex on a shared collinear seam,
+which changes no locus. Evan's original repair-op steer was right.
+#1031 stays open for the ordinary coplanar pair at a full-valence
+edge (the teapot cup's meridian plane, endpoints of valence 4).
 The deviation from the recorded steer is flagged for Evan's
 retroactive review; the plane-face interior-seam question is ruled
 permissible (a preference to avoid, not a wall).
