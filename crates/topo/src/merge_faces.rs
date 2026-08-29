@@ -145,9 +145,12 @@ pub enum MergeCoplanarError {
         /// The tier-1/2 failures.
         errors: Vec<ValidationError>,
     },
-    /// The merged result failed tier 2 ("tier-valid after") — the
+    /// A staged merge failed tier 2 ("tier-valid after") — the
     /// configuration is outside what this op can safely merge (e.g. a
-    /// kill sequence that would strand scaffolding); refused whole.
+    /// kill sequence that would strand scaffolding). Raised by the
+    /// whole run's after-gate and by a single group's sub-stage gate
+    /// alike; which of the two happened is the regime's business, not
+    /// this variant's, and the attempt is abandoned either way.
     ResultNotClosed {
         /// The tier-1/2 failures of the abandoned attempt.
         errors: Vec<ValidationError>,
@@ -258,7 +261,7 @@ impl core::fmt::Display for MergeCoplanarError {
             }
             Self::ResultNotClosed { errors } => write!(
                 f,
-                "merge_coplanar_faces: merged result failed tier 2 ({} errors); refused",
+                "merge_coplanar_faces: a merged result failed tier 2 ({} errors); abandoned",
                 errors.len()
             ),
             Self::UnsupportedConfiguration { edge } => write!(
