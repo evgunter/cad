@@ -14,7 +14,7 @@
 //! and for its reason: a sweep-format drift must never read as a
 //! geometry finding.
 
-use tess_lint::{Kind, Row, SceneTotals, compare, parse, totals};
+use tess_lint::{Finding, Kind, Row, SceneTotals, compare, parse, totals};
 
 /// The gate ran and the budget distribution moved.
 const EXIT_FINDINGS: i32 = 2;
@@ -58,8 +58,21 @@ fn discipline(findings: usize) -> String {
          \x20    `demo-tour tess-budget <out.csv>` and say WHY in the commit — the\n\
          \x20    baseline is a record of a deliberate state, not a high-water mark.\n\
          \x20 3. A `vanished` finding is never re-baselined without reading it: a scene\n\
-         \x20    the sweep stopped covering improves every total it used to appear in.\n"
+         \x20    the sweep stopped covering improves every total it used to appear in.\n\
+         \x20 4. A `face roster` finding says the scene's FACES moved — one added,\n\
+         \x20    dropped, or rerouted to another chart — so the per-face join names\n\
+         \x20    different faces on the two sides and NO face in that scene was\n\
+         \x20    compared. Read which face moved and why; re-cutting the baseline is\n\
+         \x20    what restores the per-face gate over that scene.\n"
     )
+}
+
+/// The face a per-face finding names. [`Kind::Slack`] and
+/// [`Kind::Roster`] both carry one; rendering an absence as face 0
+/// would print a finding about a face nothing read.
+fn face_of(f: &Finding) -> String {
+    f.face
+        .map_or_else(|| "(unnamed)".to_string(), |i| i.to_string())
 }
 
 fn main() {
@@ -249,13 +262,22 @@ fn main() {
                 "  FINDING {} face {}: recoverable slack {:.1}x -> {:.1}x — the sizing \
                  schedule got wastefuller",
                 f.scene,
-                f.face.unwrap_or_default(),
+                face_of(f),
                 f.was,
                 f.now
             ),
             Kind::Vanished => println!(
                 "  FINDING {}: in the baseline ({:.0} triangles), absent from this sweep",
                 f.scene, f.was
+            ),
+            Kind::Roster => println!(
+                "  FINDING {}: face roster moved ({:.0} -> {:.0} faces, first disagreement \
+                 at face {}) — the per-face join is by ORDINAL, so no face in this scene \
+                 was compared",
+                f.scene,
+                f.was,
+                f.now,
+                face_of(f)
             ),
         }
     }

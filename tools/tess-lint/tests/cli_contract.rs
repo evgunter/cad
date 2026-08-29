@@ -88,6 +88,34 @@ fn a_grown_scene_exits_two_with_the_discipline_on_stderr() {
     }
 }
 
+/// VOICE (a) on the rule that has no number: the per-face join is
+/// POSITIONAL, so a scene whose face roster moved is announced rather
+/// than compared. Everything scene-granular is held still here — same
+/// scene, same faces, same triangles — so a gate that went quiet would
+/// exit 0 on a comparison it silently stopped making.
+#[test]
+fn a_re_keyed_face_roster_exits_two_and_says_nothing_was_compared() {
+    let base = csv("roster-base.csv", &scene(100, 2.5e1));
+    // The wall rerouted off the Hessian-sized lane at the same
+    // ordinal, carrying the same triangles.
+    let rerouted = format!(
+        "{HEADER}\n\
+         s/b,0,plane,2e-3,4,,,,,,,,,,,,,,,,,,,,,,,\n\
+         s/b,1,cylinder,2e-3,100,,,,,,,,,,,,,,,,,,,,,,,\n"
+    );
+    let fresh = csv("roster-fresh.csv", &rerouted);
+    let out = run(&[
+        fresh.to_str().unwrap(),
+        "--baseline",
+        base.to_str().unwrap(),
+    ]);
+    assert_eq!(out.status.code(), Some(2), "{}", out_of(&out));
+    let o = out_of(&out);
+    assert!(o.contains("FINDING s/b: face roster moved"), "{o}");
+    assert!(o.contains("no face in this scene was compared"), "{o}");
+    assert!(err_of(&out).contains("face roster"), "{}", err_of(&out));
+}
+
 /// VOICE (b): harness breakage — a format drift is NOT a geometry
 /// finding, and must not be reportable as one.
 #[test]
