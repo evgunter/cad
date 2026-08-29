@@ -367,7 +367,7 @@ struct RimCarrier<T: Real> {
 /// [`super::build::fillet_edges`] AFTER the battery, for every
 /// request. The verdict's chains are the input; nothing re-derives
 /// what the battery already resolved.
-pub(super) fn blend_surgery<T: Decide + Bounds>(
+pub(super) fn blend_surgery<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     source: &Body<T>,
     verdict: &BatteryVerdict<T>,
     band: Band,

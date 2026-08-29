@@ -550,7 +550,10 @@ impl<T: Decide> Body<T> {
     pub fn merge_coplanar_faces(
         &mut self,
         tol: Tol,
-    ) -> Result<MergeCoplanarOutcome, MergeCoplanarError> {
+    ) -> Result<MergeCoplanarOutcome, MergeCoplanarError>
+    where
+        T: geom_brep::PcurveFittedLane,
+    {
         self.merge_coplanar_faces_declared(&[], tol)
     }
 
@@ -615,7 +618,10 @@ impl<T: Decide> Body<T> {
         &mut self,
         declared: &[(SurfaceKey, SurfaceKey)],
         tol: Tol,
-    ) -> Result<MergeCoplanarOutcome, MergeCoplanarError> {
+    ) -> Result<MergeCoplanarOutcome, MergeCoplanarError>
+    where
+        T: geom_brep::PcurveFittedLane,
+    {
         // ---- Gate: tier-valid before. ----
         if let Err(errors) = validate_closed(self) {
             return Err(MergeCoplanarError::InputNotClosed { errors });
@@ -763,14 +769,15 @@ impl<T: Decide> Body<T> {
         // fragments' rows. Still on the staged clone, so a mint
         // refusal keeps the untouched-on-error contract.
         //
-        // LATENT (named, not reachable by any current path): this is
-        // the CLOSED-FORM mint pass, so a FITTED cache (at rest since
-        // M6-2) on a merged body would come back as the mint pass's
-        // honest-skip — the face legally UNCACHED, its fitted
-        // certificate silently dropped. Same root as the banked
-        // `PcurveFittedLane` mint-wiring item (M6-3 deviation 7);
-        // when the fitted route joins the mint pass, this site
-        // inherits the fix for free.
+        // LATENT (named, not reachable by any current path): the mint
+        // pass carries the `PcurveFittedLane` bound since PCURVE P-2
+        // (#498) and mints U2's `General` arm through it, but the
+        // FITTED variant itself still has no mint site, so a `Fitted`
+        // cache (at rest since M6-2) on a merged body would still come
+        // back as the mint pass's honest-skip — the face legally
+        // UNCACHED, its fitted certificate silently dropped. What is
+        // left of that item is `certify_fitted`'s own wiring, not the
+        // bound; this site inherits the fix when that lands.
         if !self.pcurves.is_empty() {
             crate::pcurves::mint_pcurves(&mut work, tol)
                 .map_err(|source| MergeCoplanarError::Pcurve { source })?;
