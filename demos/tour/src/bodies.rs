@@ -343,11 +343,16 @@ fn stop(
 /// **The friction this scene records** (demo-purpose rule): there is
 /// no whole-body edge selector on the PLAIN body API, so "break every
 /// edge" is spelled by enumerating the arena's own edge keys. The
-/// document layer has the door (`Node::fillet`'s `all_edges`
-/// materializer, which `diefillet` uses); the kernel-level verb does
-/// not, because there is no `Node::chamfer` yet to reach it through.
-/// A consumer wanting a chamfer in a RECIPE — with names, with a
-/// rebuild — cannot have one today.
+/// document layer has the door (`all_edges`, which `diefillet` uses);
+/// the kernel-level verb does not.
+///
+/// That friction is now the KERNEL-DIRECT one only. `Node::Chamfer`
+/// exists (LIB-G16), so a consumer wanting a chamfer in a recipe — with
+/// names, with a rebuild — has one, and says this part as
+/// `Node::chamfer` over `all_edges`. This scene deliberately stays on
+/// the plain-body API, because that is the seat it is evidence about:
+/// what it measures is what the kernel verb costs a caller who has a
+/// body and no document.
 pub fn spacer<S: Scalar>(tol: Tol) -> (pncad::topo::Body<S>, String) {
     let (x, y, z) = (4.0, 2.4, 1.0);
     let setback = 0.15;
@@ -379,8 +384,10 @@ pub fn spacer<S: Scalar>(tol: Tol) -> (pncad::topo::Body<S>, String) {
     let note = format!(
         "chamfer_edges over the plain body API: {} strips + {} corner patches, every face a \
          plane. Friction recorded: (1) the plain-body door has no whole-body edge selector, \
-         so `all twelve` is spelled by enumerating arena keys; (2) there is no \
-         `Node::chamfer`, so the verb is unreachable from a recipe; (3) the call wants BOTH \
+         so `all twelve` is spelled by enumerating arena keys — the RECIPE path has one \
+         (`Node::chamfer` over `all_edges`, since LIB-G16); this seat does not; (2) the \
+         kernel verb takes arena KEYS, so a document's own selection cannot be handed to \
+         it — `diechamfer` prices that one; (3) the call wants BOTH \
          a `Tol` and a `Band`, and the `Band` this scene passes is derived from that same \
          `Tol` — every caller in the tour writes the same three-line derivation, so the \
          second argument carries no information the first did not.",

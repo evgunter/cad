@@ -1751,3 +1751,23 @@ later commit: the post-conflict merge of main voided the first pin
 and this addendum re-carries it (the lane-ops note, met live).
 
 CI-Config: klint=release-budget
+
+**G16 MERGED (2026-08-29, #1224 — ordinal 301, sample #47, row in
+MODEL-AB-LOG). Audit G16 CLOSED; RECIPE-DOORS unit 1 of 3 complete;
+schema v16.** `Node::Chamfer` lands as the fillet's twin with the
+#708 tie-deferral debt paid to ZERO sites (both emitters on
+`names/defer.rs`; the shared `name_blend` makes the twins unable to
+drift), rows 2/11/12 flip YES with derived closed-form oracles, and
+the census/audit re-cuts hold (47 = 33+4*+10). The dual converged
+A-W-F/A-W-F with no MAJOR either arm and produced permanent gates:
+the corpus NAME-TABLE digests (19 documents — a surface nothing
+committed covered), the blend message gates, the v15→v16
+demonstration row, and the D3-discrimination probe. Banked with
+homes: (1) register the tour composed-die as a CORPUS document (the
+argued decline's right shape — a reviewer's transcription measured
+it byte-identical but a copy would drift; the registration is a
+small mechanical unit); (2) the #917 vocabulary exemption at the
+chamfer op message (carries FilletError per D2, argued in place —
+folds into #917's rename when taken). Next per ratified D1
+sequencing: tube (HELD behind #1205's mode-flag ruling), then shell
+(HELD behind #1202's kernel birth channel).
