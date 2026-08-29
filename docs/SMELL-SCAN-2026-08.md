@@ -130,6 +130,18 @@ considered. That qualifies every finding here, and most sharply the ones
 labelled `unsure`. §C15 asks the same disclosure of every sweep a fix lane
 runs; it applies first to the scans that produced this list.
 
+**A finding phrased as an INFORMATION requirement gets discharged by `format!`
+unless it is phrased as a TYPE requirement.** Relocated here when `D38` landed
+and `S19`'s postmortem was pruned, because it is a rule about how the findings in
+*this document* are written and it had no other home. The history is the
+argument: a reviewer killed a generic label with *"`Err(_)` catch-all launders
+tier-2 diagnostics → preserve real reasons"*, the implementer preserved them —
+as a `String` — and the finding read as discharged for two years of tree. The
+shape reaches any ask of the form *"carry the reason"*, *"say which"*, *"record
+what happened"*: **name the type you want, or expect the cheapest thing that
+carries the information.** It is written here rather than in the reviewer briefs
+because its audience is whoever writes a finding, not whoever reviews the fix.
+
 ## How to read a row
 
 A row in a Track J–X table is `| # | What | Was |`: its number, the work, and

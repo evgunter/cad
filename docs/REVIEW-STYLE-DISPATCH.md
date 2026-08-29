@@ -29,17 +29,6 @@ confidence bar, actively discourages.
 **The fix reproducing the defect it closes.** A unit that unifies duplicates can
 mint one; a unit that adds a guard can leave it failing open.
 
-**A finding phrased as an INFORMATION requirement, discharged by `format!`.**
-Relocated here from `S19`'s postmortem when `D38` landed, because it is a
-standing rule about how a finding is *written* and it had no other home. The
-history: a reviewer killed a generic label with *"`Err(_)` catch-all launders
-tier-2 diagnostics → preserve real reasons"*, and the implementer preserved them
-— as a `String`. **A finding phrased as an information requirement gets
-discharged by `format!` unless it is phrased as a type requirement.** The same
-shape reaches any ask of the form *"carry the reason"*, *"say which"*, *"record
-what happened"*: name the type you want, or expect the cheapest thing that
-carries the information.
-
 **A disclosed blind spot read as a discharge.** A lane's own "my pattern could
 not match X" is a work order, not an absolution.
 
