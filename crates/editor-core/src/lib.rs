@@ -23,6 +23,13 @@ pub mod checks;
 pub mod diff;
 pub mod distribution;
 pub mod doc;
+/// The E6 subdivision driver — the analysis lane's parameter-box
+/// verdict. Gated on `interval` because the leaf protocol replays at
+/// the certified interval scalar: without that scalar there is no leaf
+/// to certify, and a driver that fell back to `f64` would be a
+/// sampler.
+#[cfg(feature = "interval")]
+pub mod drive;
 pub mod edit;
 pub mod eval;
 pub mod expr;
@@ -63,6 +70,12 @@ pub use checks::{
 pub use diff::{DocDiff, NodeChange};
 pub use distribution::{Distribution, DistributionFault, DistributionField};
 pub use doc::{Doc, DocParam, DocParamValue, ParamName};
+#[cfg(feature = "interval")]
+pub use drive::{
+    BudgetKind, CertifiedLeaf, DEFAULT_MAX_DEPTH, DEFAULT_MAX_LEAVES, DriveConfig, DriveRefusal,
+    Flip, LeafResults, MeasureAccounting, ParamBoxVerdict, ReasonClass, Receipt, RefusalReason,
+    RefusedLeaf, ReplayOutcome, VerdictRow, VerdictVector, VerdictVectorKey, drive,
+};
 pub use edit::{Applied, DocEdit, EditError, EditRecord, apply};
 pub use eval::{
     BooleanValue, CancelToken, ContentBits, ContentKey, DatumValue, Epoch, EvalOptions,

@@ -139,9 +139,7 @@ where
             wire_revolve(id, *profile, *axis, results, vals, tol)
         }
         Node::Loft { profiles, .. } => wire_loft(id, profiles, doc, vals, env.lane, tol),
-        Node::Sweep { profile, path, .. } => {
-            wire_sweep(*profile, *path, doc, vals, env.lane, tol)
-        }
+        Node::Sweep { profile, path, .. } => wire_sweep(*profile, *path, doc, vals, env.lane, tol),
         Node::Fillet {
             target, selection, ..
         } => wire_fillet(id, *target, selection, doc, results, vals, tol),

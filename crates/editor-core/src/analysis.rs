@@ -486,6 +486,13 @@ impl ParamBox {
         Self { axes }
     }
 
+    /// A box from explicit axes — the door for a box that is not a
+    /// [`Self::split`] descendant of an analyzed box (the driver's
+    /// degenerate midpoint box, for one).
+    pub fn from_axes(axes: BTreeMap<ParamName, BoxAxis>) -> Self {
+        Self { axes }
+    }
+
     /// The axes, by parameter name.
     pub fn axes(&self) -> &BTreeMap<ParamName, BoxAxis> {
         &self.axes
@@ -522,7 +529,11 @@ impl ParamBox {
             // A varying axis of a box whose root axis is degenerate has
             // no relative width to speak of; rank it by its own width so
             // it is still splittable rather than silently unsplittable.
-            let rel = if full > 0.0 { (hi - lo) / full } else { hi - lo };
+            let rel = if full > 0.0 {
+                (hi - lo) / full
+            } else {
+                hi - lo
+            };
             // STRICTLY greater keeps the tie on the earlier name, which
             // is the tie-break the rule names.
             if best.as_ref().is_none_or(|(_, b)| rel > *b) {
@@ -550,8 +561,10 @@ impl ParamBox {
         }
         let mut a = self.clone();
         let mut b = self.clone();
-        a.axes.insert(name.clone(), BoxAxis::Varying { lo, hi: mid });
-        b.axes.insert(name.clone(), BoxAxis::Varying { lo: mid, hi });
+        a.axes
+            .insert(name.clone(), BoxAxis::Varying { lo, hi: mid });
+        b.axes
+            .insert(name.clone(), BoxAxis::Varying { lo: mid, hi });
         Some((a, b))
     }
 

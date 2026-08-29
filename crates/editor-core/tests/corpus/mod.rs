@@ -34,8 +34,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use editor_core::{
-    BooleanOp, BooleanValue, CancelToken, Datum, DocEdit, EvalOptions, Evaluation,
-    Node, NodeResult, PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, ValuePayload, apply,
+    BooleanOp, BooleanValue, CancelToken, Datum, DocEdit, EvalOptions, Evaluation, Node,
+    NodeResult, PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, ValuePayload, apply,
     evaluate,
 };
 use geom_core::Decide;
@@ -192,9 +192,7 @@ pub fn cone(doc: &ProfileDoc, root: RecipeNodeId) -> BTreeSet<RecipeNodeId> {
 }
 
 /// Evaluates a document at scalar `T` with default options.
-pub fn eval<T: editor_core::EvalScalar>(
-    doc: &ProfileDoc,
-) -> Evaluation<T> {
+pub fn eval<T: editor_core::EvalScalar>(doc: &ProfileDoc) -> Evaluation<T> {
     evaluate::<T>(
         doc,
         None,
