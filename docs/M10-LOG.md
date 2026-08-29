@@ -53,3 +53,21 @@ CONTACT-DESIGN C5 (the gap-measure contract), PARAM-LINT-SPEC PL6
 M10 rows, and the codebase survey recorded in the plan's substrate
 section (headline finding: the W2 sketch solver was never built,
 so E8's solver walls are vacuous in v1 — plan Q1).
+
+## Ratification (2026-08-29)
+
+Evan ruled all five plan questions in-conversation the same day:
+Q1 solver OUT, Q2 mass-prop Measures banked, Q3 MC lane rides
+M10-6, Q4 clean breaks, Q5 the #1055 arm in M10-5 as a STRETCH
+("possibly ambitious" — the follow-up-unit valve is the answer to
+that hedge). Rulings folded, STATUS flipped, #1142 merged. Two
+cross-orchestrator registrations landed on the plan PR before
+ratification and are folded in the plan text: VERBS's consumer
+demand for the clearance certificate (fixtures in-tree), and
+PCURVE's measured poison-vs-widen datum, whose CLASS M10-D owns
+(PCURVE files the class issue; the instance's mechanism stays
+with P-1b).
+
+**Next dispatches**: M10-D (orchestrator-led design pass, its own
+design-conversation PR) and the M10-1 spec + block M10-B1 draw run
+concurrently — M10-1 does not depend on M10-D.

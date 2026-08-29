@@ -1,7 +1,7 @@
 # M10 — the error-propagation MVP (plan)
 
-**STATUS: DRAFT — design conversation, awaiting Evan's sign-off.
-Nothing dispatches until this is ratified.** The milestone builds
+**STATUS: RATIFIED (Evan's in-conversation sign-off, 2026-08-29,
+with all five rulings folded below).** The milestone builds
 `docs/ERROR-DESIGN.md` (E1–E11, ratified #110 with the
 chamber-containment amendment) at MVP scope. Every *decision* this
 plan leans on is ratified elsewhere and is cited, not re-litigated.
@@ -180,7 +180,8 @@ ERROR-DESIGN's own "Open after this doc" list.
   monotonicity pruning by sign-definite `Dual<Interval>` ∂d/∂pᵢ as
   an accelerator only. Named consumer: **#1055** — the shell verb's
   curved wall-clearance window cites this certificate as what
-  closes it (Q5 below decides where that arm lands). VERBS
+  closes it (ruled at Q5: the arm lands here as a STRETCH, with
+  the follow-up-unit valve). VERBS
   registered the demand on the plan PR (2026-08-29): the
   curved-neck shell case is a ready-made acceptance with fixtures
   in-tree (the ordinal-101/103 probe suites' dumbbell/hexagon
@@ -207,42 +208,35 @@ consumes carriers through whatever descriptions exist at dispatch);
 mass-property enclosure quality (#870) is props' own meter, not an
 M10 unit.
 
-## Open for Evan (this plan's questions)
+## Rulings (Evan, 2026-08-29, in-conversation at ratification)
 
-- **Q1 — the sketch solver is NOT in this slate (proposed).** The
-  roadmap entry folds "sketch solver when sketches should become
-  constraint-driven" into M10, but nothing in E1–E11 requires it,
-  no document today carries a witness, and building W2 machinery
-  mid-milestone so that E8's refusal arms become reachable is
-  speculative scope. Proposal: M10 = the ERROR-DESIGN MVP; the
-  solver (DESIGN.md Q3, ezpz-vs-roll-our-own) re-opens as its own
-  design pass when constraint-driven sketches have a consumer.
-  Counterargument, honestly: E8's walls are the sharpest no-flips
-  case and shipping the driver without ever exercising them leaves
-  that composition untested until a solver exists.
-- **Q2 — mass-property Measures banked (proposed).** They force
-  the F1 Length-power lattice growth (recorded as additive in E3)
-  and sit behind `PropsQuadLane`'s refusing dual arm. The v1
-  primitive set (distance, angle, min_clearance, gap) covers the
-  worked example and the C5 contract; the lattice growth lands
-  with its first real consumer.
-- **Q3 — the MC advisory lane rides M10-6 (proposed).** E11.1
-  softened it to a labeled advisory lane and pure replay makes it
-  cheap; the alternative is banking it post-milestone. In either
-  case it never gates.
-- **Q4 — schema steps follow the LIVE clean-break ruling.** E10's
-  "the migration chain gains one explicit version-to-version step"
-  predates LQ7a's empty-migration-table posture (every pre-release
-  bump is a clean break refusing typed). Proposal: v15/v16 as
-  clean breaks like v2–v14; E10's sentence reads as written for
-  the post-release world. Flagged because it is a ratified-text
-  divergence, however mechanical.
-- **Q5 — where #1055's curved arm lands.** The certificate is
-  M10-5's; the consuming gate site is `topo::shell` (VERBS
-  territory). Proposal: the curved `wall_clearance` arm lands IN
-  M10-5 as its acceptance-grade real consumer (the demo-purpose
-  rule: real usage over synthetic fixtures), with VERBS holding
-  right of first refusal per the A′ precedent.
+- **Q1 — the sketch solver is OUT of this slate** ("no solver
+  yet"). M10 = the ERROR-DESIGN MVP; the solver (DESIGN.md Q3,
+  ezpz-vs-roll-our-own) re-opens as its own design pass when
+  constraint-driven sketches have a consumer. Recorded cost: E8's
+  walls are the sharpest no-flips case and ship unexercised until
+  a solver exists.
+- **Q2 — mass-property Measures are BANKED.** They force the F1
+  Length-power lattice growth (additive per E3) and sit behind
+  `PropsQuadLane`'s refusing dual arm; the v1 primitive set
+  (distance, angle, min_clearance, gap) covers the worked example
+  and the C5 contract. The lattice growth lands with its first
+  real consumer.
+- **Q3 — the MC advisory lane rides M10-6** (E11.1's Monte Carlo
+  estimator: pure f64 replay over random parameter samples,
+  labeled with sample count + recorded seed; never gates, never
+  persists as assertions).
+- **Q4 — schema steps are CLEAN BREAKS** (v15/v16 like v2–v14,
+  per LQ7a's empty-migration-table posture); E10's
+  migration-step sentence reads as written for the post-release
+  world.
+- **Q5 — the #1055 curved arm lands in M10-5, held as a STRETCH**
+  (Evan: "sounds good though possibly ambitious"). The certificate
+  and the trichotomy are M10-5's acceptance; the curved
+  `wall_clearance` arm is its named first consumer and lands in
+  the unit if it falls out cleanly, otherwise it becomes the first
+  follow-up consumer unit — a scope valve, never a merge blocker.
+  VERBS holds right of first refusal either way.
 
 ## Process
 
