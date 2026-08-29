@@ -2758,6 +2758,33 @@ mod review_probes {
         );
     }
 
+    /// DELTA probe (ordinal-104 verification, branch verbs/f7d-probes):
+    /// the row above labels its check "tier 3" but `topo::validate` is
+    /// the TIER 1 validator. This row runs the actual tier 2 and tier 3
+    /// validators on the repaired lantern, so the PR body's "tier 3
+    /// clean" claim is measured in-tree rather than inherited from a
+    /// dev-run log.
+    #[test]
+    fn f7d_delta_repaired_lantern_actual_tiers() {
+        let tol = Tol::witness();
+        let ps = pieces();
+        let lant = body(&ps, "lily_lantern");
+        let mut repaired = lant.clone();
+        repaired
+            .merge_coplanar_faces(tol)
+            .expect("the pole-split caps repair");
+        assert_eq!(
+            pncad::topo::validate_closed(&repaired),
+            Ok(()),
+            "tier 2 after repair (actual)"
+        );
+        assert_eq!(
+            pncad::topo::validate_geometric(&repaired, tol),
+            Ok(()),
+            "tier 3 after repair (actual)"
+        );
+    }
+
     /// **The weld, as geometry.** The flower's neck circle and the
     /// arch tube's terminal meridian circle are ONE circle, each
     /// computed to closed form off its own body's stored carrier

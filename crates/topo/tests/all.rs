@@ -199,3 +199,5 @@ mod review_f7_pole_r1_probes;
 mod verbs_f7_collinear_seam;
 #[path = "verbs_f7_r2_probes.rs"]
 mod verbs_f7_r2_probes;
+#[path = "f7d_delta_probes.rs"]
+mod f7d_delta_probes;
