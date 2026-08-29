@@ -1809,11 +1809,13 @@ fn scaled<T: Real>(
 
 /// The parameter at which a support's seam meridian meets `target`,
 /// read in the SEAM CARRIER's own frame. A representation pick, not a
-/// classification (the battery's junction-end pick precedent): a circle
-/// carrier's angle is brought into the stored window by whole turns and
-/// a line carrier's is the projection on its own direction, and either
-/// way a parameter outside the stored span refuses typed rather than
-/// cutting blind. `rim` names the requested edge the refusal carries.
+/// classification (the battery's junction-end pick precedent): the
+/// parameter is [`geom::Curve3::param_near`] anchored at the stored
+/// window's midpoint — a circle carrier's angle on the branch that
+/// anchor names, a line carrier's the projection on its own direction —
+/// and either way a parameter outside the stored span refuses typed
+/// rather than cutting blind. `rim` names the requested edge the
+/// refusal carries.
 fn seam_split_param<T: Decide + Bounds>(
     body: &Body<T>,
     seam: EdgeKey,
@@ -1830,36 +1832,27 @@ fn seam_split_param<T: Decide + Bounds>(
         ));
     };
     let (st0, st1) = sc.params();
-    match *sc.carrier() {
-        Curve3::Circle {
-            center,
-            axis,
-            u_ref,
-            ..
-        } => {
-            let d = target - center;
-            let traw = d.dot(axis.cross(u_ref)).atan2(d.dot(u_ref));
-            let tau = T::from_f64(core::f64::consts::TAU);
-            for k in [-2.0f64, -1.0, 0.0, 1.0, 2.0] {
-                let cand = traw + tau * T::from_f64(k);
-                if (cand - st0).lo() > 0.0 && (st1 - cand).lo() > 0.0 {
-                    return Ok(cand);
-                }
-            }
-        }
-        Curve3::Line { origin, dir } => {
-            let t = (target - origin).dot(dir);
-            if (t - st0).lo() > 0.0 && (st1 - t).lo() > 0.0 {
-                return Ok(t);
-            }
-        }
-        _ => {
-            return Err(unbuilt_geometry(
+    // Anchored at the stored window's MIDPOINT, which is what makes the
+    // one branch it returns the in-window one: a meridian's window is
+    // well under a period, so every parameter in it is under half a
+    // turn from the midpoint. `param_near` carries the derivation.
+    let t = sc
+        .carrier()
+        .param_near(target, (st0 + st1) * T::from_f64(0.5))
+        .ok_or_else(|| {
+            unbuilt_geometry(
                 EntityId::Edge(seam),
                 "a meridian's carrier is neither a circle nor a line; the split reads the \
                  crossing in the meridian's own frame and no other stored shape is built",
-            ));
-        }
+            )
+        })?;
+    // The window test is the representation pick's other half, and it
+    // stays a BOUNDS-lane read rather than a `decide` row (the
+    // battery's junction-end pick precedent): a parameter whose whole
+    // enclosure is not strictly inside the stored span refuses typed
+    // rather than cutting blind.
+    if (t - st0).lo() > 0.0 && (st1 - t).lo() > 0.0 {
+        return Ok(t);
     }
     Err(unbuilt_chain(
         rim,

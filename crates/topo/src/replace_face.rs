@@ -1877,7 +1877,12 @@ fn plan_reanchors<T: Decide>(
         for (point, is_start) in [(new_start, true), (new_end, false)] {
             let Some(point) = point else { continue };
             let t_old = if is_start { t0 } else { t1 };
-            let t_new = invert_carrier(&carrier, point, t_old).ok_or(
+            // Anchored at the parameter THIS ENDPOINT had, not at the
+            // span's midpoint: the stored range is the traversed arc,
+            // not a canonical one, so the turn it sits on is the datum
+            // the re-anchor must keep. `param_near` carries why an
+            // anchored read needs no branch selection.
+            let t_new = carrier.param_near(point, t_old).ok_or(
                 ReplaceFaceError::CarrierLaneUnsupported {
                     edge,
                     what: "a re-anchored carrier that is neither a line nor a circle",
@@ -1984,33 +1989,6 @@ fn plan_reanchors<T: Decide>(
         ));
     }
     Ok(out)
-}
-
-/// The parameter of `p` on `carrier`, on the branch nearest `near` —
-/// closed form on the two kinds whose inverse is one, and `None`
-/// otherwise (a spline's inversion is a solve, which is a different
-/// unit's machinery).
-fn invert_carrier<T: Real>(carrier: &Curve3<T>, p: Point3<T>, near: T) -> Option<T> {
-    match carrier {
-        Curve3::Line { origin, dir } => Some((p - *origin).dot(*dir)),
-        Curve3::Circle {
-            center,
-            axis,
-            u_ref,
-            ..
-        } => {
-            let v_ref = axis.cross(*u_ref);
-            let w = p - *center;
-            let theta = w.dot(v_ref).atan2(w.dot(*u_ref));
-            // Pick the 2π branch nearest the parameter this endpoint
-            // had: the stored range is the traversed arc, not a
-            // canonical one.
-            let tau = T::tau();
-            let k = ((near - theta) / tau + T::from_f64(0.5)).floor();
-            Some(theta + k * tau)
-        }
-        Curve3::Ellipse { .. } | Curve3::Nurbs(_) => None,
-    }
 }
 
 /// `mapped` with the sketch endpoint that images `is_start` moved to
