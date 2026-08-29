@@ -646,16 +646,26 @@ impl core::fmt::Display for SlotUnitFault {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::NoExpression { node, slot } => {
-                write!(f, "node {} carries no expression in slot {slot:?}", node.0)
+                write!(
+                    f,
+                    "node {} carries no expression in its {} slot",
+                    node.0,
+                    slot.label()
+                )
             }
             Self::NotALiteral { node, slot } => write!(
                 f,
-                "slot {slot:?} on node {} is computed, so it has no written unit to change — \
+                "the {} slot on node {} is computed, so it has no written unit to change — \
                  set an expression to change what it says",
+                slot.label(),
                 node.0
             ),
             Self::Dimension { slot, source } => {
-                write!(f, "slot {slot:?} cannot be written in that unit: {source}")
+                write!(
+                    f,
+                    "the {} slot cannot be written in that unit: {source}",
+                    slot.label()
+                )
             }
         }
     }

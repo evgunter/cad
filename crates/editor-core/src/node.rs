@@ -141,6 +141,46 @@ pub enum StepArg {
 }
 
 impl StepArg {
+    /// A prose label — the one spelling a user-facing rendering uses,
+    /// so a step argument never reaches a reader as `Debug`.
+    ///
+    /// Named by what the argument IS in the verb's vocabulary, as the
+    /// variants are: a coordinate reads as its point plus its axis
+    /// (`centre x`), so a panel can put a 2-D point's two roles beside
+    /// each other and a reader can see that is what they are. The
+    /// arrival-spec twins of a fused step say so rather than carrying a
+    /// bare `2`.
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::PointX => "point x",
+            Self::PointY => "point y",
+            Self::TargetX => "target x",
+            Self::TargetY => "target y",
+            Self::ViaX => "via x",
+            Self::ViaY => "via y",
+            Self::CenterX => "centre x",
+            Self::CenterY => "centre y",
+            Self::DirX => "direction x",
+            Self::DirY => "direction y",
+            Self::AngleVal => "angle",
+            Self::TurnVal => "turn",
+            Self::Length => "length",
+            Self::Radius => "radius",
+            Self::Bulge => "bulge",
+            Self::Phase => "phase",
+            Self::CarrierRadius => "carrier radius",
+            Self::SweepVal => "sweep",
+            Self::ArcLenVal => "arc length",
+            Self::Center2X => "arrival centre x",
+            Self::Center2Y => "arrival centre y",
+            Self::Via2X => "arrival via x",
+            Self::Via2Y => "arrival via y",
+            Self::Target2X => "arrival target x",
+            Self::Target2Y => "arrival target y",
+            Self::CarrierRadius2 => "arrival carrier radius",
+        }
+    }
+
     /// The dimension an expression in this role must have (V2's table:
     /// coordinates/lengths/radii Length; angle/turn/phase Angle;
     /// bulge and director components Scalar — ratio only).
@@ -341,6 +381,44 @@ impl SlotId {
     /// structural slots are exactly the Count-dimensioned ones).
     pub fn is_structural(self) -> bool {
         self.dimension() == Dimension::Count
+    }
+
+    /// A prose label — the one spelling a user-facing rendering uses,
+    /// so a slot never reaches a reader as `Debug`.
+    ///
+    /// It exists for the same reason [`Axis3::label`] and
+    /// [`VectorSlot::label`] do, and it is the outermost of the three:
+    /// a component reads as its family plus its axis, and a profile
+    /// slot as its address plus its role. A panel that spelled these
+    /// itself would be a second naming of the vocabulary, drifting from
+    /// it silently.
+    pub fn label(self) -> String {
+        if let Some((family, axis)) = self.component() {
+            return format!("{} {}", family.label(), axis.label());
+        }
+        match self {
+            Self::Distance => "distance".to_owned(),
+            Self::Radius => "radius".to_owned(),
+            Self::RevolveAngle => "revolve angle".to_owned(),
+            Self::RotationAngle => "rotation angle".to_owned(),
+            Self::Spacing => "spacing".to_owned(),
+            Self::Step => "angular step".to_owned(),
+            Self::Count => "count".to_owned(),
+            Self::VDegree => "v degree".to_owned(),
+            Self::Stations => "stations".to_owned(),
+            Self::Profile { loop_, step, arg } => {
+                format!("loop {loop_} step {step} · {}", arg.label())
+            }
+            // Every component variant answered above.
+            Self::Origin(_)
+            | Self::Normal(_)
+            | Self::Direction(_)
+            | Self::Translation(_)
+            | Self::RotationAxis(_) => self.component().map_or_else(
+                || String::from("component"),
+                |(family, axis)| format!("{} {}", family.label(), axis.label()),
+            ),
+        }
     }
 
     /// The 3-vector family this slot is a component of, and which

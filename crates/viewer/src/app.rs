@@ -1471,7 +1471,7 @@ impl ViewerBehavior<'_> {
         match group {
             SlotGroup::Scalar(row) => {
                 ui.horizontal(|ui| {
-                    ui.label(format!("{:?}", row.slot));
+                    ui.label(row.slot.label());
                     self.slot_value_ui(ui, node, row);
                     self.slot_unit_ui(ui, node, core::slice::from_ref(row));
                     ui.weak(format!("{:?}", row.dimension));
@@ -1661,14 +1661,14 @@ impl ViewerBehavior<'_> {
             && *probed == target
         {
             ui.weak(format!(
-                "{:?}: {}",
-                row.slot,
+                "{}: {}",
+                row.slot.label(),
                 result.wording(props::written_unit(row.dimension, row.unit))
             ));
         }
         if self.drafts.expr_target == Some((node, row.slot)) {
             ui.horizontal(|ui| {
-                ui.label(format!("{:?} =", row.slot));
+                ui.label(format!("{} =", row.slot.label()));
                 ui.text_edit_singleline(&mut self.drafts.expr_text);
                 if ui.button("Set").clicked() {
                     self.ops.push(SessionOp::SetSlotExpression {
