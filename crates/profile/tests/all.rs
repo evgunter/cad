@@ -40,6 +40,8 @@
 
 #[path = "arc_fillet.rs"]
 mod arc_fillet;
+#[path = "blend7_review_probes.rs"]
+mod blend7_review_probes;
 #[path = "canonical_invariance.rs"]
 mod canonical_invariance;
 #[path = "declared_tangency.rs"]
