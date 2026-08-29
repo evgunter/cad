@@ -27,6 +27,31 @@ they came to be that way. When you retract one, grep for the claim, not
 the sentence: a correction made where you first wrote it leaves every
 other copy standing.
 
+**A spec that TRANSCRIBES a substrate's measurements inherits their
+errors, and is read as binding where the substrate was read as
+evidence.** PCURVE P-2's spec was corrected three times by its own
+implementer in one unit: an acceptance criterion that was unreachable
+(a second arm refused for the same structural reason), a measured
+ripple that was wider than the substrate's first-round number, and a
+list of six consumer sites whose COUNT was right and whose ATTRIBUTION
+was wrong (one file carried no such refusal at all; another carried
+four, not two). All three traced to the same cause — the orchestrator
+copied the substrate's findings into spec prose instead of re-deriving
+them, and prose in a spec is obeyed where prose in a report is checked.
+
+**Why:** a substrate is a snapshot taken to decide whether to build. By
+the time it becomes a spec, the tree has moved, and any imprecision in
+the report is promoted from "evidence someone will verify" to
+"instruction someone will follow".
+
+**How to apply:** in a spec, cite a measurement as *"the substrate
+measured X (date/commit) — verify before building on it"*, not as a
+bare assertion of X. Anything load-bearing enough to gate acceptance
+should be re-derived at spec time, not copied. And when an implementer
+contradicts the spec, that is the process working — record which of you
+measured it. See [[refusal-text-is-not-cause]]; this is its
+orchestrator-side twin.
+
 **A verdict conditioned on a gate is only as good as a check that the
 gate ran** (2026-08-29, PCURVE P-1b's dual, R2's own post-mortem). A
 reviewer wrote "APPROVE WITH FIXES, conditional on that gate being
