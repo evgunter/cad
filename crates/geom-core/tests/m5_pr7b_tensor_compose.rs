@@ -1,13 +1,16 @@
 //! **M5 PR 7b acceptance — tensor-product Bernstein composition**
 //! (spec §5's tensor-compose unit rows):
 //!
-//! 1. The hull bound is a **true sup bound and a tight one**:
-//!    dense-scan falsification probe, ≥1e5 samples against an
-//!    independent `f64` rational oracle, bounded on BOTH sides — the
-//!    bound dominates the scanned max and stays scaled to it, at a
-//!    ceiling each row measures for its own geometry — on an aligned
-//!    pair, on a knot-mismatched pair (the merged-break path), and on
-//!    a cell-straddling pcurve.
+//! 1. The hull bound is a **true sup bound**: dense-scan falsification
+//!    probe, ≥1e5 samples against an independent `f64` rational
+//!    oracle, ratio ≥ 1.0 — on an aligned pair, on a knot-mismatched
+//!    pair (the merged-break path), and on a cell-straddling pcurve.
+//!    Three of those rows also state a CEILING, each measured on its
+//!    own geometry against the enclosure the composition exists to
+//!    beat; the bicubic budget row states in place why it can carry
+//!    no honest one. The remaining `falsify` callers — refinement and
+//!    the far-origin shift — bound their result against ANOTHER BOUND
+//!    rather than against the truth, which is a different claim.
 //! 2. The cancellation row: a constructed `S`, `P`, `C` with
 //!    `S(P(t)) ≡ C(t)` exactly — the composite bound lands at ring
 //!    rounding (~1e-15), where any hull-then-difference enclosure is
@@ -23,7 +26,11 @@
 //! 6. Typed refusals at the entry points (closed `ComposeError`).
 //!
 //! These rows are ε-independent (pure ring arithmetic; no `Tolerance`
-//! read), so the battery's ε sweep changes nothing here by design.
+//! read), so the battery's ε sweep changes nothing here by design —
+//! and every ratio below was confirmed BIT-IDENTICAL at ε ∈ {default,
+//! 1e-6, 1e-9, 1e-12}. A multi-ε measurement of these ceilings is
+//! therefore degenerate: the legs are the same run. What varies them
+//! is the geometry, which is why each ceiling is measured per row.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -31,6 +38,7 @@ use geom_core::RingInterval;
 use geom_core::spline::compose::tensor::{SurfaceRingData, surface_curve_residual};
 use geom_core::spline::compose::{ComposeError, CurveRingData};
 use geom_core::spline::{KnotVector, basis};
+use test_utils::tightness::Sup;
 
 // ---------------------------------------------------------------------
 // Independent f64 rational oracles (basis functions only — no ring, no
@@ -187,6 +195,25 @@ fn falsify(
     (sup, max)
 }
 
+/// Diagonal of the axis-aligned box containing every control point of
+/// the given nets: the scale an enclosure reports once it has stopped
+/// being about the geometry. Every ceiling below is required to sit
+/// under this, which is what makes it a guard rather than a formality
+/// (`test_utils::tightness`).
+fn net_box_diagonal(nets: &[&[Vec<f64>]]) -> f64 {
+    let mut lo = [f64::INFINITY; 3];
+    let mut hi = [f64::NEG_INFINITY; 3];
+    for net in nets {
+        for (d, ch) in net.iter().enumerate().take(3) {
+            for v in ch {
+                lo[d] = lo[d].min(*v);
+                hi[d] = hi[d].max(*v);
+            }
+        }
+    }
+    (0..3).map(|d| (hi[d] - lo[d]).powi(2)).sum::<f64>().sqrt()
+}
+
 // ---------------------------------------------------------------------
 // Row 1: the hull bound is a true sup bound (dense-scan falsification)
 // ---------------------------------------------------------------------
@@ -196,18 +223,22 @@ fn the_bound_dominates_a_dense_scan_on_the_aligned_pair() {
     let (w, p, c) = (wall(), pcurve_data(), carrier_data());
     let (sup, max) = falsify(&w, &p, &c, &[], 100_000);
     assert!(sup.is_finite(), "bound must be finite here, got {sup}");
-    assert!(max > 1e-3, "the fixture's residual must be genuine: {max}");
-    assert!(
-        sup >= max,
-        "falsified: composite bound {sup:e} < scanned max {max:e}"
-    );
     // And the bound is TIGHT — the whole point of the composition. The
-    // first-order enclosure on this geometry is span-width-scaled
-    // (~1e-1 here); the composite must track the residual's own scale.
-    assert!(
-        sup <= 10.0 * max,
-        "the composite bound lost the cancellation: {sup:e} vs true {max:e}"
-    );
+    // ceiling is set against the enclosure the composition exists to
+    // beat: replacing `cell_residual`'s coefficient subtraction with a
+    // hull-then-difference of the two hulls — still sound, a pure
+    // tightness loss — takes this row from 1.491x the sampled truth to
+    // 20.843x. 3.0 is twice the healthy ratio and seven times under the
+    // degraded one, against a whole-object box that would admit 45.7x.
+    Sup::new("aligned pair", sup, max)
+        .truth_at_least(1e-3, "the carrier is authored ~1e-2 m off the composite")
+        .dominates()
+        .within(
+            3.0,
+            0.0,
+            net_box_diagonal(&[&w.3, &c.2]),
+            "the composite bound lost the cancellation",
+        );
 }
 
 #[test]
@@ -222,21 +253,22 @@ fn the_bound_dominates_when_the_two_curves_disagree_on_knots() {
     let z = vec![0.08, 0.25, 0.45, 0.5, 0.6, 0.72];
     let ca = (kv, vec![1.0; 6], vec![x, y, z]);
     let (sup, max) = falsify(&w, &p, &ca, &[], 100_000);
-    // The carrier is authored ~1e-2 off the composite; a fixture whose
-    // residual collapsed would satisfy the domination below for free.
-    assert!(
-        max > 1e-2,
-        "the fixture's residual must be genuine: {max:e}"
-    );
-    assert!(sup.is_finite() && sup >= max, "sup {sup:e}, max {max:e}");
+    assert!(sup.is_finite(), "bound must be finite here, got {sup}");
     // Exact insertion costs no tightness: the merged-break bound tracks
-    // the residual's own scale (1.52× here) as closely as the aligned
-    // pair's does (1.49×), and the ceiling says so rather than letting
-    // an enclosure that reverted to span width still read as sound.
-    assert!(
-        sup <= 3.0 * max,
-        "the merged-break path lost the cancellation: {sup:e} vs true {max:e}"
-    );
+    // the residual's own scale (1.520x) as closely as the aligned
+    // pair's does (1.491x). Under the hull-then-difference enclosure
+    // this row reads 6.730x, so 3.0 sits 2.2x under the degraded state
+    // and 2.0x over the healthy one; the whole-object box would admit
+    // 16.0x, which is why a ceiling alone is not evidence of a guard.
+    Sup::new("merged-break carrier", sup, max)
+        .truth_at_least(1e-2, "the carrier is authored ~1e-2 m off the composite")
+        .dominates()
+        .within(
+            3.0,
+            0.0,
+            net_box_diagonal(&[&w.3, &ca.2]),
+            "the merged-break path lost the cancellation",
+        );
 }
 
 #[test]
@@ -258,22 +290,40 @@ fn the_bound_dominates_when_the_pcurve_straddles_surface_cells() {
     let w = (ku, kvv, vec![1.0; 8], vec![x, y, z]);
     let (p, c) = (pcurve_data(), carrier_data());
     let (sup, max) = falsify(&w, &p, &c, &[], 100_000);
-    // A pcurve that never left one cell would make the cross-cell hull
-    // below untested while the domination still passed.
+    assert!(sup.is_finite(), "bound must be finite here, got {sup}");
+    // The fixture must actually straddle. A pcurve confined to one cell
+    // measures the same residual, so the floor below cannot detect this
+    // and nothing else in the row would: assert the crossing itself.
+    let (u_lo, u_hi) = p.2[0]
+        .iter()
+        .fold((f64::INFINITY, f64::NEG_INFINITY), |(l, h), v| {
+            (l.min(*v), h.max(*v))
+        });
     assert!(
-        max > 1e-2,
-        "the fixture's residual must be genuine: {max:e}"
+        u_lo < 0.5 && u_hi > 0.5,
+        "this row is about the CROSS-CELL hull, but the pcurve's u range \
+         [{u_lo}, {u_hi}] does not cross the wall's interior knot at 0.5"
     );
-    assert!(sup.is_finite() && sup >= max, "sup {sup:e}, max {max:e}");
-    // Straddling costs tightness and this states how much: the window
-    // is hulled across BOTH cells, so the enclosure is a union of two
-    // cells' boxes — 3.26× the true residual here, against the aligned
-    // pair's 1.49×. The ceiling admits that cost and nothing that
-    // scales with the cell count.
-    assert!(
-        sup <= 6.0 * max,
-        "the cross-cell hull is no longer residual-scaled: {sup:e} vs true {max:e}"
-    );
+    // Straddling costs tightness and this states how much: the window is
+    // hulled across BOTH cells, so the enclosure is a union of two
+    // cells' boxes — 3.264x the true residual against the aligned pair's
+    // 1.491x. Under the hull-then-difference enclosure it reads 5.108x,
+    // so 4.0 is the value that separates the two, with 22% over the
+    // healthy ratio and 28% under the degraded one. That narrowness is
+    // the finding: on this fixture the cross-cell union and a lost
+    // cancellation are nearly the same size, and the file's actual
+    // cancellation witness is
+    // `an_exact_composite_bounds_at_ring_rounding_not_at_the_variation`,
+    // which dies outright under that enclosure.
+    Sup::new("cell-straddling pcurve", sup, max)
+        .truth_at_least(1e-2, "the carrier is authored ~1e-2 m off the composite")
+        .dominates()
+        .within(
+            4.0,
+            0.0,
+            net_box_diagonal(&[&w.3, &c.2]),
+            "the cross-cell hull is no longer residual-scaled",
+        );
 }
 
 #[test]
@@ -450,26 +500,35 @@ fn elevated_patch(du: usize, dv: usize) -> (KnotVector, KnotVector, Vec<f64>, Ve
 fn a_bicubic_bicubic_composition_completes_within_the_budget() {
     // The largest SSI-realistic shape: bicubic × bicubic wall, cubic
     // pcurve and carrier — composite degree 3·(3+3)+3 = 21 of the 54
-    // budget. It must complete with a finite, sound bound, and the
-    // budget must not be bought with tightness.
+    // budget. It must complete with a finite, sound bound.
+    //
+    // **This row carries NO tightness ceiling, and the omission is the
+    // verdict rather than an oversight.** On this geometry the healthy
+    // ratio is 1.443x the sampled truth and a TOTAL loss of the
+    // cancellation — `cell_residual` hulling each product and then
+    // subtracting — reads 1.809x. A quarter of a factor does not
+    // separate the two states with any headroom worth having, and the
+    // whole-object box (1.600 m against a residual of 0.910 m) admits
+    // only 1.757x, which is BELOW the degraded reading: there is no
+    // number here that is simultaneously above the healthy state and
+    // below the broken one. The reason is the fixture — the paraboloid
+    // patch and the carrier are nearly as far apart as the object is
+    // big, so tightness has almost nothing to be tight about. What this
+    // row states is completion in budget and soundness; the file's
+    // cancellation claim lives on
+    // `an_exact_composite_bounds_at_ring_rounding_not_at_the_variation`,
+    // which dies outright under that same enclosure.
     let w = elevated_patch(3, 3);
     let (p, c) = (pcurve_data(), carrier_data());
     let (sup, max) = falsify(&w, &p, &c, &[], 100_000);
     assert!(sup.is_finite(), "in-budget composition poisoned: {sup:e}");
-    // The paraboloid patch and the carrier are genuinely apart, so the
-    // two comparisons below are statements about a real function.
-    assert!(
-        max > 1e-1,
-        "the fixture's residual must be genuine: {max:e}"
-    );
-    assert!(sup >= max, "sup {sup:e} < max {max:e}");
-    // At degree 21 the composite still tracks the residual's own scale
-    // (1.44× here) — the difference between completing and completing
-    // usefully, which `is_finite` alone cannot tell apart.
-    assert!(
-        sup <= 3.0 * max,
-        "the in-budget composition lost the cancellation: {sup:e} vs true {max:e}"
-    );
+    Sup::new("bicubic x bicubic at degree 21", sup, max)
+        .truth_at_least(
+            1e-1,
+            "the paraboloid patch and the carrier are genuinely apart, so the \
+             domination is a statement about a real function",
+        )
+        .dominates();
 }
 
 #[test]

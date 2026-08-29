@@ -11,6 +11,15 @@
 //! curve gives it nothing to stand on, and it is TOTAL — a structural
 //! violation poisons rather than inventing a scale.
 //!
+//! **A lower bound's loose direction is DOWNWARD**, and `speed >= m`
+//! never sees it: a meter of 1e-300 satisfies every soundness clause
+//! in this file forever. `the_meter_lower_bounds_the_real_speed` also
+//! states how much the assembly may give away; the derivation of that
+//! number, and the population it was measured against, are on the row.
+//! The other rows here return `m / true_min` and use it for
+//! scale-covariance rather than for tightness, which is a different
+//! claim — see the class row in `docs/SMELL-SCAN-2026-08.md`.
+//!
 //! **M7: rational carriers now state a real bound.** The original
 //! third row asserted that a rational carrier poisons. It no longer
 //! does: `speed_lower_bound` grew a second arm, a quotient-rule
@@ -31,6 +40,7 @@
 use geom::NurbsCurve3;
 use geom_core::Point3;
 use geom_core::spline::KnotVector;
+use test_utils::tightness::Meter;
 
 #[test]
 fn the_meter_lower_bounds_the_real_speed() {
@@ -60,27 +70,48 @@ fn the_meter_lower_bounds_the_real_speed() {
         lo = lo.min(s);
         hi = hi.max(s);
     }
-    // Anti-vacuity: this carrier crosses a full unit in x over the unit
-    // domain, so its speed cannot sit near zero. A fixture edit that
-    // flattened it would leave `m > 0` and the domination above
-    // satisfiable by an arbitrarily small meter.
+    // **What the floor proves and where it stops.** `interpolate`
+    // parameterizes by chord length over [0, 1], so the MEAN speed is
+    // the data polyline's length, which is at least the 1 m the curve
+    // crosses in x. That argument does not reach the MINIMUM; what
+    // carries the last step is that chord-length parameterization makes
+    // the speed nearly constant, which this row measures rather than
+    // assumes — `hi / lo` below. So `1.0` is a derived floor for the
+    // mean and an empirical one for the minimum, and it is stated as
+    // both. Without it a fixture edit that shortened the curve would
+    // leave `m > 0` and every clause here satisfiable by an
+    // arbitrarily small meter.
+    let variation = hi / lo;
     assert!(
-        lo > 1.0,
-        "this carrier advances in +x, so its true minimum speed cannot be {lo}"
+        variation < 1.01,
+        "the floor below leans on this carrier's speed being nearly constant \
+         (chord-length parameterization), but it varies by {variation} over \
+         [{lo}, {hi}]"
     );
-    // The meter is a LOWER bound, so its loose direction is downward
-    // and `s >= m` alone never sees it — a meter of 1e-300 satisfies
-    // that forever. This carrier's true speed varies by 0.10% end to
-    // end ({lo} … {hi}), so a per-span hull that is working gives away
-    // about as much; it gives away 0.61% here. The guard admits 10%,
-    // a hundred times the curve's own variation, and goes red long
-    // before the assembly is hulling as coarsely as it does on the
-    // adversarial nets below (32% on the degree-5 alternating-weight
-    // one).
-    assert!(
-        m >= 0.9 * lo,
-        "the meter gave away more than a tenth of the true speed: {m} against {lo}"
-    );
+    // The ceiling, in the form a lower bound takes. The comparison
+    // population is the INTEGRAL arm — this carrier is polynomial, so
+    // the quotient-rule arm the rational rows below exercise is not
+    // what is being measured, and its give-aways are not comparable.
+    // Over the nineteen integral-arm carriers in this file and
+    // `m8_14_long_turn_meter` the give-away runs 0.02% to 4.00%,
+    // bottoming out at the helices (0.9600 of the true minimum) with
+    // `arc_curl_6.0` next at 3.66%; this carrier gives away 0.61%. The
+    // admitted 10% therefore sits 2.5x under the worst the arm
+    // actually produces, in the shape `mesh/tests/budget_meter.rs`'s
+    // `RATIO_FLOOR` uses. (The rational rows below run 2.8% to 14.25%,
+    // and `quintic_net([1.0, 0.5, 2.0, 0.5, 2.0, 1.0])` reaches 32.4%
+    // — a different arm, and two of them are already inside the 10%
+    // this row forbids, which is why they are not the population.)
+    Meter::new("gently curved cubic", m, lo)
+        .truth_at_least(
+            1.0,
+            "this carrier crosses a full unit in x under chord-length \
+             parameterization, so its speed cannot sit near zero",
+        )
+        .gives_away_at_most(
+            0.1,
+            "the per-span hull is no longer tracking the true speed",
+        );
 }
 
 #[test]
