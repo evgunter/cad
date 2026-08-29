@@ -54,6 +54,7 @@ from pncad import (
     evaluate,
     load,
     m,
+    mm,
     rad,
 )
 
@@ -488,9 +489,12 @@ class TestSheave(unittest.TestCase):
     own closed form is asserted verbatim.
 
     Its STRUCTURAL oracle is not: the scene also names its surface
-    census (one torus, two cones), and counting surface kinds from
-    Python needs tessellation or a selector, both still gaps (G11 and
-    the selector surface). The volume is what this row can check."""
+    census (one torus, two cones), and this row does not count them.
+    The volume is what it checks. (Both doors that would — the
+    selector's `surface_kind` filter and the mesh's per-face patches —
+    have since been bound, by LIB-PYSEL and LIB-G11; asserting a
+    surface census here is work this row has not done, not work the
+    surface cannot express.)"""
 
     def test_sheave_matches_the_scene_oracle(self):
         tip = Open.at((0.4 * m, 0 * m))
@@ -520,8 +524,9 @@ class TestBossplate(unittest.TestCase):
     not two), and it is `circle_split` — the declared-subdivision
     carrier — not the `circle` primitive, whose private lowering is
     two semicircles. The Rust scene's closed form is asserted
-    verbatim; its three-seam-arc census needs tessellation, which is
-    still a gap here (G11)."""
+    verbatim, and its three-seam-arc census is not: the vertex count
+    of the authored loop is checked instead, which is where the claim
+    is actually made."""
 
     def test_bossplate_matches_the_scene_oracle(self):
         doc = Doc()
@@ -2100,6 +2105,105 @@ class TestTwopeg(unittest.TestCase):
             pncad.FlushFinding()
 
 
+# ------------------------------------------------------------------
+# The gap LIB-G11 closed: G11, the ladder's steps 4 and 5.
+#
+# G11 was never a STOP's blocker — it is the one gap this page
+# anchors to the generic ladder every scene is held to (*author →
+# validate → measure → tessellate → cross-check → export*), which is
+# why closing it moves no mark. What it buys is that the ladder now
+# runs whole from Python, so this class runs it whole on two scenes
+# the page already grades YES, and cross-checks each against the
+# oracle its row asserts.
+#
+# The mesh measure is the CALLER's own divergence-theorem sum over
+# the bound triangles (`test_mesh.mesh_signed_volume`), and closure
+# is decided on shared position INDICES
+# (`test_mesh.unmatched_half_edges`) — two computations that touch no
+# kernel measure, which is what makes agreeing with one evidence.
+# ------------------------------------------------------------------
+
+from test_mesh import mesh_signed_volume, unmatched_half_edges  # noqa: E402
+
+
+class TestMeshCrossCheck(unittest.TestCase):
+    def test_chute_meshes_to_its_own_exact_volume(self):
+        """Row 6's scene, all six rungs. `chute` is the page's own
+        cleanest YES — one profile, one revolve, no booleans — and it
+        is CURVED, so the mesh measure approaches the exact one from
+        inside rather than reproducing it."""
+        poly = [
+            (1.0, 0.0), (1.75, 0.0), (1.75, 0.625), (1.5625, 0.625),
+            (1.5625, 0.1875), (1.1875, 0.1875), (1.1875, 0.625), (1.0, 0.625),
+        ]
+        doc = Doc()
+        profile = doc.insert(Node.polygon([(x * m, y * m) for x, y in poly]))
+        axis = doc.insert(Node.datum_axis((0 * m, 0 * m, 0 * m), (0.0, 1.0, 0.0)))
+        chute = doc.insert(Node.revolve(profile, axis, 270 * deg))
+
+        body = evaluate(doc).value(chute).body()
+        body.validate()
+        exact = body.mass_properties().volume
+        self.assertAlmostEqual(exact, (1287 / 2048) * math.pi, delta=1e-12)
+
+        # Measured: 1.2e-4 relative at 0.5 mm, 2.4e-5 at 0.1 mm —
+        # first order in δ, as the chordal certificate says. The pin
+        # is one significant figure clear of the measurement.
+        mesh = body.tessellate(0.1 * mm)
+        self.assertEqual(unmatched_half_edges(mesh), [])
+        measured = mesh_signed_volume(mesh)
+        self.assertGreater(measured, 0.0, "the winding is outward")
+        self.assertLess(abs(measured - exact) / exact, 1e-4)
+
+    def test_the_letterform_prism_meshes_exactly(self):
+        """Row 32's `T`: every face is planar, so the triangulation is
+        EXACT and the two measures agree at rounding level. The scene's
+        dyadic oracle is asserted of both."""
+        t_plane = SketchPlane.from_frame(
+            (-0.25 * m, 0 * m, 0 * m), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)
+        )
+        letter = [
+            (1.1875, 0.125), (1.8125, 0.125), (1.8125, 2.625), (3.25, 2.625),
+            (3.25, 3.125), (-0.25, 3.125), (-0.25, 2.5625), (1.1875, 2.5625),
+        ]
+        doc = Doc()
+        sketch = doc.insert(
+            Node.polygon([(a * m, b * m) for a, b in letter], plane=t_plane)
+        )
+        prism = doc.insert(Node.extrude(sketch, 2.5 * m))
+
+        body = evaluate(doc).value(prism).body()
+        body.validate()
+        self.assertAlmostEqual(
+            body.mass_properties().volume, 8.505859375, delta=1e-12
+        )
+
+        mesh = body.tessellate(1 * mm)
+        self.assertEqual(unmatched_half_edges(mesh), [])
+        self.assertLess(abs(mesh_signed_volume(mesh) - 8.505859375), 1e-12)
+
+    def test_the_mesh_and_the_stl_agree_facet_for_facet(self):
+        """Step 6 for the mesh half: the binary file's declared facet
+        count is the mesh's own, so what was exported is what was
+        cross-checked."""
+        doc = Doc()
+        profile = doc.insert(
+            Node.polygon(
+                [(0 * m, 0 * m), (1 * m, 0 * m), (1 * m, 1 * m), (0 * m, 1 * m)]
+            )
+        )
+        cube = doc.insert(Node.extrude(profile, 1 * m))
+        mesh = evaluate(doc).value(cube).body().tessellate(1 * mm)
+        data = mesh.to_stl_binary(header="pncad north-star audit")
+        self.assertEqual(
+            int.from_bytes(data[80:84], "little"), mesh.triangle_count
+        )
+        self.assertEqual(
+            mesh.to_stl_ascii(solid_name="cube").count("facet normal"),
+            mesh.triangle_count,
+        )
+
+
 class TestNamedGapsAreStillGaps(unittest.TestCase):
     """The NO rows' gaps, asserted as absences.
 
@@ -2142,7 +2246,15 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # composed, so there is no name type and no name grammar —
         # a `FlushFinding`'s pair crosses as the same opaque texts.
         for door in [
-            "tessellate", "Mesh", "write_stl",        # mesh + STL
+            # `Mesh`/`TessellateError` left this list when G11 closed
+            # (LIB-G11) — `TestMeshCrossCheck` below is the positive
+            # form, and `tests/test_mesh.py` is the door's own suite.
+            # `tessellate` and the two STL writers stay, as `select`
+            # and `find_flush_candidates` do: they are METHODS on the
+            # value they take (`Body.tessellate`, `Mesh.to_stl_ascii`,
+            # `Mesh.to_stl_binary`), so the module-level absence below
+            # is shape, not gap.
+            "tessellate", "write_ascii", "write_binary",
             "select", "select_where",                 # methods, not module doors
             "find_flush_candidates",                  # method, not a module door
             "StableName",                             # names stay text

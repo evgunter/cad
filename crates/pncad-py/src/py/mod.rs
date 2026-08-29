@@ -2,6 +2,7 @@
 
 mod doc;
 mod flush;
+mod mesh;
 mod path;
 mod place;
 mod quantity;
@@ -96,6 +97,35 @@ pyo3::create_exception!(
 );
 pyo3::create_exception!(
     pncad,
+    TessellateError,
+    PncadError,
+    "The tessellator refused a body. Carries `variant`, the stable tag \
+     of the refusing arm, plus the arm's numbers as attributes \
+     (`value`, `bound`, `requested`, `note`; `None` where \
+     inapplicable).\n\n\
+     The offending face or edge is an arena KEY and does not cross — \
+     the curation exists to keep those unnameable — so a refusal names \
+     WHICH arm fired and, where the arm carries one, the number that \
+     makes it actionable. The message is a `Debug` rendering rather \
+     than the kernel's own prose because `mesh::TessellateError` \
+     implements no `Display`; the tag is the branchable part."
+);
+pyo3::create_exception!(
+    pncad,
+    StlError,
+    PncadError,
+    "An STL export refused. Carries `variant`, the stable tag of the \
+     refusing arm.\n\n\
+     Three Rust refusals share this class because they refuse the same \
+     CALL: the writers' own `StlError` (`degenerate_triangle`, \
+     `index_out_of_range`, `too_many_triangles`, `io`), and the two \
+     validated option newtypes, which are keyword arguments here — \
+     `solid_name_unrepresentable`, `binary_header_too_long`, \
+     `binary_header_sniffs_ascii`. The tags share one namespace, so \
+     which of the three refused is readable off `variant`."
+);
+pyo3::create_exception!(
+    pncad,
     StepImportError,
     PncadError,
     "A STEP text the importer refused, or one that parsed to a \
@@ -164,6 +194,8 @@ pub(crate) fn typed_err(
         ErrorClass::Literal => LiteralError::new_err(message),
         ErrorClass::Persist => PersistError::new_err(message),
         ErrorClass::Export => ExportError::new_err(message),
+        ErrorClass::Tessellate => TessellateError::new_err(message),
+        ErrorClass::StlExport => StlError::new_err(message),
         ErrorClass::StepImport => StepImportError::new_err(message),
         ErrorClass::Path => PathError::new_err(message),
         ErrorClass::Select => SelectRefusal::new_err(message),
@@ -204,6 +236,8 @@ fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("LiteralError", py.get_type::<LiteralError>())?;
     m.add("PersistError", py.get_type::<PersistError>())?;
     m.add("ExportError", py.get_type::<ExportError>())?;
+    m.add("TessellateError", py.get_type::<TessellateError>())?;
+    m.add("StlError", py.get_type::<StlError>())?;
     m.add("StepImportError", py.get_type::<StepImportError>())?;
     m.add("PathError", py.get_type::<PathError>())?;
     m.add("SelectRefusal", py.get_type::<SelectRefusal>())?;
@@ -216,6 +250,7 @@ fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     doc::register(m)?;
     select::register(m)?;
     flush::register(m)?;
+    mesh::register(m)?;
     value::register(m)?;
 
     // Schema/provenance surface: the version the persistence doors
