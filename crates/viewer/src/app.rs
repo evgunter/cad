@@ -654,6 +654,27 @@ impl eframe::App for ViewerApp {
                     }
                     None => {}
                 }
+                // The advisory-check badge. It REPORTS: the scene below
+                // is drawn either way, because a product whose roots
+                // interpenetrate renders a picture that looks almost
+                // right and the finding is the only thing that says
+                // otherwise. Hover for the findings' own sentences —
+                // each carries its recourse, so the badge never
+                // composes one here.
+                if let Some(report) = self.session.checks()
+                    && !report.findings.is_empty()
+                {
+                    ui.separator();
+                    ui.colored_label(
+                        UNRESOLVED_COLOR,
+                        format!("checks: {} finding(s)", report.findings.len()),
+                    )
+                    .on_hover_ui(|ui| {
+                        for finding in &report.findings {
+                            ui.label(finding.to_string());
+                        }
+                    });
+                }
                 if let Some(status) = &self.status {
                     ui.separator();
                     ui.label(status.as_str());
