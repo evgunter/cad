@@ -980,6 +980,39 @@ mod tests {
         }
     }
 
+    /// R1 PROBE (probe branch only): a POSITIVE SUBNORMAL speed passes
+    /// the new guard, and `h = (step·extent)/speed` overflows to `+∞`;
+    /// what refusal does the caller get then?
+    #[test]
+    fn r1_a_subnormal_speed_probes_the_guards_admission_set() {
+        let band = Band::new(1.0e-9, 1.0e-8).unwrap();
+        let ctx = MarchContext::<3> {
+            domain: [[-1.0, 1.0], [-1.0, 1.0], [-1.0, 1.0]],
+            extent: 1.0,
+            tol: MarchTol::from_band(band),
+            max_steps: 64,
+        };
+        for speed in [1.0e-320, f64::MIN_POSITIVE, 1.0e-300] {
+            let sys = FixedSpeedR3 { speed };
+            let r = march(
+                &sys,
+                [0.0, 0.0, 0.0],
+                ctx,
+                StepperMode::Idealized,
+                1.0,
+                band,
+            );
+            match r {
+                Ok(t) => println!(
+                    "[R1 speed={speed:e}] Ok: {} states, end {:?}",
+                    t.states.len(),
+                    t.end
+                ),
+                Err(e) => println!("[R1 speed={speed:e}] Err: {e}"),
+            }
+        }
+    }
+
     /// The bridge, stated as a row: a marcher tolerance derived from a
     /// band **is** that band's coincidence threshold. Nothing scales it,
     /// pads it, or rounds it — the marcher's step rule and the

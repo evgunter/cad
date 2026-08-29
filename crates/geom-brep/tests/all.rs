@@ -40,6 +40,9 @@
 
 #[path = "approx_surface.rs"]
 mod approx_surface;
+// R1 review probes (probe branch only — never for merge).
+#[path = "r1_probes.rs"]
+mod r1_probes;
 #[path = "arc_eval_anchor.rs"]
 mod arc_eval_anchor;
 #[path = "decoration_plane_mint.rs"]
