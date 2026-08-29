@@ -1101,29 +1101,38 @@ impl<T: Decide> Body<T> {
                         key: crate::entity::EntityId::Face(rep),
                     },
                 })?;
-            !matches!(self.get_surface(key), Some(Surface::Plane { .. }))
+            let described = self.get_surface(key).ok_or(MergeCoplanarError::Op {
+                error: EulerOpError::StaleGeometry {
+                    key: crate::entity::GeomRef::Surface(key),
+                },
+            })?;
+            !matches!(described, Surface::Plane { .. })
         };
         loop {
             let mut found = None;
             for (edge_key, edge) in self.edges() {
-                let (Some(hp), Some(hm)) = (
-                    self.get_half_edge(edge.he_plus),
-                    self.get_half_edge(edge.he_minus),
-                ) else {
-                    continue;
-                };
                 let (fp, fm) = self
                     .edge_faces(edge.he_plus, edge.he_minus)
                     .map_err(|error| MergeCoplanarError::Op { error })?;
-                if fp == rep && fm == rep {
-                    found = Some((
-                        edge_key,
-                        edge.he_plus,
-                        edge.he_minus,
-                        hp.parent_loop == hm.parent_loop,
-                    ));
-                    break;
+                if fp != rep || fm != rep {
+                    continue;
                 }
+                // `edge_faces` resolved both halves one line above and
+                // this scan mutates nothing.
+                let parent = |he| match self.get_half_edge(he) {
+                    Some(h) => h.parent_loop,
+                    None => unreachable!(
+                        "merge_group: `edge_faces` resolved this half-edge one line \
+                         above and the scan mutates nothing"
+                    ),
+                };
+                found = Some((
+                    edge_key,
+                    edge.he_plus,
+                    edge.he_minus,
+                    parent(edge.he_plus) == parent(edge.he_minus),
+                ));
+                break;
             }
             let Some((edge_key, he_plus, he_minus, same_loop)) = found else {
                 break;
