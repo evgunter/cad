@@ -1543,3 +1543,44 @@ on the union pre-push, hosted CI the gate as always. The
 resolver-door design conversation this unit's report sharpened is
 RATIFIED and specced: `docs/LIB-G18A-SPEC.md` (Evan, in-chat,
 2026-08-29) — the next unit, full A/B protocol.
+
+**CUR2 MERGED (2026-08-29, #1173; mechanical under the 08-29 ruling,
+no A/B row).** The two banked curation carriages land: `StlError`
+beside its writers in the prelude's section 7 (G11's banked R2-shape
+finding closed), `BlendArc` on the curated `profile` module — and NOT
+in the prelude, by measurement (the prelude carries the validate
+family's gate/refusal/output tier only, and no consumer outside
+`crates/profile` names `BlendArc`; the corpus rule agrees). The
+profile guard's interior list is down to `RawLoop`, its one argued
+name. The R2-class re-sweep at the merge base: 57 prelude doors
+origin-resolved, two hits, one fixed here, one a non-instance
+(`HitTestError` IS carried beside its carrier in select.rs; prelude
+lift would be a minimality question, not R2). Banked findings kept:
+(1) the census scans document/select/prelude ONLY — a name carried
+onto `profile.rs` alone incurs no census obligation (worth knowing
+before assuming a Python consequence); (2) symbol-name greps mislead
+in this workspace (five collision examples recorded in the PR) —
+façade sweeps should origin-resolve through the pub-use graph first.
+Stale-comment follow-up for the next pncad-py sweep: the reach-past
+note at mesh.rs's StlError import.
+
+**G18A MERGED (2026-08-29, #1176 — LIB's first full-protocol unit
+since reactivation; ordinal 300, sample #41, row in MODEL-AB-LOG).**
+`evaluate(doc, *, resolver=, prior=)` per the ratified spec: the
+assembly seam opens from Python (a document carrying InstantiatePart
+nodes, loaded from a Workspace, evaluates; refusal family typed), the
+memo becomes a measurement (PYPU's banked finding CLOSED), and the
+tour bench corpus rides as committed bytes with a three-axis honesty
+header. The dual's headline (bilateral): a `prior=` serves memo hits
+WITHOUT re-running the seam's gates — contract now stated at the door
+in both reviewers' framings, pinned on both availability arms, and
+the kernel design question filed as **#1185** (the class: "an
+argument that silently voids another argument's gate"; two sibling
+sites named for future sweeps). **#1186** schedules the corpus
+structural hole. Register effects: G18's first half SPENT — the
+node/edit bindings (**G18b**) are now dispatchable-mechanical per the
+standing split; rows 46/47 stay NO until they land. The audit's G8
+row prose corrected (counter invariant). The delta re-verification
+round (R1 resumed, narrow scope) is the shape to reuse: cheap (~40k
+tokens), executes rather than reads, and the resumed reviewer's
+context made it 12 minutes.

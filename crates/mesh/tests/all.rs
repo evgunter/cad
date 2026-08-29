@@ -83,38 +83,43 @@ mod revolves;
 #[path = "wedge.rs"]
 mod wedge;
 
-/// Guards the `autotests = false` hazard: a suite file added to `tests/`
-/// but not declared above would silently stop being compiled and run.
+/// Guards the `autotests = false` hazard: a suite file added under
+/// `tests/` but not declared above would silently stop being compiled
+/// and run. Both directions are asserted — every file on disk is
+/// declared, and every declaration answers to a file, so no number
+/// about this file is stated in prose without being computed.
+///
+/// The walk is `test_utils::source::suite_files`, which recurses into
+/// group directories and tells a suite from a shared helper by Rust's
+/// own module rule; read it before adding either.
 #[test]
 // Scoped to this fn on purpose: a crate-root `#![allow]` in this file would
 // weaken the lint gate for every suite module included above.
 #[allow(clippy::expect_used)]
 fn every_suite_file_is_aggregated() {
-    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests");
-    let src = include_str!("all.rs");
-    let mut missing: Vec<String> = Vec::new();
-    for entry in std::fs::read_dir(&dir).expect("tests/ is readable") {
-        let path = entry.expect("readable dir entry").path();
-        if path.extension().and_then(|e| e.to_str()) != Some("rs") {
-            continue;
-        }
-        let name = path
-            .file_name()
-            .expect("file has a name")
-            .to_string_lossy()
-            .to_string();
-        if name == "all.rs" {
-            continue;
-        }
-        if !src.contains(&format!("#[path = \"{name}\"]")) {
-            missing.push(name);
-        }
-    }
-    missing.sort();
+    let root = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("tests");
+    // Comments blanked, string literals KEPT — see
+    // `test_utils::source::code_and_literals`, which states why.
+    let src = test_utils::source::code_and_literals(include_str!("all.rs"));
+    let found = test_utils::source::suite_files(&root);
+    let missing: Vec<&String> = found
+        .iter()
+        .filter(|rel| !src.contains(&format!("#[path = \"{rel}\"]")))
+        .collect();
     assert!(
         missing.is_empty(),
-        "tests/*.rs suites are not declared in tests/all.rs, so `autotests = false` \
+        "suites under tests/ are not declared in tests/all.rs, so `autotests = false` \
          is silently dropping them: {missing:?}. Add a `#[path]` line for each."
+    );
+    // The converse, computed rather than restated: one `#[path]` line
+    // per suite file, no orphan declaration. The `format!` above spells
+    // its quote ESCAPED, so it is not one of these matches.
+    let declared = src.matches("#[path = \"").count();
+    assert_eq!(
+        declared,
+        found.len(),
+        "tests/all.rs declares {declared} suites but {} suite files exist under tests/",
+        found.len()
     );
 }
 
@@ -230,9 +235,19 @@ fn every_suite_file_is_aggregated() {
 /// 4. **Compensating changes inside one file.** A read deleted and
 ///    another added in the same file leaves the total unmoved. A read
 ///    MOVED between files IS caught — both counts change.
-/// 5. **Raw strings**, which [`test_utils::source::code_only`] does not
-///    model — so this row asserts `crates/mesh/src` contains none
-///    (all four prefixes, `r`/`br`/`cr`) rather than assuming it.
+/// 5. **An identifier a macro assembles** (`concat_idents!`, `paste!`),
+///    or one inside an `include!`d file. [`test_utils::source::code_only`]
+///    is a lexer, not an expander, so this one is a property of the
+///    METHOD and not of this tree: there is nothing to re-check per
+///    crate, and no mechanism could close it short of expansion.
+///    **The raw-string hole that used to stand here is gone**, and it
+///    was closed by a mechanism rather than by a claim: the shared
+///    lexer now models all five string prefixes, pinned by
+///    `test_utils::source`'s own
+///    `a_raw_string_closes_at_its_own_delimiter_and_loses_no_following_code`,
+///    which is the register that re-takes it. This row therefore no
+///    longer asserts anything about raw strings in `crates/mesh/src` —
+///    it does not need to.
 ///
 /// # The walk is shared, and that was not free
 ///
@@ -254,17 +269,7 @@ fn the_eps_inventory_is_pinned() {
         ("trimmed.rs", 1),
         ("walk.rs", 13),
     ];
-    // Both ways the suite runs: a plain `cargo test` against the baked
-    // manifest dir, and a nextest ARCHIVE replayed with the per-test
-    // cwd remapped to the crate root.
-    let baked = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
-    let src = if baked.is_dir() {
-        baked
-    } else {
-        std::env::current_dir()
-            .expect("a working directory")
-            .join("src")
-    };
+    let src = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src");
     let needle = concat!("e", "ps");
     let mut found: Vec<(String, usize)> = Vec::new();
     for path in test_utils::source::rust_sources(&src) {
@@ -274,12 +279,6 @@ fn the_eps_inventory_is_pinned() {
             .to_string_lossy()
             .replace('\\', "/");
         let text = std::fs::read_to_string(&path).expect("a readable source file");
-        assert!(
-            !test_utils::source::mentions_raw_string(&text),
-            "{name} mentions a raw string, which `code_only` does not model — this \
-             inventory's blanking may now be wrong. Check the site, then either \
-             rewrite it or teach `test_utils::source` the construct."
-        );
         let code = test_utils::source::code_only(&text);
         let cuts = code.lines().filter(|l| *l == "#[cfg(test)]").count();
         assert!(

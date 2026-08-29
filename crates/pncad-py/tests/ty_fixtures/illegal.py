@@ -177,3 +177,20 @@ DocRef(content_pin(doc), doc.id)  # ty: error
 
 # The store resolves a reference, never a bare identity.
 Workspace("parts").resolve(doc.id)  # ty: error
+
+# The seam and the memo are KEYWORD-only: `evaluate` takes exactly one
+# positional argument, the document, and the two doors are named.
+evaluate(doc, Workspace("parts"))  # ty: error
+
+# A resolver is a STORE, not the directory one was opened on: what
+# resolves is the scanned object, and a path string has no scan. (The
+# scan is not frozen at construction — a `create` through the same
+# object is visible to a later `evaluate`; see the snapshot rows in
+# `test_assembly_eval.py`. The point here is the TYPE, not timing.)
+evaluate(doc, resolver="parts")  # ty: error
+
+# The memo is a prior EVALUATION, not the document it evaluated.
+evaluate(doc, prior=doc)  # ty: error
+
+# Neither substitutes for the other: an evaluation resolves nothing.
+evaluate(doc, resolver=evaluate(doc))  # ty: error

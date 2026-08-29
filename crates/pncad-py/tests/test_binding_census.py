@@ -368,8 +368,22 @@ BOUND_AS = {
     "MM": "mm",
     "NodeErrorKind": "EvaluationError.kind",
     "NodeValue": "Value",
+    # The document seam, and the two enums that say why it did not
+    # open. `Workspace` IS a `PartResolver` (the document layer's own
+    # impl) and is passed as itself to `evaluate(doc, resolver=...)`;
+    # `PartFault`'s arms and the `ResolveFault` classification inside
+    # them cross as `EvaluationError.kind` tags — `part_no_resolver`,
+    # `part_pin_mismatch`, `part_epsilon_seam`, `part_unresolved`,
+    # `part_root_failed`, `part_product`, `part_reference_cycle`,
+    # `part_depth_exceeded` — the same flattening `NodeErrorKind` gets
+    # above. They left the `gap` roster at LIB-G18a, when the resolver
+    # parameter made them reachable: the tags existed before it, and
+    # `part_no_resolver` was the only one an evaluation could produce.
+    "PartFault": "EvaluationError.kind",
+    "PartResolver": "Workspace",
     "RAD": "rad",
     "RecipeNodeId": "NodeId",
+    "ResolveFault": "EvaluationError.kind",
     "ValuePayload": "Value.kind",
     "all_bodies": "Evaluation.all_bodies",
     "all_edges": "Evaluation.all_edges",
@@ -418,7 +432,7 @@ GAP = "gap"
 #: reason the module docstring's id-space section splits the two
 #: spaces the way it does. Where the audit page DOES define an id, an
 #: entry cites that instead and nothing is minted here: `G2` (sweep
-#: and tube), `G8` (the memo), `G16` (chamfer's missing recipe
+#: and tube), `G16` (chamfer's missing recipe
 #: node), `G18` (the
 #: whole Python assembly series, whose row enumerates `assemble`,
 #: `solve_document`, `product`, `split` and `inline` by name), and
@@ -547,6 +561,11 @@ FAMILIES = {
 #:   `RecordedProgramError`; `ValidationError.door` for
 #:   `MassPropsError`; `ExportError` for `StepExportError`;
 #:   `SelectRefusal` for `DeclareError` and `InterrogateError`;
+#:   `EvaluationError.kind` for `ResolveFailure`, whose classified
+#:   fault IS the `part_*` tag (`ResolveFault` and `PartFault` are in
+#:   `BOUND_AS` at that spelling) and whose `message` is the
+#:   exception's message — the resolver's own diagnosis, prose because
+#:   that is what it is;
 #:   `StlError.variant` for `SolidNameError` and `BinaryHeaderError`,
 #:   which refuse the same CALL the writers do because the options
 #:   they validate are that call's keyword arguments.
@@ -561,10 +580,20 @@ FAMILIES = {
 #:   ride `StlError.variant` under `solid_name_*` / `binary_header_*`
 #:   tags, which is why `SolidNameError` and `BinaryHeaderError` are
 #:   in the flattened-payload bullet above too; `ImportOptions` is
-#:   `import_step`'s absent second argument; `EvalOptions` has no
-#:   Python spelling because `evaluate(doc)` takes none (its one
-#:   consequence that IS owed work — the memo — is filed under `gap`
-#:   below, not here).
+#:   `import_step`'s absent second argument; `EvalOptions` is
+#:   `evaluate`'s `resolver=`, the one field of it that changes an
+#:   ANSWER, bound at LIB-G18a — which is also when its memo residue
+#:   left the `gap` roster, and note the memo was never a field of it
+#:   (`prior` is `evaluate`'s own second argument, bound as `prior=`).
+#:   The three fields with no Python spelling are stated rather than
+#:   waved: `epoch` is minted per run and is not a caller's choice;
+#:   `parallel` and `boolean_sweep` are runtime switches the kernel
+#:   documents as ANSWER-PRESERVING and test-facing (`parallel` exists
+#:   so D9's determinism cross-check can compare both schedules in one
+#:   run, `boolean_sweep`'s two paths are bit-identical by the BVH
+#:   differential suite's own pin), so no ANSWER is unreachable
+#:   through them. A PERFORMANCE door — "evaluate this in parallel" —
+#:   would be a new unit and a new entry, not this one.
 #: - *Recourse and deferral sentences.* `CONTACT_RECOURSE`,
 #:   `FIT_DEFERRAL`, `SEL_DATUM_DISTANCE`, `REGENERATE_RECOURSE`,
 #:   `UNDER_RECOURSE` and `CLASS_DEFERRAL` are the prose a Rust refusal
@@ -616,7 +645,7 @@ FAMILIES = {
 #: **`gap` — genuinely unbound doors, and each is OWED WORK.** This is
 #: the family that makes the census worth having: these are not
 #: decisions, they are debt, and the id after the colon says what owns
-#: each. Five of the ids are the audit page's, cited (`G1`, `G2`, `G8`,
+#: each. Four of the ids are the audit page's, cited (`G1`, `G2`,
 #: `G16`, `G18`); the other eight are `FAMILIES` keys
 #: this census owns, because the audit's SCENE-driven list does not
 #: reach a door no tour scene exercises — which is exactly why those
@@ -626,9 +655,6 @@ FAMILIES = {
 #:   `tube_along_arc_hollow`, `TubeError`, `TubeWindow`. Banked, not
 #:   merely unbound: `wire_sweep` refuses unconditionally and
 #:   `Node::Tube` does not exist (a schema-version break).
-#: - **G8 — the memo.** `EvalOptions`' consequence: `evaluate(doc)`
-#:   takes no prior evaluation, so memoized recompute is unobservable
-#:   from Python. The audit's G8 row measures this residue by name.
 #: - **G18 — the pin-update door.** `update_references`,
 #:   `UpdateError`, `mixed_pins`, `PinMultiplicity`, `PinSites`.
 #:   This entry USED to read G15 and cover the whole content-pin
@@ -637,11 +663,14 @@ FAMILIES = {
 #:   `header_document_id`, and `workspace::Workspace` /
 #:   `random_document_id` beside them), so what remains is only the
 #:   door that moves a pin AT ITS SITES. A site is an
-#:   `InstantiatePart` node's `DocRef`, Python can author none, and
-#:   `evaluate(doc)` takes no resolver — so every one of these doors
-#:   would answer the "referenced nowhere" refusal on any document
-#:   Python can build. That is G18's dependency, not a residue of the
-#:   closed row, and the citation moved with it.
+#:   `InstantiatePart` node's `DocRef` and Python can author none — so
+#:   every one of these doors would answer the "referenced nowhere"
+#:   refusal on any document Python can build. That is G18's
+#:   dependency, not a residue of the closed row, and the citation
+#:   moved with it. LIB-G18a moved the OTHER half of the sentence this
+#:   entry used to carry — `evaluate` now takes a resolver — and it
+#:   changes nothing here: a document Python LOADS can carry sites,
+#:   and moving one still needs the edit only G18b brings.
 #: - **G18 — assembly, the at-rest gate (A5).** `assemble`,
 #:   `Assembly`, `AssemblyError`, `AtRestFinding`, `Attribution`,
 #:   `MintedDeclaration`, `RefusedRef`. The façade carried these
@@ -661,18 +690,21 @@ FAMILIES = {
 #:   bound. G18's row names `mate`, its four frame types and
 #:   `solve_document`; the admission table it does not name, and this
 #:   entry is where that reaches the record.
-#: - **G18 — instantiated parts.** `PartResolver`, `PartFault`,
-#:   `ResolveFailure`, `ResolveFault`, `PlacementRuleFault` — the
-#:   document seam evaluation crosses to reach a referenced document.
-#:   What is left of the sentence G15's row used to own: a Python
-#:   author can now produce two documents a workspace will accept
-#:   side by side — LIB-G15 bound that half — and still cannot
-#:   assemble them. G18's row puts this FIRST in the series' stated
-#:   order: `evaluate(doc)` takes no resolver, so an
-#:   `InstantiatePart` node cannot evaluate from Python at all. Note
-#:   which side of the seam that is: `Workspace` IS the `PartResolver`
-#:   implementation in Rust, and Python can now build one — what is
-#:   missing is the parameter `evaluate` would take it through.
+#: - **G18 — instantiated parts.** `PlacementRuleFault`, and only it.
+#:   This entry used to hold the whole document seam —
+#:   `PartResolver`, `PartFault`, `ResolveFailure`, `ResolveFault` —
+#:   because G18's row put the seam FIRST in the series' stated order
+#:   and `evaluate(doc)` took no resolver, so an `InstantiatePart`
+#:   node could not evaluate from Python at all. LIB-G18a closed that:
+#:   `evaluate(doc, resolver=store)` passes a `Workspace` as the
+#:   `PartResolver` it already IS, and the seam's whole refusal family
+#:   crosses as `EvaluationError.kind` — so those four are in
+#:   `BOUND_AS` and the flattened-payload bullet. `PlacementRuleFault`
+#:   stays for a reason that is measured and not inherited: it crosses
+#:   as a tag like the rest, and the fault is a PLACEMENT's, so
+#:   reaching one needs a document carrying an invalid placement —
+#:   which Python cannot author (G18b's `set_placement`) and the tour
+#:   corpus does not contain.
 #: - **G18 — split and inline, the recorded refactorings.** `split`,
 #:   `inline`, `SplitOutcome`, `InlineOutcome`, `SplitError`,
 #:   `InlineError`, `NodeMap`, `InterfaceRecord`, `InterfaceCrossing`.
@@ -688,8 +720,10 @@ FAMILIES = {
 #: - **B-CHECKS — the advisory checks (DISCIPLINES-DESIGN DS6).**
 #:   `run_checks`, `enforce_checks`, `subject_body`, `ChecksReport`,
 #:   `ChecksConfig`, `ChecksError`, `CheckFinding`, `CheckEvidence`,
-#:   `CheckId`, `CheckKind`, `CheckRefusal`, `Severity`. The
-#:   report-never-gate registry, and the largest census-owned family.
+#:   `CheckId`, `CheckKind`, `CheckRefusal`, `Severity`, `Advisory`.
+#:   The report-never-gate registry, and the largest census-owned
+#:   family. (`Advisory` is `Severity` minus `Error`, the knob a
+#:   resident takes when it ships no DS6 waiver vocabulary.)
 #: - **B-PICKING — picking.** `pick_face`, `PickTarget`, `PickHit`,
 #:   `NodePick`, `NodePickError`, `HitTestError`, `Ray`. The fourth
 #:   door onto a name — ray in, `StableName` out, the same alphabet
@@ -751,6 +785,7 @@ NOT_BOUND = {
     "Dimension": SHAPE,
     "EdgeKey": SHAPE,
     "EditRecord": SHAPE,
+    "EvalOptions": SHAPE,
     "EvalOutcome": SHAPE,
     "FIT_DEFERRAL": SHAPE,
     "FaceKey": SHAPE,
@@ -776,6 +811,7 @@ NOT_BOUND = {
     "REGENERATE_RECOURSE": SHAPE,
     "Real": SHAPE,
     "RecordedProgramError": SHAPE,
+    "ResolveFailure": SHAPE,
     "RevolveAxis": SHAPE,
     "RevolveError": SHAPE,
     "RolePath": SHAPE,
@@ -864,8 +900,6 @@ NOT_BOUND = {
     "Distribution": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",
     "DistributionFault": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",
     "DistributionField": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",
-    # --- gap: the memo (audit G8's measured residue) --------------
-    "EvalOptions": f"{GAP}: G8 memoized recompute",
     # --- gap: the pin-UPDATE door (audit G18) ---------------------
     # G15's own doors are bound (`ContentPin`, `DocRef`,
     # `content_pin`, `canonical_bytes`, `header_document_id`, and
@@ -906,11 +940,17 @@ NOT_BOUND = {
     "relative_freedom_components": f"{GAP}: G18 mates and the solve",
     "solve_document": f"{GAP}: G18 mates and the solve",
     # --- gap: instantiated parts (audit G18) ----------------------
-    "PartFault": f"{GAP}: G18 instantiated parts",
-    "PartResolver": f"{GAP}: G18 instantiated parts",
+    # `PartResolver`, `PartFault` and `ResolveFault` LEFT this family
+    # at LIB-G18a and are in `BOUND_AS`; `ResolveFailure` left it for
+    # the flattened-payload bullet, since what Python gets is the
+    # fault as `kind` and the resolver's diagnosis as the message.
+    # `PlacementRuleFault` stays, measured rather than assumed: it
+    # crosses as an `EvaluationError.kind` tag like its siblings, and
+    # no document Python can produce reaches one — the fault is a
+    # PLACEMENT's, a placement is set by an edit Python cannot author,
+    # and the tour corpus carries only valid ones. It moves with the
+    # node/edit half.
     "PlacementRuleFault": f"{GAP}: G18 instantiated parts",
-    "ResolveFailure": f"{GAP}: G18 instantiated parts",
-    "ResolveFault": f"{GAP}: G18 instantiated parts",
     # --- gap: split/inline refactorings (audit G18) ---------------
     "InlineError": f"{GAP}: G18 split/inline refactorings",
     "InlineOutcome": f"{GAP}: G18 split/inline refactorings",
@@ -929,6 +969,7 @@ NOT_BOUND = {
     # --- gap: advisory checks DS6 (census-owned) ------------------
     "CheckEvidence": f"{GAP}: B-CHECKS advisory checks",
     "CheckFinding": f"{GAP}: B-CHECKS advisory checks",
+    "Advisory": f"{GAP}: B-CHECKS advisory checks",
     "CheckId": f"{GAP}: B-CHECKS advisory checks",
     "CheckKind": f"{GAP}: B-CHECKS advisory checks",
     "CheckRefusal": f"{GAP}: B-CHECKS advisory checks",

@@ -34,6 +34,8 @@ geom = { path = "../geom" }
 topo = { path = "../topo" }
 
 [dev-dependencies]
+# The shared Rust reader for this crate's source-text guards.
+test-utils = { path = "../test-utils" }
 # Building acceptance bodies end-to-end (cube, the M3 pocketed die,
 # boolean-result assemblies) through the public profile/sweep APIs.
 profile = { path = "../profile" }
