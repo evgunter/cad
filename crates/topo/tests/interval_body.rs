@@ -124,30 +124,3 @@ fn interval_cube_upgrades_to_intersections() {
     common::describe_as_intersections(&mut body);
     assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
 }
-
-// PLANTED FAILURES — TEMPORARY, REVERTED IN THIS SAME PR.
-//
-// The demonstration for issue 1128: without `--no-fail-fast` a red shard
-// reports its first failure and stops, so four planted failures in one
-// binary come back as one row per shard. With the flag they all come back.
-// The four are deliberately adjacent so nextest's partitioning splits them
-// across both shards, which is what makes the per-shard count readable.
-#[test]
-fn qa2_planted_failure_1() {
-    panic!("QA-2 planted failure 1 of 4 (issue 1128 demonstration; reverted in PR 1232)");
-}
-
-#[test]
-fn qa2_planted_failure_2() {
-    panic!("QA-2 planted failure 2 of 4 (issue 1128 demonstration; reverted in PR 1232)");
-}
-
-#[test]
-fn qa2_planted_failure_3() {
-    panic!("QA-2 planted failure 3 of 4 (issue 1128 demonstration; reverted in PR 1232)");
-}
-
-#[test]
-fn qa2_planted_failure_4() {
-    panic!("QA-2 planted failure 4 of 4 (issue 1128 demonstration; reverted in PR 1232)");
-}

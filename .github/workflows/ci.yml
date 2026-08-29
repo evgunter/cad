@@ -549,7 +549,7 @@ jobs:
               echo "PINNED, NOT DRAWN: the lane above was substituted by ci-filter.py's" \
                    "_forces_interval because a changed file's path says the change may be" \
                    "about interval arithmetic. The reason, naming that file, is on stderr in" \
-                   "the `classify` step above."
+                   "the 'classify the change set' step above."
               echo "RE-PUSHING CANNOT CHANGE IT: the pin runs before the seeded draw and" \
                    "short-circuits it, so every push of this branch gates the interval lane" \
                    "until the file list changes. To gate the other one, say so —" \
