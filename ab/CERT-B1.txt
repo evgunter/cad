@@ -2,3 +2,8 @@ CERT-B1 (drawn 2026-08-29, v4 block-of-4 rule per MODEL-AB-LOG read on main at d
 byte=104 (od /dev/urandom, reject >=252), 104 mod 4 = 0 = fable position
 slots: 0=CERT-1 (difficulty M, logged pre-draw in docs/CERT-1-SPEC.md), 1=CERT-2 (difficulty S, logged pre-draw in docs/CERT-2-SPEC.md), 2..3 unassigned
 Branch-side block record per the v6 convention; reviewers are never pointed here.
+slot 2 = CERT-3 (difficulty S/M, logged at spec docs/CERT-3-SPEC.md;
+note: the block was drawn in full at CERT-B1's creation, so per-unit
+difficulty logging is necessarily post-block-draw — same posture as
+the LIB banked-slot precedent, recorded rather than hidden). slot 3
+unassigned.
