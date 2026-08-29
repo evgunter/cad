@@ -1104,6 +1104,26 @@ pub trait PcurveFittedLane: Decide {
         carrier: &NurbsCurve3<Self>,
         wall: &NurbsSurface<Self>,
     ) -> Result<Option<NurbsCurve2<Self>>, PcurveCertifyError>;
+    /// **The chart foot of one point** on a NURBS wall, or `None` when
+    /// this scalar has no certified lane.
+    ///
+    /// [`Self::general_image`]'s single-sample sibling, same producer
+    /// (`edge_nurbs::chart_foot`). Its consumer is the pcurve mint's
+    /// rim arms: they know the SHAPE of their image and are only
+    /// missing its position, which on a chart wider than the face it
+    /// trims is not a knot-domain end. Evidence, not a certificate —
+    /// the caller offers it to its own metre-valued check.
+    ///
+    /// # Errors
+    ///
+    /// [`PcurveCertifyError::FittedCertificate`] when the projection
+    /// will not converge. Never from the "no lane" arm, which returns
+    /// `Ok(None)`.
+    fn chart_foot(
+        point: Point3<Self>,
+        wall: &NurbsSurface<Self>,
+    ) -> Result<Option<Point2<f64>>, PcurveCertifyError>;
+
     /// The lane's name, for the typed refusal's text.
     fn lane_name() -> &'static str;
 }
@@ -1144,6 +1164,31 @@ fn general_image_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclos
             what: "the chart image could not be interpolated through the schedule's foot \
                    points (a degenerate parameterization)",
             magnitude: None,
+        }),
+    }
+}
+
+/// The foot producer's body, shared by every bracket-carrying scalar
+/// ([`PcurveFittedLane::chart_foot`]).
+fn chart_foot_lane<T: Decide + geom_core::Bounds + geom_core::CertifiedEnclosure>(
+    point: Point3<T>,
+    wall: &NurbsSurface<T>,
+) -> Result<Option<Point2<f64>>, PcurveCertifyError> {
+    match crate::edge_nurbs::chart_foot(point, wall) {
+        Ok(foot) => Ok(Some(foot)),
+        Err(crate::edge_nurbs::PlaneNurbsRefusal::FootPointInconclusive {
+            last_distance, ..
+        }) => Err(PcurveCertifyError::FittedCertificate {
+            limb: Some(SsiLimb::OnLocus),
+            what: "an edge endpoint has no certified foot on this chart, so where its \
+                   image sits cannot be measured",
+            magnitude: Some(FittedMagnitude::LastFootDistance {
+                t: f64::NAN,
+                last_distance,
+            }),
+        }),
+        Err(_) => Err(PcurveCertifyError::UnsupportedChart {
+            chart: "the mvfs placeholder is not a surface to derive a chart image on",
         }),
     }
 }
@@ -1434,6 +1479,13 @@ impl PcurveFittedLane for f64 {
         general_image_lane(carrier, wall)
     }
 
+    fn chart_foot(
+        point: Point3<Self>,
+        wall: &NurbsSurface<Self>,
+    ) -> Result<Option<Point2<f64>>, PcurveCertifyError> {
+        chart_foot_lane(point, wall)
+    }
+
     fn lane_name() -> &'static str {
         "f64"
     }
@@ -1460,6 +1512,13 @@ impl PcurveFittedLane for geom_core::Probe {
         general_image_lane(carrier, wall)
     }
 
+    fn chart_foot(
+        point: Point3<Self>,
+        wall: &NurbsSurface<Self>,
+    ) -> Result<Option<Point2<f64>>, PcurveCertifyError> {
+        chart_foot_lane(point, wall)
+    }
+
     fn lane_name() -> &'static str {
         "telemetry probe"
     }
@@ -1484,6 +1543,13 @@ impl PcurveFittedLane for geom_core::interval::Interval {
         wall: &NurbsSurface<Self>,
     ) -> Result<Option<NurbsCurve2<Self>>, PcurveCertifyError> {
         general_image_lane(carrier, wall)
+    }
+
+    fn chart_foot(
+        point: Point3<Self>,
+        wall: &NurbsSurface<Self>,
+    ) -> Result<Option<Point2<f64>>, PcurveCertifyError> {
+        chart_foot_lane(point, wall)
     }
 
     fn lane_name() -> &'static str {
@@ -1516,6 +1582,13 @@ where
         _carrier: &NurbsCurve3<Self>,
         _wall: &NurbsSurface<Self>,
     ) -> Result<Option<NurbsCurve2<Self>>, PcurveCertifyError> {
+        Ok(None)
+    }
+
+    fn chart_foot(
+        _point: Point3<Self>,
+        _wall: &NurbsSurface<Self>,
+    ) -> Result<Option<Point2<f64>>, PcurveCertifyError> {
         Ok(None)
     }
 

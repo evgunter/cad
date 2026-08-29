@@ -506,27 +506,37 @@ fn nurbs_iso_derive<T: PcurveFittedLane>(
     // chart values places the carrier's START on the surface. The
     // selection is structure (a two-way pick), the CHECK is the full
     // iso-lane certification that follows every derivation.
+    //
+    // `None` is "no candidate is definitely it", NOT a refusal: a
+    // caller may have a wider candidate to offer (the rim arms measure
+    // one when the chart is wider than the face it trims). The refusal
+    // text lives at the call sites that have nothing left to try, so
+    // three arms can no longer share one message for three different
+    // situations.
     let side_pick = |eval_at: &dyn Fn(T) -> geom_core::Point3<T>,
-                     cands: [T; 2]|
-     -> Result<T, PcurveMintError> {
+                     cands: &[T]|
+     -> Result<Option<T>, PcurveMintError> {
         let start = carrier.eval(t0);
         for cand in cands {
             match decide(
                 "pcurve_iso_side",
-                Margin::of(start.distance(eval_at(cand))),
+                Margin::of(start.distance(eval_at(*cand))),
                 band,
             ) {
-                Ok(Sign::Zero) => return Ok(cand),
+                Ok(Sign::Zero) => return Ok(Some(*cand)),
                 Ok(Sign::Positive | Sign::Negative) => {}
                 Err(cause) => {
                     return Err(PcurveMintError::Escalated { half_edge, cause });
                 }
             }
         }
-        Err(refuse(
+        Ok(None)
+    };
+    let no_boundary = || {
+        refuse(
             "the carrier's start point lies on neither chart boundary — not a boundary \
              iso of this face's chart",
-        ))
+        )
     };
     let own = half_edge_surface_key(body, half_edge)?;
     match half_edge_description(body, half_edge)? {
@@ -547,7 +557,30 @@ fn nurbs_iso_derive<T: PcurveFittedLane>(
             ..
         }) => {
             let v0 = p0.y + pl.y * t0;
-            let x = side_pick(&|cand| surface.eval(cand, v0), [cu0, cu1])?;
+            let column = |cand: T| surface.eval(cand, v0);
+            let x = match side_pick(&column, &[cu0, cu1])? {
+                Some(x) => x,
+                // **Neither boundary column is where this seam is.**
+                // On a chart WIDER than the face it trims — the chart a
+                // trimmed-NURBS face carries, and the chart on which an
+                // `Intersection` seam is an interior column at all —
+                // the shared column is interior too. So MEASURE it,
+                // with the same certified foot the `General` deriver
+                // uses (one sample rather than 33: this arm already
+                // knows the image's SHAPE from the neighbour's own
+                // description, and is missing only its position), and
+                // offer it to the SAME metre-valued check. The closed
+                // form is tried first and still wins wherever it
+                // applies, so nothing that certified before changes.
+                None => {
+                    let foot = derive_chart_foot(carrier.eval(t0), surface, half_edge)?;
+                    let measured = foot.map(|f| T::from_f64(f.x));
+                    match measured {
+                        Some(u) => side_pick(&column, &[u])?.ok_or_else(no_boundary)?,
+                        None => return Err(no_boundary()),
+                    }
+                }
+            };
             Ok(Pcurve::IsoLine {
                 p0: Point2::new(x, p0.y),
                 pl: Vec2::new(T::zero(), pl.y),
@@ -582,7 +615,8 @@ fn nurbs_iso_derive<T: PcurveFittedLane>(
             let spans = ku.knots().iter().filter(|k| **k > d0 && **k < d1).count() / 2 + 1;
             let breaks = uniform_breaks(spans)
                 .ok_or_else(|| refuse("an arc rim whose chart has no usable sub-arc structure"))?;
-            let v = side_pick(&|cand| surface.eval(cu0, cand), [cv0, cv1])?;
+            let v = side_pick(&|cand| surface.eval(cu0, cand), &[cv0, cv1])?
+                .ok_or_else(no_boundary)?;
             // **The u-DIRECTION pick (#327).** M8-3's arm assumed the
             // rim's increasing carrier parameter runs with the chart's
             // increasing `u` — true by construction for a wall the
@@ -643,13 +677,42 @@ fn nurbs_iso_derive<T: PcurveFittedLane>(
         geom_brep::EdgeDescription::Chart(_) | geom_brep::EdgeDescription::Scaffold(_)
             if matches!(carrier, geom::Curve3::Line { .. }) =>
         {
+            // The closed form: the rim spans the chart's whole `u`
+            // domain, which is true for every wall the kernel BUILT.
             let plx = (cu1 - cu0) / span;
             let p0x = cu0 - (cu1 - cu0) * t0 / span;
-            let v = side_pick(&|cand| surface.eval(p0x + plx * t0, cand), [cv0, cv1])?;
-            Ok(Pcurve::IsoLine {
-                p0: Point2::new(p0x, v),
-                pl: Vec2::new(plx, T::zero()),
-            })
+            let row = |p0x: T, plx: T| move |cand: T| surface.eval(p0x + plx * t0, cand);
+            match side_pick(&row(p0x, plx), &[cv0, cv1])? {
+                Some(v) => Ok(Pcurve::IsoLine {
+                    p0: Point2::new(p0x, v),
+                    pl: Vec2::new(plx, T::zero()),
+                }),
+                // **The rim does not span this chart.** Same cause as
+                // the wall-seam arm above: a chart wider than the face
+                // it trims. The `u` MAP is what the closed form got
+                // wrong (the `v` side is still a boundary), so measure
+                // the rim's two endpoints and build the map from them.
+                // Same certified foot producer, same metre-valued check
+                // on the `v` side, and the full iso certification still
+                // follows every derivation.
+                None => {
+                    let (f0, f1) = (
+                        derive_chart_foot(carrier.eval(t0), surface, half_edge)?,
+                        derive_chart_foot(carrier.eval(t1), surface, half_edge)?,
+                    );
+                    let (Some(f0), Some(f1)) = (f0, f1) else {
+                        return Err(no_boundary());
+                    };
+                    let (u0, u1) = (T::from_f64(f0.x), T::from_f64(f1.x));
+                    let plx = (u1 - u0) / span;
+                    let p0x = u0 - plx * t0;
+                    let v = side_pick(&row(p0x, plx), &[cv0, cv1])?.ok_or_else(no_boundary)?;
+                    Ok(Pcurve::IsoLine {
+                        p0: Point2::new(p0x, v),
+                        pl: Vec2::new(plx, T::zero()),
+                    })
+                }
+            }
         }
         // **The boundary-iso INTERSECTION arm.** The same wall–wall
         // seam the `IsoCurve` arm maps, stated INTRINSICALLY: the locus
@@ -827,6 +890,28 @@ fn derive_general_image<T: PcurveFittedLane>(
         })),
         Err(error) => Err(certify(error)),
     }
+}
+
+/// The **certified chart foot** of one model-space point on this face's
+/// own spline chart — [`derive_general_image`]'s single-sample sibling,
+/// same producer (`geom_brep`'s `PcurveFittedLane::chart_foot`).
+///
+/// `None` at a scalar with no certified lane, which lets a caller keep
+/// its previous typed refusal rather than inventing a foot: a dual body
+/// answers exactly what it answered before this widening existed.
+///
+/// # Errors
+///
+/// [`PcurveMintError::Certify`] when the projection will not converge.
+fn derive_chart_foot<T: PcurveFittedLane>(
+    point: geom_core::Point3<T>,
+    surface: &Surface<T>,
+    half_edge: HalfEdgeKey,
+) -> Result<Option<geom_core::Point2<f64>>, PcurveMintError> {
+    let Some(wall) = surface.spline_chart() else {
+        return Ok(None);
+    };
+    T::chart_foot(point, wall).map_err(|error| PcurveMintError::Certify { half_edge, error })
 }
 
 /// Is `half_edge` the `he_plus` of its edge (so the loop traverses it

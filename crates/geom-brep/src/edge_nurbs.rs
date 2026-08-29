@@ -62,7 +62,7 @@
 
 use geom::{NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
-use geom_core::{Band, Bounds, Decide, Indeterminate, Point2, Real, Vec3};
+use geom_core::{Band, Bounds, Decide, Indeterminate, Point2, Point3, Real, Vec3};
 
 use crate::certify::CERT_SAMPLES;
 use crate::ssi::{SsiError, SsiLimb, SsiOperand, TubeScale, certify_rung3};
@@ -417,6 +417,48 @@ where
     let image = NurbsCurve2::<f64>::interpolate_with_params(&uv, PXN_IMAGE_DEGREE, &params)
         .map_err(|_| PlaneNurbsRefusal::PcurveFit)?;
     on_carrier_domain(&image, t0, t1).ok_or(PlaneNurbsRefusal::PcurveFit)
+}
+
+/// **The certified foot of ONE point** on a NURBS wall, in the wall's
+/// own chart coordinates — [`chart_image`]'s single-sample sibling,
+/// with the same producer (`NurbsSurface::project`, D9-fixed) and the
+/// same `f64` structure lane.
+///
+/// Its consumer is the pcurve mint's rim arms, which need to know WHERE
+/// on the chart an edge's endpoint actually lands rather than assuming
+/// it lands on a knot-domain end. One foot rather than the image's 33,
+/// because those arms already know the SHAPE of their image (a chart
+/// row or column) and are only missing its position.
+///
+/// Certifies nothing by itself, exactly as [`chart_image`] does not:
+/// the caller offers the result to its own metre-valued check and the
+/// full iso certification follows.
+///
+/// # Errors
+///
+/// [`PlaneNurbsRefusal::FootPointInconclusive`] when the projection
+/// will not converge (never a best-effort foot), or
+/// [`PlaneNurbsRefusal::Unsupported`] on the mvfs placeholder.
+pub(crate) fn chart_foot<T>(
+    point: Point3<T>,
+    wall: &NurbsSurface<T>,
+) -> Result<Point2<f64>, PlaneNurbsRefusal>
+where
+    T: Decide + Bounds + geom_core::CertifiedEnclosure,
+{
+    if wall.is_placeholder() {
+        return Err(PlaneNurbsRefusal::Unsupported {
+            what: "the mvfs placeholder is a mid-surgery 'no description yet' fact, never a \
+                   surface to derive a chart image on",
+        });
+    }
+    let proj = wall
+        .project(point)
+        .map_err(|e| PlaneNurbsRefusal::FootPointInconclusive {
+            sample: 0,
+            last_distance: e.last_distance,
+        })?;
+    Ok(Point2::new(proj.u, proj.v))
 }
 
 /// How many knot spans per direction the wall is refined to before the

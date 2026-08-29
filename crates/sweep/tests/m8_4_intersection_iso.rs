@@ -630,3 +630,92 @@ fn an_imported_domain_chart_mints_the_boundary_intersection() {
         pl.y
     );
 }
+
+/// TEMPORARY rim-arm probe v2 (deleted once its finding is encoded).
+///
+/// v1 was MIS-DESIGNED and its answer was an artefact: `pcurve_of`
+/// short-circuits on a STORED CACHE, and `intrinsic_seam` detaches only
+/// the seam's own half-edge, so v1 read three caches the loft minted
+/// against the ORIGINAL chart and reported them as derivations. This
+/// one detaches every cache on the face first, so what it prints is
+/// what the ARM answers, and it runs `mint_pcurves` itself rather than
+/// inferring what it would do.
+#[test]
+fn p2_rim_arm_probe() {
+    let Ok((mut body, he, bowed)) = intrinsic_seam_at(false, INTERIOR_COLUMN_SCALE) else {
+        panic!("the scaled seam attaches")
+    };
+    let widened = widened_u_chart(&chart_of(&body, bowed));
+    let key = rechart(&mut body, bowed, widened);
+    let chart = chart_of(&body, key);
+    let (fk, _) = body.faces().find(|(_, f)| f.surface == key).unwrap();
+    let face = body.get_face(fk).unwrap();
+    let topo::entity::LoopBoundary::Cycle { first } = body.get_loop(face.outer).unwrap().boundary
+    else {
+        panic!("the bowed wall's outer loop is a cycle")
+    };
+    let cycle = body.loop_cycle(first).unwrap();
+    println!(
+        "=== RIM ARM PROBE v2: face {fk:?}, seam {he:?}, widened u domain {:?}",
+        chart.knots_u().domain()
+    );
+    // 1. WHAT WAS CACHED — v1's answer, and why it was not the arm's.
+    for h in &cycle {
+        let cached = body.pcurve(*h).map(|c| match c.pcurve() {
+            Pcurve::IsoLine { p0, pl } => format!("IsoLine p0={p0:?} pl={pl:?}"),
+            other => format!("{other:?}").chars().take(40).collect(),
+        });
+        println!("  he {h:?} STORED CACHE: {cached:?}");
+    }
+    // 2. THE ARM'S OWN ANSWER, caches gone.
+    for h in &cycle {
+        body.detach_pcurve(*h);
+    }
+    for h in &cycle {
+        let edge = body.get_edge(body.get_half_edge(*h).unwrap().edge).unwrap();
+        let (desc, carrier) = match body.get_curve_geom(edge.curve) {
+            Some(topo::CurveGeom::Certified(c)) => {
+                let d = match c.description() {
+                    geom_brep::EdgeDescription::Chart(cc) => format!(
+                        "Chart(pcurve={})",
+                        match &cc.pcurve {
+                            Pcurve::IsoLine { .. } => "IsoLine",
+                            Pcurve::IsoArc { .. } => "IsoArc",
+                            Pcurve::Harmonic { .. } => "Harmonic",
+                            Pcurve::Fitted(_) => "Fitted",
+                            Pcurve::General(_) => "General",
+                        }
+                    ),
+                    geom_brep::EdgeDescription::Intersection { .. } => "Intersection".into(),
+                    geom_brep::EdgeDescription::Scaffold(_) => "Scaffold".into(),
+                    other => format!("{other:?}"),
+                };
+                let k = match c.carrier() {
+                    Curve3::Line { .. } => "Line",
+                    Curve3::Circle { .. } => "Circle",
+                    Curve3::Nurbs(_) => "Nurbs",
+                    _ => "other",
+                };
+                (d, k)
+            }
+            other => (format!("{other:?}"), "?"),
+        };
+        let verdict = match topo::pcurve_of(&body, *h, band()) {
+            Ok(Pcurve::General(_)) => "Ok(General)".to_string(),
+            Ok(p) => format!("Ok({p:?})").chars().take(70).collect(),
+            Err(e) => format!("{e:?}").chars().take(130).collect(),
+        };
+        println!("  he {h:?} desc={desc} carrier={carrier}\n     DERIVED -> {verdict}");
+    }
+    // 3. WHAT THE MINT ITSELF DOES — measured, never inferred.
+    match topo::mint_pcurves(&mut body, Tol::witness()) {
+        Ok(()) => {
+            let findings = topo::pcurves::validate_pcurves(&body, band());
+            println!("  mint_pcurves: OK; validate_pcurves: {} findings", findings.len());
+            for f in findings.iter().take(3) {
+                println!("    {f:?}");
+            }
+        }
+        Err(e) => println!("  mint_pcurves: {e:?}"),
+    }
+}
