@@ -409,13 +409,50 @@ fn blank_volume() -> f64 {
         + (4.0 / 3.0) * PI * R.powi(3)
 }
 
-/// This scene's recipe, as a document the GUI can open.
+/// This scene's recipe, as a document the GUI can open — **the
+/// composed die, and only it**.
 ///
 /// The same `build` the stops walk, geometric selections and all: what
 /// a reader opens in the viewer is the document this scene renders,
-/// not a re-authoring of it.
+/// not a re-authoring of it. One node is then DELETED, and the reason
+/// is the difference between a tour and a document.
+///
+/// # Why the blank is not in the file
+///
+/// The scene has three stops and `build` authors all three, because a
+/// stop renders ONE named body and three stops need three of them.
+/// [`Die::blank`] is a second fillet of the same cube, consumed by
+/// nothing — a narration body, and a DAG sink.
+///
+/// A document is not a tour. Its product is the gather of every root,
+/// the root set is exactly the sink set (`editor_core::roots`:
+/// coverage plus ancestor-freedom), so a sink authored for narration
+/// is a product root whether or not the scene means it as one. The
+/// blank is the composed die's own outer shape with no pips cut, so
+/// the two roots sit exactly on each other: the blank's material plugs
+/// every pip cavity, the outer faces z-fight, and the product's volume
+/// counts the same material twice (115 faces, V = 1.918146 ≈ 2 ×
+/// 0.952915). That is the gallery bug #1162 diagnosed. What #1162
+/// landed is the separation resident that REPORTS it — deliberately,
+/// because a viewer must keep drawing a document a modeller is trying
+/// to fix. Nothing was ever going to make this file draw the die.
+///
+/// So the file carries the scene's SUBJECT — "the composed die, which
+/// remains the sheet's die" (Evan's montage curation, #218 follow-up,
+/// which already ruled the two partial dice out of the sheet for
+/// reading as near-duplicates). The blank keeps its stop, its
+/// narration and its render; what it loses is a second root in one
+/// `.pncad`, where it could only ever be an obstruction.
+///
+/// The deletion goes through the ordinary edit door, so the root list
+/// is maintained by `roots::on_delete` rather than asserted here, and
+/// the remaining document is exactly the recipe that builds the die:
+/// 49 nodes, one root, 89 faces, V = 0.952915, no separation finding.
 pub fn gallery_document(tol: Tol) -> Doc<ProfileProgram> {
-    build(tol).doc
+    let die = build(tol);
+    apply(&die.doc, &DocEdit::DeleteNode { id: die.blank }, tol)
+        .expect("the blank is a sink: deleting it drops a root and uncovers nothing")
+        .doc
 }
 
 pub fn stops(tol: Tol) -> Vec<Stop> {

@@ -578,7 +578,7 @@ pub(crate) fn split_scratch<T: geom_core::Decide>(
 /// [`SplitError`], each stage's typed refusals passed through whole —
 /// including the one-sided-tangency degenerate section/side refusals
 /// (no degenerate body is ever emitted).
-pub fn split<T: geom_core::Decide>(
+pub fn split<T: geom_core::Decide + geom_brep::PcurveFittedLane>(
     operand: &Body<T>,
     plane: &SplitPlane<T>,
     tol: Tol,
@@ -638,7 +638,7 @@ pub fn split<T: geom_core::Decide>(
 /// certified (spec §1). Planar sides pick up nothing — planar faces
 /// keep M2's derive-on-demand status — so an all-planar split is
 /// bit-identical to before this pass existed.
-fn split_direct<T: geom_core::Decide>(
+fn split_direct<T: geom_core::Decide + geom_brep::PcurveFittedLane>(
     operand: &Body<T>,
     plane: &SplitPlane<T>,
     tol: Tol,

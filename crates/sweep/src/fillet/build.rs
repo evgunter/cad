@@ -125,7 +125,7 @@ pub struct Filleted<T: Real> {
 /// typed refusal, when an Euler operator refuses;
 /// [`FilletError::Certify`], carrying the pass's own typed refusal,
 /// when the result's pcurve caches cannot be re-minted.
-pub fn fillet_edges<T: Decide + Bounds>(
+pub fn fillet_edges<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     body: &Body<T>,
     edges: &[EdgeKey],
     radius: T,
@@ -278,7 +278,7 @@ pub type Chamfered<T> = Filleted<T>;
 /// [`FilletError::RingClearance`] when a carried-through ring does not
 /// clear a trimline; [`FilletError::Op`] / [`FilletError::Certify`]
 /// carrying an operator's or the pcurve pass's own typed refusal.
-pub fn chamfer_edges<T: Decide + Bounds>(
+pub fn chamfer_edges<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     body: &Body<T>,
     edges: &[EdgeKey],
     distance: T,
