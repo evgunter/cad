@@ -1836,3 +1836,20 @@ fields at the spec: M / STRUCTURAL. Impl phase (for the row at
 merge): ~295k tokens lane-reported (~299k harness), ~2h05m wall
 (~50m CI polling), impl CI 33244842151 GREEN (default, 1e-6). Row
 at merge.
+
+LIB-G18a R1 FIRST DISPATCH DIED (2026-08-29 ~09:50Z): the R1 lane
+was killed mid-review by its model's session usage limit (resets
+10:40Z), no report delivered. **Handling, chosen for the tally's
+sake and recorded for the blinded adjudication to weigh:** the
+partial is DISCARDED, not resumed — a resumed limit-killed review is
+the exact 3(e) shape that struck LILYWELD1's pair, while a fresh
+complete R1 from the SAME stored brief (authored before any review
+ran), same frozen head 773d95af, same slot model per the byte-226
+draw, is an uninterrupted review. The dead attempt's partial probe
+branch (`lib/g18a-r1-probes`, tip 3b18b291) stays on origin as the
+record of the discarded attempt and is NOT an input to the fresh R1,
+whose probes go to `lib/g18a-r1b-probes`. R2 stays queued BEHIND the
+fresh R1 — dispatching the other slot first would swap the order the
+draw fixed. Whether the pair still scores is the adjudication's
+call, not claimed here; the sequential-method and LIB-12
+contamination notes above stand unchanged.
