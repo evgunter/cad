@@ -200,6 +200,18 @@ their chord. A chart with one seam closes on itself and its chord is
 exactly zero, which made every meter read `Zero` and called a perfectly
 transversal corner degenerate. Measured on the revolved tube.
 
+**5. Two more, found at the MERGE with main's description collapse.**
+U2 restated a conventional locus as a chart IMAGE plus an authority
+record. The per-face door carries an image forward under a constant `v`
+shift because it keeps the edge's parameter WINDOW; this door re-solves
+both endpoints, so an edge shortens and slides within its own chart and
+a constant shift describes none of that — measured as a `ChartResidual`
+refusal on the cone frustum's anti-seam. Every chart image here is
+therefore `image: None`, which the spec's own docs define as the
+REQUEST to derive the image from the carrier. And a DECLARATION is
+re-authored in its own sketch plane rather than translated, which is
+what lets a reshaping chart (a sphere's concentric arc) travel at all.
+
 ## Fences
 
 - No SSI, no crossing-pipeline entry (the no-crossing pin stands).
