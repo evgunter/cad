@@ -1746,16 +1746,14 @@ fn do_arc_to_point<T: ArcCarrierScalar, F: Flavor>(
             c,
             winding,
             target: Target::Start,
-        } => Ok(Applied::Closed(
-            p.arc_to(
-                Center {
-                    c,
-                    winding,
-                    p: Start,
-                },
-                tol,
-            )?
-        )),
+        } => Ok(Applied::Closed(p.arc_to(
+            Center {
+                c,
+                winding,
+                p: Start,
+            },
+            tol,
+        )?)),
         ArcData::Radius { .. } | ArcData::Sweep { .. } | ArcData::ArcLen { .. } => {
             violation(state, Verb::ArcTo)
         }
@@ -1824,17 +1822,15 @@ fn do_arrival<T: ArcCarrierScalar>(
             c,
             winding,
             target: Target::Start,
-        } => Ok(Applied::Closed(
-            ArrivalSpec::apply(
-                core,
-                super::Center {
-                    c,
-                    winding,
-                    p: Start,
-                },
-                tol,
-            )?
-        )),
+        } => Ok(Applied::Closed(ArrivalSpec::apply(
+            core,
+            super::Center {
+                c,
+                winding,
+                p: Start,
+            },
+            tol,
+        )?)),
         ArcData::Radius { r, side } => Ok(Applied::Tip(DynTip::RadiusArrival(ArrivalSpec::apply(
             core,
             super::Radius { r, side },

@@ -67,9 +67,21 @@ fn vesica_lens(dx: f64) -> Vec<profile::Step<f64>> {
 fn same_bits(a: &ProfileLoop<f64>, b: &ProfileLoop<f64>, what: &str) {
     assert_eq!(a.vertices().len(), b.vertices().len(), "{what}: arity");
     for (i, (u, v)) in a.vertices().iter().zip(b.vertices()).enumerate() {
-        assert_eq!(u.pos().x.to_bits(), v.pos().x.to_bits(), "{what} vertex {i} x");
-        assert_eq!(u.pos().y.to_bits(), v.pos().y.to_bits(), "{what} vertex {i} y");
-        assert_eq!(u.bulge().to_bits(), v.bulge().to_bits(), "{what} vertex {i} b");
+        assert_eq!(
+            u.pos().x.to_bits(),
+            v.pos().x.to_bits(),
+            "{what} vertex {i} x"
+        );
+        assert_eq!(
+            u.pos().y.to_bits(),
+            v.pos().y.to_bits(),
+            "{what} vertex {i} y"
+        );
+        assert_eq!(
+            u.bulge().to_bits(),
+            v.bulge().to_bits(),
+            "{what} vertex {i} b"
+        );
     }
     assert_eq!(a.tangent_joints(), b.tangent_joints(), "{what}: joints");
 }
@@ -207,6 +219,39 @@ fn guided_replay_consumes_the_recorded_pick_rather_than_ranking() {
 #[test]
 fn the_hairline_lens_aborts_typed_at_interval_instead_of_re_picking() {
     use geom_core::{Interval, Real};
+    /// Lifts one `f64` step to another scalar (the suite-local embedding;
+    /// `generic_replay.rs` carries the exhaustive one and the census
+    /// argument for it).
+    fn embed<T: geom_core::Real>(step: &profile::Step<f64>) -> profile::Step<T> {
+        use geom_core::Point2;
+        use profile::{ArcData, Step, Target};
+        let pt = |p: Point2<f64>| Point2::new(T::from_f64(p.x), T::from_f64(p.y));
+        let tgt = |t: Target<f64>| match t {
+            Target::Start => Target::Start,
+            Target::Point(p) => Target::Point(pt(p)),
+        };
+        let spec = |s: ArcData<f64>| match s {
+            ArcData::Center { c, winding, target } => ArcData::Center {
+                c: pt(c),
+                winding,
+                target: tgt(target),
+            },
+            _ => panic!("this suite's fixtures author Center-mode arcs only"),
+        };
+        match *step {
+            Step::ArcFilletArc {
+                spec: s,
+                radius,
+                spec2,
+            } => Step::ArcFilletArc {
+                spec: spec(s),
+                radius: T::from_f64(radius),
+                spec2: spec(spec2),
+            },
+            ref other => panic!("this suite's fixtures are one fused step, got {other:?}"),
+        }
+    }
+
     let program = vesica_lens(f64::EPSILON);
     let (_, structure) = replay_recording(&program, tol()).expect("the lens replays at f64");
     let lifted: Vec<profile::Step<Interval>> = program
@@ -363,38 +408,4 @@ fn guided_validation_at_interval_certifies_without_the_pinned_decides() {
     assert_eq!(vp.loops().len(), 2);
     assert_eq!(vp.loops()[0].role(), profile::LoopRole::Outer);
     assert_eq!(vp.loops()[1].role(), profile::LoopRole::Hole);
-}
-
-/// Lifts one `f64` step to another scalar (the suite-local embedding;
-/// `generic_replay.rs` carries the exhaustive one and the census
-/// argument for it).
-#[cfg(feature = "interval")]
-fn embed<T: geom_core::Real>(step: &profile::Step<f64>) -> profile::Step<T> {
-    use geom_core::Point2;
-    use profile::{ArcData, Step, Target};
-    let pt = |p: Point2<f64>| Point2::new(T::from_f64(p.x), T::from_f64(p.y));
-    let tgt = |t: Target<f64>| match t {
-        Target::Start => Target::Start,
-        Target::Point(p) => Target::Point(pt(p)),
-    };
-    let spec = |s: ArcData<f64>| match s {
-        ArcData::Center { c, winding, target } => ArcData::Center {
-            c: pt(c),
-            winding,
-            target: tgt(target),
-        },
-        _ => panic!("this suite's fixtures author Center-mode arcs only"),
-    };
-    match *step {
-        Step::ArcFilletArc {
-            spec: s,
-            radius,
-            spec2,
-        } => Step::ArcFilletArc {
-            spec: spec(s),
-            radius: T::from_f64(radius),
-            spec2: spec(spec2),
-        },
-        ref other => panic!("this suite's fixtures are one fused step, got {other:?}"),
-    }
 }

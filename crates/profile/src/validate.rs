@@ -1118,15 +1118,8 @@ impl<T: Decide> Profile<T> {
                     DecisionValue::Role(role),
                 )));
             }
-            let (validated, shapes) = canonicalize_loop(
-                lp,
-                &loop_segs[li],
-                role,
-                li,
-                band,
-                exact,
-                guide.loop_at(li),
-            )?;
+            let (validated, shapes) =
+                canonicalize_loop(lp, &loop_segs[li], role, li, band, exact, guide.loop_at(li))?;
             guide.record(LoopCanonical {
                 role,
                 inside: core::mem::take(&mut within[li]),

@@ -515,10 +515,7 @@ pub(crate) fn resolve<T: Decide + Bounds>(
                     // driver bisecting the parameter box needs to know
                     // which decision went unconfirmed.
                     Err((_, PathError::Escalated { source })) => {
-                        return Err(structure(StructureRefusal::indeterminate(
-                            site,
-                            *source,
-                        )));
+                        return Err(structure(StructureRefusal::indeterminate(site, *source)));
                     }
                     _ if found != recorded => {
                         return Err(structure(StructureRefusal::flipped(

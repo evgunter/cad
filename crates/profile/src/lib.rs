@@ -130,14 +130,14 @@ pub use path::program::{
     ArcData, ClosedLoop, ReplayError, ReplayErrorKind, Step, Target, TipState, Verb, replay,
     replay_guided, replay_recording,
 };
-pub use structure::{
-    CanonicalStructure, CornerGate, Decision, DecisionValue, FilletDecision, LoopCanonical,
-    ProfileStructure, ReplayStructure, SegmentShape, StructureRefusal, StructureRefusalKind,
-};
 pub use path::{
     ArcCarrierScalar, ArcLen, ArcSide, Bulge, Center, LineTarget, Open, PartialPath, PathError,
     PathNoCornerReason, PointLeg, Radius, Start, Sweep, TangentArcTarget, Via, circle,
     circle_split,
+};
+pub use structure::{
+    CanonicalStructure, CornerGate, Decision, DecisionValue, FilletDecision, LoopCanonical,
+    ProfileStructure, ReplayStructure, SegmentShape, StructureRefusal, StructureRefusalKind,
 };
 pub use sugar::{ArcSweep, FilletLegShape, bulge_from_center, bulge_from_via};
 pub use validate::{

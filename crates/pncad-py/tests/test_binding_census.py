@@ -866,6 +866,12 @@ NOT_BOUND = {
     "DistributionField": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",
     # --- gap: the memo (audit G8's measured residue) --------------
     "EvalOptions": f"{GAP}: G8 memoized recompute",
+    # A FIELD of `EvalOptions` — where profile geometry comes from at
+    # the evaluation's scalar — so it arrives with the options value or
+    # not at all, and it is cited to the same door rather than minting
+    # an id for a name that cannot be reached separately. Python
+    # evaluates at f64, where the lift is a no-op by construction.
+    "ProfileLift": f"{GAP}: G8 memoized recompute",
     # --- gap: the pin-UPDATE door (audit G18) ---------------------
     # G15's own doors are bound (`ContentPin`, `DocRef`,
     # `content_pin`, `canonical_bytes`, `header_document_id`, and

@@ -755,13 +755,12 @@ fn res_spec<T: Decide>(
 ) -> Result<profile::ArcData<T>, (SlotId, EvalError)> {
     use StepArg as A;
     let pick = |a: StepArg, b: StepArg| if second { b } else { a };
-    let pt2 =
-        |p: &[Expr; 2], ax: StepArg, ay: StepArg| -> Result<Point2<T>, (SlotId, EvalError)> {
-            Ok(Point2::new(
-                res(&p[0], env, loop_, i, ax)?,
-                res(&p[1], env, loop_, i, ay)?,
-            ))
-        };
+    let pt2 = |p: &[Expr; 2], ax: StepArg, ay: StepArg| -> Result<Point2<T>, (SlotId, EvalError)> {
+        Ok(Point2::new(
+            res(&p[0], env, loop_, i, ax)?,
+            res(&p[1], env, loop_, i, ay)?,
+        ))
+    };
     let tgt = |t: &ProgramTarget| -> Result<profile::Target<T>, (SlotId, EvalError)> {
         Ok(match t {
             ProgramTarget::Start => profile::Target::Start,

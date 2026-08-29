@@ -94,6 +94,10 @@ mod m10_1_r2_probes;
 mod m10_1_schema_v15;
 #[path = "m10_di_dual_corpus.rs"]
 mod m10_di_dual_corpus;
+#[path = "m10_p_fence.rs"]
+mod m10_p_fence;
+#[path = "m10_p_lift.rs"]
+mod m10_p_lift;
 #[path = "m4_pr1_dims.rs"]
 mod m4_pr1_dims;
 #[path = "m4_pr1_doc.rs"]
@@ -154,10 +158,6 @@ mod m4_pr6_roundtrip_interval;
 mod m4_pr7_appearance;
 #[path = "m4_pr7_appearance_interval.rs"]
 mod m4_pr7_appearance_interval;
-#[path = "m10_p_fence.rs"]
-mod m10_p_fence;
-#[path = "m10_p_lift.rs"]
-mod m10_p_lift;
 #[path = "m4_pr8_corpus.rs"]
 mod m4_pr8_corpus;
 #[path = "m4_pr8_corpus_interval.rs"]

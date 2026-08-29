@@ -14,7 +14,9 @@
 use geom_core::Tol;
 use geom_core::{Point2, Real};
 use profile::RawLoop;
-use profile::{ArcSweep, ClosedLoop, Open, Profile, ProfileLoop, ProfileVertex, SketchPlane, Start};
+use profile::{
+    ArcSweep, ClosedLoop, Open, Profile, ProfileLoop, ProfileVertex, SketchPlane, Start,
+};
 
 /// A point in the profile frame, from its two coordinates.
 pub fn p2(x: f64, y: f64) -> Point2<f64> {

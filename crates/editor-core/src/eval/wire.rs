@@ -114,9 +114,7 @@ where
         Node::Revolve { profile, axis, .. } => {
             wire_revolve(id, *profile, *axis, results, vals, tol)
         }
-        Node::Loft { profiles, .. } => {
-            wire_loft(id, profiles, doc, vals, env.profile_lift, tol)
-        }
+        Node::Loft { profiles, .. } => wire_loft(id, profiles, doc, vals, env.profile_lift, tol),
         Node::Sweep { profile, path, .. } => {
             wire_sweep(*profile, *path, doc, vals, env.profile_lift, tol)
         }
@@ -447,11 +445,12 @@ pub(crate) fn prepare_profile(
     let mut loops = Vec::with_capacity(resolved.len());
     let mut replay_records = Vec::with_capacity(resolved.len());
     for (li, steps) in resolved.iter().enumerate() {
-        let (lp, record) =
-            profile::replay_recording(steps, tol).map_err(|error| NodeErrorKind::ProfileReplay {
+        let (lp, record) = profile::replay_recording(steps, tol).map_err(|error| {
+            NodeErrorKind::ProfileReplay {
                 loop_: li as u32,
                 error,
-            })?;
+            }
+        })?;
         loops.push(lp);
         replay_records.push(record);
     }

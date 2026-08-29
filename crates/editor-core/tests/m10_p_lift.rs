@@ -27,8 +27,7 @@ mod corpus;
 mod fixture;
 
 use editor_core::{
-    CancelToken, EvalOptions, Node, NodeResult, ParamValue, ProfileLift, ValuePayload,
-    evaluate,
+    CancelToken, EvalOptions, Node, NodeResult, ParamValue, ProfileLift, ValuePayload, evaluate,
 };
 use geom_core::{Real, Tol};
 
@@ -191,6 +190,34 @@ fn a_dual_seed_on_a_profile_parameter_now_carries_a_tangent() {
 #[test]
 fn a_wide_interval_binding_aborts_typed_rather_than_certifying() {
     use geom_core::Interval;
+    /// The nominal f64 loops, replayed for the record's sake.
+    fn nominal_loops(resolved: &[Vec<profile::Step<f64>>]) -> Vec<profile::ProfileLoop<f64>> {
+        resolved
+            .iter()
+            .map(|steps| profile::replay(steps, Tol::witness()).expect("the nominal replays"))
+            .collect()
+    }
+
+    /// The sketch plane at the lane scalar (VQ8 keeps the plane out of the
+    /// parameter layer, so it lifts as constants).
+    fn interval_plane(
+        plane: &profile::SketchPlane<f64>,
+    ) -> profile::SketchPlane<geom_core::Interval> {
+        use geom_core::{Affine3, Interval, Mat3, Vec3};
+        let a = &plane.placement;
+        let v = |w: Vec3<f64>| {
+            Vec3::new(
+                Interval::from_f64(w.x),
+                Interval::from_f64(w.y),
+                Interval::from_f64(w.z),
+            )
+        };
+        profile::SketchPlane::new(Affine3::from_parts(
+            Mat3::from_cols(v(a.linear.c0), v(a.linear.c1), v(a.linear.c2)),
+            v(a.translation),
+        ))
+    }
+
     let doc = plate();
     let Some(Node::Profile(program)) = doc.doc.node(profile_node_of(&doc)) else {
         panic!("the plate's profile node is a profile node")
@@ -243,33 +270,6 @@ fn a_wide_interval_binding_aborts_typed_rather_than_certifying() {
     println!("wide-box refusal: {text}");
 }
 
-/// The nominal f64 loops, replayed for the record's sake.
-fn nominal_loops(resolved: &[Vec<profile::Step<f64>>]) -> Vec<profile::ProfileLoop<f64>> {
-    resolved
-        .iter()
-        .map(|steps| profile::replay(steps, Tol::witness()).expect("the nominal replays"))
-        .collect()
-}
-
-/// The sketch plane at the lane scalar (VQ8 keeps the plane out of the
-/// parameter layer, so it lifts as constants).
-#[cfg(feature = "interval")]
-fn interval_plane(plane: &profile::SketchPlane<f64>) -> profile::SketchPlane<geom_core::Interval> {
-    use geom_core::{Affine3, Interval, Mat3, Vec3};
-    let a = &plane.placement;
-    let v = |w: Vec3<f64>| {
-        Vec3::new(
-            Interval::from_f64(w.x),
-            Interval::from_f64(w.y),
-            Interval::from_f64(w.z),
-        )
-    };
-    profile::SketchPlane::new(Affine3::from_parts(
-        Mat3::from_cols(v(a.linear.c0), v(a.linear.c1), v(a.linear.c2)),
-        v(a.translation),
-    ))
-}
-
 /// **The two-ladder parity.** The sweep/loft seam and the profile
 /// node's seam do not fork.
 ///
@@ -312,6 +312,70 @@ fn the_loft_ladder_tracks_the_profile_ladder_under_the_lift() {
             NodeResult::Ok(v) if matches!(v.payload, ValuePayload::Body(_))
         )),
         "the loft document must actually build something for this row to mean anything"
+    );
+}
+
+/// The lift runs end to end at `Dual64` through the evaluation door,
+/// and does not move the value channel.
+///
+/// What this row does NOT show is a seeded tangent, and the reason is
+/// worth stating rather than leaving as an absence: `Doc::param_env`
+/// embeds every parameter through `from_f64`, so a document evaluation
+/// has no seed to carry — putting one there is the seeding surface,
+/// which is another unit's. The seam this unit opened is that a seed
+/// PRESENT in the environment now reaches the vertices, and that is
+/// asserted one door down, at
+/// [`a_dual_seed_on_a_profile_parameter_now_carries_a_tangent`], on the
+/// exact call `wire_profile` makes.
+///
+/// What this row does show is that the whole lifted path — resolving
+/// the program at `ParamEnv<Dual64>`, elaborating it guided, feeding
+/// both dual channels into the content key — runs at `Dual` and leaves
+/// the value channel exactly where the pinned lane put it.
+#[test]
+fn the_evaluation_door_runs_the_lift_at_dual() {
+    use geom_core::Dual64;
+    let doc = plate();
+    let run = |lift| {
+        evaluate::<Dual64>(
+            &doc.doc,
+            None,
+            &CancelToken::new(),
+            &options(lift),
+            Tol::witness(),
+        )
+    };
+    let profiles = |ev: &editor_core::Evaluation<Dual64>| {
+        let mut out = Vec::new();
+        for result in ev.nodes.values() {
+            if let NodeResult::Ok(v) = result
+                && let ValuePayload::Profile(p) = &v.payload
+            {
+                for lp in p.validated.loops() {
+                    for vx in lp.vertices() {
+                        out.push((
+                            vx.pos().x.value.to_bits(),
+                            vx.pos().y.value.to_bits(),
+                            vx.pos().x.deriv,
+                            vx.pos().y.deriv,
+                        ));
+                    }
+                }
+            }
+        }
+        out
+    };
+    let (pinned, guided) = (run(ProfileLift::Pinned), run(ProfileLift::Guided));
+    let (a, b) = (profiles(&pinned), profiles(&guided));
+    assert!(!a.is_empty(), "the plate has profile loops to compare");
+    assert_eq!(
+        a, b,
+        "the lift moved the Dual lane's profile payload — value channel or \
+         tangent — and with no seed in the environment it may move neither"
+    );
+    assert!(
+        a.iter().all(|(_, _, dx, dy)| *dx == 0.0 && *dy == 0.0),
+        "an unseeded environment has no derivative to carry, at either lane"
     );
 }
 

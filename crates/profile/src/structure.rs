@@ -397,9 +397,7 @@ impl<T: Real> Guide<T> {
     /// describes refuses here rather than falling through to free
     /// selection: running off the end of the record is exactly the
     /// state in which a lane would start choosing structure for itself.
-    pub(crate) fn consume(
-        &mut self,
-    ) -> Result<Option<(usize, FilletDecision)>, StructureRefusal> {
+    pub(crate) fn consume(&mut self) -> Result<Option<(usize, FilletDecision)>, StructureRefusal> {
         match self {
             Self::Recording(_) => Ok(None),
             Self::Guided { record, next, .. } => {
@@ -479,5 +477,4 @@ impl<T: Real> Guide<T> {
             }
         }
     }
-
 }
