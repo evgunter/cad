@@ -208,6 +208,10 @@ mod r1_dual_probes;
 mod r1_m10_1_corruptions;
 #[path = "r1_m10_1_probes.rs"]
 mod r1_m10_1_probes;
+#[path = "r2_e2e.rs"]
+mod r2_e2e;
+#[path = "r2_fence.rs"]
+mod r2_fence;
 #[path = "r2_m10_di_probes.rs"]
 mod r2_m10_di_probes;
 #[path = "respell_schema_v9.rs"]
