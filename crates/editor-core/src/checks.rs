@@ -35,7 +35,7 @@ use std::sync::Arc;
 use core::fmt;
 
 use geom_core::{BandError, CertifiedBounds, Decide, Tol};
-use topo::{Body, PropsQuadLane, ShellClassifyError, ShellRole, classify_shells};
+use topo::{AtRestPolicy, Body, PropsQuadLane, ShellClassifyError, ShellRole, classify_shells};
 
 use crate::doc::Doc;
 use crate::eval::Evaluation;
@@ -538,7 +538,7 @@ impl core::error::Error for CheckRefusal {}
 /// [`ChecksError`] — a root without a value in `ev`, or a band the
 /// tolerance cannot form. These mean the checks could not run at all;
 /// a check that ran and disagreed is a FINDING, not an error.
-pub fn run_checks<P, T: Decide + PropsQuadLane + CertifiedBounds>(
+pub fn run_checks<P, T: Decide + AtRestPolicy + CertifiedBounds>(
     doc: &Doc<P>,
     ev: &Evaluation<T>,
     cfg: &ChecksConfig,
@@ -695,7 +695,7 @@ fn connectedness<P, T: Decide + PropsQuadLane>(
 /// too would make a correctly-mated assembly noisy about the thing it
 /// got right. The suppression reads the declarations only — it never
 /// blesses a contact from discovery (F1).
-fn separation<P, T: Decide + PropsQuadLane + CertifiedBounds>(
+fn separation<P, T: Decide + AtRestPolicy + CertifiedBounds>(
     doc: &Doc<P>,
     ev: &Evaluation<T>,
     tol: Tol,
