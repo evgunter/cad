@@ -227,7 +227,7 @@ fn r1p3_the_cone_mint_is_nappe_blind_and_the_door_corrects_it() {
     let band = band();
     // The sf2b frustum's own cone: r0 = 4/64 at y = 0, r1 = 2/64 at
     // y = h — apex ABOVE the body, wall on the negative nappe.
-    let (r0, r1, h) = (4.0 / 64.0, 2.0 / 64.0, 8.0 / 64.0);
+    let (r0, r1, h): (f64, f64, f64) = (4.0 / 64.0, 2.0 / 64.0, 8.0 / 64.0);
     let tan_a = (r0 - r1) / h;
     let alpha = tan_a.atan();
     let apex_y = r0 / tan_a;
