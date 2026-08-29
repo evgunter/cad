@@ -2042,16 +2042,14 @@ fn an_unaffordable_chart_seed_floor_refuses_the_cell_budget_typed() {
 /// enclosure divides by `2r`, and the ring refuses a divisor that
 /// touches zero, so the very first cell poisons.
 ///
-/// **What the refusal is reached by is not what its text describes**,
-/// and the row says so rather than hiding it: the arm's message names
-/// a surface KIND with no ring-computable implicit form (cone, torus,
-/// NURBS), and no such kind can get here — `cylinder_sphere_ssi`
-/// refuses `WrongLane` for anything but a cylinder and a sphere. The
-/// reachable cause is a degenerate INSTANCE of a supported kind. Both
-/// are the same obligation — an enclosure that cannot be formed is a
-/// typed refusal, never a sweep that quietly excludes nothing — and
-/// pinning the text is what keeps this row from passing on some other
-/// `UnsupportedCertificate`, of which the certificate stack has many.
+/// **The refusal names the cause a caller can actually produce**, and
+/// the row pins that rather than the obligation alone: the only way
+/// into this arm is a degenerate INSTANCE of a supported kind, because
+/// `cylinder_sphere_ssi` refuses `WrongLane` for anything but a
+/// cylinder and a sphere — a kind with no implicit form at all never
+/// gets here. Pinning the text is also what keeps this row from
+/// passing on some other `UnsupportedCertificate`, of which the
+/// certificate stack has many.
 ///
 /// **Which duty**: the **Seed** one. `cylinder_sphere_ssi` calls
 /// `seed_r3` before `account_r3`, the poison arm lives in the closure
@@ -2089,6 +2087,18 @@ fn a_degenerate_r3_operand_refuses_the_enclosure_typed() {
                 "the refusal must be the SWEEP's poison arm: {what}"
             );
             assert!(what.contains("cannot be proved exhausted"), "{what}");
+            // The sentence must name a cause this door can deliver. A
+            // kind with no implicit form cannot reach the arm, so a
+            // message blaming one would send a reader hunting for an
+            // operand `WrongLane` already refused.
+            assert!(
+                what.contains("zero radius"),
+                "the refusal must name the producible cause: {what}"
+            );
+            assert!(
+                !what.contains("this surface kind has no"),
+                "the refusal must not blame a KIND its own door excludes: {what}"
+            );
             assert!(format!("{err}").starts_with("ssi: "), "{err}");
         }
         Err(other) => panic!("expected the enclosure refusal, got {other}"),

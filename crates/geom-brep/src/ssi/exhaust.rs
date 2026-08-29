@@ -256,8 +256,9 @@ pub(crate) fn seed_r3(
 ///
 /// [`SsiError::ExhaustivenessInconclusive`] at the floor,
 /// [`SsiError::CellBudget`] if the enumeration exceeds
-/// [`SSI_MAX_CELLS`], [`SsiError::UnsupportedCertificate`] when a
-/// surface kind has no ring-computable enclosure.
+/// [`SSI_MAX_CELLS`], [`SsiError::UnsupportedCertificate`] when an
+/// operand admits no ring-computable enclosure — which, behind this
+/// door, means a degenerate instance of a supported kind.
 pub(crate) fn account_r3(
     s1: &Surface<f64>,
     s2: &Surface<f64>,
@@ -284,9 +285,10 @@ fn sweep_r3(
         let e2 = implicit_enclosure(s2, cell);
         if e1.is_poison() || e2.is_poison() {
             return Err(SsiError::UnsupportedCertificate {
-                what: "this surface kind has no ring-computable implicit \
-                       enclosure, so its domain cannot be proved exhausted \
-                       (arms retire one at a time, each with its proof)",
+                what: "a degenerate operand — a sphere or cylinder of zero \
+                       radius, whose implicit form divides by that radius — \
+                       has no ring-computable implicit enclosure, so its \
+                       domain cannot be proved exhausted",
             });
         }
         Ok(excludes_zero(e1) || excludes_zero(e2))
