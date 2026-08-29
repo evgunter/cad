@@ -1429,3 +1429,25 @@ Orchestrator holds: the workspace-from-Python resolver-door design
 conversation (opens after G15's dependency report), the retroactive
 curation review of #938's A5 re-export block (orchestrator's own,
 next), and the #742/#741/#944 plans (drafted when their turns come).
+
+**CUR MERGED (2026-08-29, #1161 — Wave 1's first return; mechanical
+under the 08-29 ruling, no A/B row).** `HitTestError` gains the
+LIB-DOORS-F6-shape `Display` + `Error` impl (arena key deliberately
+not printed — kind + body index instead) with a contract test whose
+negative half pins against a future struct-dump regression. #1111's
+editor-core slice DISCHARGED; the issue stays open for its GUI half.
+**R2 was found ALREADY DISCHARGED** — carried at all three sites by
+09dbd562 (2026-08-28, an adjacent lane's cleanup), one day after the
+re-survey's "checked live and STILL OPEN" paragraph; that paragraph is
+hereby corrected rather than edited (append-only). Register effects:
+R2 CLOSED; #1111's A-slice closed. Two lane findings with homes:
+(1) **GUARD-SIBS joins the dispatchable column** (mechanical-shaped):
+`every_document_layer_root_export_is_carried_or_listed` reads
+`editor-core/src/lib.rs` ONLY — no sibling guard for the profile/
+topo/mesh/quantity layers, so an R2-shaped gap outside the document
+layer is mechanically invisible (exactly how R2 sat 18 days); the
+unit is the sibling guards. (2) Process rule for curation briefs:
+grep the target symbols on a FRESH clone of main before spending the
+lane — a register item can be discharged by an adjacent commit
+without the register moving. The lane's façade Display-gap re-sweep
+(12 real gaps, 4 new to #1111) is recorded on #1111 itself.
