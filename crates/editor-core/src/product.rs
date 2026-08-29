@@ -412,11 +412,9 @@ pub fn product_recorded<P, T: Decide + AtRestPolicy>(
         .sum();
     if total_solids > 1 {
         for (node, _, body, _, _) in &sources {
-            T::gate_at_rest(body.as_ref(), tol).map_err(|errors| {
-                ProductError::SolidInvalid {
-                    node: *node,
-                    errors,
-                }
+            T::gate_at_rest(body.as_ref(), tol).map_err(|errors| ProductError::SolidInvalid {
+                node: *node,
+                errors,
             })?;
         }
     }

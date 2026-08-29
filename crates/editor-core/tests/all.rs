@@ -86,6 +86,8 @@ mod lib_sel2_flush;
 mod lib_u5_interrogate;
 #[path = "lib_u7_select.rs"]
 mod lib_u7_select;
+#[path = "m10_di_dual_corpus.rs"]
+mod m10_di_dual_corpus;
 #[path = "m4_pr1_dims.rs"]
 mod m4_pr1_dims;
 #[path = "m4_pr1_doc.rs"]

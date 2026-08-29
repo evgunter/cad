@@ -309,8 +309,7 @@ pub use offset_together::{ChartMove, offset_planes_together};
 pub use pcurves::{PcurveMintError, mint_pcurves, pcurve_of};
 pub use props::{
     AtRestPolicy, MassProperties, MassPropsError, PropsQuadLane, ShellClassification,
-    ShellClassifyError,
-    ShellRole, classify_shells, mass_properties,
+    ShellClassifyError, ShellRole, classify_shells, mass_properties,
 };
 pub use provenance::Provenance;
 pub use readback::{DanglingRef, Pose, ReadbackError};

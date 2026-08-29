@@ -179,7 +179,12 @@ fn every_document_evaluates_at_dual64_with_the_f64_value_channel() {
             bad.len(),
             bad.join("\n")
         );
-        assert_eq!(ev_d.outcome, EvalOutcome::Completed, "{}: outcome", doc.name);
+        assert_eq!(
+            ev_d.outcome,
+            EvalOutcome::Completed,
+            "{}: outcome",
+            doc.name
+        );
         assert_eq!(ev_f.order, ev_d.order, "{}: evaluation order", doc.name);
         assert_eq!(
             value_digest(&ev_f),
@@ -205,7 +210,10 @@ fn every_f64_product_gathers_at_dual64_too() {
         match product_recorded(&doc.doc, &ev_f, tol) {
             Ok(product_f) => {
                 let product_d = product_recorded(&doc.doc, &ev_d, tol).unwrap_or_else(|e| {
-                    panic!("{}: the product gathers at f64 but refused at Dual64: {e}", doc.name)
+                    panic!(
+                        "{}: the product gathers at f64 but refused at Dual64: {e}",
+                        doc.name
+                    )
                 });
                 let (mut df, mut dd) = (Digest::new(), Digest::new());
                 df.body(&product_f.body);
