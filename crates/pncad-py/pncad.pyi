@@ -236,6 +236,35 @@ class IdentityError(PncadError):
 
     variant: str
 
+class WorkspaceError(PncadError):
+    """The workspace store refused. Fail-loud throughout: no scan is
+    best-effort and no reference is silently retargeted.
+
+    `variant` is the refusing arm's stable tag: `io`, `duplicate_id`,
+    `header`, `unknown_id`, `load`, `pin`, `pin_mismatch`, `save`,
+    `randomness_unavailable` or `update`.
+
+    The arm's payload rides as attributes, every one present on every
+    arm and `None` where that arm does not carry it — so error
+    handling reads `err.wanted` without first branching on
+    `variant`. `path` is the file or directory the door touched;
+    `id` the document identity at issue; `first`/`second` the two
+    files of a `duplicate_id`; `wanted`/`found` the two pins of a
+    `pin_mismatch`.
+
+    `pin_mismatch` is the arm the store exists to make loud: a
+    `DocRef` names a VERSION, so a document edited since it was
+    pinned refuses rather than resolving to the new content. The
+    message ends on `PIN_MISMATCH_RECOURSE`."""
+
+    variant: str
+    path: Optional[str]
+    id: Optional[str]
+    first: Optional[str]
+    second: Optional[str]
+    wanted: Optional[ContentPin]
+    found: Optional[ContentPin]
+
 # --- quantities -------------------------------------------------------
 # Canonical metres and radians underneath. The arithmetic is
 # exactly `crates/quantity`'s infallible subset; anything else raises
@@ -1034,6 +1063,136 @@ class Loaded:
 def load(text: str) -> Loaded:
     """Parse, validate, and replay a saved document. Raises
     PersistError, typed."""
+
+# --- the workspace store ----------------------------------------------
+# Three vocabularies, kept apart on purpose. A document's ID answers
+# WHICH PART and survives every edit (`Doc.id`, 32 hex digits). A
+# `ContentPin` answers WHICH VERSION of it — the SHA-256 of the
+# canonical semantic bytes, so it moves whenever the content does. A
+# `DocRef` pairs them, and that pair is what a cross-document
+# reference carries: editing the referenced document never silently
+# retargets the reference; the store refuses the stale pin instead.
+
+class ContentPin:
+    """Which VERSION a document is: the SHA-256 of its canonical
+    semantic bytes.
+
+    Compared and stored, not read into. Construct one from the
+    canonical 64-hex-digit text (`ValueError` on anything else), or
+    get one from `content_pin(doc)` / `Workspace.current_pin(id)`."""
+
+    def __init__(self, hex: str) -> None: ...
+    @property
+    def hex(self) -> str:
+        """The canonical text form: exactly 64 lowercase hex digits."""
+
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+
+class DocRef:
+    """A cross-document reference: which part, and which version of
+    it.
+
+    A VALUE — nothing here consults a store. Whether any store holds
+    that version is `Workspace.resolve`'s question, and a `DocRef`
+    that resolves nowhere is exactly what a stale reference is."""
+
+    def __init__(self, id: str, pin: ContentPin) -> None:
+        """Pair a 32-hex-digit identity with a pin. Raises ValueError
+        if the id is not the canonical spelling."""
+
+    @property
+    def id(self) -> str:
+        """The referenced document's identity, 32 lowercase hex
+        digits."""
+
+    @property
+    def pin(self) -> ContentPin:
+        """The pinned version."""
+
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+
+class Workspace:
+    """A directory of `*.pncad` save files, scanned into an
+    identity -> path map.
+
+    The write side is deliberately minimal — `create` and `resave`,
+    and no general mutation API."""
+
+    def __init__(self, path: str) -> None:
+        """Scan `path`, reading each `*.pncad` file's `id:` header
+        line and never its body.
+
+        Everything CLAIMING to be a document must scan clean: an
+        unreadable header refuses the whole open, and two files
+        claiming one id refuse naming both. Non-`.pncad` entries and
+        subdirectories are ignored. Raises WorkspaceError, typed."""
+
+    @property
+    def root(self) -> str:
+        """The scanned directory."""
+
+    def documents(self) -> dict[str, str]:
+        """The scan, as identity -> file path. Ordered by id, off a
+        path-sorted scan, so it does not depend on readdir order."""
+
+    def resolve(self, reference: DocRef) -> Doc:
+        """Load the document a `DocRef` names — through the full door
+        sequence `load` runs — and hand it back IFF its recomputed
+        pin is the pin the reference carries.
+
+        A moved pin raises WorkspaceError with
+        `variant == "pin_mismatch"`, carrying `wanted` and `found`.
+        A reference is never silently retargeted."""
+
+    def current_pin(self, id: str) -> ContentPin:
+        """The pin the store's CURRENT content for `id` hashes to —
+        the version a reference would move onto. Differs from
+        `resolve` by exactly one thing: no expected pin is supplied,
+        so there is nothing to disagree with. Raises WorkspaceError,
+        typed."""
+
+    def create(self, doc: Doc) -> str:
+        """Write `doc` into the store as a new `{id}.pncad` and answer
+        its path. An id the store already holds refuses
+        (`duplicate_id`) and nothing is written. Raises
+        WorkspaceError, typed."""
+
+    def resave(self, doc: Doc) -> str:
+        """Rewrite an EXISTING document's file with `doc`'s current
+        state, keeping its path, and answer that path. Never creates:
+        an unknown id refuses. The identity is unchanged and the
+        content is not, so references by id stay valid and references
+        by PIN go stale — which is the point. Raises WorkspaceError,
+        typed."""
+
+    def __len__(self) -> int: ...
+
+def random_document_id() -> str:
+    """Mint a fresh random document identity from OS randomness — the
+    interactive-authoring constructor, and the door `Doc()` uses.
+    Raises IdentityError if the entropy source refuses; identity is
+    never defaulted."""
+
+def content_pin(doc: Doc) -> ContentPin:
+    """The document's content pin: which VERSION it is. Raises
+    PersistError, typed."""
+
+def canonical_bytes(doc: Doc) -> bytes:
+    """The document's canonical semantic bytes — what the pin is the
+    SHA-256 of. The same document authored two ways serialises to the
+    same bytes. Runs the shared validator first. Raises PersistError,
+    typed."""
+
+def header_document_id(text: str) -> str:
+    """Read a save file's identity out of its header alone, without
+    parsing the body — the store's scan door. Raises PersistError,
+    typed."""
+
+PIN_MISMATCH_RECOURSE: Final[str]
+"""The recourse sentence a `pin_mismatch` message ends on: pins never
+move silently, and accepting a new version is a recorded edit."""
 
 # --- selectors --------------------------------------------------------
 # The narrowing language. Patterns and

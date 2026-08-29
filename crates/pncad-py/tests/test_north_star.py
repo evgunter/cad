@@ -2258,12 +2258,14 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             "select", "select_where",                 # methods, not module doors
             "find_flush_candidates",                  # method, not a module door
             "StableName",                             # names stay text
-            # G15: identity is bound (`Doc()` mints a distinct id,
-            # `Doc.id` reads it), the surface it exists FOR is not.
-            # These four are the doors that would close it, and this
-            # row is the register the gap is deferred INTO: it fails
-            # the day one lands.
-            "Workspace", "ContentPin", "DocRef", "random_document_id",
+            # `Workspace`, `ContentPin`, `DocRef` and
+            # `random_document_id` LEFT this list when G15 closed
+            # (LIB-G15) — the positive form is `tests/test_workspace.py`,
+            # which opens a directory of documents, resolves a
+            # reference, and watches a moved pin refuse. What the row's
+            # sentence still cannot say is the half below: two
+            # documents a workspace accepts side by side, and no way to
+            # assemble them.
             # G1's residue: no Expr door, so a profile step's argument
             # cannot be a named parameter. It is ALSO a naming
             # decision — the expression layer's genuine
@@ -2274,13 +2276,19 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             # `DimensionError` means the quantity boundary. Whoever
             # binds it decides which class those arms raise.
             "Expr",
-            # G18: the whole assembly surface. `evaluate(doc)` taking
-            # no resolver is the STRUCTURAL first door and cannot be
+            # G18: the assembly surface. `evaluate(doc)` taking no
+            # resolver is the STRUCTURAL first door and cannot be
             # spelled as an absent name, so it is pinned separately
             # below; these are the vocabulary the series would bring.
+            # `update_to_store` is HERE and not with the store doors
+            # above, measured rather than assumed: what it moves is a
+            # pin AT ITS SITES, a site is an `InstantiatePart` node's
+            # `DocRef`, and Python can author none — so on every
+            # document Python can build it would answer the
+            # "referenced nowhere" refusal and nothing else.
             "Alignment", "MateFrame", "MatePrimitive", "AxisSense",
             "assemble", "Assembly", "AssemblyError", "solve_document",
-            "update_to_store",
+            "update_to_store", "update_references", "mixed_pins",
             # G16 / G17: the two shipped kernel verbs with no node.
             # Absent as MODULE doors too — the tour reaches them as
             # `pncad::sweep::chamfer_edges` and `pncad::topo::shell`,

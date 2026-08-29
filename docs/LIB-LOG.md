@@ -1500,3 +1500,30 @@ door on either side of the boundary** — the next picking/rendering
 consumer's ask, adjacent to census `B-PICKING`/`B-READBACK`;
 design-shaped, recorded in the audit page's G11 residue. The
 picking-chain keys stay unnameable by curation, correctly.
+
+**G15 MERGED (2026-08-29, #1164; mechanical under the 08-29 ruling,
+no A/B row). Audit G15 CLOSED — the workspace store crosses whole.**
+`Workspace(path)` (scan-by-header, `documents()`, `create`/`resave`,
+`resolve` with A4's Cargo.lock pin semantics un-softened —
+`pin_mismatch` refuses typed with `wanted`/`found` +
+`PIN_MISMATCH_RECOURSE`), `ContentPin`/`DocRef`/`content_pin`/
+`canonical_bytes`/`header_document_id`/`random_document_id`, one
+typed `WorkspaceError` with every attribute present on every arm.
+The unit's argued deviation ADOPTED at adjudication: the pin-UPDATE
+family (`update_to_store`, `update_references`, `mixed_pins`,
+`UpdateError`, `PinMultiplicity`, `PinSites`) is NOT bound and
+re-cited to G18 — a site is an `InstantiatePart` node's `DocRef`, so
+on any Python-authorable document those doors answer only
+"referenced nowhere"; the audit page's own test already grouped them
+with G18, and the page was cut in the test's favor. Its measured
+finding kept as a test: a pin says which VERSION, never which PART
+(`canonical_bytes` strips `id` by design). **The re-survey map's
+"G15 dispatchable" bullet retires at this row** (the lane flagged it
+as the stale line it would become). Sequencing note: merged after
+G11 and GUARD-SIBS with a union conflict resolution in the census
+docstring, the audit page's further-gaps section (now empty — both
+its rows closed in one wave) and the closed-gaps table; census green
+on the union pre-push, hosted CI the gate as always. The
+resolver-door design conversation this unit's report sharpened is
+RATIFIED and specced: `docs/LIB-G18A-SPEC.md` (Evan, in-chat,
+2026-08-29) — the next unit, full A/B protocol.

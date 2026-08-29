@@ -7,6 +7,7 @@ mod path;
 mod place;
 mod quantity;
 mod select;
+mod store;
 mod value;
 
 use pyo3::prelude::*;
@@ -164,6 +165,21 @@ pyo3::create_exception!(
 );
 pyo3::create_exception!(
     pncad,
+    WorkspaceError,
+    PncadError,
+    "The workspace store refused. Carries `variant`, the stable tag \
+     of the refusing arm, and the arm's payload as attributes — \
+     `path`, `id`, `first`, `second`, `wanted`, `found` — each \
+     present on every arm and `None` where that arm does not carry \
+     it.\n\n\
+     The arm the store exists to make loud is `pin_mismatch`: a \
+     reference names a VERSION, so a document that changed under one \
+     refuses with `wanted` and `found` rather than resolving to the \
+     new content. `pncad.PIN_MISMATCH_RECOURSE` is the recourse \
+     sentence its message ends on."
+);
+pyo3::create_exception!(
+    pncad,
     FrameError,
     PncadError,
     "A frame constructor refused its inputs — the same typed refusal \
@@ -201,6 +217,7 @@ pub(crate) fn typed_err(
         ErrorClass::Select => SelectRefusal::new_err(message),
         ErrorClass::Frame => FrameError::new_err(message),
         ErrorClass::Identity => IdentityError::new_err(message),
+        ErrorClass::Workspace => WorkspaceError::new_err(message),
     };
     // Attaching attributes needs the instance, which materialises the
     // exception value; a failure here would itself be a Python error,
@@ -243,12 +260,14 @@ fn pncad_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add("SelectRefusal", py.get_type::<SelectRefusal>())?;
     m.add("FrameError", py.get_type::<FrameError>())?;
     m.add("IdentityError", py.get_type::<IdentityError>())?;
+    m.add("WorkspaceError", py.get_type::<WorkspaceError>())?;
 
     quantity::register(m)?;
     path::register(m)?;
     place::register(m)?;
     doc::register(m)?;
     select::register(m)?;
+    store::register(m)?;
     flush::register(m)?;
     mesh::register(m)?;
     value::register(m)?;

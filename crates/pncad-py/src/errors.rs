@@ -165,6 +165,16 @@ pub enum ErrorClass {
     /// a made-up id is a document that collides with another part —
     /// so the refusal surfaces instead.
     Identity,
+    /// The workspace store refused: a scan that could not read a
+    /// file's header, two files claiming one id, an id the store does
+    /// not hold, or — the arm the store exists to make loud — a
+    /// reference whose pin is not the pin the document now hashes to.
+    ///
+    /// Shares its Rust type with [`Self::Identity`] and is
+    /// deliberately a different class: minting an identity is not a
+    /// store operation, and a caller catching one should not catch
+    /// the other.
+    Workspace,
 }
 
 impl ErrorClass {
@@ -185,6 +195,7 @@ impl ErrorClass {
             Self::Select => "SelectRefusal",
             Self::Frame => "FrameError",
             Self::Identity => "IdentityError",
+            Self::Workspace => "WorkspaceError",
         }
     }
 }
