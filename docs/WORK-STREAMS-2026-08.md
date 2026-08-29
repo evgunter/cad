@@ -124,6 +124,9 @@ cut.
 
 ### S-QA — gates that lie (`qa/`)
 
+**GRADUATED (2026-08-29): opened as the S-QA program —
+`docs/S-QA-PLAN.md` / `docs/S-QA-LOG.md`, A/B band 800–899.**
+
 The meta-cluster: test and CI infrastructure that reports green
 without looking. Distinctive, urgent (main is red at one matrix
 point), and touches files no kernel program is editing.
