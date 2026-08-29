@@ -95,7 +95,10 @@ conversation, not LIB's to open), `Node::Tube` follows at its own
 bump — cheap pre-release. A node vocabulary that split hollow/solid
 against a kernel that does not would assert a distinction the kernel
 lacks, which is the worse shape and is why the reservation lands
-upstream rather than blocking this unit.
+upstream rather than blocking this unit. **The reservation is now
+issue #1205** (filed at Evan's direction, 2026-08-29): the class is
+one vocabulary item covering two different ARTIFACTS via a mode
+flag; the tube unit is HELD behind that issue's ruling.
 
 ## D5 — shell WAITS on a kernel birth channel, and LIB files the ask now
 
