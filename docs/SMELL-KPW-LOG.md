@@ -907,3 +907,38 @@ returning confident output instead of an error — and **two of them were the
 orchestrator's**. The rule was already written down before three of the four.
 Writing it down is not the control; **a fresh target and a fresh log per
 verification run** is.
+
+## CI red, and it was not this PR's — established, not asserted
+
+Hosted CI on #1187 came back with **one** failing job, `test (eps = 1e-12, 2/2)`:
+`editor-core::all r2_m10_di_probes::own_document_builds_at_dual64_with_f64_value_channel`.
+Everything else green — clippy, the rustdoc gate, k-lint, both render lanes, the
+python suite, step import, the discipline and parity rows, the other shard.
+
+**It reproduces byte-identically on `origin/main`.** Same `RecipeNodeId(3)`, same
+`FaceKey(4v1)`, same margin `-5.4355822806950346e-12`, same
+`Band { zero: 1e-12, escalate: 1e-11 }`, same `props_quad_converged`. The branch
+touches none of that ground. No fix exists in any open PR or branch to port.
+Filed as **#1190**; stood down with one comment on the PR, per the standing rule
+that standing down is never silent.
+
+**Why nobody had seen it**: a CI run gates **one** ε row drawn from the head SHA,
+`r2_m10_di_probes.rs` arrived recently, and no `main` head since has drawn
+`1e-12`. This PR's head happened to. That is the sampling hazard this session
+already met twice on the K side — `D183`'s row and `D206`'s neighbourhood — now
+met a third time, from the other end: **the instrument was not wrong, it simply
+had not been pointed here yet.**
+
+### What this PR should have caught and did not
+
+The merged-tree verification ran the whole workspace at the **default ε only**,
+and **no lane ran `editor-core` at any other ε**: `w1` ran three legs on the geom
+crates, `p1` on `topo` + `sweep`, `w2` the 14-crate set at default. So the
+orchestrator's own verification had exactly the shape the units inside it were
+being reviewed for — *passing at the point you happened to draw is not a claim
+about the points you did not*. It cost a full A/B against `main` to establish
+that the red was inherited rather than caused, and that A/B is the only reason
+the answer is trustworthy.
+
+**The rule: a verification that samples must say which point it drew.** The five
+units' reports all do; this session's own summary did not, until CI asked.
