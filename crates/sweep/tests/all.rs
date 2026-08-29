@@ -71,6 +71,8 @@ mod verbs_shell;
 
 #[path = "bitdump.rs"]
 mod bitdump;
+#[path = "blend_seam_split_rim.rs"]
+mod blend_seam_split_rim;
 #[path = "extrude_acceptance.rs"]
 mod extrude_acceptance;
 #[path = "extrude_interval.rs"]
@@ -249,6 +251,7 @@ mod verbs_arms1_r1_probes;
 mod verbs_arms2_arms;
 #[path = "verbs_arms2_bud.rs"]
 mod verbs_arms2_bud;
+
 #[path = "verbs_arms3.rs"]
 mod verbs_arms3;
 #[path = "verbs_chamfer.rs"]

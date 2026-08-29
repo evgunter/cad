@@ -321,15 +321,16 @@ pub const FILLET3_CORNER_RECOURSE: &str = "fillet a chain that terminates in a t
 ///
 /// It names the REQUEST that describes what the caller wants — the rim
 /// entire, which is a closed chain — rather than a run-out policy,
-/// because a run-out at a smooth point is not what is missing. Whether
-/// that closed chain's band is then carved is the closed-rim surgery's
-/// own question and it answers it in its own words: today the ring-free
-/// annulus band is a ONE-EDGE rim's, so a rim a seam has split still
-/// meets that door's frontier. This sentence deliberately stops short of
-/// promising the carve.
-pub const FILLET3_SEAM_VERTEX_RECOURSE: &str = "request the rim whole — every arc the chart seam split it into — rather than a \
-     chain that stops at the seam, which is a chart artifact the surface is smooth \
-     through";
+/// because a run-out at a smooth point is not what is missing. The
+/// closed-rim surgery CARVES that request: its annulus band takes a
+/// multi-link closed chain whose links are one rim's arcs across chart
+/// seams, walking through the seam vertices and resting on several
+/// faces of one surface per side. So the sentence promises the carve,
+/// and the promise is what
+/// `sweep/tests/blend_seam_split_rim.rs` holds it to.
+pub const FILLET3_SEAM_VERTEX_RECOURSE: &str = "request the rim whole — every arc the chart seam split it into, which the \
+     closed-rim band carves as one annulus — rather than a chain that stops at the \
+     seam, which is a chart artifact the surface is smooth through";
 /// The recourse for a CHAIN whose shape is outside the front door of
 /// the in-place composition surgery. True of exactly the chain-shape
 /// refusals: what remains outside is junction carry-through, concave

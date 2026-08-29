@@ -85,8 +85,9 @@
 //! Multi-link open chains (junction carry-through), concave chains
 //! (material-adding blends), partially-requested corners (run-outs),
 //! closed rims that are neither a circle-carried ring of a PLANE
-//! against ring-free caps nor a one-edge rim between two revolution
-//! walls, and two closed rims sharing one support in ONE call (the
+//! against ring-free caps nor a rim between two revolution walls (of
+//! one edge, or of several arcs a chart seam split), and two closed
+//! rims sharing one support in ONE call (the
 //! second band's plan would name a seam the first consumed —
 //! [`shared_support_gate`], whose recourse is sequential calls) — each
 //! refuses through the frontier vocabulary
