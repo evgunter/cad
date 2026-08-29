@@ -92,8 +92,6 @@ mod m10_1_analysis;
 mod m10_1_r2_probes;
 #[path = "m10_1_schema_v15.rs"]
 mod m10_1_schema_v15;
-#[path = "r1_differential.rs"]
-mod r1_differential;
 #[path = "r1_m10_1_corruptions.rs"]
 mod r1_m10_1_corruptions;
 #[path = "r1_m10_1_probes.rs"]

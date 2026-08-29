@@ -26,8 +26,9 @@ mod fixture;
 
 use editor_core::{
     AnalysisPolicy, CancelToken, DEFAULT_QUANTILE_MASS, Dimension, Distribution, DocEdit, DocParam,
-    DocumentId, EvalOptions, MeasureUnavailable, OffsetInterval, ParamName, PersistError,
-    ProfileDoc, analyzed_box, apply, box_mass, evaluate, load, save, tail_mass,
+    DocParamValue, DocumentId, EditError, EvalOptions, MeasureUnavailable, OffsetInterval,
+    ParamName, PersistError, ProfileDoc, analyzed_box, apply, box_mass, evaluate, load, save,
+    tail_mass,
 };
 use geom_core::Tol;
 use test_utils::fuzz;
@@ -98,21 +99,29 @@ fn the_normal_tail_is_the_exterior_mass_not_merely_one_minus_inside() {
     }
 }
 
-/// **The tail column loses its relative precision in the deep tail,
-/// and reaches bit-exact zero while real mass remains.** `tail_mass`
-/// computes the exterior as `1 - 0.5*(erf(hi/s) - erf(lo/s))`, and the
-/// subtraction cancels: at ±8σ the reported tail is ~2% wrong, and
-/// from ~±8.5σ outward it is exactly `0.0` for a distribution whose
-/// support is the whole line. The `erfc` route below shares no
-/// arithmetic with it and stays exact throughout.
+/// **The deep tail survives, to full relative precision.** Written as
+/// the falsifying witness for a defect that is now fixed, and INVERTED
+/// at the update site its own text scheduled: `tail_mass` used to
+/// compute the exterior as `1 - 0.5*(erf(hi/s) - erf(lo/s))`, whose
+/// subtraction cancels — ~2% wrong at ±8σ, and a bit-exact `0.0` from
+/// ~±8.5σ outward over a support that is the whole line. It now sums
+/// the two `erfc` half-lines instead.
 ///
-/// E2 makes the tail an explicit additive term in every result
+/// The assertions below are the same three probes with their senses
+/// turned over: the ±3σ default was always accurate and still is; ±8σ
+/// must now AGREE with the independent `erfc` oracle to a few ulps
+/// instead of disagreeing by more than a part in a thousand; and ±9σ
+/// must report the `~2e-19` of mass that is really out there instead
+/// of a bit-exact zero. E2 makes the tail an explicit additive term
 /// ("reported, never dropped") and E10 builds the unresolved-mass
-/// budget on it, so this row asserts the DISAGREEMENT that exists
-/// today rather than the accuracy that does not — it is the
-/// falsifying witness, and the fix pass should invert it.
+/// budget on it, which is why the number rather than its order of
+/// magnitude is the claim.
+///
+/// The oracle here is genuinely independent of the fix: it is this
+/// file's own `normal_upper_tail`, `0.5 * erfc(x / (sigma * √2))` per
+/// half-line, written before the module was changed.
 #[test]
-fn the_deep_tail_is_lost_to_cancellation() {
+fn the_deep_tail_is_not_lost_to_cancellation() {
     let sigma = 1.0;
     let dist = Distribution::Normal { sigma };
     // Where it still holds: the ±3σ default is accurate.
@@ -133,21 +142,35 @@ fn the_deep_tail_is_lost_to_cancellation() {
     );
     let rel = (far_reported - far_exact).abs() / far_exact;
     assert!(
-        rel > 1e-3,
-        "PIN OF A DEFECT: at 8 sigma the reported tail {far_reported} is expected to \
-         disagree with the erfc exterior {far_exact} by more than 0.1% (saw {rel}). \
-         If this row goes red because the disagreement SHRANK, the tail door was \
-         fixed — invert this assertion."
+        rel < 1e-12,
+        "at 8 sigma the reported tail {far_reported} must agree with the erfc exterior \
+         {far_exact} to full relative precision (saw a relative error of {rel})"
     );
-    // And the endpoint: real mass, reported as a bit-exact zero.
+    // And the endpoint the old subtraction rounded away: real mass,
+    // reported as the real number.
     let wider = OffsetInterval { lo: -9.0, hi: 9.0 };
     let wider_reported = tail_mass(&p("n"), &dist, &wider).expect("priceable");
     let wider_exact = normal_upper_tail(sigma, 9.0) * 2.0;
     assert!(wider_exact > 0.0, "{wider_exact}");
+    assert!(
+        wider_reported > 0.0,
+        "{wider_exact} of mass is out there and must not be reported as zero"
+    );
+    assert!(
+        (wider_reported - wider_exact).abs() / wider_exact < 1e-12,
+        "at 9 sigma: reported {wider_reported}, oracle {wider_exact}"
+    );
+    // Far enough out that the mass itself underflows, the answer is a
+    // true zero rather than a rounded one — and it is still the
+    // oracle's answer, not a different door's.
+    let vast = OffsetInterval {
+        lo: -50.0,
+        hi: 50.0,
+    };
     assert_eq!(
-        wider_reported.to_bits(),
-        0.0f64.to_bits(),
-        "PIN OF A DEFECT: {wider_exact} of mass is reported as exactly zero"
+        tail_mass(&p("n"), &dist, &vast).expect("priceable"),
+        normal_upper_tail(sigma, 50.0) * 2.0,
+        "where erfc underflows, both routes underflow together"
     );
 }
 
@@ -331,11 +354,18 @@ fn zero_width_bounded_forms_are_accepted_and_analyze_as_fixed() {
 }
 
 /// **EVIDENCE-ONLY.** `tail_mass` returning exactly `0.0` does NOT
-/// mean the support is bounded: a wide enough box drives `erf` to
-/// saturation and an UNBOUNDED normal reports a bit-exact zero tail.
-/// The type carries no distinction between "provably no mass outside"
-/// and "the mass outside underflowed", and E2's honesty gate (the
-/// unresolved-mass budget) is downstream of exactly this number.
+/// mean the support is bounded: a wide enough box makes the mass
+/// outside it UNDERFLOW, and an unbounded normal then reports a
+/// bit-exact zero tail. The type carries no distinction between
+/// "provably no mass outside" and "the mass outside underflowed", and
+/// E2's honesty gate (the unresolved-mass budget) is downstream of
+/// exactly this number.
+///
+/// What the `erfc` rewrite moved is WHERE this starts, not whether it
+/// happens: the boundary was `erf` saturating at ~±8.5σ and is now the
+/// smallest subnormal at ~±38σ, so the box below sits at ±100σ, far
+/// outside anything a policy in `(0, 1)` can draw. The distinction the
+/// type does not carry is unchanged, which is why this row stays.
 #[test]
 fn an_unbounded_normal_can_report_a_bit_exactly_zero_tail() {
     let dist = Distribution::Normal { sigma: 1.0 };
@@ -609,15 +639,19 @@ fn a_distribution_changes_no_content_key_at_interval() {
 // 6. The carry-forward CLASS, at the API level
 // ---------------------------------------------------------------
 
-/// **The rebuild-from-parts hazard, stated as a test.** The GUI's
-/// `param_edit` was fixed to carry an existing distribution through a
-/// value edit. The hazard is not the GUI's: `SetDocParam` is
-/// create-or-replace, and ANY caller that reconstructs a parameter
-/// from `(dim, value)` — which is the only shape
-/// `DocParam::continuous` offers, and the only shape the Python
-/// façade can spell — silently deletes the annotation with no
-/// refusal and no diagnostic. This row pins the sharp edge so a future
-/// door has to acknowledge it.
+/// **The rebuild-from-parts hazard, stated as a test.** `SetDocParam`
+/// is create-or-replace, so ANY caller that reconstructs a parameter
+/// from `(dim, value)` silently deletes the annotation, with no
+/// refusal and no diagnostic. The hazard was never the GUI's: it
+/// belongs to the door.
+///
+/// The door is still create-or-replace and this row still pins its
+/// sharp edge, because that is what create-or-replace MEANS and a
+/// redeclaration really does replace. What closed the class is that
+/// rebuilding is no longer the only spelling of "move the value":
+/// `SetDocParamValue` carries the declaration forward, and the
+/// companion row below pins that it does. The pair is the point —
+/// this one shows the edge, that one shows the door with no edge.
 #[test]
 fn rebuilding_a_param_from_dim_and_value_silently_drops_the_distribution() {
     let before = doc_with(&[(
@@ -653,4 +687,137 @@ fn rebuilding_a_param_from_dim_and_value_silently_drops_the_distribution() {
         axis.offsets.is_fixed(),
         "a value edit turned a varying parameter into a fixed one"
     );
+}
+
+/// **The class, closed: the value door carries the declaration.** The
+/// same edit the row above spells destructively, spelled through
+/// `SetDocParamValue`: the number moves, the dimension stays, the
+/// distribution survives BIT for bit, and the analysis still sees a
+/// varying axis. Its two refusals are here too, because a door whose
+/// safety depends on the caller checking first is not safe.
+#[test]
+fn the_value_door_carries_the_declaration_forward() {
+    let dist = Distribution::Normal { sigma: 1e-5 };
+    let before = doc_with(&[
+        ("hole_r", annotated(0.003, dist)),
+        ("ribs", DocParam::Count { value: 4 }),
+    ]);
+    let after = apply(
+        &before,
+        &DocEdit::SetDocParamValue {
+            name: p("hole_r"),
+            value: DocParamValue::Continuous(0.004),
+        },
+        Tol::witness(),
+    )
+    .expect("a value edit on a declared parameter applies")
+    .doc;
+    match after.params()[&p("hole_r")] {
+        DocParam::Continuous {
+            dim,
+            value,
+            distribution,
+        } => {
+            assert_eq!(value, 0.004, "the number moved");
+            assert_eq!(dim, Dimension::Length, "the dimension is the declaration's");
+            let got = distribution.expect("the annotation SURVIVED");
+            assert!(got.bit_eq(&dist), "and survived bit for bit");
+        }
+        DocParam::Count { .. } => panic!("still continuous"),
+    }
+    let axis = analyzed_box(&after, &AnalysisPolicy::default())
+        .get(&p("hole_r"))
+        .copied()
+        .expect("axis");
+    assert!(
+        !axis.offsets.is_fixed(),
+        "the parameter is still varying: {axis:?}"
+    );
+    // A count moves through the same door.
+    let counted = apply(
+        &before,
+        &DocEdit::SetDocParamValue {
+            name: p("ribs"),
+            value: DocParamValue::Count(7),
+        },
+        Tol::witness(),
+    )
+    .expect("a count value edit applies")
+    .doc;
+    assert_eq!(counted.params()[&p("ribs")], DocParam::Count { value: 7 });
+    // Refusal 1: nothing to carry forward.
+    assert_eq!(
+        apply(
+            &before,
+            &DocEdit::SetDocParamValue {
+                name: p("never_declared"),
+                value: DocParamValue::Continuous(1.0),
+            },
+            Tol::witness(),
+        ),
+        Err(EditError::DocParamNotDeclared {
+            name: p("never_declared")
+        })
+    );
+    // Refusal 2: a kind change is a redeclaration, not a value edit.
+    assert_eq!(
+        apply(
+            &before,
+            &DocEdit::SetDocParamValue {
+                name: p("hole_r"),
+                value: DocParamValue::Count(2),
+            },
+            Tol::witness(),
+        ),
+        Err(EditError::DocParamValueKindMismatch {
+            name: p("hole_r"),
+            declared: Dimension::Length,
+            offered: DocParamValue::Count(2),
+        })
+    );
+    assert!(matches!(
+        apply(
+            &before,
+            &DocEdit::SetDocParamValue {
+                name: p("ribs"),
+                value: DocParamValue::Continuous(2.0),
+            },
+            Tol::witness(),
+        ),
+        Err(EditError::DocParamValueKindMismatch { .. })
+    ));
+}
+
+/// **The value door survives a round trip.** The new edit is file
+/// data: a document whose log carries one saves, loads and replays to
+/// the same parameter — annotation included — so the carry-forward is
+/// a property of the FORMAT and not only of this process's `apply`.
+#[test]
+fn a_value_edit_round_trips_through_the_file() {
+    let dist = Distribution::TruncatedNormal {
+        sigma: 2e-5,
+        lo: -4e-5,
+        hi: 3e-5,
+    };
+    let doc = doc_with(&[("bore", annotated(0.01, dist))]);
+    let edits = [DocEdit::SetDocParamValue {
+        name: p("bore"),
+        value: DocParamValue::Continuous(0.011),
+    }];
+    let text = save(&doc, &edits, Tol::witness()).expect("saves");
+    let back = load(&text, Tol::witness()).expect("loads");
+    match back.doc.params()[&p("bore")] {
+        DocParam::Continuous {
+            value,
+            distribution,
+            ..
+        } => {
+            assert_eq!(value, 0.011, "the replayed value");
+            assert!(
+                distribution.expect("annotation replayed").bit_eq(&dist),
+                "the annotation crossed the file and the replay"
+            );
+        }
+        DocParam::Count { .. } => panic!("still continuous"),
+    }
 }

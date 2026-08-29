@@ -33,9 +33,12 @@ fn a_property_edit_emits_exactly_one_committed_docedit() {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(outcome.committed.len(), 1);
     assert!(outcome.previewed.is_empty());
+    // The VALUE door, not the create-or-replace one: the panel is
+    // moving a number, so it emits the edit that moves a number and
+    // leaves the declaration alone.
     assert!(matches!(
         outcome.committed.first(),
-        Some(DocEdit::SetDocParam { .. })
+        Some(DocEdit::SetDocParamValue { .. })
     ));
     assert_eq!(session.history().len(), before + 1, "one undo step");
 }
@@ -321,7 +324,7 @@ fn a_parameter_drag_previews_and_commits_exactly_once() {
     assert_eq!(outcome.committed.len(), 1, "one edit for the whole drag");
     assert!(matches!(
         outcome.committed.first(),
-        Some(DocEdit::SetDocParam { .. })
+        Some(DocEdit::SetDocParamValue { .. })
     ));
     assert_eq!(session.history().len(), before + 1, "one undo step");
     // The last previewed value is the one recorded, and the driven
@@ -548,7 +551,8 @@ fn create_parameter_reference_it_and_one_undo_removes_it() {
     assert!(outcome.committed.is_empty(), "a refusal commits nothing");
     assert_eq!(session.history().len(), before, "and mints no history");
 
-    // Create: exactly one committed SetDocParam, one undo step.
+    // Create: exactly one committed SetDocParam — the CREATE door
+    // really is authoring a declaration — and one undo step.
     let outcome = session.perform(SessionOp::CreateParam {
         name: margin.clone(),
         value: pncad::document::DocParam::continuous(pncad::document::Dimension::Length, 0.005),
