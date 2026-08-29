@@ -30,9 +30,8 @@ use pncad::geom_core::{FrameError, FrameInput};
 use pncad::mesh::TessellateError;
 use pncad::profile::PathError;
 use pncad::step_import::StepImportError;
-// `SolidNameError` and `BinaryHeaderError` are prelude-curated;
-// `StlError` — the writers' own refusal — is NOT, and is reached
-// through the façade's wholesale `pub use stl`.
+// All three STL refusals are prelude-curated; the module path is the
+// spelling this file uses throughout, not a reach past the façade.
 use pncad::stl::{BinaryHeaderError, SolidNameError, StlError};
 use pncad::workspace::WorkspaceError;
 
@@ -486,12 +485,9 @@ pub fn expr_dimension_error_tag(err: &DimensionError) -> &'static str {
 
 /// The stable tag for a tessellation refusal.
 ///
-/// `TessellateError` implements neither `Display` nor
-/// `core::error::Error`, so unlike every other map in this module the
-/// human message beside this tag is a `Debug` rendering — the
-/// treatment [`persist_error_tag`] exists to avoid. That is a curation
-/// gap on the kernel type, not a choice here, and the tag is what
-/// carries the branchable discriminant in the meantime.
+/// Like every other map in this module the tag carries the branchable
+/// discriminant beside the kernel's own `Display` prose, which is the
+/// human message — the split [`persist_error_tag`] documents.
 ///
 /// The arena keys the arms carry (`FaceKey`, `EdgeKey`) do NOT cross:
 /// the whole curation exists to keep them unnameable, so the payload a

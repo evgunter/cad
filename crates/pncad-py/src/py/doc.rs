@@ -32,25 +32,16 @@ fn edit_err(py: Python<'_>, err: &d::EditError) -> PyErr {
 
 /// Raise `EditError` for a declare-sugar refusal.
 ///
-/// `DeclareError` carries no `Display`; the per-arm prose is
-/// hand-written here and the machine payload is the stable tag
-/// (`crate::tags::declare_error_tag` — the `Edit` arm carries the
-/// document layer's own tag through).
+/// `DeclareError` implements `Display`: the human message is the
+/// door's own prose (its `Edit` arm forwards the document layer's
+/// message, so one refusal keeps one voice), and the machine payload
+/// is the stable tag (`crate::tags::declare_error_tag` — the `Edit`
+/// arm carries the document layer's own tag through).
 fn declare_err(py: Python<'_>, err: &pncad::select::DeclareError) -> PyErr {
-    use pncad::select::DeclareError as E;
-    let message = match err {
-        E::NoFindings => "declare of NO findings: an empty Declare node records no intent \
-                          and would only pretend something was declared"
-            .to_string(),
-        E::Edit(inner) => inner.to_string(),
-        E::NoMintedId => {
-            "the Declare insert applied but minted no id (an apply contract violation)".to_string()
-        }
-    };
     typed_err(
         py,
         ErrorClass::Edit,
-        message,
+        err.to_string(),
         &[(
             "variant",
             PyString::new(py, crate::tags::declare_error_tag(err))
