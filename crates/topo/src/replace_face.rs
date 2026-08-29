@@ -364,6 +364,55 @@ pub enum ReplaceFaceError<T: Real> {
         /// How far the far endpoint missed the line, in meters.
         gap: T,
     },
+    /// **The axial door's kind gate**: a face wears a surface that is
+    /// not a plane, cylinder, cone or sphere. The axial reduction reads
+    /// each surface as a line or a circle in the meridian half-plane,
+    /// and a torus or a NURBS is neither — such bodies keep the
+    /// per-chart door and the refusal it gives them.
+    TogetherAxialUnsupported {
+        /// The face.
+        face: FaceKey,
+        /// What it carries.
+        kind: SurfaceKind,
+    },
+    /// **The axial door's axis gate**: a face's surface is one of the
+    /// door's kinds but is not a surface of revolution about the body's
+    /// axis — a cylinder skew to it, a sphere centred off it, a plane
+    /// cutting it obliquely. The meridian reduction has no coordinates
+    /// for such a corner, so it refuses rather than solving in a frame
+    /// the geometry does not live in.
+    TogetherNotAxial {
+        /// The face.
+        face: FaceKey,
+        /// Which shape it is.
+        what: &'static str,
+    },
+    /// **A curved corner the axial door cannot solve.** Fewer than two
+    /// profile constraints and not an axis pole; a pair too tangent to
+    /// resolve the corner against its own edge chords; surfaces that do
+    /// not concur after the offset; or an azimuth more than one plane
+    /// through the axis over-determines. Refused rather than solved on
+    /// a subset: a corner placed off one of its own surfaces is a wrong
+    /// body no tier catches.
+    TogetherAxialCorner {
+        /// The vertex.
+        vertex: VertexKey,
+        /// How many distinct surfaces meet there.
+        surfaces: usize,
+        /// Which of the shapes above it is.
+        what: &'static str,
+    },
+    /// **An edge the axial door cannot re-derive.** Its carrier kind,
+    /// or its chart's offset map, is outside the closed forms this door
+    /// carries — a mapped description on a chart whose motion is a
+    /// radius change, a circular edge whose plane is not normal to the
+    /// axis, a carrier that is neither a line nor a circle.
+    TogetherAxialEdge {
+        /// The edge.
+        edge: EdgeKey,
+        /// Which shape it is.
+        what: &'static str,
+    },
     /// A margined predicate escalated: the margin landed in the
     /// ambiguity band or was poisoned (escalate-never-guess, D4 ¶3).
     Escalated {
@@ -488,6 +537,30 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
                 f,
                 "replace_face_offset: {edge:?} ends at a moved vertex that is {gap:?} m off its \
                  own carrier, so its parameter cannot be re-anchored"
+            ),
+            Self::TogetherAxialUnsupported { face, kind } => write!(
+                f,
+                "offset_charts_together: {face:?} carries a {}, which the axial reduction has \
+                 no meridian curve for — this body keeps the per-chart door",
+                kind.name()
+            ),
+            Self::TogetherNotAxial { face, what } => write!(
+                f,
+                "offset_charts_together: {face:?} is {what}, so it is not a surface of \
+                 revolution about this body's axis and its corners have no meridian coordinates"
+            ),
+            Self::TogetherAxialCorner {
+                vertex,
+                surfaces,
+                what,
+            } => write!(
+                f,
+                "offset_charts_together: {vertex:?} has {surfaces} distinct moved surfaces and \
+                 {what}"
+            ),
+            Self::TogetherAxialEdge { edge, what } => write!(
+                f,
+                "offset_charts_together: {edge:?} cannot be re-derived — {what}"
             ),
             Self::Escalated { source } => {
                 write!(f, "replace_face_offset escalated: {source}")
@@ -1677,7 +1750,7 @@ fn invert_carrier<T: Real>(carrier: &Curve3<T>, p: Point3<T>, near: T) -> Option
 /// `mapped` with the sketch endpoint that images `is_start` moved to
 /// `point` — the authoritative sketch datum re-stated, not the carrier
 /// patched around it. `None` for anything but a placed line segment.
-fn move_mapped_endpoint<T: Real>(
+pub(crate) fn move_mapped_endpoint<T: Real>(
     mapped: geom_brep::MappedCurve<T>,
     point: Point3<T>,
     is_start: bool,

@@ -580,7 +580,14 @@ pub fn shell_open<T: Decide + PropsQuadLane>(
             Some(geom::Surface::Plane { .. })
         )
     });
-    if all_planar {
+    // **A body of revolution moves through the AXIAL door**, and one
+    // whose surfaces are neither all planar nor all coaxial keeps the
+    // per-chart posture exactly as it had it. The branch is chosen on a
+    // structural property of the operand, decided before anything is
+    // written, so a body outside both doors is not silently downgraded
+    // — it is the same body on the same door it was always on.
+    let axial = !all_planar && crate::offset_axial::is_axial(&cavity, band);
+    if all_planar || axial {
         let mut moves: Vec<crate::offset_together::ChartMove<T>> = Vec::with_capacity(charts.len());
         for group in &charts {
             moves.push(crate::offset_together::ChartMove {
@@ -602,11 +609,14 @@ pub fn shell_open<T: Decide + PropsQuadLane>(
                 .ok_or(ShellError::Corrupt {
                     key: EntityId::Solid(solid),
                 })?;
-        crate::offset_planes_together(&mut cavity, &moves, band, tol).map_err(|error| {
-            ShellError::Face {
-                face: offending_face(&cavity, &error).unwrap_or(fallback),
-                error: Box::new(error),
-            }
+        let outcome = if axial {
+            crate::offset_charts_together(&mut cavity, &moves, band, tol)
+        } else {
+            crate::offset_planes_together(&mut cavity, &moves, band, tol)
+        };
+        outcome.map_err(|error| ShellError::Face {
+            face: offending_face(&cavity, &error).unwrap_or(fallback),
+            error: Box::new(error),
         })?;
     } else {
         for group in &charts {
@@ -1228,11 +1238,15 @@ fn offending_face<T: Real>(body: &Body<T>, error: &ReplaceFaceError<T>) -> Optio
         | ReplaceFaceError::TogetherNonPlanar { face, .. }
         | ReplaceFaceError::TogetherPartialSet { face }
         | ReplaceFaceError::TogetherChartMixed { face, .. }
-        | ReplaceFaceError::TogetherFaceRepeated { face } => Some(*face),
-        ReplaceFaceError::TogetherCorner { vertex, .. } => {
+        | ReplaceFaceError::TogetherFaceRepeated { face }
+        | ReplaceFaceError::TogetherAxialUnsupported { face, .. }
+        | ReplaceFaceError::TogetherNotAxial { face, .. } => Some(*face),
+        ReplaceFaceError::TogetherCorner { vertex, .. }
+        | ReplaceFaceError::TogetherAxialCorner { vertex, .. } => {
             face_of_he(body.get_vertex(*vertex)?.emanating?)
         }
         ReplaceFaceError::TogetherEdgeDisagreement { edge, .. }
+        | ReplaceFaceError::TogetherAxialEdge { edge, .. }
         | ReplaceFaceError::ReanchorOffCarrier { edge, .. } => {
             face_of_he(body.get_edge(*edge)?.he_plus)
         }
