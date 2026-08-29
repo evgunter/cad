@@ -883,3 +883,27 @@ measurement's provenance is part of the measurement.**
 The re-run, single writer, on the merged tree: **4,274 tests run, 4,274 passed,
 20 skipped**, with `fmt` and `clippy --workspace --all-targets -D warnings`
 clean.
+
+### And a fourth instance, twenty minutes after writing the rule about it
+
+The whole-workspace verification was run with `CARGO_TARGET_DIR` pointed at a
+**sibling lane's** target directory, to save a cold rebuild. `doc-gate` then
+failed with `error[E0432]: unresolved imports tess_lint::Observation,
+tess_lint::Rekey` — for two types the library plainly exports. The cause was a
+stale `tess_lint` rlib in that target dir: `main.rs` was compiled against a
+build from before `C15`'s final round.
+
+`docs/prompts/implementer-discipline.md` §2 states this exactly — *"a shared
+target directory clobbers across git worktrees and will serve you another lane's
+binary — observed twice in one wave, once reporting a test count from sources
+that were not yours, once behind a green claim over ten broken assertions"* — and
+it is quoted to every lane in this session's briefs. **The orchestrator did it
+anyway, and in the direction that produces a red rather than a false green**,
+which is the only reason it was noticed. On a clean target dir the same root
+documents in 1.02 s.
+
+So: four instances in one session of *the same shape* — a shared write target
+returning confident output instead of an error — and **two of them were the
+orchestrator's**. The rule was already written down before three of the four.
+Writing it down is not the control; **a fresh target and a fresh log per
+verification run** is.
