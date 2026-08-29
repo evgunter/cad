@@ -1082,7 +1082,10 @@ fn the_lattice_door_never_emits_an_enclosing_tangency() {
                     profile::FilletLeg::Incoming => case.leg_in,
                     profile::FilletLeg::Outgoing => case.leg_out,
                 };
-                let OracleLeg::Arc { radius: big, tau, .. } = leg else {
+                let OracleLeg::Arc {
+                    radius: big, tau, ..
+                } = leg
+                else {
                     panic!("{name}: the table is arc x arc by construction");
                 };
                 assert!(
@@ -1754,4 +1757,3 @@ fn a_collapsed_offset_lever_refuses_typed_at_every_band() {
         Err(other) => panic!("expected a typed refusal of the collapsed lever, got {other:?}"),
     }
 }
-

@@ -1278,7 +1278,10 @@ mod tests {
             side: FilletLeg::Incoming,
         };
         let (sgn, radius) = (1.0, 2.0);
-        assert!(offset_radius(&carrier, sgn, radius) < 0.0, "the row is the enclosing one");
+        assert!(
+            offset_radius(&carrier, sgn, radius) < 0.0,
+            "the row is the enclosing one"
+        );
         // The blend centre sits |ρ| = 1.5 from the carrier centre, which
         // is what an enclosing candidate's offset intersection would
         // deliver.
@@ -1286,7 +1289,10 @@ mod tests {
         let t = leg.tangent_point(blend, sgn, radius);
         // On the carrier, at radius R from its centre...
         let on_carrier = (t.x - centre.x).hypot(t.y - centre.y);
-        assert!((on_carrier - carrier.radius).abs() < 1e-15, "off carrier by {on_carrier}");
+        assert!(
+            (on_carrier - carrier.radius).abs() < 1e-15,
+            "off carrier by {on_carrier}"
+        );
         // ...on the far side of the centre from the blend circle...
         assert!(t.x < centre.x, "the flip did not cross the centre: {t:?}");
         // ...and at r from the blend centre, which is the tangency.

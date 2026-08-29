@@ -32,6 +32,7 @@ a reader entering here should know all of them exist.
 | `docs/MIRROR-DESIGN.md` | RATIFIED (#909) | Patterns & mirror P1–P6: the chart-handedness convention (u ↦ −u), mirror's own door beside rigid transform, and the boundary of ASSEMBLY-DESIGN A6's equivariance audit (VERBS) |
 | `docs/DRAFT-DESIGN.md` | RATIFIED (#908) | Draft, the molding taper, DR1–DR6: plane walls only at v1, a certified re-geom pass, the pull-direction selector as a SELECT-DESIGN amendment, survivor naming; NOT YET IMPLEMENTED (VERBS) |
 | `docs/ARMS3-DESIGN.md` | RATIFIED (#992) | ARMS-3, A3-1…A3-3: the general sphere×sphere fillet arm, the valence-4 "corner" that is not a corner, and what a run-out at a seam vertex IS; implemented at #1028, the recourse's missing door is #1022 (VERBS) |
+| `docs/ENCLOSING-TANGENCY-DESIGN.md` | RATIFIED (#1210) | The enclosing (ρ < 0) fillet tangency: the class is permanently unreachable — no door emits it — and a radius demanding it refuses typed (closes #827); implemented at S-BLEND's BLEND-7 |
 | `docs/KERNEL-VERBS.md` | Reference register | The modeling verbs the kernel does not yet have, each with its prerequisites; worked in dependency order by the VERBS program (`docs/VERBS-PLAN.md` / `docs/VERBS-LOG.md`). The register never schedules |
 | `docs/K-REPORT.md` | Reference | K-constant evidence record (#89 CLOSED, K = 10 permanent) + milestone addenda |
 | `docs/PERF-PLAN.md` | Merged-and-advisory (D9 addendum) | Performance plan and Q-P answers |
