@@ -121,3 +121,32 @@ band^2 continuity argument, S4 third copy of the powi idiom note,
 S5 generator slot-patching. Probes cert/1r1-probes @ cb7bd9a15.
 Clean blinding and isolation disclosed. R2 dispatches next, same
 stored brief, no R1 access.
+
+R2 DELIVERED (2026-08-29, frozen bc815c2c, sequential, no R1
+access, clean isolation disclosed): APPROVE-WITH-FIXES 2/3/1 + 5
+style, rubric 4/3/3; ~183k tokens, ~22m harness wall. MAJOR-1
+(executed): props_meridian_pole ESCALATES on a split vertex 1e-6/
+1e-7 rad off the pole through the import door — certify-exactly
+flips to refusal on one ordinary vertex (issue 723's alarm arrow
+reversed); regression vs the fold-disabled code; unclassified
+refusal; the fn's own band^2 argument proves Indeterminate carries
+no information. MAJOR-2 (executed): membership test wrong for
+|dt| > 2pi (dt=3pi accepted at -50%); import door normalizes so
+API-surface only. 3 silent deviations counted — NOTE: the PR body
+has NO deviations section; the dispatcher's brief said "the two
+declared deviations" from the implementer's REPORT, which R2
+corrected (brief-as-claim-site; R1 took the brief's word, so the
+two reviews' silent-dev counts are not comparable on that column —
+dispatcher's error, recorded for the adjudication).
+CORRESPONDENCE PRE-NOTE: R2-MAJ-1 and R2-MAJ-2 both UNILATERAL
+(R1 mentioned neither at any severity; R1's near-polar STEP probe
+sat at 0.0208 rad, far outside the band R2 probed), both code
+class, both DEMONSTRATED BY EXECUTION — two genuine tally
+candidates, coding deferred to the blinded attribution-stripped
+adjudication per v6 item 4. Bilateral: the rimless polar-cap
+DegenerateFace (R1-S2 = R2 style-1). R1-unilateral MINOR: the
+axial-shadow family in props_rim_side/require_extent. Verdicts
+diverge (APPROVE vs A-W-F) on unilateral findings — calibration
+signal. Probes cert/1r2-probes.
+Fix pass: implementer-inherited to the CERT-1 lane agent (id
+verified against this file's dispatch record this time).
