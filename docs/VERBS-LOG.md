@@ -2388,6 +2388,18 @@ chart's chord is zero); axis frames canonicalize at the world
 origin or stations cost the ULP that is a bit-identity claim.
 Full dual, frozen head 00038fe6; claim to main at dispatch.
 
+## SHELLFIX PR-2b MERGED (#1180) — ordinal-105 row (sample #42). THE SHELL ARC CLOSES; THE TEAPOT IS WHOLE (2026-08-29)
+
+#1081 closes at this merge (both halves repaired; #1199 carries
+the sibling-consumer residue). The arc that began with the
+teapot's demo finding two defects in a three-day-old verb ends
+with the pot shipping on its real arc meridian, every corner
+class solved or typed, and two more banked laws. The register's
+shell story is COMPLETE. Wave 4 opens: the germ-arms unit
+dispatches next from its corpus-corrected draft. A fourth
+silent-run face banked (a push creating NO pull_request run —
+the dispatch fallback works but skips render lanes; verify
+coverage per-lane, not per-run).
 ## ORDINAL 105 RETURNED: BOTH ARMS MERGEABLE 0-MAJ; UNION OUT (2026-08-29)
 
 R1 0/4/4, R2 0/6/4 — the unit's substance held completely: both

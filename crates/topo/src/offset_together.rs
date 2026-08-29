@@ -467,11 +467,6 @@ fn solve_corner<T: Decide>(
     arms: &[T],
     band: Band,
 ) -> Result<Point3<T>, ReplaceFaceError<T>> {
-    let non_simple = |what: &'static str| ReplaceFaceError::TogetherCorner {
-        vertex,
-        planes: at.len(),
-        what,
-    };
     // **A corner that is not asked to move does not move**, and it is
     // answered before any meter runs. Metering a motion of zero would
     // classify every corner of a stationary body as unsolvable and say
@@ -483,6 +478,31 @@ fn solve_corner<T: Decide>(
         Ok(_) => {}
         Err(source) => return Err(ReplaceFaceError::Escalated { source }),
     }
+    solve_planar_corner(
+        vertex,
+        &at.iter().map(|p| (p.normal, p.c)).collect::<Vec<_>>(),
+        arms,
+        band,
+    )
+}
+
+/// The corner solve itself, over `(n̂, c)` plane equations — shared with
+/// the axial door, whose all-planar corners are exactly this problem.
+///
+/// The zero-move short-circuit is the CALLER's: only the caller knows
+/// what motion was asked for, and metering a motion of zero here would
+/// call a stationary body's every corner singular.
+pub(crate) fn solve_planar_corner<T: Decide>(
+    vertex: VertexKey,
+    at: &[(Vec3<T>, T)],
+    arms: &[T],
+    band: Band,
+) -> Result<Point3<T>, ReplaceFaceError<T>> {
+    let non_simple = |what: &'static str| ReplaceFaceError::TogetherCorner {
+        vertex,
+        planes: at.len(),
+        what,
+    };
     if at.len() < 3 {
         return Err(non_simple(
             "fewer than three distinct planes meet here, so no point is determined",
@@ -507,7 +527,7 @@ fn solve_corner<T: Decide>(
     'triples: for (i, a) in at.iter().enumerate() {
         for (j, b) in at.iter().enumerate().skip(i + 1) {
             for c in at.iter().skip(j + 1) {
-                let det = a.normal.dot(b.normal.cross(c.normal));
+                let det = a.0.dot(b.0.cross(c.0));
                 let mut resolvable = true;
                 for &arm in arms {
                     match decide(
@@ -540,7 +560,7 @@ fn solve_corner<T: Decide>(
     // corner whose planes do not concur has no offset point at all,
     // and guessing one is how a wrong body gets built.
     for p in at {
-        let residual = p.normal.dot(radius(point)) - p.c;
+        let residual = p.0.dot(radius(point)) - p.1;
         match decide("offset_together_concurrence", Margin::of(residual), band) {
             Ok(Sign::Zero) => {}
             Ok(_) => {
@@ -556,11 +576,8 @@ fn solve_corner<T: Decide>(
 }
 
 /// Cramer's rule on three plane equations with a known determinant.
-fn cramer<T: Real>(a: &MovedPlane<T>, b: &MovedPlane<T>, c: &MovedPlane<T>, det: T) -> Point3<T> {
-    let v = (b.normal.cross(c.normal) * a.c
-        + c.normal.cross(a.normal) * b.c
-        + a.normal.cross(b.normal) * c.c)
-        / det;
+fn cramer<T: Real>(a: &(Vec3<T>, T), b: &(Vec3<T>, T), c: &(Vec3<T>, T), det: T) -> Point3<T> {
+    let v = (b.0.cross(c.0) * a.1 + c.0.cross(a.0) * b.1 + a.0.cross(b.0) * c.1) / det;
     Point3::new(v.x, v.y, v.z)
 }
 
@@ -572,6 +589,15 @@ fn radius<T: Real>(p: Point3<T>) -> Vec3<T> {
 
 /// The chord length of every edge ending at a vertex — the lengths the
 /// corner's conditioning is levered by (see [`solve_corner`]).
+///
+/// **The axial door keeps its own copy, levered by ARC LENGTH, and the
+/// difference is load-bearing rather than a duplication to collapse.**
+/// A chord is the arc length here because this door's bodies are
+/// all-planar and a planar edge is a straight segment: no closed edge
+/// exists for a chord to read zero on. The axial door's do — a chart
+/// with ONE seam closes on itself — and a zero arm makes every meter
+/// read `Zero` and call a perfectly transversal corner degenerate,
+/// which is what it measured on the revolved tube.
 fn corner_arms<T: Real>(
     body: &Body<T>,
     vertex: VertexKey,
@@ -600,7 +626,7 @@ fn corner_arms<T: Real>(
 }
 
 /// Every face incident to a vertex, in orbit order.
-fn faces_at_vertex<T: Real>(
+pub(crate) fn faces_at_vertex<T: Real>(
     body: &Body<T>,
     vertex: VertexKey,
 ) -> Result<Vec<FaceKey>, ReplaceFaceError<T>> {

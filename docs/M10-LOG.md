@@ -117,3 +117,21 @@ mutation testing (three certifying arms could be gutted green —
 now each is pinned to its validation door). Issues 687 and 701
 close with this merge. The E4 pairing hook (DL3's own sentence)
 is a NAMED obligation on M10-4's spec.
+
+## M10-P MERGED (2026-08-29)
+
+The profile-parameter lift is in: sample #42, ordinal 502, block
+M10-B1's last slot. The C6 asymmetry that would have silently
+zeroed every profile-dimension sensitivity is closed — structure
+selected once at f64 as the witness, geometry lane-live under
+guided replay with every consumed decision re-verified, the f64
+path bit-identical (both review arms re-derived the fence on the
+true merge base; CI's ε-sampling then caught the fence's own
+ε-dependence, which is the sampled matrix earning its keep twice
+in one unit). The latent-generic first commit found the
+period-fold widening class, now #1191 with a 15-site by-shape hit
+list — offered to S-CERT on the work-streams PR, M10-3 its first
+consumer. M10-3 and M10-4 are now dispatchable at FULL scope
+(profile-driven parameters included) once their remaining
+dependencies land: M10-3 needs nothing further; M10-4 needs M10-2's
+Measure sink (in implementation).

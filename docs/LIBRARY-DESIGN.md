@@ -23,9 +23,10 @@ LQ3(c)'s frame family landed while LQ3(a)'s open-chain path
 vocabulary and the `wire_sweep`/`Node::Tube` discharge stay the
 named design conversation. The live residuals are the register at
 the tail of `docs/LIB-LOG.md`, whose largest standing item is the
-assembly surface: authorable through the façade, still entirely
-unbound in `pncad-py` (`evaluate` takes no resolver, so an
-`InstantiatePart` node cannot evaluate from Python at all).
+assembly surface: authorable through the façade, still unbound in
+`pncad-py` for AUTHORING — the seam it is reached through is bound
+(LIB-G18a: `evaluate(doc, resolver=store)`, so an assembly document
+loaded from a workspace evaluates), and no door that WRITES one is.
 What follows is the program's design, not its status.
 
 ## L1. What "usable as a library" means

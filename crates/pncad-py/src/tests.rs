@@ -70,6 +70,12 @@ fn error_classes_name_the_python_hierarchy() {
             ErrorClass::Frame => "FrameError",
             ErrorClass::Identity => "IdentityError",
             ErrorClass::Workspace => "WorkspaceError",
+            ErrorClass::Mate => "MateError",
+            ErrorClass::Assembly => "AssemblyError",
+            ErrorClass::Product => "ProductError",
+            ErrorClass::Split => "SplitError",
+            ErrorClass::Inline => "InlineError",
+            ErrorClass::Update => "UpdateError",
         }
     }
     for class in [
@@ -88,6 +94,12 @@ fn error_classes_name_the_python_hierarchy() {
         ErrorClass::Frame,
         ErrorClass::Identity,
         ErrorClass::Workspace,
+        ErrorClass::Mate,
+        ErrorClass::Assembly,
+        ErrorClass::Product,
+        ErrorClass::Split,
+        ErrorClass::Inline,
+        ErrorClass::Update,
     ] {
         assert_eq!(class.class_name(), expected(class));
     }

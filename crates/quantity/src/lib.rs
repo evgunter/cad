@@ -68,7 +68,7 @@ mod units;
 
 pub use fmt::{FmtQuantityError, fmt_angle, fmt_length};
 pub use units::{
-    AngleUnit, CENTI, CM, DEG, IN, LengthUnit, M, MILLI, MM, RAD, UNITS, UnitDef, UnitQuantity,
+    AngleUnit, CENTI, CM, DEG, IN, LengthUnit, M, MILLI, MM, PI, RAD, UNITS, UnitDef, UnitQuantity,
     unit_by_symbol,
 };
 

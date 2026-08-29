@@ -167,6 +167,7 @@ pub(crate) mod live;
 pub mod merge_faces;
 pub mod movefac;
 pub mod null;
+pub mod offset_axial;
 pub mod offset_together;
 pub mod pcurves;
 pub mod props;
@@ -305,6 +306,7 @@ pub use instance::{
 };
 pub use merge_faces::{MergeCoplanarError, MergeCoplanarOutcome, MergedGroup, SkippedMerge};
 pub use null::{CurveGeom, NewVertexSide, NullEdge, NullFacePair};
+pub use offset_axial::{is_axial, offset_charts_together};
 pub use offset_together::{ChartMove, offset_planes_together};
 pub use pcurves::{PcurveMintError, mint_pcurves, pcurve_of};
 pub use props::{
@@ -315,7 +317,7 @@ pub use provenance::Provenance;
 pub use readback::{DanglingRef, Pose, ReadbackError};
 pub use replace_face::{ReplaceFaceError, replace_face_offset, replace_faces_offset};
 pub use revert::RevertError;
-pub use separation::{PlacementsMeet, Separation};
+pub use separation::{PlacementsMeet, Separation, SolidOwners, SolidSeparation, SolidsMeet};
 pub use shell::{ShellError, shell, shell_open};
 pub use source::{GeomSource, Or, SourceAttachError, SourceExpr};
 pub use split::SplitEdgeCreated;
