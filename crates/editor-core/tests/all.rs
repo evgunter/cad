@@ -90,6 +90,12 @@ mod lib_u7_select;
 mod m10_1_analysis;
 #[path = "m10_1_schema_v15.rs"]
 mod m10_1_schema_v15;
+#[path = "r1_differential.rs"]
+mod r1_differential;
+#[path = "r1_m10_1_corruptions.rs"]
+mod r1_m10_1_corruptions;
+#[path = "r1_m10_1_probes.rs"]
+mod r1_m10_1_probes;
 #[path = "m4_pr1_dims.rs"]
 mod m4_pr1_dims;
 #[path = "m4_pr1_doc.rs"]
