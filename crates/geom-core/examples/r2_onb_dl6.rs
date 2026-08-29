@@ -4,7 +4,7 @@
 //! certified lane may return Invalid/NaI only when the inputs pose no
 //! real question, and must take a widening path over an absorbing one
 //! where both exist" — rather than merely against "does it still
-//! poison at n.z = [0,0]".
+//! poison at n.z = `[0,0]`".
 //!
 //! Run:  cargo run -p geom-core --features interval --example r2_onb_dl6
 #![allow(clippy::print_stdout)]
