@@ -183,3 +183,26 @@ kept lane (11-item union, two frontier issues + one API issue to
 file, both probe branches adopted as merge parents, the KERNEL-VERBS
 both-sides merge called out). R2's target reclaimed at report; delta
 re-verification after the fix per the ladder position.
+
+## BLEND-2 + BLEND-7 DISPATCHED (2026-08-29 ~22:50Z)
+
+Post-merge sweep done (all three BLEND-1 lanes removed; branches
+and probe branches live on origin). Two units dispatch together —
+the plan's serialization binds `crates/sweep/fillet` units only,
+and BLEND-7 is the profile-crate exception:
+
+- **BLEND-2** (issue 935, two rims sharing a wall): difficulty
+  **M** (logged at dispatch, before reading the slot). Lane
+  `blend-2`, branch `blend/tworims`. Arm = BLEND-B1 slot 2, read
+  from this branch's draw record. Presumptive shape per the plan:
+  the narrow seam-key refresh between carves; STOP on any move
+  against decide-before-mutate.
+- **BLEND-7** (issue 827, the ruled enclosing-tangency refusal):
+  difficulty **S** (logged at dispatch). Lane `blend-7`, branch
+  `blend/enclose-refusal`. Arm = BLEND-B1 slot 3, read from this
+  branch's draw record — the block's last slot; the block record
+  merges to main when this unit's reviews conclude. Measured-first
+  per the ratified doc.
+
+Both v6 duals at review; ordinals 601/602 claimed on main at their
+review dispatches. Rows at merge.
