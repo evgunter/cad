@@ -74,3 +74,16 @@ record above before the byte was drawn). Arm = BLEND-B1 slot 1,
 read from this branch's draw record, not restated where reviewers
 read. v6 dual at review; ordinal claimed from band 600–699 on main
 at review dispatch. Row at merge.
+
+## Enclosing-tangency conversation OPEN (2026-08-29)
+
+`docs/ENCLOSING-TANGENCY-DESIGN.md` (PR 1210, branch
+`blend/enclosing-tangency-design`): R1 (yes in principle,
+structurally spelled, consumer-gated) recommended over R2
+(permanent no), per the JunctionTangent precedent. Waits for
+Evan's 👍 — never self-merged. Pointer comment left on issue 827.
+
+**Live state**: BLEND-1 lane running (`blend/rimwhole`); watching
+PR 1180 (2b merge ⇒ track T claim + shell/offset keep-out lifts)
+and PR 1210 (Evan); LIB-G16's PR checked at check-ins (⇒ BLEND-5/6
+unlock). Session check-ins armed ~hourly.
