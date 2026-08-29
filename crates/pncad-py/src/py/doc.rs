@@ -1083,6 +1083,12 @@ impl ParamName {
 /// bare float. A non-finite value is NOT pre-checked here — the edit
 /// door refuses it typed (`non_finite_doc_param`), fail-loud where
 /// the kernel refuses.
+///
+/// The constructors here author UNANNOTATED parameters: a parameter's
+/// optional distribution (ERROR-DESIGN E1/E2) has no Python spelling
+/// yet, so a document authored from Python declares none. One read
+/// back from a `.pncad` file keeps whatever it carries — equality,
+/// hashing and `repr` all see the annotation.
 #[pyclass(frozen, module = "pncad", from_py_object)]
 #[derive(Clone)]
 pub(crate) struct DocParam(pub(crate) d::DocParam);
@@ -1110,10 +1116,7 @@ impl DocParam {
     /// A continuous dimensionless parameter.
     #[staticmethod]
     fn scalar(value: f64) -> Self {
-        Self(d::DocParam::Continuous {
-            dim: d::Dimension::Scalar,
-            value,
-        })
+        Self(d::DocParam::continuous(d::Dimension::Scalar, value))
     }
 
     /// An integer Count parameter (structural material, spec D3).
@@ -1144,11 +1147,21 @@ impl DocParam {
         use std::hash::{Hash, Hasher};
         let mut h = std::hash::DefaultHasher::new();
         match &self.0 {
-            d::DocParam::Continuous { dim, value } => {
+            d::DocParam::Continuous {
+                dim,
+                value,
+                distribution,
+            } => {
                 0u8.hash(&mut h);
                 format!("{dim:?}").hash(&mut h);
                 let normalized = if *value == 0.0 { 0.0 } else { *value };
                 normalized.to_bits().hash(&mut h);
+                // The distribution is part of the parameter, so it is
+                // part of the equality this hash mirrors. Hashed
+                // through its debug spelling, which distinguishes the
+                // forms and their offsets without a second float
+                // normalization rule to keep in step.
+                format!("{distribution:?}").hash(&mut h);
             }
             d::DocParam::Count { value } => {
                 1u8.hash(&mut h);
@@ -1160,9 +1173,16 @@ impl DocParam {
 
     fn __repr__(&self) -> String {
         match &self.0 {
-            d::DocParam::Continuous { dim, value } => {
-                format!("DocParam({dim:?} {value})")
-            }
+            d::DocParam::Continuous {
+                dim,
+                value,
+                distribution: None,
+            } => format!("DocParam({dim:?} {value})"),
+            d::DocParam::Continuous {
+                dim,
+                value,
+                distribution: Some(d),
+            } => format!("DocParam({dim:?} {value} {d:?})"),
             d::DocParam::Count { value } => format!("DocParam(Count {value})"),
         }
     }

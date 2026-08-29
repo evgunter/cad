@@ -1200,6 +1200,22 @@ SCHEMA_VERSION` → 13, at the merge that brought M9-2 PR-2 #564 in).
 This paragraph is the tripwire: any other in-flight branch claiming
 14 collides HERE, because the constant will not.
 
+**M10-1 SCHEMA CLAIM: v15** (2026-08-29, branch
+m10/m10-1-distributions) — `DocParam::Continuous` gained the optional
+`Distribution` of ERROR-DESIGN E1/E2: the parameter's uncertainty as
+offsets from its own nominal. The field is
+`skip_serializing_if = "Option::is_none"`, so an unannotated document
+writes the v14 bytes exactly; the FORMAT claim is the populated key,
+which a v14 reader's `deny_unknown_fields` document types have no
+name for. Claimed as main's next number after reading main's ACTUAL
+constant by eye at the final re-merge (`git show
+origin/main:crates/editor-core/src/persist/mod.rs | grep
+SCHEMA_VERSION`). This paragraph is the tripwire: any other in-flight
+branch claiming 15 collides HERE, because the constant will not.
+`docs/PARAM-LINT-SPEC.md` names v15 as the number a persisted PL
+field would take — a hypothetical in a spec, not a claim on a branch,
+but the nearest thing to a rival and worth an eye if PL lands first.
+
 Review
 ordinal claims at review dispatch (note: the next third is 48 —
 the pending dual, tally 5-of-6).

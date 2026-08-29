@@ -279,10 +279,7 @@ fn prism_part(
             &mut doc,
             &DocEdit::SetDocParam {
                 name: name.clone(),
-                value: DocParam::Continuous {
-                    dim: Dimension::Length,
-                    value,
-                },
+                value: DocParam::continuous(Dimension::Length, value),
             },
             tol,
         );
