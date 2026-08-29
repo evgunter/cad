@@ -64,6 +64,8 @@ mod sf2b_axial;
 mod sf2b_head;
 #[path = "sf2b_interval_probe.rs"]
 mod sf2b_interval_probe;
+#[path = "sf2b_r1_probes.rs"]
+mod sf2b_r1_probes;
 #[path = "shellfix1_bitdump.rs"]
 mod shellfix1_bitdump;
 #[path = "shellfix1_r1_probes.rs"]
