@@ -192,7 +192,7 @@ pub struct Expr {
 /// `size_of::<Lit>()` assertion below.)
 ///
 /// The identity is the row's POSITION in [`quantity::UNITS`], not a
-/// second spelling of the six units: no unit symbol is written as CODE
+/// second spelling of the table's units: no unit symbol is written as CODE
 /// anywhere in this crate's `src`, and both directions here go
 /// through the table, so there is no mirror to hand-sync.
 ///
@@ -204,12 +204,12 @@ pub struct Expr {
 ///   suites. Nothing here holds an opinion about the order —
 ///   `switch_display_units.rs`'s wire golden deliberately compares
 ///   membership as a SET so that stays true. (It is not silent either:
-///   `quantity`'s own suite pins the six symbols IN ORDER, so a reorder
+///   `quantity`'s own suite pins every symbol IN ORDER, so a reorder
 ///   is a decision taken there rather than a surprise here.)
 /// * **Added**: no edit to `src`. In the suites,
 ///   `switch_display_units.rs`'s wire golden goes red — deliberately,
 ///   so a new unit cannot land unpinned. `tests/u8a_parse.rs`'s two
-///   proptest generators enumerate the six symbols by hand and do NOT
+///   proptest generators enumerate the symbols by hand and do NOT
 ///   go red; they silently under-cover, so they want an edit that
 ///   nothing announces.
 /// * **Renamed**: no edit to `src`. `u8a_parse.rs`'s generators go red

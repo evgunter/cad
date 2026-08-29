@@ -34,6 +34,7 @@ pub use editor_core::{Applied, Doc, DocEdit, EditError, EditRecord, apply};
 // spell the whole node vocabulary through one module.
 pub use editor_core::{
     Axis3, BooleanOp, Datum, Node, PatternKind, PlacementRuleFault, RecipeNodeId, SlotId,
+    VectorSlot,
 };
 
 // Expressions and their text door.

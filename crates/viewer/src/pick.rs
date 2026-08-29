@@ -43,7 +43,7 @@
 
 use std::collections::BTreeMap;
 
-use pncad::document::{Doc, Evaluation, ProfileProgram, RecipeNodeId};
+use pncad::document::{Doc, Evaluation, ParamName, ProfileProgram, RecipeNodeId};
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
 use pncad::select::{HitTestError, NodePick, NodePickError, PickHit, PickTarget, Ray, pick_face};
@@ -400,6 +400,24 @@ impl PickIndex {
         self.id_slice.get(start..start + len).unwrap_or_default()
     }
 
+    /// Every id drawn for one NODE, across all its output bodies.
+    ///
+    /// The windows of a node's bodies are consecutive — the index lays
+    /// its parts out in root-then-payload order — but this collects
+    /// rather than slicing, because "consecutive across bodies" is a
+    /// property of the build loop rather than a documented postcondition
+    /// of the layout, and a highlight is not worth resting on it.
+    pub fn ids_of_node(&self, node: RecipeNodeId) -> Vec<u32> {
+        self.by_target
+            .iter()
+            .filter(|((drawn, _), _)| *drawn == node)
+            .flat_map(|(_, &(start, len))| {
+                self.id_slice.get(start..start + len).unwrap_or_default()
+            })
+            .copied()
+            .collect()
+    }
+
     /// The ids a face selection denotes: the ids of its NAME, narrowed
     /// to its own (node, body).
     ///
@@ -450,6 +468,20 @@ impl PickIndex {
     /// extent to frame against and the picture is never left stale
     /// behind a refusal.
     pub fn scene_for(&self, display: &DisplayView) -> Result<SceneMesh, SceneError> {
+        self.scene_focused(display, &std::collections::BTreeSet::new())
+    }
+
+    /// [`PickIndex::scene_for`], marking the patches in `focus` — what
+    /// the side panel is showing (see [`focus`]).
+    ///
+    /// # Errors
+    ///
+    /// As [`PickIndex::scene_for`].
+    pub fn scene_focused(
+        &self,
+        display: &DisplayView,
+        focus: &std::collections::BTreeSet<u32>,
+    ) -> Result<SceneMesh, SceneError> {
         let mut parts: Vec<ScenePart<'_>> = Vec::with_capacity(self.parts.len());
         let mut next = 0usize;
         for part in &self.parts {
@@ -477,7 +509,7 @@ impl PickIndex {
             .ok_or(SceneError::EmptyMesh)?;
             return Ok(SceneMesh::empty(bounds, self.delta));
         }
-        SceneMesh::build_parts(&parts, self.delta)
+        SceneMesh::build_parts_focused(&parts, self.delta, focus)
     }
 
     /// The nearest face a ray meets, as a stable name.
@@ -737,6 +769,94 @@ pub fn highlight(
         selected: selection.face().map_or(IdMap::NOTHING, mark),
         hovered: hover.map_or(IdMap::NOTHING, mark),
     }
+}
+
+/// **What the picture marks because it is what the side panel is
+/// showing.** The ids of every drawn patch the selection is
+/// responsible for.
+///
+/// Distinct from [`highlight`], and the distinction is the point.
+/// `highlight` marks the ONE patch a pick landed on — an answer about
+/// the cursor. This marks the whole extent of the thing being EDITED,
+/// which for a feature is every face it made, and for a document
+/// parameter is every face of every feature that parameter drives.
+/// Selecting an extrude in the feature tree lights its walls; clicking
+/// one of those walls lights the same set, with the picked patch
+/// additionally tinted by `highlight`.
+///
+/// **A node that draws nothing still focuses something.** A profile, a
+/// datum plane, a sketch — none of them is a drawn root, and the
+/// interesting answer for them is not "nothing" but the geometry built
+/// on top of them (`display::roots_deriving_from`). That is the same
+/// question the request behind this function asked in the other
+/// direction: a profile's line and the wall it swept are one thing
+/// seen twice.
+///
+/// **What it does NOT do yet (issue 1182)**, stated so the gap is not
+/// mistaken for a decision: the marking is per NODE, so selecting a
+/// profile lights the whole body built from it rather than the walls of
+/// the one segment being edited. Per-segment marking is expressible in
+/// this type — the answer is a set of patch ids and nothing about the
+/// shape assumes a whole node's worth — and wants the profile-step ↔
+/// `RoleSeg::Lateral(ProfileEdgeRef)` correspondence established rather
+/// than guessed: a slot's `step` is an index in the AUTHORING chain and
+/// the name's `segment` an index in the LOWERED one, and one authored
+/// step can lower to several segments. A wrong guess there lights a
+/// confidently wrong face, silently.
+///
+/// A selection whose referent is not drawn — vanished, unevaluated,
+/// hidden, or a feature that produces no body at all — answers the
+/// empty set, which is how "nothing lights up" falls out of the same
+/// rule rather than being a case.
+pub fn focus(
+    index: &PickIndex,
+    doc: &Doc<ProfileProgram>,
+    selection: &Selection,
+) -> std::collections::BTreeSet<u32> {
+    let nodes: Vec<RecipeNodeId> = match selection {
+        Selection::None => Vec::new(),
+        Selection::Node(node) => vec![*node],
+        Selection::Face(face) => vec![face.node],
+        // Every node the parameter drives. A parameter is the one
+        // selection with no geometry of its own, and the useful
+        // question about it is exactly "what does this number move".
+        Selection::Param(name) => doc
+            .order()
+            .iter()
+            .copied()
+            .filter(|&id| drives(doc, id, name))
+            .collect(),
+    };
+    let mut out = std::collections::BTreeSet::new();
+    for node in nodes {
+        let own = index.ids_of_node(node);
+        if own.is_empty() {
+            // Not drawn itself: mark what was built from it.
+            for root in crate::display::roots_deriving_from(doc, node) {
+                out.extend(index.ids_of_node(root));
+            }
+        } else {
+            out.extend(own);
+        }
+    }
+    out
+}
+
+/// Whether any of `node`'s slot expressions reads the parameter
+/// `name` — through `Expr::param_refs`, the public read side, so a
+/// reference nested inside arithmetic counts exactly as a bare one
+/// does.
+fn drives(doc: &Doc<ProfileProgram>, node: RecipeNodeId, name: &ParamName) -> bool {
+    let Some(recipe_node) = doc.node(node) else {
+        return false;
+    };
+    recipe_node.slots().into_iter().any(|slot| {
+        recipe_node.expr(slot).is_some_and(|expr| {
+            let mut refs = Vec::new();
+            expr.param_refs(&mut refs);
+            refs.iter().any(|(referenced, _)| referenced == name)
+        })
+    })
 }
 
 /// The view-projection that puts ONE source pixel over the whole 1×1

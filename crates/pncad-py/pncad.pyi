@@ -444,6 +444,7 @@ m: Final[LengthUnit]
 inch: Final[LengthUnit]  # `in` is a Python keyword; `quantity` spells it IN
 deg: Final[AngleUnit]
 rad: Final[AngleUnit]
+pi: Final[AngleUnit]  # the half-turn: a NOTATION carried as a unit row
 
 # --- profile authoring: the PATHS lattice ------------------------------
 # PATHS-DESIGN §2. The tip's state is exactly which of {position,
