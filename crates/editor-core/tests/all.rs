@@ -94,6 +94,8 @@ mod m10_1_analysis;
 mod m10_1_r2_probes;
 #[path = "m10_1_schema_v15.rs"]
 mod m10_1_schema_v15;
+#[path = "m10_di_dual_corpus.rs"]
+mod m10_di_dual_corpus;
 #[path = "m4_pr1_dims.rs"]
 mod m4_pr1_dims;
 #[path = "m4_pr1_doc.rs"]
@@ -198,10 +200,14 @@ mod m9_d1_r1_probes;
 mod m9_d1_r2_probes;
 #[path = "placedunion_schema_v12.rs"]
 mod placedunion_schema_v12;
+#[path = "r1_dual_probes.rs"]
+mod r1_dual_probes;
 #[path = "r1_m10_1_corruptions.rs"]
 mod r1_m10_1_corruptions;
 #[path = "r1_m10_1_probes.rs"]
 mod r1_m10_1_probes;
+#[path = "r2_m10_di_probes.rs"]
+mod r2_m10_di_probes;
 #[path = "respell_schema_v9.rs"]
 mod respell_schema_v9;
 #[path = "review_gui1_r1.rs"]
