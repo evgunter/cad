@@ -1995,3 +1995,23 @@ row, red-capable, on lib/g16-r1b-probes). m10-p roster-only claim
 re-run independently, exact match. Disclosures clean; ~200k tokens,
 ~1h20m. R2 (fable) dispatched sequentially after, brief verbatim
 from the pre-committed store. Row at merge.
+
+LIB-G16 R2 DELIVERED (2026-08-29, fable per the draw; frozen
+36e3b83b): **APPROVE-WITH-FIXES 0/2/3, rubric 5/5/4.** Byte-identity
+extended by execution to all 18 registry documents PLUS the
+unmeasured tour composed-die transcribed into a probe (identical
+digests both trees); tie deferral proven via the output-table
+Tied-entries argument; m10-p roster re-measured at both scalars;
+row-11 closed form re-derived by halfspace-polytope construction;
+fence sweep of all 59 changed files found ZERO silent deviations.
+Unique finds: the doubled //!-marker (bilateral with R1's NOTE),
+four stale "fillet selection" comments in edit.rs the PR table
+implied addressed, the die_chamfer/die_fillet identical-digest
+observation (correct under D3, worth knowing when reading digest
+evidence). Disclosures clean; ~208k tokens, ~50m. CORRESPONDENCE
+PRE-NOTE: verdicts CONVERGE (A-W-F both); no MAJOR either arm — NO
+tally candidates; unilateral MINORs both directions (R1: stale
+tour-scene oracles, undemonstrated v15 break, chamfer-less v16
+golden; R2: the edit.rs prose class); the wire_chamfer-transcription
+taste point bilateral. Both A-W-F ⇒ no re-verification round; fix
+pass IMPLEMENTER-INHERITED off the adjudicated union. Row at merge.
