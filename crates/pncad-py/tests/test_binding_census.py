@@ -480,6 +480,23 @@ FAMILIES = {
         "stops being hand-work Python redoes beside `Length.in_unit`'s "
         "bare float"
     ),
+    "B-DISTRIBUTIONS": (
+        "parameter uncertainty and the analysis lane (ERROR-DESIGN "
+        "E1/E2); closing it binds `Distribution`'s four forms onto a "
+        "`DocParam` constructor and the analysis doors that read them "
+        "back — the analyzed box, tail mass and leaf mass, with "
+        "`DistributionFault` and the band's typed measure refusal as "
+        "arms a Python caller can dispatch on. Today Python authors "
+        "unannotated parameters only: a document read back from a file "
+        "carries an annotation Python can READ ONLY THROUGH equality, "
+        "hashing and `repr`, and cannot spell. The sharp edge is the "
+        "WRITE door, not the read one — `set_doc_param` is "
+        "create-or-replace, so passing it a `DocParam` rebuilt from a "
+        "dimension and a number DELETES the annotation silently. "
+        "`set_doc_param_value` is the value-only door that carries the "
+        "declaration forward and is what a Python caller moving a "
+        "number must use until this family closes"
+    ),
     "B-VALIDATE4": (
         "the fourth validator rung; closing it binds "
         "`validate_pseudomanifold` beside the three `Body` already "
@@ -832,6 +849,10 @@ NOT_BOUND = {
     "sweep_body": f"{GAP}: G2 sweep/tube",
     "tube_along_arc": f"{GAP}: G2 sweep/tube",
     "tube_along_arc_hollow": f"{GAP}: G2 sweep/tube",
+    # --- gap: parameter distributions and the analysis lane -------
+    "Distribution": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",
+    "DistributionFault": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",
+    "DistributionField": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",
     # --- gap: the memo (audit G8's measured residue) --------------
     "EvalOptions": f"{GAP}: G8 memoized recompute",
     # --- gap: content pins and cross-document refs (audit G15) ----

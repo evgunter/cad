@@ -71,10 +71,10 @@ use std::sync::Arc;
 
 use pncad::document::{
     Alignment, Assembly, AssemblyError, Attribution, AxisSense, CancelToken, Dimension, DocEdit,
-    DocParam, DocRef, DocumentId, EvalOptions, Evaluation, Expr, Frame, InlineError, LoopProgram,
-    MateFault, MateFrame, MatePrimitive, Node, ParamName, PatternKind, ProfileDoc, ProfileProgram,
-    ProgramStep, ProgramTarget, RecipeNodeId, apply, assemble, content_pin, evaluate, inline, load,
-    mixed_pins, parse_expr, product_named, save, solve_document, split,
+    DocParam, DocParamValue, DocRef, DocumentId, EvalOptions, Evaluation, Expr, Frame, InlineError,
+    LoopProgram, MateFault, MateFrame, MatePrimitive, Node, ParamName, PatternKind, ProfileDoc,
+    ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, apply, assemble, content_pin,
+    evaluate, inline, load, mixed_pins, parse_expr, product_named, save, solve_document, split,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -279,10 +279,7 @@ fn prism_part(
             &mut doc,
             &DocEdit::SetDocParam {
                 name: name.clone(),
-                value: DocParam::Continuous {
-                    dim: Dimension::Length,
-                    value,
-                },
+                value: DocParam::continuous(Dimension::Length, value),
             },
             tol,
         );
@@ -1190,12 +1187,9 @@ fn update_door(ws: &mut Workspace, stand: &Stand, shelf: DocRef, tol: Tol) {
     let mut thicker = ws.resolve(&shelf, tol).expect("the shelf resolves");
     edit(
         &mut thicker,
-        &DocEdit::SetDocParam {
+        &DocEdit::SetDocParamValue {
             name: ParamName::new("thickness"),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value: SHELF_THICKNESS * 1.5,
-            },
+            value: DocParamValue::Continuous(SHELF_THICKNESS * 1.5),
         },
         tol,
     );
@@ -1288,12 +1282,9 @@ fn update_door(ws: &mut Workspace, stand: &Stand, shelf: DocRef, tol: Tol) {
         .expect("the post resolves");
     edit(
         &mut shorter,
-        &DocEdit::SetDocParam {
+        &DocEdit::SetDocParamValue {
             name: ParamName::new("height"),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value: POST_HEIGHT - 0.04,
-            },
+            value: DocParamValue::Continuous(POST_HEIGHT - 0.04),
         },
         tol,
     );
@@ -1392,24 +1383,18 @@ fn update_door(ws: &mut Workspace, stand: &Stand, shelf: DocRef, tol: Tol) {
     // workspace a reader opens is the one the saved assemblies pin.
     edit(
         &mut shorter,
-        &DocEdit::SetDocParam {
+        &DocEdit::SetDocParamValue {
             name: ParamName::new("height"),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value: POST_HEIGHT,
-            },
+            value: DocParamValue::Continuous(POST_HEIGHT),
         },
         tol,
     );
     ws.resave(&shorter, tol).expect("the post is restored");
     edit(
         &mut thicker,
-        &DocEdit::SetDocParam {
+        &DocEdit::SetDocParamValue {
             name: ParamName::new("thickness"),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value: SHELF_THICKNESS,
-            },
+            value: DocParamValue::Continuous(SHELF_THICKNESS),
         },
         tol,
     );

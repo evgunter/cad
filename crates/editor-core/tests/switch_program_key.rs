@@ -84,10 +84,7 @@ fn resolved_values_feed_the_key() {
             .apply(
                 &DocEdit::SetDocParam {
                     name: ParamName::new("r"),
-                    value: DocParam::Continuous {
-                        dim: Dimension::Length,
-                        value,
-                    },
+                    value: DocParam::continuous(Dimension::Length, value),
                 },
                 Tol::witness(),
             )

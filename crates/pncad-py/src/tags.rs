@@ -130,10 +130,13 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::UnknownDocParam { .. } => "unknown_doc_param",
         EditError::DocParamDimensionMismatch { .. } => "doc_param_dimension_mismatch",
         EditError::ContinuousParamCannotBeCount { .. } => "continuous_param_cannot_be_count",
+        EditError::DocParamNotDeclared { .. } => "doc_param_not_declared",
+        EditError::DocParamValueKindMismatch { .. } => "doc_param_value_kind_mismatch",
         EditError::PathOffTree { .. } => "path_off_tree",
         EditError::Dimension { .. } => "dimension",
         EditError::DeclareNamesMissingNode { .. } => "declare_names_missing_node",
         EditError::NonFiniteDocParam { .. } => "non_finite_doc_param",
+        EditError::InvalidDistribution { .. } => "invalid_distribution",
         EditError::RebindTargetMissingNode { .. } => "rebind_target_missing_node",
         EditError::RebindUnknownName { .. } => "rebind_unknown_name",
         EditError::RebindKindMismatch { .. } => "rebind_kind_mismatch",
@@ -336,6 +339,7 @@ pub fn part_fault_tag(fault: &pncad::document::PartFault) -> &'static str {
 pub fn persist_error_tag(err: &PersistError) -> &'static str {
     match err {
         PersistError::NonFinite { .. } => "non_finite",
+        PersistError::Distribution { .. } => "distribution",
         PersistError::ProfileProgram { .. } => "profile_program",
         PersistError::Serialize { .. } => "serialize",
         PersistError::Header { .. } => "header",

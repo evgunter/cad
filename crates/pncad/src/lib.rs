@@ -189,6 +189,7 @@ pub use topo;
 // document-layer path names it, and that measurement is what decides
 // the re-export. Re-export it the day a consumer needs it.
 
+pub mod analysis;
 pub mod authoring;
 pub mod document;
 pub mod export;

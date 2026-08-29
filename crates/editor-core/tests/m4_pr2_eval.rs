@@ -118,10 +118,7 @@ fn doc_param_edit_recomputes_the_param_cone() {
         .apply(
             &editor_core::DocEdit::SetDocParam {
                 name: editor_core::ParamName::new("pip_depth"),
-                value: editor_core::DocParam::Continuous {
-                    dim: editor_core::Dimension::Length,
-                    value: 0.0625,
-                },
+                value: editor_core::DocParam::continuous(editor_core::Dimension::Length, 0.0625),
             },
             Tol::witness(),
         )
