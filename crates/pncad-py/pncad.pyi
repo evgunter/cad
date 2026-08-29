@@ -314,6 +314,37 @@ class UpdateError(PncadError):
     id: str
     pin: Optional[ContentPin]
 
+class ReadbackError(PncadError):
+    """A read-back door could not say what a name denotes or where it
+    sits.
+
+    Two refusals share this class because they refuse the same CALL —
+    "where is the entity this name denotes". The NAME half resolves
+    the name against the evaluation (`no_such_name`, `ambiguous`,
+    `wrong_kind`, `whole_body`, `no_bodies`, `no_such_body`, and the
+    node ladder `node_not_evaluated` / `node_failed` /
+    `node_poisoned`); the GEOMETRY half reads the carrier and arrives
+    under its OWN tags rather than a wrapper tag (`dangling`,
+    `no_canonical_frame`, `no_carrier`).
+
+    `ambiguous` is the one to read twice: a tie is a naming success
+    and a referencing failure, and the door refuses rather than
+    picking a candidate. `Evaluation.denotation` is how a caller asks
+    before reading a frame.
+
+    Every field is present on every arm, `None` where that arm does
+    not carry it."""
+
+    variant: str
+    node: Optional[NodeId]
+    through: Optional[NodeId]
+    candidates: Optional[int]
+    wanted: Optional[EntityKind]
+    found: Optional[EntityKind]
+    index: Optional[int]
+    payload: Optional[str]
+    carrier: Optional[str]
+
 class FrameError(PncadError):
     """A frame constructor refused its inputs — a direction that was
     not DEFINITELY usable, or a tolerance yielding no usable band.
@@ -1838,6 +1869,54 @@ class Value:
     def split(self) -> tuple[Optional[Body], Optional[Body]]: ...
     def datum(self) -> Datum: ...
 
+class Pose:
+    """A frame read off stored geometry: an origin plus the carrier's
+    own reference directions, verbatim — what `Evaluation.face_frame`
+    and `edge_frame` answer with.
+
+    `origin` is the CARRIER's distinguished point (a plane's origin, a
+    cylinder's axis point, a circle's centre), dimensioned; it need
+    not lie inside the trimmed face. `axis` is the carrier's principal
+    direction, dimensionless, and it is the CHART's direction — NOT
+    corrected by the face's orientation sense, which is a separate
+    fact about the face.
+
+    `u_ref` is the in-frame reference direction where the carrier's
+    convention fixes one and `None` where it fixes none: a line has no
+    distinguished perpendicular, and the door refuses to invent one.
+    `v_ref` is `axis x u_ref`, `None` exactly when `u_ref` is.
+
+    No `==`: comparing coordinates is a tolerance question, and an
+    exact-bit answer would be a decided predicate wearing an
+    operator."""
+
+    @property
+    def origin(self) -> tuple[Length, Length, Length]: ...
+    @property
+    def axis(self) -> tuple[float, float, float]: ...
+    @property
+    def u_ref(self) -> Optional[tuple[float, float, float]]: ...
+    @property
+    def v_ref(self) -> Optional[tuple[float, float, float]]: ...
+
+class Denotation:
+    """What a name denotes, without the entities it denotes — what
+    `Evaluation.denotation` answers with.
+
+    A TIE is a naming success and a referencing failure: the name is
+    well formed and several entities answer to it equally, so the
+    frame doors refuse (`ReadbackError`, `variant == "ambiguous"`)
+    rather than picking one. `tied` is the fact to branch on;
+    `candidates` is how many answer, which is `1` exactly when `tied`
+    is `False`. It carries a COUNT and never the candidates — those
+    are arena keys, which do not cross."""
+
+    @property
+    def tied(self) -> bool: ...
+    @property
+    def candidates(self) -> int: ...
+    def __eq__(self, other: object) -> bool: ...
+
 class Evaluation:
     """The per-node result DAG."""
 
@@ -1884,6 +1963,46 @@ class Evaluation:
         tied name whose candidates disagree, or an unreadable
         candidate refuse rather than silently including or dropping
         anything."""
+    def face_frame(self, node: NodeId, name: str) -> Pose:
+        """Where the named face SITS — its carrier's frame, as of THIS
+        evaluation. The forward twin of the materializers: they hand
+        out names, this asks one where it is, and `name` is one of
+        their opaque texts handed back unread.
+
+        The answer is the CARRIER's frame copied out of stored
+        geometry — a definitional re-read, no measurement and no pad —
+        and never a verdict: whether a face is planar, or where it
+        sits relative to something else, is `select_where`'s decided
+        half.
+
+        Raises `ReadbackError`, typed: `no_such_name` for a stale
+        selection, `ambiguous` for a tie (ask `denotation` first),
+        `wrong_kind` for an edge or vertex name,
+        `no_canonical_frame` for a NURBS carrier, and the node ladder
+        for a node this evaluation did not produce."""
+
+    def edge_frame(self, node: NodeId, name: str) -> Pose:
+        """Where the named edge sits — `face_frame`'s sibling, same
+        contract. A straight edge answers with `u_ref is None`: a line
+        has a direction and no distinguished perpendicular, and the
+        door says so rather than inventing one. Raises
+        `ReadbackError`, with `no_carrier` for an edge still carrying
+        null-edge scaffolding."""
+
+    def vertex_position(
+        self, node: NodeId, name: str
+    ) -> tuple[Length, Length, Length]:
+        """Where the named vertex sits — its stored position,
+        dimensioned. Raises `ReadbackError` as `face_frame` does."""
+
+    def denotation(self, node: NodeId, name: str) -> Denotation:
+        """How this name resolves — uniquely, or as a tie. The
+        referencing question, answered without exposing what it
+        resolves to, and the door to ask BEFORE a frame: the three
+        frame doors refuse a tie rather than picking a candidate, and
+        this says whether one is coming. Raises `ReadbackError` for
+        `no_such_name` and the node ladder."""
+
     def find_flush_candidates(self, a: NodeId, b: NodeId) -> list[FlushFinding]:
         """The cross-body flush-plane candidates between `a`'s and
         `b`'s outputs, as of THIS evaluation — the detect arm of the

@@ -21,6 +21,7 @@ from pncad import (
     CurveKind,
     ClassAdmission,
     ClusterMaintenance,
+    Denotation,
     Doc,
     DocEdit,
     DocRef,
@@ -41,6 +42,7 @@ from pncad import (
     NamePat,
     Node,
     NodeId,
+    Pose,
     PinMultiplicity,
     ParamName,
     PatternKind,
@@ -366,3 +368,19 @@ spliced: InlineOutcome = inline(cut.remainder, cut.instance, store)
 lint: list[PinMultiplicity] = mixed_pins(doc)
 moves: list[DocEdit] = update_references(doc, doc.id, pin)
 to_store: list[DocEdit] = store.update_to_store(doc, doc.id)
+
+# The read-back doors: a name in, VALUES out. The origin is
+# dimensioned and the directions are not — a position carries a
+# `Length`, a direction is a bare triple — and `u_ref` is OPTIONAL
+# because a carrier that fixes no reference direction says so.
+cap_name: str = seamed.all_faces(upright)[0]
+where: Pose = seamed.face_frame(upright, cap_name)
+sits_at: tuple[Length, Length, Length] = where.origin
+normal: tuple[float, float, float] = where.axis
+clocking: tuple[float, float, float] | None = where.u_ref
+edge_pose: Pose = seamed.edge_frame(upright, seamed.all_edges(upright)[0])
+corner: tuple[Length, Length, Length] = seamed.vertex_position(
+    upright, seamed.all_vertices(upright)[0]
+)
+denotes: Denotation = seamed.denotation(upright, cap_name)
+tied: bool = denotes.tied
