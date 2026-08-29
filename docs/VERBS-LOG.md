@@ -2276,3 +2276,20 @@ every corner class, and the conditioning meter judges geometry,
 not requests. #1081 stays open for 2b (the curved corners — the
 teapot's belly). The banked meter law and the
 conventional-data-is-data lesson ride the row.
+
+## F7 POLE HALF MERGED (#1131) — ordinal-104 row (sample #37); THE ARC CLOSES (2026-08-29)
+
+SUPERSEDES the 2026-08-28 ordinal-104 claim entry's description
+(which named the withdrawn build): the merged mechanism is
+merge_coplanar_faces' general collinear-seam repair, per the row.
+The unit's arc — steer, impossibility claim, exemption, dual
+falsification, withdrawal, vindication, trigger falsification,
+collinearity ruling, corpus-first law, the delta verification —
+is the program's fullest demonstration of measure-first and the
+dual system working together: THREE wrong premises died before
+merge, and the thing that shipped is smaller, more general, and
+more honest than anything first proposed. The trailer-voiding
+face (a merge/subsequent commit silently reverts CI-Config to
+sampling — met twice in one pass) joins the coverage classes in
+lane-ops memory. Wall 7 authored-repairs; half B stays open;
+Evan's retroactive 👍 requested on the arc in the PR.
