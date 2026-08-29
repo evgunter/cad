@@ -12,6 +12,7 @@ from pncad import (
     CurveKind,
     Doc,
     DocEdit,
+    DocRef,
     EntityKind,
     Frame,
     GeomPred,
@@ -27,7 +28,9 @@ from pncad import (
     Start,
     SurfaceKind,
     Sweep,
+    Workspace,
     circle,
+    content_pin,
     deg,
     evaluate,
     m,
@@ -167,3 +170,10 @@ Node.placed_union(solid, 5 * m, PatternKind.linear((1.0, 0.0, 0.0), 0.5 * m))  #
 
 # The narrowed count edit takes a ParamName, never bare text.
 DocEdit.bind_count_param(solid, "fins")  # ty: error
+
+# A reference is (identity, pin) in that order and neither is the
+# other's type: an id is the canonical hex TEXT, a pin is a value.
+DocRef(content_pin(doc), doc.id)  # ty: error
+
+# The store resolves a reference, never a bare identity.
+Workspace("/tmp/pncad-store").resolve(doc.id)  # ty: error

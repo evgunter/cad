@@ -212,23 +212,37 @@ class TestThePinIsOfContent(StoreCase):
         self.assertEqual(doc.id, before_id)
         self.assertNotEqual(content_pin(doc), before_pin)
 
-    def test_same_part_same_content_is_the_same_pin(self):
-        """The derived spelling makes two documents the SAME part
-        deliberately; authored alike, they are the same version too —
-        canonical means canonical."""
+    def test_identity_is_not_content(self):
+        """MEASURED, and it is the design: `canonical_bytes` is the
+        document's serde form with the `id` key REMOVED, so two
+        different PARTS authored alike share a pin.
+
+        That is not a collision to be fixed — it is why a reference is
+        a PAIR. A pin answers "which version", never "which part"; a
+        `DocRef` carries the id beside it, and `Workspace.resolve`
+        locates the file by id first and only then checks the pin. A
+        pin that folded identity in would say the same thing twice and
+        would make an otherwise-unchanged document's pin move when it
+        was renamed."""
+        one, two = Doc("post"), Doc("shelf")
+        box(one, 1 * m, 1 * m, 4 * m)
+        box(two, 1 * m, 1 * m, 4 * m)
+        self.assertNotEqual(one.id, two.id)
+        self.assertEqual(content_pin(one), content_pin(two))
+        # And the pair still separates them, which is the point.
+        self.assertNotEqual(
+            DocRef(one.id, content_pin(one)), DocRef(two.id, content_pin(two))
+        )
+
+    def test_same_content_is_the_same_pin(self):
+        """Canonical means canonical: two documents authored alike pin
+        alike, whether or not they are the same part."""
         one, two = Doc("shelf"), Doc("shelf")
         box(one, 3 * m, 2 * m, 1 * m)
         box(two, 3 * m, 2 * m, 1 * m)
         self.assertEqual(one.id, two.id)
         self.assertEqual(content_pin(one), content_pin(two))
-
-    def test_the_same_content_under_two_identities_pins_differently(self):
-        """Identity is IN the canonical bytes, so a pin is never a
-        content-only fingerprint two parts could share."""
-        one, two = Doc("post"), Doc("shelf")
-        box(one, 1 * m, 1 * m, 4 * m)
-        box(two, 1 * m, 1 * m, 4 * m)
-        self.assertNotEqual(content_pin(one), content_pin(two))
+        self.assertEqual(canonical_bytes(one), canonical_bytes(two))
 
     def test_a_pin_is_a_value_that_compares_and_hashes(self):
         doc = Doc()

@@ -14,9 +14,11 @@ from pncad import (
     Center,
     Cmp,
     ContactClass,
+    ContentPin,
     CurveKind,
     Doc,
     DocEdit,
+    DocRef,
     EntityKind,
     FlushFinding,
     FlushRung,
@@ -37,11 +39,16 @@ from pncad import (
     SketchPlane,
     Start,
     SurfaceKind,
+    Workspace,
+    canonical_bytes,
     circle,
+    content_pin,
     deg,
     evaluate,
+    header_document_id,
     m,
     mm,
+    random_document_id,
 )
 
 outline = (
@@ -241,3 +248,24 @@ listed: PatternKind = PatternKind.explicit([here, turned])
 fin_group: NodeId = doc.insert(Node.placed_union(plate, 5, stepped))
 listed_group: NodeId = doc.insert(Node.placed_union_at(plate, [here, turned]))
 count_bound: DocEdit = DocEdit.bind_count_param(fin_group, ParamName("fins"))
+
+# LIB-G15: the workspace store. Identity crosses as the canonical hex
+# text, the pin as a value, and a reference as the pair of them.
+pin: ContentPin = content_pin(doc)
+pin_text: str = pin.hex
+same_pin: ContentPin = ContentPin(pin_text)
+reference: DocRef = DocRef(doc.id, pin)
+reference_id: str = reference.id
+reference_pin: ContentPin = reference.pin
+minted: str = random_document_id()
+preimage: bytes = canonical_bytes(doc)
+scanned: str = header_document_id(doc.save())
+
+store: Workspace = Workspace("/tmp/pncad-store")
+store_root: str = store.root
+listing: dict[str, str] = store.documents()
+written: str = store.create(doc)
+rewritten: str = store.resave(doc)
+resolved: Doc = store.resolve(reference)
+current: ContentPin = store.current_pin(doc.id)
+held: int = len(store)
