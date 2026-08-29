@@ -2416,3 +2416,22 @@ refusals) gets its issue. All items prose/doc/test-hygiene; the
 one code fix is is_axial's Escalated swallow (D4). CLEAN PAIR —
 pair 3 toward twelve; tally 1/8 unchanged. Union fix pass out;
 reviewer lanes swept.
+
+## ORDINAL 106 CLAIMED — GERMARMS PR-1 dual (2026-08-29)
+
+The ring lane green (#1229): face_outward_normal_at widened one
+door with both guards intact, line_wall_roots factored from
+cast_ray with names/metering kept, four exact-root arms, the
+chord/cosurface fence separated STRUCTURALLY. Three premise
+results: the steinmetz fixture is a SINGULAR pose (the section
+self-crosses at (±1,0,0), the walls mutually tangent — the
+spec's crossing-vs-tangency question answered TANGENCY; the
+control at 45° is a definite crossing; PR-2 must handle a
+self-intersecting section); the "unions to a closed form"
+acceptance was falsified (a pierce ring's empty loop has no
+charted run — the JOIN arm is a shared absent arm, the honest
+boundary; a ring-join unit is the schedule); main DOESN'T
+COMPILE (#1272 filed — a viewer golden renamed under an
+include_str, deliberately not fixed cross-program). Full dual,
+frozen head e29b24f1, parity 0 → R1 opus + R2 fable; claim to
+main at dispatch.
