@@ -871,8 +871,8 @@ where
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::{
-        LocalSystem, MarchContext, MarchTol, NormalPair, SsiError, StepperMode,
-        TransversalityData, march,
+        LocalSystem, MarchContext, MarchTol, NormalPair, SsiError, StepperMode, TransversalityData,
+        march,
     };
     use geom_core::{Band, Point3, Vec3};
 
@@ -954,7 +954,14 @@ mod tests {
         };
         for speed in [f64::INFINITY, f64::NEG_INFINITY, f64::NAN, 0.0, -1.0] {
             let sys = FixedSpeedR3 { speed };
-            match march(&sys, [0.0, 0.0, 0.0], ctx, StepperMode::Idealized, 1.0, band) {
+            match march(
+                &sys,
+                [0.0, 0.0, 0.0],
+                ctx,
+                StepperMode::Idealized,
+                1.0,
+                band,
+            ) {
                 Err(SsiError::StepCollapsed { mode, step_meters }) => {
                     assert_eq!(mode, StepperMode::Idealized.name());
                     assert!(

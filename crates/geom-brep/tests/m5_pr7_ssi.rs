@@ -2227,8 +2227,15 @@ fn an_underflowing_weight_reaches_the_chart_poison_arm_without_magnitude() {
     // The smallest positive subnormal: `w` survives as a weight, and
     // `N·w` for any `N < 1` does not.
     let tiny = f64::from_bits(1);
-    assert!(tiny > 0.0 && tiny.is_finite(), "FIXTURE: a finite positive weight");
-    assert_eq!(0.5 * tiny, 0.0, "FIXTURE: the product underflows, the weight does not");
+    assert!(
+        tiny > 0.0 && tiny.is_finite(),
+        "FIXTURE: a finite positive weight"
+    );
+    assert_eq!(
+        0.5 * tiny,
+        0.0,
+        "FIXTURE: the product underflows, the weight does not"
+    );
     let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
     let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
     let mut control = Vec::with_capacity(8);
@@ -2244,9 +2251,9 @@ fn an_underflowing_weight_reaches_the_chart_poison_arm_without_magnitude() {
     match ssi::plane_nurbs_ssi(&cutting_plane(), &w, wall_domain(), band()) {
         Err(SsiError::UnsupportedCertificate { what })
             if what.contains("control-net enclosure poisoned") => {}
-        Err(SsiError::UnsupportedCertificate { what }) if what.contains("chart speed") => panic!(
-            "the chart-speed guard answered for a net whose speed is finite: {what}"
-        ),
+        Err(SsiError::UnsupportedCertificate { what }) if what.contains("chart speed") => {
+            panic!("the chart-speed guard answered for a net whose speed is finite: {what}")
+        }
         Err(other) => panic!(
             "expected the chart sweep's poison arm, got {other} — the arm is what              must answer an enclosure that cannot be formed, and any other door              answering in its place is the wrong DIAGNOSIS"
         ),
