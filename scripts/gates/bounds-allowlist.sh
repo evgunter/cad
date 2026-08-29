@@ -83,9 +83,18 @@
 # future row here: the gate avoids the dangerous pattern WHEN NOT
 # NECESSARY, so a necessary one is fine. What a candidate owes is
 # therefore a demonstration of necessity — that the bound cannot be
-# avoided — not a resemblance to a seam already listed. The two
-# negative results that carried this row, and what a future row
-# owes instead of citing them, have ONE home:
+# avoided — not a resemblance to a seam already listed.
+#
+# NECESSITY IS A FILTER, NOT A LICENCE. A candidate that needs the
+# bracket in order to DECIDE something outside the trilean is
+# refused rather than weighed, however necessary: brackets never
+# decide, every topology-determining branch stays a Decide call
+# site, and boxes only ever prune. That is the thing this grep
+# exists to catch, and it is checked FIRST — a necessity argument
+# for a deciding read is an argument for a different design.
+#
+# That ordering, the two negative results that carried this row,
+# and what a future row owes instead of citing them, have ONE home:
 # geom-core/src/real.rs, the 2026-08-29 entry. Pointer only.
 #
 # A NEW file writing a compound Bounds bound fails here until it

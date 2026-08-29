@@ -570,9 +570,37 @@ pub trait Real:
 /// resembling one already listed. **What a candidate owes is a
 /// demonstration of NECESSITY**, and the demonstration is the
 /// ratifiable artifact: show that the bound cannot be avoided, not
-/// that it would be convenient. Two negative results carried this one,
-/// and a future entry owes its own pair rather than a citation of
-/// these:
+/// that it would be convenient.
+///
+/// **Necessity is a filter on a candidate, never a licence.** What is
+/// NEVER allowed, whatever the necessity argument, is the thing the
+/// sole-bound rule exists to prevent and the 2026-07-29 amendment
+/// restates in its last clause: **brackets never decide.** Every
+/// topology-determining branch stays a
+/// [`Decide`](crate::predicate::Decide) call site — a trilean, with
+/// its in-band arm — and a bracket may prune a candidate set, drive a
+/// subdivision, or be reported; it may not be read off and branched on
+/// to reach an evaluated answer. A parameter that needs [`Bounds`] in
+/// order to decide something OUTSIDE the trilean is not a weak seam
+/// candidate, it is precisely the escape hatch the CI grep was written
+/// to catch, and no demonstration of necessity redeems it — such a
+/// candidate is refused rather than weighed. So an entry owes two
+/// things, and the ORDER matters: first that its reads stay on the
+/// prune/report side, then that the bound is unavoidable. Necessity
+/// argued for a deciding read is an argument for the wrong design.
+///
+/// This row clears the first before it argues the second.
+/// `editor_core::checks` reads no bracket at all — no `lo`/`hi` call
+/// appears in the file — and the single bracket-derived verdict it
+/// consumes is `topo::SolidSeparation::certify`'s, whose whole
+/// consequence is whether a FINDING is emitted. No body, no topology
+/// and no evaluated value moves on it: the resident REPORTS and never
+/// gates, which is `editor_core::checks`'s own ratified posture (DS6).
+/// That is strictly weaker than what this seam's other caller does
+/// with the same grant, where it licenses a GRAFT.
+///
+/// Two negative results then carried the necessity half, and a future
+/// entry owes its own pair rather than a citation of these:
 ///
 /// - `topo::PropsQuadLane` — the bound `run_checks` already carried —
 ///   does NOT imply [`Bounds`], checked by deleting the term and
