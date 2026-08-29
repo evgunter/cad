@@ -247,3 +247,23 @@ conflict to resolve at all: two independent decrements of one counter collided
 into one. The check that caught it is the one the rule prescribes — re-derive
 every track's count from its own table after the merge, never transcribe. Both
 counts and the 100-item total now agree with the tables.
+
+## Rows filed from `k1`'s residues, minted before the unit lands
+
+`k1`'s delta review flagged that the rows the lane wrote were **not in the
+tree** — the branch touched six files, none of them this schedule — and named
+the precedent: a lane that claimed its record edits and shipped without them.
+That is this session's process rather than the lane's omission (lanes are
+barred from `docs/SMELL-SCAN-2026-08.md` because five of them would conflict on
+it by construction), but the exposure is real and the answer is to mint the
+rows when they are established, not at the end. Six are now in the tables:
+`D181`, `D182` (Track J — the two copies of *"what the budget gate reads"* that
+live on a fence `C15` could not cross), `D201`, `D202`, `D203` (Track K), and
+`D402` (Track X). Every track's count re-derived from its own table; total 106.
+
+`D203` is the orchestrator's, not a lane's, and it is a **rule rather than
+either instance**: `C15` and `D200` independently discovered that a per-column
+admissions table cannot state a cross-column invariant, answered it the same
+way in two crates, and neither site says the other exists. `k1` declined the
+`u0 < u1` check as *"`D200`'s shape, not this row's"* — correctly — and that
+declination is what made the class visible.

@@ -7518,7 +7518,7 @@ grows after dispatch. **This row needs a lane and does not have one.**
 > `docs/SMELL-{C,E,F,G,H,I}-LOG.md` are the execution record for six of the
 > nine. **A, B and D left no log and none is owed**; what they did is in their
 > merged PRs. The rulings the logged tracks made are cited from here by number
-> (`F-R11`, `H-R2`, `I-R8`, …) and are read there. **100 open items** are
+> (`F-R11`, `H-R2`, `I-R8`, …) and are read there. **106 open items** are
 > carried below, partitioned by file territory so that no two tracks edit one
 > file and no branch waits on, fences against, or re-derives another's scope.
 
@@ -7607,7 +7607,7 @@ its orchestrator stopped, and §C3 says a deferral that lands nowhere that
 executes is the failure this document keeps re-finding. **This section is the
 one register for all of it.**
 
-**100 open items, repartitioned into twelve tracks by FILE TERRITORY.** The
+**106 open items, repartitioned into twelve tracks by FILE TERRITORY.** The
 partition rule is the only one that matters here: **no two tracks may edit the
 same file**, so no branch waits on, fences against, or re-derives another's
 scope. Dependencies *inside* a track are its own orchestrator's to sequence —
@@ -7680,8 +7680,8 @@ re-scoped or re-argued by being moved.
 
 | Track | Territory (the fence) | Block | Items |
 |---|---|---|---|
-| **J** | `.github/workflows/`, `local-scripts/`, `scripts/doc-gate.sh`, `scripts/gates/{gate-roster,probe-suite-census}.sh`, **every `*.py` in the repo**, root `Cargo.toml`'s `[workspace.lints]` | `D180`–`D199` / `S250`–`S269` | 1 |
-| **K** | `scripts/gates/` (everything J does not name), `tools/`, `docs/K-REPORT.md` | `D200`–`D219` / `S270`–`S289` | 9 |
+| **J** | `.github/workflows/`, `local-scripts/`, `scripts/doc-gate.sh`, `scripts/gates/{gate-roster,probe-suite-census}.sh`, **every `*.py` in the repo**, root `Cargo.toml`'s `[workspace.lints]` | `D180`–`D199` / `S250`–`S269` | 3 |
+| **K** | `scripts/gates/` (everything J does not name), `tools/`, `docs/K-REPORT.md` | `D200`–`D219` / `S270`–`S289` | 12 |
 | **M** | `crates/geom-core/src/{real,ring_interval,dual,interval,k_stats}.rs`, `interval-transcendentals/`, `crates/bvh/` | `D220`–`D239` / `S290`–`S309` | 7 |
 | **N** | `crates/geom/src/`, `crates/geom-core/src/{spline/,linalg/}` | `D240`–`D259` / `S310`–`S329` | 7 |
 | **P** | `crates/topo/src/{euler.rs,euler_ring.rs,euler_kill.rs,split.rs,attach.rs,movefac.rs,revert.rs,live.rs,merge_faces.rs,seqgen.rs,validate.rs,review_d18.rs,review_d18_probes.rs,fixtures.rs}` | `D260`–`D279` / `S330`–`S349` | 8 |
@@ -7691,7 +7691,7 @@ re-scoped or re-argued by being moved.
 | **U** | `crates/step-import/`, `crates/step-export/`, `crates/stl/`, `crates/pncad-py/`, `crates/pncad/` | `D340`–`D359` / `S410`–`S429` | 7 |
 | **V** | `crates/editor-core/`, `crates/profile/` | `D360`–`D379` / `S430`–`S449` | 12 |
 | **W** | `crates/*/tests/` (all crates), `crates/test-utils/` | `D380`–`D399` / `S450`–`S469` | 12 |
-| **X** | `demos/` (Rust and Markdown; its Python is J's), `docs/DESIGN.md`'s companion table | `D400`–`D419` / `S470`–`S489` | 1 |
+| **X** | `demos/` (Rust and Markdown; its Python is J's), `docs/DESIGN.md`'s companion table | `D400`–`D419` / `S470`–`S489` | 2 |
 
 **Three seams are stated rather than left to be discovered**, because each is
 a place where a reasonable reader would think the fence ambiguous:
@@ -7737,6 +7737,8 @@ a place where a reasonable reader would think the fence ambiguous:
 | # | What | Was |
 |---|---|---|
 | **D180** | **The rustdoc gate runs `--all-features`, so it cannot see anything behind a `#[cfg(not(feature = …))]`.** `scripts/doc-gate.sh` documents `--all-features` as its rule at `:97` (*"--all-features EVERYWHERE, WITH ONE NAMED EXCEPTION"*), and the exception list is `inari`-shaped, not this. Every `not(feature)` half of a paired module is therefore compiled out of the gate's own build and its doc errors are unreachable to the only instrument that would report them. The live instance is `mesh/src/budget.rs`'s `mod inert`, which is Track R's `D301`. **The two land together**: fixing the errors without widening what the gate compiles closes an instance and leaves the blind spot, which is `D41`'s lesson in this track's own file | unrowed |
+| **D181** | **Two of the three copies of *"what the budget gate reads"* live on this fence and are now false.** `.github/workflows/ci.yml:2749-2752` says *"the gate reads NONE of it. What `compare` looks at is triangle counts and `grid_cells / span_opt_cells`"*, and `local-scripts/ci-local.sh:846-848` says *"the gate reads triangle counts and the sizing columns"*. Since `C15`, `tess-lint`'s per-face join also reads `chart`, the sizing block's presence and `u0`–`v1`/`nu`/`nv` — the columns it checks the join's own precondition against. `ci.yml:2740-2741` additionally enumerates the gate's rules as three; there are four. The copies in `docs/TESS-BUDGET.md` and `scripts/tess_budget_sweep.sh` were corrected with the change; these two could not be, being this track's fence | unrowed |
+| **D182** | `review/lilyweld-r1/baseline_column_drift.py:35-43`'s hardcoded `GATE` column set is a third copy of *"what the budget gate reads"*, and since `C15` it is wrong in **both** directions — it lists `cells`, `patch_cells` and `opt_cells`, which no rule compares, and omits `u0`–`v1` and `nu`/`nv`, which the join now reads. A `*.py`, hence this track's | unrowed |
 
 ## Track K — the instruments, and what they cannot see
 
@@ -7754,6 +7756,9 @@ a place where a reasonable reader would think the fence ambiguous:
 | **D105** | The split scan's constants can be guarded, on the continuous objective, which the cell count is not (S160) — `tools/tess-meter`. **Row announced in prose and never tabled; tabled here** | Track F |
 | **C15** | `tess-lint`'s budget gate joins baseline to fresh rows on the face ORDINAL, so a reorder compares two unrelated faces or drops one with no finding (#746) | Track C |
 | **D114** | The recording scalar's wrapper property is checked by no test (S168) — greenness at `Probe` is asserted, bit-identity against f64 is not. **The differential test is this track's; a `geom-core/src` change it turns up is Track M's row** | Track F |
+| **D201** | **The budget CSV carries no stable face identity, and the producer throws one away.** `tools/tess-meter`'s `face_rows` holds a `topo::FaceKey` in `patch.face` and writes only `enumerate()`'s ordinal, so `tess-lint`'s join has nothing but the ordinal to key on and 8 same-shape face pairs stay indistinguishable — `S73`'s open half. A `FaceKey` is an allocation ordinal in disguise, so this is not a column rename: what a DURABLE per-face name would be reaches `crates/topo` and `demos/` and must be settled before the column is added. **The design question may want an issue rather than a lane** | `C15` residue |
+| **D202** | `tess_meter::face_rows`'s `nurbs: by_face.get(&patch.face).map(columns)` turns a MISSING measurement into *"this face is not on the sized lane"* — a silent miss reading as a lane fact, one level upstream of the join `C15` just fixed and the same shape | `C15` residue |
+| **D203** | **A per-column admissions table cannot state a cross-column invariant, and the class now has two instances filed nowhere together.** `tess-lint`'s `Admissible::Extent` documents that the trim box's own non-degeneracy (`u0 < u1`, `v0 < v1`) is beyond what its per-column table can say; `D200` was the same shape one crate over (`Band::new`'s `zero < escalate`, which `lint_csv` had to check in the harness voice because `Admissible::BandThreshold` is per column). Both instruments answer it the same way and neither says so at the other's site. The row is the **rule** — where a cross-column check belongs when the admission table is per column — not either instance | `C15` residue |
 
 ## Track M — the scalar and certification traits
 
@@ -7963,13 +7968,14 @@ thirteen that does not exist, and these two are not it.)*
 
 **Fence:** `demos/` (Rust and Markdown; its Python is Track J's),
 `docs/DESIGN.md`'s companion table. **Block:** `D400`–`D419` / `S470`–`S489`.
-**One item, and it is small because its ground is small.** It shares no
+**Two items, and it is small because its ground is small.** It shares no
 file with anything above, so it can be taken alongside another track by one
 orchestrator without breaking the partition.
 
 | # | What | Was |
 |---|---|---|
 | **D79** | `lily.rs`, read end to end for the first time (**`S130`**, whose members are this row's members) — a shadow tuple vector algebra in bare `(f64, f64, f64)` beside `Vec3` (whose *reason* is #796), an `assert_cap` existential over two frames that gets easier as the caps converge, a `cap_frames` that asserts an arity per face and none over the `Vec<Cap>` it returns, and a 137-line header at 41% comment | Track G |
+| **D402** | `demos/tour/src/tessbudget.rs:53` builds the sweep's scene key as `format!("{}/{}", stop.name, sb.name)` and nothing guarantees it unique. Since `C15`, `tools/tess-lint`'s `parse` REQUIRES it — a repeated `(scene, face)` is harness breakage, because every index by that key would otherwise resolve the collision by keeping whichever row it saw last — so the tour owes a uniqueness guarantee it does not record. Cheap, and cheaply broken: two bodies of one stop sharing a name, or a `/` in either name | `C15` residue |
 
 ## What this partition leaves out, said explicitly
 
