@@ -71,3 +71,19 @@ with P-1b).
 **Next dispatches**: M10-D (orchestrator-led design pass, its own
 design-conversation PR) and the M10-1 spec + block M10-B1 draw run
 concurrently — M10-1 does not depend on M10-D.
+
+## Seam: the C6 profile pin blocks E4/E6 on profile parameters (2026-08-29)
+
+Found drafting M10-D, verified at the sites (`eval/slots.rs:27-30`,
+`eval/wire.rs:440-482`): profile programs resolve parameter
+expressions at f64 and lanes consume the elaborated segments via
+`embed`, so a Dual seed on a profile dimension propagates no
+tangent and an interval profile parameter does not widen the leaf
+replay — silent zeros/points exactly where E4/E6 need signal.
+PROFILES-V2 recorded the asymmetry and reserved it for Evan's
+eyes; M10 is where the same parameter feeds both slot kinds for
+real. Plan amended: unit **M10-P** added (design pass first, its
+design PR waits for Evan); M10-3/M10-4 carry the
+magnitude-parameter dispatch valve. Amendment self-merged as a
+faithful elaboration (the ratified exit shape is unreachable
+without it); the design fork itself is reserved for M10-P's PR.
