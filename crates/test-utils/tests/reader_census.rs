@@ -251,20 +251,32 @@ fn repo_root() -> PathBuf {
 /// a source tree without naming any file; and it can lex Rust comments
 /// over text it obtained some third way.
 ///
-/// **Shape (1) is line-wise, and that is the whole of how a module
-/// mount is told from a read.** `#[path = "x.rs"]` names a `.rs` file
-/// and reads nothing, so every `tests/all.rs` in the tree would be a
-/// hit; a read spells the file name and the reading operation on one
-/// line. The obvious alternative — slice the `#[path … ]` attributes
-/// out first — is an ad-hoc source slicer inside the file whose whole
-/// rule is *do not write one*, with that shape's failure modes (a
-/// `#[path` inside a string literal, an attribute with no `]`).
+/// **Shape (1) is arithmetic over the whole file, and that is how a
+/// module mount is told from a read.** `#[path = "x.rs"]` names a
+/// `.rs` file and reads nothing, so every `tests/all.rs` in the tree
+/// would otherwise be a hit — but every mount contributes **exactly
+/// one** `.rs"` literal, so a file holding more of those than it holds
+/// mounts is naming a source file for some other reason. Two shapes
+/// were tried and are wrong, each in its own direction:
+///
+/// - **slicing the `#[path … ]` attributes out first** is an ad-hoc
+///   source slicer inside the file whose whole rule is *do not write
+///   one*, and it carries that shape's failure mode — an attribute
+///   with no `]` blinds the rest of the file, which is reachable
+///   through a string literal spelling `#[path` (`aggregator_headers.rs`
+///   holds one);
+/// - **requiring the name and the read on ONE LINE** is narrower than
+///   either: `rustfmt` puts a long `include_str!` path on its own
+///   line, and a named constant (`const TARGET: &str = "src/lib.rs";`
+///   … `read_to_string(p.join(TARGET))`) never has them on one line at
+///   all. Both are ordinary spellings, and both went undetected.
+///
+/// The counting needle is written with its quote ESCAPED where it is
+/// itself a literal, so this file does not match itself.
 fn reads_rust_source(code: &str) -> bool {
-    const READS: [&str; 4] = ["include_str!", "include_bytes!", "read_to_string", ".join("];
-    // (1) Names a `.rs` file ON THE SAME LINE as a read of it.
-    let names_a_source_file = code
-        .lines()
-        .any(|l| l.contains(".rs\"") && READS.iter().any(|r| l.contains(r)));
+    // (1) Names more `.rs` files than it mounts as modules.
+    let named = code.matches(".rs\"").count();
+    let mounted = code.matches("#[path = \"").count();
     // (2) Walks a source tree.
     let walks_a_source_tree = [
         "rust_sources(",
@@ -280,7 +292,7 @@ fn reads_rust_source(code: &str) -> bool {
     let lexes_rust_comments = ["\"//\"", "\"///\"", "\"//!\"", "\"/*\"", "\"*/\"", "b'/'"]
         .iter()
         .any(|tok| code.contains(tok));
-    names_a_source_file || walks_a_source_tree || lexes_rust_comments
+    named > mounted || walks_a_source_tree || lexes_rust_comments
 }
 
 /// Every path under the repository root that reads Rust source as text.
@@ -407,26 +419,39 @@ fn the_unconverted_readers_are_the_ones_this_tree_still_owes() {
 /// above, and it goes one way.**
 const UNCONVERTED_TODAY: usize = 11;
 
-/// **A disposition that says "not Rust" must say which language.** The
-/// escape hatch in this ledger is the `NotRust` line, so it is the one
-/// that has to carry its reason: *"the shared Rust lexer is not what
-/// this wants"* is a claim about a language, and an unnamed language
-/// is not a claim. `Unconverted` carries the same obligation for its
-/// owner.
+/// The languages other than Rust that a guard in this tree reads. **A
+/// `NotRust` line must name one of these**, because free text is what
+/// lets the ledger's one escape hatch be spelled `NotRust("x")` — the
+/// hatch has to cost a claim about a real language, and adding one
+/// here is that claim.
+const OTHER_LANGUAGES: [&str; 1] = ["STEP Part 21"];
+
+/// **The two dispositions that carry a reason must carry a REAL one.**
+///
+/// `NotRust` and `Unconverted` are the ledger's only ways to leave a
+/// site unconverted, so each is checked for structure and not merely
+/// for non-emptiness: the language must be one this tree actually
+/// holds, and the owner must name a track or say `unowned` — which is
+/// itself a second finding, not an exemption.
 #[test]
-fn every_disposition_that_carries_a_reason_states_one() {
+fn every_disposition_that_carries_a_reason_states_a_real_one() {
     for entry in LEDGER {
-        let reason = match entry.disposition {
-            NotRust(language) => Some(("NotRust", language)),
-            Unconverted(owner) => Some(("Unconverted", owner)),
-            Home | Shared => None,
-        };
-        if let Some((kind, text)) = reason {
-            assert!(
-                !text.trim().is_empty(),
-                "{} is dispositioned {kind} with nothing named",
+        match entry.disposition {
+            NotRust(language) => assert!(
+                OTHER_LANGUAGES.contains(&language),
+                "{} is dispositioned NotRust({language:?}), which is not a language this \
+                 tree reads. Add it to OTHER_LANGUAGES if it is one; the alternative is \
+                 that the file is a Rust reader wearing an escape hatch.",
                 entry.path
-            );
+            ),
+            Unconverted(owner) => assert!(
+                owner.starts_with("Track ") || owner.starts_with("unowned"),
+                "{} is dispositioned Unconverted({owner:?}), which names no owner. Every \
+                 one is a defect that belongs to a track, or is `unowned` — and unowned \
+                 is a second finding on top of the first, not a way out of it.",
+                entry.path
+            ),
+            Home | Shared => {}
         }
     }
 }

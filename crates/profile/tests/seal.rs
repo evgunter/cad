@@ -102,11 +102,18 @@ fn neither_type_can_be_deserialized() {
         );
     }
 
-    // Comments and literal bodies blanked: every needle below is CODE
-    // (an item head, a derive, a path in a `use`), so prose naming
-    // serde is prose and a `#[derive(Deserialize)]` that has been
-    // commented out is not a derive.
-    let src = test_utils::source::code_only(include_str!("../src/lib.rs"));
+    // Comments blanked, string literals KEPT. The needles are an item
+    // head, a derive, and a path in a `use` — but a FOURTH spelling
+    // reaches the same place and is a literal: a `#[cfg(feature =
+    // "serde")]` gate names the feature in quotes, and `code_only`
+    // blanks it, so the whole-module clause below would pass over a
+    // serde-gated module. Prose naming serde is still prose.
+    //
+    // Two other things police this edge, so what a blanked literal
+    // would have cost is defence in depth rather than the outer wall:
+    // `scripts/gates/kernel-serde-free.sh` polices the dependency
+    // itself, and the manifest loop above polices this crate's.
+    let src = test_utils::source::code_and_literals(include_str!("../src/lib.rs"));
     let seal_offsets = [
         "pub struct ProfileVertex<T: Real>",
         "pub struct ProfileLoop<T: Real>",
