@@ -159,3 +159,27 @@ the impl lane's 13G target also reclaimed (clone kept — the
 worktree, not the target, is the resume-critical half). R2
 dispatched from the STORED brief, read-isolated, same frozen head.
 Adjudication at R2's delivery.
+
+## BOTH REVIEWS IN; UNION ADJUDICATED; FIX PASS DISPATCHED (2026-08-29 ~21:20Z)
+
+R2 (blind, sequential slot 2): **APPROVE-WITH-FIXES 1/6/3, rubric
+3/4/3**, probes on `blend/rimwhole-r2-probes` (~250K/~55m); the
+carve confirmed by ITS OWN independent Pappus quadrature and a
+bit-level merge-base fingerprint (volume bits identical), and the
+wall-6 pin confirmed CI-executed. **Correspondence pre-note (full
+coding at merge): the headline MAJOR is BILATERAL** — both arms
+found the SeamVertex recourse over-promise at concave seam-split
+rims, by execution, at MAJOR; NO tally candidate; R2 additionally
+codes it a silent deviation. R1-unique: the vertex-birth mutation
+hole; the repaired-body third shape. R2-unique: the three-spellings
+incidence class (the weaker battery predicate IS the MAJOR's
+mechanism); concave-row vacuity; the ring-arm no-op recorded as
+"fixed"; wall-6 re-measure unpinned. Shared beyond the MAJOR: the
+unscheduled concave-frontier deviation; the two-resolvers
+parallelism; the rim-arc selector duplication (both e2e reports hit
+the same missing public selector — consumer evidence for an API
+issue). Fix pass IMPLEMENTER-INHERITED, dispatched by resuming the
+kept lane (11-item union, two frontier issues + one API issue to
+file, both probe branches adopted as merge parents, the KERNEL-VERBS
+both-sides merge called out). R2's target reclaimed at report; delta
+re-verification after the fix per the ladder position.
