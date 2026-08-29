@@ -5,15 +5,6 @@ metadata:
   type: project
 ---
 
-**A refusal's text — or any prose naming a blocker — is not evidence of
-its cause. The payload and the raising site are.** It has been measured
-wrong repeatedly, always with the same tell: the assumed fix had
-nothing to act on. A false premise can sit in a spec or a steer as
-easily as in a wall text, and propagate through orchestrators and Evan
-unchallenged until one measurement dissolves it.
-
-**How to apply.** The measure-first checkpoint is MANDATORY before
-building against any stated blocker: run the failing operation, read
 **A refusal's text — or any prose naming a blocker — is not evidence
 of its cause. The payload and the raising site are.** Six instances
 by 2026-08-28, each found the same way (someone measured
