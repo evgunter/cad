@@ -34,7 +34,11 @@ def main() -> int:
     for node in doc.order():
         try:
             v = ev.value(node)
-        except Exception as e:  # a failed node is not this script's business
+        # The NARROW type, not a blind `Exception` (ruff BLE001): a
+        # node that refused is not this script's business, but a
+        # TypeError out of the binding would be, and a blind catch
+        # would swallow it.
+        except pncad.EvaluationError as e:
             print(f"  node {node}: no value ({type(e).__name__})")
             continue
         found.append((node, v.kind))
