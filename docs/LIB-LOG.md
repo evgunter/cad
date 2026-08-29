@@ -1745,7 +1745,9 @@ was green with the tess steps SKIPPED — the klint pin vocabulary is
 row-specific (`release-budget` is the budget row; `release-default`
 is the tour suite) and a baseline-CSV-only diff does not trigger the
 gate that reads the baseline, so a re-baseline PR must pin the
-budget row explicitly or its green verifies nothing. This commit
-carries that pin.
+budget row explicitly or its green verifies nothing — and the pin
+must ride the HEAD commit, because a CI-Config trailer voids on any
+later commit: the post-conflict merge of main voided the first pin
+and this addendum re-carries it (the lane-ops note, met live).
 
 CI-Config: klint=release-budget
