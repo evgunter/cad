@@ -834,9 +834,8 @@ fn resolve_rim<'a, T: Decide + Bounds>(
     let mut plane: Option<FaceKey> = None;
     let mut mates = Vec::with_capacity(chain.link_count());
     for link in chain.links() {
-        let a_planar = is_plane(link.face_a).ok_or_else(|| {
-            not_intact(EntityId::Face(link.face_a), "a rim link's first support")
-        })?;
+        let a_planar = is_plane(link.face_a)
+            .ok_or_else(|| not_intact(EntityId::Face(link.face_a), "a rim link's first support"))?;
         // A support that does not RESOLVE is a broken body, not a
         // frontier: the two answers are different rows and the absent
         // one never borrows the refusal of the unbuilt one.
@@ -2514,9 +2513,8 @@ fn trim_chords<T: Decide>(
     let pick = |rim_side: bool| {
         walk.iter()
             .find(|(_, v, k)| {
-                feet.iter().any(|(f, r, x)| {
-                    f == v && *k == if rim_side { *r } else { *x }
-                })
+                feet.iter()
+                    .any(|(f, r, x)| f == v && *k == if rim_side { *r } else { *x })
             })
             .map(|(h, _, _)| *h)
     };
@@ -2558,8 +2556,13 @@ fn mef_trim<T: Decide + Bounds>(
             )
         })?
     };
-    body.mef(MefSite::Chords { he1, he2 }, spec, FaceSurface::Inherit, tol)
-        .map_err(|e| op(site, e))
+    body.mef(
+        MefSite::Chords { he1, he2 },
+        spec,
+        FaceSurface::Inherit,
+        tol,
+    )
+    .map_err(|e| op(site, e))
 }
 
 /// One rim arc's two trimlines, in each support's own traversal, and
@@ -2796,9 +2799,8 @@ fn rim_phase_annulus<T: Decide + Bounds>(
         } else {
             ed.he_plus
         };
-        let lp = loop_of_half(body, mhalf).ok_or_else(|| {
-            not_intact(EntityId::HalfEdge(mhalf), "a rim arc's mate-side loop")
-        })?;
+        let lp = loop_of_half(body, mhalf)
+            .ok_or_else(|| not_intact(EntityId::HalfEdge(mhalf), "a rim arc's mate-side loop"))?;
         let (he1, he2) = trim_chords(body, lp, &mate_feet).ok_or_else(|| {
             not_intact(
                 EntityId::Loop(lp),
@@ -2941,7 +2943,8 @@ fn rim_phase_annulus<T: Decide + Bounds>(
         rec.meridian_remnants.push((host_feet[ix].2, c.host_seam));
     }
     for (i, l) in rim.chain.links().enumerate() {
-        rec.rim_trims.push((host_trims[i].edge, l.edge, RimSide::Plane));
+        rec.rim_trims
+            .push((host_trims[i].edge, l.edge, RimSide::Plane));
         rec.rim_trims
             .push((mate_trims[i].edge, l.edge, RimSide::Sphere));
     }
