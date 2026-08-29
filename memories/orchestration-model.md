@@ -50,6 +50,14 @@ Evan's standing instructions for implementation work:
   event may name only the 7d window while the 5h one is still full
   (resuming on one and being STOP-NOW'd seconds later is how this was
   learned). One read settles both; do it before any expensive dispatch.
+  **And your account IDENTITY can change mid-session** — a `/login`
+  re-points `oauthAccount.emailAddress`, so an alert naming an address
+  you have never seen may be YOURS. Do not cache the identity at
+  session start and do not pattern-match "not my usual account,
+  therefore not mine": re-read `.claude.json` alongside `rate_limits`
+  when an unfamiliar address appears. Measured 2026-08-29 — two
+  `/login`s moved this session across three accounts, and the third
+  WARN was the orchestrator's own.
 - **Away-channel arming**: the script fails loud (exit 78) without its
   routing env — `CAD_CHANNEL_SELF_TAG="(<ROLE> orchestrator)"
   CAD_CHANNEL_BRANCH_PREFIXES=<prefixes> bash .../github-away-channel.sh`.
