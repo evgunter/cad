@@ -48,7 +48,7 @@
 //! an `include!`d file is not seen at all. Nested block comments,
 //! every string prefix (`b`, `c`, `r`, `br`, `cr`) and the
 //! lifetime-versus-char-literal distinction ARE modelled, each with a
-//! row in [`self::tests`] that reds if it stops being.
+//! row in this module's tests that reds if it stops being.
 
 // This module PANICS and `expect`s, deliberately, for `fuzz`'s reason
 // one file over: a guard whose source walk cannot read the tree, or
@@ -208,7 +208,7 @@ fn quoted_len(b: &[u8], i: usize) -> usize {
 /// string does not have: `br"x\"` read as an escaped quote is an
 /// unclosed string that blanks the rest of the file. That exact
 /// spelling is the one this tree has got wrong three times, which is
-/// why every prefix has a row in [`self::tests`].
+/// why every prefix has a row in this module's tests.
 fn raw_string_len(b: &[u8], i: usize) -> Option<usize> {
     if !token_start(b, i) {
         return None;
