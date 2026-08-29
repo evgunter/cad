@@ -164,6 +164,8 @@ fn every_suite_file_is_aggregated() {
     );
 }
 
+#[path = "cert2_r2_probes.rs"]
+mod cert2_r2_probes;
 #[path = "r2_probes.rs"]
 mod r2_probes;
 #[path = "review_probes_m8_4.rs"]

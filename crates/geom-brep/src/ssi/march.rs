@@ -882,8 +882,8 @@ mod tests {
     /// right angle with an unbounded lever arm — so the only thing a
     /// march over this system can refuse on is the speed, and the
     /// refusal it produces is the speed guard's own.
-    struct FixedSpeedR3 {
-        speed: f64,
+    pub(super) struct FixedSpeedR3 {
+        pub(super) speed: f64,
     }
 
     impl LocalSystem<2, 3> for FixedSpeedR3 {
@@ -1012,5 +1012,55 @@ mod tests {
             }
         }
         assert_eq!(MarchTol::decoupled(1.0e-9).unwrap().meters(), 1.0e-9);
+    }
+}
+
+// ---------------------------------------------------------------------
+// R2 review probes (CERT-2 adversarial lane). Not part of the unit.
+// ---------------------------------------------------------------------
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod r2_probes {
+    use super::tests::FixedSpeedR3;
+    use super::{MarchContext, MarchTol, SsiError, StepperMode, march};
+    use geom_core::Band;
+
+    fn ctx() -> MarchContext<3> {
+        MarchContext::<3> {
+            domain: [[-1.0, 1.0], [-1.0, 1.0], [-1.0, 1.0]],
+            extent: 1.0,
+            tol: MarchTol::from_band(Band::new(1.0e-9, 1.0e-8).unwrap()),
+            max_steps: 64,
+        }
+    }
+
+    /// PROBE: the guard admits every POSITIVE FINITE speed. Ask what the
+    /// caller is told for the positive-finite speeds that are still
+    /// unusable — the admissions gap of the new guard itself.
+    #[test]
+    fn r2_probe_positive_finite_but_unusable_speeds() {
+        let band = Band::new(1.0e-9, 1.0e-8).unwrap();
+        for (name, speed) in [
+            ("smallest subnormal", f64::from_bits(1)),
+            ("min positive normal", f64::MIN_POSITIVE),
+            ("1e-300", 1.0e-300),
+            ("f64::MAX", f64::MAX),
+            ("1e300", 1.0e300),
+            ("healthy 1.0", 1.0),
+        ] {
+            let sys = FixedSpeedR3 { speed };
+            let r = march(&sys, [0.0, 0.0, 0.0], ctx(), StepperMode::Idealized, 1.0, band);
+            let h = (super::super::march::SSI_IDEALIZED_STEP * 1.0) / speed;
+            let hm = h * speed;
+            let verdict = match &r {
+                Ok(t) => format!("Ok({} states, end={:?}, steps={})", t.states.len(), t.end, t.steps),
+                Err(SsiError::StepCollapsed { step_meters, .. }) => {
+                    format!("StepCollapsed(step_meters={step_meters:e})")
+                }
+                Err(SsiError::Escalated(d)) => format!("ESCALATED on {:?}", d.predicate),
+                Err(e) => format!("{e}"),
+            };
+            println!("[r2] speed={speed:e} ({name}) h={h:e} h_meters={hm:e} -> {verdict}");
+        }
     }
 }
