@@ -3030,20 +3030,14 @@ fn root_declared_pub_names(src: &str) -> std::collections::BTreeSet<String> {
 }
 
 /// The profile layer's interior: root exports the façade's curated
-/// `profile` module does not carry, by family.
+/// `profile` module does not carry, by family. One family, one name.
 ///
 /// - **The minting tier** (`RawLoop`): the one name whose absence is
 ///   the module's entire reason for existing. It carries `new` and
 ///   `polygon`; leaving the trait unnameable is what makes
 ///   `ProfileLoop::polygon(…)` fail to resolve while `ProfileLoop`
 ///   itself stays nameable. Carrying it here would undo the curation.
-/// - **Unargued residue** (`BlendArc`): every other name in its family
-///   — the `validate` module's outputs and refusal payloads — is
-///   carried, and this one has no recorded reason for not being. It is
-///   listed to record the status quo, not to argue it. Deciding
-///   whether the façade should carry it is a curation question and
-///   belongs to whoever owns the curated lists.
-const PROFILE_NOT_CARRIED: [&str; 2] = ["BlendArc", "RawLoop"];
+const PROFILE_NOT_CARRIED: [&str; 1] = ["RawLoop"];
 
 /// **The document layer's guard, for the other layer curated the same
 /// way.**
