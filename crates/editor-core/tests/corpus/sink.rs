@@ -10,7 +10,8 @@
 //! (Linear and Circular), Declare.
 //!
 //! Edit kinds: `InsertNode`, `DeleteNode`, `SetParam`,
-//! `SetStructuralParam`, `SetExpression`, `SetDocParam`, `Rebind`,
+//! `SetStructuralParam`, `SetExpression`, `SetDocParam`,
+//! `SetDocParamValue`, `Rebind`,
 //! `ReWitness`, `ReWitnessBulk`, `SetAppearance`, `ClearAppearance`,
 //! `SetTolerance`, `SetAppearanceMeta`, `ClearAppearanceMeta`.
 //!
@@ -29,8 +30,8 @@ use std::collections::BTreeMap;
 
 use editor_core::{
     Attr, AttrKind, Axis3, BooleanOp, BranchCertification, Datum, Dimension, DocEdit, DocParam,
-    EntityKind, Expr, ExprPath, MetaValue, Node, ParamName, PatternKind, Rgba8, RoleSeg, SlotId,
-    StableName, WitnessDatum,
+    DocParamValue, EntityKind, Expr, ExprPath, MetaValue, Node, ParamName, PatternKind, Rgba8,
+    RoleSeg, SlotId, StableName, WitnessDatum,
 };
 
 use super::super::fixture::{ang, declare_x_offset_flush, desc, len, scl};
@@ -44,10 +45,16 @@ pub fn document() -> CorpusDoc {
     r.push(DocEdit::SetTolerance { eps: ambient });
     r.push(DocEdit::SetDocParam {
         name: ParamName::new("h"),
-        value: DocParam::Continuous {
-            dim: Dimension::Length,
-            value: 1.25,
-        },
+        value: DocParam::continuous(Dimension::Length, 1.0),
+    });
+    // The VALUE door, on the parameter the declaration above just
+    // made: it carries the declaration forward, so `h` keeps its
+    // dimension (and would keep a distribution) while the number
+    // moves. The document's state after this pair is the same
+    // document a single declaration at 1.25 would have produced.
+    r.push(DocEdit::SetDocParamValue {
+        name: ParamName::new("h"),
+        value: DocParamValue::Continuous(1.25),
     });
     r.push(DocEdit::SetDocParam {
         name: ParamName::new("n"),

@@ -551,10 +551,7 @@ fn row3_uncut_param_reference_refuses() {
         doc,
         DocEdit::SetDocParam {
             name: ParamName::new("h"),
-            value: DocParam::Continuous {
-                dim: editor_core::Dimension::Length,
-                value: 1.5,
-            },
+            value: DocParam::continuous(editor_core::Dimension::Length, 1.5),
         },
     );
     let h = || Expr::param(ParamName::new("h"), editor_core::Dimension::Length);
@@ -1178,10 +1175,7 @@ fn inline_param_epsilon_and_metadata_refusals_fire_typed() {
         part_doc,
         DocEdit::SetDocParam {
             name: ParamName::new("L"),
-            value: DocParam::Continuous {
-                dim: editor_core::Dimension::Length,
-                value: 2.0,
-            },
+            value: DocParam::continuous(editor_core::Dimension::Length, 2.0),
         },
     );
     let doc_ref = store.insert(part_doc, Tol::witness());
@@ -1190,10 +1184,7 @@ fn inline_param_epsilon_and_metadata_refusals_fire_typed() {
         host,
         DocEdit::SetDocParam {
             name: ParamName::new("L"),
-            value: DocParam::Continuous {
-                dim: editor_core::Dimension::Length,
-                value: 1.0,
-            },
+            value: DocParam::continuous(editor_core::Dimension::Length, 1.0),
         },
     );
     let (host, inst) = insert(host, Node::instantiate_part(doc_ref));

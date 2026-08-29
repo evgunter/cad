@@ -169,7 +169,7 @@ fn body_with_rung3_edge() -> Option<Rung3Scaffold> {
             },
             p1,
             EdgeCurveSpec {
-                description: geom_brep::EdgeGeometry::Intersection {
+                description: geom_brep::EdgeDescriptionSpec::Intersection {
                     s1: cyl,
                     s2: sph,
                     // The witness contract: carrier(mid), bitwise the
@@ -350,7 +350,7 @@ fn a_rational_carrier_splits_with_a_metered_interiority() {
             },
             p1,
             EdgeCurveSpec {
-                description: geom_brep::EdgeGeometry::Intersection {
+                description: geom_brep::EdgeDescriptionSpec::Intersection {
                     s1: sph,
                     s2: plane,
                     witness: carrier.eval(mid),
@@ -447,7 +447,7 @@ fn a_rational_carrier_splits_with_a_metered_interiority() {
             },
             p1,
             EdgeCurveSpec {
-                description: geom_brep::EdgeGeometry::Intersection {
+                description: geom_brep::EdgeDescriptionSpec::Intersection {
                     s1: sph2,
                     s2: plane2,
                     witness: carrier.eval(mid),

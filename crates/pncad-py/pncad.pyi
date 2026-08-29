@@ -30,11 +30,16 @@ kinds, datum distance). Every answer is opaque name TEXT, the one
 alphabet `Node.fillet` reads; narrowing happens through these doors,
 never by parsing a name.
 
+The mesh door is `Body.tessellate(chordal)` and the `Mesh` it
+answers: one shared position buffer, one triangle patch per face, and
+STL out. The mesh-vs-exact cross-check is a computation the CALLER
+writes over those triangles — `docs/guide/meshing.md` shows it — so
+it is genuinely a second measure and not a second reading.
+
 Deliberately ABSENT, and tracked as named gaps in
-`docs/guide/north-star-audit.md`: sweep and tube, tessellation and
-STL, the pattern node with its structural-parameter edit, and the
-detect/declare protocol that would build the `Node.declare`
-`Node.boolean`'s `declare=` consumes.
+`docs/guide/north-star-audit.md`: sweep and tube, the pattern node,
+chamfer and shell (which have no recipe node at all), and the whole
+assembly series.
 """
 
 from typing import Any, Final, Generic, Optional, TypeAlias, TypeVar, overload
@@ -124,6 +129,43 @@ class ExportError(PncadError):
     through: Optional[NodeId]
     kind: Optional[str]
 
+class TessellateError(PncadError):
+    """The tessellator refused a body.
+
+    `variant` is the refusing arm's tag —
+    `invalid_chordal_tolerance`, `unsupported_surface`,
+    `unsupported_nurbs_face`, `unsupported_curve`,
+    `null_scaffold_edge`, `ring_on_curved_face`, `empty_loop`,
+    `missing_entity`, `resolution_overflow`, `certificate_exceeded`,
+    `triangulation`, `self_touching_trim_loop` or
+    `unsupported_curved_domain`.
+
+    The offending face or edge is an arena KEY and does not cross, so
+    what a caller reads beside the tag is the arm's NUMBERS, always
+    present and `None` where inapplicable: `value` (the refused
+    budget, the overflowed count, or the curved domain's worst
+    off-box distance in metres), `bound` / `requested` (a failed
+    deviation certificate against the budget it was checked to), and
+    `note` (the arm's own prose about which lane would be needed)."""
+
+    variant: str
+    value: Optional[float]
+    bound: Optional[float]
+    requested: Optional[float]
+    note: Optional[str]
+
+class StlError(PncadError):
+    """An STL export refused.
+
+    `variant` is `degenerate_triangle`, `index_out_of_range`,
+    `too_many_triangles`, `io` or `not_utf8` from the writers, or
+    `solid_name_unrepresentable`, `binary_header_too_long` or
+    `binary_header_sniffs_ascii` from the two validated option values
+    — which are keyword arguments here, so they refuse the same call
+    and share this class and its tag namespace."""
+
+    variant: str
+
 class StepImportError(PncadError):
     """A STEP text the importer refused, or one that parsed to a
     non-solid.
@@ -193,6 +235,35 @@ class IdentityError(PncadError):
     one."""
 
     variant: str
+
+class WorkspaceError(PncadError):
+    """The workspace store refused. Fail-loud throughout: no scan is
+    best-effort and no reference is silently retargeted.
+
+    `variant` is the refusing arm's stable tag: `io`, `duplicate_id`,
+    `header`, `unknown_id`, `load`, `pin`, `pin_mismatch`, `save`,
+    `randomness_unavailable` or `update`.
+
+    The arm's payload rides as attributes, every one present on every
+    arm and `None` where that arm does not carry it — so error
+    handling reads `err.wanted` without first branching on
+    `variant`. `path` is the file or directory the door touched;
+    `id` the document identity at issue; `first`/`second` the two
+    files of a `duplicate_id`; `wanted`/`found` the two pins of a
+    `pin_mismatch`.
+
+    `pin_mismatch` is the arm the store exists to make loud: a
+    `DocRef` names a VERSION, so a document edited since it was
+    pinned refuses rather than resolving to the new content. The
+    message ends on `PIN_MISMATCH_RECOURSE`."""
+
+    variant: str
+    path: Optional[str]
+    id: Optional[str]
+    first: Optional[str]
+    second: Optional[str]
+    wanted: Optional[ContentPin]
+    found: Optional[ContentPin]
 
 # --- quantities -------------------------------------------------------
 # Canonical metres and radians underneath. The arithmetic is
@@ -885,6 +956,25 @@ class DocParam:
     # stored value, NOT `DocParam::bit_eq`'s. So the two spellings of
     # zero are the same parameter, and the hash folds `-0.0` to match.
 
+class DocParamValue:
+    """The VALUE half of a document parameter: what
+    `DocEdit.set_doc_param_value` writes into an ALREADY-DECLARED one.
+
+    The safe "just change the number" spelling. It carries no
+    declaration, so it cannot replace one — the parameter keeps its
+    dimension and any distribution a file gave it."""
+
+    @staticmethod
+    def length(value: Length) -> DocParamValue: ...
+    @staticmethod
+    def angle(value: Angle) -> DocParamValue: ...
+    @staticmethod
+    def scalar(value: float) -> DocParamValue: ...
+    @staticmethod
+    def count(value: int) -> DocParamValue: ...
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+
 class DocEdit:
     """A single edit — the one edit vocabulary the GUI, the bindings and
     headless tests all speak."""
@@ -897,6 +987,17 @@ class DocEdit:
     def set_tolerance(eps: float) -> DocEdit: ...
     @staticmethod
     def set_doc_param(name: ParamName, value: DocParam) -> DocEdit: ...
+    @staticmethod
+    def set_doc_param_value(name: ParamName, value: DocParamValue) -> DocEdit:
+        """Write a new VALUE into an already-declared parameter, keeping
+        its declaration — dimension and distribution alike.
+
+        Prefer this over `set_doc_param` whenever the parameter already
+        exists: that one is create-or-replace, so rebuilding a
+        `DocParam` to move a number DELETES any distribution the
+        parameter carried, with no refusal. Refuses typed on an
+        undeclared name (`doc_param_not_declared`) and on a kind
+        mismatch (`doc_param_value_kind_mismatch`)."""
     @staticmethod
     def bind_count_param(node: NodeId, name: ParamName) -> DocEdit:
         """Bind `node`'s STRUCTURAL count slot to the document
@@ -962,6 +1063,136 @@ class Loaded:
 def load(text: str) -> Loaded:
     """Parse, validate, and replay a saved document. Raises
     PersistError, typed."""
+
+# --- the workspace store ----------------------------------------------
+# Three vocabularies, kept apart on purpose. A document's ID answers
+# WHICH PART and survives every edit (`Doc.id`, 32 hex digits). A
+# `ContentPin` answers WHICH VERSION of it — the SHA-256 of the
+# canonical semantic bytes, so it moves whenever the content does. A
+# `DocRef` pairs them, and that pair is what a cross-document
+# reference carries: editing the referenced document never silently
+# retargets the reference; the store refuses the stale pin instead.
+
+class ContentPin:
+    """Which VERSION a document is: the SHA-256 of its canonical
+    semantic bytes.
+
+    Compared and stored, not read into. Construct one from the
+    canonical 64-hex-digit text (`ValueError` on anything else), or
+    get one from `content_pin(doc)` / `Workspace.current_pin(id)`."""
+
+    def __init__(self, hex: str) -> None: ...
+    @property
+    def hex(self) -> str:
+        """The canonical text form: exactly 64 lowercase hex digits."""
+
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+
+class DocRef:
+    """A cross-document reference: which part, and which version of
+    it.
+
+    A VALUE — nothing here consults a store. Whether any store holds
+    that version is `Workspace.resolve`'s question, and a `DocRef`
+    that resolves nowhere is exactly what a stale reference is."""
+
+    def __init__(self, id: str, pin: ContentPin) -> None:
+        """Pair a 32-hex-digit identity with a pin. Raises ValueError
+        if the id is not the canonical spelling."""
+
+    @property
+    def id(self) -> str:
+        """The referenced document's identity, 32 lowercase hex
+        digits."""
+
+    @property
+    def pin(self) -> ContentPin:
+        """The pinned version."""
+
+    def __eq__(self, other: object) -> bool: ...
+    def __hash__(self) -> int: ...
+
+class Workspace:
+    """A directory of `*.pncad` save files, scanned into an
+    identity -> path map.
+
+    The write side is deliberately minimal — `create` and `resave`,
+    and no general mutation API."""
+
+    def __init__(self, path: str) -> None:
+        """Scan `path`, reading each `*.pncad` file's `id:` header
+        line and never its body.
+
+        Everything CLAIMING to be a document must scan clean: an
+        unreadable header refuses the whole open, and two files
+        claiming one id refuse naming both. Non-`.pncad` entries and
+        subdirectories are ignored. Raises WorkspaceError, typed."""
+
+    @property
+    def root(self) -> str:
+        """The scanned directory."""
+
+    def documents(self) -> dict[str, str]:
+        """The scan, as identity -> file path. Ordered by id, off a
+        path-sorted scan, so it does not depend on readdir order."""
+
+    def resolve(self, reference: DocRef) -> Doc:
+        """Load the document a `DocRef` names — through the full door
+        sequence `load` runs — and hand it back IFF its recomputed
+        pin is the pin the reference carries.
+
+        A moved pin raises WorkspaceError with
+        `variant == "pin_mismatch"`, carrying `wanted` and `found`.
+        A reference is never silently retargeted."""
+
+    def current_pin(self, id: str) -> ContentPin:
+        """The pin the store's CURRENT content for `id` hashes to —
+        the version a reference would move onto. Differs from
+        `resolve` by exactly one thing: no expected pin is supplied,
+        so there is nothing to disagree with. Raises WorkspaceError,
+        typed."""
+
+    def create(self, doc: Doc) -> str:
+        """Write `doc` into the store as a new `{id}.pncad` and answer
+        its path. An id the store already holds refuses
+        (`duplicate_id`) and nothing is written. Raises
+        WorkspaceError, typed."""
+
+    def resave(self, doc: Doc) -> str:
+        """Rewrite an EXISTING document's file with `doc`'s current
+        state, keeping its path, and answer that path. Never creates:
+        an unknown id refuses. The identity is unchanged and the
+        content is not, so references by id stay valid and references
+        by PIN go stale — which is the point. Raises WorkspaceError,
+        typed."""
+
+    def __len__(self) -> int: ...
+
+def random_document_id() -> str:
+    """Mint a fresh random document identity from OS randomness — the
+    interactive-authoring constructor, and the door `Doc()` uses.
+    Raises IdentityError if the entropy source refuses; identity is
+    never defaulted."""
+
+def content_pin(doc: Doc) -> ContentPin:
+    """The document's content pin: which VERSION it is. Raises
+    PersistError, typed."""
+
+def canonical_bytes(doc: Doc) -> bytes:
+    """The document's canonical semantic bytes — what the pin is the
+    SHA-256 of. The same document authored two ways serialises to the
+    same bytes. Runs the shared validator first. Raises PersistError,
+    typed."""
+
+def header_document_id(text: str) -> str:
+    """Read a save file's identity out of its header alone, without
+    parsing the body — the store's scan door. Raises PersistError,
+    typed."""
+
+PIN_MISMATCH_RECOURSE: Final[str]
+"""The recourse sentence a `pin_mismatch` message ends on: pins never
+move silently, and accepting a new version is a recorded edit."""
 
 # --- selectors --------------------------------------------------------
 # The narrowing language. Patterns and
@@ -1200,6 +1431,71 @@ class Body:
     def validate(self) -> None: ...
     def validate_closed(self) -> None: ...
     def validate_geometric(self) -> None: ...
+    def tessellate(self, chordal: Length) -> Mesh:
+        """Triangulate every face within `chordal` of the exact
+        surface — the ladder's step 4.
+
+        `chordal` is a DISTANCE (δ), and it is not the kernel's ε:
+        δ says how coarsely a VIEW of the model may approximate it,
+        ε says what the model IS. Two budgets see the same body, and
+        no kernel state depends on δ.
+
+        Nothing is pre-checked: a zero, negative or non-finite budget
+        is the kernel's own `TessellateError`, raised here."""
+
+class Mesh:
+    """A tessellated body: one shared position buffer, and one
+    triangle patch per face.
+
+    Adjacent faces share position INDICES along their common
+    boundary, so a closed body's mesh is watertight by construction —
+    which is why a Python-side check of that contract compares
+    indices and never coordinates.
+
+    The picking chain does not cross. A patch's face, a boundary's
+    edge and their vertex back-references are arena keys, so a patch
+    is addressed by INDEX here and the per-edge boundary polylines
+    are not bound at all."""
+
+    @property
+    def positions(self) -> list[tuple[Length, Length, Length]]:
+        """The shared position buffer, in the kernel's minting order:
+        topology vertices, then per-edge chord points, then per-face
+        interior grid points."""
+
+    @property
+    def triangles(self) -> list[tuple[int, int, int]]:
+        """Every patch's triangles, concatenated in the fixed export
+        order — the same walk the STL writers make, so these and an
+        exported file agree facet for facet.
+
+        Indices point into `positions`, and the winding is OUTWARD
+        (counterclockwise seen from outside the material). That is
+        what makes a divergence-theorem volume over these triangles
+        POSITIVE for a closed body, and it is already stated in the
+        outward frame: do not re-apply a face sense on top of it."""
+
+    @property
+    def patch_count(self) -> int: ...
+    @property
+    def triangle_count(self) -> int: ...
+    def patch(self, index: int) -> list[tuple[int, int, int]]:
+        """One face's triangles. Raises `IndexError` past the end."""
+
+    def to_stl_ascii(self, solid_name: str = "") -> str:
+        """The ASCII STL text, `solid <name>` first line.
+
+        The name is validated, not sanitized: a character outside the
+        printable ASCII the single-line grammar admits raises
+        `StlError`."""
+
+    def to_stl_binary(self, header: str = "") -> bytes:
+        """The binary STL bytes.
+
+        `header` is the 80-byte header field's free text —
+        conventionally the producer. A header that does not fit, or
+        that would make the file sniff as ASCII STL, raises
+        `StlError` rather than being truncated or written."""
 
 class Datum:
     @property

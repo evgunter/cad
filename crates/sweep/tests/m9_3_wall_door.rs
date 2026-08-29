@@ -160,6 +160,18 @@ fn declared_rest_two_peg_reaches_downstream_of_classification() {
             // smooth-seam `JoinDesync` door demands (the red half of
             // this row was the measured refusal before the
             // conventional-arc lane existed).
+            //
+            // **Re-expressed at PCURVE P-1b.** "Conventionally
+            // described" was the `MappedCurve` variant; U2 collapsed
+            // the conventional forms into one chart image, so the
+            // variant is gone. What the row is actually about survives
+            // untouched and is asserted directly: the rim is NOT
+            // intrinsically described — the coplanar pair cannot
+            // support an Intersection citation, and a stale one is
+            // exactly the `JoinDesync` defect this row exists for —
+            // and the chart it names is one of the two coplanar PLANES
+            // it lies between, which is what "conventionally, on the
+            // unchanged circle carrier" meant.
             let mut rims = 0;
             for (_, e) in b.body.edges() {
                 let Some(c) = b.body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
@@ -167,10 +179,19 @@ fn declared_rest_two_peg_reaches_downstream_of_classification() {
                 };
                 if matches!(c.carrier(), geom::Curve3::Circle { .. }) {
                     rims += 1;
+                    let geom_brep::EdgeDescription::Chart(chart) = c.description() else {
+                        panic!(
+                            "a coplanar-adjacent rim is conventionally described: {:?}",
+                            c.description()
+                        );
+                    };
+                    assert!(!chart.seam, "a cap rim is not its chart's seam");
                     assert!(
-                        matches!(c.description(), geom_brep::EdgeGeometry::MappedCurve(_)),
-                        "a coplanar-adjacent rim is conventionally described: {:?}",
-                        c.description()
+                        matches!(
+                            b.body.get_surface(chart.surface),
+                            Some(geom::Surface::Plane { .. })
+                        ),
+                        "the chart is one of the two coplanar planar caps"
                     );
                 }
             }

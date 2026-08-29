@@ -109,7 +109,7 @@
 //! so in the geometry's own terms rather than by a special case.
 
 use geom::{Curve3, Surface};
-use geom_brep::{EdgeCurveSpec, EdgeGeometry, SurfaceKind};
+use geom_brep::{EdgeAuthority, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, SurfaceKind};
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Margin, Point3, Real, Sign, Tol, Vec3};
 
@@ -156,8 +156,14 @@ struct MovedChart<T: Real> {
     old: Surface<T>,
     /// The surface after [`geom_brep::offset_surface`].
     new: Surface<T>,
-    /// The signed offset along the chart's stored outward direction.
+    /// The signed offset along the chart's stored outward direction —
+    /// the caller's number.
     distance: T,
+    /// The same motion in [`geom_brep::offset_surface`]'s own sign
+    /// convention, which differs from the caller's on a cone below its
+    /// apex (see [`nappe_signed`]). This is the one a chart-parameter
+    /// shift is computed from.
+    signed: T,
     /// The chart's constraint on a corner, in axial terms.
     constraint: Constraint<T>,
     /// The rigid displacement the chart underwent, when its offset IS a
@@ -293,6 +299,7 @@ pub fn offset_charts_together<T: Decide + PropsQuadLane>(
                     old,
                     new,
                     distance: m.distance,
+                    signed: d,
                     constraint,
                 },
             ));
@@ -354,7 +361,8 @@ pub fn offset_charts_together<T: Decide + PropsQuadLane>(
             .ok_or(ReplaceFaceError::Corrupt)?;
         let old_carrier = curve.carrier().clone();
         let (t0_old, t1_old) = curve.params();
-        let description = *curve.description();
+        let description = curve.description().clone();
+        let authority = curve.authority();
 
         let carrier = mint_carrier(
             edge,
@@ -387,7 +395,15 @@ pub fn offset_charts_together<T: Decide + PropsQuadLane>(
         specs.push((
             edge,
             EdgeCurveSpec {
-                description: restate(description, mid, &carrier, (p_start, p_end), edge)?,
+                description: restate(
+                    description,
+                    authority,
+                    mid,
+                    &carrier,
+                    (p_start, p_end),
+                    (ca, cb),
+                    edge,
+                )?,
                 carrier,
                 param_start: t0,
                 param_end: t1,
@@ -1392,49 +1408,93 @@ fn surface_residual<T: Real>(surface: &Surface<T>, p: Point3<T>, frame: &Frame<T
 /// `description` re-stated for the moved edge.
 ///
 /// - an **intrinsic** one keeps its (about to be remapped) surfaces
-///   with the witness at the new mid-parameter, or its bare seam;
-/// - a **mapped** one is RE-AUTHORED in its own sketch plane. Not
+///   with the witness at the new mid-parameter;
+/// - a **chart image** stays in the chart's own coordinates, so a
+///   corner solve does not touch it — except on a CONE, whose offset
+///   slides `v` by `d·cot α`. A SEAM's image is re-derived from the
+///   carrier against the new chart, exactly as it was derived from the
+///   old one, so it has no parameter to carry at all;
+/// - a **declaration** — the sketch entity under a sweep map that the
+///   authority record keeps whole — is 3-space data and does owe the
+///   transport. It is RE-AUTHORED in its own sketch plane rather than
 ///   translated: an offset moves the profile WITHIN the meridian plane
-///   (a line perpendicular to itself, an arc concentrically), and the
-///   placement is unchanged, so the sketch source's own points are what
-///   move. That covers a translated chart and a reshaped one with the
-///   same rule, and it is why a sphere's seam needs no special case —
-///   its arc keeps its centre and takes the corners the offset solved.
-///   The authored source is not trusted: the attach layer's
-///   `MappedSource` certification re-derives it against the carrier.
+///   (a line perpendicular to itself, an arc concentrically) and the
+///   placement is unchanged, so the sketch source's own points are
+///   what move. That one rule covers a translated chart and a reshaped
+///   one, which is why a sphere's seam needs no special case, and it
+///   is what the per-face door cannot do — it has only a rigid delta,
+///   so a reshaping chart makes it refuse.
+///
+/// Nothing authored here is trusted: the attach layer re-derives the
+/// declaration against the carrier and refuses a mismatch.
 fn restate<T: Real>(
-    description: EdgeGeometry<T>,
+    description: EdgeDescription<T>,
+    authority: EdgeAuthority<T>,
     mid: Point3<T>,
     carrier: &Curve3<T>,
     ends: (Point3<T>, Point3<T>),
+    charts: (&MovedChart<T>, &MovedChart<T>),
     edge: EdgeKey,
-) -> Result<EdgeGeometry<T>, ReplaceFaceError<T>> {
+) -> Result<EdgeDescriptionSpec<T>, ReplaceFaceError<T>> {
     let refuse = |what: &'static str| ReplaceFaceError::TogetherAxialEdge { edge, what };
+    let carried = |mc: geom_brep::MappedCurve<T>| {
+        reauthor(mc, carrier, ends).ok_or(refuse(
+            "a declaring pushforward whose family is a trajectory this door cannot \
+             re-author in the sketch plane (a revolved point's rotation family)",
+        ))
+    };
+    let declared = match authority {
+        EdgeAuthority::Derived => None,
+        EdgeAuthority::Declared(mc) => Some(carried(mc)?),
+    };
     Ok(match description {
-        EdgeGeometry::Intersection { s1, s2, .. } => EdgeGeometry::Intersection {
+        EdgeDescription::Intersection { s1, s2, .. } => EdgeDescriptionSpec::Intersection {
             s1,
             s2,
             witness: mid,
         },
-        EdgeGeometry::TangentIntersection { s1, s2, .. } => EdgeGeometry::TangentIntersection {
-            s1,
-            s2,
-            witness: mid,
+        EdgeDescription::TangentIntersection { s1, s2, .. } => {
+            EdgeDescriptionSpec::TangentIntersection {
+                s1,
+                s2,
+                witness: mid,
+            }
+        }
+        EdgeDescription::Chart(c) => EdgeDescriptionSpec::Chart {
+            surface: c.surface,
+            image: if c.seam {
+                None
+            } else {
+                let (ca, cb) = charts;
+                let host = if ca.old_key == c.surface { ca } else { cb };
+                Some(
+                    crate::replace_face::shift_chart_v(&c.pcurve, chart_v_shift(host)).ok_or(
+                        refuse(
+                            "a fitted chart image whose v channel has no closed-form parameter \
+                             shift",
+                        ),
+                    )?,
+                )
+            },
+            seam: c.seam,
+            declared,
         },
-        EdgeGeometry::Seam { surface } => EdgeGeometry::Seam { surface },
-        EdgeGeometry::MappedCurve(m) => {
-            EdgeGeometry::MappedCurve(reauthor(m, carrier, ends).ok_or(refuse(
-                "a mapped description whose family is a trajectory this door cannot re-author \
-                 in the sketch plane (a revolved point's rotation family)",
-            ))?)
-        }
-        EdgeGeometry::IsoCurve { .. } => {
-            return Err(refuse(
-                "an iso-curve description, whose parameter window an offset shifts by a rule \
-                 this door has no fixture for",
-            ));
-        }
+        EdgeDescription::Scaffold(m) => EdgeDescriptionSpec::Scaffold(carried(m)?),
     })
+}
+
+/// The `v` shift a chart's own offset action applies to an image in it:
+/// `d·cot α` on a cone, zero on every other kind this door takes.
+fn chart_v_shift<T: Real>(chart: &MovedChart<T>) -> T {
+    match &chart.old {
+        Surface::Cone {
+            apex,
+            axis,
+            half_angle,
+            ..
+        } => geom_brep::ConeOffset::new(*apex, *axis, *half_angle, chart.signed).shift(),
+        _ => T::zero(),
+    }
 }
 
 /// A mapped description re-authored in its own sketch plane from the

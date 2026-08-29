@@ -87,6 +87,21 @@ raw `cargo` invocations yourself.
 - **Never pipe a slot-wrapped command through `| tail`/`| head`** — the
   pipe buffers the wrapper's progress lines away, so a live wait is
   indistinguishable from a hang and you kill a healthy waiter.
+- **The ORCHESTRATOR's own worktree grows a stale `target/` too**, and a
+  lane sweep cannot see it because it is not a lane. Mine held 3.0G
+  untouched for two weeks (the orchestrator builds in lanes, never at
+  home) — more than every idle lane combined. Check
+  `~/.mngr/worktrees/<yours>/target` BEFORE sweeping another program's
+  live lane, which costs them a rebuild mid-unit.
+- **A red CI run's failure COUNT is not the failure surface** (#1128).
+  Hosted CI passes neither fail-fast flag to `cargo nextest run` and
+  nextest stops at the first failure, so a run reports ~1 failure per
+  shard however many exist — measured, hosted 1-2 against local
+  `--no-fail-fast` 22, nineteen of them one family. The workflow's
+  `fail-fast: false` is the MATRIX setting (one shard not cancelling
+  the other), which makes this read as handled. A systematic breakage
+  and a lone stale assertion look identical; before concluding a red is
+  small, run it locally with `--no-fail-fast`.
 - An OOM-killed test shows as a bare "Terminated" single-row FAIL —
   check what else was running and rerun quiet before diagnosing a bug.
 
@@ -95,7 +110,12 @@ main gets NO check runs at all — pushes during that window produce
 nothing and merging main afterwards fires nothing retroactively. A run
 can also queue with ZERO jobs behind a superseded run, `mergeable:
 CLEAN`, and never start. And a green job NAME can sit over a SKIPPED
-step (k-lint's demos rows are their own sampled axis). So: merge
+step (k-lint's demos rows are their own sampled axis). A step can also
+be green having EXECUTED nothing: `cargo clippy --all-targets` and
+`cargo check --all-targets` compile the test targets and run none of
+them, so a root whose only gate row is one of those has its assertions
+type-checked and never evaluated — read a row for what it *runs*, not
+for what it names. So: merge
 origin/main immediately before opening a PR and whenever main moves;
 after any push, confirm jobs are actually RUNNING by reading the
 workflow **runs** list, not the PR's checks list; re-roll with a real

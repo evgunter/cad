@@ -82,7 +82,7 @@ fn audit(body: &Body<f64>, expect_vol: f64, expect_seam_arcs: usize, seam_z: f64
             assert!(
                 matches!(
                     c.description(),
-                    geom_brep::EdgeGeometry::Intersection { .. }
+                    geom_brep::EdgeDescription::Intersection { .. }
                 ),
                 "curved boolean seam must be intrinsic: {:?}",
                 c.description()

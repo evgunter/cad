@@ -943,14 +943,19 @@ pub(super) fn describe_minted_edges<T: Decide>(
                     let c = existing.as_ref().ok_or_else(corrupt)?;
                     let (t0, t1) = c.params();
                     geom_brep::EdgeCurveSpec {
-                        description: geom_brep::EdgeGeometry::Intersection { s1, s2, witness },
+                        description: geom_brep::EdgeDescriptionSpec::Intersection {
+                            s1,
+                            s2,
+                            witness,
+                        },
                         carrier: c.carrier().clone(),
                         param_start: t0,
                         param_end: t1,
                     }
                 } else {
                     let mut spec = geom_brep::EdgeCurveSpec::line_between(p0, p1);
-                    spec.description = geom_brep::EdgeGeometry::Intersection { s1, s2, witness };
+                    spec.description =
+                        geom_brep::EdgeDescriptionSpec::Intersection { s1, s2, witness };
                     spec
                 };
                 body.set_edge_curve(edge, spec, tol)
@@ -968,24 +973,26 @@ pub(super) fn describe_minted_edges<T: Decide>(
                 // re-homed its neighbors, or the zip fused it between
                 // new faces). Re-describe conventionally where the
                 // surfaces under-determine the locus (D2's split).
-                let stale = match *body
+                let stale = match body
                     .get_curve_geom(edge_data.curve)
                     .and_then(crate::null::CurveGeom::certified)
                     .ok_or_else(corrupt)?
                     .description()
                 {
-                    geom_brep::EdgeGeometry::Intersection { s1: d1, s2: d2, .. }
-                    | geom_brep::EdgeGeometry::TangentIntersection { s1: d1, s2: d2, .. } => {
-                        !((d1 == s1 && d2 == s2) || (d1 == s2 && d2 == s1))
+                    geom_brep::EdgeDescription::Intersection { s1: d1, s2: d2, .. }
+                    | geom_brep::EdgeDescription::TangentIntersection { s1: d1, s2: d2, .. } => {
+                        !((*d1 == s1 && *d2 == s2) || (*d1 == s2 && *d2 == s1))
                     }
-                    geom_brep::EdgeGeometry::Seam { surface } => !(surface == s1 && surface == s2),
-                    // The iso description cites ONE adjacent surface
-                    // (its residual chart); stale iff neither side is
-                    // it (the attach-door adjacency rule, M6-3).
-                    geom_brep::EdgeGeometry::IsoCurve { surface, .. } => {
-                        !(surface == s1 || surface == s2)
+                    // A chart image cites ONE adjacent surface (its
+                    // residual chart); stale iff neither side is it
+                    // (the attach-door adjacency rule, M6-3) — except
+                    // a SEAM image, whose two sides are one surface by
+                    // what a seam is.
+                    geom_brep::EdgeDescription::Chart(c) if c.seam => {
+                        !(c.surface == s1 && c.surface == s2)
                     }
-                    geom_brep::EdgeGeometry::MappedCurve(_) => false,
+                    geom_brep::EdgeDescription::Chart(c) => !(c.surface == s1 || c.surface == s2),
+                    geom_brep::EdgeDescription::Scaffold(_) => false,
                 };
                 // The D6 smooth ladder (M9-3): a definitely-smooth
                 // seam descends one order, exactly as the tier-3
@@ -1036,7 +1043,7 @@ pub(super) fn describe_minted_edges<T: Decide>(
                     let c = existing.as_ref().ok_or_else(corrupt)?;
                     let (t0, t1) = c.params();
                     let spec = geom_brep::EdgeCurveSpec {
-                        description: geom_brep::EdgeGeometry::TangentIntersection {
+                        description: geom_brep::EdgeDescriptionSpec::TangentIntersection {
                             s1,
                             s2,
                             witness,
@@ -1052,11 +1059,15 @@ pub(super) fn describe_minted_edges<T: Decide>(
                 } else if stale {
                     if curved {
                         // The conventional re-description for an arc
-                        // the adjacent surfaces under-determine: the
-                        // same pushforward posture as the planar chord
-                        // lane, on the UNCHANGED carrier (no silent
-                        // geometric rewrite — only the description
-                        // moves). Carrier kinds with no conventional
+                        // the adjacent surfaces under-determine, on the
+                        // UNCHANGED carrier (no silent geometric
+                        // rewrite — only the description moves). The
+                        // edge comes to REST here, so it is described
+                        // where it rests — as an image in `s1`'s own
+                        // chart (D3's transience fence) — and the arc
+                        // pushforward that used to BE the description
+                        // is recorded as the authority beside it.
+                        // Carrier kinds with no conventional
                         // pushforward keep the typed refusal.
                         let c = existing.as_ref().ok_or_else(corrupt)?;
                         let (t0, t1) = c.params();
@@ -1068,15 +1079,15 @@ pub(super) fn describe_minted_edges<T: Decide>(
                                        re-description lane exists for this carrier kind)",
                             });
                         };
-                        body.set_edge_curve(edge, spec, tol).map_err(|_| {
-                            BooleanError::JoinDesync {
+                        body.set_edge_curve(edge, spec.at_rest_in_chart(s1, false), tol)
+                            .map_err(|_| BooleanError::JoinDesync {
                                 what: "stale arc description failed re-certification",
-                            }
-                        })?;
+                            })?;
                     } else {
                         body.set_edge_curve(
                             edge,
-                            geom_brep::EdgeCurveSpec::line_between(p0, p1),
+                            geom_brep::EdgeCurveSpec::line_between(p0, p1)
+                                .at_rest_in_chart(s1, false),
                             tol,
                         )
                         .map_err(|_| BooleanError::JoinDesync {

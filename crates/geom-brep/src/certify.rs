@@ -1,7 +1,7 @@
 //! Certified carriers: the D4 ¶2 attachment gate for edge geometry.
 //!
 //! An edge's concrete 3-D curve (its *carrier*) is a derived cache of
-//! its intensional description ([`crate::EdgeGeometry`]). This module
+//! its intensional description ([`crate::EdgeDescription`]). This module
 //! is the only way to marry the two: [`EdgeCurve::certify`] takes an
 //! uncertified [`EdgeCurveSpec`] plus the edge's endpoint points and
 //! either returns a certified [`EdgeCurve`] — whose fields are private,
@@ -54,11 +54,12 @@
 use geom::Curve3;
 use geom::Surface;
 use geom_core::spline::SpanLocate;
-use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Vec2};
+use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Point3, Real, Sign};
 
-use crate::description::{ChartCurve, EdgeAuthority, EdgeDescription, authority_of};
+use crate::description::{
+    ChartCurve, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, authority_of,
+};
 use crate::dihedral::{DihedralClass, classify_dihedral, decide};
-use crate::edge_geometry::EdgeGeometry;
 use crate::implicit::{implicit_residual, seam_frame};
 use crate::keys::SurfaceKey;
 use crate::pcurve_cache::{Pcurve, PcurveCertifyError, chart_pcurve};
@@ -77,12 +78,9 @@ pub const CERT_SAMPLES: u32 = 9;
 /// point that was never visited, which is a fabricated diagnostic
 /// however small it looks.
 ///
-/// **The interval checks ([`CertCheck::ParamSpan`]) still report `0`**
-/// and are not changed here: their `Display` text is pinned by
-/// `step-import`'s tier-gate test, so moving them is a test rewrite
-/// that belongs with the consumer pass, not with this unit. Recorded
-/// rather than quietly left: the same fabrication is there, one door
-/// over.
+/// The interval checks ([`CertCheck::ParamSpan`]) carry it for the
+/// same reason the mint does: the span decision runs ONCE, before the
+/// schedule exists.
 pub const NOT_A_SAMPLE: u32 = u32::MAX;
 
 /// Which certification check a [`CertifyError`] names — the residual
@@ -178,22 +176,6 @@ pub enum CertCheck {
     /// Intersection, plane × NURBS (M7-8): the lane's own margins as a
     /// whole, named when one of them escalates.
     PlaneNurbsCertificate,
-}
-
-#[allow(non_upper_case_globals)] // a variant's retired NAME, not a constant
-impl CertCheck {
-    /// **Shim** (P-1a): the pre-collapse name of the arm that already
-    /// stated `|C − S(P)|`, aliasing the unified meter it became.
-    ///
-    /// It exists so the consumer crates and their probes read the same
-    /// name through P-1a's `geom-brep`-only diff; P-1b deletes it
-    /// together with the probes that spell it.
-    pub const IsoResidual: Self = Self::ChartResidual;
-
-    /// **Shim** (P-1a): the seam arm's retired implicit-form residual.
-    /// The seam's on-surface statement is now the unified meter's, so
-    /// this names the same check the seam obligation rides beside.
-    pub const SeamSurface: Self = Self::ChartResidual;
 }
 
 /// Typed certification failure (D4 ¶3): actionable, closed enum. The
@@ -420,9 +402,7 @@ impl core::fmt::Display for CertifyError {
             // The not-a-sample sentinel renders as words, not as
             // 4294967295: a diagnostic whose whole purpose is to stop
             // claiming a schedule point it never visited should not
-            // then print a number that looks like one. Sampled checks
-            // keep their exact wording — `step-import`'s tier gate
-            // pins the `sample 0` string, and it is still true there.
+            // then print a number that looks like one.
             Self::Escalated {
                 check,
                 sample,
@@ -452,8 +432,9 @@ impl std::error::Error for CertifyError {}
 /// [`EdgeCurve`].
 #[derive(Clone, Debug)]
 pub struct EdgeCurveSpec<T: Real> {
-    /// The intensional description (authoritative).
-    pub description: EdgeGeometry<T>,
+    /// The intensional description (authoritative), as the
+    /// construction states it — [`EdgeDescriptionSpec`].
+    pub description: EdgeDescriptionSpec<T>,
     /// The carrier cache to certify against it.
     pub carrier: Curve3<T>,
     /// Carrier parameter at `start(he_plus)` — the `he_plus` forward
@@ -464,29 +445,32 @@ pub struct EdgeCurveSpec<T: Real> {
 }
 
 impl<T: Real> EdgeCurveSpec<T> {
-    /// The straight-chord spec between two points: carrier the line
-    /// from `p0` to `p1` (arc-length parameters `0 … |p1 − p0|`),
-    /// description the honest pushforward form — `p0`'s trajectory
-    /// under the translation by `p1 − p0`
+    /// The straight-chord SCAFFOLDING spec between two points:
+    /// carrier the line from `p0` to `p1` (arc-length parameters
+    /// `0 … |p1 − p0|`), description the honest pushforward — `p0`'s
+    /// trajectory under the translation by `p1 − p0`
     /// ([`crate::MappedCurve::ExtrudedPoint`] with the sketch origin
-    /// placed at `p0`).
+    /// placed at `p0`) — through the scaffolding door (D3).
     ///
     /// By calling this the caller asserts the edge's locus **is** the
     /// straight chord; a construction whose edge follows any other
     /// locus (an arc trajectory, a placed profile segment) builds its
     /// spec explicitly. Coincident endpoints yield a poison carrier
     /// that certification rejects loudly (typed, total).
+    ///
+    /// **The door is for TRANSIENT edges.** An edge built here that
+    /// comes to rest between two faces must be re-stated where it
+    /// rests — [`EdgeCurveSpec::at_rest_in_chart`] — or tier 3 refuses
+    /// it (U2's transience fence).
     pub fn line_between(p0: Point3<T>, p1: Point3<T>) -> Self {
         use geom_core::{Affine3, Point2};
         let len = p0.distance(p1);
         Self {
-            description: EdgeGeometry::MappedCurve(
-                crate::edge_geometry::MappedCurve::ExtrudedPoint {
-                    point: Point2::new(T::zero(), T::zero()),
-                    place: Affine3::translation(p0 - Point3::origin()),
-                    vec: p1 - p0,
-                },
-            ),
+            description: EdgeDescriptionSpec::Scaffold(crate::mapped::MappedCurve::ExtrudedPoint {
+                point: Point2::new(T::zero(), T::zero()),
+                place: Affine3::translation(p0 - Point3::origin()),
+                vec: p1 - p0,
+            }),
             carrier: Curve3::Line {
                 origin: p0,
                 dir: (p1 - p0) / len,
@@ -496,9 +480,9 @@ impl<T: Real> EdgeCurveSpec<T> {
         }
     }
 
-    /// The conventional ARC spec along an existing CIRCLE carrier
+    /// The ARC SCAFFOLDING spec along an existing CIRCLE carrier
     /// between the given parameters: the carrier and interval are kept
-    /// verbatim, and the description is the honest pushforward form —
+    /// verbatim, and the description is the honest pushforward —
     /// the start point's trajectory under the rotation about the
     /// carrier's own axis by the swept angle
     /// ([`crate::MappedCurve::RevolvedPoint`], the same
@@ -520,19 +504,79 @@ impl<T: Real> EdgeCurveSpec<T> {
         };
         let start = carrier.eval(t0);
         Some(Self {
-            description: EdgeGeometry::MappedCurve(
-                crate::edge_geometry::MappedCurve::RevolvedPoint {
-                    point: Point2::new(T::zero(), T::zero()),
-                    place: Affine3::translation(start - Point3::origin()),
-                    axis_origin: center,
-                    axis_dir: axis,
-                    angle: t1 - t0,
-                },
-            ),
+            description: EdgeDescriptionSpec::Scaffold(crate::mapped::MappedCurve::RevolvedPoint {
+                point: Point2::new(T::zero(), T::zero()),
+                place: Affine3::translation(start - Point3::origin()),
+                axis_origin: center,
+                axis_dir: axis,
+                angle: t1 - t0,
+            }),
             carrier,
             param_start: t0,
             param_end: t1,
         })
+    }
+
+    /// The same spec with a SCAFFOLDING description re-stated as an
+    /// image in `surface`'s chart, the pushforward demoted to the
+    /// authority record it always was (U2 Q3). `seam` carries D1's
+    /// obligation: this edge claims to BE that chart's
+    /// parameterization seam.
+    ///
+    /// This is the transience fence's one conversion (D3): the
+    /// scaffolding constructors above describe a locus for an edge
+    /// whose surfaces do not exist yet, and an edge that comes to REST
+    /// between two faces has surfaces — so it is described where it
+    /// rests, in a chart, and the sketch entity that DECLARED it (if
+    /// any) is recorded rather than re-purposed as a description.
+    /// Carrier and interval are untouched: only the description moves.
+    ///
+    /// **This is the scaffolding door's conversion, and NOTHING else.**
+    /// On a spec that already names a chart it returns unchanged — and
+    /// that means **both arguments are discarded**, `surface`
+    /// included. It is idempotent in the only sense a construction
+    /// needs (call it on whatever you built without first asking what
+    /// that was) and it is emphatically NOT a way to re-home an image
+    /// into a different chart: an already-described edge is re-homed
+    /// by STATING the chart, `EdgeDescriptionSpec::chart(k)` plus
+    /// `declared_by` where a declaration is carried.
+    ///
+    /// Spelled out because the silence bit this unit's own author: a
+    /// test re-homed a strut with `restated_spec().at_rest_in_chart(
+    /// other_chart, false)`, got the original chart back, and read the
+    /// resulting assertion failure as a defect in the kernel. The
+    /// `debug_assert` below turns that silence into a panic wherever
+    /// assertions are on — which is every test binary, i.e. exactly
+    /// where the mistake gets made.
+    #[must_use]
+    pub fn at_rest_in_chart(self, surface: SurfaceKey, seam: bool) -> Self {
+        debug_assert!(
+            match &self.description {
+                EdgeDescriptionSpec::Chart {
+                    surface: already,
+                    seam: already_seam,
+                    ..
+                } => *already == surface && *already_seam == seam,
+                _ => true,
+            },
+            "at_rest_in_chart on a spec that already names a chart discards both \
+             arguments; state the chart instead of re-asking the scaffolding door"
+        );
+        let description = match self.description {
+            EdgeDescriptionSpec::Scaffold(mc) => {
+                let chart = if seam {
+                    EdgeDescriptionSpec::seam(surface)
+                } else {
+                    EdgeDescriptionSpec::chart(surface)
+                };
+                chart.declared_by(mc)
+            }
+            other => other,
+        };
+        Self {
+            description,
+            ..self
+        }
     }
 
     /// The canonical full-period self-loop spec at `p`: a unit circle
@@ -559,15 +603,13 @@ impl<T: Real> EdgeCurveSpec<T> {
         use geom_core::{Affine3, Point2, Vec3};
         let center = p + Vec3::unit_x();
         Self {
-            description: EdgeGeometry::MappedCurve(
-                crate::edge_geometry::MappedCurve::RevolvedPoint {
-                    point: Point2::new(T::zero(), T::zero()),
-                    place: Affine3::translation(p - Point3::origin()),
-                    axis_origin: center,
-                    axis_dir: Vec3::unit_z(),
-                    angle: T::tau(),
-                },
-            ),
+            description: EdgeDescriptionSpec::Scaffold(crate::mapped::MappedCurve::RevolvedPoint {
+                point: Point2::new(T::zero(), T::zero()),
+                place: Affine3::translation(p - Point3::origin()),
+                axis_origin: center,
+                axis_dir: Vec3::unit_z(),
+                angle: T::tau(),
+            }),
             carrier: Curve3::Circle {
                 center,
                 axis: Vec3::unit_z(),
@@ -612,15 +654,9 @@ pub struct Certificate<T: Real> {
 /// uncertified value is unrepresentable (D4 ¶2 made structural).
 #[derive(Clone, Debug)]
 pub struct EdgeCurve<T: Real> {
-    /// **The shim** (P-1a): the pre-collapse description vocabulary,
-    /// kept so the six consumer crates read their own names through a
-    /// `geom-brep`-only diff. `canonical` is what this crate certifies
-    /// and what U2 means by the description; P-1b moves the consumers
-    /// onto it and deletes this field.
-    description: EdgeGeometry<T>,
     /// U2's collapsed description — ONE conventional form, minted and
     /// metered at certification (D1/D4).
-    canonical: EdgeDescription<T>,
+    description: EdgeDescription<T>,
     /// U2 Q3's per-edge authority record: who determined the locus.
     authority: EdgeAuthority<T>,
     carrier: Curve3<T>,
@@ -701,8 +737,7 @@ impl<T: Decide> EdgeCurve<T> {
         let (certificate, canonical) = run_checks(&spec, start, end, &surfaces, None, band)?;
         Ok(Self {
             authority: authority_of(&spec.description),
-            description: spec.description,
-            canonical,
+            description: canonical,
             carrier: spec.carrier,
             param_start: spec.param_start,
             param_end: spec.param_end,
@@ -789,8 +824,7 @@ impl<T: crate::edge_nurbs::EdgeNurbsLane> EdgeCurve<T> {
         )?;
         Ok(Self {
             authority: authority_of(&spec.description),
-            description: spec.description,
-            canonical,
+            description: canonical,
             carrier: spec.carrier,
             param_start: spec.param_start,
             param_end: spec.param_end,
@@ -824,21 +858,15 @@ impl<T: crate::edge_nurbs::EdgeNurbsLane> EdgeCurve<T> {
 }
 
 impl<T: Real> EdgeCurve<T> {
-    /// The intensional description (authoritative, D2) in the
-    /// **shim's** pre-collapse vocabulary — see
-    /// [`EdgeCurve::canonical`] for the form this crate certifies.
-    pub fn description(&self) -> &EdgeGeometry<T> {
-        &self.description
-    }
-
-    /// The **canonical** description (U2): D2's two intrinsic arms,
-    /// ONE conventional form, and the fenced scaffolding door.
+    /// The intensional description (authoritative, D2/U2): D2's two
+    /// intrinsic arms, ONE conventional form, and the fenced
+    /// scaffolding door.
     ///
     /// Handed out by reference, never by value: [`EdgeDescription`]
-    /// carries a [`crate::Pcurve`] and is therefore not `Copy` — the
-    /// deliberate resolution of the `Copy` loss (see the type's docs).
-    pub fn canonical(&self) -> &EdgeDescription<T> {
-        &self.canonical
+    /// carries a [`crate::Pcurve`] and is therefore not `Copy` — an
+    /// edge description is read, not moved around.
+    pub fn description(&self) -> &EdgeDescription<T> {
+        &self.description
     }
 
     /// The **authority record** (U2 Q3): whether a modeler DECLARED
@@ -869,9 +897,9 @@ impl<T: Real> EdgeCurve<T> {
     /// The same certified carrier with its description's **SURFACE
     /// KEYS** rewritten, for a transplant into another body's arenas.
     ///
-    /// A surface key is an arena handle, not geometry: `Intersection`,
-    /// `TangentIntersection`, `Seam` and `IsoCurve` name the surfaces
-    /// their locus is stated against, and a graft that re-creates
+    /// A surface key is an arena handle, not geometry: the two
+    /// intrinsic arms and the chart arm name the surfaces their locus
+    /// is stated against, and a graft that re-creates
     /// those surfaces BITWISE under fresh keys has changed the handles
     /// and nothing else. The certificate — a residual over the
     /// description, the carrier, the interval and the surfaces' VALUES
@@ -895,81 +923,31 @@ impl<T: Real> EdgeCurve<T> {
         mut remap: impl FnMut(crate::keys::SurfaceKey) -> Option<crate::keys::SurfaceKey>,
     ) -> Option<Self> {
         let description = match self.description {
-            EdgeGeometry::Intersection { s1, s2, witness } => EdgeGeometry::Intersection {
+            EdgeDescription::Intersection { s1, s2, witness } => EdgeDescription::Intersection {
                 s1: remap(s1)?,
                 s2: remap(s2)?,
                 witness,
             },
-            EdgeGeometry::TangentIntersection { s1, s2, witness } => {
-                EdgeGeometry::TangentIntersection {
+            EdgeDescription::TangentIntersection { s1, s2, witness } => {
+                EdgeDescription::TangentIntersection {
                     s1: remap(s1)?,
                     s2: remap(s2)?,
                     witness,
                 }
             }
-            EdgeGeometry::Seam { surface } => EdgeGeometry::Seam {
-                surface: remap(surface)?,
-            },
-            EdgeGeometry::IsoCurve { surface, u, v0, v1 } => EdgeGeometry::IsoCurve {
-                surface: remap(surface)?,
-                u,
-                v0,
-                v1,
-            },
-            EdgeGeometry::MappedCurve(m) => EdgeGeometry::MappedCurve(m),
-        };
-        // **The shim's THIRD site** (with `description::authority_of`
-        // and the collapse in `run_checks`): this door is the only
-        // other place both vocabularies are written, and it is the
-        // only one that could let them DRIFT apart, since it mints an
-        // `EdgeCurve` without a run of the schedule.
-        //
-        // They cannot drift, structurally rather than by assertion:
-        // every key the canonical form carries is READ OUT OF the
-        // already-remapped shim above rather than remapped a second
-        // time, so "both were remapped consistently" is not a property
-        // to check — there is only one remap. The chart IMAGE travels
-        // verbatim, because it is geometry stated in chart
-        // coordinates, which a bitwise re-creation of the surface
-        // leaves untouched.
-        let canonical = match (&self.canonical, description) {
-            (
-                EdgeDescription::Intersection { witness, .. },
-                EdgeGeometry::Intersection { s1, s2, .. },
-            ) => EdgeDescription::Intersection {
-                s1,
-                s2,
-                witness: *witness,
-            },
-            (
-                EdgeDescription::TangentIntersection { witness, .. },
-                EdgeGeometry::TangentIntersection { s1, s2, .. },
-            ) => EdgeDescription::TangentIntersection {
-                s1,
-                s2,
-                witness: *witness,
-            },
-            (EdgeDescription::Chart(c), EdgeGeometry::Seam { surface })
-            | (EdgeDescription::Chart(c), EdgeGeometry::IsoCurve { surface, .. }) => {
-                EdgeDescription::Chart(ChartCurve {
-                    surface,
-                    pcurve: c.pcurve.clone(),
-                    seam: c.seam,
-                })
-            }
-            (EdgeDescription::Scaffold(m), EdgeGeometry::MappedCurve(_)) => {
-                EdgeDescription::Scaffold(*m)
-            }
-            // Unreachable: the two vocabularies were minted together
-            // by `run_checks` and this door does not change which arm
-            // either is on. Typed rather than asserted (D4 ¶2) — a
-            // mismatch here would mean the shim had already drifted,
-            // and answering `None` refuses to propagate it.
-            _ => return None,
+            // The chart IMAGE travels verbatim, because it is geometry
+            // stated in chart COORDINATES, which a bitwise re-creation
+            // of the surface leaves untouched. Only the handle moves.
+            EdgeDescription::Chart(ref c) => EdgeDescription::Chart(ChartCurve {
+                surface: remap(c.surface)?,
+                pcurve: c.pcurve.clone(),
+                seam: c.seam,
+            }),
+            // A scaffold names no surface — there is none yet.
+            EdgeDescription::Scaffold(m) => EdgeDescription::Scaffold(m),
         };
         Some(Self {
             description,
-            canonical,
             authority: self.authority,
             carrier: self.carrier.clone(),
             param_start: self.param_start,
@@ -1012,21 +990,24 @@ impl<T: SpanLocate> EdgeCurve<T> {
         let a = (t - t0) / span;
         let child = |s0: T, s1: T, ta: T, tb: T| -> EdgeCurveSpec<T> {
             let description = match self.description {
-                EdgeGeometry::Intersection { s1: k1, s2: k2, .. } => EdgeGeometry::Intersection {
-                    s1: k1,
-                    s2: k2,
-                    // The child's mid-parameter point, computed exactly
-                    // as the certification schedule's middle sample
-                    // (bitwise — zero WitnessMidpoint residual).
-                    witness: self
-                        .carrier
-                        .eval(sample_param(ta, tb, (CERT_SAMPLES - 1) / 2)),
-                },
+                EdgeDescription::Intersection { s1: k1, s2: k2, .. } => {
+                    EdgeDescriptionSpec::Intersection {
+                        s1: k1,
+                        s2: k2,
+                        // The child's mid-parameter point, computed
+                        // exactly as the certification schedule's
+                        // middle sample (bitwise — zero
+                        // WitnessMidpoint residual).
+                        witness: self
+                            .carrier
+                            .eval(sample_param(ta, tb, (CERT_SAMPLES - 1) / 2)),
+                    }
+                }
                 // TangentIntersection splits exactly as Intersection:
                 // surfaces kept, witness re-minted at the child's own
                 // mid-parameter (the witness contract, one order up).
-                EdgeGeometry::TangentIntersection { s1: k1, s2: k2, .. } => {
-                    EdgeGeometry::TangentIntersection {
+                EdgeDescription::TangentIntersection { s1: k1, s2: k2, .. } => {
+                    EdgeDescriptionSpec::TangentIntersection {
                         s1: k1,
                         s2: k2,
                         witness: self
@@ -1034,18 +1015,30 @@ impl<T: SpanLocate> EdgeCurve<T> {
                             .eval(sample_param(ta, tb, (CERT_SAMPLES - 1) / 2)),
                     }
                 }
-                EdgeGeometry::MappedCurve(mc) => EdgeGeometry::MappedCurve(mc.restrict(s0, s1)),
-                EdgeGeometry::Seam { surface } => EdgeGeometry::Seam { surface },
-                // The iso description restricts exactly as MappedCurve
-                // does: fixed `u` kept, the `v` window mapped through
-                // the SAME interval fractions the parameter interval
-                // splits at, so the child's affine t↦v map agrees with
-                // the parent's on the shared sub-interval.
-                EdgeGeometry::IsoCurve { surface, u, v0, v1 } => EdgeGeometry::IsoCurve {
-                    surface,
-                    u,
-                    v0: v0 + (v1 - v0) * s0,
-                    v1: v0 + (v1 - v0) * s1,
+                EdgeDescription::Scaffold(mc) => EdgeDescriptionSpec::Scaffold(mc.restrict(s0, s1)),
+                // A chart image is a function of the CARRIER's own
+                // parameter, and splitting an edge changes the
+                // interval, not the carrier — so the child's image is
+                // the parent's image, verbatim. Stating it exactly is
+                // what keeps the sub-arc's description the restriction
+                // of its parent's rather than a re-derivation that can
+                // land a few ulps away from it.
+                EdgeDescription::Chart(ref c) => EdgeDescriptionSpec::Chart {
+                    surface: c.surface,
+                    // A seam names its chart and nothing else, so the
+                    // child re-derives its image there exactly as the
+                    // parent did (the mint reads the carrier, which
+                    // the split does not change — same bits). Every
+                    // other image is a function of the carrier's own
+                    // parameter, so the sub-arc's image IS the
+                    // parent's: stated exactly rather than
+                    // re-derived a few ulps away from it.
+                    image: if c.seam { None } else { Some(c.pcurve.clone()) },
+                    seam: c.seam,
+                    declared: match self.authority {
+                        EdgeAuthority::Declared(mc) => Some(mc.restrict(s0, s1)),
+                        EdgeAuthority::Derived => None,
+                    },
                 },
             };
             EdgeCurveSpec {
@@ -1060,11 +1053,57 @@ impl<T: SpanLocate> EdgeCurve<T> {
 
     /// This carrier's spec view (for re-certification).
     fn spec(&self) -> EdgeCurveSpec<T> {
+        self.restated_spec()
+    }
+}
+
+impl<T: Real> EdgeCurve<T> {
+    /// This edge restated as the SPEC a construction would hand in —
+    /// description ([`EdgeCurve::restated_description`]), carrier and
+    /// interval, all verbatim. The door a consumer goes through to
+    /// move an edge's DESCRIPTION without touching its geometry.
+    #[must_use]
+    pub fn restated_spec(&self) -> EdgeCurveSpec<T> {
         EdgeCurveSpec {
-            description: self.description,
+            description: self.restated_description(),
             carrier: self.carrier.clone(),
             param_start: self.param_start,
             param_end: self.param_end,
+        }
+    }
+
+    /// This edge's certified description stated back the way a
+    /// CONSTRUCTION states one — the door every consumer that rebuilds
+    /// a spec from a certified edge goes through (a transplant, a
+    /// re-anchor, a re-certification at rest).
+    ///
+    /// A chart image travels EXACTLY: restating a description must
+    /// re-meter the image the edge already carries, never derive a
+    /// second one and meter that. A SEAM image is the one exception
+    /// and for the opposite reason — a seam names its chart and
+    /// nothing else, so its image is whatever that chart's own mint
+    /// makes it, which is what keeps a seam a seam when the chart
+    /// underneath it moves.
+    #[must_use]
+    pub fn restated_description(&self) -> EdgeDescriptionSpec<T> {
+        let declared = match self.authority {
+            EdgeAuthority::Declared(mc) => Some(mc),
+            EdgeAuthority::Derived => None,
+        };
+        match self.description {
+            EdgeDescription::Intersection { s1, s2, witness } => {
+                EdgeDescriptionSpec::Intersection { s1, s2, witness }
+            }
+            EdgeDescription::TangentIntersection { s1, s2, witness } => {
+                EdgeDescriptionSpec::TangentIntersection { s1, s2, witness }
+            }
+            EdgeDescription::Chart(ref c) => EdgeDescriptionSpec::Chart {
+                surface: c.surface,
+                image: if c.seam { None } else { Some(c.pcurve.clone()) },
+                seam: c.seam,
+                declared,
+            },
+            EdgeDescription::Scaffold(mc) => EdgeDescriptionSpec::Scaffold(mc),
         }
     }
 }
@@ -1193,21 +1232,23 @@ fn run_checks<T: Decide>(
     band: Band,
 ) -> Result<(Certificate<T>, EdgeDescription<T>), CertifyError> {
     // ---- Check 1: implementedness / description well-formedness. ----
-    // Rung-3 (`Nurbs`) carriers certify under an `Intersection`
-    // description of two ANALYTIC surfaces — the class the curved
-    // boolean zip mints (M5 PR 9, C12.3; the fitted SSI branch) — and
-    // under an `IsoCurve` description (M6-3: the loft/sweep wall–wall
-    // seam class, whose residual is the genuinely metric
-    // `|C(t) − S(u, v(t))|`). A `Nurbs` carrier under the OTHER
-    // conventional descriptions (`MappedCurve`/`Seam`) stays refused:
-    // nothing mints one, and its residual story (a fitted carrier
-    // "matching" a mapped source) has no certified meter.
+    // Rung-3 (`Nurbs`) carriers certify under an intrinsic description
+    // of two ANALYTIC surfaces — the class the curved boolean zip
+    // mints (M5 PR 9, C12.3; the fitted SSI branch) — and under a
+    // chart description whose image the CONSTRUCTION states (M6-3: the
+    // loft/sweep wall–wall seam class, whose residual is the genuinely
+    // metric `|C(t) − S(P(t))|`). A `Nurbs` carrier under a chart
+    // description whose image would have to be DERIVED stays refused,
+    // and so does one under the scaffolding door: nothing mints
+    // either, and neither has a certified meter — a derived image
+    // needs the analytic chart machinery, and a fitted carrier
+    // "matching" a mapped source states no residual at all.
     if matches!(spec.carrier, Curve3::Nurbs(_))
         && !matches!(
             spec.description,
-            EdgeGeometry::Intersection { .. }
-                | EdgeGeometry::TangentIntersection { .. }
-                | EdgeGeometry::IsoCurve { .. }
+            EdgeDescriptionSpec::Intersection { .. }
+                | EdgeDescriptionSpec::TangentIntersection { .. }
+                | EdgeDescriptionSpec::Chart { image: Some(_), .. }
         )
     {
         return Err(CertifyError::Unimplemented);
@@ -1250,7 +1291,7 @@ fn run_checks<T: Decide>(
         },
         /// D3's fenced scaffolding door: a pushforward standing in
         /// as a description while the edge is TRANSIENT.
-        Scaffold(crate::edge_geometry::MappedCurve<T>),
+        Scaffold(crate::mapped::MappedCurve<T>),
         /// U2's ONE conventional form: the chart, its arena key, and
         /// the chart-image data the pcurve is minted from (D4 — the
         /// mint runs after the interval checks, so a degenerate span
@@ -1258,15 +1299,32 @@ fn run_checks<T: Decide>(
         Chart {
             surface: Surface<T>,
             key: SurfaceKey,
-            /// `Some((u, v0, v1))` for a caller-supplied iso image
-            /// (D4: spline charts take the image from the caller,
-            /// which every iso constructor already knows); `None` for
-            /// an analytic chart, whose image is minted here through
-            /// [`crate::chart_pcurve`].
-            iso: Option<(T, T, T)>,
+            /// `Some` for an image the CONSTRUCTION states (D4:
+            /// spline charts take the image from the caller, which
+            /// every iso constructor already knows, and a
+            /// re-certification restates the image the edge already
+            /// carries); `None` for an analytic chart, whose image is
+            /// minted here through [`crate::chart_pcurve`].
+            image: Option<Pcurve<T>>,
             /// D1's obligation: this edge claims to BE the chart's
             /// seam meridian.
             seam: bool,
+            /// U2 Q3's authority payload, carried here for ONE reason:
+            /// so the meter that used to run on it still runs.
+            ///
+            /// Pre-collapse a declared locus WAS the description and
+            /// took the scaffolding arm, whose
+            /// `carrier_matches_mapped_source` residual ran on every
+            /// certify. The collapse moved the payload out of the
+            /// description and left the meter behind on an arm the
+            /// payload no longer takes — so a declaration could be
+            /// arbitrarily false and nothing said so (measured by R1:
+            /// a placement ~1000 units off the body certified clean
+            /// and passed tier 3). This is the SAME check, the same
+            /// `CertCheck::MappedSource`, the same quantity and the
+            /// same predicate name, following the datum to where it
+            /// now lives — not a new predicate.
+            declared: Option<crate::mapped::MappedCurve<T>>,
         },
         /// `Intersection` of a PLANE and a described NURBS wall
         /// (M7-8): the declare-and-check lane's shape.
@@ -1277,7 +1335,7 @@ fn run_checks<T: Decide>(
         },
     }
     let resolved = match spec.description {
-        EdgeGeometry::Intersection { s1, s2, witness } => {
+        EdgeDescriptionSpec::Intersection { s1, s2, witness } => {
             if s1 == s2 {
                 return Err(CertifyError::IntersectionSameSurface { key: s1 });
             }
@@ -1305,8 +1363,8 @@ fn run_checks<T: Decide>(
                 }
             }
         }
-        EdgeGeometry::TangentIntersection { s1, s2, witness } => {
-            // A same-surface "tangency" is a Seam exactly as a
+        EdgeDescriptionSpec::TangentIntersection { s1, s2, witness } => {
+            // A same-surface "tangency" is a seam exactly as a
             // same-surface intersection is (D2's taxonomy).
             if s1 == s2 {
                 return Err(CertifyError::IntersectionSameSurface { key: s1 });
@@ -1317,27 +1375,41 @@ fn run_checks<T: Decide>(
                 witness,
             }
         }
-        EdgeGeometry::MappedCurve(mc) => Resolved::Scaffold(mc),
-        EdgeGeometry::Seam { surface } => {
-            let s = resolve(surface)?;
-            // Periodicity is structural: the plane is the one
-            // non-periodic analytic kind (Nurbs already rejected).
-            if matches!(s, Surface::Plane { .. }) {
-                return Err(CertifyError::SeamOnNonPeriodic);
-            }
+        EdgeDescriptionSpec::Scaffold(mc) => Resolved::Scaffold(mc),
+        // The chart arm resolves through the door its IMAGE needs. A
+        // seam's image is derived from the analytic chart machinery,
+        // so its surface must BE analytic and periodic — the plane is
+        // the one non-periodic analytic kind (`Nurbs` already
+        // rejected above). An image the construction states is
+        // evaluated on the chart itself, so a described spline chart
+        // is exactly what it needs and is admitted here and nowhere
+        // else (the mvfs placeholder, an all-poison control, is not a
+        // described surface and keeps refusing).
+        EdgeDescriptionSpec::Chart {
+            surface,
+            ref image,
+            seam,
+            ref declared,
+        } => {
+            let s = if seam {
+                let s = resolve(surface)?;
+                if matches!(s, Surface::Plane { .. }) {
+                    return Err(CertifyError::SeamOnNonPeriodic);
+                }
+                s
+            } else if image.is_some() {
+                resolve_iso(surface)?
+            } else {
+                resolve(surface)?
+            };
             Resolved::Chart {
                 surface: s,
                 key: surface,
-                iso: None,
-                seam: true,
+                image: image.clone(),
+                seam,
+                declared: *declared,
             }
         }
-        EdgeGeometry::IsoCurve { surface, u, v0, v1 } => Resolved::Chart {
-            surface: resolve_iso(surface)?,
-            key: surface,
-            iso: Some((u, v0, v1)),
-            seam: false,
-        },
     };
 
     let mut max_residual = T::zero();
@@ -1348,9 +1420,10 @@ fn run_checks<T: Decide>(
     // length (radians × radius for circles) so they classify against
     // the linear band like every other margin (dimensional honesty).
     let span = t1 - t0;
+    // The span decision runs once, before the schedule: not a sample.
     let span_escalated = |cause: Indeterminate| CertifyError::Escalated {
         check: CertCheck::ParamSpan,
-        sample: 0,
+        sample: NOT_A_SAMPLE,
         cause,
     };
     match &spec.carrier {
@@ -1456,47 +1529,48 @@ fn run_checks<T: Decide>(
         &mut max_residual,
     )?;
 
-    // ---- The collapse (U2/D4): the canonical description. ----
-    // Minted HERE, after the interval checks and before the residual
-    // schedule, so a degenerate span still refuses in its own order
-    // and no chart image is derived from an interval the kernel has
-    // not yet accepted.
-    let canonical: EdgeDescription<T> = match spec.description {
-        EdgeGeometry::Intersection { s1, s2, witness } => {
-            EdgeDescription::Intersection { s1, s2, witness }
-        }
-        EdgeGeometry::TangentIntersection { s1, s2, witness } => {
-            EdgeDescription::TangentIntersection { s1, s2, witness }
-        }
-        EdgeGeometry::MappedCurve(mc) => EdgeDescription::Scaffold(mc),
-        EdgeGeometry::Seam { .. } | EdgeGeometry::IsoCurve { .. } => {
-            let Resolved::Chart {
-                ref surface,
-                key,
-                iso,
-                seam,
-            } = resolved
-            else {
-                // Unreachable: the two arms above are exactly the ones
-                // the resolver answers `Chart` for. Typed rather than
-                // assumed (D4 ¶2) — never a panic.
+    // ---- The chart image (U2/D4): the certified description. ----
+    // A derived image is minted HERE, after the interval checks and
+    // before the residual schedule, so a degenerate span still refuses
+    // in its own order and no chart image is derived from an interval
+    // the kernel has not yet accepted.
+    let canonical: EdgeDescription<T> = match resolved {
+        Resolved::Intersection { witness, .. } | Resolved::PlaneNurbs { witness, .. } => {
+            let EdgeDescriptionSpec::Intersection { s1, s2, .. } = spec.description else {
+                // Unreachable: exactly one spec arm resolves either
+                // way. Typed rather than assumed (D4 ¶2).
                 return Err(CertifyError::Unimplemented);
             };
-            let pcurve = match iso {
-                // D4, the caller-supplied half: a spline chart's image
-                // IS the constructor's own iso data, exactly. `v` is
-                // affine in the carrier parameter, so the chart image
-                // is `P(t) = (u, v0 + slope·(t − t0))` written on the
-                // carrier's own parameter — the form every stored
-                // cache of this class already carries, which is what
-                // makes description and cache the same object.
-                Some((u, v0, v1)) => {
-                    let slope = (v1 - v0) / (t1 - t0);
-                    Pcurve::IsoLine {
-                        p0: Point2::new(u, v0 - slope * t0),
-                        pl: Vec2::new(T::zero(), slope),
-                    }
-                }
+            EdgeDescription::Intersection { s1, s2, witness }
+        }
+        Resolved::Tangent { witness, .. } => {
+            let EdgeDescriptionSpec::TangentIntersection { s1, s2, .. } = spec.description else {
+                return Err(CertifyError::Unimplemented);
+            };
+            EdgeDescription::TangentIntersection { s1, s2, witness }
+        }
+        Resolved::Scaffold(mc) => EdgeDescription::Scaffold(mc),
+        Resolved::Chart {
+            ref surface,
+            key,
+            ref image,
+            seam,
+            // The authority record is built from the SPEC by
+            // `authority_of`, not from this arm; here it has already
+            // done its job at the meter above.
+            declared: _,
+        } => {
+            let pcurve = match image {
+                // D4, the stated half: a spline chart's image IS the
+                // constructor's own iso data, exactly, and a
+                // re-certification restates the image the edge already
+                // carries. `v` is affine in the carrier parameter, so
+                // the chart image is `P(t) = (u, v0 + slope·(t − t0))`
+                // written on the carrier's own parameter — the form
+                // every stored cache of this class already carries,
+                // which is what makes description and cache the same
+                // object.
+                Some(p) => p.clone(),
                 // D4, the minted half: an analytic chart's image is
                 // derived from the carrier through the one door that
                 // derives chart images anywhere in this kernel.
@@ -1711,7 +1785,12 @@ fn run_checks<T: Decide>(
             // re-baseline row measure it; the live minting class
             // (`sweep/src/revolve/upgrade.rs:219`) mints exact seams
             // and is unaffected, which the whole-body batteries show.
-            Resolved::Chart { surface, seam, .. } => {
+            Resolved::Chart {
+                surface,
+                seam,
+                declared,
+                ..
+            } => {
                 let Some(chart) = canonical.chart() else {
                     return Err(CertifyError::Unimplemented);
                 };
@@ -1724,6 +1803,31 @@ fn run_checks<T: Decide>(
                     band,
                     &mut max_residual,
                 )?;
+                // **The declaration is metered too, or it is not a
+                // record of anything** (P-1b, reinstated in review).
+                // A declared locus says a sketch entity under a sweep
+                // map determined THIS curve; the claim is checkable
+                // and pre-collapse it was checked on every certify,
+                // because the pushforward was the description. It is
+                // the same meter — same name, same `CertCheck`, same
+                // quantity — applied where the datum went.
+                //
+                // Two of this unit's own defects were exactly what it
+                // catches: a re-anchor that left the datum ending at
+                // the wall's old radius, and an offset lane that
+                // dropped it. Both would have been caught here rather
+                // than by a row someone thought to write.
+                if let Some(mc) = declared {
+                    let frac = T::from_f64(f64::from(i) / f64::from(CERT_SAMPLES - 1));
+                    check_residual(
+                        "carrier_matches_mapped_source",
+                        CertCheck::MappedSource,
+                        i,
+                        Margin::of(p.distance(mc.eval(frac))),
+                        band,
+                        &mut max_residual,
+                    )?;
+                }
                 // D1's retained obligation. The unified meter cannot
                 // see the difference between a seam meridian and its
                 // antipode — both ARE chart images of the same
@@ -1957,7 +2061,7 @@ mod tests {
     use geom_core::spline::KnotVector;
     use geom_core::{Affine3, Point2, Vec3};
 
-    use crate::edge_geometry::{MappedCurve, SketchSegment};
+    use crate::mapped::{MappedCurve, SketchSegment};
 
     use super::*;
 
@@ -2087,7 +2191,7 @@ mod tests {
         let (p0, p1) = (Point3::new(r, 0.0, 0.0), Point3::new(r, 0.0, 3.0));
         let seam = EdgeCurve::certify(
             EdgeCurveSpec {
-                description: EdgeGeometry::Seam { surface: keys[0] },
+                description: EdgeDescriptionSpec::seam(keys[0]),
                 carrier: Curve3::Line {
                     origin: p0,
                     dir: Vec3::unit_z(),
@@ -2101,7 +2205,7 @@ mod tests {
             band(),
         )
         .expect("the seam certifies");
-        let chart = seam.canonical().chart().expect("a seam IS a chart image");
+        let chart = seam.description().chart().expect("a seam IS a chart image");
         assert_eq!(chart.surface, keys[0]);
         assert!(chart.seam, "a seam carries D1's obligation");
 
@@ -2117,12 +2221,7 @@ mod tests {
         let len = q0.distance(q1);
         let iso = EdgeCurve::certify(
             EdgeCurveSpec {
-                description: EdgeGeometry::IsoCurve {
-                    surface: pk[0],
-                    u,
-                    v0,
-                    v1,
-                },
+                description: EdgeDescriptionSpec::iso(pk[0], u, v0, v1, 0.0, len),
                 carrier: Curve3::Line {
                     origin: q0,
                     dir: (q1 - q0) / len,
@@ -2137,7 +2236,7 @@ mod tests {
         )
         .expect("the iso curve certifies");
         let iso_chart = iso
-            .canonical()
+            .description()
             .chart()
             .expect("an iso curve IS a chart image");
         assert!(
@@ -2151,8 +2250,11 @@ mod tests {
         let (_, empty) = table(vec![]);
         let scaffold = EdgeCurve::certify(line_spec(a, b), a, b, &empty, band())
             .expect("the scaffolding line certifies");
-        assert!(scaffold.canonical().chart().is_none());
-        assert!(matches!(scaffold.canonical(), EdgeDescription::Scaffold(_)));
+        assert!(scaffold.description().chart().is_none());
+        assert!(matches!(
+            scaffold.description(),
+            EdgeDescription::Scaffold(_)
+        ));
     }
 
     /// **The authority record** (U2 Q3): the datum tier 3's
@@ -2182,7 +2284,7 @@ mod tests {
         let (p0, p1) = (Point3::new(r, 0.0, 0.0), Point3::new(r, 0.0, 3.0));
         let derived = EdgeCurve::certify(
             EdgeCurveSpec {
-                description: EdgeGeometry::Seam { surface: keys[0] },
+                description: EdgeDescriptionSpec::seam(keys[0]),
                 carrier: Curve3::Line {
                     origin: p0,
                     dir: Vec3::unit_z(),
@@ -2225,7 +2327,7 @@ mod tests {
         let d = drift;
         let (p0, p1) = (Point3::new(r + d, 0.0, 0.0), Point3::new(r + d, 0.0, 3.0));
         let seam_spec = EdgeCurveSpec {
-            description: EdgeGeometry::Seam { surface: keys[0] },
+            description: EdgeDescriptionSpec::seam(keys[0]),
             carrier: Curve3::Line {
                 origin: p0,
                 dir: Vec3::unit_z(),
@@ -2250,7 +2352,7 @@ mod tests {
             .certificate;
         let mut mapped_legacy = mapped.carrier.eval(mapped.param_start).distance(a);
         mapped_legacy = mapped_legacy.max(mapped.carrier.eval(mapped.param_end).distance(b));
-        let EdgeGeometry::MappedCurve(mc) = mapped.description else {
+        let EdgeDescriptionSpec::Scaffold(mc) = mapped.description else {
             panic!("line_between describes a MappedCurve");
         };
         for i in 0..CERT_SAMPLES {
@@ -2323,12 +2425,7 @@ mod tests {
         // The in-band drift, off the chart along its own normal.
         let off = Vec3::zero();
         let iso_spec = EdgeCurveSpec {
-            description: EdgeGeometry::IsoCurve {
-                surface: pk[0],
-                u,
-                v0,
-                v1,
-            },
+            description: EdgeDescriptionSpec::iso(pk[0], u, v0, v1, anchor, t1),
             carrier: Curve3::Line {
                 origin: q0 + off - dir * anchor,
                 dir,
@@ -2345,7 +2442,7 @@ mod tests {
         )
         .expect("the nurbs iso certifies");
         let iso_chart = iso_cert
-            .canonical()
+            .description()
             .chart()
             .expect("an iso description IS a chart image")
             .clone();
@@ -2706,7 +2803,7 @@ mod tests {
         let p0 = Point3::origin();
         let p1 = Point3::new(1.0, 0.0, 0.0);
         let spec = EdgeCurveSpec {
-            description: EdgeGeometry::Intersection {
+            description: EdgeDescriptionSpec::Intersection {
                 s1: src_keys[0],
                 s2: src_keys[1],
                 witness: Point3::new(0.5, 0.0, 0.0),
@@ -2727,7 +2824,7 @@ mod tests {
 
         // The handles moved.
         match *moved.description() {
-            EdgeGeometry::Intersection { s1, s2, witness } => {
+            EdgeDescription::Intersection { s1, s2, witness } => {
                 assert_eq!(s1, dst_keys[0]);
                 assert_eq!(s2, dst_keys[1]);
                 // ...and the witness, a POINT, did not.
@@ -2786,7 +2883,7 @@ mod tests {
         let p0 = Point3::origin();
         let p1 = Point3::new(1.0, 0.0, 0.0);
         let spec = EdgeCurveSpec {
-            description: EdgeGeometry::Intersection {
+            description: EdgeDescriptionSpec::Intersection {
                 s1: keys[0],
                 s2: keys[1],
                 witness: Point3::new(0.5, 0.0, 0.0),
@@ -2825,7 +2922,7 @@ mod tests {
 
         // A displaced witness fails the witness checks.
         let mut bad = spec.clone();
-        bad.description = EdgeGeometry::Intersection {
+        bad.description = EdgeDescriptionSpec::Intersection {
             s1: keys[0],
             s2: keys[1],
             witness: Point3::new(0.5, 0.0, 0.25),
@@ -2841,7 +2938,7 @@ mod tests {
 
         // Same surface twice is structurally malformed.
         let mut bad = spec.clone();
-        bad.description = EdgeGeometry::Intersection {
+        bad.description = EdgeDescriptionSpec::Intersection {
             s1: keys[0],
             s2: keys[0],
             witness: Point3::new(0.5, 0.0, 0.0),
@@ -2853,7 +2950,7 @@ mod tests {
 
         // A stale key is a typed error.
         let mut bad = spec.clone();
-        bad.description = EdgeGeometry::Intersection {
+        bad.description = EdgeDescriptionSpec::Intersection {
             s1: keys[0],
             s2: SurfaceKey::default(),
             witness: Point3::new(0.5, 0.0, 0.0),
@@ -2886,7 +2983,7 @@ mod tests {
         let p0 = Point3::origin();
         let p1 = Point3::new(1.0, 0.0, 0.0);
         let spec = EdgeCurveSpec {
-            description: EdgeGeometry::Intersection {
+            description: EdgeDescriptionSpec::Intersection {
                 s1: keys[0],
                 s2: keys[1],
                 witness: Point3::new(0.5, 0.0, 0.0),
@@ -2923,7 +3020,7 @@ mod tests {
             },
         ]);
         let spec = EdgeCurveSpec {
-            description: EdgeGeometry::Intersection {
+            description: EdgeDescriptionSpec::Intersection {
                 s1: keys[0],
                 s2: keys[1],
                 witness: Point3::new(0.5, 0.0, 0.0),
@@ -2955,7 +3052,7 @@ mod tests {
         let p0 = Point3::new(r, 0.0, 0.0);
         let p1 = Point3::new(r, 0.0, 3.0);
         let spec = EdgeCurveSpec {
-            description: EdgeGeometry::Seam { surface: keys[0] },
+            description: EdgeDescriptionSpec::seam(keys[0]),
             carrier: Curve3::Line {
                 origin: p0,
                 dir: Vec3::unit_z(),
@@ -2990,7 +3087,7 @@ mod tests {
             u_ref: Vec3::unit_x(),
         }]);
         let mut bad = spec.clone();
-        bad.description = EdgeGeometry::Seam { surface: pkeys[0] };
+        bad.description = EdgeDescriptionSpec::seam(pkeys[0]);
         assert_eq!(
             EdgeCurve::certify(bad, p0, p1, &plookup, band()).unwrap_err(),
             CertifyError::SeamOnNonPeriodic
@@ -3023,7 +3120,7 @@ mod tests {
         let center = Point3::new(1.0, 2.0, 3.0);
         let p = Point3::new(2.0, 2.0, 3.0); // center + u_ref·r
         let spec = EdgeCurveSpec {
-            description: EdgeGeometry::MappedCurve(MappedCurve::RevolvedPoint {
+            description: EdgeDescriptionSpec::Scaffold(MappedCurve::RevolvedPoint {
                 point: Point2::new(2.0, 2.0),
                 place: Affine3::translation(Vec3::new(0.0, 0.0, 3.0)),
                 axis_origin: center,
@@ -3050,7 +3147,7 @@ mod tests {
         let bulge = (core::f64::consts::PI / 8.0).tan();
         let place = Affine3::translation(Vec3::new(0.0, 0.0, 1.0));
         let spec = EdgeCurveSpec {
-            description: EdgeGeometry::MappedCurve(MappedCurve::PlacedSegment {
+            description: EdgeDescriptionSpec::Scaffold(MappedCurve::PlacedSegment {
                 segment: SketchSegment::Arc {
                     a: Point2::new(1.0, 0.0),
                     b: Point2::new(0.0, 1.0),

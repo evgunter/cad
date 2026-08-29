@@ -116,7 +116,7 @@ pub use geom_brep::SurfaceKind;
 // SameOriented = flush walls), so code inspecting findings names it.
 pub use topo::{
     Body, BooleanBody, BooleanDeclarations, BooleanError, BooleanOp, BooleanResult,
-    BooleanResultKind, ContactRecords, Curve3, EdgeGeometry, EdgeKey, FaceKey, Operand,
+    BooleanResultKind, ContactRecords, Curve3, EdgeDescription, EdgeKey, FaceKey, Operand,
     PlaneRelation, Surface, TransformError, VertexKey, intersect, intersect_with, subtract,
     subtract_with, transform_rigid, union, union_with,
 };
@@ -133,9 +133,15 @@ pub use topo::{MassProperties, MassPropsError, PropsQuadLane, mass_properties};
 pub use mesh::{Mesh, TessellateError, tessellate};
 pub use step_export::{StepExportError, StepOptions, step_string, write_step};
 pub use step_import::{ImportOptions, StepImportError, import_step};
+// `StlError` is the writers' own refusal type — what `write_ascii` and
+// `write_binary` return. The option errors beside it
+// (`BinaryHeaderError`, `SolidNameError`) refuse at option
+// CONSTRUCTION; a prelude that carries the writers but not the type
+// they fail with leaves a caller unable to match on the failure it can
+// actually get.
 pub use stl::{
     AsciiOptions, BinaryHeader, BinaryHeaderError, BinaryOptions, SolidName, SolidNameError,
-    write_ascii, write_binary,
+    StlError, write_ascii, write_binary,
 };
 
 // --- 8. The document layer ------------------------------------

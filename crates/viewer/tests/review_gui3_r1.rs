@@ -77,10 +77,7 @@ fn wedge(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
         &doc,
         DocEdit::SetDocParam {
             name: depth_param(),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value: 0.002,
-            },
+            value: DocParam::continuous(Dimension::Length, 0.002),
         },
         tol,
     );
@@ -330,10 +327,7 @@ fn r1_an_expression_written_over_a_literal_slot_makes_it_refuse_numbers() {
         &doc,
         DocEdit::SetDocParam {
             name: depth_param(),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value: 0.002,
-            },
+            value: DocParam::continuous(Dimension::Length, 0.002),
         },
         tol,
     );

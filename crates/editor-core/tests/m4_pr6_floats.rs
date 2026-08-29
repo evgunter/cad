@@ -28,10 +28,7 @@ fn round_trip(value: f64) -> ProfileDoc {
         &doc,
         DocEdit::SetDocParam {
             name: ParamName::new("p"),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value,
-            },
+            value: DocParam::continuous(Dimension::Length, value),
         },
     );
     // The profile's RAW-float channel is the PLANE PLACEMENT under v4

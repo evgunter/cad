@@ -192,7 +192,7 @@ pub fn cone(doc: &ProfileDoc, root: RecipeNodeId) -> BTreeSet<RecipeNodeId> {
 }
 
 /// Evaluates a document at scalar `T` with default options.
-pub fn eval<T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::PropsQuadLane>(
+pub fn eval<T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::AtRestPolicy>(
     doc: &ProfileDoc,
 ) -> Evaluation<T> {
     evaluate::<T>(
@@ -258,13 +258,14 @@ pub const NODE_KINDS: [&str; 13] = [
 ];
 
 /// The edit kinds a document exercises (the coverage tally's domain).
-pub const EDIT_KINDS: [&str; 14] = [
+pub const EDIT_KINDS: [&str; 15] = [
     "InsertNode",
     "DeleteNode",
     "SetParam",
     "SetStructuralParam",
     "SetExpression",
     "SetDocParam",
+    "SetDocParamValue",
     "Rebind",
     "ReWitness",
     "ReWitnessBulk",
@@ -376,6 +377,7 @@ pub fn edit_kind(edit: &DocEdit<ProfileProgram>) -> &'static str {
         DocEdit::SetStructuralParam { .. } => "SetStructuralParam",
         DocEdit::SetExpression { .. } => "SetExpression",
         DocEdit::SetDocParam { .. } => "SetDocParam",
+        DocEdit::SetDocParamValue { .. } => "SetDocParamValue",
         DocEdit::Rebind { .. } => "Rebind",
         DocEdit::ReWitness { .. } => "ReWitness",
         DocEdit::ReWitnessBulk { .. } => "ReWitnessBulk",

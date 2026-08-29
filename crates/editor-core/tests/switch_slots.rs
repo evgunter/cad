@@ -224,10 +224,7 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
         .apply(
             &DocEdit::SetDocParam {
                 name: ParamName::new("r"),
-                value: DocParam::Continuous {
-                    dim: Dimension::Length,
-                    value: 0.5,
-                },
+                value: DocParam::continuous(Dimension::Length, 0.5),
             },
             Tol::witness(),
         )
@@ -256,10 +253,7 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
         .apply(
             &DocEdit::SetDocParam {
                 name: ParamName::new("r"),
-                value: DocParam::Continuous {
-                    dim: Dimension::Length,
-                    value: 0.0,
-                },
+                value: DocParam::continuous(Dimension::Length, 0.0),
             },
             Tol::witness(),
         )

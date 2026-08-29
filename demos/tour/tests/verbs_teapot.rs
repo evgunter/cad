@@ -20,6 +20,25 @@
 //!    about tangency: `lifted_dome` is a definitely-non-tangent
 //!    fixture that refuses at the identical site with the identical
 //!    `what` string, which the table now asserts.
+//!
+//!    **The door survived U2's description collapse, and moved ARMS**
+//!    (PCURVE P-1b). A conventional locus written as a 3-space
+//!    pushforward has to be carried bodily with the face it hangs off.
+//!    U2 restated such loci as chart IMAGES, in the chart's own
+//!    coordinates, which an offset re-parameterizes without moving —
+//!    so for an edge the kernel DERIVED (a seam, an iso boundary, a
+//!    cap rim) the door genuinely has nothing left to refuse. But U2
+//!    did not delete the pushforward: it moved it beside the image as
+//!    the AUTHORITY record, and a DECLARED locus still owes the
+//!    transport. So the same `what` is raised from the other arm, and
+//!    the table distinguishes them.
+//!
+//!    An intermediate state of that unit read `ReanchorOffCarrier`
+//!    here and published it as a moved verdict. That was reading a
+//!    bug — the offset lane was dropping the declaration, so nothing
+//!    was left to ask the question of — and the correction is recorded
+//!    at `the_not_a_rigid_translation_door_is_unreachable_at_rest`
+//!    rather than quietly reverted.
 //! 2. **the opened rim is an annulus on every solid of revolution**,
 //!    as it always was on a box.
 //!    `the_opened_rim_is_an_annulus_on_every_revolve` sweeps five wall
@@ -351,6 +370,103 @@ fn triangular_prism(tol: Tol) -> Body<f64> {
     )
 }
 
+/// How many of `body`'s edges are still described through the
+/// SCAFFOLDING door — the arm `CarrierLaneUnsupported`'s "not a rigid
+/// translation" `what` was raised on before U2.
+fn scaffold_descriptions(body: &Body<f64>) -> usize {
+    body.edges()
+        .filter(|(_, e)| {
+            matches!(
+                body.get_curve_geom(e.curve)
+                    .and_then(pncad::topo::CurveGeom::certified)
+                    .map(pncad::topo::EdgeCurve::description),
+                Some(&pncad::topo::EdgeDescription::Scaffold(_))
+            )
+        })
+        .count()
+}
+
+/// How many of `body`'s edges carry a DECLARED locus — a sketch entity
+/// under a sweep map recorded as the authority (U2 Q3), which since the
+/// collapse is where the 3-space pushforward lives and therefore what
+/// the offset door still has to carry.
+fn declared_descriptions(body: &Body<f64>) -> usize {
+    body.edges()
+        .filter(|(_, e)| {
+            body.get_curve_geom(e.curve)
+                .and_then(pncad::topo::CurveGeom::certified)
+                .is_some_and(|c| c.authority().is_declared())
+        })
+        .count()
+}
+
+/// **Which ARM of the second door answers — and, since #1081's PR-2b,
+/// whether either of these bodies still reaches that door at all**
+/// (PCURVE P-1b, re-derived at the merge).
+///
+/// The row's own claim, unchanged: an edge of a body AT REST always
+/// says which chart it lies in, so the SCAFFOLDING arm the
+/// *"not a rigid translation"* door used to hang off cannot be
+/// entered; and these two bodies DO carry declared loci, which is what
+/// keeps the obstruction reachable through the authority record
+/// instead. Both halves are asserted on the fixtures rather than
+/// reasoned about, and both still hold — they are facts about the
+/// bodies, not about which door offsets them.
+///
+/// **What moved is which door they reach.** `shell` now hands a body
+/// of REVOLUTION to the simultaneous axial door, and neither of these
+/// gets as far as a carrier lane:
+///
+/// - the LIFTED DOME hollows. Its `cylinder ∩ sphere` junction is
+///   transversal and coaxial, so the meridian solve answers it — which
+///   RETIRES this fixture's old job as the tangency discriminator by
+///   answering the question it was asked to separate.
+/// - the TANGENT bullet refuses at the corner's own transversality
+///   meter (`TogetherAxialCorner`), which is a statement about the
+///   angle between the two surfaces rather than about a lane. The
+///   discrimination the old pair of rows made — same surfaces, same
+///   authoring route, different answer — is now made by these two
+///   bodies against each other on the SAME door.
+///
+/// The declared arm is still real and still reachable: a body outside
+/// the axial kinds keeps the per-face door and everything it refuses.
+/// This row no longer claims to be where that is measured.
+#[test]
+fn the_not_a_rigid_translation_door_is_unreachable_at_rest() {
+    let tol = Tol::witness();
+    for (what, body) in [
+        ("a hemisphere TANGENT to its cylinder", bullet(tol)),
+        (
+            "a dome whose centre is lifted clear of the wall's top",
+            lifted_dome(tol),
+        ),
+    ] {
+        assert_eq!(
+            scaffold_descriptions(&body),
+            0,
+            "{what}: every edge of a body at rest says which chart it lies in, so the \
+             SCAFFOLD arm the door used to hang off cannot be entered"
+        );
+        assert!(
+            declared_descriptions(&body) > 0,
+            "{what}: and these bodies do carry declared loci — which is what keeps the \
+             obstruction reachable through the authority record instead"
+        );
+    }
+    // The tangent one refuses at the CORNER; the non-tangent one
+    // hollows. Same surfaces, same authoring route, and the angle
+    // between them is the whole difference.
+    let e = pncad::topo::shell(&bullet(tol), 1.0 / 128.0, FIT_TOL, band(tol), tol)
+        .expect_err("a tangent junction has no transversal corner to solve");
+    assert_eq!(
+        offset_refusal(&e),
+        "TogetherAxialCorner",
+        "the tangent bullet refuses at the corner it is about, not at a carrier lane"
+    );
+    pncad::topo::shell(&lifted_dome(tol), 1.0 / 128.0, FIT_TOL, band(tol), tol)
+        .expect("the non-tangent dome's junction is transversal, so it hollows");
+}
+
 /// The offset door's own refusal, as a two-word class name plus what
 /// it measured — read off the payload, never off the message.
 fn offset_refusal(e: &ShellError<f64>) -> String {
@@ -365,13 +481,39 @@ fn offset_refusal(e: &ShellError<f64>) -> String {
             // neighbour's offset is not a rigid translation" is a
             // statement about the neighbouring surface, not about how
             // the meridian was authored.
+            //
+            // **Two arms raise that statement, and they are reported
+            // apart** (PCURVE P-1b). The pushforward that owes the
+            // transport used to BE the description and now sits in the
+            // authority record beside a chart image; both homes still
+            // owe it. Which home an edge's payload sits in is exactly
+            // what the narrowed retirement is about, so the rows must
+            // not be able to confuse them.
+            //
+            // Keyed on the opening NOUN, because that is the whole
+            // discriminator and it is the half of the sentence that
+            // cannot drift without the finding itself changing;
+            // matching the full literal would red this row on a rewrap
+            // of the source's line continuations, which is not a
+            // finding.
             ReplaceFaceError::CarrierLaneUnsupported { what, .. } => {
-                assert_eq!(
-                    *what, "a mapped description whose surface's offset is not a rigid translation",
-                    "this door's OTHER `what` (a carrier that is neither a line nor a circle) \
-                     would be a different finding"
+                let arm = if what.starts_with("a mapped description") {
+                    "scaffold"
+                } else if what.starts_with("a declared chart image") {
+                    "declared"
+                } else {
+                    panic!(
+                        "this door's OTHER `what`s (a carrier that is neither a line nor \
+                         a circle; a rotation-family trajectory) would be a different \
+                         finding: {what}"
+                    )
+                };
+                assert!(
+                    what.contains("is not a rigid translation"),
+                    "both arms make the same statement about the neighbouring SURFACE, \
+                     not about how the meridian was authored: {what}"
                 );
-                "CarrierLaneUnsupported".to_string()
+                format!("CarrierLaneUnsupported({arm})")
             }
             // The axial door's own two survivors, each named for what is
             // wrong with the geometry rather than for a lane it fell
@@ -478,6 +620,13 @@ fn the_hollow_now_survives_every_axial_junction() {
             "a hemisphere TANGENT to its cylinder",
             bullet(tol),
             t,
+            // main renamed this door's payload to
+            // `CarrierLaneUnsupported(declared)` while this branch was
+            // open. The rename is moot for the bullet: a tangent
+            // junction no longer reaches a carrier lane at all, it
+            // refuses at the corner's own transversality meter. The
+            // lifted dome and the quarter-revolve wedge, which main
+            // still lists here, are on the hollowing list above.
             "TogetherAxialCorner",
         ),
     ] {

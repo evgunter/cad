@@ -233,14 +233,14 @@ fn extreme_scale_fires_the_certify_door_or_stays_valid() {
 /// its two (plane) surfaces — the direct residual measurement.
 fn max_witness_residual(b: &Body<f64>) -> f64 {
     use geom::Surface;
-    use geom_brep::EdgeGeometry;
+    use geom_brep::EdgeDescription;
     let mut worst = 0.0f64;
     for (_k, e) in b.edges() {
         let geom = match b.get_curve_geom(e.curve) {
             Some(topo::CurveGeom::Certified(ec)) => ec,
             _ => continue,
         };
-        if let EdgeGeometry::Intersection { s1, s2, witness } = geom.description() {
+        if let EdgeDescription::Intersection { s1, s2, witness } = geom.description() {
             for sk in [s1, s2] {
                 if let Some(Surface::Plane { origin, normal, .. }) = b.get_surface(*sk) {
                     let d = (*witness - *origin).dot(normal.normalize()).abs();
