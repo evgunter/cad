@@ -30,12 +30,6 @@ use editor_core::{
     CancelToken, EvalOptions, Node, NodeResult, ParamValue, ProfileLift, ValuePayload, evaluate,
 };
 use geom_core::Tol;
-// Reached only from the `interval`-gated rows below, so the import is
-// gated with them: under default features nothing here names either.
-#[cfg(feature = "interval")]
-use editor_core::ParamName;
-#[cfg(feature = "interval")]
-use geom_core::Real;
 
 /// Every body point of an evaluation, by bits — the comparable surface.
 fn body_bits(ev: &editor_core::Evaluation<f64>) -> Vec<u64> {
@@ -195,7 +189,11 @@ fn a_dual_seed_on_a_profile_parameter_now_carries_a_tangent() {
 #[cfg(feature = "interval")]
 #[test]
 fn a_wide_interval_binding_aborts_typed_rather_than_certifying() {
-    use geom_core::Interval;
+    // Both of these are used ONLY by this interval-gated row, so they
+    // are imported here rather than at module scope, where the default
+    // build would carry them unused.
+    use editor_core::ParamName;
+    use geom_core::{Interval, Real};
     /// The nominal f64 loops, replayed for the record's sake.
     fn nominal_loops(resolved: &[Vec<profile::Step<f64>>]) -> Vec<profile::ProfileLoop<f64>> {
         resolved
