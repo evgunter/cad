@@ -81,3 +81,76 @@ WAYLAND_DISPLAY= cargo run -p viewer --features app
 
 Findings record: issue
 [#1097](https://github.com/evgunter/cad/issues/1097).
+
+## Running it in a browser (spike — compile/link first light only)
+
+```sh
+cargo install wasm-bindgen-cli --version "$(awk '/^name = "wasm-bindgen"$/ { getline; gsub(/[",]/, ""); print $3; exit }' Cargo.lock)"
+rustup target add wasm32-unknown-unknown
+local-scripts/serve-wasm.sh          # prints the URL to open on the phone
+```
+
+**What this is.** The single-threaded browser lane — the *named
+fallback* in `docs/GUI-PLAN.md`'s platform section, not the threaded
+GUI-5 lane Evan deferred on 2026-08-28. Nothing here needs a nightly
+toolchain, `-Zbuild-std`, `wasm-bindgen-rayon`, or cross-origin
+isolation; the pinned stable toolchain builds it as it stands.
+
+**What it is NOT, so nobody reads more into it.** It has been built
+and linked, and nothing beyond that has been verified — no first light
+on real hardware, phone or desktop. It is also not CI-guarded: the
+wasm32 step excludes `viewer` (`docs/GQ6-RESURVEY.md` §4), so a
+dependency bump can break this build with every check green.
+
+Three things are known-absent by design rather than by oversight:
+
+- **No file I/O.** The browser build links no `rfd`, so Open…/Save As…
+  are disabled with their reason showing — the same #1125 posture a
+  Linux box with no portal and no zenity gets. It opens on the
+  built-in startup document and stays there. Document I/O in a browser
+  needs the download/upload or OPFS story GUI-5 owns.
+- **No touch bindings.** `InputMap` binds orbit to a middle drag, pan
+  to a secondary drag, and zoom to a wheel (see the table above); a
+  phone has none of the three. egui delivers the touch events and
+  `Context::multi_touch` is right there, but nothing consumes them
+  yet, so navigation is expected to be unusable on a phone until a
+  touch vocabulary lands. `InputMap::map` is a pure
+  `ViewportEvent → CameraOp` function, so that work is headless-testable.
+- **No phone layout.** `initial_layout` splits viewport-beside-panels
+  horizontally at a 1280×800 design size. On a ~390 px viewport the
+  four-pane dock is unusable; the panes scroll (#1125) but that is not
+  the same as fitting.
+
+**Evaluation runs on the main thread.** The seam takes
+`evalseam::InlineEvaluator` here instead of `ThreadEvaluator`, so a
+rebuild blocks the frame that submitted it and the tab stops painting
+until the kernel returns. The busy indicator cannot help — that needs
+an in-op yield point, which GUI-PLAN rules absent for v1.
+
+**No WebGPU over plain http.** WebGPU requires a secure context, and
+`http://<lan-ip>` is not one, so `navigator.gpu` is absent on the
+phone whatever the browser version and wgpu falls back to WebGL2. That
+works only because the `egui-wgpu` edge takes default features, which
+include `wgpu/webgl` — putting `default-features = false` on that edge
+would leave the phone with no adapter. The page prints
+`secureContext` / `navigator.gpu` / `webgl2` in its error box so this
+diagnoses itself rather than presenting as a blank screen.
+
+### What serving it exposes
+
+`serve-wasm.sh` runs an **unauthenticated** static server bound to
+`0.0.0.0`, so anyone on the same network can fetch the build for as
+long as it runs. The directory it serves holds only the three
+wasm-bindgen output files, and it serves nothing else — but a
+`--release` build of this workspace keeps `debug-assertions` on (the
+root `Cargo.toml` says why), so the binary carries assertion strings
+and local source paths. Treat it as handing the LAN a copy of an
+unreleased kernel: fine on a home network, not on café or conference
+Wi-Fi. It is a foreground process; Ctrl-C ends the exposure.
+
+The WSL port-forward the script prints is the sharper edge, because
+both halves of it **outlive the script**: a `netsh portproxy` entry
+survives reboots, and a firewall rule with no `-Profile` re-opens the
+port on every network the machine later joins. The printed commands
+scope the rule to `Private` and are followed by the two lines that
+undo them; run those when the demo is over.
