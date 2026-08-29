@@ -87,3 +87,31 @@ design PR waits for Evan); M10-3/M10-4 carry the
 magnitude-parameter dispatch valve. Amendment self-merged as a
 faithful elaboration (the ratified exit shape is unreachable
 without it); the design fork itself is reserved for M10-P's PR.
+
+## M10-1 dual review adjudication (2026-08-29)
+
+Both arms APPROVE-WITH-FIXES on frozen 0e9ef0b4. R2 found the
+unit's one silent correctness defect (deep-tail cancellation —
+`1 − erf` bit-zeros the tail from ~8.5σ; unilateral MAJOR by
+execution, tally candidate at merge); the carry-forward class and
+the unpinned GUI fix were bilateral at different severities. Fix
+pass dispatched as the adjudicated union to a FRESH same-arm lane
+(the original lane's worktree had been reclaimed at report time,
+which broke resume — reclaim implementer worktrees only after the
+fix pass concludes, or accept fresh-lane fix passes and record the
+executor covariate, as here).
+
+Class findings given homes at adjudication (the standing rule):
+
+- **"Priced" vs "set-theoretically forced" mass are one type**
+  today: `box_mass(Band, covering) = Ok(1)` is measure-free and
+  correct, but an E10 unresolved-mass budget over Band-only params
+  would read "fully priced" while no shape was ever stated. M10-6's
+  report/budget spec must distinguish the two (R2 MINOR-1).
+- **"No distribution ⇒ mass 1" lives in prose, not API** — every
+  consumer special-cases `None` by hand. M10-3's driver spec should
+  give the fixed-param case a typed spelling (R2 style finding).
+- **A distribution is invisible in the GUI** (`ParamRow` carries
+  none), so users can hold state they cannot see; the census
+  records Python's gap, nothing records the GUI's. GUI follow-up
+  slate (R1 NOTE).
