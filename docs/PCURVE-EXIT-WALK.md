@@ -1,8 +1,10 @@
 # PCURVE — exit walk
 
-STATUS: **PROPOSED — awaiting Evan's ratification.** A program is closed
-when its exit walk is ratified; that walk is then its done-state of
-record. Nothing here is a claim about work not yet merged.
+STATUS: **RATIFIED — PCURVE CLOSED** (Evan, in-chat, 2026-08-29:
+"lgtm! you can merge the exit walk"). A program is closed when its exit
+walk is ratified; **this walk is PCURVE's done-state of record.**
+Nothing here is a claim about work not yet merged: P-1a (#1073), P-1b
+(#1107) and P-2 (#1177, merged at `fec15263`) are all on main.
 
 The plan's criterion rows are quoted VERBATIM from
 `docs/PCURVE-PLAN.md`'s "Exit shape (proposed)" and answered one at a
