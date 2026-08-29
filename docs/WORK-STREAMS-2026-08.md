@@ -8,6 +8,13 @@ recorded in `docs/MODEL-AB-LOG.md` in the opening commit) or by folding
 into the program that owns its territory. Inputs: all 152 open issues,
 the open PRs, and the live program docs, all read on 2026-08-29.
 
+**Revised 2026-08-29 (later the same day): PCURVE closed.** Its exit
+walk is ratified, its whole slate is on main, and the `geom-brep` and
+`topo`-consumer ground three streams fenced against is released. The
+PCURVE bullet below, S-BOOL's and S-MESH's track claims, S-CERT's
+keep-out list and the overlap rules are updated to that state; nothing
+else in this cut moved.
+
 ## Territory already occupied
 
 - **M10** (`m10/`): editor-core parameters/analysis/eval, `geom-core/dual.rs`,
@@ -16,10 +23,27 @@ the open PRs, and the live program docs, all read on 2026-08-29.
   of `crates/bvh` (M10-5), schema v15/v16, profile-parameter lift
   (#1174 under dual review), M10-2 Measure/Assertions spec just
   merged (#1197).
-- **PCURVE** (`pcurve/`): `geom-brep` certify/edge_nurbs/adopt/nurbs_iso,
-  topo pcurve consumers. P-1b live; P-2 is a wind-down WIP snapshot
-  (#1177) with a declared resume — its diff includes a
-  `Vec3::orthonormal_basis` fix, so #1157 is possibly in flight there.
+- **PCURVE** — **CLOSED (2026-08-29)**, and its territory is
+  **released**. `docs/PCURVE-EXIT-WALK.md` is ratified and is the
+  program's done-state of record; P-1a (#1073), P-1b (#1107) and P-2
+  (#1177, merged at `fec15263`) are all on main, and P-3 was removed
+  before any code was written. The `geom-brep`
+  certify/edge_nurbs/adopt/nurbs_iso files and the `topo` pcurve
+  consumers are nobody's fence now — see S-BOOL and S-MESH, both of
+  which fenced against them and no longer need to.
+  `Vec3::orthonormal_basis` (#1157) **is fixed on main**: the
+  denominator is written `1 + |n.z|`, and the partial first fix (which
+  the f64-bitwise row structurally could not catch — exit-walk H2) is
+  closed by `orthonormal_basis_is_bounded_over_z_enclosures` beside
+  it. **The issue is open as bookkeeping only**; do not schedule it as
+  work without re-reading `crates/geom-core/src/linalg/vec.rs` first.
+  What the walk leaves **named and unowned**, none of it cut into a
+  stream here: #264 (`PXN_IMAGE_DEGREE`, which blocks the split-out
+  diagonal half), #1195 (de Boor collapse extractor), and #1179 (the
+  six measurement consumers that now refuse TYPED on an affected
+  face). Its other named residues already have owners — #1152 is
+  S-BOOL's below, #1143 is M10's (governed by ratified DL6),
+  #1128/#1204 are S-QA's.
 - **VERBS** (`verbs/`): shell/offset solves in `crates/sweep` and
   `topo/replace_face.rs` (SHELLFIX 2b, #1180, in its final fix pass);
   its post-SHELLFIX queue is boolean breadth — germ arms (#347's
@@ -68,7 +92,6 @@ largest real-defect group in the tracker and nobody's territory.
 Keep out: `geom-core/dual.rs`, the `AtRestPolicy` seam in
 `topo/src/props.rs`, the Dual arms of `editor-core/src/product.rs`,
 and Dual-at-certified-gates semantics (all M10's ratified slate);
-`orthonormal_basis` (#1157 — check #1177's resume state first);
 #1018–#1020 (scheduled at OFF-D under VERBS); the #1143
 poison-vs-widen ruling (M10-D ratified the contract; this stream
 supplies instances, not the answer).
@@ -104,8 +127,13 @@ cut.
   VERBS-GATE's pair-scoping), #1152.
 - Containment/props: #750 (extent-box coarse), #542, #368, #433
   (needs a disposition), #134.
-- Claims SMELL track Q's topo rows; leaves Q's `geom-brep/ssi*` files
-  alone until PCURVE's P-2 resumes and lands.
+- **Claims SMELL track Q whole** — the topo rows and, since PCURVE
+  closed, the four `geom-brep` paths Q's fence names (`ssi*`,
+  `pcurve_cache.rs`, `nurbs_iso.rs`, `edge_nurbs.rs`). The earlier cut
+  held those back for P-2; nothing fences them now, and taking the
+  whole track is what the partition's single-owner rule wants. That
+  adds D36, D283 (a design question for Evan, not a lane's) and D284
+  to this stream, and the geom-brep halves of D46, D281 and H11.
 
 ### S-MESH — mesh honesty and budget (`mesh/`)
 
@@ -119,8 +147,17 @@ cut.
 - Structure: #881 (ε as a bare f64), #726 / #727 (iso-rectangle
   ownership — design input), #782 (red tessellation pin, unrun by any
   lane; re-baselining is a mesh question).
-- Claims SMELL track R's mesh rows; R's geom-brep remainder waits on
-  PCURVE.
+- **Claims SMELL track R whole** — the mesh rows and the `geom-brep`
+  remainder, which PCURVE's close releases. That includes the ground R's
+  fence took on 2026-08-28 (`patch_bound.rs`, `offset_meters.rs`,
+  `nurbs_hull.rs` and the rest of the crate's `src/` less Q's four
+  paths), so `C23` — whose constant is
+  `patch_bound::RATIONAL_CERT_SPLITS` and which no track could execute
+  before that widening — is takeable here. **Two of the released rows
+  stay gated, and not on PCURVE**: `C3` and `D30` (`props/quad.rs`'s
+  four quadrature engines) are NOT takeable until #723 is fixed, which
+  is S-CERT's first accepting-defect row — consolidating first bakes a
+  wrong certified volume in. Coordinate the order with S-CERT.
 
 ### S-QA — gates that lie (`qa/`)
 
@@ -182,10 +219,11 @@ as design conversations, then implements.
 - One file territory per stream, mirroring the SMELL partition rule;
   where a stream claims a SMELL track it takes the whole track so the
   schedule stays single-owner.
-- Streams stay out of PCURVE's geom-brep files, SHELLFIX's
-  shell/offset files, M10's editor-core/dual/schema territory, and
-  LIB's façade/bindings until those units land; seams are named per
-  stream above.
+- Streams stay out of SHELLFIX's shell/offset files, M10's
+  editor-core/dual/schema territory, and LIB's façade/bindings until
+  those units land; seams are named per stream above. (PCURVE's
+  `geom-brep` files were on this list and are not any more — the
+  program closed 2026-08-29.)
 - Design rulings stay with Evan: a stream may file instances and open
   conversations (#827, #433, #726/#727, #945, #943) but not resolve
   them by implementing.
