@@ -277,10 +277,10 @@ mod interval_lane {
         }
         // Straddling and reaching ±1: record whether it is bounded.
         let z = Interval::from_bounds(-1.0, 1.0);
-        let n = Vec3::new(iv(0.0), iv(0.1), z);
+        let n = Vec3::new(iv(0.1), iv(0.2), z);
         let (b1, _) = n.orthonormal_basis();
         println!(
-            "R1 note: full-straddle z = [-1, 1] gives b1.x = [{}, {}] (bounded: {})",
+            "R1 note: full-straddle z = [-1, 1], x = 0.1 gives b1.x = [{}, {}] (bounded: {})",
             b1.x.lo(),
             b1.x.hi(),
             b1.x.lo().is_finite() && b1.x.hi().is_finite()
