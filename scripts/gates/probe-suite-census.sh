@@ -897,6 +897,39 @@ selftest_hosted_half_is_large() {
   rm -rf "$tmp"
 }
 
+# A MATCHER HANDED A PATTERN THE REAL GREP REJECTS must end the gate
+# with a diagnosis, never in a green. The corruption is an invalid
+# backreference appended to whatever pattern the call carries, riding a
+# PATH shim so it reaches this gate's own `-rlE` scan — the silence
+# scan, whose old spelling suppressed the resulting exit 2 twice
+# (`2>/dev/null` ate grep's message, `|| true` ate the status) and
+# printed OK over it. Every other grep call passes through untouched,
+# so the gate gets exactly as far as a healthy run before its matcher
+# dies — which is what distinguishes this arm from the stubbed-grep one
+# below: that one proves the FIRST matcher cannot die silently, this
+# one proves the LAST cannot either.
+selftest_malformed_pattern() {
+  local tmp bin out real
+  real=$(command -v grep)
+  tmp=$(mktemp -d); bin=$(mktemp -d)
+  gate_plant_clean "$tmp"
+  printf '#!/bin/sh\ncase " $* " in *" -rlE "*) exec %s "$@" -e '\''\\9|(?'\'' ;; esac\nexec %s "$@"\n' \
+    "$real" "$real" > "$bin/grep"
+  chmod +x "$bin/grep"
+  if out=$(PATH="$bin:$PATH" "$0" --root "$tmp" 2>&1); then
+    rm -rf "$tmp" "$bin"
+    printf 'SELFTEST FAILED: the gate PASSED with its -rlE matcher rejecting its own pattern — a matcher that could not search decided nothing\n%s\n' "$out" >&2
+    exit 1
+  fi
+  rm -rf "$tmp" "$bin"
+  gate_selftest_assert_diagnosed "a pattern grep rejects" "$out"
+  case "$out" in
+    *"it is grep saying it could not search"*) ;;
+    *) printf 'SELFTEST FAILED (a pattern grep rejects): the gate fired with an unexpected message:\n%s\n' "$out" >&2
+       exit 1 ;;
+  esac
+}
+
 # A COMPOUND GATE IS CORRECT, NOT A VIOLATION, and the fixture asserts
 # the census counts it — `sweep`'s floor is 1 over exactly one file, so
 # a predicate with no vocabulary for `all(…)` reds this case.
@@ -1014,6 +1047,8 @@ gate_selftest() {
   selftest_listing
   selftest_executed
   selftest_compound_counted
+  selftest_malformed_pattern
+  gate_selftest_without_tool grep "it is grep saying it could not search"
   gate_selftest_case 'scanned nothing' plant_no_tests_dirs
   gate_selftest_case 'no longer matches it' plant_gate_renamed
   gate_selftest_case 'topo carries 0 probe-gated test suite(s), below the 5' plant_crate_misgated
@@ -1046,7 +1081,7 @@ gate_selftest() {
   gate_plant_clean_exempt_control
   GATE_SELFTEST_ARGS=()
 
-  printf '%s selftest OK: passes a clean fixture, one with a ci.yml long enough to race, a compound gate, a complete listing, and a tally meeting every rostered execution; fires on a listing missing a counted suite, on an empty one, and on an absent tests/ tree, a renamed gate spelling, every gate in one crate re-spelt onto a misspelt feature, every gate line in another replaced by a prose mention, a clippy row that stopped denying warnings, the cfg lint silenced at the site, a suite with no declared disposition, the disposition sentence written as an ordinary comment rather than a doc comment, the blanket sentence over a partly-gated file and the partial one over a wholly-gated file, a rostered suite claiming it is not run, a roster row naming no censused file, and a sweep that stopped feeding --check-executed or commented the call out — and in --check-executed mode, on a suite SELECTED that executed nothing, a dropped invocation, an empty tally, an unrostered execution, a malformed row, an `#[ignore]`d test no selection runs, and a suite rostered under `--ignored` alone; and in --citations mode, on a dropped citation, a deleted citing file, a renamed CI step, and an undeclared new citation, while PASSING the same citation in a declared-history file\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture, one with a ci.yml long enough to race, a compound gate, a complete listing, and a tally meeting every rostered execution; fires on a listing missing a counted suite, on an empty one, and on an absent tests/ tree, a renamed gate spelling, every gate in one crate re-spelt onto a misspelt feature, every gate line in another replaced by a prose mention, a clippy row that stopped denying warnings, the cfg lint silenced at the site, a suite with no declared disposition, the disposition sentence written as an ordinary comment rather than a doc comment, the blanket sentence over a partly-gated file and the partial one over a wholly-gated file, a rostered suite claiming it is not run, a roster row naming no censused file, and a sweep that stopped feeding --check-executed or commented the call out, and — matcher-death, both ends — on grep vanishing out from under the gate and on the real grep rejecting a live matcher'"'"'s pattern (an invalid backreference riding the -rlE scan), each ending in a diagnosis rather than a green — and in --check-executed mode, on a suite SELECTED that executed nothing, a dropped invocation, an empty tally, an unrostered execution, a malformed row, an `#[ignore]`d test no selection runs, and a suite rostered under `--ignored` alone; and in --citations mode, on a dropped citation, a deleted citing file, a renamed CI step, and an undeclared new citation, while PASSING the same citation in a declared-history file\n' "$(gate_name)"
 }
 
 # The negative control for the completeness check: the same planted
