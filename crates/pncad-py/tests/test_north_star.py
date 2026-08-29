@@ -2217,15 +2217,17 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             sorted(n for n in dir(Node) if not n.startswith("_")),
             [
                 "boolean", "datum_axis", "datum_plane", "declare", "extrude",
-                "fillet", "loft", "placed_union", "placed_union_at", "polygon",
-                "profile", "revolve", "split", "transform",
+                "fillet", "instantiate_part", "loft", "mate", "placed_union",
+                "placed_union_at", "polygon", "profile", "revolve", "split",
+                "transform",
             ],
         )
         self.assertEqual(
             sorted(n for n in dir(DocEdit) if not n.startswith("_")),
             [
                 "bind_count_param", "delete_node", "insert_node",
-                "set_doc_param", "set_doc_param_value", "set_tolerance",
+                "set_doc_param", "set_doc_param_value", "set_placement",
+                "set_roots", "set_tolerance", "update_reference",
             ],
         )
 
@@ -2277,20 +2279,18 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             # `DimensionError` means the quantity boundary. Whoever
             # binds it decides which class those arms raise.
             "Expr",
-            # G18: the assembly surface. Its STRUCTURAL first door —
-            # `evaluate` taking no resolver — is CLOSED (LIB-G18a),
-            # and what that closed is pinned positively below and in
-            # `tests/test_assembly_eval.py`; these are the AUTHORING
-            # vocabulary the rest of the series would bring.
-            # `update_to_store` is HERE and not with the store doors
-            # above, measured rather than assumed: what it moves is a
-            # pin AT ITS SITES, a site is an `InstantiatePart` node's
-            # `DocRef`, and Python can author none — so on every
-            # document Python can build it would answer the
-            # "referenced nowhere" refusal and nothing else.
-            "Alignment", "MateFrame", "MatePrimitive", "AxisSense",
-            "assemble", "Assembly", "AssemblyError", "solve_document",
-            "update_to_store", "update_references", "mixed_pins",
+            # G18 LEFT this list at LIB-G18b, the series' second half:
+            # `Alignment`, `MateFrame`, `MatePrimitive`, `AxisSense`,
+            # `assemble`, `Assembly`, `AssemblyError`,
+            # `solve_document`, `update_references`, `mixed_pins` and
+            # `Workspace.update_to_store` are all bound, and the
+            # positive form is `tests/test_assembly_author.py`, which
+            # authors the tour's two bench documents from nothing —
+            # two part documents into a store, instances of them, the
+            # mates that seat one on the other, the solve, the gather
+            # and the A5 gate. `update_to_store` is a Workspace METHOD
+            # rather than a module door, which is why it is not tested
+            # for here.
             # G16 / G17: the two shipped kernel verbs with no node.
             # Absent as MODULE doors too — the tour reaches them as
             # `pncad::sweep::chamfer_edges` and `pncad::topo::shell`,
@@ -2331,17 +2331,20 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # `placed_union`/`placed_union_at` left it when LIB-PYPU bound
         # the group boolean, whose value is an ordinary body.
         #
-        # `chamfer` (G16), `shell`/`shell_open` (G17) and
-        # `instantiate_part`/`mate` (G18) are the roster re-cut's
-        # additions, and all five are the SAME shape as `sweep`/`tube`
-        # from the other side: the kernel verb ships and `Node` has no
-        # variant for it, so the scene that uses it has no document.
-        # `chamfer_edges` landed at VERBS-CHAMFER (#920, its recipe
-        # door scheduled as #918); `shell`/`shell_open` at #1048.
+        # `chamfer` (G16) and `shell`/`shell_open` (G17) are the
+        # SAME shape as `sweep`/`tube` from the other side: the kernel
+        # verb ships and `Node` has no variant for it, so the scene
+        # that uses it has no document. `chamfer_edges` landed at
+        # VERBS-CHAMFER (#920, its recipe door scheduled as #918);
+        # `shell`/`shell_open` at #1048.
+        #
+        # `instantiate_part` and `mate` LEFT this list at LIB-G18b,
+        # and `set_placement` with them — it was never a `Node` at
+        # all, it is `DocEdit.set_placement`, which is where the A11
+        # rule that placement is the CLUSTER's puts it.
         for node_kind in [
             "sweep", "tube", "pattern",
             "chamfer", "shell", "shell_open",
-            "instantiate_part", "mate", "set_placement",
         ]:
             with self.subTest(node=node_kind):
                 self.assertFalse(hasattr(Node, node_kind), f"Node.{node_kind} exists")
