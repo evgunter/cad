@@ -549,7 +549,7 @@ fn p2_substrate_probe() {
         match topo::mint_pcurves(&mut body, Tol::witness()) {
             Ok(()) => {
                 println!("  mint_pcurves: OK");
-                let findings = topo::validate_pcurves(&body, band());
+                let findings = topo::pcurves::validate_pcurves(&body, band());
                 println!("  validate_pcurves: {} findings", findings.len());
                 for f in findings.iter().take(3) {
                     println!("    {f:?}");
