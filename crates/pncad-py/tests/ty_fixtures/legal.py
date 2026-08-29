@@ -7,41 +7,89 @@ the guide's own executed blocks.
 """
 
 from pncad import (
+    Advisory,
+    Alignment,
     ArcSweep,
+    Assembly,
+    AxisSense,
     Bulge,
     BooleanOp,
     CapEnd,
     Center,
+    CheckId,
+    CheckKind,
+    ChecksConfig,
+    ChecksReport,
     Cmp,
     ContactClass,
+    ContentPin,
     CurveKind,
+    CheckFinding,
+    ClassAdmission,
+    ClusterMaintenance,
+    Denotation,
     Doc,
     DocEdit,
+    DocRef,
+    InlineOutcome,
+    InterfaceRecord,
     EntityKind,
+    Evaluation,
     FlushFinding,
     FlushRung,
     Frame,
     GeomPred,
     Length,
+    Body,
+    MateFault,
+    MateFrame,
+    MatePrimitive,
+    MateRole,
     NamePat,
     Node,
     NodeId,
+    Pose,
+    PinMultiplicity,
     ParamName,
     PatternKind,
+    SolvedPoses,
+    SplitOutcome,
     Via,
     Open,
     PlaneRelation,
     SegPat,
     SegTag,
     Selector,
+    Severity,
     SketchPlane,
     Start,
     SurfaceKind,
+    Workspace,
+    assemble,
+    canonical_bytes,
     circle,
+    class_admission,
+    clusters,
+    content_pin,
     deg,
+    enforce_checks,
     evaluate,
+    gauge_of,
+    header_document_id,
+    inline,
     m,
+    mixed_pins,
     mm,
+    product,
+    product_named,
+    random_document_id,
+    reading_edges,
+    relative_freedom_components,
+    run_checks,
+    solve_document,
+    split,
+    subject_body,
+    update_references,
 )
 
 outline = (
@@ -241,3 +289,117 @@ listed: PatternKind = PatternKind.explicit([here, turned])
 fin_group: NodeId = doc.insert(Node.placed_union(plate, 5, stepped))
 listed_group: NodeId = doc.insert(Node.placed_union_at(plate, [here, turned]))
 count_bound: DocEdit = DocEdit.bind_count_param(fin_group, ParamName("fins"))
+
+# LIB-G15: the workspace store. Identity crosses as the canonical hex
+# text, the pin as a value, and a reference as the pair of them.
+pin: ContentPin = content_pin(doc)
+pin_text: str = pin.hex
+same_pin: ContentPin = ContentPin(pin_text)
+reference: DocRef = DocRef(doc.id, pin)
+reference_id: str = reference.id
+reference_pin: ContentPin = reference.pin
+minted: str = random_document_id()
+preimage: bytes = canonical_bytes(doc)
+scanned: str = header_document_id(doc.save())
+
+store: Workspace = Workspace("parts")
+store_root: str = store.root
+listing: dict[str, str] = store.documents()
+written: str = store.create(doc)
+rewritten: str = store.resave(doc)
+resolved: Doc = store.resolve(reference)
+current: ContentPin = store.current_pin(doc.id)
+held: int = len(store)
+
+# LIB-G18a: the document seam and the memo, `evaluate`'s two keyword
+# doors. A store is passed AS the resolver — it IS one — and a prior
+# evaluation is the memo, whose reuse the two counters make readable.
+seamed: Evaluation = evaluate(doc, resolver=store)
+memoized: Evaluation = evaluate(doc, prior=seamed)
+both: Evaluation = evaluate(doc, resolver=store, prior=memoized)
+reused_nodes: int = both.reused
+recomputed_nodes: int = both.recomputed
+crossings: int = both.part_evaluations
+
+# LIB-G18b: the assembly authoring vocabulary. A reference becomes an
+# instance, an edit places its cluster, a mate says how two instances
+# meet, and the gate says whether the result is valid at rest.
+instance: NodeId = doc.insert(Node.instantiate_part(reference))
+placed: DocEdit = DocEdit.set_placement(instance, here)
+designated: DocEdit = DocEdit.set_roots([instance])
+repinned: DocEdit = DocEdit.update_reference(instance, pin)
+product_roots: list[NodeId] = doc.roots
+cluster_frame: Frame = doc.placement(instance)
+registry: dict[NodeId, Frame] = doc.placements()
+carried: DocRef | None = doc.reference(instance)
+seam_record: InterfaceRecord | None = doc.interface(instance)
+after_edit: list[ClusterMaintenance] = doc.last_maintenance
+
+# The authored mate datum: two frames, a primitive, an axis sense, and
+# an optional clocking rider.
+side_a: MateFrame = MateFrame((0 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0), (1.0, 0.0, 0.0))
+side_b: MateFrame = MateFrame((0 * m, 0 * m, 1 * m), (0.0, 0.0, 1.0), (1.0, 0.0, 0.0))
+seated: MatePrimitive = MatePrimitive.planar_rest(0 * m)
+datum: Alignment = Alignment(side_a, side_b, seated, AxisSense.Aligned)
+clocked: Alignment = Alignment(
+    side_a, side_b, MatePrimitive.coaxial(), AxisSense.Opposed, 90 * deg
+)
+arm: Length = datum.lever_arm
+seat_pose: Frame = side_a.placement()
+joint: NodeId = doc.insert(
+    Node.mate("a-name", "b-name", ContactClass.Rest, datum)
+)
+
+# The solve's read side, and the admission table a tool asks first.
+poses: SolvedPoses = solve_document(doc)
+gauge: NodeId | None = poses.gauge(instance)
+role: MateRole | None = poses.role(joint)
+refusal: MateFault | None = poses.fault(joint)
+world: Frame = poses.placement(doc, instance)
+groups: list[list[NodeId]] = clusters(doc)
+keyed_by: NodeId = gauge_of(doc, instance)
+edges: list[tuple[NodeId, NodeId]] = reading_edges(doc)
+partition: list[list[NodeId]] = relative_freedom_components(doc)
+admission: ClassAdmission = class_admission(ContactClass.Rest)
+mintable: bool = admission.mints
+
+# The gather and the gate.
+gathered: Body = product(doc, seamed)
+named_gather: tuple[Body, list[str]] = product_named(doc, seamed)
+checked: Assembly = assemble(doc, seamed)
+declared: int = len(checked.minted)
+
+# The refactorings and the pin-update door.
+cut: SplitOutcome = split(doc, [instance], minted)
+spliced: InlineOutcome = inline(cut.remainder, cut.instance, store)
+lint: list[PinMultiplicity] = mixed_pins(doc)
+moves: list[DocEdit] = update_references(doc, doc.id, pin)
+to_store: list[DocEdit] = store.update_to_store(doc, doc.id)
+
+# The read-back doors: a name in, VALUES out. The origin is
+# dimensioned and the directions are not — a position carries a
+# `Length`, a direction is a bare triple — and `u_ref` is OPTIONAL
+# because a carrier that fixes no reference direction says so.
+cap_name: str = seamed.all_faces(upright)[0]
+where: Pose = seamed.face_frame(upright, cap_name)
+sits_at: tuple[Length, Length, Length] = where.origin
+normal: tuple[float, float, float] = where.axis
+clocking: tuple[float, float, float] | None = where.u_ref
+edge_pose: Pose = seamed.edge_frame(upright, seamed.all_edges(upright)[0])
+corner: tuple[Length, Length, Length] = seamed.vertex_position(
+    upright, seamed.all_vertices(upright)[0]
+)
+denotes: Denotation = seamed.denotation(upright, cap_name)
+tied: bool = denotes.tied
+# The advisory checks: a report out of one door, a gate the caller
+# opens at the other, and the subject a finding names.
+report: ChecksReport = run_checks(doc, seamed)
+strict: ChecksConfig = ChecksConfig(
+    connectedness=Severity.Error,
+    expected_components=[(instance, 0, 2)],
+    separation=Advisory.Warn,
+)
+findings: list[CheckFinding] = run_checks(doc, seamed, strict).findings
+label: CheckKind = CheckId.Connectedness.kind
+enforce_checks(report, strict)
+flagged: Body | None = subject_body(seamed, instance, 0)

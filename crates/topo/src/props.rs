@@ -33,7 +33,9 @@ use geom_brep::props::{FaceContribution, LoopEdge, PropsError, curved_face, plan
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Real, Sign, Tol};
 
 use crate::body::Body;
+use crate::boolean::ContactRecords;
 use crate::entity::{FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, ShellKey, SolidKey, VertexKey};
+use crate::validate::ValidationError;
 
 /// Exact-B-rep integral properties of a body.
 ///
@@ -664,14 +666,16 @@ pub trait PropsQuadLane:
     /// `k_stats` name). This is the one accessor that answers it.
     ///
     /// **Why a method and not `PropsQuadLane: Enclosure`.**
-    /// `geom-core`'s `real.rs` says in as many words that a new
-    /// `T: Enclosure` bound *on anything that certifies* would be an
-    /// ungated hole (issue #701), and `PropsQuadLane` is exactly "this
-    /// scalar can certify a body at rest". So the bracket arrives
-    /// through one named accessor whose four implementations live in
-    /// this file — the one already ratified for the compound `Bounds`
-    /// seam — instead of through a blanket bound that would let any
-    /// certifying signature read brackets silently. The distinct name
+    /// `PropsQuadLane` is exactly "this scalar can certify a body at
+    /// rest", and a supertrait `Enclosure` would hand every certifying
+    /// signature silent bracket extraction through the blanket
+    /// `impl<T: Bounds> Enclosure for T`. `scripts/gates/`
+    /// `bounds-allowlist.sh` greps `Enclosure` exactly as `Bounds`
+    /// (DUAL-DESIGN DL4), but this file is on its allowlist, so the
+    /// gate would not refuse the supertrait here — the named accessor
+    /// is what keeps the bracket read explicit and single-doored. Its
+    /// four implementations live in this file, the seam already
+    /// ratified for the compound `Bounds` bound. The distinct name
     /// also keeps `lo`/`hi` unshadowed at every concrete call site.
     fn datum_lo(self) -> f64;
 
@@ -888,6 +892,241 @@ where
         _tol: Tol,
     ) -> Result<Option<FaceCutBounds>, PropsError> {
         Ok(None)
+    }
+}
+
+/// The **scalar policy for the certified at-rest gates**
+/// (`docs/DUAL-DESIGN.md` DL3): whether an evaluation-service
+/// consumer of [`crate::validate_geometric`] /
+/// [`crate::validate_pseudomanifold`] runs them at this scalar.
+///
+/// Certified validation is an act of certification — its tier-3
+/// battery re-derives surface certificates
+/// ([`PropsQuadLane::recertify_approx`]), encloses volume flux
+/// through the quadrature lane, and certifies the contact census —
+/// so it belongs to the scalars with certification rights (`f64`,
+/// the telemetry probe, the interval scalar), whose impls here
+/// delegate to the validation doors verbatim. At a
+/// [`Dual`](geom_core::Dual) the gate is **structurally absent**:
+/// the impl calls nothing, and its success arm SAYS so — the outcome
+/// type separates [`AtRestOutcome::Validated`] from
+/// [`AtRestOutcome::NotRunAtThisScalar`], so a dual gate's `Ok` can
+/// never be read as a certification at any call site. What makes the
+/// absence sound is the PAIRING OBLIGATION: a dual evaluation rides
+/// BESIDE a base-scalar evaluation of the same recipe, whose value
+/// channel is bit-identical (the dual contract) and which these same
+/// gates validate. Nothing in the type system enforces that pairing
+/// at the public doors today; the E4 driver's content-key equality
+/// assertion (DL3's soundness hook) is a NAMED banked obligation of
+/// M10-4's driver. That is sound because
+/// a dual evaluation's value channel is bit-identical to the base
+/// scalar's run of the same recipe (the dual contract), which the
+/// base-scalar evaluation it rides beside already validates;
+/// re-validating the same bits through the dual's refusing
+/// certification arms adds no information. Asking a dual to
+/// validate IS asking it to certify, and a dual never certifies
+/// (DL1).
+///
+/// This is a compile-time, per-scalar policy — never a runtime flag,
+/// and never a swallowed per-face error: the dual arm does not run
+/// validation and discard refusals, it runs nothing. The validation
+/// doors themselves keep their meaning at every `PropsQuadLane`
+/// scalar; this trait only decides which scalars' evaluation-service
+/// gates consult them.
+pub trait AtRestPolicy: PropsQuadLane {
+    /// The at-rest gate over a body ([`crate::validate_geometric`] at
+    /// certifying scalars; absent at duals, and the outcome says
+    /// which).
+    ///
+    /// # Errors
+    ///
+    /// The validator's own findings, verbatim, where the scalar runs
+    /// it.
+    fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>>;
+
+    /// The at-rest gate over a body with declared contacts — the
+    /// tier-3′ census door ([`crate::validate_pseudomanifold`] at
+    /// certifying scalars; absent at duals).
+    ///
+    /// # Errors
+    ///
+    /// The validator's own findings, verbatim, where the scalar runs
+    /// it.
+    fn gate_at_rest_declared(
+        body: &Body<Self>,
+        contacts: &ContactRecords,
+        tol: Tol,
+    ) -> Result<AtRestOutcome, Vec<ValidationError>>;
+}
+
+/// What an [`AtRestPolicy`] gate's success MEANS — the word that keeps
+/// a non-certifying scalar's `Ok` from reading as a certification.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AtRestOutcome {
+    /// The certified at-rest validator ran on these bits and passed.
+    Validated,
+    /// This scalar's policy runs no validator (a dual): nothing was
+    /// checked here and nothing is granted. The base-scalar evaluation
+    /// beside this one is the validation of record — the DL3 pairing
+    /// obligation, stated at the doors that return this.
+    NotRunAtThisScalar,
+}
+
+impl AtRestPolicy for f64 {
+    fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
+        crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
+    }
+
+    fn gate_at_rest_declared(
+        body: &Body<Self>,
+        contacts: &ContactRecords,
+        tol: Tol,
+    ) -> Result<AtRestOutcome, Vec<ValidationError>> {
+        crate::validate::validate_pseudomanifold(body, contacts, tol)
+            .map(|()| AtRestOutcome::Validated)
+    }
+}
+
+#[cfg(feature = "probe")]
+impl AtRestPolicy for geom_core::Probe {
+    fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
+        crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
+    }
+
+    fn gate_at_rest_declared(
+        body: &Body<Self>,
+        contacts: &ContactRecords,
+        tol: Tol,
+    ) -> Result<AtRestOutcome, Vec<ValidationError>> {
+        crate::validate::validate_pseudomanifold(body, contacts, tol)
+            .map(|()| AtRestOutcome::Validated)
+    }
+}
+
+#[cfg(feature = "interval")]
+impl AtRestPolicy for geom_core::interval::Interval {
+    fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
+        crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
+    }
+
+    fn gate_at_rest_declared(
+        body: &Body<Self>,
+        contacts: &ContactRecords,
+        tol: Tol,
+    ) -> Result<AtRestOutcome, Vec<ValidationError>> {
+        crate::validate::validate_pseudomanifold(body, contacts, tol)
+            .map(|()| AtRestOutcome::Validated)
+    }
+}
+
+/// The dual arm: STRUCTURALLY ABSENT — no validation door is named,
+/// so nothing runs, nothing refuses, and no error exists to swallow;
+/// the success arm is [`AtRestOutcome::NotRunAtThisScalar`], never a
+/// claim about the geometry (trait docs). The base-scalar evaluation
+/// of the same recipe is where these bits are validated — the DL3
+/// pairing obligation.
+impl<T> AtRestPolicy for geom_core::Dual<T>
+where
+    geom_core::Dual<T>: PropsQuadLane,
+{
+    fn gate_at_rest(_body: &Body<Self>, _tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>> {
+        Ok(AtRestOutcome::NotRunAtThisScalar)
+    }
+
+    fn gate_at_rest_declared(
+        _body: &Body<Self>,
+        _contacts: &ContactRecords,
+        _tol: Tol,
+    ) -> Result<AtRestOutcome, Vec<ValidationError>> {
+        Ok(AtRestOutcome::NotRunAtThisScalar)
+    }
+}
+
+#[cfg(test)]
+mod at_rest_policy_tests {
+    #![allow(clippy::expect_used)]
+    //! The certifying policy arms ARE the validation doors — pinned on
+    //! a REFUSING subject, because the passing direction is pinned all
+    //! day by every green corpus gather while an arm gutted into a
+    //! grant stays invisible to it. Each certifying (scalar, method)
+    //! pair is asserted equal to its door on a body the door refuses,
+    //! so `Ok(Validated)`-without-validating cannot survive these rows.
+
+    use super::{AtRestOutcome, AtRestPolicy};
+    use crate::body::Body;
+    use crate::boolean::ContactRecords;
+    use geom_core::{Decide, Point3, Tol};
+
+    /// The `mvfs` seed body: its face surface is the placeholder, which
+    /// a body at rest may not carry (`Body::mvfs` docs) — the cheapest
+    /// scalar-generic refusing subject.
+    fn refusing_body<T: Decide>() -> Body<T> {
+        let mut b = Body::new();
+        b.mvfs(Point3::new(T::zero(), T::zero(), T::zero()))
+            .expect("mvfs has no preconditions");
+        b
+    }
+
+    fn certifying_arms_are_the_doors<T: AtRestPolicy>() {
+        let tol = Tol::witness();
+        let b = refusing_body::<T>();
+        let door = crate::validate::validate_geometric(&b, tol);
+        assert!(door.is_err(), "the seed body must refuse validation");
+        assert_eq!(
+            T::gate_at_rest(&b, tol),
+            door.map(|()| AtRestOutcome::Validated),
+            "gate_at_rest must be validate_geometric verbatim at a certifying scalar"
+        );
+        let contacts = ContactRecords::default();
+        let door = crate::validate::validate_pseudomanifold(&b, &contacts, tol);
+        assert!(door.is_err(), "the seed body must refuse the census door");
+        assert_eq!(
+            T::gate_at_rest_declared(&b, &contacts, tol),
+            door.map(|()| AtRestOutcome::Validated),
+            "gate_at_rest_declared must be validate_pseudomanifold verbatim at a certifying scalar"
+        );
+    }
+
+    #[test]
+    fn f64_gates_run_the_doors() {
+        certifying_arms_are_the_doors::<f64>();
+    }
+
+    #[cfg(feature = "probe")]
+    #[test]
+    fn probe_gates_run_the_doors() {
+        certifying_arms_are_the_doors::<geom_core::Probe>();
+    }
+
+    #[cfg(feature = "interval")]
+    #[test]
+    fn interval_gates_run_the_doors() {
+        certifying_arms_are_the_doors::<geom_core::interval::Interval>();
+    }
+
+    /// The dual arm on the SAME refusing subject: the gate does not run
+    /// and says so — [`AtRestOutcome::NotRunAtThisScalar`], never a
+    /// verdict about geometry the door itself refuses.
+    #[test]
+    fn dual_gate_is_absent_not_a_verdict() {
+        let tol = Tol::witness();
+        let b = refusing_body::<geom_core::Dual64>();
+        assert!(
+            crate::validate::validate_geometric(&b, tol).is_err(),
+            "the direct door still refuses at a dual"
+        );
+        assert_eq!(
+            <geom_core::Dual64 as AtRestPolicy>::gate_at_rest(&b, tol),
+            Ok(AtRestOutcome::NotRunAtThisScalar)
+        );
+        assert_eq!(
+            <geom_core::Dual64 as AtRestPolicy>::gate_at_rest_declared(
+                &b,
+                &ContactRecords::default(),
+                tol
+            ),
+            Ok(AtRestOutcome::NotRunAtThisScalar)
+        );
     }
 }
 

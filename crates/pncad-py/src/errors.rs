@@ -133,6 +133,16 @@ pub enum ErrorClass {
     Persist,
     /// An export the document-layer door refused.
     Export,
+    /// A body the tessellator refused. The Python class keeps the Rust
+    /// type's own name: the refusal IS `TessellateError`, crossing.
+    Tessellate,
+    /// An STL write the writers refused, or a solid name / binary
+    /// header they would not admit. The Python class keeps the
+    /// writers' own error name, `StlError`, and the two
+    /// option-construction refusals ride it under their own tags —
+    /// they refuse the same call, because an option struct is a
+    /// keyword argument here.
+    StlExport,
     /// A STEP text the importer refused, or one that parsed to a
     /// non-solid (the export test oracle's refusal class).
     StepImport,
@@ -155,6 +165,68 @@ pub enum ErrorClass {
     /// a made-up id is a document that collides with another part —
     /// so the refusal surfaces instead.
     Identity,
+    /// The workspace store refused: a scan that could not read a
+    /// file's header, two files claiming one id, an id the store does
+    /// not hold, or — the arm the store exists to make loud — a
+    /// reference whose pin is not the pin the document now hashes to.
+    ///
+    /// Shares its Rust type with [`Self::Identity`] and is
+    /// deliberately a different class: minting an identity is not a
+    /// store operation, and a caller catching one should not catch
+    /// the other.
+    Workspace,
+    /// A mate the solve refused. The Python class is `MateError`, and
+    /// the solve itself is TOTAL — this is raised only by the doors
+    /// that must answer with a pose or not at all, never by
+    /// `solve_document`, which records the fault per node instead.
+    Mate,
+    /// The at-rest assembly gate refused. The Python class is
+    /// `AssemblyError`, and its arms are NOT interchangeable: a
+    /// verdict against the document (`at_rest`) and the declared
+    /// direction's frontier (`uncertified`) are different facts, so
+    /// `variant` is what a caller must branch on.
+    Assembly,
+    /// A whole-document gather refused. The Python class is
+    /// `ProductError`.
+    Product,
+    /// A `split` refactoring refused. The Python class is
+    /// `SplitError`.
+    Split,
+    /// An `inline` refactoring refused. The Python class is
+    /// `InlineError`.
+    Inline,
+    /// A whole-document pin update produced no edit list. The Python
+    /// class is `UpdateError`.
+    Update,
+    /// A read-back door refused to say what a name denotes or where
+    /// it sits. The Python class is `ReadbackError`.
+    ///
+    /// Two Rust types flatten onto it, because they refuse the same
+    /// CALL: the document layer's `InterrogateError`, which resolves
+    /// the name, and the kernel's own `ReadbackError`, which reads
+    /// the carrier — the second is an arm of the first, and its arms
+    /// arrive under their OWN tags rather than a wrapper tag, so
+    /// which invariant broke is what a caller branches on.
+    Readback,
+    /// The advisory-check registry could not RUN: a root without a
+    /// value, a tolerance that forms no band, roots that gather into
+    /// no product. The Python class is `ChecksError`.
+    ///
+    /// Not a finding. A check that ran and disagreed is a value in the
+    /// report; this class means nothing was checked, which is the
+    /// difference the registry exists to keep visible.
+    Checks,
+    /// The registry's ONE refusing path (`enforce_checks`) refused: the
+    /// report carries findings whose check the caller configured at
+    /// `Severity.Error`. The Python class is `CheckRefusal`, the Rust
+    /// type's own name crossing.
+    ///
+    /// A separate class from [`Self::Checks`] because the two are
+    /// opposite answers: that one means the checks did not run, this
+    /// one means they ran, found something, and the CALLER asked to be
+    /// refused on it. `run_checks` never raises this and
+    /// `enforce_checks` never raises the other.
+    Enforce,
 }
 
 impl ErrorClass {
@@ -168,11 +240,23 @@ impl ErrorClass {
             Self::Literal => "LiteralError",
             Self::Persist => "PersistError",
             Self::Export => "ExportError",
+            Self::Tessellate => "TessellateError",
+            Self::StlExport => "StlError",
             Self::StepImport => "StepImportError",
             Self::Path => "PathError",
             Self::Select => "SelectRefusal",
             Self::Frame => "FrameError",
             Self::Identity => "IdentityError",
+            Self::Workspace => "WorkspaceError",
+            Self::Mate => "MateError",
+            Self::Assembly => "AssemblyError",
+            Self::Product => "ProductError",
+            Self::Split => "SplitError",
+            Self::Inline => "InlineError",
+            Self::Update => "UpdateError",
+            Self::Readback => "ReadbackError",
+            Self::Checks => "ChecksError",
+            Self::Enforce => "CheckRefusal",
         }
     }
 }

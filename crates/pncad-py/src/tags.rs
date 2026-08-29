@@ -23,12 +23,18 @@
 //! is deferred to the unit that binds the complete surface.
 
 use pncad::document::{
-    DimensionError, EditError, MateFault, NodeErrorKind, PersistError, PlacementRuleFault,
-    RecordedProgramError, RootFault,
+    AssemblyError, CheckEvidence, ChecksError, DimensionError, EditError, InlineError, MateFault,
+    NodeErrorKind, PersistError, PlacementRuleFault, RecordedProgramError, RefusedRef, RootFault,
+    SplitError, UpdateError,
 };
 use pncad::geom_core::{FrameError, FrameInput};
+use pncad::mesh::TessellateError;
 use pncad::profile::PathError;
+use pncad::select::{InterrogateError, ReadbackError};
 use pncad::step_import::StepImportError;
+// All three STL refusals are prelude-curated; the module path is the
+// spelling this file uses throughout, not a reach past the façade.
+use pncad::stl::{BinaryHeaderError, SolidNameError, StlError};
 use pncad::workspace::WorkspaceError;
 
 /// The stable tag for a PATHS authoring refusal.
@@ -47,6 +53,7 @@ pub fn path_error_tag(err: &PathError<f64>) -> &'static str {
         PathError::FilletOffsetLeverTooShort { .. } => "fillet_offset_lever_too_short",
         PathError::ArcLegOnOpenFillet { .. } => "arc_leg_on_open_fillet",
         PathError::SeamRetrimsArcFirstSide => "seam_retrims_arc_first_side",
+        PathError::Structure { .. } => "guided_structure",
         PathError::DegenerateArcSpec { .. } => "degenerate_arc_spec",
         PathError::NonpositiveLeg { .. } => "nonpositive_leg",
         PathError::NonpositiveFilletRadius { .. } => "nonpositive_fillet_radius",
@@ -222,6 +229,7 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
         NodeErrorKind::Expr { .. } => "expr",
         NodeErrorKind::Profile { .. } => "profile",
         NodeErrorKind::ProfileReplay { .. } => "profile_replay",
+        NodeErrorKind::ProfileLaneReplay { .. } => "profile_lane_replay",
         NodeErrorKind::ProfileAnchor { .. } => "profile_anchor",
         NodeErrorKind::Extrude { .. } => "extrude",
         NodeErrorKind::Revolve { .. } => "revolve",
@@ -302,24 +310,29 @@ pub fn declare_error_tag(err: &pncad::select::DeclareError) -> &'static str {
     }
 }
 
+/// The stable tag for a document-seam resolution failure — the
+/// vocabulary EVERY door that crosses the seam speaks.
+///
+/// Two doors cross it: evaluation, through [`part_fault_tag`]'s
+/// `Unresolved` arm, and `inline`, which resolves the referenced
+/// document in order to splice it. A stale pin is the same fact at
+/// both, so it carries the same tag at both; the `part_` prefix names
+/// the SEAM, not evaluation.
+pub fn resolve_fault_tag(fault: &pncad::document::ResolveFault) -> &'static str {
+    use pncad::document::ResolveFault as R;
+    match fault {
+        R::PinMismatch => "part_pin_mismatch",
+        R::EpsilonSeam => "part_epsilon_seam",
+        R::Unresolved => "part_unresolved",
+    }
+}
+
 /// The stable tag for an instantiation refusal.
 pub fn part_fault_tag(fault: &pncad::document::PartFault) -> &'static str {
     use pncad::document::PartFault as F;
-    use pncad::document::ResolveFault as R;
     match fault {
         F::NoResolver => "part_no_resolver",
-        F::Unresolved {
-            fault: R::PinMismatch,
-            ..
-        } => "part_pin_mismatch",
-        F::Unresolved {
-            fault: R::EpsilonSeam,
-            ..
-        } => "part_epsilon_seam",
-        F::Unresolved {
-            fault: R::Unresolved,
-            ..
-        } => "part_unresolved",
+        F::Unresolved { fault, .. } => resolve_fault_tag(fault),
         F::PartRootFailed { .. } => "part_root_failed",
         F::PartProduct { .. } => "part_product",
         F::ReferenceCycle { .. } => "part_reference_cycle",
@@ -471,5 +484,222 @@ pub fn expr_dimension_error_tag(err: &DimensionError) -> &'static str {
         DimensionError::NonFiniteLiteral => "non_finite",
         DimensionError::DisplayUnitMismatch { .. } => "display_unit_mismatch",
         DimensionError::UnknownDisplayUnit { .. } => "unknown_display_unit",
+    }
+}
+
+/// The stable tag for a tessellation refusal.
+///
+/// Like every other map in this module the tag carries the branchable
+/// discriminant beside the kernel's own `Display` prose, which is the
+/// human message — the split [`persist_error_tag`] documents.
+///
+/// The arena keys the arms carry (`FaceKey`, `EdgeKey`) do NOT cross:
+/// the whole curation exists to keep them unnameable, so the payload a
+/// caller reads is the arms' NUMBERS and prose notes.
+pub fn tessellate_error_tag(err: &TessellateError) -> &'static str {
+    match err {
+        TessellateError::InvalidChordalTolerance { .. } => "invalid_chordal_tolerance",
+        TessellateError::UnsupportedSurface { .. } => "unsupported_surface",
+        TessellateError::UnsupportedNurbsFace { .. } => "unsupported_nurbs_face",
+        TessellateError::UnsupportedCurve { .. } => "unsupported_curve",
+        TessellateError::NullScaffoldEdge { .. } => "null_scaffold_edge",
+        TessellateError::RingOnCurvedFace { .. } => "ring_on_curved_face",
+        TessellateError::EmptyLoop { .. } => "empty_loop",
+        TessellateError::MissingEntity { .. } => "missing_entity",
+        TessellateError::ResolutionOverflow { .. } => "resolution_overflow",
+        TessellateError::CertificateExceeded { .. } => "certificate_exceeded",
+        TessellateError::Triangulation { .. } => "triangulation",
+        TessellateError::SelfTouchingTrimLoop { .. } => "self_touching_trim_loop",
+        TessellateError::UnsupportedCurvedDomain { .. } => "unsupported_curved_domain",
+    }
+}
+
+/// The stable tag for an STL writer refusal.
+pub fn stl_error_tag(err: &StlError) -> &'static str {
+    match err {
+        StlError::DegenerateTriangle { .. } => "degenerate_triangle",
+        StlError::IndexOutOfRange { .. } => "index_out_of_range",
+        StlError::TooManyTriangles { .. } => "too_many_triangles",
+        StlError::Io(_) => "io",
+    }
+}
+
+/// The stable tag for an ASCII solid-name refusal.
+///
+/// One namespace with [`stl_error_tag`]'s: a Python caller passes the
+/// name as a `str` keyword argument, so the newtype's refusal and the
+/// writer's arrive on the same exception class and must stay
+/// distinguishable. The `solid_name_` prefix is what keeps them so.
+pub fn solid_name_error_tag(err: &SolidNameError) -> &'static str {
+    match err {
+        SolidNameError::Unrepresentable { .. } => "solid_name_unrepresentable",
+    }
+}
+
+/// The stable tag for a binary-header refusal, in
+/// [`stl_error_tag`]'s namespace for the same reason.
+pub fn binary_header_error_tag(err: &BinaryHeaderError) -> &'static str {
+    match err {
+        BinaryHeaderError::TooLong { .. } => "binary_header_too_long",
+        BinaryHeaderError::SniffsAscii => "binary_header_sniffs_ascii",
+    }
+}
+
+/// The stable tag for a mate reference that named no product face
+/// (the assembly gate's `Reference` arm rides one).
+pub fn refused_ref_tag(why: &RefusedRef) -> &'static str {
+    match why {
+        RefusedRef::NodeGone => "ref_node_gone",
+        RefusedRef::Vanished => "ref_vanished",
+        RefusedRef::Ambiguous { .. } => "ref_ambiguous",
+        RefusedRef::NotAFace { .. } => "ref_not_a_face",
+    }
+}
+
+/// The stable tag for an at-rest gate refusal.
+///
+/// The `Product` arm delegates to [`product_error_tag`] rather than
+/// collapsing every gather refusal to one tag: a caller branching on
+/// "why did my assembly not gather" wants the gather's own answer,
+/// and the wrapper adds nothing they can act on. The two namespaces
+/// do not collide — the gather's tags are bare (`no_body_roots`), the
+/// gate's carry their own words.
+pub fn assembly_error_tag(err: &AssemblyError) -> &'static str {
+    match err {
+        AssemblyError::Product(inner) => product_error_tag(inner),
+        AssemblyError::Reference { .. } => "mate_reference_refused",
+        AssemblyError::NoAtRestRecord { .. } => "no_at_rest_record",
+        AssemblyError::AtRest { .. } => "at_rest",
+        AssemblyError::Uncertified { .. } => "uncertified",
+    }
+}
+
+/// The stable tag for a split refusal.
+pub fn split_error_tag(err: &SplitError) -> &'static str {
+    match err {
+        SplitError::EmptyCut => "empty_cut",
+        SplitError::UnknownCutNode { .. } => "unknown_cut_node",
+        SplitError::PartIdCollides { .. } => "part_id_collides",
+        SplitError::SeveredEdge { .. } => "severed_edge",
+        SplitError::TornCluster { .. } => "torn_cluster",
+        SplitError::UncutParamReference { .. } => "uncut_param_reference",
+        SplitError::PartNameReachesRemainder { .. } => "part_name_reaches_remainder",
+        SplitError::NameStraddlesCut { .. } => "name_straddles_cut",
+        SplitError::BodyNameCrossesCut { .. } => "body_name_crosses_cut",
+        SplitError::Pin { .. } => "split_pin",
+        SplitError::PartEdit { .. } => "part_edit",
+        SplitError::RemainderEdit { .. } => "remainder_edit",
+    }
+}
+
+/// The stable tag for an inline refusal.
+///
+/// `Unresolved` delegates to [`part_fault_tag`]'s sibling vocabulary
+/// through [`resolve_fault_tag`]: inline crosses the SAME document
+/// seam evaluation does, and a stale pin refused here is the stale
+/// pin refused there. One vocabulary, so a caller who learned to read
+/// `part_pin_mismatch` off an evaluation reads it here too.
+pub fn inline_error_tag(err: &InlineError) -> &'static str {
+    match err {
+        InlineError::UnknownNode { .. } => "unknown_node",
+        InlineError::NotAnInstance { .. } => "not_an_instance",
+        InlineError::InstanceConsumed { .. } => "instance_consumed",
+        InlineError::Unresolved { failure } => resolve_fault_tag(&failure.fault),
+        InlineError::EpsilonSeam { .. } => "epsilon_seam",
+        InlineError::PartCarriesMetadata { .. } => "part_carries_metadata",
+        InlineError::ParamConflict { .. } => "param_conflict",
+        InlineError::UnplaceableFrame { .. } => "unplaceable_frame",
+        InlineError::InstanceBodyNameReferenced { .. } => "instance_body_name_referenced",
+        InlineError::ForeignInstanceName { .. } => "foreign_instance_name",
+        InlineError::StrandedPartName { .. } => "stranded_part_name",
+        InlineError::Edit { .. } => "inline_edit",
+    }
+}
+
+/// The stable tag for a whole-document pin update's refusal.
+pub fn update_error_tag(err: &UpdateError) -> &'static str {
+    match err {
+        UpdateError::NoSuchReference { .. } => "no_such_reference",
+        UpdateError::AlreadyPinned { .. } => "already_pinned",
+    }
+}
+
+/// The stable tag for the KERNEL half of a read-back refusal — the
+/// carrier read itself, once a name has resolved.
+///
+/// `Dangling` has two lanes kernel-side (a topological key that does
+/// not resolve, and a geometry key reached from a live entity that
+/// does not), and they share ONE tag here because the type that tells
+/// them apart is not on the curated surface: `ReadbackError`'s field
+/// is a `DanglingRef`, which the façade does not carry, so this crate
+/// cannot name the arms without reaching past it. The distinction is
+/// not lost — the kernel's own `Display` states which lookup came
+/// back empty, and that prose is the exception's message.
+pub fn readback_error_tag(err: &ReadbackError) -> &'static str {
+    match err {
+        ReadbackError::Dangling { .. } => "dangling",
+        ReadbackError::NoCanonicalFrame { .. } => "no_canonical_frame",
+        ReadbackError::NoCarrier => "no_carrier",
+    }
+}
+
+/// The stable tag for a read-back door's refusal.
+///
+/// The `Readback` arm forwards [`readback_error_tag`] rather than
+/// wrapping it: a caller branches on which invariant broke, and
+/// "the carrier stores no canonical frame" is that fact whether it
+/// is reached through a name or through a key.
+pub fn interrogate_error_tag(err: &InterrogateError) -> &'static str {
+    match err {
+        InterrogateError::NodeNotEvaluated { .. } => "node_not_evaluated",
+        InterrogateError::NodeFailed { .. } => "node_failed",
+        InterrogateError::NodePoisoned { .. } => "node_poisoned",
+        InterrogateError::NoSuchName => "no_such_name",
+        InterrogateError::Ambiguous { .. } => "ambiguous",
+        InterrogateError::WrongKind { .. } => "wrong_kind",
+        InterrogateError::WholeBody => "whole_body",
+        InterrogateError::NoBodies { .. } => "no_bodies",
+        InterrogateError::NoSuchBody { .. } => "no_such_body",
+        InterrogateError::Readback(err) => readback_error_tag(err),
+    }
+}
+
+/// The stable tag for a refusal of the advisory-check registry ITSELF
+/// (DISCIPLINES-DESIGN DS6) — the checks could not be run.
+///
+/// A check that ran and disagreed is a FINDING and never reaches this
+/// map; [`check_evidence_tag`] is that vocabulary. Keeping the two
+/// namespaces apart is the report/gate posture at the tag level:
+/// "not checked" and "checked and wrong" are different answers.
+///
+/// The `Product` arm cannot delegate the way [`assembly_error_tag`]
+/// does — the kernel carries the gather's refusal as its RENDERED
+/// message, not as a `ProductError` value (a report is `Clone` and
+/// `PartialEq` and that type is neither) — so the tag names the stage
+/// that refused and the message carries the gather's own prose.
+pub fn checks_error_tag(err: &ChecksError) -> &'static str {
+    match err {
+        ChecksError::Root { .. } => "root_without_value",
+        ChecksError::Band { .. } => "band",
+        ChecksError::Product { .. } => "product_unavailable",
+    }
+}
+
+/// The stable tag for one finding's evidence.
+///
+/// A VALUE's discriminant rather than a refusal's, on the
+/// [`refused_ref_tag`] / [`mate_fault_tag`] precedent: what a caller
+/// branches on is which fact was found, and `Display` prose is not a
+/// stable interface for that. It lives here, beside the refusal maps
+/// and not in the PyO3 layer, so the exhaustive match compiles — and
+/// the drift alarm fires — on the default no-Python build.
+pub fn check_evidence_tag(evidence: &CheckEvidence) -> &'static str {
+    match evidence {
+        CheckEvidence::Connectedness { .. } => "connectedness",
+        CheckEvidence::Escalated { .. } => "escalated",
+        CheckEvidence::Unsupported { .. } => "unsupported",
+        CheckEvidence::StaleExpectation { .. } => "stale_expectation",
+        CheckEvidence::NotSeparated { .. } => "not_separated",
+        CheckEvidence::SeparationUnavailable { .. } => "separation_unavailable",
     }
 }

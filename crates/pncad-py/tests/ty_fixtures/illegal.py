@@ -7,11 +7,14 @@ declares unrepresentable, plus the typed-quantity boundary.
 
 from pncad import (
     ArcSide,
+    ChecksConfig,
+    Severity,
     Bulge,
     Cmp,
     CurveKind,
     Doc,
     DocEdit,
+    DocRef,
     EntityKind,
     Frame,
     GeomPred,
@@ -27,11 +30,26 @@ from pncad import (
     Start,
     SurfaceKind,
     Sweep,
+    Workspace,
+    enforce_checks,
+    run_checks,
+    subject_body,
+    Alignment,
+    AxisSense,
+    ContactClass,
+    MateFrame,
+    MatePrimitive,
+    assemble,
     circle,
+    content_pin,
     deg,
     evaluate,
     m,
     mm,
+    product,
+    solve_document,
+    split,
+    update_references,
 )
 
 # A second director on a tip whose angle slot is already full.
@@ -167,3 +185,105 @@ Node.placed_union(solid, 5 * m, PatternKind.linear((1.0, 0.0, 0.0), 0.5 * m))  #
 
 # The narrowed count edit takes a ParamName, never bare text.
 DocEdit.bind_count_param(solid, "fins")  # ty: error
+
+# A reference is (identity, pin) in that order and neither is the
+# other's type: an id is the canonical hex TEXT, a pin is a value.
+DocRef(content_pin(doc), doc.id)  # ty: error
+
+# The store resolves a reference, never a bare identity.
+Workspace("parts").resolve(doc.id)  # ty: error
+
+# The seam and the memo are KEYWORD-only: `evaluate` takes exactly one
+# positional argument, the document, and the two doors are named.
+evaluate(doc, Workspace("parts"))  # ty: error
+
+# A resolver is a STORE, not the directory one was opened on: what
+# resolves is the scanned object, and a path string has no scan. (The
+# scan is not frozen at construction — a `create` through the same
+# object is visible to a later `evaluate`; see the snapshot rows in
+# `test_assembly_eval.py`. The point here is the TYPE, not timing.)
+evaluate(doc, resolver="parts")  # ty: error
+
+# The memo is a prior EVALUATION, not the document it evaluated.
+evaluate(doc, prior=doc)  # ty: error
+
+# Neither substitutes for the other: an evaluation resolves nothing.
+evaluate(doc, resolver=evaluate(doc))  # ty: error
+
+# LIB-G18b: the assembly vocabulary's own off-lattice lines.
+
+# An instance names a REFERENCE — (id, pin) — never a bare identity.
+# The pin is half the value, and that half is what Cargo.lock
+# semantics live in.
+Node.instantiate_part(doc.id)  # ty: error
+
+# Placement is a FRAME on a node, not a coordinate triple: an improper
+# or non-rigid map is refused at the edit door, and there is no
+# translation-only shortcut that would hide it.
+DocEdit.set_placement(solid, (0 * m, 0 * m, 1 * m))  # ty: error
+
+# The designate door is TOTAL and takes the whole list; one node is
+# not a root list.
+DocEdit.set_roots(solid)  # ty: error
+
+# A mate's references are stable NAME TEXT, the alphabet
+# `Evaluation.select` answers in — never node ids, which name a
+# recipe step and not an entity of its product.
+seat = MateFrame((0 * m, 0 * m, 0 * m), (0.0, 0.0, 1.0), (1.0, 0.0, 0.0))
+meeting = Alignment(seat, seat, MatePrimitive.frame_coincidence(), AxisSense.Aligned)
+Node.mate(solid, solid, ContactClass.Rest, meeting)  # ty: error
+
+# A mate frame's origin is three LENGTHS and its axis three plain
+# numbers: a direction carries no dimension, and swapping the two is
+# the mistake the split spelling exists to catch.
+MateFrame((0.0, 0.0, 0.0), (0 * m, 0 * m, 1 * m), (1.0, 0.0, 0.0))  # ty: error
+
+# The planar rest's standoff is a LENGTH — it is a distance along an
+# axis, not a bare number.
+MatePrimitive.planar_rest(0.0)  # ty: error
+
+# The gather and the gate take a document AND an evaluation of it:
+# neither is derivable from the other, and the pair is the signature.
+product(doc)  # ty: error
+assemble(evaluate(doc), doc)  # ty: error
+
+# The solve is a whole-DOCUMENT fold; there is no per-mate door.
+solve_document(doc, solid)  # ty: error
+
+# A split's cut is a SET OF NODES and its new identity is the
+# canonical hex text; identity is never defaulted, so there is no
+# one-argument form.
+split(doc, solid, "fresh")  # ty: error
+
+# `update_references` takes the pin as a VALUE. Passing its text would
+# make the door do the parsing the type already did.
+update_references(doc, doc.id, content_pin(doc).hex)  # ty: error
+
+# A read-back door takes the NODE the name was minted against and the
+# name's opaque text, in that order — a name alone does not say which
+# evaluation it should be read on.
+evaluate(doc).face_frame(solid)  # ty: error
+
+# A pose's origin is three LENGTHS: reading it as bare floats is the
+# same dimension mistake `MateFrame` catches above.
+pose = evaluate(doc).face_frame(solid, "a-name")
+origin_floats: tuple[float, float, float] = pose.origin  # ty: error
+
+# `vertex_position` answers a POSITION, not a pose — there is no frame
+# at a point, and no `axis` to read off one.
+no_axis: object = evaluate(doc).vertex_position(solid, "a-name").axis  # ty: error
+# DS6's waiver rule is a TYPE here, not a comment asking callers not
+# to reach: the separation resident ships no acknowledgment record, so
+# its knob is an `Advisory` and `Error` is not a position it has.
+ChecksConfig(separation=Severity.Error)  # ty: error
+
+# The report door takes a document AND an evaluation of it, in that
+# order; the gate door takes the finished REPORT. Neither is derivable
+# from the other, and swapping them is the mistake the pair exists to
+# catch.
+run_checks(doc)  # ty: error
+enforce_checks(doc)  # ty: error
+
+# A subject is named by a node and an OUTPUT INDEX — the same
+# attribution a finding carries — never by the finding's rendering.
+subject_body(evaluate(doc), solid)  # ty: error

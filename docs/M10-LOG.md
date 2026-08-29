@@ -103,3 +103,137 @@ Process findings recorded in the row: R2's rubric is missing data
 "reclaim a lane's TARGET freely once its report is in; remove the
 WORKTREE only when the unit fully concludes"), and the fix pass ran
 on a fresh same-arm lane for the same reason.
+
+## M10-DI MERGED (2026-08-29)
+
+The Dual contract is implemented: the e4 door is OPEN
+(`evaluate::<Dual64>` builds the whole corpus, value channel
+bit-identical per-node), the policy seam is typed
+(`AtRestOutcome`), the Enclosure gate fires, and the delegation
+rule is the ledger's standing criterion. Sample #40, ordinal 501.
+Both review arms independently proved correctness by differential;
+the findings were all guards and honesty, the sharpest being R1's
+mutation testing (three certifying arms could be gutted green —
+now each is pinned to its validation door). Issues 687 and 701
+close with this merge. The E4 pairing hook (DL3's own sentence)
+is a NAMED obligation on M10-4's spec.
+
+## M10-P MERGED (2026-08-29)
+
+The profile-parameter lift is in: sample #42, ordinal 502, block
+M10-B1's last slot. The C6 asymmetry that would have silently
+zeroed every profile-dimension sensitivity is closed — structure
+selected once at f64 as the witness, geometry lane-live under
+guided replay with every consumed decision re-verified, the f64
+path bit-identical (both review arms re-derived the fence on the
+true merge base; CI's ε-sampling then caught the fence's own
+ε-dependence, which is the sampled matrix earning its keep twice
+in one unit). The latent-generic first commit found the
+period-fold widening class, now #1191 with a 15-site by-shape hit
+list — offered to S-CERT on the work-streams PR, M10-3 its first
+consumer. M10-3 and M10-4 are now dispatchable at FULL scope
+(profile-driven parameters included) once their remaining
+dependencies land: M10-3 needs nothing further; M10-4 needs M10-2's
+Measure sink (in implementation).
+## Orchestrator-side entries, merged at block M10-B1's conclusion (2026-08-29)
+
+The adjudication and operational entries below were recorded on
+`m10/orchestrator` as the units ran (branch-side, with the block
+records) and merge here now that the block is concluded; each is
+dated and sits chronologically BEFORE its unit's MERGED entry
+above.
+
+## M10-1 dual review adjudication (2026-08-29)
+
+Both arms APPROVE-WITH-FIXES on frozen 0e9ef0b4. R2 found the
+unit's one silent correctness defect (deep-tail cancellation —
+`1 − erf` bit-zeros the tail from ~8.5σ; unilateral MAJOR by
+execution, tally candidate at merge); the carry-forward class and
+the unpinned GUI fix were bilateral at different severities. Fix
+pass dispatched as the adjudicated union to a FRESH same-arm lane
+(the original lane's worktree had been reclaimed at report time,
+which broke resume — reclaim implementer worktrees only after the
+fix pass concludes, or accept fresh-lane fix passes and record the
+executor covariate, as here).
+
+Class findings given homes at adjudication (the standing rule):
+
+- **"Priced" vs "set-theoretically forced" mass are one type**
+  today: `box_mass(Band, covering) = Ok(1)` is measure-free and
+  correct, but an E10 unresolved-mass budget over Band-only params
+  would read "fully priced" while no shape was ever stated. M10-6's
+  report/budget spec must distinguish the two (R2 MINOR-1).
+- **"No distribution ⇒ mass 1" lives in prose, not API** — every
+  consumer special-cases `None` by hand. M10-3's driver spec should
+  give the fixed-param case a typed spelling (R2 style finding).
+- **A distribution is invisible in the GUI** (`ParamRow` carries
+  none), so users can hold state they cannot see; the census
+  records Python's gap, nothing records the GUI's. GUI follow-up
+  slate (R1 NOTE).
+
+## M10-DI dual review adjudication (2026-08-29)
+
+Both arms confirm CORRECTNESS with independent byte-identical
+merge-base differentials (three lanes each); every finding is
+guarding, coverage, or text. R1 (4 MAJ, by mutation testing and
+witness re-measurement): three of four certifying policy arms
+gut-to-green; the Dual arm's `Ok(())` grant + the unenforced E4
+pairing hook (a silent deviation — DL3's own sentence); DL3
+witnesses named wrongly (the real ones are cut_cylinder and
+loft_prism, 2/18); the DL5 selection clause contradicting the
+projection::mid counterexample class named sixty lines above it.
+R2 (0 MAJ, APPROVE): the assemble-at-Dual availability inversion
+pinned (same class as R1's second MAJOR), the digest-depth
+overclaim, the DL5 surplus remedy clause. Fix pass dispatched
+IMPLEMENTER-INHERITED (the worktree-kept rule worked — resume
+succeeded). Tally candidates recorded at the row for the blinded
+coding with class annotations (test/doc-class per the LILYWELD
+3b precedent is the likely coding; not this log's call).
+
+Durable homes at adjudication: R1's free DL6-class datum (an
+EXACTLY coincident flush pair refusing `margin: Invalid` at plain
+f64 — the class's third member, and its first on the default lane)
+posted to #1143 with the fixture named; the E4 pairing hook is a
+named obligation for M10-4's spec; `real.rs`'s ~270-line Bounds
+ledger accumulation (both arms flagged the shape) banks as a
+docs-home candidate rather than riding any unit.
+
+## M10-P dual review adjudication (2026-08-29)
+
+Both arms APPROVE-WITH-FIXES on frozen 55b1fd13, both re-deriving
+the bit-identity fence independently on the TRUE merge base
+(5fed0960 — the PR's provenance cited a stale one) and at greater
+depth than the unit's own instrument; R2 additionally covered
+Probe, which CI never runs. Every machinery claim held: guided ≡
+plain at f64 (adversarial families included), no structure
+selection at the lane scalar (the other-pocket consumption receipt
+is the elegant proof), canonicalization structurally pinned with a
+live-control decide-count row, ladders fork-proof by construction.
+The MAJORs are reach/receipt/disclosure: the typed `Structure`
+vocabulary covers 1 of the record's 11 decision classes vs the
+claim (bilateral); the periodic-reduction class receipt missed
+seven same-spelling sites and four same-shape floor-folds in topo
+(bilateral — the class gets its own issue from the fix pass); the
+interval-box door's unreachability through `evaluate` was
+undisclosed (adjudicated: it IS M10-3's first spec bullet —
+disclosure fix, not machinery). Fix pass IMPLEMENTER-INHERITED.
+
+Durable homes at adjudication: the floor-based period-fold class →
+its own issue (fix pass files, full both-spellings hit list); for
+M10-3's spec — the interval parameter door is where R2's M1
+friction dissolves, `ProfileLaneReplay` deliberately dropping lane
+scalar payloads (R1 friction 2) should be revisited when the
+driver wants the lane pass's refusal payloads, and the guided
+enclosure being node-dependent (extrude widens, loft stays f64 by
+C6/D9) needs stating in the driver's leaf semantics.
+
+## Operational: disk math on this container (2026-08-29)
+
+Measured under pressure: ONE workspace-wide interval battery in
+debug costs ~15-16G of test artifacts — two concurrent lanes only
+fit if at most one runs a world battery. Standing brief lines from
+here: lane batteries run `CARGO_INCREMENTAL=0`, and scope to
+touched crates (`-p ...`) unless the unit's sweep demands the
+world — the hosted gate covers the rest (local-battery-scope's
+time argument, now applied to disk). Reclaim-at-report remains
+the transient's fix.

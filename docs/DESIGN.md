@@ -24,7 +24,7 @@ a reader entering here should know all of them exist.
 | `docs/GUI-DESIGN.md` | RATIFIED (G1–G5) | GUI/editor architecture: three-layer split, document-as-value, edit vocabulary; the v1 GUI program is CLOSED — plan `docs/GUI-PLAN.md`, exit walk `docs/GUI-EXIT-WALK.md` (ratified #1121, 2026-08-28); GUI-5 and GUI-6 banked post-v1 |
 | `docs/ASSEMBLY-DESIGN.md` | RATIFIED (#333) | Band 3 assemblies A1–A13 + AQ1–AQ8: scope ladder, assembly-evaluates-to-a-body, mates-as-declarations, pins/split-inline, validity, mirror, relative freedom, product roots, the constructive-solve boundary; implementation ladder R0–R4, CLOSED at v1 scope through R1–R2 (`docs/ASM-EXIT-WALK.md`) |
 | `docs/LIBRARY-DESIGN.md` | RATIFIED (#229) | Usable-as-a-library program L1–L8: façade, Python bindings via the document layer, v2-fronted PATHS, authoring-ergonomics unit ladder; the program is OPEN and resting — dispatchable column at the `docs/LIB-LOG.md` tail |
-| `docs/DISCIPLINES-DESIGN.md` | WIP — provisionally accepted (2026-08-25) | Disciplines/checks registry DS1–DS9: the identification criterion, the severity invariant, the four grades, the recording dial, out-of-tree checks; first resident SHIPPED (`editor_core::checks`, connectedness) |
+| `docs/DISCIPLINES-DESIGN.md` | WIP — provisionally accepted (2026-08-25) | Disciplines/checks registry DS1–DS9: the identification criterion, the severity invariant, the four grades, the recording dial, out-of-tree checks; two residents SHIPPED (`editor_core::checks`: connectedness, separation) |
 | `docs/PCURVE-UNIFY-DESIGN.md` | RATIFIED (#514) | Pcurve unification (#427): `EdgeGeometry`'s conventional variants collapse to ONE (surface, `Pcurve`) form, the exact variants kept as certification lanes; `MappedCurve` demotes to an authority record behind a transience fence. Executed by the PCURVE program (`docs/PCURVE-PLAN.md` / `docs/PCURVE-LOG.md`) |
 | `docs/CENSUS-REST-CLOSURE-DESIGN.md` | RATIFIED (#965) | At-rest census structural identity (#943 + #591 Door-2): the world-space Door 2 for declared planar pairs with its C3/C4 revision; cross-instance curved declared `Rest` as named residue |
 | `docs/GROUP-BOOLEAN-DESIGN.md` | RATIFIED (#496, option A′) | Group boolean in the recipe layer (D2 + F4): `PlacedUnion` — "a Pattern that fuses", one prototype, one body out, `Instance{i}` naming unchanged; implemented by LIB (#571, schema v12) |
@@ -1351,6 +1351,26 @@ rule.** It is row 0 asked at the sites where the answer might be yes:
 the non-empty-by-construction sequences and the small-domain indices,
 which are where a converted arm should have been no arm — thirteen of
 them, enumerated as `SMELL-SCAN-2026-08.md`'s **D96**.
+
+*Row 5's boundary (ratified in-chat 2026-08-29, at S-CERT's Q1):
+`debug_assert` also serves the expensive check whose failure PROBABLY
+indicates a bug.* Row 5 as written covers states that can only be a
+bug; a debug assertion is additionally the right instrument for an
+expensive re-derivation check where a failure probably indicates a
+kernel bug but input-reachability cannot be excluded — a tripwire,
+not a proof. The class's contract: (i) the assertion's absence never
+changes shipped semantics — no typed behavior rides on one, so
+release may compile them out (today `[profile.release]
+debug-assertions = true` keeps them on everywhere; the eventual state
+is debug/CI-only); (ii) an input-reachable failure that release must
+handle still gets its row-1/2/3 disposition — the tripwire
+supplements, never replaces it; (iii) each such assertion documents
+its calibration in-file — the population measured and the margin
+observed — so a firing one reads as evidence to investigate.
+`mesh::walk`'s `closing_column` is the precedent, in both directions:
+its firing is how #723's wrong certificate announced itself in a
+debug build, and its recorded estimate being off by nine orders on
+that input is what an uncalibrated ceiling costs.
 
 *Row 1 absorbs the terminal indeterminates.* An `Indeterminate` whose
 `MarginDiag` is `Value` (f64 margin in the ambiguity band) or an

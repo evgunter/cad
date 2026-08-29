@@ -19,7 +19,7 @@ use pncad::document as d;
 use pncad::tolerance::Tol;
 
 /// Raise `FrameError` carrying the refusal's stable tag.
-fn frame_err(py: Python<'_>, err: &pncad::geom_core::FrameError) -> PyErr {
+pub(crate) fn frame_err(py: Python<'_>, err: &pncad::geom_core::FrameError) -> PyErr {
     typed_err(
         py,
         ErrorClass::Frame,

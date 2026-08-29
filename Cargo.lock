@@ -3660,6 +3660,7 @@ dependencies = [
  "proptest",
  "ruststep",
  "sweep",
+ "test-utils",
  "topo",
  "truck-stepio",
 ]
@@ -3687,6 +3688,7 @@ dependencies = [
  "mesh",
  "profile",
  "sweep",
+ "test-utils",
  "topo",
 ]
 

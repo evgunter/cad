@@ -540,8 +540,17 @@ family — and every `gap:` entry names ONE id that owns the work. An
 audit gap id where `docs/guide/north-star-audit.md` defines one
 (cited, never minted, since that page's ids are scene-anchored and
 its tallies depend on staying that way); otherwise a census-owned
-family id — `B-CHECKS`, `B-PICKING`, `B-RESOLVE`, `B-READBACK`,
+family id — `B-CHECKS`, `B-PICKING`, `B-RESOLVE`,
 `B-EXPR-READ`, `B-CANCEL`, `B-FORMAT`, `B-VALIDATE4` — each carrying
+a one-line charter saying what a unit closing it would deliver. A
+closed family leaves no charter behind, because the census's own
+guard fails on one no entry cites: `B-READBACK` was chartered here
+and closed at LIB-B-READBACK, and what records that is the four
+read-back verbs sitting in the census's `BOUND_AS` with the unit
+named beside them. The
+
+family id — `B-PICKING`, `B-RESOLVE`, `B-READBACK`, `B-EXPR-READ`,
+`B-CANCEL`, `B-FORMAT`, `B-VALIDATE4`, `B-DISTRIBUTIONS` — each carrying
 a one-line charter saying what a unit closing it would deliver. The
 `B-` is this category's own letter: the census owns the surface-debt
 id space, this register points AT it, and the census's own test fails
@@ -1430,6 +1439,22 @@ conversation (opens after G15's dependency report), the retroactive
 curation review of #938's A5 re-export block (orchestrator's own,
 next), and the #742/#741/#944 plans (drafted when their turns come).
 
+**#938 A5 re-export block curation review CLOSED (2026-08-29,
+orchestrator's own — the deposit's owed retroactive review).** The
+block (`crates/pncad/src/document.rs:165-179`: Assembly, AssemblyError,
+AtRestFinding, Attribution, MintedDeclaration, RefusedRef, assemble)
+stands AS LANDED. Checked: payload closure — every type the carried
+names expose in fields/arms (RecipeNodeId, ContactClass, FaceKey,
+NameTable, ContactRecords, ValidationError, EntityKind, MateSide,
+StableName, ProductError) is carried on the façade's curated lists
+(document.rs, select.rs, or prelude), so the block introduces no
+R2-class "payload not carried beside carrier" gap; the rationale
+comment states the gate's why in the file's house style; placement
+beside the authoring vocabulary matches the deposit's own argument
+(the gate the vocabulary can construct-and-not-check). No comment owed
+on #938's thread — the deposit asked for one only if a different shape
+was wanted.
+
 **CUR MERGED (2026-08-29, #1161 — Wave 1's first return; mechanical
 under the 08-29 ruling, no A/B row).** `HitTestError` gains the
 LIB-DOORS-F6-shape `Display` + `Error` impl (arena key deliberately
@@ -1474,3 +1499,233 @@ register knew). **Banked, register category A (curation candidate):
 type of a carried type's method, cross-referenced from carried docs,
 matching neither withholding family. Fold into the next curation
 pass.
+
+**G11 MERGED (2026-08-29, #1165; mechanical under the 08-29 ruling,
+no A/B row). Audit G11 CLOSED — the guide ladder's steps 4–5 are
+sayable from Python.** `Body.tessellate(chordal: Length)` → `Mesh`
+(shared position buffer + per-face patches both cross, so
+watertightness is index-checkable and the mesh-vs-exact cross-check
+is the CALLER's computation — argued as the better step-5 shape, a
+genuinely independent second measure, since `mesh::validate`'s
+re-derivations are not curated and binding them would have reached
+past the façade); `to_stl_ascii`/`to_stl_binary`; `TessellateError` +
+`StlError` typed with exhaustive tag maps (kernel-side arm additions
+arrive as compile errors). Census: all eleven `gap: G11` entries
+dispositioned; audit page re-cut (G11 → closed gaps, no mark moved —
+its anchor was the ladder, not a stop); new guide page `meshing.md`
+under test_guide. Register effects and banked findings, each with a
+home: (1) **`StlError` uncurated** (the R2 shape — prelude carries
+the writers and their option error types, not the writers' own
+refusal): joins BlendArc as the pending **curation micro-unit**,
+category A. (2) **Kernel Display gaps** (`mesh::TessellateError`,
+plus #1111's re-sweep quartet: `ContactRefusal`, `ReadbackError`,
+`FmtQuantityError`): a dispatchable mechanical unit
+(**DISPLAY-KERNEL**), recorded on #1111. (3) **No patch→StableName
+door on either side of the boundary** — the next picking/rendering
+consumer's ask, adjacent to census `B-PICKING`/`B-READBACK`;
+design-shaped, recorded in the audit page's G11 residue. The
+picking-chain keys stay unnameable by curation, correctly.
+
+**G15 MERGED (2026-08-29, #1164; mechanical under the 08-29 ruling,
+no A/B row). Audit G15 CLOSED — the workspace store crosses whole.**
+`Workspace(path)` (scan-by-header, `documents()`, `create`/`resave`,
+`resolve` with A4's Cargo.lock pin semantics un-softened —
+`pin_mismatch` refuses typed with `wanted`/`found` +
+`PIN_MISMATCH_RECOURSE`), `ContentPin`/`DocRef`/`content_pin`/
+`canonical_bytes`/`header_document_id`/`random_document_id`, one
+typed `WorkspaceError` with every attribute present on every arm.
+The unit's argued deviation ADOPTED at adjudication: the pin-UPDATE
+family (`update_to_store`, `update_references`, `mixed_pins`,
+`UpdateError`, `PinMultiplicity`, `PinSites`) is NOT bound and
+re-cited to G18 — a site is an `InstantiatePart` node's `DocRef`, so
+on any Python-authorable document those doors answer only
+"referenced nowhere"; the audit page's own test already grouped them
+with G18, and the page was cut in the test's favor. Its measured
+finding kept as a test: a pin says which VERSION, never which PART
+(`canonical_bytes` strips `id` by design). **The re-survey map's
+"G15 dispatchable" bullet retires at this row** (the lane flagged it
+as the stale line it would become). Sequencing note: merged after
+G11 and GUARD-SIBS with a union conflict resolution in the census
+docstring, the audit page's further-gaps section (now empty — both
+its rows closed in one wave) and the closed-gaps table; census green
+on the union pre-push, hosted CI the gate as always. The
+resolver-door design conversation this unit's report sharpened is
+RATIFIED and specced: `docs/LIB-G18A-SPEC.md` (Evan, in-chat,
+2026-08-29) — the next unit, full A/B protocol.
+
+**CUR2 MERGED (2026-08-29, #1173; mechanical under the 08-29 ruling,
+no A/B row).** The two banked curation carriages land: `StlError`
+beside its writers in the prelude's section 7 (G11's banked R2-shape
+finding closed), `BlendArc` on the curated `profile` module — and NOT
+in the prelude, by measurement (the prelude carries the validate
+family's gate/refusal/output tier only, and no consumer outside
+`crates/profile` names `BlendArc`; the corpus rule agrees). The
+profile guard's interior list is down to `RawLoop`, its one argued
+name. The R2-class re-sweep at the merge base: 57 prelude doors
+origin-resolved, two hits, one fixed here, one a non-instance
+(`HitTestError` IS carried beside its carrier in select.rs; prelude
+lift would be a minimality question, not R2). Banked findings kept:
+(1) the census scans document/select/prelude ONLY — a name carried
+onto `profile.rs` alone incurs no census obligation (worth knowing
+before assuming a Python consequence); (2) symbol-name greps mislead
+in this workspace (five collision examples recorded in the PR) —
+façade sweeps should origin-resolve through the pub-use graph first.
+Stale-comment follow-up for the next pncad-py sweep: the reach-past
+note at mesh.rs's StlError import.
+
+**G18A MERGED (2026-08-29, #1176 — LIB's first full-protocol unit
+since reactivation; ordinal 300, sample #41, row in MODEL-AB-LOG).**
+`evaluate(doc, *, resolver=, prior=)` per the ratified spec: the
+assembly seam opens from Python (a document carrying InstantiatePart
+nodes, loaded from a Workspace, evaluates; refusal family typed), the
+memo becomes a measurement (PYPU's banked finding CLOSED), and the
+tour bench corpus rides as committed bytes with a three-axis honesty
+header. The dual's headline (bilateral): a `prior=` serves memo hits
+WITHOUT re-running the seam's gates — contract now stated at the door
+in both reviewers' framings, pinned on both availability arms, and
+the kernel design question filed as **#1185** (the class: "an
+argument that silently voids another argument's gate"; two sibling
+sites named for future sweeps). **#1186** schedules the corpus
+structural hole. Register effects: G18's first half SPENT — the
+node/edit bindings (**G18b**) are now dispatchable-mechanical per the
+standing split; rows 46/47 stay NO until they land. The audit's G8
+row prose corrected (counter invariant). The delta re-verification
+round (R1 resumed, narrow scope) is the shape to reuse: cheap (~40k
+tokens), executes rather than reads, and the resumed reviewer's
+context made it 12 minutes.
+
+**DISPLAY-KERNEL MERGED (2026-08-29, #1175; mechanical under the
+08-29 ruling, no A/B row).** All ten façade-carried refusal types
+the #1111 re-sweep measured without a `Display` now render
+F6-shape prose (`TessellateError`, `ContactRefusal`, `ReadbackError`,
+`FmtQuantityError`, `DeclareError`, `InterrogateError`,
+`SelectRefusal`, `ResolveFault`, `ParseError`, `MigrationError`),
+each with a struct-dump-fingerprint contract test; four arms listed
+recourse-less for a design pass rather than minting recourse prose
+(#947's lesson applied prospectively). The unit's ARC is the record:
+its 1e-12 draw exposed a main red no main head had drawn
+(`r2_m10_di_probes` — filed as #1178, fixed by M10 as #1193 per
+ratified DL3), the fix was PORTED onto this branch per the
+drive-to-green rule, and the port's CI-Config pin re-drew the exact
+failing point GREEN (run 33265053740) — the red closed honestly, not
+re-drawn away. Lane process finding kept: the lane pushed a tree it
+had not re-verified once (one red run, disclosed, fixed next
+commit). Python `{:?}` message sites now flippable to the new
+Displays: listed in the PR for the next pncad-py sweep.
+
+**G18B MERGED (2026-08-29, #1192; mechanical under the 08-29 ruling,
+no A/B row). Audit G18 CLOSED — the assembly series is COMPLETE, and
+the north star reads 34 of 47 (30 + 4 YES*).** The whole authoring/
+edit/refactoring vocabulary crosses: `Node.instantiate_part`/`mate`
+(+ payload and solve read side), `set_placement`/`set_roots`/
+`update_reference` + the pin-update family (`update_to_store` with
+its snapshot contract STATED at the door per #1185's class — and
+executed as contract tests on three doors), `product`/`solve_document`
+/`assemble` + the A5 gate family typed, `split`/`inline`. **Row 46
+(`bench`) flips YES outright** — TestBenchStand authors the scene
+from nothing against the scene's own expectations, gate CERTIFIES.
+**Row 47 (`benchlayout`) flips YES\*** on the honest mark: authorable
+end to end via `placed_union` where the scene says `Node::Pattern`
+(G8's deliberately-unbound plural payload — a THIRD caveat flavor,
+added to the headline gloss rather than overclaimed; G8's stops
+3→4). All 43 census `gap: G18` entries dispositioned; the
+PlacementRuleFault census reason corrected by execution. The ASM
+deposit of 2026-08-23 is fully discharged. Banked with homes:
+(1) **#1185's second live site** — `product`/`assemble`/
+`SolvedPoses.placement` take a document plus something that must be
+OF it, uncheckable because an evaluation carries no document
+identity; kernel-shape question, stated at each door, recorded on
+#1185's thread by this entry's merge. (2) #947's doubled recourse now
+asserted from Python too (goes red in two places when fixed).
+(3) Three RefusedRef arms measured unreachable-one-door-earlier from
+Python authoring; negatives recorded in the test file. Two scene
+claims not reproducible (`shells().count()`, `face_frame`) — both
+census-owned (`B-READBACK`), named in row 47.
+
+**PYDISP MERGED (2026-08-29, #1196; mechanical under the 08-29
+ruling, no A/B row).** Nine pncad-py sites flipped from `{:?}` to the
+DISPLAY-KERNEL prose; four stale "no Display" comments truthed — one
+of them a `create_exception!` docstring whose false Debug-rendering
+sentence was shipping in Python `help()`. Two same-class sites beyond
+#1175's list found by the re-sweep and flipped with disclosure. The
+deliberate asymmetry recorded: `select_refusal`'s per-arm prose KEPT
+(a candidate is spelled through `name_text`, the StableName alphabet
+Python speaks — flipping would regress the boundary's naming
+contract), while `declare_err`'s hand prose retired (no such reason).
+The CUR2-flagged reach-past comment located at tags.rs (not mesh.rs
+as the register said) and truthed. Banked: prelude-curation vs
+pncad-py-import-comment drift is a recurring class (the StlError
+comment survived three units) — a periodic grep of "is NOT
+prelude-curated" claims against the actual prelude is cheap and
+worth a future polish unit's line item.
+
+**GUIDE-ASM MERGED (2026-08-29, #1198; mechanical under the 08-29
+ruling, no A/B row).** `docs/guide/assembly.md` — the assembly
+surface's user story, nine executed Python blocks under test_guide's
+no-rot machinery: the three vocabularies (identity/pin/reference with
+the pin_mismatch refusal executed, recourse asserted), authoring
+(instantiate/mate/cluster-gauge), the seam (`resolver=`, and the
+memo's seam-gate contract QUOTED from the door, unsoftened, #1185
+named), solve + A5 gate, four refusals each reached by authoring the
+mistake, split/inline/pin-door with the three-door what-reads-when
+table. G18a's "a user learns resolver= from the stub alone" banked
+finding CLOSED. Two pre-existing registration gaps fixed in passing
+(GUIDE.md §4 missed meshing.md; examples.md missed assembly.rs) —
+adjacent-list repairs, kept. **Usability finding banked per
+demo-purpose (real friction, stated in the page, not smoothed): a
+MATE NODE IS A PRODUCT ROOT** — `Doc.roots` answers instances AND
+mates (roots = live nodes nothing consumes), so `set_roots` on three
+solids names five nodes and omitting the mates refuses
+`root_uncovered`, while the door's prose says "ordered PRODUCT
+ROOTS" and `product` gathers only body-denoting ones. Vocabulary
+evidence for a future design conversation, not a unit. Orchestrator
+process note, honestly: the pre-merge "lane stalled" read was WRONG —
+liveness was judged from processes and branch pushes without checking
+the PR list; the lane had been done and gated for an hour. Check
+open PRs before declaring a lane stalled.
+
+**B-READBACK MERGED (2026-08-29, #1216; mechanical under the 08-29
+ruling, no A/B row). Census family B-READBACK CLOSED — "a name
+answers with VALUES, never keys" gets its first Python face.**
+`Evaluation.face_frame`/`edge_frame`/`vertex_position`/`denotation`
++ `Pose`/`Denotation`/typed `ReadbackError` (Pose deliberately
+carries no `==`, mirroring geom_core's absent PartialEq; directions
+cross dimensionless per the place.rs rule). The census learned HOW A
+FAMILY CLOSES (no precedent existed; the decay guard forces the
+charter out, the closure paragraph records the unit). Row 47's
+face_frame ask answered against the placement arithmetic, red at a
+1-in-10^4 perturbation. **MERGED RED on two main-inherited legs, on
+Evan's explicit in-chat authorization ("you can merge those PRs red
+if you've already determined it wasn't your fault")**: the
+default-lane clippy red (#1174's — since fixed on main by M10's
+#1226, so moot at this merge) and the teapot k-lint (#1223 — the
+re-baseline is in flight on lib/tess-rebaseline, reading done per
+the gate's own recourse ladder: face genuinely replaced
+cylinder→sphere, growth is #1180's documented curvature, slack table
+untouched). Banked, register category A: **DanglingRef uncurated**
+(ReadbackError::Dangling's payload type absent from the façade's
+lists, so the two dangling lanes share one tag) — joins the curation
+micro-unit queue. Process lesson kept honest: two lanes were
+reported reclaimed in prose without the command having run —
+reclaims are now verified by listing, the GUIDE-ASM lesson's
+sibling.
+
+**B-CHECKS MERGED (2026-08-29, #1215; mechanical under the 08-29
+ruling, no A/B row). Census family B-CHECKS CLOSED — the DS6
+advisory registry crosses whole.** 13/13 names bound name-for-name
+(`run_checks` answers a value, `enforce_checks` refuses typed — two
+exception classes that cannot be confused; the waiver rule is a TYPE:
+`separation` takes `Advisory`, so waiving `Error` is unspellable,
+pinned in the ty illegal fixture); 19 tests, every document authored
+through public doors, both residents exercised. **MERGED RED on the
+main-inherited teapot k-lint leg, on Evan's explicit in-chat
+authorization** — every row the unit owns green; the re-baseline
+(#1223's reading done, geometry-change arm) is in flight on
+lib/tess-rebaseline. Union note: merged after B-READBACK with a
+clean textual merge; the source-level census guard passed 7/7 on the
+union, the compiled-module stub check rides the next gated PR.
+Banked: a charter is written when a family is NAMED, not closed
+(B-CHECKS' said "the connectedness check" and there were two
+residents by closing time) — recorded in the census's closure
+paragraph. The register's census-id sentence corrected in passing
+(B-DISTRIBUTIONS was chartered but unlisted).

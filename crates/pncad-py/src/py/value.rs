@@ -226,6 +226,17 @@ impl Body {
         self.run_validator(py, "validate_closed", topo::validate_closed(&self.inner))
     }
 
+    /// Tessellate at a chordal budget — the ladder's step 4.
+    ///
+    /// `chordal` is a DISTANCE: the maximum the piecewise-linear mesh
+    /// may sag from the exact surface. It is deliberately not the
+    /// kernel's ε, which `DocEdit.set_tolerance` sets and which
+    /// decides what the model IS; this decides how coarsely a view of
+    /// it may approximate it. Two budgets see the same body.
+    fn tessellate(&self, py: Python<'_>, chordal: &Length) -> PyResult<super::mesh::Mesh> {
+        super::mesh::tessellate(py, &self.inner, chordal)
+    }
+
     /// Geometric validation only.
     fn validate_geometric(&self, py: Python<'_>) -> PyResult<()> {
         let tol = Tol::witness();
@@ -242,13 +253,12 @@ impl Body {
     /// `Result<(), Vec<ValidationError>>`.
     ///
     /// `ValidationError` has no curated tag mapping, so the exception
-    /// carries the failure COUNT as structured data and a rendering of
-    /// the whole list as the human message. Per-variant tags are the
-    /// same mechanical work `crate::tags` does for edits, deferred
-    /// with the rest of the read-back surface — and so is the choice
-    /// to render the list with `Debug`: the enum does implement
-    /// `Display`, one prose sentence with recourse per finding, and
-    /// nothing composes it here.
+    /// carries the failure COUNT as structured data and the findings
+    /// themselves as the human message — each through the enum's own
+    /// `Display`, one prose sentence with recourse per finding, joined
+    /// because a `Vec` has no rendering of its own. Per-variant tags
+    /// are the same mechanical work `crate::tags` does for edits,
+    /// deferred with the rest of the read-back surface.
     fn run_validator(
         &self,
         py: Python<'_>,
@@ -263,8 +273,13 @@ impl Body {
             py,
             ErrorClass::Validation,
             format!(
-                "{door} reported {} failure(s): {failures:?}",
-                failures.len()
+                "{door} reported {} failure(s): {}",
+                failures.len(),
+                failures
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("; ")
             ),
             &[
                 ("door", PyString::new(py, door).unbind().into_any()),
@@ -296,7 +311,7 @@ impl Datum {
 }
 
 /// Project a canonical-metre point into typed `Length`s.
-fn lengths(p: pncad::geom_core::Point3<f64>) -> (Length, Length, Length) {
+pub(crate) fn lengths(p: pncad::geom_core::Point3<f64>) -> (Length, Length, Length) {
     (
         Length(pncad::quantity::Length::from_meters(p.x)),
         Length(pncad::quantity::Length::from_meters(p.y)),
@@ -429,7 +444,7 @@ impl Value {
 /// The result of evaluating a document: the per-node result DAG.
 #[pyclass(frozen, module = "pncad")]
 pub(crate) struct Evaluation {
-    inner: d::Evaluation<f64>,
+    pub(crate) inner: d::Evaluation<f64>,
     /// The evaluated document's parameter bindings, captured at
     /// `evaluate` — `select_where`'s decided atoms state their value
     /// as an `Expr`, which cannot be evaluated without them. Captured
@@ -579,6 +594,99 @@ impl Evaluation {
         }
     }
 
+    /// **Where is the face I selected?** — the named face's carrier
+    /// frame, as of THIS evaluation.
+    ///
+    /// The forward twin of the materializers: they hand out names,
+    /// and this asks one where it SITS. `name` is one of the opaque
+    /// texts `all_faces` / `select` / `select_where` answered with,
+    /// handed back unread.
+    ///
+    /// The answer is the CARRIER's frame, copied out of stored
+    /// geometry — a definitional re-read, so no pad and no
+    /// measurement. It is not a verdict: no door here says whether a
+    /// face is planar or where it is relative to anything, which is
+    /// `select_where`'s decided half.
+    ///
+    /// Raises `ReadbackError`, typed: `no_such_name` for a stale
+    /// selection, `ambiguous` for an N2 tie (ask
+    /// [`Self::denotation`] first), `wrong_kind` for an edge or
+    /// vertex name, `no_canonical_frame` for a NURBS carrier, and the
+    /// node ladder for a node this evaluation did not produce.
+    fn face_frame(
+        &self,
+        py: Python<'_>,
+        node: &NodeId,
+        name: &str,
+    ) -> PyResult<super::readback::Pose> {
+        let name = super::doc::name_from_text(name)?;
+        pncad::select::face_frame(&self.inner, node.0, &name)
+            .map(super::readback::Pose)
+            .map_err(|err| super::readback::readback_err(py, &err))
+    }
+
+    /// **Where is the edge I selected?** — the named edge's certified
+    /// carrier frame, [`Self::face_frame`]'s sibling.
+    ///
+    /// A straight edge answers with `u_ref is None`: a line has a
+    /// direction and no distinguished perpendicular, and the door
+    /// says so rather than inventing one.
+    ///
+    /// Raises `ReadbackError` as [`Self::face_frame`] does, with
+    /// `wrong_kind` for a non-edge name and `no_carrier` for an edge
+    /// still carrying null-edge scaffolding.
+    fn edge_frame(
+        &self,
+        py: Python<'_>,
+        node: &NodeId,
+        name: &str,
+    ) -> PyResult<super::readback::Pose> {
+        let name = super::doc::name_from_text(name)?;
+        pncad::select::edge_frame(&self.inner, node.0, &name)
+            .map(super::readback::Pose)
+            .map_err(|err| super::readback::readback_err(py, &err))
+    }
+
+    /// **Where is the vertex I selected?** — the named vertex's
+    /// stored position, dimensioned.
+    ///
+    /// Raises `ReadbackError` as [`Self::face_frame`] does, with
+    /// `wrong_kind` for a non-vertex name.
+    fn vertex_position(
+        &self,
+        py: Python<'_>,
+        node: &NodeId,
+        name: &str,
+    ) -> PyResult<(Length, Length, Length)> {
+        let name = super::doc::name_from_text(name)?;
+        pncad::select::vertex_position(&self.inner, node.0, &name)
+            .map(lengths)
+            .map_err(|err| super::readback::readback_err(py, &err))
+    }
+
+    /// **How does this name resolve — uniquely, or as a tie?** The
+    /// referencing question, answered without exposing what it
+    /// resolves to.
+    ///
+    /// This is the door to ask BEFORE a frame: the three frame doors
+    /// refuse an N2 tie (`ambiguous`) rather than picking a
+    /// candidate, and this says whether one is coming. It answers a
+    /// COUNT, never the candidates — those are arena keys, which do
+    /// not cross.
+    ///
+    /// Raises `ReadbackError` for the node ladder and `no_such_name`.
+    fn denotation(
+        &self,
+        py: Python<'_>,
+        node: &NodeId,
+        name: &str,
+    ) -> PyResult<super::readback::Denotation> {
+        let name = super::doc::name_from_text(name)?;
+        pncad::select::denotation(&self.inner, node.0, &name)
+            .map(super::readback::Denotation)
+            .map_err(|err| super::readback::readback_err(py, &err))
+    }
+
     /// **The cross-body flush-plane candidates between `a`'s and
     /// `b`'s outputs, as of THIS evaluation** — the detect arm of the
     /// detect/declare protocol: the verifier run in
@@ -616,16 +724,41 @@ impl Evaluation {
         }
     }
 
-    /// How many nodes were recomputed rather than reused from the memo.
+    /// How many nodes ran their op this evaluation.
+    ///
+    /// With no `prior=`, this is every node that ran. With one, it is
+    /// the changed cone — and `recomputed + reused` is what makes the
+    /// two numbers EVIDENCE of reuse rather than a hint about it.
+    ///
+    /// The sum is the nodes that RAN OR WERE REUSED, which is the live
+    /// node count only when every node produced a result. A POISONED
+    /// node — one that never ran because an ancestor failed — is
+    /// counted by neither, so on any refusal path the sum undershoots
+    /// `len(order())` by exactly the number of poisonings. A node that
+    /// ran and FAILED is counted here, in `recomputed`: it ran.
     #[getter]
     fn recomputed(&self) -> usize {
         self.inner.recomputed
     }
 
-    /// How many nodes were served from the memo.
+    /// How many nodes were served from `evaluate`'s `prior=` memo
+    /// without re-running their op — zero when no prior was passed.
     #[getter]
     fn reused(&self) -> usize {
         self.inner.reused
+    }
+
+    /// How many REFERENCED documents this evaluation actually crossed
+    /// the seam to evaluate.
+    ///
+    /// The sharing evidence for `evaluate`'s `resolver=`: N instances
+    /// of one part count 1, because the part is evaluated once and its
+    /// body reused; a part that instantiates a part counts here too, so
+    /// the number is the whole run's seam traffic and not one level's.
+    /// Zero without a resolver — nothing crosses.
+    #[getter]
+    fn part_evaluations(&self) -> usize {
+        self.inner.part_evaluations
     }
 
     /// Export the single body `node` denotes as a STEP (AP214 Part 21)
@@ -747,15 +880,69 @@ pub(crate) fn import_step(py: Python<'_>, text: &str) -> PyResult<Body> {
 ///
 /// Total: evaluation never raises. Individual nodes may still have
 /// failed — ask the returned object.
+///
+/// `resolver` is the DOCUMENT SEAM: what an `InstantiatePart` node
+/// reaches the document it pins through. A `Workspace` IS a resolver
+/// (`pncad::workspace`'s own impl), so the store is passed as itself.
+/// `None` — the default — is a kernel-only evaluation, in which every
+/// instantiate node refuses typed (`EvaluationError`, `kind ==
+/// "part_no_resolver"`) rather than pretending a part is empty. The
+/// parameter carries the kernel's ROLE name: resolving a reference is
+/// the capability evaluation needs, and a workspace is today's only
+/// thing that has it.
+///
+/// `prior` is the MEMO: a node whose content and naming keys match
+/// its result in `prior` reuses that value instead of re-running its
+/// op, so only the changed cone costs anything. Reuse is not a claim
+/// the caller has to take on trust — `Evaluation.reused` and
+/// `Evaluation.recomputed` count it, node for node.
+///
+/// The memo is PER DOCUMENT and node-id-keyed: the lookup finds
+/// `prior`'s result for the SAME node id and then certifies it by
+/// content, so an evaluation of a different document is a legal prior
+/// that reuses nothing — node ids are minted per document, and two
+/// assemblies over the same parts at the same pins still share none.
+/// Use the prior evaluation of THIS document.
+///
+/// **A memo hit is served WITHOUT re-running the seam's gates.** A
+/// reused `InstantiatePart` node never asks the resolver, so the
+/// AVAILABILITY refusals — `part_pin_mismatch`, `part_unresolved`,
+/// and `part_no_resolver` with them — are raised only for nodes that
+/// actually re-resolve. What the memo serves is what the document's
+/// own `DocRef` PINS, certified by content key: it is never a
+/// different part, and it is not re-checked against the store. Two
+/// consequences, and both are real:
+///
+/// * Edit a part on disk and re-evaluate with a prior, and the run
+///   succeeds serving the previously pinned body where a run without
+///   the prior refuses `part_pin_mismatch`. Relative to the STORE
+///   that is a stale answer; relative to the DOCUMENT it is the
+///   pinned one.
+/// * "A pin that moved refuses, and is never silently retargeted"
+///   therefore holds for evaluations that cross the seam. It is not
+///   weakened for the ones that do — nothing is retargeted either
+///   way — but it is not RE-ASSERTED by a run that never asks.
+///
+/// Pass no prior when the question is "does this document still
+/// resolve against the store as it stands".
 #[pyfunction]
-pub(crate) fn evaluate(doc: &super::doc::Doc) -> Evaluation {
+#[pyo3(signature = (doc, *, resolver=None, prior=None))]
+pub(crate) fn evaluate(
+    doc: &super::doc::Doc,
+    resolver: Option<&super::store::Workspace>,
+    prior: Option<&Evaluation>,
+) -> Evaluation {
     let tol = Tol::witness();
+    let opts = d::EvalOptions {
+        resolver: resolver.map(super::store::Workspace::resolver),
+        ..d::EvalOptions::default()
+    };
     Evaluation {
         inner: d::evaluate::<f64>(
             &doc.inner,
-            None,
+            prior.map(|p| &p.inner),
             &d::CancelToken::new(),
-            &d::EvalOptions::default(),
+            &opts,
             tol,
         ),
         params: doc.inner.param_env::<f64>(),

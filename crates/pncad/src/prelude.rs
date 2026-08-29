@@ -58,7 +58,7 @@ pub use geom_core::{
 // `MILLI`, `CENTI`) stay one module hop away at `pncad::quantity`,
 // per the corpus-measured prelude rule (module docs above).
 pub use quantity::{
-    Angle, AngleUnit, CM, Count, DEG, FmtQuantityError, IN, Length, LengthUnit, M, MM, RAD,
+    Angle, AngleUnit, CM, Count, DEG, FmtQuantityError, IN, Length, LengthUnit, M, MM, PI, RAD,
     fmt_angle, fmt_length,
 };
 
@@ -133,9 +133,15 @@ pub use topo::{MassProperties, MassPropsError, PropsQuadLane, mass_properties};
 pub use mesh::{Mesh, TessellateError, tessellate};
 pub use step_export::{StepExportError, StepOptions, step_string, write_step};
 pub use step_import::{ImportOptions, StepImportError, import_step};
+// `StlError` is the writers' own refusal type — what `write_ascii` and
+// `write_binary` return. The option errors beside it
+// (`BinaryHeaderError`, `SolidNameError`) refuse at option
+// CONSTRUCTION; a prelude that carries the writers but not the type
+// they fail with leaves a caller unable to match on the failure it can
+// actually get.
 pub use stl::{
     AsciiOptions, BinaryHeader, BinaryHeaderError, BinaryOptions, SolidName, SolidNameError,
-    write_ascii, write_binary,
+    StlError, write_ascii, write_binary,
 };
 
 // --- 8. The document layer ------------------------------------
@@ -154,7 +160,7 @@ pub use stl::{
 // the parametric flagship (`plate_param`, guide §3.2) imports both.
 pub use crate::document::{
     CancelToken, Datum, Dimension, Doc, DocEdit, DocParam, EditError, EvalOptions, Evaluation,
-    Expr, LoopProgram, Node, NodeError, ParamEnv, ParamName, ParseError, PatternKind,
+    Expr, LoopProgram, Node, NodeError, ParamEnv, ParamName, ParseError, PatternKind, ProfileLift,
     ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RecordedProgramError,
     SlotId, StepArg, ValuePayload, apply, evaluate, parse_expr,
 };

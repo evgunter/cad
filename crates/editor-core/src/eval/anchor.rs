@@ -122,6 +122,9 @@ pub(crate) struct ProfilePre {
     pub profile_f64: Profile<f64>,
     /// The canonical→program naming anchor.
     pub naming: ProfileNaming,
+    /// The discrete decisions this f64 pass made — the witness the
+    /// lift's second pass consumes and re-verifies at its own scalar.
+    pub structure: profile::ProfileStructure,
 }
 
 /// Derives the anchor by bit-matching the canonical f64 loops against
@@ -221,18 +224,30 @@ pub(crate) fn derive_naming(
     Some(ProfileNaming { loops: anchors })
 }
 
+/// Embeds an exact-`f64` placement into any evaluation scalar.
+///
+/// ONE HOME for a per-coordinate `from_f64` walk that had grown three:
+/// the profile embed below did it inline, the lift's second pass needed
+/// the same thing for a sketch plane, and each copy was three lines of
+/// index-by-index transcription — the shape where a transposed `c1`/`c2`
+/// is invisible in review and identical in every copy but one.
+pub(crate) fn embed_affine<T: geom_core::Real>(
+    a: &geom_core::Affine3<f64>,
+) -> geom_core::Affine3<T> {
+    let v = |w: geom_core::Vec3<f64>| {
+        geom_core::Vec3::new(T::from_f64(w.x), T::from_f64(w.y), T::from_f64(w.z))
+    };
+    geom_core::Affine3::from_parts(
+        geom_core::Mat3::from_cols(v(a.linear.c0), v(a.linear.c1), v(a.linear.c2)),
+        v(a.translation),
+    )
+}
+
 /// Embeds a stored exact-`f64` profile into any evaluation scalar (the
 /// retired payload's `embed`, now a free function; the `from_f64`
 /// embedding the parameter environment uses).
 pub fn embed_profile<T: geom_core::Real>(p: &Profile<f64>) -> Profile<T> {
-    let v = |w: geom_core::Vec3<f64>| {
-        geom_core::Vec3::new(T::from_f64(w.x), T::from_f64(w.y), T::from_f64(w.z))
-    };
-    let a = &p.plane.placement;
-    let placement = geom_core::Affine3::from_parts(
-        geom_core::Mat3::from_cols(v(a.linear.c0), v(a.linear.c1), v(a.linear.c2)),
-        v(a.translation),
-    );
+    let placement = embed_affine::<T>(&p.plane.placement);
     let loops = p
         .loops
         .iter()

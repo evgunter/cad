@@ -73,9 +73,27 @@ pub use ::profile::{
 };
 
 // Validation: the gate, its typed refusals, and the canonical output.
+// `BlendArc` is in this family because it is what
+// `ValidatedLoop::blend_arcs` hands back — a read-back door on a type
+// this list carries, whose return type a caller must be able to name.
 pub use ::profile::{
-    ContactKind, EscalationSite, FilletLeg, FilletLegCarrier, LoopRole, NoCornerReason,
+    BlendArc, ContactKind, EscalationSite, FilletLeg, FilletLegCarrier, LoopRole, NoCornerReason,
     ProfileError, SegmentKind, SegmentRef, ValidatedLoop, ValidatedProfile, ValidatedSegment,
+};
+
+// **The structure record and the guided doors.** One vocabulary, and
+// it is carried whole for a reason the split would break: a lifted
+// evaluation hands a caller a refusal that NAMES the decision it could
+// not confirm, so `StructureRefusal` and everything reachable from it
+// is already in that caller's hands — and a caller who can match a
+// refusal about a record but cannot name the record it refused about
+// has half a door. The record types are also the driver's input: a
+// bisecting lane records at f64 and replays guided at its own scalar
+// through exactly these two functions.
+pub use ::profile::{
+    CanonicalStructure, CornerGate, Decision, DecisionValue, FilletDecision, LoopCanonical,
+    ProfileStructure, ReplayStructure, SegmentShape, StructureRefusal, StructureRefusalKind,
+    replay_guided, replay_recording, structure,
 };
 
 // The lift door (recorded programs back to loops) and its verdicts.

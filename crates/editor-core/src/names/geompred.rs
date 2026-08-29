@@ -438,6 +438,97 @@ pub enum SelectRefusal {
     Band,
 }
 
+// The human-readable rendering (LIB-DOORS F6 shape): each arm states
+// the PROBLEM in the query's own vocabulary — candidate, tie, band,
+// datum, comparand — and NAMES the candidate the refusal is about, as
+// the refusals themselves promise to. A name renders as its kind plus
+// its minting node, the product layer's spelling: a role path is a
+// derivation, not something a person reads mid-sentence.
+//
+// The in-band arms forward the funnel's whole `Indeterminate` Display,
+// recourse tail included, rather than its bare payload: a selection
+// margin IS a decidability question, so the three-lever coincidence
+// sentence is the right one here (unlike a contact site, where it is
+// not). The arms that wrap another layer's refusal forward that
+// layer's words.
+impl core::fmt::Display for SelectRefusal {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let named = |f: &mut core::fmt::Formatter<'_>, name: &StableName| {
+            write!(f, "the {} minted by node {}", name.kind.noun(), name.node.0)
+        };
+        match self {
+            Self::InBand {
+                name,
+                predicate,
+                source,
+            } => {
+                f.write_str("select: ")?;
+                named(f, name)?;
+                write!(
+                    f,
+                    " is neither certified in nor out — '{predicate}' left it inside the \
+                     ambiguity band, and a query neither drops a candidate silently nor \
+                     selects on a razor-thin cliff: {source}"
+                )
+            }
+            Self::TiedDisagrees {
+                name,
+                matched,
+                candidates,
+            } => {
+                f.write_str("select: ")?;
+                named(f, name)?;
+                write!(
+                    f,
+                    " is a tied name whose {candidates} candidates disagree — {matched} match \
+                     the query and the rest do not, and a tie cannot be half-selected; \
+                     disambiguate the name, or ask something all its candidates answer alike"
+                )
+            }
+            Self::Unreadable { name, error } => {
+                f.write_str("select: ")?;
+                named(f, name)?;
+                write!(f, " could not be read to decide the query: {error}")
+            }
+            Self::NotADatum { datum, found } => write!(
+                f,
+                "select: the query measures from node {}, which produced {found} rather than \
+                 a datum — point a distance query at an evaluated datum",
+                datum.0
+            ),
+            Self::NotALength { dim } => write!(
+                f,
+                "select: the comparand of a distance is a distance, and this expression has \
+                 dimension {dim:?}"
+            ),
+            Self::PairInBand {
+                pair,
+                predicate,
+                source,
+            } => {
+                f.write_str("select: the pair (")?;
+                named(f, &pair.0)?;
+                f.write_str(", ")?;
+                named(f, &pair.1)?;
+                write!(
+                    f,
+                    ") is neither certified in nor out — '{predicate}' left its margin inside \
+                     the ambiguity band, and detection reports only definite findings: {source}"
+                )
+            }
+            Self::BadValue(error) => {
+                write!(f, "select: the stated value did not evaluate: {error}")
+            }
+            Self::Band => f.write_str(
+                "select: the ambiguity band itself could not be built — the ambient tolerance \
+                 is broken, so no comparison below it can be trusted",
+            ),
+        }
+    }
+}
+
+impl core::error::Error for SelectRefusal {}
+
 // ---------------------------------------------------------------
 // Evaluating the atoms against one resolved candidate.
 //

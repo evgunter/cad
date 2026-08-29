@@ -45,6 +45,7 @@ bottom half of it.
 | loft or sweep along a path | `skinned.rs`, `tube.rs`, `lily.rs` |
 | build a parametric recipe | `plate_param.rs`, `heatsink.rs` |
 | target features by name/selector | `diefillet.rs`, `die_composed.rs` |
+| assemble parts held in a store | `docs/guide/assembly.md`, `assembly.rs`, `tests/test_assembly_author.py` |
 | write Python | `examples/bracket.py`, guide §2.8 |
 
 ## The demo tour — `demos/tour/src/`
@@ -77,6 +78,7 @@ in its `Cargo.toml`: a direct `profile` edge for the raw-loop door
 | `projectbox` | `projectbox.rs` | A 15-op boolean chain with a per-op dyadic oracle | Honest note: square-only; round bosses/pilot holes are not attempted (curved operands are gated per C5 arm, not by a blanket operand gate) |
 | `cutaway` | `cutaway.rs` | The first `topo::split`, on a boolean result, then `transform_rigid` | Split output carries no contacts, so it takes plain tier 3 — the 3/3′ rule in action |
 | `heatsink5/7/9` | `heatsink.rs` | The recipe layer via `pncad::document`: one document, structural-param edits, downstream-only recompute, stable `Instance(i)` names | **Named gap F4**: a Boolean node cannot consume a Pattern node's `Instances` payload, so the union step honestly lives outside the document |
+| `bench`, `benchlayout` | `assembly.rs` | The assembly stop: two part documents in a `Workspace`, instances of them in two assembly documents — a mated stand whose placements are SOLVED from its mates, and a flat-pack layout that patterns a part — through `assemble`, `split`/`inline` and `update_to_store`. `docs/guide/assembly.md` is the prose | The stand's posts are seated FLUSH with the shelf's ends and the A5 gate certifies; the layout is disjoint and passes outright. Live library findings are commented at the site that meets each: #944 (no mate frame from a selected face), #945 (mates and patterns do not compose), #946, #947 |
 | — | `booleans.rs` | The declare door: `flush_declarations` building `BooleanDeclarations` for `union_with`/`intersect_with` | There is no `detect_*` in use anywhere: value equality never classifies |
 | — | `paths.rs` | The shared `path_polygon` helper — the tour's polygons said through the PATHS algebra | Since LIB-RETTAIL it is the ONLY way the tour says a polygon: raw `ProfileLoop` construction is off the presented surface, and the one place the tour still needs the raw door — `lily.rs`'s section loops — is a named exception in its `Cargo.toml` |
 | — | `probe.rs` | The K-telemetry sweep (`cargo run -- k-probe out.csv`) | One process per ε row |
@@ -132,4 +134,8 @@ joined-path composition lane.)
 | `tests/test_document.py` | The document surface end to end: edit refusals, evaluation errors including poisoning, literal refusals, the D9 bit-replay seed, persistence round-trips, STEP export refusals, and a test that no arena key is reachable |
 | `tests/test_quantities.py` | `25 * mm`, canonical units, and the typed `DimensionError` family |
 | `tests/test_stubs.py` | The stubs cannot drift: `pncad.pyi` is parsed and compared name-for-name against the compiled module |
+| `tests/test_mesh.py` | The mesh door: tessellation budgets and their refusals, the mesh read-back, watertightness decided on shared indices, the mesh-vs-exact cross-check on planar, boolean and curved bodies, and STL. `docs/guide/meshing.md` is the prose |
+| `tests/test_workspace.py` | The store: the header-only scan and its refusals, identity vs content pin (`sha256(canonical_bytes(doc)) == content_pin(doc).hex`), `resolve`'s Cargo.lock semantics, and the two write doors |
+| `tests/test_assembly_eval.py` | The document seam from the outside: `evaluate(doc, resolver=store)` over the tour's own committed assembly corpus, the memo's `prior=` counters, and the memo-before-the-gates contract |
+| `tests/test_assembly_author.py` | The authoring half — the tour's bench written from nothing: instances, placement clusters and their gauge, mates, the solve, the gather, the at-rest gate, split/inline and the pin-update door. `docs/guide/assembly.md` is the prose |
 | `tests/test_guide.py` | Executes every Python block in this guide, read straight from the Markdown |
