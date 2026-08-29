@@ -18,8 +18,12 @@ the open PRs, and the live program docs, all read on 2026-08-29.
   (#1177) with a declared resume — its diff includes a
   `Vec3::orthonormal_basis` fix, so #1157 is possibly in flight there.
 - **VERBS** (`verbs/`): shell/offset solves in `crates/sweep` and
-  `topo/replace_face.rs` (SHELLFIX 2b, #1180, dual review live); Wave 2
-  germ rows 8–10 and the ratified DRAFT/MIRROR designs are its backlog.
+  `topo/replace_face.rs` (SHELLFIX 2b, #1180, in its final fix pass);
+  its post-SHELLFIX queue is boolean breadth — germ arms (#347's
+  remaining half), SPHSPH, the C5 section arms (#1057), CYLSPH, with
+  #1031 half B, #1076 and #1077 claimed alongside (per Evan's ruling,
+  recorded on this PR's thread; specs staged in the VERBS drafts dir).
+  The ratified DRAFT/MIRROR designs stay its backlog.
 - **LIB** (`lib/`): pncad façade, pncad-py, guide pages (#1198 open);
   owns refusal-display prose and the #741/#742/#944 plans.
 - **SMELL** (schedule in `SMELL-SCAN-2026-08.md` §D): tracks K, P, W
@@ -38,7 +42,10 @@ The wrong-but-green and uselessly-wide certificate cluster — the
 largest real-defect group in the tracker and nobody's territory.
 
 - Accepting defects first: #723 / #893 (sphere meridian/rim certify
-  wrong volumes near poles; S82 feeds the same conversation).
+  wrong volumes near poles; S82 feeds the same conversation). VERBS'
+  staged SPHSPH unit inherits neither, plants the missing near-polar
+  red, and stops if acceptance needs the props fix — so these fixes
+  sit on that unit's critical path.
 - Interval-mode honesty: #924 (rotation anchor width), #1191
   (period-fold widening), #762 (chart-speed guard admits +∞).
 - Enclosure quality and metering: #870 (area never metered),
@@ -64,18 +71,25 @@ Blend-verb breadth, disjoint from SHELLFIX's shell/offset files.
 - Design conversation to open with Evan: #827 (enclosing tangency).
 - Claims SMELL track T (`crates/sweep`, 10 rows) once SHELLFIX 2b
   merges; coordinates ordinals with VERBS or opens its own band.
+- Handoffs from VERBS: #1022 builds to the corrected A3-2 record in
+  `docs/ARMS3-DESIGN.md` (the tag's promised recourse is measured
+  impossible without the multi-link door — build to that record, not
+  the issue's original framing); #827 starts from the JunctionTangent
+  pin in `lily.rs`'s `review_probes` (margin 1.6e-17).
 
 ### S-BOOL — boolean reach and containment (`bool/`)
 
 Operand gates and containment doors that refuse (or mis-admit) legal
-inputs — `topo/boolean`, `splitting`, containment; not pcurves.
+inputs — `topo/boolean`, `splitting`, containment; not pcurves, and
+not the germ-arm lanes VERBS holds. VERBS' claims (its Wave-4 queue):
+#347's remaining half, #1031 half B, #1076, #1077; #1059 is resolved
+into #1031's chain (register row, LILYWELD close) and drops from the
+cut.
 
-- Gates: #1011 (`point_in_solid` missing ray arms), #347 (carrier vs
-  trimmed-arc crossing), #1031 (F7 axis-touching caps — coordinate
-  with SMELL P's `merge_faces` rows), #1059 (misattributed wall
-  blocker), #1152.
+- Gates: #1011 (`point_in_solid` missing ray arms — the named cost of
+  VERBS-GATE's pair-scoping), #1152.
 - Containment/props: #750 (extent-box coarse), #542, #368, #433
-  (needs a disposition), #1076, #1077, #134.
+  (needs a disposition), #134.
 - Claims SMELL track Q's topo rows; leaves Q's `geom-brep/ssi*` files
   alone until PCURVE's P-2 resumes and lands.
 
@@ -124,7 +138,9 @@ as design conversations, then implements.
 - Implementation-ready: #946 (sub-assembly mate loss at the
   instantiation seam), #944 (mint alignment frames — LIB holds the
   plan; take only with LIB's hand-off), #1032 (cylindrical-only Rest),
-  #973; #968 stays banked per its ruling.
+  #973; #968 (torus declared-Rest) is ceded by VERBS with the
+  #966/#968 record and LILYWELD's measured cone×torus adjacency —
+  pickup stays governed by its ruling's conditions.
 - Kernel side: #941 (declared cusps, ruled), #750 overlaps S-BOOL —
   assign to S-BOOL, consume here.
 
