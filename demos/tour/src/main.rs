@@ -744,6 +744,7 @@ fn main() {
     let tol = Tol::witness();
     let outdir = std::env::args().nth(1).expect(
         "usage: demo-tour <outdir> | demo-tour gallery [dir] | \
+                 demo-tour asm-corpus <dir> | \
                  demo-tour k-probe [out.csv] | \
                  demo-tour tess-budget [out.csv] [--deviation]",
     );
@@ -753,6 +754,20 @@ fn main() {
     // run does and links nothing extra.
     if outdir == "gallery" {
         gallery::run(std::env::args().nth(2), tol);
+        return;
+    }
+    // The assembly scene's four AUTHORED documents and nothing else —
+    // what `crates/pncad-py/tests/corpus/bench/` is regenerated from.
+    // Separate from `gallery`, which runs the assembly WALK: that
+    // walk's update door deliberately resaves a part and leaves every
+    // assembly pinning a version the store no longer holds — the right
+    // end state for a demo about the pin gate, the wrong one for a
+    // corpus whose job is to evaluate.
+    if outdir == "asm-corpus" {
+        let dir = std::env::args()
+            .nth(2)
+            .expect("usage: demo-tour asm-corpus <dir>");
+        assembly::corpus(std::path::Path::new(&dir), tol);
         return;
     }
     // The K-telemetry mode (M4 PR 8b): rebuild every scene at the
