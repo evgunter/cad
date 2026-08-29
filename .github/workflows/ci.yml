@@ -569,12 +569,32 @@ jobs:
       # single flag read here because it is the one ci-filter.py can only emit
       # as false for TIER=docs — false against any other tier is the tell, and
       # it is the tell #1204 was actually found by.
+      #
+      # IT ALSO CATCHES THE DISPATCH THAT GATED NOTHING (#1051's second note).
+      # A `workflow_dispatch` naming `lane: interval eps: 1e-12` classifies the
+      # ref's diff like any other run, so aiming one at a branch whose diff is
+      # docs-only hands back a green run that ran no test at all — the exact
+      # "a requested run cannot silently skip the job the requester wanted"
+      # the feature was asked to avoid. `scope: all` is the answer and it is an
+      # INPUT, so the run has to say when it was needed and not given.
       - name: is this run gating anything?
         env:
           DRAFT: ${{ github.event.pull_request.draft }}
           TIER: ${{ steps.classify.outputs.TIER }}
           RUN_BUILD: ${{ steps.classify.outputs.RUN_BUILD }}
+          CONFIG_SOURCE: ${{ steps.classify.outputs.CONFIG_SOURCE }}
         run: |
+          case "$CONFIG_SOURCE" in
+            *requested*|*commit-trailer*)
+              if [ "$RUN_BUILD" != "true" ]; then
+                echo "GATE SKIPPED: a configuration was ASKED FOR and no build, test or lint" \
+                     "row runs — tier=$TIER classifies this change set as non-triggering, and" \
+                     "the request does not change what runs, only which point it runs at."
+                echo "If you meant to gate the whole tree at that point, dispatch it again" \
+                     "with scope: all, which takes no diff and runs everything unscoped."
+              fi
+              ;;
+          esac
           if [ "$DRAFT" = "true" ]; then
             echo "GATE SKIPPED: draft PR — no RUN_* flags set."
             echo "Nothing below this job compiles, tests or lints anything. This run will" \
