@@ -16,16 +16,21 @@
 //! - `WireStep` is produced and consumed by matches that are
 //!   exhaustive on `ProgramStep` and on `WireStep`, so neither can
 //!   gain a variant the other lacks;
-//! - `eval::feed_step` and `LoopProgram::from_recorded` are exhaustive
-//!   on `profile::Step`, so a verb the table gains breaks `editor-core`
-//!   at compile — measured: one added table verb, and exactly those two
-//!   sites.
+//! - `eval::feed_step`, `eval::feed_lane_step` and
+//!   `LoopProgram::from_recorded` are exhaustive on `profile::Step`, so
+//!   a verb the table gains breaks `editor-core` at compile —
+//!   measured: one added table verb, and exactly those THREE sites.
+//!   `feed_lane_step` (M10-P) is the lift's second key feed and joined
+//!   the list when it landed; it is named here rather than left to be
+//!   rediscovered, since the whole point of this list is that it is the
+//!   set a reader can trust to be complete.
 //!
 //! The hop the compiler does NOT check is the one that CONSTRUCTS.
 //! `res_step` matches `ProgramStep` and builds a `Step`, so both
 //! compile errors above can be discharged without the document
 //! vocabulary ever learning the verb — a refusal arm in
-//! `from_recorded`, a tag in `feed_step`, and the wire and the
+//! `from_recorded`, a tag in `feed_step` and one in `feed_lane_step`,
+//! and the wire and the
 //! expression-slot vocabularies are quietly short. This suite is that
 //! hop's census, anchored on `profile::Verb::ALL`: the same anchor
 //! `profile`'s own replay-coverage census uses, read from the same

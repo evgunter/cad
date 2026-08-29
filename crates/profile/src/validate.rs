@@ -1045,7 +1045,7 @@ impl<T: Decide> Profile<T> {
             };
             // A recorded index out of range describes another program.
             let Some(v) = lp.vertices.get(idx) else {
-                return Err(ProfileError::Structure(StructureRefusal::shape(
+                return Err(ProfileError::Structure(StructureRefusal::out_of_range(
                     idx,
                     lp.vertices.len(),
                 )));
@@ -1064,7 +1064,27 @@ impl<T: Decide> Profile<T> {
                 if i == j {
                     continue;
                 }
-                let inside = point_in_loop(rep[i], other, band, i, j)?;
+                let inside = point_in_loop(rep[i], other, band, i, j).map_err(|e| {
+                    // Under guidance this ray parity IS a consumed
+                    // decision, so an escalation names the pair rather
+                    // than surfacing as a bare loop-site refusal.
+                    // `RayCastingExhausted` is deliberately left alone:
+                    // it is not an `Indeterminate` at all — no single
+                    // predicate went unclassified — and it already
+                    // names both loops in its own vocabulary.
+                    match (guide.loop_at(i), &e) {
+                        (Some(_), ProfileError::Escalated { source, .. }) => {
+                            ProfileError::Structure(StructureRefusal::indeterminate(
+                                Decision::Containment {
+                                    loop_: i,
+                                    against: j,
+                                },
+                                *source,
+                            ))
+                        }
+                        _ => e,
+                    }
+                })?;
                 if let Some(rec) = guide.loop_at(i)
                     && inside != rec.inside.contains(&j)
                 {
@@ -1073,7 +1093,17 @@ impl<T: Decide> Profile<T> {
                             loop_: i,
                             against: j,
                         },
-                        DecisionValue::Inside(!inside),
+                        // The recorded answer, read from the record
+                        // rather than derived by negating this pass's.
+                        // The two are equal here — a boolean that
+                        // disagrees has exactly one other value — but
+                        // `!found` is a restatement of the FINDING and
+                        // this is supposed to report the RECORD; the
+                        // difference stops being cosmetic the moment
+                        // the decision grows a third outcome, and a
+                        // reader cannot tell a derived value from a
+                        // read one without being told.
+                        DecisionValue::Inside(rec.inside.contains(&j)),
                         DecisionValue::Inside(inside),
                     )));
                 }
@@ -1476,7 +1506,9 @@ fn canonicalize_loop<T: Decide>(
     };
     let n = chain.vertices.len();
     if start >= n {
-        return Err(ProfileError::Structure(StructureRefusal::shape(start, n)));
+        return Err(ProfileError::Structure(StructureRefusal::out_of_range(
+            start, n,
+        )));
     }
     let vertices: Vec<ProfileVertex<T>> = (0..n).map(|k| chain.vertices[(start + k) % n]).collect();
     // Declared joints follow their vertex through the rotation
@@ -1507,9 +1539,21 @@ fn canonicalize_loop<T: Decide>(
             match issue {
                 SegIssue::Degenerate => ProfileError::DegenerateSegment(at),
                 SegIssue::NearFull => ProfileError::NearFullArc(at),
-                SegIssue::Escalated(source) => ProfileError::Escalated {
-                    site: EscalationSite::Segment(at),
-                    source,
+                // The recorded shape is a consumed decision, so a
+                // guided pass names the segment whose classification
+                // went unconfirmed instead of the bare segment site.
+                SegIssue::Escalated(source) => match recorded {
+                    Some(_) => ProfileError::Structure(StructureRefusal::indeterminate(
+                        Decision::SegmentShape {
+                            loop_: loop_index,
+                            segment: k,
+                        },
+                        source,
+                    )),
+                    None => ProfileError::Escalated {
+                        site: EscalationSite::Segment(at),
+                        source,
+                    },
                 },
             }
         })?;
@@ -1559,8 +1603,8 @@ fn canonicalize_loop<T: Decide>(
     {
         return Err(ProfileError::Structure(StructureRefusal::flipped(
             Decision::TangentJoints { loop_: loop_index },
-            DecisionValue::Index(rec.tangent_joints.len()),
-            DecisionValue::Index(tangent_joints.len()),
+            DecisionValue::Set(rec.tangent_joints.clone()),
+            DecisionValue::Set(tangent_joints.clone()),
         )));
     }
     Ok((

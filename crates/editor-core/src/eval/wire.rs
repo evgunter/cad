@@ -481,6 +481,20 @@ pub(crate) fn prepare_profile(
 /// `Dual` seed on a fillet radius carries its tangent all the way to
 /// the vertex it moves, an interval parameter widens the loop it
 /// describes — while structure stays exactly what the f64 pass chose.
+///
+/// **NEITHER OF THOSE TWO IS REACHABLE THROUGH THIS DOOR YET**, and
+/// the machinery being ready is not the same fact as the capability
+/// being available. [`crate::doc::Doc::param_env`] embeds every
+/// document parameter through `from_f64`, so an evaluation's bindings
+/// are constants: a `Dual` binding has a zero tangent and an `Interval`
+/// binding is a degenerate point. The lane pass therefore runs, and
+/// correctly, over an environment with nothing in it to propagate.
+/// Both halves are scheduled and neither is this unit's: the interval
+/// half — `param_env` learning non-degenerate intervals — is M10-3's
+/// first spec bullet, and the dual half, document-level seeding, is
+/// M10-4's. Until they land, the capability is exercised one door down,
+/// at the program-resolve seam this function calls, which is where
+/// `editor-core`'s `m10_p_lift` suite drives both.
 /// The naming is pass 1's verbatim (PP4): names are program-structural
 /// indices, and the canonical permutation they hang off is pinned by
 /// the record, so `T`-valued geometry changes no name.
@@ -495,10 +509,18 @@ fn lane_profile<T: Decide + geom_core::Bounds>(
         .map_err(|(slot, source)| NodeErrorKind::Expr { slot, source })?;
     let mut loops = Vec::with_capacity(resolved.len());
     for (li, steps) in resolved.iter().enumerate() {
-        // One record per program loop, by construction of pass 1; a
-        // missing one would be an internal break, and the empty record
-        // it would fall back to refuses loudly at the first resolution
-        // rather than letting the lane select for itself.
+        // One record per program loop, by construction of pass 1.
+        //
+        // The fallback is an EMPTY record, and what that buys depends on
+        // the loop: a loop with a fillet in it refuses loudly at the
+        // first resolution (the guide runs off the end of the record,
+        // which `Guide::consume` refuses rather than falling through to
+        // free selection), while a loop with NO fillet — a rectangle, a
+        // circle — has nothing to consume and would elaborate happily
+        // against an empty record. The missing record is an internal
+        // break either way; this comment says which half of the
+        // vocabulary is actually holding the line, because the other
+        // half is the shape check in `replay_guided`, not this.
         let record = pre.structure.replay.get(li).cloned().unwrap_or_default();
         let lp = profile::replay_guided(steps, &record, tol).map_err(|error| {
             NodeErrorKind::ProfileLaneReplay {

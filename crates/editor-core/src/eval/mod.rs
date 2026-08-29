@@ -1356,11 +1356,17 @@ where
     };
 
     // Profile-program resolution (LIB-SWITCH §4b): program Exprs
-    // resolve at f64 — never at `T` — because they feed C6 structure
-    // selection, which must be lane-identical (the verified asymmetry:
-    // node magnitude slots stay lane-live, profile geometry is
-    // f64-pinned). Resolved ONCE here; the same values feed the
-    // content key (resolved-value convention, §4e) and the op.
+    // resolve at f64 because they feed C6 structure selection, which
+    // must be lane-identical (the verified asymmetry: node magnitude
+    // slots stay lane-live, profile geometry is f64-pinned). Resolved
+    // ONCE here; the same values feed the content key (resolved-value
+    // convention, §4e) and the op.
+    //
+    // "and never at `T`" was true until M10-P and is not any more, so
+    // it is qualified rather than dropped: under `ProfileLift::Guided`
+    // the SAME program is additionally resolved at `T` below. What is
+    // still f64-only is the resolution that STRUCTURE is selected from
+    // — this one — which is the part the C6 sentence was ever about.
     let resolved_program = match node {
         crate::node::Node::Profile(program) => match program.resolve(&doc.param_env::<f64>()) {
             Ok(r) => Some(r),
@@ -1508,6 +1514,16 @@ where
     // second pass runs, so that a `Dual` seed or an interval box on a
     // profile dimension moves the key instead of aliasing the nominal
     // evaluation's memo entry.
+    //
+    // THE BUMP'S RADIUS IS EVERY NODE, not the profile nodes whose
+    // input set actually grew: the tag is written once here, before the
+    // node discriminant, so every content key in the document moves —
+    // and naming keys are derived from content keys, so those move too.
+    // That is the intended cost of a format version and not an
+    // oversight. It means one thing for a reader: no memo entry from a
+    // pre-bump process is reused by a post-bump one, anywhere, which is
+    // exactly what a format version is for. Keys are process-internal
+    // and never persisted (spec D3), so nothing on disk is affected.
     h.write_tag(3);
     let tol = tol.get();
     h.write_f64_bits(tol.eps);
@@ -1839,110 +1855,6 @@ const RETIRED_VERB_TAGS: &[(u8, &str)] = &[
 /// feeds payloads only. Both are exhaustive over the transition
 /// table's vocabulary, so a verb the table gains breaks this file at
 /// compile — the loud half of the projection. That a verb the table
-/// Feeds one LANE-resolved program step's continuous arguments into
-/// the content key, through [`ContentBits`] (M10-P PP5).
-///
-/// Structural tags are deliberately absent: the f64 stream that ran
-/// just before this one already carries every verb tag, target kind and
-/// winding, and structure is lane-independent by construction — so
-/// repeating it here would hash the same facts twice and say nothing.
-/// What this adds is exactly what the lane sees and the f64 pass does
-/// not: the seed riding a `Dual`'s tangent channel, the width of an
-/// `Interval` box. Both channels of a dual feed, which is what makes a
-/// seeded memo entry sound rather than aliasing the unseeded one.
-///
-/// Exhaustive over the step vocabulary for the same reason
-/// [`feed_step`] is: a verb the transition table gains must break this
-/// file at compile rather than fall silently out of the key.
-fn feed_lane_step<T: ContentBits>(h: &mut KeyHasher, step: &profile::Step<T>) {
-    use profile::{ArcData, Step, Target};
-    fn f<T: ContentBits>(h: &mut KeyHasher, v: &T) {
-        h.write_tag(42);
-        v.feed(h);
-    }
-    fn pt<T: ContentBits>(h: &mut KeyHasher, p: &geom_core::Point2<T>) {
-        f(h, &p.x);
-        f(h, &p.y);
-    }
-    fn target<T: ContentBits>(h: &mut KeyHasher, t: &Target<T>) {
-        match t {
-            // The Start/Point distinction is structural and rides the
-            // f64 stream; only a Point's coordinates are lane data.
-            Target::Start => {}
-            Target::Point(p) => pt(h, p),
-        }
-    }
-    fn spec<T: ContentBits>(h: &mut KeyHasher, s: &ArcData<T>) {
-        match s {
-            ArcData::Radius { r, .. } => f(h, r),
-            ArcData::Bulge { target: t, b } => {
-                target(h, t);
-                f(h, b);
-            }
-            ArcData::Via { q, target: t } => {
-                pt(h, q);
-                target(h, t);
-            }
-            ArcData::Center { c, target: t, .. } => {
-                pt(h, c);
-                target(h, t);
-            }
-            ArcData::Sweep { r, angle, .. } => {
-                f(h, r);
-                f(h, angle);
-            }
-            ArcData::ArcLen { r, len, .. } => {
-                f(h, r);
-                f(h, len);
-            }
-        }
-    }
-    match step {
-        Step::At(p) | Step::ArcContinue(p) | Step::FarEndTo(p) => pt(h, p),
-        Step::Angle(v) | Step::Turn(v) | Step::Line(v) => f(h, v),
-        Step::Toward { dx, dy } => {
-            f(h, dx);
-            f(h, dy);
-        }
-        Step::Tangent | Step::CloseTo => {}
-        Step::LineTo(t) | Step::TangentArcTo(t) => target(h, t),
-        Step::ArcTo(s) => spec(h, s),
-        Step::Fillet { radius } => f(h, radius),
-        Step::FilletArc { radius, spec: s } => {
-            f(h, radius);
-            spec(h, s);
-        }
-        Step::ArcFillet { spec: s, radius } => {
-            spec(h, s);
-            f(h, radius);
-        }
-        Step::ArcFilletArc {
-            spec: s,
-            radius,
-            spec2,
-        } => {
-            spec(h, s);
-            f(h, radius);
-            spec(h, spec2);
-        }
-        Step::Circle { centre, radius } => {
-            pt(h, centre);
-            f(h, radius);
-        }
-        // `n` is a structural count and rides the f64 stream.
-        Step::CircleSplit {
-            centre,
-            radius,
-            phase,
-            ..
-        } => {
-            pt(h, centre);
-            f(h, radius);
-            f(h, phase);
-        }
-    }
-}
-
 /// gains also reaches the DOCUMENT vocabulary is not compile-checked
 /// and is a census: `tests/switch_program_vocabulary.rs`.
 fn feed_step(h: &mut KeyHasher, step: &profile::Step<f64>) {
@@ -2073,6 +1985,110 @@ fn feed_step(h: &mut KeyHasher, step: &profile::Step<f64>) {
             h.write_tag(3);
             h.write_u64(*n as u64);
             f(h, *phase);
+        }
+    }
+}
+
+/// Feeds one LANE-resolved program step's continuous arguments into
+/// the content key, through [`ContentBits`] (M10-P PP5).
+///
+/// Structural tags are deliberately absent: the f64 stream that ran
+/// just before this one already carries every verb tag, target kind and
+/// winding, and structure is lane-independent by construction — so
+/// repeating it here would hash the same facts twice and say nothing.
+/// What this adds is exactly what the lane sees and the f64 pass does
+/// not: the seed riding a `Dual`'s tangent channel, the width of an
+/// `Interval` box. Both channels of a dual feed, which is what makes a
+/// seeded memo entry sound rather than aliasing the unseeded one.
+///
+/// Exhaustive over the step vocabulary for the same reason
+/// [`feed_step`] is: a verb the transition table gains must break this
+/// file at compile rather than fall silently out of the key.
+fn feed_lane_step<T: ContentBits>(h: &mut KeyHasher, step: &profile::Step<T>) {
+    use profile::{ArcData, Step, Target};
+    fn f<T: ContentBits>(h: &mut KeyHasher, v: &T) {
+        h.write_tag(42);
+        v.feed(h);
+    }
+    fn pt<T: ContentBits>(h: &mut KeyHasher, p: &geom_core::Point2<T>) {
+        f(h, &p.x);
+        f(h, &p.y);
+    }
+    fn target<T: ContentBits>(h: &mut KeyHasher, t: &Target<T>) {
+        match t {
+            // The Start/Point distinction is structural and rides the
+            // f64 stream; only a Point's coordinates are lane data.
+            Target::Start => {}
+            Target::Point(p) => pt(h, p),
+        }
+    }
+    fn spec<T: ContentBits>(h: &mut KeyHasher, s: &ArcData<T>) {
+        match s {
+            ArcData::Radius { r, .. } => f(h, r),
+            ArcData::Bulge { target: t, b } => {
+                target(h, t);
+                f(h, b);
+            }
+            ArcData::Via { q, target: t } => {
+                pt(h, q);
+                target(h, t);
+            }
+            ArcData::Center { c, target: t, .. } => {
+                pt(h, c);
+                target(h, t);
+            }
+            ArcData::Sweep { r, angle, .. } => {
+                f(h, r);
+                f(h, angle);
+            }
+            ArcData::ArcLen { r, len, .. } => {
+                f(h, r);
+                f(h, len);
+            }
+        }
+    }
+    match step {
+        Step::At(p) | Step::ArcContinue(p) | Step::FarEndTo(p) => pt(h, p),
+        Step::Angle(v) | Step::Turn(v) | Step::Line(v) => f(h, v),
+        Step::Toward { dx, dy } => {
+            f(h, dx);
+            f(h, dy);
+        }
+        Step::Tangent | Step::CloseTo => {}
+        Step::LineTo(t) | Step::TangentArcTo(t) => target(h, t),
+        Step::ArcTo(s) => spec(h, s),
+        Step::Fillet { radius } => f(h, radius),
+        Step::FilletArc { radius, spec: s } => {
+            f(h, radius);
+            spec(h, s);
+        }
+        Step::ArcFillet { spec: s, radius } => {
+            spec(h, s);
+            f(h, radius);
+        }
+        Step::ArcFilletArc {
+            spec: s,
+            radius,
+            spec2,
+        } => {
+            spec(h, s);
+            f(h, radius);
+            spec(h, spec2);
+        }
+        Step::Circle { centre, radius } => {
+            pt(h, centre);
+            f(h, radius);
+        }
+        // `n` is a structural count and rides the f64 stream.
+        Step::CircleSplit {
+            centre,
+            radius,
+            phase,
+            ..
+        } => {
+            pt(h, centre);
+            f(h, radius);
+            f(h, phase);
         }
     }
 }

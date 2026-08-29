@@ -2095,10 +2095,34 @@ fn drive<T: ArcCarrierScalar>(
     tol: Tol,
     mut guide: Guide<T>,
 ) -> Result<ClosedLoop<T>, ReplayError<T>> {
+    // THE INSTALL INVARIANT. Exactly the entry rows put the guide into
+    // the chain's core, by TAKING it — so after the first step a guide
+    // still sitting here is one no row took, and everything downstream
+    // would select structure freely while calling itself guided. That
+    // is the one way this machinery can fail without saying anything,
+    // so it is checked rather than commented: a row added to the table
+    // that mints a core and forgets the install fails here, at its
+    // first use, instead of quietly degrading a lane pass.
+    //
+    // The complete-loop forms (`Circle`, `CircleSplit`) mint no core at
+    // all and resolve no fillet, so they are exempt by construction —
+    // they close in the same step, and the check runs only where a
+    // chain continues.
     let mut tip = DynTip::Entry;
     for (i, step) in steps.iter().enumerate() {
         let applied =
             apply(tip, *step, tol, &mut guide).map_err(|kind| ReplayError { step: i, kind })?;
+        if i == 0
+            && guide.is_guided()
+            && matches!(applied, Applied::Tip(_))
+        {
+            return Err(ReplayError {
+                step: 0,
+                kind: ReplayErrorKind::Path(PathError::Structure(
+                    StructureRefusal::guide_not_installed(),
+                )),
+            });
+        }
         match applied {
             Applied::Tip(next) => tip = next,
             Applied::Closed(closed) => {

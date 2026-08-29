@@ -174,7 +174,25 @@ pub enum Decision {
     },
     /// The SHAPE of one fillet's flattened joint space — how many
     /// survivors the recorded index addresses.
+    ///
+    /// Also the site named when the joint space cannot be BUILT at all
+    /// here: a carrier-meet classification this scalar cannot make
+    /// leaves the survivor list undefined, so the recorded index has
+    /// nothing to address.
     JointSpace {
+        /// Which fillet resolution.
+        fillet: usize,
+    },
+    /// The ratified tangent-circle construction at a consumed fillet
+    /// resolution.
+    ///
+    /// Deliberately NOT split into `FitIn` / `FitOut`: the fit signs
+    /// are produced INSIDE that construction, so a scalar that cannot
+    /// classify one of them has not yet reached a sign to attribute the
+    /// failure to. Naming a leg here would be inventing a fact; the
+    /// escalation payload names the predicate, which is the part that
+    /// is actually known.
+    FilletConstruction {
         /// Which fillet resolution.
         fillet: usize,
     },
@@ -212,6 +230,14 @@ pub enum Decision {
         /// The loop's input index.
         loop_: usize,
     },
+    /// **The guide never reached the chain.** An entry verb mints the
+    /// chain's core, and exactly the entry rows install the guide into
+    /// it; a row that mints a core without installing would leave the
+    /// walk running under a fresh RECORDING guide, which is free lane
+    /// selection wearing a guided pass's name — the one failure this
+    /// machinery must not have silently. Not a lane disagreement: an
+    /// internal invariant break, refused typed.
+    GuideNotInstalled,
     /// The record's own shape does not describe this program: a
     /// different loop count, fillet count, or vertex count. Not a lane
     /// disagreement at all — the record and the program are not about
@@ -221,18 +247,30 @@ pub enum Decision {
 
 /// A recorded decision's value, in the one vocabulary a refusal can
 /// report both sides of.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DecisionValue {
     /// A corner-gate outcome.
     Gate(CornerGate),
     /// A classification sign.
     Sign(Sign),
-    /// A count or an index.
+    /// A position — an index into something.
     Index(usize),
+    /// A cardinality. Distinct from [`DecisionValue::Index`] on
+    /// purpose: a refusal that reports "the record says 5, this pass
+    /// says 4" is unreadable when one of those is a position and the
+    /// other is a length, and the two are mixed at exactly the sites
+    /// where a record describes a different program.
+    Count(usize),
     /// A segment shape.
     Shape(SegmentShape),
     /// A containment answer.
     Inside(bool),
+    /// A set of indices, in full.
+    ///
+    /// Sets are carried whole rather than as a count: two sets of equal
+    /// size with different members are a real disagreement, and a
+    /// refusal that reported only the sizes would call them equal.
+    Set(Vec<usize>),
     /// A loop role.
     Role(LoopRole),
 }
@@ -285,13 +323,40 @@ impl StructureRefusal {
         }
     }
 
-    /// The record-does-not-describe-this-program arm.
+    /// The entry row that minted this chain's core did not install the
+    /// guide into it.
+    pub(crate) fn guide_not_installed() -> Self {
+        Self {
+            decision: Decision::GuideNotInstalled,
+            kind: StructureRefusalKind::Flipped {
+                recorded: DecisionValue::Inside(true),
+                found: DecisionValue::Inside(false),
+            },
+        }
+    }
+
+    /// The record-does-not-describe-this-program arm: two CARDINALITIES
+    /// that should have matched.
     pub(crate) fn shape(recorded: usize, found: usize) -> Self {
         Self {
             decision: Decision::RecordShape,
             kind: StructureRefusalKind::Flipped {
-                recorded: DecisionValue::Index(recorded),
-                found: DecisionValue::Index(found),
+                recorded: DecisionValue::Count(recorded),
+                found: DecisionValue::Count(found),
+            },
+        }
+    }
+
+    /// The same arm for a recorded POSITION that the thing it indexes
+    /// is too short to contain — reported as the position against the
+    /// cardinality, because calling them both "5 vs 4" is what made
+    /// these two sites unreadable.
+    pub(crate) fn out_of_range(index: usize, len: usize) -> Self {
+        Self {
+            decision: Decision::RecordShape,
+            kind: StructureRefusalKind::Flipped {
+                recorded: DecisionValue::Index(index),
+                found: DecisionValue::Count(len),
             },
         }
     }
@@ -303,7 +368,10 @@ impl core::fmt::Display for Decision {
             Self::CornerGate { fillet, corner } => {
                 write!(f, "fillet {fillet}'s corner-{corner} gate")
             }
-            Self::JointSpace { fillet } => write!(f, "fillet {fillet}'s joint-space shape"),
+            Self::JointSpace { fillet } => write!(f, "fillet {fillet}'s joint space"),
+            Self::FilletConstruction { fillet } => {
+                write!(f, "fillet {fillet}'s tangent-circle construction")
+            }
             Self::FitIn { fillet } => write!(f, "fillet {fillet}'s incoming fit"),
             Self::FitOut { fillet } => write!(f, "fillet {fillet}'s arrival fit"),
             Self::Containment { loop_, against } => {
@@ -314,6 +382,9 @@ impl core::fmt::Display for Decision {
                 write!(f, "loop {loop_}'s canonical segment {segment}")
             }
             Self::TangentJoints { loop_ } => write!(f, "loop {loop_}'s declared tangent joints"),
+            Self::GuideNotInstalled => {
+                write!(f, "the guide's installation into the chain's core")
+            }
             Self::RecordShape => write!(f, "the structure record's shape"),
         }
     }
@@ -324,9 +395,11 @@ impl core::fmt::Display for DecisionValue {
         match self {
             Self::Gate(g) => write!(f, "{g:?}"),
             Self::Sign(s) => write!(f, "{s:?}"),
-            Self::Index(i) => write!(f, "{i}"),
+            Self::Index(i) => write!(f, "index {i}"),
+            Self::Count(n) => write!(f, "{n} of them"),
             Self::Shape(s) => write!(f, "{s:?}"),
             Self::Inside(b) => write!(f, "inside = {b}"),
+            Self::Set(v) => write!(f, "{v:?}"),
             Self::Role(r) => write!(f, "{r:?}"),
         }
     }
@@ -379,6 +452,17 @@ impl<T: Real> Guide<T> {
     /// A fresh recording guide.
     pub(crate) fn recording() -> Self {
         Self::Recording(ReplayStructure::default())
+    }
+
+    /// Whether this guide is still consuming a record.
+    ///
+    /// Read by the driver AFTER the entry step, where it answers a
+    /// different question than it looks like: the entry rows install by
+    /// TAKING the guide (leaving a fresh recording one behind), so a
+    /// guide that is still `Guided` in the driver's hand is one no row
+    /// took, and the chain is therefore elaborating unguided.
+    pub(crate) fn is_guided(&self) -> bool {
+        matches!(self, Self::Guided { .. })
     }
 
     /// A guide that consumes `record`.

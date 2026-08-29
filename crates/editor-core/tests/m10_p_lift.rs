@@ -27,7 +27,8 @@ mod corpus;
 mod fixture;
 
 use editor_core::{
-    CancelToken, EvalOptions, Node, NodeResult, ParamValue, ProfileLift, ValuePayload, evaluate,
+    CancelToken, EvalOptions, Node, NodeResult, ParamName, ParamValue, ProfileLift,
+    ValuePayload, evaluate,
 };
 use geom_core::{Real, Tol};
 
@@ -231,12 +232,18 @@ fn a_wide_interval_binding_aborts_typed_rather_than_certifying() {
         records.push(record);
     }
     let mut env = doc.doc.param_env::<Interval>();
-    for v in env.bindings.values_mut() {
-        if let ParamValue::Continuous { value, .. } = v {
-            // A box from a hair above zero to an order of magnitude up.
-            *value = Interval::from_bounds(1e-4, 1.0);
-        }
-    }
+    // The hole radius BY NAME. Widening every continuous parameter
+    // would make the row's own subject unclear: the claim is about a
+    // box on the dimension that drives this profile, and a helper that
+    // clobbers whatever else the document happens to carry would keep
+    // passing if the plate grew a second parameter that did the
+    // refusing instead.
+    let hole_r = ParamName::new(corpus::plate_param::HOLE_R);
+    let Some(ParamValue::Continuous { value, .. }) = env.bindings.get_mut(&hole_r) else {
+        panic!("the plate's hole radius is a continuous parameter named hole_r")
+    };
+    // A box from a hair above zero to an order of magnitude up.
+    *value = Interval::from_bounds(1e-4, 1.0);
     let resolved = program.resolve(&env).expect("resolves at Interval");
     // The whole second pass, both halves — which is where the wall
     // actually is for THIS document. The plate's loops are a rectangle
@@ -260,14 +267,29 @@ fn a_wide_interval_binding_aborts_typed_rather_than_certifying() {
     let err = profile::Profile::new(interval_plane(&program.plane), loops)
         .validate_guided(Tol::witness(), &canonical)
         .expect_err("a hole radius spanning four orders of magnitude cannot certify");
-    let text = err.to_string();
-    assert!(
-        !text.is_empty(),
-        "the refusal must say what it could not confirm"
-    );
+    // The FAMILY, not the fact that some string came back. This wall is
+    // an ordinary validation predicate going indeterminate on a box too
+    // wide to classify — `arc_diameter_clearance`, which is NOT a
+    // consumed structure decision and so does not (and should not)
+    // arrive in the `Structure` vocabulary. That distinction is the
+    // whole point of asserting the family here: a reader who sees
+    // "aborts typed" should be able to tell which of the two kinds of
+    // typed abort this row is about.
+    match &err {
+        profile::ProfileError::Escalated { source, .. } => assert_eq!(
+            source.predicate,
+            Some("arc_diameter_clearance"),
+            "the wide box is expected to stall the clearance predicate"
+        ),
+        other => panic!(
+            "expected an escalation from a validation predicate, got {other:?} — if this \
+             became a `Structure` refusal, a consumed decision started covering this \
+             wall and the claim text needs to move with it"
+        ),
+    }
     // Nothing was certified: no canonical form came back, so no caller
     // can mistake this binding for one that kept the nominal structure.
-    println!("wide-box refusal: {text}");
+    println!("wide-box refusal: {err}");
 }
 
 /// **The two-ladder parity.** The sweep/loft seam and the profile
@@ -377,6 +399,90 @@ fn the_evaluation_door_runs_the_lift_at_dual() {
         a.iter().all(|(_, _, dx, dy)| *dx == 0.0 && *dy == 0.0),
         "an unseeded environment has no derivative to carry, at either lane"
     );
+}
+
+/// **The asymmetry the section ladder's own docs state, pinned.**
+///
+/// `wire.rs`'s `section_of` says a loft's or sweep's SECTION stays f64
+/// under the lift — the skinned surface's knots, degrees and control
+/// bits must be identical in every lane (C6/D9) — while the profile
+/// node's payload is the `T`-valued profile. Both halves of that need a
+/// witness at a scalar where "widened" is observable, or the sentence
+/// is prose about f64 rows that cannot tell the two apart.
+///
+/// So, at `Interval` under `Guided`: the extrude ladder's profile
+/// payload is elaborated at the lane (its vertex enclosures are the
+/// lane's own), and the loft's body is bit-identical to the pinned
+/// lane's. The second half is the load-bearing one — it is what says
+/// the gate did not leak into the geometry.
+#[cfg(feature = "interval")]
+#[test]
+fn the_loft_section_stays_f64_while_the_profile_payload_lifts() {
+    use geom_core::Interval;
+    let run = |doc: &editor_core::ProfileDoc, lift| {
+        evaluate::<Interval>(doc, None, &CancelToken::new(), &options(lift), Tol::witness())
+    };
+    let body_bits = |ev: &editor_core::Evaluation<Interval>| {
+        use geom_core::Bounds;
+        let mut out = Vec::new();
+        for result in ev.nodes.values() {
+            if let NodeResult::Ok(v) = result
+                && let ValuePayload::Body(b) = &v.payload
+            {
+                for (_, p) in b.points() {
+                    for c in [p.x, p.y, p.z] {
+                        out.push((c.lo().to_bits(), c.hi().to_bits()));
+                    }
+                }
+            }
+        }
+        out
+    };
+
+    // The loft half: the section is f64 by C6/D9, so the lift must not
+    // move one bit of the body it skins.
+    let loft = corpus::loft_prism::document();
+    let (pinned, guided) = (
+        run(&loft.doc, ProfileLift::Pinned),
+        run(&loft.doc, ProfileLift::Guided),
+    );
+    assert!(
+        !body_bits(&pinned).is_empty(),
+        "the loft document must build a body for this row to mean anything"
+    );
+    assert_eq!(
+        body_bits(&pinned),
+        body_bits(&guided),
+        "the lift moved a lofted body at Interval — the section is supposed to stay \
+         f64, so the second pass is a GATE here and must leak nothing into the geometry"
+    );
+
+    // The extrude half: the profile node's own payload IS elaborated at
+    // the lane, which is the other side of the asymmetry. Both lanes
+    // enclose the same point here (the plate's parameters are
+    // degenerate intervals until M10-3 widens `param_env`), so what is
+    // asserted is that the payload is produced and encloses the
+    // nominal — not that it is wider, which it cannot yet be.
+    let plate = plate();
+    let g = run(&plate.doc, ProfileLift::Guided);
+    let mut profiles = 0usize;
+    for result in g.nodes.values() {
+        if let NodeResult::Ok(v) = result
+            && let ValuePayload::Profile(p) = &v.payload
+        {
+            use geom_core::Bounds;
+            profiles += 1;
+            for lp in p.validated.loops() {
+                for vx in lp.vertices() {
+                    assert!(
+                        vx.pos().x.lo() <= vx.pos().x.hi() && vx.pos().y.lo() <= vx.pos().y.hi(),
+                        "the lane-elaborated profile must carry well-formed enclosures"
+                    );
+                }
+            }
+        }
+    }
+    assert!(profiles > 0, "the plate evaluates a profile node");
 }
 
 fn plate() -> corpus::CorpusDoc {

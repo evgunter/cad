@@ -221,6 +221,12 @@ fn the_corpus_replays_at_interval_and_encloses_the_f64_lane() {
     use geom_core::{Bounds, Interval};
     for (i, closed) in coverage_corpus().into_iter().enumerate() {
         let base = replay_at::<f64>(&closed.program);
+        // A row that does not reach the comparison is not skipped
+        // quietly: the SET of such rows is pinned, by name, in
+        // `exactly_one_corpus_row_escalates_at_interval` below, which
+        // asserts there is exactly one and says which. Without that
+        // companion this `continue` would let the whole corpus fall out
+        // of the enclosure claim one row at a time and still pass.
         let Ok(iv) = try_replay_at::<Interval>(&closed.program) else {
             continue;
         };

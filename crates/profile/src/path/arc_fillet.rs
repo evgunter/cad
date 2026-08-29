@@ -476,10 +476,18 @@ pub(crate) fn resolve<T: Decide + Bounds>(
     // than surfacing as a bare band refusal.
     let mut kept: Vec<Point2<T>> = Vec::new();
     let mut gates: Vec<CornerGate> = Vec::new();
-    for (ci, corner) in derive(&incoming, &arrival, radius, band)?
-        .into_iter()
-        .enumerate()
-    {
+    // Deriving the corners is where the joint space comes from, so a
+    // scalar that cannot classify the carrier meet has no survivor list
+    // for the recorded index to address. Under guidance that is named
+    // as the joint space going unconfirmed rather than surfacing as a
+    // bare band refusal about `path_carrier_meet`.
+    let corners = derive(&incoming, &arrival, radius, band).map_err(|e| match (&consumed, &e) {
+        (Some((fillet, _)), PathError::Escalated { source }) => structure(
+            StructureRefusal::indeterminate(Decision::JointSpace { fillet: *fillet }, *source),
+        ),
+        _ => e,
+    })?;
+    for (ci, corner) in corners.into_iter().enumerate() {
         let outcome = match advance_gate(&incoming, corner, radius, band) {
             Ok(()) => match reach_gate(&arrival, corner, radius, band) {
                 Ok(()) => Ok(()),
@@ -505,8 +513,8 @@ pub(crate) fn resolve<T: Decide + Bounds>(
                 let Some(&recorded) = decision.corners.get(ci) else {
                     return Err(structure(StructureRefusal::flipped(
                         site,
-                        DecisionValue::Index(decision.corners.len()),
-                        DecisionValue::Index(ci + 1),
+                        DecisionValue::Count(decision.corners.len()),
+                        DecisionValue::Count(ci + 1),
                     )));
                 };
                 match &outcome {
@@ -576,7 +584,18 @@ pub(crate) fn resolve<T: Decide + Bounds>(
                 });
             }
             Err(ArcTrimRefusal::Escalated(source)) => {
-                return Err(PathError::Escalated { source });
+                // The fit signs are produced INSIDE this construction,
+                // so a guided pass that cannot get through it has not
+                // reached a sign to compare — it names the resolution
+                // whose construction went unconfirmed, and the payload
+                // carries the predicate that could not be classified.
+                return Err(match &consumed {
+                    Some((fillet, _)) => structure(StructureRefusal::indeterminate(
+                        Decision::FilletConstruction { fillet: *fillet },
+                        source,
+                    )),
+                    None => PathError::Escalated { source },
+                });
             }
             // The M8 conditioning gate ABORTS the resolve exactly as an
             // escalation does, and for the same reason: a joint space
@@ -626,10 +645,25 @@ pub(crate) fn resolve<T: Decide + Bounds>(
             if joints.len() != decision.survivors || decision.candidate >= joints.len() {
                 return Err(structure(StructureRefusal::flipped(
                     Decision::JointSpace { fillet: *fillet },
-                    DecisionValue::Index(decision.survivors),
-                    DecisionValue::Index(joints.len()),
+                    DecisionValue::Count(decision.survivors),
+                    DecisionValue::Count(joints.len()),
                 )));
             }
+            // WHY THE INDEX IS SOUND, which is not the reason the
+            // ladder's own docs give. The recorded index addresses a
+            // position in the flattened (corner, candidate) list, so it
+            // means what it meant only if THIS pass built the same list
+            // in the same order. That holds because the list is
+            // produced by one formula from one corner list: `derive`
+            // enumerates corners by the carrier pair's KIND (never by
+            // value), the gate outcomes are consumed from the record so
+            // the kept set is the recorded one by construction, and
+            // `arc_fillet_trims` appends survivors per corner in its
+            // own fixed order. The `survivors` comparison above is what
+            // guards that chain — it is the one observable that a
+            // differing corner list or a differing per-corner survivor
+            // count would move — which is why it is checked BEFORE the
+            // index is used rather than beside it.
             let picked = decision.candidate;
             for (site, recorded, found) in [
                 (
