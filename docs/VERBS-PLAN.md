@@ -334,3 +334,18 @@ edge (the teapot cup's meridian plane, endpoints of valence 4).
 The deviation from the recorded steer is flagged for Evan's
 retroactive review; the plane-face interior-seam question is ruled
 permissible (a preference to avoid, not a wall).
+
+## Plan note (2026-08-29, #1200's work-stream survey): VERBS' claims vs the streams
+
+Per Evan's ruling ("take everything that's naturally within your
+work"): VERBS CLAIMS #347's remaining half (the germ-arms unit),
+#1031 half B, #1076, and #1077 — the S-BOOL anchors that were
+already Wave-4 queue items with drafted specs (spec-drafts/ in
+cad-work). #1059 is resolved and drops from any cut. CEDED with
+handoff records on #1200: S-BLEND's fillet residue (#1022 builds
+to the A3-2 measured record, not the issue's framing; #827
+starts from LILYWELD's JunctionTangent payload), S-CERT's
+#723/#893 (SPHSPH inherits neither, plants the near-polar red),
+S-MATE's #968 (the #966 record + LILYWELD's killed-rung context).
+S-BOOL's honest remainder (#1011/#750/#542/#368/#433/#1152/#134)
+was never VERBS'.
