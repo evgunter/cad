@@ -198,7 +198,7 @@ pub struct VerdictVector {
 
 impl VerdictVector {
     /// The vector of an evaluation, in its own `order`.
-    fn of<T: geom_core::Decide>(ev: &Evaluation<T>) -> Self {
+    pub fn of<T: geom_core::Decide>(ev: &Evaluation<T>) -> Self {
         let rows = ev
             .order
             .iter()

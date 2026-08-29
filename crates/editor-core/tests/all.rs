@@ -94,6 +94,10 @@ mod m10_1_analysis;
 mod m10_1_r2_probes;
 #[path = "m10_1_schema_v15.rs"]
 mod m10_1_schema_v15;
+#[path = "m10_3_driver_interval.rs"]
+mod m10_3_driver_interval;
+#[path = "m10_3_driver_k_probe_interval.rs"]
+mod m10_3_driver_k_probe_interval;
 #[path = "m10_di_dual_corpus.rs"]
 mod m10_di_dual_corpus;
 #[path = "m10_p_fence.rs"]
