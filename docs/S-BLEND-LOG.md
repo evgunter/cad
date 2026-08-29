@@ -120,3 +120,20 @@ the same merge; issue 827 closes at its merge, and the decision
 folds into DESIGN.md's companion table then. Sequenced after
 BLEND-1 (review-bandwidth, not file conflict — it is the one unit
 off the sweep fence).
+
+## BLEND-1 REVIEWS DISPATCHED (2026-08-29 ~20:17Z)
+
+Implementation delivered: PR 1222, frozen head `85047cbe`, impl CI
+33271411468 green ({interval, default eps} drawn; off-draw rows run
+in-lane). **Ordinal 600 claimed on main** (PR 1236, merge f7016118;
+the conflict resolved there carried S-CERT's 600→700 renumber — the
+banding rule worked its first collision). v6 dual: byte 77, parity
+1 ⇒ R1 FABLE + R2 OPUS, SEQUENTIAL on the frozen head per the
+method note recorded in the claim entry BEFORE R1 ran; both briefs
+authored and stored pre-R1 (orchestrator dir). R1 running in lane
+`blend-1-r1`; R2 dispatches from the stored brief when R1's report
+is in and its target is reclaimed. Base-tree findings homed at
+dispatch: issues 1234 (reader_census dot-path), 1235 (m10_p_lift
+clippy). The impl lane is kept intact for the fix pass (the M10-1
+worktree-reclaim lesson); only review targets are reclaimed at
+report time.
