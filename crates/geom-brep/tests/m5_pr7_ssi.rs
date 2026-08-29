@@ -1008,6 +1008,13 @@ fn certify_against(carrier: &NurbsCurve3<f64>) -> Result<geom_brep::SsiCertifica
 ///
 /// Loft/sweep *definitions* are PR 10; these are authored control nets.
 fn wall_from_cols(cols: [(f64, f64); 4]) -> NurbsSurface<f64> {
+    wall_from_cols_w(cols, [1.0; 8])
+}
+
+/// [`wall_from_cols`] with the weights stated too — for the one row
+/// whose defect IS its weights (the D286 underflow fixture), so the
+/// net literals live in exactly one place per section.
+fn wall_from_cols_w(cols: [(f64, f64); 4], weights: [f64; 8]) -> NurbsSurface<f64> {
     let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
     let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
     let mut control = Vec::with_capacity(8);
@@ -1015,8 +1022,13 @@ fn wall_from_cols(cols: [(f64, f64); 4]) -> NurbsSurface<f64> {
         control.push(Point3::new(x, y, 0.0));
         control.push(Point3::new(x, y, 0.8));
     }
-    NurbsSurface::new(ku, kv, control, vec![1.0; 8]).unwrap()
+    NurbsSurface::new(ku, kv, control, weights.to_vec()).unwrap()
 }
+
+/// The section [`nurbs_wall`] and the D286 underflow fixture share —
+/// one spelling, so the fixture's "no magnitude anywhere" claim is
+/// pinned to the wall it actually copies.
+const NURBS_WALL_COLS: [(f64, f64); 4] = [(0.0, 0.0), (0.35, 0.18), (0.70, -0.12), (1.05, 0.04)];
 
 /// The wall the ℝ⁴ rows march: curved in `x`–`y`, extruded in `z`. The
 /// cutting plane meets it in a single open branch that runs wall-edge to
@@ -1027,7 +1039,7 @@ fn wall_from_cols(cols: [(f64, f64); 4]) -> NurbsSurface<f64> {
 /// slowly-varying curvature) then understates what the fit needs. The
 /// acceptance shape wants a NURBS wall, not a pathological one.
 fn nurbs_wall() -> NurbsSurface<f64> {
-    wall_from_cols([(0.0, 0.0), (0.35, 0.18), (0.70, -0.12), (1.05, 0.04)])
+    wall_from_cols(NURBS_WALL_COLS)
 }
 
 /// The wall the substrate row CERTIFIES: same construction, section
@@ -2203,7 +2215,9 @@ fn a_poisoning_control_net_refuses_the_enclosure_typed() {
 /// the guard before the sweep runs.
 ///
 /// **Underflow is the open side, and it needs no magnitude.** This
-/// fixture's control points are the substrate wall's own, order 1; its
+/// fixture's control points are [`nurbs_wall`]'s own (the file's
+/// ordinary ℝ⁴ wall — not [`certifiable_wall`], the one the substrate
+/// row certifies), order 1; its
 /// weights are finite, positive, and equal; its certified chart speed
 /// is about 25 m per parameter unit, which the guard passes without
 /// comment. What poisons is the RATIONAL's own denominator: the weight
@@ -2236,18 +2250,14 @@ fn an_underflowing_weight_reaches_the_chart_poison_arm_without_magnitude() {
         0.0,
         "FIXTURE: the product underflows, the weight does not"
     );
-    let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
-    let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
-    let mut control = Vec::with_capacity(8);
-    for (x, y) in [(0.0, 0.0), (0.35, 0.18), (0.70, -0.12), (1.05, 0.04)] {
-        control.push(Point3::new(x, y, 0.0));
-        control.push(Point3::new(x, y, 0.8));
-    }
     assert!(
-        control.iter().all(|p| p.x.abs() < 2.0 && p.y.abs() < 2.0),
-        "FIXTURE: no magnitude anywhere — the net is the substrate wall's own"
+        NURBS_WALL_COLS
+            .iter()
+            .all(|(x, y)| x.abs() < 2.0 && y.abs() < 2.0),
+        "FIXTURE: no magnitude anywhere — the net is nurbs_wall's own"
     );
-    let w = NurbsSurface::new(ku, kv, control, vec![tiny; 8]).expect("a wall a caller can build");
+    // The constructor accepts it — a wall a caller can build.
+    let w = wall_from_cols_w(NURBS_WALL_COLS, [tiny; 8]);
     match ssi::plane_nurbs_ssi(&cutting_plane(), &w, wall_domain(), band()) {
         Err(SsiError::UnsupportedCertificate { what })
             if what.contains("control-net enclosure poisoned") => {}
@@ -2255,10 +2265,13 @@ fn an_underflowing_weight_reaches_the_chart_poison_arm_without_magnitude() {
             panic!("the chart-speed guard answered for a net whose speed is finite: {what}")
         }
         Err(other) => panic!(
-            "expected the chart sweep's poison arm, got {other} — the arm is what              must answer an enclosure that cannot be formed, and any other door              answering in its place is the wrong DIAGNOSIS"
+            "expected the chart sweep's poison arm, got {other} — the arm is what \
+             must answer an enclosure that cannot be formed, and any other door \
+             answering in its place is the wrong DIAGNOSIS"
         ),
         Ok(out) => panic!(
-            "SILENT: a chart domain whose enclosure poisons returned Ok with {}              branches and a receipt {:?}",
+            "SILENT: a chart domain whose enclosure poisons returned Ok with {} \
+             branches and a receipt {:?}",
             out.branches.len(),
             out.exhaustiveness
         ),
@@ -2519,5 +2532,39 @@ fn the_ssi_predicates_reach_the_k_funnel() {
                 .map(|x| x.predicate)
                 .collect::<std::collections::BTreeSet<_>>()
         );
+    }
+}
+
+/// **A collapsed net lands on the ZERO-speed arm, and the speed is
+/// exactly `0`** — measured to settle two contradicting review
+/// readings (one predicted the budget answers, one a hull-inflated
+/// ≈1e-7 speed keeping the sweep alive).
+///
+/// Mechanism: the seeding guard's `mag` squares each derivative-hull
+/// component before its `sqrt`, so a net whose spread is below
+/// ~1e-154 underflows to exactly `0.0` there — no ring inflation
+/// keeps it positive — and the `speed <= 0.0` arm refuses by the
+/// speed's own name before any floor is translated. Pinned across
+/// the whole subnormal-adjacent range the reviews probed.
+#[test]
+fn a_collapsed_net_refuses_on_the_zero_speed_arm_not_the_budget() {
+    for spread in [1.0e-200f64, 1.0e-260, 1.0e-300, 1.0e-315] {
+        let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let mut control = Vec::with_capacity(8);
+        for i in 0..4 {
+            let x = spread * (i as f64);
+            control.push(Point3::new(x, 0.0, 0.0));
+            control.push(Point3::new(x, 0.0, 0.5 * spread));
+        }
+        let w = NurbsSurface::new(ku, kv, control, vec![1.0; 8]).unwrap();
+        match ssi::plane_nurbs_ssi(&cutting_plane(), &w, wall_domain(), band()) {
+            Err(SsiError::UnsupportedCertificate { what })
+                if what.contains("chart speed is zero") => {}
+            other => panic!(
+                "spread {spread:e}: expected the zero-speed arm to answer by \
+                 name, got {other:?}"
+            ),
+        }
     }
 }

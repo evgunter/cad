@@ -421,14 +421,18 @@ where
         // tangent is a unit vector; the 3-D speed converts it).
         let speed = sys.tangent_speed(&x, &d1);
         if !speed.is_finite() || speed <= 0.0 {
-            // Only a POSITIVE FINITE speed converts a state step into
-            // meters. At zero the state moves and the point does not;
-            // at `±∞` or poison the step in state units divides to `0`
-            // and the meters it claims are indeterminate. Nothing
-            // downstream can be stated in meters in either case, so
-            // refuse rather than divide by it — and refuse HERE, so
-            // the caller is told the speed is unusable rather than
-            // being handed the step predicate's answer in its place.
+            // A speed OUTSIDE the positive-finite class can never
+            // convert a state step into meters: at zero the state
+            // moves and the point does not; at `±∞` or poison the
+            // step in state units divides to `0` and the meters it
+            // claims are indeterminate. Refuse rather than divide by
+            // it — and refuse HERE, so the caller is told the speed
+            // is unusable rather than being handed the step
+            // predicate's answer in its place. Positive finite is
+            // NECESSARY, not sufficient: a subnormal speed passes
+            // this test while `h` overflows anyway (the measured
+            // usability boundary is ~5.6e-312 at unit extent, not 0)
+            // — the finite-but-unusable window is issue 1238's.
             return Err(SsiError::StepCollapsed {
                 mode: mode.name(),
                 step_meters: 0.0,
@@ -940,7 +944,7 @@ mod tests {
     /// The chart lane states the same duty one door over, in
     /// `plane_nurbs_ssi`'s seeding guard.
     ///
-    /// All four non-positive-finite values are pinned together because
+    /// All five non-positive-finite values are pinned together because
     /// the guard's obligation is the class, not the one member of it a
     /// predicate happened to miss.
     #[test]
