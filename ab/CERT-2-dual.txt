@@ -1,0 +1,90 @@
+CERT-2 dual (v6), recorded BEFORE R1 dispatch, 2026-08-29
+ordinal 700 (S-CERT band's first claim; claimed on main at this dispatch)
+slot byte 235, parity 1 => R1 FABLE + R2 OPUS
+METHOD NOTE (pre-recorded so both arms run identically): reviews run
+SEQUENTIALLY on the frozen head 0da940d2 (PR 1221's reviewed head) —
+disk on this container bounds concurrent lane targets, and reducing
+concurrency is the lever that does not spend the pair. R2 dispatches
+after R1's report with the IDENTICAL stored brief below, no access to
+R1's report, findings, or probe branch. Probe branches:
+cert/2r1-probes, cert/2r2-probes.
+implementer difficulty S (pre-drawn); impl phase ~204k tokens, ~51m
+wall (harness), ~65m self-est — held for the row at merge.
+
+COMMON BRIEF (stored verbatim; lane plumbing — worktree path, probe
+branch name — differs per lane):
+---
+You are a blinded adversarial reviewer for unit CERT-2 of the S-CERT
+program (repo evgunter/cad). Review PR 1221 on its FROZEN head
+0da940d2 — do not review any later commit; if the branch has moved,
+say so and still review 0da940d2.
+
+Read first, in order: docs/prompts/reviewer-style-lane.md (binding
+style-lane brief; carry its structural questions and confidence
+vocabulary), docs/CERT-2-SPEC.md (the unit's binding spec), GitHub
+issue 762 and SMELL rows D285/D286 as the spec cites them, then the
+PR diff and body.
+
+CLAIMS TO FALSIFY (each gets a verdict with evidence; execution
+beats inspection):
+1. march.rs's guard now refuses every non-positive-finite chart
+   speed as the typed speed refusal, not an ssi_step_progress
+   escalation — for all five classes (+inf, -inf, NaN, 0, negative).
+2. The D286 fixture genuinely reaches the R^4 control-net poison arm
+   via weight underflow (partition-of-unity 0/0 at the midpoint
+   evaluation), is epsilon-invariant, and reverts to the WRONG
+   diagnosis (cell budget) when the poison arm is disabled.
+3. "The march.rs speed site has no min/max fold — poison propagates
+   unaided" (claimed: Vec3::norm at both trace shapes).
+4. The overflow-side closure: net magnitude >= ~1e169 makes the
+   certified derivative bound +inf before value poison can occur,
+   and the plane-placement variant is guard-refused first.
+5. The reworded exhaust.rs sentences (BOTH arms — the R^3 one the
+   spec named and the R^4 one taken as a declared deviation) state
+   causes a caller can actually produce.
+6. The sweep's hit list (PR section 5) dispositions hold, and its
+   stated blind spot (folds spelled as if/fold/reduce/clamp) hides
+   nothing live INSIDE the fence.
+7. Issues 1218 and 1219 assert what is actually true in the tree.
+8. The D2-addendum classifications (row 3 at the widened admission
+   set with row 0 answered no; row 2 for the sentence changes) are
+   the right rows.
+9. The SMELL table edit deletes exactly D285 and D286 and nothing
+   else, and nothing in the deleted rows' framing that other rows
+   need was lost.
+STRUCTURAL (the style lane's stance): does the new guard mint a
+fresh instance of the defect class it closes (a guard with its own
+admissions gap); is a disclosed blind spot being read as a
+discharge; does the acceptance row go red when the guarantee
+DEGRADES or only at the chosen fixture.
+
+E2E EXERCISE (required): drive plane_nurbs_ssi through the public
+door yourself with degenerate walls you author (overflowing nets, a
+subnormal-weight net, a zero-radius-shaped degenerate) and report
+what the door's refusals actually read like to a consumer.
+
+LOCAL RUNS = UNIQUE SIGNAL ONLY: your own probes, planted
+corruptions (disable the guard/arm and confirm the pinned rows go
+red), merge-base differentials. The unit's suites ride the PR gate:
+verify the gate RAN and was green by resolving run 33270442369 —
+status AND head SHA — yourself; do not re-run CI-covered suites.
+State which point of the {default,interval} x {eps} matrix the run
+drew and what that leaves unclaimed.
+
+VERDICT: exactly one of APPROVE / APPROVE-WITH-FIXES /
+NOT-MERGEABLE-AS-IS / REJECT, plus the CODE QUALITY REPORT rubric:
+MAJOR/MINOR/NOTE counts; spec deviations reported vs silent
+(silent counted separately); ratings 1-5 with one line of evidence
+each for idiom/structure, test quality, doc/comment honesty.
+Findings ranked, at least one line of prose per MAJOR.
+
+LANE ISOLATION AND BLINDING: never state or guess who or what model
+implemented the unit; do not read any other review lane's branches,
+notes, or reports (disclose any accidental glimpse); do not post to
+GitHub — push your probe suites to your probe branch and deliver
+findings in your report. No Co-Authored-By trailers in probe-branch
+commits. Keep working files inside your worktree, not the shared
+scratchpad. Foreground discipline: no background waiters for your
+own builds/tests; wrap raw cargo in local-scripts/with-build-slot.sh;
+never end a turn with background work active. Report <= 150 lines.
+---
