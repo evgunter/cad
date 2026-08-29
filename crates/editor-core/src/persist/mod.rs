@@ -408,6 +408,24 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 /// the same gate. A v15 file whose log contains no value edits is the
 /// degenerate carry, exactly as an all-`None` distribution is.
 ///
+/// # v16 — `Node::Chamfer` joins the node vocabulary
+///
+/// The fifteenth break, and the node vocabulary's own kind of break:
+/// [`crate::Node`] gains a `Chamfer` variant (RECIPE-DOORS D2, issue
+/// #918) carrying `{ target, distance, selection }`, and [`crate::SlotId`]
+/// gains `ChamferDistance` for its size. Both types are
+/// `deny_unknown_fields`, so the direction that fails is the usual
+/// one: a v15 reader handed a file containing a chamfer node — or a
+/// slot binding naming its distance — meets a variant it has no name
+/// for and dies inside serde. A v16 file with no chamfer in it is the
+/// degenerate carry.
+///
+/// The recourse is the standing one for a vocabulary break with no
+/// migration machinery (LQ7a): regenerate the file from its own
+/// recipe. Nothing in the wire shape of any existing node moved, so a
+/// file that never mentions a chamfer differs from its v15 self only
+/// in the header number.
+///
 /// This number was taken by an explicit by-eye read of main's constant
 /// at the final re-merge (`git show
 /// origin/main:crates/editor-core/src/persist/mod.rs | grep
@@ -417,8 +435,8 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 /// merging clean.
 ///
 /// Bump ONLY with a ratified format change — plus its
-/// [`migration_step`] entry, or a ratified break like these fourteen.
-pub const SCHEMA_VERSION: u32 = 15;
+/// [`migration_step`] entry, or a ratified break like these fifteen.
+pub const SCHEMA_VERSION: u32 = 16;
 
 /// The serialized body under the header: snapshot + edit log (D1).
 #[derive(serde::Serialize, serde::Deserialize)]
