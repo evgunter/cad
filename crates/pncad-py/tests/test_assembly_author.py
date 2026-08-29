@@ -32,6 +32,26 @@ TWO THINGS THIS FILE CANNOT SAY, AND THEY ARE NOT DEFECTS OF IT
    their own named gap (`B-READBACK` in the census). The NAMES are
    reachable and asserted; where they sit is not.
 
+WHICH `RefusedRef` ARMS THIS FILE REACHES, AND WHY NOT THE OTHERS
+----------------------------------------------------------------
+`ref_not_a_face` is reached below, by authoring a mate against an
+edge. The other three are MEASURED as unreachable from Python
+authoring today, which is a finding about the doors and not a gap in
+this file:
+
+* `ref_node_gone` — the reference's minting node is not in the
+  document. Deleting the instance a mate names does get there in
+  principle, but the mate then fails to solve and the GATHER refuses
+  first (`root_failed`), so the gate never resolves the reference.
+* `ref_vanished` — no product entity answers to the name. Reaching it
+  wants the referenced part to change shape under a name the assembly
+  still holds, and that is exactly what the pin gate refuses
+  (`part_pin_mismatch`) one door earlier.
+* `ref_ambiguous` — a tie. Nothing the instantiate seam's naming
+  produces is tied, and Python cannot hand-build a name.
+
+Each is bound and tagged; a reach appears when some other door does.
+
 THE ONE SUBSTITUTION, STATED
 ----------------------------
 The layout's four posts are `Node.placed_union`, not `Node.Pattern`.
