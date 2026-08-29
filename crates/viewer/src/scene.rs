@@ -23,6 +23,8 @@
 //! into something prettier than the model, and the facets are exactly
 //! what a δ reading should let you see.
 
+use std::collections::BTreeSet;
+
 use bvh::Aabb;
 use pncad::document::{
     CancelToken, Dimension, Doc, DocEdit, EvalOptions, Expr, Frame, LoopProgram, Node,
@@ -268,11 +270,25 @@ pub struct SceneStats {
     /// marked distinct). The scene-level summary of the per-corner
     /// [`SceneMesh::flags`].
     pub probe_parts: usize,
+    /// How many drawn PATCHES carry [`SceneMesh::FLAG_FOCUS`] — the
+    /// same kind of scene-level summary, for the marking the side
+    /// panel's selection drives. It is the number a headless row
+    /// asserts on: "selecting this feature marks these many faces" is
+    /// checkable, and the colour it is drawn in is not.
+    pub focus_patches: usize,
 }
 
 impl SceneMesh {
     /// The per-corner flag marking a free-move probe's corners.
     pub const FLAG_PROBE: u32 = 1;
+
+    /// The per-corner flag marking the corners of what the side panel
+    /// is currently showing (`crate::pick::focus`).
+    ///
+    /// A second BIT rather than a second field: the two facts are
+    /// independent — a probed part can be the selected one — and the
+    /// flags word already travels to the shader.
+    pub const FLAG_FOCUS: u32 = 2;
 
     /// The empty picture: what a scene where EVERYTHING is hidden
     /// draws. Zero triangles, legally — an honest blank viewport, not
@@ -293,6 +309,7 @@ impl SceneMesh {
                 triangles: 0,
                 display_delta: delta.get(),
                 probe_parts: 0,
+                focus_patches: 0,
             },
         }
     }
@@ -331,6 +348,39 @@ impl SceneMesh {
         parts: &[ScenePart<'_>],
         delta: DisplayTolerance,
     ) -> Result<Self, SceneError> {
+        Self::build_parts_focused(parts, delta, &BTreeSet::new())
+    }
+
+    /// [`SceneMesh::build_parts`], marking the patches whose id is in
+    /// `focus` with [`SceneMesh::FLAG_FOCUS`].
+    ///
+    /// **Why the marking is a per-corner attribute and not a shader
+    /// uniform**, which is how the selected and hovered patches are
+    /// marked: those are one patch each, so an id fits in a uniform
+    /// slot; a focus is a SET, of no bounded size, and the only place a
+    /// set of that shape can be tested per fragment without new GPU
+    /// plumbing is the vertex data the picture is already carrying.
+    ///
+    /// The cost that buys is a scene rebuild when the selection moves.
+    /// It is a real cost and it is a small one: this function walks
+    /// tessellations that already exist — the pick index's, built once
+    /// per evaluation — and copies vertex arrays. The free-move probe
+    /// already rebuilds the scene on every frame of a drag through the
+    /// same path, so a rebuild per selection CLICK is strictly cheaper
+    /// than something that shipped.
+    ///
+    /// An id in `focus` that this scene does not draw is ignored rather
+    /// than refused: a hidden instance's ids are legitimately absent,
+    /// and a focus is a request to mark what is there.
+    ///
+    /// # Errors
+    ///
+    /// As [`SceneMesh::build_parts`].
+    pub fn build_parts_focused(
+        parts: &[ScenePart<'_>],
+        delta: DisplayTolerance,
+        focus: &BTreeSet<u32>,
+    ) -> Result<Self, SceneError> {
         for part in parts {
             if !part.ids.is_empty() && part.ids.len() != part.mesh.patches.len() {
                 return Err(SceneError::MispairedIds {
@@ -353,6 +403,7 @@ impl SceneMesh {
         let mut flags = Vec::with_capacity(triangles * 3);
         let mut faces = 0usize;
         let mut probe_parts = 0usize;
+        let mut focus_patches = 0usize;
         for part in parts {
             let mesh = part.mesh;
             faces += mesh.patches.len();
@@ -374,6 +425,15 @@ impl SceneMesh {
                     .get(index)
                     .copied()
                     .unwrap_or(crate::pick::IdMap::NOTHING);
+                // The probe flag is the PART's; the focus flag is the
+                // PATCH's, which is why it is computed here rather than
+                // beside `flag` above.
+                let flags_word = if id != crate::pick::IdMap::NOTHING && focus.contains(&id) {
+                    focus_patches += 1;
+                    flag | Self::FLAG_FOCUS
+                } else {
+                    flag
+                };
                 for corners in &patch.triangles {
                     let Some(mut corner_points) = fetch(&mesh.positions, corners) else {
                         // A patch index outside the shared position
@@ -401,7 +461,7 @@ impl SceneMesh {
                         positions.push([p.x as f32, p.y as f32, p.z as f32]);
                         normals.push(normal);
                         ids.push(id);
-                        flags.push(flag);
+                        flags.push(flags_word);
                     }
                 }
             }
@@ -427,6 +487,7 @@ impl SceneMesh {
                 triangles,
                 display_delta: delta.get(),
                 probe_parts,
+                focus_patches,
             },
         })
     }

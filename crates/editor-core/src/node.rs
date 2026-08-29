@@ -141,6 +141,46 @@ pub enum StepArg {
 }
 
 impl StepArg {
+    /// A prose label — the one spelling a user-facing rendering uses,
+    /// so a step argument never reaches a reader as `Debug`.
+    ///
+    /// Named by what the argument IS in the verb's vocabulary, as the
+    /// variants are: a coordinate reads as its point plus its axis
+    /// (`centre x`), so a panel can put a 2-D point's two roles beside
+    /// each other and a reader can see that is what they are. The
+    /// arrival-spec twins of a fused step say so rather than carrying a
+    /// bare `2`.
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::PointX => "point x",
+            Self::PointY => "point y",
+            Self::TargetX => "target x",
+            Self::TargetY => "target y",
+            Self::ViaX => "via x",
+            Self::ViaY => "via y",
+            Self::CenterX => "centre x",
+            Self::CenterY => "centre y",
+            Self::DirX => "direction x",
+            Self::DirY => "direction y",
+            Self::AngleVal => "angle",
+            Self::TurnVal => "turn",
+            Self::Length => "length",
+            Self::Radius => "radius",
+            Self::Bulge => "bulge",
+            Self::Phase => "phase",
+            Self::CarrierRadius => "carrier radius",
+            Self::SweepVal => "sweep",
+            Self::ArcLenVal => "arc length",
+            Self::Center2X => "arrival centre x",
+            Self::Center2Y => "arrival centre y",
+            Self::Via2X => "arrival via x",
+            Self::Via2Y => "arrival via y",
+            Self::Target2X => "arrival target x",
+            Self::Target2Y => "arrival target y",
+            Self::CarrierRadius2 => "arrival carrier radius",
+        }
+    }
+
     /// The dimension an expression in this role must have (V2's table:
     /// coordinates/lengths/radii Length; angle/turn/phase Angle;
     /// bulge and director components Scalar — ratio only).
@@ -232,6 +272,89 @@ pub enum SlotId {
     },
 }
 
+/// A slot family whose members are the three COMPONENTS of one
+/// 3-vector — the vector-valued half of [`SlotId`], named once here so
+/// that a consumer wanting to treat `Origin(X)`, `Origin(Y)` and
+/// `Origin(Z)` as one quantity does not have to re-derive which
+/// variants those are.
+///
+/// **The reason this lives in the node vocabulary and not in a panel.**
+/// "These three slots are one vector" is a fact about the slot
+/// vocabulary (D5), on the same footing as [`SlotId::dimension`] and
+/// [`SlotId::is_structural`]: every component of a family shares a
+/// dimension, and the family is what an editor, a binding, or a
+/// recorded macro means when it says "the origin". A consumer that
+/// matched on `SlotId` itself would answer the question correctly
+/// today and then silently under-cover the next vector slot added; the
+/// exhaustive match in [`SlotId::component`] makes that addition a
+/// compile error instead.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum VectorSlot {
+    /// A datum's origin / a datum point's position ([`SlotId::Origin`]).
+    Origin,
+    /// A datum plane's normal ([`SlotId::Normal`]).
+    Normal,
+    /// A datum axis's / linear pattern's direction
+    /// ([`SlotId::Direction`]).
+    Direction,
+    /// A transform's translation ([`SlotId::Translation`]).
+    Translation,
+    /// A transform's rotation axis ([`SlotId::RotationAxis`]).
+    RotationAxis,
+}
+
+impl VectorSlot {
+    /// Every vector family, in no significant order — for a consumer
+    /// enumerating families rather than reading one off a slot.
+    pub const ALL: [VectorSlot; 5] = [
+        VectorSlot::Origin,
+        VectorSlot::Normal,
+        VectorSlot::Direction,
+        VectorSlot::Translation,
+        VectorSlot::RotationAxis,
+    ];
+
+    /// This family's slot for one axis — the inverse of
+    /// [`SlotId::component`], and total.
+    pub fn slot(self, axis: Axis3) -> SlotId {
+        match self {
+            Self::Origin => SlotId::Origin(axis),
+            Self::Normal => SlotId::Normal(axis),
+            Self::Direction => SlotId::Direction(axis),
+            Self::Translation => SlotId::Translation(axis),
+            Self::RotationAxis => SlotId::RotationAxis(axis),
+        }
+    }
+
+    /// All three of this family's slots, component order (x, y, z).
+    pub fn slots(self) -> [SlotId; 3] {
+        Axis3::ALL.map(|axis| self.slot(axis))
+    }
+
+    /// The family as a prose noun — the one spelling a user-facing
+    /// rendering uses.
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Origin => "origin",
+            Self::Normal => "normal",
+            Self::Direction => "direction",
+            Self::Translation => "translation",
+            Self::RotationAxis => "rotation axis",
+        }
+    }
+
+    /// The dimension every component of this family carries.
+    ///
+    /// Answered through [`SlotId::dimension`] rather than restated, so
+    /// the family cannot come to disagree with its own slots: the three
+    /// components share a dimension by construction (each family maps
+    /// to one `SlotId` arm, and that arm's dimension does not depend on
+    /// the axis).
+    pub fn dimension(self) -> Dimension {
+        self.slot(Axis3::X).dimension()
+    }
+}
+
 impl SlotId {
     /// The dimension an expression in this slot must have (checked by
     /// `apply` on insert and on every expression edit, spec D6).
@@ -258,6 +381,70 @@ impl SlotId {
     /// structural slots are exactly the Count-dimensioned ones).
     pub fn is_structural(self) -> bool {
         self.dimension() == Dimension::Count
+    }
+
+    /// A prose label — the one spelling a user-facing rendering uses,
+    /// so a slot never reaches a reader as `Debug`.
+    ///
+    /// It exists for the same reason [`Axis3::label`] and
+    /// [`VectorSlot::label`] do, and it is the outermost of the three:
+    /// a component reads as its family plus its axis, and a profile
+    /// slot as its address plus its role. A panel that spelled these
+    /// itself would be a second naming of the vocabulary, drifting from
+    /// it silently.
+    pub fn label(self) -> String {
+        if let Some((family, axis)) = self.component() {
+            return format!("{} {}", family.label(), axis.label());
+        }
+        match self {
+            Self::Distance => "distance".to_owned(),
+            Self::Radius => "radius".to_owned(),
+            Self::RevolveAngle => "revolve angle".to_owned(),
+            Self::RotationAngle => "rotation angle".to_owned(),
+            Self::Spacing => "spacing".to_owned(),
+            Self::Step => "angular step".to_owned(),
+            Self::Count => "count".to_owned(),
+            Self::VDegree => "v degree".to_owned(),
+            Self::Stations => "stations".to_owned(),
+            Self::Profile { loop_, step, arg } => {
+                format!("loop {loop_} step {step} · {}", arg.label())
+            }
+            // Every component variant answered above.
+            Self::Origin(_)
+            | Self::Normal(_)
+            | Self::Direction(_)
+            | Self::Translation(_)
+            | Self::RotationAxis(_) => self.component().map_or_else(
+                || String::from("component"),
+                |(family, axis)| format!("{} {}", family.label(), axis.label()),
+            ),
+        }
+    }
+
+    /// The 3-vector family this slot is a component of, and which
+    /// component — `None` for a scalar slot.
+    ///
+    /// The match is EXHAUSTIVE on purpose (see [`VectorSlot`]): a slot
+    /// variant added to this enum has to answer here, so a new vector
+    /// family cannot reach a consumer as three unrelated scalars.
+    pub fn component(self) -> Option<(VectorSlot, Axis3)> {
+        match self {
+            Self::Origin(axis) => Some((VectorSlot::Origin, axis)),
+            Self::Normal(axis) => Some((VectorSlot::Normal, axis)),
+            Self::Direction(axis) => Some((VectorSlot::Direction, axis)),
+            Self::Translation(axis) => Some((VectorSlot::Translation, axis)),
+            Self::RotationAxis(axis) => Some((VectorSlot::RotationAxis, axis)),
+            Self::Distance
+            | Self::Radius
+            | Self::RevolveAngle
+            | Self::RotationAngle
+            | Self::Spacing
+            | Self::Step
+            | Self::Count
+            | Self::VDegree
+            | Self::Stations
+            | Self::Profile { .. } => None,
+        }
     }
 }
 
@@ -765,7 +952,25 @@ impl Axis3 {
     /// All three axes, component order (x, y, z).
     pub const ALL: [Axis3; 3] = [Axis3::X, Axis3::Y, Axis3::Z];
 
-    fn index(self) -> usize {
+    /// The axis as a one-letter label — the one spelling a user-facing
+    /// rendering uses, so a component never reaches a reader as
+    /// `Debug`.
+    pub fn label(self) -> &'static str {
+        match self {
+            Axis3::X => "x",
+            Axis3::Y => "y",
+            Axis3::Z => "z",
+        }
+    }
+
+    /// This axis's position in [`Axis3::ALL`] — the component order
+    /// every 3-vector in the recipe is stored and shown in.
+    ///
+    /// Public because a consumer laying three components out (the
+    /// property panel's vector row) needs the same order the recipe
+    /// uses, and deriving it by searching `ALL` is both slower and a
+    /// second definition of the same fact.
+    pub const fn index(self) -> usize {
         match self {
             Axis3::X => 0,
             Axis3::Y => 1,
