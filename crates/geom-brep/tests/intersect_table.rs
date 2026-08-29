@@ -79,7 +79,10 @@ fn route_inventory() {
         (Cone, Sphere, Rung::General, false),
         (Cone, Torus, Rung::General, false),
         (Cone, Nurbs, Rung::General, false),
-        (Sphere, Sphere, Rung::Closed, false),
+        // VERBS-SPHSPH retired this arm: the closed-form radical-plane
+        // Circle (sphere_sphere_section — the same algebra profile's
+        // arc/arc carrier gate runs in 2-D).
+        (Sphere, Sphere, Rung::Closed, true),
         (Sphere, Torus, Rung::General, false),
         (Sphere, Nurbs, Rung::General, false),
         (Torus, Torus, Rung::General, false),
@@ -730,6 +733,41 @@ mod interval {
             }
         }
     }
+
+    /// The sphere×sphere radical-plane circle runs at `T = Interval`
+    /// UNCHANGED — no lane fork, because the form is `atan2`-free and
+    /// branch-cut-free by construction — and its residual enclosures
+    /// contain zero against BOTH spheres.
+    #[test]
+    fn sphere_sphere_residuals_enclose_zero_at_interval() {
+        let mk = |c: Point3<f64>, r: f64| -> Surface<Interval> {
+            Surface::Sphere {
+                center: ip(c),
+                radius: Interval::from_f64(r),
+                axis: iv(Vec3::unit_y()),
+                u_ref: iv(Vec3::unit_x()),
+            }
+        };
+        let a = mk(Point3::new(1.0, 2.0, 3.0), 2.0);
+        let b = mk(Point3::new(2.0, 0.5, 4.5), 1.75);
+        let s = geom_brep::intersect::sphere_sphere_section(&a, &b, band()).unwrap();
+        let geom_brep::intersect::SphereSphereSection::Circle(c) = s else {
+            panic!("expected the circle, got {s:?}");
+        };
+        for t in [0.0, 0.9, 2.2, -2.8, 5.1] {
+            let p = c.eval(Interval::from_f64(t));
+            for (name, s) in [("sphere-1", &a), ("sphere-2", &b)] {
+                let r = implicit_residual(s, p);
+                assert!(
+                    r.lo() <= 0.0 && 0.0 <= r.hi(),
+                    "{name} residual at {t}: [{}, {}]",
+                    r.lo(),
+                    r.hi()
+                );
+                assert!(r.hi() - r.lo() < 1e-12, "{name} width at {t}");
+            }
+        }
+    }
 }
 
 // ---------------------------------------------------------------------
@@ -929,4 +967,118 @@ fn plane_sphere_gap_trilean_trio() {
     // Wrong-lane kinds refuse typed.
     let err = plane_sphere_section(&sph, &sph, band()).expect_err("wrong lane");
     assert!(matches!(err, SectionError::WrongLane { .. }));
+}
+
+/// A sphere with a **tilted, non-chart-aligned** centre offset — the
+/// generic pair — cuts in the exact radical-plane Circle: the residual
+/// is identically zero in ℝ against BOTH surfaces, the axis is the unit
+/// centre direction, and the radius matches the closed form derived
+/// independently here.
+#[test]
+fn sphere_sphere_cut_is_the_exact_circle_zero_residual() {
+    use geom_brep::intersect::{SphereSphereSection, sphere_sphere_section};
+    let (c1, r1) = (Point3::new(1.0, 2.0, 3.0), 2.0);
+    let (c2, r2) = (Point3::new(2.0, 0.5, 4.5), 1.75);
+    let a = sphere_at(c1, r1);
+    let b = sphere_at(c2, r2);
+    let SphereSphereSection::Circle(c) = sphere_sphere_section(&a, &b, band()).unwrap() else {
+        panic!("expected the circle");
+    };
+    let Curve3::Circle {
+        center,
+        axis,
+        radius,
+        u_ref,
+    } = c
+    else {
+        panic!("carrier is a circle");
+    };
+    let delta = c2 - c1;
+    let d = delta.norm();
+    let n = delta / d;
+    let off = (d * d + r1 * r1 - r2 * r2) / (2.0 * d);
+    assert!((radius - (r1 * r1 - off * off).sqrt()).abs() < 1e-12);
+    assert!((center - (c1 + n * off)).norm() < 1e-12);
+    assert!(axis.dot(n) > 0.999_999_999);
+    // The placement is a unit vector in the section plane (D2/D9).
+    assert!((u_ref.norm() - 1.0).abs() < 1e-12);
+    assert!(u_ref.dot(n).abs() < 1e-12);
+    for k in 0..17 {
+        let p = c.eval(0.37 * k as f64);
+        assert!(
+            implicit_residual(&a, p).abs() < 1e-12,
+            "sphere-1 residual at sample {k}"
+        );
+        assert!(
+            implicit_residual(&b, p).abs() < 1e-12,
+            "sphere-2 residual at sample {k}"
+        );
+    }
+}
+
+/// The `ss_carrier_*` trilean trio, in gate order: coincident surfaces
+/// refuse typed (a whole-sphere REST is a coincidence to declare, never
+/// a section); separated and strictly nested are both `Empty`; external
+/// and internal tangency are both the one POINT (C7 — classification
+/// data, never a carrier), and both land at `c₁ + n̂·r₁`; the in-band
+/// twin of each definite verdict escalates through its own named
+/// predicate (F6), the two-tolerance pair.
+#[test]
+fn sphere_sphere_carrier_trilean_trio() {
+    use geom_brep::intersect::{SphereSphereSection, sphere_sphere_section};
+    let unit = sphere_at(Point3::origin(), 1.0);
+    let at = |x: f64, r: f64| sphere_at(Point3::new(x, 0.0, 0.0), r);
+    let sec = |x: f64, r: f64| sphere_sphere_section(&unit, &at(x, r), band());
+
+    // One sphere given twice: the identity gate, refused typed.
+    let err = sphere_sphere_section(&unit, &unit, band()).expect_err("coincident");
+    assert!(matches!(err, SectionError::CoincidentSurfaces));
+    // Concentric but unequal is NOT coincident — it is strictly nested.
+    assert!(matches!(sec(0.0, 0.5).unwrap(), SphereSphereSection::Empty));
+    // Definitely separated / definitely nested.
+    assert!(matches!(sec(3.0, 1.0).unwrap(), SphereSphereSection::Empty));
+    assert!(matches!(
+        sec(0.25, 0.5).unwrap(),
+        SphereSphereSection::Empty
+    ));
+    // Externally tangent: d = r₁ + r₂, the point at +x on sphere 1.
+    let SphereSphereSection::TangentPoint(p) = sec(1.5, 0.5).unwrap() else {
+        panic!("expected external tangency");
+    };
+    assert!((p - Point3::new(1.0, 0.0, 0.0)).norm() < 1e-15);
+    // Internally tangent: d = |r₁ − r₂|, the SAME point.
+    let SphereSphereSection::TangentPoint(p) = sec(0.5, 0.5).unwrap() else {
+        panic!("expected internal tangency");
+    };
+    assert!((p - Point3::new(1.0, 0.0, 0.0)).norm() < 1e-15);
+    // Proper secant between the two tangencies.
+    assert!(matches!(
+        sec(1.0, 0.5).unwrap(),
+        SphereSphereSection::Circle(_)
+    ));
+
+    // Each definite verdict's in-band twin escalates, on its own
+    // predicate: the external clearance, the internal clearance, and
+    // the identity gate.
+    for (x, r, what) in [
+        (1.5 + 3.0 * eps(), 0.5, "external"),
+        (0.5 + 3.0 * eps(), 0.5, "internal"),
+        (3.0 * eps(), 1.0, "identity"),
+    ] {
+        let err = sec(x, r).expect_err(what);
+        let SectionError::Escalated(_) = err else {
+            panic!("{what}: expected escalation, got {err:?}");
+        };
+    }
+
+    // Wrong-lane kinds refuse typed, both sides.
+    let plane = Surface::Plane {
+        origin: Point3::origin(),
+        normal: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    };
+    for (a, b) in [(&plane, &unit), (&unit, &plane)] {
+        let err = sphere_sphere_section(a, b, band()).expect_err("wrong lane");
+        assert!(matches!(err, SectionError::WrongLane { .. }));
+    }
 }

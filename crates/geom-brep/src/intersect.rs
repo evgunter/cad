@@ -245,9 +245,11 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
         },
         (Sphere, Sphere) => PairRoute {
             rung: Rung::Closed,
-            implemented: false,
-            note: "distinct spheres cut in a closed-form Circle; unimplemented in \
-                   this build — refuses typed, no runtime fallback",
+            implemented: true,
+            note: "distinct spheres cut in the closed-form radical-plane Circle \
+                   (sphere_sphere_section); either tangency is a POINT — \
+                   classification data, refused as a carrier — and one sphere \
+                   given twice is a COINCIDENCE to declare, never a section",
         },
         // ---- Rung 2, implemented HERE (M5 PR 5 §3.2) for the
         // equal-radius intersecting-axes configuration; everything else
@@ -755,6 +757,181 @@ pub fn plane_sphere_section<T: Decide>(
         })),
         Sign::Zero => Ok(PlaneSphereSection::TangentPoint(foot)),
         Sign::Negative => Ok(PlaneSphereSection::Empty),
+    }
+}
+
+// ---------------------------------------------------------------------
+// sphere × sphere
+// ---------------------------------------------------------------------
+
+/// The classified sphere×sphere section (rung 1: the trileans run
+/// before any rung, C5; **no fitted chord anywhere in this pair** — the
+/// locus is an exact `Circle`).
+#[derive(Clone, Debug)]
+pub enum SphereSphereSection<T: Real> {
+    /// Definite cut: the exact radical-plane `Circle`, centred on the
+    /// centre line at `a = (d² + r₁² − r₂²)/2d` from sphere 1, radius
+    /// `√((r₁−a)(r₁+a))`, carrier axis the unit centre direction.
+    /// Zero-residual-by-construction against both surfaces.
+    Circle(Curve3<T>),
+    /// The spheres touch — externally (`d = r₁ + r₂`) or internally
+    /// (`d = |r₁ − r₂|`) — at the one **point** `c₁ + n̂·r₁`, which both
+    /// configurations share. Classification data, not a constructible
+    /// edge (C7 lineage: tangent loci are not minted as section
+    /// carriers; consumers refuse typed).
+    TangentPoint(Point3<T>),
+    /// Definitely separated (`d > r₁ + r₂`) or definitely strictly
+    /// nested (`d < |r₁ − r₂|`): no intersection.
+    Empty,
+}
+
+/// Classifies and constructs the sphere×sphere section (C5 rung 1).
+///
+/// The 2-D skeleton is `profile`'s arc/arc carrier gate, and the three
+/// trileans are its three, in the same gate order and with the same
+/// per-branch division argument — the algebra is identical, only the
+/// perpendicular direction differs (a 2-D normal there, a whole circle
+/// here). All margins are LENGTHS in metres:
+///
+/// - **`ss_carrier_identity`** — margin `d + |r₁ − r₂|`, the carrier
+///   distance in "same sphere" terms. Zero ⇒ the two surfaces are the
+///   same sphere, refused as [`SectionError::CoincidentSurfaces`]: a
+///   same-surface locus is a whole-sphere coincidence to declare or
+///   merge, never a section circle, and CONTACT-DESIGN forbids
+///   inferring the gluing at any ε.
+/// - **`ss_carrier_external`** — margin `d − (r₁ + r₂)`. Positive ⇒
+///   [`SphereSphereSection::Empty`] (separated); Zero ⇒
+///   [`SphereSphereSection::TangentPoint`] (external tangency).
+/// - **`ss_carrier_internal`** — margin `d − |r₁ − r₂|`. Negative ⇒
+///   [`SphereSphereSection::Empty`] (strictly nested); Zero ⇒
+///   [`SphereSphereSection::TangentPoint`] (internal tangency);
+///   Positive ⇒ [`SphereSphereSection::Circle`]. The radicand
+///   `(r₁ − a)(r₁ + a)` factors through both clearances — `|a| < r₁`
+///   reduces exactly to `|d − r₁| < r₂` and `d + r₁ > r₂`, which are
+///   the two clearances this branch has already pinned definite — so
+///   it is definitely positive here and the interval-square tripwire
+///   cannot bite.
+///
+/// Divisions by `d` occur only where a preceding trilean bounds it away
+/// from zero, per branch:
+/// the secant branch has `d > |r₁ − r₂| ≥ 0` definitely; the internal
+/// tangency has `d = |r₁ − r₂|` with the identity margin `2d` definite;
+/// the external tangency has `d = r₁ + r₂ ≥` the identity margin.
+///
+/// The in-band twin of every definite verdict escalates through the
+/// same named predicate (F6) — the two-tolerance shape.
+///
+/// The form is `atan2`-free and branch-cut-free by construction, so the
+/// `Interval` lane takes it unchanged: there is no lane fork here.
+///
+/// # Errors
+///
+/// [`SectionError`] — wrong-lane kinds, coincident surfaces, or the
+/// in-band escalation.
+pub fn sphere_sphere_section<T: Decide>(
+    a: &Surface<T>,
+    b: &Surface<T>,
+    band: Band,
+) -> Result<SphereSphereSection<T>, SectionError> {
+    let wrong = || SectionError::WrongLane {
+        expected: "sphere×sphere",
+    };
+    let &Surface::Sphere {
+        center: c1,
+        radius: r1,
+        axis: axis1,
+        u_ref: u1,
+    } = a
+    else {
+        return Err(wrong());
+    };
+    let &Surface::Sphere {
+        center: c2,
+        radius: r2,
+        ..
+    } = b
+    else {
+        return Err(wrong());
+    };
+    let delta = c2 - c1;
+    let d = delta.norm();
+    let dr = (r1 - r2).abs();
+    match decide("ss_carrier_identity", Margin::of(d + dr), band)
+        .map_err(SectionError::Escalated)?
+    {
+        Sign::Zero | Sign::Negative => Err(SectionError::CoincidentSurfaces),
+        Sign::Positive => {
+            match decide("ss_carrier_external", Margin::of(d - (r1 + r2)), band)
+                .map_err(SectionError::Escalated)?
+            {
+                Sign::Positive => Ok(SphereSphereSection::Empty),
+                // Externally tangent: `d = r₁ + r₂ ≥` the definite
+                // identity margin, so the division is safe. Both
+                // tangencies touch at `c₁ + n̂·r₁` — substituting
+                // `d = r₁ + r₂` or `d = |r₁ − r₂|` into the section
+                // centre's `a` gives exactly `r₁` either way.
+                Sign::Zero => Ok(SphereSphereSection::TangentPoint(c1 + delta * (r1 / d))),
+                Sign::Negative => {
+                    match decide("ss_carrier_internal", Margin::of(d - dr), band)
+                        .map_err(SectionError::Escalated)?
+                    {
+                        Sign::Negative => Ok(SphereSphereSection::Empty),
+                        // Internally tangent: `d = |Δr|` and the
+                        // identity margin `d + |Δr| = 2d` is definite,
+                        // so `d` is bounded away from zero.
+                        Sign::Zero => Ok(SphereSphereSection::TangentPoint(c1 + delta * (r1 / d))),
+                        // Proper secant: `d > |Δr|` definitely, so
+                        // `d > 0`. The radical-plane closed form.
+                        Sign::Positive => {
+                            let n = delta / d;
+                            let two_d = d + d;
+                            let a_off = (d.powi(2) + r1.powi(2) - r2.powi(2)) / two_d;
+                            Ok(SphereSphereSection::Circle(Curve3::Circle {
+                                center: c1 + n * a_off,
+                                axis: n,
+                                radius: ((r1 - a_off) * (r1 + a_off)).sqrt(),
+                                u_ref: ss_frame_seam(n, axis1, u1, r1, band),
+                            }))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// The section circle's `u_ref` PLACEMENT (D2/D9), the sphere sibling
+/// of the plane×sphere lane's identical tie-break.
+///
+/// The section axis is the centre direction `n̂`, and the candidate
+/// `n̂ × û` collapses exactly when the centre line runs along the
+/// operand's own seam direction — the same degeneracy, reached by a
+/// different route. Derived from operand A's chart: `n̂ × û` unless
+/// that sine is small, then `n̂ × â` — with `û ⊥ â` the two sines
+/// satisfy sin²(û,n̂) + sin²(â,n̂) ≥ 1, so the second candidate is
+/// definitely nonzero whenever the first is not chosen. The selection
+/// trilean's degenerate and in-band arms both take the second
+/// candidate: near the threshold BOTH are valid placements, so the arm
+/// is a deterministic tie-break, not a verdict — **no downstream
+/// VERDICT moves with it**.
+fn ss_frame_seam<T: Decide>(
+    n: Vec3<T>,
+    axis: Vec3<T>,
+    u_ref: Vec3<T>,
+    r: T,
+    band: Band,
+) -> Vec3<T> {
+    let seam_cand = n.cross(u_ref);
+    match decide(
+        "ss_frame_seam",
+        Margin::levered(seam_cand.norm() - T::from_f64(0.5), r),
+        band,
+    ) {
+        Ok(Sign::Positive) => seam_cand / seam_cand.norm(),
+        Ok(Sign::Zero | Sign::Negative) | Err(_) => {
+            let polar_cand = n.cross(axis);
+            polar_cand / polar_cand.norm()
+        }
     }
 }
 
