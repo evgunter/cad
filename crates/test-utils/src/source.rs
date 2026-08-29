@@ -51,6 +51,11 @@
 //!   heading that is itself the ledger being pinned). The inverse
 //!   view: code and literals blanked, so a heading spelled in a
 //!   `format!` cannot satisfy a guard that means to read the docs.
+//!   **A `#[doc = "…"]` ATTRIBUTE is not in this view**: it is a
+//!   literal to the lexer, as it is to `rustc`, so a ledger written
+//!   in attributes rather than in `///` reads as absent. That is the
+//!   fail-red direction, and it is stated because it is the one place
+//!   *"the docs"* and *"the comments"* are not the same set.
 //!
 //! # Three operations over a blanked view
 //!
@@ -152,6 +157,11 @@ pub fn code_and_literals(text: &str) -> String {
 ///
 /// The comment markers themselves survive, so a caller that means
 /// `///` rather than `//` can still say so with a line test.
+///
+/// **`#[doc = "…"]` is NOT here.** A doc attribute is a string
+/// literal, and this view blanks literals; a guard reading a ledger
+/// that is written in attributes finds nothing and goes red, which is
+/// the safe direction but is a surprise worth having in writing.
 #[must_use]
 pub fn comments_only(text: &str) -> String {
     keeping(text, &[Region::Comment])
@@ -203,6 +213,17 @@ fn span(b: &[u8], i: usize) -> (usize, Region) {
         b'"' => (i + quoted_len(b, i), Region::Literal),
         b'b' | b'c' if b.get(i + 1) == Some(&b'"') && token_start(b, i) => {
             (i + 1 + quoted_len(b, i + 1), Region::Literal)
+        }
+        // `b'x'` — the byte-CHAR literal. Only `b` takes this prefix;
+        // there is no `c'…'` in Rust. Written out because the string
+        // arm above does not cover it, and a prefix left behind as
+        // code is [`Region::Literal`]'s contract broken rather than
+        // its partition: the stray `b` is a token no guard means.
+        b'b' if b.get(i + 1) == Some(&b'\'') && token_start(b, i) => {
+            match char_literal_len(b, i + 1) {
+                Some(n) => (i + 1 + n, Region::Literal),
+                None => (i + 1, Region::Code),
+            }
         }
         b'\'' => match char_literal_len(b, i) {
             Some(n) => (i + n, Region::Literal),
@@ -357,7 +378,13 @@ pub fn balanced_end(blanked: &str, open: usize) -> Option<usize> {
         match c {
             '(' | '[' | '{' => depth += 1,
             ')' | ']' | '}' => {
-                depth -= 1;
+                // `checked_sub`, so an `open` that is not an opener
+                // answers `None` rather than underflowing — a panic in
+                // debug and a wrong answer in release is the one
+                // outcome a shared helper must not have. Where
+                // [`top_level_split`] clamps instead, the difference is
+                // deliberate and stated there.
+                depth = depth.checked_sub(1)?;
                 if depth == 0 {
                     return Some(open + off);
                 }
@@ -380,6 +407,12 @@ pub fn balanced_end(blanked: &str, open: usize) -> Option<usize> {
 ///
 /// `<` and `>` count as brackets: an argument list is the caller, and
 /// a turbofish or a generic argument must not split one.
+///
+/// **Depth CLAMPS at zero here, where [`balanced_end`] refuses.** The
+/// input is a fragment carved out of a larger expression, so a closer
+/// with no opener inside it is ordinary — `>` in `a -> b` is one —
+/// and the operation is "split at depth zero", which a clamp answers
+/// and an underflow does not.
 #[must_use]
 pub fn top_level_split(blanked: &str, sep: char) -> Vec<std::ops::Range<usize>> {
     let mut depth = 0usize;
@@ -507,12 +540,13 @@ mod tests {
     ];
 
     /// Genuine code reads of `eps`, which no view of the code may lose.
-    const CODE_READS: [&str; 5] = [
+    const CODE_READS: [&str; 6] = [
         "gap * lever < eps",
         "let eps = tol.eps();",
         "f(a, b, eps)",
         "struct T<'a> { eps: &'a f64 }",
         "let c = 'e'; let d = eps;",
+        "let c = b'e'; let d = eps;",
     ];
 
     /// S13's ratified shape for a text-matching guard: **a clean
@@ -726,5 +760,45 @@ mod tests {
         let here = super::crate_dir(env!("CARGO_MANIFEST_DIR"));
         assert!(here.join("Cargo.toml").is_file(), "{here:?}");
         assert!(here.ends_with("test-utils"), "{here:?}");
+    }
+
+    /// **A literal is blanked PREFIX AND ALL**, which is
+    /// [`Region::Literal`]'s stated contract and not merely its
+    /// partition. `b'x'` is the construct that had no row: the
+    /// partition holds either way — the `b` is *some* region — so
+    /// neither the partition test nor 2,125 externally generated
+    /// snippets could tell that the prefix was surviving as code.
+    #[test]
+    fn every_literal_prefix_is_blanked_with_its_literal() {
+        for literal in [
+            "b'x'",
+            "b\"x\"",
+            "c\"x\"",
+            "br\"x\"",
+            "cr#\"x\"#",
+            "'x'",
+            "b'\\''",
+        ] {
+            let row = format!("let z = {literal};");
+            let want = format!("let z = {};", " ".repeat(literal.len()));
+            assert_eq!(code_only(&row), want, "{row}");
+        }
+        // A lifetime after `b` is not a byte-char literal: it never
+        // closes, so the `b` stays code and so does the read after it.
+        let row = "fn f<'a>(b: &'a f64) -> f64 { *b }";
+        assert_eq!(code_only(row).matches('b').count(), 2, "{row}");
+    }
+
+    /// A doc ATTRIBUTE is a literal, not a comment — `rustc` agrees,
+    /// and a guard reading a ledger through [`comments_only`] must
+    /// find nothing rather than half of it.
+    #[test]
+    fn a_doc_attribute_is_a_literal_and_not_prose() {
+        let row = "#[doc = \"Version 7 is a break.\"]\nstruct S;";
+        assert!(!comments_only(row).contains("Version 7 is"), "not prose");
+        assert!(code_and_literals(row).contains("Version 7 is"), "a literal");
+        assert!(!code_only(row).contains("Version 7 is"), "blanked as one");
+        // The `///` spelling, which IS prose, for contrast.
+        assert!(comments_only("/// Version 7 is a break.").contains("Version 7 is"));
     }
 }
