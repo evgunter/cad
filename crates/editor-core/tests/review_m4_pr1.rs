@@ -71,10 +71,7 @@ fn r1_replay_bit_identity_adversarial() {
     ];
     let mut log: Vec<Edit> = vec![Edit::SetDocParam {
         name: ParamName::new("neg_zero"),
-        value: DocParam::Continuous {
-            dim: Dimension::Length,
-            value: -0.0,
-        },
+        value: DocParam::continuous(Dimension::Length, -0.0),
     }];
     let mut doc = Doc::empty_derived("review_m4_pr1", Tol::witness())
         .apply(&log[0], Tol::witness())
@@ -256,10 +253,7 @@ fn r2_contradictory_param_dims_caught_downstream() {
         .apply(
             &Edit::SetDocParam {
                 name: ParamName::new("q"),
-                value: DocParam::Continuous {
-                    dim: Dimension::Length,
-                    value: 2.0,
-                },
+                value: DocParam::continuous(Dimension::Length, 2.0),
             },
             Tol::witness(),
         )
@@ -562,10 +556,7 @@ fn r4_setdocparam_sweep_and_no_delete_arm() {
         .apply(
             &Edit::SetDocParam {
                 name: name.clone(),
-                value: DocParam::Continuous {
-                    dim: Dimension::Length,
-                    value: 0.5,
-                },
+                value: DocParam::continuous(Dimension::Length, 0.5),
             },
             Tol::witness(),
         )
@@ -579,10 +570,7 @@ fn r4_setdocparam_sweep_and_no_delete_arm() {
     let flip = doc.apply(
         &Edit::SetDocParam {
             name: name.clone(),
-            value: DocParam::Continuous {
-                dim: Dimension::Angle,
-                value: 0.5,
-            },
+            value: DocParam::continuous(Dimension::Angle, 0.5),
         },
         Tol::witness(),
     );
@@ -607,10 +595,7 @@ fn r4_setdocparam_sweep_and_no_delete_arm() {
         .apply(
             &Edit::SetDocParam {
                 name,
-                value: DocParam::Continuous {
-                    dim: Dimension::Length,
-                    value: 0.75,
-                },
+                value: DocParam::continuous(Dimension::Length, 0.75),
             },
             Tol::witness(),
         )
@@ -726,10 +711,7 @@ fn r6_nonfinite_doors_closed() {
         let res = Doc::empty_derived("review_m4_pr1", Tol::witness()).apply(
             &Edit::SetDocParam {
                 name: ParamName::new("poison"),
-                value: DocParam::Continuous {
-                    dim: Dimension::Length,
-                    value: poison,
-                },
+                value: DocParam::continuous(Dimension::Length, poison),
             },
             Tol::witness(),
         );
@@ -862,10 +844,7 @@ fn r4_structural_flag_false_positive_but_no_false_negative() {
         .apply(
             &Edit::SetDocParam {
                 name: ParamName::new("other"),
-                value: DocParam::Continuous {
-                    dim: Dimension::Length,
-                    value: 9.0,
-                },
+                value: DocParam::continuous(Dimension::Length, 9.0),
             },
             Tol::witness(),
         )
@@ -906,7 +885,12 @@ fn assert_bit_identical(a: &Doc, b: &Doc) {
     assert_eq!(pa.len(), pb.len(), "param count");
     for (name, p) in pa {
         match (p, pb.get(name).expect("param present")) {
-            (DocParam::Continuous { dim, value }, DocParam::Continuous { dim: d2, value: v2 }) => {
+            (
+                DocParam::Continuous { dim, value, .. },
+                DocParam::Continuous {
+                    dim: d2, value: v2, ..
+                },
+            ) => {
                 assert_eq!(dim, d2, "param dim {name:?}");
                 assert_eq!(value.to_bits(), v2.to_bits(), "param bits {name:?}");
             }

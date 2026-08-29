@@ -542,8 +542,9 @@ fn this_file_reaches_the_kernel_only_through_pncad() {
 /// source-scanning guards below all read this one list;
 /// `the_boundary_guard_scans_every_facade_source_file` pins it
 /// against the directory, so a new module cannot arrive unguarded.
-const FACADE_SOURCES: [(&str, &str); 10] = [
+const FACADE_SOURCES: [(&str, &str); 11] = [
     ("lib.rs", include_str!("../src/lib.rs")),
+    ("analysis.rs", include_str!("../src/analysis.rs")),
     ("prelude.rs", include_str!("../src/prelude.rs")),
     ("profile.rs", include_str!("../src/profile.rs")),
     ("select.rs", include_str!("../src/select.rs")),
@@ -1174,10 +1175,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
         &doc,
         &DocEdit::SetDocParam {
             name: ParamName::new("hole_r"),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value: 0.25,
-            },
+            value: DocParam::continuous(Dimension::Length, 0.25),
         },
         Tol::witness(),
     )
@@ -1236,7 +1234,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
 
 /// R1-PARAMS: `plate_param` authors façade-only, evaluates to the
 /// corpus scene's analytic oracle, and its saved text is pinned as
-/// `tests/plate_param.v14.pncad` — the fixture the Python audit loads
+/// `tests/plate_param.v15.pncad` — the fixture the Python audit loads
 /// (`crates/pncad-py/tests/test_north_star.py`) to author the
 /// `set_doc_param` edit from Python. Python cannot yet author this
 /// profile from scratch (audit gaps G1/G9: circles, multi-loop), so
@@ -1284,7 +1282,7 @@ fn plate_param_authors_facade_only_and_its_saved_text_is_pinned() {
 
     let text = pncad::document::save(&doc, &[], Tol::witness()).expect("the document saves");
     if std::env::var_os("PNCAD_BLESS").is_some() {
-        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/plate_param.v14.pncad");
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/plate_param.v15.pncad");
         std::fs::write(path, &text).expect("the fixture writes");
         return; // freshly written; the next compile pins it
     }
@@ -1307,7 +1305,7 @@ fn plate_param_authors_facade_only_and_its_saved_text_is_pinned() {
     };
     assert_eq!(
         sans_epsilon(&text),
-        sans_epsilon(include_str!("plate_param.v14.pncad")),
+        sans_epsilon(include_str!("plate_param.v15.pncad")),
         "the saved plate_param text moved — regenerate the fixture with \
          `PNCAD_BLESS=1 cargo test -p pncad plate_param` (default env) and re-run"
     );
@@ -1430,10 +1428,7 @@ fn workspace_pin_mismatch_refuses_with_both_pins_and_recourse() {
         &doc,
         &DocEdit::SetDocParam {
             name: ParamName::new("depth"),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value: 0.75,
-            },
+            value: DocParam::continuous(Dimension::Length, 0.75),
         },
         Tol::witness(),
     )
@@ -1512,10 +1507,7 @@ fn workspace_resolve_pins_replayed_state_not_snapshot() {
     let (origin, _) = ws_doc("ws-logged");
     let edit = DocEdit::SetDocParam {
         name: ParamName::new("depth"),
-        value: DocParam::Continuous {
-            dim: Dimension::Length,
-            value: 0.9,
-        },
+        value: DocParam::continuous(Dimension::Length, 0.9),
     };
     // Save snapshot + ONE-edit log; the file's current state is the
     // replayed result, and that is what a resolve must pin.
@@ -2806,6 +2798,10 @@ const NOT_CARRIED: [&str; 76] = [
 /// Comments are stripped first, so prose naming a type is not read as
 /// an export. A statement with no `::` (a whole-crate `pub use foo;`)
 /// introduces the crate name itself and belongs to no root.
+///
+/// A leading `::` is stripped before the root is read: the façade
+/// spells one of its layers with the absolute prefix, because that
+/// file's own module shadows the crate name.
 fn pub_use_names(src: &str, root: &str) -> std::collections::BTreeSet<String> {
     let code = code_without_comments(src);
     let prefix = format!("{root}::");
@@ -2815,6 +2811,7 @@ fn pub_use_names(src: &str, root: &str) -> std::collections::BTreeSet<String> {
         rest = &rest[at + "pub use ".len()..];
         let Some(end) = rest.find(';') else { break };
         let stmt = rest[..end].trim_start();
+        let stmt = stmt.strip_prefix("::").unwrap_or(stmt);
         rest = &rest[end + 1..];
         if !stmt.starts_with(&prefix) {
             continue;
@@ -2904,54 +2901,320 @@ fn every_document_layer_root_export_is_carried_or_listed() {
     let src = std::fs::read_to_string(&kernel_lib)
         .unwrap_or_else(|e| panic!("reading {}: {e}", kernel_lib.display()));
     let exported = module_pub_use_names(&src);
+    assert_layer_root_exports_are_carried_or_listed(
+        "editor_core",
+        "the document layer",
+        &exported,
+        150,
+        &NOT_CARRIED,
+        "Carry each through `crate::document` or `crate::select`, or add it \
+         to NOT_CARRIED with the family it belongs to.",
+        "NOT_CARRIED",
+    );
+}
+
+/// The completeness check itself, shared by every layer guarded this
+/// way. It is one function rather than one copy per layer because
+/// hand-synced copies are how the sync obligation these guards exist
+/// to enforce fails in the first place.
+///
+/// `exported` is the layer's root surface, gathered by the caller —
+/// the two layers do not gather it identically, and that difference is
+/// the reason the gathering stays outside this function. Everything
+/// after it is common: the vacuity floor, the façade side restricted
+/// to `pub use <layer>::…` statements, the uncarried report, and the
+/// staleness report that keeps the exclusion list from outliving the
+/// decisions it records.
+fn assert_layer_root_exports_are_carried_or_listed(
+    layer: &str,
+    layer_prose: &str,
+    exported: &std::collections::BTreeSet<String>,
+    min_exports: usize,
+    not_carried: &[&str],
+    remedy: &str,
+    list_name: &str,
+) {
     assert!(
-        exported.len() > 150,
-        "the scanner found only {} root exports — the file's shape changed \
-         and this guard was about to pass vacuously",
+        exported.len() > min_exports,
+        "the scanner found only {} root exports for {layer_prose} — the \
+         file's shape changed and this guard was about to pass vacuously",
         exported.len()
     );
 
-    // The façade side: only what it carries FROM the document layer.
-    // `prelude` re-exports through `crate::document`/`crate::select`,
-    // which are themselves scanned, so nothing is lost by the
-    // restriction — a prelude entry has an origin in this same list.
+    // The façade side: only what it carries FROM this layer. A
+    // `prelude` entry that re-exports through one of the façade's own
+    // curated modules loses nothing by the restriction — its origin is
+    // a statement in this same scan.
     let mut carried = std::collections::BTreeSet::new();
     for (_, facade_src) in FACADE_SOURCES {
-        carried.append(&mut pub_use_names(facade_src, "editor_core"));
+        carried.append(&mut pub_use_names(facade_src, layer));
     }
 
-    let uncarried: Vec<&String> = exported
+    let uncarried: Vec<&str> = exported
         .iter()
-        .filter(|n| !carried.contains(*n) && !NOT_CARRIED.contains(&n.as_str()))
+        .map(String::as_str)
+        .filter(|n| !carried.contains(*n) && !not_carried.contains(n))
         .collect();
     assert!(
         uncarried.is_empty(),
-        "the document layer exports {} name(s) the façade neither carries \
-         nor lists as deliberately interior:\n  {}\n\
-         Carry each through `crate::document` or `crate::select`, or add it \
-         to NOT_CARRIED with the family it belongs to.",
+        "{layer_prose} exports {} name(s) the façade neither carries nor \
+         lists as deliberately interior:\n  {}\n{remedy}",
         uncarried.len(),
-        uncarried
-            .iter()
-            .map(|n| n.as_str())
-            .collect::<Vec<_>>()
-            .join("\n  ")
+        uncarried.join("\n  ")
     );
 
     // The list decays in the other direction too: an entry that is no
     // longer exported, or that the façade has since started carrying,
     // is a stale exclusion claiming a decision nobody is making.
-    let stale: Vec<&str> = NOT_CARRIED
+    let stale: Vec<&str> = not_carried
         .iter()
         .copied()
         .filter(|n| !exported.contains(*n) || carried.contains(*n))
         .collect();
     assert!(
         stale.is_empty(),
-        "NOT_CARRIED lists {} name(s) that are no longer uncarried root \
+        "{list_name} lists {} name(s) that are no longer uncarried root \
          exports — remove them:\n  {}",
         stale.len(),
         stale.join("\n  ")
+    );
+}
+
+// ---------------------------------------------------------------
+// The same completeness for the OTHER curated layer, and for the
+// claim that there are only two.
+// ---------------------------------------------------------------
+
+/// Every `pub` item a crate root DECLARES rather than re-exports:
+/// `pub struct`/`enum`/`fn`/`trait`/`type`/`const`/`static`/`union`,
+/// plus the `pub mod` declarations, written at column 0.
+///
+/// Column 0 is the whole scope rule — an item inside a `mod` block in
+/// the same file is indented, and is not a root export.
+///
+/// [`module_pub_use_names`] alone misses all of these. For the
+/// document layer that costs nothing today, which is why its guard
+/// records it as a blind spot rather than closing it: that root is a
+/// module tree, its declarations are the crate's twenty-six interior
+/// modules, and the façade curates ACROSS them rather than carrying
+/// them. The profile layer's root is the opposite shape — a presented
+/// surface that declares five of the types the façade carries and one
+/// it deliberately does not — so for that layer the same omission
+/// would be a hole, and this closes it.
+fn root_declared_pub_names(src: &str) -> std::collections::BTreeSet<String> {
+    let code = code_without_comments(src);
+    let mut names = std::collections::BTreeSet::new();
+    for line in code.lines() {
+        let Some(rest) = line.strip_prefix("pub ") else {
+            continue;
+        };
+        let Some((keyword, tail)) = rest.split_once(' ') else {
+            continue;
+        };
+        if !matches!(
+            keyword,
+            "mod" | "struct" | "enum" | "fn" | "trait" | "type" | "const" | "static" | "union"
+        ) {
+            continue;
+        }
+        let name: String = tail
+            .trim_start()
+            .chars()
+            .take_while(|c| c.is_alphanumeric() || *c == '_')
+            .collect();
+        if !name.is_empty() {
+            names.insert(name);
+        }
+    }
+    names
+}
+
+/// The profile layer's interior: root exports the façade's curated
+/// `profile` module does not carry, by family.
+///
+/// - **The minting tier** (`RawLoop`): the one name whose absence is
+///   the module's entire reason for existing. It carries `new` and
+///   `polygon`; leaving the trait unnameable is what makes
+///   `ProfileLoop::polygon(…)` fail to resolve while `ProfileLoop`
+///   itself stays nameable. Carrying it here would undo the curation.
+/// - **Unargued residue** (`BlendArc`): every other name in its family
+///   — the `validate` module's outputs and refusal payloads — is
+///   carried, and this one has no recorded reason for not being. It is
+///   listed to record the status quo, not to argue it. Deciding
+///   whether the façade should carry it is a curation question and
+///   belongs to whoever owns the curated lists.
+const PROFILE_NOT_CARRIED: [&str; 2] = ["BlendArc", "RawLoop"];
+
+/// **The document layer's guard, for the other layer curated the same
+/// way.**
+///
+/// The façade re-exports ten of its twelve kernel layers whole, so
+/// their surfaces cannot drift from it by construction. Two are
+/// curated by hand instead, and each hand-written list carries the
+/// standing sync obligation the guard above describes: when the layer
+/// grows a public name, nothing makes anyone carry it. Only one of the
+/// two was watched, and the asymmetry was not a decision — the
+/// unwatched layer's `PathNoCornerReason` was missing from its carrier
+/// statement for eighteen days with nothing to say so.
+///
+/// This layer's root differs from the document layer's in one way that
+/// matters to the scan: it DECLARES types, so the export set is its
+/// `pub use` names plus its root declarations
+/// ([`root_declared_pub_names`]), and the guard's second blind spot —
+/// a `pub` item written directly in the root — is closed here rather
+/// than held shut by a coincidence.
+///
+/// The other two blind spots stand, unchanged and shared:
+///
+/// 1. A public name reachable only by module path and never lifted to
+///    the crate root. This scan reads the root.
+/// 2. A name the façade carries only under a SUBMODULE of this layer
+///    counts as carrying an identically spelled root name — the
+///    façade's arrival-spec statements name a submodule path, and four
+///    of the document layer's do too. Both would need the leaf's
+///    origin, not its spelling, to separate.
+#[test]
+fn every_profile_layer_root_export_is_carried_or_listed() {
+    let layer_lib = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../profile/src/lib.rs");
+    let src = std::fs::read_to_string(&layer_lib)
+        .unwrap_or_else(|e| panic!("reading {}: {e}", layer_lib.display()));
+    let mut exported = module_pub_use_names(&src);
+    exported.append(&mut root_declared_pub_names(&src));
+
+    assert_layer_root_exports_are_carried_or_listed(
+        "profile",
+        "the profile layer",
+        &exported,
+        40,
+        &PROFILE_NOT_CARRIED,
+        "Carry each through `crate::profile`, or add it to \
+         PROFILE_NOT_CARRIED with the family it belongs to.",
+        "PROFILE_NOT_CARRIED",
+    );
+}
+
+/// The layers whose surfaces the façade curates name by name, and
+/// which therefore have a completeness guard above. Anything not here
+/// must be re-exported whole; the test below is what makes that an
+/// enforced dichotomy rather than a description.
+const PER_NAME_GUARDED: [&str; 2] = ["editor_core", "profile"];
+
+/// Every crate the façade re-exports WHOLE at its root — `pub use
+/// foo;`, no path and no brace list — so every name that crate's root
+/// exports is nameable one hop past the façade by construction.
+fn whole_crate_re_exports(src: &str) -> std::collections::BTreeSet<String> {
+    let code = code_without_comments(src);
+    let mut names = std::collections::BTreeSet::new();
+    let mut rest: &str = &code;
+    while let Some(at) = rest.find("pub use ") {
+        rest = &rest[at + "pub use ".len()..];
+        let Some(end) = rest.find(';') else { break };
+        let stmt = rest[..end].trim();
+        rest = &rest[end + 1..];
+        if !stmt.is_empty() && stmt.chars().all(|c| c.is_alphanumeric() || c == '_') {
+            names.insert(stmt.to_string());
+        }
+    }
+    names
+}
+
+/// Every path dependency of the façade's manifest, as a crate
+/// identifier. A path dependency is a workspace layer; a registry or
+/// workspace-inherited one (the OS entropy crate) is not a surface
+/// this crate presents, and the `path` key is what tells them apart.
+fn facade_layer_dependencies(manifest: &str) -> std::collections::BTreeSet<String> {
+    let mut names = std::collections::BTreeSet::new();
+    let mut in_dependencies = false;
+    for line in manifest.lines() {
+        let line = line.trim();
+        if line.starts_with('[') {
+            in_dependencies = line == "[dependencies]";
+            continue;
+        }
+        if !in_dependencies || line.starts_with('#') {
+            continue;
+        }
+        let Some((name, value)) = line.split_once('=') else {
+            continue;
+        };
+        if !value.contains("path = \"../") {
+            continue;
+        }
+        names.insert(name.trim().replace('-', "_"));
+    }
+    names
+}
+
+/// **The scope of the guards above is measured, not asserted.**
+///
+/// Each completeness guard covers one layer, and the reason the
+/// others need none is that they are re-exported whole. That reason
+/// was a sentence in a doc comment: nothing checked that the whole
+/// re-export was still there, and nothing noticed that a second layer
+/// had already left the whole-re-export set and gained no guard.
+///
+/// So this reads the manifest for the layers the façade depends on and
+/// puts each in exactly one of two buckets — whole-re-exported at the
+/// façade root, or per-name guarded here. A layer in neither is the
+/// unwatched case, and a layer in both is a guard maintained over a
+/// surface that cannot drift. Adding a dependency, or narrowing a
+/// whole re-export into a curated module the way the profile layer's
+/// was narrowed, lands in this test on the same commit.
+///
+/// It does NOT claim the curated lists are the right ones — that is
+/// the guards' job for two layers and nobody's for the other ten,
+/// which is exactly right: for those ten there is no list to be wrong.
+#[test]
+fn every_facade_layer_is_whole_re_exported_or_per_name_guarded() {
+    let manifest_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let manifest_path = manifest_dir.join("Cargo.toml");
+    let manifest = std::fs::read_to_string(&manifest_path)
+        .unwrap_or_else(|e| panic!("reading {}: {e}", manifest_path.display()));
+    let layers = facade_layer_dependencies(&manifest);
+    assert!(
+        layers.len() > 8,
+        "the manifest scanner found only {} path dependencies — the \
+         manifest's shape changed and this guard was about to pass \
+         vacuously",
+        layers.len()
+    );
+
+    let (_, root_src) = FACADE_SOURCES
+        .iter()
+        .find(|(name, _)| *name == "lib.rs")
+        .unwrap_or_else(|| panic!("FACADE_SOURCES no longer lists the façade root"));
+    let whole = whole_crate_re_exports(root_src);
+
+    let unclassified: Vec<&str> = layers
+        .iter()
+        .map(String::as_str)
+        .filter(|layer| whole.contains(*layer) == PER_NAME_GUARDED.contains(layer))
+        .collect();
+    assert!(
+        unclassified.is_empty(),
+        "{} façade layer(s) are not in exactly one of the two buckets:\n  {}\n\
+         A layer is either re-exported whole at the façade root — in which \
+         case its surface cannot drift from the façade's — or curated name \
+         by name, in which case it needs a completeness guard in this file \
+         and an entry in PER_NAME_GUARDED.",
+        unclassified.len(),
+        unclassified.join("\n  ")
+    );
+
+    // The buckets are about THIS crate's layers, so neither may name
+    // something the manifest does not.
+    let unknown: Vec<&str> = whole
+        .iter()
+        .map(String::as_str)
+        .chain(PER_NAME_GUARDED)
+        .filter(|name| !layers.contains(*name))
+        .collect();
+    assert!(
+        unknown.is_empty(),
+        "{} name(s) are bucketed as façade layers but are not path \
+         dependencies of this crate:\n  {}",
+        unknown.len(),
+        unknown.join("\n  ")
     );
 }
 
@@ -3639,4 +3902,126 @@ fn the_north_star_audits_tallies_are_derived_from_its_rows() {
         "rows name gap id(s) the gap list does not carry: {:?}",
         unlisted
     );
+}
+
+// ---- M10-1: distributions authored, saved, reloaded, and read ----
+
+/// **A first-time user's whole loop, façade-only** (ERROR-DESIGN
+/// E1/E2): declare two parameters — one with a normal, one with a
+/// worst-case band — save the document, load it back, then read the
+/// analyzed box and the mass columns.
+///
+/// The two halves the row exists to pin: the annotation survives the
+/// round trip bit for bit, and the band REFUSES to be priced while the
+/// normal answers, so the difference between "I know the spread" and
+/// "I know only the limits" is visible from outside the crate.
+#[test]
+fn distributions_author_save_reload_and_analyze_through_the_facade() {
+    use pncad::analysis::{AnalysisPolicy, MeasureUnavailable, analyzed_box, box_mass, tail_mass};
+    use pncad::document::{
+        Dimension, Distribution, DocEdit, DocParam, ParamName, ProfileDoc, apply, load, save,
+    };
+
+    let declare = |doc: &ProfileDoc, name: &str, value: DocParam| {
+        apply(
+            doc,
+            &DocEdit::SetDocParam {
+                name: ParamName::new(name),
+                value,
+            },
+            Tol::witness(),
+        )
+        .expect("the parameter declaration applies")
+        .doc
+    };
+    let doc = ProfileDoc::empty_derived("m10-1-e2e", Tol::witness());
+    let doc = declare(
+        &doc,
+        "bore_r",
+        DocParam::continuous_with(
+            Dimension::Length,
+            0.004,
+            Distribution::Normal { sigma: 5e-6 },
+        ),
+    );
+    let doc = declare(
+        &doc,
+        "plate_t",
+        DocParam::continuous_with(
+            Dimension::Length,
+            0.012,
+            Distribution::Band {
+                lo: -2e-4,
+                hi: 2e-4,
+            },
+        ),
+    );
+
+    let text = save(&doc, &[], Tol::witness()).expect("the annotated document saves");
+    let back = load(&text, Tol::witness()).expect("and loads").doc;
+    assert!(back.bit_eq(&doc), "the annotation round-trips bit for bit");
+
+    let policy = AnalysisPolicy::default();
+    let boxed = analyzed_box(&back, &policy);
+    let bore = boxed
+        .get(&ParamName::new("bore_r"))
+        .expect("the annotated parameter is an axis");
+    let plate = boxed
+        .get(&ParamName::new("plate_t"))
+        .expect("so is the banded one");
+
+    // The normal's box is the ±3σ quantile box; the band's IS its
+    // support.
+    assert!(
+        (bore.offsets.hi - 15e-6).abs() < 1e-8,
+        "±3σ of 5 µm, got {}",
+        bore.offsets.hi
+    );
+    assert_eq!(plate.offsets.lo, -2e-4);
+    assert_eq!(plate.offsets.hi, 2e-4);
+    assert_eq!(
+        plate.absolute(),
+        (0.012 - 2e-4, 0.012 + 2e-4),
+        "absolute limits read off the nominal"
+    );
+
+    // The tail column: the normal leaves a little outside its box, the
+    // band leaves nothing outside its own support.
+    let bore_tail = tail_mass(
+        &ParamName::new("bore_r"),
+        &bore.distribution.expect("annotated"),
+        &bore.offsets,
+    )
+    .expect("a normal is priceable");
+    assert!(
+        bore_tail > 0.0 && bore_tail < 1e-2,
+        "the ±3σ box leaves ~0.27% outside, got {bore_tail}"
+    );
+    assert_eq!(
+        tail_mass(
+            &ParamName::new("plate_t"),
+            &plate.distribution.expect("annotated"),
+            &plate.offsets
+        ),
+        Ok(0.0)
+    );
+
+    // Pricing a sub-box: the normal answers, the band refuses BY NAME.
+    let half = box_mass(
+        &ParamName::new("bore_r"),
+        &bore.distribution.expect("annotated"),
+        (0.0, bore.offsets.hi),
+    )
+    .expect("a normal prices a leaf");
+    assert!((half - 0.5 * (1.0 - bore_tail)).abs() < 1e-9, "{half}");
+    match box_mass(
+        &ParamName::new("plate_t"),
+        &plate.distribution.expect("annotated"),
+        (0.0, 1e-4),
+    ) {
+        Err(MeasureUnavailable::BandHasNoMeasure { param }) => {
+            assert_eq!(param, ParamName::new("plate_t"));
+        }
+        other => panic!("a band must refuse to price a leaf, got {other:?}"),
+    }
 }

@@ -35,12 +35,13 @@ const V11: &str = include_str!("golden/v11_golden.cad");
 
 #[test]
 fn schema_version_is_current() {
-    // Moved twice since this row was written (ASM-R2a's v13
-    // `Node::Mate` arm, ASM-R2b's v14 interface record) — the convention is that a bump updates every
+    // Moved three times since this row was written (ASM-R2a's v13
+    // `Node::Mate` arm, ASM-R2b's v14 interface record, M10-1's v15
+    // parameter distributions) — the convention is that a bump updates every
     // pin it invalidates, so the number stays exact here. Named for
     // the PROPERTY rather than the number, since the number is exactly
     // what keeps moving.
-    assert_eq!(SCHEMA_VERSION, 14);
+    assert_eq!(SCHEMA_VERSION, 15);
 }
 
 #[test]

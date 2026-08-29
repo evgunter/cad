@@ -180,10 +180,7 @@ fn non_finite_floats_refuse_at_save_naming_the_site() {
     // A NaN smuggled through an UNAPPLIED edit log (a log is data).
     let nan_edit = DocEdit::SetDocParam {
         name: ParamName::new("bad"),
-        value: DocParam::Continuous {
-            dim: Dimension::Length,
-            value: f64::NAN,
-        },
+        value: DocParam::continuous(Dimension::Length, f64::NAN),
     };
     match save(&doc, &[nan_edit], Tol::witness()) {
         Err(PersistError::NonFinite {
