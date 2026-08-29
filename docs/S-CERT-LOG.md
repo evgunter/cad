@@ -132,3 +132,39 @@ row-5-boundary note in this branch. CERT-6 re-cut to the ruling
 demand-triggered valve, not built). All four rulings are now in;
 the plan is marked RATIFIED, with the opening PR held for Evan's
 sign-off of the D9 addendum wording it carries.
+
+## CERT-2 merged (2026-08-29) — issue 762 closed; the program's first unit
+
+PR 1221 at f24c5dea, gate green (interval, 1e-12). The unit: issue
+762's residue — march.rs's sibling guard (D285's exact signature
+red-first), D286 answered with the weight-underflow fixture (better
+than the anticipated none-exists verdict; the overflow route proven
+closed by the hull-cancellation floor), the poison-arm sentences made
+producible, the NaN fold pinned, and three D285-spelling predicate
+siblings the impl sweep's fold-shaped pattern missed — found by R2,
+fixed in the pass. D285/D286 left the Track Q table in the landing
+PR. Issues filed: 1218, 1219 (impl sweep), 1238 (the
+finite-but-unusable-speed class, from both reviews' probes). Dual at
+ordinal 700, sample #44 (after correcting the #42/#43 collision on
+main's ledger): R1 fable A-W-F 1/4/4, R2 opus A-W-F 2/4/4, both
+headlines bilateral-at-differing-severity; details in the row.
+
+**Two incidents, recorded:**
+
+1. **Orchestrator error — the fix pass ran cross-slot.** The
+   fix-pass dispatch was SendMessage'd to the CERT-1 lane's agent id
+   instead of CERT-2's implementer; that lane executed the whole
+   union (well), so the fix pass did not inherit CERT-2's arm and
+   its covariates are contaminated (excluded from arm comparisons in
+   the row). Rule for the successor: verify the agent id against the
+   dispatch record before any fix-pass send — the ids are one
+   typo apart and nothing else checks them.
+2. **Main went red mid-fix-pass** (pncad-py create_exception! merge
+   damage from PR 1215 — a fence this program never touches; the PR
+   gate builds the merge ref, which is how it bit PR 1221 first).
+   Repaired orchestrator-direct at PR 1239 within ~40 minutes, LIB
+   flagged on the PR; standing-down comment posted on PR 1221 per
+   the babysit rules.
+
+CERT-1's implementation is delivered (PR 1220, green at
+default/1e-12); its dual dispatches next at ordinal 701.

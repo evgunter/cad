@@ -617,7 +617,7 @@ fn wire_extrude<T: Decide>(
     ))
 }
 
-fn wire_revolve<T: Decide>(
+fn wire_revolve<T: Decide + geom_brep::PcurveFittedLane>(
     id: RecipeNodeId,
     profile: RecipeNodeId,
     axis: RecipeNodeId,
@@ -755,7 +755,7 @@ fn wire_revolve<T: Decide>(
 /// result carries, even against a disjoint operand — and that
 /// frontier, which predates M6-5, is pinned executed in the same
 /// file. The naming side is ready; the kernel side is not.
-fn wire_fillet<T: Decide + geom_core::Bounds>(
+fn wire_fillet<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     id: RecipeNodeId,
     target: RecipeNodeId,
     selection: &[names::StableName],
@@ -961,7 +961,7 @@ fn resolve_selection(
     Ok(keys)
 }
 
-fn wire_split<T: Decide>(
+fn wire_split<T: Decide + geom_brep::PcurveFittedLane>(
     id: RecipeNodeId,
     target: RecipeNodeId,
     tool: RecipeNodeId,
@@ -1018,7 +1018,7 @@ fn wire_split<T: Decide>(
 // BVH candidate generation reads coordinate brackets — the L7 driver-code
 // allowance, threaded from `run_op`'s service bound.
 #[allow(clippy::too_many_arguments)] // one parameter per named input; strategy is the §4.4 door
-fn wire_boolean<T: Decide + geom_core::Bounds>(
+fn wire_boolean<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     id: RecipeNodeId,
     op: BooleanOp,
     a: RecipeNodeId,
@@ -1295,7 +1295,7 @@ fn resolve_declarations(
     Ok(out)
 }
 
-fn wire_transform<T: Decide>(
+fn wire_transform<T: Decide + geom_brep::PcurveFittedLane>(
     id: RecipeNodeId,
     input: RecipeNodeId,
     results: &Results<T>,
@@ -1379,7 +1379,7 @@ fn stepped_map<T: Decide>(
     }
 }
 
-fn wire_pattern<T: Decide>(
+fn wire_pattern<T: Decide + geom_brep::PcurveFittedLane>(
     id: RecipeNodeId,
     input: RecipeNodeId,
     kind: &PatternKind,
@@ -1449,7 +1449,7 @@ fn wire_pattern<T: Decide>(
 /// node, which may hand back the prototype verbatim for its identity
 /// instance, a placed union has no reason to special-case a map that an
 /// explicit rule need not make the identity.
-fn wire_placed_union<T: Decide + geom_core::Bounds>(
+fn wire_placed_union<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     id: RecipeNodeId,
     input: RecipeNodeId,
     kind: &PatternKind,
@@ -1632,7 +1632,7 @@ fn need_count(vals: &SlotValues<impl Decide>, slot: SlotId) -> Result<usize, Nod
 /// The Loft node (M6-3: the frontier flipped to the BUILDER — the
 /// §10.3 walls plus the M5-LOG item-6 assembly, tiers 1–3 green at
 /// rest).
-fn wire_loft<T: Decide + geom_core::Bounds>(
+fn wire_loft<T: Decide + geom_brep::PcurveFittedLane + geom_core::Bounds>(
     id: RecipeNodeId,
     profiles: &[RecipeNodeId],
     doc: &crate::doc::Doc<ProfileProgram>,

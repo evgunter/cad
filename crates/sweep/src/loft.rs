@@ -260,7 +260,7 @@ fn world<T: Real>(place: &Affine3<T>, p: geom_core::Point2<T>) -> Point3<T> {
 ///
 /// [`LoftError`] — every door named on the enum.
 #[allow(clippy::too_many_lines)] // one construction, kept whole like extrude's
-fn assemble<T: Decide>(
+fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
     sections: &[Section],
     places: &[Affine3<f64>],
     geometry: &LoftGeometry,
@@ -586,7 +586,7 @@ fn assemble<T: Decide>(
 /// # Errors
 ///
 /// [`LoftError`] — every door named on the enum.
-pub fn loft_body<T: Decide>(
+pub fn loft_body<T: Decide + geom_brep::PcurveFittedLane>(
     sections: &[Section],
     places: &[Affine3<f64>],
     v_degree: usize,
@@ -605,7 +605,7 @@ pub fn loft_body<T: Decide>(
 /// [`LoftError`] — every door named on the enum, with
 /// [`SkinError::PathTangentReversal`] arriving through
 /// [`LoftError::Skin`].
-pub fn sweep_body<T: Decide>(
+pub fn sweep_body<T: Decide + geom_brep::PcurveFittedLane>(
     profile: &[ProfileLoop<f64>],
     place: Affine3<f64>,
     path: &geom::NurbsCurve3<f64>,

@@ -371,7 +371,7 @@ fn map_carrier<T: Real>(map: &Affine3<T>, c: &Curve3<T>) -> Result<Curve3<T>, Tr
 /// # Errors
 ///
 /// [`TransformError`] — closed and typed.
-pub fn transform_rigid<T: Decide>(
+pub fn transform_rigid<T: Decide + geom_brep::PcurveFittedLane>(
     body: &Body<T>,
     map: &Affine3<T>,
     tol: Tol,
