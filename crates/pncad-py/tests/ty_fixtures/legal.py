@@ -7,6 +7,7 @@ the guide's own executed blocks.
 """
 
 from pncad import (
+    Advisory,
     Alignment,
     ArcSweep,
     Assembly,
@@ -15,10 +16,15 @@ from pncad import (
     BooleanOp,
     CapEnd,
     Center,
+    CheckId,
+    CheckKind,
+    ChecksConfig,
+    ChecksReport,
     Cmp,
     ContactClass,
     ContentPin,
     CurveKind,
+    CheckFinding,
     ClassAdmission,
     ClusterMaintenance,
     Denotation,
@@ -54,6 +60,7 @@ from pncad import (
     SegPat,
     SegTag,
     Selector,
+    Severity,
     SketchPlane,
     Start,
     SurfaceKind,
@@ -65,6 +72,7 @@ from pncad import (
     clusters,
     content_pin,
     deg,
+    enforce_checks,
     evaluate,
     gauge_of,
     header_document_id,
@@ -77,8 +85,10 @@ from pncad import (
     random_document_id,
     reading_edges,
     relative_freedom_components,
+    run_checks,
     solve_document,
     split,
+    subject_body,
     update_references,
 )
 
@@ -381,3 +391,15 @@ corner: tuple[Length, Length, Length] = seamed.vertex_position(
 )
 denotes: Denotation = seamed.denotation(upright, cap_name)
 tied: bool = denotes.tied
+# The advisory checks: a report out of one door, a gate the caller
+# opens at the other, and the subject a finding names.
+report: ChecksReport = run_checks(doc, seamed)
+strict: ChecksConfig = ChecksConfig(
+    connectedness=Severity.Error,
+    expected_components=[(instance, 0, 2)],
+    separation=Advisory.Warn,
+)
+findings: list[CheckFinding] = run_checks(doc, seamed, strict).findings
+label: CheckKind = CheckId.Connectedness.kind
+enforce_checks(report, strict)
+flagged: Body | None = subject_body(seamed, instance, 0)
