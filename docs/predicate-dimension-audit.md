@@ -327,7 +327,8 @@ which is what actually moves the number.
 | props/curved.rs (`cone_boundary`'s line arm) | props_meridian_apex | apex-line distance | m | OK |
 | props/curved.rs (`cone`'s single-nappe check) | props_cone_nappe | slant levels (m) bare | m | OK |
 | props/curved.rs (`sphere_boundary`'s meridian arm, `torus_boundary`, `torus_meridian_orient`) | props_meridian_great / props_band_coplanar / props_meridian_orient | lengths / sin×R / cos×minor | m | OK |
-| props/curved.rs (`require_rims_at_extremes`, through `level_coincides`) | props_rim_level | per-kind: bare level difference (cylinder/cone `Length`) / rooted (sin,cos) chord × `RimArms::level` (sphere ×R, torus ×minor) | m | OK (note N7; N1 RETIRED. Generalised from the torus-only site to all four kinds by S58/#649, and unified with its sibling `props_rim_level_group` by S81 — ONE rule (`level_coincides`), one metric (the chord), one arm (`RimArms::level`), one fail direction; the two names are the funnel's recording channels, not two rules, and the metering is still carried by [`RimLevel`]. N7's near-polar sphere understatement applies here too, and here it is a REFUSAL that is affected. Pinned as scale twins by `geom-brep/tests/rim_dim_scale_twins.rs` and, in a suite CI runs, by `geom-brep/tests/s81_one_rim_level_rule.rs`.) |
+| props/curved.rs (`sphere_meridian_span_levels`) | props_meridian_pole | signed angular distance from a pole to the nearer end of the meridian arc's stored span × R (the point deviation of moving the pole along the arc) | m | OK (added with the span-derived sphere extent, issue 723 / S-CERT: Positive = pole interior to the span, its latitude joins the level fold; Zero = at a span end, folded too — the endpoint latitude is within band² of the pole's, so the fold is continuous across the decision; Negative = outside) |
+| props/curved.rs (`require_rims_at_extremes`, through `level_coincides`) | props_rim_level | per-kind: bare level difference (cylinder/cone `Length`) / rooted (sin,cos) chord × `RimArms::level` (sphere ×R, torus ×minor) | m | **FIXED — N7 RETIRED** (N1 RETIRED earlier. Generalised from the torus-only site to all four kinds by S58/#649, and unified with its sibling `props_rim_level_group` by S81 — ONE rule (`level_coincides`), one metric (the chord), one arm (`RimArms::level`), one fail direction; the two names are the funnel's recording channels, not two rules, and the metering is still carried by [`RimLevel`]. N7's near-polar sphere understatement — an axial-only `(sin v, 0)` pair whose chord collapsed by `cos v̄`, merging distinct near-polar rims in the ACCEPTING direction on both names, this refusing one included — is retired by the full `(sin v, cos v)` pair (issue 893 / S-CERT; this verdict column previously said `OK` while N7's own prose recorded the collapse). Pinned as scale twins by `geom-brep/tests/rim_dim_scale_twins.rs` and, in suites CI runs, by `geom-brep/tests/s81_one_rim_level_rule.rs` and the near-polar rows of `geom-brep/tests/cert1_sphere_polar.rs`.) |
 | props/quad.rs:453 | props_quad_converged | ε·F − flux-width(m³)/(3·area(m²)) | m | OK |
 | props/quad.rs:461 | props_quad_face_extent | area/perimeter (mean width) | m | OK |
 | ssi.rs:645 | ssi_cs_tangency | radius/axis distance differences | m | OK |
@@ -706,7 +707,8 @@ this document's rows are about what is recorded, and all audited probe
 suites are green:
 
 - **sphere `props_rim_level_group`**: two decides per comparison became
-  **one**. The pair is `(sin v, 0)`, so the old second component was
+  **one**. The pair was then `(sin v, 0)` (it has carried `cos v` since
+  the issue-893 fix — N7's retirement), so the old second component was
   `0 − 0` and always decided `Zero`; the chord folds it away. Same
   verdict, one fewer sample.
 - **torus `props_rim_level_group`**: the recorded margin changes from a
@@ -768,19 +770,23 @@ Notes (verified honest, kept for the design conversation):
 - **N6** `split_join_order_u/v` deliberately classify against the
   bit-level exact band (total-order device), not ε — documented
   contract, excluded from the length rule by design.
-- **N7** (review MINOR-3) The sphere's `Unit(sin v, 0) × R` grouping
-  margin meters the AXIAL separation `R·|Δsin v|`, which degenerates
-  toward the poles (∝ cos v̄ → 0): two distinct near-polar latitude
-  rims can group as coincident although their true point separation is
-  ~`R·Δv`. Dimensionally honest (the margin IS a length, and it is the
-  quantity the area formula consumes), but the LEVER understates the
-  3-D deviation near the poles — the same lever-magnitude family as
-  N1 (now retired), opposite direction: N1 escalated, this merges, and
-  it merges in the ACCEPTING direction. Cone/cylinder bare levels and
-  the torus two-component pair do not share this. Typed-margin
-  conversation input, and **smell-scan S82** — Evan's to answer, not a
-  lane's. S81's unification does not answer it and does not try to; it
-  makes it **cheaper**, because the sphere's lever is now one field
-  (`RimArms::uniform(radius)`'s `level`) at one site, feeding one rule,
-  rather than a scalar passed to two functions that metered it two
-  ways. Whatever the answer, it is a change to that field.
+- **N7 — RETIRED (issue 893 / S-CERT).** As filed (review MINOR-3):
+  the sphere's `Unit(sin v, 0) × R` grouping margin metered the AXIAL
+  separation `R·|Δsin v|`, which degenerates toward the poles
+  (∝ cos v̄ → 0): two distinct near-polar latitude rims grouped as
+  coincident although their true point separation is ~`R·Δv` —
+  dimensionally honest, but the lever understated the 3-D deviation,
+  the same lever-magnitude family as N1 with the opposite direction:
+  N1 escalated, this merged, and it merged in the ACCEPTING direction
+  (a non-rectangular near-polar domain PASSED `props_rim_level`).
+  **The resolution is the torus's own representation**: sphere rims
+  now mint the full `Unit(sin v, cos v)` pair (`sphere_boundary`'s rim
+  arm reads `cos v = r_c/R` off stored data; the scalar-extreme lift
+  completes a sine with its nonnegative cosine), so the chord
+  `level_coincides` meters IS the point deviation everywhere on the
+  sphere, exactly as on the torus. S81's one-rule/one-arm unification
+  is what made this a one-site change. The near-polar refusal row is
+  `geom-brep/tests/cert1_sphere_polar.rs`
+  (`two_distinct_near_polar_rims_are_not_one_level`, with its
+  within-band accepting control beside it); the chord pin is
+  `rim_dim_scale_twins.rs`'s sphere twin.
