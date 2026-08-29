@@ -775,11 +775,13 @@ fn main() {
     // `crates/editor-core/tests/corpus/tour/die_composed_tour.pncad` is
     // regenerated from, and the reason the kernel's model corpus can
     // register this scene's die without a second transcription of it
-    // (`diefillet::corpus_text`). Separate from `gallery`, which writes
-    // the die MINUS its blank fillet: that deletion is right for a
-    // document a person opens in the viewer (two roots sit on each
-    // other) and wrong for a corpus whose subject is the three fillet
-    // sites.
+    // (`diefillet::corpus_text`). The DOCUMENT is `gallery`'s — blank
+    // fillet deleted, per the #1162 ruling, which holds for a corpus
+    // too — but the FILE differs: the gallery saves a snapshot, which
+    // records its ε and refuses to load at any other, while the corpus
+    // replays at every CI ε row, so this door writes the empty
+    // document plus the whole model as an edit log (the derivation and
+    // its exactness assert live at `corpus_text`).
     if outdir == "die-corpus" {
         let path = std::env::args()
             .nth(2)
