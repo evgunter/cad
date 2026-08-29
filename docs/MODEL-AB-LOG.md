@@ -1759,3 +1759,8 @@ fable}. Slot 1 = M10-1 (distributions; difficulty pre-logged M
 before the draw, in the dispatch task record). Draw: /dev/urandom
 byte 85, no rejections ⇒ fable position 1 (0-indexed) ⇒ slot 1
 OPUS, slot 2 FABLE, slot 3 OPUS.
+
+**M10-1 dual draw (branch-side, 2026-08-29, at review dispatch).**
+Ordinal 500 (band's first claim; claim issue filed at dispatch).
+Slot byte 165, parity 1 ⇒ R1 FABLE + R2 OPUS, concurrent, frozen
+head 0e9ef0b4, v5 instrument.
