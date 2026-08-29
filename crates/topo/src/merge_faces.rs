@@ -43,7 +43,7 @@ use slotmap::SecondaryMap;
 
 use crate::body::Body;
 use crate::boolean::{PlaneDesc, PlaneEqError, PlaneIdentity, PlaneRelation, oriented_plane_eq};
-use crate::entity::{EdgeKey, FaceKey, LoopKey};
+use crate::entity::{EdgeKey, FaceKey, LoopKey, VertexKey};
 use crate::euler::EulerOpError;
 use crate::geometry::SurfaceKey;
 use crate::validate::{ValidationError, validate_closed};
@@ -60,6 +60,16 @@ pub struct MergedGroup {
     /// Rings minted by intra-face shared-edge kills (`kemr` — a merged
     /// run that surrounds a hole grows a genuine ring), in mint order.
     pub rings_made: Vec<LoopKey>,
+    /// Vertices killed by the straight-seam repair (`kev`), in kill
+    /// order — a junction that was interior to one straight carrier
+    /// and went with its seam.
+    ///
+    /// Recorded rather than left implicit because this is the one
+    /// thing the op destroys that no other field names: `absorbed`
+    /// carries the dead faces and `killed_edges` the dead edges, and
+    /// without this a caller reconciling the Euler delta would find a
+    /// `v −1` with nothing accounting for it.
+    pub killed_vertices: Vec<VertexKey>,
 }
 
 /// A declared-licensed merge group that was NOT glued (M4 PR 5): its
@@ -327,14 +337,34 @@ impl<T: Decide> Body<T> {
     /// mechanism. Until then the convention is simply not detected
     /// wrong) and re-homing absorbed faces' rings onto the survivor.
     ///
+    /// **The straight-seam repair (`kev`).** An intra-face duplicate is
+    /// not always a ring. When the group's shared boundary is exactly
+    /// two edges meeting at a valence-2 vertex whose two departures are
+    /// collinear and OPPOSED — the vertex is interior to one straight
+    /// carrier — the surviving duplicate is a dangling STRUT, and the
+    /// op kills it with `kev` instead of minting a ring with `kemr`.
+    /// The surgery DELETES BOTH seam edges and the junction vertex: the
+    /// `kef` takes one, the `kev` takes the other along with the vertex
+    /// it dangles from. Nothing is re-described, because the removed
+    /// vertex was interior to a straight locus and the union of the two
+    /// collinear pieces is that same locus. The motivating instance is
+    /// a full revolve's axis-touching cap (the two seam edges are the
+    /// halves of the disc's diameter, the vertex is the pole), but the
+    /// licence is collinearity and not provenance
+    /// ([`Body::redundant_subdivision_vertex`]'s docs carry the
+    /// argument and its residue).
+    ///
     /// **Atomic and deterministic (D9)**: the op stages on a clone —
     /// on any refusal `self` is untouched; on success the staged body
     /// replaces `self` wholesale. All scans are arena-order; the
     /// surviving face of each group is its first face in face-arena
     /// order; edges die in edge-arena order. Composite Euler delta per
-    /// group: `f −(n−1)`, `e −k`, plus `r +m` for intra-face kills —
-    /// each step is an Euler operator, so tier 1 holds throughout and
-    /// χ is conserved at every step.
+    /// group: `f −(n−1)`, `e −k`, plus `r +m` for intra-face `kemr`
+    /// kills, and `v −1` for each straight-seam `kev` (which is what
+    /// keeps χ conserved when a ring is NOT minted: `kemr` trades an
+    /// edge for a ring, `kev` trades an edge for a vertex). Each step
+    /// is an Euler operator, so tier 1 holds throughout and χ is
+    /// conserved at every step.
     ///
     /// A body with nothing to merge returns `Ok` with an empty outcome
     /// and is untouched (deterministic no-op).
@@ -733,6 +763,116 @@ impl<T: Decide> Body<T> {
         Some((pb - pa).norm())
     }
 
+    /// **Is `v` a redundant subdivision vertex of a straight seam?**
+    ///
+    /// This is the geometric licence for removing a seam vertex, and it
+    /// is deliberately NOT a claim about provenance. A vertex of
+    /// valence 2 whose two edges lie on ONE straight carrier, leaving
+    /// it in OPPOSITE directions, is interior to a single line
+    /// segment: deleting it and merging its two edges replaces two
+    /// collinear pieces with their union and **no locus changes**. The
+    /// repair is then geometry-preserving by construction, whatever
+    /// produced the vertex.
+    ///
+    /// A full revolve's axis-touching cap is the motivating instance —
+    /// its two meridians are the two halves of the disc's DIAMETER,
+    /// with the pole interior to it — but nothing here mentions poles
+    /// or axes, and it should not: the same fact licenses the same
+    /// removal on any straight seam.
+    ///
+    /// What it refuses is the case the F7 rule exists for. Two
+    /// coplanar faces meeting along a bent seam — `merge_skip`'s
+    /// L-corner, where two overlapping rectangles meet at a
+    /// re-entrant corner — have a valence-2 junction too, and an
+    /// earlier form of this trigger that tested only valence was
+    /// falsified by exactly that fixture. Perpendicular departures
+    /// fail the collinearity decision, so the corner survives and the
+    /// merge still refuses, which is the pinned behaviour.
+    ///
+    /// Both decisions are metered on the shorter incident segment (the
+    /// honest lever for an angular quantity read as a length).
+    fn redundant_subdivision_vertex(
+        &self,
+        v: VertexKey,
+        band: Band,
+    ) -> Result<bool, MergeCoplanarError> {
+        let Some(em) = self.get_vertex(v).and_then(|vd| vd.emanating) else {
+            return Ok(false);
+        };
+        let Some(orbit) = self.vertex_orbit(em) else {
+            return Ok(false);
+        };
+        if orbit.len() != 2 {
+            return Ok(false);
+        }
+        let point = |vk: VertexKey| {
+            self.get_vertex(vk)
+                .and_then(|vd| self.get_point(vd.point).copied())
+        };
+        let Some(pv) = point(v) else {
+            return Ok(false);
+        };
+        // Each orbit member starts at `v`; its mate starts at the far
+        // end. Both carriers must be straight — an arc through `v` is
+        // not a subdivision of anything.
+        let mut departures = Vec::with_capacity(2);
+        for &he in &orbit {
+            let Some(hd) = self.get_half_edge(he) else {
+                return Ok(false);
+            };
+            let Some(e) = self.get_edge(hd.edge) else {
+                return Ok(false);
+            };
+            let straight = self
+                .get_curve_geom(e.curve)
+                .and_then(crate::null::CurveGeom::certified)
+                .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Line { .. }));
+            if !straight {
+                return Ok(false);
+            }
+            let far = if e.he_plus == he {
+                e.he_minus
+            } else {
+                e.he_plus
+            };
+            let Some(pf) = self.get_half_edge(far).and_then(|h| point(h.start)) else {
+                return Ok(false);
+            };
+            departures.push(pf - pv);
+        }
+        let (d1, d2) = (departures[0], departures[1]);
+        // The lever is the SHORTER incident segment — an angular
+        // quantity is read here as a length, and the shorter arm is the
+        // conservative one. `Real::min`, not `<`: the scalar backends
+        // order intervals, not values, so a bare comparison on `T` is
+        // not available and would not mean this if it were (the S10
+        // exact-bit discipline). A degenerate zero-length edge makes
+        // the normalization poison, which `decide` escalates typed
+        // rather than silently answering.
+        let (n1, n2) = (d1.norm(), d2.norm());
+        let arm = n1.min(n2);
+        let (u1, u2) = (d1 / n1, d2 / n2);
+        let escalate = |diag| MergeCoplanarError::Escalated { diag };
+        // Collinear: the two departures span no angle.
+        if crate::validate::decide(
+            "merge_seam_collinear",
+            Margin::levered(u1.cross(u2).norm(), arm),
+            band,
+        )
+        .map_err(escalate)?
+            != geom_core::Sign::Zero
+        {
+            return Ok(false);
+        }
+        // ...and OPPOSED, so `v` is interior to the union rather than a
+        // point the seam doubles back from.
+        Ok(
+            crate::validate::decide("merge_seam_opposed", Margin::levered(u1.dot(u2), arm), band)
+                .map_err(escalate)?
+                == geom_core::Sign::Negative,
+        )
+    }
+
     /// Merges one group into its first member (see the public op's
     /// docs for order and refusals). Runs on the staged clone.
     fn merge_group(
@@ -746,8 +886,46 @@ impl<T: Decide> Body<T> {
             absorbed: Vec::new(),
             killed_edges: Vec::new(),
             rings_made: Vec::new(),
+            killed_vertices: Vec::new(),
         };
         let in_group = |f: FaceKey| members.contains(&f);
+        // **The straight-seam junction, decided ONCE** on the group as
+        // it arrives — before any mutation, because the answer licenses
+        // a different repair below and must not be re-derived from a
+        // body that repair is halfway through changing.
+        //
+        // Verified against this crate's whole merge/boolean fixture
+        // corpus before it was wired to anything (the method the
+        // reviewers' falsifications earned): it fires on a collinear
+        // subdivided seam and on nothing else in the corpus — not on
+        // `merge_skip`'s L-corner, not on either review arm's bent
+        // chords, not on an inset ring.
+        let straight_seam = {
+            let band = Band::linear(tol).map_err(|error| MergeCoplanarError::Band { error })?;
+            let shared: Vec<_> = self
+                .edges()
+                .filter_map(|(k, e)| {
+                    let (fp, fm) = self.edge_faces(e.he_plus, e.he_minus)?;
+                    (fp != fm && in_group(fp) && in_group(fm)).then_some((k, e.he_plus, e.he_minus))
+                })
+                .collect();
+            let mut verdict = false;
+            if shared.len() == 2 {
+                let ends =
+                    |hp, hm| Some([self.get_half_edge(hp)?.start, self.get_half_edge(hm)?.start]);
+                if let (Some(a), Some(b)) = (
+                    ends(shared[0].1, shared[0].2),
+                    ends(shared[1].1, shared[1].2),
+                ) {
+                    for v in a.iter().filter(|v| b.contains(v)) {
+                        if self.redundant_subdivision_vertex(*v, band)? {
+                            verdict = true;
+                        }
+                    }
+                }
+            }
+            verdict
+        };
         // Absorption: repeatedly kill the first (edge-arena order)
         // edge shared between rep and another group member.
         loop {
@@ -835,6 +1013,44 @@ impl<T: Decide> Body<T> {
             }
             if !same_loop {
                 return Err(MergeCoplanarError::UnsupportedConfiguration { edge: edge_key });
+            }
+            // **A straight seam's surviving duplicate is a STRUT, not a
+            // ring.** The absorption above killed one of the two seam
+            // edges with `kef`; the other is now a duplicate inside the
+            // survivor whose junction end is left with valence 1 — a
+            // dangling remnant the merge itself created, enclosing
+            // nothing. `kemr` would mint a ring from it and the winding
+            // pass would then find no unique positive cycle and refuse
+            // `MergedFaceRoleAmbiguous`, which is the dead end this op
+            // hits on every revolve cap.
+            //
+            // `kev` is the op for it — it kills the strut AND the far
+            // vertex, leaving the face bounded by its outline alone.
+            // The licence is that the removed vertex was interior to
+            // one straight carrier, so the union of the two collinear
+            // pieces is the same locus: geometry-preserving by
+            // construction, which is why this is gated on
+            // `straight_seam` and not on the strut's shape alone.
+            let tip = if straight_seam {
+                [(he_plus, he_minus), (he_minus, he_plus)]
+                    .into_iter()
+                    // `vertex_orbit` walks the halves STARTING at its
+                    // argument's start vertex, so this is the orbit at
+                    // the far end of the other half.
+                    .find(|&(_, toward)| {
+                        self.vertex_orbit(toward)
+                            .is_some_and(|orbit| orbit.len() == 1)
+                    })
+            } else {
+                None
+            };
+            if let Some((from_rim, toward)) = tip {
+                let killed = self.get_half_edge(toward).map(|h| h.start);
+                self.kev(from_rim)
+                    .map_err(|error| MergeCoplanarError::Op { error })?;
+                group.killed_edges.push(edge_key);
+                group.killed_vertices.extend(killed);
+                continue;
             }
             let result = self
                 .kemr(he_plus, he_minus)
