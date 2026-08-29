@@ -710,13 +710,43 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
             // the conic ROOT lane); curved faces get the clearance /
             // typed-frontier arm.
             let Some(plane) = face_plane(y, face) else {
-                let hit = curved_face_arm(
+                let event = curved_face_arm(
                     x, y, x_is, edge_key, &edge, u, v, face, pu, pv, declared, contacts, band, tol,
                 )?;
-                if hit && let Some(tr) = trace.as_deref_mut() {
+                if !matches!(event, CurvedEvent::None)
+                    && let Some(tr) = trace.as_deref_mut()
+                {
                     tr.accepted.push((edge_key, face));
                 }
-                continue;
+                // A wall crossing is split and recorded HERE, with the
+                // same triple the conic × plane root above uses: the
+                // event splits `x`'s edge, the contact is minted
+                // against the piercing side, and the remainder fragment
+                // is re-queued so the second root of the same span is
+                // found on the next pass.
+                let CurvedEvent::Pierce { t, p, at } = event else {
+                    continue;
+                };
+                match at {
+                    FaceContainment::Out => continue,
+                    FaceContainment::In => {
+                        let w = split_at(x, x_is, edge_key, t, tol)?;
+                        contacts.vf(x_is, VfContact { vertex: w, face });
+                        requeue(&mut worklist, x, edge_key, w, j)?;
+                    }
+                    FaceContainment::OnEdge(ey) => {
+                        let w = split_at(x, x_is, edge_key, t, tol)?;
+                        let wy = split_other_at_point(y, x_is.other(), ey, p, band, tol)?;
+                        push_vv(contacts, x_is, w, wy);
+                        requeue(&mut worklist, x, edge_key, w, j)?;
+                    }
+                    FaceContainment::OnVertex(vy) => {
+                        let w = split_at(x, x_is, edge_key, t, tol)?;
+                        push_vv(contacts, x_is, w, vy);
+                        requeue(&mut worklist, x, edge_key, w, j)?;
+                    }
+                }
+                break 'faces;
             };
             // Conic carriers against a plane (M5 PR 9): crossing
             // detection is ROOT-BASED and endpoint-verdict-free — the
@@ -923,8 +953,25 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
 /// both frontier doors untouched — the door only widens what a
 /// verified declaration unlocks.
 ///
-/// Returns whether the exact predicates ACCEPTED an event (the
-/// differential suite's accepted-pair channel).
+/// **The pierce ring lane** (the definite-crossing half): a LINE edge
+/// that definitely crosses a cylinder WALL inside that wall's trim is
+/// no longer the frontier. Its crossing parameters are the same
+/// certified quadratic the ray lane has always solved
+/// ([`super::solid_contain::line_wall_roots`]) taken over the edge's
+/// own span instead of a ray's forward half; the landing point is
+/// placed by [`super::contain::curved_face_containment`]; the
+/// split/record triple is the planar conic lane's, verbatim. Still the
+/// frontier is everything the roots do not cover: a TANGENCY (an
+/// in-band discriminant is not a crossing at any order this lane sees),
+/// a CIRCLE carrier against a wall (a degree-2 trigonometric residual
+/// with no root lane in this tree), a SPHERE face, and a trim the chart
+/// door declines to express.
+///
+/// Returns what the caller must do about the pair — see
+/// [`CurvedEvent`]. The split itself needs `&mut x` and the worklist,
+/// both of which live in [`sweep_direction`], so the crossing is
+/// REPORTED here and performed there rather than the body being
+/// threaded in for one branch.
 #[allow(clippy::too_many_arguments)]
 fn curved_face_arm<T: Decide>(
     x: &Body<T>,
@@ -941,7 +988,7 @@ fn curved_face_arm<T: Decide>(
     contacts: &mut ContactAcc,
     band: Band,
     tol: Tol,
-) -> Result<bool, BooleanError> {
+) -> Result<CurvedEvent<T>, BooleanError> {
     let surface = y
         .get_face(face)
         .and_then(|f| y.get_surface(f.surface))
@@ -1077,7 +1124,7 @@ fn curved_face_arm<T: Decide>(
                     });
             let margin = Margin::of(carrier_margin.max(arc_margin));
             return match decide("bool_circle_curved_clearance", margin, band) {
-                Ok(Sign::Positive) => Ok(false),
+                Ok(Sign::Positive) => Ok(CurvedEvent::None),
                 // The declared-cover rung: a covered zero-clearance
                 // circle takes the planar sweep's endpoint posture —
                 // each endpoint's own side decides its treatment
@@ -1113,7 +1160,11 @@ fn curved_face_arm<T: Decide>(
                             Sign::Negative => return Err(frontier()),
                         }
                     }
-                    if any { Ok(true) } else { Err(frontier()) }
+                    if any {
+                        Ok(CurvedEvent::Recorded)
+                    } else {
+                        Err(frontier())
+                    }
                 }
                 Ok(Sign::Zero | Sign::Negative) => Err(frontier()),
                 Err(diag) => Err(BooleanError::Escalated { diag }),
@@ -1155,29 +1206,121 @@ fn curved_face_arm<T: Decide>(
             let hv = vertex_on_curved_face(x_is, y, v, pv, face, contacts, band, tol)?;
             // An endpoint the containment door cannot decide keeps the
             // frontier door.
-            if hu && hv { Ok(true) } else { Err(frontier()) }
+            if hu && hv {
+                Ok(CurvedEvent::Recorded)
+            } else {
+                Err(frontier())
+            }
         }
         (Sign::Zero, Sign::Positive) if covered => {
             if vertex_on_curved_face(x_is, y, u, pu, face, contacts, band, tol)? {
-                Ok(true)
+                Ok(CurvedEvent::Recorded)
             } else {
                 Err(frontier())
             }
         }
         (Sign::Positive, Sign::Zero) if covered => {
             if vertex_on_curved_face(x_is, y, v, pv, face, contacts, band, tol)? {
-                Ok(true)
+                Ok(CurvedEvent::Recorded)
             } else {
                 Err(frontier())
             }
         }
-        // A vertex ON the curved surface: the v-on-curved-face door.
-        (Sign::Zero, _) | (_, Sign::Zero) => Err(frontier()),
-        // A definite surface crossing: the pierce door.
-        (Sign::Positive, Sign::Negative) | (Sign::Negative, Sign::Positive) => Err(frontier()),
+        // **One endpoint ON the surface, the other definitely off it.**
+        // This is the shape a wall crossing LEAVES behind: the split
+        // puts a vertex on the carrier and re-queues both fragments
+        // against the same face, so each comes back with exactly one
+        // Zero end. The exact roots are consulted FIRST, because an
+        // interior crossing is still possible here and the endpoint
+        // rows would silently miss it — the residual along a line is
+        // convex and therefore lies BELOW its endpoint chord, so
+        // `f(t₀) = 0` with `f(t₁) > 0` can still dip through zero
+        // between. With no interior root the incidence is exactly the
+        // endpoint's, and the v-on-curved-face door mints the same
+        // record the planar sweep's `vertex_on_face` writes.
+        //
+        // `(Zero, Zero)` is NOT here: both endpoints on the carrier is
+        // the on-carrier-edge question, which is a cosurface claim and
+        // stays behind the declaration gate above.
+        (Sign::Zero, Sign::Positive | Sign::Negative)
+        | (Sign::Positive | Sign::Negative, Sign::Zero) => {
+            let (t0, t1) = curve.params();
+            match wall_crossing(y, face, &surface, curve.carrier(), t0, t1, band)? {
+                SpanVerdict::Pierce { t, p, at } => Ok(CurvedEvent::Pierce { t, p, at }),
+                // A constant residual cannot be zero at one end and
+                // definite at the other, and a definite miss cannot
+                // hold a zero endpoint: both CONTRADICT the endpoint
+                // rows that routed here, and a contradiction between
+                // two certified predicates keeps the door.
+                SpanVerdict::Constant | SpanVerdict::Miss | SpanVerdict::Unsettled => {
+                    Err(frontier())
+                }
+                SpanVerdict::NoInterior => {
+                    let mut hit = false;
+                    if s1 == Sign::Zero {
+                        hit |= vertex_on_curved_face(x_is, y, u, pu, face, contacts, band, tol)?;
+                    }
+                    if s2 == Sign::Zero {
+                        hit |= vertex_on_curved_face(x_is, y, v, pv, face, contacts, band, tol)?;
+                    }
+                    // An endpoint the containment door cannot place
+                    // keeps the frontier door, exactly as the covered
+                    // rung's endpoint rows do.
+                    if hit {
+                        Ok(CurvedEvent::Recorded)
+                    } else {
+                        Err(frontier())
+                    }
+                }
+            }
+        }
+        // **BOTH endpoints on the wall, the pair UNDECLARED** — the
+        // CHORD a wall pierce leaves behind: an edge that crossed the
+        // wall twice is split at both roots, and the middle fragment
+        // is what remains.
+        //
+        // This is the one arm where the cosurface fence and the ring
+        // lane meet, so the separation is STRUCTURAL rather than
+        // numeric: `NoInterior` is reached only through two DISTINCT
+        // definite roots, and a line with two distinct points on a
+        // cylinder is a secant. The only lines that LIE on a wall are
+        // its rulings; a ruling is axis-parallel and answers
+        // `Constant`. So an on-carrier edge cannot reach the endpoint
+        // treatment here and the undeclared cosurface question keeps
+        // its door untouched (CONTACT-DESIGN C2/C4) — as does a
+        // tangency, a trim with no verdict, and every other answer.
+        (Sign::Zero, Sign::Zero) => {
+            let (t0, t1) = curve.params();
+            match wall_crossing(y, face, &surface, curve.carrier(), t0, t1, band)? {
+                SpanVerdict::NoInterior => {
+                    let hu = vertex_on_curved_face(x_is, y, u, pu, face, contacts, band, tol)?;
+                    let hv = vertex_on_curved_face(x_is, y, v, pv, face, contacts, band, tol)?;
+                    if hu || hv {
+                        Ok(CurvedEvent::Recorded)
+                    } else {
+                        Err(frontier())
+                    }
+                }
+                _ => Err(frontier()),
+            }
+        }
+        // **A definite surface crossing: the pierce RING lane.** The
+        // endpoints straddle the carrier, so a root exists in the span;
+        // `wall_crossing` finds it exactly and the trim decides whether
+        // it lands in this face. `NoInterior` CONTRADICTS the straddle,
+        // so it keeps the door rather than reporting no event — a
+        // contradiction between two certified predicates is exactly
+        // what must not be resolved by picking one.
+        (Sign::Positive, Sign::Negative) | (Sign::Negative, Sign::Positive) => {
+            let (t0, t1) = curve.params();
+            match wall_crossing(y, face, &surface, curve.carrier(), t0, t1, band)? {
+                SpanVerdict::Pierce { t, p, at } => Ok(CurvedEvent::Pierce { t, p, at }),
+                _ => Err(frontier()),
+            }
+        }
         // Both inside: the residual along a line is convex, so its
         // maximum is at an endpoint — definitely no wall crossing.
-        (Sign::Negative, Sign::Negative) => Ok(false),
+        (Sign::Negative, Sign::Negative) => Ok(CurvedEvent::None),
         // Both outside: clear through a DIVISION-FREE lower bound on
         // the span minimum of the convex residual. Division-free is a
         // hard requirement, not a preference: the original
@@ -1244,12 +1387,173 @@ fn curved_face_arm<T: Decide>(
             let dip = (q * T::from_f64(0.5) - m).max(T::zero()) * T::from_f64(0.25);
             let min_bound = Margin::of(r_u.min(r_v) - dip);
             match decide("bool_line_cylinder_clearance", min_bound, band) {
-                Ok(Sign::Positive) => Ok(false),
-                Ok(Sign::Zero | Sign::Negative) => Err(frontier()),
+                Ok(Sign::Positive) => Ok(CurvedEvent::None),
+                // **The BELLY crossing**, and the reason the dip bound
+                // is a clearance test and never a crossing test: a
+                // convex residual positive at both endpoints can still
+                // dip through zero between them, and the bound is a
+                // charge against that dip, not a measurement of it. A
+                // charge that does not clear says only "not definitely
+                // clear" — so the exact roots decide, and they decide
+                // BOTH ways: two roots inside the span are a pierce,
+                // and roots outside it (or none at all) are an
+                // exactness the bound could not reach. Only what the
+                // roots cannot settle keeps the frontier door.
+                Ok(Sign::Zero | Sign::Negative) => {
+                    match wall_crossing(y, face, &surface, curve.carrier(), t0, t1, band)? {
+                        SpanVerdict::Pierce { t, p, at } => Ok(CurvedEvent::Pierce { t, p, at }),
+                        // No interior root, a constant positive
+                        // residual, or no root at all: definitely
+                        // clear, and exactly so — the bound that sent
+                        // us here could only ever have said "maybe".
+                        SpanVerdict::NoInterior | SpanVerdict::Constant | SpanVerdict::Miss => {
+                            Ok(CurvedEvent::None)
+                        }
+                        SpanVerdict::Unsettled => Err(frontier()),
+                    }
+                }
                 Err(diag) => Err(BooleanError::Escalated { diag }),
             }
         }
     }
+}
+
+/// What the certified line × wall roots say about ONE edge span.
+#[derive(Debug, Clone, Copy)]
+enum SpanVerdict<T: geom_core::Real> {
+    /// A definite crossing strictly inside the span, which the trim
+    /// placed at `at` in this face.
+    Pierce {
+        t: T,
+        p: Point3<T>,
+        at: FaceContainment,
+    },
+    /// Two definite roots, none of them STRICTLY INSIDE the span on
+    /// this face: each lies outside the span, sits at one of its ends,
+    /// or falls outside the face's trim. Two distinct roots also
+    /// certify that the line is NOT a ruling of the wall, which is
+    /// what separates a chord from an on-carrier edge. What the
+    /// absence of an interior crossing licenses depends on the
+    /// endpoints, so the caller decides — an endpoint incidence is
+    /// still an event, it is just not an interior one.
+    NoInterior,
+    /// The line is parallel to the axis, so its residual is CONSTANT
+    /// along the span. Nothing about the span's interior differs from
+    /// its endpoints — which makes it a clearance answer for a caller
+    /// whose endpoints are definitely off the wall and a cosurface
+    /// question for one whose endpoints are on it.
+    Constant,
+    /// The line definitely misses the wall entirely.
+    Miss,
+    /// The roots did not settle the span and the caller keeps its own
+    /// typed frontier door.
+    Unsettled,
+}
+
+/// The line × cylinder-wall crossing route: solve the certified
+/// quadratic, keep the roots the EDGE's span carries strictly inside,
+/// and place the landing point in the face's trim.
+///
+/// **Roots at the span's ends are deliberately NOT interior.** A root
+/// the band cannot separate from an endpoint is that endpoint's own
+/// incidence, and the endpoint rows own those (they mint a v-f or v-v
+/// record rather than a split, which is what a split at `t₀` could not
+/// do anyway — `split_edge`'s interiority trilean refuses it). Folding
+/// the two together here would have made an endpoint touch look like a
+/// crossing to every caller.
+///
+/// **Both roots are examined, and the FIRST interior one wins.** A
+/// segment through a wall meets it twice; the sweep splits at one root
+/// and re-queues both fragments against the SAME face, so the second is
+/// found on the next pass — the shape the conic × plane lane already
+/// uses, and the reason this function does not return a pair.
+fn wall_crossing<T: Decide>(
+    y: &Body<T>,
+    face: FaceKey,
+    surface: &geom::Surface<T>,
+    carrier: &geom::Curve3<T>,
+    t0: T,
+    t1: T,
+    band: Band,
+) -> Result<SpanVerdict<T>, BooleanError> {
+    let (
+        geom::Curve3::Line { origin, dir },
+        geom::Surface::Cylinder {
+            origin: c_origin,
+            axis,
+            radius,
+            ..
+        },
+    ) = (carrier, surface)
+    else {
+        // A sphere face, or a carrier that is not a line: no root lane
+        // here, and inventing one is the fence this PR keeps.
+        return Ok(SpanVerdict::Unsettled);
+    };
+    let roots =
+        super::solid_contain::line_wall_roots(*origin, *dir, *c_origin, *axis, *radius, band)
+            .map_err(|diag| BooleanError::Escalated { diag })?;
+    let ts = match roots {
+        super::solid_contain::WallRoots::Two(ts) => ts,
+        // A tangency is not a crossing this lane can act on: the
+        // material verdicts behind a pierce are first-order, and along
+        // a tangency every first-order datum ties. It keeps the door.
+        super::solid_contain::WallRoots::Tangent => return Ok(SpanVerdict::Unsettled),
+        // A constant residual, or no root on the infinite line at all.
+        super::solid_contain::WallRoots::AxisParallel => return Ok(SpanVerdict::Constant),
+        super::solid_contain::WallRoots::Miss => return Ok(SpanVerdict::Miss),
+    };
+    for t in ts {
+        // `t` is arc length in metres (a `Line` carrier's `dir` is
+        // unit), so both gaps are lengths and take `Margin::of`.
+        let mut interior = true;
+        for gap in [t - t0, t1 - t] {
+            match decide("bool_wall_root_in_span", Margin::of(gap), band) {
+                Ok(Sign::Positive) => {}
+                Ok(Sign::Negative | Sign::Zero) => interior = false,
+                Err(diag) => return Err(BooleanError::Escalated { diag }),
+            }
+        }
+        if !interior {
+            continue;
+        }
+        let p = carrier.eval(t);
+        // The face's own trim decides whether a crossing of the CARRIER
+        // is a crossing of this FACE. `None` is the chart door's honest
+        // remainder (a ringed face, a non-iso boundary, a full-period
+        // azimuth window) and keeps the caller's frontier rather than
+        // reading as "outside".
+        match super::contain::curved_face_containment(y, face, p, band) {
+            Ok(None) => return Ok(SpanVerdict::Unsettled),
+            Ok(Some(FaceContainment::Out)) => {}
+            Ok(Some(at)) => return Ok(SpanVerdict::Pierce { t, p, at }),
+            Err(super::contain::ContainError::Escalated(diag)) => {
+                return Err(BooleanError::Escalated { diag });
+            }
+            Err(_) => return Ok(SpanVerdict::Unsettled),
+        }
+    }
+    Ok(SpanVerdict::NoInterior)
+}
+
+/// What one edge×curved-face pair asks of the sweep.
+#[derive(Debug, Clone, Copy)]
+enum CurvedEvent<T: geom_core::Real> {
+    /// No event: the pair is definitely clear, or the crossing lies
+    /// outside this face's trim.
+    None,
+    /// The arm recorded the event itself (the declared-cover rung,
+    /// whose endpoint treatment mints its own contacts). Reported so
+    /// the differential suite's accepted-pair channel still sees it.
+    Recorded,
+    /// A definite wall crossing at the carrier parameter `t`, whose
+    /// point `p` the trim placed at `at`. The sweep splits the edge and
+    /// records the contact exactly as it does for a conic × plane root.
+    Pierce {
+        t: T,
+        p: Point3<T>,
+        at: FaceContainment,
+    },
 }
 
 /// The declared-cosurface rung's endpoint treatment: classify an

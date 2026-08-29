@@ -2,10 +2,22 @@
 //! prints ("for space reasons", §15.6.1): the ch. 14 classifier with
 //! the three deltas, DESIGNED here:
 //!
-//! 1. **plane := the pierced face's plane**; classes are [`SideCode`]s
-//!    with OUT/IN derived from the F3 chain (a chord's class is its
-//!    signed elevation off the face plane against the OUTWARD normal —
-//!    `side_code`; 15.7's printed `IN = +1` is never consulted).
+//! 1. **datum := the pierced face's TANGENT plane at the pierce
+//!    point**; classes are [`SideCode`]s with OUT/IN derived from the
+//!    F3 chain (a chord's class is its signed elevation off that plane
+//!    against the OUTWARD normal — `side_code`; 15.7's printed
+//!    `IN = +1` is never consulted).
+//!
+//!    The datum is a DIRECTION and a lever arm, never an origin:
+//!    `side_code` (`sectors.rs`) takes `(dir, OutwardNormal, arm,
+//!    band)` and the germ direction takes a cross product, so both are
+//!    purely first-order primitives and generalize to a curved pierced
+//!    face by substituting the per-point outward normal
+//!    ([`crate::face_normal::face_outward_normal_at`]). On a plane that
+//!    normal is the plane's own, so the planar lane's arithmetic is
+//!    bit-identical. What does NOT generalize is Delta 2's carrier
+//!    algebra, which needs an origin — it refuses typed on a curved
+//!    pierced face rather than inventing one.
 //! 2. **On-sectors reclassify per Eq. 15.3** (op-dependent), behind
 //!    [`super::oriented_plane_eq`] — a coplanar sector must be
 //!    *declaredly* coplanar with the pierced face or the op refuses.
@@ -40,7 +52,7 @@
 use geom_core::{Band, Decide, Margin, Sign};
 
 use super::plane_eq::PlaneEqError;
-use super::reduce::{face_outward_normal, face_plane};
+use super::reduce::face_plane;
 use super::sectors::{build_sectors, side_code};
 use super::tables::eq15_3_lump;
 use super::{
@@ -87,15 +99,56 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
     tol: Tol,
 ) -> Result<VtxFacOut<T>, BooleanError> {
     let vertex = contact.vertex;
-    // Both halves of the pierced face's oriented datum, from the one
-    // door: `plane` for the plane algebra, `n_pierced` for the
-    // material-side verdicts, which take the typed normal so the
-    // `sense_sign` cannot be dropped on the way.
-    let (plane, n_pierced) = face_plane(pierced_body, contact.face)
-        .zip(face_outward_normal(pierced_body, contact.face))
-        .ok_or(BooleanError::ClassificationInvariant {
-            what: "pierced face lost its plane",
+    let pierced_op = piercing.other();
+    // The pierce point, read BEFORE the classification: on a curved
+    // pierced face the oriented datum is point-dependent, so `p` is an
+    // input to the sector algebra rather than only to Delta 3's ring.
+    let p = *piercing_body
+        .get_point(
+            piercing_body
+                .get_vertex(vertex)
+                .ok_or(BooleanError::CorruptOperand {
+                    operand: piercing,
+                    vertex,
+                })?
+                .point,
+        )
+        .ok_or(BooleanError::CorruptOperand {
+            operand: piercing,
+            vertex,
         })?;
+    // The pierced face's oriented datum at `p`, from the one door.
+    // `n_pierced` carries the material side, typed so the sense flip
+    // cannot be dropped on the way; on a PLANE it is bit-identically
+    // what [`face_plane`] reports as its `normal`
+    // ([`super::reduce::face_plane`] builds it from this very door),
+    // which is what keeps the planar lane's arithmetic unmoved.
+    //
+    // `plane` itself survives only for Delta 2's planar carrier
+    // algebra, which needs an ORIGIN as well as a direction; the
+    // curved lane refuses there rather than building one (below).
+    let plane = face_plane(pierced_body, contact.face);
+    let n_pierced =
+        match crate::face_normal::face_outward_normal_at(pierced_body, contact.face, p, band) {
+            Ok(Some(n)) => n,
+            // Cone / torus / NURBS pierced faces: the C5 typed refusal,
+            // naming the kind that has no arm.
+            Ok(None) => {
+                return Err(BooleanError::CurvedBooleanUnsupported {
+                    operand: pierced_op,
+                    face: contact.face,
+                    kind: pierced_kind(pierced_body, contact.face),
+                });
+            }
+            Err(crate::face_normal::NormalAtError::Escalated(diag)) => {
+                return Err(BooleanError::Escalated { diag });
+            }
+            Err(crate::face_normal::NormalAtError::OffSurface) => {
+                return Err(BooleanError::ClassificationInvariant {
+                    what: "pierce point definitely off the pierced face's surface",
+                });
+            }
+        };
     let sectors = build_sectors(piercing_body, piercing, vertex, band)?;
     let n = sectors.len();
 
@@ -116,14 +169,16 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
     }
 
     // Delta 2 (rule (a) analogue): coplanar sectors lump per Eq. 15.3.
+    // "Coplanar" is against the pierced face's TANGENT plane at `p`,
+    // whose normal is `n_pierced` — the same vector `face_plane` hands
+    // back on a planar face, so the planar lane's margin is unmoved.
     for (k, s) in sectors.iter().enumerate() {
-        let m = Margin::levered(s.normal.vec().cross(plane.normal).norm(), s.arm);
+        let m = Margin::levered(s.normal.vec().cross(n_pierced.vec()).norm(), s.arm);
         match decide("bool_sector_coplanar", m, band) {
             Ok(Sign::Zero) => {}
             Ok(_) => continue,
             Err(diag) => return Err(BooleanError::Escalated { diag }),
         }
-        let pierced_op = piercing.other();
         let class = declared.class_of(piercing, s.face, pierced_op, contact.face);
         // Declared-`Tangent` (distinct carriers touching): the lump
         // verdict is the second-order sector trilean — which side the
@@ -140,13 +195,6 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
             };
             let s_sector = surface_of(piercing_body, s.face)?;
             let s_pierced = surface_of(pierced_body, contact.face)?;
-            let p = piercing_body
-                .get_vertex(vertex)
-                .and_then(|v| piercing_body.get_point(v.point))
-                .copied()
-                .ok_or(BooleanError::ClassificationInvariant {
-                    what: "pierce vertex lost its point",
-                })?;
             let lump = super::sectors::tangent_lump(
                 &s_sector, &s_pierced, n_pierced, p, op, piercing, s.face, s.arm, band,
             )?;
@@ -189,6 +237,22 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
                 kind,
             });
         }
+        // **Delta 2 stays SHUT on a curved pierced face.** The rung
+        // below descends to `carrier_eq` against a plane built from the
+        // pierced face, and there is no plane to build: a sector face
+        // TANGENT to a curved pierced face at `p` is a
+        // cosurface/tangency question, and CONTACT-DESIGN C2/C4 forbid
+        // inferring either gluing at any ε. The recourse is the same
+        // one the undeclared crossing-layer rung names — a verified
+        // declaration, under which the `Tangent` branch above already
+        // owns the case.
+        let Some(plane) = plane else {
+            return Err(BooleanError::CurvedBooleanUnsupported {
+                operand: pierced_op,
+                face: contact.face,
+                kind: pierced_kind(pierced_body, contact.face),
+            });
+        };
         let pierced_carrier = super::carrier_eq::CarrierDesc::Plane {
             origin: plane.origin,
             normal: plane.normal,
@@ -264,11 +328,11 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
 
     // Piercing-side null edges, one per run (PR 2's insertion pattern).
     // Germ facings (F9 data): the run's two boundary transitions are
-    // its germs; both lie in the pierced face's plane, so the germ's
-    // face pair = (transition sector's face, pierced face) in operand
-    // order. Parity: the class after crossing forward — Out at the
-    // run's start germ, In at its end germ (site-shared with the ring
-    // strut below).
+    // its germs; both lie in the pierced face's TANGENT plane at `p`,
+    // so the germ's face pair = (transition sector's face, pierced
+    // face) in operand order. Parity: the class after crossing forward
+    // — Out at the run's start germ, In at its end germ (site-shared
+    // with the ring strut below).
     let germ_pair = |own: crate::entity::FaceKey| match piercing {
         Operand::A => (own, contact.face),
         Operand::B => (contact.face, own),
@@ -278,8 +342,8 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
     for run in &runs {
         let s_start = &sectors[(run.0 + n - 1) % n];
         let s_end = &sectors[(run.0 + run.1 - 1) % n];
-        let dir_start = pierce_germ_dir(s_start, plane.normal, band)?;
-        let dir_end = pierce_germ_dir(s_end, plane.normal, band)?;
+        let dir_start = pierce_germ_dir(s_start, n_pierced.vec(), band)?;
+        let dir_end = pierce_germ_dir(s_end, n_pierced.vec(), band)?;
         run_germs.push((
             (germ_pair(s_start.face), dir_start),
             (germ_pair(s_end.face), dir_end),
@@ -373,21 +437,7 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
     }
 
     // Delta 3: the pierce ring in the pierced face (module docs).
-    let p = *piercing_body
-        .get_point(
-            piercing_body
-                .get_vertex(vertex)
-                .ok_or(BooleanError::CorruptOperand {
-                    operand: piercing,
-                    vertex,
-                })?
-                .point,
-        )
-        .ok_or(BooleanError::CorruptOperand {
-            operand: piercing,
-            vertex,
-        })?;
-    let pierced = piercing.other();
+    let pierced = pierced_op;
     let face_data =
         pierced_body
             .get_face(contact.face)
@@ -505,20 +555,34 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
 
 /// The germ direction at a pierce-site transition: the unit
 /// intersection direction of the transition sector's face plane with
-/// the pierced plane, signed to lie within the sector (grazes count —
-/// an on-edge germ IS a bound). Ambiguity refuses loudly.
+/// the pierced face's TANGENT plane at the pierce point, signed to lie
+/// within the sector (grazes count — an on-edge germ IS a bound).
+/// Ambiguity refuses loudly.
+///
+/// **Why the tangent plane is the exact datum, not an approximation of
+/// one.** A germ direction is the initial direction of the curve along
+/// which the two faces meet, taken AT `p`. That curve is the section of
+/// the sector's carrier with the pierced carrier, and the tangent of a
+/// section conic at a point on it is the intersection LINE of the two
+/// surfaces' tangent planes there — a first-order statement about a
+/// first-order object, exact for every smooth pair, not a linearization
+/// with an error term. A plane is its own tangent plane everywhere, so
+/// the planar lane is the special case where `pierced_normal` happens
+/// not to vary with `p`; substituting the per-point normal computes the
+/// same cross product on a curved carrier and gets the section's
+/// tangent rather than a chord.
 ///
 /// Sense-invariant given its sources (S10): the cross product names a
 /// LINE and `within` picks the ray, so neither normal's sign survives
 /// into the answer. Both arrive oriented already — `s.normal` from
-/// `sectors::sector_face`, `plane_normal` from `reduce::face_plane` —
-/// and neither is multiplied again here.
+/// `sectors::sector_face`, `pierced_normal` from the one door
+/// ([`crate::face_normal`]) — and neither is multiplied again here.
 fn pierce_germ_dir<T: Decide>(
     s: &super::sectors::BoolSector<T>,
-    plane_normal: geom_core::Vec3<T>,
+    pierced_normal: geom_core::Vec3<T>,
     band: Band,
 ) -> Result<geom_core::Vec3<T>, BooleanError> {
-    let int = s.normal.vec().cross(plane_normal);
+    let int = s.normal.vec().cross(pierced_normal);
     match decide("bool_germ_line", Margin::levered(int.norm(), s.arm), band) {
         Ok(Sign::Positive) => {}
         Ok(_) => {
@@ -538,6 +602,15 @@ fn pierce_germ_dir<T: Decide>(
             what: "pierce germ direction not uniquely within its sector",
         }),
     }
+}
+
+/// The surface kind a refusal about `face` cites. A face whose surface
+/// cannot be read at all is reported as the kind with no arm anywhere,
+/// which is what the sibling refusal sites in this module do.
+fn pierced_kind<T: Decide>(body: &Body<T>, face: crate::entity::FaceKey) -> geom_brep::SurfaceKind {
+    body.get_face(face)
+        .and_then(|f| body.get_surface(f.surface))
+        .map_or(geom_brep::SurfaceKind::Nurbs, geom_brep::SurfaceKind::of)
 }
 
 /// Maximal cyclic Out-runs `(start, len)` (PR 2's `above_runs` on

@@ -50,9 +50,61 @@ fn union_err(a: &Body<f64>, b: &Body<f64>) -> BooleanError {
     topo::union(a, b, Tol::witness()).expect_err("this pair has no arm yet")
 }
 
+/// The carrier kind of the edge a refusal names — the datum that says
+/// WHICH family a row belongs to, since the line × wall roots exist in
+/// closed form and the circle × wall roots do not exist anywhere.
+fn refused_carrier(body: &Body<f64>, err: &BooleanError) -> &'static str {
+    let BooleanError::CurvedPierceUnsupported { edge, .. } = err else {
+        panic!("not a pierce refusal: {err:?}");
+    };
+    let Some(topo::CurveGeom::Certified(c)) = body
+        .get_edge(*edge)
+        .and_then(|e| body.get_curve_geom(e.curve))
+    else {
+        panic!("the named edge has no certified curve");
+    };
+    match c.carrier() {
+        topo::Curve3::Line { .. } => "line",
+        topo::Curve3::Circle { .. } => "circle",
+        _ => "other",
+    }
+}
+
 /// #347's "two `circle`-derived cylinders refuse to union at all
 /// (coaxial or not)": every crossing pose meets the CURVED SWEEP ARM's
 /// frontier — the pierce door, not a kind gate and not a join refusal.
+///
+/// **The four rows are not one family, and the ring lane moves none of
+/// them.** Each is named with the pair that actually raises, measured
+/// rather than inferred, and with the carrier kind pinned because that
+/// is what decides whose work the row is waiting on:
+///
+/// 1. `coaxial-equal-r` — A's rim CIRCLE lies on B's wall carrier. An
+///    undeclared value-coincident contact; CONTACT-DESIGN C2/C4 forbid
+///    inferring the gluing at any ε, so its destination is the
+///    declaration ladder and no crossing or join arm moves it.
+/// 2. `coaxial-stacked` — A's seam LINE lies on B's wall carrier
+///    (residual identically zero). Same class, same destination; the
+///    binding coincidence is the cap discs, a plane × plane rest.
+/// 3. `parallel-equal-r` — A's rim CIRCLE genuinely crosses B's wall.
+///    A real pierce, and the one this lane cannot serve: the circle ×
+///    wall event parameters are the roots of a degree-2 TRIGONOMETRIC
+///    polynomial, and no quartic, cubic or resolvent lane exists in
+///    this tree at all.
+/// 4. `steinmetz` — A's seam RULING is TANGENT to B's wall. The two
+///    walls meet in two ellipses that CROSS at `(±1, 0, 0)`, where the
+///    surfaces are mutually tangent, and the extruded circle puts its
+///    seam at azimuth 0 and π — exactly on those two singular points.
+///    The clearance there is exactly zero, and the dip bound is not
+///    loose about it: `m = 0` centres the parabola's vertex, where the
+///    charge `q/8` IS the true dip. A tangency is not a crossing at any
+///    order the pierce machinery reads, so the ring lane leaves it
+///    where it is; what moves this row is a second-order lane or a
+///    declaration, not an arm.
+///
+/// Rows 1–2 and row 4 all refuse for reasons the ARMS unit does not
+/// touch either, which is why this table pins the reason and not just
+/// the variant.
 #[test]
 fn cylinder_unions_refuse_at_the_curved_pierce_door() {
     let turned = topo::transform_rigid(
@@ -65,35 +117,45 @@ fn cylinder_unions_refuse_at_the_curved_pierce_door() {
         Tol::witness(),
     )
     .unwrap();
+    let a = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
+    let a_tall = cyl(0.0, 0.0, 1.0, -2.0, 2.0);
     let rows: [(&str, BooleanError); 4] = [
         // Coaxial, equal radius, overlapping heights: B's rim circles
         // lie ON A's wall carrier, so the circle row's residual
         // extremes are Zero and the incidence is undeclared.
         (
             "coaxial-equal-r",
-            union_err(&cyl(0.0, 0.0, 1.0, 0.0, 2.0), &cyl(0.0, 0.0, 1.0, 1.0, 3.0)),
+            union_err(&a, &cyl(0.0, 0.0, 1.0, 1.0, 3.0)),
         ),
         // Coaxial, equal radius, stacked cap-to-cap.
         (
             "coaxial-stacked",
-            union_err(&cyl(0.0, 0.0, 1.0, 0.0, 2.0), &cyl(0.0, 0.0, 1.0, 2.0, 4.0)),
+            union_err(&a, &cyl(0.0, 0.0, 1.0, 2.0, 4.0)),
         ),
         // Parallel axes, definitely crossing walls.
         (
             "parallel-equal-r",
-            union_err(&cyl(0.0, 0.0, 1.0, 0.0, 2.0), &cyl(1.2, 0.0, 1.0, 0.0, 2.0)),
+            union_err(&a, &cyl(1.2, 0.0, 1.0, 0.0, 2.0)),
         ),
         // Perpendicular axes, equal radius (the Steinmetz pair).
-        (
-            "steinmetz",
-            union_err(&cyl(0.0, 0.0, 1.0, -2.0, 2.0), &turned),
-        ),
+        ("steinmetz", union_err(&a_tall, &turned)),
     ];
-    for (name, err) in rows {
+    // The carrier of the edge each row names — the family datum (doc
+    // above): a `line` row waits on second-order or declaration work, a
+    // `circle` row waits on the trigonometric root lane that does not
+    // exist.
+    let carriers = ["circle", "line", "circle", "line"];
+    for ((name, err), want) in rows.into_iter().zip(carriers) {
         assert!(
             matches!(err, BooleanError::CurvedPierceUnsupported { .. }),
             "{name}: expected the curved pierce door, got {err:?}"
         );
+        // Every row names an edge of operand A (the refusals are
+        // measured to be A-side), so A is the body the carrier is read
+        // from; `coaxial-*` and `parallel-*` share one A, `steinmetz`
+        // has the tall one.
+        let owner = if name == "steinmetz" { &a_tall } else { &a };
+        assert_eq!(refused_carrier(owner, &err), want, "{name}");
     }
 }
 
