@@ -180,11 +180,15 @@ pub use editor_core::StableName;
 // The detect/declare protocol rides in this group too: the
 // findings vocabulary, the detector, and the declare sugar (the
 // worked example is in `crate::select`'s module docs).
+// `DanglingRef` rides beside `ReadbackError` for the same reason
+// every carried refusal's payload does: it is what `Dangling`'s
+// field IS, so without it the arm is matchable and its two lanes
+// are not.
 pub use crate::select::{
     ALL_SURFACE_KINDS, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal, ContactVerdict,
-    CurveKind, CurveKindSet, DeclareError, DeclaredContact, Denotation, EntityKind, FIT_DEFERRAL,
-    FlushEvidence, FlushFinding, FlushRung, GeomPred, InterrogateError, MeridianEnd, NamePat,
-    NameTable, OpGroup, Pose, ProfileEdgeRef, ProfileVertexRef, ReadbackError, RimSupport,
+    CurveKind, CurveKindSet, DanglingRef, DeclareError, DeclaredContact, Denotation, EntityKind,
+    FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, GeomPred, InterrogateError, MeridianEnd,
+    NamePat, NameTable, OpGroup, Pose, ProfileEdgeRef, ProfileVertexRef, ReadbackError, RimSupport,
     RolePath, RoleSeg, SEL_DATUM_DISTANCE, SegPat, SegTag, SelectRefusal, Selector, Side,
     SplitHalf, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices, declare,
     declare_all, declare_node, denotation, edge_frame, edge_name, face_frame, face_name,

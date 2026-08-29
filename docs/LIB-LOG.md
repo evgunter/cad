@@ -1800,3 +1800,31 @@ main.rs contradicted the code beside it (claimed the corpus keeps
 the blank's three fillet sites; `corpus_text` asserts the
 blank-deleted document) — the stale-comment class again, corrected
 at review.
+**CUR3 MERGED (2026-08-29, #1262; mechanical under the 08-29 ruling,
+no A/B row).** The G16-cycle banked curation finding lands:
+`DanglingRef` rides beside `ReadbackError` in select.rs and the
+prelude's group 9 — the refusal's MATCHABLE payload, the same
+convention `SurfaceKind` follows for `BooleanError` — and pncad-py's
+shared `dangling` tag splits into `dangling_entity` /
+`dangling_geometry`, matched exhaustively over `DanglingRef`'s arms
+so a third kernel lane stops the crate compiling. The
+previously-unconstructible pin arm is now constructed and both texts
+pinned ("ONE ARM IS ABSENT" retired); census carries
+`DanglingRef: ReadbackError.variant` on the `RootFault` precedent
+(7/7); no layer-guard motion (topo is whole-re-exported; LB13
+untouched). Sweep delta vs #1173/#1216: door rung unchanged (three
+raw hits, all previously disposed); the NEW payload rung (53 carried
+error enums, 54 raw hits) narrowed to the DanglingRef shape leaves 8,
+tabled in the PR, with the stated blind spot that struct payloads are
+invisible to the enum-indexed scan. Banked with homes: (1)
+`BandField` ← `BandError::InvalidValue` — the semantic twin (two-arm
+pure discriminant of a prelude-carried refusal, uncurated); (2) the
+`FilletError` submodule trio (`FilletSite`/`CornerConfig`/
+`RunOutPolicy`) — the structural twin of the ReadbackError lift; (3)
+the `ValidationError` key-bearing trio; `MeshPickError` is DECIDED
+absent, not a gap. #1173's StlError reach-past residue verified
+already correct on main — closed, no longer owed. The lane also
+FOUND MAIN RED (display_budget's `include_str!` naming the
+v15 fixture #1224 renamed — a union break gating every PR's Rust
+shards) — routed orchestrator-direct as #1264, per the
+red-goes-straight-to-a-fix social rule.
