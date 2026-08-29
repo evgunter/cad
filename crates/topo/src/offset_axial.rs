@@ -159,12 +159,6 @@ struct MovedChart<T: Real> {
     /// The signed offset along the chart's stored outward direction —
     /// the caller's number.
     distance: T,
-    /// The same motion in [`geom_brep::offset_surface`]'s own sign
-    /// convention, which differs from the caller's on a cone below its
-    /// apex (see [`nappe_signed`]) — the number the surface actually
-    /// moved by, kept beside the number that was asked for so the two
-    /// are never confused at a reader's expense.
-    signed: T,
     /// The chart's constraint on a corner, in axial terms.
     constraint: Constraint<T>,
     /// The rigid displacement the chart underwent, when its offset IS a
@@ -300,7 +294,6 @@ pub fn offset_charts_together<T: Decide + PropsQuadLane>(
                     old,
                     new,
                     distance: m.distance,
-                    signed: d,
                     constraint,
                 },
             ));
@@ -1026,7 +1019,7 @@ fn solve_corner<T: Decide>(
                 Err(source) => return Err(ReplaceFaceError::Escalated { source }),
             }
             let cos_d = clamp_unit(rhs / amp);
-            let sin_d = (T::one() - cos_d * cos_d).sqrt();
+            let sin_d = (T::one() - cos_d.powi(2)).sqrt();
             let separation = T::from_f64(2.0) * rho * sin_d;
             match decide("offset_axial_azimuth", Margin::of(separation), band) {
                 Ok(Sign::Positive) => {}
@@ -1104,7 +1097,7 @@ fn transversality<T: Real>(a: &Profile<T>, b: &Profile<T>) -> Option<T> {
             // at tangency. Clamped at zero because a line that MISSES
             // has no crossing at all, which is the same verdict.
             let d = n.1 * *h_c - *c;
-            Some((*r * *r - d * d).max(T::zero()).sqrt() / *r)
+            Some((r.powi(2) - d.powi(2)).max(T::zero()).sqrt() / *r)
         }
         (Profile::Circle { .. }, Profile::Circle { .. }) => None,
     }
@@ -1330,11 +1323,6 @@ fn mint_carrier<T: Decide>(
 /// the corner's own azimuth moved, which is small — and added to the
 /// old parameter. The window's turn is conventional data, carried; only
 /// the motion is re-derived.
-#[expect(
-    clippy::too_many_arguments,
-    reason = "the old carrier, its parameter and its point are all the conventional data being \
-              carried; folding them into a struct would name the same three values twice"
-)]
 fn param_on<T: Decide>(
     carrier: &Curve3<T>,
     old: &Curve3<T>,
