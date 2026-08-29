@@ -393,3 +393,61 @@ fn the_signed_zero_fold_makes_ieee_equal_distributions_bit_equal() {
         "even the inhabitant `check` refuses folds consistently"
     );
 }
+
+/// **The name-keyed doors cannot mispair.** `tail_mass` and `box_mass`
+/// take a name, a distribution and an interval as three loose
+/// arguments, so a caller can hand one parameter's distribution and
+/// another's box to the same call and get a plausible number back
+/// instead of a refusal. `AnalyzedBox::axis_tail_mass` and
+/// `axis_box_mass` take the three from ONE axis. This row shows both
+/// halves: they agree with the free doors used correctly, and the free
+/// doors really would have answered the mispaired question.
+#[test]
+fn the_name_keyed_doors_take_all_three_from_one_axis() {
+    let wide = Distribution::Normal { sigma: 1.0 };
+    let narrow = Distribution::Normal { sigma: 1e-3 };
+    let doc = doc_with(&[
+        ("wide", annotated(0.0, wide)),
+        ("narrow", annotated(0.0, narrow)),
+        ("fixed", DocParam::continuous(Dimension::Length, 1.0)),
+    ]);
+    let boxed = analyzed_box(&doc, &AnalysisPolicy::default());
+    let wide_axis = boxed.get(&p("wide")).copied().expect("axis");
+
+    // The keyed door agrees with the free one used correctly.
+    let keyed = boxed
+        .axis_tail_mass(&p("wide"))
+        .expect("a declared parameter")
+        .expect("a normal prices");
+    let free = tail_mass(&p("wide"), &wide, &wide_axis.offsets).expect("priced");
+    assert_eq!(keyed.to_bits(), free.to_bits());
+
+    // The mispairing the keyed door forecloses: the NARROW parameter's
+    // distribution against the WIDE one's box answers a confident,
+    // wrong number rather than refusing.
+    let mispaired = tail_mass(&p("narrow"), &narrow, &wide_axis.offsets).expect("priced");
+    assert!(
+        mispaired < free * 1e-6,
+        "the mispaired call answers {mispaired}, nothing like the right {free}"
+    );
+
+    // A fixed axis leaves nothing out, and is a point mass at nominal.
+    assert_eq!(boxed.axis_tail_mass(&p("fixed")), Some(Ok(0.0)));
+    assert_eq!(boxed.axis_box_mass(&p("fixed"), (-1.0, 1.0)), Some(Ok(1.0)));
+    assert_eq!(boxed.axis_box_mass(&p("fixed"), (0.5, 1.0)), Some(Ok(0.0)));
+    // And a name the document does not declare is not an axis at all.
+    assert_eq!(boxed.axis_tail_mass(&p("nope")), None);
+    assert_eq!(boxed.axis_box_mass(&p("nope"), (0.0, 1.0)), None);
+
+    // The band still refuses through the keyed door — the pairing
+    // guarantee is not a licence to answer.
+    let banded = doc_with(&[(
+        "bore",
+        annotated(1.0, Distribution::Band { lo: -0.1, hi: 0.1 }),
+    )]);
+    let banded_box = analyzed_box(&banded, &AnalysisPolicy::default());
+    assert!(matches!(
+        banded_box.axis_box_mass(&p("bore"), (-0.05, 0.05)),
+        Some(Err(MeasureUnavailable::BandHasNoMeasure { .. }))
+    ));
+}

@@ -203,6 +203,54 @@ impl AnalyzedBox {
     pub fn varying(&self) -> impl Iterator<Item = (&ParamName, &AnalyzedParam)> {
         self.params.iter().filter(|(_, p)| !p.offsets.is_fixed())
     }
+
+    /// The tail mass of ONE named axis: what this box's own interval
+    /// for `name` leaves outside. `None` if the document has no such
+    /// continuous parameter.
+    ///
+    /// The reason this exists beside the free [`tail_mass`]: that door
+    /// takes a name, a distribution and an interval as three loose
+    /// arguments, and nothing stops a caller pairing one parameter's
+    /// distribution with another's box — a mistake that produces a
+    /// plausible number rather than a refusal. Here the three come
+    /// from one axis of one box, so they cannot disagree. The free
+    /// doors stay, because a driver pricing a leaf is asking about an
+    /// interval that is deliberately NOT the analyzed one.
+    ///
+    /// An unannotated axis is FIXED and its tail is `0.0` — the
+    /// analysis is not leaving anything out, because nothing was
+    /// declared to vary.
+    pub fn axis_tail_mass(&self, name: &ParamName) -> Option<Result<f64, MeasureUnavailable>> {
+        let axis = self.params.get(name)?;
+        Some(match axis.distribution {
+            Some(dist) => tail_mass(name, &dist, &axis.offsets),
+            None => Ok(0.0),
+        })
+    }
+
+    /// The mass ONE named axis puts inside `sub`, with the axis's own
+    /// distribution — the same pairing guarantee
+    /// [`Self::axis_tail_mass`] gives, for the leaf-pricing door.
+    /// `None` if the document has no such continuous parameter.
+    ///
+    /// An unannotated axis is a point mass at its nominal, so it
+    /// answers `1.0` for any `sub` containing offset zero and `0.0`
+    /// otherwise.
+    pub fn axis_box_mass(
+        &self,
+        name: &ParamName,
+        sub: (f64, f64),
+    ) -> Option<Result<f64, MeasureUnavailable>> {
+        let axis = self.params.get(name)?;
+        Some(match axis.distribution {
+            Some(dist) => box_mass(name, &dist, sub),
+            None => Ok(if sub.0 <= 0.0 && 0.0 <= sub.1 {
+                1.0
+            } else {
+                0.0
+            }),
+        })
+    }
 }
 
 /// The analyzed box of a document under a policy (E1's first
