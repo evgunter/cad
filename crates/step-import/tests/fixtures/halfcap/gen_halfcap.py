@@ -153,7 +153,7 @@ def build(kind):
     # rim +u (A -> B through +y), meridian back over the pole.
     sph = s.add("SPHERICAL_SURFACE('',#%d,%s)"
                 % (s.ax2((0, 0, 0), (0, 0, 1), (1, 0, 0)), num(R)))
-    face(sph, [("rim", "T")] + mer_rev)
+    face(sph, [("rim", "T"), *mer_rev])
 
     # Base half-disk at z = h, outward -z (material above): CCW about
     # -z is rim reversed (B -> A through +y), then the diameter A -> B.
@@ -163,7 +163,7 @@ def build(kind):
     # Cut half-plane at y = 0, outward -y (material at y > 0): CCW
     # about -y is the meridian A -> pole -> B, then the diameter back.
     cut = s.add("PLANE('',#%d)" % s.ax2((0, 0, 0), (0, -1, 0), (1, 0, 0)))
-    face(cut, mer_fwd + [("d", "F")])
+    face(cut, [*mer_fwd, ("d", "F")])
 
     # --- self-check: every edge traversed exactly twice, once each way
     use = {}
