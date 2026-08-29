@@ -29,7 +29,17 @@ mod fixture;
 use editor_core::{
     CancelToken, EvalOptions, Node, NodeResult, ParamValue, ProfileLift, ValuePayload, evaluate,
 };
+// `ParamName` and `Real` are consumed only inside the
+// `#[cfg(feature = "interval")]` tests below (the by-name widening at
+// the env, `Interval::from_f64` at the witness points), so their
+// imports carry the same gate — ungated they are the default lane's
+// unused-import red, deleted they are the interval lane's missing
+// trait.
+#[cfg(feature = "interval")]
+use editor_core::ParamName;
 use geom_core::Tol;
+#[cfg(feature = "interval")]
+use geom_core::Real;
 
 /// Every body point of an evaluation, by bits — the comparable surface.
 fn body_bits(ev: &editor_core::Evaluation<f64>) -> Vec<u64> {
