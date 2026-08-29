@@ -14,7 +14,10 @@
 //! it moves, the question is whether the new behaviour is correct, not
 //! how to get the old number back. What makes it useful HERE is that
 //! this file uses no API the lift introduced, so the same digest can be
-//! taken on a pre-lift tree and compared.
+//! taken on a pre-lift tree and compared. It was: all three numbers
+//! below are the ones a checkout of d0b64b7f — the lift's merge base —
+//! produces from this same file, which is what "the build path did not
+//! move" means here.
 //!
 //! `interval` and `probe` rows ride the same helper, so the fence
 //! covers the three scalars the review names rather than the value lane
