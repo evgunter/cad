@@ -72,15 +72,20 @@
 # has ONE home: geom-core/src/real.rs, the M9-2 entry of the `Bounds`
 # scope rule. Not restated here; keep this a pointer.
 # editor-core/src/checks.rs is the advisory-check registry, the
-# SECOND production caller of topo::separation (2026-08-29). It
-# inherits SolidSeparation's signature rather than widening
-# anything, and the `separation` entry at the head of the real.rs
-# rule already decided what such a caller owes — "the CALLER
-# decides it, not the door; doors tighten, passes keep their
-# lanes", and run_checks is a pass. PROPOSED, NOT RATIFIED: unlike
-# the seams above this one is not covered by the self-merge
-# convention — it arose in conversation with Evan and is his to
-# rule on. The argument and that caveat have ONE home:
+# SECOND production caller of topo::separation (ratified by Evan
+# 2026-08-29). It inherits SolidSeparation's signature rather than
+# widening anything, and the `separation` entry at the head of the
+# real.rs rule already decided what such a caller owes — "the
+# CALLER decides it, not the door; doors tighten, passes keep their
+# lanes", and run_checks is a pass.
+#
+# THE RULING ALSO SAYS WHAT THIS GATE IS FOR, and it binds every
+# future row here: the gate avoids the dangerous pattern WHEN NOT
+# NECESSARY, so a necessary one is fine. What a candidate owes is
+# therefore a demonstration of necessity — that the bound cannot be
+# avoided — not a resemblance to a seam already listed. The two
+# negative results that carried this row, and what a future row
+# owes instead of citing them, have ONE home:
 # geom-core/src/real.rs, the 2026-08-29 entry. Pointer only.
 #
 # A NEW file writing a compound Bounds bound fails here until it

@@ -358,7 +358,7 @@ struct SolidBoxes {
 /// question for `separation` as **NO — the caller decides it, not the
 /// door** (doors tighten; passes keep their lanes). This door is
 /// reached from `editor_core::checks`, a pass, and the rule's
-/// 2026-08-29 entry is where that caller is recorded.
+/// 2026-08-29 entry is where that caller is recorded and ratified.
 ///
 /// So it admits a `Dual` exactly as [`Separation`] does, and for the
 /// same reason: a `SolidsMeet` is a pair of arena keys, not a value in

@@ -669,9 +669,6 @@ fn separation<P, T: Decide + PropsQuadLane + Bounds>(
     let declared = declared_pairs(doc, ev, &gathered);
     for (j, later) in gathered.solid_roots.iter().enumerate() {
         for earlier in &gathered.solid_roots[..j] {
-            if (earlier.node, earlier.output) == (later.node, later.output) {
-                continue;
-            }
             if boxes.certify(earlier.solid, later.solid).is_ok() {
                 continue;
             }

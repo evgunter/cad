@@ -556,11 +556,35 @@ pub trait Real:
 /// shares the property and was NOT tightened, the difference being that
 /// nothing generic calls this door (the `separation` entry above).
 ///
-/// **Extension (2026-08-29, PROPOSED — NOT YET RATIFIED; see the note
-/// at the end of this entry):** `editor_core::checks` — the advisory-check
+/// **Extension (2026-08-29, ratified by Evan in conversation):**
+/// `editor_core::checks` — the advisory-check
 /// registry — joins the compound allowlist as the **second production
 /// caller** of `topo::separation`, alongside
 /// `editor_core::eval::wire::wire_placed_union`.
+///
+/// **What the ruling says the rule is FOR**, in Evan's words: the gate
+/// exists "to avoid the dangerous pattern when not necessary, so if it
+/// is necessary it's fine". That is the reading to apply to every
+/// entry above and every one that follows — the rule is not a budget
+/// on how many seams may exist, and an extension is not earned by
+/// resembling one already listed. **What a candidate owes is a
+/// demonstration of NECESSITY**, and the demonstration is the
+/// ratifiable artifact: show that the bound cannot be avoided, not
+/// that it would be convenient. Two negative results carried this one,
+/// and a future entry owes its own pair rather than a citation of
+/// these:
+///
+/// - `topo::PropsQuadLane` — the bound `run_checks` already carried —
+///   does NOT imply [`Bounds`], checked by deleting the term and
+///   failing to compile. So the compound bound is genuinely new here
+///   rather than a spelling of something already present.
+/// - A `PropsQuadLane`-style lane trait, the M6-2/M7-8 move that keeps
+///   `Bounds` off a crate's signatures, would have an **empty refusing
+///   side**: since the D1 ruling every scalar carries a bracket, so
+///   there is no scalar for the lane to decline. That is the PR 12
+///   fillet seam's shape — the one entry above with a standing
+///   obligation — and reaching for it here would have bought the
+///   rule's text at the cost of its meaning.
 ///
 /// It adds no new obligation and opens no new class. The registry's
 /// separation resident calls `topo::SolidSeparation`, the solid-pair
@@ -586,16 +610,10 @@ pub trait Real:
 /// (D9). The resident REPORTS and never gates, so no refusal, mutation
 /// or classification hangs off the read.
 ///
-/// **What is owed, and to whom.** This entry was written by an agent
-/// applying the `separation` entry's own ruling, and it is NOT covered
-/// by the self-merge convention the PR 11/PR 12/M6-2/M9-2 extensions
-/// above invoke: those record an orchestrator ruling taken while Evan
-/// was not in the loop, whereas this one arose in conversation with him
-/// and is his to rule on before the PR that carries it merges. Until
-/// then this paragraph and the `bounds-allowlist.sh` entry beside it
-/// are a PROPOSAL that happens to be green, which is exactly the state
-/// a gate cannot distinguish from a ratification — so it is said here,
-/// where a reader consults.
+/// **Provenance.** Unlike the PR 11/PR 12/M6-2/M9-2 extensions above,
+/// this one did not go through the self-merge convention: it arose in
+/// conversation with Evan and he ruled on it directly, before the PR
+/// carrying it merged. No retroactive review is owed.
 ///
 /// **Not an extension — a spelling.** The pair
 /// `Bounds + CertifiedEnclosure` — both bracket doors, no `Decide` — is
