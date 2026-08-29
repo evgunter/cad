@@ -16,13 +16,18 @@
 //! the parameter and interval arithmetic cannot see that they cancel.
 //! An enclosure that straddles the coincidence threshold is
 //! indeterminate, so a leaf becomes fully definite only once its own
-//! width is a fraction of ε — measured here at roughly `ε/8` for a
-//! profile-plus-extrude document.
+//! width is a fraction of ε. The fraction is FIXTURE-DEPENDENT — `c`
+//! counts the parameter-dependent terms one identity accumulates — and
+//! `the_certification_width_is_a_small_fraction_of_epsilon` measures
+//! it rather than asserting it: `ε/8` of width on the one-extrude slab
+//! here, about half that on the two-extrude chamber the review suites
+//! drive.
 //!
 //! Refinement gets there, and the driver is correct at every step; what
-//! it costs is that a MACROSCOPIC tolerance box (a ±0.05 mm band on a
-//! 1 m part is `10^8 ε` wide) needs ~27 bisections per axis to reach
-//! its first certified leaf, which is past both shipped budgets. On
+//! it costs is that a MACROSCOPIC tolerance box (a ±0.05 band on a 1.0
+//! nominal is `10^8 ε` wide) needs about 30 bisections on that axis to
+//! reach its first certified leaf — `log2(0.05 / (ε/16))` at the
+//! default ε — against a shipped per-axis depth budget of 24. On
 //! such a box today's verdict is `Budget`-refused mass, priced and
 //! reported — never a silent partial and never a false certificate,
 //! but not yet the "2.1% of the tolerance mass has no valid build"
@@ -44,7 +49,8 @@ use std::sync::Arc;
 
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box, param_env_over};
 use editor_core::drive::{
-    BudgetKind, DriveConfig, DriveRefusal, Flip, ReasonClass, RefusalReason, VerdictVector, drive,
+    BudgetKind, DEFAULT_MAX_DEPTH, DriveConfig, DriveRefusal, FlipEvidence, ReasonClass,
+    RefusalReason, VerdictVector, drive,
 };
 use editor_core::{
     CancelToken, Dimension, Distribution, DocEdit, DocParam, EvalOptions, Expr, LoopProgram, Node,
@@ -316,20 +322,89 @@ fn the_split_rule_is_relative_width_with_a_lowest_index_tie() {
 
 // -------------------------------------------------------------- e2e
 
+/// **The certification width, measured rather than asserted.** The
+/// largest box that certifies WHOLE — in one leaf, with no bisection —
+/// is a small fraction of ε, and this row finds it by bisection
+/// instead of hard-coding a power of two.
+///
+/// It is the load-bearing constant behind the limit row below, so it
+/// is measured here and quoted there rather than stated twice. The
+/// bracket is deliberately wide (`ε/4096` to `ε`): what the row pins is
+/// the ORDER — a leaf goes fully definite only once its own width is a
+/// fraction of the coincidence threshold, because the certification
+/// predicates are checked identities whose interval enclosure widens
+/// with the box. If the widening ever closes, this row fails on its
+/// upper bound and the limit row below fails with it, which is the
+/// point of both.
+///
+/// The exact fraction is FIXTURE-DEPENDENT and no single number should
+/// be quoted as the kernel's: this one-extrude slab certifies at a
+/// half-width of `ε/16`, while the two-extrude chamber the review
+/// suites drive needs about twice the refinement. The dependence is
+/// itself the finding — the constant is `c` in `[0, c·w]`, and `c`
+/// counts how many parameter-dependent terms the identity accumulates.
+#[test]
+fn the_certification_width_is_a_small_fraction_of_epsilon() {
+    let e = eps();
+    let certifies_whole = |half: f64| {
+        let doc = slab(1.0, half);
+        let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+        let v = drive(&doc, &analyzed, &config(64), Tol::witness()).unwrap();
+        v.receipt().splits == 0 && v.receipt().certified == 1
+    };
+    // A bracket, then bisect it: `lo` certifies whole, `hi` does not.
+    let (mut lo, mut hi) = (e / 4096.0, e);
+    assert!(certifies_whole(lo), "the bracket's floor must certify");
+    assert!(!certifies_whole(hi), "the bracket's ceiling must not");
+    for _ in 0..12 {
+        let mid = 0.5 * (lo + hi);
+        if certifies_whole(mid) {
+            lo = mid
+        } else {
+            hi = mid
+        }
+    }
+    assert!(
+        lo >= e / 4096.0 && hi <= e,
+        "the certification half-width settled at {lo}..{hi}, outside the bracket"
+    );
+}
+
 /// **The limit, pinned rather than described.** A MACROSCOPIC tolerance
 /// box — the ±0.05 band on a 1.0 nominal a real study would ask for —
-/// certifies nothing at either shipped budget, and the whole of it comes
-/// back as priced `Budget` mass.
+/// certifies nothing, and the whole of it comes back as priced `Budget`
+/// mass.
+///
+/// **Run at the shipped per-axis depth budget**, which is the binding
+/// one: reaching a certifying leaf from a half-width of 0.05 means
+/// bisecting down to the width the row above measures, and
+/// `log2(0.05 / (ε/16))` is about 29.6 at the default ε — call it 30
+/// bisections, against a shipped [`DEFAULT_MAX_DEPTH`] of 24. The leaf
+/// budget is set small here only so the row costs a second rather than
+/// tens of thousands of evaluations; the depth budget is what makes
+/// the answer inevitable, and it is the shipped one.
 ///
 /// This is the honest state of the deliverable and it is a regression
 /// pin in both directions: the day the certification predicates stop
-/// widening with the box (the issue-1191 class), this row fails and the
-/// number it is asserting becomes a real answer instead of a refusal.
+/// widening with the box (the issue-1191 class), this row fails and
+/// the number it is asserting becomes a real answer.
 #[test]
 fn a_macroscopic_box_refuses_all_of_its_mass_as_budget_today() {
     let doc = slab(1.0, 0.05);
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let v = drive(&doc, &analyzed, &config(32), Tol::witness()).unwrap();
+    let shipped_depth = DriveConfig::default().max_depth;
+    let v = drive(
+        &doc,
+        &analyzed,
+        &DriveConfig {
+            max_depth: shipped_depth,
+            max_leaves: 32,
+            ..DriveConfig::default()
+        },
+        Tol::witness(),
+    )
+    .unwrap();
+    assert_eq!(shipped_depth, DEFAULT_MAX_DEPTH);
     assert!(v.receipt().holds());
     assert!(
         v.certified().is_empty(),
@@ -439,11 +514,11 @@ fn a_planted_flip_refuses_flip_crossing_and_names_what_flipped() {
     assert!(v.receipt().holds());
     assert!(!v.certified().is_empty(), "the witness side must certify");
 
-    let flips: Vec<&Vec<Flip>> = v
+    let flips: Vec<&FlipEvidence> = v
         .refused()
         .iter()
         .filter_map(|l| match &l.reason {
-            RefusalReason::FlipCrossing { flipped } => Some(flipped),
+            RefusalReason::FlipCrossing { flipped } => Some(&**flipped),
             _ => None,
         })
         .collect();
@@ -455,20 +530,15 @@ fn a_planted_flip_refuses_flip_crossing_and_names_what_flipped() {
             .map(|l| l.reason.class())
             .collect::<Vec<_>>()
     );
-    // NAMED, not merely counted: the extrusion's own sign predicate is
-    // the one that flipped, and the diff says which way.
+    // NAMED, not merely counted — and named by `resolve::vdiff`, the
+    // engine this tree declares built once, whose `VerdictFlip` carries
+    // the predicate and both net signs. This is the consumer sentence
+    // the unit exists to produce.
     let named: Vec<_> = flips
         .iter()
-        .flat_map(|f| f.iter())
-        .filter_map(|f| match f {
-            Flip::Predicate {
-                predicate,
-                witness,
-                leaf,
-                ..
-            } => Some((*predicate, *witness, *leaf)),
-            _ => None,
-        })
+        .flat_map(|e| e.verdicts.nodes.values())
+        .flat_map(|d| &d.flips)
+        .map(|f| (f.predicate, f.from, f.to))
         .collect();
     assert!(
         named
@@ -478,6 +548,10 @@ fn a_planted_flip_refuses_flip_crossing_and_names_what_flipped() {
                 && *l == geom_core::Sign::Negative),
         "the flip was not named: {named:?}"
     );
+    // Not vacuous on this fixture: every FlipCrossing here names
+    // something, so the row is about evidence and not about an empty
+    // set that happens to satisfy a universal.
+    assert!(flips.iter().all(|e| !e.is_empty()));
     // And it is priced: the far side is refused MASS, not a silence.
     let mass = v.accounting().refused[&ReasonClass::FlipCrossing]
         .clone()
@@ -540,10 +614,19 @@ fn certification_reads_the_vector_and_nothing_else() {
     reordered.rows.reverse();
     assert_ne!(reordered.key(), witness.key());
 
-    // And the certified leaves really are checked against it.
+    // And the CERTIFIER's use of it, not merely the key's sensitivity:
+    // every certified leaf carries the witness's key, and the mutated
+    // vector's key is one no certified leaf carries — so a drive whose
+    // witness had made that one different decision could not have
+    // certified these leaves.
     for leaf in v.certified() {
         assert_eq!(leaf.verdict_vector_key, witness.key());
+        assert_ne!(leaf.verdict_vector_key, mutated.key());
     }
+    // The strict comparison is what gates, and it is strictly stronger
+    // than the population engine that NAMES flips: a reordering the
+    // populations cannot see moves this key.
+    assert_eq!(v.witness_vector().key(), witness.key());
 }
 
 // ------------------------------------------------------------ slivers
@@ -637,6 +720,16 @@ fn an_exhausted_depth_budget_refuses_the_whole_box() {
         v.refused().first().map(|l| &l.reason),
         Some(RefusalReason::Budget(BudgetKind::Depth { max_depth: 0 }))
     ));
+    // WHAT THE DEPTH BUDGET IS PER: the CHOSEN axis. A box whose split
+    // axis has spent its budget refuses even if another varying axis
+    // still has budget left — the driver does not fall through to a
+    // second-choice axis. Benign under the relative-width rule, which
+    // picks the widest axis relative to the root and therefore spends
+    // the axes evenly: an axis reaches the bound only once every axis
+    // is within one bisection of it. Stated because it is a real
+    // difference from "the box refuses when every axis is exhausted",
+    // and because falling through would make the split rule
+    // non-deterministic in the budget's shadow.
 }
 
 // ------------------------------------------------------- band pricing

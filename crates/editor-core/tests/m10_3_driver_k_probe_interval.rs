@@ -139,15 +139,33 @@ fn the_dial_puts_driver_path_margins_in_the_funnel_and_nothing_else_does() {
     assert!(with.iter().all(|s| !s.predicate.is_empty()));
     assert!(with.iter().any(|s| s.band_zero > 0.0));
 
+    // ONE DIAL VARIES. The `with` run used `probing()`, so the `off`
+    // run must be `probing()` with the probe turned off and nothing
+    // else changed — comparing against `DriveConfig::default()` would
+    // have moved `max_leaves` too, and "fewer samples" would then be
+    // explicable by a smaller drive.
     let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
     k_stats::start_recording();
-    let _ = drive(&doc, &analyzed, &DriveConfig::default(), Tol::witness()).unwrap();
+    let _ = drive(
+        &doc,
+        &analyzed,
+        &DriveConfig {
+            k_probe: KProbe::Off,
+            ..probing()
+        },
+        Tol::witness(),
+    )
+    .unwrap();
     let without = k_stats::take_samples();
+    // The SHARP claim, not "fewer": the driver evaluates at `Interval`,
+    // and `Probe` is the only scalar that records. With the dial off
+    // nothing in a drive can reach the sink at all, so the count is
+    // exactly zero — a weaker `<` would pass on a drive that merely
+    // recorded less.
     assert!(
-        without.len() < with.len(),
-        "the dial off recorded {} samples, the dial on {}",
-        without.len(),
-        with.len()
+        without.is_empty(),
+        "the dial off recorded {} samples; it must record none",
+        without.len()
     );
 }
 
