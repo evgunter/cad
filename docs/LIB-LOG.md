@@ -1632,3 +1632,20 @@ asserted from Python too (goes red in two places when fixed).
 Python authoring; negatives recorded in the test file. Two scene
 claims not reproducible (`shells().count()`, `face_frame`) — both
 census-owned (`B-READBACK`), named in row 47.
+
+**PYDISP MERGED (2026-08-29, #1196; mechanical under the 08-29
+ruling, no A/B row).** Nine pncad-py sites flipped from `{:?}` to the
+DISPLAY-KERNEL prose; four stale "no Display" comments truthed — one
+of them a `create_exception!` docstring whose false Debug-rendering
+sentence was shipping in Python `help()`. Two same-class sites beyond
+#1175's list found by the re-sweep and flipped with disclosure. The
+deliberate asymmetry recorded: `select_refusal`'s per-arm prose KEPT
+(a candidate is spelled through `name_text`, the StableName alphabet
+Python speaks — flipping would regress the boundary's naming
+contract), while `declare_err`'s hand prose retired (no such reason).
+The CUR2-flagged reach-past comment located at tags.rs (not mesh.rs
+as the register said) and truthed. Banked: prelude-curation vs
+pncad-py-import-comment drift is a recurring class (the StlError
+comment survived three units) — a periodic grep of "is NOT
+prelude-curated" claims against the actual prelude is cheap and
+worth a future polish unit's line item.
