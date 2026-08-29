@@ -645,3 +645,36 @@ Two rows minted: `D206` above, and `D303` (Track R) — `mesh::sizing::ceil_coun
 answers `1` for a **negative** step in the function about to allocate that many
 grid points, so after `D105` the kernel is the laxer of a two-spelling pair. A
 negative step is not a smaller grid; it is a reading that did not happen.
+
+## `w1`'s delta review — a ruling of mine, measured and found overstated
+
+I ruled that a tightness ceiling *"must sit below the scale at which the
+enclosure degenerates to the whole-object box"* and called that **the thing that
+makes a ceiling a guard**. The reviewer measured it: the degraded readings are
+**smaller** than their boxes in three of four rows — 20.843× against a box
+admitting 45.707×, 6.730× against 16.000×, 5.108× against 7.744×. So the anchor
+is a **necessary condition, not a sufficient one**; it stops a ceiling from being
+obviously vacuous and does not make one a guard. The demonstration is that the
+straddle row's *old* `6.0` ceiling would have passed the anchor check while
+failing the degradation it was meant to catch. **The rule stands, with its claim
+cut to size**: what makes a ceiling a guard is a measured degraded reading it
+sits below, which is what the rows already carry — the box is the sanity check
+underneath that, not a substitute for it. `tightness.rs`'s module doc inherited
+my overstatement and is being corrected with it.
+
+Two further findings are the same class one level in. **The helper can build the
+defect it exists to prevent**: `Sup::new(..).truth_at_least(..);` compiles, runs,
+asserts only the floor, and is `S121`'s shape again — because the intermediate
+builder states are not `#[must_use]`. And **the pass built the ceiling half's
+home and left the soundness half hand-rolled at seven sites** across three files,
+`s >= m - 1e-12`, with no sentence anywhere admitting the copies and no
+derivation of the constant. That is the undisclosed-duplicate shape the style
+brief says only the *data* finds, never the prose sweep; it is now folded into
+`D383`.
+
+Also confirmed, so the exposure I flagged earlier is closed: **the `test-utils`
+blast radius is compile-only and zero** — `panic_capture` is a `#[cfg(test)] mod`
+and is never compiled by a downstream dev-dependent, `vacuity`'s public surface
+is byte-for-byte unchanged, and the crate has no dependencies to unify. The
+workspace-wide check is no longer owed for *this* reason; it is still owed for
+`w2`, which rewrites `source.rs` in the same crate.
