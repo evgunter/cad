@@ -58,7 +58,11 @@
 //! validates silently). The gather stays on the local battery because
 //! tier 3′ is quadratic in the aggregate's entities, which a caller
 //! gathering on every edit cannot afford: the heatsink at 160 fins
-//! (966 faces) costs ~1.1 s there against ~10 ms here. What the gather
+//! (966 faces) costs ~1.1 s there, against ~28 ms for the whole check
+//! registry over the same product (gather included). The per-call
+//! split between this gather and the resident above it was never
+//! measured separately and no number for it is stated here. What the
+//! gather
 //! DOES owe — [`topo::graft_disjoint_all_keyed`] asserts nothing about
 //! its operands, so every caller of it must establish disjointness —
 //! is discharged by [`crate::checks`]'s separation resident, which

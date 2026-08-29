@@ -675,7 +675,12 @@ fn connectedness<P, T: Decide + PropsQuadLane>(
 /// on the heatsink's fin pattern (`docs/PERF-PLAN.md`'s discipline:
 /// brute force until a measurement says otherwise), the whole
 /// registry costs ~28 ms at 161 solids / 966 faces where the census
-/// costs ~1.1 s, and the gather rather than the pair walk dominates.
+/// costs ~1.1 s. Which TERM of that 28 ms dominates — this walk, or
+/// the gather it stands on — was not measured, and the sentence that
+/// used to assert the gather does is withdrawn: the gather is called
+/// once more per landing than it needs to be (#1181), so the number
+/// will move when that is fixed and is not a safe thing to reason
+/// from.
 /// A document with solids in the thousands would make the pair walk
 /// the term that matters, and the fix is already sitting here — one
 /// `Bvh` over the per-solid hulls, queried instead of the `S²` loop.
