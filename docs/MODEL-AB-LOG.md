@@ -2008,3 +2008,13 @@ per the method note recorded on the program's block branch BEFORE R1
 dispatched (identical stored briefs; R2 isolated from R1).
 Implementer difficulty M (pre-drawn at spec). Sample number at
 merge. Row at merge.
+
+QA-2 (PR #1232) ordinal FIXED AT DISPATCH (2026-08-29):
+**ordinal 801** (S-QA band 800–899). v6 dual: slot byte 144, parity
+0 ⇒ **R1 OPUS + R2 FABLE**; CONCURRENT on frozen `19933a6b`,
+separate checkouts per the shared-worktree rule (the lane is
+ci.yml/python-shaped; the one cargo artifact is a reviewer-local
+scratch crate, cleaned at report). Identical stored briefs; R2 gets
+no access to R1's report or probes. Implementer difficulty S
+(pre-drawn at spec). Sample number at merge, per the banding
+entry's rule. Row at merge.
