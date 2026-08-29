@@ -874,10 +874,80 @@ rather than hiding:
   failure, the `through` node that actually broke. Failure does not
   propagate as an exception up your call stack; it sits in the result
   DAG where you can inspect all of it at once.
-- **There is no `tessellate` in Python.** Steps 2.5 and 2.6 of the
-  ladder have no binding yet, so the mesh cross-check is not
-  available from Python. That is a named gap, not an oversight — see
-  the north-star audit.
+- **Tessellation is a `Body` method.** The free `tessellate` above is
+  `body.tessellate(chordal)` here, beside `mass_properties` and the
+  validators, and δ crosses as a `Length` because it is a distance.
+  The mesh cross-check that follows is not a second reading of the
+  kernel: `mesh::validate`'s helpers are not bound, so the Python
+  ladder's step 5 is a sum the CALLER writes over the mesh's own
+  triangles — which is what makes agreeing with the exact measure
+  evidence rather than a tautology. `docs/guide/meshing.md` is the
+  page for it.
+
+Steps 2.5 and 2.6 finish the same way. The mesh crosses with its
+shared position buffer and its per-face patches intact, so both of
+the ladder's claims are checkable from Python — closure on INDICES,
+volume on the triangles:
+
+```python
+from pncad import BooleanOp, Doc, Node, evaluate, m, mm
+
+doc = Doc()
+profile = doc.insert(
+    Node.polygon([(0 * m, 0 * m), (2 * m, 0 * m), (2 * m, 3 * m), (0 * m, 3 * m)])
+)
+block = doc.insert(Node.extrude(profile, 1 * m))
+body = evaluate(doc).value(block).body()
+body.validate()
+
+# 4. Tessellate. The budget is a DISTANCE (delta), not the kernel's
+#    epsilon: how coarsely a view of the model may approximate it,
+#    not what the model is.
+mesh = body.tessellate(0.5 * mm)
+assert mesh.patch_count == 6            # one patch per face, addressable
+assert mesh.triangle_count == 12
+
+# 5. Cross-check, two independent ways.
+#
+#    Closure first, on INDICES: adjacent faces share position indices
+#    along their common boundary, so every directed triangle edge has
+#    exactly one opposite twin. No coordinates and no tolerance.
+half_edges = {}
+for i, j, k in mesh.triangles:
+    for a, b in ((i, j), (j, k), (k, i)):
+        half_edges[(a, b)] = half_edges.get((a, b), 0) + 1
+assert all(
+    n == 1 and half_edges.get(e[::-1]) == 1 for e, n in half_edges.items()
+), "watertight and consistently wound"
+
+#    Then volume, by the divergence theorem over the same triangles.
+#    The winding is OUTWARD, so this is positive for a closed body.
+points = [tuple(q.meters for q in p) for p in mesh.positions]
+measured = 0.0
+for i, j, k in mesh.triangles:
+    (ax, ay, az), (bx, by, bz), (cx, cy, cz) = points[i], points[j], points[k]
+    measured += (
+        ax * (by * cz - bz * cy)
+        - ay * (bx * cz - bz * cx)
+        + az * (bx * cy - by * cx)
+    )
+measured /= 6.0
+
+exact = body.mass_properties().volume
+assert abs(measured - exact) / exact < 1e-12, "mesh vs exact"
+
+# 6. Export the mesh. Both writers ANSWER the bytes rather than take
+#    a sink, and their options are keyword arguments.
+text = mesh.to_stl_ascii(solid_name="block")
+assert text.startswith("solid block\n")
+data = mesh.to_stl_binary(header="pncad")
+assert int.from_bytes(data[80:84], "little") == mesh.triangle_count
+```
+
+This body is all planar, so its triangulation is exact and the two
+measures agree at rounding level. On a curved body they differ by the
+budget, and the difference shrinks with it — `docs/guide/meshing.md`
+runs that convergence.
 
 Python's document also persists and replays bit-identically:
 
