@@ -1793,3 +1793,7 @@ OPUS, slot 3 FABLE.
 **M10-3 dispatch (branch-side, 2026-08-29).** Block M10-B2 slot 2
 (arm per the block draw above). Difficulty pre-logged L at
 dispatch. Spec docs/M10-3-SPEC.md (merged main fed57094).
+
+**M10-2 dual draw (branch-side, 2026-08-29, at review dispatch).**
+Ordinal 503. Slot byte 199, parity 1 ⇒ R1 FABLE + R2 OPUS,
+concurrent, frozen head e0cc0b20, v5 instrument.
