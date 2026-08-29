@@ -69,6 +69,15 @@
 # convention is about; what differs is how many of them a given run
 # executes.
 #
+# HOSTED CAN NOW BE AIMED AT A POINT (2026-08-28) — ci.yml's
+# `workflow_dispatch` inputs, or a `CI-Config:` trailer in the head
+# commit's message, both landing in ci-filter.py's REQUESTING A POINT
+# path. That does not reach this half and deliberately so: every value
+# either spelling can request is one this file already runs, so the
+# superset claim above is untouched, and there is nothing here for a
+# request to buy. It is the hosted half's way of getting, for one
+# dimension, what this half gives for all three.
+#
 # NOT MIRRORED, deliberately (2026-08-04): ci.yml's two build jobs set
 # RUSTFLAGS=-C link-arg=-fuse-ld=mold and CARGO_PROFILE_{DEV,TEST}_DEBUG=
 # line-tables-only. Those are hosted-runner throughput knobs — they cut

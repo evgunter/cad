@@ -52,6 +52,20 @@ pub enum ContactClass {
 }
 
 impl ContactClass {
+    /// **Every class this enum can name**, in declaration order — the
+    /// one enumeration, owned where the exhaustive matches live.
+    ///
+    /// `#[non_exhaustive]` means no downstream crate can enumerate the
+    /// variants itself: a hand-kept list out there compiles clean when
+    /// a variant lands here and silently omits it (measured: a planted
+    /// third variant failed this crate at its designed fences and left
+    /// a downstream `[Rest, Tangent]` literal green). This slice is
+    /// the fix at the source — it sits beside [`ContactClass::name`]
+    /// and [`ContactClass::content_tag`], whose exhaustive matches are
+    /// the compile-time fence that forces the new variant through this
+    /// impl block, where this list is the first thing in it.
+    pub const ALL: &'static [ContactClass] = &[ContactClass::Rest, ContactClass::Tangent];
+
     /// The class's name, for messages.
     pub fn name(self) -> &'static str {
         match self {

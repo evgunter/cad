@@ -532,8 +532,7 @@ fn assemble<T: Decide>(
     for (li, seams) in seam_edges.iter().enumerate() {
         let n = seams.len();
         for j in 0..n {
-            let wall_key = face_surface_key(&body, side_faces[li][j])
-                .map_err(|_| LoftError::SectionStructure)?;
+            let wall_key = face_surface_key(&body, side_faces[li][j])?;
             let carrier = geom_brep::boundary_iso_u(walls_t[li][j].as_ref(), false)
                 .map_err(|_| LoftError::SeamStructure)?;
             let spec = EdgeCurveSpec {

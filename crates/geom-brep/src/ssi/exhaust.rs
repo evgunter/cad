@@ -89,7 +89,8 @@ pub struct Exhaustiveness {
     pub refined: u32,
     /// The deepest recursion reached.
     pub max_depth: u32,
-    /// The floor used, in meters.
+    /// The floor used, in the lane's own units — meters for the ℝ³
+    /// lane, chart units for the chart lane.
     pub floor: f64,
 }
 

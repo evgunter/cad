@@ -42,6 +42,12 @@ GATE_SOURCE_FILES=()
 # reaches the gate — which is the point of running it as a subprocess.
 GATE_SELFTEST_ARGS=()
 
+# The marker `gate_grep` leaves behind when a matcher could not run.
+# Named from `$$`, which is the GATE's pid inside a pipeline stage and
+# inside a process substitution too — so every subshell of one run names
+# the same file, and two gates running at once never share one.
+GATE_MATCHER_FAILED=${TMPDIR:-/tmp}/gate-matcher-failed.$$
+
 gate_parse_args() {
   while [ $# -gt 0 ]; do
     case "$1" in
@@ -104,6 +110,77 @@ gate_require_file() {
   GATE_SCAN_FILES=1
 }
 
+# A MATCHER THAT DID NOT RUN IS NOT A CLEAN SCAN — the rule above,
+# applied to the scan instead of to the file set. That asymmetry was the
+# hole: two guards proved the gate had files to read, and nothing proved
+# the reading happened.
+#
+# `grep` already separates the two cases. Exit 1 is "I searched and
+# nothing matched"; exit 2 is "I could not search" — a malformed
+# pattern, an unreadable file, a missing `-f` list — and a shell that
+# cannot find `grep` at all reports 127. Every gate here sets
+# `pipefail`, so all of those reach the pipeline through the same
+# channel, and the trailing `|| true` that an exclusion filter
+# legitimately needs for exit 1 swallowed the rest along with it. The
+# gate then printed `OK: … (337 source files scanned)` having matched
+# nothing, and the reassuring count was REAL, because a different guard
+# produced it.
+#
+# `pipefail` cannot draw the distinction either, which is why the fix is
+# not "drop the `|| true` and let pipefail speak". It reports the
+# RIGHTMOST non-zero stage; a matcher that died fed nothing downstream,
+# so the exclusion filter exits 1 on empty input and 1 is what the
+# pipeline reports — the exact status a clean scan produces.
+#
+# So the distinction is drawn per stage, here, and the `|| true` goes
+# away with it: exit 1 becomes exit 0 (the scan ran, nothing survived),
+# anything else is diagnosed and ends the gate. A scanning pipeline
+# writes `gate_grep` everywhere it wrote `grep`.
+#
+# NOT FOR `grep -q` USED AS A PREDICATE. `gate_require_*`'s callers ask
+# `if ! grep -qxF …` and mean exit 1 as the answer; folding it to 0 here
+# would invert them. Those spellings fail RED on an unsearchable subject
+# (a misdiagnosed red, not a green), so they are left alone.
+gate_grep() {
+  local status=0
+  grep "$@" || status=$?
+  # An `if`, not `[ … ] && return 0`: as a bare `&&` list a false test
+  # is a failed statement, and errexit would leave this function by the
+  # one path that skips the diagnosis below. That is the defect this
+  # helper exists to close, re-minted inside it.
+  if [ "$status" -le 1 ]; then
+    return 0
+  fi
+  # The call is echoed so the diagnosis names the matcher that died, but
+  # TRIMMED: a gate hands `grep` a few hundred file operands, and a
+  # diagnosis that buries its own first line under them is the reason a
+  # reader scrolls past it.
+  local shown="$*"
+  if [ "${#shown}" -gt 160 ]; then
+    shown="${shown:0:160}... (arguments trimmed)"
+  fi
+  gate_error "$(gate_name): grep exited $status, which is not \"no match\" (exit 1) — it is grep saying it could not search, so the scan below it decided nothing. Call: grep $shown"
+  # THE EXIT STATUS ALONE IS NOT ENOUGH, and this file is where that is
+  # already known: a stage inside `< <(…)` feeding `mapfile` or a `while
+  # read` cannot fail its caller, because a process substitution's
+  # status is not the reader's. The marker crosses the boundary the
+  # status cannot, and `gate_ok` — the single place a gate says green —
+  # refuses to print over it.
+  : >> "$GATE_MATCHER_FAILED"
+  exit "$status"
+}
+
+# Subshells INHERIT this trap, so the marker may only be removed by the
+# gate itself: a `gate_grep` exiting inside a pipeline stage would
+# otherwise delete its own evidence on the way out.
+gate_matcher_marker_cleanup() {
+  if [ "${BASHPID:-$$}" = "$$" ]; then
+    rm -f "$GATE_MATCHER_FAILED"
+  fi
+  return 0
+}
+trap gate_matcher_marker_cleanup EXIT
+
 # Gates say what they proved, like their sibling
 # `scripts/check-interval-cfg-additive.py`.
 #
@@ -112,6 +189,15 @@ gate_require_file() {
 # it, so the count it prints says what it actually looked at.
 : "${GATE_SCAN_NOUN:=source file}"
 gate_ok() {
+  # THE CHOKE POINT. Every gate in this directory ends here, so this is
+  # the one line that has to hold for "a gate reports green only for
+  # what it actually scanned" to be a property of the directory rather
+  # than of each call site's luck.
+  if [ -e "$GATE_MATCHER_FAILED" ]; then
+    rm -f "$GATE_MATCHER_FAILED"
+    gate_error "$(gate_name): a matcher failed to run during this pass (diagnosed above), so what it did not match is unknown — that is not a pass"
+    exit 1
+  fi
   local plural=s
   [ "$GATE_SCAN_FILES" = 1 ] && plural=
   printf '%s OK: %s (%s %s%s scanned)\n' \
@@ -480,9 +566,7 @@ gate_selftest_case() {
 # NEAR-MISS twin, and the case that keeps a widening honest. The only
 # passing fixture the harness had was the empty clean tree, which proves
 # nothing about a spelling that must not fire; every widened matcher in
-# this directory needs a fixture saying where it stops. Reported by lane
-# F-e, which wrote a gate-local copy (`bounds_selftest_passes`) rather
-# than reach into this file.
+# this directory needs a fixture saying where it stops.
 gate_selftest_passes() {
   local what=$1; shift
   local tmp out
@@ -548,6 +632,17 @@ gate_main() {
     gate_selftest
     exit 0
   fi
+  # THE MARKER IS PROVED WRITABLE BEFORE ANYTHING DEPENDS ON IT, and
+  # this is the same rule as the two above it: a marker that cannot be
+  # created reports nothing, and a `gate_grep` inside a process
+  # substitution would then fail exactly the way this file exists to
+  # stop — quietly. Creating it also clears a marker left by a crashed
+  # earlier run that happened to hold this pid.
+  if ! (: > "$GATE_MATCHER_FAILED") 2>/dev/null; then
+    gate_error "$(gate_name): cannot create $GATE_MATCHER_FAILED, so a matcher failing mid-scan could not be reported and a green would mean nothing — point TMPDIR at a writable directory"
+    exit 1
+  fi
+  rm -f "$GATE_MATCHER_FAILED"
   if ! cd "$GATE_ROOT" 2>/dev/null; then
     gate_error "$(gate_name): cannot enter --root $GATE_ROOT from $PWD, so the gate scanned nothing — which is not a pass"
     exit 1

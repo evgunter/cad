@@ -15,8 +15,9 @@
 //! untagged refusal; that is the drift alarm, and it fires in hosted
 //! CI because this module compiles without Python. **One map is the
 //! exception**: [`select_refusal_tag`]'s enum is `#[non_exhaustive]`,
-//! which forces a wildcard arm and takes the compile-time alarm away —
-//! see that function for what stands in its place.
+//! which forces a wildcard arm and takes the compile-time alarm away
+//! with nothing that fires in its place — see that function for what
+//! the crossing does instead.
 //!
 //! Full per-variant field projection (node ids, slots, operand roles)
 //! is deferred to the unit that binds the complete surface.
@@ -82,10 +83,16 @@ pub fn recorded_program_error_tag(err: &RecordedProgramError) -> &'static str {
 ///
 /// `SelectRefusal` is `#[non_exhaustive]`, so unlike this module's
 /// other matches the wildcard arm is FORCED on this crate and the
-/// compile-time drift alarm is unavailable. Its replacement lives in
-/// `src/tests.rs`: a pin constructs the current arms and asserts each
-/// tag, so a kernel arm arriving without a tag here surfaces as
-/// `unclassified` in a red test rather than silently in Python.
+/// compile-time drift alarm is unavailable. **Nothing replaces it.**
+/// `src/tests.rs`'s `select_refusal_tags_are_stable` constructs arms
+/// by name and asserts their tags; it cannot construct — and so
+/// cannot fail on — an arm the kernel has not shipped yet. What the
+/// pin gives is the enumeration the wildcard hides — every arm whose
+/// payload it can construct, one assertion each — so an arm added to
+/// the kernel is an absence in a list rather than invisible behind
+/// the wildcard. The safety property is the crossing itself: an
+/// unknown arm refuses typed as `unclassified` (`py/select.rs`),
+/// never dropped.
 pub fn select_refusal_tag(err: &pncad::select::SelectRefusal) -> &'static str {
     use pncad::select::SelectRefusal as R;
     match err {

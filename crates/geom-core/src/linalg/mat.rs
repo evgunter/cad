@@ -314,6 +314,84 @@ mod tests {
         );
     }
 
+    /// The **off-diagonals** of [`Mat3::rotation_about`] are
+    /// `((t·nᵢ)·nⱼ) ± (s·nₖ)` and **not** `(t·(nᵢ·nⱼ)) ± (s·nₖ)` — the
+    /// association the doc comment states, at an input that can tell
+    /// the two apart. The sibling above pins the diagonal; with this
+    /// row the whole Rodrigues form has a value pin rather than half
+    /// of one.
+    ///
+    /// **DO NOT DELETE THIS AS REDUNDANT**, for the reason the
+    /// diagonal row states at length: every committed artifact rotates
+    /// about an axis whose components are `0` or `±1`, where
+    /// `(t·0)·0`, `t·(0·0)`, `(t·1)·1` and `t·(1·1)` all agree, so
+    /// re-associating here would move `f64` output for every
+    /// **oblique**-axis caller while the entire corpus stayed
+    /// byte-identical and green.
+    ///
+    /// The tree's one oblique-axis bit-exact rotation row outside this
+    /// module (`editor-core/tests/asm2a_instantiate.rs`) cannot cover
+    /// it: that oracle re-spells its own caller's expression and so
+    /// moves with the code. Smell-scan **S215**, whose remaining half
+    /// this row is.
+    ///
+    /// **What this does NOT pin, said because the oracle shares it
+    /// with the subject:** [`Vec3::normalize`]. Both sides normalize
+    /// the raw axis, so a change inside normalization moves both — a
+    /// `vec.rs` row's job, not this one's. What is pinned here is the
+    /// Rodrigues arithmetic downstream of `n`.
+    ///
+    /// **The angles are swept, not hand-picked**, exactly as above:
+    /// the sweep asserts that *some* angle separates the two
+    /// spellings for each of the six entries, which fails loudly if a
+    /// libm bump ever leaves an entry unable to discriminate.
+    #[test]
+    fn rotation_off_diagonals_scale_by_t_before_the_second_component() {
+        // The RAW axis goes in — `rotation_about` normalizes
+        // internally, as the diagonal row's comment explains.
+        let axis = Vec3::new(1.0f64, 2.0, 3.0);
+        let n = axis.normalize();
+        let (nx, ny, nz) = (n.x, n.y, n.z);
+        let mut discriminating = [false; 6];
+        for k in 1..=64u32 {
+            let theta = f64::from(k) * 0.05;
+            let r = Mat3::rotation_about(axis, theta);
+            // `Real::sin_cos`, NOT std's inherent method: the kernel
+            // routes transcendentals through `libm` and the two differ
+            // in the last ulp, which at this precision is the whole
+            // test (D9; see the diagonal row).
+            let (s, c) = <f64 as Real>::sin_cos(theta);
+            let t = 1.0 - c;
+            // Column-major, in the order `from_cols` writes them:
+            // (entry, documented spelling, the association it is not).
+            let entries = [
+                (r.c0.y, (t * nx) * ny + s * nz, t * (nx * ny) + s * nz),
+                (r.c0.z, (t * nx) * nz - s * ny, t * (nx * nz) - s * ny),
+                (r.c1.x, (t * nx) * ny - s * nz, t * (nx * ny) - s * nz),
+                (r.c1.z, (t * ny) * nz + s * nx, t * (ny * nz) + s * nx),
+                (r.c2.x, (t * nx) * nz + s * ny, t * (nx * nz) + s * ny),
+                (r.c2.y, (t * ny) * nz - s * nx, t * (ny * nz) - s * nx),
+            ];
+            for (idx, (got, want, alt)) in entries.into_iter().enumerate() {
+                assert_eq!(
+                    got.to_bits(),
+                    want.to_bits(),
+                    "off-diagonal {idx} at theta={theta}: {got} vs \
+                     documented ((t*ni)*nj)+-(s*nk) {want}"
+                );
+                if want.to_bits() != alt.to_bits() {
+                    discriminating[idx] = true;
+                }
+            }
+        }
+        assert_eq!(
+            discriminating, [true; 6],
+            "no angle in the sweep separates ((t*ni)*nj) from (t*(ni*nj)) \
+             for every off-diagonal — this test no longer guards the \
+             association"
+        );
+    }
+
     proptest! {
         /// transpose ∘ transpose is the identity *bit-exactly*: transpose
         /// is pure field shuffling, no arithmetic anywhere.

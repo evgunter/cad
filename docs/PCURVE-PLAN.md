@@ -35,7 +35,8 @@ its absence. That is a track.
 - **`MappedCurve` demotes to an AUTHORITY RECORD** carried beside
   the description, with tier-3's prefer-intrinsic rules reading the
   record instead of the negative space. A narrow scaffold retains it
-  as a description for PRE-BODY edges only (Evan's Q2 answer).
+  as a description for TRANSIENT edges only (Evan's Q2 answer; the
+  fence criterion as corrected below).
 - **Q3 (the authority record's home) is per-edge KERNEL data**,
   adopted by dominant argument. Its pushback window closed
   unexercised at M9's ratification (#1041), so this is settled.
@@ -48,8 +49,8 @@ its absence. That is a track.
 
 1. **P-1 — the migration itself.** `EdgeGeometry`'s conventional
    variants collapse to (surface, `Pcurve`); `Pcurve` gains
-   `General`; `MappedCurve` becomes the authority record with the
-   pre-body scaffold fenced. **The binding constraint is NOT what
+   `General`; `MappedCurve` becomes the authority record behind the
+   transience fence. **The binding constraint is NOT what
    this plan first said** (corrected from P-1's substrate,
    2026-08-27). It named adoption's bitwise reproduction;
    `bitwise_iso_match` (adopt.rs:958) in fact quantifies over
@@ -118,13 +119,19 @@ descriptions); M10's clearance certificate. Naming them because
   and is called at ops.rs:1064, the D6 conventional re-description
   lane M9-3 shipped. The seam MINT path is a different site, and
   M9-3's own PR body said plainly it stays a straight chord.)
-- **OPEN, and it needs Evan**: the ratified scaffold answer (Q2 —
-  `MappedCurve` retained as a description SOLELY for pre-body edges)
-  **is not implementable as written**. `MappedCurve` reaches REST
-  through `describe_minted_edges` and six fillet strut sites, so
-  "pre-body" does not fence it. The implementable fence is
-  **transience**, not pre-body. Recorded as a design question, not
-  decided here.
+- **RESOLVED (was "OPEN, needs Evan"; corrected 2026-08-27)**: the
+  ratified scaffold answer (Q2 — `MappedCurve` retained as a
+  description SOLELY for pre-body edges) **was not implementable as
+  written**. `MappedCurve` reaches REST through `describe_minted_edges`
+  and six fillet strut sites, so "pre-body" never fenced it. **Evan
+  ratified the corrected criterion in chat: the boundary is
+  TRANSIENCE.** Q2's substance — narrow `MappedCurve` rather than a
+  dedicated `Scaffold` rung — is UNCHANGED and was explicitly not
+  revisited ("i think i don't want to revisit Scaffold"); only the
+  doc's account of where the fence falls was wrong. Carried into U2's
+  STATUS line and binding on P-1b item 2. This bullet said the question
+  was undecided for a day after it was decided — the stale half of a
+  correction that landed in U2 and not here.
 - **Free retirement, unclaimed by any plan**: `replace_face.rs:1249`'s
   "a v-row is not an `IsoCurve`" refusal retires with the
   representation change.
@@ -144,8 +151,8 @@ discipline, merge-main + build the union).
 `EdgeGeometry` has ONE conventional form; the exact classes survive
 as certification lanes with `General` as the honest floor;
 `MappedCurve` is an authority record read by tier 3's
-prefer-intrinsic rules, retained as a description only for pre-body
+prefer-intrinsic rules, retained as a description only for transient
 scaffolding; adoption still reproduces native descriptions
-bitwise and D9 bit-replay holds; #498 and lily wall 8 execute their
-own retirement texts; every new row ε-row three-outcome honest;
+bitwise and D9 bit-replay holds; #498 executes its own retirement
+text; every new row ε-row three-outcome honest;
 hosted CI green on every merge; the walk convention applies at exit.

@@ -703,6 +703,38 @@ pub enum ValidationError {
         /// The pcurve pass's typed finding.
         finding: crate::pcurves::PcurveMintError,
     },
+    /// **Tier 3, check 9.** A face's RING meets its own OUTER loop: it
+    /// shares a vertex position with it, or one of its edges runs
+    /// along one of the outer loop's. A ring states "the region this
+    /// face trims has a hole strictly inside it"; a ring that touches
+    /// the outer boundary states no such region, and every consumer
+    /// that reads the trim — the CDT above all — is entitled to refuse
+    /// it. The two loops are compared by POSITION, not by key: the
+    /// shapes this catches are minted by surgeries that copy a
+    /// boundary, so the copy's vertices and edges are fresh keys
+    /// standing on the original's geometry.
+    RingMeetsOuter {
+        /// The face whose two loops meet.
+        face: FaceKey,
+        /// The ring.
+        ring: LoopKey,
+        /// What the contact is, and which entities carry it.
+        contact: RingContact,
+    },
+    /// **Tier 3, check 9 — escalated.** A ring-vs-outer contact margin
+    /// landed in the ambiguity band, so whether the two loops meet
+    /// cannot be certified either way. Reported rather than rounded to
+    /// "disjoint": escalate-never-guess (D4 paragraph 3), and rounding
+    /// it toward blessing was exactly the direction that let the
+    /// class this check exists for ship once already.
+    RingContactEscalated {
+        /// The face whose loops could not be separated.
+        face: FaceKey,
+        /// The ring.
+        ring: LoopKey,
+        /// The predicate-layer escalation.
+        source: Indeterminate,
+    },
     /// Tier 3′ (M3 PR 6a): the global coincidence census found a
     /// position coincidence between distinct entities that no declared
     /// contact record backs (directly, or via the D3 segment
@@ -1587,11 +1619,91 @@ impl fmt::Display for ValidationError {
                  unconsumed surgery transients)"
             ),
             Self::Pcurve { finding } => write!(f, "tier 3: {finding}"),
+            Self::RingMeetsOuter {
+                face,
+                ring,
+                contact,
+            } => write!(
+                f,
+                "tier 3: ring {ring:?} of {face:?} meets that face's own outer loop ({contact}) \
+                 — a ring is a hole strictly inside the region its face trims, and one that \
+                 touches the outer boundary trims no region at all"
+            ),
+            Self::RingContactEscalated { face, ring, source } => write!(
+                f,
+                "tier 3: whether ring {ring:?} of {face:?} meets that face's own outer loop \
+                 could not be certified ({source}) — an undecidable separation is reported, \
+                 never read as disjoint"
+            ),
         }
     }
 }
 
 impl std::error::Error for ValidationError {}
+
+/// How a ring meets its face's outer loop
+/// ([`ValidationError::RingMeetsOuter`]) — the two shapes the
+/// position comparison can find.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RingContact {
+    /// A vertex of the ring stands on a vertex of the outer loop.
+    Vertex {
+        /// The ring's vertex.
+        ring_vertex: VertexKey,
+        /// The outer loop's vertex it stands on.
+        outer_vertex: VertexKey,
+    },
+    /// A vertex of the ring stands on the INTERIOR of an edge of the
+    /// outer loop — the shape neither of the other two arms can see,
+    /// because it is a vertex of one loop and an interior point of the
+    /// other.
+    VertexOnEdge {
+        /// The ring's vertex.
+        ring_vertex: VertexKey,
+        /// The outer loop's edge it stands on.
+        outer_edge: EdgeKey,
+    },
+    /// An edge of the ring runs ALONG an edge of the outer loop —
+    /// sampled interior points of the ring's edge all lie on the outer
+    /// edge's LOCUS, and (on a line, whose locus runs past the trim)
+    /// at least one of them lies strictly between that edge's
+    /// endpoints, so the two share a positive-length arc rather than
+    /// meeting at a point.
+    Edge {
+        /// The ring's edge.
+        ring_edge: EdgeKey,
+        /// The outer loop's edge it runs along.
+        outer_edge: EdgeKey,
+    },
+}
+
+impl fmt::Display for RingContact {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Vertex {
+                ring_vertex,
+                outer_vertex,
+            } => write!(
+                f,
+                "{ring_vertex:?} stands on the outer loop's {outer_vertex:?}"
+            ),
+            Self::VertexOnEdge {
+                ring_vertex,
+                outer_edge,
+            } => write!(
+                f,
+                "{ring_vertex:?} stands on the interior of the outer loop's {outer_edge:?}"
+            ),
+            Self::Edge {
+                ring_edge,
+                outer_edge,
+            } => write!(
+                f,
+                "{ring_edge:?} runs along the outer loop's {outer_edge:?}"
+            ),
+        }
+    }
+}
 
 /// Counts one resolved reference to `key` (dangling keys never reach
 /// here). `SecondaryMap` rather than a hash map: typed per key kind and
@@ -2655,7 +2767,341 @@ pub(crate) fn tier3_local_checks_marked<T: crate::props::PropsQuadLane>(
         errors.push(ValidationError::Pcurve { finding });
     }
 
+    // ------------------------------------------------------------------
+    // Tier 3, check 9: ring-vs-outer disjointness. A ring is the
+    // statement "this face's region has a hole strictly inside it", so
+    // a ring that stands on the outer loop — sharing a vertex position
+    // with it, or running along one of its edges — is not a trim of
+    // any region. Nothing else in this battery sees it: every loop
+    // stays a simple, consistently wound cycle, the Euler count is
+    // whatever the surgery made it, and the volume flux is computed
+    // from the same windings. It is the CDT downstream that discovers
+    // the body is not triangulable, which is a consumer reporting a
+    // producer's bug.
+    //
+    // Compared by POSITION, not by key: the shape this exists to catch
+    // is minted by a surgery that copies a boundary and re-labels the
+    // copy as a ring, so the copy carries fresh vertex and edge keys
+    // standing on the original's geometry. Ungated on the volume
+    // check — a loop contact is local evidence about one face.
+    //
+    // **What the three arms match, and WHAT THEY DO NOT** (D4 honesty
+    // — an unstated blind spot is an unverified claim). Matched:
+    // vertex-on-vertex (kind-agnostic, positions only);
+    // vertex-on-edge-interior; and edge-along-edge, on `Line` and
+    // `Circle` carriers. Every margin escalates typed rather than
+    // reading as "disjoint".
+    //
+    // NOT matched, enumerated rather than gestured at:
+    //
+    // - **one-point TANGENCY between two edges at a point that is a
+    //   vertex of neither** — circle-circle internal or external
+    //   tangency, line-circle tangency. Three-sample locus agreement
+    //   cannot see a single shared point, and the closed forms that
+    //   could (|c1-c2| vs |r1 +/- r2|) need an arc-containment test
+    //   this predicate does not have.
+    // - **a transversal CROSSING** of a ring edge and an outer edge at
+    //   a non-vertex point, for the same reason.
+    // - **`Ellipse` and NURBS carriers** in arms 2 and 3: `locus_gap`
+    //   has no inversion for them, so a contact carried by one is
+    //   skipped. Arm 1 still covers their endpoints.
+    //
+    // The residue is a floor, not a ceiling: what it costs is that a
+    // body carrying one of those shapes validates. The shapes this
+    // check exists for — a surgery re-labelling a copied boundary as a
+    // ring — are all in the matched set, and the shell verb's own
+    // door refuses ahead of them.
+    // ------------------------------------------------------------------
+    for (face_key, face) in body.faces.iter() {
+        for &ring in &face.rings {
+            match ring_outer_contact(body, face.outer, ring, band) {
+                RingOuterVerdict::Disjoint => {}
+                RingOuterVerdict::Contact(contact) => {
+                    errors.push(ValidationError::RingMeetsOuter {
+                        face: face_key,
+                        ring,
+                        contact,
+                    });
+                }
+                RingOuterVerdict::Escalated(source) => {
+                    errors.push(ValidationError::RingContactEscalated {
+                        face: face_key,
+                        ring,
+                        source,
+                    });
+                }
+            }
+        }
+    }
+
     errors
+}
+
+/// What check 9 found between `ring` and the outer loop of its face.
+pub(crate) enum RingOuterVerdict {
+    /// The two loops are disjoint, as far as the arms below can see
+    /// (check 9's residue list).
+    Disjoint,
+    /// They meet, in the named shape.
+    Contact(RingContact),
+    /// A contact margin could not be certified either way. **Never
+    /// read as "disjoint"**: an escalation is the one answer this
+    /// predicate is not allowed to round toward blessing a body, and
+    /// rounding it was the defect the review of this check caught.
+    Escalated(Indeterminate),
+}
+
+/// The first contact between `ring` and the outer loop `outer` of the
+/// same face, in the three shapes the arms below can decide.
+///
+/// Shared with the shell verb, which runs it as a PRECONDITION of the
+/// rim glue so the refusal names the shape rather than arriving as a
+/// generic at-rest report.
+///
+/// **Escalate-never-guess (D4 ¶3)**: the first margin that lands in
+/// the ambiguity band returns [`RingOuterVerdict::Escalated`] and stops
+/// the walk. Both callers treat it as a refusal.
+pub(crate) fn ring_outer_contact<T: Decide>(
+    body: &Body<T>,
+    outer: LoopKey,
+    ring: LoopKey,
+    band: Band,
+) -> RingOuterVerdict {
+    let (Some(ring_cycle), Some(outer_cycle)) =
+        (loop_cycle_of(body, ring), loop_cycle_of(body, outer))
+    else {
+        // An empty loop bounds nothing and can meet nothing.
+        return RingOuterVerdict::Disjoint;
+    };
+
+    // A separation, decided against ZERO. `Zero` is the contact:
+    // metering `eps − gap` instead would put a coincident pair's margin
+    // AT the band's own threshold, where it escalates rather than
+    // decides.
+    macro_rules! coincides {
+        ($name:expr, $margin:expr) => {
+            match decide($name, Margin::of($margin), band) {
+                Ok(Sign::Zero) => true,
+                Ok(_) => false,
+                Err(source) => return RingOuterVerdict::Escalated(source),
+            }
+        };
+    }
+    // Strictly between an edge's two endpoints, in projection —
+    // metered as the LENGTH it is (the raw dot product is an area).
+    macro_rules! strictly_between {
+        ($p:expr, $a:expr, $b:expr) => {{
+            let span = ($b - $a).norm();
+            match decide(
+                "ring_outer_segment_side",
+                Margin::of(($p - $a).dot($p - $b) / span),
+                band,
+            ) {
+                Ok(Sign::Negative) => true,
+                Ok(_) => false,
+                Err(source) => return RingOuterVerdict::Escalated(source),
+            }
+        }};
+    }
+
+    // ---- Arm 1: a ring vertex standing on an outer VERTEX. ----
+    //
+    // Kind-agnostic: it reads points, so no carrier kind is exempt.
+    // Key-shared pairs are NOT exempt either — tier 1 has no pass that
+    // refuses one face's outer loop and its own ring sharing a vertex
+    // key (an umbrella pinch walks a single orbit and passes every
+    // pass 1-13), so exempting them here would leave exactly that
+    // configuration unnetted.
+    for &rhe in &ring_cycle {
+        let Some(rv) = body.half_edges.get(rhe).map(|h| h.start) else {
+            continue;
+        };
+        let Some(rp) = vertex_point(body, rv) else {
+            continue;
+        };
+        for &ohe in &outer_cycle {
+            let Some(ov) = body.half_edges.get(ohe).map(|h| h.start) else {
+                continue;
+            };
+            let Some(op) = vertex_point(body, ov) else {
+                continue;
+            };
+            if coincides!("ring_outer_vertex_gap", (rp - op).norm()) {
+                return RingOuterVerdict::Contact(RingContact::Vertex {
+                    ring_vertex: rv,
+                    outer_vertex: ov,
+                });
+            }
+        }
+    }
+
+    // ---- Arm 2: a ring vertex standing on an outer EDGE's interior.
+    //
+    // The shape arm 1 cannot see and arm 3 cannot either: a ring that
+    // touches the outer boundary at a point that is a vertex of one
+    // loop and an interior point of the other. Two margins, both
+    // already needed elsewhere here: the point's gap to the outer
+    // edge's LOCUS, and — on a `Line`, whose locus is unbounded either
+    // side of the trim — whether it lies strictly between the edge's
+    // endpoints. On a `Circle` the second is unnecessary and
+    // deliberately absent: a ring vertex on the same circle as an
+    // outer edge already means the hole reaches the face's boundary
+    // circle, whatever sub-arc that edge is trimmed to.
+    for &rhe in &ring_cycle {
+        let Some(rv) = body.half_edges.get(rhe).map(|h| h.start) else {
+            continue;
+        };
+        let Some(rp) = vertex_point(body, rv) else {
+            continue;
+        };
+        for &ohe in &outer_cycle {
+            let Some(oedge) = body.half_edges.get(ohe).map(|h| h.edge) else {
+                continue;
+            };
+            let Some(ogeom) = certified_carrier(body, oedge) else {
+                continue;
+            };
+            let Some(gap) = locus_gap(ogeom.carrier(), rp) else {
+                continue; // the recorded residue: Ellipse and Nurbs carriers
+            };
+            if !coincides!("ring_outer_locus_gap", gap) {
+                continue;
+            }
+            if let geom::Curve3::Line { .. } = ogeom.carrier() {
+                let Some((a, b)) = edge_endpoints(body, ohe) else {
+                    continue;
+                };
+                if !strictly_between!(rp, a, b) {
+                    continue;
+                }
+            }
+            return RingOuterVerdict::Contact(RingContact::VertexOnEdge {
+                ring_vertex: rv,
+                outer_edge: oedge,
+            });
+        }
+    }
+
+    // ---- Arm 3: a ring edge running ALONG an outer edge. ----
+    //
+    // Three INTERIOR samples of the ring edge, at the certification
+    // schedule's own quarter/middle/three-quarter parameters. Three
+    // shared points is the discriminator: a line and a circle, or two
+    // distinct circles, meet in at most two, so agreement at three
+    // interior samples is a shared LOCUS rather than a crossing.
+    //
+    // On a `Line`, sharing the locus is not yet sharing an arc — two
+    // collinear edges can be disjoint on a nonconvex face — so ANY of
+    // the three samples lying strictly between the outer edge's
+    // endpoints settles it. Any, not the middle one: a partial overlap
+    // can put the middle sample past the outer edge's trim while a
+    // quarter of it lies well inside.
+    for &rhe in &ring_cycle {
+        let Some(redge) = body.half_edges.get(rhe).map(|h| h.edge) else {
+            continue;
+        };
+        let Some(rgeom) = certified_carrier(body, redge) else {
+            continue;
+        };
+        let samples: [geom_core::Point3<T>; 3] = [
+            rgeom.carrier().eval(rgeom.sample_param(2)),
+            rgeom.carrier().eval(rgeom.sample_param(4)),
+            rgeom.carrier().eval(rgeom.sample_param(6)),
+        ];
+        for &ohe in &outer_cycle {
+            let Some(oedge) = body.half_edges.get(ohe).map(|h| h.edge) else {
+                continue;
+            };
+            let Some(ogeom) = certified_carrier(body, oedge) else {
+                continue;
+            };
+            let mut on_locus = true;
+            for &p in &samples {
+                let Some(gap) = locus_gap(ogeom.carrier(), p) else {
+                    on_locus = false;
+                    break; // the recorded residue: Ellipse and Nurbs carriers
+                };
+                if !coincides!("ring_outer_locus_gap", gap) {
+                    on_locus = false;
+                    break;
+                }
+            }
+            if !on_locus {
+                continue;
+            }
+            if let geom::Curve3::Line { .. } = ogeom.carrier() {
+                let Some((a, b)) = edge_endpoints(body, ohe) else {
+                    continue;
+                };
+                let mut inside = false;
+                for &p in &samples {
+                    if strictly_between!(p, a, b) {
+                        inside = true;
+                        break;
+                    }
+                }
+                if !inside {
+                    continue;
+                }
+            }
+            return RingOuterVerdict::Contact(RingContact::Edge {
+                ring_edge: redge,
+                outer_edge: oedge,
+            });
+        }
+    }
+    RingOuterVerdict::Disjoint
+}
+
+/// An edge's certified carrier, or `None` on a null or unresolvable
+/// one.
+fn certified_carrier<T: Real>(body: &Body<T>, edge: EdgeKey) -> Option<&geom_brep::EdgeCurve<T>> {
+    body.get_edge(edge)
+        .and_then(|e| body.get_curve_geom(e.curve))
+        .and_then(CurveGeom::certified)
+}
+
+/// The distance from `p` to a carrier's INFINITE locus, in closed
+/// form and without a single comparison. `None` for a kind this
+/// inversion does not implement — check 9's recorded residue,
+/// `Ellipse` and `Nurbs`.
+fn locus_gap<T: Real>(carrier: &geom::Curve3<T>, p: geom_core::Point3<T>) -> Option<T> {
+    match carrier {
+        // `dir` is unit by convention, so the rejection is the residual
+        // of the projection.
+        geom::Curve3::Line { origin, dir } => {
+            let d = p - *origin;
+            Some((d - *dir * d.dot(*dir)).norm())
+        }
+        // The distance from a point to a full circle: the in-plane
+        // radial defect and the out-of-plane offset, in quadrature.
+        geom::Curve3::Circle {
+            center,
+            axis,
+            radius,
+            ..
+        } => {
+            let d = p - *center;
+            let along = d.dot(*axis);
+            let radial = (d - *axis * along).norm() - *radius;
+            Some((radial.powi(2) + along.powi(2)).sqrt())
+        }
+        _ => None,
+    }
+}
+
+/// A loop's half-edge cycle, or `None` for an empty loop (which bounds
+/// nothing and can meet nothing).
+fn loop_cycle_of<T: Real>(body: &Body<T>, r#loop: LoopKey) -> Option<Vec<HalfEdgeKey>> {
+    let LoopBoundary::Cycle { first } = body.get_loop(r#loop)?.boundary else {
+        return None;
+    };
+    body.loop_cycle(first)
+}
+
+/// The point a vertex stands at.
+fn vertex_point<T: Real>(body: &Body<T>, vertex: VertexKey) -> Option<geom_core::Point3<T>> {
+    body.points.get(body.vertices.get(vertex)?.point).copied()
 }
 
 /// **Tier 3′** (M3 PR 6a, F1/F2): the pseudomanifold at-rest validator
@@ -4373,7 +4819,7 @@ mod tests {
         // `EnumCount` derive or the workspace's first proc-macro crate —
         // and neither is bought here. When you add an arm, its index is
         // the new `VARIANTS - 1`.
-        const VARIANTS: usize = 65;
+        const VARIANTS: usize = 67;
         fn variant_index(e: &ValidationError) -> usize {
             match e {
                 ValidationError::Band { .. } => 0,
@@ -4440,7 +4886,9 @@ mod tests {
                 ValidationError::NonpositiveTorusTube { .. } => 61,
                 ValidationError::ApproxCertification { .. } => 62,
                 ValidationError::ApproxLaneUnsupported { .. } => 63,
-                ValidationError::ScaffoldAtRest { .. } => 64,
+                ValidationError::RingMeetsOuter { .. } => 64,
+                ValidationError::RingContactEscalated { .. } => 65,
+                ValidationError::ScaffoldAtRest { .. } => 66,
             }
         }
         fn band_error() -> geom_core::BandError {
@@ -4461,6 +4909,27 @@ mod tests {
             ValidationError::DanglingTopology {
                 from: EntityId::Solid(t.solid),
                 to: EntityId::Shell(t.shell),
+            },
+            ValidationError::RingMeetsOuter {
+                face: t.face_a,
+                ring: t.loop_a,
+                contact: RingContact::Vertex {
+                    ring_vertex: v,
+                    outer_vertex: v,
+                },
+            },
+            ValidationError::RingMeetsOuter {
+                face: t.face_a,
+                ring: t.loop_a,
+                contact: RingContact::VertexOnEdge {
+                    ring_vertex: v,
+                    outer_edge: e,
+                },
+            },
+            ValidationError::RingContactEscalated {
+                face: t.face_a,
+                ring: t.loop_a,
+                source: indeterminate(),
             },
             ValidationError::DanglingGeometry {
                 from: EntityId::Vertex(v),
@@ -4958,6 +5427,80 @@ mod tests {
         assert_eq!(validate_closed(&ops_cube(Tol::witness()).body), Ok(()));
         assert_eq!(validate_closed(&ops_holed_box(Tol::witness()).body), Ok(()));
         assert_eq!(validate_closed(&ops_genus2(Tol::witness())), Ok(()));
+    }
+
+    /// **Check 9 decides KEY-SHARED loop pairs, and the guards that
+    /// exempted them are gone.**
+    ///
+    /// Those two guards (`ov == rv`, `oedge == redge`) cited tier 1 as
+    /// the net for a key-shared vertex or edge between a face's outer
+    /// loop and its own ring. The citation was FALSE — passes 1 to 13
+    /// were read end to end and none of them refuses that
+    /// configuration; an umbrella pinch, whose two loops meet at a
+    /// vertex they share by key rather than by position, walks a
+    /// single orbit and validates. An exemption resting on a net that
+    /// does not exist leaves exactly the shape this check is for
+    /// unguarded, so it was removed.
+    ///
+    /// What is pinned here is the removal, in the maximal form of the
+    /// case: a loop compared against ITSELF shares every vertex key
+    /// and every edge key with itself, so both guards would have fired
+    /// and both arms must now report a contact instead. It is a
+    /// property of the predicate, asserted as one; the shapes it lets
+    /// through when the keys are DISTINCT are pinned on real bodies by
+    /// `verbs_shell::a_ring_standing_on_its_outer_loop_refuses_at_tier_3`.
+    #[test]
+    fn check_9_decides_a_key_shared_loop_pair() {
+        let tol = Tol::witness();
+        let body = ops_holed_box(tol).body;
+        let band = Band::linear(tol).expect("the run's band");
+        let mut seen = 0;
+        for (_, face) in body.faces() {
+            for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
+                let Some(cycle) = loop_cycle_of(&body, lk) else {
+                    continue;
+                };
+                if cycle.is_empty() {
+                    continue;
+                }
+                seen += 1;
+                match ring_outer_contact(&body, lk, lk, band) {
+                    RingOuterVerdict::Contact(_) => {}
+                    RingOuterVerdict::Disjoint => panic!(
+                        "loop {lk:?} does not meet ITSELF — the key-shared exemption is \
+                         back, and with it the umbrella pinch tier 1 does not refuse"
+                    ),
+                    RingOuterVerdict::Escalated(source) => {
+                        panic!("loop {lk:?} escalated against itself: {source}")
+                    }
+                }
+            }
+        }
+        assert!(seen > 0, "the fixture must carry loops to compare");
+        // And check 9 says nothing about the fixture as it stands:
+        // DISTINCT loops of one face do not meet, so the arms are not
+        // simply reporting everything. Scoped to this check rather
+        // than asserting full tier-3 cleanliness — the holed box has
+        // its own epsilon-sensitive rows at 1e-12, which are not this
+        // test's subject.
+        let report = validate_geometric(&body, tol);
+        let ours: Vec<&ValidationError> = match &report {
+            Ok(()) => Vec::new(),
+            Err(errors) => errors
+                .iter()
+                .filter(|e| {
+                    matches!(
+                        e,
+                        ValidationError::RingMeetsOuter { .. }
+                            | ValidationError::RingContactEscalated { .. }
+                    )
+                })
+                .collect(),
+        };
+        assert!(
+            ours.is_empty(),
+            "check 9 must be silent on the fixture as it stands; got {ours:?}"
+        );
     }
 
     /// Gives every face of `body` the Newell plane of its outer loop —

@@ -181,8 +181,8 @@ rung exists for. NURBS↔analytic and NURBS↔NURBS same-locus
 
 **What the kernel REPRESENTS**: transverse crossings (as boolean
 working state — never as an at-rest contact); point touch (vertex
-records — exists); curve touch (curve records, C3 — new); conformal
-contact (patch records, C3 — new); declared fits (C6). **What it
+records); curve touch (curve records, C3); conformal contact (patch
+records, C3); declared fits (C6). **What it
 REFUSES, typed with recourse**: undeclared touching (declare / move /
 lower ε — the two-tolerance ONE story), contradicted declarations,
 degenerate-residue contact (order-k > 1 non-conformal: no
@@ -380,16 +380,16 @@ neutral points, reproducing #175 finding 1 with extra steps.
 `Fit`: C6's table.
 
 **Where it lives.** Declarations are recipe data, period: on the
-consuming boolean node today (`DeclaredPairs` grows a class payload),
-on assembly-era relation/mate nodes when assemblies exist (GQ4:
-assemblies are recipes of the same formalism — the vocabulary binds
-now, the second home lands then). Bodies at rest never carry
-declarations; they carry the *verified records* (C3) in the result
-wrapper, the `BooleanBody` pattern — validity class rides the
-wrapper, never a mutable body field. Persistence: declarations
-persist as node payload (the `tangent_joints` schema precedent) in
-the schema version that ships the implementation, forward-only per
-D6.3; records are never persisted (bodies re-derive, D9).
+consuming boolean node (`DeclaredPairs` carries the class payload) and
+on the assembly layer's `Mate` nodes (GQ4: assemblies are recipes of
+the same formalism — ASSEMBLY-DESIGN A3 is that second home).
+Bodies at rest never carry declarations; they carry the *verified
+records* (C3) in the result wrapper, the `BooleanBody` pattern —
+validity class rides the wrapper, never a mutable body field.
+Persistence: declarations persist as node payload (the
+`tangent_joints` schema precedent) in the schema version that ships
+the implementation, forward-only per D6.3; records are never
+persisted (bodies re-derive, D9).
 
 **Replay.** Verification is scalar-generic like every predicate:
 f64 replay re-verifies; Interval replay's indeterminate verification
@@ -526,19 +526,19 @@ weakening survives outside the declared pair. No blanket
 
 ## C7 — The join lane: how declared contact unblocks the banked unions
 
-Design sketch only (implementation is banked; this section exists so
-the refusal migration in C8 has a stated target):
+The design the lane implements; it shipped in M9-3 (#967, #971):
 
-1. **The boolean's curved coplanar-lump arm** (#175 finding 1's exact
-   wall, `boolean/vtxfac.rs`): where a curved sector's normal is
-   plane-parallel at a pierce site today's code refuses
-   `CurvedBooleanUnsupported` (the CURVED-DESIGN C7/OQ5 frontier).
-   With a verified
-   `Tangent`/`Rest` declaration on the face pair, classification
-   descends to second order (CURVED-DESIGN C7's sector trilean) with
-   the declaration bridging in-band κ_rel per C4 — the lump verdict
-   the planar `eq15_3_lump` computes from `PlaneRelation` comes
-   instead from the (declared-backed) relative-curvature sign.
+1. **The boolean's curved coplanar-lump arm** (#175 finding 1's wall,
+   at two sites: `boolean/vtxfac.rs`'s pierce site and
+   `boolean/recl.rs`'s vertex-vertex site): where a curved sector's
+   normal is plane-parallel there, an UNDECLARED pair refuses
+   `CurvedBooleanUnsupported` — forever, by C8's invariant. With a
+   verified `Tangent`/`Rest` declaration on the face pair,
+   classification descends to second order (CURVED-DESIGN C7's
+   sector trilean) with the declaration bridging in-band κ_rel per
+   C4 — the lump verdict the planar `eq15_3_lump` computes from
+   `PlaneRelation` comes instead from the (declared-backed)
+   relative-curvature sign.
 2. **The zip generalizes by carrier kind** (S1 → cosurface): patch
    removal + seam mint on a shared carrier of any kind — the
    CURVED-DESIGN C12.5 cosurface-merge ladder, same
@@ -557,12 +557,12 @@ the refusal migration in C8 has a stated target):
    join whose result carries material on one side of the locus emits a
    wedge-0/2π edge instead — governed by D1 tier 3's declared
    second-order wedge arm (#131 ruling: legal iff declared and
-   jet-determinate, osculation escalates; implementation #941) — and
-   the doubled form (material both sides) is F2's
-   coincident-distinct-edges class; the join-lane spec grows that arm
-   before `Tangent` joins ship.
+   jet-determinate, osculation escalates) — and the doubled form
+   (material both sides) is F2's coincident-distinct-edges class. That
+   arm is unbuilt (#941): M9-3's `Tangent` joins emit the wedge = π
+   seam only.
 
-What stays refused even after this lane ships: undeclared touching
+What stays refused: undeclared touching
 (by law, forever), osculating/in-band pairs (escalate), and any
 carrier pair the cosurface ladder has no arm for (typed, per class —
 never wholesale).
@@ -572,7 +572,8 @@ ASSEMBLY-DESIGN A5, 2026-08-10):** the same census + per-class
 verification substrate must also open as an **at-rest door** — an
 assembly at rest needs verification with no boolean, i.e. no zip.
 The join lane alone leaves touching assemblies unvalidatable (the
-#328 scoping trap); the M9 spec adopts both doors deliberately.
+#328 scoping trap); M9 shipped both doors — M9-2's census door and
+M9-3's join lane.
 
 ## Worked examples (each through C1→C6)
 
@@ -595,7 +596,7 @@ subtract π(r_p² − r_b²)·L on opt-in; M10 asserts
 g ∈ [−δ_max, −δ_min] over the tolerance box with dg/dr_b = +1,
 dg/dr_p = −1 exactly.
 
-**Two-peg plate** (the considered-not-built demo). Plate P with two
+**Two-peg plate** (`demos/tour/src/twopeg.rs`). Plate P with two
 pegs, plate Q with two bores sharing the pegs' cylinder carriers
 (structural) plus the mating plane face. Declarations: one planar
 `Rest` (S1's shipped class) + two cylindrical `Rest`s (this doc's).
@@ -603,9 +604,8 @@ Census: three `PatchContact`s — cylindrical band overlaps certified
 in each cylinder chart ((u,v) rectangle intersection, planar
 machinery), plane patch as S1. Union: the C7-lane zip removes all
 three patches as interior, bore walls vanish (full engagement),
-volume exactly additive. This vocabulary is precisely what the demo
-waits on; the demo un-blocks with the implementation milestone, not
-with this doc.
+volume exactly additive. The cell shipped at M9-5 (#1037) on exactly
+this vocabulary.
 
 **The lily's G1 tube chain** (#175 findings 1–2). Two torus-segment
 tubes, equal minor radius ρ, spines meeting G1 at a shared point;
@@ -644,25 +644,21 @@ target (C7). Their ratification CLOSED OQ5: the deferral's condition
 recognition (D7 adoption work); kinematics (contact records are
 geometric — DOF/mate solving is Band 3's SE(3) story, deliberately
 absent here). Discharged since ratification: implementation
-sequencing — the C7 join lane plus the A5 at-rest census door is
-**M9**; and the assembly/mate layer's node vocabulary, which landed
+sequencing — the C7 join lane plus the A5 at-rest census door shipped
+in **M9**; and the assembly/mate layer's node vocabulary, which landed
 as ASSEMBLY-DESIGN A3 (C4 binds the declaration *shape*, A3 is its
 second home).
 
-**Refusal migration (text-level; behavior unchanged until the lane
-ships) — TRACKED AS #459:** the `boolean/vtxfac.rs` C7/OQ5 comment
-and the census `CensusUnsupported` boundary text update to cite this
-document's classes and name the recourse ("a declared Tangent/Rest
-contact — vocabulary CONTACT-DESIGN C4, implementation M9") instead
-of citing a deferral that no longer defers;
+**Refusal migration (text-level, no behavior change):** the
+`boolean/vtxfac.rs` comment and the census `CensusUnsupported`
+boundary text cite this document's classes and name the recourse
+("a declared Tangent/Rest contact — vocabulary CONTACT-DESIGN C4")
+rather than a deferral that no longer defers;
 `CurvedBooleanUnsupported` at tangent-contact sites keeps its type
-and gains the same pointer. *(Originally scoped to ride any touching
-PR. No PR touched those sites in the eight days after ratification,
-so it is issue-tracked instead — the rider mechanism did not work
-for a change nothing else needs.)* When the C7 lane ships, each arm retires
-per class through the CURVED-DESIGN C5 dispatch-table discipline —
-incrementally, never wholesale, exactly as
-`CurvedBooleanUnsupported` retired by table arm through M5.
+and carries the same pointer. Landed at M9-0 (#588; #459 CLOSED).
+Each C7 arm retires per class through the CURVED-DESIGN C5
+dispatch-table discipline — incrementally, never wholesale, exactly
+as `CurvedBooleanUnsupported` retired by table arm through M5.
 
 **Invariant (C8).** Ratification of this document changes no verdict
 on any body: every currently-refusing configuration keeps its typed

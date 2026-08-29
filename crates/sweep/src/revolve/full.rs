@@ -34,7 +34,7 @@ use topo::{Body, EdgeKey, FaceKey, FaceSurface, MefSite, MekrSite, MevSite};
 use super::axis::{AxisFrame, AxisRun, LoopClasses};
 use super::chain::build_chain;
 use super::partial::{he_edge, sweep_loop};
-use super::surfaces::{strut_spec, wall_surface};
+use super::surfaces::{revolved_strut_spec, wall_surface};
 use super::upgrade::{describe_at_rest, upgrade_intersection, upgrade_meridian_seam};
 use super::{RevolveError, Revolved, RevolvedKind, SweptSeg, WALL_COSURFACE};
 use crate::swept::{cosurface, face_surface_key, placed_segment_spec, turn_axis};
@@ -408,7 +408,7 @@ fn build_wire<T: Decide>(
                 he2: hes[i],
             },
             qpi[i],
-            strut_spec(
+            revolved_strut_spec(
                 segs[wseg(i)].a,
                 cls.verts[wseg(i)].r,
                 qw[i],

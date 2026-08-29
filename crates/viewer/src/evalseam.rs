@@ -61,7 +61,7 @@
 use std::sync::Arc;
 
 use pncad::document::{
-    CancelToken, Doc, EvalOptions, EvalOutcome, Evaluation, ProfileProgram, evaluate,
+    CancelToken, Doc, EvalOptions, EvalOutcome, Evaluation, PartResolver, ProfileProgram, evaluate,
 };
 use pncad::geom_core::Tol;
 
@@ -112,6 +112,13 @@ pub struct EvalRequest {
     pub doc: Doc<ProfileProgram>,
     /// The ε the run decides at.
     pub tol: Tol,
+    /// The document seam this run resolves `InstantiatePart` nodes
+    /// through — the session's workspace over the opened file's own
+    /// directory, or `None` for a document with no backing file, in
+    /// which case every instantiate node refuses typed (the shipped
+    /// no-resolver semantics, rendered as the tree's badges). Shared
+    /// by `Arc` so the worker holds a handle, not a copy of the store.
+    pub resolver: Option<Arc<dyn PartResolver>>,
 }
 
 /// A finished run.
@@ -153,26 +160,74 @@ pub trait EvalService {
     fn busy(&self) -> bool;
 }
 
+/// The previous completed run, together with the resolver that ran it
+/// — the memo's priming source, and the identity that bounds it.
+#[derive(Debug)]
+struct PriorRun {
+    /// The resolver the run resolved through. `None` for a run with
+    /// none.
+    resolver: Option<Arc<dyn PartResolver>>,
+    /// The completed evaluation.
+    evaluation: Arc<Evaluation<f64>>,
+}
+
+/// Whether two requests' resolvers are the same SEAM, by `Arc`
+/// identity.
+///
+/// Pointer identity is the honest key here: a resolver value is
+/// immutably bound to its directory, and the session replaces the
+/// `Arc` exactly when that binding changes (open, save-as into a new
+/// directory). Comparing by directory instead would treat a rebind to
+/// the same path as a change (harmless) and, worse, would need the
+/// trait to expose an identity it does not have.
+fn same_resolver(a: &Option<Arc<dyn PartResolver>>, b: &Option<Arc<dyn PartResolver>>) -> bool {
+    match (a, b) {
+        (None, None) => true,
+        (Some(a), Some(b)) => Arc::ptr_eq(a, b),
+        _ => false,
+    }
+}
+
 /// Run the evaluation, priming the memo from `prior` and updating it
 /// when the run completes.
 ///
-/// The one place `evaluate` is called in this crate, shared by both
-/// implementations so the memo discipline — prime from the previous
-/// COMPLETED run only — has a single home.
+/// The seam's one call into `evaluate`, shared by both implementations
+/// so the memo discipline has a single home. Two rules, both here:
+///
+/// - **prime from the previous COMPLETED run only**;
+/// - **prime only under the SAME RESOLVER** ([`same_resolver`]). A
+///   memoized instantiate-node result is an answer the old resolver
+///   gave; priming a run whose resolver moved would let the memo
+///   answer for a directory nobody consulted — the silent-divergence
+///   class the directory rule exists to prevent, and exactly what
+///   made the save-as rebind inert before this gate existed. A
+///   resolver replacement therefore costs one full re-evaluation, by
+///   design: the next run re-resolves every reference against the new
+///   directory.
 fn run_once(
     request: &EvalRequest,
-    prior: &mut Option<Arc<Evaluation<f64>>>,
+    prior: &mut Option<PriorRun>,
     cancel: &CancelToken,
 ) -> Arc<Evaluation<f64>> {
+    let prime = prior
+        .as_ref()
+        .filter(|p| same_resolver(&p.resolver, &request.resolver))
+        .map(|p| p.evaluation.as_ref());
     let evaluation = Arc::new(evaluate::<f64>(
         &request.doc,
-        prior.as_deref(),
+        prime,
         cancel,
-        &EvalOptions::default(),
+        &EvalOptions {
+            resolver: request.resolver.clone(),
+            ..EvalOptions::default()
+        },
         request.tol,
     ));
     if evaluation.outcome == EvalOutcome::Completed {
-        *prior = Some(Arc::clone(&evaluation));
+        *prior = Some(PriorRun {
+            resolver: request.resolver.clone(),
+            evaluation: Arc::clone(&evaluation),
+        });
     }
     evaluation
 }
@@ -188,7 +243,7 @@ fn run_once(
 #[derive(Debug, Default)]
 pub struct InlineEvaluator {
     pending: Option<EvalRequest>,
-    prior: Option<Arc<Evaluation<f64>>>,
+    prior: Option<PriorRun>,
     cancel: CancelToken,
 }
 
@@ -239,13 +294,12 @@ pub use threaded::{SpawnError, ThreadEvaluator};
 /// build uses until a Worker-backed sibling lands beside this one.
 #[cfg(not(target_family = "wasm"))]
 mod threaded {
-    use std::sync::Arc;
     use std::sync::mpsc::{Receiver, Sender, TryRecvError, channel};
     use std::thread::JoinHandle;
 
-    use pncad::document::{CancelToken, Evaluation};
+    use pncad::document::CancelToken;
 
-    use super::{EvalDone, EvalRequest, EvalService, run_once};
+    use super::{EvalDone, EvalRequest, EvalService, PriorRun, run_once};
 
     /// A request plus the token that stops it.
     ///
@@ -268,6 +322,22 @@ mod threaded {
         /// The OS refused the thread.
         Thread(std::io::Error),
     }
+
+    impl core::fmt::Display for SpawnError {
+        fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+            match self {
+                Self::Thread(error) => {
+                    write!(
+                        f,
+                        "the evaluation worker could not be started: the OS refused \
+                         the thread: {error}"
+                    )
+                }
+            }
+        }
+    }
+
+    impl core::error::Error for SpawnError {}
 
     /// A background-thread evaluation seam.
     ///
@@ -343,7 +413,7 @@ mod threaded {
     /// above the seam holds the previous evaluation in order to hand
     /// it back.
     fn work(requests: &Receiver<Job>, results: &Sender<EvalDone>) {
-        let mut prior: Option<Arc<Evaluation<f64>>> = None;
+        let mut prior: Option<PriorRun> = None;
         while let Ok(job) = requests.recv() {
             let evaluation = run_once(&job.request, &mut prior, &job.cancel);
             if results

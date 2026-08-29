@@ -155,7 +155,7 @@ SQUARE_RE="$SQUARE_RE|(?<!\w)\(\s*[^()]*?\*\s*($SQUARE_PATH)\s*\)\s*\*\s*\2(?![\
 # skip cannot see across files. Resolved here, from the declaration
 # rather than from a list of names, so a new one needs no edit.
 production_sources() {
-  local decl dir name cands=() excl=()
+  local decl dir name narrowed=() cands=() excl=()
   # TWO STAGES, because reading every source twice costs more than this
   # gate is worth: raw `grep` narrows to the handful of files that carry
   # both the attribute and a `mod` declaration, and only those are read
@@ -166,8 +166,16 @@ production_sources() {
   # makes `#[cfg(test)] mod probes;` on ONE line and the same split over
   # two the same record — the earlier `grep -A1` form saw only the split
   # one, and cried wolf on the other.
-  mapfile -t cands < <(grep -lF '#[cfg(test)]' "${GATE_SOURCE_FILES[@]}" \
-    | xargs -r grep -lE '(^|[[:space:]])mod [a-z_][a-z0-9_]*;' || true)
+  #
+  # NO `xargs` BETWEEN THE STAGES. `xargs` reports 123 for any child that
+  # exited 1-125, which folds `grep`'s "nothing matched" and its "I could
+  # not search" into one status before anything here can tell them apart.
+  # The narrowed list is small by construction, so the second stage takes
+  # it as arguments.
+  mapfile -t narrowed < <(gate_grep -lF '#[cfg(test)]' "${GATE_SOURCE_FILES[@]}")
+  if [ "${#narrowed[@]}" -gt 0 ]; then
+    mapfile -t cands < <(gate_grep -lE '(^|[[:space:]])mod [a-z_][a-z0-9_]*;' "${narrowed[@]}")
+  fi
   if [ "${#cands[@]}" -gt 0 ]; then
     while IFS= read -r decl; do
       [ -n "$decl" ] || continue
@@ -175,17 +183,17 @@ production_sources() {
       name=${decl##*:}
       excl+=("$dir/$name.rs" "$dir/$name/")
     done < <(gate_rust_code --statements "${cands[@]}" \
-      | grep -E '#\[cfg\(([^]]*[(,][[:space:]]*)?test[,)]' \
-      | grep -vE '#\[cfg\([^]]*(any|not)\(' \
-      | grep -oE '^[^:]*:[0-9]+:.*[[:space:]]mod [a-z_][a-z0-9_]*$' \
-      | sed -E 's/:[0-9]+:.*[[:space:]]mod /:/' || true)
+      | gate_grep -E '#\[cfg\(([^]]*[(,][[:space:]]*)?test[,)]' \
+      | gate_grep -vE '#\[cfg\([^]]*(any|not)\(' \
+      | gate_grep -oE '^[^:]*:[0-9]+:.*[[:space:]]mod [a-z_][a-z0-9_]*$' \
+      | sed -E 's/:[0-9]+:.*[[:space:]]mod /:/')
   fi
   if [ "${#excl[@]}" -eq 0 ]; then
     printf '%s\n' "${GATE_SOURCE_FILES[@]}"
     return 0
   fi
   printf '%s\n' "${GATE_SOURCE_FILES[@]}" \
-    | grep -vF "$(printf '%s\n' "${excl[@]}")" || true
+    | gate_grep -vF "$(printf '%s\n' "${excl[@]}")"
 }
 
 gate() {
@@ -198,10 +206,10 @@ gate() {
     exit 1
   fi
   hits=$(gate_rust_code --skip-cfg-test --statements "${files[@]}" \
-    | grep -P "$SQUARE_RE" \
-    | grep -vE '^crates/geom-core/src/(real|ring_interval)\.rs:' \
-    | grep -vE '^crates/geom-core/src/linalg/(svd|lsq)\.rs:' \
-    | grep -vE '^crates/geom-brep/src/ssi/(jet|march|system)\.rs:' || true)
+    | gate_grep -P "$SQUARE_RE" \
+    | gate_grep -vE '^crates/geom-core/src/(real|ring_interval)\.rs:' \
+    | gate_grep -vE '^crates/geom-core/src/linalg/(svd|lsq)\.rs:' \
+    | gate_grep -vE '^crates/geom-brep/src/ssi/(jet|march|system)\.rs:')
   if [ -n "$hits" ]; then
     printf '%s\n' "$hits"
     gate_error "use powi(2): it is strictly tighter than x*x when the enclosure straddles zero, and equal elsewhere except for a square below 2^-960, where the backend pads once more (see this gate's header — NOT 'never wider'). Whether THIS enclosure can straddle zero is a global property of upstream callers that refactors change silently — four live bugs arrived exactly that way. Convert, or ratify this file into the allowlist."
@@ -337,6 +345,11 @@ plant_gated_module_file() {
 gate_selftest() {
   local want="use powi(2)"
   gate_selftest_clean
+  # A `grep` that cannot run is the failure this gate cannot see for
+  # itself: it produces no hits, and no hits is what a clean tree
+  # produces. Proved here rather than asserted, because before
+  # `gate_grep` this exact fixture printed OK and exited 0.
+  gate_selftest_without_tool grep "it is grep saying it could not search"
   gate_selftest_case "$want" plant
   gate_selftest_case "$want" plant_field_path
   gate_selftest_case "$want" plant_self_field
@@ -350,7 +363,7 @@ gate_selftest() {
   gate_selftest_passes "prose, string literals, mixed products, a * a.method(), a call whose result multiplies its own argument, a parenthesized product whose last factor is not the repeated one, and a cfg(test) module" plant_not_squares
   gate_selftest_passes "a square in a module file whose declaration is cfg(test)-gated" plant_gated_module_file
   gate_selftest_passes "the same, declared on one line" plant_gated_module_file_one_line
-  printf '%s selftest OK: passes a clean fixture, prose/strings/mixed products/`a * a.method()`/a cfg(test) module, and a test-only module file declared on one line or two; fires on a bare identifier, a field path, a `self.` field, a two-level path, a rustfmt-wrapped product, a square behind a block comment, a PARENTHESIZED SCALED square in both bare and field-path form, the same module file registered WITHOUT the cfg gate, and one registered under any(debug_assertions, test), which is every debug build\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture, prose/strings/mixed products/`a * a.method()`/a cfg(test) module, and a test-only module file declared on one line or two; fires on a bare identifier, a field path, a `self.` field, a two-level path, a rustfmt-wrapped product, a square behind a block comment, a PARENTHESIZED SCALED square in both bare and field-path form, the same module file registered WITHOUT the cfg gate, and one registered under any(debug_assertions, test), which is every debug build; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

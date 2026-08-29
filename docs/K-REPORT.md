@@ -174,9 +174,12 @@ gathered across M2's full pipeline.
   executed set is `scripts/gates/probe-suite-census.sh`'s `RUN_FLOOR`,
   and `scripts/k_probe_sweep.sh` is what runs it: two `--ignored` dump
   invocations (`m4_pr8_k_probe::` in `editor-core`, `k_report::` in
-  `sweep`) inside the ε loop, and two default-selection preconditions
-  before it (`m4_pr8_k_probe::` and `m5_pr5_corpus_probe::`, both in
-  `editor-core`). Every other censused suite is compiled and not run, and
+  `sweep`) inside the ε loop, and five default-selection runs before it
+  (`m4_pr8_k_probe::` and `m5_pr5_corpus_probe::` in `editor-core`,
+  `certified_door::` in `geom-core`, `k_report::` and
+  `review_chamfer_r1_probes::` in `sweep` — `k_report::` runs no test
+  under that selection and is rostered so its row reports the
+  complement). Every other censused suite is compiled and not run, and
   each of them says so in its own header — the census gate refuses a
   probe suite that is on neither side, so a new one has to pick.
 
@@ -361,11 +364,11 @@ unified `geom_core::k_stats` funnel — the richest crop yet, and the
 first computed-intersection (rather than construction-controlled)
 margin sources, exactly the pressure source Finding 4 anticipated:
 
-- **25 `bool_*`** (boolean reduction/classification/join;
+- **24 `bool_*`** (boolean reduction/classification/join;
   `crates/topo`): `bool_contact_edge`, `bool_contact_edge_span`,
   `bool_contact_vertex`, `bool_dir_parallel`, `bool_dir_same`,
   `bool_ee_collinear`, `bool_faces_parallel`, `bool_germ_line`,
-  `bool_join_chord`, `bool_join_facing`, `bool_join_nearest`,
+  `bool_join_facing`, `bool_join_nearest`,
   `bool_plane_offset`,
   `bool_plane_orient`, `bool_plane_parallel`,
   `bool_point_in_solid_{advance,denom,infinity,order,plane}`,
@@ -389,16 +392,33 @@ margin sources, exactly the pressure source Finding 4 anticipated:
   `split_join_frame_arm`, `split_section_area`,
   `split_sector_{arm,coplanar,extent,reflex,straight}`,
   `split_vertex_side`.
-- **5 `point_in_loop_*`** (trilean containment, `laringmv`/F8 ray
-  parity): `point_in_loop_{advance,arm,boundary,segment,side}`.
-  `_segment` (the segment-length degeneracy gate) was split off
-  `_boundary` (the point-to-segment distance) by #712, which found one
-  name deciding two questions; the family's samples and margins are
-  unchanged, the 49 290 `_boundary` samples of the M7 sweep now
-  splitting 24 645 / 24 645.
+- **4 `point_in_loop_*`** (trilean containment, `laringmv`/F8 ray
+  parity): `point_in_loop_{advance,arm,boundary,side}`.
 - **2 `enters_material*`** (the F3 sign-chain primitive;
   `crates/geom-brep/src/enters.rs`): `enters_material`,
   `enters_material_arm`.
+
+24 + 19 + 10 + 4 + 2 = 59, which is the count in the sentence above:
+the bullets are the crop, and the arithmetic closing is how a reader
+checks that neither has moved.
+
+**Two names in these families were minted AFTER this snapshot and are
+therefore NOT in it**, recorded here rather than folded into the
+bullets — same rule as the seven orphans below, and for the same
+reason: back-filling a dated crop makes it describe something it never
+described.
+
+- **`bool_join_chord`** (#719) splits the germ-chord LENGTH gate off
+  `bool_join_nearest`, which keeps the nearest-candidate DIFFERENCE.
+  The M4 addendum's decade-3 tail reads the split off the committed
+  rows ("The `bool_join_nearest` 38 stay under that name", below).
+- **`point_in_loop_segment`** (#712) splits the segment-length
+  degeneracy gate off `point_in_loop_boundary`, which keeps the
+  point-to-segment distance — one name that was deciding two
+  questions. The family's samples and margins are unchanged: the
+  49 290 `_boundary` samples of the M7 sweep split 24 645 / 24 645.
+  So the M5 per-family table below correctly reads
+  `point_in_loop_* | 4`, and a post-#712 sweep reads five.
 
 (Inventory method: **superseded 2026-08-20 — see "The inventory
 method, restated" below.** The method this addendum was cut with was
@@ -485,7 +505,8 @@ code scan misses names not written as a literal at a funnel site (the
 83 above). The CSV column — "what the corpus actually emitted" — misses
 names the corpus never reaches: **88** of the 238 literal names are
 absent from the M7 baseline, `bool_join_chord` among them, and it is
-listed in the M3 crop above. Neither is a roster alone. Re-deriving:
+named in the post-snapshot note under the M3 crop above. Neither is a
+roster alone. Re-deriving:
 
 ```sh
 # behavioural half — what a fresh sweep emitted

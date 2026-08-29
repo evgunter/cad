@@ -261,6 +261,12 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
         "replace_face_offset",
         "the one-face spelling of `replace_faces_offset`, which it calls",
     ),
+    (
+        "offset_planes_together",
+        "mutates a clone only through `set_face_surface`/`set_edge_curve` (both asserting) \
+         and one point re-write per vertex, and gates the clone on `validate_closed` before \
+         adopting it",
+    ),
     // ---- Setters carrying their own tier-1 debug_assert. ----
     (
         "set_face_surface",

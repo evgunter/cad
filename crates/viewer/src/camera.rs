@@ -34,6 +34,7 @@
 
 use bvh::{Aabb, Axis};
 use pncad::geom_core::{Point3, Vec3};
+use pncad::select::Ray;
 
 /// Elevation is held strictly inside `±(π/2 − POLE_MARGIN)`.
 ///
@@ -169,6 +170,43 @@ pub enum CameraError {
     },
 }
 
+impl core::fmt::Display for CameraError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::NotFinite { what, value } => {
+                write!(
+                    f,
+                    "the camera's {what} is {value}, which is not a finite number"
+                )
+            }
+            Self::DegenerateScene { radius } => write!(
+                f,
+                "the scene bounds give a radius of {radius}, which is not a positive \
+                 extent to frame against"
+            ),
+            Self::FieldOfViewOutOfRange { fov_y } => write!(
+                f,
+                "a vertical field of view of {fov_y} rad is not strictly inside (0, pi)"
+            ),
+            Self::UnusableBounds => f.write_str(
+                "the framing request names no view — the bounds are empty or carry a \
+                 NaN bound, or the viewport aspect is not a positive finite ratio",
+            ),
+            Self::Unfittable {
+                required,
+                max_distance,
+                aspect,
+            } => write!(
+                f,
+                "fitting the scene at aspect {aspect} needs a stand-off of {required}, \
+                 past the zoom band's furthest distance of {max_distance}"
+            ),
+        }
+    }
+}
+
+impl core::error::Error for CameraError {}
+
 /// A move on a [`Camera`]: the whole navigation vocabulary.
 ///
 /// Angles are radians, lengths are world units (the kernel's meters),
@@ -232,6 +270,46 @@ pub enum CameraOpError {
     /// A [`CameraOp::Frame`] whose bounds or aspect could not produce
     /// a camera.
     Unframeable(CameraError),
+}
+
+impl core::fmt::Display for CameraOpError {
+    /// The [`CameraOpError::Unframeable`] arm forwards to
+    /// [`CameraError`]'s own `Display`: the framing layer named that
+    /// failure and this layer does not restate it.
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::NotFinite { what, value } => write!(
+                f,
+                "the operation's {what} is {value}, which is not a finite number"
+            ),
+            Self::NonPositiveDolly { factor } => write!(
+                f,
+                "a dolly factor of {factor} is not a positive scale for a viewing \
+                 distance"
+            ),
+            Self::Unframeable(error) => write!(f, "{error}"),
+        }
+    }
+}
+
+impl core::error::Error for CameraOpError {}
+
+/// The vocabulary in prose, for the status line that reports which
+/// move was refused. Deltas are the operation's own units — radians
+/// for angles, world units for lengths.
+impl core::fmt::Display for CameraOp {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Orbit { yaw, pitch } => {
+                write!(f, "orbit by yaw {yaw} rad, pitch {pitch} rad")
+            }
+            Self::Pan { right, up } => write!(f, "pan by right {right}, up {up}"),
+            Self::Dolly { factor } => write!(f, "dolly by a factor of {factor}"),
+            Self::Frame { aspect, .. } => {
+                write!(f, "frame the given bounds at aspect {aspect}")
+            }
+        }
+    }
 }
 
 impl Camera {
@@ -557,6 +635,88 @@ impl Camera {
             return Ok(None);
         }
         Ok(Some([out[0] / out[3], out[1] / out[3], out[2] / out[3]]))
+    }
+
+    /// The world ray through a cursor position — the **un-projection**,
+    /// and the inverse of [`Camera::project`] on the frustum's
+    /// direction (not on depth: a pixel names a ray, never a point).
+    ///
+    /// `cursor_px` is in the viewport's own physical pixels, `+x`
+    /// right and `+y` DOWN — the one screen convention this crate has
+    /// ([`crate::input`]'s module docs), so the flip to the camera's
+    /// `+y`-up frame happens here and only here.
+    ///
+    /// The ray starts at the eye and its direction is a UNIT vector,
+    /// which makes the `t` a hit comes back with a world distance.
+    /// A cursor outside the viewport rectangle is not refused: it
+    /// denotes a ray outside the frustum, which is a well-defined
+    /// direction and an honest miss, and refusing it would put a
+    /// bounds check on the caller for no gain.
+    ///
+    /// # Errors
+    ///
+    /// [`CameraError::NotFinite`] for a non-finite cursor coordinate
+    /// or viewport dimension, and [`CameraError::UnusableBounds`] for
+    /// a viewport with no area — the same two refusals
+    /// [`Camera::projection_matrix`] makes about the same quantities.
+    pub fn ray_through(
+        &self,
+        cursor_px: [f64; 2],
+        viewport: crate::input::ViewportSize,
+    ) -> Result<Ray, CameraError> {
+        let [cx, cy] = cursor_px;
+        finite("cursor x", cx)?;
+        finite("cursor y", cy)?;
+        finite("viewport width", viewport.width_px)?;
+        finite("viewport height", viewport.height_px)?;
+        let Some(aspect) = viewport.aspect() else {
+            return Err(CameraError::UnusableBounds);
+        };
+        // Normalized device coordinates, through the conversion's one
+        // home (`ViewportSize::ndc_of`) rather than a second spelling
+        // of the y-flip here.
+        let Some([ndc_x, ndc_y]) = viewport.ndc_of([cx, cy]) else {
+            return Err(CameraError::UnusableBounds);
+        };
+        // The projection scales view-space x by `t / aspect` and y by
+        // `t`, where `t = cot(fov_y / 2)`; inverting that on a point at
+        // unit distance down the view axis gives the offsets below.
+        let half_height = (self.fov_y * 0.5).tan();
+        let (f, r, u) = (self.forward(), self.right(), self.up());
+        let sx = ndc_x * half_height * aspect;
+        let sy = ndc_y * half_height;
+        let dir = Vec3::new(
+            f.x + r.x * sx + u.x * sy,
+            f.y + r.y * sx + u.y * sy,
+            f.z + r.z * sx + u.z * sy,
+        );
+        // `powi(2)`, not `x * x` — the ratified interval-square rule
+        // (`scripts/gates/interval-square-allowlist.sh`), which this
+        // file is subject to like every other. The rule's own reason is
+        // the gate's: `powi(2)` is strictly tighter than `x * x` when
+        // the enclosure straddles zero and equal elsewhere, EXCEPT for a
+        // square below 2^-960 where the backend pads once more — so it
+        // is not "never wider", and whether a given enclosure can
+        // straddle zero is a global property of upstream callers that
+        // refactors change silently. Which is why the spelling is a
+        // gate rather than a judgement call at each site.
+        let len = (dir.x.powi(2) + dir.y.powi(2) + dir.z.powi(2)).sqrt();
+        // `forward` is a unit vector and the offsets are perpendicular
+        // to it, so the length is at least 1 for every finite cursor;
+        // the guard is here because a non-finite one would otherwise
+        // divide by NaN and hand back a poisoned ray as if it were an
+        // answer, and the finiteness checks above are on the INPUT,
+        // not on the arithmetic.
+        if !(len.is_finite() && len > 0.0) {
+            return Err(CameraError::NotFinite {
+                what: "ray direction",
+                value: len,
+            });
+        }
+        Ok(Ray {
+            origin: self.eye(),
+            dir: Vec3::new(dir.x / len, dir.y / len, dir.z / len),
+        })
     }
 }
 

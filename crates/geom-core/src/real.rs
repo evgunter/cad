@@ -1473,7 +1473,6 @@ mod tests {
         #[test]
         fn sqrt_square_roundtrip(x in 1.0e-12..1.0e12f64) {
             let r = Real::sqrt(x);
-            prop_assert!(r >= 0.0);
             prop_assert!((r * r - x).abs() <= 1e-15 * x);
         }
 

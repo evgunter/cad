@@ -179,7 +179,19 @@ pub fn donut() -> Body<f64> {
 ///
 /// Exact volume: the zone integral plus the frustum,
 /// `π[r²(a+b) − (a³+b³)/3] + π·h(R₂² + R₂ρ + ρ²)/3` with r = 0.44,
-/// a = 0.40, b = 0.36, R₂ = √(r²−b²), ρ = 0.09, h = 0.16.
+/// a = 0.40, b = 0.36, R₂ = √(r²−b²), ρ = 0.09, h = 0.16 —
+/// **0.36225803729804673 m³**.
+///
+/// **This is no longer the same solid as the tour's `lily_lantern`,
+/// and the difference is deliberate.** That body was re-authored to
+/// weld to its stem on a shared circle (#1059): above the truncation
+/// circle it opens through a NECK cone cut at the arch tube's radius,
+/// which adds a third frustum term and brings it to
+/// 0.36455193285177373 m³. What this fixture is FOR is the corpus
+/// property below — a spherical face with neither pole on it, the one
+/// curved body whose FreeCAD edge count equals the kernel's — and a
+/// neck would add faces without adding that. The two bodies share a
+/// name and a globe, not a volume.
 pub fn lily_lantern() -> Body<f64> {
     use profile::{ArcSweep, Center, Open, Start};
     use sweep::{Revolution, revolve};

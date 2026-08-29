@@ -375,8 +375,15 @@ impl<T: Real> SweptChord<T> for WallSeg<T> {
 }
 
 /// A strut-edge spec: `ExtrudedPoint` description, straight-line
-/// carrier from the bottom point along the extrusion vector.
-fn strut_spec<T: Real>(
+/// carrier from the bottom point along the extrusion vector,
+/// parameterized by arc length over `0..w_norm`.
+///
+/// Not `revolve::surfaces`'s `revolved_strut_spec`, which mints the
+/// same topological edge out of the rotation family: different
+/// description, different carrier class, different parameter interval.
+/// The two share the role and nothing else, which is why they do not
+/// share a name.
+fn extruded_strut_spec<T: Real>(
     point: Point2<T>,
     place: Affine3<T>,
     q_bottom: Point3<T>,
@@ -739,7 +746,7 @@ fn sweep_loop<T: Decide>(
                 he2: hes[j],
             },
             qs[j] + w,
-            strut_spec(segs[j].chord.a, place, qs[j], w, w_norm),
+            extruded_strut_spec(segs[j].chord.a, place, qs[j], w, w_norm),
             tol,
         )?;
         struts.push(m);

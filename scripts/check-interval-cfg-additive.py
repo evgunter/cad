@@ -1,19 +1,35 @@
 #!/usr/bin/env python3
 """Tripwire: the `interval` cargo feature must stay PURELY ADDITIVE.
 
-WHY. The interval CI run legs execute only the tests the feature adds
-(scripts/interval-only-selection.py derives that set as an archive
-difference). That is sound only while enabling `interval` cannot change
-how the DEFAULT build behaves — i.e. while every
-`#[cfg(feature = "interval")]` item only ADDS an `Interval`
-implementation, module, alias or test, and nothing anywhere is compiled
-`cfg(not(feature = "interval"))`. Rust has no specialization, so adding
-impls cannot move f64 monomorphization; that is the whole argument, and
-this script is what keeps its premise true.
+WHY. Two live claims rest on it. The LOCAL gate's interval legs execute
+only the tests the feature adds (scripts/interval-only-selection.py
+derives that set as an archive difference); the HOSTED lane reversed that
+selection when the matrix went sampled and runs the whole suite, which
+needs the same premise for a sharper reason — on an interval draw the
+default lane does not run at all, so this lane stands in for it.
+
+Both are sound only while enabling `interval` cannot change how the
+DEFAULT build behaves — i.e. while every `#[cfg(feature = "interval")]`
+item only ADDS an `Interval` implementation, module, alias or test, and
+nothing under `crates/*/src` is compiled `cfg(not(feature =
+"interval"))`. Rust has no specialization, so adding impls cannot move
+f64 monomorphization; that is the whole argument, and this script is what
+keeps its premise true.
+
+`crates/*/tests` IS A DIFFERENT RULE, not the same one extended, and the
+distinction is the one thing a reader of this header must not lose:
+negation is LEGITIMATE there and in use (the loud-skip marker rows, which
+exist only without the feature so that a lane contributing no certified
+interval coverage stays visible in the battery log). What `tests` owes
+instead is WHOLE-ITEM gating, either polarity — see `check_file`'s
+`in_tests` branch — because that is what makes a test present in both
+builds identical code in both. So the premise above is a claim about
+`src`; the rows only the default build has are real, they are those
+markers, and an interval-lane run does not execute them.
 
 If this ever fails, do NOT allowlist it to get green. A non-additive cfg
-means the interval legs must go back to running the full suite — the
-run-leg selection and this gate stand or fall together.
+in `src` means neither claim above survives — the run-leg selection, the
+sampled lane's stand-in, and this gate stand or fall together.
 
 STATED RESIDUAL (this is a syntactic check, not a semantic one). It
 cannot see through a gated `mod` whose contents are non-additive, nor
@@ -162,10 +178,11 @@ def check_file(path, rel, violations, in_tests=False):
         # In `tests`, EVERY interval cfg (positive or negative) must gate
         # a whole item. A cfg block INSIDE a shared test body would make
         # one test name mean two different things depending on the
-        # feature — and since the interval legs run only the tests the
-        # feature ADDS, such a test counts as "shared", so its interval
-        # half would never run anywhere. Whole-item gating is what makes
-        # "present in both builds ⇒ identical code" structurally true.
+        # feature — and since the LOCAL gate's interval legs run only the
+        # tests the feature ADDS, such a test counts as "shared", so its
+        # interval half would never run there. Whole-item gating is what
+        # makes "present in both builds ⇒ identical code" structurally
+        # true, which is also what the hosted lane's stand-in rests on.
         gate = ANY_GATE.search(line) if in_tests else GATE.search(line)
         if not gate:
             continue
@@ -185,9 +202,10 @@ def check_file(path, rel, violations, in_tests=False):
             violations.append(
                 "{}:{}: an interval cfg here gates a BLOCK, not a whole item. "
                 "Split it into its own `#[cfg(feature = \"{}\")] #[test]` row: "
-                "the interval CI legs run only the tests the feature adds, so a "
-                "test present in both builds must run identical code — otherwise "
-                "this row's interval half runs nowhere.\n      {}".format(
+                "the local gate's interval legs run only the tests the feature "
+                "adds, so a test present in both builds must run identical code "
+                "— otherwise this row's interval half runs nowhere there.\n"
+                "      {}".format(
                     rel, j + 1, FEATURE, lines[j].strip()
                 )
             )
