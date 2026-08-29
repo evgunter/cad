@@ -422,7 +422,9 @@ fn exterior_mass(
                 Ok(if lo <= ulo && ulo <= hi { 0.0 } else { 1.0 })
             }
         }
-        Distribution::Normal { sigma } => Ok(clamp_unit(std_normal_exterior(lo / sigma, hi / sigma))),
+        Distribution::Normal { sigma } => {
+            Ok(clamp_unit(std_normal_exterior(lo / sigma, hi / sigma)))
+        }
         Distribution::TruncatedNormal {
             sigma,
             lo: tlo,
@@ -437,8 +439,8 @@ fn exterior_mass(
                 // The truncation window minus the overlap is two
                 // sub-windows; each is measured directly, so the
                 // numerator never subtracts two near-equal masses.
-                let outside =
-                    std_normal_mass(tlo / sigma, a / sigma) + std_normal_mass(b / sigma, thi / sigma);
+                let outside = std_normal_mass(tlo / sigma, a / sigma)
+                    + std_normal_mass(b / sigma, thi / sigma);
                 Ok(clamp_unit(outside / total))
             } else {
                 // A zero-width window is the point mass at the

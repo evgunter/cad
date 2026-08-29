@@ -35,8 +35,8 @@ use std::sync::Arc;
 
 use pncad::document::{
     Alignment, Dimension, DimensionError, Doc, DocEdit, DocParam, EditError, Evaluation, Frame,
-    Node, ParamName, ParseError, PartResolver, ProductError, ProfileProgram,
-    RecipeNodeId, SlotId, apply, assemble, parse_expr, product,
+    Node, ParamName, ParseError, PartResolver, ProductError, ProfileProgram, RecipeNodeId, SlotId,
+    apply, assemble, parse_expr, product,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;

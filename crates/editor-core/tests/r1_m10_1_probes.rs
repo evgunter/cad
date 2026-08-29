@@ -201,15 +201,15 @@ fn truncated_normal_tail_is_exactly_zero_on_its_own_support() {
 fn band_answers_are_exactly_the_measure_free_ones() {
     let band = Distribution::Band { lo: -1.0, hi: 1.0 };
     let cases: [(f64, f64, Option<f64>); 9] = [
-        (-3.0, -2.0, Some(0.0)),  // disjoint left
-        (2.0, 3.0, Some(0.0)),    // disjoint right
-        (-3.0, 3.0, Some(1.0)),   // strictly covers
-        (-1.0, 1.0, Some(1.0)),   // exactly the support
-        (-3.0, -1.0, None),       // touches at lo: an atom could sit there
-        (1.0, 3.0, None),         // touches at hi
-        (-3.0, 0.0, None),        // partial from the left
-        (0.0, 3.0, None),         // partial from the right
-        (-0.5, 0.5, None),        // strictly inside
+        (-3.0, -2.0, Some(0.0)), // disjoint left
+        (2.0, 3.0, Some(0.0)),   // disjoint right
+        (-3.0, 3.0, Some(1.0)),  // strictly covers
+        (-1.0, 1.0, Some(1.0)),  // exactly the support
+        (-3.0, -1.0, None),      // touches at lo: an atom could sit there
+        (1.0, 3.0, None),        // touches at hi
+        (-3.0, 0.0, None),       // partial from the left
+        (0.0, 3.0, None),        // partial from the right
+        (-0.5, 0.5, None),       // strictly inside
     ];
     for (a, b, expected) in cases {
         let got = box_mass(&p("bore"), &band, (a, b));
@@ -421,7 +421,10 @@ fn the_param_env_is_blind_to_annotations_even_after_a_round_trip() {
                 value: DocParam::continuous_with(
                     Dimension::Angle,
                     0.25,
-                    Distribution::Uniform { lo: -0.01, hi: 0.02 },
+                    Distribution::Uniform {
+                        lo: -0.01,
+                        hi: 0.02,
+                    },
                 ),
             },
             Tol::witness(),
@@ -468,11 +471,7 @@ fn a_mixed_document_analyzes_end_to_end() {
         ),
         (
             "normal",
-            DocParam::continuous_with(
-                Dimension::Scalar,
-                0.5,
-                Distribution::Normal { sigma: 0.01 },
-            ),
+            DocParam::continuous_with(Dimension::Scalar, 0.5, Distribution::Normal { sigma: 0.01 }),
         ),
         (
             "truncated",

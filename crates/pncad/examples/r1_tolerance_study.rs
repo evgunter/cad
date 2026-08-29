@@ -40,7 +40,10 @@ fn main() {
             DocParam::continuous_with(
                 Dimension::Length,
                 0.012,
-                Distribution::Band { lo: -2e-4, hi: 2e-4 },
+                Distribution::Band {
+                    lo: -2e-4,
+                    hi: 2e-4,
+                },
             ),
         ),
         (
@@ -60,7 +63,10 @@ fn main() {
             DocParam::continuous_with(
                 Dimension::Scalar,
                 1.0,
-                Distribution::Uniform { lo: -0.02, hi: 0.02 },
+                Distribution::Uniform {
+                    lo: -0.02,
+                    hi: 0.02,
+                },
             ),
         ),
         ("holes", DocParam::Count { value: 4 }),
@@ -99,7 +105,11 @@ fn main() {
             axis.nominal,
             axis.offsets.lo,
             axis.offsets.hi,
-            if axis.offsets.is_fixed() { "  (FIXED)" } else { "" },
+            if axis.offsets.is_fixed() {
+                "  (FIXED)"
+            } else {
+                ""
+            },
         );
     }
 

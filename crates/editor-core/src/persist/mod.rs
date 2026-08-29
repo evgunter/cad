@@ -393,6 +393,21 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 /// structural parameters are fixed under any error analysis, which
 /// comes out unrepresentable rather than as a refusal.
 ///
+/// **The same break also carries a new edit arm**, and it rides here
+/// rather than taking a number of its own because it is part of the
+/// same change: an optional annotation is worth nothing if the
+/// ordinary way to move a parameter's value deletes it.
+/// [`crate::DocEdit::SetDocParamValue`] writes a new value into an
+/// already-declared parameter and carries the declaration — dimension
+/// AND distribution — forward, where [`crate::DocEdit::SetDocParam`]
+/// is create-or-replace and a caller who rebuilt a `DocParam` from
+/// `(dim, value)` silently dropped the annotation. The edit log is
+/// file data, so a v14 reader handed a log containing the new arm
+/// meets a variant its `deny_unknown_fields` edit type has no name for
+/// and dies inside serde — the same direction, failed the same way, by
+/// the same gate. A v15 file whose log contains no value edits is the
+/// degenerate carry, exactly as an all-`None` distribution is.
+///
 /// This number was taken by an explicit by-eye read of main's constant
 /// at the final re-merge (`git show
 /// origin/main:crates/editor-core/src/persist/mod.rs | grep

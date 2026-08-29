@@ -4,9 +4,13 @@
 //! **Document-layer metadata, and nothing else.** A distribution is
 //! inert data hanging off a parameter: it feeds no evaluation, no
 //! content key, no predicate. The kernel and geometry lanes never see
-//! a probability; the ONE reader is [`crate::analysis`], which
+//! a probability; the ONE INTERPRETER is [`crate::analysis`], which
 //! projects a distribution to the analyzed box and to mass (E1's
-//! boundary).
+//! boundary). Other code READS the field — the GUI carries it forward
+//! across a value edit, the Python bindings fold it into equality,
+//! hashing and `repr`, persistence writes and re-reads it — but none
+//! of that asks what it MEANS. Reading a distribution as a measure
+//! happens in exactly one module.
 //!
 //! **Offsets, in the parameter's own dimension.** Every field is an
 //! offset RELATIVE to the parameter's nominal value, in canonical
@@ -22,7 +26,18 @@
 //!
 //! **Band carries no measure** (E2). It states limits without a shape,
 //! which is real information; defaulting it to uniform would be a
-//! different and stronger claim. Every mass door refuses on a Band.
+//! different and stronger claim.
+//!
+//! What that costs at the mass doors is exactly the SHAPE-dependent
+//! questions, and no more. A band answers the two questions every
+//! measure supported on `[lo, hi]` answers the same way — an interval
+//! containing the whole support holds mass 1, one disjoint from it
+//! holds 0 — because those are set facts rather than shape claims.
+//! Anything finer refuses, naming the parameter. "Prices nothing" is
+//! therefore true of every question whose answer would depend on the
+//! shape, and false as a claim that the doors always refuse; the
+//! second reading is the one a driver would be surprised by, so it is
+//! spelled out here.
 
 /// The v1 distribution vocabulary (E2, verbatim).
 ///

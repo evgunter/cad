@@ -112,9 +112,11 @@ fn a_corrupt_distribution_in_a_saved_edit_log_refuses_at_load() {
     let base = ProfileDoc::empty(DocumentId::derive("r1-corrupt-log"), Tol::witness());
     let edit = DocEdit::SetDocParam {
         name: ParamName::new("s"),
-        value: DocParam::continuous_with(Dimension::Length, 1.0, Distribution::Normal {
-            sigma: 0.01,
-        }),
+        value: DocParam::continuous_with(
+            Dimension::Length,
+            1.0,
+            Distribution::Normal { sigma: 0.01 },
+        ),
     };
     let text = save(&base, std::slice::from_ref(&edit), Tol::witness())
         .expect("a valid snapshot+log saves");

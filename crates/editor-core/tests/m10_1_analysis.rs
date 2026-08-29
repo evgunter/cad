@@ -4,7 +4,9 @@
 //! The rows below are the falsifiable half of this unit's claims:
 //! analyzed + tail = 1 for every form and box the suite can build,
 //! `TruncatedNormal`'s tail is exactly zero on its own support, and a
-//! `Band` prices nothing anywhere a measure is genuinely needed.
+//! `Band` prices nothing whose answer would depend on its shape — it
+//! answers the two set-theoretic cases (a covering interval, a
+//! disjoint one) and refuses the rest.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -150,8 +152,22 @@ fn the_bounded_forms_have_exactly_zero_tail() {
     }
 }
 
-/// A normal's tail is what the box left out, and the two columns sum
-/// to one — the accounting identity, over a spread of policies.
+/// The quantile box holds the mass the policy asked for, over a
+/// spread of policies.
+///
+/// **Demoted, and what it no longer claims.** This row was written to
+/// assert `analyzed + tail = 1`, which it could not falsify: `tail_mass`
+/// was DEFINED as `1 - box_mass` over the same interval, so the sum was
+/// an identity of `f64` subtraction and no implementation of the
+/// measure could have made it red. The two columns now come from
+/// different arithmetic — the tail sums two `erfc` half-lines, the box
+/// differences them — but the claim that they agree with an
+/// INDEPENDENT oracle is owned by
+/// `m10_1_r2_probes::the_normal_tail_is_the_exterior_mass_not_merely_one_minus_inside`,
+/// which computes the exterior outside this module entirely, and by
+/// `m10_1_r2_probes::the_deep_tail_is_not_lost_to_cancellation` for the
+/// far tail. What is left here, and is genuinely this row's, is that
+/// the BISECTION lands where the policy asked it to.
 #[test]
 fn analyzed_and_tail_mass_sum_to_one_for_a_normal() {
     let dist = Distribution::Normal { sigma: 0.01 };
@@ -168,16 +184,22 @@ fn analyzed_and_tail_mass_sum_to_one_for_a_normal() {
             (inside - mass).abs() < 1e-12,
             "the box holds the mass it was asked for: {inside} vs {mass}"
         );
-        assert!(
-            (inside + tail - 1.0).abs() < 1e-12,
-            "analyzed + tail = 1, got {inside} + {tail}"
-        );
         assert!(tail > 0.0, "a normal always leaves something outside");
     }
 }
 
 /// Every priceable form × a spread of sub-boxes: mass stays in
-/// `[0, 1]`, and inside + outside = 1.
+/// `[0, 1]`.
+///
+/// **Demoted for the same reason as the row above**, and to the same
+/// residue: the `inside + outside = 1` assertion this row carried was
+/// an identity of subtraction, not a claim about the measure. The
+/// additivity it also checked — abutting pieces summing to the whole,
+/// which is the property a leaf-pricing driver consumes — is owned by
+/// `m10_1_r2_probes::box_mass_is_additive_over_an_abutting_partition`,
+/// over ten pieces rather than two. The range check is what remains,
+/// and it is a real one: a mass outside `[0, 1]` is a report nobody
+/// can read.
 #[test]
 fn the_accounting_identity_holds_for_every_priceable_form_and_box() {
     let forms = [
@@ -208,20 +230,11 @@ fn the_accounting_identity_holds_for_every_priceable_form_and_box() {
                 "{inside} for {dist:?} over {b:?}"
             );
             assert!(
-                (inside + outside - 1.0).abs() < 1e-12,
-                "{inside} + {outside} for {dist:?} over {b:?}"
+                (0.0..=1.0).contains(&outside),
+                "{outside} for {dist:?} over {b:?}"
             );
         }
     }
-    // Sub-boxes partition: two abutting halves sum to the whole.
-    let dist = Distribution::Normal { sigma: 0.1 };
-    let whole = box_mass(&p("x"), &dist, (-0.4, 0.4)).expect("priced");
-    let left = box_mass(&p("x"), &dist, (-0.4, 0.05)).expect("priced");
-    let right = box_mass(&p("x"), &dist, (0.05, 0.4)).expect("priced");
-    assert!(
-        (left + right - whole).abs() < 1e-12,
-        "{left} + {right} != {whole}"
-    );
 }
 
 /// A truncated normal is renormalized, not merely clipped: its own
@@ -254,7 +267,8 @@ fn a_truncated_normal_is_renormalized() {
     );
 }
 
-/// **A band prices nothing.** It refuses typed, NAMING the parameter,
+/// **A band prices nothing shape-dependent.** It refuses typed,
+/// NAMING the parameter,
 /// wherever the answer would depend on a shape it does not state — and
 /// answers only where every measure on the band agrees.
 #[test]

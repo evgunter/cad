@@ -31,8 +31,7 @@ use std::collections::BTreeMap;
 use editor_core::{
     Attr, AttrKind, Axis3, BooleanOp, BranchCertification, Datum, Dimension, DocEdit, DocParam,
     DocParamValue, EntityKind, Expr, ExprPath, MetaValue, Node, ParamName, PatternKind, Rgba8,
-    RoleSeg, SlotId,
-    StableName, WitnessDatum,
+    RoleSeg, SlotId, StableName, WitnessDatum,
 };
 
 use super::super::fixture::{ang, declare_x_offset_flush, desc, len, scl};

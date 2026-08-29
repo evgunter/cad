@@ -317,6 +317,142 @@ fn the_edit_door_refuses_each_broken_invariant() {
     );
 }
 
+/// **Two faults at once, ONE answer, at both doors.** A parameter that
+/// is `Continuous` with `dim: Count` AND carries a broken distribution
+/// is corrupt twice over, and the two doors used to disagree about
+/// which fault it was: the edit door checked the structural `dim`
+/// first, while the load door runs the float walk and the distribution
+/// walk before the snapshot invariants where the `dim` fault lives.
+/// The edit door now runs the LOAD door's order — floats, then
+/// distribution shape, then the structural fault — so a caller
+/// comparing an edit refusal against a load refusal for the same
+/// parameter sees the same class.
+///
+/// The doubly-corrupt case is the only one where the order is
+/// observable, which is exactly why it needs pinning: no singly-corrupt
+/// row can notice it.
+#[test]
+fn a_doubly_corrupt_param_names_the_same_fault_at_both_doors() {
+    let doc = ProfileDoc::empty(DocumentId::derive("m10-1-precedence"), Tol::witness());
+    let name = ParamName::new("s");
+    let broken = DocParam::Continuous {
+        dim: Dimension::Count,
+        value: 1.0,
+        distribution: Some(Distribution::Normal { sigma: -1.0 }),
+    };
+    assert_eq!(
+        apply(
+            &doc,
+            &DocEdit::SetDocParam {
+                name: name.clone(),
+                value: broken.clone(),
+            },
+            Tol::witness(),
+        )
+        .map(|_| ()),
+        Err(EditError::InvalidDistribution {
+            name: name.clone(),
+            fault: DistributionFault::SigmaNotPositive { sigma: -1.0 },
+        }),
+        "the distribution walk runs before the structural check, as it does at load"
+    );
+    // The same doubly-corrupt parameter through the SAVE validator,
+    // built by deserializing a corrupted body past both other doors —
+    // the technique the save-door row above uses, for the same reason.
+    let healthy = doc_with(&[("s", annotated(1.0, Distribution::Normal { sigma: 0.01 }))]);
+    let text = save(&healthy, &[], Tol::witness()).expect("the healthy document saves");
+    let corrupt = text
+        .replace("\"sigma\": 0.01", "\"sigma\": -1.0")
+        .replace("\"dim\": \"Length\"", "\"dim\": \"Count\"");
+    assert_ne!(corrupt, text, "the corruption must actually land");
+    let body: serde_json::Value = serde_json::from_str(
+        corrupt
+            .splitn(3, '\n')
+            .nth(2)
+            .expect("the JSON body follows the two header lines"),
+    )
+    .expect("the corrupt body is still JSON");
+    let doubly: ProfileDoc =
+        serde_json::from_value(body["snapshot"].clone()).expect("and still a document");
+    match save(&doubly, &[], Tol::witness()) {
+        Err(PersistError::Distribution { name: n, fault }) => {
+            assert_eq!(n, name, "the same parameter");
+            assert_eq!(fault, DistributionFault::SigmaNotPositive { sigma: -1.0 });
+        }
+        other => panic!("expected the distribution fault, got {other:?}"),
+    }
+}
+
+/// **The non-finite walk names the FIELD.** A distribution offset that
+/// is not finite joins the same non-finite class every other float in
+/// the document belongs to — and the site now says WHICH offset,
+/// because the walk has to find one in order to answer at all. An
+/// unapplied edit log is the door for this: a log is data, so it can
+/// carry a parameter no edit door would have accepted.
+#[test]
+fn a_non_finite_offset_names_which_offset_it_was() {
+    use editor_core::persist::NonFiniteSite;
+    let doc = ProfileDoc::empty(DocumentId::derive("m10-1-nonfinite"), Tol::witness());
+    let cases = [
+        (
+            Distribution::TruncatedNormal {
+                sigma: f64::NAN,
+                lo: -1.0,
+                hi: 2.0,
+            },
+            DistributionField::Sigma,
+        ),
+        (
+            Distribution::TruncatedNormal {
+                sigma: 0.5,
+                lo: f64::NEG_INFINITY,
+                hi: 2.0,
+            },
+            DistributionField::Lo,
+        ),
+        (
+            Distribution::Band {
+                lo: -1.0,
+                hi: f64::INFINITY,
+            },
+            DistributionField::Hi,
+        ),
+    ];
+    for (dist, expected) in cases {
+        let edit = DocEdit::SetDocParam {
+            name: ParamName::new("p"),
+            value: annotated(1.0, dist),
+        };
+        match save(&doc, &[edit], Tol::witness()) {
+            Err(PersistError::NonFinite {
+                site: NonFiniteSite::Edit { index: 0, inner },
+            }) => match *inner {
+                NonFiniteSite::DocParam { ref name, field } => {
+                    assert_eq!(name.0, "p");
+                    assert_eq!(field, Some(expected), "the site names the offending offset");
+                }
+                ref other => panic!("expected a doc-param site, got {other:?}"),
+            },
+            other => panic!("expected a non-finite refusal for {dist:?}, got {other:?}"),
+        }
+    }
+    // The NOMINAL's own non-finiteness is the same class with no field
+    // to name — the distinction the option carries.
+    let edit = DocEdit::SetDocParam {
+        name: ParamName::new("p"),
+        value: DocParam::continuous(Dimension::Length, f64::NAN),
+    };
+    match save(&doc, &[edit], Tol::witness()) {
+        Err(PersistError::NonFinite {
+            site: NonFiniteSite::Edit { inner, .. },
+        }) => assert!(
+            matches!(*inner, NonFiniteSite::DocParam { field: None, .. }),
+            "a broken nominal names no distribution field"
+        ),
+        other => panic!("expected a non-finite refusal, got {other:?}"),
+    }
+}
+
 /// A param differing ONLY in distribution is a reported diff — the
 /// document diff sees the new field, through the same `bit_eq` the
 /// replay identity uses.
