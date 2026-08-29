@@ -8,8 +8,9 @@
 
 use tess_meter::{
     Bound, CSV_HEADER, Chart, FaceRow, NurbsColumns, SPLIT_SCAN_DECADES, SPLIT_SCAN_SAMPLES,
-    SplitScan, best_split_cells, best_split_steps, divisions, optimum_is_unfloored,
-    shipped_split_scan_aspects, split_scan, split_scan_aspects, unfloored_worst_excess,
+    SplitScan, best_split_cells, best_split_scan, best_split_steps, divisions,
+    floored_worst_excess, optimum_is_unfloored, shipped_split_scan_aspects, split_scan,
+    split_scan_aspects, unfloored_worst_excess,
 };
 use test_utils::fuzz;
 use test_utils::vacuity::Exposure;
@@ -280,19 +281,30 @@ fn unfloored_ceiling() -> f64 {
     growth_margin() / 10.0
 }
 
-/// What ANY member may leave, floored or not: the consumer's whole
-/// margin.
+/// What any member may leave on the CONTINUOUS objective, floored or
+/// not: the consumer's whole margin.
 ///
-/// **The true relationship, stated rather than the one that would read
-/// better.** At the shipped pair the worst member is
-/// `floored, cross-term-free` at 2.088%, which is 42% of this margin —
-/// the same order as the gate's own tolerance, not an order below it.
-/// A 200,000-bound random search over the floored class found nothing
-/// worse (2.088%, the same bound), and both counterexamples in the
-/// family came out of that search. What is missing is a CERTIFICATE
-/// over the kink case; until one exists this ceiling is the honest
-/// statement of what the instrument is allowed to cost, and 2.088% is
-/// a measurement of what it does cost.
+/// **Read the objective in that sentence, because the consequence
+/// attaches to the other one.** Every claim in this row is stated on
+/// the continuous objective — the cost with `divisions`' two `ceil`s
+/// removed — and `span_opt_cells`, the column `tools/tess-lint`
+/// actually divides by, is the `ceil`'d one. On the continuous
+/// objective the worst member at the shipped pair is
+/// `floored, cross-term-free` at 2.088%, which is 42% of this margin:
+/// the same order as the gate's tolerance, not an order below it. On
+/// the `ceil`'d objective the instrument is already OVER it —
+/// `anisotropic, live cross term` scores **5.8824%**, and along a
+/// single smooth geometry change (`mvv` scaled 1× to 100×, counts in
+/// the thousands, not a small-count corner) the scan-to-true ratio runs
+/// from 1.00000 to **1.0588**. So the sentence *"the meter's own
+/// resolution can move a face across its consumer's threshold"* is
+/// TRUE, today, of `span_opt_cells` — it is not a risk this ceiling
+/// holds off, and the ceiling below does not claim to.
+///
+/// **What that ceiling is for**: the continuous excess is what the two
+/// constants govern smoothly, so it is what a guard on them can box.
+/// The `ceil` quantisation on top is the lever recorded at
+/// `SPLIT_SCAN_DECADES`, and moving it is not this row's work.
 fn total_ceiling() -> f64 {
     growth_margin()
 }
@@ -372,7 +384,7 @@ fn scanned(muu: f64, muv: f64, mvv: f64) -> SplitScan {
 /// neither floor binds (`muu/t + 2·muv + mvv·t` in the exponent), and
 /// non-decreasing once the `v` divisions are floored — quasiconvex in
 /// every case, including the plateau at one cell.
-fn continuous_optimum(muu: f64, muv: f64, mvv: f64) -> f64 {
+fn continuous_optimum(muu: f64, muv: f64, mvv: f64) -> (f64, f64) {
     // Wide enough that the family's optima are interior by orders of
     // magnitude, and narrow enough that `10^x` and `mvv·t²` stay finite.
     const BRACKET_DECADES: f64 = 80.0;
@@ -392,7 +404,7 @@ fn continuous_optimum(muu: f64, muv: f64, mvv: f64) -> f64 {
     let (mut lo, mut hi) = (-BRACKET_DECADES, BRACKET_DECADES);
     let (mut c, mut d) = (hi - phi * (hi - lo), lo + phi * (hi - lo));
     let (mut fc, mut fd) = (at(c), at(d));
-    let mut best = fc.min(fd);
+    let mut best = if fc <= fd { (fc, c) } else { (fd, d) };
     for _ in 0..ITERATIONS {
         if fc < fd {
             hi = d;
@@ -407,9 +419,106 @@ fn continuous_optimum(muu: f64, muv: f64, mvv: f64) -> f64 {
             d = lo + phi * (hi - lo);
             fd = at(d);
         }
-        best = best.min(fc).min(fd);
+        for (v, x) in [(fc, c), (fd, d)] {
+            if v < best.0 {
+                best = (v, x);
+            }
+        }
     }
     best
+}
+
+/// Whether the continuous optimum sits ON [`divisions`]' one-division
+/// floor, read off the argmin the golden section already found.
+///
+/// **The second, independent answer to the question
+/// [`optimum_is_unfloored`] answers**, and the reason there are two: a
+/// family member's [`Shape`] decides which claim it answers, so
+/// checking that declaration against the one predicate the claims also
+/// dispatch on would be checking it against itself. This one searches
+/// for the optimum instead of solving for it, and reads the division
+/// counts where it lands.
+fn optimum_sits_on_the_floor(muu: f64, muv: f64, mvv: f64) -> bool {
+    let (_, x) = continuous_optimum(muu, muv, mvv);
+    let t = 10.0f64.powf(x);
+    let q = mvv.mul_add(t * t, 2.0f64.mul_add(muv * t, muu));
+    let hu = (FAMILY_DELTA_S / q).sqrt();
+    let (nu, nv) = (FAMILY_EXTENT / hu, FAMILY_EXTENT / (t * hu));
+    nu <= 1.0 + 1e-9 || nv <= 1.0 + 1e-9
+}
+
+/// **The shipped optimizer IS the shipped scan** — asserted on the
+/// COMPOSITION, because boxing the constants and checking the lattice
+/// helper both leave the call site free.
+///
+/// [`best_split_scan`] is supposed to be `split_scan` over
+/// [`shipped_split_scan_aspects`], counted with [`divisions`] and
+/// seeded with the lane's own grid. Nothing about the constants, and
+/// nothing about the helper, says that it is: three retunes at that one
+/// call site — a sample count of its own, a range of its own, a dropped
+/// seed — passed `fmt`, `clippy -D warnings` and every other row in
+/// this file. Measured on the shipped `ceil`'d count over 200,000
+/// random bounds, the sample-count retune alone moves the reported
+/// cell count by +14.93% on average and +100% at worst.
+///
+/// So this row spells the intended composition itself and compares bit
+/// for bit, **sample index included** — the seed retune is the one that
+/// can leave `cells` untouched, because on a bound whose lane grid ties
+/// with the best sampled aspect the answer is the same number reached
+/// from a different place.
+///
+/// The family is what makes the comparison bite: the ruled wall's
+/// optimum is at `t ≈ 2.1e-4`, so a narrowed range moves its answer;
+/// its `ceil`'d count moves by 12.73% at 21 samples; and the isotropic
+/// bound's lane grid ties with sample 160, so the seed wins there and
+/// dropping it moves `sample` from `None` to `Some`.
+#[test]
+fn the_shipped_optimizer_is_the_shipped_scan() {
+    let mut seen = Exposure::new("shipped composition");
+    for (name, _, muu, muv, mvv) in SPLIT_SCAN_FAMILY {
+        let b = bound(muu, muv, mvv, FAMILY_DELTA_S);
+        let want = split_scan(
+            b,
+            FAMILY_EXTENT,
+            FAMILY_EXTENT,
+            FAMILY_DELTA_S,
+            shipped_split_scan_aspects(),
+            Some(b.steps),
+            divisions,
+        );
+        let got = best_split_scan(b, FAMILY_EXTENT, FAMILY_EXTENT, FAMILY_DELTA_S);
+        assert_eq!(
+            (
+                got.cells.to_bits(),
+                got.steps.0.to_bits(),
+                got.steps.1.to_bits()
+            ),
+            (
+                want.cells.to_bits(),
+                want.steps.0.to_bits(),
+                want.steps.1.to_bits()
+            ),
+            "best_split_scan is no longer the shipped scan on the {name}: \
+             {got:?} against {want:?}"
+        );
+        assert_eq!(
+            got.sample, want.sample,
+            "best_split_scan reaches its answer from a different place on the {name}: \
+             sample {:?} against {:?} — a retuned seed can leave the count identical",
+            got.sample, want.sample
+        );
+        match got.sample {
+            Some(_) => seen.note("a scanned aspect won"),
+            None => seen.note("the lane's own seed won"),
+        }
+    }
+    seen.report();
+    seen.require_each(
+        &["a scanned aspect won", "the lane's own seed won"],
+        1,
+        "the comparison can only see a dropped seed on a bound where the seed WINS, \
+         and only see a retuned lattice on a bound where a sample does",
+    );
 }
 
 /// **`SPLIT_SCAN_DECADES` and `SPLIT_SCAN_SAMPLES`, boxed on the
@@ -443,18 +552,23 @@ fn continuous_optimum(muu: f64, muv: f64, mvv: f64) -> f64 {
 ///    a sample and the closed form is a supremum — and it is ATTAINED,
 ///    so the per-member comparison carries a float allowance rather than
 ///    a margin.
-/// 3. **Every member, floored or not, stays inside the consumer's whole
-///    margin.** No closed form covers the floored class; this is the
-///    measured claim, and the numbers it stands on are at
-///    [`total_ceiling`].
+/// 3. **Each [`Shape::Floored`] member stays inside
+///    [`floored_worst_excess`], and every member stays inside the
+///    consumer's whole margin on the continuous objective.** The kink
+///    derivation is what makes the first half a bound rather than a
+///    measurement; read [`total_ceiling`] for which objective the second
+///    half is about, because the gate reads the other one.
 ///
 /// **Measured on this tree at the shipped pair** (continuous excess,
 /// unseeded — the seeded column `S160` published is a different
 /// quantity and is not this row's evidence): ruled wall 0.01706%,
 /// isotropic 0%, mildly anisotropic 0.00007%, cross term only 0%, unit
 /// 0%, live cross term 0.00005%, floored cross-term-free **2.08824%**,
-/// floored ruled wall **1.15256%**. Closed form for the unfloored five:
-/// 0.16573%.
+/// floored ruled wall **1.15256%**. The two bounds at that pair:
+/// 0.16573% unfloored, 2.09180% floored — and
+/// `floored, cross-term-free` sits at `r = 0.29808`, which is the kink
+/// derivation's analytic argmax, so the family carries the class's
+/// worst case rather than a sample of it.
 ///
 /// **What this deliberately does not do.** It says nothing about the
 /// cell count these columns report — that quantity is discontinuous in
@@ -486,6 +600,7 @@ fn the_split_scan_resolves_the_aspect_ratios_its_constants_promise() {
     }
     // Claim 2, the family-free half.
     let closed = unfloored_worst_excess(SPLIT_SCAN_DECADES, SPLIT_SCAN_SAMPLES);
+    let kinked = floored_worst_excess(SPLIT_SCAN_DECADES, SPLIT_SCAN_SAMPLES);
     assert!(
         closed <= unfloored_ceiling(),
         "the split scan's sampling step leaves up to {:.5}% on the unfloored class, \
@@ -501,8 +616,18 @@ fn the_split_scan_resolves_the_aspect_ratios_its_constants_promise() {
         assert_eq!(
             is_unfloored,
             shape == Shape::Unfloored,
-            "the {name} is declared {shape:?} and the floor test disagrees"
+            "the {name} is declared {shape:?} and the closed-form floor test disagrees"
         );
+        if shape != Shape::Flat {
+            assert_eq!(
+                optimum_sits_on_the_floor(muu, muv, mvv),
+                shape == Shape::Floored,
+                "the {name} is declared {shape:?} and the SEARCHED argmin disagrees — \
+                 the declaration is what picks which claim this member answers, so it \
+                 is checked against a second derivation and not only against the \
+                 predicate the claims dispatch on"
+            );
+        }
         let scan = scanned(muu, muv, mvv);
         let at = scan.sample.expect("an unseeded scan answers with a sample");
         if shape == Shape::Flat {
@@ -525,7 +650,7 @@ fn the_split_scan_resolves_the_aspect_ratios_its_constants_promise() {
                  {SPLIT_SCAN_DECADES} does not reach that bound's optimum"
             );
         }
-        let optimum = continuous_optimum(muu, muv, mvv);
+        let (optimum, _) = continuous_optimum(muu, muv, mvv);
         assert!(
             optimum <= scan.cells,
             "the reference stopped being the better answer on the {name}: \
@@ -557,18 +682,28 @@ fn the_split_scan_resolves_the_aspect_ratios_its_constants_promise() {
                 );
             }
             Shape::Floored => {
-                seen.note("floored: measured, not bounded");
+                seen.note("floored: bounded by the kink derivation");
                 if off_lattice {
                     seen.note("floored, optimum off the lattice");
                 }
+                assert!(
+                    excess <= kinked * (1.0 + 1e-9),
+                    "the {name} leaves {:.5}% on the continuous objective, over the \
+                     {:.5}% the kink derivation admits — the scan's excess on the \
+                     floored class is no longer explained by its resolution",
+                    100.0 * excess,
+                    100.0 * kinked
+                );
             }
             Shape::Flat => {}
         }
         assert!(
             excess <= total_ceiling(),
-            "the {name} leaves {:.5}% on the continuous objective, over the {:.5}% \
-             the slack gate's whole margin allows — the meter's own resolution can \
-             now move a face across its consumer's threshold",
+            "the {name} leaves {:.5}% on the CONTINUOUS objective, over the {:.5}% \
+             the slack gate's whole margin allows. The gate reads the `ceil`'d \
+             objective, where the instrument is already over that margin \
+             (SPLIT_SCAN_DECADES' docs); this row bounds the part the two constants \
+             govern smoothly, and that part has stopped being negligible",
             100.0 * excess,
             100.0 * total_ceiling()
         );
@@ -587,7 +722,7 @@ fn the_split_scan_resolves_the_aspect_ratios_its_constants_promise() {
     seen.require_each(
         &[
             "unfloored: bounded in closed form",
-            "floored: measured, not bounded",
+            "floored: bounded by the kink derivation",
         ],
         2,
         "both shapes of the objective have to be under test: the closed form covers \

@@ -617,17 +617,48 @@ pub fn divisions(extent: f64, h: f64) -> f64 {
 /// ([`unfloored_worst_excess`] over the ceiling the split column's
 /// consumer can absorb).
 ///
-/// **The guarantee is analytic on one class and measured on the
-/// other**, and the difference is `divisions`' one-division floor. Where
-/// the optimum is the interior stationary point
-/// ([`optimum_is_unfloored`]) the excess is bounded in closed form.
-/// Where the floor binds, the objective has a kink instead, the excess
-/// grows linearly rather than quadratically in the distance to the
-/// nearest sample, and **no bound over that class is written** — the
-/// worst found by a 200,000-bound random search at the shipped pair is
-/// 2.09%, against `tess-lint`'s whole 5% growth margin. That is a
-/// measurement, not a certificate, and the class contains the ruled
-/// wall this scan exists for.
+/// **The guarantee is analytic on both classes, and the difference
+/// between them is `divisions`' one-division floor.** Where the optimum
+/// is the interior stationary point ([`optimum_is_unfloored`]) the
+/// excess is bounded by [`unfloored_worst_excess`]; where the floor
+/// binds the objective has a KINK instead, the excess grows linearly
+/// rather than quadratically in the distance to the nearest sample, and
+/// [`floored_worst_excess`] bounds that from the kink's two exact
+/// branch ratios. At the shipped pair they are 0.16573% and 2.09180%,
+/// and the second is a supremum rather than a sample: two independent
+/// random searches over the class, 400,000 bounds and 4.6 M, found
+/// 2.0768% and 2.0918% under it.
+///
+/// # What these two constants do NOT hold, and the lever that would
+///
+/// **Both bounds are on the CONTINUOUS objective**, which is what these
+/// constants govern smoothly. `tools/tess-lint` divides by
+/// `span_opt_cells`, which is the `ceil`'d one, and there the
+/// instrument is already outside its consumer's margin: an anisotropic
+/// bound with a live cross term (`muu = 0.1, muv = 1, mvv = 50`) scores
+/// **5.8824%** against `GROWTH_TOLERANCE − 1 = 5%`, and a single smooth
+/// geometry change through it — `mvv` scaled 1× to 100×, counts in the
+/// thousands — runs the scan-to-true ratio from 1.00000 to 1.0588. So
+/// the meter's own resolution can move a face across the gate's
+/// threshold with no schedule change at all.
+///
+/// **The lever, recorded so the next taker does not re-derive it**: the
+/// one-sided envelope `10^(decades/(samples − 1)) − 1` drops under 5%
+/// at `SPLIT_SCAN_SAMPLES ≥ 379` for `SPLIT_SCAN_DECADES = 8`. That
+/// costs no range and it is cheap. It is deliberately NOT taken here —
+/// raising the sample count moves every committed budget number and
+/// re-cuts `docs/tess-budget-data/`, which is its own unit rather than
+/// a guard's fix pass.
+///
+/// **The other lever is narrowing the range, and that question is
+/// open**: 3.7 decades would bring the continuous excess to 2.70% and
+/// every claim in the derivations suite stays green, because no family
+/// member's optimum lives above `t = 1`. Nothing in this tree
+/// characterises what `muu/mvv` ratios real certified bounds produce,
+/// so narrowing to the family's spread would be fitting the constant to
+/// the test — the range question needs that characterisation first, and
+/// the resolution question has the cheaper answer above in the
+/// meantime.
 ///
 /// **The cell count these columns report cannot carry a guard, and
 /// nobody should re-attempt one.** The two `ceil`s in [`divisions`]
@@ -662,10 +693,16 @@ pub const SPLIT_SCAN_SAMPLES: usize = 321;
 /// If `samples < 2`: a scan of one point has no sampling step, and the
 /// resolution these constants exist to set is undefined without one.
 pub fn split_scan_aspects(decades: f64, samples: usize) -> impl Iterator<Item = f64> {
-    let step = split_scan_half_step(decades, samples);
+    let spans = split_scan_spans(samples);
+    // Spelled `decades·(2k/spans − 1)` rather than through the step, so
+    // the lattice is bit-identical to the loop this was factored out
+    // of. The two groupings differ by up to tens of ulps at 95 of 321
+    // points, which is invisible to the continuous objective and is
+    // exactly the kind of thing a `ceil` turns into a whole division.
     (0..samples).map(move |k| {
         #[allow(clippy::cast_precision_loss)]
-        10.0f64.powf(2.0 * step * k as f64 - decades)
+        let f = k as f64 / spans;
+        10.0f64.powf(decades * f.mul_add(2.0, -1.0))
     })
 }
 
@@ -682,21 +719,28 @@ pub fn shipped_split_scan_aspects() -> impl Iterator<Item = f64> {
     split_scan_aspects(SPLIT_SCAN_DECADES, SPLIT_SCAN_SAMPLES)
 }
 
-/// Half the scan's sampling step, in decades of aspect ratio: the
-/// furthest any aspect can sit from the nearest sample, and the only
-/// thing [`SPLIT_SCAN_DECADES`] and [`SPLIT_SCAN_SAMPLES`] jointly fix.
+/// Sampling intervals in a scan of `samples` points, as an `f64` — the
+/// one place the scan's shape is checked.
 ///
 /// # Panics
 ///
-/// If `samples < 2`.
-fn split_scan_half_step(decades: f64, samples: usize) -> f64 {
+/// If `samples < 2`: a scan of one point has no sampling step, and the
+/// resolution these constants exist to set is undefined without one.
+fn split_scan_spans(samples: usize) -> f64 {
     assert!(
         samples >= 2,
         "a split scan of {samples} sample(s) has no sampling step"
     );
     #[allow(clippy::cast_precision_loss)]
-    let half_step = decades / (samples - 1) as f64;
-    half_step
+    let spans = (samples - 1) as f64;
+    spans
+}
+
+/// Half the scan's sampling step, in decades of aspect ratio: the
+/// furthest any aspect can sit from the nearest sample, and the only
+/// thing [`SPLIT_SCAN_DECADES`] and [`SPLIT_SCAN_SAMPLES`] jointly fix.
+fn split_scan_half_step(decades: f64, samples: usize) -> f64 {
+    decades / split_scan_spans(samples)
 }
 
 /// The worst relative excess a scan at `(decades, samples)` can leave on
@@ -736,6 +780,76 @@ fn split_scan_half_step(decades: f64, samples: usize) -> f64 {
 #[must_use]
 pub fn unfloored_worst_excess(decades: f64, samples: usize) -> f64 {
     (split_scan_half_step(decades, samples) * std::f64::consts::LN_10).cosh() - 1.0
+}
+
+/// The worst relative excess a scan at `(decades, samples)` can leave
+/// on the FLOORED class — the bounds whose continuous optimum is a kink
+/// on [`divisions`]' one-division floor rather than the interior
+/// stationary point [`unfloored_worst_excess`] assumes.
+///
+/// # The derivation
+///
+/// Take `muv = 0` and a unit box, and let the `u` floor bind, so
+/// `r = muu/δ_s ∈ (0, ½)`. The optimum is the kink at
+/// `t₁ = √((δ_s − muu)/mvv)`, where `Q(t₁) = δ_s` and `h_u` is exactly
+/// the extent. Writing `u = t/t₁`, the cost RATIO to that optimum is
+/// exact on each side and needs no slope approximation:
+///
+/// * left of the kink the `u` divisions are floored, so the cost is the
+///   `v` count alone and `R(u) = √(r + (1 − r)·u²)/u`;
+/// * right of it neither floor binds, so the cost is the product and
+///   `R(u) = (r + (1 − r)·u²)/u`.
+///
+/// The scan sees whichever of the two neighbouring samples is cheaper,
+/// so the worst placement equalises the two branch ratios across one
+/// sampling step, and the worst bound maximises that over `r`. Both are
+/// solved here — a bisection on the placement inside a sweep over `r` —
+/// because the equalisation is transcendental. The linearised form,
+/// `10^(step·r(1−2r)/(1−r)) − 1`, has its maximum at
+/// `r = (2 − √2)/2 = 0.29289` and is worth knowing as the anchor: at
+/// the shipped pair it gives 1.995% where the exact value below gives
+/// **2.0918%**, the curvature of the two branches being the difference.
+///
+/// **It is a supremum, not a sample.** Two independent random searches
+/// over the class — 400,000 bounds here, 4.6 M in review — found
+/// 2.0768% and 2.0918% against this 2.09180%, and the family member
+/// `floored, cross-term-free` sits at `r = 0.29808`, which is the
+/// analytic argmax. The `muv > 0` case only dilutes the ratio, exactly
+/// as in the unfloored derivation, and the mirrored `v`-floor case is
+/// the same expression with the extents exchanged; the sweeps cover
+/// both and found no exceedance.
+///
+/// # Panics
+///
+/// If `samples < 2`.
+#[must_use]
+pub fn floored_worst_excess(decades: f64, samples: usize) -> f64 {
+    // Converged: the value is stable to eight significant figures from
+    // 1,024 `r` samples upward, and D9 wants a fixed structure rather
+    // than a tolerance-driven loop.
+    const RATIOS: usize = 4096;
+    const PLACEMENT_STEPS: usize = 100;
+    let step = 2.0 * split_scan_half_step(decades, samples) * std::f64::consts::LN_10;
+    // Left branch at distance `a` below the kink, right branch at `a`
+    // above it, both as ratios to the optimum.
+    let left = |r: f64, a: f64| (2.0 * a).exp().mul_add(r, 1.0 - r).sqrt();
+    let right = |r: f64, a: f64| (-a).exp().mul_add(r, (1.0 - r) * a.exp());
+    let mut worst: f64 = 0.0;
+    for i in 1..RATIOS {
+        #[allow(clippy::cast_precision_loss)]
+        let r = 0.5 * i as f64 / RATIOS as f64;
+        let (mut lo, mut hi) = (0.0, step);
+        for _ in 0..PLACEMENT_STEPS {
+            let mid = 0.5 * (lo + hi);
+            if left(r, mid) < right(r, step - mid) {
+                lo = mid;
+            } else {
+                hi = mid;
+            }
+        }
+        worst = worst.max(left(r, lo).min(right(r, step - lo)));
+    }
+    worst - 1.0
 }
 
 /// Whether `bound`'s continuous optimum over `du × dv` at `delta_s` is
@@ -889,7 +1003,29 @@ pub fn best_split_cells(bound: Bound, du: f64, dv: f64, delta_s: f64) -> f64 {
 /// On a bound or a sizing target that is not a reading — see
 /// [`split_scan`] and [`divisions`].
 pub fn best_split_steps(bound: Bound, du: f64, dv: f64, delta_s: f64) -> (f64, f64, f64) {
-    let best = split_scan(
+    let best = best_split_scan(bound, du, dv, delta_s);
+    (best.cells, best.steps.0, best.steps.1)
+}
+
+/// [`best_split_steps`] with the scan's own answer, sample index and
+/// all — the SHIPPED composition, named so a test can hold it against
+/// the composition it is supposed to be.
+///
+/// **Boxing the constants is not enough and this is why.** A guard that
+/// checks [`shipped_split_scan_aspects`] checks a helper; the three
+/// retunes that matter live at the CALL SITE below — a different sample
+/// count, a different range, a dropped seed — and each leaves both the
+/// constants and the helper untouched. Measured on the shipped `ceil`'d
+/// count over 200,000 random bounds, a 21-sample call site alone moves
+/// the reported cell count by +14.93% on average and +100% at worst,
+/// several times the growth margin `tools/tess-lint` allows. So the
+/// derivations suite asserts this function EQUALS
+/// `split_scan(bound, du, dv, delta_s, shipped_split_scan_aspects(),
+/// Some(bound.steps), divisions)`, bit for bit and sample index
+/// included, on bounds that tell the three retunes apart.
+#[must_use]
+pub fn best_split_scan(bound: Bound, du: f64, dv: f64, delta_s: f64) -> SplitScan {
+    split_scan(
         bound,
         du,
         dv,
@@ -897,8 +1033,7 @@ pub fn best_split_steps(bound: Bound, du: f64, dv: f64, delta_s: f64) -> (f64, f
         shipped_split_scan_aspects(),
         Some(bound.steps),
         divisions,
-    );
-    (best.cells, best.steps.0, best.steps.1)
+    )
 }
 
 /// The pure per-cell ideal over the trim box: each cell's own RAW
