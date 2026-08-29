@@ -722,3 +722,46 @@ number recorded so the taker does not re-derive it.
 answered the wrong question** — the reviewer's phrasing, and it is the better
 one: *the range question is open and the resolution question has a cheaper
 answer.*
+
+## `D105` landed, and it CLOSED — the residue turned out to be derivable
+
+Merged; `fmt`, `clippy -D warnings` and 8 + 2 tests clean on the merged tree, the
+tour sweep at exit 0 over 1,327 rows, and the budget gate at 0 findings against
+the committed baseline.
+
+**The certificate the lane had filed as unwritten was derived, and it is exact.**
+`floored_worst_excess(8, 321) = 2.091801%` — against the reviewer's independent
+4.6 M-bound sweep, which reported the class supremum as **2.0918%**. Two
+methods, eight figures. The lane's own floored counterexample sits at
+`r = 0.29808`, on the analytic argmax `r = (2−√2)/2`, which is why two searches
+converged on it. So claim 3 stopped being a measurement and `D105` closes rather
+than narrows.
+
+**The composition is now asserted, which is what the row was actually about.**
+`best_split_scan` is compared bit-for-bit — cells, both steps, *and the sample
+index* — against the composition it is supposed to be. All three call-site
+retunes red, and the sample index is why: the seed retune leaves `cells`
+unchanged on the isotropic bound, so a comparison on the count alone would have
+missed it. One of the three reds on a *better* count, correctly — the guard's
+claim is that the composition is what it says, not that the answer is small.
+
+**And the refactor is identical by construction rather than by luck.** Rather
+than document that the two groupings differ at 95 of 321 lattice points by up to
+37 ulps, the lane restored the original grouping and said at the site why the
+step form is not used: *"invisible to the continuous objective, and exactly the
+kind of thing a `ceil` turns into a whole division."* The byte-identical CSV is
+now evidence of the right thing.
+
+`S160` leaves the document; its surviving paragraph is relocated **in full** into
+`D206`, which is where the open question actually lives — the meter's resolution
+against its consumer's margin. `D207` is minted for the same composition defect
+one call site further out (`rows.rs` asserts only that two counts are positive),
+and `L4` for `S120(a)`'s document-wide clause: **re-check every disposition in
+this file that reasoned about a gate's direction from one side.** That one
+audits this document's own reasoning rather than any track's files, so it cannot
+be scoped to a fence and goes with `L1`–`L3`.
+
+**Three units landed, two open.** Every one of the three closed *differently* from
+how it was written: `C15` narrowed, `D65` closed with one of its verdicts
+retracted, `D105` closed a residue it had filed. In no case was the finding's own
+statement of the problem the last word on it.
