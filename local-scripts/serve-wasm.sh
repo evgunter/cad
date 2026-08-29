@@ -89,19 +89,77 @@ wasm-bindgen --target web --no-typescript --out-dir "$OUT_DIR" "$WASM_IN"
 cp crates/viewer/web/index.html "$OUT_DIR/index.html"
 
 # --- serve ------------------------------------------------------------
-#
-# `hostname -I` lists every address on the box; the first is the one a
-# phone on the same LAN can route to. If there is none (no network,
-# containers), say so rather than printing a URL that cannot work.
-LAN_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+
+# The address a phone can route to is the source address this box would
+# use for outbound traffic — NOT whatever `hostname -I` lists first,
+# which on a machine running docker, a VPN, or a container runtime is
+# routinely an interface nothing else on the network can reach.
+detect_lan_ip() {
+  if command -v ip >/dev/null 2>&1; then
+    ip -4 route get 1.1.1.1 2>/dev/null | sed -n 's/.* src \([0-9.]*\).*/\1/p' | head -1
+  elif command -v ipconfig >/dev/null 2>&1; then
+    # macOS: ask for the default route's interface, then that
+    # interface's address. `hostname -I` is GNU-only and absent here.
+    local dev
+    dev=$(route -n get default 2>/dev/null | sed -n 's/.*interface: //p' | head -1)
+    for candidate in "$dev" en0 en1; do
+      [ -n "$candidate" ] || continue
+      if ipconfig getifaddr "$candidate" 2>/dev/null; then return; fi
+    done
+  fi
+}
+
+# The same two markers WSL itself sets that `frame::running_under_wsl`
+# reads (see crates/viewer/src/frame.rs) — one detection, two languages.
+running_under_wsl() { [ -n "${WSL_DISTRO_NAME:-}" ] || [ -n "${WSL_INTEROP:-}" ]; }
+
+LAN_IP=$(detect_lan_ip || true)
 
 echo
 echo "serve-wasm: serving $OUT_DIR ($(du -sh "$OUT_DIR" | cut -f1))"
-if [ -n "$LAN_IP" ]; then
+
+if running_under_wsl; then
+  # THE ONE THAT WOULD OTHERWISE WASTE AN EVENING. WSL2 puts the distro
+  # behind its own NAT, so the address detected above is the VM's and is
+  # unreachable from anything else on the LAN — binding 0.0.0.0 in here
+  # does not change that. Printing it as "open this on the phone" would
+  # be a URL that simply times out, with nothing saying why.
+  WIN_IP=$(powershell.exe -NoProfile -Command \
+    '(Get-NetIPConfiguration | Where-Object { $_.IPv4DefaultGateway -ne $null }).IPv4Address.IPAddress' \
+    2>/dev/null | tr -d "\r" | head -1 || true)
+  echo "serve-wasm: WSL DETECTED — the phone cannot reach this address directly." >&2
+  echo "serve-wasm:   WSL-internal: http://${LAN_IP:-unknown}:$PORT/  (works in the Windows browser)" >&2
+  echo >&2
+  echo "serve-wasm:   Two ways to reach it from the phone:" >&2
+  echo >&2
+  echo "serve-wasm:   1. Mirrored networking (Windows 11 22H2+, simplest):" >&2
+  echo "serve-wasm:      put this in %USERPROFILE%\\.wslconfig, then \`wsl --shutdown\`:" >&2
+  echo "serve-wasm:          [wsl2]" >&2
+  echo "serve-wasm:          networkingMode=mirrored" >&2
+  echo "serve-wasm:      then the Windows LAN address below just works." >&2
+  echo >&2
+  echo "serve-wasm:   2. Port-forward from Windows (any version), in an" >&2
+  echo "serve-wasm:      ADMINISTRATOR PowerShell:" >&2
+  echo "serve-wasm:          netsh interface portproxy add v4tov4 listenport=$PORT \\" >&2
+  echo "serve-wasm:              listenaddress=0.0.0.0 connectport=$PORT connectaddress=${LAN_IP:-<wsl-ip>}" >&2
+  echo "serve-wasm:          New-NetFirewallRule -DisplayName 'wasm spike' -Direction Inbound \\" >&2
+  echo "serve-wasm:              -LocalPort $PORT -Protocol TCP -Action Allow" >&2
+  echo >&2
+  if [ -n "$WIN_IP" ]; then
+    echo "serve-wasm:   Either way, the phone opens ->  http://$WIN_IP:$PORT/" >&2
+  else
+    echo "serve-wasm:   Then open http://<the-windows-LAN-ip>:$PORT/ on the phone" >&2
+    echo "serve-wasm:   (\`ipconfig\` in a Windows shell; the Wi-Fi adapter's IPv4)." >&2
+  fi
+elif [ -n "$LAN_IP" ]; then
   echo "serve-wasm: OPEN THIS ON THE PHONE ->  http://$LAN_IP:$PORT/"
+  echo "serve-wasm: (phone must be on the same Wi-Fi; a guest network or"
+  echo "serve-wasm:  AP client-isolation will block it, as may a host firewall)"
 else
-  echo "serve-wasm: no LAN address found (hostname -I is empty); try http://localhost:$PORT/" >&2
+  echo "serve-wasm: no routable address found; try http://localhost:$PORT/ locally." >&2
+  echo "serve-wasm: (a container with no LAN interface cannot serve a phone at all)" >&2
 fi
+
 # Plain http over a LAN address is NOT a secure context, so the phone's
 # navigator.gpu is absent and wgpu falls back to WebGL2. That is fine —
 # egui-wgpu's default features enable wgpu/webgl — but it means the
