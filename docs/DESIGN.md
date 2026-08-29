@@ -1347,6 +1347,26 @@ the non-empty-by-construction sequences and the small-domain indices,
 which are where a converted arm should have been no arm — thirteen of
 them, enumerated as `SMELL-SCAN-2026-08.md`'s **D96**.
 
+*Row 5's boundary (ratified in-chat 2026-08-29, at S-CERT's Q1):
+`debug_assert` also serves the expensive check whose failure PROBABLY
+indicates a bug.* Row 5 as written covers states that can only be a
+bug; a debug assertion is additionally the right instrument for an
+expensive re-derivation check where a failure probably indicates a
+kernel bug but input-reachability cannot be excluded — a tripwire,
+not a proof. The class's contract: (i) the assertion's absence never
+changes shipped semantics — no typed behavior rides on one, so
+release may compile them out (today `[profile.release]
+debug-assertions = true` keeps them on everywhere; the eventual state
+is debug/CI-only); (ii) an input-reachable failure that release must
+handle still gets its row-1/2/3 disposition — the tripwire
+supplements, never replaces it; (iii) each such assertion documents
+its calibration in-file — the population measured and the margin
+observed — so a firing one reads as evidence to investigate.
+`mesh::walk`'s `closing_column` is the precedent, in both directions:
+its firing is how #723's wrong certificate announced itself in a
+debug build, and its recorded estimate being off by nine orders on
+that input is what an uncalibrated ceiling costs.
+
 *Row 1 absorbs the terminal indeterminates.* An `Indeterminate` whose
 `MarginDiag` is `Value` (f64 margin in the ambiguity band) or an
 `Enclosure` lying wholly inside a sliver band is a statement about the
