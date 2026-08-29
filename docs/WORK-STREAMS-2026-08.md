@@ -11,8 +11,11 @@ the open PRs, and the live program docs, all read on 2026-08-29.
 ## Territory already occupied
 
 - **M10** (`m10/`): editor-core parameters/analysis/eval, `geom-core/dual.rs`,
-  schema v15/v16, profile-parameter lift (#1174 under dual review),
-  M10-2 Measure/Assertions spec just merged (#1197).
+  the `AtRestPolicy` seam in `topo/src/props.rs` and the Dual arms of
+  `editor-core/src/product.rs` (M10-4), the conservative interval lift
+  of `crates/bvh` (M10-5), schema v15/v16, profile-parameter lift
+  (#1174 under dual review), M10-2 Measure/Assertions spec just
+  merged (#1197).
 - **PCURVE** (`pcurve/`): `geom-brep` certify/edge_nurbs/adopt/nurbs_iso,
   topo pcurve consumers. P-1b live; P-2 is a wind-down WIP snapshot
   (#1177) with a declared resume — its diff includes a
@@ -47,17 +50,25 @@ largest real-defect group in the tracker and nobody's territory.
   red, and stops if acceptance needs the props fix — so these fixes
   sit on that unit's critical path.
 - Interval-mode honesty: #924 (rotation anchor width), #1191
-  (period-fold widening), #762 (chart-speed guard admits +∞).
+  (period-fold widening — M10-P filed it and deliberately did not
+  repair it; the stream takes it under the issue's stated f64-bit
+  constraint, and M10-3's driver is its first heavy consumer), #762
+  (chart-speed guard admits +∞).
 - Enclosure quality and metering: #870 (area never metered),
   #453 / #390 (one rational-patch-flux lane, native and import sides),
   #528, #501, #303, #1006; the offset_fit sub-family #1005–#1008.
 - Claims SMELL tracks M (`geom-core` scalars/bvh) and N (`crates/geom`
-  spline/linalg) — same files, no live claimant.
+  spline/linalg) — same files, no live claimant. The track-M claim
+  carves out `crates/bvh`'s interval lift (M10-5's); bvh work here is
+  f64 box quality only, anything past that coordinates with M10 first.
 
-Keep out: `geom-core/dual.rs` (M10), `orthonormal_basis` (#1157 —
-check #1177's resume state first), #1018–#1020 (scheduled at OFF-D
-under VERBS), the #1143 poison-vs-widen ruling (filed for Evan; this
-stream supplies instances, not the answer).
+Keep out: `geom-core/dual.rs`, the `AtRestPolicy` seam in
+`topo/src/props.rs`, the Dual arms of `editor-core/src/product.rs`,
+and Dual-at-certified-gates semantics (all M10's ratified slate);
+`orthonormal_basis` (#1157 — check #1177's resume state first);
+#1018–#1020 (scheduled at OFF-D under VERBS); the #1143
+poison-vs-widen ruling (M10-D ratified the contract; this stream
+supplies instances, not the answer).
 
 ### S-BLEND — fillet/chamfer completion (`blend/`)
 
