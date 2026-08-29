@@ -87,3 +87,19 @@ design PR waits for Evan); M10-3/M10-4 carry the
 magnitude-parameter dispatch valve. Amendment self-merged as a
 faithful elaboration (the ratified exit shape is unreachable
 without it); the design fork itself is reserved for M10-P's PR.
+
+## M10-1 MERGED (2026-08-29)
+
+The program's first unit is in: distributions in the document, PR
+#1147 at sample #37 (ordinal 500, the band's first). The dual
+review's headline is R2's unilateral silent MAJOR — the deep-tail
+`1 − erf` cancellation on exactly the number E2 forbids dropping —
+fixed with one shared exterior/CDF pair that `quantile_z` also
+reads, so the analyzed box always holds the mass the tail column
+complements. The carry-forward class closed structurally
+(`SetDocParamValue`); both probe suites promoted as merge parents.
+Process findings recorded in the row: R2's rubric is missing data
+(orchestrator worktree-reclaim broke the resume — the rule is now
+"reclaim a lane's TARGET freely once its report is in; remove the
+WORKTREE only when the unit fully concludes"), and the fix pass ran
+on a fresh same-arm lane for the same reason.
