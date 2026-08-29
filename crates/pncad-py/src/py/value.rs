@@ -627,16 +627,35 @@ impl Evaluation {
         }
     }
 
-    /// How many nodes were recomputed rather than reused from the memo.
+    /// How many nodes ran their op this evaluation.
+    ///
+    /// With no `prior=`, this is every live node. With one, it is the
+    /// changed cone — and the pair `recomputed + reused` is the live
+    /// node count either way, which is what makes the two numbers
+    /// EVIDENCE of reuse rather than a hint about it.
     #[getter]
     fn recomputed(&self) -> usize {
         self.inner.recomputed
     }
 
-    /// How many nodes were served from the memo.
+    /// How many nodes were served from `evaluate`'s `prior=` memo
+    /// without re-running their op — zero when no prior was passed.
     #[getter]
     fn reused(&self) -> usize {
         self.inner.reused
+    }
+
+    /// How many REFERENCED documents this evaluation actually crossed
+    /// the seam to evaluate.
+    ///
+    /// The sharing evidence for `evaluate`'s `resolver=`: N instances
+    /// of one part count 1, because the part is evaluated once and its
+    /// body reused; a part that instantiates a part counts here too, so
+    /// the number is the whole run's seam traffic and not one level's.
+    /// Zero without a resolver — nothing crosses.
+    #[getter]
+    fn part_evaluations(&self) -> usize {
+        self.inner.part_evaluations
     }
 
     /// Export the single body `node` denotes as a STEP (AP214 Part 21)
@@ -758,15 +777,42 @@ pub(crate) fn import_step(py: Python<'_>, text: &str) -> PyResult<Body> {
 ///
 /// Total: evaluation never raises. Individual nodes may still have
 /// failed — ask the returned object.
+///
+/// `resolver` is the DOCUMENT SEAM: what an `InstantiatePart` node
+/// reaches the document it pins through. A `Workspace` IS a resolver
+/// (`pncad::workspace`'s own impl), so the store is passed as itself.
+/// `None` — the default — is a kernel-only evaluation, in which every
+/// instantiate node refuses typed (`EvaluationError`, `kind ==
+/// "part_no_resolver"`) rather than pretending a part is empty. The
+/// parameter carries the kernel's ROLE name: resolving a reference is
+/// the capability evaluation needs, and a workspace is today's only
+/// thing that has it.
+///
+/// `prior` is the MEMO: a node whose content and naming keys match
+/// its result in `prior` reuses that value instead of re-running its
+/// op, so only the changed cone costs anything. Reuse is not a claim
+/// the caller has to take on trust — `Evaluation.reused` and
+/// `Evaluation.recomputed` count it, node for node. Passing an
+/// evaluation of a DIFFERENT document is well-defined and simply
+/// reuses whatever keys coincide: a key is content, not position.
 #[pyfunction]
-pub(crate) fn evaluate(doc: &super::doc::Doc) -> Evaluation {
+#[pyo3(signature = (doc, *, resolver=None, prior=None))]
+pub(crate) fn evaluate(
+    doc: &super::doc::Doc,
+    resolver: Option<&super::store::Workspace>,
+    prior: Option<&Evaluation>,
+) -> Evaluation {
     let tol = Tol::witness();
+    let opts = d::EvalOptions {
+        resolver: resolver.map(super::store::Workspace::resolver),
+        ..d::EvalOptions::default()
+    };
     Evaluation {
         inner: d::evaluate::<f64>(
             &doc.inner,
-            None,
+            prior.map(|p| &p.inner),
             &d::CancelToken::new(),
-            &d::EvalOptions::default(),
+            &opts,
             tol,
         ),
         params: doc.inner.param_env::<f64>(),
