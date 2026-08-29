@@ -120,6 +120,11 @@ fn two_chord_area(r: f64, t: f64) -> f64 {
 
 /// The measured wall volume of `body` hollowed by `T`, with tier 3 and
 /// the two-shell shape asserted first.
+///
+/// The `1e-15` each row compares against is an ABSOLUTE bound in m³,
+/// and the walls here are ~1e-4 m³, so it is a relative agreement of
+/// about `4e-12` — stated both ways because an absolute bound read as
+/// a relative one flatters itself by eight orders of magnitude.
 fn wall(what: &str, body: &Body<f64>) -> f64 {
     let tol = Tol::witness();
     let hollow = topo::shell(body, T, FIT_TOL, band(), tol)

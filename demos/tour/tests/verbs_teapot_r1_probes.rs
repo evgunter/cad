@@ -16,7 +16,7 @@ use pncad::geom_core::{Band, Point2, Point3, Tol, Vec2};
 use pncad::prelude::{Open, Start};
 use pncad::profile::{ProfileLoop, SketchPlane};
 use pncad::sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
-use pncad::topo::{Body, FaceKey, LoopBoundary, ReplaceFaceError, ShellError};
+use pncad::topo::{Body, FaceKey, LoopBoundary};
 
 const FIT_TOL: f64 = 1e-6;
 

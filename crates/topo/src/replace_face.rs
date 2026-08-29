@@ -337,6 +337,11 @@ pub enum ReplaceFaceError<T: Real> {
     },
     /// **The simultaneous door: two chart moves disagree about one
     /// face**, or one chart's faces do not all wear the same surface.
+    ///
+    /// Raised by BOTH simultaneous doors, which is why its Display
+    /// names the OPERATION rather than one of them: a message that said
+    /// `offset_planes_together` under a body of revolution would send a
+    /// reader to the wrong file.
     TogetherChartMixed {
         /// The face whose surface differs.
         face: FaceKey,
@@ -577,18 +582,19 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
             }
             Self::TogetherChartMixed { face, other } => write!(
                 f,
-                "offset_planes_together: {face:?} does not wear the same surface as its chart's \
-                 {other:?} — a chart move names ONE chart"
+                "the simultaneous offset: {face:?} does not wear the same surface as its \
+                 chart's {other:?} — a chart move names ONE chart"
             ),
             Self::TogetherFaceRepeated { face } => write!(
                 f,
-                "offset_planes_together: {face:?} is named by more than one chart move, so its \
-                 offset is two different numbers"
+                "the simultaneous offset: {face:?} is named by more than one chart move, so \
+                 its offset is two different numbers"
             ),
             Self::TogetherEdgeDisagreement { edge, gap } => write!(
                 f,
-                "offset_planes_together: {edge:?}'s two ends were solved {gap:?} m apart — the \
-                 far corner's own solve did not land on the line its two moved planes carry"
+                "the simultaneous offset: {edge:?}'s two ends were solved {gap:?} m apart — \
+                 the far corner's own solve did not land on the carrier its two moved \
+                 SURFACES give it"
             ),
             Self::TogetherNonPlanar { face, kind } => write!(
                 f,
@@ -597,9 +603,9 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
             ),
             Self::TogetherPartialSet { face } => write!(
                 f,
-                "offset_planes_together: {face:?} is a face of the body that no chart move \
-                 named — every corner's answer depends on all the planes meeting it, so a \
-                 partial set has corners this door cannot solve"
+                "the simultaneous offset: {face:?} is a face of the body that no chart move \
+                 named — every corner's answer depends on all the surfaces meeting it, so a \
+                 partial set has corners no simultaneous door can solve"
             ),
             Self::TogetherCorner {
                 vertex,
@@ -607,8 +613,8 @@ impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
                 what,
             } => write!(
                 f,
-                "offset_planes_together: the corner at {vertex:?} ({planes} distinct planes) \
-                 has no offset point — {what}"
+                "the simultaneous corner solve: the corner at {vertex:?} ({planes} distinct \
+                 planes) has no offset point — {what}"
             ),
             Self::ResultNotClosed { errors } => write!(
                 f,
@@ -1187,6 +1193,22 @@ fn mint_offset<T: Decide + PropsQuadLane>(
             Some(Err(error)) => Err(ReplaceFaceError::Fit { face, error }),
         };
     }
+    // **A cone's mirror nappe is a consumer obligation this door does
+    // not discharge (#1199).** `ConeOffset`'s header ratifies that `n₊`
+    // does not flip across the apex and states the consequence: a
+    // mirror-nappe face's material moves `−d` along its OWN chart
+    // normal. `d` arrives here along the FACE's outward direction
+    // (`shell::inward` reads the sense bit), so on a face below its
+    // apex the two conventions are opposite and this call turns the
+    // offset the wrong way. `offset_axial::nappe_signed` discharges the
+    // same obligation for the simultaneous door.
+    //
+    // No wrong body ships from it today, measured on both review arms
+    // of #1180: on every reachable fixture the neighbouring caps refuse
+    // first at `ReanchorOffCarrier`, so the turned sign never reaches a
+    // body that gets built. A latent hazard behind a gate, filed with
+    // both arms' evidence rather than fixed in a unit that is not
+    // sweeping this door.
     geom_brep::offset_surface(old, d, band)
         .map_err(|error| ReplaceFaceError::Offset { face, error })
 }
@@ -1994,7 +2016,7 @@ fn invert_carrier<T: Real>(carrier: &Curve3<T>, p: Point3<T>, near: T) -> Option
 /// `mapped` with the sketch endpoint that images `is_start` moved to
 /// `point` — the authoritative sketch datum re-stated, not the carrier
 /// patched around it. `None` for anything but a placed line segment.
-pub(crate) fn move_mapped_endpoint<T: Real>(
+fn move_mapped_endpoint<T: Real>(
     mapped: geom_brep::MappedCurve<T>,
     point: Point3<T>,
     is_start: bool,

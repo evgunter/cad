@@ -9,9 +9,15 @@
 //!   (the two moved meridian planes cross outside the shrunk wall):
 //!   every corner solves locally, so the question is what global net
 //!   catches the crossed cross-section;
-//! - the nappe-blindness of `geom_brep::offset_surface`'s cone arm,
-//!   reproduced at the mint itself (the ConeOffset contract), against
-//!   the door's corrected sign.
+//! - the cone mint's MIRROR-NAPPE consumer obligation, reproduced at
+//!   the mint itself (the `ConeOffset` contract), against the door's
+//!   corrected sign.
+//!
+//! `r1p5_the_axis_gates_third_outcome_is_unreachable_from_the_sweeps`
+//! was added at the FIX PASS, on this file's own subject: R2-MIN-3's
+//! planted red, which measures that the gate's escalation is not
+//! reachable from any operand this crate builds and pins the two
+//! definite verdicts instead.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -264,4 +270,91 @@ fn r1p3_the_cone_mint_is_nappe_blind_and_the_door_corrects_it() {
         (r0 - shrunk - T / alpha.cos()).abs() < 1e-15,
         "the corrected offset shrinks the base radius by t/cos α"
     );
+}
+
+/// **P5 (added at the fix pass, for R2-MIN-3): the axis gate's third
+/// outcome, and the measurement that it is not reachable from here.**
+///
+/// `is_axial` returns `Result<bool, _>` now: an ambiguity-band margin
+/// escalates instead of folding into `false`, because folding it would
+/// turn "I cannot tell" into a silent branch choice. This row is the
+/// planted red for that — and it reports, rather than asserts, the
+/// escalation, because the escalation cannot be reached on any operand
+/// this crate's own sweeps will build:
+///
+/// - every margin the gate takes is EXACTLY zero on a revolve. The
+///   caps' normals, the wall's axis and the frame's direction are all
+///   minted from ONE `AxisFrame`, so `n̂ × â` and `m̂ · â` are exact
+///   zeros rather than small numbers — the sweep below reads `Ok(true)`
+///   from `1e-30` to `1e-12`, eighteen decades, with no band anywhere;
+/// - and the obvious way to perturb one — revolving about a 2-D axis
+///   that is not `±x`/`±y` — does not get past `revolve` at all, which
+///   this row also records rather than assumes.
+///
+/// So the definite verdicts are what is pinned (`Ok(true)` here,
+/// `Ok(false)` on P1's non-axial body), and the day a door mints an
+/// axial body from more than one frame this row is where the third
+/// outcome shows up.
+#[test]
+fn r1p5_the_axis_gates_third_outcome_is_unreachable_from_the_sweeps() {
+    let tol = Tol::witness();
+    let (r, h) = (3.0 / 64.0, 8.0 / 64.0);
+    let meridian = || {
+        Profile::new(
+            SketchPlane::xy(),
+            vec![ProfileLoop::new(vec![
+                ProfileVertex::new(p2(0.0, 0.0), 0.0),
+                ProfileVertex::new(p2(r, 0.0), 0.0),
+                ProfileVertex::new(p2(r, h), 0.0),
+                ProfileVertex::new(p2(0.0, h), 0.0),
+            ])],
+        )
+        .validate(tol)
+        .expect("meridian")
+    };
+    let wedge = revolve(
+        &meridian(),
+        RevolveAxis {
+            origin: p2(0.0, 0.0),
+            dir: Vec2::new(0.0, 1.0),
+        },
+        Revolution::Partial(core::f64::consts::FRAC_PI_2),
+        tol,
+    )
+    .expect("a quarter revolve")
+    .body;
+
+    let mut escalations = 0;
+    for e in [1e-30, 1e-24, 1e-20, 1e-18, 1e-17, 1e-16, 1e-14, 1e-12] {
+        let verdict = topo::is_axial(&wedge, Band::new(e, 10.0 * e).expect("band"));
+        println!("[r1p5] wedge at eps={e:e}: {verdict:?}");
+        match verdict {
+            Ok(true) => {}
+            Ok(false) => panic!("this wedge IS axial at every scale; got false at {e:e}"),
+            Err(_) => escalations += 1,
+        }
+    }
+    assert_eq!(
+        escalations, 0,
+        "if this ever fires, the third outcome became reachable and the row's own prose \
+         is what needs re-deriving — not the assertion"
+    );
+
+    // And the obvious perturbation is refused by the SWEEP, not by the
+    // gate: there is no constructible tilted-axis revolve to feed it.
+    for ax in [Vec2::new(3.0, 4.0), Vec2::new(1.0, 3.0)] {
+        assert!(
+            revolve(
+                &meridian(),
+                RevolveAxis {
+                    origin: p2(0.0, 0.0),
+                    dir: ax,
+                },
+                Revolution::Partial(core::f64::consts::FRAC_PI_2),
+                tol,
+            )
+            .is_err(),
+            "a non-axis-aligned revolve axis is refused upstream of this gate: {ax:?}"
+        );
+    }
 }

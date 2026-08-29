@@ -10,18 +10,24 @@
 //! unit added is executed at the scalar that can escalate rather than
 //! at the one that cannot:
 //!
-//! `offset_axial_alignment`, `offset_axial_centre`,
-//! `offset_axial_meridian`, `offset_axial_meridian_through`,
-//! `offset_axial_nappe`, `offset_axial_request`, `offset_axial_pole`,
-//! `offset_axial_pole_station`, `offset_axial_side`,
-//! `offset_axial_corner`, `offset_axial_branch`,
-//! `offset_axial_radius`, `offset_axial_concurrence`,
-//! `offset_axial_azimuth_arm`, `offset_axial_azimuth_amp`,
-//! `offset_axial_azimuth`, `offset_axial_azimuth_residual`,
-//! `offset_axial_chart_motion`, `offset_axial_seam_radial`,
-//! `offset_axial_seam_concentric`, `offset_axial_latitude`,
-//! `offset_axial_latitude_tilt`, `offset_axial_edge_agreement`,
-//! `offset_axial_edge_on_surface`.
+//! **What these rows DO and do not reach, counted rather than
+//! claimed.** An earlier header listed the door's decide names and said
+//! all of them execute here; both review arms measured otherwise, and
+//! the honest statement is per fixture:
+//!
+//! | fixture | the arms it is here for |
+//! |---|---|
+//! | sphere-zone vase | the CARRIED azimuth; `seam_concentric` (a sphere's great-circle seam); `pole`; line∩circle `corner` and `branch` |
+//! | partial-revolve wedge | the SOLVED azimuth (`azimuth`, `azimuth_amp`, `azimuth_arm`, `azimuth_residual`); `meridian_through`; line∩line `corner` |
+//! | cone frustum | `nappe` and `side` — the generator's own branch choice, which neither of the others has a cone to reach |
+//! | drum | `seam_radial`, a cylinder generator seam, which a partial revolve has no seam to reach and a sphere zone has no cylinder for |
+//!
+//! Still unreached at this scalar, and said so rather than implied:
+//! `chart_motion`'s Zero arm (no interval row calls the door with a
+//! mixed set — that is `shell_open`'s lift, which these rows do not
+//! take), `latitude_tilt`'s and `seam_concentric`'s REFUSING arms, and
+//! `pole_station`. Those are f64 rows in `sf2b_axial.rs` and the two
+//! review-probe files.
 //!
 //! Both shapes the door solves are here: the CARRIED azimuth (a full
 //! revolve, where two surfaces meet at a corner) and the SOLVED one (a
@@ -98,16 +104,28 @@ fn interval_offset_charts_together_sphere_zone() {
     };
     let want = zone(big, h / 2.0) - zone(big - t, h / 2.0 - t);
     let got = topo::mass_properties(&hollow, tol).expect("props").volume;
+    contains("sphere-zone wall", got, want);
+}
+
+/// **Containment AND width.** Containment alone gets easier as an
+/// enclosure degrades — `[0, 1]` contains every answer here — so a row
+/// that only asserts it cannot tell a certified result from a collapsed
+/// one. The width is bounded relative to the answer's own size, which
+/// is the quantity a widening would be relative to.
+fn contains(what: &str, got: Interval, want: f64) {
+    let (lo, hi) = (got.lo(), got.hi());
     println!(
-        "[sf2b-interval] sphere-zone wall enclosure [{}, {}] vs {want}",
-        got.lo(),
-        got.hi()
+        "[sf2b-interval] {what} enclosure [{lo}, {hi}] vs {want} (width {})",
+        hi - lo
     );
     assert!(
-        got.lo() <= want && want <= got.hi(),
-        "the enclosure must contain the closed form {want}, got [{}, {}]",
-        got.lo(),
-        got.hi()
+        lo <= want && want <= hi,
+        "{what}: the enclosure must contain the closed form {want}, got [{lo}, {hi}]"
+    );
+    assert!(
+        hi - lo <= 1e-8 * want.abs(),
+        "{what}: the enclosure must stay TIGHT — width {} against {want}",
+        hi - lo
     );
 }
 
@@ -144,15 +162,75 @@ fn interval_offset_charts_together_partial_wedge() {
     };
     let want = core::f64::consts::PI * r * r * h / 4.0 - two_chord(r - t, t) * (h - 2.0 * t);
     let got = topo::mass_properties(&hollow, tol).expect("props").volume;
-    println!(
-        "[sf2b-interval] wedge wall enclosure [{}, {}] vs {want}",
-        got.lo(),
-        got.hi()
+    contains("wedge wall", got, want);
+}
+
+/// **The cone frustum at `T = Interval`** — the only fixture here whose
+/// corner reaches `offset_axial_nappe` and `offset_axial_side`. The
+/// generator's branch is chosen from the corner's own side of the apex
+/// and the caller's distance is turned over for the mirror nappe, both
+/// DECIDED; at this scalar an ambiguous side escalates rather than
+/// picking, which is the property the row is here for.
+#[test]
+fn interval_offset_charts_together_cone_frustum() {
+    let tol = Tol::witness();
+    let band = Band::linear(tol).unwrap();
+    let (r0, r1, h, t) = (4.0 / 64.0, 2.0 / 64.0, 8.0 / 64.0, 1.0 / 128.0);
+    let body = revolved(
+        ProfileLoop::new(vec![
+            ProfileVertex::new(p2(0.0, 0.0), iv(0.0)),
+            ProfileVertex::new(p2(r0, 0.0), iv(0.0)),
+            ProfileVertex::new(p2(r1, h), iv(0.0)),
+            ProfileVertex::new(p2(0.0, h), iv(0.0)),
+        ]),
+        Revolution::Full,
     );
-    assert!(
-        got.lo() <= want && want <= got.hi(),
-        "the enclosure must contain the closed form {want}, got [{}, {}]",
-        got.lo(),
-        got.hi()
+    let hollow = topo::shell(&body, iv(t), FIT_TOL, band, tol)
+        .expect("the cone frustum hollows at the certified scalar");
+    assert_eq!(hollow.shells().count(), 2, "outer + cavity");
+    let frustum_v =
+        |a: f64, b: f64, k: f64| core::f64::consts::PI * k * (a * a + a * b + b * b) / 3.0;
+    let tan_a = (r0 - r1) / h;
+    let apex_in = r0 / tan_a - t / tan_a.atan().sin();
+    let want = frustum_v(r0, r1, h)
+        - frustum_v(
+            (apex_in - t) * tan_a,
+            (apex_in - (h - t)) * tan_a,
+            h - 2.0 * t,
+        );
+    contains(
+        "cone frustum wall",
+        topo::mass_properties(&hollow, tol).expect("props").volume,
+        want,
+    );
+}
+
+/// **The drum at `T = Interval`** — the only fixture here with a
+/// CYLINDER generator seam, so the only one that reaches
+/// `offset_axial_seam_radial`. A partial revolve has no seam at all and
+/// a sphere zone's seam is the concentric arc, not this.
+#[test]
+fn interval_offset_charts_together_drum() {
+    let tol = Tol::witness();
+    let band = Band::linear(tol).unwrap();
+    let (r, h, t) = (3.0 / 64.0, 8.0 / 64.0, 1.0 / 128.0);
+    let body = revolved(
+        ProfileLoop::new(vec![
+            ProfileVertex::new(p2(0.0, 0.0), iv(0.0)),
+            ProfileVertex::new(p2(r, 0.0), iv(0.0)),
+            ProfileVertex::new(p2(r, h), iv(0.0)),
+            ProfileVertex::new(p2(0.0, h), iv(0.0)),
+        ]),
+        Revolution::Full,
+    );
+    let hollow = topo::shell(&body, iv(t), FIT_TOL, band, tol)
+        .expect("the drum hollows at the certified scalar");
+    assert_eq!(hollow.shells().count(), 2, "outer + cavity");
+    let pi = core::f64::consts::PI;
+    let want = pi * r * r * h - pi * (r - t) * (r - t) * (h - 2.0 * t);
+    contains(
+        "drum wall",
+        topo::mass_properties(&hollow, tol).expect("props").volume,
+        want,
     );
 }

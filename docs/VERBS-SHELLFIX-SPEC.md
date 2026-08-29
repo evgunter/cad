@@ -185,15 +185,24 @@ meeting is a quadratic. Nothing widened the table; a torus, whose pair
 has no arm at all, never reaches the door and keeps the table's own
 refusal.
 
-**3. Two latent defects, both found by fixtures rather than by
-reading.** `geom_brep::offset_surface`'s cone arm is NAPPE-BLIND — the
-apex slide moves the surface `+d` along its own normal on the `v > 0`
-nappe and `−d` on the other — so the cone frustum GREW when asked to
-shrink (cavity 0.001058 against an operand of 0.000895). And
-`shell_open`'s rim LIFT transported a rim rather than solving it, which
-coincides on a cylinder and is 6.2 mm wrong on a sphere; the lift now
-takes the same simultaneous door with every other chart at distance
-zero.
+**3. Two CONSUMER obligations, both found by fixtures rather than by
+reading, both discharged here.** The cone's mirror nappe is NOT a
+defect in `geom_brep::offset_surface`: `ConeOffset`'s header ratifies
+that `n₊` does not flip across the apex, because following the
+per-point chart normal would split the double cone instead of shifting
+a parameter, and it states the obligation that puts on consumers — a
+mirror-nappe face's material moves `−d` along its own chart normal. A
+`ChartMove`'s distance is along the FACE's outward direction, so the
+caller's number has to be turned over on a face below its apex;
+unturned, the cone frustum's cavity came back LARGER than its operand
+(0.001058 against 0.000895). And `shell_open`'s rim LIFT transported a
+rim rather than solving it, which coincides on a cylinder and is 6.2 mm
+wrong on a sphere; the lift now takes the same simultaneous door with
+every other chart at distance zero.
+
+The SIBLING consumer is filed, not fixed (#1181):
+`replace_face::mint_offset` still hands the raw `d` to a cone, shielded
+today by the caps refusing first on every reachable fixture.
 
 **4. The conditioning lever is the incident edges' ARC LENGTH**, not
 their chord. A chart with one seam closes on itself and its chord is

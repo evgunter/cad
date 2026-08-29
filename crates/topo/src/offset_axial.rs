@@ -86,6 +86,22 @@
 //! corner's motion slides an endpoint ALONG its own edge as readily as
 //! it moves the edge.
 //!
+//! # Which refusals a fixture reaches, and which are direct-door only
+//!
+//! Several `what:` strings here are unreachable through `shell` because
+//! an operand door refuses first, and that is said rather than left for
+//! a reader to test for. Reached by a shipped row: the tangency arm of
+//! [`ReplaceFaceError::TogetherAxialCorner`] (the bullet), the torus
+//! kind gate (the belly vase), `TogetherNotAxial`'s
+//! oblique-plane arm and `TogetherEdgeDisagreement` (`sf2b_r1_probes`,
+//! `sf2b_r2_probes`). **Direct-door only**, i.e. pinned by calling
+//! `offset_charts_together` rather than `shell`: the partial-set and
+//! chart-mixed gates. **Unreached by any fixture**, and written for
+//! correctness: the axis-pole station arm, the two seam arms' refusing
+//! sides, and the over-determined-azimuth arm — no constructible body
+//! in this workspace has more than one plane through the axis at a
+//! corner that is not also all-planar.
+//!
 //! # What this door does not do
 //!
 //! - **No marching, no SSI, no crossing-pipeline entry.** Every solve
@@ -95,13 +111,23 @@
 //!   table declines never reach here and keep the refusal they had.
 //! - **It does not touch global clearance.** `shell`'s wall-clearance
 //!   gate is the operand's and is unchanged; this door decides corners.
+//!   A sliver WEDGE whose two moved meridian planes cross outside the
+//!   shrunk wall has no cavity at all, and every one of its rim corners
+//!   still solves locally — each meets only ONE meridian plane — so no
+//!   meter here can see it. What catches it is the tier gate on the
+//!   assembled body (`IntervalNotForward`), measured on
+//!   `sf2b_r1_probes::r1p2`. That is a NET rather than a door-named
+//!   refusal, and a meter that named the door would be better; it is
+//!   future work, not a debt this unit is carrying, because the net is
+//!   loud and no wrong body passes it.
 //!
 //! # Conditioning
 //!
 //! As in the planar door, a dimensionless quantity's lever is the
 //! geometry being judged and never the request: the profile solve's
 //! `|det|` — a sine between two unit 2-D normals — is levered by the
-//! corner's OWN incident edge chords, and the azimuth solve's two roots
+//! ARC LENGTHS of the corner's own incident edges, and the azimuth
+//! solve's two roots
 //! are separated by a LENGTH that is metered as one. A corner asked to
 //! move nothing is answered before any meter runs. This is also what
 //! refuses a TANGENT junction: a wall meeting a sphere with no angle
@@ -270,18 +296,26 @@ pub fn offset_charts_together<T: Decide + PropsQuadLane>(
                 .get_surface(data.surface)
                 .ok_or(ReplaceFaceError::Corrupt)?
                 .clone();
-            // **A cone's offset parameter is nappe-blind, and the
-            // chart move's distance is not.** Measured on the cone
-            // frustum: shifting the apex by `−axis·(d/sin α)` moves the
-            // surface `+d` along its own normal on the `v > 0` nappe
-            // and `−d` on the other, because the parameterization's
-            // normal flips with `v` while the apex slide does not. A
-            // body whose wall sits BELOW its apex therefore grows when
-            // it is asked to shrink — a cavity larger than its operand,
-            // which is the wrong-body class this whole unit exists to
-            // keep refused. The nappe is read from the face's own
-            // points and the sign is resolved here, at the one door
-            // that has both.
+            // **The cone's mirror nappe is a CONSUMER obligation, and
+            // this is where this door discharges it.**
+            // [`geom_brep::ConeOffset`]'s header ratifies the action as
+            // the pushforward along the continuous extension of the
+            // OPENING nappe's normal field, and says in as many words
+            // that `n₊` does not flip across the apex — following the
+            // per-point chart normal instead would split the double
+            // cone rather than shift a parameter. The consequence it
+            // states is the one that matters here: a mirror-nappe
+            // face's material moves `−d` along its OWN chart normal.
+            //
+            // A `ChartMove`'s distance is along the FACE's outward
+            // direction, so on a face below its apex the two conventions
+            // are opposite and the caller's number has to be turned
+            // over before it reaches the mint. Measured on the cone
+            // frustum: unturned, the cavity comes back LARGER than its
+            // operand (0.001058 against 0.000895) — a shrink that grew.
+            // The nappe is a fact about the FACE and nothing but the
+            // face knows it, which is why the obligation lands on the
+            // consumer and is discharged here rather than in the mint.
             let d = nappe_signed(body, face, &old, m.distance, band)?;
             let new = geom_brep::offset_surface(&old, d, band)
                 .map_err(|error| ReplaceFaceError::Offset { face, error })?;
@@ -474,14 +508,51 @@ pub fn offset_charts_together<T: Decide + PropsQuadLane>(
 ///
 /// `shell` reads this to pick its branch, so a body outside it keeps
 /// exactly the posture it had.
-pub fn is_axial<T: Decide>(body: &Body<T>, band: Band) -> bool {
+///
+/// # Errors
+///
+/// **An ESCALATION is not a `false`.** The gate's own tests are
+/// margined — a normal's misalignment levered by the body's extent, a
+/// centre's distance from the axis — and a margin that lands in the
+/// ambiguity band means this body's kinds are not DECIDED either way
+/// (D4 ¶3). Answering `false` there would turn "I cannot tell" into a
+/// silent branch choice, and the branch it silently chooses is the
+/// per-chart door — whose refusal would then name a carrier rather than
+/// the undecided geometry that actually stopped it. So the escalation
+/// is returned typed and the caller refuses with it. Every other
+/// verdict — a torus, a skew cylinder, an all-planar body with no axis
+/// at all — is a definite `false` and stays one.
+///
+/// **The band is not reachable from any operand this workspace's sweeps
+/// build, and that is measured rather than assumed.** Every margin this
+/// gate takes is EXACTLY zero on a revolve — the caps' normals, the
+/// wall's axis and the frame's direction are minted from one
+/// `AxisFrame`, so `n̂ × â` and `m̂ · â` are exact zeros, not small
+/// numbers — and `revolve` refuses a 2-D axis that is not `±x`/`±y`
+/// outright, so there is no tilted body to feed it either.
+/// `sf2b_r1_probes::r1p5_the_axis_gates_third_outcome_is_unreachable_from_the_sweeps`
+/// reads eighteen decades of band scale and reports no escalation
+/// anywhere, and goes red the day one appears. The escalating arm is
+/// therefore written for correctness rather than pinned by a fixture,
+/// which is stated here rather than left to be discovered as a gap.
+pub fn is_axial<T: Decide>(body: &Body<T>, band: Band) -> Result<bool, ReplaceFaceError<T>> {
     let Ok(frame) = axial_frame(body) else {
-        return false;
+        return Ok(false);
     };
-    body.faces().all(|(face, f)| {
-        body.get_surface(f.surface)
-            .is_some_and(|s| classify(face, s, s, &frame, band).is_ok())
-    })
+    for (face, f) in body.faces() {
+        let Some(surface) = body.get_surface(f.surface) else {
+            return Ok(false);
+        };
+        match classify(face, surface, surface, &frame, band) {
+            Ok(_) => {}
+            // The gate's own definite verdicts: this body is not
+            // axial, and that is an answer.
+            Err(ReplaceFaceError::TogetherAxialUnsupported { .. })
+            | Err(ReplaceFaceError::TogetherNotAxial { .. }) => return Ok(false),
+            Err(source) => return Err(source),
+        }
+    }
+    Ok(true)
 }
 
 /// The body's revolution axis and its radial extent, read off the first
@@ -726,12 +797,13 @@ fn corner_arms<T: Decide>(
 
 /// `distance` in [`geom_brep::offset_surface`]'s own sign convention.
 ///
-/// For every kind but the cone the two agree. A cone's offset slides
-/// the apex by `−axis·(d/sin α)`, which is `+d` along the surface
-/// normal on the `v > 0` nappe and `−d` on the `v < 0` one — the slide
-/// does not know which nappe the FACE is on, and only the face does.
-/// Read from the face's own vertices, decided rather than assumed: a
-/// face straddling the apex has no nappe and is refused.
+/// For every kind but the cone the two agree. A cone's mint moves
+/// material `+d` along the OPENING nappe's normal field and therefore
+/// `−d` along a mirror-nappe face's own chart normal — the ratified
+/// contract at [`geom_brep::ConeOffset`], not an accident of it. Which
+/// nappe a FACE is on is a fact only the face has, so the turn belongs
+/// here. Read from the face's own vertices and DECIDED rather than
+/// assumed: a face straddling the apex has no nappe and is refused.
 fn nappe_signed<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -828,7 +900,7 @@ fn solve_corner<T: Decide>(
             .filter_map(|c| plane_of(&c.new))
             .map(|(n, o)| (n, n.dot(vec_of(o))))
             .collect();
-        return crate::offset_together::solve_planar_corner(vertex, here, &planes, arms, band);
+        return crate::offset_together::solve_planar_corner(vertex, &planes, arms, band);
     }
 
     let h_old = frame.station(here);
@@ -1254,6 +1326,17 @@ fn mint_carrier<T: Decide>(
             // the old carrier's `t = 0` anchor is conventional data
             // whose carrying is what keeps an unmoved corner's edge
             // bit-identical.
+            //
+            // **That is a posture, not a proof, and it is VERIFIED like
+            // every other one here.** A meridian plane meets a CONE in
+            // a hyperbola, so a straight edge between those two is
+            // straight only where the operand made it so, and the
+            // moved pair need not carry a line at all. Nothing detects
+            // that here — the caller's endpoint meters and the
+            // midpoint-on-surface meter do, and they refuse. Measured
+            // on a conical wedge: the two ends come back 0.64 mm apart
+            // and the door says `TogetherEdgeDisagreement`
+            // (`sf2b_r2_probes::r2_a_conical_wedge_meridian_edge`).
             let shift = p_start - old.eval(t0_old);
             let delta = shift - *dir * shift.dot(*dir);
             Ok(Curve3::Line {
@@ -1397,11 +1480,14 @@ fn surface_residual<T: Real>(surface: &Surface<T>, p: Point3<T>, frame: &Frame<T
 ///
 /// - an **intrinsic** one keeps its (about to be remapped) surfaces
 ///   with the witness at the new mid-parameter;
-/// - a **chart image** stays in the chart's own coordinates, so a
-///   corner solve does not touch it — except on a CONE, whose offset
-///   slides `v` by `d·cot α`. A SEAM's image is re-derived from the
-///   carrier against the new chart, exactly as it was derived from the
-///   old one, so it has no parameter to carry at all;
+/// - a **chart image** is asked for rather than carried: `image: None`
+///   is the spec's documented REQUEST to derive it from the carrier.
+///   This paragraph said "except on a CONE, whose offset slides `v` by
+///   `d·cot α`" while the code did exactly that, and the cone frustum's
+///   anti-seam refused at the attach layer's `ChartResidual` — a
+///   constant shift describes a door that keeps its parameter WINDOW,
+///   and this one re-solves both endpoints, so an edge shortens and
+///   slides within its own chart;
 /// - a **declaration** — the sketch entity under a sweep map that the
 ///   authority record keeps whole — is 3-space data and does owe the
 ///   transport. It is RE-AUTHORED in its own sketch plane rather than

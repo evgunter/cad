@@ -563,8 +563,8 @@ pub fn shell_open<T: Decide + PropsQuadLane>(
     // is by surface key, in face-arena order, so the walk is
     // deterministic.
     let mut cavity = body.clone();
-    // **All-planar bodies move SIMULTANEOUSLY; everything else still
-    // moves chart by chart.** Composing the per-chart door over a body
+    // **All-planar and AXIAL bodies move SIMULTANEOUSLY; everything
+    // else still moves chart by chart.** Composing the per-chart door over a body
     // cannot offset an OBLIQUE junction: a corner is visited once per
     // chart and transported rigidly each time, so it accumulates
     // `Σ dᵢ·nᵢ` where the offset body needs the point satisfying every
@@ -572,8 +572,11 @@ pub fn shell_open<T: Decide + PropsQuadLane>(
     // are mutually perpendicular — which is why a box was always right
     // — and diverge otherwise. `ReanchorOffCarrier` is what has been
     // refusing the difference rather than building it, and it stays
-    // exactly where it was for every body this branch does not take:
-    // the curved corners are the C5-table work that follows.
+    // exactly where it was for every body neither branch takes — a
+    // torus wall, a cylinder skew to the body's own axis, a NURBS. The
+    // curved corners of a body of REVOLUTION are no longer among them:
+    // `offset_charts_together` solves those in the meridian
+    // half-plane, and the branch below picks it.
     let all_planar = cavity.faces().all(|(_, f)| {
         matches!(
             cavity.get_surface(f.surface),
@@ -586,7 +589,14 @@ pub fn shell_open<T: Decide + PropsQuadLane>(
     // structural property of the operand, decided before anything is
     // written, so a body outside both doors is not silently downgraded
     // — it is the same body on the same door it was always on.
-    let axial = !all_planar && crate::offset_axial::is_axial(&cavity, band);
+    // An UNDECIDED axis gate is not a `false`: it escalates, and the
+    // verb refuses with it rather than quietly taking the other branch
+    // (see `is_axial`'s own docs).
+    let axial = !all_planar
+        && crate::offset_axial::is_axial(&cavity, band).map_err(|error| ShellError::Face {
+            face: offending_face(&cavity, &error).unwrap_or(charts[0][0]),
+            error: Box::new(error),
+        })?;
     if all_planar || axial {
         let mut moves: Vec<crate::offset_together::ChartMove<T>> = Vec::with_capacity(charts.len());
         for group in &charts {
@@ -727,7 +737,12 @@ pub fn shell_open<T: Decide + PropsQuadLane>(
         // named at distance zero — which is what makes it a corner
         // solve rather than a transport, and what keeps those charts
         // and their corners untouched.
-        let outcome = if crate::offset_axial::is_axial(&out, band) {
+        let axial_lift =
+            crate::offset_axial::is_axial(&out, band).map_err(|error| ShellError::Lift {
+                face: designated,
+                error: Box::new(error),
+            })?;
+        let outcome = if axial_lift {
             let mut moves: Vec<crate::offset_together::ChartMove<T>> = Vec::new();
             for group in chart_groups(&out) {
                 let key = out

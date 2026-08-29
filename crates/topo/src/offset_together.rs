@@ -480,7 +480,6 @@ fn solve_corner<T: Decide>(
     }
     solve_planar_corner(
         vertex,
-        here,
         &at.iter().map(|p| (p.normal, p.c)).collect::<Vec<_>>(),
         arms,
         band,
@@ -495,12 +494,10 @@ fn solve_corner<T: Decide>(
 /// call a stationary body's every corner singular.
 pub(crate) fn solve_planar_corner<T: Decide>(
     vertex: VertexKey,
-    here: Point3<T>,
     at: &[(Vec3<T>, T)],
     arms: &[T],
     band: Band,
 ) -> Result<Point3<T>, ReplaceFaceError<T>> {
-    let _ = here;
     let non_simple = |what: &'static str| ReplaceFaceError::TogetherCorner {
         vertex,
         planes: at.len(),
@@ -592,7 +589,16 @@ fn radius<T: Real>(p: Point3<T>) -> Vec3<T> {
 
 /// The chord length of every edge ending at a vertex — the lengths the
 /// corner's conditioning is levered by (see [`solve_corner`]).
-pub(crate) fn corner_arms<T: Real>(
+///
+/// **The axial door keeps its own copy, levered by ARC LENGTH, and the
+/// difference is load-bearing rather than a duplication to collapse.**
+/// A chord is the arc length here because this door's bodies are
+/// all-planar and a planar edge is a straight segment: no closed edge
+/// exists for a chord to read zero on. The axial door's do — a chart
+/// with ONE seam closes on itself — and a zero arm makes every meter
+/// read `Zero` and call a perfectly transversal corner degenerate,
+/// which is what it measured on the revolved tube.
+fn corner_arms<T: Real>(
     body: &Body<T>,
     vertex: VertexKey,
     here: Point3<T>,

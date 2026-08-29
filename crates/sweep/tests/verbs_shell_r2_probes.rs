@@ -305,30 +305,17 @@ fn r2_stepped_meridian_vase_mints_one_annular_rim() {
     topo::shell(&body, t, FIT_TOL, band(), tol)
         .expect("the stepped vase's SEALED hollow is inside the axial door");
 
-    // The OPENED arm's boundary has moved with it, to a stage this unit
-    // does not touch: the rim's outward LIFT puts one chart back on the
-    // designated plane while its neighbours — the cavity's own cones —
-    // genuinely do not move, so the moved rim vertex leaves the cone's
-    // rim circle by `t·|cos θ|` and the per-face door refuses. That is
-    // the same arithmetic #1081 measured, at the lift rather than at
-    // the offset, and the simultaneous door does not reach it: the lift
-    // moves ONE chart by construction. Recorded, named, and not
-    // demanded of a unit that is not testing it.
-    let cup = match opened {
-        Ok(cup) => cup,
-        Err(ShellError::Lift { error, .. })
-            if matches!(*error, topo::ReplaceFaceError::ReanchorOffCarrier { .. }) =>
-        {
-            println!("[r2] the vase hollows; its RIM LIFT is the surviving boundary: {error}");
-            return;
-        }
-        Err(ShellError::Face { error, .. })
-            if matches!(*error, topo::ReplaceFaceError::ReanchorOffCarrier { .. }) =>
-        {
-            panic!("the sealed offset must not refuse any more: {error}");
-        }
-        Err(e) => panic!("the vase's stepped meridian must open (claim 3's MINT): {e:?}"),
-    };
+    // **And the OPENED arm succeeds too**, which this row asserts
+    // rather than tolerating. An earlier cut of this change carried an
+    // early-return arm for `ShellError::Lift { ReanchorOffCarrier }` —
+    // the boundary the sealed fix moved the refusal TO — and then the
+    // same PR routed the rim lift through the simultaneous door as
+    // well, which retired it. A skipping arm that can no longer fire is
+    // worse than none: it would `return` past every assertion below and
+    // report green for a body it never looked at.
+    let cup = opened.unwrap_or_else(|e| {
+        panic!("the vase's stepped meridian must open (claim 3's MINT): {e:?}")
+    });
     assert_eq!(topo::validate_geometric(&cup, tol), Ok(()), "tier 3");
     assert_eq!(cup.shells().count(), 1);
     assert_eq!(

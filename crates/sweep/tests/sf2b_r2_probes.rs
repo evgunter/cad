@@ -417,7 +417,13 @@ fn r2_which_branch_each_fixture_takes() {
     ] {
         println!(
             "[r2] branch {what}: is_axial = {}  ({} faces)",
-            topo::is_axial(&body, band()),
+            // `is_axial` now returns the gate's ESCALATION typed rather
+            // than folding it into a `false` (the review's R2-MIN-3), so
+            // the printout carries the third outcome as itself.
+            match topo::is_axial(&body, band()) {
+                Ok(v) => format!("{v}"),
+                Err(e) => format!("ESCALATED({e})"),
+            },
             body.faces().count()
         );
     }

@@ -256,12 +256,28 @@ the table.
   pair passes when it is transversal — the pot's own foot-to-belly
   junction is `cylinder ∩ sphere` and hollows.
 
-  Two latent defects surfaced on the way and are fixed with it:
-  `geom_brep::offset_surface`'s cone arm is NAPPE-BLIND (the apex slide
-  moves the surface `+d` along its own normal on one nappe and `−d` on
-  the other, so a frustum below its apex GREW when asked to shrink),
-  and the rim LIFT in `shell_open` transported a rim instead of solving
-  it, which is invisible on a cylinder and 6.2 mm wrong on a sphere.
+  Two CONSUMER obligations were being left undischarged, and both are
+  discharged here. **The cone's mirror nappe**: `ConeOffset`'s ratified
+  header (ordinal 79) says `n₊` does NOT flip across the apex — that is
+  the contract, because following the per-point chart normal would
+  split the double cone instead of shifting a parameter — and states
+  the consequence it puts on consumers, that a mirror-nappe face's
+  material moves `−d` along its own chart normal. A `ChartMove`'s
+  distance is along the FACE's outward direction, so a face below its
+  apex needs the caller's number turned over before the mint sees it;
+  unturned, the frustum's cavity came back LARGER than its operand
+  (0.001058 against 0.000895). The axial door turns it (`nappe_signed`,
+  from the face's own corners, decided). **The rim LIFT** in
+  `shell_open` transported a rim rather than solving it — invisible on
+  a cylinder, 6.2 mm wrong on a sphere — and now takes the same
+  simultaneous door with every other chart at distance zero.
+
+  **The sibling consumer has NOT been swept and is filed rather than
+  fixed** (#1181): `replace_face::mint_offset` still hands the caller's
+  raw `d` to a cone. No wrong body ships from it today — both review
+  arms proved the caps refuse first on every reachable fixture — so it
+  is a latent hazard behind a gate, not a live defect, and the issue
+  carries both arms' evidence.
 
   The #1048 corpus is byte-identical across both changes, measured with
   the dump harness rather than asserted — including the two CURVED
