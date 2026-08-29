@@ -745,6 +745,7 @@ fn main() {
     let outdir = std::env::args().nth(1).expect(
         "usage: demo-tour <outdir> | demo-tour gallery [dir] | \
                  demo-tour asm-corpus <dir> | \
+                 demo-tour die-corpus <file> | \
                  demo-tour k-probe [out.csv] | \
                  demo-tour tess-budget [out.csv] [--deviation]",
     );
@@ -768,6 +769,24 @@ fn main() {
             .nth(2)
             .expect("usage: demo-tour asm-corpus <dir>");
         assembly::corpus(std::path::Path::new(&dir), tol);
+        return;
+    }
+    // The composed die's own document and nothing else — what
+    // `crates/editor-core/tests/corpus/tour/die_composed_tour.pncad` is
+    // regenerated from, and the reason the kernel's model corpus can
+    // register this scene's die without a second transcription of it
+    // (`diefillet::corpus_text`). Separate from `gallery`, which writes
+    // the die MINUS its blank fillet: that deletion is right for a
+    // document a person opens in the viewer (two roots sit on each
+    // other) and wrong for a corpus whose subject is the three fillet
+    // sites.
+    if outdir == "die-corpus" {
+        let path = std::env::args()
+            .nth(2)
+            .expect("usage: demo-tour die-corpus <file>");
+        let text = diefillet::corpus_text(tol);
+        std::fs::write(&path, &text).expect("the die corpus document writes");
+        println!("die corpus → {path} ({} byte(s))", text.len());
         return;
     }
     // The K-telemetry mode (M4 PR 8b): rebuild every scene at the
