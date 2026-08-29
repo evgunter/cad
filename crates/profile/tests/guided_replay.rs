@@ -211,7 +211,7 @@ fn the_hairline_lens_aborts_typed_at_interval_instead_of_re_picking() {
     let (_, structure) = replay_recording(&program, tol()).expect("the lens replays at f64");
     let lifted: Vec<profile::Step<Interval>> = program
         .iter()
-        .map(|s| embed(s))
+        .map(embed)
         .collect::<Vec<profile::Step<Interval>>>();
     let err = replay_guided(&lifted, &structure, tol())
         .expect_err("the interval lane cannot confirm this structure");

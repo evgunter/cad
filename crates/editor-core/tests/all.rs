@@ -154,6 +154,8 @@ mod m4_pr7_appearance;
 mod m4_pr7_appearance_interval;
 #[path = "m10_p_fence.rs"]
 mod m10_p_fence;
+#[path = "m10_p_lift.rs"]
+mod m10_p_lift;
 #[path = "m4_pr8_corpus.rs"]
 mod m4_pr8_corpus;
 #[path = "m4_pr8_corpus_interval.rs"]

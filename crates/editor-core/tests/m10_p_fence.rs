@@ -19,6 +19,16 @@
 //! `interval` and `probe` rows ride the same helper, so the fence
 //! covers the three scalars the review names rather than the value lane
 //! alone.
+//!
+//! **ITS PROBE-GATED CODE IS NOT EXECUTED BY CI**, and that is the
+//! right disposition rather than an accident of a filter: the `probe`
+//! row asserts the SAME digest the `f64` row does, because `Probe` is a
+//! transparent `f64` whose every operation delegates exactly. It is
+//! there to catch a telemetry scalar that started changing decisions —
+//! a claim about `Probe`, not about this fence — and the fence itself
+//! is carried by the `f64` and `interval` rows, which run on every
+//! merge. Rostering it into the probe sweep would buy a third copy of a
+//! number the sweep has no reason to be the keeper of.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 mod corpus;

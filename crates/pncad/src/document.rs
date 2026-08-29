@@ -100,7 +100,7 @@ pub use editor_core::{Distribution, DistributionFault, DistributionField};
 // enum that carries them.
 pub use editor_core::{
     BooleanValue, CancelToken, DatumValue, EvalOptions, EvalOutcome, Evaluation, NodeError,
-    NodeErrorKind, NodeResult, NodeValue, SplitSide, ValuePayload, evaluate,
+    NodeErrorKind, NodeResult, NodeValue, ProfileLift, SplitSide, ValuePayload, evaluate,
 };
 
 // Persistence: the schema-v4 doors, verbatim.

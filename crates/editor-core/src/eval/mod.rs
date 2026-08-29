@@ -1473,6 +1473,10 @@ where
 /// not read the witness, so the recompute reproduces identical
 /// results — W4's "semantically invisible", honestly re-derived
 /// rather than assumed).
+// The eighth argument is the lift's lane-resolved program: an
+// eighth INPUT to the key, which is the one thing a content key is
+// allowed to grow.
+#[allow(clippy::too_many_arguments)]
 fn content_key<T>(
     node: &crate::node::Node<ProfileProgram>,
     slot_values: &slots::SlotValues<T>,

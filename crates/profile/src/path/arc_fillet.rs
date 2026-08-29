@@ -517,7 +517,7 @@ pub(crate) fn resolve<T: Decide + Bounds>(
                     Err((_, PathError::Escalated { source })) => {
                         return Err(structure(StructureRefusal::indeterminate(
                             site,
-                            source.clone(),
+                            *source,
                         )));
                     }
                     _ if found != recorded => {
