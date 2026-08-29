@@ -42,14 +42,13 @@
 //! a reader to be suspicious if one ever needs a second number.
 //!
 //! WHAT THE INTERVAL ROW IS NOT. It pins that the lift OFF changes
-//! nothing at `Interval`; it is not evidence that a WIDE interval
-//! parameter can be driven through this door, because it cannot be
-//! yet. `Doc::param_env` embeds every parameter through `from_f64`, so
-//! every binding a document evaluation can produce is a degenerate
-//! (point) interval. Teaching it non-degenerate intervals is M10-3's
-//! first spec bullet; until that lands, the wide-box capability is
-//! reachable only one door down, at the program-resolve seam, which is
-//! where `m10_p_lift`'s wide-box row drives it.
+//! nothing at `Interval` — a fence around the BUILD path, which binds
+//! its parameters at their nominals. It is not evidence about a WIDE
+//! interval parameter, which is a different door: an evaluation
+//! carrying an `EvalOptions::param_box` binds `nominal + [lo, hi]`
+//! instead, and `m10_3_driver_interval`'s rows are what drive that.
+//! The two claims stay separate because the fence's subject is that
+//! the lift changed nothing where nothing should change.
 //!
 //! RE-BLESSED TWICE, both times for a ROSTER change rather than a
 //! build-path one: this digest walks `corpus::documents()`, so a new
@@ -82,8 +81,8 @@
 mod corpus;
 mod fixture;
 
-use editor_core::{CancelToken, ContentBits, EvalOptions, NodeResult, ValuePayload, evaluate};
-use geom_core::{Decide, Tol};
+use editor_core::{CancelToken, EvalOptions, NodeResult, ValuePayload, evaluate};
+use geom_core::Tol;
 
 /// A 128-bit FNV-1a over the evaluation's observable bits.
 struct Digest {
@@ -121,7 +120,7 @@ impl Digest {
 /// door, which is what lets it compile against a pre-lift tree.
 fn corpus_digest<T, F, S>(bits: F, scalar: S) -> (u64, u64)
 where
-    T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::AtRestPolicy,
+    T: editor_core::EvalScalar,
     F: Fn(&mut Digest, &geom_core::Point3<T>),
     S: Fn(&mut Digest, T),
 {

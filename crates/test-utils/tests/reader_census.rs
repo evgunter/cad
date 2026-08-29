@@ -99,6 +99,10 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // public-surface scan, code view
     },
     Entry {
+        path: "crates/editor-core/tests/m10_3_r2_probes_interval.rs",
+        disposition: Shared, // unreachable-variant scan, code view
+    },
+    Entry {
         path: "crates/editor-core/tests/schema_ledger.rs",
         disposition: Shared, // doc-comment ledger, prose view
     },
