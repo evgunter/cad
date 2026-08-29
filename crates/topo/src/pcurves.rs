@@ -558,29 +558,35 @@ fn nurbs_iso_derive<T: PcurveFittedLane>(
         }) => {
             let v0 = p0.y + pl.y * t0;
             let column = |cand: T| surface.eval(cand, v0);
-            let x = match side_pick(&column, &[cu0, cu1])? {
-                Some(x) => x,
-                // **Neither boundary column is where this seam is.**
-                // On a chart WIDER than the face it trims — the chart a
-                // trimmed-NURBS face carries, and the chart on which an
-                // `Intersection` seam is an interior column at all —
-                // the shared column is interior too. So MEASURE it,
-                // with the same certified foot the `General` deriver
-                // uses (one sample rather than 33: this arm already
-                // knows the image's SHAPE from the neighbour's own
-                // description, and is missing only its position), and
-                // offer it to the SAME metre-valued check. The closed
-                // form is tried first and still wins wherever it
-                // applies, so nothing that certified before changes.
-                None => {
-                    let foot = derive_chart_foot(carrier.eval(t0), surface, half_edge)?;
-                    let measured = foot.map(|f| T::from_f64(f.x));
-                    match measured {
-                        Some(u) => side_pick(&column, &[u])?.ok_or_else(no_boundary)?,
-                        None => return Err(no_boundary()),
-                    }
-                }
-            };
+            // **No measured fall-back here, deliberately — and this is
+            // the one place the rim arm's widening must NOT be copied.**
+            // A wall-wall seam's image is a COLUMN: `u` is the FIXED
+            // channel. The exact iso class certifies a fixed channel
+            // only on a chart boundary, because a boundary row is a
+            // control-net copy and an interior one is not (the hull
+            // hypothesis the bound rests on) — `pcurve_cache`'s
+            // `side_of` refuses an interior column by design, and
+            // `geom-brep`'s `an_interior_column_still_refuses` pins
+            // that. So a definite fall-through HERE is not a position
+            // this arm is missing; it is a statement that the exact
+            // class does not apply, and minting the measured column
+            // anyway would hand the certifier exactly the image the
+            // design requires it to refuse.
+            //
+            // The cap-rim arm below is the opposite case and that is
+            // why it DOES measure: there `u` is the MOVING channel and
+            // the fixed one is `v`, still on a boundary, so only the
+            // map was wrong.
+            //
+            // Nor is `General` the answer for this locus: the fitted
+            // grade certifies against an operand PAIR, and a `Chart`
+            // description names ONE surface (`mate_surface` reads the
+            // pair from an `Intersection` description), so there is no
+            // tube to state. An interior column reached through a chart
+            // description needs the de Boor collapse extractor named in
+            // the refusal `side_of` raises; it is banked, not this
+            // unit's.
+            let x = side_pick(&column, &[cu0, cu1])?.ok_or_else(no_boundary)?;
             Ok(Pcurve::IsoLine {
                 p0: Point2::new(x, p0.y),
                 pl: Vec2::new(T::zero(), pl.y),
