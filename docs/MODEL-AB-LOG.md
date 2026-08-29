@@ -1228,10 +1228,24 @@ no name for either variant and dies inside serde rather than at the
 version door. Claimed as main's next number after reading main's
 ACTUAL constant by eye at the final re-merge (`git show
 origin/main:crates/editor-core/src/persist/mod.rs | grep
-SCHEMA_VERSION` → 15, at c6a7088e). This paragraph is the tripwire:
-any other in-flight branch claiming 16 collides HERE, because the
-constant will not. Known rivals surveyed at claim time: none — LIB's
-G18a took no schema number, and M10-P/M10-DI carry no schema claim.
+SCHEMA_VERSION` → 15, re-read at 74e7d36f when this branch re-merged
+main immediately before opening its PR). This paragraph is the
+tripwire: any other in-flight branch claiming 16 collides HERE,
+because the constant will not.
+
+**KNOWN RIVAL, named rather than assumed away: LIB-G16**
+(`docs/LIB-G16-SPEC.md`, `Node::Chamfer` under RECIPE-DOORS; its
+dispatch record carries a v16 claim, spec merged 2026-08-29 the same
+day as this one). Its spec asks for the same discipline — read main's
+constant by eye at branch time AND at re-merge — so the two claims are
+resolved by ORDER OF MERGE, not by either paragraph: whichever lands
+first takes 16, and the other must move to 17 and repair its ledger
+entry, its `assert_eq!(SCHEMA_VERSION, ..)` rows across the
+`*_schema_v*.rs` suites, its golden filename, and the `plate_param`
+and bench-corpus fixtures. This branch's number was still correct at
+its own re-merge; the duty transfers to whichever of the two re-merges
+later. M10-P and M10-DI carry no schema claim, and LIB-G18a took no
+number.
 
 Review
 ordinal claims at review dispatch (note: the next third is 48 —
