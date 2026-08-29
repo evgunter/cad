@@ -42,6 +42,8 @@ mod corpus_fold;
 mod curve_promotion_report;
 #[path = "freecad.rs"]
 mod freecad;
+#[path = "cert1_r1_import_probes.rs"]
+mod cert1_r1_import_probes;
 #[path = "halfcap_pole.rs"]
 mod halfcap_pole;
 #[path = "inst_review_probes.rs"]
