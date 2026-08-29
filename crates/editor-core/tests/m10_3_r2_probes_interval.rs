@@ -760,15 +760,19 @@ fn the_leaf_budget_prices_the_whole_unexamined_frontier() {
 /// invents a way to reach them" can be checked as.
 #[test]
 fn nothing_constructs_the_two_unreachable_refusals() {
-    let src = include_str!("../src/drive.rs");
+    // THROUGH THE SHARED LEXER, not a hand-rolled one: comments and
+    // string literals are blanked by `test_utils::source::code_only`,
+    // so a doc comment naming `RefusalReason::Infeasible` — and this
+    // module's own docs do — cannot be read as a construction. The
+    // reader census's `Shared` disposition is the destination for every
+    // site that reads Rust source, and a `//`-prefix filter is the
+    // hand-rolled reader it exists to retire.
+    let src = test_utils::source::code_only(include_str!("../src/drive.rs"));
     // A CONSTRUCTION, as opposed to a declaration or a match pattern:
     // the variant's name in VALUE position — pushed onto the refused
     // list, assigned to a `reason:` field, or returned as a verdict.
     for (i, line) in src.lines().enumerate() {
         let l = line.trim_start();
-        if l.starts_with("//") {
-            continue;
-        }
         for v in ["Infeasible", "Bifurcation"] {
             let mentions = l.contains(&format!("RefusalReason::{v}"));
             let constructs = mentions
