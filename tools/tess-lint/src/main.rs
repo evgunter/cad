@@ -14,7 +14,7 @@
 //! and for its reason: a sweep-format drift must never read as a
 //! geometry finding.
 
-use tess_lint::{Finding, Kind, Row, SceneTotals, compare, parse, totals};
+use tess_lint::{Kind, Observation, Rekey, Row, SceneTotals, compare, parse, totals};
 
 /// The gate ran and the budget distribution moved.
 const EXIT_FINDINGS: i32 = 2;
@@ -59,22 +59,58 @@ fn discipline(findings: usize) -> String {
          \x20    baseline is a record of a deliberate state, not a high-water mark.\n\
          \x20 3. A `vanished` finding is never re-baselined without reading it: a scene\n\
          \x20    the sweep stopped covering improves every total it used to appear in.\n\
-         \x20 4. A `face roster` finding says the scene's FACES moved — one added,\n\
-         \x20    dropped, or rerouted to another chart — so the per-face join names\n\
-         \x20    different faces on the two sides and NO face in that scene was\n\
-         \x20    compared. What that costs depends on the scene: nothing where it has\n\
-         \x20    no Hessian-sized face, the whole slack rule where it has one. Read\n\
-         \x20    which face moved and why; re-cutting the baseline is what restores\n\
-         \x20    the per-face gate over that scene.\n"
+         \x20 4. A re-keyed face is the join refusing to call one ordinal one face.\n\
+         \x20    The line names the face, the column that disagreed and both\n\
+         \x20    readings; that face and every face above it went uncompared, which\n\
+         \x20    is what makes it a finding. Establish what changed in the MODEL\n\
+         \x20    first — a face genuinely replaced is a geometry change, a face\n\
+         \x20    merely renumbered is not — because a re-cut taken before that\n\
+         \x20    reading commits whatever the uncompared faces were doing.\n"
     )
 }
 
-/// The face a per-face finding names. [`Kind::Slack`] and
-/// [`Kind::Roster`] both carry one; rendering an absence as face 0
-/// would print a finding about a face nothing read.
-fn face_of(f: &Finding) -> String {
-    f.face
-        .map_or_else(|| "(unnamed)".to_string(), |i| i.to_string())
+/// One observation, as a line. The prefix says whether it fails the
+/// row, so a note and a finding can never be read for each other.
+fn line(prefix: &str, o: &Observation) -> String {
+    let scene = &o.scene;
+    match &o.kind {
+        Kind::Triangles { was, now } => {
+            let factor = if *was > 0.0 { now / was } else { f64::INFINITY };
+            format!("{prefix} {scene}: triangles {was:.0} -> {now:.0} ({factor:.2}x)")
+        }
+        Kind::Slack { face, was, now } => format!(
+            "{prefix} {scene} face {face}: recoverable slack {was:.1}x -> {now:.1}x — the \
+             sizing schedule got wastefuller"
+        ),
+        Kind::Vanished { was_triangles } => format!(
+            "{prefix} {scene}: in the baseline ({was_triangles:.0} triangles), absent from \
+             this sweep"
+        ),
+        // Never "the sizing got wastefuller" and never a face count:
+        // this is the join refusing to call two rows one face, so the
+        // line is the column that disagreed and both its readings.
+        Kind::Rekeyed { face, how } => {
+            let what = match how {
+                Rekey::Absent { in_baseline: true } => {
+                    "in the baseline, absent from this sweep".to_string()
+                }
+                Rekey::Absent { in_baseline: false } => {
+                    "in this sweep, absent from the baseline".to_string()
+                }
+                Rekey::Column { name, was, now } => {
+                    format!("a different face: {name} {was} -> {now}")
+                }
+            };
+            format!(
+                "{prefix} {scene} face {face}: {what} — the per-face join is by ORDINAL, so \
+                 this face and every face above it went uncompared"
+            )
+        }
+        Kind::NewScene { triangles } => format!(
+            "{prefix} {scene}: in this sweep ({triangles:.0} triangles), not in the baseline \
+             — new coverage, so no face in it was compared against anything"
+        ),
+    }
 }
 
 fn main() {
@@ -229,64 +265,23 @@ fn main() {
         return;
     };
     let base = read(&baseline_path);
-    let findings = compare(&base, &rows);
-    let base_scenes: std::collections::HashSet<&str> =
-        base.iter().map(|r| r.scene.as_str()).collect();
-    let added: std::collections::BTreeSet<&str> = rows
-        .iter()
-        .map(|r| r.scene.as_str())
-        .filter(|s| !base_scenes.contains(s))
-        .collect();
-    if !added.is_empty() {
-        // Not a finding — but never silent: an uncovered scene is a
-        // hole in the very comparison the gate is making.
-        println!(
-            "\ntess-lint: {} scene(s) in the fresh sweep are NOT in the baseline \
-             (new coverage, not a finding): {}",
-            added.len(),
-            added.into_iter().collect::<Vec<_>>().join(", ")
-        );
+    let report = compare(&base, &rows);
+    // Notes first, and on stdout only: they are coverage the gate did
+    // not get to compare, and they never make the row red.
+    for note in &report.notes {
+        println!("{}", line("\nnote:", note));
     }
     println!(
         "\ntess-lint: gate vs {baseline_path}: {} finding(s)",
-        findings.len()
+        report.findings.len()
     );
-    for f in &findings {
-        match f.kind {
-            Kind::Triangles => println!(
-                "  FINDING {}: triangles {:.0} -> {:.0} ({:.2}x)",
-                f.scene,
-                f.was,
-                f.now,
-                f.factor()
-            ),
-            Kind::Slack => println!(
-                "  FINDING {} face {}: recoverable slack {:.1}x -> {:.1}x — the sizing \
-                 schedule got wastefuller",
-                f.scene,
-                face_of(f),
-                f.was,
-                f.now
-            ),
-            Kind::Vanished => println!(
-                "  FINDING {}: in the baseline ({:.0} triangles), absent from this sweep",
-                f.scene, f.was
-            ),
-            Kind::Roster => println!(
-                "  FINDING {}: face roster moved ({:.0} -> {:.0} faces, first disagreement \
-                 at face {}) — the per-face join is by ORDINAL, so no face in this scene \
-                 was compared",
-                f.scene,
-                f.was,
-                f.now,
-                face_of(f)
-            ),
-        }
+    for f in &report.findings {
+        println!("{}", line("  FINDING", f));
     }
-    if !findings.is_empty() {
+    if !report.findings.is_empty() {
         // stderr, and stderr only: this verdict must survive a
         // redirected stdout — it is the reason the row is red.
-        eprint!("{}", discipline(findings.len()));
+        eprint!("{}", discipline(report.findings.len()));
         std::process::exit(EXIT_FINDINGS);
     }
     println!("tess-lint: clean — no scene grew and no face's sizing got wastefuller");

@@ -71,50 +71,49 @@
 //! 3. **Scene disappeared** — a baseline scene the fresh sweep has no
 //!    row for. Silent coverage loss reads as an improvement in every
 //!    total, so it is a finding, not a footnote.
-//! 4. **The face roster moved** — a scene whose faces no longer line
-//!    up with the baseline's, so rule 2 has nothing it can compare
-//!    there. Announced per scene, never resolved into a comparison.
+//! 4. **A re-keyed face** — an ordinal whose two rows are not one
+//!    face, so rule 2 has nothing it can compare there. Announced
+//!    with the column that disagreed, never resolved into a
+//!    comparison.
 //!
 //! A scene the FRESH sweep adds is not a finding (new scenes are
 //! normal); it is reported, so the baseline's staleness stays visible.
 //!
 //! ## Rule 2 joins on the face ORDINAL, and rule 4 is its precondition
 //!
-//! `face` is the sweep's only per-face NAME — the index into the
-//! body's face arena. Every other per-face column is a MEASUREMENT, so
-//! joining on one would key the comparison on the quantity being
-//! compared: a face whose geometry moved would stop matching itself,
-//! which is exactly the case rule 2 exists to catch. (The measured
-//! columns are not even unique — the committed baseline carries eight
-//! pairs of NURBS faces agreeing on trim box and whole-patch
-//! divisions.) So the ordinal stays the key, and what a positional key
-//! needs — that both sides number the same faces — is CHECKED rather
-//! than assumed.
+//! `face` is the sweep's only per-face NAME, and any added, dropped or
+//! rerouted face renumbers every face above it — so what a positional
+//! key needs, that both sides number the same faces, is CHECKED at
+//! each ordinal rather than assumed. The check reads
+//! [`IDENTITY_COLUMNS`], whose doc carries the principle that chose
+//! them: **the precondition is over the columns the comparison does
+//! not read, and the comparison is over the rest.**
 //!
-//! The check is per scene, over the LANE each ordinal took: `chart`,
-//! plus whether rule 2 has a ratio for that face at all. Neither moves
-//! when a face's geometry does, and both move when the roster does. A
-//! face added, dropped, or rerouted to another chart renumbers every
-//! face after it, so where the two rosters disagree the gate
-//! ANNOUNCES the scene and compares no face in it: a slack ratio
-//! against a *different* face is wrong in either direction, and going
-//! quiet is the silent coverage loss rule 3 already refuses to call an
-//! improvement.
+//! It is POINTWISE, so a value shared by two faces is harmless: the
+//! question is whether ordinal *i* is one face on both sides, not
+//! whether it is unique. And ordinals BELOW the first disagreement are
+//! still compared — they are provably aligned, and suppressing them
+//! would hide a regression behind a re-key, which is rule 3's own
+//! *"silent coverage loss reads as an improvement"* one level down.
+//! From the first disagreement up the walk stops, because an inserted
+//! or dropped face shifts everything above it.
 //!
-//! **It fires on a scene with nothing sized in it, too**, and that is
-//! the rule rather than an oversight: rule 3 is coverage at scene
-//! granularity and fires for a scene that never had a sized face, and
-//! rule 4 is the same statement one level down. Conditioning it on
-//! "does this scene carry a sizing column today" would make the gate's
-//! coverage rules disagree with each other, and would silently change
-//! meaning the day a second chart starts reporting sizing.
+//! **What it cannot see, measured rather than shaped:** two faces of
+//! one scene agreeing on every identity column and swapping ordinals.
+//! On the committed baseline that is **8 pairs — 16 of the 64 sized
+//! rows, across 6 of the 12 scenes carrying a sized face**
+//! (`lily_leaf_b` ×2, `lily_leaf_c` ×2, `lily_sepal_c`, `loft_prism`,
+//! `nonuniform_loft`, `s_duct`), each two walls of one body with
+//! identical trim box and divisions. Closing it needs a face identity
+//! in a column of the sweep's own, which is `tess_meter`'s half of the
+//! contract.
 //!
-//! **What the roster check cannot see**, said plainly because it is a
-//! real hole and not a hypothetical: two faces of one scene that take
-//! the same lane and swap ordinals. Nothing in the CSV tells them
-//! apart. Closing it needs a face identity the sweep carries in a
-//! column of its own, which is `tess_meter`'s half of the contract,
-//! not this one.
+//! **A re-key is a finding only where it can cost a measurement** —
+//! where the scene carries a sized face on either side. Elsewhere it
+//! is a note: rule 1 still runs over the scene's total, so nothing was
+//! lost, and a gate that reds where it gates nothing is one people
+//! learn to route around. Rule 3 only looks like a counter-example: a
+//! vanished scene loses rule 1 with it.
 //!
 //! **A measurement that could not be read is none of the four, and
 //! must not be resolved into one.** Rules 1 and 2 fire on GROWTH
@@ -123,10 +122,8 @@
 //! sizing columns are therefore admitted or refused where they are
 //! read (`Admissible`, private), per column, and a refused one leaves in the
 //! harness voice — a sweep the lint cannot read is not a tessellation
-//! that got better. Rules 3 and 4 are the same argument one level up:
-//! a comparison that stopped HAPPENING is not growth of any size, so
-//! neither is expressible as a threshold and both have to be their own
-//! finding.
+//! that got better. Rules 3 and 4 say the same thing one level up: a
+//! comparison that stopped HAPPENING is not growth of any size.
 //!
 //! # Reading a firing gate
 //!
@@ -150,13 +147,34 @@ pub struct Row {
     pub delta: f64,
     /// Triangles this face contributed.
     pub triangles: usize,
-    /// The Hessian-sized lane's columns; `None` on other charts.
+    /// The Hessian-sized lane's columns, `None` on a face that lane
+    /// did not size.
+    ///
+    /// Not the same question as `chart`, and the two move
+    /// independently: the kernel's lane split (`mesh::trimmed::Lane`)
+    /// puts `Surface::Approx` on the sized lane too, so an `approx`
+    /// row carries this block — while a `nurbs` face that reroutes
+    /// off the lane keeps its chart and loses it. `IDENTITY_COLUMNS`
+    /// reads both for that reason.
     pub nurbs: Option<Nurbs>,
 }
 
-/// The NURBS lane's sizing columns (`tess_meter::NurbsColumns`).
+/// The Hessian-sized lane's columns (`tess_meter::NurbsColumns`).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Nurbs {
+    /// The trim box the grid spans, `u` low. Read by rule 4 and by no
+    /// other rule — see [`IDENTITY_COLUMNS`].
+    pub u0: f64,
+    /// The trim box, `u` high.
+    pub u1: f64,
+    /// The trim box, `v` low.
+    pub v0: f64,
+    /// The trim box, `v` high.
+    pub v1: f64,
+    /// The whole-patch counterfactual's `u` divisions.
+    pub nu: f64,
+    /// The whole-patch counterfactual's `v` divisions.
+    pub nv: f64,
     /// The grid the lane actually built (TESS-SPAN: per-cell-sized),
     /// as a cell count.
     pub grid_cells: f64,
@@ -272,6 +290,10 @@ enum Admissible {
     /// A realized lattice aspect: finite and above zero (every band
     /// has nonempty extents over counts floored at one).
     Aspect,
+    /// A trim-box edge in parameter space: finite, and nothing more —
+    /// the box's own non-degeneracy is a cross-column property this
+    /// per-column table cannot state.
+    Extent,
 }
 
 impl Admissible {
@@ -284,6 +306,7 @@ impl Admissible {
             Self::OptionalDeviation => v.is_nan() || (v.is_finite() && v >= 0.0),
             Self::Count => v.is_finite() && v >= 0.0,
             Self::Aspect => v.is_finite() && v > 0.0,
+            Self::Extent => v.is_finite(),
         }
     }
 
@@ -298,9 +321,28 @@ impl Admissible {
             }
             Self::Count => "a constraint-activity count, finite and non-negative",
             Self::Aspect => "a realized aspect, finite and above zero",
+            Self::Extent => "a trim-box edge, finite",
         }
     }
 }
+
+/// Where the identity block starts in [`EXPECTED_HEADER`] — the first
+/// column after `triangles`, which is the last one every row fills.
+const IDENTITY_FIRST: usize = 5;
+
+/// The columns [`identity`] reads, policed exactly as the sizing block
+/// is and for the added reason that they are gate INPUTS now: rule 4
+/// decides from them whether an ordinal is one face, so a value the
+/// lint cannot read must leave in the harness voice rather than
+/// manufacturing a re-key.
+const IDENTITY_MEASURES: [(&str, Admissible); 6] = [
+    ("u0", Admissible::Extent),
+    ("u1", Admissible::Extent),
+    ("v0", Admissible::Extent),
+    ("v1", Admissible::Extent),
+    ("nu", Admissible::CellCount),
+    ("nv", Admissible::CellCount),
+];
 
 /// Where the sizing block starts in [`EXPECTED_HEADER`].
 const SIZING_FIRST: usize = 17;
@@ -352,6 +394,16 @@ pub const EXPECTED_HEADER: &str = "scene,face,chart,delta,triangles,u0,u1,v0,v1,
                                    muu,muv,mvv,mu1,mv1,cells,grid_cells,patch_cells,\
                                    opt_cells,span_opt_cells,worst_cert,worst_dev,\
                                    dev_samples,bands,cap_bands,snap_bands,realized_aspect";
+
+/// Every tag `tess_meter::Chart::tag` emits, pinned HERE as
+/// [`EXPECTED_HEADER`] is pinned and for its reason: the two halves
+/// are separate cargo roots by design, so there is no shared constant
+/// to import, and `chart` is now a column the gate JOINS on. A
+/// renamed tag must fail as harness breakage rather than re-key every
+/// scene that carries it.
+pub const CHART_TAGS: [&str; 7] = [
+    "plane", "cylinder", "cone", "sphere", "torus", "nurbs", "approx",
+];
 
 /// Parses a budget CSV.
 ///
@@ -420,21 +472,28 @@ pub fn parse(text: &str) -> Result<Vec<Row>, ParseError> {
                 text: format!("{name}: {e} ({:?})", f[col]),
             })
         };
-        // The sizing and indicator columns are empty on every
-        // non-NURBS chart. All present or all absent, across BOTH
-        // blocks — a half-filled row is drift.
-        let measured: Vec<&str> = (0..SIZING_COLUMNS.len())
-            .map(|k| f[SIZING_FIRST + k])
-            .chain((0..INDICATOR_COLUMNS.len()).map(|k| f[INDICATOR_FIRST + k]))
-            .collect();
+        // Every column after `triangles` is the Hessian-sized lane's,
+        // and `tess_meter::FaceRow::csv_row` writes them from ONE
+        // `Option`: all present, or all absent on a face the lane did
+        // not size. Checked over the whole run — identity columns
+        // included, since rule 4 reads those — because a half-filled
+        // row is the sweep and the lint disagreeing about the file,
+        // and reading part of it would let a re-key be manufactured
+        // out of drift.
+        let measured: Vec<&str> = f[IDENTITY_FIRST..].to_vec();
         let nurbs = if measured.iter().all(|s| s.is_empty()) {
             None
         } else if measured.iter().any(|s| s.is_empty()) {
             return Err(ParseError {
                 line: n,
-                text: "partially filled sizing/indicator columns".into(),
+                text: "partially filled NURBS columns".into(),
             });
         } else {
+            let mut ident = [0.0f64; IDENTITY_MEASURES.len()];
+            for (k, (name, kind)) in IDENTITY_MEASURES.iter().enumerate() {
+                ident[k] = admit(IDENTITY_FIRST + k, name, *kind)?;
+            }
+            let [u0, u1, v0, v1, nu, nv] = ident;
             let mut read = [0.0f64; SIZING_COLUMNS.len()];
             for (k, (name, kind)) in SIZING_COLUMNS.iter().enumerate() {
                 read[k] = admit(SIZING_FIRST + k, name, *kind)?;
@@ -453,6 +512,12 @@ pub fn parse(text: &str) -> Result<Vec<Row>, ParseError> {
             ] = read;
             let [bands, cap_bands, snap_bands, realized_aspect] = ind;
             Some(Nurbs {
+                u0,
+                u1,
+                v0,
+                v1,
+                nu,
+                nv,
                 grid_cells,
                 patch_cells,
                 opt_cells,
@@ -465,6 +530,22 @@ pub fn parse(text: &str) -> Result<Vec<Row>, ParseError> {
                 realized_aspect,
             })
         };
+        if !CHART_TAGS.contains(&f[2]) {
+            // `chart` is a gate INPUT (rule 4 joins on it), so an
+            // unknown tag is sweep-format drift and leaves in the
+            // harness voice — the same treatment, and the same reason,
+            // as a renamed column in `EXPECTED_HEADER`. A tag renamed
+            // in `tess_meter::Chart::tag` must never arrive here as a
+            // re-key on every scene that carries it.
+            return Err(ParseError {
+                line: n,
+                text: format!(
+                    "chart: {:?} is not one of {} (sweep drift?)",
+                    f[2],
+                    CHART_TAGS.join(", ")
+                ),
+            });
+        }
         let face = idx(1, "face")?;
         if !seen.insert((f[0], face)) {
             return Err(ParseError {
@@ -579,24 +660,47 @@ impl SceneTotals {
     }
 }
 
-/// Per-scene totals, in first-seen order (which is tour order — the
-/// sweep writes rows as it walks the tour).
-pub fn totals(rows: &[Row]) -> Vec<(String, SceneTotals)> {
-    let mut order: Vec<String> = Vec::new();
-    let mut map: std::collections::HashMap<String, SceneTotals> = std::collections::HashMap::new();
+/// Rows grouped by scene and indexed by face ordinal, with the scenes
+/// in first-seen order (tour order — the sweep writes rows as it walks
+/// the tour).
+///
+/// The ONE group-by: [`totals`] and the per-face rules fold the same
+/// index, so they cannot disagree about which rows are a scene's.
+/// [`parse`] refuses a repeated `(scene, face)`, so nothing is dropped
+/// building it — a silent overwrite here would be the mis-join rule 4
+/// exists to announce, one level down.
+fn by_scene(rows: &[Row]) -> (Vec<&str>, std::collections::HashMap<&str, FaceIndex<'_>>) {
+    let mut order: Vec<&str> = Vec::new();
+    let mut map: std::collections::HashMap<&str, FaceIndex> = std::collections::HashMap::new();
     for r in rows {
-        map.entry(r.scene.clone())
+        map.entry(r.scene.as_str())
             .or_insert_with(|| {
-                order.push(r.scene.clone());
-                SceneTotals::default()
+                order.push(r.scene.as_str());
+                FaceIndex::new()
             })
-            .add(r);
+            .insert(r.face, r);
     }
+    (order, map)
+}
+
+/// A scene's rows, indexed by face ordinal.
+type FaceIndex<'a> = std::collections::BTreeMap<usize, &'a Row>;
+
+/// Per-scene totals, in first-seen order (which is tour order — the
+/// sweep writes rows as it walks the tour). Within a scene the fold is
+/// by ascending face ordinal, which is what [`by_scene`] indexes by,
+/// so a total does not depend on the order rows happen to sit in the
+/// file.
+pub fn totals(rows: &[Row]) -> Vec<(String, SceneTotals)> {
+    let (order, map) = by_scene(rows);
     order
         .into_iter()
-        .map(|s| {
-            let t = map.remove(&s).unwrap_or_default();
-            (s, t)
+        .map(|scene| {
+            let mut t = SceneTotals::default();
+            for r in map.get(scene).into_iter().flat_map(FaceIndex::values) {
+                t.add(r);
+            }
+            (scene.to_string(), t)
         })
         .collect()
 }
@@ -619,224 +723,313 @@ pub fn totals(rows: &[Row]) -> Vec<(String, SceneTotals)> {
 /// so, which is the difference between a threshold and a knob.
 pub const GROWTH_TOLERANCE: f64 = 1.05;
 
-/// What kind of movement a finding reports.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Kind {
-    /// A scene's triangle count grew.
-    Triangles,
-    /// A face's recoverable slack grew (the sizing got wastefuller).
-    Slack,
-    /// A baseline scene has no fresh row at all.
-    Vanished,
-    /// A scene's face roster moved, so the ordinals the slack rule
-    /// joins on no longer name the same faces and nothing in the scene
-    /// was compared per face (module docs, rule 4).
-    Roster,
-}
+/// The columns rule 4 reads, in [`EXPECTED_HEADER`] order, and the
+/// order a disagreement is reported in.
+///
+/// Every one of them is a column rules 1 and 2 do NOT compare, which
+/// is what keeps the precondition from being circular: rule 1 reads
+/// `triangles` and rule 2 reads `grid_cells / span_opt_cells`, and a
+/// face whose SIZING moved does not move any name below. `nu`/`nv` are
+/// the whole-patch counterfactual's divisions and reach the report
+/// only through `patch_cells`, which no rule gates on.
+///
+/// "the sizing block" is whether the row carries the Hessian-sized
+/// columns at all — the reroute case, where a face keeps its surface
+/// description and leaves the sized lane.
+const IDENTITY_COLUMNS: [&str; 8] = [
+    "chart",
+    "the sizing block",
+    "u0",
+    "u1",
+    "v0",
+    "v1",
+    "nu",
+    "nv",
+];
 
-/// One gate finding.
-#[derive(Clone, Debug, PartialEq)]
-pub struct Finding {
-    /// What moved.
-    pub kind: Kind,
-    /// The scene it moved in.
-    pub scene: String,
-    /// The face this finding is about: the face that regressed for
-    /// [`Kind::Slack`], and for [`Kind::Roster`] the lowest ordinal
-    /// the two rosters disagree at. `None` on the scene-granular
-    /// kinds, which are about no face in particular.
-    pub face: Option<usize>,
-    /// Baseline value — triangles, a slack ratio, or, for
-    /// [`Kind::Roster`], the scene's baseline face count.
-    pub was: f64,
-    /// Fresh value, in whatever [`Finding::was`] is counted in.
-    pub now: f64,
-}
-
-impl Finding {
-    /// `now / was`, the growth factor (0 baseline reads as ∞).
-    pub fn factor(&self) -> f64 {
-        if self.was > 0.0 {
-            self.now / self.was
+/// One row's reading of [`IDENTITY_COLUMNS`], index for index.
+///
+/// Rendered as text because that is what the message needs and because
+/// the values are of three different kinds; equality on these strings
+/// is equality on the parsed values, since `{:?}` round-trips a finite
+/// `f64` and [`parse`] admits no other kind into these columns.
+fn identity(r: &Row) -> [String; IDENTITY_COLUMNS.len()] {
+    let col = |f: fn(&Nurbs) -> f64| {
+        r.nurbs
+            .map_or_else(|| "absent".to_string(), |n| format!("{:?}", f(&n)))
+    };
+    [
+        r.chart.clone(),
+        if r.nurbs.is_some() {
+            "present"
         } else {
-            f64::INFINITY
+            "absent"
         }
-    }
+        .to_string(),
+        col(|n| n.u0),
+        col(|n| n.u1),
+        col(|n| n.v0),
+        col(|n| n.v1),
+        col(|n| n.nu),
+        col(|n| n.nv),
+    ]
+}
+
+/// Why an ordinal's two rows are not the same face.
+///
+/// A re-key is announced WITH its evidence: "the roster moved" and
+/// nothing else is a verdict with no reading under it, and the two
+/// cases a reader must tell apart — a face that left, and a face that
+/// was replaced — look identical without one.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Rekey {
+    /// Only one side has a row at this ordinal; `in_baseline` says
+    /// which side has it.
+    Absent { in_baseline: bool },
+    /// Both sides have a row and this [`IDENTITY_COLUMNS`] entry
+    /// disagrees — the first one, with both readings.
+    Column {
+        /// The column that disagreed.
+        name: &'static str,
+        /// The baseline's reading.
+        was: String,
+        /// The fresh sweep's reading.
+        now: String,
+    },
+}
+
+/// What a comparison observed. The numbers ride with the kind that
+/// gives them a unit, so nothing has to remember whether a `was` is
+/// triangles, a ratio or a face count.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Kind {
+    /// A scene's triangle count grew (rule 1).
+    Triangles {
+        /// Baseline triangles.
+        was: f64,
+        /// Fresh triangles.
+        now: f64,
+    },
+    /// A face's recoverable slack grew — the sizing got wastefuller
+    /// (rule 2).
+    Slack {
+        /// The face's ordinal.
+        face: usize,
+        /// Baseline `grid_cells / span_opt_cells`.
+        was: f64,
+        /// The same ratio now.
+        now: f64,
+    },
+    /// A baseline scene the fresh sweep has no row for (rule 3).
+    Vanished {
+        /// What the scene carried in the baseline.
+        was_triangles: f64,
+    },
+    /// The per-face join's precondition failed at this ordinal, so it
+    /// and every ordinal above it went uncompared (rule 4).
+    Rekeyed {
+        /// The lowest ordinal whose two rows are not one face.
+        face: usize,
+        /// What disagreed there.
+        how: Rekey,
+    },
+    /// A scene only the fresh sweep has — new coverage, never a
+    /// finding.
+    NewScene {
+        /// What the new scene carries.
+        triangles: f64,
+    },
+}
+
+/// One observation and the scene it is about.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Observation {
+    /// `<stop>/<body>`.
+    pub scene: String,
+    /// What was observed.
+    pub kind: Kind,
+}
+
+/// What [`compare`] answers: what fails the row, and what is reported
+/// without failing it.
+///
+/// The split is the gate's own and is decided by whether an
+/// observation can cost a MEASUREMENT — never by how alarming it
+/// looks. A gate that reds where it gates nothing is trained away, and
+/// this tree has already paid for that once.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Report {
+    /// Movements that fail the gate.
+    pub findings: Vec<Observation>,
+    /// Observations that cost the comparison nothing — reported so the
+    /// baseline's staleness stays visible, never red.
+    pub notes: Vec<Observation>,
 }
 
 /// The gate: fresh against baseline, per the four rules in the module
-/// docs. Scenes only in the fresh sweep are NOT findings — they are
-/// new coverage; `main.rs` names them so the baseline's staleness is
-/// visible.
+/// docs.
 ///
 /// Both slices must come from [`parse`], which is what makes the
 /// per-face index total: it refuses a repeated `(scene, face)`, and a
 /// hand-built pair of rows sharing one would be indexed by whichever
 /// came last.
-pub fn compare(baseline: &[Row], fresh: &[Row]) -> Vec<Finding> {
-    let mut findings = Vec::new();
+pub fn compare(baseline: &[Row], fresh: &[Row]) -> Report {
+    let mut out = Report::default();
     let base_totals = totals(baseline);
     let fresh_totals: std::collections::HashMap<String, SceneTotals> =
         totals(fresh).into_iter().collect();
     for (scene, was) in &base_totals {
+        #[allow(clippy::cast_precision_loss)]
+        let w = was.triangles as f64;
         let Some(now) = fresh_totals.get(scene) else {
-            findings.push(Finding {
-                kind: Kind::Vanished,
+            out.findings.push(Observation {
                 scene: scene.clone(),
-                face: None,
-                #[allow(clippy::cast_precision_loss)]
-                was: was.triangles as f64,
-                now: 0.0,
+                kind: Kind::Vanished { was_triangles: w },
             });
             continue;
         };
         #[allow(clippy::cast_precision_loss)]
-        let (w, n) = (was.triangles as f64, now.triangles as f64);
+        let n = now.triangles as f64;
         if n > w * GROWTH_TOLERANCE {
-            findings.push(Finding {
-                kind: Kind::Triangles,
+            out.findings.push(Observation {
                 scene: scene.clone(),
-                face: None,
-                was: w,
-                now: n,
+                kind: Kind::Triangles { was: w, now: n },
             });
         }
     }
-    // Slack is per FACE: a scene total would let one face's regression
-    // hide behind another's improvement. The join is the face ordinal
-    // and rule 4 is its precondition, both per module docs.
-    let fresh_by_scene: std::collections::HashMap<&str, FaceIndex> =
-        by_face(fresh).into_iter().collect();
-    for (scene, base_faces) in by_face(baseline) {
-        let Some(fresh_faces) = fresh_by_scene.get(scene) else {
-            // Scene-granular, and true at this granularity: a scene
-            // with no fresh rows at all is already a `Vanished`
-            // finding above.
+    // A scene only the FRESH sweep has is new coverage, not a finding
+    // — but never silent: an uncovered scene is a hole in the very
+    // comparison the gate is making.
+    let base_scenes: std::collections::HashSet<&str> =
+        baseline.iter().map(|r| r.scene.as_str()).collect();
+    for (scene, t) in totals(fresh) {
+        if !base_scenes.contains(scene.as_str()) {
+            #[allow(clippy::cast_precision_loss)]
+            let triangles = t.triangles as f64;
+            out.notes.push(Observation {
+                scene,
+                kind: Kind::NewScene { triangles },
+            });
+        }
+    }
+    // Rule 2 is per FACE — a scene total would let one face's
+    // regression hide behind another's improvement — and rule 4 is its
+    // precondition, both per module docs.
+    let (base_order, base_by_scene) = by_scene(baseline);
+    let (_, fresh_by_scene) = by_scene(fresh);
+    for scene in base_order {
+        let (Some(base_faces), Some(fresh_faces)) =
+            (base_by_scene.get(scene), fresh_by_scene.get(scene))
+        else {
+            // `scene` came from the baseline's own order, so the side
+            // that can be missing is the fresh one — already a
+            // `Vanished` finding above, at the granularity that claim
+            // is true at.
             continue;
         };
-        // One pass over every ordinal either side names. Slack
-        // findings are held back until it ends, because one re-keyed
-        // ordinal shifts the faces after it: a scene is compared in
-        // full or announced in full, never in the part that happens to
-        // still line up.
-        let mut slack = Vec::new();
-        let mut rekeyed: Option<usize> = None;
+        // Whether rule 2 has anything to lose in this scene, which is
+        // what puts a re-key on the findings side or the notes side.
+        let gated = base_faces
+            .values()
+            .chain(fresh_faces.values())
+            .any(|r| r.recoverable().is_some());
         let ordinals: std::collections::BTreeSet<usize> = base_faces
             .keys()
             .chain(fresh_faces.keys())
             .copied()
             .collect();
         for face in ordinals {
-            let (Some(base_row), Some(fresh_row)) = (base_faces.get(&face), fresh_faces.get(&face))
-            else {
-                // Present on one side only: a face was added or
-                // dropped, and every ordinal above it is re-keyed.
-                rekeyed = rekeyed.or(Some(face));
-                continue;
+            let how = match (base_faces.get(&face), fresh_faces.get(&face)) {
+                (Some(b), Some(f)) => match first_disagreement(b, f) {
+                    Some(how) => how,
+                    None => {
+                        // Every identity column agrees, so this ordinal
+                        // is one face on both sides and rule 2 runs on
+                        // it. Agreement includes "the sizing block", so
+                        // the ratio is present on both sides or on
+                        // neither and a skip here is a face with no
+                        // slack to compare, never a comparison dropped.
+                        if let (Some(was), Some(now)) = (b.recoverable(), f.recoverable())
+                            && now > was * GROWTH_TOLERANCE
+                        {
+                            out.findings.push(Observation {
+                                scene: scene.to_string(),
+                                kind: Kind::Slack { face, was, now },
+                            });
+                        }
+                        continue;
+                    }
+                },
+                (Some(_), None) => Rekey::Absent { in_baseline: true },
+                // An ordinal in neither index cannot be in the union
+                // above, so this arm is the fresh side's alone.
+                (None, _) => Rekey::Absent { in_baseline: false },
             };
-            if lane(base_row) != lane(fresh_row) {
-                // Same ordinal, different lane — a NURBS face
-                // rerouted, or a face replaced by another. Silently
-                // dropping this one is the coverage loss rule 3
-                // refuses to read as an improvement.
-                rekeyed = rekeyed.or(Some(face));
-                continue;
-            }
-            // Equal lanes have this ratio on both sides or on neither
-            // — `lane` is written from its presence so that stays true
-            // — so a skip here is a face with no slack to compare (a
-            // plane), never a comparison quietly dropped.
-            let (Some(was), Some(now)) = (base_row.recoverable(), fresh_row.recoverable()) else {
-                continue;
-            };
-            if now > was * GROWTH_TOLERANCE {
-                slack.push(Finding {
-                    kind: Kind::Slack,
-                    scene: scene.to_string(),
-                    face: Some(face),
-                    was,
-                    now,
-                });
-            }
-        }
-        if let Some(face) = rekeyed {
-            #[allow(clippy::cast_precision_loss)]
-            let (was, now) = (base_faces.len() as f64, fresh_faces.len() as f64);
-            findings.push(Finding {
-                kind: Kind::Roster,
+            let seen = Observation {
                 scene: scene.to_string(),
-                face: Some(face),
-                was,
-                now,
-            });
-        } else {
-            findings.extend(slack);
+                kind: Kind::Rekeyed { face, how },
+            };
+            if gated {
+                out.findings.push(seen);
+            } else {
+                out.notes.push(seen);
+            }
+            // Ordinals BELOW this one are provably still aligned and
+            // have already been compared. From here up they are not:
+            // an added or dropped face shifts every ordinal above it,
+            // so the walk stops rather than comparing shifted pairs.
+            break;
         }
     }
-    findings
+    out
 }
 
-/// A scene's rows, indexed by face ordinal.
-type FaceIndex<'a> = std::collections::BTreeMap<usize, &'a Row>;
-
-/// The part of a row that is IDENTITY rather than measurement: the
-/// lane the face took. `chart` names the surface kind the lane saw;
-/// neither it nor the flag beside it moves when a face's GEOMETRY
-/// moves, which is the whole reason the roster rule reads these two
-/// and nothing else.
+/// The first [`IDENTITY_COLUMNS`] entry at which two rows are not one
+/// face, or `None` when every one agrees.
 ///
-/// The flag is [`Row::recoverable`]'s own presence rather than
-/// `nurbs.is_some()`, which is the same bit today. It is written this
-/// way so it cannot stop being: equal lanes mean the slack rule has a
-/// ratio on both sides or on neither BY CONSTRUCTION, so the paired
-/// arm in [`compare`] skips faces with nothing to compare and can
-/// never skip a comparison.
-fn lane(r: &Row) -> (&str, bool) {
-    (r.chart.as_str(), r.recoverable().is_some())
-}
-
-/// Rows per scene indexed by face ordinal, scenes in first-seen order
-/// (the order [`totals`] reports, which is tour order).
-///
-/// [`parse`] refuses a repeated `(scene, face)`, so no row is dropped
-/// building this — an overwrite here would be the same silent mis-join
-/// the roster rule exists to announce.
-fn by_face(rows: &[Row]) -> Vec<(&str, FaceIndex<'_>)> {
-    let mut order: Vec<&str> = Vec::new();
-    let mut map: std::collections::HashMap<&str, FaceIndex> = std::collections::HashMap::new();
-    for r in rows {
-        map.entry(r.scene.as_str())
-            .or_insert_with(|| {
-                order.push(r.scene.as_str());
-                FaceIndex::new()
-            })
-            .insert(r.face, r);
-    }
-    order
-        .into_iter()
-        .map(|s| {
-            let faces = map.remove(s).unwrap_or_default();
-            (s, faces)
+/// Both readings come from [`identity`], so index `i` names the same
+/// column on both sides by construction rather than by a pairing that
+/// could drift.
+fn first_disagreement(base: &Row, fresh: &Row) -> Option<Rekey> {
+    let (was, now) = (identity(base), identity(fresh));
+    IDENTITY_COLUMNS
+        .iter()
+        .enumerate()
+        .find(|&(i, _)| was[i] != now[i])
+        .map(|(i, &name)| Rekey::Column {
+            name,
+            was: was[i].clone(),
+            now: now[i].clone(),
         })
-        .collect()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    /// A two-face fixture: one plane (empty sizing columns), one NURBS.
+    /// A two-face fixture: one plane (empty NURBS columns), one NURBS
+    /// wall at ordinal 1.
     ///
     /// Twinned in `tests/cli_contract.rs`, deliberately: an
     /// integration test cannot see a `#[cfg(test)]` item, so the two
     /// cannot share one. Keep them in step.
     fn csv(tris: usize, span_opt: f64) -> String {
         format!(
-            "{EXPECTED_HEADER}\n\
-             s/b,0,plane,2e-3,4,,,,,,,,,,,,,,,,,,,,,,,\n\
+            "{EXPECTED_HEADER}\n{}\
              s/b,1,nurbs,2e-3,{tris},0e0,1e0,0e0,1e0,1e1,2e1,1e0,1e0,1e0,2e0,3e0,4,\
-             1e2,2e2,5e1,{span_opt:e},1e-4,5e-5,99,2,1,0,3e0\n"
+             1e2,2e2,5e1,{span_opt:e},1e-4,5e-5,99,2,1,0,3e0\n",
+            unsized_row(0, "plane", 4)
         )
+    }
+
+    /// A row on a lane that sizes nothing, at a chosen ordinal and
+    /// chart — enough to move a scene's roster without moving a
+    /// triangle. The empty tail is COUNTED from the header, at the
+    /// column [`IDENTITY_FIRST`] names, so a schema change cannot turn
+    /// these fixtures into short rows that fail for the wrong reason.
+    fn unsized_row(face: usize, chart: &str, tris: usize) -> String {
+        let blanks = ",".repeat(EXPECTED_HEADER.split(',').count() - IDENTITY_FIRST);
+        format!("s/b,{face},{chart},2e-3,{tris}{blanks}\n")
     }
 
     #[test]
@@ -868,28 +1061,50 @@ mod tests {
         assert!(e.text.contains("expected"), "{}", e.text);
     }
 
+    /// The kinds the gate reported, findings only — most tests are
+    /// about which rule spoke, not about which scene it was in.
+    fn fired(base: &[Row], fresh: &[Row]) -> Vec<Kind> {
+        compare(base, fresh)
+            .findings
+            .into_iter()
+            .map(|o| o.kind)
+            .collect()
+    }
+
+    /// The same for the notes, which never fail the row.
+    fn noted(base: &[Row], fresh: &[Row]) -> Vec<Kind> {
+        compare(base, fresh)
+            .notes
+            .into_iter()
+            .map(|o| o.kind)
+            .collect()
+    }
+
     #[test]
     fn an_unmoved_sweep_is_clean() {
         let base = parse(&csv(100, 2.5e1)).unwrap();
-        assert_eq!(compare(&base, &base), Vec::new());
+        assert_eq!(compare(&base, &base), Report::default());
     }
 
     #[test]
     fn growth_inside_the_tolerance_is_not_a_finding() {
         let base = parse(&csv(100, 2.5e1)).unwrap();
         let fresh = parse(&csv(104, 2.5e1)).unwrap();
-        assert_eq!(compare(&base, &fresh), Vec::new());
+        assert_eq!(compare(&base, &fresh), Report::default());
     }
 
     #[test]
     fn triangle_growth_fires() {
         let base = parse(&csv(100, 2.5e1)).unwrap();
         let fresh = parse(&csv(200, 2.5e1)).unwrap();
-        let f = compare(&base, &fresh);
-        assert_eq!(f.len(), 1);
-        assert_eq!(f[0].kind, Kind::Triangles);
         // The plane's 4 triangles ride along in the scene total.
-        assert!((f[0].factor() - 204.0 / 104.0).abs() < 1e-9);
+        assert_eq!(
+            fired(&base, &fresh),
+            vec![Kind::Triangles {
+                was: 104.0,
+                now: 204.0
+            }]
+        );
     }
 
     /// The rule that a triangle count alone cannot express: the mesh
@@ -898,28 +1113,37 @@ mod tests {
     fn slack_growth_fires_even_as_the_mesh_shrinks() {
         let base = parse(&csv(100, 2.5e1)).unwrap();
         let fresh = parse(&csv(50, 1.0e1)).unwrap();
-        let f = compare(&base, &fresh);
-        assert_eq!(f.len(), 1, "{f:?}");
-        assert_eq!(f[0].kind, Kind::Slack);
-        assert_eq!(f[0].face, Some(1));
-        assert!((f[0].was - 4.0).abs() < 1e-9 && (f[0].now - 10.0).abs() < 1e-9);
+        assert_eq!(
+            fired(&base, &fresh),
+            vec![Kind::Slack {
+                face: 1,
+                was: 4.0,
+                now: 10.0
+            }]
+        );
     }
 
     #[test]
     fn a_vanished_scene_is_a_finding_not_an_improvement() {
         let base = parse(&csv(100, 2.5e1)).unwrap();
         let fresh = parse(EXPECTED_HEADER).unwrap();
-        let f = compare(&base, &fresh);
-        assert_eq!(f.len(), 1);
-        assert_eq!(f[0].kind, Kind::Vanished);
-        assert_eq!(f[0].now, 0.0);
+        assert_eq!(
+            fired(&base, &fresh),
+            vec![Kind::Vanished {
+                was_triangles: 104.0
+            }]
+        );
     }
 
     #[test]
-    fn a_new_scene_is_not_a_finding() {
+    fn a_new_scene_is_a_note_not_a_finding() {
         let base = parse(EXPECTED_HEADER).unwrap();
         let fresh = parse(&csv(100, 2.5e1)).unwrap();
-        assert_eq!(compare(&base, &fresh), Vec::new());
+        assert_eq!(fired(&base, &fresh), vec![]);
+        assert_eq!(
+            noted(&base, &fresh),
+            vec![Kind::NewScene { triangles: 104.0 }]
+        );
     }
 
     /// Sizing columns are all-or-nothing: a half-filled row means the
@@ -1081,10 +1305,14 @@ mod tests {
     fn a_collapsed_denominator_fires_rather_than_passing() {
         let base = parse(&csv(100, 2.5e1)).unwrap();
         let fresh = parse(&csv(100, 1.0)).unwrap();
-        let f = compare(&base, &fresh);
-        assert_eq!(f.len(), 1, "{f:?}");
-        assert_eq!(f[0].kind, Kind::Slack);
-        assert!((f[0].now - 100.0).abs() < 1e-9);
+        assert_eq!(
+            fired(&base, &fresh),
+            vec![Kind::Slack {
+                face: 1,
+                was: 4.0,
+                now: 100.0
+            }]
+        );
     }
 
     /// The absence that is NOT breakage, and the reason the refusals
@@ -1097,18 +1325,27 @@ mod tests {
         let base = sizing_only(100, 2.5e1);
         assert_eq!(base[1].nurbs.unwrap().worst_dev, None);
         assert_eq!(base[1].total_slack(), None);
-        assert_eq!(compare(&base, &sizing_only(100, 2.5e1)), Vec::new());
-        let f = compare(&base, &sizing_only(200, 2.5e1));
-        assert_eq!(f.len(), 1, "{f:?}");
-        assert_eq!(f[0].kind, Kind::Triangles);
+        assert_eq!(compare(&base, &sizing_only(100, 2.5e1)), Report::default());
+        assert_eq!(
+            fired(&base, &sizing_only(200, 2.5e1)),
+            vec![Kind::Triangles {
+                was: 104.0,
+                now: 204.0
+            }]
+        );
         // The SLACK rule is the one this finding is about, and an
         // equality-to-empty cannot say it still runs: a `recoverable`
         // that went absent along with `worst_dev` would satisfy every
         // line above.
         assert_eq!(base[1].recoverable(), Some(4.0));
-        let f = compare(&base, &sizing_only(100, 1.0e1));
-        assert_eq!(f.len(), 1, "{f:?}");
-        assert_eq!(f[0].kind, Kind::Slack);
+        assert_eq!(
+            fired(&base, &sizing_only(100, 1.0e1)),
+            vec![Kind::Slack {
+                face: 1,
+                was: 4.0,
+                now: 10.0
+            }]
+        );
     }
 
     /// A scene with no Hessian-sized face has no sizing factor and
@@ -1117,7 +1354,8 @@ mod tests {
     #[test]
     fn a_scene_with_no_sized_face_reports_no_factor() {
         let planes = parse(&format!(
-            "{EXPECTED_HEADER}\ns/b,0,plane,2e-3,4,,,,,,,,,,,,,,,,,,,,,,,\n"
+            "{EXPECTED_HEADER}\n{}",
+            unsized_row(0, "plane", 4)
         ))
         .unwrap();
         let t = &totals(&planes)[0].1;
@@ -1163,7 +1401,7 @@ mod tests {
     fn a_four_percent_scene_is_inside_the_tolerance() {
         let base = parse(&csv(96, 2.5e1)).unwrap();
         let fresh = parse(&csv(100, 2.5e1)).unwrap();
-        assert_eq!(compare(&base, &fresh), Vec::new());
+        assert_eq!(compare(&base, &fresh), Report::default());
     }
 
     /// …and from ABOVE: 6% is a finding, so the constant cannot be
@@ -1174,9 +1412,11 @@ mod tests {
     fn a_six_percent_scene_is_a_finding() {
         let base = parse(&csv(96, 2.5e1)).unwrap();
         let fresh = parse(&csv(102, 2.5e1)).unwrap();
-        let f = compare(&base, &fresh);
-        assert_eq!(f.len(), 1, "{f:?}");
-        assert_eq!(f[0].kind, Kind::Triangles);
+        assert!(
+            matches!(fired(&base, &fresh)[..], [Kind::Triangles { .. }]),
+            "{:?}",
+            fired(&base, &fresh)
+        );
     }
 
     /// The same box on the SLACK rule, which shares the constant: the
@@ -1186,7 +1426,7 @@ mod tests {
     fn a_four_percent_slack_growth_is_inside_the_tolerance() {
         let base = parse(&csv(100, 2.6e1)).unwrap();
         let fresh = parse(&csv(100, 2.5e1)).unwrap();
-        assert_eq!(compare(&base, &fresh), Vec::new());
+        assert_eq!(compare(&base, &fresh), Report::default());
     }
 
     /// …and 26.5 → 25 is exactly 1.06 and fires. Boxing both rules
@@ -1196,44 +1436,37 @@ mod tests {
     fn a_six_percent_slack_growth_is_a_finding() {
         let base = parse(&csv(100, 2.65e1)).unwrap();
         let fresh = parse(&csv(100, 2.5e1)).unwrap();
-        let f = compare(&base, &fresh);
-        assert_eq!(f.len(), 1, "{f:?}");
-        assert_eq!(f[0].kind, Kind::Slack);
-    }
-
-    /// A row on an unsized lane, at a chosen ordinal and chart —
-    /// enough to move a scene's roster without moving a triangle. The
-    /// empty tail is COUNTED from the header rather than typed, so a
-    /// column added to the schema does not turn these fixtures into
-    /// short rows that fail for the wrong reason.
-    fn unsized_row(face: usize, chart: &str, tris: usize) -> String {
-        let blanks = ",".repeat(EXPECTED_HEADER.split(',').count() - 5);
-        format!("s/b,{face},{chart},2e-3,{tris}{blanks}\n")
+        assert!(
+            matches!(fired(&base, &fresh)[..], [Kind::Slack { .. }]),
+            "{:?}",
+            fired(&base, &fresh)
+        );
     }
 
     /// Rule 4's headline case, and the one the ordinal join used to
     /// lose in silence: the scene is still there, so `Vanished` says
     /// nothing, and the face the slack rule was watching is gone.
     #[test]
-    fn a_face_missing_from_a_surviving_scene_is_announced() {
+    fn a_face_missing_from_a_surviving_scene_is_a_finding() {
         let base = parse(&csv(100, 2.5e1)).unwrap();
         let fresh = parse(&format!(
             "{EXPECTED_HEADER}\n{}",
             unsized_row(0, "plane", 4)
         ))
         .unwrap();
-        let f = compare(&base, &fresh);
-        assert_eq!(f.len(), 1, "{f:?}");
-        assert_eq!(f[0].kind, Kind::Roster);
-        assert_eq!(f[0].face, Some(1), "the ordinal that stopped matching");
-        assert!((f[0].was - 2.0).abs() < 1e-9 && (f[0].now - 1.0).abs() < 1e-9);
+        assert_eq!(
+            fired(&base, &fresh),
+            vec![Kind::Rekeyed {
+                face: 1,
+                how: Rekey::Absent { in_baseline: true }
+            }]
+        );
     }
 
     /// The same rule from the other side: a face only the FRESH sweep
-    /// has re-keys nothing below it but is still a roster the baseline
-    /// cannot be joined against above it.
+    /// has.
     #[test]
-    fn a_face_only_the_fresh_sweep_has_is_announced() {
+    fn a_face_only_the_fresh_sweep_has_is_a_finding() {
         let base = parse(&csv(100, 2.5e1)).unwrap();
         let fresh = parse(&format!(
             "{}{}",
@@ -1241,55 +1474,202 @@ mod tests {
             unsized_row(2, "plane", 0)
         ))
         .unwrap();
-        let f = compare(&base, &fresh);
-        assert_eq!(f.len(), 1, "{f:?}");
-        assert_eq!(f[0].kind, Kind::Roster);
-        assert_eq!(f[0].face, Some(2));
-    }
-
-    /// A NURBS face that reroutes to another lane keeps its ordinal
-    /// and its scene, so nothing scene-granular moves — and dropping
-    /// it quietly is the coverage loss the module docs call a finding
-    /// rather than a footnote. The triangle count is held equal so
-    /// that the roster rule is the only thing that can speak.
-    #[test]
-    fn a_nurbs_face_that_reroutes_off_the_sized_lane_is_announced() {
-        let base = parse(&csv(100, 2.5e1)).unwrap();
-        let fresh = parse(&format!(
-            "{EXPECTED_HEADER}\n{}{}",
-            unsized_row(0, "plane", 4),
-            unsized_row(1, "cylinder", 100)
-        ))
-        .unwrap();
-        let f = compare(&base, &fresh);
-        assert_eq!(f.len(), 1, "{f:?}");
-        assert_eq!(f[0].kind, Kind::Roster);
-        assert_eq!(f[0].face, Some(1));
-        assert!(
-            (f[0].was - 2.0).abs() < 1e-9 && (f[0].now - 2.0).abs() < 1e-9,
-            "the face COUNT did not move; the lane at face 1 did"
+        assert_eq!(
+            fired(&base, &fresh),
+            vec![Kind::Rekeyed {
+                face: 2,
+                how: Rekey::Absent { in_baseline: false }
+            }]
         );
     }
 
-    /// What "announce rather than compare" costs and why it is the
-    /// right price: the shifted face's slack quadrupled, and reporting
-    /// that would be reporting the plane's ordinal against the wall's
-    /// numbers. One roster finding, and no `Slack` finding at all.
+    /// A NURBS face that reroutes off the sized lane keeps its ordinal
+    /// and its triangle count, so nothing scene-granular moves — and
+    /// dropping it quietly is the coverage loss the module docs call a
+    /// finding rather than a footnote. The message must say the SIZING
+    /// BLOCK went, not that a schedule got wastefuller.
     #[test]
-    fn a_re_keyed_scene_reports_no_per_face_slack() {
+    fn a_face_that_leaves_the_sized_lane_names_the_sizing_block() {
         let base = parse(&csv(100, 2.5e1)).unwrap();
-        // The wall renumbered 1 -> 2 by an inserted face, through
-        // `with_field` so the edit names the ORDINAL column rather
-        // than a byte sequence that happens to spell it.
+        // Same chart, no sizing columns: `Chart::of` reads the
+        // surface and the block records the LANE, so these two move
+        // independently and the reroute is exactly that case.
+        let fresh = parse(&format!(
+            "{EXPECTED_HEADER}\n{}{}",
+            unsized_row(0, "plane", 4),
+            unsized_row(1, "nurbs", 100)
+        ))
+        .unwrap();
+        assert_eq!(
+            fired(&base, &fresh),
+            vec![Kind::Rekeyed {
+                face: 1,
+                how: Rekey::Column {
+                    name: "the sizing block",
+                    was: "present".into(),
+                    now: "absent".into()
+                }
+            }]
+        );
+    }
+
+    /// Every identity column re-keys ON ITS OWN, so none can leave
+    /// [`IDENTITY_COLUMNS`] without a row going red — the mutation
+    /// that motivated this test dropped one half of the old two-part
+    /// key and the whole suite stayed green.
+    ///
+    /// Written out rather than derived from the table it checks, and
+    /// the array's width is the guard against the NEXT column: an
+    /// eighth entry with no row here does not compile.
+    #[test]
+    fn every_identity_column_re_keys_on_its_own() {
+        // `approx` is a real tag on the SIZED lane, so the chart row
+        // moves chart and nothing else — a mutation that dropped
+        // `chart` from the list would pass without it.
+        const MOVED: [(&str, usize, &str); IDENTITY_COLUMNS.len() - 1] = [
+            ("chart", 2, "approx"),
+            ("u0", IDENTITY_FIRST, "5e-1"),
+            ("u1", IDENTITY_FIRST + 1, "9e-1"),
+            ("v0", IDENTITY_FIRST + 2, "5e-1"),
+            ("v1", IDENTITY_FIRST + 3, "9e-1"),
+            ("nu", IDENTITY_FIRST + 4, "9e0"),
+            ("nv", IDENTITY_FIRST + 5, "9e0"),
+        ];
+        let base = parse(&csv(100, 2.5e1)).unwrap();
+        for (name, col, value) in MOVED {
+            let fresh = parse(&with_field(&csv(100, 2.5e1), col, value)).unwrap();
+            let got = fired(&base, &fresh);
+            let [
+                Kind::Rekeyed {
+                    face: 1,
+                    how: Rekey::Column { name: got_name, .. },
+                },
+            ] = got[..]
+            else {
+                panic!("{name}: expected one re-key, got {got:?}");
+            };
+            assert_eq!(got_name, name, "the column the message names");
+        }
+        // …and one case pinned with both readings, so the message's
+        // evidence is asserted somewhere and not just its shape.
+        let fresh = parse(&with_field(&csv(100, 2.5e1), IDENTITY_FIRST + 4, "9e0")).unwrap();
+        assert_eq!(
+            fired(&base, &fresh),
+            vec![Kind::Rekeyed {
+                face: 1,
+                how: Rekey::Column {
+                    name: "nu",
+                    was: "10.0".into(),
+                    now: "9.0".into()
+                }
+            }]
+        );
+    }
+
+    /// The precondition is POINTWISE, so it must not fire on a scene
+    /// whose faces merely moved their MEASUREMENTS: a face that got
+    /// bigger is rule 1's and rule 2's business, and re-keying it
+    /// would suppress the very comparison this gate exists to make.
+    #[test]
+    fn a_face_whose_measurements_moved_is_still_the_same_face() {
+        let base = parse(&csv(100, 2.5e1)).unwrap();
+        let fresh = parse(&csv(100, 1.0e1)).unwrap();
+        assert!(
+            matches!(fired(&base, &fresh)[..], [Kind::Slack { .. }]),
+            "{:?}",
+            fired(&base, &fresh)
+        );
+    }
+
+    /// Ordinals BELOW the first disagreement are still compared. The
+    /// alternative hides a regression behind a re-key whose printed
+    /// recourse is "re-cut", which commits the regression unnamed.
+    #[test]
+    fn a_re_key_does_not_mask_a_regression_below_it() {
+        let base = parse(&csv(100, 2.5e1)).unwrap();
+        // Face 1 regresses; face 2 is added above it.
+        let fresh = parse(&format!(
+            "{}{}",
+            csv(100, 1.0e1),
+            unsized_row(2, "plane", 0)
+        ))
+        .unwrap();
+        assert_eq!(
+            fired(&base, &fresh),
+            vec![
+                Kind::Slack {
+                    face: 1,
+                    was: 4.0,
+                    now: 10.0
+                },
+                Kind::Rekeyed {
+                    face: 2,
+                    how: Rekey::Absent { in_baseline: false }
+                },
+            ]
+        );
+    }
+
+    /// …and from the first disagreement UP nothing is compared, so a
+    /// shifted face is never measured against the one that took its
+    /// ordinal. Here the wall moves from ordinal 1 to 2 and its slack
+    /// quadruples; reporting that would report the inserted plane's
+    /// ordinal carrying the wall's numbers.
+    #[test]
+    fn a_shifted_face_above_the_disagreement_is_not_compared() {
+        let base = parse(&csv(100, 2.5e1)).unwrap();
         let shifted = with_field(&csv(100, 1.0e1), 1, "2");
         let fresh = parse(&format!("{}{}", shifted, unsized_row(1, "plane", 0))).unwrap();
-        let f = compare(&base, &fresh);
-        assert_eq!(f.len(), 1, "{f:?}");
-        assert_eq!(f[0].kind, Kind::Roster);
-        assert_eq!(f[0].face, Some(1));
-        assert!(
-            !f.iter().any(|x| x.kind == Kind::Slack),
-            "a re-keyed ordinal is not a face to report on: {f:?}"
+        assert_eq!(
+            fired(&base, &fresh),
+            vec![Kind::Rekeyed {
+                face: 1,
+                how: Rekey::Column {
+                    name: "chart",
+                    was: "nurbs".into(),
+                    now: "plane".into()
+                }
+            }]
+        );
+    }
+
+    /// A re-key is a FINDING where it can cost a measurement…
+    #[test]
+    fn a_re_key_in_a_scene_with_a_sized_face_reds_the_row() {
+        let base = parse(&csv(100, 2.5e1)).unwrap();
+        let fresh = parse(&format!(
+            "{EXPECTED_HEADER}\n{}",
+            unsized_row(0, "plane", 4)
+        ))
+        .unwrap();
+        assert_eq!(noted(&base, &fresh), vec![], "nothing to report quietly");
+        assert_eq!(fired(&base, &fresh).len(), 1);
+    }
+
+    /// …and a NOTE where it cannot. Rule 1 still runs over this
+    /// scene's total, so no comparison was lost; reddening here is how
+    /// a gate teaches people to route around it. 58 of the committed
+    /// baseline's 70 scenes are this shape.
+    #[test]
+    fn a_re_key_in_a_scene_with_no_sized_face_is_a_note() {
+        let base = parse(&format!(
+            "{EXPECTED_HEADER}\n{}{}",
+            unsized_row(0, "plane", 4),
+            unsized_row(1, "cylinder", 10)
+        ))
+        .unwrap();
+        let fresh = parse(&format!(
+            "{EXPECTED_HEADER}\n{}",
+            unsized_row(0, "plane", 4)
+        ))
+        .unwrap();
+        assert_eq!(fired(&base, &fresh), vec![], "nothing was lost here");
+        assert_eq!(
+            noted(&base, &fresh),
+            vec![Kind::Rekeyed {
+                face: 1,
+                how: Rekey::Absent { in_baseline: true }
+            }]
         );
     }
 
@@ -1307,6 +1687,26 @@ mod tests {
         assert_eq!(e.line, 4);
         assert!(e.text.contains("second row"), "{}", e.text);
         assert!(e.text.contains("face 1"), "{}", e.text);
+    }
+
+    /// `chart` is a column the gate JOINS on, so a tag this crate does
+    /// not know is sweep-format drift and leaves in the harness voice
+    /// — the same treatment `EXPECTED_HEADER` gets, and for the same
+    /// reason. Renaming a tag in `tess_meter::Chart::tag` must never
+    /// arrive here as a re-key on every scene that carries it.
+    #[test]
+    fn an_unknown_chart_tag_is_harness_breakage_not_a_re_key() {
+        let e = parse(&with_field(&csv(100, 2.5e1), 2, "hessian")).unwrap_err();
+        assert_eq!(e.line, 3);
+        assert!(e.text.contains("chart"), "{}", e.text);
+        assert!(e.text.contains("hessian"), "{}", e.text);
+        // …and every tag the meter can emit is admitted.
+        for tag in CHART_TAGS {
+            assert!(
+                parse(&with_field(&csv(100, 2.5e1), 2, tag)).is_ok(),
+                "{tag} is a tag the sweep writes"
+            );
+        }
     }
 
     #[test]
