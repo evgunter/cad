@@ -72,6 +72,46 @@ silently mis-fences someone else*).
 
 | Lane | Rows | State |
 |---|---|---|
-| `k1` | `C15` / `S73` — `tess-lint`'s ordinal join (#746) | dispatched |
+| `k1` | `C15` / `S73` — `tess-lint`'s ordinal join (#746) | implemented; style + adversarial review running |
+| `k2` | `D105` / `S160` + `D64`(a) and (c) — `tess-meter`'s split-scan guard | dispatched |
 | `p1` | `D38` + `D88` — `merge_faces.rs`'s two failure regimes, and `absorb`'s discard | dispatched |
 | `w1` | `D65` / `S121` — bound-domination rows with no ceiling and no floor | dispatched |
+
+## `k1` — what it found beyond its row
+
+**The committed tessellation baseline is stale, and the gate it belongs to could
+not say so.** `docs/tess-budget-data/tess-budget-baseline.csv` describes
+`teapot/teapotvessel` as 28 faces; the sweep at this head produces 25, four
+coplanar planes having merged into one (25+25+22+22 = 94 triangles). Verified
+by the orchestrator independently: the diff against a fresh sweep is that one
+scene and nothing else, sweep-wide triangle total unchanged. The old gate reads
+this as 0 findings — which is the mis-join `C15` describes, caught in the wild
+rather than in a fixture.
+
+The re-cut is a regenerated golden, which
+`memories/output-stability-as-justification.md` calls *"a chore, not a
+contract"*, and it must ride the same change as the gate that notices — landing
+the gate alone lands a red row. **`docs/tess-budget-data/` is in no track's
+territory**, so the orchestrator takes it; that is a fence being drawn, not a
+lane crossing one.
+
+One qualification stated rather than buried: `teapot/teapotvessel` has **zero**
+Hessian-sized faces on either side, so this instance of the mis-join voided no
+measurement. The committed evidence therefore does not exercise the case the row
+is actually about, which is why `k1`'s correctness review is briefed to
+construct one.
+
+**Residues owed rows on Track K** (numbers minted at integration, from the
+`D200`–`D219` block; #1169 has taken `D200`):
+
+- `tools/tess-meter`'s `face_rows` holds a `topo::FaceKey` and writes only
+  `enumerate()`'s ordinal, so the CSV carries no stable face identity at all.
+  Minting a durable one is a design question reaching `crates/topo` and
+  `demos/`, not a column rename.
+- `tools/tess-meter`'s `nurbs: by_face.get(&patch.face).map(…)` turns a
+  *missing* measurement into *"this face is not on the sized lane"* — the same
+  silent-coverage-loss shape `C15` just closed, one step upstream.
+
+`docs/TESS-BUDGET.md`'s enumeration of the gate's rules as three is falsified by
+this change and is corrected with it (Q4's first sub-case: the doc rotted, the
+code is right).
