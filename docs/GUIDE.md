@@ -1258,7 +1258,7 @@ let mut doc = Doc::<ProfileProgram>::empty_derived("guide", tol);
 // undoable like any other.
 doc = apply(&doc, &DocEdit::SetDocParam {
     name: ParamName::new("hole_r"),
-    value: DocParam::Continuous { dim: Dimension::Length, value: 0.25 },
+    value: DocParam::continuous(Dimension::Length, 0.25),
 }, tol)?.doc;
 
 let mut insert = |doc: &Doc<ProfileProgram>, node| {
@@ -1321,7 +1321,7 @@ assert!((volume(&ev, solid) - v(0.25)).abs() < 1e-6);
 // One `SetDocParam` moves BOTH holes; the tab branch never re-runs.
 let bigger = apply(&doc, &DocEdit::SetDocParam {
     name: ParamName::new("hole_r"),
-    value: DocParam::Continuous { dim: Dimension::Length, value: 0.4 },
+    value: DocParam::continuous(Dimension::Length, 0.4),
 }, tol)?.doc;
 let ev2 = evaluate::<f64>(&bigger, Some(&ev), &CancelToken::new(), &EvalOptions::default(), tol);
 assert_eq!(ev2.recomputed, 3); // the profile, the plate, the union
