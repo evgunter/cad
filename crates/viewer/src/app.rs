@@ -47,7 +47,9 @@ use pncad::geom_core::Tol;
 
 use crate::camera::{self, Camera, CameraOp};
 use crate::display::{DisplayView, free_move_check};
-use crate::evalseam::{Generation, ThreadEvaluator};
+use crate::evalseam::Generation;
+#[cfg(not(target_family = "wasm"))]
+use crate::evalseam::ThreadEvaluator;
 use crate::frame::{self, IdQueryLog, IdStep, StatusUpdate};
 use crate::gpu::{DEPTH_BITS, IdQuery, ViewportCallback, ViewportRenderer};
 use crate::input::{self, InputMap, PointerButton, ViewportEvent, ViewportSize};
@@ -78,6 +80,11 @@ const LIGHT_DIRECTION: [f32; 3] = [0.408_248_3, 0.408_248_3, -0.816_496_6];
 const BASE_COLOR: [f32; 3] = [0.62, 0.64, 0.67];
 
 /// The document file extension the dialog filters on.
+///
+/// `cfg`-ed with the dialogs it filters for: the browser build links
+/// no chooser, so the constant has no reader there and an
+/// unconditional one would be dead code under CI's `-D warnings`.
+#[cfg(not(target_family = "wasm"))]
 const DOC_EXTENSION: &str = "pncad";
 
 /// The colour an unresolved selection and a deleted feature are drawn
@@ -224,6 +231,13 @@ pub enum StartupError {
     /// The evaluation worker could not be started. Fatal on purpose: a
     /// seam with no worker accepts every submit and answers none, so
     /// the application would open onto a permanent "evaluating…".
+    ///
+    /// Absent on wasm, where the seam is [`crate::evalseam::InlineEvaluator`]
+    /// — nothing is spawned, so nothing can refuse to spawn. The arm
+    /// is `cfg`-ed away rather than kept and never constructed,
+    /// because a closed enum (D4 ¶3) whose reader must ask which arms
+    /// are reachable is no longer telling the truth about its states.
+    #[cfg(not(target_family = "wasm"))]
     Evaluator(crate::evalseam::SpawnError),
 }
 
@@ -249,12 +263,52 @@ impl core::fmt::Display for StartupError {
                 "eframe handed the viewer no wgpu render state: this build was linked \
                  against a renderer it does not have",
             ),
+            #[cfg(not(target_family = "wasm"))]
             Self::Evaluator(error) => write!(f, "{error}"),
         }
     }
 }
 
 impl core::error::Error for StartupError {}
+
+/// The evaluation seam this build gets, and the ONE place the two
+/// platforms differ about it.
+///
+/// `evalseam` already carried both arms — [`ThreadEvaluator`] behind
+/// `cfg(not(target_family = "wasm"))` and
+/// [`crate::evalseam::InlineEvaluator`] unconditionally, both
+/// implementing one `EvalService` — because GUI-PLAN's platform
+/// section made "the interaction layer never assumes threads" a
+/// constraint on every GUI unit. This function is that constraint
+/// finally being *spent*: the browser takes the inline arm, and
+/// nothing else in the application knows which it got.
+///
+/// **What the inline arm costs, stated rather than discovered.**
+/// It evaluates on the calling thread, so a rebuild blocks the frame
+/// that submitted it and the browser tab stops painting until the
+/// kernel returns. The busy indicator cannot help — it would need an
+/// in-op yield point, and GUI-PLAN rules those absent for v1. This is
+/// the honest price of not taking the threaded lane (GUI-5's pinned
+/// nightly + `wasm-bindgen-rayon` + cross-origin isolation), and it
+/// is a spike's price to pay.
+///
+/// # Errors
+///
+/// [`StartupError::Evaluator`] if the OS refuses the worker thread.
+/// The wasm arm is infallible — it spawns nothing — and returns
+/// `Ok` unconditionally.
+fn evaluator() -> Result<Box<dyn crate::evalseam::EvalService>, StartupError> {
+    #[cfg(not(target_family = "wasm"))]
+    {
+        Ok(Box::new(
+            ThreadEvaluator::spawn().map_err(StartupError::Evaluator)?,
+        ))
+    }
+    #[cfg(target_family = "wasm")]
+    {
+        Ok(Box::new(crate::evalseam::InlineEvaluator::new()))
+    }
+}
 
 impl ViewerApp {
     /// Build the application: author the starting document, evaluate
@@ -289,11 +343,7 @@ impl ViewerApp {
             .insert(renderer);
 
         Ok(Self {
-            session: DocSession::new(
-                document,
-                tol,
-                Box::new(ThreadEvaluator::spawn().map_err(StartupError::Evaluator)?),
-            ),
+            session: DocSession::new(document, tol, evaluator()?),
             delta,
             scene: Arc::new(mesh),
             picks: PickCache::new(),
@@ -485,24 +535,41 @@ impl eframe::App for ViewerApp {
                     .on_disabled_hover_text(frame::NO_CHOOSER_BACKEND)
                     .clicked()
                 {
-                    let path = pick_open();
-                    let update = frame::dialog_status(chooser, path.is_some());
-                    if let Some(path) = path {
-                        ops.push(SessionOp::Open(path));
+                    // Unreachable on wasm — `chooser` is `Absent`
+                    // there, so the button is disabled and never
+                    // reports a click — but unreachable code still has
+                    // to compile, and `pick_open` does not exist on
+                    // that target. The `cfg` is on the BODY rather
+                    // than the button so the browser build still shows
+                    // the control and its disabled reason, which is
+                    // the #1125 posture: a door that cannot open says
+                    // so, it does not vanish.
+                    #[cfg(not(target_family = "wasm"))]
+                    {
+                        let path = pick_open();
+                        let update = frame::dialog_status(chooser, path.is_some());
+                        if let Some(path) = path {
+                            ops.push(SessionOp::Open(path));
+                        }
+                        self.apply_status(update);
                     }
-                    self.apply_status(update);
                 }
                 if ui
                     .add_enabled(chooser.usable(), egui::Button::new("Save As…"))
                     .on_disabled_hover_text(frame::NO_CHOOSER_BACKEND)
                     .clicked()
                 {
-                    let path = pick_save(self.session.path());
-                    let update = frame::dialog_status(chooser, path.is_some());
-                    if let Some(path) = path {
-                        ops.push(SessionOp::Save(path));
+                    // Unreachable on wasm, for the reason the Open…
+                    // arm above states.
+                    #[cfg(not(target_family = "wasm"))]
+                    {
+                        let path = pick_save(self.session.path());
+                        let update = frame::dialog_status(chooser, path.is_some());
+                        if let Some(path) = path {
+                            ops.push(SessionOp::Save(path));
+                        }
+                        self.apply_status(update);
                     }
-                    self.apply_status(update);
                 }
                 ui.separator();
                 if ui
@@ -1565,6 +1632,14 @@ fn delete_label(session: &DocSession, node: RecipeNodeId) -> String {
 /// modal file chooser, and the alternative (an async handle polled
 /// across frames) would buy responsiveness during an interaction that
 /// is already modal, at the cost of a second state machine.
+///
+/// **Absent on wasm**, with the two callers `cfg`-ed to match. That
+/// second state machine is exactly what the browser would force —
+/// `rfd`'s wasm backend offers only the async dialog, and there are
+/// no paths behind it either — so the browser build does not have a
+/// half-open door here; it has no door, and
+/// [`frame::chooser_backend`] is what says so to the chrome.
+#[cfg(not(target_family = "wasm"))]
 fn pick_open() -> Option<std::path::PathBuf> {
     rfd::FileDialog::new()
         .add_filter("document", &[DOC_EXTENSION])
@@ -1572,6 +1647,9 @@ fn pick_open() -> Option<std::path::PathBuf> {
 }
 
 /// The save dialog, starting where the current document lives.
+///
+/// Absent on wasm for the reason [`pick_open`] states.
+#[cfg(not(target_family = "wasm"))]
 fn pick_save(current: Option<&std::path::Path>) -> Option<std::path::PathBuf> {
     let mut dialog = rfd::FileDialog::new().add_filter("document", &[DOC_EXTENSION]);
     if let Some(path) = current
@@ -1632,6 +1710,7 @@ fn to_f32(matrix: &[[f64; 4]; 4]) -> [[f32; 4]; 4] {
 /// `eframe`'s own startup error, or a [`StartupError`] boxed into it:
 /// a viewer that cannot build its scene reports why and exits rather
 /// than opening a window onto nothing.
+#[cfg(not(target_family = "wasm"))]
 pub fn run(tol: Tol, open: Option<std::path::PathBuf>) -> eframe::Result<()> {
     #[allow(unused_mut)] // mutated only on the cfg(linux) arm below
     let mut options = eframe::NativeOptions {
@@ -1679,4 +1758,107 @@ pub fn run(tol: Tol, open: Option<std::path::PathBuf>) -> eframe::Result<()> {
             Ok(Box::new(app))
         }),
     )
+}
+
+/// Why the browser build could not start.
+///
+/// A closed enum (D4 ¶3) rather than a `JsValue` or a string, and
+/// deliberately so: on a phone there is no console to read and no
+/// terminal behind the page, so every arm here is something the shell
+/// prints INTO the page. The one failure mode a phone user cannot
+/// diagnose is a blank canvas.
+#[cfg(target_family = "wasm")]
+#[derive(Debug)]
+pub enum WebStartupError {
+    /// No `window`, or no `document` on it — the module is running
+    /// somewhere that is not a browser page (a bare Worker, say).
+    NoDocument,
+    /// No element carries the requested id.
+    NoCanvasElement(String),
+    /// An element carries the id, but it is not a `<canvas>`.
+    NotACanvas(String),
+    /// The application itself refused to start — the same typed
+    /// refusals the native build reports to a terminal.
+    Startup(StartupError),
+    /// `eframe`'s own web runner refused, with whatever the browser
+    /// said. The one arm that cannot be typed further: it is a
+    /// `JsValue` from the platform, rendered through its `Debug`.
+    Runner(String),
+}
+
+#[cfg(target_family = "wasm")]
+impl core::fmt::Display for WebStartupError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::NoDocument => f.write_str(
+                "no browser document: this build must run on a page, not in a bare worker",
+            ),
+            Self::NoCanvasElement(id) => {
+                write!(f, "the page has no element with id `{id}`")
+            }
+            Self::NotACanvas(id) => {
+                write!(f, "the element with id `{id}` is not a <canvas>")
+            }
+            Self::Startup(error) => write!(f, "{error}"),
+            Self::Runner(message) => {
+                write!(f, "the web runner refused to start: {message}")
+            }
+        }
+    }
+}
+
+#[cfg(target_family = "wasm")]
+impl core::error::Error for WebStartupError {}
+
+/// Run the application on the `<canvas>` carrying `canvas_id`.
+///
+/// The browser counterpart of [`run`], and deliberately the whole of
+/// the difference between the two platforms' entry points: everything
+/// downstream — the session, the panes, the camera, the input map —
+/// is the same code the native build runs.
+///
+/// **No `open` parameter, unlike [`run`].** There is no path to hand
+/// it: the browser build links no file dialog and has no filesystem
+/// to name, so it opens on the built-in startup document and stays
+/// there. That is the spike's stated scope, not an oversight —
+/// document I/O in the browser needs the download/upload or OPFS
+/// story GUI-5 owns.
+///
+/// # Errors
+///
+/// Every arm of [`WebStartupError`]. Nothing here is allowed to fail
+/// silently: a blank canvas on a phone is undiagnosable, so each
+/// refusal carries a sentence the page can print.
+#[cfg(target_family = "wasm")]
+pub async fn run_web(tol: Tol, canvas_id: &str) -> Result<(), WebStartupError> {
+    use eframe::wasm_bindgen::JsCast as _;
+
+    let canvas = eframe::web_sys::window()
+        .and_then(|window| window.document())
+        .ok_or(WebStartupError::NoDocument)?
+        .get_element_by_id(canvas_id)
+        .ok_or_else(|| WebStartupError::NoCanvasElement(canvas_id.to_owned()))?
+        .dyn_into::<eframe::web_sys::HtmlCanvasElement>()
+        .map_err(|_| WebStartupError::NotACanvas(canvas_id.to_owned()))?;
+
+    let options = eframe::WebOptions {
+        // Load-bearing exactly as it is natively — see `gpu`'s module
+        // docs. The viewport is a depth-tested pass, and a browser
+        // that hands back a depth-less surface draws the scene with
+        // its far faces in front.
+        depth_buffer: DEPTH_BITS,
+        ..Default::default()
+    };
+
+    eframe::WebRunner::new()
+        .start(
+            canvas,
+            options,
+            Box::new(move |cc| {
+                let app = ViewerApp::new(cc, tol).map_err(|error| error.to_string())?;
+                Ok(Box::new(app))
+            }),
+        )
+        .await
+        .map_err(|error| WebStartupError::Runner(format!("{error:?}")))
 }

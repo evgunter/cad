@@ -155,7 +155,16 @@ pub fn chooser_backend_of(zenity_on_path: bool, session_bus: bool) -> ChooserBac
 /// Probe the environment for a chooser backend. Startup calls this
 /// once; everything downstream reads the stored value.
 pub fn chooser_backend() -> ChooserBackend {
-    if cfg!(target_os = "linux") {
+    if cfg!(target_family = "wasm") {
+        // The browser build links no `rfd` at all (its wasm backend
+        // offers only the async dialog; see `viewer`'s Cargo.toml),
+        // so this is the CONFIDENT arm in the strongest possible
+        // sense: there is not merely no backend, there is no dialog
+        // code. Saying `Absent` is what disables Open…/Save… with
+        // their reason showing, which is #1097's whole lesson — a
+        // door that cannot open must not answer a click with silence.
+        ChooserBackend::Absent
+    } else if cfg!(target_os = "linux") {
         chooser_backend_of(zenity_on_path(), session_bus_hinted())
     } else {
         // Off Linux `rfd` speaks the platform's native dialog API and
