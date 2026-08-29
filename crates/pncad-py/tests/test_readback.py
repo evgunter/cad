@@ -152,9 +152,13 @@ class TestTheDoorsRefuseTyped(unittest.TestCase):
     row per arm, asserted on the `variant` tag and the payload.
 
     WHICH ARMS ARE NOT HERE, measured rather than assumed:
-    `dangling` and `no_such_body` are kernel-bug arms — a live name
-    whose key does not resolve, an emission that disagrees with its
-    own value — and nothing a caller can author reaches one.
+    `dangling_entity`, `dangling_geometry` and `no_such_body` are
+    kernel-bug arms — a stale handle, a live entity naming geometry
+    the body no longer has, an emission that disagrees with its own
+    value — and nothing a caller can author reaches one. The two
+    dangling lanes are separate tags because they are separate facts;
+    their texts are pinned in the Rust tag suite, which is the only
+    place either arm can be constructed.
     `no_carrier` needs an edge carrying M3 null-edge scaffolding,
     which is a transient state no evaluated value is in.
     `no_canonical_frame` needs a NURBS carrier, which no bound node
