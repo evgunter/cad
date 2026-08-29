@@ -68,9 +68,10 @@ fn skipped_declared_merge_is_tier3_green_and_visible() {
         assert!(!skip.faces.is_empty(), "skip records name their faces");
         // The reason is the refusal ITSELF, matchable, with its
         // payload intact — not a rendering a consumer must parse.
-        // Both cap groups fail the sub-stage's tier-2 gate, so the
-        // variant is pinned rather than left to a set.
-        let MergeCoplanarError::ResultNotClosed { errors } = &skip.reason else {
+        // Both cap groups fail the SUB-STAGE's tier-2 gate, and the
+        // variant says so: `GroupNotClosed` is scoped to one group,
+        // where `ResultNotClosed` would mean the whole run refused.
+        let MergeCoplanarError::GroupNotClosed { errors } = &skip.reason else {
             panic!(
                 "skip carries the group's own typed refusal, got {:?}",
                 skip.reason
