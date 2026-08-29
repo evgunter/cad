@@ -359,7 +359,7 @@ fn r1_certify_general_refuses_a_plausible_wrong_column() {
     assert!(
         verdict.is_err(),
         "a column one knot over CERTIFIED — the certificate has no teeth: {:?}",
-        verdict.map(|c| c.certificate().clone())
+        verdict.map(|c| *c.certificate())
     );
     println!(
         "R1: the wrong column refuses as {:?}",
@@ -517,11 +517,12 @@ fn r1_wall_seam_arm_still_refuses_the_interior_column() {
 fn r1_dual_scalar_still_reaches_the_mint() {
     let _mint: fn(&mut Body<geom_core::Dual64>, Tol) -> Result<(), PcurveMintError> =
         topo::mint_pcurves;
-    let _of: fn(
+    type PcurveOf = fn(
         &Body<geom_core::Dual64>,
         topo::HalfEdgeKey,
         Band,
-    ) -> Result<Pcurve<geom_core::Dual64>, PcurveMintError> = topo::pcurve_of;
+    ) -> Result<Pcurve<geom_core::Dual64>, PcurveMintError>;
+    let _of: PcurveOf = topo::pcurve_of;
 }
 
 /// **Item 7's "third excluded case" — and the spec's ruling on it was

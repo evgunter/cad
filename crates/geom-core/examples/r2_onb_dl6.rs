@@ -8,6 +8,7 @@
 //!
 //! Run:  cargo run -p geom-core --features interval --example r2_onb_dl6
 #![allow(clippy::print_stdout)]
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 #[cfg(not(feature = "interval"))]
 fn main() {

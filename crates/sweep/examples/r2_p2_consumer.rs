@@ -14,6 +14,7 @@
 //!
 //! Run: cargo run -p sweep --example r2_p2_consumer
 #![allow(clippy::print_stdout, clippy::too_many_lines)]
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::sync::Arc;
 
