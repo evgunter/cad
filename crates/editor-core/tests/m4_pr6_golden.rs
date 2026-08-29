@@ -4,7 +4,7 @@
 //! fixpoint is BLIND to format drift: rename a field and save/load
 //! stay self-consistent while every existing v1 file breaks. This row
 //! pins the frozen wire shape to CHECKED-IN BYTES
-//! (`tests/golden/v14_golden.cad`): the fixture document must save to
+//! (`tests/golden/v15_golden.cad`): the fixture document must save to
 //! exactly those bytes, and the bytes must load. Any change to either
 //! is a format change and demands a ratified schema bump + migration
 //! step — re-bless ONLY then (run with `M4_PR6_BLESS_GOLDEN=1` to
@@ -23,16 +23,16 @@
 mod fixture;
 
 use editor_core::{
-    Attr, CancelToken, Dimension, DocEdit, DocParam, EntityKind, EvalOptions, Expr, LoopProgram,
-    MetaValue, Node, NodeResult, ParamName, PersistError, ProfileDoc, ProfileProgram,
+    Attr, CancelToken, Dimension, Distribution, DocEdit, DocParam, EntityKind, EvalOptions, Expr,
+    LoopProgram, MetaValue, Node, NodeResult, ParamName, PersistError, ProfileDoc, ProfileProgram,
     ProgramArcData, ProgramStep, ProgramTarget, Rgba8, RoleSeg, StableName, WitnessDatum, apply,
     evaluate, load, save,
 };
 use fixture::desc;
 use geom_core::Tol;
 
-const GOLDEN: &str = include_str!("golden/v14_golden.cad");
-const GOLDEN_PATH: &str = "tests/golden/v14_golden.cad";
+const GOLDEN: &str = include_str!("golden/v15_golden.cad");
+const GOLDEN_PATH: &str = "tests/golden/v15_golden.cad";
 
 /// The golden document: deterministic (no ambient reads — ε pinned by
 /// the SetTolerance edit) and shape-covering: params, an arc-bearing
@@ -61,11 +61,30 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
         ]
     };
     doc = push(&doc, &DocEdit::SetTolerance { eps: 1e-9 });
+    // v15: `depth` carries a distribution, so the frozen bytes pin the
+    // populated `distribution` key rather than only its absence.
     doc = push(
         &doc,
         &DocEdit::SetDocParam {
             name: ParamName::new("depth"),
-            value: DocParam::continuous(Dimension::Length, 0.75),
+            value: DocParam::Continuous {
+                dim: Dimension::Length,
+                value: 0.75,
+                distribution: Some(Distribution::TruncatedNormal {
+                    sigma: 0.002,
+                    lo: -0.005,
+                    hi: 0.004,
+                }),
+            },
+        },
+    );
+    // A second parameter with NO distribution, so the same bytes also
+    // pin the degenerate carry: an unannotated param writes no key.
+    doc = push(
+        &doc,
+        &DocEdit::SetDocParam {
+            name: ParamName::new("clearance"),
+            value: DocParam::continuous(Dimension::Length, 0.001),
         },
     );
     // v4 re-authoring (content-preserving): the quad with one arc
@@ -230,7 +249,7 @@ fn golden_bytes_are_frozen() {
     }
     assert_eq!(
         text, GOLDEN,
-        "schema-v11 wire bytes drifted from the committed golden — this is a FORMAT \
+        "wire bytes drifted from the committed golden — this is a FORMAT \
          CHANGE: it needs a ratified schema bump + migration step, never a re-bless in passing"
     );
 }

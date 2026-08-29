@@ -1,0 +1,340 @@
+//! **Distributions in the document** (ERROR-DESIGN E1/E2) — schema
+//! **v15**, and the gate that refuses everything older.
+//!
+//! Before v15 a document parameter could not carry a `distribution`
+//! key at all. A v14 reader handed one meets a field its
+//! `deny_unknown_fields` document types have no name for and dies
+//! inside serde rather than at the version door — which is exactly the
+//! direction the gate buys. The other direction is forgiving by
+//! construction (a v14 file declares no distributions, and an
+//! unannotated v15 param writes no key), so the disposition is the
+//! family's: the older file refuses TYPED with the regenerate
+//! recourse, and the migration table stays empty.
+//!
+//! **Why 15.** Read by eye from main's constant at the final re-merge
+//! (`git show origin/main:crates/editor-core/src/persist/mod.rs | grep
+//! SCHEMA_VERSION`), because units have repeatedly had a same-number
+//! claim merge CLEAN — both sides write the identical line, so git
+//! never conflicts.
+
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+use editor_core::{
+    Dimension, Distribution, DistributionFault, DistributionField, DocEdit, DocParam, DocumentId,
+    EditError, ParamName, PersistError, ProfileDoc, REGENERATE_RECOURSE, SCHEMA_VERSION, apply,
+    load, save,
+};
+use geom_core::Tol;
+
+/// The prior live golden, kept as the REFUSAL fixture: a break nobody
+/// can demonstrate is a break nobody can trust.
+const V14: &str = include_str!("golden/v14_golden.cad");
+/// One further back, to show the gate has no notion of "nearly
+/// current".
+const V13: &str = include_str!("golden/v13_golden.cad");
+
+#[test]
+fn schema_version_is_current() {
+    assert_eq!(SCHEMA_VERSION, 15);
+}
+
+#[test]
+fn the_checked_in_older_goldens_are_really_older() {
+    assert_eq!(V14.lines().next(), Some("schema: 14"));
+    assert_eq!(V13.lines().next(), Some("schema: 13"));
+}
+
+/// The break, demonstrated in the direction that matters: a v14 file
+/// refuses TYPED at the version door, naming the version found, the
+/// version supported, and the step that does not exist.
+#[test]
+fn v14_refuses_too_old() {
+    match load(V14, Tol::witness()) {
+        Err(PersistError::SchemaTooOld {
+            found,
+            supported,
+            missing,
+        }) => {
+            assert_eq!(found, 14);
+            assert_eq!(supported, SCHEMA_VERSION);
+            assert_eq!(
+                missing, 14,
+                "the 14 → 15 step is the one that does not exist"
+            );
+        }
+        other => panic!("v14 must refuse SchemaTooOld, got {other:?}"),
+    }
+}
+
+#[test]
+fn the_refusal_carries_the_regenerate_recourse() {
+    for (label, bytes) in [("v14", V14), ("v13", V13)] {
+        let msg = match load(bytes, Tol::witness()) {
+            Err(e) => e.to_string(),
+            Ok(_) => panic!("{label} must refuse"),
+        };
+        assert!(msg.contains(REGENERATE_RECOURSE), "{label}: {msg}");
+    }
+}
+
+fn doc_with(params: &[(&str, DocParam)]) -> ProfileDoc {
+    let mut doc = ProfileDoc::empty(DocumentId::derive("m10-1-schema"), Tol::witness());
+    for (name, value) in params {
+        doc = apply(
+            &doc,
+            &DocEdit::SetDocParam {
+                name: ParamName::new(*name),
+                value: value.clone(),
+            },
+            Tol::witness(),
+        )
+        .expect("a valid parameter sets")
+        .doc;
+    }
+    doc
+}
+
+fn annotated(value: f64, distribution: Distribution) -> DocParam {
+    DocParam::Continuous {
+        dim: Dimension::Length,
+        value,
+        distribution: Some(distribution),
+    }
+}
+
+/// All FOUR forms on the wire at once, round-tripped bit for bit.
+#[test]
+fn every_distribution_form_round_trips_at_v15() {
+    let doc = doc_with(&[
+        (
+            "band",
+            annotated(1.0, Distribution::Band { lo: -0.1, hi: 0.1 }),
+        ),
+        (
+            "uniform",
+            annotated(2.0, Distribution::Uniform { lo: -0.2, hi: 0.05 }),
+        ),
+        (
+            "normal",
+            annotated(3.0, Distribution::Normal { sigma: 0.01 }),
+        ),
+        (
+            "truncated",
+            annotated(
+                4.0,
+                Distribution::TruncatedNormal {
+                    sigma: 0.01,
+                    lo: -0.03,
+                    hi: 0.03,
+                },
+            ),
+        ),
+    ]);
+    let text = save(&doc, &[], Tol::witness()).expect("saves");
+    assert_eq!(
+        text.lines().next(),
+        Some(&format!("schema: {SCHEMA_VERSION}")[..]),
+        "a fresh save carries the CURRENT version"
+    );
+    for form in ["Band", "Uniform", "Normal", "TruncatedNormal"] {
+        assert!(text.contains(form), "{form} is on the wire: {text}");
+    }
+    let back = load(&text, Tol::witness()).expect("loads").doc;
+    assert!(back.bit_eq(&doc), "every form round-trips bit for bit");
+}
+
+/// INVARIANT: an unannotated parameter writes NO key — the degenerate
+/// carry. A document that declares no distribution pays no bytes for
+/// the feature, which is why an all-`None` v15 body is byte-identical
+/// to the v14 one.
+#[test]
+fn an_unannotated_param_stays_absent_from_the_wire() {
+    let doc = doc_with(&[("plain", DocParam::continuous(Dimension::Length, 1.0))]);
+    let text = save(&doc, &[], Tol::witness()).expect("saves");
+    assert!(
+        !text.contains("distribution"),
+        "an unannotated param says nothing: {text}"
+    );
+}
+
+/// `-0.0` is a different offset from `0.0`, and the format keeps it:
+/// the D7 replay identity reaches into the new field.
+#[test]
+fn distribution_offsets_round_trip_by_bits() {
+    let doc = doc_with(&[(
+        "signed_zero",
+        annotated(1.0, Distribution::Band { lo: -0.0, hi: 0.5 }),
+    )]);
+    let text = save(&doc, &[], Tol::witness()).expect("saves");
+    let back = load(&text, Tol::witness()).expect("loads").doc;
+    assert!(back.bit_eq(&doc));
+    let other = doc_with(&[(
+        "signed_zero",
+        annotated(1.0, Distribution::Band { lo: 0.0, hi: 0.5 }),
+    )]);
+    assert!(
+        !back.bit_eq(&other),
+        "-0.0 and 0.0 are different offsets to `bit_eq`"
+    );
+}
+
+/// The LOAD door refuses a hand-written file whose distribution breaks
+/// an invariant, with the diagnostics the SAVE door refuses with — the
+/// shared validator, not two mirrored door sets.
+#[test]
+fn a_hand_written_negative_sigma_refuses_at_load() {
+    let doc = doc_with(&[("s", annotated(1.0, Distribution::Normal { sigma: 0.01 }))]);
+    let text = save(&doc, &[], Tol::witness()).expect("saves");
+    let corrupt = text.replace("\"sigma\": 0.01", "\"sigma\": -1.0");
+    assert_ne!(corrupt, text, "the corruption must actually land");
+    match load(&corrupt, Tol::witness()) {
+        Err(PersistError::Distribution { name, fault }) => {
+            assert_eq!(name.0, "s");
+            assert_eq!(fault, DistributionFault::SigmaNotPositive { sigma: -1.0 });
+        }
+        other => panic!("a negative sigma must refuse at LOAD, got {other:?}"),
+    }
+}
+
+/// The SAVE half — what makes "a document that would refuse to load
+/// cannot be saved" true rather than aspirational. The corrupt
+/// snapshot is deserialized DIRECTLY, past both the edit door and the
+/// load door's validator, and then handed to `save`, which refuses it
+/// with the same typed fault the load door raised above.
+#[test]
+fn the_same_document_refuses_at_save() {
+    let doc = doc_with(&[("s", annotated(1.0, Distribution::Normal { sigma: 0.01 }))]);
+    let text = save(&doc, &[], Tol::witness()).expect("the healthy document saves");
+    let corrupt = text.replace("\"sigma\": 0.01", "\"sigma\": -1.0");
+    assert_ne!(corrupt, text, "the corruption must actually land");
+    let body: serde_json::Value = serde_json::from_str(
+        corrupt
+            .splitn(3, '\n')
+            .nth(2)
+            .expect("the JSON body follows the two header lines"),
+    )
+    .expect("the corrupt body is still JSON");
+    let broken: ProfileDoc =
+        serde_json::from_value(body["snapshot"].clone()).expect("and still a document");
+    match save(&broken, &[], Tol::witness()) {
+        Err(PersistError::Distribution { name, fault }) => {
+            assert_eq!(name.0, "s");
+            assert_eq!(fault, DistributionFault::SigmaNotPositive { sigma: -1.0 });
+        }
+        other => panic!("save must refuse the same fault, got {other:?}"),
+    }
+}
+
+/// An UNAPPLIED edit log is DATA, and a log carrying a broken
+/// distribution never reaches disk: save replays the log through the
+/// edit door before writing a byte.
+#[test]
+fn a_broken_distribution_in_the_edit_log_refuses_at_save() {
+    let doc = ProfileDoc::empty(DocumentId::derive("m10-1-log"), Tol::witness());
+    let bad = DocEdit::SetDocParam {
+        name: ParamName::new("s"),
+        value: annotated(1.0, Distribution::Normal { sigma: -1.0 }),
+    };
+    match save(&doc, &[bad], Tol::witness()) {
+        Err(PersistError::EditReplay { index, error }) => {
+            assert_eq!(index, 0);
+            assert_eq!(
+                error,
+                EditError::InvalidDistribution {
+                    name: ParamName::new("s"),
+                    fault: DistributionFault::SigmaNotPositive { sigma: -1.0 },
+                }
+            );
+        }
+        other => panic!("an unreplayable log must refuse at save, got {other:?}"),
+    }
+}
+
+/// The edit door refuses every §2 invariant, typed and by name.
+#[test]
+fn the_edit_door_refuses_each_broken_invariant() {
+    let doc = ProfileDoc::empty(DocumentId::derive("m10-1-edit"), Tol::witness());
+    let set = |d: Distribution| {
+        apply(
+            &doc,
+            &DocEdit::SetDocParam {
+                name: ParamName::new("p"),
+                value: annotated(1.0, d),
+            },
+            Tol::witness(),
+        )
+        .map(|_| ())
+    };
+    assert_eq!(
+        set(Distribution::Normal { sigma: 0.0 }),
+        Err(EditError::InvalidDistribution {
+            name: ParamName::new("p"),
+            fault: DistributionFault::SigmaNotPositive { sigma: 0.0 },
+        })
+    );
+    assert_eq!(
+        set(Distribution::Band { lo: 0.1, hi: 0.2 }),
+        Err(EditError::InvalidDistribution {
+            name: ParamName::new("p"),
+            fault: DistributionFault::NominalOutsideSupport { lo: 0.1, hi: 0.2 },
+        })
+    );
+    assert_eq!(
+        set(Distribution::Uniform { lo: -0.2, hi: -0.1 }),
+        Err(EditError::InvalidDistribution {
+            name: ParamName::new("p"),
+            fault: DistributionFault::NominalOutsideSupport { lo: -0.2, hi: -0.1 },
+        })
+    );
+    assert_eq!(
+        set(Distribution::TruncatedNormal {
+            sigma: f64::NAN,
+            lo: -0.1,
+            hi: 0.1
+        }),
+        Err(EditError::NonFiniteDocParam {
+            name: ParamName::new("p"),
+        }),
+        "a non-finite offset joins the non-finite class, not the shape class"
+    );
+    assert_eq!(
+        set(Distribution::Band {
+            lo: f64::NEG_INFINITY,
+            hi: 0.1
+        }),
+        Err(EditError::NonFiniteDocParam {
+            name: ParamName::new("p"),
+        })
+    );
+    assert!(
+        Distribution::Band { lo: -0.1, hi: 0.0 }.check().is_ok(),
+        "asymmetric bounds are legal, including a one-sided band"
+    );
+    assert_eq!(
+        DistributionField::Sigma.to_string(),
+        "sigma",
+        "the field vocabulary reads in the author's words"
+    );
+}
+
+/// A param differing ONLY in distribution is a reported diff — the
+/// document diff sees the new field, through the same `bit_eq` the
+/// replay identity uses.
+#[test]
+fn diff_reports_a_distribution_only_change() {
+    let plain = doc_with(&[("p", DocParam::continuous(Dimension::Length, 1.0))]);
+    let annotated_doc = doc_with(&[("p", annotated(1.0, Distribution::Normal { sigma: 0.01 }))]);
+    let d = plain.diff(&annotated_doc);
+    assert_eq!(
+        d.params,
+        vec![ParamName::new("p")],
+        "adding a distribution is a param diff"
+    );
+    assert!(!plain.bit_eq(&annotated_doc));
+    let widened = doc_with(&[("p", annotated(1.0, Distribution::Normal { sigma: 0.02 }))]);
+    assert_eq!(
+        annotated_doc.diff(&widened).params,
+        vec![ParamName::new("p")],
+        "changing a distribution is a param diff"
+    );
+}
