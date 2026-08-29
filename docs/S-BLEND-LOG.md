@@ -102,3 +102,21 @@ the first lane starts. D320 stays filed-not-takeable (follows
 track N's D240); C-e/H13 gets its 779 contradiction verified
 before staffing. BLEND-1's lane owes a merge of main (2b + M10-P
 landed) before its PR opens; its brief already carries the rule.
+
+## ENCLOSING TANGENCY RULED (2026-08-29) — Evan, in-chat
+
+The 827 conversation resolved same-day: **the enclosing class is
+never allowed — "it is not a fillet of that corner and should be a
+refusal."** Evan's probe of the conversation's figures (the arc
+visibly not touching the corner) surfaced the deciding ground —
+strict interiority: internal tangency at r > R puts the corner
+strictly inside the blend circle, so no door emitting the class
+could be serving a fillet of the corner. Doc ratified in place and
+merged (PR 1210, merge 26c9e19c); the original R1 recommendation
+is recorded there as rejected on exactly that ground. **BLEND-7**
+(the closing unit: measured-first refusal in `crates/profile`,
+pins' hedge-drop, sugar.rs purpose statement) joined the plan in
+the same merge; issue 827 closes at its merge, and the decision
+folds into DESIGN.md's companion table then. Sequenced after
+BLEND-1 (review-bandwidth, not file conflict — it is the one unit
+off the sweep fence).
