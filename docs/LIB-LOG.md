@@ -1584,3 +1584,22 @@ row prose corrected (counter invariant). The delta re-verification
 round (R1 resumed, narrow scope) is the shape to reuse: cheap (~40k
 tokens), executes rather than reads, and the resumed reviewer's
 context made it 12 minutes.
+
+**DISPLAY-KERNEL MERGED (2026-08-29, #1175; mechanical under the
+08-29 ruling, no A/B row).** All ten façade-carried refusal types
+the #1111 re-sweep measured without a `Display` now render
+F6-shape prose (`TessellateError`, `ContactRefusal`, `ReadbackError`,
+`FmtQuantityError`, `DeclareError`, `InterrogateError`,
+`SelectRefusal`, `ResolveFault`, `ParseError`, `MigrationError`),
+each with a struct-dump-fingerprint contract test; four arms listed
+recourse-less for a design pass rather than minting recourse prose
+(#947's lesson applied prospectively). The unit's ARC is the record:
+its 1e-12 draw exposed a main red no main head had drawn
+(`r2_m10_di_probes` — filed as #1178, fixed by M10 as #1193 per
+ratified DL3), the fix was PORTED onto this branch per the
+drive-to-green rule, and the port's CI-Config pin re-drew the exact
+failing point GREEN (run 33265053740) — the red closed honestly, not
+re-drawn away. Lane process finding kept: the lane pushed a tree it
+had not re-verified once (one red run, disclosed, fixed next
+commit). Python `{:?}` message sites now flippable to the new
+Displays: listed in the PR for the next pncad-py sweep.
