@@ -1764,3 +1764,7 @@ OPUS, slot 2 FABLE, slot 3 OPUS.
 Ordinal 500 (band's first claim; claim issue filed at dispatch).
 Slot byte 165, parity 1 ⇒ R1 FABLE + R2 OPUS, concurrent, frozen
 head 0e9ef0b4, v5 instrument.
+
+**M10-DI dispatch (branch-side, 2026-08-29).** Block M10-B1 slot 2
+(arm per the block draw above). Difficulty pre-logged M at
+dispatch. Spec docs/M10-DI-SPEC.md (merged main 8dc2a459).
