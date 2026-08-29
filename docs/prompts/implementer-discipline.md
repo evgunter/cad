@@ -28,12 +28,32 @@ you:
 - **A re-run of the same commit draws the same point.** Re-running a red leg
   will not turn it green, and if you find yourself hoping it might, that is the
   bug talking. Push a fix.
-- **A change to interval code always draws the interval lane** — the rule is
-  path-shaped (`interval` in the basename, or anything under
-  `interval-transcendentals/`) and lives in `scripts/ci-filter.py`. A change to
-  interval-gated code inside an ordinarily-named file is NOT matched and falls
-  back to the draw, so if your unit is one of those and the lane matters to it,
-  say so in the PR rather than assuming the gate saw it.
+- **If the lane matters to your change, ASK for it — do not wait for the
+  draw.** Put `CI-Config: lane=interval` (or `lane=default`) in your HEAD
+  commit's message, or dispatch the workflow with the `lane` input. The
+  request beats the draw for that dimension and leaves the others drawn, and
+  the run records it as `lane:requested` / `lane:commit-trailer` in
+  `CONFIG_SOURCE` so a reader can tell an asked-for point from a sampled one.
+  The trailer is read off the head commit and only that one, so it lasts
+  exactly one push: a later commit — a merge of main included — is sampled
+  again unless it carries the trailer too.
+
+  **Then say in the PR which lane gated**, and whether it was drawn or asked
+  for. Nobody else can reconstruct that later, and a PR that does not say it
+  is asking its reviewer to assume the gate saw the axis the change was about.
+
+  A filename does not do this for you (Evan's ruling, 2026-08-29, on #1122).
+  `scripts/ci-filter.py` used to pin `LANE=interval` whenever any changed
+  file's basename contained `interval`; that arm is gone, because it could not
+  tell a rename from a semantic edit and gated a whole branch on the wrong
+  axis for its entire life after a type migration touched
+  `extrude_interval.rs`. What survives is exact and narrow: a change under
+  `interval-transcendentals/`, or a changed-file list the filter could not
+  resolve at all, still pins interval and says so. A diff that merely touches
+  `*interval*` files now DRAWS its lane and the run prints an advisory telling
+  you to ask if the semantics moved. **That advisory is a reminder of this
+  paragraph, not a substitute for it** — you are the only party who knows
+  whether your edit changed interval behaviour or just its spelling.
 
 **When one point of six is not enough**, run `local-scripts/ci-local.sh`: it is
 now the only lane that runs every point on one tree. Reach for it before a

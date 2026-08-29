@@ -124,3 +124,6 @@ fn interval_cube_upgrades_to_intersections() {
     common::describe_as_intersections(&mut body);
     assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));
 }
+
+// TEMPORARY, REVERTED IN THE NEXT COMMIT: an interval-named file in the diff,
+// so the hosted run demonstrates the advisory that replaced the basename pin.

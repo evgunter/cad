@@ -526,6 +526,7 @@ jobs:
           EPS: ${{ steps.classify.outputs.EPS }}
           KLINT_ROW: ${{ steps.classify.outputs.KLINT_ROW }}
           CONFIG_SOURCE: ${{ steps.classify.outputs.CONFIG_SOURCE }}
+          LANE_ADVISORY: ${{ steps.classify.outputs.LANE_ADVISORY }}
         run: |
           printf 'lane=%s eps=%s klint_row=%s\n' "$LANE" "$EPS" "$KLINT_ROW"
           printf 'source: %s\n' "$CONFIG_SOURCE"
@@ -547,15 +548,34 @@ jobs:
           case "$CONFIG_SOURCE" in
             *lane:pinned*)
               echo "PINNED, NOT DRAWN: the lane above was substituted by ci-filter.py's" \
-                   "_forces_interval because a changed file's path says the change may be" \
-                   "about interval arithmetic. The reason, naming that file, is on stderr in" \
-                   "the 'classify the change set' step above."
+                   "_forces_interval, which pins interval when the diff cannot be shown to" \
+                   "leave interval code alone — a change under interval-transcendentals/," \
+                   "or a changed-file list that could not be resolved at all. The reason," \
+                   "naming the file, is on stderr in the 'classify the change set' step above."
               echo "RE-PUSHING CANNOT CHANGE IT: the pin runs before the seeded draw and" \
                    "short-circuits it, so every push of this branch gates the interval lane" \
                    "until the file list changes. To gate the other one, say so —" \
                    "a 'CI-Config: lane=default' trailer on the head commit beats the pin."
               ;;
           esac
+          # THE ADVISORY THAT REPLACED THE BASENAME PIN (Evan's ruling on #1122,
+          # 2026-08-29). A filename can raise the question and cannot answer it,
+          # so this run drew its lane like any other and the author is the one
+          # who knows whether that was the right one. Printed here rather than
+          # only on stderr for the same reason the block above is: this step is
+          # where a reader looks to find out what gated the run.
+          if [ "$LANE_ADVISORY" = 'true' ]; then
+            echo "INTERVAL FILES TOUCHED, DEFAULT LANE DRAWN: this diff changes files whose" \
+                 "basenames carry 'interval' and this run gates lane=default. The filename is" \
+                 "NOT evidence — it used to pin the lane and it pinned a rename, which is why" \
+                 "the pin was removed."
+            echo "IF INTERVAL SEMANTICS CHANGED, ASK FOR THE LANE: put 'CI-Config:" \
+                 "lane=interval' in the head commit's message (or dispatch this workflow with" \
+                 "lane=interval), and say in the PR which lane gated. If they did not change," \
+                 "ignore this. The file that raised it is named on stderr in the 'classify the" \
+                 "change set' step above; the convention is in" \
+                 "docs/prompts/implementer-discipline.md."
+          fi
 
       # DOES THIS RUN GATE ANYTHING AT ALL (#1204). A draft run zeroes every
       # RUN_* flag above and still ends GREEN, with TIER, CARGO_SCOPE and LANE

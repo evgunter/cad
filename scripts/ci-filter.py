@@ -71,6 +71,11 @@ $GITHUB_OUTPUT and to parse with `while IFS='=' read -r k v`.
   RUN_INTERVAL_ORACLE=true|false    its oracle-inari certification tier
   RUN_TOPO_RELEASE=true|false   corrupt input (release profile) row
   RUN_K_LINT=true|false         k-lint (gate) row
+  LANE_ADVISORY=true|false      this diff touches `*interval*` files and this
+                                run gates the DEFAULT lane, so if interval
+                                semantics changed the author should ask for
+                                the other one. Advisory: nothing reads it to
+                                decide what runs (see below)
   LANE=default|interval|both    which COMPILE MODE this run gates (see below)
   EPS=default|<value>|all       which tolerance row this run gates
   KLINT_ROW=<unification>|all   which of `k-lint (gate)`'s five feature
@@ -140,6 +145,18 @@ see is how a branch spends every run of its life on an axis nobody chose
     matrix point and must not enter the KEY=value stream: both halves append
     stdout to $GITHUB_OUTPUT or read it with `IFS='=' read -r k v`, where one
     extra line would be one bogus output key.
+
+WHAT THE PIN NO LONGER COVERS, AND THE CONVENTION THAT REPLACED IT (Evan's
+ruling, 2026-08-29, on #1122). `_forces_interval` used to pin on any changed
+file whose BASENAME contained `interval`. That arm is gone: it could not tell
+a rename from a semantic edit, and it gated a whole branch on the wrong axis
+for its entire life because a type migration touched an interval-named test
+file. The lane is now asked for, by the author, who is the only party that
+knows: `CI-Config: lane=interval` on the head commit, or the dispatch input.
+`LANE_ADVISORY=true` plus a stderr note is all this script does about a
+name — it changes nothing about what runs. The rule itself lives in
+`docs/prompts/implementer-discipline.md`, which every lane reads; this
+message is a reminder of that rule, not a second copy of it.
 
 REQUESTING A POINT INSTEAD OF DRAWING ONE (2026-08-28, Evan's ask). The draw
 is a DEFAULT, not a lock: someone who wants this tree gated at 1e-12, or at
@@ -745,42 +762,41 @@ KLINT_ROWS: tuple[str, ...] = (
     "dev-default", "release-default", "release-budget", "dev-budget", "dev-probe",
 )
 
-# WHEN THE INTERVAL LANE IS NOT LEFT TO CHANCE. A change to interval code is
-# exactly the change whose interval lane a sampled run must not skip, and
-# waiting an expected two runs to find that out is the one case where the
-# sampling's latency lands on the author who could have been told immediately.
+# WHEN THE INTERVAL LANE IS NOT LEFT TO CHANCE — AND THE NAME-SHAPED HALF THAT
+# NO LONGER IS (Evan's ruling, 2026-08-29, on #1122).
 #
-# The rule is PATH-SHAPED and rests on a naming convention this repo already
-# keeps: every interval-specific test file in crates/*/tests carries
-# `interval` in its basename (28 files at the time of writing), the two
-# interval sources in geom-core are `interval.rs` and `ring_interval.rs`, and
-# the backend is its own workspace root. It is a HEURISTIC over names, not a
-# proof over the feature graph: a change to an interval-gated block inside a
-# file with an ordinary name is not matched, and falls back to the sampling
-# like anything else.
+# This used to pin the lane on TWO signals. One was exact; the other guessed
+# from a filename, and the guess is gone.
 #
-# WHAT THE PIN COSTS, stated because the earlier wording here — "the rule only
-# ever ADDS certainty, never removes it" — is not true as written and reading
-# it cost a full ruling cycle (#1122). The pin SUBSTITUTES a lane; it does not
-# add one. What makes the substitution nearly free is not the rule but the two
-# lanes' shapes: ci.yml archives the same `cargo_scope` for both and the
-# interval lane merely adds `--features interval`, so a pinned run executes the
-# same rows in a stricter compile. The rows it does NOT reach are the ones
-# gated `cfg(not(feature = "interval"))` — which
-# `scripts/check-interval-cfg-additive.py` keeps out of `crates/*/src`
-# entirely and permits, whole-item only, in `crates/*/tests`, where the
-# loud-skip marker rows use it. Enumerable at any time with
+#   * `interval-transcendentals/` STAYS. It is exact by construction: that
+#     tree is the interval backend's own workspace, so a change under it
+#     cannot be about anything else, and the crate's own guard jobs sit
+#     alongside this rather than depend on it.
+#   * An unresolved file list STAYS, and stays for the reason every other
+#     signal here fails closed: nothing can prove interval code held still
+#     when nothing is known about what changed.
+#   * `interval` ANYWHERE IN A BASENAME IS REMOVED. It matched a rename that
+#     touched `extrude_interval.rs` for three identifiers of an
+#     `EdgeGeometry` → `EdgeDescription` migration, and from then on every
+#     push of that branch was pinned to a lane nobody chose — a re-push is a
+#     fresh draw, but the pin ran first and short-circuited it, so the advice
+#     "re-push until the default lane lands" looped forever. The branch's
+#     whole subject was ~340 consumer sites, i.e. the default lane's battery,
+#     and it spent its entire life on the other axis. The rule could not tell
+#     a rename from a semantic edit, because a filename cannot.
 #
-#     grep -rn 'not(feature *= *"interval")' --include=*.rs crates/
+# WHAT REPLACES IT IS A CONVENTION, NOT A HEURISTIC: whoever changed interval
+# semantics knows they did, and asks for the lane with a
+# `CI-Config: lane=interval` trailer on the head commit (or the dispatch
+# door). `_advises_interval` below is the reminder, not the mechanism — the
+# convention lives in `docs/prompts/implementer-discipline.md`, which every
+# lane reads, because a convention only a filter message states is one nobody
+# follows.
 #
-# so the pin's real cost is those marker rows, not the battery.
-#
-# AND IT IS ANNOUNCED. A pin is not defeatable by re-pushing — it runs before
-# the seeded draw and short-circuits it — so a branch that trips it silently
-# spends every one of its runs on an axis nobody chose. `main` prints the pin
-# and its reason to stderr, which is why this returns the REASON rather than a
-# bool. Nothing else about the return changed: a reason string is truthy and
-# `None` is falsy, exactly where the bool was read.
+# AND THE PIN THAT REMAINS IS ANNOUNCED. It is not defeatable by re-pushing —
+# it runs before the seeded draw and short-circuits it — so `main` prints it
+# and its reason to stderr and `decorate` records `lane:pinned`, which is why
+# this returns the REASON rather than a bool.
 def _forces_interval(files: list[str] | None) -> str | None:
     """Why the lane is pinned to `interval`, or `None` if it is not pinned."""
     # Fail CLOSED like every other signal here: an unresolved file list cannot
@@ -790,6 +806,24 @@ def _forces_interval(files: list[str] | None) -> str | None:
     for f in files:
         if f.startswith("interval-transcendentals/"):
             return f"{f} is under interval-transcendentals/"
+    return None
+
+
+# THE ADVICE THAT REPLACED THE PIN. Same name-shaped observation, stripped of
+# the authority it should never have had: this changes NOTHING about what runs.
+# It exists because the ruling that removed the pin removed a reminder along
+# with it, and the case the pin was built for — someone edits interval
+# semantics, the draw goes the other way, and they find out two runs later —
+# is real even though the filename could not identify it. A name can raise the
+# question; only the author can answer it.
+def _advises_interval(files: list[str] | None) -> str | None:
+    """Why this diff MIGHT be about interval semantics, or `None`.
+
+    Advisory only. Nothing reads this to decide what runs.
+    """
+    if not files:
+        return None
+    for f in files:
         if "interval" in f.rsplit("/", 1)[-1]:
             return f"{f} has `interval` in its basename"
     return None
@@ -997,6 +1031,17 @@ def decorate(
         source[out_key] = src
     res["CONFIG_SOURCE"] = " ".join(
         f"{name}:{source[out_key]}" for name, (out_key, _) in CONFIG_DIMENSIONS.items()
+    )
+    # THE ADVISORY, AND WHY IT IS COMPUTED LAST. It fires only when this run is
+    # NOT going to gate the interval lane, which is knowable only after the
+    # pin, the draw and the request have all had their say — advising someone
+    # to ask for a lane the run already gates is noise, and noise is how a real
+    # notice stops being read. A BOOLEAN, not the reason: the reason is a path,
+    # and a path has no business in a stream both halves parse as KEY=value.
+    res["LANE_ADVISORY"] = (
+        "true"
+        if res["LANE"] == "default" and _advises_interval(files) is not None
+        else "false"
     )
     return res
 
@@ -1478,12 +1523,15 @@ def selftest() -> None:
         "edges upward only; the oracle signal fires on certified sources and lockfile and "
         "not on their prose; the three sampled dimensions fail open with no seed, "
         "repeat under the same seed, and are drawn independently enough that every one "
-        "of the 30 matrix points is reachable; the lane pin beats a draw that went "
-        "the other way, says so on stderr naming the file that pinned it, is recorded "
-        "as `lane:pinned` in CONFIG_SOURCE so the outputs alone tell a pin from a "
-        "draw, keeps the reason off stdout, stays out of unpinned and unseeded runs, "
-        "and goes quiet in both channels when a request "
-        "overrides it; and a configuration REQUESTED by hand "
+        "of the 30 matrix points is reachable; the interval-transcendentals/ lane pin "
+        "beats a draw that went the other way, says so on stderr naming the file that "
+        "pinned it, is recorded as `lane:pinned` in CONFIG_SOURCE so the outputs alone "
+        "tell a pin from a draw, keeps the reason off stdout, stays out of unpinned and "
+        "unseeded runs, and goes quiet in both channels when a request overrides it, "
+        "while a merely interval-NAMED file draws its lane like anything else and "
+        "raises LANE_ADVISORY with the spelling of the request instead — silently on "
+        "a run already gating interval, on an unseeded run, and on a diff naming no "
+        "such file; and a configuration REQUESTED by hand "
         "— by flag or by `CI-Config:` commit trailer — reaches the dimension it names "
         "and only that one, beats the interval pin, is recorded in CONFIG_SOURCE, and "
         "reds the step rather than falling back to the draw when it names no real point"
@@ -1540,20 +1588,19 @@ def _selftest_sampling() -> None:
 
 
 def _selftest_lane_pin(t: str) -> None:
-    """THE PIN OVER THE DRAW, AND THE FACT THAT IT SAYS SO.
+    """THE PIN THAT REMAINS, THE ONE THAT WAS REMOVED, AND THE ADVICE IN ITS PLACE.
 
-    `_forces_interval` runs BEFORE the seeded draw and short-circuits it, so
-    a branch that trips it is on the interval lane for every push it ever
-    makes. That is defensible; being unable to SEE it is not, and it is what
-    cost a full ruling cycle (#1122) — the pin was invisible until someone
-    re-implemented the filter to find it.
+    `_forces_interval` runs BEFORE the seeded draw and short-circuits it, so a
+    branch that trips it is on the interval lane for every push it ever makes.
+    For `interval-transcendentals/` that is right — the tree is the backend's
+    own workspace. For a BASENAME it was not, and Evan's ruling on #1122
+    removed that arm: it gated a type migration's whole branch on the wrong
+    axis because the rename touched an interval-named test file.
 
-    So this asserts every half: that the pin beats a draw that went the
-    other way; that the REASON is on stderr and not on stdout, where an extra
-    line would become a bogus $GITHUB_OUTPUT key; and that the machine-readable
-    output distinguishes the pin from a draw at all — `CONFIG_SOURCE` carries
-    `lane:pinned`, because `LANE=interval` alone cannot, and a reader
-    reconstructing what gated a commit from the outputs has nothing else.
+    So the cases below fix BOTH directions of that ruling, because only one of
+    them is testable by the code that replaced it: that the exact arm still
+    pins and still says so, and that a basename now DRAWS and merely ADVISES.
+    Without the second case, restoring the deleted arm would pass this file.
     """
     # The seed is FOUND, not hardcoded: the pinned case only tests the pin if
     # the draw it overrode was `default`, and a literal SHA here would stop
@@ -1564,11 +1611,11 @@ def _selftest_lane_pin(t: str) -> None:
     )
 
     pinned = _selftest_run(t, ["--files", "-", "--seed", seed],
-                           "crates/topo/src/ring_interval.rs\n")
+                           "interval-transcendentals/src/lib.rs\n")
     if "LANE=interval" not in pinned.stdout.splitlines():
-        raise SystemExit("SELFTEST FAILED: a basename carrying `interval` did not pin the "
-                         f"lane\n{pinned.stdout}")
-    if "PINNED" not in pinned.stderr or "ring_interval.rs" not in pinned.stderr:
+        raise SystemExit("SELFTEST FAILED: a change under interval-transcendentals/ did not pin "
+                         f"the lane\n{pinned.stdout}")
+    if "PINNED" not in pinned.stderr or "interval-transcendentals/src/lib.rs" not in pinned.stderr:
         raise SystemExit("SELFTEST FAILED: the lane was pinned and the run did not say so, or "
                          f"did not name the file that pinned it\nstderr: {pinned.stderr!r}")
     if "PINNED" in pinned.stdout:
@@ -1577,6 +1624,37 @@ def _selftest_lane_pin(t: str) -> None:
     if "CONFIG_SOURCE=lane:pinned eps:sampled klint:sampled" not in pinned.stdout.splitlines():
         raise SystemExit("SELFTEST FAILED: a pinned lane was recorded as something other than "
                          f"`lane:pinned` — the outputs cannot tell a pin from a draw\n{pinned.stdout}")
+
+    # THE REMOVED ARM, ASSERTED AS REMOVED. `ring_interval.rs` is the shape the
+    # old rule matched — an interval-named source, not a rename victim — so if
+    # anything ever pins on a basename again, it pins here.
+    advised = _selftest_run(t, ["--files", "-", "--seed", seed],
+                            "crates/topo/src/ring_interval.rs\n")
+    if "LANE=default" not in advised.stdout.splitlines():
+        raise SystemExit("SELFTEST FAILED: a basename carrying `interval` pinned the lane — that "
+                         f"arm was REMOVED by the #1122 ruling; the lane is asked for\n{advised.stdout}")
+    if "lane:pinned" in advised.stdout or "PINNED" in advised.stderr:
+        raise SystemExit("SELFTEST FAILED: a basename-only match was announced as a pin\n"
+                         f"{advised.stdout}\nstderr: {advised.stderr!r}")
+    if "LANE_ADVISORY=true" not in advised.stdout.splitlines():
+        raise SystemExit("SELFTEST FAILED: a diff touching *interval* files under a default lane "
+                         f"raised no advisory — the ruling replaced the pin with one\n{advised.stdout}")
+    if "CI-Config: lane=interval" not in advised.stderr:
+        raise SystemExit("SELFTEST FAILED: the advisory did not say HOW to ask for the lane, which "
+                         f"is the whole of the convention it points at\nstderr: {advised.stderr!r}")
+
+    # THE ADVISORY GOES QUIET WHERE IT WOULD BE NOISE — a run already gating
+    # `interval` needs no advice to ask for it, and an advisory that fires on
+    # runs it has nothing to say to is one nobody reads on the run it does.
+    interval_seed = next(
+        s for s in (f"{i:040x}" for i in range(1000))
+        if _sample(s, "lane", LANES) == "interval"
+    )
+    quiet = _selftest_run(t, ["--files", "-", "--seed", interval_seed],
+                          "crates/topo/src/ring_interval.rs\n")
+    if "LANE_ADVISORY=false" not in quiet.stdout.splitlines():
+        raise SystemExit("SELFTEST FAILED: the advisory fired on a run already gating the interval "
+                         f"lane\n{quiet.stdout}")
 
     drawn = _selftest_run(t, ["--files", "-", "--seed", seed],
                           "crates/topo/src/lib.rs\n")
@@ -1589,6 +1667,9 @@ def _selftest_lane_pin(t: str) -> None:
     if "lane:pinned" in drawn.stdout:
         raise SystemExit("SELFTEST FAILED: a drawn lane was recorded as pinned; `lane:pinned` then "
                          f"says nothing about any run\n{drawn.stdout}")
+    if "LANE_ADVISORY=false" not in drawn.stdout.splitlines():
+        raise SystemExit("SELFTEST FAILED: an advisory fired on a diff with no interval-named file "
+                         f"at all\n{drawn.stdout}")
 
     # A REQUEST OVERRIDES THE PIN, so the note must go quiet. `decorate` lets a
     # requested lane beat `_forces_interval` deliberately; if the announcement
@@ -1598,7 +1679,7 @@ def _selftest_lane_pin(t: str) -> None:
     # cases cover it.
     overridden = _selftest_run(
         t, ["--files", "-", "--seed", seed, "--config", "lane=default"],
-        "crates/topo/src/ring_interval.rs\n")
+        "interval-transcendentals/src/lib.rs\n")
     if "LANE=default" not in overridden.stdout.splitlines():
         raise SystemExit("SELFTEST FAILED: a requested lane did not beat the pin\n"
                          f"{overridden.stdout}")
@@ -1609,13 +1690,14 @@ def _selftest_lane_pin(t: str) -> None:
         raise SystemExit("SELFTEST FAILED: a request that beat the pin was recorded as the pin; "
                          f"the run would credit its lane to a file nobody chose\n{overridden.stdout}")
 
-    # No seed: nothing is drawn, so there is nothing to pin. LANE=both already
-    # runs both compile modes, and a note there would be a false alarm.
-    unseeded = _selftest_run(t, ["--files", "-"], "crates/topo/src/ring_interval.rs\n")
+    # No seed: nothing is drawn, so there is nothing to pin OR to advise.
+    # LANE=both already runs both compile modes.
+    unseeded = _selftest_run(t, ["--files", "-"], "interval-transcendentals/src/lib.rs\n")
     if ("LANE=both" not in unseeded.stdout.splitlines() or "PINNED" in unseeded.stderr
-            or "lane:pinned" in unseeded.stdout):
-        raise SystemExit("SELFTEST FAILED: an unseeded run must be LANE=both and announce no "
-                         f"pin\n{unseeded.stdout}\nstderr: {unseeded.stderr!r}")
+            or "lane:pinned" in unseeded.stdout
+            or "LANE_ADVISORY=false" not in unseeded.stdout.splitlines()):
+        raise SystemExit("SELFTEST FAILED: an unseeded run must be LANE=both and announce neither "
+                         f"a pin nor advice\n{unseeded.stdout}\nstderr: {unseeded.stderr!r}")
 
 
 def _selftest_config() -> None:
@@ -1877,6 +1959,23 @@ def main() -> int:
             "pinned run executes the same rows in a stricter compile; what it "
             "does not reach is the loud-skip marker rows gated "
             "`cfg(not(feature = \"interval\"))` under crates/*/tests.",
+            file=sys.stderr,
+        )
+
+    # THE ADVISORY'S REASON, on stderr for the same reason the pin's is: it is
+    # a path. `LANE_ADVISORY=true` on stdout is what ci.yml reads to put the
+    # notice where a reader is already looking.
+    if out["LANE_ADVISORY"] == "true":
+        print(
+            "ci-filter: this diff touches *interval* files "
+            f"({_advises_interval(files)}) and this run gates LANE=default.\n"
+            "ci-filter: the filename is NOT taken as evidence any more — it once "
+            "pinned the lane, and it pinned a rename that touched an "
+            "interval-named file for three identifiers (#1122).\n"
+            "ci-filter: SO IF INTERVAL SEMANTICS CHANGED, ASK FOR THE LANE: put "
+            "`CI-Config: lane=interval` in the head commit's message, or run the "
+            "workflow_dispatch with lane=interval. Say in the PR which lane "
+            "gated. If they did not, this notice is noise and you can ignore it.",
             file=sys.stderr,
         )
 
