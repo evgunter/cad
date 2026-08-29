@@ -1975,3 +1975,13 @@ off-default rows, workspace clippy both modes). Base-tree findings
 routed at dispatch: issues 1234 (reader_census dot-path
 blindness), 1235 (m10_p_lift default-features clippy red). Row at
 merge.
+
+QA-1 (PR #1237) ordinal FIXED AT DISPATCH (2026-08-29):
+**ordinal 800 — the S-QA band's first claim** (band 800–899 per the
+banding entry, claimed at the program's opening — `docs/S-QA-LOG.md`).
+v6 dual: slot byte 125, parity 1 ⇒ **R1 FABLE + R2 OPUS**; CONCURRENT
+on frozen `1258faa6`, separate checkouts per the shared-worktree rule
+(both lanes are shell/scripts-shaped, so disk does not bound them).
+Identical stored briefs; R2 gets no access to R1's report or probes.
+Implementer difficulty S/M (pre-drawn at spec). Sample number at
+merge, per the banding entry's rule. Row at merge.
