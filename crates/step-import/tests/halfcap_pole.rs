@@ -59,7 +59,10 @@ fn certifies_exactly(name: &str) {
         .unwrap_or_else(|e| panic!("{name} must pass tier 3: {e:?}"));
     let mp = topo::mass_properties(&body, Tol::witness())
         .unwrap_or_else(|e| panic!("{name} must measure: {e:?}"));
-    assert_eq!(mp.volume_pad, 0.0, "{name}: the closed-form lane's pad is 0");
+    assert_eq!(
+        mp.volume_pad, 0.0,
+        "{name}: the closed-form lane's pad is 0"
+    );
     let exact = exact_volume();
     let rel = (mp.volume - exact).abs() / exact;
     assert!(

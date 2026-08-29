@@ -39,7 +39,7 @@
 //! The `props_rim_level` rows below do the same three things for the
 //! predicate S58 generalised to all four kinds, on the two kinds whose
 //! metering choice is NEW there — a cone (bare `Length` levels) and a
-//! sphere (`Unit(sin v, 0)` levered at the radius) — plus the row that
+//! sphere (`Unit(sin v, cos v)` levered at the radius) — plus the row that
 //! says what the band means: an interior rim inside the band is
 //! ACCEPTED and one outside it is REFUSED, so ε buys a real length.
 //!
@@ -388,9 +388,8 @@ fn mm_scale_sphere_rim_level_margin_is_the_direction_chord() {
     assert!(refused, "the interior rim must be refused");
     let (va, vb) = (0.2_f64, 0.8_f64);
     let vm = 0.5 * (va + vb);
-    let chord = |v0: f64, v1: f64| {
-        ((v0.sin() - v1.sin()).powi(2) + (v0.cos() - v1.cos()).powi(2)).sqrt()
-    };
+    let chord =
+        |v0: f64, v1: f64| ((v0.sin() - v1.sin()).powi(2) + (v0.cos() - v1.cos()).powi(2)).sqrt();
     let expect = chord(vm, va).min(chord(vm, vb)) * scale;
     assert!(
         margins
@@ -406,9 +405,7 @@ fn mm_scale_sphere_rim_level_margin_is_the_direction_chord() {
     // interior rim's chord is decisively past escalation.
     let b = band();
     assert!(
-        margins
-            .iter()
-            .all(|m| *m < b.zero() || *m > b.escalate()),
+        margins.iter().all(|m| *m < b.zero() || *m > b.escalate()),
         "every margin must be far inside the band or decisively past \
          escalation (zero {:e}, escalate {:e}) at mm scale: {margins:?}",
         b.zero(),
