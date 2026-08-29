@@ -955,16 +955,19 @@ mod interval_lane {
         assert_eq!(body.faces().count(), 5);
         assert_eq!(validate(&body), Ok(()));
         assert_eq!(validate_closed(&body), Ok(()));
-        // Prefer-intrinsic enforcement (M2 PR 4 fix pass): the interval
-        // lane classifies the nine transverse corners definitely too,
-        // and names their pre-upgrade conventional descriptions.
+        // At rest the interval lane names all nine chords, once by each
+        // of the two rules they break, and nothing else — the same
+        // bijection its f64 twin asserts, at the interval scalar.
+        //
+        // **Re-expressed at PCURVE P-1b, and this row is why the
+        // interval lane has to be gated deliberately.** Its f64 twin
+        // was re-expressed with the rest of the census; this one is
+        // behind `cfg(feature = "interval")`, so a default-features
+        // battery never compiles it and every local run reported green
+        // over a row that was red. Hosted CI at a NAMED lane
+        // (`CI-Config: lane=both`, #1136) is what surfaced it.
         let errs = validate_geometric(&body, Tol::witness()).unwrap_err();
-        assert_eq!(errs.len(), 9, "{errs:?}");
-        assert!(
-            errs.iter()
-                .all(|e| matches!(e, ValidationError::TransverseNotIntrinsic { .. })),
-            "{errs:?}"
-        );
+        common::assert_every_chord_named_by_both_rules(&body, &errs);
         // The prefer-intrinsic upgrade at the interval scalar.
         common::describe_as_intersections(&mut body);
         assert_eq!(validate_geometric(&body, Tol::witness()), Ok(()));

@@ -47,7 +47,10 @@ use topo::{Body, FaceSurface, MefCreated, MefSite, MevCreated, MevSite, MvfsCrea
 /// it is asserted as a bijection rather than re-baselined to twice the
 /// number, so that a rule firing twice on one edge, or missing one,
 /// still fails here.
-pub fn assert_every_chord_named_by_both_rules(body: &Body<f64>, errs: &[topo::ValidationError]) {
+pub fn assert_every_chord_named_by_both_rules<T: Real>(
+    body: &Body<T>,
+    errs: &[topo::ValidationError],
+) {
     let edges: Vec<topo::EdgeKey> = body.edges().map(|(k, _)| k).collect();
     let named = |pick: fn(&topo::ValidationError) -> Option<topo::EdgeKey>| {
         errs.iter().filter_map(pick).collect::<Vec<_>>()
