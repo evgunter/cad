@@ -43,14 +43,16 @@
 //!
 //! # Findings this scene records (the demo-purpose rule)
 //!
-//! 1. **The chamfer is not a recipe node.** `Node::fillet` has no
-//!    chamfer sibling, so a consumer modelling in a document cannot
-//!    ask for this die at all inside the document: the scene has to
-//!    evaluate the shared recipe, take the source body OUT, and do
-//!    the surgery beside it. The result has no node, no stable names
-//!    and no rebuild — `bodies::spacer` recorded the same gap on a
-//!    part with no recipe behind it; this is the same gap costing a
-//!    real model its document.
+//! 1. **This scene stays kernel-direct, and that is now a CHOICE.**
+//!    `Node::Chamfer` exists (LIB-G16), so the die this scene renders
+//!    is sayable as a document — `select_where(CurveKind = Line)` into
+//!    `Node::chamfer`, which is the line finding 2 below asked for and
+//!    `crates/pncad-py/tests/test_north_star.py::TestDiechamferDie`
+//!    executes. What the scene keeps recording is the KERNEL-direct
+//!    seat: it evaluates the shared recipe, takes the source body OUT,
+//!    and does the surgery beside it, so the result has no node and no
+//!    names. That is the cost of calling the verb next to a document,
+//!    which is a real cost and the one finding 2 is about.
 //! 2. **There is no CURATED selection→verb door.** `diecomposed` says
 //!    "the twelve box edges" as one call —
 //!    `select_where(CurveKind = Line)` — and hands the answer straight
@@ -317,11 +319,12 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                  box-edge material 6·L·d² − (16/3)·d³ = {:.6} m³: the chamfer never reaches \
                  a pip. The pip rims stay SHARP because the chamfer's v1 door is \
                  plane–plane — a plane–sphere rim refuses ChamferArmUnsupported, where \
-                 `diecomposed`'s second call rolls a torus band into it. Two findings \
-                 recorded at the scene: the verb has no recipe node, so this die has no \
-                 document; and `select_where`'s answer (stable names) cannot be handed to \
-                 `chamfer_edges` (arena keys), so \"the twelve box edges\" is re-said here \
-                 as a hand-rolled carrier-kind loop",
+                 `diecomposed`'s second call rolls a torus band into it. The finding \
+                 recorded at the scene: `select_where`'s answer (stable names) cannot be \
+                 handed to `chamfer_edges` (arena keys), so \"the twelve box edges\" is \
+                 re-said here as a hand-rolled carrier-kind loop. This body has no \
+                 document because the scene calls the verb DIRECTLY; the recipe door \
+                 (`Node::chamfer`, LIB-G16) is what a document-modelling consumer uses",
                 props.volume,
                 src_props.volume,
                 edge_material(L, D)
