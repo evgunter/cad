@@ -228,8 +228,13 @@ fn probe_e_hexagon_tier3_error() {
     }
 }
 
-/// PROBE G: door A with a SINGLE centre pip on the blank — the exact
-/// edge/face pair the pierce door names, and that face's surface kind.
+/// PROBE G: door A with a SINGLE centre pip on the blank — fillet
+/// FIRST, then cut. This probe was written to record which door the
+/// composition stopped at; it now records that it does not stop. The
+/// blocker was the trimmed sphere face the cut leaves behind, and the
+/// sphere chart's `[azimuth] × [latitude]` window serves that class,
+/// so the containment stage answers and the operation completes with
+/// the exact closed-form volume.
 #[test]
 fn probe_g_door_a_fields() {
     let c = cube(1.0, Tol::witness());
@@ -237,8 +242,11 @@ fn probe_g_door_a_fields() {
     let blank = fillet_edges(&c, &edges, 0.12, band(), Tol::witness())
         .unwrap()
         .body;
+    let blank_v = topo::mass_properties(&blank, Tol::witness())
+        .unwrap()
+        .volume;
     let ball = ball_at(0.09, Vec3::new(0.5, 0.5, 1.04));
-    let err = boolean_op_with(
+    let out = boolean_op_with(
         BooleanOp::Subtract,
         &blank,
         &ball,
@@ -246,13 +254,21 @@ fn probe_g_door_a_fields() {
         SweepStrategy::Realized,
         Tol::witness(),
     )
-    .expect_err("door A");
-    println!("PROBE G: {err}");
-    println!("PROBE G debug: {err:?}");
+    .expect("door A composes");
+    let body = &out.body().expect("a body").body;
+    assert_eq!(topo::validate_geometric(body, Tol::witness()), Ok(()));
+    assert_eq!(body.shells().count(), 1, "one shell: the pipped blank");
+    // The pip is a spherical cap of height r - 0.04 off a radius-0.09
+    // ball, cut from a face the fillet left flat.
+    let h = 0.09 - 0.04;
+    let want = blank_v - PI * h * h * (3.0 * 0.09 - h) / 3.0;
+    let got = topo::mass_properties(body, Tol::witness()).unwrap().volume;
+    assert!((got - want).abs() <= 1e-9 * want, "{got} vs {want}");
 }
 
-/// PROBE H: door A with the CLOSED ball as the tool (whole group) —
-/// does the scan then reach the true pierce door, and on which pair?
+/// PROBE H: door A with a multi-ball CLOSED-group tool. The same
+/// answer as PROBE G, at two pips: the trimmed sphere faces the cut
+/// leaves are each a chart rectangle, so nothing stops.
 #[test]
 fn probe_h_door_a_closed_tool() {
     let c = cube(1.0, Tol::witness());
@@ -277,7 +293,7 @@ fn probe_h_door_a_closed_tool() {
     .unwrap()
     .body
     .clone();
-    let err = boolean_op_with(
+    let out = boolean_op_with(
         BooleanOp::Subtract,
         &blank,
         &tool,
@@ -285,9 +301,17 @@ fn probe_h_door_a_closed_tool() {
         SweepStrategy::Realized,
         Tol::witness(),
     )
-    .map(|_| ())
-    .expect_err("door A multi");
-    println!("PROBE H (multi-ball): {err:?}");
+    .expect("door A composes for a multi-ball tool too");
+    let body = &out.body().expect("a body").body;
+    assert_eq!(topo::validate_geometric(body, Tol::witness()), Ok(()));
+    assert_eq!(body.shells().count(), 1);
+    let blank_v = topo::mass_properties(&blank, Tol::witness())
+        .unwrap()
+        .volume;
+    let h = 0.09 - 0.04;
+    let want = blank_v - 2.0 * PI * h * h * (3.0 * 0.09 - h) / 3.0;
+    let got = topo::mass_properties(body, Tol::witness()).unwrap().volume;
+    assert!((got - want).abs() <= 1e-9 * want, "{got} vs {want}");
 }
 
 /// PROBE I: the full 21-pip tool against the blank — the exact door-A

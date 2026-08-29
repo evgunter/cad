@@ -279,6 +279,8 @@ mod verbs_pierce_r2_probes;
 mod verbs_rim_closed_lever;
 #[path = "verbs_rim_r1_probes.rs"]
 mod verbs_rim_r1_probes;
+#[path = "verbs_sphsph_chart.rs"]
+mod verbs_sphsph_chart;
 #[path = "verbs_sphsph_opening.rs"]
 mod verbs_sphsph_opening;
 #[path = "verbs_tubewall.rs"]

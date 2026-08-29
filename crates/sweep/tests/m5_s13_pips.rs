@@ -348,23 +348,36 @@ fn overlapping_sphere_pair_refuses_typed_at_the_scan() {
     assert!(what.contains("sphere"), "{what}");
 }
 
-/// **F2 (fix pass): the scan's TRIMMED-GROUP arm.** A pip RESULT
-/// carries a trimmed sphere face group (the cap), so using it as an
-/// operand in a second no-crossing boolean must refuse typed at the
-/// scan — the extent certificate `center ± r` is only honest for a
-/// CLOSED group (the PR 9c discipline), and no per-face chart-trim
-/// extent exists. This is also sequential pip authoring's honest
-/// blocker (the two-pip row's two-shell operand is the live route).
+/// **The scan's TRIMMED-GROUP arm, and where it actually bites.** A pip
+/// RESULT carries a trimmed sphere face group (the cap), and using it as
+/// an operand in a second no-crossing boolean used to refuse typed at
+/// the scan: the extent certificate `center ± r` is the whole group's,
+/// so it was only spent for a CLOSED group.
+///
+/// That certificate is asked WHERE IT IS USED now, not on arrival, and
+/// the trimmed group is served for everything it does not need: a box
+/// that proves the whole sphere clear proves the trimmed subset clear,
+/// because the face is a subset of the sphere and over-claiming is the
+/// sound direction for a SEPARATION test. What still needs closedness
+/// is the plane arm's ESCAPE conclusion — whole-circle membership is
+/// the carrier's, and the re-chart it feeds rotates a closed group
+/// about its centre — and that arm keeps the refusal.
+///
+/// So this pair assembles: two shells, volumes add, and sequential pip
+/// authoring has its live route.
 #[test]
-fn trimmed_sphere_group_operand_refuses_typed_at_the_scan() {
+fn trimmed_sphere_group_operand_assembles_with_a_clear_partner() {
     let pip = both_lanes(BooleanOp::Subtract, &slab(), &pip_ball(2.0, 2.0));
+    let pip_v = vol(&pip);
     let far = ball_at(0.5, Vec3::new(2.0, 2.0, 3.5));
-    let err = topo::union(&pip, &far, Tol::witness())
-        .expect_err("a trimmed group cannot be extent-certified");
-    let BooleanError::FallbackExtentUnsupported { what, .. } = err else {
-        panic!("expected the scan's trimmed-group arm, got {err:?}");
-    };
-    assert!(what.contains("trimmed"), "{what}");
+    let joined = both_lanes(BooleanOp::Union, &pip, &far);
+    assert_eq!(joined.shells().count(), 2, "the pipped slab plus the ball");
+    let want = pip_v + 4.0 * PI * 0.125 / 3.0;
+    assert!(
+        (vol(&joined) - want).abs() < slack(),
+        "disjoint union adds volumes: {} vs {want}",
+        vol(&joined)
+    );
 }
 
 /// **F2 (fix pass): the scan's CYLINDER-NEAR-SPHERE arm.** A ball

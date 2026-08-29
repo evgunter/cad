@@ -444,17 +444,36 @@ fn dimple_sphere_wall_mints_sense_false() {
         wall_senses(&t.body, &t.walls[0]),
         vec![Some(false), Some(true), Some(true), Some(false), None],
     );
-    // No door probes here: the dimple bowl is a PARTIAL sphere band
-    // (rimmed against the top annulus), which `point_in_solid`
-    // refuses typed (`PartialSphereFace`, PR 9c — the trimmed-sphere
-    // chart is future recourse; pre-existing and sense-independent).
-    // Pin that it still refuses loudly rather than answering wrong on
-    // the mixed-sense body.
+    // The dimple bowl is a PARTIAL sphere band — rimmed against the top
+    // annulus, so its boundary is one latitude rim and the seam
+    // meridians, the chart iso-line class. `point_in_solid` used to
+    // refuse the whole body typed there; it now reads the bowl through
+    // its own `[azimuth] × [latitude]` window, and the row it is in
+    // makes it worth checking on THIS body specifically: the walls have
+    // MIXED senses, and a containment answer that ignored the reverted
+    // bowl would report the cavity as material.
     let b3 = band();
-    match point_in_solid(&t.body, Point3::new(0.0, 1.8, 0.0), b3, Tol::witness()) {
-        Err(topo::boolean::PointInSolidError::PartialSphereFace { .. }) => {}
-        other => panic!("partial sphere band must refuse typed, got {other:?}"),
-    }
+    let side = |p: Point3<f64>| point_in_solid(&t.body, p, b3, Tol::witness()).unwrap();
+    assert_eq!(
+        side(Point3::new(0.0, 1.8, 0.0)),
+        SolidContainment::Out,
+        "on the axis at y = 1.8: inside the sunk dimple, so OUT of the material"
+    );
+    assert_eq!(
+        side(Point3::new(0.0, 1.0, 0.0)),
+        SolidContainment::In,
+        "on the axis below the dimple: solid"
+    );
+    assert_eq!(
+        side(Point3::new(0.9, 1.9, 0.0)),
+        SolidContainment::In,
+        "at the same height but out at the rim: solid past the bowl"
+    );
+    assert_eq!(
+        side(Point3::new(0.0, 2.2, 0.0)),
+        SolidContainment::Out,
+        "above the piston entirely"
+    );
 }
 
 /// The notched ring: the notched profile shifted off-axis
