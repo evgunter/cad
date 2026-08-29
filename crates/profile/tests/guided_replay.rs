@@ -25,12 +25,11 @@
 
 mod common;
 
-use common::{annulus, coverage_corpus, lift, p2, profile, rect, rounded_rect, tol};
+use common::{annulus, coverage_corpus, p2, profile, rect, rounded_rect, tol};
 use geom_core::{Sign, Tol};
 use profile::{
-    ArcSweep, Center, Decision, DecisionValue, Open, PathError, Profile, ProfileLoop,
-    ReplayErrorKind, ReplayStructure, StructureRefusalKind, replay, replay_guided,
-    replay_recording,
+    ArcSweep, Center, Decision, DecisionValue, Open, PathError, ProfileLoop, ReplayErrorKind,
+    ReplayStructure, StructureRefusalKind, replay, replay_guided, replay_recording,
 };
 
 /// √3 — the vesica tip's height.
@@ -492,8 +491,12 @@ fn guided_validation_runs_no_canonicalization_decide() {
 #[cfg(feature = "interval")]
 #[test]
 fn guided_validation_at_interval_certifies_without_the_pinned_decides() {
+    // Used ONLY by this interval-gated row, so imported here rather
+    // than at module scope, where the default build carries them unused.
+    use common::lift;
     use geom_core::Interval;
     use geom_core::k_stats::{start_verdict_log, take_verdict_log};
+    use profile::Profile;
     let p = annulus();
     let (_, canonical) = p.validate_recording(tol()).expect("records at f64");
     let lifted: Profile<Interval> = lift(&p);

@@ -198,6 +198,35 @@ pub enum ErrorClass {
     /// A whole-document pin update produced no edit list. The Python
     /// class is `UpdateError`.
     Update,
+    /// A read-back door refused to say what a name denotes or where
+    /// it sits. The Python class is `ReadbackError`.
+    ///
+    /// Two Rust types flatten onto it, because they refuse the same
+    /// CALL: the document layer's `InterrogateError`, which resolves
+    /// the name, and the kernel's own `ReadbackError`, which reads
+    /// the carrier — the second is an arm of the first, and its arms
+    /// arrive under their OWN tags rather than a wrapper tag, so
+    /// which invariant broke is what a caller branches on.
+    Readback,
+    /// The advisory-check registry could not RUN: a root without a
+    /// value, a tolerance that forms no band, roots that gather into
+    /// no product. The Python class is `ChecksError`.
+    ///
+    /// Not a finding. A check that ran and disagreed is a value in the
+    /// report; this class means nothing was checked, which is the
+    /// difference the registry exists to keep visible.
+    Checks,
+    /// The registry's ONE refusing path (`enforce_checks`) refused: the
+    /// report carries findings whose check the caller configured at
+    /// `Severity.Error`. The Python class is `CheckRefusal`, the Rust
+    /// type's own name crossing.
+    ///
+    /// A separate class from [`Self::Checks`] because the two are
+    /// opposite answers: that one means the checks did not run, this
+    /// one means they ran, found something, and the CALLER asked to be
+    /// refused on it. `run_checks` never raises this and
+    /// `enforce_checks` never raises the other.
+    Enforce,
 }
 
 impl ErrorClass {
@@ -225,6 +254,9 @@ impl ErrorClass {
             Self::Split => "SplitError",
             Self::Inline => "InlineError",
             Self::Update => "UpdateError",
+            Self::Readback => "ReadbackError",
+            Self::Checks => "ChecksError",
+            Self::Enforce => "CheckRefusal",
         }
     }
 }

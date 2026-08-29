@@ -220,7 +220,6 @@ the table.
   prism on a TRIANGLE** — which is what rules curvature out as the
   variable.
 
-<<<<<<< HEAD
   **REPAIRED IN FULL (#1081 PR-2a and PR-2b).** The measurement that
   forced the split: the refusing edge's two faces are BOTH outside the
   moving group, and re-anchoring alone would have shipped a WRONG BODY
@@ -306,50 +305,6 @@ the table.
   reached the identical site. That door is about the neighbour's offset
   not being a rigid translation; tangency is not its variable.
 
-=======
-  **THE PLANAR HALF IS REPAIRED (#1081 PR-2a); the curved half
-  stands.** The measurement that forced the split: the refusing edge's
-  two faces are BOTH outside the moving group, and re-anchoring alone
-  would have shipped a WRONG BODY — `shell` visited each of a corner's
-  charts in turn and transported it rigidly each time, accumulating
-  `Σ dᵢ·nᵢ` where an offset body needs the point satisfying every
-  `nᵢ·x = nᵢ·oᵢ + dᵢ` at once. On the hexagon at `t = 0.02` that lands
-  11.5 mm from the true corner and leaves 30 mm of wall where 20 mm was
-  asked for, and no tier catches it. `ReanchorOffCarrier` was the gate
-  PREVENTING that body, which is why it was not simply relaxed.
-  `topo::offset_planes_together` now solves each corner ONCE against
-  every moved plane meeting it and re-derives each edge as the
-  intersection of its two moved planes; `shell` takes that branch when
-  every face of the body is a plane. So the hexagon, the bevelled box,
-  the kite and the triangular prism HOLLOW, with the hexagon pinned to
-  its closed form (`crates/sweep/tests/verbs_shell.rs`, the
-  oblique-prism row; `demos/tour/tests/verbs_teapot_r1_probes.rs`'s p2
-  for the bevel and the kite) — and the cone frustum, the sphere zone
-  and the quarter-revolve wedge still refuse at that door, while the
-  tangent bullet and the lifted dome refuse one door further on
-  (`CarrierLaneUnsupported`), because a curved face brings no plane
-  equation to its corners. Those are the C5-table work of PR-2b, and
-  **the teapot's belly is one of them** (a sphere zone), so the pot
-  stays squared until 2b lands. Six typed refusals name the new door's
-  own scope: `TogetherNonPlanar`, `TogetherPartialSet` and
-  `TogetherCorner` for the geometry, `TogetherChartMixed`,
-  `TogetherFaceRepeated` and `TogetherEdgeDisagreement` for the call's
-  own structure.
-  The #1048 corpus was measured byte-identical across the change at the
-  unit (an out-of-tree dump; nothing in-tree pins it).
-  `crates/topo/src/offset_together.rs` derives the box's bit-identity
-  from its mutually perpendicular normals. A TANGENT junction refuses too, at a further door
-  (`CarrierLaneUnsupported`). That row was first recorded as "not
-  attributable to tangency alone", because the lattice's only route to
-  a tangent junction is `.tangent().tangent_arc_to(..)`, whose
-  description is a mapped arc — but the ordinal-100 review SEPARATED
-  the two variables and the caveat no longer stands: a dome whose
-  centre is lifted clear of the wall's top is definitely NOT tangent
-  and refuses at the identical site with the identical `what`. That
-  door is about the neighbour's offset not being a rigid translation;
-  tangency is not its variable. It is out of PR-2a's and PR-2b's scope
-  alike — its fix is the mapped-description transport family.
->>>>>>> origin/main
   **Why nothing caught this before:** `shell`'s acceptance corpus
   (`crates/sweep/tests/verbs_shell.rs`) is a box, a cylinder between
   two caps and a tube between two caps — every fixture inside the
