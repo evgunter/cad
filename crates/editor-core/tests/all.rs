@@ -202,12 +202,16 @@ mod m9_d1_r1_probes;
 mod m9_d1_r2_probes;
 #[path = "placedunion_schema_v12.rs"]
 mod placedunion_schema_v12;
+#[path = "r1_deep_fence.rs"]
+mod r1_deep_fence;
 #[path = "r1_dual_probes.rs"]
 mod r1_dual_probes;
 #[path = "r1_m10_1_corruptions.rs"]
 mod r1_m10_1_corruptions;
 #[path = "r1_m10_1_probes.rs"]
 mod r1_m10_1_probes;
+#[path = "r1_m10_p_probes.rs"]
+mod r1_m10_p_probes;
 #[path = "r2_m10_di_probes.rs"]
 mod r2_m10_di_probes;
 #[path = "respell_schema_v9.rs"]
