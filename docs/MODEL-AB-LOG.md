@@ -1950,6 +1950,72 @@ R2 OPUS, concurrent, frozen head 55b1fd13, v5 instrument. Block
 M10-B1's LAST slot — this record and the block record above merge
 to main when this dual concludes.
 
+LIB-G16 review ordinal fixed at dispatch (2026-08-29, PR #1224 open
+— frozen head `36e3b83b`): **ordinal 301** (LIB band; claimed
+branch-side per the #1095 shape, single claimant). Protocol v6 dual:
+draw = `/dev/urandom` byte **176**, parity 0 ⇒ **R1 = OPUS, R2 =
+FABLE**. Method as ordinal 300's, recorded before either review
+runs: SEQUENTIAL same-head (host disk), both briefs authored and
+stored before R1 dispatches, neither reviewer sees the other's
+report, v6 item 5 isolation in both briefs; the standing LIB-12
+CONTAMINATION FLAG rides the pair (slot 3's arm was the arithmetic
+residue). Pre-draw fields at the spec: M-L / STRUCTURAL. Impl phase
+(for the row): ~410k tokens lane-reported, ~2h35m wall (large share
+CI polling + four re-merges against a fast-moving main); impl CI
+33273733447 GREEN (interval, default ε; zero non-success jobs) at
+36e3b83b; schema v16 taken with the constant read by eye at branch
+and at each re-merge. Row at merge.
+
+LIB-G16 R1 FIRST DISPATCH DIED (2026-08-29 ~20:55Z): killed
+mid-review by the model's session usage limit (resets 21:00Z), no
+report delivered — the same shape as ordinal 300's R1, handled
+identically and recorded before the delivered review runs: partial
+DISCARDED, not resumed; fresh complete R1 from the SAME stored brief
+on the same frozen head 36e3b83b, same slot model per the byte-176
+draw; any partial probe branch stays on origin as the discarded
+attempt's record and is not an input; the fresh R1's probes go to
+`lib/g16-r1b-probes`. R2 stays queued behind the fresh R1.
+Adjudication weighs it as with ordinal 300.
+
+LIB-G16 R1 DELIVERED (2026-08-29, the fresh dispatch after the
+recorded death; frozen 36e3b83b): **APPROVE-WITH-FIXES 0/3/4, rubric
+4/4/3** — no MAJOR. The decisive instrument: the re-shape reduced to
+an identity argument (put_row(_, _, false, _) IS insert; flush
+no-ops) then an ARMED ASSERT inside the deferral lane run across the
+whole editor-core suite, the full tour walk and the python suite —
+zero trips, so byte-identity holds by construction over the true
+reachable set, beyond the PR's own two-document bar. Claim-3 fence
+question adjudicated WITHIN fence (the #917 fence is the OpGroup
+group-name; role.rs untouched; the NodeErrorKind generalization is
+the spec's own named site) with the fillet strings/tags proven
+byte-identical by execution. Row-11 closed form re-derived + Monte
+Carlo. Two SILENT deviations found: the tour scenes' stale
+no-such-node oracles (printed to users every run; class of 4 sites)
+and the undemonstrated 15→16 break (R1 wrote and pushed the missing
+row, red-capable, on lib/g16-r1b-probes). m10-p roster-only claim
+re-run independently, exact match. Disclosures clean; ~200k tokens,
+~1h20m. R2 (fable) dispatched sequentially after, brief verbatim
+from the pre-committed store. Row at merge.
+
+LIB-G16 R2 DELIVERED (2026-08-29, fable per the draw; frozen
+36e3b83b): **APPROVE-WITH-FIXES 0/2/3, rubric 5/5/4.** Byte-identity
+extended by execution to all 18 registry documents PLUS the
+unmeasured tour composed-die transcribed into a probe (identical
+digests both trees); tie deferral proven via the output-table
+Tied-entries argument; m10-p roster re-measured at both scalars;
+row-11 closed form re-derived by halfspace-polytope construction;
+fence sweep of all 59 changed files found ZERO silent deviations.
+Unique finds: the doubled //!-marker (bilateral with R1's NOTE),
+four stale "fillet selection" comments in edit.rs the PR table
+implied addressed, the die_chamfer/die_fillet identical-digest
+observation (correct under D3, worth knowing when reading digest
+evidence). Disclosures clean; ~208k tokens, ~50m. CORRESPONDENCE
+PRE-NOTE: verdicts CONVERGE (A-W-F both); no MAJOR either arm — NO
+tally candidates; unilateral MINORs both directions (R1: stale
+tour-scene oracles, undemonstrated v15 break, chamfer-less v16
+golden; R2: the edit.rs prose class); the wire_chamfer-transcription
+taste point bilateral. Both A-W-F ⇒ no re-verification round; fix
+pass IMPLEMENTER-INHERITED off the adjudicated union. Row at merge.
 BLEND-1 review ordinal fixed at dispatch (2026-08-29, PR #1222
 open — frozen head `85047cbe`): **ordinal 600** (the BLEND band's
 first claim; single claimant in band; claimed to main on its own
