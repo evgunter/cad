@@ -470,7 +470,7 @@ pub enum SlotGroup {
     /// A slot that is not a vector component, or one whose family is
     /// incomplete.
     Scalar(SlotRow),
-    /// One 3-vector, x/y/z in [`Axis3::ALL`] order.
+    /// One 3-vector, x/y/z in [`pncad::document::Axis3::ALL`] order.
     ///
     /// The rows are BOXED: three of them are three times the size of a
     /// scalar arm, and a `Vec<SlotGroup>` sized for the widest variant

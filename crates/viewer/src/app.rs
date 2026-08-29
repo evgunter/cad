@@ -1712,7 +1712,7 @@ impl ViewerBehavior<'_> {
     /// why. Offered only where a number can actually be written: a
     /// driven slot's value is not the user's to move, so a range for it
     /// would answer a question they cannot act on. The reading itself
-    /// lands in [`App::slot_notes_ui`], in the slot's own written unit.
+    /// lands in [`Self::slot_notes_ui`], in the slot's own written unit.
     fn range_button(&mut self, ui: &mut egui::Ui, node: RecipeNodeId, row: &SlotRow, label: &str) {
         let offered = !row.driver.is_driven() && row.value.is_ok();
         let button = ui.add_enabled(offered, egui::Button::new(label).small());
