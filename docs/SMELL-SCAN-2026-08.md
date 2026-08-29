@@ -103,7 +103,7 @@ Each finding carries its evidence at `file:line` or, where a fix pass has
 already moved the line, at a **target name** that a reader can grep for. Line
 numbers were true when written; **claims, not line numbers, are the content.**
 
-**The fielded form is a minority and always was.** Of the 102 findings still
+**The fielded form is a minority and always was.** Of the 101 findings still
 open here, 24 carry a `**Where**` line, 29 a `**Confidence**` (`sure` /
 `likely` / `unsure`), 6 an `**Importance**` and 8 a `**Raised by**`; the rest
 state the same things in prose or leave them out. Read the absence of a field
@@ -5987,48 +5987,6 @@ and Track G's G-a, so it is named here rather than changed.
 
 ---
 
-## S129. `demos/` has assertions and no runner (raised by #787)
-
-**Raised by Track G's G2 lane while establishing what CI actually does
-with `demos/`, which S110(j) required knowing.** Searched
-`.github/workflows/{ci,render}.yml`, `local-scripts/ci-local.sh` and
-`scripts/`: **nothing ran `cargo test` anywhere under `demos/`.**
-
-- `ci.yml:1693,1695` run `cargo fmt --check && cargo clippy
-  --all-targets -- -D warnings` in `demos/tour` and `demos/wild`.
-  `--all-targets` **type-checks** the test targets and executes none of
-  them — S110(a)'s shape (`probe_s5_sectors.rs`), one tree over.
-- `render.yml:334` and `ci-local.sh:258` run `cargo run --release`, the
-  binary's scene path only.
-- `scripts/k_probe_sweep.sh` and `scripts/tess_budget_sweep.sh` run the
-  two feature-gated modes.
-
-Ten assertions were therefore unguarded: `tests/eps_regression.rs`'s
-three (the #99 ε pin, whose whole purpose is gating) and
-`lily.rs::review_probes`' seven. **Two rows of the seventh have been
-red for an unknown period** — `finding_13_tessellation_table_reproduces`
-pins seven `(body, δ, triangle_count)` rows and the two SWEPT blades
-now tessellate to 1016/854 against a pinned 976/826 while all five
-analytic rows are exact. That is a kernel-behaviour question, so it is
-**issue #782**, not a row here.
-
-**PARTLY FIXED by #787**: the ε pin is armed in `k-lint` (`cargo test
---release --test eps_regression`), mirrored in `ci-local.sh`. **It is
-not free** — the row builds `demo-tour` in release at DEFAULT features
-while the tess-budget sweep below builds the same crate at `--features
-budget`, a different unification, so the job now pays two release
-builds of the kernel where it paid one; the runs themselves are ~7 s.
-The comment at the row carries that, and rejects the obvious saving
-(folding the pin into `--features budget` would arm the per-face meter
-inside the run the pin is about). **The `--bin demo-tour` unit tests
-are deliberately NOT armed** — arming them today lands a red gate — and
-what stays unrun is load-bearing: those seven include
-`the_spine_curl_wall_re_measured`, which pins a typed
-`LoftError::ReversedStacking` frontier from both sides, so `lily.rs`
-keeps its frontier pins in two spellings of which only the
-tour-runtime one (`wall_probes`) executes. Widening the row is owed the
-moment **#782** is decided; until then this row stays open.
-
 ## S130. `demos/tour/src/lily.rs` — the first end-to-end read (roll-up, raised by #787)
 
 **Row: Track X's `D79`**, which is this finding under a row number — same
@@ -6072,10 +6030,12 @@ that PR's own governing move (`WILD_CELLS: [Cell; 8]`); both now return
   time.** S116(e)'s class, one crate over.
 
 **Reading (b), (d) and (e) together**: this is the file `mod review_probes`
-lives in, and those probes are exactly the seven `#[test]`s no gate
-runs (**S129**, **#782**). A rigor gradient inside an unrun suite is
-worth less attention than the same gradient inside a running one — but
-it is also why nobody found it.
+lives in, and those probes are exactly the seven `#[test]`s that went
+ungated for as long as they did — which is why nobody found the
+gradient. **They are gated now** (`cd demos/tour && cargo test
+--release`, ci.yml and `ci-local.sh` both), so the gradient is inside a
+running suite and the members above are worth more attention than when
+they were written, not less.
 
 ## S134. What is still one-directional in the interval backend, after #786 made most of it two-sided
 
@@ -7558,7 +7518,7 @@ grows after dispatch. **This row needs a lane and does not have one.**
 > `docs/SMELL-{C,E,F,G,H,I}-LOG.md` are the execution record for six of the
 > nine. **A, B and D left no log and none is owed**; what they did is in their
 > merged PRs. The rulings the logged tracks made are cited from here by number
-> (`F-R11`, `H-R2`, `I-R8`, …) and are read there. **102 open items** are
+> (`F-R11`, `H-R2`, `I-R8`, …) and are read there. **100 open items** are
 > carried below, partitioned by file territory so that no two tracks edit one
 > file and no branch waits on, fences against, or re-derives another's scope.
 
@@ -7647,7 +7607,7 @@ its orchestrator stopped, and §C3 says a deferral that lands nowhere that
 executes is the failure this document keeps re-finding. **This section is the
 one register for all of it.**
 
-**102 open items, repartitioned into twelve tracks by FILE TERRITORY.** The
+**100 open items, repartitioned into twelve tracks by FILE TERRITORY.** The
 partition rule is the only one that matters here: **no two tracks may edit the
 same file**, so no branch waits on, fences against, or re-derives another's
 scope. Dependencies *inside* a track are its own orchestrator's to sequence —
@@ -7731,7 +7691,7 @@ re-scoped or re-argued by being moved.
 | **U** | `crates/step-import/`, `crates/step-export/`, `crates/stl/`, `crates/pncad-py/`, `crates/pncad/` | `D340`–`D359` / `S410`–`S429` | 7 |
 | **V** | `crates/editor-core/`, `crates/profile/` | `D360`–`D379` / `S430`–`S449` | 12 |
 | **W** | `crates/*/tests/` (all crates), `crates/test-utils/` | `D380`–`D399` / `S450`–`S469` | 13 |
-| **X** | `demos/` (Rust and Markdown; its Python is J's), `docs/DESIGN.md`'s companion table | `D400`–`D419` / `S470`–`S489` | 3 |
+| **X** | `demos/` (Rust and Markdown; its Python is J's), `docs/DESIGN.md`'s companion table | `D400`–`D419` / `S470`–`S489` | 1 |
 
 **Three seams are stated rather than left to be discovered**, because each is
 a place where a reasonable reader would think the fence ambiguous:
@@ -8002,15 +7962,13 @@ thirteen that does not exist, and these two are not it.)*
 
 **Fence:** `demos/` (Rust and Markdown; its Python is Track J's),
 `docs/DESIGN.md`'s companion table. **Block:** `D400`–`D419` / `S470`–`S489`.
-**Three items, and it is small because its ground is small.** It shares no
+**One item, and it is small because its ground is small.** It shares no
 file with anything above, so it can be taken alongside another track by one
 orchestrator without breaking the partition.
 
 | # | What | Was |
 |---|---|---|
 | **D79** | `lily.rs`, read end to end for the first time (**`S130`**, whose members are this row's members) — a shadow tuple vector algebra in bare `(f64, f64, f64)` beside `Vec3` (whose *reason* is #796), an `assert_cap` existential over two frames that gets easier as the caps converge, a `cap_frames` that asserts an arity per face and none over the `Vec<Cap>` it returns, and a 137-line header at 41% comment | Track G |
-| **S129** | `demos/` has assertions and no runner — nothing runs `cargo test` under `demos/`. **Its "two rows are red" premise is now in doubt: see `D400`** | Track G |
-| **D400** | **Issue #782's premise does not hold on this tree, and `S129` rests on it.** #782 says two rows of `finding_13_tessellation_table_reproduces` are red on `main`; **both are green here**, and the pinned figures match neither the `976/826` #782 records as pinned nor the `1016/854` it records as measured — `lily.rs`'s table now reads `lily_leaf_b` **468** and `lily_leaf_c` **414** at δ = 2e-3. Either the pin or the geometry moved since #782 was written, and nothing says which. `S129`'s *"arming them lands a red gate"* is the whole reason the `--bin demo-tour` unit tests are deliberately unarmed, so **that premise needs re-deriving before anyone acts on either row** — including the widening `S129` says is owed the moment #782 is decided | unrowed |
 
 ## What this partition leaves out, said explicitly
 
