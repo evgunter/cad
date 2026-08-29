@@ -220,3 +220,23 @@ and BLEND-7 is the profile-crate exception:
 
 Both v6 duals at review; ordinals 601/602 claimed on main at their
 review dispatches. Rows at merge.
+
+## BLEND-7 DELIVERED; ITS REVIEWS DISPATCHED (2026-08-29 ~23:45Z)
+
+Implementation delivered: PR 1267, frozen head `c742fc5c`, impl CI
+33281016034 green ({interval, 1e-6}). The step-1 measurement
+earned the measured-first rule: TODAY the enclosing band wears
+THREE different refusals depending on how far past the bound r
+sits (`OffsetCarriersDisjoint` / `NoCornerSideCandidate` /
+`AnchorOutsideTrimmedExtent`, the last offering a recourse that
+cannot work), and unbracketed anchors BUILD the other crossing's
+ordinary fillet. Gate landed at `sugar::arc_fillet_trims` (first
+point ρ is defined), riding `build_refused` so the other-crossing
+ordinary answer survives; `PathError::FilletEnclosesLegCarrier`
+typed with the bound + recourse; both review_s2 pins permanent
+citing the ruling; DESIGN.md companion row folded. One
+compiler-forced out-of-fence line (pncad-py tag arm), reported.
+**Ordinal 601 claimed on main** (PR 1269, merge 6158c9d5): byte
+213 parity 1 ⇒ R1 FABLE + R2 OPUS, sequential same-head, briefs
+stored pre-R1. R1 running (lane blend-7-r1); impl target
+reclaimed. BLEND-2 still in flight in its own lane.
