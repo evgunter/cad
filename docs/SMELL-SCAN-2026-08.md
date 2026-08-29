@@ -7518,7 +7518,7 @@ grows after dispatch. **This row needs a lane and does not have one.**
 > `docs/SMELL-{C,E,F,G,H,I}-LOG.md` are the execution record for six of the
 > nine. **A, B and D left no log and none is owed**; what they did is in their
 > merged PRs. The rulings the logged tracks made are cited from here by number
-> (`F-R11`, `H-R2`, `I-R8`, …) and are read there. **106 open items** are
+> (`F-R11`, `H-R2`, `I-R8`, …) and are read there. **107 open items** are
 > carried below, partitioned by file territory so that no two tracks edit one
 > file and no branch waits on, fences against, or re-derives another's scope.
 
@@ -7607,7 +7607,7 @@ its orchestrator stopped, and §C3 says a deferral that lands nowhere that
 executes is the failure this document keeps re-finding. **This section is the
 one register for all of it.**
 
-**106 open items, repartitioned into twelve tracks by FILE TERRITORY.** The
+**107 open items, repartitioned into twelve tracks by FILE TERRITORY.** The
 partition rule is the only one that matters here: **no two tracks may edit the
 same file**, so no branch waits on, fences against, or re-derives another's
 scope. Dependencies *inside* a track are its own orchestrator's to sequence —
@@ -7680,7 +7680,7 @@ re-scoped or re-argued by being moved.
 
 | Track | Territory (the fence) | Block | Items |
 |---|---|---|---|
-| **J** | `.github/workflows/`, `local-scripts/`, `scripts/doc-gate.sh`, `scripts/gates/{gate-roster,probe-suite-census}.sh`, **every `*.py` in the repo**, root `Cargo.toml`'s `[workspace.lints]` | `D180`–`D199` / `S250`–`S269` | 3 |
+| **J** | `.github/workflows/`, `local-scripts/`, `scripts/doc-gate.sh`, `scripts/gates/{gate-roster,probe-suite-census}.sh`, **every `*.py` in the repo**, root `Cargo.toml`'s `[workspace.lints]` | `D180`–`D199` / `S250`–`S269` | 4 |
 | **K** | `scripts/gates/` (everything J does not name), `tools/`, `docs/K-REPORT.md` | `D200`–`D219` / `S270`–`S289` | 12 |
 | **M** | `crates/geom-core/src/{real,ring_interval,dual,interval,k_stats}.rs`, `interval-transcendentals/`, `crates/bvh/` | `D220`–`D239` / `S290`–`S309` | 7 |
 | **N** | `crates/geom/src/`, `crates/geom-core/src/{spline/,linalg/}` | `D240`–`D259` / `S310`–`S329` | 7 |
@@ -7739,6 +7739,7 @@ a place where a reasonable reader would think the fence ambiguous:
 | **D180** | **The rustdoc gate runs `--all-features`, so it cannot see anything behind a `#[cfg(not(feature = …))]`.** `scripts/doc-gate.sh` documents `--all-features` as its rule at `:97` (*"--all-features EVERYWHERE, WITH ONE NAMED EXCEPTION"*), and the exception list is `inari`-shaped, not this. Every `not(feature)` half of a paired module is therefore compiled out of the gate's own build and its doc errors are unreachable to the only instrument that would report them. The live instance is `mesh/src/budget.rs`'s `mod inert`, which is Track R's `D301`. **The two land together**: fixing the errors without widening what the gate compiles closes an instance and leaves the blind spot, which is `D41`'s lesson in this track's own file | unrowed |
 | **D181** | **Two of the three copies of *"what the budget gate reads"* live on this fence and are now false.** `.github/workflows/ci.yml:2749-2752` says *"the gate reads NONE of it. What `compare` looks at is triangle counts and `grid_cells / span_opt_cells`"*, and `local-scripts/ci-local.sh:846-848` says *"the gate reads triangle counts and the sizing columns"*. Since `C15`, `tess-lint`'s per-face join also reads `chart`, the sizing block's presence and `u0`–`v1`/`nu`/`nv` — the columns it checks the join's own precondition against. `ci.yml:2740-2741` additionally enumerates the gate's rules as three; there are four. The copies in `docs/TESS-BUDGET.md` and `scripts/tess_budget_sweep.sh` were corrected with the change; these two could not be, being this track's fence | unrowed |
 | **D182** | `review/lilyweld-r1/baseline_column_drift.py:35-43`'s hardcoded `GATE` column set is a third copy of *"what the budget gate reads"*, and since `C15` it is wrong in **both** directions — it lists `cells`, `patch_cells` and `opt_cells`, which no rule compares, and omits `u0`–`v1` and `nu`/`nv`, which the join now reads. A `*.py`, hence this track's | unrowed |
+| **D183** | **`tools/tess-meter`'s constants are now boxed by a guard, and the row that executes it is sampled 1-in-5.** `D105` made `SPLIT_SCAN_DECADES` / `SPLIT_SCAN_SAMPLES` mechanically guarded on the continuous objective in both directions; the row that runs it (*"tess-meter tool fmt + clippy + tests"*) is gated on the drawn `klint_row`, so the merge that retunes those constants is more likely than not to be the merge that does not run the guard. **The ask is a path pin, not a schedule** — force the `dev-default` row when `tools/tess-meter/` changes, the same path-shaped substitution `scripts/ci-filter.py` already makes for the interval lane. Nothing new is measured, at the existing row's existing cost. A schedule would be the wrong instrument: the quantity is a function of the tree alone and cannot drift between merges. **Note `KLINT_ROWS`' own header records two further *"unconditional"* claims the sampling made false and marks them owed a correction — `docs/K-REPORT.md:219` and `:226` are still false in those words, and `docs/CI-MINUTES-2026-08.md:335` records the debt. This row is the third instance; a taker should close all three** | `D105` residue |
 
 ## Track K — the instruments, and what they cannot see
 

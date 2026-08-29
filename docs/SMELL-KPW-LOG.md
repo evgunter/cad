@@ -267,3 +267,52 @@ admissions table cannot state a cross-column invariant, answered it the same
 way in two crates, and neither site says the other exists. `k1` declined the
 `u0 < u1` check as *"`D200`'s shape, not this row's"* — correctly — and that
 declination is what made the class visible.
+
+## `p1`'s reviews — the finding itself was false
+
+The adversarial lane instrumented the regime decision on both trees and ran the
+corpus: **3035 decisions, 24 REFUSE / 3011 SKIP on each, sorted multiset diff
+empty.** The partition did not move. Then it broke the row.
+
+**`D88` said `absorb` *"drops every ring of an absorbed face and returns `Ok`"*.
+It cannot return `Ok`.** The very next statement, `kef(dying_he)`, recomputes the
+identical key — `loops[half_edges[dying_he].parent_loop].face` — and refuses
+`StaleKey` at `euler_kill.rs:802`, in its **plan phase, before any mutation**.
+The `unwrap_or_default()` was fully shadowed dead code. And the unit's two new
+probes do not pin its fix: reverting the hunk leaves **both green**, because they
+pin `kef`'s precondition. A finding that stood through a scan, a steelman, a
+placement and an implementation was falsified by the first reader who executed
+it. The rewrite is still an improvement — it removes a discard that *looked*
+live — but that is a smaller claim than the row's, and the smaller claim is the
+true one.
+
+**The ruling the two reviews forced together: a kernel-bug refusal escapes the
+regime split.** `GroupRegime` governs *inventory* failures — this group cannot
+be merged — and a stale key is not an inventory fact but a statement about the
+arena. As shipped, `Op{StaleKey}` under `RecordsASkip` becomes a skip record and
+the door returns `Ok`, and the unit **widens** the set riding that path. It
+changes no reachable behaviour (0 ERR in 3035 decisions); it changes what the
+door promises, which is what `S19` is about.
+
+**And `group_regime`'s new doc promotes a false premise into a proof.** *"A
+group's members share a surface by construction"* — `planes_declared_equal`'s
+rung 2 is kind-agnostic since M5 PR 9 and glues different surface keys on
+`surface_source` identity alone, through a `pub` door that validates only key
+resolution. A Plane/Cylinder pair passes silently in debug and release, and the
+group's regime is then decided by **arena order**. Pre-existing, and worse as a
+documented proof than as silence.
+
+### `docs/DESIGN.md:483` is false about the shipped kernel — Evan's, not a lane's
+
+It says `merge_coplanar_faces` *"never elides vertices (collinear vertex chains
+survive)"* and that tier 3′'s strict record-drop rule is correct **because** of
+that. `sweep/tests/verbs_f7_r2_probes.rs:212` already asserts `v1 == v0 - 1`
+after a bare `merge_coplanar_faces` — the elision is real and pinned through the
+public door. And the rule's justification is broken, not merely its sentence:
+`Descendants::absorb_merge` consumes only `group.absorbed` and never
+`killed_vertices`, so a `kev`-killed vertex reaches `remap_contacts` as a dead
+key with no lineage row and its records drop as *"genuinely consumed"* — the R5
+record-carriage class `DESIGN.md` says is closed because of the false premise.
+Whether a declared contact vertex can land on such a junction is unconstructed.
+**Ratified design is a fork, so it waits for sign-off**; raised to Evan rather
+than fixed, and no lane touches `DESIGN.md`.
