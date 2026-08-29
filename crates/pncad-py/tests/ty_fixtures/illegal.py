@@ -182,8 +182,11 @@ Workspace("parts").resolve(doc.id)  # ty: error
 # positional argument, the document, and the two doors are named.
 evaluate(doc, Workspace("parts"))  # ty: error
 
-# A resolver is a STORE, not the directory one was opened on — the
-# scan is what resolves, and it happens once, at `Workspace(...)`.
+# A resolver is a STORE, not the directory one was opened on: what
+# resolves is the scanned object, and a path string has no scan. (The
+# scan is not frozen at construction — a `create` through the same
+# object is visible to a later `evaluate`; see the snapshot rows in
+# `test_assembly_eval.py`. The point here is the TYPE, not timing.)
 evaluate(doc, resolver="parts")  # ty: error
 
 # The memo is a prior EVALUATION, not the document it evaluated.

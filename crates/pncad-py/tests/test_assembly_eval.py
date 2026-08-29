@@ -30,14 +30,45 @@ Regenerate it with the tour's own door:
 
 WHAT KEEPS THE CORPUS HONEST, AND WHAT DOES NOT
 ------------------------------------------------
-The volumes asserted here are functions of the scene's dimension
-constants, and `test_the_corpus_still_matches_the_scene_it_came_from`
-reads those constants out of `assembly.rs` and checks them — so the
-corpus cannot silently drift from the tour it claims to be. What that
-does NOT catch is a change to the scene's STRUCTURE that leaves the
-constants alone (a fifth patterned post, a third mate): the corpus
-would stay green while no longer being the tour's. Regeneration is
-cheap and the recipe is above.
+`test_the_corpus_still_matches_the_scene_it_came_from` reads the five
+BASE dimension constants out of `assembly.rs` and checks them, and
+`test_the_patterned_posts_sit_where_the_scene_places_them` pins where
+the layout actually puts its four posts. Between them a numeric or
+placement drift in the tour goes red here. Three things they do NOT
+catch, named rather than summarised, because the first draft of this
+header disclosed only the first:
+
+1. STRUCTURE with the constants left alone — a fifth patterned post, a
+   third mate, a different node order. The corpus would stay green
+   while no longer being the tour's scene.
+2. DERIVED constants. `SEAT_A`, `SEAT_B` and `POST_SEAT` are computed
+   FROM the five (`[POST_SECTION / 2.0, SHELF_DEPTH / 2.0, 0.0]` and
+   friends), and the guard reads only the five bases — so a changed
+   FORMULA passes it. The placement row above is what would catch the
+   consequence for the layout; the stand's two seats have no such row,
+   because a mated placement is not readable from Python (no `roots`
+   door, `gap: G18 explicit product roots`).
+3. That a VOLUME is invariant under placement. That was the whole of
+   this file's original oracle set, which is why item 2 went unnoticed
+   until review: every committed number could be reproduced by a scene
+   that put the parts anywhere at all.
+
+Closing (1) properly needs the tour's authoring functions callable
+from a code-tier test, and `demos/tour` is a detached workspace — so
+it is scheduled rather than banked: **issue #1186**.
+
+THE TOLERANCE THE CORPUS RECORDS
+--------------------------------
+All four documents record `epsilon: 1e-9`, the default, because that
+is the ambient ε they were generated under; the CI python-suite job
+runs at the default ε and sets no `CAD_TOLERANCE_EPS`. One process has
+one ε, so loading a document that records a different one refuses
+(`PersistError` / `ToleranceConflict` at the door, `part_epsilon_seam`
+across the seam). If this file is ever run under a swept ε it will
+refuse at `Workspace.resolve`, and that is the reason — not a mystery,
+and not a defect in the corpus. Regenerate under the ε you mean to
+test at.
+
 """
 
 import os
@@ -56,6 +87,7 @@ from pncad import (
     Workspace,
     evaluate,
     m,
+    mm,
 )
 
 CORPUS = Path(__file__).resolve().parent / "corpus" / "bench"
@@ -71,6 +103,13 @@ SHELF_THICKNESS = 0.04
 
 POST_VOLUME = POST_SECTION * POST_SECTION * POST_HEIGHT
 SHELF_VOLUME = SHELF_LENGTH * SHELF_DEPTH * SHELF_THICKNESS
+
+# The layout's declared PLACEMENTS, which no volume can see: the post
+# is laid on its side (rotated -pi/2 about +y, so POST_HEIGHT runs
+# along x and POST_SECTION along y and z) and patterned four times
+# along +y at this spacing.
+PATTERN_SPACING = 0.2
+PATTERN_COUNT = 4
 
 
 def manifest():
@@ -99,6 +138,12 @@ def opened(directory=CORPUS):
 def volumes(evaluation, node):
     """Every body volume the node's value denotes, in canonical units."""
     return [body.mass_properties().volume for body in evaluation.value(node).bodies()]
+
+
+def poisoned(evaluation):
+    """How many nodes never ran because an ancestor failed — the
+    difference between `reused + recomputed` and the live node count."""
+    return sum(1 for r in failures(evaluation).values() if r.reason == "poisoned")
 
 
 def failures(evaluation):
@@ -208,14 +253,27 @@ class TestTheSeamIsCrossedOrRefused(CorpusCase):
 class TestTheResolutionRefusals(CorpusCase):
     """The seam's refusal family, each reached THROUGH `resolver=`.
 
-    Three of the four are reachable from Python. `part_reference_cycle`
-    is not, and cannot be faked: a cycle needs a document whose
-    instantiate node points back up its own reference chain, and
-    authoring an instantiate node is G18b's half. It is exercised on
-    the Rust side (`editor-core`'s seam tests) and stays there.
+    THREE arms are exercised here — `part_no_resolver` (the class
+    above), `part_pin_mismatch` and `part_unresolved`. The rest of the
+    family is typed and tagged but UNREACHED from Python today, each
+    for its own reason, and none of them is singled out:
+    `part_epsilon_seam` needs a stored document recording a different
+    ε; `part_root_failed` and `part_product` need a part whose own
+    product is broken; `part_reference_cycle` needs an instantiate node
+    pointing back up its own chain — and an honest store cannot hold
+    one at all, since a cycle with valid pins wants a content hash
+    containing its own hash, and with invalid pins `part_pin_mismatch`
+    fires first, so hand-crafted bytes do not get there either.
+    `part_depth_exceeded` is left UNCLAIMED: a hand-crafted acyclic
+    chain deep enough might reach it, and this unit did not establish
+    whether it does. Authoring any of these documents is G18b's half.
     """
 
     def test_a_pin_that_moved_refuses_rather_than_retargeting(self):
+        """The resave goes through the SAME store the evaluation then
+        resolves against — no second `Workspace` is built, because the
+        scan is not frozen at construction and a fresh one here would
+        teach that it is."""
         directory = self.scratch()
         store, docs = opened(directory)
         docs["shelf"].apply(
@@ -225,9 +283,7 @@ class TestTheResolutionRefusals(CorpusCase):
         )
         store.resave(docs["shelf"])
 
-        refusals = failures(
-            evaluate(docs["layout"], resolver=Workspace(str(directory)))
-        )
+        refusals = failures(evaluate(docs["layout"], resolver=store))
         self.assertEqual(
             [r.kind for r in refusals.values()],
             ["part_pin_mismatch"],
@@ -271,7 +327,18 @@ class TestTheMemoIsObservable(CorpusCase):
         self.assertEqual((first.reused, first.recomputed), (0, 3))
         self.assertEqual((again.reused, again.recomputed), (3, 0))
 
-    def test_the_two_counters_account_for_every_live_node(self):
+    def test_the_two_counters_account_for_every_node_that_ran_or_was_reused(self):
+        """The invariant is `reused + recomputed == len(order) -
+        poisoned`, not `== len(order)`.
+
+        A poisoned node never ran, and the kernel's bookkeeping counts
+        it in NEITHER column (a node that ran and FAILED is counted, in
+        `recomputed`). The all-success documents below make the two
+        forms indistinguishable, which is exactly why the refusal path
+        is asserted beside them rather than left to inference — the
+        first version of this row tested only the successes and let a
+        false docstring through review.
+        """
         store, docs = opened()
         for label, doc in docs.items():
             with self.subTest(document=label):
@@ -280,8 +347,24 @@ class TestTheMemoIsObservable(CorpusCase):
                 for evaluation in (first, again):
                     self.assertEqual(
                         evaluation.reused + evaluation.recomputed,
-                        len(evaluation.order()),
+                        len(evaluation.order()) - poisoned(evaluation),
                     )
+                    self.assertEqual(poisoned(first), 0, "nothing refuses here")
+
+    def test_on_a_refusal_path_the_counters_undershoot_by_the_poisonings(self):
+        """The no-resolver layout: two instantiate nodes RUN and fail,
+        the pattern over one of them is poisoned and never runs. So the
+        sum is 2 against three nodes in `order()` — and the difference
+        is exactly the poisoning."""
+        _, docs = opened()
+        refusing = evaluate(docs["layout"])
+        self.assertEqual(poisoned(refusing), 1)
+        self.assertEqual(len(refusing.order()), 3)
+        self.assertEqual((refusing.reused, refusing.recomputed), (0, 2))
+        self.assertEqual(
+            refusing.reused + refusing.recomputed,
+            len(refusing.order()) - poisoned(refusing),
+        )
 
     def test_a_memo_hit_never_asks_the_seam(self):
         """The counters agree with each other: an instance served from
@@ -311,14 +394,180 @@ class TestTheMemoIsObservable(CorpusCase):
         self.assertVolumes(volumes(again, again.order()[-1]), [2 * POST_VOLUME])
 
     def test_a_prior_of_another_document_reuses_nothing_and_is_legal(self):
-        """A content key is content, not position — so an unrelated
-        prior is well-defined and simply misses. Total, like the rest
+        """The memo is PER DOCUMENT: the lookup is by node id first and
+        content second, and ids are minted per document, so a prior
+        from elsewhere is legal and simply misses. Total, like the rest
         of evaluation: no refusal, no wrong answer."""
         store, docs = opened()
         prior = evaluate(docs["post"])
         stand = evaluate(docs["stand"], resolver=store, prior=prior)
         self.assertEqual(stand.reused, 0)
         self.assertEqual(failures(stand), {})
+
+    def test_a_sibling_assembly_over_the_same_parts_still_reuses_nothing(self):
+        """The sharp form of the same fact, and the one that shows why
+        "a key is content, not position" was the wrong sentence.
+
+        The layout and the stand instantiate the SAME two documents at
+        the SAME pins, so their instantiate nodes agree on content. The
+        lookup is `prior[node_id]` first, and the two documents mint
+        their ids independently — so the overlap is worth nothing and
+        all five of the stand's nodes recompute.
+        """
+        store, docs = opened()
+        layout = evaluate(docs["layout"], resolver=store)
+        stand = evaluate(docs["stand"], resolver=store, prior=layout)
+        self.assertEqual(failures(stand), {})
+        self.assertEqual(stand.reused, 0, "no cross-document reuse, by construction")
+        self.assertEqual(stand.recomputed, len(stand.order()))
+
+
+class TestTheMemoServesWithoutTheSeamsGates(CorpusCase):
+    """**The memo hits before the resolver is consulted.** A reused
+    `InstantiatePart` node never asks the store, so the seam's
+    AVAILABILITY refusals are raised only for nodes that actually
+    re-resolve.
+
+    These rows ASSERT that contract rather than lamenting it, because
+    it is now stated at the door (`evaluate`'s `prior=`, in the stub
+    and in `py/value.rs`) and the audit page's A4 sentence is qualified
+    the same way. What they pin is the shape, so a kernel that ever
+    changes it goes red HERE, in a place that names the decision.
+
+    Two framings of the served value, and both are true at once:
+
+    * Against the STORE it is stale — the natural memo workflow (edit
+      a part, re-evaluate with the prior) serves the old body.
+    * Against the DOCUMENT it is exactly right — the memo serves what
+      this document's own `DocRef` pins, certified by content key.
+      Nothing is retargeted; what is skipped is the RE-CHECK.
+
+    Whether that is correct by design, or whether memo admission should
+    know about resolver state, is **issue #1185** — kernel-side, and
+    deliberately not decided here. Adopted from the reviewer probe
+    branches `lib/g18a-r1b-probes` (two rows, red as written against
+    the unstated contract) and `lib/g18a-r2-probes` (`R2P1`).
+    """
+
+    def test_a_prior_serves_a_moved_pin_without_refusing(self):
+        directory = self.scratch()
+        store, docs = opened(directory)
+        before = evaluate(docs["layout"], resolver=store)
+        self.assertEqual(failures(before), {})
+        shelf_node = before.order()[2]
+        pinned_body = volumes(before, shelf_node)
+
+        docs["shelf"].apply(
+            DocEdit.set_doc_param_value(
+                ParamName("thickness"), DocParamValue.length(SHELF_THICKNESS * 1.5 * m)
+            )
+        )
+        store.resave(docs["shelf"])
+
+        # The same call, the same store, differing only in the prior.
+        fresh = evaluate(docs["layout"], resolver=store)
+        self.assertEqual(
+            [r.kind for r in failures(fresh).values()],
+            ["part_pin_mismatch"],
+            "an evaluation that ASKS still refuses the moved pin",
+        )
+
+        memoized = evaluate(docs["layout"], resolver=store, prior=before)
+        self.assertEqual(
+            failures(memoized), {}, "the memo never asks, so nothing refuses"
+        )
+        self.assertEqual((memoized.reused, memoized.recomputed), (3, 0))
+        self.assertEqual(memoized.part_evaluations, 0, "the seam is not crossed")
+        self.assertVolumes(
+            volumes(memoized, shelf_node),
+            pinned_body,
+        )
+
+    def test_a_prior_serves_a_missing_document_without_refusing(self):
+        """The same contract on the other availability arm — the class
+        is `part_pin_mismatch` AND `part_unresolved`, so fixing or
+        pinning only one would be a half-answer."""
+        directory = self.scratch()
+        store, docs = opened(directory)
+        before = evaluate(docs["layout"], resolver=store)
+
+        os.remove(directory / f"{manifest()['post']}.pncad")
+        gone = Workspace(str(directory))
+
+        self.assertEqual(
+            sorted(
+                r.kind
+                for r in failures(evaluate(docs["layout"], resolver=gone)).values()
+            ),
+            ["part_unresolved", "part_unresolved"],
+            "an evaluation that ASKS refuses the document that is not there",
+        )
+        memoized = evaluate(docs["layout"], resolver=gone, prior=before)
+        self.assertEqual(failures(memoized), {})
+        self.assertEqual((memoized.reused, memoized.recomputed), (3, 0))
+        self.assertEqual(memoized.part_evaluations, 0)
+
+    def test_a_prior_evaluates_an_assembly_with_no_resolver_at_all(self):
+        """The limit case of the same rule, and the one the unit always
+        asserted: with every node a memo hit, the seam is not needed."""
+        store, docs = opened()
+        before = evaluate(docs["layout"], resolver=store)
+        after = evaluate(docs["layout"], prior=before)
+        self.assertEqual(failures(after), {}, "no part_no_resolver either")
+        self.assertEqual((after.reused, after.recomputed), (3, 0))
+        self.assertEqual(after.part_evaluations, 0)
+
+
+class TestTheResolverSnapshot(CorpusCase):
+    """WHEN the store is read: at the `evaluate` call, not at
+    `Workspace(...)` and not at some earlier freeze.
+
+    `Workspace.resolver()` copies the id -> path scan per call, which
+    makes the resolver a snapshot AS OF THE CALL — so a write through
+    the same Python object is visible to the next `evaluate`, and no
+    caller has to rebuild a store to be seen. Adopted from
+    `lib/g18a-r1b-probes`, which asked whether the unit's own
+    pin-mismatch row needed the fresh `Workspace` it was building. It
+    did not, and it no longer builds one.
+    """
+
+    def test_a_resave_through_the_same_object_is_seen_by_a_later_evaluate(self):
+        directory = self.scratch()
+        store, docs = opened(directory)
+        docs["shelf"].apply(
+            DocEdit.set_doc_param_value(
+                ParamName("thickness"), DocParamValue.length(SHELF_THICKNESS * 1.5 * m)
+            )
+        )
+        store.resave(docs["shelf"])
+        self.assertEqual(
+            [
+                r.kind
+                for r in failures(evaluate(docs["layout"], resolver=store)).values()
+            ],
+            ["part_pin_mismatch"],
+            "the store a resave went through sees its own write",
+        )
+
+    def test_a_create_before_the_call_is_inside_the_snapshot(self):
+        directory = self.scratch()
+        os.remove(directory / f"{manifest()['post']}.pncad")
+        gone = Workspace(str(directory))
+        _, whole = opened()
+
+        self.assertEqual(
+            sorted(
+                r.kind
+                for r in failures(evaluate(whole["layout"], resolver=gone)).values()
+            ),
+            ["part_unresolved", "part_unresolved"],
+        )
+        gone.create(whole["post"])
+        self.assertEqual(
+            failures(evaluate(whole["layout"], resolver=gone)),
+            {},
+            "a create before the call is inside the snapshot",
+        )
 
 
 class TestTheCorpusIsTheToursOwn(unittest.TestCase):
@@ -344,6 +593,48 @@ class TestTheCorpusIsTheToursOwn(unittest.TestCase):
                     f"{name} moved in the tour — regenerate the corpus "
                     f"(cd demos/tour && cargo run -- asm-corpus "
                     f"../../crates/pncad-py/tests/corpus/bench)",
+                )
+
+    def test_the_patterned_posts_sit_where_the_scene_places_them(self):
+        """A VOLUME is invariant under placement, and until this row
+        every oracle in this file was a volume — so the whole committed
+        set could have been reproduced by a scene that put the parts
+        anywhere at all. This is the cheapest oracle that reads
+        position, through the tessellator the binding already exposes.
+
+        It pins three things a volume cannot: the pattern's SPACING,
+        its COUNT, and the instance's ROTATION — the post is on its
+        side, so its long axis is x and its square section is y-z. Any
+        of the three drifting in `assembly.rs` reds here after a
+        regeneration. Adopted from `lib/g18a-r1b-probes`, widened from
+        "four distinct origins" to the boxes themselves.
+        """
+        store = Workspace(str(CORPUS))
+        names = manifest()
+        layout = store.resolve(
+            DocRef(names["layout"], store.current_pin(names["layout"]))
+        )
+        evaluation = evaluate(layout, resolver=store)
+        pattern = evaluation.order()[1]
+
+        def box(body):
+            mesh = body.tessellate(5 * mm)
+            axes = [[p[i].meters for p in mesh.positions] for i in range(3)]
+            return tuple((round(min(a), 9), round(max(a), 9)) for a in axes)
+
+        boxes = sorted(box(b) for b in evaluation.value(pattern).bodies())
+        self.assertEqual(len(boxes), PATTERN_COUNT)
+        for index, found in enumerate(boxes):
+            with self.subTest(instance=index):
+                y0 = index * PATTERN_SPACING
+                self.assertEqual(
+                    found,
+                    (
+                        (0.0, round(POST_HEIGHT, 9)),
+                        (round(y0, 9), round(y0 + POST_SECTION, 9)),
+                        (0.0, round(POST_SECTION, 9)),
+                    ),
+                    "the post lies on its side, stepped along +y",
                 )
 
     def test_the_store_holds_exactly_the_four_documents_the_manifest_names(self):

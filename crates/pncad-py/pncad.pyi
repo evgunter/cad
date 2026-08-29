@@ -1632,18 +1632,29 @@ class Evaluation:
     @property
     def recomputed(self) -> int:
         """How many nodes ran their op. With no `prior=` that is every
-        live node; with one it is the changed cone, and
-        `recomputed + reused` is the live node count either way."""
+        node that ran; with one it is the changed cone.
+
+        `recomputed + reused` is the nodes that RAN OR WERE REUSED —
+        the live node count only when nothing refused. A POISONED node
+        (one that never ran because an ancestor failed) is counted by
+        neither, so on a refusal path the sum undershoots
+        `len(order())` by exactly the number of poisonings. A node that
+        ran and FAILED counts here: it ran."""
     @property
     def reused(self) -> int:
         """How many nodes came from `evaluate`'s `prior=` memo without
-        re-running their op. Zero when no prior was passed."""
+        re-running their op. Zero when no prior was passed.
+
+        A reused `InstantiatePart` node did not ask the resolver — see
+        `evaluate`'s `prior=` on what that means for the seam's
+        availability refusals."""
     @property
     def part_evaluations(self) -> int:
         """How many REFERENCED documents this run crossed the seam to
         evaluate — `resolver=`'s sharing evidence. N instances of one
         part count 1; a part that instantiates a part counts here too.
-        Zero without a resolver: nothing crosses."""
+        Zero without a resolver: nothing crosses. Zero, too, when every
+        instance was a memo hit: a reused node never asks."""
     def step_string(
         self,
         node: NodeId,
@@ -1668,9 +1679,30 @@ def evaluate(
     `prior` is the MEMO: a node whose content and naming keys match
     its result in `prior` reuses that value instead of re-running its
     op, so only the changed cone costs anything. `Evaluation.reused`
-    and `Evaluation.recomputed` count it. An evaluation of a DIFFERENT
-    document is a well-defined prior and reuses whatever keys
-    coincide — a key is content, not position."""
+    and `Evaluation.recomputed` count it.
+
+    The memo is PER DOCUMENT and node-id-keyed: the lookup finds
+    `prior`'s result for the SAME node id and then certifies it by
+    content. An evaluation of a different document is a legal prior
+    that reuses nothing — ids are minted per document, and two
+    assemblies over the same parts at the same pins share none. Pass
+    the prior evaluation of THIS document.
+
+    A MEMO HIT IS SERVED WITHOUT RE-RUNNING THE SEAM'S GATES. A reused
+    `InstantiatePart` node never asks the resolver, so the availability
+    refusals — `part_pin_mismatch`, `part_unresolved`,
+    `part_no_resolver` — are raised only for nodes that actually
+    re-resolve. What is served is what the document's own `DocRef`
+    PINS, certified by content key: never a different part, and not
+    re-checked against the store. So editing a part on disk and
+    re-evaluating WITH a prior succeeds, serving the previously pinned
+    body, where the same call without the prior refuses
+    `part_pin_mismatch` — stale relative to the store, pinned relative
+    to the document. "A pin that moved refuses, and is never silently
+    retargeted" holds for evaluations that cross the seam; a run that
+    never asks does not re-assert it. Pass no prior when the question
+    is whether the document still resolves against the store as it
+    stands."""
 
 def import_step(text: str) -> Body:
     """Parse a STEP text with the kernel's importer and adopt its
