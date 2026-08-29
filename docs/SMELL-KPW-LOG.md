@@ -854,3 +854,32 @@ generic label with *"preserve real reasons"*; the implementer preserved them —
 a `String`. It belongs with the dispatcher's material because it is a rule about
 how a finding is *written*, and it reaches any ask of the form *"carry the
 reason"*, *"say which"*, *"record what happened"*.
+
+## The shared-write hazard, third instance — and it was mine
+
+Two processes wrote one verification log. An earlier workspace run had **not**
+been killed by the `pkill` that was meant to stop it; the relaunched run
+truncated the file while the first still held an open fd, so its writes landed at
+their old offsets and the file interleaved two runs with two different test
+totals. The `fmt` and `clippy` results in it were real; **the test numbers were
+worthless**, and they looked exactly like results.
+
+That is the third time in this session a shared write target produced a
+plausible wrong answer — two reviewers in one worktree reading each other's
+in-flight perturbations, a reviewer's `git checkout <path>` silently discarding
+three uncommitted edits, and now this. **The common shape is not concurrency; it
+is that every one of them fails by producing output rather than by failing.** A
+crashed run announces itself. A poisoned one does not.
+
+**The standing rule this earns, stronger than the one written earlier:** verify
+into a **fresh** file per run, confirm the previous writer is actually gone
+before starting the next (`pkill` returning success is not evidence — check the
+process table), and treat a log whose totals disagree with themselves as
+evidence about the log, not about the tree. `memories/agent-lane-operations.md`
+already says an OOM-killed test looks like a bare `Terminated` and a red run's
+failure count is not its failure surface; this is the same family — **a
+measurement's provenance is part of the measurement.**
+
+The re-run, single writer, on the merged tree: **4,274 tests run, 4,274 passed,
+20 skipped**, with `fmt` and `clippy --workspace --all-targets -D warnings`
+clean.
