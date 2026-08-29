@@ -253,3 +253,17 @@ split(doc, solid, "fresh")  # ty: error
 # `update_references` takes the pin as a VALUE. Passing its text would
 # make the door do the parsing the type already did.
 update_references(doc, doc.id, content_pin(doc).hex)  # ty: error
+
+# A read-back door takes the NODE the name was minted against and the
+# name's opaque text, in that order — a name alone does not say which
+# evaluation it should be read on.
+evaluate(doc).face_frame(solid)  # ty: error
+
+# A pose's origin is three LENGTHS: reading it as bare floats is the
+# same dimension mistake `MateFrame` catches above.
+pose = evaluate(doc).face_frame(solid, "a-name")
+origin_floats: tuple[float, float, float] = pose.origin  # ty: error
+
+# `vertex_position` answers a POSITION, not a pose — there is no frame
+# at a point, and no `axis` to read off one.
+no_axis: object = evaluate(doc).vertex_position(solid, "a-name").axis  # ty: error

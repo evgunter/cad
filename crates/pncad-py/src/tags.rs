@@ -29,6 +29,7 @@ use pncad::document::{
 use pncad::geom_core::{FrameError, FrameInput};
 use pncad::mesh::TessellateError;
 use pncad::profile::PathError;
+use pncad::select::{InterrogateError, ReadbackError};
 use pncad::step_import::StepImportError;
 // All three STL refusals are prelude-curated; the module path is the
 // spelling this file uses throughout, not a reach past the façade.
@@ -619,5 +620,45 @@ pub fn update_error_tag(err: &UpdateError) -> &'static str {
     match err {
         UpdateError::NoSuchReference { .. } => "no_such_reference",
         UpdateError::AlreadyPinned { .. } => "already_pinned",
+    }
+}
+
+/// The stable tag for the KERNEL half of a read-back refusal — the
+/// carrier read itself, once a name has resolved.
+///
+/// `Dangling` has two lanes kernel-side (a topological key that does
+/// not resolve, and a geometry key reached from a live entity that
+/// does not), and they share ONE tag here because the type that tells
+/// them apart is not on the curated surface: `ReadbackError`'s field
+/// is a `DanglingRef`, which the façade does not carry, so this crate
+/// cannot name the arms without reaching past it. The distinction is
+/// not lost — the kernel's own `Display` states which lookup came
+/// back empty, and that prose is the exception's message.
+pub fn readback_error_tag(err: &ReadbackError) -> &'static str {
+    match err {
+        ReadbackError::Dangling { .. } => "dangling",
+        ReadbackError::NoCanonicalFrame { .. } => "no_canonical_frame",
+        ReadbackError::NoCarrier => "no_carrier",
+    }
+}
+
+/// The stable tag for a read-back door's refusal.
+///
+/// The `Readback` arm forwards [`readback_error_tag`] rather than
+/// wrapping it: a caller branches on which invariant broke, and
+/// "the carrier stores no canonical frame" is that fact whether it
+/// is reached through a name or through a key.
+pub fn interrogate_error_tag(err: &InterrogateError) -> &'static str {
+    match err {
+        InterrogateError::NodeNotEvaluated { .. } => "node_not_evaluated",
+        InterrogateError::NodeFailed { .. } => "node_failed",
+        InterrogateError::NodePoisoned { .. } => "node_poisoned",
+        InterrogateError::NoSuchName => "no_such_name",
+        InterrogateError::Ambiguous { .. } => "ambiguous",
+        InterrogateError::WrongKind { .. } => "wrong_kind",
+        InterrogateError::WholeBody => "whole_body",
+        InterrogateError::NoBodies { .. } => "no_bodies",
+        InterrogateError::NoSuchBody { .. } => "no_such_body",
+        InterrogateError::Readback(err) => readback_error_tag(err),
     }
 }
