@@ -14,7 +14,7 @@ a reader entering here should know all of them exist.
 | `docs/CURVED-DESIGN.md` | RATIFIED (#85) | Curved-geometry program: C1–C12 (locus ladder, certificates, SSI, pcurves, dispatch, fillets, NURBS scope) |
 | `docs/NAMING-DESIGN.md` | RATIFIED (#74) | Persistent naming N1–N7 (derivation-path names, split/merge policy, name table) |
 | `docs/SOLVER-DESIGN.md` | RATIFIED (#79) | GQ1 witness mechanism W1–W9 (solved assignments, certification, `WitnessBifurcation`) |
-| `docs/ERROR-DESIGN.md` | RATIFIED (#110) | Error-propagation program E1–E11 (duals, stackups, subdivision driver, trichotomy) |
+| `docs/ERROR-DESIGN.md` | RATIFIED (#110) | Error-propagation program E1–E11 (duals, stackups, subdivision driver, trichotomy); RUNNING as the M10 program (`docs/M10-PLAN.md` / `docs/M10-LOG.md`) |
 | `docs/CONTACT-DESIGN.md` | RATIFIED (#178) | Contact census & declared contact C1–C8 (closes CURVED OQ5); the C7 join lane shipped at M9 |
 | `docs/PATHS-DESIGN.md` | RATIFIED (#124) | PartialPath authoring algebra (S5); implemented at LIB U2 |
 | `docs/PROFILES-V2-DESIGN.md` | RATIFIED (#242) | Profiles-as-programs V1–V8: the stored profile-program, Expr-bearing steps, the replay driver; implemented at the LIB SWITCH units |
@@ -1796,21 +1796,22 @@ precursor of the error-propagation feature.
   at-rest census door ASSEMBLY-DESIGN A5 that binds to it, and the
   lily FULL rebuild. *(Complete 2026-08-27; the done-state of record
   is `docs/M9-EXIT-WALK.md`.)*
-- **M10 (unopened, unscheduled)** — Error-propagation MVP: distributions over parameters;
-  dual-number sensitivities of measurements (tolerance stackups);
-  interval-based self-intersection / minimum-clearance checks over
-  the parameter box. Sketch solver when sketches should become
-  constraint-driven rather than programmatic. Design record:
-  `docs/ERROR-DESIGN.md`.
+- **M10 (OPEN — running as the M10 program, `docs/M10-PLAN.md` /
+  `docs/M10-LOG.md`)** — Error-propagation MVP: distributions over
+  parameters; dual-number sensitivities of measurements (tolerance
+  stackups); interval-based self-intersection / minimum-clearance
+  checks over the parameter box. Design record:
+  `docs/ERROR-DESIGN.md`. The sketch solver is NOT in the M10
+  slate (plan Q1): it re-opens as its own design pass when
+  constraint-driven sketches have a consumer.
   **Note, carried in as an open question (Evan, 2026-08-21):** *figure
   out what a `Dual` actually has to do*, and clean up the `Bounds` /
   `CertifiedEnclosure` split on that answer. **D1**'s *"at least for
   now"* is what this collects — since 2026-08-19 the dual's refusal
   rests on the ruling rather than on its lack of a bracket, so what a
   dual may do is a decision rather than a fact about the type.
-  **Deliberately not answered here**, and not to be answered by
-  speculating about what M10 will need: recorded so it is a question
-  M10 opens with rather than one it rediscovers.
+  **Owned by the plan's M10-D design pass**, which answers it with
+  Evan before any unit implements against `Dual`.
 - **The usability program** — see
   [Beyond the kernel](#beyond-the-kernel-the-usability-gap) below.
   Its library half is designed and RATIFIED as
