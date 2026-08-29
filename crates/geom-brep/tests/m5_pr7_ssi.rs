@@ -2189,6 +2189,75 @@ fn a_poisoning_control_net_refuses_the_enclosure_typed() {
     }
 }
 
+/// **The chart sweep's poison arm, reached with no magnitude at all** —
+/// the row that says the arm is live code a caller can enter, not an
+/// unreachable branch.
+///
+/// Its sibling above reaches the arm by overflow, and overflow alone
+/// can no longer get there: the seeding guard refuses a non-finite
+/// chart speed first, and the derivative bound a net of magnitude `m`
+/// certifies is at best `ulp(m)` — the cancellation floor of the hull
+/// differences — so `mag`, which squares before its `sqrt`, is already
+/// `+∞` by `m ≈ 1e169`, four orders of magnitude BELOW the `1e308` at
+/// which `w·P` first overflows. Every overflowing net is refused by
+/// the guard before the sweep runs.
+///
+/// **Underflow is the open side, and it needs no magnitude.** This
+/// fixture's control points are the substrate wall's own, order 1; its
+/// weights are finite, positive, and equal; its certified chart speed
+/// is about 25 m per parameter unit, which the guard passes without
+/// comment. What poisons is the RATIONAL's own denominator: the weight
+/// is the smallest positive subnormal, so `N·w` rounds to exactly zero
+/// for every basis value below 1, the partition of unity the rational
+/// divides by evaluates to `0`, and the midpoint evaluation inside
+/// `rect_box` — the one arithmetic there that is an evaluation rather
+/// than hull algebra — is `0/0`.
+///
+/// The derivative box does not see it: it works on exact control
+/// differences over a weight HULL of `[w, w]`, strictly positive and
+/// never underflowing, which is why the guard reads a healthy speed
+/// over a net whose values cannot be enclosed at all. A guard on the
+/// derivative cannot stand in for the enclosure's own arm.
+///
+/// **ε-invariant on purpose**: the root cell poisons, so the arm
+/// answers before the first floor comparison and no tolerance the
+/// battery runs can change which door fires.
+#[test]
+fn an_underflowing_weight_reaches_the_chart_poison_arm_without_magnitude() {
+    // The smallest positive subnormal: `w` survives as a weight, and
+    // `N·w` for any `N < 1` does not.
+    let tiny = f64::from_bits(1);
+    assert!(tiny > 0.0 && tiny.is_finite(), "FIXTURE: a finite positive weight");
+    assert_eq!(0.5 * tiny, 0.0, "FIXTURE: the product underflows, the weight does not");
+    let ku = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
+    let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+    let mut control = Vec::with_capacity(8);
+    for (x, y) in [(0.0, 0.0), (0.35, 0.18), (0.70, -0.12), (1.05, 0.04)] {
+        control.push(Point3::new(x, y, 0.0));
+        control.push(Point3::new(x, y, 0.8));
+    }
+    assert!(
+        control.iter().all(|p| p.x.abs() < 2.0 && p.y.abs() < 2.0),
+        "FIXTURE: no magnitude anywhere — the net is the substrate wall's own"
+    );
+    let w = NurbsSurface::new(ku, kv, control, vec![tiny; 8]).expect("a wall a caller can build");
+    match ssi::plane_nurbs_ssi(&cutting_plane(), &w, wall_domain(), band()) {
+        Err(SsiError::UnsupportedCertificate { what })
+            if what.contains("control-net enclosure poisoned") => {}
+        Err(SsiError::UnsupportedCertificate { what }) if what.contains("chart speed") => panic!(
+            "the chart-speed guard answered for a net whose speed is finite: {what}"
+        ),
+        Err(other) => panic!(
+            "expected the chart sweep's poison arm, got {other} — the arm is what              must answer an enclosure that cannot be formed, and any other door              answering in its place is the wrong DIAGNOSIS"
+        ),
+        Ok(out) => panic!(
+            "SILENT: a chart domain whose enclosure poisons returned Ok with {}              branches and a receipt {:?}",
+            out.branches.len(),
+            out.exhaustiveness
+        ),
+    }
+}
+
 /// **The chart-speed guard**: a wall whose certified chart speed is not
 /// a positive finite number is refused as itself, by name.
 ///

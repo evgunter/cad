@@ -438,8 +438,10 @@ fn sweep_chart_plane(
             + RingInterval::point(plane_normal.z) * (b.z - RingInterval::point(plane_origin.z));
         if phi.is_poison() {
             return Err(SsiError::UnsupportedCertificate {
-                what: "the NURBS control-net enclosure poisoned (a malformed \
-                       net or a weight hull touching zero)",
+                what: "the NURBS control-net enclosure poisoned over a cell — \
+                       a weight so small that the rational's own denominator \
+                       underflows to zero, or homogeneous arithmetic that \
+                       does not stay finite over the net",
             });
         }
         Ok(excludes_zero(phi))
