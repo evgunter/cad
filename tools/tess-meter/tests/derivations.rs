@@ -153,11 +153,12 @@ fn a_ruled_wall_pays_for_its_flat_direction() {
 /// **What a member is for.** Each names an aspect ratio the scan must
 /// be wide enough to reach; the resolution question is answered in
 /// closed form and does not depend on this list, which is why the
-/// ceiling below is not fitted to it. The last member carries a live
-/// cross term over an anisotropic bound because the four with
-/// `muv = 0` have their optimum at exactly `√(muu/mvv)`, which the
-/// [`bound`] fixture's own seed already sits on — a family of only
-/// those would be measuring the fixture.
+/// ceiling below is not fitted to it. The last member is an ordinary
+/// anisotropic bound with a live cross term, and it is here because
+/// the [`bound`] fixture's seed IS the continuous optimum whenever
+/// `muv = 0` or `muu = mvv` — four of the other five — so a family
+/// without it would leave the ruled wall as the only member on which
+/// the scan is visible at all.
 const SPLIT_SCAN_FAMILY: [(&str, f64, f64, f64); 6] = [
     ("ruled wall", 0.0, 2.4, 51.3),
     ("isotropic", 10.0, 0.0, 10.0),
@@ -284,9 +285,10 @@ fn continuous_optimum(muu: f64, muv: f64, mvv: f64) -> f64 {
 /// The lane's own steps are NOT admitted here, and that is the
 /// difference between measuring the scan and measuring its seed:
 /// [`best_split_steps`] starts its running minimum at the grid the
-/// lane built, which for a bound with no cross term is already the
-/// continuous optimum, so a seeded quantity would score zero on three
-/// of this family's six members however badly the scan was tuned.
+/// lane built, which for a bound with `muv = 0` or `muu = mvv` is
+/// already the continuous optimum, so a seeded quantity would score
+/// exactly zero on four of this family's six members however badly
+/// the scan was tuned.
 /// These two constants set the scan's resolution and nothing else, so
 /// the scan alone is what they are answerable for.
 fn scanned_continuous_cells(
