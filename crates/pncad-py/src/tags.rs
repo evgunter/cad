@@ -249,6 +249,8 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
         NodeErrorKind::MeasureRefResolve { .. } => "measure_ref_resolve",
         NodeErrorKind::MeasureRefUnreadable { .. } => "measure_ref_unreadable",
         NodeErrorKind::MeasureUnsupported(_) => "measure_unsupported",
+        NodeErrorKind::MeasureNotParallel { .. } => "measure_not_parallel",
+        NodeErrorKind::MeasureNonFinite { .. } => "measure_non_finite",
         NodeErrorKind::MeasureMalformed(_) => "measure_malformed",
         NodeErrorKind::MeasureLeafExpr { .. } => "measure_leaf_expr",
         NodeErrorKind::AssertionDimension { .. } => "assertion_dimension",

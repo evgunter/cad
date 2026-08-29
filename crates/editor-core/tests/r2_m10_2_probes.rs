@@ -16,11 +16,12 @@
 mod fixture;
 
 use editor_core::{
-    Axis3, AssertionDir, AssertionVerdict, BooleanOp, CancelToken, Datum, Dimension, DocEdit,
+    AssertionDir, AssertionVerdict, Axis3, BooleanOp, CancelToken, Datum, Dimension, DocEdit,
     DocParam, DocParamValue, DocumentId, EntityKind, EvalOptions, Evaluation, Expr, GeomPred,
-    LoopProgram, MeasureExpr, MeasurePrimitive, NamePat, Node, NodeErrorKind, NodeResult,
-    ParamName, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
-    RecipeNodeId, Selector, StableName, SurfaceKindSet, ValuePayload, apply, evaluate, select_where,
+    LoopProgram, MeasureExpr, MeasurePrimitive, MeasureRef, NamePat, Node, NodeErrorKind,
+    NodeResult, ParamName, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
+    RecipeNodeId, Selector, StableName, SurfaceKindSet, ValuePayload, apply, evaluate,
+    select_where,
 };
 use fixture::{ang, len, scl};
 use geom_core::{Point3, Tol, Vec3};
@@ -77,7 +78,11 @@ fn faces(
 }
 
 fn vertices(ev: &Evaluation<f64>, body: RecipeNodeId) -> Vec<StableName> {
-    let mut v = editor_core::select(ev, body, &Selector::of(NamePat::of_kind(EntityKind::Vertex)));
+    let mut v = editor_core::select(
+        ev,
+        body,
+        &Selector::of(NamePat::of_kind(EntityKind::Vertex)),
+    );
     v.sort();
     v
 }
@@ -101,12 +106,19 @@ fn edges_of_kind(
 }
 
 /// Inserts a measure over `refs` and returns (doc, measure id).
+///
+/// Each reference is read AT ITS MINTING NODE — the spelling this
+/// suite means throughout, since none of its fixtures places the
+/// geometry it measures. Adapting to the `MeasureRef` shape the fix
+/// pass introduced for MAJ-2; the rows and their oracles are
+/// unchanged.
 fn with_measure(
     doc: &ProfileDoc,
     expr: MeasureExpr,
     refs: Vec<StableName>,
 ) -> (ProfileDoc, RecipeNodeId) {
     let id = RecipeNodeId(doc.len() as u64);
+    let refs: Vec<MeasureRef> = refs.into_iter().map(MeasureRef::at_mint).collect();
     let doc = push(
         doc,
         &DocEdit::InsertNode {
@@ -143,7 +155,13 @@ fn outcome(ev: &Evaluation<f64>, id: RecipeNodeId) -> Result<f64, String> {
 
 /// A box [x0,x1]x[y0,y1]x[z0,z0+h], authored as a polygon extrude.
 /// Returns (doc, extrude id).
-fn boxed(doc: &ProfileDoc, x: (f64, f64), y: (f64, f64), z0: f64, h: f64) -> (ProfileDoc, RecipeNodeId) {
+fn boxed(
+    doc: &ProfileDoc,
+    x: (f64, f64),
+    y: (f64, f64),
+    z0: f64,
+    h: f64,
+) -> (ProfileDoc, RecipeNodeId) {
     let p = RecipeNodeId(doc.len() as u64);
     let doc = push(
         doc,
@@ -514,7 +532,10 @@ fn r2_gap_sphere_sphere_walks_all_three_regimes() {
         let ev = eval(&d2);
         let fo = faces(&ev, outer, geom_brep::SurfaceKind::Sphere);
         let fi = faces(&ev, inner, geom_brep::SurfaceKind::Sphere);
-        assert!(!fo.is_empty() && !fi.is_empty(), "both revolves are spheres");
+        assert!(
+            !fo.is_empty() && !fi.is_empty(),
+            "both revolves are spheres"
+        );
         let (d3, id) = with_measure(
             &d2,
             MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
@@ -585,14 +606,15 @@ fn r2_gap_plane_plane_role_swap_behaviour() {
                 // The finding: for the sign to encode the ROLE, a
                 // swap must negate. Record any pair where it does not.
                 if (f + r).abs() > 1e-12 && f.abs() > 1e-12 {
-                    eprintln!(
-                        "R2/gap-plane: role swap did NOT negate: g(a,b) = {f}, g(b,a) = {r}"
-                    );
+                    eprintln!("R2/gap-plane: role swap did NOT negate: g(a,b) = {f}, g(b,a) = {r}");
                 }
             }
         }
     }
-    assert!(!rows.is_empty(), "some plane pair must be parallel and gap-able");
+    assert!(
+        !rows.is_empty(),
+        "some plane pair must be parallel and gap-able"
+    );
     // Evidence-only: the row prints its table. The assertion is only
     // that the arm produced numbers at all, so the table is real.
     for (i, j, f, r) in &rows {
@@ -605,7 +627,10 @@ fn r2_gap_plane_plane_role_swap_behaviour() {
         .iter()
         .filter(|(_, _, f, _)| f.parse::<f64>().map(|v| v < -1e-12).unwrap_or(false))
         .count();
-    eprintln!("R2/gap-plane: {negatives} of {} forward readings are negative (interference) on geometry that never interferes", rows.len());
+    eprintln!(
+        "R2/gap-plane: {negatives} of {} forward readings are negative (interference) on geometry that never interferes",
+        rows.len()
+    );
 }
 
 // ===============================================================
@@ -859,10 +884,16 @@ fn r2_a_violated_assertion_is_invisible_to_every_shared_node() {
         "the probe needs a Violated verdict"
     );
     for id in c.nodes.keys() {
-        let (x, y) = (a.nodes.get(id).expect("shared"), c.nodes.get(id).expect("shared"));
+        let (x, y) = (
+            a.nodes.get(id).expect("shared"),
+            c.nodes.get(id).expect("shared"),
+        );
         match (x, y) {
             (NodeResult::Ok(x), NodeResult::Ok(y)) => {
-                assert_eq!(x.content_key, y.content_key, "node {id:?} content key moved");
+                assert_eq!(
+                    x.content_key, y.content_key,
+                    "node {id:?} content key moved"
+                );
                 assert_eq!(
                     x.name_table.len(),
                     y.name_table.len(),
@@ -1107,7 +1138,10 @@ fn r2_corrupt_v16_files_refuse_at_the_load_door() {
             Ok(_) => panic!("an out-of-range primitive index LOADED ({from} -> {to})"),
         }
     }
-    assert!(applied > 0, "no index corruption applied; the wire shape moved");
+    assert!(
+        applied > 0,
+        "no index corruption applied; the wire shape moved"
+    );
 
     // (b) and (c): the edit door's own refusals, which the load door
     // re-runs verbatim through the same `validate_snapshot` walk.
@@ -1121,7 +1155,10 @@ fn r2_corrupt_v16_files_refuse_at_the_load_door() {
             },
         },
     );
-    assert!(bad_dim.is_err(), "an Angle bound on a Length measure must refuse");
+    assert!(
+        bad_dim.is_err(),
+        "an Angle bound on a Length measure must refuse"
+    );
     let bad_target = try_push(
         &d2,
         &DocEdit::InsertNode {
@@ -1137,7 +1174,6 @@ fn r2_corrupt_v16_files_refuse_at_the_load_door() {
         "an assertion over a non-measure must refuse"
     );
 }
-
 
 /// A trivial existence check so the file is never silently empty.
 #[test]
@@ -1217,16 +1253,14 @@ fn r2_e2e_ball_in_socket_authored_and_saved() {
                 other => panic!("expected Violated with both numbers, got {other:?}"),
             }
             // The violating document is the one Python reads.
-            let text =
-                editor_core::save(&d4, &[], Tol::witness()).expect("the fit document saves");
-            let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("../../target/r2_fit.pncad");
+            let text = editor_core::save(&d4, &[], Tol::witness()).expect("the fit document saves");
+            let path =
+                std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/r2_fit.pncad");
             std::fs::write(&path, &text).expect("write the e2e fixture");
             eprintln!("R2/e2e: wrote {}", path.display());
         }
     }
 }
-
 
 /// **`SnapshotError::AssertionBound` reached from a corrupt file.**
 ///
@@ -1282,7 +1316,6 @@ fn r2_a_corrupt_assertion_refuses_at_the_load_door() {
         Ok(_) => panic!("an assertion over a non-measure LOADED"),
     }
 }
-
 
 // ===============================================================
 // The finiteness door `eval_measure` does not have

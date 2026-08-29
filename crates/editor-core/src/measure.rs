@@ -10,11 +10,23 @@
 //!
 //! [`Expr`] is a CLOSED world: literals, document parameters and
 //! arithmetic, and nothing that reaches out of the document into
-//! geometry. That closure is what makes it total, and it is not
-//! reopened here. [`MeasureExpr`] is the strictly larger language that
-//! sits ON TOP: the same arithmetic over two leaf kinds — an ordinary
-//! [`Expr`], and a [`MeasurePrimitive`] naming a closed-form
-//! measurement of entities the NODE references.
+//! geometry. That closure is not reopened here. [`MeasureExpr`] is the
+//! strictly larger language that sits ON TOP: the same arithmetic over
+//! two leaf kinds — an ordinary [`Expr`], and a [`MeasurePrimitive`]
+//! naming a closed-form measurement of entities the NODE references.
+//!
+//! **"Total" is the word to be careful with, and this header used to
+//! use it wrongly.** The AST is total in the sense F7 means: no
+//! conditionals, no iteration, no user-defined functions, so every
+//! tree terminates. It is NOT total as a function into the finite
+//! reals — `Div` is partial, `13 / 0` is `inf`, and that is true of
+//! `Expr` too. `Expr` handles it at a door rather than in the type:
+//! [`crate::expr::eval`] refuses a non-finite FINAL value. This
+//! language shares that exact door
+//! ([`crate::expr::refuse_non_finite`], called by
+//! [`crate::eval::measure::eval_measure`]) rather than restating the
+//! arithmetic and forgetting it — which is what the first draft did,
+//! and it shipped an assertion reporting `Holds { measured: inf }`.
 //!
 //! The primitives address their operands by INDEX into the node's
 //! `refs: Vec<StableName>`, never by name. Entity references therefore

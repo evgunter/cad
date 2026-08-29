@@ -620,6 +620,47 @@ pub fn payload_exprs<P>(node: &Node<P>) -> Option<Vec<&Expr>> {
     }
 }
 
+/// **A measured entity reference: a name, and the node to read it at.**
+///
+/// Both halves are load-bearing and they are not the same node.
+/// `name` says WHICH entity (N1: the name embeds the node that minted
+/// it); `at` says which evaluated value to read its carrier out of.
+/// They coincide for a reference to a body's own minting node and
+/// diverge the moment anything places that body — which is the case
+/// this type exists for, because a transform is identity-preserving
+/// and mints no name of its own.
+///
+/// `at` is an ordinary DAG edge ([`Node::inputs`]); `name` resolves
+/// against `at`'s table through the same N5 ladder every other
+/// authored name takes.
+#[derive(
+    Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
+#[serde(deny_unknown_fields)]
+pub struct MeasureRef {
+    /// The node whose evaluated value the carrier is read at — the
+    /// PLACED geometry, when that node placed it.
+    pub at: RecipeNodeId,
+    /// The entity's stable name, resolved against `at`'s table.
+    pub name: StableName,
+}
+
+impl MeasureRef {
+    /// A reference read at the node that minted the name — the
+    /// degenerate case, and the honest spelling of "as authored".
+    pub fn at_mint(name: StableName) -> Self {
+        Self {
+            at: name.node,
+            name,
+        }
+    }
+
+    /// A reference read at `at`.
+    pub fn new(at: RecipeNodeId, name: StableName) -> Self {
+        Self { at, name }
+    }
+}
+
 /// What makes a [`Node::Measure`]'s expression unusable
 /// ([`Node::measure_fault`]) — one vocabulary for the construction
 /// door and the load door's re-check.
@@ -1062,23 +1103,33 @@ pub enum Node<P> {
     /// resolving in a still-live node's table, which the typed
     /// resolution refusal reports and `Rebind` repairs.
     ///
-    /// # What a reference denotes
+    /// # What a reference denotes: the carrier AT a named node
     ///
-    /// The entity in the value of the node that MINTED it — its
-    /// carrier as authored. A downstream rigid transform re-emits the
-    /// same name for a moved entity, and a measure over the minted
-    /// name reports the unmoved carrier; measuring the moved one means
-    /// referencing the moving node's own emission. That is a stated
-    /// scope, not an accident: the alternative — scanning the whole
-    /// evaluation for a carrying table — makes what a measure means
-    /// depend on which other nodes happen to exist.
+    /// A [`MeasureRef`] is a pair — the entity's [`StableName`], and
+    /// the node its carrier is READ AT. The second half is what makes
+    /// a measure report placed geometry.
+    ///
+    /// A name alone cannot do it. N1 names embed their MINTING node,
+    /// and a rigid transform is identity-preserving: `wire_transform`
+    /// hands the input's table through by `Arc::clone` and contributes
+    /// no RolePath segment, so a transformed wall keeps the upstream
+    /// name and there is no transform-minted name to reference
+    /// instead. Resolving at the minting node therefore measured the
+    /// UNMOVED carrier — a box translated 100 m measured 5 where the
+    /// placed answer is 95, and said `Ok`.
+    ///
+    /// So the reference names the node to read at, exactly as the
+    /// interrogation doors do (`face_frame(ev, node, name)` — this is
+    /// their contract, not a new one). Selecting a wall from a
+    /// transform's own selection door and measuring it gives the
+    /// placed number, because `at` is that transform.
     Measure {
         /// The measured expression: `Expr` arithmetic over
         /// [`crate::MeasurePrimitive`] leaves that index `refs`.
         expr: crate::measure::MeasureExpr,
         /// The referenced entities, in argument order, frozen at
         /// authoring time.
-        refs: Vec<StableName>,
+        refs: Vec<MeasureRef>,
     },
     /// **A recorded tolerance requirement** (ERROR-DESIGN E10): design
     /// intent as document data — "this web is at least 0.5 mm" lives
@@ -1201,11 +1252,13 @@ impl<P> Node<P> {
             | Node::InstantiatePart { .. } => Vec::new(),
             // A measure's references ARE its data dependencies (the
             // variant's docs state why this kind departs from the D3
-            // carve-out). Distinct minting nodes, ascending, so the
-            // edge list is a function of the reference SET and a
-            // repeated reference does not repeat an edge.
+            // carve-out). The edge is the node each reference is READ
+            // AT, not the one that minted the name — reading is what
+            // the measure must wait for. Distinct and ascending, so
+            // the edge list is a function of the reference SET and two
+            // references at one node do not repeat an edge.
             Node::Measure { refs, .. } => {
-                let mut v: Vec<RecipeNodeId> = refs.iter().map(|n| n.node).collect();
+                let mut v: Vec<RecipeNodeId> = refs.iter().map(|r| r.at).collect();
                 v.sort_unstable();
                 v.dedup();
                 v
@@ -1445,7 +1498,7 @@ impl<P> Node<P> {
             Node::Mate { a, b, .. } => vec![a, b],
             // A measure's references are argument-ORDERED, so they are
             // listed in that order rather than a canonical one.
-            Node::Measure { refs, .. } => refs.iter().collect(),
+            Node::Measure { refs, .. } => refs.iter().map(|r| &r.name).collect(),
             name_free_node!() => Vec::new(),
         }
     }
@@ -1493,8 +1546,8 @@ impl<P> Node<P> {
             // arguments naming one entity rather than shrink the list
             // and renumber every index the expression holds.
             Node::Measure { refs, .. } => {
-                for name in refs.iter_mut() {
-                    hits += rewrite(name, from, to);
+                for r in refs.iter_mut() {
+                    hits += rewrite(&mut r.name, from, to);
                 }
             }
             name_free_node!() => {}
@@ -1644,7 +1697,7 @@ impl<P> Node<P> {
     /// ([`Node::measure_fault`]).
     pub fn measure(
         expr: crate::measure::MeasureExpr,
-        refs: Vec<StableName>,
+        refs: Vec<MeasureRef>,
     ) -> Result<Self, MeasureNodeFault> {
         let node = Node::Measure { expr, refs };
         match node.measure_fault() {

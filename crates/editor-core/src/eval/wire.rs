@@ -976,17 +976,30 @@ fn resolve_selection(
 ///
 /// # Where a reference resolves
 ///
-/// Against the value of the node that MINTED it — the node the name
-/// itself names (N1: names embed their minting node), which
-/// [`Node::inputs`] therefore reports as an edge, so it has evaluated
-/// by the time this runs. Resolution takes the SAME mid-evaluation
-/// [`ladder`] the fillet selection and the declare door take: rung 1
-/// is the live-node check, then the tie, then the vanished row, with
-/// N5's typed trio coming out of all three.
+/// At the node the reference NAMES AS ITS READING SITE
+/// ([`crate::MeasureRef::at`]), which is what makes the answer the
+/// PLACED carrier rather than the authored one — a transform is
+/// identity-preserving, so the minting node's value still holds the
+/// unmoved geometry. `at` is a DAG edge ([`Node::inputs`]), so it has
+/// evaluated by the time this runs. Resolution takes the SAME
+/// mid-evaluation [`ladder`] the fillet selection and the declare door
+/// take: rung 1 is the live-node check, then the tie, then the
+/// vanished row, with N5's typed trio coming out of all three.
+///
+/// # Only the references the expression READS are resolved
+///
+/// A reference no primitive indexes is carried data, not a
+/// measurement input, so it is neither resolved nor interrogated: an
+/// unused reference to a datum (which has no carrier at all) must not
+/// fail a measure that never asks about it. The indices the expression
+/// actually reads are the domain, and the slots left empty are filled
+/// with [`super::measure::Carrier::Unread`], which no closed form can
+/// reach — `Node::measure_fault` has already bounded every index, so a
+/// read of one is a kernel bug and says so.
 fn wire_measure<T: Decide>(
     node: &Node<ProfileProgram>,
     expr: &crate::measure::MeasureExpr,
-    refs: &[names::StableName],
+    refs: &[crate::node::MeasureRef],
     leaves: Option<&[T]>,
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
@@ -999,11 +1012,23 @@ fn wire_measure<T: Decide>(
     if let Some(fault) = node.measure_fault() {
         return Err(NodeErrorKind::MeasureMalformed(fault));
     }
+    let mut read = std::collections::BTreeSet::new();
+    let mut prims = Vec::new();
+    expr.primitives(&mut prims);
+    for prim in prims {
+        read.extend(prim.refs());
+    }
     let mut carriers = Vec::with_capacity(refs.len());
-    for name in refs {
+    for (index, r) in refs.iter().enumerate() {
+        let index = u32::try_from(index).unwrap_or(u32::MAX);
+        if !read.contains(&index) {
+            carriers.push(super::measure::Carrier::Unread);
+            continue;
+        }
+        let name = &r.name;
         let refused = |error| NodeErrorKind::MeasureRefResolve { error };
         let live = ladder::live(name, doc).map_err(refused)?;
-        let value = value_of(results, name.node)?;
+        let value = value_of(results, r.at)?;
         let landing = ladder::landing(&live, &value.name_table);
         let ent = ladder::resolve(live, landing).map_err(refused)?;
         let body =
@@ -1028,6 +1053,20 @@ fn wire_measure<T: Decide>(
         super::measure::PrimitiveRefusal::Escalated { predicate, source } => {
             NodeErrorKind::Escalated { predicate, source }
         }
+        super::measure::PrimitiveRefusal::NonFinite(source) => {
+            NodeErrorKind::MeasureNonFinite { source }
+        }
+        super::measure::PrimitiveRefusal::NotParallel {
+            verb,
+            a,
+            b,
+            predicate,
+        } => NodeErrorKind::MeasureNotParallel {
+            verb,
+            a,
+            b,
+            predicate,
+        },
     })?;
     Ok(OpOut::plain(
         ValuePayload::Measure {

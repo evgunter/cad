@@ -94,8 +94,8 @@ pub use names::{
     edge_frame, face_frame, find_flush_candidates, select, select_where, vertex_position,
 };
 pub use node::{
-    Axis3, BooleanOp, Datum, InterfaceCrossing, InterfaceRecord, MeasureNodeFault, Node,
-    PatternKind, PlacementRuleFault, RecipeNodeId, SlotId, StepArg, VectorSlot,
+    Axis3, BooleanOp, Datum, InterfaceCrossing, InterfaceRecord, MeasureNodeFault, MeasureRef,
+    Node, PatternKind, PlacementRuleFault, RecipeNodeId, SlotId, StepArg, VectorSlot,
 };
 pub use parse::{ParseError, parse_expr};
 pub use part::{PartResolver, ResolveFailure, ResolveFault};

@@ -89,15 +89,26 @@ impl core::error::Error for MeasureUnsupported {}
 pub(crate) enum Carrier<T: geom_core::Real> {
     /// A vertex's stored position.
     Point(Point3<T>),
-    /// A planar face's carrier: a point on it and its UNIT chart
-    /// normal (the chart's, uncorrected by the face's sense — the
-    /// sense is a separate fact, and folding it in would make two
-    /// questions share one answer).
+    /// A planar face's carrier: a point on it, its UNIT chart normal,
+    /// and the face's OUTWARD normal with the S10 sense folded in.
+    ///
+    /// Both are carried because the two questions really are
+    /// different, and each door picks the one it means. `angle` reads
+    /// the CHART normal: it reports the angle between two carriers,
+    /// and `topo::readback` states the rule that a chart direction is
+    /// not silently sense-corrected. `gap` reads `outward`: C5's gap
+    /// is a MATERIAL separation, positive toward separation, and a
+    /// material question needs the material side — the same reason
+    /// `carrier_eq`'s plane arm folds sense before deciding.
     Plane {
         /// A point on the plane.
         origin: Point3<T>,
-        /// The unit chart normal.
+        /// The unit chart normal, uncorrected.
         normal: Vec3<T>,
+        /// The face's outward normal: `normal` when the face's
+        /// material side agrees with the chart, `-normal` when it is
+        /// reversed.
+        outward: Vec3<T>,
     },
     /// A cylindrical face's carrier: a point on the axis, the unit
     /// axis direction, and the radius.
@@ -129,6 +140,10 @@ pub(crate) enum Carrier<T: geom_core::Real> {
     /// A carrier outside the v1 table, kept as its CLASS so a refusal
     /// can name it.
     Other(&'static str),
+    /// A reference the expression never indexes, so its carrier was
+    /// never read. Unreachable from any closed form (the node door
+    /// bounds every index), and announced as a kernel bug if reached.
+    Unread,
 }
 
 impl<T: geom_core::Real> Carrier<T> {
@@ -141,6 +156,7 @@ impl<T: geom_core::Real> Carrier<T> {
             Self::Sphere { .. } => "a sphere face",
             Self::Line { .. } => "a line edge",
             Self::Other(what) => what,
+            Self::Unread => "an unread reference",
         }
     }
 }
@@ -168,6 +184,9 @@ pub(crate) fn carrier_of<T: Decide>(body: &Body<T>, ent: EntityRef) -> Carrier<T
                 Some(Surface::Plane { origin, normal, .. }) => Carrier::Plane {
                     origin: *origin,
                     normal: *normal,
+                    // S10's sense bit, folded once, here: `true` means
+                    // the material side agrees with the chart normal.
+                    outward: if face.sense { *normal } else { -*normal },
                 },
                 Some(Surface::Cylinder {
                     origin,
@@ -212,6 +231,24 @@ pub(crate) fn carrier_of<T: Decide>(body: &Body<T>, ent: EntityRef) -> Carrier<T
 pub(crate) enum PrimitiveRefusal {
     /// No closed form for this carrier pair.
     Unsupported(MeasureUnsupported),
+    /// The pair IS in the v1 table, but its arm needs the two carriers
+    /// PARALLEL and they are decidedly not.
+    ///
+    /// Its own refusal rather than `Unsupported`, because the two say
+    /// different things to a reader: `Unsupported` means "this
+    /// vocabulary has no arm for that pair", which for two cylinder
+    /// walls is FALSE and sent the author looking for a missing
+    /// feature instead of at their tilt.
+    NotParallel {
+        /// Which primitive was asked.
+        verb: &'static str,
+        /// The pair class, for the message.
+        a: &'static str,
+        /// The second operand's class.
+        b: &'static str,
+        /// The funnel predicate that decided them non-parallel.
+        predicate: &'static str,
+    },
     /// A parallelism or coaxiality trilean landed in the band: the
     /// measurement's MEANING depends on a fact the run cannot decide,
     /// so no number is reported.
@@ -221,6 +258,12 @@ pub(crate) enum PrimitiveRefusal {
         /// The escalation, unaltered.
         source: geom_core::Indeterminate,
     },
+    /// The measured value is not finite. The SAME ruled door
+    /// [`crate::expr::eval`] applies to a document expression, applied
+    /// here for the same reason and by the same function: a measure is
+    /// a number a reader believes, and an assertion over `inf` would
+    /// report a verdict about nothing.
+    NonFinite(crate::expr::EvalError),
 }
 
 /// **The v1 primitive evaluator.** One closed form per row of the
@@ -236,6 +279,23 @@ pub(crate) fn primitive<T: Decide>(
         MeasurePrimitive::Angle { .. } => angle(a, b),
         MeasurePrimitive::Gap { .. } => gap(a, b, band),
     }
+}
+
+/// The pair is in the table; the arm's parallelism precondition is
+/// not met. Names the tilt, not a missing feature (see
+/// [`PrimitiveRefusal::NotParallel`]).
+fn not_parallel<T: geom_core::Real, X>(
+    verb: &'static str,
+    predicate: &'static str,
+    a: &Carrier<T>,
+    b: &Carrier<T>,
+) -> Result<X, PrimitiveRefusal> {
+    Err(PrimitiveRefusal::NotParallel {
+        verb,
+        a: a.class(),
+        b: b.class(),
+        predicate,
+    })
 }
 
 fn unsupported<T: geom_core::Real, X>(
@@ -288,8 +348,8 @@ fn distance<T: Decide>(a: &Carrier<T>, b: &Carrier<T>, band: Band) -> Result<T, 
         (Carrier::Point(p), Carrier::Point(q)) => Ok((*q - *p).norm()),
         // Vertex x plane face: the point's coordinate along the unit
         // normal, in metres by construction.
-        (Carrier::Point(p), Carrier::Plane { origin, normal })
-        | (Carrier::Plane { origin, normal }, Carrier::Point(p)) => {
+        (Carrier::Point(p), Carrier::Plane { origin, normal, .. })
+        | (Carrier::Plane { origin, normal, .. }, Carrier::Point(p)) => {
             let d = (*p - *origin).dot(*normal);
             Ok(d.max(-d))
         }
@@ -301,14 +361,16 @@ fn distance<T: Decide>(a: &Carrier<T>, b: &Carrier<T>, band: Band) -> Result<T, 
             Carrier::Plane {
                 origin: oa,
                 normal: na,
+                ..
             },
             Carrier::Plane {
                 origin: ob,
                 normal: nb,
+                ..
             },
         ) => {
             if !parallel("bool_plane_parallel", *na, *nb, arm(*oa, *ob), band)? {
-                return unsupported("distance", a, b);
+                return not_parallel("distance", "bool_plane_parallel", a, b);
             }
             let d = (*ob - *oa).dot(*na);
             Ok(d.max(-d))
@@ -332,7 +394,7 @@ fn distance<T: Decide>(a: &Carrier<T>, b: &Carrier<T>, band: Band) -> Result<T, 
             },
         ) => {
             if !parallel("carrier_cyl_axis_parallel", *aa, *ab, arm(*oa, *ob), band)? {
-                return unsupported("distance", a, b);
+                return not_parallel("distance", "carrier_cyl_axis_parallel", a, b);
             }
             Ok(axis_offset(*oa, *aa, *ob))
         }
@@ -381,23 +443,56 @@ fn gap<T: Decide>(
     band: Band,
 ) -> Result<T, PrimitiveRefusal> {
     match (outer, inner) {
-        // Parallel planes: the signed inter-plane offset along the
-        // OUTER plane's normal — linear in the authored offsets, so
-        // smooth everywhere (C5's ideal M10 citizen).
+        // Parallel planes: the signed MATERIAL separation, measured
+        // along the outer face's OUTWARD normal — linear in the
+        // authored offsets, so smooth everywhere (C5's ideal M10
+        // citizen).
+        //
+        // **The outward normal, not the chart normal.** A gap is a
+        // statement about material sides, so it is read off the side
+        // the material is on — the same discipline `carrier_eq`'s
+        // plane arm keeps (S10) and for the same reason. Against the
+        // raw chart normal the sign was an artifact of which way each
+        // face's surface happened to be charted: over two disjoint
+        // slabs, half of the parallel pairs read NEGATIVE — C5
+        // "interference" where nothing interferes — and half gave
+        // `gap(a, b) == gap(b, a)`, so the mating roles carried no
+        // information at all.
+        //
+        // With the sense folded in, `g` is how far `inner`'s face lies
+        // along the direction `outer`'s material faces: positive when
+        // the two material sides face each other across empty space,
+        // negative when they have passed through one another.
+        //
+        // **What a role swap does, stated exactly, because the obvious
+        // guess is wrong.** For an OPPOSED pair — the mating
+        // configuration C5 is written for, outward normals pointing at
+        // each other — `g` is SYMMETRIC, and that is correct: the
+        // clearance between two facing faces is one distance, not two
+        // signed ones, and reporting `−2 m` for the far side of a 2 m
+        // gap would be a new lie in place of the old one. For an
+        // ALIGNED pair (both material sides facing the same way — a
+        // flush/containment configuration, not a mate) the swap
+        // negates. So the roles are informative for the curved arms,
+        // where `R − r` genuinely asks which is the socket, and
+        // vacuous for a planar mate — a fact about planes, not a
+        // missing feature.
         (
             Carrier::Plane {
                 origin: oo,
-                normal: no,
+                outward: wo,
+                ..
             },
             Carrier::Plane {
                 origin: oi,
-                normal: ni,
+                outward: wi,
+                ..
             },
         ) => {
-            if !parallel("bool_plane_parallel", *no, *ni, arm(*oo, *oi), band)? {
-                return unsupported("gap", outer, inner);
+            if !parallel("bool_plane_parallel", *wo, *wi, arm(*oo, *oi), band)? {
+                return not_parallel("gap", "bool_plane_parallel", outer, inner);
             }
-            Ok((*oi - *oo).dot(*no))
+            Ok((*oi - *oo).dot(*wo))
         }
         // Concentric spheres, ball r in socket R: g = R − r − ‖Δc‖.
         // The norm kink at Δc = 0 is C5's stated semismooth point, and
@@ -431,7 +526,7 @@ fn gap<T: Decide>(
             },
         ) => {
             if !parallel("carrier_cyl_axis_parallel", *ao, *ai, arm(*oo, *oi), band)? {
-                return unsupported("gap", outer, inner);
+                return not_parallel("gap", "carrier_cyl_axis_parallel", outer, inner);
             }
             Ok(*r_bore - *r_pin - axis_offset(*oo, *ao, *oi))
         }
@@ -439,16 +534,16 @@ fn gap<T: Decide>(
     }
 }
 
-/// Evaluates a whole measured expression: the primitives against the
-/// resolved carriers, the arithmetic in between, and the value leaves
-/// read off the vector the node's leaf stage already evaluated.
+/// **Evaluates a whole measured expression, and refuses a non-finite
+/// result** — [`crate::expr::eval`]'s two-part shape, deliberately
+/// mirrored: a recursive `Real` core with no decisions in it, then the
+/// ONE ruled door on the final value.
 ///
-/// Both vectors arrive INDEX-ALIGNED with this walk — the carriers
-/// with the node's references, the leaves with
-/// [`MeasureExpr::value_leaves`]'s pre-order — so nothing here
-/// resolves a name or re-evaluates an expression: resolution ran once,
-/// leaf evaluation ran once, and the content key saw exactly the
-/// values this arithmetic sees.
+/// The door is not a second implementation. It is
+/// [`crate::expr::refuse_non_finite`], the very function
+/// [`crate::expr::eval`] calls, because this language's `Div` is the
+/// same partial operation that language's is: `13 / 0` is `inf` in
+/// both, and only one of them used to say so.
 pub(crate) fn eval_measure<T: Decide>(
     expr: &MeasureExpr,
     carriers: &[Carrier<T>],
@@ -456,9 +551,32 @@ pub(crate) fn eval_measure<T: Decide>(
     cursor: &mut usize,
     band: Band,
 ) -> Result<T, PrimitiveRefusal> {
+    let value = eval_measure_inner(expr, carriers, leaves, cursor, band)?;
+    crate::expr::refuse_non_finite(value).map_err(PrimitiveRefusal::NonFinite)
+}
+
+/// The recursive core: the primitives against the resolved carriers,
+/// the arithmetic in between, and the value leaves read off the vector
+/// the node's leaf stage already evaluated. No decisions inside —
+/// poison FLOWS through values per the kernel policy, and the single
+/// refusal door is [`eval_measure`]'s.
+///
+/// Both vectors arrive INDEX-ALIGNED with this walk — the carriers
+/// with the node's references, the leaves with
+/// [`MeasureExpr::value_leaves`]'s pre-order — so nothing here
+/// resolves a name or re-evaluates an expression: resolution ran once,
+/// leaf evaluation ran once, and the content key saw exactly the
+/// values this arithmetic sees.
+fn eval_measure_inner<T: Decide>(
+    expr: &MeasureExpr,
+    carriers: &[Carrier<T>],
+    leaves: &[T],
+    cursor: &mut usize,
+    band: Band,
+) -> Result<T, PrimitiveRefusal> {
     let binary = |a: &MeasureExpr, b: &MeasureExpr, cursor: &mut usize| {
-        let x = eval_measure(a, carriers, leaves, cursor, band)?;
-        let y = eval_measure(b, carriers, leaves, cursor, band)?;
+        let x = eval_measure_inner(a, carriers, leaves, cursor, band)?;
+        let y = eval_measure_inner(b, carriers, leaves, cursor, band)?;
         Ok::<(T, T), PrimitiveRefusal>((x, y))
     };
     match expr.kind() {
@@ -477,6 +595,16 @@ pub(crate) fn eval_measure<T: Decide>(
                     carriers.len()
                 )
             };
+            // `Unread` is filled in for references no primitive
+            // indexes; reaching one from a primitive means the read
+            // set and this walk disagree, which is a kernel bug.
+            if matches!(a, Carrier::Unread) || matches!(b, Carrier::Unread) {
+                unreachable!(
+                    "`{}` reads references {ia}/{ib}, which the resolver marked unread — the \
+                     read set is computed from these very primitives",
+                    p.verb()
+                )
+            }
             primitive(*p, a, b, band)
         }
         MeasureKind::Value(_) => {
@@ -494,7 +622,7 @@ pub(crate) fn eval_measure<T: Decide>(
                 ),
             }
         }
-        MeasureKind::Neg(a) => Ok(-eval_measure(a, carriers, leaves, cursor, band)?),
+        MeasureKind::Neg(a) => Ok(-eval_measure_inner(a, carriers, leaves, cursor, band)?),
         MeasureKind::Add(a, b) => {
             let (x, y) = binary(a, b, cursor)?;
             Ok(x + y)

@@ -702,6 +702,34 @@ pub enum NodeErrorKind {
         /// Why it could not be read back.
         error: crate::names::InterrogateError,
     },
+    /// A measured expression evaluated to a NON-FINITE value — the
+    /// same ruled door `expr::eval` applies to a document expression,
+    /// applied to the measurement sublanguage's own arithmetic.
+    ///
+    /// It is its own arm rather than a reuse of
+    /// [`NodeErrorKind::Expr`] because there is no SLOT to name: a
+    /// measured expression has no slot vocabulary, and the honest
+    /// address is the node.
+    MeasureNonFinite {
+        /// The expression evaluator's refusal, unaltered.
+        source: EvalError,
+    },
+    /// A measured pair IS in the v1 table, but the arm needs its two
+    /// carriers PARALLEL and they are decidedly not. Distinct from
+    /// [`NodeErrorKind::MeasureUnsupported`] on purpose: telling an
+    /// author that two cylinder walls are an unsupported pair is
+    /// false, and sends them looking for a missing feature instead of
+    /// at their tilt.
+    MeasureNotParallel {
+        /// Which primitive was asked.
+        verb: &'static str,
+        /// The first operand's carrier class.
+        a: &'static str,
+        /// The second operand's carrier class.
+        b: &'static str,
+        /// The funnel predicate that decided them non-parallel.
+        predicate: &'static str,
+    },
     /// The measured expression has no closed form for the carrier pair
     /// it was asked about (E3's honest v1 scope).
     MeasureUnsupported(measure::MeasureUnsupported),
@@ -982,6 +1010,20 @@ impl core::fmt::Display for NodeErrorKind {
                 name.node.0
             ),
             Self::MeasureUnsupported(refusal) => write!(f, "{refusal}"),
+            Self::MeasureNotParallel {
+                verb,
+                a,
+                b,
+                predicate,
+            } => write!(
+                f,
+                "`{verb}` of {a} against {b} needs them parallel, and {predicate} decided they \
+                 are not — this pair IS in the v1 table, so the tilt is what to fix"
+            ),
+            Self::MeasureNonFinite { source } => write!(
+                f,
+                "the measured expression did not evaluate to a finite value: {source}"
+            ),
             Self::MeasureLeafExpr { leaf, source } => write!(
                 f,
                 "value leaf {leaf} of the measured expression failed to evaluate: {source}"
@@ -1882,8 +1924,19 @@ where
         // `0.0` one.
         Node::Measure { expr, refs } => {
             h.write_u64(refs.len() as u64);
-            for n in refs {
-                feed_stable_name(&mut h, n);
+            for r in refs {
+                // BOTH halves: the name says which entity, the reading
+                // site says which value its carrier comes out of, and
+                // two measures differing only in the site are two
+                // different measurements (that is the whole point of
+                // the site — one reads placed geometry, the other
+                // authored). The site is a node ID, which content keys
+                // otherwise exclude (D8); it is fed here because it is
+                // RECIPE PAYLOAD selecting a reading, not a Merkle link
+                // to an input — the input's own key is fed separately
+                // through `upstream_keys`.
+                h.write_u64(r.at.0);
+                feed_stable_name(&mut h, &r.name);
             }
             feed_measure_expr(&mut h, expr);
         }

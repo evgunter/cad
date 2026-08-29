@@ -243,7 +243,13 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
                     ),
                 )
                 .expect("same-dimension subtraction"),
-                vec![body.clone()],
+                // Read at node 1, the extrude that owns the body: the
+                // reference is unindexed by this expression, so it is
+                // carried data the measure never reads.
+                vec![editor_core::MeasureRef::new(
+                    editor_core::RecipeNodeId(1),
+                    body.clone(),
+                )],
             )
             .expect("every index addresses a reference"),
         },

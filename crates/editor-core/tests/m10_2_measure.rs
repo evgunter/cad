@@ -17,9 +17,9 @@ mod fixture;
 
 use editor_core::{
     AssertionDir, AssertionVerdict, CancelToken, Dimension, DocEdit, DocParam, DocParamValue,
-    DocumentId, EvalOptions, Evaluation, Expr, LoopProgram, MeasureExpr, MeasurePrimitive, Node,
-    NodeErrorKind, NodeResult, ParamName, ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget,
-    RecipeNodeId, SlotId, StableName, ValuePayload, apply, evaluate,
+    DocumentId, EvalOptions, Evaluation, Expr, LoopProgram, MeasureExpr, MeasurePrimitive,
+    MeasureRef, Node, NodeErrorKind, NodeResult, ParamName, ProfileDoc, ProfileProgram,
+    ProgramStep, ProgramTarget, RecipeNodeId, SlotId, StableName, ValuePayload, apply, evaluate,
 };
 use fixture::len;
 use geom_core::Tol;
@@ -131,7 +131,7 @@ fn faces_of_kind(
     ev: &Evaluation<f64>,
     body: RecipeNodeId,
     kind: geom_brep::SurfaceKind,
-) -> Vec<StableName> {
+) -> Vec<MeasureRef> {
     use editor_core::{EntityKind, GeomPred, NamePat, Selector, SurfaceKindSet, select_where};
     let mut faces = select_where(
         ev,
@@ -143,7 +143,13 @@ fn faces_of_kind(
     )
     .expect("the surface-kind atom is exact and never refuses");
     faces.sort();
+    // Selected FROM `body`, so that is where the carrier is read: the
+    // natural authoring pattern, and the one that reports placed
+    // geometry.
     faces
+        .into_iter()
+        .map(|name| MeasureRef::new(body, name))
+        .collect()
 }
 
 fn no_params() -> editor_core::ParamEnv<f64> {
@@ -158,7 +164,7 @@ fn no_params() -> editor_core::ParamEnv<f64> {
 /// carrier (the disc lowers to two half-circle arcs), and the closed
 /// form reads the carrier — so either face answers for the hole, and
 /// the first in canonical order is taken.
-fn hole_walls(ev: &Evaluation<f64>, holes: [RecipeNodeId; 2]) -> Vec<StableName> {
+fn hole_walls(ev: &Evaluation<f64>, holes: [RecipeNodeId; 2]) -> Vec<MeasureRef> {
     holes
         .into_iter()
         .map(|hole| {
@@ -529,11 +535,14 @@ fn a_reference_that_stops_resolving_refuses_typed() {
     let mut walls = hole_walls(&eval(&doc), holes);
     // A FACE name at the body role: well-formed, minted by a live
     // node, and carried by no table — the `Vanished` rung.
-    walls[1] = StableName {
-        kind: EntityKind::Face,
-        node: holes[1],
-        path: vec![RoleSeg::OutputBody],
-    };
+    walls[1] = MeasureRef::new(
+        holes[1],
+        StableName {
+            kind: EntityKind::Face,
+            node: holes[1],
+            path: vec![RoleSeg::OutputBody],
+        },
+    );
     let doc = push(
         &doc,
         &DocEdit::InsertNode {
@@ -587,7 +596,11 @@ fn an_unsupported_carrier_pair_refuses_naming_the_pair() {
     use editor_core::{EntityKind, NamePat, Selector, select};
     let (doc, body, _) = plate();
     let ev = eval(&doc);
-    let whole = select(&ev, body, &Selector::of(NamePat::of_kind(EntityKind::Body)));
+    let whole: Vec<MeasureRef> =
+        select(&ev, body, &Selector::of(NamePat::of_kind(EntityKind::Body)))
+            .into_iter()
+            .map(|name| MeasureRef::new(body, name))
+            .collect();
     assert_eq!(whole.len(), 1, "one output body");
     let doc = push(
         &doc,
@@ -648,7 +661,11 @@ fn an_assertion_over_a_failed_measure_is_poisoned() {
     use editor_core::{EntityKind, NamePat, Selector, select};
     let (doc, body, _) = plate();
     let ev = eval(&doc);
-    let whole = select(&ev, body, &Selector::of(NamePat::of_kind(EntityKind::Body)));
+    let whole: Vec<MeasureRef> =
+        select(&ev, body, &Selector::of(NamePat::of_kind(EntityKind::Body)))
+            .into_iter()
+            .map(|name| MeasureRef::new(body, name))
+            .collect();
     let doc = push(
         &doc,
         &DocEdit::InsertNode {

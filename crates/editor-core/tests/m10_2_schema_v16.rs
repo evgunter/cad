@@ -29,9 +29,9 @@
 
 use editor_core::{
     AssertionDir, Datum, Dimension, DocEdit, DocParam, DocumentId, EditError, EntityKind, Expr,
-    MeasureExpr, MeasureNodeFault, MeasurePrimitive, Node, ParamName, PersistError, ProfileDoc,
-    REGENERATE_RECOURSE, RecipeNodeId, RoleSeg, SCHEMA_VERSION, SnapshotError, StableName, apply,
-    load, save,
+    MeasureExpr, MeasureNodeFault, MeasurePrimitive, MeasureRef, Node, ParamName, PersistError,
+    ProfileDoc, REGENERATE_RECOURSE, RecipeNodeId, RoleSeg, SCHEMA_VERSION, SnapshotError,
+    StableName, apply, load, save,
 };
 use geom_core::Tol;
 
@@ -112,12 +112,14 @@ fn the_refusal_carries_the_regenerate_recourse() {
     }
 }
 
-fn name(node: u64) -> StableName {
-    StableName {
+fn name(node: u64) -> MeasureRef {
+    // Read at the minting node: these fixtures are about the WIRE, and
+    // none of them places geometry.
+    MeasureRef::at_mint(StableName {
         kind: EntityKind::Face,
         node: RecipeNodeId(node),
         path: vec![RoleSeg::OutputBody],
-    }
+    })
 }
 
 /// A document carrying a measure with every primitive leaf and every

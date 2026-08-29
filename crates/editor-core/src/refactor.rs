@@ -779,9 +779,20 @@ fn remap_node(
         // remap through the name door exactly once — `nm` rewrites the
         // embedded minting node id, which is what the edge is derived
         // from.
+        // Both halves remap: the NAME through the name door, and the
+        // reading SITE through the id door, because a measure's site
+        // is an ordinary input edge.
         Node::Measure { expr, refs } => Node::Measure {
             expr: expr.clone(),
-            refs: refs.iter().map(nm).collect::<Result<_, _>>()?,
+            refs: refs
+                .iter()
+                .map(|r| {
+                    Ok(crate::node::MeasureRef {
+                        at: id(r.at)?,
+                        name: nm(&r.name)?,
+                    })
+                })
+                .collect::<Result<_, RemapMiss>>()?,
         },
         Node::Assertion {
             measure,

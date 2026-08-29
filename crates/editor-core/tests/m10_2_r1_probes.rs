@@ -18,7 +18,7 @@ mod fixture;
 use editor_core::{
     AssertionDir, AssertionVerdict, CancelToken, Dimension, DocEdit, DocParam, DocParamValue,
     DocumentId, EditError, EntityKind, EvalOptions, Evaluation, Expr, GeomPred, LoopProgram,
-    MeasureExpr, MeasurePrimitive, NamePat, Node, NodeErrorKind, NodeResult, ParamName,
+    MeasureExpr, MeasurePrimitive, MeasureRef, NamePat, Node, NodeErrorKind, NodeResult, ParamName,
     PersistError, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
     RecipeNodeId, Selector, SnapshotError, StableName, SurfaceKindSet, ValuePayload, apply,
     evaluate, face_frame, load, save, select_where, vertex_position,
@@ -144,13 +144,14 @@ fn slab() -> (ProfileDoc, RecipeNodeId) {
 /// door: the faces whose carrier axis is ±ẑ. Returned bottom (z≈0)
 /// first.
 fn caps(ev: &Evaluation<f64>, slab: RecipeNodeId) -> [StableName; 2] {
-    let mut z_faces: Vec<(f64, StableName)> = faces_of_kind(ev, slab, geom_brep::SurfaceKind::Plane)
-        .into_iter()
-        .filter_map(|name| {
-            let pose = face_frame(ev, slab, &name).expect("a plane face has a frame");
-            (pose.axis.z.abs() > 0.99).then(|| (pose.origin.z, name))
-        })
-        .collect();
+    let mut z_faces: Vec<(f64, StableName)> =
+        faces_of_kind(ev, slab, geom_brep::SurfaceKind::Plane)
+            .into_iter()
+            .filter_map(|name| {
+                let pose = face_frame(ev, slab, &name).expect("a plane face has a frame");
+                (pose.axis.z.abs() > 0.99).then(|| (pose.origin.z, name))
+            })
+            .collect();
     z_faces.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
     assert_eq!(z_faces.len(), 2, "a slab has two z-normal caps");
     let mut it = z_faces.into_iter().map(|(_, n)| n);
@@ -170,7 +171,7 @@ fn r1_plane_plane_distance_is_the_extrude_depth() {
         &doc,
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-            vec![bottom, top],
+            at_mint([bottom, top]),
         )
         .expect("indices in range"),
     );
@@ -212,7 +213,7 @@ fn r1_vertex_plane_distance_is_the_depth() {
         &doc,
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-            vec![bottom_vert, top],
+            at_mint([bottom_vert, top]),
         )
         .expect("indices in range"),
     );
@@ -257,13 +258,12 @@ fn r1_vertex_vertex_distance_matches_the_authored_corners() {
             p.z
         );
     }
-    let expect =
-        ((pb.x - pa.x).powi(2) + (pb.y - pa.y).powi(2) + (pb.z - pa.z).powi(2)).sqrt();
+    let expect = ((pb.x - pa.x).powi(2) + (pb.y - pa.y).powi(2) + (pb.z - pa.z).powi(2)).sqrt();
     let (doc, m) = insert(
         &doc,
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-            vec![a, b],
+            at_mint([a, b]),
         )
         .expect("indices in range"),
     );
@@ -307,7 +307,7 @@ fn r1_plane_angles_have_the_authored_values() {
         &doc,
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::Angle { a: 0, b: 1 }),
-            vec![bottom, top],
+            at_mint([bottom, top]),
         )
         .expect("indices in range"),
     );
@@ -315,7 +315,7 @@ fn r1_plane_angles_have_the_authored_values() {
         &doc,
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::Angle { a: 0, b: 1 }),
-            vec![x_wall, y_wall],
+            at_mint([x_wall, y_wall]),
         )
         .expect("indices in range"),
     );
@@ -363,7 +363,7 @@ fn r1_plane_gap_matches_its_formula_and_rides_the_outer_chart_normal() {
         &doc,
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
-            vec![bottom.clone(), top.clone()],
+            at_mint([bottom.clone(), top.clone()]),
         )
         .expect("indices in range"),
     );
@@ -371,16 +371,22 @@ fn r1_plane_gap_matches_its_formula_and_rides_the_outer_chart_normal() {
         &doc,
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
-            vec![top, bottom],
+            at_mint([top, bottom]),
         )
         .expect("indices in range"),
     );
     let ev = eval(&doc);
     let (bt, dim) = measured(&ev, g_bt);
     assert_eq!(dim, Dimension::Length);
-    assert!((bt - expect_bt).abs() < 1e-12, "gap(bottom, top): formula {expect_bt}, got {bt}");
+    assert!(
+        (bt - expect_bt).abs() < 1e-12,
+        "gap(bottom, top): formula {expect_bt}, got {bt}"
+    );
     let (tb, _) = measured(&ev, g_tb);
-    assert!((tb - expect_tb).abs() < 1e-12, "gap(top, bottom): formula {expect_tb}, got {tb}");
+    assert!(
+        (tb - expect_tb).abs() < 1e-12,
+        "gap(top, bottom): formula {expect_tb}, got {tb}"
+    );
     // The magnitude is the cap separation either way.
     assert!((bt.abs() - DEPTH).abs() < 1e-12);
     assert!((tb.abs() - DEPTH).abs() < 1e-12);
@@ -459,7 +465,7 @@ fn r1_sphere_gap_three_regimes_on_revolved_balls() {
             &doc,
             Node::measure(
                 MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
-                vec![socket_face, ball_face],
+                at_mint([socket_face, ball_face]),
             )
             .expect("indices in range"),
         );
@@ -507,6 +513,16 @@ fn cylinders(bore_r: f64, pin_r: f64, off: f64) -> (ProfileDoc, RecipeNodeId, Re
     (doc, bore, pin)
 }
 
+/// Read every reference AT ITS MINTING NODE — the spelling this suite
+/// means throughout, because none of these fixtures places the
+/// geometry it measures (the one that does builds its refs by hand).
+///
+/// Adapting these probes to the `MeasureRef` shape the fix pass
+/// introduced for MAJ-2; the rows and their oracles are unchanged.
+fn at_mint<const N: usize>(names: [StableName; N]) -> Vec<MeasureRef> {
+    names.into_iter().map(MeasureRef::at_mint).collect()
+}
+
 fn wall(ev: &Evaluation<f64>, node: RecipeNodeId) -> StableName {
     faces_of_kind(ev, node, geom_brep::SurfaceKind::Cylinder)
         .first()
@@ -530,7 +546,7 @@ fn r1_cylinder_gap_three_regimes_on_real_geometry() {
             &doc,
             Node::measure(
                 MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
-                vec![wall(&ev, bore), wall(&ev, pin)],
+                at_mint([wall(&ev, bore), wall(&ev, pin)]),
             )
             .expect("indices in range"),
         );
@@ -558,7 +574,7 @@ fn r1_cylinder_gap_role_swap_negates() {
         &doc,
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
-            vec![b_wall.clone(), p_wall.clone()],
+            at_mint([b_wall.clone(), p_wall.clone()]),
         )
         .expect("indices in range"),
     );
@@ -566,14 +582,17 @@ fn r1_cylinder_gap_role_swap_negates() {
         &doc,
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
-            vec![p_wall, b_wall],
+            at_mint([p_wall, b_wall]),
         )
         .expect("indices in range"),
     );
     let ev = eval(&doc);
     let (f, _) = measured(&ev, fwd);
     let (r, _) = measured(&ev, rev);
-    assert!((f - 0.1).abs() < 1e-12 && (r + 0.1).abs() < 1e-12, "{f} vs {r}");
+    assert!(
+        (f - 0.1).abs() < 1e-12 && (r + 0.1).abs() < 1e-12,
+        "{f} vs {r}"
+    );
 }
 
 // ---- skew axes refuse (untested in the PR) ----
@@ -624,7 +643,7 @@ fn r1_skew_cylinder_axes_refuse_typed() {
         &doc,
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::Gap { outer: 0, inner: 1 }),
-            vec![b_wall.clone(), p_wall.clone()],
+            at_mint([b_wall.clone(), p_wall.clone()]),
         )
         .expect("indices in range"),
     );
@@ -632,7 +651,7 @@ fn r1_skew_cylinder_axes_refuse_typed() {
         &doc,
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-            vec![b_wall, p_wall],
+            at_mint([b_wall, p_wall]),
         )
         .expect("indices in range"),
     );
@@ -661,7 +680,7 @@ fn r1_measure_at_dual64_value_channel_is_bit_identical_tangent_zero() {
         &doc,
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-            vec![bottom, top],
+            at_mint([bottom, top]),
         )
         .expect("indices in range"),
     );
@@ -762,7 +781,7 @@ fn r1_assertion_at_the_bound_holds_and_in_the_band_is_unevaluated() {
         &doc,
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-            vec![bottom, top],
+            at_mint([bottom, top]),
         )
         .expect("indices in range"),
     );
@@ -811,7 +830,7 @@ fn r1_ops_refuse_measurement_operands_typed() {
         &doc,
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-            vec![bottom, top],
+            at_mint([bottom, top]),
         )
         .expect("indices in range"),
     );
@@ -903,7 +922,7 @@ fn r1_a_wall_selected_from_a_transform_measures_the_unmoved_carrier() {
         &doc,
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-            vec![bore_wall, moved_wall],
+            at_mint([bore_wall, moved_wall]),
         )
         .expect("indices in range"),
     );
@@ -927,7 +946,7 @@ fn corruptible() -> ProfileDoc {
         &doc,
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
-            vec![bottom, top],
+            at_mint([bottom, top]),
         )
         .expect("indices in range"),
     );
@@ -957,7 +976,9 @@ fn r1_corrupt_v16_files_refuse_typed_at_the_load_door() {
     } else {
         // Fall back to a whitespace-insensitive locate: find the literal,
         // then the next "Length" after it.
-        let at = text.find("0.777").expect("the bound literal is in the file");
+        let at = text
+            .find("0.777")
+            .expect("the bound literal is in the file");
         let dim_at = text[at..].find("\"Length\"").expect("its dim follows") + at;
         let t = &text[at..dim_at + 8];
         (t.to_string(), t.replace("Length", "Angle"))
@@ -979,9 +1000,7 @@ fn r1_corrupt_v16_files_refuse_typed_at_the_load_door() {
     assert_eq!(text.matches(target).count(), 1, "{target:?} must be unique");
     let corrupt = text.replace(target, "\"measure\": 0");
     match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(SnapshotError::AssertionBound {
-            measured: None, ..
-        })) => {}
+        Err(PersistError::Snapshot(SnapshotError::AssertionBound { measured: None, .. })) => {}
         other => panic!("a non-measure target must refuse AssertionBound, got {other:?}"),
     }
 
@@ -1019,7 +1038,7 @@ fn r1_an_unknown_payload_param_refuses_at_the_edit_door() {
     let err = apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::measure(expr, vec![bottom, top]).expect("indices in range"),
+            node: Node::measure(expr, at_mint([bottom, top])).expect("indices in range"),
         },
         Tol::witness(),
     )
@@ -1084,7 +1103,7 @@ fn r1_own_document_web_and_flip() {
     .expect("Length - Length");
     let (d6, m) = insert(
         &d5,
-        Node::measure(web, vec![wall(&ev, e1), wall(&ev, e2)]).expect("indices in range"),
+        Node::measure(web, at_mint([wall(&ev, e1), wall(&ev, e2)])).expect("indices in range"),
     );
     let (d7, a) = insert(
         &d6,
