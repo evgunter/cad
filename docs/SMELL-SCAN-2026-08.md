@@ -5890,39 +5890,11 @@ floor"*.
 
 ## S120. What the tessellation and K instruments still cannot see, after F6 (roll-up)
 
-Recorded by lane F-b out of #783's style review. Four members, one
+Recorded by lane F-b out of #783's style review. Two members, one
 subject: **readings and constants in `tools/` that nothing re-derives**.
 None is in F6's scope; each is a live gap rather than a residue, which
 is why they are scheduled (**D64**) rather than left in a PR body.
 
-- **(a) A fallback inside a COMPARISON has two sides, and a direction
-  argument taken on one of them is not an argument.** This is the
-  mechanism, and it is what makes the next instance findable: S73's
-  whole method is *"which way does a broken reading push the
-  verdict"*, and every instance of it so far has been checked on the
-  reading being taken. A differential gate reads TWO — `now` and
-  `was` — and a fallback that is safe in one is the opposite in the
-  other. **A disposition that names one side has answered half the
-  question, and reads as if it answered all of it.**
-
-  The two sites: `tess_meter::divisions` answers `1` on a non-finite
-  step, and `best_split_steps` answers `INFINITY` on a non-positive
-  `q`. #783's sweep dispositioned both as *"the opposite direction —
-  a broken reading shrinks the denominator, so the gate is MORE
-  likely to fire"*, which is true of the **fresh** row only: the rule
-  is `now > was · GROWTH_TOLERANCE`, so the same fallback in the
-  **committed baseline** inflates `was` and hides a real regression.
-  The lane found this in its own stated negative result, on being
-  asked to re-derive it. And `divisions`' fallback value is `1.0` —
-  the exact floor F6's parse guard now refuses in `tess-lint`,
-  tolerated one crate upstream where the number is produced.
-
-  **Not a one-line edit.** The doc's argument for answering one on a
-  genuinely unconstrained direction is sound *for a counterfactual
-  column*, so what is owed is a decision about which columns may carry
-  a fallback at all — and, with it, a re-check of every other
-  disposition in this document that reasoned about a gate's direction
-  from a single side.
 - **(b) The CSV already distinguishes the two `NaN`s and the parser
   discards the column that does it.** `worst_dev` is `NaN` both when
   the sweep did not resample and when it resampled and a sample came
@@ -5932,28 +5904,6 @@ is why they are scheduled (**D64**) rather than left in a PR body.
   `tess_lint::parse` never reads it, so genuine deviation drift parses
   as *"not resampled"*: a skip. F6 put that absence in the type; it did
   not make the two states distinguishable, and the CSV already can.
-- **(c) `SPLIT_SCAN_DECADES` / `SPLIT_SCAN_SAMPLES` have neither a
-  guard nor a register, and the guard is impossible while the register
-  is merely absent.** The cell-count excess these constants produce is
-  **discontinuous in the constants** (~4 points between adjacent
-  sample counts, `323` the witness — the measurement is in **S160**), so a
-  tolerance on it cannot be written; #783 records that as Q6's written
-  reason at the claim site. The register is the part still open, and
-  the part CI cannot supply as it stands: a real `--sizing-only` sweep
-  is linted on every merge, and that gate **structurally cannot** see a
-  degraded scan, because a worse scan RAISES `span_opt_cells`, which
-  LOWERS the recoverable slack, and the gate fires only on growth. So
-  the constants are watched by one divisions pin and nothing else.
-  **What a register could measure is not the cell count**: the same
-  excess without the two `ceil`s is continuous, falls smoothly with
-  resolution, and depends only on the sampling step and the range —
-  i.e. on exactly what these constants set. That quantity, and the
-  guard on it, are **S160 / D105**, placed with their evidence; this
-  bullet is the register half only. Whoever takes it owns `ci.yml` and
-  should decide between a scheduled re-measure of S160's quantity and
-  an explicit "unwatched, and here is why" — **and should take D105
-  first or together**, since a register over a quantity nothing
-  computes yet is not a register.
 - **(d) `k-lint`'s other three constants are unpinned, and one sweep
   shape is unswept.** `PROXIMITY_FACTOR`, `EPS_COUPLED_FLOOR_RATIO` and
   `AMBIENT_BAND_MIN` were disclosed by #783 as outside its sweep, and
@@ -7269,62 +7219,6 @@ the lane that raised it is named in its own lead.
 
 ---
 
-## S160. The split scan's constants can be guarded — on the continuous objective, which the cell count is not
-
-**Placed by the orchestrator out of #783's F-R14 ruling, with lane F-b's
-evidence, so the taker inherits the argument rather than re-deriving it.**
-
-`tools/tess-meter`'s `SPLIT_SCAN_DECADES` / `SPLIT_SCAN_SAMPLES` ship with
-**no mechanical guard and a written reason why** (the constants' own
-docstring): the cell-count excess they produce is
-**discontinuous in them**, moving ~4 percentage points between adjacent
-sample counts — 321: 5.88%, 322: 3.64%, **323: 5.24%**, 324: 1.79%, 325:
-3.94% — with no convergence (2,000 samples is still 0.79%). Two
-instruments were built against that quantity and both failed; `323` is
-the witness that killed the second, two samples above shipped and a
-strict refinement.
-
-**The guard that is possible is on a different quantity, and the
-discontinuity is the reason it works.** The jumps are *entirely* the two
-`ceil`s in `divisions`. Compute the same worst relative excess over the
-same family **without** them — the cost as a continuous function of the
-aspect ratio `t` — and it moves by **hundredths** of a point across the
-same neighbours (321: 0.017%, 322: 0.083%, 323: 0.011%, 324: 0.030%)
-and falls smoothly with resolution:
-
-| samples (8 decades) | 65 | 161 | 200 | 321 | 400 | 1,000 | 2,000 |
-|---|---|---|---|---|---|---|---|
-| continuous excess | 1.82% | 0.449% | 0.096% | 0.017% | 0.0069% | 0.0034% | 0.0022% |
-
-It is continuous because it is a sampled minimum of a smooth function of
-`log t` with no rounding in it, so it depends on the sampling step
-`2·DECADES/(SAMPLES−1)` and the range — **and on nothing else these
-constants do not set**. It reds on both failure modes with one number:
-too narrow (`DECADES = 2` → 10.44%, the optimum outside the scanned
-range) and too coarse (`DECADES = 40` → 1.82% at the shipped sample
-count).
-
-**The validation, and it is the part that should convince a taker rather
-than the argument above it:** `DECADES = 40` at 321 samples scores
-**1.82%**, *identical* to 8 decades at 65 samples — the two configurations
-that share a sampling step. A quantity that is equal wherever the step is
-equal is measuring resolution, not which lattice the count happened to
-land on, which is exactly what the cell-count excess could not do.
-
-**Why it is not in #783.** F-R14 forbade a third instrument in a row that
-had already shipped two; it needs `best_split_steps` parameterized by
-`(decades, samples)`, which is code #783's brief marked read-only; and it
-measures a quantity the budget CSV does not report, so it deserves its
-own review rather than riding another unit's clearance.
-
-**Scope:** `tools/tess-meter/src/lib.rs` (a parameterization, and the
-constants' docstring, which currently says a guard on this quantity is
-possible and unwritten) and `tools/tess-meter/tests/derivations.rs`.
-**Sequencing:** the register half of **S120(c)** asks whether CI should
-re-measure this and belongs with it — that gate structurally cannot see a
-degraded scan, so if the answer is a scheduled re-measure, this is the
-quantity it would measure. **Row: D105.**
-
 ## S230. Certified widths with no ceiling
 
 **Raised by lane I-b while closing S60 (#873).** The parent is **S26**, and
@@ -7756,8 +7650,7 @@ a place where a reasonable reader would think the fence ambiguous:
 | **D106** | `bounds-allowlist.sh` is a 204-line header in front of a 20-line function, grown three times for three honest reasons — split the ratification ledger out of the script | Track F |
 | **D68** | `ArcCarrierScalar`'s 49 use sites are a compound bound no grep gate can see (S124). **A VISIBILITY row: Track V's `G4` changes what the alias is bound to and leaves the 49 sites exactly as invisible** | Track F |
 | **D109** | What the F3 sweep left open in `scripts/gates/` (S163) — four members, one row, because each is a disclosed blind spot of the same sweep | Track F |
-| **D64** | What the tessellation and K instruments still cannot see after F6 (S120, four members) — including a fallback inside a comparison having two sides | Track F |
-| **D105** | The split scan's constants can be guarded, on the continuous objective, which the cell count is not (S160) — `tools/tess-meter`. **Row announced in prose and never tabled; tabled here** | Track F |
+| **D64** | What the tessellation and K instruments still cannot see after F6 (`S120`, **two members**): (b) the CSV already distinguishes the two `NaN`s and `tess-lint`'s parser discards the column that does it; (d) `k-lint`'s three unpinned constants, plus the early-exit fallback shape and the whole of `scripts/gates/*.sh`, which #783's `--include=*.rs` excluded | Track F |
 | **C15** | The budget gate's per-face join has no stable face identity to key on. The mis-join is closed; what survives is the 8 same-shape face pairs the CSV cannot tell apart — 16 of 64 sized rows, where five of the eight identity columns are constant and only `nu`/`nv` separate them (`S73`). The producer-side half is `D201` (#746) | Track C |
 | **D114** | The recording scalar's wrapper property is checked by no test (S168) — greenness at `Probe` is asserted, bit-identity against f64 is not. **The differential test is this track's; a `geom-core/src` change it turns up is Track M's row** | Track F |
 | **D201** | **The budget CSV carries no stable face identity, and the producer throws one away.** `tools/tess-meter`'s `face_rows` holds a `topo::FaceKey` in `patch.face` and writes only `enumerate()`'s ordinal, so `tess-lint`'s join has nothing but the ordinal to key on and 8 same-shape face pairs stay indistinguishable — `S73`'s open half. A `FaceKey` is an allocation ordinal in disguise, so this is not a column rename: what a DURABLE per-face name would be reaches `crates/topo` and `demos/` and must be settled before the column is added. **The design question may want an issue rather than a lane** | `C15` residue |
@@ -7765,7 +7658,8 @@ a place where a reasonable reader would think the fence ambiguous:
 | **D203** | **A per-column admissions table cannot state a cross-column invariant, and the class now has two instances filed nowhere together.** `tess-lint`'s `Admissible::Extent` documents that the trim box's own non-degeneracy (`u0 < u1`, `v0 < v1`) is beyond what its per-column table can say; `D200` was the same shape one crate over (`Band::new`'s `zero < escalate`, which `lint_csv` had to check in the harness voice because `Admissible::BandThreshold` is per column). Both instruments answer it the same way and neither says so at the other's site. The row is the **rule** — where a cross-column check belongs when the admission table is per column — not either instance | `C15` residue |
 | **D204** | **`tess-lint`'s `CHART_TAGS` is a gate input with no cross-root pin, and its asymmetry is undisclosed on the producing side.** `C15` made `chart` a precondition column, so the lint now polices a roster of the meter's tag vocabulary. A tag the meter **renames** is caught here and reads as drift, which is right. A tag the meter **adds** arrives as harness breakage on every row carrying it, and nothing in `tools/tess-meter` says so. `EXPECTED_HEADER` has the shape this wants — `tess-meter`'s `the_lints_expected_header_is_this_one` reaches into the lint's source with `include_str!` precisely to pin a constant across the cargo-root boundary without a dependency — and `CHART_TAGS` has no equivalent. The pin belongs on the meter's side, which is why `C15` could not write it | `C15` residue |
 | **D205** | **A seventh hand-rolled Rust reader, in `tools/`** — `tools/tess-meter/tests/derivations.rs:210` runs its own string-continuation lexer over `tools/tess-lint/src/lib.rs` to pin a constant across the cargo-root boundary. Outside both of `S117`'s sweeps because neither covered `tools/`. The cross-root pin is the right shape and is cited approvingly elsewhere; the lexer under it is the eighth spelling `S117` predicted. the source-text guard class's shared home is `crates/test-utils/src/source.rs` (one lexer, three views: `code_only`, `code_and_literals`, `comments_only`), and the census that keeps the population honest is `crates/test-utils/tests/reader_census.rs`, whose `Unconverted` ceiling this row lowers by its own member count | `D61` residue |
-| **D206** | **The budget instrument's own resolution exceeds its consumer's whole tolerance — CONFIRMED by measurement, and this is a defect in the gate rather than in the meter.** `D105` boxes the split scan's excess on the **continuous** objective at 2.09% (a class sup, now analytic). `tess-lint` reads the **`ceil`'d** column, and there the same scan is far worse: the shipped family's `anisotropic, live cross term` member scores **5.8824%**, already above `tess_lint::GROWTH_TOLERANCE − 1 = 5%`, and along a *single smooth geometry change* — `mvv` scaled 1× → 100× at realistic counts, 10,580 → 105,760 — the scan/true ratio runs 1.00000 → **1.05948**. **So a face whose bound moves relative to the scan lattice under a pure geometry change moves `span_opt_cells` past the gate's entire margin from the instrument alone**, and the budget gate can fire, or fail to fire, on lattice placement rather than on tessellation. **The lever is cheap and measured**: at 8 decades, `SPLIT_SCAN_SAMPLES ≥ 379` puts the one-sided envelope under 5% (the declined narrowing to 3.7 decades would give 2.70%). Deliberately **not** taken by `D105`, because raising it moves every committed budget number and re-cuts `docs/tess-budget-data/`, which is a unit of its own. Its first question is which lever, and its second is whether a gate whose margin is the same order as its instrument's resolution was measuring what it thought | `D105` residue |
+| **D206** | **The budget instrument's own resolution exceeds its consumer's whole tolerance — CONFIRMED by measurement, and this is a defect in the gate rather than in the meter.** `D105` boxes the split scan's excess on the **continuous** objective at 2.09% (a class sup, now analytic). `tess-lint` reads the **`ceil`'d** column, and there the same scan is far worse: the shipped family's `anisotropic, live cross term` member scores **5.8824%**, already above `tess_lint::GROWTH_TOLERANCE − 1 = 5%`, and along a *single smooth geometry change* — `mvv` scaled 1× → 100× at realistic counts, 10,580 → 105,760 — the scan/true ratio runs 1.00000 → **1.05948**. **So a face whose bound moves relative to the scan lattice under a pure geometry change moves `span_opt_cells` past the gate's entire margin from the instrument alone**, and the budget gate can fire, or fail to fire, on lattice placement rather than on tessellation. **The lever is cheap and measured**: at 8 decades, `SPLIT_SCAN_SAMPLES ≥ 379` puts the one-sided envelope under 5% (the declined narrowing to 3.7 decades would give 2.70%). Deliberately **not** taken by `D105`, because raising it moves every committed budget number and re-cuts `docs/tess-budget-data/`, which is a unit of its own. Its first question is which lever, and its second is whether a gate whose margin is the same order as its instrument's resolution was measuring what it thought. **The second lever is blocked on something nobody has**: narrowing the range to 3.7 decades brings the continuous excess to 2.70% with every `D105` claim green, and the reason not to is that **nothing in the tree characterises what `muu/mvv` ratios real certified bounds produce** — so the range question needs that characterisation first, while the sample-count lever costs no range at all | `D105` residue |
+| **D207** | **`tools/tess-meter/tests/rows.rs` asserts only `grid_cells > 0 && span_opt_cells > 0`**, so a `δ_s` retune at `columns()`' call site into `span_opt_cells` / `best_split_cells` is invisible to it. That is `D105`'s composition defect one call site further out, and it takes the same fix: assert the composition, not the parts — `D105` landed `best_split_scan` and `the_shipped_optimizer_is_the_shipped_scan` as the pattern to copy. Three retunes of that shape moved the reported cell count by up to +100% while the whole gated job stayed green | `D105` residue |
 
 ## Track M — the scalar and certification traits
 
@@ -8016,6 +7910,7 @@ orchestrator without breaking the partition.
 | **L1** | **S36** — comb-and-rename, **per suite**, never a rename pass. | A PR-numbered name currently *carries signal*: it marks a suite not yet combed. Renaming first converts a visible backlog into an invisible one. Needs an owner and a slot, not just permission — the 2026-08-13 retirement licence has produced zero deletions. |
 | **L2** | **S38** — comment trimming. | Must follow every deletion above; trimming comments on code about to be deleted is pure waste. Note the pressure runs the other way too: three fix passes this week added prose because a finding demanded a claim-site reason that did not exist. |
 | **L3** | Remaining **S35** roll-up rows. | Lowest value density; several will be resolved incidentally. |
+| **L4** | **Re-check every disposition in this document that reasoned about a gate's direction from ONE side.** `S120(a)`'s second clause, and the only half of it that never found a home: a fallback inside a *comparison* has two sides, and a sweep that dispositioned one of them — *"a broken reading shrinks the denominator, so the gate is MORE likely to fire"* — answered half the question while reading as if it had answered all of it. That reasoning appears throughout this file. | Document-wide, and it audits **this document's own dispositions** rather than any track's files — so it collides with every track exactly as `L1`–`L3` do, and it cannot be scoped to a fence. `D105` closed the two `tess-meter` instances; the population is the rest. |
 
 ---
 
