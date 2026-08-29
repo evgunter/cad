@@ -426,11 +426,23 @@ fn touching_roots_are_reported_as_uncertified_not_as_overlapping() {
     );
 }
 
+/// A legitimately disjoint multi-solid body draws no separation
+/// finding.
+///
+/// **What this does NOT prove**, said here because the row's first
+/// name claimed it did: `disjoint_union`'s two solids are 3.0 apart,
+/// so `certify` GRANTS and the same-subject guard in
+/// `checks::separation` never executes — this row goes green against a
+/// build with that guard deleted, which is how a deletion of it once
+/// survived a full local suite. The guard's own row is
+/// `asm_r2b_assembly::two_solids_of_one_subject_are_skipped_by_the_guard_not_by_geometry`,
+/// where the two solids are COINCIDENT and nothing but the guard can
+/// keep the resident quiet. What this row still pins is worth pinning
+/// on its own: a body that is deliberately several solids is not
+/// noise, and the resident stays out of the connectedness resident's
+/// subject.
 #[test]
-fn one_roots_own_disjoint_body_is_not_this_residents_subject() {
-    // `disjoint_union` is ONE root carrying two solids. The gather did
-    // not put them together, so the separation resident says nothing
-    // about them — only the connectedness resident does.
+fn a_deliberately_disjoint_body_draws_no_separation_finding() {
     let (doc, _) = disjoint_union();
     let report = checks(&doc, &ChecksConfig::default());
     assert!(

@@ -1833,3 +1833,93 @@ fn a_mated_assembly_is_silent_and_the_declaration_is_why() {
         "a mated assembly must not be reported as unseparated: {report}"
     );
 }
+
+/// A part document whose OWN product has two co-located roots: two
+/// extrudes over the same block, never joined. Its product is one body
+/// carrying two coincident solids — `diefillet.pncad`'s defect, one
+/// document level down, and the only shape that puts two solids of ONE
+/// subject where the box rule cannot separate them.
+fn twinned_part(label: &str) -> ProfileDoc {
+    let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
+    let (doc, _) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, _) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    doc
+}
+
+/// INVARIANT: the separation resident says nothing about two solids the
+/// gather took from ONE root subject, and the same-subject guard is
+/// what makes that true — not the geometry, and not a declaration.
+///
+/// The other same-subject row (`dsc_checks`'s disjoint union) cannot
+/// prove this: its two solids are 3.0 apart, so `certify` grants and
+/// the guard never runs. That row goes green against a build with the
+/// guard deleted, which is how a deletion of it once survived a full
+/// local suite. This row is the one that reds.
+///
+/// The fixture is an instantiated part whose own product has two
+/// co-located roots, so the instance is a single `(root, output)`
+/// subject carrying two COINCIDENT solids. Nothing else can suppress:
+/// a gather discovers no contacts (F1 — no scan-to-bless), so the
+/// declared set is empty, which the row asserts rather than assumes.
+#[test]
+fn two_solids_of_one_subject_are_skipped_by_the_guard_not_by_geometry() {
+    let mut store = StubStore::default();
+    let doc_ref = store.insert(twinned_part("asm-r2b-twinned-part"), Tol::witness());
+    let (doc, instance) = insert(
+        ProfileDoc::empty(DocumentId::derive("asm-r2b-twinned"), Tol::witness()),
+        Node::instantiate_part(doc_ref),
+    );
+    let ev = run(&doc, &opts(store));
+    let product = product_recorded(&doc, &ev, Tol::witness()).expect("gathers");
+
+    // ONE subject, TWO solids — the configuration the guard is for.
+    assert_eq!(product.solid_roots.len(), 2, "two solids");
+    assert!(
+        product
+            .solid_roots
+            .iter()
+            .all(|o| (o.node, o.output) == (instance, 0)),
+        "both solids come from the one instance: {:?}",
+        product.solid_roots
+    );
+
+    // The geometry does NOT grant: coincident solids are the case the
+    // box rule most emphatically cannot separate. Without the guard
+    // this pair reaches the finding.
+    let sep = topo::SolidSeparation::of(&product.body, Tol::witness()).expect("boxes");
+    let (a, b) = (product.solid_roots[0].solid, product.solid_roots[1].solid);
+    assert!(
+        sep.certify(a, b).is_err(),
+        "coincident solids must not be box-separable — if this ever \
+         passes, this row stops proving anything about the guard"
+    );
+
+    // And nothing is DECLARED between them either, so the suppression
+    // under test is the subject check and only the subject check.
+    let contacts = &product.contacts;
+    assert!(
+        contacts.vv.is_empty()
+            && contacts.a_on_b.is_empty()
+            && contacts.b_on_a.is_empty()
+            && contacts.curves.is_empty()
+            && contacts.patches.is_empty(),
+        "the gather discovers no contacts (F1), so nothing here is declared: {contacts:?}"
+    );
+
+    // Therefore: silent, and the guard is the only reason.
+    let report = editor_core::run_checks(
+        &doc,
+        &ev,
+        &editor_core::ChecksConfig::default(),
+        Tol::witness(),
+    )
+    .expect("checks run over a completed evaluation");
+    assert!(
+        report
+            .findings
+            .iter()
+            .all(|f| f.check != editor_core::CheckId::Separation),
+        "two solids of one subject are that node's own contract, not \
+         the gather's: {report}"
+    );
+}
