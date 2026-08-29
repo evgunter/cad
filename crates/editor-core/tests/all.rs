@@ -88,6 +88,8 @@ mod lib_u5_interrogate;
 mod lib_u7_select;
 #[path = "m10_1_analysis.rs"]
 mod m10_1_analysis;
+#[path = "m10_1_r2_probes.rs"]
+mod m10_1_r2_probes;
 #[path = "m10_1_schema_v15.rs"]
 mod m10_1_schema_v15;
 #[path = "m4_pr1_dims.rs"]
