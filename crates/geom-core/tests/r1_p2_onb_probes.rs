@@ -92,7 +92,13 @@ fn r1_onb_bits_match_duff_on_inputs_the_unit_did_not_draw() {
     for z in [
         5e-324, -5e-324, 1e-308, -1e-308, 1e-30, -1e-30, 1e30, -1e30, 1e300, -1e300,
     ] {
-        for (x, y) in [(1.0, 0.0), (0.0, 1.0), (0.6, 0.8), (1e-200, 1e200), (1e300, 1e-300)] {
+        for (x, y) in [
+            (1.0, 0.0),
+            (0.0, 1.0),
+            (0.6, 0.8),
+            (1e-200, 1e200),
+            (1e300, 1e-300),
+        ] {
             assert_bits_match(Vec3::new(x, y, z));
             assert_bits_match(Vec3::new(-x, y, z));
             assert_bits_match(Vec3::new(x, -y, z));
@@ -144,10 +150,7 @@ fn r1_onb_frame_is_orthonormal_at_vertical_normals() {
                 (b1.dot(b1) - 1.0, "|b1|-1"),
                 (b2.dot(b2) - 1.0, "|b2|-1"),
             ] {
-                assert!(
-                    val.abs() < 1e-15,
-                    "{what} = {val:e} at n = ({x}, {y}, {z})"
-                );
+                assert!(val.abs() < 1e-15, "{what} = {val:e} at n = ({x}, {y}, {z})");
             }
         }
     }
@@ -162,10 +165,7 @@ mod interval_lane {
         Interval::from_f64(x)
     }
 
-    fn components(
-        b1: Vec3<Interval>,
-        b2: Vec3<Interval>,
-    ) -> [(Interval, &'static str); 6] {
+    fn components(b1: Vec3<Interval>, b2: Vec3<Interval>) -> [(Interval, &'static str); 6] {
         [
             (b1.x, "b1.x"),
             (b1.y, "b1.y"),

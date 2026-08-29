@@ -825,25 +825,27 @@ fn nurbs_iso_derive<T: PcurveFittedLane>(
                     None => return Err(e),
                 },
             };
-            let (uv0, uv1) = (image.eval(t0), image.eval(t1));
-            for x in [cu0, cu1] {
-                let slope = (uv1.y - uv0.y) / span;
-                let cand = Pcurve::IsoLine {
-                    p0: Point2::new(x, uv0.y - slope * t0),
-                    pl: Vec2::new(T::zero(), slope),
-                };
-                let uv = cand.eval(probe_t);
-                let gap = probe.distance(surface.eval(uv.x, uv.y));
-                match decide("pcurve_iso_seam_column", Margin::of(gap), band) {
-                    Ok(Sign::Zero) => return Ok(cand),
-                    Ok(Sign::Positive | Sign::Negative) => {}
-                    Err(cause) => {
-                        if deferred.is_none() {
-                            deferred = Some(cause);
-                        }
-                    }
-                }
-            }
+            // **No re-offer of the exact class here, and the spec was
+            // wrong to ask for one.** Item 7 read "a partial or
+            // reparameterized restatement of a column" off the refusal
+            // payload and inferred the exact class applies to it. It
+            // does not: the seam class's hull limb compares the image
+            // against the chart's own boundary ROW, and that comparison
+            // needs ONE spline space — a partial column is not a
+            // control-net copy of the boundary row and cannot be made
+            // into one. Offering it here would hand the certifier an
+            // image it must structurally refuse, and the mint would
+            // then fail with text about a boundary row for a locus that
+            // is not one. That is the same defect this arm's sibling
+            // (the wall–wall seam arm) was reverted for.
+            //
+            // So the fixed schedule above IS the exact class's whole
+            // reach — a boundary column traversed end to end, in either
+            // direction — and everything it does not claim goes to
+            // `General`, which certifies against the operand pair and
+            // has no boundary-row hypothesis to violate. `General` is
+            // not a downgrade for these loci; it is the only grade that
+            // can state anything true about them.
             match deferred {
                 Some(cause) => Err(PcurveMintError::Escalated { half_edge, cause }),
                 None => Ok(Pcurve::General(std::sync::Arc::new(image))),

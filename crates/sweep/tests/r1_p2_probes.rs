@@ -363,7 +363,9 @@ fn r1_certify_general_refuses_a_plausible_wrong_column() {
     );
     println!(
         "R1: the wrong column refuses as {:?}",
-        verdict.err().map(|e| format!("{e:?}").chars().take(120).collect::<String>())
+        verdict
+            .err()
+            .map(|e| format!("{e:?}").chars().take(120).collect::<String>())
     );
 }
 
@@ -450,7 +452,10 @@ fn r1_cap_rim_widening_measures_the_face_not_the_chart() {
             }
         }
     }
-    assert!(rims >= 2, "the wall face has its two cap rims: found {rims}");
+    assert!(
+        rims >= 2,
+        "the wall face has its two cap rims: found {rims}"
+    );
     println!("R1: {rims} rim half-edges derive measured IsoLine maps on the face's own patch");
 }
 
@@ -498,7 +503,10 @@ fn r1_wall_seam_arm_still_refuses_the_interior_column() {
             );
         }
     }
-    assert!(seams >= 1, "the wall face has its other seam: found {seams}");
+    assert!(
+        seams >= 1,
+        "the wall face has its other seam: found {seams}"
+    );
 }
 
 /// **The lane bound is signature churn, not capability loss.** The
@@ -516,19 +524,32 @@ fn r1_dual_scalar_still_reaches_the_mint() {
     ) -> Result<Pcurve<geom_core::Dual64>, PcurveMintError> = topo::pcurve_of;
 }
 
-/// **Item 7's widening, exercised — the "third excluded case".** A
-/// chart whose `v` domain extends past the face: the wall's quadratic
-/// restated as one Bezier on `v ∈ [0, 2]` (an exact polynomial
-/// extension, weights all 1, so the surface is bit-for-bit unchanged
-/// on the face's own `v ∈ [0, 1]`). The seam is still a genuine
-/// BOUNDARY column in `u`, but its `v` map is a PARTIAL affine
-/// restatement of the column — the fixed four-candidate schedule
-/// (which assumes full traversal) cannot find it, and the spec's
-/// ruling is: widen the schedule, do NOT downgrade. So the arm must
-/// mint the EXACT `IsoLine` class with the measured `v` map — not
-/// hand the locus to `General`.
+/// **Item 7's "third excluded case" — and the spec's ruling on it was
+/// WRONG.** A chart whose `v` domain extends past the face: the wall's
+/// quadratic restated as one Bezier on `v ∈ [0, 2]` (an exact
+/// polynomial extension, weights all 1, so the surface is bit-for-bit
+/// unchanged on the face's own `v ∈ [0, 1]`). The seam is still a
+/// genuine BOUNDARY column in `u`, but its `v` map is a PARTIAL affine
+/// restatement — the fixed four-candidate schedule, which assumes full
+/// traversal, cannot find it.
+///
+/// The spec said such a locus "takes the exact class", a phrase lifted
+/// from the refusal payload without checking whether the exact class
+/// can certify it. **It cannot**: the seam class's hull limb compares
+/// the image against the chart's own boundary ROW, which needs ONE
+/// spline space, and a partial column is not a control-net copy of that
+/// row and cannot be made into one. Minting the exact class here would
+/// hand the certifier an image it must structurally refuse — the same
+/// defect the wall–wall seam arm was reverted for. So the corrected
+/// contract, and what this row pins: a partial restatement takes
+/// `General`, and `General` CERTIFIES it.
+///
+/// This row was contributed RED against the pre-fix arm, which did
+/// re-offer the exact class. It keeps its teeth in both directions: it
+/// fails if the arm hands back an exact `IsoLine` again, and it fails
+/// if `General` stops certifying the locus.
 #[test]
-fn r1_a_partial_column_restatement_takes_the_exact_class() {
+fn r1_a_partial_column_restatement_takes_general_and_certifies() {
     let (mut body, he, bowed) =
         intrinsic_seam_at(false, SCALE).expect("the seam attaches at this scale");
     let n = chart_of(&body, bowed);
@@ -553,27 +574,48 @@ fn r1_a_partial_column_restatement_takes_the_exact_class() {
     let extended = Surface::Nurbs(Arc::new(
         NurbsSurface::new(n.knots_u().clone(), kv, control, vec![1.0; 6]).unwrap(),
     ));
+    // The plane operand, read before the rechart mints a new key.
+    let plane_key = {
+        let edge = body.get_edge(body.get_half_edge(he).unwrap().edge).unwrap();
+        let Some(topo::CurveGeom::Certified(c)) = body.get_curve_geom(edge.curve) else {
+            panic!("certified")
+        };
+        let geom_brep::EdgeDescription::Intersection { s1, s2, .. } = *c.description() else {
+            panic!("intersection")
+        };
+        [s1, s2]
+            .into_iter()
+            .find(|k| matches!(body.get_surface(*k), Some(Surface::Plane { .. })))
+            .expect("one operand is the plane")
+    };
     let key = rechart(&mut body, bowed, extended);
     let chart = chart_of(&body, key);
     assert_eq!(chart.knots_v().domain(), (0.0, 2.0));
     let out = topo::pcurve_of(&body, he, band());
-    let Ok(Pcurve::IsoLine { p0, pl }) = out else {
+    let Ok(Pcurve::General(ref image)) = out else {
         panic!(
-            "a partial restatement of a BOUNDARY column takes the exact class \
-             (spec item 7), never General and never a refusal: {out:?}"
+            "a PARTIAL restatement of a boundary column has no exact class that can \
+             certify it, so it takes General: {out:?}"
         )
     };
-    let (du0, du1) = chart.knots_u().domain();
-    assert_eq!(pl.x, 0.0, "a column holds u: {pl:?}");
-    assert!(
-        p0.x == du0 || p0.x == du1,
-        "on a genuine u boundary: {} of [{du0}, {du1}]",
-        p0.x
-    );
-    // The v map is the MEASURED partial one — the carrier's own
-    // [0, 1] of the chart's [0, 2] — not the full-domain assumption.
     let (carrier, t0, t1) = carrier_of(&body, he);
-    let (va, vb) = (p0.y + pl.y * t0, p0.y + pl.y * t1);
+    // It is still a column: u constant, on a genuine u boundary.
+    let (du0, du1) = chart.knots_u().domain();
+    let us: Vec<f64> = image.control().iter().map(|p| p.x).collect();
+    for u in &us {
+        assert!(
+            (u - us[0]).abs() < 1e-9,
+            "a column holds u constant: {us:?}"
+        );
+    }
+    assert!(
+        (us[0] - du0).abs() < 1e-9 || (us[0] - du1).abs() < 1e-9,
+        "on a genuine u boundary: {} of [{du0}, {du1}]",
+        us[0]
+    );
+    // And the v map is the MEASURED partial one — the carrier's own
+    // [0, 1] of the chart's [0, 2].
+    let (va, vb) = (image.eval(t0).y, image.eval(t1).y);
     for v in [va, vb] {
         assert!(
             (-1e-9..=1.0 + 1e-9).contains(&v),
@@ -587,27 +629,71 @@ fn r1_a_partial_column_restatement_takes_the_exact_class() {
     // In metres, along the span.
     for i in 0..=8 {
         let t = t0 + (t1 - t0) * (f64::from(i) / 8.0);
-        let gap = carrier
-            .eval(t)
-            .distance(chart.eval(p0.x + pl.x * t, p0.y + pl.y * t));
-        assert!(gap < 1e-10, "the exact image measures mid-span: {gap:e} m at t = {t}");
+        let uv = image.eval(t);
+        let gap = carrier.eval(t).distance(chart.eval(uv.x, uv.y));
+        assert!(
+            gap < 1e-10,
+            "the measured image tracks the carrier mid-span: {gap:e} m at t = {t}"
+        );
     }
-    // And the exact class CERTIFIES it — the whole point of preferring
-    // it over General.
-    let window = Pcurve::IsoLine { p0, pl }.chart_box(t0, t1);
-    let cache = geom_brep::PcurveCache::certify(
-        Pcurve::IsoLine { p0, pl },
+    // ---- And General CERTIFIES it, which is the corrected claim. ----
+    // The description is re-stated against the chart the face now
+    // carries, so the mate is the one `mate_surface` would find rather
+    // than a hand-picked one (`rechart` mints a new surface key).
+    body.set_edge_curve_nurbs_lane(
+        body.get_half_edge(he).unwrap().edge,
+        EdgeCurveSpec {
+            description: EdgeDescriptionSpec::Intersection {
+                s1: plane_key,
+                s2: key,
+                witness: carrier.eval((t0 + t1) * 0.5),
+            },
+            carrier: carrier.clone(),
+            param_start: t0,
+            param_end: t1,
+        },
+        Tol::witness(),
+    )
+    .expect("the seam re-attaches against the extended chart");
+    let mate = {
+        let edge = body.get_edge(body.get_half_edge(he).unwrap().edge).unwrap();
+        let Some(topo::CurveGeom::Certified(c)) = body.get_curve_geom(edge.curve) else {
+            panic!("certified")
+        };
+        let geom_brep::EdgeDescription::Intersection { s1, s2, .. } = *c.description() else {
+            panic!("intersection")
+        };
+        let other = if key == s1 {
+            s2
+        } else if key == s2 {
+            s1
+        } else {
+            panic!("mate_surface's precondition: the face's own surface is in the pair")
+        };
+        body.get_surface(other).cloned().expect("the mate resolves")
+    };
+    let eps = Tol::witness().get().eps;
+    let window = out.as_ref().unwrap().chart_box(t0, t1);
+    let cache = geom_brep::PcurveCache::certify_general(
+        std::sync::Arc::clone(image),
         t0,
         t1,
         &carrier,
-        &Surface::Nurbs(Arc::new(chart)),
+        &Surface::Nurbs(Arc::new(chart.clone())),
+        Some(&mate),
         window,
         band(),
     )
-    .expect("the partial column's exact image certifies through the seam class");
+    .expect("General certifies a partial column against its operand pair");
+    let cert = cache.certificate();
+    assert!(
+        cert.envelope <= eps,
+        "its between-samples bound is inside eps: {:e} vs {eps:e}",
+        cert.envelope
+    );
+    assert!(cert.ssi.is_some(), "the FULL C2 certificate: {cert:?}");
     println!(
-        "R1: partial column u = {} v [{va}, {vb}] of [0, 2], envelope {:e} m",
-        p0.x,
-        cache.certificate().envelope
+        "R1: a partial column takes General and certifies, envelope {:e} m",
+        cert.envelope
     );
 }

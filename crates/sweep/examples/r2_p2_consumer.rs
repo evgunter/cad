@@ -18,11 +18,11 @@
 use std::sync::Arc;
 
 use geom::{NurbsSurface, Surface};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, PcurveCache};
 use geom_core::spline::KnotVector;
 use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec3};
-use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, PcurveCache};
-use topo::{Body, FaceSurface, Pcurve};
 use profile::RawLoop;
+use topo::{Body, FaceSurface, Pcurve};
 
 fn prism(scale: f64) -> Body<f64> {
     let square = move || -> sweep::Section {
@@ -40,7 +40,9 @@ fn prism(scale: f64) -> Body<f64> {
         Affine3::translation(Vec3::new(0.5 * scale, 0.0, 1.0 * scale)),
         Affine3::translation(Vec3::new(0.0, 0.0, 2.0 * scale)),
     ];
-    sweep::loft_body::<f64>(&sections, &places, 2, Tol::witness()).expect("prism builds").body
+    sweep::loft_body::<f64>(&sections, &places, 2, Tol::witness())
+        .expect("prism builds")
+        .body
 }
 
 fn is_flat(body: &Body<f64>, key: topo::SurfaceKey, scale: f64) -> bool {
@@ -93,8 +95,14 @@ fn main() {
             ) else {
                 continue;
             };
-            let sp = body.get_face(body.get_loop(hp.parent_loop).unwrap().face).unwrap().surface;
-            let sm = body.get_face(body.get_loop(hm.parent_loop).unwrap().face).unwrap().surface;
+            let sp = body
+                .get_face(body.get_loop(hp.parent_loop).unwrap().face)
+                .unwrap()
+                .surface;
+            let sm = body
+                .get_face(body.get_loop(hm.parent_loop).unwrap().face)
+                .unwrap()
+                .surface;
             let spline = matches!(
                 body.get_curve_geom(edge.curve),
                 Some(topo::CurveGeom::Certified(c)) if matches!(c.carrier(), geom::Curve3::Nurbs(_))
@@ -171,7 +179,9 @@ fn main() {
     // edge's description and requires the FACE'S CURRENT surface key
     // to be one of the pair. Replicated here verbatim.
     let desc_pair = {
-        let e = body.get_edge(body.get_half_edge(he_bowed).unwrap().edge).unwrap();
+        let e = body
+            .get_edge(body.get_half_edge(he_bowed).unwrap().edge)
+            .unwrap();
         match body.get_curve_geom(e.curve) {
             Some(topo::CurveGeom::Certified(c)) => match *c.description() {
                 geom_brep::EdgeDescription::Intersection { s1, s2, .. } => Some((s1, s2)),
@@ -181,31 +191,47 @@ fn main() {
         }
     };
     let own = body
-        .get_face(body.get_loop(body.get_half_edge(he_bowed).unwrap().parent_loop).unwrap().face)
+        .get_face(
+            body.get_loop(body.get_half_edge(he_bowed).unwrap().parent_loop)
+                .unwrap()
+                .face,
+        )
         .unwrap()
         .surface;
     let mate_found = match desc_pair {
         Some((s1, s2)) => own == s1 || own == s2,
         None => false,
     };
-    println!(
-        "\nQ1  description pair = {desc_pair:?}, face's CURRENT surface = {own:?}"
-    );
+    println!("\nQ1  description pair = {desc_pair:?}, face's CURRENT surface = {own:?}");
     println!(
         "Q1  mate_surface would return: {}",
-        if mate_found { "Some(mate)" } else { "None  <-- the mint hands certify_general None" }
+        if mate_found {
+            "Some(mate)"
+        } else {
+            "None  <-- the mint hands certify_general None"
+        }
     );
 
     // ---- Q2: the derivation, and the mint's own certification call. ----
     let out = topo::pcurve_of(&body, he_bowed, band);
     match &out {
         Ok(Pcurve::General(image)) => {
-            println!("\nQ2  pcurve_of(seam) = Ok(General), {} controls, control u = {:?}",
+            println!(
+                "\nQ2  pcurve_of(seam) = Ok(General), {} controls, control u = {:?}",
                 image.control().len(),
-                image.control().iter().map(|p| p.x).fold(f64::NEG_INFINITY, f64::max));
+                image
+                    .control()
+                    .iter()
+                    .map(|p| p.x)
+                    .fold(f64::NEG_INFINITY, f64::max)
+            );
             let (cc, ct0, ct1) = {
-                let e = body.get_edge(body.get_half_edge(he_bowed).unwrap().edge).unwrap();
-                let Some(topo::CurveGeom::Certified(c)) = body.get_curve_geom(e.curve) else { panic!() };
+                let e = body
+                    .get_edge(body.get_half_edge(he_bowed).unwrap().edge)
+                    .unwrap();
+                let Some(topo::CurveGeom::Certified(c)) = body.get_curve_geom(e.curve) else {
+                    panic!()
+                };
                 let (a, b) = c.params();
                 (c.carrier().clone(), a, b)
             };
@@ -213,20 +239,41 @@ fn main() {
             let surf = Surface::Nurbs(Arc::new(chart.clone()));
             // (a) with the mate the MINT would supply (None):
             let with_mint_mate = PcurveCache::certify_general(
-                Arc::clone(image), ct0, ct1, &cc, &surf, None, window, band,
+                Arc::clone(image),
+                ct0,
+                ct1,
+                &cc,
+                &surf,
+                None,
+                window,
+                band,
             );
-            println!("Q2  certify_general(mate = what mint_face supplies) -> {:?}",
-                with_mint_mate.as_ref().map(|_| "Ok(cache)").map_err(|e| format!("{e:?}")));
+            println!(
+                "Q2  certify_general(mate = what mint_face supplies) -> {:?}",
+                with_mint_mate
+                    .as_ref()
+                    .map(|_| "Ok(cache)")
+                    .map_err(|e| format!("{e:?}"))
+            );
             // (b) with the hand-picked plane the unit's row supplies:
             let plane_surf = body.get_surface(plane).cloned().unwrap();
             let with_hand_mate = PcurveCache::certify_general(
-                Arc::clone(image), ct0, ct1, &cc, &surf, Some(&plane_surf), window, band,
+                Arc::clone(image),
+                ct0,
+                ct1,
+                &cc,
+                &surf,
+                Some(&plane_surf),
+                window,
+                band,
             );
-            println!("Q2  certify_general(mate = hand-picked plane)        -> {}",
+            println!(
+                "Q2  certify_general(mate = hand-picked plane)        -> {}",
                 match &with_hand_mate {
                     Ok(c) => format!("Ok, envelope {:e}", c.certificate().envelope),
                     Err(e) => format!("{e:?}"),
-                });
+                }
+            );
         }
         other => println!("\nQ2  pcurve_of(seam) = {other:?}"),
     }
@@ -240,7 +287,11 @@ fn main() {
     //          rim arms' output put through the CERTIFICATION door. ----
     println!("\nQ4  the widened face's loop, half-edge by half-edge (caches cleared):");
     let mut cleared = body.clone();
-    for (he, _) in cleared.half_edges().map(|(k, v)| (k, v.clone())).collect::<Vec<_>>() {
+    for (he, _) in cleared
+        .half_edges()
+        .map(|(k, v)| (k, v.clone()))
+        .collect::<Vec<_>>()
+    {
         cleared.detach_pcurve(he);
     }
     let face_data = cleared.get_face(bowed_face).unwrap().clone();
@@ -253,7 +304,9 @@ fn main() {
     let mut boxes: Vec<(topo::HalfEdgeKey, Pcurve<f64>, f64, f64)> = Vec::new();
     for he in cycle {
         let (cc, ct0, ct1) = {
-            let e = cleared.get_edge(cleared.get_half_edge(he).unwrap().edge).unwrap();
+            let e = cleared
+                .get_edge(cleared.get_half_edge(he).unwrap().edge)
+                .unwrap();
             let Some(topo::CurveGeom::Certified(c)) = cleared.get_curve_geom(e.curve) else {
                 println!("  {he:?}: carrier not certified");
                 continue;
@@ -268,9 +321,15 @@ fn main() {
             Ok(p) => format!("{p:?}"),
             Err(e) => format!("REFUSED {e:?}"),
         };
-        println!("  {he:?}: carrier {} -> {kind}",
-            match &cc { geom::Curve3::Line{..} => "Line", geom::Curve3::Nurbs(_) => "Nurbs",
-                        geom::Curve3::Circle{..} => "Circle", _ => "other" });
+        println!(
+            "  {he:?}: carrier {} -> {kind}",
+            match &cc {
+                geom::Curve3::Line { .. } => "Line",
+                geom::Curve3::Nurbs(_) => "Nurbs",
+                geom::Curve3::Circle { .. } => "Circle",
+                _ => "other",
+            }
+        );
         if let Ok(p) = d {
             boxes.push((he, p, ct0, ct1));
         }
@@ -281,29 +340,51 @@ fn main() {
         let mut window = None;
         for (_, p, a, b) in &boxes {
             let bx = p.chart_box(*a, *b);
-            window = Some(match window { None => bx, Some(acc) => geom_brep::ChartWindow::<f64>::hull(acc, bx) });
+            window = Some(match window {
+                None => bx,
+                Some(acc) => geom_brep::ChartWindow::<f64>::hull(acc, bx),
+            });
         }
         let window = window.unwrap();
         println!("\nQ4  all derived — now the CERTIFICATION door on each:");
         for (he, p, a, b) in &boxes {
-            let e = cleared.get_edge(cleared.get_half_edge(*he).unwrap().edge).unwrap();
-            let Some(topo::CurveGeom::Certified(c)) = cleared.get_curve_geom(e.curve) else { continue };
+            let e = cleared
+                .get_edge(cleared.get_half_edge(*he).unwrap().edge)
+                .unwrap();
+            let Some(topo::CurveGeom::Certified(c)) = cleared.get_curve_geom(e.curve) else {
+                continue;
+            };
             let cc = c.carrier().clone();
             let r = match p {
                 Pcurve::General(img) => {
                     let mate = None;
-                    PcurveCache::certify_general(Arc::clone(img), *a, *b, &cc, &surf, mate, window, band)
+                    PcurveCache::certify_general(
+                        Arc::clone(img),
+                        *a,
+                        *b,
+                        &cc,
+                        &surf,
+                        mate,
+                        window,
+                        band,
+                    )
                 }
                 other => PcurveCache::certify(other.clone(), *a, *b, &cc, &surf, window, band),
             };
-            println!("  {he:?}: {}", match &r {
-                Ok(cache) => format!("CERTIFIED envelope {:e}", cache.certificate().envelope),
-                Err(e) => format!("REFUSED {e:?}"),
-            });
+            println!(
+                "  {he:?}: {}",
+                match &r {
+                    Ok(cache) => format!("CERTIFIED envelope {:e}", cache.certificate().envelope),
+                    Err(e) => format!("REFUSED {e:?}"),
+                }
+            );
         }
     } else {
-        println!("\nQ4  {} of {} half-edges derived; the walk cannot complete, so NO half-edge of this face reaches the certification door in `mint_face`.",
-            boxes.len(), cleared.loop_cycle(first).unwrap().len());
+        println!(
+            "\nQ4  {} of {} half-edges derived; the walk cannot complete, so NO half-edge of this face reaches the certification door in `mint_face`.",
+            boxes.len(),
+            cleared.loop_cycle(first).unwrap().len()
+        );
         // Q5: force the question anyway — build the window from the
         // half-edges that DID derive (the true trim region up to the
         // one refusing seam, whose image is the other interior column
@@ -314,28 +395,47 @@ fn main() {
         let mut window: Option<geom_brep::ChartWindow<f64>> = None;
         for (_, p, a, b) in &boxes {
             let bx = p.chart_box(*a, *b);
-            window = Some(match window { None => bx, Some(acc) => geom_brep::ChartWindow::<f64>::hull(acc, bx) });
+            window = Some(match window {
+                None => bx,
+                Some(acc) => geom_brep::ChartWindow::<f64>::hull(acc, bx),
+            });
         }
         let window = window.unwrap();
         println!("\nQ5  the certification door, forced (window = hull of the 3 derived boxes):");
         for (he, p, a, b) in &boxes {
-            let e = cleared.get_edge(cleared.get_half_edge(*he).unwrap().edge).unwrap();
-            let Some(topo::CurveGeom::Certified(c)) = cleared.get_curve_geom(e.curve) else { continue };
+            let e = cleared
+                .get_edge(cleared.get_half_edge(*he).unwrap().edge)
+                .unwrap();
+            let Some(topo::CurveGeom::Certified(c)) = cleared.get_curve_geom(e.curve) else {
+                continue;
+            };
             let cc = c.carrier().clone();
             let (label, r) = match p {
                 Pcurve::General(img) => (
                     "General (mate = what mint_face supplies: None)",
-                    PcurveCache::certify_general(Arc::clone(img), *a, *b, &cc, &surf, None, window, band),
+                    PcurveCache::certify_general(
+                        Arc::clone(img),
+                        *a,
+                        *b,
+                        &cc,
+                        &surf,
+                        None,
+                        window,
+                        band,
+                    ),
                 ),
                 other => (
                     "IsoLine from the WIDENED cap-rim branch",
                     PcurveCache::certify(other.clone(), *a, *b, &cc, &surf, window, band),
                 ),
             };
-            println!("  {he:?}  {label}\n      -> {}", match &r {
-                Ok(cache) => format!("CERTIFIED, envelope {:e}", cache.certificate().envelope),
-                Err(e) => format!("REFUSED {e:?}"),
-            });
+            println!(
+                "  {he:?}  {label}\n      -> {}",
+                match &r {
+                    Ok(cache) => format!("CERTIFIED, envelope {:e}", cache.certificate().envelope),
+                    Err(e) => format!("REFUSED {e:?}"),
+                }
+            );
         }
     }
 }

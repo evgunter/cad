@@ -466,6 +466,7 @@ fn an_interior_column_intersection_mints_a_general_image() {
     let (mut body, he, bowed) = intrinsic_seam_at(false, INTERIOR_COLUMN_SCALE)
         .expect("the seam attaches at every ε this matrix draws — that is what the scale buys");
     let widened = widened_u_chart(&chart_of(&body, bowed));
+    let (plane_key, _) = seam_plane(&body, he);
     let key = rechart(&mut body, bowed, widened);
     let chart = chart_of(&body, key);
     assert_eq!(
@@ -473,6 +474,10 @@ fn an_interior_column_intersection_mints_a_general_image() {
         (0.0, 3.0),
         "the widened chart's own domain"
     );
+    // The description must name the chart the face NOW carries, or the
+    // mint finds no mate and the join below would be untested.
+    redescribe_against(&mut body, he, plane_key, key)
+        .expect("the seam re-attaches against the widened chart");
     // ---- The derivation: U2's General arm, on the interior column. ----
     let out = topo::pcurve_of(&body, he, band());
     let Ok(Pcurve::General(ref image)) = out else {
@@ -499,8 +504,14 @@ fn an_interior_column_intersection_mints_a_general_image() {
             image.eval(t)
         );
     }
-    // ---- The certificate, at the door the mint pass uses. ----
-    let (carrier, t0, t1, mate) = seam_operands(&body, he);
+    // ---- The certificate, at the door the mint pass uses, with the
+    // mate the mint itself would find. ----
+    let (carrier, t0, t1) = seam_carrier(&body, he);
+    let mate = mate_the_mint_would_find(&body, he, key).expect(
+        "mate_surface's precondition holds: the face's own surface is one of the \
+         described pair, so the mint reaches certify_general with an operand pair \
+         rather than FittedMateMissing",
+    );
     let window = out.as_ref().unwrap().chart_box(t0, t1);
     let cache = geom_brep::PcurveCache::certify_general(
         std::sync::Arc::clone(image),
@@ -556,30 +567,100 @@ fn an_interior_column_intersection_mints_a_general_image() {
     );
 }
 
-/// The `(carrier, t0, t1, mate)` the fitted-grade certificate needs, read
-/// from the seam's own certified edge — the mate being the operand of
-/// the description's pair that is the PLANE (the face's chart was
-/// restated after the description was written, so `topo`'s own
-/// `mate_surface`, which matches on the face's CURRENT surface key,
-/// cannot find it; that is a fixture fact about `rechart`, not a
-/// kernel one).
-fn seam_operands(body: &Body<f64>, he: topo::HalfEdgeKey) -> (Curve3<f64>, f64, f64, Surface<f64>) {
+/// **The mate the MINT would find**, by `topo::pcurves::mate_surface`'s
+/// own rule rather than by hand: read the edge's `Intersection`
+/// description, and take whichever operand is NOT the face's CURRENT
+/// surface key. `None` when that precondition fails — which is exactly
+/// what `mint_face` sees, and what it turns into `FittedMateMissing`.
+///
+/// Hand-picking the plane here would have made the row assert a
+/// certificate the mint cannot reproduce: the join between derivation
+/// and certification is the thing under test, so it is read the way the
+/// mint reads it.
+fn mate_the_mint_would_find(
+    body: &Body<f64>,
+    he: topo::HalfEdgeKey,
+    own: topo::SurfaceKey,
+) -> Option<Surface<f64>> {
+    let edge = body.get_edge(body.get_half_edge(he)?.edge)?;
+    let topo::CurveGeom::Certified(c) = body.get_curve_geom(edge.curve)? else {
+        return None;
+    };
+    let geom_brep::EdgeDescription::Intersection { s1, s2, .. } = *c.description() else {
+        return None;
+    };
+    let other = if own == s1 {
+        s2
+    } else if own == s2 {
+        s1
+    } else {
+        return None;
+    };
+    body.get_surface(other).cloned()
+}
+
+/// The seam's certified carrier and its parameter interval.
+fn seam_carrier(body: &Body<f64>, he: topo::HalfEdgeKey) -> (Curve3<f64>, f64, f64) {
     let edge = body.get_edge(body.get_half_edge(he).unwrap().edge).unwrap();
     let Some(topo::CurveGeom::Certified(c)) = body.get_curve_geom(edge.curve) else {
         panic!("the seam's carrier is certified")
     };
-    let geom_brep::EdgeDescription::Intersection { s1, s2, .. } = *c.description() else {
-        panic!("the seam is described as an intersection")
+    let (t0, t1) = c.params();
+    (c.carrier().clone(), t0, t1)
+}
+
+/// The plane operand named by the seam's description.
+fn seam_plane(body: &Body<f64>, he: topo::HalfEdgeKey) -> (topo::SurfaceKey, Surface<f64>) {
+    let edge = body.get_edge(body.get_half_edge(he).unwrap().edge).unwrap();
+    let Some(topo::CurveGeom::Certified(c)) = body.get_curve_geom(edge.curve) else {
+        panic!("certified")
     };
-    let plane = [s1, s2]
+    let geom_brep::EdgeDescription::Intersection { s1, s2, .. } = *c.description() else {
+        panic!("intersection")
+    };
+    [s1, s2]
         .into_iter()
         .find_map(|k| match body.get_surface(k) {
-            Some(p @ Surface::Plane { .. }) => Some(p.clone()),
+            Some(p @ Surface::Plane { .. }) => Some((k, p.clone())),
             _ => None,
         })
-        .expect("one operand of the pair is the plane the flat wall was restated as");
-    let (t0, t1) = c.params();
-    (c.carrier().clone(), t0, t1, plane)
+        .expect("one operand is the plane the flat wall was restated as")
+}
+
+/// Re-states the seam's `Intersection` description against the chart
+/// the face NOW carries.
+///
+/// `rechart` mints a NEW surface key (there is no in-place variant of
+/// `FaceSurface`), and the description still names the OLD one — so
+/// `mate_surface`'s precondition, "the face's own surface is one of the
+/// pair", fails and the mint hands `certify_general` no mate at all.
+/// That is a fixture artefact of restating a chart after describing an
+/// edge, not a kernel fact, and this repairs it so the row measures the
+/// join instead of asserting it.
+fn redescribe_against(
+    body: &mut Body<f64>,
+    he: topo::HalfEdgeKey,
+    plane: topo::SurfaceKey,
+    wall: topo::SurfaceKey,
+) -> Result<(), topo::EulerOpError> {
+    let edge = body.get_half_edge(he).unwrap().edge;
+    let (carrier, t0, t1) = seam_carrier(body, he);
+    body.set_edge_curve_nurbs_lane(
+        edge,
+        EdgeCurveSpec {
+            description: EdgeDescriptionSpec::Intersection {
+                s1: plane,
+                s2: wall,
+                witness: carrier.eval((t0 + t1) * 0.5),
+            },
+            carrier,
+            param_start: t0,
+            param_end: t1,
+        },
+        Tol::witness(),
+    )?;
+    body.detach_pcurve(he);
+    Ok(())
 }
 
 /// **The IMPORTED chart** (#327): the same wall on the file's own

@@ -16,9 +16,9 @@ fn main() {
 
 #[cfg(feature = "interval")]
 fn main() {
+    use geom_core::Vec3;
     use geom_core::interval::Interval;
     use geom_core::real::{Bounds, Real};
-    use geom_core::Vec3;
 
     let iv = |lo: f64, hi: f64| Interval::from_bounds(lo, hi);
     let pt = |x: f64| Interval::from_f64(x);
@@ -28,7 +28,10 @@ fn main() {
     // for every input, unit or not. So `r = 1/(1+|n.z|)` is bounded
     // in (0, 1] at EVERY input; a real question is always posed.
     println!("== A. the shipped spelling vs. the spec's own `1 + |n.z|` ==");
-    println!("{:<26} {:>34} {:>34} {:>8}", "n.z enclosure", "shipped b1.x", "abs-spelled b1.x", "unbdd?");
+    println!(
+        "{:<26} {:>34} {:>34} {:>8}",
+        "n.z enclosure", "shipped b1.x", "abs-spelled b1.x", "unbdd?"
+    );
     let mut absorbing = 0usize;
     for (lo, hi, label) in [
         (0.0, 0.0, "[0, 0]  (#1157's case)"),
@@ -85,11 +88,21 @@ fn main() {
     let (b1, b2) = n.orthonormal_basis();
     println!(
         "n = ([-1,1],[-1,1],[-1,1]):  b1 = ([{}, {}], [{}, {}], [{}, {}])",
-        b1.x.lo(), b1.x.hi(), b1.y.lo(), b1.y.hi(), b1.z.lo(), b1.z.hi()
+        b1.x.lo(),
+        b1.x.hi(),
+        b1.y.lo(),
+        b1.y.hi(),
+        b1.z.lo(),
+        b1.z.hi()
     );
     println!(
         "                             b2 = ([{}, {}], [{}, {}], [{}, {}])",
-        b2.x.lo(), b2.x.hi(), b2.y.lo(), b2.y.hi(), b2.z.lo(), b2.z.hi()
+        b2.x.lo(),
+        b2.x.hi(),
+        b2.y.lo(),
+        b2.y.hi(),
+        b2.z.lo(),
+        b2.z.hi()
     );
     println!(
         "b1.x poison(NaI/empty)? {}   certified? {}",
@@ -100,7 +113,11 @@ fn main() {
     println!("\n== D. the constructor doc's own sentence, tested ==");
     println!("doc: \"`r` is bounded in `(0, 1]` at every input, so no component can be");
     println!("      unbounded and none is decorated below `Def` by this construction.\"");
-    for (lo, hi, label) in [(0.0, 1.0, "n.z = [0, 1]"), (-1.0, 1.0, "n.z = [-1, 1]"), (-0.9, 0.9, "n.z = [-0.9, 0.9]")] {
+    for (lo, hi, label) in [
+        (0.0, 1.0, "n.z = [0, 1]"),
+        (-1.0, 1.0, "n.z = [-1, 1]"),
+        (-0.9, 0.9, "n.z = [-0.9, 0.9]"),
+    ] {
         let z = iv(lo, hi);
         let s = Interval::one().copysign(z);
         let r = Interval::one() / (Interval::one() + s * z);
@@ -108,7 +125,8 @@ fn main() {
         let (b1, _) = n.orthonormal_basis();
         println!(
             "{label:<20} r = [{}, {}]  in (0,1]? {}   b1.x certified(>=Def)? {}",
-            r.lo(), r.hi(),
+            r.lo(),
+            r.hi(),
             r.lo() > 0.0 && r.hi() <= 1.0,
             b1.x.is_certified()
         );

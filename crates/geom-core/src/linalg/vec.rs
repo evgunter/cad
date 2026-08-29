@@ -329,9 +329,24 @@ impl<T: Real> Vec3<T> {
     /// spelling only by multiplications by `±1`, which are exact and
     /// sign-symmetric including on zeros.
     ///
-    /// **What the new spelling buys at `Interval`.** `r` is bounded in
-    /// `(0, 1]` at every input, so no component can be unbounded and
-    /// none is decorated below `Def` by this construction. `b1` loses
+    /// **What the new spelling buys at `Interval`.** `r`'s denominator
+    /// is `1 + |n.z|`, whose enclosure is `≥ 1` for EVERY `n.z`
+    /// enclosure — including the one-sided and straddling ones, which
+    /// is the whole point: `|·|` is a total, monotone map that needs no
+    /// sign decision, whereas `s · n.z` needs `copysign` to have
+    /// DECIDED a sign, and `Interval::copysign` is strict on both sides
+    /// (`interval.rs`), so it must return `[−1, 1]` for any `n.z`
+    /// enclosure touching zero. Writing the denominator as `1 + s·n.z`
+    /// therefore reintroduced the same defect one enclosure out from
+    /// the one #1157 filed: at `n.z = [0, 1]` — an ordinary one-sided
+    /// enclosure of a NON-NEGATIVE `z` — it gives `[0, 2]` and `r`
+    /// unbounded and `Trv`, while `1 + |n.z|` gives `[1, 2]` and
+    /// `r = [0.5, 1]`. The two spellings are bit-identical at `f64`
+    /// (`s · n.z ≡ |n.z|` there, signed zeros included), which is
+    /// exactly why the `f64` bitwise row cannot see the difference and
+    /// `orthonormal_basis_is_bounded_over_z_enclosures` exists.
+    ///
+    /// `b1` loses
     /// `s` entirely except in `b1.z`: at `n.z = [0, 0]` the enclosure is
     /// then the exact hull of the two frames the equator's sign flip
     /// admits — `(1 − n.x²·r, −n.x·n.y·r, ±n.x)` — rather than a wide
@@ -1049,6 +1064,87 @@ mod tests {
         );
         let (s1, _) = straddle.orthonormal_basis();
         assert!(s1.z.lo() <= -0.59 && s1.z.hi() >= 0.59);
+    }
+
+    /// **The GENERAL `n.z` enclosure, not just the point one #1157
+    /// filed** — the row that would have caught the partial fix.
+    ///
+    /// #1157 reported `n.z = [0, 0]`, and a denominator written
+    /// `1 + s·n.z` fixes exactly that case and no other: `copysign` at
+    /// `Interval` is strict on both sides, so ANY `n.z` enclosure
+    /// touching zero yields `s = [−1, 1]` and the product straddles.
+    /// `1 + |n.z|` needs no sign decision at all. The two are
+    /// bit-identical at `f64`, so no `f64` row can separate them — this
+    /// is the one that does.
+    ///
+    /// The second half is a REGRESSION GUARD with teeth: it measures
+    /// the old spelling directly and requires it to be unbounded at
+    /// `n.z = [0, 1]`. If someone respells the denominator back, this
+    /// reds instead of going quiet.
+    #[cfg(feature = "interval")]
+    #[test]
+    fn orthonormal_basis_is_bounded_over_z_enclosures() {
+        use crate::interval::Interval;
+        use crate::real::Bounds;
+
+        let iv = Interval::from_f64;
+        let ivb = Interval::from_bounds;
+        // One-sided, straddling, strictly-signed and degenerate: the
+        // enclosures a subdivision driver actually produces.
+        let zs = [
+            ("[0,0]", ivb(0.0, 0.0)),
+            ("[0,1]", ivb(0.0, 1.0)),
+            ("[-1,0]", ivb(-1.0, 0.0)),
+            ("[-1,1]", ivb(-1.0, 1.0)),
+            ("[0.5,1]", ivb(0.5, 1.0)),
+            ("[-1,-0.5]", ivb(-1.0, -0.5)),
+            ("[0,1e-30]", ivb(0.0, 1e-30)),
+        ];
+        for (name, z) in zs {
+            for (x, y) in [(0.0f64, 1.0f64), (1.0, 0.0), (0.6, 0.8), (0.0, 0.0)] {
+                let (b1, b2) = Vec3::new(iv(x), iv(y), z).orthonormal_basis();
+                for (e, which) in [
+                    (b1.x, "b1.x"),
+                    (b1.y, "b1.y"),
+                    (b1.z, "b1.z"),
+                    (b2.x, "b2.x"),
+                    (b2.y, "b2.y"),
+                    (b2.z, "b2.z"),
+                ] {
+                    assert!(
+                        e.lo().is_finite() && e.hi().is_finite(),
+                        "{which} at n.z = {name}, (x, y) = ({x}, {y}) is unbounded: \
+                         [{}, {}]",
+                        e.lo(),
+                        e.hi()
+                    );
+                    assert!(
+                        e.is_certified(),
+                        "{which} at n.z = {name}, (x, y) = ({x}, {y}) cannot decide: \
+                         [{}, {}]",
+                        e.lo(),
+                        e.hi()
+                    );
+                }
+            }
+        }
+        // The regression guard: `1 + s·n.z` — the spelling this
+        // replaced — is measurably NOT bounded at `[0, 1]`, which is
+        // what makes the token load-bearing rather than cosmetic.
+        let z = ivb(0.0, 1.0);
+        let s = Interval::one().copysign(z);
+        let old = Interval::one() / (Interval::one() + s * z);
+        assert!(
+            !old.lo().is_finite() || !old.hi().is_finite() || !old.is_certified(),
+            "the `1 + s·n.z` spelling is supposed to fail at [0, 1]; it gave \
+             [{}, {}] certified = {} — if this now holds, the guard is stale",
+            old.lo(),
+            old.hi(),
+            old.is_certified()
+        );
+        // …and the shipped one is bounded and certified on the same input.
+        let new = Interval::one() / (Interval::one() + z.abs());
+        assert!(new.lo().is_finite() && new.hi().is_finite() && new.is_certified());
     }
 
     /// **#1157, at the input that manufactured the poison.** A VERTICAL
