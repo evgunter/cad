@@ -110,3 +110,14 @@ never end a turn with background work active. Report <= 150 lines,
 naming the questions exercised and carrying the confidence
 vocabulary.
 ---
+
+R1 DELIVERED (2026-08-29, frozen bc815c2c): APPROVE 0/1/4-ish
+(MAJOR 0, MINOR 1, NOTE 3 + style S1-S5), rubric 5/5/4; ~193k
+tokens, ~25m harness wall. MINOR: the axial-shadow family survives
+in props_rim_side and require_extent's sphere margins (refusing
+direction, pre-existing, outside 893's ask); style: S2 polar-cap
+DegenerateFace (the artifact shape one arm over), S3 prose-held
+band^2 continuity argument, S4 third copy of the powi idiom note,
+S5 generator slot-patching. Probes cert/1r1-probes @ cb7bd9a15.
+Clean blinding and isolation disclosed. R2 dispatches next, same
+stored brief, no R1 access.
