@@ -140,6 +140,7 @@ CENSUS_FLOOR=(editor-core:2 geom-brep:4 geom-core:1 profile:4 sweep:1 topo:5)
 RUN_FLOOR=(
   ignored:editor-core:m4_pr8_k_probe:1
   ignored:sweep:k_report:1
+  plain:editor-core:m10_p_fence:2
   plain:editor-core:m4_pr8_k_probe:1
   plain:editor-core:m5_pr5_corpus_probe:1
   plain:geom-brep:m8_f67_r1_probes:8
