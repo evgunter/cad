@@ -100,6 +100,34 @@ pub enum NonFiniteSite {
     },
 }
 
+// The site prose. Each arm names WHERE the float sits, in the
+// vocabulary a document author reads — the recursive `Edit` arm
+// forwards the inner site rather than re-stating it.
+impl core::fmt::Display for NonFiniteSite {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Epsilon => f.write_str("the recorded ε"),
+            Self::DocParam { name } => write!(f, "document parameter {:?}", name.0),
+            Self::Profile { node, index } => write!(
+                f,
+                "float {index} of the sketch-plane placement on profile node {}",
+                node.0
+            ),
+            Self::Metadata { name, key, path } => write!(
+                f,
+                "metadata {key:?} on the {} named by node {}, at {path}",
+                name.kind.noun(),
+                name.node.0
+            ),
+            Self::InsertedProfile { index } => write!(
+                f,
+                "float {index} of an inserted profile's sketch-plane placement"
+            ),
+            Self::Edit { index, inner } => write!(f, "edit {index}, {inner}"),
+        }
+    }
+}
+
 /// The shared validator (module docs): every direction-independent
 /// document check, in one place, invoked by both doors. Check order
 /// is float walk → program walk → structural invariants (the save
@@ -361,6 +389,92 @@ pub enum SnapshotError {
     },
 }
 
+// The document layer's prose for a corrupt snapshot: each arm states
+// WHAT is wrong and WHERE, and forwards the payload's own `Display`
+// wherever the payload has one (`RootFault`, `PlacementRuleFault`,
+// `MetaVersionError`) — a site that re-states a payload it holds
+// invents a second vocabulary for a refusal that already has one. A
+// `StableName` renders as its entity noun plus its minting node,
+// which is the document layer's spelling of a name.
+impl core::fmt::Display for SnapshotError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::OrderMismatch => f.write_str(
+                "the `order` list and the node map disagree — an id is missing, extra or \
+                 duplicated",
+            ),
+            Self::FilletSelectionNotCanonical { node } => write!(
+                f,
+                "fillet node {}'s selection is not sorted and deduplicated — a corrupt \
+                 selection is refused, never repaired",
+                node.0
+            ),
+            Self::IdBeyondCounter { id, next_id } => write!(
+                f,
+                "node id {} is at or beyond the mint counter {next_id} — replay would \
+                 re-mint a referenced id",
+                id.0
+            ),
+            Self::DanglingInput { node, input } => write!(
+                f,
+                "node {} takes input from node {}, which is not live",
+                node.0, input.0
+            ),
+            Self::ForwardInput { node, input } => write!(
+                f,
+                "node {} takes input from node {}, which does not precede it in `order`",
+                node.0, input.0
+            ),
+            Self::WitnessSite { node } => write!(
+                f,
+                "a witness is attached to node {}, which is missing or bears no sketch",
+                node.0
+            ),
+            Self::CountContinuous { name } => write!(
+                f,
+                "continuous parameter {:?} is declared with the Count dimension",
+                name.0
+            ),
+            Self::EpsilonInvalid { value } => write!(
+                f,
+                "the recorded ε {value:e} is not finite and strictly positive"
+            ),
+            Self::Roots(fault) => write!(f, "{fault}"),
+            Self::PlacementSite { node } => write!(
+                f,
+                "a placement is keyed by node {}, which does not instantiate a part",
+                node.0
+            ),
+            Self::PlacementFrame { node, determinant } => write!(
+                f,
+                "the placement frame on node {} is non-finite or improper (determinant \
+                 {determinant})",
+                node.0
+            ),
+            Self::PlacementNotGauge { node, gauge } => write!(
+                f,
+                "the placement keyed by node {} belongs on its cluster's gauge, node {}",
+                node.0, gauge.0
+            ),
+            Self::MateAlignment { node } => write!(
+                f,
+                "mate node {}'s alignment datum carries a non-finite coordinate",
+                node.0
+            ),
+            Self::PlacementRule { node, fault } => {
+                write!(f, "placement-rule node {}: {fault}", node.0)
+            }
+            Self::MetadataUnversioned { name, key, error } => write!(
+                f,
+                "metadata {key:?} on the {} named by node {} does not carry the D7 integer \
+                 \"v\" version field: {error}",
+                name.kind.noun(),
+                name.node.0
+            ),
+        }
+    }
+}
+
 /// Re-checks the document invariants `apply` maintains — on a parsed
 /// snapshot (load) and on the in-memory snapshot (save) alike.
 fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
@@ -531,6 +645,55 @@ pub enum ProgramFault {
         /// The ill-typed verb (`None` for end-of-program).
         verb: Option<profile::Verb>,
     },
+}
+
+// The prose the document layer renders for a program fault. The
+// lattice arm states the walk failure in the same words
+// [`crate::ProgramRefusal::Transition`] does — that refusal is what
+// the probe raised — and then names the tip state and the verb that
+// could not follow it; the vocabulary tokens are the location, and
+// the typed variant remains the machine contract.
+impl core::fmt::Display for ProgramFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            // A program fault's slot is a program slot, whose address
+            // is spelled out rather than dumped: `SlotId::Profile`'s
+            // three fields are the location, and a derived rendering
+            // would put the struct's own braces in a user's message.
+            Self::SlotDimension {
+                slot: SlotId::Profile { loop_, step, arg },
+                expected,
+                found,
+            } => write!(
+                f,
+                "loop {loop_} step {step}'s {arg:?} argument needs a {expected:?} \
+                 expression, got {found:?}"
+            ),
+            Self::SlotDimension {
+                slot,
+                expected,
+                found,
+            } => write!(
+                f,
+                "slot {slot:?} needs a {expected:?} expression, got {found:?}"
+            ),
+            Self::Lattice {
+                loop_,
+                step,
+                state,
+                verb,
+            } => {
+                write!(
+                    f,
+                    "loop {loop_} step {step} is not a legal chain-lattice walk: "
+                )?;
+                match verb {
+                    Some(verb) => write!(f, "a {verb:?} verb at tip state {state:?}"),
+                    None => write!(f, "the chain is unclosed at tip state {state:?}"),
+                }
+            }
+        }
+    }
 }
 
 /// The first program fault in the SNAPSHOT's profile nodes (module

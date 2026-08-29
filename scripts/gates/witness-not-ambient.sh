@@ -110,13 +110,12 @@ gate() {
   local excluded hits
   excluded=$(cfg_test_modules | sort -u)
   hits=$(gate_rust_code --skip-cfg-test "${GATE_SOURCE_FILES[@]}" \
-    | grep -E 'Tol::witness|tolerance::witness' \
-    | grep -vE '^crates/geom-core/src/tolerance\.rs:' \
-    | grep -vE '^crates/pncad/src/' \
-    | grep -vE '^crates/pncad-py/src/py/' \
-    | grep -vE '^crates/[^/]+/src/bin/' \
-    | { if [ -n "$excluded" ]; then grep -vF -f <(printf '%s\n' "$excluded" | sed 's#/$#/#; s#\.rs$#.rs:#'); else cat; fi } \
-    || true)
+    | gate_grep -E 'Tol::witness|tolerance::witness' \
+    | gate_grep -vE '^crates/geom-core/src/tolerance\.rs:' \
+    | gate_grep -vE '^crates/pncad/src/' \
+    | gate_grep -vE '^crates/pncad-py/src/py/' \
+    | gate_grep -vE '^crates/[^/]+/src/bin/' \
+    | { if [ -n "$excluded" ]; then gate_grep -vF -f <(printf '%s\n' "$excluded" | sed 's#/$#/#; s#\.rs$#.rs:#'); else cat; fi })
   if [ -n "$hits" ]; then
     echo "$hits"
     gate_error "kernel library code minted a tolerance witness instead of receiving one. Tol::witness() — and its façade spelling pncad::tolerance::witness() — commits the run's eps: it is an entry-point act (a main under src/bin, a test, the pncad door). Take \`tol: Tol\` as a parameter and pass it down — a witness minted mid-library is the ambient read the parameter exists to replace."
@@ -186,13 +185,18 @@ plant_main_outside_bin() {
 gate_selftest() {
   local want="kernel library code minted a tolerance witness"
   gate_selftest_clean
+  # A `grep` that cannot run is the failure this gate cannot see for
+  # itself: it produces no hits, and no hits is what a clean tree
+  # produces. Proved here rather than asserted, because before
+  # `gate_grep` this exact fixture printed OK and exited 0.
+  gate_selftest_without_tool grep "it is grep saying it could not search"
   gate_selftest_case "$want" plant
   gate_selftest_case "$want" plant_facade_spelling
   gate_selftest_case "$want" plant_main_outside_bin
   gate_selftest_passes "the call named in prose, a block comment and a string literal" plant_prose_only
   gate_selftest_passes "the same call inside a #[cfg(test)] module" plant_in_cfg_test
   gate_selftest_passes "a bin target's main under src/bin" plant_in_bin
-  printf '%s selftest OK: passes a clean fixture, prose/block-comment/string-literal mentions of the call, the same call inside a #[cfg(test)] module, and a bin target under src/bin; fires on a witness minted in library code, on the pncad::tolerance::witness facade spelling, and on a main written outside src/bin\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture, prose/block-comment/string-literal mentions of the call, the same call inside a #[cfg(test)] module, and a bin target under src/bin; fires on a witness minted in library code, on the pncad::tolerance::witness facade spelling, and on a main written outside src/bin; and it stays RED, with a diagnosis, when `grep` itself cannot run\n' "$(gate_name)"
 }
 
 gate_parse_args "$@"

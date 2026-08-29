@@ -14,7 +14,7 @@ bit us.
 ## How to run them
 
 ```console
-$ cd demos/tour && cargo run --release -- ../out    # all 34 stops
+$ cd demos/tour && cargo run --release -- ../out    # all 47 stops
 $ local-scripts/render-hosted.sh                           # + montage images (installs CI's render; see demos/README.md)
 ```
 
@@ -49,18 +49,23 @@ bottom half of it.
 
 ## The demo tour — `demos/tour/src/`
 
-34 stops across 15 scene modules, plus shared helpers (`paths.rs`,
-`booleans.rs`, `scalar.rs`) and two non-scene lanes (`probe.rs`, the
-K-telemetry sweep; `uvdump.rs`, the per-face UV dump). The tour
-depends on `pncad` and **nothing else** — one line in its
-`Cargo.toml`, which is the façade's acceptance evidence.
+47 stops across 23 scene modules, plus shared helpers (`paths.rs`,
+`booleans.rs`, `scalar.rs`, `walls.rs`) and the non-scene lanes:
+`probe.rs`, the K-telemetry sweep; `uvdump.rs`, the per-face UV dump;
+`tessbudget.rs`, the per-face tessellation-budget sweep; `gallery.rs`,
+which saves the document-authored scenes as `.pncad` files the viewer
+opens; and `checks.rs`, the advisory-check registry run as narration.
+The tour reaches the kernel through `pncad` and **nothing else**,
+which is the façade's acceptance evidence — with one stated exception
+in its `Cargo.toml`: a direct `profile` edge for the raw-loop door
+`lily.rs`'s section loops need and the lattice has no verb for.
 
 | scene(s) | module | demonstrates | pins |
 |---|---|---|---|
 | `bracket`, `plate`, `vase`, `sheave`, `chute` | `bodies.rs` | The four body ops on public API: polyline+fillet extrude, a genus-2 holed plate, full and partial revolves, plane+cylinder+cone+torus on one part | The bracket's inner corner is *constructive* (`fillet`), not a hand-rounded via point — the pre-#100 decimal sat inside the ε escalation band |
 | `rocker` | `rocker.rs` | The complete fillet-corner taxonomy: arc×line, line×line, line×arc, arc×arc, through the PATHS fused fillet verbs (`fillet_arc`, `arc_fillet`, `arc_fillet_arc`, plus the plain line×line seam) | Not a corner typed by hand — every one is DERIVED from its two carriers; each declaration verified, `TangencyContradicted` on a lie. Branch choice read back with `ValidatedLoop::blend_arcs` |
 | `diefillet`, `diepips`, `diecomposed` | `diefillet.rs` | Rolling-ball `fillet_edges`; a 21-ball closed-group cut; M6 in-place composition surgery | Sequential pip cuts would present a trimmed sphere as an operand — refused typed. A tilted ball pole makes plane×sphere non-polar — refused typed |
-| `lily` (8 bodies) | `lily.rs` | `tube_along_arc` turtle chains, revolved sphere-zone lanterns, swept kite-section leaves | `wall_probes()` is a live record of kernel refusals (coincident-planar glue). Findings 9 and 13 named in place |
+| `lily` (15 bodies) | `lily.rs` | `tube_along_arc` turtle chains, revolved sphere-zone lanterns, swept kite-section leaves | `wall_probes()` is a live record of kernel refusals (coincident-planar glue). Findings 9 and 13 named in place |
 | `tiltedcut` | `curvedcut.rs` | An exact `Curve3::Ellipse` section produced by `topo::split` | Three retire-on-closure frontier panics fired and were retired |
 | `bossplate` | `bossplate.rs` | The first transverse curved boolean; seam of 3 exact `Circle` arcs | Shared chord ids asserted across the seam; a merely *touching* curved result refuses at tier 3′ |
 | `loft_prism`, `nonuniform_loft`, `s_duct`, `twisted_duct` (+2 shadows) | `skinned.rs` | NURBS loft and sweep; the scene *asks* the kernel for its chosen parameters via `loft_parameters` | #207 (weight channel an ulp off 1.0); #210/#218; chord-length vs z-proportional parameterization is a 19% volume difference |
@@ -73,7 +78,7 @@ depends on `pncad` and **nothing else** — one line in its
 | `cutaway` | `cutaway.rs` | The first `topo::split`, on a boolean result, then `transform_rigid` | Split output carries no contacts, so it takes plain tier 3 — the 3/3′ rule in action |
 | `heatsink5/7/9` | `heatsink.rs` | The recipe layer via `pncad::document`: one document, structural-param edits, downstream-only recompute, stable `Instance(i)` names | **Named gap F4**: a Boolean node cannot consume a Pattern node's `Instances` payload, so the union step honestly lives outside the document |
 | — | `booleans.rs` | The declare door: `flush_declarations` building `BooleanDeclarations` for `union_with`/`intersect_with` | There is no `detect_*` in use anywhere: value equality never classifies |
-| — | `paths.rs` | The shared `path_polygon` helper — the tour's polygons said through the PATHS algebra | Since LIB-RETTAIL it is the ONLY way the tour says a polygon: raw `ProfileLoop` construction is off the presented surface, and the tour's one dependency is `pncad` |
+| — | `paths.rs` | The shared `path_polygon` helper — the tour's polygons said through the PATHS algebra | Since LIB-RETTAIL it is the ONLY way the tour says a polygon: raw `ProfileLoop` construction is off the presented surface, and the one place the tour still needs the raw door — `lily.rs`'s section loops — is a named exception in its `Cargo.toml` |
 | — | `probe.rs` | The K-telemetry sweep (`cargo run -- k-probe out.csv`) | One process per ε row |
 
 One deliberate exception worth knowing: the `bracket` scene is retired
@@ -87,7 +92,7 @@ lattice — the junction checks are local and all four corners are sharp
 
 ## The document corpus — `crates/editor-core/tests/corpus/`
 
-16 documents in 14 modules — `islands` registers three, every other
+18 documents in 16 modules — `islands` registers three, every other
 module registers one. Where the tour shows *kernel* usage, these
 show **recipe** usage: each one is a `Vec<DocEdit>` edit log replayed
 onto an empty document, never a hand-built graph — so each is also a

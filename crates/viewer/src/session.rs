@@ -34,14 +34,16 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use pncad::document::{
-    Dimension, DimensionError, Doc, DocEdit, EditError, Evaluation, ParamName, ParseError,
-    ProductError, ProfileProgram, RecipeNodeId, SlotId, apply, parse_expr, product,
+    Alignment, Dimension, DimensionError, Doc, DocEdit, DocParam, EditError, Evaluation, Frame,
+    Node, ParamName, ParseError, PartResolver, ProductError, ProfileProgram, RecipeNodeId, SlotId,
+    apply, assemble, parse_expr, product,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
-use pncad::select::{Resolution, RunCtx, resolve};
+use pncad::select::{ContactClass, Resolution, RunCtx, resolve};
 
-use crate::docio::{self, DocIoError};
+use crate::display::{DisplayFault, DisplayState, DisplayView};
+use crate::docio::{self, DirResolver, DocIoError};
 use crate::evalseam::{EvalRequest, EvalService, Generation, InlineEvaluator};
 use crate::history::History;
 use crate::props::{self, SlotDriver, SlotValue};
@@ -231,6 +233,19 @@ pub enum Refusal {
     },
     /// No document parameter by that name.
     NoSuchParam(ParamName),
+    /// The CREATE door was asked for a name that is already declared.
+    ///
+    /// `DocEdit::SetDocParam` is create-or-replace and stays so at the
+    /// API; this refusal is the session keeping "create" and
+    /// "replace" distinct ACTS — see [`SessionOp::CreateParam`]. The
+    /// payload carries the existing declaration's dimension so the
+    /// offer can name what already stands there.
+    ParamExists {
+        /// The name, as asked for.
+        name: ParamName,
+        /// The dimension the existing declaration carries.
+        dimension: Dimension,
+    },
     /// `apply` refused the edit.
     ///
     /// Boxed, as `Io` is below: these two payloads are an order of
@@ -251,6 +266,10 @@ pub enum Refusal {
     Io(Box<DocIoError>),
     /// Undo at the root, or redo at the tip of the current branch.
     NothingToDo,
+    /// A display-state operation refused (hide on a non-instance, a
+    /// free-move on a mate-constrained instance, a gesture out of
+    /// order) — the fault's own typed vocabulary, unaltered.
+    Display(DisplayFault),
 }
 
 impl Refusal {
@@ -274,10 +293,17 @@ impl Refusal {
             Self::DrivenByExpression { .. } => 0,
             Self::NoSuchSlot { .. }
             | Self::NoSuchParam(_)
+            | Self::ParamExists { .. }
             | Self::Edit(_)
             | Self::Dimension(_)
             | Self::Parse(_)
             | Self::Io(_) => 1,
+            // The two gesture-order arms rank with their document
+            // twins; the substantive display refusals rank with the
+            // real failures, because "this instance is mate-
+            // constrained" is a decision about what the user tried.
+            Self::Display(DisplayFault::NoFreeMove | DisplayFault::FreeMoveInFlight) => 2,
+            Self::Display(_) => 1,
             Self::NoGesture | Self::GestureInFlight | Self::NothingToDo => 2,
         }
     }
@@ -316,9 +342,12 @@ impl core::fmt::Display for Refusal {
                 params, current, ..
             } => write!(f, "{}", Self::affordance(params, *current)),
             Self::NoSuchSlot { node, slot } => {
-                write!(f, "node {node:?} has no {slot:?} slot")
+                write!(f, "node {} has no {slot:?} slot", node.0)
             }
             Self::NoSuchParam(name) => write!(f, "no document parameter named {}", name.0),
+            Self::ParamExists { name, dimension } => {
+                write!(f, "{}", Self::exists_wording(name, *dimension))
+            }
             Self::Edit(error) => write!(f, "the edit was refused: {error}"),
             Self::Dimension(error) => write!(f, "{error}"),
             Self::Parse(error) => write!(f, "the expression did not parse: {error:?}"),
@@ -326,6 +355,7 @@ impl core::fmt::Display for Refusal {
             Self::GestureInFlight => write!(f, "finish the drag first"),
             Self::Io(error) => write!(f, "{error}"),
             Self::NothingToDo => write!(f, "nothing to undo or redo"),
+            Self::Display(fault) => write!(f, "{fault}"),
         }
     }
 }
@@ -355,6 +385,24 @@ impl Refusal {
             ),
             None => format!("driven by {over} — edit the expression?"),
         }
+    }
+
+    /// The already-declared sentence, and its one home. The status
+    /// line renders it through [`Refusal::ParamExists`], and the add-
+    /// parameter form shows the same sentence BEFORE the click — one
+    /// composition, so the pre-click notice and the refusal cannot
+    /// drift apart.
+    pub fn exists_wording(name: &ParamName, dimension: Dimension) -> String {
+        format!(
+            "parameter {} already exists ({dimension:?}) — edit it instead?",
+            name.0
+        )
+    }
+
+    /// The create-offer sentence, and its one home — shown over the
+    /// add-parameter form when an expression refused on this name.
+    pub fn offer_wording(name: &ParamName) -> String {
+        format!("create parameter {}?", name.0)
     }
 }
 
@@ -410,6 +458,24 @@ pub enum SessionOp {
         /// The new value.
         value: SlotValue,
     },
+    /// Declare a NEW document parameter — the panel's create
+    /// affordance, committing exactly one `DocEdit::SetDocParam`.
+    ///
+    /// That edit is create-or-replace, and stays so at the API. This
+    /// door refuses an already-declared name typed
+    /// ([`Refusal::ParamExists`]): a "create" that replaced would
+    /// change not just the value but possibly the declared DIMENSION,
+    /// re-validating every referencing expression — a blast radius no
+    /// plus-shaped button should carry. Replacing stays spellable
+    /// through the door that says so ([`SessionOp::SetParam`], which
+    /// conversely refuses a name that does NOT exist — the two doors
+    /// partition the edit's semantics).
+    CreateParam {
+        /// The new parameter's name.
+        name: ParamName,
+        /// Its declared dimension and exact value.
+        value: DocParam,
+    },
     /// Start a continuous gesture over a slot.
     BeginGesture {
         /// The node.
@@ -459,7 +525,64 @@ pub enum SessionOp {
     /// Replace the session's document with a file's.
     Open(PathBuf),
     /// Write the current path to a file.
+    ///
+    /// **Saving a COPY beside the original bricks the store for both**
+    /// (issue #1117): the copy claims the same document id, so the
+    /// directory then holds two files with one identity and every
+    /// resolution through it refuses `DuplicateId` — typed and
+    /// recoverable (delete either file), but a surprising blast
+    /// radius for an ordinary act. The identity is the document's, not
+    /// the file's, so a cheap rename-on-save cannot fix it without
+    /// forking the document; the issue carries the design question.
+    /// Save over the original, or save into a different directory.
     Save(PathBuf),
+    /// Hide or show one instance (G3): a DISPLAY operation — the
+    /// scene and the pick index drop a hidden instance; the document
+    /// and the feature tree keep it, and nothing is persisted.
+    SetInstanceHidden {
+        /// The instance.
+        instance: RecipeNodeId,
+        /// Hidden, or shown again.
+        hidden: bool,
+    },
+    /// Open a free-move probe gesture on a completely-unconstrained
+    /// instance (G3's fit probe). Refused typed for a mate-
+    /// constrained instance — eligibility is derived from the
+    /// document, never guessed from solver state.
+    BeginFreeMove {
+        /// The instance to probe.
+        instance: RecipeNodeId,
+    },
+    /// Stream the probe's display frame. Each preview REPLACES the
+    /// last; nothing enters the document.
+    PreviewFreeMove {
+        /// The display frame composed over the instance's drawn
+        /// placement.
+        frame: Frame,
+    },
+    /// Land the probe: the last previewed frame becomes the
+    /// instance's committed display value. NO history holds it — the
+    /// plan's undo note governs document state only.
+    CommitFreeMove,
+    /// Abandon the probe, restoring the committed picture.
+    CancelFreeMove,
+    /// Commit **exactly one** `DocEdit` adding a mate node — the mate
+    /// tool's single committed edit. Everything before it (the two
+    /// picks, the class choice, the derived frames) is tool state; the
+    /// document transition is this op alone, entering at the same
+    /// commit door as every other edit: one apply, one history state,
+    /// one re-evaluation, and the free-move supersession prune.
+    AddMate {
+        /// The `a` reference (instance-qualified).
+        a: StableName,
+        /// The `b` reference (instance-qualified).
+        b: StableName,
+        /// The declared contact class.
+        class: ContactClass,
+        /// The alignment datum (frames in each instance's own part
+        /// coordinates).
+        alignment: Alignment,
+    },
 }
 
 /// What an operation did.
@@ -472,6 +595,12 @@ pub struct OpOutcome {
     pub previewed: Vec<DocEdit<ProfileProgram>>,
     /// Why nothing (or nothing more) happened.
     pub refusal: Option<Refusal>,
+    /// Instances whose free-move probe was **discarded** by this
+    /// operation's document transition — the G3 supersession, reported
+    /// rather than inferred: a mate landing on a probed instance
+    /// removes its probe here, and the instance is drawn at its
+    /// solved placement from the next landed evaluation on.
+    pub superseded: Vec<RecipeNodeId>,
 }
 
 impl OpOutcome {
@@ -571,7 +700,51 @@ pub struct DocSession {
     /// The gather's refusal for the landed pair, computed once when it
     /// lands ([`DocSession::product_fault`]).
     landed_fault: Option<ProductError>,
+    /// The A5 at-rest verdict for the landed pair, computed once when
+    /// it lands ([`DocSession::at_rest`]); `None` for a document that
+    /// is not assembly-shaped, or before anything lands.
+    landed_at_rest: Option<AtRestBadge>,
     path: Option<PathBuf>,
+    /// Layer-3 display state — hide and free-move — with its one home
+    /// here (the seam-friction inventory rule). Never persisted; reset
+    /// by `Open`; pruned against every new document value.
+    display: DisplayState,
+    /// The document seam: the opened file's own directory, consulted
+    /// lazily (the directory rule and the scan-at-resolution posture
+    /// are [`DirResolver`]'s docs). A session over an in-memory
+    /// document carries no resolver, and its instantiate nodes refuse
+    /// typed. Replaced — never inherited — on every `Open`, so a
+    /// document can never silently resolve against the previous
+    /// document's directory.
+    resolver: Option<Arc<DirResolver>>,
+}
+
+/// The A5 at-rest verdict for the landed pair — a mated document's
+/// declarations run through the kernel's own verification door
+/// (`assemble`), once per landed evaluation, so a committed mate's
+/// class verdict does not die at the commit: a `Tangent` that solves
+/// green still shows the gate refusing it, and an undeclared contact
+/// between instances surfaces on the draw path instead of waiting for
+/// an export.
+///
+/// Taken only for assembly-shaped documents (one holding at least one
+/// `InstantiatePart`) — a part document's tiers are not this badge's
+/// subject, and the gate's cost is not spent where it answers nothing
+/// the badges do not already say.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum AtRestBadge {
+    /// The gate certified the assembled product; how many declarations
+    /// its mates minted.
+    Certified {
+        /// The minted declaration count.
+        minted: usize,
+    },
+    /// The gate refused — its own rendering, never a sentence composed
+    /// here.
+    Refused {
+        /// The typed refusal's `Display`.
+        message: String,
+    },
 }
 
 /// What happened to a result the seam handed back.
@@ -612,8 +785,11 @@ impl DocSession {
             landed: None,
             landed_doc: None,
             landed_fault: None,
+            landed_at_rest: None,
             landed_generation: None,
             path: None,
+            display: DisplayState::new(),
+            resolver: None,
         };
         session.request_eval();
         session
@@ -713,9 +889,33 @@ impl DocSession {
         self.landed_fault.as_ref()
     }
 
+    /// The A5 at-rest verdict for the landed pair ([`AtRestBadge`]),
+    /// when the landed document is assembly-shaped. `None` for a part
+    /// document, and before anything lands.
+    pub fn at_rest(&self) -> Option<&AtRestBadge> {
+        self.landed_at_rest.as_ref()
+    }
+
     /// The file this session is backed by, if any.
     pub fn path(&self) -> Option<&Path> {
         self.path.as_deref()
+    }
+
+    /// The layer-3 display state (hide, free-move).
+    pub fn display(&self) -> &DisplayState {
+        &self.display
+    }
+
+    /// The display snapshot the scene and pick paths consume.
+    pub fn display_view(&self) -> DisplayView {
+        self.display.view(self.doc())
+    }
+
+    /// The directory this session resolves part references against —
+    /// the opened file's own, or `None` for an in-memory document
+    /// (the [`DirResolver`] directory rule).
+    pub fn resolve_dir(&self) -> Option<&Path> {
+        self.resolver.as_deref().map(DirResolver::dir)
     }
 
     /// The generation the session is waiting for a result on.
@@ -836,6 +1036,10 @@ impl DocSession {
         // Computed HERE because here is the one place a result becomes
         // the session's, so it cannot be run twice or skipped.
         self.landed_fault = product(self.requested_doc.as_ref(), &done.evaluation, self.tol).err();
+        // The A5 verdict, in the same once-per-landing spot and for
+        // the same reason: nowhere else can it run exactly once per
+        // result that becomes the session's.
+        self.landed_at_rest = at_rest_of(self.requested_doc.as_ref(), &done.evaluation, self.tol);
         self.landed = Some(done.evaluation);
         self.landed_doc = Some(Arc::clone(&self.requested_doc));
         Landing::Landed
@@ -863,6 +1067,7 @@ impl DocSession {
                 self.set_slot_expression(node, slot, &text)
             }
             SessionOp::SetParam { name, value } => self.set_param(&name, value),
+            SessionOp::CreateParam { name, value } => self.create_param(name, value),
             SessionOp::BeginGesture { node, slot } => self.begin_gesture(node, slot),
             SessionOp::BeginParamGesture { name } => self.begin_param_gesture(&name),
             SessionOp::PreviewGesture { value } => self.preview_gesture(value),
@@ -894,6 +1099,51 @@ impl DocSession {
             }
             SessionOp::Open(path) => self.open(&path),
             SessionOp::Save(path) => self.save(&path),
+            SessionOp::SetInstanceHidden { instance, hidden } => {
+                match self
+                    .display
+                    .set_hidden(self.history.doc(), instance, hidden)
+                {
+                    Ok(()) => OpOutcome::default(),
+                    Err(fault) => OpOutcome::refused(Refusal::Display(fault)),
+                }
+            }
+            SessionOp::BeginFreeMove { instance } => {
+                match self.display.begin_free_move(self.history.doc(), instance) {
+                    Ok(()) => OpOutcome::default(),
+                    Err(fault) => OpOutcome::refused(Refusal::Display(fault)),
+                }
+            }
+            SessionOp::PreviewFreeMove { frame } => match self.display.preview_free_move(frame) {
+                Ok(()) => OpOutcome::default(),
+                Err(fault) => OpOutcome::refused(Refusal::Display(fault)),
+            },
+            SessionOp::CommitFreeMove => match self.display.commit_free_move() {
+                Ok(()) => OpOutcome::default(),
+                Err(fault) => OpOutcome::refused(Refusal::Display(fault)),
+            },
+            SessionOp::CancelFreeMove => match self.display.cancel_free_move() {
+                Ok(()) => OpOutcome::default(),
+                Err(fault) => OpOutcome::refused(Refusal::Display(fault)),
+            },
+            SessionOp::AddMate {
+                a,
+                b,
+                class,
+                alignment,
+            } => {
+                if self.gesture.is_some() {
+                    return OpOutcome::refused(Refusal::GestureInFlight);
+                }
+                self.commit(DocEdit::InsertNode {
+                    node: Node::Mate {
+                        a,
+                        b,
+                        class,
+                        alignment,
+                    },
+                })
+            }
         }
     }
 
@@ -974,6 +1224,22 @@ impl DocSession {
             return OpOutcome::refused(Refusal::NoSuchParam(name.clone()));
         };
         self.commit(props::param_edit(name.clone(), dimension, value))
+    }
+
+    /// The create door: refuse an already-declared name typed, commit
+    /// the edit for a new one. See [`SessionOp::CreateParam`] for why
+    /// this door narrows the edit's create-or-replace semantics.
+    fn create_param(&mut self, name: ParamName, value: DocParam) -> OpOutcome {
+        if self.gesture.is_some() {
+            return OpOutcome::refused(Refusal::GestureInFlight);
+        }
+        if let Some(existing) = self.committed_doc().params().get(&name) {
+            return OpOutcome::refused(Refusal::ParamExists {
+                dimension: existing.dim(),
+                name,
+            });
+        }
+        self.commit(DocEdit::SetDocParam { name, value })
     }
 
     fn begin_gesture(&mut self, node: RecipeNodeId, slot: SlotId) -> OpOutcome {
@@ -1072,13 +1338,26 @@ impl DocSession {
         if moved.is_none() {
             return OpOutcome::refused(Refusal::NothingToDo);
         }
+        // The document moved, so the display state's derived facts
+        // (which instances exist; which are mate-constrained) may have
+        // too — an undo past a mate's insertion does NOT resurrect a
+        // discarded probe (the value is gone, not parked), but a redo
+        // over one discards the probe it constrains.
+        let superseded = self.display.prune(self.history.doc());
         self.request_eval();
-        OpOutcome::default()
+        OpOutcome {
+            superseded,
+            ..OpOutcome::default()
+        }
     }
 
     fn open(&mut self, path: &Path) -> OpOutcome {
         match docio::open(path, self.tol) {
             Ok(history) => {
+                // The directory rule: the resolver is the opened
+                // file's own directory, consulted lazily at each
+                // resolution (DirResolver's docs carry the posture).
+                self.resolver = Some(Arc::new(DirResolver::new(session_dir(path))));
                 self.history = history;
                 self.selection = Selection::None;
                 self.hover = None;
@@ -1090,9 +1369,16 @@ impl DocSession {
                 self.landed = None;
                 self.landed_doc = None;
                 self.landed_fault = None;
+                self.landed_at_rest = None;
                 self.landed_generation = None;
                 self.scratch = None;
                 self.path = Some(path.to_path_buf());
+                // G3: hide and free-move are display state of a
+                // SESSION over a document, never of the document — a
+                // fresh open starts with none, which is also what
+                // makes "save, reopen, layer-3 state gone" a property
+                // of the structure.
+                self.display.clear();
                 self.request_eval();
                 OpOutcome::default()
             }
@@ -1104,6 +1390,15 @@ impl DocSession {
         match docio::save_path(path, &self.history, self.tol) {
             Ok(()) => {
                 self.path = Some(path.to_path_buf());
+                // Save-as moves the backing file, and the directory
+                // rule follows the file: rebind the resolver to the
+                // new parent and re-evaluate, since references may
+                // resolve differently there.
+                let dir = session_dir(path);
+                if self.resolver.as_deref().map(DirResolver::dir) != Some(dir.as_path()) {
+                    self.resolver = Some(Arc::new(DirResolver::new(dir)));
+                    self.request_eval();
+                }
                 OpOutcome::default()
             }
             Err(error) => OpOutcome::refused(Refusal::Io(Box::new(error))),
@@ -1111,14 +1406,19 @@ impl DocSession {
     }
 
     /// **The one door an edit enters the document through**: apply,
-    /// record, re-evaluate.
+    /// record, re-evaluate — and reconcile the display state, which is
+    /// where a free-move probe is superseded by the mate that
+    /// constrains its instance (the prune DISCARDS the value; see
+    /// `display`'s module docs for why discard and not zero).
     fn commit(&mut self, edit: DocEdit<ProfileProgram>) -> OpOutcome {
         match apply(self.history.doc(), &edit, self.tol) {
             Ok(applied) => {
                 self.history.commit(edit.clone(), applied.doc);
+                let superseded = self.display.prune(self.history.doc());
                 self.request_eval();
                 OpOutcome {
                     committed: vec![edit],
+                    superseded,
                     ..OpOutcome::default()
                 }
             }
@@ -1140,7 +1440,42 @@ impl DocSession {
             generation: self.generation,
             doc: self.requested_doc.as_ref().clone(),
             tol: self.tol,
+            resolver: self
+                .resolver
+                .as_ref()
+                .map(|ws| Arc::clone(ws) as Arc<dyn PartResolver>),
         });
+    }
+}
+
+/// The at-rest verdict for one landed pair, taken only for
+/// assembly-shaped documents (see [`AtRestBadge`]). The gate's own
+/// vocabulary either way: a certification with its minted count, or
+/// the typed refusal rendered by its own `Display`.
+fn at_rest_of(doc: &Doc<ProfileProgram>, eval: &Evaluation<f64>, tol: Tol) -> Option<AtRestBadge> {
+    let assembly_shaped = doc
+        .order()
+        .iter()
+        .any(|&id| matches!(doc.node(id), Some(Node::InstantiatePart { .. })));
+    if !assembly_shaped {
+        return None;
+    }
+    Some(match assemble(doc, eval, tol) {
+        Ok(assembly) => AtRestBadge::Certified {
+            minted: assembly.minted.len(),
+        },
+        Err(refusal) => AtRestBadge::Refused {
+            message: refusal.to_string(),
+        },
+    })
+}
+
+/// The directory a document at `path` resolves against — its parent,
+/// with a bare filename reading as the current directory.
+fn session_dir(path: &Path) -> PathBuf {
+    match path.parent() {
+        Some(parent) if !parent.as_os_str().is_empty() => parent.to_path_buf(),
+        _ => PathBuf::from("."),
     }
 }
 

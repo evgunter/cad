@@ -1001,8 +1001,15 @@ pub fn apply<P: Clone + crate::ProfilePayload>(
                     });
                 }
             }
-            let inputs = new.nodes.get(id).map(Node::inputs).unwrap_or_default();
-            new.nodes.remove(id);
+            // The liveness check above proved the entry present and
+            // nothing since removes it, so the removal that takes the
+            // node out of the document is also what yields the input
+            // list `roots::on_delete` needs: no absent case is left to
+            // default, and an empty list would be a different edit.
+            let Some(node) = new.nodes.remove(id) else {
+                unreachable!("DeleteNode: node {} was live at the check above", id.0)
+            };
+            let inputs = node.inputs();
             new.order.retain(|&n| n != *id);
             crate::roots::on_delete(&mut new, *id, &inputs);
             reconcile = true;

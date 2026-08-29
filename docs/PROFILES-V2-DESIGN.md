@@ -42,11 +42,12 @@ LIB-LOG's v2 evidence accumulator.
 
 **A profile-program is the constructor-call sequence as data**: an
 ordered list of program steps, one per algebra verb, each step a tag
-plus its authored arguments — `At`, `Angle`, `Tangent`, `Turn`, `To`,
-`Line`, `LineTo`, `ArcTo{bulge}`, `TangentArcTo`, `Fillet{r}`,
-`CloseTo(Start)` — exactly the Tier-0 core plus the Tier-1 sugar's
-*expansions* (V7/VQ5 for what sugar stores). A profile remains
-`plane + loops`; each loop's payload becomes one program.
+plus its authored arguments — one tag per row of PATHS-DESIGN §3's
+vocabulary table (`At`, `Angle`, `Toward`, `Line`, `ArcTo{spec}`,
+`Fillet{r}`, `CloseTo`, `Circle`, …), exactly the Tier-0 core plus
+the Tier-1 sugar's *expansions* (V7/VQ5 for what sugar stores). A
+profile remains `plane + loops`; each loop's payload becomes one
+program.
 
 **Typestate flattens by erasure, and re-arms by replay.** The lattice
 markers (`Tip<P, A>` — path.rs §5 representation) are a compile-time
@@ -489,12 +490,14 @@ actual VQ1 ruling.
 What survives of PATHS-DESIGN's "mechanical lift" language after
 LQ7a's no-migration ruling: **a development-side authoring tool, not
 a load path and not a schema feature.** Its one job: take a v1-form
-loop (vertices + bulges + declared flags — equivalently, a raw-
-vocabulary program under V4(c)) and mint the equivalent chain-
-vocabulary program, using the declared flags to pin constructors
-exactly as PATHS-DESIGN's harmonization paragraph says: declared
-junctions → `.tangent()`, fillet-authored arcs → `.fillet(r)`,
-everything else → sharp `line_to`/`arc_to` steps, seam last.
+loop (vertices + bulges + declared flags) and mint the equivalent
+chain-vocabulary program. Only half of PATHS-DESIGN's harmonization
+paragraph is a flag READ: `tangent_joints` is the v1 form's one
+declared datum, so declared junctions → `.tangent()` and everything
+else → sharp `line_to`/`arc_to` steps, seam last; recovering
+`.fillet(r)` would mean un-trimming the corner — inference, not a
+flag read, and anchor-sensitive exactly as F10 describes — so the
+fillet spelling stays banked.
 
 What it provably CANNOT lift — the same walls as V4, plus two
 subtler classes measured by PR-2:
@@ -516,7 +519,7 @@ subtler classes measured by PR-2:
 
 Firm: keep the tool in-repo with a differential harness (lift →
 replay → compare against the source segments), because it is also
-the acceptance instrument for V4(c)'s chain-vocabulary growth — each
+the acceptance instrument for the chain vocabulary's growth — each
 new binding mode turns some refusals into lifts, measurably. Not
 owed to users as a promise; not run at load, ever (clean break).
 
@@ -593,10 +596,10 @@ owed to users as a promise; not run at load, ever (clean break).
   cross-platform bit-replay (LIBRARY-DESIGN U9) should include a
   parametric profile.
 - **PQ4 and the §6 rulings**: mid-carrier seams stay refused for
-  chains; no intra-loop mixing; no concatenation operator. V4(c)'s
-  circle primitive, if adopted, is a new program FORM, not a PQ4
-  relaxation — flag this sentence for Evan explicitly, since it
-  reads close to the line.
+  chains; no intra-loop mixing; no concatenation operator. The
+  closed-carrier forms (`circle`, `circle_split`) are program FORMS,
+  not a PQ4 relaxation — they author no seam, so the chain rule they
+  read close to is untouched.
 
 ## V7. Question ledger
 

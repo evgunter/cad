@@ -196,9 +196,13 @@ Consequences worth stating:
   consecutive traversals. Winding is a *check*, not a readout: it is
   compared against the face's own `Face::sense` bit, since a bore or a
   concave groove carries `sense = false` and its outer loop is
-  legitimately CW. 879 of the 982 M7 faces are checkable (the rest
-  carry a branch jump) and all 879 agree, so the alarm colour is
-  reserved for a real contradiction rather than spent on every hole.
+  legitimately CW. Not every face is checkable — a chart carrying a
+  branch jump has no meaningful shoelace — so the tour prints the
+  split (checkable / branch-jumped / disagreeing) on every run and
+  **fails outright on a disagreement**, which is why the alarm colour
+  here is reserved for a real contradiction rather than spent on every
+  hole. The counts are that printed line and are not restated here:
+  the corpus grows and the sentence would not.
   Periodic charts get their seams (`u = k·2π`)
   drawn as dashed magenta lines, so a seam-crossing loop is visible
   rather than inferred. Strokes are colored by pcurve form —
@@ -206,18 +210,23 @@ Consequences worth stating:
 * **Closure is measured in 3-D, not in the chart**, and that
   distinction is load-bearing. A chart-space closure metric
   false-alarms on every face touching a chart singularity or a seam,
-  because at a sphere's pole an entire `u`-line is one 3-D point: 103
-  of the 982 M7 faces show such a jump, every one of them exactly π/2,
-  π or 2π. Measured off the carriers instead, the true closure gap
-  never exceeds 9e-16 m anywhere in the corpus. The chart jump is
-  still printed — greyed, and named as seam/pole structure — so it
-  informs instead of alarming.
+  because at a sphere's pole an entire `u`-line is one 3-D point, so
+  every face that touches a seam or a pole reads one. Measured off the
+  carriers instead, the closure gap stays at round-off. The tour
+  prints how many charts carry a jump and the worst value of **both**
+  measures per run; that line, not this one, says how big they are on
+  the tree in front of you. The chart jump is still drawn — greyed,
+  and named as seam/pole structure — so it informs instead of
+  alarming.
 * **The interior fill is drawn only when it means something.** A ring
   that contains a branch jump — a loop crossing the seam or running
   through a pole — closes in the chart through a straight segment that
   is not boundary, so even-odd would shade a region that is not the
-  face. Those cells (3 of 36 on the sheet) show the strokes alone and
-  say why; the signed area and winding are likewise not claimed there.
+  face. Those cells show the strokes alone and say why; the signed
+  area and winding are likewise not claimed there. How many of them a
+  given sheet carries is not stated, because nothing computes it: the
+  jump is the tour's measurement and the selection is the composer's,
+  and no run crosses the two.
 * **There is a CI drift gate**, and this is still the only lane that
   can have one — but the reason has moved. CI *can* run FreeCAD (both
   `step-import` and the hosted render lanes provision the same pinned
@@ -229,8 +238,8 @@ Consequences worth stating:
   geometry change — a standing CI gate for the PNG lanes still needs
   the pinned-container work described in render.yml. This lane draws no 3-D, so its sheet is byte-reproducible
   anywhere. `uv sheet drift (demos)` regenerates it and diffs it (the
-  tour is ~3s once built, and the sheet is text, so a firing diff is
-  readable). A failure is either an uncommitted regeneration or a D9
+  tour is seconds once built, and the sheet is text, so a firing diff
+  is readable). A failure is either an uncommitted regeneration or a D9
   determinism finding.
 * **Nothing is refused.** Unlike the tessellator's trim walk, this one
   accepts every pcurve form and falls back to `topo::pcurve_of`'s
@@ -238,23 +247,32 @@ Consequences worth stating:
   the face worth looking at. A face whose loops cannot be walked at all
   gets a cell naming the reason, first on the sheet — never a gap.
 * **Selection is stated, never silent.** `out/uv.json` carries *every*
-  face of every tour body (982 at M7). The sheet takes one
-  representative per (body, chart kind) among the curved charts — the
+  face of every tour body — the tour prints how many. The sheet takes
+  one representative per (body, chart kind) among the curved charts — the
   richest, by distinct pcurve forms then loop count then face ordinal —
   plus every failed walk unconditionally. Planar charts are dropped as
   a class: a plane chart's picture is the face's own outline, which the
   two 3-D lanes already show. The composer prints every count it
-  dropped, and all 982 SVGs stay in `out/uv/`.
+  dropped — cells, rows, and the curved and planar faces left off —
+  and every SVG stays in `out/uv/` whether or not the sheet took it.
 
 Read it in a browser; nested-SVG-shy rasterizers are why the cells are
 placed with `transform="translate(…)"` rather than nested `<svg x= y=>`.
 
-### What the sheet says about the corpus today (M7)
+### What the sheet says about the corpus
 
 Most cells are rectangles, and that is a fact about the corpus rather
-than a limitation of the drawing. Of the 238 curved faces, **234 have
-boundaries built entirely from iso-curves of their own chart; only 4
-do not, and all 4 are the tilted cut.**
+than a limitation of the drawing: **a face whose surface came out of a
+sweep has a boundary built entirely from iso-curves of its own chart,
+and only a face cut obliquely to its chart carries a real trim.** In
+this corpus the oblique cut is the tilted one.
+
+No count is given, and none can be read off what the lane writes: an
+iso-curve of a swept chart is stored as a `Pcurve::Harmonic` whose
+`cos`/`sin` coefficients are zero — the same variant carries every
+line and conic of an affine plane chart — so neither `uv.json`'s form
+list nor any printed line separates it from a genuine trim. The sheet
+is where you see which faces those are.
 
 The reason is that every curved face here is *sweep-native*. Extrude,
 revolve, loft and sweep choose the surface's chart so that one
@@ -563,7 +581,7 @@ verbatim.
 | `twopeg_apart` | the same two parts apart, Q lifted by a rigid transform, so the three contacts are visible before the union makes them interior; montage panel |
 | `projectbox` | enclosure: cavity + 6 vent through-slots + 4 floor bosses + 4 pilot pockets — 15 sequential boolean nodes, the longest chain; square-only until M5 |
 | `cutaway` | **first `topo::split`**: the project box split by a tilted plane, halves translated apart — a machinist's section pair (replaces the void box translucency hack) |
-| `lily` | **the fairy lantern** (*Calochortus pulchellus*, the Mount Diablo globe lily) — the tour's first ORGANIC subject and a deliberate stress test: fourteen closed solids (the ROOTSTOCK, which is the plant's one JOIN — a corm revolved with a coaxial cylindrical socket authored into its meridian, and the stem's foot standing in it, glued on two declared `Rest` contacts of which one is CYLINDRICAL; three torus-segment stem tubes from `tube_along_arc`; one sphere-zone lantern with a conical mouth from `revolve(Full)`; the BUD, which is that same meridian said three times PARTIALLY — three 156° pre-tepals on three axes forming a narrow tripod about the bud's own, sharing the attachment so the tilt splays their tips, and rolled a quarter turn off their own radius so they nest chirally like a pinwheel; two keeled leaf blades from `sweep_body`; and four from `loft_body` — the long basal leaf and the three sepals), walked by a turtle so consecutive stem arcs are **G1 by construction**. The analytic bodies approximate nothing, and since the tube door that is a claim about STORED PARAMETERS as well as surface kind: the stem's `minor_radius` IS the authored 0.060 rather than the bulge-arc reconstruction 3.9e-16 below it. The six blades are the fitted pieces — a skin is a B-spline wall through exact spine points. The two SWEPT ones hold ONE width base to tip and never roll, because `sweep_body` takes one profile and derives its own frame; the four LOFTED ones do both, because `loft_body` takes the sections and the placements as separate lists, so the long leaf runs rectangle-at-the-stem to wide diamond to small diamond while turning 160° about its own spine (eased toward the tip), and the sepals stand TANGENT to the globe with the stand-off set to the section's own keel. Every blade section is straight lines and not the old crescent's arcs — a limit that has since EXPIRED: the skin lane refused a rational wall until #306 landed the span meter's rational arm (`m7_skin_integral`'s Pin 4 was written to flip when that happened, and has). Restoring the lanceolate arcs is outstanding work on this stop, gated on checking the QUADRATURE half of the rational bank, which #306 did not retire. Everything ELSE is set beside its neighbour rather than welded to it — the stop is followed by **eight live wall probes** that attempt the joins and shapes a plant actually wants (glue the stem arcs, weld flower to stem, oblique-extrude a leaf out of its plane, stretch a bud into an ovoid, mirror a leaf, fillet the mouth rim, carve a tepal seam, graft the leaf's sheath onto its blade at a declared identical rectangle) and assert each typed refusal, panicking if one ever retires |
+| `lily` | **the fairy lantern** (*Calochortus pulchellus*, the Mount Diablo globe lily) — the tour's first ORGANIC subject and a deliberate stress test: fourteen closed solids (the ROOTSTOCK, which is the plant's one JOIN — a corm revolved with a coaxial cylindrical socket authored into its meridian, and the stem's foot standing in it, glued on two declared `Rest` contacts of which one is CYLINDRICAL; three torus-segment stem tubes from `tube_along_arc`; one sphere-zone lantern from `revolve(Full)`, with a conical mouth below and a NECK cone above cut at the arch tube's own radius — its rim IS that tube's terminal meridian circle, so the flower and the stem meet on one shared circle rather than crossing (VERBS-LILYWELD, #1059); the BUD, which is that same meridian said three times PARTIALLY — three 156° pre-tepals on three axes forming a narrow tripod about the bud's own, sharing the attachment so the tilt splays their tips, and rolled a quarter turn off their own radius so they nest chirally like a pinwheel; two keeled leaf blades from `sweep_body`; and four from `loft_body` — the long basal leaf and the three sepals), walked by a turtle so consecutive stem arcs are **G1 by construction**. The analytic bodies approximate nothing, and since the tube door that is a claim about STORED PARAMETERS as well as surface kind: the stem's `minor_radius` IS the authored 0.060 rather than the bulge-arc reconstruction 3.9e-16 below it. The six blades are the fitted pieces — a skin is a B-spline wall through exact spine points. The two SWEPT ones hold ONE width base to tip and never roll, because `sweep_body` takes one profile and derives its own frame; the four LOFTED ones do both, because `loft_body` takes the sections and the placements as separate lists, so the long leaf runs rectangle-at-the-stem to wide diamond to small diamond while turning 160° about its own spine (eased toward the tip), and the sepals stand TANGENT to the globe with the stand-off set to the section's own keel. Every blade section is straight lines and not the old crescent's arcs — a limit that has since EXPIRED: the skin lane refused a rational wall until #306 landed the span meter's rational arm (`m7_skin_integral`'s Pin 4 was written to flip when that happened, and has). Restoring the lanceolate arcs is outstanding work on this stop, gated on checking the QUADRATURE half of the rational bank, which #306 did not retire. Everything ELSE is set beside its neighbour rather than welded to it — the stop is followed by **eight live wall probes** that attempt the joins and shapes a plant actually wants (glue the stem arcs, weld flower to stem, oblique-extrude a leaf out of its plane, stretch a bud into an ovoid, mirror a leaf, fillet the mouth rim, carve a tepal seam, graft the leaf's sheath onto its blade at a declared identical rectangle) and assert each typed refusal, panicking if one ever retires |
 | `klein` | **the Klein bottle** — the tour's non-orientable stop, and its densest wall list. A 2-manifold is not a body this kernel holds (D1 is manifold-and-solid-first), so the model is the honest 3-D stand-in: a THIN 3-manifold, wall 0.05 m, whose midsurface is the classic immersed Klein bottle. The **bulb** — neck, flaring body wall, the wide bottom rim the surface turns back on, and the straight tube coming back UP through that rim's hole — is ONE `revolve(Full)` of ONE meridian band, so cylinder/torus/cone/torus/cylinder + two annular caps are all exact and every blend is an ARC IN THE MERIDIAN rather than a rolling ball afterwards (which is the better construction for coaxial supports, and the one `fillet_edges` cannot make). The **top loop** is two thin elbows, `revolve(Partial)` of the annular section, 270° over the top and 90° turning back onto the axis — two arcs because ONE circle cannot be tangent to the bottle's axis at two different heights, which is geometry, not a kernel limit. The three bodies MEET on coincident annular faces (elbow↔elbow to 5e-16 m, loop↔neck bit-exactly — declared-REST numbers) and NONE of them can be joined: the boolean operand gate is per-face-kind and rejects any body carrying a cone or a torus, so the self-intersection an immersed Klein bottle must have is left un-trimmed too. Rendered SEE-THROUGH (the manifest's per-body `transparency`), from a camera deliberately out of the model's symmetry plane: the subject is what happens inside the bulb. Followed by **seven live wall probes**, one of which pins a DEFECT rather than an absence — `mesh::planar`'s banked sub-floor chart residue, "synthetic today" until this bulb's annular cap hit it (#555). Walls 1–2 once split over #554's false `TangentialEdge` on closed rims; since VERBS-RIM fixed the lever they pin the same honest `SpineUnsupported` on the full and the partial revolve alike — the missing cone×cylinder arm, probed back to back. Wall 6 re-baselined at VERBS-RING: the one-call hollow ring it used to pin as `FullRevolveHoles` now BUILDS (two shells, tier-valid, asserted every run), and the probe pins the shape's remaining refusal instead — a multi-shell curved solid cannot leave as STEP (`CurvedShellClassification`, OFFSET-DESIGN O6's known standing demo gate) |
 | `heatsink5/7/9` | **the M4 layer**: ONE recipe document, fin count 5 → 7 → 9 via `SetStructuralParam` on a `LinearPattern`; each re-eval recomputes exactly 1 node and reuses 4 (counted in the caption); stable names survive the edits (135/135); the montage carries only the 9-fin panel |
 

@@ -60,6 +60,11 @@ When you do run locally:
   where a lost notification costs you everything — nobody is waiting, nothing
   wakes, and the lane stalls completely rather than failing visibly. Finish or
   abandon the background row first.
+  **A hosted CI wait is the same case, not an exception** — three lanes in one
+  day parked on "the CI watcher will wake me" and had to be nudged awake.
+  "Push and let CI run" means CI is the verification of record, not that you
+  may sleep on it: poll the run's jobs API in the foreground (an until-loop
+  inside one call) until it concludes, then report in the same turn.
 - When the build queue is busy, a blocking foreground wait is the correct state
   — re-issue a timed-out call rather than parking.
 - **Use your own `CARGO_TARGET_DIR`, never one shared with another lane.** A

@@ -14,10 +14,13 @@
 //! CONTAINING the path file, i.e. `tests/`, exactly as when each file was
 //! its own crate root.
 //!
-//! WHY: on the CI runner (2 vCPU) each extra test binary cost ~1.9 s of
-//! codegen+link (see the LINK/DEBUGINFO note in
-//! .github/workflows/ci.yml). The suites are small; the per-binary
-//! constant was the bill.
+//! WHY ONE BINARY: on the CI runner (2 vCPU) the per-binary codegen+link
+//! constant dominated the workspace build job — the suites are small, so
+//! that constant was the bill. The figures are deliberately NOT restated
+//! here: they were measured once, nothing in the repo re-takes them, and
+//! the LINK/DEBUGINFO note in .github/workflows/ci.yml is the one place
+//! that carries them with their date, their provenance run and the record
+//! of what has since changed.
 //!
 //! ADDING A SUITE: drop the file in `tests/` AND add a `#[path]` line
 //! below. `autotests = false` in Cargo.toml means a file that is not
@@ -187,9 +190,17 @@ fn every_suite_file_is_aggregated() {
          is silently dropping them: {missing:?}. Add a `#[path]` line for each."
     );
 }
+#[path = "f7d_delta_probes.rs"]
+mod f7d_delta_probes;
 #[path = "probe_census.rs"]
 mod probe_census;
 #[path = "probe_f34_review.rs"]
 mod probe_f34_review;
 #[path = "probe_s5_sectors.rs"]
 mod probe_s5_sectors;
+#[path = "review_f7_pole_r1_probes.rs"]
+mod review_f7_pole_r1_probes;
+#[path = "verbs_f7_collinear_seam.rs"]
+mod verbs_f7_collinear_seam;
+#[path = "verbs_f7_r2_probes.rs"]
+mod verbs_f7_r2_probes;

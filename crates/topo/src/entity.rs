@@ -255,9 +255,11 @@ pub struct Face {
     /// surface's chart normal (i.e. the face's outward normal is `+n`);
     /// `false` iff it is reversed (outward normal `-n`).
     ///
-    /// **Writers (M5 S11).** The Euler operators mint `sense: true`
-    /// (the material side is not op-level knowledge — `mef` sees two
-    /// chords, not the profile); constructors attach the honest bit
+    /// **Writers (M5 S11).** An Euler operator mints `sense: true` on a
+    /// face it puts on a NEW surface (the material side is not op-level
+    /// knowledge — `mef` sees two chords, not the profile); a face that
+    /// inherits its parent's surface inherits that parent's sense with
+    /// it. Constructors attach the honest bit
     /// through [`crate::Body::set_face_sense`] wherever the chart
     /// normal points into material, decided from the profile's stored
     /// winding/turn structure, never numerically: extrude's concave

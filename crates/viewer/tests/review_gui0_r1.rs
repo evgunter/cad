@@ -396,6 +396,7 @@ fn a_pan_moves_the_cursor_point_by_the_dragged_distance_on_both_axes() {
         let event = ViewportEvent::Drag {
             button: PointerButton::Secondary,
             shift: false,
+            alt: false,
             delta_px: [dx, dy],
         };
         let Some(op) = map.map(&event, size, &camera) else {

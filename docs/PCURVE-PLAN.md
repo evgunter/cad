@@ -35,7 +35,8 @@ its absence. That is a track.
 - **`MappedCurve` demotes to an AUTHORITY RECORD** carried beside
   the description, with tier-3's prefer-intrinsic rules reading the
   record instead of the negative space. A narrow scaffold retains it
-  as a description for PRE-BODY edges only (Evan's Q2 answer).
+  as a description for TRANSIENT edges only (Evan's Q2 answer; the
+  fence criterion as corrected below).
 - **Q3 (the authority record's home) is per-edge KERNEL data**,
   adopted by dominant argument. Its pushback window closed
   unexercised at M9's ratification (#1041), so this is settled.
@@ -48,8 +49,8 @@ its absence. That is a track.
 
 1. **P-1 — the migration itself.** `EdgeGeometry`'s conventional
    variants collapse to (surface, `Pcurve`); `Pcurve` gains
-   `General`; `MappedCurve` becomes the authority record with the
-   pre-body scaffold fenced. **The binding constraint is NOT what
+   `General`; `MappedCurve` becomes the authority record behind the
+   transience fence. **The binding constraint is NOT what
    this plan first said** (corrected from P-1's substrate,
    2026-08-27). It named adoption's bitwise reproduction;
    `bitwise_iso_match` (adopt.rs:958) in fact quantifies over
@@ -150,8 +151,8 @@ discipline, merge-main + build the union).
 `EdgeGeometry` has ONE conventional form; the exact classes survive
 as certification lanes with `General` as the honest floor;
 `MappedCurve` is an authority record read by tier 3's
-prefer-intrinsic rules, retained as a description only for pre-body
+prefer-intrinsic rules, retained as a description only for transient
 scaffolding; adoption still reproduces native descriptions
-bitwise and D9 bit-replay holds; #498 and lily wall 8 execute their
-own retirement texts; every new row ε-row three-outcome honest;
+bitwise and D9 bit-replay holds; #498 executes its own retirement
+text; every new row ε-row three-outcome honest;
 hosted CI green on every merge; the walk convention applies at exit.
