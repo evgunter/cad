@@ -37,6 +37,8 @@
 
 #[path = "offb_r1_loft_probes.rs"]
 mod offb_r1_loft_probes;
+#[path = "p1b_r1_main_attrib.rs"]
+mod p1b_r1_main_attrib;
 #[path = "offc_r1_probes.rs"]
 mod offc_r1_probes;
 #[path = "offd2_r1_probes.rs"]
