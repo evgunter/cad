@@ -336,7 +336,7 @@ fn half_edge_carrier<T: Decide>(
 /// It is read from the edge's **intensional description**, not from the
 /// topology, and that is the D2 answer rather than a convenience: the
 /// description is what is authoritative about which two surfaces the
-/// locus belongs to (`EdgeGeometry::Intersection { s1, s2 }` names them
+/// locus belongs to (`EdgeDescription::Intersection { s1, s2 }` names them
 /// by key), while "the face across the edge" is a derived fact that a
 /// mid-construction body, a spur edge or a seam can perfectly well have
 /// wrong. Re-read from the body at rest, never stored with the cache,
@@ -351,7 +351,7 @@ fn mate_surface<T: Decide>(body: &Body<T>, half_edge: HalfEdgeKey) -> Option<Sur
     let CurveGeom::Certified(curve) = body.get_curve_geom(edge.curve)? else {
         return None;
     };
-    let geom_brep::EdgeGeometry::Intersection { s1, s2, .. } = *curve.description() else {
+    let geom_brep::EdgeDescription::Intersection { s1, s2, .. } = *curve.description() else {
         return None;
     };
     let lp = body.get_loop(he.parent_loop)?;
@@ -403,7 +403,7 @@ fn half_edge_surface_key<T: Decide>(
 fn half_edge_description<T: Decide>(
     body: &Body<T>,
     half_edge: HalfEdgeKey,
-) -> Result<geom_brep::EdgeGeometry<T>, PcurveMintError> {
+) -> Result<geom_brep::EdgeDescription<T>, PcurveMintError> {
     let he = body
         .get_half_edge(half_edge)
         .ok_or(PcurveMintError::Corrupt)?;
@@ -411,7 +411,7 @@ fn half_edge_description<T: Decide>(
     let Some(CurveGeom::Certified(curve)) = body.get_curve_geom(edge.curve) else {
         return Err(PcurveMintError::Corrupt);
     };
-    Ok(*curve.description())
+    Ok(curve.description().clone())
 }
 
 /// The uniform clamped degree-1 knot vector on `[0, 1]` with `spans`
@@ -436,14 +436,14 @@ fn uniform_breaks(spans: usize) -> Option<geom_core::spline::KnotVector> {
 /// INTENSIONAL description (D2: the description is what is
 /// authoritative about which iso this locus is):
 ///
-/// - An [`geom_brep::EdgeGeometry::IsoCurve`] naming THIS face's
-///   surface maps directly: `P(t) = (u, v0 + slope·(t − t0))`.
-/// - An `IsoCurve` naming the OTHER wall maps as this chart's own
+/// - A chart image naming THIS face's surface IS the answer: since
+///   the conventional descriptions collapsed (U2) there is nothing
+///   left to derive.
+/// - An iso LINE image naming the OTHER wall maps as this chart's own
 ///   `u = u₀` or `u = u₁` boundary, the side selected by a definite
 ///   endpoint residual (`pcurve_iso_side`) and then CERTIFIED by the
 ///   full iso lane — a wrong pick fails loudly, never silently.
-/// - A cap–wall rim over a LINE carrier (`MappedCurve::PlacedSegment`,
-///   Line segment) maps as `(u(t), v)` with `u` affine
+/// - A cap–wall rim over a LINE carrier maps as `(u(t), v)` with `u` affine
 ///   (`t0 ↦ u₀`, `t1 ↦ u₁` — the wall's u IS the segment parameter by
 ///   construction, up to the chart's own affine scale) and
 ///   `v ∈ {v₀, v₁}` by the same endpoint selection.
@@ -459,7 +459,7 @@ fn uniform_breaks(spans: usize) -> Option<geom_core::spline::KnotVector> {
 ///   line through the chart's own rational-quadratic parameter
 ///   ([`Pcurve::IsoArc`], M8-3). Both mapped description forms the
 ///   kernel mints for a circle reach it — see the arm's own note.
-/// - An [`geom_brep::EdgeGeometry::Intersection`] over a SPLINE carrier
+/// - An [`geom_brep::EdgeDescription::Intersection`] over a SPLINE carrier
 ///   that lies on a boundary column maps as that column: the same iso
 ///   line the `IsoCurve` arm mints, recovered from the carrier because
 ///   the intrinsic description names no chart coordinate. The residency
@@ -526,26 +526,29 @@ fn nurbs_iso_derive<T: Decide>(
              iso of this face's chart",
         ))
     };
+    let own = half_edge_surface_key(body, half_edge)?;
     match half_edge_description(body, half_edge)? {
-        geom_brep::EdgeGeometry::IsoCurve {
-            surface: sk,
-            u,
-            v0,
-            v1,
-        } => {
-            let slope = (v1 - v0) / span;
-            let p0y = v0 - slope * t0;
-            let own = half_edge_surface_key(body, half_edge)?;
-            let x = if sk == own {
-                u
-            } else {
-                // The other wall's side of the seam: this chart's own
-                // u-boundary, selected by the endpoint.
-                side_pick(&|cand| surface.eval(cand, v0), [cu0, cu1])?
-            };
+        // **This face's OWN chart image is the answer.** Since the
+        // conventional descriptions collapsed (U2), an edge described
+        // as an image in THIS chart carries the image itself — there
+        // is nothing left to derive, and re-deriving it would be a
+        // second opinion about a locus the description already states.
+        geom_brep::EdgeDescription::Chart(ref c) if c.surface == own => Ok(c.pcurve.clone()),
+        // **The wall–wall seam stated on the OTHER wall.** An iso
+        // LINE image (`u` fixed, `v` moving) on the neighbour's chart
+        // maps as this chart's own `u = u₀`/`u = u₁` boundary, the
+        // side selected by the endpoint. The moving channel is the
+        // description's own, verbatim: the two walls share the seam's
+        // parameterization, which is what makes them one seam.
+        geom_brep::EdgeDescription::Chart(geom_brep::ChartCurve {
+            pcurve: Pcurve::IsoLine { p0, pl },
+            ..
+        }) => {
+            let v0 = p0.y + pl.y * t0;
+            let x = side_pick(&|cand| surface.eval(cand, v0), [cu0, cu1])?;
             Ok(Pcurve::IsoLine {
-                p0: Point2::new(x, p0y),
-                pl: Vec2::new(T::zero(), slope),
+                p0: Point2::new(x, p0.y),
+                pl: Vec2::new(T::zero(), pl.y),
             })
         }
         // **The M8-3 ARC-RIM arm.** An ARC cap rim's chart image is
@@ -554,15 +557,11 @@ fn nurbs_iso_derive<T: Decide>(
         // rather than the arc angle — the `Pcurve::IsoArc` map.
         //
         // The arm is keyed on the CARRIER, not on the description
-        // kind, because the carrier is what the certification reads:
-        // a circle rim is a circle rim whether the builder described
-        // it as the sketch segment it swept (`PlacedSegment { Arc }`,
-        // the loft's own form) or the importer described it as the
-        // revolution it is (`RevolvedPoint`, `adopt::
-        // mapped_self_description`'s form for a `Curve3::Circle`).
-        // Keying on the kind would have made the SAME geometry mint
-        // natively and refuse on the round trip — a description-form
-        // accident, not a fact about the rim.
+        // form, because the carrier is what the certification reads:
+        // a circle rim is a circle rim however its own chart writes
+        // it down. Keying on the form would have made the SAME
+        // geometry mint natively and refuse on the round trip — a
+        // description-form accident, not a fact about the rim.
         //
         // The sub-arc count is read off the chart's u structure (one
         // span per sub-arc, by the loft's construction); that read is
@@ -570,10 +569,9 @@ fn nurbs_iso_derive<T: Decide>(
         // that follows, which compares the chart's boundary column
         // against the carrier circle's own rational-quadratic form and
         // refuses a chart that is not this construction.
-        geom_brep::EdgeGeometry::MappedCurve(
-            geom_brep::MappedCurve::PlacedSegment { .. }
-            | geom_brep::MappedCurve::RevolvedPoint { .. },
-        ) if matches!(carrier, geom::Curve3::Circle { .. }) => {
+        geom_brep::EdgeDescription::Chart(_) | geom_brep::EdgeDescription::Scaffold(_)
+            if matches!(carrier, geom::Curve3::Circle { .. }) =>
+        {
             let Some(payload) = surface.spline_chart() else {
                 return Err(refuse("an arc cap rim on a non-spline chart"));
             };
@@ -640,10 +638,9 @@ fn nurbs_iso_derive<T: Decide>(
                 )),
             }
         }
-        geom_brep::EdgeGeometry::MappedCurve(geom_brep::MappedCurve::PlacedSegment {
-            segment: geom_brep::SketchSegment::Line { .. },
-            ..
-        }) => {
+        geom_brep::EdgeDescription::Chart(_) | geom_brep::EdgeDescription::Scaffold(_)
+            if matches!(carrier, geom::Curve3::Line { .. }) =>
+        {
             let plx = (cu1 - cu0) / span;
             let p0x = cu0 - (cu1 - cu0) * t0 / span;
             let v = side_pick(&|cand| surface.eval(p0x + plx * t0, cand), [cv0, cv1])?;
@@ -690,7 +687,7 @@ fn nurbs_iso_derive<T: Decide>(
         // An `Intersection` whose carrier traverses NEITHER boundary
         // column under the chart's own parameterization refuses typed
         // and permanently (C5).
-        geom_brep::EdgeGeometry::Intersection { .. } => {
+        geom_brep::EdgeDescription::Intersection { .. } => {
             if !matches!(carrier, geom::Curve3::Nurbs(_)) {
                 return Err(refuse(
                     "an Intersection carrier that is not a spline — the certified \
@@ -735,10 +732,10 @@ fn nurbs_iso_derive<T: Decide>(
             }
         }
         _ => Err(refuse(
-            "no iso derivation for this description kind on a NURBS chart — only \
-             IsoCurve seams, boundary-iso Intersection seams, Line cap rims and CIRCLE \
-             cap rims have exact chart images (the trimmed-NURBS pcurve lane is the \
-             cut-loft unit's)",
+            "no iso derivation for this locus on a NURBS chart — only chart images of \
+             this chart, iso-line images of the neighbouring wall, boundary-iso \
+             Intersection seams, and LINE or CIRCLE cap rims have exact chart images \
+             (the trimmed-NURBS pcurve lane is the cut-loft unit's)",
         )),
     }
 }

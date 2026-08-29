@@ -1415,7 +1415,7 @@ mod tests {
     use crate::euler::{FaceSurface, MefSite, MevSite};
     use geom::Curve3;
     use geom::Surface;
-    use geom_brep::{EdgeCurveSpec, EdgeGeometry};
+    use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
     use geom_core::Tol;
     use geom_core::{Point3, Vec3};
 
@@ -1477,7 +1477,7 @@ mod tests {
         let plane = body.add_surface(plane_z0());
         let cyl = body.add_surface(cyl_r(r));
         let arc = EdgeCurveSpec {
-            description: EdgeGeometry::Intersection {
+            description: EdgeDescriptionSpec::Intersection {
                 s1: plane,
                 s2: cyl,
                 witness: on(span * 0.5),
@@ -1651,7 +1651,7 @@ mod tests {
             };
             (
                 EdgeCurveSpec {
-                    description: EdgeGeometry::Intersection {
+                    description: EdgeDescriptionSpec::Intersection {
                         s1: wall,
                         s2: plane,
                         witness: on((u0 + u1) * 0.5, z),

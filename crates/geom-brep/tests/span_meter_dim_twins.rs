@@ -42,7 +42,7 @@
 use geom::Surface;
 use geom::{Curve3, NurbsCurve3};
 use geom_brep::keys::SurfaceKey;
-use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeGeometry};
+use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec};
 use geom_core::Tol;
 use geom_core::k_stats::{self, Probe, SampleOutcome};
 use geom_core::spline::KnotVector;
@@ -63,7 +63,7 @@ fn v3(x: f64, y: f64, z: f64) -> Vec3<Probe> {
 
 /// The `x = 0` and `y = 0` planes: two analytic charts whose
 /// intersection locus is exactly the `z` axis, which is the class a
-/// NURBS carrier certifies under (`EdgeGeometry::Intersection`).
+/// NURBS carrier certifies under (`EdgeDescription::Intersection`).
 fn axis_planes() -> (Surface<Probe>, Surface<Probe>) {
     (
         Surface::Plane {
@@ -111,7 +111,7 @@ fn span_meter_sample(
     let witness = carrier.eval(Probe(domain * 0.5));
     let (start, end) = (carrier.eval(Probe(0.0)), carrier.eval(Probe(domain)));
     let spec = EdgeCurveSpec {
-        description: EdgeGeometry::Intersection { s1, s2, witness },
+        description: EdgeDescriptionSpec::Intersection { s1, s2, witness },
         carrier,
         param_start: Probe(0.0),
         param_end: Probe(domain),

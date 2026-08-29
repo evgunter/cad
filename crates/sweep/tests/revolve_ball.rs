@@ -18,7 +18,6 @@
 mod revolve_common;
 
 use geom::Surface;
-use geom_brep::EdgeGeometry;
 use geom_core::Tol;
 use profile::RawLoop;
 use profile::{ProfileLoop, ProfileVertex};
@@ -72,10 +71,12 @@ fn ball_full_revolve_omits_the_axis_edge_and_certifies() {
     assert_eq!(meridians.len(), 2);
     let arc_edge = meridians[0].expect("canonical segment 0 is the arc");
     assert!(meridians[1].is_none(), "axis segment omitted");
-    assert!(matches!(
-        description(&t.body, arc_edge),
-        EdgeGeometry::Seam { .. }
-    ));
+    // The sphere key both bands share — the chart both meridians below
+    // are images in.
+    let sphere = t.body.get_face(t.walls[0][0].unwrap()).unwrap().surface;
+    // The angle-0 meridian IS the sphere's parameterization seam:
+    // derived by the kernel, carrying D1's seam obligation.
+    assert_seam_of(&t.body, arc_edge, sphere);
     assert_eq!(t.walls[0][1], None);
     assert!(t.rims[0].iter().all(Option::is_none));
     // Both poles are EXPORTED (M9-D1), in canonical vertex order —
@@ -94,10 +95,19 @@ fn ball_full_revolve_omits_the_axis_edge_and_certifies() {
     // wire vertices).
     assert!(pi_walls[0].is_some() && pi_walls[1].is_none());
     let pi_arc = pi_meridians[0].expect("pi copy of the arc");
-    assert!(matches!(
-        description(&t.body, pi_arc),
-        EdgeGeometry::MappedCurve(_)
-    ));
+    // The angle-π copy is an ordinary image in the SAME chart, and the
+    // profile's arc declared its locus.
+    //
+    // **Re-expressed at PCURVE P-1b.** This pair used to read
+    // `IsoCurve` vs `MappedCurve`; U2 collapsed both into the one
+    // conventional form, so a mechanical rewrite would have compared
+    // `Chart` against `Chart` and stopped discriminating anything at
+    // all. What actually told the two meridians apart was never the
+    // variant: it was that one is the chart's seam and the other is a
+    // profile entity's pushforward. Both facts are still stored — the
+    // seam flag and the authority record (U2 Q3) — and the row now
+    // reads them, pinning the shared chart as well.
+    assert_declared_image_in(&t.body, pi_arc, sphere);
     assert!(pi_rims.iter().all(Option::is_none));
     // Orientation: positive volume. The two band faces' boundaries
     // (both meridians) are coplanar, so each face is fanned from its

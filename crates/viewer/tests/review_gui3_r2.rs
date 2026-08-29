@@ -81,10 +81,7 @@ fn slab(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
         &doc,
         &DocEdit::SetDocParam {
             name: width_param(),
-            value: DocParam::Continuous {
-                dim: Dimension::Length,
-                value: 0.005,
-            },
+            value: DocParam::continuous(Dimension::Length, 0.005),
         },
         tol,
     )

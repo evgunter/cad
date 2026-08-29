@@ -15,7 +15,7 @@ pub struct AdoptionAttempt {
 }
 
 /// The intensional interpretations the edge-adoption ladder can try
-/// (D7 stage 2's vocabulary — `geom_brep::EdgeGeometry`'s variants,
+/// (D7 stage 2's vocabulary — `geom_brep::EdgeDescription`'s variants,
 /// named as data for future remedy flows).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum AdoptionCandidate {

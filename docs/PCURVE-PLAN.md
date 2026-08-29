@@ -64,9 +64,53 @@ its absence. That is a track.
    iso residual's arithmetic order differs from `Pcurve::eval`'s, so
    "the same number" is not free. A spec that plans around adoption
    and ignores the meters will mis-scope the unit.
-2. **P-2 — #498's home.** Interior/diagonal `Intersection` carriers
-   (the trimmed-NURBS/cut-loft pcurve lane) inherit `General` as
-   their named home. Today they carry a typed permanent refusal.
+2. **P-2 — #498's home. NARROWED TO INTERIOR ISOS by its own
+   substrate (2026-08-29); the diagonal half is SPLIT OUT.** Interior
+   `Intersection` carriers inherit `General` as their named home.
+
+   **What the substrate falsified.** The plan said these "carry a
+   typed permanent refusal". True and reachable for INTERIOR isos
+   (measured: `IsoUnsupported` on a widened chart, verbatim payload).
+   **False as the binding statement for DIAGONAL loci** — those never
+   reach `nurbs_iso_derive` at all, because the EDGE-certification
+   lane refuses them first at limb 2 with `hull_sup ~= 2.6e-4 m`, five
+   to six orders past every ε in the corpus. The cause is
+   `PXN_IMAGE_DEGREE = 1` (`geom-brep/src/edge_nurbs.rs:376-394`),
+   whose own doc states the class boundary and banks the fix to #264's
+   envelope findings. The identical loci certify at 2.7e-11-1.5e-10 m
+   through the SSI's own degree-3 image. **So the refusal's TEXT names
+   the diagonal class; the CAUSE for that class is a degree constant
+   in another crate at another lifecycle stage** — the sixth instance
+   of [[refusal-text-is-not-cause]] in this project, and the second
+   time a PCURVE substrate has corrected this plan.
+
+   **`General` costs nothing on the certification side.** Measured:
+   BOTH sub-classes certify through `certify_general` today,
+   unmodified, at the `(surface, mate)` pair `mate_surface` already
+   computes. P-1 wired `General` through `chart_box`, `shift_branch`
+   and `recertify`, so the loop walk, face window and tier-3 at-rest
+   replay need nothing. The real work is (a) a DERIVER — the existing
+   4-candidate closed-form schedule never tries an interior knot — and
+   (b) raising `mint_pcurves`' bound to `PcurveFittedLane`, measured
+   as 4 topo signatures plus 4 static sweep sites. **The bound is
+   signature churn, not a capability loss**: `Dual<T>` implements
+   `PcurveFittedLane` (refusing impl), so no scalar is excluded —
+   correcting `certify_fitted`'s docs and DESIGN.md frontier (c),
+   which both treat that ripple as blocking.
+
+   **The exit is honest but narrower than #498's text.** The body
+   builds and validates at rest; volume, area, tessellation and offset
+   of the affected face then refuse TYPED at six named sites, every
+   one of which cites "the cut-loft unit". That is a real improvement
+   over "cannot be built" and it is what the spec will claim.
+
+   **Already done, drop from the slate**: the "free retirement" bullet
+   below (`replace_face`'s "a v-row is not an `IsoCurve`") was retired
+   by P-1.
+2b. **P-2b — the diagonal half, NOT SCHEDULED HERE.** Blocked on
+   `PXN_IMAGE_DEGREE`, which is edge-certification work banked to
+   #264. #498 should be read as two sub-classes with different owners;
+   P-2 as scoped cannot flip the diagonal one however it lands.
 3. **P-3 — REMOVED FROM THE SLATE (P-1 substrate, 2026-08-27).**
    This item said lily wall 8's `CurvedEdgeUnsupported` flips with
    the migration. **It does not.** `gate_operand_edges`

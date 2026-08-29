@@ -50,7 +50,7 @@ const FIT_TOL: f64 = 1e-6;
 /// construction arithmetic — a fixed number of metres, independent of
 /// ε. The check is `|r| ≤ ε`, so the fixture certifies exactly when ε
 /// is at or above this value, and below it the kernel refuses
-/// `CertifyError::ResidualExceeded { check: IsoResidual, .. }`, which
+/// `CertifyError::ResidualExceeded { check: ChartResidual, .. }`, which
 /// is the kernel being RIGHT.
 ///
 /// Pinned BIT-EXACTLY, both directions, by
@@ -138,7 +138,7 @@ fn assert_honest_reattach_refusal(r: &ReattachRefusal, d: f64) {
     };
     assert_eq!(
         *check,
-        geom_brep::CertCheck::IsoResidual,
+        geom_brep::CertCheck::ChartResidual,
         "the refusing check is the iso lane's metric residual"
     );
     // The number the refusal does not carry. `ResidualExceeded` reports

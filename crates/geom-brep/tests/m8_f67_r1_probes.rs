@@ -27,7 +27,7 @@ use geom::{Curve3, NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_brep::keys::SurfaceKey;
 use geom_brep::{
-    CertifyError, ChartWindow, EdgeCurve, EdgeCurveSpec, EdgeGeometry, Pcurve, PcurveCache,
+    CertifyError, ChartWindow, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, Pcurve, PcurveCache,
     PcurveCertifyError, PcurveCheck,
 };
 use geom_core::Tol;
@@ -192,7 +192,7 @@ fn certify_axis(carrier: Curve3<f64>, t0: f64, t1: f64) -> Result<EdgeCurve<f64>
     let witness = carrier.eval((t0 + t1) * 0.5);
     let (start, end) = (carrier.eval(t0), carrier.eval(t1));
     let spec = EdgeCurveSpec {
-        description: EdgeGeometry::Intersection { s1, s2, witness },
+        description: EdgeDescriptionSpec::Intersection { s1, s2, witness },
         carrier,
         param_start: t0,
         param_end: t1,

@@ -589,7 +589,7 @@ fn plane_nurbs_seams(
                 return None;
             };
             let (&s1, &s2) = match curve.description() {
-                geom_brep::EdgeGeometry::Intersection { s1, s2, .. } => (s1, s2),
+                geom_brep::EdgeDescription::Intersection { s1, s2, .. } => (s1, s2),
                 _ => return None,
             };
             let pair = plane(s1)

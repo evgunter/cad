@@ -13,7 +13,7 @@
 //!   `Curve3::Line`/`Circle` under `MappedCurve::PlacedSegment` and
 //!   certifies today.
 //! - **Wall–wall seams** are the genuinely new class (item 6(iii)):
-//!   [`geom_brep::EdgeGeometry::IsoCurve`] over the wall's boundary
+//!   an iso image of over the wall's boundary
 //!   row (`geom_brep::boundary_iso_u` — a control-net copy, no
 //!   arithmetic), certified through the metric residual
 //!   `|C(t) − S(u, v(t))|` at the CERT schedule.
@@ -53,7 +53,7 @@ use std::sync::Arc;
 
 use geom::Curve3;
 use geom::{NurbsSurface, Surface};
-use geom_brep::{EdgeCurveSpec, EdgeGeometry, NewellError, newell_plane};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, NewellError, newell_plane};
 use geom_core::{
     Affine3, Band, BandError, Decide, Indeterminate, Margin, Point3, Real, Sign, Tol, Vec3,
 };
@@ -66,7 +66,10 @@ use topo::{
 };
 
 use crate::skin::{LoftGeometry, Section, SkinError, lift_surface, loft_geometry, sweep_places};
-use crate::swept::{SweptSeg, cap_points, face_surface_key, placed_segment_spec, swept_segments};
+use crate::swept::{
+    SweptSeg, cap_points, describe_face_rim_at_rest, face_surface_key, placed_segment_spec,
+    swept_segments,
+};
 
 /// Everything [`loft_body`]/[`sweep_body`] built, keyed — the
 /// [`crate::Extruded`] bundle one operation over.
@@ -515,6 +518,13 @@ fn assemble<T: Decide>(
     let top_plane = newell_plane(&raised, band).map_err(LoftError::CapPlane)?;
     body.set_face_surface(top_face, FaceSurface::New(top_plane))?;
 
+    // Both cap planes exist now, so both rims are at REST in them and
+    // stop leaning on the scaffolding door they had to be minted
+    // through (D3's transience fence — a cap's plane is fitted THROUGH
+    // its own rim, so the rim cannot name it at mint time).
+    describe_face_rim_at_rest(&mut body, bottom_face, tol)?;
+    describe_face_rim_at_rest(&mut body, top_face, tol)?;
+
     // ---- Phase 6: strut upgrades to the seam class — the wall keys
     // now exist, so each strut re-describes as wall j's `u = 0`
     // boundary iso through the certified setter (D9 — loops in
@@ -526,12 +536,14 @@ fn assemble<T: Decide>(
             let carrier = geom_brep::boundary_iso_u(walls_t[li][j].as_ref(), false)
                 .map_err(|_| LoftError::SeamStructure)?;
             let spec = EdgeCurveSpec {
-                description: EdgeGeometry::IsoCurve {
-                    surface: wall_key,
-                    u: T::zero(),
-                    v0: T::zero(),
-                    v1: T::one(),
-                },
+                description: EdgeDescriptionSpec::iso(
+                    wall_key,
+                    T::zero(),
+                    T::zero(),
+                    T::one(),
+                    T::zero(),
+                    T::one(),
+                ),
                 carrier: Curve3::Nurbs(Arc::new(carrier)),
                 param_start: T::zero(),
                 param_end: T::one(),

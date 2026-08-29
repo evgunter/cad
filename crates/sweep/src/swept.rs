@@ -45,9 +45,9 @@
 //! the two together, and it is deliberately not deleted.
 
 use geom::Curve3;
-use geom_brep::{EdgeCurveSpec, EdgeGeometry, MappedCurve, SketchSegment};
+use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, MappedCurve, SketchSegment};
 use geom_core::{
-    Affine3, Band, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Vec2, Vec3,
+    Affine3, Band, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Tol, Vec2, Vec3,
 };
 use topo::{Body, EulerOpError, FaceKey, SurfaceKey};
 
@@ -326,7 +326,7 @@ pub(crate) fn placed_segment_spec<T: Real, S: SweptChord<T>>(
     q_from: Point3<T>,
     q_to: Point3<T>,
 ) -> EdgeCurveSpec<T> {
-    let description = EdgeGeometry::MappedCurve(MappedCurve::PlacedSegment {
+    let description = EdgeDescriptionSpec::Scaffold(MappedCurve::PlacedSegment {
         segment: sketch_segment(seg),
         place,
     });
@@ -471,4 +471,59 @@ pub(crate) fn face_surface_key<T: Real>(
             key: topo::EntityId::Face(face),
         })?
         .surface)
+}
+
+/// Every edge of `face` still described through the **scaffolding
+/// door**, re-stated as an image in that face's OWN chart — carrier
+/// and interval verbatim, the pushforward it was scaffolded from kept
+/// as its authority record (`EdgeCurveSpec::at_rest_in_chart`).
+///
+/// D3's transience fence: the door is for edges whose surfaces do not
+/// exist yet. A cap's rim is minted before the cap's plane is known
+/// (the plane is fitted THROUGH the rim), so it must go through the
+/// door — and the moment the plane exists the rim is at rest in it and
+/// says so. Edges the construction has already described some other
+/// way (a cap–wall intersection, a wall's boundary iso) are left
+/// alone: this states what THIS face knows about its own boundary, it
+/// does not re-derive anyone else's description.
+pub(crate) fn describe_face_rim_at_rest<T: Decide>(
+    body: &mut Body<T>,
+    face: FaceKey,
+    tol: Tol,
+) -> Result<(), EulerOpError> {
+    let chart = face_surface_key(body, face)?;
+    let stale = || EulerOpError::StaleKey {
+        key: topo::EntityId::Face(face),
+    };
+    let face_data = body.get_face(face).ok_or_else(stale)?.clone();
+    let mut edges: Vec<topo::EdgeKey> = Vec::new();
+    for lk in core::iter::once(&face_data.outer).chain(&face_data.rings) {
+        let topo::LoopBoundary::Cycle { first } = body.get_loop(*lk).ok_or_else(stale)?.boundary
+        else {
+            continue;
+        };
+        for he in body.loop_cycle(first).ok_or_else(stale)? {
+            edges.push(body.get_half_edge(he).ok_or_else(stale)?.edge);
+        }
+    }
+    for edge in edges {
+        let curve_key = body
+            .get_edge(edge)
+            .ok_or(EulerOpError::StaleKey {
+                key: topo::EntityId::Edge(edge),
+            })?
+            .curve;
+        let Some(curve) = body
+            .get_curve_geom(curve_key)
+            .and_then(topo::CurveGeom::certified)
+        else {
+            continue; // null scaffolding carries no description at all
+        };
+        if !matches!(curve.description(), geom_brep::EdgeDescription::Scaffold(_)) {
+            continue;
+        }
+        let spec = curve.restated_spec().at_rest_in_chart(chart, false);
+        body.set_edge_curve(edge, spec, tol)?;
+    }
+    Ok(())
 }

@@ -238,9 +238,36 @@ fn megascale_washer_matches_and_validates() {
 /// PUBLIC-OP escape from the iso-rectangle inventory: split a washer
 /// wall (cylinder face) with a diagonal chord `mef` — the new boundary
 /// line is not a meridian, so the closed form must refuse TYPED
-/// (`NotIsoRectangle` under the face) and tier 3 must report
-/// `VolumeUncomputable` — never a silent number, never a quadrature
-/// fallback.
+/// (`NotIsoRectangle` under the face) — never a silent number, never a
+/// quadrature fallback — and tier 3 must refuse the body.
+///
+/// **Re-expressed at PCURVE P-1b, with a reachability loss stated
+/// rather than papered over.** The tier-3 half used to read
+/// `VolumeUncomputable`. It cannot any more, and the reason is
+/// structural, not a re-baseline: check 7 runs only `if
+/// errors.is_empty()` (cascade discipline — a volume computed from an
+/// already-broken body is noise), and this fixture now trips an
+/// earlier check. A straight chord between two points of a CYLINDER is
+/// a secant: it lies in neither adjacent surface, so it has no chart
+/// image and no intrinsic citation — no legal at-rest description
+/// exists for it at all — and the `line_between` the row hands `mef`
+/// therefore stays at the scaffolding door, which U2's transience
+/// fence names at check 2.
+///
+/// So the defect this row plants is now caught EARLIER and by name —
+/// three reports, all on entities the row itself minted: the fence on
+/// the chord, and check 8 (the pcurve-cache pass, deliberately UNGATED
+/// on the volume check) once per half-edge, both bounding a cylinder
+/// face whose chart mints caches. That is a strictly sharper statement
+/// than the single `VolumeUncomputable` it replaces: the old report
+/// named a face's volume, these name the chord.
+///
+/// The closed form's typed refusal — the actual subject — is untouched
+/// and still read directly from `mass_properties`. The tier-3
+/// `VolumeUncomputable` lane keeps its own pins on bodies that ARE at
+/// rest and merely uncomputable (`m5_pr12_fix_pass`, `step-import`'s
+/// `nurbs_import` / `freecad` / `wild`), so nothing lost coverage —
+/// this fixture stopped being an example of it.
 #[test]
 fn diagonal_chord_split_refuses_typed_not_silent() {
     use topo::{FaceSurface, LoopBoundary, MassPropsError, MefSite, ValidationError};
@@ -266,13 +293,14 @@ fn diagonal_chord_split_refuses_typed_not_silent() {
         *body.get_point(body.get_vertex(v).unwrap().point).unwrap()
     };
     let (a, b) = (point_of(&body, he1), point_of(&body, he2));
-    body.mef(
-        MefSite::Chords { he1, he2 },
-        topo::EdgeCurveSpec::line_between(a, b),
-        FaceSurface::Inherit,
-        Tol::witness(),
-    )
-    .expect("diagonal chord split through the public operator");
+    let split = body
+        .mef(
+            MefSite::Chords { he1, he2 },
+            topo::EdgeCurveSpec::line_between(a, b),
+            FaceSurface::Inherit,
+            Tol::witness(),
+        )
+        .expect("diagonal chord split through the public operator");
     match mass_properties(&body, Tol::witness()) {
         Err(MassPropsError::Face { source, .. }) => {
             assert!(
@@ -283,10 +311,24 @@ fn diagonal_chord_split_refuses_typed_not_silent() {
         other => panic!("expected typed refusal, got {other:?}"),
     }
     let errs = validate_geometric(&body, Tol::witness()).unwrap_err();
-    assert!(
-        errs.iter()
-            .any(|e| matches!(e, ValidationError::VolumeUncomputable { .. })),
-        "tier 3 must surface the uncomputable volume; got {errs:?}"
+    assert_eq!(
+        errs,
+        vec![
+            ValidationError::ScaffoldAtRest { edge: split.edge },
+            ValidationError::Pcurve {
+                finding: topo::PcurveMintError::MissingCache {
+                    half_edge: split.he_plus,
+                },
+            },
+            ValidationError::Pcurve {
+                finding: topo::PcurveMintError::MissingCache {
+                    half_edge: split.he_minus,
+                },
+            },
+        ],
+        "tier 3 must name the planted chord — once for having no at-rest \
+         description, and once per half for bounding a minting chart \
+         with no cache — and nothing else; got {errs:?}"
     );
 }
 

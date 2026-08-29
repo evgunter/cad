@@ -476,6 +476,7 @@ fn load_fault(error: &PersistError) -> ResolveFault {
         // different one cannot be evaluated at all.
         PersistError::ToleranceConflict { .. } => ResolveFault::EpsilonSeam,
         PersistError::NonFinite { .. }
+        | PersistError::Distribution { .. }
         | PersistError::ProfileProgram { .. }
         | PersistError::Serialize { .. }
         | PersistError::Header { .. }

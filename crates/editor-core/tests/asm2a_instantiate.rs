@@ -744,11 +744,12 @@ fn row7_v7_round_trips_and_v6_refuses() {
     // v8 on top of it (the two units double-claimed 7 — see the
     // SCHEMA_VERSION ledger), LIB-RESPELL's §2c re-spell took v9, and
     // ASM-UPD's `UpdateReference` arm took v10, M9-1's declaration
-    // class took v11, LIB-PLACEDUNION's group boolean took v12, and
-    // ASM-R2a's `Node::Mate` arm took v13. The row's subject is the
+    // class took v11, LIB-PLACEDUNION's group boolean took v12,
+    // ASM-R2a's `Node::Mate` arm took v13, ASM-R2b's interface record
+    // took v14, and M10-1's parameter distributions took v15. The row's subject is the
     // round trip and the v6 refusal, both unaffected; only the number
     // moved.
-    assert_eq!(editor_core::SCHEMA_VERSION, 14);
+    assert_eq!(editor_core::SCHEMA_VERSION, 15);
     let mut store = StubStore::default();
     let doc_ref = store.insert(part("asm2a-r7-part", 0.0, 1.0), Tol::witness());
     let (doc, ids) = assembly("asm2a-r7-asm", &[doc_ref, doc_ref]);
