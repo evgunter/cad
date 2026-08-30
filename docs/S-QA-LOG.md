@@ -204,3 +204,55 @@ future thought about whether the filter can notice a zero-step
 Next: QA-3 (the tools-scope k-lint path pin, Q1's ruling) into the
 now-freed `ci-filter.py`/`ci.yml`; QA-4 close-out verification; QA-5
 awaits the K/P/W coordination.
+
+## QA-4 closed out (2026-08-30)
+
+The landed-fix verification unit (block QA-B2 slot 1; verification-
+shaped, so it produced no A/B row — the one residue it landed is the
+nine doc-comment lines on this PR recording the ratified
+proptest-regressions decision: a written-out fixture over a seed,
+because a `cc` seed re-derives its input only through the strategy
+that drew it, and that strategy is what the rewrite replaced). All
+three verifications PAID: the panic-hook race structurally
+unrepresentable and 0-in-200 empirically (plus a load-shaped leg,
+against ~15-in-200 pre-fix); the generator's docstring and pinned
+counterexample in place; the issue-808 finish complete with the
+guard the issue said was missing. Issues 882, 1134, 774 and 808
+close on this record. Class noted for a future sweep, not acted on:
+three test files still do per-call panic-hook take/set swaps
+(topo/src/review_m1_pr2/release_corruption.rs:290,
+mesh/tests/profile_overrides.rs:140,
+sweep/tests/review_d2_adv_probes.rs:435) — each single-binary-safe
+today, all issue-882's shape; and `caught`'s `unwrap_or_default()`
+still folds a lost message to the empty string, unreachable now but
+the reintroduction path if a second set_hook caller ever lands in
+that binary.
+
+## QA-3 merged (2026-08-30); block QA-B1 complete
+
+Evan's Q1 ruling is live: a `tools/` change pins the k-lint row that
+runs that crate's own suite, announced in `CONFIG_SOURCE` and the
+notices relay, with the draw untouched everywhere else — and the pin
+caught D183's failure shape on its own PR three times (each pinned
+head would have drawn a row that builds the changed crate without
+running an assertion about it). Issue 1023 closes on this plus
+QA-2's visibility work. The dual's headline is a lesson this
+program should keep: the filter's BEHAVIOR survived fourteen
+mutations across two arms, and both MAJORs were in the WRITTEN
+record — a derivation that said "compiles" and meant "runs the
+suite", and a debt-resolution pointer that vouched for a still-false
+comment. In a program whose deliverables are instruments, the record
+is part of the instrument, and it now has its own guard
+(`_selftest_klint_workflow` parses ci.yml and reds when the mapping,
+the row roster, or the fallback's premise drifts). Also earned here:
+a debt whose locator is a phrase-grep will point at true sentences
+and miss false ones — re-derive the claim set before trusting the
+citations (the unit did, found one cited line TRUE and two uncited
+lines false, and then committed the same class itself one site over
+— caught by the dual). Track Q's declared count (18) disagrees with
+its table (16), pre-existing, verified at merge base by both
+reviewers independently — flagged for whoever owns the schedule's
+bookkeeping next.
+
+Block QA-B1 is complete: three units, three duals, ordinals 800-802,
+samples 53/54/56.
