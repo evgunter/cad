@@ -192,6 +192,19 @@
 # no lint states: the half now COMPILES in a doc build, so prose on an
 # item that stopped existing is a hard error rather than a silence.
 #
+# THE SIBLING AXIS PASS 3 DOES NOT COVER, swept and named rather than
+# left to be rediscovered: `#[cfg(not(debug_assertions))]`. `cargo doc`
+# runs the dev profile, so `debug_assertions` is ON in every pass here
+# and that half is compiled out of all three — the same shape as the
+# feature axis, one profile over, and no feature selection reaches it.
+# Sixteen sites carry it (`geom-core/src/spline/knots.rs`,
+# `topo/src/review_d18.rs`, `topo/src/review_m1_pr2/
+# release_corruption.rs`), every one a statement or expression block
+# rather than a documented item, so the axis is LATENT here rather than
+# live: there is no prose behind it today to be unread. Covering it
+# means a `--release` doc pass, which is a cost decision and not a
+# spelling one, and it is not taken on this gate's own authority.
+#
 # THE NAMED DEFAULT-FEATURES ROOT NEEDS NO EXCEPTION HERE.
 # `--no-default-features` cannot turn `oracle-inari` on, so pass 3 is
 # already inside the constraint that exception exists to enforce; if
