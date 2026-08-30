@@ -378,3 +378,50 @@ in flight). The branch-side draw record above becomes public with
 this merge to main, and BLEND-7's redacted arm cell is restated in
 its MODEL-AB-LOG row in the same commit. BLEND-2's row lands at its
 merge, arm named normally (its dual is concluded).
+
+## BLEND-2 MERGED (2026-08-30)
+
+PR 1268 merged (ordinal 602; full record in MODEL-AB-LOG's row).
+One call now fillets rims sharing a wall OR a full-revolve cap —
+the seam-key refresh is identity-only, decide-before-mutate stood,
+and the shared-wall refusal at the collision margin names a
+FOLLOWABLE split recourse (the 1278 class's third instance, closed
+at birth this time). The unit also repaired main's latent k-lint
+probe-census red (conjoined-feature suites listed nothing on a
+dev-probe draw), gate-proven at merge via a klint=dev-probe
+trailer. Handoffs: issue 1294 (editor-core annulus emitter drive);
+N2 for S-QA (the census success line under-reports derived
+features). Next: BLEND-5 (issue 961) on a fresh block, then
+BLEND-6 (ratified BLEND-VOCAB).
+
+## THE PINNED DEV-PROBE ROW: REPAIR PROVEN, NEXT LAYER EXPOSED (2026-08-30 ~20:20Z)
+
+The trailer-pinned k-lint run (33332365082) executed the repaired
+census step end to end — derived features, compiled and RAN the
+conjoined `all(probe, interval)` suite for the first time on
+hosted CI — and that first execution exposed the layer beneath:
+`m10_3_driver_k_probe_interval`'s dump panics "nothing certified,
+nothing to sample" at the runner's eps=1e-6 (the driver's
+macroscopic wide-band refusal meeting the dump's fail-loud).
+Pre-existing, main-red at the same matrix point, M10's territory
+→ **issue 1296** filed with the evidence; standing-down comment on
+the PR. This commit voids the trailer so the merge gate draws the
+standard sampled row.
+
+**Re-roll note (2026-08-30 ~20:35Z):** run 33333032080's only red
+was `render lanes / freecad montages` dying at 3 s with runner_id
+0 and no logs — a runner loss before checkout (the same job green
+on the prior run over the same code ten minutes earlier). The
+integration's rerun-failed-jobs is 403 for this session, so this
+commit is the re-roll.
+
+**(Second re-roll:** run 33334073786's bootstrap jobs themselves
+died log-less at ~4 s — the Actions budget exhaustion window, per
+Evan; budget refreshed, this commit re-rolls.)
+
+**(Final head:** the budget-re-roll's SHA drew `dev-probe` again —
+the filed 1296 red (M10's suite), 21/22 jobs green. Rather than
+re-rolling the draw, this commit pins `klint=dev-budget` BY NAME:
+the row that gated this same tree green at c05b97f9, with the
+dev-probe row's red owned by issue 1296 on main and this PR's
+census repair proven at run 33332365082.)

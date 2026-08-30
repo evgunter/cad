@@ -3060,8 +3060,24 @@ jobs:
           test -n "$crates"
           echo "probe-gated crates: $(echo "$crates" | tr '\n' ' ')"
           for c in $crates; do
-            cargo test -p "$c" --features probe --all-targets --no-run
-            cargo test -p "$c" --features probe --test all -- --list \
+            # A censused gate may CONJOIN `probe` with another opt-in
+            # feature (`all(feature = "probe", feature = "interval")` —
+            # the E6 driver suite; `k_probe_sweep.sh`'s `feats_for` is
+            # the same fact one step later). Derive those features from
+            # the gate LINES themselves — the census's own predicate
+            # shape — so the compile here builds every counted suite
+            # and `--check-listing` judges a real listing. Additive
+            # only: extra features can never hide a probe-gated suite
+            # (the census's stated blind spot, `not(feature = …)`,
+            # excepted — no such gate exists and the census documents
+            # it).
+            extra=$(grep -hE '^#!\[cfg\(.*feature = "probe"' "crates/$c"/tests/*.rs 2>/dev/null \
+              | grep -oE 'feature = "[a-z0-9_-]+"' | grep -v '"probe"' \
+              | sed 's/feature = //; s/"//g' | sort -u | paste -sd, -) || true
+            feats="probe${extra:+,$extra}"
+            echo "building $c with --features $feats"
+            cargo test -p "$c" --features "$feats" --all-targets --no-run
+            cargo test -p "$c" --features "$feats" --test all -- --list \
               | scripts/gates/probe-suite-census.sh --check-listing "$c"
           done
       # Runs the M2-era harness (crates/sweep) beside the M4/M5/M7 one
