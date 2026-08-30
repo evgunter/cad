@@ -140,19 +140,56 @@ fn a_bar_clear_of_the_wall_still_answers() {
 /// refuse it rather than pick a side — the pierce door, unchanged.
 #[test]
 fn a_bar_grazing_the_wall_keeps_the_pierce_door() {
-    let err = union_err(&pipe(), &boxx(-3.0, 3.0, -1.0, 1.0, -0.3, 0.3));
+    let (pipe, bar) = (pipe(), boxx(-3.0, 3.0, -1.0, 1.0, -0.3, 0.3));
+    let err = union_err(&pipe, &bar);
+    let BooleanError::CurvedPierceUnsupported { operand, edge, .. } = err else {
+        panic!("a tangency is not a crossing: {err:?}");
+    };
+    // **The variant alone would not pin this row.** Any other frontier
+    // of the same kind would satisfy it, so the refusing edge's CARRIER
+    // is asserted too: the tangency this row plants is the bar's long
+    // straight edge at `y = ±1`, and a Circle or a sphere face reaching
+    // the same variant would be a different finding wearing this row's
+    // name.
+    let owner = match operand {
+        topo::Operand::A => &pipe,
+        topo::Operand::B => &bar,
+    };
+    let Some(topo::CurveGeom::Certified(c)) = owner
+        .get_edge(edge)
+        .and_then(|e| owner.get_curve_geom(e.curve))
+    else {
+        panic!("the named edge has no certified curve");
+    };
     assert!(
-        matches!(err, BooleanError::CurvedPierceUnsupported { .. }),
-        "a tangency is not a crossing: {err:?}"
+        matches!(c.carrier(), topo::Curve3::Line { .. }),
+        "the grazing red must refuse on the tangent LINE: {:?}",
+        c.carrier()
     );
 }
 
-/// **The kind fence, differential.** A CONE wall has no ray×cone roots
-/// anywhere in this tree, and the ring lane must not appear to have
-/// given it any: the same bar against a frustum refuses at a cone door,
-/// not at a wall crossing.
+/// **The kind fence, differential — and what it does and does not
+/// witness.**
+///
+/// MEASURED, the frustum's bar meets `CurvedPairUnsupported { kind:
+/// Cone, other_kind: Plane }`: the kind-PAIR operand gate, on the cone
+/// face against the BAR's own plane face. It never reaches the crossing
+/// layer's `f2` fold or `face_geo` at all, so this row does NOT witness
+/// "the ring lane gave a cone no roots" — that pair has had no arm
+/// since long before this lane, and the row reads identically with the
+/// ring lane reverted.
+///
+/// It is kept for what it does witness, asserted positively rather than
+/// as a not-the-other-door: a cone operand is stopped at the OUTERMOST
+/// gate, so no cone geometry is ever handed to the wall lane in the
+/// first place. That is a dead-belt fence — the inner fences
+/// (`face_geo`'s `KindUnsupported`, the `f2` fold's Cylinder/Sphere-only
+/// arms, and `wall_crossing`'s own non-cylinder `Unsettled`) are the
+/// live ones and are unreachable from any authorable cone body while
+/// this gate stands. If a later unit opens the pair gate for cones,
+/// this row flips and the inner fences become the ones under test.
 #[test]
-fn a_cone_wall_still_refuses_at_its_own_door() {
+fn a_cone_wall_is_stopped_at_the_outermost_gate() {
     let tol = Tol::witness();
     let frustum = {
         let lp = ProfileLoop::new(
@@ -161,9 +198,7 @@ fn a_cone_wall_still_refuses_at_its_own_door() {
                 .map(|(r, y)| ProfileVertex::new(p2(r, y), 0.0))
                 .collect(),
         );
-        let profile = Profile::new(SketchPlane::xy(), vec![lp])
-            .validate(tol)
-            .unwrap();
+        let profile = Profile::new(SketchPlane::xy(), vec![lp]).validate(tol).unwrap();
         revolve(
             &profile,
             RevolveAxis {
@@ -178,10 +213,14 @@ fn a_cone_wall_still_refuses_at_its_own_door() {
     };
     let err = union_err(&frustum, &boxx(-1.0, 1.0, -0.05, 0.05, 0.25, 0.35));
     assert!(
-        !matches!(
+        matches!(
             err,
-            BooleanError::Join(topo::SplitJoinError::SectionArcWindow { .. })
+            BooleanError::CurvedPairUnsupported {
+                kind: geom_brep::SurfaceKind::Cone,
+                other_kind: geom_brep::SurfaceKind::Plane,
+                ..
+            }
         ),
-        "a cone pierce must not reach the ring lane's join door: {err:?}"
+        "the cone's own door, asserted rather than excluded: {err:?}"
     );
 }

@@ -561,13 +561,40 @@ pub enum BooleanError {
         /// Its surface kind — the C5 table row the refusal cites.
         kind: geom_brep::SurfaceKind,
     },
+    /// A pierce sector's FIRST-ORDER material verdict could not be
+    /// certified against the pierced face's curvature: the sagitta at
+    /// the sector's own lever arm is not definitely smaller than the
+    /// first-order displacement, so the tangent-plane verdict may have
+    /// the material side backwards (`boolean::sectors::side_code`
+    /// carries the argument and the witness). The **definite** half of
+    /// a two-tolerance pair on `bool_pierce_sector_side_curved`; an
+    /// in-band charge escalates as [`BooleanError::Escalated`] on the
+    /// same predicate instead.
+    ///
+    /// A refusal, never a guess: a first-order answer here would be a
+    /// wrong TOPOLOGY rather than a conservative one. The recourse is
+    /// the second-order sector trilean
+    /// (`geom_brep::enters_material_order2`), which the declared-
+    /// `Tangent` lump already consumes and which no lane wires into
+    /// this verdict yet.
+    CurvedSectorSideUnsupported {
+        /// The band the curvature charge was classified against.
+        band: Band,
+    },
     /// A sweep event definitely lands on a CURVED face away from its
     /// boundary, a vertex sits ON a curved surface, or a curved-carrier
-    /// edge cannot be cleared against a curved face: the curved PIERCE
-    /// door — point-in-face trim containment on a curved chart at
-    /// boolean classification, and the v-on-curved-face ring insertion
-    /// behind it — does not exist yet (the M5 envelope's frontier; the
-    /// C5 table routes the SECTIONS, this is the crossing layer). The
+    /// edge cannot be cleared against a curved face, and the curved
+    /// PIERCE door cannot take it. **That door now exists for one
+    /// family** — a LINE carrier definitely crossing a CYLINDER wall,
+    /// whose crossing parameters come from the certified line × wall
+    /// quadratic and whose landing point the chart trim places — so
+    /// what this variant reports is the REST of the family: a tangency
+    /// (not a crossing at any order the lane sees), a CIRCLE carrier
+    /// against a wall (a degree-2 trigonometric residual with no root
+    /// lane in this tree), a SPHERE face, an undeclared on-carrier
+    /// edge, or a trim the chart door declines to express (the M5
+    /// envelope's frontier; the C5 table routes the SECTIONS, this is
+    /// the crossing layer). The
     /// **definite** half of a two-tolerance pair: the very same
     /// clearance margin one band-width away escalates as
     /// [`BooleanError::Escalated`] on `bool_line_cylinder_clearance`
@@ -1016,11 +1043,27 @@ impl core::fmt::Display for BooleanError {
                 f,
                 "boolean_reduce: edge {edge:?} of operand {operand:?} definitely meets \
                  curved face {face:?} away from a shared boundary (clearance classified \
-                 against band [zero {:e}, escalate {:e}]) — the curved pierce door \
-                 (point-in-face trim containment on a curved chart, and the ring \
-                 insertion behind it) does not exist yet — this is the typed \
-                 frontier of the supported envelope. The same margin one band-width \
-                 away escalates as a sliver instead; {}",
+                 against band [zero {:e}, escalate {:e}]) — and the curved pierce \
+                 door cannot take this one. The door exists for a LINE carrier \
+                 definitely crossing a CYLINDER wall; a tangency, a Circle carrier, \
+                 a sphere face, an undeclared on-carrier edge, or a trim the chart \
+                 door will not express stay at this typed frontier. The same margin \
+                 one band-width away escalates as a sliver instead; {}",
+                band.zero(),
+                band.escalate(),
+                COINCIDENCE_RECOURSE
+            ),
+            Self::CurvedSectorSideUnsupported { band } => write!(
+                f,
+                "boolean_reduce: a pierce sector's first-order material verdict cannot \
+                 be certified against the pierced face's curvature — the sagitta at \
+                 the sector's own lever arm is not definitely smaller than the \
+                 first-order displacement (classified against band \
+                 [zero {:e}, escalate {:e}]), so the tangent-plane verdict may have \
+                 the material side backwards. Answering it at first order would be a \
+                 wrong topology, not a conservative one. The recourse is the \
+                 second-order sector trilean, which no lane wires into this verdict \
+                 yet; {}",
                 band.zero(),
                 band.escalate(),
                 COINCIDENCE_RECOURSE

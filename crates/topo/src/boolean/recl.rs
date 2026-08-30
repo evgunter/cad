@@ -377,7 +377,7 @@ fn flank_key<T: Decide>(
 ) -> Result<SideCode, BooleanError> {
     let s = &own[idx];
     let bound = if key_from_start { s.start } else { s.end };
-    side_code(bound, ref_normal, s.arm, band)
+    side_code(bound, ref_normal, s.arm, super::sectors::NO_CURVATURE(), band)
 }
 
 /// Rewrites EVERY On code of a surviving germ record to the transition
@@ -665,7 +665,7 @@ fn resolve_edge_edge<T: Decide>(
         };
         let mut inside = true;
         for &(oi, ow) in other {
-            match side_code(w, other_secs[oi].normal, arm, band)? {
+            match side_code(w, other_secs[oi].normal, arm, super::sectors::NO_CURVATURE(), band)? {
                 SideCode::In => {}
                 SideCode::Out => inside = false,
                 SideCode::On => {

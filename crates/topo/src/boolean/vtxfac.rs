@@ -149,6 +149,16 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
                 });
             }
         };
+    // The pierced face's own curvature scale at `p` — the lever the
+    // sector side verdicts are charged against (`side_code`'s argument).
+    // A plane reports `f64::MAX`, so its charge is vacuous and the
+    // planar lane's verdicts are unmoved.
+    let pierced_lever = pierced_body
+        .get_face(contact.face)
+        .and_then(|f| pierced_body.get_surface(f.surface))
+        .map_or_else(super::sectors::NO_CURVATURE, |s| {
+            geom_brep::curvature_lever_arm(s, p)
+        });
     let sectors = build_sectors(piercing_body, piercing, vertex, band)?;
     let n = sectors.len();
 
@@ -164,7 +174,7 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
         entries.push(Entry {
             he: s.he,
             is_edge: s.end_edge,
-            class: side_code(s.end, n_pierced, s.arm, band)?,
+            class: side_code(s.end, n_pierced, s.arm, pierced_lever, band)?,
         });
     }
 

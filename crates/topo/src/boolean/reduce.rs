@@ -1402,13 +1402,30 @@ fn curved_face_arm<T: Decide>(
                 Ok(Sign::Zero | Sign::Negative) => {
                     match wall_crossing(y, face, &surface, curve.carrier(), t0, t1, band)? {
                         SpanVerdict::Pierce { t, p, at } => Ok(CurvedEvent::Pierce { t, p, at }),
-                        // No interior root, a constant positive
-                        // residual, or no root at all: definitely
-                        // clear, and exactly so — the bound that sent
-                        // us here could only ever have said "maybe".
-                        SpanVerdict::NoInterior | SpanVerdict::Constant | SpanVerdict::Miss => {
-                            Ok(CurvedEvent::None)
-                        }
+                        // No interior root, or no root at all:
+                        // definitely clear, and exactly so — the bound
+                        // that sent us here could only ever have said
+                        // "maybe".
+                        SpanVerdict::NoInterior | SpanVerdict::Miss => Ok(CurvedEvent::None),
+                        // **`Constant` is NOT a clearance here.** It
+                        // reports that the axis-parallel test —
+                        // `|d_perp|²/2r`, a SQUARED transverse
+                        // component — did not come back definitely
+                        // positive, which is an L²-amplified window: a
+                        // direction a band-width off the axis has a
+                        // transverse component of order `sqrt(band)`,
+                        // and the residual it accumulates over a long
+                        // span is not the constant this verdict would
+                        // read it as. Clearing on it would be a silent
+                        // wrong answer at exactly the poses the belly
+                        // arm exists for, so it keeps the door. (The
+                        // ray lane's sibling at
+                        // `solid_contain::cast_ray` skips the face on
+                        // the same verdict and is not touched here: its
+                        // pre-pass has already put `q` definitely off
+                        // the wall, which is the one-sign story this
+                        // arm does not have.)
+                        SpanVerdict::Constant => Err(frontier()),
                         SpanVerdict::Unsettled => Err(frontier()),
                     }
                 }

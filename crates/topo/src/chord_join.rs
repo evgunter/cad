@@ -102,9 +102,22 @@ use geom_core::Tol;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ArcWindowCase {
     /// The joined run carries no edge with a closed-form chart image,
-    /// so the divided face has no azimuth window at all. (A cylinder
-    /// face's run always carries one on the shipped lane; this is the
-    /// typed door for a corrupt or frontier-carrier run.)
+    /// so the divided face has no azimuth window at all.
+    ///
+    /// **Its ROUTINE source is a pierce RING**, and that is a
+    /// legitimate typed destination rather than a corruption. A ring
+    /// minted in a wall face is an EMPTY loop carrying only null
+    /// scaffolding, and `run_azimuth_window` skips null scaffolding
+    /// (zero-length, no azimuth extent) by contract — so a run made of
+    /// nothing else leaves the face windowless every time, by
+    /// construction. That is what a line-edge pierce into a cylinder
+    /// wall produces today, and it stands until the ring-join unit
+    /// gives a ring's run its own chord lane. (An earlier reading —
+    /// "a cylinder face's run always carries one on the shipped lane;
+    /// this is the typed door for a corrupt or frontier-carrier run" —
+    /// was falsified by that lane, and is replaced rather than left
+    /// standing beside it.) A corrupt or frontier-carrier run still
+    /// arrives here too; this variant does not distinguish the two.
     NoChartedRun,
     /// NEITHER candidate arc lies inside the window — the window is
     /// degenerate relative to the chord (an ill-conditioned operand, or
@@ -203,6 +216,16 @@ pub enum SplitJoinError {
     /// A section loop mixed above copies with below-side vertices —
     /// the joining invariant (heads join heads, tails join tails)
     /// failed (kernel bug, loudly).
+    ///
+    /// **One reachable non-bug source is known, and the doc above still
+    /// stands for every other**: a PLANAR pierce ring — a box driven
+    /// through a cylinder CAP — arrives here, because a ring's section
+    /// loop has no above/below-paired boundary to join in the first
+    /// place. That is the ring's own absent join arm surfacing at this
+    /// guard, not the guard misfiring, and it is tracked with the
+    /// curved sibling ([`ArcWindowCase::NoChartedRun`]) in the
+    /// ring-join unit. Until that unit lands, this variant is the
+    /// honest report for it.
     SectionLoopMixed {
         /// The offending null face.
         face: FaceKey,
