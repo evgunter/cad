@@ -429,3 +429,54 @@ precedent, #1108/#1125/#1129).
    step is one of whatever unit the field is written in, which is a
    guess at the user's scale and the one number in the feature
    nothing derives.
+
+**Post-close maintenance (2026-08-29, PRs #1217, #1230, #1247 — the
+Open… freeze, and what was actually under it):** reported as "one of
+the recent GUI changes broke the Open tool". It had not. The typed
+door was fine and always was; what was wrong is that `sync_scene`
+builds the pick index on the UI thread, so opening the tour's
+`hollowring` at the application's starting δ meant 25 s of a frozen
+window still showing the previous document — indistinguishable, from
+the user's seat, from a dialog that did nothing. **Not a regression
+either**: the two suspected PRs (#1162, #1184) were measured at
+`617d039` and at head, on the same documents, and the Open… → new
+document time was 24 s before and 25 s after. The whole investigation
+ran the real binary on Xvfb + lavapipe with `xdotool` driving the
+toolbar; the recipe is now in `crates/viewer/README.md`, and the A/B
+of two app builds in one environment is what made the
+not-a-regression claim measurable rather than argued.
+
+Three landed. **#1217** — `bvh::Bvh::build` sorted every range at
+every level; the split rule reads only which side of the median an
+item falls on, so `select_nth_unstable_by` answers it under the same
+total order, O(n log²n) → O(n log n), same tree (same shape, leaf
+membership and hulls; only the unread order within a leaf differs, and
+both queries sort their own output). 20.5 s → 9.2 s on 4·10⁶ boxes.
+**#1230** — `diefillet.pncad` shipped with two product roots, the
+composed die and the blank sitting exactly on it, so the file drew one
+die-shaped thing with its pips filled in and twice the material. #1162
+diagnosed that and its separation resident REPORTS it by design;
+`gallery_document` now acts on the finding's own recourse and deletes
+the narration body. The exporter prints each document's roots and
+findings as it writes, and two gated rows pin the shape of every
+gallery document as a table. **#1247** — `scene::TRIANGLE_BUDGET` and
+`fit_delta`: the budget chooses the δ a document OPENS at (a default,
+explicitly not a cap — the first cut clamped every rebuild and made
+`Finer δ` a button that did nothing), by probing once at 8× and
+solving the measured `triangles ≈ C/δ` law. Open… on the ring: 25 s →
+16 s → 8 s.
+
+Residue owned: **#1259** the index build still on the UI thread (most
+of the remaining 8 s; moving it extends the seam §5 ratified, so it
+wants a ruling); **#1260** `torus_grid_step` sizing both chart
+directions off one step, ~65× the triangles the chord asks for, which
+is the order-of-magnitude lever every number above sits under and is
+TESS-BUDGET's question, not this program's; **#1261** the heatsink's
+fins unioned in the demo's `solidify()` and never in the recipe;
+**#1253** the status line cleared by every camera fold through `land`,
+which eats the product fault raised on an open and is why the budget's
+verdict is a badge. No A/B ceremony per the post-close maintenance
+precedent (#1108); reviewed by Evan in conversation, who directed each
+merge — including the #1247 rework, which was his correction: the
+budget was a clamp until he said he had expected it to set a default.
+

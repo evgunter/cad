@@ -25,6 +25,11 @@
       "nodes": 4,
       "cone": 2
     },
+    "measured_web": {
+      "about": "M10-2: a measured web with an assertion over it (E3/E10)",
+      "nodes": 8,
+      "cone": 1
+    },
     "declared_tangency": {
       "about": "#101: fillet-constructed joints + a hand-declared line/arc tangency",
       "nodes": 4,
@@ -39,6 +44,11 @@
       "about": "M6 unit 1: the pipped cube filleted in place — box blends, octants, and the pip-rim torus band in one body",
       "nodes": 8,
       "cone": 3
+    },
+    "die_composed_tour": {
+      "about": "the demo tour's die: 21 pips cut in one grouped tool, then 12 box edges and 42 rim arcs blended behind names 20 unions deep",
+      "nodes": 49,
+      "cone": 24
     },
     "die_fillet": {
       "about": "M5 shape (v) stage 1: every edge of a unit cube blended at r = 0.125",
