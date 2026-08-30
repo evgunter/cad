@@ -35,7 +35,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use editor_core::{
     BooleanOp, BooleanValue, CancelToken, ContentBits, Datum, DocEdit, EvalOptions, Evaluation,
-    Node, NodeResult, PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, ValuePayload, apply,
+    Node, NodeResult, PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, TubeWindow,
+    ValuePayload, apply,
     evaluate,
 };
 use geom_core::Decide;
@@ -342,6 +343,19 @@ pub fn sub_kinds(node: &Node<ProfileProgram>) -> Vec<&'static str> {
         // `PatternKind` flavour above — is a COMPILE error here rather
         // than a silently uncovered sub-kind, matching the
         // compile-time totality `node_kind`/`edit_kind` already have.
+        // A tube's WINDOW is a sub-kind on the same footing as a
+        // pattern's rule: it decides the body's whole topology (a
+        // closed ring against a capped elbow, and for the hollow kind
+        // a cavity against an annular section), so a corpus that
+        // covered only one of the two would read as covering "tube".
+        Node::Tube { window, .. } => vec![match window {
+            TubeWindow::Full => "Tube::Full",
+            TubeWindow::Arc { .. } => "Tube::Arc",
+        }],
+        Node::HollowTube { window, .. } => vec![match window {
+            TubeWindow::Full => "HollowTube::Full",
+            TubeWindow::Arc { .. } => "HollowTube::Arc",
+        }],
         Node::Profile(_)
         | Node::Extrude { .. }
         | Node::Revolve { .. }
@@ -366,6 +380,8 @@ pub fn node_kind(node: &Node<ProfileProgram>) -> &'static str {
         Node::Revolve { .. } => "Revolve",
         Node::Fillet { .. } => "Fillet",
         Node::Chamfer { .. } => "Chamfer",
+        Node::Tube { .. } => "Tube",
+        Node::HollowTube { .. } => "HollowTube",
         Node::Split { .. } => "Split",
         Node::Boolean { .. } => "Boolean",
         Node::Transform { .. } => "Transform",

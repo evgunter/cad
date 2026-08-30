@@ -91,7 +91,7 @@ pub use names::{
 };
 pub use node::{
     Axis3, BooleanOp, Datum, InterfaceCrossing, InterfaceRecord, Node, PatternKind,
-    PlacementRuleFault, RecipeNodeId, SlotId, StepArg, VectorSlot,
+    PlacementRuleFault, RecipeNodeId, SlotId, StepArg, TubeWindow, VectorSlot,
 };
 pub use parse::{ParseError, parse_expr};
 pub use part::{PartResolver, ResolveFailure, ResolveFault};

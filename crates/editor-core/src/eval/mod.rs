@@ -33,7 +33,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 use geom_core::{Decide, Indeterminate, Point3, Vec3};
 use profile::ProfileError;
-use sweep::{ExtrudeError, RevolveError, SkinError};
+use sweep::{ExtrudeError, RevolveError, SkinError, TubeError};
 use topo::splitting::SplitError;
 use topo::transform::TransformError;
 use topo::{Body, BooleanError, BooleanResultKind, ContactClass, ContactRecords};
@@ -407,6 +407,21 @@ pub enum NodeErrorKind {
     Extrude(ExtrudeError),
     /// The revolve op refused.
     Revolve(RevolveError),
+    /// A TUBE door refused — the solid door's or the hollow door's.
+    ///
+    /// ONE arm for both kinds, because the kernel's two doors carry
+    /// one error type and that type already says which door it came
+    /// from: the three wall arms are reachable only through
+    /// `tube_along_arc_hollow`, and its own `Display` names the door
+    /// on every arm. Splitting this into `Tube`/`HollowTube` here
+    /// would put the door's identity in a payload for the arms that
+    /// do not depend on it, and then state it twice for the arms that
+    /// do — the shape [`NodeErrorKind::Blend`] needs a `verb` for
+    /// precisely because `FilletError` does NOT carry one.
+    ///
+    /// Carried UNALTERED like every other kernel refusal; the node
+    /// never substitutes a body for one that did not build.
+    Tube(Box<TubeError>),
     /// The split op refused.
     Split(SplitError),
     /// A BLEND op refused — the fillet's (M5 PR 12) or the chamfer's:
@@ -811,6 +826,11 @@ impl core::fmt::Display for NodeErrorKind {
             ),
             Self::Extrude(e) => write!(f, "the extrude op refused: {e}"),
             Self::Revolve(e) => write!(f, "the revolve op refused: {e}"),
+            // The kernel error names its own door, so this line
+            // must not name one: "the tube op refused: tube door: …"
+            // would read a hollow refusal as a solid one half the
+            // time.
+            Self::Tube(e) => write!(f, "the tube op refused: {e}"),
             Self::Split(e) => write!(f, "the split op refused: {e}"),
             Self::Blend { verb, error } => write!(f, "the {verb} op refused: {error}"),
             Self::Boolean(e) => write!(
@@ -1608,6 +1628,13 @@ where
         // fillet of the same size on the same edges are different
         // geometry, so they must not share a key.
         Node::Chamfer { .. } => 24,
+        // LIB-TUBE. The roster was READ and appended to (24 was the
+        // last taken). Two tags, not one: a solid tube and a hollow
+        // tube of the same radii are different artifacts, and sharing
+        // a tag would let one's memo serve the other — the exact
+        // hazard the append rule exists for.
+        Node::Tube { .. } => 25,
+        Node::HollowTube { .. } => 26,
     };
     h.write_tag(tag);
     // Structural payloads beyond the tag — everything a node carries
@@ -1776,6 +1803,18 @@ where
             for n in selection {
                 feed_stable_name(&mut h, n);
             }
+        }
+        // A tube's WINDOW VARIANT is recipe payload, not a slot: which
+        // variant it is decides whether the node has window slots at
+        // all, so re-authoring a full ring into an arc must move the
+        // key by more than the arrival of two slot values. Fed as a
+        // tag for both kinds — the two share this payload exactly as
+        // they share the slots it governs.
+        Node::Tube { window, .. } | Node::HollowTube { window, .. } => {
+            h.write_tag(match window {
+                crate::node::TubeWindow::Full => 0,
+                crate::node::TubeWindow::Arc { .. } => 1,
+            });
         }
         // Fully expressed by tag plus slots: their whole recipe payload
         // is either an input edge (excluded from the key by design — the

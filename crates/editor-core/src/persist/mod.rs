@@ -435,9 +435,54 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 /// `docs/MODEL-AB-LOG.md`, where a second claimant collides instead of
 /// merging clean.
 ///
+/// Version 17 is **the tube recipe nodes** (RECIPE-DOORS D4 as
+/// revised by the #1205 ruling).
+///
+/// The sixteenth break, and the node vocabulary's kind of break
+/// again — but a bump covering TWO new variants, which is the part
+/// worth stating. [`crate::Node`] gains `Tube` and `HollowTube`,
+/// carrying `{ spine, u_ref, major_radius, window, minor_radius }`
+/// and that plus `wall`; [`crate::SlotId`] gains `TubeMajorRadius`,
+/// `TubeMinorRadius`, `TubeWindowStart`, `TubeWindowEnd` and
+/// `TubeWall`; and [`crate::node::TubeWindow`] joins the wire as the
+/// window's own two-variant spelling.
+///
+/// **Why ONE number for two kinds.** The split is one vocabulary
+/// decision, ratified as one: a solid tube and a hollow tube are the
+/// two artifacts the kernel's two public doors already denote, and
+/// they are added in the same breath by the same ruling. Two numbers
+/// would claim the second kind is a change a reader could meet
+/// without the first — which is false, since no build ever shipped
+/// one without the other. The v12 precedent (one bump, one
+/// vocabulary change) is the shape; the v7/v8 double-claim is what
+/// two numbers for one change costs.
+///
+/// The direction that fails is the usual one. Every type here is
+/// `deny_unknown_fields`, so a v16 reader handed a file containing a
+/// tube node — or a slot binding naming a tube radius, window angle
+/// or wall — meets a variant it has no name for and dies inside
+/// serde rather than at the version door, which is exactly what the
+/// gate exists to prevent. Forward-additive as ever: a v17 file with
+/// no tube in it is the degenerate carry, differing from its v16
+/// self only in the header number.
+///
+/// The recourse is the standing one for a vocabulary break with no
+/// migration machinery (LQ7a): regenerate the file from its own
+/// recipe. The migration table stays empty.
+///
+/// This number was taken by an explicit by-eye read of main's
+/// constant at the branch point and at every re-merge (`git show
+/// origin/main:crates/editor-core/src/persist/mod.rs | grep
+/// SCHEMA_VERSION`), the only thing that has ever caught the
+/// same-number race — three consecutive units reproduced it, and
+/// neither collision produced a merge conflict, because both sides
+/// write the identical line. The claim also lives as prose in
+/// `docs/MODEL-AB-LOG.md`, where a second claimant collides instead
+/// of merging clean.
+///
 /// Bump ONLY with a ratified format change — plus its
-/// [`migration_step`] entry, or a ratified break like these fifteen.
-pub const SCHEMA_VERSION: u32 = 16;
+/// [`migration_step`] entry, or a ratified break like these sixteen.
+pub const SCHEMA_VERSION: u32 = 17;
 
 /// The serialized body under the header: snapshot + edit log (D1).
 #[derive(serde::Serialize, serde::Deserialize)]

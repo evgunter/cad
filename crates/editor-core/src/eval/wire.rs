@@ -115,6 +115,13 @@ where
         Node::Revolve { profile, axis, .. } => {
             wire_revolve(id, *profile, *axis, results, vals, tol)
         }
+        // Two arms, two doors, no flag between them: which node kind
+        // this is decides which kernel door runs, and nothing else
+        // does. That is the split vocabulary's whole content.
+        Node::Tube { spine, window, .. } => wire_tube(id, *spine, window, results, vals, tol),
+        Node::HollowTube { spine, window, .. } => {
+            wire_hollow_tube(id, *spine, window, results, vals, tol)
+        }
         Node::Loft { profiles, .. } => wire_loft(id, profiles, doc, vals, env.profile_lift, tol),
         Node::Sweep { profile, path, .. } => {
             wire_sweep(*profile, *path, doc, vals, env.profile_lift, tol)
@@ -719,6 +726,157 @@ fn wire_revolve<T: Decide + geom_brep::PcurveFittedLane>(
         revolve(&vp.validated, axis2, revolution, tol).map_err(NodeErrorKind::Revolve)?;
     let table = names::name_revolve(id, &built).map_err(NodeErrorKind::Naming)?;
     let table = anchored(table, &vp.naming)?;
+    stamp_minted(&mut built.body, id);
+    Ok(OpOut::plain(
+        ValuePayload::Body(Arc::new(built.body)),
+        table,
+    ))
+}
+
+/// The spine frame and window a tube door takes, resolved from the
+/// node's one datum edge and its slots.
+///
+/// Shared by the two tube arms and by nothing else. It is the
+/// RESOLUTION that is shared, never the door: this returns the
+/// argument list both doors begin with, and each arm then calls its
+/// own public door with it. That is the same division the kernel
+/// draws — two public doors over one private build — read at the
+/// recipe layer.
+///
+/// Nothing here validates. The frame's unit-length and
+/// perpendicularity conditions, the window's span and headroom, and
+/// (for the hollow door) all three wall verdicts are the door's own,
+/// decided against the run's band; a check here would be a second and
+/// weaker opinion about a body this layer is not building.
+struct TubeArgs<T: geom_core::Real> {
+    center: Point3<T>,
+    axis: Vec3<T>,
+    u_ref: Vec3<T>,
+    major_radius: T,
+    window: sweep::TubeWindow<T>,
+    minor_radius: T,
+}
+
+fn tube_args<T: Decide>(
+    spine: RecipeNodeId,
+    window: &crate::node::TubeWindow,
+    results: &Results<T>,
+    vals: &SlotValues<T>,
+) -> Result<TubeArgs<T>, NodeErrorKind> {
+    let sv = value_of(results, spine)?;
+    let ValuePayload::Datum(DatumValue::Axis { origin, dir }) = &sv.payload else {
+        return Err(NodeErrorKind::WrongOperand {
+            input: spine,
+            expected: "datum axis",
+            found: sv.payload.kind_name(),
+        });
+    };
+    // The datum is consumed WHOLE — origin as the spine centre, dir as
+    // the spine axis — which is `Node::Revolve`'s precedent, and both
+    // cross to the door verbatim: no normalization, no re-origining.
+    // A non-unit axis is the door's `NonUnitAxis`, not a silent fix.
+    Ok(TubeArgs {
+        center: *origin,
+        axis: *dir,
+        u_ref: need_vec3(vals, SlotId::Direction)?,
+        major_radius: need_scalar(vals, SlotId::TubeMajorRadius)?,
+        window: match window {
+            crate::node::TubeWindow::Full => sweep::TubeWindow::Full,
+            crate::node::TubeWindow::Arc { .. } => sweep::TubeWindow::Arc {
+                t0: need_scalar(vals, SlotId::TubeWindowStart)?,
+                t1: need_scalar(vals, SlotId::TubeWindowEnd)?,
+            },
+        },
+        minor_radius: need_scalar(vals, SlotId::TubeMinorRadius)?,
+    })
+}
+
+/// **A solid tube** — `sweep::tube_along_arc` (RECIPE-DOORS D4 as
+/// revised).
+///
+/// # Naming: the revolve template applies WHOLESALE
+///
+/// Measured, not assumed. [`names::name_revolve`] reads only the
+/// `Revolved<T>` maps it is handed — walls, rims, poles and the
+/// partial/full kind — and never the profile that produced them; the
+/// tube doors return a `Revolved<T>` built by the very same
+/// `full`/`partial` machinery. So the revolve emitter names a tube
+/// body with no translation and NO new `RoleSeg` variants: a tube's
+/// bands, rims, meridians, caps and poles are those roles, in the
+/// profile-loop/segment coordinates of the two-arc circle traversal
+/// the door constructs (loop 0 the outer circle, loop 1 a hollow
+/// tube's inner one; segments 0 and 1 its two half-circle arcs).
+///
+/// The one tube-specific step is a step NOT taken: there is no
+/// `anchored` rewrite, because that rewrite maps a profile PROGRAM's
+/// loop and step indices onto validate's canonical ones, and a tube
+/// has no profile node. Its traversal is canonical by construction,
+/// so the canonical indices ARE the final ones.
+fn wire_tube<T: Decide + geom_brep::PcurveFittedLane>(
+    id: RecipeNodeId,
+    spine: RecipeNodeId,
+    window: &crate::node::TubeWindow,
+    results: &Results<T>,
+    vals: &SlotValues<T>,
+    tol: Tol,
+) -> OpResult<T> {
+    let a = tube_args(spine, window, results, vals)?;
+    let mut built = sweep::tube_along_arc(
+        a.center,
+        a.axis,
+        a.u_ref,
+        a.major_radius,
+        a.window,
+        a.minor_radius,
+        tol,
+    )
+    .map_err(|e| NodeErrorKind::Tube(Box::new(e)))?;
+    let table = names::name_revolve(id, &built).map_err(NodeErrorKind::Naming)?;
+    stamp_minted(&mut built.body, id);
+    Ok(OpOut::plain(
+        ValuePayload::Body(Arc::new(built.body)),
+        table,
+    ))
+}
+
+/// **A hollow tube** — `sweep::tube_along_arc_hollow`, the OTHER
+/// public door.
+///
+/// The wall crosses to it untouched and unexamined. Its three
+/// verdicts — the thickness is positive, `minor_radius − wall` is a
+/// bore, and the gap between the two radii the body would STORE is
+/// positive — are decided kernel-side before anything is minted, and
+/// they are what the full ring's cavity insertion carries as its
+/// containment evidence. Re-deriving any of them here would be a
+/// second opinion that cannot see what the third one sees (the
+/// realized gap is a fact about the stored numbers, not the supplied
+/// ones).
+///
+/// Naming is [`wire_tube`]'s, for the reason given there: a hollow
+/// tube's cavity shell is the revolve's own hole-loop vocabulary,
+/// already emitted by `name_revolve`'s holed-full and windowed arms.
+fn wire_hollow_tube<T: Decide + geom_brep::PcurveFittedLane>(
+    id: RecipeNodeId,
+    spine: RecipeNodeId,
+    window: &crate::node::TubeWindow,
+    results: &Results<T>,
+    vals: &SlotValues<T>,
+    tol: Tol,
+) -> OpResult<T> {
+    let a = tube_args(spine, window, results, vals)?;
+    let wall = need_scalar(vals, SlotId::TubeWall)?;
+    let mut built = sweep::tube_along_arc_hollow(
+        a.center,
+        a.axis,
+        a.u_ref,
+        a.major_radius,
+        a.window,
+        a.minor_radius,
+        wall,
+        tol,
+    )
+    .map_err(|e| NodeErrorKind::Tube(Box::new(e)))?;
+    let table = names::name_revolve(id, &built).map_err(NodeErrorKind::Naming)?;
     stamp_minted(&mut built.body, id);
     Ok(OpOut::plain(
         ValuePayload::Body(Arc::new(built.body)),

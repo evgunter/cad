@@ -116,6 +116,8 @@ pub fn node_kind(node: &Node<ProfileProgram>) -> &'static str {
         Node::Declare { .. } => "Declare",
         Node::Fillet { .. } => "Fillet",
         Node::Chamfer { .. } => "Chamfer",
+        Node::Tube { .. } => "Tube",
+        Node::HollowTube { .. } => "HollowTube",
         Node::Loft { .. } => "Loft",
         Node::Sweep { .. } => "Sweep",
         Node::InstantiatePart { .. } => "InstantiatePart",
