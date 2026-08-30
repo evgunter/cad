@@ -40,7 +40,10 @@ fn r1_half_angle_enclosure_table() {
     );
     // The PR's numbers: sin width ~4e-323; 1-cos floor ~4.44e-16;
     // half-angle form subnormal (~2.5e-323).
-    assert!(width(s) > 0.0 && width(s) <= 1.0e-320, "sin(0) not subnormal dust");
+    assert!(
+        width(s) > 0.0 && width(s) <= 1.0e-320,
+        "sin(0) not subnormal dust"
+    );
     assert!(
         width(t_full) >= 4.0e-16 && width(t_full) <= 5.0e-16,
         "1-cos floor is {:e}, not the claimed ~4.44e-16",
@@ -54,7 +57,10 @@ fn r1_half_angle_enclosure_table() {
     // Deviation 1's impossibility premise: the backend's sin at the
     // exact point 0 is NOT [0, 0], so any trig-factored spelling
     // carries dust.
-    assert!(s.lo() < 0.0 && s.hi() > 0.0, "sin(0) came back literal [0,0]");
+    assert!(
+        s.lo() < 0.0 && s.hi() > 0.0,
+        "sin(0) came back literal [0,0]"
+    );
 }
 
 /// Claim 8: the poison contract INCLUDING at angle = 0, both lanes,
@@ -125,7 +131,10 @@ fn r1_retired_guard_red_paths() {
     );
     // Sanity: on the healthy fixture the retired spelling pays >= 2w
     // for any correlation-blind backend — measured, not assumed.
-    let ok = Mat3::rotation_about(Vec3::new(wide(1.0), wide(-2.0), wide(2.0)), Interval::zero());
+    let ok = Mat3::rotation_about(
+        Vec3::new(wide(1.0), wide(-2.0), wide(2.0)),
+        Interval::zero(),
+    );
     let paid = q - ok * q;
     assert!(width(paid.x) >= 2.0 * width(anchor.x));
 }

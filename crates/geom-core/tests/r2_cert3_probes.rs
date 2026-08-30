@@ -218,10 +218,13 @@ fn r2_operator_agrees_with_identity_minus_rotation_f64() {
             .into_iter()
             .enumerate()
             {
-                for (row, (dv, (rv, iv))) in
-                    [(dc.x, (rc.x, ic.x)), (dc.y, (rc.y, ic.y)), (dc.z, (rc.z, ic.z))]
-                        .into_iter()
-                        .enumerate()
+                for (row, (dv, (rv, iv))) in [
+                    (dc.x, (rc.x, ic.x)),
+                    (dc.y, (rc.y, ic.y)),
+                    (dc.z, (rc.z, ic.z)),
+                ]
+                .into_iter()
+                .enumerate()
                 {
                     let expect = iv - rv;
                     let e = (dv - expect).abs();
@@ -270,7 +273,10 @@ fn r2_diagonal_equivalence_under_inexact_normalization() {
             if e > worst {
                 worst = e;
             }
-            println!("axis {ax:?} |n|^2-1 = {:e} angle {angle}: diag err {e:e}", sq - 1.0);
+            println!(
+                "axis {ax:?} |n|^2-1 = {:e} angle {angle}: diag err {e:e}",
+                sq - 1.0
+            );
         }
     }
     println!("worst diagonal disagreement {worst:e}");
@@ -296,7 +302,11 @@ fn r2_bit_movement_and_fixed_point_residual() {
     let mut res_new = 0.0f64;
     for ax in [[0.0, 0.0, 1.0], [1.0, -2.0, 2.0], [1.0, 0.0, 0.0]] {
         let axis = Vec3::new(ax[0], ax[1], ax[2]);
-        for anchor in [[1.0, 2.0, -3.0], [100.0, -250.0, 30.0], [0.001, 0.002, -0.003]] {
+        for anchor in [
+            [1.0, 2.0, -3.0],
+            [100.0, -250.0, 30.0],
+            [0.001, 0.002, -0.003],
+        ] {
             let p = Point3::new(anchor[0], anchor[1], anchor[2]);
             let q = p - Point3::origin();
             let mag = (q.x * q.x + q.y * q.y + q.z * q.z).sqrt();

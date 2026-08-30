@@ -79,12 +79,13 @@ mod interval_lane {
             for &theta in &[0.0f64, 1.0e-12, 1.0e-7, 1.0e-3, 0.4, TAU] {
                 let c = oblique(Interval::from_f64(theta), mk);
                 let start = wid(c.eval(Interval::zero()));
-                let stored = wid(c.restrict(Interval::zero(), Interval::from_f64(0.25)).eval(Interval::zero()));
-                let nested = wid(
-                    c.restrict(Interval::zero(), Interval::from_f64(0.25))
-                        .restrict(Interval::zero(), Interval::from_f64(0.5))
-                        .eval(Interval::zero()),
-                );
+                let stored = wid(c
+                    .restrict(Interval::zero(), Interval::from_f64(0.25))
+                    .eval(Interval::zero()));
+                let nested = wid(c
+                    .restrict(Interval::zero(), Interval::from_f64(0.25))
+                    .restrict(Interval::zero(), Interval::from_f64(0.5))
+                    .eval(Interval::zero()));
                 let mid = wid(c.eval(Interval::from_f64(0.5)));
                 println!(
                     "iv half {half:e} theta {theta:e}: eval(0) {start:e} \

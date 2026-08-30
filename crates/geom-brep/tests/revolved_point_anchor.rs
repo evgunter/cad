@@ -223,7 +223,7 @@ fn stored_restriction_width_grows_linearly_in_the_split_count() {
     // point's coordinate scale (3), to within a small factor. Pin the
     // ORDER, not the digits.
     assert!(
-        slope >= 8.0e-16 && slope <= 1.6e-14,
+        (8.0e-16..=1.6e-14).contains(&slope),
         "the per-split increment is {slope:e}; expected the order of \
          `rotation_about`'s diagonal enclosure (8.88e-16) times the placed \
          point's coordinate scale — a slope outside this band means the \

@@ -138,7 +138,10 @@ mod interval_lane {
             }
             let wv = w3(via);
             let wd = w3(direct);
-            println!("s={s}: via width {wv:e}, direct width {wd:e}, ratio {}", wv / wd);
+            println!(
+                "s={s}: via width {wv:e}, direct width {wd:e}, ratio {}",
+                wv / wd
+            );
         }
     }
 
@@ -151,11 +154,18 @@ mod interval_lane {
         let c = rig(1.0e-9, TAU);
         let split = w3(c.restrict(iv(0.25), iv(0.5)).eval(Interval::zero()));
         let fused = w3(c.eval(iv(0.25)));
-        println!("quarter-turn: fused {fused:e}, split {split:e}, ratio {}", split / fused);
+        println!(
+            "quarter-turn: fused {fused:e}, split {split:e}, ratio {}",
+            split / fused
+        );
         // Both scale with angle*width(axis) ~ 1e-8..1e-9-scale; the
         // split may pay a small constant factor more, but if it paid a
         // constant floor or 2*width regardless of angle the ratio blows
         // up. Bound it loosely and report the measured numbers.
-        assert!(split <= 8.0 * fused, "split anchor cost is {}x the fused cost", split / fused);
+        assert!(
+            split <= 8.0 * fused,
+            "split anchor cost is {}x the fused cost",
+            split / fused
+        );
     }
 }

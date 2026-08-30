@@ -62,11 +62,17 @@ impl<T: Real> Mat3<T> {
     /// for the *normalized* axis `n`.
     ///
     /// **The axis is normalized internally** ([`Vec3::normalize`]).
-    /// Total: a zero (or poisoned) axis therefore yields an all-NaN
-    /// matrix — deliberately, per the crate's totality policy. The
-    /// alternative of trusting the caller to pre-normalize was rejected:
-    /// a silently unnormalized axis *scales* everything it rotates, a
-    /// far worse bug than visible poison.
+    /// Total: a zero (or poisoned) axis therefore yields a matrix that
+    /// is poison in every entry — deliberately, per the crate's
+    /// totality policy. The alternative of trusting the caller to
+    /// pre-normalize was rejected: a silently unnormalized axis
+    /// *scales* everything it rotates, a far worse bug than visible
+    /// poison. **What poison looks like is scalar-dependent**: all-NaN
+    /// at `f64`, but the ENTIRE interval `[−∞, ∞]` at `Interval`, which
+    /// is not NaN and does not test as NaN. The enclosure contract
+    /// holds there — `[−∞, ∞]` encloses everything — and what fails is
+    /// certification, so a caller detecting the degenerate axis must
+    /// ask about certification rather than about NaN.
     ///
     /// Evaluation order (fixed, D9), with `(s, c) = angle.sin_cos()` and
     /// `t = 1 − c`: each off-diagonal entry is `((t·nᵢ)·nⱼ) ± (s·nₖ)` and
@@ -675,13 +681,13 @@ mod tests {
                 let r = Mat3::rotation_about(axis, angle);
                 let d = Mat3::identity_minus_rotation_about(axis, angle);
                 let id = Mat3::<f64>::identity();
-                let cols = [(d.c0, r.c0, id.c0), (d.c1, r.c1, id.c1), (d.c2, r.c2, id.c2)];
+                let cols = [
+                    (d.c0, r.c0, id.c0),
+                    (d.c1, r.c1, id.c1),
+                    (d.c2, r.c2, id.c2),
+                ];
                 for (col, (dc, rc, ic)) in cols.into_iter().enumerate() {
-                    let rows = [
-                        (dc.x, rc.x, ic.x),
-                        (dc.y, rc.y, ic.y),
-                        (dc.z, rc.z, ic.z),
-                    ];
+                    let rows = [(dc.x, rc.x, ic.x), (dc.y, rc.y, ic.y), (dc.z, rc.z, ic.z)];
                     for (row, (dv, rv, iv)) in rows.into_iter().enumerate() {
                         let err = (dv - (iv - rv)).abs();
                         worst = worst.max(err);

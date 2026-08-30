@@ -32,7 +32,10 @@ where
         for (id, result) in ev.nodes.iter() {
             match result {
                 NodeResult::Poisoned { through } => {
-                    println!("RSTRUCT {lane} {} {} poisoned {}", doc.name, id.0, through.0);
+                    println!(
+                        "RSTRUCT {lane} {} {} poisoned {}",
+                        doc.name, id.0, through.0
+                    );
                 }
                 NodeResult::Failed(_) => println!("RSTRUCT {lane} {} {} failed", doc.name, id.0),
                 NodeResult::Ok(v) => {

@@ -100,8 +100,12 @@ fn constructor_bit_movement_over_the_recorded_corpus() {
             }
         }
     }
-    println!("corpus: {} axes x {} anchors x {} angles = {total} components",
-             AXES.len(), ANCHORS.len(), ANGLES.len());
+    println!(
+        "corpus: {} axes x {} anchors x {} angles = {total} components",
+        AXES.len(),
+        ANCHORS.len(),
+        ANGLES.len()
+    );
     println!("moved {moved} of {total} ({}%)", moved * 100 / total);
     println!("max |delta| {max_abs:e} m; max relative {max_rel:e}");
     println!("anchor fixed-point residual, relative: retired {res_old:e}, new {res_new:e}");

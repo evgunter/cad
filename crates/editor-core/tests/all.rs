@@ -38,8 +38,6 @@
 // the lint gate for every suite module included below.
 #![allow(clippy::duplicate_mod)]
 
-#[path = "cert3r1_dump.rs"]
-mod cert3r1_dump;
 #[path = "asm1_identity_pins.rs"]
 mod asm1_identity_pins;
 #[path = "asm2a_instantiate.rs"]
@@ -64,6 +62,8 @@ mod asm_upd_pin_update;
 mod asm_upd_schema_v10;
 #[path = "boolean_op_wire.rs"]
 mod boolean_op_wire;
+#[path = "cert3r1_dump.rs"]
+mod cert3r1_dump;
 #[path = "display_contract.rs"]
 mod display_contract;
 #[path = "dsc_checks.rs"]
@@ -120,8 +120,6 @@ mod m10_3_r2_probes_interval;
 mod m10_di_dual_corpus;
 #[path = "m10_p_fence.rs"]
 mod m10_p_fence;
-#[path = "r2_cert3_coord_dump.rs"]
-mod r2_cert3_coord_dump;
 #[path = "m10_p_lift.rs"]
 mod m10_p_lift;
 #[path = "m4_pr1_dims.rs"]
@@ -234,6 +232,8 @@ mod r1_dual_probes;
 mod r1_m10_1_corruptions;
 #[path = "r1_m10_1_probes.rs"]
 mod r1_m10_1_probes;
+#[path = "r2_cert3_coord_dump.rs"]
+mod r2_cert3_coord_dump;
 #[path = "r2_keydiff.rs"]
 mod r2_keydiff;
 #[path = "r2_m10_2_probes.rs"]
