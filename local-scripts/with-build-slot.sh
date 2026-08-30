@@ -25,7 +25,8 @@
 # Modes:
 #   (default)  acquire one build slot (with width 1: the mutex) —
 #              ordinary builds / fast test runs.
-#   -x         acquire ALL slots — full batteries and gate runs.
+#   -x         acquire BOTH MAIN slots, slot-1 then slot-2 (the express
+#              slot is never touched) — full batteries and gate runs.
 #              Identical to default at width 1; kept distinct so
 #              batteries stay exclusive if the width is ever raised
 #              (two concurrent batteries are the documented OOM shape:
@@ -93,6 +94,10 @@ LOCK_DIR="${CAD_SLOT_DIR:-$HOME/.local/share/cad-work/locks}"
 # Shared-mode width: how many one-slot holders may run concurrently.
 # 1 (mutex) per the 2026-08-06 experiment — see header. Max 2.
 WIDTH="${CAD_SLOT_WIDTH:-1}"
+case "$WIDTH" in
+  1|2) ;;
+  *) echo "with-build-slot: CAD_SLOT_WIDTH must be 1 or 2, got '$WIDTH'" >&2; exit 2 ;;
+esac
 MODE=shared
 TRY=0
 WAIT_MAX=0   # 0 = forever
@@ -175,22 +180,47 @@ exec 7>"$LOCK_DIR/express.lock" 8>"$LOCK_DIR/slot-1.lock" 9>"$LOCK_DIR/slot-2.lo
 # kernel released it) and compute the hold duration from the recorded
 # epoch.
 #
-# Every acquirability claim below is RELATIVE TO THE READER'S SEAT,
-# never to the lock file alone: this wrapper's status lines are read by
-# the one waiter it is printing for, and "free" about a slot that
-# waiter's acquire loop structurally never polls is true of the file
-# and false of the situation — it invites acting on a slot the request
-# cannot take.
+# Every claim below is RELATIVE TO THE READER'S SEAT and STATES ONLY
+# VERIFIED FACTS. Reader-relative because each line is read by the one
+# waiter it is printed for, and a claim about a slot that waiter's loop
+# never polls invites acting on a slot the request cannot take.
+# Fact-only because a dead recorded pid does NOT mean the flock is
+# free: the lock fds are inherited, so a child of a dead holder can
+# hold the flock with no record (the daemon note above the lock fds) —
+# and these lines print exactly when this request just FAILED to take
+# every slot it is currently trying, so "free — safe to acquire" is
+# provably wrong at its own print site whenever it matters.
+shared_polls_slot2() {
+  # THE width test, single home: a shared request polls slot-2 iff the
+  # width admits a second one-slot holder. The acquire loop and the
+  # status annotations must both consult this, or the two spellings
+  # drift and the status lines go back to describing slots their
+  # reader never polls.
+  [ "$WIDTH" -ge 2 ]
+}
 polls_slot() {  # slot-name -> 0 iff THIS request's acquire loop ever polls it
   case "$1" in
     express) [ "$MODE" = express ] ;;
     slot-1)  [ "$MODE" = shared ] || [ "$MODE" = exclusive ] ;;
-    slot-2)  [ "$MODE" = exclusive ] || { [ "$MODE" = shared ] && [ "$WIDTH" -ge 2 ]; } ;;
+    slot-2)  [ "$MODE" = exclusive ] || { [ "$MODE" = shared ] && shared_polls_slot2; } ;;
+    *) return 1 ;;
+  esac
+}
+# Exclusive mode acquires its two slots in sequence; PHASE names the
+# slot its wait loop is currently trying, so a status line can tell
+# "just found busy" from "not attempted yet". The other modes try all
+# their slots on every iteration.
+PHASE=1
+tried_slot_now() {  # slot-name -> 0 iff the current wait loop just failed it
+  case "$MODE" in
+    express)   [ "$1" = express ] ;;
+    shared)    [ "$1" = slot-1 ] || { [ "$1" = slot-2 ] && shared_polls_slot2; } ;;
+    exclusive) [ "$1" = "slot-$PHASE" ] ;;
     *) return 1 ;;
   esac
 }
 describe_holder() {  # holder-file -> annotated description on stdout
-  local f="$1" slot line pid epoch now dur note=""
+  local f="$1" slot line pid epoch now dur wc note=""
   slot=$(basename "$f" .holder)
   line=$(cat "$f" 2>/dev/null) || return 0
   [ -n "$line" ] || return 0
@@ -200,14 +230,16 @@ describe_holder() {  # holder-file -> annotated description on stdout
     now=$(date +%s); dur=$((now - epoch))
     note=" [held $((dur / 60))m$((dur % 60))s]"
   fi
-  if [ -n "$pid" ] && ! kill -0 "$pid" 2>/dev/null; then
-    # Annotated rather than omitted: the dead pid still explains why a
-    # stale holder file lingers, but the acquirability half of the line
-    # is stated only for the reader's own seat.
-    if polls_slot "$slot"; then
-      note="$note [STALE holder (pid $pid dead); flock is free — this $MODE request polls $slot and can take it]"
+  if [ -n "$pid" ] && [ "$pid" = "$$" ]; then
+    note="$note [held by this request itself (earlier exclusive slot)]"
+  elif [ -n "$pid" ] && ! kill -0 "$pid" 2>/dev/null; then
+    if tried_slot_now "$slot"; then
+      note="$note [record is stale (pid $pid dead), yet this $MODE request just found $slot busy: an unrecorded process holds the flock — the inherited-fd leak; see the daemon note above the lock fds]"
+    elif polls_slot "$slot"; then
+      note="$note [record is stale (pid $pid dead); this $MODE request polls $slot but has not tried it yet]"
     else
-      note="$note [STALE holder (pid $pid dead); flock is free but a $MODE request at width $WIDTH never polls $slot — not acquirable from this seat]"
+      wc=""; [ "$MODE" = shared ] && wc=" at width $WIDTH"
+      note="$note [record is stale (pid $pid dead); this $MODE request never polls $slot$wc]"
     fi
   elif ! polls_slot "$slot"; then
     # A live holder of a slot this request never polls is context, not
@@ -217,10 +249,19 @@ describe_holder() {  # holder-file -> annotated description on stdout
   printf '%s: %s%s' "$slot" "$line" "$note"
 }
 holders() {  # best-effort names of current holders, for wait messages
-  local f out=""
+  local f s out=""
   for f in "$LOCK_DIR"/slot-*.holder "$LOCK_DIR"/express.holder; do
-    [ -e "$f" ] || continue
+    [ -s "$f" ] || continue
     out="$out${out:+; }$(describe_holder "$f")"
+  done
+  # This prints only after the request failed to take every slot it is
+  # currently trying, so a just-tried slot with no record is a real
+  # blocker nobody wrote down — name it, or the whole message can be
+  # about slots that do not matter to the reader.
+  for s in slot-1 slot-2 express; do
+    tried_slot_now "$s" || continue
+    [ -s "$LOCK_DIR/$s.holder" ] && continue
+    out="$out${out:+; }$s: blocks this $MODE request; no holder on record"
   done
   echo "${out:-none on record}"
 }
@@ -262,13 +303,14 @@ elif [ "$MODE" = shared ]; then
   # serialize needlessly.
   while :; do
     if try_slot 8; then HELD=1; break; fi
-    if [ "$WIDTH" -ge 2 ] && try_slot 9; then HELD=2; break; fi
+    if shared_polls_slot2 && try_slot 9; then HELD=2; break; fi
     wait_tick
   done
   note_holder "slot-$HELD" "shared: $*"
 else
   while :; do try_slot 8 && break; wait_tick; done
   note_holder slot-1 "exclusive(1/2): $*"
+  PHASE=2
   while :; do try_slot 9 && break; wait_tick; done
   note_holder slot-1 "exclusive: $*"; note_holder slot-2 "exclusive: $*"
 fi
