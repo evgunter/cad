@@ -975,19 +975,15 @@ pub fn plane_nurbs_ssi(
     let dv = nb.deriv_box(ud.0, ud.1, vd.0, vd.1, false);
     let mag =
         |b: Box3| (b.x.mag() * b.x.mag() + b.y.mag() * b.y.mag() + b.z.mag() * b.z.mag()).sqrt();
-    // A NaN-propagating fold: `f64::max` returns the non-NaN operand, so
-    // a lone poisoned derivative box would be dropped before the guard
-    // below could see it.
-    let (su, sv) = (mag(du), mag(dv));
-    let speed = if su.is_nan() || sv.is_nan() {
-        f64::NAN
-    } else {
-        su.max(sv)
-    };
-    // Only a POSITIVE FINITE speed translates a floor. `floor / ∞` is
-    // exactly zero — a floor no cell can ever reach — so a non-finite
-    // speed would let the sweep run to its cell budget and answer in
-    // this guard's place with the wrong diagnosis.
+    let speed = nan_propagating_max(mag(du), mag(dv));
+    // A speed OUTSIDE the positive-finite class can never translate a
+    // floor: `floor / ∞` is exactly zero — a floor no cell can ever
+    // reach — so a non-finite speed would let the sweep run to its
+    // cell budget and answer in this guard's place with the wrong
+    // diagnosis. Positive finite is NECESSARY, not sufficient: a
+    // finite speed of ~1e150 passes here and drives the translated
+    // floors to ~1e-152, where the budget still answers — the
+    // finite-but-unusable window is issue 1238's.
     if !speed.is_finite() {
         return Err(SsiError::UnsupportedCertificate {
             what: "the NURBS wall's certified chart speed is not finite — its \
@@ -1304,4 +1300,44 @@ pub fn idealized_trace_r3(
     )?;
     let pts = trace_points::<2, 3, _>(&sys, &trace);
     Ok((pts, trace.end))
+}
+
+/// `max` that PROPAGATES NaN — `f64::max` returns the non-NaN operand,
+/// so a lone poisoned fold input would be dropped before any guard
+/// with an `is_finite`/`is_nan` arm could see it.
+///
+/// At its one call site (the seeding guard's chart-speed fold) the
+/// difference from `f64::max` is defensive rather than reachable
+/// today: a poisoned derivative box needs a zero-touching weight hull
+/// or a malformed net — both refused at construction — and an
+/// OVERFLOWED box saturates its `mag` to `+∞`, which both folds hand
+/// to the same not-finite refusal. The pin below is therefore on this
+/// helper by name; the reachability argument lives here so that a
+/// future producer of one-sided poison (a new box source, a widened
+/// constructor) finds the fold already stated as load-bearing.
+fn nan_propagating_max(a: f64, b: f64) -> f64 {
+    if a.is_nan() || b.is_nan() {
+        f64::NAN
+    } else {
+        a.max(b)
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::panic)]
+mod fold_tests {
+    use super::nan_propagating_max;
+
+    /// Red under the exact corruption a review executed: reverting the
+    /// fold to `f64::max`, which drops a lone NaN — every ssi row
+    /// stayed green under that revert, so the fold's contract gets its
+    /// own executable pin.
+    #[test]
+    fn the_chart_speed_fold_propagates_a_lone_nan() {
+        assert!(nan_propagating_max(f64::NAN, 1.0).is_nan());
+        assert!(nan_propagating_max(1.0, f64::NAN).is_nan());
+        assert!(nan_propagating_max(f64::NAN, f64::NAN).is_nan());
+        assert_eq!(nan_propagating_max(1.0, 2.0), 2.0);
+        assert_eq!(nan_propagating_max(f64::INFINITY, 1.0), f64::INFINITY);
+    }
 }

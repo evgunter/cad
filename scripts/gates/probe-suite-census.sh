@@ -138,8 +138,10 @@ CENSUS_FLOOR=(editor-core:2 geom-brep:4 geom-core:1 profile:4 sweep:1 topo:5)
 # selection runs nothing, because that row is what reports the
 # complement.
 RUN_FLOOR=(
+  ignored:editor-core:m10_3_driver_k_probe_interval:1
   ignored:editor-core:m4_pr8_k_probe:1
   ignored:sweep:k_report:1
+  plain:editor-core:m10_3_driver_k_probe_interval:1
   plain:editor-core:m10_p_fence:2
   plain:editor-core:m4_pr8_k_probe:1
   plain:editor-core:m5_pr5_corpus_probe:1
@@ -958,8 +960,13 @@ selftest_executed() {
   # an `#[ignore]`d test, every rostered count is still met, and the new
   # test is executed by nothing. The default selection reports it as
   # skipped and no `--ignored` invocation accounts for it.
+  # Bumped on the FIRST `plain` row rather than a fixed line number:
+  # the tally is emitted in `RUN_FLOOR` order, so a line number is a
+  # silent dependency on the roster's alphabetical accidents — adding a
+  # suite whose name sorts early moved the `ignored` block over the
+  # planted line and the case stopped planting anything.
   executed_case 'the `--ignored` selection ran' 'an `#[ignore]`d test no selection runs' \
-    awk -F'\t' 'BEGIN{OFS="\t"} $1=="plain" && NR==3 {$5=$5+1} {print}'
+    awk -F'\t' 'BEGIN{OFS="\t"; done=0} $1=="plain" && !done {$5=$5+1; done=1} {print}'
   # AND THE ROW THAT MAKES THE COMPLEMENT KNOWABLE. A suite rostered
   # under `--ignored` alone reports no skipped count at all, so nothing
   # can tell whether its plain tests run.

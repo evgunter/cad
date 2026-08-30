@@ -354,11 +354,11 @@ pub enum SnapshotError {
     /// `order` and the node map disagree (missing, extra, or
     /// duplicated ids).
     OrderMismatch,
-    /// A `Node::Fillet` selection is not in canonical form (sorted
+    /// A blend node's selection is not in canonical form (sorted
     /// and deduplicated) — a corrupt file, refused rather than
     /// repaired (M6-5).
-    FilletSelectionNotCanonical {
-        /// The offending fillet node.
+    BlendSelectionNotCanonical {
+        /// The offending fillet or chamfer node.
         node: RecipeNodeId,
     },
     /// An id at or beyond the mint counter appears in the document.
@@ -447,6 +447,31 @@ pub enum SnapshotError {
         /// What is wrong with it.
         fault: crate::node::PlacementRuleFault,
     },
+    /// A measure node whose expression reads a reference the node does
+    /// not carry (E3). The expression indexes the reference list
+    /// positionally, so this is a corrupt file, not a stale reference:
+    /// `Rebind` cannot repair an index.
+    MeasureRefs {
+        /// The offending node.
+        node: RecipeNodeId,
+        /// What is wrong with it.
+        fault: crate::node::MeasureNodeFault,
+    },
+    /// An assertion whose bound is dimensioned differently from the
+    /// measure it constrains, or which references something that is
+    /// not a measure at all (E10). The edit door refuses both; a file
+    /// carrying one is data the edit door would never have produced.
+    AssertionBound {
+        /// The offending assertion.
+        node: RecipeNodeId,
+        /// What it references.
+        measure: RecipeNodeId,
+        /// The measure's dimension, absent when the reference is not a
+        /// measure at all.
+        measured: Option<crate::expr::Dimension>,
+        /// The bound's dimension.
+        bound: crate::expr::Dimension,
+    },
     /// An appearance metadata value violating the D7 producer
     /// convention (map with an integer `"v"`).
     MetadataUnversioned {
@@ -473,9 +498,9 @@ impl core::fmt::Display for SnapshotError {
                 "the `order` list and the node map disagree — an id is missing, extra or \
                  duplicated",
             ),
-            Self::FilletSelectionNotCanonical { node } => write!(
+            Self::BlendSelectionNotCanonical { node } => write!(
                 f,
-                "fillet node {}'s selection is not sorted and deduplicated — a corrupt \
+                "blend node {}'s selection is not sorted and deduplicated — a corrupt \
                  selection is refused, never repaired",
                 node.0
             ),
@@ -534,6 +559,31 @@ impl core::fmt::Display for SnapshotError {
             Self::PlacementRule { node, fault } => {
                 write!(f, "placement-rule node {}: {fault}", node.0)
             }
+            Self::MeasureRefs { node, fault } => {
+                write!(f, "measure node {}: {fault}", node.0)
+            }
+            Self::AssertionBound {
+                node,
+                measure,
+                measured: Some(measured),
+                bound,
+            } => write!(
+                f,
+                "assertion node {} bounds a {measured:?} measure (node {}) with a {bound:?} \
+                 expression",
+                node.0, measure.0
+            ),
+            Self::AssertionBound {
+                node,
+                measure,
+                measured: None,
+                bound,
+            } => write!(
+                f,
+                "assertion node {} carries a {bound:?} bound against node {}, which is not a \
+                 measure",
+                node.0, measure.0
+            ),
             Self::MetadataUnversioned { name, key, error } => write!(
                 f,
                 "metadata {key:?} on the {} named by node {} does not carry the D7 integer \
@@ -606,16 +656,16 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
                 check_id(n)?;
             }
         }
-        // The fillet selection carries one check of its own (M6-5): the
-        // canonical form. `Node::fillet` is the only construction door
-        // and it canonicalizes, so a non-canonical selection on the
-        // wire is a CORRUPT file — refused, never quietly re-sorted (a
-        // repair would change the node's content key behind the
-        // caller's back).
-        if let Node::Fillet { selection, .. } = node
+        // A blend's selection carries one check of its own (M6-5): the
+        // canonical form. `Node::fillet`/`Node::chamfer` are the only
+        // construction doors and they canonicalize, so a non-canonical
+        // selection on the wire is a CORRUPT file — refused, never
+        // quietly re-sorted (a repair would change the node's content
+        // key behind the caller's back).
+        if let Node::Fillet { selection, .. } | Node::Chamfer { selection, .. } = node
             && selection.windows(2).any(|w| w[0] >= w[1])
         {
-            return Err(SnapshotError::FilletSelectionNotCanonical { node: id });
+            return Err(SnapshotError::BlendSelectionNotCanonical { node: id });
         }
         // The placement RULE (GROUP-BOOLEAN-DESIGN), re-checked for the
         // same reason the A11 registry is below: a saved file is DATA,
@@ -624,6 +674,26 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
         // placement, and frames that are finite and proper.
         if let Some(fault) = node.placement_rule_fault() {
             return Err(SnapshotError::PlacementRule { node: id, fault });
+        }
+        // The measurement vocabulary's two structural re-checks, for
+        // the same reason the placement rule has one: a saved file is
+        // DATA, and both of these are refused at the edit door.
+        if let Some(fault) = node.measure_fault() {
+            return Err(SnapshotError::MeasureRefs { node: id, fault });
+        }
+        if let Node::Assertion { measure, bound, .. } = node {
+            let measured = match doc.nodes.get(measure) {
+                Some(Node::Measure { expr, .. }) => Some(expr.dim()),
+                _ => None,
+            };
+            if measured != Some(bound.dim()) {
+                return Err(SnapshotError::AssertionBound {
+                    node: id,
+                    measure: *measure,
+                    measured,
+                    bound: bound.dim(),
+                });
+            }
         }
     }
     for name in doc.appearance.keys() {

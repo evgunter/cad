@@ -115,10 +115,13 @@ pub fn node_kind(node: &Node<ProfileProgram>) -> &'static str {
         Node::Datum(_) => "Datum",
         Node::Declare { .. } => "Declare",
         Node::Fillet { .. } => "Fillet",
+        Node::Chamfer { .. } => "Chamfer",
         Node::Loft { .. } => "Loft",
         Node::Sweep { .. } => "Sweep",
         Node::InstantiatePart { .. } => "InstantiatePart",
         Node::Mate { .. } => "Mate",
+        Node::Measure { .. } => "Measure",
+        Node::Assertion { .. } => "Assertion",
     }
 }
 

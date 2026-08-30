@@ -35,7 +35,7 @@ naming a type is not read as an export. `prelude.rs` re-exports through
 `crate::document` and `crate::select`, so a prelude entry has an origin
 in the same census and nothing is double-counted; the geometry crates
 (`geom_core`, `profile`, `sweep`, `topo`, `mesh`, `stl`, `step_export`,
-`step_import`, `quantity`) enter through the prelude — plus the two
+`step_import`, `quantity`) enter through the prelude — plus the three
 `topo::readback` names `select.rs` lifts — and that is the whole point:
 the prelude is what a `use pncad::prelude::*` consumer gets, so it is
 the surface Python is measured against.
@@ -315,7 +315,7 @@ def audit_gap_ids():
     FIRST cell is `G` + digits — the shape the Rust tally guard uses to
     tell a gap row from the prose and headers around it. The open list
     and the closed list are read alike: a closed gap keeps its id, and
-    an entry citing one (`G1`'s Expr residue, `G16`'s chamfer node) is
+    an entry citing one (`G1`'s Expr residue, `G2`'s tube node) is
     citing a row that is still there to be read.
 
     What this cannot see is stated in the module docstring: a gap named
@@ -375,6 +375,7 @@ def audit_gap_ids():
 BOUND_AS = {
     "CM": "cm",
     "DEG": "deg",
+    "AssertionVerdict": "Verdict",
     "DatumValue": "Value.datum",
     "DocumentId": "Doc.id",
     "IN": "inch",
@@ -382,6 +383,7 @@ BOUND_AS = {
     "MM": "mm",
     "NodeErrorKind": "EvaluationError.kind",
     "NodeValue": "Value",
+    "UnevaluatedReason": "Verdict.reason",
     "PI": "pi",
     # The document seam, and the two enums that say why it did not
     # open. `Workspace` IS a `PartResolver` (the document layer's own
@@ -403,6 +405,16 @@ BOUND_AS = {
     # `Denotation` and `ReadbackError` are spelled identically and are
     # accounted by rule 1, not here. They left the `gap` roster at
     # LIB-B-READBACK, which closed the family that chartered them.
+    #
+    # `DanglingRef` is `ReadbackError::Dangling`'s payload and crosses
+    # as `ReadbackError.variant`, the way `RootFault` crosses as
+    # `EditError.variant`: its two arms ARE the two tags —
+    # `dangling_entity` for a topological key that does not resolve,
+    # `dangling_geometry` for a geometry key reached from a live
+    # entity that does not — because which lookup came back empty is
+    # what a caller branches on. Python has no class for the payload
+    # and needs none; the tag carries the whole of it.
+    "DanglingRef": "ReadbackError.variant",
     "denotation": "Evaluation.denotation",
     "edge_frame": "Evaluation.edge_frame",
     "face_frame": "Evaluation.face_frame",
@@ -451,6 +463,7 @@ BOUND_AS = {
     "declare_all": "Doc.declare_all",
     "declare_node": "Node.declare",
     "extrude": "Node.extrude",
+    "chamfer_edges": "Node.chamfer",
     "fillet_edges": "Node.fillet",
     "find_flush_candidates": "Evaluation.find_flush_candidates",
     "intersect": "Node.boolean",
@@ -489,8 +502,7 @@ GAP = "gap"
 #: reason the module docstring's id-space section splits the two
 #: spaces the way it does. Where the audit page DOES define an id, an
 #: entry cites that instead and nothing is minted here: `G2` (sweep
-#: and tube), `G16` (chamfer's missing recipe
-#: node), `G18` (the
+#: and tube), `G18` (the
 #: whole Python assembly series, whose row enumerates `assemble`,
 #: `solve_document`, `product`, `split` and `inline` by name), and
 #: `G1` for the Expr-in-a-profile-step residue its row records.
@@ -571,6 +583,24 @@ FAMILIES = {
         "declaration forward and is what a Python caller moving a "
         "number must use until this family closes"
     ),
+    "B-MEASURES": (
+        "AUTHORING a measurement (ERROR-DESIGN E3/E10); closing it "
+        "binds `MeasureExpr`'s constructors, `MeasurePrimitive`'s "
+        "three verbs and `AssertionDir` onto `Node.measure` / "
+        "`Node.assertion` constructors, with `MeasureNodeFault` as the "
+        "refusal a caller dispatches on. The READ half already ships "
+        "and is deliberately not in this gap: `Value.measure` answers "
+        "with a `Measurement` (value plus the F1 dimension it rides) "
+        "and `Value.assertion` with a `Verdict` (three states kept "
+        "three, both numbers on a decided one). That split is the "
+        "unit's own disposition: the friction the R-series reviews "
+        "keep finding is unreadable RESULTS, and a Python caller can "
+        "now read a web and its verdict off any evaluation, including "
+        "one loaded from a file authored elsewhere. What a Python "
+        "caller cannot yet do is WRITE one — the same asymmetry "
+        "B-DISTRIBUTIONS records, and without B-DISTRIBUTIONS's sharp "
+        "edge, because no existing write door silently drops a measure"
+    ),
     "B-VALIDATE4": (
         "the fourth validator rung; closing it binds "
         "`validate_pseudomanifold` beside the three `Body` already "
@@ -624,7 +654,9 @@ FAMILIES = {
 #:   `InterrogateError` at the read-back doors themselves, where the
 #:   kernel's own `ReadbackError` arms arrive under their own tags
 #:   rather than a wrapper's — one Rust type, two Python classes,
-#:   because the two doors refuse different CALLS;
+#:   because the two doors refuse different CALLS — and for
+#:   `DanglingRef`, the `Dangling` arm's payload, whose two arms are
+#:   the two `dangling_*` tags;
 #:   `EvaluationError.kind` for `ResolveFailure`, whose classified
 #:   fault IS the `part_*` tag (`ResolveFault` and `PartFault` are in
 #:   `BOUND_AS` at that spelling) and whose `message` is the
@@ -729,10 +761,8 @@ FAMILIES = {
 #: **`gap` — genuinely unbound doors, and each is OWED WORK.** This is
 #: the family that makes the census worth having: these are not
 #: decisions, they are debt, and the id after the colon says what owns
-#: each. Four of the ids are the audit page's, cited (`G1`, `G2`,
-#: `G16`, `G18`); the other seven are `FAMILIES` keys
-#: each. Three of the ids are the audit page's, cited (`G1`, `G2`,
-#: `G16`); the other eight are `FAMILIES` keys
+#: each. TWO of the ids are the audit page's, cited (`G1`, `G2`); the
+#: other seven are `FAMILIES` keys
 #: this census owns, because the audit's SCENE-driven list does not
 #: reach a door no tour scene exercises — which is exactly why those
 #: accumulated unnoticed and why this census exists.
@@ -819,13 +849,19 @@ FAMILIES = {
 #: - **B-VALIDATE4 — the fourth validator rung.**
 #:   `validate_pseudomanifold`. `Body` binds three of the ladder's
 #:   four; this one is simply missing.
-#: - **G16 — chamfer.** `chamfer_edges`, `Chamfered`. The fillet's
-#:   ruled sibling, and the reason it cannot be bound the way
-#:   `Node.fillet` was is one level down: `editor-core` has no
-#:   `Chamfer` node, so this is a document-layer unit before it is a
-#:   binding one — which IS G16, whose row says the same thing from
-#:   the scene side ("**Not a bindings gap.** The day `Node::Chamfer`
-#:   lands, binding it is the mechanical LIB-PYBUNDLE shape").
+#: **G16 is CLOSED and no longer a `gap` id here** (LIB-G16). It held
+#: `chamfer_edges` and `Chamfered`, and its own row said what would
+#: close it: "the day `Node::Chamfer` lands, binding it is the
+#: mechanical LIB-PYBUNDLE shape". `Node::Chamfer` landed at schema
+#: v16, `Node.chamfer` binds it, and the two names moved to the
+#: dispositions their fillet twins already carry — the kernel verb to
+#: `BOUND_AS` (`Node.chamfer` is the Python spelling of the question
+#: `chamfer_edges` answers) and the record to `INTERIOR`, where
+#: `Filleted` already sits. `BlendKind` joins them as `INTERIOR`:
+#: which blend a shared refusal came from IS visible in Python, as the
+#: error `kind` tag (`fillet`/`chamfer` and the three
+#: `*_selection_*` tags), so the discriminant crosses — just not as a
+#: type.
 #: - **B-CANCEL — cooperative cancellation.** `CancelToken`.
 #:   `evaluate(doc)` takes none, so a Python caller cannot stop a long
 #:   evaluation.
@@ -883,6 +919,7 @@ NOT_BOUND = {
     "RolePath": SHAPE,
     "RoleSeg": SHAPE,
     "SCHEMA_VERSION": SHAPE,
+    "ASSERT_BOUND": SHAPE,
     "SEL_DATUM_DISTANCE": SHAPE,
     "Side": SHAPE,
     "SlotId": SHAPE,
@@ -918,11 +955,13 @@ NOT_BOUND = {
     # --- behind-a-door --------------------------------------------
     "Band": INTERIOR,
     "BandError": INTERIOR,
+    "BlendKind": INTERIOR,
     "BooleanBody": INTERIOR,
     "BooleanDeclarations": INTERIOR,
     "BooleanResult": INTERIOR,
     "BooleanResultKind": INTERIOR,
     "BooleanValue": INTERIOR,
+    "Chamfered": INTERIOR,
     "ContactRecords": INTERIOR,
     "ContactRefusal": INTERIOR,
     "ContactVerdict": INTERIOR,
@@ -967,6 +1006,14 @@ NOT_BOUND = {
     "tube_along_arc": f"{GAP}: G2 sweep/tube",
     "tube_along_arc_hollow": f"{GAP}: G2 sweep/tube",
     # --- gap: parameter distributions and the analysis lane -------
+    # --- gap: authoring a measurement (census-owned) --------------
+    # The READING half ships (`Value.measure`, `Value.assertion`); what
+    # is listed here is the authoring vocabulary alone.
+    "AssertionDir": f"{GAP}: B-MEASURES measurement authoring",
+    "MeasureExpr": f"{GAP}: B-MEASURES measurement authoring",
+    "MeasureRef": f"{GAP}: B-MEASURES measurement authoring",
+    "MeasureNodeFault": f"{GAP}: B-MEASURES measurement authoring",
+    "MeasurePrimitive": f"{GAP}: B-MEASURES measurement authoring",
     "Distribution": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",
     "DistributionFault": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",
     "DistributionField": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",
@@ -1009,9 +1056,7 @@ NOT_BOUND = {
     # --- gap: geometry read-back doors (census-owned) -------------
     # --- gap: assorted single doors -------------------------------
     "CancelToken": f"{GAP}: B-CANCEL cooperative cancellation",
-    "Chamfered": f"{GAP}: G16 chamfer has no recipe node",
     "FmtQuantityError": f"{GAP}: B-FORMAT the D6 display formatter",
-    "chamfer_edges": f"{GAP}: G16 chamfer has no recipe node",
     "fmt_angle": f"{GAP}: B-FORMAT the D6 display formatter",
     "fmt_length": f"{GAP}: B-FORMAT the D6 display formatter",
     "validate_pseudomanifold": f"{GAP}: B-VALIDATE4 the fourth validator rung",

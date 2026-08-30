@@ -71,6 +71,16 @@
 //! not its disposition, and the row is pinned on the new reason.
 //! `iso-rect/rect.step` / `iso-rect/xsplit.step` beside them are the
 //! controls that keep the tightening from being a blanket refusal.
+//!
+//! **Issue 723 (2026-08-29) added the two `halfcap/` rows; one of
+//! them is a newly-passing body class.** Both twins are the same
+//! half-of-a-spherical-cap solid whose sphere face's meridian side is
+//! a pole-crossing great-circle arc. `halfcap.step` (the arc split by
+//! one ordinary vertex) USED to pass this gate and then measure 47%
+//! low with `pad = 0.0`; `halfcap_nosplit.step` USED to refuse
+//! `DegenerateFace` on the endpoint fold's `lo == hi`. With the
+//! sphere's `v`-extent derived from each arc's stored span, both pass
+//! and `halfcap_pole.rs` holds both to the exact closed-form volume.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::path::{Path, PathBuf};
@@ -207,7 +217,31 @@ fn eps_in_rows_for(rel: &str) -> &'static [(&'static str, Option<f64>)] {
 ///   the NIST inch translator prints ~12 significant digits, so the
 ///   file does not state itself to 1e-12 m, and the adoption ladder
 ///   says so by name instead of certifying a carrier it cannot.
-const EPS_ROWS: [(&str, f64, &str, Disposition); 15] = [
+const EPS_ROWS: [(&str, f64, &str, Disposition); 21] = [
+    // -- tests/fixtures/cert1-r1/nearpolar_*.step ---------------------
+    // The AMBIENT sweep only, at the files' own ε_in (they state
+    // themselves to full double precision). At ambient 1e-6 both
+    // twins refuse at EDGE ADOPTION — the rim/plane wedge angle's
+    // certification margin (~8.6e-6 rad) is inside the ambiguity
+    // band, so no props arithmetic is even reached; at the default
+    // and fine bands both certify with the exact closed-form volume
+    // (`cert1_r1_import_probes.rs` holds the value).
+    (NEARPOLAR_SPLIT, 1e-9, "file", Pass(1, 1, 3, 4, 3)),
+    (
+        NEARPOLAR_SPLIT,
+        1e-6,
+        "file",
+        Refused(NEARPOLAR_WEDGE_ESCALATED),
+    ),
+    (NEARPOLAR_SPLIT, 1e-12, "file", Pass(1, 1, 3, 4, 3)),
+    (NEARPOLAR_NOSPLIT, 1e-9, "file", Pass(1, 1, 3, 3, 2)),
+    (
+        NEARPOLAR_NOSPLIT,
+        1e-6,
+        "file",
+        Refused(NEARPOLAR_WEDGE_ESCALATED),
+    ),
+    (NEARPOLAR_NOSPLIT, 1e-12, "file", Pass(1, 1, 3, 3, 2)),
     // -- tests/fixtures/band/ftc11_uref_off.stp -----------------------
     (FTC11, 1e-9, "file", Refused(SEAM_HALFPLANE_DEFINITE)),
     (FTC11, 1e-9, "1e-6", Refused(TANGENT_PLANES_COINCIDE)),
@@ -252,6 +286,12 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 15] = [
 ];
 
 const FTC11: &str = "tests/fixtures/band/ftc11_uref_off.stp";
+const NEARPOLAR_SPLIT: &str = "tests/fixtures/cert1-r1/nearpolar_split.step";
+const NEARPOLAR_NOSPLIT: &str = "tests/fixtures/cert1-r1/nearpolar_nosplit.step";
+/// The nearpolar twins' coarse-band sub-reason: the rim/plane wedge
+/// angle's adoption certification, by predicate name, so a regression
+/// that moves the refusal to another door fails these cells.
+const NEARPOLAR_WEDGE_ESCALATED: &str = "predicate 'dihedral_wedge' indeterminate";
 const DM1: &str = "tests/fixtures/wild/stepcode/dm1-id-214.stp";
 /// dm1's fine-band sub-reason: the shared at-rest gate cannot compute
 /// the exact-B-rep volume of a RATIONAL cylinder wall — the banked
@@ -293,7 +333,7 @@ const ENDPOINT_START_MAPPED_CURVE: &str = "mapped curve: geometry attachment gat
 /// Every committed STEP file, with the disposition measured at M7-7.
 /// Paths are relative to this crate's manifest directory (the `../`
 /// rows are `step-export`'s corpus, which this crate imports from).
-const CORPUS: [(&str, Disposition); 62] = [
+const CORPUS: [(&str, Disposition); 70] = [
     ("tests/fixtures/band/band_a.stp", Pass(1, 1, 2, 6, 4)),
     ("tests/fixtures/band/band_a180.stp", Pass(1, 1, 2, 6, 4)),
     ("tests/fixtures/band/band_b180.stp", Pass(1, 1, 2, 6, 4)),
@@ -348,6 +388,58 @@ const CORPUS: [(&str, Disposition); 62] = [
     (
         "tests/fixtures/freecad/twobody_importexport.step",
         Pass(2, 2, 8, 14, 10),
+    ),
+    // -- tests/fixtures/cert1-r1/ (reviewer probes, adopted) ----------
+    // R1's adversarial near-polar variants of the halfcap generator:
+    // `nearpolar_*` puts the rim 0.0208 rad off the pole; `polesplit_*`
+    // is issue 723's body with the split vertex EXACTLY on the pole
+    // (the pole-membership decide sits on its Zero through this door).
+    // `cert1_r1_import_probes.rs` holds all four to the closed form.
+    // The nearpolar twins are AMBIENT-sensitive: their rim sits
+    // 0.0208 rad off the pole on a 0.208 mm circle, and at ambient
+    // 1e-6 the rim/plane wedge angle's adoption margin (~8.6e-6)
+    // lands in the escalation band — the coarse band honestly cannot
+    // tell this near-tangency from a tangency. Pinned cell by cell
+    // in `EPS_ROWS`.
+    (
+        "tests/fixtures/cert1-r1/nearpolar_nosplit.step",
+        EpsSensitive,
+    ),
+    ("tests/fixtures/cert1-r1/nearpolar_split.step", EpsSensitive),
+    (
+        "tests/fixtures/cert1-r1/polesplit_nosplit.step",
+        Pass(1, 1, 3, 3, 2),
+    ),
+    (
+        "tests/fixtures/cert1-r1/polesplit_split.step",
+        Pass(1, 1, 3, 4, 3),
+    ),
+    // -- tests/fixtures/halfcap/ (issue 723) --------------------------
+    // Half of a spherical cap, whose sphere face's meridian side is one
+    // POLE-CROSSING great-circle arc — the sphere's v-extent must come
+    // from the arc's stored span, not its endpoint latitudes. The two
+    // twins are the same solid; the split one carries one ordinary
+    // vertex on the arc. That vertex once flipped the disposition —
+    // no-split refused degenerate (endpoint fold saw lo == hi) while
+    // split MEASURED, tier 3 green, 47% low at pad = 0.0. Both now
+    // pass, and `halfcap_pole.rs` holds both to the exact closed-form
+    // volume.
+    ("tests/fixtures/halfcap/halfcap.step", Pass(1, 1, 3, 4, 3)),
+    // The near-pole split twins: the same solid with the ordinary
+    // vertex 1e-6 / 1e-7 rad off the pole, landing the
+    // pole-membership margin inside or beside the default band —
+    // refused `Escalated` until the indeterminate outcome folded.
+    (
+        "tests/fixtures/halfcap/halfcap_eps6.step",
+        Pass(1, 1, 3, 4, 3),
+    ),
+    (
+        "tests/fixtures/halfcap/halfcap_eps7.step",
+        Pass(1, 1, 3, 4, 3),
+    ),
+    (
+        "tests/fixtures/halfcap/halfcap_nosplit.step",
+        Pass(1, 1, 3, 3, 2),
     ),
     // -- tests/fixtures/iso-rect/ (S58 / #649) ------------------------
     // #649's own fixtures, committed with the fix. Both plus-domain

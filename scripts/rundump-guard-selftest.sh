@@ -20,13 +20,16 @@ root=$(pwd)
 # `run_plain` selects the default set; both end in `finish_run`, which
 # reads the runner's own counts, writes the tally row the executed-set
 # floor reads, and refuses a selection that neither ran nor skipped
-# anything.
+# anything. `feats_for` rides the same list because both callers now ask
+# it which feature set a module needs — extracted rather than stubbed,
+# so a suite added to its table is exercised here and not only in the
+# sweep.
 extract_fn() {
   sed -n "/^$1() {/,/^}/p" "$root/scripts/k_probe_sweep.sh"
 }
 extract_guards() {
   local f
-  for f in result_field record_ran finish_run run_dump run_plain; do
+  for f in feats_for result_field record_ran finish_run run_dump run_plain; do
     if [ -z "$(extract_fn "$f")" ]; then
       echo "SELFTEST FAILED: no $f() found in scripts/k_probe_sweep.sh" >&2
       exit 1
