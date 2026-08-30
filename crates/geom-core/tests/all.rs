@@ -42,6 +42,10 @@
 mod ambiguity_k_env;
 #[path = "band_tolerance.rs"]
 mod band_tolerance;
+#[path = "cert3r1_poison_detail.rs"]
+mod cert3r1_poison_detail;
+#[path = "cert3r1_probes.rs"]
+mod cert3r1_probes;
 #[path = "certified_door.rs"]
 mod certified_door;
 #[path = "d8_knot_queries_adversarial.rs"]
