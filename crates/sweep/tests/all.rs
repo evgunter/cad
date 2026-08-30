@@ -83,8 +83,12 @@ mod verbs_shell;
 mod bitdump;
 #[path = "blend1_r1_probes.rs"]
 mod blend1_r1_probes;
+#[path = "blend2_r2_probes.rs"]
+mod blend2_r2_probes;
 #[path = "blend_seam_split_rim.rs"]
 mod blend_seam_split_rim;
+#[path = "blend_tworims.rs"]
+mod blend_tworims;
 #[path = "extrude_acceptance.rs"]
 mod extrude_acceptance;
 #[path = "extrude_interval.rs"]
