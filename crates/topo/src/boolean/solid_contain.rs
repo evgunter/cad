@@ -729,6 +729,90 @@ const fn oriented(sign: Sign, sense: bool) -> Sign {
     }
 }
 
+/// What [`line_wall_roots`] found. The three non-root answers are kept
+/// APART rather than collapsed into one "no roots": each caller owes a
+/// different thing to each of them — a ray retries a tangent and skips
+/// a miss, an edge sweep refuses a tangent and clears a miss — and a
+/// merged variant would let one caller silently inherit the other's
+/// posture.
+#[derive(Debug, Clone, Copy)]
+pub(super) enum WallRoots<T> {
+    /// The line is parallel to the axis: its residual is constant, so
+    /// the quadratic degenerates and there is no root to report.
+    AxisParallel,
+    /// The discriminant is in the zero band — the line is TANGENT to
+    /// the wall, and a tangency is not a crossing at any order this
+    /// function can see.
+    Tangent,
+    /// A definitely negative discriminant: no real root.
+    Miss,
+    /// Two definite roots of the carrier's own parameter, ascending.
+    Two([T; 2]),
+}
+
+/// The certified roots of the LINE `q + d·t` against the INFINITE
+/// cylinder wall `(origin, axis, radius)` — the quadratic in metres
+/// that the ray lane has solved since M5 PR 9, factored out so the
+/// edge-sweep lane solves the same one.
+///
+/// **Roots, not hits.** Trimming to a face, ordering by advance and
+/// folding to a closest hit are the RAY's concerns and stay in
+/// [`cast_ray`]; a line-edge span needs both roots, unordered by sign,
+/// and folding them here would have made this the ray's function with
+/// a second caller rather than a shared primitive.
+///
+/// **The two trileans keep their names and their metering**, because
+/// both are pinned: `bool_ray_cylinder_disc`'s dimensionless
+/// `disc/(2r)²` is a deliberate non-normalization flagged at the sphere
+/// arm below, and re-metering either one would move every acceptance
+/// margin that quotes them.
+///
+/// # Errors
+///
+/// [`geom_core::Indeterminate`] — an in-band discriminant or an in-band
+/// axis-parallel test. The caller wraps it in its own error type.
+pub(super) fn line_wall_roots<T: Decide>(
+    q: Point3<T>,
+    d: Vec3<T>,
+    origin: Point3<T>,
+    axis: Vec3<T>,
+    radius: T,
+    band: Band,
+) -> Result<WallRoots<T>, geom_core::Indeterminate> {
+    let w0 = q - origin;
+    let w0p = w0 - axis * w0.dot(axis);
+    let dp = d - axis * d.dot(axis);
+    let a2 = dp.norm_squared();
+    let two_r = T::from_f64(2.0) * radius;
+    // Ledger row F2: sin²/2r is 1/m — flagged, not cast.
+    match geom_core::k_stats::decide_flagged("bool_point_in_solid_denom", a2 / two_r, band, "F2")? {
+        Sign::Positive => {}
+        _ => return Ok(WallRoots::AxisParallel),
+    }
+    let b2 = w0p.dot(dp);
+    let c2 = w0p.norm_squared() - radius.powi(2);
+    let disc = b2.powi(2) - a2 * c2;
+    // Metre-scaled discriminant: Positive ⇒ two definite roots; Zero ⇒
+    // tangent; Negative ⇒ definite miss; in-band escalates.
+    // Ledger row F2: disc/(2r)² is dimensionless (its own in-tree
+    // admission, PR 9c review F3) — flagged.
+    match geom_core::k_stats::decide_flagged(
+        "bool_ray_cylinder_disc",
+        disc / two_r.powi(2),
+        band,
+        "F2",
+    )? {
+        Sign::Positive => {}
+        Sign::Zero => return Ok(WallRoots::Tangent),
+        Sign::Negative => return Ok(WallRoots::Miss),
+    }
+    let root = disc.max(T::zero()).sqrt();
+    Ok(WallRoots::Two([
+        (T::zero() - b2 - root) / a2,
+        (T::zero() - b2 + root) / a2,
+    ]))
+}
+
 /// One ray of the sweep: `Some(verdict)` or `None` for a graze.
 fn cast_ray<T: Decide>(
     body: &Body<T>,
@@ -824,48 +908,15 @@ fn cast_ray<T: Decide>(
                 h,
                 sense,
             } => {
-                let w0 = q - origin;
-                let w0p = w0 - axis * w0.dot(axis);
-                let dp = d - axis * d.dot(axis);
-                let a2 = dp.norm_squared();
-                let two_r = T::from_f64(2.0) * radius;
-                // Axis-parallel ray: constant residual; the pre-pass
-                // said q is off the wall, so it misses entirely.
-                // Ledger row F2: sin²/2r is 1/m — flagged, not cast.
-                match geom_core::k_stats::decide_flagged(
-                    "bool_point_in_solid_denom",
-                    a2 / two_r,
-                    band,
-                    "F2",
-                )
-                .map_err(escalate)?
-                {
-                    Sign::Positive => {}
-                    _ => continue,
-                }
-                let b2 = w0p.dot(dp);
-                let c2 = w0p.norm_squared() - radius.powi(2);
-                let disc = b2.powi(2) - a2 * c2;
-                // Metre-scaled discriminant: Positive ⇒ two definite
-                // roots; Zero ⇒ a tangent ray (graze, retry the next
-                // schedule member); Negative ⇒ definite miss; in-band
-                // escalates through the funnel.
-                // Ledger row F2: disc/(2r)² is dimensionless (its own
-                // in-tree admission, PR 9c review F3) — flagged.
-                match geom_core::k_stats::decide_flagged(
-                    "bool_ray_cylinder_disc",
-                    disc / two_r.powi(2),
-                    band,
-                    "F2",
-                )
-                .map_err(escalate)?
-                {
-                    Sign::Positive => {}
-                    Sign::Zero => return Ok(None), // tangent ray: graze
-                    Sign::Negative => continue,    // definite miss
-                }
-                let root = disc.max(T::zero()).sqrt();
-                for t in [(T::zero() - b2 - root) / a2, (T::zero() - b2 + root) / a2] {
+                let roots = line_wall_roots(q, d, origin, axis, radius, band).map_err(escalate)?;
+                let ts = match roots {
+                    // Axis-parallel ray: constant residual; the pre-pass
+                    // said q is off the wall, so it misses entirely.
+                    WallRoots::AxisParallel | WallRoots::Miss => continue,
+                    WallRoots::Tangent => return Ok(None), // tangent ray: graze
+                    WallRoots::Two(ts) => ts,
+                };
+                for t in ts {
                     let p = q + d * t;
                     match point_on_wall_in_face(face, origin, axis, radius, u_ref, az, h, p, band)?
                     {
