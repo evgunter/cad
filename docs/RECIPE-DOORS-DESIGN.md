@@ -66,39 +66,58 @@ stay grouped under `OpGroup::Fillet` for now — the group's NAME is
 and that ~255-reference rename is explicitly not this unit's; a
 `// #917` note at the group is the honest marker.
 
-## D4 — Node::Tube is ONE node kind carrying `wall: Option<Expr>`
+## D4 — the tube vocabulary SPLITS: `Node::Tube` and `Node::HollowTube` (REVISED by the #1205 ruling)
 
-Both tube doors are thin wrappers over one private
-`build(..., wall: Option<T>, ...)` ("`wall` present ⇔ hollow",
-`sweep/src/revolve/tube.rs:328`), so the node maps 1:1: `{ datum
-anchoring for center/axis/u_ref per Revolve's payload precedent,
-major_radius: Expr, window, minor_radius: Expr, wall: Option<Expr> }`
-— the audit row's "one node kind, not two, and the same bump" holds
-by construction. Wall-vs-minor validation stays kernel-side (the
-door's own typed arms, nothing pre-checked). Naming: the doors return
-`Revolved<T>`, so the revolve emitter path is the template; the unit
-measures whether it applies wholesale or needs a tube-specific
-translation, and reports rather than forcing it. This unit does NOT
-touch `wire_sweep`'s banked frontier or the G2 path-composition tail
-(U4/LQ3 — kernel-owned, unchanged).
+**Ruling (Evan, issue #1205 comment + in-chat sign-off on this
+revision, 2026-08-29): "i definitely lean 'split the vocabulary'" —
+the issue's outcome 2.** A solid tube and a hollow tube are
+different artifacts (full-disc vs annular section), and the
+vocabulary now says so where callers read:
 
-**Ratified WITH A RECORDED RESERVATION (Evan, in-chat, 2026-08-29,
-after the initial sign-off): "i don't love that but it doesn't sound
-like the issue is new here."** The reservation reads on
-hollowness-as-`Option<wall>` — a mode flag carried as a payload
-field — and the "not new" is exact: the shape was set kernel-side at
-VERBS-TUBEWALL (two public doors over one private `build` with
-`wall: Option<T>`); the node inherits it rather than minting it.
-Standing consequence: the node TRACKS the kernel's vocabulary. If
-the kernel's tube vocabulary is ever re-cut (a VERBS-shaped design
-conversation, not LIB's to open), `Node::Tube` follows at its own
-bump — cheap pre-release. A node vocabulary that split hollow/solid
-against a kernel that does not would assert a distinction the kernel
-lacks, which is the worse shape and is why the reservation lands
-upstream rather than blocking this unit. **The reservation is now
-issue #1205** (filed at Evan's direction, 2026-08-29): the class is
-one vocabulary item covering two different ARTIFACTS via a mode
-flag; the tube unit is HELD behind that issue's ruling.
+- **Two node kinds.** `Node::Tube { datum anchoring for
+  center/axis/u_ref per Revolve's payload precedent, major_radius:
+  Expr, window, minor_radius: Expr }` and `Node::HollowTube {
+  …the same…, wall: Expr }`. The wall is REQUIRED on the hollow
+  kind — `Option` never appears in the recipe vocabulary;
+  hollowness is spelled by node kind, which is the distinction the
+  artifacts already have.
+- **The kernel is UNCHANGED.** VERBS-TUBEWALL's public doors
+  (`tube_along_arc` / `tube_along_arc_hollow`) already split; the
+  ruling reads the PUBLIC DOORS as the kernel's vocabulary and
+  blesses the shared private `build(wall: Option<T>)` as
+  implementation (#1205's outcome 2 names "sharing the private
+  implementation" explicitly). Each emitter calls its own door.
+  The original D4's fear — a node split asserting a distinction
+  the kernel lacks — dissolves under that reading.
+- **Still ONE schema bump** covers both kinds: two content-key
+  tags appended, `SlotId` wall entry only on the hollow kind,
+  shared slots for the common parameters. Python: `Node.tube` and
+  `Node.hollow_tube`, no optional wall argument on `tube`.
+- Wall-vs-minor validation stays kernel-side (the door's own typed
+  arms, nothing pre-checked). Naming: the doors return
+  `Revolved<T>`, so the revolve emitter path is the template; the
+  unit measures whether it applies wholesale and reports rather
+  than forcing it. The unit does NOT touch `wire_sweep`'s banked
+  frontier or the G2 path-composition tail (U4/LQ3 — kernel-owned).
+- Audit row 24's "one node kind, not two" was a sequencing note
+  written at VERBS-TUBEWALL, not ratified design; it now
+  contradicts this ruling and the unit corrects it ("two node
+  kinds, one bump").
+- Naming taste call, ratified with the revision: `HollowTube` /
+  `hollow_tube` (natural-language order), not the kernel door's
+  suffix order.
+
+**History.** The original D4 (one `Node::Tube` carrying
+`wall: Option<Expr>`, tracking the private build's shape) was
+ratified WITH A RECORDED RESERVATION (Evan, in-chat, 2026-08-29:
+"i don't love that but it doesn't sound like the issue is new
+here"), the reservation escalated to **issue #1205** (one
+vocabulary item covering two different artifacts via a mode flag),
+the tube unit HELD behind it, and the ruling above superseded the
+one-node shape the same day. #1205 closes at this ratification;
+the sibling-sweep question it raises (other `Option` parameters
+whose presence switches artifact class) found no second instance
+recipe-side and is VERBS territory kernel-side.
 
 ## D5 — shell WAITS on a kernel birth channel, and LIB files the ask now
 

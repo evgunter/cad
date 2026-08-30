@@ -31,7 +31,7 @@ use pncad::geom_core::{FrameError, FrameInput};
 use pncad::mesh::TessellateError;
 use pncad::prelude::BlendKind;
 use pncad::profile::PathError;
-use pncad::select::{InterrogateError, ReadbackError};
+use pncad::select::{DanglingRef, InterrogateError, ReadbackError};
 use pncad::step_import::StepImportError;
 // All three STL refusals are prelude-curated; the module path is the
 // spelling this file uses throughout, not a reach past the façade.
@@ -132,6 +132,11 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         }
         EditError::NotStructuralSlot { .. } => "not_structural_slot",
         EditError::UnknownDocParam { .. } => "unknown_doc_param",
+        EditError::UnknownPayloadParam { .. } => "unknown_payload_param",
+        EditError::PayloadParamDimensionMismatch { .. } => "payload_param_dimension_mismatch",
+        EditError::MeasureMalformed { .. } => "measure_malformed",
+        EditError::AssertionTarget { .. } => "assertion_target",
+        EditError::AssertionDimension { .. } => "assertion_dimension",
         EditError::DocParamDimensionMismatch { .. } => "doc_param_dimension_mismatch",
         EditError::ContinuousParamCannotBeCount { .. } => "continuous_param_cannot_be_count",
         EditError::DocParamNotDeclared { .. } => "doc_param_not_declared",
@@ -249,7 +254,20 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
         NodeErrorKind::Loft { .. } => "loft",
         NodeErrorKind::CurvedSolidFrontier { .. } => "curved_solid_frontier",
         NodeErrorKind::MissingInput { .. } => "missing_input",
+        NodeErrorKind::MeasureRefResolve { .. } => "measure_ref_resolve",
+        NodeErrorKind::MeasureRefUnreadable { .. } => "measure_ref_unreadable",
+        NodeErrorKind::MeasureUnsupported(_) => "measure_unsupported",
+        NodeErrorKind::MeasureNotParallel { .. } => "measure_not_parallel",
+        NodeErrorKind::MeasureNonFinite { .. } => "measure_non_finite",
+        NodeErrorKind::MeasureMalformed(_) => "measure_malformed",
+        NodeErrorKind::PayloadExpr { .. } => "payload_expr",
+        NodeErrorKind::AssertionDimension { .. } => "assertion_dimension",
         NodeErrorKind::ToleranceConflict { .. } => "tolerance_conflict",
+        // Its own tag rather than the ε conflict's: both refuse every
+        // node for a whole-run reason, but the recourses are different
+        // — one is "replay in a process whose ε matches", the other is
+        // "ask for the box at a scalar that can carry it".
+        NodeErrorKind::ParamBox { .. } => "param_box",
         NodeErrorKind::WrongOperand { .. } => "wrong_operand",
         NodeErrorKind::EmptyOperand { .. } => "empty_operand",
         NodeErrorKind::DegenerateDirection { .. } => "degenerate_direction",
@@ -644,17 +662,28 @@ pub fn update_error_tag(err: &UpdateError) -> &'static str {
 /// The stable tag for the KERNEL half of a read-back refusal — the
 /// carrier read itself, once a name has resolved.
 ///
-/// `Dangling` has two lanes kernel-side (a topological key that does
-/// not resolve, and a geometry key reached from a live entity that
-/// does not), and they share ONE tag here because the type that tells
-/// them apart is not on the curated surface: `ReadbackError`'s field
-/// is a `DanglingRef`, which the façade does not carry, so this crate
-/// cannot name the arms without reaching past it. The distinction is
-/// not lost — the kernel's own `Display` states which lookup came
+/// `Dangling` has two lanes kernel-side and gets one tag per lane,
+/// because they are different facts about the model: a topological
+/// key that does not resolve is a stale or foreign handle
+/// (`dangling_entity`), while a geometry key reached FROM a live
+/// entity that does not resolve is a dangling reference inside the
+/// body (`dangling_geometry`). Which invariant broke is what a caller
+/// branches on, so it belongs in the tag rather than only in the
+/// prose. The kernel's own `Display` still states which lookup came
 /// back empty, and that prose is the exception's message.
+///
+/// The match is over `DanglingRef`'s arms, not `..`, so a third lane
+/// added kernel-side stops this crate compiling — the same
+/// drift alarm the outer arms get from `ReadbackError` not being
+/// `#[non_exhaustive]`.
 pub fn readback_error_tag(err: &ReadbackError) -> &'static str {
     match err {
-        ReadbackError::Dangling { .. } => "dangling",
+        ReadbackError::Dangling {
+            what: DanglingRef::Entity(_),
+        } => "dangling_entity",
+        ReadbackError::Dangling {
+            what: DanglingRef::Geometry(_),
+        } => "dangling_geometry",
         ReadbackError::NoCanonicalFrame { .. } => "no_canonical_frame",
         ReadbackError::NoCarrier => "no_carrier",
     }

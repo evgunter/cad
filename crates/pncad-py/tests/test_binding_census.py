@@ -35,7 +35,7 @@ naming a type is not read as an export. `prelude.rs` re-exports through
 `crate::document` and `crate::select`, so a prelude entry has an origin
 in the same census and nothing is double-counted; the geometry crates
 (`geom_core`, `profile`, `sweep`, `topo`, `mesh`, `stl`, `step_export`,
-`step_import`, `quantity`) enter through the prelude — plus the two
+`step_import`, `quantity`) enter through the prelude — plus the three
 `topo::readback` names `select.rs` lifts — and that is the whole point:
 the prelude is what a `use pncad::prelude::*` consumer gets, so it is
 the surface Python is measured against.
@@ -375,6 +375,7 @@ def audit_gap_ids():
 BOUND_AS = {
     "CM": "cm",
     "DEG": "deg",
+    "AssertionVerdict": "Verdict",
     "DatumValue": "Value.datum",
     "DocumentId": "Doc.id",
     "IN": "inch",
@@ -382,6 +383,7 @@ BOUND_AS = {
     "MM": "mm",
     "NodeErrorKind": "EvaluationError.kind",
     "NodeValue": "Value",
+    "UnevaluatedReason": "Verdict.reason",
     "PI": "pi",
     # The document seam, and the two enums that say why it did not
     # open. `Workspace` IS a `PartResolver` (the document layer's own
@@ -403,6 +405,16 @@ BOUND_AS = {
     # `Denotation` and `ReadbackError` are spelled identically and are
     # accounted by rule 1, not here. They left the `gap` roster at
     # LIB-B-READBACK, which closed the family that chartered them.
+    #
+    # `DanglingRef` is `ReadbackError::Dangling`'s payload and crosses
+    # as `ReadbackError.variant`, the way `RootFault` crosses as
+    # `EditError.variant`: its two arms ARE the two tags —
+    # `dangling_entity` for a topological key that does not resolve,
+    # `dangling_geometry` for a geometry key reached from a live
+    # entity that does not — because which lookup came back empty is
+    # what a caller branches on. Python has no class for the payload
+    # and needs none; the tag carries the whole of it.
+    "DanglingRef": "ReadbackError.variant",
     "denotation": "Evaluation.denotation",
     "edge_frame": "Evaluation.edge_frame",
     "face_frame": "Evaluation.face_frame",
@@ -571,6 +583,24 @@ FAMILIES = {
         "declaration forward and is what a Python caller moving a "
         "number must use until this family closes"
     ),
+    "B-MEASURES": (
+        "AUTHORING a measurement (ERROR-DESIGN E3/E10); closing it "
+        "binds `MeasureExpr`'s constructors, `MeasurePrimitive`'s "
+        "three verbs and `AssertionDir` onto `Node.measure` / "
+        "`Node.assertion` constructors, with `MeasureNodeFault` as the "
+        "refusal a caller dispatches on. The READ half already ships "
+        "and is deliberately not in this gap: `Value.measure` answers "
+        "with a `Measurement` (value plus the F1 dimension it rides) "
+        "and `Value.assertion` with a `Verdict` (three states kept "
+        "three, both numbers on a decided one). That split is the "
+        "unit's own disposition: the friction the R-series reviews "
+        "keep finding is unreadable RESULTS, and a Python caller can "
+        "now read a web and its verdict off any evaluation, including "
+        "one loaded from a file authored elsewhere. What a Python "
+        "caller cannot yet do is WRITE one — the same asymmetry "
+        "B-DISTRIBUTIONS records, and without B-DISTRIBUTIONS's sharp "
+        "edge, because no existing write door silently drops a measure"
+    ),
     "B-VALIDATE4": (
         "the fourth validator rung; closing it binds "
         "`validate_pseudomanifold` beside the three `Body` already "
@@ -624,7 +654,9 @@ FAMILIES = {
 #:   `InterrogateError` at the read-back doors themselves, where the
 #:   kernel's own `ReadbackError` arms arrive under their own tags
 #:   rather than a wrapper's — one Rust type, two Python classes,
-#:   because the two doors refuse different CALLS;
+#:   because the two doors refuse different CALLS — and for
+#:   `DanglingRef`, the `Dangling` arm's payload, whose two arms are
+#:   the two `dangling_*` tags;
 #:   `EvaluationError.kind` for `ResolveFailure`, whose classified
 #:   fault IS the `part_*` tag (`ResolveFault` and `PartFault` are in
 #:   `BOUND_AS` at that spelling) and whose `message` is the
@@ -887,6 +919,7 @@ NOT_BOUND = {
     "RolePath": SHAPE,
     "RoleSeg": SHAPE,
     "SCHEMA_VERSION": SHAPE,
+    "ASSERT_BOUND": SHAPE,
     "SEL_DATUM_DISTANCE": SHAPE,
     "Side": SHAPE,
     "SlotId": SHAPE,
@@ -973,6 +1006,14 @@ NOT_BOUND = {
     "tube_along_arc": f"{GAP}: G2 sweep/tube",
     "tube_along_arc_hollow": f"{GAP}: G2 sweep/tube",
     # --- gap: parameter distributions and the analysis lane -------
+    # --- gap: authoring a measurement (census-owned) --------------
+    # The READING half ships (`Value.measure`, `Value.assertion`); what
+    # is listed here is the authoring vocabulary alone.
+    "AssertionDir": f"{GAP}: B-MEASURES measurement authoring",
+    "MeasureExpr": f"{GAP}: B-MEASURES measurement authoring",
+    "MeasureRef": f"{GAP}: B-MEASURES measurement authoring",
+    "MeasureNodeFault": f"{GAP}: B-MEASURES measurement authoring",
+    "MeasurePrimitive": f"{GAP}: B-MEASURES measurement authoring",
     "Distribution": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",
     "DistributionFault": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",
     "DistributionField": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",

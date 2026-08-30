@@ -28,7 +28,7 @@ mod emit_sweep;
 mod emit_topo;
 mod flush;
 mod geompred;
-mod interrogate;
+pub(crate) mod interrogate;
 mod role;
 mod select;
 mod table;

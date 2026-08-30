@@ -69,10 +69,37 @@ type OpResult<T> = Result<OpOut<T>, NodeErrorKind>;
 /// A bare payload (datum/profile lanes — empty tables).
 type PayloadResult<T> = Result<ValuePayload<T>, NodeErrorKind>;
 
+/// The LANE half of an evaluation's environment: where profile
+/// geometry comes from at `T`, and the parameter environment it is
+/// elaborated over. The two travel together because they are one
+/// decision — a guided elaboration is guided over SOME environment,
+/// and a call site that could pass the lift without the environment
+/// could elaborate the lift's second pass over a different box than
+/// the node's slots were evaluated at.
+#[derive(Debug)]
+pub(crate) struct LaneEnv<'a, T> {
+    /// Where profile geometry comes from at this evaluation's scalar
+    /// (M10-P PP5): the f64 elaboration embedded, or a guided
+    /// elaboration at `T`.
+    pub lift: super::ProfileLift,
+    /// The evaluation's parameter environment — nominals, or nominals
+    /// widened by [`crate::analysis::ParamBox`] (E6's leaf replay).
+    pub params: &'a crate::expr::ParamEnv<T>,
+}
+
+impl<T> Clone for LaneEnv<'_, T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T> Copy for LaneEnv<'_, T> {}
+
 /// The evaluation-wide context an op may need beyond its own inputs:
-/// the boolean candidate-generation switch, and the document seam.
-/// Bundled rather than passed one by one — an op's ARGUMENTS are its
-/// inputs and slots, and everything here is ambient to the run.
+/// the boolean candidate-generation switch, the document seam, the
+/// mate solve, and the lane environment. Bundled rather than passed
+/// one by one — an op's ARGUMENTS are its inputs and slots, and
+/// everything here is ambient to the run.
 pub(crate) struct OpEnv<'a, T: Decide> {
     pub boolean_sweep: topo::SweepStrategy,
     pub parts: &'a super::parts::PartCache<'a, T>,
@@ -80,10 +107,8 @@ pub(crate) struct OpEnv<'a, T: Decide> {
     /// D-5): every instance's pose relative to its cluster gauge, and
     /// every mate's role.
     pub poses: &'a crate::mate::SolvedPoses,
-    /// Where profile geometry comes from at this evaluation's scalar
-    /// (M10-P PP5): the f64 elaboration embedded, or a guided
-    /// elaboration at `T`.
-    pub profile_lift: super::ProfileLift,
+    /// Where profile geometry comes from, and over which environment.
+    pub lane: LaneEnv<'a, T>,
 }
 
 /// Runs one node's op against its (already Ok) inputs and evaluated
@@ -98,27 +123,32 @@ pub(crate) fn run_op<T>(
     doc: &crate::doc::Doc<ProfileProgram>,
     results: &Results<T>,
     vals: &SlotValues<T>,
+    payload_values: Option<&[T]>,
     profile_pre: Option<&ProfilePre>,
     env: &OpEnv<'_, T>,
     tol: Tol,
 ) -> OpResult<T>
 where
-    T: Decide + super::ContentBits + geom_core::Bounds + Send + Sync + topo::AtRestPolicy,
+    T: Decide
+        + super::ContentBits
+        + geom_core::Bounds
+        + Send
+        + Sync
+        + topo::AtRestPolicy
+        + crate::analysis::AxisScalar,
 {
     match node {
         Node::Datum(d) => Ok(OpOut::plain(wire_datum(d, vals, tol)?, names::empty())),
         Node::Profile(program) => Ok(OpOut::plain(
-            wire_profile(program, doc, profile_pre, env.profile_lift, tol)?,
+            wire_profile(program, profile_pre, env.lane, tol)?,
             names::empty(),
         )),
         Node::Extrude { profile, .. } => wire_extrude(id, *profile, results, vals, tol),
         Node::Revolve { profile, axis, .. } => {
             wire_revolve(id, *profile, *axis, results, vals, tol)
         }
-        Node::Loft { profiles, .. } => wire_loft(id, profiles, doc, vals, env.profile_lift, tol),
-        Node::Sweep { profile, path, .. } => {
-            wire_sweep(*profile, *path, doc, vals, env.profile_lift, tol)
-        }
+        Node::Loft { profiles, .. } => wire_loft(id, profiles, doc, vals, env.lane, tol),
+        Node::Sweep { profile, path, .. } => wire_sweep(*profile, *path, doc, vals, env.lane, tol),
         Node::Fillet {
             target, selection, ..
         } => wire_fillet(id, *target, selection, doc, results, vals, tol),
@@ -152,6 +182,14 @@ where
             ValuePayload::Declarations(pairs.clone()),
             names::empty(),
         )),
+        Node::Measure { expr, refs } => {
+            wire_measure(node, expr, refs, payload_values, doc, results, tol)
+        }
+        Node::Assertion {
+            measure,
+            bound,
+            dir,
+        } => wire_assertion(*measure, bound, *dir, payload_values, results, tol),
         Node::InstantiatePart {
             doc_ref, interface, ..
         } => {
@@ -200,7 +238,13 @@ fn wire_instantiate_part<T>(
     tol: Tol,
 ) -> OpResult<T>
 where
-    T: Decide + super::ContentBits + geom_core::Bounds + Send + Sync + topo::AtRestPolicy,
+    T: Decide
+        + super::ContentBits
+        + geom_core::Bounds
+        + Send
+        + Sync
+        + topo::AtRestPolicy
+        + crate::analysis::AxisScalar,
 {
     let part = env
         .parts
@@ -486,30 +530,25 @@ pub(crate) fn prepare_profile(
 /// the vertex it moves, an interval parameter widens the loop it
 /// describes — while structure stays exactly what the f64 pass chose.
 ///
-/// **NEITHER OF THOSE TWO IS REACHABLE THROUGH THIS DOOR YET**, and
-/// the machinery being ready is not the same fact as the capability
-/// being available. [`crate::doc::Doc::param_env`] embeds every
-/// document parameter through `from_f64`, so an evaluation's bindings
-/// are constants: a `Dual` binding has a zero tangent and an `Interval`
-/// binding is a degenerate point. The lane pass therefore runs, and
-/// correctly, over an environment with nothing in it to propagate.
-/// Both halves are scheduled and neither is this unit's: the interval
-/// half — `param_env` learning non-degenerate intervals — is M10-3's
-/// first spec bullet, and the dual half, document-level seeding, is
-/// M10-4's. Until they land, the capability is exercised one door down,
-/// at the program-resolve seam this function calls, which is where
-/// `editor-core`'s `m10_p_lift` suite drives both.
+/// **The interval half is reachable**: the environment is the
+/// evaluation's own ([`LaneEnv::params`]), so an evaluation carrying a
+/// [`crate::analysis::ParamBox`] widens the loops this program
+/// describes. The DUAL half — document-level seeding, a binding with a
+/// non-zero tangent — has no door yet; a `Dual` binding's tangent is
+/// still zero, and until seeding lands the capability is exercised one
+/// door down, at the program-resolve seam this function calls, which is
+/// where `editor-core`'s `m10_p_lift` suite drives it.
 /// The naming is pass 1's verbatim (PP4): names are program-structural
 /// indices, and the canonical permutation they hang off is pinned by
 /// the record, so `T`-valued geometry changes no name.
 fn lane_profile<T: Decide + geom_core::Bounds>(
     program: &ProfileProgram,
-    doc: &crate::doc::Doc<ProfileProgram>,
+    lane: LaneEnv<'_, T>,
     pre: &ProfilePre,
     tol: Tol,
 ) -> Result<profile::ValidatedProfile<T>, NodeErrorKind> {
     let resolved = program
-        .resolve(&doc.param_env::<T>())
+        .resolve(lane.params)
         .map_err(|(slot, source)| NodeErrorKind::Expr { slot, source })?;
     let mut loops = Vec::with_capacity(resolved.len());
     for (li, steps) in resolved.iter().enumerate() {
@@ -546,9 +585,8 @@ fn lane_profile<T: Decide + geom_core::Bounds>(
 
 fn wire_profile<T: Decide + geom_core::Bounds>(
     program: &ProfileProgram,
-    doc: &crate::doc::Doc<ProfileProgram>,
     pre: Option<&ProfilePre>,
-    lift: super::ProfileLift,
+    lane: LaneEnv<'_, T>,
     tol: Tol,
 ) -> PayloadResult<T> {
     let Some(pre) = pre else {
@@ -561,11 +599,11 @@ fn wire_profile<T: Decide + geom_core::Bounds>(
             },
         });
     };
-    let validated = match lift {
+    let validated = match lane.lift {
         super::ProfileLift::Pinned => anchor::embed_profile::<T>(&pre.profile_f64)
             .validate(tol)
             .map_err(NodeErrorKind::Profile)?,
-        super::ProfileLift::Guided => lane_profile::<T>(program, doc, pre, tol)?,
+        super::ProfileLift::Guided => lane_profile::<T>(program, lane, pre, tol)?,
     };
     Ok(ValuePayload::Profile(Arc::new(ProfileValue {
         validated,
@@ -1026,6 +1064,166 @@ fn resolve_selection(
     // duplicate that survived canonicalization still fails loudly.
     keys.sort_unstable();
     Ok(keys)
+}
+
+/// **A measurement sink** (E3): resolve the node's references, read
+/// the carriers they sit on, run the closed form, hand back a typed F1
+/// quantity. No body in, no body out.
+///
+/// # Where a reference resolves
+///
+/// At the node the reference NAMES AS ITS READING SITE
+/// ([`crate::MeasureRef::at`]), which is what makes the answer the
+/// PLACED carrier rather than the authored one — a transform is
+/// identity-preserving, so the minting node's value still holds the
+/// unmoved geometry. `at` is a DAG edge ([`Node::inputs`]), so it has
+/// evaluated by the time this runs. Resolution takes the SAME
+/// mid-evaluation [`ladder`] the fillet selection and the declare door
+/// take: rung 1 is the live-node check, then the tie, then the
+/// vanished row, with N5's typed trio coming out of all three.
+///
+/// # Only the references the expression READS are resolved
+///
+/// A reference no primitive indexes is carried data, not a
+/// measurement input, so it is neither resolved nor interrogated: an
+/// unused reference to a datum (which has no carrier at all) must not
+/// fail a measure that never asks about it. The indices the expression
+/// actually reads are the domain, and the slots left empty are filled
+/// with [`super::measure::Carrier::Unread`], which no closed form can
+/// reach — `Node::measure_fault` has already bounded every index, so a
+/// read of one is a kernel bug and says so.
+fn wire_measure<T: Decide>(
+    node: &Node<ProfileProgram>,
+    expr: &crate::measure::MeasureExpr,
+    refs: &[crate::node::MeasureRef],
+    leaves: Option<&[T]>,
+    doc: &crate::doc::Doc<ProfileProgram>,
+    results: &Results<T>,
+    tol: Tol,
+) -> OpResult<T> {
+    // The backstop for a node that reached evaluation malformed: the
+    // construction and load doors both refuse this, so reaching it
+    // means a hand-built value bypassed them — refused typed rather
+    // than indexed past the end of the reference list.
+    if let Some(fault) = node.measure_fault() {
+        return Err(NodeErrorKind::MeasureMalformed(fault));
+    }
+    let mut read = std::collections::BTreeSet::new();
+    let mut prims = Vec::new();
+    expr.primitives(&mut prims);
+    for prim in prims {
+        read.extend(prim.refs());
+    }
+    let mut carriers = Vec::with_capacity(refs.len());
+    for (index, r) in refs.iter().enumerate() {
+        let index = u32::try_from(index).unwrap_or(u32::MAX);
+        if !read.contains(&index) {
+            carriers.push(super::measure::Carrier::Unread);
+            continue;
+        }
+        let name = &r.name;
+        let refused = |error| NodeErrorKind::MeasureRefResolve { error };
+        let live = ladder::live(name, doc).map_err(refused)?;
+        let value = value_of(results, r.at)?;
+        let landing = ladder::landing(&live, &value.name_table);
+        let ent = ladder::resolve(live, landing).map_err(refused)?;
+        let body =
+            crate::names::interrogate::output_body(&value.payload, ent.body).map_err(|error| {
+                NodeErrorKind::MeasureRefUnreadable {
+                    name: Box::new(name.clone()),
+                    error,
+                }
+            })?;
+        carriers.push(super::measure::carrier_of(body, ent));
+    }
+    let mut cursor = 0usize;
+    let value = super::measure::eval_measure(
+        expr,
+        &carriers,
+        leaves.unwrap_or(&[]),
+        &mut cursor,
+        band(tol)?,
+    )
+    .map_err(|refusal| match refusal {
+        super::measure::PrimitiveRefusal::Unsupported(u) => NodeErrorKind::MeasureUnsupported(u),
+        super::measure::PrimitiveRefusal::Escalated { predicate, source } => {
+            NodeErrorKind::Escalated { predicate, source }
+        }
+        super::measure::PrimitiveRefusal::NonFinite(source) => {
+            NodeErrorKind::MeasureNonFinite { source }
+        }
+        super::measure::PrimitiveRefusal::NotParallel {
+            verb,
+            a,
+            b,
+            predicate,
+        } => NodeErrorKind::MeasureNotParallel {
+            verb,
+            a,
+            b,
+            predicate,
+        },
+    })?;
+    Ok(OpOut::plain(
+        ValuePayload::Measure {
+            value,
+            dim: expr.dim(),
+        },
+        names::empty(),
+    ))
+}
+
+/// **An assertion's verdict** (E10): compare the measure this node
+/// references against its bound, and report.
+///
+/// Report-ONLY, and the shape says so: the value that comes out is a
+/// verdict, no op in the vocabulary accepts a verdict as an operand,
+/// and nothing here touches the measure's own value or the document.
+/// A `Violated` verdict costs the run exactly one payload.
+fn wire_assertion<T: Decide>(
+    measure: RecipeNodeId,
+    bound_expr: &crate::expr::Expr,
+    dir: crate::measure::AssertionDir,
+    payload_values: Option<&[T]>,
+    results: &Results<T>,
+    tol: Tol,
+) -> OpResult<T> {
+    let mv = value_of(results, measure)?;
+    let ValuePayload::Measure { value, dim } = &mv.payload else {
+        return Err(NodeErrorKind::WrongOperand {
+            input: measure,
+            expected: "measure",
+            found: mv.payload.kind_name(),
+        });
+    };
+    // The bound's DECLARED dimension is what must agree — read off the
+    // expression, never inferred from the evaluated number, which has
+    // no dimension left (units erase at the evaluation boundary).
+    if bound_expr.dim() != *dim {
+        return Err(NodeErrorKind::AssertionDimension {
+            measured: *dim,
+            bound: bound_expr.dim(),
+        });
+    }
+    // The bound is this node's ONE payload expression, evaluated in
+    // the same stage every other payload expression is: a miss means
+    // `payload_exprs` and this arm disagree about what the node
+    // carries, which is a kernel bug, not a document fault.
+    let Some(bound) = payload_values.and_then(|v| v.first().copied()) else {
+        unreachable!(
+            "an assertion's bound is its only payload expression, yet the evaluated payload \
+             vector has none"
+        )
+    };
+    Ok(OpOut::plain(
+        ValuePayload::Assertion(crate::measure::decide_assertion(
+            *value,
+            bound,
+            dir,
+            band(tol)?,
+        )),
+        names::empty(),
+    ))
 }
 
 fn wire_split<T: Decide + geom_brep::PcurveFittedLane>(
@@ -1646,7 +1844,7 @@ pub(crate) const SWEEP_FRONTIER: &str = "a swept solid: the recipe's path operan
 fn section_of<T: Decide + geom_core::Bounds>(
     doc: &crate::doc::Doc<ProfileProgram>,
     id: RecipeNodeId,
-    lift: super::ProfileLift,
+    lane: LaneEnv<'_, T>,
     tol: Tol,
 ) -> Result<(sweep::Section, Affine3<f64>, ProfileNaming), NodeErrorKind> {
     let Some(Node::Profile(program)) = doc.nodes.get(&id) else {
@@ -1680,8 +1878,8 @@ fn section_of<T: Decide + geom_core::Bounds>(
     // answer must not depend on which node consumes the profile. A
     // parameter box the extrude ladder refuses to certify is refused
     // here as well, and by the same predicate.
-    if lift == super::ProfileLift::Guided {
-        lane_profile::<T>(program, doc, &pre, tol)?;
+    if lane.lift == super::ProfileLift::Guided {
+        lane_profile::<T>(program, lane, &pre, tol)?;
     }
     let place = pre.profile_f64.plane.placement;
     // The sections are the REPLAYED loops (program order — exactly
@@ -1704,7 +1902,7 @@ fn wire_loft<T: Decide + geom_brep::PcurveFittedLane + geom_core::Bounds>(
     profiles: &[RecipeNodeId],
     doc: &crate::doc::Doc<ProfileProgram>,
     vals: &SlotValues<T>,
-    lift: super::ProfileLift,
+    lane: LaneEnv<'_, T>,
     tol: Tol,
 ) -> OpResult<T> {
     let v_degree = need_count(vals, SlotId::VDegree)?;
@@ -1712,7 +1910,7 @@ fn wire_loft<T: Decide + geom_brep::PcurveFittedLane + geom_core::Bounds>(
     let mut places = Vec::with_capacity(profiles.len());
     let mut first_naming = ProfileNaming::default();
     for (i, pid) in profiles.iter().enumerate() {
-        let (chain, place, naming) = section_of::<T>(doc, *pid, lift, tol)?;
+        let (chain, place, naming) = section_of::<T>(doc, *pid, lane, tol)?;
         sections.push(chain);
         places.push(place);
         if i == 0 {
@@ -1761,13 +1959,13 @@ fn wire_sweep<T: Decide + geom_core::Bounds>(
     path: RecipeNodeId,
     doc: &crate::doc::Doc<ProfileProgram>,
     vals: &SlotValues<T>,
-    lift: super::ProfileLift,
+    lane: LaneEnv<'_, T>,
     tol: Tol,
 ) -> OpResult<T> {
     let _stations = need_count(vals, SlotId::Stations)?;
     let _v_degree = need_count(vals, SlotId::VDegree)?;
-    let _ = section_of::<T>(doc, profile, lift, tol)?;
-    let _ = section_of::<T>(doc, path, lift, tol)?;
+    let _ = section_of::<T>(doc, profile, lane, tol)?;
+    let _ = section_of::<T>(doc, path, lane, tol)?;
     Err(NodeErrorKind::CurvedSolidFrontier {
         what: SWEEP_FRONTIER,
     })

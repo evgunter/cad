@@ -1014,13 +1014,26 @@ impl core::error::Error for EvalError {}
 /// so it goes through `sign_within`, never a raw comparison. The
 /// recursive evaluation itself needs only `Real` (see `eval_inner`).
 pub fn eval<T: Decide>(expr: &Expr, params: &ParamEnv<T>) -> Result<T, EvalError> {
-    let value = eval_inner(expr, params)?;
-    // Door 2: probe = value * 0 is EXACTLY zero for every finite
-    // value and poison (NaN / empty / Trv) otherwise, so any valid
-    // band classifies it identically — Zero passes, everything else
-    // is a non-finite result. Band construction with these constants
-    // cannot fail; the `else` arm is unreachable but typed (no
-    // panic paths in this crate).
+    refuse_non_finite(eval_inner(expr, params)?)
+}
+
+/// **Door 2, as a shared door.** The ruled non-finite check on a
+/// FINAL evaluated value: `value * 0` is EXACTLY zero for every finite
+/// value and poison (NaN / empty / Trv) otherwise, so any valid band
+/// classifies it identically — Zero passes, everything else is a
+/// non-finite result.
+///
+/// It lives apart from [`eval`] because [`eval`] is not the only
+/// evaluator of this crate's expression arithmetic: the measurement
+/// sublanguage ([`crate::measure`]) evaluates its own tree, and a
+/// second copy of this door would be a second chance to forget it —
+/// which is exactly what happened, and what shipped a
+/// `Holds { measured: inf }` verdict. Any evaluator that produces a
+/// value a caller will believe passes it through here.
+///
+/// Band construction with these constants cannot fail; the `else` arm
+/// is unreachable but typed (no panic paths in this crate).
+pub(crate) fn refuse_non_finite<T: Decide>(value: T) -> Result<T, EvalError> {
     let Ok(band) = Band::new(1e-100, 1e-50) else {
         return Err(EvalError::NonFiniteResult);
     };
