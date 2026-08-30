@@ -68,3 +68,17 @@ the lily's fourth rim), 1245 (boolean-repaired pole-touching rim),
 1246 (public rim-arc selector; consumer evidence from both e2e
 reports). Next per the plan: BLEND-2 (issue 935), with BLEND-7
 (profile crate, ruled 827) able to interleave.
+
+## BLEND-7 MERGED (2026-08-30)
+
+PR 1267 merged (ordinal 601; full record in MODEL-AB-LOG's row —
+arm cell redacted to the branch-side record until block close,
+since naming slot 3 determines the open sibling's arm by
+arithmetic). The ruled enclosing class now refuses typed with an
+ENDORSABLE recourse: the payload carries the corner's largest
+tangent radius, every enclosing pin builds at it, and both
+review_s2 pins are permanent properties citing the ruling. Issue
+827 CLOSED — the 2026-08-29 conversation is fully executed.
+Handoffs: 1280 (NCSC plausibly dead), 1281 (refusal attribution),
+1282 (Display float class). Block BLEND-B1's record merges to main
+when BLEND-2's dual concludes.
