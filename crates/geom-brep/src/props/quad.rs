@@ -1065,9 +1065,10 @@ fn bspline_eval_ring_in_span(
 /// channel triple, row-major `iu·nv + iv` — the 2-D counterpart of
 /// [`DerivLadder`]'s levels: a [`Dir::Const`] direction holds
 /// per-span constants, and a grid that differentiates to nothing at
-/// all is `Option<PatchGrid> = None` (identically zero on knot-free
-/// cells; cells straddling a knot take the smoothness-free
-/// first-order rule, exactly the 1-D lane's argument).
+/// all is `Option<PatchGrid> = None`, read as identically zero — sound
+/// on a KNOT-FREE cell, where the piece really is one polynomial of
+/// exhausted degree, and that is what [`knot_aligned_cuts`] makes
+/// every cell of both patch composites.
 struct PatchGrid {
     du: Dir,
     dv: Dir,
@@ -1776,13 +1777,7 @@ impl Ladder {
     /// `q + q + (q−1)`, so the order-`3q` rule integrates it with no
     /// remainder at all: the returned enclosure's width is the nodes'
     /// and weights' ring rounding.
-    fn num_v_exact(
-        &self,
-        sl: &FluxSlice,
-        vlo: f64,
-        vhi: f64,
-        nc: &[RingInterval],
-    ) -> RingInterval {
+    fn num_v_exact(&self, sl: &FluxSlice, vlo: f64, vhi: f64, nc: &[RingInterval]) -> RingInterval {
         let m = nc.len() - 1;
         let mid = vlo.midpoint(vhi);
         let scale = pt(vhi) - pt(vlo);
@@ -2108,7 +2103,11 @@ fn knot_aligned_cuts(lo: f64, hi: f64, pieces: usize, knots: &[f64]) -> Vec<f64>
     // rounded expression and may miss `hi` by an ulp, which would
     // leave the last sliver of the rectangle outside every cell.
     cuts.push(hi);
-    cuts.extend(block_edges(lo, hi).into_iter().filter(|e| *e > lo && *e < hi));
+    cuts.extend(
+        block_edges(lo, hi)
+            .into_iter()
+            .filter(|e| *e > lo && *e < hi),
+    );
     cuts.extend(knots.iter().copied().filter(|k| *k > lo && *k < hi));
     cuts.sort_by(|a, b| a.partial_cmp(b).unwrap_or(core::cmp::Ordering::Equal));
     cuts.dedup();
@@ -2469,12 +2468,7 @@ fn rational_patch_face<T: Decide>(
     for round in 0..=QUAD2_RATIONAL_MAX_ROUNDS {
         let mut flux = RingInterval::zero();
         let cuts_u = knot_aligned_cuts(u0, u1, pieces, &knots_u);
-        let cuts_v = knot_aligned_cuts(
-            v0,
-            v1,
-            if nc_v.is_some() { 1 } else { pieces },
-            &knots_v,
-        );
+        let cuts_v = knot_aligned_cuts(v0, v1, if nc_v.is_some() { 1 } else { pieces }, &knots_v);
         let mut bu = 0usize;
         for iu in 0..cuts_u.len() - 1 {
             let (c_ulo, c_uhi) = (cuts_u[iu], cuts_u[iu + 1]);
@@ -2517,10 +2511,7 @@ fn rational_patch_face<T: Decide>(
                     }
                     _ => {
                         let fm = a.integrand_at(&w, &slice, Collapse::At(c_vlo.midpoint(c_vhi)));
-                        flux = flux
-                            + hu * hv * fm
-                            + r_uu
-                            + b_vv * (hu * hv * hv.sqr() / pt(24.0));
+                        flux = flux + hu * hv * fm + r_uu + b_vv * (hu * hv * hv.sqr() / pt(24.0));
                     }
                 }
             }
@@ -2578,10 +2569,11 @@ fn rational_patch_face<T: Decide>(
 /// ```
 ///
 /// (the `S_u·(S_u×S_uv)`-shaped triples vanish identically). Cells
-/// straddling an interior knot in either direction take the
-/// smoothness-free first-order rule `A·hull(f)`. The area rides the
-/// shared [`area_midpoint_taylor`] rule (midpoint + Lipschitz pad, the
-/// hull rule only on knot-straddling cells) — sound at every
+/// are cut ON the interior knots ([`knot_aligned_cuts`]), so each one
+/// lies inside a single smooth piece and the Taylor remainder is the
+/// whole error there. The area rides the
+/// shared [`area_midpoint_taylor`] rule (midpoint + Lipschitz pad on
+/// the same knot-aligned cells) — sound at every
 /// resolution and O(h), because the +V gate meters `V/A` and needs an
 /// honest denominator. A patch with non-unit weights
 /// routes to [`rational_patch_face`] (M8-3), which certifies the same
@@ -2671,13 +2663,14 @@ pub fn nurbs_patch_face<T: Decide>(
     // by construction (the `eps_posture` contract the suites pin).
     let mut last_width_len = f64::NAN;
     // GLOBAL second-derivative hulls, computed ONCE (the whole-rect
-    // hull contains every knot-free cell's, so the per-cell remainder
+    // hull contains every cell's, so the per-cell remainder
     // `hull(f_uu)·h³/24` may use it soundly — looser by a constant,
     // still O(h²), and it turns the per-cell cost from ten grid hulls
     // into three thin evals; the 866-second debug wall this replaced
-    // is the reason). Cells straddling an interior knot still take a
-    // per-cell first-order hull (the smoothness-free rule needs local
-    // tightness to converge, and such cells vanish under refinement).
+    // is the reason). It bounds the remainder on every cell because
+    // the cells are cut on the interior knots, so each one lies inside
+    // a single smooth piece and the Taylor remainder is the whole
+    // error there.
     let over_all = (Collapse::Over(u0, u1), Collapse::Over(v0, v1));
     let g_s = s_hull;
     let g_su = grid_vec(su.as_ref(), over_all.0, over_all.1);
@@ -2782,36 +2775,22 @@ pub fn nurbs_patch_face<T: Decide>(
 
     for round in 0..=QUAD2_MAX_ROUNDS {
         let mut flux = RingInterval::zero();
-        #[allow(clippy::cast_precision_loss)]
-        let (hu, hv) = ((u1 - u0) / pieces as f64, (v1 - v0) / pieces as f64);
-        let cell_area = pt(hu) * pt(hv);
-        let r_uu = g_f_uu * (pt(hu) * pt(hu).sqr() * pt(hv) / pt(24.0));
-        let r_vv = g_f_vv * (pt(hu) * pt(hv) * pt(hv).sqr() / pt(24.0));
-        for iu in 0..pieces {
-            #[allow(clippy::cast_precision_loss)]
-            let c_ulo = u0 + (u1 - u0) * (iu as f64 / pieces as f64);
-            let c_uhi = c_ulo + hu;
-            let straddle_u = knots_u.iter().any(|k| *k > c_ulo && *k < c_uhi);
-            for iv in 0..pieces {
-                #[allow(clippy::cast_precision_loss)]
-                let c_vlo = v0 + (v1 - v0) * (iv as f64 / pieces as f64);
-                let c_vhi = c_vlo + hv;
-                let straddle = straddle_u || knots_v.iter().any(|k| *k > c_vlo && *k < c_vhi);
-                if straddle {
-                    // Smoothness-free rule across a knot, per-cell
-                    // hulls (local tightness needed here).
-                    let over = (Collapse::Over(c_ulo, c_uhi), Collapse::Over(c_vlo, c_vhi));
-                    let h_s = s.vec(over.0, over.1);
-                    let cross_h = rv_cross(
-                        grid_vec(su.as_ref(), over.0, over.1),
-                        grid_vec(sv.as_ref(), over.0, over.1),
-                    );
-                    flux = flux + cell_area * rv_dot(h_s, cross_h);
-                    continue;
-                }
+        // Knot-aligned cells, for the reason [`knot_aligned_cuts`]
+        // gives: this lane reaches the composite only where the exact
+        // rule cannot run, and a cell holding an interior knot has no
+        // rule but the smoothness-free hull — span-granular, and
+        // therefore a floor rather than a remainder.
+        let cuts_u = knot_aligned_cuts(u0, u1, pieces, &knots_u);
+        let cuts_v = knot_aligned_cuts(v0, v1, pieces, &knots_v);
+        for iu in 0..cuts_u.len() - 1 {
+            let (c_ulo, c_uhi) = (cuts_u[iu], cuts_u[iu + 1]);
+            let hu = pt(c_uhi) - pt(c_ulo);
+            for iv in 0..cuts_v.len() - 1 {
+                let (c_vlo, c_vhi) = (cuts_v[iv], cuts_v[iv + 1]);
+                let hv = pt(c_vhi) - pt(c_vlo);
                 let m = (
-                    Collapse::At(c_ulo + hu * 0.5),
-                    Collapse::At(c_vlo + hv * 0.5),
+                    Collapse::At(c_ulo.midpoint(c_uhi)),
+                    Collapse::At(c_vlo.midpoint(c_vhi)),
                 );
                 let fm = rv_dot(
                     s.vec(m.0, m.1),
@@ -2820,7 +2799,10 @@ pub fn nurbs_patch_face<T: Decide>(
                         grid_vec(sv.as_ref(), m.0, m.1),
                     ),
                 );
-                flux = flux + cell_area * fm + r_uu + r_vv;
+                flux = flux
+                    + hu * hv * fm
+                    + g_f_uu * (hu * hu.sqr() * hv / pt(24.0))
+                    + g_f_vv * (hu * hv * hv.sqr() / pt(24.0));
             }
         }
         let flux = widen(flux, boundary_defect * p_bound);
