@@ -284,3 +284,18 @@ Debug-float class. R1-unique: the untested in-band arm. NCSC
 witness-lessness bilateral (R2: it was the ONLY witness). Fix pass
 IMPLEMENTER-INHERITED, dispatched (9-item union, two issues to
 file); R2's target reclaimed. BLEND-2 R1 still running.
+
+## LIB-G16 MERGED — THE EMITTER SEAM LIFTS (recorded 2026-08-30 ~00:40Z; merge was 2026-08-29 22:45Z)
+
+PR 1224 merged: `Node::Chamfer` + `emit_chamfer` delegating to
+`emit_fillet::name_blend`, the 708 tie deferral paid to zero sites,
+schema v16, issue 918 closed. Consequences here: **BLEND-5 (issue
+961) and BLEND-6 (issue 917) are unlocked.** BLEND-5 queues behind
+BLEND-2's merge (same naming files). BLEND-6's design conversation
+opens now — note G16's landed shape reshapes it: the recipe layer
+already discriminates verbs via `NodeErrorKind::Blend { verb:
+BlendKind, .. }`, and `BlendKind` Display-s as fillet/chamfer, so
+the remaining question is the KERNEL-direct surface (FilletError's
+Display literals still say "fillet:"). Issue 1235 closed — main's
+own c577b24d fixed it independently (G16 dropped its parallel fix
+and took main's).
