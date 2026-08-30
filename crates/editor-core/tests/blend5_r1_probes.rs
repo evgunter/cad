@@ -294,3 +294,115 @@ fn the_host_role_moves_when_a_parameter_edit_makes_a_support_planar() {
         "the measured roles of the lower wall's arc across the three variants"
     );
 }
+
+// ---- Probe 4: my own sweep's one hit ----
+
+/// **Probe 4 — `CapEnd::{Top, Bottom}` is in the swept class, and the
+/// PR's table disposes it on a defence that would equally have
+/// excused `RimSide::Plane`.**
+///
+/// The PR defines the class as "a persisted name-vocabulary tag whose
+/// variant asserts a GEOMETRIC KIND that a construction can
+/// contradict", and disposes `CapEnd` as "not the class — names ends
+/// of the extrusion vector, structural in the minting op's own
+/// parameterization".
+///
+/// But an extrude's distance is SIGNED
+/// (`sweep/src/extrude.rs` — "a signed distance along the sketch
+/// plane's normal", gated only on a definite non-zero normal
+/// component), and `CapEnd::Top` is minted for the cap on the sketch
+/// plane TRANSLATED BY the extrusion vector
+/// (`names/emit_sweep.rs:90`). So under a negative distance the face
+/// persisted as `Cap(Top)` lies strictly BELOW the one persisted as
+/// `Cap(Bottom)` along the plane's own normal: unique names, one of
+/// them misleading — issue #961's defect exactly.
+///
+/// `RimSide::Plane` was structural in the surgery's parameterization
+/// in precisely the same sense (it was the `plane_walk` slot), and
+/// this unit judged that insufficient. This row measures the residue.
+#[test]
+fn the_top_cap_can_lie_below_the_bottom_cap() {
+    let doc = ProfileDoc::empty_derived("blend5_r1_probe_caps", Tol::witness());
+    let (doc, profile) = insert(
+        doc,
+        Node::Profile(desc(
+            [0.0; 3],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            vec![vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]],
+        )),
+    );
+    let (doc, block) = insert(
+        doc,
+        Node::Extrude {
+            profile,
+            // The sketch plane's normal is u x v = +z; a NEGATIVE
+            // distance extrudes against it.
+            distance: len(-1.0),
+        },
+    );
+    let ev = run(&doc);
+    let t = table(&ev, block);
+    let body = corpus::body_of(&ev, block);
+    let cap_height = |end: editor_core::CapEnd| -> f64 {
+        let n = StableName {
+            kind: EntityKind::Face,
+            node: block,
+            path: vec![RoleSeg::Cap(end)],
+        };
+        let f = match t.lookup(&n) {
+            Some(Entry::Unique(r)) => match r.key {
+                EntityKey::Face(k) => k,
+                other => panic!("{n:?} names {other:?}"),
+            },
+            other => panic!("{n:?} is not uniquely named: {other:?}"),
+        };
+        let s = body
+            .get_surface(body.get_face(f).expect("a live face").surface)
+            .expect("a carrier");
+        match s {
+            geom::Surface::Plane { origin, .. } => origin.z,
+            other => panic!("a cap is planar, got {other:?}"),
+        }
+    };
+    let top = cap_height(editor_core::CapEnd::Top);
+    let bottom = cap_height(editor_core::CapEnd::Bottom);
+    assert!(
+        top < bottom,
+        "under a negative extrusion the cap named Top should lie BELOW the cap named \
+         Bottom; measured top={top} bottom={bottom}"
+    );
+}
+
+// ---- Probe 5: the retired vocabulary's residue in the same enum ----
+
+/// **Probe 5 — `RoleSeg::BandFoot`'s doc still says "planar support",
+/// on a rim that has none.**
+///
+/// The unit renamed `RimSupport::Plane` because "the planar support"
+/// is a lie on a curved-on-curved rim. Nineteen lines below
+/// `BandTrim` in the same enum, `RoleSeg::BandFoot` is still
+/// documented as "the **planar-support** vertex retracted from a
+/// source rim vertex" (`names/role.rs:430`), and `RoleSeg::BandCross`
+/// as "the band's **curved-side** trimline" (`role.rs:433`) — the
+/// retired kind vocabulary, untouched.
+///
+/// The annulus arm mints band feet: `rim_phase_annulus` pushes
+/// `rec.rim_feet.push((host_feet[ix].0, c.vertex))`
+/// (`sweep/src/fillet/surgery.rs`). This row shows a `BandFoot` on the
+/// cone-on-cone mouth, where neither support is planar.
+#[test]
+fn a_cone_on_cone_rim_mints_a_band_foot_though_it_has_no_planar_support() {
+    let (doc, fillet) = filleted((1.0, 0.6), (0.8, 0.9));
+    let ev = run(&doc);
+    let t = table(&ev, fillet);
+    let feet = t
+        .iter()
+        .filter(|(n, _)| matches!(n.path.first(), Some(RoleSeg::BandFoot(_))))
+        .count();
+    assert!(
+        feet > 0,
+        "the cone-on-cone mouth mints no band foot, so RoleSeg::BandFoot's \
+         \"planar-support vertex\" wording would be unreachable on such a rim"
+    );
+}
