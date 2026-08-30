@@ -349,3 +349,54 @@ fn exactly_one_corpus_row_escalates_at_interval() {
         "the escalating row is the one-step fused eye"
     );
 }
+
+/// **The live instance of issue 1191, driven as a width row.** The
+/// rocker eye's incoming advance gate measures the signed swept angle
+/// from the entry anchor to a derived corner that reproduces that
+/// anchor bitwise. At `Interval` the two `atan2` coordinates are
+/// enclosures of separately-rounded points, so the difference handed to
+/// the fold straddles ZERO — and this row asserts that what comes back
+/// out is a box the width of that difference rather than a box the
+/// width of the period.
+///
+/// The observable is the replayed loop itself: the gate classifies, the
+/// eye replays, and every coordinate enclosure is hairline. The ceiling
+/// below is a WIDTH ceiling and **consults no tolerance** — it is not
+/// an ε, not a band, and nothing about the row's verdict changes with
+/// the tolerance the suite runs at. It sits twelve orders under the
+/// period precisely so that "the fold returned its input's width" and
+/// "the fold returned the period" cannot be confused for one another;
+/// the true widths are ~1e-16, and a regression to the composed fold
+/// returns ~6.3, so no intermediate calibration is being smuggled in.
+#[cfg(feature = "interval")]
+#[test]
+fn the_anchor_coincident_corner_reduces_to_input_width_at_interval() {
+    use geom_core::{Bounds, Interval};
+    use profile::Verb;
+    let eye = coverage_corpus()
+        .into_iter()
+        .find(|c| c.program.iter().map(Step::verb).eq([Verb::ArcFilletArc]))
+        .expect("the corpus carries the one-step fused eye");
+    let iv = try_replay_at::<Interval>(&eye.program).unwrap_or_else(|e| {
+        panic!(
+            "the eye must replay at Interval once the signed fold stops \
+             composing on a [0, tau) reduction: {e}"
+        )
+    });
+    const CEILING: f64 = 1e-12;
+    let mut widest = 0.0f64;
+    for (k, v) in iv.vertices().iter().enumerate() {
+        for (what, enc) in [("x", v.pos().x), ("y", v.pos().y), ("bulge", v.bulge())] {
+            let w = enc.hi() - enc.lo();
+            widest = widest.max(w);
+            assert!(
+                w <= CEILING,
+                "vertex {k}'s {what} enclosure is {w:e} wide ([{}, {}]) — a period-width \
+                 enclosure, not an input-width one",
+                enc.lo(),
+                enc.hi()
+            );
+        }
+    }
+    assert!(widest > 0.0, "the eye's enclosures are not all degenerate");
+}

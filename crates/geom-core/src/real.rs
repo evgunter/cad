@@ -345,6 +345,68 @@ pub trait Real:
     fn reduce_periodic(self, period: Self) -> Self {
         self - period * (self / period).floor()
     }
+
+    /// The index of the `period`-branch of `self` nearest zero:
+    /// `⌊self/period + ½⌋`, the integer `k` for which `self − k·period`
+    /// lies in `[−period/2, period/2)`.
+    ///
+    /// The **branch-pin** primitive: a consumer holding a raw periodic
+    /// coordinate `raw` and a reference `near` shifts onto the branch
+    /// nearest the reference by `raw + (near − raw).periodic_branch(p)·p`.
+    /// Same construction rules as [`Real::reduce_periodic`] — a fixed
+    /// composition of `÷`, `+` and [`Real::floor`], comparison-free, so
+    /// the `Dual` value channel is bit-identical to the plain-`T` run
+    /// and the interval instantiation contains the true index by
+    /// composition of containments.
+    ///
+    /// **Where its enclosure is wide, and why that is honest**: at
+    /// interval type the result spans two integers exactly when the box
+    /// straddles a half-period offset — `self ≈ (k + ½)·period`, the
+    /// configuration in which the two nearest branches are equidistant
+    /// and the pin is a genuine tie. A consumer that must not be handed
+    /// a tie classifies the distance-to-tie through the predicate layer
+    /// first, like every other decision.
+    fn periodic_branch(self, period: Self) -> Self {
+        (self / period + Self::from_f64(0.5)).floor()
+    }
+
+    /// Range reduction into the period **centred on zero**: the
+    /// representative of `self` modulo `period` lying in
+    /// `[−period/2, period/2)`, up to the same rounding statement
+    /// [`Real::reduce_periodic`] carries.
+    ///
+    /// This is the reduction for a **signed** periodic quantity — a
+    /// difference of two angular coordinates, where "a little backward"
+    /// must read as a small negative number and not as almost a whole
+    /// period. [`Real::reduce_periodic`]'s `[0, period)` window is the
+    /// reduction for an *extent*, which is forward by construction.
+    ///
+    /// # Fold the raw difference; never a `[0, period)` reduction first
+    ///
+    /// Both windows are discontinuous, and which reduction to use is
+    /// decided by **where each one puts its jump**. `reduce_periodic`
+    /// jumps at multiples of the period — at a difference of ZERO,
+    /// which is precisely the value a coincidence gate is built to
+    /// recognise. This reduction jumps at half-period offsets instead,
+    /// so a difference near zero is in the window's interior and comes
+    /// straight back: `⌊x/p + ½⌋` is a constant `0` over the whole of
+    /// `(−p/2, p/2)`, and the result is `x − p·0 = x`, exactly.
+    ///
+    /// The consequence at interval type is the reason this helper is
+    /// named rather than open-coded at each site: an argument box
+    /// straddling zero reduces to a box of the SAME WIDTH, where
+    /// composing this fold on top of a `[0, period)` reduction of the
+    /// same quantity would hand the outer fold a box already widened to
+    /// a whole period by the inner one. The composition is the shape to
+    /// avoid; folding the raw difference once is the shape to write.
+    ///
+    /// Its own jump, at `±period/2`, is a real discontinuity of the
+    /// signed representative and a box straddling it honestly encloses
+    /// both signs — a consumer that cannot accept that classifies the
+    /// distance to the half-period through the predicate layer.
+    fn reduce_periodic_centred(self, period: Self) -> Self {
+        self - period * self.periodic_branch(period)
+    }
 }
 
 /// Bound extraction for **certification and driver code** — deliberately a
