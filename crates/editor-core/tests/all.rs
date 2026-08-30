@@ -38,6 +38,8 @@
 // the lint gate for every suite module included below.
 #![allow(clippy::duplicate_mod)]
 
+#[path = "cert3r1_dump.rs"]
+mod cert3r1_dump;
 #[path = "asm1_identity_pins.rs"]
 mod asm1_identity_pins;
 #[path = "asm2a_instantiate.rs"]
