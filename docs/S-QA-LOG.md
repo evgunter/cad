@@ -144,3 +144,63 @@ messaged mid-flight); QA-3 unblocked but sequenced AFTER QA-2 lands
 — both edit `ci-filter.py`/`ci.yml` and two lanes on one file is a
 conflict by construction. QA-5's shape is settled; its dispatch
 still waits on the K/P/W fence coordination.
+
+## QA-1 merged (2026-08-30)
+
+The issue-888 residue and the census broken-pipe class, landed on a
+green hosted head (run 33275703002, all 21 jobs) after the v6 dual
+and a nine-for-nine fix pass. The dual's headline is the program's
+own charter enacted on itself: the unit's `gate-roster.sh` conversion
+could print a matcher-death diagnosis and still exit 0 — the one gate
+never calling `gate_ok` — found by a reviewer's shim, not by the
+author or the selftest; and the "too expensive" deterministic
+regression arm was built independently by both reviewers in ~3 s.
+Both are fixed and armed. Issue 888 closes on the combined record;
+`check_step.sh:92` and the `find`-in-process-substitution class have
+durable homes on that issue. Recorded for a future unit: the census
+script is now 1,100+ lines carrying five modes in one `gate()` (a
+reviewer's Q8 finding — a split candidate, not this unit's).
+
+Operational note at merge: the first gating run of the merged head
+(33332490436) went red with both default-eps test shards "failing"
+in one second each, runner_id 0, no logs — the Actions budget had
+run out, so the jobs never executed. A ghost failure wearing a red
+run's clothes is this program's charter one level down the stack;
+re-rolled with this commit once the budget was restored, pinning
+the same point by trailer so the ghost-failed configuration is the
+one re-proven.
+
+Process corrections this unit earned: lane branches now carry ONLY
+their own spec (QA-2's spec rode this PR from the shared dispatch
+commit — harmless here, sloppy in general); and the fable usage
+limit can kill lanes mid-flight — resumed with zero loss because the
+lane had pushed first, which is the push-early rule doing exactly
+what it is for.
+
+## QA-2 merged (2026-08-30)
+
+The matrix now says what it did: a red run reports its whole failure
+surface and names its mode (nextest's fail-fast default measured, not
+assumed, on the pinned version); a pinned lane says so in
+`CONFIG_SOURCE` and the basename pin itself is gone per the Q2 ruling
+— the request convention lives in the discipline doc, the
+`interval-transcendentals/` pin and the fail-closed arm stay; a draft
+run prints that it gated nothing, with the `ready_for_review` escape
+beside it; and the request-a-point door is verified end-to-end, so
+issue 1051 closes with 1128, 1122 and 1204. The dual found no MAJORs
+and one §D-rule-5 instance (the skip step asserting a false cause —
+fixed by deriving one cause in producer order, all eight combinations
+executed). The fix pass beat its instructions once: instead of gating
+four hand-synced advisory spellings it made the filter compose its
+notices into a file ci.yml relays, so the copies ceased to exist.
+Residues with homes: issue 1295 (the parity checker compares checks,
+never flags), and the not-hosted-verified tripwire disclosed at the
+site. The Actions budget outage that ghost-failed three branches'
+runs mid-unit is recorded in both units' PRs — a red run whose jobs
+never executed is this program's charter one layer down, and worth a
+future thought about whether the filter can notice a zero-step
+"failure".
+
+Next: QA-3 (the tools-scope k-lint path pin, Q1's ruling) into the
+now-freed `ci-filter.py`/`ci.yml`; QA-4 close-out verification; QA-5
+awaits the K/P/W coordination.
