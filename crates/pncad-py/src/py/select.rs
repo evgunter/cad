@@ -271,8 +271,8 @@ pub(crate) enum SplitHalf {
     reason = "each variant mirrors the documented `editor_core::RimSupport` variant of the same name"
 )]
 pub(crate) enum RimSupport {
-    Plane,
-    Curved,
+    Host,
+    Mate,
 }
 
 /// The end/side argument `SegPat.side` accepts: any one of the four
@@ -303,8 +303,8 @@ impl SideArg {
             Self::Meridian(MeridianEnd::Pi) => s::Side::Meridian(s::MeridianEnd::Pi),
             Self::Split(SplitHalf::Above) => s::Side::Split(s::SplitHalf::Above),
             Self::Split(SplitHalf::Below) => s::Side::Split(s::SplitHalf::Below),
-            Self::Rim(RimSupport::Plane) => s::Side::Rim(s::RimSupport::Plane),
-            Self::Rim(RimSupport::Curved) => s::Side::Rim(s::RimSupport::Curved),
+            Self::Rim(RimSupport::Host) => s::Side::Rim(s::RimSupport::Host),
+            Self::Rim(RimSupport::Mate) => s::Side::Rim(s::RimSupport::Mate),
         }
     }
 }
@@ -855,8 +855,8 @@ mod growth_tripwire {
             s::Side::Meridian(s::MeridianEnd::Pi) => SideArg::Meridian(MeridianEnd::Pi),
             s::Side::Split(s::SplitHalf::Above) => SideArg::Split(SplitHalf::Above),
             s::Side::Split(s::SplitHalf::Below) => SideArg::Split(SplitHalf::Below),
-            s::Side::Rim(s::RimSupport::Plane) => SideArg::Rim(RimSupport::Plane),
-            s::Side::Rim(s::RimSupport::Curved) => SideArg::Rim(RimSupport::Curved),
+            s::Side::Rim(s::RimSupport::Host) => SideArg::Rim(RimSupport::Host),
+            s::Side::Rim(s::RimSupport::Mate) => SideArg::Rim(RimSupport::Mate),
         }
     }
 

@@ -2520,7 +2520,7 @@ fn rim_phase<T: Decide + Bounds>(
             .map_err(|e| op("rim trim mef", e))?;
         first_trim.get_or_insert(created.he_plus);
         rec.rim_trims
-            .push((created.edge, plane_walk[i].2, RimSide::Plane));
+            .push((created.edge, plane_walk[i].2, RimSide::Host));
         let (curve, t0, t1) = ta_carriers[i].clone();
         described.push((created.edge, ContactCarrier::Exact(curve, t0, t1)));
     }
@@ -2585,7 +2585,7 @@ fn rim_phase<T: Decide + Bounds>(
             .map_err(|e| op("rim sphere trim mef", e))?;
         let (curve, t0, t1) = scaled(&rc, cb, sb, !rc.plus_on_host);
         described.push((created.edge, ContactCarrier::Exact(curve, t0, t1)));
-        rec.rim_trims.push((created.edge, e, RimSide::Sphere));
+        rec.rim_trims.push((created.edge, e, RimSide::Mate));
         tb_edges.push(created.edge);
     }
 
@@ -3242,9 +3242,9 @@ fn rim_phase_annulus<T: Decide + Bounds>(
     }
     for (i, l) in rim.chain.links().enumerate() {
         rec.rim_trims
-            .push((host_trims[i].edge, l.edge, RimSide::Plane));
+            .push((host_trims[i].edge, l.edge, RimSide::Host));
         rec.rim_trims
-            .push((mate_trims[i].edge, l.edge, RimSide::Sphere));
+            .push((mate_trims[i].edge, l.edge, RimSide::Mate));
     }
     rec.slits
         .push((mate_feet[ann.closure].1, closure.mate_seam));

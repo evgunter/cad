@@ -217,24 +217,30 @@ pub enum Qualifier {
 }
 
 /// Which support of a rim blend an entity lies on (M6-5). A pair of
-/// structural roles, not a geometric classification: the surgery
-/// knows which support is which from the chain it resolved.
+/// structural ROLES, not a geometric classification: the surgery knows
+/// which support is which from the chain it resolved, and a rim
+/// between two supports of the SAME kind — two cones meeting at a
+/// latitude circle — has no kind that tells them apart.
+///
+/// The roles are stable under the geometry, which is what a name
+/// covariant with a recipe needs: [`RimSupport::Host`] is the PLANAR
+/// support wherever the rim has one, so a caller selecting the flat
+/// side of a plane–sphere rim selects the host, and a rim whose
+/// supports both curve takes the resolved link's own first side as
+/// host. Neither answer moves when a parameter edit changes what kind
+/// a support's surface is.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
 #[serde(deny_unknown_fields)]
 pub enum RimSupport {
-    /// The HOST support — the planar one wherever the rim has one (on a
-    /// ladder rim, the face carrying the rim as a ring).
-    Plane,
-    /// The MATE support — the cap the rim bounds on a ladder rim.
-    ///
-    /// A rim between two CURVED walls has no planar side, and this
-    /// two-value alphabet cannot say so: the two trim arcs still take
-    /// DIFFERENT variants, so names stay unique, but one of them reads
-    /// `Plane` for a curved support. Widening the alphabet is a change
-    /// to a persisted, versioned vocabulary — tracked as #961.
-    Curved,
+    /// The HOST support: the planar one wherever the rim has one (on a
+    /// ladder rim, the face carrying the rim as a ring), otherwise the
+    /// resolved link's own first side.
+    Host,
+    /// The MATE support: the other side of the same rim (on a ladder
+    /// rim, the cap the rim bounds).
+    Mate,
 }
 
 /// One op-typed role segment (N1; closed enum, spec D2). Grouped by

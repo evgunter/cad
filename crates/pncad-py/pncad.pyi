@@ -1621,10 +1621,12 @@ class SplitHalf:
     Below: Final[SplitHalf]
 
 class RimSupport:
-    """Which support of a rim blend (`SegPat.side`)."""
+    """Which support of a rim blend, by its ROLE in the carve
+    (`SegPat.side`): `Host` is the planar support wherever the rim has
+    one, `Mate` the other side."""
 
-    Plane: Final[RimSupport]
-    Curved: Final[RimSupport]
+    Host: Final[RimSupport]
+    Mate: Final[RimSupport]
 
 class CurveKind:
     """Which curve variant an edge's certified carrier is — the EXACT

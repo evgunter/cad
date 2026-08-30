@@ -200,12 +200,14 @@ fn a_closed_rim_carve_names_its_whole_output() {
     );
 }
 
-/// **The headline row — the defect, executed.** Both of the mouth's
-/// supports are CONES, and one of the two trim arcs is nevertheless
-/// named `RimSupport::Plane`: a claim about the support's KIND that
-/// the geometry under the arc contradicts.
+/// **The headline row.** Both of the mouth's supports are CONES, so no
+/// name here can report a support's KIND: one of the two would have to
+/// contradict the surface under it, and reporting the kind FAITHFULLY
+/// would give the two arcs the same name. The vocabulary reports the
+/// carve's two roles, which the surgery knows and the geometry cannot
+/// take away.
 #[test]
-fn a_cone_on_cone_rim_names_one_support_plane() {
+fn a_cone_on_cone_rim_names_its_supports_by_role() {
     let (doc, fillet) = filleted_mouth();
     let ev = run(&doc);
     let rows = trims(&ev, fillet);
@@ -220,8 +222,45 @@ fn a_cone_on_cone_rim_names_one_support_plane() {
     got.sort();
     assert_eq!(
         got,
-        vec![RimSupport::Plane, RimSupport::Curved],
-        "the two arcs still take DIFFERENT variants — the names are unique, \
-         and one of them is a lie"
+        vec![RimSupport::Host, RimSupport::Mate],
+        "the two arcs take the two roles of the carve"
     );
+}
+
+/// **The invariant that makes the re-spelling meaning-preserving**: on
+/// a rim that HAS a planar support, the host is that support. A
+/// selection that meant "the flat side" under the retired kind
+/// vocabulary means it still.
+#[test]
+fn the_host_is_the_planar_support_wherever_the_rim_has_one() {
+    let (doc, revolve) = lantern();
+    // The lip disk meets the upper cone at profile vertex 3: a
+    // plane–cone rim, one planar side.
+    let lip = StableName {
+        kind: EntityKind::Edge,
+        node: revolve,
+        path: vec![RoleSeg::BandRim(ProfileVertexRef {
+            loop_index: 0,
+            vertex: 3,
+        })],
+    };
+    let (doc, fillet) = insert(
+        doc,
+        Node::Fillet {
+            target: revolve,
+            radius: len(0.05),
+            selection: vec![lip],
+        },
+    );
+    let ev = run(&doc);
+    let rows = trims(&ev, fillet);
+    assert_eq!(rows.len(), 2, "one trimline per support");
+    for (support, surface) in &rows {
+        let planar = matches!(surface, Surface::Plane { .. });
+        assert_eq!(
+            planar,
+            *support == RimSupport::Host,
+            "{support:?} lies on {surface:?}"
+        );
+    }
 }

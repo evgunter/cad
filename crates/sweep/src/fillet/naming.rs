@@ -46,20 +46,23 @@ use topo::{EdgeKey, FaceKey, VertexKey};
 
 /// Which of a rim band's two supports a trim arc lies on.
 ///
-/// The two variants are the carve's two ROLES — the support whose strip
-/// is merged away, and the one whose strip becomes the band — and on a
-/// LADDER rim they coincide with the kinds they are named for. On an
-/// ANNULUS rim between two CURVED walls they do not: the roles are the
-/// link's own slots, so one trim arc takes [`RimSide::Plane`] while
-/// lying on a cone. The names stay UNIQUE, so nothing collides; making
-/// the vocabulary say what it means is a change to a persisted,
-/// versioned name alphabet and is tracked as #961.
+/// The two variants are the carve's two ROLES, which is what the
+/// surgery decides and therefore all it can record: the supports of a
+/// rim are told apart by the link that resolved them, never by their
+/// surface kinds — a rim between two cones has two supports of the
+/// same kind, and a kind would not tell them apart at all.
+///
+/// The roles are stable under the geometry: [`RimSide::Host`] is the
+/// PLANAR support wherever the rim has one, so a ladder rim's two arcs
+/// keep the sides a caller means by "the flat one" and "the cap", and
+/// a curved-on-curved rim takes the link's own `face_a` as host.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum RimSide {
-    /// The HOST support — the planar one wherever the rim has one.
-    Plane,
-    /// The MATE support — the curved cap on a ladder rim.
-    Sphere,
+    /// The HOST support: the planar one wherever the rim has one, and
+    /// otherwise the link's own `face_a` side.
+    Host,
+    /// The MATE support: the other side of the same rim.
+    Mate,
 }
 
 /// The source keys the fillet retired.
