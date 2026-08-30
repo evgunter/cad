@@ -62,6 +62,8 @@ mod asm_upd_pin_update;
 mod asm_upd_schema_v10;
 #[path = "blend5_r1_probes.rs"]
 mod blend5_r1_probes;
+#[path = "blend5_r2_probes.rs"]
+mod blend5_r2_probes;
 #[path = "blend5_rim_support.rs"]
 mod blend5_rim_support;
 #[path = "blend5_schema_v18.rs"]
