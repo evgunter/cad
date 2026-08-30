@@ -329,3 +329,28 @@ contaminated dispatch produced no report and no artifacts; the
 clean R2 is uninterrupted from the symmetric brief. Whether the
 pair still scores toward comparability is the blinded
 adjudication's call, not claimed here.
+
+## FABLE USAGE LIMIT: BOTH FABLE LANES KILLED; MAIN'S A/B LOG REPAIRED (2026-08-30 ~01:4xZ)
+
+The Fable usage limit (429) killed both in-flight Fable lanes
+mid-turn: **BLEND-7's R1 delta verifier** (items 1 and 3 already
+CONFIRMED by execution — the recourse fix and the in-band row; died
+starting item 2) and **BLEND-2's R2** (still in its read phase, no
+probes). Handling, recorded before any resumption: the delta is
+verification by the same reviewer, not a scored arm — it RESUMES
+from item 2 when the limit lifts; BLEND-2's R2 partial is
+DISCARDED (second discard for this slot — the first was the
+orchestrator's brief-asymmetry kill, both recorded) and a fresh
+complete R2 dispatches from the stored brief at reset, per the
+G18a limit-death precedent. The byte-176 draw (R2 = FABLE) stands;
+no model swap. BLEND-7's merge waits on the delta; BLEND-2's
+adjudication waits on R2.
+
+Meanwhile: **main's MODEL-AB-LOG carried a committed conflict
+block** (flagged by the BLEND-7 fix lane) which a later merge
+partially resolved into a DUPLICATED M10-P row + an orphaned
+marker line. Repaired against live main in PR 1286 (merge
+a85b3ad0): one M10-P row kept (the CORRECTED sample-43 copy), the
+orphan line dropped, nothing else touched. Third instance of the
+union-merge artifact class in two days → filed #1287 (tree-wide
+CI marker guard, track J / S-QA).
