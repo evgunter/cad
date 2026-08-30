@@ -138,3 +138,4 @@ fn dm1_no_longer_refuses_at_the_instancing_gate() {
         other => panic!("dm1's refusal has moved out of the at-rest gate; got {other:?}"),
     }
 }
+

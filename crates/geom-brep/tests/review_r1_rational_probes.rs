@@ -86,10 +86,10 @@ const C0_KINK_FLOOR: f64 = 4.785e-4;
 const SPHERE_OCTANT_FLOOR: f64 = 9.683e-7;
 /// Quarter cylinder at r = 1 km: the floor is a LENGTH, so it scales
 /// with the part (1e3 × the metre-scale quarter cylinder's).
-const HUGE_CYLINDER_FLOOR: f64 = 1.535e-4;
+const HUGE_CYLINDER_FLOOR: f64 = 1.533e-4;
 /// The determinism carrier: single-span quarter cylinder, r = 1 m,
 /// h = 2 m, driven at a millionfold-tighter target.
-const QUARTER_CYLINDER_FLOOR: f64 = 1.535_131_804_305_385e-7;
+const QUARTER_CYLINDER_FLOOR: f64 = 1.533_470_603_813_311e-7;
 
 /// The outcomes a probe is allowed to have on the run's ε — three
 /// honest postures plus the degenerate-face refusal, which is sound
