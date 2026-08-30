@@ -39,18 +39,23 @@
 #
 # COVERAGE: EVERY CARGO MANIFEST THE REPOSITORY TRACKS, IN TWO PASSES.
 # `cargo doc --workspace` sees workspace MEMBERS, and the root manifest
-# excludes `demos`, `tools` and `interval-transcendentals` — six more
-# cargo roots (`demos/tour`, `demos/wild`, `tools/k-lint`,
-# `tools/tess-lint`, `tools/tess-meter`, `interval-transcendentals`)
-# whose prose that pass cannot reach. So the gate runs the workspace
-# pass and then one `--no-deps` pass per manifest the workspace pass did
-# not cover. The two sets are complementary BY CONSTRUCTION: `cargo
-# metadata` answers which manifests `--workspace` just documented, `git
-# ls-files` answers which exist, and every manifest lands in exactly one
-# pass. The six is not load-bearing — the list is derived, and the
-# success line reports the count the run actually saw — but a number
-# written here that disagrees with the run is the drift this gate is
-# about, so it is spelled out rather than summarised.
+# excludes `benches`, `demos`, `tools` and `interval-transcendentals` —
+# seven more cargo roots (`benches`, `demos/tour`, `demos/wild`,
+# `tools/k-lint`, `tools/tess-lint`, `tools/tess-meter`,
+# `interval-transcendentals`) whose prose that pass cannot reach. So the
+# gate runs the workspace pass and then one `--no-deps` pass per
+# manifest the workspace pass did not cover. The two sets are
+# complementary BY CONSTRUCTION: `cargo metadata` answers which
+# manifests `--workspace` just documented, `git ls-files` answers which
+# exist, and every manifest lands in exactly one pass. The seven is not
+# load-bearing — the list is derived, and the success line reports the
+# count the run actually saw — but a number written here that disagrees
+# with the run is the drift this gate is about, so it is spelled out
+# rather than summarised.
+#
+# A THIRD PASS re-documents a DERIVED SUBSET of those same roots under
+# the one feature selection the two above cannot express; see the
+# `not(feature)` section below. It adds no manifest to the coverage set.
 #
 # THE ROOT LIST IS DERIVED AND MUST STAY DERIVED. A literal list here
 # would be the second hand-written roster in this repo, and
@@ -127,9 +132,71 @@
 # only the kernel features they forward. Under default features that
 # file's prose was documented by NOTHING. So the default here is the
 # same flag pass 1 uses and docs.rs uses, and the exception carries its
-# reason at the constant. A seventh root added tomorrow gets the
+# reason at the constant. A further root added tomorrow gets the
 # covering treatment without anyone remembering to ask; the one root
 # that must not is spelled out where a reader trips over it.
+#
+# WHAT --all-features CANNOT SEE: THE `not(feature)` HALF, AND PASS 3.
+#
+# Features are additive, so `--all-features` compiles the `feature = F`
+# half of every paired module and NEVER the `not(feature = F)` half.
+# Those halves are ordinary source carrying ordinary prose, and until
+# pass 3 existed the only instrument that would report their doc errors
+# was the one instrument that never compiled them: three live rustdoc
+# errors sat in `crates/mesh/src/budget.rs`'s `mod inert` with every
+# gate green. Widening the FLAG cannot reach them — there is no feature
+# selection that compiles both halves of a `cfg`/`not(cfg)` pair — so
+# the coverage has to come from a second SELECTION, which is a second
+# pass.
+#
+# PASS 3 IS `--no-default-features`, OVER THE ROOTS THAT NEED IT, AND
+# THE ROOT LIST IS DERIVED. `inert_half_roots` greps the tracked Rust
+# sources for the `cfg(not(feature` shape and reports the nearest
+# tracked manifest above each hit — the same `git ls-files` oracle the
+# rest of this gate derives from, for the same reason: a hand-written
+# list of "crates with a paired module" is a roster, and this file
+# already argues at length about what rosters do. A root with no such
+# module is not documented a second time, which is what keeps the cost
+# proportional to the shape rather than to the workspace.
+#
+# WHY `--no-default-features` AND NOT "ALL FEATURES BUT F". The precise
+# complement — one pass per (root, F) pair, at every feature except F —
+# is what a reader reaches for first, and it is both dearer (six passes
+# here rather than five roots' worth) and no more honest, because the
+# lint it would save is allowed below anyway. `--no-default-features` is
+# also the maximal selection: it compiles the `not(F)` half of EVERY
+# paired module in the root at once, including one whose F a crate later
+# moves into its own `default` list, where "default features" would
+# quietly stop compiling that half again.
+#
+# AND `rustdoc::broken_intra_doc_links` IS ALLOWED IN PASS 3 — ONLY
+# THERE, AND THIS IS THE COST OF THE WIDENING RATHER THAN A TIDINESS
+# FLAG. With F off, every link into F-gated code is unresolvable BY
+# CONSTRUCTION: measured on this tree the moment the pass was written,
+# 14 CORRECT links went red — 12 in `geom-core` (`Interval`,
+# `DualInterval`, `Probe`, `start_recording`) and 2 in `topo`'s boolean
+# prose (`SweepStrategy::Idealized`) — which is the SAME false-positive
+# population the FEATURES paragraph above adopted --all-features to
+# kill, arriving from the other side. Reds on prose that is correct
+# under the gate's own primary selection are how a gate gets routed
+# around, so the lint that cannot tell "this link is broken" from "this
+# link's target is in the other half" is off in this pass.
+#
+# THE BLIND SPOT THAT LEAVES, NAMED: a genuinely broken intra-doc link
+# written INSIDE a `not(feature)` half is still reported by nothing. The
+# lint is on in pass 1 and pass 2, so it covers the whole tree under
+# --all-features and only this one shape escapes it. What pass 3 does
+# catch there is every OTHER rustdoc lint — the live instance was three
+# `rustdoc::redundant_explicit_links`, and malformed markdown, bare
+# URLs, invalid HTML and unportable syntax are the rest — plus the thing
+# no lint states: the half now COMPILES in a doc build, so prose on an
+# item that stopped existing is a hard error rather than a silence.
+#
+# THE NAMED DEFAULT-FEATURES ROOT NEEDS NO EXCEPTION HERE.
+# `--no-default-features` cannot turn `oracle-inari` on, so pass 3 is
+# already inside the constraint that exception exists to enforce; if
+# that root ever grows a paired module it is documented here exactly as
+# the exception wants it, with no second rule to keep in step.
 #
 # TARGETS, AND THE HALF-COVERED PACKAGE. `cargo doc`'s default target
 # selection documents a package's library and SKIPS a binary that shares
@@ -226,6 +293,10 @@ set -euo pipefail
 
 GATE_SCAN_NOUN="cargo root"
 RUSTDOC_LINTS="-D warnings -A rustdoc::private_intra_doc_links"
+# Pass 3's lints: the same set, less the one lint that pass cannot
+# judge. See the `not(feature)` section in the header for the measured
+# false-positive population this drops and the blind spot it leaves.
+RUSTDOC_LINTS_INERT="$RUSTDOC_LINTS -A rustdoc::broken_intra_doc_links"
 
 # Physical path of a file, without depending on `realpath`: cargo
 # reports canonical manifest paths and a `--root` under /tmp can be a
@@ -297,13 +368,22 @@ workspace_manifests() {
 # unconditionally; `--lib --bins` is NOT the shorter spelling, because
 # `--lib` is a hard error on a bin-only package like `demos/tour`, while
 # `--bins --examples` is not an error on any of them.
-doc_pass() {
-  local why=$1; shift
+#
+# THE LINT SET IS A PARAMETER, not a global read from in here, because
+# pass 3 runs a different one and a pass that silently inherited the
+# wrong set would be a gate reporting on lints it did not run.
+doc_pass_with() {
+  local lints=$1 why=$2; shift 2
   local rc=0
-  RUSTDOCFLAGS="$RUSTDOC_LINTS" cargo doc --no-deps --document-private-items "$@" || rc=1
-  RUSTDOCFLAGS="$RUSTDOC_LINTS" cargo doc --no-deps --document-private-items --bins --examples "$@" || rc=1
+  RUSTDOCFLAGS="$lints" cargo doc --no-deps --document-private-items "$@" || rc=1
+  RUSTDOCFLAGS="$lints" cargo doc --no-deps --document-private-items --bins --examples "$@" || rc=1
   [ "$rc" -eq 0 ] || gate_error "$(gate_name): rustdoc rejected $why"
   return "$rc"
+}
+
+doc_pass() {
+  local why=$1; shift
+  doc_pass_with "$RUSTDOC_LINTS" "$why" "$@"
 }
 
 # THE ONE ROOT DOCUMENTED UNDER DEFAULT FEATURES, named here with its
@@ -369,9 +449,82 @@ $(abs_path "$m")
   done <<<"$manifests"
 }
 
+# THE ROOTS WITH A `not(feature)` HALF, one repo-relative manifest path
+# per line — pass 3's subject, derived from the tree exactly as the
+# outside-roots list is. See the `not(feature)` section in the header.
+#
+# EVERY TRACKED `.rs`, WITH NO PATH FILTER. Excluding `tests/` and
+# `benches/` — rustdoc builds no test target, so a paired module in one
+# is prose this pass could not read anyway — was written and then
+# removed: on this tree it changed the derived set by nothing, and it
+# bought a blind spot, because a package whose `src/` holds an inline
+# `tests/` directory would have been filtered out of a pass its own
+# library needs. The filter's only prize was a compilation it might
+# skip; the price was coverage decided by a path spelling.
+inert_half_roots() {
+  local manifests rs f d cand
+  manifests=$(tree_manifests) || return 1
+  if ! rs=$(git ls-files -- '*.rs' 2>&1); then
+    printf '%s\n' "$rs" >&2
+    gate_error "$(gate_name): git ls-files failed in $PWD, so the gate cannot tell which sources carry a not(feature) half — an empty answer would skip pass 3 over every one of them and still report green"
+    return 1
+  fi
+  # NO SOURCES IS NOT A FINDING. A cargo root can be all manifest and
+  # generated code, and pass 3 having nothing to do is a legitimate
+  # green — unlike `tree_manifests`, where an empty answer means the
+  # reader failed. So this returns empty rather than diagnosing.
+  [ -n "$rs" ] || return 0
+  local -a files=()
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    files+=("$f")
+  done <<<"$rs"
+  local hits
+  # `gate_grep`, so a matcher that cannot search ends the gate instead
+  # of handing back the empty list that means "no paired module here".
+  hits=$(gate_grep -l 'cfg(not(feature' -- ${files[@]+"${files[@]}"}) || return 1
+  [ -n "$hits" ] || return 0
+  # ACCUMULATED IN A VARIABLE, NOT PRINTED INTO `| sort -u`. A pipeline
+  # stage is a subshell, so the `return 1` below could not fail this
+  # function from inside one — the caller would get a short list and a
+  # zero status, which is the shape every other reader in this file is
+  # written to avoid.
+  local owners=
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    # The nearest TRACKED manifest above the hit owns it. Walking up
+    # rather than splitting the path at `crates/<x>/`: a root can sit at
+    # any depth (`demos/tour`, `interval-transcendentals`), and a nested
+    # package under another root must resolve to itself.
+    d=$(dirname "$f")
+    while :; do
+      if [ "$d" = "." ]; then cand=Cargo.toml; else cand="$d/Cargo.toml"; fi
+      case "
+$manifests
+" in
+        *"
+$cand
+"*) owners="$owners$cand
+"; break ;;
+      esac
+      if [ "$d" = "." ]; then
+        gate_error "$(gate_name): $f carries a not(feature) half and no tracked Cargo.toml stands above it, so pass 3 has no root to document it under — the source is outside every manifest this repository tracks, and skipping it quietly is the blind spot this pass exists to close"
+        return 1
+      fi
+      d=$(dirname "$d")
+    done
+  done <<<"$hits"
+  printf '%s' "$owners" | sort -u
+}
+
 # --print-roots. The DIRECTORY of every cargo root this gate documents:
 # `.` for the workspace pass, then one line per root outside it. It is
 # the same derivation `gate` runs, deliberately — see the header.
+#
+# PASS 3 ADDS NOTHING HERE, and that is a property rather than an
+# oversight: its roots are a SUBSET of these, and it builds into the
+# same target directory each of them already owns. Its artifacts are
+# cached by this list because they are already inside it.
 print_roots() {
   local m outside
   # CAPTURED INTO A VARIABLE, AND THE FAILURE CHECKED HERE TOO. Written
@@ -450,9 +603,30 @@ gate() {
       --manifest-path "$m" ${feat[@]+"${feat[@]}"} || rc=1
   done
 
+  # PASS 3 — the `not(feature)` halves the two passes above compile out.
+  #
+  # ITS ROOTS ARE A SUBSET OF THE TWO PASSES', so `n` is NOT advanced
+  # here: the count this gate reports is manifests covered, and a root
+  # documented twice under two selections is still one manifest. A pass
+  # 3 that inflated it would be reporting coverage it did not add.
+  #
+  # CAPTURED AND CHECKED, for the reason pass 2's list is.
+  local inert
+  inert=$(inert_half_roots) || exit 1
+  local -a inert_roots=()
+  while IFS= read -r m; do
+    [ -n "$m" ] || continue
+    inert_roots+=("$m")
+  done <<<"$inert"
+  for m in ${inert_roots[@]+"${inert_roots[@]}"}; do
+    doc_pass_with "$RUSTDOC_LINTS_INERT" \
+      "$m at --no-default-features — this root has a #[cfg(not(feature = …))] half, which every pass above compiles OUT, so its prose is read here or by nothing" \
+      --manifest-path "$m" --no-default-features || rc=1
+  done
+
   GATE_SCAN_FILES=$n
   [ "$rc" -eq 0 ] || exit 1
-  gate_ok "every cargo manifest this repository tracks renders — library, binary and example targets alike: the workspace pass plus ${#roots[@]} root(s) outside it, all under --all-features except $defaulted named exception(s)"
+  gate_ok "every cargo manifest this repository tracks renders — library, binary and example targets alike: the workspace pass plus ${#roots[@]} root(s) outside it, all under --all-features except $defaulted named exception(s), and ${#inert_roots[@]} of them re-read at --no-default-features for the not(feature) halves --all-features compiles out"
 }
 
 # THE FIXTURE. Dependency-free by design — the cases are about this
@@ -488,7 +662,12 @@ gate_plant_clean() {
     printf 'exclude = ["outside", "interval-transcendentals"]\n'
   } > "$r/Cargo.toml"
   {
-    printf '[package]\nname = "clean"\nversion = "0.0.0"\nedition = "2021"\n'
+    printf '[package]\nname = "clean"\nversion = "0.0.0"\nedition = "2021"\n\n'
+    # A feature on the MEMBER too, so the `not(feature)` planters below
+    # have a declared one to negate on both sides of the workspace
+    # boundary. Undeclared, `cfg(not(feature = "probe"))` is a
+    # `check-cfg` warning and the case would red for the wrong reason.
+    printf '[features]\nprobe = []\n'
   } > "$r/crates/clean/Cargo.toml"
   {
     printf '//! A workspace member whose prose links to [`identity`].\n'
@@ -594,6 +773,59 @@ plant_broken_link_behind_the_excepted_feature() {
   } >> "$1/interval-transcendentals/src/lib.rs"
 }
 
+# THE `not(feature)` HALF — PASS 3's WHOLE SUBJECT, in each pass. This
+# is `crates/mesh/src/budget.rs`'s live arrangement: a paired module
+# whose disarmed half is the one every shipped build compiles, and which
+# `--all-features` therefore never reads. The planted error is a
+# REDUNDANT EXPLICIT LINK rather than a broken one on purpose — a broken
+# link is the lint pass 3 allows, so a case built on one would pass with
+# pass 3 deleted and prove nothing.
+#
+# THE `pub use` IS PART OF THE SHAPE, not decoration: it is how the
+# paired module reaches its callers under either feature, and it is what
+# puts the module's items in scope for a bare label — so it is also what
+# makes the explicit target redundant. Drop it and the planted link is
+# merely unresolved, i.e. the allowed lint, and the case would stop
+# testing anything.
+plant_doc_error_behind_not_a_feature() {
+  {
+    printf '\n/// The disarmed half.\n'
+    printf '///\n'
+    printf '/// [`stub`][off::stub] folds away.\n'
+    printf '#[cfg(not(feature = "probe"))]\n'
+    printf 'mod off {\n'
+    printf '    /// A stub.\n'
+    printf '    pub fn stub() {}\n'
+    printf '}\n'
+    printf '\n#[cfg(not(feature = "probe"))]\npub use off::*;\n'
+  } >> "$1"
+}
+
+plant_doc_error_behind_not_a_feature_in_member() {
+  plant_doc_error_behind_not_a_feature "$1/crates/clean/src/lib.rs"
+}
+
+plant_doc_error_behind_not_a_feature_in_excluded_root() {
+  plant_doc_error_behind_not_a_feature "$1/outside/src/lib.rs"
+}
+
+# THE COST OF PASS 3, PINNED IN THE DIRECTION THAT MATTERS: prose in the
+# `not(feature)` half linking to an item the FEATURE half defines. That
+# link is correct — it resolves in the docs --all-features builds — and
+# it cannot resolve in a pass whose whole point is that the feature is
+# off. Turn `rustdoc::broken_intra_doc_links` back on in pass 3 and this
+# reds, which is the 14-correct-links measurement in the header
+# arriving as a test rather than as a paragraph.
+plant_link_from_the_disarmed_half_into_the_gated_one() {
+  {
+    printf '\n#[cfg(feature = "probe")]\n'
+    printf '/// The armed half.\npub fn armed() {}\n'
+    printf '\n#[cfg(not(feature = "probe"))]\n'
+    printf '/// The disarmed half; [`armed`] is what this replaces.\n'
+    printf 'pub fn disarmed() {}\n'
+  } >> "$1/crates/clean/src/lib.rs"
+}
+
 # THE DERIVATION ITSELF. A whole second checkout under `.claude/`, the
 # way this repo's agent worktrees arrive — 92 of them on disk against 23
 # tracked, when this case was written — carrying a break in a root the
@@ -672,8 +904,15 @@ gate_selftest() {
   gate_selftest_case "$want" plant_broken_link_in_excluded_root_example
   gate_selftest_case "$want" plant_broken_link_behind_a_feature_in_excluded_root
   gate_selftest_case "$want" plant_broken_link_on_private_item
+  # PASS 3, IN EACH PASS'S ROOTS. Delete the pass, or its derivation,
+  # and both go green — which is the state this gate shipped in while
+  # three rustdoc errors sat in a `not(feature)` module.
+  gate_selftest_case "$want" plant_doc_error_behind_not_a_feature_in_member
+  gate_selftest_case "$want" plant_doc_error_behind_not_a_feature_in_excluded_root
   gate_selftest_passes "public prose linking to a private sibling" \
     plant_public_link_to_private_item
+  gate_selftest_passes "a link from the disarmed half into the feature-gated one" \
+    plant_link_from_the_disarmed_half_into_the_gated_one
   gate_selftest_passes "prose behind the named default-features root's own feature" \
     plant_broken_link_behind_the_excepted_feature
   gate_selftest_passes "a cargo root the repository does not track (an agent worktree under .claude/)" \
@@ -697,7 +936,7 @@ gate_selftest() {
   gate_selftest_without_tool cargo "cargo metadata failed"
   gate_selftest_without_tool git "git ls-files failed"
   GATE_SELFTEST_ARGS=()
-  printf '%s selftest OK: passes a clean three-root fixture, a public link to a private sibling, prose behind the excepted root'"'"'s feature, and an untracked worktree checkout; fires on a broken link in a workspace member and in a root outside the workspace — in each of their same-named binaries and examples — on a private item, on an excluded root'"'"'s feature-gated prose, and when either cargo or git cannot answer; prints the derived root set under --print-roots, and diagnoses rather than shortening it when a reader fails\n' \
+  printf '%s selftest OK: passes a clean three-root fixture, a public link to a private sibling, a link from a not(feature) half into the gated one, prose behind the excepted root'"'"'s feature, and an untracked worktree checkout; fires on a broken link in a workspace member and in a root outside the workspace — in each of their same-named binaries and examples — on a private item, on an excluded root'"'"'s feature-gated prose, on a doc error inside a not(feature) half in each pass'"'"'s roots, and when either cargo or git cannot answer; prints the derived root set under --print-roots, and diagnoses rather than shortening it when a reader fails\n' \
     "$(gate_name)"
 }
 
