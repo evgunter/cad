@@ -2495,3 +2495,25 @@ sampled axis), not the unit's; verified against the issue and
 main's runs before merging. Row GA-1 rode the PR; sample #51
 (ledger max #50 at write). PR-2 unblocks behind its re-cut spec
 (merged to main at #1292); dispatch queued per VERBS-7 slot 3.
+## ORDINAL 108 CLAIMED — SPHSPH dual (2026-08-30)
+
+SPHSPH delivered green (#1290): the sphere×sphere section with
+trilean gates in arc_arc's order, the polar gate placed at the
+CONSUMERS (the spec's (a)+(c) honoured with placement argued —
+a gate inside the section would be an unexercised guess),
+row-3 of the opening measurement REFUTED the deep-seam
+hypothesis structurally (a Z-offset seam never crosses — every
+seam point equidistant √(r²+Δz²) from the other centre), the
+latitude lever as sin(v_b−v_a) levered by R (arc, not chord),
+seven consumer pins re-baselined against closed forms (probe_g
+0 ulp), the octant-pin frontier MEASURED off the tangent
+carriers, PointInSolidError::VolumeUncertified replacing a
+CorruptFace misreport, and the props rimless-sphere Δu=π gap
+banked as a props-unit finding. Two hosted CI points green at
+step level; the eps 1e-6 row run locally. Full dual, frozen
+head 3bb074f7, parity byte 118 ⇒ R1 OPUS + R2 FABLE; claim to
+main at dispatch (#1292, which also carried the GERMARMS PR-2
+spec re-cut). Reviewer lanes are reference-clones of the
+implementer lane's .git (objects only, no refs beyond origin's
+— disk pressure made the network clone unaffordable; disclosed
+here for the record).
