@@ -44,7 +44,11 @@ fn boxx(x0: f64, x1: f64, y0: f64, y1: f64, z0: f64, z1: f64) -> Body<f64> {
 fn turned() -> Body<f64> {
     topo::transform_rigid(
         &cyl(0.0, 0.0, 1.0, -2.0, 2.0),
-        &Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0), PI / 2.0),
+        &Affine3::rotation_about_axis(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
+            PI / 2.0,
+        ),
         Tol::witness(),
     )
     .unwrap()
@@ -86,7 +90,10 @@ fn r2_the_steinmetz_fold_numbers_rederive_exactly() {
     let (r_u, r_v, b0) = bound(Point3::new(-1.0, 0.0, -2.0), Vec3::new(0.0, 0.0, 1.0), 4.0);
     assert_eq!(r_u, 2.0);
     assert_eq!(r_v, 2.0);
-    assert!(b0.abs() < 1e-12, "the tangent seam's bound is a true zero: {b0}");
+    assert!(
+        b0.abs() < 1e-12,
+        "the tangent seam's bound is a true zero: {b0}"
+    );
     // The tangency itself: the seam's closest point to the partner
     // wall has residual exactly 0 — on the surface, not through it.
     assert_eq!(
@@ -114,7 +121,10 @@ fn r2_the_steinmetz_fold_numbers_rederive_exactly() {
     let (r_u, r_v, b45) = bound(Point3::new(s, s, -2.0), Vec3::new(0.0, 0.0, 1.0), 4.0);
     assert!((r_u - 1.75).abs() < 1e-12, "{r_u}");
     assert!((r_v - 1.75).abs() < 1e-12, "{r_v}");
-    assert!((b45 + 0.25).abs() < 1e-12, "the spun bound is exactly -1/4: {b45}");
+    assert!(
+        (b45 + 0.25).abs() < 1e-12,
+        "the spun bound is exactly -1/4: {b45}"
+    );
 }
 
 /// **Claim 1's dynamic half: the ring lane resolves the crossings and
@@ -130,7 +140,11 @@ fn r2_the_steinmetz_fold_numbers_rederive_exactly() {
 fn r2_a_spun_steinmetz_moves_the_raiser_to_the_partner_seam() {
     let spun = topo::transform_rigid(
         &cyl(0.0, 0.0, 1.0, -2.0, 2.0),
-        &Affine3::rotation_about_axis(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1.0), PI / 4.0),
+        &Affine3::rotation_about_axis(
+            Point3::new(0.0, 0.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+            PI / 4.0,
+        ),
         Tol::witness(),
     )
     .unwrap();
@@ -193,14 +207,11 @@ fn r2_the_transient_chord_mev_certifies_on_a_wall() {
         }
     }
     let (_face, outer) = wall.expect("the pipe has a cylinder wall face");
-    let topo::LoopBoundary::Cycle { first: anchor } = body.get_loop(outer).unwrap().boundary
-    else {
+    let topo::LoopBoundary::Cycle { first: anchor } = body.get_loop(outer).unwrap().boundary else {
         panic!("wall outer loop is a cycle");
     };
     let u = body.get_half_edge(anchor).unwrap().start;
-    let p_u = *body
-        .get_point(body.get_vertex(u).unwrap().point)
-        .unwrap();
+    let p_u = *body.get_point(body.get_vertex(u).unwrap().point).unwrap();
     // An interior point of the wall, well away from the anchor.
     let p = Point3::new(0.0, 1.0, 0.0);
     let chord = body
@@ -234,7 +245,9 @@ fn r2_the_cone_fixture_door_is_measured_not_just_excluded() {
             .map(|(r, y)| profile::ProfileVertex::new(p2(r, y), 0.0))
             .collect(),
     );
-    let profile = Profile::new(SketchPlane::xy(), vec![lp]).validate(tol).unwrap();
+    let profile = Profile::new(SketchPlane::xy(), vec![lp])
+        .validate(tol)
+        .unwrap();
     let frustum = sweep::revolve(
         &profile,
         sweep::RevolveAxis {
