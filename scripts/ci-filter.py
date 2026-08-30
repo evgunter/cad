@@ -799,8 +799,8 @@ KLINT_ROWS: tuple[str, ...] = (
 # above are persistence-detectors, so a break in one is found by a later draw
 # — that is sound and it is not in question here. What it does not say is
 # WHOSE merge finds it: for a tool crate the finder is whoever's PR next draws
-# that row, so the break lands undrawn and detonates somewhere unrelated. D183
-# is the measured instance — `tools/tess-meter`'s `SPLIT_SCAN_DECADES` /
+# that row, so the break lands undrawn and detonates somewhere unrelated. THE
+# MEASURED INSTANCE: `tools/tess-meter`'s `SPLIT_SCAN_DECADES` /
 # `SPLIT_SCAN_SAMPLES` are boxed by a guard living in that crate's OWN tests,
 # and the row that runs those tests is drawn 1-in-5, so the merge that retunes
 # the constants is more likely than not the merge that does not run the guard.
@@ -833,7 +833,7 @@ KLINT_ROWS: tuple[str, ...] = (
 #                      (the three exit voices); `release-budget` `cargo run --`s
 #                      the binary as the tessellation-budget gate.
 #   tools/tess-meter/  `dev-default` and nothing else. No other row compiles it
-#                      at all, which is exactly what D183 is about.
+#                      at all, which is the case this pin was measured on.
 #
 # So every entry is `dev-default` today and the table is single-valued. It is a
 # TABLE anyway for two reasons: the derivation is per-crate and the next tool
@@ -1915,9 +1915,9 @@ def _selftest_klint_pin(t: str) -> None:
     `_forces_klint`'s call site and every run still prints a legal
     `KLINT_ROW=`, every job condition still reads it, and the gate is green for
     as long as anyone looks — while a `tools/` change is back to being gated by
-    whichever row a hash picked, which is the whole of D183. So the first case
-    below is `decorate` restoring the DRAW over a `tools/` diff, and it must
-    red.
+    whichever row a hash picked, which is the case this pin exists for. So the
+    first case below is `decorate` restoring the DRAW over a `tools/` diff, and
+    it must red.
 
     AND THE SCOPE IS TESTED FROM BOTH SIDES, because a pin that quietly grew is
     the #1122 failure one dimension over: `demos/` is required to DRAW, so
@@ -1935,7 +1935,7 @@ def _selftest_klint_pin(t: str) -> None:
                            "tools/tess-meter/src/main.rs\n")
     if "KLINT_ROW=dev-default" not in pinned.stdout.splitlines():
         raise SystemExit("SELFTEST FAILED: a change under tools/tess-meter/ did not pin the k-lint "
-                         f"row that compiles it — D183 is back\n{pinned.stdout}")
+                         f"row that compiles it — the pin is gone\n{pinned.stdout}")
     if "PINNED" not in pinned.stderr or "tools/tess-meter/src/main.rs" not in pinned.stderr:
         raise SystemExit("SELFTEST FAILED: the k-lint row was pinned and the run did not say so, "
                          f"or did not name the file that pinned it\nstderr: {pinned.stderr!r}")
