@@ -307,6 +307,3 @@ mod tube_probe_v16;
 
 #[path = "lib_tube_node.rs"]
 mod lib_tube_node;
-
-#[path = "lib_tube_corpus_name_digests.rs"]
-mod lib_tube_corpus_name_digests;

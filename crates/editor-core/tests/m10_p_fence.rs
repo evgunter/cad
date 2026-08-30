@@ -51,6 +51,17 @@
 //! reachable only one door down, at the program-resolve seam, which is
 //! where `m10_p_lift`'s wide-box row drives it.
 //!
+//! RE-BLESSED AGAIN at LIB-TUBE, for the same roster reason and by
+//! the same procedure: the registry gained `tube_ring` and
+//! `hollow_tube_elbow`, and this digest walks `corpus::documents()`.
+//! MEASURED, not asserted — with those two documents removed from
+//! `documents()` and NOTHING else changed, all three rows passed at
+//! their pre-LIB-TUBE constants (`f64`/`probe`
+//! `0f7cdec3cf38ad1e, 01e05bef0382adda`; `interval`
+//! `bfb345df4492bc11, c835f9e36e694ddd`), so no existing document's
+//! bits moved and the delta is exactly the two arrivals. The probe row
+//! was executed in that check too, not inferred from the f64 one.
+//!
 //! RE-BLESSED at LIB-G16, and the reason is a ROSTER change rather
 //! than a build-path one: the corpus registry gained `die_chamfer`,
 //! and this digest walks `corpus::documents()`, so a new document
@@ -282,7 +293,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x0f7c_dec3_cf38_ad1e, 0x01e0_5bef_0382_adda),
+        (0xc18c_3fff_bdfb_be65, 0xe705_6780_8b8d_2679),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -309,7 +320,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0xbfb3_45df_4492_bc11, 0xc835_f9e3_6e69_4ddd),
+        (0x13c8_b7c4_7af0_418f, 0x0db2_80eb_a49c_bb9b),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -333,7 +344,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x0f7c_dec3_cf38_ad1e, 0x01e0_5bef_0382_adda),
+        (0xc18c_3fff_bdfb_be65, 0xe705_6780_8b8d_2679),
         "the corpus's Probe evaluation moved"
     );
 }

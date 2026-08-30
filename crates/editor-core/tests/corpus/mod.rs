@@ -47,6 +47,8 @@ pub mod boss;
 pub mod cut_cylinder;
 pub mod die;
 pub mod die_chamfer;
+pub mod hollow_tube_elbow;
+pub mod tube_ring;
 pub mod die_composed;
 pub mod die_fillet;
 pub mod die_pips;
@@ -178,6 +180,15 @@ pub fn documents() -> Vec<CorpusDoc> {
         // selection's provenance live in `m6_composed_node.rs`.
         die_composed::document(),
         plate_param::document(),
+        // LIB-TUBE's two: the solid ring torus and the hollow elbow.
+        // Small on purpose — `die_chamfer`-sized recipes, two and two
+        // nodes, not transcriptions of the tour's tube stops — and
+        // deliberately opposite corners of the two-by-two this
+        // vocabulary has: solid/full against hollow/windowed. A pair
+        // that shared a window or a kind would leave half the
+        // vocabulary carrying no registry battery.
+        tube_ring::document(),
+        hollow_tube_elbow::document(),
     ]
 }
 
@@ -236,7 +247,7 @@ pub fn body_of<T: Decide>(ev: &Evaluation<T>, id: RecipeNodeId) -> &Body<T> {
 }
 
 /// The node kinds a document exercises (the coverage tally's domain).
-pub const NODE_KINDS: [&str; 14] = [
+pub const NODE_KINDS: [&str; 16] = [
     "Datum",
     "Profile",
     "Extrude",
@@ -264,6 +275,12 @@ pub const NODE_KINDS: [&str; 14] = [
     // zero rather than pretending coverage.
     "Loft",
     "Sweep",
+    // LIB-TUBE's pair — COVERED, by the registered `tube_ring` and
+    // `hollow_tube_elbow` documents. Two kinds because the two
+    // artifacts differ (RECIPE-DOORS D4 as revised), so they are two
+    // tally rows and not one.
+    "Tube",
+    "HollowTube",
     "Declare",
 ];
 
@@ -289,7 +306,7 @@ pub const EDIT_KINDS: [&str; 15] = [
 /// The node SUB-kinds the corpus must also cover in full: every datum
 /// flavour, every boolean operator (and the declared boolean), and
 /// both pattern kinds.
-pub const SUB_KINDS: [&str; 11] = [
+pub const SUB_KINDS: [&str; 13] = [
     "Datum::Plane",
     "Datum::Axis",
     "Datum::Point",
@@ -306,6 +323,16 @@ pub const SUB_KINDS: [&str; 11] = [
     // `stepped_map` with the pattern node that the corpus does cover.
     "PlacedUnion::Linear",
     "PlacedUnion::Explicit",
+    // LIB-TUBE covers the DIAGONAL of its two-by-two — the solid ring
+    // and the hollow elbow — and lists only what it covers. The other
+    // two corners (`Tube::Arc`, `HollowTube::Full`) are deliberately
+    // absent for the `PlacedUnion::Circular` reason: no corpus
+    // document needs them, and a listed-but-uncovered sub-kind fails
+    // the tally. Both are exercised directly in `lib_tube_node.rs`,
+    // where `HollowTube::Full`'s cavity — the one topology no other
+    // corner produces — has its own closed-form row.
+    "Tube::Full",
+    "HollowTube::Arc",
 ];
 
 /// The sub-kind tally names a node contributes (possibly none).
