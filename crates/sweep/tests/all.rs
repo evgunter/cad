@@ -276,6 +276,14 @@ mod verbs_cylcyl_probe;
 mod verbs_cylcyl_r1_review_probes;
 #[path = "verbs_cylcylb_r1_blinded_probes.rs"]
 mod verbs_cylcylb_r1_blinded_probes;
+#[path = "verbs_ga_r2_probes.rs"]
+mod verbs_ga_r2_probes;
+#[path = "verbs_germarms.rs"]
+mod verbs_germarms;
+#[path = "verbs_germarms_interval.rs"]
+mod verbs_germarms_interval;
+#[path = "verbs_germarms_r1_probes.rs"]
+mod verbs_germarms_r1_probes;
 #[path = "verbs_pierce.rs"]
 mod verbs_pierce;
 #[path = "verbs_pierce_r1_probes.rs"]
