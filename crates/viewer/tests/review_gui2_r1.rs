@@ -517,7 +517,7 @@ fn undo_across_the_birth_of_a_wall_pick_unresolves_and_redo_revives() {
 /// The committed gallery ring, re-stamped to this run's ε the same way
 /// the doc-io suite's rows are (ε is the file's only ε-dependent byte;
 /// that claim has its own gate there).
-const GALLERY_RING: &str = include_str!("gallery_ring.v16.pncad");
+const GALLERY_RING: &str = include_str!("gallery_ring.v17.pncad");
 
 fn ring_at(tol: Tol) -> String {
     let probe: Doc<ProfileProgram> = Doc::empty_derived("gui2-r1-eps-probe", tol);

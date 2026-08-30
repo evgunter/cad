@@ -131,6 +131,11 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         }
         EditError::NotStructuralSlot { .. } => "not_structural_slot",
         EditError::UnknownDocParam { .. } => "unknown_doc_param",
+        EditError::UnknownPayloadParam { .. } => "unknown_payload_param",
+        EditError::PayloadParamDimensionMismatch { .. } => "payload_param_dimension_mismatch",
+        EditError::MeasureMalformed { .. } => "measure_malformed",
+        EditError::AssertionTarget { .. } => "assertion_target",
+        EditError::AssertionDimension { .. } => "assertion_dimension",
         EditError::DocParamDimensionMismatch { .. } => "doc_param_dimension_mismatch",
         EditError::ContinuousParamCannotBeCount { .. } => "continuous_param_cannot_be_count",
         EditError::DocParamNotDeclared { .. } => "doc_param_not_declared",
@@ -248,6 +253,14 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
         NodeErrorKind::Loft { .. } => "loft",
         NodeErrorKind::CurvedSolidFrontier { .. } => "curved_solid_frontier",
         NodeErrorKind::MissingInput { .. } => "missing_input",
+        NodeErrorKind::MeasureRefResolve { .. } => "measure_ref_resolve",
+        NodeErrorKind::MeasureRefUnreadable { .. } => "measure_ref_unreadable",
+        NodeErrorKind::MeasureUnsupported(_) => "measure_unsupported",
+        NodeErrorKind::MeasureNotParallel { .. } => "measure_not_parallel",
+        NodeErrorKind::MeasureNonFinite { .. } => "measure_non_finite",
+        NodeErrorKind::MeasureMalformed(_) => "measure_malformed",
+        NodeErrorKind::PayloadExpr { .. } => "payload_expr",
+        NodeErrorKind::AssertionDimension { .. } => "assertion_dimension",
         NodeErrorKind::ToleranceConflict { .. } => "tolerance_conflict",
         // Its own tag rather than the ε conflict's: both refuse every
         // node for a whole-run reason, but the recourses are different
