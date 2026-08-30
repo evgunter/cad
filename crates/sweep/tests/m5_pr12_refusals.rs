@@ -368,13 +368,13 @@ fn trio_face_clearance() {
     let body = boxy();
     let (f, _, _) = keys(&body);
     let b = band();
-    let definite = face_clearance(f, 1.0, 0.8, 0.8, b).unwrap_err();
-    let exact = face_clearance(f, 1.0, 0.5, 0.5, b).unwrap_err();
+    let definite = face_clearance(f, 1.0, 0.8, 0.8, false, b).unwrap_err();
+    let exact = face_clearance(f, 1.0, 0.5, 0.5, false, b).unwrap_err();
     assert!(matches!(
         exact,
         FilletError::FaceClearanceUncertified { .. }
     ));
-    let escalated = face_clearance(f, 1.0, 0.5, 0.5 - in_band(), b).unwrap_err();
+    let escalated = face_clearance(f, 1.0, 0.5, 0.5 - in_band(), false, b).unwrap_err();
     assert_same_recourse(&definite, &escalated, "enlarge the support face");
 }
 

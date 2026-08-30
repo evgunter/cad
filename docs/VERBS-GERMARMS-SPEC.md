@@ -207,6 +207,29 @@ Branch `verbs/germarms-2`. Dispatch only after PR-1's measurement names
 the join payload; the fence in PR-1 item 7 is deliberately what this PR
 retires.
 
+**Measured since ratification (PR-1's delivery — this re-cut is owed to
+those measurements; the original item 5 presupposed both away):**
+
+- **The Steinmetz pose is singular.** The classic fixture's section
+  self-intersects at the two tangency points (measured at `(±1,0,0)` on
+  the unit pair). This is not a property of the perpendicular pose but
+  of the whole intersecting equal-radius family: the two bisector
+  planes' common line pierces both walls exactly at the tangency
+  points, so the two ellipses ALWAYS cross there. There is no
+  "non-singular Steinmetz" to re-pose to within this family — PR-2's
+  join either handles a self-intersecting section (four arcs meeting at
+  two valence-4 pinch vertices) or refuses the family typed. Which of
+  those is reachable is part of the opening measurement (item 2); the
+  spec does not presuppose either.
+- **The transformed-wall trim remainder.** PR-1 measured
+  `wall_crossing`'s containment leg answering `None` on a
+  `transform_rigid`ed cylinder (the chart-trim door's honest remainder);
+  the direct-extruded acceptance pipe never sees this. An acceptance
+  built only from direct-extruded fixtures would ship green while every
+  re-posed instance of the same geometry still refuses. The acceptance
+  therefore requires a re-posed fixture (below), and the differential
+  must state what the transformed family does at this head.
+
 1. **The frame.** `pair_section_frame` (`join.rs:690`) gains the
    non-parallel equal-radius cyl×cyl arm from
    `geom_brep::cylinder_cylinder_section` (`intersect.rs:835`,
@@ -235,13 +258,35 @@ retires.
    (`docs/VERBS-CYLCYL-SPEC.md:95-104`) and its machinery must not be
    dragged in here. `parallel-equal-r` stays refused (the circle × wall
    roots are still absent — this PR moves nothing for it).
-5. **Acceptance.** A Steinmetz pair (equal radius, perpendicular axes,
-   declared radius equality) **unions**, validates tier-3, and meters
-   against the closed form `16r³/3` for the intersection / the
-   corresponding union volume; census pinned; the
-   `cylinder_unions_refuse_at_the_curved_pierce_door` steinmetz row
-   flips green with the two cosurface rows still refusing per fact 1;
-   #347's union demand narrows by comment to the circle × wall residue.
+5. **Acceptance (re-cut 2026-08-30 — the original Steinmetz-unions
+   acceptance was falsified by PR-1's two measurements above).**
+   The opening measurement (item 2, widened): before any code, the lane
+   measures (a) whether the vertex factory and the join can carry a
+   self-intersecting section — the two valence-4 pinch vertices — or
+   whether the intersecting equal-radius family must refuse typed at a
+   named door, and (b) what the `transform_rigid`ed pose of the same
+   fixture does at this head (expected: the chart-trim honest remainder
+   PR-1 measured). Both measurements go in the PR body before code.
+   - If the pinch is carriable: the Steinmetz pair **unions**, validates
+     tier-3, meters against the closed form (`16r³/3` intersection /
+     corresponding union volume), census pinned with the two pinch
+     vertices present; the
+     `cylinder_unions_refuse_at_the_curved_pierce_door` steinmetz row
+     flips green with the two cosurface rows still refusing per fact 1;
+     #347's union demand narrows by comment to the circle × wall
+     residue.
+   - If the pinch is not carriable at this head: the family refuses
+     TYPED at a door that names the pinch (never a desync or silence),
+     the steinmetz row stays red with its refusal retyped to that door,
+     and the PR body brings the measured payload — that outcome is a
+     deliverable, not a failure, and whether to fund pinch-carrying
+     machinery afterward is a fork for Evan WITH that dump.
+   - Either way, the acceptance suite includes the **re-posed fixture**:
+     the same pair under a `transform_rigid` (rotation + translation off
+     every axis plane), asserted to behave identically to the
+     direct-extruded pose (union or same-typed refusal). A green
+     direct-extruded row with a differing transformed row is a MAJOR by
+     construction.
    Differential: the unequal-radius and skew poses still refuse typed at
    their own doors.
 
@@ -335,7 +380,10 @@ wired curved chord lane is plane-side.
   sides (the CYLCYL PR-B item 2 premise); **L→adjudication** if a second
   chord-lane variant is needed, because that is a design widening rather
   than an arm. The opening measurement decides which, and the spec
-  should be re-cut if it comes back the second way.
+  should be re-cut if it comes back the second way. The pinch vertices
+  (item 5 re-cut) add a second contingency of the same shape: typed
+  refusal of the singular family keeps this M; carrying the pinch may
+  push it to L→adjudication if the vertex factory needs widening.
 - **The circle × wall unit (NOT specced here): L, and design-gated.**
   It needs a `Decide`-generic degree-2 trig-polynomial root lane that
   does not exist in any form; the honest first step is a design

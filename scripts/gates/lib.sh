@@ -608,6 +608,36 @@ gate_selftest_without_tool() {
   esac
 }
 
+# gate_selftest_with_broken_tool TOOL WANT SHIM — gate_selftest_without_
+# tool's TARGETED twin. A stub that fails every call proves only that the
+# FIRST matcher cannot die silently; a matcher deeper in the gate — one
+# whose status a process substitution swallows, say — needs the calls
+# before it to succeed. SHIM is the body of a /bin/sh script that
+# shadows TOOL on PATH; it decides per call whether to pass through or
+# fail, and reaches the real tool as "$GATE_REAL_TOOL". The gate must
+# fail with a gate_error diagnosis containing WANT.
+gate_selftest_with_broken_tool() {
+  local tool=$1 want=$2 shim=$3
+  local tmp bin out real
+  real=$(command -v "$tool")
+  tmp=$(mktemp -d); bin=$(mktemp -d)
+  gate_plant_clean "$tmp"
+  printf '#!/bin/sh\n%s\n' "$shim" > "$bin/$tool"
+  chmod +x "$bin/$tool"
+  if out=$(GATE_REAL_TOOL="$real" PATH="$bin:$PATH" "$0" --root "$tmp" ${GATE_SELFTEST_ARGS[@]+"${GATE_SELFTEST_ARGS[@]}"} 2>&1); then
+    rm -rf "$tmp" "$bin"
+    printf 'SELFTEST FAILED: the gate PASSED with %s broken mid-scan — a matcher that could not run decided nothing, and what it did not match is unknown\n%s\n' "$tool" "$out" >&2
+    exit 1
+  fi
+  rm -rf "$tmp" "$bin"
+  gate_selftest_assert_diagnosed "$tool broken mid-scan" "$out"
+  case "$out" in
+    *"$want"*) ;;
+    *) printf 'SELFTEST FAILED (%s broken mid-scan): the gate fired with an unexpected message — wanted %s, got:\n%s\n' "$tool" "$want" "$out" >&2
+       exit 1 ;;
+  esac
+}
+
 # The common tail: --selftest runs both fixtures and exits; otherwise
 # the gate runs against GATE_ROOT.
 #

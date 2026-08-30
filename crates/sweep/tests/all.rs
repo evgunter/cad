@@ -83,8 +83,12 @@ mod verbs_shell;
 mod bitdump;
 #[path = "blend1_r1_probes.rs"]
 mod blend1_r1_probes;
+#[path = "blend2_r2_probes.rs"]
+mod blend2_r2_probes;
 #[path = "blend_seam_split_rim.rs"]
 mod blend_seam_split_rim;
+#[path = "blend_tworims.rs"]
+mod blend_tworims;
 #[path = "extrude_acceptance.rs"]
 mod extrude_acceptance;
 #[path = "extrude_interval.rs"]
@@ -276,6 +280,14 @@ mod verbs_cylcyl_probe;
 mod verbs_cylcyl_r1_review_probes;
 #[path = "verbs_cylcylb_r1_blinded_probes.rs"]
 mod verbs_cylcylb_r1_blinded_probes;
+#[path = "verbs_ga_r2_probes.rs"]
+mod verbs_ga_r2_probes;
+#[path = "verbs_germarms.rs"]
+mod verbs_germarms;
+#[path = "verbs_germarms_interval.rs"]
+mod verbs_germarms_interval;
+#[path = "verbs_germarms_r1_probes.rs"]
+mod verbs_germarms_r1_probes;
 #[path = "verbs_pierce.rs"]
 mod verbs_pierce;
 #[path = "verbs_pierce_r1_probes.rs"]

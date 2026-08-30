@@ -637,11 +637,18 @@ pub fn corner_config<T: Decide + Bounds>(
 ///
 /// [`FilletError::FaceClearanceUncertified`] /
 /// [`FilletError::Escalated`].
+///
+/// `cross_chain` says whether the two setbacks belong to two DIFFERENT
+/// requested chains — the caller knows, this screen does not — and
+/// rides into the refusal, whose recourse then names the SPLIT that
+/// re-meters each chain against the face the previous carve actually
+/// left (#935's boundary).
 pub fn face_clearance<T: Decide + Bounds>(
     face: FaceKey,
     gap: T,
     setback_here: T,
     setback_there: T,
+    cross_chain: bool,
     band: Band,
 ) -> Result<(), FilletError> {
     let margin = gap - setback_here - setback_there;
@@ -653,6 +660,7 @@ pub fn face_clearance<T: Decide + Bounds>(
             face,
             margin: margin.lo(),
             gap: gap.lo(),
+            cross_chain,
         }),
     }
 }
@@ -1451,13 +1459,18 @@ fn consumption_sweep<T: Decide + Bounds>(
     chains: &[Chain<T>],
     band: Band,
 ) -> Result<(), FilletError> {
-    // Setback of each blended edge on each of its two support faces.
+    // Setback of each blended edge on each of its two support faces,
+    // and which CHAIN each blended edge belongs to — two requested
+    // boundary features from two different chains make a failing pair
+    // SPLITTABLE, and the refusal says so.
     let mut setback: Vec<(EdgeKey, FaceKey, T)> = Vec::new();
+    let mut chain_of: Vec<(EdgeKey, usize)> = Vec::new();
     let mut faces: Vec<FaceKey> = Vec::new();
-    for chain in chains {
+    for (ci, chain) in chains.iter().enumerate() {
         for l in chain.links() {
             setback.push((l.edge, l.face_a, l.blend.trim_a.1));
             setback.push((l.edge, l.face_b, l.blend.trim_b.1));
+            chain_of.push((l.edge, ci));
             for f in [l.face_a, l.face_b] {
                 if !faces.contains(&f) {
                     faces.push(f);
@@ -1470,6 +1483,9 @@ fn consumption_sweep<T: Decide + Bounds>(
             .iter()
             .find(|(ee, ff, _)| *ee == e && *ff == f)
             .map_or(T::zero(), |(_, _, s)| *s)
+    };
+    let chain_ix = |e: EdgeKey| -> Option<usize> {
+        chain_of.iter().find(|(ee, _)| *ee == e).map(|(_, ci)| *ci)
     };
     for face in faces {
         let Some(fa) = body.get_face(face) else {
@@ -1528,7 +1544,18 @@ fn consumption_sweep<T: Decide + Bounds>(
                     continue;
                 };
                 let gap = pairs.fold(first, T::min);
-                face_clearance(face, gap, look(*ei, face), look(*ej, face), band)?;
+                let cross_chain = match (chain_ix(*ei), chain_ix(*ej)) {
+                    (Some(a), Some(b)) => a != b,
+                    _ => false,
+                };
+                face_clearance(
+                    face,
+                    gap,
+                    look(*ei, face),
+                    look(*ej, face),
+                    cross_chain,
+                    band,
+                )?;
             }
         }
     }

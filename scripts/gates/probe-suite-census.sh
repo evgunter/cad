@@ -302,9 +302,19 @@ PROBE_GATE_RE='^[[:space:]]*#!?\[cfg\(.*feature = "probe".*\)\][[:space:]]*$'
 # regexes for one shape drift.
 FILE_GATE_RE=${PROBE_GATE_RE/'#!?'/'#!'}
 
+# The matcher runs through `gate_grep` (lib.sh): exit 1 is an empty
+# census, which the caller diagnoses; anything else is grep saying it
+# could not search, which must end the gate rather than read as an empty
+# tree. The file list is materialised first because `xargs` folds every
+# grep failure into one status, which is exactly the distinction
+# `gate_grep` exists to draw. `find`'s stderr stays suppressed: its only
+# failure here (no crates/*/tests) is diagnosed loudly by the guard the
+# gate runs before calling this.
 census_files() {
-  find crates/*/tests -type f -name '*.rs' 2>/dev/null | sort |
-    xargs -r grep -lE "$PROBE_GATE_RE" 2>/dev/null || true
+  local -a candidates=()
+  mapfile -t candidates < <(find crates/*/tests -type f -name '*.rs' 2>/dev/null | sort)
+  [ "${#candidates[@]}" -gt 0 ] || return 0
+  gate_grep -lE "$PROBE_GATE_RE" "${candidates[@]}"
 }
 
 census_tally() {
@@ -349,9 +359,12 @@ census_citations() {
     [ "$exempt" = true ] && continue
     gate_error "$(gate_name): $hit names CI's \`$CITED_STEP\` step but is neither a live claim this gate keeps true (CITING_FILES) nor declared history (CITATION_EXEMPT). A citation nobody checks is how the sentences this gate guards became false in the first place — add it to one list or the other, with the reason"
     rc=1
-  done < <(grep -rlF "$CITED_STEP" . \
+  # `gate_grep` although the status cannot cross a process substitution:
+  # the marker it leaves is what `gate_ok` below refuses to print over,
+  # so a completeness scan that could not run cannot end in a green.
+  done < <(gate_grep -rlF "$CITED_STEP" . \
              --exclude-dir=.git --exclude-dir=target --exclude-dir=node_modules \
-             2>/dev/null | sort)
+             | sort)
 
   [ "$rc" -eq 0 ] || exit 1
   GATE_SCAN_FILES=${#CITING_FILES[@]}
@@ -608,9 +621,20 @@ gate() {
   # The roster names files, so it can name one that is gone or is not a
   # probe suite at all — in which case --check-executed is floored on a
   # module that cannot exist.
+  # A HERESTRING, NEVER A PIPE INTO `grep -q` — the rule for this whole
+  # file. `grep -q` exits at its first match; a producer still writing
+  # then takes SIGPIPE, and `pipefail` reports the pipeline failed over
+  # content that matched. Which side wins is a race the producer usually
+  # wins on a short list — this exact site lost it once on a hosted
+  # runner, reporting a rostered suite as un-censused over a green tree
+  # while the same run's real census passed. A herestring has no reader
+  # to close, so the race is impossible at this site — and it is held
+  # impossible by `selftest_roster_listing_survives_a_long_census`,
+  # whose fixture forces the pre-fix shape deterministically rather
+  # than leaving this paragraph as the only guard.
   while IFS= read -r rmod; do
     [ -n "$rmod" ] || continue
-    printf '%s\n' "$files" | grep -qxF "crates/${rmod%%/*}/tests/${rmod#*/}.rs" ||
+    grep -qxF "crates/${rmod%%/*}/tests/${rmod#*/}.rs" <<<"$files" ||
       { gate_error "$(gate_name): RUN_FLOOR rosters \`${rmod#*/}\` in ${rmod%%/*} as an executed probe suite, but no such probe-gated file is censused under $PWD"; rc=1; }
   done <<<"$rostered"
 
@@ -621,7 +645,7 @@ gate() {
   # the "prose satisfies the floor" mistake this file's own predicate was
   # hardened against.
   if [ -f "$SWEEP_SCRIPT" ]; then
-    sweep_live=$(grep -vE '^[[:space:]]*#' "$SWEEP_SCRIPT" || true)
+    sweep_live=$(gate_grep -vE '^[[:space:]]*#' "$SWEEP_SCRIPT")
     grep -qE "$SWEEP_CHECK_RE" <<<"$sweep_live" ||
       { gate_error "$(gate_name): $SWEEP_SCRIPT no longer feeds its executed-set tally to \`$(gate_name).sh --check-executed\` in a live line. That call is the only thing that turns a sweep which selected everything and ran nothing into a failure; restore it, or re-argue the floor here"; rc=1; }
   else
@@ -640,14 +664,18 @@ gate() {
     # `grep -v`, and `pipefail` calls the whole pipeline failed. Which
     # side wins is a race — this passed locally on a six-line fixture and
     # fired against a correctly wired ci.yml on the first hosted run.
-    hosted=$(grep -vE '^[[:space:]]*#' .github/workflows/ci.yml || true)
+    hosted=$(gate_grep -vE '^[[:space:]]*#' .github/workflows/ci.yml)
     grep -qE "$CLIPPY_ROW_RE" <<<"$hosted" ||
       { gate_error "$(gate_name): .github/workflows/ci.yml has no workspace \`cargo clippy … --all-targets -- -D warnings\` row. That row is what turns a misspelt cfg gate (\`feature = \"prboe\"\`) into a failure, through rustc's \`unexpected_cfgs\`; without it such a suite compiles to nothing under every row and this census never sees it. Restore the row or re-argue the coverage here"; rc=1; }
   else
     gate_error "$(gate_name): .github/workflows/ci.yml does not exist under $PWD — the clippy row that reports a misspelt cfg gate cannot be checked"
     rc=1
   fi
-  silenced=$(grep -rlE "$CFG_LINT_SILENCED_RE" crates 2>/dev/null || true)
+  # `gate_grep`, and with stderr VISIBLE: the old spelling suppressed the
+  # exit-2 diagnostic twice — `2>/dev/null` ate grep's own message and
+  # `|| true` ate the status — so a matcher that could not search read as
+  # "nothing silences the lint", which is a green this gate never earned.
+  silenced=$(gate_grep -rlE "$CFG_LINT_SILENCED_RE" crates)
   if [ -n "$silenced" ]; then
     gate_error "$(gate_name): $(printf '%s' "$silenced" | tr '\n' ' ')silences \`unexpected_cfgs\`, which is the only thing that reports a test suite gated on a misspelt feature. Code that needs an unknown cfg name declares it in check-cfg values, never by allowing the lint"
     rc=1
@@ -873,6 +901,52 @@ selftest_hosted_half_is_large() {
   rm -rf "$tmp"
 }
 
+# A MATCHER HANDED A PATTERN THE REAL GREP REJECTS must end the gate
+# with a diagnosis, never in a green. The corruption is an invalid
+# backreference appended to whatever pattern the call carries, through
+# lib.sh's targeted shim, so it reaches this gate's own `-rlE` scan —
+# the silence scan, whose old spelling suppressed the resulting exit 2
+# twice (`2>/dev/null` ate grep's message, `|| true` ate the status)
+# and printed OK over it. Every other grep call passes through, so the
+# gate gets exactly as far as a healthy run before its matcher dies —
+# which is what distinguishes this arm from the stubbed-grep one
+# beside it: that one proves the FIRST matcher cannot die silently,
+# this one proves the LAST cannot either.
+selftest_malformed_pattern() {
+  gate_selftest_with_broken_tool grep 'it is grep saying it could not search' \
+    'case " $* " in *" -rlE "*) exec "$GATE_REAL_TOOL" "$@" -e '\''\9|(?'\'' ;; esac
+exec "$GATE_REAL_TOOL" "$@"'
+}
+
+# THE FLAKE'S OWN SHAPE, FORCED. The roster-listing check once piped the
+# censused-file list into `grep -q`, which exits at its first match; on
+# a list longer than a pipe buffer the producer then takes SIGPIPE and
+# `pipefail` reds the check over content that matched — hosted, that
+# read as a rostered suite "not censused" while the real census in the
+# same run passed. The check now reads a herestring, which has no
+# reader to close; this fixture is what holds it that way: enough
+# LONG-NAMED pad suites that the censused list clears a 64 KiB pipe
+# buffer, with every rostered name sorting before the pad, so the
+# pre-fix spelling loses the race deterministically and the current one
+# must pass.
+selftest_roster_listing_survives_a_long_census() {
+  local tmp out i pad
+  tmp=$(mktemp -d)
+  gate_plant_clean "$tmp"
+  pad=$(printf 'x%.0s' {1..140})
+  mkdir -p "$tmp/crates/zzpad/tests"
+  for ((i = 0; i < 400; i++)); do
+    printf '//! %s\n#![cfg(feature = "probe")]\n' "$FILE_NOT_RUN_MARKER" \
+      > "$tmp/crates/zzpad/tests/probe_pad_$(printf '%03d' "$i")_$pad.rs"
+  done
+  if ! out=$("$0" --root "$tmp" 2>&1); then
+    rm -rf "$tmp"
+    printf 'SELFTEST FAILED: the gate FAILED on a clean fixture whose census is long enough to race the roster-listing check\n%s\n' "$out" >&2
+    exit 1
+  fi
+  rm -rf "$tmp"
+}
+
 # A COMPOUND GATE IS CORRECT, NOT A VIOLATION, and the fixture asserts
 # the census counts it — `sweep`'s floor is 1 over exactly one file, so
 # a predicate with no vocabulary for `all(…)` reds this case.
@@ -949,8 +1023,11 @@ selftest_executed() {
   # THE CALL DROPPED ALTOGETHER.
   executed_case 'never invoked' 'a rostered invocation missing' tail -n +2
   # A SWEEP THAT RECORDED NOTHING looks exactly like a clean one to
-  # anything that only reads rows.
-  executed_case 'is EMPTY' 'an empty tally' head -0
+  # anything that only reads rows. `sed d`, not `head -0`: `head` closes
+  # its input at once, SIGPIPEs the fixture producer, and this harness
+  # then depends on the same closed-reader race the gate itself must not
+  # carry; `sed d` drains its input and emits the same empty tally.
+  executed_case 'is EMPTY' 'an empty tally' sed d
   # AN EXECUTION NOBODY ROSTERED, which is how a roster goes stale.
   executed_case 'does not roster it' 'an execution absent from RUN_FLOOR' \
     sed '$a\plain\ttopo\tprobe_0\t3\t0'
@@ -992,6 +1069,9 @@ gate_selftest() {
   selftest_listing
   selftest_executed
   selftest_compound_counted
+  selftest_malformed_pattern
+  selftest_roster_listing_survives_a_long_census
+  gate_selftest_without_tool grep "it is grep saying it could not search"
   gate_selftest_case 'scanned nothing' plant_no_tests_dirs
   gate_selftest_case 'no longer matches it' plant_gate_renamed
   gate_selftest_case 'topo carries 0 probe-gated test suite(s), below the 5' plant_crate_misgated
@@ -1022,9 +1102,17 @@ gate_selftest() {
   gate_selftest_case 'has no step named' plant_step_renamed
   gate_selftest_case 'neither a live claim' plant_undeclared_citation
   gate_plant_clean_exempt_control
+  # THE MARKER-TO-gate_ok PATH, in the one mode whose scanning matcher
+  # lives inside a process substitution: the completeness scan's status
+  # is invisible to its caller by construction, so only the marker read
+  # at gate_ok can red it. The shim fails just the `-rlF` call; every
+  # predicate before it passes the way a healthy run does.
+  gate_selftest_with_broken_tool grep 'a matcher failed to run during this pass' \
+    'case " $* " in *" -rlF "*) exec "$GATE_REAL_TOOL" -E '\''\9|(?'\'' ;; esac
+exec "$GATE_REAL_TOOL" "$@"'
   GATE_SELFTEST_ARGS=()
 
-  printf '%s selftest OK: passes a clean fixture, one with a ci.yml long enough to race, a compound gate, a complete listing, and a tally meeting every rostered execution; fires on a listing missing a counted suite, on an empty one, and on an absent tests/ tree, a renamed gate spelling, every gate in one crate re-spelt onto a misspelt feature, every gate line in another replaced by a prose mention, a clippy row that stopped denying warnings, the cfg lint silenced at the site, a suite with no declared disposition, the disposition sentence written as an ordinary comment rather than a doc comment, the blanket sentence over a partly-gated file and the partial one over a wholly-gated file, a rostered suite claiming it is not run, a roster row naming no censused file, and a sweep that stopped feeding --check-executed or commented the call out — and in --check-executed mode, on a suite SELECTED that executed nothing, a dropped invocation, an empty tally, an unrostered execution, a malformed row, an `#[ignore]`d test no selection runs, and a suite rostered under `--ignored` alone; and in --citations mode, on a dropped citation, a deleted citing file, a renamed CI step, and an undeclared new citation, while PASSING the same citation in a declared-history file\n' "$(gate_name)"
+  printf '%s selftest OK: passes a clean fixture, one with a ci.yml long enough to race, one whose census is long enough to race the roster-listing check, a compound gate, a complete listing, and a tally meeting every rostered execution; fires on a listing missing a counted suite, on an empty one, and on an absent tests/ tree, a renamed gate spelling, every gate in one crate re-spelt onto a misspelt feature, every gate line in another replaced by a prose mention, a clippy row that stopped denying warnings, the cfg lint silenced at the site, a suite with no declared disposition, the disposition sentence written as an ordinary comment rather than a doc comment, the blanket sentence over a partly-gated file and the partial one over a wholly-gated file, a rostered suite claiming it is not run, a roster row naming no censused file, and a sweep that stopped feeding --check-executed or commented the call out, and — matcher-death, both ends — on grep vanishing out from under the gate and on the real grep rejecting a live matcher'"'"'s pattern (an invalid backreference riding the -rlE scan), each ending in a diagnosis rather than a green — and in --check-executed mode, on a suite SELECTED that executed nothing, a dropped invocation, an empty tally, an unrostered execution, a malformed row, an `#[ignore]`d test no selection runs, and a suite rostered under `--ignored` alone; and in --citations mode, on a dropped citation, a deleted citing file, a renamed CI step, and an undeclared new citation, on its completeness scan dying inside its process substitution (the marker path through gate_ok), while PASSING the same citation in a declared-history file\n' "$(gate_name)"
 }
 
 # The negative control for the completeness check: the same planted

@@ -42,6 +42,10 @@
 mod ambiguity_k_env;
 #[path = "band_tolerance.rs"]
 mod band_tolerance;
+#[path = "cert3r1_poison_detail.rs"]
+mod cert3r1_poison_detail;
+#[path = "cert3r1_probes.rs"]
+mod cert3r1_probes;
 #[path = "certified_door.rs"]
 mod certified_door;
 #[path = "d8_knot_queries_adversarial.rs"]
@@ -143,3 +147,8 @@ fn every_suite_file_is_aggregated() {
 
 #[path = "r1_p2_onb_probes.rs"]
 mod r1_p2_onb_probes;
+#[path = "r2_cert3_probes.rs"]
+mod r2_cert3_probes;
+
+#[path = "cert3_evidence.rs"]
+mod cert3_evidence;

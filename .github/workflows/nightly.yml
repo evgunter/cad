@@ -710,6 +710,13 @@ jobs:
           # committed before 2026-08-25 carries `"tests": "unknown"`: the
           # same-suite cross-check the history's README advertises had never
           # once run. Verified against real nextest output, both ways.
+          # NO `--no-fail-fast` HERE, AND THAT IS THE DISPOSITION, not an
+          # omission. This row's product is E, a wall-clock time, and the
+          # `run_rc` check below DROPS the row when the suite is red — "a red
+          # suite is not a calibration". On a green run the flag would change
+          # nothing; on a red one it would buy a failure list for a row that
+          # is discarded, at the cost of running the rest of the suite. The
+          # same reasoning covers the opt-2 arm below.
           cargo nextest run --color never --archive-file "$RUNNER_TEMP/opt0.tar.zst" \
             --workspace-remap . \
             > "$RUNNER_TEMP/opt0-run.log" 2>&1 && run_rc=0 || run_rc=$?
@@ -1079,7 +1086,22 @@ jobs:
           # NO --run-ignored: see this job's header. Under the cfg these are
           # ordinary tests; the pre-existing #[ignore]d population is not in
           # this selection and stays unexecuted.
-          cargo nextest run --workspace -E "$sel" $extra
+          #
+          # `--no-fail-fast`, and a nightly is the strongest case for it.
+          # nextest's default is fail-fast (measured against the pinned
+          # 0.9.140 — the argument is at ci.yml's sharded run steps), so
+          # without it this row reports its FIRST demoted failure and stops.
+          # These tests run nowhere else: they are `#[ignore]`d in every
+          # ordinary build, so this row is their only execution, and it runs
+          # once a night. A truncated surface here is not "one failure now and
+          # the rest tomorrow" — it is one failure per NIGHT, and nobody is
+          # blocked on the run, so finishing it costs a nightly's minutes and
+          # buys the whole population's state.
+          echo "fail-fast mode: --no-fail-fast — every selected demoted test runs to completion."
+          status=0
+          cargo nextest run --workspace -E "$sel" $extra --no-fail-fast || status=$?
+          echo "fail-fast mode was --no-fail-fast: the summary above is the whole demoted failure SURFACE, not its first failure."
+          exit $status
 
   # THE CRITERION BENCHMARK LANE — PERF-PLAN §5's item 1, which that document
   # has called "the blocking item" since 2026-08-14 and which nothing had

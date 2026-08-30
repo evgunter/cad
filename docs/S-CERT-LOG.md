@@ -201,3 +201,120 @@ site; verify report claims against the artifact before briefing.
 Both charter-named units are now merged. Next: the plan's slate in
 order (CERT-3 affine anchor, CERT-4 period folds, CERT-5 rational
 flux), sequenced against disk and the other programs' traffic.
+
+## CERT-3 delivered; session git-auth outage (2026-08-30)
+
+**CERT-3's implementation is delivered and green**: PR 1277 at
+44abc6d3d, gate run 33284902164 GREEN at BOTH lanes (the head
+carries `CI-Config: lane=both`, deliberately — a linalg change is
+not basename-matched, and the interval claims needed the lane).
+The constructor now anchors through `(I − R)` with HALF-ANGLE
+factors — the spec's literal `1 − cos θ` factor was itself measured
+as part of the defect (an ulp-of-1 enclosure floor at θ = 0) — and
+the zero-angle identity is exact at f64 with the Interval residue
+≤ 1e-320 and independent of anchor width. RevolvedPoint start
+samples: 4.0e-9 → 2.66e-15, the full-period seam by six orders.
+f64 movement measured and reported: ≤1 ulp, 4 of 3135 corpus
+coordinates; the M10-P bit-identity fence fired as designed and its
+digests were re-derived from a 0-structural-difference dump (M10
+flagged on the PR — their fence ground). Four sweep findings routed
+to issue 1143's audit; four deviations declared in a PR-body
+deviations section (the CERT-1 lesson applied). Difficulty S/M,
+block CERT-B1 slot 2.
+
+**BLOCKER: the session's git auth did not survive a container
+restart** (known harness bug, Evan confirms no in-session fix): no
+lane can fetch or push, so CERT-3's blinded dual (next slot byte
+drawn at dispatch; ordinal 702 UNCLAIMED — claims happen at actual
+dispatch) cannot run from this session. GitHub API tools still
+work; this entry is an API commit. Everything is pushed: the unit
+branch head 44abc6d3d, cert/ab-state (block + dual records),
+cert/orchestrator (specs through CERT-3). The committed conflict
+markers CERT-3's lane found in main's ledger were repaired upstream
+before this session could act (verified: the VERBS-6 deviation
+entry, the #43 sample correction, and both S-CERT rows survived).
+
+**For the successor** (with `memories/orchestrator-switch-runbook.md`'s
+contract; the tmux mechanics do not apply to remote containers):
+1. Dispatch CERT-3's dual: frozen head 44abc6d3d, draw the slot
+   byte fresh, method note + stored brief PRE-R1 on cert/ab-state
+   (the CERT-1/CERT-2 records there are the template), claim
+   ordinal 702 on main at dispatch, claims-to-falsify from the
+   PR 1277 BODY (the brief-as-claim-site rule — never from the
+   implementer report), including: the half-angle respell's
+   measured story, the M10-P digest re-derivation being argued not
+   silent, the ~1 ulp fixed-point regression honestly reported,
+   the sweep's stated blind spot (caller/callee-split round trips).
+2. Then the fix pass to the CERT-3 lane agent IF this session's
+   agents survive to the successor (they do not — agents die with
+   the session; the fix pass then runs as a fresh lane and the row
+   records orchestrator-applied-or-fresh execution honestly).
+3. Slate after CERT-3: CERT-4 (issue 1191, under the SEMANTIC
+   restatement of the f64-bit constraint — see the Q2 seam), then
+   CERT-5/CERT-6/CERT-7 per the plan; CERT-B1 slot 3 is the block's
+   last undrawn slot.
+4. Standing flags: issue 1250/1251 open from CERT-1; the v6 tally
+   candidates from CERT-1's pair await the blinded adjudication;
+   CERT-2's fix-pass covariates are contaminated (cross-slot) and
+   CERT-1's silent-devs column is non-comparable (brief error) —
+   both recorded in the rows.
+
+## CERT-3 merged (2026-08-30) — issue 924 closed; the handoff unit
+
+PR 1277 at a1bccce4, gate runs 33284902164 (reviewed head 44abc6d3d)
+and 33337220614 (fix head) both GREEN with `CI-Config: lane=both`.
+The constructor anchors through `(I − R)` with half-angle factors;
+zero-angle identity exact at f64, Interval residue subnormal and
+proportional-with-subnormal-slope (the fix pass corrected the
+"independent of anchor width" wording); RevolvedPoint start samples
+4.0e-9 → 2.66e-15, the full-period seam by six orders.
+
+**Handoff executed mid-unit**: the predecessor session lost git auth
+after delivery (previous entry); this successor session ran the dual
+and the close-out. Per Evan (in-chat, 2026-08-30, at the handoff):
+**this unit's dual ran WITHOUT A/B experiment logging** — ordinal 702
+was never claimed, no arm records, no MODEL-AB-LOG row; the review
+itself was full-protocol (blinded, sequential, identical stored
+briefs, frozen head). The band's ordinal record therefore skips from
+701 deliberately; CERT-B1 slot 2's implementer-arm record stands on
+cert/ab-state but carries no dual row.
+
+**The dual**: R1 A-W-F 0/3/4 (rubric 4/4/4), R2 A-W-F 2... see PR —
+R2 A-W-F 1/5/3 (rubric 4/3/3). Both lanes independently rebuilt the
+m10-p fence coordinate-dump differential and reproduced the f64
+re-derivation exactly (0 structural, 4 of 3135, one ulp) — the
+predecessor's self-certification worry is discharged twice over.
+R2's unilateral executed MAJOR: the residue attribution was false
+(retiring `rotation_about`'s `1 − cos` recovers ~17% at the start
+sample, 0% at full period; the residue is the diagonal's ADDITIVE
+enclosure times the coordinate) — corrected at every site it
+propagated, including issue 1143's member-5 payoff (comment posted).
+R1's headline: the fence header recorded only the f64 lane; the
+interval-lane differential (8 of 3135, up to 16 ulps, honestly
+slightly WIDER on this exact-axis corpus) is now recorded beside it.
+Bilateral: toothless full-period ceiling (now calibrated,
+red-verified under re-plant); the hand-mirrored operator ladder (four
+dedicated rows + an association pin, red-verified under a planted
+slip); unrecoverable measurement digits (instruments committed with
+corpus as literals; re-measured 169/243, superseding the body's
+141/243); Interval poison wording; the restrict-composition linear
+accumulation law (both lanes' e2e independently; pinned as a row and
+recorded as the receipt's third blind-spot entry).
+
+**Fix pass ran as a FRESH lane** (the implementer's agent died with
+the predecessor session — recorded honestly; no implementer-inherited
+covariates exist for this unit, moot given the A/B skip). All 13
+union items dispositioned: 11 fixed, one decided-otherwise with
+receipts (the skipped interval oracle is path-keyed to the backend
+and CANNOT be drawn by a trailer; the skip is correct), one
+report-only → issue 1299 (normalize norm²-overflow → zero vector;
+vec.rs is PCURVE's keep-out). Both reviewer probe suites adopted
+whole, authorship preserved; branches cert/3r1-probes and
+cert/3r2-probes pushed as reproduction sources.
+
+Slate next: CERT-4 (issue 1191, under the SEMANTIC restatement of the
+f64-bit constraint — Q2 seam), spec drafted; then CERT-5/CERT-6/
+CERT-7 per the plan. CERT-B1 slot 3 is the block's last undrawn
+slot; A/B logging RESUMES at CERT-4's dual (the skip was this
+unit's only). Standing flags unchanged: issues 1250/1251 open;
+CERT-1's v6 tally candidates await the blinded adjudication.
