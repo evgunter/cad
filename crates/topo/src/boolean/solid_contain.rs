@@ -242,10 +242,13 @@ impl core::fmt::Display for PointInSolidError {
                      great circle — that face is exactly the [azimuth] × [latitude] window \
                      its boundary pins. This one is not: it carries a ring, a boundary edge \
                      in neither chart class, an azimuth walk wrapping past a period, or a \
-                     meridian edge with a POLE strictly inside it, where latitude is not \
-                     monotone along the edge and the face's own extreme is interior to it — \
-                     an endpoint-level fold would understate the window rather than fail. \
-                     Recourse: bound the sphere face with rims and meridians, keep it \
+                     meridian edge with a POLE strictly inside it. That last one breaks the \
+                     rectangle in both coordinates: a meridian's chart image is a \
+                     constant-azimuth iso-line and an arc through a pole is not one (its \
+                     azimuth jumps by π there, and the loop walk carries a pole junction \
+                     only at a VERTEX), while its latitude extreme is interior to the edge, \
+                     where a fold over boundary levels never looks. Recourse: bound the \
+                     sphere face with rims and meridians meeting AT the poles, keep it \
                      whole, or trim it with the cylinder/plane arms"
                 )
             }
@@ -675,15 +678,24 @@ pub(super) fn point_on_wall_in_face<T: Decide>(
 ///
 /// # The pole-in-edge-interior invariant
 ///
-/// Latitude is **not monotone along a meridian arc that runs through a
-/// pole**: the arc's extreme latitude is then interior to the edge and
-/// no fold over boundary levels can see it. The endpoint-level
-/// derivation the cylinder trim uses is sound there only because the
-/// iso-bounded wall class makes both chart coordinates monotone along
-/// every edge, and on a sphere that argument does not carry. So the
-/// premise is CHECKED rather than assumed: a meridian edge with a pole
-/// strictly inside its span takes the face out of the class, and the
-/// caller's typed refusal stands.
+/// A meridian arc that runs THROUGH a pole breaks the rectangle in both
+/// coordinates at once, and the azimuth half is the sharper of the two.
+///
+/// * **Azimuth.** The window comes from each boundary edge's closed-form
+///   chart image, and a meridian's image is a constant-azimuth iso-line.
+///   An arc through a pole is not one: its azimuth jumps by π there. The
+///   loop walk carries a pole junction exactly — it reads the loop's own
+///   orientation to pin the branch — but it carries it at a VERTEX,
+///   which a pole interior to an edge is not.
+/// * **Latitude.** The extreme is then interior to the edge, where a
+///   fold over boundary levels never looks. (The props lane's own
+///   version of this is now folded from the stored span rather than from
+///   endpoints, so that half could in principle be lifted the same way.
+///   The azimuth half cannot, so lifting it alone would buy nothing.)
+///
+/// The premise is therefore CHECKED rather than assumed: a meridian edge
+/// with a pole strictly inside its span takes the face out of the class,
+/// and the caller's typed refusal stands.
 ///
 /// # Errors
 ///
@@ -778,9 +790,9 @@ pub(super) fn sphere_chart_trim<T: Decide>(
             {
                 return Ok(None);
             }
-            // The pole invariant. On this carrier the two poles are
-            // the points whose radial direction is ±â, so the
-            // in-span test is THE cosine-window construction with
+            // The pole invariant (header). On this carrier the two
+            // poles are the points whose radial direction is ±â, so
+            // the in-span test is THE cosine-window construction with
             // `r̂ = ±â` — no vertex lookup and no `atan2`.
             let half = T::from_f64(0.5);
             let width = t1 - t0;

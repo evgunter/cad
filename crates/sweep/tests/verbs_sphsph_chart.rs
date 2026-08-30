@@ -299,6 +299,7 @@ fn the_refusal_names_the_class_it_needs() {
         "latitude rim",
         "meridian great circle",
         "POLE strictly inside",
+        "azimuth jumps by",
         "Recourse",
     ] {
         assert!(msg.contains(want), "missing {want:?}: {msg}");
