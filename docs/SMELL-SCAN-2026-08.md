@@ -7502,7 +7502,7 @@ its orchestrator stopped, and §C3 says a deferral that lands nowhere that
 executes is the failure this document keeps re-finding. **This section is the
 one register for all of it.**
 
-**117 open items, repartitioned into twelve tracks by FILE TERRITORY.** The
+**110 open items, repartitioned into twelve tracks by FILE TERRITORY.** The
 partition rule is the only one that matters here: **no two tracks may edit the
 same file**, so no branch waits on, fences against, or re-derives another's
 scope. Dependencies *inside* a track are its own orchestrator's to sequence —
@@ -7575,13 +7575,13 @@ re-scoped or re-argued by being moved.
 
 | Track | Territory (the fence) | Block | Items |
 |---|---|---|---|
-| **J** | `.github/workflows/`, `local-scripts/`, `scripts/doc-gate.sh`, `scripts/gates/{gate-roster,probe-suite-census}.sh`, **every `*.py` in the repo**, root `Cargo.toml`'s `[workspace.lints]` | `D180`–`D199` / `S250`–`S269` | 3 |
+| **J** | `.github/workflows/`, `local-scripts/`, `scripts/doc-gate.sh`, `scripts/gates/{gate-roster,probe-suite-census}.sh`, **every `*.py` in the repo**, root `Cargo.toml`'s `[workspace.lints]` | `D180`–`D199` / `S250`–`S269` | 0 |
 | **K** | `scripts/gates/` (everything J does not name), `tools/`, `docs/K-REPORT.md` | `D200`–`D219` / `S270`–`S289` | 16 |
 | **M** | `crates/geom-core/src/{real,ring_interval,dual,interval,k_stats}.rs`, `interval-transcendentals/`, `crates/bvh/` | `D220`–`D239` / `S290`–`S309` | 7 |
 | **N** | `crates/geom/src/`, `crates/geom-core/src/{spline/,linalg/}` | `D240`–`D259` / `S310`–`S329` | 7 |
 | **P** | `crates/topo/src/{euler.rs,euler_ring.rs,euler_kill.rs,split.rs,attach.rs,movefac.rs,revert.rs,live.rs,merge_faces.rs,seqgen.rs,validate.rs,review_d18.rs,review_d18_probes.rs,fixtures.rs,source_walk.rs}` | `D260`–`D279` / `S330`–`S349` | 11 |
-| **Q** | `crates/topo/src/{boolean/,splitting/,census.rs,chord_join.rs,chart_region.rs,face_normal.rs}`, `crates/geom-brep/src/{ssi*,pcurve_cache.rs,nurbs_iso.rs,edge_nurbs.rs}`, `docs/predicate-dimension-audit.md` | `D280`–`D299` / `S350`–`S369` | 18 |
-| **R** | `crates/geom-brep/src/` **less the four paths Q names**, `crates/mesh/` | `D300`–`D319` / `S370`–`S389` | 12 |
+| **Q** | `crates/topo/src/{boolean/,splitting/,census.rs,chord_join.rs,chart_region.rs,face_normal.rs}`, `crates/geom-brep/src/{ssi*,pcurve_cache.rs,nurbs_iso.rs,edge_nurbs.rs}`, `docs/predicate-dimension-audit.md` | `D280`–`D299` / `S350`–`S369` | 16 |
+| **R** | `crates/geom-brep/src/` **less the four paths Q names**, `crates/mesh/` | `D300`–`D319` / `S370`–`S389` | 11 |
 | **T** | `crates/sweep/` | `D320`–`D339` / `S390`–`S409` | 10 |
 | **U** | `crates/step-import/`, `crates/step-export/`, `crates/stl/`, `crates/pncad-py/`, `crates/pncad/` | `D340`–`D359` / `S410`–`S429` | 7 |
 | **V** | `crates/editor-core/`, `crates/profile/` | `D360`–`D379` / `S430`–`S449` | 12 |
@@ -7631,9 +7631,6 @@ a place where a reasonable reader would think the fence ambiguous:
 
 | # | What | Was |
 |---|---|---|
-| **D180** | **The rustdoc gate runs `--all-features`, so it cannot see anything behind a `#[cfg(not(feature = …))]`.** `scripts/doc-gate.sh` documents `--all-features` as its rule at `:97` (*"--all-features EVERYWHERE, WITH ONE NAMED EXCEPTION"*), and the exception list is `inari`-shaped, not this. Every `not(feature)` half of a paired module is therefore compiled out of the gate's own build and its doc errors are unreachable to the only instrument that would report them. The live instance is `mesh/src/budget.rs`'s `mod inert`, which is Track R's `D301`. **The two land together**: fixing the errors without widening what the gate compiles closes an instance and leaves the blind spot, which is `D41`'s lesson in this track's own file | unrowed |
-| **D181** | **Two of the three copies of *"what the budget gate reads"* live on this fence and are now false.** `.github/workflows/ci.yml:2749-2752` says *"the gate reads NONE of it. What `compare` looks at is triangle counts and `grid_cells / span_opt_cells`"*, and `local-scripts/ci-local.sh:846-848` says *"the gate reads triangle counts and the sizing columns"*. Since `C15`, `tess-lint`'s per-face join also reads `chart`, the sizing block's presence and `u0`–`v1`/`nu`/`nv` — the columns it checks the join's own precondition against. `ci.yml:2740-2741` additionally enumerates the gate's rules as three; there are four. The copies in `docs/TESS-BUDGET.md` and `scripts/tess_budget_sweep.sh` were corrected with the change; these two could not be, being this track's fence | unrowed |
-| **D182** | `review/lilyweld-r1/baseline_column_drift.py:35-43`'s hardcoded `GATE` column set is a third copy of *"what the budget gate reads"*, and since `C15` it is wrong in **both** directions — it lists `cells`, `patch_cells` and `opt_cells`, which no rule compares, and omits `u0`–`v1` and `nu`/`nv`, which the join now reads. A `*.py`, hence this track's | unrowed |
 
 ## Track K — the instruments, and what they cannot see
 
@@ -7764,7 +7761,6 @@ because `mesh` is what consumes it; Q keeps the four paths it names.
 | **S237** | The `worst_ratio` ceiling CI actually runs is the one still monotone the easy way — three live instances, not one | Track I |
 | **C23** | Two rational refinement schedules, hand-synced across a crate boundary at the same value of 16 — `RATIONAL_CERT_SPLITS` and `geom`'s `RATIONAL_METER_SPLITS`. **The row's own text mislocated the first and is corrected here**: it is `geom_brep::patch_bound::RATIONAL_CERT_SPLITS` (`geom-brep/src/patch_bound.rs`), and `mesh` only cites it — from `nurbs_cert.rs` and `chords.rs` — so the constant is inside this fence but not in the crate the row named. `RATIONAL_METER_SPLITS` is private in `geom/src/curves/nurbs.rs`. **The `geom` constant is one line and is this row's, by exception to N's fence.** And the premise wants checking before the sync does: **they may not be one schedule at all** — the cert splits price a rational *patch*'s Hessian-hull assembly, the meter splits a rational *curve*'s speed lower bound, and the shared 16 may be a coincidence of two independent budgets rather than a copy. Deciding that is the first half of the work | Track C |
 | **D300** | `mesh/src/nurbs_cert.rs:1538` — `S121`'s bound-domination site inside this track's fence: `hessian_hull_dominates_sampled_second_partials` asserts the certified hull dominates the sampled second partials and asserts nothing else. **The deliverable is a measured ratio at more than one ε plus an anti-vacuity floor, with the ceiling sitting below a measured *degraded* reading** — or a written verdict that the site admits no honest ceiling. `test_utils::tightness` is the home and owns no constant; `mesh` already carries `assert_dominates`, which computes the ratio and prints it. **Filed here rather than taken with `S121`'s other sites because the fence is the file** | Track F, unplaced |
-| **D301** | **Three rustdoc errors in `mesh/src/budget.rs` sit where the rustdoc gate structurally cannot see them.** They are inside `mod inert`, which is `#[cfg(not(feature = "budget"))]`, while `scripts/doc-gate.sh` documents and runs `--all-features` — so the feature is ON in the gate's build, the module is compiled out, and the only instrument that would report them never compiles them. A live instance of the *"what the instruments cannot see"* class (`D41`, `D64`), and the reason it is not a three-line fix: **correcting the links alone hides the blind spot rather than closing it**, because the next `not(feature)` module inherits it silently. The gate half is `scripts/doc-gate.sh`, which is Track J's fence — filed there as **`D180`**, and the two land together | unrowed |
 | **D302** | `mesh::TessellateError` (`mesh/src/types.rs`) has no `Display`, and the consequence is written at the consuming site: `viewer/src/scene.rs:148` says so in a comment and renders the payload of its `NotTessellated` arm through `Debug` because there is nothing else to render it with. The *"never a `Debug` dump"* rule this defeats is Track U's `D47`; the impl is this track's, and it is one of the seven such types now identified across three crates (the `editor-core` four are Track V's `D362`) | unrowed |
 
 *(`S65` — the watertightness backstop absent from every shipping build — is
