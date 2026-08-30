@@ -31,7 +31,7 @@ use std::path::{Path, PathBuf};
 /// level by hand with the audit's own prose inventory; the sibling
 /// assertion, [`every_shipped_site_cites_a_ledger_row_that_exists`],
 /// reads its rows out of the audit and does compute.
-const LEDGER_FLAGGED_SITES: usize = 8;
+const LEDGER_FLAGGED_SITES: usize = 9;
 
 /// One shipped call site: where it is, and the row it cites.
 #[derive(Debug)]

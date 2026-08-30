@@ -339,15 +339,18 @@ enum RimLevel<T: Real> {
     /// itself, in meters — a difference is ALREADY the point
     /// deviation and reaches `classify` bare.
     Length(T),
-    /// Sphere/torus: a dimensionless direction pair — `(sin v, 0)`
-    /// for the sphere, `(sin v, cos v)` for the torus. Two of them are
+    /// Sphere/torus: the dimensionless direction pair
+    /// `(sin v, cos v)`. Two of them are
     /// compared by the CHORD `√(Δs² + Δc²)` at the level lever arm
-    /// ([`RimArms::level`], meters). On the torus that is exactly the
-    /// point deviation; **on the sphere the second component is always
-    /// zero**, so the chord is the axial separation `|Δ sin v|` and
-    /// UNDERSTATES the true one by `1/cos v̄` near the poles — audit
-    /// note N7 / S82, open. The primary component alone is what the
-    /// side test in [`linear_rim_side`] reads, at the same arm.
+    /// ([`RimArms::level`], meters) — on both kinds that chord IS the
+    /// point deviation, everywhere on the surface (an axial-only pair
+    /// would shrink by `cos v̄` toward the sphere's poles and merge
+    /// genuinely distinct rims). **That claim is the chord's**, not
+    /// every sphere margin's: the side test in [`linear_rim_side`]
+    /// reads the primary component alone (`lo + hi − 2s`, at the same
+    /// arm), and `require_extent`'s sphere margin is the axial sine
+    /// difference `(hi − lo)·R` — both still shrink by `cos v̄` near
+    /// the poles, in the REFUSING direction only (audit note N8).
     Unit(T, T),
 }
 
@@ -427,15 +430,18 @@ impl<T: Real> RimArms<T> {
 /// * **the metric.** A `Unit` pair's deviation is the CHORD
 ///   `√(Δs² + Δc²)` between the two directions, at `arms.level`.
 ///   Deciding the two components separately decides a different
-///   quantity (it admits a pair up to `√2` further apart). **On the
-///   torus that chord IS the distance a point moves** — the Hausdorff
-///   distance between the two rim circles. **On the sphere it is not:**
-///   the pair is `(sin v, 0)`, so the chord collapses to `|Δ sin v|`,
-///   the AXIAL component alone, understating the true separation by
-///   `1/cos v̄` — unbounded toward the poles. That is audit note **N7**
-///   / smell-scan **S82**, open and Evan's; this fn does not fix it and
-///   does not depend on it, because the sphere's second component is
-///   identically zero either way.
+///   quantity (it admits a pair up to `√2` further apart). **On both
+///   `Unit` kinds that chord IS the distance a point moves**: on the
+///   torus the Hausdorff distance between the two rim circles, on the
+///   sphere the direction separation at `R` (~the geodesic rim
+///   separation). The sphere's pair carries its `cos v` for exactly
+///   this — an axial-only `(sin v, 0)` pair shrinks by `cos v̄`
+///   toward the poles and merges genuinely distinct near-polar rims
+///   in the ACCEPTING direction (retired audit note N7). The
+///   retirement is the CHORD's: the sphere's `props_rim_side` and
+///   `props_face_extent` margins still meter axial sine differences
+///   and understate near the poles in the refusing direction — open
+///   as audit note N8, deliberately untouched here.
 /// * **the lever.** The chord is metered at [`RimArms::level`], which
 ///   on the torus is `minor`. Metering it at `major` overstates by
 ///   `major / minor` — audit note N1, now retired: the arms are
@@ -539,19 +545,21 @@ fn mixed_levels<T: Decide>(name: &'static str, band: Band) -> PropsError {
 /// its span-sum agreement is a genuine rectangle test rather than a
 /// proxy for one.)
 ///
-/// **What this does NOT establish — open at #723.** The rule gives
-/// `w ≡ Δu` on `(lo, hi)` and nothing more. `area = r·Δu·(hi − lo)`
-/// needs a SECOND premise, which is not this one: that the `(lo, hi)`
-/// handed in really is the face's `v`-extent. The torus's is sound by
-/// derivation — its ends are the anchor meridian's STORED span — but
-/// the linearly-leveled kinds take theirs from `min_max`, which folds
-/// edge ENDPOINT levels only. On the sphere that is falsifiable: a
-/// meridian arc crossing a pole reaches latitude ±1 in its INTERIOR,
-/// where `min_max` never looks, and the face measures **−47% at
-/// `pad = 0.0` with tier 3 green** (#723, pre-existing, not fixed
-/// here). Such a face passes THIS predicate correctly, at margin 0,
-/// because its domain genuinely is a rectangle. Do not read a pass
-/// here as "the closed form's preconditions are checked".
+/// **What this does NOT establish.** The rule gives `w ≡ Δu` on
+/// `(lo, hi)` and nothing more. `area = r·Δu·(hi − lo)` needs a
+/// SECOND premise, which is not this one: that the `(lo, hi)` handed
+/// in really is the face's `v`-extent. That premise is each kind's
+/// own derivation: the torus's ends are the anchor meridian's STORED
+/// span; the cylinder's and cone's are `min_max` over edge ENDPOINT
+/// levels, exact because their meridians are lines — monotone in `v`,
+/// with no interior extremum to miss; the sphere's meridians are
+/// great-circle arcs whose latitude peaks at a pole the arc may
+/// contain in its INTERIOR, so its fold also carries each arc's
+/// span-derived pole extremes ([`sphere_meridian_span_levels`] — the
+/// torus's stored-span move, in fold form). A face whose extent were
+/// understated would still pass THIS predicate correctly, at margin
+/// 0; do not read a pass here as "the closed form's preconditions are
+/// checked".
 ///
 /// **Deliberately a little stricter than necessary.** An interior
 /// level carrying matching `+`/`−` groups would leave `w` unchanged
@@ -567,15 +575,19 @@ fn mixed_levels<T: Decide>(name: &'static str, band: Band) -> PropsError {
 /// decision below is [`level_coincides`], including the fail
 /// direction.
 ///
-/// **The margin is not always exactly zero.** On the ordinary domain
-/// it is: `min_max` folds the rim levels among the rest, so each rim's
-/// own level IS one of the extremes and the difference is bitwise 0.
-/// It is a different expression whenever a MERIDIAN endpoint sets `lo`
-/// or `hi` — then the margin is the rim's disagreement with that
-/// endpoint, a real quantity this predicate decides. That case is
-/// subsumed upstream: a rim wobbled a nanometre off the vertex its
-/// meridian starts at is already refused by `certify`'s
-/// `carrier_endpoint_start`, a length residual at the same band.
+/// **The margin is not always exactly zero.** On the ordinary
+/// `Length`-leveled domain it is: `min_max` folds the rim levels
+/// among the rest, so each rim's own level IS one of the extremes and
+/// the difference is bitwise 0. A `Unit` pair's margin carries a
+/// rounding-scale second-component residual even then (the lift
+/// recomputes the extreme's cosine from its sine, the rim reads its
+/// own off stored data). It is a different expression whenever a
+/// MERIDIAN endpoint sets `lo` or `hi` — then the margin is the rim's
+/// disagreement with that endpoint, a real quantity this predicate
+/// decides. That case is subsumed upstream: a rim wobbled a nanometre
+/// off the vertex its meridian starts at is already refused by
+/// `certify`'s `carrier_endpoint_start`, a length residual at the
+/// same band.
 fn require_rims_at_extremes<T: Decide>(
     rims: &[Rim<T>],
     ends: (RimLevel<T>, RimLevel<T>),
@@ -624,7 +636,7 @@ fn require_rims_at_extremes<T: Decide>(
 /// computation wearing a typed-refusal costume and should be an
 /// `unreachable`-class site (D2 addendum row 4/5) instead. It is left
 /// as a refusal because the argument for unreachability rests on the
-/// predicate above being complete, and #723 is a live demonstration
+/// predicate above being complete, and #723 was a live demonstration
 /// that a premise about these domains can be one clause short.
 fn du_of_rims<T: Decide>(rims: &[Rim<T>], arms: RimArms<T>, band: Band) -> Result<T, PropsError> {
     if rims.is_empty() {
@@ -683,8 +695,9 @@ fn du_of_rims<T: Decide>(rims: &[Rim<T>], arms: RimArms<T>, band: Band) -> Resul
 struct LinearBoundary<T: Real> {
     /// The face's rims, in traversal order.
     rims: Vec<Rim<T>>,
-    /// Every level the face's boundary touches — rim levels and
-    /// meridian ENDPOINT levels — the list [`min_max`] folds.
+    /// Every level the face's boundary touches — rim levels, meridian
+    /// ENDPOINT levels and, on the sphere, each meridian arc's
+    /// span-derived pole extremes — the list [`min_max`] folds.
     levels: Vec<T>,
     /// The kind's lever arms ([`RimArms`]).
     arms: RimArms<T>,
@@ -1075,18 +1088,14 @@ fn cone_arm<T: Real>(rims: &[Rim<T>], sin_a: T) -> T {
 ///   load-bearing: a lune bounded by meridians on two DIFFERENT great
 ///   circles would take `Δu = π` for a domain of another width and
 ///   measure by that factor (a quarter lune, twice over).
-/// * **NOT established: the `v`-extent.** `(lo, hi)` comes from
-///   `min_max` over the meridians' ENDPOINT latitudes, and nothing
-///   here says the arcs run pole to pole. Split the same hemisphere at
-///   two ordinary points instead of at its poles and the poles fall in
-///   the arcs' INTERIORS, where `min_max` never looks: the face is
-///   accepted and measures short (executed: the great circle cut at
-///   ±π/4 measures **−29.3%** of the hemisphere's area). That is not a
-///   second defect — it is **#723**, the same `min_max`-over-endpoints
-///   mechanism on the same kind, reaching the one arm #723's own text
-///   does not mention because the rimless arm has no rim to place.
-///   Do not read this exemption as "the domain is verified a
-///   rectangle".
+/// * **Established separately: the `v`-extent.** `(lo, hi)` is
+///   `min_max` over the meridians' endpoint latitudes AND each arc's
+///   span-derived pole extremes ([`sphere_meridian_span_levels`]), so
+///   the arcs need not run pole to pole for the extent to be theirs:
+///   the same hemisphere split at two ordinary points instead of at
+///   its poles still folds to `[−1, 1]`. The extent derivation is a
+///   fact about the levels, not about this exemption — do not read
+///   the exemption as "the domain is verified a rectangle".
 ///
 /// Its `s_f` is the **only** flux
 /// sign in this module that the boundary does not encode — with no rim
@@ -1130,10 +1139,10 @@ fn sphere<T: Decide>(
         // the face's sense IS `s_f` here, not a cross-check of it.
         s_f = sense_sign;
     } else {
-        // The iso-rectangle premise (S58/#649). Sphere levels are
-        // latitude SINES — dimensionless `Unit` with a zero second
-        // component — so the extremes are lifted into the same
-        // representation and metered at the sphere radius.
+        // The iso-rectangle premise (S58/#649). Sphere rims carry the
+        // `(sin v, cos v)` direction pair, so the scalar extremes are
+        // lifted into the same representation (`as_level`) and metered
+        // at the sphere radius.
         s_f = t_sign::<T>(linear_rim_side(&b, (lo, hi), band)?);
         du = du_of_rims(&b.rims, b.arms, band)?;
     }
@@ -1141,6 +1150,116 @@ fn sphere<T: Decide>(
     let va = loop_vector_area(edges, center)?;
     let flux = s_f * (radius * area) + (center - Point3::origin()).dot(va);
     Ok(FaceContribution { flux, area })
+}
+
+/// Push the latitude-sine extremes a sphere meridian arc attains over
+/// its **stored parameter span** — the span-derived `v`-extent, the
+/// torus's own derivation carried to the sphere. Endpoint latitudes
+/// alone are not the arc's extent: a great circle contains both poles,
+/// so an arc whose span crosses one reaches latitude ±1 in its
+/// INTERIOR, where an endpoint fold never looks.
+///
+/// Along the meridian the latitude sine is `λ(θ) = sa·cosθ + ca·sinθ`
+/// for `θ` measured from `t0`, with `sa = λ(t0)` and `ca = dλ/dt(t0)`
+/// read off stored data (`dP/dt = n_c × (P − center)` for the stored
+/// circle parameterization). Over the full circle the extremes are
+/// `±r0` with `r0 = √(sa² + ca²)` (= 1 up to the certified
+/// `props_meridian_great` / `props_circle_axis_class` residuals),
+/// attained at the two poles; the arc attains one exactly when that
+/// pole's angular offset from `t0` lands inside the span.
+///
+/// That containment is `props_meridian_pole`: the chord from the
+/// pole's span-relative direction to the nearer span endpoint,
+/// carrying the membership sign, levered at the sphere radius — the
+/// point deviation of moving the pole onto the span boundary.
+/// `Negative` = outside, nothing to push; **everything else folds**
+/// — `Positive`, `Zero`, and the indeterminate band alike. At or
+/// near a span end the endpoint latitude already sits within band²
+/// of the pole's (the latitude is quadratic at its extremum), so the
+/// fold choices agree far inside any honest tolerance, the folded
+/// extent is continuous across the decision, and an indeterminate
+/// margin carries no information a refusal could honestly report.
+/// The margin still records through the funnel like any decide.
+///
+/// Total over every positive stored span: a span of `2π` or more
+/// covers the whole parameter circle and folds both poles (the
+/// membership edge saturates at a half-turn).
+///
+/// The pole is located relative to the STORED span, as directions —
+/// no chart inversion at all, so this is not the wedge-unwrap trap
+/// the module docs forbid (two endpoint inversions differenced,
+/// which loses the winding); the interval stays the stored
+/// `t1 − t0`.
+fn sphere_meridian_span_levels<T: Decide>(
+    e: &LoopEdge<T>,
+    center: Point3<T>,
+    radius: T,
+    axis: Vec3<T>,
+    n_c: Vec3<T>,
+    levels: &mut Vec<T>,
+    band: Band,
+) {
+    let w0 = e.p0() - center;
+    let sa = w0.dot(axis) / radius;
+    let ca = n_c.cross(w0).dot(axis) / radius;
+    // powi(2), not x*x (the one argument lives at `level_gap`).
+    let r0 = (sa.powi(2) + ca.powi(2)).sqrt();
+    let dt = e.t1 - e.t0;
+    // The north pole (λ = +r0) sits at the span-relative direction
+    // `(sa, ca)` on the parameter circle; the south pole (λ = −r0)
+    // at its antipode. Everything below is direction arithmetic — no
+    // `atan2`, no range reduction: an angle extraction is wide at its
+    // branch cut (an arc anchored at a pole put an interval enclosure
+    // exactly there, live on the die-fillet corpus), and a mod-2π
+    // `floor` spans its integer step at a period boundary; either
+    // widens the margin to the whole period and forces an escalation
+    // the scalar lane does not have.
+    let half = T::from_f64(0.5);
+    let (sd2, cd2) = (dt * half).sin_cos();
+    // The membership EDGE saturates at a half-turn: a span of 2π or
+    // more covers every direction of the parameter circle, so its
+    // edge cosine is −1 — while raw `cos(dt/2)` swings back positive
+    // past `dt = 2π` and would EXCLUDE directions a multi-wrap span
+    // covers (executed: a 3π span read the north pole `Negative` and
+    // the face measured half its area). The clamp makes the test
+    // total over every positive stored span.
+    let (_, c_edge) = (dt * half).min(T::pi()).sin_cos();
+    let (sdt, cdt) = dt.sin_cos();
+    for (ps, pc, extreme) in [(sa, ca, r0), (-sa, -ca, -r0)] {
+        // Sign: the pole lies in the closed span iff its direction is
+        // within `min(dt/2, π)` of the span's midpoint direction —
+        // one dot test, `⟨P, M⟩ − c_edge`, whose zero set on the
+        // circle is exactly the two span endpoints (empty for a
+        // full-period span, which contains everything).
+        let f = ps * cd2 + pc * sd2 - c_edge;
+        // Magnitude: the CHORD to the nearer span endpoint — levered
+        // by R below, that is the point deviation of moving the pole
+        // onto the span boundary. powi(2), not x*x (see `level_gap`).
+        let chord_a = ((ps - T::one()).powi(2) + pc.powi(2)).sqrt();
+        let chord_b = ((ps - cdt).powi(2) + (pc - sdt).powi(2)).sqrt();
+        // `copysign` transfers the membership sign onto the chord; at
+        // an interval scalar a sign enclosure straddling zero yields
+        // the two-sided hull `±chord`, which is tight exactly where
+        // it happens — the pole at a span endpoint, chord ≈ 0.
+        let m = chord_a.min(chord_b).copysign(f);
+        // Decided through the funnel — the margin is RECORDED like
+        // any other — but the indeterminate outcome FOLDS instead of
+        // escalating. In-band, the pole sits within the band of a
+        // span end, where the two fold choices differ by ~band²/2 in
+        // latitude — sub-band in every downstream quantity — so an
+        // indeterminate carries no information about the answer, and
+        // refusing on it would refuse a solid whose area is not in
+        // doubt (executed: a split vertex 1e-6 rad off the pole
+        // flipped certify-exactly into an import refusal). A POISONED
+        // margin lands in the same arm and folding stays loud: sa/ca
+        // poison makes the folded `±r0` poison too, which the extent
+        // and level decides downstream refuse typed; a poisoned span
+        // is refused upstream by certification before this parse.
+        match decide("props_meridian_pole", Margin::levered(m, radius), band) {
+            Ok(Sign::Positive | Sign::Zero) | Err(_) => levels.push(extreme),
+            Ok(Sign::Negative) => {}
+        }
+    }
 }
 
 /// Classify a sphere face's boundary into (rims, meridian great-circle
@@ -1191,12 +1310,18 @@ fn sphere_boundary<T: Decide>(
                 // circle on the sphere as the iso-v rim.
                 require_rim_incidence(w, n_c, r_c, axis, band)?;
                 let sin_v = w.dot(axis) / radius;
+                let cos_v = r_c / radius;
                 rims.push(Rim {
                     d_u: t_sign::<T>(rim_dir(s, e.forward)),
                     d_u_sign: rim_dir(s, e.forward),
                     dt: e.t1 - e.t0,
-                    // Dimensionless latitude sine — levered by R.
-                    level: RimLevel::Unit(sin_v, T::zero()),
+                    // Dimensionless latitude DIRECTION pair, both
+                    // components from stored data (`w·â/R`, `r_c/R`).
+                    // The chord between two of these is the geodesic
+                    // separation at R everywhere on the sphere; the
+                    // axial component alone shrinks by `cos v̄` toward
+                    // the poles and merges distinct near-polar rims.
+                    level: RimLevel::Unit(sin_v, cos_v),
                     tags: (e.start, e.end),
                 });
                 levels.push(sin_v);
@@ -1212,18 +1337,25 @@ fn sphere_boundary<T: Decide>(
                 meridian_axes.push(n_c);
                 levels.push((e.p0() - center).dot(axis) / radius);
                 levels.push((e.p1() - center).dot(axis) / radius);
+                // The arc's extent is its stored span's, not its
+                // endpoints': fold in the pole latitude(s) the span
+                // contains (see `sphere_meridian_span_levels`).
+                sphere_meridian_span_levels(e, center, radius, axis, n_c, &mut levels, band);
             }
         }
     }
-    // Sphere levels are latitude SINES — dimensionless `Unit` with a
-    // zero second component — metered at the sphere radius, which is
-    // also its azimuthal arm.
+    // Sphere levels are latitude SINES; the rims carry the full
+    // `(sin v, cos v)` direction pair, so the lift completes a scalar
+    // extreme with its cosine (latitudes live in `[−π/2, π/2]`, so
+    // the cosine is the nonnegative root; the `max` keeps the sqrt
+    // in-domain when a folded extreme sits a rounding past ±1).
+    // Metered at the sphere radius, which is also its azimuthal arm.
     Ok((
         LinearBoundary {
             rims,
             levels,
             arms: RimArms::uniform(radius),
-            as_level: |s| RimLevel::Unit(s, T::zero()),
+            as_level: |s| RimLevel::Unit(s, (T::one() - s.powi(2)).max(T::zero()).sqrt()),
         },
         meridian_axes,
     ))
@@ -1247,10 +1379,10 @@ fn torus_arms<T: Real>(major: T, minor: T) -> RimArms<T> {
 ///
 /// The torus's `v` is periodic, so its extremes cannot come from
 /// `min_max` over endpoint levels the way the linearly-leveled kinds'
-/// do; that derivation is also why the torus is the one kind #723's
-/// unstated-extent premise does not reach. One home, because the flux
-/// lane and [`boundary_material_sign`] both need it and a face's
-/// extremes are not a thing two callers may each decide.
+/// do; the sphere's fold carries the same stored-span derivation per
+/// meridian arc ([`sphere_meridian_span_levels`]). One home, because
+/// the flux lane and [`boundary_material_sign`] both need it and a
+/// face's extremes are not a thing two callers may each decide.
 fn torus_ends<T: Real>(
     m0: &TorusMeridian<T>,
     center: Point3<T>,

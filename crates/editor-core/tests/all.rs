@@ -78,6 +78,12 @@ mod lbret_schema_v8;
 mod lib_doors_node_result;
 #[path = "lib_g14_split_walls.rs"]
 mod lib_g14_split_walls;
+#[path = "lib_g16_blend_messages.rs"]
+mod lib_g16_blend_messages;
+#[path = "lib_g16_chamfer_node.rs"]
+mod lib_g16_chamfer_node;
+#[path = "lib_g16_corpus_name_digests.rs"]
+mod lib_g16_corpus_name_digests;
 #[path = "lib_placedunion.rs"]
 mod lib_placedunion;
 #[path = "lib_sel1_geoselect.rs"]
@@ -94,6 +100,20 @@ mod m10_1_analysis;
 mod m10_1_r2_probes;
 #[path = "m10_1_schema_v15.rs"]
 mod m10_1_schema_v15;
+#[path = "m10_2_measure.rs"]
+mod m10_2_measure;
+#[path = "m10_2_r1_probes.rs"]
+mod m10_2_r1_probes;
+#[path = "m10_2_schema_v17.rs"]
+mod m10_2_schema_v17;
+#[path = "m10_3_driver_interval.rs"]
+mod m10_3_driver_interval;
+#[path = "m10_3_driver_k_probe_interval.rs"]
+mod m10_3_driver_k_probe_interval;
+#[path = "m10_3_r1_probes_interval.rs"]
+mod m10_3_r1_probes_interval;
+#[path = "m10_3_r2_probes_interval.rs"]
+mod m10_3_r2_probes_interval;
 #[path = "m10_di_dual_corpus.rs"]
 mod m10_di_dual_corpus;
 #[path = "m10_p_fence.rs"]
@@ -210,6 +230,10 @@ mod r1_dual_probes;
 mod r1_m10_1_corruptions;
 #[path = "r1_m10_1_probes.rs"]
 mod r1_m10_1_probes;
+#[path = "r2_keydiff.rs"]
+mod r2_keydiff;
+#[path = "r2_m10_2_probes.rs"]
+mod r2_m10_2_probes;
 #[path = "r2_m10_di_probes.rs"]
 mod r2_m10_di_probes;
 #[path = "respell_schema_v9.rs"]
@@ -292,3 +316,6 @@ fn every_suite_file_is_aggregated() {
         found.len()
     );
 }
+
+#[path = "r1_probe_v15.rs"]
+mod r1_probe_v15;

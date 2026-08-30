@@ -44,6 +44,8 @@ mod assembly_display;
 mod assembly_walk;
 #[path = "camera_ops.rs"]
 mod camera_ops;
+#[path = "display_budget.rs"]
+mod display_budget;
 #[path = "doc_io.rs"]
 mod doc_io;
 #[path = "error_display.rs"]

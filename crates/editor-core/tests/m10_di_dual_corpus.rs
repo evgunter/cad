@@ -46,8 +46,8 @@ mod fixture;
 use corpus::{CorpusDoc, cone, documents, eval, failures};
 use editor_core::eval::KeyHasher;
 use editor_core::{
-    BooleanValue, CancelToken, ContentKey, DatumValue, EvalOptions, EvalOutcome, Evaluation,
-    NodeResult, SplitSide, ValuePayload, evaluate, product_recorded,
+    AssertionVerdict, BooleanValue, CancelToken, ContentKey, DatumValue, Dimension, EvalOptions,
+    EvalOutcome, Evaluation, NodeResult, SplitSide, ValuePayload, evaluate, product_recorded,
 };
 use geom_core::{Decide, Dual64, Tol};
 use topo::Body;
@@ -205,6 +205,35 @@ fn value_digest<T: Decide + ValueChannelBits>(ev: &Evaluation<T>) -> u64 {
                         d.u64(pairs.len() as u64);
                     }
                     ValuePayload::Mate(_) => d.u64(20),
+                    // The measured quantity IS a lane value, so it is
+                    // digested through the same value-channel bracket
+                    // every coordinate takes.
+                    ValuePayload::Measure { value, dim } => {
+                        d.u64(21);
+                        d.u64(match dim {
+                            Dimension::Length => 1,
+                            Dimension::Angle => 2,
+                            Dimension::Count => 3,
+                            Dimension::Scalar => 4,
+                        });
+                        d.scalar(*value);
+                    }
+                    ValuePayload::Assertion(verdict) => {
+                        d.u64(22);
+                        d.u64(match verdict.holds() {
+                            Some(true) => 1,
+                            Some(false) => 2,
+                            None => 3,
+                        });
+                        match verdict {
+                            AssertionVerdict::Holds { measured, bound }
+                            | AssertionVerdict::Violated { measured, bound } => {
+                                d.scalar(*measured);
+                                d.scalar(*bound);
+                            }
+                            AssertionVerdict::Unevaluated { .. } => {}
+                        }
+                    }
                 }
             }
         }

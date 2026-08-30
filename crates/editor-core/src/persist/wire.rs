@@ -21,7 +21,8 @@ use serde::de::Error as _;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::doc::ParamName;
-use crate::expr::{Dimension, Expr, ExprKind};
+use crate::expr::{Dimension, DimensionError, Expr, ExprKind};
+use crate::measure::{MeasureExpr, MeasureKind, MeasurePrimitive};
 use crate::program::{LoopProgram, ProfileProgram, ProgramStep, ProgramTarget};
 
 /// The persisted expression tree (spec D1: the recipe is the save; an
@@ -635,6 +636,91 @@ impl<'de> Deserialize<'de> for ProfileProgram {
         Ok(ProfileProgram {
             plane: SketchPlane::new(placement),
             loops,
+        })
+    }
+}
+
+/// The persisted MEASUREMENT expression (ERROR-DESIGN E3): the same
+/// arithmetic the document expression has, over the two leaves this
+/// language adds.
+///
+/// A separate wire enum rather than a grown [`WireExpr`], for the same
+/// reason [`MeasureExpr`] is a separate type: a primitive leaf is
+/// meaningless in a slot expression, and a shared wire form would make
+/// one representable there — a file could then carry a `distance` leaf
+/// in an extrude's distance, and the refusal would have to be invented
+/// at every rebuild site instead of being unrepresentable.
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) enum WireMeasureExpr {
+    /// A closed-form measurement leaf.
+    Primitive(MeasurePrimitive),
+    /// An ordinary document expression leaf.
+    Value(Box<WireExpr>),
+    /// Same-dimension addition.
+    Add(Box<WireMeasureExpr>, Box<WireMeasureExpr>),
+    /// Same-dimension subtraction.
+    Sub(Box<WireMeasureExpr>, Box<WireMeasureExpr>),
+    /// Negation.
+    Neg(Box<WireMeasureExpr>),
+    /// Product (at least one Scalar operand).
+    Mul(Box<WireMeasureExpr>, Box<WireMeasureExpr>),
+    /// Quotient (Scalar divisor).
+    Div(Box<WireMeasureExpr>, Box<WireMeasureExpr>),
+    /// Same-dimension minimum.
+    Min(Box<WireMeasureExpr>, Box<WireMeasureExpr>),
+    /// Same-dimension maximum.
+    Max(Box<WireMeasureExpr>, Box<WireMeasureExpr>),
+}
+
+impl From<&MeasureExpr> for WireMeasureExpr {
+    fn from(e: &MeasureExpr) -> Self {
+        let b = |x: &MeasureExpr| Box::new(WireMeasureExpr::from(x));
+        match e.kind() {
+            MeasureKind::Primitive(p) => WireMeasureExpr::Primitive(*p),
+            MeasureKind::Value(v) => WireMeasureExpr::Value(Box::new(WireExpr::from(v))),
+            MeasureKind::Add(x, y) => WireMeasureExpr::Add(b(x), b(y)),
+            MeasureKind::Sub(x, y) => WireMeasureExpr::Sub(b(x), b(y)),
+            MeasureKind::Neg(x) => WireMeasureExpr::Neg(b(x)),
+            MeasureKind::Mul(x, y) => WireMeasureExpr::Mul(b(x), b(y)),
+            MeasureKind::Div(x, y) => WireMeasureExpr::Div(b(x), b(y)),
+            MeasureKind::Min(x, y) => WireMeasureExpr::Min(b(x), b(y)),
+            MeasureKind::Max(x, y) => WireMeasureExpr::Max(b(x), b(y)),
+        }
+    }
+}
+
+impl WireMeasureExpr {
+    /// Rebuilds through the DIMENSION-CHECKING constructors — the load
+    /// door is the construction door, so a file cannot carry a tree the
+    /// authoring API refuses.
+    fn rebuild(&self) -> Result<MeasureExpr, DimensionError> {
+        let b = |x: &WireMeasureExpr| x.rebuild();
+        match self {
+            WireMeasureExpr::Primitive(p) => Ok(MeasureExpr::primitive(*p)),
+            WireMeasureExpr::Value(v) => Ok(MeasureExpr::value(v.rebuild()?)),
+            WireMeasureExpr::Add(x, y) => MeasureExpr::add(b(x)?, b(y)?),
+            WireMeasureExpr::Sub(x, y) => MeasureExpr::sub(b(x)?, b(y)?),
+            WireMeasureExpr::Neg(x) => Ok(MeasureExpr::neg(b(x)?)),
+            WireMeasureExpr::Mul(x, y) => MeasureExpr::mul(b(x)?, b(y)?),
+            WireMeasureExpr::Div(x, y) => MeasureExpr::div(b(x)?, b(y)?),
+            WireMeasureExpr::Min(x, y) => MeasureExpr::min(b(x)?, b(y)?),
+            WireMeasureExpr::Max(x, y) => MeasureExpr::max(b(x)?, b(y)?),
+        }
+    }
+}
+
+impl Serialize for MeasureExpr {
+    fn serialize<S: Serializer>(&self, ser: S) -> Result<S::Ok, S::Error> {
+        WireMeasureExpr::from(self).serialize(ser)
+    }
+}
+
+impl<'de> Deserialize<'de> for MeasureExpr {
+    fn deserialize<D: Deserializer<'de>>(de: D) -> Result<Self, D::Error> {
+        let wire = WireMeasureExpr::deserialize(de)?;
+        wire.rebuild().map_err(|e| {
+            D::Error::custom(format!("ill-dimensioned measure expression refused: {e}"))
         })
     }
 }

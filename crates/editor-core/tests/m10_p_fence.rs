@@ -14,10 +14,13 @@
 //! it moves, the question is whether the new behaviour is correct, not
 //! how to get the old number back. What makes it useful HERE is that
 //! this file uses no API the lift introduced, so the same digest can be
-//! taken on a pre-lift tree and compared. It was: all three numbers
-//! below are the ones a checkout of the PRE-LIFT tree produces from
-//! this same file, which is what "the build path did not move" means
-//! here.
+//! taken on a pre-lift tree and compared. It was: the three numbers
+//! are the ones a checkout of the PRE-LIFT tree produces from this
+//! same file, which is what "the build path did not move" means here.
+//! **That differential was taken against the roster of the day**, and
+//! the roster has since grown twice — see the re-bless paragraphs
+//! below, which say what moved and what evidence stands behind each.
+//! Re-taking it requires the pre-lift tree AND the current registry.
 //!
 //! THE TREE THE COMPARISON WAS MADE AGAINST is `41e32c24` — main at
 //! the fix pass, which is a pre-lift tree because the lift lives only
@@ -33,6 +36,25 @@
 //! covers the three scalars the review names rather than the value lane
 //! alone.
 //!
+//! A whole-corpus scalar is a blunt instrument for "did an existing
+//! document move", and there is now a SECOND, finer measurement to
+//! read beside it: `lib_g16_corpus_name_digests` pins a digest PER
+//! DOCUMENT, so a registry addition that disturbed an existing one
+//! shows up there as a row that moved and not merely as a scalar that
+//! changed. Every roster addition below was checked against it as well
+//! as by the removal procedure — each moved its own row and no other.
+//! That table is the reason to trust the re-blessings rather than
+//! merely to accept them.
+//!
+//! What still makes the fence mean what it says: the corpus's other
+//! rows — `m4_pr8_corpus`'s per-document coverage and cone probes, the
+//! Dual/Interval corpus digests, and the persistence round trip — all
+//! hold across the same change, and a measurement sink denotes no
+//! body, so it contributes no geometry to any pre-existing document.
+//! Re-running the pre-lift differential means taking these numbers on
+//! a pre-lift tree WITH the same registry; comparing across a registry
+//! change compares two different corpora and answers nothing.
+//!
 //! THE DIGEST IS EPS-INDEPENDENT BY CONSTRUCTION, and has to be: the
 //! hosted matrix samples a tolerance row per run, so a golden number
 //! that moved with eps would be a fence that only ever gated one row of
@@ -42,14 +64,46 @@
 //! a reader to be suspicious if one ever needs a second number.
 //!
 //! WHAT THE INTERVAL ROW IS NOT. It pins that the lift OFF changes
-//! nothing at `Interval`; it is not evidence that a WIDE interval
-//! parameter can be driven through this door, because it cannot be
-//! yet. `Doc::param_env` embeds every parameter through `from_f64`, so
-//! every binding a document evaluation can produce is a degenerate
-//! (point) interval. Teaching it non-degenerate intervals is M10-3's
-//! first spec bullet; until that lands, the wide-box capability is
-//! reachable only one door down, at the program-resolve seam, which is
-//! where `m10_p_lift`'s wide-box row drives it.
+//! nothing at `Interval` — a fence around the BUILD path, which binds
+//! its parameters at their nominals. It is not evidence about a WIDE
+//! interval parameter, which is a different door: an evaluation
+//! carrying an `EvalOptions::param_box` binds `nominal + [lo, hi]`
+//! instead, and `m10_3_driver_interval`'s rows are what drive that.
+//! The two claims stay separate because the fence's subject is that
+//! the lift changed nothing where nothing should change.
+//!
+//! RE-BLESSED THREE TIMES, every time for a ROSTER change rather than
+//! a build-path one: this digest walks `corpus::documents()`, so a new
+//! document moves it by construction. Each re-blessing was MEASURED
+//! the same way, and the measurement is the procedure — remove the new
+//! document ALONE from `documents()` and check every constant comes
+//! back at its previous value, which is what "no EXISTING document's
+//! bits moved" means here.
+//!
+//! - LIB-G16 added `die_chamfer`. Removing it alone returned
+//!   `f64`/`probe` `ebba499b112fea43, 3350329b8dcf3c2f` and `interval`
+//!   `6c3f436b41ecd1b4, e7db67ef2cffe270`.
+//! - LIB-CORPUS-DIE added `die_composed_tour`, the demo tour's die.
+//!   Removing it alone returned `f64`/`probe` `0f7cdec3cf38ad1e,
+//!   01e05bef0382adda` and `interval` `bfb345df4492bc11,
+//!   c835f9e36e694ddd` — exactly the constants this file carried
+//!   between the two re-blessings.
+//! - M10-2 added `measured_web`, carrying the E3/E10 measurement nodes
+//!   so the Dual/Interval digests' Measure and Assertion arms are
+//!   REACHED rather than merely present. Removing it alone returned
+//!   `f64`/`probe` `803b01aaab703256, 3f310d4d77e892ba` and `interval`
+//!   `3ee6a402bcb1f12e, ef742c0a0c9dd7da` — the constants this file
+//!   carried on `main` before the M10-2 merge, and the rows came back
+//!   GREEN against them rather than being compared by hand.
+//!
+//! The M10-2 measurement is the strongest of the three, for a reason
+//! worth stating: this roster minus `measured_web` IS main's roster,
+//! so the expected values were not re-derived for the occasion — they
+//! were already committed here by someone else. A measurement sink
+//! denotes no body, so it contributes no geometry to any pre-existing
+//! document, and that prediction is what the removal confirms.
+//!
+//! The three numbers below are the same digest over the grown roster.
 //!
 //! The `probe` row is ROSTERED into the K-telemetry sweep's executed
 //! floor. Its claim is not a third copy of the `f64` row's: it says the
@@ -63,8 +117,8 @@
 mod corpus;
 mod fixture;
 
-use editor_core::{CancelToken, ContentBits, EvalOptions, NodeResult, ValuePayload, evaluate};
-use geom_core::{Decide, Tol};
+use editor_core::{CancelToken, EvalOptions, NodeResult, ValuePayload, evaluate};
+use geom_core::Tol;
 
 /// A 128-bit FNV-1a over the evaluation's observable bits.
 struct Digest {
@@ -102,7 +156,7 @@ impl Digest {
 /// door, which is what lets it compile against a pre-lift tree.
 fn corpus_digest<T, F, S>(bits: F, scalar: S) -> (u64, u64)
 where
-    T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::AtRestPolicy,
+    T: editor_core::EvalScalar,
     F: Fn(&mut Digest, &geom_core::Point3<T>),
     S: Fn(&mut Digest, T),
 {
@@ -271,7 +325,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0xebba_499b_112f_ea43, 0x3350_329b_8dcf_3c2f),
+        (0x50b4_edef_3d4c_d1ac, 0xa17d_6b19_5195_bee0),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -298,7 +352,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0x6c3f_436b_41ec_d1b4, 0xe7db_67ef_2cff_e270),
+        (0xb09c_3944_a8d7_c440, 0x588d_3ac4_427a_f52c),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -322,7 +376,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0xebba_499b_112f_ea43, 0x3350_329b_8dcf_3c2f),
+        (0x50b4_edef_3d4c_d1ac, 0xa17d_6b19_5195_bee0),
         "the corpus's Probe evaluation moved"
     );
 }

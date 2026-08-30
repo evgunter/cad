@@ -309,6 +309,13 @@ impl<T: super::EvalScalar> PartCache<'_, T> {
             boolean_sweep: self.boolean_sweep,
             resolver: self.resolver.map(Arc::clone),
             profile_lift: self.profile_lift,
+            // NOT inherited, unlike the two rows above: a parameter box
+            // is a set of THIS document's parameter names, and a
+            // referenced document is a different document with its own
+            // names (AQ4 — v1 instantiation takes no arguments). A box
+            // that crossed the seam would either name nothing there or,
+            // worse, collide by name with an unrelated parameter.
+            param_box: None,
         };
         let mut chain = self.chain.to_vec();
         chain.push(*doc_ref);

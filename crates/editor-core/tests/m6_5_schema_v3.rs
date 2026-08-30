@@ -30,7 +30,7 @@ fn schema_version_is_current() {
     // boolean (v12), by ASM-R2a's `Node::Mate` arm (v13), by ASM-R2b's
     // interface record (v14), and by M10-1's parameter distributions
     // (v15); this file keeps pinning the v3 refusal fixture below.
-    assert_eq!(SCHEMA_VERSION, 15);
+    assert_eq!(SCHEMA_VERSION, 17);
 }
 
 #[test]
@@ -186,7 +186,7 @@ fn the_selection_reaches_the_wire_canonical() {
     // move the node's content key behind the caller's back).
     let corrupt = text.replacen("\"segment\": 0", "\"segment\": 9", 1);
     match load(&corrupt, Tol::witness()) {
-        Err(PersistError::Snapshot(editor_core::SnapshotError::FilletSelectionNotCanonical {
+        Err(PersistError::Snapshot(editor_core::SnapshotError::BlendSelectionNotCanonical {
             ..
         })) => {}
         other => panic!("a non-canonical selection must refuse typed, got {other:?}"),
