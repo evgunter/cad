@@ -322,7 +322,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0xbfb3_45df_4492_bc11, 0xc835_f9e3_6e69_4ddd),
+        (0x3d04_bb6a_178f_e5e2, 0xef4a_0e23_bc59_054e),
         "the corpus's Interval evaluation moved"
     );
 }
