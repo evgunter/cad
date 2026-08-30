@@ -36,8 +36,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use editor_core::{
     BooleanOp, BooleanValue, CancelToken, ContentBits, Datum, DocEdit, EvalOptions, Evaluation,
     Node, NodeResult, PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, TubeWindow,
-    ValuePayload, apply,
-    evaluate,
+    ValuePayload, apply, evaluate,
 };
 use geom_core::Decide;
 use geom_core::Tol;
@@ -47,14 +46,13 @@ pub mod boss;
 pub mod cut_cylinder;
 pub mod die;
 pub mod die_chamfer;
-pub mod hollow_tube_elbow;
-pub mod tube_ring;
 pub mod die_composed;
 pub mod die_fillet;
 pub mod die_pips;
 pub mod die_tool;
 pub mod heatsink;
 pub mod heatsink_union;
+pub mod hollow_tube_elbow;
 pub mod islands;
 pub mod loft_prism;
 pub mod plate_param;
@@ -62,6 +60,7 @@ pub mod sink;
 pub mod slots;
 pub mod table;
 pub mod tangency;
+pub mod tube_ring;
 
 pub use super::fixture::Recorder;
 

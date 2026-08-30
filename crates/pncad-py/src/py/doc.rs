@@ -1890,7 +1890,11 @@ impl TubeWindow {
     /// span reaching one full period (which must say `full()`), are
     /// the kernel's own typed refusals at `evaluate`.
     #[staticmethod]
-    fn arc(py: Python<'_>, t0: &super::quantity::Angle, t1: &super::quantity::Angle) -> PyResult<Self> {
+    fn arc(
+        py: Python<'_>,
+        t0: &super::quantity::Angle,
+        t1: &super::quantity::Angle,
+    ) -> PyResult<Self> {
         Ok(Self {
             inner: d::TubeWindow::Arc {
                 t0: literal(py, t0.0.radians(), d::Dimension::Angle)?,

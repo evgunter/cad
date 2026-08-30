@@ -70,7 +70,10 @@ fn angle(v: f64) -> Expr {
 
 fn close(got: f64, want: f64, what: &str) {
     let rel = ((got - want) / want).abs();
-    assert!(rel < REL, "{what}: got {got}, closed form {want} (rel {rel})");
+    assert!(
+        rel < REL,
+        "{what}: got {got}, closed form {want} (rel {rel})"
+    );
 }
 
 fn push(d: &ProfileDoc, e: &DocEdit<ProfileProgram>) -> ProfileDoc {
@@ -94,12 +97,7 @@ fn spine_doc(
         },
     );
     let spine = *doc.order().last().expect("the datum is there");
-    doc = push(
-        &doc,
-        &DocEdit::InsertNode {
-            node: build(spine),
-        },
-    );
+    doc = push(&doc, &DocEdit::InsertNode { node: build(spine) });
     let tube = *doc.order().last().expect("the tube is there");
     (doc, tube)
 }
@@ -387,7 +385,11 @@ fn the_solid_elbow_meters_its_pappus_form() {
     let body = body_of(&ev, tube);
     let props = topo::mass_properties(body, Tol::witness()).expect("mass properties");
     let theta = t1 - t0;
-    close(props.volume, theta * r * PI * minor * minor, "solid elbow V");
+    close(
+        props.volume,
+        theta * r * PI * minor * minor,
+        "solid elbow V",
+    );
     close(
         props.surface_area,
         theta * r * 2.0 * PI * minor + 2.0 * PI * minor * minor,
@@ -461,7 +463,11 @@ fn solid_minus_hollow_is_the_bore_within_one_document() {
             .expect("mass properties")
             .volume
     };
-    close((t1 - t0) * r * PI * inner * inner, vol(solid) - vol(hollow), "the bore");
+    close(
+        (t1 - t0) * r * PI * inner * inner,
+        vol(solid) - vol(hollow),
+        "the bore",
+    );
 
     // The two nodes take DIFFERENT content keys, so a memo cannot
     // serve one for the other — the append-a-tag rule, executed
@@ -725,8 +731,7 @@ fn both_kinds_mint_a_total_name_table_through_the_revolve_emitter() {
         let id = d.result.expect("a result node");
         let value = ev.value(id).expect("a value");
         let body = body_of(&ev, id);
-        let entities =
-            body.faces().count() + body.edges().count() + body.vertices().count() + 1;
+        let entities = body.faces().count() + body.edges().count() + body.vertices().count() + 1;
         assert_eq!(
             value.name_table.len(),
             entities,
