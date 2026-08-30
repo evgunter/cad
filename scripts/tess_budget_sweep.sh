@@ -67,5 +67,5 @@ echo "=== tessellation-budget sweep (every tour scene, per face) ==="
 # verdict, and rule 5 — a scene the baseline has no rows for — needs
 # it to say whether the scene arrived after the cut or was already
 # outside the gate when the cut was taken.
-"$root/scripts/tess_budget_cut.sh" "$out"
+(cd "$root" && scripts/tess_budget_cut.sh "$out")
 echo "wrote $out"
