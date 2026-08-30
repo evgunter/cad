@@ -368,3 +368,13 @@ review_s2 pins are permanent properties citing the ruling. Issue
 Handoffs: 1280 (NCSC plausibly dead), 1281 (refusal attribution),
 1282 (Display float class). Block BLEND-B1's record merges to main
 when BLEND-2's dual concludes.
+
+## BLOCK BLEND-B1 CLOSED (2026-08-30)
+
+All three slots' duals have concluded (BLEND-1 merged sample 46;
+BLEND-7 merged, ordinal 601; BLEND-2 both reviews delivered — R1
+A-W-F 0/7/4, R2 APPROVE 0/3/2, no MAJOR either arm, fix pass
+in flight). The branch-side draw record above becomes public with
+this merge to main, and BLEND-7's redacted arm cell is restated in
+its MODEL-AB-LOG row in the same commit. BLEND-2's row lands at its
+merge, arm named normally (its dual is concluded).
