@@ -2452,3 +2452,25 @@ question and left alone — the let _ = u_ref is load-bearing.
 Main-side k-lint red escalated to M10 as #1288. Full dual,
 frozen head 75583e91, parity 1 → R1 fable + R2 opus; claim to
 main at dispatch.
+
+## ORDINAL 106 RETURNED AND ADJUDICATED (2026-08-30)
+
+R1 M-A-F 2/4/4, R2 A-W-F 1/5/5 — the ring lane's structure held
+(both arms re-derived the tangency to the ideal point; the
+guards, factoring, belly logic and chord separation all
+verified), and the arms CONVERGED on the bilateral MAJ: the
+spec's item-3 sagitta charge absent and undisclosed, with R1
+EXECUTING the witness (definite Exits contradicted at its own
+arm on a hole wall — sagitta 0.125 vs first-order 0.0498; the
+wrong-topology failure mode item 3 warned of). Ruled: the charge
+is REQUIRED (the exactness argument is refuted by execution);
+the belly arm's Constant window flips conservative; the
+"shared absent arm" claim corrected to the measured truth (two
+different sub-cases; NoChartedRun's falsified doc rewritten);
+the ring-join unit issue filed with the NeitherContained
+diagnosis. ALSO: PR-2's ratified acceptance is FALSIFIED (the
+steinmetz fixture is singular AND the transformed-wall trim
+remainder blocks even the spun pose) — the PR-2 spec re-cuts
+before dispatch. No tally candidates (the MAJ bilateral); the
+pair's cleanliness assessed at the union's close. Union out;
+reviewer lanes swept.
