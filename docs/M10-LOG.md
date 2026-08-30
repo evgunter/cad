@@ -346,3 +346,33 @@ redo) and #1255 (three verdict shapes) are the fix pass's durable
 homes; deviations went 7→9, honestly. M10-4's spec unblocks (the
 E4 pairing hook obligation and M10-2's sink are its inputs; the
 interval door it needed is now on main).
+
+## M10-2 MERGED (2026-08-30)
+
+PR #1213 merged at 7c4b54b3, sample #50 (ordinal 503). Measures and
+assertions are document data: `Node::Measure` with `MeasureRef
+{ at, name }` — the fix pass's deepest cut, changing the reference
+SHAPE so a measure reads the placed geometry at its `at` node the
+way the interrogation doors always have — the nine-arm primitive
+table with C5's sign convention in one function, `Node::Assertion`
+report-only by construction, schema v17 (the v16 race lost to
+LIB-G16 and repaid exactly per the rule this unit had stated in
+advance). The dual review's three adjudicated MAJORs all landed at
+the root: the shared non-finite door (R2's unilateral
+`Holds { measured: inf }` — the unit's severity headline), the
+transform/minted-carrier silent wrong number (bilateral), and the
+sense-folded plane gap — where the fix pass returned the program's
+first reviewer-asked-row PUSHBACK on correctness grounds: an
+opposed mating pair's gap is correctly symmetric under role swap
+(one clearance, not two signed ones); only aligned pairs negate.
+Both regimes pinned. Both reviewer lanes were killed mid-review by
+the same account-limit wave and resumed — symmetric, recorded in
+the row. The conflict round (M10-3 and LIB's corpus-die landed
+under the finished fix) re-blessed the fences over the union
+roster with the strongest removal measurement yet — the roster
+minus this unit's document IS main's, so main's own committed
+constants came back as green assertions. The withdrawn k-lint
+escalation thread from implementation routes to #1223 (the teapot
+tess-budget baseline, filed same-day). M10-4 is now dispatchable:
+its spec's inputs — this unit's sink, M10-3's door, the DL3
+pairing hook — are all on main.
