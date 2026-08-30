@@ -165,9 +165,19 @@ fn r1_the_planar_and_curved_ring_joins_refuse_at_different_gates() {
         tol,
     )
     .expect_err("the planar cap pierce has no join arm");
+    // RE-DERIVED after this probe was written (authorship otherwise
+    // untouched): the review's own MAJ-1 landed the sector-side
+    // curvature charge, and at `x = ±3` against `r = 1` the pierce
+    // vertex's shorter edge fragment is 1.9 m — a sagitta bound of
+    // 3.6 m, which no first-order displacement at that arm can exceed.
+    // The long bar now stops one layer EARLIER, at
+    // `CurvedSectorSideUnsupported`, so the probe's own claim (the two
+    // ring joins refuse at DIFFERENT gates) is measured on a bar short
+    // enough to reach the join. The finding is unchanged; the fixture
+    // is the part that moved.
     let wall = topo::union(
         &cyl(0.0, 0.0, 1.0, -2.0, 2.0),
-        &boxx(-3.0, 3.0, -0.3, 0.3, -0.3, 0.3),
+        &boxx(-1.1, 1.1, -0.3, 0.3, -0.3, 0.3),
         tol,
     )
     .expect_err("the curved wall pierce has no join arm");

@@ -562,8 +562,8 @@ pub enum BooleanError {
         kind: geom_brep::SurfaceKind,
     },
     /// A pierce sector's FIRST-ORDER material verdict could not be
-    /// certified against the pierced face's curvature: the sagitta at
-    /// the sector's own lever arm is not definitely smaller than the
+    /// certified against the pierced face's curvature: the sagitta
+    /// bound at the sector's own lever arm is not definitely below the
     /// first-order displacement, so the tangent-plane verdict may have
     /// the material side backwards (`boolean::sectors::side_code`
     /// carries the argument and the witness). The **definite** half of

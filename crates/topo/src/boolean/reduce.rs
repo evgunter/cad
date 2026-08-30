@@ -930,12 +930,16 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
 /// both-outside clears through the span minimum), and for a CIRCLE
 /// carrier the ARC's residual range is enclosed two ways (the
 /// carrier's exact harmonic bounds and the arc's own chord-dip
-/// bound), so a definitely one-sided arc clears. Anything that
-/// definitely meets the face refuses typed at the named frontier door
-/// ([`BooleanError::CurvedPierceUnsupported`] — the pierce event's
-/// ring insertion has no lane), and an in-band clearance escalates
-/// (F6, the same margin's other half). Ellipse/NURBS carriers keep
-/// the unconditional M5 door. Never a silent fallback.
+/// bound), so a definitely one-sided arc clears. What definitely MEETS
+/// the face is split by kind, and the third paragraph below is the
+/// statement of record: a LINE carrier against a CYLINDER wall is
+/// routed through the certified roots and pierces; everything else —
+/// a tangency, a CIRCLE carrier, a sphere face, an undeclared
+/// on-carrier edge, a trim with no verdict — refuses typed at the named
+/// frontier door ([`BooleanError::CurvedPierceUnsupported`]). An
+/// in-band clearance escalates (F6, the same margin's other half).
+/// Ellipse/NURBS carriers keep the unconditional M5 door. Never a
+/// silent fallback.
 ///
 /// **The declared-cover rung** (CONTACT-DESIGN C8 at the crossing
 /// layer): a zero-clearance incidence whose edge has a parent face
@@ -966,6 +970,26 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
 /// a CIRCLE carrier against a wall (a degree-2 trigonometric residual
 /// with no root lane in this tree), a SPHERE face, and a trim the chart
 /// door declines to express.
+///
+/// **What a successful pierce reaches next is a typed door, not a
+/// body**: a ring minted in a face has no join arm on any carrier
+/// (#1291), so a wall pierce lands on
+/// `SplitJoinError::SectionArcWindow{NoChartedRun}` exactly as the
+/// planar cap pierce lands on `SectionLoopMixed`.
+///
+/// **This lane WIDENS what an undeclared pair reaches, and the widening
+/// is named here rather than left to be discovered.** Before it,
+/// [`vertex_on_curved_face`] was reachable only behind the declared
+/// cover; the new endpoint arms (`(Zero, definite)` and the
+/// `(Zero, Zero)` chord) call it on UNDECLARED pairs too. That is not
+/// the C8 gate reopening: C8 protects the claim that an on-carrier EDGE
+/// is cosurface, and the arms below reach the endpoint treatment only
+/// after the certified roots have proved there is no interior crossing
+/// — which, for the `(Zero, Zero)` arm, takes two DISTINCT roots and so
+/// structurally excludes an edge lying on the wall (only rulings do,
+/// and a ruling answers `Constant`). What the door then does is
+/// point-in-face containment on a chart, which is a trim question and
+/// not a gluing one.
 ///
 /// Returns what the caller must do about the pair — see
 /// [`CurvedEvent`]. The split itself needs `&mut x` and the worklist,
@@ -1542,11 +1566,20 @@ fn wall_crossing<T: Decide>(
         // reading as "outside".
         match super::contain::curved_face_containment(y, face, p, band) {
             Ok(None) => return Ok(SpanVerdict::Unsettled),
+            // Definitely outside THIS face's trim: the carrier is
+            // crossed, but not here. The other root may still land in
+            // the face, so the loop continues rather than concluding.
             Ok(Some(FaceContainment::Out)) => {}
             Ok(Some(at)) => return Ok(SpanVerdict::Pierce { t, p, at }),
             Err(super::contain::ContainError::Escalated(diag)) => {
                 return Err(BooleanError::Escalated { diag });
             }
+            // Unwalkable topology under a query the crossing layer just
+            // routed: the operand is corrupt, and saying "the roots did
+            // not settle it" would report a geometry frontier for a
+            // structural break. It keeps the caller's door because that
+            // is the conservative direction, and the distinction is
+            // recorded here rather than left to the payload.
             Err(_) => return Ok(SpanVerdict::Unsettled),
         }
     }

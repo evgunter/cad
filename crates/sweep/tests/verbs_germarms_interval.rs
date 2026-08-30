@@ -2,8 +2,10 @@
 //! `interval`) — the two-arm pattern for the lane's new decide sites.
 //!
 //! Three predicates are new or newly reached here and all three are
-//! length-margined, so the lane's honesty depends on the enclosures
-//! being tight rather than lucky: `bool_pierce_normal_on_chart` (the
+//! metered as LENGTHS (the root-span gaps and the chart certificate;
+//! the discriminant is the flagged dimensionless one it has always
+//! been, and is not re-metered here), so the lane's honesty depends on
+//! the enclosures being tight rather than lucky: `bool_pierce_normal_on_chart` (the
 //! point-on-chart certificate behind the per-point outward normal),
 //! `bool_wall_root_in_span` (a root's two gaps to the span's ends), and
 //! `bool_ray_cylinder_disc` reached from an EDGE rather than a ray for

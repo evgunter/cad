@@ -66,7 +66,16 @@ fn union_err(a: &Body<f64>, b: &Body<f64>) -> BooleanError {
 /// **The row the ring lane exists for.** A bar driven straight through
 /// the pipe crosses the wall in eight places — four box edges, twice
 /// each — and every one of them is strictly inside a wall face, on no
-/// boundary of either operand. Before this unit the first of them
+/// boundary of either operand.
+///
+/// **The bar is short on purpose**, and the reason is the sector-side
+/// curvature charge rather than the crossing lane: a pierce vertex's
+/// sector arms are the split edge's two fragments, and a fragment
+/// LONGER than the wall's radius makes the sagitta bound exceed any
+/// first-order displacement, so no tangent-plane verdict there is
+/// certifiable (`a_long_armed_bar_cannot_certify_its_sector_sides`
+/// below is that pose, pinned). At `x = ±1.1` against `r = 1` the near
+/// fragment is 0.146 m and the verdict stands. Before this unit the first of them
 /// refused at the crossing layer with `CurvedPierceUnsupported`; the
 /// door it refuses at now is the JOIN's, which is the measurement that
 /// says the crossings were found, the edges split and the rings
@@ -78,7 +87,7 @@ fn union_err(a: &Body<f64>, b: &Body<f64>) -> BooleanError {
 /// different sub-case would mean a different story.
 #[test]
 fn a_bar_driven_through_a_wall_reaches_the_join() {
-    let err = union_err(&pipe(), &boxx(-3.0, 3.0, -0.3, 0.3, -0.3, 0.3));
+    let err = union_err(&pipe(), &boxx(-1.1, 1.1, -0.3, 0.3, -0.3, 0.3));
     assert!(
         matches!(
             err,
@@ -99,7 +108,7 @@ fn a_bar_driven_through_a_wall_reaches_the_join() {
 /// differently.
 #[test]
 fn a_bar_leaving_through_one_side_of_a_wall_reaches_the_join() {
-    let err = union_err(&pipe(), &boxx(0.5, 3.0, -0.3, 0.3, -0.3, 0.3));
+    let err = union_err(&pipe(), &boxx(0.5, 1.1, -0.3, 0.3, -0.3, 0.3));
     assert!(
         matches!(
             err,
@@ -120,7 +129,7 @@ fn a_bar_leaving_through_one_side_of_a_wall_reaches_the_join() {
 fn a_bar_clear_of_the_wall_still_answers() {
     let tol = Tol::witness();
     let topo::BooleanResult::Body(out) =
-        topo::union(&pipe(), &boxx(1.5, 3.0, -0.3, 0.3, -0.3, 0.3), tol)
+        topo::union(&pipe(), &boxx(1.5, 2.5, -0.3, 0.3, -0.3, 0.3), tol)
             .expect("no crossing to route")
     else {
         panic!("two clear solids union into a two-shell body");
@@ -128,7 +137,7 @@ fn a_bar_clear_of_the_wall_still_answers() {
     assert_eq!(out.body.shells().count(), 2);
     assert_eq!(topo::validate_geometric(&out.body, tol), Ok(()), "tier 3");
     let v = topo::mass_properties(&out.body, tol).unwrap().volume;
-    let truth = PI * 4.0 + 1.5 * 0.6 * 0.6;
+    let truth = PI * 4.0 + 1.0 * 0.6 * 0.6;
     assert!((v - truth).abs() < 1e-12, "{v} vs {truth}");
 }
 
@@ -168,6 +177,28 @@ fn a_bar_grazing_the_wall_keeps_the_pierce_door() {
     );
 }
 
+/// **The curvature charge's planted red, on a real body.** The same
+/// bar made LONG: at `x = ±3` against a wall of radius 1, the pierce
+/// vertex's shorter edge fragment is 1.9 m, so the sagitta bound
+/// `arm²/lever = 3.6 m` exceeds any first-order displacement the
+/// sector can offer (which is at most `arm` itself). No tangent-plane
+/// verdict about the material side is certifiable there, and the lane
+/// refuses instead of answering one — the wrong answer it would
+/// otherwise give is a wrong TOPOLOGY, not a conservative refusal
+/// (`boolean::sectors::side_code` carries the witness).
+///
+/// This is the row that makes the short bar above a measurement rather
+/// than a lucky pose: the two differ only in the bar's length, and they
+/// land on different doors for a stated reason.
+#[test]
+fn a_long_armed_bar_cannot_certify_its_sector_sides() {
+    let err = union_err(&pipe(), &boxx(-3.0, 3.0, -0.3, 0.3, -0.3, 0.3));
+    assert!(
+        matches!(err, BooleanError::CurvedSectorSideUnsupported { .. }),
+        "a sector arm past the wall's radius is not first-order decidable: {err:?}"
+    );
+}
+
 /// **The kind fence, differential — and what it does and does not
 /// witness.**
 ///
@@ -198,7 +229,9 @@ fn a_cone_wall_is_stopped_at_the_outermost_gate() {
                 .map(|(r, y)| ProfileVertex::new(p2(r, y), 0.0))
                 .collect(),
         );
-        let profile = Profile::new(SketchPlane::xy(), vec![lp]).validate(tol).unwrap();
+        let profile = Profile::new(SketchPlane::xy(), vec![lp])
+            .validate(tol)
+            .unwrap();
         revolve(
             &profile,
             RevolveAxis {

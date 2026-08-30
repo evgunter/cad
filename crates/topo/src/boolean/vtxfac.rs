@@ -247,6 +247,16 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
                 kind,
             });
         }
+        // **UNTESTED, and that is a statement rather than an
+        // omission.** No authorable body reaches this arm today: it
+        // needs a sector face geometrically TANGENT to a CURVED pierced
+        // face at the pierce point, and every curved pierce still dies
+        // at the join before a second operand pose can be built around
+        // one. The arm is written because the alternative is a plane
+        // built from a face that has none — see the argument below —
+        // and it is named here so a later unit that opens the ring's
+        // join knows this is the first row it owes a fixture.
+        //
         // **Delta 2 stays SHUT on a curved pierced face.** The rung
         // below descends to `carrier_eq` against a plane built from the
         // pierced face, and there is no plane to build: a sector face

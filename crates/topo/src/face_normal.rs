@@ -1,5 +1,10 @@
-//! The **one door** for a planar face's outward normal: the single
-//! place the `sense` bit is folded into a stored chart normal.
+//! The **one door** for a face's outward normal — planar or curved:
+//! the single place the `sense` bit is folded into a chart normal.
+//!
+//! Two doors, one flip: [`face_outward_normal`] answers for a PLANE,
+//! where the normal does not depend on where you stand, and
+//! [`face_outward_normal_at`] answers at a POINT, which is what a
+//! curved carrier requires and what the plane arm returns unchanged.
 //!
 //! # Why one door, and why here
 //!
@@ -113,8 +118,16 @@ pub(crate) enum NormalAtError {
 /// the singular locus, so `‖∇F‖ − 1` levered by
 /// [`geom_brep::curvature_lever_arm`] — the local radius of curvature,
 /// the chart's own length scale — is both the on-surface certificate
-/// and the singularity guard, in one margin. Poison is not a refusal,
-/// and it is never read.
+/// and the singularity guard, in one margin.
+///
+/// **The degenerate gradient is a ZERO vector, not a poison one**, and
+/// the distinction matters because only one of the two is caught by a
+/// comparison: on the axis of a cylinder (or at a sphere's centre) the
+/// radial component is the zero vector and `w / radius` is `0`, whose
+/// norm is a perfectly ordinary `0` — so the margin `0 − 1` classifies
+/// definitely negative and the guard fires on a value it can read.
+/// A cone apex, where the form really is `0/0`, never reaches this
+/// margin at all: the kind has no arm here.
 ///
 /// # Errors
 ///

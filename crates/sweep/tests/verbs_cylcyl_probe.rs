@@ -150,10 +150,20 @@ fn cylinder_unions_refuse_at_the_curved_pierce_door() {
             matches!(err, BooleanError::CurvedPierceUnsupported { .. }),
             "{name}: expected the curved pierce door, got {err:?}"
         );
-        // Every row names an edge of operand A (the refusals are
-        // measured to be A-side), so A is the body the carrier is read
-        // from; `coaxial-*` and `parallel-*` share one A, `steinmetz`
-        // has the tall one.
+        // The carrier is read from the body the refusal NAMES, not from
+        // an assumption that it is always A: all four rows measure
+        // A-side today, and asserting that here means a row that moves
+        // to B reds this table instead of silently reading the wrong
+        // body's arena. (`coaxial-*` and `parallel-*` share one A;
+        // `steinmetz` has the tall one.)
+        let BooleanError::CurvedPierceUnsupported { operand, .. } = err else {
+            panic!("{name}: not a pierce refusal: {err:?}");
+        };
+        assert_eq!(
+            operand,
+            topo::Operand::A,
+            "{name}: this table reads the carrier out of A's arena"
+        );
         let owner = if name == "steinmetz" { &a_tall } else { &a };
         assert_eq!(refused_carrier(owner, &err), want, "{name}");
     }

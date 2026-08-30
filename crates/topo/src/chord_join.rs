@@ -112,7 +112,7 @@ pub enum ArcWindowCase {
     /// nothing else leaves the face windowless every time, by
     /// construction. That is what a line-edge pierce into a cylinder
     /// wall produces today, and it stands until the ring-join unit
-    /// gives a ring's run its own chord lane. (An earlier reading —
+    /// (#1291) gives a ring's run its own chord lane. (An earlier reading —
     /// "a cylinder face's run always carries one on the shipped lane;
     /// this is the typed door for a corrupt or frontier-carrier run" —
     /// was falsified by that lane, and is replaced rather than left
@@ -122,6 +122,14 @@ pub enum ArcWindowCase {
     /// NEITHER candidate arc lies inside the window — the window is
     /// degenerate relative to the chord (an ill-conditioned operand, or
     /// a run that does not actually co-bound the face with this chord).
+    ///
+    /// An asymmetric wall pierce was measured here once (an off-centre
+    /// bar through a pipe). The x₁ rows below say which of the two
+    /// readings that was — a run that does not end where its chord
+    /// starts is the PAIRING one — and #1291 carries the fixture debt:
+    /// the pose now stops one layer earlier, at the sector-side
+    /// curvature charge, so the question is parked with its evidence
+    /// rather than answered.
     NeitherContained,
     /// BOTH candidates lie inside the window: the window spans at least
     /// one full period, so containment does not distinguish the arcs.
@@ -224,8 +232,8 @@ pub enum SplitJoinError {
     /// place. That is the ring's own absent join arm surfacing at this
     /// guard, not the guard misfiring, and it is tracked with the
     /// curved sibling ([`ArcWindowCase::NoChartedRun`]) in the
-    /// ring-join unit. Until that unit lands, this variant is the
-    /// honest report for it.
+    /// ring-join unit (#1291). Until that unit lands, this variant is
+    /// the honest report for it.
     SectionLoopMixed {
         /// The offending null face.
         face: FaceKey,
@@ -936,6 +944,12 @@ fn select_arc<T: Decide>(
         (true, false) => true,
         (false, true) => false,
         (false, false) => {
+            if std::env::var("GA_TRACE").is_ok() {
+                eprintln!(
+                    "NEITHER face={face:?} width={width:?} x1={x1:?} g={g:?} tau={tau:?} \
+                     up_in={up_in:?} dn_in={dn_in:?} ccw_is_up={ccw_is_up:?}"
+                );
+            }
             return Err(SplitJoinError::SectionArcWindow {
                 face,
                 case: ArcWindowCase::NeitherContained,
