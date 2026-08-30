@@ -151,7 +151,11 @@ gathered across M2's full pipeline.
   `scripts/k_probe_sweep.sh` into `target/k-fresh` on every run that
   gates the `dev-probe` unification — drawn 1 in 5 since the
   configuration sampling (`KLINT_ROWS`, `scripts/ci-filter.py`), and
-  askable by name with a `CI-Config: klint=dev-probe` trailer — and
+  askable by name with a `CI-Config: klint=dev-probe` trailer. **Not
+  1 in 5 on every merge**: a change under `tools/` PINS `dev-default`
+  (`KLINT_PATH_ROWS`), so such a merge does not gate this row at all —
+  and that includes a change to `tools/k-lint` itself, whose binary
+  this step runs. Ask for the row by name when that is what moved. And
   `tools/k-lint` lints **that fresh sweep** against constants
   pinned in `tools/k-lint/src/lib.rs` (`BASELINE_FLOOR_MARGIN = 4.0e-5`
   and the rule set). Nothing under `docs/k-report-data/` is opened at
@@ -166,7 +170,8 @@ gathered across M2's full pipeline.
   original wording false). `k_report.rs` is both **type-checked and
   run** on every run that gates the `dev-probe` unification — **1 in
   5**, not on every building merge, which is what this sentence said
-  until the correction. The row is a persistence-detector: a harness
+  until the correction, and **none at all on a merge that touches
+  `tools/`**, where the path pin substitutes `dev-default`. The row is a persistence-detector: a harness
   that stops compiling or starts panicking stays broken until a later
   draw finds it, so what the sampling gave up here is latency, not
   coverage. The `k-lint` job's *"compile and list every probe-gated test target"*
@@ -229,7 +234,8 @@ gathered across M2's full pipeline.
   `run_doc` asserts the same predicate over every corpus document at all
   three ε **in the same sweep invocation** — both halves are
   `k_probe_sweep.sh`, so both ride the `dev-probe` unification and run
-  on the 1 run in 5 that gates it, never on every merge — so the ε
+  on the 1 run in 5 that gates it (none, on a merge the `tools/` path
+  pin sends to `dev-default`), never on every merge — so the ε
   sweep of that property is already paid on exactly the runs this one
   is. What running the default selection adds is that these bodies
   execute at all, and the `#[ignore]`d complement the floor reconciles.

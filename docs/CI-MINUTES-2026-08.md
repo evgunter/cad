@@ -338,16 +338,24 @@ landed here: this finding measured the `fmt` job, and a claim about a
 > are owed a correction. Said out loud here and at the job, which is what
 > ci.yml's own step comment asks for.
 >
-> **The correction is written (2026-08-30).** `crates/sweep/tests/k_report.rs`
-> says *"1 in 5"* and names the `dev-probe` row it rides;
-> `docs/K-REPORT.md` names the row and its schedule at each of the four
-> sentences that carried a frequency claim, and marks the one that is
-> genuinely unconditional (`probe-suite-census.sh`'s default mode, sited
-> in `discipline`) as such rather than demoting it with the rest. MIN-1's
-> falsifier is untouched and still 1-in-5 by design; its own step comment
-> in `ci.yml` is where that is said. **The debt line stays here** — a
-> minutes entry is a record of what a decision cost, and deleting the cost
-> once it is paid leaves the decision looking free.
+> **The correction is written (2026-08-30), at all three sites.**
+> `crates/sweep/tests/k_report.rs` says *"1 in 5"* and names the
+> `dev-probe` row it rides. `docs/K-REPORT.md` names the row and its
+> schedule at each of the four sentences that carried a frequency claim,
+> and marks the one that is genuinely unconditional
+> (`probe-suite-census.sh`'s default mode, sited in `discipline`) as such
+> rather than demoting it with the rest. And MIN-1's falsifier: its own
+> step comment in `ci.yml` asserted *"THE INTENT SURVIVES ONLY WHILE THIS
+> ROW STAYS UNCONDITIONAL … the falsifier still runs on every
+> build-triggering change"* — three lines above its own
+> `if: contains(fromJSON('["dev-budget", "all"]'))`. It now states the
+> 1-in-5 schedule and says that no path pin restores it, since
+> `crates/mesh` is not a pinned root. **The first pass of this very
+> correction missed that site**, having taken the debt's two K-REPORT line
+> numbers as the work; that is the discharge-by-line-number class the
+> correction is about, recurring inside it. **The debt line stays here** —
+> a minutes entry is a record of what a decision cost, and deleting the
+> cost once it is paid leaves the decision looking free.
 >
 > **And the schedule improved under it rather than only being described.**
 > A change under `tools/` now PINS the k-lint row that compiles it instead

@@ -2706,7 +2706,9 @@ jobs:
     # configuration-sampling ruling that draws the lane and the ε; the roster
     # and the soundness argument are at `KLINT_ROWS` in scripts/ci-filter.py).
     # DRAWN, EXCEPT WHERE IT IS PINNED: a change under `tools/` substitutes the
-    # row that compiles what changed rather than sampling one (Evan's ruling,
+    # row that RUNS THAT CRATE'S OWN SUITE rather than sampling one (four of
+    # these five rows COMPILE tools/tess-meter, through demos/tour's plain
+    # dependency on it; only `dev-default` runs its tests — Evan's ruling,
     # 2026-08-29; the mapping and its derivation are at `KLINT_PATH_ROWS`, and
     # the run says `klint:pinned` in the step above). `demos/` is deliberately
     # left to the draw, argued at the same site.
@@ -2918,12 +2920,17 @@ jobs:
       # hosted gate runs it unconditionally". The falsification is now
       # the meter's deviation pass reduced to one ratio per face and
       # asserted in the suite, so it rides the `budget` build rather
-      # than a feature of its own. THE INTENT SURVIVES ONLY WHILE THIS
-      # ROW STAYS UNCONDITIONAL: k-lint runs "whenever anything builds
-      # at all" (job header above), so the falsifier still runs on
-      # every build-triggering change. Making this row conditional, or
-      # dropping it, stops the falsifier running — that reopens a
-      # ratified review outcome and must be said out loud.
+      # than a feature of its own. THIS ROW IS NO LONGER UNCONDITIONAL,
+      # and MIN-1's intent is met in a weaker form than it was written
+      # in: the `if:` below draws it 1 run in 5, so the falsifier runs
+      # on an expected fifth of build-triggering changes rather than on
+      # all of them. The job header carries the argument for why that is
+      # admissible and is not restated here — a failed falsification
+      # PERSISTS in the tree, so a later draw finds it, and frequency is
+      # the only thing given up. What the `tools/` path pin does NOT do
+      # is restore it: this row's subject is `crates/mesh`, which no
+      # pin reaches. Dropping the row, or narrowing it past the draw,
+      # goes beyond what that argument covers and must be said out loud.
       - name: mesh budget meter + certificate falsifier (feature = budget)
         if: contains(fromJSON('["dev-budget", "all"]'), needs.filter.outputs.klint_row)
         run: |
