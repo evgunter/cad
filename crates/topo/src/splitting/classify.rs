@@ -243,12 +243,16 @@ pub(crate) fn conic_plane_crossing_roots<T: Decide>(
     };
     let half = T::from_f64(0.5);
     let mid = (t0 + t1) * half;
-    let half_tau = tau * half;
     // Per-candidate interiority under TWO reduction anchors (M5 S13).
     // The verdict is about `c mod τ` against `[t₀, t₁]`, but any single
     // periodic-reduction anchor has one degenerate point where the
     // Interval floor straddles an integer and the enclosure explodes to
-    // a full period: anchored at the span MIDPOINT the bad point is the
+    // a full period. The two anchors are the two windows: the midpoint
+    // one is `reduce_periodic_centred` about `mid`, the fallback is
+    // `reduce_periodic` about `t₀`, and their jumps are half a period
+    // apart BY CONSTRUCTION, which is what makes the retry a different
+    // representation rather than a second try at the same one.
+    // Anchored at the span MIDPOINT the bad point is the
     // midpoint's antipode (a definitely-EXTERIOR root — the re-run of a
     // split fragment meets the full circle's opposite intersection
     // exactly there), anchored at t₀ it is t₀ itself (a
@@ -274,7 +278,7 @@ pub(crate) fn conic_plane_crossing_roots<T: Decide>(
         Ok((true, t))
     };
     for c in candidates.into_iter().flatten() {
-        let centred = mid + (c - mid + half_tau).reduce_periodic(tau) - half_tau;
+        let centred = mid + (c - mid).reduce_periodic_centred(tau);
         let (interior, t) = match verdict_at(centred) {
             Ok(v) => v,
             Err(first) => {
@@ -531,5 +535,72 @@ mod tests {
             dir: Vec3::unit_x(),
         };
         assert!(conic_crossing_roots(&line, 0.0, 1.0, &plane_y(0.5), band()).is_err());
+    }
+
+    /// **The midpoint anchor's straddle row, at `Interval`** (issue
+    /// 1191). Nothing in the shipped suites drives either anchor into a
+    /// straddle, so this row does it on the site's own numbers.
+    ///
+    /// A candidate root sitting ON the span's start is the ordinary
+    /// case — a re-run split fragment meets the full circle at its own
+    /// start vertex — and at `Interval` its enclosure straddles `t₀`.
+    /// The MIDPOINT anchor's jump is half a period away from there, so
+    /// the recentred parameter comes back at the width of its input and
+    /// the interiority verdict is reached; the `t₀` anchor's jump is
+    /// exactly on it, which is why it is the FALLBACK and not the first
+    /// try. The row measures both reductions on the same box so the
+    /// design's premise — two jumps, half a period apart — is pinned
+    /// rather than described.
+    ///
+    /// Consults no tolerance: the two widths are widths, and the band
+    /// is only what the site's own margins need in order to run.
+    #[cfg(feature = "interval")]
+    #[test]
+    fn a_root_on_the_span_start_reduces_at_input_width_under_the_midpoint_anchor() {
+        use geom_core::{Bounds, Interval, Real};
+
+        let ex = Interval::from_f64;
+        let c = Curve3::Circle {
+            center: Point3::new(ex(0.0), ex(0.0), ex(0.0)),
+            axis: Vec3::new(ex(0.0), ex(0.0), ex(1.0)),
+            radius: ex(1.0),
+            u_ref: Vec3::new(ex(1.0), ex(0.0), ex(0.0)),
+        };
+        let plane = SplitPlane {
+            origin: Point3::new(ex(0.0), ex(0.0), ex(0.0)),
+            normal: Vec3::new(ex(0.0), ex(1.0), ex(0.0)),
+        };
+        // The span is the upper semicircle; the plane's two crossings
+        // are its own endpoints.
+        let (t0, t1) = (ex(0.0), ex(core::f64::consts::PI));
+        let roots = conic_crossing_roots(&c, t0, t1, &plane, band())
+            .expect("the lane runs")
+            .expect("the plane cuts the circle")
+            .expect("the endpoint roots classify — no anchor straddles them");
+        assert!(
+            roots.is_empty(),
+            "both roots are the span's own endpoints and belong to the vertex sweep"
+        );
+
+        // The premise, measured: a hairline box about `t₀` is a
+        // hairline under the midpoint anchor and a whole period under
+        // the `t₀` anchor.
+        let tau = Interval::tau();
+        let mid = (t0 + t1) * ex(0.5);
+        let cand = Interval::from_bounds(-1e-15, 1e-15);
+        let centred = mid + (cand - mid).reduce_periodic_centred(tau);
+        let anchored = t0 + (cand - t0).reduce_periodic(tau);
+        assert!(
+            centred.hi() - centred.lo() <= 1e-9,
+            "the midpoint anchor widened: [{}, {}]",
+            centred.lo(),
+            centred.hi()
+        );
+        assert!(
+            anchored.hi() - anchored.lo() >= core::f64::consts::TAU,
+            "the t0 anchor is supposed to be the wide one here; it gave [{}, {}]",
+            anchored.lo(),
+            anchored.hi()
+        );
     }
 }
