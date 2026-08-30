@@ -267,18 +267,98 @@ fn invalid_escalation(band: Band, predicate: &'static str) -> BooleanError {
     }
 }
 
+/// The lever a [`side_code`] call passes when its reference is a FLAT
+/// datum — a sector's own face plane in the vertex-vertex lane, or the
+/// reclassification's reference normal. Those verdicts are about a
+/// plane, so there is no sagitta to charge and saying so at the call
+/// site is the point of the name: an infinite radius of curvature makes
+/// the charge vacuous, exactly as [`geom_brep::curvature_lever_arm`]
+/// reports for a [`geom::Surface::Plane`].
+#[allow(non_snake_case)]
+pub(super) fn NO_CURVATURE<T: Decide>() -> T {
+    T::from_f64(f64::MAX)
+}
+
 /// A bound direction's side code against a face — the F3 primitive
-/// applied (module docs; the 15.7 sign resolution).
+/// applied (module docs; the 15.7 sign resolution), **charged for the
+/// pierced face's curvature at the pierce point**.
+///
+/// # Why a definite first-order verdict is not enough on a curved face
+///
+/// [`enters_material`]'s margin is `d̂·n̂` levered to the sector's own
+/// arm: the DISPLACEMENT off the pierced face's tangent plane at the
+/// distance the verdict is about. On a plane that displacement is the
+/// truth. On a curved face it is a first-order model of the truth, and
+/// the model's error at the same distance is bounded by the sagitta
+/// `arm²/lever` — which can EXCEED the first-order term and flip
+/// the material side. The witness is a hole wall (`r = 1`, material
+/// outside, so the outward normal points at the axis): at `arm = 0.5`
+/// a direction with `d̂·n̂ ≈ +0.0995` is a definite `Exits`, while the
+/// point at that arm sits at `ρ = 1.0726` — outside the wall, i.e.
+/// INSIDE the material. First order says out, the body says in, and
+/// nothing in the first-order chain can see it. That is a wrong
+/// TOPOLOGY answer, not a refusal, which is why the charge is a
+/// requirement and not a conservatism.
+///
+/// **The charge is direction-agnostic on purpose.** Which way the
+/// surface bends relative to the material depends on the face's sense
+/// and on the kind, and getting that sign wrong would license exactly
+/// the verdict it is meant to guard. Requiring the first-order
+/// displacement to definitely EXCEED the sagitta in magnitude is sound
+/// for either bend: a second-order term bounded by the sagitta cannot
+/// reverse a first-order term that is definitely larger.
+///
+/// **`lever` is [`geom_brep::curvature_lever_arm`] at the pierce
+/// point**, so a PLANE passes `f64::MAX`, the sagitta underflows to
+/// zero, and the charge reduces to the very margin `enters_material`
+/// has just decided definite — the planar lane's verdicts are unmoved
+/// by construction rather than by a lane fork.
+///
+/// A `Tangent` first-order verdict takes NO charge: `On` is not a side,
+/// it is the coplanar case Delta 2 owns, and the descent that resolves
+/// it ([`tangent_lump`]) is a different one.
+///
+/// An in-band or wrong-side charge is a **typed refusal**, never a
+/// first-order guess. The recourse is the second-order sector trilean
+/// ([`geom_brep::enters_material_order2`], already consumed by
+/// [`tangent_lump`]), deliberately not wired into this verdict here.
 pub(super) fn side_code<T: Decide>(
     dir: Vec3<T>,
     face_normal: OutwardNormal<T>,
     arm: T,
+    lever: T,
     band: Band,
 ) -> Result<SideCode, BooleanError> {
-    match enters_material(dir, face_normal, arm, band) {
-        Ok(EntersMaterial::Enters) => Ok(SideCode::In),
-        Ok(EntersMaterial::Exits) => Ok(SideCode::Out),
-        Ok(EntersMaterial::Tangent) => Ok(SideCode::On),
+    let verdict = match enters_material(dir, face_normal, arm, band) {
+        Ok(EntersMaterial::Enters) => SideCode::In,
+        Ok(EntersMaterial::Exits) => SideCode::Out,
+        // `On` is not a side; the charge has nothing to protect.
+        Ok(EntersMaterial::Tangent) => return Ok(SideCode::On),
+        Err(diag) => return Err(BooleanError::Escalated { diag }),
+    };
+    // **The sagitta bound, and why the textbook ½ is not in it.** At
+    // lateral offset `l` a circle of radius `R` departs its tangent
+    // line by exactly `R − sqrt(R² − l²) = l²/(R + sqrt(R² − l²))`. The
+    // familiar `l²/2R` is that expression's small-`l` LIMIT and is a
+    // LOWER bound on it, so charging `l²/2R` would under-charge exactly
+    // where the arm is a large fraction of the radius — the poses this
+    // guard exists for. Dropping the ½ gives `l²/R`, which is an upper
+    // bound unconditionally (the denominator is at least `R`). The
+    // lateral offset is at most the whole arm, so `arm²/lever` bounds
+    // the departure for every bound direction at that arm.
+    //
+    // The GERMARMS spec writes `arm²/(2·lever)`; this is that term with
+    // the constant corrected in the REFUSING direction, which is the
+    // only direction a soundness charge may be wrong in.
+    let sagitta = arm.powi(2) / lever;
+    let first_order = (dir.normalize().dot(face_normal.vec()) * arm).abs();
+    match decide(
+        "bool_pierce_sector_side_curved",
+        Margin::of(first_order - sagitta),
+        band,
+    ) {
+        Ok(Sign::Positive) => Ok(verdict),
+        Ok(Sign::Zero | Sign::Negative) => Err(BooleanError::CurvedSectorSideUnsupported { band }),
         Err(diag) => Err(BooleanError::Escalated { diag }),
     }
 }
@@ -534,12 +614,12 @@ pub(super) fn pair_search<T: Decide>(
                 continue;
             }
             let sa_codes = (
-                side_code(sa.start, sb.normal, arm, band)?,
-                side_code(sa.end, sb.normal, arm, band)?,
+                side_code(sa.start, sb.normal, arm, NO_CURVATURE(), band)?,
+                side_code(sa.end, sb.normal, arm, NO_CURVATURE(), band)?,
             );
             let sb_codes = (
-                side_code(sb.start, sa.normal, arm, band)?,
-                side_code(sb.end, sa.normal, arm, band)?,
+                side_code(sb.start, sa.normal, arm, NO_CURVATURE(), band)?,
+                side_code(sb.end, sa.normal, arm, NO_CURVATURE(), band)?,
             );
             records.push(PairRecord {
                 a: i,
@@ -573,15 +653,15 @@ mod tests {
         let n = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
         let b = band();
         assert_eq!(
-            side_code(Vec3::new(0.3, 0.0, -1.0), n, 1.0, b).unwrap(),
+            side_code(Vec3::new(0.3, 0.0, -1.0), n, 1.0, super::NO_CURVATURE(), b).unwrap(),
             SideCode::In
         );
         assert_eq!(
-            side_code(Vec3::new(0.3, 0.0, 1.0), n, 1.0, b).unwrap(),
+            side_code(Vec3::new(0.3, 0.0, 1.0), n, 1.0, super::NO_CURVATURE(), b).unwrap(),
             SideCode::Out
         );
         assert_eq!(
-            side_code(Vec3::new(1.0, 2.0, 0.0), n, 1.0, b).unwrap(),
+            side_code(Vec3::new(1.0, 2.0, 0.0), n, 1.0, super::NO_CURVATURE(), b).unwrap(),
             SideCode::On
         );
     }
@@ -624,6 +704,64 @@ mod tests {
         assert!(sector_overlap(&s1, &s1.clone(), b).unwrap());
         let touch = sector([0.0, 1.0, 0.0], [-1.0, 0.0, 0.0], [0.0, 0.0, 1.0]);
         assert!(!sector_overlap(&s1, &touch, b).unwrap());
+    }
+
+    /// **The curvature charge's planted red — the R1 review's witness,
+    /// executed against the door it now guards.**
+    ///
+    /// A HOLE wall of radius 1: the material is everything OUTSIDE the
+    /// cylinder, so the face's outward normal points at the axis. At
+    /// `arm = 0.5`, the direction `(-0.1, 1, 0)/|·|` has
+    /// `d̂·n̂ = +0.0995`, which [`geom_brep::enters_material`] classifies
+    /// as a definite `Exits` — and the point at that very lever arm
+    /// sits at `ρ = 1.0726`, OUTSIDE the wall and therefore INSIDE the
+    /// material. First order says out, the body says in.
+    ///
+    /// The sagitta bound `0.5²/1 = 0.25` exceeds the first-order
+    /// displacement `0.0995 × 0.5 = 0.0498`, so the charge is
+    /// definitely negative and the verdict is REFUSED rather than
+    /// answered backwards. Before the charge, this configuration
+    /// returned `SideCode::Out` — a wrong topology, silently.
+    ///
+    /// The second row is the same geometry with the arm short enough
+    /// that the first-order term dominates (`arm = 0.05`: sagitta
+    /// bound 0.0025 against displacement 0.004975), where the verdict
+    /// legitimately stands. Both directions, so the charge cannot pass
+    /// by refusing everything.
+    #[test]
+    fn a_curved_side_verdict_is_refused_when_the_sagitta_dominates() {
+        use geom_brep::{EntersMaterial, enters_material};
+        let b = band();
+        let r = 1.0_f64;
+        // The hole's outward normal points at the axis.
+        let n = OutwardNormal::from_chart(Vec3::new(-1.0, 0.0, 0.0), true);
+        let d = Vec3::new(-0.1, 1.0, 0.0);
+        // The first-order verdict, unchanged and still definite.
+        assert_eq!(
+            enters_material(d, n, 0.5, b).unwrap(),
+            EntersMaterial::Exits,
+            "the witness needs a DEFINITE first-order Out"
+        );
+        // And it is contradicted at its own lever arm.
+        let q = geom_core::Point3::new(r, 0.0, 0.0) + d.normalize() * 0.5;
+        assert!(q.x.hypot(q.y) > r, "the arm point must be off the wall");
+        // The charge refuses rather than reporting the wrong side.
+        assert!(
+            matches!(
+                side_code(d, n, 0.5, r, b),
+                Err(BooleanError::CurvedSectorSideUnsupported { .. })
+            ),
+            "the sagitta dominates: the verdict must not stand"
+        );
+        // The other direction: a short enough arm and the first-order
+        // term dominates, so the verdict stands.
+        assert_eq!(side_code(d, n, 0.05, r, b).unwrap(), SideCode::Out);
+        // And a PLANE is unmoved — an infinite lever makes the charge
+        // vacuous, which is what keeps the planar lane bit-identical.
+        assert_eq!(
+            side_code(d, n, 0.5, NO_CURVATURE::<f64>(), b).unwrap(),
+            SideCode::Out
+        );
     }
 
     /// The generic pair search on two orthogonal quarter-sector fans:

@@ -2435,3 +2435,42 @@ COMPILE (#1272 filed — a viewer golden renamed under an
 include_str, deliberately not fixed cross-program). Full dual,
 frozen head e29b24f1, parity 0 → R1 opus + R2 fable; claim to
 main at dispatch.
+
+## ORDINAL 107 CLAIMED — AZIMUTH dual (2026-08-30)
+
+The #1077 consolidation green (#1256): ONE function
+(Curve3::param_near, the branch nearest an anchor) — the
+one-home-two-entries hypothesis REFUTED by instrumented
+measurement (191 corpus calls, k=0 every time; the anchor
+conventions are parameters, not contracts); bit-identical at f64
+whole-corpus via the m10_p_fence digest; ONE honest interval
+re-baseline (the anchored form removes floor-across-an-integer;
+both forms ulp-scale, reasons in the fence header); the |δ|=π
+endpoint and >period alias pinned as properties. A fourth
+spelling (offset_axial's param_on) measured as NOT the same
+question and left alone — the let _ = u_ref is load-bearing.
+Main-side k-lint red escalated to M10 as #1288. Full dual,
+frozen head 75583e91, parity 1 → R1 fable + R2 opus; claim to
+main at dispatch.
+
+## ORDINAL 106 RETURNED AND ADJUDICATED (2026-08-30)
+
+R1 M-A-F 2/4/4, R2 A-W-F 1/5/5 — the ring lane's structure held
+(both arms re-derived the tangency to the ideal point; the
+guards, factoring, belly logic and chord separation all
+verified), and the arms CONVERGED on the bilateral MAJ: the
+spec's item-3 sagitta charge absent and undisclosed, with R1
+EXECUTING the witness (definite Exits contradicted at its own
+arm on a hole wall — sagitta 0.125 vs first-order 0.0498; the
+wrong-topology failure mode item 3 warned of). Ruled: the charge
+is REQUIRED (the exactness argument is refuted by execution);
+the belly arm's Constant window flips conservative; the
+"shared absent arm" claim corrected to the measured truth (two
+different sub-cases; NoChartedRun's falsified doc rewritten);
+the ring-join unit issue filed with the NeitherContained
+diagnosis. ALSO: PR-2's ratified acceptance is FALSIFIED (the
+steinmetz fixture is singular AND the transformed-wall trim
+remainder blocks even the spun pose) — the PR-2 spec re-cuts
+before dispatch. No tally candidates (the MAJ bilateral); the
+pair's cleanliness assessed at the union's close. Union out;
+reviewer lanes swept.
