@@ -343,7 +343,8 @@ fn main() {
     // channel is where findings go to be forgotten.
     if !report.notes.is_empty() {
         println!(
-            "\ntess-lint: {} note(s) — coverage the gate could not compare, not a finding:",
+            "\ntess-lint: {} note(s) — a comparison the gate did not make where it had none to \
+             lose, not a finding:",
             report.notes.len()
         );
         for note in &report.notes {
