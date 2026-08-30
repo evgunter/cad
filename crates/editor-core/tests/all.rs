@@ -301,3 +301,12 @@ fn every_suite_file_is_aggregated() {
 
 #[path = "r1_probe_v15.rs"]
 mod r1_probe_v15;
+
+#[path = "tube_probe_v16.rs"]
+mod tube_probe_v16;
+
+#[path = "lib_tube_node.rs"]
+mod lib_tube_node;
+
+#[path = "lib_tube_corpus_name_digests.rs"]
+mod lib_tube_corpus_name_digests;

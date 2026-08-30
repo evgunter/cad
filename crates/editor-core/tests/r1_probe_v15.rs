@@ -10,7 +10,7 @@ const V15: &str = include_str!("golden/v15_golden.cad");
 #[test]
 fn v15_refuses_too_old_under_v16() {
     assert_eq!(V15.lines().next(), Some("schema: 15"));
-    assert_eq!(SCHEMA_VERSION, 16);
+    assert_eq!(SCHEMA_VERSION, 17);
     match load(V15, Tol::witness()) {
         Err(PersistError::SchemaTooOld {
             found,
@@ -18,7 +18,7 @@ fn v15_refuses_too_old_under_v16() {
             missing,
         }) => {
             assert_eq!(found, 15);
-            assert_eq!(supported, 16);
+            assert_eq!(supported, 17);
             assert_eq!(
                 missing, 15,
                 "the 15 -> 16 step is the one that does not exist"

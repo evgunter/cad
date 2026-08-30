@@ -4,7 +4,7 @@
 //! fixpoint is BLIND to format drift: rename a field and save/load
 //! stay self-consistent while every existing v1 file breaks. This row
 //! pins the frozen wire shape to CHECKED-IN BYTES
-//! (`tests/golden/v16_golden.cad`): the fixture document must save to
+//! (`tests/golden/v17_golden.cad`): the fixture document must save to
 //! exactly those bytes, and the bytes must load. Any change to either
 //! is a format change and demands a ratified schema bump + migration
 //! step — re-bless ONLY then (run with `M4_PR6_BLESS_GOLDEN=1` to
@@ -31,8 +31,8 @@ use editor_core::{
 use fixture::desc;
 use geom_core::Tol;
 
-const GOLDEN: &str = include_str!("golden/v16_golden.cad");
-const GOLDEN_PATH: &str = "tests/golden/v16_golden.cad";
+const GOLDEN: &str = include_str!("golden/v17_golden.cad");
+const GOLDEN_PATH: &str = "tests/golden/v17_golden.cad";
 
 /// The golden document: deterministic (no ambient reads — ε pinned by
 /// the SetTolerance edit) and shape-covering: params, an arc-bearing
@@ -156,6 +156,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     // v4: the constructed fillet authors as the chain fillet form
     // (exact `toward` directors — G1/VQ4).
     let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("finite");
+    let len0 = || Expr::literal(0.0, Dimension::Length).expect("finite");
     let fillet_loop = LoopProgram::Chain(vec![
         ProgramStep::At(lpt(0.0, 0.0)),
         ProgramStep::LineTo(ProgramTarget::Point(lpt(3.0, 0.0))),
@@ -232,6 +233,59 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
                 Expr::literal(0.1, Dimension::Length).expect("finite"),
                 fixture::prism_edges(editor_core::RecipeNodeId(5), 4),
             ),
+        },
+    );
+    // v17's own wire shape: BOTH tube kinds, and both window
+    // spellings between them. The bump exists for two variants, so a
+    // golden pinning one of them would leave the other's wire shape
+    // frozen by nothing — and the window variant is recipe payload
+    // that decides which slots the node has, so `Full` and `Arc` are
+    // two shapes, not one with different numbers.
+    //
+    // The solid kind takes the full ring and the hollow kind the arc,
+    // rather than the reverse, because that pairing puts the wall
+    // slot beside the two window-angle slots — the widest slot list
+    // either kind can carry — in the same node.
+    //
+    // Appended (nodes 7, 8, 9), so every existing id and every name
+    // the appearance rows address is untouched. R > r holds for both
+    // (the ring-torus convention), and the hollow one's wall clears
+    // its own bore.
+    doc = push(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::Datum(editor_core::Datum::Axis {
+                origin: [len0(), len0(), len0()],
+                direction: [scl(0.0), scl(0.0), scl(1.0)],
+            }),
+        },
+    );
+    doc = push(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::Tube {
+                spine: editor_core::RecipeNodeId(7),
+                u_ref: [scl(1.0), scl(0.0), scl(0.0)],
+                major_radius: Expr::literal(2.0, Dimension::Length).expect("finite"),
+                window: editor_core::TubeWindow::Full,
+                minor_radius: Expr::literal(0.5, Dimension::Length).expect("finite"),
+            },
+        },
+    );
+    doc = push(
+        &doc,
+        &DocEdit::InsertNode {
+            node: Node::HollowTube {
+                spine: editor_core::RecipeNodeId(7),
+                u_ref: [scl(1.0), scl(0.0), scl(0.0)],
+                major_radius: Expr::literal(2.0, Dimension::Length).expect("finite"),
+                window: editor_core::TubeWindow::Arc {
+                    t0: Expr::literal(0.0, Dimension::Angle).expect("finite"),
+                    t1: Expr::literal(1.5, Dimension::Angle).expect("finite"),
+                },
+                minor_radius: Expr::literal(0.5, Dimension::Length).expect("finite"),
+                wall: Expr::literal(0.125, Dimension::Length).expect("finite"),
+            },
         },
     );
     doc = push(
