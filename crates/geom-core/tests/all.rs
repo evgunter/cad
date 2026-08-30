@@ -145,6 +145,9 @@ fn every_suite_file_is_aggregated() {
     );
 }
 
+#[path = "period_fold_centred.rs"]
+mod period_fold_centred;
+
 #[path = "r1_p2_onb_probes.rs"]
 mod r1_p2_onb_probes;
 #[path = "r2_cert3_probes.rs"]
