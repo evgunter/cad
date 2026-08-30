@@ -90,9 +90,14 @@ fn r1_the_steinmetz_seam_residual_is_a_nonnegative_parabola() {
     let spun = Point3::new(-c, -c, 0.0);
     let r_u = implicit_residual(&b_wall, Point3::new(spun.x, spun.y, -2.0));
     let charge = (q * 0.5 - 0.0).max(0.0) * 0.25;
-    assert_eq!(r_u, 1.75);
-    assert_eq!(r_u - charge, -0.25);
-    assert_eq!(implicit_residual(&b_wall, spun), -0.25);
+    assert!((r_u - 1.75).abs() < 1e-15, "{r_u}");
+    // The bound is exact here too: it equals the TRUE minimum, to float
+    // noise. (The PR quotes −0.25000000000000044 off the real body; the
+    // ideal point gives −0.24999999999999994. Both are that same −0.25,
+    // and the PR's exactness claim survives either reading.)
+    let truth = implicit_residual(&b_wall, spun);
+    assert!((truth + 0.25).abs() < 1e-15, "{truth}");
+    assert!(((r_u - charge) - truth).abs() < 1e-15, "{}", r_u - charge);
 }
 
 /// **PROBE 2 — the missing second-order charge (GERMARMS spec item 3).**
@@ -188,8 +193,14 @@ fn r1_the_planar_and_curved_ring_joins_refuse_at_different_gates() {
 /// **PROBE 4 — what door the cone fixture actually reaches.**
 ///
 /// The acceptance row asserts only that the cone is NOT the ring lane's
-/// join door — a negative. The spec asked for the cone's OWN door. This
-/// row prints and pins it, so the differential says something.
+/// join door — a negative. MEASURED, the door is
+/// `CurvedPairUnsupported { kind: Cone, other_kind: Plane }`: the
+/// kind-PAIR gate on the frustum's cone face against the bar's own
+/// PLANE face. The pair never reaches the crossing layer's `f2` fold or
+/// `face_geo` at all, so the row cannot witness what the PR body claims
+/// of it — "the differential row proves the ring lane did not give a
+/// cone roots". A cone×plane union has had no arm since long before
+/// this lane; the row would read the same with the PR reverted.
 #[test]
 fn r1_the_cone_fixture_names_its_own_door() {
     let tol = Tol::witness();
@@ -217,9 +228,16 @@ fn r1_the_cone_fixture_names_its_own_door() {
     };
     let err = topo::union(&frustum, &boxx(-1.0, 1.0, -0.05, 0.05, 0.25, 0.35), tol)
         .expect_err("no arm for a cone pierce");
-    // Measured, not assumed — the row prints what it found.
+    // Measured, not assumed.
     assert!(
-        matches!(err, BooleanError::CurvedPierceUnsupported { .. }),
+        matches!(
+            err,
+            BooleanError::CurvedPairUnsupported {
+                kind: geom_brep::SurfaceKind::Cone,
+                other_kind: geom_brep::SurfaceKind::Plane,
+                ..
+            }
+        ),
         "the cone's own door: {err:?}"
     );
 }
