@@ -30,6 +30,14 @@
 # docs/GENERICS-BUILD-COST.md and docs/perf-data/opt-level/.
 #
 # THE TIMINGS ABOVE ARE opt-0 -> opt-2 READINGS and are left as taken.
+# NOTHING RE-TAKES THEM, and nothing is scheduled to: GENERICS-BUILD-COST
+# and perf-data/opt-level/ are dated write-ups, and the CI registers that
+# do refresh on a schedule (rebuild latency, tess-budget) do not cover this
+# measurement. So no guard can go red when the suite grows out from under a
+# ratio — one of these already did, and says so in place two paragraphs up,
+# which is the pattern to copy rather than the figure. What this script
+# SETS is tracked to ci.yml's opt level and to nothing here, so a drifted
+# timing costs a reader accuracy and costs the script nothing.
 #
 # Usage: local-scripts/test-fast.sh [cargo test args...]
 #   e.g. local-scripts/test-fast.sh --workspace

@@ -78,7 +78,11 @@ ON_DEMAND=0
 # lanes / freecad montages (kernel + freecad)"), so the match is on the
 # SUFFIX and one list serves both. This is what lets the poll wait for the
 # render rather than for a whole CI run — the lanes settle in ~3 minutes,
-# CI in ~12.
+# CI in ~12. Those two are approximate hosted-runner readings, unguarded
+# and left that way on purpose: nothing here computes with them (the outer
+# stop below is derived from the workflow's own job caps, not from these),
+# so they only tell a reader why waiting on the whole run is the wrong
+# wait, and that stays true at any pair of numbers with this ordering.
 #
 # TWO JOBS, FIVE LANES (2026-08-22). render.yml merged its five lane jobs
 # into two — the three renderer-free ones into `scene inputs + uv sheet +

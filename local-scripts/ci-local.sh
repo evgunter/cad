@@ -41,6 +41,17 @@
 # needs a C toolchain: the `interval` feature's backend is the in-repo,
 # pure-Rust `interval-transcendentals`.
 #
+# THE HOSTED FIGURES QUOTED THROUGHOUT THIS FILE ARE UNGUARDED READINGS —
+# billed minutes, job durations, merge frequencies, cache sizes. They are
+# quoted to explain why a row is sited or filtered the way it is, and this
+# script computes with NONE of them: what it runs is derived from ci.yml's
+# job set and from scripts/ci-filter.py's tier, both of which are read at
+# run time. A drifted figure therefore cannot desynchronize the mirror,
+# which is the only property this file is required to keep, and there is
+# no register that re-takes a hosted billing number for it to point at.
+# The mirror itself IS guarded — scripts/check-ci-mirror-parity.py — and
+# that guard reads the row set, never a duration.
+#
 # BUILD ONCE PER COMPILE MODE (2026-08-03): hosted CI now compiles the
 # test binaries once per feature graph (`build` / `build-interval`, via
 # `cargo nextest archive`) and fans the eps rows out over the archived
