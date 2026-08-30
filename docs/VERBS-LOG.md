@@ -2533,3 +2533,62 @@ here for the pair-fairness record: R2 delivered (2 MAJ / 5 MIN)
 before R1 started; R1 is a fresh run, not a truncated resume, so
 3e exclusion is NOT automatic — assessed at adjudication with
 this timing on the table.
+## ORDINAL 107 RETURNED AND ADJUDICATED (2026-08-31)
+
+R1 (fresh redispatch) 1 MAJ / 4 MIN, 5/4/3. R2 2 MAJ / 5 MIN,
+5/3/2. The consolidation's structure held both arms (one home
+beside eval/deriv, typed refusals preserved, reduce.rs bitwise
+by construction — verified independently both arms). Findings:
+
+- R1 MAJ-1 UNILATERAL CANDIDATE (class annotation: claim/test-gap
+  — the blinded coding decides): the PR's f64 "bit-identical
+  everywhere incl. whole-corpus digest" is FALSIFIED at the
+  parameter level by in-place instrumentation — surgery 101/261
+  calls and replace_face 4/9 calls differ 1–2 ulp (6/44 on the
+  corpus itself); the digest hashes outcomes and points only, so
+  it structurally cannot see the moved quantity; the corpus never
+  calls plan_reanchors at all (the cited evidence is vacuous for
+  that site). Mitigations measured honestly: no decision flips,
+  branch selection identical, diffs ≤ 4.44e-16 rad.
+- R2 MAJ-1 UNILATERAL CANDIDATE (class: test-gap/code): the
+  agreement row's grid stops at |δ| ≤ 3.1 — at exactly |δ|=π the
+  endpoint-anchored retired form and param_near disagree by a
+  whole turn in 5 of 10 boundary cases (17 whole-turn
+  disagreements measured); the offset door's gap check compares
+  points, not parameters, so a span can silently change length by
+  2π. R1 probed the π boundary but at the midpoint-anchored forms
+  (12/12 agreement) and did not raise the endpoint-anchored
+  defect — unilateral by the correspondence definition, with the
+  near-miss noted for the coder.
+- R2 MAJ-2 BILATERAL-DOWNGRADED (R1 MIN-3 covers the same run's
+  skipped census step at MINOR): "fully green including k-lint
+  (gate)" cites a job whose three k-lint steps were skipped; NO
+  run anywhere on the branch has executed large-K lint. Not a
+  tally candidate (mentioned by both).
+- Bilateral MIN: the fillet seam_split_param period precondition
+  unenforced (both arms); the atan2 hit list incomplete presented
+  as complete (R1: step-import Circle/Ellipse recovery; R2:
+  offset_axial ×2 + mesh walk — same defect, different missing
+  sites, dedup single).
+- R2-only MIN: PR quotes the wrong f64 digest constant; negative
+  radius doc sentence; p==center silent behavior change.
+  R1-only MIN: instrumentation counts stale (191 stated, 657
+  measured on the frozen head).
+
+PAIR FAIRNESS: flagged, not excluded — R2's run died at a usage
+limit post-report-composition and the rubric was recovered by
+message (M10-3 precedent: blemish, not missing data); R1 is a
+FRESH dispatch that started after R2 delivered (no leak — R1
+never read R2's lane; isolation disclosed clean both arms); the
+prior dead R1's setsid children were STILL WRITING into the lane
+12h later and injected a probe file into the fresh R1's checkout
+mid-session — R1 quarantined it (sha256 recorded in its lane
+log), restored the tree, and adopted nothing. The 3e call and
+both tally candidates go to the blinded coding with these
+annotations. Operational lesson logged: a killed agent's setsid
+process groups survive it; sweep the lane's process table, not
+just the agent, before re-dispatching into the same lane.
+
+Union fix pass out (deduped, both arms' probes offered for
+adoption). Tally: candidates 2 (pending blinded coding), tally
+still 1/8 pending; clean-pair count unchanged (MAJ-bearing).
