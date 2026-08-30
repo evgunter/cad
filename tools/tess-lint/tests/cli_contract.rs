@@ -166,6 +166,92 @@ fn a_re_key_that_costs_nothing_is_a_note_and_exits_zero() {
     );
 }
 
+/// VOICE (a) on rule 5, in the voice that separates it from the other
+/// four: a scene the baseline does not cover reds the row, and the
+/// reason it gives is a comparison that did not happen. The lead must
+/// NOT tell this author not to coarsen delta — nothing about their
+/// scene's budget was read — and the recourse must name the steps.
+#[test]
+fn an_uncovered_scene_exits_two_in_the_harness_voice() {
+    let base = csv("uncov-base.csv", HEADER);
+    let fresh = csv("uncov-fresh.csv", &scene(100, 2.5e1));
+    let out = run(&[
+        fresh.to_str().unwrap(),
+        "--baseline",
+        base.to_str().unwrap(),
+    ]);
+    assert_eq!(out.status.code(), Some(2), "{}", out_of(&out));
+    let o = out_of(&out);
+    assert!(
+        o.contains("FINDING s/b: in this sweep (104 triangles), not in the baseline"),
+        "{o}"
+    );
+    assert!(o.contains("cannot compare what the baseline lacks"), "{o}");
+    assert!(!o.contains("note(s)"), "rule 5 is never a note: {o}");
+    let e = err_of(&out);
+    for phrase in [
+        "GATE FAILED",
+        "could not COMPARE 1 scene(s)",
+        "scripts/tess_budget_sweep.sh",
+        "check the diff is ADDITIVE",
+        "coverage restored is not coverage verified",
+    ] {
+        assert!(e.contains(phrase), "stderr missing {phrase:?}: {e}");
+    }
+    assert!(
+        !e.contains("Do NOT coarsen delta"),
+        "the measurement lead does not belong on a comparison that never ran: {e}"
+    );
+}
+
+/// The cut is what tells rule 5's two readings apart, so the gate
+/// prints it — and says so when the baseline records none, rather
+/// than leaving the reader to assume one.
+#[test]
+fn the_gate_names_the_tree_the_baseline_was_cut_from() {
+    let stamped = csv(
+        "cut-base.csv",
+        &format!(
+            "# tess-budget-cut: 1a2b3c4d5e6f 2026-08-30T12:00:00+00:00\n{}",
+            scene(100, 2.5e1)
+        ),
+    );
+    let out = run(&[
+        stamped.to_str().unwrap(),
+        "--baseline",
+        stamped.to_str().unwrap(),
+    ]);
+    assert_eq!(out.status.code(), Some(0), "{}", err_of(&out));
+    assert!(
+        out_of(&out).contains("cut at 1a2b3c4d5e6f (2026-08-30T12:00:00+00:00)"),
+        "{}",
+        out_of(&out)
+    );
+
+    let bare = csv("nocut-base.csv", &scene(100, 2.5e1));
+    let out = run(&[bare.to_str().unwrap(), "--baseline", bare.to_str().unwrap()]);
+    assert_eq!(out.status.code(), Some(0), "{}", err_of(&out));
+    assert!(out_of(&out).contains("no recorded cut"), "{}", out_of(&out));
+}
+
+/// VOICE (b) on the provenance line: a cut the lint cannot read is
+/// the sweep and the lint disagreeing about the format, which is
+/// harness breakage — never a silently absent cut.
+#[test]
+fn a_malformed_cut_line_exits_one() {
+    let bad = csv(
+        "badcut.csv",
+        &format!("# tess-budget-cut: nonsense\n{}", scene(100, 2.5e1)),
+    );
+    let out = run(&[bad.to_str().unwrap()]);
+    assert_eq!(out.status.code(), Some(1), "{}", out_of(&out));
+    assert!(
+        err_of(&out).contains("harness breakage"),
+        "{}",
+        err_of(&out)
+    );
+}
+
 /// VOICE (b): harness breakage — a format drift is NOT a geometry
 /// finding, and must not be reportable as one.
 #[test]
