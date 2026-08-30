@@ -2435,3 +2435,20 @@ COMPILE (#1272 filed — a viewer golden renamed under an
 include_str, deliberately not fixed cross-program). Full dual,
 frozen head e29b24f1, parity 0 → R1 opus + R2 fable; claim to
 main at dispatch.
+
+## ORDINAL 107 CLAIMED — AZIMUTH dual (2026-08-30)
+
+The #1077 consolidation green (#1256): ONE function
+(Curve3::param_near, the branch nearest an anchor) — the
+one-home-two-entries hypothesis REFUTED by instrumented
+measurement (191 corpus calls, k=0 every time; the anchor
+conventions are parameters, not contracts); bit-identical at f64
+whole-corpus via the m10_p_fence digest; ONE honest interval
+re-baseline (the anchored form removes floor-across-an-integer;
+both forms ulp-scale, reasons in the fence header); the |δ|=π
+endpoint and >period alias pinned as properties. A fourth
+spelling (offset_axial's param_on) measured as NOT the same
+question and left alone — the let _ = u_ref is load-bearing.
+Main-side k-lint red escalated to M10 as #1288. Full dual,
+frozen head 75583e91, parity 1 → R1 fable + R2 opus; claim to
+main at dispatch.
