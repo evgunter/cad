@@ -468,3 +468,66 @@ symmetric); dispatches are the stored briefs verbatim. Lanes
 `blend/rimsupport-r{1,2}-probes`. Reviewers blinded to the
 implementer arm as always. Impl lane's clone kept for the fix-pass
 resume (target/ reclaimed).
+
+## 2026-08-30/31 — BLEND-5 reviews concluded; adjudication + fix-pass dispatch
+
+Both arms delivered, uninterrupted, concurrent on frozen `50fedb7d`
+(pair COUNTS toward the twelve; no relaxations). R1 (ordinal 603
+R1 arm): MERGEABLE-AFTER-FIXES 1/3/4 + 10 style, rubric 5/5/4,
+~205k / ~55m, probes `blend/rimsupport-r1-probes` @ f1c9e03e (6
+rows). R2: MERGEABLE-AFTER-FIXES 0/4/1 + 7 style, rubric 5/5/4,
+~250k / ~70m lane-reported, probes `blend/rimsupport-r2-probes`
+@ 2bff4002.
+
+**Correspondence.** The headline is BILATERAL at split severity —
+adjudicated MAJOR: the PR's reason 3 ("the role does not move
+under any parameter edit") and its two permanent doc-comment
+spellings (role.rs, naming.rs) are FALSE at the planarity boundary,
+executed independently by both arms (R1's three-variant single-
+recipe probe measuring (Mate, Host, Mate); R2's flatten-the-mate
+edit). The behaviour is inherited (the retired kind vocabulary had
+the identical instability) — the defect is the committed false
+justification on a persisted vocabulary; the shape still stands on
+reasons 1–2 (the cone×cone collision was verified by BOTH arms by
+emitter mutation: typed Naming(Duplicate), a hard refusal). NO
+tally candidates (the MAJOR bilateral); **v6 tally unchanged.**
+Also bilateral: the overbroad "only from here"/first-coverage
+premise (both executed; the honest claim is ANNULUS-first, which
+is what #1294 asks); the invariant pin's fixture-luck (R2's
+branch-deletion mutation left it green; R1 S2 same substance); the
+unguarded digest-census prose (R1 supplied the mechanical guard
+row); the version-door-before-serde mechanism of the v18 break
+(R1's sharper unique half: deny_unknown_fields proven INERT on
+unit-only enums by removal). R1 unique: BandFoot/BandCross prose
+presuming a planar support (the unit's own class, 19 lines below
+its fix, executed on cone×cone); CapEnd Top-below-Bottom under
+negative extrusion (executed; sweep double-standard flagged);
+.pyi stub blindness. R2 unique: the third host-rule spelling at
+resolve_seam_split_rim uncovered; the ladder "sphere side" prose
+question — in DISPUTE with R1's S9 (ladder always has a sphere?);
+fix pass verifies against the admission gates and dispositions.
+
+**Class issues filed at adjudication:** #1306 (CapEnd spatial
+claim), #1308 (inert deny_unknown_fields sweep + ledger belief),
+#1309 (.pyi attribute-level stub blindness, S-QA-shaped).
+
+**Fix pass: IMPLEMENTER-INHERITED**, resumed on the kept blend-5
+lane. Union: (1) reason-3/role.rs/naming.rs qualified to
+covariance-off-the-planarity-boundary, R1's boundary probe adopted
+as the honest presence pin, PR body corrected; (2) "annulus"
+narrowing of the coverage premise + the S10 channel-list overclaim;
+(3) R2's two red-capable invariant rows adopted, S3's unreachable
+iff half documented, seam-split third-spelling coverage added or
+disclosed; (4) R1's executable census row adopted as the digest
+guard; (5) ledger entry rewritten to the version-door mechanism,
+inert-attribute disposition at role.rs citing #1308; (6) BandFoot/
+BandCross prose fixed + the persisted-vocab prose class swept,
+ladder dispute settled by the gates; (7) the mirror-why stated at
+both RimSide/RimSupport declarations; (8) host-rule three-
+spellings homed or declined WITH argument (the "one rule, four
+readings" precedent); (9) sweep-table wording: OpGroup not-
+persisted caveat, CapEnd row cites #1306; (10) optional: S8
+readability, #1309 noted at the tripwire. Reviewer probe branches
+adopted as merge parents authorship-preserving. Review lane
+TARGETS reclaimed at report per the standing rule; clones kept
+until delta.
