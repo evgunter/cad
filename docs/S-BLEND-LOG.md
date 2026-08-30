@@ -425,3 +425,24 @@ re-rolling the draw, this commit pins `klint=dev-budget` BY NAME:
 the row that gated this same tree green at c05b97f9, with the
 dev-probe row's red owned by issue 1296 on main and this PR's
 census repair proven at run 33332365082.)
+
+## 2026-08-30 — BLEND-2 MERGED (#1268); the unit slate's serialized trio complete
+
+PR #1268 merged at `6cf9647e` (merge commit); issue 935 closed.
+Gate of record: run 33336309206 GREEN {interval, eps 1e-12,
+klint=dev-budget by trailer} on head `b927ca63` — 22 checks, both
+test shards. That head merged main back in (S-QA's QA-1/QA-2 had
+landed under the previous pinned head, putting the PR CONFLICTING —
+the silent-CI class: c7914871 got no run at all) and resolved the
+MODEL-AB-LOG tail keep-both; the row's sample hedge resolved by
+main's merge order to **sample #55** (QA-1 took #53, QA-2 #54).
+The A/B row's CI cell corrected post-merge to the actual gate (the
+state-sync text predated the trailer cascade); correction PR from
+`blend/blend2-record-close`.
+
+Block BLEND-B1 fully landed: BLEND-1 (#1222, sample #46), BLEND-7
+(#1267, ordinal 601), BLEND-2 (#1268, ordinal 602, sample #55).
+Next: BLEND-B2 draw branch-side, then BLEND-5 (issue 961) — its
+LIB-G16 gate long merged; BLEND-6 (#917) follows, its #1279
+vocabulary ruling RATIFIED. Lanes blend-2 / blend-2-r1 reclaimed
+after this entry.

@@ -66,6 +66,8 @@ mod blend5_rim_support;
 mod blend5_schema_v18;
 #[path = "boolean_op_wire.rs"]
 mod boolean_op_wire;
+#[path = "cert3r1_dump.rs"]
+mod cert3r1_dump;
 #[path = "display_contract.rs"]
 mod display_contract;
 #[path = "dsc_checks.rs"]
@@ -234,6 +236,8 @@ mod r1_dual_probes;
 mod r1_m10_1_corruptions;
 #[path = "r1_m10_1_probes.rs"]
 mod r1_m10_1_probes;
+#[path = "r2_cert3_coord_dump.rs"]
+mod r2_cert3_coord_dump;
 #[path = "r2_keydiff.rs"]
 mod r2_keydiff;
 #[path = "r2_m10_2_probes.rs"]
