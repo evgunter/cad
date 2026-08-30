@@ -2305,3 +2305,11 @@ separate checkouts (sweep lane: python/toml/prose, no cargo).
 Identical stored briefs; R2 gets no access to R1's report or probes.
 Implementer difficulty M/L (pre-drawn at spec). Sample number at
 merge. Row at merge.
+
+QA-5 (PR #1310) ordinal FIXED AT DISPATCH (2026-08-31):
+**ordinal 805** (S-QA band 800–899). v6 dual: slot byte 117, parity
+1 ⇒ **R1 FABLE + R2 OPUS**; CONCURRENT on frozen `8f0c9aee`,
+separate checkouts (tess-lint tool crate — small cargo per
+reviewer, targets deleted at report). Identical stored briefs; R2
+gets no access to R1's report or probes. Implementer difficulty M
+(pre-drawn at spec). Sample number at merge. Row at merge.
