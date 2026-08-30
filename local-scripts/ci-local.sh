@@ -334,6 +334,18 @@ discipline() {
         && python3 scripts/check-interval-cfg-additive.py); then
     rc=1
   fi
+  # The parsers behind the hosted test-cost REPORTS, against fixtures captured
+  # from real runs. The reports themselves have no local half and are not
+  # supposed to: their subject is what a hosted run cost and what a PULL
+  # REQUEST added to it — a `$GITHUB_STEP_SUMMARY` and a base tree, neither of
+  # which exists on this box. What DOES belong in both halves is the check that
+  # the parsers still read nextest's output, because a report that gates
+  # nothing has no red run to announce a parser that stopped matching.
+  # HOSTED MIRROR: discipline / test cost report parsers (selftest)
+  if ! (python3 scripts/slowest-tests.py --selftest \
+        && python3 scripts/pr-added-tests.py --selftest); then
+    rc=1
+  fi
   return $rc
 }
 

@@ -915,6 +915,18 @@ jobs:
       # testing a fossil.
       - name: k-probe sweep guard selftest (run_dump)
         run: scripts/rundump-guard-selftest.sh
+      # The two test-cost REPORTS (issue 469) are wired into the sharded test
+      # jobs, where they cannot fail anything — which is also why their parsers
+      # are gated HERE. A report that gates nothing has no failing run to
+      # announce a broken parser, so without this row a regex that stopped
+      # matching would show up as an empty table nobody reads. The fixtures are
+      # captured output from real runs (green, red including the failure recap
+      # nextest prints after its `Summary` line, and a retried test), so this
+      # row costs milliseconds and cannot end up testing a fossil.
+      - name: test cost report parsers (selftest)
+        run: |
+          python3 scripts/slowest-tests.py --selftest
+          python3 scripts/pr-added-tests.py --selftest
       # The `interval` feature must stay PURELY ADDITIVE. This is not a
       # style rule: on an interval draw the default lane does not run at
       # all, so this lane stands in for it (see `test-interval`'s header),
@@ -1843,13 +1855,124 @@ jobs:
       # "is that all of them?" gets asked and where nextest's own truncation
       # warning prints, for the same reason. A line at the top of a
       # two-thousand-line step is not where that question is.
+      #
+      # THE OUTPUT IS TEE'd, AND THE VERDICT IS TAKEN FROM `PIPESTATUS`, NOT
+      # FROM THE PIPELINE. The cost report below reads what this step printed;
+      # capturing it must not be able to change what this step DECIDED. A
+      # pipeline's status is its LAST command's, so `cargo … | tee` reports
+      # tee's success and turns a red shard green — and this workflow's steps
+      # run under `bash -e {0}`, which does NOT set `pipefail` (visible in any
+      # run's `shell:` line), so nothing here would have caught that. Reading
+      # `PIPESTATUS[0]` takes nextest's own status regardless of shell options,
+      # and `set +e` guarantees no intervening command can abort the step
+      # before that status is read and re-exited.
       - name: run archived tests
         run: |
+          set +e
           echo "fail-fast mode: --no-fail-fast — every test in this shard runs to completion."
-          status=0
-          ${{ needs.filter.outputs.eps != 'default' && format('CAD_TOLERANCE_EPS={0}', needs.filter.outputs.eps) || '' }} cargo nextest run --archive-file nextest-default.tar.zst --workspace-remap . --partition count:${{ matrix.shard }}/2 --no-fail-fast || status=$?
+          mkdir -p "$RUNNER_TEMP/test-cost"
+          ${{ needs.filter.outputs.eps != 'default' && format('CAD_TOLERANCE_EPS={0}', needs.filter.outputs.eps) || '' }} cargo nextest run --archive-file nextest-default.tar.zst --workspace-remap . --partition count:${{ matrix.shard }}/2 --no-fail-fast 2>&1 | tee "$RUNNER_TEMP/test-cost/archived-tests.log"
+          status=${PIPESTATUS[0]}
           echo "fail-fast mode was --no-fail-fast: the summary above is this shard's whole failure SURFACE, not its first failure. (This shard is half the suite; the other shard is a job of its own.)"
           exit $status
+      # WHAT THIS RUN COST, AND WHAT THIS PR ADDED TO IT (issue 469). Two
+      # summaries, both REPORTS and neither a gate — the issue's own ruling,
+      # restated at the bottom of each block so a future "add teeth" is a
+      # decision rather than drift: a budget needs a baseline and the baseline
+      # is moving (the suite went 10,482 -> ~1,243 cpu-s in a day).
+      #
+      # A REPORT MUST NOT BE ABLE TO MASK OR ALTER A TEST VERDICT, and three
+      # things enforce that rather than one. The step is separate from the run
+      # step (which has already exited with nextest's status by the time this
+      # starts); it ends in `exit 0` under `set +e`, so no command inside it can
+      # fail the step; and it carries `continue-on-error: true` for the failure
+      # modes a script cannot catch (a shell parse error, an OOM kill). A
+      # generation failure therefore presents as this step going yellow with a
+      # missing or partial block in the summary, and the job's red/green is
+      # exactly what the test step said.
+      #
+      # ~0 BILLED MINUTES, which is the whole reason it is shaped this way: no
+      # new job (the billing model rounds per JOB — docs/CI-MINUTES-2026-08.md),
+      # no extra runner, no permissions of its own. The slowest-N half parses
+      # output this job already produced. The listing half costs one archive
+      # extraction (~0.5 s, measured in the `Extracted 37 files … in 0.50s` line
+      # every run prints) plus a listing pass — seconds inside a job that
+      # already runs for minutes.
+      #
+      # WHERE A BASE LISTING COMES FROM. There is no cheap way to LIST the base
+      # tree — it would mean building it — so each run publishes its own
+      # listing as an artifact named for the git TREE it was built from, and a
+      # later run looks up the tree its base commit points at. Under this
+      # repo's merge-only rule a PR run's merge-ref tree becomes main's tree at
+      # the merge, so the next PR's base tree is one a previous run already
+      # listed and the lookup hits. When it does not — the first runs after this
+      # lands, a base tree nobody listed, an expired artifact, a token without
+      # `actions: read` — the report prints a STATED SKIP naming which of those
+      # it was. It never prints a number it could not derive, and never a red.
+      - name: test cost report (slowest tests + what this PR adds)
+        if: always()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          LANE: default
+          JOB: test (eps = ${{ needs.filter.outputs.eps }}, ${{ matrix.shard }}/2)
+        run: |
+          set +e
+          COST="$RUNNER_TEMP/test-cost"
+          mkdir -p "$COST"
+          python3 scripts/slowest-tests.py --top 20 --job "$JOB" \
+            --leg "run archived tests=$COST/archived-tests.log" >> "$GITHUB_STEP_SUMMARY"
+          cargo nextest list --archive-file nextest-default.tar.zst --workspace-remap . \
+            --message-format json > "$COST/test-list.json"
+          HEAD_TREE=$(git rev-parse "HEAD^{tree}")
+          BASE_LIST=""
+          REASON="no base listing was looked for"
+          if [ -z "$BASE_SHA" ]; then
+            REASON="this run is not a pull_request run, so it has no base tree to diff against"
+          else
+            BASE_TREE=$(gh api "repos/$GITHUB_REPOSITORY/commits/$BASE_SHA" --jq .commit.tree.sha)
+            NAME="test-list-$LANE-$BASE_TREE"
+            if [ -z "$BASE_TREE" ]; then
+              REASON="base commit $BASE_SHA could not be resolved to a tree — the API call failed (this report has no permissions of its own)"
+            else
+              URL=$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=$NAME&per_page=1" \
+                    --jq '.artifacts[] | select(.expired == false) | .archive_download_url' | head -n 1)
+              if [ -z "$URL" ]; then
+                REASON="no run has published a test listing named \`$NAME\`, so the base tree \`$BASE_TREE\` has never been listed — it was tested before this report existed, its listing's retention has expired, or the lookup had no \`actions: read\`"
+              elif curl -sSL -H "Authorization: Bearer $GH_TOKEN" -o "$COST/base.zip" "$URL" &&
+                   unzip -o -q "$COST/base.zip" -d "$COST/base" &&
+                   [ -f "$COST/base/test-list.json" ]; then
+                BASE_LIST="$COST/base/test-list.json"
+              else
+                REASON="the listing artifact \`$NAME\` was found but could not be downloaded or unpacked"
+              fi
+            fi
+          fi
+          if [ -n "$BASE_LIST" ]; then
+            python3 scripts/pr-added-tests.py --job "$JOB" --head "$COST/test-list.json" \
+              --base "$BASE_LIST" --base-source "the published listing for base tree \`$BASE_TREE\`" \
+              --leg "run archived tests=$COST/archived-tests.log" >> "$GITHUB_STEP_SUMMARY"
+          else
+            python3 scripts/pr-added-tests.py --job "$JOB" --head "$COST/test-list.json" \
+              --no-base "$REASON" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "TEST_LIST_TREE=$HEAD_TREE" >> "$GITHUB_ENV"
+          exit 0
+      # Shard 1 only: both shards download the same archive and would publish
+      # the same listing under the same name, and a duplicate artifact name is
+      # an error. 7 days because this is a convenience for the NEXT pull
+      # request's report and this repo's artifact quota is small (500 MB); a
+      # base tree older than a week is one nothing is being opened against.
+      - name: publish this tree's test listing (the next PR's base)
+        if: always() && matrix.shard == 1 && env.TEST_LIST_TREE != ''
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-list-default-${{ env.TEST_LIST_TREE }}
+          path: ${{ runner.temp }}/test-cost/test-list.json
+          retention-days: 7
+          if-no-files-found: ignore
 
   # THE RELEASE-PROFILE ROW. Three adversarial suites in `crates/topo` feed
   # tier-1-INVALID bodies to the Euler operators and are written about
@@ -2247,11 +2370,19 @@ jobs:
       # `--no-fail-fast` and its echo, for the reasons spelled out at the
       # default lane's copy of this step (#1128). This lane is where the effect
       # was measured: 22 failures locally against 1-2 here, same tree.
+      #
+      # TEE'd, WITH THE VERDICT TAKEN FROM `PIPESTATUS` — the full argument is
+      # at the default lane's copy of this step. In one line: a pipeline's
+      # status is tee's, these steps run under `bash -e {0}` without
+      # `pipefail`, and a capture that could turn a red shard green would be a
+      # report breaking the thing it reports on.
       - name: run archived tests
         run: |
+          set +e
           echo "fail-fast mode: --no-fail-fast — every test in this shard runs to completion."
-          status=0
-          ${{ needs.filter.outputs.eps != 'default' && format('CAD_TOLERANCE_EPS={0}', needs.filter.outputs.eps) || 'env -u CAD_TOLERANCE_EPS' }} cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . --partition count:${{ matrix.shard }}/2 --no-fail-fast || status=$?
+          mkdir -p "$RUNNER_TEMP/test-cost"
+          ${{ needs.filter.outputs.eps != 'default' && format('CAD_TOLERANCE_EPS={0}', needs.filter.outputs.eps) || 'env -u CAD_TOLERANCE_EPS' }} cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . --partition count:${{ matrix.shard }}/2 --no-fail-fast 2>&1 | tee "$RUNNER_TEMP/test-cost/archived-tests.log"
+          status=${PIPESTATUS[0]}
           echo "fail-fast mode was --no-fail-fast: the summary above is this shard's whole failure SURFACE, not its first failure. (This shard is half the suite; the other shard is a job of its own.)"
           exit $status
       # M4 PR 6 D6.1, Interval member: the save/load/replay-identity row
@@ -2271,13 +2402,97 @@ jobs:
       # on and the premise stops mattering.
       - name: persistence save/load/replay-identity (interval)
         if: matrix.shard == 1 && needs.filter.outputs.run_editor_core == 'true'
-        run: "cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . -E 'binary_id(editor-core::all) & test(/^m4_pr6_roundtrip_interval::/)' --no-fail-fast"
+        run: |
+          set +e
+          mkdir -p "$RUNNER_TEMP/test-cost"
+          cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . -E 'binary_id(editor-core::all) & test(/^m4_pr6_roundtrip_interval::/)' --no-fail-fast 2>&1 | tee "$RUNNER_TEMP/test-cost/persistence.log"
+          exit ${PIPESTATUS[0]}
       # M4 PR 8a D1, Interval member: the Band 4 corpus evaluates green
       # at the certified interval scalar (also inside the archive run
       # above; named here so the obligation is visible).
       - name: band 4 corpus (interval)
         if: matrix.shard == 1 && needs.filter.outputs.run_editor_core == 'true'
-        run: "cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . -E 'binary_id(editor-core::all) & test(/^m4_pr8_corpus_interval::/)' --no-fail-fast"
+        run: |
+          set +e
+          mkdir -p "$RUNNER_TEMP/test-cost"
+          cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . -E 'binary_id(editor-core::all) & test(/^m4_pr8_corpus_interval::/)' --no-fail-fast 2>&1 | tee "$RUNNER_TEMP/test-cost/band4-corpus.log"
+          exit ${PIPESTATUS[0]}
+      # THREE LEGS HERE, NOT ONE, and which of them ran is what the report's
+      # header says: shard 1 of this lane runs the archive plus the two named
+      # editor-core rows, shard 2 runs the archive alone, and a test that
+      # appears in more than one leg costs this job the SUM. That is the whole
+      # of the first measurement trap (issue 469): per-leg times are not
+      # comparable, so they are summed within a job and never compared across
+      # jobs. The `--leg` list below is deliberately unconditional — a leg the
+      # `if:` above skipped has no log file, and the report NAMES it as absent
+      # rather than quietly reporting a two-leg job as a three-leg one.
+      #
+      # Everything else about this step — why it cannot alter the test verdict,
+      # what it costs, where a base listing comes from — is at the default
+      # lane's copy, which is the same step against the other archive.
+      - name: test cost report (slowest tests + what this PR adds)
+        if: always()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          LANE: interval
+          JOB: test (interval, eps = ${{ needs.filter.outputs.eps }}, ${{ matrix.shard }}/2)
+        run: |
+          set +e
+          COST="$RUNNER_TEMP/test-cost"
+          mkdir -p "$COST"
+          python3 scripts/slowest-tests.py --top 20 --job "$JOB" \
+            --leg "run archived tests=$COST/archived-tests.log" \
+            --leg "persistence save/load/replay-identity (interval)=$COST/persistence.log" \
+            --leg "band 4 corpus (interval)=$COST/band4-corpus.log" >> "$GITHUB_STEP_SUMMARY"
+          cargo nextest list --archive-file nextest-interval.tar.zst --workspace-remap . \
+            --message-format json > "$COST/test-list.json"
+          HEAD_TREE=$(git rev-parse "HEAD^{tree}")
+          BASE_LIST=""
+          REASON="no base listing was looked for"
+          if [ -z "$BASE_SHA" ]; then
+            REASON="this run is not a pull_request run, so it has no base tree to diff against"
+          else
+            BASE_TREE=$(gh api "repos/$GITHUB_REPOSITORY/commits/$BASE_SHA" --jq .commit.tree.sha)
+            NAME="test-list-$LANE-$BASE_TREE"
+            if [ -z "$BASE_TREE" ]; then
+              REASON="base commit $BASE_SHA could not be resolved to a tree — the API call failed (this report has no permissions of its own)"
+            else
+              URL=$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?name=$NAME&per_page=1" \
+                    --jq '.artifacts[] | select(.expired == false) | .archive_download_url' | head -n 1)
+              if [ -z "$URL" ]; then
+                REASON="no run has published a test listing named \`$NAME\`, so the base tree \`$BASE_TREE\` has never been listed in this lane — it was tested before this report existed, its listing's retention has expired, the run that tested it drew the other lane, or the lookup had no \`actions: read\`"
+              elif curl -sSL -H "Authorization: Bearer $GH_TOKEN" -o "$COST/base.zip" "$URL" &&
+                   unzip -o -q "$COST/base.zip" -d "$COST/base" &&
+                   [ -f "$COST/base/test-list.json" ]; then
+                BASE_LIST="$COST/base/test-list.json"
+              else
+                REASON="the listing artifact \`$NAME\` was found but could not be downloaded or unpacked"
+              fi
+            fi
+          fi
+          if [ -n "$BASE_LIST" ]; then
+            python3 scripts/pr-added-tests.py --job "$JOB" --head "$COST/test-list.json" \
+              --base "$BASE_LIST" --base-source "the published listing for base tree \`$BASE_TREE\`" \
+              --leg "run archived tests=$COST/archived-tests.log" \
+              --leg "persistence save/load/replay-identity (interval)=$COST/persistence.log" \
+              --leg "band 4 corpus (interval)=$COST/band4-corpus.log" >> "$GITHUB_STEP_SUMMARY"
+          else
+            python3 scripts/pr-added-tests.py --job "$JOB" --head "$COST/test-list.json" \
+              --no-base "$REASON" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "TEST_LIST_TREE=$HEAD_TREE" >> "$GITHUB_ENV"
+          exit 0
+      - name: publish this tree's test listing (the next PR's base)
+        if: always() && matrix.shard == 1 && env.TEST_LIST_TREE != ''
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-list-interval-${{ env.TEST_LIST_TREE }}
+          path: ${{ runner.temp }}/test-cost/test-list.json
+          retention-days: 7
+          if-no-files-found: ignore
 
   # The archives exist only to ferry binaries from the build jobs to the
   # run legs; on a fully green run they have no further use, and this
