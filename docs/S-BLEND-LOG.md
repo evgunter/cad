@@ -418,3 +418,10 @@ commit is the re-roll.
 **(Second re-roll:** run 33334073786's bootstrap jobs themselves
 died log-less at ~4 s — the Actions budget exhaustion window, per
 Evan; budget refreshed, this commit re-rolls.)
+
+**(Final head:** the budget-re-roll's SHA drew `dev-probe` again —
+the filed 1296 red (M10's suite), 21/22 jobs green. Rather than
+re-rolling the draw, this commit pins `klint=dev-budget` BY NAME:
+the row that gated this same tree green at c05b97f9, with the
+dev-probe row's red owned by issue 1296 on main and this PR's
+census repair proven at run 33332365082.)
