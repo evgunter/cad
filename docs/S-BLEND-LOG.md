@@ -407,3 +407,10 @@ Pre-existing, main-red at the same matrix point, M10's territory
 → **issue 1296** filed with the evidence; standing-down comment on
 the PR. This commit voids the trailer so the merge gate draws the
 standard sampled row.
+
+**Re-roll note (2026-08-30 ~20:35Z):** run 33333032080's only red
+was `render lanes / freecad montages` dying at 3 s with runner_id
+0 and no logs — a runner loss before checkout (the same job green
+on the prior run over the same code ten minutes earlier). The
+integration's rerun-failed-jobs is 403 for this session, so this
+commit is the re-roll.
