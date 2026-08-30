@@ -1344,7 +1344,7 @@ fn tree_rows_still_read_the_shown_doc_against_the_old_evaluation() {
 /// The committed gallery ring, `doc_io`'s fixture. Re-stamped with this
 /// run's ε below for the same reason that suite states: a saved
 /// document records the ε it was decided at, and the matrix sweeps ε.
-const GALLERY_RING: &str = include_str!("gallery_ring.v16.pncad");
+const GALLERY_RING: &str = include_str!("gallery_ring.v17.pncad");
 
 /// The fixture's text with this process's ε line, taken from the
 /// serializer rather than spelled here.

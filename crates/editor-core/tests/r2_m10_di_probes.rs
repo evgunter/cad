@@ -42,9 +42,9 @@ mod fixture;
 use corpus::{documents, eval, failures};
 use editor_core::eval::KeyHasher;
 use editor_core::{
-    BooleanValue, CancelToken, ContentKey, Datum, DatumValue, EvalOptions, Evaluation, LoopProgram,
-    Node, NodeResult, ProductError, ProfileProgram, SplitSide, ValuePayload, assemble, evaluate,
-    product_recorded,
+    AssertionVerdict, BooleanValue, CancelToken, ContentKey, Datum, DatumValue, Dimension,
+    EvalOptions, Evaluation, LoopProgram, Node, NodeResult, ProductError, ProfileProgram,
+    SplitSide, ValuePayload, assemble, evaluate, product_recorded,
 };
 use geom::{Curve3, Surface};
 use geom_core::{Bounds, Decide, Dual64, Tol};
@@ -315,6 +315,35 @@ fn deep_digest<T: Decide + Bounds>(ev: &Evaluation<T>) -> u64 {
                         d.u64(pairs.len() as u64);
                     }
                     ValuePayload::Mate(_) => d.u64(20),
+                    // The measured quantity IS a lane value, so it is
+                    // digested through the same value-channel bracket
+                    // every coordinate takes.
+                    ValuePayload::Measure { value, dim } => {
+                        d.u64(21);
+                        d.u64(match dim {
+                            Dimension::Length => 1,
+                            Dimension::Angle => 2,
+                            Dimension::Count => 3,
+                            Dimension::Scalar => 4,
+                        });
+                        d.s(*value);
+                    }
+                    ValuePayload::Assertion(verdict) => {
+                        d.u64(22);
+                        d.u64(match verdict.holds() {
+                            Some(true) => 1,
+                            Some(false) => 2,
+                            None => 3,
+                        });
+                        match verdict {
+                            AssertionVerdict::Holds { measured, bound }
+                            | AssertionVerdict::Violated { measured, bound } => {
+                                d.s(*measured);
+                                d.s(*bound);
+                            }
+                            AssertionVerdict::Unevaluated { .. } => {}
+                        }
+                    }
                 }
             }
         }

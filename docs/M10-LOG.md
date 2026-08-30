@@ -118,6 +118,88 @@ now each is pinned to its validation door). Issues 687 and 701
 close with this merge. The E4 pairing hook (DL3's own sentence)
 is a NAMED obligation on M10-4's spec.
 
+## M10-2 DELIVERED (2026-08-29)
+
+Measure and Assertion exist. `Node::Measure { expr, refs }` is E3's
+one dimension-generic sink — a `MeasureExpr` over `Primitive` leaves
+that index the node's frozen `StableName` list, with the F1 lattice
+asked (not restated) at every constructor. `Node::Assertion
+{ measure, bound, dir }` is E10's persisted half, report-only by
+construction: no op in the vocabulary takes a verdict as an operand,
+so a `Violated` assertion cannot reach any downstream outcome.
+
+The v1 primitive table ships with its scope stated: vertex x vertex,
+vertex x plane, parallel plane x plane and parallel cylinder x
+cylinder for `distance`; plane x plane and line x line for `angle`;
+C5's three carrier pairs for the signed `gap`, sign convention
+binding. Every other pair refuses typed naming the pair class. Two
+trileans are consumed, both EXISTING funnel predicates at their
+existing margin shapes (`bool_plane_parallel`,
+`carrier_cyl_axis_parallel`); one new margined compare is minted, the
+assertion comparison, and it took ledger row F16 with the honest
+argument that E3 forecloses its own repair.
+
+Schema v17, populated goldens, prior-version refusal fixtures,
+load-door re-checks for both node kinds. The number MOVED at the fix
+pass's re-merge and that is worth recording, because it is the case
+this repo's ledger keeps warning about: this unit claimed v16 by an
+explicit by-eye read of main's constant and named LIB-G16's
+`Node::Chamfer` as a live rival for the same number, with the rule
+stated in advance as order of merge. LIB-G16 landed first
+(`a0427344`) and kept 16, so this unit took 17 and repaired what the
+rule says it owes — the ledger paragraph, the
+`assert_eq!(SCHEMA_VERSION, ..)` rows, the golden filename, and the
+`plate_param`, bench-corpus and `gallery_ring` fixtures. The
+constant itself merged CLEAN (both sides wrote `= 16`), which is
+exactly why the read is by eye and not by git. The binding census closed with a
+SPLIT disposition, which is this unit's own judgement: the READING
+door ships (`Value.measure` → `Measurement`, `Value.assertion` →
+`Verdict`, both readable off a document authored elsewhere), and the
+AUTHORING vocabulary is chartered as `B-MEASURES`. The friction the
+R-series keeps finding is unreadable results, so that is the half
+that shipped.
+
+THREE deviations after the fix pass, all stated in the PR (the first
+draft of this entry said "two" while the PR disclosed four — the
+review caught the miscount, and one of the four is now retired rather
+than restated):
+
+1. Measure references are CONSUMING DAG edges. Nothing else can order
+   a sink after the geometry it measures, so deleting a referenced
+   node is a delete-door refusal rather than N5 stranding.
+2. `gap` takes its pair as two carrier references in mating-role order
+   rather than a `Declare` node id plus a pair index.
+3. The frozen golden carries no PRIMITIVE leaf (its document must
+   evaluate green and its only well-known reference is a whole body);
+   the three primitive leaves are pinned by round trip in the v17
+   schema suite instead.
+
+**RETIRED — the "carrier as minted" deviation.** The first draft
+resolved a reference at the node that MINTED its name and documented
+the recourse as "measure the moved one by referencing the moving
+node's own emission". Both reviewers found that independently, and the
+recourse was factually impossible: `wire_transform` is
+identity-preserving, hands the input's table through by `Arc::clone`
+and mints no name, so there was no transform-minted name to reference
+and a transformed wall measured its UNMOVED carrier — a box translated
+100 m measured 5 where the placed answer is 95, reported as plain
+`Ok`. Fixed at the root rather than documented: a reference is now a
+`MeasureRef { at, name }` pair naming the node to READ AT, which is
+what the interrogation doors have always taken. Silent wrong numbers
+are not a deviation to state.
+
+`min_clearance` does not exist here.
+
+The fix pass also closed three review MAJORs: the measurement
+sublanguage restated `Expr`'s arithmetic without its non-finite door,
+so `13/0` came back a typed success and an assertion reported
+`Holds { measured: inf }` (both evaluators now share
+`expr::refuse_non_finite`); and the plane `gap` arm read the raw chart
+normal, so its sign was a charting artifact — half the parallel pairs
+over two disjoint slabs read C5 "interference" with 2 m of air between
+them (the S10 sense bit is now folded in, as `carrier_eq`'s plane arm
+already did).
+
 ## M10-P MERGED (2026-08-29)
 
 The profile-parameter lift is in: sample #42, ordinal 502, block
@@ -264,3 +346,33 @@ redo) and #1255 (three verdict shapes) are the fix pass's durable
 homes; deviations went 7→9, honestly. M10-4's spec unblocks (the
 E4 pairing hook obligation and M10-2's sink are its inputs; the
 interval door it needed is now on main).
+
+## M10-2 MERGED (2026-08-30)
+
+PR #1213 merged at 7c4b54b3, sample #50 (ordinal 503). Measures and
+assertions are document data: `Node::Measure` with `MeasureRef
+{ at, name }` — the fix pass's deepest cut, changing the reference
+SHAPE so a measure reads the placed geometry at its `at` node the
+way the interrogation doors always have — the nine-arm primitive
+table with C5's sign convention in one function, `Node::Assertion`
+report-only by construction, schema v17 (the v16 race lost to
+LIB-G16 and repaid exactly per the rule this unit had stated in
+advance). The dual review's three adjudicated MAJORs all landed at
+the root: the shared non-finite door (R2's unilateral
+`Holds { measured: inf }` — the unit's severity headline), the
+transform/minted-carrier silent wrong number (bilateral), and the
+sense-folded plane gap — where the fix pass returned the program's
+first reviewer-asked-row PUSHBACK on correctness grounds: an
+opposed mating pair's gap is correctly symmetric under role swap
+(one clearance, not two signed ones); only aligned pairs negate.
+Both regimes pinned. Both reviewer lanes were killed mid-review by
+the same account-limit wave and resumed — symmetric, recorded in
+the row. The conflict round (M10-3 and LIB's corpus-die landed
+under the finished fix) re-blessed the fences over the union
+roster with the strongest removal measurement yet — the roster
+minus this unit's document IS main's, so main's own committed
+constants came back as green assertions. The withdrawn k-lint
+escalation thread from implementation routes to #1223 (the teapot
+tess-budget baseline, filed same-day). M10-4 is now dispatchable:
+its spec's inputs — this unit's sink, M10-3's door, the DL3
+pairing hook — are all on main.
