@@ -1801,3 +1801,9 @@ concurrent, frozen head e0cc0b20, v5 instrument.
 **M10-3 dual draw (branch-side, 2026-08-29, at review dispatch).**
 Ordinal 504. Slot byte 5, parity 1 ⇒ R1 FABLE + R2 OPUS,
 concurrent, frozen head 54a77ad9, v5 instrument.
+
+**M10-4 dispatch (branch-side, 2026-08-30).** Block M10-B2 slot 3
+(arm per the block draw above — the block's last; this record and
+the block record merge to main when this unit's reviews conclude).
+Difficulty pre-logged M at dispatch. Spec docs/M10-4-SPEC.md
+(merged main 114e5ae8).
