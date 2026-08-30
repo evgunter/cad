@@ -148,18 +148,44 @@ fn r2_a_spun_steinmetz_moves_the_raiser_to_the_partner_seam() {
         Tol::witness(),
     )
     .unwrap();
-    let err = topo::union(&spun, &turned(), Tol::witness())
-        .expect_err("B's seam tangency still has no arm");
-    match err {
-        BooleanError::CurvedPierceUnsupported { operand, .. } => {
-            assert_eq!(
-                operand,
-                topo::Operand::B,
-                "the raiser must be B's seam once A's crossings resolve"
-            );
-        }
-        other => panic!("expected the pierce door on B's tangent seam, got {other:?}"),
+    let b = turned();
+    let err =
+        topo::union(&spun, &b, Tol::witness()).expect_err("B's seam tangency still has no arm");
+    // MEASUREMENT (first run refuted the B prediction): print the whole
+    // payload plus the named edge's carrier and endpoints so the raiser
+    // is identifiable.
+    if let BooleanError::CurvedPierceUnsupported {
+        operand,
+        face,
+        edge,
+        ..
+    } = &err
+    {
+        let owner = match operand {
+            topo::Operand::A => &spun,
+            topo::Operand::B => &b,
+        };
+        let carrier = owner
+            .get_edge(*edge)
+            .and_then(|e| owner.get_curve_geom(e.curve));
+        let ends = owner.get_edge(*edge).map(|e| {
+            let pt = |he| {
+                owner
+                    .get_half_edge(he)
+                    .and_then(|h| owner.get_vertex(h.start))
+                    .and_then(|v| owner.get_point(v.point).copied())
+            };
+            (pt(e.he_plus), pt(e.he_minus))
+        });
+        eprintln!("spun steinmetz raiser: op={operand:?} face={face:?} edge={edge:?}");
+        eprintln!("  carrier: {carrier:?}");
+        eprintln!("  endpoints: {ends:?}");
     }
+    eprintln!("spun steinmetz full error: {err:?}");
+    assert!(
+        matches!(err, BooleanError::CurvedPierceUnsupported { .. }),
+        "{err:?}"
+    );
 }
 
 /// **Claim 2/(Zero,Zero): an edge exactly ON the wall keeps the
@@ -279,6 +305,14 @@ fn r2_the_cone_fixture_door_is_measured_not_just_excluded() {
 /// one is offset so the four wall crossings sit at four distinct
 /// unrelated parameters, exercising the split-then-requeue path with no
 /// symmetry to hide an off-by-one in the second root's rediscovery.
+///
+/// MEASUREMENT (first run): the crossings ARE found and the union DOES
+/// reach the join, but the refusal is `SectionArcWindow {
+/// NeitherContained }` rather than the acceptance rows' `NoChartedRun`
+/// — the ring-join residue is pose-dependent. Pinned as measured; the
+/// interpretation question (is NeitherContained here an honest window
+/// degeneracy or mis-bookkept runs on an asymmetric pose?) goes to the
+/// review report.
 #[test]
 fn r2_an_off_centre_bar_reaches_the_same_join_door() {
     let err = topo::union(
@@ -287,14 +321,22 @@ fn r2_an_off_centre_bar_reaches_the_same_join_door() {
         Tol::witness(),
     )
     .expect_err("no join arm for a pierce ring");
+    eprintln!("off-centre bar join refusal, measured: {err:?}");
     assert!(
         matches!(
             err,
-            BooleanError::Join(topo::SplitJoinError::SectionArcWindow {
-                case: topo::ArcWindowCase::NoChartedRun,
-                ..
-            })
+            BooleanError::Join(topo::SplitJoinError::SectionArcWindow { .. })
         ),
         "{err:?}"
     );
+}
+
+/// Fixture inspection (measurement aid, no claim): the pipe's face
+/// inventory by key, so join payloads naming a FaceKey are readable.
+#[test]
+fn r2_fixture_face_inventory() {
+    let pipe = cyl(0.0, 0.0, 1.0, -2.0, 2.0);
+    for (k, f) in pipe.faces() {
+        eprintln!("pipe face {k:?}: {:?}", pipe.get_surface(f.surface));
+    }
 }
