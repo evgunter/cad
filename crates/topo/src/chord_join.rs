@@ -2712,6 +2712,57 @@ mod tests {
     }
 }
 
+    /// **R1 review probe (CERT-4): the NEW anchoring's own jump.**
+    ///
+    /// The unit's row above measures the alternative (edge) anchoring on
+    /// a window of width π and finds it period-wide, which is the right
+    /// comparison. It does not probe the centred anchoring's OWN jump.
+    /// The site's argument is that the distance from the reduction's
+    /// argument to that jump is `(τ − width)/2`, positive only because
+    /// the `width ≥ τ` arm returned earlier — so the margin VANISHES as
+    /// the window's width approaches a period. This row drives that
+    /// limit: a nearly-whole-period window with the chord start near the
+    /// window's antipode.
+    ///
+    /// Consults no tolerance: the widths asserted are widths.
+    #[cfg(feature = "interval")]
+    #[test]
+    fn cert4r1_the_centred_anchoring_widens_at_its_own_jump_for_a_near_whole_window() {
+        use geom_core::{Bounds, Interval, Real};
+
+        let iv = |lo: f64, hi: f64| Interval::from_bounds(lo, hi);
+        let ex = Interval::from_f64;
+        let tau = Interval::tau();
+        let w = 1e-15;
+
+        // A window just under a whole period, and a start box sitting at
+        // its antipode -- i.e. on the centred window's own jump.
+        for width in [core::f64::consts::PI, 6.0, 6.28, 6.283_185_307_179_5] {
+            let w_min = 0.7_f64;
+            let half_w = ex(width) * ex(0.5);
+            let centre = w_min + width / 2.0;
+            let antipode = centre + core::f64::consts::PI;
+            let a1 = iv(antipode - w, antipode + w);
+            let x1 = (a1 - (ex(w_min) + half_w)).reduce_periodic_centred(tau) + half_w;
+            let got = x1.hi() - x1.lo();
+            println!(
+                "cert4r1 topo: window width {width:e}, margin to jump {:e}, \
+                 window-relative start width {got:e}",
+                (core::f64::consts::TAU - width) / 2.0
+            );
+            // MEASURED: period-wide at EVERY width tested, including the
+            // unit's own width of pi where the margin to the jump is a
+            // comfortable 1.57 rad. The site's argument is sound only for
+            // a start INSIDE the window; a start at the window's antipode
+            // is on the centred fold's own jump and comes back a period
+            // wide. That premise is prose at the site, not a gate.
+            assert!(
+                got >= core::f64::consts::TAU,
+                "expected the antipodal start to sit on the centred fold's jump"
+            );
+        }
+    }
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod section_case_pair_tests {

@@ -901,3 +901,50 @@ fn an_unused_box_seam_changes_no_decision() {
         "the comparison must have decisions in it to compare"
     );
 }
+
+// ---------------------------------------------------------------------
+// R1 review probe (CERT-4): what the driver's widening is actually made
+// of. A period-fold widening is CONSTANT (~a period) whatever the box;
+// a dependency-problem widening SCALES with the box. This row drives the
+// certification predicate across decades of half-width and reports
+// which shape the measurement has.
+// ---------------------------------------------------------------------
+#[test]
+fn cert4r1_the_driver_widening_scales_with_the_box_not_with_a_period() {
+    let e = eps();
+    let mut certified_any = false;
+    let mut refused_any = false;
+    for k in [1.0f64, 1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6] {
+        let half = e * k;
+        let doc = slab(1.0, half);
+        let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
+        let v = drive(&doc, &analyzed, &config(64), Tol::witness()).unwrap();
+        let r = v.receipt();
+        println!(
+            "cert4r1 half={half:e} (eps*{k:e}): splits {} certified {} refused {}",
+            r.splits,
+            r.certified,
+            v.refused().len()
+        );
+        if r.certified > 0 {
+            certified_any = true;
+        } else {
+            refused_any = true;
+        }
+    }
+    // The discriminator: a floor-straddle widening would be period-wide
+    // at EVERY half-width and would never certify. It certifies once the
+    // box is small enough, so the widening is a function of the box.
+    let _ = refused_any;
+    // Measured: every half-width at or below eps certifies (whole, with
+    // no splits, below eps/10), while the macroscopic box of the pin row
+    // above (half = 0.05, ~5e7 eps) certifies nothing. The widening is a
+    // function of the box, which is what a dependency problem looks like
+    // and is not what a floor straddle looks like — a period-wide
+    // enclosure would refuse at every half-width here.
+    assert!(
+        certified_any,
+        "nothing certified at any half-width — the widening is box-independent, \
+         which would be the period-fold shape the PR says it is not"
+    );
+}

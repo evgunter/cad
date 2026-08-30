@@ -50,6 +50,8 @@ mod declared_tangency;
 mod enclose_refusal_r2_probes;
 #[path = "generic_replay.rs"]
 mod generic_replay;
+#[path = "cert4r1_e2e.rs"]
+mod cert4r1_e2e;
 #[path = "guided_replay.rs"]
 mod guided_replay;
 #[path = "interval_lane.rs"]
