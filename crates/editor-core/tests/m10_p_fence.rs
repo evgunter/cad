@@ -36,23 +36,15 @@
 //! covers the three scalars the review names rather than the value lane
 //! alone.
 //!
-//! **The numbers moved again at M10-2, and NOT because the build path
-//! did.** That unit registered a new corpus document (`measured_web`,
-//! carrying the E3/E10 measurement nodes so the Dual/Interval digest
-//! arms are reached rather than merely present). This digest is taken
-//! over the WHOLE corpus in registry order, so growing the registry
-//! moves it by construction: the walk gains the new document's rows,
-//! and every document after it shifts index. Neither is a statement
-//! about evaluation.
-//!
-//! That is the same shape of claim LIB-G16 made below, and this unit
-//! can point at an INDEPENDENT measurement of it that did not exist
-//! then: `lib_g16_corpus_name_digests` pins a per-document digest, and
-//! adding `measured_web` moved exactly one of its twenty rows — its
-//! own — leaving the other nineteen bit-identical. A registry addition
-//! that had disturbed an existing document would have shown up there
-//! as well, on a table where "one row moved" is legible and a
-//! whole-corpus scalar's is not.
+//! A whole-corpus scalar is a blunt instrument for "did an existing
+//! document move", and there is now a SECOND, finer measurement to
+//! read beside it: `lib_g16_corpus_name_digests` pins a digest PER
+//! DOCUMENT, so a registry addition that disturbed an existing one
+//! shows up there as a row that moved and not merely as a scalar that
+//! changed. Every roster addition below was checked against it as well
+//! as by the removal procedure — each moved its own row and no other.
+//! That table is the reason to trust the re-blessings rather than
+//! merely to accept them.
 //!
 //! What still makes the fence mean what it says: the corpus's other
 //! rows — `m4_pr8_corpus`'s per-document coverage and cone probes, the
@@ -80,8 +72,8 @@
 //! The two claims stay separate because the fence's subject is that
 //! the lift changed nothing where nothing should change.
 //!
-//! RE-BLESSED TWICE, both times for a ROSTER change rather than a
-//! build-path one: this digest walks `corpus::documents()`, so a new
+//! RE-BLESSED THREE TIMES, every time for a ROSTER change rather than
+//! a build-path one: this digest walks `corpus::documents()`, so a new
 //! document moves it by construction. Each re-blessing was MEASURED
 //! the same way, and the measurement is the procedure — remove the new
 //! document ALONE from `documents()` and check every constant comes
@@ -96,6 +88,20 @@
 //!   01e05bef0382adda` and `interval` `bfb345df4492bc11,
 //!   c835f9e36e694ddd` — exactly the constants this file carried
 //!   between the two re-blessings.
+//! - M10-2 added `measured_web`, carrying the E3/E10 measurement nodes
+//!   so the Dual/Interval digests' Measure and Assertion arms are
+//!   REACHED rather than merely present. Removing it alone returned
+//!   `f64`/`probe` `803b01aaab703256, 3f310d4d77e892ba` and `interval`
+//!   `3ee6a402bcb1f12e, ef742c0a0c9dd7da` — the constants this file
+//!   carried on `main` before the M10-2 merge, and the rows came back
+//!   GREEN against them rather than being compared by hand.
+//!
+//! The M10-2 measurement is the strongest of the three, for a reason
+//! worth stating: this roster minus `measured_web` IS main's roster,
+//! so the expected values were not re-derived for the occasion — they
+//! were already committed here by someone else. A measurement sink
+//! denotes no body, so it contributes no geometry to any pre-existing
+//! document, and that prediction is what the removal confirms.
 //!
 //! The three numbers below are the same digest over the grown roster.
 //!
@@ -319,7 +325,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x803b_01aa_ab70_3256, 0x3f31_0d4d_77e8_92ba),
+        (0x50b4_edef_3d4c_d1ac, 0xa17d_6b19_5195_bee0),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -346,7 +352,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0x3ee6_a402_bcb1_f12e, 0xef74_2c0a_0c9d_d7da),
+        (0xb09c_3944_a8d7_c440, 0x588d_3ac4_427a_f52c),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -370,7 +376,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x803b_01aa_ab70_3256, 0x3f31_0d4d_77e8_92ba),
+        (0x50b4_edef_3d4c_d1ac, 0xa17d_6b19_5195_bee0),
         "the corpus's Probe evaluation moved"
     );
 }
