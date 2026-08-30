@@ -229,8 +229,8 @@ pub fn rim_arcs_at(body: &Body<f64>, rim_r: f64, rim_y: f64) -> Vec<EdgeKey> {
 pub fn sphere_zone(bore: f64, rev: crate::Revolution<f64>, tol: Tol) -> Body<f64> {
     let big_r = 2.0f64;
     let (y_lo, y_hi) = (-0.5f64, 1.0f64);
-    let x_lo = (big_r * big_r - y_lo * y_lo).sqrt();
-    let x_hi = (big_r * big_r - y_hi * y_hi).sqrt();
+    let x_lo = (big_r.powi(2) - y_lo.powi(2)).sqrt();
+    let x_hi = (big_r.powi(2) - y_hi.powi(2)).sqrt();
     let th_lo = (y_lo / big_r).asin();
     let th_hi = (y_hi / big_r).asin();
     let bulge = ((th_hi - th_lo) / 4.0).tan();
