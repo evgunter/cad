@@ -42,25 +42,32 @@
 //! a reader to be suspicious if one ever needs a second number.
 //!
 //! WHAT THE INTERVAL ROW IS NOT. It pins that the lift OFF changes
-//! nothing at `Interval`; it is not evidence that a WIDE interval
-//! parameter can be driven through this door, because it cannot be
-//! yet. `Doc::param_env` embeds every parameter through `from_f64`, so
-//! every binding a document evaluation can produce is a degenerate
-//! (point) interval. Teaching it non-degenerate intervals is M10-3's
-//! first spec bullet; until that lands, the wide-box capability is
-//! reachable only one door down, at the program-resolve seam, which is
-//! where `m10_p_lift`'s wide-box row drives it.
+//! nothing at `Interval` — a fence around the BUILD path, which binds
+//! its parameters at their nominals. It is not evidence about a WIDE
+//! interval parameter, which is a different door: an evaluation
+//! carrying an `EvalOptions::param_box` binds `nominal + [lo, hi]`
+//! instead, and `m10_3_driver_interval`'s rows are what drive that.
+//! The two claims stay separate because the fence's subject is that
+//! the lift changed nothing where nothing should change.
 //!
-//! RE-BLESSED at LIB-G16, and the reason is a ROSTER change rather
-//! than a build-path one: the corpus registry gained `die_chamfer`,
-//! and this digest walks `corpus::documents()`, so a new document
-//! moves it by construction. That claim was MEASURED, not asserted —
-//! with `die_chamfer::document()` alone removed from `documents()`,
-//! all three constants came back at their pre-LIB-G16 values
-//! (`f64`/`probe` `ebba499b112fea43, 3350329b8dcf3c2f`, `interval`
-//! `6c3f436b41ecd1b4, e7db67ef2cffe270`), so no EXISTING document's
-//! bits moved. The three numbers below are the same digest over the
-//! grown roster.
+//! RE-BLESSED TWICE, both times for a ROSTER change rather than a
+//! build-path one: this digest walks `corpus::documents()`, so a new
+//! document moves it by construction. Each re-blessing was MEASURED
+//! the same way, and the measurement is the procedure — remove the new
+//! document ALONE from `documents()` and check every constant comes
+//! back at its previous value, which is what "no EXISTING document's
+//! bits moved" means here.
+//!
+//! - LIB-G16 added `die_chamfer`. Removing it alone returned
+//!   `f64`/`probe` `ebba499b112fea43, 3350329b8dcf3c2f` and `interval`
+//!   `6c3f436b41ecd1b4, e7db67ef2cffe270`.
+//! - LIB-CORPUS-DIE added `die_composed_tour`, the demo tour's die.
+//!   Removing it alone returned `f64`/`probe` `0f7cdec3cf38ad1e,
+//!   01e05bef0382adda` and `interval` `bfb345df4492bc11,
+//!   c835f9e36e694ddd` — exactly the constants this file carried
+//!   between the two re-blessings.
+//!
+//! The three numbers below are the same digest over the grown roster.
 //!
 //! The `probe` row is ROSTERED into the K-telemetry sweep's executed
 //! floor. Its claim is not a third copy of the `f64` row's: it says the
@@ -74,8 +81,8 @@
 mod corpus;
 mod fixture;
 
-use editor_core::{CancelToken, ContentBits, EvalOptions, NodeResult, ValuePayload, evaluate};
-use geom_core::{Decide, Tol};
+use editor_core::{CancelToken, EvalOptions, NodeResult, ValuePayload, evaluate};
+use geom_core::Tol;
 
 /// A 128-bit FNV-1a over the evaluation's observable bits.
 struct Digest {
@@ -113,7 +120,7 @@ impl Digest {
 /// door, which is what lets it compile against a pre-lift tree.
 fn corpus_digest<T, F, S>(bits: F, scalar: S) -> (u64, u64)
 where
-    T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::AtRestPolicy,
+    T: editor_core::EvalScalar,
     F: Fn(&mut Digest, &geom_core::Point3<T>),
     S: Fn(&mut Digest, T),
 {
@@ -282,7 +289,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x0f7c_dec3_cf38_ad1e, 0x01e0_5bef_0382_adda),
+        (0x803b_01aa_ab70_3256, 0x3f31_0d4d_77e8_92ba),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -309,7 +316,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0xbfb3_45df_4492_bc11, 0xc835_f9e3_6e69_4ddd),
+        (0x3ee6_a402_bcb1_f12e, 0xef74_2c0a_0c9d_d7da),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -333,7 +340,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x0f7c_dec3_cf38_ad1e, 0x01e0_5bef_0382_adda),
+        (0x803b_01aa_ab70_3256, 0x3f31_0d4d_77e8_92ba),
         "the corpus's Probe evaluation moved"
     );
 }

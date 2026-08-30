@@ -42,6 +42,11 @@
 mod approx_surface;
 #[path = "arc_eval_anchor.rs"]
 mod arc_eval_anchor;
+#[path = "cert1_r1_probes.rs"]
+mod cert1_r1_probes;
+#[path = "cert1_sphere_polar.rs"]
+mod cert1_sphere_polar;
+
 #[path = "decoration_plane_mint.rs"]
 mod decoration_plane_mint;
 #[path = "imported_chart_arc_rim.rs"]
@@ -66,6 +71,8 @@ mod m8_f67_r1_probes;
 mod offa_r1_probes;
 #[path = "offb_r1_probes.rs"]
 mod offb_r1_probes;
+#[path = "r2_probe_sphere_polar.rs"]
+mod r2_probe_sphere_polar;
 
 #[path = "offb_r2_probes.rs"]
 mod offb_r2_probes;

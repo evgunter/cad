@@ -7,13 +7,11 @@
 //! diagnosis is a function of both).
 #![allow(dead_code)] // shared across test binaries
 
-use editor_core::eval::ContentBits;
 use editor_core::{
     BooleanOp, CancelToken, CapEnd, DocEdit, EntityKind, Entry, EvalOptions, Evaluation, Node,
     ProfileDoc, Qualifier, RecipeNodeId, Resolution, RoleSeg, RunCtx, SlotId, StableName, evaluate,
     resolve, resolve_with_prior,
 };
-use geom_core::Decide;
 
 use super::{ang, desc, insert, len, scl, step};
 use geom_core::Tol;
@@ -32,7 +30,7 @@ use geom_core::Tol;
 /// headers); `m4_pr4_banked` pins both strategies side by side.
 fn run<T>(doc: &ProfileDoc, prior: Option<&Evaluation<T>>) -> Evaluation<T>
 where
-    T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::AtRestPolicy,
+    T: editor_core::EvalScalar,
 {
     evaluate::<T>(
         doc,
@@ -83,7 +81,7 @@ fn name1(kind: EntityKind, node: RecipeNodeId, seg: RoleSeg) -> StableName {
 /// rows and scalars.
 pub fn diagnosis_corpus<T>() -> Vec<(&'static str, Resolution)>
 where
-    T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::AtRestPolicy,
+    T: editor_core::EvalScalar,
 {
     let mut out = Vec::new();
 

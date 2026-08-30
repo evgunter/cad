@@ -34,8 +34,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use editor_core::{
-    BooleanOp, BooleanValue, CancelToken, ContentBits, Datum, DocEdit, EvalOptions, Evaluation,
-    Node, NodeResult, PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, ValuePayload, apply,
+    BooleanOp, BooleanValue, CancelToken, Datum, DocEdit, EvalOptions, Evaluation, Node,
+    NodeResult, PatternKind, ProfileDoc, ProfileProgram, RecipeNodeId, ValuePayload, apply,
     evaluate,
 };
 use geom_core::Decide;
@@ -47,6 +47,7 @@ pub mod cut_cylinder;
 pub mod die;
 pub mod die_chamfer;
 pub mod die_composed;
+pub mod die_composed_tour;
 pub mod die_fillet;
 pub mod die_pips;
 pub mod die_tool;
@@ -176,6 +177,17 @@ pub fn documents() -> Vec<CorpusDoc> {
         // the two that do not can be left out. The flipped pin and the
         // selection's provenance live in `m6_composed_node.rs`.
         die_composed::document(),
+        // `die_composed_tour` (LIB-CORPUS-DIE): the same surgery at the
+        // size the demo tour renders it — 21 pips in one grouped tool,
+        // 12 box edges and 42 rim arcs behind names twenty unions
+        // deep. It is the ONE document here the registry does not
+        // author: the demo tour is its single authoring site and the
+        // document crosses as committed bytes, because `demos/tour` is
+        // a detached workspace this crate must not depend on. The
+        // module docs carry the regeneration line, why the file's model
+        // rides its EDIT LOG rather than its snapshot, and which of the
+        // tour's three fillets the document leaves out.
+        die_composed_tour::document(),
         plate_param::document(),
     ]
 }
@@ -198,9 +210,7 @@ pub fn cone(doc: &ProfileDoc, root: RecipeNodeId) -> BTreeSet<RecipeNodeId> {
 }
 
 /// Evaluates a document at scalar `T` with default options.
-pub fn eval<T: Decide + ContentBits + geom_core::Bounds + Send + Sync + topo::AtRestPolicy>(
-    doc: &ProfileDoc,
-) -> Evaluation<T> {
+pub fn eval<T: editor_core::EvalScalar>(doc: &ProfileDoc) -> Evaluation<T> {
     evaluate::<T>(
         doc,
         None,
