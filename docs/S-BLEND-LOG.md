@@ -262,3 +262,25 @@ hole in the old gate found and closed). **Ordinal 602 claimed** (PR
 Now interleaved per the recorded method notes: BLEND-7 R2 and
 BLEND-2 R1 run concurrently (two review targets, the cap), R1
 targets reclaimed at report.
+
+## BLEND-7 R2 IN; FIX PASS DISPATCHED (2026-08-30 ~00:30Z)
+
+R2: **APPROVE-WITH-FIXES 2/4/2, rubric 4/3/3** (~200K/~55m; probes
+on `blend/enclose-refusal-r2-probes`), and the strongest possible
+soundness result for the gate itself: a mutation differential over
+18,072 corners — builds and emissions BYTE-IDENTICAL with the gate
+gutted, so the gate changes only which refusal is served, never
+whether a fillet builds; zero ruling violations on emitted geometry
+off the PR's grid. **Correspondence pre-note: both MAJORs are
+BILATERAL in substance at differing severity** (R1's MINOR-1
+carried both mechanisms: the first-hit-leg bound and the
+existence-gap over-promise) — NO tally candidates; the severity
+split is calibration signal. The defect family is the dead-recourse
+sentence again, one program-unit after BLEND-1 repaired its sibling
+— the pin asserted class-absence, not buildability, in both cases.
+R2-unique: the 12% refusal-attribution measurement (pre-existing
+channel, issue to file), the fuzz-prose insensitivity, the
+Debug-float class. R1-unique: the untested in-band arm. NCSC
+witness-lessness bilateral (R2: it was the ONLY witness). Fix pass
+IMPLEMENTER-INHERITED, dispatched (9-item union, two issues to
+file); R2's target reclaimed. BLEND-2 R1 still running.
