@@ -57,7 +57,10 @@ fn author_arc_arc(
     r: f64,
 ) -> Result<ProfileLoop<f64>, PathError<f64>> {
     let c1 = p2(corner.x - r_in * a_in.cos(), corner.y - r_in * a_in.sin());
-    let c2 = p2(corner.x - r_out * a_out.cos(), corner.y - r_out * a_out.sin());
+    let c2 = p2(
+        corner.x - r_out * a_out.cos(),
+        corner.y - r_out * a_out.sin(),
+    );
     let head = on_circle(c1, r_in, a_in - tau_in * delta_in);
     let next = on_circle(c2, r_out, a_out + tau_out * delta_out);
     let w = |t: f64| if t > 0.0 { ArcSweep::Ccw } else { ArcSweep::Cw };
@@ -195,8 +198,19 @@ fn p2a_enclosing_extremes_still_refuse_typed() {
         .expect_err("hairline enclosing demand");
     println!("P2a hairline -> {}", tag(&err2));
     // Tiny everything: micron-scale carriers, millimetre radius.
-    let err3 = author_arc_arc(p2(0.0, 0.0), 0.0, 1.0e-6, 1.0, 2.9, 1.4, 3.0e-6, 1.0, 1.2, 1.0e-3)
-        .expect_err("micron-scale enclosing demand");
+    let err3 = author_arc_arc(
+        p2(0.0, 0.0),
+        0.0,
+        1.0e-6,
+        1.0,
+        2.9,
+        1.4,
+        3.0e-6,
+        1.0,
+        1.2,
+        1.0e-3,
+    )
+    .expect_err("micron-scale enclosing demand");
     println!("P2a micro -> {}", tag(&err3));
     assert!(
         matches!(err3, PathError::FilletEnclosesLegCarrier { .. }),
@@ -320,7 +334,12 @@ fn p3_unbracketed_other_crossing_build_decoded() {
         pf.x, pf.y, t1.x, t1.y, t2.x, t2.y
     );
     for v in lp.vertices() {
-        println!("P3 vertex ({:.5},{:.5}) bulge {:.5}", v.pos().x, v.pos().y, v.bulge());
+        println!(
+            "P3 vertex ({:.5},{:.5}) bulge {:.5}",
+            v.pos().x,
+            v.pos().y,
+            v.bulge()
+        );
     }
     // The PR's claim: externally tangent at the OTHER crossing.
     assert!((din - 0.7).abs() < 1e-9, "|P-O_in| = {din}");
@@ -354,24 +373,24 @@ fn p4_mine_no_corner_side_candidate_line_arc() {
                             let ca = p2(c.x - rc * a.cos(), c.y - rc * a.sin());
                             let head = p2(c.x - dl, c.y);
                             let next = on_circle(ca, rc, a + tau * da);
-                            let got = Open
-                                .at(head)
-                                .toward(1.0, 0.0, Tol::witness())
-                                .and_then(|bld| {
-                                    bld.fillet_arc(
-                                        r,
-                                        Center {
-                                            c: ca,
-                                            winding: if tau > 0.0 {
-                                                ArcSweep::Ccw
-                                            } else {
-                                                ArcSweep::Cw
+                            let got =
+                                Open.at(head)
+                                    .toward(1.0, 0.0, Tol::witness())
+                                    .and_then(|bld| {
+                                        bld.fillet_arc(
+                                            r,
+                                            Center {
+                                                c: ca,
+                                                winding: if tau > 0.0 {
+                                                    ArcSweep::Ccw
+                                                } else {
+                                                    ArcSweep::Cw
+                                                },
+                                                p: next,
                                             },
-                                            p: next,
-                                        },
-                                        Tol::witness(),
-                                    )
-                                });
+                                            Tol::witness(),
+                                        )
+                                    });
                             if let Err(PathError::NoCornerForFillet {
                                 reason:
                                     PathNoCornerReason::NoTangentCircle(
@@ -425,7 +444,10 @@ fn p5_unbracketed_grid_digest() {
                     // (not merely a same-count build) is visible.
                     match fillet_arc(&lp, 0.5) {
                         Some((t1, t2, b)) => {
-                            format!("B({:.6},{:.6},{:.6},{:.6},{:.6})", t1.x, t1.y, t2.x, t2.y, b)
+                            format!(
+                                "B({:.6},{:.6},{:.6},{:.6},{:.6})",
+                                t1.x, t1.y, t2.x, t2.y, b
+                            )
                         }
                         None => "B(noarc)".to_string(),
                     }
