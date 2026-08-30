@@ -54,6 +54,10 @@ Usage:
                                    REQUEST points instead of drawing them (below)
   ci-filter.py ... --config-from-message <file>
                                    read that same request out of a commit message
+  ci-filter.py ... --notices <file>
+                                   also write the human notices (a pin's
+                                   reason, the interval advisory) to <file>,
+                                   for a caller that relays them verbatim
   ci-filter.py --force-all         take no diff at all; return the `all` tier
 
 Output: KEY=value lines on stdout, one per line, safe to append to
@@ -141,10 +145,16 @@ see is how a branch spends every run of its life on an axis nobody chose
     outputs answer "which configuration gated this commit" with `lane:sampled`
     over a lane no sample touched. It is a SOURCE, not a value — LANE stays
     `interval` and no job condition reads CONFIG_SOURCE.
-  * THE REASON on STDERR, naming the file that pinned it. A path is not a
-    matrix point and must not enter the KEY=value stream: both halves append
-    stdout to $GITHUB_OUTPUT or read it with `IFS='=' read -r k v`, where one
-    extra line would be one bogus output key.
+  * THE REASON on STDERR, and into `--notices` when a caller asks for it. A
+    path is not a matrix point and must not enter the KEY=value stream: both
+    halves append stdout to $GITHUB_OUTPUT or read it with
+    `IFS='=' read -r k v`, where one extra line would be one bogus output key.
+    THE WORDING LIVES HERE AND ONLY HERE. ci.yml used to restate both notices
+    in its own prose so it could print them where a reader looks, and the two
+    copies drifted twice — one claimed the pin's reason always names a file
+    (the fail-closed arm names none), the other said "DEFAULT LANE DRAWN" over
+    a lane that had been requested. `--notices` is the relay that removed the
+    second copy.
 
 WHAT THE PIN NO LONGER COVERS, AND THE CONVENTION THAT REPLACED IT (Evan's
 ruling, 2026-08-29, on #1122). `_forces_interval` used to pin on any changed
@@ -816,17 +826,17 @@ def _forces_interval(files: list[str] | None) -> str | None:
 # semantics, the draw goes the other way, and they find out two runs later —
 # is real even though the filename could not identify it. A name can raise the
 # question; only the author can answer it.
-def _advises_interval(files: list[str] | None) -> str | None:
-    """Why this diff MIGHT be about interval semantics, or `None`.
+def _advises_interval(files: list[str] | None) -> list[str]:
+    """EVERY changed file whose basename carries `interval`; empty if none.
 
     Advisory only. Nothing reads this to decide what runs.
+
+    ALL OF THEM, not the first. The reader's question is "did I change
+    interval semantics", and one filename out of nine answers it for one file
+    while implying it is the only one — the notice would then be quietly wrong
+    about the size of what it is asking about.
     """
-    if not files:
-        return None
-    for f in files:
-        if "interval" in f.rsplit("/", 1)[-1]:
-            return f"{f} has `interval` in its basename"
-    return None
+    return [f for f in (files or []) if "interval" in f.rsplit("/", 1)[-1]]
 
 
 def _sample(seed: str, salt: str, choices: tuple[str, ...]) -> str:
@@ -1040,7 +1050,7 @@ def decorate(
     # and a path has no business in a stream both halves parse as KEY=value.
     res["LANE_ADVISORY"] = (
         "true"
-        if res["LANE"] == "default" and _advises_interval(files) is not None
+        if res["LANE"] == "default" and _advises_interval(files)
         else "false"
     )
     return res
@@ -1529,9 +1539,12 @@ def selftest() -> None:
         "tell a pin from a draw, keeps the reason off stdout, stays out of unpinned and "
         "unseeded runs, and goes quiet in both channels when a request overrides it, "
         "while a merely interval-NAMED file draws its lane like anything else and "
-        "raises LANE_ADVISORY with the spelling of the request instead — silently on "
-        "a run already gating interval, on an unseeded run, and on a diff naming no "
-        "such file; and a configuration REQUESTED by hand "
+        "raises LANE_ADVISORY with the spelling of the request instead — naming every "
+        "such file rather than the first, saying whether the lane was drawn or "
+        "requested, and staying silent on a run already gating interval, on an "
+        "unseeded run, and on a diff naming no such file; --notices carries both "
+        "notices to a relay file and is truncated when there is none; and a "
+        "configuration REQUESTED by hand "
         "— by flag or by `CI-Config:` commit trailer — reaches the dimension it names "
         "and only that one, beats the interval pin, is recorded in CONFIG_SOURCE, and "
         "reds the step rather than falling back to the draw when it names no real point"
@@ -1689,6 +1702,47 @@ def _selftest_lane_pin(t: str) -> None:
     if "lane:requested" not in overridden.stdout:
         raise SystemExit("SELFTEST FAILED: a request that beat the pin was recorded as the pin; "
                          f"the run would credit its lane to a file nobody chose\n{overridden.stdout}")
+
+    # THE RELAY FILE, which is the only reason ci.yml no longer restates these
+    # notices in its own prose. Two properties, and the second is the one a
+    # reader would never think to check: the file CARRIES the notice, and it is
+    # TRUNCATED when there is none — a relay that leaves yesterday's pin in
+    # place announces a pin the run does not have, and the consumer `cat`s it
+    # unconditionally.
+    notes = os.path.join(t, "notices.txt")
+    _selftest_run(t, ["--files", "-", "--seed", seed, "--notices", notes],
+                  "interval-transcendentals/src/lib.rs\n")
+    with open(notes) as fh:
+        relayed = fh.read()
+    if "PINNED" not in relayed or "interval-transcendentals/src/lib.rs" not in relayed:
+        raise SystemExit("SELFTEST FAILED: --notices did not carry the pin's reason, so ci.yml's "
+                         f"relay would print nothing where it used to print prose\n{relayed!r}")
+    _selftest_run(t, ["--files", "-", "--seed", seed, "--notices", notes],
+                  "crates/topo/src/lib.rs\n")
+    with open(notes) as fh:
+        if fh.read() != "":
+            raise SystemExit("SELFTEST FAILED: --notices was not truncated on a run with no "
+                             "notice — the relay would announce the PREVIOUS run's pin")
+
+    # EVERY interval-named file, not the first, and the word for how the lane
+    # was arrived at. Both are things the relay cannot re-derive, which is why
+    # the wording moved into this script.
+    many = _selftest_run(
+        t, ["--files", "-", "--seed", seed, "--notices", notes],
+        "crates/topo/src/ring_interval.rs\ncrates/sweep/tests/extrude_interval.rs\n")
+    if ("ring_interval.rs" not in many.stderr or "extrude_interval.rs" not in many.stderr
+            or "2 file(s)" not in many.stderr):
+        raise SystemExit("SELFTEST FAILED: the advisory named fewer than all the interval files "
+                         f"it matched\nstderr: {many.stderr!r}")
+    if "LANE=default (drawn)" not in many.stderr:
+        raise SystemExit("SELFTEST FAILED: the advisory did not say the lane was DRAWN\n"
+                         f"stderr: {many.stderr!r}")
+    asked = _selftest_run(
+        t, ["--files", "-", "--seed", interval_seed, "--config", "lane=default"],
+        "crates/topo/src/ring_interval.rs\n")
+    if "LANE=default (REQUESTED)" not in asked.stderr:
+        raise SystemExit("SELFTEST FAILED: the advisory called a REQUESTED lane drawn — the run "
+                         f"would credit a choice to a die nobody rolled\nstderr: {asked.stderr!r}")
 
     # No seed: nothing is drawn, so there is nothing to pin OR to advise.
     # LANE=both already runs both compile modes.
@@ -1881,6 +1935,13 @@ def main() -> int:
         help="read the same request from the `CI-Config:` trailer of a commit "
         "message in FILE; --config wins per dimension",
     )
+    ap.add_argument(
+        "--notices",
+        metavar="FILE",
+        help="also write the human notices (a lane pin's reason, the interval "
+        "advisory) to FILE, so a caller can relay them verbatim instead of "
+        "restating them; truncated to empty when there are none",
+    )
     args = ap.parse_args()
     if args.selftest:
         selftest()
@@ -1948,36 +2009,62 @@ def main() -> int:
     # when no request overrode the pin, so both of the conditions that used to
     # be spelled out here are already inside it; re-deriving them would let the
     # note and the output key disagree.
+    #
+    # THE NOTICES ARE COMPOSED HERE AND WRITTEN TWICE, TO ONE WORDING. They go
+    # to stderr, where the local half and anyone running this by hand sees
+    # them, and — when `--notices` names a file — to that file, which ci.yml's
+    # always-run configuration step relays VERBATIM. Before that relay existed
+    # ci.yml restated both notices in its own prose, and the two copies had
+    # already drifted twice: one said the pin's reason names a file, which the
+    # fail-closed arm cannot, and the other said "DEFAULT LANE DRAWN" over a
+    # lane that had been requested. There is one wording now, and it is the
+    # one that can see the values it is describing.
+    notices: list[str] = []
+
     if "lane:pinned" in out["CONFIG_SOURCE"]:
         pin = _forces_interval(files)
-        print(
-            f"ci-filter: LANE=interval is PINNED, not drawn: {pin}.\n"
-            "ci-filter: re-pushing cannot change it — the pin runs before the "
-            "seeded draw and short-circuits it.\n"
-            "ci-filter: this is not a coverage gap. Both lanes archive the same "
-            "scope and the interval lane only adds `--features interval`, so a "
-            "pinned run executes the same rows in a stricter compile; what it "
-            "does not reach is the loud-skip marker rows gated "
-            "`cfg(not(feature = \"interval\"))` under crates/*/tests.",
-            file=sys.stderr,
+        notices.append(
+            f"LANE=interval is PINNED, not drawn: {pin}.\n"
+            "  Re-pushing cannot change it — the pin runs before the seeded draw "
+            "and short-circuits it.\n"
+            "  This is not a coverage gap. Both lanes archive the same scope and "
+            "the interval lane only adds `--features interval`, so a pinned run "
+            "executes the same rows in a stricter compile; what it does not reach "
+            "is the loud-skip marker rows gated `cfg(not(feature = \"interval\"))` "
+            "under crates/*/tests.\n"
+            "  To gate the other lane instead, say so: a `CI-Config: lane=default` "
+            "trailer on the head commit beats the pin."
         )
 
-    # THE ADVISORY'S REASON, on stderr for the same reason the pin's is: it is
-    # a path. `LANE_ADVISORY=true` on stdout is what ci.yml reads to put the
-    # notice where a reader is already looking.
+    # THE ADVISORY. It names EVERY interval-named file, and it says whether the
+    # lane it is advising about was drawn or asked for — both are things only
+    # this function can see, which is why the wording lives here.
     if out["LANE_ADVISORY"] == "true":
-        print(
-            "ci-filter: this diff touches *interval* files "
-            f"({_advises_interval(files)}) and this run gates LANE=default.\n"
-            "ci-filter: the filename is NOT taken as evidence any more — it once "
-            "pinned the lane, and it pinned a rename that touched an "
-            "interval-named file for three identifiers (#1122).\n"
-            "ci-filter: SO IF INTERVAL SEMANTICS CHANGED, ASK FOR THE LANE: put "
+        hits = _advises_interval(files)
+        shown = ", ".join(hits[:5]) + (f" (+{len(hits) - 5} more)" if len(hits) > 5 else "")
+        how = "REQUESTED" if "lane:sampled" not in out["CONFIG_SOURCE"] else "drawn"
+        notices.append(
+            f"This diff touches {len(hits)} file(s) whose basenames carry `interval` "
+            f"— {shown} — and this run gates LANE=default ({how}).\n"
+            "  The filename is NOT taken as evidence any more: it once pinned the "
+            "lane, and it pinned a rename that touched an interval-named file for "
+            "three identifiers (#1122).\n"
+            "  SO IF INTERVAL SEMANTICS CHANGED, ASK FOR THE LANE: put "
             "`CI-Config: lane=interval` in the head commit's message, or run the "
-            "workflow_dispatch with lane=interval. Say in the PR which lane "
-            "gated. If they did not, this notice is noise and you can ignore it.",
-            file=sys.stderr,
+            "workflow_dispatch with lane=interval. Say in the PR which lane gated.\n"
+            "  If they did not change, this notice is noise and you can ignore it. "
+            "The convention is in docs/prompts/implementer-discipline.md."
         )
+
+    for note in notices:
+        print(f"ci-filter: {note}", file=sys.stderr)
+    if args.notices:
+        # Truncated even when empty: the relay `cat`s this file unconditionally,
+        # and a stale one from an earlier invocation would announce a pin this
+        # run does not have.
+        with open(args.notices, "w") as fh:
+            for note in notices:
+                fh.write(f"ci-filter: {note}\n")
 
     for key, val in out.items():
         print(f"{key}={val}")

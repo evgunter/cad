@@ -25,8 +25,14 @@
 # and a pre-push check any time. Keep the two IN SYNC: a job added to
 # ci.yml gets a row here, same commands, same env. Rows run sequentially
 # (they share one target/ dir — cargo can't safely share it concurrently);
-# all rows run even after a failure (ci.yml's fail-fast: false), summary
-# at the end, nonzero exit if any row failed.
+# all rows run even after a failure, summary at the end, nonzero exit if any
+# row failed. TWO DIFFERENT FAIL-FAST SETTINGS LIVE HERE and conflating them
+# is what #1128 was: the sentence above is about ROWS, and its hosted twin is
+# ci.yml's matrix-level `fail-fast: false`, which stops one shard's failure
+# cancelling the other. Neither touches what happens to the TESTS INSIDE a
+# row after the first one fails — that is nextest's own default, which is
+# fail-fast, and every nextest row in this file now passes `--no-fail-fast`
+# (see the note at the test rows).
 #
 # Prereqs beyond the Rust toolchain: admesh (watertight row; apt or built
 # from source — 0.98.4+) and cargo-nextest (test rows; pinned 0.9.140 to
@@ -488,11 +494,24 @@ nextest_check() {
   echo "  cargo install cargo-nextest --locked --version 0.9.140"
   return 1
 }
+# `--no-fail-fast` ON EVERY NEXTEST ROW IN THIS FILE, and the reason is
+# sharper here than it is hosted. nextest's default is fail-fast (measured
+# against the pinned 0.9.140 — the argument is at ci.yml's sharded run steps),
+# so without the flag each row below reported its FIRST failure and stopped.
+# This script is the half that runs EVERY point of the matrix on one tree,
+# reached for before a merge that would be expensive to get wrong: a row that
+# answers "how broken is this tree" with one name is answering a question
+# nobody asked.
+#
+# It also keeps the two halves saying the same thing about a red run. The
+# parity checker compares which CHECKS each half names, never the flags on the
+# commands, so hosted and local can drift on reporting semantics with nothing
+# noticing — filed as its own issue rather than left as a note here.
 # shellcheck disable=SC2086
 # HOSTED MIRROR: test / run archived tests
-test_default() { nextest_check && cargo nextest run $SCOPE; }
+test_default() { nextest_check && cargo nextest run $SCOPE --no-fail-fast; }
 # shellcheck disable=SC2086
-test_eps() { nextest_check && CAD_TOLERANCE_EPS="$1" cargo nextest run $SCOPE; }
+test_eps() { nextest_check && CAD_TOLERANCE_EPS="$1" cargo nextest run $SCOPE --no-fail-fast; }
 # shellcheck disable=SC2086
 # HOSTED MIRROR: build / doc-tests
 doc_tests() { cargo test --doc $SCOPE; }
@@ -546,7 +565,7 @@ interval_tests() {
   local sel extra=""
   sel=$(cat "$INTERVAL_SEL")
   [ "$sel" = "none()" ] && extra="--no-tests=pass"
-  cargo nextest run $SCOPE --features interval -E "$sel" $extra
+  cargo nextest run $SCOPE --features interval -E "$sel" $extra --no-fail-fast
 }
 # THE DEMOTED (NIGHTLY-ONLY) TESTS. A test carrying
 #
@@ -607,7 +626,7 @@ nightly_demoted() {
   sel=$(cat "$NIGHTLY_SEL")
   [ "$sel" = "none()" ] && extra="--no-tests=pass"
   CARGO_TARGET_DIR="$NIGHTLY_TARGET" RUSTFLAGS="--cfg nightly_suite" \
-    cargo nextest run --workspace -E "$sel" $extra
+    cargo nextest run --workspace -E "$sel" $extra --no-fail-fast
 }
 
 # shellcheck disable=SC2086
@@ -617,7 +636,7 @@ interval_eps() {
   sel=$(cat "$INTERVAL_SEL")
   [ "$sel" = "none()" ] && extra="--no-tests=pass"
   CAD_TOLERANCE_EPS=1e-6 cargo nextest run $SCOPE --features interval \
-    -E "$sel" $extra
+    -E "$sel" $extra --no-fail-fast
 }
 # shellcheck disable=SC2086
 # HOSTED MIRROR: lint-interval / doc-tests (interval)
@@ -636,9 +655,9 @@ interval_doc_tests() { cargo test --doc $SCOPE --features interval; }
 # mirror named steps of the hosted `test-interval` job, which the
 # interval rows above do not cover — `interval_tests` runs the
 # interval-only selection, and these two are in its subtracted half.
-persist_interval() { nextest_check && cargo nextest run -p editor-core --features interval -E 'binary_id(editor-core::all) & test(/^m4_pr6_roundtrip_interval::/)'; }
+persist_interval() { nextest_check && cargo nextest run -p editor-core --features interval -E 'binary_id(editor-core::all) & test(/^m4_pr6_roundtrip_interval::/)' --no-fail-fast; }
 
-corpus_interval() { nextest_check && cargo nextest run -p editor-core --features interval -E 'binary_id(editor-core::all) & test(/^m4_pr8_corpus_interval::/)'; }
+corpus_interval() { nextest_check && cargo nextest run -p editor-core --features interval -E 'binary_id(editor-core::all) & test(/^m4_pr8_corpus_interval::/)' --no-fail-fast; }
 
 # M4 PR 8a spec D2 (F8): rebuild-latency REPORTING — prints the
 # per-document table and diffs the newest entry in the timing history,

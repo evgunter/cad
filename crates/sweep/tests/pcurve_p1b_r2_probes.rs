@@ -8,8 +8,12 @@
 //! and the re-anchor door) by running the whole battery. These rows
 //! attack the same claim from the other side: a broad, deliberately
 //! cheap sweep over the product verbs, run in ONE row so the report is
-//! a LIST of offenders rather than the first one (nextest fail-fast,
-//! #1128, is the reason the unit's own two defects hid for so long).
+//! a LIST of offenders rather than the first one. That shape stands on
+//! its own — one row that enumerates beats N rows a reader has to
+//! collate — but the reason originally given for it does not: hosted CI
+//! truncating a red run to one failure per shard, which was real when
+//! these rows were written and is not true any more, since both sharded
+//! run steps now pass `--no-fail-fast`.
 //!
 //! The second group attacks the declaration-carrying claim: the unit
 //! says `EdgeAuthority::is_declared()` never flips silently across an

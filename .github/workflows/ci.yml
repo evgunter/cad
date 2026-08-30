@@ -85,8 +85,16 @@ on:
       # the oracle tier runs, and `lane: sample` reads as `interval` because
       # nothing can prove the interval sources held still. Name a lane if you
       # want the other one.
+      #
+      # SPELLED OUT BECAUSE IT SURPRISES PEOPLE: `scope: all` with `lane:
+      # sample` does NOT draw a lane. It takes no diff, so `_forces_interval`
+      # hits its fail-closed empty-file-list arm and PINS `LANE=interval`
+      # ahead of the seed — the run reports `lane:pinned` and says so, but a
+      # dispatch aimed at "run everything" and left on `sample` gates the
+      # interval lane every time, not one drawn point. Name `lane: default`
+      # if that is what you wanted.
       scope:
-        description: "Classify the change set against the default branch, or run everything unscoped"
+        description: "Classify the change set against the default branch, or run everything unscoped (with lane: sample this pins the interval lane — see the note in the file)"
         required: false
         type: choice
         default: changed
@@ -382,6 +390,14 @@ jobs:
       # outputs rather than from a log line, and it is printed in a step of its
       # own.
       config_source: ${{ steps.classify.outputs.CONFIG_SOURCE }}
+      # WHETHER THIS RUN'S DIFF TOUCHES INTERVAL-NAMED FILES WHILE GATING THE
+      # DEFAULT LANE (#1122's advisory, which replaced the basename pin). No
+      # job reads it either, and it is published for the identical reason
+      # `config_source` above is: the question it answers — "was this change
+      # possibly about the axis this run did not gate?" — has to be answerable
+      # from the run's OUTPUTS, not from a line in one job's log that a reader
+      # has to know to go looking for.
+      lane_advisory: ${{ steps.classify.outputs.LANE_ADVISORY }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -475,7 +491,8 @@ jobs:
           # the draw is seeded rather than random. `github.sha` is the
           # fallback for the push trigger, which runs no sampled job today.
           scripts/ci-filter.py "${FILTER[@]}" --seed "$SEED" \
-            --config-from-message commit-message.txt "${CONFIG[@]}" > filter.out
+            --config-from-message commit-message.txt "${CONFIG[@]}" \
+            --notices filter-notices.txt > filter.out
           # DRAFT PRs SKIP THE GATE (2026-08-22, Evan's ask; F5 of the
           # minutes audit, which called it "the largest single lever
           # available" and left it as a policy decision).
@@ -526,7 +543,6 @@ jobs:
           EPS: ${{ steps.classify.outputs.EPS }}
           KLINT_ROW: ${{ steps.classify.outputs.KLINT_ROW }}
           CONFIG_SOURCE: ${{ steps.classify.outputs.CONFIG_SOURCE }}
-          LANE_ADVISORY: ${{ steps.classify.outputs.LANE_ADVISORY }}
         run: |
           printf 'lane=%s eps=%s klint_row=%s\n' "$LANE" "$EPS" "$KLINT_ROW"
           printf 'source: %s\n' "$CONFIG_SOURCE"
@@ -538,43 +554,23 @@ jobs:
                    "of the same commit without the request will pick that one instead."
               ;;
           esac
-          # THE PIN, WHERE A READER OF THE RUN IS ALREADY LOOKING. ci-filter.py
-          # prints the pin's REASON on stderr, which lands mid-step inside
-          # `classify` under the changed-file list; that is the right home for a
-          # filename, and it is not where anyone asking "what gated this?" looks.
-          # `lane:pinned` is the machine-readable half and it surfaces here, in
-          # the same always-run step as CONFIG_SOURCE, beside the value it
-          # explains (#1122's option 3).
-          case "$CONFIG_SOURCE" in
-            *lane:pinned*)
-              echo "PINNED, NOT DRAWN: the lane above was substituted by ci-filter.py's" \
-                   "_forces_interval, which pins interval when the diff cannot be shown to" \
-                   "leave interval code alone — a change under interval-transcendentals/," \
-                   "or a changed-file list that could not be resolved at all. The reason," \
-                   "naming the file, is on stderr in the 'classify the change set' step above."
-              echo "RE-PUSHING CANNOT CHANGE IT: the pin runs before the seeded draw and" \
-                   "short-circuits it, so every push of this branch gates the interval lane" \
-                   "until the file list changes. To gate the other one, say so —" \
-                   "a 'CI-Config: lane=default' trailer on the head commit beats the pin."
-              ;;
-          esac
-          # THE ADVISORY THAT REPLACED THE BASENAME PIN (Evan's ruling on #1122,
-          # 2026-08-29). A filename can raise the question and cannot answer it,
-          # so this run drew its lane like any other and the author is the one
-          # who knows whether that was the right one. Printed here rather than
-          # only on stderr for the same reason the block above is: this step is
-          # where a reader looks to find out what gated the run.
-          if [ "$LANE_ADVISORY" = 'true' ]; then
-            echo "INTERVAL FILES TOUCHED, DEFAULT LANE DRAWN: this diff changes files whose" \
-                 "basenames carry 'interval' and this run gates lane=default. The filename is" \
-                 "NOT evidence — it used to pin the lane and it pinned a rename, which is why" \
-                 "the pin was removed."
-            echo "IF INTERVAL SEMANTICS CHANGED, ASK FOR THE LANE: put 'CI-Config:" \
-                 "lane=interval' in the head commit's message (or dispatch this workflow with" \
-                 "lane=interval), and say in the PR which lane gated. If they did not change," \
-                 "ignore this. The file that raised it is named on stderr in the 'classify the" \
-                 "change set' step above; the convention is in" \
-                 "docs/prompts/implementer-discipline.md."
+          # THE FILTER'S OWN NOTICES, WHERE A READER OF THE RUN IS ALREADY
+          # LOOKING — a lane pin's reason, or the interval advisory that
+          # replaced the basename pin (#1122). ci-filter.py prints them on
+          # stderr inside `classify the change set`, which lands under the
+          # changed-file list and is not where anyone asking "what gated this?"
+          # looks; `--notices` is the same text in a file, RELAYED VERBATIM
+          # here rather than restated.
+          #
+          # RELAYED, NOT RESTATED, because the restatement is what went wrong.
+          # This step used to carry its own prose for both notices, and both
+          # copies drifted from the script's: one asserted that a pin's reason
+          # names a file, which the fail-closed arm cannot, and the other said
+          # "DEFAULT LANE DRAWN" over a lane that a CI-Config trailer had
+          # REQUESTED. The script can see those values and this step cannot, so
+          # the wording belongs there and only there.
+          if [ -s filter-notices.txt ]; then
+            cat filter-notices.txt
           fi
 
       # DOES THIS RUN GATE ANYTHING AT ALL (#1204). A draft run zeroes every
@@ -585,18 +581,23 @@ jobs:
       #
       # SAME SHAPE AS THE STEP ABOVE and for the same reason: no `if:`, so the
       # line is in every run's log whichever way it went, and the reader never
-      # has to know the question was worth asking. `RUN_BUILD` is the
-      # single flag read here because it is the one ci-filter.py can only emit
-      # as false for TIER=docs — false against any other tier is the tell, and
-      # it is the tell #1204 was actually found by.
+      # has to know the question was worth asking.
       #
-      # IT ALSO CATCHES THE DISPATCH THAT GATED NOTHING (#1051's second note).
-      # A `workflow_dispatch` naming `lane: interval eps: 1e-12` classifies the
-      # ref's diff like any other run, so aiming one at a branch whose diff is
-      # docs-only hands back a green run that ran no test at all — the exact
-      # "a requested run cannot silently skip the job the requester wanted"
-      # the feature was asked to avoid. `scope: all` is the answer and it is an
-      # INPUT, so the run has to say when it was needed and not given.
+      # ONE CAUSE, DERIVED FROM THE ACTUAL PRODUCER. `RUN_BUILD=false` has
+      # exactly three possible producers and they compose, so the first shape
+      # of this step got them wrong in both directions: a draft PR whose head
+      # carried a `CI-Config:` trailer was told its TIER classified the change
+      # as non-triggering (the DRAFT zeroing had done it, and `DRAFT` sat in
+      # this step's env unread), and a docs-tier run with a request printed
+      # "GATE SKIPPED" and "gate active" in the same breath. So the branches
+      # below are ordered the way the producers are APPLIED — draft zeroing,
+      # then the tier, then the combination the filter cannot emit — and each
+      # one is entered only after the ones before it are excluded. A request
+      # is never a cause; it is appended as a CONSEQUENCE, below whichever
+      # cause fired, because a request chooses WHICH point runs and never
+      # WHETHER anything runs (#1051's second note: a dispatch naming
+      # `lane: interval eps: 1e-12` at a docs-only diff hands back a green run
+      # that ran no test, and `scope: all` is the input that answers it).
       - name: is this run gating anything?
         env:
           DRAFT: ${{ github.event.pull_request.draft }}
@@ -604,34 +605,55 @@ jobs:
           RUN_BUILD: ${{ steps.classify.outputs.RUN_BUILD }}
           CONFIG_SOURCE: ${{ steps.classify.outputs.CONFIG_SOURCE }}
         run: |
-          case "$CONFIG_SOURCE" in
-            *requested*|*commit-trailer*)
-              if [ "$RUN_BUILD" != "true" ]; then
-                echo "GATE SKIPPED: a configuration was ASKED FOR and no build, test or lint" \
-                     "row runs — tier=$TIER classifies this change set as non-triggering, and" \
-                     "the request does not change what runs, only which point it runs at."
-                echo "If you meant to gate the whole tree at that point, dispatch it again" \
-                     "with scope: all, which takes no diff and runs everything unscoped."
-              fi
-              ;;
-          esac
+          requested=no
+          case "$CONFIG_SOURCE" in *requested*|*commit-trailer*) requested=yes ;; esac
+
+          if [ "$RUN_BUILD" = "true" ]; then
+            echo "gate active: tier=$TIER run_build=true."
+            exit 0
+          fi
+
+          # RUN_BUILD=false: nothing below this job compiles, tests or lints.
+          # Name the producer, and only the producer.
+          rc=0
           if [ "$DRAFT" = "true" ]; then
             echo "GATE SKIPPED: draft PR — no RUN_* flags set."
-            echo "Nothing below this job compiles, tests or lints anything. This run will" \
-                 "report SUCCESS, and that success is about nothing: tier=$TIER and the" \
-                 "lane/eps/klint above are the classification this change WOULD have had."
+            echo "This run will report SUCCESS, and that success is about nothing: tier=$TIER" \
+                 "and the lane/eps/klint above are the classification this change WOULD have" \
+                 "had. The draft zeroing is what emptied the flags, not the tier."
             echo "To gate it, mark the PR ready for review — 'ready_for_review' is a listed" \
                  "trigger on this workflow, so undrafting re-runs the full gate on this same" \
                  "head with no push."
-          elif [ "$RUN_BUILD" != "true" ] && [ "$TIER" != "docs" ]; then
+          elif [ "$TIER" = "docs" ]; then
+            echo "GATE SKIPPED: tier=docs — every changed path is non-triggering (prose," \
+                 "memories/, local-scripts/, .claude/), so no build, test or lint row runs."
+            echo "That is the intended state for a documentation change, and the 'docs-only" \
+                 "ok' marker job is this run's whole gate."
+          else
+            # THE TRIPWIRE, and what it is honestly worth. It is UNREACHABLE on
+            # today's ci-filter.py and has never fired: `RUN_BUILD` is assigned
+            # in exactly one place — `res["RUN_BUILD"] = "false" if tier ==
+            # "docs" else "true"` — so `false` at a non-docs tier requires that
+            # line to change, and the draft rewrite (the only other writer of
+            # these flags) is excluded by the branch above. It is here for a
+            # FUTURE regression in that assignment, which is the failure whose
+            # symptom is an unexplained green, and it reds rather than warns
+            # because a green nobody can account for is worse than a red.
             echo "GATE SKIPPED: RUN_BUILD=false on tier=$TIER, which the change filter" \
                  "cannot produce — only TIER=docs zeroes it. Treat this run's green as" \
                  "unexplained and say so before merging on it."
-            exit 1
-          else
-            echo "gate active: tier=$TIER run_build=$RUN_BUILD" \
-                 "(a docs tier legitimately builds nothing; the docs-only marker is its gate)."
+            rc=1
           fi
+
+          # THE CONSEQUENCE, under whichever cause fired above.
+          if [ "$requested" = yes ]; then
+            echo "AND A CONFIGURATION WAS ASKED FOR (see the source line above), so the point" \
+                 "someone named was NOT gated: a request chooses which point runs, never" \
+                 "whether anything runs."
+            echo "If you meant to gate the whole tree at that point, dispatch it again with" \
+                 "scope: all, which takes no diff and runs everything unscoped."
+          fi
+          exit $rc
 
   # NO LOCAL MIRROR: a marker job with no check in it — it echoes the tier so
   # a docs-only PR has a green required status. ci-local.sh prints the same two
@@ -1776,13 +1798,27 @@ jobs:
       # `default` leg — see the matrix comment on why not `env:`).
       #
       # `--no-fail-fast`, AND THE RUN SAYS SO (#1128). nextest's default is
-      # fail-fast — measured against the pinned 0.9.140, not inferred: a
-      # six-test crate with two planted failures reports `1/6 tests run, 1
-      # failed` with no flag and with `--fail-fast` (byte-identical shapes),
-      # and `6 tests run: 4 passed, 2 failed` with this one. So without it a
-      # red shard reports its FIRST failure, not its failures, and with
-      # `--partition count:N/2` a red run's whole visible surface is ~2 rows
-      # out of thousands. That is not a smaller number for the same problem;
+      # fail-fast — measured against the pinned 0.9.140, not inferred. The
+      # measurement, reproducible as written: a six-test crate with two
+      # planted failures, run `--test-threads 1`, reports
+      # `Cancelling due to test failure`, `1/6 tests run: 0 passed, 1 failed`
+      # and `warning: 5/6 tests were not run due to test failure` with no flag
+      # and with `--fail-fast` alike, against `6 tests run: 4 passed, 2 failed`
+      # and no cancellation line with this one.
+      #
+      # `--test-threads 1` IS PART OF THE MEASUREMENT, not decoration. At
+      # default parallelism the same no-flag run prints `6 tests run: 4
+      # passed, 2 failed` — a summary identical to the flagged one — because
+      # both failures were already in flight when the first one landed; only
+      # `Cancelling due to test failure: 1 test still running` distinguishes
+      # it, and how many rows survive is a race. That is a second reason for
+      # the flag rather than an argument against it: without it, how much of a
+      # red shard you get to see depends on scheduling.
+      #
+      # So without it a red shard reports its first failure and whatever else
+      # happened to be running, not its failures, and with `--partition
+      # count:N/2` a red run's whole visible surface is a couple of rows out
+      # of thousands. That is not a smaller number for the same problem;
       # it is a number that cannot distinguish one stale assertion from a
       # systematic family, and nothing in the output said it was truncated.
       #
@@ -2223,22 +2259,24 @@ jobs:
       # (default eps, shard 1), mirroring the pre-archive job, which ran
       # it once with no eps env.
       #
-      # NO `--no-fail-fast` ON THIS ROW OR THE ONE BELOW, and that is not an
-      # oversight (#1128 asks for the disposition). Each selects ONE test
-      # module by exact filterset; fail-fast is a rule about what happens to
-      # the tests after the first failure, and where the selection is a
-      # handful of rows from one binary there is no truncation to prevent.
-      # Adding the flag here would buy nothing and would state, wrongly, that
-      # the flag is about the command rather than about the shard's surface.
+      # `--no-fail-fast` HERE AND ON THE ROW BELOW, unconditionally, and the
+      # reason is that the alternative needs an invariant nothing enforces.
+      # Each row selects one test MODULE by filterset. Today each module holds
+      # exactly one `#[test]`, which makes the flag behaviourally identical to
+      # its absence — so exempting these rows was defensible and was written
+      # down. It was also rot: a second test added to either module silently
+      # falsifies the exemption's premise, and no gate reads it. The flag is
+      # free on a one-test selection and correct on a two-test one, so it goes
+      # on and the premise stops mattering.
       - name: persistence save/load/replay-identity (interval)
         if: matrix.shard == 1 && needs.filter.outputs.run_editor_core == 'true'
-        run: "cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . -E 'binary_id(editor-core::all) & test(/^m4_pr6_roundtrip_interval::/)'"
+        run: "cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . -E 'binary_id(editor-core::all) & test(/^m4_pr6_roundtrip_interval::/)' --no-fail-fast"
       # M4 PR 8a D1, Interval member: the Band 4 corpus evaluates green
       # at the certified interval scalar (also inside the archive run
       # above; named here so the obligation is visible).
       - name: band 4 corpus (interval)
         if: matrix.shard == 1 && needs.filter.outputs.run_editor_core == 'true'
-        run: "cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . -E 'binary_id(editor-core::all) & test(/^m4_pr8_corpus_interval::/)'"
+        run: "cargo nextest run --archive-file nextest-interval.tar.zst --workspace-remap . -E 'binary_id(editor-core::all) & test(/^m4_pr8_corpus_interval::/)' --no-fail-fast"
 
   # The archives exist only to ferry binaries from the build jobs to the
   # run legs; on a fully green run they have no further use, and this
