@@ -118,6 +118,15 @@ fn turn(a: Point2<f64>, b: Point2<f64>, c: Point2<f64>) -> f64 {
 /// `PI`, which is the shape a gaps-then-rescale strategy emits and the
 /// shape whose edges 1 and 3 cross. The predicate has to see it, or it is
 /// guarding nothing.
+///
+/// PINNED WRITTEN OUT, deliberately not as a committed
+/// `.proptest-regressions` seed: a `cc` seed re-derives its input only
+/// through the strategy that drew it, and the strategy that drew this
+/// shape is exactly what the rewrite replaced — a seed file here would
+/// re-run some other input in silence, where these coordinates cannot
+/// drift. (Regression files proptest itself writes against a LIVE
+/// strategy stay committed, as elsewhere in this directory; a witness
+/// you can write down is a fixture, not a seed.)
 #[test]
 fn the_convexity_contract_rejects_an_increasing_angle_loop_that_crosses() {
     let pts = [
