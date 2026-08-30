@@ -436,3 +436,35 @@ OPEN (LIB-G16 merged 2026-08-30, so `editor-core`'s `emit_fillet`
 is touchable); the role-vs-kind-at-emit choice is the unit's to
 measure and argue (not one of the plan's reserved design forks);
 `docs/prompts/implementer-discipline.md` by path; measured-first.
+
+## 2026-08-30 — BLEND-5 DELIVERED; reviews dispatched (ordinal 603)
+
+Unit delivered: PR #1301, frozen head `50fedb7d` (4 commits, +1507
+/−76 over 39 files). Shape taken: ROLE naming — `RimSide::{Host,
+Mate}` → `RimSupport::{Host, Mate}` — argued on three grounds
+(kind COLLIDES on cone×cone; kind-at-emit is N4-forbidden recovered
+geometry; kind is not recipe-covariant), with the meaning-
+preservation invariant (Host = the planar support wherever one
+exists) pinned. Opening measurement committed first (`dcb24024`):
+the misleading `Plane`-on-a-cone emission pinned pre-change on a
+cone×cone lantern mouth — also the first editor-core drive of the
+annulus rim phase through `emit_fillet` (the #1294 gap). Schema
+v18 clean break, fixtures repaid through their own doors. Unit CI:
+run 33339458819 GREEN on a fully drawn point {interval, 1e-6}. One
+non-reproduced viewer fuzz flake reported not absorbed (clock+pid
+seed — 180 replays green); watch for recurrence before filing.
+Impl cost (lane-reported): ~270k tokens / ~95m wall (opening ~40m,
+impl ~11m, tests+migration ~35m, CI ~20m).
+
+**Review dispatch (v6 dual, ordinal 603 — claim PR to main rides
+this dispatch):** parity byte **226** ⇒ parity 0 ⇒ **R1 OPUS +
+R2 FABLE**. Method: CONCURRENT, separate checkouts (disk 26G free
+after the impl target reclaim — the sequential fallback's disk
+bound does not apply), both frozen on `50fedb7d`. Briefs authored
+and stored symmetric BEFORE R1's dispatch
+(`orchestrator/blend5-review-brief-{r1,r2}.md`, diff-verified
+symmetric); dispatches are the stored briefs verbatim. Lanes
+`blend-5-r1` / `blend-5-r2`; probe branches
+`blend/rimsupport-r{1,2}-probes`. Reviewers blinded to the
+implementer arm as always. Impl lane's clone kept for the fix-pass
+resume (target/ reclaimed).
