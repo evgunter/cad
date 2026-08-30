@@ -821,10 +821,15 @@ klint_gate() {
 #
 # The gate compares against docs/tess-budget-data/, and it compares
 # DIFFERENCES, not absolute slack — a scene whose mesh grew, a face
-# whose sizing got wastefuller, or a scene that dropped out of the
-# sweep. On a failure read the tool's message: coarsening a demo's
-# delta to get the number down is the one forbidden move. What the
-# absolute factors currently are, and why: docs/TESS-BUDGET.md.
+# whose sizing got wastefuller, a scene that dropped out of the sweep,
+# or an ordinal whose two rows are not one face, which is the per-face
+# join's precondition and is announced rather than resolved. FOUR
+# rules, stated once in `tools/tess-lint`'s module docs; this points at
+# them rather than keeping a second roster, which is what it was doing
+# while the count read three. On a failure read the tool's message:
+# coarsening a demo's delta to get the number down is the one forbidden
+# move. What the absolute factors currently are, and why:
+# docs/TESS-BUDGET.md.
 tesslint_tool() {
   # No `cargo doc` here: it used to carry a copy of one, because
   # doc-gate.sh was `cargo doc --workspace` and could not see a
@@ -862,10 +867,14 @@ budget_meter() {
 }
 # HOSTED MIRROR: k-lint / tessellation-budget sweep (every tour scene, per face)
 # HOSTED MIRROR: k-lint / tessellation-budget lint (gate — a grown budget fails this row)
-# `--sizing-only` mirrors ci.yml: the gate reads triangle counts and
-# the sizing columns, never `worst_dev`, so the default sweep's
-# per-triangle resampling (tens of millions of surface evaluations)
-# would be paid for nothing. Re-cutting the baseline drops the flag.
+# `--sizing-only` mirrors ci.yml: the gate never reads `worst_dev`, so
+# the default sweep's per-triangle resampling (tens of millions of
+# surface evaluations) would be paid for nothing. What it does read is
+# narrower than "the sizing columns" — `triangles` per scene and
+# `grid_cells / span_opt_cells` per face are what it COMPARES, and
+# `chart`, whether the row carries the sizing block at all, and
+# `u0`-`v1` / `nu` / `nv` are what it JOINS on. Re-cutting the baseline
+# drops the flag.
 tesslint_gate() {
   scripts/tess_budget_sweep.sh target/tess-budget-fresh.csv --sizing-only || return 1
   (cd tools/tess-lint && cargo run -- \
