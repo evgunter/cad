@@ -1,0 +1,10 @@
+CERT-B2 (drawn 2026-08-30, v4 block-of-4 rule per MODEL-AB-LOG read
+on main at dispatch: {opus, opus, opus, fable}, byte mod 4 = fable
+position, reject >= 252)
+byte=107 (od /dev/urandom, reject >=252), 107 mod 4 = 3 = fable position
+slots: 0=CERT-5 (difficulty M/L, logged PRE-DRAW at spec
+docs/CERT-5-SPEC.md, committed to cert/orchestrator at 3d7c8aeb
+before this draw), 1..3 unassigned.
+Arm for slot 0 = OPUS.
+Branch-side block record per the v6 convention; reviewers are never
+pointed here.
