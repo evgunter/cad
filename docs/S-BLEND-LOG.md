@@ -414,3 +414,7 @@ was `render lanes / freecad montages` dying at 3 s with runner_id
 on the prior run over the same code ten minutes earlier). The
 integration's rerun-failed-jobs is 403 for this session, so this
 commit is the re-roll.
+
+**(Second re-roll:** run 33334073786's bootstrap jobs themselves
+died log-less at ~4 s — the Actions budget exhaustion window, per
+Evan; budget refreshed, this commit re-rolls.)
