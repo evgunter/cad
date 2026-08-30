@@ -69,6 +69,29 @@
 //!
 //! The three numbers below are the same digest over the grown roster.
 //!
+//! RE-DERIVED ONCE FOR A BUILD-PATH CHANGE, which is the case the
+//! roster procedure above does not cover and the one this fence exists
+//! to catch. `Affine3::rotation_about_axis` stopped spelling its
+//! translation `q − R·q` and now applies `I − R` to the anchor once, so
+//! the arithmetic behind every rotated coordinate genuinely changed and
+//! all three digests moved. What was measured before re-deriving them —
+//! the same corpus walk, dumping every coordinate rather than digesting
+//! it, on this tree and on a tree with only those two files reverted:
+//!
+//! - **No structural difference at all**: the same documents, the same
+//!   node ids, the same outcome per node, the same point sets, the same
+//!   counts. The digest's non-numeric content is unchanged.
+//! - **4 of 3087 coordinates moved**, all in `kitchen_sink`, each by
+//!   **exactly one ulp** — the largest absolute move was 2.22e-16 m
+//!   (−1.9999999999999998 → −1.9999999999999996).
+//!
+//! That is a movement seven orders under any band the corpus is
+//! evaluated against, and the direction is not systematic: at the
+//! quarter- and half-turn angles the corpus uses, `1 − cos θ` and
+//! `2·sin²(θ/2)` straddle the exact value from opposite sides, one ulp
+//! each way. The reason for accepting the move is on the enclosure
+//! side, where it is not an ulp: see `Mat3::identity_minus_rotation_about`.
+//!
 //! The `probe` row is ROSTERED into the K-telemetry sweep's executed
 //! floor. Its claim is not a third copy of the `f64` row's: it says the
 //! telemetry scalar has not started changing decisions, which is a
@@ -289,7 +312,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x803b_01aa_ab70_3256, 0x3f31_0d4d_77e8_92ba),
+        (0xc4ef_c8b3_5658_6236, 0xbd00_3e86_ff48_9afa),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -316,7 +339,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0x3ee6_a402_bcb1_f12e, 0xef74_2c0a_0c9d_d7da),
+        (0x1116_c946_6055_c6ae, 0xceae_8b45_b5d5_0b9a),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -340,7 +363,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x803b_01aa_ab70_3256, 0x3f31_0d4d_77e8_92ba),
+        (0xc4ef_c8b3_5658_6236, 0xbd00_3e86_ff48_9afa),
         "the corpus's Probe evaluation moved"
     );
 }
