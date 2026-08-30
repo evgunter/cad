@@ -2517,3 +2517,19 @@ spec re-cut). Reviewer lanes are reference-clones of the
 implementer lane's .git (objects only, no refs beyond origin's
 — disk pressure made the network clone unaffordable; disclosed
 here for the record).
+## ORDINAL 107 — R1 DEATH AND FRESH RE-DISPATCH (2026-08-30)
+
+The original R1 (fable slot, parity 1) died without delivering:
+no lane file activity for ~12h, two queued resume messages never
+processed. The presumed-usage-limit theory was MEASURED AND
+FALSIFIED before acting (a trivial fable probe returned
+immediately — capacity exists; the process is dead, cause
+unknown). Re-dispatched FRESH in the same lane with the original
+brief; the redispatch brief adds one clarification — the
+instrument triple's definition (idiom / test / doc-honesty,
+1–5) — which the original briefs omitted; R2 was asked the same
+question post-report (the M10-3 recovery precedent). Disclosed
+here for the pair-fairness record: R2 delivered (2 MAJ / 5 MIN)
+before R1 started; R1 is a fresh run, not a truncated resume, so
+3e exclusion is NOT automatic — assessed at adjudication with
+this timing on the table.
