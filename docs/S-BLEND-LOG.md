@@ -393,3 +393,17 @@ trailer. Handoffs: issue 1294 (editor-core annulus emitter drive);
 N2 for S-QA (the census success line under-reports derived
 features). Next: BLEND-5 (issue 961) on a fresh block, then
 BLEND-6 (ratified BLEND-VOCAB).
+
+## THE PINNED DEV-PROBE ROW: REPAIR PROVEN, NEXT LAYER EXPOSED (2026-08-30 ~20:20Z)
+
+The trailer-pinned k-lint run (33332365082) executed the repaired
+census step end to end — derived features, compiled and RAN the
+conjoined `all(probe, interval)` suite for the first time on
+hosted CI — and that first execution exposed the layer beneath:
+`m10_3_driver_k_probe_interval`'s dump panics "nothing certified,
+nothing to sample" at the runner's eps=1e-6 (the driver's
+macroscopic wide-band refusal meeting the dump's fail-loud).
+Pre-existing, main-red at the same matrix point, M10's territory
+→ **issue 1296** filed with the evidence; standing-down comment on
+the PR. This commit voids the trailer so the merge gate draws the
+standard sampled row.
