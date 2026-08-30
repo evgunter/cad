@@ -378,3 +378,18 @@ in flight). The branch-side draw record above becomes public with
 this merge to main, and BLEND-7's redacted arm cell is restated in
 its MODEL-AB-LOG row in the same commit. BLEND-2's row lands at its
 merge, arm named normally (its dual is concluded).
+
+## BLEND-2 MERGED (2026-08-30)
+
+PR 1268 merged (ordinal 602; full record in MODEL-AB-LOG's row).
+One call now fillets rims sharing a wall OR a full-revolve cap —
+the seam-key refresh is identity-only, decide-before-mutate stood,
+and the shared-wall refusal at the collision margin names a
+FOLLOWABLE split recourse (the 1278 class's third instance, closed
+at birth this time). The unit also repaired main's latent k-lint
+probe-census red (conjoined-feature suites listed nothing on a
+dev-probe draw), gate-proven at merge via a klint=dev-probe
+trailer. Handoffs: issue 1294 (editor-core annulus emitter drive);
+N2 for S-QA (the census success line under-reports derived
+features). Next: BLEND-5 (issue 961) on a fresh block, then
+BLEND-6 (ratified BLEND-VOCAB).
