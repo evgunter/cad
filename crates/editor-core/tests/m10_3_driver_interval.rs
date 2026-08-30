@@ -393,8 +393,20 @@ fn the_certification_width_is_a_small_fraction_of_epsilon() {
 ///
 /// This is the honest state of the deliverable and it is a regression
 /// pin in both directions: the day the certification predicates stop
-/// widening with the box (the issue-1191 class), this row fails and
-/// the number it is asserting becomes a real answer.
+/// widening with the box, this row fails and the number it is
+/// asserting becomes a real answer.
+///
+/// **What the widening here IS, said precisely, because the obvious
+/// candidate has been ruled out.** It is not a period fold enclosing
+/// two integers: the floor-based folds that did that were closed
+/// (issue 1191, and the fold now folds a raw difference once through a
+/// window whose jump is at a half period), and this row did not move
+/// when they were. What remains is the dependency problem — a
+/// certification identity mentions its parameter several times, and an
+/// interval evaluation cannot see that the occurrences are the same
+/// number, so the enclosure grows with the box whatever the algebra
+/// says. Closing THAT is a different deliverable from closing a fold,
+/// and this row is the pin that says so.
 #[test]
 fn a_macroscopic_box_refuses_all_of_its_mass_as_budget_today() {
     let doc = slab(1.0, 0.05);

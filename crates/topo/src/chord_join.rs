@@ -1731,6 +1731,21 @@ fn run_azimuth_window<T: Decide>(
                             let sense =
                                 body.get_face(face).ok_or_else(|| corrupt_face(face))?.sense;
                             let advancing = south == sense;
+                            // STRICTLY next / strictly previous, so
+                            // `floor`/`ceil` and not the nearest-branch
+                            // index above: the branch wanted is the
+                            // unique one in an OPEN interval, and the
+                            // nearest one is exactly what carries no
+                            // information here. That puts this fold's
+                            // jump at an integer `q` — the entry azimuth
+                            // landing exactly on the previous exit —
+                            // where the open interval's two ends are
+                            // genuinely different answers and an
+                            // enclosure straddling it reports both. It
+                            // is a boundary of a half-open selection,
+                            // not a fold written around its own live
+                            // value, so it is recorded rather than
+                            // respelled.
                             k = if advancing {
                                 q.floor() + T::one()
                             } else {
