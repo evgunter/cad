@@ -6,9 +6,18 @@
 //! spells them `Host` and `Mate`, the roles the annulus surgery
 //! resolved. The variant is persisted — a frozen selection is recipe
 //! data, and a selection can name a band trimline — so the spelling is
-//! file data and the break runs in BOTH directions: neither reader has
-//! a variant name for the other's word, and `deny_unknown_fields` kills
-//! each inside serde.
+//! file data and the break runs in BOTH directions.
+//!
+//! **Which gate fires, in order.** A real v17 file never reaches serde:
+//! the VERSION DOOR refuses it first (`SchemaTooOld`, regenerate
+//! recourse), and a file from the future is refused there too
+//! (`UnknownSchema`) — `blend5_r1_probes` pins that ordering. The
+//! vocabulary's own refusal covers only what the header cannot see: a
+//! HYBRID, v18 in the header with a retired variant in the body, which
+//! `the_retired_spelling_dies_inside_serde` builds and executes. That
+//! one dies because an externally-tagged enum rejects an unknown
+//! variant name UNCONDITIONALLY — not because of
+//! `deny_unknown_fields`, which is inert on unit-only variants.
 //!
 //! The disposition is the family's: the older file refuses TYPED at
 //! the version door with the regenerate recourse, and the migration
@@ -175,11 +184,16 @@ fn both_rim_roles_round_trip_at_v18() {
     assert_eq!(text, again, "save . load is not a fixpoint");
 }
 
-/// **The other direction of the break, executed on the vocabulary
-/// itself** rather than only on the version header: a body carrying
-/// the v17 spelling meets a role enum with no such variant and dies
-/// inside serde. This is why the bump is not forward-additive and
-/// cannot ride another unit's number.
+/// **The vocabulary's own refusal, on the one input the version door
+/// cannot catch**: a HYBRID — this build's header over a body carrying
+/// the retired spelling, which is what a hand-edited or half-migrated
+/// file looks like. A real v17 file never gets this far (the version
+/// door refuses it first; `blend5_r1_probes` pins that ordering), so
+/// this row is deliberately built rather than taken from a golden.
+///
+/// It dies because an externally-tagged enum rejects a variant name it
+/// does not know, unconditionally — `deny_unknown_fields` is inert on
+/// unit-only variants and is not what fires here.
 #[test]
 fn the_retired_spelling_dies_inside_serde() {
     let text = save(&both_roles(), &[], Tol::witness()).expect("the document saves");

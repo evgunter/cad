@@ -80,6 +80,12 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// change to the rim vocabulary therefore moves exactly these two
 /// numbers, and a change that moves a third is not about rims.
 ///
+/// That census is not prose to be trusted: it is computed by
+/// `blend5_r1_probes::the_recorded_band_trim_counts_are_executable`
+/// (and again by `blend5_r2_probes`'s), which walks the same registry
+/// and fails if any of the three numbers drifts. Read the claim here,
+/// believe it there.
+///
 /// `die_fillet` and `die_chamfer` are IDENTICAL, and that is what
 /// RECIPE-DOORS D3 says should happen. The two documents are the same
 /// three-node recipe with the blend swapped, so the blend mints under

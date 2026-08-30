@@ -4,11 +4,23 @@
 //! emitted [`RoleSeg::BandTrim`] segments read off the node's name
 //! table.
 //!
-//! Every other fillet-naming suite in this crate carves an OPEN chain
-//! (the die's ladder edges), so the rim-phase channels of
-//! `sweep::fillet::naming::FilletNaming` — `bands`, `rim_trims`,
-//! `rim_feet`, `meridian_splits`, `meridian_remnants`, `slits` — reach
-//! `names::emit_fillet` only from here.
+//! **What is first here is the ANNULUS, not the rim phase.** The rim
+//! phase already reached `names::emit_fillet` from the registry: the
+//! corpus's `die_composed` and `die_composed_tour` carve LADDER rims
+//! (their pip cavities), which is why those two documents' name-table
+//! digests are the ones the rim vocabulary moves — pinned by
+//! `blend5_r1_probes::the_ladder_rim_phase_already_reached_the_emitter_from_the_corpus`
+//! and by the census in `blend5_r2_probes`. No registered document
+//! carves an ANNULUS rim, so this suite is the first to drive that
+//! surgery's output through the emitter, which is what issue #1294
+//! asks for.
+//!
+//! Of the rim-phase channels of `sweep::fillet::naming::FilletNaming`,
+//! these rows ASSERT on three — `bands`, `rim_trims` and `slits`. The
+//! other three (`rim_feet`, `meridian_splits`, `meridian_remnants`)
+//! ride `check_total`: the emitter refuses a table that does not name
+//! every output entity, so reaching a green table at all is the
+//! statement that they emitted, but no row here reads their names.
 //!
 //! # What the fixture is for
 //!
@@ -31,7 +43,7 @@ use editor_core::{
 use fixture::{ang, desc, insert, len, scl};
 use geom::Surface;
 use geom_core::Tol;
-use topo::{Body, EdgeKey};
+use topo::{Body, EdgeKey, SurfaceKey};
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
     evaluate::<f64>(
@@ -231,6 +243,18 @@ fn a_cone_on_cone_rim_names_its_supports_by_role() {
 /// a rim that HAS a planar support, the host is that support. A
 /// selection that meant "the flat side" under the retired kind
 /// vocabulary means it still.
+///
+/// **Two things this row does NOT establish, both measured by the
+/// review probes rather than here.** Its `iff` over-asserts in one
+/// direction: the mate-is-never-planar half is UNREACHABLE, because a
+/// plane-on-plane rim is refused upstream as one surface, so no
+/// fixture can make that half fail. And the row is fixture-lucky —
+/// with the planar preference deleted from `second_support_is_host`
+/// it stays GREEN, because this rim's `face_a` happens to be the
+/// plane. `blend5_r2_probes::{the_base_rim_hosts_its_plane_too,
+/// a_bore_rim_hosts_its_plane_too}` are the rows that go red under
+/// that mutation (opposite slot order, and a non-cone curved side);
+/// they are the real guard and this row is the readable statement.
 #[test]
 fn the_host_is_the_planar_support_wherever_the_rim_has_one() {
     let (doc, revolve) = lantern();
@@ -263,4 +287,135 @@ fn the_host_is_the_planar_support_wherever_the_rim_has_one() {
             "{support:?} lies on {surface:?}"
         );
     }
+}
+
+/// The SURFACE KEY of the support a trim arc lies on — identity, not
+/// shape, so two arcs of one seam-split rim can be asked whether they
+/// sit on the SAME support face's surface.
+fn support_surface_key(body: &Body<f64>, e: EdgeKey) -> SurfaceKey {
+    let edge = body.get_edge(e).expect("a live edge");
+    let of = |he| {
+        let l = body
+            .get_half_edge(he)
+            .expect("a live half-edge")
+            .parent_loop;
+        let f = body.get_loop(l).expect("a live loop").face;
+        body.get_face(f).expect("a live face").surface
+    };
+    let (a, b) = (of(edge.he_plus), of(edge.he_minus));
+    let torus = |k: SurfaceKey| {
+        matches!(
+            body.get_surface(k).expect("a carrier"),
+            Surface::Torus { .. }
+        )
+    };
+    match (torus(a), torus(b)) {
+        (true, false) => b,
+        (false, true) => a,
+        _ => panic!("a trim arc separates the band's torus from one support"),
+    }
+}
+
+/// **The seam-split rim: several arcs, ONE pair of roles.** A
+/// pole-touching profile splits every wall into half-bands, so this
+/// rim reaches the surgery as TWO arcs meeting at chart-seam vertices
+/// and must be requested whole (the ARMS-3 recourse). It is carved by
+/// `resolve_seam_split_rim`, the THIRD site that decides the host —
+/// the one the other rows here do not reach.
+///
+/// What makes it worth a row: that site chooses a host SURFACE once
+/// for the whole chain and then re-tests, per link, which slot carries
+/// it, precisely because the links of one seam-split rim need not
+/// agree on slot order. So the claim is not "each arc has two roles"
+/// (trivially true) but that the two arcs AGREE: both `Host` trims lie
+/// on one support surface and both `Mate` trims on the other. A
+/// per-link slot reading would satisfy the first and break this.
+#[test]
+fn a_seam_split_rim_gives_all_its_arcs_one_pair_of_roles() {
+    let doc = ProfileDoc::empty_derived("blend5_seam_split", Tol::witness());
+    // Pole-touching at the top: the upper wall splits into half-bands.
+    let (doc, profile) = insert(
+        doc,
+        Node::Profile(desc(
+            [0.0; 3],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            vec![vec![(0.0, 0.0), (1.0, 0.0), (0.8, 0.6), (0.0, 1.1)]],
+        )),
+    );
+    let (doc, axis) = insert(
+        doc,
+        Node::Datum(Datum::Axis {
+            origin: [len(0.0), len(0.0), len(0.0)],
+            direction: [scl(0.0), scl(1.0), scl(0.0)],
+        }),
+    );
+    let (doc, revolve) = insert(
+        doc,
+        Node::Revolve {
+            profile,
+            axis,
+            angle: ang(std::f64::consts::TAU),
+        },
+    );
+    let arc = |seg: RoleSeg| StableName {
+        kind: EntityKind::Edge,
+        node: revolve,
+        path: vec![seg],
+    };
+    let pv = ProfileVertexRef {
+        loop_index: 0,
+        vertex: MOUTH,
+    };
+    // The rim WHOLE: both of its arcs, which is the only request the
+    // surgery accepts here (one alone terminates at a seam vertex).
+    let mut selection = vec![arc(RoleSeg::BandRim(pv)), arc(RoleSeg::BandRimPi(pv))];
+    selection.sort();
+    let (doc, fillet) = insert(
+        doc,
+        Node::Fillet {
+            target: revolve,
+            radius: len(0.05),
+            selection,
+        },
+    );
+    let ev = run(&doc);
+    let t = table(&ev, fillet);
+    let body = corpus::body_of(&ev, fillet);
+    let mut by_role: Vec<(RimSupport, SurfaceKey)> = t
+        .iter()
+        .filter_map(|(n, _)| match n.path.first() {
+            Some(RoleSeg::BandTrim { support, .. }) => {
+                Some((*support, support_surface_key(body, edge_key(t, n))))
+            }
+            _ => None,
+        })
+        .collect();
+    by_role.sort();
+    assert_eq!(
+        by_role.len(),
+        4,
+        "two arcs, one trimline per support each: {by_role:?}"
+    );
+    let hosts: Vec<SurfaceKey> = by_role
+        .iter()
+        .filter(|(r, _)| *r == RimSupport::Host)
+        .map(|(_, k)| *k)
+        .collect();
+    let mates: Vec<SurfaceKey> = by_role
+        .iter()
+        .filter(|(r, _)| *r == RimSupport::Mate)
+        .map(|(_, k)| *k)
+        .collect();
+    assert_eq!(hosts.len(), 2, "one host trim per arc: {by_role:?}");
+    assert_eq!(mates.len(), 2, "one mate trim per arc: {by_role:?}");
+    assert_eq!(
+        hosts[0], hosts[1],
+        "both arcs' HOST trims lie on one support surface: {by_role:?}"
+    );
+    assert_eq!(
+        mates[0], mates[1],
+        "both arcs' MATE trims lie on one support surface: {by_role:?}"
+    );
+    assert_ne!(hosts[0], mates[0], "the two roles are two supports");
 }

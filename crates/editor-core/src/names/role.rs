@@ -222,16 +222,31 @@ pub enum Qualifier {
 /// between two supports of the SAME kind — two cones meeting at a
 /// latitude circle — has no kind that tells them apart.
 ///
-/// The roles are stable under the geometry, which is what a name
-/// covariant with a recipe needs: [`RimSupport::Host`] is the PLANAR
-/// support wherever the rim has one, so a caller selecting the flat
-/// side of a plane–sphere rim selects the host, and a rim whose
-/// supports both curve takes the resolved link's own first side as
-/// host. Neither answer moves when a parameter edit changes what kind
-/// a support's surface is.
+/// [`RimSupport::Host`] is the PLANAR support wherever the rim has
+/// one, so a caller selecting the flat side of a plane–sphere rim
+/// selects the host; a rim whose supports both curve takes the
+/// resolved link's own first side.
+///
+/// **The planarity boundary is where this vocabulary is NOT
+/// covariant, and it is load-bearing enough to state here.** Because
+/// the host is defined by planarity, an edit that carries a support
+/// ACROSS planarity re-decides which arc each role addresses, while
+/// the rim's own name and the selection naming it stay word for word
+/// the same. Every edit that does not cross that boundary leaves both
+/// roles fixed. The instability is INHERITED, not introduced — the
+/// retired kind vocabulary moved on exactly the same edits — but it is
+/// worse in one respect and the record should say so: a renamed KIND
+/// makes a stored selection stop resolving, loudly, where a swapped
+/// ROLE silently retargets it to the other arc of the same rim.
+/// Pinned by `blend5_r1_probes` and `blend5_r2_probes`.
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
+// INERT as it stands, and kept deliberately: an externally-tagged enum
+// of unit-only variants already rejects an unknown variant name
+// unconditionally, so this attribute guards only a FUTURE variant that
+// carries fields. Its siblings above carry it for the same reason;
+// issue #1308 owns the workspace-wide disposition.
 #[serde(deny_unknown_fields)]
 pub enum RimSupport {
     /// The HOST support: the planar one wherever the rim has one (on a
@@ -427,11 +442,13 @@ pub enum RoleSeg {
         /// Which support the arc lies on.
         support: RimSupport,
     },
-    /// A band foot: the planar-support vertex retracted from a source
-    /// rim vertex.
+    /// A band foot: the HOST-support vertex retracted from a source
+    /// rim vertex. (Named by role, not kind: a rim between two curved
+    /// walls has no planar support and still mints one — pinned by
+    /// `blend5_r1_probes`.)
     BandFoot(Box<StableName>),
-    /// The vertex where the band's curved-side trimline crossed a
-    /// source edge running off the rim (a cap meridian).
+    /// The vertex where the band's MATE-side trimline crossed a source
+    /// edge running off the rim (on a ladder rim, a cap meridian).
     BandCross(Box<StableName>),
     /// The surviving piece of a source edge the band's trimline cut
     /// (the shortened meridian).

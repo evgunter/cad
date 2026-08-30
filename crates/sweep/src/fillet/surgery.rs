@@ -142,7 +142,7 @@ use super::admit::{ConvexOpen, CornerFaces, CornerLinks, RequestedBoundary};
 use super::battery::{BatteryVerdict, Chain, ChainClosure, Convexity, Link};
 use super::blend::{EdgeBlend, chamfer_corner_patch, corner_ball, line_meet};
 use super::build::{Filleted, face_cycle, outward_of};
-use super::naming::{FilletNaming, RimSide};
+use super::naming::{FilletNaming, RimSide, second_support_is_host};
 use super::{BlendKind, CornerConfig, FilletError, FilletSite, decide};
 use geom_core::Tol;
 
@@ -824,10 +824,7 @@ fn resolve_rim<'a, T: Decide + Bounds>(
         let b_planar = is_plane(link0.face_b).ok_or_else(|| {
             not_intact(EntityId::Face(link0.face_b), "a rim link's second support")
         })?;
-        // The host is the planar support when there is one, so a
-        // plane-and-curved rim carves exactly as it always has; between
-        // two curved walls the roles are the link's own slots.
-        let host = if b_planar && !a_planar {
+        let host = if second_support_is_host(a_planar, b_planar) {
             link0.face_b
         } else {
             link0.face_a
@@ -1063,7 +1060,7 @@ fn resolve_seam_split_rim<'a, T: Decide + Bounds>(
             .ok_or_else(|| not_intact(EntityId::Face(link0.face_a), "a rim support's surface"))?;
         Ok(matches!(s, Surface::Plane { .. }))
     };
-    let host_surface = if !is_plane_surface(ka)? && is_plane_surface(kb)? {
+    let host_surface = if second_support_is_host(is_plane_surface(ka)?, is_plane_surface(kb)?) {
         kb
     } else {
         ka
@@ -1071,6 +1068,10 @@ fn resolve_seam_split_rim<'a, T: Decide + Bounds>(
     let mut hosts = Vec::with_capacity(chain.link_count());
     let mut mates = Vec::with_capacity(chain.link_count());
     for link in chain.links() {
+        // NOT the host rule again: that was decided once, above, for
+        // the whole chain. This asks which SLOT of this particular
+        // link carries the surface already chosen — the links of one
+        // seam-split rim do not agree on slot order.
         let a_is_host = surface_of(link.face_a)
             .ok_or_else(|| not_intact(EntityId::Face(link.face_a), "a rim link's first support"))?
             == host_surface;
@@ -2393,9 +2394,10 @@ fn rim_phase<T: Decide + Bounds>(
 ) -> Result<(FaceKey, Surface<T>, Described<T>), FilletError> {
     let mut described: Described<T> = Vec::new();
     let link_of = |e: EdgeKey| -> Option<&Link<T>> { rim.chain.links().find(|l| l.edge == e) };
-    // Selected by support kind, never by slot (`rim_trim_circles`
-    // docs): `trim_a` is the SPHERE trim on any link whose `he_plus`
-    // lies on the cap side.
+    // Selected by the carve's ROLES, never by slot
+    // (`rim_trim_circles` docs): `trim_a` is the MATE-side trim on any
+    // link whose `he_plus` lies on the cap side. The ladder's gates
+    // require the mate to be a ring-free half-cap, not a sphere.
     let l0 = rim.chain.first();
     let ((ca, sa), (cb, sb)) = rim_trim_circles(l0.edge, &l0.blend, l0.face_a == rim.host0())?;
 
@@ -2525,7 +2527,7 @@ fn rim_phase<T: Decide + Bounds>(
         described.push((created.edge, ContactCarrier::Exact(curve, t0, t1)));
     }
 
-    // ---- (4) The sphere side: one trim chord per half-cap, hung
+    // ---- (4) The MATE side: one trim chord per half-cap, hung
     // between the two meridian split vertices around that cap piece's
     // own rim arc. ----
     let mut tb_edges: Vec<EdgeKey> = Vec::with_capacity(n);
@@ -2582,7 +2584,7 @@ fn rim_phase<T: Decide + Bounds>(
                 FaceSurface::Inherit,
                 tol,
             )
-            .map_err(|e| op("rim sphere trim mef", e))?;
+            .map_err(|e| op("rim mate trim mef", e))?;
         let (curve, t0, t1) = scaled(&rc, cb, sb, !rc.plus_on_host);
         described.push((created.edge, ContactCarrier::Exact(curve, t0, t1)));
         rec.rim_trims.push((created.edge, e, RimSide::Mate));
