@@ -240,3 +240,25 @@ compiler-forced out-of-fence line (pncad-py tag arm), reported.
 213 parity 1 ⇒ R1 FABLE + R2 OPUS, sequential same-head, briefs
 stored pre-R1. R1 running (lane blend-7-r1); impl target
 reclaimed. BLEND-2 still in flight in its own lane.
+
+## BLEND-7 R1 IN; BLEND-7 R2 + BLEND-2 R1 DISPATCHED (2026-08-30 ~00:05Z)
+
+BLEND-7 R1: **APPROVE-WITH-FIXES 0/3/2, rubric 5/4/4** (~205K/~50m;
+probes on `blend/enclose-refusal-r1-probes`). NO MAJOR — every
+falsification attack failed (merge-base grid differential 64/64
+builds bit-identical with 91 misleading-recourse cells flipping to
+the typed refusal; extremes to 200× scale and 1e4 offsets; both
+mutations surgical). MINORs: the recourse over-promises INSIDE the
+existence gap (a two-step bound chain on unequal carriers — the
+milder cousin of the shape BLEND-1 repaired; the ratified doc's own
+wording specified the carrier bound, so the fix is wording, not
+widening); `NoCornerSideCandidate` now witness-less and plausibly
+dead, unscheduled; the new in-band predicate arm untested. BLEND-2
+delivered meanwhile (PR 1268, head `e81b3409` — the narrow
+seam-key refresh SUFFICED, no design fork; bit-equal composition
+pinned both orders on one-edge AND seam-split pairs; an ordering
+hole in the old gate found and closed). **Ordinal 602 claimed** (PR
+1276, merge 9be4c42e): byte 176 parity 0 ⇒ R1 OPUS + R2 FABLE.
+Now interleaved per the recorded method notes: BLEND-7 R2 and
+BLEND-2 R1 run concurrently (two review targets, the cap), R1
+targets reclaimed at report.
