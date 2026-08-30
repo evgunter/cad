@@ -358,3 +358,4 @@ fn a_linear_skin_with_six_offgrid_knots_certifies() {
 fn dyadic_knots_were_free_and_stay_free() {
     row("blade-5 (deg 2, dyadic)", 5, 2, 0, None, 1.0e-5);
 }
+

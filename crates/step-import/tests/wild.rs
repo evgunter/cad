@@ -68,19 +68,19 @@ const WILD_REFUSALS: [(&str, &str); 4] = [
     // What refuses now is the SHARED AT-REST GATE, on the file's
     // rational cylinder walls: `VolumeUncomputable` /
     // `QuadratureBudget` — the exact-B-rep volume enclosure stalls at
-    // a mean boundary displacement of ~2.7·10⁻⁴ m against a 1.024·10⁻⁶
-    // m target. That is the **banked rational-patch-flux lane** this
-    // crate's own docs name ("Arc-bearing profiles export and read,
-    // but their rational walls have no volume quadrature yet"), it is
-    // the same lane a NATIVELY built rational-walled loft refuses on,
-    // and import refuses it for exactly the reason the crate promises
-    // to: an imported body is held to the same tiers, by the same
-    // function, as a native one. Retiring THAT is its own unit.
+    // a mean boundary displacement of ~1.5·10⁻⁶ m against a 1.024·10⁻⁶
+    // m target. The miss is not a floor: the enclosure quarters
+    // cleanly per refinement round, so this wall is inside a factor of
+    // two and one round short of the FIXED round budget. It is the
+    // same lane a NATIVELY built rational-walled loft refuses on, and
+    // import refuses it for exactly the reason the crate promises to:
+    // an imported body is held to the same tiers, by the same
+    // function, as a native one.
     //
     // **The fragment carries the stalled quadrature by name**, not the
     // gate's preamble: the preamble alone would also match a tier-1/2
     // structural verdict, which would be a regression rather than the
-    // banked lane. Still the class and not the prose — no widths, no
+    // quadrature. Still the class and not the prose — no widths, no
     // face key.
     //
     // **This fragment is checked elsewhere.** dm1 stays in the table —
