@@ -1807,3 +1807,17 @@ concurrent, frozen head 54a77ad9, v5 instrument.
 the block record merge to main when this unit's reviews conclude).
 Difficulty pre-logged M at dispatch. Spec docs/M10-4-SPEC.md
 (merged main 114e5ae8).
+
+**Block M10-B3 (recorded branch-side on `m10/orchestrator` at draw,
+2026-08-30, per the branch-side shape — merges to main when this
+block's last slot's reviews conclude).** v3 triple {opus, opus,
+fable}. Slot 1 = M10-5 (clearance and self-intersection, E7;
+difficulty pre-logged M-L before the draw — two nested engines,
+but the outer loop and the funnel discipline are shipped
+substrate). Draw: /dev/urandom byte 122, no rejections ⇒ fable
+position 2 (0-indexed) ⇒ slot 1 OPUS, slot 2 OPUS, slot 3 FABLE.
+
+**M10-5 dispatch (branch-side, 2026-08-30).** Block M10-B3 slot 1
+(arm per the block draw above). Spec docs/M10-5-SPEC.md (to main
+at dispatch). Runs CONCURRENT with M10-4 (block B2 slot 3) — two
+implementation lanes, the disk budget's ceiling.
