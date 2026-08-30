@@ -1,0 +1,138 @@
+CERT-4 dual (v6), recorded BEFORE R1 dispatch, 2026-08-30
+ordinal: TO BE CLAIMED on main at actual dispatch (post-gate-green;
+the band's last claim is 701; 702 was reserved for CERT-3 and never
+claimed — the next claim takes whatever main's sequence yields).
+slot byte 130, parity 0 => R1 OPUS + R2 FABLE (cross-model per the
+v4 twelve-pair target; the opposite slot assignment from CERT-2's).
+METHOD NOTE (pre-recorded so both arms run identically): reviews run
+SEQUENTIALLY on the frozen head f2eb5a96 (PR 1303's gated head) —
+disk on this container bounds concurrent lane targets (one sibling
+implementer lane is running), and reducing concurrency is the lever
+that does not spend the pair. R2 dispatches after R1's report with
+the IDENTICAL stored brief below, no access to R1's report,
+findings, or probe branch. Probe branches: cert/4r1-probes,
+cert/4r2-probes. Dispatch is CONDITIONAL on the gate run
+33341476463 concluding green on f2eb5a96; if it reds, this record
+is amended at the new head rather than silently rewritten.
+implementer difficulty L (logged at spec pre-dispatch); impl phase
+~250k tokens, ~3h10m wall self-est — held for the row at merge.
+Handoff context note for the record: CERT-3 (this block's slot 2)
+ran its dual WITHOUT A/B logging per Evan's handoff instruction;
+logging RESUMES with this pair.
+
+COMMON BRIEF (stored verbatim; lane plumbing — worktree path, probe
+branch name — differs per lane):
+---
+You are a blinded adversarial reviewer for unit CERT-4 of the S-CERT
+program (repo evgunter/cad). Review PR 1303 on its FROZEN head
+f2eb5a96 — do not review any later commit; if the branch has moved,
+say so and still review f2eb5a96.
+
+Read first, in order: docs/prompts/reviewer-style-lane.md (binding
+style-lane brief; carry its structural questions and confidence
+vocabulary), the unit's binding spec (git show
+origin/cert/orchestrator:docs/CERT-4-SPEC.md), GitHub issue 1191
+(the primary specification), then the PR 1303 diff and body.
+
+CLAIMS TO FALSIFY (each gets a verdict with evidence; execution
+beats inspection; every number is the PR body's claim, not a fact):
+1. The eye's red-first evidence: the advance gate was [-tau, tau]
+   at Interval pre-fix and is now input-width (~1e-16 vs a 1e-12
+   ceiling); the census row's escalating set is genuinely EMPTY now
+   and the row still has teeth (it reds if any corpus row joins).
+2. THE STRUCTURAL-ZERO ARGUMENT (highest-value item): at a true
+   tangency, extent uses d.reduce_periodic(tau) and setback uses
+   d.reduce_periodic_centred(tau) on the SAME d, and the PR claims
+   the two windows agree BITWISE on [0, pi) so extent - setback is
+   exactly 0 with no re-derived gate. Execute this: verify the
+   bitwise agreement claim (the 4000-point pin plus your own
+   adversarial points - denormals, values just under pi, negative
+   zeros), verify a true tangency still classifies as an exact fit
+   through the PUBLIC door, and verify the claimed domain premise
+   (a setback never leaves [0, pi)) is enforced or argued somewhere
+   rather than assumed.
+3. The hit-list dispositions: the three "respelled, bit-identical"
+   sites (chord_join.rs:1643, pcurves.rs:1230/1244,
+   replace_face.rs:1914) are actually bit-identical (differential,
+   not inspection); the "kept" sites' jump-is-guarded arguments
+   hold (bulge_from_center's refusal guards, the arc-span
+   BothContained refusal, the azimuth gap); classify.rs:281's
+   deliberate second anchor still differs from the first by half a
+   period after the respell of :277.
+4. The two new topo straddle rows (select_arc window edge; conic
+   crossing span start) genuinely drive a straddle nothing drove
+   before, and their measure-the-alternative-anchoring shape can go
+   red if the site's fold moves back.
+5. The m10-p fence interval re-bless: reproduce the differential
+   with the committed instrument (claimed: f64 0 of 3153 moved;
+   interval structure fixture0/fixture1 refused -> ok 3 adding 18
+   coordinates; 75 of 3135 shared coordinates moved, ALL narrower,
+   1.06x-1.43x, all in die_composed_tour) and verify the re-blessed
+   interval digest is what the tree produces while the f64 digest
+   was untouched.
+6. THE M10-3 PIN NON-FLIP (adjudication-grade): the spec expected
+   a_macroscopic_box_refuses_all_of_its_mass_as_budget_today to
+   fail when the widening closed; the PR reports it stands green
+   and retargets its doc to a different mechanism (a dependency-
+   problem identity, not a floor straddle). Verify by execution
+   that the row is green on this head AND that the retargeted
+   mechanism story is correct (drive the driver's certification
+   predicate on a small box and see what its widening is made of);
+   judge whether editing another program's pin doc rather than
+   flagging-only was the right size of touch.
+7. The sweep receipt's by-construction claim: "Real carries exactly
+   one rounding primitive (floor)" so every .round()/.ceil()/
+   .trunc()/rem_euclid in the tree is concrete-f64 - verify the
+   trait surface at this head (a second rounding primitive, e.g.
+   via a blanket impl or an extension trait, breaks the whole
+   disposal); spot-check the three newly-found f64-only branch pins
+   and the hand-rolled sign branches; state what YOUR differently-
+   shaped sweep finds that theirs could not.
+8. Issues 1304 (k_probe_sweep dies at eps 1e-6 pre-existing at
+   merge base ad2f9757) and 1305 (chord_join pole two-integer
+   shift) assert what is actually true in the tree.
+9. The verification story: the PR states NO hosted run existed at
+   push time (the gate triggers on the PR) - resolve the PR's gate
+   run YOURSELF (status AND head SHA = f2eb5a96) before treating
+   any suite as covered; confirm lane=both ran all four test lanes;
+   the guided_replay/interval_lane pin re-derivations (items the PR
+   calls consumption rows now) assert something that can fail.
+STRUCTURAL (the style lane's stance, on top of its standing
+questions): does the new helper pair mint an instance of its own
+class (periodic_branch composes div + floor - does anything call
+the two methods on separately-derived copies of one value); the
+comparison-free/Dual-bit-identity claim for the new methods; the
+census row's prose still accurate now that it pins empty; once,
+read sugar.rs and chord_join.rs end to end (Q8).
+
+E2E EXERCISE (required): author your own profile with a fused
+arc-fillet-arc tangency (not the rocker eye) and drive it through
+replay at BOTH lanes; author a topo case whose azimuth straddles a
+window edge; report what a consumer sees, and anything the unit's
+fixtures were too friendly to show.
+
+LOCAL RUNS = UNIQUE SIGNAL ONLY: your own probes, planted
+corruptions (revert signed_swept's fold in your worktree and
+confirm the eye row and census go red; break the interval digest
+and confirm the fence fires), merge-base differentials. The unit's
+suites ride the PR gate - verify it ran, do not re-run wholesale.
+
+VERDICT: exactly one of APPROVE / APPROVE-WITH-FIXES /
+NOT-MERGEABLE-AS-IS / REJECT, plus the CODE QUALITY REPORT rubric:
+MAJOR/MINOR/NOTE counts; spec deviations reported vs silent (the PR
+body carries a four-item deviations section; anything beyond it is
+silent); ratings 1-5 with one line of evidence each for
+idiom/structure, test quality, doc/comment honesty. Findings
+ranked, one line of prose per MAJOR minimum, and a ## Style section
+per the style-lane brief with confidence vocabulary.
+
+LANE ISOLATION AND BLINDING: never state or guess who or what model
+implemented the unit; do not read any other review lane's branches,
+notes, or reports (disclose any accidental glimpse); do not post to
+GitHub - commit probe suites to your probe branch locally (do NOT
+push) and deliver findings in your report. No Co-Authored-By
+trailers. Keep working files inside your worktree. Foreground
+discipline: no background waiters for your own builds/tests; wrap
+raw cargo in local-scripts/with-build-slot.sh; never end a turn
+with background work active. Report <= 150 lines.
+---
