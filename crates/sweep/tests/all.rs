@@ -89,6 +89,8 @@ mod blend2_r2_probes;
 mod blend_seam_split_rim;
 #[path = "blend_tworims.rs"]
 mod blend_tworims;
+#[path = "cert5_offgrid_knot_rational.rs"]
+mod cert5_offgrid_knot_rational;
 #[path = "extrude_acceptance.rs"]
 mod extrude_acceptance;
 #[path = "extrude_interval.rs"]
