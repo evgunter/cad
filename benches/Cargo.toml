@@ -9,6 +9,17 @@
 # build jobs and both clippy rows, on every code-tier PR. Out here they
 # enter nothing the merge gate builds.
 #
+# BOTH NUMBERS IN THAT PARAGRAPH ARE READINGS, AND NEITHER IS GUARDED.
+# `44` is a `cargo tree` count of this root at the time it was written and
+# `11-12 minutes` is a hosted-runner job duration; both drift without
+# telling anybody. Deliberately unguarded rather than pending a guard: the
+# exclusion does not turn on either magnitude — one transitive crate too
+# many is already the wrong dependency for the merge gate to build, and a
+# faster runner would not make criterion a kernel dependency. They are the
+# scale of a decision, not its threshold, so nothing can go red when they
+# move. Treat them as approximate and re-count before quoting them
+# anywhere a number is load-bearing.
+#
 # WHAT THE EXCLUSION COSTS, checked rather than assumed:
 #   * `scripts/doc-gate.sh` documents every tracked cargo root, so this
 #     one joins the list automatically. It was free while this package
@@ -86,5 +97,15 @@ harness = false
 # what it is NOT measuring. Making D1's clause cheaper is a DESIGN.md
 # question, not a perf-PR one — PERF-PLAN says so, and nothing here
 # re-opens it.
+#
+# NOTHING RE-TAKES THAT TABLE, and nothing can: it is one dated reading on
+# one 4-core box, and this repo REPORTS timings rather than gating them
+# (PERF-PLAN) — a suite that asserted 18.5 µs would fail on a different
+# machine and say nothing about the kernel. What the numbers justify is the
+# one-line decision below, and that decision is stable under any plausible
+# drift in them: the ratio would have to fall to ~1 before leaving
+# assertions on stopped hiding algorithmic wins. So the table is a dated
+# reason, not a live constraint — re-take it before arguing FROM it, and do
+# not restore an old figure by tuning anything here.
 [profile.bench]
 debug-assertions = false
