@@ -591,3 +591,185 @@ fn p5_what_the_other_crossing_serves_and_how_far_away_it_is() {
         }
     }
 }
+
+/// **P6 — is `NoCornerSideCandidate` still reachable at all?**
+///
+/// This PR re-points the ONLY test in the workspace that asserted the
+/// variant (`arc_fillet::an_arc_arc_corner_can_have_no_corner_side_
+/// candidate`, the sole hit at the merge base). The PR says the reason
+/// "keeps its line×arc route" but does not exhibit one. This probe
+/// searches for a line×arc witness through the public doors.
+#[test]
+fn p6_hunt_a_surviving_no_corner_side_candidate_witness() {
+    use profile::path::PathNoCornerReason;
+    use profile::NoCornerReason;
+    let mut hits = 0_u32;
+    let mut tried = 0_u32;
+    let mut seen: Vec<String> = Vec::new();
+    // Arc incoming, straight leg outgoing.
+    for &r_arc in &[0.15_f64, 0.4, 1.0, 2.2] {
+        for &tau in &[1.0_f64, -1.0] {
+            for hd in 0..12 {
+                let head_a = -2.6 + 0.45 * f64::from(hd);
+                for ld in 0..24 {
+                    let ang = -3.0 + 0.26 * f64::from(ld);
+                    for &fillet in &[0.02_f64, 0.07, 0.2, 0.5, 0.9, 1.6] {
+                        for &reach in &[0.3_f64, 1.0, 2.5] {
+                            let corner = p2(0.0, 0.0);
+                            let c_arc = p2(corner.x - r_arc, corner.y);
+                            let head =
+                                p2(c_arc.x + r_arc * head_a.cos(), c_arc.y + r_arc * head_a.sin());
+                            let (dx, dy) = (ang.cos(), ang.sin());
+                            let away = p2(corner.x + reach * dx, corner.y + reach * dy);
+                            tried += 1;
+                            let res = Open
+                                .arc_fillet(
+                                    Center {
+                                        c: c_arc,
+                                        winding: if tau > 0.0 {
+                                            ArcSweep::Ccw
+                                        } else {
+                                            ArcSweep::Cw
+                                        },
+                                        p: head,
+                                    },
+                                    fillet,
+                                    Tol::witness(),
+                                )
+                                .and_then(|b| b.at(away, Tol::witness()))
+                                .and_then(|b| b.toward(dx, dy, Tol::witness()))
+                                .and_then(|b| b.line(0.3, Tol::witness()))
+                                .and_then(|b| b.line_to(Start, Tol::witness()));
+                            if let Err(PathError::NoCornerForFillet {
+                                reason:
+                                    PathNoCornerReason::NoTangentCircle(
+                                        NoCornerReason::NoCornerSideCandidate,
+                                    ),
+                                ..
+                            }) = res
+                            {
+                                hits += 1;
+                                if seen.len() < 3 {
+                                    seen.push(format!(
+                                        "R={r_arc} tau={tau} head_a={head_a} ang={ang} \
+                                         r={fillet} reach={reach}"
+                                    ));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    println!("P6: {tried} line x arc corners tried; {hits} NoCornerSideCandidate hits");
+    for s in &seen {
+        println!("P6   witness: {s}");
+    }
+}
+
+/// **P7 — is the NAMED bound the RIGHT bound when the carriers differ?**
+///
+/// `arc_fillet::an_arc_arc_radius_larger_than_both_carriers_refuses_as_
+/// the_enclosing_class`'s geometry: R₁ = 1 about (0, −1), R₂ = 1/2
+/// about (1/2, 0), corner at the origin, both CCW, σ = +1. At r = 2
+/// both ρ are negative and the refusal names the INCOMING side, so its
+/// message reads "use a radius below that side's carrier radius (1 m)".
+///
+/// But ρ₂ = 1/2 − r stays negative for every r above 1/2. The bound
+/// that actually leaves the class is min(R₁, R₂), and the message names
+/// max-of-the-first-hit instead. This probe walks the radii the message
+/// endorses.
+#[test]
+fn p7_the_named_bound_on_a_corner_whose_carriers_differ() {
+    let along = |cx: f64, cy: f64, r: f64, delta: f64| {
+        p2(cx + r * delta.cos(), cy + r * delta.sin())
+    };
+    // Anchors one radian along each carrier, as the fixture draws them.
+    let build = |r: f64| {
+        Open.arc_fillet_arc(
+            Center {
+                c: p2(0.0, -1.0),
+                winding: ArcSweep::Ccw,
+                p: along(0.0, -1.0, 1.0, core::f64::consts::FRAC_PI_2 - 1.0),
+            },
+            r,
+            Center {
+                c: p2(0.5, 0.0),
+                winding: ArcSweep::Ccw,
+                p: along(0.5, 0.0, 0.5, core::f64::consts::PI + 1.0),
+            },
+            Tol::witness(),
+        )
+        .and_then(|b| b.line_to(Start, Tol::witness()))
+        .map(|closed| closed.loop_)
+    };
+    let err = build(2.0).unwrap_err();
+    println!("P7 at r = 2: {}", label(&Err(err.clone())));
+    let PathError::FilletEnclosesLegCarrier {
+        side,
+        carrier_radius,
+        ..
+    } = err
+    else {
+        panic!("expected the enclosing refusal, got {err:?}");
+    };
+    println!("P7 the message names the {side} side, bound {carrier_radius}");
+    for &r in &[1.9_f64, 1.5, 1.2, 0.99, 0.9, 0.75, 0.6, 0.51, 0.49, 0.3, 0.2, 0.1, 0.05] {
+        let res = build(r);
+        let endorsed = r < carrier_radius;
+        println!(
+            "P7   r = {r:<5} (below the named bound: {endorsed:<5}) -> {}",
+            label(&res)
+        );
+    }
+}
+
+/// **E2E — a realistic authored part, as an outside consumer.**
+///
+/// A rounded slot outline: two circular lobes joined by fillets. This
+/// is the shape a user would actually draw, and the probe reports what
+/// the doors say at a sensible radius and at a demanding one.
+#[test]
+fn e2e_a_rounded_slot_authored_through_the_public_doors() {
+    // Two lobes of radius 8 mm whose centres sit 10 mm apart: they
+    // cross, and the crossings are the corners a fillet would round.
+    let (r_lobe, sep) = (0.008_f64, 0.010);
+    let o1 = p2(-sep / 2.0, 0.0);
+    let o2 = p2(sep / 2.0, 0.0);
+    // The upper crossing, by symmetry.
+    let y = (r_lobe * r_lobe - (sep / 2.0) * (sep / 2.0)).sqrt();
+    let corner = p2(0.0, y);
+    println!("E2E lobes R = {r_lobe} m, centres {sep} m apart; upper crossing at {corner:?}");
+    for &fillet in &[0.0005_f64, 0.001, 0.002, 0.004, 0.008, 0.012, 0.02] {
+        let a1 = (corner.y - o1.y).atan2(corner.x - o1.x);
+        let a2 = (corner.y - o2.y).atan2(corner.x - o2.x);
+        let res = Open
+            .arc_fillet_arc(
+                Center {
+                    c: o1,
+                    winding: ArcSweep::Ccw,
+                    p: p2(
+                        o1.x + r_lobe * (a1 - 1.0).cos(),
+                        o1.y + r_lobe * (a1 - 1.0).sin(),
+                    ),
+                },
+                fillet,
+                Center {
+                    c: o2,
+                    winding: ArcSweep::Ccw,
+                    p: p2(
+                        o2.x + r_lobe * (a2 + 1.0).cos(),
+                        o2.y + r_lobe * (a2 + 1.0).sin(),
+                    ),
+                },
+                Tol::witness(),
+            )
+            .and_then(|b| b.line_to(Start, Tol::witness()))
+            .map(|closed| closed.loop_);
+        println!("E2E fillet r = {fillet:<7} -> {}", label(&res));
+        if let Err(e @ PathError::FilletEnclosesLegCarrier { .. }) = &res {
+            println!("E2E     message: {e}");
+        }
+    }
+}
