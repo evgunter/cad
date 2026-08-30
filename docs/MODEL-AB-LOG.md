@@ -2282,3 +2282,16 @@ QA-9 (PR #1307) ordinal FIXED AT DISPATCH (2026-08-30):
 separate checkouts (shell-only lane). Identical stored briefs; R2
 gets no access to R1's report or probes. Implementer difficulty XS
 (pre-drawn at spec). Sample number at merge. Row at merge.
+
+CERT-4 (PR #1303) ordinal FIXED AT DISPATCH (2026-08-30):
+**ordinal 702** (S-CERT band 700–799; the band's last prior claim is
+701 — CERT-3's dual ran WITHOUT A/B logging per Evan's in-chat
+handoff instruction 2026-08-30, so no ordinal was ever claimed for
+it and 702 goes to this pair; the gap is deliberate and recorded in
+docs/S-CERT-LOG.md). v6 dual: slot byte 130, parity 0 ⇒
+**R1 OPUS + R2 FABLE**; SEQUENTIAL on frozen `f2eb5a96` (PR 1303's
+gated head, run 33341476463 green at lane=both), R2 isolated from
+R1, identical stored briefs (method note + brief PRE-R1 on
+cert/ab-state at 8da8f3b0). Implementer difficulty L (logged at
+spec). Sample number at merge, per the banding entry's rule. Row at
+merge.
