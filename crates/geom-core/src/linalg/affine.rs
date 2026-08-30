@@ -48,8 +48,12 @@ impl<T: Real> Affine3<T> {
     /// Semantically `T(q) ∘ R ∘ T(−q)` for `q` the displacement of
     /// `point` from the coordinate origin; computed directly as
     /// `linear = R` ([`Mat3::rotation_about`], which **normalizes the
-    /// axis internally** — a zero/poisoned axis yields an all-NaN map,
-    /// same contract) and `translation = (I − R)·q`, one application of
+    /// axis internally** — a zero/poisoned axis yields a map that is
+    /// poison in every entry, same contract; what poison *looks* like is
+    /// the scalar's business, and it differs: all-NaN at `f64`, entire
+    /// `[−∞, ∞]` at `Interval`. Either way nothing the map produces is
+    /// ever a certified finite value) and `translation = (I − R)·q`,
+    /// one application of
     /// the anchor operator ([`Mat3::identity_minus_rotation_about`]) to
     /// the anchor displacement, in exactly that order (D9). Fixed
     /// points: the axis line, up to rounding.
@@ -61,8 +65,15 @@ impl<T: Real> Affine3<T> {
     /// map (`angle = 0`) carrying `2·width(point)` of translation,
     /// which `transform_point` then adds to every point the map
     /// touches. Here the factors that vanish with the angle multiply
-    /// the anchor instead — exactly zero at `angle = 0`, `≈ θ·width`
-    /// near it.
+    /// the anchor instead: `≈ θ·width(q)` near zero, and at `angle = 0`
+    /// exactly zero at `f64`. At `Interval` "exactly zero" is not
+    /// available — the backend's `sin` at the exact point `0` encloses
+    /// `[−2e-323, 2e-323]`, so the operator carries subnormal dust that
+    /// no spelling here can remove. That dust still *multiplies* the
+    /// anchor, so the residue is proportional to the anchor's own scale
+    /// (`|q| + width(q)`, ~2.6e-322 for a metre-scale anchor) rather
+    /// than to `width(q)` alone — small, but not independent of the
+    /// operand, and not a constant.
     pub fn rotation_about_axis(point: Point3<T>, axis: Vec3<T>, angle: T) -> Self {
         let q = point - Point3::origin();
         Self::from_parts(
@@ -358,10 +369,24 @@ mod tests {
     /// 2e-323]` rather than `[0, 0]`, so the operator carries subnormal
     /// dust, and no spelling on this side can remove it. What the row
     /// pins instead is the property that actually failed — the residue
-    /// is **independent of the anchor**: the anchor enclosure is
+    /// **stops tracking the anchor's WIDTH**: the anchor enclosure is
     /// widened by six orders between the two measurements and the
     /// translation width does not move. Under `q − R·q` it moves by
     /// exactly those six orders.
+    ///
+    /// **"Does not move" is a statement about this range, not a law.**
+    /// The dust multiplies the anchor, so the residue is proportional
+    /// to the anchor's overall scale — `|q| + width(q)` — and the two
+    /// rows below only look flat because `|q| ≈ 3` dominates a
+    /// half-width of `1e-9` or `1e-3`. Measured across the whole range,
+    /// on this fixture's `(1, 2, −3)` anchor: 2.6e-322 flat from
+    /// half-width 0 through 1e-3, 4e-322 at half-width 1, and
+    /// **1.68e-316 at half-width 1e6** — five orders over the `1e-320`
+    /// bound this row asserts. The bound is therefore stated with its
+    /// domain: anchors whose width does not dominate their magnitude,
+    /// which is every anchor inside the session box (D4 ¶4). What the
+    /// bound is NOT is a constant floor independent of the operand, and
+    /// the widened row below tests proportionality-to-width only.
     ///
     /// The axis is oblique **and itself an enclosure**: the claim is not
     /// "the axis happens to normalize exactly", it is that the vanishing
@@ -394,6 +419,11 @@ mod tests {
                 .max(width(rot.translation.y))
                 .max(width(rot.translation.z));
             residue[row] = w;
+            // Domain-scoped: the operator's dust MULTIPLIES the anchor,
+            // so this bound holds for anchors whose width does not
+            // dominate their magnitude (|q| ≈ 3 here against half-widths
+            // 1e-9 and 1e-3). It is exceeded — 1.68e-316 — once the
+            // half-width reaches 1e6; see this row's doc comment.
             assert!(
                 w <= 1.0e-320,
                 "zero-angle translation is {w:e} wide on an anchor of width {:e} \
@@ -414,6 +444,13 @@ mod tests {
         // very fixture, must still be two anchor widths. If it ever
         // stops being, the bound above has stopped discriminating and
         // this row reds instead of going quiet.
+        //
+        // Bounded on BOTH sides, because the lower bound alone is
+        // satisfied by garbage: a poisoned or degenerate `R` makes the
+        // retired width `+inf`, and `inf >= 1.9·w` passes vacuously
+        // while measuring nothing. The upper bound says the fixture
+        // still produces a finite `2·width(anchor)` and not an
+        // entire-interval collapse.
         let h = 1.0e-9;
         let wide = |c: f64| Interval::from_bounds(c - h, c + h);
         let anchor = Point3::new(wide(1.0), wide(2.0), wide(-3.0));
@@ -423,12 +460,14 @@ mod tests {
             Interval::zero(),
         );
         let retired = q - linear * q;
+        let paid = width(retired.x);
         assert!(
-            width(retired.x) >= 1.9 * width(anchor.x),
+            paid >= 1.9 * width(anchor.x) && paid <= 10.0 * width(anchor.x),
             "the `q − R·q` spelling is supposed to pay 2·width(anchor) = {:e} here; \
-             it paid {:e} — if this now holds, the guard is stale",
+             it paid {paid:e} — under the lower bound the guard is stale (the \
+             arithmetic learned to cancel), over the upper one it is vacuous (a \
+             poisoned or entire R measures nothing)",
             2.0 * width(anchor.x),
-            width(retired.x),
         );
 
         // The same at `f64`, where the operator is exactly zero and the
