@@ -227,3 +227,32 @@ today, all issue-882's shape; and `caught`'s `unwrap_or_default()`
 still folds a lost message to the empty string, unreachable now but
 the reintroduction path if a second set_hook caller ever lands in
 that binary.
+
+## QA-3 merged (2026-08-30); block QA-B1 complete
+
+Evan's Q1 ruling is live: a `tools/` change pins the k-lint row that
+runs that crate's own suite, announced in `CONFIG_SOURCE` and the
+notices relay, with the draw untouched everywhere else — and the pin
+caught D183's failure shape on its own PR three times (each pinned
+head would have drawn a row that builds the changed crate without
+running an assertion about it). Issue 1023 closes on this plus
+QA-2's visibility work. The dual's headline is a lesson this
+program should keep: the filter's BEHAVIOR survived fourteen
+mutations across two arms, and both MAJORs were in the WRITTEN
+record — a derivation that said "compiles" and meant "runs the
+suite", and a debt-resolution pointer that vouched for a still-false
+comment. In a program whose deliverables are instruments, the record
+is part of the instrument, and it now has its own guard
+(`_selftest_klint_workflow` parses ci.yml and reds when the mapping,
+the row roster, or the fallback's premise drifts). Also earned here:
+a debt whose locator is a phrase-grep will point at true sentences
+and miss false ones — re-derive the claim set before trusting the
+citations (the unit did, found one cited line TRUE and two uncited
+lines false, and then committed the same class itself one site over
+— caught by the dual). Track Q's declared count (18) disagrees with
+its table (16), pre-existing, verified at merge base by both
+reviewers independently — flagged for whoever owns the schedule's
+bookkeeping next.
+
+Block QA-B1 is complete: three units, three duals, ordinals 800-802,
+samples 53/54/56.
