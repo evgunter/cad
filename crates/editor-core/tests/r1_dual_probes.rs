@@ -39,11 +39,11 @@ mod fixture;
 
 use corpus::{Recorder, documents, eval, failures};
 use editor_core::eval::{ContentBits, KeyHasher};
-use editor_core::{BooleanValue, DatumValue, Evaluation, NodeResult, SplitSide};
 use editor_core::{
-    ContentKey, Datum, DocEdit, LoopProgram, Node, ProfileDoc, ProfileProgram, SlotId,
-    ValuePayload, product_recorded,
+    AssertionVerdict, ContentKey, Datum, DocEdit, LoopProgram, Node, ProfileDoc, ProfileProgram,
+    SlotId, ValuePayload, product_recorded,
 };
+use editor_core::{BooleanValue, DatumValue, Evaluation, NodeResult, SplitSide};
 use fixture::{len, scl};
 use geom_core::{Bounds, Decide, Dual64, Tol};
 use profile::SketchPlane;
@@ -213,6 +213,26 @@ where
                         d.u64(pairs.len() as u64);
                     }
                     ValuePayload::Mate(_) => d.u64(20),
+                    // The measured quantity IS a lane value, so it is
+                    // digested through the same value-channel bracket
+                    // every coordinate takes.
+                    ValuePayload::Measure { value, dim } => {
+                        d.u64(21);
+                        d.s(&format!("{dim:?}"));
+                        d.sc(*value);
+                    }
+                    ValuePayload::Assertion(verdict) => {
+                        d.u64(22);
+                        d.s(verdict.label());
+                        match verdict {
+                            AssertionVerdict::Holds { measured, bound }
+                            | AssertionVerdict::Violated { measured, bound } => {
+                                d.sc(*measured);
+                                d.sc(*bound);
+                            }
+                            AssertionVerdict::Unevaluated { .. } => {}
+                        }
+                    }
                 }
             }
         }

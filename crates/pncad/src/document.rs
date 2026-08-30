@@ -33,8 +33,22 @@ pub use editor_core::{Applied, Doc, DocEdit, EditError, EditRecord, apply};
 // carries directly; it is re-exported here so document-layer code can
 // spell the whole node vocabulary through one module.
 pub use editor_core::{
-    Axis3, BooleanOp, Datum, Node, PatternKind, PlacementRuleFault, RecipeNodeId, SlotId,
-    VectorSlot,
+    Axis3, BooleanOp, Datum, MeasureNodeFault, Node, PatternKind, PlacementRuleFault, RecipeNodeId,
+    SlotId, VectorSlot,
+};
+
+// The measurement vocabulary (ERROR-DESIGN E3/E10, CONTACT-DESIGN C5).
+// `MeasureExpr` + `MeasurePrimitive` are what a `Node::Measure` is
+// built from, so a caller who cannot spell them cannot author one at
+// all; `AssertionDir` is a field of `Node::Assertion` for the same
+// reason. `AssertionVerdict` and `UnevaluatedReason` are the READING
+// half — the payload an evaluated assertion carries — and E10's whole
+// point is that a verdict is consumed by reports. `ASSERT_BOUND` is
+// the funnel site name, carried like `SEL_DATUM_DISTANCE` so a
+// K-census consumer can name the row rather than spell the string.
+pub use editor_core::{
+    ASSERT_BOUND, AssertionDir, AssertionVerdict, MeasureExpr, MeasurePrimitive, MeasureRef,
+    UnevaluatedReason,
 };
 
 // Expressions and their text door.

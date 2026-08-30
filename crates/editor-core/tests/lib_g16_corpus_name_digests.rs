@@ -65,6 +65,14 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 /// not a duplication: that one covers the die FIXTURE through its own
 /// bump rows, this one covers the registry.
 ///
+/// `measured_web` (M10-2) was ADDED to this table when its document
+/// joined the registry, and the add is the header's "one row moves"
+/// claim being MEASURED rather than restated: the re-cut printed
+/// nineteen numbers identical to the ones already pinned here and one
+/// new row. A measurement sink denotes no body and mints no name of
+/// its own, so it moves neither the geometry fence nor any other
+/// document's names.
+///
 /// `die_fillet` and `die_chamfer` are IDENTICAL, and that is what
 /// RECIPE-DOORS D3 says should happen. The two documents are the same
 /// three-node recipe with the blend swapped, so the blend mints under
@@ -88,6 +96,7 @@ const PINNED: &[(&str, u64)] = &[
     ("declared_tangency", 0xdef9_76c6_1d04_25bb),
     ("kitchen_sink", 0xc624_18ea_8ee0_e5aa),
     ("cut_cylinder", 0xc461_0a86_1d7e_379b),
+    ("measured_web", 0x9a4c_06c4_6086_685b),
     ("boss_union", 0xefcb_deb5_ef3a_3873),
     ("die_fillet", 0xb6ab_9ad5_a321_15f2),
     ("die_chamfer", 0xb6ab_9ad5_a321_15f2),
