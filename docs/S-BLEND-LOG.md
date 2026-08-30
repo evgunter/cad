@@ -389,3 +389,28 @@ three choices as recommended — "edge blend", collapse-with-aliases,
 rename-with-the-unit. The impact/reversibility record is on the PR
 thread (no persisted footprint; the sticky RimSupport half stays
 BLEND-5's). BLEND-6 is now gated only on BLEND-5's merge.
+
+## 2026-08-30 — Block BLEND-B2 DRAWN (branch-side record; reaches main at the block's last dual's conclusion)
+
+**Block BLEND-B2.** v3 triple {opus, opus, fable}. Slots by the
+plan's serialized order: slot 1 = BLEND-5 (issue 961, RimSupport
+vocabulary), slot 2 = BLEND-6 (issue 917, shared refusal
+vocabulary — executes ratified `docs/BLEND-VOCAB-DESIGN.md`),
+slot 3 = BLEND-3 (issue 919, concave plane-plane chamfers).
+Draw: /dev/urandom byte **25**, no rejections ⇒ 25 mod 3 = 1 ⇒
+fable position 1 (0-indexed) ⇒ **slot 1 OPUS, slot 2 FABLE,
+slot 3 OPUS**.
+
+Difficulties, logged at this draw before any of the three
+dispatches: BLEND-5 **M-L** (persisted-vocabulary widening with an
+N-doc migration story and a schema-seam claim; assessed M-L in the
+check-in note authored before this draw), BLEND-6 **M** (the
+ratified V1-V4 execution — one wrapper at the kernel doors and the
+~255-reference rename, wide but design-settled), BLEND-3 **M**
+(two admission doors widened + the concave fixture through the
+public API + orientation-agnostic carve check).
+
+Arms stay branch-side until reviews conclude per the standing
+redaction shape. BLEND-5 dispatches next (lane blend-5, branch
+`blend/rimsupport`); its schema-seam claim rides the dispatch
+record per the plan's naming/schema seam note.
