@@ -34,13 +34,13 @@ fn arc_arc_corner(
     fillet: f64,
 ) -> Result<ProfileLoop<f64>, PathError<f64>> {
     let c_in = p2(corner.x - r_in * a_in.cos(), corner.y - r_in * a_in.sin());
-    let c_out = p2(corner.x - r_out * a_out.cos(), corner.y - r_out * a_out.sin());
+    let c_out = p2(
+        corner.x - r_out * a_out.cos(),
+        corner.y - r_out * a_out.sin(),
+    );
     let head_a = a_in - tau_in * delta;
     let next_a = a_out + tau_out * delta;
-    let head = p2(
-        c_in.x + r_in * head_a.cos(),
-        c_in.y + r_in * head_a.sin(),
-    );
+    let head = p2(c_in.x + r_in * head_a.cos(), c_in.y + r_in * head_a.sin());
     let next = p2(
         c_out.x + r_out * next_a.cos(),
         c_out.y + r_out * next_a.sin(),
@@ -94,11 +94,7 @@ fn circle_from_bulge(t1: Point2<f64>, t2: Point2<f64>, b: f64) -> (Point2<f64>, 
 /// The two points where the pair of carriers cross. One is the drawn
 /// corner (both carriers pass through it by construction); the other is
 /// its mirror across the centre line — and the §2c lattice sees BOTH.
-fn crossings(
-    corner: Point2<f64>,
-    o1: Point2<f64>,
-    o2: Point2<f64>,
-) -> [Point2<f64>; 2] {
+fn crossings(corner: Point2<f64>, o1: Point2<f64>, o2: Point2<f64>) -> [Point2<f64>; 2] {
     let (dx, dy) = (o2.x - o1.x, o2.y - o1.y);
     let l = dx.hypot(dy);
     let (ux, uy) = (dx / l, dy / l);
@@ -277,10 +273,14 @@ fn p1_the_recourse_bound_against_the_measured_existence_gap() {
         built.len() + refused.len(),
         refused.len()
     );
-    if let (Some(lo), Some(hi)) = (built.last(), refused.iter().find(|r| *r > built.last().unwrap_or(&0.0)))
-    {
-        println!("P1 GAP: ordinary fillets end near {lo:.5}; {hi:.5} is already refused, and the \
-                  message's bound is {carrier_radius}");
+    if let (Some(lo), Some(hi)) = (
+        built.last(),
+        refused.iter().find(|r| *r > built.last().unwrap_or(&0.0)),
+    ) {
+        println!(
+            "P1 GAP: ordinary fillets end near {lo:.5}; {hi:.5} is already refused, and the \
+                  message's bound is {carrier_radius}"
+        );
     }
     // The probe's own assertion: SOME radius below the named bound must
     // build, or the recourse is empty.
@@ -327,30 +327,28 @@ fn p2_the_gate_fires_only_where_a_crossing_of_the_pair_is_enclosing() {
                             let facts: Vec<(f64, f64, f64)> = xs
                                 .iter()
                                 .filter_map(|x| {
-                                    sigma_rho_at(
-                                        *x, o1, r_in, tau_in, o2, r_out, tau_out, fillet,
-                                    )
+                                    sigma_rho_at(*x, o1, r_in, tau_in, o2, r_out, tau_out, fillet)
                                 })
                                 .collect();
                             if facts.is_empty() {
                                 continue;
                             }
                             checked += 1;
-                            let any_enclosing =
-                                facts.iter().any(|(_, a, b)| *a < 0.0 || *b < 0.0);
-                            let drawn_enclosing = facts
-                                .first()
-                                .is_some_and(|(_, a, b)| *a < 0.0 || *b < 0.0);
+                            let any_enclosing = facts.iter().any(|(_, a, b)| *a < 0.0 || *b < 0.0);
+                            let drawn_enclosing =
+                                facts.first().is_some_and(|(_, a, b)| *a < 0.0 || *b < 0.0);
                             match &res {
                                 Err(PathError::FilletEnclosesLegCarrier {
-                                    offset_radius,
-                                    ..
+                                    offset_radius, ..
                                 }) => {
                                     enclosing_refusals += 1;
                                     // FALSIFIER: the gate must be
                                     // classifying a real crossing of
                                     // this pair, and a negative rho.
-                                    assert!(*offset_radius < 0.0, "the payload rho is not negative");
+                                    assert!(
+                                        *offset_radius < 0.0,
+                                        "the payload rho is not negative"
+                                    );
                                     let matches_a_crossing = facts.iter().any(|(_, a, b)| {
                                         (a - offset_radius).abs() < 1e-9
                                             || (b - offset_radius).abs() < 1e-9
@@ -472,8 +470,7 @@ fn p3_no_emitted_fillet_swallows_a_carrier_off_the_prs_grid() {
                                     }
                                 }
                                 Err(PathError::FilletEnclosesLegCarrier {
-                                    offset_radius,
-                                    ..
+                                    offset_radius, ..
                                 }) => {
                                     enclosing_refusals += 1;
                                     assert!(
@@ -537,10 +534,7 @@ fn p4_a_line_partner_corner_with_a_negative_rho_arc_leg() {
                 .and_then(|b| b.line(0.25, Tol::witness()))
                 .and_then(|b| b.line_to(Start, Tol::witness()))
                 .map(|closed| closed.loop_);
-            println!(
-                "P4 r = {fillet}, dir ({dx}, {dy}) -> {}",
-                label(&res)
-            );
+            println!("P4 r = {fillet}, dir ({dx}, {dy}) -> {}", label(&res));
         }
     }
 }
@@ -601,8 +595,8 @@ fn p5_what_the_other_crossing_serves_and_how_far_away_it_is() {
 /// searches for a line×arc witness through the public doors.
 #[test]
 fn p6_hunt_a_surviving_no_corner_side_candidate_witness() {
-    use profile::path::PathNoCornerReason;
     use profile::NoCornerReason;
+    use profile::path::PathNoCornerReason;
     let mut hits = 0_u32;
     let mut tried = 0_u32;
     let mut seen: Vec<String> = Vec::new();
@@ -617,8 +611,10 @@ fn p6_hunt_a_surviving_no_corner_side_candidate_witness() {
                         for &reach in &[0.3_f64, 1.0, 2.5] {
                             let corner = p2(0.0, 0.0);
                             let c_arc = p2(corner.x - r_arc, corner.y);
-                            let head =
-                                p2(c_arc.x + r_arc * head_a.cos(), c_arc.y + r_arc * head_a.sin());
+                            let head = p2(
+                                c_arc.x + r_arc * head_a.cos(),
+                                c_arc.y + r_arc * head_a.sin(),
+                            );
                             let (dx, dy) = (ang.cos(), ang.sin());
                             let away = p2(corner.x + reach * dx, corner.y + reach * dy);
                             tried += 1;
@@ -682,9 +678,8 @@ fn p6_hunt_a_surviving_no_corner_side_candidate_witness() {
 /// endorses.
 #[test]
 fn p7_the_named_bound_on_a_corner_whose_carriers_differ() {
-    let along = |cx: f64, cy: f64, r: f64, delta: f64| {
-        p2(cx + r * delta.cos(), cy + r * delta.sin())
-    };
+    let along =
+        |cx: f64, cy: f64, r: f64, delta: f64| p2(cx + r * delta.cos(), cy + r * delta.sin());
     // Anchors one radian along each carrier, as the fixture draws them.
     let build = |r: f64| {
         Open.arc_fillet_arc(
@@ -715,7 +710,9 @@ fn p7_the_named_bound_on_a_corner_whose_carriers_differ() {
         panic!("expected the enclosing refusal, got {err:?}");
     };
     println!("P7 the message names the {side} side, bound {carrier_radius}");
-    for &r in &[1.9_f64, 1.5, 1.2, 0.99, 0.9, 0.75, 0.6, 0.51, 0.49, 0.3, 0.2, 0.1, 0.05] {
+    for &r in &[
+        1.9_f64, 1.5, 1.2, 0.99, 0.9, 0.75, 0.6, 0.51, 0.49, 0.3, 0.2, 0.1, 0.05,
+    ] {
         let res = build(r);
         let endorsed = r < carrier_radius;
         println!(
