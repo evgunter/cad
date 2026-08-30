@@ -944,12 +944,6 @@ fn select_arc<T: Decide>(
         (true, false) => true,
         (false, true) => false,
         (false, false) => {
-            if std::env::var("GA_TRACE").is_ok() {
-                eprintln!(
-                    "NEITHER face={face:?} width={width:?} x1={x1:?} g={g:?} tau={tau:?} \
-                     up_in={up_in:?} dn_in={dn_in:?} ccw_is_up={ccw_is_up:?}"
-                );
-            }
             return Err(SplitJoinError::SectionArcWindow {
                 face,
                 case: ArcWindowCase::NeitherContained,
