@@ -408,6 +408,25 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 /// the same gate. A v15 file whose log contains no value edits is the
 /// degenerate carry, exactly as an all-`None` distribution is.
 ///
+/// Version 16 is **the chamfer recipe node** (RECIPE-DOORS D2,
+/// issue #918).
+///
+/// The fifteenth break, and the node vocabulary's own kind of break:
+/// [`crate::Node`] gains a `Chamfer` variant (RECIPE-DOORS D2, issue
+/// #918) carrying `{ target, distance, selection }`, and [`crate::SlotId`]
+/// gains `ChamferDistance` for its size. Both types are
+/// `deny_unknown_fields`, so the direction that fails is the usual
+/// one: a v15 reader handed a file containing a chamfer node — or a
+/// slot binding naming its distance — meets a variant it has no name
+/// for and dies inside serde. A v16 file with no chamfer in it is the
+/// degenerate carry.
+///
+/// The recourse is the standing one for a vocabulary break with no
+/// migration machinery (LQ7a): regenerate the file from its own
+/// recipe. Nothing in the wire shape of any existing node moved, so a
+/// file that never mentions a chamfer differs from its v15 self only
+/// in the header number.
+///
 /// This number was taken by an explicit by-eye read of main's constant
 /// at the final re-merge (`git show
 /// origin/main:crates/editor-core/src/persist/mod.rs | grep
@@ -416,9 +435,44 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 /// `docs/MODEL-AB-LOG.md`, where a second claimant collides instead of
 /// merging clean.
 ///
+/// Version 17 is **the measurement vocabulary** (ERROR-DESIGN E3/E10,
+/// CONTACT-DESIGN C5; M10-2): [`crate::Node`] gained TWO variants —
+/// `Measure`, carrying a measured expression over a frozen
+/// [`crate::names::StableName`] reference list, and `Assertion`,
+/// carrying a measure's node id, a bound expression and a direction.
+/// Both are file data, and the measured expression is a NEW wire
+/// vocabulary (`WireMeasureExpr`) beside the existing one.
+///
+/// The claim reasoning, stated because a schema number is the one
+/// thing in this repo that two units can silently agree on: this is
+/// the case v7, v13 and v2/v3/v8 bumped for — a new node arm.
+/// Forward-additive (a v16 file contains no measure), while the gate
+/// buys the direction that fails badly: a v17 file handed to a v16
+/// reader meets a variant its `deny_unknown_fields` node enum has no
+/// name for and dies inside serde rather than at the version door.
+/// The migration table stays empty and a v16 file refuses TYPED with
+/// the regenerate recourse.
+///
+/// A document with neither node writes the v16 bytes exactly — the
+/// degenerate carry, not the format claim, exactly as v15's all-`None`
+/// distributions were.
+///
+/// Taken by the same by-eye read of main's constant at the re-merge
+/// that every entry above describes, and not re-described here.
+/// What IS specific to this number: **it moved, and this is the
+/// record of the collision resolving.** This unit claimed 16 and said
+/// in its own ledger entry that LIB-G16's `Node::Chamfer` claimed it
+/// too, and that the rule is order of merge. LIB-G16 merged first
+/// (`a0427344`) and kept 16, so this unit took 17 and repaired what
+/// the rule says it owes: this entry, the `assert_eq!(SCHEMA_VERSION,
+/// ..)` rows, the golden filename, and the `plate_param`,
+/// bench-corpus and `gallery_ring` fixtures. The by-eye read at the
+/// re-merge is what caught it — the constant merged CLEAN at 16
+/// against 16, exactly as every entry above predicts.
+///
 /// Bump ONLY with a ratified format change — plus its
-/// [`migration_step`] entry, or a ratified break like these fourteen.
-pub const SCHEMA_VERSION: u32 = 15;
+/// [`migration_step`] entry, or a ratified break like these sixteen.
+pub const SCHEMA_VERSION: u32 = 17;
 
 /// The serialized body under the header: snapshot + edit log (D1).
 #[derive(serde::Serialize, serde::Deserialize)]

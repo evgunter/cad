@@ -19,14 +19,16 @@
 //! Layering (D1, G1): the kernel never sees a `StableName` — ops emit
 //! birth facts; THIS module (editor-core) names things.
 
+mod defer;
 mod discriminate;
 mod emit;
+mod emit_chamfer;
 mod emit_fillet;
 mod emit_sweep;
 mod emit_topo;
 mod flush;
 mod geompred;
-mod interrogate;
+pub(crate) mod interrogate;
 mod role;
 mod select;
 mod table;
@@ -34,6 +36,7 @@ mod table;
 pub use emit::NamingError;
 pub(crate) use emit::name_in_part;
 pub(crate) use emit::{empty, name_pattern, name_placed_union};
+pub(crate) use emit_chamfer::name_chamfer;
 pub(crate) use emit_fillet::name_fillet;
 pub(crate) use emit_sweep::{name_extrude, name_loft, name_revolve};
 pub(crate) use emit_topo::{OperandCtx, name_boolean, name_split};

@@ -123,7 +123,7 @@ fn opening_a_file_that_is_not_a_document_refuses_at_the_persistence_door() {
 /// schema break makes this file unreadable, and the fix is to
 /// regenerate it from `demo-tour gallery` and rename, never to teach
 /// the loader about an old shape.
-const GALLERY_RING: &str = include_str!("gallery_ring.v15.pncad");
+const GALLERY_RING: &str = include_str!("gallery_ring.v17.pncad");
 
 /// **ε is a run parameter, and a saved document records the one it was
 /// decided at** — "one process, one ε", which `load` enforces by

@@ -140,3 +140,6 @@ fn every_suite_file_is_aggregated() {
         found.len()
     );
 }
+
+#[path = "r1_p2_onb_probes.rs"]
+mod r1_p2_onb_probes;
