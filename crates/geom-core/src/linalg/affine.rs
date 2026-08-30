@@ -418,8 +418,10 @@ mod tests {
         let wide = |c: f64| Interval::from_bounds(c - h, c + h);
         let anchor = Point3::new(wide(1.0), wide(2.0), wide(-3.0));
         let q = anchor - Point3::origin();
-        let linear =
-            Mat3::rotation_about(Vec3::new(wide(1.0), wide(-2.0), wide(2.0)), Interval::zero());
+        let linear = Mat3::rotation_about(
+            Vec3::new(wide(1.0), wide(-2.0), wide(2.0)),
+            Interval::zero(),
+        );
         let retired = q - linear * q;
         assert!(
             width(retired.x) >= 1.9 * width(anchor.x),

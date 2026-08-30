@@ -166,7 +166,6 @@ impl<T: Real> Mat3<T> {
         )
     }
 
-
     /// The inverse via the adjugate: the rows of `M⁻¹` are
     /// `(c1 × c2)/det`, `(c2 × c0)/det`, `(c0 × c1)/det`, with `det`
     /// computed as `c0 · (c1 × c2)` — bit-identical to
