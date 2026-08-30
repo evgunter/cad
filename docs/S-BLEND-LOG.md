@@ -414,3 +414,25 @@ Arms stay branch-side until reviews conclude per the standing
 redaction shape. BLEND-5 dispatches next (lane blend-5, branch
 `blend/rimsupport`); its schema-seam claim rides the dispatch
 record per the plan's naming/schema seam note.
+
+## 2026-08-30 — BLEND-5 DISPATCHED (block BLEND-B2 slot 1)
+
+Lane `blend-5` (`~/.local/share/cad-work/blend-5/cad`), branch
+`blend/rimsupport` cut from main at `6cf9647e` (BLEND-2's merge —
+the serialized-slate rule satisfied). Difficulty M-L stands
+pre-logged in the draw entry above; arm per the block record.
+
+**Schema-seam claim, stated here at dispatch per the standing
+discipline:** main's `SCHEMA_VERSION` is **17** (M10-2's bump);
+BLEND-5 claims **v18** for the `RimSupport` vocabulary widening,
+with the resolution rule stated in advance per the M10-2/G16
+precedent: if a concurrent unit also claims v18, MAIN'S MERGE
+ORDER rules and the loser repays every fixture per its own
+migration story. No live rival known at this writing (S-QA is
+CI-territory; VERBS-SPHSPH is geometry; no M10 unit in flight).
+
+Brief shape: issue 961 verbatim + plan unit 5; the emitter seam is
+OPEN (LIB-G16 merged 2026-08-30, so `editor-core`'s `emit_fillet`
+is touchable); the role-vs-kind-at-emit choice is the unit's to
+measure and argue (not one of the plan's reserved design forks);
+`docs/prompts/implementer-discipline.md` by path; measured-first.
