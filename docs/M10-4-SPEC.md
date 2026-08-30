@@ -1,7 +1,8 @@
 # M10-4 — sensitivities and the stackup (E4/E5)
 
-STATUS: DRAFT (binding at dispatch; merged to main before the lane
-starts). Unit branch `m10/m10-4-stackup`. Program plan
+STATUS: BINDING (dispatched 2026-08-30; citations re-verified
+against merged M10-2/#1213 and M10-3/#1231). Unit branch
+`m10/m10-4-stackup`. Program plan
 `docs/M10-PLAN.md`; design record `docs/ERROR-DESIGN.md` E4/E5/E9
 (read all three sections in full) and `docs/DUAL-DESIGN.md` DL1–DL6.
 
