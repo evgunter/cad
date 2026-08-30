@@ -115,19 +115,49 @@
 //! the same corpus walk, dumping every coordinate rather than digesting
 //! it, on this tree and on a tree with only those two files reverted:
 //!
-//! - **No structural difference at all**: the same documents, the same
-//!   node ids, the same outcome per node, the same point sets, the same
-//!   counts. The digest's non-numeric content is unchanged.
-//! - **4 of 3135 coordinates moved**, all in `kitchen_sink`, each by
-//!   **exactly one ulp** — the largest absolute move was 2.22e-16 m
-//!   (−1.9999999999999998 → −1.9999999999999996).
+//! THE INSTRUMENT IS `crates/editor-core/tests/cert3r1_dump.rs`, which
+//! replays this file's own `corpus_digest` walk at both scalars and
+//! prints one `RSTRUCT` line per node and one `RCOORD` line per
+//! coordinate instead of folding into FNV. Run it on two trees, grep
+//! the prefixes, diff. It is committed rather than described because a
+//! measurement whose instrument was thrown away is a claim.
 //!
-//! That is a movement seven orders under any band the corpus is
+//! - **No structural difference at all**, at either scalar: the same
+//!   documents, the same node ids, the same outcome per node, the same
+//!   point sets, the same counts. The digest's non-numeric content is
+//!   unchanged.
+//! - **f64 lane: 4 of 3135 coordinates moved**, each by **exactly one
+//!   ulp**, the largest absolute move 2.22e-16 m
+//!   (−1.9999999999999998 → −1.9999999999999996). Those four are
+//!   **one value on four vertices of one node** — `kitchen_sink` node
+//!   15, points 4/5/6/7, all the `x` component, all reading
+//!   −1.9999999999999998 before and −1.9999999999999996 after. It is
+//!   one arithmetic difference observed four times, not four.
+//! - **Interval lane: 8 of 3135 coordinates moved** — the same four
+//!   points of the same node, `x` and `y` each. Endpoints moved by up
+//!   to **16 ulps**, and the enclosures got **WIDER**, by 4.7× to 13×:
+//!   node 15 points 6/7 `x` went from 4.44e-16 wide to 5.77e-15, and
+//!   points 4/5 `y` from 1.33e-15 to 6.22e-15. Every one is still
+//!   ~1e-15 in absolute terms.
+//!
+//! **The interval lane widening is expected here and is not a
+//! regression of the change's purpose.** The purpose is anchors that
+//! carry width; this corpus builds bodies in-process and hands the
+//! constructor EXACT axis origins, and on a degenerate input the
+//! retired `q − R·q` cost nothing — `x − x` is `[0, 0]` — while the
+//! new form pays an independent operator's outward rounding. So on an
+//! exact-input corpus the change is a small loss, quantified above, and
+//! it buys the six orders on the population that motivated it. Both
+//! halves are recorded because only recording the favourable one would
+//! make this header evidence about itself.
+//!
+//! At `f64` the movement is seven orders under any band the corpus is
 //! evaluated against, and the direction is not systematic: at the
 //! quarter- and half-turn angles the corpus uses, `1 − cos θ` and
 //! `2·sin²(θ/2)` straddle the exact value from opposite sides, one ulp
 //! each way. The reason for accepting the move is on the enclosure
-//! side, where it is not an ulp: see `Mat3::identity_minus_rotation_about`.
+//! side, for anchors that are not exact: see
+//! `Mat3::identity_minus_rotation_about`.
 //!
 //! The `probe` row is ROSTERED into the K-telemetry sweep's executed
 //! floor. Its claim is not a third copy of the `f64` row's: it says the
