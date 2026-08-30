@@ -72,8 +72,9 @@
 //! The two claims stay separate because the fence's subject is that
 //! the lift changed nothing where nothing should change.
 //!
-//! RE-BLESSED THREE TIMES, every time for a ROSTER change rather than
-//! a build-path one: this digest walks `corpus::documents()`, so a new
+//! RE-BLESSED THREE TIMES FOR A ROSTER CHANGE (the build-path
+//! re-derivation below is a fourth move of these numbers and a
+//! different kind): this digest walks `corpus::documents()`, so a new
 //! document moves it by construction. Each re-blessing was MEASURED
 //! the same way, and the measurement is the procedure — remove the new
 //! document ALONE from `documents()` and check every constant comes
@@ -104,6 +105,59 @@
 //! document, and that prediction is what the removal confirms.
 //!
 //! The three numbers below are the same digest over the grown roster.
+//!
+//! RE-DERIVED ONCE FOR A BUILD-PATH CHANGE, which is the case the
+//! roster procedure above does not cover and the one this fence exists
+//! to catch. `Affine3::rotation_about_axis` stopped spelling its
+//! translation `q − R·q` and now applies `I − R` to the anchor once, so
+//! the arithmetic behind every rotated coordinate genuinely changed and
+//! all three digests moved. What was measured before re-deriving them —
+//! the same corpus walk, dumping every coordinate rather than digesting
+//! it, on this tree and on a tree with only those two files reverted:
+//!
+//! THE INSTRUMENT IS `crates/editor-core/tests/cert3r1_dump.rs`, which
+//! replays this file's own `corpus_digest` walk at both scalars and
+//! prints one `RSTRUCT` line per node and one `RCOORD` line per
+//! coordinate instead of folding into FNV. Run it on two trees, grep
+//! the prefixes, diff. It is committed rather than described because a
+//! measurement whose instrument was thrown away is a claim.
+//!
+//! - **No structural difference at all**, at either scalar: the same
+//!   documents, the same node ids, the same outcome per node, the same
+//!   point sets, the same counts. The digest's non-numeric content is
+//!   unchanged.
+//! - **f64 lane: 4 of 3135 coordinates moved**, each by **exactly one
+//!   ulp**, the largest absolute move 2.22e-16 m
+//!   (−1.9999999999999998 → −1.9999999999999996). Those four are
+//!   **one value on four vertices of one node** — `kitchen_sink` node
+//!   15, points 4/5/6/7, all the `x` component, all reading
+//!   −1.9999999999999998 before and −1.9999999999999996 after. It is
+//!   one arithmetic difference observed four times, not four.
+//! - **Interval lane: 8 of 3135 coordinates moved** — the same four
+//!   points of the same node, `x` and `y` each. Endpoints moved by up
+//!   to **16 ulps**, and the enclosures got **WIDER**, by 4.7× to 13×:
+//!   node 15 points 6/7 `x` went from 4.44e-16 wide to 5.77e-15, and
+//!   points 4/5 `y` from 1.33e-15 to 6.22e-15. Every one is still
+//!   ~1e-15 in absolute terms.
+//!
+//! **The interval lane widening is expected here and is not a
+//! regression of the change's purpose.** The purpose is anchors that
+//! carry width; this corpus builds bodies in-process and hands the
+//! constructor EXACT axis origins, and on a degenerate input the
+//! retired `q − R·q` cost nothing — `x − x` is `[0, 0]` — while the
+//! new form pays an independent operator's outward rounding. So on an
+//! exact-input corpus the change is a small loss, quantified above, and
+//! it buys the six orders on the population that motivated it. Both
+//! halves are recorded because only recording the favourable one would
+//! make this header evidence about itself.
+//!
+//! At `f64` the movement is seven orders under any band the corpus is
+//! evaluated against, and the direction is not systematic: at the
+//! quarter- and half-turn angles the corpus uses, `1 − cos θ` and
+//! `2·sin²(θ/2)` straddle the exact value from opposite sides, one ulp
+//! each way. The reason for accepting the move is on the enclosure
+//! side, for anchors that are not exact: see
+//! `Mat3::identity_minus_rotation_about`.
 //!
 //! The `probe` row is ROSTERED into the K-telemetry sweep's executed
 //! floor. Its claim is not a third copy of the `f64` row's: it says the
@@ -325,7 +379,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x50b4_edef_3d4c_d1ac, 0xa17d_6b19_5195_bee0),
+        (0x6542_ae63_e161_000c, 0xe9e2_cd7e_8a6a_dda0),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -352,7 +406,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0xb09c_3944_a8d7_c440, 0x588d_3ac4_427a_f52c),
+        (0xfe11_112b_06b7_77c0, 0x5cb7_e49f_d4e0_006c),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -376,7 +430,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x50b4_edef_3d4c_d1ac, 0xa17d_6b19_5195_bee0),
+        (0x6542_ae63_e161_000c, 0xe9e2_cd7e_8a6a_dda0),
         "the corpus's Probe evaluation moved"
     );
 }
