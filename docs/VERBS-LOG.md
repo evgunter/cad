@@ -2474,3 +2474,24 @@ remainder blocks even the spun pose) — the PR-2 spec re-cuts
 before dispatch. No tally candidates (the MAJ bilateral); the
 pair's cleanliness assessed at the union's close. Union out;
 reviewer lanes swept.
+## GERMARMS PR-1 MERGED (#1229, 2026-08-30) — ordinal-106 row (sample #51)
+
+Union fix pass landed whole: the sagitta charge in at side_code
+(bool_pierce_sector_side_curved; arm²/lever upper bound over the
+spec's small-angle limit — a refusing-direction deviation, derived
+at the site); reach measured across six poses with fixtures
+shortened to x=±1.1 and the long bar kept as its own refusal row;
+belly Constant → Err(frontier()); NoChartedRun rewritten quoting
+the replaced reading; #1291 filed (NeitherContained pairing
+diagnosis, no longer reproducible — parked with evidence); the
+cone row re-asserted as a dead-belt fence; both probe branches
+merged authorship-preserving; two fix-pass reds both the fix's
+own (a GA_TRACE env leak caught by the discipline gate; the ±3
+interval span wrong at every eps, caught by the 1e-12 draw). Fix
+CI 33302620641 green both scalar lanes at 14832e9d. The row-head
+run merged with ONE red: k-lint's probe-suite-census — the known
+main-inherited #1288 (M10's m10_3_driver_k_probe_interval,
+sampled axis), not the unit's; verified against the issue and
+main's runs before merging. Row GA-1 rode the PR; sample #51
+(ledger max #50 at write). PR-2 unblocks behind its re-cut spec
+(merged to main at #1292); dispatch queued per VERBS-7 slot 3.
