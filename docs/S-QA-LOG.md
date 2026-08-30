@@ -144,3 +144,26 @@ messaged mid-flight); QA-3 unblocked but sequenced AFTER QA-2 lands
 — both edit `ci-filter.py`/`ci.yml` and two lanes on one file is a
 conflict by construction. QA-5's shape is settled; its dispatch
 still waits on the K/P/W fence coordination.
+
+## QA-1 merged (2026-08-30)
+
+The issue-888 residue and the census broken-pipe class, landed on a
+green hosted head (run 33275703002, all 21 jobs) after the v6 dual
+and a nine-for-nine fix pass. The dual's headline is the program's
+own charter enacted on itself: the unit's `gate-roster.sh` conversion
+could print a matcher-death diagnosis and still exit 0 — the one gate
+never calling `gate_ok` — found by a reviewer's shim, not by the
+author or the selftest; and the "too expensive" deterministic
+regression arm was built independently by both reviewers in ~3 s.
+Both are fixed and armed. Issue 888 closes on the combined record;
+`check_step.sh:92` and the `find`-in-process-substitution class have
+durable homes on that issue. Recorded for a future unit: the census
+script is now 1,100+ lines carrying five modes in one `gate()` (a
+reviewer's Q8 finding — a split candidate, not this unit's).
+
+Process corrections this unit earned: lane branches now carry ONLY
+their own spec (QA-2's spec rode this PR from the shared dispatch
+commit — harmless here, sloppy in general); and the fable usage
+limit can kill lanes mid-flight — resumed with zero loss because the
+lane had pushed first, which is the push-early rule doing exactly
+what it is for.
