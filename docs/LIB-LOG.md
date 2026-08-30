@@ -1800,3 +1800,47 @@ FOUND MAIN RED (display_budget's `include_str!` naming the
 v15 fixture #1224 renamed — a union break gating every PR's Rust
 shards) — routed orchestrator-direct as #1264, per the
 red-goes-straight-to-a-fix social rule.
+
+**LIB-TUBE DELIVERED (branch `lib/tube`; spec docs/LIB-TUBE-SPEC.md
+under RECIPE-DOORS D4 AS REVISED by the #1205 split ruling).
+RECIPE-DOORS unit 2 of 3; schema v17; audit G2's TUBE HALF CLOSED.**
+`Node::Tube` and `Node::HollowTube` land as two node kinds over the
+kernel's two public doors — one bump, the wall REQUIRED on the hollow
+kind, `Option` nowhere in the recipe vocabulary — with content-key
+tags 25 and 26 appended and a `TubeWindow` recipe enum whose variant
+is structural payload. `Node.tube` / `Node.hollow_tube` bind them in
+pncad-py, with `TubeWindow` crossing as a VALUE (`full()` /
+`arc(t0, t1)`) rather than an optional pair of angles.
+
+**The two measurements the spec demanded, answered by execution.**
+(1) The revolve emitter template applies WHOLESALE: `name_revolve`
+reads only `Revolved<T>`'s own maps and never the profile, both tube
+doors return one built by the same `full`/`partial` machinery, so
+zero new `RoleSeg` variants and zero changes to `emit_sweep.rs`. The
+one tube-specific step is a step NOT taken — no `anchored` rewrite,
+because there is no profile node to anchor to. (2) The storage
+contract is metered at the STORED BITS, not the volumes: rows read
+`Surface::Torus`'s `minor_radius` off the built body and compare
+`to_bits()`, which is the only oracle that can see the claim rows
+26/27 actually make (volumes agree to 1e-12 either way).
+
+Audit re-cut, honest: rows 24/26/27 flip YES; rows 13 (`lily`) and 28
+(`teapot`) KEEP their NO on blockers that were never the tube (sweep
++ placement; shell) and their rows now say which half lifted; rows
+20-23 unmoved — no `wire_sweep` motion, U4/LQ3 untouched. G2
+re-counted 8 -> 5, tallies re-derived from the sheet: 47 = 36 + 4* +
+7.
+
+Banked, with homes: (1) per-ARM Python error tags — every op on
+`node_error_tag` gets ONE tag (`revolve` covers ten `RevolveError`
+arms), so a Python caller distinguishes a wall refusal from a frame
+refusal only by prose; worth doing for every op at once, not for the
+one whose unit was written last. (2) `reader_census`'s dot-component
+filter tests the ABSOLUTE path, so any checkout under a dotted
+directory (`~/.local/...`) reports all 34 ledger entries stale and
+reds for an environmental reason; the filter wants the path relative
+to the repo root. Neither is this unit's.
+
+Next per ratified D1 sequencing: shell, still HELD behind #1202's
+kernel birth channel.
+
