@@ -337,6 +337,26 @@ landed here: this finding measured the `fmt` job, and a claim about a
 > runs — so those two sentences are simply false in that one phrase and
 > are owed a correction. Said out loud here and at the job, which is what
 > ci.yml's own step comment asks for.
+>
+> **The correction is written (2026-08-30).** `crates/sweep/tests/k_report.rs`
+> says *"1 in 5"* and names the `dev-probe` row it rides;
+> `docs/K-REPORT.md` names the row and its schedule at each of the four
+> sentences that carried a frequency claim, and marks the one that is
+> genuinely unconditional (`probe-suite-census.sh`'s default mode, sited
+> in `discipline`) as such rather than demoting it with the rest. MIN-1's
+> falsifier is untouched and still 1-in-5 by design; its own step comment
+> in `ci.yml` is where that is said. **The debt line stays here** — a
+> minutes entry is a record of what a decision cost, and deleting the cost
+> once it is paid leaves the decision looking free.
+>
+> **And the schedule improved under it rather than only being described.**
+> A change under `tools/` now PINS the k-lint row that compiles it instead
+> of drawing one (`KLINT_PATH_ROWS` in `scripts/ci-filter.py`, Evan's
+> ruling of 2026-08-29). That is *unconditional-when-`tools/`-changes*,
+> which is a real schedule and is what the corrected sentences point at.
+> It does not restore any of the three claims above to *unconditional*:
+> `k_report.rs` and the falsifier live under `crates/`, which the pin does
+> not reach.
 
 ## What landed
 

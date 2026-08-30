@@ -781,11 +781,13 @@ EPS_ROWS: tuple[str, ...] = ("default", "1e-6", "1e-12")
 # docs/K-REPORT.md's "on every building merge" (dev-probe). No gate reds on
 # either — the census greps for the STEP NAME, not for how often it runs — so
 # the correction had to be written by hand, and it has been: `k_report.rs`
-# says "1 in 5" and names the row it rides, and docs/K-REPORT.md's two
-# sentences now name the row that runs each claim and how often it runs. THE
-# SCHEDULE THEY WERE CORRECTED TO IS THE ONE BELOW, both halves of it: drawn
-# 1-in-5, and PINNED — not drawn at all — for the paths `KLINT_PATH_ROWS`
-# names.
+# says "1 in 5" and names the row it rides, and docs/K-REPORT.md names the row
+# and the schedule at every sentence of its that carried a frequency claim —
+# including the one that turned out to be TRUE, the census tally sited in
+# `discipline`, which is marked as unconditional rather than demoted with the
+# rest. THE SCHEDULE THEY WERE CORRECTED TO IS THE ONE BELOW, both halves of
+# it: drawn 1-in-5, and PINNED — not drawn at all — for the paths
+# `KLINT_PATH_ROWS` names.
 KLINT_ROWS: tuple[str, ...] = (
     "dev-default", "release-default", "release-budget", "dev-budget", "dev-probe",
 )
