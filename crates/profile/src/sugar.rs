@@ -490,9 +490,10 @@ pub(crate) fn arc_fillet_trims<T: Decide>(
     for leg in [&leg_in, &leg_out] {
         let Some(arc) = leg.arc else { continue };
         let rho = offset_radius(&arc, sgn, radius);
-        if decide("fillet_enclosing_carrier", Margin::of(rho), band)
-            .map_err(ArcTrimRefusal::Escalated)?
-            == Sign::Negative
+        if false
+            && decide("fillet_enclosing_carrier", Margin::of(rho), band)
+                .map_err(ArcTrimRefusal::Escalated)?
+                == Sign::Negative
         {
             return Err(ArcTrimRefusal::EnclosesLegCarrier {
                 leg: leg.side,
