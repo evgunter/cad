@@ -378,3 +378,14 @@ in flight). The branch-side draw record above becomes public with
 this merge to main, and BLEND-7's redacted arm cell is restated in
 its MODEL-AB-LOG row in the same commit. BLEND-2's row lands at its
 merge, arm named normally (its dual is concluded).
+
+## BLEND-VOCAB RATIFIED (2026-08-30, Evan's 👍 on PR 1279)
+
+`docs/BLEND-VOCAB-DESIGN.md` ratified and merged (a9806624): V1
+(the G16 wrapper shape at the kernel doors), V2 (verb-neutral inner
+prose + per-verb recourse re-measurement under the 1278 rule), V3
+(the rename with the unit, last), V4 (no parallel enum), plus the
+three choices as recommended — "edge blend", collapse-with-aliases,
+rename-with-the-unit. The impact/reversibility record is on the PR
+thread (no persisted footprint; the sticky RimSupport half stays
+BLEND-5's). BLEND-6 is now gated only on BLEND-5's merge.
