@@ -299,3 +299,33 @@ the remaining question is the KERNEL-direct surface (FilletError's
 Display literals still say "fillet:"). Issue 1235 closed — main's
 own c577b24d fixed it independently (G16 dropped its parallel fix
 and took main's).
+
+## BLEND-2 R1 IN; R2 FIRST DISPATCH DISCARDED FOR BRIEF ASYMMETRY; CLEAN R2 RUNNING (2026-08-30 ~00:55Z)
+
+BLEND-2 R1: **APPROVE-WITH-FIXES 0/7/4, rubric 3/4/4** (~200K/~95m;
+probes on `blend/tworims-r1-probes`). No MAJOR — the identity-only
+claim survived adversarial reading and four mutations, bit-equality
+reproduced incl. a four-rim chain e2e and the whole sweep battery
+on the UN-DRAWN interval lane. Sharpest MINORs: the dead-edge
+exactness claim has no fixture separating it from the naive
+spelling (M3 survives all 791 rows); a spool fixture contradicts
+the conservative-narrowing characterization (one-call and
+sequential refuse at the IDENTICAL radius there — the zone's gap is
+likely the clearance meter's pre-existing direction-conservatism on
+a sphere wall, not the door's); the collision refusal never names
+the sequential recourse (the 1278 class again); the mixed-arm fence
+owes its ~15-line reachability guard (#651); two "three readings"
+counters now stale at four; two undisclosed refusal arms in the
+refresh.
+
+**PROTOCOL INCIDENT, recorded for the adjudication: R2's FIRST
+dispatch deviated from the stored brief** — the orchestrator added
+one attack under claim 5 (test the narrowing characterization on a
+new fixture) shaped after R1's spool finding. Caught immediately;
+the agent was KILLED during setup (it had fetched the PR body;
+no lane work, no probes) and a fresh R2 dispatched from the stored
+brief VERBATIM. Handling per the G18a discard precedent: the
+contaminated dispatch produced no report and no artifacts; the
+clean R2 is uninterrupted from the symmetric brief. Whether the
+pair still scores toward comparability is the blinded
+adjudication's call, not claimed here.
