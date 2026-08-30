@@ -249,6 +249,11 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
         NodeErrorKind::CurvedSolidFrontier { .. } => "curved_solid_frontier",
         NodeErrorKind::MissingInput { .. } => "missing_input",
         NodeErrorKind::ToleranceConflict { .. } => "tolerance_conflict",
+        // Its own tag rather than the ε conflict's: both refuse every
+        // node for a whole-run reason, but the recourses are different
+        // — one is "replay in a process whose ε matches", the other is
+        // "ask for the box at a scalar that can carry it".
+        NodeErrorKind::ParamBox { .. } => "param_box",
         NodeErrorKind::WrongOperand { .. } => "wrong_operand",
         NodeErrorKind::EmptyOperand { .. } => "empty_operand",
         NodeErrorKind::DegenerateDirection { .. } => "degenerate_direction",

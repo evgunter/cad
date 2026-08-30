@@ -2631,6 +2631,30 @@ jobs:
       - name: demos tour suite (the #99 ε pin + the tour's own probes)
         if: contains(fromJSON('["release-default", "all"]'), needs.filter.outputs.klint_row)
         run: cd demos/tour && cargo test --release
+      # THE COMMITTED DIE CORPUS IS STILL THE SCENE THAT AUTHORED IT.
+      # `crates/editor-core/tests/corpus/die_composed_tour.rs` registers
+      # the tour's composed die by replaying committed BYTES, because
+      # `demos/tour` is a detached workspace the kernel must not depend
+      # on. Bytes go stale silently; this step is why these ones cannot.
+      # It regenerates through the tour's own door and diffs — the same
+      # closure `crates/pncad-py/tests/corpus/bench/` still lacks
+      # (issue #1186), available here only because this job already
+      # builds `demo-tour` in release and the diff costs one sub-second
+      # run of it.
+      #
+      # It rides this job's sampled row, so it is not a per-run gate: a
+      # PR that changes the die scene and draws another row lands with
+      # the corpus unchecked, and the next sampled run is where it goes
+      # red. Stated rather than papered over — the alternative is a
+      # sixth kernel build in the code tier for a file that moves rarely.
+      #
+      # The committed bytes record the ε they were written at, so this
+      # runs at the ambient default like the row above it.
+      - name: the tour die corpus is regenerable byte-for-byte
+        if: contains(fromJSON('["release-default", "all"]'), needs.filter.outputs.klint_row)
+        run: |
+          cd demos/tour && cargo run --release -- die-corpus /tmp/die_composed_tour.pncad
+          diff -u ../../crates/editor-core/tests/corpus/tour/die_composed_tour.pncad /tmp/die_composed_tour.pncad
       - name: k-lint tool fmt + clippy + tests (incl. the #99 litmus)
         if: contains(fromJSON('["dev-default", "all"]'), needs.filter.outputs.klint_row)
         run: cd tools/k-lint && cargo fmt --check && cargo clippy --all-targets -- -D warnings && cargo test
