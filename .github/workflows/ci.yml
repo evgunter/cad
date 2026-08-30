@@ -555,8 +555,9 @@ jobs:
               ;;
           esac
           # THE FILTER'S OWN NOTICES, WHERE A READER OF THE RUN IS ALREADY
-          # LOOKING — a lane pin's reason, or the interval advisory that
-          # replaced the basename pin (#1122). ci-filter.py prints them on
+          # LOOKING — either pin's reason (the interval lane's, or the k-lint
+          # row's `tools/` pin), or the interval advisory that replaced the
+          # basename pin (#1122). ci-filter.py prints them on
           # stderr inside `classify the change set`, which lands under the
           # changed-file list and is not where anyone asking "what gated this?"
           # looks; `--notices` is the same text in a file, RELAYED VERBATIM
@@ -2704,6 +2705,11 @@ jobs:
     # ONE OF FIVE FEATURE UNIFICATIONS PER RUN (2026-08-22, the same
     # configuration-sampling ruling that draws the lane and the ε; the roster
     # and the soundness argument are at `KLINT_ROWS` in scripts/ci-filter.py).
+    # DRAWN, EXCEPT WHERE IT IS PINNED: a change under `tools/` substitutes the
+    # row that compiles what changed rather than sampling one (Evan's ruling,
+    # 2026-08-29; the mapping and its derivation are at `KLINT_PATH_ROWS`, and
+    # the run says `klint:pinned` in the step above). `demos/` is deliberately
+    # left to the draw, argued at the same site.
     #
     # WHY THIS JOB AND NOT A CACHE FIX. It bills 8-10 minutes — the third
     # largest line item in the gate — and the cost is not one slow check: the

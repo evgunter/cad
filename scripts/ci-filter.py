@@ -83,16 +83,19 @@ $GITHUB_OUTPUT and to parse with `while IFS='=' read -r k v`.
   LANE=default|interval|both    which COMPILE MODE this run gates (see below)
   EPS=default|<value>|all       which tolerance row this run gates
   KLINT_ROW=<unification>|all   which of `k-lint (gate)`'s five feature
-                                unifications this run gates (see below)
+                                unifications this run gates — drawn, or PINNED
+                                by a `tools/` change to the row that compiles
+                                it (see below, and `KLINT_PATH_ROWS`)
   SEEDS=<comma-separated members whose OWN files changed, empty for
                                 docs and for `all`>
   CONFIG_SOURCE=lane:<src> eps:<src> klint:<src>
                                 where each of the three values above came
                                 from: `sampled` (drawn from --seed),
                                 `unsampled` (no seed, so the whole matrix),
-                                `pinned` (lane only — `_forces_interval`
-                                substituted it ahead of the draw),
-                                `requested` (--config) or `commit-trailer`
+                                `pinned` (lane or klint — `_forces_interval` /
+                                `_forces_klint` substituted it ahead of the
+                                draw), `requested` (--config) or
+                                `commit-trailer`
   RUN_VIEWER_TOOLKIT=true|false the eframe/wgpu rows (`clippy -p viewer
                                 --features app`, the doc gate's
                                 --all-features pass over viewer) — keyed on
@@ -128,6 +131,15 @@ THE THIRD SAMPLED DIMENSION (2026-08-22) is `k-lint (gate)`'s five FEATURE
 UNIFICATIONS — see `KLINT_ROWS`. It is drawn under a salt of its own, like
 lane and eps, so all thirty points of the matrix stay reachable.
 
+AND IT IS THE SECOND DIMENSION WITH A PATH PIN (Evan's ruling, 2026-08-29). A
+change under `tools/` does not draw its k-lint row: `_forces_klint` substitutes
+the row that compiles what changed, from a mapping DERIVED off the job's own
+steps (`KLINT_PATH_ROWS`). `demos/` is deliberately not pinned and that scope
+decision is argued at the same site. The residue is stated there too and it is
+real: breakage in a path this mapping does not correlate still lands undrawn
+and persists until a later draw finds it, which is the sampling design's own
+argument. The pin narrows that hole; it does not close it.
+
 NO SEED MEANS NO SAMPLING — LANE=both, EPS=all, KLINT_ROW=all. Fails OPEN into MORE work,
 matching every other signal here. local-scripts/ci-local.sh passes no seed
 and therefore still runs the whole matrix: it is not billed by the minute,
@@ -135,9 +147,11 @@ and with the hosted gate sampling, the local gate is now the only lane that
 runs every point of the matrix on one tree.
 
 A PIN IS ANNOUNCED TWICE, AND NEITHER HALF IS OPTIONAL. `LANE` is not always
-drawn — `_forces_interval` pins it, ahead of the seed — and a pin no reader can
-see is how a branch spends every run of its life on an axis nobody chose
-(#1122).
+drawn — `_forces_interval` pins it, ahead of the seed — nor is `KLINT_ROW`,
+which `_forces_klint` pins on the same terms, and a pin no reader can see is
+how a branch spends every run of its life on an axis nobody chose (#1122). Read
+`lane` for `klint` throughout the two bullets below: one wording, two
+dimensions, and the notice is composed once per pin in `main`.
 
   * `CONFIG_SOURCE=lane:pinned` on STDOUT. This is the half a machine and a
     reader-after-the-fact get: `LANE=interval` reads identically whether the
@@ -761,16 +775,82 @@ EPS_ROWS: tuple[str, ...] = ("default", "1e-6", "1e-12")
 # sampled — what rides here is only the behavioural half, and a suite that
 # stops being built stays unbuilt.
 #
-# WHAT IT COSTS, said out loud because two ratified review outcomes name
+# WHAT IT COSTS, said out loud because two ratified review outcomes named
 # these rows as UNCONDITIONAL and this makes them 1-in-5: MIN-1's certificate
 # falsifier (dev-budget) and `crates/sweep/tests/k_report.rs` +
-# docs/K-REPORT.md's "on every building merge" (dev-probe). Neither claim is
-# checked by any gate — the census greps for the STEP NAME, not for how often
-# it runs — so nothing goes red; the sentences simply become false in that
-# one word, and are owed a correction.
+# docs/K-REPORT.md's "on every building merge" (dev-probe). No gate reds on
+# either — the census greps for the STEP NAME, not for how often it runs — so
+# the correction had to be written by hand, and it has been: `k_report.rs`
+# says "1 in 5" and names the row it rides, and docs/K-REPORT.md's two
+# sentences now name the row that runs each claim and how often it runs. THE
+# SCHEDULE THEY WERE CORRECTED TO IS THE ONE BELOW, both halves of it: drawn
+# 1-in-5, and PINNED — not drawn at all — for the paths `KLINT_PATH_ROWS`
+# names.
 KLINT_ROWS: tuple[str, ...] = (
     "dev-default", "release-default", "release-budget", "dev-budget", "dev-probe",
 )
+
+# WHEN THE K-LINT ROW IS NOT LEFT TO CHANCE (Evan's ruling, 2026-08-29). A
+# change under `tools/` PINS the row that compiles it, ahead of the draw.
+#
+# THE CASE, AND WHY IT IS NOT AN ARGUMENT AGAINST THE SAMPLING. All five rows
+# above are persistence-detectors, so a break in one is found by a later draw
+# — that is sound and it is not in question here. What it does not say is
+# WHOSE merge finds it: for a tool crate the finder is whoever's PR next draws
+# that row, so the break lands undrawn and detonates somewhere unrelated. D183
+# is the measured instance — `tools/tess-meter`'s `SPLIT_SCAN_DECADES` /
+# `SPLIT_SCAN_SAMPLES` are boxed by a guard living in that crate's OWN tests,
+# and the row that runs those tests is drawn 1-in-5, so the merge that retunes
+# the constants is more likely than not the merge that does not run the guard.
+# The pin measures nothing new and bills nothing new: it forces a row this run
+# was going to spend anyway.
+#
+# THE SCOPE IS `tools/`, CHOSEN BY MEASUREMENT: ~7% of code-shaped merges touch
+# that tree (14 days, at the ruling). A dimension made deterministic on 7% of
+# runs is still a sampled dimension.
+#
+# `demos/` IS DELIBERATELY NOT PINNED, and that is a decision rather than an
+# omission — said here, because a scope that lists only what it covers reads as
+# an oversight the next time someone asks. Two reasons, and the second is the
+# one that decides it. It is ~29% of code-shaped merges, so pinning it would
+# fix this dimension on nearly a third of all runs, which is the sampling
+# eroded rather than narrowed. And the demos failure shape that actually bit —
+# a tour scene that stops compiling, a scene whose output moved — breaks every
+# row that touches the tour, so ANY draw finds it on the offending merge. The
+# `tools/` case is the opposite shape: one crate's own test, seen by one row.
+#
+# THE MAPPING IS DERIVED FROM WHAT THE ROWS COMPILE, not declared beside them.
+# Read off `k-lint (gate)`'s steps and their `if:` conditions:
+#
+#   tools/k-lint/      `dev-default` runs its fmt + clippy + `cargo test` (the
+#                      #99 litmus). `dev-probe` also builds it — `cargo run --`
+#                      for the large-K lint — but runs none of its tests: that
+#                      row is a CONSUMER of the binary, not the row that checks
+#                      the crate.
+#   tools/tess-lint/   the same shape. `dev-default` runs fmt + clippy + tests
+#                      (the three exit voices); `release-budget` `cargo run --`s
+#                      the binary as the tessellation-budget gate.
+#   tools/tess-meter/  `dev-default` and nothing else. No other row compiles it
+#                      at all, which is exactly what D183 is about.
+#
+# So every entry is `dev-default` today and the table is single-valued. It is a
+# TABLE anyway for two reasons: the derivation is per-crate and the next tool
+# need not land in the same row, and `_selftest_klint_pin` reds when a `tools/`
+# member has no entry — which turns "someone added a tool and nobody derived
+# its row" from a silent inheritance into a failed self-test.
+KLINT_PATH_ROWS: tuple[tuple[str, str], ...] = (
+    ("tools/k-lint/", "dev-default"),
+    ("tools/tess-lint/", "dev-default"),
+    ("tools/tess-meter/", "dev-default"),
+)
+
+# THE FALLBACK, AND WHY IT IS A ROW RATHER THAN THE DRAW. A path under `tools/`
+# the table does not name is a path whose row nobody has derived, and leaving
+# that one to the draw is the state this pin exists to end. `dev-default` is
+# the row that runs the most tests of the five and every tool crate's own suite
+# today, so it is the cheapest honest answer — and it IS a guess, which is why
+# the self-test reds on an unnamed member rather than letting the guess stand.
+KLINT_PIN_FALLBACK = "dev-default"
 
 # WHEN THE INTERVAL LANE IS NOT LEFT TO CHANCE — AND THE NAME-SHAPED HALF THAT
 # NO LONGER IS (Evan's ruling, 2026-08-29, on #1122).
@@ -817,6 +897,55 @@ def _forces_interval(files: list[str] | None) -> str | None:
         if f.startswith("interval-transcendentals/"):
             return f"{f} is under interval-transcendentals/"
     return None
+
+
+# THE SAME SHAPE ONE DIMENSION OVER, and announced the same way: it runs before
+# the seeded draw and short-circuits it, so `main` prints the reason to stderr
+# and `decorate` records `klint:pinned`, which is why this returns the REASON
+# alongside the row rather than the row alone. The scope, the derivation and
+# the `demos/` exclusion are at `KLINT_PATH_ROWS`.
+def _forces_klint(files: list[str] | None) -> tuple[str, str] | None:
+    """`(row, why)` when a change pins the k-lint row, or `None` if it is drawn."""
+    # UNRESOLVED FAILS CLOSED INTO EVERY ROW, not into the draw: nothing is
+    # known about what changed, so nothing can prove `tools/` held still, and a
+    # guarantee that lapses exactly where the evidence is missing is not one.
+    # `all` is the expensive answer here — five compiles rather than one, which
+    # is the whole bill the sampling removed — and it is still the right one,
+    # because a run that could not resolve its own diff is already TIER=all and
+    # running the entire workspace on precisely this argument.
+    if not files:
+        return ("all", "the changed-file list could not be resolved, so nothing here "
+                       "can prove tools/ held still")
+    # KEYED ON THE ROW, NOT THE FILE: a diff touching two members of one row
+    # pins that row once, and the first file to reach it is the one named. The
+    # files are sorted so which one that is does not depend on the order the
+    # diff came out in — a reason that moves between two runs of the same tree
+    # reads as a second pin.
+    rows: dict[str, str] = {}
+    for f in sorted(f for f in files if f.startswith("tools/")):
+        for prefix, row in KLINT_PATH_ROWS:
+            if f.startswith(prefix):
+                rows.setdefault(row, f"{f} is under {prefix}, which the `{row}` row "
+                                     "is the one that compiles and tests")
+                break
+        else:
+            rows.setdefault(KLINT_PIN_FALLBACK,
+                            f"{f} is under tools/ and no row is derived for it, so it "
+                            f"falls back to `{KLINT_PIN_FALLBACK}` — the row that runs "
+                            "the most tests, never the draw")
+    if not rows:
+        return None
+    if len(rows) == 1:
+        ((row, why),) = rows.items()
+        return (row, why)
+    # TWO ROWS ASKED FOR AT ONCE, so neither of them alone is honest and `all`
+    # is the only value that runs both. Unreachable while the table is
+    # single-valued, and written anyway because the alternative — first match
+    # wins — is this unit's own defect one level down: a row quietly dropped
+    # from the one run that needed it.
+    detail = "; ".join(f"{row} ({why})" for row, why in sorted(rows.items()))
+    return ("all", f"this diff needs {len(rows)} k-lint rows and `all` is the only "
+                   f"value that runs them — {detail}")
 
 
 # THE ADVICE THAT REPLACED THE PIN. Same name-shaped observation, stripped of
@@ -998,6 +1127,7 @@ def decorate(
     # selected, and keeping the two apart is what lets the local gate consume
     # the same output while ignoring these two keys entirely.
     pin = None
+    klint_pin = None
     if seed is None:
         res["LANE"], res["EPS"], res["KLINT_ROW"] = "both", "all", "all"
     else:
@@ -1012,7 +1142,14 @@ def decorate(
         # dimensions off one unsalted digest are the same number, which would
         # tie the k-lint row to the lane and leave 20 of the 30 points of this
         # matrix unreachable for the rest of the project's life.
-        res["KLINT_ROW"] = _sample(seed, "klint", KLINT_ROWS)
+        #
+        # AND A PIN OVER IT, on the same terms as the lane's: held rather than
+        # re-derived, because it decides the row AND it is what `CONFIG_SOURCE`
+        # reports below.
+        klint_pin = _forces_klint(files)
+        res["KLINT_ROW"] = (
+            klint_pin[0] if klint_pin is not None else _sample(seed, "klint", KLINT_ROWS)
+        )
     # THE REQUEST IS THE LAST WORD OF THE LAST WORD, and it is recorded in the
     # same breath. A run that gates a point nobody drew is only honest if the
     # output says so: CONFIG_SOURCE is per-dimension because the mixed case is
@@ -1034,8 +1171,14 @@ def decorate(
     # for a lane no sample ever touched — the same invisibility #1122 is about,
     # one level down from the stderr note. `pinned` is a SOURCE, not a value:
     # LANE is still `interval`, and every job condition reads LANE.
+    # BOTH PINS ARE SOURCES, NOT VALUES, and both are overridden below by a
+    # request that names their dimension — `klint=release-budget` over a
+    # `tools/` diff is someone answering the pin's question themselves, and
+    # `klint:requested` is how the run says so.
     if pin is not None:
         source["LANE"] = "pinned"
+    if klint_pin is not None:
+        source["KLINT_ROW"] = "pinned"
     for out_key, (value, src) in (config or {}).items():
         res[out_key] = value
         source[out_key] = src
@@ -1485,6 +1628,7 @@ def selftest() -> None:
     with tempfile.TemporaryDirectory() as t:
         _plant_fixture(t)
         _selftest_lane_pin(t)
+        _selftest_klint_pin(t)
     # --- THE REQUEST PATH THROUGH THE CLI. `_selftest_config` covers the
     # applier as a function; what only a subprocess can show is the wiring —
     # that the flags reach it, that a bad request exits NONZERO rather than
@@ -1516,6 +1660,7 @@ def selftest() -> None:
                  "LANE": "interval"})
 
     _selftest_docs_premise()
+    _selftest_klint_premise()
     _selftest_sampling()
     _selftest_config()
     print(
@@ -1542,7 +1687,14 @@ def selftest() -> None:
         "raises LANE_ADVISORY with the spelling of the request instead — naming every "
         "such file rather than the first, saying whether the lane was drawn or "
         "requested, and staying silent on a run already gating interval, on an "
-        "unseeded run, and on a diff naming no such file; --notices carries both "
+        "unseeded run, and on a diff naming no such file; the tools/ k-lint-row pin "
+        "substitutes the row DERIVED as compiling what changed — every member of "
+        "tools/ has such an entry and every entry names a real directory and a real "
+        "row — announces itself as `klint:pinned` and on stderr naming the file, falls "
+        "back to the most-testing row rather than to the draw on an unmapped tools/ "
+        "path and says that it did, fails closed into every row when the change set "
+        "cannot be resolved, yields to a requested row from either spelling, and "
+        "leaves demos/ and every ordinary diff to DRAW; --notices carries all three "
         "notices to a relay file and is truncated when there is none; and a "
         "configuration REQUESTED by hand "
         "— by flag or by `CI-Config:` commit trailer — reaches the dimension it names "
@@ -1754,6 +1906,180 @@ def _selftest_lane_pin(t: str) -> None:
                          f"a pin nor advice\n{unseeded.stdout}\nstderr: {unseeded.stderr!r}")
 
 
+def _selftest_klint_pin(t: str) -> None:
+    """THE `tools/` PIN ON THE K-LINT ROW, and the scope it deliberately stops at.
+
+    THE CASE THIS EXISTS FOR IS THE ONE THAT LOOKS GREEN. Delete
+    `_forces_klint`'s call site and every run still prints a legal
+    `KLINT_ROW=`, every job condition still reads it, and the gate is green for
+    as long as anyone looks — while a `tools/` change is back to being gated by
+    whichever row a hash picked, which is the whole of D183. So the first case
+    below is `decorate` restoring the DRAW over a `tools/` diff, and it must
+    red.
+
+    AND THE SCOPE IS TESTED FROM BOTH SIDES, because a pin that quietly grew is
+    the #1122 failure one dimension over: `demos/` is required to DRAW, so
+    widening the prefix to the other excluded workspace cannot pass this file.
+    """
+    # SEEDS FOUND, NOT HARDCODED. The pinned case only tests the pin if the
+    # draw it overrode went somewhere else, and a literal SHA stops being that
+    # the moment `KLINT_ROWS` or the salt moves.
+    seed = next(
+        s for s in (f"{i:040x}" for i in range(1000))
+        if _sample(s, "klint", KLINT_ROWS) != "dev-default"
+    )
+
+    pinned = _selftest_run(t, ["--files", "-", "--seed", seed],
+                           "tools/tess-meter/src/main.rs\n")
+    if "KLINT_ROW=dev-default" not in pinned.stdout.splitlines():
+        raise SystemExit("SELFTEST FAILED: a change under tools/tess-meter/ did not pin the k-lint "
+                         f"row that compiles it — D183 is back\n{pinned.stdout}")
+    if "PINNED" not in pinned.stderr or "tools/tess-meter/src/main.rs" not in pinned.stderr:
+        raise SystemExit("SELFTEST FAILED: the k-lint row was pinned and the run did not say so, "
+                         f"or did not name the file that pinned it\nstderr: {pinned.stderr!r}")
+    if "PINNED" in pinned.stdout:
+        raise SystemExit("SELFTEST FAILED: the k-lint pin note reached STDOUT, where both halves "
+                         f"read KEY=value lines\n{pinned.stdout}")
+    if "CONFIG_SOURCE=lane:sampled eps:sampled klint:pinned" not in pinned.stdout.splitlines():
+        raise SystemExit("SELFTEST FAILED: a pinned k-lint row was recorded as something other "
+                         f"than `klint:pinned` — the outputs cannot tell a pin from a draw\n"
+                         f"{pinned.stdout}")
+
+    # THE OTHER TWO MEMBERS, so the mapping is exercised rather than one entry
+    # of it. Both derive to `dev-default` today; if a future derivation moves
+    # one, this reads the table rather than a literal.
+    for prefix, row in KLINT_PATH_ROWS:
+        got = _selftest_run(t, ["--files", "-", "--seed", seed], f"{prefix}src/lib.rs\n")
+        if f"KLINT_ROW={row}" not in got.stdout.splitlines():
+            raise SystemExit(f"SELFTEST FAILED: {prefix} is mapped to `{row}` and a change under "
+                             f"it did not pin that row\n{got.stdout}")
+
+    # THE FALLBACK ARM: a `tools/` path the table does not name pins the row
+    # that runs the most tests and SAYS it was not derived, rather than
+    # inheriting an entry it never earned.
+    unmapped = _selftest_run(t, ["--files", "-", "--seed", seed], "tools/notyet/src/main.rs\n")
+    if f"KLINT_ROW={KLINT_PIN_FALLBACK}" not in unmapped.stdout.splitlines():
+        raise SystemExit("SELFTEST FAILED: an unmapped tools/ path fell through to the DRAW — the "
+                         f"fallback is a row, never the draw\n{unmapped.stdout}")
+    if "no row is derived" not in unmapped.stderr:
+        raise SystemExit("SELFTEST FAILED: the fallback did not say the row was a fallback, so a "
+                         f"guess reads as a derivation\nstderr: {unmapped.stderr!r}")
+
+    # `demos/` DRAWS, AND THAT IS THE RULING RATHER THAN AN OMISSION. It is the
+    # other excluded workspace and the obvious next prefix; this is what stops
+    # it being added without the argument at `KLINT_PATH_ROWS` being reopened.
+    demos = _selftest_run(t, ["--files", "-", "--seed", seed],
+                          "demos/tour/src/main.rs\ndemos/wild/src/main.rs\n")
+    if f"KLINT_ROW={_sample(seed, 'klint', KLINT_ROWS)}" not in demos.stdout.splitlines():
+        raise SystemExit("SELFTEST FAILED: a demos/-only diff did not DRAW its k-lint row — "
+                         f"`demos/` is ruled OUT of the pin\n{demos.stdout}")
+    if "klint:pinned" in demos.stdout or "KLINT_ROW" in demos.stderr:
+        raise SystemExit("SELFTEST FAILED: a demos/-only diff announced a k-lint pin\n"
+                         f"{demos.stdout}\nstderr: {demos.stderr!r}")
+
+    drawn = _selftest_run(t, ["--files", "-", "--seed", seed], "crates/topo/src/lib.rs\n")
+    if "klint:pinned" in drawn.stdout or "KLINT_ROW" in drawn.stderr:
+        raise SystemExit("SELFTEST FAILED: an ordinary diff announced a k-lint pin — the note "
+                         f"would then say nothing about any run\n{drawn.stdout}")
+
+    # PRECEDENCE, and it is the seam neither the request path's cases nor the
+    # pin's own cover: a REQUEST beats the pin, and the note must go quiet with
+    # it or a run gating `dev-probe` prints that it is pinned to `dev-default`.
+    asked = _selftest_run(
+        t, ["--files", "-", "--seed", seed, "--config", "klint=dev-probe"],
+        "tools/tess-meter/src/main.rs\n")
+    if "KLINT_ROW=dev-probe" not in asked.stdout.splitlines():
+        raise SystemExit(f"SELFTEST FAILED: a requested k-lint row did not beat the pin\n"
+                         f"{asked.stdout}")
+    if "klint:requested" not in asked.stdout:
+        raise SystemExit("SELFTEST FAILED: a request that beat the pin was recorded as the pin; "
+                         f"the run would credit its row to a file nobody chose\n{asked.stdout}")
+    if "KLINT_ROW" in asked.stderr:
+        raise SystemExit("SELFTEST FAILED: the pin note fired over a row the request overrode\n"
+                         f"stderr: {asked.stderr!r}")
+    with open(os.path.join(t, "klint-msg.txt"), "w") as fh:
+        fh.write("tools: retune the split scan\n\nCI-Config: klint=all\n")
+    trailered = _selftest_run(
+        t, ["--files", "-", "--seed", seed, "--config-from-message", "klint-msg.txt"],
+        "tools/tess-meter/src/main.rs\n")
+    if ("KLINT_ROW=all" not in trailered.stdout.splitlines()
+            or "klint:commit-trailer" not in trailered.stdout):
+        raise SystemExit("SELFTEST FAILED: a `CI-Config:` trailer must beat the pin the same way "
+                         f"the flag does\n{trailered.stdout}")
+
+    # THE RELAY FILE carries this notice too — ci.yml restates neither.
+    notes = os.path.join(t, "klint-notices.txt")
+    _selftest_run(t, ["--files", "-", "--seed", seed, "--notices", notes],
+                  "tools/tess-meter/src/main.rs\n")
+    with open(notes) as fh:
+        relayed = fh.read()
+    if "KLINT_ROW=dev-default is PINNED" not in relayed or "tess-meter" not in relayed:
+        raise SystemExit("SELFTEST FAILED: --notices did not carry the k-lint pin's reason, so "
+                         f"ci.yml's relay would print nothing about it\n{relayed!r}")
+
+    # UNRESOLVED FAILS CLOSED INTO EVERY ROW. This is the arm that costs five
+    # compiles, so it is also the one most likely to be "optimised" back into
+    # the draw by someone reading the bill and not the argument.
+    empty = _selftest_run(t, ["--files", "-", "--seed", seed], "\n")
+    if "KLINT_ROW=all" not in empty.stdout.splitlines() or "klint:pinned" not in empty.stdout:
+        raise SystemExit("SELFTEST FAILED: an unresolvable change set drew a k-lint row — nothing "
+                         f"there can prove tools/ held still\n{empty.stdout}")
+
+    # No seed: nothing is drawn, so there is nothing to pin. KLINT_ROW=all
+    # already runs every unification.
+    unseeded = _selftest_run(t, ["--files", "-"], "tools/tess-meter/src/main.rs\n")
+    if ("KLINT_ROW=all" not in unseeded.stdout.splitlines()
+            or "klint:pinned" in unseeded.stdout or "KLINT_ROW" in unseeded.stderr):
+        raise SystemExit("SELFTEST FAILED: an unseeded run must be KLINT_ROW=all and announce no "
+                         f"pin\n{unseeded.stdout}\nstderr: {unseeded.stderr!r}")
+
+
+def _selftest_klint_premise() -> None:
+    """THE MAPPING, CHECKED AGAINST THE TREE IT CLAIMS TO DESCRIBE.
+
+    `KLINT_PATH_ROWS` is a DERIVATION, and a derivation nobody re-runs is a
+    transcription. Two ways it goes quietly wrong, and neither reds anything
+    else: a tool crate is added and inherits the fallback while nobody derives
+    which row compiles it, or an entry outlives the directory it names and the
+    table reads as covering ground that is gone.
+
+    WHAT THIS CANNOT CHECK, said because the gap is the interesting half: it
+    reads the DIRECTORY listing, not ci.yml. A row renamed in the workflow, or
+    a `tools/` crate whose steps move from `dev-default` to another row, leaves
+    every assertion here true and the mapping wrong. That derivation is by hand
+    and its argument is written at `KLINT_PATH_ROWS`; what is mechanical is only
+    that every member has one."""
+    root = _repo_root()
+    tools = os.path.join(root, "tools")
+    members = sorted(
+        d for d in os.listdir(tools) if os.path.isdir(os.path.join(tools, d))
+    ) if os.path.isdir(tools) else []
+    mapped = {prefix for prefix, _ in KLINT_PATH_ROWS}
+    for name in members:
+        if f"tools/{name}/" not in mapped:
+            raise SystemExit(
+                f"SELFTEST FAILED: tools/{name}/ has no entry in KLINT_PATH_ROWS, so a change "
+                "under it would fall back to a row nobody derived. Read which k-lint row compiles "
+                f"it (the job's steps and their `if:`) and add tools/{name}/ with that row"
+            )
+    for prefix, row in KLINT_PATH_ROWS:
+        if not prefix.startswith("tools/") or not prefix.endswith("/"):
+            raise SystemExit(f"SELFTEST FAILED: {prefix!r} is not a `tools/…/` directory prefix; "
+                             "a bare-name entry matches by accident or not at all")
+        if not os.path.isdir(os.path.join(root, prefix)):
+            raise SystemExit(f"SELFTEST FAILED: KLINT_PATH_ROWS names {prefix}, which is not a "
+                             "directory in this tree — the mapping describes a tree that moved")
+        if row not in KLINT_ROWS:
+            raise SystemExit(f"SELFTEST FAILED: {prefix} is mapped to {row!r}, which is not one of "
+                             f"the k-lint rows ({', '.join(KLINT_ROWS)}); the job's `if:` "
+                             "conditions would match it against nothing and the row would be SKIPPED")
+    if KLINT_PIN_FALLBACK not in KLINT_ROWS:
+        raise SystemExit(f"SELFTEST FAILED: the fallback row {KLINT_PIN_FALLBACK!r} is not a "
+                         "k-lint row, so an unmapped tools/ path would pin a row that never runs")
+    print("ci-filter selftest: every member of tools/ has a derived k-lint row: "
+          + ", ".join(f"{p} -> {r}" for p, r in KLINT_PATH_ROWS))
+
+
 def _selftest_config() -> None:
     """THE REQUEST PATH, in-process where it is a pure function and through the
     CLI where the wiring is.
@@ -1938,7 +2264,7 @@ def main() -> int:
     ap.add_argument(
         "--notices",
         metavar="FILE",
-        help="also write the human notices (a lane pin's reason, the interval "
+        help="also write the human notices (either pin's reason, the interval "
         "advisory) to FILE, so a caller can relay them verbatim instead of "
         "restating them; truncated to empty when there are none",
     )
@@ -2034,6 +2360,28 @@ def main() -> int:
             "under crates/*/tests.\n"
             "  To gate the other lane instead, say so: a `CI-Config: lane=default` "
             "trailer on the head commit beats the pin."
+        )
+
+    # THE K-LINT PIN, on the same terms and through the same relay. Its guard
+    # is the output key for the same reason the lane's is: `klint:pinned` is
+    # emitted only under a seed and only where no request overrode it, so
+    # re-deriving those conditions here would let the note and the key disagree.
+    if "klint:pinned" in out["CONFIG_SOURCE"]:
+        # `_forces_klint` is pure, so this re-derives what `decorate` pinned on.
+        # The `or` arm is unreachable through that key and says so rather than
+        # interpolating a `None` into a sentence a reader would have to decode.
+        _, why = _forces_klint(files) or ("", "the pin's reason could not be re-derived")
+        notices.append(
+            f"KLINT_ROW={out['KLINT_ROW']} is PINNED, not drawn: {why}.\n"
+            "  Re-pushing cannot change it — the pin runs before the seeded draw "
+            "and short-circuits it.\n"
+            "  This is not a coverage gap, it is the opposite: the row that "
+            "compiles what changed is the row that runs, instead of the row a "
+            "hash picked. What the run does NOT gate is the other four "
+            "unifications, exactly as a drawn run does not gate the other four.\n"
+            "  To gate a different row instead, say so: a `CI-Config: "
+            "klint=<row>` trailer on the head commit beats the pin "
+            f"({', '.join(KLINT_ROWS)}, or `all`)."
         )
 
     # THE ADVISORY. It names EVERY interval-named file, and it says whether the
