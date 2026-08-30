@@ -104,12 +104,19 @@ fn row1_bracketed(r: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
 
 fn tag(e: &PathError<f64>) -> String {
     match e {
+        // Adopted into the unit's lane: the payload now names the
+        // TIGHTEST class bound (a `None` side meaning both carriers are
+        // swallowed) and carries the existence bound the message
+        // endorses, so the tag reports both numbers.
         PathError::FilletEnclosesLegCarrier {
             side,
             carrier_radius,
             offset_radius,
             radius,
-        } => format!("Encloses({side:?},R={carrier_radius},rho={offset_radius},r={radius})"),
+            largest_tangent_radius,
+        } => format!(
+            "Encloses({side:?},R={carrier_radius},rho={offset_radius},r={radius},             bound={largest_tangent_radius:?})"
+        ),
         PathError::NoCornerForFillet { reason, .. } => format!("NoCorner({reason:?})"),
         PathError::AnchorOutsideTrimmedExtent { side, .. } => format!("AnchorFit({side:?})"),
         PathError::FilletOffsetLeverTooShort { .. } => "LeverShort".to_string(),
@@ -212,10 +219,25 @@ fn p2a_enclosing_extremes_still_refuse_typed() {
     )
     .expect_err("micron-scale enclosing demand");
     println!("P2a micro -> {}", tag(&err3));
-    assert!(
-        matches!(err3, PathError::FilletEnclosesLegCarrier { .. }),
-        "got {err3:?}"
-    );
+    // ADOPTED, and made ε-KEYED: a micron carrier is not resolvable at
+    // every shipped band. At ε = 1e-6 the arc centre sits within the
+    // tolerance of its own carrier, so the door refuses that first and
+    // is right to — the enclosing question is downstream of whether the
+    // carrier exists at all. Asserting the class refusal unconditionally
+    // made this row red at 1e-6 for a reason that is not about the gate,
+    // which is the ε-blindness this suite removes elsewhere.
+    let resolvable = 1.0e-6 > 10.0 * Tol::witness().eps();
+    if resolvable {
+        assert!(
+            matches!(err3, PathError::FilletEnclosesLegCarrier { .. }),
+            "got {err3:?}"
+        );
+    } else {
+        assert!(
+            matches!(err3, PathError::DegenerateArcCenter { .. }),
+            "below the band the carrier itself must be refused first, got {err3:?}"
+        );
+    }
 }
 
 /// P2b: UNBRACKETED enclosing demand at extremes: whatever the door
@@ -483,10 +505,33 @@ fn p6_unequal_carriers_bound_is_two_step() {
     println!("P6 r=0.9 -> {}", tag(&e1));
     let e2 = go(0.3).expect_err("r=0.3 still encloses the outgoing carrier");
     println!("P6 r=0.3 -> {}", tag(&e2));
-    let PathError::FilletEnclosesLegCarrier { carrier_radius, .. } = e1 else {
+    // ADOPTED, with the assertions moved onto the fixed behaviour: this
+    // probe found the first-hit bound (r = 0.9 naming the incoming 0.4
+    // while the outgoing 0.15 is the binding one, so a "smaller radius"
+    // between them re-refuses). The bound is now the tightest carrier on
+    // both rows, and the endorsed radius is the existence bound rather
+    // than either carrier.
+    let PathError::FilletEnclosesLegCarrier {
+        carrier_radius,
+        largest_tangent_radius,
+        ..
+    } = e1
+    else {
         panic!("r=0.9: {e1:?}")
     };
-    assert!((carrier_radius - 0.4).abs() < 1e-12);
+    assert!(
+        (carrier_radius - 0.15).abs() < 1e-12,
+        "r=0.9 names {carrier_radius}, not the tightest 0.15"
+    );
+    let bound = largest_tangent_radius.expect("both carriers swallowed at r = 0.9");
+    assert!(
+        bound < 0.15,
+        "the endorsed bound {bound} is not below the class bound"
+    );
+    assert!(
+        go(0.99 * bound).is_ok(),
+        "the endorsed radius must build, or the recourse is dead again"
+    );
     let PathError::FilletEnclosesLegCarrier { carrier_radius, .. } = e2 else {
         panic!("r=0.3: {e2:?}")
     };

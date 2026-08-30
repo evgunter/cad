@@ -420,11 +420,13 @@ fn map_refusal<T: Bounds>(refusal: ArcTrimRefusal<T>, radius: T) -> PathError<T>
             carrier_radius,
             offset_radius,
             radius,
+            largest_tangent_radius,
         } => PathError::FilletEnclosesLegCarrier {
             side: leg,
             carrier_radius,
             offset_radius,
             radius,
+            largest_tangent_radius,
         },
         // §3c: the anchor-fit refusal now carries the CARRIER KIND, so
         // an arc side gets its angular story (`FilletLegCarrier::Arc`'s

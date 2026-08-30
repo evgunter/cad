@@ -8,6 +8,11 @@
 //! These are probes, not pins: most of them PRINT a measurement and
 //! assert only the property under examination.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+// Adopted into the unit's lane: the probes' geometry helpers take a
+// corner and two carriers as loose scalars, which is one argument past
+// the workspace lint. Kept as written rather than restructured — the
+// probe's shape is its author's evidence.
+#![allow(clippy::too_many_arguments)]
 
 use geom_core::Point2;
 use geom_core::Tol;
@@ -709,7 +714,7 @@ fn p7_the_named_bound_on_a_corner_whose_carriers_differ() {
     else {
         panic!("expected the enclosing refusal, got {err:?}");
     };
-    println!("P7 the message names the {side} side, bound {carrier_radius}");
+    println!("P7 the message names side {side:?}, class bound {carrier_radius}");
     for &r in &[
         1.9_f64, 1.5, 1.2, 0.99, 0.9, 0.75, 0.6, 0.51, 0.49, 0.3, 0.2, 0.1, 0.05,
     ] {

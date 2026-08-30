@@ -638,16 +638,41 @@ pub enum PathError<T: Real> {
     /// right there. The bound is the named side's carrier radius; the
     /// recourse is a smaller radius.
     FilletEnclosesLegCarrier {
-        /// The side whose carrier the radius would swallow.
-        side: FilletLeg,
-        /// That side's carrier radius R, meters — the bound: a fillet of
-        /// this corner needs r < R on this side.
+        /// The side whose carrier the radius would swallow, or `None`
+        /// when it swallows both — the ordinary case, since a swallowed
+        /// carrier forces its partner to be swallowed too unless the
+        /// corner is degenerate.
+        side: Option<FilletLeg>,
+        /// The tightest CLASS bound, meters: the smallest swallowed
+        /// carrier radius. Necessary, never sufficient — see
+        /// `largest_tangent_radius`.
         carrier_radius: T,
-        /// Its signed offset radius ρ = R − σ·τ·r, meters (negative).
+        /// The matching signed offset radius ρ = R − σ·τ·r, meters
+        /// (negative).
         offset_radius: T,
         /// The requested radius, meters.
         radius: T,
+        /// The EXISTENCE bound, meters, when the corner's two circular
+        /// carriers define one: the largest radius that can be tangent to
+        /// both of them here, (R₁ + R₂ − d)/2. This is the quantity the
+        /// message endorses, because it is the one below which a tangent
+        /// circle actually exists; the class bound alone would send an
+        /// author to radii that refuse again for a different reason.
+        /// `None` on the degenerate corners where the quantity is not
+        /// defined at the gate (a straight partner, or a partner whose
+        /// own ρ is positive), and there the message endorses no number.
+        largest_tangent_radius: Option<T>,
     },
+    // Deliberately NOT merged with `FilletOffsetLeverTooShort`, whose
+    // payload it nearly parrots (a side, a carrier radius, a signed ρ, a
+    // bound): the two answer different questions and offer different
+    // recourses. That one says a corner and a tangent circle both exist
+    // and this ε cannot place the tangent point — move the radius EITHER
+    // way, or lower ε, and it is a conditioning fact about the run. This
+    // one says no such circle exists at all, at any ε, forever — move the
+    // radius DOWN, past a bound the geometry fixes. One variant carrying
+    // both would have to render one sentence for two situations, which is
+    // exactly what D4 ¶1's addendum forbids.
     /// A sharp arc LEG was reached while a fillet is still open (its
     /// arrival direction unbound). §2c binds an arc arrival by its own
     /// CARRIER, inside the fused verb — `fillet_arc(r, spec)` /
@@ -817,6 +842,43 @@ pub enum PathError<T: Real> {
     },
 }
 
+/// Render a scalar payload inside a refusal sentence.
+///
+/// [`Real`] carries `Debug` and no `Display`, so an arm below can only
+/// reach its scalars through `{:?}` — the shortest round-tripping form
+/// of an `f64`, which puts an 8 mm radius that arithmetic produced into
+/// a human sentence as `0.008000000000000002 m`. Where the `Debug` form
+/// parses back as an `f64` this renders the shortest decimal that still
+/// names the same number to a relative 1e-9; anything else (an interval,
+/// a dual) passes through untouched. A DISPLAY choice only — the payload
+/// keeps the exact scalar, and every claim a caller branches on reads
+/// the field, never this string.
+///
+/// The older arms still render `{:?}` directly. That is one class, filed
+/// as issue #1282 rather than swept in here.
+fn num<T: core::fmt::Debug>(v: &T) -> String {
+    let raw = format!("{v:?}");
+    let Ok(x) = raw.parse::<f64>() else {
+        return raw;
+    };
+    let tol = 1e-9 * x.abs().max(1.0);
+    for prec in 0..=17 {
+        let short = format!("{x:.prec$}");
+        if short
+            .parse::<f64>()
+            .is_ok_and(|back| (back - x).abs() <= tol)
+        {
+            let trimmed = if short.contains('.') {
+                short.trim_end_matches('0').trim_end_matches('.')
+            } else {
+                &short
+            };
+            return trimmed.to_string();
+        }
+    }
+    raw
+}
+
 impl<T: Real> core::fmt::Display for PathError<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
@@ -911,17 +973,54 @@ impl<T: Real> core::fmt::Display for PathError<T> {
                 carrier_radius,
                 offset_radius,
                 radius,
-            } => write!(
-                f,
-                "a radius-{radius:?} m fillet of this corner would SWALLOW the {side} side's \
-                 carrier (radius {carrier_radius:?} m): the offset radius \
-                 rho = R - sigma*tau*r is {offset_radius:?} m, and a negative rho means every \
-                 circle of that radius tangent to that carrier on this corner's turn side \
-                 contains the carrier whole — the corner with it, since the corner sits on \
-                 that carrier — so the arc could never touch the corner it was asked to \
-                 round. That is not a fillet of this corner, and no door builds it: use a \
-                 radius below that side's carrier radius ({carrier_radius:?} m)"
-            ),
+                largest_tangent_radius,
+            } => {
+                let whose = match side {
+                    Some(side) => &format!("the {side} side's carrier"),
+                    None => "both sides' carriers",
+                };
+                // The deixis is deliberately "a corner of these carriers"
+                // rather than "this corner": where both crossings of the
+                // pair sit inside the anchors' windows the refusal
+                // reported is the first corner enumerated, which need not
+                // be the one the author bracketed (issue #1281).
+                write!(
+                    f,
+                    "a radius-{} m fillet cannot round a corner of these carriers: it would \
+                     SWALLOW {whose} (radius {} m). The offset radius rho = R - sigma*tau*r \
+                     is {} m, and a negative rho means every circle of that radius tangent \
+                     to that carrier on the corner's turn side contains the carrier \
+                     whole — the corner with it, since the corner sits on that carrier — so \
+                     the arc could never touch the corner it was asked to round. That is not \
+                     a fillet of the corner, and no door builds it",
+                    num(radius),
+                    num(carrier_radius),
+                    num(offset_radius)
+                )?;
+                match largest_tangent_radius {
+                    // The endorsable number: a circle of this radius IS
+                    // tangent to both carriers at the corner. Anchored
+                    // extents can still require less, and refuse in their
+                    // own words when they do.
+                    Some(bound) => write!(
+                        f,
+                        " — the largest circle tangent to both carriers here has radius {} m, \
+                         so try a radius below that (a short anchored leg can need less \
+                         still)",
+                        num(bound)
+                    ),
+                    // Nothing endorsable at this site: the class bound is
+                    // necessary and not sufficient, and naming a radius
+                    // below it would be a promise this gate cannot keep.
+                    None => write!(
+                        f,
+                        " — any fillet of this corner needs a radius below {} m, which is a \
+                         necessary bound and not a sufficient one: these carriers may admit \
+                         no fillet at all at this corner",
+                        num(carrier_radius)
+                    ),
+                }
+            }
             Self::ArcLegOnOpenFillet { site } => write!(f, "{site}"),
             Self::DegenerateArcSpec { value } => write!(
                 f,

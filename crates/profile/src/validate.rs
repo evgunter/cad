@@ -265,6 +265,17 @@ pub enum NoCornerReason {
     /// touches a leg **past the corner** — the arc would round a corner
     /// the legs do not actually reach (the branch rule's corner-side
     /// extent test).
+    ///
+    /// **No construction is known to reach this arm** since the
+    /// enclosing (ρ < 0) class became a refusal of its own
+    /// (`docs/ENCLOSING-TANGENCY-DESIGN.md`): every request that used to
+    /// land here was one whose blend circle swallowed the leg carriers,
+    /// and those now refuse earlier and more precisely. Four searches
+    /// across three lanes (1.24M ordinary arc×arc corners, 400k random
+    /// draws, and two reviewers' sweeps) found no replacement — a
+    /// negative result with stated blind spots, not a proof. Whether the
+    /// variant keeps a producer at all is issue #1280; nothing here
+    /// decides it.
     NoCornerSideCandidate,
 }
 
@@ -338,10 +349,11 @@ const FILLET_OFFSET_LEVER_RECOURSE: &str = "the tangent point is recovered by pr
 /// two situations are the same degenerate one: a fillet radius equal to
 /// the leg's carrier radius.
 const FILLET_ENCLOSING_RECOURSE: &str = "on the side the corner turns toward, a fillet radius above the leg's own carrier radius \
-     puts the leg's carrier INSIDE the fillet circle, and the corner with it, so the arc \
-     could not touch the corner it would round — and whether this radius is above or below \
-     that carrier radius is itself below the tolerance here: use a radius clearly smaller \
-     than that leg's carrier radius";
+     puts that carrier INSIDE the fillet circle, and the corner with it, so the arc could not \
+     touch the corner it would round — and whether this radius is above or below that carrier \
+     radius is itself below the tolerance here: move the radius clearly away from the leg's \
+     carrier radius, downward, and expect to go well below it (a circle that large need not \
+     be tangent to both of this corner's carriers at all)";
 
 /// The recourse for a radius whose tangent points fall outside their
 /// legs — shared by the definite refusal and the in-band escalation.
@@ -648,10 +660,6 @@ impl fmt::Display for ProfileError {
                         Some("fillet_offset_lever") => {
                             write!(f, " — {FILLET_OFFSET_LEVER_RECOURSE}")?;
                         }
-                        // The enclosing-class gate's in-band arm: the
-                        // same one story as its definite sibling
-                        // `PathError::FilletEnclosesLegCarrier`, per
-                        // D4 ¶1 (iv).
                         Some("fillet_enclosing_carrier") => {
                             write!(f, " — {FILLET_ENCLOSING_RECOURSE}")?;
                         }

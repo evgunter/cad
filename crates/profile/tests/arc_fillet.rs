@@ -434,10 +434,10 @@ fn a_negative_radius_is_refused_by_the_sign_gate_at_the_verb() {
 /// both tangent circles reach their sides past the corner. That reading
 /// was true and less useful: it described where the candidates landed
 /// rather than why the request could never be served. The reason it
-/// named keeps its home in the construction; what it has lost is this
-/// witness, and a 1.24M-corner grid over ordinary (ρ > 0) arc×arc
-/// corners found no replacement (see the unit's PR for the grid and its
-/// blind spots).
+/// named keeps its home in the construction; what it has lost is its
+/// ONLY witness in the workspace, and four searches across three lanes
+/// found no replacement — issue #1280 carries them, their blind spots,
+/// and the question of whether the reason has a producer at all.
 #[test]
 fn an_arc_arc_radius_larger_than_both_carriers_refuses_as_the_enclosing_class() {
     // Anchors one radian along each carrier, so both sides have real
@@ -446,14 +446,14 @@ fn an_arc_arc_radius_larger_than_both_carriers_refuses_as_the_enclosing_class() 
         let a = f64::atan2(-cy, -cx) + delta;
         p2(cx + r * a.cos(), cy + r * a.sin())
     };
-    let err = Open
-        .arc_fillet_arc(
+    let arc_arc_at = |r: f64| {
+        Open.arc_fillet_arc(
             Center {
                 c: p2(0.0, -1.0),
                 winding: ArcSweep::Ccw,
                 p: along(0.0, -1.0, 1.0, -1.0),
             },
-            2.0,
+            r,
             Center {
                 c: p2(0.5, 0.0),
                 winding: ArcSweep::Ccw,
@@ -461,6 +461,8 @@ fn an_arc_arc_radius_larger_than_both_carriers_refuses_as_the_enclosing_class() 
             },
             Tol::witness(),
         )
+    };
+    let err = arc_arc_at(2.0)
         .expect_err("a radius that swallows both carriers cannot round their corner");
     match err {
         PathError::FilletEnclosesLegCarrier {
@@ -468,29 +470,53 @@ fn an_arc_arc_radius_larger_than_both_carriers_refuses_as_the_enclosing_class() 
             carrier_radius,
             offset_radius,
             radius,
+            largest_tangent_radius,
         } => {
-            // The incoming side is reported: its ρ is classified first,
-            // and one swallowed carrier is already the whole answer.
-            assert_eq!(side, FilletLeg::Incoming);
+            // BOTH carriers are swallowed here, and the bound named is
+            // the tighter of the two: naming the incoming R = 1 would
+            // endorse radii from 0.99 down to 0.51 that all re-refuse
+            // with this same variant, now naming 0.5.
+            assert_eq!(side, None, "both carriers are swallowed at r = 2");
             assert!(
-                (carrier_radius - 1.0).abs() < 1e-15,
-                "the incoming carrier is R = 1, got {carrier_radius}"
+                (carrier_radius - 0.5).abs() < 1e-15,
+                "the tightest carrier is R = 1/2, got {carrier_radius}"
             );
             assert!(
-                (offset_radius + 1.0).abs() < 1e-15,
-                "rho = R - sigma*tau*r = 1 - 2 = -1, got {offset_radius}"
+                (offset_radius + 1.5).abs() < 1e-15,
+                "rho = R - sigma*tau*r = 1/2 - 2 = -3/2, got {offset_radius}"
             );
             assert_eq!(radius, 2.0);
+            // The endorsed radius is the largest circle tangent to both
+            // carriers here — (R1 + R2 - d)/2 with the centres
+            // d = |(1/2, 1)| apart — and it BUILDS, which is what makes
+            // the sentence a recourse rather than a direction.
+            let d = 0.5f64.hypot(1.0);
+            let bound = largest_tangent_radius.expect("an arc x arc corner defines the bound");
+            assert!(
+                (bound - (1.0 + 0.5 - d) / 2.0).abs() < 1e-15,
+                "the endorsed bound {bound} is not the corner's largest tangent radius"
+            );
+            assert!(
+                bound < carrier_radius,
+                "the endorsed bound {bound} must sit below the class bound {carrier_radius}"
+            );
+            arc_arc_at(0.99 * bound).expect("the endorsed radius must build");
         }
         other => panic!("expected FilletEnclosesLegCarrier, got {other:?}"),
     }
-    // The refusal renders the constructor door's own sentence: the bound
-    // is the swallowed carrier's radius, and the recourse a smaller one.
+    // The refusal renders the constructor door's own sentence: what it
+    // would swallow, and a radius that exists.
     let rendered = err.to_string();
     assert!(rendered.contains("SWALLOW"), "situation: {rendered}");
     assert!(
-        rendered.contains("use a radius below that side's carrier radius"),
+        rendered.contains("largest circle tangent to both carriers here has radius 0.190983"),
         "recourse: {rendered}"
+    );
+    // ...and it renders that number for a person, not as a round-tripped
+    // f64 debug form.
+    assert!(
+        !rendered.contains("0.19098300562505255"),
+        "the sentence renders debug floats: {rendered}"
     );
 }
 

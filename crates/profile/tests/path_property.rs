@@ -1081,6 +1081,7 @@ fn an_oversized_carrier_fillet_refuses_as_the_enclosing_class() {
         carrier_radius,
         offset_radius,
         radius,
+        largest_tangent_radius,
         ..
     } = err
     else {
@@ -1095,9 +1096,26 @@ fn an_oversized_carrier_fillet_refuses_as_the_enclosing_class() {
         "rho = R - sigma*tau*r = 1 - 5 = -4, got {offset_radius}"
     );
     assert_eq!(radius, 5.0);
-    // The bound the message offers is real on this geometry: the lens
-    // does round, at radii below the lobe radius.
-    assert!(lens(0.25).is_ok(), "the lens rounds at an ordinary radius");
+    // **The endorsed radius BUILDS.** The message names the largest
+    // circle tangent to both lobes at this corner — (R1 + R2 - d)/2 with
+    // unit lobes 1 m apart, so 1/2 — and a radius below it rounds the
+    // lens. The lobe radius alone would have endorsed 1.0, where nothing
+    // above 1/2 builds; that gap is what the payload's second bound
+    // exists to close.
+    let bound = largest_tangent_radius.expect("an arc x arc corner defines the bound");
+    assert!(
+        (bound - 0.5).abs() < 1e-12,
+        "the lens's largest tangent circle is R = 1/2, got {bound}"
+    );
+    assert!(
+        bound < carrier_radius,
+        "the endorsed bound must sit below the class bound"
+    );
+    lens(0.99 * bound).expect("the endorsed radius must build");
+    assert!(
+        lens(1.01 * bound).is_err(),
+        "above the endorsed bound the lens must not round"
+    );
 }
 
 /// Carriers that never meet name their own reason — distinct from the
