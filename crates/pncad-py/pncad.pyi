@@ -843,6 +843,22 @@ class BooleanOp:
     Intersect: Final[BooleanOp]
     Subtract: Final[BooleanOp]
 
+class TubeWindow:
+    """A tube's traversed window — the full ring, or an arc of it.
+
+    Two spellings and no third. A class rather than an optional pair
+    of angles, because "the full ring" is one of two things a caller
+    chooses between, not the shape you get by not saying anything —
+    and the kernel refuses an arc that reaches one full period
+    precisely so the two never blur.
+    """
+
+    @staticmethod
+    def full() -> TubeWindow: ...
+    @staticmethod
+    def arc(t0: Angle, t1: Angle) -> TubeWindow: ...
+    def __repr__(self) -> str: ...
+
 class SketchPlane:
     """The rigid placement of a sketch plane in 3-space.
 
@@ -1015,6 +1031,46 @@ class Node:
     def extrude(profile: NodeId, distance: Length) -> Node: ...
     @staticmethod
     def revolve(profile: NodeId, axis: NodeId, angle: Angle) -> Node: ...
+    @staticmethod
+    def tube(
+        spine: NodeId,
+        u_ref: tuple[float, float, float],
+        major_radius: Length,
+        window: TubeWindow,
+        minor_radius: Length,
+    ) -> Node:
+        """A solid ring torus, or an elbow of one, from its intent parameters.
+
+        `spine` is a `Node.datum_axis`: its origin is the tube's centre
+        and its direction the spine axis. `u_ref` is the reference
+        direction the window's angles are measured from. Every number
+        is STORED, never reconstructed, so `minor_radius` comes back
+        out of the body bit for bit.
+
+        There is no wall argument — a tube with a wall is
+        `Node.hollow_tube`, a different node kind.
+        """
+
+    @staticmethod
+    def hollow_tube(
+        spine: NodeId,
+        u_ref: tuple[float, float, float],
+        major_radius: Length,
+        window: TubeWindow,
+        minor_radius: Length,
+        wall: Length,
+    ) -> Node:
+        """`Node.tube`'s sibling with a WALL, which is REQUIRED.
+
+        `minor_radius` is the OUTER radius; the inner wall stores
+        `minor_radius - wall`. A full window builds a torus shell whose
+        cavity is a void, an arc an open elbow of annular section.
+
+        A non-positive wall, a wall that eats the bore, and a wall
+        whose realized gap collapses at the stored radii are the three
+        refusals only this door raises.
+        """
+
     @staticmethod
     def loft(profiles: list[NodeId], v_degree: int) -> Node: ...
     @staticmethod

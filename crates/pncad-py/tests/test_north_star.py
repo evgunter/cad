@@ -2369,10 +2369,11 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             sorted(n for n in dir(Node) if not n.startswith("_")),
             [
                 "boolean", "chamfer", "datum_axis", "datum_plane", "declare",
-                "extrude", "fillet", "instantiate_part", "loft", "mate",
+                "extrude", "fillet", "hollow_tube", "instantiate_part",
+                "loft", "mate",
                 "placed_union",
                 "placed_union_at", "polygon", "profile", "revolve", "split",
-                "transform",
+                "transform", "tube",
             ],
         )
         self.assertEqual(
@@ -2482,10 +2483,10 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # `TestTiltedcut` and `TestCrosslapExploded`/`TestDiepips`.
         # `declare` left it when LIB-PYG5 closed G5 — the positive
         # forms are `TestTable` and `TestCrosslapGlued`.
-        # `sweep` and `tube` STAY: `wire_sweep` refuses unconditionally
-        # (SWEEP_FRONTIER, the path-composition lane banked past M6),
-        # and no `Node::Tube` exists at all. `pattern` stays for the
-        # measured reason below — and note what is NOT in this list:
+        # `sweep` STAYS: `wire_sweep` refuses unconditionally
+        # (SWEEP_FRONTIER, the path-composition lane banked past M6).
+        # `tube` LEFT this list at LIB-TUBE — see the paragraph two
+        # below. `pattern` stays for the measured reason below — and note what is NOT in this list:
         # `placed_union`/`placed_union_at` left it when LIB-PYPU bound
         # the group boolean, whose value is an ordinary body.
         #
@@ -2496,12 +2497,20 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # longer has: the kernel verb ships (#1048) and `Node` has no
         # variant for it, so the scene that uses it has no document.
         #
+        # `tube` LEFT this list at LIB-TUBE, and it left as TWO
+        # doors: `Node::Tube` and `Node::HollowTube` landed at schema
+        # v17 under the #1205 split ruling, so `Node.tube` and
+        # `Node.hollow_tube` bind one kernel door each and the wall is
+        # required on the second. `hollow_tube` was never on this list
+        # to leave — it never existed to be absent — which is why the
+        # positive row above names both.
+        #
         # `instantiate_part` and `mate` LEFT this list at LIB-G18b,
         # and `set_placement` with them — it was never a `Node` at
         # all, it is `DocEdit.set_placement`, which is where the A11
         # rule that placement is the CLUSTER's puts it.
         for node_kind in [
-            "sweep", "tube", "pattern",
+            "sweep", "pattern",
             "shell", "shell_open",
         ]:
             with self.subTest(node=node_kind):
@@ -2718,11 +2727,20 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             Node.profile(circle((0 * m, 0 * m), 1 * m), plane="yz")
 
     def test_a_swept_solid_is_still_out_of_reach(self):
-        """G2's remaining half, positively: there is no `Node.sweep`
-        to call, and the reason is not an unbound door — `wire_sweep`
-        refuses unconditionally, so binding one would flip no row."""
+        """G2's SWEEP half, positively: there is no `Node.sweep` to
+        call, and the reason is not an unbound door — `wire_sweep`
+        refuses unconditionally (U4/LQ3, kernel-owned), so binding one
+        would flip no row.
+
+        The TUBE half is closed and this row says so in the direction
+        that can fail: both doors exist, and they are two, because a
+        solid tube and a hollow one are different artifacts. A future
+        edit that folded them back into one door with an optional wall
+        fails here.
+        """
         self.assertFalse(hasattr(Node, "sweep"))
-        self.assertFalse(hasattr(Node, "tube"))
+        self.assertTrue(hasattr(Node, "tube"))
+        self.assertTrue(hasattr(Node, "hollow_tube"))
 
 
 if __name__ == "__main__":
