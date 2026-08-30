@@ -64,14 +64,21 @@ fn bar(x0: f64, x1: f64, y0: f64, y1: f64, z0: f64, z1: f64) -> Body<Interval> {
 
 /// **The build arm.** The bar's crossings are found at the certified
 /// scalar too, so the union walks past the crossing layer and refuses
-/// at the ring's absent JOIN arm — the same door the `f64` lane
+/// at the ring's absent JOIN arm (#1291) — the same door the `f64` lane
 /// reaches. An escalation here would mean the enclosures, not the
 /// geometry, decided the lane.
+///
+/// The bar is short for the same reason its `f64` twin is: a pierce
+/// vertex's sector arms are the split edge's fragments, and a fragment
+/// past the wall's radius makes the sector-side curvature charge
+/// refuse (`boolean::sectors::side_code`). Every coordinate here is
+/// dyadic — `±1.125` and `±0.25` exactly — so the enclosures stay
+/// points and this row measures the LANE rather than the fixture.
 #[test]
 fn the_ring_lane_builds_at_the_certified_scalar() {
     let err = topo::union(
         &pipe(),
-        &bar(-3.0, 3.0, -0.25, 0.25, -0.25, 0.25),
+        &bar(-1.125, 1.125, -0.25, 0.25, -0.25, 0.25),
         Tol::witness(),
     )
     .expect_err("no join arm for a pierce ring");
@@ -95,14 +102,14 @@ fn the_ring_lane_builds_at_the_certified_scalar() {
 fn a_clear_bar_still_answers_and_the_enclosure_is_narrow() {
     let tol = Tol::witness();
     let topo::BooleanResult::Body(out) =
-        topo::union(&pipe(), &bar(1.5, 3.0, -0.25, 0.25, -0.25, 0.25), tol)
+        topo::union(&pipe(), &bar(1.5, 2.5, -0.25, 0.25, -0.25, 0.25), tol)
             .expect("no crossing to route")
     else {
         panic!("two clear solids union into a two-shell body");
     };
     assert_eq!(out.body.shells().count(), 2);
     let v = topo::mass_properties(&out.body, tol).unwrap().volume;
-    let truth = PI * 4.0 + 1.5 * 0.5 * 0.5;
+    let truth = PI * 4.0 + 1.0 * 0.5 * 0.5;
     assert!(
         v.lo() <= truth && truth <= v.hi(),
         "the enclosure must contain the truth: {v:?} vs {truth}"
