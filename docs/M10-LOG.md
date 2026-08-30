@@ -319,3 +319,30 @@ touched crates (`-p ...`) unless the unit's sweep demands the
 world — the hosted gate covers the rest (local-battery-scope's
 time argument, now applied to disk). Reclaim-at-report remains
 the transient's fix.
+
+## M10-3 MERGED (2026-08-29)
+
+PR #1231 merged at e93c2be6, sample #49 (ordinal 504; the number
+annotated in the row — LIB's corpus-die merged minutes prior with
+no row at this writing, and merge order rules if its recorder also
+drew #49). The E6 driver is live: the interval parameter door is
+open through `evaluate`, leaves certify on exact VerdictVector
+equality with no width anywhere, refused mass is priced per-reason
+with the ADDITIVE tail, and the macroscopic limitation is measured
+and pinned red-the-day-it-closes. The dual review's headline was
+bilateral and identically diagnosed — the accounting composed
+unconditional columns as conditional, under-reporting the E10
+honesty gate by the whole tail, invisible because every shipped
+fixture was bounded; the fix states the argument at the type with
+the measured 0.27% consequence. R2's unilateral structural MAJOR
+(flip naming was a second verdict-diff engine by positional zip —
+the method resolve/vdiff rejects in its own doc) was fixed at
+branch (a): naming routes through the built-once engine, whose
+interface was never the obstacle. Both arms attacked the unit's
+one silent-defect shape — an escalation misclassified definite
+that CERTIFIES — and independently returned NOT FOUND. Issues
+#1254 (escalation channel, filed with the verdict log's banked
+redo) and #1255 (three verdict shapes) are the fix pass's durable
+homes; deviations went 7→9, honestly. M10-4's spec unblocks (the
+E4 pairing hook obligation and M10-2's sink are its inputs; the
+interval door it needed is now on main).

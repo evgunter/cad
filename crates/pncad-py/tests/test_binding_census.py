@@ -35,7 +35,7 @@ naming a type is not read as an export. `prelude.rs` re-exports through
 `crate::document` and `crate::select`, so a prelude entry has an origin
 in the same census and nothing is double-counted; the geometry crates
 (`geom_core`, `profile`, `sweep`, `topo`, `mesh`, `stl`, `step_export`,
-`step_import`, `quantity`) enter through the prelude — plus the two
+`step_import`, `quantity`) enter through the prelude — plus the three
 `topo::readback` names `select.rs` lifts — and that is the whole point:
 the prelude is what a `use pncad::prelude::*` consumer gets, so it is
 the surface Python is measured against.
@@ -405,6 +405,16 @@ BOUND_AS = {
     # `Denotation` and `ReadbackError` are spelled identically and are
     # accounted by rule 1, not here. They left the `gap` roster at
     # LIB-B-READBACK, which closed the family that chartered them.
+    #
+    # `DanglingRef` is `ReadbackError::Dangling`'s payload and crosses
+    # as `ReadbackError.variant`, the way `RootFault` crosses as
+    # `EditError.variant`: its two arms ARE the two tags —
+    # `dangling_entity` for a topological key that does not resolve,
+    # `dangling_geometry` for a geometry key reached from a live
+    # entity that does not — because which lookup came back empty is
+    # what a caller branches on. Python has no class for the payload
+    # and needs none; the tag carries the whole of it.
+    "DanglingRef": "ReadbackError.variant",
     "denotation": "Evaluation.denotation",
     "edge_frame": "Evaluation.edge_frame",
     "face_frame": "Evaluation.face_frame",
@@ -644,7 +654,9 @@ FAMILIES = {
 #:   `InterrogateError` at the read-back doors themselves, where the
 #:   kernel's own `ReadbackError` arms arrive under their own tags
 #:   rather than a wrapper's — one Rust type, two Python classes,
-#:   because the two doors refuse different CALLS;
+#:   because the two doors refuse different CALLS — and for
+#:   `DanglingRef`, the `Dangling` arm's payload, whose two arms are
+#:   the two `dangling_*` tags;
 #:   `EvaluationError.kind` for `ResolveFailure`, whose classified
 #:   fault IS the `part_*` tag (`ResolveFault` and `PartFault` are in
 #:   `BOUND_AS` at that spelling) and whose `message` is the

@@ -47,7 +47,17 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 
 /// The pinned digest per registered document, in registry order.
 ///
-/// Two rows are worth a reader's second look, and neither is a bug.
+/// `die_composed_tour` is the row this file was built to be able to
+/// take. The measurement that motivated the gate — "do two documents
+/// with the same recipe have the same name table" — had to be made by
+/// hand against the demo tour's composed die, because that document
+/// lived only in `demos/tour` and no registered document was its
+/// equal. LIB-CORPUS-DIE registered it (as committed bytes the tour
+/// regenerates — `corpus::die_composed_tour`), so the hand
+/// measurement is now this number: forty-two rim arcs and twelve box
+/// edges named through twenty pairwise unions, in one pin.
+///
+/// Two more rows are worth a reader's second look, and neither is a bug.
 ///
 /// `die` is `0x8d2e4c613057071e` — the same number
 /// `m4_pr3_names_ci::DIE_TABLE_DIGEST` carries, because it is the same
@@ -95,6 +105,7 @@ const PINNED: &[(&str, u64)] = &[
     ("die_tool", 0x9e24_4be7_b06b_9a40),
     ("loft_prism", 0x7318_e99f_2b22_dafb),
     ("die_composed", 0xbc4f_5faa_1652_f266),
+    ("die_composed_tour", 0x539f_745a_6429_7d55),
     ("plate_param", 0x3bfe_3e78_5eec_a227),
 ];
 

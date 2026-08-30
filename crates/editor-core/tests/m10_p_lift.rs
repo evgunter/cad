@@ -468,10 +468,12 @@ fn the_loft_section_stays_f64_while_the_profile_payload_lifts() {
 
     // The extrude half: the profile node's own payload IS elaborated at
     // the lane, which is the other side of the asymmetry. Both lanes
-    // enclose the same point here (the plate's parameters are
-    // degenerate intervals until M10-3 widens `param_env`), so what is
-    // asserted is that the payload is produced and encloses the
-    // nominal — not that it is wider, which it cannot yet be.
+    // enclose the same point here — this evaluation carries no
+    // parameter box, so its bindings are the document's nominals and
+    // the enclosure is degenerate by construction. What is asserted is
+    // that the payload is produced and encloses the nominal, not that
+    // it is wider; a widened binding is `EvalOptions::param_box`'s
+    // door and is driven in `m10_3_driver_interval`.
     let plate = plate();
     let g = run(&plate.doc, ProfileLift::Guided);
     let mut profiles = 0usize;

@@ -23,6 +23,13 @@ pub mod checks;
 pub mod diff;
 pub mod distribution;
 pub mod doc;
+/// The E6 subdivision driver — the analysis lane's parameter-box
+/// verdict. Gated on `interval` because the leaf protocol replays at
+/// the certified interval scalar: without that scalar there is no leaf
+/// to certify, and a driver that fell back to `f64` would be a
+/// sampler.
+#[cfg(feature = "interval")]
+pub mod drive;
 pub mod edit;
 pub mod eval;
 pub mod expr;
@@ -46,8 +53,9 @@ pub mod update;
 pub mod witness;
 
 pub use analysis::{
-    AnalysisPolicy, AnalysisPolicyError, AnalyzedBox, AnalyzedParam, DEFAULT_QUANTILE_MASS,
-    MeasureUnavailable, OffsetInterval, analyzed_box, box_mass, tail_mass,
+    AnalysisPolicy, AnalysisPolicyError, AnalyzedBox, AnalyzedParam, AxisScalar, BoxAxis,
+    DEFAULT_QUANTILE_MASS, MeasureUnavailable, OffsetInterval, ParamBox, ParamBoxError,
+    analyzed_box, box_mass, param_env_over, tail_mass,
 };
 pub use appearance::{
     AppearanceLoss, AppearanceLossCause, AppearanceMap, AppearanceRecord, AppearanceResolution,
@@ -63,6 +71,13 @@ pub use checks::{
 pub use diff::{DocDiff, NodeChange};
 pub use distribution::{Distribution, DistributionFault, DistributionField};
 pub use doc::{Doc, DocParam, DocParamValue, ParamName};
+#[cfg(feature = "interval")]
+pub use drive::{
+    BudgetKind, CertifiedLeaf, DEFAULT_MAX_DEPTH, DEFAULT_MAX_LEAVES, DriveConfig, DriveRefusal,
+    FlipEvidence, LeafResults, MeasureAccounting, ParamBoxVerdict, ReasonClass, Receipt,
+    RefusalReason, RefusedLeaf, ReplayOutcome, StructureFlip, VerdictRow, VerdictVector,
+    VerdictVectorKey, drive,
+};
 pub use edit::{Applied, DocEdit, EditError, EditRecord, apply};
 pub use eval::{
     BooleanValue, CancelToken, ContentBits, ContentKey, DatumValue, Epoch, EvalOptions,
