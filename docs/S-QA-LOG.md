@@ -161,6 +161,15 @@ durable homes on that issue. Recorded for a future unit: the census
 script is now 1,100+ lines carrying five modes in one `gate()` (a
 reviewer's Q8 finding — a split candidate, not this unit's).
 
+Operational note at merge: the first gating run of the merged head
+(33332490436) went red with both default-eps test shards "failing"
+in one second each, runner_id 0, no logs — the Actions budget had
+run out, so the jobs never executed. A ghost failure wearing a red
+run's clothes is this program's charter one level down the stack;
+re-rolled with this commit once the budget was restored, pinning
+the same point by trailer so the ghost-failed configuration is the
+one re-proven.
+
 Process corrections this unit earned: lane branches now carry ONLY
 their own spec (QA-2's spec rode this PR from the shared dispatch
 commit — harmless here, sloppy in general); and the fable usage
