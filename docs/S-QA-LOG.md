@@ -176,3 +176,31 @@ commit — harmless here, sloppy in general); and the fable usage
 limit can kill lanes mid-flight — resumed with zero loss because the
 lane had pushed first, which is the push-early rule doing exactly
 what it is for.
+
+## QA-2 merged (2026-08-30)
+
+The matrix now says what it did: a red run reports its whole failure
+surface and names its mode (nextest's fail-fast default measured, not
+assumed, on the pinned version); a pinned lane says so in
+`CONFIG_SOURCE` and the basename pin itself is gone per the Q2 ruling
+— the request convention lives in the discipline doc, the
+`interval-transcendentals/` pin and the fail-closed arm stay; a draft
+run prints that it gated nothing, with the `ready_for_review` escape
+beside it; and the request-a-point door is verified end-to-end, so
+issue 1051 closes with 1128, 1122 and 1204. The dual found no MAJORs
+and one §D-rule-5 instance (the skip step asserting a false cause —
+fixed by deriving one cause in producer order, all eight combinations
+executed). The fix pass beat its instructions once: instead of gating
+four hand-synced advisory spellings it made the filter compose its
+notices into a file ci.yml relays, so the copies ceased to exist.
+Residues with homes: issue 1295 (the parity checker compares checks,
+never flags), and the not-hosted-verified tripwire disclosed at the
+site. The Actions budget outage that ghost-failed three branches'
+runs mid-unit is recorded in both units' PRs — a red run whose jobs
+never executed is this program's charter one layer down, and worth a
+future thought about whether the filter can notice a zero-step
+"failure".
+
+Next: QA-3 (the tools-scope k-lint path pin, Q1's ruling) into the
+now-freed `ci-filter.py`/`ci.yml`; QA-4 close-out verification; QA-5
+awaits the K/P/W coordination.
