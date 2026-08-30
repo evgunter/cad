@@ -531,3 +531,40 @@ readability, #1309 noted at the tripwire. Reviewer probe branches
 adopted as merge parents authorship-preserving. Review lane
 TARGETS reclaimed at report per the standing rule; clones kept
 until delta.
+
+## 2026-08-31 — BLEND-5 fix pass delivered; delta dispatched; a trailer flag resolved
+
+Fix pass delivered on head `9eb980e2` (~55k / ~48m): all 10 union
+items, one argued partial decline (the inert attribute KEPT citing
+#1308 — stripping one of a five-enum family pre-empts the sweep
+inconsistently). Reason 3 WITHDRAWN, not softened, with the
+reviewers' silent-retarget corollary written into the record (a
+kind rename fails loud, a role swap silently retargets — the shape
+is worse on that axis and stands on the collision argument);
+offered as a handoff: whether a rim reference wants a resolution-
+time check is a design conversation, not this unit's. The ladder
+DISPUTE settled in R2's favor against the gates (no clause tests a
+kind; a cone half-cap satisfies all four) — prose and op-site
+string went kind-neutral, the (Sphere, Plane) arm identifier kept.
+Item 3 went better than asked: the seam-split third spelling got a
+real public-doors row (pole-touching profile) instead of a
+disclosed gap. Fix CI: run 33342571322 GREEN, 21 jobs zero
+non-green, freshly drawn point {interval, default eps} — two of
+six points now covered across the two runs.
+
+**Trailer flag resolved (implementer raised it; verified by
+orchestrator git-log):** both probe branches and all six fix-pass
+commits are CLEAN — the trailers the implementer saw are MAIN's
+own commits arriving via its merge, including two S-CERT/S-QA
+orchestrator dispatch-record commits (59c9bbd0, 7e8a7aa8) that
+carry a MODEL-NAMED trailer. That identifies only the orchestrator
+role, which the protocol itself publishes (design/reviews/
+orchestration are Fable by design) — zero arm exposure for any
+lane; noted here as hygiene for the sibling program, not acted on.
+
+**Delta re-verification dispatched:** R1 resumed in its kept lane
+on `9eb980e2`, narrow scope (the MAJOR's record fix, the mutation
+re-run, the seam-split row, the ladder ruling re-checked against
+the gate clauses, the decline's argument judged, tip-state trailer
+spot-check). State-sync (A/B row ordinal 603 + unit log) rides the
+unit branch LAST after the delta, then the merge sequence.
