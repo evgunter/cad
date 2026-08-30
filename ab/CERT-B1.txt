@@ -7,3 +7,10 @@ note: the block was drawn in full at CERT-B1's creation, so per-unit
 difficulty logging is necessarily post-block-draw — same posture as
 the LIB banked-slot precedent, recorded rather than hidden). slot 3
 unassigned.
+slot 3 = CERT-4 (difficulty L, logged at spec docs/CERT-4-SPEC.md on
+cert/orchestrator; same post-block-draw posture as slot 2, recorded
+not hidden). Block CERT-B1 is now fully assigned. Arm by the block
+draw (byte 104, fable at position 0): slot 3 = OPUS.
+Note: CERT-3 (slot 2) ran its dual WITHOUT A/B logging per Evan's
+handoff instruction (2026-08-30) — no ordinal, no dual record; this
+block record still carries the arm assignment for completeness.
