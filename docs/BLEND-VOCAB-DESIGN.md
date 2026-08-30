@@ -1,9 +1,15 @@
 # How a shared blend refusal names its verb — the 917 conversation
 
-**Status: DESIGN CONVERSATION (S-BLEND, issue 917, unit BLEND-6) —
-awaits Evan's sign-off. Sign-off affordance: 👍 the PR comment.**
-Proposals V1–V4; V1/V2 are the substance, V3 the mechanical half,
-V4 a constraint restated from the issue. Mechanics measured.
+**Status: RATIFIED (Evan, 👍 on the PR-1279 impact discussion,
+2026-08-30), with the three open choices settled as recommended:
+"edge blend" as the neutral noun, `Filleted`/`Chamfered` collapse
+to one blend-named result type with both names kept as aliases,
+and the V3 rename ships with the unit.** V1/V2 are the substance,
+V3 the mechanical half, V4 a constraint restated from the issue.
+Executed by unit BLEND-6, sequenced after BLEND-5. Mechanics
+measured; the impact/reversibility record (no persisted footprint
+anywhere in this doc; switching costs V2 ≈ V4 < V1 < V3) is on the
+PR thread.
 
 ## Settled ground (landed, cited)
 
@@ -69,19 +75,16 @@ minting `ChamferError`. V1/V2 satisfy 917's substance ("how a
 shared refusal names the verb that raised it") with one
 discrimination point per layer.
 
-## The open choices (Evan's preference wanted)
+## The settled choices (ratified with the doc)
 
-1. **The neutral noun** where prose must speak generically: "edge
-   blend" (recommended — it is the module's own doc vocabulary) vs
-   bare fact-first sentences with no noun.
-2. **Result types**: collapse `Filleted`/`Chamfered` to one
-   blend-named type (recommended; the alias already declares them
-   identical) vs keep both names as aliases of it for call-site
+1. **The neutral noun is "edge blend"** where prose must speak
+   generically — the module's own doc vocabulary.
+2. **`Filleted`/`Chamfered` collapse to one blend-named result
+   type**, with both names kept as aliases for call-site
    readability.
-3. **Timing of V3's path rename** (`sweep::fillet` → a blend-named
-   module): with the unit (recommended — one churn, one review) vs
-   deferred to a quiet moment. Cheap pre-release either way.
+3. **V3's path rename ships with the unit** (`sweep::fillet` → a
+   blend-named module): one churn, one review.
 
-**Sequencing if ratified:** BLEND-6 runs after BLEND-5 (issue 961)
-per the plan — same files, single-owner order — and discharges
-G16's `// #917` marker at `OpGroup::Fillet`.
+**Sequencing:** BLEND-6 runs after BLEND-5 (issue 961) per the
+plan — same files, single-owner order — and discharges G16's
+`// #917` marker at `OpGroup::Fillet`.
