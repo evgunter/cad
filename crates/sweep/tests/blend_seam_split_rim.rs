@@ -99,21 +99,7 @@ const BORE: f64 = 0.1;
 /// radial again, the top DISK. Both ends touch the axis, which is what
 /// makes every wall a pair of half-bands and every rim a pair of arcs.
 fn lantern() -> Body<f64> {
-    // A profile arc's bulge is the tangent of a QUARTER of its sweep,
-    // and this arc's sweep is the angle between two exact unit vectors,
-    // `(1, 0)` and `(0.8, 0.6)`.
-    let bulge = (0.6f64.asin() / 4.0).tan();
-    revolved_about_y(
-        vec![
-            v(0.0, 0.0, 0.0),
-            v(1.0, 0.0, bulge),
-            v(SHOULDER.0, SHOULDER.1, 0.0),
-            v(LIP_R, TOP, 0.0),
-            v(0.0, TOP, 0.0),
-        ],
-        Revolution::Full,
-        tol(),
-    )
+    sweep::test_support::lantern(tol())
 }
 
 /// The same solid bored on-axis at [`BORE`], so the profile is ANNULAR

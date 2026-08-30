@@ -228,16 +228,19 @@ fn p2_one_call_and_sequential_carry_the_same_face_shapes() {
     assert_eq!(census(&one.body), census(&b), "the same census either way");
 }
 
-/// **P3 — the conservative narrowing, and what the refusal a consumer
-/// reads actually says.** There is a radius at which one call refuses
-/// and the sequential composition still builds. This probe finds it on
-/// the vase, prints the refusal a consumer sees, and PINS the gap in
-/// what it says: the message names "reduce the radius / enlarge the
-/// face" and does NOT name the sequential-calls recourse that is the
-/// one that works here. If a later fix adds that sentence, this probe
-/// reds — which is the point.
+/// **P3 — what the refusal a consumer reads at the request's boundary
+/// actually says** — FLIPPED in the fix pass from the absence pin the
+/// review filed (the reviewer measured that no refusal named the
+/// sequential recourse; the fix made a CROSS-CHAIN clearance refusal
+/// name and mean it — `FILLET3_CLEARANCE_SPLIT_RECOURSE`, executed
+/// followably in `blend_tworims`). On THIS fixture the first refusal
+/// up the radius scan is the spine fold, which is not splittable and
+/// must NOT name the split — one call and the sequential composition
+/// refuse identically, and the probe pins that agreement; any
+/// cross-chain clearance refusal met on the way must carry the split
+/// sentence.
 #[test]
-fn p3_the_conservative_margin_refusal_never_names_the_recourse_that_works() {
+fn p3_the_boundary_refusal_names_the_split_exactly_when_it_is_splittable() {
     let src = vase();
     let ys = [(0.0, 0.8), (0.6, 1.0), (1.2, 1.0), (1.8, 0.7)];
     let all: Vec<EdgeKey> = ys.iter().flat_map(|&(y, r)| rim_at(&src, y, r)).collect();
@@ -266,13 +269,29 @@ fn p3_the_conservative_margin_refusal_never_names_the_recourse_that_works() {
             }
         }
     }
-    println!("   [blend2-r1] sequential composition at r = {r}: ok = {sequential_ok}");
-    if matches!(err, FilletError::FaceClearanceUncertified { .. }) {
-        let text = format!("{err}");
-        assert!(
-            !text.to_lowercase().contains("sequential"),
-            "the clearance refusal has grown the sequential recourse — retire this probe: {text}"
-        );
+    // MEASURED: the vase's binding boundary is the SPINE FOLD, a
+    // per-rim fact no request split changes — both paths refuse.
+    assert!(
+        !sequential_ok,
+        "the vase's first one-call refusal (r = {r}) is per-rim; sequential must \
+         refuse it too, and a build here means the boundary moved — re-measure"
+    );
+    match &err {
+        FilletError::FaceClearanceUncertified { cross_chain, .. } => {
+            let text = format!("{err}");
+            assert_eq!(
+                *cross_chain,
+                text.to_lowercase().contains("sequential"),
+                "a clearance refusal names the split exactly when it is cross-chain: {text}"
+            );
+        }
+        other => {
+            let text = format!("{other}");
+            assert!(
+                !text.to_lowercase().contains("sequential"),
+                "a non-splittable refusal must not borrow the split recourse: {text}"
+            );
+        }
     }
 }
 
@@ -325,14 +344,20 @@ fn pinched_vase() -> Body<f64> {
     .body
 }
 
-/// **P5 — the conservative narrowing, reproduced on a fixture of my
-/// own.** The PR discloses that at `r = 0.749` on the zone one call
-/// refuses while the sequential composition builds. This probe looks
-/// for the same shape independently on the pinched vase's two belly
-/// rims, and — where it finds it — records what the refusal a consumer
-/// reads actually offers as recourse.
+/// **P5 — the spool measurement that RECHARACTERIZED the zone's
+/// r = 0.749 gap.** On this plane×cylinder spool the screen's
+/// straight-line gap IS the wall's own meridian, so one call and the
+/// sequential composition refuse at the IDENTICAL radius (margin
+/// −2.22e-16 at r ≈ 0.5): there is NO conservative gap here. The
+/// zone's gap is therefore the clearance screen's pre-existing
+/// chord-vs-arc direction-conservatism surfacing on a SPHERE wall — a
+/// property of the fixture's geometry, not of one-call metering.
+/// FLIPPED in the fix pass from the review's absence pin: the
+/// cross-chain clearance refusal met here now names the split
+/// recourse, and this row pins the presence (the followable execution
+/// lives in `blend_tworims`, where the split really builds).
 #[test]
-fn p5_the_one_call_metering_is_conservative_and_says_nothing_about_sequence() {
+fn p5_the_spool_refuses_identically_both_ways_and_names_the_split() {
     let src = pinched_vase();
     let pair = [(0.0, 1.0), (1.0, 1.0)];
     let both: Vec<EdgeKey> = pair.iter().flat_map(|&(y, r)| rim_at(&src, y, r)).collect();
@@ -355,32 +380,32 @@ fn p5_the_one_call_metering_is_conservative_and_says_nothing_about_sequence() {
             }
         }
         if one.is_err() && first_one.is_none() {
-            first_one = Some((r, format!("{}", one.as_ref().err().expect("err"))));
+            first_one = Some((r, format!("{}", one.as_ref().expect_err("err"))));
         }
         if !seq_ok && first_seq.is_none() {
             first_seq = Some(r);
         }
         if one.is_err() && seq_ok {
-            gap = Some((r, one.err().expect("just checked")));
+            gap = Some((r, one.expect_err("just checked")));
             break;
         }
         r += 0.001;
     }
-    match gap {
-        Some((r, err)) => {
-            println!(
-                "   [blend2-r1] CONSERVATIVE at r = {r}: one call refuses, sequential \
-                 builds. Refusal a consumer reads: {err}"
-            );
-            let text = format!("{err}");
-            assert!(
-                !text.to_lowercase().contains("sequential"),
-                "the refusal has grown the recourse that works — retire this probe: {text}"
-            );
-        }
-        None => println!(
-            "   [blend2-r1] no conservative gap on this fixture; first one-call refusal \
-             {first_one:?}, first sequential refusal {first_seq:?}"
-        ),
-    }
+    assert!(
+        gap.is_none(),
+        "the spool grew a one-call/sequential gap at {gap:?} — the screen's exactness \
+         on parallel opposed features moved; re-measure the recharacterization"
+    );
+    let (one_r, one_text) = first_one.expect("the scan reaches the spool's boundary");
+    let seq_r = first_seq.expect("sequential reaches the same boundary");
+    assert!(
+        one_r == seq_r,
+        "one call and sequential refuse at the identical radius on the spool: \
+         {one_r} vs {seq_r}"
+    );
+    assert!(
+        one_text.to_lowercase().contains("sequential"),
+        "the spool's cross-chain clearance refusal names the split recourse: {one_text}"
+    );
+    println!("   [blend2-r1] spool boundary identical both ways at r = {one_r}: {one_text}");
 }

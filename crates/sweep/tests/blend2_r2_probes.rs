@@ -32,44 +32,16 @@ fn v(x: f64, y: f64, bulge: f64) -> ProfileVertex<f64> {
     ProfileVertex::new(Point2::new(x, y), bulge)
 }
 
-/// The #935 zone, authored independently from the issue's parameters:
-/// sphere `R = 2` about the origin, sliced at `y = −0.5` and `y = 1`,
-/// bored at `x = 0.6`.
+/// The #935 zone at the issue bore — `test_support`'s fixture (homed
+/// there in the fix pass; this suite's independent authoring moved
+/// with it).
 fn zone() -> Body<f64> {
-    let big_r = 2.0f64;
-    let (y_lo, y_hi) = (-0.5f64, 1.0f64);
-    let x_lo = (big_r * big_r - y_lo * y_lo).sqrt();
-    let x_hi = (big_r * big_r - y_hi * y_hi).sqrt();
-    let th_lo = (y_lo / big_r).asin();
-    let th_hi = (y_hi / big_r).asin();
-    let bulge = ((th_hi - th_lo) / 4.0).tan();
-    revolved_about_y(
-        vec![
-            v(0.6, y_lo, 0.0),
-            v(x_lo, y_lo, bulge),
-            v(x_hi, y_hi, 0.0),
-            v(0.6, y_hi, 0.0),
-        ],
-        Revolution::Full,
-        tol(),
-    )
+    sweep::test_support::sphere_zone(0.6, Revolution::Full, tol())
 }
 
-/// The BLEND-1 lantern (pole-touching, half-band walls, seam-split
-/// rims), same profile as the unit's fixture.
+/// The BLEND-1 lantern — `test_support`'s fixture.
 fn lantern() -> Body<f64> {
-    let bulge = (0.6f64.asin() / 4.0).tan();
-    revolved_about_y(
-        vec![
-            v(0.0, 0.0, 0.0),
-            v(1.0, 0.0, bulge),
-            v(0.8, 0.6, 0.0),
-            v(0.2, 1.2, 0.0),
-            v(0.0, 1.2, 0.0),
-        ],
-        Revolution::Full,
-        tol(),
-    )
+    sweep::test_support::lantern(tol())
 }
 
 /// The zone's four closed rims as `(radius, latitude)` selectors:

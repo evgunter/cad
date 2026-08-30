@@ -1,9 +1,12 @@
-//! **Two closed rims sharing a revolution wall, in ONE call** (#935):
-//! the annulus carve refreshes each later rim's crossing SEAM KEYS
-//! against the partially-carved body immediately before that rim's own
-//! phase — identity only, every decision stays in the plan, resolved
-//! against the source. These rows are what makes the widened door's
-//! claims measured rather than hoped:
+//! **Two closed rims sharing a support face, in ONE call** (#935): the
+//! annulus carve refreshes each later rim's crossing SEAM KEYS against
+//! the partially-carved body immediately before that rim's own phase —
+//! identity only, every decision stays in the plan, resolved against
+//! the source. The served sharing is any pair of ANNULUS rims — on a
+//! revolution WALL (this file's rows) or on a full-revolve PLANE CAP,
+//! whose radial seam is the same shape (`blend2_r2_probes`' cap-pair
+//! and four-rim-cycle rows). These rows are what makes the widened
+//! door's claims measured rather than hoped:
 //!
 //! - **The one-call result IS the sequential composition**, bit-level:
 //!   the volume of the one-call body equals the sequential result's in
@@ -11,7 +14,12 @@
 //!   on the zone's one-edge rim pair, on the lantern's seam-split rim
 //!   pair over shared HALF-BAND walls, and on the lantern's three
 //!   chained rims (neck+shoulder share the sphere, shoulder+lip the
-//!   cone). Red if the refresh ever decides instead of re-identifying.
+//!   cone). Red if the composition drifts past the integrator's own
+//!   summation ulp — a wrong carve, OR a summation-order change
+//!   reaching these fixtures (measured elsewhere at other radii and on
+//!   the bud; `blend2_r2_probes` rows carry the measured boundary), so
+//!   a red here is a signal to re-measure, not automatically a carve
+//!   bug.
 //! - **Order independence is structural and stays pinned**: the plan
 //!   sorts rims by first edge before carving, so the request's order
 //!   cannot reach the carve — the two request orders produce identical
@@ -26,11 +34,12 @@
 //!   contract `editor-core`'s emitter refuses to work without.
 //! - **Bands that would collide on the shared wall refuse UPFRONT**,
 //!   typed `FaceClearanceUncertified` out of the battery's clearance
-//!   metering, never mid-carve on a stale key — and near the margin
-//!   the one-call metering is CONSERVATIVE: it meters both trim
-//!   circles against the shared wall at once, so there is a radius
-//!   where one call refuses while the sequential composition still
-//!   builds. That narrowing is pinned honestly rather than hidden.
+//!   metering, never mid-carve on a stale key; a cross-chain pair's
+//!   refusal names the SPLIT recourse and the pin executes it (the
+//!   issue-1278 rule). The r = 0.749 one-call/sequential gap is the
+//!   screen's pre-existing chord-vs-arc conservatism surfacing on a
+//!   sphere wall — not a one-call metering penalty (identical refusal
+//!   radius on a plane×cylinder spool, `review_blend2_r1_probes::p5`).
 //!
 //! The refresh itself has no row here by name: rows 1–3 die without it
 //! (the later rim's plan keys are stale the moment the first band
@@ -38,13 +47,11 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom::Surface;
-use geom_core::{Band, Point2, Tol};
-use profile::ProfileVertex;
+use geom_core::{Band, Tol};
 use sweep::Revolution;
 use sweep::fillet::FilletError;
 use sweep::fillet::build::{Filleted, fillet_edges};
-use sweep::test_support::{revolved_about_y, rim_arcs_at};
+use sweep::test_support::{lantern as test_support_lantern, rim_arcs_at, sphere_zone};
 use topo::{Body, EdgeKey, mass_properties, validate_geometric};
 
 fn tol() -> Tol {
@@ -55,95 +62,36 @@ fn band() -> Band {
     Band::new(tol().eps(), tol().k() * tol().eps()).unwrap()
 }
 
-fn v(x: f64, y: f64, bulge: f64) -> ProfileVertex<f64> {
-    ProfileVertex::new(Point2::new(x, y), bulge)
-}
-
 // ------------------------------------------------------------------
-// Fixtures: the ARMS-1 zone (one-edge rims) and the BLEND-1 lantern
-// (seam-split rims), both authored here from their profiles.
+// Fixtures — `test_support`'s, not local copies: the #935 zone
+// (one-edge rims) and the BLEND-1 lantern (seam-split rims).
 // ------------------------------------------------------------------
 
-/// A sphere zone off the equator (sphere `R = 2` about the origin,
-/// sliced at `y = −0.5` and `y = 1`, bored at `x = 0.6`): four
-/// revolution walls, two one-edge latitude rims sharing the sphere
-/// wall — the exact body of #935's refusal.
+/// The #935 zone at its issue bore. Two one-edge sphere rims sharing
+/// the sphere wall; two cap rims sharing the caps with them.
 fn zone() -> Body<f64> {
-    let big_r = 2.0f64;
-    let (y_lo, y_hi) = (-0.5f64, 1.0f64);
-    let x_lo = (big_r * big_r - y_lo * y_lo).sqrt();
-    let x_hi = (big_r * big_r - y_hi * y_hi).sqrt();
-    let th_lo = (y_lo / big_r).asin();
-    let th_hi = (y_hi / big_r).asin();
-    let bulge = ((th_hi - th_lo) / 4.0).tan();
-    revolved_about_y(
-        vec![
-            v(0.6, y_lo, 0.0),
-            v(x_lo, y_lo, bulge),
-            v(x_hi, y_hi, 0.0),
-            v(0.6, y_hi, 0.0),
-        ],
-        Revolution::Full,
-        tol(),
-    )
+    sphere_zone(0.6, Revolution::Full, tol())
 }
 
-/// The BLEND-1 lantern: a pole-touching solid of revolution, so every
-/// wall is a pair of half-bands and every rim a pair of arcs meeting
-/// at chart-seam vertices. Its three latitude rims chain the sharing:
+/// The BLEND-1 lantern. Its three latitude rims chain the sharing:
 /// neck and shoulder share the sphere wall, shoulder and lip the cone.
 fn lantern() -> Body<f64> {
-    let bulge = (0.6f64.asin() / 4.0).tan();
-    revolved_about_y(
-        vec![
-            v(0.0, 0.0, 0.0),
-            v(1.0, 0.0, bulge),
-            v(0.8, 0.6, 0.0),
-            v(0.2, 1.2, 0.0),
-            v(0.0, 1.2, 0.0),
-        ],
-        Revolution::Full,
-        tol(),
-    )
+    test_support_lantern(tol())
 }
 
 /// The lantern's three rims as `(radius, latitude)` selectors, in
 /// bottom-up order.
 const LANTERN_RIMS: [(f64, f64); 3] = [(1.0, 0.0), (0.8, 0.6), (0.2, 1.2)];
 
-/// The zone's closed rim at latitude `y`.
-fn zone_rim_at(body: &Body<f64>, y: f64) -> EdgeKey {
-    let hits: Vec<EdgeKey> = body
-        .edges()
-        .filter_map(|(k, e)| {
-            let start = body.get_half_edge(e.he_plus)?.start;
-            if Some(start) != body.half_edge_end(e.he_plus) {
-                return None;
-            }
-            let surf = |he| -> Option<Surface<f64>> {
-                let l = body.get_half_edge(he)?.parent_loop;
-                let f = body.get_loop(l)?.face;
-                body.get_surface(body.get_face(f)?.surface).cloned()
-            };
-            let (a, b) = (surf(e.he_plus)?, surf(e.he_minus)?);
-            let ps = |x: &Surface<f64>, y: &Surface<f64>| {
-                matches!(x, Surface::Plane { .. }) && matches!(y, Surface::Sphere { .. })
-            };
-            if !(ps(&a, &b) || ps(&b, &a)) {
-                return None;
-            }
-            let c = body.get_curve_geom(e.curve)?.certified()?;
-            match *c.carrier() {
-                geom::Curve3::Circle { center, .. } if (center.y - y).abs() < 1e-9 => Some(k),
-                _ => None,
-            }
-        })
-        .collect();
-    assert_eq!(
-        hits.len(),
-        1,
-        "exactly one closed plane–sphere rim at y = {y}"
-    );
+/// The zone's two sphere rims as `(radius, latitude)` selectors —
+/// one selector spelling for every rim in this suite, `rim_arcs_at`'s.
+const ZONE_SPHERE_LO: (f64, f64) = (1.936_491_673_103_708_5, -0.5); // sqrt(3.75)
+const ZONE_SPHERE_HI: (f64, f64) = (1.732_050_807_568_877_2, 1.0); // sqrt(3)
+
+/// The one closed rim matching a `(radius, latitude)` selector.
+fn one_rim(body: &Body<f64>, sel: (f64, f64)) -> EdgeKey {
+    let hits = rim_arcs_at(body, sel.0, sel.1);
+    assert_eq!(hits.len(), 1, "exactly one closed rim at {sel:?}");
     hits[0]
 }
 
@@ -186,7 +134,10 @@ fn lantern_sequential(order: &[(f64, f64)], r: f64) -> f64 {
 fn the_request_order_of_a_shared_wall_pair_is_structurally_inert() {
     let r = 0.08;
     let body = zone();
-    let (lo, hi) = (zone_rim_at(&body, -0.5), zone_rim_at(&body, 1.0));
+    let (lo, hi) = (
+        one_rim(&body, ZONE_SPHERE_LO),
+        one_rim(&body, ZONE_SPHERE_HI),
+    );
     let a = fillet_edges(&body, &[lo, hi], r, band(), tol()).expect("the pair builds");
     let b = fillet_edges(&body, &[hi, lo], r, band(), tol()).expect("the reversed pair builds");
     let keys = |body: &Body<f64>| {
@@ -276,7 +227,10 @@ fn three_chained_shared_wall_rims_carve_in_one_call() {
 #[test]
 fn a_shared_wall_carve_records_every_birth_and_every_death_once() {
     let zone_body = zone();
-    let (lo, hi) = (zone_rim_at(&zone_body, -0.5), zone_rim_at(&zone_body, 1.0));
+    let (lo, hi) = (
+        one_rim(&zone_body, ZONE_SPHERE_LO),
+        one_rim(&zone_body, ZONE_SPHERE_HI),
+    );
     let zone_out =
         fillet_edges(&zone_body, &[lo, hi], 0.08, band(), tol()).expect("the zone pair builds");
     partition_check(&zone_body, &zone_out);
@@ -293,7 +247,11 @@ fn a_shared_wall_carve_records_every_birth_and_every_death_once() {
 
 /// The rim-phase half of `m6_5_fillet_naming`'s partition identity,
 /// applied to a shared-wall result (no open chains here, so the blank
-/// phase's channels are empty and asserted so).
+/// phase's channels are empty and asserted so), in BOTH directions:
+/// every output entity is a mint or a survivor, and every recorded
+/// mint is present in the output. What no row anywhere yet does is
+/// drive these records through `editor-core`'s `emit_fillet` on an
+/// annulus body — issue #1294 tracks that end-to-end drive.
 fn partition_check(src: &Body<f64>, out: &Filleted<f64>) {
     let rec = out.naming.as_ref().expect("the surgery keeps its records");
     assert!(
@@ -349,6 +307,28 @@ fn partition_check(src: &Body<f64>, out: &Filleted<f64>) {
         assert!(src.get_vertex(*v).is_none(), "a minted vertex reused a key");
     }
 
+    // Every recorded mint is PRESENT in the output — the direction the
+    // retire-superseded-remnant machinery exists for: a stale row
+    // names an entity a later split subdivided away.
+    for f in &minted_f {
+        assert!(
+            out.body.get_face(*f).is_some(),
+            "a recorded face mint is absent from the output"
+        );
+    }
+    for e in &minted_e {
+        assert!(
+            out.body.get_edge(*e).is_some(),
+            "a recorded edge mint is absent from the output (a superseded row survived)"
+        );
+    }
+    for v in &minted_v {
+        assert!(
+            out.body.get_vertex(*v).is_some(),
+            "a recorded vertex mint is absent from the output"
+        );
+    }
+
     // Every output entity is a recorded mint or a survivor; every
     // retirement is a source key that is really gone.
     for (f, _) in out.body.faces() {
@@ -388,26 +368,54 @@ fn partition_check(src: &Body<f64>, out: &Filleted<f64>) {
     }
 }
 
-/// **Bands that would collide on the shared wall refuse UPFRONT, and
-/// the one-call metering is conservative at the margin.** The zone's
-/// sphere wall spans `y ∈ [−0.5, 1]`; at `r = 0.75` the two bands'
-/// contact circles meet (`−0.5 + r = 1 − r`). The refusal is the
-/// battery's face-clearance metering — typed, before any mutation —
-/// and NEVER the mid-carve stale-seam death #932 found. Near the
-/// margin the one call meters BOTH trim circles against the shared
-/// wall at once, so it refuses at `r = 0.749` where the sequential
-/// composition still builds: a real, stated narrowing on the safe
-/// side, with the sequential recourse intact.
+/// **Bands that would collide on the shared wall refuse UPFRONT, the
+/// refusal names the SPLIT that works, and the pin FOLLOWS it.** The
+/// zone's sphere wall spans `y ∈ [−0.5, 1]`; at `r = 0.75` the two
+/// bands' contact circles meet (`−0.5 + r = 1 − r`). The refusal is
+/// the battery's face-clearance metering — typed, before any mutation,
+/// NEVER the mid-carve stale-seam death #932 found — and because its
+/// two setbacks belong to two different chains it renders the
+/// SPLIT recourse (`FILLET3_CLEARANCE_SPLIT_RECOURSE`), which this row
+/// then executes at `r = 0.749`: the sequential composition builds.
+///
+/// **What the r = 0.749 gap is, said precisely** (measured in review):
+/// it is NOT a one-call metering penalty — on a plane×cylinder spool,
+/// one call and the sequential composition refuse at the IDENTICAL
+/// radius (margin −2.22e-16;
+/// `review_blend2_r1_probes::p5`), because the screen's straight-line
+/// gap equals the wall's own meridian there. The gap is the screen's
+/// pre-existing DIRECTION-conservatism (chord vs arc) surfacing on a
+/// SPHERE wall, where sequential calls re-meter the second band
+/// against the first carve's actual trim circle. A property of the
+/// fixture's geometry, not of one-call metering.
 #[test]
 fn colliding_bands_on_a_shared_wall_refuse_upfront() {
     let body = zone();
-    let rims = [zone_rim_at(&body, -0.5), zone_rim_at(&body, 1.0)];
+    let rims = [
+        one_rim(&body, ZONE_SPHERE_LO),
+        one_rim(&body, ZONE_SPHERE_HI),
+    ];
     for r in [0.749, 0.8] {
         match fillet_edges(&body, &rims, r, band(), tol()) {
-            Err(FilletError::FaceClearanceUncertified { margin, .. }) => {
+            Err(
+                e @ FilletError::FaceClearanceUncertified {
+                    margin,
+                    cross_chain,
+                    ..
+                },
+            ) => {
                 assert!(
                     margin < 0.0,
                     "the metering names a real interference at r = {r}"
+                );
+                assert!(
+                    cross_chain,
+                    "the two setbacks are two different rims' — the refusal knows"
+                );
+                let text = e.to_string();
+                assert!(
+                    text.contains(sweep::fillet::FILLET3_CLEARANCE_SPLIT_RECOURSE),
+                    "the refusal names the split recourse, got: {text}"
                 );
             }
             Err(other) => panic!(
@@ -417,17 +425,18 @@ fn colliding_bands_on_a_shared_wall_refuse_upfront() {
             Ok(_) => panic!("a colliding pair built at r = {r}; re-examine the metering"),
         }
     }
-    // The conservative side of the margin: sequential still composes
-    // at r = 0.749.
+    // The recourse, EXECUTED (the issue-1278 rule: a named recourse is
+    // pinned by following it): at r = 0.749 the split the refusal
+    // names really builds.
     let r = 0.749;
     let first = fillet_edges(&body, &[rims[0]], r, band(), tol())
         .expect("the bottom rim alone builds at r = 0.749");
     fillet_edges(
         &first.body,
-        &[zone_rim_at(&first.body, 1.0)],
+        &[one_rim(&first.body, ZONE_SPHERE_HI)],
         r,
         band(),
         tol(),
     )
-    .expect("the top rim builds on the result at r = 0.749");
+    .expect("the split the refusal names composes at r = 0.749");
 }

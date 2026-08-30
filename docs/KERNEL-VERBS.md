@@ -123,13 +123,19 @@ the table.
   over two half-disc supports, and the annulus band now takes that rim
   WHOLE, walking through the seam vertices
   (`verbs_arms1_r1_probes::the_unbored_hemisphere_equator_carves_as_one_band`).
-  Two annulus rims sharing one wall CARVE in ONE call (#935, BLEND-2):
-  the carve re-reads each later rim's crossing seam keys against the
+  Two annulus rims sharing a SUPPORT FACE carve in ONE call (#935,
+  BLEND-2) — a revolution wall or a full-revolve plane cap, whose
+  radial seam is the same shape (a widening past the issue's
+  wall-sharing framing, measured and disclosed in the fix pass): the
+  carve re-reads each later rim's crossing seam keys against the
   partially-carved body immediately before that rim's own phase —
   identity only, every decision still made in the plan against the
   source — and the one-call result is pinned equal to the sequential
-  composition to the bit (`sweep/tests/blend_tworims.rs`, on one-edge
-  and seam-split rim pairs both, chained sharing included). A LADDER
+  composition (`sweep/tests/blend_tworims.rs`: one-edge and seam-split
+  wall pairs and chained sharing, to the bit at the fixture radii;
+  `sweep/tests/blend2_r2_probes.rs`: cap pairs, a four-rim sharing
+  CYCLE, and the measured off-radius boundary where the equality is
+  one integrator summation ulp). A LADDER
   rim sharing a support with an annulus rim still refuses typed at the
   upfront gate, naming the sequential recourse — nothing proves a
   ladder plan across an annulus carve, and the shape is measured

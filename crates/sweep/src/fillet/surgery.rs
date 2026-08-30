@@ -55,11 +55,15 @@
 //! ambiguity.
 //!
 //! The **ANNULUS** rim (a full solid of revolution's latitude rim):
-//! ONE closed edge, so there is no consecutive pair and no ladder to
-//! walk. Both supports are revolution WALLS — a full revolve mints
-//! each profile segment as one face whose single cycle carries two
-//! closed latitude rims and a doubly-traversed seam meridian — and the
-//! band is minted as one more wall of that same shape: two seam splits
+//! ONE closed edge — or SEVERAL arcs of one rim meeting at chart-seam
+//! vertices, on a pole-touching revolve whose walls are half-bands —
+//! with no ladder to walk either way. Both supports are revolution
+//! WALLS — an annular full revolve mints each profile segment as one
+//! face whose single cycle carries two closed latitude rims and a
+//! doubly-traversed seam meridian; a pole-touching one mints two
+//! half-band faces per segment, each traversing each seam once — and
+//! the band is minted as one more wall of the one-face shape: per
+//! crossing, two seam splits
 //! (the HOST's takes the strut `mev`'s place), one closed-edge `mef`
 //! per support carving its strip, one rim `kef` merging the strips,
 //! and the ladder's own closure `kev` retiring the rim vertex and
@@ -90,8 +94,9 @@
 //! sharing a support with an ANNULUS rim in ONE call (the annulus
 //! band consumes structure of the shared face beyond its own rim —
 //! [`shared_support_gate`], whose recourse is sequential calls; two
-//! annulus rims on one wall carve, their later seam keys re-read live
-//! by [`refresh_annulus_seams`]) — each
+//! annulus rims sharing a support face — wall or full-revolve cap —
+//! carve, their later seam keys re-read live by
+//! [`refresh_annulus_seams`]) — each
 //! refuses through the frontier vocabulary
 //! ([`FilletError::UnsupportedChain`],
 //! [`FilletError::UnsupportedRunOut`],
@@ -980,16 +985,20 @@ fn resolve_rim<'a, T: Decide + Bounds>(
 /// - at every such vertex, incidence is exactly the two arcs plus ONE
 ///   co-surface seam meridian per side.
 ///
-/// **One rule, three readings.** This incidence is also spelled by
+/// **One rule, four readings.** This incidence is also spelled by
 /// [`super::battery`]'s `is_seam_vertex` (the refusal classifier, which
 /// reads incidence and NOTHING else — no convexity, no support
-/// resolution, so it is strictly weaker than this) and by
+/// resolution, so it is strictly weaker than this), by
 /// [`resolve_annulus`]/[`wall_seam`] (the same shape on a rim of ONE
-/// self-closed edge and its doubly-traversed wall seams). They are not
+/// self-closed edge and its doubly-traversed wall seams), and by
+/// [`refresh_annulus_seams`] (the CARVE-time re-read of these keys on
+/// a body carrying earlier bands — a reader adding a fifth reading
+/// starts from this list). They are not
 /// shared because each answers a different question at a different
 /// phase; the intended relation is that the battery's ADMITS every site
 /// these two do and more, which is why the seam tag's recourse
-/// conditions its carve half.///
+/// conditions its carve half.
+///
 /// # Why this is not merged with the other annulus resolver
 ///
 /// [`resolve_annulus`] (one self-closed edge) and this one (several
@@ -1231,14 +1240,18 @@ fn rims_share_support<T: Real>(a: &RimPlan<'_, T>, b: &RimPlan<'_, T>) -> bool {
 /// - **Two LADDER rims** carve freely: each carve is confined to its
 ///   own ring and the caps that ring bounds, so two of them never
 ///   meet (the composed die's 21 pip rims on six planes).
-/// - **Two ANNULUS rims** carve too: what an annulus carve reaches on
-///   a shared wall is that wall's SEAM MERIDIAN, which the wall has
-///   exactly one of per azimuth — and the only plan data that names
-///   it is the later rim's crossing seam KEYS, whose live identity
-///   [`refresh_annulus_seams`] re-reads immediately before that rim's
-///   own phase. Identity is all that moved: every decision stays the
-///   plan's (#935; the one-call result is pinned equal to the
-///   sequential composition and its closed form).
+/// - **Two ANNULUS rims** carve too — sharing a revolution WALL or a
+///   full-revolve PLANE CAP; a cap is one more wall of the same shape,
+///   its radial seam the meridian (the annulus resolution never asked
+///   a support's kind, so neither does this). What an annulus carve
+///   reaches on a shared face is that face's SEAM MERIDIAN, and the
+///   only plan data that names it is the later rim's crossing seam
+///   KEYS, whose live identity [`refresh_annulus_seams`] re-reads
+///   immediately before that rim's own phase. Identity is all that
+///   moves: every decision stays the plan's (#935; the one-call result
+///   is pinned equal to the sequential composition and its closed
+///   form — wall pairs and cap pairs both, `blend_tworims.rs` and
+///   `blend2_r2_probes.rs`).
 /// - **A LADDER and an ANNULUS rim** sharing a support are refused:
 ///   an annulus carve consumes structure of the shared face beyond
 ///   its own rim (the seam split, the trimline carve of the face's
@@ -1246,6 +1259,17 @@ fn rims_share_support<T: Real>(a: &RimPlan<'_, T>, b: &RimPlan<'_, T>) -> bool {
 ///   survives that — nor the converse. Refused in BOTH orders, before
 ///   any mutation, with the sequential recourse (each call plans
 ///   against its own source, so sequence is always honest).
+///
+///   **This arm has no reachable fixture today, and cannot be pinned
+///   red-first**: the shape needs a plane face carrying both a pip
+///   RING and a revolution-wall cycle, whose only public construction
+///   is a boolean of a ball against a revolve — refused at the
+///   boolean operand gate (`CurvedPierceUnsupported`, the ball's box
+///   against the revolve's curved walls) before any fillet request
+///   exists. Measured by both review lanes independently; the canary
+///   is `blend2_r2_probes::r2_p5_the_mixed_fixture_still_refuses_at_the_boolean_door`,
+///   which reds when boolean breadth makes the shape authorable — the
+///   moment this arm needs a row of its own.
 fn shared_support_gate<T: Real>(rims: &[RimPlan<'_, T>]) -> Result<(), FilletError> {
     for (i, a) in rims.iter().enumerate() {
         for b in rims.iter().skip(i + 1) {
@@ -1314,8 +1338,21 @@ fn refresh_annulus_seams<T: Decide + Bounds>(
              carries its first link"
         )
     };
+    // `mates[0]` answers for every mate (and `host0` for every host):
+    // the multi-arc resolver admits exactly ONE support pair for the
+    // whole rim, and a one-edge rim has a single face per side — so
+    // per-side surface homogeneity is the resolvers' own gate, read
+    // here rather than re-proven.
     let mate_surface = surface_of(mate0)
         .ok_or_else(|| not_intact(EntityId::Face(mate0), "a rim's mate support"))?;
+    // NOT KNOWN REACHABLE (disclosed narrowing, #935 fix pass): the
+    // multi-arc resolver refuses a one-surface support pair at plan
+    // time (its `ka == kb` gate), and a one-edge rim between two faces
+    // of one surface is a tangency the battery refuses before any rim
+    // resolves. No fixture reaches this arm; it stays a refusal rather
+    // than an `unreachable!` because neither of those gates PROVES the
+    // fact for every body this function can legally see, and an
+    // ambiguous classification must not carve.
     if host_surface == mate_surface {
         return Err(unbuilt_chain(
             rim.chain.first().edge,
@@ -1324,6 +1361,16 @@ fn refresh_annulus_seams<T: Decide + Bounds>(
         ));
     }
     let chain_edges: Vec<EdgeKey> = rim.chain.links().map(|l| l.edge).collect();
+    // The three refusal arms in this loop are NOT KNOWN REACHABLE for
+    // the compositions the gate serves (disclosed narrowings, #935 fix
+    // pass): an earlier ANNULUS carve preserves this incidence at
+    // every other rim's crossing — it splits seams at its own feet and
+    // kills its own vertices only — and both review lanes' mutation
+    // passes found no fixture reddening any of them. They stay
+    // refusals rather than `unreachable!`s because their premise is
+    // what earlier CARVES did, not a fact this call established (the
+    // Row-4 convention's own line), and each names the sequential
+    // recourse, which is honest wherever they could fire.
     let mut live = Vec::with_capacity(ann.crossings.len());
     for c in &ann.crossings {
         let mut incident = vertex_edges_of(body, c.vertex)
@@ -1456,11 +1503,13 @@ fn resolve_annulus<T: Decide + Bounds>(
 /// The seam meridian of a revolution wall's boundary cycle: the one
 /// edge the cycle traverses TWICE and which meets the rim at `vertex`.
 ///
-/// **One rule, three readings** — this is the ONE-EDGE reading of the
+/// **One rule, four readings** — this is the ONE-EDGE reading of the
 /// seam incidence that [`resolve_seam_split_rim`] spells for several
-/// arcs and that [`super::battery`]'s `is_seam_vertex` spells weakest,
-/// as a refusal classifier over incidence alone. See either for the
-/// intended relation between them.
+/// arcs, that [`super::battery`]'s `is_seam_vertex` spells weakest
+/// (a refusal classifier over incidence alone), and that
+/// [`refresh_annulus_seams`] spells at carve time on a body carrying
+/// earlier bands. See [`resolve_seam_split_rim`] for the intended
+/// relation between them.
 ///
 /// **Not merged with the multi-arc resolver, deliberately**, and the
 /// drift hazard that decline accepts is stated at
@@ -2842,6 +2891,17 @@ fn rim_phase_annulus<T: Decide + Bounds>(
     rec: &mut FilletNaming,
     tol: Tol,
 ) -> Result<(FaceKey, Surface<T>, Described<T>), FilletError> {
+    // `live` pairs with `ann.crossings` BY INDEX. Both producers mint
+    // exactly one entry per crossing (the identity map and the
+    // refresh's per-crossing loop), so a length divergence is a fact
+    // no input can produce — checked here so the pairing convention
+    // cannot rot silently under a third producer.
+    if live.len() != ann.crossings.len() {
+        unreachable!(
+            "annulus band: `live` carries one seam pair per crossing — both producers \
+             iterate the crossings themselves"
+        )
+    }
     let mut described: Described<T> = Vec::new();
     let l0 = rim.chain.first();
     let n = rim.chain.link_count();
@@ -3194,10 +3254,18 @@ fn rim_phase_annulus<T: Decide + Bounds>(
     for (ix, c) in ann.crossings.iter().enumerate() {
         // Only a SOURCE key can be retired: when the split handed the
         // rim-side piece the new edge, the source seam survives as the
-        // far piece and nothing of it died. Comparing the dying piece
-        // to the PLAN's key keeps this exact under a seam refresh too:
-        // a dying piece carrying a live key that is an earlier band's
-        // mint is a fragment death, not a source retirement.
+        // far piece and nothing of it died. Under a seam refresh this
+        // plan-key comparison and the live-key one COINCIDE today, and
+        // structurally: `split_edge` keeps the parent key for the
+        // `[t0, t]` child, a seam meridian's two ends are its wall's
+        // two latitude rims, so a refreshed live key differs from the
+        // plan's exactly when the earlier band sat at the seam's t0
+        // end — which puts THIS band at the t1 end, where the dying
+        // rim-side piece is always the FRESH key and neither spelling
+        // fires. The plan-key spelling is kept because it states the
+        // invariant directly (retire source keys only) instead of
+        // deriving it from the split's retention direction, which
+        // could change under it without a fixture noticing.
         if host_feet[ix].1 == c.host_seam {
             rec.dead.edges.push(c.host_seam);
         }

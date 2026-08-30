@@ -97,26 +97,12 @@ fn hemisphere() -> Body<f64> {
     )
 }
 
-/// A sphere zone off the equator: sphere `R = 2` about the origin,
-/// sliced at `y = −0.5` and `y = 1`, bored at `x = bore`. Both rims
-/// are plane–sphere circles at NONZERO plane depth, of opposite signs.
+/// A sphere zone off the equator — `test_support::sphere_zone` (homed
+/// in the #935 fix pass): sphere `R = 2` about the origin, sliced at
+/// `y = −0.5` and `y = 1`, bored at `x = bore`. Both rims are
+/// plane–sphere circles at NONZERO plane depth, of opposite signs.
 fn zone(bore: f64, rev: Revolution<f64>) -> Body<f64> {
-    let big_r = 2.0f64;
-    let (y_lo, y_hi) = (-0.5f64, 1.0f64);
-    let x_lo = (big_r * big_r - y_lo * y_lo).sqrt();
-    let x_hi = (big_r * big_r - y_hi * y_hi).sqrt();
-    let th_lo = (y_lo / big_r).asin();
-    let th_hi = (y_hi / big_r).asin();
-    let bulge = ((th_hi - th_lo) / 4.0).tan();
-    revolved(
-        vec![
-            ProfileVertex::new(p2(bore, y_lo), 0.0),
-            ProfileVertex::new(p2(x_lo, y_lo), bulge),
-            ProfileVertex::new(p2(x_hi, y_hi), 0.0),
-            ProfileVertex::new(p2(bore, y_hi), 0.0),
-        ],
-        rev,
-    )
+    sweep::test_support::sphere_zone(bore, rev, tol())
 }
 
 /// Every closed plane–sphere rim of a body, with its circle center

@@ -217,3 +217,54 @@ pub fn rim_arcs_at(body: &Body<f64>, rim_r: f64, rim_y: f64) -> Vec<EdgeKey> {
         })
         .collect()
 }
+
+/// **The #935 zone**: a sphere zone off the equator — sphere `R = 2`
+/// about the origin, sliced at `y = −0.5` and `y = 1`, bored on-axis
+/// at `bore` — the body issue 935 was filed on. Annular, so the full
+/// revolve mints four walls and every latitude rim as ONE closed edge;
+/// its two sphere rims share the sphere wall, its cap rims the caps.
+///
+/// Its rims, for [`rim_arcs_at`]: sphere-lo `(√3.75, −0.5)`, sphere-hi
+/// `(√3, 1)`, bore-lo `(bore, −0.5)`, bore-hi `(bore, 1)`.
+pub fn sphere_zone(bore: f64, rev: crate::Revolution<f64>, tol: Tol) -> Body<f64> {
+    let big_r = 2.0f64;
+    let (y_lo, y_hi) = (-0.5f64, 1.0f64);
+    let x_lo = (big_r * big_r - y_lo * y_lo).sqrt();
+    let x_hi = (big_r * big_r - y_hi * y_hi).sqrt();
+    let th_lo = (y_lo / big_r).asin();
+    let th_hi = (y_hi / big_r).asin();
+    let bulge = ((th_hi - th_lo) / 4.0).tan();
+    revolved_about_y(
+        vec![
+            ProfileVertex::new(Point2::new(bore, y_lo), 0.0),
+            ProfileVertex::new(Point2::new(x_lo, y_lo), bulge),
+            ProfileVertex::new(Point2::new(x_hi, y_hi), 0.0),
+            ProfileVertex::new(Point2::new(bore, y_hi), 0.0),
+        ],
+        rev,
+        tol,
+    )
+}
+
+/// **The BLEND-1 lantern**: a pole-touching solid of revolution —
+/// base disk, unit-sphere belly to the 3-4-5 shoulder `(0.8, 0.6)`,
+/// cone to the lip `(0.2, 1.2)`, top disk — so every wall is a pair
+/// of half-bands and every latitude rim a pair of arcs meeting at
+/// chart-seam vertices.
+///
+/// Its rims, for [`rim_arcs_at`]: neck `(1, 0)`, shoulder
+/// `(0.8, 0.6)`, lip `(0.2, 1.2)`.
+pub fn lantern(tol: Tol) -> Body<f64> {
+    let bulge = (0.6f64.asin() / 4.0).tan();
+    revolved_about_y(
+        vec![
+            ProfileVertex::new(Point2::new(0.0, 0.0), 0.0),
+            ProfileVertex::new(Point2::new(1.0, 0.0), bulge),
+            ProfileVertex::new(Point2::new(0.8, 0.6), 0.0),
+            ProfileVertex::new(Point2::new(0.2, 1.2), 0.0),
+            ProfileVertex::new(Point2::new(0.0, 1.2), 0.0),
+        ],
+        crate::Revolution::Full,
+        tol,
+    )
+}

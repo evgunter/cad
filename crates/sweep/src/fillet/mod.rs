@@ -296,6 +296,17 @@ pub const FILLET3_RADIUS_RECOURSE: &str =
 /// cannot certify.
 pub const FILLET3_CLEARANCE_RECOURSE: &str =
     "reduce the fillet radius, or enlarge the support face whose clearance is uncertified";
+/// The clearance recourse when the two uncertified setbacks belong to
+/// two DIFFERENT requested chains — the request is then splittable:
+/// the screen meters both setbacks against the SOURCE face at once,
+/// and sequential calls re-meter each chain against the face the
+/// previous carve actually left, which is exact where the one-call
+/// screen is conservative (and refuses with its own exact reason where
+/// the geometry really collides).
+pub const FILLET3_CLEARANCE_SPLIT_RECOURSE: &str = "reduce the fillet radius, enlarge the shared support face, or split the request: \
+     the two setbacks belong to two different chains, and SEQUENTIAL calls (the second \
+     on the first's result) meter each chain against the face the previous carve \
+     actually left";
 /// The recourse for an edge whose dihedral sign decided Zero — no
 /// definite wedge side at the metered lever, at any radius.
 pub const FILLET3_TANGENTIAL_RECOURSE: &str = "blend an edge whose supports meet at a definite angle; a dihedral with no definite \
@@ -455,6 +466,14 @@ pub enum FilletError {
         /// The straight-line gap between the two boundary features,
         /// meters.
         gap: f64,
+        /// Whether the two setbacks belong to two DIFFERENT requested
+        /// chains. When they do the request is SPLITTABLE: the screen
+        /// metered both setbacks against the SOURCE face at once, and
+        /// sequential calls re-meter each chain against the face the
+        /// previous carve actually left — so the rendered recourse
+        /// names that split (#935's boundary; pinned followably by
+        /// `blend_tworims::colliding_bands_on_a_shared_wall_refuse_upfront`).
+        cross_chain: bool,
     },
     /// **Predicate 5, the undecided wedge**: the dihedral's signed
     /// margin decided Zero, so there is no definite wedge side for a
@@ -713,14 +732,26 @@ impl fmt::Display for FilletError {
                  {face:?} — margin {margin} m at lever arm {radius} m; \
                  {FILLET3_RADIUS_RECOURSE}"
             ),
-            Self::FaceClearanceUncertified { face, margin, gap } => write!(
-                f,
-                "fillet: the clearance screen cannot certify that support face {face:?} \
-                 survives — two of its boundary features are {gap} m apart and their \
-                 blends set back further than that, margin {margin} m. The screen is \
-                 conservative by direction and does not assert the face IS consumed; \
-                 {FILLET3_CLEARANCE_RECOURSE}"
-            ),
+            Self::FaceClearanceUncertified {
+                face,
+                margin,
+                gap,
+                cross_chain,
+            } => {
+                let recourse = if *cross_chain {
+                    FILLET3_CLEARANCE_SPLIT_RECOURSE
+                } else {
+                    FILLET3_CLEARANCE_RECOURSE
+                };
+                write!(
+                    f,
+                    "fillet: the clearance screen cannot certify that support face {face:?} \
+                     survives — two of its boundary features are {gap} m apart and their \
+                     blends set back further than that, margin {margin} m. The screen is \
+                     conservative by direction and does not assert the face IS consumed; \
+                     {recourse}"
+                )
+            }
             Self::TangentialEdge { edge, margin } => write!(
                 f,
                 "fillet: edge {edge:?}'s dihedral has no definite wedge side — its sign \
@@ -864,17 +895,18 @@ mod recourse_tests {
     use super::{
         CHAMFER_ARM_RECOURSE, Convexity, CornerConfig, FILLET3_ASSEMBLY_RECOURSE,
         FILLET3_BODY_RECOURSE, FILLET3_CHAIN_RECOURSE, FILLET3_CLEARANCE_RECOURSE,
-        FILLET3_CONVEXITY_RECOURSE, FILLET3_CORNER_RECOURSE, FILLET3_GEOMETRY_RECOURSE,
-        FILLET3_RADIUS_RECOURSE, FILLET3_RING_RECOURSE, FILLET3_SEAM_VERTEX_RECOURSE,
-        FILLET3_SPINE_KIND_RECOURSE, FILLET3_SPINE_RECOURSE, FILLET3_TANGENTIAL_RECOURSE,
-        FilletError, FilletSite,
+        FILLET3_CLEARANCE_SPLIT_RECOURSE, FILLET3_CONVEXITY_RECOURSE, FILLET3_CORNER_RECOURSE,
+        FILLET3_GEOMETRY_RECOURSE, FILLET3_RADIUS_RECOURSE, FILLET3_RING_RECOURSE,
+        FILLET3_SEAM_VERTEX_RECOURSE, FILLET3_SPINE_KIND_RECOURSE, FILLET3_SPINE_RECOURSE,
+        FILLET3_TANGENTIAL_RECOURSE, FilletError, FilletSite,
     };
 
     /// Every recourse sentence this module can append.
-    const ALL: [&str; 14] = [
+    const ALL: [&str; 15] = [
         CHAMFER_ARM_RECOURSE,
         FILLET3_RADIUS_RECOURSE,
         FILLET3_CLEARANCE_RECOURSE,
+        FILLET3_CLEARANCE_SPLIT_RECOURSE,
         FILLET3_TANGENTIAL_RECOURSE,
         FILLET3_SPINE_RECOURSE,
         FILLET3_CHAIN_RECOURSE,
@@ -930,8 +962,12 @@ mod recourse_tests {
             FilletError::Band(_) => Recourse::None,
             FilletError::ChainNotConnected { .. } => Recourse::Exactly(FILLET3_CHAIN_RECOURSE),
             FilletError::RadiusHeadroom { .. } => Recourse::Exactly(FILLET3_RADIUS_RECOURSE),
-            FilletError::FaceClearanceUncertified { .. } => {
-                Recourse::Exactly(FILLET3_CLEARANCE_RECOURSE)
+            FilletError::FaceClearanceUncertified { cross_chain, .. } => {
+                Recourse::Exactly(if *cross_chain {
+                    FILLET3_CLEARANCE_SPLIT_RECOURSE
+                } else {
+                    FILLET3_CLEARANCE_RECOURSE
+                })
             }
             FilletError::TangentialEdge { .. } => Recourse::Exactly(FILLET3_TANGENTIAL_RECOURSE),
             FilletError::SpineIrregular { .. } => Recourse::Exactly(FILLET3_SPINE_RECOURSE),
@@ -972,6 +1008,8 @@ mod recourse_tests {
     /// `FilletCornerUnsupported` appears twice on purpose: the recourse
     /// that variant appends is chosen by its TAG, so one witness would
     /// leave the other route unrendered and unchecked.
+    /// `FaceClearanceUncertified` appears twice for the same reason —
+    /// its recourse is chosen by `cross_chain`.
     fn seeds() -> Vec<FilletError> {
         let band = Band::new(1e-9, 1e-6).expect("a band");
         vec![
@@ -991,6 +1029,13 @@ mod recourse_tests {
                 face: FaceKey::default(),
                 margin: -1e-3,
                 gap: 0.2,
+                cross_chain: false,
+            },
+            FilletError::FaceClearanceUncertified {
+                face: FaceKey::default(),
+                margin: -1e-3,
+                gap: 0.2,
+                cross_chain: true,
             },
             FilletError::TangentialEdge {
                 edge: EdgeKey::default(),

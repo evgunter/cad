@@ -367,7 +367,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // `sweep/tests/blend_tworims.rs`; this body is where the
     // summation-order ulp shows up.)
     assert!(
-        (one_call_volume - sequential_volume).abs() <= 2.0 * f64::EPSILON * one_call_volume,
+        one_call_volume > 0.0
+            && (one_call_volume - sequential_volume).abs()
+                <= 2.0 * f64::EPSILON * one_call_volume.abs(),
         "one call and the sequential composition agree to a summation ulp: \
          {one_call_volume:.17e} vs {sequential_volume:.17e}"
     );

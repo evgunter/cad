@@ -83,17 +83,7 @@ fn sphere_bulge() -> f64 {
 
 /// The PR's lantern, re-authored here from the same profile.
 fn lantern() -> Body<f64> {
-    revolved_about_y(
-        vec![
-            v(0.0, 0.0, 0.0),
-            v(1.0, 0.0, sphere_bulge()),
-            v(SHOULDER.0, SHOULDER.1, 0.0),
-            v(LIP_R, TOP, 0.0),
-            v(0.0, TOP, 0.0),
-        ],
-        Revolution::Full,
-        tol(),
-    )
+    sweep::test_support::lantern(tol())
 }
 
 /// The bored twin — every rim ONE closed edge.
