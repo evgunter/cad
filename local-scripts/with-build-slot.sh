@@ -174,8 +174,24 @@ exec 7>"$LOCK_DIR/express.lock" 8>"$LOCK_DIR/slot-1.lock" 9>"$LOCK_DIR/slot-2.lo
 # recorded pid is alive (dead => flock on that slot is free — the
 # kernel released it) and compute the hold duration from the recorded
 # epoch.
+#
+# Every acquirability claim below is RELATIVE TO THE READER'S SEAT,
+# never to the lock file alone: this wrapper's status lines are read by
+# the one waiter it is printing for, and "free" about a slot that
+# waiter's acquire loop structurally never polls is true of the file
+# and false of the situation — it invites acting on a slot the request
+# cannot take.
+polls_slot() {  # slot-name -> 0 iff THIS request's acquire loop ever polls it
+  case "$1" in
+    express) [ "$MODE" = express ] ;;
+    slot-1)  [ "$MODE" = shared ] || [ "$MODE" = exclusive ] ;;
+    slot-2)  [ "$MODE" = exclusive ] || { [ "$MODE" = shared ] && [ "$WIDTH" -ge 2 ]; } ;;
+    *) return 1 ;;
+  esac
+}
 describe_holder() {  # holder-file -> annotated description on stdout
-  local f="$1" line pid epoch now dur note=""
+  local f="$1" slot line pid epoch now dur note=""
+  slot=$(basename "$f" .holder)
   line=$(cat "$f" 2>/dev/null) || return 0
   [ -n "$line" ] || return 0
   pid=$(sed -n 's/^pid \([0-9][0-9]*\) .*/\1/p' <<<"$line")
@@ -185,9 +201,20 @@ describe_holder() {  # holder-file -> annotated description on stdout
     note=" [held $((dur / 60))m$((dur % 60))s]"
   fi
   if [ -n "$pid" ] && ! kill -0 "$pid" 2>/dev/null; then
-    note="$note [STALE holder (pid $pid dead); flock is free — safe to acquire]"
+    # Annotated rather than omitted: the dead pid still explains why a
+    # stale holder file lingers, but the acquirability half of the line
+    # is stated only for the reader's own seat.
+    if polls_slot "$slot"; then
+      note="$note [STALE holder (pid $pid dead); flock is free — this $MODE request polls $slot and can take it]"
+    else
+      note="$note [STALE holder (pid $pid dead); flock is free but a $MODE request at width $WIDTH never polls $slot — not acquirable from this seat]"
+    fi
+  elif ! polls_slot "$slot"; then
+    # A live holder of a slot this request never polls is context, not
+    # a wait cause — say so, or the reader misattributes the wait.
+    note="$note [not a slot this $MODE request polls — not what blocks it]"
   fi
-  printf '%s: %s%s' "$(basename "$f" .holder)" "$line" "$note"
+  printf '%s: %s%s' "$slot" "$line" "$note"
 }
 holders() {  # best-effort names of current holders, for wait messages
   local f out=""
