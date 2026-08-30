@@ -331,8 +331,13 @@ class ReadbackError(PncadError):
     `wrong_kind`, `whole_body`, `no_bodies`, `no_such_body`, and the
     node ladder `node_not_evaluated` / `node_failed` /
     `node_poisoned`); the GEOMETRY half reads the carrier and arrives
-    under its OWN tags rather than a wrapper tag (`dangling`,
-    `no_canonical_frame`, `no_carrier`).
+    under its OWN tags rather than a wrapper tag (`dangling_entity`,
+    `dangling_geometry`, `no_canonical_frame`, `no_carrier`).
+
+    The two dangling tags stay apart because they are different facts
+    about the model: `dangling_entity` is a stale or foreign handle,
+    `dangling_geometry` is a live entity naming geometry the body
+    itself no longer has.
 
     `ambiguous` is the one to read twice: a tie is a naming success
     and a referencing failure, and the door refuses rather than
@@ -1834,6 +1839,35 @@ class Datum:
     @property
     def direction(self) -> Optional[tuple[float, float, float]]: ...
 
+class Measurement:
+    """A `Measure` node's evaluated quantity: the value with the F1
+    dimension it was measured in. Values are canonical kernel units
+    (metres, radians); `length` is the typed spelling for a Length."""
+
+    @property
+    def dimension(self) -> str: ...
+    @property
+    def value(self) -> float: ...
+    @property
+    def length(self) -> Optional[Length]: ...
+
+class Verdict:
+    """An `Assertion` node's verdict — REPORT ONLY: reading it changes
+    nothing about the document, and a violated assertion gates no
+    build. Three states, kept three: `holds` is None where the run's
+    tolerance could not separate the measurement from the bound."""
+
+    @property
+    def status(self) -> str: ...
+    @property
+    def holds(self) -> Optional[bool]: ...
+    @property
+    def measured(self) -> Optional[float]: ...
+    @property
+    def bound(self) -> Optional[float]: ...
+    @property
+    def reason(self) -> Optional[str]: ...
+
 # --- detect / declare -------------------------------------------------
 # The flush-contact protocol's value vocabulary. A finding is a
 # REPORT: `Evaluation.find_flush_candidates` answers with them, the
@@ -1902,6 +1936,8 @@ class Value:
     def bodies(self) -> list[Body]: ...
     def split(self) -> tuple[Optional[Body], Optional[Body]]: ...
     def datum(self) -> Datum: ...
+    def measure(self) -> Measurement: ...
+    def assertion(self) -> Verdict: ...
 
 class Pose:
     """A frame read off stored geometry: an origin plus the carrier's

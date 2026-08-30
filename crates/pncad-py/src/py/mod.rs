@@ -277,8 +277,12 @@ pyo3::create_exception!(
      half resolves the name against the evaluation \
      (`no_such_name`, `ambiguous`, `wrong_kind`, `whole_body`, the \
      node ladder); the GEOMETRY half reads the carrier and arrives \
-     under its own tags, not a wrapper tag (`dangling`, \
-     `no_canonical_frame`, `no_carrier`).\n\n\
+     under its own tags, not a wrapper tag (`dangling_entity`, \
+     `dangling_geometry`, `no_canonical_frame`, `no_carrier`).\n\n\
+     The two dangling tags stay apart because they are different \
+     facts about the model: `dangling_entity` is a stale or foreign \
+     handle, `dangling_geometry` is a live entity naming geometry \
+     the body itself no longer has.\n\n\
      `ambiguous` is the one to read twice: a tie is a naming success \
      and a referencing failure, and the door refuses rather than \
      picking a candidate. `Evaluation.denotation` is how a caller \
