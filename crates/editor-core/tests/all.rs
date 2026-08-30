@@ -118,6 +118,8 @@ mod m10_3_r2_probes_interval;
 mod m10_di_dual_corpus;
 #[path = "m10_p_fence.rs"]
 mod m10_p_fence;
+#[path = "r2_cert3_coord_dump.rs"]
+mod r2_cert3_coord_dump;
 #[path = "m10_p_lift.rs"]
 mod m10_p_lift;
 #[path = "m4_pr1_dims.rs"]

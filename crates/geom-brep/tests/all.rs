@@ -120,6 +120,8 @@ mod review_m6_surgery_rider;
 mod review_pr12_meridian_probe;
 #[path = "review_r1_rational_probes.rs"]
 mod review_r1_rational_probes;
+#[path = "r2_cert3_e2e.rs"]
+mod r2_cert3_e2e;
 #[path = "revolved_point_anchor.rs"]
 mod revolved_point_anchor;
 #[path = "rim_dim_review_probes.rs"]
