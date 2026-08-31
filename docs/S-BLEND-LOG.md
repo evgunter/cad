@@ -466,3 +466,22 @@ implementer arm stays branch-side until block BLEND-B2 closes.
 Next: BLEND-6 (issue 917, block B2 slot 2) dispatches after this
 merges — its #1279 vocabulary ruling is RATIFIED and its LIB-G16
 gate long merged.
+
+## 2026-08-31 — BLEND-6 state-sync (rides the unit branch last; merged at #1328)
+
+Unit BLEND-6 (issue 917) complete: the ratified vocabulary executed
+whole — one verb wrapper per door, verb-neutral shared prose with
+the guard union making the contract red-capable on EVERY arm (both
+reviewers' witness mutations verified red at fix and delta), the
+V3 rename with all fences held, the recipe-layer hosting fixed as
+the settled-choice-3 shape one layer up (emit_blend). Reviews
+ordinal 604 (R1 FABLE + R2 OPUS, concurrent, frozen e8707956):
+R1 MERGEABLE 0/3/4 + 8 style, R2 M-A-F 0/2/4 + 9 style; verdict
+split; no tally candidates; delta 7/7 confirmed. Issue #1336 filed
+at adjudication (zero-radius door asymmetry — the schedule the
+disclosed narrowing owed; number swapped in at this commit's two
+door sites). A/B row (ordinal 604, sample hedged #64) rides this
+commit; the implementer arm stays branch-side until block BLEND-B2
+closes at BLEND-3's conclusion. Next: BLEND-3 (issue 919, block B2
+slot 3) cuts AFTER this merges — it edits the renamed
+sweep/src/blend/ tree.

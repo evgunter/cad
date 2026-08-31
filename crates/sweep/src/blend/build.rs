@@ -159,8 +159,8 @@ fn fillet_edges_inner<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     // NOTE the door asymmetry: this door has no NonpositiveSize check,
     // so a zero radius reaches predicate 1 and refuses RadiusHeadroom
     // with an unfollowable sentence (pinned as a characterization in
-    // `tests/review_blend6_r1_probes.rs`). The door-asymmetric size
-    // validation issue, filed at adjudication, owns closing it.
+    // `tests/review_blend6_r1_probes.rs`). Issue #1336 (the
+    // door-asymmetric size validation) owns closing it.
 
     // ---- The ordering contract: verdict first, unchanged. ----
     let request = BlendRequest {
@@ -353,8 +353,8 @@ fn chamfer_edges_inner<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     // other two.
     // NOTE the door asymmetry: only THIS door refuses a nonpositive
     // size; the fillet door lets a zero radius reach predicate 1 and
-    // report a false fact. The door-asymmetric size validation issue,
-    // filed at adjudication, owns closing it.
+    // report a false fact. Issue #1336 (the door-asymmetric size validation)
+    // owns closing it.
     if !matches!(
         distance.lo().partial_cmp(&0.0),
         Some(core::cmp::Ordering::Greater)
