@@ -133,17 +133,29 @@ fn shape_iii_volume_matches_the_derived_closed_form() {
     // ceiling is the only thing that reports a widening.
     //
     // This lane's pad is RESOLUTION-driven, not tolerance-driven — the
-    // patch area rule is O(h) at a fixed cell count — so the measured
-    // half-width of 0.199 m² (a bracket 0.397 m² wide, on a 25.31 m²
-    // surface) is identical at every ε CI runs, and it doubles exactly
-    // when the cell count halves. The ceiling is 1.5x the measured
-    // half-width, which leaves it below the 0.397 m² one halving
-    // produces.
+    // patch area rule is O(h) at a fixed cell count, and the enclosure
+    // is built once, BEFORE the refinement rounds — so the measured
+    // half-width of 0.1896 m² (a bracket 0.3792 m² wide, on a 25.32 m²
+    // surface) is identical at every ε CI runs and on `Interval`. The
+    // ceiling is 1.58x that half-width.
+    //
+    // Halving the cell count gives 0.3425 m², a factor of **1.81, not
+    // 2**: the area rule intersects its padded midpoint with the cell
+    // hull, and at the coarse resolution the hull is what binds on
+    // some cells, so the O(h) doubling is an upper bound on how fast
+    // this pad grows rather than an identity. The ceiling still reds
+    // on that halving (0.3425 > 0.3), which is the property this row
+    // is for; it no longer rests on an exact factor of two.
     //
     // The contrast is the point: this same body's certified VOLUME
     // half-width is 1.1e-13 m³. The flux lane refines to machine
     // precision; the area lane stays at whatever its fixed resolution
-    // bought, and nothing in the kernel meters it.
+    // bought. Nothing in the kernel METERS it — by ruling, not by
+    // omission (S-CERT Q1) — but `props/quad.rs`'s A2 gauge asserts a
+    // generous outer ceiling on it. Widening every face's bracket by a
+    // common factor reds THIS row at 1.58x and trips that assert at
+    // 470x: the acceptance row is the tight meter, the assert is the
+    // tripwire ~300x outside it, and neither substitutes for the other.
     //
     // Spelled as a bare absolute because this loft has no closed-form
     // area to scale to (its walls are degree-2 skins); the cut-cylinder

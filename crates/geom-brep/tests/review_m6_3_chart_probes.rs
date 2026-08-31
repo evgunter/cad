@@ -351,6 +351,27 @@ fn probe_dev1_area_enclosure_contains_a_violent_patch_oracle() {
         out.area.lo(),
         out.area.hi()
     );
+    // A deliberate LOWER bound, and the only row in the tree that
+    // reads the area enclosure's width directly. It says the O(h) cost
+    // is REPORTED rather than hidden, so it goes red if the width ever
+    // silently collapses.
+    //
+    // Re-derived on the post-CERT-5 tree: the width is 2.6340 on an
+    // enclosure of [1.8587, 4.4927] against a 2.9726 oracle, clearing
+    // this floor by 2634x. It was scheduled to be invalidated by an
+    // area-refining funnel — S-CERT Q1 ruled that funnel out (a
+    // wide-but-sound bracket is sound; an ε-scale area target is a
+    // 10³–10⁴x piece-count multiplier), so nothing is now queued to
+    // drive this width down and the row is a standing invariant rather
+    // than a dependency waiting on a fix.
+    //
+    // This face is the widest bracket in the corpus the A2 gauge was
+    // calibrated on by BOTH readings — relative width 1.42, and the
+    // integral lane's largest gauge value — and the gauge is silent on
+    // it: 1.23e-2 of a perimeter against a ceiling of 1, an 81x margin.
+    // A row that must stay wide and a tripwire for widths that mean a
+    // bug are not in tension; that separation is what the ceiling's
+    // generosity buys.
     assert!(
         out.area.width() > 1e-3,
         "a violent patch at fixed resolution must pay a visible O(h) width, got {}",
