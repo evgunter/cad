@@ -2665,3 +2665,12 @@ from R1, briefs symmetric, no relaxations granted. Implementer
 difficulty M/L (pre-logged in the plan's opening commit,
 pre-draw; recorded numeric M at spec). Sample number at merge.
 Row at merge.
+
+GAUTH-5 (PR #1407) ordinal FIXED AT DISPATCH (2026-08-31):
+**ordinal 904** (GAUTH band 900–999). v6 dual: slot byte **35**,
+parity 1 ⇒ **R1 FABLE + R2 OPUS**; CONCURRENT on frozen `9e45d098`
+(run 33428681836 verified at dispatch: head SHA matches, all 21
+check runs success/skipped; gate point interval + eps 1e-12,
+DRAWN), R2 isolated from R1, briefs symmetric, no relaxations.
+Implementer difficulty M (pre-logged in the plan's opening
+commit, pre-draw). Sample number at merge. Row at merge.
