@@ -1919,10 +1919,15 @@ jobs:
           JOB: test (eps = ${{ needs.filter.outputs.eps }}, ${{ matrix.shard }}/2)
         run: |
           set +e
+          # BOTH DESTINATIONS, and the log is the load-bearing one. The step
+          # summary is a page a reader has to go and look at; the step LOG is
+          # where someone reading a job already is, and where a red run puts
+          # them. `tee -a` costs nothing and makes the report visible to
+          # whoever is actually looking at this job.
           COST="$RUNNER_TEMP/test-cost"
           mkdir -p "$COST"
           python3 scripts/slowest-tests.py --top 20 --job "$JOB" \
-            --leg "run archived tests=$COST/archived-tests.log" >> "$GITHUB_STEP_SUMMARY"
+            --leg "run archived tests=$COST/archived-tests.log" | tee -a "$GITHUB_STEP_SUMMARY"
           cargo nextest list --archive-file nextest-default.tar.zst --workspace-remap . \
             --message-format json > "$COST/test-list.json"
           HEAD_TREE=$(git rev-parse "HEAD^{tree}")
@@ -1952,10 +1957,10 @@ jobs:
           if [ -n "$BASE_LIST" ]; then
             python3 scripts/pr-added-tests.py --job "$JOB" --head "$COST/test-list.json" \
               --base "$BASE_LIST" --base-source "the published listing for base tree \`$BASE_TREE\`" \
-              --leg "run archived tests=$COST/archived-tests.log" >> "$GITHUB_STEP_SUMMARY"
+              --leg "run archived tests=$COST/archived-tests.log" | tee -a "$GITHUB_STEP_SUMMARY"
           else
             python3 scripts/pr-added-tests.py --job "$JOB" --head "$COST/test-list.json" \
-              --no-base "$REASON" >> "$GITHUB_STEP_SUMMARY"
+              --no-base "$REASON" | tee -a "$GITHUB_STEP_SUMMARY"
           fi
           echo "TEST_LIST_TREE=$HEAD_TREE" >> "$GITHUB_ENV"
           exit 0
@@ -2440,12 +2445,17 @@ jobs:
           JOB: test (interval, eps = ${{ needs.filter.outputs.eps }}, ${{ matrix.shard }}/2)
         run: |
           set +e
+          # BOTH DESTINATIONS, and the log is the load-bearing one. The step
+          # summary is a page a reader has to go and look at; the step LOG is
+          # where someone reading a job already is, and where a red run puts
+          # them. `tee -a` costs nothing and makes the report visible to
+          # whoever is actually looking at this job.
           COST="$RUNNER_TEMP/test-cost"
           mkdir -p "$COST"
           python3 scripts/slowest-tests.py --top 20 --job "$JOB" \
             --leg "run archived tests=$COST/archived-tests.log" \
             --leg "persistence save/load/replay-identity (interval)=$COST/persistence.log" \
-            --leg "band 4 corpus (interval)=$COST/band4-corpus.log" >> "$GITHUB_STEP_SUMMARY"
+            --leg "band 4 corpus (interval)=$COST/band4-corpus.log" | tee -a "$GITHUB_STEP_SUMMARY"
           cargo nextest list --archive-file nextest-interval.tar.zst --workspace-remap . \
             --message-format json > "$COST/test-list.json"
           HEAD_TREE=$(git rev-parse "HEAD^{tree}")
@@ -2477,10 +2487,10 @@ jobs:
               --base "$BASE_LIST" --base-source "the published listing for base tree \`$BASE_TREE\`" \
               --leg "run archived tests=$COST/archived-tests.log" \
               --leg "persistence save/load/replay-identity (interval)=$COST/persistence.log" \
-              --leg "band 4 corpus (interval)=$COST/band4-corpus.log" >> "$GITHUB_STEP_SUMMARY"
+              --leg "band 4 corpus (interval)=$COST/band4-corpus.log" | tee -a "$GITHUB_STEP_SUMMARY"
           else
             python3 scripts/pr-added-tests.py --job "$JOB" --head "$COST/test-list.json" \
-              --no-base "$REASON" >> "$GITHUB_STEP_SUMMARY"
+              --no-base "$REASON" | tee -a "$GITHUB_STEP_SUMMARY"
           fi
           echo "TEST_LIST_TREE=$HEAD_TREE" >> "$GITHUB_ENV"
           exit 0
