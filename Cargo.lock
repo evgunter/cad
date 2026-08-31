@@ -2643,6 +2643,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "perceive-color"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb8e57b50396cb52c908c133d69b72cda6954881d9043ffc149a7d95804b1f75"
+
+[[package]]
+name = "perceive-cvd"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b9054cac6af4bdf624a32dd93ca98b93c88469191d7cef3cc0a493e6b11b1e4"
+dependencies = [
+ "perceive-color",
+]
+
+[[package]]
 name = "percent-encoding"
 version = "2.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4093,6 +4108,8 @@ dependencies = [
  "egui-wgpu",
  "egui_tiles",
  "getrandom 0.3.4",
+ "perceive-color",
+ "perceive-cvd",
  "pncad",
  "rfd",
  "test-utils",

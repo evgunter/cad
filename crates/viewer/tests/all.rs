@@ -86,6 +86,8 @@ mod review_m10_1_r1;
 mod scene_build;
 #[path = "select_pick.rs"]
 mod select_pick;
+#[path = "theme_search.rs"]
+mod theme_search;
 #[path = "theme.rs"]
 mod theme;
 #[path = "tree_badges.rs"]

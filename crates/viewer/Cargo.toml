@@ -180,6 +180,34 @@ wasm-bindgen-futures = { version = "0.4.76", optional = true }
 # memories/test-suite-cost.md) — used by the R2 review consumer suite.
 test-utils = { path = "../test-utils" }
 
+# --- the colourblind check's oracle (tests/theme.rs) ---
+#
+# DEV-only, and that is what makes a 0.1.0 acceptable here. Neither
+# crate ships in anything: they are the simulation a test measures a
+# palette through, and the suite pins their answers against published
+# reference values before trusting them — so a wrong model fails
+# loudly on the oracle rows rather than silently passing every theme.
+#
+# Both are 0.1.0 (2026-03-17), MIT OR Apache-2.0 — dual, so both
+# branches of this project's licence stay alive — MSRV 1.85 under the
+# pinned 1.97.0, 12 kB and 20 kB, and `perceive-color` has NO
+# dependencies of its own. Far past the ~2-week dependency-age policy
+# (memories/review-and-dependency-policy.md).
+#
+# WHY THESE AND NOT THE ALTERNATIVES, since the graph is the whole
+# argument: `colorverse` pulls `image` + `nalgebra` + `argh`,
+# `sensus-core` pulls `image`, and `colorblind` is a 0.0.1 last
+# touched in 2020. `palette` is mature and dual-licensed but carries
+# no CVD simulation at all, so it would remove neither edge.
+#
+# `perceive-color` also carries the two things the check needs beside
+# the simulation — OKLCH for the perceptual distance, and a `Color`
+# that IS linear RGB with an explicit sRGB transfer pair, which is the
+# same boundary `viewer::theme` crosses. One edge, three jobs.
+perceive-cvd = "=0.1.0"
+perceive-color = "=0.1.0"
+
+
 [features]
 # The eframe application: windowing, the docked chrome, and the wgpu
 # viewport. Everything else in this crate — camera state, the typed

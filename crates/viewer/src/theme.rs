@@ -190,7 +190,7 @@ impl Theme {
     /// The registry is what `tests/theme.rs` iterates, so a palette
     /// added here is checked here — there is no second list to keep
     /// in step and no way to ship a theme the suite never saw.
-    pub const ALL: &'static [Theme] = &[DARK_NEUTRAL, LIGHT_NEUTRAL];
+    pub const ALL: &'static [Theme] = &[DARK_NEUTRAL, LIGHT_NEUTRAL, COLORBLIND_SAFE];
 
     /// The theme a viewer opens with when nothing selects one.
     pub const DEFAULT: Theme = DARK_NEUTRAL;
@@ -282,6 +282,80 @@ const LIGHT_NEUTRAL: Theme = Theme {
     // the one chrome colour that stops being readable.
     unresolved: Rgba8::opaque(176, 46, 28),
     safety: Safety::Unchecked,
+};
+
+/// A palette designed so its four marks stay mutually
+/// distinguishable under dichromatic vision — and held to it by
+/// `tests/theme.rs`, which simulates protanopia, deuteranopia and
+/// tritanopia over the composited colours.
+///
+/// # What the claim cost
+///
+/// Three of this palette's choices are consequences of the claim
+/// rather than taste, and each gives something up:
+///
+/// 1. **The marks separate on LIGHTNESS first.** Lightness is the one
+///    channel every dichromacy keeps, so the four marks sit on a
+///    ladder — probe darkest, then hover, then the body itself, then
+///    focus and selection at the top — and hue is the second signal,
+///    not the first.
+/// 2. **Focus and selection are separated by LIGHTNESS, not by hue.**
+///    The neutral themes make them one relation at two scales, which
+///    is the better design when it can be afforded; here it cannot.
+///    The first attempt pulled them onto opposite ends of the
+///    blue/amber axis — the axis protanopia and deuteranopia leave
+///    most intact — and the check refused it at 0.0546: tritanopia
+///    is precisely the deficiency that destroys blue/amber. No
+///    single hue axis survives all three, so the pair had to move
+///    apart on the ladder instead, and hue became the second signal
+///    rather than the only one.
+/// 3. **The ambient floor is high (0.42).** A mark is discriminable
+///    in shadow only to the extent there is light there at all: every
+///    swatch scales with the shading term, so a deep floor compresses
+///    the whole palette toward black and the worst pair fails there
+///    first. Raising the floor is what buys the shadowed half of the
+///    part back — measurably, and monotonically.
+///
+/// The `unresolved` colour is NOT part of the claim: it tints no
+/// geometry, and every badge that uses it carries its own words
+/// ("deleted", "at rest: …"), so colour is redundant there rather
+/// than load-bearing.
+const COLORBLIND_SAFE: Theme = Theme {
+    name: "colorblind-safe",
+    polarity: Polarity::Dark,
+    // Darker than the neutral themes' near-white, and that is what
+    // makes the ladder fit: a mid body leaves range both above and
+    // below it for four marks to occupy.
+    body: Rgba8::opaque(120, 119, 117),
+    ambient: 0.42,
+    // The top of the ladder — a light amber.
+    selected: Mark {
+        tint: Rgba8::opaque(255, 214, 90),
+        strength: 0.72,
+    },
+    // A step DOWN in lightness, where the neutral themes' hover is a
+    // step up. Blue against the body's neutral is the second signal;
+    // the lightness drop is the first.
+    hovered: Mark {
+        tint: Rgba8::opaque(58, 110, 205),
+        strength: 0.55,
+    },
+    // The darkest thing on screen. G3 asks that a probed placement be
+    // unmistakable, and under every vision type in scope what makes
+    // it so is that nothing else is this dark.
+    probe: Mark {
+        tint: Rgba8::opaque(42, 24, 60),
+        strength: 0.66,
+    },
+    // Pale and cool, at the lowest strength in the palette: still the
+    // quietest mark, but now a full rung below the selection rather
+    // than beside it.
+    focus: Mark {
+        tint: Rgba8::opaque(214, 224, 238),
+        strength: 0.38,
+    },
+    unresolved: Rgba8::opaque(232, 122, 74),
+    safety: Safety::ColorblindSafe,
 };
 
 /// `color`'s three channels as linear RGB — the space the shader
