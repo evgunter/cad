@@ -36,7 +36,7 @@ use viewer::evalseam::{EvalDone, EvalRequest, EvalService, InlineEvaluator};
 use viewer::input::{InputMap, PickAction, PointerButton, ViewportEvent, ViewportSize};
 use viewer::pick::{IdMap, PatchId, PickIndex};
 use viewer::scene::DisplayTolerance;
-use viewer::session::{DocSession, FaceSelection, Selection, SessionOp};
+use viewer::session::{DocSession, FaceSelection, Hovered, Selection, SessionOp};
 use viewer::{cursor_projection, pick};
 
 // -------------------------------------------------------------------
@@ -899,7 +899,11 @@ fn the_event_stream_drives_selection_and_hover_through_typed_ops() {
         .clone();
     assert_eq!(first.node, extrude);
     assert_eq!(
-        session.hover().expect("the hover landed too").name,
+        session
+            .hover()
+            .expect("the hover landed too")
+            .name()
+            .clone(),
         first.name
     );
     assert_eq!(session.selection().node(), Some(extrude));
@@ -933,7 +937,7 @@ fn the_event_stream_drives_selection_and_hover_through_typed_ops() {
 
     // Leaving the pane clears the hover and nothing else.
     session.perform(SessionOp::Select(Selection::Node(extrude)));
-    session.perform(SessionOp::Hover(Some(first.clone())));
+    session.perform(SessionOp::Hover(Some(Hovered::Face(first.clone()))));
     let op = index
         .op_for(evaluation(&session), &camera, pane, PickAction::ClearHover)
         .expect("clearing needs no ray");

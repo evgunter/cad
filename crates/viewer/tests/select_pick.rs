@@ -30,7 +30,7 @@ use viewer::input::{InputMap, PickAction, PointerButton, ViewportEvent, Viewport
 use viewer::pick::{IdMap, PatchId, PickIndex};
 use viewer::props::SlotValue;
 use viewer::scene::{self, PLATE_EXTENT};
-use viewer::session::{DocSession, Selection, SessionOp, Standing};
+use viewer::session::{DocSession, Hovered, Selection, SessionOp, Standing};
 use viewer::{cursor_projection, input, pick};
 
 /// A session over the spike plate, evaluated and landed.
@@ -535,7 +535,7 @@ fn an_event_stream_selects_a_face_and_a_click_on_nothing_clears_it() {
         .clone();
     assert_eq!(face.node, extrude);
     assert_eq!(
-        session.hover().map(|h| h.name.clone()),
+        session.hover().map(|h| h.name().clone()),
         Some(face.name.clone()),
         "the hover names the same face the click did"
     );
@@ -682,7 +682,7 @@ fn the_highlight_is_a_function_of_the_scene_and_the_selection() {
     assert_eq!(nothing.hovered, IdMap::NOTHING);
 
     session.perform(SessionOp::Select(Selection::Face(face.clone())));
-    session.perform(SessionOp::Hover(Some(face.clone())));
+    session.perform(SessionOp::Hover(Some(Hovered::Face(face.clone()))));
     let lit = pick::highlight(&index, session.selection(), session.hover());
     assert_ne!(lit.selected, IdMap::NOTHING, "the selected patch is marked");
     assert_eq!(lit.hovered, lit.selected, "the same patch is under both");

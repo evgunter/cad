@@ -37,8 +37,8 @@ use pncad::prelude::{EntityKind, StableName, ValuePayload};
 use pncad::profile::SketchPlane;
 use viewer::revolvetool::{RevolveSeat, RevolveTool, RevolveToolError, RevolveToolEvent};
 use viewer::session::{
-    DatumSpec, DocSession, FaceSelection, NodeKindWanted, ProfileShape, Refusal, Selection,
-    SessionOp,
+    DatumSpec, DocSession, FaceSelection, Hovered, NodeKindWanted, ProfileShape, Refusal,
+    Selection, SessionOp,
 };
 
 /// The ring demo's constants (`demos/tour/src/ring.rs`): mean radius,
@@ -342,7 +342,9 @@ fn new_document_derives_its_id_and_clears_the_session() {
         },
     );
     session.perform(SessionOp::Select(Selection::Node(profile)));
-    session.perform(SessionOp::Hover(Some(synthetic_face(profile))));
+    session.perform(SessionOp::Hover(Some(Hovered::Face(synthetic_face(
+        profile,
+    )))));
     let dir = common::tempdir("gauth1-new");
     let saved = session.perform(SessionOp::Save(dir.join("old.pncad")));
     assert!(saved.refusal.is_none(), "{:?}", saved.refusal);
