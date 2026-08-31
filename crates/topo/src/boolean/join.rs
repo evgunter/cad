@@ -1701,14 +1701,21 @@ mod frame_dispatch_tests {
         }
     }
 
-    /// A cylinder about `axis` whose origin is displaced by `off` —
-    /// the skew poses need an axis-to-axis gap.
+    /// A cylinder about `axis` through `origin`. The chart's `u_ref` is
+    /// any unit vector across the axis — this dispatch never reads it,
+    /// and picking the less-aligned coordinate direction keeps it from
+    /// being poison on an axis-aligned pose.
     fn cylinder_at(origin: Point3<f64>, axis: Vec3<f64>, radius: f64) -> geom::Surface<f64> {
+        let seed = if axis.x.abs() < 0.5 {
+            Vec3::new(1.0, 0.0, 0.0)
+        } else {
+            Vec3::new(0.0, 1.0, 0.0)
+        };
         geom::Surface::Cylinder {
             origin,
             axis,
             radius,
-            u_ref: Vec3::new(0.0, 0.0, 1.0).cross(axis).normalize(),
+            u_ref: axis.cross(seed).normalize(),
         }
     }
 
@@ -1733,14 +1740,16 @@ mod frame_dispatch_tests {
                 cylinder(Vec3::new(0.0, 0.0, 1.0)),
                 cylinder(Vec3::new(0.0, 1.0, 1.0).normalize()),
             ),
-            // Skew axes, equal and unequal radii.
+            // Skew axes, equal and unequal radii. The displacement is
+            // along the common perpendicular `a1 x a2`: displacing
+            // along either AXIS leaves the two lines meeting.
             (
                 cylinder(Vec3::new(0.0, 0.0, 1.0)),
-                cylinder_at(Point3::new(0.0, 0.0, 0.5), Vec3::new(1.0, 0.0, 0.0), 1.0),
+                cylinder_at(Point3::new(0.0, 0.5, 0.0), Vec3::new(1.0, 0.0, 0.0), 1.0),
             ),
             (
                 cylinder(Vec3::new(0.0, 0.0, 1.0)),
-                cylinder_at(Point3::new(0.0, 0.0, 0.5), Vec3::new(1.0, 0.0, 0.0), 0.4),
+                cylinder_at(Point3::new(0.0, 0.5, 0.0), Vec3::new(1.0, 0.0, 0.0), 0.4),
             ),
             (cylinder(Vec3::new(0.0, 0.0, 1.0)), sphere()),
             (sphere(), sphere()),
@@ -1778,10 +1787,14 @@ mod frame_dispatch_tests {
                 matches!(meeting, Err(FrameError::IntersectingCylinderAxes)),
                 "r = {r}: intersecting axes take the pinch door"
             );
-            // The same pair lifted off the plane of the first axis.
+            // The same pair lifted along the common perpendicular
+            // `a1 x a2` — the ONE direction that separates the axes. A
+            // lift along either axis leaves them meeting, which is what
+            // the margin measures and why it is the gap along `a1 x a2`
+            // rather than any distance between the origins.
             let skew = pair_section_frame(
                 &cylinder(z),
-                &cylinder_at(Point3::new(0.0, 0.0, 0.5), x, r),
+                &cylinder_at(Point3::new(0.0, 0.5, 0.0), x, r),
                 band(),
             );
             assert!(

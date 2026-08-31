@@ -14,14 +14,14 @@
 //! The coplanarity margin is exactly zero at every intersecting pose
 //! here — both operands are built centred on the origin, so the
 //! axis-to-axis displacement is the zero vector by construction rather
-//! than by cancellation — and the skew row's is the dyadic `0.375`.
+//! than by cancellation — and the skew row's is the dyadic `0.375` along `â₁ × â₂`.
 
 #![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
 
-use geom_core::{Affine3, Interval, Point2, Point3, Tol, Vec3};
+use geom_core::{Affine3, Interval, Point2, Point3, Real, Tol, Vec3};
 use profile::{Profile, SketchPlane};
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanError};
@@ -43,11 +43,7 @@ fn cyl(r: f64, h: f64) -> Body<Interval> {
 fn spin(b: &Body<Interval>, axis: Vec3<Interval>, angle: f64) -> Body<Interval> {
     topo::transform_rigid(
         b,
-        &Affine3::rotation_about_axis(
-            Point3::new(iv(0.0), iv(0.0), iv(0.0)),
-            axis,
-            iv(angle),
-        ),
+        &Affine3::rotation_about_axis(Point3::new(iv(0.0), iv(0.0), iv(0.0)), axis, iv(angle)),
         Tol::witness(),
     )
     .unwrap()
@@ -94,7 +90,11 @@ fn union_err(a: &Body<Interval>, b: &Body<Interval>) -> BooleanError {
 #[test]
 fn the_pinch_door_is_reached_at_the_certified_scalar() {
     let a = spin(&cyl(1.0, 1.2), z_axis(), PI / 4.0);
-    let b = spin(&spin(&cyl(1.0, 1.2), x_axis(), PI / 2.0), y_axis(), PI / 4.0);
+    let b = spin(
+        &spin(&cyl(1.0, 1.2), x_axis(), PI / 2.0),
+        y_axis(),
+        PI / 4.0,
+    );
     let err = union_err(&a, &b);
     assert!(
         matches!(err, BooleanError::GermFrameCylinderPinch { .. }),
@@ -107,8 +107,9 @@ fn the_pinch_door_is_reached_at_the_certified_scalar() {
     );
 }
 
-/// **The skew arm.** Lift the same pair off the plane of the first
-/// axis by the dyadic `0.375` and the coplanarity margin is definitely
+/// **The skew arm.** Slide the same pair along the common
+/// perpendicular `â₁ × â₂` by the dyadic `0.375` — the one direction
+/// that separates the axes — and the coplanarity margin is definitely
 /// non-zero: the pair keeps the general rung, never reaches the join,
 /// and never wears the pinch door.
 #[test]
@@ -116,7 +117,7 @@ fn a_skew_pair_stays_off_the_pinch_door_at_the_certified_scalar() {
     let a = cyl(1.0, 2.0);
     let skew = topo::transform_rigid(
         &spin(&cyl(1.0, 2.0), x_axis(), PI / 2.0),
-        &Affine3::translation(Vec3::new(iv(0.0), iv(0.0), iv(0.375))),
+        &Affine3::translation(Vec3::new(iv(0.375), iv(0.0), iv(0.0))),
         Tol::witness(),
     )
     .unwrap();

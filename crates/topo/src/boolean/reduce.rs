@@ -1173,9 +1173,8 @@ fn curved_face_arm<T: Decide>(
                     for (w, pw) in [(u, pu), (v, pv)] {
                         match side(pw).map_err(|diag| BooleanError::Escalated { diag })? {
                             Sign::Zero => {
-                                if vertex_on_curved_face(
-                                    x_is, y, w, pw, face, contacts, band, tol,
-                                )? != EndpointPlacement::Recorded
+                                if vertex_on_curved_face(x_is, y, w, pw, face, contacts, band, tol)?
+                                    != EndpointPlacement::Recorded
                                 {
                                     return Err(frontier());
                                 }

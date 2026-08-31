@@ -152,9 +152,8 @@ fn the_steinmetz_seams_are_tangent_at_the_sections_pinch_points() {
     };
     assert_eq!(*operand, topo::Operand::A, "A's seam is the raiser");
 
-    let Some(topo::CurveGeom::Certified(c)) = a
-        .get_edge(*edge)
-        .and_then(|e| a.get_curve_geom(e.curve))
+    let Some(topo::CurveGeom::Certified(c)) =
+        a.get_edge(*edge).and_then(|e| a.get_curve_geom(e.curve))
     else {
         panic!("the named edge has no certified curve");
     };
@@ -185,7 +184,10 @@ fn the_steinmetz_seams_are_tangent_at_the_sections_pinch_points() {
         gap.abs() < 1e-15,
         "the seam is tangent to the partner wall, not crossing it: gap {gap}"
     );
-    let d = pinches.iter().map(|q| (touch - *q).norm()).fold(f64::MAX, f64::min);
+    let d = pinches
+        .iter()
+        .map(|q| (touch - *q).norm())
+        .fold(f64::MAX, f64::min);
     assert!(
         d < 1e-15,
         "the tangency sits at a pinch point p ± r·(â₁ × â₂); it is {d} away"
@@ -312,9 +314,13 @@ fn the_fenced_poses_keep_their_own_doors() {
     );
     assert_eq!(door(&e), door(&union_err(&repose(&a), &repose(&unequal))));
 
+    // Displaced along the common perpendicular `â₁ × â₂ = x̂`: that is
+    // the ONE direction that separates the two axes. Sliding the
+    // partner along either axis leaves the lines meeting, which is what
+    // the frame dispatch's margin measures.
     let skew = topo::transform_rigid(
         &spin(&cyl(1.0, 2.0), Vec3::new(1.0, 0.0, 0.0), PI / 2.0),
-        &Affine3::translation(Vec3::new(0.0, 0.0, 0.35)),
+        &Affine3::translation(Vec3::new(0.35, 0.0, 0.0)),
         Tol::witness(),
     )
     .unwrap();
