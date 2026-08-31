@@ -45,3 +45,8 @@ R2 dispatches from the stored brief VERBATIM at R1's delivery.
 Brief stored at docs/MATE-6-REVIEW-BRIEF.md on this branch pre-R1;
 only the R-label and probe branch substitute. Byte 8 parity 0 ⇒
 R1 OPUS + R2 FABLE (claimed on main, PR #1424).
+
+MATE-4a dispatch consumes B2 slot 2 (OPUS) — 2026-08-31, difficulty
+M (pre-logged in the plan's MATE-4 entry, impl half). Spec
+docs/MATE-4A-SPEC.md on main (PR #1430). B2 slot 3 (FABLE)
+unconsumed.
