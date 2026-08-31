@@ -771,3 +771,34 @@ unit's to absorb unless its own work touches those doors).
 Meanwhile track T: T-a's lane told to absorb the rename (merge
 main, resolve, push); PR #1329 merges when green — the ordering
 hold (BLEND-6 first) worked as intended.
+
+## 2026-08-31 — BLEND-3 DELIVERED; reviews dispatched (ordinal 605, SEQUENTIAL method note recorded pre-R1)
+
+Unit delivered: PR #1347, frozen head `01f6f41d`, gate run 3864
+GREEN at REQUESTED {interval, 1e-6} (reason stated: the new
+classifier arm is a Decide predicate at Interval; the drawn
+{interval, 1e-12} red on the prior head diagnosed as #1338's three
+rows verbatim on clean main, the unit's own six rows passing
+there). Measured-first done in depth: THREE doors surfaced in
+sequence (corner_config's false "mixed" label on a uniform corner;
+ConvexOpen reachable for exactly one commit; ring clearance
+forcing the round vent). Central finding: M1 (band sense folds
+convexity) is INVISIBLE to all 9 convex rows and red only on the
+concave rows — the orientation-agnostic clause earning its place.
+ConvexOpen → AdmittedOpen (the token's claim); new
+CornerConfig::ThreeConcaveEdges checked against CURVED-DESIGN OQ6
++ the SeamVertex precedent. Impl cost ~360k / ~85m (lane-reported).
+
+**Review dispatch (v6 dual, ordinal 605 — claim PR rides this
+dispatch):** parity byte **126** ⇒ parity 0 ⇒ **R1 OPUS +
+R2 FABLE**. **METHOD NOTE, recorded BEFORE R1 runs: SEQUENTIAL
+same-head on frozen `01f6f41d`** — the build-slot budget holds one
+slot for track T's live style review (T-b's), so R1 dispatches now
+and R2 dispatches from the stored brief VERBATIM at R1's report
+(the BLEND-1/7 shape; briefs authored+stored symmetric before this
+entry, diff-verified: orchestrator/blend3-review-brief-{r1,r2}.md).
+Lanes blend-3-r{1,2} created; probe branches
+`blend/concavecham-r{1,2}-probes`. Impl clone kept, target
+reclaimed. This unit concluding CLOSES BLOCK BLEND-B2: at its
+merge the block record (byte 25 ⇒ slots OPUS/FABLE/OPUS) goes to
+main and the BLEND5/BLEND6 rows' redacted arm cells are restated.
