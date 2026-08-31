@@ -1,0 +1,98 @@
+# S-MESH log — mesh honesty and budget
+
+Narrative record; the plan is `docs/S-MESH-PLAN.md`, the charter
+`docs/WORK-STREAMS-2026-08.md` §S-MESH. Convention as in the other
+programs: seam entries at pipeline seams, unit entries at merges, the
+tail is the live state.
+
+## Opening state (2026-08-31)
+
+Opened on Evan's direction (in-chat: "pick up S-MESH as the
+orchestrator", with S-BOOL taken by the same instruction), by a fresh
+orchestrator on a remote container. The plan is a DRAFT design
+conversation for its **Rulings sought** section; MESH-1 is
+dispatchable pre-ratification as an inherited defect fix whose shape
+#303's merged unit established (recorded here as a unilateral
+decision).
+
+**Operational facts, recorded once:**
+
+- **Branch prefix (the #396 convention): `mesh/`** — unit branches
+  `mesh/<unit>-<slug>`, orchestrator branch `mesh/orchestrator` (the
+  harness-designated session branch `claude/s-mesh-orchestrator-7o6gjc`
+  carries the opening PR and is otherwise unused, per the
+  S-CERT/S-QA precedent). The remote's dormant `mesh/*` branches are
+  pre-program #284-era work, not this program's.
+- **A/B ordinal band: S-MESH = 1200–1299**, claimed in
+  `docs/MODEL-AB-LOG.md`'s banding entry in this same PR, per that
+  entry's rule — after TWO collisions, both resolved by the
+  main-is-authority tiebreak before any S-MESH ordinal was assigned:
+  the opening claim of 900–999 lost to GAUTH, and the renumber to
+  1000–1099 lost to SEAT while this opening PR was held for
+  sign-off. The lesson recorded once: a band claim protects nobody
+  until it is ON MAIN, so an opening PR merges promptly (its open
+  rulings stay open as conversations) rather than holding the claim
+  hostage to them. S-BOOL's 1100–1199 was fixed on main earlier by
+  its ordinal-1100 claim at BOOL-1's review dispatch. Implementer
+  blocks are named `MESH-B1, MESH-B2, …` (`MESH-<n>` are unit
+  names). **S-BOOL = 1100–1199 is claimed in the same entry**
+  (same orchestrator, `docs/S-BOOL-LOG.md`).
+- **This session runs in a remote container** (the S-CERT/S-QA/M10/GUI
+  precedent): no persistent `~/.local/share/cad-work`, no script
+  monitors (PR watching via MCP subscriptions + scheduled self
+  check-ins; away-channel etiquette by hand under the `(S-MESH
+  orchestrator)` tag), GitHub through MCP rather than `gh`. Disk ~28 G
+  free is the binding constraint: lanes are worktrees sharing one
+  object store, own `CARGO_TARGET_DIR` each, ≤ ~2 concurrent lane
+  targets shared with S-BOOL, review targets reclaimed at report time.
+  The clone arrived shallow; unshallowed with a blob filter at
+  opening.
+
+**Sweep at opening** (beyond the charter, what the slate is grounded
+in): #320 and #782 are resolved on main and want closing
+(orchestrator-direct, after verifying the pins at HEAD — TESS-SPAN
+#594 + TESS-SPLIT #951 closed both #320 halves with #950 the
+scheduled residual; #782's table re-pinned green and its CI arming
+landed, with `docs/VERBS-PLAN.md` already recording "wants closing").
+#881 is half-landed at #894 (the named-operations half remains, per
+the reopen comment). Inherited from S-CERT by name: #1362 and the
+`closing_column` note. `walk.rs` is contended by #1362/#896/#881/#868
+— sequenced, never fanned out. S-CERT is live (CERT-6 in flight, then
+CERT-8/CERT-10/CERT-M/CERT-N): `props/quad.rs`/`patch_bound.rs`/area
+lanes and the tess-budget re-baseline stay its until its slate closes,
+so C3/D30/C23 wait on CERT-10 and S26 on CERT-6. Track R table
+corrections ride the opening PR (count re-derived after D304's
+arrival; C3/D30's discharged #723 gate; D302 deleted with members
+relocated — Display landed at `types.rs:271`, consumer half is
+#1111's/LIB's, Track U's D47 unblocked for the type).
+
+## MESH-1 merged (2026-08-31) — issue 1362 closed; the walk's loop-area fold is placement-honest
+
+PR 1389 at fix head `014ae4ee` (merged with current main). Gates:
+impl head `f0618c8e` green (interval/default drawn); fix head green
+(default/1e-12 drawn — the two heads span both compile lanes and two
+ε rows; the ε=1e-12 skip-band was checked by hand so the drawn gate
+demonstrably executed the defect fixture). The band_u fold anchors at
+the loop's own bbox centre; the red-first table shows whole-2π branch
+flips at 1e6 and 1e8 under the old spelling; an e2e gate pins the
+door-admitted silent failure (1 µm ball at 1 km: watertight, 16
+orders wrong pre-fix).
+
+**The dual (ordinal 1200, sample at the row)**: R1 A-W-F 4/3/2 — all
+four MAJORs in the sweep/claims layer (the code fix survived both
+lanes digit-for-digit); the no-e2e claim falsified by a built
+fixture; the sweep completed to 16 read hits at fix. R2 APPROVE
+0/2/1 with the donut structural zero confirmed exact. The
+arm-classification conflict on the review_m2_pr5 hits settled by
+reading in R1's favor. R1's MAJORs are v6 tally candidates. Fix pass
+IMPLEMENTER-INHERITED, all 10 items; the direction row closes the
+constant-fold blindness; the lifted oracle's contract restated from
+its derived closed form.
+
+En route findings homed: issue 1396 (structural-zero oracle class,
++ball-quarter member), 1401 (remaining origin-anchored copies, both
+spellings, enumerated), 1402 (azimuth/bbox-anchor idiom homes —
+a natural MESH-4 rider). Two walk.rs style classes recorded there
+rather than widened into this unit. Slate next: MESH-2 (issue 555,
+the sub-floor engineered zeros) interleaved with S-BOOL's BOOL-2;
+walk.rs stays sequenced (MESH-3 #896 before MESH-4 #881).

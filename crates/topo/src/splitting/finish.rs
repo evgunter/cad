@@ -41,6 +41,16 @@
 //! pairs; `merge_coplanar_faces` is **deliberately not auto-run** on
 //! the results — merging is never silent (the M2 ratification); the
 //! caller opts in.
+//!
+//! A face-coplanar cut also lands OPERAND edges on the section
+//! boundary with their transverse partner faces reassigned to the
+//! other product, leaving intrinsic citations that no longer name the
+//! edge's adjacent pair. The describe pass restates those
+//! conventionally in the section chart (`describe_section_boundary`'s
+//! smooth arm), so a coplanar product's boundary descriptions are
+//! adjacency-coherent at rest; on a NEAR-flush operand the same
+//! restatement meters the section chart's containment and refuses
+//! typed through certification when the band cannot decide it.
 
 use geom_core::{Decide, Real, Vec3};
 use slotmap::SecondaryMap;
@@ -293,8 +303,10 @@ pub(super) fn split_finish<T: Decide>(
     // faces were just promoted; the other side of every boundary edge
     // is an operand face). Definitely-transverse edges get
     // `Intersection`; definitely-smooth ones (a flush ON-face
-    // neighbor: the surfaces under-determine the locus) keep their
-    // conventional chord per D2; escalations refuse typed. ----
+    // neighbor: the surfaces under-determine the locus) carry a
+    // conventional description in an adjacent chart per D2 — kept
+    // where the edge already has one, stated in the section chart
+    // where it does not; escalations refuse typed. ----
     let band = geom_core::Band::linear(tol).map_err(SplitFinishError::Band)?;
     let section_faces: Vec<FaceKey> = section_side.keys().collect();
     for face in section_faces {
@@ -344,9 +356,19 @@ pub(super) fn split_finish<T: Decide>(
 /// section face as the transverse `Intersection` of its two faces'
 /// surfaces (witness at the chord midpoint), through the certified
 /// [`crate::Body::set_edge_curve`] lane. Smooth neighbors (flush
-/// ON-faces — parallel planes under-determine the locus) keep their
-/// conventional chord description (D2's conventional split);
-/// escalations are typed ([`SplitFinishError::DescribeEscalated`]).
+/// ON-faces — parallel planes under-determine the locus) carry a
+/// conventional description (D2's conventional split): one already
+/// drawn in an adjacent chart is kept verbatim (a stated image
+/// travels exactly — deriving a replacement would trade a statement
+/// for a guess), and any other description is restated as an image in
+/// the section chart, which every section-boundary edge lies in to
+/// within the band (a near-flush operand refuses typed through the
+/// certification lane). That covers the citation this split itself made
+/// stale: on a face-coplanar cut an operand edge lands on the section
+/// boundary with its transverse partner reassigned to the OTHER
+/// product, so the `Intersection` it honestly carried now names a
+/// surface that is not adjacent (and not even present) on this side.
+/// Escalations are typed ([`SplitFinishError::DescribeEscalated`]).
 fn describe_section_boundary<T: Decide>(
     body: &mut Body<T>,
     face: FaceKey,
@@ -443,8 +465,101 @@ fn describe_section_boundary<T: Decide>(
                     };
                     body.set_edge_curve(edge, spec, tol)?;
                 }
-                // Smooth: the conventional chord stays (D2).
-                Ok(geom_brep::DihedralClass::Smooth) => {}
+                // Smooth: the surfaces under-determine the locus, so
+                // the honest class is conventional (D2). A description
+                // already drawn in one of the edge's two charts stays
+                // verbatim; anything else — a citation whose partner
+                // this split reassigned to the other product, or a
+                // scaffold — is restated as an image in the section
+                // chart. The edge lies in that chart to within the
+                // BAND, not bitwise: on a near-flush operand the
+                // restated image is metered like any description and
+                // an in-band containment refuses through
+                // certification's escalation lane instead of adopting
+                // an indeterminate locus (D4 ¶3). Carrier and interval
+                // travel verbatim (restated, never rebuilt), as does a
+                // declared authority. An edge between TWO section
+                // faces is visited once per face; the chart it ends
+                // with is the FIRST visit's (the restate), the second
+                // visit keeping it as coherent — deterministic
+                // (section faces iterate in arena key order), and
+                // legal either way since either adjacent chart
+                // certifies.
+                //
+                // No second-order ladder here (the boolean's smooth
+                // arm runs one): a determinate smooth pair at the
+                // section boundary would be the split plane tangent to
+                // a curved wall, and such a tangency's zero-width
+                // section polygon refuses typed in the JOIN stage
+                // (`SplitJoinError::DegenerateSection`), from the
+                // mirrored pinch rerun as much as the direct run —
+                // `bool1_r1_probes` / `bool1_r2_probes`' tangent
+                // cylinder rows are the measured witnesses. So no
+                // curved smooth pair reaches this arm, and a flush
+                // plane pair's exactly-zero jet is the
+                // under-determined regime.
+                Ok(geom_brep::DihedralClass::Smooth) => {
+                    let coherent = existing.as_ref().is_some_and(|c| match *c.description() {
+                        // A seam image's two sides are one surface, so
+                        // it is coherent only when both faces share
+                        // its chart — the same clause the adjacency
+                        // validators apply. No section boundary mints
+                        // a seam; the clause is here so three
+                        // spellings of one rule do not drift.
+                        geom_brep::EdgeDescription::Chart(ref ch) if ch.seam => {
+                            ch.surface == s_self && ch.surface == s_other
+                        }
+                        // The `s_self` half is spelled for symmetry
+                        // and is unreachable: section surfaces are
+                        // minted fresh by THIS pass, so a pre-existing
+                        // description can only name `s_other`, and a
+                        // same-pass restate is only ever re-seen from
+                        // the edge's other face.
+                        geom_brep::EdgeDescription::Chart(ref ch) => {
+                            ch.surface == s_self || ch.surface == s_other
+                        }
+                        // Kept when honest for the CURRENT pair;
+                        // unreachable today for the ladder's reason
+                        // above (no tangency survives to the section
+                        // boundary), and spelled because the rule is
+                        // about coherence, not reachability.
+                        geom_brep::EdgeDescription::TangentIntersection { s1, s2, .. } => {
+                            (s1 == s_self && s2 == s_other) || (s1 == s_other && s2 == s_self)
+                        }
+                        // A transverse citation on a definitely-smooth
+                        // pair is wrong whatever it names, and a
+                        // scaffold at rest is fenced — both restate.
+                        geom_brep::EdgeDescription::Intersection { .. }
+                        | geom_brep::EdgeDescription::Scaffold(_) => false,
+                    });
+                    if !coherent {
+                        let mut spec = match &existing {
+                            Some(c) => c.restated_spec(),
+                            // Unreachable, not a licence to rebuild:
+                            // the operand gate refuses uncertified
+                            // edges (`ScaffoldingOperand`) and every
+                            // split-minted edge certifies at its mint,
+                            // so a section-boundary edge always has a
+                            // carrier to restate.
+                            None => geom_brep::EdgeCurveSpec::line_between(p0, p1),
+                        };
+                        spec.description = geom_brep::EdgeDescriptionSpec::chart(s_self);
+                        // The declared carry: no committed operand
+                        // puts Declared authority on a section
+                        // boundary (`bool1_r1_probes`' authority
+                        // census measures 0 before and after), and
+                        // the carry stands because dropping a
+                        // declaration would silently flip
+                        // `EdgeAuthority::is_declared`, which tier 3's
+                        // prefer-intrinsic rules read.
+                        if let Some(geom_brep::EdgeAuthority::Declared(mc)) =
+                            existing.as_ref().map(|c| c.authority())
+                        {
+                            spec.description = spec.description.declared_by(mc);
+                        }
+                        body.set_edge_curve(edge, spec, tol)?;
+                    }
+                }
                 Err(diag) => return Err(SplitFinishError::DescribeEscalated { edge, diag }),
             }
         }

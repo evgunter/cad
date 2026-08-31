@@ -48,12 +48,16 @@ mod camera_ops;
 mod cascade_delete;
 #[path = "chrome_labels.rs"]
 mod chrome_labels;
+#[path = "combine_ops.rs"]
+mod combine_ops;
 #[path = "creation_ops.rs"]
 mod creation_ops;
 #[path = "display_budget.rs"]
 mod display_budget;
 #[path = "doc_io.rs"]
 mod doc_io;
+#[path = "edge_pick.rs"]
+mod edge_pick;
 #[path = "error_display.rs"]
 mod error_display;
 #[path = "eval_seam.rs"]

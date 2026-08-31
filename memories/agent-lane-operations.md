@@ -184,7 +184,13 @@ raw `cargo` invocations yourself.
 - An OOM-killed test shows as a bare "Terminated" single-row FAIL —
   check what else was running and rerun quiet before diagnosing a bug.
 
-**The ways CI silently does not run.** A PR that is CONFLICTING against
+**The ways CI silently does not run.** An exhausted Actions SPENDING
+LIMIT kills every job seconds after creation — no steps, no logs,
+`failure` — which reads as runner loss; the tell is unrelated PRs'
+runs dying in the same minutes. No push, empty commit, or re-run
+helps until Evan raises the limit: hold, then re-run the dead head's
+failed jobs once (they died pre-step, so the re-run is legitimate).
+A PR that is CONFLICTING against
 main gets NO check runs at all — pushes during that window produce
 nothing and merging main afterwards fires nothing retroactively. A run
 can also queue with ZERO jobs behind a superseded run, `mergeable:
