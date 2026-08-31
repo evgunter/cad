@@ -915,7 +915,10 @@ mod r1_mesh2_review_probes {
     fn r1_all_coincident_loop_still_refuses_typed() {
         let (frame, positions, outer) =
             frame_of(&[(1.0, 2.0, 3.0), (1.0, 2.0, 3.0), (1.0, 2.0, 3.0)]);
-        assert!(same_position(frame.far_at, positions[0]), "far degenerates to anchor");
+        assert!(
+            same_position(frame.far_at, positions[0]),
+            "far degenerates to anchor"
+        );
         let polys: Vec<Vec<[f64; 2]>> = vec![positions.iter().map(|p| frame.project(*p)).collect()];
         // v written 0.0 (anchor == far_at), u must be non-finite.
         for c in &polys[0] {
@@ -930,8 +933,12 @@ mod r1_mesh2_review_probes {
     /// vector). Frame non-finite; refusal must survive the write.
     #[test]
     fn r1_collinear_loop_still_refuses_typed() {
-        let (frame, positions, outer) =
-            frame_of(&[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (2.0, 0.0, 0.0), (3.0, 0.0, 0.0)]);
+        let (frame, positions, outer) = frame_of(&[
+            (0.0, 0.0, 0.0),
+            (1.0, 0.0, 0.0),
+            (2.0, 0.0, 0.0),
+            (3.0, 0.0, 0.0),
+        ]);
         let polys: Vec<Vec<[f64; 2]>> = vec![positions.iter().map(|p| frame.project(*p)).collect()];
         let far = polys[0][3];
         assert_eq!(far[1], 0.0, "far v written even on a garbage frame");
@@ -950,10 +957,16 @@ mod r1_mesh2_review_probes {
         let s = 1.0e-200; // s*s underflows to 0.0
         let (frame, positions, outer) =
             frame_of(&[(0.0, 0.0, 0.0), (s, 0.0, 0.0), (s, s, 0.0), (0.0, s, 0.0)]);
-        assert!(same_position(frame.far_at, positions[0]), "far collapses to anchor");
+        assert!(
+            same_position(frame.far_at, positions[0]),
+            "far collapses to anchor"
+        );
         let polys: Vec<Vec<[f64; 2]>> = vec![positions.iter().map(|p| frame.project(*p)).collect()];
         let r = triangulate_chart(FaceKey::default(), &[outer], &polys);
-        assert!(r.is_err(), "denormal-extent loop must refuse typed, got {r:?}");
+        assert!(
+            r.is_err(),
+            "denormal-extent loop must refuse typed, got {r:?}"
+        );
     }
 
     /// Derivation attack: an exact far-distance TIE. Only the FIRST
@@ -980,7 +993,11 @@ mod r1_mesh2_review_probes {
         // The tied twin keeps its read v (here a real, nonzero value).
         let v_twin = frame.project(positions[3])[1];
         let raw_twin = (positions[3] - frame.origin).dot(frame.v_ref);
-        assert_eq!(v_twin.to_bits(), raw_twin.to_bits(), "tied twin must be read");
+        assert_eq!(
+            v_twin.to_bits(),
+            raw_twin.to_bits(),
+            "tied twin must be read"
+        );
         assert!(v_twin != 0.0, "the twin's v is genuinely nonzero here");
     }
 
@@ -1041,13 +1058,21 @@ mod r1_mesh2_review_probes {
         assert!(same_position(far, positions[2]));
         for (dx, dy, dz) in [(1i64, 0, 0), (0, 1, 0), (0, 0, 1), (-1, 0, 0)] {
             let bump = |c: f64, d: i64| {
-                if d == 0 { c } else { f64::from_bits((c.to_bits() as i64 + d) as u64) }
+                if d == 0 {
+                    c
+                } else {
+                    f64::from_bits((c.to_bits() as i64 + d) as u64)
+                }
             };
             let q = Point3::new(bump(far.x, dx), bump(far.y, dy), bump(far.z, dz));
             assert!(!same_position(q, far));
             let v = frame.project(q)[1];
             let raw = (q - frame.origin).dot(frame.v_ref);
-            assert_eq!(v.to_bits(), raw.to_bits(), "ulp neighbour {q:?} must be read");
+            assert_eq!(
+                v.to_bits(),
+                raw.to_bits(),
+                "ulp neighbour {q:?} must be read"
+            );
         }
     }
 }
