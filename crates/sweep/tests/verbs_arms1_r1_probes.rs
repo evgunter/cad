@@ -42,8 +42,8 @@ use geom::Surface;
 use geom_core::{Band, Point2, Tol};
 use profile::ProfileVertex;
 use sweep::Revolution;
-use sweep::fillet::FilletError;
-use sweep::fillet::build::fillet_edges;
+use sweep::blend::BlendError;
+use sweep::blend::build::fillet_edges;
 use sweep::test_support::revolved_about_y;
 use topo::{Body, EdgeKey, FaceSurface, ValidationError, mass_properties, validate_geometric};
 
@@ -367,18 +367,18 @@ fn near_limit_radii_refuse_typed() {
     // typed refusal.
     let body = bored_dome();
     let rim = rim_at(&body, 0.0);
-    match fillet_edges(&body, &[rim], 0.45, band(), tol()) {
-        Err(FilletError::SpineIrregular { .. } | FilletError::FaceClearanceUncertified { .. }) => {}
+    match fillet_edges(&body, &[rim], 0.45, band(), tol()).map_err(|r| r.error) {
+        Err(BlendError::SpineIrregular { .. } | BlendError::FaceClearanceUncertified { .. }) => {}
         other => panic!("s < r must refuse typed, got {other:?}"),
     }
     // r = 0.51 > (R − depth)/2: no spine circle exists; the poisoned
     // margin escalates (or refuses through an earlier predicate) —
     // loudly either way.
-    match fillet_edges(&body, &[rim], 0.51, band(), tol()) {
+    match fillet_edges(&body, &[rim], 0.51, band(), tol()).map_err(|r| r.error) {
         Err(
-            FilletError::Escalated { .. }
-            | FilletError::SpineIrregular { .. }
-            | FilletError::FaceClearanceUncertified { .. },
+            BlendError::Escalated { .. }
+            | BlendError::SpineIrregular { .. }
+            | BlendError::FaceClearanceUncertified { .. },
         ) => {}
         other => panic!("an infeasible ball must refuse loudly, got {other:?}"),
     }
@@ -386,8 +386,8 @@ fn near_limit_radii_refuse_typed() {
     // setback (≈ 0.29) exceeds the ≈ 0.24 gap to the bore rim.
     let narrow = zone(1.7, Revolution::Full);
     let bottom = rim_at(&narrow, -0.5);
-    match fillet_edges(&narrow, &[bottom], 0.35, band(), tol()) {
-        Err(FilletError::FaceClearanceUncertified { .. }) => {}
+    match fillet_edges(&narrow, &[bottom], 0.35, band(), tol()).map_err(|r| r.error) {
+        Err(BlendError::FaceClearanceUncertified { .. }) => {}
         other => panic!("a trim circle at the bore must refuse clearance, got {other:?}"),
     }
     // And well inside the same gap it builds and validates.
@@ -425,9 +425,8 @@ fn the_partial_zone_refuses_through_its_own_gates() {
             ps(&a, &b) || ps(&b, &a)
         })
         .expect("an open plane–sphere arc");
-    match fillet_edges(&body, &[open_arc], 0.08, band(), tol()) {
-        Err(FilletError::UnsupportedChain { .. } | FilletError::FilletCornerUnsupported { .. }) => {
-        }
+    match fillet_edges(&body, &[open_arc], 0.08, band(), tol()).map_err(|r| r.error) {
+        Err(BlendError::UnsupportedChain { .. } | BlendError::UnsupportedCorner { .. }) => {}
         other => panic!("the open arc refuses through its own gates, got {other:?}"),
     }
 }

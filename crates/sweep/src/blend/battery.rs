@@ -7,7 +7,7 @@
 //! only becomes classifiable once it is folded against a length the
 //! user can reason about). `Positive` proceeds, `Zero` and `Negative`
 //! refuse typed with the margin as payload, and an in-band or
-//! poisoned margin escalates through [`super::FilletError::Escalated`]
+//! poisoned margin escalates through [`super::BlendError::Escalated`]
 //! carrying the SAME recourse sentence as the definite arm — the
 //! two-tolerance shape (D4 ¶1 addendum), on every arm, including the
 //! definite ones.
@@ -19,7 +19,7 @@
 //! kept honest structurally rather than by hope:
 //!
 //! - The battery resolves each link's analytic ARM first
-//!   ([`super::blend`]) and refuses typed on any support pair the
+//!   ([`super::arms`]) and refuses typed on any support pair the
 //!   arms do not cover. So "the constructor met a case the battery
 //!   did not consider" cannot happen: the battery enumerates the
 //!   cases.
@@ -41,10 +41,10 @@ use geom_core::{
 };
 use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, SurfaceKey, VertexKey};
 
-use super::blend::{
+use super::arms::{
     BlendArm, EdgeBlend, Meridian, Ruling, chamfer_strip, plane_plane_blend, plane_sphere_blend,
 };
-use super::{BlendKind, CornerConfig, FilletError, FilletSite, decide};
+use super::{BlendError, BlendKind, BlendSite, CornerConfig, decide};
 
 /// The number of interior samples the chain predicates take along
 /// each link. Nine, matching the certification schedule's
@@ -86,7 +86,7 @@ impl Convexity {
 /// The request the battery judges: a body, the edges to blend, and
 /// the constant rolling-ball radius.
 #[derive(Clone, Debug)]
-pub struct FilletRequest<'a, T: Real> {
+pub struct BlendRequest<'a, T: Real> {
     /// The body whose edges are to be blended.
     pub body: &'a Body<T>,
     /// The edges, in any order — the battery walks them into chains.
@@ -94,7 +94,7 @@ pub struct FilletRequest<'a, T: Real> {
     /// The band's size, meters: the constant rolling-ball radius under
     /// [`BlendKind::Fillet`], the equal setback under
     /// [`BlendKind::Chamfer`].
-    pub radius: T,
+    pub size: T,
 }
 
 /// One resolved link of a chain: its edge, its two supports (with
@@ -216,8 +216,9 @@ impl<T: Real> Chain<T> {
 pub struct BatteryVerdict<T: Real> {
     /// The resolved chains.
     pub chains: Vec<Chain<T>>,
-    /// The band size that was judged (radius, or chamfer setback).
-    pub radius: T,
+    /// The band size that was judged (the fillet's radius, or the
+    /// chamfer's setback).
+    pub size: T,
     /// Which band the request grafts — carried so the assembly reads
     /// it off the verdict instead of being told a second time.
     pub kind: BlendKind,
@@ -225,8 +226,8 @@ pub struct BatteryVerdict<T: Real> {
 
 /// Escalate at a site (the shared shape, so the two-tolerance text
 /// can never drift between predicates).
-fn esc(site: FilletSite, source: Indeterminate) -> FilletError {
-    FilletError::Escalated { site, source }
+fn esc(site: BlendSite, source: Indeterminate) -> BlendError {
+    BlendError::Escalated { site, source }
 }
 
 /// A face's outward normal at `p`: the chart normal folded through
@@ -326,9 +327,9 @@ fn extent_of<T: Decide>(carrier: &Curve3<T>, t0: T, t1: T) -> T {
 ///
 /// # Errors
 ///
-/// [`FilletError::RadiusHeadroom`] on a definite `Zero`/`Negative`;
-/// [`FilletError::Escalated`] in band or on poison;
-/// [`FilletError::BodyNotIntact`] when the face or its stored surface
+/// [`BlendError::RadiusHeadroom`] on a definite `Zero`/`Negative`;
+/// [`BlendError::Escalated`] in band or on poison;
+/// [`BlendError::BodyNotIntact`] when the face or its stored surface
 /// does not resolve.
 pub fn radius_headroom<T: Decide + Bounds>(
     body: &Body<T>,
@@ -336,15 +337,15 @@ pub fn radius_headroom<T: Decide + Bounds>(
     p: Point3<T>,
     radius: T,
     band: Band,
-) -> Result<(), FilletError> {
+) -> Result<(), BlendError> {
     let Some(f) = body.get_face(face) else {
-        return Err(FilletError::BodyNotIntact {
+        return Err(BlendError::BodyNotIntact {
             at: EntityId::Face(face),
             detail: "a link's support face, for the curvature headroom predicate",
         });
     };
     let Some(s) = body.get_surface(f.surface) else {
-        return Err(FilletError::BodyNotIntact {
+        return Err(BlendError::BodyNotIntact {
             at: EntityId::Face(face),
             detail: "a support face's stored surface, for the curvature headroom predicate",
         });
@@ -354,10 +355,10 @@ pub fn radius_headroom<T: Decide + Bounds>(
     // at `r` rather than dividing by an infinity.
     let margin = radius - radius.powi(2) / arm;
     match decide("fillet3_radius_headroom", Margin::of(margin), band)
-        .map_err(|e| esc(FilletSite::Chain, e))?
+        .map_err(|e| esc(BlendSite::Chain, e))?
     {
         Sign::Positive => Ok(()),
-        _ => Err(FilletError::RadiusHeadroom {
+        _ => Err(BlendError::RadiusHeadroom {
             face,
             margin: margin.lo(),
             radius: radius.lo(),
@@ -389,18 +390,18 @@ pub fn radius_headroom<T: Decide + Bounds>(
 ///
 /// # Errors
 ///
-/// [`FilletError::SpineIrregular`] / [`FilletError::Escalated`].
+/// [`BlendError::SpineIrregular`] / [`BlendError::Escalated`].
 pub fn spine_regularity<T: Decide + Bounds>(
     spine_curvature: T,
     radius: T,
     band: Band,
-) -> Result<(), FilletError> {
+) -> Result<(), BlendError> {
     let margin = radius - radius.powi(2) * spine_curvature;
     match decide("fillet3_spine_regularity", Margin::of(margin), band)
-        .map_err(|e| esc(FilletSite::Chain, e))?
+        .map_err(|e| esc(BlendSite::Chain, e))?
     {
         Sign::Positive => Ok(()),
-        _ => Err(FilletError::SpineIrregular {
+        _ => Err(BlendError::SpineIrregular {
             margin: margin.lo(),
             radius: radius.lo(),
         }),
@@ -423,7 +424,7 @@ pub fn spine_regularity<T: Decide + Bounds>(
 ///
 /// `Positive` is convex, `Negative` concave, `Zero` is a dihedral
 /// with no definite wedge side at this lever — refused as
-/// [`FilletError::TangentialEdge`], of which genuine tangency is one
+/// [`BlendError::TangentialEdge`], of which genuine tangency is one
 /// cause. C8 requires the sign to
 /// be CONSTANT along the chain — a dihedral flipping mid-chain has no
 /// constant-radius rolling-ball blend at all — so the caller escalates
@@ -436,7 +437,7 @@ pub fn spine_regularity<T: Decide + Bounds>(
 ///
 /// # Errors
 ///
-/// [`FilletError::Escalated`] in band or on poison. A definite sign is
+/// [`BlendError::Escalated`] in band or on poison. A definite sign is
 /// returned; the caller judges consistency.
 pub fn convexity_at<T: Decide + Bounds>(
     n_a: Vec3<T>,
@@ -445,8 +446,8 @@ pub fn convexity_at<T: Decide + Bounds>(
     arm: T,
     edge: EdgeKey,
     band: Band,
-) -> Result<(Convexity, T), FilletError> {
-    let site = FilletSite::Link { edge };
+) -> Result<(Convexity, T), BlendError> {
+    let site = BlendSite::Link { edge };
     match decide("fillet3_chain_arm", Margin::of(arm), band).map_err(|e| esc(site, e))? {
         Sign::Positive => {}
         Sign::Zero | Sign::Negative => {
@@ -473,7 +474,7 @@ pub fn convexity_at<T: Decide + Bounds>(
         // it does not DISAGREE with the chain's convexity, none was
         // decided, and reporting it as a "flip" would hand the reader
         // a chain verdict that was never taken.
-        Sign::Zero => Err(FilletError::TangentialEdge {
+        Sign::Zero => Err(BlendError::TangentialEdge {
             edge,
             margin: margin.value().lo(),
         }),
@@ -501,15 +502,15 @@ pub fn convexity_at<T: Decide + Bounds>(
 ///
 /// # Errors
 ///
-/// [`FilletError::ChainNotG1`] / [`FilletError::Escalated`].
+/// [`BlendError::ChainNotG1`] / [`BlendError::Escalated`].
 pub fn chain_g1<T: Decide + Bounds>(
     tau_in: Vec3<T>,
     tau_out: Vec3<T>,
     arm: T,
     vertex: VertexKey,
     band: Band,
-) -> Result<(), FilletError> {
-    let site = FilletSite::Joint { vertex };
+) -> Result<(), BlendError> {
+    let site = BlendSite::Joint { vertex };
     match decide("fillet3_chain_arm", Margin::of(arm), band).map_err(|e| esc(site, e))? {
         Sign::Positive => {}
         Sign::Zero | Sign::Negative => {
@@ -531,7 +532,7 @@ pub fn chain_g1<T: Decide + Bounds>(
         // polarity of a coincidence predicate, stated so no reader
         // has to infer it.
         Sign::Zero => Ok(()),
-        _ => Err(FilletError::ChainNotG1 {
+        _ => Err(BlendError::ChainNotG1 {
             vertex,
             margin: margin.value().lo(),
             arm: arm.lo(),
@@ -543,10 +544,10 @@ pub fn chain_g1<T: Decide + Bounds>(
 // Predicate 6 — corner configuration.
 // ---------------------------------------------------------------
 
-/// **`fillet3_corner_independence`** — is a chain termination the ONE
-/// corner configuration M5 ships (OQ6): a valence-three vertex whose
-/// three incident edges are all convex and whose three support
-/// normals are definitely independent?
+/// **`fillet3_corner_independence`** — is a chain termination a corner
+/// configuration some band builds (OQ6): a valence-three vertex whose
+/// three incident edges carry ONE convexity, either side, and whose
+/// three support normals are definitely independent?
 ///
 /// Margin: `|det(n₁, n₂, n₃)|·r` in METERS at lever arm `r`. The
 /// determinant is what makes the corner ball's centre a well-posed
@@ -561,10 +562,22 @@ pub fn chain_g1<T: Decide + Bounds>(
 /// and nothing more: zero constructor surface, refusal-payload
 /// vocabulary only.
 ///
+/// # What this predicate does NOT decide
+///
+/// It reads the CORNER and nothing about the request's verb. A
+/// UNIFORM trihedron — three edges of one convexity — is one
+/// configuration whichever side of the material it is on, and this
+/// predicate admits it on both, for both verbs: the chamfer's ruled
+/// strip and flat patch take no convexity argument, and the rolling
+/// ball's corner — its ball, its contact feet, its octant chart —
+/// folds the side as one verdict. A MIXED corner is out of scope for
+/// every band there is, because the band would change sides
+/// mid-corner.
+///
 /// # Errors
 ///
-/// [`FilletError::FilletCornerUnsupported`] with the tag and policy;
-/// [`FilletError::Escalated`] on an in-band determinant.
+/// [`BlendError::UnsupportedCorner`] with the tag and policy;
+/// [`BlendError::Escalated`] on an in-band determinant.
 pub fn corner_config<T: Decide + Bounds>(
     vertex: VertexKey,
     valence: usize,
@@ -572,7 +585,7 @@ pub fn corner_config<T: Decide + Bounds>(
     normals: [Vec3<T>; 3],
     radius: T,
     band: Band,
-) -> Result<(), FilletError> {
+) -> Result<(), BlendError> {
     // Which run-out policy (if any) an out-of-scope configuration names
     // is the TAG's own fact, so it is read from the tag rather than
     // decided again here (`CornerConfig::policy`).
@@ -580,7 +593,10 @@ pub fn corner_config<T: Decide + Bounds>(
     if valence != 3 {
         return Err(refuse(CornerConfig::NEdgeVertex { valence }));
     }
-    if convex != 3 {
+    // A uniform trihedron is a configuration some band carves; a mixed
+    // one is a configuration none does. Which of the two uniform sides
+    // the RUNNING band carves is decided by the caller that knows it.
+    if !matches!(convex, 0 | 3) {
         return Err(refuse(CornerConfig::MixedConvexity { convex }));
     }
     let det = normals[0].dot(normals[1].cross(normals[2]));
@@ -588,7 +604,7 @@ pub fn corner_config<T: Decide + Bounds>(
     match decide("fillet3_corner_independence", margin, band) {
         Ok(Sign::Positive) => Ok(()),
         Ok(_) => Err(refuse(CornerConfig::DependentNormals)),
-        Err(source) => Err(esc(FilletSite::Joint { vertex }, source)),
+        Err(source) => Err(esc(BlendSite::Joint { vertex }, source)),
     }
 }
 
@@ -630,13 +646,13 @@ pub fn corner_config<T: Decide + Bounds>(
 /// face's own boundary, not the same setback algebra), which is
 /// recorded as a numbered deviation rather than guessed at here.
 ///
-/// The setbacks come from [`super::blend`] — the same functions the
+/// The setbacks come from [`super::arms`] — the same functions the
 /// constructor calls.
 ///
 /// # Errors
 ///
-/// [`FilletError::FaceClearanceUncertified`] /
-/// [`FilletError::Escalated`].
+/// [`BlendError::FaceClearanceUncertified`] /
+/// [`BlendError::Escalated`].
 ///
 /// `cross_chain` says whether the two setbacks belong to two DIFFERENT
 /// requested chains — the caller knows, this screen does not — and
@@ -650,13 +666,13 @@ pub fn face_clearance<T: Decide + Bounds>(
     setback_there: T,
     cross_chain: bool,
     band: Band,
-) -> Result<(), FilletError> {
+) -> Result<(), BlendError> {
     let margin = gap - setback_here - setback_there;
     match decide("fillet3_face_clearance", Margin::of(margin), band)
-        .map_err(|e| esc(FilletSite::Chain, e))?
+        .map_err(|e| esc(BlendSite::Chain, e))?
     {
         Sign::Positive => Ok(()),
-        _ => Err(FilletError::FaceClearanceUncertified {
+        _ => Err(BlendError::FaceClearanceUncertified {
             face,
             margin: margin.lo(),
             gap: gap.lo(),
@@ -674,8 +690,8 @@ fn resolve_link<T: Decide + Bounds>(
     radius: T,
     band: Band,
     kind: BlendKind,
-) -> Result<Link<T>, FilletError> {
-    let broken = || FilletError::ChainNotConnected { edge };
+) -> Result<Link<T>, BlendError> {
+    let broken = || BlendError::ChainNotConnected { edge };
     let e = body.get_edge(edge).ok_or_else(broken)?;
     let (he_plus, he_minus) = (e.he_plus, e.he_minus);
     let face_a = face_of(body, he_plus).ok_or_else(broken)?;
@@ -734,7 +750,7 @@ fn plane_u<T: Real>(s: &Surface<T>) -> Vec3<T> {
     }
 }
 
-/// The roster [`FilletError::SpineUnsupported`] advertises — every
+/// The roster [`BlendError::SpineUnsupported`] advertises — every
 /// [`BlendArm`] the fillet table carries, hand-formatted because the
 /// payload is a `&'static str`. `arms::the_refusal_roster_names_every_arm`
 /// checks it against [`BlendArm::name`], so an arm that grows without
@@ -785,12 +801,12 @@ fn support_coaxiality<T: Decide + Bounds>(
     departure: T,
     band: Band,
     supports: &'static str,
-) -> Result<(), FilletError> {
+) -> Result<(), BlendError> {
     match decide("fillet3_support_coaxiality", Margin::of(departure), band)
-        .map_err(|e| esc(FilletSite::Chain, e))?
+        .map_err(|e| esc(BlendSite::Chain, e))?
     {
         Sign::Zero => Ok(()),
-        _ => Err(FilletError::SpineUnsupported { edge, supports }),
+        _ => Err(BlendError::SpineUnsupported { edge, supports }),
     }
 }
 
@@ -799,7 +815,7 @@ fn support_coaxiality<T: Decide + Bounds>(
 ///
 /// The two plane-support rows keep their own closed forms; every curved
 /// pair goes through the shared sheet reduction
-/// ([`super::blend::Meridian`] / [`super::blend::Ruling`]), whose family
+/// ([`super::arms::Meridian`] / [`super::arms::Ruling`]), whose family
 /// is chosen by the RIM CARRIER's own stored shape — a coaxial pair
 /// meets in a circle, a ruled pair in a line.
 ///
@@ -824,7 +840,7 @@ fn classify_arm<T: Decide + Bounds>(
     edge: EdgeKey,
     kind: BlendKind,
     band: Band,
-) -> Result<(BlendArm, EdgeBlend<T>), FilletError> {
+) -> Result<(BlendArm, EdgeBlend<T>), BlendError> {
     let convex = matches!(convexity, Convexity::Convex);
     if matches!(kind, BlendKind::Chamfer) {
         return match (sa, sb) {
@@ -832,7 +848,7 @@ fn classify_arm<T: Decide + Bounds>(
                 BlendArm::PlanePlaneStrip,
                 chamfer_strip(p, tau.normalize(), n_a, n_b, radius),
             )),
-            _ => Err(FilletError::ChamferArmUnsupported {
+            _ => Err(BlendError::ChamferArmUnsupported {
                 edge,
                 supports: "non-(plane–plane)",
             }),
@@ -929,8 +945,8 @@ fn curved_arm<T: Decide + Bounds>(
     radius: T,
     edge: EdgeKey,
     band: Band,
-) -> Result<(BlendArm, EdgeBlend<T>), FilletError> {
-    let unsupported = |supports| FilletError::SpineUnsupported { edge, supports };
+) -> Result<(BlendArm, EdgeBlend<T>), BlendError> {
+    let unsupported = |supports| BlendError::SpineUnsupported { edge, supports };
     match *carrier {
         Curve3::Circle { center, axis, .. } => {
             let arm = coaxial_arm(sa, sb).ok_or_else(|| unsupported(ARM_ROSTER))?;
@@ -1010,7 +1026,13 @@ fn walk_chains<T: Decide>(links: Vec<Link<T>>) -> Vec<Chain<T>> {
         }
         used[seed] = true;
         let (mut head, mut tail) = ends(seed);
-        let mut order = vec![seed];
+        // The run is held as its SEED plus the two directions it grew
+        // in, rather than as one `Vec` that happens never to be empty.
+        // Non-emptiness is then the shape — there is always a seed —
+        // and "the walk produced no links" is a state this loop does
+        // not spell.
+        let mut before: Vec<usize> = Vec::new();
+        let mut after: Vec<usize> = Vec::new();
         let mut joints_back: Vec<VertexKey> = Vec::new();
         let mut joints_fwd: Vec<VertexKey> = Vec::new();
         let mut closed = head == tail;
@@ -1024,7 +1046,8 @@ fn walk_chains<T: Decide>(links: Vec<Link<T>>) -> Vec<Chain<T>> {
                 let Some(&next) = pair.iter().find(|&&j| !used[j]) else {
                     // Both links at this junction are already in the
                     // run: the chain has closed on itself.
-                    if pair.iter().all(|&j| used[j]) && order.len() > 1 {
+                    let grew = !before.is_empty() || !after.is_empty();
+                    if pair.iter().all(|&j| used[j]) && grew {
                         closed = true;
                         if forward {
                             joints_fwd.push(at);
@@ -1039,11 +1062,11 @@ fn walk_chains<T: Decide>(links: Vec<Link<T>>) -> Vec<Chain<T>> {
                 let other = if a == at { b } else { a };
                 if forward {
                     joints_fwd.push(at);
-                    order.push(next);
+                    after.push(next);
                     tail = other;
                 } else {
                     joints_back.push(at);
-                    order.insert(0, next);
+                    before.push(next);
                     head = other;
                 }
                 if head == tail {
@@ -1060,16 +1083,25 @@ fn walk_chains<T: Decide>(links: Vec<Link<T>>) -> Vec<Chain<T>> {
         } else {
             ChainClosure::Open { head, tail }
         };
-        let mut walked = order.into_iter().map(|i| links[i].clone());
-        let Some(first) = walked.next() else {
-            // `order` was minted `vec![seed]` at the top of this
-            // iteration and only pushed to or inserted into since.
-            unreachable!(
-                "chain walk: `order` is seeded with this iteration's `seed` link and \
-                 never shrinks"
-            )
+        // Head-first order: the backward run reversed, then the seed,
+        // then the forward run. Both arms are ordinary — a run that
+        // never extended backwards heads at its own seed.
+        before.reverse();
+        let (first, rest) = match before.split_first() {
+            Some((&far, between)) => {
+                let mut rest: Vec<usize> = between.to_vec();
+                rest.push(seed);
+                rest.extend(after);
+                (far, rest)
+            }
+            None => (seed, after),
         };
-        chains.push(Chain::new(first, walked.collect(), junctions, closure));
+        chains.push(Chain::new(
+            links[first].clone(),
+            rest.into_iter().map(|i| links[i].clone()).collect(),
+            junctions,
+            closure,
+        ));
     }
     chains
 }
@@ -1094,12 +1126,12 @@ fn vertex_edges<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Option<Vec<Edge
 ///
 /// # Errors
 ///
-/// Any of [`FilletError`]'s predicate arms, or
-/// [`FilletError::Escalated`] with the offending margin as payload.
+/// Any of [`BlendError`]'s predicate arms, or
+/// [`BlendError::Escalated`] with the offending margin as payload.
 pub fn run_battery<T: Decide + Bounds>(
-    req: &FilletRequest<'_, T>,
+    req: &BlendRequest<'_, T>,
     band: Band,
-) -> Result<BatteryVerdict<T>, FilletError> {
+) -> Result<BatteryVerdict<T>, BlendError> {
     run_battery_for(req, band, BlendKind::Fillet)
 }
 
@@ -1120,15 +1152,15 @@ pub fn run_battery<T: Decide + Bounds>(
 ///
 /// # Errors
 ///
-/// Any of [`FilletError`]'s predicate arms, or
-/// [`FilletError::Escalated`] with the offending margin as payload.
+/// Any of [`BlendError`]'s predicate arms, or
+/// [`BlendError::Escalated`] with the offending margin as payload.
 pub fn run_battery_for<T: Decide + Bounds>(
-    req: &FilletRequest<'_, T>,
+    req: &BlendRequest<'_, T>,
     band: Band,
     kind: BlendKind,
-) -> Result<BatteryVerdict<T>, FilletError> {
+) -> Result<BatteryVerdict<T>, BlendError> {
     let body = req.body;
-    let r = req.radius;
+    let r = req.size;
     let rolling_ball = matches!(kind, BlendKind::Fillet);
     // Resolve first: this is where the support pairs are enumerated,
     // so an out-of-scope pair refuses before any margin is taken.
@@ -1144,7 +1176,7 @@ pub fn run_battery_for<T: Decide + Bounds>(
         for chain in &chains {
             for link in chain.links() {
                 let Some((carrier, t0, t1)) = carrier_of(body, link.edge) else {
-                    return Err(FilletError::ChainNotConnected { edge: link.edge });
+                    return Err(BlendError::ChainNotConnected { edge: link.edge });
                 };
                 for i in 0..CHAIN_SAMPLES {
                     let p = carrier.eval(chain_sample_at(t0, t1, i));
@@ -1182,7 +1214,7 @@ pub fn run_battery_for<T: Decide + Bounds>(
             let (Some((ca, ta0, ta1)), Some((cb, tb0, tb1))) =
                 (carrier_of(body, a.edge), carrier_of(body, b.edge))
             else {
-                return Err(FilletError::ChainNotConnected { edge: a.edge });
+                return Err(BlendError::ChainNotConnected { edge: a.edge });
             };
             // Tangents taken at the junction END of each carrier, so
             // "not G1" means a genuine kink and not a parameterization
@@ -1232,7 +1264,7 @@ pub fn run_battery_for<T: Decide + Bounds>(
             let l = chain.first();
             if l.start == l.end {
                 let Some((c, t0, t1)) = carrier_of(body, l.edge) else {
-                    return Err(FilletError::ChainNotConnected { edge: l.edge });
+                    return Err(BlendError::ChainNotConnected { edge: l.edge });
                 };
                 chain_g1(c.deriv(t1), c.deriv(t0), l.arm_len, l.start, band)?;
             }
@@ -1248,7 +1280,7 @@ pub fn run_battery_for<T: Decide + Bounds>(
             if link.convexity != first {
                 let p = {
                     let (c, t0, t1) = carrier_of(body, link.edge)
-                        .ok_or(FilletError::ChainNotConnected { edge: link.edge })?;
+                        .ok_or(BlendError::ChainNotConnected { edge: link.edge })?;
                     c.eval(mid_param(t0, t1))
                 };
                 let n_a = outward(body, link.face_a, p);
@@ -1257,7 +1289,7 @@ pub fn run_battery_for<T: Decide + Bounds>(
                     (Some(a), Some(b)) => a.cross(b).norm().lo(),
                     _ => f64::NAN,
                 };
-                return Err(FilletError::ConvexitySignFlip {
+                return Err(BlendError::ConvexitySignFlip {
                     edge: link.edge,
                     margin,
                     chain: first,
@@ -1277,7 +1309,7 @@ pub fn run_battery_for<T: Decide + Bounds>(
 
     Ok(BatteryVerdict {
         chains,
-        radius: req.radius,
+        size: req.size,
         kind,
     })
 }
@@ -1368,7 +1400,7 @@ fn corner_at<T: Decide + Bounds>(
     radius: T,
     band: Band,
     kind: BlendKind,
-) -> Result<(), FilletError> {
+) -> Result<(), BlendError> {
     let indeterminate =
         || super::surgery::unbuilt_corner_config(vertex, CornerConfig::Indeterminate);
     let edges = vertex_edges(body, vertex).ok_or_else(indeterminate)?;
@@ -1458,7 +1490,7 @@ fn consumption_sweep<T: Decide + Bounds>(
     body: &Body<T>,
     chains: &[Chain<T>],
     band: Band,
-) -> Result<(), FilletError> {
+) -> Result<(), BlendError> {
     // Setback of each blended edge on each of its two support faces,
     // and which CHAIN each blended edge belongs to — two requested
     // boundary features from two different chains make a failing pair

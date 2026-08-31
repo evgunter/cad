@@ -4,6 +4,13 @@
     This PR adds 7 tests costing 43.2 cpu-s per run (3.5% of this job's
     1,243 cpu-s).
 
+That is an ILLUSTRATION OF THE OUTPUT SHAPE, not a claim about any tree:
+every number in it is derived per run by the code below and none of them
+is maintained here. The job total it happens to carry is one reading from
+the 2026-08-13 audit's era, kept only so the sentence reads like a real
+one; `scripts/slowest-tests.py`'s header owns that reading and says what
+re-takes it, which is the run's own summary and nothing else.
+
 WHY THIS EXISTS. Cost accrued to the suite because a PR never said what it
 was spending (issue 469): the sentence above, printed on the run itself, is
 the report that would have prevented the accumulation the 2026-08-13 audit

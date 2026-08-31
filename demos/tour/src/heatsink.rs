@@ -60,6 +60,10 @@ use pncad::document::{
     parse_expr,
 };
 use pncad::geom_core::{Point3, Vec3};
+// `probe_solids` is the only scene door pinned to the recording scalar
+// (see its note), and it rides the `probe` feature with it.
+#[cfg(feature = "probe")]
+use pncad::geom_core::Probe;
 use pncad::profile::SketchPlane;
 
 use crate::scalar::Scalar;
@@ -76,6 +80,9 @@ fn pe(src: &str) -> Expr {
 use crate::{SceneBody, Stop, View};
 use pncad::geom_core::Tol;
 
+/// The count-5 name table's size, pinned. Re-measured at the
+/// `PlacedUnion` migration; see the assertion for why it moved.
+const HEATSINK_NAMES_AT_5: usize = 135;
 const BASE_VOL: f64 = 3.0 * 1.0 * 0.25;
 /// Per-fin material gain: 0.1875 x 0.75 footprint, 0.8125 tall, minus
 /// the 1/16 slice overlapping into the base.
@@ -203,18 +210,35 @@ fn solidify<S: Scalar>(
 }
 
 /// The recipe evaluated + solidified at every fin count the tour
-/// shows (5 → 7 → 9, each re-eval fed the prior as memo), generic —
-/// the Probe sweep records the document-evaluation predicates AND the
-/// union chain at every count.
+/// shows (5 → 7 → 9, each re-eval fed the prior as memo) — the Probe
+/// sweep records the document-evaluation predicates AND the union
+/// chain at every count.
 /// Only `crate::probe` calls this, so it rides the `probe` feature with
 /// it — otherwise a default build trips `dead_code` under CI's
 /// `-D warnings`.
+///
+/// AT `Probe`, NOT GENERIC OVER [`Scalar`], and the reason is a door
+/// that does not exist rather than a preference. `evaluate` requires
+/// `EvalScalar`, which since the interval parameter door landed
+/// requires `editor_core::analysis::AxisScalar` — a scalar that can
+/// bind a widened lane environment. `Scalar` does not imply it, and
+/// this crate cannot add it as a bound: `AxisScalar` is deliberately
+/// interior to the façade (pncad's own surface census lists it under
+/// the E6 driver's vocabulary, NOT carried), so `pncad::` has no
+/// spelling for it. The genericity was never exercised either way —
+/// `sweep` takes `Vec<ProbeBody>`, so the sole call site could only
+/// ever instantiate this at `Probe`, and every other `evaluate` in the
+/// demos is concrete at `f64`. Widening the façade so a consumer can
+/// name the evaluation contract's own bound is a design question for
+/// that census, not something to settle from here.
 #[cfg(feature = "probe")]
-pub(crate) fn probe_solids<S: Scalar>(tol: Tol) -> Vec<(pncad::topo::Body<S>, pncad::topo::ContactRecords)> {
+pub(crate) fn probe_solids(
+    tol: Tol,
+) -> Vec<(pncad::topo::Body<Probe>, pncad::topo::ContactRecords)> {
     let r = build_doc(tol);
     let cancel = CancelToken::new();
     let opts = EvalOptions::default();
-    let ev5 = evaluate::<S>(&r.doc, None, &cancel, &opts, tol);
+    let ev5 = evaluate::<Probe>(&r.doc, None, &cancel, &opts, tol);
     let mut out = vec![solidify(&r, &ev5, 5, tol)];
     let mut doc = r.doc.clone();
     let mut prior = ev5;
@@ -230,7 +254,7 @@ pub(crate) fn probe_solids<S: Scalar>(tol: Tol) -> Vec<(pncad::topo::Body<S>, pn
         )
         .expect("count edit");
         doc = applied.doc;
-        let ev = evaluate::<S>(&doc, Some(&prior), &cancel, &opts, tol);
+        let ev = evaluate::<Probe>(&doc, Some(&prior), &cancel, &opts, tol);
         out.push(solidify(&r, &ev, n, tol));
         prior = ev;
     }
@@ -254,11 +278,15 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // Evaluate at 5, then EDIT the structural count and re-evaluate
     // against the prior — the memo counters are the demo.
     let ev5 = evaluate::<f64>(&r.doc, None, &cancel, &opts, tol);
-    let names5 = ev5.value(r.group).expect("the fin group @ 5").name_table.clone();
+    let names5 = ev5
+        .value(r.group)
+        .expect("the fin group @ 5")
+        .name_table
+        .clone();
 
     let mut doc = r.doc.clone();
     let mut evs: Vec<(usize, Evaluation<f64>, String)> = Vec::new();
-    evs.push((5, ev5, "cold evaluation: all 5 nodes computed".to_string()));
+    evs.push((5, ev5, "cold evaluation: all 6 nodes computed".to_string()));
     for (prior_idx, n) in [7usize, 9].into_iter().enumerate() {
         let applied = apply(
             &doc,
@@ -276,23 +304,41 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             "count edit -> {n}: recomputed {} node(s), reused {} (downstream-only recompute)",
             ev.recomputed, ev.reused
         );
+        // TWO nodes, not one, and the second is the point: the count
+        // edit re-runs the fin group AND the union that consumes it —
+        // which is what it means for the whole part to live in the
+        // document now (#1344). Everything upstream of the edited slot
+        // — both profiles and both extrudes — is still reused by
+        // content key, so this is the same downstream-only-recompute
+        // claim measured over a chain that is one node longer, not a
+        // weaker one. It read 1 while the union lived in demo code.
         assert_eq!(
-            ev.recomputed, 1,
-            "a count edit re-runs exactly the pattern node"
+            ev.recomputed, 2,
+            "a count edit re-runs exactly the fin group and the union below it"
         );
         assert_eq!(ev.reused, 4, "everything upstream reuses by content key");
         evs.push((n, ev, caption));
     }
 
     // Stable names survive the structural edits (N1 Instance(i)).
+    // PIN RE-MEASURED at the PlacedUnion migration (#1344), which is
+    // what its own instruction asks for: the count-5 table is read off
+    // the GROUP node now rather than off a Pattern, and the group emits
+    // `Instance(i)` names over one fused body where the pattern emitted
+    // N unfused ones. A moved number here means the naming emission
+    // vocabulary moved and wants deciding, not silencing.
     assert_eq!(
         names5.len(),
-        135,
-        "the count-5 pattern name table is pinned at 135 entries; a \
+        HEATSINK_NAMES_AT_5,
+        "the count-5 fin-group name table is pinned at {HEATSINK_NAMES_AT_5} entries; a \
          change means the naming emission vocabulary moved - update \
          this pin deliberately"
     );
-    let names9 = &evs[2].1.value(r.group).expect("the fin group @ 9").name_table;
+    let names9 = &evs[2]
+        .1
+        .value(r.group)
+        .expect("the fin group @ 9")
+        .name_table;
     let survived = names5
         .iter()
         .filter(|(name, _)| names9.lookup(name).is_some())

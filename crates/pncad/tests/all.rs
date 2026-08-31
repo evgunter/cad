@@ -157,10 +157,10 @@ fn fit_payload(e: &pncad::geom::FitError) {
 
 // editor_core::NodeErrorKind is the widest payload set in the tree:
 // the document layer's node errors wrap every kernel operation's
-// refusal, including the third buried type, sweep::fillet::FilletError.
+// refusal, including the third buried type, sweep::blend::BlendError.
 fn node_error_payload(e: &pncad::document::NodeErrorKind) {
     match e {
-        pncad::document::NodeErrorKind::Blend { error, .. } => named::<&FilletError>(error),
+        pncad::document::NodeErrorKind::Blend { error, .. } => named::<&BlendError>(error),
         pncad::document::NodeErrorKind::Boolean(inner) => named::<&BooleanError>(inner),
         pncad::document::NodeErrorKind::Transform(inner) => named::<&TransformError>(inner),
         _ => {}
@@ -1308,7 +1308,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
 
 /// R1-PARAMS: `plate_param` authors façade-only, evaluates to the
 /// corpus scene's analytic oracle, and its saved text is pinned as
-/// `tests/plate_param.v18.pncad` — the fixture the Python audit loads
+/// `tests/plate_param.v19.pncad` — the fixture the Python audit loads
 /// (`crates/pncad-py/tests/test_north_star.py`) to author the
 /// `set_doc_param` edit from Python. Python cannot yet author this
 /// profile from scratch (audit gaps G1/G9: circles, multi-loop), so
@@ -1356,7 +1356,7 @@ fn plate_param_authors_facade_only_and_its_saved_text_is_pinned() {
 
     let text = pncad::document::save(&doc, &[], Tol::witness()).expect("the document saves");
     if std::env::var_os("PNCAD_BLESS").is_some() {
-        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/plate_param.v18.pncad");
+        let path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/plate_param.v19.pncad");
         std::fs::write(path, &text).expect("the fixture writes");
         return; // freshly written; the next compile pins it
     }
@@ -1379,7 +1379,7 @@ fn plate_param_authors_facade_only_and_its_saved_text_is_pinned() {
     };
     assert_eq!(
         sans_epsilon(&text),
-        sans_epsilon(include_str!("plate_param.v18.pncad")),
+        sans_epsilon(include_str!("plate_param.v19.pncad")),
         "the saved plate_param text moved — regenerate the fixture with \
          `PNCAD_BLESS=1 cargo test -p pncad plate_param` (default env) and re-run"
     );

@@ -142,13 +142,25 @@ fn sphere_pierce_reads_the_material_side_from_the_discriminant() {
     );
 }
 
-/// The construction row for the frontier this unit does NOT retire:
-/// a TRIMMED sphere face. A partial revolve caps the sphere band with
-/// planar fan walls, so the sphere-surface face group has a boundary
-/// against another surface and the door refuses typed rather than
-/// guessing where the chart trim runs.
+/// The construction row for the frontier PR 9c did not retire and the
+/// sphere CHART TRIM since has: a TRIMMED sphere face. A partial
+/// revolve caps the sphere band with planar fan walls, so the
+/// sphere-surface group has a boundary against another surface — and
+/// that boundary is two meridian great circles, which is a chart
+/// iso-line class. The face is therefore exactly the
+/// `[azimuth] × [latitude]` rectangle its boundary pins, and the door
+/// classifies through it instead of refusing.
+///
+/// The row is kept, per the S9 pattern, as the record of the frontier
+/// it used to pin — and it now pins where the quarter lune DOES still
+/// stop, which is a different door entirely: a ray from outside a
+/// quarter ball can miss the body, and the at-infinity verdict then
+/// needs the body's signed volume, which the closed-form props lane
+/// will not certify for a rimless band whose meridians lie on two
+/// different great circles (that arm hardcodes the azimuthal width at
+/// π). Typed, and naming the volume rather than the chart.
 #[test]
-fn trimmed_sphere_face_refuses_typed_partial_sphere_face() {
+fn a_trimmed_sphere_face_is_classified_through_its_chart_rectangle() {
     let vp = validated(vec![half_disc()]);
     let t = revolve(
         &vp,
@@ -157,16 +169,20 @@ fn trimmed_sphere_face_refuses_typed_partial_sphere_face() {
         Tol::witness(),
     )
     .unwrap();
+    // Inside the swept quarter (the fan walls are x = 0 and z = 0, with
+    // material at x > 0, z < 0).
+    assert_eq!(
+        point_in_solid(&t.body, Point3::new(0.3, 0.1, -0.3), band(), Tol::witness()).unwrap(),
+        SolidContainment::In
+    );
+    // The at-infinity side, where the props lane stops.
     let err =
-        point_in_solid(&t.body, Point3::new(0.1, 0.1, 0.1), band(), Tol::witness()).unwrap_err();
-    let PointInSolidError::PartialSphereFace { .. } = err else {
-        panic!("expected PartialSphereFace, got {err:?}");
+        point_in_solid(&t.body, Point3::new(-0.3, 0.1, 0.3), band(), Tol::witness()).unwrap_err();
+    let PointInSolidError::VolumeUncertified = err else {
+        panic!("expected the at-infinity volume refusal, got {err:?}");
     };
-    // The refusal states its own two-tolerance posture: a STRUCTURAL
-    // arm with no in-band twin (S9 — definite arms say so too).
     let msg = err.to_string();
-    assert!(msg.contains("STRUCTURAL"), "{msg}");
-    assert!(msg.contains("no in-band twin"), "{msg}");
+    assert!(msg.contains("HEALTHY"), "{msg}");
     assert!(msg.contains("Recourse"), "{msg}");
 }
 

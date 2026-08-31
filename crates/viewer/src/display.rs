@@ -238,6 +238,19 @@ fn ancestry(doc: &Doc<ProfileProgram>, root: RecipeNodeId) -> BTreeSet<RecipeNod
     seen
 }
 
+/// **Whether `node`'s geometry derives from `source`** — `source` in
+/// `node`'s consuming-edge ancestry, `node` itself included.
+///
+/// [`roots_deriving_from`]'s question asked of ONE pair, over the same
+/// walk. What it is for: an entity minted at `source` and carried
+/// upward reaches `node`'s output, so a node whose op leaves no trace
+/// in a name — a `Transform`, which contributes no role segment by
+/// construction — can still be told which drawn entities passed
+/// through it.
+pub fn derives_from(doc: &Doc<ProfileProgram>, node: RecipeNodeId, source: RecipeNodeId) -> bool {
+    ancestry(doc, node).contains(&source)
+}
+
 /// **Every product root whose geometry derives from `node`** — the
 /// root itself when `node` is one, and every root that reaches it
 /// through consuming edges otherwise.

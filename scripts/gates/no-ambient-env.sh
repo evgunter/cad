@@ -9,7 +9,10 @@
 # exists because one had been live — `mesh::probe_stats::armed()`
 # answered true for `NURBS_PROBE`, which switched on a 91-sample
 # resampling of every emitted triangle (measured 7.9 s -> 19.8 s
-# on the tour's release binary, same binary, same arguments) AND
+# on the tour's release binary, same binary, same arguments — an
+# undated reading of a channel this gate has since removed, so there
+# is nothing left to re-take: it is the RECORD of the indictment,
+# and what keeps the rule true today is this gate's own run) AND
 # put an `assert!` in the tessellation path, so an environment
 # variable converted `tessellate`'s typed error contract into a
 # panic.

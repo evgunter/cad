@@ -616,7 +616,7 @@ pub fn bud_rim<S: Scalar>(tol: Tol) -> pncad::topo::Body<S> {
         .map(|(k, _)| k)
         .collect();
     assert_eq!(mouth.len(), 1, "the bud has one mouth rim of radius 0.8");
-    pncad::sweep::fillet::fillet_edges(
+    pncad::sweep::blend::fillet_edges(
         &body,
         &mouth,
         S::from_f64(0.05),

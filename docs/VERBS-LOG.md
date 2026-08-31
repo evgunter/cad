@@ -2474,3 +2474,228 @@ remainder blocks even the spun pose) — the PR-2 spec re-cuts
 before dispatch. No tally candidates (the MAJ bilateral); the
 pair's cleanliness assessed at the union's close. Union out;
 reviewer lanes swept.
+## GERMARMS PR-1 MERGED (#1229, 2026-08-30) — ordinal-106 row (sample #51)
+
+Union fix pass landed whole: the sagitta charge in at side_code
+(bool_pierce_sector_side_curved; arm²/lever upper bound over the
+spec's small-angle limit — a refusing-direction deviation, derived
+at the site); reach measured across six poses with fixtures
+shortened to x=±1.1 and the long bar kept as its own refusal row;
+belly Constant → Err(frontier()); NoChartedRun rewritten quoting
+the replaced reading; #1291 filed (NeitherContained pairing
+diagnosis, no longer reproducible — parked with evidence); the
+cone row re-asserted as a dead-belt fence; both probe branches
+merged authorship-preserving; two fix-pass reds both the fix's
+own (a GA_TRACE env leak caught by the discipline gate; the ±3
+interval span wrong at every eps, caught by the 1e-12 draw). Fix
+CI 33302620641 green both scalar lanes at 14832e9d. The row-head
+run merged with ONE red: k-lint's probe-suite-census — the known
+main-inherited #1288 (M10's m10_3_driver_k_probe_interval,
+sampled axis), not the unit's; verified against the issue and
+main's runs before merging. Row GA-1 rode the PR; sample #51
+(ledger max #50 at write). PR-2 unblocks behind its re-cut spec
+(merged to main at #1292); dispatch queued per VERBS-7 slot 3.
+## ORDINAL 108 CLAIMED — SPHSPH dual (2026-08-30)
+
+SPHSPH delivered green (#1290): the sphere×sphere section with
+trilean gates in arc_arc's order, the polar gate placed at the
+CONSUMERS (the spec's (a)+(c) honoured with placement argued —
+a gate inside the section would be an unexercised guess),
+row-3 of the opening measurement REFUTED the deep-seam
+hypothesis structurally (a Z-offset seam never crosses — every
+seam point equidistant √(r²+Δz²) from the other centre), the
+latitude lever as sin(v_b−v_a) levered by R (arc, not chord),
+seven consumer pins re-baselined against closed forms (probe_g
+0 ulp), the octant-pin frontier MEASURED off the tangent
+carriers, PointInSolidError::VolumeUncertified replacing a
+CorruptFace misreport, and the props rimless-sphere Δu=π gap
+banked as a props-unit finding. Two hosted CI points green at
+step level; the eps 1e-6 row run locally. Full dual, frozen
+head 3bb074f7, parity byte 118 ⇒ R1 OPUS + R2 FABLE; claim to
+main at dispatch (#1292, which also carried the GERMARMS PR-2
+spec re-cut). Reviewer lanes are reference-clones of the
+implementer lane's .git (objects only, no refs beyond origin's
+— disk pressure made the network clone unaffordable; disclosed
+here for the record).
+## ORDINAL 107 — R1 DEATH AND FRESH RE-DISPATCH (2026-08-30)
+
+The original R1 (fable slot, parity 1) died without delivering:
+no lane file activity for ~12h, two queued resume messages never
+processed. The presumed-usage-limit theory was MEASURED AND
+FALSIFIED before acting (a trivial fable probe returned
+immediately — capacity exists; the process is dead, cause
+unknown). Re-dispatched FRESH in the same lane with the original
+brief; the redispatch brief adds one clarification — the
+instrument triple's definition (idiom / test / doc-honesty,
+1–5) — which the original briefs omitted; R2 was asked the same
+question post-report (the M10-3 recovery precedent). Disclosed
+here for the pair-fairness record: R2 delivered (2 MAJ / 5 MIN)
+before R1 started; R1 is a fresh run, not a truncated resume, so
+3e exclusion is NOT automatic — assessed at adjudication with
+this timing on the table.
+## ORDINAL 107 RETURNED AND ADJUDICATED (2026-08-31)
+
+R1 (fresh redispatch) 1 MAJ / 4 MIN, 5/4/3. R2 2 MAJ / 5 MIN,
+5/3/2. The consolidation's structure held both arms (one home
+beside eval/deriv, typed refusals preserved, reduce.rs bitwise
+by construction — verified independently both arms). Findings:
+
+- R1 MAJ-1 UNILATERAL CANDIDATE (class annotation: claim/test-gap
+  — the blinded coding decides): the PR's f64 "bit-identical
+  everywhere incl. whole-corpus digest" is FALSIFIED at the
+  parameter level by in-place instrumentation — surgery 101/261
+  calls and replace_face 4/9 calls differ 1–2 ulp (6/44 on the
+  corpus itself); the digest hashes outcomes and points only, so
+  it structurally cannot see the moved quantity; the corpus never
+  calls plan_reanchors at all (the cited evidence is vacuous for
+  that site). Mitigations measured honestly: no decision flips,
+  branch selection identical, diffs ≤ 4.44e-16 rad.
+- R2 MAJ-1 UNILATERAL CANDIDATE (class: test-gap/code): the
+  agreement row's grid stops at |δ| ≤ 3.1 — at exactly |δ|=π the
+  endpoint-anchored retired form and param_near disagree by a
+  whole turn in 5 of 10 boundary cases (17 whole-turn
+  disagreements measured); the offset door's gap check compares
+  points, not parameters, so a span can silently change length by
+  2π. R1 probed the π boundary but at the midpoint-anchored forms
+  (12/12 agreement) and did not raise the endpoint-anchored
+  defect — unilateral by the correspondence definition, with the
+  near-miss noted for the coder.
+- R2 MAJ-2 BILATERAL-DOWNGRADED (R1 MIN-3 covers the same run's
+  skipped census step at MINOR): "fully green including k-lint
+  (gate)" cites a job whose three k-lint steps were skipped; NO
+  run anywhere on the branch has executed large-K lint. Not a
+  tally candidate (mentioned by both).
+- Bilateral MIN: the fillet seam_split_param period precondition
+  unenforced (both arms); the atan2 hit list incomplete presented
+  as complete (R1: step-import Circle/Ellipse recovery; R2:
+  offset_axial ×2 + mesh walk — same defect, different missing
+  sites, dedup single).
+- R2-only MIN: PR quotes the wrong f64 digest constant; negative
+  radius doc sentence; p==center silent behavior change.
+  R1-only MIN: instrumentation counts stale (191 stated, 657
+  measured on the frozen head).
+
+PAIR FAIRNESS: flagged, not excluded — R2's run died at a usage
+limit post-report-composition and the rubric was recovered by
+message (M10-3 precedent: blemish, not missing data); R1 is a
+FRESH dispatch that started after R2 delivered (no leak — R1
+never read R2's lane; isolation disclosed clean both arms); the
+prior dead R1's setsid children were STILL WRITING into the lane
+12h later and injected a probe file into the fresh R1's checkout
+mid-session — R1 quarantined it (sha256 recorded in its lane
+log), restored the tree, and adopted nothing. The 3e call and
+both tally candidates go to the blinded coding with these
+annotations. Operational lesson logged: a killed agent's setsid
+process groups survive it; sweep the lane's process table, not
+just the agent, before re-dispatching into the same lane.
+
+Union fix pass out (deduped, both arms' probes offered for
+adoption). Tally: candidates 2 (pending blinded coding), tally
+still 1/8 pending; clean-pair count unchanged (MAJ-bearing).
+## ORDINAL 108 RETURNED AND ADJUDICATED (2026-08-31)
+
+R1 (opus) 2 MAJ / 4 MIN; R2 (fable, resumed once across a limit
+death — lane pristine at resume, M10-3 precedent: blemish not
+exclusion) 3 MAJ / 3 MIN, triple 4/2/2. The arms CONVERGED on
+both principal defects — identical diagnoses, independent
+mutation/probe evidence:
+
+- MAJ BILATERAL 1 (dedup single): sphere_sphere_section's
+  internal-tangency point is WRONG whenever operand A is the
+  smaller sphere — intersect.rs:882 hard-codes c₁+n̂·r₁ where the
+  signed a = −r₁ (both arms re-derived; R2's probe puts the
+  returned point 1m INSIDE sphere B; R1's residual table
+  worst=1.0). The PR-body claim "substituting either d gives
+  exactly r₁" is algebraically false; the 2-D mirror the spec
+  ordered (seg.rs:604-616) gets it right and the unit deviated
+  exactly there, undeclared; the shipped pin tests only the
+  r₁>r₂ order. Mitigation: the sole production consumer discards
+  the payload — wrong data from a new public API, no wrong
+  boolean today.
+- MAJ BILATERAL 2 (dedup single): the latitude lever is
+  UNPINNED — both arms independently mutation-tested the lever
+  to #893's axial form and the ENTIRE SUITE STAYED GREEN,
+  including the row advertised as the near-polar red (its lune
+  fixture's latitude window is (None,None) — margins come from
+  the azimuth cosine window; R1's sign-flip control reds 8/10
+  filters, proving the function is live while its lever choice
+  is untested). The §7 planted-red fixture (two genuinely
+  distinct near-polar rims) exists nowhere; R1 measured
+  Profile::validate refusing a revolve rim at polar ≤1e-4 — the
+  fixture needs a different construction layer. Right code,
+  absent pin, false claim about the pin.
+- R2 MAJ-3 UNILATERAL CANDIDATE (class: test-gap; grep-proven):
+  the bool_sphere_trim* predicate family appears in ZERO test
+  files; no ringed/non-iso/full-period None rows; §7's
+  boundary-adjacent probes absent — none declared as deviations.
+- Adjudicated disagreement (both mentioned, doc-class): R1 calls
+  the polar-gate delivery "no gate was added" (MINOR), R2 calls
+  it "honours the ruling, stricter than (a)". Ruled: the
+  delivered state is SAFE (no unchecked path — both arms traced
+  it) but the "gate at the consumers" framing describes a gate
+  that does not exist; the fix is prose.
+- MINOR union: VolumeUncertified's |_| swallows Escalated (R1);
+  sphere_chart_trim maps corruption-shaped errors to capability
+  (R2 — same genus, different site); the register's row-3
+  sentence drops its chart premise (R1) and the coincident
+  measure-zero case (R2); probe_g's "0 ulp" precision (R2);
+  klint-row coverage honesty (R1). R2's environmental note:
+  reader_census reds in ANY dot-component lane (known M10-3
+  pushback, re-confirmed).
+
+TALLY: one unilateral candidate (R2 MAJ-3) to the blinded
+coding; the bilateral MAJs are calibration signal, not
+candidates. Pair COUNTS (flagged for R2's resume). Second
+zombie-process instance in two days: R2's pre-crash detached
+cargo test found running in the verbs-azimuth lane and killed at
+resume — the sweep-the-process-table lesson now has two
+instances. Union fix pass out.
+## AZIMUTH MERGED (#1256, 2026-08-31) — ordinal-107 row (sample #60)
+
+The union fix pass landed everything and the main-merge caught a
+REAL regression the reviews could not see: main's new composition
+rows went red against the branch (the midpoint anchor made split
+parameters a function of the stored window — one-call vs
+sequential filleting disagreed bitwise); re-anchored at the
+carrier's SEAM, the only anchor a split cannot move. Grids
+through ±π with the property row (coin flip pinned at the
+measured 9/30); period guard at surgery; censuses corrected
+(604+245 live calls; the PR's 191 was stale); the '~10 new
+predicates' premise falsified (the unit adds zero); four atan2
+sites dispositioned; declined the golden-ulp pin with the
+branch-selection-is-the-contract argument; main's
+periodic_branch primitive adopted for the fixture. Ledger row
+AZ-1 rode the PR — sample #60 after TWO renumbers in one night
+(drafted #52; concurrent recorders reached #59, then QA-8 took
+#61 while gating; a six-row QA/CERT night). Merge-head run green
+except k-lint's K-telemetry sweep — the main-inherited
+#1296/#1304, reproduced by the fix pass with main's own sources
+and escalated, not silenced; large-K lint still has zero signal
+(tracked there). #1077 closes with the PR. Tally candidates from
+ordinal 107 (both principal MAJs unilateral, class-annotated)
+await the blinded coding.
+## ORDINAL 109 CLAIMED — GERMARMS PR-2 dual (2026-08-31)
+
+PR-2 delivered on the re-cut spec's SECOND acceptance branch: the
+pinch is not carriable at this head; the intersecting equal-radius
+family refuses TYPED at the new GermFrameCylinderPinch door,
+reachable through the public API. The opening measurements: (a)
+the classic fixture's seam rulings are TANGENT to the partner
+wall exactly at the pinch points (derived for the whole family at
+every axis angle) so it dies two layers before the join; (b) the
+re-posed premise came back CLEANER than the re-cut expected — no
+chart-trim remainder anywhere in the family, every re-posed twin
+answering variant-for-variant across 20 poses. One enabling
+correction, declared: vertex_on_curved_face's fall-through
+premise ('vertices never interior to a face') is FALSIFIED by
+PR-1's own pierce vertex — the arm now answers no-event only on
+definite Elsewhere, agreeing with its planar twin. THE
+PRE-REGISTERED STOP FIRED on item 2: the chord lane needs a
+second variant (SectionCtx is plane-shaped; SectionConic holds
+one carrier vs the section's two ellipses; branch selection needs
+a point the kind-keyed signature lacks) — L→adjudication, built
+none of it. TWO DESIGN FORKS BANKED FOR EVAN (after the dual
+tests the measurements): the chord-lane widening, and the absent
+radius-equality declaration channel (also blocks SPHSPH's arms
+option (a)). Dual: parity byte 30 ⇒ R1 OPUS + R2 FABLE, frozen
+874a5ff3; claim to main at dispatch.

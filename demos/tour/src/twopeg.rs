@@ -301,16 +301,16 @@ fn plate_with_holes<S: Scalar>(tol: Tol) -> Body<S> {
 fn cylinders<S: Scalar>(body: &Body<S>) -> Vec<(pncad::topo::FaceKey, f64, f64, f64)> {
     body.faces()
         .filter_map(|(k, f)| match body.get_surface(f.surface) {
-            Some(&pncad::geom::Surface::Cylinder {
-                origin, radius, ..
-            }) => Some((k, origin.x.f(), origin.y.f(), radius.f())),
+            Some(&pncad::geom::Surface::Cylinder { origin, radius, .. }) => {
+                Some((k, origin.x.f(), origin.y.f(), radius.f()))
+            }
             _ => None,
         })
         .collect()
 }
 
 /// The one planar face of `body` at height `z` whose outward normal
-/// points up (`up`) or down. Same finding as [`peg_walls`].
+/// points up (`up`) or down. Same finding as [`cylinders`].
 fn plane_face<S: Scalar>(body: &Body<S>, z: f64, up: bool) -> pncad::topo::FaceKey {
     let hits: Vec<_> = body
         .faces()
@@ -358,7 +358,8 @@ fn declarations<S: Scalar>(p: &Body<S>, q: &Body<S>) -> BooleanDeclarations {
     let mut shared = 0usize;
     for &(fa, ax, ay, ar) in &cp {
         for &(fb, bx, by, br) in &cq {
-            let same = (ax - bx).abs() < 1e-12 && (ay - by).abs() < 1e-12 && (ar - br).abs() < 1e-12;
+            let same =
+                (ax - bx).abs() < 1e-12 && (ay - by).abs() < 1e-12 && (ar - br).abs() < 1e-12;
             if same {
                 shared += 1;
                 decls
@@ -440,11 +441,7 @@ pub(crate) fn build<S: Scalar>(tol: Tol) -> (Body<S>, Body<S>, BooleanBody<S>, B
     // assertion was against `V_MATED` and the error cancels in the SUM.
     // A narrated number that no assertion pins is how that survived; so
     // each one is pinned to its own body here, not to the total.
-    for (name, measured, narrated) in [
-        ("P", vp, V_P),
-        ("Q", vq, V_Q),
-        ("the mate", v, V_MATED),
-    ] {
+    for (name, measured, narrated) in [("P", vp, V_P), ("Q", vq, V_Q), ("the mate", v, V_MATED)] {
         assert!(
             (measured - narrated).abs() <= 1e-9,
             "{name}: the scene narrates {narrated} and the body measures {measured}"
@@ -454,7 +451,11 @@ pub(crate) fn build<S: Scalar>(tol: Tol) -> (Body<S>, Body<S>, BooleanBody<S>, B
         "   volumes: P = {vp}, Q = {vq}, mated = {v}; additive to {:.2e} \
          (exactly {}), and each against its own closed form",
         (v - additive).abs(),
-        if v == additive { "bitwise" } else { "within the gate" }
+        if v == additive {
+            "bitwise"
+        } else {
+            "within the gate"
+        }
     );
     // Full engagement: every cylindrical patch is interior, so the
     // walls are REMOVED rather than merged and no cylinder survives.

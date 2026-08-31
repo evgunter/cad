@@ -43,7 +43,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use editor_core::appearance::Rgba8;
 use eframe::egui;
-use egui_tiles::{TileId, Tiles, Tree, UiResponse};
+use egui_tiles::{EditAction, Tile, TileId, Tiles, Tree, UiResponse};
 use pncad::document::{Axis3, Dimension, ParamName, RecipeNodeId, SlotId};
 use pncad::geom_core::Tol;
 use pncad::quantity::UnitDef;
@@ -58,22 +58,66 @@ use crate::gpu::{DEPTH_BITS, IdQuery, ViewportCallback, ViewportRenderer};
 use crate::input::{self, InputMap, PointerButton, ViewportEvent, ViewportSize};
 use crate::matetool::{MateChoice, MateTool, MateToolState, admitted_classes};
 use crate::pick::{self, PickCache, PickIndex};
+use crate::prefs::{self, Prefs, PrefsStore};
 use crate::props::{self, SlotDriver, SlotGroup, SlotRow, SlotValue};
 use crate::scene::{self, DisplayTolerance, SceneMesh};
 use crate::session::{BoundsTarget, DocSession, Refusal, Selection, SessionOp, Standing};
 use crate::theme::{Polarity, Theme};
 use crate::tree::{RowStatus, TreeRow};
+
+/// Where this build keeps preferences.
+///
+/// One `cfg` alias rather than a trait object: there is exactly one
+/// store per target, chosen at compile time, and a `Box<dyn>` would
+/// buy a choice nothing makes. The browser's arm is [`prefs::Absent`]
+/// until a `web_sys::Storage` store is written — it reports, and the
+/// Save control disables itself, exactly as the file chooser does
+/// where no portal exists.
+#[cfg(not(target_family = "wasm"))]
+type Store = prefs::file::FileStore;
+#[cfg(target_family = "wasm")]
+type Store = prefs::Absent;
+
+/// This build's store.
+fn prefs_store() -> Store {
+    #[cfg(not(target_family = "wasm"))]
+    {
+        // The path comes from `frame`, the crate's one ambient door.
+        prefs::file::FileStore::new(frame::prefs_path())
+    }
+    #[cfg(target_family = "wasm")]
+    {
+        prefs::Absent
+    }
+}
 use pncad::document::{AxisSense, Frame, MatePrimitive};
 
-/// The window title.
-const WINDOW_TITLE: &str = "viewer";
+/// The OS window title: the project's displayed name, which is a
+/// PLACEHOLDER until Q9 settles a real one. It is not the crate name
+/// — the crate, the binary and the canvas element stay `viewer`, and
+/// only what a user reads says `pncad`.
+const WINDOW_TITLE: &str = "pncad";
+
+/// What the toolbar calls a document with no path of its own.
+const UNTITLED: &str = "untitled";
+
+/// The tab name of the container holding the feature tree and the
+/// properties — the document's model, as against the View pane's
+/// display settings.
+const MODEL_TAB_TITLE: &str = "Model";
+
+/// The most of the Features/Properties stack the feature tree is
+/// auto-given: past this, the tree scrolls in its own half rather than
+/// crowding the properties out.
+const FEATURES_SHARE_CAP: f32 = 0.5;
+
+/// Points of breathing room under the feature tree when its height is
+/// what sizes the tile.
+const FEATURES_SLACK: f32 = 8.0;
 
 /// The starting display tolerance: 0.1 mm, fine enough that a 24 mm
 /// hole reads as a circle and coarse enough to redraw instantly.
 const INITIAL_DELTA: f64 = 1.0e-4;
-
-/// The step the chrome's coarsen/refine buttons take.
-const DELTA_STEP: f64 = 2.0;
 
 /// Direction the light travels, world space; a unit vector over the
 /// viewer's left shoulder.
@@ -119,13 +163,13 @@ const INDENT_STEP: f32 = 12.0;
 
 /// The deepest level the tree indents for.
 ///
-/// Depth is the longest input chain and a real document reaches far
-/// past this — the tour's `diefillet` hits 27, which at
-/// [`INDENT_STEP`] would be 324 points of dead space in a pane that
-/// holds a third of the window. Past the clamp the rows stop moving
-/// right; they stay in evaluation order, so the tree is still readable
-/// as a sequence, and what is lost is depth information that had
-/// already stopped fitting.
+/// A backstop, not the working limit: `tree`'s depth counts BRANCHES
+/// off a node's primary input, so a chained document sits a handful
+/// of levels deep however long its chain is. A document that does
+/// nest genuinely deeper than this stops moving right here; the rows
+/// stay in evaluation order, so the tree is still readable as a
+/// sequence, and what is lost is depth information that had already
+/// stopped fitting the pane.
 const INDENT_MAX_DEPTH: usize = 8;
 
 /// The indent a row at `depth` draws at.
@@ -153,9 +197,22 @@ pub enum Pane {
 /// abandoned by selecting elsewhere leaves nothing behind.
 #[derive(Debug, Default)]
 struct Drafts {
-    /// The slot the expression field is currently for.
+    /// The View pane's δ field while it has focus, in millimetres as
+    /// typed. `None` whenever it does not, so an unfocused field shows
+    /// the δ actually in force — including one the triangle budget
+    /// chose after this field last committed.
+    delta_mm: Option<String>,
+    /// The slot whose value field is holding REFUSED text.
+    ///
+    /// The field's text is egui's while it has focus and the
+    /// document's afterwards, so there is only one thing this layer
+    /// has to remember: text a parse refusal sent back
+    /// ([`frame::retype_draft`]). Acting on the refusal — going off to
+    /// declare the parameter it named — must not cost the text that
+    /// raised it, so the field keeps showing it until an expression
+    /// edit for that slot lands.
     expr_target: Option<(RecipeNodeId, SlotId)>,
-    /// What is typed in it.
+    /// The refused text itself.
     expr_text: String,
     /// The add-parameter form's name field.
     new_param_name: String,
@@ -234,12 +291,12 @@ pub struct ViewerApp {
     /// document arrives, the budget picks a δ that draws it in a
     /// reasonable time, and from then on δ is whatever the user asked
     /// for. Anything stronger — clamping every rebuild — would make
-    /// `Finer δ` a button that does nothing on exactly the documents
-    /// someone would want it for.
+    /// the View pane's δ field a control that does nothing on exactly
+    /// the documents someone would want it for.
     fit_delta_on_scene: bool,
     /// The budget's verdict, while the δ it chose is still the δ in
     /// force. `None` once the user has moved δ themselves
-    /// ([`ViewerApp::rescale_delta`] clears it), because from there
+    /// ([`ViewerApp::set_delta`] clears it), because from there
     /// the number on screen is theirs and the badge would be claiming
     /// a choice it did not make.
     budget_delta: Option<crate::scene::FittedDelta>,
@@ -258,6 +315,9 @@ pub struct ViewerApp {
     /// work; this field is what it will write into.
     theme: Theme,
     tree: Tree<Pane>,
+    /// Whether the user has resized a tile themselves. From the first
+    /// drag the layout is theirs and nothing here sizes it again.
+    split_dragged: bool,
     drafts: Drafts,
     /// A fit is owed, and will be taken by the viewport pane on the
     /// next frame — the only place that knows the real aspect.
@@ -273,6 +333,23 @@ pub struct ViewerApp {
     /// once at startup ([`frame::chooser_backend`]); the Open/Save As
     /// controls read it every frame.
     chooser: frame::ChooserBackend,
+    /// Where the theme choice is remembered. Held rather than
+    /// rediscovered per save: the path is an environment read, and a
+    /// viewer whose config directory moved mid-session would be
+    /// stranger than one that kept writing where it started.
+    store: Store,
+    /// The input preset the loaded file named, carried so that saving
+    /// a theme change writes it back rather than dropping it.
+    ///
+    /// **The name as WRITTEN, not the resolved [`InputMap`]** — a
+    /// preset this viewer does not recognise falls back for the
+    /// session (`prefs::Notice::UnknownPreset`) but must survive in
+    /// the file, or opening an older viewer once would silently
+    /// delete a newer one's choice. Kept as a field rather than
+    /// re-read at save time because the save happens on a UI event
+    /// and reading the file there would race the very write it is
+    /// about to do.
+    keys_pref: Option<String>,
 }
 
 /// Why the application could not start (closed enum, D4 ¶3).
@@ -390,11 +467,34 @@ impl ViewerApp {
         // runs, so what a user sees is never the invented framing.
         let camera = Camera::framing(&mesh.bounds(), 1.0).map_err(StartupError::Camera)?;
 
+        // Preferences, before anything is drawn. A refusal here is
+        // never fatal: a viewer that would not open because its
+        // colour scheme was unreadable would be trading the whole
+        // product for a preference, so every arm ends in a message
+        // and the defaults.
+        let store = prefs_store();
+        let (saved, mut notices) = match store.load() {
+            Ok(Some(text)) => match Prefs::from_toml(&text) {
+                Ok((prefs, notices)) => (prefs, notices.iter().map(ToString::to_string).collect()),
+                Err(error) => (Prefs::default(), vec![error.to_string()]),
+            },
+            Ok(None) => (Prefs::default(), Vec::new()),
+            Err(error) => (Prefs::default(), vec![error.to_string()]),
+        };
+        let (theme, theme_notice) = saved.resolve_theme();
+        let (input, keys_notice) = saved.resolve_keys();
+        notices.extend(
+            [theme_notice, keys_notice]
+                .into_iter()
+                .flatten()
+                .map(|n| n.to_string()),
+        );
+
         // The startup palette reaches the chrome here, not on the
         // first frame: a window that opened dark and turned light one
         // frame later would flash, and the flash would be the honest
         // report of a theme applied too late.
-        apply_polarity(&cc.egui_ctx, Theme::DEFAULT.polarity);
+        apply_polarity(&cc.egui_ctx, theme.polarity);
 
         let render_state = cc
             .wgpu_render_state
@@ -427,14 +527,19 @@ impl ViewerApp {
             budget_delta: None,
             mate_tool: None,
             camera,
-            input: InputMap::default(),
-            theme: Theme::DEFAULT,
+            input,
+            theme,
             tree: initial_layout(),
+            split_dragged: false,
             drafts: Drafts::default(),
             pending_fit: true,
             fit_on_scene: false,
-            status: None,
+            // Whatever the preferences file had to say, in the one
+            // place this crate puts a thing that went wrong.
+            status: (!notices.is_empty()).then(|| notices.join("; ")),
             chooser: frame::chooser_backend(),
+            store,
+            keys_pref: saved.keys,
         })
     }
 
@@ -537,11 +642,16 @@ impl ViewerApp {
         }
     }
 
-    /// Change δ, rebuilding the picture from the evaluation already in
-    /// hand — a display change is not a document change and re-runs no
-    /// geometry above the tessellator.
-    fn rescale_delta(&mut self, factor: f64) {
-        match self.delta.scaled(factor) {
+    /// Change δ to `delta` world units, rebuilding the picture from
+    /// the evaluation already in hand — a display change is not a
+    /// document change and re-runs no geometry above the tessellator.
+    ///
+    /// The value goes through [`DisplayTolerance::new`], the one door
+    /// that decides what a δ may be, so a zero or a negative number is
+    /// refused with the tessellator's own condition and the picture
+    /// keeps the δ it had.
+    fn set_delta(&mut self, delta: f64) {
+        match DisplayTolerance::new(delta) {
             Ok(delta) => {
                 self.delta = delta;
                 // From here the number is the user's. The budget chose
@@ -552,6 +662,51 @@ impl ViewerApp {
                 self.sync_scene();
             }
             Err(error) => self.status = Some(format!("{error}")),
+        }
+    }
+
+    /// Give the Features tile the height its content wants, capped at
+    /// [`FEATURES_SHARE_CAP`] of the stack it shares with Properties.
+    ///
+    /// The two panes are read TOGETHER — selecting in the tree is what
+    /// fills the properties — so a three-row tree that pushes the
+    /// Properties heading half a page down is half a pane of nothing.
+    /// A long tree reaches the cap and the stack is split as it always
+    /// was, the tree scrolling inside its own half.
+    ///
+    /// `wanted` is the tree's laid-out height in points. The stack's
+    /// own height comes from the two tiles' last layout, so this is a
+    /// no-op on the very first frame, before there are rectangles to
+    /// read; the frame after has both. The caller owns the check that
+    /// the user has not taken the divider over.
+    fn fit_features_share(&mut self, wanted: f32) {
+        let tiles = &mut self.tree.tiles;
+        let (Some(features), Some(properties)) = (
+            tiles.find_pane(&Pane::Features),
+            tiles.find_pane(&Pane::Properties),
+        ) else {
+            return;
+        };
+        let (Some(above), Some(below)) = (tiles.rect(features), tiles.rect(properties)) else {
+            return;
+        };
+        let stack = above.height() + below.height();
+        if stack <= 0.0 {
+            return;
+        }
+        let Some(stacked) = model_stack(tiles) else {
+            return;
+        };
+        // Slack over the measured height so the last row is not flush
+        // against the divider.
+        let fraction = ((wanted + FEATURES_SLACK) / stack).clamp(0.0, FEATURES_SHARE_CAP);
+        if let Some(Tile::Container(egui_tiles::Container::Linear(linear))) = tiles.get_mut(stacked)
+        {
+            // Shares are relative, so a pair summing to 2 states the
+            // fraction directly — the spelling `Linear::new_binary`
+            // itself uses.
+            linear.shares.set_share(features, 2.0 * fraction);
+            linear.shares.set_share(properties, 2.0 * (1.0 - fraction));
         }
     }
 
@@ -597,14 +752,27 @@ impl ViewerApp {
             }
         }
         let update = frame::batch_status(&performed, refusal.as_ref());
-        // The refuse-then-offer pair for a parse refusal: restore the
-        // refused draft so acting on the refusal does not cost the
-        // text that raised it, and — for an unknown parameter name —
-        // prefill the add-parameter affordance with the name it
-        // offers to create (dimension deliberately left unpicked).
-        if let Some((node, slot, text)) = frame::retype_draft(&performed, refusal.as_ref()) {
-            self.drafts.expr_target = Some((node, slot));
-            self.drafts.expr_text = text;
+        // The refuse-then-offer pair for a parse refusal: hold the
+        // refused text in the field it was typed into so acting on the
+        // refusal does not cost it, and — for an unknown parameter
+        // name — prefill the add-parameter affordance with the name it
+        // offers to create (dimension deliberately left unpicked). An
+        // expression edit that was NOT refused this way releases the
+        // field back to the document, which is now what the user
+        // asked for.
+        match frame::retype_draft(&performed, refusal.as_ref()) {
+            Some((node, slot, text)) => {
+                self.drafts.expr_target = Some((node, slot));
+                self.drafts.expr_text = text;
+            }
+            None if performed
+                .iter()
+                .any(|op| matches!(op, SessionOp::SetSlotExpression { .. })) =>
+            {
+                self.drafts.expr_target = None;
+                self.drafts.expr_text.clear();
+            }
+            None => {}
         }
         if let Some(name) = frame::creation_offer(refusal.as_ref()) {
             self.drafts.new_param_name = name.0.clone();
@@ -617,6 +785,34 @@ impl ViewerApp {
     /// Apply a policy verdict to the status line — the one place a
     /// [`StatusUpdate`] becomes the field, shared by the batch policy
     /// and the dialog policy so neither hand-assigns.
+    /// Write the current theme choice to the preferences store.
+    ///
+    /// **Best-effort, and it reports.** A store that cannot be
+    /// written is worth one line in the status area and nothing more:
+    /// the theme is already applied on screen, so a failure here
+    /// costs the next session's memory of it, never this session's
+    /// work. Refusing the switch because it could not be recorded
+    /// would be the worse trade.
+    ///
+    /// The whole document is rewritten rather than patched, so every
+    /// setting this viewer understands has to be carried across —
+    /// which is why [`Self::keys_pref`] exists. A key it does NOT
+    /// understand is lost, and that is stated rather than hidden: it
+    /// is the price of a hand-written renderer that keeps its
+    /// comments, and such a key was already reported on load.
+    fn remember_theme(&mut self) {
+        if !self.store.usable() {
+            return;
+        }
+        let prefs = Prefs {
+            theme: Some(self.theme.name.to_owned()),
+            keys: self.keys_pref.clone(),
+        };
+        if let Err(error) = self.store.save(&prefs.to_toml()) {
+            self.status = Some(error.to_string());
+        }
+    }
+
     fn apply_status(&mut self, update: StatusUpdate) {
         match update {
             StatusUpdate::Keep => {}
@@ -639,7 +835,11 @@ impl eframe::App for ViewerApp {
 
         egui::Panel::top("viewer_toolbar").show(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.label(WINDOW_TITLE);
+                // What is OPEN, not what the program is called: the
+                // window title already carries the application's name,
+                // and a toolbar that repeats it tells a user nothing
+                // they cannot see in their own title bar.
+                ui.label(document_name(self.session.path()));
                 ui.separator();
                 // The chooser-backend verdict, probed once at startup:
                 // with confidently NO backend (no zenity, no session
@@ -707,17 +907,15 @@ impl eframe::App for ViewerApp {
                     ops.push(SessionOp::Redo);
                 }
                 ui.separator();
-                if ui.button("Fit").clicked() {
+                if ui
+                    .button("Zoom to fit")
+                    .on_hover_text("frame the whole model in the viewport")
+                    .clicked()
+                {
                     // The toolbar has no pane rectangle, so it asks
                     // for a fit rather than performing one; the
                     // viewport takes it at the real aspect.
                     self.pending_fit = true;
-                }
-                if ui.button("Coarser δ").clicked() {
-                    self.rescale_delta(DELTA_STEP);
-                }
-                if ui.button("Finer δ").clicked() {
-                    self.rescale_delta(1.0 / DELTA_STEP);
                 }
                 // The indicator is a READ of session state, and the
                 // buttons beside it are the shipped token and its pair.
@@ -820,9 +1018,13 @@ impl eframe::App for ViewerApp {
         if chosen != self.theme {
             self.theme = chosen;
             apply_polarity(ui.ctx(), chosen.polarity);
+            self.remember_theme();
         }
 
         let display = self.session.display_view();
+        let mut delta_request: Option<f64> = None;
+        let mut features_content_height: Option<f32> = None;
+        let mut split_dragged = self.split_dragged;
         egui::CentralPanel::no_frame().show(ui, |ui| {
             let mut behavior = ViewerBehavior {
                 session: &self.session,
@@ -842,9 +1044,26 @@ impl eframe::App for ViewerApp {
                 id_answer: &self.id_answer,
                 id_log: &mut self.id_log,
                 ops: &mut ops,
+                delta_request: &mut delta_request,
+                features_content_height: &mut features_content_height,
+                split_dragged: &mut split_dragged,
             };
             self.tree.ui(&mut behavior, ui);
         });
+        // Read AFTER the frame drew, and before anything writes a
+        // share back: a divider dragged this frame has already set the
+        // flag, so the auto-size below stands down on the same frame
+        // the user's mouse moved rather than one frame later, having
+        // overwritten it once.
+        self.split_dragged = split_dragged;
+        if !self.split_dragged
+            && let Some(height) = features_content_height
+        {
+            self.fit_features_share(height);
+        }
+        if let Some(delta) = delta_request {
+            self.set_delta(delta);
+        }
 
         // The mate tool consumes the selection vocabulary: while the
         // tool is active, a face pick this frame produced is ALSO held
@@ -889,6 +1108,15 @@ struct ViewerBehavior<'a> {
     id_answer: &'a Arc<AtomicU64>,
     id_log: &'a mut IdQueryLog,
     ops: &'a mut Vec<SessionOp>,
+    /// A δ the View pane's field committed this frame, in world units.
+    /// The pane holds a borrow of the app, not the app, so it hands
+    /// the number back for [`ViewerApp::set_delta`] to judge.
+    delta_request: &'a mut Option<f64>,
+    /// What the Features pane's content laid out to this frame, once
+    /// it has drawn.
+    features_content_height: &'a mut Option<f32>,
+    /// Set when the user resized a tile themselves.
+    split_dragged: &'a mut bool,
 }
 
 /// Land a fold: take the camera it reached, and either show the
@@ -916,6 +1144,38 @@ impl egui_tiles::Behavior<Pane> for ViewerBehavior<'_> {
         }
     }
 
+    /// The title of any TILE, container as well as pane.
+    ///
+    /// egui_tiles titles an unnamed container by its layout direction,
+    /// so the Features/Properties stack came up as `Vertical` — the
+    /// name of a split rather than of anything in it. That stack
+    /// ([`model_stack`]) is the document's model and says so. Every
+    /// other tile falls through to the same defaults the trait would
+    /// have used.
+    fn tab_title_for_tile(&mut self, tiles: &Tiles<Pane>, tile_id: TileId) -> egui::WidgetText {
+        if model_stack(tiles) == Some(tile_id) {
+            return MODEL_TAB_TITLE.into();
+        }
+        match tiles.get(tile_id) {
+            Some(Tile::Pane(pane)) => self.tab_title_for_pane(pane),
+            Some(Tile::Container(container)) => format!("{:?}", container.kind()).into(),
+            None => "MISSING TILE".into(),
+        }
+    }
+
+    /// A layout edit the USER made.
+    ///
+    /// The one that matters here is a resize: from the first time
+    /// someone drags the Features/Properties divider, the split is
+    /// theirs and [`ViewerApp::fit_features_share`] stops touching it.
+    /// Auto-sizing is a default, and a default that argues with a
+    /// mouse is a bug.
+    fn on_edit(&mut self, edit_action: EditAction) {
+        if edit_action == EditAction::TileResized {
+            *self.split_dragged = true;
+        }
+    }
+
     fn pane_ui(&mut self, ui: &mut egui::Ui, tile_id: TileId, pane: &mut Pane) -> UiResponse {
         // The viewport IS its rectangle: it allocates exactly the
         // available size and paints into it, so a scroll container
@@ -932,7 +1192,7 @@ impl egui_tiles::Behavior<Pane> for ViewerBehavior<'_> {
         // at the tile's edge, no collapse under short content); the
         // salt is the tile id, so two tabs of one tile scroll
         // independently.
-        egui::ScrollArea::vertical()
+        let scrolled = egui::ScrollArea::vertical()
             .auto_shrink([false, false])
             .id_salt(tile_id)
             .show(ui, |ui| match pane {
@@ -942,6 +1202,12 @@ impl egui_tiles::Behavior<Pane> for ViewerBehavior<'_> {
                 Pane::Properties => self.properties_ui(ui),
                 Pane::View => self.view_ui(ui),
             });
+        // The tree's own height, measured rather than predicted: the
+        // scroll area knows what its content laid out to, and that is
+        // the number the Features/Properties split is sized from.
+        if *pane == Pane::Features {
+            *self.features_content_height = Some(scrolled.content_size.y);
+        }
         UiResponse::None
     }
 }
@@ -1227,15 +1493,17 @@ impl ViewerBehavior<'_> {
                 }
             }
             Selection::Face(face) => {
-                // Slot rows for the OWNING node: a face pick is a way
-                // of reaching the feature that made it, which is what
-                // G3's click-to-select is for.
+                // Slot rows for the feature that MADE the face — the
+                // node `slot_groups` itself answered for, so the rows
+                // shown and the node an edit lands on are one answer.
+                // A face pick is a way of reaching that feature, which
+                // is what G3's click-to-select is for.
                 let groups = self.session.slot_groups();
                 if groups.is_empty() && standing.live() {
                     ui.weak("this feature carries no parameters");
                 }
                 for group in &groups {
-                    self.slot_group_ui(ui, face.node, group);
+                    self.slot_group_ui(ui, face.feature(), group);
                 }
             }
             Selection::Param(name) => {
@@ -1388,7 +1656,7 @@ impl ViewerBehavior<'_> {
                 ui.horizontal(|ui| {
                     ui.label(format!("feature {}", node.0));
                     if *present {
-                        if ui.button(delete_label(self.session, *node)).clicked() {
+                        if delete_button(ui, self.session, *node) {
                             self.ops.push(SessionOp::DeleteNode { node: *node });
                         }
                     } else {
@@ -1409,10 +1677,12 @@ impl ViewerBehavior<'_> {
                     // Always a face: edge and vertex picking is out
                     // of scope for v1 selection, so the kind is not a
                     // variable to render.
-                    ui.label(format!("face of feature {}", face.node.0));
-                    if standing.live() && ui.button(delete_label(self.session, face.node)).clicked()
-                    {
-                        self.ops.push(SessionOp::DeleteNode { node: face.node });
+                    // The feature that MADE the face, so the button
+                    // deletes what the label names.
+                    let feature = face.feature();
+                    ui.label(format!("face of feature {}", feature.0));
+                    if standing.live() && delete_button(ui, self.session, feature) {
+                        self.ops.push(SessionOp::DeleteNode { node: feature });
                     }
                 });
                 // The typed verdict, rendered from the resolution
@@ -1627,14 +1897,14 @@ impl ViewerBehavior<'_> {
     ///
     /// The grouping is `props::SlotGroup`'s and the vocabulary's (see
     /// its docs); this function only lays it out. What the two arms
-    /// share — the number widget, the gesture mapping, the driven
-    /// affordance, the expression door, the range probe — is called
-    /// once per COMPONENT, so a component of a vector is edited by
-    /// exactly the operations a stand-alone slot is.
+    /// share — the value field (numbers AND expressions, one widget),
+    /// the gesture mapping, the driven affordance, the range probe —
+    /// is called once per COMPONENT, so a component of a vector is
+    /// edited by exactly the operations a stand-alone slot is.
     ///
     /// **Three lines per group at most, whatever its arity.** Folding
     /// three slots onto one line buys nothing if their doors then take
-    /// three lines each, so the doors are a single line of small
+    /// three lines each, so the range probe is a single line of small
     /// buttons tagged by axis rather than a stacked block per
     /// component.
     fn slot_group_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId, group: &SlotGroup) {
@@ -1651,7 +1921,6 @@ impl ViewerBehavior<'_> {
                 });
                 self.slot_notes_ui(ui, node, row);
                 ui.horizontal(|ui| {
-                    self.expression_button(ui, node, row, "expression…");
                     self.range_button(ui, node, row, "range?");
                 });
             }
@@ -1678,10 +1947,6 @@ impl ViewerBehavior<'_> {
                     let _ = axis;
                 }
                 ui.horizontal(|ui| {
-                    ui.weak("expression");
-                    for (axis, row) in Axis3::ALL.iter().zip(rows.iter()) {
-                        self.expression_button(ui, node, row, axis.label());
-                    }
                     ui.weak("range");
                     for (axis, row) in Axis3::ALL.iter().zip(rows.iter()) {
                         self.range_button(ui, node, row, axis.label());
@@ -1691,23 +1956,44 @@ impl ViewerBehavior<'_> {
         }
     }
 
-    /// The number itself: shown in the unit the slot is WRITTEN in,
-    /// authored back through the same factor.
+    /// **The one value field: a number AND an expression.**
     ///
-    /// The conversion is `props::in_written` / `props::from_written`,
-    /// which is the text door's one-multiply semantics — so a number
-    /// typed here and the same number typed into the expression field
-    /// land on identical bits. Everything crossing into the session
-    /// below is canonical, exactly as it was.
+    /// It is a `DragValue` — the scrub gesture is the widget's whole
+    /// point — wearing a `custom_parser`, which is egui's seam for a
+    /// field whose text is not necessarily a number: a parser that
+    /// answers `None` rejects the text and leaves the value alone,
+    /// which is exactly what an expression needs. So what a user typed
+    /// is read once, by `props::field_edit`, and takes one of two
+    /// doors: a bare number through `SessionOp::SetSlot`, anything
+    /// else — an operator, a parameter, a unit — through
+    /// `SessionOp::SetSlotExpression`. The panel parses nothing.
+    ///
+    /// The field commits on Enter or on leaving it
+    /// (`update_while_editing(false)`), never per keystroke: half of
+    /// `thickness * 2` is a parse refusal at best and a DIFFERENT
+    /// parameter at worst.
+    ///
+    /// The number is shown in the unit the slot is WRITTEN in and
+    /// authored back through the same factor (`props::in_written` /
+    /// `props::from_written`, the text door's one-multiply semantics),
+    /// with NO unit suffix on the text: the picker beside the field
+    /// names the unit, and saying it twice adjacently says it once.
     fn slot_value_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId, row: &SlotRow) {
-        let Ok(value) = row.value else {
-            if let Err(ref error) = row.value {
-                ui.weak(format!("{error}"));
-            }
-            return;
-        };
         let unit = props::written_unit(row.dimension, row.unit);
-        let mut number = props::in_written(value.as_f64(), unit);
+        // A slot that did not evaluate still has SOURCE to edit — it
+        // is the slot most likely to need it — so the field is drawn
+        // for it too, over the one number it does not have. The fault
+        // itself is said beside the field.
+        if let Err(ref error) = row.value {
+            ui.weak(format!("{error}"));
+        }
+        let mut number = props::in_written(
+            match row.value {
+                Ok(value) => value.as_f64(),
+                Err(_) => 0.0,
+            },
+            unit,
+        );
         // The drag speed is in WRITTEN units now, so it has to be
         // scaled with them: 0.0005 was a half-micron step when the
         // field held metres, and would be a half-micron step in
@@ -1718,12 +2004,42 @@ impl ViewerBehavior<'_> {
         } else {
             props::in_written(0.0005, unit)
         };
-        let mut widget = egui::DragValue::new(&mut number).speed(speed);
-        if let Some(unit) = unit {
-            widget = widget.suffix(format!(" {}", unit.symbol()));
+        // What the field says, when that is not the dragged number:
+        // the text a parse refusal handed back, else the slot's own
+        // source. A LITERAL slot with a value shows no fixed text at
+        // all — egui formats the number it is dragging, and a text
+        // pinned from the row would freeze the field mid-gesture.
+        let fixed = if self.drafts.expr_target == Some((node, row.slot)) {
+            Some(self.drafts.expr_text.clone())
+        } else if row.driver.is_driven() || row.value.is_err() {
+            Some(props::field_text(row))
+        } else {
+            None
+        };
+        // The parser runs inside `ui.add`, so what it read comes back
+        // out through a cell rather than a return value.
+        let typed: core::cell::RefCell<Option<props::FieldEdit>> = core::cell::RefCell::new(None);
+        let mut widget = egui::DragValue::new(&mut number)
+            .speed(speed)
+            .update_while_editing(false)
+            .custom_parser(|text| match props::field_edit(text) {
+                props::FieldEdit::Number(value) => {
+                    *typed.borrow_mut() = Some(props::FieldEdit::Number(value));
+                    Some(value)
+                }
+                // Rejected as a number, which is what routes it to the
+                // expression door and leaves the field's value where
+                // it was until the document answers.
+                edit => {
+                    *typed.borrow_mut() = Some(edit);
+                    None
+                }
+            });
+        if let Some(text) = fixed {
+            widget = widget.custom_formatter(move |_, _| text.clone());
         }
         let widget = ui.add(widget);
-        drag_ops(
+        drag_gesture_ops(
             &widget,
             props::from_written(number, unit),
             SessionOp::BeginGesture {
@@ -1732,15 +2048,39 @@ impl ViewerBehavior<'_> {
             },
             |value| SessionOp::PreviewGesture { value },
             SessionOp::CommitGesture,
-            |value| {
-                vec![SessionOp::SetSlot {
-                    node,
-                    slot: row.slot,
-                    value: SlotValue::of(row.dimension, value),
-                }]
-            },
             self.ops,
         );
+        // **Text that says what the slot already says is not an
+        // edit.** The field commits on leaving it, so clicking into
+        // one and clicking away again must not cost an undo step. A
+        // DRIVEN slot is exempt for the number arm: writing a number
+        // over a computation is the refusal's own case, and it is owed
+        // its affordance even when the number happens to match.
+        match typed.into_inner() {
+            Some(props::FieldEdit::Number(written)) => {
+                let value = SlotValue::of(row.dimension, props::from_written(written, unit));
+                if row.driver.is_driven() || row.value != Ok(value) {
+                    self.ops.push(SessionOp::SetSlot {
+                        node,
+                        slot: row.slot,
+                        value,
+                    });
+                }
+            }
+            Some(props::FieldEdit::Expression(text)) => {
+                if row.source.as_deref() != Some(text.as_str()) {
+                    self.ops.push(SessionOp::SetSlotExpression {
+                        node,
+                        slot: row.slot,
+                        text,
+                    });
+                }
+            }
+            // An emptied field is not an edit: there is no expression
+            // it could mean, and blanking a dimension is not a way to
+            // delete anything in this vocabulary.
+            Some(props::FieldEdit::Empty) | None => {}
+        }
     }
 
     /// The written-unit picker for one slot or for a whole vector.
@@ -1779,8 +2119,10 @@ impl ViewerBehavior<'_> {
         // node (a plane's origin and its normal) draw two pickers, and
         // egui identifies a popup by its id.
         egui::ComboBox::from_id_salt((node.0, format!("{:?}", first.slot), "unit"))
+            // Wide enough for the longest symbol the table carries
+            // (`pi rad`) plus the combo's arrow.
             .selected_text(label)
-            .width(52.0)
+            .width(72.0)
             .show_ui(ui, |ui| {
                 for option in options {
                     let picked = common == Some(option);
@@ -1835,44 +2177,6 @@ impl ViewerBehavior<'_> {
                 row.slot.label(),
                 result.wording(props::written_unit(row.dimension, row.unit))
             ));
-        }
-        if self.drafts.expr_target == Some((node, row.slot)) {
-            ui.horizontal(|ui| {
-                ui.label(format!("{} =", row.slot.label()));
-                ui.text_edit_singleline(&mut self.drafts.expr_text);
-                if ui.button("Set").clicked() {
-                    self.ops.push(SessionOp::SetSlotExpression {
-                        node,
-                        slot: row.slot,
-                        text: self.drafts.expr_text.clone(),
-                    });
-                    self.drafts.expr_target = None;
-                    self.drafts.expr_text.clear();
-                }
-                if ui.button("Cancel").clicked() {
-                    self.drafts.expr_target = None;
-                    self.drafts.expr_text.clear();
-                }
-            });
-        }
-    }
-
-    /// The button that opens the expression text door for one slot.
-    ///
-    /// The field is deliberately EMPTY rather than pre-filled: the
-    /// expression API has no text rendering, so a pre-filled field
-    /// would be this crate's guess at what the slot says. See the
-    /// module docs of `props`.
-    fn expression_button(
-        &mut self,
-        ui: &mut egui::Ui,
-        node: RecipeNodeId,
-        row: &SlotRow,
-        label: &str,
-    ) {
-        if ui.small_button(label).clicked() {
-            self.drafts.expr_target = Some((node, row.slot));
-            self.drafts.expr_text.clear();
         }
     }
 
@@ -1929,6 +2233,58 @@ impl ViewerBehavior<'_> {
         });
     }
 
+    /// The δ control: the display tolerance as a number the user types,
+    /// in millimetres.
+    ///
+    /// **A text field rather than a pair of step buttons.** δ is a
+    /// LENGTH, and the question a user has is "how fine, in mm" — a
+    /// halve/double pair answers it only by repeated clicking and
+    /// cannot reach a number in between. It is also not a `DragValue`:
+    /// a drag would commit a tessellation per frame, which is the one
+    /// mistake [`drag_ops`] exists to keep out of this file.
+    ///
+    /// Committing on lost focus covers Enter too — egui's singleline
+    /// field surrenders focus on Enter — so there is one commit path,
+    /// not two. What is typed is a DRAFT until then: nothing
+    /// re-tessellates while a number is half-entered, and `0.` on the
+    /// way to `0.05` never reaches the tessellator.
+    fn delta_ui(&mut self, ui: &mut egui::Ui) {
+        let in_force = self.delta.get() * 1.0e3;
+        let field = ui
+            .horizontal(|ui| {
+                let text = self
+                    .drafts
+                    .delta_mm
+                    .get_or_insert_with(|| format!("{in_force:.3}"));
+                let field = ui.add(egui::TextEdit::singleline(text).desired_width(56.0));
+                ui.label("mm display δ");
+                field
+            })
+            .inner;
+        if field.lost_focus()
+            && let Some(typed) = self.drafts.delta_mm.take()
+        {
+            match typed.trim().parse::<f64>() {
+                // Judged by `DisplayTolerance`, not here: a δ that is
+                // not a finite positive length is refused at that one
+                // door, wherever it came from.
+                Ok(mm) => *self.delta_request = Some(mm * 1.0e-3),
+                Err(error) => {
+                    *self.status = Some(format!(
+                        "display δ: {:?} is not a number ({error})",
+                        typed.trim()
+                    ));
+                }
+            }
+        }
+        // The draft lives exactly as long as the focus does, so a δ
+        // that moved under the field (the budget's choice on open)
+        // shows up in it.
+        if !field.has_focus() {
+            self.drafts.delta_mm = None;
+        }
+    }
+
     /// The view pane: the numbers the camera and the tessellation are
     /// actually running at.
     fn view_ui(&mut self, ui: &mut egui::Ui) {
@@ -1938,7 +2294,7 @@ impl ViewerBehavior<'_> {
         // when the document opened or the user did, and the note says
         // which. The triangle count below is the picture's own, so
         // nothing here is a prediction.
-        ui.label(format!("display δ: {:.3} mm", self.delta.get() * 1000.0));
+        self.delta_ui(ui);
         if self.budget_delta.is_some() {
             ui.weak("chosen for the triangle budget; δ is yours from here");
         }
@@ -1992,6 +2348,10 @@ impl ViewerBehavior<'_> {
 /// vocabularies, and the typed-input arm (`changed() && !dragged()`)
 /// covered for BOTH, which is the arm a hand-mapped copy of this
 /// function silently dropped once already.
+///
+/// The DRAG half is [`drag_gesture_ops`], which the slot field calls
+/// directly: a field that reads its own text decides for itself what
+/// was typed, so `changed()` is not what tells it.
 fn drag_ops(
     widget: &egui::Response,
     value: f64,
@@ -2001,6 +2361,29 @@ fn drag_ops(
     typed: impl Fn(f64) -> Vec<SessionOp>,
     ops: &mut Vec<SessionOp>,
 ) {
+    if drag_gesture_ops(widget, value, begin, preview, commit, ops) {
+        return;
+    }
+    if widget.changed() && !widget.dragged() {
+        // Typed, not dragged: whatever the vocabulary spells a direct
+        // value entry as — one edit for a document slot, a one-shot
+        // begin/preview/commit for the display probe.
+        ops.extend(typed(value));
+    }
+}
+
+/// The drag half of [`drag_ops`]'s triple: begin on press, preview on
+/// every frame the value moves, commit on release. Answers whether the
+/// release happened, i.e. whether this frame's change was a gesture's
+/// and belongs to nothing else.
+fn drag_gesture_ops(
+    widget: &egui::Response,
+    value: f64,
+    begin: SessionOp,
+    preview: impl Fn(f64) -> SessionOp,
+    commit: SessionOp,
+    ops: &mut Vec<SessionOp>,
+) -> bool {
     if widget.drag_started() {
         ops.push(begin);
     }
@@ -2009,28 +2392,22 @@ fn drag_ops(
     }
     if widget.drag_stopped() {
         ops.push(commit);
-    } else if widget.changed() && !widget.dragged() {
-        // Typed, not dragged: whatever the vocabulary spells a direct
-        // value entry as — one edit for a document slot, a one-shot
-        // begin/preview/commit for the display probe.
-        ops.extend(typed(value));
+        return true;
     }
+    false
 }
 
-/// The delete button's label: it names the FEATURE it deletes, by the
-/// node vocabulary's own kind name.
-///
-/// First-light finding (#1097's run): reached from a face selection, a
-/// bare "Delete feature" read as deleting the *face* — an entity this
-/// vocabulary can never delete; a face is a way of reaching the node
-/// that made it. The label carries the target's kind so the affordance
-/// states the operation it queues. The fallback arm is for a node the
-/// document no longer holds — no button renders for one today, and if
-/// that changes the label stays honest rather than panicking.
-fn delete_label(session: &DocSession, node: RecipeNodeId) -> String {
-    match session.doc().node(node) {
-        Some(target) => format!("Delete feature '{}'", crate::tree::node_kind(target)),
-        None => format!("Delete feature {}", node.0),
+/// The delete button: a renderer for [`DocSession::delete_affordance`]
+/// and nothing else, so the two places a delete is reachable from (a
+/// node selection and a face selection) cannot state different costs
+/// for the same operation, and the sentence itself is testable without
+/// a window.
+fn delete_button(ui: &mut egui::Ui, session: &DocSession, node: RecipeNodeId) -> bool {
+    let affordance = session.delete_affordance(node);
+    let button = ui.button(affordance.label);
+    match affordance.hover {
+        Some(text) => button.on_hover_text(text).clicked(),
+        None => button.clicked(),
     }
 }
 
@@ -2067,6 +2444,38 @@ fn pick_save(current: Option<&std::path::Path>) -> Option<std::path::PathBuf> {
         dialog = dialog.set_directory(dir);
     }
     dialog.save_file()
+}
+
+/// The container holding the feature tree and the properties — the
+/// document's MODEL, as against the View pane's display settings.
+///
+/// Found by content rather than remembered by id: the layout is a
+/// value the user rearranges, so a stored id would sooner or later
+/// name a tile a drag had dissolved. `None` says the two panes are
+/// not currently stacked together, which is a layout the user is
+/// entitled to and which nothing here needs to name.
+pub fn model_stack(tiles: &Tiles<Pane>) -> Option<TileId> {
+    let features = tiles.find_pane(&Pane::Features)?;
+    let properties = tiles.find_pane(&Pane::Properties)?;
+    tiles.tile_ids().find(|&id| {
+        matches!(tiles.get(id), Some(Tile::Container(container))
+            if container.has_child(features) && container.has_child(properties))
+    })
+}
+
+/// The toolbar's name for the open document: the file stem of the
+/// path it is saved at, or [`UNTITLED`] while it has none.
+///
+/// The STEM, not the full path — the path is already shown in full in
+/// the View pane, and a toolbar is where a user glances for which of
+/// several documents they are in. A path whose bytes are not UTF-8 is
+/// shown lossily rather than dropped: a name with a replacement
+/// character in it still identifies the document.
+pub fn document_name(path: Option<&std::path::Path>) -> String {
+    path.and_then(std::path::Path::file_stem).map_or_else(
+        || UNTITLED.to_owned(),
+        |stem| stem.to_string_lossy().into_owned(),
+    )
 }
 
 /// The starting layout: the viewport with a tabbed side panel, in a

@@ -290,15 +290,18 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<LengthUnit>()?;
     m.add_class::<AngleUnit>()?;
 
-    // The unit constants, named as `quantity` names them — except
-    // `IN`, whose natural spelling `in` is a Python keyword; it is
-    // bound as `inch` (reported as a naming fork).
+    // The unit constants, named as `quantity` names them — except two
+    // whose natural spellings are not Python identifiers: `IN`, whose
+    // symbol `in` is a keyword, is bound as `inch`, and `PI`, whose
+    // symbol is the two-word `pi rad`, is bound as `pi_rad` (both
+    // reported as naming forks). `symbol()` still answers the table's
+    // own spelling in every case.
     m.add("mm", LengthUnit(q::MM))?;
     m.add("cm", LengthUnit(q::CM))?;
     m.add("m", LengthUnit(q::M))?;
     m.add("inch", LengthUnit(q::IN))?;
     m.add("deg", AngleUnit(q::DEG))?;
     m.add("rad", AngleUnit(q::RAD))?;
-    m.add("pi", AngleUnit(q::PI))?;
+    m.add("pi_rad", AngleUnit(q::PI))?;
     Ok(())
 }

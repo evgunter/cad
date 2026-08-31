@@ -23,8 +23,8 @@
 use geom::Surface;
 use geom_core::{Band, Point2, Point3, Tol};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use sweep::blend::BlendError;
 use sweep::chamfer::chamfer_edges;
-use sweep::fillet::FilletError;
 use sweep::{Extrusion, extrude};
 use test_utils::fuzz;
 use topo::{Body, EdgeKey};
@@ -413,7 +413,7 @@ fn an_overrunning_sliver_corner_refuses_or_stays_valid() {
 /// asserted a false fact about the BODY.
 ///
 /// **This row's expectation was amended when the finding was adopted**
-/// (review r1, MINOR-1): the door now refuses `FilletError::
+/// (review r1, MINOR-1): the door now refuses `BlendError::
 /// NonpositiveSize` before anything resolves. What the row pins is
 /// unchanged in substance — a nonpositive setback must refuse, and
 /// must refuse by naming the request rather than the geometry — so the
@@ -429,7 +429,7 @@ fn a_nonpositive_setback_refuses_as_invalid_input() {
         let err = chamfer_edges(&pad, &edges, d, band(), Tol::witness())
             .expect_err("a nonpositive setback must not mint a body");
         assert!(
-            matches!(err, FilletError::NonpositiveSize { .. }),
+            matches!(err.error, BlendError::NonpositiveSize { .. }),
             "a nonpositive setback names the request, not the corner, at d = {d}: {err:?}"
         );
         let text = format!("{err}");
@@ -487,7 +487,7 @@ fn the_brackets_best_convex_request_still_refuses_typed() {
     let err = chamfer_edges(&bracket, &edges, 0.05, band(), Tol::witness())
         .expect_err("a corner with an unrequested edge cannot be patched");
     assert!(
-        matches!(err, FilletError::ChainNotG1 { .. }),
+        matches!(err.error, BlendError::ChainNotG1 { .. }),
         "today's decided answer is the chain-G1 kink at the omitted edge's ends \
          (see the row doc for why that framing is itself a finding): {err:?}"
     );

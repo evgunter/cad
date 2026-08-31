@@ -16,7 +16,7 @@
 use geom_core::{Band, Point2, Tol, Vec3};
 use profile::ProfileVertex;
 use sweep::Revolution;
-use sweep::fillet::build::{Filleted, fillet_edges};
+use sweep::blend::build::{Filleted, fillet_edges};
 use sweep::test_support::{revolved_about_y, rim_arcs_at};
 use topo::{Body, EdgeKey, mass_properties, validate_geometric};
 
