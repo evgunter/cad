@@ -1123,3 +1123,41 @@ mod verbs_gate_r1_probes {
         );
     }
 }
+
+#[cfg(test)]
+mod r1_mesh2_review_probes {
+    //! R1 review probes for MESH-2 (PR #1421, issue 555): the
+    //! flare-angle × rim-radius lottery cells, exercised through the
+    //! public `mesh::tessellate` door on the real Klein bulb. The
+    //! probe PRINTS each cell's outcome rather than asserting, so the
+    //! identical file runs on the merge base (where the four cells
+    //! should refuse) and on the head (where they should mesh).
+
+    use super::*;
+
+    #[test]
+    fn r1_lottery_cells_outcomes() {
+        let tol = Tol::witness();
+        for (alpha_deg, rim) in [
+            (24.0_f64, 0.85_f64), // PR re-sweep cell
+            (26.0, 0.75),         // PR re-sweep cell
+            (30.0, 0.85),         // issue 555 cell
+            (34.0, 1.00),         // issue 555 cell
+            (30.0, 0.80),         // the shipped bottle: control, always meshed
+            (28.0, 0.85),         // an "ok" neighbour in both sweeps
+        ] {
+            let body = bulb::<f64>(
+                band::<f64>(&meridian_at(alpha_deg * PI / 180.0, RF, rim, RLOOP), tol),
+                Revolution::Full,
+                tol,
+            );
+            match pncad::mesh::tessellate(&body, 1e-2, tol) {
+                Ok(m) => println!(
+                    "R1PROBE cell ({alpha_deg}, {rim}): MESHED {} triangles",
+                    pncad::mesh::validate::triangle_count(&m)
+                ),
+                Err(e) => println!("R1PROBE cell ({alpha_deg}, {rim}): REFUSED {e:?}"),
+            }
+        }
+    }
+}
