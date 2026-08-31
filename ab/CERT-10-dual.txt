@@ -3,10 +3,16 @@ ordinal: TO BE CLAIMED on main at actual R1 dispatch (S-CERT band;
 CERT-8's claim lands first if its dual dispatches first — take the
 next free ordinal at claim time and record which).
 slot byte 242, parity 0 => R1 OPUS + R2 FABLE (cross-model).
-METHOD NOTE (pre-recorded so both arms run identically): reviews run
-SEQUENTIALLY on the frozen head a33926e5 (the delivered head — no
-orchestrator-direct deltas at this writing). Dispatch CONDITIONAL on
-a33926e5's gate concluding green on PR 1403 (budget-refreshed; the
+METHOD NOTE (pre-recorded so both arms run identically; AMENDED
+once, pre-R1, per its own rule): reviews run SEQUENTIALLY on the
+frozen head f5ab8bab — the delivered head a33926e5 redded BOTH
+clippy jobs on 21 excessive_precision test literals in
+nurbs_cert.rs (the lane's local clippy skipped -p mesh, a
+verification-claim gap reviewers should weigh alongside the body's
+"clippy clean" line); the tip is a one-file orchestrator-direct
+truncation pass, each pair verified bit-identical, mesh 182/182
+green after. Dispatch CONDITIONAL on
+f5ab8bab's gate concluding green on PR 1403 (budget-refreshed; the
 render-lane drift lands via the rebaseline convention and is NOT a
 red for this purpose — the neutral-check derivation is PR body §4).
 CERT-8's dual may run concurrently on ITS unit; the two duals'
@@ -20,8 +26,14 @@ COMMON BRIEF (stored verbatim; lane plumbing differs per lane):
 ---
 You are a blinded adversarial reviewer for unit CERT-10 of the
 S-CERT program (repo evgunter/cad). Review PR 1403 on its FROZEN
-head a33926e5 — do not review any later commit; if the branch has
-moved, say so and still review a33926e5.
+head f5ab8bab — do not review any later commit; if the branch has
+moved, say so and still review f5ab8bab. The tip commit past the
+delivered head a33926e5 is a one-file ORCHESTRATOR-DIRECT clippy
+conformance fix (21 pinned test literals in nurbs_cert.rs truncated
+to f64's own precision — excessive_precision denies digits beyond
+what the type holds; each truncation verified pairwise
+bit-identical) — verify that delta yourself, including the
+bit-identity claim.
 
 Read first, in order: docs/prompts/reviewer-style-lane.md (binding
 style-lane brief; carry its structural questions and confidence
