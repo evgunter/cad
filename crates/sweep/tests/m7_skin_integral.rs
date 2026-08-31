@@ -415,9 +415,9 @@ fn circle_section(r: f64) -> Section {
 /// integral lane: the body builds, and every NURBS carrier on it
 /// reports a real, positive metre-per-parameter.
 ///
-/// (The QUADRATURE half of the rational bank is a different frontier
-/// and is NOT retired by this: `QuadratureUnsupported` has its own
-/// pins.)
+/// (The QUADRATURE half is a different frontier and is not what this
+/// row states: it has its own pins, and its remaining limit is a fixed
+/// round budget rather than a missing lane.)
 #[test]
 fn a_rational_section_on_a_curved_path_meters_at_the_span_meter() {
     let swept = sweep_body::<f64>(

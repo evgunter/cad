@@ -42,10 +42,12 @@
 //! - **B-spline** ([`bspline_green_integral`], the general machinery):
 //!   channel hulls and derivative hulls from the control-coefficient
 //!   convexity facts (`geom_core::spline::hull`). This family has **no
-//!   at-rest consumer**: the NURBS-patch flux lane is a separate engine
-//!   in this file (`patch_flux_exact` and its composite rounds, a
-//!   tensor Newton–Cotes rule over knot-span rectangles), not this
-//!   Green-form boundary integral. The consumer that would use it is
+//!   at-rest consumer**: the NURBS-patch flux lanes are separate
+//!   engines in this file — `patch_flux_exact` with its composite
+//!   rounds for a polynomial patch, and `rational_patch_face`'s
+//!   quotient composite (with the `w`-uniform-in-v exact arm) for a
+//!   patch with non-unit weights — not this Green-form boundary
+//!   integral. The consumer that would use it is
 //!   the fitted-boundary Green lane, blocked on a construction that
 //!   mints a fitted pcurve on an analytic chart at rest — the blocker
 //!   `topo::props`' `QuadratureUnsupported` refusal names. That is a
@@ -641,9 +643,13 @@ fn bspline_range_hull(kv: &KnotVector, coeffs: &[RingInterval], lo: f64, hi: f64
 /// and, where the degree allows (`p − k ≥ 1`), its materialised knot
 /// vector. Missing HIGHER levels are **in-span polynomial zeros** — a
 /// degree-p span polynomial has vanishing derivatives beyond order p —
-/// which is sound only on knot-free pieces; the composite rule
-/// enforces exactly that (pieces straddling an interior knot take the
-/// first-order hull rule, where no smoothness is assumed).
+/// which is sound only on knot-free pieces, and each composite rule
+/// over this ladder is responsible for ensuring that. The 1-D Green
+/// lane below does it by giving a piece that straddles an interior
+/// knot the first-order hull rule, where no smoothness is assumed.
+/// The two PATCH lanes do it differently and should not be read
+/// through this sentence: their cells are cut ON the interior knots
+/// ([`knot_aligned_cuts`]), so a straddling cell does not arise.
 struct DerivLadder {
     /// (kv if materialisable, coefficient brackets) per order 1..=3;
     /// `None` when the level is an in-span zero.
@@ -908,9 +914,9 @@ enum Dir {
     /// silently read the FIRST derivative of a degree-2 spline as a
     /// per-span constant — wrong by O(1), and reachable from the
     /// integral lane's composite fallback too. Evaluated span-locally
-    /// on the raw knots instead; the discontinuity is honest, and the
-    /// composite rule already gives knot-straddling cells the
-    /// smoothness-free rule.
+    /// on the raw knots instead; the discontinuity is honest, and no
+    /// patch cell spans it — the composite cells are cut on the
+    /// interior knots ([`knot_aligned_cuts`]).
     Raw {
         knots: Vec<f64>,
         degree: usize,
@@ -2129,6 +2135,16 @@ fn block_edges(lo: f64, hi: f64) -> Vec<f64> {
 /// The result is sorted, deduplicated, and spans exactly `[lo, hi]`,
 /// so consecutive cells share a cut point and the cells tile the
 /// rectangle with no gap.
+///
+/// **Near-twin, recorded and deliberately not unified**:
+/// `geom_brep::patch_bound::split_points` builds the same concept for
+/// the patch-hull lane — a knot-aligned subdivision of a parameter
+/// range, with its own sliver guard. The two differ in what else they
+/// must carry (this one owes the coarse hull blocks their containment;
+/// that one does not) and unifying them is Track R's consolidation
+/// ground (C-m/D30, gated behind #723), not this lane's. Whoever takes
+/// it should also fold the `inner`-knot-slice expression, which is
+/// copied verbatim five times across three crates.
 fn knot_aligned_cuts(lo: f64, hi: f64, pieces: usize, knots: &[f64]) -> Vec<f64> {
     // MANDATORY cuts: the rectangle's own ends and every interior
     // knot. These carry the whole smoothness invariant — a knot that
@@ -2270,15 +2286,15 @@ fn knot_aligned_cuts(lo: f64, hi: f64, pieces: usize, knots: &[f64]) -> Vec<f64>
 /// ```text
 /// carrier                                      floor (m)   @ ε = 1e-9
 /// 1 µm quarter cylinder                          <1e-9     certifies*
-/// 1 m × 2 m quarter cylinder, single span       1.535e-7   certifies (6.7×)
+/// 1 m × 2 m quarter cylinder, single span       1.533e-7   certifies (6.7×)
 /// unit sphere octant (degenerate pole row)      9.683e-7   certifies (1.06×)
 /// quarter torus, R = 2 m, r = 0.5 m             1.146e-6   REFUSES (1.12× over)
 /// 1 m × 2 m half cylinder, TWO spans            1.304e-6   REFUSES (1.27× over)
 /// 5 m C0-kink extruded wall                     4.785e-4   REFUSES
-/// 1 km quarter cylinder                         1.535e-4   REFUSES
-/// warped bilinear, weights 1e-1/1e1             1.916e-2   REFUSES
-/// Möbius quarter cylinder, weight ratio 100     5.165e-2   REFUSES
-/// bilinear square, weights 1e-3/1e3                  —     DEGENERATE
+/// 1 km quarter cylinder                         1.533e-4   REFUSES
+/// warped bilinear, weights 1e-1/1e1             2.363e-3   REFUSES
+/// Möbius quarter cylinder, weight ratio 100     2.878e-3   REFUSES
+/// bilinear square, weights 1e-3/1e3             3.415e+6   REFUSES
 /// ```
 ///
 /// \* Convergence is never the small end's problem — its floor scales
@@ -2297,17 +2313,15 @@ fn knot_aligned_cuts(lo: f64, hi: f64, pieces: usize, knots: &[f64]) -> Vec<f64>
 /// cross the line. Callers on large, multi-span, or extreme-weight
 /// parts should expect refusals rather than answers.
 ///
-/// The last row is a different failure and is named separately: with a
-/// 1e-3/1e3 weight spread the area rule's Lipschitz pad reaches ~1.7e20
-/// against a true area of 1 m², and the pad is SYMMETRIC, so the area
-/// enclosure straddles zero. There is then no lever to meter against
-/// and no positive extent to certify, and the face is refused
-/// [`PropsError::DegenerateFace`] — a false negative on a patch that is
-/// plainly a unit square, and the one refusal here that carries no
-/// width. (Before the meter was guarded, this case divided by a lever
-/// that had cancelled to exactly 0.0 and refused at the budget quoting
-/// an `inf` displacement — a refusal that misdescribed a flux
-/// enclosure which was still narrowing round by round.)
+/// The last three rows are the AREA's failure, not the flux's, and the
+/// last one is the extreme of it: with a 1e-3/1e3 weight spread the
+/// area rule's symmetric Lipschitz pad runs to ~1.7e20 against a true
+/// area of 1 m². What keeps that from straddling zero — and so from
+/// refusing a plain unit square as having no extent at all — is that
+/// the rule intersects the pad with the cell's own hull of `g`, whose
+/// lower end is a magnitude and cannot be negative. The face therefore
+/// certifies a positive extent and refuses with a measured width. The
+/// width is useless; saying so is the point.
 ///
 /// Every other refusal is a typed [`PropsError::QuadratureBudget`]
 /// carrying its measured width. The next levers, in order, are a
@@ -2386,10 +2400,10 @@ fn rational_patch_face<T: Decide>(
     let a = Ladder::build(&r_u, &r_v, &a_net);
     let w = Ladder::build(&r_u, &r_v, &w_net);
 
-    // The straddle lists come from the ORIGINAL knot vectors: inserted
-    // knots are artificial (the locus and its smoothness are
-    // unchanged), so they must not push cells onto the smoothness-free
-    // rule.
+    // The CUT lists come from the ORIGINAL knot vectors: refinement's
+    // inserted knots are artificial (the locus and its smoothness are
+    // unchanged), so cutting on them would only cost cells. What the
+    // cells must land on is where the smoothness actually breaks.
     let interior = |kv: &KnotVector, lo: f64, hi: f64| -> Vec<f64> {
         kv.knots()
             .iter()

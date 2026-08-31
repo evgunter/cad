@@ -46,7 +46,7 @@ fn dm1_residual_and_wall_time_remeasured() {
             let w = text
                 .split("width_len:")
                 .nth(1)
-                .and_then(|s| s.trim().split(|c: char| c == ',' || c == ' ').next())
+                .and_then(|s| s.trim().split([',', ' ']).next())
                 .and_then(|s| s.parse::<f64>().ok())
                 .expect("the refusal must carry a width");
             eprintln!("CERT5-R1 dm1: width_len {w:e}");

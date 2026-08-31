@@ -16,8 +16,8 @@
 //!   body whose volume the kernel cannot compute is not one — so the
 //!   limitation now lands as a typed refusal instead of riding out on
 //!   a shipped body. Same verdict, same recourse text, earlier;
-//!   the class returns to importing when the banked rational-wall
-//!   quadrature lands;
+//!   the class returns to importing when the rational-wall quadrature
+//!   reaches the ambient target on it;
 //! - the **description state**: imported seams carry `IsoCurve`,
 //!   imported cap rims `MappedCurve` — the native loft's own
 //!   description classes, which is what makes one adoption pass a

@@ -294,9 +294,11 @@ const NEARPOLAR_NOSPLIT: &str = "tests/fixtures/cert1-r1/nearpolar_nosplit.step"
 const NEARPOLAR_WEDGE_ESCALATED: &str = "predicate 'dihedral_wedge' indeterminate";
 const DM1: &str = "tests/fixtures/wild/stepcode/dm1-id-214.stp";
 /// dm1's fine-band sub-reason: the shared at-rest gate cannot compute
-/// the exact-B-rep volume of a RATIONAL cylinder wall — the banked
-/// rational-patch-flux lane, named specifically so the gate's preamble
-/// (which a tier-1/2 regression would also match) cannot stand in.
+/// the exact-B-rep volume of a RATIONAL cylinder wall to target. The
+/// quadrature converges there — it quarters cleanly per refinement
+/// round — and what it runs out of is the FIXED round budget, inside a
+/// factor of two. Named specifically so the gate's preamble (which a
+/// tier-1/2 regression would also match) cannot stand in.
 const RATIONAL_FLUX_STALL: &str = "the certified quadrature enclosure stalled at";
 /// dm1's coarse-band sub-reason: the ladder's own refusal on edge
 /// `#389`, a two-point `QUASI_UNIFORM_CURVE` polyline that stays NURBS
@@ -565,9 +567,9 @@ const CORPUS: [(&str, Disposition); 70] = [
         //
         // What is left is the SHARED AT-REST GATE on those same
         // rational walls: the exact-B-rep volume's quadrature
-        // enclosure stalls short of its target — the banked
-        // rational-patch-flux lane, the lane a NATIVELY built
-        // rational-walled loft refuses on too. The fragment names that
+        // enclosure stalls short of its target within the fixed round
+        // budget — the same lane, and the same budget, a NATIVELY
+        // built rational-walled loft refuses on too. The fragment names that
         // stall specifically rather than the gate's preamble, because
         // the preamble would also match a tier-1/2 verdict, which
         // would be a regression and not this lane.

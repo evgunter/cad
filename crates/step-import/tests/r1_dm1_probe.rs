@@ -26,11 +26,13 @@
 //!    and promoted, every edge of every instance adopts, every pcurve
 //!    mints and certifies, and the first thing that refuses is the
 //!    SHARED AT-REST GATE — `VolumeUncomputable` /
-//!    `QuadratureBudget` on the rational cylinder wall, i.e. the
-//!    banked rational-patch-flux lane this crate's own docs name
-//!    ("their rational walls have no volume quadrature yet"). This
-//!    probe pins where the frontier actually is, so a claim that it
-//!    moved has to be executable too.
+//!    `QuadratureBudget` on the rational cylinder wall. That lane is
+//!    no longer missing and the miss is no longer a floor — the
+//!    enclosure quarters cleanly per refinement round — but the round
+//!    budget is fixed, and this wall is still inside a factor of two
+//!    of the ambient target when it runs out. This probe pins where
+//!    the frontier actually is, so a claim that it moved has to be
+//!    executable too.
 //!
 //! Per-instance placement CORRECTNESS (each frame on its own component
 //! and no other) is pinned where a file that IMPORTS can carry it:

@@ -327,7 +327,7 @@ fn row(
 /// the seven-round schedule could not close it at any budget.
 #[test]
 fn six_stations_with_offgrid_knots_certify() {
-    row("blade-6 (deg 2)", 6, 2, 2, Some(2.143e-4), 1.0e-5);
+    row("blade-6 (deg 2)", 6, 2, 2, Some(2.143e-4), 3.0e-7);
 }
 
 /// The same solid at EIGHT stations on a linear skin: six interior v
@@ -336,15 +336,26 @@ fn six_stations_with_offgrid_knots_certify() {
 /// the off-grid count. Certifying here says the fix scales with knot
 /// count rather than tolerating a fixed few.
 ///
-/// A degree-1 skin is not a lesser case for this defect — it is the
-/// worst one. Every interior knot of a linear skin has multiplicity
-/// equal to the degree, so `S_v` genuinely jumps there and the
-/// smoothness-free rule was genuinely required on any cell that
-/// straddled one. Aligning the cells is what makes the jump land on a
-/// cell BOUNDARY, where it costs nothing.
+/// **What this row does NOT exercise, stated so it is not read for
+/// more than it is.** Every interior knot of a degree-1 skin has
+/// multiplicity equal to the degree, so the REPRESENTATION is only C0
+/// there — but the locus is not. The stations here are identical
+/// sections evenly stacked, so `z(v)` is globally linear, the control
+/// points are collinear, and `S_v` is continuous across every one of
+/// those knots: the surface is a plain extrusion said in a knotty way.
+/// What the row pins is therefore the enclosure the knot STRUCTURE
+/// used to cost, not the enclosure a genuine jump costs.
+///
+/// A cell rule that ignored the knots entirely would still contain the
+/// truth on this body. The row that is lethal to that mutation is
+/// `geom-brep`'s `cert5_arm_and_cells::a_genuine_c0_jump_stays_
+/// contained`, which needs a real discontinuity and the composite arm
+/// to expose it; these body rows are the door-level evidence that the
+/// floor is gone, and that one is the rule-level evidence that the
+/// cells are the reason.
 #[test]
 fn a_linear_skin_with_six_offgrid_knots_certifies() {
-    row("blade-8 (deg 1)", 8, 1, 6, Some(6.425e-4), 1.0e-5);
+    row("blade-8 (deg 1)", 8, 1, 6, Some(6.425e-4), 3.0e-7);
 }
 
 /// **The control row**, and the reason this file pins an exact
@@ -356,5 +367,105 @@ fn a_linear_skin_with_six_offgrid_knots_certifies() {
 /// off-grid knots specifically rather than about knots.
 #[test]
 fn dyadic_knots_were_free_and_stay_free() {
-    row("blade-5 (deg 2, dyadic)", 5, 2, 0, None, 1.0e-5);
+    row("blade-5 (deg 2, dyadic)", 5, 2, 0, None, 3.0e-7);
+}
+
+/// **The lily flip, executed.** `lily_leaf_b`'s own geometry from
+/// `demo/lily-crescent-restoration` — a 1.25 m spine turning through
+/// 0.40 rad, a crescent section 0.170 m across with a 0.015 m ridge and
+/// a 0.007 m keel, swept at nine stations and skinned at cubic degree —
+/// with the straight kite margins replaced by the arcs the stop was
+/// drawn with.
+///
+/// This is the body issue 453 names as its flip condition, and it is a
+/// GATE rather than a note because the alternative is a digit in a PR
+/// description that nothing re-takes. It is built through the public
+/// sweep door, the way the demo builds it, so what it measures is what
+/// a demo would get.
+///
+/// It is NOT the tour's leaf: the tour still draws straight margins,
+/// and restoring them there is demo work with a render re-baseline
+/// attached, carried on that branch. What this row settles is the only
+/// question the kernel owned — whether an arc-margined blade of these
+/// proportions can be certified at all.
+#[test]
+fn the_lily_crescent_blade_certifies() {
+    use geom::NurbsCurve3;
+    use geom_core::{Mat3, Point3};
+
+    let (len, curl) = (1.25f64, -0.40f64);
+    let r = len / curl;
+    let pts: Vec<Point3<f64>> = (0..9)
+        .map(|k| {
+            #[allow(clippy::cast_precision_loss)]
+            let a = curl * (k as f64) / 8.0;
+            Point3::new(r * a.sin(), r * (1.0 - a.cos()), 0.0)
+        })
+        .collect();
+    let path = NurbsCurve3::<f64>::interpolate(&pts, 3).expect("the leaf spine interpolates");
+    let (lo, _) = path.domain();
+    let d = path.deriv(lo);
+    let n = d / d.norm();
+    let helper = if n.z.abs() < 0.9 {
+        Vec3::new(0.0, 0.0, 1.0)
+    } else {
+        Vec3::new(1.0, 0.0, 0.0)
+    };
+    let u = helper.cross(n);
+    let u = u / u.norm();
+    let w = n.cross(u);
+    let p = path.eval(lo);
+    let place = Affine3::from_parts(Mat3::from_cols(u, w, n), Vec3::new(p.x, p.y, p.z));
+
+    // The crescent: chord 0.170, ridge sagitta 0.015, keel 0.007. For a
+    // circular arc, bulge = tan(θ/4) = 2·sagitta/chord.
+    let vtx = |x: f64, y: f64, b: f64| ProfileVertex::new(Point2::new(x, y), b);
+    let (hw, ridge, keel) = (0.085f64, 0.015f64, 0.007f64);
+    let section = vec![ProfileLoop::new(vec![
+        vtx(-hw, 0.0, 2.0 * ridge / (2.0 * hw)),
+        vtx(hw, 0.0, 2.0 * keel / (2.0 * hw)),
+    ])];
+
+    let lofted = sweep::sweep_body::<f64>(&section, place, &path, 9, 3, Tol::witness())
+        .expect("the arc-margined blade sweeps");
+    let off = offgrid_interior_v_knots("lily-crescent", &lofted.section_params, 3);
+    assert!(
+        off >= 2,
+        "lily-crescent: the blade's own spine must put interior v knots off the \
+         grid — that is the condition the flip was about (got {off})"
+    );
+    let got = topo::mass_properties(&lofted.body, Tol::witness());
+    let posture = body_posture("lily-crescent", &got);
+    eprintln!(
+        "EPS-ROW lily-crescent @ eps={:e}: {posture:?}{}",
+        Tol::witness().get().eps,
+        match &got {
+            Ok(m) => format!(" volume {} ± {}", m.volume, m.volume_pad),
+            Err(e) => format!(" ({e})"),
+        }
+    );
+    if let Some(w) = budget_width(&got) {
+        assert!(
+            w < 3.0e-7,
+            "lily-crescent: a refusal here may only carry a width the SCHEDULE \
+             could not close, not the 4.09e-4 m floor this blade used to sit on \
+             (got {w:e})"
+        );
+    }
+    if Tol::witness().get().eps < DEFAULT_EPS {
+        return;
+    }
+    assert_eq!(
+        posture,
+        EpsPosture::Certified,
+        "lily-crescent: the blade issue 453 names as its flip condition must \
+         certify (it refused at width_len 4.09e-4 against a 1.024e-6 target)"
+    );
+    let got = got.expect("certified");
+    assert!(
+        got.volume > 0.0 && got.volume_pad > 0.0,
+        "lily-crescent: {} ± {}",
+        got.volume,
+        got.volume_pad
+    );
 }

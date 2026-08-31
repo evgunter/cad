@@ -755,12 +755,12 @@ const SEPAL_STATIONS: usize = 13;
 /// **Restoring the lanceolate arcs is outstanding work on this
 /// stop** — the kite is what the blade was given, not a limit of the
 /// vocabulary — and the quadrature that used to stand in its way no
-/// longer does. Both halves of the rational bank are retired: an
-/// arc-margined blade of this stop's proportions, swept at
-/// [`LEAF_STATIONS`] stations and skinned at [`LEAF_V_DEGREE`],
-/// certifies an exact volume like every other body here
-/// (`crates/sweep/tests/cert5_offgrid_knot_rational.rs` is the
-/// standing row for the wall class it puts through the kernel).
+/// longer does. The blade this stop would draw has been built and
+/// measured: a crescent section on this spine, at [`LEAF_STATIONS`]
+/// stations and [`LEAF_V_DEGREE`], certifies an exact volume like
+/// every other body here. That measurement is a standing row, not a
+/// claim — `sweep`'s `cert5_offgrid_knot_rational::the_lily_crescent_
+/// blade_certifies` rebuilds exactly this geometry and re-takes it.
 ///
 /// Nothing here approximates a curve with a chord, meanwhile: a kite
 /// is exactly a kite.

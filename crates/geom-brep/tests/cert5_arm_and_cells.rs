@@ -59,7 +59,7 @@ fn drive(
             PropsError::QuadratureBudget { .. }
             | PropsError::QuadratureUnsupported { .. }
             | PropsError::Escalated { .. }
-            | PropsError::DegenerateFace { .. },
+            | PropsError::DegenerateFace,
         ) => None,
         Err(other) => panic!("not an honest posture: {other}"),
     }
@@ -96,7 +96,7 @@ fn s_bend_wall(perturb: bool) -> (KnotVector, KnotVector, Vec<[RingInterval; 3]>
     if perturb {
         // The LAST v entry of the middle u row: still positive, still
         // finite, still the same surface to fifteen digits.
-        let idx = 1 * 4 + 3;
+        let idx = 4 + 3;
         weights[idx] = f64::from_bits(weights[idx].to_bits() + 1);
     }
     (ku, kv, control, weights)

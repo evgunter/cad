@@ -536,7 +536,7 @@ fn wild_refusals_are_typed_and_name_their_class() {
             // verdict inside names the kernel entity it is about —
             // the same "go and look at it" obligation, one layer in
             // (dm1 since #327: its D7 half is retired and what refuses
-            // is the banked rational-patch-flux lane).
+            // is the rational patch-flux round budget).
             StepImportError::TierInvalid { solid, errors } => {
                 solid.is_some_and(|id| id > 0) && !errors.is_empty()
             }

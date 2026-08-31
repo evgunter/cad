@@ -71,25 +71,51 @@ const CORPUS_EPS: f64 = 1e-9;
 // worse still reads as green.
 // ---------------------------------------------------------------
 
+// **Why the extreme-weight floors moved, and by how much.** These are
+// AREA-dominated carriers: their symmetric Lipschitz pad is what the
+// enclosure is made of, and the area rule now intersects that pad with
+// the cell's own hull of `g = |S_u×S_v|` instead of choosing between
+// them. Both bound the cell's mean, so the intersection is sound and
+// can only narrow — and on exactly these carriers, where the pad is
+// enormous and the hull is merely wide, it narrows by an order.
+// Nothing about the flux side moved: the carriers whose enclosure is
+// flux-dominated (the cylinders below) moved in their seventh digit,
+// which is the cut arithmetic, not the area rule.
+
 /// Möbius-reparameterized quarter cylinder (weight ratio 100).
-const MOEBIUS_FLOOR: f64 = 5.165e-2;
-/// Warped bilinear with 1e-1/1e1 weights.
-const HYPAR_FLOOR: f64 = 1.916e-2;
+/// Was 5.165e-2 before the area rule intersected its two bounds.
+const MOEBIUS_FLOOR: f64 = 2.877_754_878_307e-3;
+/// Warped bilinear with 1e-1/1e1 weights. Was 1.916e-2, same cause.
+const HYPAR_FLOOR: f64 = 2.362_832_410_525e-3;
 /// Quarter torus, R = 2 m, r = 0.5 m.
 const QUARTER_TORUS_FLOOR: f64 = 1.146e-6;
 /// Two-span half cylinder, r = 1 m, h = 2 m — the row that misses the
-/// DEFAULT ε (1.024e-6) by 27%.
+/// DEFAULT ε (1.024e-6) by 27%. Re-measured at 1.303_516_100_912e-6,
+/// which its 1e-3 relative tolerance already covered; kept at three
+/// digits because that is the precision this row's claim needs.
 const HALF_CYLINDER_FLOOR: f64 = 1.304e-6;
+/// Bilinear unit square with a 1e-3/1e3 weight spread: the enclosure
+/// is uselessly wide, but it is now a WIDTH rather than a degeneracy
+/// (see the row for why the class changed).
+const SQUARE_FLOOR: f64 = 3.415_290_727_405e6;
 /// C0-kink extruded wall (5 m profile).
 const C0_KINK_FLOOR: f64 = 4.785e-4;
 /// Unit sphere octant (degenerate pole row).
 const SPHERE_OCTANT_FLOOR: f64 = 9.683e-7;
 /// Quarter cylinder at r = 1 km: the floor is a LENGTH, so it scales
 /// with the part (1e3 × the metre-scale quarter cylinder's).
-const HUGE_CYLINDER_FLOOR: f64 = 1.533e-4;
+const HUGE_CYLINDER_FLOOR: f64 = 1.533_469_017_207e-4;
 /// The determinism carrier: single-span quarter cylinder, r = 1 m,
 /// h = 2 m, driven at a millionfold-tighter target.
-const QUARTER_CYLINDER_FLOOR: f64 = 1.533_470_603_813_311e-7;
+///
+/// This one is pinned to thirteen digits against a 1e-3 relative
+/// tolerance, so it is the row that notices a flux-side change at all:
+/// it moved from `1.535_131_804_305_385e-7` when the cells became
+/// knot-aligned (an outward-rounded cell width in place of a rounded
+/// float, on a carrier with no interior knots to align to) and again
+/// in its seventh digit when the hull blocks did. Neither is the area
+/// rule — this carrier's enclosure is flux-dominated.
+const QUARTER_CYLINDER_FLOOR: f64 = 1.533_466_684_469_612e-7;
 
 /// The outcomes a probe is allowed to have on the run's ε — three
 /// honest postures plus the degenerate-face refusal, which is sound
@@ -149,17 +175,14 @@ fn pin_floor(name: &str, posture: Posture, floor: f64) {
     }
 }
 
-/// Pin a carrier the engine refuses as degenerate, with the reason it
-/// does so — the outcome must not drift to a *different* refusal (or,
-/// worse, to an answer) without someone re-reading why.
-#[track_caller]
-fn pin_degenerate(name: &str, posture: Posture, why: &str) {
-    assert_eq!(
-        posture,
-        Posture::Degenerate,
-        "{name}: expected the degenerate-face refusal ({why}) and got {posture:?}"
-    );
-}
+// NOTE: there is no `pin_degenerate` helper any more. No carrier in
+// this file reaches `DegenerateFace`: the last one that did — the
+// 1e-3/1e3 weight square — now refuses with a measured width, because
+// the area rule intersects its symmetric pad with a magnitude hull
+// that cannot be negative. `Posture::Degenerate` is still a posture
+// the engine can return and `posture_of` still classifies it; a
+// carrier that starts reaching it again wants the helper back and, more
+// importantly, wants explaining.
 
 fn p(x: f64, y: f64, z: f64) -> [RingInterval; 3] {
     [
@@ -683,18 +706,22 @@ fn probe_extreme_weight_square() {
         Some(1.0),
         Some(1.0),
     );
-    // The 1e-3/1e3 weight spread makes the area rule's Lipschitz pad
-    // (~1.7e20) dwarf the true area of 1 m², and the pad is SYMMETRIC:
-    // the area enclosure straddles zero, so no lever exists and the
-    // engine refuses the face as degenerate. A false negative on a
-    // patch that is plainly a unit square — the capability gap this
-    // carrier exists to hold still — but never a wrong answer.
-    pin_degenerate(
-        "extreme-weight-square",
-        posture,
-        "the symmetric area pad dwarfs the area, so the enclosure does not \
-         certify positive extent",
-    );
+    // The 1e-3/1e3 weight spread still makes the area rule's Lipschitz
+    // pad astronomically larger than the true area of 1 m². What it no
+    // longer does is straddle zero: the pad is symmetric, but the rule
+    // now intersects it with the cell's own hull of `g = |S_u×S_v|`,
+    // and a magnitude's hull has a non-negative lower end. So the face
+    // has a positive certified extent, the meter has a lever, and the
+    // carrier refuses with a MEASURED width instead of as degenerate.
+    //
+    // That is a refusal changing class, and in this direction it is
+    // the honest one: the patch really is a unit square, the engine
+    // really cannot bracket it usefully, and a budget refusal carrying
+    // its width says exactly that, where `DegenerateFace` said the
+    // face had no extent — which was false of it. The enclosure is
+    // still uselessly wide, so the capability gap this carrier exists
+    // to hold still is intact; only its spelling improved.
+    pin_floor("extreme-weight-square", posture, SQUARE_FLOOR);
 }
 
 /// Warped bilinear (hyperbolic paraboloid) with mixed extreme

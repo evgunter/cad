@@ -40,8 +40,8 @@ pub(crate) fn basis(knots: &[f64], degree: usize, ncp: usize, t: f64) -> Vec<f64
         }
     }
     if t >= knots[n] {
-        for i in 0..n {
-            nn[i] = 0.0;
+        for x in nn.iter_mut().take(n) {
+            *x = 0.0;
         }
         if let Some(i) = last {
             nn[i] = 1.0;
@@ -288,7 +288,7 @@ fn drive(
             e @ (PropsError::QuadratureBudget { .. }
             | PropsError::QuadratureUnsupported { .. }
             | PropsError::Escalated { .. }
-            | PropsError::DegenerateFace { .. }),
+            | PropsError::DegenerateFace),
         ) => {
             eprintln!("CERT5-R1 {name}: typed refusal {e}");
             None
