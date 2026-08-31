@@ -945,8 +945,8 @@ impl PickCache {
     /// the δ a document OPENS at (`app`'s `fit_delta_on_scene`), and
     /// that is the whole of the budget's authority: once a δ is in
     /// force it is the value someone asked for, and a cache that
-    /// quietly built a different picture would make `Finer δ` a button
-    /// that does nothing.
+    /// quietly built a different picture would make the View pane's δ
+    /// field a control that does nothing.
     pub fn sync(&mut self, session: &DocSession, delta: DisplayTolerance) -> CacheStep {
         let Some(generation) = session.landed_generation() else {
             return CacheStep::Nothing;

@@ -42,7 +42,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use eframe::egui;
-use egui_tiles::{TileId, Tiles, Tree, UiResponse};
+use egui_tiles::{EditAction, Tile, TileId, Tiles, Tree, UiResponse};
 use pncad::document::{Axis3, Dimension, ParamName, RecipeNodeId, SlotId};
 use pncad::geom_core::Tol;
 use pncad::quantity::UnitDef;
@@ -63,15 +63,32 @@ use crate::session::{BoundsTarget, DocSession, Refusal, Selection, SessionOp, St
 use crate::tree::{RowStatus, TreeRow};
 use pncad::document::{AxisSense, Frame, MatePrimitive};
 
-/// The window title.
-const WINDOW_TITLE: &str = "viewer";
+/// The OS window title: the project's displayed name, which is a
+/// PLACEHOLDER until Q9 settles a real one. It is not the crate name
+/// — the crate, the binary and the canvas element stay `viewer`, and
+/// only what a user reads says `pncad`.
+const WINDOW_TITLE: &str = "pncad";
+
+/// What the toolbar calls a document with no path of its own.
+const UNTITLED: &str = "untitled";
+
+/// The tab name of the container holding the feature tree and the
+/// properties — the document's model, as against the View pane's
+/// display settings.
+const MODEL_TAB_TITLE: &str = "Model";
+
+/// The most of the Features/Properties stack the feature tree is
+/// auto-given: past this, the tree scrolls in its own half rather than
+/// crowding the properties out.
+const FEATURES_SHARE_CAP: f32 = 0.5;
+
+/// Points of breathing room under the feature tree when its height is
+/// what sizes the tile.
+const FEATURES_SLACK: f32 = 8.0;
 
 /// The starting display tolerance: 0.1 mm, fine enough that a 24 mm
 /// hole reads as a circle and coarse enough to redraw instantly.
 const INITIAL_DELTA: f64 = 1.0e-4;
-
-/// The step the chrome's coarsen/refine buttons take.
-const DELTA_STEP: f64 = 2.0;
 
 /// Direction the light travels, world space; a unit vector over the
 /// viewer's left shoulder.
@@ -99,13 +116,13 @@ const INDENT_STEP: f32 = 12.0;
 
 /// The deepest level the tree indents for.
 ///
-/// Depth is the longest input chain and a real document reaches far
-/// past this — the tour's `diefillet` hits 27, which at
-/// [`INDENT_STEP`] would be 324 points of dead space in a pane that
-/// holds a third of the window. Past the clamp the rows stop moving
-/// right; they stay in evaluation order, so the tree is still readable
-/// as a sequence, and what is lost is depth information that had
-/// already stopped fitting.
+/// A backstop, not the working limit: `tree`'s depth counts BRANCHES
+/// off a node's primary input, so a chained document sits a handful
+/// of levels deep however long its chain is. A document that does
+/// nest genuinely deeper than this stops moving right here; the rows
+/// stay in evaluation order, so the tree is still readable as a
+/// sequence, and what is lost is depth information that had already
+/// stopped fitting the pane.
 const INDENT_MAX_DEPTH: usize = 8;
 
 /// The indent a row at `depth` draws at.
@@ -133,6 +150,11 @@ pub enum Pane {
 /// abandoned by selecting elsewhere leaves nothing behind.
 #[derive(Debug, Default)]
 struct Drafts {
+    /// The View pane's δ field while it has focus, in millimetres as
+    /// typed. `None` whenever it does not, so an unfocused field shows
+    /// the δ actually in force — including one the triangle budget
+    /// chose after this field last committed.
+    delta_mm: Option<String>,
     /// The slot the expression field is currently for.
     expr_target: Option<(RecipeNodeId, SlotId)>,
     /// What is typed in it.
@@ -214,12 +236,12 @@ pub struct ViewerApp {
     /// document arrives, the budget picks a δ that draws it in a
     /// reasonable time, and from then on δ is whatever the user asked
     /// for. Anything stronger — clamping every rebuild — would make
-    /// `Finer δ` a button that does nothing on exactly the documents
-    /// someone would want it for.
+    /// the View pane's δ field a control that does nothing on exactly
+    /// the documents someone would want it for.
     fit_delta_on_scene: bool,
     /// The budget's verdict, while the δ it chose is still the δ in
     /// force. `None` once the user has moved δ themselves
-    /// ([`ViewerApp::rescale_delta`] clears it), because from there
+    /// ([`ViewerApp::set_delta`] clears it), because from there
     /// the number on screen is theirs and the badge would be claiming
     /// a choice it did not make.
     budget_delta: Option<crate::scene::FittedDelta>,
@@ -229,6 +251,9 @@ pub struct ViewerApp {
     camera: Camera,
     input: InputMap,
     tree: Tree<Pane>,
+    /// Whether the user has resized a tile themselves. From the first
+    /// drag the layout is theirs and nothing here sizes it again.
+    split_dragged: bool,
     drafts: Drafts,
     /// A fit is owed, and will be taken by the viewport pane on the
     /// next frame — the only place that knows the real aspect.
@@ -394,6 +419,7 @@ impl ViewerApp {
             camera,
             input: InputMap::default(),
             tree: initial_layout(),
+            split_dragged: false,
             drafts: Drafts::default(),
             pending_fit: true,
             fit_on_scene: false,
@@ -501,11 +527,16 @@ impl ViewerApp {
         }
     }
 
-    /// Change δ, rebuilding the picture from the evaluation already in
-    /// hand — a display change is not a document change and re-runs no
-    /// geometry above the tessellator.
-    fn rescale_delta(&mut self, factor: f64) {
-        match self.delta.scaled(factor) {
+    /// Change δ to `delta` world units, rebuilding the picture from
+    /// the evaluation already in hand — a display change is not a
+    /// document change and re-runs no geometry above the tessellator.
+    ///
+    /// The value goes through [`DisplayTolerance::new`], the one door
+    /// that decides what a δ may be, so a zero or a negative number is
+    /// refused with the tessellator's own condition and the picture
+    /// keeps the δ it had.
+    fn set_delta(&mut self, delta: f64) {
+        match DisplayTolerance::new(delta) {
             Ok(delta) => {
                 self.delta = delta;
                 // From here the number is the user's. The budget chose
@@ -516,6 +547,51 @@ impl ViewerApp {
                 self.sync_scene();
             }
             Err(error) => self.status = Some(format!("{error}")),
+        }
+    }
+
+    /// Give the Features tile the height its content wants, capped at
+    /// [`FEATURES_SHARE_CAP`] of the stack it shares with Properties.
+    ///
+    /// The two panes are read TOGETHER — selecting in the tree is what
+    /// fills the properties — so a three-row tree that pushes the
+    /// Properties heading half a page down is half a pane of nothing.
+    /// A long tree reaches the cap and the stack is split as it always
+    /// was, the tree scrolling inside its own half.
+    ///
+    /// `wanted` is the tree's laid-out height in points. The stack's
+    /// own height comes from the two tiles' last layout, so this is a
+    /// no-op on the very first frame, before there are rectangles to
+    /// read; the frame after has both. The caller owns the check that
+    /// the user has not taken the divider over.
+    fn fit_features_share(&mut self, wanted: f32) {
+        let tiles = &mut self.tree.tiles;
+        let (Some(features), Some(properties)) = (
+            tiles.find_pane(&Pane::Features),
+            tiles.find_pane(&Pane::Properties),
+        ) else {
+            return;
+        };
+        let (Some(above), Some(below)) = (tiles.rect(features), tiles.rect(properties)) else {
+            return;
+        };
+        let stack = above.height() + below.height();
+        if stack <= 0.0 {
+            return;
+        }
+        let Some(stacked) = model_stack(tiles) else {
+            return;
+        };
+        // Slack over the measured height so the last row is not flush
+        // against the divider.
+        let fraction = ((wanted + FEATURES_SLACK) / stack).clamp(0.0, FEATURES_SHARE_CAP);
+        if let Some(Tile::Container(egui_tiles::Container::Linear(linear))) = tiles.get_mut(stacked)
+        {
+            // Shares are relative, so a pair summing to 2 states the
+            // fraction directly — the spelling `Linear::new_binary`
+            // itself uses.
+            linear.shares.set_share(features, 2.0 * fraction);
+            linear.shares.set_share(properties, 2.0 * (1.0 - fraction));
         }
     }
 
@@ -597,7 +673,11 @@ impl eframe::App for ViewerApp {
 
         egui::Panel::top("viewer_toolbar").show(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.label(WINDOW_TITLE);
+                // What is OPEN, not what the program is called: the
+                // window title already carries the application's name,
+                // and a toolbar that repeats it tells a user nothing
+                // they cannot see in their own title bar.
+                ui.label(document_name(self.session.path()));
                 ui.separator();
                 // The chooser-backend verdict, probed once at startup:
                 // with confidently NO backend (no zenity, no session
@@ -665,17 +745,15 @@ impl eframe::App for ViewerApp {
                     ops.push(SessionOp::Redo);
                 }
                 ui.separator();
-                if ui.button("Fit").clicked() {
+                if ui
+                    .button("Zoom to fit")
+                    .on_hover_text("frame the whole model in the viewport")
+                    .clicked()
+                {
                     // The toolbar has no pane rectangle, so it asks
                     // for a fit rather than performing one; the
                     // viewport takes it at the real aspect.
                     self.pending_fit = true;
-                }
-                if ui.button("Coarser δ").clicked() {
-                    self.rescale_delta(DELTA_STEP);
-                }
-                if ui.button("Finer δ").clicked() {
-                    self.rescale_delta(1.0 / DELTA_STEP);
                 }
                 // The indicator is a READ of session state, and the
                 // buttons beside it are the shipped token and its pair.
@@ -761,6 +839,9 @@ impl eframe::App for ViewerApp {
         });
 
         let display = self.session.display_view();
+        let mut delta_request: Option<f64> = None;
+        let mut features_content_height: Option<f32> = None;
+        let mut split_dragged = self.split_dragged;
         egui::CentralPanel::no_frame().show(ui, |ui| {
             let mut behavior = ViewerBehavior {
                 session: &self.session,
@@ -779,9 +860,26 @@ impl eframe::App for ViewerApp {
                 id_answer: &self.id_answer,
                 id_log: &mut self.id_log,
                 ops: &mut ops,
+                delta_request: &mut delta_request,
+                features_content_height: &mut features_content_height,
+                split_dragged: &mut split_dragged,
             };
             self.tree.ui(&mut behavior, ui);
         });
+        // Read AFTER the frame drew, and before anything writes a
+        // share back: a divider dragged this frame has already set the
+        // flag, so the auto-size below stands down on the same frame
+        // the user's mouse moved rather than one frame later, having
+        // overwritten it once.
+        self.split_dragged = split_dragged;
+        if !self.split_dragged
+            && let Some(height) = features_content_height
+        {
+            self.fit_features_share(height);
+        }
+        if let Some(delta) = delta_request {
+            self.set_delta(delta);
+        }
 
         // The mate tool consumes the selection vocabulary: while the
         // tool is active, a face pick this frame produced is ALSO held
@@ -823,6 +921,15 @@ struct ViewerBehavior<'a> {
     id_answer: &'a Arc<AtomicU64>,
     id_log: &'a mut IdQueryLog,
     ops: &'a mut Vec<SessionOp>,
+    /// A δ the View pane's field committed this frame, in world units.
+    /// The pane holds a borrow of the app, not the app, so it hands
+    /// the number back for [`ViewerApp::set_delta`] to judge.
+    delta_request: &'a mut Option<f64>,
+    /// What the Features pane's content laid out to this frame, once
+    /// it has drawn.
+    features_content_height: &'a mut Option<f32>,
+    /// Set when the user resized a tile themselves.
+    split_dragged: &'a mut bool,
 }
 
 /// Land a fold: take the camera it reached, and either show the
@@ -850,6 +957,38 @@ impl egui_tiles::Behavior<Pane> for ViewerBehavior<'_> {
         }
     }
 
+    /// The title of any TILE, container as well as pane.
+    ///
+    /// egui_tiles titles an unnamed container by its layout direction,
+    /// so the Features/Properties stack came up as `Vertical` — the
+    /// name of a split rather than of anything in it. That stack
+    /// ([`model_stack`]) is the document's model and says so. Every
+    /// other tile falls through to the same defaults the trait would
+    /// have used.
+    fn tab_title_for_tile(&mut self, tiles: &Tiles<Pane>, tile_id: TileId) -> egui::WidgetText {
+        if model_stack(tiles) == Some(tile_id) {
+            return MODEL_TAB_TITLE.into();
+        }
+        match tiles.get(tile_id) {
+            Some(Tile::Pane(pane)) => self.tab_title_for_pane(pane),
+            Some(Tile::Container(container)) => format!("{:?}", container.kind()).into(),
+            None => "MISSING TILE".into(),
+        }
+    }
+
+    /// A layout edit the USER made.
+    ///
+    /// The one that matters here is a resize: from the first time
+    /// someone drags the Features/Properties divider, the split is
+    /// theirs and [`ViewerApp::fit_features_share`] stops touching it.
+    /// Auto-sizing is a default, and a default that argues with a
+    /// mouse is a bug.
+    fn on_edit(&mut self, edit_action: EditAction) {
+        if edit_action == EditAction::TileResized {
+            *self.split_dragged = true;
+        }
+    }
+
     fn pane_ui(&mut self, ui: &mut egui::Ui, tile_id: TileId, pane: &mut Pane) -> UiResponse {
         // The viewport IS its rectangle: it allocates exactly the
         // available size and paints into it, so a scroll container
@@ -866,7 +1005,7 @@ impl egui_tiles::Behavior<Pane> for ViewerBehavior<'_> {
         // at the tile's edge, no collapse under short content); the
         // salt is the tile id, so two tabs of one tile scroll
         // independently.
-        egui::ScrollArea::vertical()
+        let scrolled = egui::ScrollArea::vertical()
             .auto_shrink([false, false])
             .id_salt(tile_id)
             .show(ui, |ui| match pane {
@@ -876,6 +1015,12 @@ impl egui_tiles::Behavior<Pane> for ViewerBehavior<'_> {
                 Pane::Properties => self.properties_ui(ui),
                 Pane::View => self.view_ui(ui),
             });
+        // The tree's own height, measured rather than predicted: the
+        // scroll area knows what its content laid out to, and that is
+        // the number the Features/Properties split is sized from.
+        if *pane == Pane::Features {
+            *self.features_content_height = Some(scrolled.content_size.y);
+        }
         UiResponse::None
     }
 }
@@ -1863,6 +2008,58 @@ impl ViewerBehavior<'_> {
         });
     }
 
+    /// The δ control: the display tolerance as a number the user types,
+    /// in millimetres.
+    ///
+    /// **A text field rather than a pair of step buttons.** δ is a
+    /// LENGTH, and the question a user has is "how fine, in mm" — a
+    /// halve/double pair answers it only by repeated clicking and
+    /// cannot reach a number in between. It is also not a `DragValue`:
+    /// a drag would commit a tessellation per frame, which is the one
+    /// mistake [`drag_ops`] exists to keep out of this file.
+    ///
+    /// Committing on lost focus covers Enter too — egui's singleline
+    /// field surrenders focus on Enter — so there is one commit path,
+    /// not two. What is typed is a DRAFT until then: nothing
+    /// re-tessellates while a number is half-entered, and `0.` on the
+    /// way to `0.05` never reaches the tessellator.
+    fn delta_ui(&mut self, ui: &mut egui::Ui) {
+        let in_force = self.delta.get() * 1.0e3;
+        let field = ui
+            .horizontal(|ui| {
+                let text = self
+                    .drafts
+                    .delta_mm
+                    .get_or_insert_with(|| format!("{in_force:.3}"));
+                let field = ui.add(egui::TextEdit::singleline(text).desired_width(56.0));
+                ui.label("mm display δ");
+                field
+            })
+            .inner;
+        if field.lost_focus()
+            && let Some(typed) = self.drafts.delta_mm.take()
+        {
+            match typed.trim().parse::<f64>() {
+                // Judged by `DisplayTolerance`, not here: a δ that is
+                // not a finite positive length is refused at that one
+                // door, wherever it came from.
+                Ok(mm) => *self.delta_request = Some(mm * 1.0e-3),
+                Err(error) => {
+                    *self.status = Some(format!(
+                        "display δ: {:?} is not a number ({error})",
+                        typed.trim()
+                    ));
+                }
+            }
+        }
+        // The draft lives exactly as long as the focus does, so a δ
+        // that moved under the field (the budget's choice on open)
+        // shows up in it.
+        if !field.has_focus() {
+            self.drafts.delta_mm = None;
+        }
+    }
+
     /// The view pane: the numbers the camera and the tessellation are
     /// actually running at.
     fn view_ui(&mut self, ui: &mut egui::Ui) {
@@ -1872,7 +2069,7 @@ impl ViewerBehavior<'_> {
         // when the document opened or the user did, and the note says
         // which. The triangle count below is the picture's own, so
         // nothing here is a prediction.
-        ui.label(format!("display δ: {:.3} mm", self.delta.get() * 1000.0));
+        self.delta_ui(ui);
         if self.budget_delta.is_some() {
             ui.weak("chosen for the triangle budget; δ is yours from here");
         }
@@ -2001,6 +2198,38 @@ fn pick_save(current: Option<&std::path::Path>) -> Option<std::path::PathBuf> {
         dialog = dialog.set_directory(dir);
     }
     dialog.save_file()
+}
+
+/// The container holding the feature tree and the properties — the
+/// document's MODEL, as against the View pane's display settings.
+///
+/// Found by content rather than remembered by id: the layout is a
+/// value the user rearranges, so a stored id would sooner or later
+/// name a tile a drag had dissolved. `None` says the two panes are
+/// not currently stacked together, which is a layout the user is
+/// entitled to and which nothing here needs to name.
+pub fn model_stack(tiles: &Tiles<Pane>) -> Option<TileId> {
+    let features = tiles.find_pane(&Pane::Features)?;
+    let properties = tiles.find_pane(&Pane::Properties)?;
+    tiles.tile_ids().find(|&id| {
+        matches!(tiles.get(id), Some(Tile::Container(container))
+            if container.has_child(features) && container.has_child(properties))
+    })
+}
+
+/// The toolbar's name for the open document: the file stem of the
+/// path it is saved at, or [`UNTITLED`] while it has none.
+///
+/// The STEM, not the full path — the path is already shown in full in
+/// the View pane, and a toolbar is where a user glances for which of
+/// several documents they are in. A path whose bytes are not UTF-8 is
+/// shown lossily rather than dropped: a name with a replacement
+/// character in it still identifies the document.
+pub fn document_name(path: Option<&std::path::Path>) -> String {
+    path.and_then(std::path::Path::file_stem).map_or_else(
+        || UNTITLED.to_owned(),
+        |stem| stem.to_string_lossy().into_owned(),
+    )
 }
 
 /// The starting layout: the viewport with a tabbed side panel, in a
