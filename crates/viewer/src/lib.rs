@@ -60,6 +60,7 @@ pub mod frame;
 pub mod history;
 pub mod input;
 pub mod matetool;
+pub mod parts;
 pub mod pick;
 pub mod prefs;
 pub mod props;
@@ -89,6 +90,7 @@ pub use matetool::{
     MateAdmission, MateChoice, MateProposal, MateTool, MateToolError, MateToolEvent, MateToolState,
     admitted_classes,
 };
+pub use parts::{PartChooser, PartEntry};
 pub use pick::{
     Highlight, IdMap, IdMapError, PatchId, PickError, PickIndex, PickIndexError, cursor_projection,
     highlight,
