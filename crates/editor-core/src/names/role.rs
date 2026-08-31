@@ -510,7 +510,7 @@ pub enum RoleSeg {
 /// Four matches classify segments by this partition and each does
 /// something different with the other half — the name walk visits,
 /// the rewrite rebuilds, the selector collects, and the attribution
-/// walk ([`super::attribute`]) stops. Only the negative answer is
+/// walk ([`fn@super::attribute`]) stops. Only the negative answer is
 /// common, so only the negative answer is shared, and it is shared as
 /// an or-pattern so that none of them loses its exhaustiveness: a
 /// variant added to [`RoleSeg`] and not added here breaks every one of
