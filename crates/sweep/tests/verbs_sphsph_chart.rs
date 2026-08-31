@@ -15,6 +15,23 @@
 //! rather than in world coordinates: which way a revolve sweeps and
 //! where it puts its seam are the constructor's business, and a row
 //! that hard-codes them is testing the constructor.
+//!
+//! Two kinds of row live here and they are doing different jobs. The
+//! first kind states what the chart REACHES — the lune and rimmed-band
+//! rows, in both directions and all the way to a pole. The second kind
+//! states what the chart REFUSES, and each of those plants a face a
+//! revolve cannot mint (a pole interior to a meridian edge, a boundary
+//! circle in neither iso class, a ring, a full period of azimuth) by
+//! re-attaching ONE datum of a revolved body through a public door.
+//! Every refusal row carries a control: the same body one call earlier,
+//! answering definitely.
+//!
+//! And one row states what the LEVER is, which is not the same claim as
+//! either: `the_latitude_margin_decides_at_a_near_polar_rim_where_the_
+//! axial_lever_cannot` is the only row here that goes red if
+//! `latitude_sine` is re-spelled as #893's axial difference. The reach
+//! rows do not, because a lune's latitude window has a pole at both ends
+//! and its margin list is empty.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
