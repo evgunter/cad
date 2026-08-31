@@ -1404,6 +1404,76 @@ impl Composite {
 mod tests {
     use super::{Refine, directional_mark, stall_verdict};
 
+    /// CERT-7 R2 probe (local only): reproduce the PR body's per-cell
+    /// decomposition of the micron row's sup cell — dist, tau,
+    /// tau^2/||E||, and the mignitude floor on ||E|| (issue 1320's
+    /// digits).
+    #[test]
+    fn r2_probe_micron_sup_cell_decomposition() {
+        use geom_core::spline::KnotVector;
+        use geom_core::{Band, Point3, Tol};
+        let s = (core::f64::consts::FRAC_PI_2 * 0.5).cos();
+        let kv2 = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+        let kv1 = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let control = vec![
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 1.0),
+            Point3::new(1.0, 1.0, 0.0),
+            Point3::new(1.0, 1.0, 1.0),
+            Point3::new(0.0, 1.0, 0.0),
+            Point3::new(0.0, 1.0, 1.0),
+        ];
+        let base =
+            geom::NurbsSurface::new(kv2, kv1, control, vec![1.0, 1.0, s, s, 1.0, 1.0]).unwrap();
+        let d = 1e-6;
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (fit, cert) = super::fit_offset(&base, d, 1e-3, band).unwrap();
+        let (reg, _) = crate::offset_meters::meter_patch(&base, d, band).unwrap();
+        let comp = super::Composite::build(&base, &fit, d).unwrap();
+        let (nu, nv) = comp.x.cell_counts();
+        let mut sup = (0usize, 0usize, 0.0f64);
+        for su in 0..nu {
+            for sv in 0..nv {
+                let b = comp.cell_bound(su, sv, reg.floor, d);
+                if b > sup.2 {
+                    sup = (su, sv, b);
+                }
+            }
+        }
+        let (su, sv) = (sup.0, sup.1);
+        // Re-run the assembly with the parts split (mirrors cell_bound).
+        use geom_core::ring_interval::RingInterval;
+        let w = comp.w.cell_hull(su, sv);
+        let wt = comp.wt.cell_hull(su, sv);
+        let abs_d = RingInterval::point(d.abs());
+        let e_mig_sq = RingInterval::point(crate::offset_meters::mig(comp.e[0].cell_hull(su, sv)))
+            .sqr()
+            + RingInterval::point(crate::offset_meters::mig(comp.e[1].cell_hull(su, sv))).sqr()
+            + RingInterval::point(crate::offset_meters::mig(comp.e[2].cell_hull(su, sv))).sqr();
+        let e_lo_iv =
+            RingInterval::point(crate::offset_meters::sqrt_down(e_mig_sq.lo())) / wt;
+        let x_mag = RingInterval::from_bounds(0.0, comp.x.cell_hull(su, sv).mag());
+        let dist_iv = x_mag / (wt.sqr() * (e_lo_iv + abs_d));
+        let y_sq = comp.y[0].cell_hull(su, sv).mag().powi(2)
+            + comp.y[1].cell_hull(su, sv).mag().powi(2)
+            + comp.y[2].cell_hull(su, sv).mag().powi(2);
+        let y_mag = RingInterval::from_bounds(0.0, crate::offset_meters::sqrt_up(y_sq));
+        let tau_iv = y_mag / (RingInterval::point(reg.floor) * wt * w.powi(3));
+        let e_floor = e_lo_iv.lo().max(d.abs() - dist_iv.hi());
+        let t3 = (tau_iv.sqr() / RingInterval::point(e_floor)).hi();
+        eprintln!(
+            "R2 decomposition: hull_sup={:.4e} sup_cell=({su},{sv}) bound={:.4e} \
+             dist={:.4e} tau={:.4e} tau2/E={:.4e} e_lo={:.4e} share={:.1}%",
+            cert.hull_sup,
+            sup.2,
+            dist_iv.hi(),
+            tau_iv.hi(),
+            t3,
+            e_lo_iv.lo(),
+            100.0 * t3 / sup.2
+        );
+    }
+
     /// The guard is silent while the bound is still `+∞`: an
     /// unbounded round is unproved, not unimproved, and a loop on its
     /// way from `+∞` to a finite bound is converging.
