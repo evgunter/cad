@@ -704,7 +704,7 @@ fn overlap_of_uv<T: Decide + Bounds>(
 /// normalizes every loop to CCW through the
 /// `chart_region_orientation` trilean before any of that machinery
 /// runs. The metering is likewise unmoved, because a plane chart's
-/// [`exact_arms`] are `(1, 1)` in either frame — a plane chart's
+/// [`certified_arms`] are `(1, 1)` in either frame — a plane chart's
 /// coordinates ARE metres. Therefore [`ChartOverlap::PositiveArea`]
 /// and [`ChartOverlap::Empty`] are invariant under which description
 /// is taken as representative, which is the claim. ∎
