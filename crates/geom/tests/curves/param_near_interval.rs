@@ -142,16 +142,49 @@ fn a_full_period_widens_at_the_seam_without_mis_selecting() {
 /// the enclosure of the answer contains the truth for an anchor
 /// anywhere on the line, and stays narrow while the point is not half
 /// a turn from it.
+///
+/// **THE GRID RUNS ALL THE WAY TO `±π`, and the claim weakens exactly
+/// there** — it does not stop at 3.0 and leave the boundary to the
+/// reader's charity. Strictly inside the half turn, `near + δ` is the
+/// unique branch within half a turn and the enclosure contains THAT
+/// number. AT `|δ| = π` the point has two such branches, `near ± π`,
+/// and which one the lane encloses is decided by `atan2`'s cut on the
+/// sign of `w·τ̂` — a coin flip, measured at 12 of 30 cases in the
+/// `f64` sibling row. So the boundary asserts the property that
+/// actually holds: the enclosure contains A parameter of the point
+/// within half a turn of the anchor. Asserting `t` specifically would
+/// be asserting the coin.
 #[test]
 fn an_endpoint_anchor_encloses_the_truth_at_every_offset() {
     let (carrier64, carrier) = pair();
     for near in [-9.0, -PI, 0.0, 0.7, 7.0] {
-        for delta in [-3.0, -0.5, 0.0, 0.5, 3.0] {
+        for delta in [-PI, -3.0, -0.5, 0.0, 0.5, 3.0, PI] {
             let t = near + delta;
             let p = carrier64.eval(t);
             let got = carrier
                 .param_near(lift_p(p), Interval::from_f64(near))
                 .unwrap();
+            if delta.abs() == PI {
+                // The two legitimate answers, a turn apart. Either may
+                // be the one enclosed; neither may be missed by both.
+                let encloses = |x: f64| got.lo() <= x && x <= got.hi();
+                assert!(
+                    encloses(near + PI) || encloses(near - PI),
+                    "near={near} delta={delta}: [{}, {}] holds neither half-turn branch",
+                    got.lo(),
+                    got.hi()
+                );
+                // …and whichever it is, it is still within half a turn
+                // of the anchor, which is the guarantee a consumer
+                // reads. A whole-turn mis-selection would break this.
+                assert!(
+                    (got.lo() - near).abs() <= PI + 1e-9 && (got.hi() - near).abs() <= PI + 1e-9,
+                    "near={near} delta={delta}: [{}, {}] leaves the half turn",
+                    got.lo(),
+                    got.hi()
+                );
+                continue;
+            }
             assert!(
                 got.lo() <= t && t <= got.hi(),
                 "near={near} delta={delta}: truth {t} outside [{}, {}]",
