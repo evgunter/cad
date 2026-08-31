@@ -42,6 +42,8 @@
 mod arc_fillet;
 #[path = "blend7_review_probes.rs"]
 mod blend7_review_probes;
+#[path = "cert4r2_e2e.rs"]
+mod cert4r2_e2e;
 #[path = "canonical_invariance.rs"]
 mod canonical_invariance;
 #[path = "declared_tangency.rs"]
