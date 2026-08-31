@@ -10,10 +10,10 @@
 //! It prints; it asserts nothing. This is EVIDENCE for a review, not a
 //! gate (`memories/review-and-dependency-policy`'s promotion rule).
 //!
-//! ARM A is this head as it stands: `fillet`'s support strut reaches
+//! ARM A is this head as it stands: `blend`'s support strut reaches
 //! rest through the scaffolding door.
 //! ARM B is the same head with the conversion the spec ordered
-//! reinstated at `fillet/surgery.rs`'s `"strut mev"` site.
+//! reinstated at `blend/surgery.rs`'s `"strut mev"` site.
 //!
 //! The question: on `die_fillet`'s own shape — a unit cube, all twelve
 //! edges, so every support is a PLANE — does the conversion certify?
@@ -27,7 +27,7 @@ use geom::Surface;
 use geom_core::{Band, Point2, Tol};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane};
-use sweep::fillet::fillet_edges;
+use sweep::blend::fillet_edges;
 use sweep::{Extrusion, extrude};
 use topo::{Body, EdgeKey};
 

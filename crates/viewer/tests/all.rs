@@ -44,6 +44,10 @@ mod assembly_display;
 mod assembly_walk;
 #[path = "camera_ops.rs"]
 mod camera_ops;
+#[path = "cascade_delete.rs"]
+mod cascade_delete;
+#[path = "chrome_labels.rs"]
+mod chrome_labels;
 #[path = "display_budget.rs"]
 mod display_budget;
 #[path = "doc_io.rs"]
@@ -64,6 +68,8 @@ mod mate_tool_flow;
 mod panel_display;
 #[path = "panel_edits.rs"]
 mod panel_edits;
+#[path = "prefs.rs"]
+mod prefs;
 #[path = "review_gui0_r1.rs"]
 mod review_gui0_r1;
 #[path = "review_gui0_r2.rs"]
@@ -86,8 +92,12 @@ mod review_m10_1_r1;
 mod scene_build;
 #[path = "select_pick.rs"]
 mod select_pick;
+#[path = "theme.rs"]
+mod theme;
 #[path = "tree_badges.rs"]
 mod tree_badges;
+#[path = "tree_shape.rs"]
+mod tree_shape;
 #[path = "undo_tree.rs"]
 mod undo_tree;
 #[path = "valid_range.rs"]

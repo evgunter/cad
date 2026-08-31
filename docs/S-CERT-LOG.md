@@ -201,3 +201,304 @@ site; verify report claims against the artifact before briefing.
 Both charter-named units are now merged. Next: the plan's slate in
 order (CERT-3 affine anchor, CERT-4 period folds, CERT-5 rational
 flux), sequenced against disk and the other programs' traffic.
+
+## CERT-3 delivered; session git-auth outage (2026-08-30)
+
+**CERT-3's implementation is delivered and green**: PR 1277 at
+44abc6d3d, gate run 33284902164 GREEN at BOTH lanes (the head
+carries `CI-Config: lane=both`, deliberately — a linalg change is
+not basename-matched, and the interval claims needed the lane).
+The constructor now anchors through `(I − R)` with HALF-ANGLE
+factors — the spec's literal `1 − cos θ` factor was itself measured
+as part of the defect (an ulp-of-1 enclosure floor at θ = 0) — and
+the zero-angle identity is exact at f64 with the Interval residue
+≤ 1e-320 and independent of anchor width. RevolvedPoint start
+samples: 4.0e-9 → 2.66e-15, the full-period seam by six orders.
+f64 movement measured and reported: ≤1 ulp, 4 of 3135 corpus
+coordinates; the M10-P bit-identity fence fired as designed and its
+digests were re-derived from a 0-structural-difference dump (M10
+flagged on the PR — their fence ground). Four sweep findings routed
+to issue 1143's audit; four deviations declared in a PR-body
+deviations section (the CERT-1 lesson applied). Difficulty S/M,
+block CERT-B1 slot 2.
+
+**BLOCKER: the session's git auth did not survive a container
+restart** (known harness bug, Evan confirms no in-session fix): no
+lane can fetch or push, so CERT-3's blinded dual (next slot byte
+drawn at dispatch; ordinal 702 UNCLAIMED — claims happen at actual
+dispatch) cannot run from this session. GitHub API tools still
+work; this entry is an API commit. Everything is pushed: the unit
+branch head 44abc6d3d, cert/ab-state (block + dual records),
+cert/orchestrator (specs through CERT-3). The committed conflict
+markers CERT-3's lane found in main's ledger were repaired upstream
+before this session could act (verified: the VERBS-6 deviation
+entry, the #43 sample correction, and both S-CERT rows survived).
+
+**For the successor** (with `memories/orchestrator-switch-runbook.md`'s
+contract; the tmux mechanics do not apply to remote containers):
+1. Dispatch CERT-3's dual: frozen head 44abc6d3d, draw the slot
+   byte fresh, method note + stored brief PRE-R1 on cert/ab-state
+   (the CERT-1/CERT-2 records there are the template), claim
+   ordinal 702 on main at dispatch, claims-to-falsify from the
+   PR 1277 BODY (the brief-as-claim-site rule — never from the
+   implementer report), including: the half-angle respell's
+   measured story, the M10-P digest re-derivation being argued not
+   silent, the ~1 ulp fixed-point regression honestly reported,
+   the sweep's stated blind spot (caller/callee-split round trips).
+2. Then the fix pass to the CERT-3 lane agent IF this session's
+   agents survive to the successor (they do not — agents die with
+   the session; the fix pass then runs as a fresh lane and the row
+   records orchestrator-applied-or-fresh execution honestly).
+3. Slate after CERT-3: CERT-4 (issue 1191, under the SEMANTIC
+   restatement of the f64-bit constraint — see the Q2 seam), then
+   CERT-5/CERT-6/CERT-7 per the plan; CERT-B1 slot 3 is the block's
+   last undrawn slot.
+4. Standing flags: issue 1250/1251 open from CERT-1; the v6 tally
+   candidates from CERT-1's pair await the blinded adjudication;
+   CERT-2's fix-pass covariates are contaminated (cross-slot) and
+   CERT-1's silent-devs column is non-comparable (brief error) —
+   both recorded in the rows.
+
+## CERT-3 merged (2026-08-30) — issue 924 closed; the handoff unit
+
+PR 1277 at a1bccce4, gate runs 33284902164 (reviewed head 44abc6d3d)
+and 33337220614 (fix head) both GREEN with `CI-Config: lane=both`.
+The constructor anchors through `(I − R)` with half-angle factors;
+zero-angle identity exact at f64, Interval residue subnormal and
+proportional-with-subnormal-slope (the fix pass corrected the
+"independent of anchor width" wording); RevolvedPoint start samples
+4.0e-9 → 2.66e-15, the full-period seam by six orders.
+
+**Handoff executed mid-unit**: the predecessor session lost git auth
+after delivery (previous entry); this successor session ran the dual
+and the close-out. Per Evan (in-chat, 2026-08-30, at the handoff):
+**this unit's dual ran WITHOUT A/B experiment logging** — ordinal 702
+was never claimed, no arm records, no MODEL-AB-LOG row; the review
+itself was full-protocol (blinded, sequential, identical stored
+briefs, frozen head). The band's ordinal record therefore skips from
+701 deliberately; CERT-B1 slot 2's implementer-arm record stands on
+cert/ab-state but carries no dual row.
+
+**The dual**: R1 A-W-F 0/3/4 (rubric 4/4/4), R2 A-W-F 2... see PR —
+R2 A-W-F 1/5/3 (rubric 4/3/3). Both lanes independently rebuilt the
+m10-p fence coordinate-dump differential and reproduced the f64
+re-derivation exactly (0 structural, 4 of 3135, one ulp) — the
+predecessor's self-certification worry is discharged twice over.
+R2's unilateral executed MAJOR: the residue attribution was false
+(retiring `rotation_about`'s `1 − cos` recovers ~17% at the start
+sample, 0% at full period; the residue is the diagonal's ADDITIVE
+enclosure times the coordinate) — corrected at every site it
+propagated, including issue 1143's member-5 payoff (comment posted).
+R1's headline: the fence header recorded only the f64 lane; the
+interval-lane differential (8 of 3135, up to 16 ulps, honestly
+slightly WIDER on this exact-axis corpus) is now recorded beside it.
+Bilateral: toothless full-period ceiling (now calibrated,
+red-verified under re-plant); the hand-mirrored operator ladder (four
+dedicated rows + an association pin, red-verified under a planted
+slip); unrecoverable measurement digits (instruments committed with
+corpus as literals; re-measured 169/243, superseding the body's
+141/243); Interval poison wording; the restrict-composition linear
+accumulation law (both lanes' e2e independently; pinned as a row and
+recorded as the receipt's third blind-spot entry).
+
+**Fix pass ran as a FRESH lane** (the implementer's agent died with
+the predecessor session — recorded honestly; no implementer-inherited
+covariates exist for this unit, moot given the A/B skip). All 13
+union items dispositioned: 11 fixed, one decided-otherwise with
+receipts (the skipped interval oracle is path-keyed to the backend
+and CANNOT be drawn by a trailer; the skip is correct), one
+report-only → issue 1299 (normalize norm²-overflow → zero vector;
+vec.rs is PCURVE's keep-out). Both reviewer probe suites adopted
+whole, authorship preserved; branches cert/3r1-probes and
+cert/3r2-probes pushed as reproduction sources.
+
+Slate next: CERT-4 (issue 1191, under the SEMANTIC restatement of the
+f64-bit constraint — Q2 seam), spec drafted; then CERT-5/CERT-6/
+CERT-7 per the plan. CERT-B1 slot 3 is the block's last undrawn
+slot; A/B logging RESUMES at CERT-4's dual (the skip was this
+unit's only). Standing flags unchanged: issues 1250/1251 open;
+CERT-1's v6 tally candidates await the blinded adjudication.
+
+## CERT-4 merged (2026-08-31) — issue 1191 closed; the period folds are honest at Interval
+
+PR 1303 at a912f8ae, gate green at BOTH lanes on the reviewed head
+f2eb5a96 (run 33341476463) and the fix head a912f8ae (run
+33348618043), both `CI-Config: lane=both`. The composed fold is
+retired at one home (`Real::periodic_branch` /
+`reduce_periodic_centred`, comparison-free); the eye's `[−τ, τ]`
+advance gate is input-width; every hit-list site fixed or
+dispositioned; the m10-p interval digest re-derived with a
+differential that has no unfavourable half (75 coordinates, all
+narrower). The exact-fit structural zero survived by construction —
+with its domain CORRECTED at the fix pass to the rounding condition
+`fl(fl(d/τ) + ½) < 1` after both review lanes independently executed
+the boundary failure (top two floats of [0, π], plus the −0.0
+bitwise caveat); behaviour unchanged from shipped, the claim and its
+blind pins fixed. The spec's anticipated m10-3 driver pin flip did
+NOT happen — the row's widening is a different mechanism
+(dependency problem, box-scaled) — so the doc was retargeted, not
+the row forced; both reviewers verified the retarget by execution
+and judged the pin-doc edit the right size of touch. M10 flagged on
+the PR for both fence touches.
+
+**The dual (ordinal 702, sample #62 — the ledger's highest at this
+writing is #61; main's merge order rules if a concurrent recorder
+also drew #62)**: slot byte 130 parity 0 ⇒ R1 OPUS + R2 FABLE,
+sequential on the frozen head, identical stored briefs
+(cert/ab-state). R1 A-W-F 1/3/3 rubric 5/3/3; R2 A-W-F 0/4/3 rubric
+5/4/4. The headline BILATERAL at differing severity (no tally
+candidate); the two lanes gave contradictory corrections for the
+classify.rs anchor sentence and the fix pass settled it by
+computation — (τ − span)/2, one bad-point pair described from
+opposite sides. Fix pass IMPLEMENTER-INHERITED (the lane resumed —
+first inherited fix pass since the handoff), all 12 union items
+executed, both probe suites adopted whole (cert/4r1-probes,
+cert/4r2-probes, pushed), planted corruptions verified the
+previously-blind pins load-bearing. A/B logging RESUMED with this
+pair as planned; details in the MODEL-AB-LOG row (main-direct at
+merge — main's ledger tail moved under the unit branch, so the row
+could not ride the PR without a conflicted merge).
+
+Issues filed en route: 1304 (k_probe_sweep dies at eps 1e-6,
+pre-existing, M10's ground), 1305 (chord_join pole two-integer
+shift). Escalated, not fixed: reader_census reds on a full local
+workspace run at MAIN's own head (ledger line owed for
+blend5_r1_probes.rs — S-BLEND's file; flagged to that program).
+Operational: the container hit 100% disk twice this session; the
+15G incremental-cache cleanup mid-lane is now standard practice.
+
+Concurrent state at this merge: CERT-5 (PR 1314) and CERT-7
+(PR 1319) both delivered and gate-green with duals pre-recorded on
+cert/ab-state (CERT-5: byte 219 parity 1 ⇒ R1 FABLE + R2 OPUS,
+frozen 3fc450d6; CERT-7: byte 114 parity 0 ⇒ R1 OPUS + R2 FABLE,
+frozen d839dcef — the tip is one orchestrator-direct doc-link fix,
+disclosed in the method note). CERT-7 was sequenced AHEAD of CERT-6
+(orchestrator decision: CERT-6 calibrates on area lanes CERT-5
+rewrites, so it waits for CERT-5's merge; CERT-7 is file-disjoint).
+Reviews dispatch next, ordinals claimed at dispatch.
+
+## CERT-7 merged (2026-08-31) — issues 1005, 1007, 1008 closed; the offset_fit family certifies
+
+PR 1319 at ab8b6bad, gate green at BOTH lanes on the reviewed head
+d839dcef (run 33347440242, ε default) and the fix head (run
+33355836576, ε 1e-6) — four of six matrix points across the two
+runs, ε 1e-12 unsampled and no claim resting on it. The weighted
+composite certifies rational fits (the exact rational offset at
+2.837e-14 on one cell); recentring makes the certificate
+translation-honest (a micron offset a kilometre out went
+inf-refusal → the origin's own number, with the domain settled by a
+decade ladder to 1e6 and an honest refusal endpoint at 1e10);
+directional refinement takes the thin patch 308 → 14 cells with the
+stall guard's admission set now structural. RationalFitUnsupported
+removed under D2 row 0; RefinementStalled classified row 1 with the
+recorded row-2 minority reading (reclassify when A9.10's banked
+half lands).
+
+**The dual (ordinal 704, sample assigned at the row — see
+MODEL-AB-LOG)**: R1 opus 0/5/8, R2 fable 0/1/5, both A-W-F, ZERO
+MAJORs, no tally candidates. Notable convergences: both re-derived
+the composite algebra independently; R2's planted revert reproduced
+R1's 424× re-measurement exactly; both corroborated the stall
+guard's unreachability (~100 adversarial requests, zero stalls) —
+reframed by the fix pass as a PREDICATE-SHAPE verdict recorded at
+the site. Notable divergence settled by measurement: far-origin
+behavior at 1e7 (1.286×) vs 1e8 (tighter) — both correct, the
+bound is not monotone in the shift; the row now claims only what
+the ladder shows. Fix pass IMPLEMENTER-INHERITED, all 11 union
+items, one class instance found beyond the reviews' four (the
+sweep earning its keep); ceilings re-engineered to actually bind
+(tolerances raised 4×→8× first — recorded as a deviation with the
+argument); three planted corruptions verified the guards
+load-bearing in BOTH directions (floor and ceiling separately).
+
+En route, orchestrator-direct: the rustdoc broken-link red on the
+delivered head (the removal's one orphaned doc citation — the
+unit's variant sweep covered pins, not prose; CERT-7's dual brief
+was amended to ask for the full citation surface, and the fix
+pass's five-instance prose sweep closed the class). Issue 1321
+gained the achieved:inf fourth face from R2.
+
+Slate: CERT-5's fix pass is in flight (NMAI from its R2 — three
+bilateral MAJORs; delta re-review follows before its merge);
+CERT-6 dispatches after CERT-5 lands. CERT-8/9/10 then per plan.
+
+## CERT-5 merged (2026-08-31) — issue 453 closed, issue 390 annotated; the straddle floor is gone
+
+PR 1314 at ed7a7623 after the program's first NMAI → fix → delta
+cycle. Gates: delivered head 3fc450d6 green (lanes both, ε 1e-12
+drawn); fix head ed7a7623 green (lanes both, ε default drawn); all
+six matrix points verified locally at the fix head. Knot-aligned
+cells at four sites retire the Θ(1/pieces) floor (straddle branch
+deleted, not bypassed); dm1 146× (2.7469e-4 → 1.885e-6, 1.84×
+target — honestly NOT flipped; the dial decision is issue 1315 with
+corrected figures); the lily flip is a GATE re-measured on the final
+head; the w-uniform-in-v arm taken with the ruling's "strictly
+better" softened to the measurement.
+
+**The dual (ordinal 703, sample at the row)**: R1 fable A-W-F 2/5/4;
+R2 opus NMAI 3/6/4 — all three MAJORs BILATERAL by execution
+(identical dm1 digits to 17 places; the same drop-knots mutant; the
+sliver hazard at differing severity), so the verdict split is pure
+label noise on converged findings — v4 amendment 2's expected shape,
+and the NMAI bound procedurally. Fix pass IMPLEMENTER-INHERITED:
+the dm1 discrepancy explained by bit-identical reconstruction (the
+meter's denominator moved mid-development); the blind-row gate
+found its load-bearing combination (v-degree-1 + v-varying weights
+— f_vv structurally None); the sliver attribution CORRECTED AGAINST
+BOTH REVIEWS by measurement (refine_dir's exact-equality insertion,
+pre-existing, worse on main → issue 1358; the delta lane
+re-measured and conceded plainly); one own-mis-claim admitted
+(tier_gate "corrected" when never touched — a PR-body claim
+falsified by review, the CERT-1 brief-as-claim-site lesson from the
+other side). Two refusal-class changes argued under the D2 addendum
+(both the safe direction; the #389-gap masking recorded, not
+claimed fixed). DELTA re-review by the NMAI lane: all three MAJORs
+FIXED by execution, no regressions — DELTA-APPROVE.
+
+**Cross-program consequence**: the branch's ε=1e-12 draws surfaced
+FOUR latent main reds at the never-sampled (interval, 1e-12) matrix
+point, left by CERT-3/CERT-4's merges (their gates drew other ε
+rows) — repaired as ported main fixes in this PR (per-band-honest
+re-pins, no re-baselines; delta-verified), with the CLASS filed as
+issue 1356 (recommendation: trailer-pin ε for band-sensitive units;
+distinguish "consults no tolerance" from "premise varies by band"
+in review briefs). S-CERT should adopt the ε-trailer practice for
+its remaining units — CERT-6 onward dispatch with it in the spec.
+
+Issues: 453 closes at this merge; 390 stays open annotated (route 2
+unclaimed); 1315/1316 corrected+appended; 1356 (ε-matrix class),
+1358 (refine_dir + the five-way inner copy) filed. Slate next:
+CERT-6 (area gauge, on the post-CERT-5 area lanes, B2 slot 2),
+then CERT-8/9/10 and the absorbed SMELL tracks per plan.
+
+## CERT-9 merged (2026-08-31) — issue 303 closed; signed_volume is placement-honest
+
+PR 1361 at f5f949aa. Gates: delivered head 5593161d green (default
+lane drawn); fix head green run 33383424770 (interval/1e-6 DRAWN —
+consistent with the unit's argued lane-independence, no trailer).
+The fold recentres on the bbox centre (overflow-robust form);
+red-first digits vivid (33.3 vs the true 1e-9 at a 1e8 m offset;
+pre-fix far placements could SIGN-FLIP a volume, so seven
+orientation asserts were latently placement-dependent). S-sized
+unit, S-sized cycle: implementer ~65m, reviews ~29m+16m, fix ~65m.
+
+**The dual (ordinal 705, sample at the row)**: R1 fable APPROVE
+0/1/3; R2 opus A-W-F 0/3/4; zero MAJORs, no tally candidates. The
+brief's designed attack — the exactness argument's closed-mesh
+premise — landed bilaterally (the open-mesh answer changed,
+silently; unreachable in-repo; now defined in the doc), and R2
+proved the shipped argument UNDERSTATED the mechanism (a
+position-derived anchor gives unconditional translation invariance
+by equivariance) and caught the ε premise conflating assertions
+with fixtures. Fix pass IMPLEMENTER-INHERITED across the container
+restart (the agent resumed from its transcript); its three-ε sweep
+found and fixed a latent ε=1e-12 red in the adopted probes before
+any gate drew it — the issue-1356 practice already paying.
+
+Operational: the container restarted mid-wave (~09:20Z), killing
+the first CERT-6 lane with nothing pushed (~50m lost, fragment
+saved); re-dispatched fresh on the same arm, recorded for its row.
+
+Slate: CERT-6 (re-dispatched, running), then CERT-8, CERT-10
+(opens block CERT-B3), CERT-M/CERT-N track lanes. Issue 1362
+(walk.rs anchor class, S-MESH) filed en route.

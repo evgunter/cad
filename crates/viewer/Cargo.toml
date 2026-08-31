@@ -19,6 +19,40 @@ pncad = { path = "../pncad" }
 # the façade does not carry.
 bvh = { path = "../bvh" }
 
+# `Rgba8` — the exact 8-bit sRGB colour `crates/viewer/src/theme.rs`
+# states a palette in, and the same type a document's own
+# `Attr::Color` persists. One type on both sides is the point: a
+# document colour overriding a theme's default body colour is then a
+# substitution within one colour space rather than a conversion
+# between two.
+#
+# A DIRECT edge rather than a new re-export on the facade's root —
+# the ruling `pncad`'s own crate docs state for a type the facade does
+# not carry, and the same one the `bvh` stanza above cites. It costs
+# the build nothing: `pncad` already depends on `editor-core`, so the
+# crate is in this graph either way, and no `--workspace` job compiles
+# anything now that it did not compile before.
+editor-core = { path = "../editor-core" }
+
+# The preferences document's format (`crates/viewer/src/prefs.rs`).
+#
+# A real dependency rather than a hand-rolled parser: TOML is not the
+# trivial grammar it looks like, and a format chosen BECAUSE people
+# hand-edit it is the last place to want a parser nobody has fuzzed.
+# Read through `toml::Table` — the dynamic door — and written by hand,
+# so no `serde` derive machinery enters for four keys and so the
+# emitted file keeps the comments that are its whole justification
+# over an opaque blob.
+#
+# Chosen over eframe's own `persistence` feature, which was the other
+# way to get preferences: that pulls `ron` AND `directories` and
+# writes a blob no person can open, which forfeits the reason to keep
+# preferences in a file at all.
+#
+# 1.1.4 (2026-07-28, a month old — past the ~2-week age policy),
+# MIT OR Apache-2.0, MSRV 1.85 under the pinned 1.97.0, 55 kB.
+toml = "1.1.4"
+
 # --- the `app` feature's toolkit graph (GQ6: egui; OQ-b: egui_tiles) ---
 #
 # Every entry here is optional and reached only through `app`. The
@@ -164,6 +198,34 @@ wasm-bindgen-futures = { version = "0.4.76", optional = true }
 # The workspace's shared fuzz harness (seed/effort dial,
 # memories/test-suite-cost.md) — used by the R2 review consumer suite.
 test-utils = { path = "../test-utils" }
+
+# --- the colourblind check's oracle (tests/theme.rs) ---
+#
+# DEV-only, and that is what makes a 0.1.0 acceptable here. Neither
+# crate ships in anything: they are the simulation a test measures a
+# palette through, and the suite pins their answers against published
+# reference values before trusting them — so a wrong model fails
+# loudly on the oracle rows rather than silently passing every theme.
+#
+# Both are 0.1.0 (2026-03-17), MIT OR Apache-2.0 — dual, so both
+# branches of this project's licence stay alive — MSRV 1.85 under the
+# pinned 1.97.0, 12 kB and 20 kB, and `perceive-color` has NO
+# dependencies of its own. Far past the ~2-week dependency-age policy
+# (memories/review-and-dependency-policy.md).
+#
+# WHY THESE AND NOT THE ALTERNATIVES, since the graph is the whole
+# argument: `colorverse` pulls `image` + `nalgebra` + `argh`,
+# `sensus-core` pulls `image`, and `colorblind` is a 0.0.1 last
+# touched in 2020. `palette` is mature and dual-licensed but carries
+# no CVD simulation at all, so it would remove neither edge.
+#
+# `perceive-color` also carries the two things the check needs beside
+# the simulation — OKLCH for the perceptual distance, and a `Color`
+# that IS linear RGB with an explicit sRGB transfer pair, which is the
+# same boundary `viewer::theme` crosses. One edge, three jobs.
+perceive-cvd = "=0.1.0"
+perceive-color = "=0.1.0"
+
 
 [features]
 # The eframe application: windowing, the docked chrome, and the wgpu

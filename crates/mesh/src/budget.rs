@@ -301,11 +301,10 @@ mod live {
 /// **The disarmed half — compiled when the `budget` feature is off**,
 /// which is every shipped build and every default `cargo test`.
 ///
-/// [`armed`][inert::armed] is a constant `false` and
-/// [`deviation_samples`][inert::deviation_samples] a constant `None`,
-/// so the optimizer deletes the recording branches in `crate::trimmed`
-/// outright — the meter costs nothing, structurally, rather than by
-/// argument. [`note_face`][inert::note_face] keeps its signature so the
+/// [`armed`] is a constant `false` and [`deviation_samples`] a constant
+/// `None`, so the optimizer deletes the recording branches in
+/// `crate::trimmed` outright — the meter costs nothing, structurally,
+/// rather than by argument. [`note_face`] keeps its signature so the
 /// call site is shared with the live half.
 #[cfg(not(feature = "budget"))]
 mod inert {

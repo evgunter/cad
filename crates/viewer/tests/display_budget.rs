@@ -33,7 +33,7 @@ const INITIAL_DELTA: f64 = 1.0e-4;
 
 /// The tour's gallery ring, as the committed fixture.
 fn gallery_ring(tol: Tol) -> DocSession {
-    let text = include_str!("gallery_ring.v17.pncad");
+    let text = include_str!("gallery_ring.v19.pncad");
     // The fixture is stamped at the ε it was born at; `doc_io.rs` owns
     // the re-stamp and the proof that ε is its only ε-dependent byte.
     // Here the document only has to LOAD, so the born-at ε is fine and

@@ -38,6 +38,8 @@
 
 #[path = "cert1_r1_import_probes.rs"]
 mod cert1_r1_import_probes;
+#[path = "cert5_r1_import_probes.rs"]
+mod cert5_r1_import_probes;
 #[path = "corpus_fold.rs"]
 mod corpus_fold;
 #[path = "curve_promotion_report.rs"]
@@ -77,6 +79,8 @@ mod probe_sense;
 mod probe_vol;
 #[path = "r1_dm1_probe.rs"]
 mod r1_dm1_probe;
+#[path = "r2_import_door.rs"]
+mod r2_import_door;
 #[path = "recognize_pins.rs"]
 mod recognize_pins;
 #[path = "rev_import_probe.rs"]

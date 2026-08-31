@@ -50,6 +50,7 @@ use geom_brep::EdgeCurveSpec;
 use geom_brep::keys::SurfaceKey;
 use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use sweep::Lofted;
 use topo::{Body, CurveGeom, EdgeKey, FaceKey, FaceSurface};
 
 /// The offset fit door's degree — the spline space every wall carrier
@@ -84,7 +85,33 @@ pub fn prism() -> Body<f64> {
 
 /// A loft between a square and the SAME square rotated `theta` about
 /// its own centre — four congruent bilinear SADDLE walls (nonplanar).
+///
+/// The body alone, for the consumers that only want faces to operate
+/// on. [`twisted_lofted`] is the same build with its keys kept, which
+/// is what an orientation row needs.
 pub fn twisted_loft(theta: f64) -> Body<f64> {
+    twisted_lofted(theta).body
+}
+
+/// The authored-ROLL loft, keyed: the tree's one lofted chart whose
+/// two sections are related by a ROTATION rather than by their
+/// placements, so the roll is authored into the section and no path
+/// carries it.
+///
+/// **`theta` is the angle the top SECTION is written at, and it is not
+/// the body's roll.** For `theta` in `(0, pi/2)` the body rolls by
+/// `theta - pi/2`: validation rotates each loop to its lex-min vertex,
+/// which for the rotated square is one vertex earlier than for the
+/// upright one, and the loft pairs the CANONICAL loops by index. So
+/// `twisted_loft(0.05)` is a quarter turn of twist less a twentieth of
+/// a radian, not a twentieth of a radian of twist — measured, and
+/// asserted by the orientation row that reads this fixture's roll off
+/// its level rings.
+///
+/// The SIGN is part of the fixture either way: a body rolled the other
+/// way is a different body, and only a row that measures the roll
+/// reads that datum at all.
+pub fn twisted_lofted(theta: f64) -> Lofted<f64> {
     let v = |x: f64, y: f64| ProfileVertex::new(Point2::new(x, y), 0.0);
     let (s, c) = theta.sin_cos();
     let rv = |x: f64, y: f64| {
@@ -112,7 +139,6 @@ pub fn twisted_loft(theta: f64) -> Body<f64> {
     ];
     sweep::loft_body::<f64>(&[square, rotated], &places, 1, Tol::witness())
         .expect("the twisted square lofts")
-        .body
 }
 
 /// The box `[0,2]² x [0,1]` — planar faces and `Line` carriers

@@ -857,7 +857,7 @@ pub enum Node<P> {
     /// Constant-radius rolling-ball fillets on a SELECTION of
     /// `target`'s edges (M5 PR 12; the selection is M6-5).
     ///
-    /// The op is [`sweep::fillet::build::fillet_edges`] over the
+    /// The op is [`sweep::blend::build::fillet_edges`] over the
     /// resolved selection; anything outside its two assembly front
     /// doors is a typed refusal
     /// ([`crate::eval::NodeErrorKind::Blend`]), never a silent
@@ -911,14 +911,14 @@ pub enum Node<P> {
     /// Equal-setback flat chamfers on a SELECTION of `target`'s edges
     /// — [`Node::Fillet`]'s twin.
     ///
-    /// The op is [`sweep::fillet::build::chamfer_edges`], which is
+    /// The op is [`sweep::blend::build::chamfer_edges`], which is
     /// `fillet_edges` modulo the size's meaning: `distance` is the
     /// SETBACK measured along each support from the source edge, not a
     /// rolling ball's radius. Everything else this node says is the
     /// fillet's, and deliberately so — the same two assembly front
     /// doors, the same typed refusal on anything outside them
     /// ([`crate::eval::NodeErrorKind::Blend`] carrying
-    /// [`sweep::fillet::BlendKind::Chamfer`]), never a silent
+    /// [`sweep::blend::BlendKind::Chamfer`]), never a silent
     /// pass-through of the input body.
     ///
     /// # The selection FREEZES, and the canonical form

@@ -24,8 +24,8 @@ use geom::{Curve3, Surface};
 use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec3};
 use profile::ProfileVertex;
 use sweep::Revolution;
-use sweep::fillet::build::fillet_edges;
-use sweep::fillet::{CornerConfig, FilletError, RunOutPolicy};
+use sweep::blend::build::fillet_edges;
+use sweep::blend::{BlendError, CornerConfig, RunOutPolicy};
 use sweep::test_support::revolved_about_y;
 use topo::{Body, EdgeKey, SurfaceKey, transform_rigid, validate_geometric};
 
@@ -292,9 +292,9 @@ fn a_contained_offset_pose_refuses_typed() {
     let source = bitten_ball();
     let ry: f64 = 0.2125 / 0.3;
     let arcs = rims_of_radius(&source, (1.0 - ry * ry).sqrt());
-    match fillet_edges(&source, &arcs, 0.13, band(), tol()) {
+    match fillet_edges(&source, &arcs, 0.13, band(), tol()).map_err(|r| r.error) {
         Ok(_) => panic!("no ball rests on both supports at r = 0.13"),
-        Err(FilletError::FilletCornerUnsupported { corner, .. }) => {
+        Err(BlendError::UnsupportedCorner { corner, .. }) => {
             panic!("a closed rim registers no corner, got {corner}")
         }
         Err(_typed) => {}
@@ -308,9 +308,9 @@ fn a_contained_offset_pose_refuses_typed() {
 fn an_oversized_ball_on_the_lentil_refuses_typed() {
     let source = symmetric_lentil();
     let arcs = rims_of_radius(&source, 0.8);
-    match fillet_edges(&source, &arcs, 0.45, band(), tol()) {
+    match fillet_edges(&source, &arcs, 0.45, band(), tol()).map_err(|r| r.error) {
         Ok(_) => panic!("no ball of r = 0.45 rests on both lentil walls"),
-        Err(FilletError::FilletCornerUnsupported { corner, .. }) => {
+        Err(BlendError::UnsupportedCorner { corner, .. }) => {
             panic!("a closed rim registers no corner, got {corner}")
         }
         Err(_typed) => {}
@@ -323,7 +323,7 @@ fn an_oversized_ball_on_the_lentil_refuses_typed() {
 /// goes negative and the centre is NaN, never a fabricated point.
 #[test]
 fn sheet_center_degrades_to_axis_then_nan_past_tangency() {
-    use sweep::fillet::blend::{Meridian, SupportTrace, sheet_center};
+    use sweep::blend::arms::{Meridian, SupportTrace, sheet_center};
     let sheet = Meridian {
         origin: Point3::new(0.0, 0.0, 0.0),
         axis: Vec3::new(0.0, 1.0, 0.0),
@@ -440,8 +440,8 @@ fn a_chamfer_patch_vertex_keeps_its_n_edge_vertex_refusal() {
     }
     // A chain of one incident edge terminates there; the refusal is
     // the N-edge one, not the seam one.
-    match fillet_edges(&body, &edges[..1], 0.02, band(), tol()) {
-        Err(FilletError::FilletCornerUnsupported {
+    match fillet_edges(&body, &edges[..1], 0.02, band(), tol()).map_err(|r| r.error) {
+        Err(BlendError::UnsupportedCorner {
             corner: CornerConfig::NEdgeVertex { valence: 4 },
             policy,
             ..
@@ -487,8 +487,8 @@ fn a_torus_walled_rim_refuses_spine_unsupported_naming_the_grown_roster() {
     );
     let arcs = rims_of_radius(&source, 0.9);
     assert_eq!(arcs.len(), 2, "two torus-plane rims");
-    match fillet_edges(&source, &arcs[..1], 0.03, band(), tol()) {
-        Err(FilletError::SpineUnsupported { supports, .. }) => {
+    match fillet_edges(&source, &arcs[..1], 0.03, band(), tol()).map_err(|r| r.error) {
+        Err(BlendError::SpineUnsupported { supports, .. }) => {
             assert!(
                 supports.contains("sphere–sphere"),
                 "the roster advertises the ninth arm: {supports}"
@@ -530,9 +530,9 @@ fn a_spinning_top_seam_vertex_refuses_and_the_whole_rim_carves() {
     let body = spinning_top();
     let arcs = rims_of_radius(&body, 0.6);
     assert_eq!(arcs.len(), 2, "the seam splits the rim into two arcs");
-    match fillet_edges(&body, &arcs[..1], 0.03, band(), tol()) {
+    match fillet_edges(&body, &arcs[..1], 0.03, band(), tol()).map_err(|r| r.error) {
         Err(
-            e @ FilletError::FilletCornerUnsupported {
+            e @ BlendError::UnsupportedCorner {
                 corner: CornerConfig::SeamVertex,
                 policy: None,
                 ..

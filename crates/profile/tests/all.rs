@@ -40,10 +40,18 @@
 
 #[path = "arc_fillet.rs"]
 mod arc_fillet;
+#[path = "blend7_review_probes.rs"]
+mod blend7_review_probes;
 #[path = "canonical_invariance.rs"]
 mod canonical_invariance;
+#[path = "cert4r1_e2e.rs"]
+mod cert4r1_e2e;
+#[path = "cert4r2_e2e.rs"]
+mod cert4r2_e2e;
 #[path = "declared_tangency.rs"]
 mod declared_tangency;
+#[path = "enclose_refusal_r2_probes.rs"]
+mod enclose_refusal_r2_probes;
 #[path = "generic_replay.rs"]
 mod generic_replay;
 #[path = "guided_replay.rs"]

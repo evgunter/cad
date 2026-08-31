@@ -9,7 +9,10 @@
 //!   back through the same factor (`written_unit` / `in_written` /
 //!   `from_written`),
 //! * changing the unit and changing the number are separate operations,
-//!   and neither performs the other (`SetSlotUnit` vs `SetSlot`).
+//!   and neither performs the other (`SetSlotUnit` vs `SetSlot`),
+//! * and the ONE value field says the number without the unit, shows a
+//!   driven slot's source, and routes typed text to the door it means
+//!   (`field_text` / `field_edit`).
 //!
 //! The pixels are not tested here and are not the claim; what is
 //! claimed is that the panel is drawing from the right numbers.
@@ -24,7 +27,7 @@ use pncad::document::{
     Axis3, Datum, Dimension, Doc, DocEdit, Expr, Node, ProfileProgram, SlotId, VectorSlot,
 };
 use pncad::geom_core::Tol;
-use pncad::prelude::{DEG, MM, PI, RAD};
+use pncad::prelude::{DEG, IN, MM, PI};
 use pncad::quantity::{UnitDef, unit_by_symbol};
 use viewer::props::{
     self, SlotGroup, SlotUnitFault, SlotValue, from_written, in_written, written_unit,
@@ -209,7 +212,7 @@ fn the_unit_options_are_the_tables_rows_of_that_dimension() {
             row.symbol()
         );
     }
-    assert!(angles.contains(&"pi"), "the half-turn row is offered");
+    assert!(angles.contains(&"pi rad"), "the half-turn row is offered");
     assert!(!lengths.contains(&"deg"));
 }
 
@@ -328,8 +331,9 @@ fn changing_the_written_unit_leaves_the_value_bit_identical() {
     let shown = in_written(radians, written_unit(after.dimension, after.unit));
     assert!((shown - 0.5).abs() < 1e-15, "shown as {shown}");
 
-    // `None` puts it back to canonical — the literal remembers nothing
-    // and renders in radians.
+    // `None` clears the authored notation — the literal remembers
+    // nothing, and the DEFAULT written unit for an angle is the
+    // half-turn row (`props::written_unit`), not the canonical one.
     session.perform(SessionOp::SetSlotUnit {
         node: placed,
         slot: SlotId::RotationAngle,
@@ -342,7 +346,7 @@ fn changing_the_written_unit_leaves_the_value_bit_identical() {
     assert_eq!(after.unit, None);
     assert_eq!(
         written_unit(after.dimension, after.unit).map(|u| u.symbol()),
-        Some(RAD.symbol())
+        Some(PI.symbol())
     );
 }
 
@@ -397,4 +401,142 @@ fn a_unit_change_refuses_typed_on_a_computed_slot_and_a_foreign_unit() {
         "{fault:?}"
     );
     let _ = DocEdit::<ProfileProgram>::DeleteNode { id: plain };
+}
+
+/// **The value field says the number, and the picker says the unit.**
+///
+/// The two sat adjacent saying the same thing, which is what Evan's
+/// report was about; the field is the half that gives it up, because
+/// the picker is also the door that CHANGES the unit.
+#[test]
+fn the_field_shows_a_bare_literals_number_without_its_unit() {
+    let tol = Tol::witness();
+    let doc: Doc<ProfileProgram> = Doc::empty_derived("panel-field", tol);
+    let (doc, profile) = common::inserted(&doc, common::square(0.04), tol);
+    let (doc, extrude) = common::inserted(
+        &doc,
+        Node::Extrude {
+            profile,
+            distance: Expr::literal_with_unit(0.008, Dimension::Length, MM.def())
+                .expect("8 mm is a length"),
+        },
+        tol,
+    );
+    let row = props::slot_rows(&doc, extrude)
+        .into_iter()
+        .next()
+        .expect("the distance row");
+    assert_eq!(props::field_text(&row), "8");
+    assert_eq!(written_unit(row.dimension, row.unit), Some(MM.def()));
+    // The SOURCE the row carries is the whole literal, unit and all —
+    // it is what the expression door would read back — but that is not
+    // what a literal's field shows.
+    assert_eq!(row.source.as_deref(), Some("8 mm"));
+}
+
+/// A DRIVEN slot shows what drives it. Nothing else could be shown:
+/// its number is a consequence, and the text is what an edit revises.
+#[test]
+fn the_field_shows_a_driven_slots_source() {
+    let tol = Tol::witness();
+    let (doc, _profile, extrude) = common::parametric_plate(tol);
+    let mut session = DocSession::inline(doc, tol);
+    let outcome = session.perform(SessionOp::SetSlotExpression {
+        node: extrude,
+        slot: SlotId::Distance,
+        text: "thickness * 2.0 + 1 mm".to_owned(),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let row = props::slot_rows(session.doc(), extrude)
+        .into_iter()
+        .find(|row| row.slot == SlotId::Distance)
+        .expect("the distance row");
+    assert_eq!(props::field_text(&row), "thickness * 2.0 + 1 mm");
+    assert_eq!(row.source.as_deref(), Some("thickness * 2.0 + 1 mm"));
+}
+
+/// **What typed text MEANS**, which is the whole of the single field's
+/// contract: bare digits are a number and everything else is source.
+#[test]
+fn the_field_reads_digits_as_a_number_and_everything_else_as_source() {
+    use props::FieldEdit;
+    assert_eq!(props::field_edit("8"), FieldEdit::Number(8.0));
+    assert_eq!(props::field_edit(" 8.5 "), FieldEdit::Number(8.5));
+    assert_eq!(props::field_edit("-4"), FieldEdit::Number(-4.0));
+    assert_eq!(props::field_edit("1e-3"), FieldEdit::Number(1e-3));
+    assert_eq!(props::field_edit(""), FieldEdit::Empty);
+    assert_eq!(props::field_edit("   "), FieldEdit::Empty);
+    for source in ["25 in", "thickness", "8 * 2", "-w", "sin(30 deg)", "8mm"] {
+        assert_eq!(
+            props::field_edit(source),
+            FieldEdit::Expression(source.to_owned()),
+            "{source}"
+        );
+    }
+}
+
+/// **The unit-authoring rule, end to end.** A typed literal that
+/// carries a unit is authoring the notation as well as the number, and
+/// it does so through the ONE door that already has those semantics —
+/// so the field and the picker agree afterwards without either being
+/// told about the other.
+#[test]
+fn a_typed_literal_with_a_unit_authors_the_display_unit_too() {
+    let tol = Tol::witness();
+    let doc: Doc<ProfileProgram> = Doc::empty_derived("panel-field-unit", tol);
+    let (doc, profile) = common::inserted(&doc, common::square(0.04), tol);
+    let (doc, extrude) = common::inserted(
+        &doc,
+        Node::Extrude {
+            profile,
+            distance: Expr::literal_with_unit(0.008, Dimension::Length, MM.def())
+                .expect("8 mm is a length"),
+        },
+        tol,
+    );
+    let mut session = DocSession::inline(doc, tol);
+    // `25 in` is not a number, so the field routes it to the
+    // expression door — where the parser's own literal semantics both
+    // convert it and remember the unit.
+    assert_eq!(
+        props::field_edit("25 in"),
+        props::FieldEdit::Expression("25 in".to_owned())
+    );
+    let outcome = session.perform(SessionOp::SetSlotExpression {
+        node: extrude,
+        slot: SlotId::Distance,
+        text: "25 in".to_owned(),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let row = props::slot_rows(session.doc(), extrude)
+        .into_iter()
+        .next()
+        .expect("the distance row");
+    assert_eq!(
+        row.unit.map(|u| u.symbol()),
+        Some("in"),
+        "the picker now says what the field said"
+    );
+    assert_eq!(props::field_text(&row), "25");
+    assert_eq!(
+        row.driver,
+        props::SlotDriver::Literal,
+        "still a bare number"
+    );
+    assert_eq!(row.value, Ok(SlotValue::Continuous(25.0 * 0.0254)));
+
+    // And a bare number typed after it leaves that notation alone —
+    // the numeric door re-attaches the stored unit, exactly as before.
+    let outcome = session.perform(SessionOp::SetSlot {
+        node: extrude,
+        slot: SlotId::Distance,
+        value: SlotValue::of(Dimension::Length, from_written(2.0, Some(IN.def()))),
+    });
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let row = props::slot_rows(session.doc(), extrude)
+        .into_iter()
+        .next()
+        .expect("the distance row");
+    assert_eq!(row.unit.map(|u| u.symbol()), Some("in"));
+    assert_eq!(props::field_text(&row), "2");
 }

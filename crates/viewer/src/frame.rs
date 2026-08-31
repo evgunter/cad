@@ -142,6 +142,11 @@ impl ChooserBackend {
     }
 }
 
+/// The directory this project keeps user files in.
+const PREFS_DIR: &str = "pncad";
+/// The preferences file's name inside it.
+const PREFS_FILE: &str = "viewer.toml";
+
 /// The chooser verdict as a pure function of the two probe readings,
 /// so the rows exercising it do not depend on the CI box's `PATH`.
 pub fn chooser_backend_of(zenity_on_path: bool, session_bus: bool) -> ChooserBackend {
@@ -187,6 +192,79 @@ fn zenity_on_path() -> bool {
 /// (never sufficient) condition for the portal chooser.
 fn session_bus_hinted() -> bool {
     std::env::var_os("DBUS_SESSION_BUS_ADDRESS").is_some_and(|address| !address.is_empty())
+}
+
+/// Where this platform keeps the viewer's preferences:
+/// `$XDG_CONFIG_HOME/pncad/viewer.toml`, falling back to
+/// `$HOME/.config` as the XDG base-directory specification says to.
+///
+/// **Here rather than in [`crate::prefs`], because this file is the
+/// viewer's ONE ambient door** — the ruling in
+/// `scripts/gates/no-ambient-env.sh`, which names this module by path
+/// and says so in as many words. `prefs` stays a pure value over a
+/// document and a store; where the document lives is a fact about the
+/// machine, and facts about the machine are observed here beside the
+/// chooser-backend verdict and the WSL probe.
+///
+/// Against that gate's four rows, the same way the entry beside it
+/// argues them. CONTRACT-RATIFIED holds vacuously: a config path is
+/// not a model parameter, and no read here can change what any
+/// document evaluates to. COMMIT-ONCE: read at startup and stored in
+/// the application, never re-read under a running app — a viewer
+/// whose config directory moved mid-session would be stranger than
+/// one that kept writing where it started. REPORTED: the path is
+/// carried in every [`crate::prefs::StoreError`], so a refusal to
+/// save names the file it could not write rather than leaving a
+/// person guessing. RECONCILED: this is a BOOTSTRAP and never the
+/// last word — the actual read or write outcome outranks it, and an
+/// environment that names no config directory yields `None`, which
+/// disables saving with a reason instead of inventing a path.
+///
+/// Resolved by hand rather than through `directories`, whose whole
+/// value is the two platforms this project does not build for.
+///
+/// `None` when neither variable is set, which is a real possibility
+/// in a stripped environment.
+#[must_use]
+pub fn prefs_path() -> Option<std::path::PathBuf> {
+    prefs_path_in(
+        std::env::var_os("XDG_CONFIG_HOME").as_deref(),
+        std::env::var_os("HOME").as_deref(),
+    )
+}
+
+/// The preferences path as a pure function of the two environment
+/// readings, so the XDG rules are asserted on rather than trusted.
+///
+/// Split out for [`chooser_backend_of`]'s reason, and it is the same
+/// reason: the ambient read is one line that cannot be exercised in a
+/// test without mutating the process's environment — which is a
+/// global other tests share — while everything INTERESTING here is
+/// the resolution, and the resolution is a function of two `Option`s.
+///
+/// The rules, from the XDG base-directory specification:
+///
+/// - `config_home` set and non-empty wins.
+/// - **An EMPTY `config_home` counts as unset**, which the spec says
+///   in as many words and which is the case a bare
+///   `unwrap_or_else` fallback gets wrong: it would take `""` as the
+///   base and write to a RELATIVE path, i.e. into whatever directory
+///   the viewer happened to be launched from.
+/// - Otherwise `$HOME/.config`.
+/// - With neither, `None` — no path is invented. The caller's store
+///   is then unusable and says so, which is how a person finds out
+///   their preferences are not being kept rather than wondering
+///   later why nothing was remembered.
+#[must_use]
+pub fn prefs_path_in(
+    config_home: Option<&std::ffi::OsStr>,
+    home: Option<&std::ffi::OsStr>,
+) -> Option<std::path::PathBuf> {
+    let base = match config_home {
+        Some(value) if !value.is_empty() => std::path::PathBuf::from(value),
+        _ => std::path::PathBuf::from(home.filter(|h| !h.is_empty())?).join(".config"),
+    };
+    Some(base.join(PREFS_DIR).join(PREFS_FILE))
 }
 
 /// Whether this process runs inside WSL, read off the environment

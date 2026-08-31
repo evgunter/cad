@@ -56,9 +56,9 @@ use geom::Surface;
 use geom_core::{Band, Point2, Point3, Tol, Vec3};
 use profile::ProfileVertex;
 use sweep::Revolution;
-use sweep::fillet::FilletError;
-use sweep::fillet::blend::{Meridian, SupportTrace, sheet_center};
-use sweep::fillet::build::fillet_edges;
+use sweep::blend::BlendError;
+use sweep::blend::arms::{Meridian, SupportTrace, sheet_center};
+use sweep::blend::build::fillet_edges;
 use sweep::test_support::{revolved_about_y, rim_arcs_at};
 use topo::{Body, EdgeKey, FaceKey, SurfaceKey, VertexKey, mass_properties, validate_geometric};
 
@@ -99,21 +99,7 @@ const BORE: f64 = 0.1;
 /// radial again, the top DISK. Both ends touch the axis, which is what
 /// makes every wall a pair of half-bands and every rim a pair of arcs.
 fn lantern() -> Body<f64> {
-    // A profile arc's bulge is the tangent of a QUARTER of its sweep,
-    // and this arc's sweep is the angle between two exact unit vectors,
-    // `(1, 0)` and `(0.8, 0.6)`.
-    let bulge = (0.6f64.asin() / 4.0).tan();
-    revolved_about_y(
-        vec![
-            v(0.0, 0.0, 0.0),
-            v(1.0, 0.0, bulge),
-            v(SHOULDER.0, SHOULDER.1, 0.0),
-            v(LIP_R, TOP, 0.0),
-            v(0.0, TOP, 0.0),
-        ],
-        Revolution::Full,
-        tol(),
-    )
+    sweep::test_support::lantern(tol())
 }
 
 /// The same solid bored on-axis at [`BORE`], so the profile is ANNULAR
@@ -570,8 +556,8 @@ fn a_concave_seam_split_rim_still_refuses() {
     );
     let arcs = rim_arcs_at(&body, 0.5, 0.5);
     assert_eq!(arcs.len(), 2, "the waist rim is seam-split too");
-    match fillet_edges(&body, &arcs, 0.05, band(), tol()) {
-        Err(FilletError::UnsupportedChain { detail, .. }) => assert!(
+    match fillet_edges(&body, &arcs, 0.05, band(), tol()).map_err(|r| r.error) {
+        Err(BlendError::UnsupportedChain { detail, .. }) => assert!(
             detail.contains("concave"),
             "a concave seam-split rim refuses as concave, got {detail}"
         ),

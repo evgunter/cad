@@ -514,7 +514,7 @@ m: Final[LengthUnit]
 inch: Final[LengthUnit]  # `in` is a Python keyword; `quantity` spells it IN
 deg: Final[AngleUnit]
 rad: Final[AngleUnit]
-pi: Final[AngleUnit]  # the half-turn: a NOTATION carried as a unit row
+pi_rad: Final[AngleUnit]  # the half-turn, symbol `pi rad`: a NOTATION carried as a unit row
 
 # --- profile authoring: the PATHS lattice ------------------------------
 # PATHS-DESIGN §2. The tip's state is exactly which of {position,
@@ -1621,10 +1621,12 @@ class SplitHalf:
     Below: Final[SplitHalf]
 
 class RimSupport:
-    """Which support of a rim blend (`SegPat.side`)."""
+    """Which support of a rim blend, by its ROLE in the carve
+    (`SegPat.side`): `Host` is the planar support wherever the rim has
+    one, `Mate` the other side."""
 
-    Plane: Final[RimSupport]
-    Curved: Final[RimSupport]
+    Host: Final[RimSupport]
+    Mate: Final[RimSupport]
 
 class CurveKind:
     """Which curve variant an edge's certified carrier is — the EXACT

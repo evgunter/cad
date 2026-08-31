@@ -60,8 +60,20 @@ mod asm_roots;
 mod asm_upd_pin_update;
 #[path = "asm_upd_schema_v10.rs"]
 mod asm_upd_schema_v10;
+#[path = "blend5_r1_probes.rs"]
+mod blend5_r1_probes;
+#[path = "blend5_r2_probes.rs"]
+mod blend5_r2_probes;
+#[path = "blend5_rim_support.rs"]
+mod blend5_rim_support;
+#[path = "blend5_schema_v18.rs"]
+mod blend5_schema_v18;
 #[path = "boolean_op_wire.rs"]
 mod boolean_op_wire;
+#[path = "cascade_delete.rs"]
+mod cascade_delete;
+#[path = "cert3r1_dump.rs"]
+mod cert3r1_dump;
 #[path = "display_contract.rs"]
 mod display_contract;
 #[path = "dsc_checks.rs"]
@@ -222,6 +234,8 @@ mod m9_1_schema_v11;
 mod m9_d1_r1_probes;
 #[path = "m9_d1_r2_probes.rs"]
 mod m9_d1_r2_probes;
+#[path = "pirad_schema_v19.rs"]
+mod pirad_schema_v19;
 #[path = "placedunion_schema_v12.rs"]
 mod placedunion_schema_v12;
 #[path = "r1_dual_probes.rs"]
@@ -230,6 +244,8 @@ mod r1_dual_probes;
 mod r1_m10_1_corruptions;
 #[path = "r1_m10_1_probes.rs"]
 mod r1_m10_1_probes;
+#[path = "r2_cert3_coord_dump.rs"]
+mod r2_cert3_coord_dump;
 #[path = "r2_keydiff.rs"]
 mod r2_keydiff;
 #[path = "r2_m10_2_probes.rs"]

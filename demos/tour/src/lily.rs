@@ -86,9 +86,11 @@
 //! **Every blade section here is straight lines, and that is
 //! OUTSTANDING WORK rather than a constraint.** Giving the blades
 //! their lanceolate arcs back is a real follow-up, not a settled
-//! choice — and it wants checking against the QUADRATURE half of the
-//! rational bank, which is not retired (`QuadratureUnsupported` keeps
-//! its own pins, and this stop prints an exact volume for every body).
+//! choice, and nothing in the kernel stands in its way any more: the
+//! rational wall an arc-margined blade skins converges through the
+//! interior knots its swept spine puts there, and a blade of this
+//! stop's proportions prints an exact volume like every other body
+//! here.
 //!
 //! Proportions are chosen, not measured: a stylized lily that the
 //! kernel can state exactly beats a literal one it must approximate.
@@ -126,7 +128,7 @@ use pncad::profile::{ArcSweep, Center, ProfileLoop, ProfileVertex, SketchPlane, 
 // The named gap below (`section_loops`): the raw loop door is kernel
 // vocabulary, off the façade, so the one scene that needs it names the
 // kernel crate directly.
-use pncad::sweep::fillet::FilletError;
+use pncad::sweep::blend::BlendError;
 use pncad::sweep::{
     ExtrudeError, Extrusion, Revolution, RevolveAxis, TubeWindow, WedgeFrames, extrude, loft_body,
     revolve, revolved_caps, sweep_body, tube_along_arc,
@@ -752,11 +754,13 @@ const SEPAL_STATIONS: usize = 13;
 ///
 /// **Restoring the lanceolate arcs is outstanding work on this
 /// stop** — the kite is what the blade was given, not a limit of the
-/// vocabulary — with one thing to check first: the span meter's half
-/// of the rational bank is retired and the QUADRATURE half is not,
-/// and every body in this stop prints an exact volume, so an
-/// arc-walled blade may meet `QuadratureUnsupported` where the kite
-/// does not.
+/// vocabulary — and the quadrature that used to stand in its way no
+/// longer does. The blade this stop would draw has been built and
+/// measured: a crescent section on this spine, at [`LEAF_STATIONS`]
+/// stations and [`LEAF_V_DEGREE`], certifies an exact volume like
+/// every other body here. That measurement is a standing row, not a
+/// claim — `sweep`'s `cert5_offgrid_knot_rational::the_lily_crescent_
+/// blade_certifies` rebuilds exactly this geometry and re-takes it.
 ///
 /// Nothing here approximates a curve with a chord, meanwhile: a kite
 /// is exactly a kite.
@@ -2143,7 +2147,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     wall(
         6,
         "roll a ball along the lantern's mouth rim (fillet a curved body)",
-        pncad::sweep::fillet::fillet_edges(
+        pncad::sweep::blend::fillet_edges(
             lant,
             &rim,
             S::from_f64(0.02),
@@ -2152,7 +2156,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         ),
         // margin EXACTLY zero is the finding: a co-surface seam
         // meridian, not a near-tangency that a tolerance could split.
-        |e| matches!(e, FilletError::TangentialEdge { margin, .. } if *margin == 0.0),
+        |e| matches!(&e.error, BlendError::TangentialEdge { margin, .. } if *margin == 0.0),
         "soften the tepal-tip rim",
     );
 
@@ -2287,9 +2291,26 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //
     //     It refuses one door short of the zip, and the door is the
     //     reduction's curved-face arm rather than the declaration
-    //     gate: the corm's own annulus rim circle lies ON the shared
-    //     carrier, decides zero clearance, and takes
-    //     `CurvedPierceUnsupported` before any patch is discovered.
+    //     gate: an edge lying ON the shared carrier decides zero
+    //     clearance and takes `CurvedPierceUnsupported` before any
+    //     patch is discovered.
+    //
+    //     **Which edge is not the claim, and it has moved once.** The
+    //     first measurement here was the corm's own annulus rim
+    //     CIRCLE, on operand A. Since the curved pierce RING lane
+    //     landed, the A-side pairs that used to raise first are
+    //     resolved, and the sweep gets one pair further before the same
+    //     wall stops it: the refusal is now operand B's seam RULING —
+    //     `EdgeKey(4v1)`, a straight chart curve at azimuth 0 on the
+    //     foot's own bore wall — against the corm's bore face
+    //     `FaceKey(3v1)` (`r = 0.06`), both of its endpoints exactly on
+    //     the shared carrier. It reaches the declared-cover rung's
+    //     on-carrier `(Zero, Zero)` arm and refuses there because the
+    //     curved containment door does not place both endpoints. So the
+    //     operand below records which SIDE the sweep reaches first, not
+    //     what the wall is about; a later crossing lane may move it
+    //     again, and that is a measurement to re-take rather than a
+    //     regression. What has not moved is the wall itself.
     //     M9-3 PR-A's rung teaches that arm to consult declarations —
     //     but the two-peg path it was measured on carries a PLANAR
     //     `Rest` at the rim plane as well, and the plant has none to
@@ -2320,14 +2341,16 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         "thread the corm onto the stem's foot at their shared cylinder wall \
          (declared cylindrical Rest, no planar contact anywhere on the mate)",
         pncad::topo::union_with(corm_body, foot_body, &bore_decls, tol),
-        // The KIND is the claim: the reduction's curved-face arm, on
-        // operand A, at an edge — NOT the declaration gate, which
-        // admitted the pair, and not a carrier refusal.
+        // The KIND is the claim: the reduction's curved-face arm, at
+        // an edge — NOT the declaration gate, which admitted the pair,
+        // and not a carrier refusal. The operand is pinned too, as the
+        // measurement of which side the sweep reaches first (see the
+        // note above: it moved from A to B when the ring lane landed).
         |e| {
             matches!(
                 e,
                 BooleanError::CurvedPierceUnsupported {
-                    operand: Operand::A,
+                    operand: Operand::B,
                     ..
                 }
             )

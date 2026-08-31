@@ -506,7 +506,18 @@ jobs:
   # the next night's opt-0 arm would restore them. Separate
   # `CARGO_TARGET_DIR` values, each
   # named in its own `workspaces:` mapping, make the two stores disjoint. The
-  # cost is ~7 GB of runner disk instead of ~3.7 GB, measured on the tree.
+  # cost is ~7 GB of runner disk instead of ~3.7 GB, measured on the tree —
+  # an undated one-shot reading that nothing re-takes, and deliberately so.
+  # It grows with the workspace, and what a guard would have to assert is a
+  # runner's free disk, which is not this repository's property and moves
+  # with every image bump. The figure is here to size the decision — two
+  # stores fit where one did. WHAT WOULD NOTICE, named rather than implied:
+  # the measured arm's own build step, which fails outright on a full disk.
+  # The `run_rc` check below then DROPS that arm, and `record` writes the
+  # sample with the remaining ones — so a night that outgrew the disk arrives
+  # as an arm MISSING from docs/perf-data/opt-level/ with a red step behind
+  # it, never as a quiet wrong verdict. That is the whole of the protection
+  # here; nothing watches the figure itself, and nothing should.
   #
   # REPORTING, NEVER GATING (memories/perf-measurement-lane.md). No step here
   # fails on a millisecond. A FLIP — the verdict disagreeing with the tree's
@@ -531,7 +542,11 @@ jobs:
     # cadence fires, and after an opt-level change one of them builds its
     # dependencies cold against a brand-new cache key. The ceiling is a
     # runaway guard, not a budget: on the nights nothing is re-measured this
-    # job is the free arm alone and costs ~2 minutes.
+    # job is the free arm alone and costs ~2 minutes — an undated reading
+    # that nothing re-takes, and the ceiling above does not depend on it:
+    # it is a runaway guard sized in hours-of-nothing, so it is correct at
+    # any cost that is not the runaway case. The lane's real durations are
+    # in each sample's own arms under docs/perf-data/opt-level/.
     timeout-minutes: 120
     permissions:
       # `actions: read` for the jobs API (the free arm); `contents: write`
@@ -710,6 +725,13 @@ jobs:
           # committed before 2026-08-25 carries `"tests": "unknown"`: the
           # same-suite cross-check the history's README advertises had never
           # once run. Verified against real nextest output, both ways.
+          # NO `--no-fail-fast` HERE, AND THAT IS THE DISPOSITION, not an
+          # omission. This row's product is E, a wall-clock time, and the
+          # `run_rc` check below DROPS the row when the suite is red — "a red
+          # suite is not a calibration". On a green run the flag would change
+          # nothing; on a red one it would buy a failure list for a row that
+          # is discarded, at the cost of running the rest of the suite. The
+          # same reasoning covers the opt-2 arm below.
           cargo nextest run --color never --archive-file "$RUNNER_TEMP/opt0.tar.zst" \
             --workspace-remap . \
             > "$RUNNER_TEMP/opt0-run.log" 2>&1 && run_rc=0 || run_rc=$?
@@ -730,6 +752,11 @@ jobs:
           cat "$RUNNER_TEMP/arm-opt0.json"
           # The archive is ~1 GB and nothing reads it again. Two measured arms
           # share one runner disk, so each drops its own before the next runs.
+          # The size is an undated reading and the `rm` does not depend on it:
+          # the archive is dropped because nothing reads it, at any size. It
+          # is written only so the next reader knows the order of what this
+          # line reclaims, and it shares the disk budget stated in this job's
+          # cache note above, which is where the sizing argument lives.
           rm -f "$RUNNER_TEMP/opt0.tar.zst"
           echo "measured=true" >> "$GITHUB_OUTPUT"
 
@@ -1079,7 +1106,22 @@ jobs:
           # NO --run-ignored: see this job's header. Under the cfg these are
           # ordinary tests; the pre-existing #[ignore]d population is not in
           # this selection and stays unexecuted.
-          cargo nextest run --workspace -E "$sel" $extra
+          #
+          # `--no-fail-fast`, and a nightly is the strongest case for it.
+          # nextest's default is fail-fast (measured against the pinned
+          # 0.9.140 — the argument is at ci.yml's sharded run steps), so
+          # without it this row reports its FIRST demoted failure and stops.
+          # These tests run nowhere else: they are `#[ignore]`d in every
+          # ordinary build, so this row is their only execution, and it runs
+          # once a night. A truncated surface here is not "one failure now and
+          # the rest tomorrow" — it is one failure per NIGHT, and nobody is
+          # blocked on the run, so finishing it costs a nightly's minutes and
+          # buys the whole population's state.
+          echo "fail-fast mode: --no-fail-fast — every selected demoted test runs to completion."
+          status=0
+          cargo nextest run --workspace -E "$sel" $extra --no-fail-fast || status=$?
+          echo "fail-fast mode was --no-fail-fast: the summary above is the whole demoted failure SURFACE, not its first failure."
+          exit $status
 
   # THE CRITERION BENCHMARK LANE — PERF-PLAN §5's item 1, which that document
   # has called "the blocking item" since 2026-08-14 and which nothing had

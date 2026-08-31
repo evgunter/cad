@@ -38,7 +38,7 @@
 
 use geom::{Curve3, Surface};
 use geom_core::{Point3, Vec3};
-use sweep::fillet::blend::{BlendArm, EdgeBlend, Meridian, Ruling, plane_sphere_blend};
+use sweep::blend::arms::{BlendArm, EdgeBlend, Meridian, Ruling, plane_sphere_blend};
 
 const EPS: f64 = 1e-12;
 
@@ -248,7 +248,7 @@ impl Row {
             );
             let b = sheet.blend(ta, tb, radius);
             let center =
-                sweep::fillet::blend::sheet_center(self.rim, sheet.sheet_normal(), ta, tb, radius);
+                sweep::blend::arms::sheet_center(self.rim, sheet.sheet_normal(), ta, tb, radius);
             (b, center)
         } else {
             let sheet = Ruling {
@@ -264,7 +264,7 @@ impl Row {
                 self.arm.name()
             );
             let b = sheet.blend(ta, tb, radius);
-            let center = sweep::fillet::blend::sheet_center(self.rim, sheet.tau, ta, tb, radius);
+            let center = sweep::blend::arms::sheet_center(self.rim, sheet.tau, ta, tb, radius);
             (b, center)
         }
     }
@@ -526,7 +526,7 @@ fn the_shared_reduction_agrees_with_the_plane_sphere_arm() {
 /// makes it a checked claim rather than a stale one.
 #[test]
 fn the_refusal_roster_names_every_arm_and_nothing_else() {
-    let roster = sweep::fillet::battery::arm_roster();
+    let roster = sweep::blend::battery::arm_roster();
     // The roster lists PAIRS, so the pair half of each arm's name is
     // what must appear; the chamfer's strip shares the plane–plane row.
     let mut want: Vec<&str> = BlendArm::ALL

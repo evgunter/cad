@@ -54,17 +54,16 @@ accounted for in exactly one of three ways:
 
 1. `pncad.pyi` declares a top-level name spelled identically —
    `Doc`, `Node`, `Selector`, `SegTag`, `circle`, `Pose`. This is
-   where MOST curated names land, and no count is written down: the
+   where MOST curated names land, and NO COUNT IS WRITTEN DOWN: the
    number moves whenever either side grows, and one written here
-   would be a stale claim rather than a checked one (the guard's own
-   floors, in `the_scanners_read_something`, are what stop a scanner
-   from passing vacuously).
-1. `pncad.pyi` declares a top-level name spelled identically. A
-   hundred and twenty-four names land here — `Doc`, `Node`,
-   `Selector`, `SegTag`, `circle`. (A SNAPSHOT, like every count in
-   this file: measured at LIB-B-CHECKS' merge, where it had stood at
-   111 and read "sixty-two" — nothing checks a prose count, so it
-   decays silently between the units that re-measure it.)
+   would be a stale claim rather than a checked one. The count this
+   bullet used to carry had been caught stale once and corrected once
+   (it read "sixty-two" while standing at 111, and was rewritten to "a
+   hundred and twenty-four"), which is the argument: a prose count is
+   checked only when someone happens to look. What stops a scanner
+   passing vacuously is the FLOORS
+   asserted in `test_the_census_is_not_vacuous`, and those are
+   assertions rather than prose.
 2. `BOUND_AS` maps it to the Python spelling that answers the same
    question, and THAT SPELLING IS VERIFIED to exist in the stub — a
    mapping naming a spelling the stub does not declare fails. Without
@@ -367,11 +366,13 @@ def audit_gap_ids():
 #:   tag is `EvaluationError.kind`;
 #:   `DocumentId` is the 32 hex digits `Doc.id` answers.
 #: - **A rename.** `RecipeNodeId` is `NodeId` (the stub says what it is
-#:   NOT: an arena key). The unit constants are lower-cased — `IN` is
-#:   `inch` because `in` is a Python keyword, a shift the stub comments
-#:   on at the declaration. (Not counted here: the table grows a row
-#:   whenever `quantity` does, and a number written beside it would
-#:   date at the next one.)
+#:   NOT: an arena key). The unit constants are lower-cased, and two
+#:   whose symbols are not Python identifiers shift further: `IN` is
+#:   `inch` because `in` is a keyword, and `PI` is `pi_rad` because its
+#:   symbol `pi rad` is two words. The stub comments on both at the
+#:   declaration. (Not counted here: the table grows a row whenever
+#:   `quantity` does, and a number written beside it would date at the
+#:   next one.)
 BOUND_AS = {
     "CM": "cm",
     "DEG": "deg",
@@ -384,7 +385,7 @@ BOUND_AS = {
     "NodeErrorKind": "EvaluationError.kind",
     "NodeValue": "Value",
     "UnevaluatedReason": "Verdict.reason",
-    "PI": "pi",
+    "PI": "pi_rad",
     # The document seam, and the two enums that say why it did not
     # open. `Workspace` IS a `PartResolver` (the document layer's own
     # impl) and is passed as itself to `evaluate(doc, resolver=...)`;
@@ -879,6 +880,8 @@ NOT_BOUND = {
     "BinaryHeader": SHAPE,
     "BinaryHeaderError": SHAPE,
     "BinaryOptions": SHAPE,
+    "BlendError": SHAPE,
+    "BlendRefusal": SHAPE,
     "BooleanError": SHAPE,
     "CONTACT_RECOURSE": SHAPE,
     "CurveKindSet": SHAPE,
@@ -891,7 +894,6 @@ NOT_BOUND = {
     "FIT_DEFERRAL": SHAPE,
     "FaceKey": SHAPE,
     "ExtrudeError": SHAPE,
-    "FilletError": SHAPE,
     "ImportOptions": SHAPE,
     "InterrogateError": SHAPE,
     "LineTarget": SHAPE,
@@ -899,6 +901,10 @@ NOT_BOUND = {
     "Mat3": SHAPE,
     "MassPropsError": SHAPE,
     "MigrationError": SHAPE,
+    # The attribution walk's verdict, and the door that answers it.
+    # Same family as `RolePath`/`RoleSeg` and for their reason: it
+    # reads the INSIDE of a name, which nothing user-side may read.
+    "NameOrigin": SHAPE,
     "NodeError": SHAPE,
     "NodeResult": SHAPE,
     "NonFiniteSite": SHAPE,
@@ -944,8 +950,14 @@ NOT_BOUND = {
     # not a name a Python caller needs.
     "VectorSlot": SHAPE,
     "VertexKey": SHAPE,
+    "attribute": SHAPE,
     "bulge_from_center": SHAPE,
     "bulge_from_via": SHAPE,
+    # A cone-delete is composed caller-side in Python: the bound door
+    # is `Doc.apply` over one `DocEdit.delete_node` at a time, and the
+    # order this answers is what a chrome needs to state a cost before
+    # the click.
+    "cascade_delete_order": SHAPE,
     "p2": SHAPE,
     "p3": SHAPE,
     "real": SHAPE,
@@ -1053,6 +1065,7 @@ NOT_BOUND = {
     "eval": f"{GAP}: B-EXPR-READ an expression's value",
     "eval_count": f"{GAP}: B-EXPR-READ an expression's value",
     "parse_expr": f"{GAP}: G1 Expr-bearing authoring steps",
+    "unparse": f"{GAP}: G1 Expr-bearing authoring steps",
     # --- gap: geometry read-back doors (census-owned) -------------
     # --- gap: assorted single doors -------------------------------
     "CancelToken": f"{GAP}: B-CANCEL cooperative cancellation",
