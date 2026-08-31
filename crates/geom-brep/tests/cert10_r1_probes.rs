@@ -383,3 +383,268 @@ fn cert10r1_the_residual_is_f64_knot_refinement_not_the_recurrence() {
         "if refinement preserved equality bitwise, the residual would have another cause"
     );
 }
+
+// ---------------------------------------------------------------
+// The FOLD's soundness premise: "the cell windows COVER the net".
+// The PR argues the fold is tighter-or-equal from this premise, but
+// the premise carries more weight than that: if some coefficient
+// index were covered by NO cell window, the fold would be WRONG
+// (below the truth), not merely tighter. The shipped property row
+// generates only multiplicity-1 interior knots, so the premise is
+// never exercised where it is tight.
+// ---------------------------------------------------------------
+
+/// Union-of-windows coverage at every degree and every interior
+/// multiplicity the C1 gate admits, for the VALUE net and for the
+/// first- and second-derivative nets.
+#[test]
+fn cert10r1_cell_windows_cover_the_net_at_every_admissible_multiplicity() {
+    let mut rows = Vec::new();
+    for p in 1..=5usize {
+        // The C1 gate: degree 1 must be single-span; degree >= 2
+        // admits interior multiplicity up to p - 1.
+        let mults: Vec<usize> = if p == 1 { vec![] } else { (1..=p - 1).collect() };
+        for m in mults {
+            let mut k = vec![0.0; p + 1];
+            for (idx, t) in [0.3, 0.7].iter().enumerate() {
+                let _ = idx;
+                k.extend(core::iter::repeat_n(*t, m));
+            }
+            k.extend(core::iter::repeat_n(1.0, p + 1));
+            let Ok(kvv) = KnotVector::clamped(k, p) else {
+                continue;
+            };
+            let n = kvv.control_count();
+            let mut cover_val = vec![false; n];
+            let mut cover_d1 = vec![false; n.saturating_sub(1)];
+            let mut cover_d2 = vec![false; n.saturating_sub(2)];
+            let mut nonempty = 0usize;
+            for s in kvv.first_span()..=kvv.last_span() {
+                let ks = kvv.knots();
+                if ks[s] >= ks[s + 1] {
+                    continue; // empty span: no cell is emitted for it
+                }
+                nonempty += 1;
+                let span = kvv.span_at(0.5 * (ks[s] + ks[s + 1]));
+                assert_eq!(span.index(), s, "span lookup disagreed at p={p} m={m}");
+                for i in span.window() {
+                    if let Some(c) = cover_val.get_mut(i) {
+                        *c = true;
+                    }
+                }
+                for i in span.first_derived_window() {
+                    if let Some(c) = cover_d1.get_mut(i) {
+                        *c = true;
+                    }
+                }
+                if let Some(w2) = span.derived_window(2) {
+                    for i in w2 {
+                        if let Some(c) = cover_d2.get_mut(i) {
+                            *c = true;
+                        }
+                    }
+                }
+            }
+            let miss_v = cover_val.iter().filter(|c| !**c).count();
+            let miss_1 = cover_d1.iter().filter(|c| !**c).count();
+            let miss_2 = if p >= 2 {
+                cover_d2.iter().filter(|c| !**c).count()
+            } else {
+                0
+            };
+            rows.push(format!(
+                "p={p} mult={m}: n={n} nonempty_spans={nonempty} uncovered val={miss_v} d1={miss_1} d2={miss_2}"
+            ));
+            assert_eq!(miss_v, 0, "value net not covered at p={p} mult={m}");
+            assert_eq!(miss_1, 0, "d1 net not covered at p={p} mult={m}");
+            assert_eq!(miss_2, 0, "d2 net not covered at p={p} mult={m}");
+        }
+    }
+    for r in &rows {
+        println!("[cert10r1] cover {r}");
+    }
+    // The reason this is TIGHT rather than comfortable: between two
+    // consecutive nonempty spans separated by a knot of multiplicity
+    // m, the order-k derived windows [s-p, s-k] are contiguous only
+    // when m <= p - k + 1. At k = 2 that is m <= p - 1, which is
+    // EXACTLY the C1 gate's ceiling. The gate is therefore load-bearing
+    // for the fold's soundness, not only for C1.
+    assert!(!rows.is_empty(), "no admissible multiplicities were exercised");
+}
+
+// ---------------------------------------------------------------
+// CLAIM 2: the coarser grids the tighter bound buys (8.4x fewer cells
+// on the quarter cylinder at delta_s = 4e-3). The re-baseline is only
+// owned if the COARSER grid still delivers the certificate, so this
+// measures the REALIZED chord error against delta_s.
+//
+// Everything below is re-derived independently of `mesh` (whose
+// `NurbsFaceBound` is crate-private): the fold, the sup collapse and
+// the split selection are re-implemented from the shipped formulas,
+// which also cross-checks the PR body's pinned digits.
+// ---------------------------------------------------------------
+
+const ASPECT_CAP: f64 = 16.0;
+
+#[derive(Clone, Copy, Debug, Default)]
+struct FaceBound {
+    muu: f64,
+    muv: f64,
+    mvv: f64,
+    mu1: f64,
+    mv1: f64,
+}
+
+/// `sqrt(sum_c sup_c^2)`, rounded up — `mesh::nurbs_cert::cell_component`
+/// applied to `patch_bound::sq_norm`.
+fn component(v: [geom_core::RingInterval; 3]) -> f64 {
+    let sq = geom_brep::patch_bound::sq_norm(v);
+    let hi = sq.hi();
+    if hi == 0.0 { 0.0 } else { hi.sqrt().next_up() }
+}
+
+/// The fold: per-cell sups, maxed over the cells.
+fn fold(n: &NurbsSurface<f64>) -> FaceBound {
+    let cells = patch_cells(n).expect("patch_cells");
+    let mut m = FaceBound::default();
+    for c in &cells {
+        m.muu = m.muu.max(component(c.s_uu));
+        m.muv = m.muv.max(component(c.s_uv));
+        m.mvv = m.mvv.max(component(c.s_vv));
+        m.mu1 = m.mu1.max(component(c.s_u));
+        m.mv1 = m.mv1.max(component(c.s_v));
+    }
+    m
+}
+
+/// `NurbsFaceBound::split_steps`, re-implemented.
+fn split_steps(b: FaceBound, delta_s: f64) -> (f64, f64) {
+    let (muu, muv, mvv) = (b.muu, b.muv, b.mvv);
+    if muu == 0.0 && mvv == 0.0 && muv == 0.0 {
+        return (f64::INFINITY, f64::INFINITY);
+    }
+    let rho = (b.mu1 > 0.0 && b.mv1 > 0.0 && b.mu1.is_finite() && b.mv1.is_finite())
+        .then(|| b.mv1 / b.mu1)
+        .filter(|r| r.is_finite() && *r > 0.0);
+    let window = rho.map(|r| (r / ASPECT_CAP, r * ASPECT_CAP));
+    let t = if muu > 0.0 && mvv > 0.0 {
+        let t_star = (mvv / muu).sqrt();
+        match window {
+            Some((lo, hi)) => t_star.clamp(lo, hi),
+            None => t_star,
+        }
+    } else if muu == 0.0 && mvv > 0.0 {
+        window.map_or(1.0, |(_, hi)| hi)
+    } else if mvv == 0.0 && muu > 0.0 {
+        window.map_or(1.0, |(lo, _)| lo)
+    } else {
+        rho.unwrap_or(1.0)
+    };
+    let q = muv.mul_add(2.0 * t, muu.mul_add(t.powi(2), mvv));
+    let hv = (delta_s / q).sqrt();
+    (t * hv, hv)
+}
+
+fn divisions(h: f64) -> usize {
+    if h.is_finite() && h > 0.0 {
+        #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+        let d = (1.0f64 / h).ceil().max(1.0) as usize;
+        d
+    } else {
+        1
+    }
+}
+
+/// The realized chord error of the grid: for every grid cell, both
+/// triangles of the diagonal split, the max distance from the true
+/// surface point to the triangle's linear interpolant, sampled
+/// barycentrically.
+fn realized_chord_error(n: &NurbsSurface<f64>, du: usize, dv: usize, per_tri: usize) -> f64 {
+    let (hu, hv) = (1.0 / du as f64, 1.0 / dv as f64);
+    let mut worst = 0.0f64;
+    for a in 0..du {
+        for b in 0..dv {
+            let (u0, v0) = (a as f64 * hu, b as f64 * hv);
+            let (u1, v1) = (u0 + hu, v0 + hv);
+            let corners = [[u0, v0], [u1, v0], [u1, v1], [u0, v1]];
+            for tri in [[0usize, 1, 2], [0, 2, 3]] {
+                let c: Vec<[f64; 2]> = tri.iter().map(|k| corners[*k]).collect();
+                let pts: Vec<Point3<f64>> = c.iter().map(|q| n.eval(q[0], q[1])).collect();
+                for i in 0..=per_tri {
+                    for j in 0..=(per_tri - i) {
+                        let l0 = i as f64 / per_tri as f64;
+                        let l1 = j as f64 / per_tri as f64;
+                        let l2 = 1.0 - l0 - l1;
+                        let u = l0 * c[0][0] + l1 * c[1][0] + l2 * c[2][0];
+                        let v = l0 * c[0][1] + l1 * c[1][1] + l2 * c[2][1];
+                        let s = n.eval(u, v);
+                        let lin = [
+                            l0 * pts[0].x + l1 * pts[1].x + l2 * pts[2].x,
+                            l0 * pts[0].y + l1 * pts[1].y + l2 * pts[2].y,
+                            l0 * pts[0].z + l1 * pts[1].z + l2 * pts[2].z,
+                        ];
+                        let d = ((s.x - lin[0]).powi(2)
+                            + (s.y - lin[1]).powi(2)
+                            + (s.z - lin[2]).powi(2))
+                        .sqrt();
+                        worst = worst.max(d);
+                    }
+                }
+            }
+        }
+    }
+    worst
+}
+
+#[test]
+fn cert10r1_the_coarsened_grid_still_meets_its_chord_tolerance() {
+    // The PR's own retired MAGNITUDE numbers for the quarter cylinder,
+    // transcribed from the shipped `cert10_rational_grid_resizing`
+    // harness, so the two readings are sized side by side.
+    let mag = FaceBound {
+        muu: 3.942_263_838_556_179_7,
+        muv: 1.266_375_820_315_083_4,
+        mvv: 4.250_461_439_678_581e-15,
+        mu1: 1.758_098_729_671_621_3,
+        mv1: 1.064_513_033_689_903,
+    };
+    let s = quarter_cylinder();
+    let signed = fold(&s);
+    println!(
+        "[cert10r1] quarter_cylinder re-derived signed fold: muu={:.7e} muv={:.7e} mvv={:.7e} mu1={:.7e} mv1={:.7e}",
+        signed.muu, signed.muv, signed.mvv, signed.mu1, signed.mv1
+    );
+    println!(
+        "[cert10r1] ratios vs the PR's retired magnitude: muu={:.4} muv={:.4} mu1={:.4} mv1={:.4}",
+        signed.muu / mag.muu,
+        signed.muv / mag.muv,
+        signed.mu1 / mag.mu1,
+        signed.mv1 / mag.mv1
+    );
+    let mut failures = Vec::new();
+    for delta_s in [1e-2f64, 4e-3, 1e-3] {
+        for (tag, b) in [("mag", mag), ("signed", signed)] {
+            let (hu, hv) = split_steps(b, delta_s);
+            let (du, dv) = (divisions(hu), divisions(hv));
+            // delta_s is a squared-deviation budget: the certificate is
+            // Q/4 with Q in units of length, so the chord error the
+            // grid promises is delta_s itself (same units the tour's
+            // tess-lint compares in).
+            let err = realized_chord_error(&s, du, dv, 6);
+            println!(
+                "[cert10r1] delta_s={delta_s:.0e} {tag:>6}: {du} x {dv} = {} cells, realized chord error = {err:.6e}, err/delta_s = {:.4}",
+                du * dv,
+                err / delta_s
+            );
+            if err > delta_s {
+                failures.push(format!(
+                    "delta_s={delta_s:e} {tag}: realized {err:e} EXCEEDS delta_s"
+                ));
+            }
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "the coarsened grid does not deliver its chord tolerance: {failures:?}"
+    );
+}
