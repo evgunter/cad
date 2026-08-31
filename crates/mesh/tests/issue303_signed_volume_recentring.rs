@@ -73,15 +73,23 @@ fn huge_offset_volume_through_public_oracle() {
 fn translation_invariance_1e3_1e6() {
     let poly = [(0.0, 0.0), (2.7, 0.0), (2.7, 1.3), (0.0, 1.3)];
     let v0 = {
-        let m = tessellate(&prism_on(SketchPlane::xy(), &poly, 0.9), 1e-2, Tol::witness())
-            .expect("tessellate at origin");
+        let m = tessellate(
+            &prism_on(SketchPlane::xy(), &poly, 0.9),
+            1e-2,
+            Tol::witness(),
+        )
+        .expect("tessellate at origin");
         assert_eq!(check_mesh(&m), Ok(()));
         signed_volume(&m)
     };
     assert!((v0 - 3.159).abs() < 1e-12, "origin volume {v0}");
     for (offset, tol) in [(1.0e3, 1e-11), (1.0e6, 1e-8)] {
-        let m = tessellate(&prism_on(plane_at(offset), &poly, 0.9), 1e-2, Tol::witness())
-            .expect("tessellate at offset");
+        let m = tessellate(
+            &prism_on(plane_at(offset), &poly, 0.9),
+            1e-2,
+            Tol::witness(),
+        )
+        .expect("tessellate at offset");
         assert_eq!(check_mesh(&m), Ok(()), "offset {offset:e}: not watertight");
         let v = signed_volume(&m);
         let rel = ((v - v0) / v0).abs();
