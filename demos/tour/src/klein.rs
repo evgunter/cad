@@ -1052,12 +1052,14 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     // f64: `mesh::tessellate` is the one door in this scene that is
     // not generic over the scalar — meshing is a rendering-side
     // operation and takes the run's own numbers.
-    for (alpha_deg, rim) in [(24.0_f64, 0.85_f64), (26.0, 0.75), (30.0, 0.85), (34.0, 1.00)] {
+    for (alpha_deg, rim) in [
+        (24.0_f64, 0.85_f64),
+        (26.0, 0.75),
+        (30.0, 0.85),
+        (34.0, 1.00),
+    ] {
         let body = bulb::<f64>(
-            band::<f64>(
-                &meridian_at(alpha_deg * PI / 180.0, RF, rim, RLOOP),
-                tol,
-            ),
+            band::<f64>(&meridian_at(alpha_deg * PI / 180.0, RF, rim, RLOOP), tol),
             Revolution::Full,
             tol,
         );
