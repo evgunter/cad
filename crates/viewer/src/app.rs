@@ -41,8 +41,8 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use eframe::egui;
 use editor_core::appearance::Rgba8;
+use eframe::egui;
 use egui_tiles::{TileId, Tiles, Tree, UiResponse};
 use pncad::document::{Axis3, Dimension, ParamName, RecipeNodeId, SlotId};
 use pncad::geom_core::Tol;
@@ -755,7 +755,10 @@ impl eframe::App for ViewerApp {
                     }
                     Some(crate::session::AtRestBadge::Refused { message }) => {
                         ui.separator();
-                        ui.colored_label(chrome(self.theme.unresolved), format!("at rest: {message}"));
+                        ui.colored_label(
+                            chrome(self.theme.unresolved),
+                            format!("at rest: {message}"),
+                        );
                     }
                     None => {}
                 }

@@ -107,14 +107,20 @@ fn srgb_linear_round_trip_is_exact() {
 fn a_mark_at_its_endpoints_is_body_or_tint() {
     for theme in Theme::ALL {
         for (which, mark) in theme.marks() {
-            let none = Mark { tint: mark.tint, strength: 0.0 };
+            let none = Mark {
+                tint: mark.tint,
+                strength: 0.0,
+            };
             assert_eq!(
                 none.over(theme.body),
                 theme.body,
                 "{}: {which} at strength 0 moved the body colour",
                 theme.name,
             );
-            let full = Mark { tint: mark.tint, strength: 1.0 };
+            let full = Mark {
+                tint: mark.tint,
+                strength: 1.0,
+            };
             assert_eq!(
                 full.over(theme.body),
                 mark.tint,

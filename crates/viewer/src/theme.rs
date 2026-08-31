@@ -111,11 +111,7 @@ impl Mark {
         let [br, bg, bb] = linear(body);
         let [tr, tg, tb] = linear(self.tint);
         let t = self.strength;
-        from_linear([
-            br + (tr - br) * t,
-            bg + (tg - bg) * t,
-            bb + (tb - bb) * t,
-        ])
+        from_linear([br + (tr - br) * t, bg + (tg - bg) * t, bb + (tb - bb) * t])
     }
 }
 
@@ -233,10 +229,22 @@ const DARK_NEUTRAL: Theme = Theme {
     // as colour.
     body: Rgba8::opaque(206, 209, 214),
     ambient: 0.25,
-    selected: Mark { tint: Rgba8::opaque(255, 206, 111), strength: 0.55 },
-    hovered: Mark { tint: Rgba8::opaque(179, 221, 255), strength: 0.55 },
-    probe: Mark { tint: Rgba8::opaque(206, 160, 249), strength: 0.65 },
-    focus: Mark { tint: Rgba8::opaque(255, 229, 173), strength: 0.24 },
+    selected: Mark {
+        tint: Rgba8::opaque(255, 206, 111),
+        strength: 0.55,
+    },
+    hovered: Mark {
+        tint: Rgba8::opaque(179, 221, 255),
+        strength: 0.55,
+    },
+    probe: Mark {
+        tint: Rgba8::opaque(206, 160, 249),
+        strength: 0.65,
+    },
+    focus: Mark {
+        tint: Rgba8::opaque(255, 229, 173),
+        strength: 0.24,
+    },
     unresolved: Rgba8::opaque(210, 90, 70),
     safety: Safety::Unchecked,
 };
@@ -253,10 +261,22 @@ const LIGHT_NEUTRAL: Theme = Theme {
     polarity: Polarity::Light,
     body: Rgba8::opaque(206, 209, 214),
     ambient: 0.45,
-    selected: Mark { tint: Rgba8::opaque(255, 206, 111), strength: 0.55 },
-    hovered: Mark { tint: Rgba8::opaque(179, 221, 255), strength: 0.55 },
-    probe: Mark { tint: Rgba8::opaque(206, 160, 249), strength: 0.65 },
-    focus: Mark { tint: Rgba8::opaque(255, 229, 173), strength: 0.24 },
+    selected: Mark {
+        tint: Rgba8::opaque(255, 206, 111),
+        strength: 0.55,
+    },
+    hovered: Mark {
+        tint: Rgba8::opaque(179, 221, 255),
+        strength: 0.55,
+    },
+    probe: Mark {
+        tint: Rgba8::opaque(206, 160, 249),
+        strength: 0.65,
+    },
+    focus: Mark {
+        tint: Rgba8::opaque(255, 229, 173),
+        strength: 0.24,
+    },
     // Darker than the dark theme's red by as much as the ground
     // moved: the same hue at the same lightness on a pale panel is
     // the one chrome colour that stops being readable.
