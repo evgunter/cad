@@ -511,11 +511,16 @@ file's tail):
     finite-and-strictly-positive rule is restated by hand across
     `step-export` and `step-import`. #742 and #741 say on their own
     faces that their plan goes to Evan before implementation.
-  - **#1103** — no expression UNPARSER (`Expr` → source text).
-    `ExprKind` is `pub(crate)`, so above the crate boundary there
-    is no operator identity at all; `ParseError` has no `Display`.
-    The consumer that named it is GUI-3's expression-refusal field,
-    which cannot be pre-filled with what the slot says today.
+  - ~~**#1103**~~ — CLOSED. `editor-core::unparse` is the door
+    outward: precedence-aware source text pinned by a round trip
+    (`parse_expr(unparse(e))` is `bit_eq` to `e`, table plus
+    proptest over the grammar's generated span). Two constructible
+    shapes the GRAMMAR cannot spell are stated on the function
+    rather than approximated — a negative literal (there is no
+    negative number token, so `-25 mm` reads back as `Neg(25 mm)`)
+    and `Expr::count(i64::MIN)`. `ParseError`'s `Display` half of
+    this entry was already closed by the stragglers pass; the
+    viewer's debug rendering of it is gone with it.
   - **#1111's editor-core slice** — `HitTestError` is carried on
     the façade (`crates/pncad/src/select.rs:84`) and has no
     `Display`, so its values reach a user surface as a struct dump.

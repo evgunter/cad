@@ -532,7 +532,7 @@ pub fn filleted_die() -> Body<f64> {
         .expect("the cube")
         .body;
     let edges: Vec<_> = body.edges().map(|(k, _)| k).collect();
-    sweep::fillet::build::fillet_edges(&body, &edges, 0.12, band, Tol::witness())
+    sweep::blend::build::fillet_edges(&body, &edges, 0.12, band, Tol::witness())
         .expect("the die blank")
         .body
 }
@@ -701,7 +701,7 @@ pub fn census(body: &Body<f64>) -> (usize, usize, usize) {
 /// bands. The geometry is `sweep/tests/m6_surgery.rs`'s, constant for
 /// constant (blend r = 0.12, rim r = 0.02).
 pub fn composed_die() -> Body<f64> {
-    use sweep::fillet::build::fillet_edges;
+    use sweep::blend::build::fillet_edges;
 
     let tol = Tol::witness();
     let band = geom_core::Band::new(tol.eps(), tol.k() * tol.eps()).expect("band");

@@ -19,8 +19,8 @@ use geom::Curve3;
 use geom::Surface;
 use geom_brep::{implicit_residual, tangent_jet};
 use geom_core::{Point3, Vec3};
-use sweep::fillet::Convexity;
-use sweep::fillet::blend::{corner_ball, plane_plane_blend, plane_sphere_blend};
+use sweep::blend::Convexity;
+use sweep::blend::arms::{corner_ball, plane_plane_blend, plane_sphere_blend};
 
 fn p(x: f64, y: f64, z: f64) -> Point3<f64> {
     Point3::new(x, y, z)

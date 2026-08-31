@@ -242,8 +242,8 @@ pub enum Qualifier {
 ///
 /// # The kernel twin, and why this is not it
 ///
-/// `sweep::fillet::naming::RimSide` is the same two roles, recorded by
-/// the surgery as it carves; `names::emit_fillet` maps one onto the
+/// `sweep::blend::naming::RimSide` is the same two roles, recorded by
+/// the surgery as it carves; `names::emit_blend` maps one onto the
 /// other by an identity match. The duplication is deliberate and the
 /// emitter's match is the SEAM.
 ///
@@ -473,7 +473,7 @@ pub enum RoleSeg {
     /// (the shortened meridian).
     BandCut(Box<StableName>),
     /// A band's SLIT: the double-traversed torus meridian that keeps
-    /// the annular band RING-FREE (`sweep::fillet::surgery`'s donut
+    /// the annular band RING-FREE (`sweep::blend::surgery`'s donut
     /// representation). Argument: the source edge whose severed piece
     /// became it.
     BandSlit(Box<StableName>),

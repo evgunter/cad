@@ -11,8 +11,8 @@ use profile::RawLoop;
 use geom_core::Tol;
 use geom_core::{Affine3, Band, Point2, Point3, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
-use sweep::fillet::FilletError;
-use sweep::fillet::build::fillet_edges;
+use sweep::blend::BlendError;
+use sweep::blend::build::fillet_edges;
 use sweep::{Extrusion, extrude};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanDeclarations, EdgeKey};
@@ -142,8 +142,8 @@ fn f1_the_clearance_screen_is_conservative_by_direction_on_the_hexagon() {
     let apothem = 3.0_f64.sqrt() / 2.0;
     for r in [0.51, 0.6, 0.8] {
         assert!(r < apothem, "the row is only interesting below the apothem");
-        match fillet_edges(&body, &edges, r, band(), Tol::witness()) {
-            Err(e @ FilletError::FaceClearanceUncertified { margin, gap, .. }) => {
+        match fillet_edges(&body, &edges, r, band(), Tol::witness()).map_err(|r| r.error) {
+            Err(e @ BlendError::FaceClearanceUncertified { margin, gap, .. }) => {
                 assert!(margin < 0.0);
                 assert!(
                     (gap - 1.0).abs() < 1e-9,
