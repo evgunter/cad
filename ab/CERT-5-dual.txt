@@ -1,0 +1,143 @@
+CERT-5 dual (v6), recorded BEFORE R1 dispatch, 2026-08-31
+ordinal: TO BE CLAIMED on main at actual R1 dispatch (S-CERT band;
+next after 702).
+slot byte 219, parity 1 => R1 FABLE + R2 OPUS (cross-model; same
+assignment as CERT-2's pair, opposite of CERT-4's).
+METHOD NOTE (pre-recorded so both arms run identically): reviews run
+SEQUENTIALLY on the frozen head 3fc450d6 (PR 1314's gated head, run
+33343625697 green at lane=both) — disk bounds concurrent lane
+targets; R1 dispatches when a lane slot frees (CERT-4's fix pass and
+CERT-7's implementer hold both at this writing); R2 after R1's
+report with the IDENTICAL stored brief, no access to R1's report,
+findings, or probe branch. Probe branches: cert/5r1-probes,
+cert/5r2-probes. The delivered head was fc42ad5d; 3fc450d6 differs
+by exactly one commit removing one blank line (rustfmt,
+orchestrator-direct after the first gate run redded on fmt only and
+was superseded by the push) — reviewers verify that delta
+themselves. Implementer difficulty M/L (logged pre-draw at spec);
+impl phase ~165k tokens, ~4h wall self-est — held for the row.
+
+COMMON BRIEF (stored verbatim; lane plumbing differs per lane):
+---
+You are a blinded adversarial reviewer for unit CERT-5 of the S-CERT
+program (repo evgunter/cad). Review PR 1314 on its FROZEN head
+3fc450d6 — do not review any later commit; if the branch has moved,
+say so and still review 3fc450d6. The head one commit earlier
+(fc42ad5d) is the delivered head; verify yourself that the tip
+commit is exactly the one-blank-line rustfmt fix it claims to be.
+
+Read first, in order: docs/prompts/reviewer-style-lane.md (binding
+style-lane brief; carry its structural questions and confidence
+vocabulary), the unit's binding spec (git show
+origin/cert/orchestrator:docs/CERT-5-SPEC.md), GitHub issues 453 and
+390 (primary specifications; route 1 is the unit's scope), then the
+PR 1314 diff and body.
+
+CLAIMS TO FALSIFY (each gets a verdict with evidence; execution
+beats inspection; every number is the PR body's claim, not a fact):
+1. The red-first rows: blade-6 and blade-8 refused at 209x/627x over
+   target pre-fix and now certify with the analytic oracle
+   (9.14159270118...) CONTAINED; the control row (5 stations, 0
+   off-grid knots) certified all along, which is what makes the
+   evidence about off-grid knots; the station-scan floor model
+   (floor ~ #off-grid x 1.0715e-4, with n=6 and n=7 agreeing on a
+   shared off-grid count) reproduces.
+2. THE CELL RULE'S SOUNDNESS (highest-value item): knot-aligned cuts
+   put every interior knot ON a cell boundary, every cell is a
+   smoothness island, and the midpoint-plus-Taylor rule is claimed
+   valid throughout at full O(h^2). Attack this: knots at or within
+   an ulp of the trim rectangle's edges; repeated knots
+   (multiplicity to degree — the surface is C^0 there: is a
+   knot-ON-boundary cell still a smoothness island on BOTH sides,
+   and does the rule's derivative hull see the kink); cuts closer
+   together than an ulp (empty/inverted cells); the claim that cells
+   tile EXACTLY by sharing cut points (outward-rounded enclosure
+   widths — can the sum of cell integrals drop or double-count a
+   sliver). The straddle branch is claimed DELETED, not bypassed —
+   verify nothing reaches a smoothness-free hull anymore, and that
+   deleting it did not remove a guard something else needed.
+3. The w-uniform-in-v exact arm: the exactness argument (weights
+   constant along v make the v integral exactly polynomial per
+   span); the claim that v-subdivision buys nothing under the arm;
+   the eligibility test being EXACT f64 equality deliberately (a
+   soundness hypothesis, not a tolerance) — verify a
+   nearly-uniform-weight patch takes the composite arm and gets a
+   SOUND enclosure, and that an exactly-uniform one through the
+   exact arm CONTAINS a brute-force reference; the claim that
+   degree->=2 skin fits do not satisfy the hypothesis (solve
+   rounding) and correctly take the composite arm.
+4. The import door: dm1's per-round trace quarters (ratio -> 3.99)
+   to 1.5435e-6 with NO floor; the wall-time claim (14.2s -> 3.2s)
+   directionally; dm1 correctly still refuses at the 1.024e-6
+   target (the 1.51x residual honestly reported, MAX_ROUNDS
+   untouched — verify the dial is genuinely untouched and issue
+   1315's numbers assert what is true in the tree).
+5. The lily flip: lily_leaf_b's geometry as stated certifies at
+   3.1311760897e-3 +- 1.3827e-7 through the public door; the
+   retired flip-when-fixed paragraphs are gone from
+   demos/tour/src/lily.rs and demos/README.md and nothing else
+   still cites the refusal; NO render moved in this PR (verify:
+   the render lanes' committed artifacts untouched).
+6. The sweep receipt: the six-hit table's dispositions hold
+   (including bspline_green_integral's not-this-unit argument — no
+   production consumer); run your OWN differently-shaped sweep for
+   knot-width-coupled widening (a knot-count-scaled pad, a hull
+   over a whole span) that their literal-straddle grep cannot see;
+   blind spots stated honestly.
+7. Refusals: none minted, removed, or reworded in class; every
+   pre-fix refusing probe row still refuses; the two floors moved
+   TIGHTER and were re-derived not re-baselined
+   (QUARTER_CYLINDER_FLOOR 1.535131804305385e-7 ->
+   1.533470603813311e-7; HUGE_CYLINDER_FLOOR 1.535e-4 -> 1.533e-4)
+   — check the re-derivations' arguments, not just the direction.
+8. The C-m answers: on any rational wall, nurbs_patch_face
+   dispatches on weights to rational_patch_face BEFORE the exact
+   lane, so patch_flux_exact is unreachable there — verify the
+   dispatch; the knot-aligned cut list as a shared private helper
+   is consumed by all three composite loops.
+9. The verification story: resolve run 33343625697 YOURSELF (status
+   AND head SHA = 3fc450d6); lane=both ran all four test lanes; the
+   workspace/interval/doc-gate/clippy local claims are stated as
+   local, not as the gate.
+STRUCTURAL (style lane's stance, on top of its standing questions):
+does the shared cut helper mint an almost-parallel of an existing
+cut/subdivision helper elsewhere in the quadrature or tessellation
+lanes (grep for the copy); the deleted AreaCell::g_hull — did any
+doc or test still cite it; the PR touches 8 files +700/-151 — read
+props/quad.rs's changed regions against the file's own 40-line
+engine doc for claims the change made stale; once, read the largest
+touched file end to end (Q8).
+
+E2E EXERCISE (required): author your OWN rational patch with
+off-grid interior knots in BOTH directions (not the blades, not
+dm1) and drive it through the public props door at both scalar
+lanes; also import at least one STEP wall with a rational surface
+through the import door yourself; report what a consumer sees
+(certify/refuse, width, wall time) and anything the unit's fixtures
+were too friendly to show.
+
+LOCAL RUNS = UNIQUE SIGNAL ONLY: your own probes, planted
+corruptions (re-introduce a uniform-cut straddle in your worktree
+and confirm the red-first rows red; break a floor constant and
+confirm its row fires), merge-base differentials. The unit's suites
+ride the PR gate — verify it ran; do not re-run wholesale.
+
+VERDICT: exactly one of APPROVE / APPROVE-WITH-FIXES /
+NOT-MERGEABLE-AS-IS / REJECT, plus the CODE QUALITY REPORT rubric:
+MAJOR/MINOR/NOTE counts; spec deviations reported vs silent (the PR
+body carries a four-item deviations section; anything beyond it is
+silent); ratings 1-5 with one line of evidence each for
+idiom/structure, test quality, doc/comment honesty. Findings
+ranked, one line of prose per MAJOR minimum, and a ## Style section
+per the style-lane brief with confidence vocabulary.
+
+LANE ISOLATION AND BLINDING: never state or guess who or what model
+implemented the unit; do not read any other review lane's branches,
+notes, or reports (disclose any accidental glimpse); do not post to
+GitHub — commit probe suites to your probe branch locally (do NOT
+push) and deliver findings in your report. No Co-Authored-By
+trailers. Keep working files inside your worktree. Foreground
+discipline: no background waiters; wrap raw cargo in
+local-scripts/with-build-slot.sh; never end a turn with background
+work active. Report <= 150 lines.
+---
