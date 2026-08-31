@@ -328,6 +328,15 @@ fn probe_partial_engagement_never_silent() {
         }
         Err(err) => {
             eprintln!("partial engagement refused: {err:?}");
+            // `Merge(InvalidDeclaration)` is the F7 output stage
+            // speaking: `merge_coplanar_faces_declared` is a COPLANAR
+            // merge and takes planar declared surfaces only, while the
+            // boolean hands it every surviving declared `Rest` pair
+            // whatever its carrier. A partially engaged bore leaves a
+            // cylindrical pair alive in the result, so the pair reaches
+            // a door with no type for it. Typed and loud, which is all
+            // this probe asserts — where the frontier SITS is not a
+            // baseline this row defends.
             assert!(
                 matches!(
                     err,
@@ -336,6 +345,7 @@ fn probe_partial_engagement_never_silent() {
                         | BooleanError::Join(_)
                         | BooleanError::CurvedPierceUnsupported { .. }
                         | BooleanError::CurvedBooleanUnsupported { .. }
+                        | BooleanError::Merge(topo::MergeCoplanarError::InvalidDeclaration { .. })
                 ),
                 "typed only: {err:?}"
             );
