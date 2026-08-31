@@ -1,0 +1,841 @@
+//! **Fillet and chamfer authoring, replayed headlessly** (GAUTH-5):
+//! the blend tool accumulating edge picks and committing exactly one
+//! `Node::Fillet` or `Node::Chamfer` through the real `DocSession`,
+//! with no renderer anywhere.
+//!
+//! # The box every row is about
+//!
+//! [`boxed`] authors a 10 mm cube through the creation vocabulary
+//! alone (a rectangle profile, one extrude) — twelve edges, all
+//! straight, meeting three at a corner. Its whole-body blend is the
+//! shape a minimal instance has to take: the kernel's assembly admits
+//! only a fully-requested chain set, so a fillet of ONE box edge would
+//! terminate at a trivalent corner whose other two edges were never
+//! requested and refuse by name. That is not a limitation this unit
+//! works around — it is the freeze semantics' own consequence, and it
+//! is why the all-edges door exists.
+//!
+//! # Where the edge names come from
+//!
+//! The pick index, through the door the viewport pick answers with
+//! (`PickIndex::edges_in` + `edge_name_of`). Turning a cursor into one
+//! of those edges is `edge_pick`'s subject and is not re-tested here;
+//! what these rows drive is everything after: the set the tool
+//! accumulates, the node it commits, and what evaluation and the tree
+//! say about it.
+
+// Panicking is a test's failure mechanism (workspace lint note).
+#![allow(clippy::expect_used)]
+#![allow(clippy::panic)]
+
+mod common;
+
+use pncad::document::{
+    Dimension, Doc, DocEdit, Expr, Node, NodeErrorKind, NodeResult, RecipeNodeId, SlotId,
+};
+use pncad::geom_core::Tol;
+use pncad::prelude::{StableName, ValuePayload};
+use pncad::profile::SketchPlane;
+use viewer::blend::{BlendError, BlendEvent, BlendKindChoice, BlendTarget, BlendTool};
+use viewer::pick::{PickIndex, PickKinds};
+use viewer::scene::DisplayTolerance;
+use viewer::session::{
+    DatumSpec, DocSession, EdgeSelection, NodeKindWanted, ProfileShape, Refusal, Selection,
+    SessionOp,
+};
+use viewer::tools::{ToolKind, ToolNotice, Tools};
+use viewer::tree::{self, RowStatus};
+
+/// The cube every row blends: 10 mm on a side.
+const SIDE: f64 = 0.01;
+/// The blend size every row authors, well inside half the side.
+const BLEND: f64 = 0.001;
+/// A box has twelve edges, and a row that accumulated eleven would
+/// otherwise pass while pinning nothing.
+const BOX_EDGES: usize = 12;
+
+/// A session over a throwaway document.
+fn session(tol: Tol) -> DocSession {
+    DocSession::inline(Doc::empty_derived("blend-start", tol), tol)
+}
+
+/// Perform one op that must commit exactly one insert, answering the
+/// id of the node it minted.
+fn insert(session: &mut DocSession, op: SessionOp) -> RecipeNodeId {
+    let outcome = session.perform(op);
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert_eq!(outcome.committed.len(), 1, "exactly one committed edit");
+    assert!(matches!(
+        outcome.committed.first(),
+        Some(DocEdit::InsertNode { .. })
+    ));
+    *session
+        .committed_doc()
+        .order()
+        .last()
+        .expect("the insert landed")
+}
+
+/// A cube of `side`, authored through the creation doors.
+fn boxed(session: &mut DocSession, side: f64) -> RecipeNodeId {
+    let profile = insert(
+        session,
+        SessionOp::AddProfile {
+            plane: SketchPlane::xy(),
+            loops: vec![ProfileShape::Rectangle {
+                width: side,
+                height: side,
+            }],
+        },
+    );
+    insert(
+        session,
+        SessionOp::AddExtrude {
+            profile,
+            distance: side,
+        },
+    )
+}
+
+/// The display tolerance the pick index is built at — coarse, since no
+/// row here measures a facet.
+fn delta() -> DisplayTolerance {
+    DisplayTolerance::new(2.0e-4).expect("a positive delta")
+}
+
+/// The pick index for a session's landed evaluation — the door a
+/// viewport pick answers through.
+fn index_of(session: &DocSession) -> PickIndex {
+    let (doc, eval) = session
+        .landed_pair()
+        .expect("the inline seam lands its first evaluation");
+    let generation = session
+        .landed_generation()
+        .expect("a landed evaluation has a generation");
+    PickIndex::build(doc, eval, generation, delta(), session.tol()).expect("the box indexes")
+}
+
+/// Every drawn edge of a node's body 0, as the pick selections a
+/// viewport click would produce.
+fn drawn_edges(session: &DocSession, node: RecipeNodeId) -> Vec<EdgeSelection> {
+    let index = index_of(session);
+    index
+        .edges_in(node, 0)
+        .iter()
+        .map(|&id| EdgeSelection {
+            name: index
+                .edge_name_of(id)
+                .expect("a drawn edge has a name")
+                .clone(),
+            node,
+            body: 0,
+        })
+        .collect()
+}
+
+/// Every edge name of a node, through the shipped all-edges door.
+fn all_edge_names(session: &DocSession, node: RecipeNodeId) -> Vec<StableName> {
+    let eval = session.evaluation().expect("the inline seam landed");
+    pncad::select::all_edges(eval, node)
+}
+
+/// Feed one edge pick to the open tool the way the application does —
+/// through the selection op stream, which is what makes single-select
+/// and tool accumulation one mechanism rather than two.
+fn pick(tools: &mut Tools, edge: &EdgeSelection) -> Vec<ToolNotice> {
+    tools.feed(&[SessionOp::Select(Selection::Edge(edge.clone()))])
+}
+
+/// A node's single body's volume, with the seam pumped.
+fn body_volume(session: &mut DocSession, node: RecipeNodeId, tol: Tol) -> f64 {
+    session.pump();
+    let eval = session.evaluation().expect("the inline seam landed");
+    let ValuePayload::Body(body) = &eval
+        .value(node)
+        .unwrap_or_else(|| {
+            panic!(
+                "the node evaluated: {:?}",
+                eval.result(node).and_then(NodeResult::error)
+            )
+        })
+        .payload
+    else {
+        panic!("a blend evaluates to a body");
+    };
+    pncad::topo::mass_properties(body, tol)
+        .expect("mass properties")
+        .volume
+}
+
+/// The blend tool with every edge of `node` held, accumulated by
+/// PICKING them one at a time in a scrambled order — the affordance
+/// the plan specifies, not the all-edges shortcut.
+fn picked_all(session: &DocSession, node: RecipeNodeId) -> Tools {
+    let mut tools = Tools::new();
+    tools.open(ToolKind::Blend);
+    let mut edges = drawn_edges(session, node);
+    assert_eq!(edges.len(), BOX_EDGES, "a box draws twelve edges");
+    // Reversed, so a row that only passed for the index's own order
+    // would fail: the stored set is canonical whatever order the
+    // clicks arrived in.
+    edges.reverse();
+    for edge in &edges {
+        assert!(pick(&mut tools, edge).is_empty(), "every pick lands");
+    }
+    tools
+}
+
+/// The tool the tools value holds open, for a row that reads it.
+fn blend(tools: &Tools) -> &BlendTool {
+    tools.blend().expect("the blend tool is open")
+}
+
+/// Perform the op a tool committed, closing the tool exactly as the
+/// application does — when the edit LANDS, not when the button was
+/// clicked.
+fn commit(session: &mut DocSession, tools: &mut Tools, op: SessionOp) -> RecipeNodeId {
+    assert!(
+        tools.commits_open_tool(&op),
+        "the op is the open tool's one committed edit"
+    );
+    let node = insert(session, op);
+    tools.close();
+    assert_eq!(tools.open_kind(), None, "a landed edit closes its tool");
+    node
+}
+
+/// **The acceptance row**: a box authored from nothing, its twelve
+/// edges accumulated one click at a time, one fillet committed, and
+/// the inserted node's selection canonical.
+#[test]
+fn a_box_fillet_authors_from_picks_with_a_canonical_selection() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let target = boxed(&mut session, SIDE);
+    session.pump();
+    let mut tools = picked_all(&session, target);
+    assert_eq!(blend(&tools).count(), BOX_EDGES, "twelve edges held");
+    assert_eq!(
+        blend(&tools).target(),
+        Some(BlendTarget {
+            node: target,
+            body: 0
+        })
+    );
+
+    let op = blend(&tools)
+        .fillet_op(BLEND)
+        .expect("a tool holding edges commits");
+    let fillet = commit(&mut session, &mut tools, op);
+
+    let Some(Node::Fillet {
+        target: stored_target,
+        radius,
+        selection,
+    }) = session.committed_doc().node(fillet)
+    else {
+        panic!("the door minted a fillet");
+    };
+    assert_eq!(*stored_target, target);
+    assert_eq!(
+        *radius,
+        Expr::literal(BLEND, Dimension::Length).expect("finite"),
+        "the radius is a literal Length slot"
+    );
+    // CANONICAL: sorted, deduplicated, and equal as a set to what the
+    // all-edges door answers — the same twelve names either way.
+    let mut canonical = selection.clone();
+    canonical.sort();
+    canonical.dedup();
+    assert_eq!(
+        canonical, *selection,
+        "the stored selection is sorted and deduplicated"
+    );
+    assert_eq!(*selection, all_edge_names(&session, target));
+
+    // And it is a solid: a filleted cube has less volume than the cube.
+    let filleted = body_volume(&mut session, fillet, tol);
+    assert!(
+        filleted < SIDE.powi(3) && filleted > 0.9 * SIDE.powi(3),
+        "a 1 mm fillet takes a little off a 10 mm cube: {filleted}"
+    );
+}
+
+/// **The chamfer twin**: the same picks, the other door, the other
+/// node — and a different solid, because the size means a setback
+/// rather than a radius.
+#[test]
+fn the_chamfer_twin_authors_the_other_node_from_the_same_picks() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let target = boxed(&mut session, SIDE);
+    session.pump();
+    let mut tools = picked_all(&session, target);
+
+    let op = blend(&tools)
+        .chamfer_op(BLEND)
+        .expect("a tool holding edges commits");
+    let chamfer = commit(&mut session, &mut tools, op);
+
+    let Some(Node::Chamfer {
+        target: stored_target,
+        distance,
+        selection,
+    }) = session.committed_doc().node(chamfer)
+    else {
+        panic!("the door minted a chamfer");
+    };
+    assert_eq!(*stored_target, target);
+    assert_eq!(
+        *distance,
+        Expr::literal(BLEND, Dimension::Length).expect("finite")
+    );
+    assert_eq!(*selection, all_edge_names(&session, target));
+    // The size lands in the chamfer's OWN slot, which is what makes a
+    // reader able to tell what the number means off the node kind.
+    assert_eq!(
+        session
+            .committed_doc()
+            .node(chamfer)
+            .expect("the node is there")
+            .slots(),
+        vec![SlotId::ChamferDistance]
+    );
+
+    // A flat chamfer of setback d removes more than a fillet of radius
+    // d does: the fillet keeps the quarter-disc the chamfer cuts flat
+    // across. Asserted as an inequality between two authored solids
+    // rather than against a recorded number.
+    let chamfered = body_volume(&mut session, chamfer, tol);
+    let mut twin = session_with_fillet(tol);
+    let filleted = body_volume(&mut twin.0, twin.1, tol);
+    assert!(
+        chamfered < filleted,
+        "chamfer {chamfered} vs fillet {filleted}"
+    );
+}
+
+/// A second session holding the fillet the chamfer row compares
+/// against — same box, same set, same size.
+fn session_with_fillet(tol: Tol) -> (DocSession, RecipeNodeId) {
+    let mut session = session(tol);
+    let target = boxed(&mut session, SIDE);
+    session.pump();
+    let mut tools = picked_all(&session, target);
+    let op = blend(&tools).fillet_op(BLEND).expect("commits");
+    let fillet = commit(&mut session, &mut tools, op);
+    (session, fillet)
+}
+
+/// **The all-edges affordance**: the shipped door's answer, loaded
+/// into tool state as an ORDINARY set — the same twelve names twelve
+/// clicks would have accumulated, and nothing about the node it
+/// commits says where they came from.
+#[test]
+fn the_all_edges_door_loads_the_set_twelve_clicks_would_have() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let target = boxed(&mut session, SIDE);
+    session.pump();
+    let eval = session.evaluation().expect("the inline seam landed");
+
+    let mut tools = Tools::new();
+    tools.open(ToolKind::Blend);
+    let loaded = tools.blend_mut().expect("the tool is open").load_all_edges(
+        BlendTarget {
+            node: target,
+            body: 0,
+        },
+        eval,
+    );
+    assert!(loaded.is_none(), "the box has edges to load: {loaded:?}");
+    assert_eq!(blend(&tools).count(), BOX_EDGES);
+
+    // Identical to the picked set, tool state and all — which is the
+    // whole claim: "all edges" is materialized once and stored, never
+    // a live query the node would have to know about.
+    let picked = picked_all(&session, target);
+    assert_eq!(blend(&tools), blend(&picked));
+
+    let op = blend(&tools).fillet_op(BLEND).expect("commits");
+    let fillet = commit(&mut session, &mut tools, op);
+    assert_eq!(
+        session.committed_doc().node(fillet),
+        session_with_fillet(tol).0.committed_doc().node(fillet),
+        "the node is the one the clicks would have authored"
+    );
+}
+
+/// **A body with no edges loads nothing and says so**, rather than
+/// emptying the held set on the way to a refusal.
+#[test]
+fn the_all_edges_door_refuses_a_target_with_no_edges() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let target = boxed(&mut session, SIDE);
+    let datum = insert(
+        &mut session,
+        SessionOp::AddDatum {
+            datum: DatumSpec::Point {
+                position: [0.0, 0.0, 0.0],
+            },
+        },
+    );
+    session.pump();
+
+    let mut tools = picked_all(&session, target);
+    let eval = session.evaluation().expect("the inline seam landed");
+    let refused = tools.blend_mut().expect("open").load_all_edges(
+        BlendTarget {
+            node: datum,
+            body: 0,
+        },
+        eval,
+    );
+    assert_eq!(
+        refused,
+        Some(BlendEvent::NoEdgesOnTarget {
+            target: BlendTarget {
+                node: datum,
+                body: 0
+            }
+        })
+    );
+    assert_eq!(
+        blend(&tools).count(),
+        BOX_EDGES,
+        "a refused load costs no held edge"
+    );
+}
+
+/// **One target, and a mis-aimed click costs nothing.** A pick on a
+/// second body is refused typed; the eleven good picks stay.
+#[test]
+fn a_pick_on_another_body_is_refused_and_keeps_the_held_edges() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let first = boxed(&mut session, SIDE);
+    let second = boxed(&mut session, SIDE * 0.5);
+    session.pump();
+
+    let mut tools = picked_all(&session, first);
+    let stray = drawn_edges(&session, second)
+        .into_iter()
+        .next()
+        .expect("the second box draws edges");
+    let notices = pick(&mut tools, &stray);
+    assert_eq!(notices.len(), 1, "the declined pick is reported once");
+    let ToolNotice::Blend(BlendEvent::OtherTarget { held, picked }) = &notices[0] else {
+        panic!("expected a cross-target refusal, got {notices:?}");
+    };
+    assert_eq!(held.node, first);
+    assert_eq!(picked.node, second);
+    assert!(
+        notices[0].to_string().starts_with("blend tool: "),
+        "the sentence names its tool: {}",
+        notices[0]
+    );
+    assert_eq!(blend(&tools).count(), BOX_EDGES, "no held edge was lost");
+    assert!(!blend(&tools).holds(&stray.name), "and none was gained");
+
+    // The committed node is still the first box's, unchanged by the
+    // stray click.
+    let op = blend(&tools).fillet_op(BLEND).expect("commits");
+    let fillet = commit(&mut session, &mut tools, op);
+    assert!(matches!(
+        session.committed_doc().node(fillet),
+        Some(Node::Fillet { target, .. }) if *target == first
+    ));
+}
+
+/// **Per-pick add and remove**: picking a held edge again takes it
+/// out, and the live count follows.
+#[test]
+fn picking_a_held_edge_again_removes_it() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let target = boxed(&mut session, SIDE);
+    session.pump();
+    let edges = drawn_edges(&session, target);
+
+    let mut tools = Tools::new();
+    tools.open(ToolKind::Blend);
+    for edge in &edges[..3] {
+        assert!(pick(&mut tools, edge).is_empty());
+    }
+    assert_eq!(blend(&tools).count(), 3);
+    assert!(pick(&mut tools, &edges[1]).is_empty());
+    assert_eq!(blend(&tools).count(), 2, "the second pick came back out");
+    assert!(!blend(&tools).holds(&edges[1].name));
+    assert!(pick(&mut tools, &edges[1]).is_empty());
+    assert_eq!(blend(&tools).count(), 3, "and goes back in");
+    assert!(blend(&tools).holds(&edges[1].name));
+}
+
+/// **The survival step is all-or-nothing.** Losing the target body
+/// voids the whole set at once and says how many went; nothing here
+/// shrinks a set quietly.
+#[test]
+fn losing_the_target_voids_the_whole_set_and_says_so() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let target = boxed(&mut session, SIDE);
+    session.pump();
+    let mut tools = picked_all(&session, target);
+
+    assert!(
+        tools
+            .reconcile(session.doc(), session.landed_pair())
+            .is_empty(),
+        "a live target drops nothing"
+    );
+
+    assert!(
+        session
+            .perform(SessionOp::DeleteNode { node: target })
+            .refusal
+            .is_none()
+    );
+    session.pump();
+    let notices = tools.reconcile(session.doc(), session.landed_pair());
+    assert_eq!(notices.len(), 1, "one notice for the whole set");
+    let ToolNotice::Blend(BlendEvent::TargetLost {
+        target: lost,
+        edges,
+    }) = &notices[0]
+    else {
+        panic!("expected a lost target, got {notices:?}");
+    };
+    assert_eq!(lost.node, target);
+    assert_eq!(*edges, BOX_EDGES);
+    assert_eq!(blend(&tools).count(), 0);
+    assert_eq!(blend(&tools).target(), None);
+    assert_eq!(
+        blend(&tools)
+            .fillet_op(BLEND)
+            .expect_err("a tool holding no edges refuses"),
+        BlendError::NoEdges,
+        "and the commit door refuses rather than authoring an empty blend"
+    );
+}
+
+/// **A stranded selection refuses on the badge and does NOT shrink**
+/// — the ratified #217 semantics, seen from the authoring side.
+///
+/// The strand is minted the way a stale pick becomes one: a name from
+/// a body that is not the target. The TOOL cannot author this — its
+/// cross-target rule is exactly what stops it — so the row drives the
+/// session door, which is the API the tool is one caller of.
+#[test]
+fn a_stranded_selection_refuses_typed_rather_than_shrinking() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let target = boxed(&mut session, SIDE);
+    let spare = boxed(&mut session, SIDE * 0.5);
+    session.pump();
+
+    let mut selection = all_edge_names(&session, target);
+    let stray = all_edge_names(&session, spare)
+        .into_iter()
+        .next()
+        .expect("the spare box has edges");
+    selection.push(stray.clone());
+    let wanted = selection.len();
+
+    let fillet = insert(
+        &mut session,
+        SessionOp::AddFillet {
+            target,
+            radius: BLEND,
+            selection,
+        },
+    );
+    session.pump();
+
+    // The set is stored whole: thirteen names, one of which cannot
+    // resolve. Nothing dropped it on the way in.
+    let Some(Node::Fillet { selection, .. }) = session.committed_doc().node(fillet) else {
+        panic!("a fillet was authored");
+    };
+    assert_eq!(selection.len(), wanted, "the stranded name is still stored");
+    assert!(selection.contains(&stray));
+
+    // And evaluation refuses it, typed, on the node's own badge.
+    let eval = session.evaluation().expect("the inline seam landed");
+    let error = eval
+        .result(fillet)
+        .and_then(NodeResult::error)
+        .expect("the fillet refuses");
+    assert!(
+        matches!(error.kind, NodeErrorKind::BlendSelectionResolve { .. }),
+        "expected a selection-resolve refusal, got {:?}",
+        error.kind
+    );
+    let rows = tree::rows(session.committed_doc(), Some(eval));
+    let row = rows
+        .iter()
+        .find(|row| row.id == fillet)
+        .expect("the fillet has a tree row");
+    let RowStatus::Failed { message } = &row.status else {
+        panic!("the authored blend badges FAILED, got {:?}", row.status);
+    };
+    assert_eq!(
+        *message,
+        error.to_string(),
+        "the badge is the typed error's own rendering"
+    );
+}
+
+/// **The kernel's own blend refusal reaches the tree badge** from the
+/// authored path: a radius the geometry cannot take fails the node,
+/// and the row shows the kernel's words unaltered.
+#[test]
+fn a_blend_the_kernel_refuses_badges_on_the_authored_node() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let target = boxed(&mut session, SIDE);
+    session.pump();
+    let mut tools = picked_all(&session, target);
+
+    // A radius the size of the whole cube: the rolling ball does not
+    // fit, and the op refuses rather than passing the sharp box
+    // through.
+    let op = blend(&tools).fillet_op(SIDE).expect("commits");
+    let fillet = commit(&mut session, &mut tools, op);
+    session.pump();
+
+    let eval = session.evaluation().expect("the inline seam landed");
+    let error = eval
+        .result(fillet)
+        .and_then(NodeResult::error)
+        .expect("an over-large fillet refuses");
+    assert!(
+        matches!(error.kind, NodeErrorKind::Blend { .. }),
+        "the kernel's own refusal, carried unaltered: {:?}",
+        error.kind
+    );
+    let rows = tree::rows(session.committed_doc(), Some(eval));
+    let row = rows
+        .iter()
+        .find(|row| row.id == fillet)
+        .expect("the fillet has a tree row");
+    assert!(
+        matches!(&row.status, RowStatus::Failed { message } if *message == error.to_string()),
+        "the badge renders the typed refusal: {:?}",
+        row.status
+    );
+}
+
+/// **An authored blend saves and reloads**, bit for bit — which is
+/// also the canonical-form claim's other half: `persist`'s strict door
+/// treats a non-canonical selection on the wire as a corrupt file, so
+/// a reload that succeeds is a set that was canonical.
+#[test]
+fn an_authored_blend_saves_and_reloads() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let target = boxed(&mut session, SIDE);
+    session.pump();
+    let mut tools = picked_all(&session, target);
+    let op = blend(&tools).fillet_op(BLEND).expect("commits");
+    let fillet = commit(&mut session, &mut tools, op);
+    let volume = body_volume(&mut session, fillet, tol);
+
+    let dir = common::tempdir("gauth5-blend");
+    let path = dir.join("blended.pncad");
+    assert!(
+        session
+            .perform(SessionOp::Save(path.clone()))
+            .refusal
+            .is_none(),
+        "save"
+    );
+    let authored = session.committed_doc().clone();
+    assert!(
+        session.perform(SessionOp::Open(path)).refusal.is_none(),
+        "open"
+    );
+    assert!(
+        session.committed_doc().bit_eq(&authored),
+        "the reloaded document is the authored one, bit for bit"
+    );
+    let reloaded = body_volume(&mut session, fillet, tol);
+    assert_eq!(
+        volume.to_bits(),
+        reloaded.to_bits(),
+        "same solid after reload"
+    );
+}
+
+/// **The door's seat is a BODY**, and a target that is not one refuses
+/// typed at the door rather than after the edit lands.
+#[test]
+fn the_blend_door_refuses_a_target_that_is_not_a_body() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let target = boxed(&mut session, SIDE);
+    session.pump();
+    let selection = all_edge_names(&session, target);
+    let profile = insert(
+        &mut session,
+        SessionOp::AddProfile {
+            plane: SketchPlane::xy(),
+            loops: vec![ProfileShape::Rectangle {
+                width: SIDE,
+                height: SIDE,
+            }],
+        },
+    );
+
+    for op in [
+        SessionOp::AddFillet {
+            target: profile,
+            radius: BLEND,
+            selection: selection.clone(),
+        },
+        SessionOp::AddChamfer {
+            target: profile,
+            distance: BLEND,
+            selection: selection.clone(),
+        },
+    ] {
+        let outcome = session.perform(op);
+        assert!(outcome.committed.is_empty(), "nothing was authored");
+        assert!(
+            matches!(
+                outcome.refusal,
+                Some(Refusal::WrongNodeKind {
+                    node,
+                    wanted: NodeKindWanted::Body
+                }) if node == profile
+            ),
+            "expected a body-seat refusal, got {:?}",
+            outcome.refusal
+        );
+    }
+}
+
+/// **An empty set refuses at the TOOL door**, before an op exists —
+/// and the document-level rule is untouched: an empty selection that
+/// reaches a node refuses at evaluation on its badge, so a
+/// hand-written recipe gets the same answer.
+#[test]
+fn an_empty_set_refuses_at_the_tool_and_at_evaluation() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let target = boxed(&mut session, SIDE);
+    session.pump();
+
+    let mut tools = Tools::new();
+    tools.open(ToolKind::Blend);
+    assert_eq!(
+        blend(&tools)
+            .fillet_op(BLEND)
+            .expect_err("a tool holding no edges refuses"),
+        BlendError::NoEdges
+    );
+    assert_eq!(
+        blend(&tools)
+            .chamfer_op(BLEND)
+            .expect_err("a tool holding no edges refuses"),
+        BlendError::NoEdges
+    );
+    assert_eq!(
+        blend(&tools)
+            .fillet_op(BLEND)
+            .expect_err("a tool holding no edges refuses")
+            .to_string(),
+        "no edges picked yet"
+    );
+
+    // The op door itself admits one — a recipe is allowed to be
+    // unfinished — and evaluation is where it refuses.
+    let fillet = insert(
+        &mut session,
+        SessionOp::AddFillet {
+            target,
+            radius: BLEND,
+            selection: Vec::new(),
+        },
+    );
+    session.pump();
+    let eval = session.evaluation().expect("the inline seam landed");
+    assert!(
+        matches!(
+            eval.result(fillet)
+                .and_then(NodeResult::error)
+                .map(|e| &e.kind),
+            Some(NodeErrorKind::BlendSelectionEmpty { .. })
+        ),
+        "an empty selection refuses at evaluation"
+    );
+}
+
+/// **The blend tool is one of the modal tools**: it narrows the cursor
+/// to edges, it closes whatever was open, and whatever it opens over
+/// is closed.
+#[test]
+fn the_blend_tool_takes_its_place_among_the_modal_tools() {
+    assert_eq!(ToolKind::Blend.pick_kinds(), PickKinds::EdgesOnly);
+    assert!(ToolKind::ALL.contains(&ToolKind::Blend));
+
+    let mut tools = Tools::new();
+    tools.open(ToolKind::Blend);
+    assert_eq!(tools.pick_kinds(), PickKinds::EdgesOnly);
+    for kind in ToolKind::ALL {
+        tools.open(kind);
+        assert_eq!(tools.open_kind(), Some(kind), "one tool open, and it is it");
+        assert!(
+            ToolKind::ALL
+                .into_iter()
+                .filter(|&other| other != kind)
+                .all(|other| tools.open_kind() != Some(other))
+        );
+    }
+    tools.close();
+    assert_eq!(tools.open_kind(), None);
+    assert_eq!(tools.pick_kinds(), PickKinds::Any, "the bare cursor's rule");
+}
+
+/// **A closed tool takes no picks**, and neither does an open tool of
+/// another kind — the one-open rule is what makes the selection stream
+/// unambiguous.
+#[test]
+fn only_the_open_blend_tool_accumulates_edges() {
+    let tol = Tol::witness();
+    let mut session = session(tol);
+    let target = boxed(&mut session, SIDE);
+    session.pump();
+    let edge = drawn_edges(&session, target)
+        .into_iter()
+        .next()
+        .expect("the box draws edges");
+
+    let mut tools = Tools::new();
+    assert!(pick(&mut tools, &edge).is_empty());
+    assert!(tools.blend().is_none(), "nothing open takes nothing");
+
+    tools.open(ToolKind::Blend);
+    assert!(pick(&mut tools, &edge).is_empty());
+    assert_eq!(blend(&tools).count(), 1);
+    // Opening another tool replaces the whole value, picks and all.
+    tools.open(ToolKind::Boolean);
+    assert!(pick(&mut tools, &edge).is_empty());
+    tools.open(ToolKind::Blend);
+    assert_eq!(blend(&tools).count(), 0, "a re-opened tool starts over");
+}
+
+/// The two kinds' labels and their one Length field's meaning — the
+/// chrome's radio row read as a value, so the sentence a user sees is
+/// checked without a window.
+#[test]
+fn the_kind_choice_names_what_the_one_field_means() {
+    assert_eq!(
+        BlendKindChoice::ALL.map(|(kind, label)| (kind, label, kind.size_label())),
+        [
+            (BlendKindChoice::Fillet, "fillet", "radius (m)"),
+            (BlendKindChoice::Chamfer, "chamfer", "setback (m)"),
+        ]
+    );
+    assert_eq!(BlendKindChoice::default(), BlendKindChoice::Fillet);
+}

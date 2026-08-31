@@ -304,6 +304,17 @@ impl BlendTool {
     /// picks from another would be the cross-target rule broken from
     /// the inside. A target with no edges loads nothing and says so,
     /// rather than emptying the set on the way to a refusal.
+    ///
+    /// **The door answers per NODE, and this tool asks per (node,
+    /// body).** `all_edges` reads one node's name table, which for a
+    /// node whose value is several bodies covers all of them. The two
+    /// agree today because a blend's target must be a SINGLE body
+    /// (`crate::combine::denotes_body`, the seat the session door
+    /// applies), so every node this can usefully be asked about has
+    /// one body and the `body` field is 0. A vocabulary that let a
+    /// split's side or a pattern's instance be named as an operand
+    /// (issue #1394) is where the difference would start to matter,
+    /// and the honest place to widen this is here.
     pub fn load_all_edges(
         &mut self,
         target: BlendTarget,
@@ -330,6 +341,11 @@ impl BlendTool {
     /// **The survival step**, once per frame (module docs: why it is
     /// all-or-nothing). The target node leaving the document voids the
     /// whole set; nothing else here drops anything.
+    ///
+    /// It covers the DELETED-node case only, and the id-reuse hazard
+    /// it does not cover is the one [`crate::seats`] states for every
+    /// tool holding a `RecipeNodeId` across a history rewind (issue
+    /// #1384) — not restated here, and no narrower for holding a set.
     pub fn reconcile(&mut self, doc: &Doc<ProfileProgram>) -> Option<BlendEvent> {
         let target = self.target?;
         if doc.node(target.node).is_some() {

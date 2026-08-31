@@ -901,14 +901,18 @@ fn each_combining_tool_holds_its_picks_and_survives_a_vanished_one() {
     assert_eq!((pattern.input(), pattern.axis()), (None, None));
 }
 
-/// Which tools are actually holding state, read through the six
+/// Which tools are actually holding state, read through the per-tool
 /// accessors rather than through `open_kind`.
 ///
 /// `open_kind` is a PRIORITY SCAN: it answers with the first tool it
 /// finds open, so it cannot see a second one left behind it, and in
 /// half of the ordered pairs that is exactly where a leftover would
 /// be. The exclusivity row asserts on this instead.
-fn open_flags(tools: &Tools) -> [bool; 6] {
+///
+/// The array is `ToolKind::ALL`-wide and indexed by `ordinal`, so a
+/// tool added to the set widens it here and the exclusivity row keeps
+/// covering every pair without a count written out twice.
+fn open_flags(tools: &Tools) -> [bool; ToolKind::ALL.len()] {
     [
         tools.mate().is_some(),
         tools.revolve().is_some(),
@@ -916,6 +920,7 @@ fn open_flags(tools: &Tools) -> [bool; 6] {
         tools.split().is_some(),
         tools.transform().is_some(),
         tools.pattern().is_some(),
+        tools.blend().is_some(),
     ]
 }
 
@@ -925,7 +930,11 @@ fn open_flags(tools: &Tools) -> [bool; 6] {
 #[test]
 fn only_one_modal_tool_is_open_at_a_time() {
     let mut tools = Tools::new();
-    assert_eq!(open_flags(&tools), [false; 6], "nothing is open to start");
+    assert_eq!(
+        open_flags(&tools),
+        [false; ToolKind::ALL.len()],
+        "nothing is open to start"
+    );
     for opened in ToolKind::ALL {
         for previous in ToolKind::ALL {
             tools.open(previous);
@@ -935,7 +944,7 @@ fn only_one_modal_tool_is_open_at_a_time() {
                 Some(opened),
                 "opening {opened:?} over {previous:?}"
             );
-            let mut want = [false; 6];
+            let mut want = [false; ToolKind::ALL.len()];
             want[opened.ordinal()] = true;
             assert_eq!(
                 open_flags(&tools),
@@ -945,7 +954,11 @@ fn only_one_modal_tool_is_open_at_a_time() {
         }
     }
     tools.close();
-    assert_eq!(open_flags(&tools), [false; 6], "close empties every seat");
+    assert_eq!(
+        open_flags(&tools),
+        [false; ToolKind::ALL.len()],
+        "close empties every seat"
+    );
 }
 
 /// `ToolKind::ALL` is a hand-written list, and `ordinal` is the
@@ -1408,20 +1421,32 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
     }
 }
 
-/// **An open tool narrows what the cursor may pick, and only the mate
-/// tool narrows anything**: its alignment frames come off face
-/// geometry, where every seated tool holds NODE picks that a face and
-/// an edge answer equally well.
+/// **An open tool narrows what the cursor may pick to what that tool
+/// can actually use**, and a tool that can use either kind narrows
+/// nothing.
+///
+/// Two tools narrow, in opposite directions: the mate tool's alignment
+/// frames come off FACE geometry, and the blend tool blends EDGES. The
+/// seated tools hold node picks, which a face and an edge answer
+/// equally well, so they leave the bare cursor's rule alone.
+///
+/// The expectation is a match rather than a comparison against one
+/// named kind: a seventh tool has to state which side of this it is on
+/// before the row compiles.
 #[test]
-fn only_the_mate_tool_narrows_the_cursor() {
+fn each_tool_narrows_the_cursor_to_what_it_can_use() {
     let mut tools = Tools::new();
     assert_eq!(tools.pick_kinds(), PickKinds::Any, "the bare cursor's rule");
     for kind in ToolKind::ALL {
         tools.open(kind);
-        let want = if kind == ToolKind::Mate {
-            PickKinds::FacesOnly
-        } else {
-            PickKinds::Any
+        let want = match kind {
+            ToolKind::Mate => PickKinds::FacesOnly,
+            ToolKind::Blend => PickKinds::EdgesOnly,
+            ToolKind::Revolve
+            | ToolKind::Boolean
+            | ToolKind::Split
+            | ToolKind::Transform
+            | ToolKind::Pattern => PickKinds::Any,
         };
         assert_eq!(tools.pick_kinds(), want, "{kind:?}");
     }
