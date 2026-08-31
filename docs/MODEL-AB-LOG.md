@@ -2788,3 +2788,14 @@ trailer × eps 1e-12 DRAWN), R2 isolated from R1, briefs symmetric,
 no relaxations granted. Implementer difficulty M (pre-logged in
 the plan's MATE-4 entry, impl half, pre-draw). Sample number at
 merge. Row at merge.
+
+MATE-3 (PR #1423) ordinal FIXED AT DISPATCH (2026-09-01):
+**ordinal 1304** (S-MATE band 1300–1399). v6 dual: slot byte
+**237**, parity 1 ⇒ **R1 FABLE + R2 OPUS**; CONCURRENT on frozen
+`428a6c39` (run 33450949894 verified at dispatch: head SHA
+matches, conclusion success; gate point interval ASKED via
+trailer × eps 1e-6 DRAWN; the branch's first run's k-lint red was
+issue 1418's inherited pair, resolved on main before this head),
+R2 isolated from R1, briefs symmetric, no relaxations granted.
+Implementer difficulty L (pre-logged in the plan's opening commit,
+pre-draw). Sample number at merge. Row at merge.
