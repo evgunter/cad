@@ -2236,3 +2236,9 @@ claimed on the orchestrator branch per the #1095 shape, tiny docs PR to
 main at review dispatch). v6 DUAL, parity byte 118 ⇒ R1 OPUS +
 R2 FABLE, concurrent, briefs symmetric. Sample number assigned AT
 MERGE, in main's order per #1075. Row at merge.
+VERBS-GERMARMS PR-2 review ordinal fixed at dispatch (2026-08-31,
+PR #1353 open — frozen head `874a5ff3`): **ordinal 109** (VERBS
+band; claimed on the orchestrator branch per the #1095 shape,
+tiny docs PR to main at review dispatch). v6 DUAL, parity byte 30
+⇒ R1 OPUS + R2 FABLE, concurrent, briefs symmetric. Sample
+number assigned AT MERGE in main's order. Row at merge.

@@ -2674,3 +2674,28 @@ and escalated, not silenced; large-K lint still has zero signal
 (tracked there). #1077 closes with the PR. Tally candidates from
 ordinal 107 (both principal MAJs unilateral, class-annotated)
 await the blinded coding.
+## ORDINAL 109 CLAIMED — GERMARMS PR-2 dual (2026-08-31)
+
+PR-2 delivered on the re-cut spec's SECOND acceptance branch: the
+pinch is not carriable at this head; the intersecting equal-radius
+family refuses TYPED at the new GermFrameCylinderPinch door,
+reachable through the public API. The opening measurements: (a)
+the classic fixture's seam rulings are TANGENT to the partner
+wall exactly at the pinch points (derived for the whole family at
+every axis angle) so it dies two layers before the join; (b) the
+re-posed premise came back CLEANER than the re-cut expected — no
+chart-trim remainder anywhere in the family, every re-posed twin
+answering variant-for-variant across 20 poses. One enabling
+correction, declared: vertex_on_curved_face's fall-through
+premise ('vertices never interior to a face') is FALSIFIED by
+PR-1's own pierce vertex — the arm now answers no-event only on
+definite Elsewhere, agreeing with its planar twin. THE
+PRE-REGISTERED STOP FIRED on item 2: the chord lane needs a
+second variant (SectionCtx is plane-shaped; SectionConic holds
+one carrier vs the section's two ellipses; branch selection needs
+a point the kind-keyed signature lacks) — L→adjudication, built
+none of it. TWO DESIGN FORKS BANKED FOR EVAN (after the dual
+tests the measurements): the chord-lane widening, and the absent
+radius-equality declaration channel (also blocks SPHSPH's arms
+option (a)). Dual: parity byte 30 ⇒ R1 OPUS + R2 FABLE, frozen
+874a5ff3; claim to main at dispatch.
