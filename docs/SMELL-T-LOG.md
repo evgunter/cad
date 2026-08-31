@@ -78,6 +78,20 @@ consumer differential's printed digest was licensing a pinned seed for
 a cross-build comparison nobody schedules — so the digest went and the
 seeds became a real search.
 
+**Incident — the doc gate is red for every sweep-only PR, and not
+because of this lane.** T-a's run 3802 came back 20 of 21 jobs green,
+the failure being `rustdoc (gate)` on `crates/viewer/src/theme.rs`'s two
+app-feature intra-doc links. They are byte-identical on `main` and this
+lane opens no viewer file: what the lane did was DRAW the path that
+exposes them — the gate documents the viewer at DEFAULT features
+whenever the change filter says the viewer is not in the closure, which
+a sweep-only diff always is, while a viewer-touching PR takes the other
+path and resolves the links. So `main` is green over a break that reds
+this whole track. Filed as **#1330**, not fixed: `crates/viewer/` is
+outside the fence and the fix is a judgement about that module's prose.
+**Every Track T lane should expect this red until #1330 lands**, and
+should check the failing job is that one before believing it.
+
 **What the lane found and did not fix.** The `twisted_lofted` fixture's
 `theta` is not the body's roll: validation re-anchors each loop to its
 lex-min vertex and the loft pairs CANONICAL loops by index, so for
