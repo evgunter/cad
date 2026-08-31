@@ -8,8 +8,12 @@
 //! and the re-anchor door) by running the whole battery. These rows
 //! attack the same claim from the other side: a broad, deliberately
 //! cheap sweep over the product verbs, run in ONE row so the report is
-//! a LIST of offenders rather than the first one (nextest fail-fast,
-//! #1128, is the reason the unit's own two defects hid for so long).
+//! a LIST of offenders rather than the first one. That shape stands on
+//! its own — one row that enumerates beats N rows a reader has to
+//! collate — but the reason originally given for it does not: hosted CI
+//! truncating a red run to one failure per shard, which was real when
+//! these rows were written and is not true any more, since both sharded
+//! run steps now pass `--no-fail-fast`.
 //!
 //! The second group attacks the declaration-carrying claim: the unit
 //! says `EdgeAuthority::is_declared()` never flips silently across an
@@ -23,7 +27,7 @@ use geom::Surface;
 use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec2, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
-use sweep::fillet::fillet_edges;
+use sweep::blend::fillet_edges;
 use sweep::test_support::cube;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, loft_body, revolve};
 use topo::{Body, EdgeKey, FaceKey, ValidationError};
@@ -230,26 +234,20 @@ fn r2_no_product_verb_hands_back_a_scaffold_at_rest() {
     }
 
     // Shell.
-    if let Ok(body) = topo::shell(
-        &cube(1.0, Tol::witness()),
-        0.1,
-        1e-9,
-        band(),
-        Tol::witness(),
-    ) {
+    if let Ok(body) = topo::shell(&cube(1.0, Tol::witness()), 0.1, 1e-9, Tol::witness()) {
         bodies.push(("shell cube", body));
     }
-    if let Ok(body) = topo::shell(&tube(), 0.05, 1e-9, band(), Tol::witness()) {
+    if let Ok(body) = topo::shell(&tube(), 0.05, 1e-9, Tol::witness()) {
         bodies.push(("shell tube", body));
     }
 
     // Chamfer and fillet of the cube — the two verbs built on the
     // strut surgery whose six conversion sites the unit reverted.
     let c = cube(1.0, Tol::witness());
-    if let Ok(f) = sweep::chamfer::chamfer_edges(&c, &all_edges(&c), 0.1, band(), Tol::witness()) {
+    if let Ok(f) = sweep::chamfer::chamfer_edges(&c, &all_edges(&c), 0.1, Tol::witness()) {
         bodies.push(("chamfer cube (all edges)", f.body));
     }
-    if let Ok(f) = fillet_edges(&c, &all_edges(&c), 0.15, band(), Tol::witness()) {
+    if let Ok(f) = fillet_edges(&c, &all_edges(&c), 0.15, Tol::witness()) {
         bodies.push(("fillet cube (all edges)", f.body));
     }
     // A PARTIAL fillet: one face's four edges. Its struts run out onto
@@ -267,7 +265,7 @@ fn r2_no_product_verb_hands_back_a_scaffold_at_rest() {
             .map(|he| c.get_half_edge(he).unwrap().edge)
             .collect()
     };
-    match fillet_edges(&c, &one_face, 0.12, band(), Tol::witness()) {
+    match fillet_edges(&c, &one_face, 0.12, Tol::witness()) {
         Ok(f) => bodies.push(("fillet cube (one face's four edges)", f.body)),
         Err(e) => println!("[R2-S1] the one-face fillet refused: {e:?}"),
     }

@@ -202,6 +202,18 @@ use topo::Body;
 /// deviation pass. 6 is a judgment call about cost: the leaf of #320
 /// is a quarter-million triangles, and 28 samples each is already 7M
 /// surface evaluations.
+///
+/// **The triangle count is a reading of one corpus at one time and
+/// nothing re-takes it** — it moves with every scene added to the demo
+/// tour and with every δ. It is written to show the ORDER the judgment
+/// was made against, not as a figure anyone should compute with; the
+/// 28 beside it is arithmetic on this constant (the barycentric lattice
+/// at edge samples 6) and follows it. Nothing is guarded here and
+/// nothing should be: this constant costs only the deviation pass,
+/// which is what `--sizing-only` skips, and the CI gate reads none of
+/// the columns it fills (`scripts/tess_budget_sweep.sh` says so at the
+/// flag). What a reader chasing the current triangle count wants is a
+/// sweep's own output, not this line.
 pub const DEV_SAMPLES: usize = 6;
 
 /// The chart a face was tessellated on. Names the LANE's view, which
@@ -673,10 +685,47 @@ pub fn divisions(extent: f64, h: f64) -> f64 {
 /// the second. The `ceil` quantisation sits on TOP of the resolution
 /// these constants buy and is not theirs to control, which is why the
 /// shipped pair is not even locally best on the cell count.
+///
+/// **WHERE EACH FIGURE ABOVE COMES FROM, since they are three kinds of
+/// number and only one kind is re-taken.** The closed-form envelopes
+/// and the adjacent-sample-count row (321: 5.88%, 322: 3.64%, …) are
+/// DERIVED — [`unfloored_worst_excess`] and [`floored_worst_excess`]
+/// compute them from `(decades, samples)` alone, so the derivations
+/// suite re-takes them on every run of the row named below and a wrong
+/// one goes red. The two SUPREMA (2.0768% over 400,000 bounds, 2.0918%
+/// over 4.6 M) and the anisotropic member's 5.8824% are SAMPLED: taken
+/// once, off-CI, by random search over the floored class, and re-taken
+/// by nothing — a supremum over drawn bounds is not a property this
+/// crate exposes, and no assertion could hold one without pinning the
+/// draw that produced it. They are left unguarded deliberately, because
+/// what they establish is a DIRECTION: the floored class exceeds the
+/// unfloored bound, and the shipped pair sits outside its consumer's
+/// margin on the `ceil`'d count. That direction is what both levers
+/// below answer to. A re-search returning 2.3% would change nothing
+/// here; one returning 0.5% would, and would itself be a finding.
+///
+/// **The guard on this pair runs on the merge that moves it.** What
+/// boxes these two is this crate's own derivations suite, and the only
+/// k-lint unification that runs that suite is `dev-default` — one of
+/// five, drawn per run. A change anywhere under `tools/` now PINS that
+/// row rather than sampling it (`KLINT_PATH_ROWS` in
+/// `scripts/ci-filter.py`), so a retune here is gated by the guard it
+/// is about instead of by whichever row a hash picked.
 pub const SPLIT_SCAN_DECADES: f64 = 8.0;
 /// Samples per scan (fixed, so the answer is deterministic — D9).
 /// SAMPLES, not steps: a step in this crate's vocabulary is a UV
 /// increment, and these are trial aspect ratios.
+///
+/// **Provenance and guard are the PAIR's, at [`SPLIT_SCAN_DECADES`]
+/// directly above** — what the two buy is one quantity (the resolution
+/// of the aspect-ratio scan), no derivation reaches either alone, and
+/// the boxing test asserts them together. Read that paragraph before
+/// retuning this: it also records why the cell count these constants
+/// feed cannot carry a guard, and that a change under `tools/` now
+/// forces the CI row that runs the box rather than sampling it. Stated
+/// as a pointer and not a second copy, because the two constants moving
+/// apart in their documentation is the first step to their moving apart
+/// in fact.
 pub const SPLIT_SCAN_SAMPLES: usize = 321;
 
 /// The aspect ratios `t = h_v / h_u` a scan of `decades` either side of
@@ -827,6 +876,17 @@ pub fn floored_worst_excess(decades: f64, samples: usize) -> f64 {
     // Converged: the value is stable to eight significant figures from
     // 1,024 `r` samples upward, and D9 wants a fixed structure rather
     // than a tolerance-driven loop.
+    //
+    // THAT CONVERGENCE IS A ONE-TIME READING, TAKEN BY RAISING THIS
+    // CONSTANT AND WATCHING THE ANSWER, AND NOTHING RE-TAKES IT. It can
+    // be re-taken in one edit — raise `RATIOS`, run this crate's
+    // derivations suite, compare — which is why it earns a note rather
+    // than a guard: a test pinning the value to eight figures would pin
+    // the ARITHMETIC of this function, not its convergence, and would
+    // red on any legitimate refinement of the bound. The margin the
+    // constant is chosen against is generous by a factor of four
+    // deliberately, so a reader retuning it is moving away from the
+    // measured plateau rather than toward its edge.
     const RATIOS: usize = 4096;
     const PLACEMENT_STEPS: usize = 100;
     let step = 2.0 * split_scan_half_step(decades, samples) * std::f64::consts::LN_10;
@@ -1018,8 +1078,24 @@ pub fn best_split_steps(bound: Bound, du: f64, dv: f64, delta_s: f64) -> (f64, f
 /// constants and the helper untouched. Measured on the shipped `ceil`'d
 /// count over 200,000 random bounds, a 21-sample call site alone moves
 /// the reported cell count by +14.93% on average and +100% at worst,
-/// several times the growth margin `tools/tess-lint` allows. So the
-/// derivations suite asserts this function EQUALS
+/// several times the growth margin `tools/tess-lint` allows.
+///
+/// **PROVENANCE OF THAT PAIR, since it is what makes the guard below
+/// worth its cost.** It was measured once, off-CI, by driving the
+/// retuned call site against the shipped one over drawn bounds; nothing
+/// re-takes it, no register carries it, and no run would go red if it
+/// drifted — a sampling statistic over random bounds is not a property
+/// this crate exposes. What IS re-taken is the thing it argued for: the
+/// derivations suite pins the composition exactly, on a family chosen so
+/// each of the three retunes moves an assertion, and a change anywhere
+/// under `tools/` now PINS the k-lint row that runs that suite rather
+/// than sampling it (`KLINT_PATH_ROWS` in `scripts/ci-filter.py`). So
+/// the number is history and the guard is live, which is the right way
+/// round. The figure is stated HERE and nowhere else — the derivations
+/// row that holds this composition points at this paragraph rather than
+/// restating the pair, so the two cannot part.
+///
+/// So the derivations suite asserts this function EQUALS
 /// `split_scan(bound, du, dv, delta_s, shipped_split_scan_aspects(),
 /// Some(bound.steps), divisions)`, bit for bit and sample index
 /// included, on bounds that tell the three retunes apart.

@@ -435,9 +435,142 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 /// `docs/MODEL-AB-LOG.md`, where a second claimant collides instead of
 /// merging clean.
 ///
+/// Version 17 is **the measurement vocabulary** (ERROR-DESIGN E3/E10,
+/// CONTACT-DESIGN C5; M10-2): [`crate::Node`] gained TWO variants —
+/// `Measure`, carrying a measured expression over a frozen
+/// [`crate::names::StableName`] reference list, and `Assertion`,
+/// carrying a measure's node id, a bound expression and a direction.
+/// Both are file data, and the measured expression is a NEW wire
+/// vocabulary (`WireMeasureExpr`) beside the existing one.
+///
+/// The claim reasoning, stated because a schema number is the one
+/// thing in this repo that two units can silently agree on: this is
+/// the case v7, v13 and v2/v3/v8 bumped for — a new node arm.
+/// Forward-additive (a v16 file contains no measure), while the gate
+/// buys the direction that fails badly: a v17 file handed to a v16
+/// reader meets a variant its `deny_unknown_fields` node enum has no
+/// name for and dies inside serde rather than at the version door.
+/// The migration table stays empty and a v16 file refuses TYPED with
+/// the regenerate recourse.
+///
+/// A document with neither node writes the v16 bytes exactly — the
+/// degenerate carry, not the format claim, exactly as v15's all-`None`
+/// distributions were.
+///
+/// Taken by the same by-eye read of main's constant at the re-merge
+/// that every entry above describes, and not re-described here.
+/// What IS specific to this number: **it moved, and this is the
+/// record of the collision resolving.** This unit claimed 16 and said
+/// in its own ledger entry that LIB-G16's `Node::Chamfer` claimed it
+/// too, and that the rule is order of merge. LIB-G16 merged first
+/// (`a0427344`) and kept 16, so this unit took 17 and repaired what
+/// the rule says it owes: this entry, the `assert_eq!(SCHEMA_VERSION,
+/// ..)` rows, the golden filename, and the `plate_param`,
+/// bench-corpus and `gallery_ring` fixtures. The by-eye read at the
+/// re-merge is what caught it — the constant merged CLEAN at 16
+/// against 16, exactly as every entry above predicts.
+///
+/// Version 18 is **the rim-support name vocabulary re-spelled onto
+/// the carve's ROLES** (issue #961): [`crate::names::RimSupport`]'s
+/// variants are `Host`/`Mate` where they were `Plane`/`Curved`, so
+/// the persisted [`crate::RoleSeg::BandTrim`] segment names WHICH
+/// SUPPORT a band trimline lies on by the role the annulus surgery
+/// resolved rather than by a kind it guessed. A rim between two cones
+/// has no planar side and no distinguishing kind at all; the roles are
+/// what the surgery decides.
+///
+/// A stable name is FILE data — a node's frozen selection is recipe,
+/// and a selection can name a band trimline — so the spelling is on
+/// the wire and the break is not additive in EITHER direction, which
+/// is why it takes a number rather than riding one.
+///
+/// **Which gate actually fires, stated precisely, because the obvious
+/// answer is wrong.** A real v17 file never reaches serde at all: the
+/// VERSION DOOR refuses it first, `SchemaTooOld` with the regenerate
+/// recourse, exactly as v1–v16 are refused. A file from the future is
+/// refused there too (`UnknownSchema`), so the version header — not
+/// the role vocabulary — is the operative gate in both directions, and
+/// `blend5_r1_probes::a_newer_file_dies_at_the_version_door_not_on_the_role_variant`
+/// pins that ordering.
+///
+/// What the vocabulary itself buys is the case the version door cannot
+/// see: a HYBRID — v18 in the header, a retired variant in the body —
+/// which is what a hand-edited or half-migrated file is. That dies
+/// inside serde on the unknown variant name, and it does so because an
+/// externally-tagged enum rejects a variant it has no name for
+/// UNCONDITIONALLY. `deny_unknown_fields` has nothing to do with it:
+/// on an enum of unit-only variants that attribute is INERT (removing
+/// it leaves every row of the v18 suite green — R1 measured it), since
+/// it governs unknown FIELDS of struct-like variants and these have
+/// none. The earlier claim that it was the mechanism was wrong.
+///
+/// So: v17 and below refuse TYPED at the version door with the
+/// regenerate recourse, the migration table stays empty on the
+/// standing LQ7a disposition, and the number is owed because the
+/// bytes' MEANING moved — not because serde would otherwise let a
+/// stale spelling through.
+///
+/// (The appearance store is NOT the carrier: its door restricts
+/// attributes to face and body names, and a band trimline is an edge.)
+///
+/// A migration COULD rewrite `Plane` to `Host` and `Curved` to `Mate`
+/// — the mapping is total and meaning-preserving, because `Host` is
+/// the planar support wherever a rim has one, which is exactly what
+/// the old spelling claimed on every rim it could name honestly. What
+/// stops it being written is the standing rule, not the mapping: no
+/// migration machinery exists, the kernel is unreleased, and every
+/// file in this lineage replays from its own recipe. The mapping is
+/// recorded here because it is the CONTENT of the break — a v17
+/// document's rim selections mean the same thing under v18, spelled
+/// differently — and `blend5_schema_v18.rs` executes both halves.
+///
+/// Taken by the same by-eye read of main's constant at the re-merge
+/// (`git show origin/main:crates/editor-core/src/persist/mod.rs | grep
+/// SCHEMA_VERSION`) that every entry above describes.
+///
+/// Version 19 is **the half-turn display unit re-spelled `pi rad`**
+/// (GUI units row): the angle row of `quantity::UNITS` whose factor is
+/// π carries the surface symbol `pi rad` where it carried `pi`, so a
+/// unit picker offering it beside `deg` and `rad` reads as "multiples
+/// of π radians" rather than as the number π.
+///
+/// A display unit is FILE data — [`crate::persist::wire::WireExpr`]'s
+/// `Literal` persists the remembered unit as its SYMBOL STRING, and
+/// the rebuild resolves that string through `quantity::unit_by_symbol`
+/// — so the spelling is on the wire and the break is not additive in
+/// EITHER direction. A v18 body says `"pi"`, which a closed v19 table
+/// has no row for; a v19 body says `"pi rad"`, which a v18 table has
+/// no row for. Neither reader can carry the other's angle literals.
+///
+/// Which gate fires is the v18 story exactly: a real v18 file is
+/// refused at the VERSION DOOR first, `SchemaTooOld` with the
+/// regenerate recourse, and never reaches serde. What the number buys
+/// is the HYBRID — a v19 header over a body still saying `"pi"` — and
+/// that one dies typed at the rebuild's own door
+/// ([`crate::expr::Expr::literal_with_unit`]'s symbol lookup), which
+/// is the refusal the wire already had for an unknown symbol.
+///
+/// A migration COULD rewrite `"pi"` to `"pi rad"` — the mapping is
+/// total and meaning-preserving, because the row's quantity and factor
+/// did not move and every v18 literal spelled `"pi"` denotes exactly
+/// the half-turn the v19 spelling denotes. What stops it being written
+/// is the standing rule, not the mapping: no migration machinery
+/// exists (LQ7a), the kernel is unreleased, and every file in this
+/// lineage replays from its own recipe. The mapping is recorded here
+/// because it is the CONTENT of the break, and `pirad_schema_v19.rs`
+/// executes both halves.
+///
+/// A document with no angle literal authored in half-turns writes the
+/// v18 bytes exactly — the degenerate carry, as v15's all-`None`
+/// distributions and v17's measure-less documents were.
+///
+/// Taken by the same by-eye read of main's constant at the re-merge
+/// (`git show origin/main:crates/editor-core/src/persist/mod.rs | grep
+/// SCHEMA_VERSION`) that every entry above describes; it read 18.
+///
 /// Bump ONLY with a ratified format change — plus its
-/// [`migration_step`] entry, or a ratified break like these fifteen.
-pub const SCHEMA_VERSION: u32 = 16;
+/// [`migration_step`] entry, or a ratified break like these eighteen.
+pub const SCHEMA_VERSION: u32 = 19;
 
 /// The serialized body under the header: snapshot + edit log (D1).
 #[derive(serde::Serialize, serde::Deserialize)]

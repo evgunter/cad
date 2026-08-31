@@ -26,8 +26,8 @@ use std::fmt::Write as _;
 use geom::Surface;
 use geom_core::{Affine3, Band, Point2, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use sweep::blend::build::fillet_edges;
 use sweep::chamfer::chamfer_edges;
-use sweep::fillet::build::fillet_edges;
 use sweep::test_support::cube;
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
@@ -217,7 +217,7 @@ fn bitdump_die() {
         return;
     };
     let body = cube(1.0, Tol::witness());
-    let out = fillet_edges(&body, &all_edges(&body), 0.15, band(), Tol::witness()).unwrap();
+    let out = fillet_edges(&body, &all_edges(&body), 0.15, Tol::witness()).unwrap();
     let mut text = dump(&out.body);
     let _ = writeln!(
         text,
@@ -241,7 +241,7 @@ fn bitdump_pip_rims() {
     assert_eq!(rims.len(), 2, "the pip rim is two arcs");
     let mut all = box_edges;
     all.extend(rims);
-    let out = fillet_edges(&pipped, &all, 0.05, band(), Tol::witness()).unwrap();
+    let out = fillet_edges(&pipped, &all, 0.05, Tol::witness()).unwrap();
     let mut text = dump(&out.body);
     let _ = writeln!(
         text,
@@ -261,7 +261,7 @@ fn bitdump_chamfered_cube() {
         return;
     };
     let body = cube(1.0, Tol::witness());
-    let out = chamfer_edges(&body, &all_edges(&body), 0.1, band(), Tol::witness()).unwrap();
+    let out = chamfer_edges(&body, &all_edges(&body), 0.1, Tol::witness()).unwrap();
     let mut text = dump(&out.body);
     let _ = writeln!(
         text,
@@ -313,13 +313,13 @@ fn bitdump_shell_open_box_corpus() {
 
     let mut text = String::new();
     let _ = writeln!(text, "== box cup (top designated, t = 0.25) ==");
-    let cup = topo::shell_open(&body, 0.25, &top, 1e-6, band(), tol).unwrap();
+    let cup = topo::shell_open(&body, 0.25, &top, 1e-6, tol).unwrap();
     text.push_str(&dump(&cup));
     let _ = writeln!(text, "== box tube (both caps designated, t = 0.25) ==");
-    let tubey = topo::shell_open(&body, 0.25, &both, 1e-6, band(), tol).unwrap();
+    let tubey = topo::shell_open(&body, 0.25, &both, 1e-6, tol).unwrap();
     text.push_str(&dump(&tubey));
     let _ = writeln!(text, "== the SEALED box (t = 0.25) ==");
-    let sealed = topo::shell(&body, 0.25, 1e-6, band(), tol).unwrap();
+    let sealed = topo::shell(&body, 0.25, 1e-6, tol).unwrap();
     text.push_str(&dump(&sealed));
     save(&dir, "shell_open_box_corpus", &text);
 }

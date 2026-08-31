@@ -34,7 +34,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::NurbsCurve3;
-use geom_core::{Affine3, Mat3, Point3, Vec3};
+use geom_core::Point3;
 use sweep::sweep_body;
 
 mod common;
@@ -42,7 +42,7 @@ use common::orient::{
     FIXED_AXIS_GUARD_COS, LevelIndex, along_v, assert_caps_face_out, assert_walls_face_out,
     min_roll_turn, stack_axis,
 };
-use common::quad;
+use common::{normal_start_place, quad};
 use geom_core::Tol;
 
 /// Profile half-width: small against the helix radius, so the swept
@@ -69,25 +69,6 @@ fn helix_path(turns: f64) -> NurbsCurve3<f64> {
     NurbsCurve3::<f64>::interpolate(&pts, 3).unwrap()
 }
 
-/// The profile placement: plane through the path start, normal to the
-/// start tangent (the skinned demo's frame recipe — `sweep_places`
-/// carries this frame along the path by minimal rotation).
-fn start_place(path: &NurbsCurve3<f64>) -> Affine3<f64> {
-    let (lo, _) = path.domain();
-    let d = path.deriv(lo);
-    let n = d / d.norm();
-    let helper = if n.z.abs() < 0.9 {
-        Vec3::new(0.0, 0.0, 1.0)
-    } else {
-        Vec3::new(1.0, 0.0, 0.0)
-    };
-    let u = helper.cross(n);
-    let u = u / u.norm();
-    let v = n.cross(u);
-    let p = path.eval(lo);
-    Affine3::from_parts(Mat3::from_cols(u, v, n), Vec3::new(p.x, p.y, p.z))
-}
-
 /// The interpolant's arc length by dense chordal summation — the
 /// oracle's `L`, independent of every kernel meter.
 fn chordal_length(path: &NurbsCurve3<f64>, samples: usize) -> f64 {
@@ -110,7 +91,7 @@ fn chordal_length(path: &NurbsCurve3<f64>, samples: usize) -> f64 {
 /// Pappus `A·L` oracle (asserting the pad stays orders tighter).
 fn helix_oracle_gap(turns: f64, stations: usize) -> f64 {
     let path = helix_path(turns);
-    let place = start_place(&path);
+    let place = normal_start_place(&path);
     let profile = quad([(-H, -H), (H, -H), (H, H), (-H, H)]);
     let swept = sweep_body::<f64>(&profile, place, &path, stations, 3, Tol::witness())
         .unwrap_or_else(|e| panic!("a {turns}-turn helical sweep must build now: {e:?}"));
@@ -253,7 +234,7 @@ const PROBE_DELTA: f64 = 0.02;
 ///   than it looked.
 fn assert_helix_walls_face_out(turns: f64, stations: usize) {
     let path = helix_path(turns);
-    let place = start_place(&path);
+    let place = normal_start_place(&path);
     let profile = quad([(-H, -H), (H, -H), (H, H), (-H, H)]);
     let swept = sweep_body::<f64>(&profile, place, &path, stations, 3, Tol::witness())
         .unwrap_or_else(|e| panic!("a {turns}-turn helical sweep must build: {e:?}"));

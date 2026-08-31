@@ -47,13 +47,44 @@ fn digest(ev: &editor_core::Evaluation<f64>) -> u64 {
 
 /// The pinned digest per registered document, in registry order.
 ///
-/// Two rows are worth a reader's second look, and neither is a bug.
+/// `die_composed_tour` is the row this file was built to be able to
+/// take. The measurement that motivated the gate — "do two documents
+/// with the same recipe have the same name table" — had to be made by
+/// hand against the demo tour's composed die, because that document
+/// lived only in `demos/tour` and no registered document was its
+/// equal. LIB-CORPUS-DIE registered it (as committed bytes the tour
+/// regenerates — `corpus::die_composed_tour`), so the hand
+/// measurement is now this number: forty-two rim arcs and twelve box
+/// edges named through twenty pairwise unions, in one pin.
+///
+/// Two more rows are worth a reader's second look, and neither is a bug.
 ///
 /// `die` is `0x8d2e4c613057071e` — the same number
 /// `m4_pr3_names_ci::DIE_TABLE_DIGEST` carries, because it is the same
 /// digest of the same tables. The two pins agreeing is a cross-check,
 /// not a duplication: that one covers the die FIXTURE through its own
 /// bump rows, this one covers the registry.
+///
+/// `measured_web` (M10-2) was ADDED to this table when its document
+/// joined the registry, and the add is the header's "one row moves"
+/// claim being MEASURED rather than restated: the re-cut printed
+/// nineteen numbers identical to the ones already pinned here and one
+/// new row. A measurement sink denotes no body and mints no name of
+/// its own, so it moves neither the geometry fence nor any other
+/// document's names.
+///
+/// `die_composed` and `die_composed_tour` are the only registered
+/// documents that carve a CLOSED chain, so they are the only two whose
+/// tables carry the rim-phase roles at all (four band trimlines and
+/// eighty-four respectively; every other row's tables have none). A
+/// change to the rim vocabulary therefore moves exactly these two
+/// numbers, and a change that moves a third is not about rims.
+///
+/// That census is not prose to be trusted: it is computed by
+/// `blend5_r1_probes::the_recorded_band_trim_counts_are_executable`
+/// (and again by `blend5_r2_probes`'s), which walks the same registry
+/// and fails if any of the three numbers drifts. Read the claim here,
+/// believe it there.
 ///
 /// `die_fillet` and `die_chamfer` are IDENTICAL, and that is what
 /// RECIPE-DOORS D3 says should happen. The two documents are the same
@@ -78,6 +109,7 @@ const PINNED: &[(&str, u64)] = &[
     ("declared_tangency", 0xdef9_76c6_1d04_25bb),
     ("kitchen_sink", 0xc624_18ea_8ee0_e5aa),
     ("cut_cylinder", 0xc461_0a86_1d7e_379b),
+    ("measured_web", 0x9a4c_06c4_6086_685b),
     ("boss_union", 0xefcb_deb5_ef3a_3873),
     ("die_fillet", 0xb6ab_9ad5_a321_15f2),
     ("die_chamfer", 0xb6ab_9ad5_a321_15f2),
@@ -85,7 +117,8 @@ const PINNED: &[(&str, u64)] = &[
     ("heat_sink_fins", 0xae39_7800_c351_3248),
     ("die_tool", 0x9e24_4be7_b06b_9a40),
     ("loft_prism", 0x7318_e99f_2b22_dafb),
-    ("die_composed", 0xbc4f_5faa_1652_f266),
+    ("die_composed", 0xc801_9fd6_e360_ce3e),
+    ("die_composed_tour", 0x2813_3d38_1e83_f02d),
     ("plate_param", 0x3bfe_3e78_5eec_a227),
 ];
 

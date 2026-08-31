@@ -308,6 +308,385 @@ pub fn analyzed_box<P>(doc: &Doc<P>, policy: &AnalysisPolicy) -> AnalyzedBox {
     AnalyzedBox { params }
 }
 
+/// **A scalar that can carry a parameter-box axis** — the door INTO the
+/// lane, as [`geom_core::Bounds`] is the door out.
+///
+/// [`Self::axis`] answers the tightest value of `Self` enclosing the
+/// OFFSET span `[lo, hi]`, or `None` when this scalar has no such value.
+/// Offsets rather than absolute values, because the caller adds the
+/// nominal in the scalar's own arithmetic: at the interval scalar
+/// `nominal + [lo, hi]` rounds OUTWARD and therefore encloses the true
+/// span, where a pre-rounded `[nominal + lo, nominal + hi]` computed in
+/// `f64` may not.
+///
+/// A point scalar answers `None` for a widened axis, and that is the
+/// whole content of the trait: an `f64` build over a box with any width
+/// in it is not a narrower answer, it is a different question, and the
+/// evaluation service refuses it rather than silently evaluating at the
+/// nominals.
+pub trait AxisScalar: geom_core::Real {
+    /// The tightest enclosure of the offset span `[lo, hi]`, or `None`
+    /// when this scalar cannot represent it.
+    fn axis(lo: f64, hi: f64) -> Option<Self>;
+}
+
+/// A point scalar carries only a degenerate axis, and the comparison is
+/// by BITS — which is STRICTER than `==` and deliberately so. `-0.0`
+/// and `0.0` are the same offset arithmetically, so `[-0.0, 0.0]` is a
+/// degenerate axis that this door nonetheless refuses. That is the
+/// conservative direction: an axis whose two ends were written
+/// differently is refused rather than quietly accepted, the door is
+/// asked once per parameter per evaluation so the strictness costs
+/// nothing, and a caller who means "fixed" has [`BoxAxis::Fixed`] to
+/// say it with.
+impl AxisScalar for f64 {
+    fn axis(lo: f64, hi: f64) -> Option<Self> {
+        (lo.to_bits() == hi.to_bits()).then_some(lo)
+    }
+}
+
+/// The recording scalar is `f64` with a sink attached (`Decide`
+/// delegates and records), so it carries exactly what `f64` carries.
+#[cfg(feature = "probe")]
+impl AxisScalar for geom_core::Probe {
+    fn axis(lo: f64, hi: f64) -> Option<Self> {
+        f64::axis(lo, hi).map(geom_core::Probe)
+    }
+}
+
+/// The interval scalar carries every axis: this is the door
+/// [`geom_core::Interval::from_bounds`] exists for.
+#[cfg(feature = "interval")]
+impl AxisScalar for geom_core::Interval {
+    fn axis(lo: f64, hi: f64) -> Option<Self> {
+        Some(geom_core::Interval::from_bounds(lo, hi))
+    }
+}
+
+/// A dual carries whatever its value channel carries, with a ZERO
+/// tangent: a box axis is an enclosure, not a seed. Seeding a parameter
+/// is a separate act on the same environment and stays that way — a box
+/// that silently seeded would make "the derivative with respect to what"
+/// a property of the analysis box.
+impl<T: AxisScalar> AxisScalar for geom_core::Dual<T>
+where
+    geom_core::Dual<T>: geom_core::Real,
+{
+    fn axis(lo: f64, hi: f64) -> Option<Self> {
+        T::axis(lo, hi).map(geom_core::Dual::constant)
+    }
+}
+
+/// One axis of a [`ParamBox`]: the offsets the box spans on that
+/// parameter, around the document's nominal.
+///
+/// **`Fixed` is spelled, never omitted.** A parameter with no
+/// distribution contributes mass 1 to every leaf, and that is a
+/// modelling statement (E2's opt-in rule) rather than a convention each
+/// consumer re-derives from a missing entry — so the box type carries
+/// the distinction and [`ParamBox::mass`] reads it off the type.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum BoxAxis {
+    /// The parameter does not vary: the axis is the nominal point, and
+    /// its mass is 1 under every measure.
+    Fixed,
+    /// The parameter varies over these offsets. Unlike
+    /// [`OffsetInterval`] this need NOT contain zero: a leaf of the
+    /// subdivision generally sits off the nominal.
+    Varying {
+        /// Lower offset.
+        lo: f64,
+        /// Upper offset.
+        hi: f64,
+    },
+}
+
+impl BoxAxis {
+    /// The offsets this axis spans (`(0, 0)` when fixed).
+    pub fn span(&self) -> (f64, f64) {
+        match *self {
+            Self::Fixed => (0.0, 0.0),
+            Self::Varying { lo, hi } => (lo, hi),
+        }
+    }
+
+    /// `hi - lo` (`0.0` when fixed).
+    pub fn width(&self) -> f64 {
+        let (lo, hi) = self.span();
+        hi - lo
+    }
+
+    /// The axis midpoint, `0.5 * (lo + hi)` — a pure function of the
+    /// two endpoints, so the same axis bisects the same way on every
+    /// machine and in every schedule (D9).
+    ///
+    /// ONE home, because two consumers must not drift apart:
+    /// [`ParamBox::split`] cuts here, and the driver's K-telemetry
+    /// replay samples here. The second is only meaningful because it is
+    /// the same point as the first — the margins it feeds the funnel
+    /// are "where refinement stopped", which is a claim about where
+    /// the splits were.
+    pub fn midpoint(&self) -> f64 {
+        let (lo, hi) = self.span();
+        0.5 * (lo + hi)
+    }
+}
+
+/// A sub-box of the [`AnalyzedBox`]: one [`BoxAxis`] per continuous
+/// document parameter, in name order. Derived, never stored.
+///
+/// The root box is [`ParamBox::of`] an analyzed box; every other box is
+/// a [`ParamBox::split`] descendant of one. `Count` parameters are not
+/// axes (E0's term hygiene) and never appear here.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct ParamBox {
+    axes: BTreeMap<ParamName, BoxAxis>,
+}
+
+/// A box that cannot be turned into an environment.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ParamBoxError {
+    /// The box names a parameter the document does not carry as a
+    /// continuous parameter.
+    UnknownParam {
+        /// The unmatched name.
+        param: ParamName,
+    },
+    /// The evaluation scalar cannot represent this axis — an `f64` (or
+    /// `Probe`) build asked to run over a box with width in it. Refused
+    /// rather than narrowed: evaluating at the nominals would answer a
+    /// different question in the same shape.
+    AxisUnrepresentable {
+        /// The axis that does not fit the scalar.
+        param: ParamName,
+        /// The lower offset asked for.
+        lo: f64,
+        /// The upper offset asked for.
+        hi: f64,
+    },
+}
+
+impl core::fmt::Display for ParamBoxError {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::UnknownParam { param } => write!(
+                f,
+                "the parameter box names {:?}, which is not a continuous parameter of this document",
+                param.0
+            ),
+            Self::AxisUnrepresentable { param, lo, hi } => write!(
+                f,
+                "parameter {:?} spans offsets [{lo}, {hi}] and this evaluation scalar carries no \
+                 such value — a widened box needs an enclosing scalar",
+                param.0
+            ),
+        }
+    }
+}
+
+impl ParamBox {
+    /// The root box of an analyzed box: every axis at its full analyzed
+    /// offsets, and every unannotated parameter [`BoxAxis::Fixed`].
+    pub fn of(analyzed: &AnalyzedBox) -> Self {
+        let axes = analyzed
+            .params()
+            .iter()
+            .map(|(name, p)| {
+                let axis = if p.offsets.is_fixed() {
+                    BoxAxis::Fixed
+                } else {
+                    BoxAxis::Varying {
+                        lo: p.offsets.lo,
+                        hi: p.offsets.hi,
+                    }
+                };
+                (name.clone(), axis)
+            })
+            .collect();
+        Self { axes }
+    }
+
+    /// A box from explicit axes — the door for a box that is not a
+    /// [`Self::split`] descendant of an analyzed box (the driver's
+    /// degenerate midpoint box, for one).
+    pub fn from_axes(axes: BTreeMap<ParamName, BoxAxis>) -> Self {
+        Self { axes }
+    }
+
+    /// The axes, by parameter name.
+    pub fn axes(&self) -> &BTreeMap<ParamName, BoxAxis> {
+        &self.axes
+    }
+
+    /// One axis, by name.
+    pub fn get(&self, name: &ParamName) -> Option<&BoxAxis> {
+        self.axes.get(name)
+    }
+
+    /// The axes that vary — the box's non-degenerate dimensions.
+    pub fn varying(&self) -> impl Iterator<Item = (&ParamName, f64, f64)> {
+        self.axes.iter().filter_map(|(n, a)| match *a {
+            BoxAxis::Fixed => None,
+            BoxAxis::Varying { lo, hi } => Some((n, lo, hi)),
+        })
+    }
+
+    /// The DETERMINISTIC split axis (D9): the varying axis of greatest
+    /// width RELATIVE to `root`'s width on that axis, ties broken to the
+    /// lowest axis index — which is name order, the order every box
+    /// iterates in. `None` when nothing varies.
+    ///
+    /// Relative rather than absolute because axes carry different
+    /// dimensions and different spreads: a 10 mm band and a 0.01°
+    /// band are not comparable as numbers, and bisecting the numerically
+    /// widest would subdivide one axis forever. Relative width is
+    /// dimensionless and is 1 on every axis of the root box, so the
+    /// recursion refines the box uniformly.
+    pub fn split_axis(&self, root: &Self) -> Option<ParamName> {
+        let mut best: Option<(ParamName, f64)> = None;
+        for (name, lo, hi) in self.varying() {
+            let full = root.get(name).map_or(0.0, BoxAxis::width);
+            // A varying axis of a box whose root axis is degenerate has
+            // no relative width to speak of; rank it by its own width so
+            // it is still splittable rather than silently unsplittable.
+            let rel = if full > 0.0 {
+                (hi - lo) / full
+            } else {
+                hi - lo
+            };
+            // STRICTLY greater keeps the tie on the earlier name, which
+            // is the tie-break the rule names.
+            if best.as_ref().is_none_or(|(_, b)| rel > *b) {
+                best = Some((name.clone(), rel));
+            }
+        }
+        best.map(|(n, _)| n)
+    }
+
+    /// The two halves of this box across `name`, bisected at the axis
+    /// midpoint. `None` when the axis is absent, fixed, or too narrow to
+    /// split (a midpoint that lands on an endpoint — the `f64` grid's
+    /// own floor).
+    ///
+    /// The midpoint is `0.5 * (lo + hi)`, a pure function of the two
+    /// endpoints, so the same box splits into the same two halves on
+    /// every machine and in every schedule (D9).
+    pub fn split(&self, name: &ParamName) -> Option<(Self, Self)> {
+        let BoxAxis::Varying { lo, hi } = *self.axes.get(name)? else {
+            return None;
+        };
+        let mid = BoxAxis::Varying { lo, hi }.midpoint();
+        if !(lo < mid && mid < hi) {
+            return None;
+        }
+        let mut a = self.clone();
+        let mut b = self.clone();
+        a.axes
+            .insert(name.clone(), BoxAxis::Varying { lo, hi: mid });
+        b.axes
+            .insert(name.clone(), BoxAxis::Varying { lo: mid, hi });
+        Some((a, b))
+    }
+
+    /// This box's mass under the product measure (E2's independence):
+    /// the product over axes of each axis's own mass.
+    ///
+    /// A [`BoxAxis::Fixed`] axis contributes exactly 1 — the typed
+    /// spelling of E2's opt-in rule, read off the axis rather than
+    /// inferred. A [`Band`](Distribution::Band) axis refuses, naming the
+    /// parameter, unless this box covers its whole support or misses it
+    /// entirely: pricing is where a band stops, never certification.
+    pub fn mass(&self, analyzed: &AnalyzedBox) -> Result<f64, MeasureUnavailable> {
+        let mut m = 1.0;
+        for (name, axis) in &self.axes {
+            m *= match *axis {
+                BoxAxis::Fixed => 1.0,
+                BoxAxis::Varying { lo, hi } => match analyzed.axis_box_mass(name, (lo, hi)) {
+                    Some(r) => r?,
+                    // AN AXIS `analyzed` DOES NOT CARRY PRICES ZERO,
+                    // and that is a contract on the caller rather than
+                    // a measure claim: this door prices a box against
+                    // the analyzed box it is a sub-box OF, and a name
+                    // the analyzed box has never heard of is not a
+                    // parameter of that document. Unreachable through
+                    // [`crate::drive::drive`], which only ever prices
+                    // `split` descendants of `ParamBox::of(analyzed)`;
+                    // reachable by pairing a [`ParamBox::from_axes`]
+                    // box with a foreign `analyzed`, which is a caller
+                    // error, and zero is the answer that makes it show
+                    // up as missing mass rather than as invented mass.
+                    None => 0.0,
+                },
+            };
+        }
+        Ok(m)
+    }
+
+    /// Whether this box touches the boundary of `root` — some axis of it
+    /// sits at one of the root axis's own endpoints.
+    ///
+    /// The free predicate E2's chamber-containment amendment asks for:
+    /// containment holds when every boundary-touching leaf is
+    /// `FlipCrossing`-refused.
+    /// An axis `root` does not carry reads as the degenerate span
+    /// `(0.0, 0.0)`, so any varying axis of `self` counts as touching
+    /// it — the same caller contract [`Self::mass`] states, resolved in
+    /// the same conservative direction (a box whose root is not its own
+    /// root is reported as reaching the boundary, never as interior).
+    pub fn touches_boundary_of(&self, root: &Self) -> bool {
+        self.varying().any(|(name, lo, hi)| {
+            let (rlo, rhi) = root.get(name).map_or((0.0, 0.0), |a| a.span());
+            lo <= rlo || hi >= rhi
+        })
+    }
+}
+
+/// The parameter environment of `doc`'s nominals WIDENED by `box_` —
+/// the interval parameter door (E6's leaf replay reads through this).
+///
+/// Each axis binds `nominal + [lo, hi]`, formed in the scalar's own
+/// arithmetic so the enclosure rounds outward; `Count` parameters bind
+/// exactly as [`Doc::param_env`] binds them (they are structural, never
+/// axes). A parameter the box does not name binds its nominal.
+///
+/// # Errors
+///
+/// [`ParamBoxError::UnknownParam`] when the box names a parameter the
+/// document does not have; [`ParamBoxError::AxisUnrepresentable`] when
+/// `T` cannot carry a widened axis.
+pub fn param_env_over<T: AxisScalar, P>(
+    doc: &Doc<P>,
+    box_: &ParamBox,
+) -> Result<crate::expr::ParamEnv<T>, ParamBoxError> {
+    for name in box_.axes.keys() {
+        if !matches!(doc.params().get(name), Some(DocParam::Continuous { .. })) {
+            return Err(ParamBoxError::UnknownParam {
+                param: name.clone(),
+            });
+        }
+    }
+    let mut bindings = BTreeMap::new();
+    for (name, p) in doc.params() {
+        let v = match *p {
+            DocParam::Continuous { dim, value, .. } => {
+                let (lo, hi) = box_.get(name).map_or((0.0, 0.0), BoxAxis::span);
+                let offset = T::axis(lo, hi).ok_or_else(|| ParamBoxError::AxisUnrepresentable {
+                    param: name.clone(),
+                    lo,
+                    hi,
+                })?;
+                crate::expr::ParamValue::Continuous {
+                    dim,
+                    value: T::from_f64(value) + offset,
+                }
+            }
+            DocParam::Count { value } => crate::expr::ParamValue::Count(value),
+        };
+        bindings.insert(name.clone(), v);
+    }
+    Ok(crate::expr::ParamEnv { bindings })
+}
+
 /// Why a mass could not be computed.
 #[derive(Debug, Clone, PartialEq)]
 pub enum MeasureUnavailable {

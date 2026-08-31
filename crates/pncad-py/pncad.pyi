@@ -514,7 +514,7 @@ m: Final[LengthUnit]
 inch: Final[LengthUnit]  # `in` is a Python keyword; `quantity` spells it IN
 deg: Final[AngleUnit]
 rad: Final[AngleUnit]
-pi: Final[AngleUnit]  # the half-turn: a NOTATION carried as a unit row
+pi_rad: Final[AngleUnit]  # the half-turn, symbol `pi rad`: a NOTATION carried as a unit row
 
 # --- profile authoring: the PATHS lattice ------------------------------
 # PATHS-DESIGN §2. The tip's state is exactly which of {position,
@@ -1621,10 +1621,12 @@ class SplitHalf:
     Below: Final[SplitHalf]
 
 class RimSupport:
-    """Which support of a rim blend (`SegPat.side`)."""
+    """Which support of a rim blend, by its ROLE in the carve
+    (`SegPat.side`): `Host` is the planar support wherever the rim has
+    one, `Mate` the other side."""
 
-    Plane: Final[RimSupport]
-    Curved: Final[RimSupport]
+    Host: Final[RimSupport]
+    Mate: Final[RimSupport]
 
 class CurveKind:
     """Which curve variant an edge's certified carrier is — the EXACT
@@ -1839,6 +1841,35 @@ class Datum:
     @property
     def direction(self) -> Optional[tuple[float, float, float]]: ...
 
+class Measurement:
+    """A `Measure` node's evaluated quantity: the value with the F1
+    dimension it was measured in. Values are canonical kernel units
+    (metres, radians); `length` is the typed spelling for a Length."""
+
+    @property
+    def dimension(self) -> str: ...
+    @property
+    def value(self) -> float: ...
+    @property
+    def length(self) -> Optional[Length]: ...
+
+class Verdict:
+    """An `Assertion` node's verdict — REPORT ONLY: reading it changes
+    nothing about the document, and a violated assertion gates no
+    build. Three states, kept three: `holds` is None where the run's
+    tolerance could not separate the measurement from the bound."""
+
+    @property
+    def status(self) -> str: ...
+    @property
+    def holds(self) -> Optional[bool]: ...
+    @property
+    def measured(self) -> Optional[float]: ...
+    @property
+    def bound(self) -> Optional[float]: ...
+    @property
+    def reason(self) -> Optional[str]: ...
+
 # --- detect / declare -------------------------------------------------
 # The flush-contact protocol's value vocabulary. A finding is a
 # REPORT: `Evaluation.find_flush_candidates` answers with them, the
@@ -1907,6 +1938,8 @@ class Value:
     def bodies(self) -> list[Body]: ...
     def split(self) -> tuple[Optional[Body], Optional[Body]]: ...
     def datum(self) -> Datum: ...
+    def measure(self) -> Measurement: ...
+    def assertion(self) -> Verdict: ...
 
 class Pose:
     """A frame read off stored geometry: an origin plus the carrier's

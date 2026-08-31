@@ -13,16 +13,10 @@
 use core::f64::consts::PI;
 
 use geom_brep::EdgeDescription;
-use geom_core::Band;
 use geom_core::Tol;
-use sweep::fillet::{FilletError, Filleted, fillet_edges};
+use sweep::blend::{BlendError, Filleted, fillet_edges};
 use sweep::test_support::cube;
 use topo::{Body, EdgeKey, FaceKey};
-
-fn band() -> Band {
-    let tol = Tol::witness().get();
-    Band::new(tol.eps, tol.k * tol.eps).unwrap()
-}
 
 fn all_edges(body: &Body<f64>) -> Vec<EdgeKey> {
     body.edges().map(|(k, _)| k).collect()
@@ -32,7 +26,7 @@ fn die(l: f64, r: f64) -> Filleted<f64> {
     let body = cube(l, Tol::witness());
     let edges = all_edges(&body);
     assert_eq!(edges.len(), 12, "a box has twelve edges");
-    fillet_edges(&body, &edges, r, band(), Tol::witness()).expect("the die body")
+    fillet_edges(&body, &edges, r, Tol::witness()).expect("the die body")
 }
 
 /// The acceptance row: the whole rounded die, top to bottom.
@@ -145,10 +139,10 @@ fn the_die_is_tier3_valid_at_a_second_radius() {
 fn a_subset_of_the_edges_refuses_at_the_assembly_front_door() {
     let body = cube(1.0, Tol::witness());
     let edges = all_edges(&body);
-    let err = fillet_edges(&body, &edges[..1], 0.15, band(), Tol::witness())
+    let err = fillet_edges(&body, &edges[..1], 0.15, Tol::witness())
         .expect_err("one edge of a box leaves its corners partly requested");
     assert!(
-        matches!(err, FilletError::UnsupportedRunOut { .. }),
+        matches!(err.error, BlendError::UnsupportedRunOut { .. }),
         "expected the assembly front-door refusal, got {err}",
     );
     assert!(

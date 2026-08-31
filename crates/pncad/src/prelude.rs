@@ -17,7 +17,8 @@
 //! The shape of it follows the user journey the tour documents:
 //!
 //! 1. **Numbers and frames** — points, vectors, transforms,
-//!    tolerance, the decision `Band`, and the f64-first constructors
+//!    tolerance, the decision `Band` the refusals quote, and the
+//!    f64-first constructors
 //!    from [`crate::authoring`] so no literal needs `from_f64`.
 //! 2. **Author a profile** — the PATHS lattice, loops, sketch planes.
 //! 3. **Build a body** — extrude, revolve, loft/sweep, fillet.
@@ -34,12 +35,17 @@
 
 // --- 1. Numbers and frames ------------------------------------
 pub use crate::authoring::{p2, p3, real, v2, v3, validated};
-// `Band` is here because `fillet_edges` (group 3) takes one: a prelude
-// operation whose arguments are not prelude-constructible is a rung the
-// user cannot start from. The recipe is `Band::linear(tol)` — the run's
-// tolerance ε as the coincidence threshold, K·ε as the escalation
-// threshold — which is what every kernel operation builds internally.
-// `Tol` is here for the same reason one rung down: it is the first
+// `Band`/`BandError` are here because the verbs' typed refusals quote
+// them: a caller that matches `BlendError::Band` (this prelude) or
+// `ShellError::Band` (reachable as `pncad::topo::ShellError`, through
+// the wholesale `topo` re-export) has to be able to name what the arm
+// carries. No prelude operation
+// TAKES a band — every kernel verb derives `Band::linear(tol)` from the
+// tolerance witness at its own entry (ε as the coincidence threshold,
+// K·ε as the escalation threshold), so a band is a thing the user reads
+// out of a refusal, not a thing the user supplies. Constructing one
+// directly (`Band::new`, `Band::angular_at`) is a geometry-layer move.
+// `Tol` is here for a different reason one rung down: it is the first
 // argument of every authoring call that decides anything, and a
 // prelude that cannot name it is a prelude you cannot author from.
 // `Tol::witness()` is the one line a program writes before modelling
@@ -93,15 +99,18 @@ pub use ::profile::{
 };
 
 // --- 3. The four body operations ------------------------------
-pub use sweep::fillet::{FilletError, Filleted, fillet_edges};
+pub use sweep::blend::{BlendError, Filleted, fillet_edges};
 // The fillet's ruled sibling shares its refusal vocabulary
-// (`FilletError`, above): one verb, one edge-blend front door, the
+// (`BlendError`, above): one verb, one edge-blend front door, the
 // band the only difference.
 pub use sweep::chamfer::{Chamfered, chamfer_edges};
 // `BlendKind` names WHICH blend a shared refusal came from — the
 // recipe layer's `Node::Chamfer` and `Node::Fillet` carry one kernel
 // error type between them, so the discriminant has to cross with it.
-pub use sweep::fillet::BlendKind;
+// `BlendRefusal` is how it crosses at the kernel doors: the refusal
+// both `fillet_edges` and `chamfer_edges` return, the verb attached
+// once around the shared verb-neutral error.
+pub use sweep::blend::{BlendKind, BlendRefusal};
 pub use sweep::{
     ExtrudeError, Extruded, Extrusion, LoftError, Lofted, Revolution, RevolveAxis, RevolveError,
     Revolved, TubeError, TubeWindow, extrude, loft_body, revolve, sweep_body, tube_along_arc,
@@ -150,7 +159,9 @@ pub use stl::{
 
 // --- 8. The document layer ------------------------------------
 // `parse_expr` is the expression TEXT door: the checking
-// parser whose every reduction runs the Expr smart constructors.
+// parser whose every reduction runs the Expr smart constructors;
+// `unparse` is the same door outward, source text the parser reads
+// back as the same tree.
 // The v4 program vocabulary: the profile payload is the
 // Expr-bearing `ProfileProgram`, curated through the ONE document
 // surface (`crate::document`). `Datum` and `ParamEnv` ride here
@@ -166,7 +177,7 @@ pub use crate::document::{
     CancelToken, Datum, Dimension, Doc, DocEdit, DocParam, EditError, EvalOptions, Evaluation,
     Expr, LoopProgram, Node, NodeError, ParamEnv, ParamName, ParseError, PatternKind, ProfileLift,
     ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RecordedProgramError,
-    SlotId, StepArg, ValuePayload, apply, evaluate, parse_expr,
+    SlotId, StepArg, ValuePayload, apply, evaluate, parse_expr, unparse,
 };
 pub use editor_core::StableName;
 
@@ -188,9 +199,9 @@ pub use crate::select::{
     ALL_SURFACE_KINDS, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal, ContactVerdict,
     CurveKind, CurveKindSet, DanglingRef, DeclareError, DeclaredContact, Denotation, EntityKind,
     FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, GeomPred, InterrogateError, MeridianEnd,
-    NamePat, NameTable, OpGroup, Pose, ProfileEdgeRef, ProfileVertexRef, ReadbackError, RimSupport,
-    RolePath, RoleSeg, SEL_DATUM_DISTANCE, SegPat, SegTag, SelectRefusal, Selector, Side,
-    SplitHalf, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices, declare,
-    declare_all, declare_node, denotation, edge_frame, edge_name, face_frame, face_name,
-    find_flush_candidates, select, select_where, vertex_position,
+    NameOrigin, NamePat, NameTable, OpGroup, Pose, ProfileEdgeRef, ProfileVertexRef, ReadbackError,
+    RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE, SegPat, SegTag, SelectRefusal, Selector,
+    Side, SplitHalf, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices,
+    attribute, declare, declare_all, declare_node, denotation, edge_frame, edge_name, face_frame,
+    face_name, find_flush_candidates, select, select_where, vertex_position,
 };

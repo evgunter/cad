@@ -41,7 +41,7 @@
 //! implies, and every one of those calls could refuse above `rim_phase`
 //! with the count unmoved. The floor has to be on an outcome.
 //!
-//! Gating: these are written against `crates/sweep/src/fillet`; run
+//! Gating: these are written against `crates/sweep/src/blend`; run
 //! them when that directory changes.
 //!
 //! **The dial is `test_utils::fuzz`, not one of this suite's own.**
@@ -58,7 +58,7 @@ use core::f64::consts::PI;
 use geom_core::Tol;
 use geom_core::{Affine3, Band, Point2, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
-use sweep::fillet::{FilletError, fillet_edges};
+use sweep::blend::{BlendError, fillet_edges};
 use sweep::test_support::cube;
 use sweep::{Revolution, RevolveAxis, revolve};
 use test_utils::fuzz::{self, Rng};
@@ -182,7 +182,7 @@ fn corpus() -> Vec<(&'static str, Body<f64>)> {
             .map(|(k, _)| k)
             .filter(|k| b.get_edge(*k).is_some())
             .collect();
-        if let Ok(f) = fillet_edges(&b, &box_edges, 0.12, band(), Tol::witness()) {
+        if let Ok(f) = fillet_edges(&b, &box_edges, 0.12, Tol::witness()) {
             out.push(("die_one_pip_blended", f.body));
         }
         if let Some(b2) = subtract(&b, &pip(0.25, 0.25, 0.09, 0.05)) {
@@ -388,30 +388,30 @@ fn requests(body: &Body<f64>, rng: &mut Rng, n: usize) -> Vec<Vec<EdgeKey>> {
 
 /// The class name of a refusal — the partition's own vocabulary, so
 /// the evidence row reads as the addendum's rows.
-fn class(e: &FilletError) -> &'static str {
+fn class(e: &BlendError) -> &'static str {
     match e {
-        FilletError::Band(_) => "Band",
-        FilletError::ChainNotConnected { .. } => "ChainNotConnected",
-        FilletError::RadiusHeadroom { .. } => "RadiusHeadroom",
-        FilletError::FaceClearanceUncertified { .. } => "FaceClearanceUncertified",
-        FilletError::TangentialEdge { .. } => "TangentialEdge",
-        FilletError::SpineIrregular { .. } => "SpineIrregular",
-        FilletError::ChainNotG1 { .. } => "ChainNotG1",
-        FilletError::ConvexitySignFlip { .. } => "ConvexitySignFlip",
-        FilletError::FilletCornerUnsupported { .. } => "FilletCornerUnsupported",
-        FilletError::SpineUnsupported { .. } => "SpineUnsupported",
-        FilletError::ChamferArmUnsupported { .. } => "ChamferArmUnsupported",
-        FilletError::Escalated { .. } => "Escalated",
-        FilletError::RepeatedEdge { .. } => "RepeatedEdge(row 1)",
-        FilletError::NonpositiveSize { .. } => "NonpositiveSize(row 1)",
-        FilletError::UnsupportedBody { .. } => "UnsupportedBody(row 2)",
-        FilletError::UnsupportedChain { .. } => "UnsupportedChain(row 2)",
-        FilletError::UnsupportedRunOut { .. } => "UnsupportedRunOut(row 2)",
-        FilletError::UnsupportedGeometry { .. } => "UnsupportedGeometry(row 2)",
-        FilletError::BodyNotIntact { .. } => "BodyNotIntact(row 1)",
-        FilletError::RingClearance { .. } => "RingClearance",
-        FilletError::Certify { .. } => "Certify",
-        FilletError::Op { .. } => "Op",
+        BlendError::Band(_) => "Band",
+        BlendError::ChainNotConnected { .. } => "ChainNotConnected",
+        BlendError::RadiusHeadroom { .. } => "RadiusHeadroom",
+        BlendError::FaceClearanceUncertified { .. } => "FaceClearanceUncertified",
+        BlendError::TangentialEdge { .. } => "TangentialEdge",
+        BlendError::SpineIrregular { .. } => "SpineIrregular",
+        BlendError::ChainNotG1 { .. } => "ChainNotG1",
+        BlendError::ConvexitySignFlip { .. } => "ConvexitySignFlip",
+        BlendError::UnsupportedCorner { .. } => "UnsupportedCorner",
+        BlendError::SpineUnsupported { .. } => "SpineUnsupported",
+        BlendError::ChamferArmUnsupported { .. } => "ChamferArmUnsupported",
+        BlendError::Escalated { .. } => "Escalated",
+        BlendError::RepeatedEdge { .. } => "RepeatedEdge(row 1)",
+        BlendError::NonpositiveSize { .. } => "NonpositiveSize(row 1)",
+        BlendError::UnsupportedBody { .. } => "UnsupportedBody(row 2)",
+        BlendError::UnsupportedChain { .. } => "UnsupportedChain(row 2)",
+        BlendError::UnsupportedRunOut { .. } => "UnsupportedRunOut(row 2)",
+        BlendError::UnsupportedGeometry { .. } => "UnsupportedGeometry(row 2)",
+        BlendError::BodyNotIntact { .. } => "BodyNotIntact(row 1)",
+        BlendError::RingClearance { .. } => "RingClearance",
+        BlendError::Certify { .. } => "Certify",
+        BlendError::Op { .. } => "Op",
     }
 }
 
@@ -454,7 +454,7 @@ fn d2_no_input_reaches_a_panic() {
                 // is the only outcome-level proof available from outside
                 // the door, and it is what the floor below counts.
                 let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                    fillet_edges(body, &req, r, band(), Tol::witness())
+                    fillet_edges(body, &req, r, Tol::witness())
                         .map(|f| f.band_faces.len())
                         .unwrap_or(0)
                 }));
@@ -522,7 +522,7 @@ fn d2_reached_variants() {
     for (_, body) in corpus() {
         for req in requests(&body, &mut rng, effort()) {
             for r in RADII {
-                match fillet_edges(&body, &req, r, band(), Tol::witness()) {
+                match fillet_edges(&body, &req, r, Tol::witness()).map_err(|r| r.error) {
                     Ok(_) => ok += 1,
                     Err(e) => {
                         let c = class(&e);
@@ -576,7 +576,7 @@ fn d2_a_grafted_destination_is_stopped_at_the_entry_gate() {
     // inside the front door, so any refusal below is the graft's doing
     // and not the request's.
     assert!(
-        fillet_edges(&base, &edges, 0.12, band(), Tol::witness()).is_ok(),
+        fillet_edges(&base, &edges, 0.12, Tol::witness()).is_ok(),
         "the control request must pass, or this row proves nothing"
     );
 
@@ -593,8 +593,8 @@ fn d2_a_grafted_destination_is_stopped_at_the_entry_gate() {
         .copied()
         .filter(|k| dst.get_edge(*k).is_some())
         .collect();
-    match fillet_edges(&dst, &after, 0.12, band(), Tol::witness()) {
-        Err(FilletError::UnsupportedBody { solids, shells }) => {
+    match fillet_edges(&dst, &after, 0.12, Tol::witness()).map_err(|r| r.error) {
+        Err(BlendError::UnsupportedBody { solids, shells }) => {
             println!(
                 "d2_a_grafted_destination_is_stopped_at_the_entry_gate: \
                  {solids} solid(s), {shells} shell(s) — refused at surgery.rs:212, \

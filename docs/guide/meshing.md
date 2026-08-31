@@ -96,11 +96,25 @@ from pncad import Doc, Node, deg, evaluate, m, mm
 
 
 def signed_volume(mesh):
-    """The divergence theorem over the mesh's own triangles."""
+    """The divergence theorem over the mesh's own triangles.
+
+    Each tetrahedron is measured from `o`, the positions' bounding-box
+    centre. For a closed mesh the anchor cancels out over the reals, so
+    this is the same volume from any anchor; in floating point it is
+    the choice that keeps the products at the body's own scale instead
+    of at its distance from the world origin.
+    """
     p = [tuple(q.meters for q in point) for point in mesh.positions]
+    if not p:
+        return 0.0
+    lo = [min(q[d] for q in p) for d in range(3)]
+    hi = [max(q[d] for q in p) for d in range(3)]
+    o = [lo[d] + (hi[d] - lo[d]) * 0.5 for d in range(3)]
     total = 0.0
     for i, j, k in mesh.triangles:
-        (ax, ay, az), (bx, by, bz), (cx, cy, cz) = p[i], p[j], p[k]
+        (ax, ay, az), (bx, by, bz), (cx, cy, cz) = (
+            tuple(q[d] - o[d] for d in range(3)) for q in (p[i], p[j], p[k])
+        )
         total += (
             ax * (by * cz - bz * cy)
             - ay * (bx * cz - bz * cx)
@@ -136,7 +150,11 @@ assert abs(exact - math.pi * (1.5**2 - 0.5**2) * 2.0) < 1e-9
 
 # The error is first order in the budget: the mesh is inscribed, so
 # it under-measures, and quartering delta buys roughly a quarter of
-# the error back.
+# the error back. "Roughly a quarter" is the shape of the curve, not
+# what the assertion checks: that is a CONVERGENCE floor — each
+# quartering must buy at least a factor of two — left deliberately
+# looser than the rate, because asserting a rate would pin the
+# tessellator's internals rather than the geometry.
 errors = []
 for budget in (20 * mm, 5 * mm, 1 * mm):
     mesh = body.tessellate(budget)

@@ -54,17 +54,16 @@ accounted for in exactly one of three ways:
 
 1. `pncad.pyi` declares a top-level name spelled identically —
    `Doc`, `Node`, `Selector`, `SegTag`, `circle`, `Pose`. This is
-   where MOST curated names land, and no count is written down: the
+   where MOST curated names land, and NO COUNT IS WRITTEN DOWN: the
    number moves whenever either side grows, and one written here
-   would be a stale claim rather than a checked one (the guard's own
-   floors, in `the_scanners_read_something`, are what stop a scanner
-   from passing vacuously).
-1. `pncad.pyi` declares a top-level name spelled identically. A
-   hundred and twenty-four names land here — `Doc`, `Node`,
-   `Selector`, `SegTag`, `circle`. (A SNAPSHOT, like every count in
-   this file: measured at LIB-B-CHECKS' merge, where it had stood at
-   111 and read "sixty-two" — nothing checks a prose count, so it
-   decays silently between the units that re-measure it.)
+   would be a stale claim rather than a checked one. The count this
+   bullet used to carry had been caught stale once and corrected once
+   (it read "sixty-two" while standing at 111, and was rewritten to "a
+   hundred and twenty-four"), which is the argument: a prose count is
+   checked only when someone happens to look. What stops a scanner
+   passing vacuously is the FLOORS
+   asserted in `test_the_census_is_not_vacuous`, and those are
+   assertions rather than prose.
 2. `BOUND_AS` maps it to the Python spelling that answers the same
    question, and THAT SPELLING IS VERIFIED to exist in the stub — a
    mapping naming a spelling the stub does not declare fails. Without
@@ -367,14 +366,17 @@ def audit_gap_ids():
 #:   tag is `EvaluationError.kind`;
 #:   `DocumentId` is the 32 hex digits `Doc.id` answers.
 #: - **A rename.** `RecipeNodeId` is `NodeId` (the stub says what it is
-#:   NOT: an arena key). The unit constants are lower-cased — `IN` is
-#:   `inch` because `in` is a Python keyword, a shift the stub comments
-#:   on at the declaration. (Not counted here: the table grows a row
-#:   whenever `quantity` does, and a number written beside it would
-#:   date at the next one.)
+#:   NOT: an arena key). The unit constants are lower-cased, and two
+#:   whose symbols are not Python identifiers shift further: `IN` is
+#:   `inch` because `in` is a keyword, and `PI` is `pi_rad` because its
+#:   symbol `pi rad` is two words. The stub comments on both at the
+#:   declaration. (Not counted here: the table grows a row whenever
+#:   `quantity` does, and a number written beside it would date at the
+#:   next one.)
 BOUND_AS = {
     "CM": "cm",
     "DEG": "deg",
+    "AssertionVerdict": "Verdict",
     "DatumValue": "Value.datum",
     "DocumentId": "Doc.id",
     "IN": "inch",
@@ -382,7 +384,8 @@ BOUND_AS = {
     "MM": "mm",
     "NodeErrorKind": "EvaluationError.kind",
     "NodeValue": "Value",
-    "PI": "pi",
+    "UnevaluatedReason": "Verdict.reason",
+    "PI": "pi_rad",
     # The document seam, and the two enums that say why it did not
     # open. `Workspace` IS a `PartResolver` (the document layer's own
     # impl) and is passed as itself to `evaluate(doc, resolver=...)`;
@@ -580,6 +583,24 @@ FAMILIES = {
         "`set_doc_param_value` is the value-only door that carries the "
         "declaration forward and is what a Python caller moving a "
         "number must use until this family closes"
+    ),
+    "B-MEASURES": (
+        "AUTHORING a measurement (ERROR-DESIGN E3/E10); closing it "
+        "binds `MeasureExpr`'s constructors, `MeasurePrimitive`'s "
+        "three verbs and `AssertionDir` onto `Node.measure` / "
+        "`Node.assertion` constructors, with `MeasureNodeFault` as the "
+        "refusal a caller dispatches on. The READ half already ships "
+        "and is deliberately not in this gap: `Value.measure` answers "
+        "with a `Measurement` (value plus the F1 dimension it rides) "
+        "and `Value.assertion` with a `Verdict` (three states kept "
+        "three, both numbers on a decided one). That split is the "
+        "unit's own disposition: the friction the R-series reviews "
+        "keep finding is unreadable RESULTS, and a Python caller can "
+        "now read a web and its verdict off any evaluation, including "
+        "one loaded from a file authored elsewhere. What a Python "
+        "caller cannot yet do is WRITE one — the same asymmetry "
+        "B-DISTRIBUTIONS records, and without B-DISTRIBUTIONS's sharp "
+        "edge, because no existing write door silently drops a measure"
     ),
     "B-VALIDATE4": (
         "the fourth validator rung; closing it binds "
@@ -859,6 +880,8 @@ NOT_BOUND = {
     "BinaryHeader": SHAPE,
     "BinaryHeaderError": SHAPE,
     "BinaryOptions": SHAPE,
+    "BlendError": SHAPE,
+    "BlendRefusal": SHAPE,
     "BooleanError": SHAPE,
     "CONTACT_RECOURSE": SHAPE,
     "CurveKindSet": SHAPE,
@@ -871,7 +894,6 @@ NOT_BOUND = {
     "FIT_DEFERRAL": SHAPE,
     "FaceKey": SHAPE,
     "ExtrudeError": SHAPE,
-    "FilletError": SHAPE,
     "ImportOptions": SHAPE,
     "InterrogateError": SHAPE,
     "LineTarget": SHAPE,
@@ -879,6 +901,10 @@ NOT_BOUND = {
     "Mat3": SHAPE,
     "MassPropsError": SHAPE,
     "MigrationError": SHAPE,
+    # The attribution walk's verdict, and the door that answers it.
+    # Same family as `RolePath`/`RoleSeg` and for their reason: it
+    # reads the INSIDE of a name, which nothing user-side may read.
+    "NameOrigin": SHAPE,
     "NodeError": SHAPE,
     "NodeResult": SHAPE,
     "NonFiniteSite": SHAPE,
@@ -899,6 +925,7 @@ NOT_BOUND = {
     "RolePath": SHAPE,
     "RoleSeg": SHAPE,
     "SCHEMA_VERSION": SHAPE,
+    "ASSERT_BOUND": SHAPE,
     "SEL_DATUM_DISTANCE": SHAPE,
     "Side": SHAPE,
     "SlotId": SHAPE,
@@ -923,8 +950,14 @@ NOT_BOUND = {
     # not a name a Python caller needs.
     "VectorSlot": SHAPE,
     "VertexKey": SHAPE,
+    "attribute": SHAPE,
     "bulge_from_center": SHAPE,
     "bulge_from_via": SHAPE,
+    # A cone-delete is composed caller-side in Python: the bound door
+    # is `Doc.apply` over one `DocEdit.delete_node` at a time, and the
+    # order this answers is what a chrome needs to state a cost before
+    # the click.
+    "cascade_delete_order": SHAPE,
     "p2": SHAPE,
     "p3": SHAPE,
     "real": SHAPE,
@@ -985,6 +1018,14 @@ NOT_BOUND = {
     "tube_along_arc": f"{GAP}: G2 sweep/tube",
     "tube_along_arc_hollow": f"{GAP}: G2 sweep/tube",
     # --- gap: parameter distributions and the analysis lane -------
+    # --- gap: authoring a measurement (census-owned) --------------
+    # The READING half ships (`Value.measure`, `Value.assertion`); what
+    # is listed here is the authoring vocabulary alone.
+    "AssertionDir": f"{GAP}: B-MEASURES measurement authoring",
+    "MeasureExpr": f"{GAP}: B-MEASURES measurement authoring",
+    "MeasureRef": f"{GAP}: B-MEASURES measurement authoring",
+    "MeasureNodeFault": f"{GAP}: B-MEASURES measurement authoring",
+    "MeasurePrimitive": f"{GAP}: B-MEASURES measurement authoring",
     "Distribution": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",
     "DistributionFault": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",
     "DistributionField": f"{GAP}: B-DISTRIBUTIONS parameter uncertainty",
@@ -1024,6 +1065,7 @@ NOT_BOUND = {
     "eval": f"{GAP}: B-EXPR-READ an expression's value",
     "eval_count": f"{GAP}: B-EXPR-READ an expression's value",
     "parse_expr": f"{GAP}: G1 Expr-bearing authoring steps",
+    "unparse": f"{GAP}: G1 Expr-bearing authoring steps",
     # --- gap: geometry read-back doors (census-owned) -------------
     # --- gap: assorted single doors -------------------------------
     "CancelToken": f"{GAP}: B-CANCEL cooperative cancellation",

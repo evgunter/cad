@@ -1,6 +1,8 @@
 # S-BLEND — fillet/chamfer completion (plan)
 
-**STATUS: OPEN.** Graduated from the ratified 2026-08-29 work-stream
+**STATUS: CLOSED (exit walk ratified 2026-08-31 — see
+`docs/S-BLEND-EXIT-WALK.md`, the program's done-state of
+record).** Graduated from the ratified 2026-08-29 work-stream
 survey (`docs/WORK-STREAMS-2026-08.md`, merged #1200 after Evan's
 read, carrying VERBS' cession and both handoff records from that
 PR's thread). Every design decision this plan leans on is ratified
@@ -94,7 +96,8 @@ parallel with anything.
 3. **BLEND-3 — concave plane-plane chamfers (issue 919).** The
    geometry already handles both sides; the unit widens the two
    admission doors (`corner_config`'s all-convex requirement,
-   `ConvexOpen`), authors the concave-corner fixture through the
+   `ConvexOpen` — renamed `AdmittedOpen` by the unit), authors the
+   concave-corner fixture through the
    public API, and checks the carve walk is orientation-agnostic.
 4. **BLEND-4 — convexity-parametric fillet corners (issue 644).**
    The harder twin, deliberately after BLEND-3: ball admissibility,

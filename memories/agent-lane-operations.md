@@ -31,7 +31,15 @@ carries its own thresholds — read them there. Under pressure,
 stash before each rm and refuses loudly, so it is safe in bulk — but it
 needs **absolute paths** (a bare lane name is refused with a message
 that reads like a missing directory). Never touch a running gate's
-target, and confirm the OWNING agent has terminated first. After a
+target, and confirm the OWNING agent has terminated first. Before
+deleting ANY lane's repo, check for reference-clone borrowers:
+`grep -l <path> ~/.local/share/cad-work/*/cad/.git/objects/info/alternates`
+— deleting a repo that others' clones `--reference` corrupts their
+object stores mid-run (instance: verbs-azimuth deleted under
+verbs-ga2, 2026-08-31; repaired in place by removing the alternates
+file, dropping stale remote refs/tags pointing at server-deleted
+objects, and `git fetch --refetch`). A reference clone is a disk
+loan, and the loan outlives the lender's merge. After a
 disk-full crash, purge torn binaries (ELF-magic scan) and treat
 pressure-window test results as suspect. Sweep merged worktrees at
 every pipeline seam, one `git worktree remove` per Bash call — the
@@ -176,7 +184,13 @@ raw `cargo` invocations yourself.
 - An OOM-killed test shows as a bare "Terminated" single-row FAIL —
   check what else was running and rerun quiet before diagnosing a bug.
 
-**The ways CI silently does not run.** A PR that is CONFLICTING against
+**The ways CI silently does not run.** An exhausted Actions SPENDING
+LIMIT kills every job seconds after creation — no steps, no logs,
+`failure` — which reads as runner loss; the tell is unrelated PRs'
+runs dying in the same minutes. No push, empty commit, or re-run
+helps until Evan raises the limit: hold, then re-run the dead head's
+failed jobs once (they died pre-step, so the re-run is legitimate).
+A PR that is CONFLICTING against
 main gets NO check runs at all — pushes during that window produce
 nothing and merging main afterwards fires nothing retroactively. A run
 can also queue with ZERO jobs behind a superseded run, `mergeable:

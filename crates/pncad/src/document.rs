@@ -28,13 +28,31 @@
 // document plus its `EditRecord`) — re-exported so a caller can STORE
 // one in a typed field rather than only destructure it.
 pub use editor_core::{Applied, Doc, DocEdit, EditError, EditRecord, apply};
+// The delete door's companion query: which nodes a delete of one node
+// must take with it, in an order the door accepts. A GUI both states
+// the cost of the button and builds the sequence behind it from this.
+pub use editor_core::cascade_delete_order;
 
 // Node vocabulary. `BooleanOp` is the KERNEL's, which the recipe node
 // carries directly; it is re-exported here so document-layer code can
 // spell the whole node vocabulary through one module.
 pub use editor_core::{
-    Axis3, BooleanOp, Datum, Node, PatternKind, PlacementRuleFault, RecipeNodeId, SlotId,
-    VectorSlot,
+    Axis3, BooleanOp, Datum, MeasureNodeFault, Node, PatternKind, PlacementRuleFault, RecipeNodeId,
+    SlotId, VectorSlot,
+};
+
+// The measurement vocabulary (ERROR-DESIGN E3/E10, CONTACT-DESIGN C5).
+// `MeasureExpr` + `MeasurePrimitive` are what a `Node::Measure` is
+// built from, so a caller who cannot spell them cannot author one at
+// all; `AssertionDir` is a field of `Node::Assertion` for the same
+// reason. `AssertionVerdict` and `UnevaluatedReason` are the READING
+// half — the payload an evaluated assertion carries — and E10's whole
+// point is that a verdict is consumed by reports. `ASSERT_BOUND` is
+// the funnel site name, carried like `SEL_DATUM_DISTANCE` so a
+// K-census consumer can name the row rather than spell the string.
+pub use editor_core::{
+    ASSERT_BOUND, AssertionDir, AssertionVerdict, MeasureExpr, MeasurePrimitive, MeasureRef,
+    UnevaluatedReason,
 };
 
 // Expressions and their text door.
@@ -43,7 +61,10 @@ pub use editor_core::{
 // `DimensionError` is the refusal `Expr`'s constructor doors return
 // (`literal`, the operator builders) — re-exported so a caller can
 // MATCH on it rather than pre-check the conditions it refuses.
-pub use editor_core::{Dimension, DimensionError, Expr, ParamEnv, ParseError, parse_expr};
+// `unparse` is `parse_expr`'s inverse, the text door OUTWARD: the
+// source text an expression reads back from, which is what a panel
+// showing a stored expression needs and cannot otherwise derive.
+pub use editor_core::{Dimension, DimensionError, Expr, ParamEnv, ParseError, parse_expr, unparse};
 
 // The expression READ side: an expression's current value under a
 // document's parameter environment (`Doc::param_env`). A panel that

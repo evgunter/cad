@@ -107,6 +107,29 @@ pub fn bulge_from_via<T: Real>(a: Point2<T>, via: Point2<T>, b: Point2<T>) -> T 
 /// [`Real::reduce_periodic`]; the bulge is tan(θ/4). Fixed evaluation
 /// order as written (D9).
 ///
+/// **Why the `[0, τ)` window and not the centred one**: the included
+/// angle here is a full authored sweep, not a difference near zero —
+/// `Ccw` means "the long way round if that is what the author drew",
+/// and a centred reduction would silently turn a 350° arc into a −10°
+/// one. The window's jump therefore sits where it belongs, at a sweep
+/// of zero, and the arc that lands on it is the degenerate one: `a` and
+/// `b` coincident as seen from the centre. At interval type a box
+/// straddling that jump encloses both `0` and `τ`, honestly — the two
+/// arcs really are both consistent with the enclosure.
+///
+/// **The guard is DOWNSTREAM, not upstream.** `DegenerateSegment` and
+/// `NearFullArc` are raised by `validate`'s segment pass, which runs
+/// on a loop this function has already contributed a bulge to — the
+/// degenerate bulge is computed and stored first, and refused when the
+/// loop is validated. What makes that safe is not ordering but the
+/// fact that nothing consumes an unvalidated loop: the refusals key
+/// off the very values a degenerate sweep produces, so a bulge that
+/// went through the jump cannot reach a consumer without passing the
+/// pass that rejects it. Moving the jump would not remove it, only
+/// relocate it onto a non-degenerate sweep, so the posture stands —
+/// but it stands on the validation boundary, not on a gate in front of
+/// this formula.
+///
 /// **The center is a hint, not stored data**: the stored segment is
 /// chord + bulge, whose implied center is the perpendicular-bisector
 /// point at the implied radius. If `b` does not lie on the circle
@@ -354,6 +377,46 @@ pub(crate) enum ArcTrimRefusal<T: Real> {
         /// The gate's margin |ρ| − least_lever, meters.
         margin: T,
     },
+    /// `fillet_enclosing_carrier` Negative: the requested radius demands
+    /// the **enclosing** tangency on this leg — its signed offset radius
+    /// ρ = R − σ·τ·r is negative, which is exactly σ·τ = +1 with r > R.
+    /// The only circle of radius `r` tangent to a radius-R carrier with
+    /// those senses contains that carrier whole, and the corner is a
+    /// point of the carrier, so the corner is strictly inside the blend
+    /// circle: the arc cannot touch the corner it would round. That is
+    /// not a fillet OF the corner, and `docs/ENCLOSING-TANGENCY-DESIGN.md`
+    /// rules the class permanently unreachable — so the demand refuses
+    /// here, before any candidate centre exists, rather than being ranked
+    /// away downstream by whichever gate happens to catch it.
+    EnclosesLegCarrier {
+        /// The leg whose carrier the requested radius would swallow, or
+        /// `None` when it swallows BOTH — which is the ordinary case: a
+        /// ρ < 0 leg forces its partner to be one too unless the corner
+        /// is degenerate (`review_s2`'s
+        /// `an_enclosing_leg_forces_an_equally_enclosing_partner`).
+        leg: Option<FilletLeg>,
+        /// The TIGHTEST class bound: the smallest carrier radius among
+        /// the swallowed legs. Above it the class is certain; it is a
+        /// necessary bound on any fillet of this corner, never a
+        /// sufficient one — see `largest_tangent_radius`.
+        carrier_radius: T,
+        /// The matching signed offset radius ρ = R − σ·τ·r (negative).
+        offset_radius: T,
+        /// The authored radius.
+        radius: T,
+        /// **The existence bound**, when the corner's two circular
+        /// carriers define one: the largest radius whose circle can be
+        /// tangent to BOTH carriers at this corner, (R₁ + R₂ − d)/2 for
+        /// centres d apart. It is what a recourse may honestly endorse,
+        /// and it is never above `carrier_radius` (a shared corner puts
+        /// d ≥ |R₁ − R₂|, so the half-sum is at most the smaller radius).
+        ///
+        /// `None` where the quantity is not defined at this gate: a
+        /// straight partner, or a partner whose own ρ is positive. Both
+        /// are the degenerate corners the pin above rules out, and there
+        /// the class bound is all the site honestly has.
+        largest_tangent_radius: Option<T>,
+    },
     /// A Negative `fillet_leg_fit` on a corner-side candidate: the
     /// radius pushes a tangent point off the far end of its leg.
     DoesNotFit {
@@ -390,7 +453,8 @@ pub(crate) enum ArcTrimRefusal<T: Real> {
 /// **One consumer, `path::arc_fillet`'s lowering**, which calls this
 /// ratified construction rather than carrying a second copy of it.
 ///
-/// Runs the arm gate, the turn gate, the offset-carrier intersection and
+/// Runs the arm gate, the turn gate, the enclosing-class gate, the
+/// offset-carrier intersection and
 /// the per-candidate reach/fit pass, in exactly the shipped order and
 /// with exactly the shipped `decide` sequence, and returns EVERY
 /// surviving candidate rather than one pick. The selection is the
@@ -447,6 +511,44 @@ pub(crate) fn arc_fillet_trims<T: Decide>(
             });
         }
     };
+
+    // (2b) the enclosing class, refused before it can be constructed.
+    // With σ decided, each circular leg's signed offset radius
+    // ρ = R − σ·τ·r is defined, and ρ < 0 says the requested radius
+    // demands a blend circle that SWALLOWS that leg's carrier: the
+    // corner lies on the carrier, so it lies strictly inside the blend
+    // circle, and the arc cannot touch the corner it was asked to round
+    // (`docs/ENCLOSING-TANGENCY-DESIGN.md`). No door serves that
+    // construction, so the demand refuses here rather than downstream —
+    // where the honest answer would arrive dressed as a disjoint-offset,
+    // no-corner-side or anchor-fit refusal depending only on how far past
+    // the bound the radius sits.
+    //
+    // A Zero classification is r within the band of that leg's carrier
+    // radius: the collapsed lever, which `fillet_offset_lever` refuses in
+    // its own currency below, and not this gate's to claim.
+    //
+    // BOTH circular legs are classified, always — no early return on the
+    // first Negative. The bound the refusal names has to be the TIGHTEST
+    // one, and a first-hit return names whichever side the enumeration
+    // reached first: on unequal carriers that is the wrong number, and a
+    // recourse below it re-refuses with the same variant now naming the
+    // other side. Classifying both also keeps the recorded sample
+    // sequence a function of the corner's CLASS, as the pass below is.
+    let mut swallowed: [Option<ArcCarrier<T>>; 2] = [None, None];
+    for (slot, leg) in swallowed.iter_mut().zip([&leg_in, &leg_out]) {
+        let Some(arc) = leg.arc else { continue };
+        let rho = offset_radius(&arc, sgn, radius);
+        if decide("fillet_enclosing_carrier", Margin::of(rho), band)
+            .map_err(ArcTrimRefusal::Escalated)?
+            == Sign::Negative
+        {
+            *slot = Some(arc);
+        }
+    }
+    if let Some(refusal) = enclosing_refusal(swallowed, sgn, radius) {
+        return Err(refusal);
+    }
 
     // (3) the offset carriers' intersection — the candidate centers.
     let centers = match (leg_in.arc, leg_out.arc) {
@@ -560,14 +662,23 @@ pub(crate) fn arc_fillet_trims<T: Decide>(
 /// forward sweep by construction and may legitimately exceed π. It is
 /// the WRONG reduction for a setback, which must be able to come out
 /// negative — see [`signed_swept`].
+///
+/// **Its jump sits at a zero extent**, which is a real discontinuity of
+/// the forward representative and not an artifact of the spelling: a
+/// difference of zero is a leg that sweeps nothing or sweeps a whole
+/// turn, and those are different extents. At interval type a box
+/// straddling it therefore widens to the period, honestly. Nothing
+/// reaches it: a zero-extent leg is refused upstream, and a signed
+/// quantity — where a near-zero difference is the interesting case —
+/// goes through [`signed_swept`], which folds the raw difference once
+/// rather than composing on this reduction.
 fn swept<T: Real>(from: T, to: T, turn: T) -> T {
     ((to - from) * turn).reduce_periodic(T::tau())
 }
 
 /// The **signed** angle swept from `from` to `to` in the `turn` sense,
-/// reduced into [−π, π) — [`swept`]'s forward sweep folded so that
-/// "more than half a turn forward" reads as "backward", which is what a
-/// *setback* needs (review MAJOR-1).
+/// reduced into [−π, π) so that "more than half a turn forward" reads
+/// as "backward", which is what a *setback* needs (review MAJOR-1).
 ///
 /// The unsigned [`swept`] cannot express "behind the corner": a tangent
 /// point one degree past the corner reads as a setback of 359°·R. With
@@ -582,26 +693,68 @@ fn swept<T: Real>(from: T, to: T, turn: T) -> T {
 /// A fillet tangent point is never more than half a turn from the
 /// corner. It lies on the ray from the leg's centre O through the
 /// fillet centre P, so its angular offset from the corner is the
-/// *unsigned* angle between `C − O` and `P − O`, which is in [0, π] by
-/// definition. A genuine setback therefore always lies in the kept
+/// *unsigned* angle between `C − O` and `P − O`, which is in [0, π] —
+/// the CLOSED interval, and the closed end is a real configuration
+/// (the tangent point diametrically opposite the corner), not an
+/// excluded limit. A genuine setback therefore always lies in the kept
 /// half, however far the leg itself sweeps — a leg may legitimately
 /// sweep more than π, and its extent still uses the unsigned [`swept`].
+/// What the closed end costs the exactness argument below is stated
+/// there rather than assumed away here.
 ///
-/// # Why the fold, and not `atan2` of the cross/dot
+/// # The raw difference is folded once, and why that is the whole point
 ///
-/// `atan2(τ·(u × w), u · w)` computes the same angle in one call, but as
-/// a *different* floating-point expression from the one [`swept`] uses
-/// for the leg's extent — and the exact-fit rows turn on `extent −
-/// setback` being bit-zero when the tangent point lands on the leg's far
-/// end. The fold below is `x − τ·⌊x/τ + ½⌋`, which for `x ∈ [0, π)`
-/// multiplies τ by a floored zero and returns `x − 0` — **bit-identical
-/// to [`swept`]**. So this changes the value only where the shipped code
-/// was wrong (past the corner), and the knife-edge exactness the fit
-/// gate relies on is preserved by construction rather than by luck.
+/// The angular difference `(to − from)·turn` goes into
+/// [`Real::reduce_periodic_centred`] directly. It is NOT reduced into
+/// `[0, τ)` first and then folded: [`swept`]'s jump is at a difference
+/// of zero, and zero is the value this helper exists to read — a
+/// tangent point coincident with the corner, a derived corner
+/// reproducing an anchor. Folding a quantity through a window whose
+/// discontinuity sits on the interesting value and then folding again
+/// is the shape that makes an interval enclosure of a hairline come
+/// back a whole period wide (twice over, for two composed folds).
+///
+/// # The exact-fit structural zero, and the exact domain it holds on
+///
+/// The fit gate turns on `extent − setback` being bit-zero when the
+/// tangent point lands on the leg's far end. There both quantities are
+/// `radius ·` an angle computed from the SAME difference `d`: the
+/// extent takes `d.reduce_periodic(τ)` and the setback takes
+/// `d.reduce_periodic_centred(τ)`. Both floors return zero, both
+/// reductions are `d − 0`, and the margin is exactly `0` — **for every
+/// `d` whose `fl(fl(d/τ) + ½)` is still below `1`**. That is the
+/// condition to state, and it is NOT all of `[0, π)`:
+///
+/// - `fl(π/τ)` is exactly `0.5` (τ is `2·fl(π)`, and doubling is
+///   exact), so at `d = π` the sum is exactly `1`, the floor is `1`,
+///   and the centred window returns `d − τ`. The margin is `τ`.
+/// - One float lower, `d = nextbelow(π) = 3.1415926535897927`,
+///   `fl(d/τ)` rounds to `0.49999999999999994` and `+ ½` rounds
+///   half-to-even back UP to exactly `1.0`. Same branch, margin `τ`.
+///   Two floats lower, `3.1415926535897922`, the sum is
+///   `0.9999999999999998` and the agreement holds.
+///
+/// So the domain is `[0, π)` **minus its top ulp** — the top TWO
+/// floats of `[0, π]` diverge and every other one agrees — plus one
+/// signed-zero caveat: at `d = −0.0` (reachable, `(+0.0)·turn` with a
+/// clockwise `turn = −1`) the extent window returns `+0.0` and this one
+/// returns `−0.0`. Those are equal in value and the margin is `0`, so
+/// the gate classifies Zero either way; they are not bit-identical.
+///
+/// **None of this is a behaviour change and none of it is reachable as
+/// a wrong answer.** The retired spelling folded the same expression
+/// second and took the same branch at `nextbelow(π)`, so the values are
+/// what they have always been; and the closed end of the ray argument
+/// above is a tangent point diametrically opposite the corner, whose
+/// setback is half the carrier's circumference — a configuration the
+/// reach and fit gates classify long before exactness matters. The
+/// point of writing the domain out is that "by construction" was
+/// claimed for an interval it does not cover, and a knife-edge
+/// guarantee stated one ulp too wide is not a guarantee. Correcting
+/// the claim is the fix; adding an angle branch to evaluation code to
+/// widen it would not be (Q1).
 pub(crate) fn signed_swept<T: Real>(from: T, to: T, turn: T) -> T {
-    let forward = swept(from, to, turn);
-    let tau = T::tau();
-    forward - tau * (forward / tau + T::from_f64(0.5)).floor()
+    ((to - from) * turn).reduce_periodic_centred(T::tau())
 }
 
 /// The +90° rotation of `v` (its left normal).
@@ -642,8 +795,80 @@ pub(crate) struct Leg<T: Real> {
     pub side: FilletLeg,
 }
 
+/// The enclosing-class refusal for a corner whose `[incoming, outgoing]`
+/// circular legs have just been classified — `Some(arc)` where that
+/// leg's ρ came out Negative — or `None` when neither did.
+///
+/// # The two bounds, and which one a recourse may endorse
+///
+/// The **class bound** is the smallest swallowed carrier radius: at or
+/// above it the requested circle certainly contains that carrier, so no
+/// fillet of this corner exists there. It is necessary and not
+/// sufficient, and endorsing radii below it would be the dead recourse
+/// this refusal exists to avoid — on the review fixtures the class bound
+/// sits 3.4x above the largest radius that actually rounds the corner.
+///
+/// The **existence bound** is what does exist: with both carriers
+/// swallowed both legs turn the same way (σ·τ = +1 on each), so an
+/// ordinary candidate has offset radii ρᵢ = Rᵢ − r, and the two offset
+/// circles meet exactly while ρ₁ + ρ₂ ≥ d — that is r ≤ (R₁ + R₂ − d)/2,
+/// the largest circle tangent to both carriers here. (The other
+/// clearance, d ≥ |ρ₁ − ρ₂| = |R₁ − R₂|, is r-free and holds at any
+/// shared corner.) A shared corner also puts d ≥ |R₁ − R₂|, which makes
+/// this bound at most the smaller radius — so it is always the tighter
+/// of the two, and it is the one the sentence endorses.
+///
+/// It is still a bound on TANGENCY, not on the whole construction: a
+/// short anchored leg can require less, and says so in its own refusal.
+/// The sentence claims exactly that much.
+fn enclosing_refusal<T: Real>(
+    swallowed: [Option<ArcCarrier<T>>; 2],
+    sgn: T,
+    radius: T,
+) -> Option<ArcTrimRefusal<T>> {
+    let bound = |arc: ArcCarrier<T>| (arc.radius, offset_radius(&arc, sgn, radius));
+    let (leg, (carrier_radius, offset_radius), largest_tangent_radius) = match swallowed {
+        [None, None] => return None,
+        [Some(a), None] => (Some(FilletLeg::Incoming), bound(a), None),
+        [None, Some(b)] => (Some(FilletLeg::Outgoing), bound(b), None),
+        [Some(a), Some(b)] => {
+            let ((ra, rhoa), (rb, rhob)) = (bound(a), bound(b));
+            let d = (b.center - a.center).norm_squared().sqrt();
+            let two = T::from_f64(2.0);
+            // `min` rather than a comparison: which leg carries the
+            // tighter bound is not a decision the construction takes,
+            // and the two ρ order with their radii (both are Rᵢ − r).
+            (
+                None,
+                (ra.min(rb), rhoa.min(rhob)),
+                Some((ra + rb - d) / two),
+            )
+        }
+    };
+    Some(ArcTrimRefusal::EnclosesLegCarrier {
+        leg,
+        carrier_radius,
+        offset_radius,
+        radius,
+        largest_tangent_radius,
+    })
+}
+
 /// A circular leg's **signed** offset radius ρ = R − σ·τ·r (the
 /// construction section of [`arc_fillet_trims`]).
+///
+/// # The sign is a classification, and it is the one this construction
+/// owns
+///
+/// ρ > 0 is the ordinary tangency; ρ < 0 is the ENCLOSING one — the
+/// blend circle contains the leg's carrier, hence the corner. That class
+/// is permanently refused (`docs/ENCLOSING-TANGENCY-DESIGN.md`), and this
+/// function is where the refusal reads its verdict: `arc_fillet_trims`'
+/// `fillet_enclosing_carrier` gate classifies this value, so the
+/// construction's own ρ decides the class rather than a second
+/// re-derivation kept in step with this one by hand. Everything below —
+/// the offset intersections, the measured-spoke projection with its
+/// signed flip — takes ρ as given and never re-decides it.
 fn offset_radius<T: Real>(arc: &ArcCarrier<T>, sgn: T, radius: T) -> T {
     arc.radius - sgn * arc.turn * radius
 }
@@ -733,6 +958,19 @@ impl<T: Real> Leg<T> {
     /// side, and that sign is geometry, not roundoff). The returned point
     /// then lies on the carrier BY CONSTRUCTION, to a relative ulp of R,
     /// for any `center` whatever.
+    ///
+    /// # The ρ < 0 flip is kept, and no door reaches it
+    ///
+    /// The antipodal flip is the ENCLOSING tangency's tangent point, and
+    /// that class is refused before a candidate centre is ever computed
+    /// (`arc_fillet_trims`' `fillet_enclosing_carrier` gate, per
+    /// `docs/ENCLOSING-TANGENCY-DESIGN.md`), so no shipped door arrives
+    /// here with a negative ρ. The general form stays for the same reason
+    /// [`fillet_bulge`]'s major-arc branch does: the sign rule is the
+    /// closed form's, not a property of which corners the gates admit,
+    /// and a form that silently mirrored the point would be wrong rather
+    /// than merely unreachable. It is pinned directly, at
+    /// `tangent_point_flips_across_the_centre_at_a_negative_offset_radius`.
     ///
     /// # Why this reduces the error rather than hiding it
     ///
@@ -1167,6 +1405,56 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// [`Leg::tangent_point`]'s antipodal flip: the ENCLOSING tangency's
+    /// tangent point, which no door reaches (the
+    /// `fillet_enclosing_carrier` gate refuses the class first — see
+    /// `docs/ENCLOSING-TANGENCY-DESIGN.md`), pinned here directly so the
+    /// closed form stays honest about the sign it is defined for.
+    ///
+    /// A radius-2 blend circle centred at the carrier's own centre plus a
+    /// nudge: with ρ = R − r = −1.5 the tangent point sits on the FAR
+    /// side of the carrier from the spoke, at distance R from the centre,
+    /// and the blend circle contains the carrier whole.
+    #[test]
+    fn tangent_point_flips_across_the_centre_at_a_negative_offset_radius() {
+        let centre = p2(0.3, -0.7);
+        let carrier = ArcCarrier {
+            center: centre,
+            radius: 0.5,
+            turn: 1.0,
+            sweep: ArcSweep::Ccw,
+            corner_angle: 0.0,
+        };
+        let leg = Leg {
+            dir: Vec2::new(0.0, 1.0),
+            arc: Some(carrier),
+            len: 1.0,
+            arm: 0.5,
+            side: FilletLeg::Incoming,
+        };
+        let (sgn, radius) = (1.0, 2.0);
+        assert!(
+            offset_radius(&carrier, sgn, radius) < 0.0,
+            "the row is the enclosing one"
+        );
+        // The blend centre sits |ρ| = 1.5 from the carrier centre, which
+        // is what an enclosing candidate's offset intersection would
+        // deliver.
+        let blend = p2(centre.x + 1.5, centre.y);
+        let t = leg.tangent_point(blend, sgn, radius);
+        // On the carrier, at radius R from its centre...
+        let on_carrier = (t.x - centre.x).hypot(t.y - centre.y);
+        assert!(
+            (on_carrier - carrier.radius).abs() < 1e-15,
+            "off carrier by {on_carrier}"
+        );
+        // ...on the far side of the centre from the blend circle...
+        assert!(t.x < centre.x, "the flip did not cross the centre: {t:?}");
+        // ...and at r from the blend centre, which is the tangency.
+        let spoke = (t.x - blend.x).hypot(t.y - blend.y);
+        assert!((spoke - radius).abs() < 1e-15, "|t - P| = {spoke}, not r");
     }
 
     #[test]

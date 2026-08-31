@@ -145,18 +145,33 @@ pub enum PointInSolidError {
         /// Its kind — the row the arm is missing for.
         kind: geom_brep::SurfaceKind,
     },
-    /// A `Sphere` face belongs to a face group that is NOT closed on
-    /// its own surface (M5 PR 9c): the sphere containment/pierce door
-    /// covers the whole-sphere class — the class every M5 operand mints
-    /// (a full revolve of a pole-to-pole arc: two half-bands on one
-    /// sphere key, closed against each other) — and a partially trimmed
-    /// sphere face needs a chart trim the closed-form pcurve lane does
-    /// not mint for sphere charts (`topo::pcurves::chart_mints` is
-    /// `false` there, so the cylinder arm's exact azimuth window has no
-    /// sphere analogue yet).
+    /// The at-infinity orientation probe needs the body's signed
+    /// volume and the closed-form props lane refused to certify it.
+    ///
+    /// Consulted only when a schedule ray crosses NO boundary at all —
+    /// `q` then sits on the at-infinity side, and which side that IS
+    /// depends on the body's orientation. A body whose volume the props
+    /// lane cannot certify (a rimless sphere band whose meridians lie
+    /// on two DIFFERENT great circles is the standing one: that arm
+    /// hardcodes `Δu = π`) leaves that question unanswerable, and this
+    /// says so rather than reporting a HEALTHY body as broken.
+    VolumeUncertified,
+    /// A `Sphere` face that is neither closed on its own surface nor
+    /// expressible as a chart RECTANGLE.
+    ///
+    /// Two classes answer: a face group closed against itself covers
+    /// the whole chart, so membership on the surface is membership in
+    /// the group; and a trimmed face whose every boundary edge is a
+    /// latitude rim or a meridian great circle is exactly the rectangle
+    /// `[azimuth] × [latitude]` its boundary pins, which
+    /// [`sphere_chart_trim`] reads. What reaches here is the
+    /// remainder — a ringed face, a boundary edge that is neither chart
+    /// class, an azimuth walk that wraps past a period, or a meridian
+    /// edge with a POLE strictly inside it, where latitude stops being
+    /// monotone along the edge and no fold over boundary levels can see
+    /// the face's own extreme.
     PartialSphereFace {
-        /// The sphere face whose group has a boundary against another
-        /// surface.
+        /// The sphere face the chart rectangle cannot express.
         face: FaceKey,
     },
 }
@@ -207,19 +222,34 @@ impl core::fmt::Display for PointInSolidError {
                     kind.name()
                 )
             }
+            Self::VolumeUncertified => write!(
+                f,
+                "point_in_solid: a schedule ray crossed no boundary at all, so the verdict is \
+                 the AT-INFINITY side — and that side is read off the body's signed volume, \
+                 which the closed-form props lane refused to certify. The body is HEALTHY and \
+                 this door's own arms answered; what is missing is a volume. The standing case \
+                 is a rimless sphere band whose two meridian boundaries lie on DIFFERENT great \
+                 circles (a lune narrower or wider than a hemisphere): that props arm hardcodes \
+                 the azimuthal width at π. Recourse: pose the query where a ray meets the \
+                 boundary, or wait on the props arm that reads the width from the boundary"
+            ),
             Self::PartialSphereFace { face } => {
                 write!(
                     f,
-                    "point_in_solid: sphere face {face:?} is trimmed — the faces sharing its \
-                     sphere surface do not close on each other, so the group covers less \
-                     than the whole chart and this door cannot say where its boundary \
-                     runs. This arm is \
-                     STRUCTURAL (an exact-f64 scan of the loop's edge descriptions): it \
-                     has no in-band twin and does not move with ε — tightening or loosening \
-                     the tolerance changes nothing here. Recourse: the trimmed-sphere chart \
-                     window (the cylinder arm's exact azimuth/latitude analogue) lands with \
-                     the sphere pcurve lane; until then trim a sphere operand with the \
-                     cylinder/plane arms or keep it whole"
+                    "point_in_solid: sphere face {face:?} is neither closed on its own \
+                     surface nor expressible as a chart rectangle. A trimmed sphere face \
+                     IS served when every boundary edge is a latitude rim or a meridian \
+                     great circle — that face is exactly the [azimuth] × [latitude] window \
+                     its boundary pins. This one is not: it carries a ring, a boundary edge \
+                     in neither chart class, an azimuth walk wrapping past a period, or a \
+                     meridian edge with a POLE strictly inside it. That last one breaks the \
+                     rectangle in both coordinates: a meridian's chart image is a \
+                     constant-azimuth iso-line and an arc through a pole is not one (its \
+                     azimuth jumps by π there, and the loop walk carries a pole junction \
+                     only at a VERTEX), while its latitude extreme is interior to the edge, \
+                     where a fold over boundary levels never looks. Recourse: bound the \
+                     sphere face with rims and meridians meeting AT the poles, keep it \
+                     whole, or trim it with the cylinder/plane arms"
                 )
             }
         }
@@ -311,6 +341,28 @@ enum FaceGeo<T: geom_core::Real> {
         /// here.) `false` swaps the near/far crossing pair below.
         sense: bool,
     },
+    /// A TRIMMED sphere face whose chart rectangle expresses it: the
+    /// same ray/sphere quadratic as [`FaceGeo::Sphere`], with each root
+    /// tested against the face's own `[azimuth] × [latitude]` window —
+    /// the cylinder arm's shape, on the sphere chart. Unlike the closed
+    /// group this arm IS per face: a trimmed face carries its own trim,
+    /// so two faces of one sphere surface contribute different
+    /// crossings and no representative stands in for the rest.
+    SpherePatch {
+        /// The sphere's centre.
+        center: Point3<T>,
+        /// Its radius (positive by convention).
+        radius: T,
+        /// The chart's polar axis.
+        axis: Vec3<T>,
+        /// The chart's seam direction.
+        u_ref: Vec3<T>,
+        /// The face's exact chart rectangle.
+        trim: SphereChartTrim<T>,
+        /// The face's orientation sense (S10) — `false` swaps the
+        /// near/far crossing pair, as for the closed group.
+        sense: bool,
+    },
 }
 
 /// The representative of `face`'s sphere-surface face group when that
@@ -389,7 +441,12 @@ fn face_geo<T: Decide>(
                 sense: f.sense,
             })
         }
-        Some(&Surface::Sphere { center, radius, .. }) => match closed_sphere_group(body, face) {
+        Some(&Surface::Sphere {
+            center,
+            radius,
+            axis,
+            u_ref,
+        }) => match closed_sphere_group(body, face) {
             Some(representative) => Ok(FaceGeo::Sphere {
                 center,
                 radius,
@@ -399,7 +456,21 @@ fn face_geo<T: Decide>(
                     .ok_or(PointInSolidError::CorruptFace { face })?
                     .sense,
             }),
-            None => Err(PointInSolidError::PartialSphereFace { face }),
+            // A TRIMMED sphere face is served through its own chart
+            // rectangle when the chart can express it, exactly as a
+            // trimmed cylinder wall is. Only a face outside that class
+            // keeps the refusal.
+            None => match sphere_chart_trim(body, face, center, radius, axis, band)? {
+                Some(trim) => Ok(FaceGeo::SpherePatch {
+                    center,
+                    radius,
+                    axis,
+                    u_ref,
+                    trim,
+                    sense: f.sense,
+                }),
+                None => Err(PointInSolidError::PartialSphereFace { face }),
+            },
         },
         Some(s) => Err(PointInSolidError::KindUnsupported {
             face,
@@ -567,6 +638,488 @@ pub(super) fn point_on_wall_in_face<T: Decide>(
     Ok(verdict)
 }
 
+/// **A sphere face's exact chart trim**: the azimuth window and the
+/// LATITUDE window, for the face class the sphere chart rectangle can
+/// actually express.
+///
+/// # The class
+///
+/// No rings, and every boundary edge a chart iso-line of the sphere —
+/// a **latitude rim** (circle whose axis is the polar axis, centred on
+/// it, at the radius the sphere's own geometry fixes) or a **meridian
+/// great circle** (centred at the sphere centre, at the sphere's own
+/// radius, axis perpendicular to the polar axis). Those are the two
+/// classes the analytic sphere chart mints, and together they make the
+/// face exactly the rectangle `[azimuth] × [latitude]` its boundary
+/// pins. A face outside the class answers `None` — the honest
+/// remainder, never a rectangle that misstates it.
+///
+/// # The latitude window is NOT an axial one, and that is the point
+///
+/// A sphere's latitude extremes are carried here as the exact
+/// `(axial, radial)` PAIR of each extreme boundary latitude —
+/// `(w·â, |w − â(w·â)|)`, the unnormalized point on the chart's
+/// meridian half-plane — and never as the axial offset alone, nor as
+/// the latitude SINE.
+///
+/// The reason is a lever, not a convenience. An axial separation is
+/// `R·|Δ cos v|`, which collapses like `sin v̄` as either pole is
+/// approached: two latitudes a millimetre apart across a pole differ
+/// axially by micrometres, so an axial margin calls them the same
+/// level and a rectangle that is not one passes. The pair form instead
+/// meters the separation of two latitudes by the 2-D cross product
+/// `ρ₁h₂ − h₁ρ₂ = R² sin(v₂ − v₁)` — the SINE of the latitude
+/// difference, levered by `R`, which is the arc-length convention and
+/// is bounded below by nothing at a pole: at `v₁ = 0` it is exactly
+/// `R sin v₂`, the geodesic distance from the pole. Both components of
+/// each pair come straight from geometry (a rim's own radius, a
+/// vertex's own radial norm), so neither is recovered from the other
+/// by a subtraction that cancels near a pole.
+///
+/// # The pole-in-edge-interior invariant
+///
+/// A meridian arc that runs THROUGH a pole breaks the rectangle in both
+/// coordinates at once, and the azimuth half is the sharper of the two.
+///
+/// * **Azimuth.** The window comes from each boundary edge's closed-form
+///   chart image, and a meridian's image is a constant-azimuth iso-line.
+///   An arc through a pole is not one: its azimuth jumps by π there. The
+///   loop walk carries a pole junction exactly — it reads the loop's own
+///   orientation to pin the branch — but it carries it at a VERTEX,
+///   which a pole interior to an edge is not.
+/// * **Latitude.** The extreme is then interior to the edge, where a
+///   fold over boundary levels never looks. (The props lane's own
+///   version of this is now folded from the stored span rather than from
+///   endpoints, so that half could in principle be lifted the same way.
+///   The azimuth half cannot, so lifting it alone would buy nothing.)
+///
+/// The premise is therefore CHECKED rather than assumed: a meridian edge
+/// with a pole strictly inside its span takes the face out of the class,
+/// and the caller's typed refusal stands.
+///
+/// # Errors
+///
+/// [`PointInSolidError`] — escalations from the class predicates.
+pub(super) fn sphere_chart_trim<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    center: Point3<T>,
+    radius: T,
+    axis: Vec3<T>,
+    band: Band,
+) -> Result<Option<SphereChartTrim<T>>, PointInSolidError> {
+    let escalate = |diag| PointInSolidError::Escalated { face, diag };
+    let f = body
+        .get_face(face)
+        .ok_or(PointInSolidError::CorruptFace { face })?;
+    if !f.rings.is_empty() {
+        return Ok(None);
+    }
+    let surf = body
+        .get_surface(f.surface)
+        .cloned()
+        .ok_or(PointInSolidError::CorruptFace { face })?;
+    let LoopBoundary::Cycle { first } = body
+        .get_loop(f.outer)
+        .ok_or(PointInSolidError::CorruptFace { face })?
+        .boundary
+    else {
+        return Ok(None);
+    };
+    // A definite class miss is `None` (the honest remainder); an
+    // in-band one escalates — the two-tolerance pair, as
+    // `iso_bounded_wall` runs it for the cylinder.
+    let zero = |name: &'static str, m: Margin<T>| -> Result<bool, PointInSolidError> {
+        match decide(name, m, band).map_err(escalate)? {
+            Sign::Zero => Ok(true),
+            Sign::Positive | Sign::Negative => Ok(false),
+        }
+    };
+    let mut levels: Vec<(T, T)> = Vec::new();
+    // A point's own exact meridian-half-plane pair.
+    let pair = |p: Point3<T>| -> (T, T) {
+        let w = p - center;
+        let h = w.dot(axis);
+        (h, (w - axis * h).norm())
+    };
+    for he in body
+        .loop_cycle(first)
+        .ok_or(PointInSolidError::CorruptFace { face })?
+    {
+        let he_data = body
+            .get_half_edge(he)
+            .ok_or(PointInSolidError::CorruptFace { face })?;
+        // Every boundary VERTEX is a latitude the face attains.
+        let v = *body
+            .get_vertex(he_data.start)
+            .and_then(|v| body.get_point(v.point))
+            .ok_or(PointInSolidError::CorruptFace { face })?;
+        levels.push(pair(v));
+        let certified = body
+            .get_edge(he_data.edge)
+            .and_then(|e| body.get_curve_geom(e.curve))
+            .and_then(crate::null::CurveGeom::certified);
+        let Some(curve) = certified else {
+            // Null scaffolding: no carrier, so no class claim and no
+            // latitude of its own beyond the vertex above.
+            continue;
+        };
+        let (t0, t1) = curve.params();
+        let geom::Curve3::Circle {
+            center: c_c,
+            axis: n_c,
+            radius: r_c,
+            u_ref: u_c,
+        } = *curve.carrier()
+        else {
+            return Ok(None);
+        };
+        let w = c_c - center;
+        // A unit-vector cross/dot is a SINE or COSINE (dimensionless)
+        // and is levered by the radius; a length difference is already
+        // metres. The same dimension convention `iso_bounded_wall`
+        // states for the cylinder.
+        if zero(
+            "bool_sphere_iso_meridian",
+            Margin::levered(n_c.dot(axis), r_c),
+        )? {
+            // A meridian GREAT circle: centred at the sphere centre,
+            // at the sphere's own radius.
+            if !zero("bool_sphere_iso_meridian", Margin::of(w.norm()))?
+                || !zero("bool_sphere_iso_meridian", Margin::of(r_c - radius))?
+            {
+                return Ok(None);
+            }
+            // The pole invariant (header). On this carrier the two
+            // poles are the points whose radial direction is ±â, so
+            // the in-span test is THE cosine-window construction with
+            // `r̂ = ±â` — no vertex lookup and no `atan2`.
+            let half = T::from_f64(0.5);
+            let width = t1 - t0;
+            match decide(
+                "bool_sphere_trim_meridian_span",
+                Margin::levered(T::tau() - width, radius),
+                band,
+            )
+            .map_err(escalate)?
+            {
+                Sign::Positive => {}
+                // A full-period meridian edge runs through BOTH poles
+                // and has no angular gate to test: out of the class.
+                Sign::Zero | Sign::Negative => return Ok(None),
+            }
+            let mid = (t0 + t1) * half;
+            let (s_m, c_m) = mid.sin_cos();
+            let m_hat = u_c * c_m + n_c.cross(u_c) * s_m;
+            let (_, c_h) = (width * half).sin_cos();
+            for pole in [axis, axis * (T::zero() - T::one())] {
+                match decide(
+                    "bool_sphere_trim_pole_interior",
+                    Margin::levered(pole.dot(m_hat) - c_h, radius),
+                    band,
+                )
+                .map_err(escalate)?
+                {
+                    // The pole is strictly inside this edge: the
+                    // latitude extreme is interior and no fold over
+                    // boundary levels can see it.
+                    Sign::Positive => return Ok(None),
+                    // At an endpoint (already folded above) or off
+                    // the span: latitude is monotone along the edge.
+                    Sign::Zero | Sign::Negative => {}
+                }
+            }
+        } else {
+            // A latitude RIM: coaxial with the polar axis, centred on
+            // it, and seated on the sphere (`|w|² + r_c² = R²`).
+            if !zero(
+                "bool_sphere_iso_rim",
+                Margin::levered(n_c.cross(axis).norm(), r_c),
+            )? || !zero(
+                "bool_sphere_iso_rim",
+                Margin::of((w - axis * w.dot(axis)).norm()),
+            )? || !zero(
+                "bool_sphere_iso_rim",
+                Margin::of((w.norm_squared() + r_c.powi(2)).sqrt() - radius),
+            )? {
+                return Ok(None);
+            }
+            // The rim's own exact pair — its radius IS the radial
+            // component, with no square root anywhere near a pole.
+            levels.push((w.dot(axis), r_c));
+        }
+    }
+    let Some((lat_lo, lat_hi)) = latitude_extremes(&levels, radius, band).map_err(escalate)? else {
+        return Ok(None);
+    };
+    // A window the loop walk cannot derive is a face this chart cannot
+    // express, NOT a broken body: the walk needs a closed-form chart
+    // image for every boundary edge and a branch it can pin across each
+    // junction, and a face that denies it either is out of the class.
+    // Only the in-band arm is an escalation.
+    let raw = match crate::chord_join::face_azimuth_window(body, &surf, face, band) {
+        Ok(Some(w)) => w,
+        Ok(None) => return Ok(None),
+        Err(crate::chord_join::SplitJoinError::Escalated { diag, .. })
+        | Err(crate::chord_join::SplitJoinError::OrderEscalated { diag }) => {
+            return Err(escalate(diag));
+        }
+        // A CORRUPTION-shaped refusal is not a class statement and must
+        // not wear one: `PartialSphereFace`'s message says the body is
+        // healthy and merely outside the served class, and a key the
+        // walk could not resolve, or a boundary that does not close,
+        // would be wearing that sentence falsely. The arena claim keeps
+        // its own door — the same distinction `bool_planar_chord_spec`
+        // draws between a key that does not resolve and a key of the
+        // wrong kind.
+        Err(crate::chord_join::SplitJoinError::Corrupt { .. })
+        | Err(crate::chord_join::SplitJoinError::UnpairedLooseEnds { .. }) => {
+            return Err(PointInSolidError::CorruptFace { face });
+        }
+        // The honest remainder: a walk this chart cannot express.
+        Err(_) => return Ok(None),
+    };
+    // A FULL-PERIOD azimuth window is not an ill-conditioned window
+    // here, it is a face that attains every azimuth — a cap, or a
+    // latitude band — and the honest membership answer for it is
+    // "yes, at every azimuth". The cylinder's ray arm escalates on the
+    // same reading because there a full turn means its cosine
+    // comparison stopped being an equivalence and the rectangle stopped
+    // describing the face; on a sphere the LATITUDE window still
+    // describes it exactly, so there is a rectangle and no equivalence
+    // is needed. A window WIDER than a period is a walk that wrapped
+    // more than once — out of the class.
+    let az = match decide(
+        "bool_sphere_trim_period",
+        Margin::levered(T::tau() - (raw.1 - raw.0), radius),
+        band,
+    )
+    .map_err(escalate)?
+    {
+        Sign::Positive => Some(raw),
+        Sign::Zero => None,
+        Sign::Negative => return Ok(None),
+    };
+    Ok(Some(SphereChartTrim { az, lat_lo, lat_hi }))
+}
+
+/// A sphere face's chart rectangle: the azimuth window and the two
+/// extreme latitudes, each as its exact `(axial, radial)` pair on the
+/// meridian half-plane.
+///
+/// A `None` window END is a constraint the face does not have, not a
+/// missing datum: a face attaining every azimuth cannot be excluded by
+/// an azimuth, and a latitude window that reaches a POLE cannot be
+/// excluded on that side — every latitude is at least the north pole's
+/// and at most the south pole's. Carrying those as `None` rather than
+/// as a margin against the pole is what keeps the margins honest:
+/// `sin(v - v_pole)` degenerates to `sin v`, which is Zero at BOTH
+/// poles and would call the far pole a graze.
+pub(super) struct SphereChartTrim<T> {
+    /// The azimuth window, or `None` for a full period.
+    pub az: Option<(T, T)>,
+    /// The extreme latitude nearest the `+axis` pole, or `None` when
+    /// the face reaches that pole.
+    pub lat_lo: Option<(T, T)>,
+    /// The extreme latitude nearest the `−axis` pole, or `None` when
+    /// the face reaches that pole.
+    pub lat_hi: Option<(T, T)>,
+}
+
+/// The dimensionless sine of the latitude difference `v_b − v_a`
+/// between two meridian-half-plane pairs on a radius-`r` sphere:
+/// `(h_a ρ_b − ρ_a h_b)/r²`. Positive exactly when `b` lies further
+/// from the `+axis` pole than `a`, and its levered magnitude is the
+/// arc-length separation — the lever that does not collapse at a pole.
+fn latitude_sine<T: geom_core::Real>(a: (T, T), b: (T, T), r: T) -> T {
+    (a.0 * b.1 - a.1 * b.0) / r.powi(2)
+}
+
+/// Is `b` further from the `+axis` pole than `a`? A total order on the
+/// meridian half-plane, in two exact steps.
+///
+/// The primary key is the non-collapsing sine of the latitude
+/// difference. It answers everywhere except one place: it is
+/// `sin(v_b − v_a)`, so it is Zero both when the two latitudes are
+/// EQUAL and when they are ANTIPODAL — and on a half-plane whose
+/// latitudes run `[0, π]` the antipodal case is exactly the two poles,
+/// which is the ordinary shape of a lune's boundary, not an exotic one.
+/// The tie-break is therefore the axial difference, and it is exact in
+/// precisely the case it is asked: a Zero sine means the axial gap is
+/// either ~0 (the same latitude, either order is right) or ~2R (the two
+/// poles, no cancellation anywhere near it). The collapsing regime an
+/// axial comparison has — two nearby latitudes at a pole — is the one
+/// regime the sine has already decided.
+fn latitude_after<T: Decide>(
+    a: (T, T),
+    b: (T, T),
+    radius: T,
+    band: Band,
+) -> Result<bool, Indeterminate> {
+    match decide(
+        "bool_sphere_trim_latitude",
+        Margin::levered(latitude_sine(a, b, radius), radius),
+        band,
+    )? {
+        Sign::Positive => Ok(true),
+        Sign::Negative => Ok(false),
+        Sign::Zero => Ok(matches!(
+            decide("bool_sphere_trim_antipode", Margin::of(a.0 - b.0), band)?,
+            Sign::Positive
+        )),
+    }
+}
+
+/// Folds the boundary latitudes to the window's two extremes, and
+/// resolves each end against its pole.
+///
+/// The fold's own comparison is [`latitude_after`], whose primary key
+/// is the same non-collapsing sine the membership margins use, so its
+/// in-band arm is a **deterministic tie-break** (D9) and not a verdict:
+/// two candidates it cannot separate are within a band-width of ARC
+/// LENGTH of each other, and the membership margins downstream are arc
+/// lengths against that same band — so a query the tie-break could move
+/// is a query already within a band of the window edge, whose verdict
+/// is a graze either way. The tie-break can turn a definite verdict
+/// into a graze; it can never turn `In` into `Out`.
+///
+/// An end that IS a pole becomes `None` — no constraint on that side.
+/// `Ok(None)` overall is a face the window cannot describe: both
+/// extremes at one pole is a face with no latitude extent at all.
+#[allow(clippy::type_complexity)] // the two window ends, each optional
+fn latitude_extremes<T: Decide>(
+    levels: &[(T, T)],
+    radius: T,
+    band: Band,
+) -> Result<Option<(Option<(T, T)>, Option<(T, T)>)>, Indeterminate> {
+    let mut it = levels.iter().copied();
+    let first = it.next().ok_or(Indeterminate {
+        margin: geom_core::MarginDiag::Invalid,
+        band,
+        predicate: Some("bool_sphere_trim_latitude"),
+    })?;
+    let (mut lo, mut hi) = (first, first);
+    for e in it {
+        if latitude_after(e, lo, radius, band)? {
+            lo = e;
+        }
+        if latitude_after(hi, e, radius, band)? {
+            hi = e;
+        }
+    }
+    // A window END at a pole is a constraint the face does not have.
+    // Which pole it is comes from the axial sign, whose margin at
+    // `ρ = 0` is the full radius — the one place an axial comparison is
+    // unambiguous.
+    let resolve = |end: (T, T), want: Sign| -> Result<Option<Option<(T, T)>>, Indeterminate> {
+        match decide("bool_sphere_trim_pole_end", Margin::of(end.1), band)? {
+            Sign::Positive => Ok(Some(Some(end))),
+            Sign::Zero | Sign::Negative => {
+                match decide("bool_sphere_trim_pole_end", Margin::of(end.0), band)? {
+                    s if s == want => Ok(Some(None)),
+                    // The window's low end sits at the SOUTH pole (or
+                    // its high end at the north): the face has no
+                    // latitude extent, and no rectangle describes it.
+                    _ => Ok(None),
+                }
+            }
+        }
+    };
+    // A boundary with only ONE distinct latitude and no pole on it
+    // does not pin a rectangle: the face's own latitude extreme is then
+    // INTERIOR to it — a full cap, whose pole no boundary edge reaches
+    // — and a window folded from the boundary would report the face as
+    // its own rim. The pole-in-edge-interior invariant's face-level
+    // twin, and the same reason: an extreme no boundary walk can see.
+    if matches!(
+        decide(
+            "bool_sphere_trim_latitude",
+            Margin::levered(latitude_sine(lo, hi, radius), radius),
+            band,
+        )?,
+        Sign::Zero
+    ) && matches!(
+        decide("bool_sphere_trim_antipode", Margin::of(lo.0 - hi.0), band)?,
+        Sign::Zero
+    ) {
+        return Ok(None);
+    }
+    let (Some(lo), Some(hi)) = (resolve(lo, Sign::Positive)?, resolve(hi, Sign::Negative)?) else {
+        return Ok(None);
+    };
+    Ok(Some((lo, hi)))
+}
+
+/// Is the ON-SPHERE point `p` within the sphere face's chart trim?
+/// `Some(true/false)` definite, `None` a boundary graze.
+///
+/// The azimuth half is THE cosine-window construction verbatim — the
+/// argument (period guard, `r̂·m̂ ≥ cos(w/2)`, `· radius` metering,
+/// ledger row F8) lives at [`point_on_wall_in_face`] and is shared,
+/// so a change to any of it is a change to all of its sites. A face
+/// with no azimuth window attains every azimuth and skips it.
+///
+/// The latitude half is the sine margin of [`sphere_chart_trim`]'s
+/// header: `R sin(v − v_lo)` and `R sin(v_hi − v)`, both arc lengths,
+/// both bounded below by the geodesic distance to the window edge even
+/// when that edge is a pole.
+#[allow(clippy::too_many_arguments)] // one chart datum, each argument named
+pub(super) fn point_on_sphere_in_face<T: Decide>(
+    face: FaceKey,
+    center: Point3<T>,
+    radius: T,
+    axis: Vec3<T>,
+    u_ref: Vec3<T>,
+    trim: &SphereChartTrim<T>,
+    p: Point3<T>,
+    band: Band,
+) -> Result<Option<bool>, PointInSolidError> {
+    let escalate = |diag| PointInSolidError::Escalated { face, diag };
+    let half = T::from_f64(0.5);
+    let w = p - center;
+    let height = w.dot(axis);
+    let radial = w - axis * height;
+    let here = (height, radial.norm());
+    let mut margins: Vec<Margin<T>> = [
+        trim.lat_lo
+            .map(|lo| Margin::levered(latitude_sine(lo, here, radius), radius)),
+        trim.lat_hi
+            .map(|hi| Margin::levered(latitude_sine(here, hi, radius), radius)),
+    ]
+    .into_iter()
+    .flatten()
+    .collect();
+    if let Some((w_min, w_max)) = trim.az {
+        let width = w_max - w_min;
+        let mid = (w_min + w_max) * half;
+        let (s_m, c_m) = mid.sin_cos();
+        let v_ref = axis.cross(u_ref);
+        let m_hat = u_ref * c_m + v_ref * s_m;
+        let (_, c_h) = (width * half).sin_cos();
+        // The azimuth direction is the radial one, and at a POLE there
+        // is none: every azimuth meets there, so the window cannot
+        // exclude the point and the test is skipped rather than run on
+        // a direction that does not exist. The latitude margins above
+        // still decide the pole, exactly.
+        match decide("bool_sphere_trim_pole", Margin::of(radial.norm()), band).map_err(escalate)? {
+            Sign::Positive => {
+                let r_hat = radial / radial.norm();
+                margins.push(Margin::levered(r_hat.dot(m_hat) - c_h, radius));
+            }
+            Sign::Zero | Sign::Negative => {}
+        }
+    }
+    let mut verdict = Some(true);
+    for margin in margins {
+        match decide("bool_sphere_trim", margin, band).map_err(escalate)? {
+            Sign::Positive => {}
+            Sign::Negative => return Ok(Some(false)),
+            Sign::Zero => verdict = None, // boundary graze
+        }
+    }
+    Ok(verdict)
+}
+
 /// Is `p` (already in the face's plane) within the face's region —
 /// inside the outer loop and outside every ring? `OnBoundary` from any
 /// loop is reported as `None` (graze).
@@ -692,6 +1245,30 @@ pub fn point_in_solid<T: Decide>(
                     return Ok(SolidContainment::OnBoundary);
                 }
             }
+            // The TRIMMED sphere arm: a Zero radial residual puts `q`
+            // on the CARRIER, and the face's own chart rectangle then
+            // says whether it is on THIS face (a trim graze counts as
+            // ON, as it does for the cylinder wall).
+            FaceGeo::SpherePatch {
+                center,
+                radius,
+                axis,
+                u_ref,
+                ref trim,
+                sense: _, // a residual against Zero: orientation-free
+            } => {
+                let elev =
+                    ((q - center).norm_squared() - radius.powi(2)) / (T::from_f64(2.0) * radius);
+                if decide("bool_point_in_solid_plane", Margin::of(elev), band).map_err(escalate)?
+                    == Sign::Zero
+                {
+                    match point_on_sphere_in_face(face, center, radius, axis, u_ref, trim, q, band)?
+                    {
+                        Some(true) | None => return Ok(SolidContainment::OnBoundary),
+                        Some(false) => {}
+                    }
+                }
+            }
         }
     }
 
@@ -727,6 +1304,90 @@ const fn oriented(sign: Sign, sense: bool) -> Sign {
             Sign::Zero => Sign::Zero,
         }
     }
+}
+
+/// What [`line_wall_roots`] found. The three non-root answers are kept
+/// APART rather than collapsed into one "no roots": each caller owes a
+/// different thing to each of them — a ray retries a tangent and skips
+/// a miss, an edge sweep refuses a tangent and clears a miss — and a
+/// merged variant would let one caller silently inherit the other's
+/// posture.
+#[derive(Debug, Clone, Copy)]
+pub(super) enum WallRoots<T> {
+    /// The line is parallel to the axis: its residual is constant, so
+    /// the quadratic degenerates and there is no root to report.
+    AxisParallel,
+    /// The discriminant is in the zero band — the line is TANGENT to
+    /// the wall, and a tangency is not a crossing at any order this
+    /// function can see.
+    Tangent,
+    /// A definitely negative discriminant: no real root.
+    Miss,
+    /// Two definite roots of the carrier's own parameter, ascending.
+    Two([T; 2]),
+}
+
+/// The certified roots of the LINE `q + d·t` against the INFINITE
+/// cylinder wall `(origin, axis, radius)` — the quadratic in metres
+/// that the ray lane has solved since M5 PR 9, factored out so the
+/// edge-sweep lane solves the same one.
+///
+/// **Roots, not hits.** Trimming to a face, ordering by advance and
+/// folding to a closest hit are the RAY's concerns and stay in
+/// [`cast_ray`]; a line-edge span needs both roots, unordered by sign,
+/// and folding them here would have made this the ray's function with
+/// a second caller rather than a shared primitive.
+///
+/// **The two trileans keep their names and their metering**, because
+/// both are pinned: `bool_ray_cylinder_disc`'s dimensionless
+/// `disc/(2r)²` is a deliberate non-normalization flagged at the sphere
+/// arm below, and re-metering either one would move every acceptance
+/// margin that quotes them.
+///
+/// # Errors
+///
+/// [`geom_core::Indeterminate`] — an in-band discriminant or an in-band
+/// axis-parallel test. The caller wraps it in its own error type.
+pub(super) fn line_wall_roots<T: Decide>(
+    q: Point3<T>,
+    d: Vec3<T>,
+    origin: Point3<T>,
+    axis: Vec3<T>,
+    radius: T,
+    band: Band,
+) -> Result<WallRoots<T>, geom_core::Indeterminate> {
+    let w0 = q - origin;
+    let w0p = w0 - axis * w0.dot(axis);
+    let dp = d - axis * d.dot(axis);
+    let a2 = dp.norm_squared();
+    let two_r = T::from_f64(2.0) * radius;
+    // Ledger row F2: sin²/2r is 1/m — flagged, not cast.
+    match geom_core::k_stats::decide_flagged("bool_point_in_solid_denom", a2 / two_r, band, "F2")? {
+        Sign::Positive => {}
+        _ => return Ok(WallRoots::AxisParallel),
+    }
+    let b2 = w0p.dot(dp);
+    let c2 = w0p.norm_squared() - radius.powi(2);
+    let disc = b2.powi(2) - a2 * c2;
+    // Metre-scaled discriminant: Positive ⇒ two definite roots; Zero ⇒
+    // tangent; Negative ⇒ definite miss; in-band escalates.
+    // Ledger row F2: disc/(2r)² is dimensionless (its own in-tree
+    // admission, PR 9c review F3) — flagged.
+    match geom_core::k_stats::decide_flagged(
+        "bool_ray_cylinder_disc",
+        disc / two_r.powi(2),
+        band,
+        "F2",
+    )? {
+        Sign::Positive => {}
+        Sign::Zero => return Ok(WallRoots::Tangent),
+        Sign::Negative => return Ok(WallRoots::Miss),
+    }
+    let root = disc.max(T::zero()).sqrt();
+    Ok(WallRoots::Two([
+        (T::zero() - b2 - root) / a2,
+        (T::zero() - b2 + root) / a2,
+    ]))
 }
 
 /// One ray of the sweep: `Some(verdict)` or `None` for a graze.
@@ -824,48 +1485,15 @@ fn cast_ray<T: Decide>(
                 h,
                 sense,
             } => {
-                let w0 = q - origin;
-                let w0p = w0 - axis * w0.dot(axis);
-                let dp = d - axis * d.dot(axis);
-                let a2 = dp.norm_squared();
-                let two_r = T::from_f64(2.0) * radius;
-                // Axis-parallel ray: constant residual; the pre-pass
-                // said q is off the wall, so it misses entirely.
-                // Ledger row F2: sin²/2r is 1/m — flagged, not cast.
-                match geom_core::k_stats::decide_flagged(
-                    "bool_point_in_solid_denom",
-                    a2 / two_r,
-                    band,
-                    "F2",
-                )
-                .map_err(escalate)?
-                {
-                    Sign::Positive => {}
-                    _ => continue,
-                }
-                let b2 = w0p.dot(dp);
-                let c2 = w0p.norm_squared() - radius.powi(2);
-                let disc = b2.powi(2) - a2 * c2;
-                // Metre-scaled discriminant: Positive ⇒ two definite
-                // roots; Zero ⇒ a tangent ray (graze, retry the next
-                // schedule member); Negative ⇒ definite miss; in-band
-                // escalates through the funnel.
-                // Ledger row F2: disc/(2r)² is dimensionless (its own
-                // in-tree admission, PR 9c review F3) — flagged.
-                match geom_core::k_stats::decide_flagged(
-                    "bool_ray_cylinder_disc",
-                    disc / two_r.powi(2),
-                    band,
-                    "F2",
-                )
-                .map_err(escalate)?
-                {
-                    Sign::Positive => {}
-                    Sign::Zero => return Ok(None), // tangent ray: graze
-                    Sign::Negative => continue,    // definite miss
-                }
-                let root = disc.max(T::zero()).sqrt();
-                for t in [(T::zero() - b2 - root) / a2, (T::zero() - b2 + root) / a2] {
+                let roots = line_wall_roots(q, d, origin, axis, radius, band).map_err(escalate)?;
+                let ts = match roots {
+                    // Axis-parallel ray: constant residual; the pre-pass
+                    // said q is off the wall, so it misses entirely.
+                    WallRoots::AxisParallel | WallRoots::Miss => continue,
+                    WallRoots::Tangent => return Ok(None), // tangent ray: graze
+                    WallRoots::Two(ts) => ts,
+                };
+                for t in ts {
                     let p = q + d * t;
                     match point_on_wall_in_face(face, origin, axis, radius, u_ref, az, h, p, band)?
                     {
@@ -965,6 +1593,53 @@ fn cast_ray<T: Decide>(
                     }
                 }
             }
+            // The TRIMMED sphere face: the same quadratic, the same
+            // read-off outward pair, with each root filtered through
+            // the face's own chart rectangle — the cylinder arm's
+            // shape. A root outside the trim is not a crossing of THIS
+            // face; a root ON its boundary is a graze the schedule
+            // retries, never a parity guess.
+            FaceGeo::SpherePatch {
+                center,
+                radius,
+                axis,
+                u_ref,
+                ref trim,
+                sense,
+            } => {
+                let w0 = q - center;
+                let b2 = w0.dot(d);
+                let c2 = w0.norm_squared() - radius.powi(2);
+                let disc = b2.powi(2) - c2;
+                let two_r = T::from_f64(2.0) * radius;
+                match decide(
+                    "bool_ray_sphere_disc",
+                    Margin::over_lever(disc, two_r),
+                    band,
+                )
+                .map_err(escalate)?
+                {
+                    Sign::Positive => {}
+                    Sign::Zero => return Ok(None), // tangent ray: graze
+                    Sign::Negative => continue,    // definite miss
+                }
+                let root = disc.max(T::zero()).sqrt();
+                for (t, outward) in [
+                    (T::zero() - b2 - root, oriented(Sign::Negative, sense)),
+                    (T::zero() - b2 + root, oriented(Sign::Positive, sense)),
+                ] {
+                    let p = q + d * t;
+                    match point_on_sphere_in_face(face, center, radius, axis, u_ref, trim, p, band)?
+                    {
+                        Some(false) => continue,
+                        None => return Ok(None), // trim-boundary hit: graze
+                        Some(true) => {}
+                    }
+                    if fold(&mut best, face, t, outward)?.is_none() {
+                        return Ok(None);
+                    }
+                }
+            }
         }
     }
     match best {
@@ -990,9 +1665,44 @@ fn at_infinity_side<T: Decide>(
     tol: Tol,
 ) -> Result<SolidContainment, PointInSolidError> {
     // Closed-form lane (M5 PR 11 lane split) — see `volume_backstop`.
-    let props = crate::props::mass_properties_closed_form(body, band, tol).map_err(|_| {
-        PointInSolidError::CorruptFace {
-            face: faces.first().copied().unwrap_or_default(),
+    //
+    // The props refusal is READ, not flattened. `VolumeUncertified`'s
+    // own message asserts "the body is HEALTHY and this door's arms
+    // answered; what is missing is a volume", and two of the props
+    // lane's refusals make that sentence false: an escalation is an
+    // ill-conditioned operand at this ε (with a predicate name and a
+    // band the caller can act on), and the corruption-shaped arms are
+    // arena claims about a BROKEN body. Each keeps its own door.
+    let props = crate::props::mass_properties_closed_form(body, band, tol).map_err(|e| {
+        match e {
+            // An escalation stays an escalation, carrying its
+            // diagnostics and the face it happened on.
+            crate::props::MassPropsError::Face {
+                face,
+                source: geom_brep::props::PropsError::Escalated { cause },
+            } => PointInSolidError::Escalated { face, diag: cause },
+            // Corruption-shaped: a face whose area enclosure will not
+            // certify a positive extent, a key the props walk could not
+            // resolve, or null scaffolding in a body being classified
+            // AT REST. None of these is "healthy body, missing
+            // capability".
+            crate::props::MassPropsError::Face {
+                face,
+                source: geom_brep::props::PropsError::DegenerateFace,
+            } => PointInSolidError::CorruptFace { face },
+            crate::props::MassPropsError::Corrupt { .. }
+            | crate::props::MassPropsError::NullScaffoldEdge { .. } => {
+                PointInSolidError::CorruptFace { face: faces[0] }
+            }
+            // The remainder IS the capability gap the variant
+            // describes: a boundary outside the iso-rectangle
+            // inventory (the standing rimless-lune case), a ring on a
+            // curved face, an unimplemented kind, a quadrature that
+            // would not converge inside its budget, a band that would
+            // not construct. A HEALTHY body, and a missing volume.
+            crate::props::MassPropsError::Band { .. }
+            | crate::props::MassPropsError::RingOnCurvedFace { .. }
+            | crate::props::MassPropsError::Face { .. } => PointInSolidError::VolumeUncertified,
         }
     })?;
     let margin = Margin::over_lever(props.volume, props.surface_area);

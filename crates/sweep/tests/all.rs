@@ -38,6 +38,10 @@
 // the lint gate for every suite module included below.
 #![allow(clippy::duplicate_mod)]
 
+#[path = "bool1_fix_pass.rs"]
+mod bool1_fix_pass;
+#[path = "bool1_r1_probes.rs"]
+mod bool1_r1_probes;
 #[path = "offb_r1_loft_probes.rs"]
 mod offb_r1_loft_probes;
 #[path = "offc_r1_probes.rs"]
@@ -50,6 +54,8 @@ mod offd_r1_probes;
 mod p1b_r1_probes;
 #[path = "pcurve_p1b_r2_probes.rs"]
 mod pcurve_p1b_r2_probes;
+#[path = "r2_mesh1_donut_probes.rs"]
+mod r2_mesh1_donut_probes;
 #[path = "sf2a_r1.rs"]
 mod sf2a_r1;
 #[path = "sf2a_r1_head.rs"]
@@ -83,8 +89,26 @@ mod verbs_shell;
 mod bitdump;
 #[path = "blend1_r1_probes.rs"]
 mod blend1_r1_probes;
+#[path = "blend2_r2_probes.rs"]
+mod blend2_r2_probes;
+#[path = "blend3_concave_chamfer.rs"]
+mod blend3_concave_chamfer;
+#[path = "blend3_r2_probes.rs"]
+mod blend3_r2_probes;
+#[path = "blend4_concave_fillet.rs"]
+mod blend4_concave_fillet;
+#[path = "blend4_r1_probes.rs"]
+mod blend4_r1_probes;
+#[path = "blend6_verb_vocab.rs"]
+mod blend6_verb_vocab;
 #[path = "blend_seam_split_rim.rs"]
 mod blend_seam_split_rim;
+#[path = "blend_tworims.rs"]
+mod blend_tworims;
+#[path = "cert5_offgrid_knot_rational.rs"]
+mod cert5_offgrid_knot_rational;
+#[path = "cert5_r1_e2e_probes.rs"]
+mod cert5_r1_e2e_probes;
 #[path = "extrude_acceptance.rs"]
 mod extrude_acceptance;
 #[path = "extrude_interval.rs"]
@@ -177,6 +201,8 @@ mod m9_d1_r2_probes;
 mod mass_props;
 #[path = "mass_props_interval.rs"]
 mod mass_props_interval;
+#[path = "r1_probes_issue1362_donut.rs"]
+mod r1_probes_issue1362_donut;
 #[path = "readback_doors.rs"]
 mod readback_doors;
 #[path = "review_arceval_r1_probes.rs"]
@@ -187,6 +213,14 @@ mod review_arms2_r1_probes;
 mod review_arms3_r1_probes;
 #[path = "review_blend1_r2_probes.rs"]
 mod review_blend1_r2_probes;
+#[path = "review_blend3_r1_probes.rs"]
+mod review_blend3_r1_probes;
+#[path = "review_blend4_r2_probes.rs"]
+mod review_blend4_r2_probes;
+#[path = "review_blend6_r1_probes.rs"]
+mod review_blend6_r1_probes;
+#[path = "review_blend6_r2_probes.rs"]
+mod review_blend6_r2_probes;
 #[path = "review_chamfer_r1_probes.rs"]
 mod review_chamfer_r1_probes;
 #[path = "review_d2_adv_probes.rs"]
@@ -257,6 +291,8 @@ mod ring_r1_probes;
 mod s16_box_soundness;
 #[path = "s49_census_jurisdiction.rs"]
 mod s49_census_jurisdiction;
+#[path = "turning_orientation.rs"]
+mod turning_orientation;
 #[path = "verbs_arms1_annulus.rs"]
 mod verbs_arms1_annulus;
 #[path = "verbs_arms1_r1_probes.rs"]
@@ -276,6 +312,14 @@ mod verbs_cylcyl_probe;
 mod verbs_cylcyl_r1_review_probes;
 #[path = "verbs_cylcylb_r1_blinded_probes.rs"]
 mod verbs_cylcylb_r1_blinded_probes;
+#[path = "verbs_ga_r2_probes.rs"]
+mod verbs_ga_r2_probes;
+#[path = "verbs_germarms.rs"]
+mod verbs_germarms;
+#[path = "verbs_germarms_interval.rs"]
+mod verbs_germarms_interval;
+#[path = "verbs_germarms_r1_probes.rs"]
+mod verbs_germarms_r1_probes;
 #[path = "verbs_pierce.rs"]
 mod verbs_pierce;
 #[path = "verbs_pierce_r1_probes.rs"]
@@ -286,6 +330,10 @@ mod verbs_pierce_r2_probes;
 mod verbs_rim_closed_lever;
 #[path = "verbs_rim_r1_probes.rs"]
 mod verbs_rim_r1_probes;
+#[path = "verbs_sphsph_chart.rs"]
+mod verbs_sphsph_chart;
+#[path = "verbs_sphsph_opening.rs"]
+mod verbs_sphsph_opening;
 #[path = "verbs_tubewall.rs"]
 mod verbs_tubewall;
 #[path = "verbs_tubewall_r1_fingerprint.rs"]
@@ -372,3 +420,8 @@ mod verbs_shell_r2b;
 
 #[path = "r1_p2_probes.rs"]
 mod r1_p2_probes;
+
+#[path = "bool1_r2_probes.rs"]
+mod bool1_r2_probes;
+#[path = "r1_area_gauge_probes.rs"]
+mod r1_area_gauge_probes;

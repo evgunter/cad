@@ -784,6 +784,34 @@ fn remap_node(
             class: *class,
             alignment: *alignment,
         },
+        // A measure's references are BOTH names and edges, so they
+        // remap through the name door exactly once — `nm` rewrites the
+        // embedded minting node id, which is what the edge is derived
+        // from.
+        // Both halves remap: the NAME through the name door, and the
+        // reading SITE through the id door, because a measure's site
+        // is an ordinary input edge.
+        Node::Measure { expr, refs } => Node::Measure {
+            expr: expr.clone(),
+            refs: refs
+                .iter()
+                .map(|r| {
+                    Ok(crate::node::MeasureRef {
+                        at: id(r.at)?,
+                        name: nm(&r.name)?,
+                    })
+                })
+                .collect::<Result<_, RemapMiss>>()?,
+        },
+        Node::Assertion {
+            measure,
+            bound,
+            dir,
+        } => Node::Assertion {
+            measure: id(*measure)?,
+            bound: bound.clone(),
+            dir: *dir,
+        },
     })
 }
 
@@ -794,6 +822,12 @@ fn node_param_refs(node: &Node<ProfileProgram>) -> BTreeSet<crate::doc::ParamNam
         if let Some(expr) = node.expr(slot) {
             expr.param_refs(&mut refs);
         }
+    }
+    // The expressions no slot addresses count too: a measured bound
+    // referencing a parameter is exactly as much a reason to copy that
+    // parameter into a split part as an extrude's distance is.
+    for expr in crate::node::payload_exprs(node).into_iter().flatten() {
+        expr.param_refs(&mut refs);
     }
     refs.into_iter().map(|(name, _)| name).collect()
 }
@@ -1117,11 +1151,16 @@ pub fn split(
     // order, which is what makes the record D9-deterministic.
     //
     // **Only a mate EDGE can cross** (AQ8, RULED — option (b), SKIP).
-    // A4 says "every mate EDGE crossing the cut", and an A12 reading
-    // edge exists only when BOTH heads are live instances. A mate with
-    // a DANGLING head — a reference to non-instance geometry, or to a
-    // node not in the document — is therefore not an edge and
-    // contributes NO crossing, however its names fall across the cut.
+    // A4 says "every mate EDGE crossing the cut". An A12 reading edge
+    // exists when both heads resolve to live MEMBERS — a live
+    // instance, or a pattern-placed instance (A11's member
+    // vocabulary) — but this collector still gates on plain
+    // `InstantiatePart` heads only: a mate whose edge end is a
+    // pattern-placed head contributes no crossing record, and so loses
+    // the pin-move re-verification the record buys (issue 1405 —
+    // split/refactor ground). A mate with a DANGLING head — one
+    // resolving to no member at all — is not an edge and contributes
+    // NO crossing, however its names fall across the cut.
     // The ruling's reason is the one that matters here: such a mate
     // never solved, so a record minted from it would be
     // trusted-at-rest state, which AQ8's ratification condition

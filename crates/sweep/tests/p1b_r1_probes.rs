@@ -25,7 +25,7 @@ use geom::Surface;
 use geom_brep::{EdgeDescription, EdgeDescriptionSpec, MappedCurve};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
-use sweep::fillet::fillet_edges;
+use sweep::blend::fillet_edges;
 use sweep::{
     Extrusion, Revolution, RevolveAxis, TubeWindow, extrude, loft_body, revolve, tube_along_arc,
     tube_along_arc_hollow,
@@ -390,7 +390,7 @@ fn fillet_products_carry_no_scaffold_at_rest() {
     // row measures what the finished body actually carries.
     let body = sweep::test_support::cube(1.0, Tol::witness());
     let edges: Vec<EdgeKey> = body.edges().map(|(k, _)| k).collect();
-    let filleted = fillet_edges(&body, &edges, 0.125, band(), Tol::witness())
+    let filleted = fillet_edges(&body, &edges, 0.125, Tol::witness())
         .expect("the die blank fillets")
         .body;
     fence_crosscheck(&filleted, "fillet (die blank)");
@@ -772,7 +772,6 @@ fn a_corrupt_declaration_certifies_clean_and_survives_tier3() {
 /// `DescriptionNotAdjacent` on three edges of the `below` product.
 /// Un-ignore it when #1152 lands.
 #[test]
-#[ignore = "pre-existing topo::split defect, filed as #1152 with this probe as its reproduction"]
 fn coplanar_split_products_carry_no_scaffold_at_rest() {
     let notched = ProfileLoop::polygon(
         [

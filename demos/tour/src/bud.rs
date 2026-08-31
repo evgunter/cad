@@ -53,26 +53,26 @@
 //!
 //! # Findings this scene records (the demo-purpose rule)
 //!
-//! 1. **Two closed rims that SHARE a support face cannot roll in one
-//!    call**, and this scene met that walking in. The obvious spelling
-//!    — hand `fillet_edges` all three rims at once — refuses
-//!    `UnsupportedChain` on the pucker cone, which the mouth rim and
-//!    the lip rim both sit on: *"a one-edge rim's band consumes that
-//!    face's seam meridian — fillet them in SEQUENTIAL calls (the
-//!    second on the first's result), which composes exactly"*. The
-//!    scene PINS that refusal (a wall-style probe, so a widened door
-//!    fails the tour rather than passing unnoticed) and then does what
-//!    the recourse says. What survives of the convenient spelling is
-//!    real and is also pinned: the lip and the bore's base share
-//!    nothing, and those two DO roll in one call. So the door's grain
-//!    is "one call per set of rims with disjoint supports", not "one
-//!    call per rim" — a distinction only execution settles.
+//! 1. **All three rims roll in ONE call — including the two that
+//!    SHARE the pucker cone.** This scene originally met the opposite
+//!    walking in: the obvious spelling refused `UnsupportedChain`,
+//!    because an annulus band consumes its supports' seam meridians
+//!    and a later rim's plan named a seam the first carve had split.
+//!    #935 serves it now — the carve re-reads each later rim's
+//!    seam-piece identities against the partially-carved body, every
+//!    decision still made in the plan against the source — so the
+//!    convenient spelling IS the door's grain. The scene pins the
+//!    success the way it used to pin the refusal: the one-call body's
+//!    volume equals the sequential composition's (the mouth first,
+//!    then lip + bore base on its result) to one summation ulp —
+//!    measured: the faces are the same closed forms under different
+//!    arena keys, so only the integrator's summation order differs —
+//!    so the widening is a widening and not a divergence.
 //!
-//!    The radius is per REQUEST, not per edge, which is the other half
-//!    of the same shape: a bud wanting a different roll at its lip
-//!    would be a further call, exactly as the die composes its blank's
-//!    radius with its pip rims'. This scene wants one radius, so the
-//!    grain is recorded rather than worked around.
+//!    The radius is per REQUEST, not per edge: a bud wanting a
+//!    different roll at its lip would be a further call, exactly as
+//!    the die composes its blank's radius with its pip rims'. This
+//!    scene wants one radius, so one call says everything.
 //! 2. **The rims are selected BY DESCRIPTION and the description is
 //!    ambiguous at the bore.** `(Cylinder, Plane)` names the bore's
 //!    base rim and its top rim both — the same arm at the other end —
@@ -93,8 +93,8 @@ use core::f64::consts::PI;
 use pncad::authoring::{p2, validated};
 use pncad::geom::{Curve3, Surface};
 use pncad::geom_brep::SurfaceKind;
-use pncad::geom_core::{Band, Point2, Tol, Vec2};
-use pncad::prelude::{FilletError, Open, Start, fillet_edges};
+use pncad::geom_core::{Point2, Tol, Vec2};
+use pncad::prelude::{Open, Start, fillet_edges};
 use pncad::profile::{ArcSweep, Center, ProfileLoop, SketchPlane};
 use pncad::sweep::{Revolution, RevolveAxis, revolve};
 use pncad::topo::{Body, EdgeKey};
@@ -267,8 +267,6 @@ fn band_torus(body: &Body<f64>, face: pncad::topo::FaceKey) -> (f64, f64) {
 }
 
 pub fn stops(tol: Tol) -> Vec<Stop> {
-    let band = Band::linear(tol).expect("the run's band");
-
     // The unfilleted twin, kept alive: every claim below is against
     // THIS body rather than against a remembered number.
     let sharp = bud(tol);
@@ -307,41 +305,28 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         "the bore's BASE rim sits on the base annulus at y = 0"
     );
 
-    // ---- finding 1, probed: the convenient spelling REFUSES ----
+    // ---- finding 1, executed: the convenient spelling BUILDS ----
     //
     // All three rims at once is what a consumer writes first, and the
-    // mouth and the lip share the pucker cone. Pinned as a wall probe
-    // rather than commented: the EXACT variant, so a door that grew
-    // this case fails the tour here instead of passing silently.
-    let together = fillet_edges(&sharp, &[mouth, lip, bore_base], ROLL, band, tol);
-    match &together {
-        Err(FilletError::UnsupportedChain { detail, .. }) => {
-            assert!(
-                detail.contains("share a support face"),
-                "the refusal still names the shared support: {detail}"
-            );
-            println!(
-                "   [budfillet] all three rims in ONE call — REFUSED TYPED, \
-                 UnsupportedChain: {detail}"
-            );
-        }
-        Err(other) => panic!(
-            "the three-rim request refuses UnsupportedChain on the shared pucker cone; \
-             got {other:?} — re-derive finding 1 from what the door now says"
-        ),
-        Ok(_) => panic!(
-            "the three-rim request now SUCCEEDS: the door grew the shared-support case. \
-             Retire this probe, rewrite finding 1 from the success, and collapse the two \
-             calls below into one"
-        ),
-    }
+    // mouth and the lip share the pucker cone. #935's seam refresh
+    // serves exactly this, so the natural spelling is the one the
+    // scene ships.
+    let rolled = fillet_edges(&sharp, &[mouth, lip, bore_base], ROLL, tol).unwrap_or_else(|e| {
+        panic!(
+            "all three rims roll in ONE call — the shared pucker cone is served by \
+                 the #935 seam refresh; got {e:?}"
+        )
+    });
+    println!("   [budfillet] all three rims in ONE call — three bands, one request");
 
-    // ---- and what the recourse says, executed ----
+    // ---- finding 1, cross-checked: the one call IS the sequential
+    // composition, to the bit ----
     //
-    // Sequentially: the mouth first, then the two rims that share
-    // nothing — which go together, so the grain is per DISJOINT SET,
-    // not per rim.
-    let first = fillet_edges(&sharp, &[mouth], ROLL, band, tol)
+    // The recourse the old refusal named stays true and stays equal:
+    // the mouth first, then the two rims that share nothing on its
+    // result. A widened door that DIVERGED from it would be a wrong
+    // door wearing a convenience.
+    let first = fillet_edges(&sharp, &[mouth], ROLL, tol)
         .unwrap_or_else(|e| panic!("the bud's sphere-cone mouth rim rolls, got {e:?}"));
     let lip2 = rim_between(
         &first.body,
@@ -358,12 +343,32 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 .expect("finite stations")
         })
         .expect("two bore rims");
-    let rolled = fillet_edges(&first.body, &[lip2, base2], ROLL, band, tol).unwrap_or_else(|e| {
+    let sequential = fillet_edges(&first.body, &[lip2, base2], ROLL, tol).unwrap_or_else(|e| {
         panic!(
-            "the lip and the bore's base share no support face, so they roll TOGETHER; \
-             got {e:?}"
+            "the lip and the bore's base share no support face, so they roll \
+                 TOGETHER on the mouth's result; got {e:?}"
         )
     });
+    let one_call_volume = pncad::topo::mass_properties(&rolled.body, tol)
+        .expect("the one-call bud's props")
+        .volume;
+    let sequential_volume = pncad::topo::mass_properties(&sequential.body, tol)
+        .expect("the sequential bud's props")
+        .volume;
+    // MEASURED at one ulp, and the ulp is the integrator's, not the
+    // carve's: the two paths mint the same closed-form faces under
+    // different arena keys, so `mass_properties` sums the same
+    // per-face contributions in a different order. (The kernel's own
+    // rows measure the zone and lantern pairs bit-equal —
+    // `sweep/tests/blend_tworims.rs`; this body is where the
+    // summation-order ulp shows up.)
+    assert!(
+        one_call_volume > 0.0
+            && (one_call_volume - sequential_volume).abs()
+                <= 2.0 * f64::EPSILON * one_call_volume.abs(),
+        "one call and the sequential composition agree to a summation ulp: \
+         {one_call_volume:.17e} vs {sequential_volume:.17e}"
+    );
 
     // ---- proof 1: the census delta, three times the band's own ----
     let (v, e, f) = (
@@ -379,12 +384,14 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
 
     // ---- proof 2: the band faces EXIST, and each is a torus of the
     // requested tube radius. A silhouette that did not move cannot say
-    // this; three new revolution walls can only be there or not. The
-    // composed body's bands are found by DESCRIPTION for the same
-    // reason the rims were — the first call's keys belong to its own
-    // result, and this is the second call's.
-    assert_eq!(first.band_faces.len(), 1, "the mouth's own band");
-    assert_eq!(rolled.band_faces.len(), 2, "the lip's and the bore base's");
+    // this; three new revolution walls can only be there or not.
+    assert_eq!(rolled.band_faces.len(), 3, "one band per rim, one call");
+    assert_eq!(first.band_faces.len(), 1, "the cross-check's mouth band");
+    assert_eq!(
+        sequential.band_faces.len(),
+        2,
+        "the cross-check's lip and bore-base bands"
+    );
     let bands: Vec<pncad::topo::FaceKey> = rolled
         .body
         .faces()
@@ -396,7 +403,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         })
         .map(|(k, _)| k)
         .collect();
-    assert_eq!(bands.len(), 3, "one torus band per rim, over the two calls");
+    assert_eq!(bands.len(), 3, "one torus band per rim");
     let mut majors: Vec<f64> = Vec::new();
     for face in &bands {
         let (major, minor) = band_torus(&rolled.body, *face);
@@ -493,26 +500,43 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     vec![Stop {
         name: "budfillet",
         caption: "THE FILLETED BUD (three curved-support arms, one body)".to_string(),
-        montage: true,
+        // Montage cell RETIRED by the montage-v3 curation (Evan,
+        // 2026-08-30) on this module's OWN stated grounds: "at montage
+        // scale the fillets barely move the silhouette ... so the
+        // scene's evidence is stated in numbers that a picture cannot
+        // fake". The sheet's rule is that a scene is `montage: false`
+        // when it is a PROOF rather than a part, and this one says so
+        // about itself. WHAT LEAVES THE SHEET WITH IT, stated rather
+        // than glossed: of the three coaxial arms, only cylinder x
+        // plane still has a cell — the teapot's lid rolls its knob's
+        // top rim through that one. Sphere x cone (the acceptance case
+        // of #319's coaxial half) and cone x plane have none. The lid
+        // is the natural host for both, being a bored revolve whose
+        // latitude rims are already closed, and a conical flange would
+        // give it them — outstanding work on the teapot, not something
+        // this retirement can claim. Standalone render and every number
+        // here stay.
+        montage: false,
         story: "the calochortus bud as a bored solid of revolution — sphere zone, \
                 conical pucker, lip disk, bore — with its mouth (sphere x cone), its \
                 lip (cone x plane) and its bore's base (cylinder x plane) rolled. \
                 Three different arms of the coaxial curved-support family, on one body",
-        ops: "revolve(meridian, +y axis, Revolution::Full), then fillet_edges TWICE: \
-              each coaxial pair confines the rolling ball's centre to the meridian \
-              half-plane, where the two offset traces cross, so every band is an exact \
-              TORUS through the ring-free annulus surgery. Two calls and not one \
-              because the mouth and the lip share the pucker cone, which the door \
-              refuses in a single request and says so",
+        ops: "revolve(meridian, +y axis, Revolution::Full), then fillet_edges ONCE, \
+              all three rims in one request: each coaxial pair confines the rolling \
+              ball's centre to the meridian half-plane, where the two offset traces \
+              cross, so every band is an exact TORUS through the ring-free annulus \
+              surgery. The mouth and the lip share the pucker cone, which one call \
+              serves by re-reading the later rim's seam-piece identities between \
+              carves (#935)",
         delta: DELTA,
         note: Some(format!(
             "{v} vertices, {e} edges, {f} faces — the sharp bud's 5/10/5 plus exactly \
-             three times the annulus band's own (+1, +2, +1). Asking for all three rims \
-             in ONE call REFUSES, typed: the mouth and the lip share the pucker cone, \
-             and a one-edge rim's band consumes that face's seam meridian, so the door \
-             names sequential composition as the recourse and this scene takes it — \
-             while the lip and the bore's base, which share nothing, do roll together \
-             in one call. AT MONTAGE SCALE THE \
+             three times the annulus band's own (+1, +2, +1). All three rims roll in \
+             ONE call, the mouth and the lip sharing the pucker cone included: the \
+             carve re-reads the later rim's seam-piece identities against the \
+             partially-carved body (#935), and the scene cross-checks the one-call \
+             body against the sequential composition — volumes equal to one \
+             summation ulp ({one_call_volume:.9} m³). AT MONTAGE SCALE THE \
              ROLLS BARELY MOVE THE SILHOUETTE, and that is expected: a constant-radius \
              fillet is a local surgery, so this panel's proof is numeric rather than \
              pictorial. Three band faces exist, each a ring-free torus wall storing the \

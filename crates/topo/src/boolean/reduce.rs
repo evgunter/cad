@@ -710,13 +710,43 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
             // the conic ROOT lane); curved faces get the clearance /
             // typed-frontier arm.
             let Some(plane) = face_plane(y, face) else {
-                let hit = curved_face_arm(
+                let event = curved_face_arm(
                     x, y, x_is, edge_key, &edge, u, v, face, pu, pv, declared, contacts, band, tol,
                 )?;
-                if hit && let Some(tr) = trace.as_deref_mut() {
+                if !matches!(event, CurvedEvent::None)
+                    && let Some(tr) = trace.as_deref_mut()
+                {
                     tr.accepted.push((edge_key, face));
                 }
-                continue;
+                // A wall crossing is split and recorded HERE, with the
+                // same triple the conic × plane root above uses: the
+                // event splits `x`'s edge, the contact is minted
+                // against the piercing side, and the remainder fragment
+                // is re-queued so the second root of the same span is
+                // found on the next pass.
+                let CurvedEvent::Pierce { t, p, at } = event else {
+                    continue;
+                };
+                match at {
+                    FaceContainment::Out => continue,
+                    FaceContainment::In => {
+                        let w = split_at(x, x_is, edge_key, t, tol)?;
+                        contacts.vf(x_is, VfContact { vertex: w, face });
+                        requeue(&mut worklist, x, edge_key, w, j)?;
+                    }
+                    FaceContainment::OnEdge(ey) => {
+                        let w = split_at(x, x_is, edge_key, t, tol)?;
+                        let wy = split_other_at_point(y, x_is.other(), ey, p, band, tol)?;
+                        push_vv(contacts, x_is, w, wy);
+                        requeue(&mut worklist, x, edge_key, w, j)?;
+                    }
+                    FaceContainment::OnVertex(vy) => {
+                        let w = split_at(x, x_is, edge_key, t, tol)?;
+                        push_vv(contacts, x_is, w, vy);
+                        requeue(&mut worklist, x, edge_key, w, j)?;
+                    }
+                }
+                break 'faces;
             };
             // Conic carriers against a plane (M5 PR 9): crossing
             // detection is ROOT-BASED and endpoint-verdict-free — the
@@ -900,12 +930,16 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
 /// both-outside clears through the span minimum), and for a CIRCLE
 /// carrier the ARC's residual range is enclosed two ways (the
 /// carrier's exact harmonic bounds and the arc's own chord-dip
-/// bound), so a definitely one-sided arc clears. Anything that
-/// definitely meets the face refuses typed at the named frontier door
-/// ([`BooleanError::CurvedPierceUnsupported`] — the pierce event's
-/// ring insertion has no lane), and an in-band clearance escalates
-/// (F6, the same margin's other half). Ellipse/NURBS carriers keep
-/// the unconditional M5 door. Never a silent fallback.
+/// bound), so a definitely one-sided arc clears. What definitely MEETS
+/// the face is split by kind, and the third paragraph below is the
+/// statement of record: a LINE carrier against a CYLINDER wall is
+/// routed through the certified roots and pierces; everything else —
+/// a tangency, a CIRCLE carrier, a sphere face, an undeclared
+/// on-carrier edge, a trim with no verdict — refuses typed at the named
+/// frontier door ([`BooleanError::CurvedPierceUnsupported`]). An
+/// in-band clearance escalates (F6, the same margin's other half).
+/// Ellipse/NURBS carriers keep the unconditional M5 door. Never a
+/// silent fallback.
 ///
 /// **The declared-cover rung** (CONTACT-DESIGN C8 at the crossing
 /// layer): a zero-clearance incidence whose edge has a parent face
@@ -923,8 +957,45 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
 /// both frontier doors untouched — the door only widens what a
 /// verified declaration unlocks.
 ///
-/// Returns whether the exact predicates ACCEPTED an event (the
-/// differential suite's accepted-pair channel).
+/// **The pierce ring lane** (the definite-crossing half): a LINE edge
+/// that definitely crosses a cylinder WALL inside that wall's trim is
+/// no longer the frontier. Its crossing parameters are the same
+/// certified quadratic the ray lane has always solved
+/// ([`super::solid_contain::line_wall_roots`]) taken over the edge's
+/// own span instead of a ray's forward half; the landing point is
+/// placed by [`super::contain::curved_face_containment`]; the
+/// split/record triple is the planar conic lane's, verbatim. Still the
+/// frontier is everything the roots do not cover: a TANGENCY (an
+/// in-band discriminant is not a crossing at any order this lane sees),
+/// a CIRCLE carrier against a wall (a degree-2 trigonometric residual
+/// with no root lane in this tree), a SPHERE face, and a trim the chart
+/// door declines to express.
+///
+/// **What a successful pierce reaches next is a typed door, not a
+/// body**: a ring minted in a face has no join arm on any carrier
+/// (#1291), so a wall pierce lands on
+/// `SplitJoinError::SectionArcWindow{NoChartedRun}` exactly as the
+/// planar cap pierce lands on `SectionLoopMixed`.
+///
+/// **This lane WIDENS what an undeclared pair reaches, and the widening
+/// is named here rather than left to be discovered.** Before it,
+/// [`vertex_on_curved_face`] was reachable only behind the declared
+/// cover; the new endpoint arms (`(Zero, definite)` and the
+/// `(Zero, Zero)` chord) call it on UNDECLARED pairs too. That is not
+/// the C8 gate reopening: C8 protects the claim that an on-carrier EDGE
+/// is cosurface, and the arms below reach the endpoint treatment only
+/// after the certified roots have proved there is no interior crossing
+/// — which, for the `(Zero, Zero)` arm, takes two DISTINCT roots and so
+/// structurally excludes an edge lying on the wall (only rulings do,
+/// and a ruling answers `Constant`). What the door then does is
+/// point-in-face containment on a chart, which is a trim question and
+/// not a gluing one.
+///
+/// Returns what the caller must do about the pair — see
+/// [`CurvedEvent`]. The split itself needs `&mut x` and the worklist,
+/// both of which live in [`sweep_direction`], so the crossing is
+/// REPORTED here and performed there rather than the body being
+/// threaded in for one branch.
 #[allow(clippy::too_many_arguments)]
 fn curved_face_arm<T: Decide>(
     x: &Body<T>,
@@ -941,7 +1012,7 @@ fn curved_face_arm<T: Decide>(
     contacts: &mut ContactAcc,
     band: Band,
     tol: Tol,
-) -> Result<bool, BooleanError> {
+) -> Result<CurvedEvent<T>, BooleanError> {
     let surface = y
         .get_face(face)
         .and_then(|f| y.get_surface(f.surface))
@@ -1077,7 +1148,7 @@ fn curved_face_arm<T: Decide>(
                     });
             let margin = Margin::of(carrier_margin.max(arc_margin));
             return match decide("bool_circle_curved_clearance", margin, band) {
-                Ok(Sign::Positive) => Ok(false),
+                Ok(Sign::Positive) => Ok(CurvedEvent::None),
                 // The declared-cover rung: a covered zero-clearance
                 // circle takes the planar sweep's endpoint posture —
                 // each endpoint's own side decides its treatment
@@ -1113,7 +1184,11 @@ fn curved_face_arm<T: Decide>(
                             Sign::Negative => return Err(frontier()),
                         }
                     }
-                    if any { Ok(true) } else { Err(frontier()) }
+                    if any {
+                        Ok(CurvedEvent::Recorded)
+                    } else {
+                        Err(frontier())
+                    }
                 }
                 Ok(Sign::Zero | Sign::Negative) => Err(frontier()),
                 Err(diag) => Err(BooleanError::Escalated { diag }),
@@ -1155,29 +1230,121 @@ fn curved_face_arm<T: Decide>(
             let hv = vertex_on_curved_face(x_is, y, v, pv, face, contacts, band, tol)?;
             // An endpoint the containment door cannot decide keeps the
             // frontier door.
-            if hu && hv { Ok(true) } else { Err(frontier()) }
+            if hu && hv {
+                Ok(CurvedEvent::Recorded)
+            } else {
+                Err(frontier())
+            }
         }
         (Sign::Zero, Sign::Positive) if covered => {
             if vertex_on_curved_face(x_is, y, u, pu, face, contacts, band, tol)? {
-                Ok(true)
+                Ok(CurvedEvent::Recorded)
             } else {
                 Err(frontier())
             }
         }
         (Sign::Positive, Sign::Zero) if covered => {
             if vertex_on_curved_face(x_is, y, v, pv, face, contacts, band, tol)? {
-                Ok(true)
+                Ok(CurvedEvent::Recorded)
             } else {
                 Err(frontier())
             }
         }
-        // A vertex ON the curved surface: the v-on-curved-face door.
-        (Sign::Zero, _) | (_, Sign::Zero) => Err(frontier()),
-        // A definite surface crossing: the pierce door.
-        (Sign::Positive, Sign::Negative) | (Sign::Negative, Sign::Positive) => Err(frontier()),
+        // **One endpoint ON the surface, the other definitely off it.**
+        // This is the shape a wall crossing LEAVES behind: the split
+        // puts a vertex on the carrier and re-queues both fragments
+        // against the same face, so each comes back with exactly one
+        // Zero end. The exact roots are consulted FIRST, because an
+        // interior crossing is still possible here and the endpoint
+        // rows would silently miss it — the residual along a line is
+        // convex and therefore lies BELOW its endpoint chord, so
+        // `f(t₀) = 0` with `f(t₁) > 0` can still dip through zero
+        // between. With no interior root the incidence is exactly the
+        // endpoint's, and the v-on-curved-face door mints the same
+        // record the planar sweep's `vertex_on_face` writes.
+        //
+        // `(Zero, Zero)` is NOT here: both endpoints on the carrier is
+        // the on-carrier-edge question, which is a cosurface claim and
+        // stays behind the declaration gate above.
+        (Sign::Zero, Sign::Positive | Sign::Negative)
+        | (Sign::Positive | Sign::Negative, Sign::Zero) => {
+            let (t0, t1) = curve.params();
+            match wall_crossing(y, face, &surface, curve.carrier(), t0, t1, band)? {
+                SpanVerdict::Pierce { t, p, at } => Ok(CurvedEvent::Pierce { t, p, at }),
+                // A constant residual cannot be zero at one end and
+                // definite at the other, and a definite miss cannot
+                // hold a zero endpoint: both CONTRADICT the endpoint
+                // rows that routed here, and a contradiction between
+                // two certified predicates keeps the door.
+                SpanVerdict::Constant | SpanVerdict::Miss | SpanVerdict::Unsettled => {
+                    Err(frontier())
+                }
+                SpanVerdict::NoInterior => {
+                    let mut hit = false;
+                    if s1 == Sign::Zero {
+                        hit |= vertex_on_curved_face(x_is, y, u, pu, face, contacts, band, tol)?;
+                    }
+                    if s2 == Sign::Zero {
+                        hit |= vertex_on_curved_face(x_is, y, v, pv, face, contacts, band, tol)?;
+                    }
+                    // An endpoint the containment door cannot place
+                    // keeps the frontier door, exactly as the covered
+                    // rung's endpoint rows do.
+                    if hit {
+                        Ok(CurvedEvent::Recorded)
+                    } else {
+                        Err(frontier())
+                    }
+                }
+            }
+        }
+        // **BOTH endpoints on the wall, the pair UNDECLARED** — the
+        // CHORD a wall pierce leaves behind: an edge that crossed the
+        // wall twice is split at both roots, and the middle fragment
+        // is what remains.
+        //
+        // This is the one arm where the cosurface fence and the ring
+        // lane meet, so the separation is STRUCTURAL rather than
+        // numeric: `NoInterior` is reached only through two DISTINCT
+        // definite roots, and a line with two distinct points on a
+        // cylinder is a secant. The only lines that LIE on a wall are
+        // its rulings; a ruling is axis-parallel and answers
+        // `Constant`. So an on-carrier edge cannot reach the endpoint
+        // treatment here and the undeclared cosurface question keeps
+        // its door untouched (CONTACT-DESIGN C2/C4) — as does a
+        // tangency, a trim with no verdict, and every other answer.
+        (Sign::Zero, Sign::Zero) => {
+            let (t0, t1) = curve.params();
+            match wall_crossing(y, face, &surface, curve.carrier(), t0, t1, band)? {
+                SpanVerdict::NoInterior => {
+                    let hu = vertex_on_curved_face(x_is, y, u, pu, face, contacts, band, tol)?;
+                    let hv = vertex_on_curved_face(x_is, y, v, pv, face, contacts, band, tol)?;
+                    if hu || hv {
+                        Ok(CurvedEvent::Recorded)
+                    } else {
+                        Err(frontier())
+                    }
+                }
+                _ => Err(frontier()),
+            }
+        }
+        // **A definite surface crossing: the pierce RING lane.** The
+        // endpoints straddle the carrier, so a root exists in the span;
+        // `wall_crossing` finds it exactly and the trim decides whether
+        // it lands in this face. `NoInterior` CONTRADICTS the straddle,
+        // so it keeps the door rather than reporting no event — a
+        // contradiction between two certified predicates is exactly
+        // what must not be resolved by picking one.
+        (Sign::Positive, Sign::Negative) | (Sign::Negative, Sign::Positive) => {
+            let (t0, t1) = curve.params();
+            match wall_crossing(y, face, &surface, curve.carrier(), t0, t1, band)? {
+                SpanVerdict::Pierce { t, p, at } => Ok(CurvedEvent::Pierce { t, p, at }),
+                _ => Err(frontier()),
+            }
+        }
         // Both inside: the residual along a line is convex, so its
         // maximum is at an endpoint — definitely no wall crossing.
-        (Sign::Negative, Sign::Negative) => Ok(false),
+        (Sign::Negative, Sign::Negative) => Ok(CurvedEvent::None),
         // Both outside: clear through a DIVISION-FREE lower bound on
         // the span minimum of the convex residual. Division-free is a
         // hard requirement, not a preference: the original
@@ -1244,12 +1411,199 @@ fn curved_face_arm<T: Decide>(
             let dip = (q * T::from_f64(0.5) - m).max(T::zero()) * T::from_f64(0.25);
             let min_bound = Margin::of(r_u.min(r_v) - dip);
             match decide("bool_line_cylinder_clearance", min_bound, band) {
-                Ok(Sign::Positive) => Ok(false),
-                Ok(Sign::Zero | Sign::Negative) => Err(frontier()),
+                Ok(Sign::Positive) => Ok(CurvedEvent::None),
+                // **The BELLY crossing**, and the reason the dip bound
+                // is a clearance test and never a crossing test: a
+                // convex residual positive at both endpoints can still
+                // dip through zero between them, and the bound is a
+                // charge against that dip, not a measurement of it. A
+                // charge that does not clear says only "not definitely
+                // clear" — so the exact roots decide, and they decide
+                // BOTH ways: two roots inside the span are a pierce,
+                // and roots outside it (or none at all) are an
+                // exactness the bound could not reach. Only what the
+                // roots cannot settle keeps the frontier door.
+                Ok(Sign::Zero | Sign::Negative) => {
+                    match wall_crossing(y, face, &surface, curve.carrier(), t0, t1, band)? {
+                        SpanVerdict::Pierce { t, p, at } => Ok(CurvedEvent::Pierce { t, p, at }),
+                        // No interior root, or no root at all:
+                        // definitely clear, and exactly so — the bound
+                        // that sent us here could only ever have said
+                        // "maybe".
+                        SpanVerdict::NoInterior | SpanVerdict::Miss => Ok(CurvedEvent::None),
+                        // **`Constant` is NOT a clearance here.** It
+                        // reports that the axis-parallel test —
+                        // `|d_perp|²/2r`, a SQUARED transverse
+                        // component — did not come back definitely
+                        // positive, which is an L²-amplified window: a
+                        // direction a band-width off the axis has a
+                        // transverse component of order `sqrt(band)`,
+                        // and the residual it accumulates over a long
+                        // span is not the constant this verdict would
+                        // read it as. Clearing on it would be a silent
+                        // wrong answer at exactly the poses the belly
+                        // arm exists for, so it keeps the door. (The
+                        // ray lane's sibling at
+                        // `solid_contain::cast_ray` skips the face on
+                        // the same verdict and is not touched here: its
+                        // pre-pass has already put `q` definitely off
+                        // the wall, which is the one-sign story this
+                        // arm does not have.)
+                        SpanVerdict::Constant => Err(frontier()),
+                        SpanVerdict::Unsettled => Err(frontier()),
+                    }
+                }
                 Err(diag) => Err(BooleanError::Escalated { diag }),
             }
         }
     }
+}
+
+/// What the certified line × wall roots say about ONE edge span.
+#[derive(Debug, Clone, Copy)]
+enum SpanVerdict<T: geom_core::Real> {
+    /// A definite crossing strictly inside the span, which the trim
+    /// placed at `at` in this face.
+    Pierce {
+        t: T,
+        p: Point3<T>,
+        at: FaceContainment,
+    },
+    /// Two definite roots, none of them STRICTLY INSIDE the span on
+    /// this face: each lies outside the span, sits at one of its ends,
+    /// or falls outside the face's trim. Two distinct roots also
+    /// certify that the line is NOT a ruling of the wall, which is
+    /// what separates a chord from an on-carrier edge. What the
+    /// absence of an interior crossing licenses depends on the
+    /// endpoints, so the caller decides — an endpoint incidence is
+    /// still an event, it is just not an interior one.
+    NoInterior,
+    /// The line is parallel to the axis, so its residual is CONSTANT
+    /// along the span. Nothing about the span's interior differs from
+    /// its endpoints — which makes it a clearance answer for a caller
+    /// whose endpoints are definitely off the wall and a cosurface
+    /// question for one whose endpoints are on it.
+    Constant,
+    /// The line definitely misses the wall entirely.
+    Miss,
+    /// The roots did not settle the span and the caller keeps its own
+    /// typed frontier door.
+    Unsettled,
+}
+
+/// The line × cylinder-wall crossing route: solve the certified
+/// quadratic, keep the roots the EDGE's span carries strictly inside,
+/// and place the landing point in the face's trim.
+///
+/// **Roots at the span's ends are deliberately NOT interior.** A root
+/// the band cannot separate from an endpoint is that endpoint's own
+/// incidence, and the endpoint rows own those (they mint a v-f or v-v
+/// record rather than a split, which is what a split at `t₀` could not
+/// do anyway — `split_edge`'s interiority trilean refuses it). Folding
+/// the two together here would have made an endpoint touch look like a
+/// crossing to every caller.
+///
+/// **Both roots are examined, and the FIRST interior one wins.** A
+/// segment through a wall meets it twice; the sweep splits at one root
+/// and re-queues both fragments against the SAME face, so the second is
+/// found on the next pass — the shape the conic × plane lane already
+/// uses, and the reason this function does not return a pair.
+fn wall_crossing<T: Decide>(
+    y: &Body<T>,
+    face: FaceKey,
+    surface: &geom::Surface<T>,
+    carrier: &geom::Curve3<T>,
+    t0: T,
+    t1: T,
+    band: Band,
+) -> Result<SpanVerdict<T>, BooleanError> {
+    let (
+        geom::Curve3::Line { origin, dir },
+        geom::Surface::Cylinder {
+            origin: c_origin,
+            axis,
+            radius,
+            ..
+        },
+    ) = (carrier, surface)
+    else {
+        // A sphere face, or a carrier that is not a line: no root lane
+        // here, and inventing one is the fence this PR keeps.
+        return Ok(SpanVerdict::Unsettled);
+    };
+    let roots =
+        super::solid_contain::line_wall_roots(*origin, *dir, *c_origin, *axis, *radius, band)
+            .map_err(|diag| BooleanError::Escalated { diag })?;
+    let ts = match roots {
+        super::solid_contain::WallRoots::Two(ts) => ts,
+        // A tangency is not a crossing this lane can act on: the
+        // material verdicts behind a pierce are first-order, and along
+        // a tangency every first-order datum ties. It keeps the door.
+        super::solid_contain::WallRoots::Tangent => return Ok(SpanVerdict::Unsettled),
+        // A constant residual, or no root on the infinite line at all.
+        super::solid_contain::WallRoots::AxisParallel => return Ok(SpanVerdict::Constant),
+        super::solid_contain::WallRoots::Miss => return Ok(SpanVerdict::Miss),
+    };
+    for t in ts {
+        // `t` is arc length in metres (a `Line` carrier's `dir` is
+        // unit), so both gaps are lengths and take `Margin::of`.
+        let mut interior = true;
+        for gap in [t - t0, t1 - t] {
+            match decide("bool_wall_root_in_span", Margin::of(gap), band) {
+                Ok(Sign::Positive) => {}
+                Ok(Sign::Negative | Sign::Zero) => interior = false,
+                Err(diag) => return Err(BooleanError::Escalated { diag }),
+            }
+        }
+        if !interior {
+            continue;
+        }
+        let p = carrier.eval(t);
+        // The face's own trim decides whether a crossing of the CARRIER
+        // is a crossing of this FACE. `None` is the chart door's honest
+        // remainder (a ringed face, a non-iso boundary, a full-period
+        // azimuth window) and keeps the caller's frontier rather than
+        // reading as "outside".
+        match super::contain::curved_face_containment(y, face, p, band) {
+            Ok(None) => return Ok(SpanVerdict::Unsettled),
+            // Definitely outside THIS face's trim: the carrier is
+            // crossed, but not here. The other root may still land in
+            // the face, so the loop continues rather than concluding.
+            Ok(Some(FaceContainment::Out)) => {}
+            Ok(Some(at)) => return Ok(SpanVerdict::Pierce { t, p, at }),
+            Err(super::contain::ContainError::Escalated(diag)) => {
+                return Err(BooleanError::Escalated { diag });
+            }
+            // Unwalkable topology under a query the crossing layer just
+            // routed: the operand is corrupt, and saying "the roots did
+            // not settle it" would report a geometry frontier for a
+            // structural break. It keeps the caller's door because that
+            // is the conservative direction, and the distinction is
+            // recorded here rather than left to the payload.
+            Err(_) => return Ok(SpanVerdict::Unsettled),
+        }
+    }
+    Ok(SpanVerdict::NoInterior)
+}
+
+/// What one edge×curved-face pair asks of the sweep.
+#[derive(Debug, Clone, Copy)]
+enum CurvedEvent<T: geom_core::Real> {
+    /// No event: the pair is definitely clear, or the crossing lies
+    /// outside this face's trim.
+    None,
+    /// The arm recorded the event itself (the declared-cover rung,
+    /// whose endpoint treatment mints its own contacts). Reported so
+    /// the differential suite's accepted-pair channel still sees it.
+    Recorded,
+    /// A definite wall crossing at the carrier parameter `t`, whose
+    /// point `p` the trim placed at `at`. The sweep splits the edge and
+    /// records the contact exactly as it does for a conic × plane root.
+    Pierce {
+        t: T,
+        p: Point3<T>,
+        at: FaceContainment,
+    },
 }
 
 /// The declared-cosurface rung's endpoint treatment: classify an
@@ -1418,11 +1772,14 @@ fn split_at<T: Decide>(
 /// Two carriers have an exact point parameter and both are taken:
 ///
 /// - **`Line`**: the projection `t = (p − origin)·dir`.
-/// - **`Circle`**: the mid-anchored azimuth ([`circle_split_param`],
-///   which carries the derivation and the reason it needs no branch
-///   selection). Where an interval enclosure of it is too wide to
-///   place `t` strictly inside the span, `split_edge`'s own
-///   interiority trilean escalates.
+/// - **`Circle`**: the azimuth anchored at the span's MIDPOINT. Both
+///   are [`geom::Curve3::param_near`], which carries the derivation and
+///   the reason an anchored read needs no branch selection; the
+///   midpoint is this site's anchor because the parameter wanted is the
+///   one INSIDE the stored span, and under the period guard below the
+///   nearest branch to the midpoint is exactly that one. Where an
+///   interval enclosure of it is too wide to place `t` strictly inside
+///   the span, `split_edge`'s own interiority trilean escalates.
 ///
 /// `p` must lie ON the carrier for the azimuth to name the event: the
 /// distance from `p` to the circle (radial and axial misses folded, the
@@ -1453,128 +1810,60 @@ fn split_other_at_point<T: Decide>(
             });
         }
     };
-    let t = match *curve.carrier() {
-        geom::Curve3::Line { origin, dir } => (p - origin).dot(dir),
-        geom::Curve3::Circle {
-            center,
-            axis,
-            radius,
-            ..
-        } => {
-            let w = p - center;
-            // On the carrier? The radial and axial misses are
-            // orthogonal, so their hypotenuse is the exact distance to
-            // the circle.
-            let height = w.dot(axis);
-            let radial = w - axis * height;
-            let d = ((radial.norm() - radius).powi(2) + height.powi(2)).sqrt();
-            match decide("bool_contact_arc", Margin::of(d), band) {
-                Ok(Sign::Zero) => {}
-                // The caller placed the event ON this edge; a point
-                // definitely off its carrier means two exact rows
-                // disagree, which is a broken invariant, not a
-                // frontier.
-                Ok(Sign::Positive) => {
-                    return Err(BooleanError::ClassificationInvariant {
-                        what: "split point definitely off the circle carrier it was placed on",
-                    });
-                }
-                // A NEGATIVE distance is impossible; the arm is
-                // spelled the way the row's original spells it
-                // (`super::contain::point_on_arc`) rather than folded
-                // in with the positive one, so the two copies of this
-                // row cannot drift while both are alive (issue #1077).
-                Ok(Sign::Negative) => {
-                    return Err(BooleanError::Escalated {
-                        diag: geom_core::Indeterminate {
-                            margin: geom_core::MarginDiag::Invalid,
-                            band,
-                            predicate: Some("bool_contact_arc"),
-                        },
-                    });
-                }
-                Err(diag) => return Err(BooleanError::Escalated { diag }),
+    let (t0, t1) = curve.params();
+    // The circle's two preconditions, both of them this site's and
+    // neither of them the shared arithmetic's.
+    if let geom::Curve3::Circle {
+        center,
+        axis,
+        radius,
+        ..
+    } = *curve.carrier()
+    {
+        // On the carrier? The row and its impossible-negative arm have
+        // one body, shared with `super::contain::point_on_arc`, which
+        // asks the same question of the same quantity.
+        match super::contain::point_on_circle(p, center, axis, radius, band) {
+            Ok(Some(_)) => {}
+            // The caller placed the event ON this edge; a point
+            // definitely off its carrier means two exact rows disagree,
+            // which is a broken invariant, not a frontier.
+            Ok(None) => {
+                return Err(BooleanError::ClassificationInvariant {
+                    what: "split point definitely off the circle carrier it was placed on",
+                });
             }
-            let (t0, t1) = curve.params();
-            // A span of at most one period is what makes the mid
-            // anchor's principal branch the right one, and it is
-            // CHECKED rather than assumed: past a period the azimuth
-            // aliases by 2π silently, and `split_edge`'s interiority
-            // gate cannot see it (an aliased parameter is still inside
-            // a span that long). The row is the period guard
-            // `super::contain::point_on_arc` already spells, metered
-            // the same way; a full turn is `Zero` and passes.
-            match decide(
-                "bool_split_span_period",
-                Margin::levered(T::tau() - (t1 - t0), radius),
-                band,
-            ) {
-                Ok(Sign::Positive | Sign::Zero) => {}
-                Ok(Sign::Negative) => {
-                    return Err(BooleanError::ClassificationInvariant {
-                        what: "circle edge span exceeds one period; the split azimuth                                would alias by a turn",
-                    });
-                }
-                Err(diag) => return Err(BooleanError::Escalated { diag }),
+            Err(diag) => return Err(BooleanError::Escalated { diag }),
+        }
+        // A span of at most one period is what makes the MIDPOINT
+        // anchor's branch the right one, and it is CHECKED rather than
+        // assumed: past a period the azimuth aliases by 2π silently,
+        // and `split_edge`'s interiority gate cannot see it (an aliased
+        // parameter is still inside a span that long). The row is the
+        // period guard `super::contain::point_on_arc` already spells,
+        // metered the same way; a full turn is `Zero` and passes.
+        match decide(
+            "bool_split_span_period",
+            Margin::levered(T::tau() - (t1 - t0), radius),
+            band,
+        ) {
+            Ok(Sign::Positive | Sign::Zero) => {}
+            Ok(Sign::Negative) => {
+                return Err(BooleanError::ClassificationInvariant {
+                    what: "circle edge span exceeds one period; the split azimuth                                would alias by a turn",
+                });
             }
-            circle_split_param(curve.carrier(), center, t0, t1, p)
+            Err(diag) => return Err(BooleanError::Escalated { diag }),
         }
-        geom::Curve3::Ellipse { .. } | geom::Curve3::Nurbs(_) => {
-            return Err(BooleanError::PointSplitCarrierUnsupported {
-                operand: y_is,
-                edge,
-            });
-        }
-    };
+    }
+    let t = curve
+        .carrier()
+        .param_near(p, (t0 + t1) * T::from_f64(0.5))
+        .ok_or(BooleanError::PointSplitCarrierUnsupported {
+            operand: y_is,
+            edge,
+        })?;
     split_at(y, y_is, edge, t, tol)
-}
-
-/// The carrier parameter of a point on a `Circle` carrier, expressed
-/// in the span `[t0, t1]`'s own period — the split parameter of the
-/// `Circle` arm above, and pure carrier arithmetic.
-///
-/// Writing `m = (t₀ + t₁)/2` and `δ = t − m`, the mid frame is read
-/// from the public evaluators (`r̂·radius = eval(m) − center`,
-/// `τ̂·radius = deriv(m)`) and `δ = atan2(w·τ̂, w·r̂)` with
-/// `w = p − center`. The common positive factor `radius` on both
-/// arguments is `atan2`'s to quotient away, so no division enters and
-/// no frame is re-derived here.
-///
-/// **The mid anchor is what removes the branch cut.** For a span of at
-/// most one period `|δ| ≤ π`, so `atan2`'s principal branch is already
-/// the right one: there is no `k·2π` to select, hence no ordering
-/// decision and no lane fork — the interval scalar's `atan2` encloses
-/// the same value, and a span straddling the cut widens the enclosure
-/// rather than mis-selecting a branch. An anchor at the SEAM would
-/// need that selection, which on `Real` costs either an ordering (not
-/// available) or a `floor` whose interval answer widens across the
-/// integer (`crate::replace_face`'s `invert_carrier` takes that second
-/// road; issue #1077 owns the three spellings).
-///
-/// **Two preconditions, neither checked here.** The span must be at
-/// most one period — the caller's `bool_split_span_period` row
-/// enforces it, because past a period the answer aliases by `2π` and
-/// nothing downstream can see it. And `p` must be ON the carrier: off
-/// it, this answers about `p`'s radial projection.
-///
-/// At `|δ| = π` exactly — the two endpoints of a FULL-period span —
-/// the principal branch collapses the two into ONE answer, and which
-/// endpoint that is comes down to the last bit of `sin(π)`. Both are
-/// endpoints, `split_edge`'s interiority trilean refuses a split at
-/// either, so the collapse has no reachable consequence; the rows
-/// below pin that rather than leave it to be rediscovered.
-fn circle_split_param<T: Decide>(
-    carrier: &geom::Curve3<T>,
-    center: Point3<T>,
-    t0: T,
-    t1: T,
-    p: Point3<T>,
-) -> T {
-    let mid = (t0 + t1) * T::from_f64(0.5);
-    let w = p - center;
-    let r_mid = carrier.eval(mid) - center;
-    let tau_mid = carrier.deriv(mid);
-    mid + w.dot(tau_mid).atan2(w.dot(r_mid))
 }
 
 /// Requeues both children of a just-split edge (parent keeps the
@@ -1602,187 +1891,3 @@ fn requeue<T: Decide>(
     worklist.push_back((child, next_face));
     Ok(())
 }
-
-#[cfg(test)]
-#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-mod tests {
-    use core::f64::consts::{PI, TAU};
-
-    use geom_core::{Point3, Vec3};
-
-    use super::circle_split_param;
-
-    /// A circle in an exactly-orthonormal tilted frame: an integer
-    /// orthogonal triple over 3, so the frame is unit and orthogonal
-    /// to rounding-free precision.
-    fn tilted() -> (geom::Curve3<f64>, Point3<f64>) {
-        let center = Point3::new(-0.5, 4.0, 1.25);
-        (
-            geom::Curve3::Circle {
-                center,
-                axis: Vec3::new(2.0 / 3.0, 2.0 / 3.0, 1.0 / 3.0),
-                radius: 2.5,
-                u_ref: Vec3::new(1.0 / 3.0, -2.0 / 3.0, 2.0 / 3.0),
-            },
-            center,
-        )
-    }
-
-    fn axis_aligned() -> (geom::Curve3<f64>, Point3<f64>) {
-        let center = Point3::new(1.0, 2.0, 3.0);
-        (
-            geom::Curve3::Circle {
-                center,
-                axis: Vec3::unit_z(),
-                radius: 1.5,
-                u_ref: Vec3::unit_x(),
-            },
-            center,
-        )
-    }
-
-    /// The parameter is recovered on the span's OWN period, for spans
-    /// placed anywhere on the parameter line — including one that
-    /// straddles the seam and one that sits entirely on negative
-    /// parameters, which is exactly what a seam-anchored `atan2` plus
-    /// a winding correction would have to select a branch for.
-    #[test]
-    fn the_split_parameter_recovers_the_point_on_the_spans_own_period() {
-        for (carrier, center) in [axis_aligned(), tilted()] {
-            for (t0, t1) in [
-                (0.0, PI),
-                (0.4, 2.9),
-                (-5.0, -2.0),
-                (2.5, 2.5 + TAU * 0.9),
-                (PI, 3.0 * PI),
-            ] {
-                for f in [0.05, 0.25, 0.5, 0.75, 0.95] {
-                    let t = t0 + (t1 - t0) * f;
-                    let p = carrier.eval(t);
-                    let got = circle_split_param(&carrier, center, t0, t1, p);
-                    assert!(
-                        (got - t).abs() < 1e-12,
-                        "span ({t0}, {t1}) at {t}: got {got}"
-                    );
-                    assert!(got > t0 && got < t1, "span ({t0}, {t1}) at {t}: {got}");
-                }
-            }
-        }
-    }
-
-    /// A FULL-period span has no interior seam problem either: the mid
-    /// anchor sits half a turn from both endpoints, so the two points
-    /// nearest the seam land just inside the span rather than a
-    /// period away.
-    #[test]
-    fn a_full_period_span_places_both_seam_neighbours_inside_itself() {
-        let (carrier, center) = axis_aligned();
-        for t in [1e-6, TAU - 1e-6, PI - 0.1, PI + 0.1] {
-            let got = circle_split_param(&carrier, center, 0.0, TAU, carrier.eval(t));
-            assert!((got - t).abs() < 1e-9, "at {t}: got {got}");
-        }
-    }
-
-    /// The answer is about the point's RADIAL PROJECTION — the
-    /// caller's on-carrier precondition is what makes that the event's
-    /// own parameter, and this row says what the arithmetic does
-    /// without it.
-    #[test]
-    fn an_off_carrier_point_answers_about_its_radial_projection() {
-        let (carrier, center) = axis_aligned();
-        let t = 1.1;
-        let on = carrier.eval(t);
-        // Push off the circle radially and axially.
-        let off = on + (on - center) * 0.3 + Vec3::unit_z() * 0.7;
-        let got = circle_split_param(&carrier, center, 0.0, PI, off);
-        assert!((got - t).abs() < 1e-12, "got {got}");
-    }
-
-    // ---- Adopted from the R1 review probe branch
-    // (`verbs/pierce-r1-probes`), authorship preserved: attacks on the
-    // "|δ| ≤ π so the principal branch is always right" claim.
-
-    /// A circle wound the OTHER way (axis = −z), so increasing `t` runs
-    /// clockwise in the global frame. The claim must not depend on the
-    /// sense.
-    fn wound_negative() -> (geom::Curve3<f64>, Point3<f64>) {
-        let center = Point3::new(1.0, 2.0, 3.0);
-        (
-            geom::Curve3::Circle {
-                center,
-                axis: -Vec3::unit_z(),
-                radius: 1.5,
-                u_ref: Vec3::unit_x(),
-            },
-            center,
-        )
-    }
-
-    #[test]
-    fn r1_both_winding_senses_recover_the_parameter() {
-        for (carrier, center) in [axis_aligned(), wound_negative(), tilted()] {
-            for (t0, t1) in [(0.0, PI), (-5.0, -2.0), (2.5, 2.5 + TAU * 0.999)] {
-                for f in [0.01, 0.5, 0.99] {
-                    let t = t0 + (t1 - t0) * f;
-                    let got = circle_split_param(&carrier, center, t0, t1, carrier.eval(t));
-                    assert!((got - t).abs() < 1e-9, "span ({t0},{t1}) at {t}: {got}");
-                }
-            }
-        }
-    }
-
-    /// **`δ = ±π` EXACTLY.** On a full-period span both endpoints sit
-    /// at `|δ| = π`, and `atan2`'s principal branch returns `+π` for
-    /// both — so `t₀` maps to `t₁`. This is the one place the
-    /// principal-branch sentence is not literally true, and the row
-    /// pins the reason it is harmless: the answer is an ENDPOINT, and
-    /// the interiority trilean refuses a split at an endpoint whichever
-    /// of the two it names.
-    #[test]
-    fn r1_the_exact_half_period_boundary_lands_on_an_endpoint() {
-        let (carrier, center) = axis_aligned();
-        let (t0, t1) = (0.0, TAU);
-        for t in [t0, t1] {
-            let got = circle_split_param(&carrier, center, t0, t1, carrier.eval(t));
-            // WHICH of the two endpoints comes back is decided by the
-            // last bit of `sin(π)`, so the row asserts the property
-            // that matters and not the coin flip: the answer is an
-            // ENDPOINT, and `split_edge`'s interiority trilean refuses
-            // a split at either.
-            assert!(
-                (got - t0).abs() < 1e-12 || (got - t1).abs() < 1e-12,
-                "a period endpoint maps to an endpoint: t={t} got={got}"
-            );
-            assert!(
-                !(got > t0 + 1e-12 && got < t1 - 1e-12),
-                "an endpoint is never strictly interior: {got}"
-            );
-        }
-    }
-
-    /// A TINY span (a hair of arc): the mid anchor is a hair from both
-    /// endpoints, so `δ` is tiny and the answer is still exact and
-    /// still strictly inside.
-    #[test]
-    fn r1_a_tiny_span_still_recovers_the_parameter() {
-        let (carrier, center) = axis_aligned();
-        for w in [1e-3, 1e-6, 1e-9] {
-            let (t0, t1) = (1.0, 1.0 + w);
-            let t = t0 + w * 0.5001;
-            let got = circle_split_param(&carrier, center, t0, t1, carrier.eval(t));
-            assert!((got - t).abs() < w * 1e-6, "w={w} t={t} got={got}");
-            assert!(got > t0 && got < t1, "w={w}: {got} outside ({t0},{t1})");
-        }
-    }
-}
-
-/// The interval lane's rows for this module, in a file the CI filter's
-/// naming rule matches (`scripts/ci-filter.py`'s `_forces_interval`):
-/// the shipped code has no interval-gated block at all — that is the
-/// whole point of the mid anchor — so the only interval-specific
-/// artifact is this suite, and naming it is what pins its lane instead
-/// of sampling it.
-#[cfg(test)]
-#[cfg(feature = "interval")]
-#[path = "reduce_interval_rows.rs"]
-mod reduce_interval_rows;

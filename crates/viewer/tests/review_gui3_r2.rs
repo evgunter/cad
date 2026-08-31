@@ -185,7 +185,7 @@ fn an_abandoned_subtree_keeps_its_grandchildren_their_documents_and_their_edits(
         "the abandoned subtree's deepest document survives"
     );
     assert!(
-        history.entry(deep_leaf).edit().is_some(),
+        !history.entry(deep_leaf).edits().is_empty(),
         "and so does the edit that produced it"
     );
     let mid = history

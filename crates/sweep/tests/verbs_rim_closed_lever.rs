@@ -24,9 +24,9 @@ use geom::{Curve3, Surface};
 use geom_core::{Band, Point2, Tol};
 use profile::ProfileVertex;
 use sweep::Revolution;
-use sweep::fillet::battery::{FilletRequest, run_battery};
-use sweep::fillet::build::fillet_edges;
-use sweep::fillet::{Convexity, FilletError};
+use sweep::blend::battery::{BlendRequest, run_battery};
+use sweep::blend::build::fillet_edges;
+use sweep::blend::{BlendError, Convexity};
 use sweep::test_support::revolved_about_y;
 use topo::{Body, EdgeKey};
 
@@ -141,7 +141,7 @@ fn full_and_partial_revolve_decide_the_same_honest_dihedral() {
     };
     let full = neck_flare(Revolution::Full);
     let rim = find_rim(&full, true, 1.0, is_pair);
-    let out = fillet_edges(&full, &[rim], 0.05, band(), tol());
+    let out = fillet_edges(&full, &[rim], 0.05, tol());
     assert!(
         out.is_ok(),
         "closed rim: the cylinder×cone band is built once the dihedral has decided, \
@@ -150,13 +150,13 @@ fn full_and_partial_revolve_decide_the_same_honest_dihedral() {
 
     let part = neck_flare(Revolution::Partial(1.0));
     let arc = find_rim(&part, false, 1.0, is_pair);
-    let open = fillet_edges(&part, &[arc], 0.05, band(), tol());
+    let open = fillet_edges(&part, &[arc], 0.05, tol()).map_err(|r| r.error);
     assert!(
-        !matches!(open, Err(FilletError::TangentialEdge { .. })),
+        !matches!(open, Err(BlendError::TangentialEdge { .. })),
         "open rim: a transverse 30° corner is not a tangency, got {open:?}"
     );
     assert!(
-        matches!(open, Err(FilletError::FilletCornerUnsupported { .. })),
+        matches!(open, Err(BlendError::UnsupportedCorner { .. })),
         "open rim: the arc terminates at the revolve's seam-meridian vertices, whose \
          corner configuration is unimplemented, got {open:?}"
     );
@@ -201,8 +201,8 @@ fn a_co_surface_seam_meridian_still_refuses_tangential_at_exactly_zero() {
         (p1 - p0).norm() > 1.9,
         "the seam meridian's endpoints span ~the ball's diameter"
     );
-    match fillet_edges(&ball, &[seam], 0.05, band(), tol()) {
-        Err(FilletError::TangentialEdge { margin, .. }) => {
+    match fillet_edges(&ball, &[seam], 0.05, tol()).map_err(|r| r.error) {
+        Err(BlendError::TangentialEdge { margin, .. }) => {
             assert_eq!(margin, 0.0, "a co-surface seam's sine is structurally zero");
         }
         other => panic!("expected TangentialEdge at exactly zero, got {other:?}"),
@@ -232,10 +232,10 @@ fn a_dome_equator_rim_decides_convex_at_an_honest_lever() {
     let rim = find_rim(&dome, true, 1.0, |a, b| {
         matches!(a, Surface::Plane { .. }) && matches!(b, Surface::Sphere { .. })
     });
-    let req = FilletRequest {
+    let req = BlendRequest {
         body: &dome,
         edges: vec![rim],
-        radius: 0.05,
+        size: 0.05,
     };
     let verdict = run_battery(&req, band()).expect("a plane–sphere closed rim resolves");
     let link = verdict.chains[0].first();
@@ -274,10 +274,10 @@ fn a_boss_root_rim_decides_concave_at_an_honest_lever() {
     let rim = find_rim(&boss, true, rim_r, |a, b| {
         matches!(a, Surface::Plane { .. }) && matches!(b, Surface::Sphere { .. })
     });
-    let req = FilletRequest {
+    let req = BlendRequest {
         body: &boss,
         edges: vec![rim],
-        radius: 0.05,
+        size: 0.05,
     };
     let verdict = run_battery(&req, band()).expect("a plane–sphere closed rim resolves");
     let link = verdict.chains[0].first();

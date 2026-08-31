@@ -17,7 +17,7 @@ use profile::RawLoop;
 use geom_core::Tol;
 use geom_core::{Affine3, Band, Point2, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
-use sweep::fillet::build::fillet_edges;
+use sweep::blend::build::fillet_edges;
 use sweep::test_support::cube;
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
@@ -107,7 +107,7 @@ fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
 fn blank() -> Body<f64> {
     let body = cube(DIE_L, Tol::witness());
     let edges: Vec<_> = body.edges().map(|(k, _)| k).collect();
-    fillet_edges(&body, &edges, DIE_R, band(), Tol::witness())
+    fillet_edges(&body, &edges, DIE_R, Tol::witness())
         .expect("the die blank")
         .body
 }
@@ -323,33 +323,38 @@ fn the_pips_cut_in_one_group_operation_on_all_six_faces() {
     mesh::validate::check_mesh(&mesh).expect("watertight");
 }
 
-/// **DEVIATION 1, FLIPPED at both doors** (M6 unit 1 — kept, per the
-/// S9 pattern, as the record of the two frontiers it used to pin;
-/// its M5 name was `deviation_1_the_blank_and_the_pips_do_not_compose_yet`).
+/// **DEVIATION 1, now FLIPPED at both doors** (kept, per the S9
+/// pattern, as the record of the two frontiers it used to pin; its M5
+/// name was `deviation_1_the_blank_and_the_pips_do_not_compose_yet`,
+/// and its M6 name said door A reached its real frontier).
 ///
-/// - *Fillet then pip* (door A) refused at the curved pierce door
-///   because the conic-carrier arm was UNCONDITIONAL — the reviewer
-///   measured the true clearance of the named pair at 1.6 cm and it
-///   refused anyway (fix pass F4). The M6 rider gives CIRCLE carriers
-///   a definite-miss verdict in closed form
-///   (`bool_circle_curved_clearance`, the `circle_span_bounds`
-///   harmonic algebra), so every far pair now CLEARS and the ordering
-///   marches past the reduce stage entirely — to its REAL frontier:
-///   the containment stage's `PartialSphereFace` door (the blank's
-///   octants are trimmed sphere faces, and the whole-sphere
-///   containment class has no chart-trim extent for them — the M5
-///   PR 9c door, reached honestly instead of masked by an
-///   unconditional arm). Door A is still typed, one stage deeper.
-/// - *Pip then fillet* (door B) composes: the in-place composition
-///   surgery blends the twelve box edges in place with every pip rim
-///   carried through. The full
-///   composed-die ladder (tier 3, closed forms, watertight, rim tori)
-///   lives in `m6_surgery.rs`.
+/// - *Fillet then pip* (door A) refused twice over. First at the curved
+///   pierce door, because the conic-carrier arm was UNCONDITIONAL — the
+///   reviewer measured the true clearance of the named pair at 1.6 cm
+///   and it refused anyway. The M6 rider gave CIRCLE carriers a
+///   definite-miss verdict in closed form
+///   (`bool_circle_curved_clearance`, the `circle_span_bounds` harmonic
+///   algebra), so every far pair cleared and the ordering marched past
+///   the reduce stage — to the containment stage's `PartialSphereFace`
+///   door, because a cut leaves TRIMMED sphere faces and the
+///   whole-sphere containment class had no chart trim for them. It has
+///   one now: every boundary edge of a cut sphere face is a latitude rim
+///   or a meridian great circle, and that face is exactly the
+///   `[azimuth] × [latitude]` rectangle its boundary pins. Door A
+///   composes.
+/// - *Pip then fillet* (door B) composes, as it has since the in-place
+///   composition surgery blended the twelve box edges with every pip rim
+///   carried through. The full composed-die ladder (tier 3, closed
+///   forms, watertight, rim tori) lives in `m6_surgery.rs`.
+///
+/// **The two doors agree on the volume**, which is the statement worth
+/// having: the die is the same solid whichever order it is built in.
 #[test]
-fn deviation_1_flipped_door_b_composes_door_a_reaches_its_real_frontier() {
-    // Door A: fillet then pip — past the pierce door (the rider),
-    // refusing typed at the containment stage's named frontier.
-    let err = boolean_op_with(
+fn deviation_1_both_doors_compose_and_agree() {
+    let want = blank_volume() - 21.0 * cap(PIP_R, PIP_H);
+    // Door A: fillet then pip — past the pierce door (the rider) and
+    // now past the containment stage too.
+    let out = boolean_op_with(
         BooleanOp::Subtract,
         &blank(),
         &pip_tool(),
@@ -357,11 +362,19 @@ fn deviation_1_flipped_door_b_composes_door_a_reaches_its_real_frontier() {
         SweepStrategy::Realized,
         Tol::witness(),
     )
-    .expect_err("trimmed sphere faces have no containment extent yet");
-    let text = format!("{err}");
+    .expect("door A composes: a cut sphere face is a chart rectangle");
+    let via_boolean = &out.body().expect("a body").body;
+    assert_eq!(
+        topo::validate_geometric(via_boolean, Tol::witness()),
+        Ok(()),
+        "tier 3"
+    );
+    let va = topo::mass_properties(via_boolean, Tol::witness())
+        .unwrap()
+        .volume;
     assert!(
-        text.contains("trimmed") && text.contains("sphere"),
-        "door A's refusal names the partial-sphere containment door, not the pierce          door the rider retired: {text}"
+        (va - want).abs() <= 1e-9 * want,
+        "door A volume {va} vs closed form {want}"
     );
 
     // Door B: pip then fillet — the surgery composes.
@@ -373,7 +386,7 @@ fn deviation_1_flipped_door_b_composes_door_a_reaches_its_real_frontier() {
         .filter(|k| pipped.get_edge(*k).is_some())
         .collect();
     assert_eq!(surviving.len(), 12, "every box edge survives the pips");
-    let via_surgery = fillet_edges(&pipped, &surviving, DIE_R, band(), Tol::witness())
+    let via_surgery = fillet_edges(&pipped, &surviving, DIE_R, Tol::witness())
         .expect("the in-place surgery takes the subset request (M6 unit 1)")
         .body;
     assert_eq!(
@@ -381,12 +394,15 @@ fn deviation_1_flipped_door_b_composes_door_a_reaches_its_real_frontier() {
         Ok(()),
         "tier 3"
     );
-    let want = blank_volume() - 21.0 * cap(PIP_R, PIP_H);
     let vb = topo::mass_properties(&via_surgery, Tol::witness())
         .unwrap()
         .volume;
     assert!(
         (vb - want).abs() <= 1e-9 * want,
         "door B volume {vb} vs closed form {want}"
+    );
+    assert!(
+        (va - vb).abs() <= 1e-9 * want,
+        "the two build orders make the same die: {va} vs {vb}"
     );
 }

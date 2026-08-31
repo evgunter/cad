@@ -18,3 +18,13 @@ tools/k-lint/target/
 tools/tess-lint/target/
 tools/tess-meter/target/
 /target-*
+
+# The demo-document gallery, when it is written into the SOURCE tree.
+# `gallery::run` defaults its output directory to the relative path
+# "gallery" (gallery.rs), so `cargo run -- gallery` from inside
+# demos/tour/ lands here. That is build output: CI writes its own copy
+# to demos/out/gallery (render.yml) for the viewer's acceptance probe,
+# nothing in the repo reads this path, and no gate regenerates it. A
+# tracked copy would go stale the moment a scene's document changed,
+# with nothing to notice.
+demos/tour/gallery/

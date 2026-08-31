@@ -7,12 +7,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
-use geom_core::{Band, Point2, Point3, Tol, Vec3};
+use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use sweep::blend::arms::chamfer_strip;
+use sweep::blend::build::fillet_edges;
+use sweep::blend::{BlendError, CornerConfig, RunOutPolicy};
 use sweep::chamfer::chamfer_edges;
-use sweep::fillet::blend::chamfer_strip;
-use sweep::fillet::build::fillet_edges;
-use sweep::fillet::{CornerConfig, FilletError, RunOutPolicy};
 use sweep::test_support::cube;
 use sweep::{Extrusion, extrude};
 use topo::{Body, EdgeKey};
@@ -21,11 +21,6 @@ use topo::{Body, EdgeKey};
 const L: f64 = 1.0;
 /// The chamfer setback, meters.
 const D: f64 = 0.1;
-
-fn band() -> Band {
-    let tol = Tol::witness().get();
-    Band::new(tol.eps, tol.k * tol.eps).unwrap()
-}
 
 fn all_edges(body: &Body<f64>) -> Vec<EdgeKey> {
     body.edges().map(|(k, _)| k).collect()
@@ -68,7 +63,7 @@ fn sorted_points(body: &Body<f64>) -> Vec<(f64, f64, f64)> {
 #[test]
 fn the_chamfered_cube() {
     let body = cube(L, Tol::witness());
-    let out = chamfer_edges(&body, &all_edges(&body), D, band(), Tol::witness())
+    let out = chamfer_edges(&body, &all_edges(&body), D, Tol::witness())
         .expect("a cube's twelve edges chamfer");
     let out_body = out.body;
 
@@ -129,7 +124,7 @@ fn the_chamfered_cube() {
 fn the_chamfer_records_every_birth_and_death() {
     let body = cube(L, Tol::witness());
     let source_edges = all_edges(&body);
-    let out = chamfer_edges(&body, &source_edges, D, band(), Tol::witness()).expect("chamfers");
+    let out = chamfer_edges(&body, &source_edges, D, Tol::witness()).expect("chamfers");
     let rec = out.naming.expect("the surgery is the only producer");
 
     assert_eq!(rec.blends.len(), 12, "a strip per source edge");
@@ -189,8 +184,8 @@ fn the_chamfer_records_every_birth_and_death() {
 fn fillet_and_chamfer_agree_on_a_right_corner() {
     let body = cube(L, Tol::witness());
     let edges = all_edges(&body);
-    let filleted = fillet_edges(&body, &edges, D, band(), Tol::witness()).expect("fillets");
-    let chamfered = chamfer_edges(&body, &edges, D, band(), Tol::witness()).expect("chamfers");
+    let filleted = fillet_edges(&body, &edges, D, Tol::witness()).expect("fillets");
+    let chamfered = chamfer_edges(&body, &edges, D, Tol::witness()).expect("chamfers");
 
     let want: Vec<(f64, f64, f64)> = {
         // Each of the 24 is a foot: one coordinate on a face of the
@@ -240,10 +235,10 @@ fn fillet_and_chamfer_agree_on_a_right_corner() {
 fn one_edge_of_a_cube_refuses_as_a_run_out() {
     let body = cube(L, Tol::witness());
     let edges = all_edges(&body);
-    let err = chamfer_edges(&body, &edges[..1], D, band(), Tol::witness())
+    let err = chamfer_edges(&body, &edges[..1], D, Tol::witness())
         .expect_err("a partially-requested corner is a run-out");
     assert!(
-        matches!(err, FilletError::UnsupportedRunOut { .. }),
+        matches!(err.error, BlendError::UnsupportedRunOut { .. }),
         "the request's coverage is what ran out: {err:?}"
     );
     let text = format!("{err}");
@@ -261,10 +256,10 @@ fn one_edge_of_a_cube_refuses_as_a_run_out() {
 fn a_curved_support_refuses_with_the_chamfers_own_sentence() {
     let cyl = cylinder(0.5, 1.0);
     let edges = all_edges(&cyl);
-    let err = chamfer_edges(&cyl, &edges, D, band(), Tol::witness())
+    let err = chamfer_edges(&cyl, &edges, D, Tol::witness())
         .expect_err("a plane–cylinder rim has no ruled strip");
     assert!(
-        matches!(err, FilletError::ChamferArmUnsupported { .. }),
+        matches!(err.error, BlendError::ChamferArmUnsupported { .. }),
         "the arm table is what refused: {err:?}"
     );
     let text = format!("{err}");
@@ -286,10 +281,10 @@ fn a_curved_support_refuses_with_the_chamfers_own_sentence() {
 fn an_l_brackets_inner_edge_refuses_on_its_corner_configuration() {
     let bracket = l_bracket();
     let inner = concave_edge(&bracket);
-    let err = chamfer_edges(&bracket, &[inner], D, band(), Tol::witness())
+    let err = chamfer_edges(&bracket, &[inner], D, Tol::witness())
         .expect_err("v1 does not chamfer a concave edge");
-    match err {
-        FilletError::FilletCornerUnsupported {
+    match err.error {
+        BlendError::UnsupportedCorner {
             corner: CornerConfig::MixedConvexity { convex },
             policy,
             ..

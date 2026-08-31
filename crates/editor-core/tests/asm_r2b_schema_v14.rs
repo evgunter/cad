@@ -43,7 +43,7 @@ fn schema_version_is_current() {
     // precedent): ASM-R2b's own bump was v14; M10-1 took v15 for
     // parameter distributions and LIB-G16 v16, and the number is what
     // keeps moving.
-    assert_eq!(SCHEMA_VERSION, 16);
+    assert_eq!(SCHEMA_VERSION, 19);
 }
 
 #[test]

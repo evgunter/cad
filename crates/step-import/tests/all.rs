@@ -36,12 +36,19 @@
 // the lint gate for every suite module included below.
 #![allow(clippy::duplicate_mod)]
 
+#[path = "cert1_r1_import_probes.rs"]
+mod cert1_r1_import_probes;
+#[path = "cert5_r1_import_probes.rs"]
+mod cert5_r1_import_probes;
 #[path = "corpus_fold.rs"]
 mod corpus_fold;
 #[path = "curve_promotion_report.rs"]
 mod curve_promotion_report;
 #[path = "freecad.rs"]
 mod freecad;
+#[path = "halfcap_pole.rs"]
+mod halfcap_pole;
+
 #[path = "inst_review_probes.rs"]
 mod inst_review_probes;
 #[path = "nurbs_import.rs"]
@@ -72,6 +79,8 @@ mod probe_sense;
 mod probe_vol;
 #[path = "r1_dm1_probe.rs"]
 mod r1_dm1_probe;
+#[path = "r2_import_door.rs"]
+mod r2_import_door;
 #[path = "recognize_pins.rs"]
 mod recognize_pins;
 #[path = "rev_import_probe.rs"]

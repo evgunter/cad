@@ -702,8 +702,8 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
     }
 
     println!(
-        "\n-- the two-peg plate (M9-3: a declared CYLINDRICAL Rest, and the join \
-         demos/README.md said could not be built) --"
+        "\n-- the two-peg plate (a declared CYLINDRICAL Rest: plate ∪ pegs \
+         mated to plate ∖ bores) --"
     );
     for stop in twopeg::stops(tol) {
         visit(&stop);
@@ -745,6 +745,7 @@ fn main() {
     let outdir = std::env::args().nth(1).expect(
         "usage: demo-tour <outdir> | demo-tour gallery [dir] | \
                  demo-tour asm-corpus <dir> | \
+                 demo-tour die-corpus <file> | \
                  demo-tour k-probe [out.csv] | \
                  demo-tour tess-budget [out.csv] [--deviation]",
     );
@@ -768,6 +769,26 @@ fn main() {
             .nth(2)
             .expect("usage: demo-tour asm-corpus <dir>");
         assembly::corpus(std::path::Path::new(&dir), tol);
+        return;
+    }
+    // The composed die's own document and nothing else — what
+    // `crates/editor-core/tests/corpus/tour/die_composed_tour.pncad` is
+    // regenerated from, and the reason the kernel's model corpus can
+    // register this scene's die without a second transcription of it
+    // (`diefillet::corpus_text`). The DOCUMENT is `gallery`'s — blank
+    // fillet deleted, per the #1162 ruling, which holds for a corpus
+    // too — but the FILE differs: the gallery saves a snapshot, which
+    // records its ε and refuses to load at any other, while the corpus
+    // replays at every CI ε row, so this door writes the empty
+    // document plus the whole model as an edit log (the derivation and
+    // its exactness assert live at `corpus_text`).
+    if outdir == "die-corpus" {
+        let path = std::env::args()
+            .nth(2)
+            .expect("usage: demo-tour die-corpus <file>");
+        let text = diefillet::corpus_text(tol);
+        std::fs::write(&path, &text).expect("the die corpus document writes");
+        println!("die corpus → {path} ({} byte(s))", text.len());
         return;
     }
     // The K-telemetry mode (M4 PR 8b): rebuild every scene at the

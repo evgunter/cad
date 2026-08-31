@@ -42,6 +42,17 @@
 mod approx_surface;
 #[path = "arc_eval_anchor.rs"]
 mod arc_eval_anchor;
+#[path = "cert1_r1_probes.rs"]
+mod cert1_r1_probes;
+#[path = "cert1_sphere_polar.rs"]
+mod cert1_sphere_polar;
+#[path = "cert3r1_e2e.rs"]
+mod cert3r1_e2e;
+#[path = "cert5_arm_and_cells.rs"]
+mod cert5_arm_and_cells;
+#[path = "cert5_r1_patch_probes.rs"]
+mod cert5_r1_patch_probes;
+
 #[path = "decoration_plane_mint.rs"]
 mod decoration_plane_mint;
 #[path = "imported_chart_arc_rim.rs"]
@@ -66,13 +77,23 @@ mod m8_f67_r1_probes;
 mod offa_r1_probes;
 #[path = "offb_r1_probes.rs"]
 mod offb_r1_probes;
+#[path = "r2_probe_sphere_polar.rs"]
+mod r2_probe_sphere_polar;
 
 #[path = "offb_r2_probes.rs"]
 mod offb_r2_probes;
 
+#[path = "cert7_r1_probes.rs"]
+mod cert7_r1_probes;
+
+#[path = "cert7_r2_probes.rs"]
+mod cert7_r2_probes;
+
 #[path = "offset_fit.rs"]
 mod offset_fit;
 
+#[path = "cert5_r2_probes.rs"]
+mod cert5_r2_probes;
 #[path = "offset_mint.rs"]
 mod offset_mint;
 #[path = "pcurve_conic.rs"]
@@ -87,6 +108,8 @@ mod pcurve_p1b_r2_probes;
 mod pcurve_parameter_finding;
 #[path = "r1_pxn_probes.rs"]
 mod r1_pxn_probes;
+#[path = "r2_cert3_e2e.rs"]
+mod r2_cert3_e2e;
 #[path = "review_arceval_r1_probes.rs"]
 mod review_arceval_r1_probes;
 #[path = "review_flux_probes_r1.rs"]
@@ -113,6 +136,8 @@ mod review_m6_surgery_rider;
 mod review_pr12_meridian_probe;
 #[path = "review_r1_rational_probes.rs"]
 mod review_r1_rational_probes;
+#[path = "revolved_point_anchor.rs"]
+mod revolved_point_anchor;
 #[path = "rim_dim_review_probes.rs"]
 mod rim_dim_review_probes;
 #[path = "rim_dim_scale_twins.rs"]
@@ -168,3 +193,12 @@ fn every_suite_file_is_aggregated() {
 mod r2_probes;
 #[path = "review_probes_m8_4.rs"]
 mod review_probes_m8_4;
+
+#[path = "r1_perimeter_probes.rs"]
+mod r1_perimeter_probes;
+
+#[path = "r2_cert6_probes.rs"]
+mod r2_cert6_probes;
+
+#[path = "cert6_gauge_rows.rs"]
+mod cert6_gauge_rows;

@@ -338,6 +338,60 @@ pub enum EditError {
         /// The continuous slot.
         slot: SlotId,
     },
+    /// A node's PAYLOAD expression (a measured expression's value
+    /// leaf, an assertion's bound — the expressions no slot addresses)
+    /// references a document parameter that does not exist. The same
+    /// fault as [`EditError::UnknownDocParam`] at an address that is
+    /// not a slot, so it says so rather than borrowing a slot name
+    /// from a node that has one.
+    UnknownPayloadParam {
+        /// The missing parameter.
+        name: ParamName,
+        /// The referencing node.
+        node: RecipeNodeId,
+    },
+    /// A payload expression's recorded ref dimension disagrees with the
+    /// document parameter's declared dimension.
+    PayloadParamDimensionMismatch {
+        /// The parameter.
+        name: ParamName,
+        /// The referencing node.
+        node: RecipeNodeId,
+        /// The dimension the parameter is declared with.
+        declared: Dimension,
+        /// The dimension the expression recorded.
+        referenced: Dimension,
+    },
+    /// A [`Node::Measure`]'s expression reads a reference the node does
+    /// not carry ([`crate::MeasureNodeFault`]).
+    MeasureMalformed {
+        /// The measure node.
+        node: RecipeNodeId,
+        /// What is wrong with it.
+        fault: crate::node::MeasureNodeFault,
+    },
+    /// A [`Node::Assertion`] references a node that is not a measure.
+    /// An assertion constrains a measurement; there is nothing else in
+    /// the vocabulary for it to constrain.
+    AssertionTarget {
+        /// The assertion.
+        node: RecipeNodeId,
+        /// What it references.
+        measure: RecipeNodeId,
+    },
+    /// A [`Node::Assertion`]'s bound is dimensioned differently from
+    /// the measure it constrains — refused at the edit door, so a
+    /// document never carries a comparison of metres with radians.
+    AssertionDimension {
+        /// The assertion.
+        node: RecipeNodeId,
+        /// The measure it constrains.
+        measure: RecipeNodeId,
+        /// The measure's dimension.
+        measured: Dimension,
+        /// The bound's.
+        bound: Dimension,
+    },
     /// An expression references a document parameter that does not
     /// exist.
     UnknownDocParam {
@@ -670,8 +724,9 @@ impl core::fmt::Display for EditError {
             }
             Self::DeleteWouldDangle { id, referenced_by } => write!(
                 f,
-                "edit: deleting node {} would dangle node {}'s reference to it",
-                id.0, referenced_by.0
+                "edit: node {} is still an input to node {} — delete node {} first, \
+                 or delete node {} together with everything downstream of it",
+                id.0, referenced_by.0, referenced_by.0, id.0
             ),
             Self::UnknownSlot { id, slot } => {
                 write!(f, "edit: node {} has no slot {slot:?}", id.0)
@@ -691,6 +746,43 @@ impl core::fmt::Display for EditError {
             Self::NotStructuralSlot { slot } => {
                 write!(f, "edit: slot {slot:?} is continuous, not structural")
             }
+            Self::UnknownPayloadParam { name, node } => write!(
+                f,
+                "edit: document parameter {:?} does not exist (referenced by node {}'s \
+                 measurement payload)",
+                name.0, node.0
+            ),
+            Self::PayloadParamDimensionMismatch {
+                name,
+                node,
+                declared,
+                referenced,
+            } => write!(
+                f,
+                "edit: document parameter {:?} is declared {declared:?} but node {}'s \
+                 measurement payload references it as {referenced:?}",
+                name.0, node.0
+            ),
+            Self::MeasureMalformed { node, fault } => {
+                write!(f, "edit: measure node {}: {fault}", node.0)
+            }
+            Self::AssertionTarget { node, measure } => write!(
+                f,
+                "edit: assertion node {} references node {}, which is not a measure — an \
+                 assertion constrains a measurement",
+                node.0, measure.0
+            ),
+            Self::AssertionDimension {
+                node,
+                measure,
+                measured,
+                bound,
+            } => write!(
+                f,
+                "edit: assertion node {} bounds a {measured:?} measure (node {}) with a \
+                 {bound:?} expression — an assertion compares like with like or not at all",
+                node.0, measure.0
+            ),
             Self::UnknownDocParam { name, node, slot } => write!(
                 f,
                 "edit: document parameter {:?} does not exist (referenced by node {}, slot {slot:?})",
@@ -1023,6 +1115,58 @@ fn check_node_slots<P: crate::ProfilePayload>(
         }
         check_param_refs(doc, id, slot, expr)?;
     }
+    // The expressions no slot addresses (E3/E10). Their DIMENSIONS are
+    // already fixed by construction — a `MeasureExpr` runs the F1
+    // checker at every constructor, and an assertion's bound is checked
+    // against its measure below — so what is left here is the same
+    // parameter-table re-check every slot expression gets.
+    for expr in crate::node::payload_exprs(node).into_iter().flatten() {
+        let mut refs = Vec::new();
+        expr.param_refs(&mut refs);
+        for (name, referenced) in refs {
+            match doc.params().get(&name) {
+                None => return Err(EditError::UnknownPayloadParam { name, node: id }),
+                Some(p) if p.dim() != referenced => {
+                    return Err(EditError::PayloadParamDimensionMismatch {
+                        name,
+                        node: id,
+                        declared: p.dim(),
+                        referenced,
+                    });
+                }
+                Some(_) => {}
+            }
+        }
+    }
+    // A measured expression's reference indices, at the edit door as
+    // well as the construction and load doors: `Node::Measure` is a
+    // public variant, so a hand-built value can reach `apply` without
+    // passing `Node::measure`.
+    if let Some(fault) = node.measure_fault() {
+        return Err(EditError::MeasureMalformed { node: id, fault });
+    }
+    // An assertion's bound against the dimension of the measure it
+    // constrains — the one check that needs the DOCUMENT, which is why
+    // it lands here and not on the node.
+    if let Node::Assertion { measure, bound, .. } = node {
+        let measured = match doc.node(*measure) {
+            Some(Node::Measure { expr, .. }) => expr.dim(),
+            _ => {
+                return Err(EditError::AssertionTarget {
+                    node: id,
+                    measure: *measure,
+                });
+            }
+        };
+        if measured != bound.dim() {
+            return Err(EditError::AssertionDimension {
+                node: id,
+                measure: *measure,
+                measured,
+                bound: bound.dim(),
+            });
+        }
+    }
     Ok(())
 }
 
@@ -1068,6 +1212,47 @@ fn check_acyclic<P>(doc: &Doc<P>) -> Result<(), EditError> {
         }
     }
     Ok(())
+}
+
+/// The nodes a cascading delete of `id` must remove, ordered so that
+/// [`DocEdit::DeleteNode`] accepts every one of them in turn:
+/// consumers first, `id` last.
+///
+/// The set is `id` plus everything reachable from it along the
+/// CONSUMER direction of the recipe DAG — the transitive closure of
+/// the same [`Node::inputs`] relation [`EditError::DeleteWouldDangle`]
+/// is stated over, which is why applying this sequence in order never
+/// dangles a reference: every node still live at each step has all of
+/// its inputs still live.
+///
+/// The answer is empty for an id the document does not hold; a caller
+/// that wants the refusal asks [`apply`] for it, so the typed verdict
+/// has one home.
+///
+/// One forward pass suffices because [`Doc::order`] is insertion
+/// order and an insertion's inputs must already be live, making the
+/// list topological: a consumer is always seen after every input it
+/// could inherit doom from.
+pub fn cascade_delete_order<P>(doc: &Doc<P>, id: RecipeNodeId) -> Vec<RecipeNodeId> {
+    use std::collections::BTreeSet;
+    if doc.node(id).is_none() {
+        return Vec::new();
+    }
+    let mut doomed: BTreeSet<RecipeNodeId> = BTreeSet::from([id]);
+    for &n in doc.order() {
+        let doomed_by_input = doc
+            .node(n)
+            .is_some_and(|node| node.inputs().iter().any(|input| doomed.contains(input)));
+        if doomed_by_input {
+            doomed.insert(n);
+        }
+    }
+    doc.order()
+        .iter()
+        .rev()
+        .copied()
+        .filter(|n| doomed.contains(n))
+        .collect()
 }
 
 /// Apply one edit to a document, PURELY (spec D2): the input is
