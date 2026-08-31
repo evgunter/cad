@@ -2717,4 +2717,358 @@ mod tests {
             fuzz::replay()
         );
     }
+
+    // ---------------------------------------------------------------
+    // CERT-10 (issue 1006): the fold-cost measurement, taken BEFORE
+    // the whole-face arm's shape was chosen.
+    // ---------------------------------------------------------------
+
+    /// A high-knot-count integral face: degree 3 x 3 with `k` interior
+    /// knots per direction, so the whole-net hull covers a net the
+    /// per-cell fold reads in `(k+1)^2` windows of `4 x 4`.
+    fn many_knot_face(k: usize) -> NurbsSurface<f64> {
+        #[allow(clippy::cast_precision_loss)]
+        let interior: Vec<f64> = (1..=k).map(|i| i as f64 / (k + 1) as f64).collect();
+        let mk = || {
+            let mut ks = vec![0.0; 4];
+            ks.extend(interior.iter().copied());
+            ks.extend([1.0; 4]);
+            KnotVector::clamped(ks, 3).unwrap()
+        };
+        let (kv_u, kv_v) = (mk(), mk());
+        let (nu, nv) = (kv_u.control_count(), kv_v.control_count());
+        let mut control = Vec::new();
+        for i in 0..nu {
+            for j in 0..nv {
+                #[allow(clippy::cast_precision_loss)]
+                let (x, y) = (i as f64 * 0.31, j as f64 * 0.27);
+                control.push(Point3::new(x, y, (1.7 * x).sin() * (1.1 * y).cos()));
+            }
+        }
+        let w = vec![1.0; control.len()];
+        NurbsSurface::new(kv_u, kv_v, control, w).unwrap()
+    }
+
+    /// **The fixture the tighter-or-equal claim has teeth on.** A
+    /// per-channel `mag` hull is the max of `|coefficient|` over the
+    /// window, and the cell windows COVER the net, so for any single
+    /// channel `max over cells == whole net` exactly. The whole-net
+    /// spelling is strictly wider only where the `sum over channels of
+    /// sup squared` mixes channels whose extremes live in DIFFERENT
+    /// cells: the whole-net number adds three maxima that no single
+    /// point of the patch attains together. This net staggers them —
+    /// `x` bends hard near `u = 0`, `z` near `u = 1`.
+    fn staggered_channels() -> NurbsSurface<f64> {
+        let kv_u = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+        let kv_v = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+        let (nu, nv) = (kv_u.control_count(), kv_v.control_count());
+        // Per u index: a big x-kink at the low end, a big z-kink at the
+        // high end, and a y that ramps uniformly.
+        let xs = [0.0, 3.0, 0.0, 0.05];
+        let zs = [0.0, 0.02, 0.0, 4.0];
+        let mut control = Vec::new();
+        for i in 0..nu {
+            for j in 0..nv {
+                #[allow(clippy::cast_precision_loss)]
+                let y = j as f64 * 0.5;
+                control.push(Point3::new(xs[i % 4], y, zs[i % 4]));
+            }
+        }
+        let w = vec![1.0; control.len()];
+        NurbsSurface::new(kv_u, kv_v, control, w).unwrap()
+    }
+
+    /// The whole-net hull assembly, kept alive for the measurement even
+    /// after the shipped arm folds: this is the number the fold is
+    /// compared against. INTEGRAL faces only — the spelling reads the
+    /// control net with no weights at all, so calling it on a rational
+    /// description answers a different surface's bound.
+    fn whole_net_bound(s: &NurbsSurface<f64>) -> Option<NurbsFaceBound> {
+        assert!(
+            !patch_bound::is_rational(s),
+            "the whole-net spelling is the integral arm's; a rational face has no such arm"
+        );
+        integral_face_bound(s, FaceKey::default()).ok()
+    }
+
+    /// The per-cell fold: the componentwise max over `patch_cells`'
+    /// per-cell bounds.
+    fn fold_bound(s: &NurbsSurface<f64>) -> Option<NurbsFaceBound> {
+        let cells = nurbs_cell_bounds(s, FaceKey::default()).ok()?;
+        let mut m = NurbsFaceBound {
+            muu: 0.0,
+            muv: 0.0,
+            mvv: 0.0,
+            mu1: 0.0,
+            mv1: 0.0,
+        };
+        for c in &cells {
+            m.muu = m.muu.max(c.bound.muu);
+            m.muv = m.muv.max(c.bound.muv);
+            m.mvv = m.mvv.max(c.bound.mvv);
+            m.mu1 = m.mu1.max(c.bound.mu1);
+            m.mv1 = m.mv1.max(c.bound.mv1);
+        }
+        Some(m)
+    }
+
+    /// Mean microseconds per call of `f`, over `reps` repetitions.
+    fn micros<T>(reps: u32, mut f: impl FnMut() -> T) -> f64 {
+        let t = std::time::Instant::now();
+        for _ in 0..reps {
+            core::hint::black_box(f());
+        }
+        t.elapsed().as_secs_f64() * 1e6 / f64::from(reps)
+    }
+
+    /// **The fold-cost table** (issue 1006's ruling: "fold cost
+    /// measured against the whole-net hull BEFORE the shape is
+    /// chosen"). Reports, per INTEGRAL fixture, the wall time and the
+    /// bound width of both spellings, plus the rational fixtures'
+    /// per-cell cost for scale (the rational arm has always been a
+    /// fold, so it has no whole-net counterpart to compare against).
+    ///
+    /// `#[ignore]`d: it is a MEASUREMENT, not an assertion — timings
+    /// are a reading on one box and gate nothing. Run it with
+    /// `cargo test -p mesh --lib -- --ignored --nocapture cert10_fold_cost`.
+    #[test]
+    #[ignore = "measurement harness: prints the fold-cost table, asserts nothing about timings"]
+    fn cert10_fold_cost_table() {
+        let integral: Vec<(&str, NurbsSurface<f64>)> = vec![
+            ("wavy (2x3, 1+1 interior)", wavy()),
+            ("staggered_channels (2x2)", staggered_channels()),
+            ("many_knot k=8 (3x3)", many_knot_face(8)),
+            ("many_knot k=24 (3x3)", many_knot_face(24)),
+        ];
+        let reps = 40;
+        println!(
+            "\nINTEGRAL: whole-net hull vs per-cell fold\n{:<30} {:>6} {:>9} {:>9} {:>6} \
+             {:>13} {:>13} {:>9}",
+            "fixture",
+            "cells",
+            "whole us",
+            "fold us",
+            "cost x",
+            "whole muu",
+            "fold muu",
+            "fold/whole"
+        );
+        for (name, s) in &integral {
+            let cells = patch_bound::patch_cells(s).map_or(0, |c| c.len());
+            let tw = micros(reps, || whole_net_bound(s));
+            let tf = micros(reps, || fold_bound(s));
+            let (w, f) = (
+                whole_net_bound(s).expect("covered"),
+                fold_bound(s).expect("covered"),
+            );
+            println!(
+                "{name:<30} {cells:>6} {tw:>9.1} {tf:>9.1} {:>6.2} {:>13.6e} {:>13.6e} {:>9.4}",
+                tf / tw,
+                w.muu,
+                f.muu,
+                f.muu / w.muu
+            );
+            println!(
+                "{:<30} {:>6} {:>9} {:>9} {:>6} muv {:>9.6e} {:>13.6e} {:>9.4}",
+                "",
+                "",
+                "",
+                "",
+                "",
+                w.muv,
+                f.muv,
+                f.muv / w.muv
+            );
+            println!(
+                "{:<30} {:>6} {:>9} {:>9} {:>6} mu1 {:>9.6e} {:>13.6e} {:>9.4}",
+                "",
+                "",
+                "",
+                "",
+                "",
+                w.mu1,
+                f.mu1,
+                f.mu1 / w.mu1
+            );
+        }
+        let rational: Vec<(&str, NurbsSurface<f64>)> = vec![
+            ("quarter_cylinder (2x1)", quarter_cylinder()),
+            ("wavy_rational (2x3)", wavy_rational()),
+            ("pie_wall (real loft)", pie_wall()),
+        ];
+        println!(
+            "\nRATIONAL (already a fold; no whole-net arm exists)\n{:<30} {:>6} {:>9} {:>13}",
+            "fixture", "cells", "fold us", "fold muu"
+        );
+        for (name, s) in &rational {
+            let cells = patch_bound::patch_cells(s).map_or(0, |c| c.len());
+            let tf = micros(reps, || fold_bound(s));
+            let f = fold_bound(s).expect("covered");
+            println!("{name:<30} {cells:>6} {tf:>9.1} {:>13.6e}", f.muu);
+        }
+    }
+
+    /// **CERT-10 red row (issue 1006, the Q2 ruling): the whole-face
+    /// bound IS the per-cell fold.** Per-cell-then-union is tighter or
+    /// equal — every cell's window is a SUBSET of the whole net's, so
+    /// no cell can report more, and the fold can report less wherever
+    /// two channels' extremes live in different cells. This row pins
+    /// the shipped face bound to that fold, componentwise, on every
+    /// covered fixture class.
+    #[test]
+    fn cert10_whole_face_bound_is_the_per_cell_fold() {
+        for (name, s) in [
+            ("wavy", wavy()),
+            ("staggered_channels", staggered_channels()),
+            ("many_knot k=8", many_knot_face(8)),
+            ("quarter_cylinder", quarter_cylinder()),
+            ("wavy_rational", wavy_rational()),
+            ("pie_wall", pie_wall()),
+        ] {
+            let shipped = nurbs_face_bound(&s, FaceKey::default()).expect("covered");
+            let fold = fold_bound(&s).expect("covered");
+            for (what, a, b) in [
+                ("muu", shipped.muu, fold.muu),
+                ("muv", shipped.muv, fold.muv),
+                ("mvv", shipped.mvv, fold.mvv),
+                ("mu1", shipped.mu1, fold.mu1),
+                ("mv1", shipped.mv1, fold.mv1),
+            ] {
+                assert!(
+                    a == b,
+                    "{name}: shipped {what} {a:.17e} is not the per-cell fold {b:.17e}"
+                );
+            }
+        }
+    }
+
+    /// **CERT-10 red row: the tightening is real, not merely
+    /// non-negative.** The whole-net figures below were MEASURED on
+    /// this tree before the collapse (`cert10_fold_cost_table`), and
+    /// are pinned as the record of what the whole-net spelling
+    /// answered. The mechanism, so the gap is not read as noise: a
+    /// per-channel hull's `mag` is `max |coefficient|` over the
+    /// window, and the cell windows COVER the net, so for one channel
+    /// the fold and the whole net agree exactly. The gap lives in the
+    /// `sum over channels of sup squared` — the whole-net number adds
+    /// three per-channel maxima no single point of the patch attains
+    /// together, and `staggered_channels` puts the `x` and `z` maxima
+    /// in different cells on purpose.
+    #[test]
+    fn cert10_fold_is_strictly_tighter_than_the_whole_net_hull() {
+        let s = staggered_channels();
+        let b = nurbs_face_bound(&s, FaceKey::default()).expect("covered");
+        // Measured whole-net figures (pre-collapse), full precision.
+        let whole_muu = 4.821_956_449_409_315_58e1;
+        let whole_mu1 = 2.000_000_000_000_002_49e1;
+        assert!(
+            b.muu < whole_muu * 0.8,
+            "staggered muu {:.17e} is not strictly tighter than the whole-net {whole_muu:.17e}",
+            b.muu
+        );
+        assert!(
+            b.mu1 < whole_mu1 * 0.9,
+            "staggered mu1 {:.17e} is not strictly tighter than the whole-net {whole_mu1:.17e}",
+            b.mu1
+        );
+        // And a smooth fixture keeps the "or equal" half honest: the
+        // three second-partial channels peak in one cell there, so the
+        // fold reproduces the whole-net number exactly, while the
+        // first-partial `mv1` still gains.
+        let w = wavy();
+        let bw = nurbs_face_bound(&w, FaceKey::default()).expect("covered");
+        assert!(
+            bw.muu == 1.039_409_499_704_883_54e1,
+            "wavy muu moved: {:.17e}",
+            bw.muu
+        );
+        assert!(
+            bw.mv1 < 4.335_017_346_749_229_89e0,
+            "wavy mv1 {:.17e} did not gain on the whole-net figure",
+            bw.mv1
+        );
+    }
+
+    /// **CERT-10 red row: the rational per-cell reading is the SIGNED
+    /// one.** The magnitude reading applied the triangle inequality to
+    /// the quotient rule (all `+`, divide by the smallest weight); the
+    /// signed one evaluates the quotient rule itself in the ring, with
+    /// the true minus signs and the whole weight hull as the divisor.
+    /// The signed reading is strictly tighter and both are sound, so
+    /// the shipped grid sizing reads the signed one.
+    #[test]
+    fn cert10_rational_cell_reading_is_the_signed_hull() {
+        for (name, s) in [
+            ("quarter_cylinder", quarter_cylinder()),
+            ("wavy_rational", wavy_rational()),
+            ("pie_wall", pie_wall()),
+        ] {
+            let cells = patch_bound::patch_cells(&s).expect("covered");
+            let shipped = nurbs_cell_bounds(&s, FaceKey::default()).expect("covered");
+            assert_eq!(cells.len(), shipped.len());
+            for (c, b) in cells.iter().zip(&shipped) {
+                for (what, got, want) in [
+                    (
+                        "muu",
+                        b.bound.muu,
+                        cell_component(patch_bound::sq_norm(c.s_uu)),
+                    ),
+                    (
+                        "muv",
+                        b.bound.muv,
+                        cell_component(patch_bound::sq_norm(c.s_uv)),
+                    ),
+                    (
+                        "mvv",
+                        b.bound.mvv,
+                        cell_component(patch_bound::sq_norm(c.s_vv)),
+                    ),
+                    (
+                        "mu1",
+                        b.bound.mu1,
+                        cell_component(patch_bound::sq_norm(c.s_u)),
+                    ),
+                    (
+                        "mv1",
+                        b.bound.mv1,
+                        cell_component(patch_bound::sq_norm(c.s_v)),
+                    ),
+                ] {
+                    assert!(
+                        got == want,
+                        "{name}: cell u{:?} v{:?} shipped {what} {got:.17e} is not the \
+                         signed reading {want:.17e}",
+                        c.u,
+                        c.v
+                    );
+                }
+            }
+        }
+    }
+
+    /// **CERT-10 red row: the signed-vs-magnitude width gap on a
+    /// rational face.** The magnitude figures below were MEASURED on
+    /// this tree before the retirement and are pinned as the record of
+    /// what the retired reading answered. `muv` is where the triangle
+    /// inequality costs most: on the quarter cylinder the quotient
+    /// rule's minus signs cancel almost entirely, and the magnitude
+    /// spelling — which cannot see a sign — reports eleven times the
+    /// signed one.
+    #[test]
+    fn cert10_signed_reading_is_strictly_tighter_on_a_rational_face() {
+        let s = quarter_cylinder();
+        let b = nurbs_face_bound(&s, FaceKey::default()).expect("covered");
+        let mag_muu = 3.942_263_838_556_179_68e0;
+        let mag_muv = 1.266_375_820_315_083_44e0;
+        assert!(
+            b.muu < mag_muu * 0.78,
+            "quarter cylinder muu {:.17e} did not tighten on the magnitude {mag_muu:.17e}",
+            b.muu
+        );
+        assert!(
+            b.muv < mag_muv * 0.1,
+            "quarter cylinder muv {:.17e} did not tighten on the magnitude {mag_muv:.17e}",
+            b.muv
+        );
+    }
 }

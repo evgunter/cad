@@ -455,6 +455,18 @@ pub fn mag_iv(h: RingInterval) -> RingInterval {
     RingInterval::from_bounds(0.0, h.mag())
 }
 
+/// **The squared-sum collapse of one signed componentwise enclosure**:
+/// `sum over c of sup squared`, whose `sqrt(hi)` is a sup bound on the
+/// vector's norm. One spelling, consumed wherever a vector partial's
+/// magnitude is read off its signed enclosure.
+///
+/// Fixed association (D9): channel order `x, y, z`, accumulated left
+/// to right from the ring zero. Poison in one channel poisons the sum.
+#[must_use]
+pub fn sq_norm(v: [RingInterval; 3]) -> RingInterval {
+    v.iter().fold(RingInterval::zero(), |acc, c| acc + c.sqr())
+}
+
 /// A span's `[knot, next knot]` extent (the caller has already
 /// established the span is nonempty, so both knots exist).
 fn span_extent(kv: &KnotVector, span: usize) -> (f64, f64) {
