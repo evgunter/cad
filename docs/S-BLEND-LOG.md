@@ -1032,3 +1032,44 @@ D96-after-enumeration), and BLEND-4 (issue 644) on a NEW block
 draw BLEND-B3 branch-side.
 
 CI-Config: lane=interval eps=1e-6
+
+## 2026-08-31 — BLEND-3 MERGED (#1347); block B2 landed; BLEND-B3 DRAWN; T-c + BLEND-4 dispatched
+
+PR #1347 merged at `f106e96d`; issue 919 closed. Gate of record:
+run 33372151649 GREEN (21 checks) at the trailer-pinned
+{interval, 1e-6} on the state-sync head `a3f41c21`. Block
+BLEND-B2 is fully landed (the close itself merged at #1357 just
+before). Lanes blend-3 / blend-3-r{1,2} reclaimed (26G free).
+
+**Block BLEND-B3 DRAWN (branch-side record; reaches main at the
+block's last dual's conclusion).** v3 triple {opus, opus, fable}.
+Slot 1 = BLEND-4 (issue 644, convexity-parametric fillet corners —
+the slate's last implementation unit); slots 2–3 reserved for
+future units, consumed in dispatch order per the standing shape.
+Draw: /dev/urandom byte **36**, no rejections ⇒ 36 mod 3 = 0 ⇒
+**fable position 0 ⇒ slot 1 FABLE, slots 2–3 OPUS**. Difficulty
+**L** for BLEND-4 stands pre-logged (stated in the check-in note
+authored before this draw — the harder twin, by the plan's own
+word). Arms branch-side until the block closes.
+
+**Track T endgame lane T-c dispatched** (outside the A/B): lane
+`smell-t-c`, branch `smellt/c` — D90 (the octant_chart ADV row,
+citations re-aimed in its ledger edit), D321 (the admit.rs
+self-reader converts to the test-utils lexer, lowering the
+reader-census Unconverted ceiling), D96 (enumerate the ten
+unreachable! arms first; take the in-fence ones). T-R1's keep-out
+LIFTS at BLEND-3's merge — recorded in the T-log via T-c's PR.
+After T-c, the track's residue is D320 (waits on D240) and any
+out-of-fence D96 members — the track's execution is then done.
+
+**BLEND-4 dispatched** (block B3 slot 1, arm per this draw): lane
+`blend-4`, branch `blend/paramcorners` cut from main at
+`f106e96d`. Brief: issue 644 — ball admissibility, feet signs,
+octant chart orientation, arc traversals and the sense bit move as
+ONE change with a concave fixture, then the three doors relax
+together; verify corner_ball's unexercised concave arm BEFORE
+building on it; #1355 pending with Evan noted (the corner
+vocabulary — the unit's design conversation may fold it, and any
+vocabulary mint goes through Evan per the BLEND-3 adjudication);
+BLEND-3's M1 finding (band sense folds convexity, invisible to
+convex fixtures) as ground truth; measured-first.
