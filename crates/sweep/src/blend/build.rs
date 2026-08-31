@@ -73,22 +73,25 @@ use geom_core::Tol;
 /// [`Filleted`] and [`Chamfered`] alias it for call-site readability.
 #[derive(Clone, Debug)]
 pub struct Blended<T: Real> {
-    /// The rounded solid.
+    /// The blended solid.
     pub body: Body<T>,
     /// Its (only) solid.
     pub solid: SolidKey,
     /// Its (only) shell.
     pub shell: ShellKey,
-    /// The blend faces — the quarter-cylinder patches, one per
-    /// original edge, in original-edge order.
+    /// The blend faces — the fillet's quarter-cylinder patches or
+    /// the chamfer's flat strips, one per original edge, in
+    /// original-edge order.
     pub blend_faces: Vec<FaceKey>,
-    /// The corner faces — the sphere patches, one per original
-    /// vertex, in original-vertex order.
+    /// The corner faces — the fillet's sphere patches or the
+    /// chamfer's planar patches, one per original vertex, in
+    /// original-vertex order.
     pub corner_faces: Vec<FaceKey>,
-    /// The torus band faces — one per CLOSED chain (the rim blends),
-    /// in first-link-edge order. Empty when no requested chain closes.
+    /// The torus band faces — one per CLOSED chain (the fillet's rim
+    /// blends; a chamfer has no closed-chain band), in
+    /// first-link-edge order. Empty when no requested chain closes.
     pub band_faces: Vec<FaceKey>,
-    /// **Per-entity birth records**: what the fillet minted and which
+    /// **Per-entity birth records**: what the blend minted and which
     /// source entity each mint was made for.
     ///
     /// The surgery writes the rows as it mutates, and it is the only
@@ -152,15 +155,12 @@ fn fillet_edges_inner<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     band: Band,
     tol: Tol,
 ) -> Result<Filleted<T>, BlendError> {
-    // A repeated edge is malformed for the chain walk (it would
-    // double a link), so it refuses before the battery samples
-    // anything.
-    let mut requested = edges.to_vec();
-    requested.sort_unstable();
-    let repeated = requested.windows(2).find(|w| w[0] == w[1]).map(|w| w[0]);
-    if let Some(edge) = repeated {
-        return Err(BlendError::RepeatedEdge { edge });
-    }
+    repeated_edge_gate(edges)?;
+    // NOTE the door asymmetry: this door has no NonpositiveSize check,
+    // so a zero radius reaches predicate 1 and refuses RadiusHeadroom
+    // with an unfollowable sentence (pinned as a characterization in
+    // `tests/review_blend6_r1_probes.rs`). The door-asymmetric size
+    // validation issue, filed at adjudication, owns closing it.
 
     // ---- The ordering contract: verdict first, unchanged. ----
     let request = BlendRequest {
@@ -172,6 +172,21 @@ fn fillet_edges_inner<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
 
     // ---- Then the assembly, which is the composition surgery. ----
     super::surgery::blend_surgery(body, &verdict, band, tol)
+}
+
+/// **Both doors' shared request preamble**: a repeated edge is
+/// malformed for the chain walk (it would double a link), so it
+/// refuses before the battery samples anything. One home rather than
+/// a stanza per door — the duplicated stanza is where the doors'
+/// validation already drifted once (the size check grew on one side
+/// only).
+fn repeated_edge_gate(edges: &[EdgeKey]) -> Result<(), BlendError> {
+    let mut requested = edges.to_vec();
+    requested.sort_unstable();
+    match requested.windows(2).find(|w| w[0] == w[1]).map(|w| w[0]) {
+        Some(edge) => Err(BlendError::RepeatedEdge { edge }),
+        None => Ok(()),
+    }
 }
 
 /// A face's boundary cycle (outer loop, cycle order).
@@ -336,6 +351,10 @@ fn chamfer_edges_inner<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     // INCOMPARABLE case is an arm and not an accident: a poisoned size
     // is not definitely positive either, and it refuses here with the
     // other two.
+    // NOTE the door asymmetry: only THIS door refuses a nonpositive
+    // size; the fillet door lets a zero radius reach predicate 1 and
+    // report a false fact. The door-asymmetric size validation issue,
+    // filed at adjudication, owns closing it.
     if !matches!(
         distance.lo().partial_cmp(&0.0),
         Some(core::cmp::Ordering::Greater)
@@ -344,13 +363,7 @@ fn chamfer_edges_inner<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
             size: distance.lo(),
         });
     }
-    // A repeated edge is malformed for the chain walk (it would double
-    // a link), so it refuses before the battery samples anything.
-    let mut requested = edges.to_vec();
-    requested.sort_unstable();
-    if let Some(edge) = requested.windows(2).find(|w| w[0] == w[1]).map(|w| w[0]) {
-        return Err(BlendError::RepeatedEdge { edge });
-    }
+    repeated_edge_gate(edges)?;
 
     let request = BlendRequest {
         body,

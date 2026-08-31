@@ -243,7 +243,7 @@ pub enum Qualifier {
 /// # The kernel twin, and why this is not it
 ///
 /// `sweep::blend::naming::RimSide` is the same two roles, recorded by
-/// the surgery as it carves; `names::emit_fillet` maps one onto the
+/// the surgery as it carves; `names::emit_blend` maps one onto the
 /// other by an identity match. The duplication is deliberate and the
 /// emitter's match is the SEAM.
 ///

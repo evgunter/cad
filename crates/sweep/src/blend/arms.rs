@@ -88,7 +88,8 @@ use geom_core::{Point3, Real, Vec3};
 /// the complete analytic answer for one link of a chain.
 #[derive(Clone, Debug)]
 pub struct EdgeBlend<T: Real> {
-    /// The blend surface itself (a cylinder or a torus).
+    /// The blend surface itself: the fillet's cylinder or torus, or
+    /// the chamfer's plane strip.
     pub surface: Surface<T>,
     /// The spine's curvature, 1/meters: `0` for a straight spine,
     /// `1/s` for a circular one. Predicate 3 reads this.

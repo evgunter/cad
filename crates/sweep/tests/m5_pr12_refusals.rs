@@ -198,7 +198,7 @@ fn corner_tag_three_convex_edges_is_the_one_that_passes() {
     corner_config(v, 3, 3, normals, 0.1, band()).expect("the octant corner is in scope");
     assert_eq!(
         format!("{}", CornerConfig::ThreeConvexEdges),
-        "three convex edges (the sphere-octant corner)"
+        "three convex edges (the built corner configuration)"
     );
 }
 

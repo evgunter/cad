@@ -7,8 +7,9 @@
 //!
 //! What schedules it instead is the standing claim underneath the
 //! comparison: the error family carries a `BlendKind` verb, one shared
-//! `resolve_selection` ladder serves both nodes, and the fillet's four
-//! refusal texts must stay EXACTLY what they were while the chamfer's
+//! `resolve_selection` ladder serves both nodes, and the fillet's
+//! three selection texts must stay EXACTLY what they were (the op
+//! row's kernel tail is prefix-pinned instead) while the chamfer's
 //! say "chamfer". A `write!` that loses the verb, or a well-meant
 //! reword of the shared ladder, moves a user-visible string that
 //! nothing else in the tree reads; here it goes red with the old and
@@ -115,13 +116,18 @@ fn messages(
     out
 }
 
-/// **The fillet's four refusal texts are EXACTLY these.**
+/// **The fillet's three SELECTION refusal texts are byte-frozen, and
+/// its op row is prefix-pinned** — deliberately not four byte pins.
 ///
-/// The error-family rework (`Fillet(..)` -> `Blend { verb, error }`,
-/// `FilletSelection*` -> `BlendSelection* { verb, .. }`) claims to
-/// leave every fillet message byte-identical. These are the bytes.
+/// The three selection rows are this layer's own text and freeze
+/// whole. The op row's tail is the kernel's message, which quotes an
+/// arena key, so it is pinned by PREFIXES instead: the wrapper's, and
+/// the kernel payload's opening words — the exact text the verb-
+/// vocabulary unit reworded (the payload no longer opens "fillet: ";
+/// the wrapper is the one verb), so this is where a regression toward
+/// a re-verbed inner Display shows up on the fillet side.
 #[test]
-fn the_fillets_refusal_messages_are_byte_frozen() {
+fn the_fillets_selection_refusals_are_byte_frozen_and_the_op_row_prefix_pinned() {
     let got = messages(Node::fillet);
     let want = [
         (
@@ -156,9 +162,11 @@ fn the_fillets_refusal_messages_are_byte_frozen() {
         op.starts_with("the fillet op refused: "),
         "the fillet's op wrapper moved: {op}"
     );
+    // The kernel payload's own opening words, pinned past the wrapper:
+    // verb-neutral (the wrapper above is the one verb on this path).
     assert!(
-        op.len() > "the fillet op refused: ".len(),
-        "the op arm dropped its kernel payload: {op}"
+        op.starts_with("the fillet op refused: the clearance screen cannot certify"),
+        "the op row's kernel payload moved, or regained a verb prefix: {op}"
     );
 }
 

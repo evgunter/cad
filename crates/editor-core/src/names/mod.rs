@@ -22,6 +22,7 @@
 mod defer;
 mod discriminate;
 mod emit;
+mod emit_blend;
 mod emit_chamfer;
 mod emit_fillet;
 mod emit_sweep;

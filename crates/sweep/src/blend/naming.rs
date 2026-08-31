@@ -27,7 +27,7 @@
 //! own: the fact that it is the same face is carried by key identity.
 //!
 //! [`BlendNaming::dead`] closes the loop: it lists the source keys
-//! the fillet RETIRED, so a consumer can check
+//! the blend RETIRED, so a consumer can check
 //! `output = (source − dead) ⊎ minted` rather than assume it — in BOTH
 //! directions (`sweep/tests/m6_5_fillet_naming.rs` executes both). A
 //! survivor is thus a birth fact too — "this key was not minted and
@@ -35,8 +35,9 @@
 //!
 //! # What consumes these rows
 //!
-//! `editor-core`'s `names::emit_fillet` is the one production
-//! consumer. It reads every field EXCEPT [`Retired`], which exists for
+//! `editor-core`'s `names::emit_blend` is the one production
+//! consumer (one IMPLEMENTATION, reached through both verbs' thin
+//! emitter doors). It reads every field EXCEPT [`Retired`], which exists for
 //! the totality identity the test suite executes: the emitter does not
 //! need it, because an output key that is neither minted nor present
 //! upstream already refuses `MissingUpstream` when it is looked up.

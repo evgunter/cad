@@ -113,8 +113,9 @@ impl<'a, T: Real> ConvexOpen<'a, T> {
 
     /// The link's convexity. **`Convex` for every admitted link** —
     /// [`ConvexOpen::admit`] refuses anything else — which is what
-    /// lets a corner read its octant's orientation bit off any one of
-    /// its incident links instead of testing that they agree.
+    /// lets a corner (the fillet's octant; the chamfer's flat patch)
+    /// read its orientation bit off any one of its incident links
+    /// instead of testing that they agree.
     pub(super) fn convexity(&self) -> Convexity {
         self.link.convexity
     }
@@ -304,7 +305,9 @@ impl CornerFaces {
 
 /// One boundary station of an admitted support face: the half-edge the
 /// strut is spun off, the vertex it stands on, the boundary edge that
-/// leaves it, and the corner ball's foot on this face.
+/// leaves it, and the corner's foot on this face (the fillet's ball
+/// rest; the chamfer's trimline crossing — the plan derives it, the
+/// door carries it).
 pub(super) struct BoundaryStation<T: Real> {
     /// The cycle half-edge whose start is [`BoundaryStation::vertex`].
     pub(super) half_edge: HalfEdgeKey,
@@ -312,7 +315,7 @@ pub(super) struct BoundaryStation<T: Real> {
     pub(super) vertex: VertexKey,
     /// The boundary edge leaving that vertex, in cycle order.
     pub(super) edge: EdgeKey,
-    /// The corner ball's foot on this face — the strut's far point.
+    /// The corner's foot on this face — the strut's far point.
     pub(super) foot: Point3<T>,
 }
 

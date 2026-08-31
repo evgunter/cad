@@ -79,14 +79,9 @@ pub enum OpGroup {
     /// a source vertex), and a `StableName` carries the minting node,
     /// which is what tells the two apart (RECIPE-DOORS D3).
     ///
-    /// The group's NAME under-describes what it groups, and stays —
-    /// the ratified verb-vocabulary decision
-    /// (`docs/BLEND-VOCAB-DESIGN.md`) fences it out of the blend
-    /// rename: the discrimination a caller needs never comes from this
-    /// tag (which verb refused rides the refusal's own `BlendKind`;
-    /// which verb minted a name is the minting node, D3), so the tag
-    /// is selector vocabulary callers already hold, and renaming it
-    /// would move a user-facing alphabet to say nothing new.
+    /// The group's NAME under-describes what it groups, and stays:
+    /// fenced by the ratified verb-vocabulary decision
+    /// (`docs/BLEND-VOCAB-DESIGN.md`, settled ground).
     Fillet,
     /// Pattern.
     Pattern,

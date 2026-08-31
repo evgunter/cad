@@ -225,12 +225,13 @@ fn every_reachable_chamfer_refusal_speaks_as_the_chamfer() {
     ));
     assert_speaks_as_the_chamfer(&clearance, "clearance");
 
-    // The shared corner-configuration vocabulary: a four-edge request
-    // leaves the top corners' verticals unrequested — a run-out — and
-    // one edge's two corners the same; the L-bracket's concave edge
-    // is the corner CONFIGURATION case.
-    let corner = chamfer_edges(&l_bracket(), &[concave_edge(&l_bracket())], D, band(), t)
-        .expect_err("a mixed-convexity corner is out of the octant scope");
+    // The shared corner-configuration vocabulary: the L-bracket's
+    // concave edge terminates at mixed-convexity corners, which is
+    // the corner CONFIGURATION case (distinct from the run-out row
+    // above, which is about the REQUEST's coverage).
+    let bracket = l_bracket();
+    let corner = chamfer_edges(&bracket, &[concave_edge(&bracket)], D, band(), t)
+        .expect_err("a mixed-convexity corner is out of the corner-patch scope");
     assert!(matches!(corner.error, BlendError::UnsupportedCorner { .. }));
     assert_speaks_as_the_chamfer(&corner, "corner-config");
 }

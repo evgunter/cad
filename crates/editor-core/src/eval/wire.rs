@@ -764,6 +764,15 @@ fn wire_revolve<T: Decide + geom_brep::PcurveFittedLane>(
     ))
 }
 
+/// **Both blend doors' one refusal translation**: the kernel door
+/// attached the verb, and this layer READS it off the refusal rather
+/// than re-deriving which door it called — one discrimination point
+/// per layer, and one site for it here so the two doors cannot drift.
+fn blend_refused(refusal: sweep::blend::BlendRefusal) -> NodeErrorKind {
+    let sweep::blend::BlendRefusal { verb, error } = refusal;
+    NodeErrorKind::Blend { verb, error }
+}
+
 /// **Constant-radius rolling-ball fillets on a SELECTION of the
 /// target's edges** (M5 PR 12; the selection is M6-5).
 ///
@@ -810,13 +819,8 @@ fn wire_fillet<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     let radius = need_scalar(vals, SlotId::Radius)?;
     let target_table = Arc::clone(&value_of(results, target)?.name_table);
     let edges = resolve_selection(BlendKind::Fillet, selection, doc, &target_table)?;
-    // The kernel door attached the verb; this layer READS it off the
-    // refusal rather than re-deriving which door it called — one
-    // discrimination point per layer.
     let filleted = sweep::blend::build::fillet_edges(&body, &edges, radius, band(tol)?, tol)
-        .map_err(
-            |sweep::blend::BlendRefusal { verb, error }| NodeErrorKind::Blend { verb, error },
-        )?;
+        .map_err(blend_refused)?;
     // The assembly always keeps records, so `None` is a kernel bug:
     // refuse loudly rather than fall back to an empty table, which
     // would leave every downstream reference into this body silently
@@ -871,12 +875,8 @@ fn wire_chamfer<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     let distance = need_scalar(vals, SlotId::ChamferDistance)?;
     let target_table = Arc::clone(&value_of(results, target)?.name_table);
     let edges = resolve_selection(BlendKind::Chamfer, selection, doc, &target_table)?;
-    // As at the fillet door: the verb is read off the kernel's
-    // refusal, never re-derived here.
     let chamfered = sweep::blend::build::chamfer_edges(&body, &edges, distance, band(tol)?, tol)
-        .map_err(
-            |sweep::blend::BlendRefusal { verb, error }| NodeErrorKind::Blend { verb, error },
-        )?;
+        .map_err(blend_refused)?;
     // The assembly always keeps records, so `None` is a kernel bug —
     // the fillet door's argument unchanged: an empty table would leave
     // every downstream reference into this body silently unresolvable.

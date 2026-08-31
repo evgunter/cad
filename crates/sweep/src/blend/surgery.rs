@@ -1296,7 +1296,7 @@ fn shared_support_gate<T: Real>(rims: &[RimPlan<'_, T>]) -> Result<(), BlendErro
                     b.chain.first().edge,
                     "a ladder rim and an annulus rim of one request share a support \
                      face, and the annulus band consumes structure of that face beyond \
-                     its own rim — fillet them in SEQUENTIAL calls (the second on the \
+                     its own rim — blend them in SEQUENTIAL calls (the second on the \
                      first's result); one call is not implemented",
                 ));
             }
@@ -1371,7 +1371,7 @@ fn refresh_annulus_seams<T: Decide + Bounds>(
         return Err(unbuilt_chain(
             rim.chain.first().edge,
             "a rim's two supports carry ONE surface, so a re-read cannot tell its \
-             host seam from its mate seam — fillet the rims in SEQUENTIAL calls",
+             host seam from its mate seam — blend the rims in SEQUENTIAL calls",
         ));
     }
     let chain_edges: Vec<EdgeKey> = rim.chain.links().map(|l| l.edge).collect();
@@ -1416,7 +1416,7 @@ fn refresh_annulus_seams<T: Decide + Bounds>(
                     rim.chain.first().edge,
                     "an earlier band's carve left an edge at a rim crossing that is not \
                      a co-surface seam meridian of either support — this composition is \
-                     not repaired by a seam re-read; fillet the rims in SEQUENTIAL calls",
+                     not repaired by a seam re-read; blend the rims in SEQUENTIAL calls",
                 ));
             };
             if slot.replace(e).is_some() {
@@ -1424,7 +1424,7 @@ fn refresh_annulus_seams<T: Decide + Bounds>(
                     rim.chain.first().edge,
                     "an earlier band's carve left two seam meridians in ONE support at a \
                      rim crossing — this composition is not repaired by a seam re-read; \
-                     fillet the rims in SEQUENTIAL calls",
+                     blend the rims in SEQUENTIAL calls",
                 ));
             }
         }
@@ -1432,7 +1432,7 @@ fn refresh_annulus_seams<T: Decide + Bounds>(
             return Err(unbuilt_chain(
                 rim.chain.first().edge,
                 "an earlier band's carve consumed a seam meridian at a rim crossing \
-                 outright — this composition is not repaired by a seam re-read; fillet \
+                 outright — this composition is not repaired by a seam re-read; blend \
                  the rims in SEQUENTIAL calls",
             ));
         };

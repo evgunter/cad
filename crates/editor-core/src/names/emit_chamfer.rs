@@ -13,8 +13,9 @@
 //! vocabulary would be schema-visible for no added discrimination.
 //!
 //! Both halves of the translation are therefore identical, and this
-//! module says so by CALLING the fillet's rather than restating it —
-//! [`super::emit_fillet::name_blend`] is the one implementation. A
+//! module says so by CALLING the shared one rather than restating it —
+//! [`super::emit_blend::name_blend`] is the one implementation, and
+//! `emit_fillet` is the same thin door for the other verb. A
 //! transcription would be two things to keep in step, and the thing
 //! they would drift on is exactly the deferral #708 recorded.
 //!
@@ -67,5 +68,5 @@ pub(crate) fn name_chamfer<T: geom_core::Real>(
     body: &Body<T>,
     rec: &BlendNaming,
 ) -> Result<Arc<NameTable>, NamingError> {
-    super::emit_fillet::name_blend(node, target_node, target, body, rec)
+    super::emit_blend::name_blend(node, target_node, target, body, rec)
 }
