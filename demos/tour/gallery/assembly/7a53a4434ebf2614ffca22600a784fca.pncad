@@ -1,8 +1,8 @@
-schema: 19
-id: 1230e2698a73c03a9192e4aa94d48caa
+schema: 17
+id: 7a53a4434ebf2614ffca22600a784fca
 {
   "snapshot": {
-    "id": "1230e2698a73c03a9192e4aa94d48caa",
+    "id": "7a53a4434ebf2614ffca22600a784fca",
     "next_id": 2,
     "nodes": {
       "0": {
@@ -57,7 +57,7 @@ id: 1230e2698a73c03a9192e4aa94d48caa
                     "Point": [
                       {
                         "Param": {
-                          "name": "length",
+                          "name": "section",
                           "dim": "Length"
                         }
                       },
@@ -76,13 +76,13 @@ id: 1230e2698a73c03a9192e4aa94d48caa
                     "Point": [
                       {
                         "Param": {
-                          "name": "length",
+                          "name": "section",
                           "dim": "Length"
                         }
                       },
                       {
                         "Param": {
-                          "name": "depth",
+                          "name": "section",
                           "dim": "Length"
                         }
                       }
@@ -101,7 +101,7 @@ id: 1230e2698a73c03a9192e4aa94d48caa
                       },
                       {
                         "Param": {
-                          "name": "depth",
+                          "name": "section",
                           "dim": "Length"
                         }
                       }
@@ -121,7 +121,7 @@ id: 1230e2698a73c03a9192e4aa94d48caa
           "profile": 0,
           "distance": {
             "Param": {
-              "name": "thickness",
+              "name": "height",
               "dim": "Length"
             }
           }
@@ -137,22 +137,16 @@ id: 1230e2698a73c03a9192e4aa94d48caa
     ],
     "placements": {},
     "params": {
-      "depth": {
+      "height": {
         "Continuous": {
           "dim": "Length",
-          "value": 0.3
+          "value": 0.5
         }
       },
-      "length": {
+      "section": {
         "Continuous": {
           "dim": "Length",
-          "value": 0.9
-        }
-      },
-      "thickness": {
-        "Continuous": {
-          "dim": "Length",
-          "value": 0.04
+          "value": 0.12
         }
       }
     },

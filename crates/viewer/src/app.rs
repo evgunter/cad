@@ -1804,8 +1804,10 @@ impl ViewerBehavior<'_> {
         // node (a plane's origin and its normal) draw two pickers, and
         // egui identifies a popup by its id.
         egui::ComboBox::from_id_salt((node.0, format!("{:?}", first.slot), "unit"))
+            // Wide enough for the longest symbol the table carries
+            // (`pi rad`) plus the combo's arrow.
             .selected_text(label)
-            .width(52.0)
+            .width(72.0)
             .show_ui(ui, |ui| {
                 for option in options {
                     let picked = common == Some(option);

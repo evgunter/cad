@@ -51,12 +51,23 @@ fn unit_suffixed_literals_land_in_canonical_units() {
         ("1 in", Dimension::Length),
         ("1 deg", Dimension::Angle),
         ("1 rad", Dimension::Angle),
-        ("1 pi", Dimension::Angle),
+        ("1 pi rad", Dimension::Angle),
         ("25mm", Dimension::Length),
         ("2.5e1 mm", Dimension::Length),
     ] {
         assert_eq!(p(src).dim(), dim, "{src}");
     }
+    // The two-word symbol is a LONGEST MATCH over adjacent
+    // identifiers, so it reaches the half-turn row and not the
+    // canonical one it ends in.
+    assert_eq!(
+        p("1 pi rad").display_unit().expect("the suffix is stored"),
+        quantity::PI.def()
+    );
+    assert_eq!(
+        bits(&p("1 pi rad")),
+        vec![(1.0 * quantity::PI).radians().to_bits()]
+    );
     // The heatsink migration's basis: the mm spellings are bit-equal
     // to the canonical-meter dyadics the tour hand-wrote.
     assert_eq!(bits(&p("250 mm")), vec![0.25f64.to_bits()]);
@@ -223,6 +234,19 @@ fn syntax_refusals_are_typed_and_positioned() {
         perr("25 furlong"),
         ParseError::UnknownUnit { pos: 3, symbol } if symbol == "furlong"
     ));
+    // Longest match refuses at the FIRST identifier and its offset —
+    // the token the reader has to change — not at the two-word phrase
+    // the table was also asked about.
+    assert!(matches!(
+        perr("25 furlong rad"),
+        ParseError::UnknownUnit { pos: 3, symbol } if symbol == "furlong"
+    ));
+    // The fallback is real: `rad` matches alone, and the identifier
+    // that follows is then simply out of the grammar.
+    assert!(matches!(
+        perr("25 rad furlong"),
+        ParseError::UnexpectedToken { pos: 7, .. }
+    ));
 }
 
 /// Every [`DimensionError`] variant the constructors can produce is
@@ -368,7 +392,7 @@ fn arb_text_of(dim: Dimension, depth: u32) -> BoxedStrategy<String> {
         Dimension::Length => (arb_real_text(), prop_oneof!["mm", "cm", "m", "in"])
             .prop_map(|(n, u)| format!("{n} {u}"))
             .boxed(),
-        Dimension::Angle => (arb_real_text(), prop_oneof!["deg", "rad", "pi"])
+        Dimension::Angle => (arb_real_text(), prop_oneof!["deg", "rad", "pi rad"])
             .prop_map(|(n, u)| format!("{n} {u}"))
             .boxed(),
         Dimension::Scalar => prop_oneof![arb_real_text(), Just("S".to_string())].boxed(),
@@ -503,7 +527,7 @@ fn unparse_round_trips_the_whole_vocabulary() {
         "1 in",
         "90 deg",
         "1.5 rad",
-        "0.5 pi",
+        "0.5 pi rad",
         "2.0",
         "1e-9",
         "7",
@@ -613,7 +637,7 @@ fn unparse_writes_a_literal_in_the_unit_it_remembers() {
         ("0.25 m", "m"),
         ("90 deg", "deg"),
         ("1.5 rad", "rad"),
-        ("0.5 pi", "pi"),
+        ("0.5 pi rad", "pi rad"),
     ] {
         let e = rp(src);
         let text = round_trip(&e);

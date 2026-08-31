@@ -27,7 +27,7 @@ use pncad::document::{
     Axis3, Datum, Dimension, Doc, DocEdit, Expr, Node, ProfileProgram, SlotId, VectorSlot,
 };
 use pncad::geom_core::Tol;
-use pncad::prelude::{DEG, IN, MM, PI, RAD};
+use pncad::prelude::{DEG, IN, MM, PI};
 use pncad::quantity::{UnitDef, unit_by_symbol};
 use viewer::props::{
     self, SlotGroup, SlotUnitFault, SlotValue, from_written, in_written, written_unit,
@@ -212,7 +212,7 @@ fn the_unit_options_are_the_tables_rows_of_that_dimension() {
             row.symbol()
         );
     }
-    assert!(angles.contains(&"pi"), "the half-turn row is offered");
+    assert!(angles.contains(&"pi rad"), "the half-turn row is offered");
     assert!(!lengths.contains(&"deg"));
 }
 
@@ -331,8 +331,9 @@ fn changing_the_written_unit_leaves_the_value_bit_identical() {
     let shown = in_written(radians, written_unit(after.dimension, after.unit));
     assert!((shown - 0.5).abs() < 1e-15, "shown as {shown}");
 
-    // `None` puts it back to canonical — the literal remembers nothing
-    // and renders in radians.
+    // `None` clears the authored notation — the literal remembers
+    // nothing, and the DEFAULT written unit for an angle is the
+    // half-turn row (`props::written_unit`), not the canonical one.
     session.perform(SessionOp::SetSlotUnit {
         node: placed,
         slot: SlotId::RotationAngle,
@@ -345,7 +346,7 @@ fn changing_the_written_unit_leaves_the_value_bit_identical() {
     assert_eq!(after.unit, None);
     assert_eq!(
         written_unit(after.dimension, after.unit).map(|u| u.symbol()),
-        Some(RAD.symbol())
+        Some(PI.symbol())
     );
 }
 

@@ -13,7 +13,7 @@ use crate::{
 #[test]
 fn the_unit_table_is_the_whole_closed_set_and_reads_as_data() {
     let symbols: Vec<&str> = UNITS.iter().map(|u| u.symbol()).collect();
-    assert_eq!(symbols, ["mm", "cm", "m", "in", "deg", "rad", "pi"]);
+    assert_eq!(symbols, ["mm", "cm", "m", "in", "deg", "rad", "pi rad"]);
     assert_eq!(MM.factor(), MILLI);
     assert_eq!(MILLI, 1e-3);
     assert_eq!(CM.factor(), CENTI);
@@ -25,12 +25,18 @@ fn the_unit_table_is_the_whole_closed_set_and_reads_as_data() {
     // constant is its identity.
     assert_eq!(DEG.factor(), 0.017_453_292_519_943_295_f64);
     // The half-turn row is π itself, pinned the same way and for the
-    // same reason: `0.5 pi` is canonical-radians data whose last-ulp
-    // identity is this constant.
+    // same reason: `0.5 pi rad` is canonical-radians data whose
+    // last-ulp identity is this constant. Its symbol is two words —
+    // the only such row — and the table carries exactly that spelling.
     assert_eq!(PI.factor(), core::f64::consts::PI);
     assert_eq!(
-        unit_by_symbol("pi").expect("pi row").quantity(),
+        unit_by_symbol("pi rad").expect("pi rad row").quantity(),
         UnitQuantity::Angle
+    );
+    assert_eq!(
+        unit_by_symbol("pi"),
+        None,
+        "the half-turn row is spelled `pi rad`; the table is closed over one spelling"
     );
     let mm = unit_by_symbol("mm").expect("mm row");
     assert_eq!(mm.quantity(), UnitQuantity::Length);
@@ -178,18 +184,18 @@ fn values_with_no_preimage_in_the_asked_unit_fall_back_to_canonical() {
 /// f64 is `fmt_round_trip_bit_exact_sampled_over_finite_values_and_units`,
 /// which covers this row with every other.
 ///
-/// The last row is the point of the pin. `0.5 pi` and `90 deg` are the
-/// SAME canonical value to within the last ulp and neither is exact,
+/// The last row is the point of the pin. `0.5 pi rad` and `90 deg` are
+/// the SAME canonical value to within the last ulp and neither is exact,
 /// so nothing but the authored unit can distinguish them — which is
 /// why the unit is stored per literal rather than derived from the
 /// number.
 #[test]
 fn the_half_turn_row_writes_angles_the_way_they_were_authored() {
     for (multiple, text) in [
-        (1.0, "1 pi"),
-        (0.5, "0.5 pi"),
-        (2.0, "2 pi"),
-        (-0.25, "-0.25 pi"),
+        (1.0, "1 pi rad"),
+        (0.5, "0.5 pi rad"),
+        (2.0, "2 pi rad"),
+        (-0.25, "-0.25 pi rad"),
     ] {
         let angle = multiple * PI;
         assert_eq!(
@@ -205,7 +211,7 @@ fn the_half_turn_row_writes_angles_the_way_they_were_authored() {
     let quarter_in_pi = 0.5 * PI;
     let quarter_in_deg = 90.0 * DEG;
     assert!((quarter_in_pi.radians() - quarter_in_deg.radians()).abs() < 1e-15);
-    assert_eq!(fmt_angle(quarter_in_pi.radians(), PI).unwrap(), "0.5 pi");
+    assert_eq!(fmt_angle(quarter_in_pi.radians(), PI).unwrap(), "0.5 pi rad");
     assert_eq!(fmt_angle(quarter_in_deg.radians(), DEG).unwrap(), "90 deg");
 }
 
