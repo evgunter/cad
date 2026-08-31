@@ -37,3 +37,11 @@ from the stored brief VERBATIM at R1's delivery. Briefs symmetric,
 stored at docs/MATE-2-REVIEW-BRIEF.md on this branch pre-R1; only
 the R-label and probe branch name substitute. Byte 212 parity 0 ⇒
 R1 OPUS + R2 FABLE (claimed on main, PR #1419).
+
+MATE-6 dual METHOD NOTE (recorded 2026-08-31, BEFORE R1 dispatch):
+SEQUENTIAL same-head on frozen 65fcc134 — the three-lane budget is
+held by the MATE-3 implementer, the MATE-2 fix pass, and MATE-6 R1;
+R2 dispatches from the stored brief VERBATIM at R1's delivery.
+Brief stored at docs/MATE-6-REVIEW-BRIEF.md on this branch pre-R1;
+only the R-label and probe branch substitute. Byte 8 parity 0 ⇒
+R1 OPUS + R2 FABLE (claimed on main, PR #1424).
