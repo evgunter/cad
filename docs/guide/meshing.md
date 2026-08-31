@@ -96,11 +96,25 @@ from pncad import Doc, Node, deg, evaluate, m, mm
 
 
 def signed_volume(mesh):
-    """The divergence theorem over the mesh's own triangles."""
+    """The divergence theorem over the mesh's own triangles.
+
+    Each tetrahedron is measured from `o`, the positions' bounding-box
+    centre. For a closed mesh the anchor cancels out over the reals, so
+    this is the same volume from any anchor; in floating point it is
+    the choice that keeps the products at the body's own scale instead
+    of at its distance from the world origin.
+    """
     p = [tuple(q.meters for q in point) for point in mesh.positions]
+    if not p:
+        return 0.0
+    lo = [min(q[d] for q in p) for d in range(3)]
+    hi = [max(q[d] for q in p) for d in range(3)]
+    o = [lo[d] + (hi[d] - lo[d]) * 0.5 for d in range(3)]
     total = 0.0
     for i, j, k in mesh.triangles:
-        (ax, ay, az), (bx, by, bz), (cx, cy, cz) = p[i], p[j], p[k]
+        (ax, ay, az), (bx, by, bz), (cx, cy, cz) = (
+            tuple(q[d] - o[d] for d in range(3)) for q in (p[i], p[j], p[k])
+        )
         total += (
             ax * (by * cz - bz * cy)
             - ay * (bx * cz - bz * cx)

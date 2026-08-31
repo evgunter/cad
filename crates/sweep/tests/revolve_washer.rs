@@ -147,5 +147,28 @@ fn donut_two_arc_profile_shares_one_torus() {
     for m in meridians {
         assert_seam_of(&t.body, m.unwrap(), k0);
     }
-    assert!(signed_volume(&t.body) > 0.0);
+    // Orientation oracle: interior lift points per face. Both faces'
+    // boundaries are the SAME pair of full-period rims (y = 0.5) plus
+    // the two halves of the u = 0 seam meridian, so a fan from a
+    // boundary vertex spans no volume at all — the two halves' fans
+    // are mirror images and cancel identically, and
+    // [`signed_volume`] returns a structural zero on this body rather
+    // than a measurement. Lifting each face onto its own interior
+    // gives the oracle something to measure: wall 0 is the LOWER half
+    // (its probes span y ∈ [0, 0.5]), wall 1 the upper, and each lift
+    // sits on that half's extreme minor-circle point, off the seam.
+    let v = signed_volume_lifted(
+        &t.body,
+        &[
+            (
+                t.walls[0][0].unwrap(),
+                geom_core::Point3::new(0.0, 0.0, 1.5),
+            ),
+            (
+                t.walls[0][1].unwrap(),
+                geom_core::Point3::new(0.0, 1.0, 1.5),
+            ),
+        ],
+    );
+    assert!(v > 0.0, "donut volume {v}");
 }

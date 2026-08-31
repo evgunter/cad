@@ -155,19 +155,45 @@ pub fn loop_probe_points(body: &Body<f64>, r#loop: LoopKey) -> Vec<Point3<f64>> 
     pts
 }
 
+/// The anchor both divergence folds below measure their tetrahedra
+/// from: the bounding-box centre of every probe point on the body,
+/// overflow-robust midpoint. Over ℝ a closed surface's divergence sum
+/// is the same from any single anchor, so this is a conditioning
+/// choice — ONE anchor, shared by every face, sitting at the body's
+/// own scale rather than at whatever distance the body was placed from
+/// the world origin.
+pub fn probe_anchor(body: &Body<f64>) -> Point3<f64> {
+    let mut bbox: Option<(Point3<f64>, Point3<f64>)> = None;
+    for (_, face) in body.faces() {
+        for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
+            for p in loop_probe_points(body, lk) {
+                bbox = Some(match bbox {
+                    None => (p, p),
+                    Some((lo, hi)) => (lo.min(p), hi.max(p)),
+                });
+            }
+        }
+    }
+    match bbox {
+        Some((lo, hi)) => lo + (hi - lo) * 0.5,
+        None => Point3::origin(),
+    }
+}
+
 /// Independent orientation oracle: signed volume by the divergence
 /// fan over every loop of every face (sign is the oracle — chordal on
 /// curved faces; the PR 4 review's `signed_volume`).
 pub fn signed_volume(body: &Body<f64>) -> f64 {
+    let o = probe_anchor(body);
     let mut six_v = 0.0;
     for (_, face) in body.faces() {
         for lk in core::iter::once(face.outer).chain(face.rings.iter().copied()) {
             let pts = loop_probe_points(body, lk);
             let p1 = pts[0];
             for i in 1..pts.len() - 1 {
-                let a = p1 - Point3::origin();
-                let b = pts[i] - Point3::origin();
-                let c = pts[i + 1] - Point3::origin();
+                let a = p1 - o;
+                let b = pts[i] - o;
+                let c = pts[i + 1] - o;
                 six_v += a.dot(b.cross(c));
             }
         }
@@ -183,6 +209,7 @@ pub fn signed_volume(body: &Body<f64>) -> f64 {
 /// in one plane. The lift must be an interior surface point of that
 /// face (test-local geometric knowledge).
 pub fn signed_volume_lifted(body: &Body<f64>, lifts: &[(topo::FaceKey, Point3<f64>)]) -> f64 {
+    let o = probe_anchor(body);
     let mut six_v = 0.0;
     for (fk, face) in body.faces() {
         let lift = lifts.iter().find(|(k, _)| *k == fk).map(|(_, q)| *q);
@@ -192,18 +219,18 @@ pub fn signed_volume_lifted(body: &Body<f64>, lifts: &[(topo::FaceKey, Point3<f6
                 Some(q) => {
                     let n = pts.len();
                     for i in 0..n {
-                        let a = q - Point3::origin();
-                        let b = pts[i] - Point3::origin();
-                        let c = pts[(i + 1) % n] - Point3::origin();
+                        let a = q - o;
+                        let b = pts[i] - o;
+                        let c = pts[(i + 1) % n] - o;
                         six_v += a.dot(b.cross(c));
                     }
                 }
                 None => {
                     let p1 = pts[0];
                     for i in 1..pts.len() - 1 {
-                        let a = p1 - Point3::origin();
-                        let b = pts[i] - Point3::origin();
-                        let c = pts[i + 1] - Point3::origin();
+                        let a = p1 - o;
+                        let b = pts[i] - o;
+                        let c = pts[i + 1] - o;
                         six_v += a.dot(b.cross(c));
                     }
                 }
