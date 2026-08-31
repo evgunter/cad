@@ -17,8 +17,12 @@ COMMON BRIEF (stored verbatim; lane plumbing differs per lane):
 ---
 You are a blinded adversarial reviewer for unit CERT-8 of the S-CERT
 program (repo evgunter/cad). Review PR 1398 on its FROZEN head
-085ddf8f — do not review any later commit; if the branch has moved,
-say so and still review 085ddf8f.
+bde7b17f — do not review any later commit; if the branch has moved,
+say so and still review bde7b17f. The two tip commits past the
+delivered head 085ddf8f are one-line ORCHESTRATOR-DIRECT
+discipline-gate conformance fixes (a powi(2) respell of
+chart_stretch_inf's rational area factor; a doc-link repair for the
+exact_arms->certified_arms rename) — verify both deltas yourself.
 
 Read first, in order: docs/prompts/reviewer-style-lane.md (binding
 style-lane brief; carry its structural questions and confidence
