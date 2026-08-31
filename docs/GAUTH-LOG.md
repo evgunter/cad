@@ -46,3 +46,20 @@ remote single-orchestrator box, not the mngr fleet):**
 - Commits authored in this session carry no model-naming trailer
   (the session's own posture and the blinding rule agree here);
   implementer briefs restate the blinding half as always.
+
+## 2026-08-31 — GAUTH-1 delivered (PR #1375, merged)
+
+The five creation doors landed: NewDocument / datum forms / template
+profiles / extrude / revolve, each one committed `InsertNode`
+through the existing commit door, ring acceptance pinned `bit_eq`
+against the committed gallery fixture. Dual review A-W-F/A-W-F,
+zero MAJORs; the union fix pass took all 14 items. Notable rulings
+en route: `Open` now refuses mid-gesture like `NewDocument`
+(deliberate change from GUI-3's silent clear); the bore form guards
+bore ≥ radius in chrome while containment stays the one role rule.
+Residue owned by issues: #1374 (face-frame placement arm), #1384
+(id-reuse aliasing class in tool/selection state — demonstrated),
+#1385 (chrome-coverage gap: the CI archive builds without
+`--features app`), #1386 (session.rs accretion, cross-unit, all
+four wave-1 reviewers independently). Ledger row: ordinal 900,
+sample #71.
