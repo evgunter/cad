@@ -50,7 +50,7 @@ it for later lanes if style work should be instrumented.
 |---|---|---|
 | **T-a** | C20 (turning-path orientation pins), D104 (the two hand-run diff artefacts) | **REVIEWED (style, per T-R5)** — 7 findings, **none correctness**; the lane's mutation table was reproduced 5/5 by the reviewer's own execution, both retirement arguments judged correct, the C20 closure judged honestly scoped. Fix pass taken on `smellt/a`: `main` merged (carrying the #1330 doc-gate fix that was the CI red), three dangling `S110` citations re-aimed and the ledger's own deletion-sweep rule written down, the §D retirement footnote deleted per the delete-don't-annotate rule, the lily-spine exclusion re-argued as the PLANAR-arc class, the unreachable outer floor assert removed, the "must all fit" wording qualified to what it can catch, `C25`'s row extended to schedule the frame-recipe twin, and this log's mutation sentence corrected. Plus the orchestrator's `S390` adjudication (TAKE, by message rather than as a numbered ruling): `S390` discharged in fence by a `# Correspondence` paragraph at both public doors. **PR #1329 open, not merged.** |
 | (unstaffed) | D124 (re-home the struck-lane findings), C25 (the six-times-built swept body — cross-crate homing, fence note owed at dispatch), D96 (ten `unreachable!` arms — file-set to be enumerated before staffing to check the fillet overlap) | queued |
-| (kept out per T-R1/T-R2) | D90, D321, D91 | wait on BLEND-6 (D321 also on V3) |
+| (kept out per T-R1/T-R2) | D90, D321, D91 | **BLEND-6 merged `82a3a424` 2026-08-31**, which is the event all three waited on and which carries the V3 rename D321's conversion needed — so the T-R1/T-R2 hold is spent unless a later BLEND lane re-arms it. Whether `fillet/`-touching rows are takeable now is the orchestrator's call, not this row's; recorded here so the next dispatch starts from the fact rather than re-deriving it. Note the paths moved: the module is `sweep::blend`, so D90's and D321's own file citations read against the old spelling |
 | (not takeable) | D320 | waits on D240 |
 
 ## Lane records
@@ -101,6 +101,22 @@ this whole track. Filed as **#1330**, not fixed: `crates/viewer/` is
 outside the fence and the fix is a judgement about that module's prose.
 **Every Track T lane should expect this red until #1330 lands**, and
 should check the failing job is that one before believing it.
+
+**The keep-out adjacency resolved itself, as predicted.** T-a's one
+contact with the BLEND slate was that its `D104` retirement lived in a
+`tests/` file which CALLS `fillet_edges`, so the import line was going
+to move under BLEND-6's V3 rename whichever way the lane went. It did:
+BLEND-6 merged at `82a3a424` (`sweep::fillet` -> `sweep::blend`,
+`FilletError` -> `BlendError`), and merging `main` into `smellt/a`
+auto-resolved with **no conflict** — the rename touched the import,
+this lane touched the header and deleted the tail, and the two hunks
+are disjoint. The merged file is main's import plus this lane's
+retirement and nothing else, verified by diffing it against `main`. The
+retirement made that file smaller rather than differently coupled,
+which is what the PR claimed at the time and is now observed rather
+than argued. Nothing else in the lane names `fillet` or `blend`: the
+`turning_orientation` suite and `common/orient` ride the loft and sweep
+doors, which V3 does not rename.
 
 **Second incident — `main` is red at the interval / eps=1e-12 point,
 and Track T lanes will keep drawing it.** T-a's post-merge run 3821

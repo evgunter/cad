@@ -5,6 +5,11 @@
   measured-claim-sweep.py 'Cargo.toml' 'crates/*/Cargo.toml' --marker '#' --ext .toml
   measured-claim-sweep.py 'crates/pncad-py/**/*.py' --marker '#' --ext .py --docstrings
   measured-claim-sweep.py 'docs/guide/*.md' --marker '' --ext .md --paragraphs
+  measured-claim-sweep.py '.github/workflows/*.yml' '.github/actions/*/action.yml' \
+      --marker '#' --ext .yml
+  measured-claim-sweep.py 'scripts/**/*.sh' --marker '#' --ext .sh
+  measured-claim-sweep.py 'scripts/**/*.py' --marker '#' --ext .py --docstrings
+  measured-claim-sweep.py 'tools/**/*.rs'
 
 Prints every comment BLOCK carrying a provenance word AND a numeral: the
 population a reviewer then triages against reviewer-style-lane.md's Q6
@@ -86,12 +91,70 @@ same reason the script itself is:
     provenance word in the next match neither. Tables are one line per
     row, which is where this bites: a row's count and the sentence that
     earned it are usually different blocks.
+  * `--marker '#'` on `.yml`, ADDED FOR THE WORKFLOWS LEG: two holes, and
+    the second is the one that bites. (a) The same string-blindness as
+    `.toml` — a `#` inside a quoted scalar or inside a `${{ }}` expression
+    opens a false block. (b) A WORKFLOW IS TWO LANGUAGES AND THIS READS
+    THEM AS ONE: `#` lines inside a `run:` block are shell comments, not
+    YAML ones, and they come out of this sweep indistinguishable from a
+    comment on a job key. That is not only noise — it is also how the
+    workflows leg reached shell comments it would otherwise have missed —
+    but nothing in the output says which layer a block belongs to, so a
+    reader must open the file. What no marker reaches at all: a claim
+    written in a step `name:`, in a job's `if:`, or inside a
+    `$GITHUB_STEP_SUMMARY` heredoc, and those heredocs are where this
+    repo's workflows put their reports.
+  * THE `.github/` GLOB, and it is a leg's hole rather than a mode's:
+    `.github/workflows/*.yml` is the surface issue 681 names, and it
+    MISSES `.github/actions/*/action.yml`. The shape to expect there,
+    stated rather than illustrated with today's instances: a composite
+    action's header justifies the action's existence by quoting the
+    WORKFLOW's shape back at it — how many jobs call it, at what profile,
+    against what cost — so its claims are extractions whose premises live
+    in a file it does not sit beside, and a ruling that moves the
+    workflow leaves them behind with nothing pointing at them. The two
+    instances this leg found are in PR #1331's body if a reader wants
+    them; naming them here would be a third copy of a figure that is now
+    corrected in exactly one place. Sweep both globs; the invocation
+    above does.
+  * `//` on `tools/`: transfers from the `crates/*/src` leg unchanged, and
+    inherits its hole — a claim in an `assert!` or `panic!` message, or in
+    a `#[doc = "..."]` attribute, is not a `//` comment and is not read.
+    In a tools crate that matters more than in the kernel, because the
+    lints state their thresholds in the failure text a reader actually
+    sees.
   * EVERY MODE, on this repo: `measure`, `measured` and `measurement` are
     DOMAIN VOCABULARY here (measurement nodes, mass properties, the
     guide's author -> validate -> measure -> tessellate ladder), so on
     prose and on the document layer most matches are the verb rather than
     provenance. Not suppressible without losing real rows; budget triage
     time for it instead.
+
+SURFACES THIS INSTRUMENT IS READY FOR AND THAT NOBODY HAS SWEPT — the
+blind-spot list's other half, because a surface deferred without a
+recorded reason is indistinguishable from a surface forgotten:
+
+  * `crates/*/tests` — DEFERRED, AND NOT THIS SWEEP'S TO TAKE. It is
+    Track W's ground: `docs/SMELL-SCAN-2026-08.md` §Track W fences
+    `crates/*/tests/` in every crate plus `crates/test-utils/`, and the
+    track owns test-side MECHANISMS, which is exactly what a pinned
+    literal nothing re-takes is. Its live rows already reach into this
+    class — D383's undisclosed duplicate slack, seven copies across three
+    files with no derivation, is a measured-claim row in all but name.
+    The class home for anything found there stays issue 651.
+    The instrument needs no new variant for it:
+    `measured-claim-sweep.py 'crates/*/tests/**/*.rs'` runs the `//`
+    mode unchanged, with the `assert!`-message hole named above, which on
+    a test surface is the largest hole this instrument has. A W-lane
+    picking this up finds the tool ready and owes no re-derivation.
+  * `docs/` PROSE outside the dated registers — DEFERRED, and the reason
+    is the one the plan gave rather than an absence of a variant:
+    HIGHEST OVER-MATCH, LOWEST YIELD. Every line is comment text, so the
+    numeral filter and `--paragraphs` do the whole job with nothing to
+    restrict them, and the domain-verb over-match above lands hardest
+    exactly here. The variant is `--marker '' --ext .md --paragraphs`,
+    already present and already exercised; what is missing is a reader
+    with the budget to triage the population it returns.
 """
 import argparse
 import ast

@@ -341,6 +341,15 @@ def _compiled_markdown(root: str) -> frozenset[str]:
     source does the same. The scan is a regex over every `.rs` file outside
     `target/` — measured 0.43 s on this tree, against a whole classification
     of 0.65 s — and it runs before the docs branch is taken.
+
+    BOTH SECONDS ARE ONE UNDATED LOCAL READING, re-taken by nothing, and
+    they are here as a SHAPE rather than as a budget: the point is that the
+    scan is a fraction of a classification that itself runs in under a
+    second, so no tier's latency turns on it. Nothing asserts either, and a
+    guard would be a wall-clock pin inside the filter that decides what CI
+    runs — the one place a timing flake must not be able to change what a
+    run gates. The figure that IS tracked, because it is the one anyone
+    acts on, is the job's billed minute in docs/CI-MINUTES-2026-08.md.
     """
     out: set[str] = set()
     for tree in _RUST_TREES:
@@ -738,7 +747,17 @@ LANES: tuple[str, ...] = ("default", "interval")
 EPS_ROWS: tuple[str, ...] = ("default", "1e-6", "1e-12")
 
 # `k-lint (gate)`'s FIVE FEATURE UNIFICATIONS, sampled one per run
-# (2026-08-22). That job bills 8-10 minutes and the reason is not one slow
+# (2026-08-22). This comment used to say the job "bills 8-10 minutes", and so
+# did ci.yml's `k-lint` header; both were quoting a PRE-SAMPLING column of
+# docs/CI-MINUTES-2026-08.md as though it were current. It is not: that row is
+# a one-shot reading of one reference run taken before this very ruling landed,
+# the same document's 2026-08-22 section derives this sampling at −7 to −8
+# billed minutes, and its 2026-08-31 addendum says a billed figure there is
+# only true as of the measurement it names a run id for. NO RANGE IS RESTATED
+# HERE — the argument below needs the SHAPE (five unifications sharing almost
+# nothing, so the lever is running fewer of them), not a cost, and ci.yml's
+# header carries the correction rather than a second copy of it. The reason
+# this job is expensive at all is not one slow
 # check: it compiles demos/tour and the kernel crates FIVE TIMES OVER, once
 # per unification below, and those five share almost no artifacts —
 # `--release` and dev are different profiles, and `budget` and `probe` are

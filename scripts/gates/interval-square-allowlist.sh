@@ -28,7 +28,14 @@
 # second time. Measured at `x = 2^-481*1.5`; **0 widening cases in
 # 3,000,000 samples with `|x|` in [1e-60, 1e60]**, so it is
 # unreachable in the live regime — which is a reason to state it
-# once, not a reason to keep saying "never". A dead backend named
+# once, not a reason to keep saying "never". THAT SWEEP IS AN
+# UNDATED ONE-SHOT AND NOTHING RE-TAKES IT: the witness at
+# `x = 2^-481*1.5` is a derivation anyone can re-run in a line, and
+# the 3,000,000-sample negative is what it always is — evidence about
+# a range, not a theorem about it. It is stated at the magnitude it
+# was taken because the CONCLUSION is a statement about which regime
+# real geometry lives in, and a re-sweep finding a case inside
+# [1e-60, 1e60] would be a finding rather than a correction. A dead backend named
 # in a numerics justification is S39/S112's class in the worst
 # place it can land. Reviewing new geometry: this grep only sees production code
 # under `crates/*/src`, so also eyeball predicate-path diffs for

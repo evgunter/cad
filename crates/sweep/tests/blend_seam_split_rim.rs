@@ -56,9 +56,9 @@ use geom::Surface;
 use geom_core::{Band, Point2, Point3, Tol, Vec3};
 use profile::ProfileVertex;
 use sweep::Revolution;
-use sweep::fillet::FilletError;
-use sweep::fillet::blend::{Meridian, SupportTrace, sheet_center};
-use sweep::fillet::build::fillet_edges;
+use sweep::blend::BlendError;
+use sweep::blend::arms::{Meridian, SupportTrace, sheet_center};
+use sweep::blend::build::fillet_edges;
 use sweep::test_support::{revolved_about_y, rim_arcs_at};
 use topo::{Body, EdgeKey, FaceKey, SurfaceKey, VertexKey, mass_properties, validate_geometric};
 
@@ -556,8 +556,8 @@ fn a_concave_seam_split_rim_still_refuses() {
     );
     let arcs = rim_arcs_at(&body, 0.5, 0.5);
     assert_eq!(arcs.len(), 2, "the waist rim is seam-split too");
-    match fillet_edges(&body, &arcs, 0.05, band(), tol()) {
-        Err(FilletError::UnsupportedChain { detail, .. }) => assert!(
+    match fillet_edges(&body, &arcs, 0.05, band(), tol()).map_err(|r| r.error) {
+        Err(BlendError::UnsupportedChain { detail, .. }) => assert!(
             detail.contains("concave"),
             "a concave seam-split rim refuses as concave, got {detail}"
         ),

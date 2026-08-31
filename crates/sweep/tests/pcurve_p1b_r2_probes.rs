@@ -27,7 +27,7 @@ use geom::Surface;
 use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec2, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
-use sweep::fillet::fillet_edges;
+use sweep::blend::fillet_edges;
 use sweep::test_support::cube;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, loft_body, revolve};
 use topo::{Body, EdgeKey, FaceKey, ValidationError};

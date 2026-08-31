@@ -5,7 +5,7 @@
 //!
 //! The chamfer surgery IS the fillet surgery: `chamfer_edges` runs the
 //! same battery and the same `blend_surgery`, and `Chamfered<T>` is
-//! `Filleted<T>` — the same [`FilletNaming`] rows, written for the
+//! `Filleted<T>` — the same [`BlendNaming`] rows, written for the
 //! same reasons. RECIPE-DOORS D3 then rules that the ROLE vocabulary
 //! is shared too: a chamfer strip off a source edge and a fillet blend
 //! off a source edge are the same shape in the same place, a
@@ -13,8 +13,9 @@
 //! vocabulary would be schema-visible for no added discrimination.
 //!
 //! Both halves of the translation are therefore identical, and this
-//! module says so by CALLING the fillet's rather than restating it —
-//! [`super::emit_fillet::name_blend`] is the one implementation. A
+//! module says so by CALLING the shared one rather than restating it —
+//! [`super::emit_blend::name_blend`] is the one implementation, and
+//! `emit_fillet` is the same thin door for the other verb. A
 //! transcription would be two things to keep in step, and the thing
 //! they would drift on is exactly the deferral #708 recorded.
 //!
@@ -42,7 +43,7 @@
 
 use std::sync::Arc;
 
-use sweep::fillet::naming::FilletNaming;
+use sweep::blend::naming::BlendNaming;
 use topo::Body;
 
 use super::emit::NamingError;
@@ -65,7 +66,7 @@ pub(crate) fn name_chamfer<T: geom_core::Real>(
     target_node: RecipeNodeId,
     target: &NameTable,
     body: &Body<T>,
-    rec: &FilletNaming,
+    rec: &BlendNaming,
 ) -> Result<Arc<NameTable>, NamingError> {
-    super::emit_fillet::name_blend(node, target_node, target, body, rec)
+    super::emit_blend::name_blend(node, target_node, target, body, rec)
 }

@@ -1,0 +1,242 @@
+schema: 17
+id: 04c718374cb49ae558c3d9f6b5fce9f6
+{
+  "snapshot": {
+    "id": "04c718374cb49ae558c3d9f6b5fce9f6",
+    "next_id": 5,
+    "nodes": {
+      "0": {
+        "InstantiatePart": {
+          "doc_ref": {
+            "id": "7a53a4434ebf2614ffca22600a784fca",
+            "pin": "67c09d0e46354a7c6dec5ab3bc89ddc96980ca431d890aa4244c46aff1c707ff"
+          }
+        }
+      },
+      "1": {
+        "InstantiatePart": {
+          "doc_ref": {
+            "id": "1230e2698a73c03a9192e4aa94d48caa",
+            "pin": "20dbbf7637b32589ef43db3557ab4757a32885b50f08b5d77db6f5bd2a69feb3"
+          }
+        }
+      },
+      "2": {
+        "InstantiatePart": {
+          "doc_ref": {
+            "id": "7a53a4434ebf2614ffca22600a784fca",
+            "pin": "67c09d0e46354a7c6dec5ab3bc89ddc96980ca431d890aa4244c46aff1c707ff"
+          }
+        }
+      },
+      "3": {
+        "Mate": {
+          "a": {
+            "kind": "Face",
+            "node": 0,
+            "path": [
+              {
+                "InPart": {
+                  "of": {
+                    "kind": "Face",
+                    "node": 1,
+                    "path": [
+                      {
+                        "Cap": "Top"
+                      }
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          "b": {
+            "kind": "Face",
+            "node": 1,
+            "path": [
+              {
+                "InPart": {
+                  "of": {
+                    "kind": "Face",
+                    "node": 1,
+                    "path": [
+                      {
+                        "Cap": "Bottom"
+                      }
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          "class": "rest",
+          "alignment": {
+            "a": {
+              "origin": [
+                0.06,
+                0.06,
+                0.5
+              ],
+              "axis": [
+                0.0,
+                0.0,
+                1.0
+              ],
+              "reference": [
+                1.0,
+                0.0,
+                0.0
+              ]
+            },
+            "b": {
+              "origin": [
+                0.06,
+                0.15,
+                0.0
+              ],
+              "axis": [
+                0.0,
+                0.0,
+                1.0
+              ],
+              "reference": [
+                1.0,
+                0.0,
+                0.0
+              ]
+            },
+            "primitive": "frame_coincidence",
+            "sense": "aligned"
+          }
+        }
+      },
+      "4": {
+        "Mate": {
+          "a": {
+            "kind": "Face",
+            "node": 1,
+            "path": [
+              {
+                "InPart": {
+                  "of": {
+                    "kind": "Face",
+                    "node": 1,
+                    "path": [
+                      {
+                        "Cap": "Bottom"
+                      }
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          "b": {
+            "kind": "Face",
+            "node": 2,
+            "path": [
+              {
+                "InPart": {
+                  "of": {
+                    "kind": "Face",
+                    "node": 1,
+                    "path": [
+                      {
+                        "Cap": "Top"
+                      }
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          "class": "rest",
+          "alignment": {
+            "a": {
+              "origin": [
+                0.8400000000000001,
+                0.15,
+                0.0
+              ],
+              "axis": [
+                0.0,
+                0.0,
+                1.0
+              ],
+              "reference": [
+                1.0,
+                0.0,
+                0.0
+              ]
+            },
+            "b": {
+              "origin": [
+                0.06,
+                0.06,
+                0.5
+              ],
+              "axis": [
+                0.0,
+                0.0,
+                1.0
+              ],
+              "reference": [
+                1.0,
+                0.0,
+                0.0
+              ]
+            },
+            "primitive": "frame_coincidence",
+            "sense": "aligned"
+          }
+        }
+      }
+    },
+    "order": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "roots": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "placements": {
+      "0": {
+        "columns": [
+          [
+            1.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            1.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            1.0
+          ]
+        ],
+        "translation": [
+          0.0,
+          0.09,
+          0.0
+        ]
+      }
+    },
+    "params": {},
+    "epsilon": 1e-9,
+    "witnesses": {},
+    "metadata": {},
+    "appearance": []
+  },
+  "edits": []
+}

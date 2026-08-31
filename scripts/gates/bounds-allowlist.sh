@@ -283,7 +283,7 @@ gate() {
     | gate_grep -vE '^crates/editor-core/src/checks\.rs$' \
     | gate_grep -vE '^crates/profile/src/path/arc_fillet\.rs$' \
     | gate_grep -vE '^crates/geom-brep/src/(pcurve_cache|ssi|ssi/certify|edge_nurbs)\.rs$' \
-    | gate_grep -vE '^crates/sweep/src/fillet/(battery|build|surgery)\.rs$')
+    | gate_grep -vE '^crates/sweep/src/blend/(battery|build|surgery)\.rs$')
   if [ -n "$hits" ]; then
     echo "$hits"
     gate_error "compound Bounds/Enclosure bound outside the ratified seams above — see geom-core/src/real.rs (Bounds scope rule); ratify before allowlisting"
