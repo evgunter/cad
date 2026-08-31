@@ -1003,15 +1003,18 @@ fn the_level_set_oracle_agrees_with_the_extruded_twin() {
 /// # This does NOT close the class for `sweep_body`
 ///
 /// The elbow is one curved-path caller of several, and it is the
-/// EASIEST. `m8_14_long_turn_sweep.rs` sweeps helices at ½, 1 and 2
+/// EASIEST. The long-turn sweep suite carries helices at ½, 1 and 2
 /// turns — a non-planar path with genuine frame roll, near-antipodal
 /// by that suite's own header — and those are where "the chart normal
-/// follows the traversal" carries the most weight. They stay unpinned,
-/// and this oracle **cannot** reach them: its level planes fan, so a
-/// stack that turns past a right angle stops being bisectable, and on
-/// a half-turn helix `level_plane` refuses at both ends
-/// (`cos ≈ 0.011`) rather than answering. Reaching a helix needs a
-/// different oracle, not a wider bound here.
+/// follows the traversal" carries the most weight. They are pinned
+/// there, on the CONTINUITY index, because this oracle **cannot**
+/// reach them: its level planes fan, so a stack that turns past a
+/// right angle stops being bisectable, and on a half-turn helix
+/// `level_plane` refuses at both ends (`cos ≈ 0.011`) rather than
+/// answering. Reaching a helix needed a different oracle, not a wider
+/// bound here. The turning shapes that are neither a quarter-turn arc
+/// nor a helix — an authored roll, an inflection, a torsion-bearing
+/// spine — are pinned in the turning-orientation suite.
 #[test]
 fn a_curved_path_swept_body_faces_out_along_the_whole_turn() {
     let place = Affine3::rotation_about_axis(

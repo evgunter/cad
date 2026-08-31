@@ -13,18 +13,9 @@
 //! Nothing in the tree drives the consumers across that rewrite.
 //!
 //! This file drives three of the four consumer crates through their PUBLIC
-//! doors and does two things with the result:
-//!
-//! 1. **Gates** (these can go red on their own): each door's structural
-//!    postcondition, re-derived here from the returned structure with this
-//!    file's own scan — never by calling `interior_knots`, which is the
-//!    thing under test.
-//! 2. **Evidence** (prints, never gates): a bit-exact digest of every
-//!    door's output, so the same binary run on the merge base and on the
-//!    tip is a byte-level differential of the whole rewrite. `assert`ing a
-//!    digest literal here would pin today's arithmetic forever, which is
-//!    not what a refactor review wants; the comparison is the reviewer's,
-//!    with `diff`.
+//! doors and GATES each one: the door's structural postcondition,
+//! re-derived here from the returned structure with this file's own scan —
+//! never by calling `interior_knots`, which is the thing under test.
 //!
 //! `mesh/`'s two sites are NOT reachable from this crate (they want a
 //! tessellated body) and are the two pure predicate rewrites; they are
@@ -32,11 +23,27 @@
 //!
 //! # Seeds
 //!
-//! The drawn fixtures use a PINNED seed, and this is the one shape
-//! [`test_utils::fuzz`] says a pin is right for: a **cross-build
-//! differential**, where both sides must see byte-identical inputs or the
-//! digests are incomparable. It is a fixture identifier, not a sampling
-//! strategy, and `CAD_FUZZ_SEED` still overrides it for exploration.
+//! The draws VARY per run ([`test_utils::fuzz::start`]), which is the
+//! shape these rows are: *for all sampled structures, the door's
+//! postcondition holds*. Cutting the effort dial loses detection power
+//! and can never turn a green run red, so successive runs explore new
+//! ground and a failure names its seed for replay.
+//!
+//! They were pinned once, and the licence was real while it lasted: this
+//! file also carried a bit-exact digest of every door's output, printed so
+//! that the same binary run on the merge base and on the tip was a
+//! byte-level differential of the whole rewrite — and a differential needs
+//! both sides to see byte-identical inputs. That comparison happened at
+//! the review it was built for and nothing schedules another, so the
+//! digest is gone and the pin went with it: a fixture identifier for a
+//! comparison nobody is making is 24 points explored forever and no claim
+//! at all. Promoting the digest into a literal was the alternative and is
+//! worse — it pins today's arithmetic as a target, which is not a
+//! statement about whether any of these doors is right.
+//!
+//! Each row's anti-vacuity floor is met by the WRITTEN-DOWN fixtures
+//! rather than by the draw, so no floor here is anti-monotone in the
+//! sample count.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -67,56 +74,6 @@ fn own_interior(kv: &KnotVector) -> Vec<(f64, usize)> {
             }
             acc
         })
-}
-
-// ---------------------------------------------------------------------
-// Bit-exact digest (evidence only)
-// ---------------------------------------------------------------------
-
-/// FNV-1a over raw `f64` bits and `usize` values — bit-exact, so a
-/// one-ULP arithmetic change moves it.
-struct Digest(u64);
-
-impl Digest {
-    fn new() -> Self {
-        Self(0xcbf2_9ce4_8422_2325)
-    }
-    fn raw(&mut self, x: u64) -> &mut Self {
-        for b in x.to_le_bytes() {
-            self.0 ^= u64::from(b);
-            self.0 = self.0.wrapping_mul(0x100_0000_01b3);
-        }
-        self
-    }
-    fn f(&mut self, x: f64) -> &mut Self {
-        self.raw(x.to_bits())
-    }
-    fn n(&mut self, x: usize) -> &mut Self {
-        self.raw(x as u64)
-    }
-    fn kv(&mut self, kv: &KnotVector) -> &mut Self {
-        self.n(kv.degree()).n(kv.knots().len());
-        for k in kv.knots() {
-            self.f(*k);
-        }
-        self
-    }
-    fn curve(&mut self, c: &NurbsCurve3<f64>) -> &mut Self {
-        self.kv(c.knots());
-        for p in c.control() {
-            self.f(p.x).f(p.y).f(p.z);
-        }
-        for w in c.weights() {
-            self.f(*w);
-        }
-        self
-    }
-    fn ring(&mut self, r: RingInterval) -> &mut Self {
-        self.f(r.lo()).f(r.hi())
-    }
-    fn get(&self) -> u64 {
-        self.0
-    }
 }
 
 // ---------------------------------------------------------------------
@@ -155,8 +112,8 @@ fn curve_on(kv: KnotVector, weight_pattern: usize) -> NurbsCurve3<f64> {
 
 /// The structures every door below is driven over: written-down shapes
 /// (empty interior, multiplicity 1, multiplicity `p`, mixed, adjacent
-/// runs) plus drawn ones. Nothing here is random across builds — the
-/// draw is pinned; see the module docs.
+/// runs) first, then drawn ones. The written-down prefix is what every
+/// floor below counts on; the draws are the search.
 fn structures(rng: &mut fuzz::Rng) -> Vec<(String, KnotVector)> {
     let mut out = Vec::new();
     for p in 1..=4usize {
@@ -214,8 +171,7 @@ fn structures(rng: &mut fuzz::Rng) -> Vec<(String, KnotVector)> {
 /// plus every distinct interior knot value — re-derived here.
 #[test]
 fn the_ring_bezier_decomposition_still_breaks_where_the_structure_says() {
-    let mut rng = fuzz::pinned("d8-consumer-compose", 0x00d8_c0de_0000_0001);
-    let mut d = Digest::new();
+    let mut rng = fuzz::start("d8-consumer-compose");
     let mut checked = 0usize;
     for (name, kv) in structures(&mut rng) {
         let n = kv.control_count();
@@ -258,28 +214,11 @@ fn the_ring_bezier_decomposition_still_breaks_where_the_structure_says() {
             );
         }
 
-        d.n(name.len());
-        for b in form.num.breaks() {
-            d.f(*b);
-        }
-        for row in form.num.spans() {
-            for c in row {
-                d.ring(*c);
-            }
-        }
-        for r in form.span_bounds() {
-            d.ring(r);
-        }
         checked += 1;
     }
     assert!(
         checked >= 20,
         "the fixture set collapsed to {checked} cases"
-    );
-    // EVIDENCE, not a gate — see the module docs.
-    println!(
-        "[d8-probe] compose ring decomposition digest = 0x{:016x} over {checked} cases",
-        d.get()
     );
 }
 
@@ -295,8 +234,7 @@ fn the_ring_bezier_decomposition_still_breaks_where_the_structure_says() {
 /// here from the inputs, after the degree elevation the door does first.
 #[test]
 fn make_compatible_still_lands_every_section_on_the_union_vector() {
-    let mut rng = fuzz::pinned("d8-consumer-skin", 0x00d8_c0de_0000_0002);
-    let mut d = Digest::new();
+    let mut rng = fuzz::start("d8-consumer-skin");
     let all = structures(&mut rng);
     let mut groups = 0usize;
     for window in all.chunks(3) {
@@ -324,7 +262,6 @@ fn make_compatible_still_lands_every_section_on_the_union_vector() {
                     "{names:?}: make_compatible refused ({e:?}) a set already at one degree, \
                      where the merge is pure knot union"
                 );
-                d.n(format!("{e:?}").len());
                 continue;
             }
         };
@@ -371,47 +308,67 @@ fn make_compatible_still_lands_every_section_on_the_union_vector() {
                 );
             }
         }
-        for c in &out {
-            d.curve(c);
-        }
         groups += 1;
     }
     assert!(groups >= 5, "only {groups} section groups were compatible");
-    // EVIDENCE, not a gate.
-    println!(
-        "[d8-probe] make_compatible digest = 0x{:016x} over {groups} groups",
-        d.get()
-    );
 }
 
 // ---------------------------------------------------------------------
 // Door 3 — geom: the fit removal sweep + deviation_from (fit.rs)
 // ---------------------------------------------------------------------
 
+/// The `(count, degree, tol)` cases this row's floor rests on, written
+/// down rather than drawn: whether a fit SUCCEEDS is a property of the
+/// case, so a floor counted over drawn cases would be satisfied by luck
+/// and would grow anti-monotone in the sample count — the shape
+/// [`test_utils::fuzz`] warns against mixing into a search.
+const WRITTEN_DOWN_FITS: [(usize, usize, f64); 5] = [
+    (11, 3, 0.02),
+    (16, 2, 0.05),
+    (8, 4, 0.08),
+    (19, 3, 0.01),
+    (6, 2, 0.04),
+];
+
 /// `approximate` drives both `fit.rs` sites: the removal sweep's
 /// candidate list and `deviation_from`'s union. Gate: whatever comes
 /// back is a valid clamped vector whose interior multiplicities are in
 /// `1..=p` — re-derived here — and the reported bound is finite and
 /// within tolerance on success.
+///
+/// The written-down cases come first and must all fit; the drawn ones
+/// after them are the search, and a refusal there is a legitimate
+/// answer for a tolerance too tight for the degree.
 #[test]
 fn the_fit_removal_sweep_still_returns_valid_structure() {
-    let mut rng = fuzz::pinned("d8-consumer-fit", 0x00d8_c0de_0000_0003);
-    let mut d = Digest::new();
+    let mut rng = fuzz::start("d8-consumer-fit");
     let mut fitted = 0usize;
-    for case in 0..fuzz::scaled(24) {
-        let count = 6 + rng.below(14);
-        let degree = 2 + rng.below(3);
+    let cases: Vec<(usize, usize, f64)> = WRITTEN_DOWN_FITS
+        .iter()
+        .copied()
+        .chain((0..fuzz::scaled(24)).map(|_| {
+            (
+                6 + rng.below(14),
+                2 + rng.below(3),
+                0.01 * f64::from(1 + rng.below(8) as u32),
+            )
+        }))
+        .collect();
+    for (case, (count, degree, tol)) in cases.into_iter().enumerate() {
         let points: Vec<Point3<f64>> = (0..count)
             .map(|i| {
                 let t = i as f64 / (count - 1) as f64;
                 Point3::new(t, (3.0 * t).sin() * 0.3, t * t * 0.5)
             })
             .collect();
-        let tol = 0.01 * f64::from(1 + rng.below(8) as u32);
         let outcome = match NurbsCurve3::approximate(&points, degree, tol) {
             Ok(o) => o,
             Err(e) => {
-                d.n(format!("{e:?}").len());
+                assert!(
+                    case >= WRITTEN_DOWN_FITS.len(),
+                    "written-down case {case} ({count} points, degree {degree}, tol \
+                     {tol}) no longer fits at all: {e:?}"
+                );
                 continue;
             }
         };
@@ -432,13 +389,11 @@ fn the_fit_removal_sweep_still_returns_valid_structure() {
             "case {case}: reported bound {} is not a success within {tol}",
             outcome.bound
         );
-        d.curve(&outcome.curve).f(outcome.bound);
         fitted += 1;
     }
-    assert!(fitted >= 5, "only {fitted} fits succeeded");
-    // EVIDENCE, not a gate.
-    println!(
-        "[d8-probe] approximate digest = 0x{:016x} over {fitted} fits",
-        d.get()
+    assert!(
+        fitted >= WRITTEN_DOWN_FITS.len(),
+        "only {fitted} fits succeeded, fewer than the written-down cases that \
+         open the loop — the floor below this row rests on those, not on the draw"
     );
 }
