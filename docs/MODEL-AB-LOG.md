@@ -198,8 +198,13 @@ amended:
      the main-is-authority tiebreak) · S-QA 800–899 (claimed
      2026-08-29 at the S-QA program's opening — `docs/S-QA-LOG.md`) ·
      GAUTH 900–999 (claimed 2026-08-31 at the GAUTH program's
-     opening — `docs/GAUTH-LOG.md`)**,
-     with **1000+ unallocated** — the orchestrator opening the next
+     opening — `docs/GAUTH-LOG.md`) · S-MESH 1000–1099 and
+     S-BOOL 1100–1199 (claimed 2026-08-31 at the two programs'
+     joint opening, branch-side on PR #1373 at this writing;
+     BOOL-1's ordinal-1100 claim is already on main) · S-MATE
+     1200–1299 (claimed 2026-08-31 at the S-MATE program's
+     opening — `docs/S-MATE-LOG.md`)**,
+     with **1300+ unallocated** — the orchestrator opening the next
      program takes the next free band and records it HERE in the
      same commit that opens the program. **1–99 is CLOSED
      HISTORY**: the pre-banding global sequence, which reached 85.
