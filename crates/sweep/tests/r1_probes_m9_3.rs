@@ -345,9 +345,7 @@ fn probe_partial_engagement_never_silent() {
                         | BooleanError::Join(_)
                         | BooleanError::CurvedPierceUnsupported { .. }
                         | BooleanError::CurvedBooleanUnsupported { .. }
-                        | BooleanError::Merge(
-                            topo::MergeCoplanarError::InvalidDeclaration { .. }
-                        )
+                        | BooleanError::Merge(topo::MergeCoplanarError::InvalidDeclaration { .. })
                 ),
                 "typed only: {err:?}"
             );

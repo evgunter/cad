@@ -10,6 +10,18 @@
 //!   (3) the same mate at fixture (i)'s exact face structure;
 //!   (4) the control — the same collar/peg WITH a planar `Rest` beside
 //!       the cylindrical ones.
+//!
+//! **ε posture.** Every row runs at `Tol::witness()`, and the arm they
+//! exercise turns on a DEFINITE `Out` from the cylinder chart's trim:
+//! a wider band turns that verdict into the door's no-verdict
+//! remainder and the old frontier stands, a narrower one certifies it
+//! in more configurations. So the adversarial row for this change is
+//! the TIGHTEST band, where the widened path runs most often — not the
+//! loosest, where it runs least. The margins these fixtures put on the
+//! trim are angular separations of a third of a turn at r = 0.5, four
+//! to five orders above every band in the matrix, so the rows
+//! themselves are band-insensitive; what the tight row exercises is
+//! the rest of the tree taking the widened path.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
