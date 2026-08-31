@@ -74,7 +74,11 @@ spade = { workspace = true }
 # what keeps it off every shipped build path.
 test-utils = { path = "../test-utils" }
 profile = { path = "../profile" }
-sweep = { path = "../sweep" }
+# `test-support` ON: the corpus swept elbow this crate's rows tessellate
+# is `sweep::test_support`'s, so the six re-derivations of its six
+# constants are one. The feature is dev-only by construction, so it
+# reaches no shipped build of this crate (that module's own docs).
+sweep = { path = "../sweep", features = ["test-support"] }
 
 # ONE test binary for the whole suite (see tests/all.rs). Each extra test
 # target cost ~1.9 s of codegen+link on the 2-vCPU CI runner.

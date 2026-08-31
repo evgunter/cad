@@ -303,7 +303,17 @@ fn forwarding_cases() -> Vec<editor_core::NodeErrorKind> {
         K::Extrude(sweep::ExtrudeError::ObliqueExtrusion),
         K::Revolve(sweep::RevolveError::DegenerateAxis),
         K::Skin(sweep::SkinError::TooFewSections { have: 1, need: 2 }),
-        K::Loft(sweep::LoftError::SeamStructure),
+        // The seam arm carries the iso-extraction refusal itself. A
+        // control-count mismatch is the invariant
+        // `geom_brep::boundary_iso_u` can break, and carrying it is
+        // what lets a kernel-bug report name WHICH structure the
+        // corrupt wall broke rather than only that one did.
+        K::Loft(sweep::LoftError::SeamStructure {
+            source: geom_core::spline::SplineError::ControlCountMismatch {
+                control: 3,
+                expected: 4,
+            },
+        }),
         K::Blend {
             verb: sweep::blend::BlendKind::Chamfer,
             error: sweep::blend::BlendError::RepeatedEdge {

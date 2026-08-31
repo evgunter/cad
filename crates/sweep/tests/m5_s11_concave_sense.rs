@@ -52,22 +52,19 @@
 mod common;
 mod revolve_common;
 
-use core::f64::consts::{FRAC_PI_2, FRAC_PI_8, PI};
+use core::f64::consts::{FRAC_PI_8, PI};
 use profile::RawLoop;
 
 use common::orient::{
     along_v, assert_walls_face_out, loft_contains, wall_outward, wall_outward_at,
 };
-use common::quad;
 use geom::Surface;
 use geom_core::Tol;
 use geom_core::{Affine3, Band, Point3, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
 use revolve_common::{assert_all_tiers, axis_y, p2, validated};
-use sweep::{
-    Extrusion, Lofted, Revolution, Section, SketchSegment, extrude, loft_body, revolve,
-    segment_curve, sweep_body,
-};
+use sweep::test_support::swept_elbow_lofted;
+use sweep::{Extrusion, Lofted, Revolution, Section, extrude, loft_body, revolve};
 use topo::boolean::{SolidContainment, point_in_solid};
 use topo::{Body, FaceKey};
 
@@ -1017,25 +1014,11 @@ fn the_level_set_oracle_agrees_with_the_extruded_twin() {
 /// spine — are pinned in the turning-orientation suite.
 #[test]
 fn a_curved_path_swept_body_faces_out_along_the_whole_turn() {
-    let place = Affine3::rotation_about_axis(
-        Point3::new(0.0, 0.0, 0.0),
-        Vec3::new(0.0, 1.0, 0.0),
-        -FRAC_PI_2,
-    );
-    let path = segment_curve(
-        0,
-        SketchSegment::Arc {
-            a: p2(0.0, 0.0),
-            b: p2(3.0, 3.0),
-            bulge: FRAC_PI_8.tan(),
-        },
-        place,
-    )
-    .expect("the elbow path is a well-formed quarter arc");
-    let h = 0.25;
-    let profile = quad([(-h, -h), (h, -h), (h, h), (-h, h)]);
-    let swept = sweep_body::<f64>(&profile, Affine3::identity(), &path, 9, 3, Tol::witness())
-        .expect("the elbow sweeps");
+    // The corpus elbow (`sweep::test_support`), not a local rebuild:
+    // this row's subject is the chart normal along the turn, and the
+    // solid it turns is the same one the STEP fixture and the
+    // tessellation rows meter.
+    let swept = swept_elbow_lofted(Tol::witness());
     assert_eq!(topo::validate(&swept.body), Ok(()), "tier 1");
     assert_eq!(topo::validate_closed(&swept.body), Ok(()), "tier 2");
 

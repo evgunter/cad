@@ -167,16 +167,7 @@ pub fn narration(tol: Tol) {
     // The profile plane is normal to the path at its start — the
     // frame the sweep then carries along (`sweep_geometry` turns it by
     // the minimal rotation at each station).
-    let t0 = path.deriv(0.0);
-    let n = t0 / t0.norm();
-    let helper = if n.z.abs() < 0.9 {
-        Vec3::unit_z()
-    } else {
-        Vec3::unit_x()
-    };
-    let u = helper.cross(n);
-    let u = u / u.norm();
-    let place = SketchPlane::from_frame(path.eval(0.0), u, n.cross(u)).placement;
+    let place = normal_start_place(&path);
     let swept =
         sweep_geometry(&chain(1.0, tol), place, &path, 5, 3, tol).expect("the arc sweep skins");
     println!(
@@ -200,10 +191,10 @@ pub fn narration(tol: Tol) {
 //
 // THE CORPUS SHAPES ARE COPIED HERE, DELIBERATELY, AND NOTHING LINKS
 // THE COPIES. Their other home is `step-export/tests/common/mod.rs`
-// (and `sweep/tests/m7_skin_integral.rs` for the elbow), which is
-// another crate's TEST-SUPPORT module: not published, not reachable
-// from outside that crate's test build, and not something a user of
-// this library could import. A demo exists to show the library the way
+// (and, for the elbow, `sweep::test_support`, which that fixture and
+// the tessellation suites all delegate to), which is another crate's
+// TEST-SUPPORT module: gated behind a dev-only feature, not published,
+// and not something a user of this library could import. A demo exists to show the library the way
 // a user would meet it, so reaching into a test module would make this
 // file worse evidence, not better — and there is no public door that
 // hands out corpus fixtures.
@@ -226,6 +217,34 @@ fn quad(pts: [(f64, f64); 4], tol: Tol) -> Section {
     vec![crate::paths::path_polygon(&pts, tol)]
 }
 
+/// **The placement a path sweep starts from**: the plane through the
+/// path's start point whose normal is the start TANGENT, with the
+/// in-plane axes built off whichever world axis is least parallel to
+/// it. `sweep_geometry`/`sweep_body` carry this frame along the path
+/// by minimal rotation, so a section placed here stays normal to the
+/// path — the first thing a real caller has to write, and the reason
+/// both sweep cells below open with it.
+///
+/// The kernel's own suites share this recipe from
+/// `sweep::test_support`'s neighbour in `sweep/tests/common`. The tour
+/// cannot reach either: both are test-only homes behind a dev-only
+/// feature, and this is a `src/` binary that links the façade as an
+/// ordinary dependency. So it is a stated copy — and the fact that a
+/// caller must write it at all is what the narration below is about.
+fn normal_start_place(path: &pncad::geom::NurbsCurve3<f64>) -> Affine3<f64> {
+    let (lo, _) = path.domain();
+    let d = path.deriv(lo);
+    let n = d / d.norm();
+    let helper = if n.z.abs() < 0.9 {
+        Vec3::unit_z()
+    } else {
+        Vec3::unit_x()
+    };
+    let u = helper.cross(n);
+    let u = u / u.norm();
+    SketchPlane::from_frame(path.eval(lo), u, n.cross(u)).placement
+}
+
 /// The prism's end sections (also `common/mod.rs::PRISM_SQUARE`).
 const PRISM_SQUARE: [(f64, f64); 4] = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
 /// Its middle section: the NON-AFFINE trapezoid whose two bottom
@@ -233,11 +252,12 @@ const PRISM_SQUARE: [(f64, f64); 4] = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-
 const PRISM_TRAPEZOID: [(f64, f64); 4] = [(-1.375, -1.0), (1.375, -1.0), (1.0, 1.0), (-1.0, 1.0)];
 
 /// The S-duct's arc radius (scene-local; the corpus elbow's is
-/// `m7_skin_integral.rs::ELBOW_R` = 3 — see the S-path note below).
+/// `sweep::test_support`'s `ELBOW_R` = 3 — see the S-path note below).
 const S_R: f64 = 2.0;
-/// The profile half-width. The same value as
-/// `m7_skin_integral.rs::ELBOW_H`, copied — the two are not linked and
-/// nothing would notice if one moved.
+/// The profile half-width. The same value as `sweep::test_support`'s
+/// `ELBOW_H`, copied — that home is behind a dev-only feature this
+/// binary cannot turn on, so the two are not linked and nothing would
+/// notice if one moved.
 const ELBOW_H: f64 = 0.25;
 
 /// Section placements: pure translations up the world z-axis (also
@@ -385,9 +405,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // class. The
     // unreachable class needs a NON-PLANAR spine — `twisted_duct`
     // below, the sheet's sweep cell since montage-v2. The QUARTER-ARC
-    // elbow stays the corpus/suite constant
-    // (step-export/tests/common/mod.rs::swept_elbow,
-    // sweep/tests/m7_skin_integral.rs, mesh/tests/m7_nurbs_trimmed.rs);
+    // elbow stays the corpus/suite constant, built once in
+    // `sweep::test_support` and delegated to by the STEP fixture and
+    // the tessellation suites;
     // the S sweep remains a fixture CANDIDATE for the next corpus
     // fold.
     let s_points: Vec<Point3<f64>> = (0..=8)
@@ -522,9 +542,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             note: Some(format!(
                 "the scene LEADS the corpus (the lily precedent): the round-trip \
                  corpus's sweep constant stays the revolve-expressible quarter-arc \
-                 elbow (step-export/tests/common/mod.rs::swept_elbow = \
-                 sweep/tests/m7_skin_integral.rs's, also \
-                 mesh/tests/m7_nurbs_trimmed.rs's), and this S sweep is the fixture \
+                 elbow (built once in sweep::test_support; the STEP fixture, the \
+                 skin-integrality bracket and the tessellation rows all delegate to \
+                 it), and this S sweep is the fixture \
                  CANDIDATE for the next corpus fold — sweep_body had ZERO successful \
                  curved-path callers before #207. The volume expectation is A*L = \
                  (2h)^2 * 2R * pi/2 = {a_times_l:.9} m^3 (planar path, centroid on \
@@ -568,21 +588,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
         .collect();
     let cubic_path =
         pncad::geom::NurbsCurve3::interpolate(&cubic_points, 3).expect("the cubic interpolates");
-    // Profile plane normal to the start tangent (the same frame
-    // recipe the narration uses).
-    let place = {
-        let (lo, _) = cubic_path.domain();
-        let d = cubic_path.deriv(lo);
-        let n = d / d.norm();
-        let helper = if n.z.abs() < 0.9 {
-            Vec3::unit_z()
-        } else {
-            Vec3::unit_x()
-        };
-        let u = helper.cross(n);
-        let u = u / u.norm();
-        SketchPlane::from_frame(cubic_path.eval(lo), u, n.cross(u)).placement
-    };
+    // Profile plane normal to the start tangent — the same recipe the
+    // narration opens with, spelled once.
+    let place = normal_start_place(&cubic_path);
     let twisted = pncad::sweep::sweep_body::<f64>(
         &quad(
             [

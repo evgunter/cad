@@ -49,8 +49,9 @@ it for later lanes if style work should be instrumented.
 | lane | rows | state |
 |---|---|---|
 | **T-a** | C20 (turning-path orientation pins), D104 (the two hand-run diff artefacts) | **REVIEWED (style, per T-R5)** — 7 findings, **none correctness**; the lane's mutation table was reproduced 5/5 by the reviewer's own execution, both retirement arguments judged correct, the C20 closure judged honestly scoped. Fix pass taken on `smellt/a`: `main` merged (carrying the #1330 doc-gate fix that was the CI red), three dangling `S110` citations re-aimed and the ledger's own deletion-sweep rule written down, the §D retirement footnote deleted per the delete-don't-annotate rule, the lily-spine exclusion re-argued as the PLANAR-arc class, the unreachable outer floor assert removed, the "must all fit" wording qualified to what it can catch, `C25`'s row extended to schedule the frame-recipe twin, and this log's mutation sentence corrected. Plus the orchestrator's `S390` adjudication (TAKE, by message rather than as a numbered ruling): `S390` discharged in fence by a `# Correspondence` paragraph at both public doors. **PR #1329 open, not merged.** |
-| (unstaffed) | D124 (re-home the struck-lane findings), C25 (the six-times-built swept body — cross-crate homing, fence note owed at dispatch), D96 (ten `unreachable!` arms — file-set to be enumerated before staffing to check the fillet overlap) | queued |
-| (kept out per T-R1/T-R2) | D90, D321, D91 | **BLEND-6 merged `82a3a424` 2026-08-31**, which is the event all three waited on and which carries the V3 rename D321's conversion needed — so the T-R1/T-R2 hold is spent unless a later BLEND lane re-arms it. Whether `fillet/`-touching rows are takeable now is the orchestrator's call, not this row's; recorded here so the next dispatch starts from the fact rather than re-deriving it. Note the paths moved: the module is `sweep::blend`, so D90's and D321's own file citations read against the old spelling |
+| **T-b** | D124 (re-home the struck-lane findings), C25 (the six-times-built swept body + the frame-recipe twin), D91 (the swallowed `SplineError`) | **PR open, not merged.** All three closed; see the lane record below |
+| (unstaffed) | D96 (ten `unreachable!` arms — file-set to be enumerated before staffing to check the `blend/` overlap), and the three rows D124 re-homed: **D322**, **D323**, **D324**, all inside `crates/sweep/src/blend/` and so held by T-R1's class | queued |
+| (kept out per T-R1/T-R2) | D90, D321 (**D91 taken and closed by T-b** — T-R2's hold was spent, and the door-test collision it feared did not materialize) | **BLEND-6 merged `82a3a424` 2026-08-31**, which is the event all three waited on and which carries the V3 rename D321's conversion needed — so the T-R1/T-R2 hold is spent unless a later BLEND lane re-arms it. Whether `fillet/`-touching rows are takeable now is the orchestrator's call, not this row's; recorded here so the next dispatch starts from the fact rather than re-deriving it. Note the paths moved: the module is `sweep::blend`, so D90's and D321's own file citations read against the old spelling |
 | (not takeable) | D320 | waits on D240 |
 
 ## Lane records
@@ -164,3 +165,104 @@ alternative the finding mentioned — a door that takes the
 correspondence explicitly — because it was named as an option, not as a
 defect; anyone who wants it is opening a design question for Evan, not
 re-raising this one.
+
+### T-b — D124, C25, D91 (branch `smellt/b`)
+
+**D91 — the swallowed `SplineError`, closed as the row specified.**
+`LoftError::SeamStructure` is now
+`SeamStructure { source: SplineError }`, the site carries the payload
+(`map_err(|source| …)`), and `Display` renders it after the existing
+sentence — the shape `StackingEscalated { source: Indeterminate }`
+already uses in this enum, so the arm was not invented. That makes
+`geom_brep::nurbs_iso`'s own `# Errors` promise — *"surfaced rather
+than swallowed"* — true for the first time. **The W-fence edit is one
+roster entry**: `editor-core/tests/lib_doors_node_result.rs` constructs
+the variant with a `ControlCountMismatch`, which is the invariant
+`boundary_iso_u` can actually break. That suite asserts the arm's
+render ENDS WITH its payload's render and contains no `{`, and both
+hold — so the fence exception bought a real assertion, not a
+recompile. Nothing else in the tree matches the variant:
+`editor-core/src/eval/wire.rs`'s `LoftError` match names `Skin` and
+`Profile` and forwards the rest.
+
+**The class sweep says the fence is now clean.** `map_err(|_|` returns
+**zero** hits in `crates/sweep/src/`; `D91`'s was the last. It is alive
+one crate below and now rowed as `S394` (`geom-brep`'s
+`pcurve_cache.rs` swallows `boundary_iso_u`/`_v` twice while
+`nurbs_iso.rs` twelve hundred lines away spells the same conversion
+payload-preserving). Not taken — two other tracks' files.
+
+**C25 — the elbow homed in `sweep::test_support`, six copies to one.**
+The six were `sweep/tests/{m7_skin_integral,m5_s11_concave_sense}.rs`,
+`mesh/tests/{probe_review,m7_nurbs_trimmed}.rs`,
+`step-export/tests/common/mod.rs` and
+`step-export/examples/review_elbow_probe.rs`. Five now delegate; the
+sixth **stays a copy on purpose and says so at the site** — it is the
+review probe that asks whether an INDEPENDENT construction reaches the
+committed STEP bytes, and pointing it at the shared home would make it
+compare the fixture with itself.
+
+**Why `test_support` and not `tests/common` or `test-utils`.**
+`tests/common` is a test-target module, unreachable from another
+crate; `test-utils` is a ZERO-dependency leaf by manifest comment and
+could not name `Body` without inverting the layering. `test_support`
+is the S52 home this class already has, and the only change it needed
+was that `mesh` and `step-export` name the `test-support` feature in
+their dev-deps. **Its header's claim that the feature is *"off for
+every other build, including every downstream dependent"* was made
+false by that and is corrected in the same diff** — the surviving
+guarantee, that no non-test build of any dependent turns it on, is the
+one that was doing the work.
+
+**Bytes did not move**, which is the check that matters here:
+`step-export`'s golden fixture suite is green, so the shared
+constructor is bit-identical to the six it replaced.
+
+**The frame-recipe twin, per the BLEND-2 precedent.** `demos/tour` is
+outside the kernel workspace, reaches the kernel only through the
+`pncad` façade, and its scenes are `src/` — so it can link neither
+home. Its **two** copies (the narration cell and the twisted-cubic
+cell) are folded into one tour-local helper whose doc states why it is
+a copy, and the four now-stale citations naming the elbow's old homes
+are re-aimed. Four hand-copies of one fixed recipe with no public door
+is filed as `S393`, deliberately as a design question rather than a
+defect.
+
+**D124 — executed, and it is three rows plus a closure, not four
+pointers.** Each member was re-derived against the tree BLEND-6 left,
+which is not the tree `S177` read. **`S111(a)` is closed**: commit
+`18fd8370` replaced its *"Likely dead in practice"* sentence with the
+opposite one and the arm is a built path now; the self-declared-dead
+vocabulary returns zero hits across `crates/sweep/src/`. **`S111(b)`,
+`S111(d)` and `S112(a)` all stand** and are rowed as **`D322`**,
+**`D323`**, **`D324`** with current citations — every one of them had
+moved under the rename, and `S112(a)`'s had moved twice (the consumer
+is `emit_blend` now, not `emit_fillet`).
+
+**All three re-homes are inside `crates/sweep/src/blend/`, which is
+this lane's keep-out.** That is the collision, and it is why the row's
+own alternative — *"a correctly-routed ledger row with current file
+citations"* — is the disposition rather than a fix pass. The files
+were READ to verify, never edited; `git diff` touches nothing under
+`blend/`. Both rows in `naming.rs` (`D323`, `D324`) are cheaper taken
+together, and the table says so.
+
+**One sharpening is worth the orchestrator's attention** because it is
+`S177`'s own mechanism seen twice: `S112(a)`'s false paragraph is
+cited BY the consuming site (`emit_blend.rs` says *"(module docs)"*) as
+its authority. An untracked rides-along did not just go unfixed — it
+left two files across a crate boundary each pointing at the other as
+the source of a claim neither holds.
+
+**What D124 did NOT sweep**, said plainly because the row could be read
+as having done it: every OTHER track's struck rows. `D124` was written
+as the sweep for that whole exposure and executed as the re-homing of
+the four members `S177` had enumerated. The remainder is filed as
+**`L5`** under §D's *Last, deliberately* — it audits this document's
+history rather than any track's files, which is why it fits no fence
+and had been riding inside a Track T row.
+
+**`S392`, filed not taken.** `C25`'s scope is the elbow; the loft
+prism is the same class and eleven copies wide across four crates and
+the tour. `sweep::test_support` is now reachable cross-crate, so the
+next lane pays a delegation rather than a new mechanism.
