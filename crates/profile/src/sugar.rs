@@ -115,13 +115,20 @@ pub fn bulge_from_via<T: Real>(a: Point2<T>, via: Point2<T>, b: Point2<T>) -> T 
 /// of zero, and the arc that lands on it is the degenerate one: `a` and
 /// `b` coincident as seen from the centre. At interval type a box
 /// straddling that jump encloses both `0` and `τ`, honestly — the two
-/// arcs really are both consistent with the enclosure — and the guard
-/// is upstream and definite rather than in this formula:
-/// `DegenerateSegment` refuses the zero end and `NearFullArc` the τ
-/// end before a bulge is asked for. Moving the jump would not remove
-/// it, only relocate it onto a non-degenerate sweep, so the posture
-/// stands: the reduction is right and the gates in front of it are what
-/// keep it off its own boundary.
+/// arcs really are both consistent with the enclosure.
+///
+/// **The guard is DOWNSTREAM, not upstream.** `DegenerateSegment` and
+/// `NearFullArc` are raised by `validate`'s segment pass, which runs
+/// on a loop this function has already contributed a bulge to — the
+/// degenerate bulge is computed and stored first, and refused when the
+/// loop is validated. What makes that safe is not ordering but the
+/// fact that nothing consumes an unvalidated loop: the refusals key
+/// off the very values a degenerate sweep produces, so a bulge that
+/// went through the jump cannot reach a consumer without passing the
+/// pass that rejects it. Moving the jump would not remove it, only
+/// relocate it onto a non-degenerate sweep, so the posture stands —
+/// but it stands on the validation boundary, not on a gate in front of
+/// this formula.
 ///
 /// **The center is a hint, not stored data**: the stored segment is
 /// chord + bulge, whose implied center is the perpendicular-bisector

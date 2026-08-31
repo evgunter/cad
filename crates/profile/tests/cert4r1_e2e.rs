@@ -118,7 +118,6 @@ fn embed_step<T: Real>(step: &Step<f64>) -> Step<T> {
     }
 }
 
-
 /// My own fused tangency: 3-4-5 carriers, fillet radius 2/5.
 fn my_eye() -> Vec<Step<f64>> {
     let loop_ = Open

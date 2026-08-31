@@ -592,6 +592,13 @@ mod tests {
         // The premise, measured: a hairline box about `t₀` is a
         // hairline under the midpoint anchor and a whole period under
         // the `t₀` anchor.
+        //
+        // DISPOSITION: like its chord_join twin, this half re-derives
+        // both anchorings inline and so pins the two WINDOWS rather
+        // than the site. The site's own pin is the
+        // `conic_crossing_roots` call above, which reds if the anchor
+        // order changes; this half says why that order is the right
+        // one.
         let tau = Interval::tau();
         let mid = (t0 + t1) * ex(0.5);
         let cand = Interval::from_bounds(-1e-15, 1e-15);

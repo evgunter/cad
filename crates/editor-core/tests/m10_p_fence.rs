@@ -190,6 +190,24 @@
 //! rather than adding one, so the enclosure can only tighten, and the
 //! measurement says it did everywhere it moved at all.
 //!
+//! THE COMPARATOR WAS `ad2f9757`, WHICH IS NOT THAT BRANCH'S MERGE
+//! BASE (`0e0df6a1`) — disclosed because a reader who resolves "the
+//! base" gets the other commit and would be comparing a different
+//! pair. `ad2f9757` is the commit the branch was cut from; main moved
+//! once while the lane ran. The choice cannot affect this measurement
+//! and that is checkable rather than argued: `git diff --name-only
+//! ad2f9757 0e0df6a1 -- 'crates/*/src'` is EMPTY. The gap is a
+//! test-file comment, two render re-baselines and two log files, none
+//! of which the corpus walk executes.
+//!
+//! The f64 row's "0 of 3153 moved" is CORPUS-SCOPED and is not a claim
+//! that the change moves no f64 bits anywhere. The centred respells in
+//! `topo` do move them off this corpus — measured over a 4000-sample
+//! spread of the recentre's argument, 1654 samples (41%) differ in
+//! bits, every one bounded by rounding at 4.44e-16 (2·2⁻⁵²) and none
+//! by a changed branch. What the corpus digest says is that no
+//! document this repo carries observes that difference.
+//!
 //! The `probe` row is ROSTERED into the K-telemetry sweep's executed
 //! floor. Its claim is not a third copy of the `f64` row's: it says the
 //! telemetry scalar has not started changing decisions, which is a

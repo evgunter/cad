@@ -50,9 +50,7 @@ fn an_asymmetric_fused_pocket_replays_at_f64() {
 #[test]
 fn the_asymmetric_fused_pocket_replays_hairline_at_interval() {
     use geom_core::{Bounds, Interval, Real};
-    let ip2 = |x: f64, y: f64| {
-        geom_core::Point2::new(Interval::from_f64(x), Interval::from_f64(y))
-    };
+    let ip2 = |x: f64, y: f64| geom_core::Point2::new(Interval::from_f64(x), Interval::from_f64(y));
     let iv = Open
         .arc_fillet_arc(
             Center {

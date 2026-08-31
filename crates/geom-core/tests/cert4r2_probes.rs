@@ -67,12 +67,24 @@ fn negative_zero_disagrees_bitwise_but_the_margin_is_still_exact() {
 fn the_branch_pin_respells_are_bit_identical_by_differential() {
     let half = 0.5f64;
     let mut xs: Vec<f64> = vec![
-        0.0, -0.0, 1e-300, -1e-300, 5e-324, PI, -PI, TAU, -TAU, 1e15, -1e15,
+        0.0,
+        -0.0,
+        1e-300,
+        -1e-300,
+        5e-324,
+        PI,
+        -PI,
+        TAU,
+        -TAU,
+        1e15,
+        -1e15,
         f64::from_bits(PI.to_bits() - 1),
     ];
     let mut s = 0x9e37_79b9_7f4a_7c15u64;
     for _ in 0..100_000 {
-        s = s.wrapping_mul(0xd128_1b58_5f9d_3fa7).wrapping_add(0x2545_f491_4f6c_dd1d);
+        s = s
+            .wrapping_mul(0xd128_1b58_5f9d_3fa7)
+            .wrapping_add(0x2545_f491_4f6c_dd1d);
         let f = f64::from_bits((s >> 12) | 0x3ff0_0000_0000_0000) - 1.0; // [0,1)
         xs.push((f - 0.5) * 40.0);
     }
