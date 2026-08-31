@@ -885,3 +885,194 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+mod r1_mesh2_review_probes {
+    //! R1 review probes for MESH-2 (PR #1421): attacking the
+    //! structural-zero derivation's premises and the bit-keying's two
+    //! failure directions, by execution.
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use super::{ChartFrame, chart_frame, same_position, triangulate_chart};
+    use geom_core::Point3;
+    use topo::FaceKey;
+
+    fn frame_of(pts: &[(f64, f64, f64)]) -> (ChartFrame, Vec<Point3<f64>>, Vec<u32>) {
+        let positions: Vec<Point3<f64>> =
+            pts.iter().map(|&(x, y, z)| Point3::new(x, y, z)).collect();
+        #[allow(clippy::cast_possible_truncation)]
+        let outer: Vec<u32> = (0..positions.len() as u32).collect();
+        let frame = chart_frame(&outer, &positions);
+        (frame, positions, outer)
+    }
+
+    /// Premise attack: all boundary points coincident. The far point
+    /// degenerates to the anchor, the frame goes non-finite, and the
+    /// write must NOT convert the fail-loud refusal into an accept:
+    /// v is written 0.0 for the anchor-far, but u stays NaN, so the
+    /// CDT refuses typed.
+    #[test]
+    fn r1_all_coincident_loop_still_refuses_typed() {
+        let (frame, positions, outer) =
+            frame_of(&[(1.0, 2.0, 3.0), (1.0, 2.0, 3.0), (1.0, 2.0, 3.0)]);
+        assert!(
+            same_position(frame.far_at, positions[0]),
+            "far degenerates to anchor"
+        );
+        let polys: Vec<Vec<[f64; 2]>> = vec![positions.iter().map(|p| frame.project(*p)).collect()];
+        // v written 0.0 (anchor == far_at), u must be non-finite.
+        for c in &polys[0] {
+            assert_eq!(c[1], 0.0, "anchor-far v written");
+            assert!(!c[0].is_finite(), "u must stay non-finite: {c:?}");
+        }
+        let r = triangulate_chart(FaceKey::default(), &[outer], &polys);
+        assert!(r.is_err(), "degenerate loop must refuse typed, got {r:?}");
+    }
+
+    /// Premise attack: collinear loop (Newell normal is the zero
+    /// vector). Frame non-finite; refusal must survive the write.
+    #[test]
+    fn r1_collinear_loop_still_refuses_typed() {
+        let (frame, positions, outer) = frame_of(&[
+            (0.0, 0.0, 0.0),
+            (1.0, 0.0, 0.0),
+            (2.0, 0.0, 0.0),
+            (3.0, 0.0, 0.0),
+        ]);
+        let polys: Vec<Vec<[f64; 2]>> = vec![positions.iter().map(|p| frame.project(*p)).collect()];
+        let far = polys[0][3];
+        assert_eq!(far[1], 0.0, "far v written even on a garbage frame");
+        assert!(!far[0].is_finite(), "far u must stay non-finite");
+        let r = triangulate_chart(FaceKey::default(), &[outer], &polys);
+        assert!(r.is_err(), "collinear loop must refuse typed, got {r:?}");
+    }
+
+    /// Premise attack: denormal-extent loop. Every d2 underflows to
+    /// 0.0, which never beats the anchor's own 0.0 under strict `>`,
+    /// so far stays the anchor and the frame goes non-finite — refuse,
+    /// not a wrong mesh. (Same selection behaviour as the merge base;
+    /// the write changes nothing here.)
+    #[test]
+    fn r1_denormal_extent_loop_refuses_typed() {
+        let s = 1.0e-200; // s*s underflows to 0.0
+        let (frame, positions, outer) =
+            frame_of(&[(0.0, 0.0, 0.0), (s, 0.0, 0.0), (s, s, 0.0), (0.0, s, 0.0)]);
+        assert!(
+            same_position(frame.far_at, positions[0]),
+            "far collapses to anchor"
+        );
+        let polys: Vec<Vec<[f64; 2]>> = vec![positions.iter().map(|p| frame.project(*p)).collect()];
+        let r = triangulate_chart(FaceKey::default(), &[outer], &polys);
+        assert!(
+            r.is_err(),
+            "denormal-extent loop must refuse typed, got {r:?}"
+        );
+    }
+
+    /// Derivation attack: an exact far-distance TIE. Only the FIRST
+    /// max in walk order is the structural zero; the tied point's v is
+    /// geometric, not construction-known, and must be read, not
+    /// written. (The write reaching it would be value snapping.)
+    #[test]
+    fn r1_far_tie_writes_only_the_first_maximum() {
+        // Rectangle plus its mirrored diagonal twin: (2,1) and (2,-1)
+        // are both at distance sqrt(5) from the anchor, exactly.
+        let (frame, positions, _) = frame_of(&[
+            (0.0, 0.0, 0.0),
+            (2.0, -1.0, 0.0),
+            (2.0, 0.0, 0.0),
+            (2.0, 1.0, 0.0),
+            (0.0, 1.0, 0.0),
+        ]);
+        // Walk order: (2,-1) comes first, so it is the far point.
+        assert!(
+            same_position(frame.far_at, positions[1]),
+            "first max in walk order must win the tie: {:?}",
+            frame.far_at
+        );
+        // The tied twin keeps its read v (here a real, nonzero value).
+        let v_twin = frame.project(positions[3])[1];
+        let raw_twin = (positions[3] - frame.origin).dot(frame.v_ref);
+        assert_eq!(
+            v_twin.to_bits(),
+            raw_twin.to_bits(),
+            "tied twin must be read"
+        );
+        assert!(v_twin != 0.0, "the twin's v is genuinely nonzero here");
+    }
+
+    /// Bit-keying miss direction: the same geometric point stored
+    /// twice with ±0.0 in one coordinate. `same_position` (to_bits)
+    /// deliberately misses the -0.0 twin, so only the +0.0 instance
+    /// is written; the twin reads its residue. This documents the
+    /// EXISTING premise (D9: a repeated point must be bit-identical)
+    /// rather than a new failure the write introduces — with differing
+    /// bits the CDT already saw two vertices before this PR.
+    #[test]
+    fn r1_negative_zero_twin_is_not_written() {
+        // A tilted quad whose far point carries an exact 0.0 z, with
+        // off-plane noise on the OTHER points, so the far v residue is
+        // present but the far point itself has a signable coordinate.
+        let nu = 1.0e-30;
+        let (frame, positions, _) = frame_of(&[
+            (0.0, 0.0, nu),
+            (2.0, 0.0, nu),
+            (2.0, 1.0, 0.0),
+            (0.0, 1.0, nu),
+        ]);
+        assert!(same_position(frame.far_at, positions[2]));
+        // The -0.0 twin of the far point: == equal, bits unequal.
+        let twin = Point3::new(2.0, 1.0, -0.0);
+        assert!(
+            twin.x == frame.far_at.x && twin.y == frame.far_at.y && twin.z == frame.far_at.z,
+            "same point under coordinate =="
+        );
+        assert!(
+            !same_position(twin, frame.far_at),
+            "twin must differ in bits — probe broken otherwise"
+        );
+        let v_twin = frame.project(twin)[1];
+        let raw = (twin - frame.origin).dot(frame.v_ref);
+        assert_eq!(
+            v_twin.to_bits(),
+            raw.to_bits(),
+            "bit-differing twin is read, not written"
+        );
+    }
+
+    /// Conflation direction: equal bits imply equal values, so two
+    /// GEOMETRICALLY DISTINCT points can never share far_at's bits —
+    /// the write can only ever reach re-occurrences of the far point
+    /// itself. Executed as: a point 1 ulp off the far point in any
+    /// coordinate is not written.
+    #[test]
+    fn r1_one_ulp_neighbours_are_not_conflated() {
+        let nu = 1.0e-30;
+        let (frame, positions, _) = frame_of(&[
+            (0.0, 0.0, 0.0),
+            (2.0, 0.0, 2.0 * nu),
+            (2.0, 1.0, 2.0 * nu),
+            (0.0, 1.0, 0.0),
+        ]);
+        let far = frame.far_at;
+        assert!(same_position(far, positions[2]));
+        for (dx, dy, dz) in [(1i64, 0, 0), (0, 1, 0), (0, 0, 1), (-1, 0, 0)] {
+            let bump = |c: f64, d: i64| {
+                if d == 0 {
+                    c
+                } else {
+                    f64::from_bits((c.to_bits() as i64 + d) as u64)
+                }
+            };
+            let q = Point3::new(bump(far.x, dx), bump(far.y, dy), bump(far.z, dz));
+            assert!(!same_position(q, far));
+            let v = frame.project(q)[1];
+            let raw = (q - frame.origin).dot(frame.v_ref);
+            assert_eq!(
+                v.to_bits(),
+                raw.to_bits(),
+                "ulp neighbour {q:?} must be read"
+            );
+        }
+    }
+}
