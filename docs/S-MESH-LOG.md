@@ -96,3 +96,35 @@ a natural MESH-4 rider). Two walk.rs style classes recorded there
 rather than widened into this unit. Slate next: MESH-2 (issue 555,
 the sub-floor engineered zeros) interleaved with S-BOOL's BOOL-2;
 walk.rs stays sequenced (MESH-3 #896 before MESH-4 #881).
+
+## MESH-2 merged (2026-08-31) — issue 555 closed; sub-floor engineered zeros mesh, in two layers
+
+PR 1421 at fix head `22228e47`. Gates: both heads drew default/1e-12
+(the fix head's k-lint budget row gated against the same-day lofts
+re-cut — see the seam entry below); three ε rows + tour + clippy
+local at both heads. The chart frame writes the far point's
+structurally-zero v at the projection site (bit-keyed), and spade's
+`mitigate_underflow` floors the insert feed for the ringed/diagonal
+residue R2 demonstrated systematic — the adjudicated two-layer
+close, each layer red-first under its own mutant. The Klein wall-7
+pin retired to banked-case-closed; the refusal lottery re-swept
+denser than the issue recorded (four cells, all meshing, counts
+pinned).
+
+**The dual (ordinal 1201, sample at the row)**: R1 APPROVE 0/2/0
+(5/5/4) with every claim executed; R2 A-W-F 2/4/2 (4/3/3) with two
+executed unilateral MAJORs — the siting defense's spade premise
+falsified at the source, and the ringed residue shown in-class and
+closable (the blanket variant run green across suite and tour).
+Both are v6 tally candidates. Fix pass IMPLEMENTER-INHERITED, all
+8 items.
+
+**Seam entry — two main repairs orchestrator-direct en route** (the
+S-CERT PR-1257 precedent): PR 1428 re-cut the tess-budget baseline
+for PR 1351's un-re-cut lofts renames (the landmine detonated on
+BOOL-2's draw first), and ported the twopeg dead-const clippy red
+the forced k-lint row exposed. Issues filed this cycle: 1434 (the
+tour test suite never executes the wall probes — Track X's), and
+the ball-quarter member recorded on 1396. Slate next: MESH-3
+(issue 896, the undeclared-pole guard) after BOOL-2's cycle
+concludes; walk.rs stays sequenced.
