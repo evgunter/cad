@@ -2766,3 +2766,24 @@ briefs symmetric, no relaxations granted. Implementer difficulty
 M/L (pre-logged in the plan's opening commit, pre-draw; recorded
 numeric M). Impl wall-clock carries an ANNOTATED usage-limit gap.
 Sample number at merge. Row at merge.
+
+MATE-6 REVIEWS DELIVERED + ROW (2026-08-31; SEQUENTIAL same-head on
+frozen 65fcc134 per the pre-R1 method note; briefs stored symmetric
+pre-R1, R2 verbatim at R1's delivery; fix pass IMPLEMENTER-INHERITED
+via agent resume). Ordinal 1302 claimed at dispatch (above); sample
+#81 at this merge (prior highest #80).
+
+| # | date | task | difficulty (pre-flip) | arm | review findings (MAJ/MIN/NOTE) | silent devs | idiom | tests | docs | fix-pass size | battery | tokens | wall-clock |
+|---|------|------|----------------------|-----|-------------------------------|-------------|-------|-------|------|---------------|---------|--------|------------|
+| MATE6 | 2026-08-31 | MATE-6 (PR #1420; spec docs/MATE-6-SPEC.md; issue 946 closed at merge; the Q1 ruling executed as a DRIFT-CLOSURE against A3's own ratified sentence): mint moves into the product gather as pass 4 (after the aggregate gate — refusal precedence preserved, executed both trees), mint made TOTAL over live mates (MintRefusal rows; assemble raises the first, arms unchanged), Product gains minted/unminted; the seam needed ZERO eval lines (carry_contacts already re-keys through the descendant map) — the ×3-stands red-first moved from 24 UndeclaredContact/0 carried to green/3 carried, with the two-level nesting a row (8 solids, 4 declarations); the checks.rs would-be double-mint fixed as a disclosed fence extension; deviations incl. the carried-refutation attribution gap (→ issue 1429, which also flags that the refuting ARM improves on the ruling's letter) | M (pre-logged in the plan's opening commit, pre-draw) | OPUS (block MATE-B2 slot 1; B2 drawn byte 71 ⇒ fable slot 3) | **DUAL (ordinal 1302; sample #81; byte 8 parity 0 ⇒ R1 OPUS + R2 FABLE; SEQUENTIAL same-head on frozen 65fcc134 per the pre-R1 method note; both arms uninterrupted — pair COUNTS).** R1 M-A-F 1/3/3, rubric 4/3/4 — **MAJ UNILATERAL AND EXECUTED: the headline mint-totality is UNGUARDED (both continue→break reverted = 867/867 green; every committed row placed its bad mate last) — a v6 TALLY CANDIDATE, coding at the blinded adjudication**; unique MINs: carried declarations route AtRest not Uncertified with the header sentence stale; the acquired refusal reach unclassified. R2 M-A-F 1/0/2, rubric 4.5/4.5/4 — all ten claims held under differential execution (seam quotes reproduced exactly; five-angle attack on the carried-wrongness shape found no silent path); its MIN = deviation-4 unscheduled (BILATERAL with R1's — the finding that produced issue 1429); unique: P8 (inner mint refusals stop at the seam, same channel). Both arms: zero silent deviations | R1 counted 0 / R2 counted 0 | R1 4 / R2 4.5 | R1 3 / R2 4.5 | R1 4 / R2 4 | moderate, IMPLEMENTER-INHERITED (agent resumed): both probe suites adopted as authored merges (R1's differential harness has zero assertions and R2's three test the raise arm — adoption alone provably could NOT close the MAJ, so three NEW rows pin the walk with a bad mate BEFORE a good one; the reverting mutant now reds 3, each continue pinned independently per single-arm mutation); issue 1429 cited at both deviations; the stale header rewritten from the code's real rule; the acquired reach classified (row 1 over always-invalid input — the soundness clause working); the 28-line unreachability argument shrunk to 16 and PINNED (debug_assert + row); judgment items: carried-refutation row hardened to its arm, the all-refusals UX and the Vec-head spelling DECLINED with arguments | impl gate 33441266280 GREEN on 65fcc134 (default/default, drawn); fix gate 33449491686 GREEN on 8440edea (default/1e-12 drawn — a second matrix row corroborating the band-independence argument; k-lint green on this draw); MERGED #1420 | impl ~235k / R1 ~181k / R2 ~189k / fix ~226k | impl ~43m / R1 ~26m / R2 ~19m / fix ~27m |
+
+MATE-4a (PR #1432) ordinal FIXED AT DISPATCH (2026-08-31):
+**ordinal 1303** (S-MATE band 1300–1399). v6 dual: slot byte
+**159**, parity 1 ⇒ **R1 FABLE + R2 OPUS**; CONCURRENT on frozen
+`72140467` (run 33449861213 verified at dispatch: head SHA
+matches, every job green incl. k-lint — issue 1418's two inherited
+reds resolved on this merge base; gate point interval ASKED via
+trailer × eps 1e-12 DRAWN), R2 isolated from R1, briefs symmetric,
+no relaxations granted. Implementer difficulty M (pre-logged in
+the plan's MATE-4 entry, impl half, pre-draw). Sample number at
+merge. Row at merge.
