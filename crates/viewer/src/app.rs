@@ -60,8 +60,12 @@ use crate::matetool::{MateChoice, MateTool, MateToolState, admitted_classes};
 use crate::pick::{self, PickCache, PickIndex};
 use crate::prefs::{self, Prefs, PrefsStore};
 use crate::props::{self, SlotDriver, SlotGroup, SlotRow, SlotValue};
+use crate::revolvetool::RevolveTool;
 use crate::scene::{self, DisplayTolerance, SceneMesh};
-use crate::session::{BoundsTarget, DocSession, Hovered, Refusal, Selection, SessionOp, Standing};
+use crate::session::{
+    BoundsTarget, DatumSpec, DocSession, Hovered, ProfileShape, Refusal, Selection, SessionOp,
+    Standing,
+};
 use crate::theme::{Polarity, Theme};
 use crate::tree::{RowStatus, TreeRow};
 
@@ -195,7 +199,7 @@ pub enum Pane {
 /// Layer-3 state that never enters the document: an expression the
 /// user is typing is not an edit until they commit it, and a draft
 /// abandoned by selecting elsewhere leaves nothing behind.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct Drafts {
     /// The View pane's δ field while it has focus, in millimetres as
     /// typed. `None` whenever it does not, so an unfocused field shows
@@ -235,7 +239,118 @@ struct Drafts {
     mate_class: usize,
     mate_primitive: usize,
     mate_opposed: bool,
+    /// The toolbar's New… form: `Some(text)` while the name field is
+    /// open, `None` while it is not. The op is not emitted until
+    /// Create — a name in flight is a draft, not a document.
+    new_doc_name: Option<String>,
+    /// The add-datum form's kind choice.
+    datum_kind: DatumKind,
+    /// The add-datum form's origin/position, metres.
+    datum_origin: [f64; 3],
+    /// Its normal/direction (unitless; ignored by the point form).
+    datum_direction: [f64; 3],
+    /// The add-profile form's shape choice.
+    profile_shape: ShapeKind,
+    /// The circle form's centre, metres.
+    profile_centre: [f64; 2],
+    /// The circle form's radius, metres.
+    profile_radius: f64,
+    /// Whether the circle carries a concentric bore (a second loop
+    /// inside the first) — what lets the chrome author the ring
+    /// demo's annulus while staying a template, not a sketcher. The
+    /// form guards bore < radius (see `add_profile_ui`): the loop
+    /// ROLES come from the profile layer's containment forest, so a
+    /// bore at or beyond the outer would not fail — it would swap
+    /// which circle is the hole, silently defeating the form's own
+    /// wording.
+    profile_bored: bool,
+    /// The bore's radius, metres.
+    profile_bore: f64,
+    /// The rectangle form's width and height, metres.
+    profile_extent: [f64; 2],
+    /// The extrude form's distance, metres.
+    extrude_distance: f64,
+    /// The revolve tool's angle, radians.
+    revolve_angle: f64,
 }
+
+impl Default for Drafts {
+    /// The creation forms' sensible defaults (the GAUTH-1 spec):
+    /// datum origin 0 with normal/direction +z, a 10 mm circle or
+    /// rectangle, a 10 mm extrude, a full-turn revolve. Everything
+    /// else starts empty.
+    fn default() -> Self {
+        Self {
+            delta_mm: None,
+            expr_target: None,
+            expr_text: String::new(),
+            new_param_name: String::new(),
+            new_param_dimension: None,
+            new_param_value: 0.0,
+            new_param_offer: None,
+            mate_class: 0,
+            mate_primitive: 0,
+            mate_opposed: false,
+            new_doc_name: None,
+            datum_kind: DatumKind::Plane,
+            datum_origin: [0.0; 3],
+            datum_direction: [0.0, 0.0, 1.0],
+            profile_shape: ShapeKind::Circle,
+            profile_centre: [0.0; 2],
+            profile_radius: 0.01,
+            profile_bored: false,
+            profile_bore: 0.005,
+            profile_extent: [0.01, 0.01],
+            extrude_distance: 0.01,
+            revolve_angle: core::f64::consts::TAU,
+        }
+    }
+}
+
+/// The add-datum form's kind choice — one form, the three
+/// [`DatumSpec`] arms. An enum rather than an index into a label
+/// list, so every consumer matches exhaustively and a fourth kind
+/// cannot leave a silent wildcard arm behind.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DatumKind {
+    /// A plane datum.
+    Plane,
+    /// An axis datum.
+    Axis,
+    /// A point datum.
+    Point,
+}
+
+impl DatumKind {
+    /// Every kind with its radio label, in form order.
+    const ALL: [(Self, &'static str); 3] = [
+        (Self::Plane, "plane"),
+        (Self::Axis, "axis"),
+        (Self::Point, "point"),
+    ];
+}
+
+/// The add-profile form's template choice — the GAUTH-1 template
+/// vocabulary, an enum for the reason [`DatumKind`] is one.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ShapeKind {
+    /// A circle, optionally with a concentric bore.
+    Circle,
+    /// A centred rectangle.
+    Rectangle,
+}
+
+impl ShapeKind {
+    /// Every shape with its radio label, in form order.
+    const ALL: [(Self, &'static str); 2] =
+        [(Self::Circle, "circle"), (Self::Rectangle, "rectangle")];
+}
+
+/// One drag tick of a creation-form numeric field, in the field's own
+/// unit — half a millimetre on the metre fields, matching the drag
+/// feel of the shipped panel value fields. One home so the forms
+/// cannot drift apart a digit at a time.
+const FIELD_DRAG_SPEED: f64 = 0.0005;
 
 /// The primitives the chrome offers, with their labels. The op
 /// vocabulary accepts any [`MatePrimitive`]; these are the three the
@@ -303,6 +418,9 @@ pub struct ViewerApp {
     /// The modal mate tool, when active. `None` is "not in the mate
     /// tool"; the tool's own state (the held picks) lives inside it.
     mate_tool: Option<MateTool>,
+    /// The modal revolve tool, when active — the same shape as the
+    /// mate tool, holding node picks instead of face picks.
+    revolve_tool: Option<RevolveTool>,
     camera: Camera,
     input: InputMap,
     /// The palette in force — a USER preference, held in the
@@ -526,6 +644,7 @@ impl ViewerApp {
             fit_delta_on_scene: true,
             budget_delta: None,
             mate_tool: None,
+            revolve_tool: None,
             camera,
             input,
             theme,
@@ -558,6 +677,13 @@ impl ViewerApp {
         {
             for event in tool.reconcile(doc, eval) {
                 self.status = Some(format!("mate tool: {event}"));
+            }
+        }
+        // The revolve tool's survival step: its picks are nodes, so
+        // the document alone answers whether each is still there.
+        if let Some(tool) = self.revolve_tool.as_mut() {
+            for event in tool.reconcile(self.session.doc()) {
+                self.status = Some(format!("revolve tool: {event}"));
             }
         }
         // **The budget picks the δ a document opens at**, once, before
@@ -735,6 +861,7 @@ impl ViewerApp {
         for op in ops {
             performed.push(op.clone());
             let opened = matches!(op, SessionOp::Open(_));
+            let revolved = matches!(op, SessionOp::AddRevolve { .. });
             match self.session.perform(op).refusal {
                 Some(next) => refusal = Refusal::preferred(refusal, next),
                 // A replaced document owes a re-frame AND a fresh δ
@@ -748,6 +875,12 @@ impl ViewerApp {
                     self.fit_delta_on_scene = true;
                     self.budget_delta = None;
                 }
+                // The revolve tool closes when its edit actually
+                // COMMITS, not when its button is clicked — a refusal
+                // leaves the tool open with its picks held
+                // (`revolve_tool_ui`'s commit arm carries the other
+                // half of this rule).
+                None if revolved => self.revolve_tool = None,
                 None => {}
             }
         }
@@ -851,6 +984,37 @@ impl eframe::App for ViewerApp {
                 // `frame::dialog_status` is that rule as a policy
                 // value, and its loud arm is the belt to this
                 // disabling's braces.
+                // The New… control (GAUTH-1): one name field, because
+                // the document id is derived from the name — see
+                // `SessionOp::NewDocument`. The field is a draft; the
+                // op is emitted only by Create, and only for a
+                // non-blank name (the typed refusal backing the
+                // disabled button is `Refusal::EmptyName`).
+                match self.drafts.new_doc_name.as_mut() {
+                    None => {
+                        if ui.button("New…").clicked() {
+                            self.drafts.new_doc_name = Some(String::new());
+                        }
+                    }
+                    Some(name) => {
+                        ui.add(
+                            egui::TextEdit::singleline(name)
+                                .hint_text("document name")
+                                .desired_width(120.0),
+                        );
+                        let typed = name.trim().to_owned();
+                        if ui
+                            .add_enabled(!typed.is_empty(), egui::Button::new("Create"))
+                            .on_disabled_hover_text("the document id is derived from the name")
+                            .clicked()
+                        {
+                            ops.push(SessionOp::NewDocument { name: typed });
+                            self.drafts.new_doc_name = None;
+                        } else if ui.button("Cancel").clicked() {
+                            self.drafts.new_doc_name = None;
+                        }
+                    }
+                }
                 let chooser = self.chooser;
                 if ui
                     .add_enabled(chooser.usable(), egui::Button::new("Open…"))
@@ -1039,6 +1203,7 @@ impl eframe::App for ViewerApp {
                 drafts: &mut self.drafts,
                 display: &display,
                 mate_tool: &mut self.mate_tool,
+                revolve_tool: &mut self.revolve_tool,
                 pending_fit: &mut self.pending_fit,
                 status: &mut self.status,
                 id_answer: &self.id_answer,
@@ -1076,6 +1241,19 @@ impl eframe::App for ViewerApp {
                 }
             }
         }
+        // The revolve tool consumes the same stream at node
+        // resolution: a tree click is a node pick directly, a face
+        // pick reaches the feature it belongs to (`Selection::node`,
+        // the one viewport→tree inversion).
+        if let Some(tool) = self.revolve_tool.as_mut() {
+            for op in &ops {
+                if let SessionOp::Select(selection) = op
+                    && let Some(node) = selection.node()
+                {
+                    tool.pick(node);
+                }
+            }
+        }
 
         self.perform_batch(ops);
     }
@@ -1103,6 +1281,8 @@ struct ViewerBehavior<'a> {
     display: &'a DisplayView,
     /// The modal mate tool, if active.
     mate_tool: &'a mut Option<MateTool>,
+    /// The modal revolve tool, if active.
+    revolve_tool: &'a mut Option<RevolveTool>,
     pending_fit: &'a mut bool,
     status: &'a mut Option<String>,
     id_answer: &'a Arc<AtomicU64>,
@@ -1488,6 +1668,7 @@ impl ViewerBehavior<'_> {
         ui.heading("Properties");
         ui.separator();
         self.mate_tool_ui(ui);
+        self.create_ui(ui);
         let standing = self.session.standing();
         self.standing_ui(ui, &standing);
         if let Some(node) = self.session.selection().node() {
@@ -1849,6 +2030,10 @@ impl ViewerBehavior<'_> {
         let Some(tool) = self.mate_tool.clone() else {
             if ui.button("Mate tool…").clicked() {
                 *self.mate_tool = Some(MateTool::new());
+                // ONE modal tool at a time: both tools consume the
+                // same selection stream, and two open at once would
+                // fill a mate seat and a revolve seat with one click.
+                *self.revolve_tool = None;
             }
             return;
         };
@@ -1941,6 +2126,258 @@ impl ViewerBehavior<'_> {
             *self.mate_tool = None;
         }
         ui.separator();
+    }
+
+    /// The creation section (GAUTH-1): the add-datum, add-profile and
+    /// extrude forms plus the modal revolve tool. Each form is
+    /// minimal — its few required fields with sensible defaults — and
+    /// emits exactly one creation op; the property panel is the
+    /// editor for everything after the insert.
+    fn create_ui(&mut self, ui: &mut egui::Ui) {
+        ui.collapsing("Add feature", |ui| {
+            self.add_datum_ui(ui);
+            ui.separator();
+            self.add_profile_ui(ui);
+            ui.separator();
+            self.extrude_ui(ui);
+            ui.separator();
+            self.revolve_tool_ui(ui);
+        });
+        ui.separator();
+    }
+
+    /// The add-datum form: one kind choice, two vector rows, one
+    /// [`SessionOp::AddDatum`] on commit.
+    fn add_datum_ui(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            ui.label("datum");
+            for (kind, label) in DatumKind::ALL {
+                ui.radio_value(&mut self.drafts.datum_kind, kind, label);
+            }
+        });
+        let kind = self.drafts.datum_kind;
+        vec3_row(
+            ui,
+            match kind {
+                DatumKind::Point => "position (m)",
+                DatumKind::Plane | DatumKind::Axis => "origin (m)",
+            },
+            &mut self.drafts.datum_origin,
+        );
+        match kind {
+            DatumKind::Plane => vec3_row(ui, "normal", &mut self.drafts.datum_direction),
+            DatumKind::Axis => vec3_row(ui, "direction", &mut self.drafts.datum_direction),
+            DatumKind::Point => {}
+        }
+        if ui.button("Add datum").clicked() {
+            let datum = match kind {
+                DatumKind::Plane => DatumSpec::Plane {
+                    origin: self.drafts.datum_origin,
+                    normal: self.drafts.datum_direction,
+                },
+                DatumKind::Axis => DatumSpec::Axis {
+                    origin: self.drafts.datum_origin,
+                    direction: self.drafts.datum_direction,
+                },
+                DatumKind::Point => DatumSpec::Point {
+                    position: self.drafts.datum_origin,
+                },
+            };
+            self.ops.push(SessionOp::AddDatum { datum });
+        }
+    }
+
+    /// The add-profile form: a template shape with Length fields, one
+    /// [`SessionOp::AddProfile`] on commit — on the world XY plane,
+    /// which the form says.
+    ///
+    /// The circle's optional bore is what lets this template author
+    /// the hollow ring's annulus (one profile node, two loops); the
+    /// face-frame placement arm is deferred as a filed issue — the
+    /// interrogation vocabulary deliberately answers no "is this face
+    /// planar" verdict for it to gate on.
+    ///
+    /// The bore field is guarded IN THE FORM: loop roles come from
+    /// the profile layer's containment forest, not from list order,
+    /// so a bore at or beyond the outer radius would not refuse — it
+    /// would silently swap which circle is the hole. The form says
+    /// "bore", so it disables Create until the bore is smaller, with
+    /// the reason shown. This is a chrome affordance guarding the
+    /// template's stated intent; the op stays unjudged and the
+    /// kernel's containment rule stays the one home.
+    fn add_profile_ui(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            ui.label("profile");
+            for (shape, label) in ShapeKind::ALL {
+                ui.radio_value(&mut self.drafts.profile_shape, shape, label);
+            }
+            ui.weak("on the world XY plane");
+        });
+        let mut loops = Vec::new();
+        let mut blocked: Option<&'static str> = None;
+        match self.drafts.profile_shape {
+            ShapeKind::Circle => {
+                ui.horizontal(|ui| {
+                    ui.label("centre (m)");
+                    ui.add(
+                        egui::DragValue::new(&mut self.drafts.profile_centre[0])
+                            .speed(FIELD_DRAG_SPEED),
+                    );
+                    ui.add(
+                        egui::DragValue::new(&mut self.drafts.profile_centre[1])
+                            .speed(FIELD_DRAG_SPEED),
+                    );
+                    ui.label("radius (m)");
+                    ui.add(
+                        egui::DragValue::new(&mut self.drafts.profile_radius)
+                            .speed(FIELD_DRAG_SPEED),
+                    );
+                });
+                ui.horizontal(|ui| {
+                    ui.checkbox(&mut self.drafts.profile_bored, "with bore");
+                    if self.drafts.profile_bored {
+                        ui.label("bore radius (m)");
+                        ui.add(
+                            egui::DragValue::new(&mut self.drafts.profile_bore)
+                                .speed(FIELD_DRAG_SPEED),
+                        );
+                    }
+                });
+                loops.push(ProfileShape::Circle {
+                    centre: self.drafts.profile_centre,
+                    radius: self.drafts.profile_radius,
+                });
+                if self.drafts.profile_bored {
+                    if self.drafts.profile_bore >= self.drafts.profile_radius {
+                        blocked = Some(
+                            "the bore must be smaller than the radius — which loop is the \
+                             hole is decided by containment, so a larger bore would swap \
+                             the roles rather than refuse",
+                        );
+                    }
+                    loops.push(ProfileShape::Circle {
+                        centre: self.drafts.profile_centre,
+                        radius: self.drafts.profile_bore,
+                    });
+                }
+            }
+            ShapeKind::Rectangle => {
+                ui.horizontal(|ui| {
+                    ui.label("width (m)");
+                    ui.add(
+                        egui::DragValue::new(&mut self.drafts.profile_extent[0])
+                            .speed(FIELD_DRAG_SPEED),
+                    );
+                    ui.label("height (m)");
+                    ui.add(
+                        egui::DragValue::new(&mut self.drafts.profile_extent[1])
+                            .speed(FIELD_DRAG_SPEED),
+                    );
+                });
+                loops.push(ProfileShape::Rectangle {
+                    width: self.drafts.profile_extent[0],
+                    height: self.drafts.profile_extent[1],
+                });
+            }
+        }
+        if let Some(reason) = blocked {
+            ui.weak(reason);
+        }
+        if ui
+            .add_enabled(blocked.is_none(), egui::Button::new("Add profile"))
+            .clicked()
+        {
+            self.ops.push(SessionOp::AddProfile {
+                plane: pncad::profile::SketchPlane::xy(),
+                loops,
+            });
+        }
+    }
+
+    /// The extrude form: the current selection is the profile (a tree
+    /// pick, or a face pick whose feature is one — `Selection::node`),
+    /// one distance field, one [`SessionOp::AddExtrude`] on commit.
+    /// A selection that is not a profile refuses typed at the door
+    /// and lands on the status line.
+    fn extrude_ui(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            ui.label("extrude");
+            ui.label("distance (m)");
+            ui.add(egui::DragValue::new(&mut self.drafts.extrude_distance).speed(FIELD_DRAG_SPEED));
+        });
+        match self.session.selection().node() {
+            Some(node) => {
+                if ui.button(format!("Extrude feature {}", node.0)).clicked() {
+                    self.ops.push(SessionOp::AddExtrude {
+                        profile: node,
+                        distance: self.drafts.extrude_distance,
+                    });
+                }
+            }
+            None => {
+                ui.add_enabled(false, egui::Button::new("Extrude"))
+                    .on_disabled_hover_text("select the profile to extrude first");
+            }
+        }
+    }
+
+    /// The revolve tool's panel: activation, the two held picks
+    /// (profile, then axis), the angle field, and the one committed
+    /// edit — the mate tool's chrome shape over node picks.
+    fn revolve_tool_ui(&mut self, ui: &mut egui::Ui) {
+        // A copy of the small tool value, for the reason the mate
+        // panel takes one: the panel reads it while pushing ops and
+        // closing the tool; the authoritative copy is only ever
+        // replaced whole.
+        let Some(tool) = *self.revolve_tool else {
+            if ui.button("Revolve tool…").clicked() {
+                *self.revolve_tool = Some(RevolveTool::new());
+                // ONE modal tool at a time — the mate activation
+                // carries the argument.
+                *self.mate_tool = None;
+            }
+            return;
+        };
+        ui.label("revolve tool: pick the profile, then the axis");
+        match (tool.profile(), tool.axis()) {
+            (None, _) => {
+                ui.weak("no picks yet");
+            }
+            (Some(profile), None) => {
+                ui.weak(format!("profile: feature {}", profile.0));
+            }
+            (Some(profile), Some(axis)) => {
+                ui.weak(format!(
+                    "profile: feature {}; axis: feature {}",
+                    profile.0, axis.0
+                ));
+            }
+        }
+        ui.horizontal(|ui| {
+            ui.label("angle (rad)");
+            ui.add(egui::DragValue::new(&mut self.drafts.revolve_angle).speed(0.005));
+        });
+        let mut close = false;
+        ui.horizontal(|ui| {
+            if ui.button("Commit revolve").clicked() {
+                match tool.op(self.drafts.revolve_angle) {
+                    // The op is queued; the tool is NOT closed here.
+                    // The application closes it when the op actually
+                    // COMMITS (`perform_batch`), so a wrong-kind pick
+                    // refusing typed at the session door leaves the
+                    // held picks in place to correct, instead of
+                    // costing both to a refusal.
+                    Ok(op) => self.ops.push(op),
+                    Err(error) => *self.status = Some(format!("revolve tool: {error}")),
+                }
+            }
+            if ui.button("Cancel").clicked() {
+                close = true;
+            }
+        });
+        if close {
+            *self.revolve_tool = None;
+        }
     }
 
     /// One PANEL ROW: a scalar slot on its own, or a 3-vector's three
@@ -2446,6 +2883,17 @@ fn drag_gesture_ops(
         return true;
     }
     false
+}
+
+/// One labeled row of three draggable components — the add-datum
+/// form's vector fields.
+fn vec3_row(ui: &mut egui::Ui, label: &str, value: &mut [f64; 3]) {
+    ui.horizontal(|ui| {
+        ui.label(label);
+        for component in value {
+            ui.add(egui::DragValue::new(component).speed(FIELD_DRAG_SPEED));
+        }
+    });
 }
 
 /// The delete button: a renderer for [`DocSession::delete_affordance`]

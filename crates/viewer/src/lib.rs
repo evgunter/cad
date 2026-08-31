@@ -62,6 +62,7 @@ pub mod matetool;
 pub mod pick;
 pub mod prefs;
 pub mod props;
+pub mod revolvetool;
 pub mod scene;
 pub mod session;
 pub mod theme;
@@ -92,10 +93,11 @@ pub use pick::{
 };
 pub use prefs::{Notice, Prefs, PrefsError, PrefsStore, StoreError};
 pub use props::{SlotDriver, SlotFault, SlotRow, SlotValue};
+pub use revolvetool::{RevolveSeat, RevolveTool, RevolveToolError, RevolveToolEvent};
 pub use scene::{DisplayTolerance, SceneDocError, SceneError, SceneMesh, ScenePart, SceneStats};
 pub use session::{
-    DocSession, EdgeSelection, FaceSelection, Hovered, Landing, OpOutcome, Refusal, Selection,
-    SessionOp, Standing,
+    DatumSpec, DocSession, EdgeSelection, FaceSelection, Hovered, Landing, NodeKindWanted,
+    OpOutcome, ProfileShape, Refusal, Selection, SessionOp, Standing,
 };
 pub use theme::{Mark, Polarity, Safety, Theme};
 pub use tree::{RowStatus, TreeRow};
