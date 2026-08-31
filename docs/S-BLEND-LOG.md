@@ -1328,3 +1328,16 @@ question, the block-B3 close-short recommendation (restate slot
 1's arm at ratification), the lapsed-pause caveat. The program
 closes at ratification; until then the plan stays OPEN and this
 log stays live.
+
+## 2026-08-31 — EXIT WALK RATIFIED (Evan, in-session); S-BLEND CLOSED
+
+Evan approved PR #1370 in-session ("lgtm!" on the summary carrying
+the five open items). The ratification commit executed the
+approved close-short: block BLEND-B3's CLOSED SHORT record on main
+with slot 1's arm RESTATED (FABLE), slots 2–3 unconsumed; the walk
+STATUS flipped to RATIFIED — S-BLEND CLOSED; the plan STATUS to
+CLOSED. Merged at `ba10cf7f`. `docs/S-BLEND-EXIT-WALK.md` is now
+the program's done-state of record; this log goes quiescent.
+Still open with Evan, each with its home: #1355, the rim-reference
+resolution-time check, #1359's per-site row-0 question, the
+lapsed-pause caveat.
