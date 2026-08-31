@@ -830,6 +830,20 @@ const QUAD2_RATIONAL_MAX_ROUNDS: usize = 7;
 /// shared [`area_midpoint_taylor`] rule is O(h), so the resolution sets
 /// the area's honest width directly.
 const QUAD2_AREA_PIECES: usize = 64;
+/// Chords per rectangle side in the area gauge's certified perimeter
+/// lower bound ([`boundary_chord_perimeter_lo`]). Sixteen is enough
+/// that a wrapped patch's collapsed corner chords stop dominating the
+/// bound, at 64 point reads against the area pass's own 4096 cells.
+const QUAD2_PERIM_CHORDS: usize = 16;
+/// The A2 area gauge's ceiling: the mean edge displacement that
+/// explains the certified area bracket, as a multiple of the face's
+/// own certified perimeter ([`area_gauge_ok`] carries the calibration
+/// and the margin). A TRIPWIRE, deliberately far above the corpus.
+const AREA_GAUGE_CEILING: f64 = 1.0;
+/// The fallback relative gauge's ceiling — `area.width()/area.lo()`,
+/// read only where no positive certified perimeter is reachable
+/// ([`area_gauge_ok`]).
+const AREA_GAUGE_REL_CEILING: f64 = 1.0e3;
 /// Spans per axis the RATIONAL lane refines its bracketed net to
 /// before hulling anything (fixed, D9) — see [`refine_dir`] for why
 /// span-granular hulls make this the only lever that works.
@@ -1643,6 +1657,15 @@ impl Ladder {
         ]
     }
 
+    /// The surface point `S = A/w` at an exact parameter pair, read
+    /// off the homogeneous net and its weight ladder.
+    fn point(&self, w: &Self, u: f64, v: f64) -> RVec3 {
+        let (uc, vc) = (Collapse::At(u), Collapse::At(v));
+        let p = self.a.vec(uc, vc);
+        let wq = w.chan(uc, vc);
+        [p[0] / wq, p[1] / wq, p[2] / wq]
+    }
+
     /// The scalar (weight-net) channel reads.
     fn chan(&self, u: Collapse<'_>, v: Collapse<'_>) -> RingInterval {
         self.a.channel(0, u, v)
@@ -1834,6 +1857,169 @@ fn norm_hi(v: RVec3) -> f64 {
 /// Componentwise sum of two bracketed 3-vectors.
 fn rv_add(a: RVec3, b: RVec3) -> RVec3 {
     [a[0] + b[0], a[1] + b[1], a[2] + b[2]]
+}
+
+/// A certified LOWER bound on the metric perimeter of a UV
+/// rectangle's image: the closed chord polygon inscribed in the
+/// image of the rectangle's boundary, `samples` chords per side.
+///
+/// A curve is at least as long as any polygon inscribed in it, so the
+/// chord sum is a lower bound, and refining the sampling can only
+/// raise it. Every difference and root is formed in the ring, so
+/// `lo()` is outward-rounded and the bound survives the arithmetic
+/// that produced it.
+///
+/// Corner sampling alone is NOT enough: a wrapped patch (a full
+/// revolution, whose `u0` and `u1` edges map to one curve) collapses
+/// two of the four corner chords to zero, and the bound then misses
+/// the true perimeter by the wrap factor.
+///
+/// Returns a bound on the RECTANGLE's image, which is the region
+/// these lanes certify; the true trim boundary's departure from it is
+/// the caller's separately-bounded `boundary_defect` and is not
+/// folded in here.
+fn boundary_chord_perimeter_lo(
+    rect: (f64, f64, f64, f64),
+    samples: usize,
+    eval: impl Fn(f64, f64) -> RVec3,
+) -> f64 {
+    let (u0, u1, v0, v1) = rect;
+    let n = samples.max(1);
+    let at = |i: usize, lo: f64, hi: f64| -> f64 {
+        if i == 0 {
+            lo
+        } else if i == n {
+            hi
+        } else {
+            lo + (hi - lo) * (i as f64 / n as f64)
+        }
+    };
+    let mut pts: Vec<RVec3> = Vec::with_capacity(4 * n);
+    for i in 0..n {
+        pts.push(eval(at(i, u0, u1), v0));
+    }
+    for i in 0..n {
+        pts.push(eval(u1, at(i, v0, v1)));
+    }
+    for i in 0..n {
+        pts.push(eval(at(n - i, u0, u1), v1));
+    }
+    for i in 0..n {
+        pts.push(eval(u0, at(n - i, v0, v1)));
+    }
+    let mut p = RingInterval::zero();
+    for i in 0..pts.len() {
+        let (a, b) = (pts[i], pts[(i + 1) % pts.len()]);
+        let d = [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+        p = p + sqrt_enclosure(d[0].sqr() + d[1].sqr() + d[2].sqr());
+    }
+    p.lo()
+}
+
+/// **The A2 area gauge** — the certified area bracket's width read as
+/// a MEAN EDGE DISPLACEMENT, against a generous ceiling.
+///
+/// `A2 = area.width() / perimeter_lo` is a LENGTH: how far the face's
+/// boundary would have to move, on average, for the area enclosure's
+/// width to be geometry rather than quadrature slack. It is the
+/// direct analogue of the flux funnel's
+/// [`mean_boundary_displacement`], which reads `flux.width()` over
+/// the area lever; here the area's own width is read over a certified
+/// perimeter LOWER bound, so the quotient never understates the
+/// displacement.
+///
+/// The ceiling is `AREA_GAUGE_CEILING · perimeter_lo`, i.e. the
+/// dimensionless test `area.width() ≤ AREA_GAUGE_CEILING ·
+/// perimeter_lo²`. It is SCALE-FREE: width is an area and the
+/// perimeter a length, so a body remodelled at another scale reads
+/// the same gauge. The statement it makes is
+///
+/// > the area uncertainty, expressed as a displacement of this face's
+/// > boundary, does not exceed the face's own perimeter.
+///
+/// A face that fails that is not making a geometry statement, which
+/// is why this is a `debug_assert` of the D2 addendum's ROW-5
+/// BOUNDARY class (expensive checks whose failure PROBABLY indicates
+/// a bug), not a refusal: no typed behaviour rides on it, an
+/// input-reachable width still takes its own row-1/2/3 disposition
+/// through [`PropsError::QuadratureBudget`], and the honest answer to
+/// a wide-but-sound bracket is that it is sound (S-CERT Q1, ruled
+/// 2026-08-29: no always-on area metering, no funnel target).
+///
+/// # The calibration record
+///
+/// Measured on the post-CERT-5 corpus (`origin/main` d6d4f825) by
+/// tracing every patch-lane exit across the `geom-brep`, `sweep`,
+/// `topo`, `editor-core` and `step-import` suites — **333 certified
+/// returns**, at ε default and re-checked at 1e-6 and 1e-12 and on
+/// `--features interval`:
+///
+/// | `A2/perimeter_lo` | min | p50 | p90 | p99 | max |
+/// |---|---|---|---|---|---|
+/// | 333 certified returns | 3.29e-14 | 2.02e-3 | 3.22e-3 | 1.26e-2 | **1.91e-2** |
+///
+/// per lane: `nurbs_patch_face` 290 returns, max 1.23e-2;
+/// [`rational_patch_face`] 43 returns, max 1.91e-2. Both arms of
+/// `nurbs_patch_face` share ONE area enclosure — it is computed once,
+/// before the round loop — so the exact and composite arms cannot
+/// read different gauges, and the corpus characterizing one
+/// characterizes both.
+///
+/// **The margin is stated against the widest HONEST bracket the file
+/// produces, which is not in that table.** dm1's wall
+/// (`stepcode/dm1-id-214.stp`, `FaceKey(3v3)`) exits at the round
+/// budget rather than certifying, carrying area width 5.2477e-4 on a
+/// perimeter of at least 8.2421e-2 — **A2/perimeter_lo = 7.72e-2**,
+/// 4.04× the widest certified return. It is the case to clear: one
+/// more schedule round certifies it (issue 1315), and a ceiling that
+/// hugged the certified population would turn that round into a
+/// landmine.
+///
+/// So `AREA_GAUGE_CEILING = 1.0` clears the certified corpus by
+/// **52×** and dm1's refusing wall by **12.9×**. That is the
+/// generosity the ruling asks for, and it is chosen against the
+/// cautionary half of the `closing_column` precedent
+/// (`mesh::walk`): an assertion whose recorded estimate was nine
+/// orders off on issue 723's input. Nine orders is also the scale
+/// this ceiling is FOR — a corruption of that size clears it by 10⁷
+/// even from the widest honest row.
+///
+/// # What the gauge cannot see
+///
+/// - It reads a bracket's WIDTH, never its correctness. A wrong-but-
+///   narrow enclosure is invisible here; containment is the test
+///   suites' row, and the flux/area coupling row on the cylinder arm
+///   (issue 873) is what pins the two brackets to each other.
+/// - The perimeter is a lower bound on the image of the RECTANGLE,
+///   not of the true trim boundary; the departure is the caller's
+///   separately-certified `boundary_defect`.
+/// - It sits at the certified returns only. A lane that refuses is
+///   allowed to be arbitrarily wide — that is what the refusal says —
+///   and the corpus's 28 budget refusals run to A2/perimeter_lo =
+///   2.3e14 for exactly that reason.
+/// - The FALLBACK arm below has NO corpus coverage: every one of the
+///   361 traced exits reached a finite positive perimeter, so the
+///   relative ceiling is calibrated on the relative widths those same
+///   returns carry (max 1.42, dm1 6.23) rather than on the fallback
+///   path being taken. It is 706× the former and 160× the latter.
+fn area_gauge_ok(area: RingInterval, perimeter_lo: f64) -> bool {
+    let width = area.width();
+    if !width.is_finite() {
+        // A certified return whose width is not a number is the
+        // clearest form of the bug this tripwire is for.
+        return false;
+    }
+    if perimeter_lo.is_finite() && perimeter_lo > 0.0 {
+        width <= AREA_GAUGE_CEILING * perimeter_lo * perimeter_lo
+    } else if area.lo() > 0.0 {
+        // FALLBACK: no certified perimeter — the relative gauge on
+        // the certified-conservative endpoint (issue 472's named one).
+        width <= AREA_GAUGE_REL_CEILING * area.lo()
+    } else {
+        // Neither gauge has a denominator. The face-extent gate has
+        // already refused this shape; there is nothing left to read.
+        true
+    }
 }
 
 /// One cell of the shared area grid: its closed extent per axis and the
@@ -2545,6 +2731,9 @@ fn rational_patch_face<T: Decide>(
         None
     };
 
+    let perimeter_lo =
+        || boundary_chord_perimeter_lo(rect, QUAD2_PERIM_CHORDS, |cu, cv| a.point(&w, cu, cv));
+
     let target_len = QUAD_TARGET_LEN_FACTOR * eps;
     let mut pieces = QUAD2_INIT_PIECES;
     // INVARIANT: every round assigns this from
@@ -2627,6 +2816,27 @@ fn rational_patch_face<T: Decide>(
             )? {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => return Err(PropsError::DegenerateFace),
+            }
+            // The A2 gauge (row-5 boundary, D2 addendum). The `cfg!` guard
+            // keeps the perimeter bound out of a build that compiles the
+            // assertion away; the assert itself is what states the class.
+            if cfg!(debug_assertions) {
+                let p_lo = perimeter_lo();
+                debug_assert!(
+                    area_gauge_ok(area, p_lo),
+                    "the certified area bracket is wider than any boundary displacement explains: \
+                     width {} on a face whose certified perimeter is at least {} — a mean edge \
+                     displacement of {}, {}x that perimeter against a ceiling of {}x. The area \
+                     rule is O(h) and wide by design, but not by this much: at a CERTIFIED \
+                     return a width this large means the area pass, its cell tiling or its pad \
+                     lost the geometry, not that the face is hard. `area_gauge_ok` carries the \
+                     calibration this ceiling came from.",
+                    area.width(),
+                    p_lo,
+                    area.width() / p_lo,
+                    area.width() / (p_lo * p_lo),
+                    AREA_GAUGE_CEILING
+                );
             }
             return Ok(FaceCutBounds { flux, area });
         }
@@ -2832,6 +3042,12 @@ pub fn nurbs_patch_face<T: Decide>(
         },
     )?;
 
+    let perimeter_lo = || {
+        boundary_chord_perimeter_lo(rect, QUAD2_PERIM_CHORDS, |cu, cv| {
+            s.vec(Collapse::At(cu), Collapse::At(cv))
+        })
+    };
+
     // ---- The exact per-span lane first (fn docs): one tensor
     // Newton–Cotes pass whose enclosure width is ring rounding only.
     // The composite rounds below are the fallback for degrees outside
@@ -2854,6 +3070,27 @@ pub fn nurbs_patch_face<T: Decide>(
             )? {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => return Err(PropsError::DegenerateFace),
+            }
+            // The A2 gauge (row-5 boundary, D2 addendum). The `cfg!` guard
+            // keeps the perimeter bound out of a build that compiles the
+            // assertion away; the assert itself is what states the class.
+            if cfg!(debug_assertions) {
+                let p_lo = perimeter_lo();
+                debug_assert!(
+                    area_gauge_ok(area, p_lo),
+                    "the certified area bracket is wider than any boundary displacement explains: \
+                     width {} on a face whose certified perimeter is at least {} — a mean edge \
+                     displacement of {}, {}x that perimeter against a ceiling of {}x. The area \
+                     rule is O(h) and wide by design, but not by this much: at a CERTIFIED \
+                     return a width this large means the area pass, its cell tiling or its pad \
+                     lost the geometry, not that the face is hard. `area_gauge_ok` carries the \
+                     calibration this ceiling came from.",
+                    area.width(),
+                    p_lo,
+                    area.width() / p_lo,
+                    area.width() / (p_lo * p_lo),
+                    AREA_GAUGE_CEILING
+                );
             }
             return Ok(FaceCutBounds { flux, area });
         }
@@ -2915,6 +3152,27 @@ pub fn nurbs_patch_face<T: Decide>(
             )? {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => return Err(PropsError::DegenerateFace),
+            }
+            // The A2 gauge (row-5 boundary, D2 addendum). The `cfg!` guard
+            // keeps the perimeter bound out of a build that compiles the
+            // assertion away; the assert itself is what states the class.
+            if cfg!(debug_assertions) {
+                let p_lo = perimeter_lo();
+                debug_assert!(
+                    area_gauge_ok(area, p_lo),
+                    "the certified area bracket is wider than any boundary displacement explains: \
+                     width {} on a face whose certified perimeter is at least {} — a mean edge \
+                     displacement of {}, {}x that perimeter against a ceiling of {}x. The area \
+                     rule is O(h) and wide by design, but not by this much: at a CERTIFIED \
+                     return a width this large means the area pass, its cell tiling or its pad \
+                     lost the geometry, not that the face is hard. `area_gauge_ok` carries the \
+                     calibration this ceiling came from.",
+                    area.width(),
+                    p_lo,
+                    area.width() / p_lo,
+                    area.width() / (p_lo * p_lo),
+                    AREA_GAUGE_CEILING
+                );
             }
             return Ok(FaceCutBounds { flux, area });
         }
