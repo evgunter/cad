@@ -414,3 +414,14 @@ exit shape — nine MET, four MET-WITH-RECORDED-HONESTY, the two
 carries with named owners (Track W; issue 1317's register). The
 program stays open, and this log's tail stays live, until the
 walk is ratified; nothing else is scheduled.
+
+## Program closed (2026-08-31): exit walk ratified
+
+Evan ratified the walk in-session (the one point discussed before
+sign-off was row 5's demos-exclusion honesty note — the ~29%
+firing-rate cost his Q1 ruling accepted, restated not re-litigated).
+docs/S-QA-EXIT-WALK.md is the done-state of record; this log is
+closed. Standing residue lives where the walk names it: Track W
+carries the tests-leg sweep with issue 651 as class home, issue
+1317 registers the doc-gate's two remaining axes, #470 and #466
+stay parked with their reasons.

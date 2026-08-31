@@ -583,6 +583,31 @@ fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
 /// skinning degree in the section direction. Structure is `f64`
 /// (C6); the produced body is at `T`, lifted exactly.
 ///
+/// # Correspondence — read this before authoring a rotated section
+///
+/// Sections are paired **by index over the CANONICAL loops**, not over
+/// the vertex order you wrote: [`Profile::validate`] rotates every loop
+/// to its lex-min vertex first, and it is those loops
+/// [`loft_geometry`] matches like to like. Both halves are deliberate
+/// and each is documented at its own door; the consequence of the pair
+/// is not obvious and is worth stating here, because it is silent —
+/// the body builds and certifies at every tier.
+///
+/// **A section rotated relative to its neighbour can therefore be
+/// re-anchored, and the roll of the built body is the angle between
+/// CANONICAL loops rather than the angle you authored.** Worked
+/// example, executed rather than reasoned: the turning-orientation
+/// suite's authored-roll row lofts a square onto the same square
+/// rotated by `theta` about its own centre, and for `theta` in
+/// `(0, pi/2)` the rotation moves which vertex is lex-min, so the body
+/// rolls by `theta - pi/2` — a quarter turn nobody wrote.
+///
+/// If the correspondence matters to you, author it: place the sections
+/// so their canonical starts agree, or choose the vertex order that
+/// survives canonicalization. There is no argument to this door that
+/// states a pairing, by design — *"no honest way to guess a
+/// correspondence that was not given"* ([`loft_geometry`]).
+///
 /// # Errors
 ///
 /// [`LoftError`] — every door named on the enum.
@@ -599,6 +624,17 @@ pub fn loft_body<T: Decide + geom_brep::PcurveFittedLane>(
 /// **The path-swept body** (§10.4 as a solid): places rigid copies of
 /// `profile` along `path` ([`crate::sweep_geometry`]'s frame — same
 /// machinery, no fork) and assembles the loft of those sections.
+///
+/// # Correspondence
+///
+/// [`loft_body`]'s paragraph of that name applies, and lands softly
+/// here for a reason worth knowing: every section is the SAME profile,
+/// so canonicalization re-anchors all of them identically and the
+/// index pairing is the identity whatever the profile's vertex order
+/// was. What the canonical start still decides is which wall of the
+/// built body is which — the segment order the returned
+/// [`Lofted::side_faces`] is keyed in. The body's roll comes from the
+/// path frame ([`sweep_places`]), not from the sections.
 ///
 /// # Errors
 ///

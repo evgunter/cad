@@ -779,7 +779,7 @@ impl FittedDelta {
         let opened = self.delta.get() * 1.0e3;
         let asked = self.requested.get() * 1.0e3;
         Some(format!(
-            "opened at δ = {opened:.3} mm: {asked:.3} mm needs about {requested} triangles, over the {TRIANGLE_BUDGET} budget. Finer δ is still honoured — this is a starting point, not a cap"
+            "opened at δ = {opened:.3} mm: {asked:.3} mm needs about {requested} triangles, over the {TRIANGLE_BUDGET} budget. A finer δ typed in the View pane is still honoured — this is a starting point, not a cap"
         ))
     }
 }
@@ -789,10 +789,10 @@ impl FittedDelta {
 ///
 /// **A default, not a clamp.** The caller applies this once per
 /// document that arrives (`app`'s `fit_delta_on_scene`); from there δ
-/// is whatever the user asks for, `Finer δ` included, and nothing
-/// re-reads it. A budget that bound every rebuild would take the
-/// coarsening buttons away on exactly the documents someone would
-/// want them for.
+/// is whatever the user types in the View pane, however fine, and
+/// nothing re-reads it. A budget that bound every rebuild would
+/// disable that field on exactly the documents someone would want it
+/// for.
 ///
 /// # The method: predict, do not ladder
 ///

@@ -44,6 +44,10 @@ mod assembly_display;
 mod assembly_walk;
 #[path = "camera_ops.rs"]
 mod camera_ops;
+#[path = "cascade_delete.rs"]
+mod cascade_delete;
+#[path = "chrome_labels.rs"]
+mod chrome_labels;
 #[path = "display_budget.rs"]
 mod display_budget;
 #[path = "doc_io.rs"]
@@ -92,6 +96,8 @@ mod select_pick;
 mod theme;
 #[path = "tree_badges.rs"]
 mod tree_badges;
+#[path = "tree_shape.rs"]
+mod tree_shape;
 #[path = "undo_tree.rs"]
 mod undo_tree;
 #[path = "valid_range.rs"]

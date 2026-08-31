@@ -2342,11 +2342,65 @@ fn scaled<T: Real>(
 
 /// The parameter at which a support's seam meridian meets `target`,
 /// read in the SEAM CARRIER's own frame. A representation pick, not a
-/// classification (the battery's junction-end pick precedent): a circle
-/// carrier's angle is brought into the stored window by whole turns and
-/// a line carrier's is the projection on its own direction, and either
-/// way a parameter outside the stored span refuses typed rather than
-/// cutting blind. `rim` names the requested edge the refusal carries.
+/// classification (the battery's junction-end pick precedent): the
+/// parameter is [`geom::Curve3::param_near`] anchored at the CARRIER'S
+/// SEAM — a circle carrier's angle on its principal branch, a line
+/// carrier's the projection on its own direction — and either way a
+/// parameter outside the stored span refuses typed rather than cutting
+/// blind. `rim` names the requested edge the refusal carries.
+///
+/// # Why the anchor is the seam and NOT the stored window's midpoint
+///
+/// **Because the answer has to be a function of the POINT and the
+/// CARRIER, and a window-derived anchor makes it a function of the
+/// stored window too.** `param_near` is `near + atan2(…)` read in the
+/// frame AT `near`, so the anchor enters the arithmetic continuously:
+/// two calls asking about the same crossing on the same carrier return
+/// parameters a few ulps apart if their windows differ. The stored
+/// window is NOT stable across a surgery — carving one rim splits the
+/// shared meridian and hands the next rim a narrower one — so a
+/// window-derived anchor makes the split parameter depend on the ORDER
+/// the rims were filleted in, and one-call composition stops agreeing
+/// bitwise with sequential composition.
+///
+/// **That is measured, not feared.** With the midpoint anchor the zone
+/// pair's shared meridian is split at `3.32886824659950897e-2` in one
+/// order and `3.32886824659949787e-2` in the other — the same crossing,
+/// ~6 ulps apart, because one window was `[0, 7.7627…e-1]` and the
+/// other `[0, 7.3144…e-1]`. Three rows fail on it:
+/// `blend2_r2_probes::r2_p1_zone_pair_equality_off_the_fixture_radius`,
+/// `…::r2_p2_lantern_triple_equality_off_the_fixture_radius`, and
+/// `verbs_arms1_r1_probes::both_zone_rims_in_one_call_match_the_sequential_composition`.
+/// The seam is the only anchor available here that is a property of the
+/// CARRIER alone, so it is the only one that restores the invariant;
+/// with it all three are green.
+///
+/// This is the per-site anchor fact [`geom::Curve3::param_near`]'s docs
+/// say each consumer owns, and it buys back nothing the consolidation
+/// removed: no `k·2π` selection here, no `floor`, no five-candidate
+/// scan — one anchored read and the window test.
+///
+/// # What makes the principal branch the RIGHT branch
+///
+/// The seam anchor returns the branch in `(−π, π]`, which need not be
+/// the one inside the stored window. The period guard below is what
+/// makes that sound rather than lucky: branches of a point are exactly
+/// one period apart, so a window narrower than a period holds AT MOST
+/// ONE of them. Hence a returned parameter that lands inside the window
+/// IS the in-window branch; and if the in-window branch is some other
+/// turn, the returned one falls outside and the window test refuses
+/// typed. Both arms are sound and neither cuts blind.
+///
+/// Without the guard the failure is silent, and it is the one `geom`'s
+/// `past_one_period_the_answer_aliases_by_a_turn_inside_the_span` row
+/// exhibits: past a period the aliased answer is STILL strictly
+/// interior, so the window test cannot see it. Measured on this tree no
+/// live call comes near — 335 circle windows in the `sweep` suite,
+/// widest `1.5825331081812426` rad against a period of
+/// `6.2831853071795862`, every one of them inside `(−π, π]`. The
+/// guard's refuse arm is therefore not reached by any assembly
+/// fixture. It is here because the distance between "measured to be
+/// fine" and "checked" is exactly the comment it replaces.
 fn seam_split_param<T: Decide + Bounds>(
     body: &Body<T>,
     seam: EdgeKey,
@@ -2363,36 +2417,44 @@ fn seam_split_param<T: Decide + Bounds>(
         ));
     };
     let (st0, st1) = sc.params();
-    match *sc.carrier() {
-        Curve3::Circle {
-            center,
-            axis,
-            u_ref,
-            ..
-        } => {
-            let d = target - center;
-            let traw = d.dot(axis.cross(u_ref)).atan2(d.dot(u_ref));
-            let tau = T::from_f64(core::f64::consts::TAU);
-            for k in [-2.0f64, -1.0, 0.0, 1.0, 2.0] {
-                let cand = traw + tau * T::from_f64(k);
-                if (cand - st0).lo() > 0.0 && (st1 - cand).lo() > 0.0 {
-                    return Ok(cand);
-                }
-            }
-        }
-        Curve3::Line { origin, dir } => {
-            let t = (target - origin).dot(dir);
-            if (t - st0).lo() > 0.0 && (st1 - t).lo() > 0.0 {
-                return Ok(t);
-            }
-        }
-        _ => {
-            return Err(unbuilt_geometry(
-                EntityId::Edge(seam),
-                "a meridian's carrier is neither a circle nor a line; the split reads the \
+    // THE PERIOD GUARD, and it is CHECKED rather than assumed — the
+    // function docs derive why it is what makes the principal branch
+    // the in-window one. It stays a BOUNDS-lane read, like the window
+    // test below and for the same reason (the battery's junction-end
+    // pick precedent): this is a question about the STORED window, a
+    // representation datum, not about where a point lies. A window
+    // whose whole enclosure is not strictly under a period refuses
+    // typed rather than cutting blind.
+    //
+    // `topo`'s edge split spells the same guard as the
+    // `bool_split_span_period` DECIDE row, which is the right posture
+    // there and not here: that site is mid-classification with a band
+    // in hand, this one is picking a representation and has neither.
+    if (T::tau() - (st1 - st0)).lo() <= 0.0 {
+        return Err(unbuilt_geometry(
+            EntityId::Edge(seam),
+            "a meridian's stored window is not under one period; the split parameter would \
+             alias by a turn and still land inside the window",
+        ));
+    }
+    // Anchored at the CARRIER'S SEAM, not at the stored window — the
+    // function docs carry the measured reason (a window-derived anchor
+    // makes the split parameter order-dependent). `param_near` carries
+    // the derivation of the anchored read itself.
+    let t = sc.carrier().param_near(target, T::zero()).ok_or_else(|| {
+        unbuilt_geometry(
+            EntityId::Edge(seam),
+            "a meridian's carrier is neither a circle nor a line; the split reads the \
                  crossing in the meridian's own frame and no other stored shape is built",
-            ));
-        }
+        )
+    })?;
+    // The window test is the representation pick's other half, and it
+    // stays a BOUNDS-lane read rather than a `decide` row (the
+    // battery's junction-end pick precedent): a parameter whose whole
+    // enclosure is not strictly inside the stored span refuses typed
+    // rather than cutting blind.
+    if (t - st0).lo() > 0.0 && (st1 - t).lo() > 0.0 {
+        return Ok(t);
     }
     Err(unbuilt_chain(
         rim,

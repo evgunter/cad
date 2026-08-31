@@ -224,3 +224,280 @@ fn the_unfocused_scene_is_the_focused_one_with_nothing_focused() {
     assert_eq!(plain.ids(), empty.ids());
     assert_eq!(plain.stats().focus_patches, 0);
 }
+
+// ---- the die: a feature's extent is what it MADE ------------------
+
+/// The tour's composed die, as `editor-core`'s corpus committed it:
+/// the document `demos/tour/src/diefillet.rs` authors — 21 pips cut
+/// from a cube in one grouped tool, its twelve box edges blended, then
+/// its 21 pip rims banded — replayed from the edit log that corpus
+/// registers.
+///
+/// Read from the corpus asset rather than copied beside this suite. A
+/// second copy of a 400 kB document is a second thing to regenerate
+/// when the scene moves, and the corpus carries the CI gate that keeps
+/// the bytes current with the tour.
+const DIE_DOCUMENT: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../editor-core/tests/corpus/tour/die_composed_tour.pncad"
+);
+
+/// The die document, ε re-stamped for this run.
+///
+/// A saved snapshot records the ε it was written under and `load`
+/// refuses one that is not the process's ("one process, one ε"), while
+/// the CI matrix sweeps ε — so the ONE ε line is replaced with what
+/// this run's serializer writes, exactly as `doc_io` does for the
+/// gallery ring. The recipe below it is ε-free: the die's two fillet
+/// selections travel as stored names.
+fn die_document(tol: Tol) -> pncad::document::Doc<pncad::document::ProfileProgram> {
+    let recourse = "regenerate it: cd demos/tour && cargo run --release -- die-corpus \
+                    ../../crates/editor-core/tests/corpus/tour/die_composed_tour.pncad";
+    let text = std::fs::read_to_string(DIE_DOCUMENT)
+        .unwrap_or_else(|e| panic!("the corpus die document is unreadable: {e} — {recourse}"));
+    let probe: pncad::document::Doc<pncad::document::ProfileProgram> =
+        pncad::document::Doc::empty_derived("gui-focus-epsilon-probe", tol);
+    let probe_text = pncad::document::save(&probe, &[], tol).expect("an empty document saves");
+    let is_epsilon = |line: &str| line.trim_start().starts_with("\"epsilon\":");
+    let wanted = probe_text
+        .lines()
+        .find(|line| is_epsilon(line))
+        .expect("a saved document records its ε");
+    assert_eq!(
+        text.lines().filter(|l| is_epsilon(l)).count(),
+        1,
+        "the die document must carry exactly one ε line"
+    );
+    let restamped: String = text
+        .lines()
+        .map(|line| if is_epsilon(line) { wanted } else { line })
+        .collect::<Vec<&str>>()
+        .join("\n");
+    pncad::document::load(&restamped, tol)
+        .unwrap_or_else(|e| panic!("the die document refuses: {e:?} — {recourse}"))
+        .doc
+}
+
+/// The die's nodes, found by STRUCTURE — the recipe's shape, never a
+/// transcribed id, so the fixture follows the scene instead of pinning
+/// numbers that would go quietly wrong.
+struct Die {
+    session: DocSession,
+    /// The rim-band fillet: the last node, and the only drawn root.
+    composed: RecipeNodeId,
+    /// The box-edge fillet it stands on.
+    box_blend: RecipeNodeId,
+    /// The subtract that cut the pips.
+    cut: RecipeNodeId,
+    /// The cube's extrude.
+    cube: RecipeNodeId,
+    /// The master ball's revolve — every pip cavity's origin.
+    ball: RecipeNodeId,
+    /// One pip placement: a `Transform`, which mints nothing and
+    /// contributes no role segment to any name.
+    pip: RecipeNodeId,
+}
+
+fn die(tol: Tol) -> Die {
+    use pncad::document::Node;
+    type DieDoc = pncad::document::Doc<pncad::document::ProfileProgram>;
+    let doc = die_document(tol);
+    let input_of = |doc: &DieDoc, id| {
+        doc.node(id)
+            .expect("an ordered node exists")
+            .inputs()
+            .first()
+            .copied()
+            .expect("the die's chain is unbroken")
+    };
+    let first = |doc: &DieDoc, want: fn(&Node<pncad::document::ProfileProgram>) -> bool| {
+        doc.order()
+            .iter()
+            .copied()
+            .find(|&id| want(doc.node(id).expect("an ordered node exists")))
+            .expect("the die has this node kind")
+    };
+    let composed = *doc.order().last().expect("the die has nodes");
+    let box_blend = input_of(&doc, composed);
+    let cut = input_of(&doc, box_blend);
+    let cube = input_of(&doc, cut);
+    assert!(
+        matches!(doc.node(composed), Some(Node::Fillet { .. }))
+            && matches!(doc.node(box_blend), Some(Node::Fillet { .. }))
+            && matches!(doc.node(cut), Some(Node::Boolean { .. }))
+            && matches!(doc.node(cube), Some(Node::Extrude { .. })),
+        "the die is rim-blend over box-blend over cut over extrude"
+    );
+    let ball = first(&doc, |n| matches!(n, Node::Revolve { .. }));
+    let pip = first(&doc, |n| matches!(n, Node::Transform { .. }));
+    let mut session = DocSession::inline(doc, tol);
+    session.pump();
+    Die {
+        session,
+        composed,
+        box_blend,
+        cut,
+        cube,
+        ball,
+        pip,
+    }
+}
+
+/// The die's faces, by what made them — the geometry, counted, not a
+/// number read off a run.
+///
+/// - the cube's extrude makes SIX planar faces (two caps, four walls);
+///   cutting a dimple into one punches a hole in it and mints no face;
+/// - the box-edge fillet makes TWENTY: a quarter-cylinder blend for
+///   each of the cube's twelve edges, a sphere octant at each of its
+///   eight corners;
+/// - the master ball's revolve makes the pip cavities. Each cavity is
+///   TWO half-cap faces meeting at the two meridians the tour's
+///   `(Sphere, Sphere)` note names, which is why the rim fillet's
+///   stored selection is forty-two arcs for twenty-one pips;
+/// - the rim fillet makes ONE torus band per pip rim — a rim is a
+///   closed chain, and a closed chain is one band.
+const DIE_FLATS: usize = 6;
+const DIE_BLENDS: usize = 12 + 8;
+const DIE_CAVITIES: usize = 21 * 2;
+const DIE_BANDS: usize = 21;
+const DIE_FACES: usize = DIE_FLATS + DIE_BLENDS + DIE_CAVITIES + DIE_BANDS;
+
+/// **The reported bug, as a value.** Every face of the die is drawn
+/// under the outer fillet, so "the patches drawn under the selected
+/// node" made that fillet answer the whole die — pips, flats and all.
+/// What it made is the torus bands.
+///
+/// Each of the four makers answers its own faces, the four are
+/// disjoint, and together they are the body: every drawn face has
+/// exactly one maker.
+#[test]
+fn each_die_face_is_marked_by_the_feature_that_made_it() {
+    let tol = Tol::witness();
+    let die = die(tol);
+    let index = index_of(&die.session);
+    let drawn: BTreeSet<u32> = index.ids_of_node(die.composed).into_iter().collect();
+    assert_eq!(drawn.len(), DIE_FACES, "the die's drawn faces");
+
+    let of = |node| pick::focus(&index, die.session.doc(), &Selection::Node(node));
+    let bands = of(die.composed);
+    let blends = of(die.box_blend);
+    let flats = of(die.cube);
+    let cavities = of(die.ball);
+
+    assert_eq!(bands.len(), DIE_BANDS, "the rim fillet made the bands");
+    assert!(
+        bands.len() < drawn.len(),
+        "and strictly fewer patches than the body it filleted"
+    );
+    assert!(bands.is_subset(&drawn));
+    assert_eq!(blends.len(), DIE_BLENDS, "the box-edge fillet's own faces");
+    assert_eq!(flats.len(), DIE_FLATS, "the cube's own faces");
+    assert_eq!(cavities.len(), DIE_CAVITIES, "the ball's own faces");
+
+    let parts = [&bands, &blends, &flats, &cavities];
+    for (i, left) in parts.iter().enumerate() {
+        for right in parts.iter().skip(i + 1) {
+            assert!(
+                left.intersection(right).next().is_none(),
+                "a face has one maker, not two"
+            );
+        }
+    }
+    let union: BTreeSet<u32> = parts.iter().flat_map(|s| s.iter().copied()).collect();
+    assert_eq!(union, drawn, "four makers account for the whole die");
+}
+
+/// **A node that made nothing drawn marks what passed through it**, by
+/// the name where the op re-named what it carried and by the recipe
+/// where it did not.
+///
+/// The cut mints no face of its own — a subtract carries A's faces and
+/// B's — so it marks exactly those: the cube's six and the cavities'
+/// forty-two. The blends are NOT among them: they were made above the
+/// cut, out of it, and a name records what an op carried, not what was
+/// later built on top.
+///
+/// A pip placement is a `Transform`, which contributes no role segment
+/// at all, so no name mentions it and the recipe answers instead: what
+/// it carries is what was minted below it. That is the master ball's
+/// cavities — every pip's, not this pip's, because all twenty-one
+/// placements copy ONE ball and a copy belongs to the master.
+#[test]
+fn a_node_that_made_nothing_marks_what_passed_through_it() {
+    let tol = Tol::witness();
+    let die = die(tol);
+    let index = index_of(&die.session);
+    let of = |node| pick::focus(&index, die.session.doc(), &Selection::Node(node));
+    let drawn: BTreeSet<u32> = index.ids_of_node(die.composed).into_iter().collect();
+
+    let carried_by_the_cut: BTreeSet<u32> = of(die.cube).union(&of(die.ball)).copied().collect();
+    assert_eq!(of(die.cut), carried_by_the_cut);
+    assert_eq!(of(die.cut).len(), DIE_FLATS + DIE_CAVITIES);
+    assert!(
+        of(die.cut).len() < drawn.len(),
+        "not the whole die: the blends are above the cut, not through it"
+    );
+
+    assert_eq!(of(die.pip), of(die.ball), "a copy belongs to the master");
+    assert_eq!(of(die.pip).len(), DIE_CAVITIES);
+}
+
+/// **The click path, which is the one Evan reported.** Every face of
+/// the die is drawn under the outer fillet, so a pick that inverted to
+/// "whose body did the ray meet" answered that fillet for a flat, a
+/// blend and a band alike. It inverts to the feature that MADE the
+/// face instead, and the tree highlight, the property rows and the
+/// picture all read that one answer.
+#[test]
+fn clicking_a_die_face_reaches_the_feature_that_made_it() {
+    let tol = Tol::witness();
+    let mut die = die(tol);
+    let index = index_of(&die.session);
+    let of = |node| pick::focus(&index, die.session.doc(), &Selection::Node(node));
+    let flats = of(die.cube);
+    let bands = of(die.composed);
+
+    let selection_for = |id: u32| {
+        let patch = index.ids().key_of(id).expect("the id maps back");
+        assert_eq!(
+            patch.node, die.composed,
+            "every patch of the die is DRAWN under the outer fillet"
+        );
+        Selection::Face(viewer::session::FaceSelection {
+            node: patch.node,
+            body: patch.body,
+            name: index
+                .name_of(id)
+                .and_then(|n| n.as_ref().ok())
+                .cloned()
+                .expect("a drawn patch is named"),
+        })
+    };
+
+    // A flat: made by the cube's extrude, carried through the cut and
+    // both fillets.
+    let flat = selection_for(*flats.first().expect("the die has flats"));
+    die.session.perform(SessionOp::Select(flat));
+    assert_eq!(
+        die.session.selection().node(),
+        Some(die.cube),
+        "the flat's feature is the extrude that swept it"
+    );
+    let lit = pick::focus(&index, die.session.doc(), die.session.selection());
+    assert_eq!(lit, flats, "and the picture marks that feature's faces");
+    assert!(
+        lit.intersection(&bands).next().is_none(),
+        "clicking a flat lights no band"
+    );
+
+    // A band: made by the rim fillet, which also happens to draw it.
+    let band = selection_for(*bands.first().expect("the die has bands"));
+    die.session.perform(SessionOp::Select(band));
+    assert_eq!(die.session.selection().node(), Some(die.composed));
+    assert_eq!(
+        pick::focus(&index, die.session.doc(), die.session.selection()),
+        bands,
+        "the fillet's extent is the blends it made"
+    );
+}
