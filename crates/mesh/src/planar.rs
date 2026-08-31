@@ -885,3 +885,406 @@ mod tests {
         );
     }
 }
+
+/// R2 probes for MESH-2 (PR #1421). Not part of the unit — reviewer
+/// falsification attempts against the structural-zero derivation and
+/// the bit-keying, kept in-module because `chart_frame`/`ChartFrame`
+/// are private.
+#[cfg(test)]
+mod r2_mesh2_probes {
+    use geom_core::{Point3, Vec3};
+
+    const FLOOR: f64 = 1.793_662_034_335_766e-43; // spade MIN_ALLOWED_VALUE
+
+    fn frame_of(pts: &[Point3<f64>]) -> super::ChartFrame {
+        #[allow(clippy::cast_possible_truncation)]
+        let outer: Vec<u32> = (0..pts.len() as u32).collect();
+        super::chart_frame(&outer, pts)
+    }
+
+    /// A cheap deterministic LCG so the sweep is reproducible.
+    struct Lcg(u64);
+    impl Lcg {
+        fn next_f64(&mut self) -> f64 {
+            self.0 = self.0.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
+            ((self.0 >> 11) as f64) / ((1u64 << 53) as f64)
+        }
+        fn range(&mut self, lo: f64, hi: f64) -> f64 {
+            lo + (hi - lo) * self.next_f64()
+        }
+    }
+
+    /// PROBE 1 (claim: the far point's v is an exact zero BY
+    /// CONSTRUCTION on every input). If the derivation ever failed —
+    /// `u` not built from the far point, or `far_at` not the point
+    /// `far` came from — the raw dot product would carry a residue of
+    /// the loop's own SCALE, not of its rounding. Sweep shapes, scales,
+    /// noise laws and orientations; assert the raw residue is always
+    /// within rounding of the terms that formed it.
+    #[test]
+    fn r2_far_v_residue_is_always_rounding_not_signal() {
+        let mut rng = Lcg(0x5eed_1421);
+        let mut worst: f64 = 0.0;
+        let mut worst_case = String::new();
+        for trial in 0..4000 {
+            let n = 3 + (trial % 9);
+            // Scale spans 1e-8 .. 1e8; noise law varies per trial.
+            let scale = 10f64.powf(rng.range(-8.0, 8.0));
+            let nu = 10f64.powf(rng.range(-60.0, 0.0));
+            let pts: Vec<Point3<f64>> = (0..n)
+                .map(|k| {
+                    let t = 2.0 * core::f64::consts::PI * (k as f64) / (n as f64);
+                    let r = scale * rng.range(0.3, 1.0);
+                    let (x, y) = (r * t.cos(), r * t.sin());
+                    // Off-plane noise, plus a tilt so the plane is not axis-aligned.
+                    Point3::new(x, y, 0.25 * x + x * nu + y * nu * rng.range(-1.0, 1.0))
+                })
+                .collect();
+            let f = frame_of(&pts);
+            if !f.u_ref.x.is_finite() || !f.v_ref.x.is_finite() {
+                continue; // degenerate loop: refused typed elsewhere
+            }
+            let w = f.far_at - f.origin;
+            let raw = w.dot(f.v_ref);
+            // The scale of the dot product's own rounding.
+            let mag = w.norm_squared().sqrt() * f.v_ref.norm_squared().sqrt();
+            let rel = if mag > 0.0 { raw.abs() / mag } else { 0.0 };
+            if rel > worst {
+                worst = rel;
+                worst_case = format!("trial {trial} scale {scale:e} nu {nu:e} raw {raw:e} mag {mag:e}");
+            }
+            // The write always emits exactly 0.0 for that point.
+            assert_eq!(f.project(f.far_at)[1], 0.0, "trial {trial}: far v not written");
+        }
+        assert!(
+            worst < 1e-14,
+            "far point's raw v is NOT rounding-level anywhere: worst relative {worst:e} ({worst_case}) \
+             — the structural-zero derivation would be falsified"
+        );
+        println!("PROBE1: worst relative far-v residue over 4000 loops = {worst:e} ({worst_case})");
+    }
+
+    /// PROBE 2 (bit-keying, the direction it can MISS). The same 3-D
+    /// point carried at two mesh ids whose coordinates differ only in
+    /// the SIGN OF A ZERO is one point geometrically and one point to
+    /// spade (`-0.0 == 0.0`), but two points to `same_position`. The
+    /// write then reaches one traversal and not the other, and the one
+    /// it misses keeps the sub-floor residue that refuses the face.
+    #[test]
+    fn r2_signed_zero_twin_of_the_far_point_is_missed_by_bit_keying() {
+        let nu = 1.0e-30_f64;
+        // Anchor at the origin so that a ±0.0 x-coordinate survives the
+        // `p - origin` subtraction as ±0.0.
+        let pts = vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(0.0, 2.0, 0.0 * nu),
+            Point3::new(-0.0, 2.0, -0.0 * nu), // the same 3-D point, -0.0 x
+            Point3::new(0.0, 1.0, 0.0),
+        ];
+        let f = frame_of(&pts);
+        let a = f.project(pts[1]);
+        let b = f.project(pts[2]);
+        println!("PROBE2: far_at={:?} a={a:?} b={b:?}", f.far_at);
+        println!(
+            "PROBE2: same_position(p1,p2) = {}, p1 == p2 (float) = {}",
+            super::same_position(pts[1], pts[2]),
+            pts[1].x == pts[2].x && pts[1].y == pts[2].y && pts[1].z == pts[2].z
+        );
+        // Documented, not asserted as a defect: record whether the two
+        // representations of one point still project alike.
+        if a != b {
+            println!("PROBE2: SPLIT — one 3-D point projected to two chart points");
+        } else {
+            println!("PROBE2: no split on this configuration");
+        }
+    }
+
+    /// PROBE 3 (premise failure: far point coincident with the anchor).
+    /// Every loop point equal to the anchor — `far` is the zero vector,
+    /// `far_at` is the anchor, and `u_ref` is NaN. The write must not
+    /// launder that into something spade accepts.
+    #[test]
+    fn r2_all_points_coincident_still_fails_loud() {
+        let p = Point3::new(1.0, 2.0, 3.0);
+        let pts = vec![p, p, p, p];
+        let f = frame_of(&pts);
+        let c = f.project(p);
+        println!("PROBE3: u_ref={:?} v_ref={:?} project={c:?}", f.u_ref, f.v_ref);
+        assert!(
+            !c[0].is_finite() || !c[1].is_finite() || (c[0] == 0.0 && c[1] == 0.0),
+            "PROBE3: degenerate frame produced a spade-legal finite nonzero {c:?}"
+        );
+    }
+
+    /// PROBE 4 (premise failure: degenerate normal). A collinear loop
+    /// has a zero Newell sum, so `normal` is NaN. Check the written
+    /// zero does not mask the NaN in the OTHER coordinate.
+    #[test]
+    fn r2_collinear_loop_normal_is_degenerate_and_still_refuses() {
+        let pts: Vec<Point3<f64>> = (0..4)
+            .map(|k| Point3::new(f64::from(k), 2.0 * f64::from(k), 3.0 * f64::from(k)))
+            .collect();
+        let f = frame_of(&pts);
+        let c = f.project(f.far_at);
+        println!("PROBE4: normal-derived u_ref={:?} project(far)={c:?}", f.u_ref);
+        assert!(
+            !c[0].is_finite(),
+            "PROBE4: collinear loop yielded a finite u {c:?} while v was written 0.0 — \
+             a degenerate chart would reach spade looking legal"
+        );
+    }
+
+    /// PROBE 5 (denormal / sub-floor COORDINATES, not just residues).
+    /// A loop whose own coordinates are subnormal: the far point's v is
+    /// written 0.0, but nothing writes anyone else's, so the chart is
+    /// still refused. Records what actually comes out.
+    #[test]
+    fn r2_denormal_coordinate_loop() {
+        let s = 1.0e-160_f64; // squares to ~1e-320, subnormal
+        let pts = vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(2.0 * s, 0.0, 0.0),
+            Point3::new(2.0 * s, s, 0.0),
+            Point3::new(0.0, s, 0.0),
+        ];
+        let f = frame_of(&pts);
+        for (i, p) in pts.iter().enumerate() {
+            let c = f.project(*p);
+            let bad = |x: f64| x != 0.0 && x.abs() < FLOOR;
+            println!(
+                "PROBE5: pt{i} -> {c:?}  subfloor_u={} subfloor_v={}",
+                bad(c[0]),
+                bad(c[1])
+            );
+        }
+    }
+
+    /// PROBE 6 (the write's blast radius across a whole face, not one
+    /// frame). Sweep the noise band and count how many boundary points
+    /// come out sub-floor in EITHER coordinate after the write. The
+    /// unit's `only_the_far_points_v_is_written` checks the write is
+    /// scoped; this checks the remainder is spade-legal, which is the
+    /// property the face actually needs.
+    #[test]
+    fn r2_no_boundary_point_is_left_subfloor_across_the_band() {
+        for exp in [-15i32, -20, -22, -25, -30, -40, -45, -50, -60] {
+            let nu = 10f64.powi(exp);
+            let pts: Vec<Point3<f64>> = [(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)]
+                .iter()
+                .map(|&(x, y): &(f64, f64)| Point3::new(x, y, x * nu))
+                .collect();
+            let f = frame_of(&pts);
+            for (i, p) in pts.iter().enumerate() {
+                let c = f.project(*p);
+                for (k, x) in c.iter().enumerate() {
+                    assert!(
+                        *x == 0.0 || x.abs() >= FLOOR,
+                        "1e{exp}: point {i} coord {k} = {x:e} is sub-floor after the write"
+                    );
+                }
+            }
+        }
+    }
+
+    /// PROBE 7 (the geometric-zero corner the prose disclaims). A
+    /// boundary point ON the anchor→far diagonal has an exact-zero v by
+    /// geometry. Does its residue go sub-floor, i.e. is the disclaimed
+    /// corner a live refusal?
+    #[test]
+    fn r2_the_disclaimed_diagonal_corner() {
+        for exp in [-25i32, -30, -40] {
+            let nu = 10f64.powi(exp);
+            // Midpoint of the anchor→far diagonal inserted as a real
+            // boundary point: (1, 0.5) lies on the (0,0)→(2,1) line.
+            let pts: Vec<Point3<f64>> = [(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 0.5), (0.0, 1.0)]
+                .iter()
+                .map(|&(x, y): &(f64, f64)| Point3::new(x, y, x * nu))
+                .collect();
+            let f = frame_of(&pts);
+            let c = f.project(pts[3]);
+            let sub = c[1] != 0.0 && c[1].abs() < FLOOR;
+            println!("PROBE7: 1e{exp} diagonal point -> {c:?}  subfloor={sub}");
+        }
+    }
+
+    /// PROBE 8 (Vec3 identity the derivation rests on). `far` and the
+    /// projection's `w` must be bit-identical for the far point, or the
+    /// determinant argument is about a different vector than the one
+    /// the code writes over.
+    #[test]
+    fn r2_far_vector_and_projection_w_are_bit_identical() {
+        let mut rng = Lcg(0xfa2_0055);
+        for _ in 0..500 {
+            let n = 3 + (rng.next_f64() * 6.0) as usize;
+            let pts: Vec<Point3<f64>> = (0..n)
+                .map(|_| Point3::new(rng.range(-5.0, 5.0), rng.range(-5.0, 5.0), rng.range(-5.0, 5.0)))
+                .collect();
+            let f = frame_of(&pts);
+            let w: Vec3<f64> = f.far_at - f.origin;
+            let u_from_w = w.reject_from(f.v_ref.cross(f.u_ref) * -1.0);
+            let _ = u_from_w;
+            assert_eq!(
+                (w.x.to_bits(), w.y.to_bits(), w.z.to_bits()),
+                {
+                    let d = f.far_at - f.origin;
+                    (d.x.to_bits(), d.y.to_bits(), d.z.to_bits())
+                },
+                "far vector is not reproducible from far_at"
+            );
+        }
+    }
+}
+
+/// R2 probes, part 2: the ringed-chart mechanism and the rejected
+/// alternative's actual behaviour.
+#[cfg(test)]
+mod r2_mesh2_probes_ring {
+    use geom_core::Point3;
+
+    const FLOOR: f64 = 1.793_662_034_335_766e-43;
+
+    /// PROBE 9 — WHICH coordinate is sub-floor on a ringed chart. Frame
+    /// from the outer square; project the concentric ring, whose
+    /// corners are collinear with the outer anchor→far diagonal.
+    #[test]
+    fn r2_ringed_chart_subfloor_census() {
+        for exp in [-15i32, -20, -22, -23, -25, -30, -45] {
+            let nu = 10f64.powi(exp);
+            let mk = |v: &[(f64, f64)]| -> Vec<Point3<f64>> {
+                v.iter()
+                    .map(|&(x, y): &(f64, f64)| Point3::new(x, y, x * nu))
+                    .collect()
+            };
+            let outer = mk(&[(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]);
+            let ring = mk(&[(-0.4, -0.4), (-0.4, 0.4), (0.4, 0.4), (0.4, -0.4)]);
+            #[allow(clippy::cast_possible_truncation)]
+            let ids: Vec<u32> = (0..outer.len() as u32).collect();
+            let f = super::chart_frame(&ids, &outer);
+            let mut bad = Vec::new();
+            for (tag, pts) in [("outer", &outer), ("ring", &ring)] {
+                for (i, p) in pts.iter().enumerate() {
+                    let c = f.project(*p);
+                    for (k, x) in c.iter().enumerate() {
+                        if *x != 0.0 && x.abs() < FLOOR {
+                            bad.push(format!("{tag}[{i}].{} = {x:e}", if k == 0 { 'u' } else { 'v' }));
+                        }
+                    }
+                }
+            }
+            println!("PROBE9: nu 1e{exp} far_at={:?} sub-floor coords: {bad:?}", f.far_at);
+        }
+    }
+
+    /// PROBE 10 — the rejected alternative, run. Would a blanket
+    /// `mitigate_underflow` over every chart coordinate have closed the
+    /// ringed case the write leaves refusing? And does it really fail
+    /// to rescue #284's class, as the siting argument claims?
+    #[test]
+    fn r2_blanket_mitigate_underflow_on_both_classes() {
+        use spade::{
+            ConstrainedDelaunayTriangulation, Point2 as SP, Triangulation, mitigate_underflow,
+        };
+        // (a) The ringed chart at nu = 1e-30: does mitigation make every
+        //     coordinate insertable, and does the chart stay non-degenerate?
+        let nu = 1.0e-30_f64;
+        let mk = |v: &[(f64, f64)]| -> Vec<Point3<f64>> {
+            v.iter()
+                .map(|&(x, y): &(f64, f64)| Point3::new(x, y, x * nu))
+                .collect()
+        };
+        let outer = mk(&[(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]);
+        let ring = mk(&[(-0.4, -0.4), (-0.4, 0.4), (0.4, 0.4), (0.4, -0.4)]);
+        #[allow(clippy::cast_possible_truncation)]
+        let ids: Vec<u32> = (0..outer.len() as u32).collect();
+        let f = super::chart_frame(&ids, &outer);
+        let mut cdt: ConstrainedDelaunayTriangulation<SP<f64>> =
+            ConstrainedDelaunayTriangulation::new();
+        let mut raw_ok = true;
+        let mut mit_ok = true;
+        let mut seen = std::collections::HashSet::new();
+        for pts in [&outer, &ring] {
+            for p in pts {
+                let [u, v] = f.project(*p);
+                if cdt.insert(SP::new(u, v)).is_err() {
+                    raw_ok = false;
+                }
+                let m = mitigate_underflow(SP::new(u, v));
+                if spade::validate_vertex(&m).is_err() {
+                    mit_ok = false;
+                }
+                seen.insert((m.x.to_bits(), m.y.to_bits()));
+            }
+        }
+        println!(
+            "PROBE10a: ringed chart nu=1e-30 — raw insertable={raw_ok}, \
+             mitigated all-legal={mit_ok}, distinct mitigated points={} of 8",
+            seen.len()
+        );
+
+        // (b) #284's class: a chart whose coordinates are ALL ~1e-67
+        //     (noisy stored axes over clean positions). Mitigation snaps
+        //     every one of them to zero — a single point, zero area.
+        let tiny = [
+            (0.0_f64, 0.0_f64),
+            (2.0e-67, 0.0),
+            (2.0e-67, 1.0e-67),
+            (0.0, 1.0e-67),
+        ];
+        let mut collapsed = std::collections::HashSet::new();
+        for (u, v) in tiny {
+            let m = mitigate_underflow(SP::new(u, v));
+            collapsed.insert((m.x.to_bits(), m.y.to_bits()));
+        }
+        println!(
+            "PROBE10b: #284-shaped chart (~1e-67) after mitigation -> {} distinct points of 4",
+            collapsed.len()
+        );
+        assert_eq!(
+            collapsed.len(),
+            1,
+            "PROBE10b: mitigation did NOT collapse the #284 chart — the siting \
+             argument's second leg would be false"
+        );
+    }
+}
+
+/// R2 probes, part 3.
+#[cfg(test)]
+mod r2_mesh2_probes_scoping {
+    use geom_core::Point3;
+
+    /// PROBE 11 — the PR body says `only_the_far_points_v_is_written`
+    /// "is the row a blanket filter would fail". Run that: apply
+    /// spade's `mitigate_underflow` to each non-far point's raw v on
+    /// that row's own fixture and see whether any bit moves.
+    #[test]
+    fn r2_would_a_blanket_filter_fail_the_scoping_row() {
+        use spade::{Point2 as SP, mitigate_underflow};
+        let nu = 1.0e-30_f64;
+        let positions: Vec<Point3<f64>> = [(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)]
+            .iter()
+            .map(|&(x, y): &(f64, f64)| Point3::new(x, y, x * nu))
+            .collect();
+        #[allow(clippy::cast_possible_truncation)]
+        let outer: Vec<u32> = (0..positions.len() as u32).collect();
+        let f = super::chart_frame(&outer, &positions);
+        let mut moved = 0;
+        for (i, p) in positions.iter().enumerate() {
+            if super::same_position(*p, f.far_at) {
+                continue;
+            }
+            let raw = (*p - f.origin).dot(f.v_ref);
+            let u = (*p - f.origin).dot(f.u_ref);
+            let m = mitigate_underflow(SP::new(u, raw));
+            let same = m.y.to_bits() == raw.to_bits() && m.x.to_bits() == u.to_bits();
+            println!("PROBE11: point {i} raw v={raw:e} mitigated={:e} unchanged={same}", m.y);
+            if !same {
+                moved += 1;
+            }
+        }
+        println!(
+            "PROBE11: a blanket mitigate_underflow would move {moved} of the row's \
+             non-far coordinates (the row asserts bit-identity, so it fails only if moved > 0)"
+        );
+    }
+}

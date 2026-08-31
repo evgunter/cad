@@ -79,6 +79,8 @@ mod r1_probes_issue1362;
 mod r1_probes_issue303;
 #[path = "r2_cert9_probes.rs"]
 mod r2_cert9_probes;
+#[path = "r2_mesh2_probes.rs"]
+mod r2_mesh2_probes;
 #[path = "r2_mesh1_probes.rs"]
 mod r2_mesh1_probes;
 #[path = "review_m2_pr6_cert_oracle.rs"]
