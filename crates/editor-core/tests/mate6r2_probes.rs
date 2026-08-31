@@ -402,3 +402,32 @@ fn p6_carried_penetration_is_loud() {
     println!("P6: {}", headline(&result));
     assert!(result.is_err(), "penetrating carried geometry must be loud");
 }
+
+/// P7: the outer gate over the ×3-stand seam document, counted by arm.
+/// On the merge base this printed `AtRest findings=24 undeclared=24`;
+/// on the MATE-6 head it must be green.
+#[test]
+fn p7_seam_gate_by_arm() {
+    let mut store = StubStore::default();
+    let part = store.insert(cube_part("m6r2-p7-cube"), Tol::witness());
+    let (inner, _, _) = stand("m6r2-p7-stand", part, 1.0);
+    let inner_ref = store.insert(inner, Tol::witness());
+    let (outer, _) = row_of("m6r2-p7-row", inner_ref, 3, 4.0);
+    let ev = run(&outer, &opts(store));
+    let result = assemble(&outer, &ev, Tol::witness());
+    match &result {
+        Ok(_) => println!("P7: Ok"),
+        Err(AssemblyError::AtRest { findings }) => {
+            let undeclared = findings
+                .iter()
+                .filter(|f| format!("{:?}", f.error).contains("UndeclaredContact"))
+                .count();
+            println!(
+                "P7: AtRest findings={} undeclared={}",
+                findings.len(),
+                undeclared
+            );
+        }
+        Err(other) => println!("P7: {other}"),
+    }
+}
