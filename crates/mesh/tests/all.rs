@@ -52,6 +52,8 @@ mod genus;
 mod issue111_az_needle;
 #[path = "issue303_signed_volume_recentring.rs"]
 mod issue303_signed_volume_recentring;
+#[path = "r2_cert9_probes.rs"]
+mod r2_cert9_probes;
 #[path = "m5_pr11_trimmed.rs"]
 mod m5_pr11_trimmed;
 #[path = "m5_s10_face_sense.rs"]
