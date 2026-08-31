@@ -940,12 +940,32 @@ fn closing_side(starts: &[bool]) -> usize {
 }
 
 /// The 3-D vector area of the closed cycle `pts`,
-/// `Σᵢ (pᵢ − o) × (pᵢ₊₁ − o)`, wrapping at the end.
+/// `Σᵢ (pᵢ − o) × (pᵢ₊₁ − o)`, with `o` the points' own bbox centre.
+///
+/// The fold wraps (`i + 1` mod `n`), so the cycle is closed by
+/// construction and the sum is anchor-independent over ℝ: an anchor's
+/// extra terms telescope to `o × Σᵢ(pᵢ₊₁ − pᵢ)`, and that displacement
+/// sum is zero around a cycle. The anchor is therefore a CONDITIONING
+/// choice and not a value one, and a position-derived anchor is the
+/// one that keeps every operand at the loop's own scale: a fixed
+/// anchor pays cancellation in proportion to the loop's distance from
+/// it, which the direction-only consumer in [`loop_polygon`] reads as
+/// a rotated — eventually reversed — area vector. Overflow-robust
+/// midpoint, the spelling `validate::signed_volume` uses.
+///
+/// An empty cycle has no anchor and no area.
 fn loop_area(pts: &[Point3<f64>]) -> Vec3<f64> {
+    let Some(&first) = pts.first() else {
+        return Vec3::new(0.0, 0.0, 0.0);
+    };
+    let (lo, hi) = pts
+        .iter()
+        .fold((first, first), |(lo, hi), &p| (lo.min(p), hi.max(p)));
+    let o = lo + (hi - lo) * 0.5;
     let mut area = Vec3::new(0.0, 0.0, 0.0);
     for (i, p) in pts.iter().enumerate() {
         let q = pts[(i + 1) % pts.len()];
-        area = area + (*p - Point3::origin()).cross(q - Point3::origin());
+        area = area + (*p - o).cross(q - o);
     }
     area
 }
@@ -1072,6 +1092,9 @@ pub(crate) fn loop_polygon(
             .flat_map(|t| t.ids[..t.ids.len() - 1].iter())
             .map(|&id| positions[id as usize])
             .collect();
+        // Only the DIRECTION of `area` is read below, and only a
+        // loop-local anchor makes that direction the loop's own rather
+        // than its placement's ([`loop_area`]).
         let area = loop_area(&pts);
         // CATEGORY A (S10). `area` is the loop's 3-D vector area, so it
         // points along the face's OUTWARD normal side — but it is read
@@ -1813,10 +1836,7 @@ mod tests {
         for d in [1e2, 1e3, 1e4, 1e5, 1e6, 1e7, 1e8] {
             let far = band_mid_az(&chart, &placed_band(d));
             for u_raw in [0.37, 2.27] {
-                let (near_col, far_col) = (
-                    unwrap_near(u_raw, at_origin),
-                    unwrap_near(u_raw, far),
-                );
+                let (near_col, far_col) = (unwrap_near(u_raw, at_origin), unwrap_near(u_raw, far));
                 assert!(
                     (near_col - far_col).abs() < 1e-9,
                     "placement {d:e}: meridian u_raw {u_raw} takes column \
