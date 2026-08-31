@@ -20,6 +20,12 @@
 # move. Treat them as approximate and re-count before quoting them
 # anywhere a number is load-bearing.
 #
+# `44` HAS TWO OTHER COPIES, and this manifest is meant to be its one home.
+# The workspace root's `exclude` comment used to restate it and now points
+# here instead; `.github/workflows/nightly.yml`'s criterion job still
+# carries its own copy, which is not this PR's file to edit and is left
+# named rather than silently diverging.
+#
 # WHAT THE EXCLUSION COSTS, checked rather than assumed:
 #   * `scripts/doc-gate.sh` documents every tracked cargo root, so this
 #     one joins the list automatically. It was free while this package
@@ -98,10 +104,19 @@ harness = false
 # question, not a perf-PR one — PERF-PLAN says so, and nothing here
 # re-opens it.
 #
-# NOTHING RE-TAKES THAT TABLE, and nothing can: it is one dated reading on
-# one 4-core box, and this repo REPORTS timings rather than gating them
-# (PERF-PLAN) — a suite that asserted 18.5 µs would fail on a different
-# machine and say nothing about the kernel. What the numbers justify is the
+# HALF OF THAT TABLE IS RE-TAKEN ON A SCHEDULE; THE COMPARISON IS NOT.
+# The assertions-OFF column is these rows at this profile, and
+# nightly.yml's `criterion benchmarks (reporting)` job re-runs them on a
+# hosted runner and appends a sample to docs/perf-data/criterion/. Take a
+# current absolute number from there, not from here: that history is newer
+# than this comment by construction, and it is a hosted runner's where
+# these are a 4-core box's, so they are not comparable row for row.
+# NOTHING re-takes the assertions-ON column, and therefore nothing re-takes
+# the RATIO — which is the only part the decision below rests on. No lane
+# builds this root with them on; no suite could usefully assert 18.5 µs
+# either, since it would fail on another machine and say nothing about the
+# kernel, which is why this repo reports timings rather than gating them
+# (PERF-PLAN). What the numbers justify is the
 # one-line decision below. What that decision takes from the table is its
 # DIRECTION — assertions cost enough on the topology-surgery rows to swamp
 # the wins §2.1 is chasing — and no threshold is derived here for a drifted

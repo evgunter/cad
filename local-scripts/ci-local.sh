@@ -47,10 +47,20 @@
 # script computes with NONE of them: what it runs is derived from ci.yml's
 # job set and from scripts/ci-filter.py's tier, both of which are read at
 # run time. A drifted figure therefore cannot desynchronize the mirror,
-# which is the only property this file is required to keep, and there is
-# no register that re-takes a hosted billing number for it to point at.
-# The mirror itself IS guarded — scripts/check-ci-mirror-parity.py — and
-# that guard reads the row set, never a duration.
+# which is the only property this file is required to keep. The mirror
+# itself IS guarded — scripts/check-ci-mirror-parity.py — and that guard
+# reads the row set, never a duration.
+#
+# WHICH OF THEM A REGISTER RE-TAKES, since the answer is not uniform and
+# "unguardable" is the wrong word for several: the rows below that name
+# docs/perf-data/rebuild-latency/, docs/tess-budget-data/ and
+# docs/K-REPORT.md are pointing at documents a SCHEDULED job refreshes
+# (nightly.yml and ci.yml between them also keep docs/perf-data/criterion/
+# and docs/perf-data/opt-level/ current) — read the register, not the
+# sentence quoting it. What has no register anywhere is the billing and
+# queue arithmetic: billed minutes, a job's wall duration, how often a
+# lane fires across recent merges. Nothing in this repo re-takes those,
+# and nothing here computes with them.
 #
 # BUILD ONCE PER COMPILE MODE (2026-08-03): hosted CI now compiles the
 # test binaries once per feature graph (`build` / `build-interval`, via
