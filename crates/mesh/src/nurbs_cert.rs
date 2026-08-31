@@ -3098,4 +3098,84 @@ mod tests {
             b.muv
         );
     }
+
+    /// **The rational-face grid re-sizing, in digits** (issue 1006's
+    /// ruling: the retirement "coarsens/re-sizes rational-face grids",
+    /// and the figures are owed). Reports the split selection's steps
+    /// and whole-chart division counts for the retired MAGNITUDE
+    /// reading (pinned from the measurement taken before it was
+    /// removed) beside the shipped SIGNED one, at the tour's own
+    /// delta_s decade.
+    ///
+    /// `#[ignore]`d: a measurement, not an assertion.
+    #[test]
+    #[ignore = "measurement harness: prints the rational-face grid re-sizing"]
+    fn cert10_rational_grid_resizing() {
+        // Measured on this tree before the retirement, full precision.
+        let retired = [
+            (
+                "quarter_cylinder",
+                NurbsFaceBound {
+                    muu: 3.942_263_838_556_179_68e0,
+                    muv: 1.266_375_820_315_083_44e0,
+                    mvv: 4.250_461_439_678_580_78e-15,
+                    mu1: 1.758_098_729_671_621_29e0,
+                    mv1: 1.064_513_033_689_902_91e0,
+                },
+                quarter_cylinder(),
+            ),
+            (
+                "pie_wall",
+                NurbsFaceBound {
+                    muu: 3.757_781_184_602_715_37e0,
+                    muv: 1.187_199_279_294_388_18e0,
+                    mvv: 4.202_650_729_863_987_39e-15,
+                    mu1: 1.736_856_620_662_045_71e0,
+                    mv1: 1.060_465_116_279_076_36e0,
+                },
+                pie_wall(),
+            ),
+            (
+                "wavy_rational",
+                NurbsFaceBound {
+                    muu: 2.102_738_222_528_367_26e3,
+                    muv: 7.072_400_295_746_916_75e2,
+                    mvv: 3.944_546_314_591_795_52e2,
+                    mu1: 3.783_331_582_921_541_52e1,
+                    mv1: 1.429_748_990_854_184_68e1,
+                },
+                wavy_rational(),
+            ),
+        ];
+        for delta_s in [1e-2, 4e-3, 1e-3] {
+            println!("\ndelta_s = {delta_s:.0e}");
+            println!(
+                "{:<18} {:>6} {:>13} {:>13} {:>9} {:>9} {:>7}",
+                "face", "read", "h_u", "h_v", "div_u", "div_v", "cells"
+            );
+            for (name, old, s) in &retired {
+                let new = nurbs_face_bound(s, FaceKey::default()).expect("covered");
+                for (tag, b) in [("mag", *old), ("signed", new)] {
+                    let (hu, hv) = b.grid_steps(delta_s);
+                    // The chart is the unit square in both directions
+                    // for every fixture here.
+                    let du = if hu.is_finite() && hu > 0.0 {
+                        (1.0f64 / hu).ceil().max(1.0)
+                    } else {
+                        1.0
+                    };
+                    let dv = if hv.is_finite() && hv > 0.0 {
+                        (1.0f64 / hv).ceil().max(1.0)
+                    } else {
+                        1.0
+                    };
+                    println!(
+                        "{name:<18} {tag:>6} {hu:>13.6e} {hv:>13.6e} {du:>9.0} {dv:>9.0} \
+                         {:>7.0}",
+                        du * dv
+                    );
+                }
+            }
+        }
+    }
 }
