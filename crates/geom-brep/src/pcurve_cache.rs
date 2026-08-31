@@ -2940,7 +2940,7 @@ fn nurbs_stretch_inf<T: Real>(s: &geom::NurbsSurface<T>) -> ChartStretchInf<T> {
         inf_v: net_inf(&q_v, poly_sup_v) / ratio,
         sup_u: poly_sup_u * ratio,
         sup_v: poly_sup_v * ratio,
-        area_inf: net_inf(&crosses, cross_sup) / (ratio * ratio),
+        area_inf: net_inf(&crosses, cross_sup) / ratio.powi(2),
     }
 }
 
