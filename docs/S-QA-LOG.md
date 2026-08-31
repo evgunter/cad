@@ -295,3 +295,22 @@ re-push re-draws the sampled row, and laundering a known red
 through a fresh draw is precisely the class this program closes.
 Issue 681 stays open for PR 2 (the workflows/scripts/tools/tests
 legs), which dispatches once qa/7 and qa/8 land.
+
+## QA-5 merged (2026-08-31)
+
+Q3 is live: tess-lint refuses corpus growth it is not comparing —
+the uncovered scene is a failing finding with its recourse spelled
+out, the baseline carries its cut commit (and refuses a re-stamp of
+unmoved data, so the record cannot age forward silently), and the
+world-check found nothing uncovered on main (VERBS' fold had paid
+it), so the red-first evidence is synthetic plus the hosted pair.
+The dual's sharpest catches were both about promises: a graceful
+fallback that could never execute (dead under errexit) and a lead
+that nothing pinned. The unit also paid the sibling's fourth-copy
+finding: TESS-BUDGET's rule prose now points at tess-lint's module
+docs as the roster of record instead of enumerating a copy that
+drifts. Issue 1038 closes on this record. One orchestrator note for
+the dispatch discipline: both reviewer briefs carried an inverted
+mechanism for the parity fix (my error, both arms caught it) — a
+dispatch is a hypothesis, and the reviewers treating it as one is
+the system working.
