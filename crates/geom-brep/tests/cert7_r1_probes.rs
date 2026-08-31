@@ -43,25 +43,35 @@ fn elliptic_wall(a: f64, b: f64, h: f64) -> NurbsSurface<f64> {
     NurbsSurface::new(kv2(), kv1(), control, vec![1.0, 1.0, s, s, 1.0, 1.0]).unwrap()
 }
 
-/// An **ellipse of revolution** wall band: an elliptical meridian arc
-/// (rational quadratic) revolved through a quarter turn (rational
-/// quadratic). Rational in BOTH directions — the case where `w`,
-/// `w_u` and `w_v` are all live in `M̃`.
-fn ellipsoid_band(a: f64, b: f64) -> NurbsSurface<f64> {
-    let s = (FRAC_PI_2 * 0.5).cos();
-    // Meridian in (r, z): quarter ellipse from (a, 0) to (0, b) via
-    // the tangent-intersection point (a, b) with weight s.
-    let meridian = [((a, 0.0), 1.0), ((a, b), s), ((0.0, b), 1.0)];
-    // Quarter turn in longitude: (r, 0) -> (r, r) -> (0, r), weight s.
-    let mut control = Vec::new();
-    let mut weights = Vec::new();
-    for ((r, z), wm) in meridian {
-        for (fx, fy, wl) in [(1.0, 0.0, 1.0), (1.0, 1.0, s), (0.0, 1.0, 1.0)] {
-            control.push(Point3::new(r * fx, r * fy, z));
-            weights.push(wm * wl);
+/// An **ellipse of revolution** band: the exact rational sphere band
+/// (a rational quadratic meridian arc revolved through the classical
+/// rational quadratic quarter turn) with `z` scaled by `q` — an
+/// affine image, so still exact, still rational in BOTH directions,
+/// pole-free, and a surface this suite ships nowhere. This is the
+/// case where `w`, `w_u` AND `w_v` are all live in `M̃`.
+fn ellipsoid_band(r: f64, q: f64, lat0: f64, lat1: f64) -> NurbsSurface<f64> {
+    let theta = 0.5 * (lat1 - lat0);
+    let wm = theta.cos();
+    let a = (r * lat0.cos(), r * lat0.sin());
+    let b = (r * lat1.cos(), r * lat1.sin());
+    let mid = (a.0 + b.0, a.1 + b.1);
+    let mlen = (mid.0 * mid.0 + mid.1 * mid.1).sqrt();
+    let m = (mid.0 / mlen * r / wm, mid.1 / mlen * r / wm);
+    let meridian = [(a.0, a.1, 1.0), (m.0, m.1, wm), (b.0, b.1, 1.0)];
+    let wr = (FRAC_PI_2 * 0.5).cos();
+    let mut control = Vec::with_capacity(9);
+    let mut weights = Vec::with_capacity(9);
+    for iu in 0..3 {
+        for (x, z, w) in meridian {
+            let z = z * q;
+            control.push(match iu {
+                0 => Point3::new(x, 0.0, z),
+                1 => Point3::new(x, x, z),
+                _ => Point3::new(0.0, x, z),
+            });
+            weights.push(if iu == 1 { w * wr } else { w });
         }
     }
-    // u = meridian, v = longitude; row-major iu*cv + iv matches.
     NurbsSurface::new(kv2(), kv2(), control, weights).unwrap()
 }
 
@@ -97,8 +107,8 @@ fn e2e_rational_bases_through_the_storage_and_recertify_doors() {
     let cases: Vec<(&str, NurbsSurface<f64>, f64, f64)> = vec![
         ("elliptic wall a=2 b=1", elliptic_wall(2.0, 1.0, 1.0), 0.1, 1e-3),
         ("elliptic wall a=5 b=1 (hostile aspect)", elliptic_wall(5.0, 1.0, 1.0), 0.05, 1e-2),
-        ("ellipsoid band a=1 b=1 (a sphere octant)", ellipsoid_band(1.0, 1.0), 0.2, 1e-3),
-        ("ellipsoid band a=2 b=1", ellipsoid_band(2.0, 1.0), 0.1, 1e-2),
+        ("ellipsoid band r=2 q=0.5", ellipsoid_band(2.0, 0.5, 0.25, 1.25), 0.15, 1e-3),
+        ("ellipsoid band r=2 q=0.2 (flat)", ellipsoid_band(2.0, 0.2, 0.3, 1.2), 0.05, 1e-3),
     ];
     for (name, base, d, tol) in cases {
         match approx_offset_surface(std::sync::Arc::new(base.clone()), d, tol, band()) {
@@ -302,8 +312,8 @@ fn hunt_for_a_genuine_refinement_stall() {
         ("elliptic wall 2:1", elliptic_wall(2.0, 1.0, 1.0), 0.1),
         ("elliptic wall 20:1 (extreme aspect)", elliptic_wall(20.0, 1.0, 1.0), 0.05),
         ("elliptic wall 1:1 tall", elliptic_wall(1.0, 1.0, 50.0), 0.1),
-        ("ellipsoid band 3:1", ellipsoid_band(3.0, 1.0), 0.02),
-        ("ellipsoid band 1:1", ellipsoid_band(1.0, 1.0), 0.3),
+        ("ellipsoid band q=0.5", ellipsoid_band(2.0, 0.5, 0.25, 1.25), 0.15),
+        ("ellipsoid band q=0.1 (very flat)", ellipsoid_band(2.0, 0.1, 0.3, 1.2), 0.02),
         ("thin wall", elliptic_wall(1.0, 1.0, 1e-4), 0.1),
         ("elliptic wall tiny d", elliptic_wall(1.0, 1.0, 1.0), 1e-9),
         ("elliptic wall huge coords", elliptic_wall(1e4, 1e4, 1e4), 10.0),
