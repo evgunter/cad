@@ -402,6 +402,40 @@ impl NodePick {
             .collect()
     }
 
+    /// The stable name of every boundary polyline of
+    /// [`NodePick::mesh`], in polyline order (one entry per
+    /// [`Mesh::boundaries`] element).
+    ///
+    /// The edge twin of [`NodePick::patch_names`], and it exists for
+    /// the same reason: a polyline's identity in the mesh is its
+    /// [`mesh::BoundaryPolyline::edge`] arena key, and G1 forbids that
+    /// key crossing into layer 3. A consumer that wants to hit-test
+    /// against the drawn edge polylines therefore addresses them by
+    /// POSITION — a display coordinate valid for one tessellation —
+    /// and reads the name out of here; the key never leaves.
+    ///
+    /// Total, per polyline, with the loud arm in its own slot: an
+    /// evaluated-but-unnamed edge is [`HitTestError::Unnamed`] for
+    /// that polyline alone, because one naming-emission bug should not
+    /// cost a consumer the names of every other edge it is drawing.
+    pub fn boundary_names(&self, eval: &Evaluation<f64>) -> Vec<Result<StableName, HitTestError>> {
+        self.mesh
+            .boundaries
+            .iter()
+            .map(|boundary| {
+                entity_name(
+                    eval,
+                    self.node,
+                    EntityRef {
+                        body: self.body,
+                        key: EntityKey::Edge(boundary.edge),
+                    },
+                )
+                .cloned()
+            })
+            .collect()
+    }
+
     /// The node this index answers for.
     pub fn node(&self) -> RecipeNodeId {
         self.node

@@ -50,12 +50,15 @@
 //! clear: every drop is a [`MateToolEvent`] the chrome renders.
 //!
 //! That promotion is right HERE and deliberately DIVERGENT from the
-//! revolve tool's survival rule: this tool's picks are an
-//! interchangeable pair (`a`/`b` of one mate), so the survivor is
-//! still meaningfully "the held pick", where the revolve tool's seats
-//! are roles (profile vs axis) and promotion would move a node
-//! between seats that mean different things. Both module docs state
-//! the divergence so neither rule reads as an accident of the other.
+//! seated tools' survival rule ([`crate::seats`]): this tool's picks
+//! are an interchangeable pair (`a`/`b` of one mate), so the survivor
+//! is still meaningfully "the held pick", where a seated tool's seats
+//! are ROLES (a profile against an axis, an operand kept against an
+//! operand removed) and promotion would move a node between seats that
+//! mean different things. That is also why this tool is the one modal
+//! tool NOT built on `Seats`: it shares neither the state (its picks
+//! are faces) nor the rule. Both module docs state the divergence so
+//! neither reads as an accident of the other.
 //!
 //! **`reconcile` is the consumer's obligation, and it is forgettable.**
 //! The tool is a value beside the session, not inside it, so nothing

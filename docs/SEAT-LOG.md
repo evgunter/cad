@@ -23,3 +23,12 @@ unchanged (A/B ledger, blinded v6 duals, prompts by path).
 Next: SEAT-1 dispatch (difficulty logged pre-draw per protocol;
 draw and arm recorded in the ledger at the row's merge, never
 here).
+
+## ORDINAL 1000 CLAIMED — SEAT-1 dual (2026-08-31)
+
+SEAT-1 (PR 1399, the band drop) implementation delivered and green on
+the drawn lane (default, eps = 1e-6; run 33424552083 — three earlier
+reds on the same head were an Actions budget outage, jobs never
+started, nothing repushed). v6 dual dispatches on frozen head
+0b291b29: parity byte 18 → **R1 opus + R2 fable**. Difficulty S was
+logged pre-draw. Full row recorded at merge per protocol.
