@@ -58,11 +58,38 @@ use crate::gpu::{DEPTH_BITS, IdQuery, ViewportCallback, ViewportRenderer};
 use crate::input::{self, InputMap, PointerButton, ViewportEvent, ViewportSize};
 use crate::matetool::{MateChoice, MateTool, MateToolState, admitted_classes};
 use crate::pick::{self, PickCache, PickIndex};
+use crate::prefs::{self, Prefs, PrefsStore};
 use crate::props::{self, SlotDriver, SlotGroup, SlotRow, SlotValue};
 use crate::scene::{self, DisplayTolerance, SceneMesh};
 use crate::session::{BoundsTarget, DocSession, Refusal, Selection, SessionOp, Standing};
 use crate::theme::{Polarity, Theme};
 use crate::tree::{RowStatus, TreeRow};
+
+/// Where this build keeps preferences.
+///
+/// One `cfg` alias rather than a trait object: there is exactly one
+/// store per target, chosen at compile time, and a `Box<dyn>` would
+/// buy a choice nothing makes. The browser's arm is [`prefs::Absent`]
+/// until a `web_sys::Storage` store is written — it reports, and the
+/// Save control disables itself, exactly as the file chooser does
+/// where no portal exists.
+#[cfg(not(target_family = "wasm"))]
+type Store = prefs::file::FileStore;
+#[cfg(target_family = "wasm")]
+type Store = prefs::Absent;
+
+/// This build's store.
+fn prefs_store() -> Store {
+    #[cfg(not(target_family = "wasm"))]
+    {
+        // The path comes from `frame`, the crate's one ambient door.
+        prefs::file::FileStore::new(frame::prefs_path())
+    }
+    #[cfg(target_family = "wasm")]
+    {
+        prefs::Absent
+    }
+}
 use pncad::document::{AxisSense, Frame, MatePrimitive};
 
 /// The window title.
@@ -273,6 +300,23 @@ pub struct ViewerApp {
     /// once at startup ([`frame::chooser_backend`]); the Open/Save As
     /// controls read it every frame.
     chooser: frame::ChooserBackend,
+    /// Where the theme choice is remembered. Held rather than
+    /// rediscovered per save: the path is an environment read, and a
+    /// viewer whose config directory moved mid-session would be
+    /// stranger than one that kept writing where it started.
+    store: Store,
+    /// The input preset the loaded file named, carried so that saving
+    /// a theme change writes it back rather than dropping it.
+    ///
+    /// **The name as WRITTEN, not the resolved [`InputMap`]** — a
+    /// preset this viewer does not recognise falls back for the
+    /// session (`prefs::Notice::UnknownPreset`) but must survive in
+    /// the file, or opening an older viewer once would silently
+    /// delete a newer one's choice. Kept as a field rather than
+    /// re-read at save time because the save happens on a UI event
+    /// and reading the file there would race the very write it is
+    /// about to do.
+    keys_pref: Option<String>,
 }
 
 /// Why the application could not start (closed enum, D4 ¶3).
@@ -390,11 +434,34 @@ impl ViewerApp {
         // runs, so what a user sees is never the invented framing.
         let camera = Camera::framing(&mesh.bounds(), 1.0).map_err(StartupError::Camera)?;
 
+        // Preferences, before anything is drawn. A refusal here is
+        // never fatal: a viewer that would not open because its
+        // colour scheme was unreadable would be trading the whole
+        // product for a preference, so every arm ends in a message
+        // and the defaults.
+        let store = prefs_store();
+        let (saved, mut notices) = match store.load() {
+            Ok(Some(text)) => match Prefs::from_toml(&text) {
+                Ok((prefs, notices)) => (prefs, notices.iter().map(ToString::to_string).collect()),
+                Err(error) => (Prefs::default(), vec![error.to_string()]),
+            },
+            Ok(None) => (Prefs::default(), Vec::new()),
+            Err(error) => (Prefs::default(), vec![error.to_string()]),
+        };
+        let (theme, theme_notice) = saved.resolve_theme();
+        let (input, keys_notice) = saved.resolve_keys();
+        notices.extend(
+            [theme_notice, keys_notice]
+                .into_iter()
+                .flatten()
+                .map(|n| n.to_string()),
+        );
+
         // The startup palette reaches the chrome here, not on the
         // first frame: a window that opened dark and turned light one
         // frame later would flash, and the flash would be the honest
         // report of a theme applied too late.
-        apply_polarity(&cc.egui_ctx, Theme::DEFAULT.polarity);
+        apply_polarity(&cc.egui_ctx, theme.polarity);
 
         let render_state = cc
             .wgpu_render_state
@@ -427,14 +494,18 @@ impl ViewerApp {
             budget_delta: None,
             mate_tool: None,
             camera,
-            input: InputMap::default(),
-            theme: Theme::DEFAULT,
+            input,
+            theme,
             tree: initial_layout(),
             drafts: Drafts::default(),
             pending_fit: true,
             fit_on_scene: false,
-            status: None,
+            // Whatever the preferences file had to say, in the one
+            // place this crate puts a thing that went wrong.
+            status: (!notices.is_empty()).then(|| notices.join("; ")),
             chooser: frame::chooser_backend(),
+            store,
+            keys_pref: saved.keys,
         })
     }
 
@@ -617,6 +688,34 @@ impl ViewerApp {
     /// Apply a policy verdict to the status line — the one place a
     /// [`StatusUpdate`] becomes the field, shared by the batch policy
     /// and the dialog policy so neither hand-assigns.
+    /// Write the current theme choice to the preferences store.
+    ///
+    /// **Best-effort, and it reports.** A store that cannot be
+    /// written is worth one line in the status area and nothing more:
+    /// the theme is already applied on screen, so a failure here
+    /// costs the next session's memory of it, never this session's
+    /// work. Refusing the switch because it could not be recorded
+    /// would be the worse trade.
+    ///
+    /// The whole document is rewritten rather than patched, so every
+    /// setting this viewer understands has to be carried across —
+    /// which is why [`Self::keys_pref`] exists. A key it does NOT
+    /// understand is lost, and that is stated rather than hidden: it
+    /// is the price of a hand-written renderer that keeps its
+    /// comments, and such a key was already reported on load.
+    fn remember_theme(&mut self) {
+        if !self.store.usable() {
+            return;
+        }
+        let prefs = Prefs {
+            theme: Some(self.theme.name.to_owned()),
+            keys: self.keys_pref.clone(),
+        };
+        if let Err(error) = self.store.save(&prefs.to_toml()) {
+            self.status = Some(error.to_string());
+        }
+    }
+
     fn apply_status(&mut self, update: StatusUpdate) {
         match update {
             StatusUpdate::Keep => {}
@@ -820,6 +919,7 @@ impl eframe::App for ViewerApp {
         if chosen != self.theme {
             self.theme = chosen;
             apply_polarity(ui.ctx(), chosen.polarity);
+            self.remember_theme();
         }
 
         let display = self.session.display_view();

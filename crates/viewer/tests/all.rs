@@ -64,6 +64,8 @@ mod mate_tool_flow;
 mod panel_display;
 #[path = "panel_edits.rs"]
 mod panel_edits;
+#[path = "prefs.rs"]
+mod prefs;
 #[path = "review_gui0_r1.rs"]
 mod review_gui0_r1;
 #[path = "review_gui0_r2.rs"]
