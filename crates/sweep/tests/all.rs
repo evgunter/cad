@@ -195,6 +195,8 @@ mod review_arms2_r1_probes;
 mod review_arms3_r1_probes;
 #[path = "review_blend1_r2_probes.rs"]
 mod review_blend1_r2_probes;
+#[path = "review_blend3_r1_probes.rs"]
+mod review_blend3_r1_probes;
 #[path = "review_blend6_r1_probes.rs"]
 mod review_blend6_r1_probes;
 #[path = "review_blend6_r2_probes.rs"]
