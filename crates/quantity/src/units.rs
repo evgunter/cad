@@ -22,10 +22,16 @@
 //! * `PI` is the half-turn, factor `f64::consts::PI` — the unit that
 //!   is not a unit. It measures an angle exactly as `DEG` does and is
 //!   carried here for the same reason every other row is: a literal
-//!   REMEMBERS the unit it was authored in, so `0.5 pi` is how a user
-//!   says "write this angle as a multiple of π" and get it back that
-//!   way. Nothing downstream distinguishes it from `DEG` — an angle is
-//!   canonical radians whichever row produced it.
+//!   REMEMBERS the unit it was authored in, so `0.5 pi rad` is how a
+//!   user says "write this angle as a multiple of π" and get it back
+//!   that way. Nothing downstream distinguishes it from `DEG` — an
+//!   angle is canonical radians whichever row produced it. Its symbol
+//!   is TWO WORDS, `pi rad`, and that is the whole surface spelling:
+//!   the multiplier and the unit it multiplies, so a picker offering
+//!   it beside `deg` and `rad` reads as "multiples of π radians"
+//!   rather than as the number π. It is the only multi-word symbol in
+//!   the table, and the text door's unit suffix is a longest match
+//!   over adjacent identifiers because of it.
 //! * `M`/`RAD` are the canonical units themselves, factor exactly 1.0
 //!   — multiplication by them is the f64 identity, which is what makes
 //!   them the formatter's always-exact fallback rendering.
@@ -218,9 +224,10 @@ pub const UNITS: [UnitDef; 7] = [
     },
     // Half-turn: π radians — the "unit" that is a notation (module
     // docs). Inexact for the same reason `deg` is, and by the same
-    // constant.
+    // constant. The symbol is two words: it names the multiplier AND
+    // the unit multiplied, which is what makes it read as a unit.
     UnitDef {
-        symbol: "pi",
+        symbol: "pi rad",
         quantity: UnitQuantity::Angle,
         factor: core::f64::consts::PI,
     },
@@ -480,8 +487,9 @@ pub const DEG: AngleUnit = AngleUnit::of_row("deg");
 pub const RAD: AngleUnit = AngleUnit::of_row("rad");
 
 /// Half-turn: π radians, so `0.5 * PI` is a right angle and `2.0 * PI`
-/// a full turn. The notation-as-a-unit row (module docs).
-pub const PI: AngleUnit = AngleUnit::of_row("pi");
+/// a full turn. The notation-as-a-unit row, spelled `pi rad` (module
+/// docs).
+pub const PI: AngleUnit = AngleUnit::of_row("pi rad");
 
 /// The table row for a surface symbol, or `None` when the symbol is
 /// not one the table carries.

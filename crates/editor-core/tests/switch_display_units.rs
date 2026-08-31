@@ -339,8 +339,8 @@ const UNIT_WIRE_GOLDEN: [(&str, &str); 7] = [
         r#"{"Literal":{"value":2.5,"dim":"Angle","unit":"rad"}}"#,
     ),
     (
-        "pi",
-        r#"{"Literal":{"value":7.853981633974483,"dim":"Angle","unit":"pi"}}"#,
+        "pi rad",
+        r#"{"Literal":{"value":7.853981633974483,"dim":"Angle","unit":"pi rad"}}"#,
     ),
 ];
 

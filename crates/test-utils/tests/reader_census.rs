@@ -163,7 +163,7 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // mount guard, literal view
     },
     Entry {
-        path: "crates/sweep/src/fillet/admit.rs",
+        path: "crates/sweep/src/blend/admit.rs",
         disposition: Unconverted("Track T — raw `include_str!`, no reader at all"),
     },
     Entry {
@@ -304,10 +304,23 @@ fn sites_reading_rust_source(root: &Path) -> Vec<String> {
     rust_sources(root)
         .iter()
         .filter(|path| {
-            !path.components().any(|c| {
-                let c = c.as_os_str().to_string_lossy();
-                SKIPPED_DIRS.contains(&c.as_ref()) || c.starts_with('.')
-            }) && path.starts_with(root)
+            // Skip on the path RELATIVE TO ROOT, never on the absolute
+            // one. The components above the repository are not the
+            // repository's business, and one of them being hidden is
+            // not a fact about any file here: a checkout under a
+            // hidden directory — `~/.mngr/worktrees/<name>` is the
+            // one every agent lane in this project works in — matched
+            // `.mngr` on EVERY path and filtered the whole tree away.
+            // The row survived that as a red rather than a false
+            // green, which is the doc comment below working exactly
+            // as it claims; what it cost was the ability to run this
+            // test anywhere but CI.
+            path.strip_prefix(root).is_ok_and(|relative| {
+                !relative.components().any(|c| {
+                    let c = c.as_os_str().to_string_lossy();
+                    SKIPPED_DIRS.contains(&c.as_ref()) || c.starts_with('.')
+                })
+            })
         })
         .filter_map(|path| {
             let text = std::fs::read_to_string(path).expect("a readable source file");

@@ -86,6 +86,7 @@ pub use eval::{
 };
 pub use expr::{
     Dimension, DimensionError, EvalError, Expr, ExprPath, ParamEnv, ParamValue, eval, eval_count,
+    unparse,
 };
 pub use ident::{ContentPin, DocRef, DocumentId};
 pub use mate::{

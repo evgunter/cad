@@ -15,7 +15,7 @@ use geom::Surface;
 use geom_core::Tol;
 use geom_core::{Affine3, Band, Point2, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
-use sweep::fillet::build::fillet_edges;
+use sweep::blend::build::fillet_edges;
 use sweep::test_support::cube;
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
@@ -444,7 +444,7 @@ fn the_composed_die_replays_bit_identically() {
 /// is pinned at its three outcomes, the S2/S9 trio idiom.
 #[test]
 fn ring_clearance_trio_definite_pass_definite_refuse_in_band_escalate() {
-    use sweep::fillet::surgery::ring_clearance;
+    use sweep::blend::surgery::ring_clearance;
     let (pipped, _) = pipped_and_box_edges();
     let face = pipped.faces().next().unwrap().0;
     let tol = Tol::witness().get();
@@ -453,26 +453,26 @@ fn ring_clearance_trio_definite_pass_definite_refuse_in_band_escalate() {
     // Definite refuse, typed with the margin as payload.
     let err = ring_clearance(face, -0.05, band()).expect_err("a consumed ring refuses");
     match err {
-        sweep::fillet::FilletError::RingClearance { margin, .. } => {
+        sweep::blend::BlendError::RingClearance { margin, .. } => {
             assert!((margin - -0.05).abs() < 1e-15)
         }
         other => panic!("expected RingClearance, got {other}"),
     }
     let text = ring_clearance(face, -0.05, band()).unwrap_err().to_string();
     assert!(
-        text.contains("ring") && text.contains("reduce the fillet radius"),
+        text.contains("ring") && text.contains("reduce the blend size"),
         "refusal names the situation and the recourse: {text}"
     );
     // In band: escalates through the funnel with the SAME recourse.
     let err = ring_clearance(face, 5.0 * tol.eps, band()).expect_err("in-band escalates");
     match &err {
-        sweep::fillet::FilletError::Escalated { source, .. } => {
+        sweep::blend::BlendError::Escalated { source, .. } => {
             assert_eq!(source.predicate, Some("fillet3_ring_clearance"));
         }
         other => panic!("expected Escalated, got {other}"),
     }
     assert!(
-        err.to_string().contains("reduce the fillet radius"),
+        err.to_string().contains("reduce the blend size"),
         "the escalated arm shares the definite arm's recourse: {err}"
     );
 }

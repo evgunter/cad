@@ -10,7 +10,7 @@
 //!    them.
 //!
 //! 2. That same count contradicts `blend5_rim_support.rs`'s module
-//!    doc, which says the rim-phase channels of `FilletNaming` reach
+//!    doc, which says the rim-phase channels of `BlendNaming` reach
 //!    `names::emit_fillet` "only from here". `die_composed` is a
 //!    registered corpus document that already drove `rim_phase` — the
 //!    LADDER arm, which writes the same `rim_trims` / `rim_feet` /
@@ -114,7 +114,7 @@ fn the_ladder_rim_phase_already_reached_the_emitter_from_the_corpus() {
     assert!(
         band_trims(&ev) > 0,
         "die_composed drives the rim phase through emit_fillet, so the rim-phase \
-         channels did not first reach the emitter from blend5_rim_support.rs"
+         channels did not first reach the emitter from the blend5_rim_support suite"
     );
 }
 
@@ -247,7 +247,7 @@ fn role_below_the_mouth(mouth: (f64, f64), top: (f64, f64)) -> RimSupport {
 ///
 /// `Host` is not a pure slot. It is DEFINED as the planar support
 /// wherever the rim has one, and falls back to the link's own `face_a`
-/// only when NEITHER side is planar — `sweep/src/fillet/surgery.rs`
+/// only when NEITHER side is planar — `sweep/src/blend/surgery.rs`
 /// decides it that way at all three sites (the one-link arm's
 /// `is_plane(link0.face_a)` test, the ladder discriminant, and
 /// `resolve_seam_split_rim`'s `is_plane_surface`). So an edit that
@@ -389,7 +389,7 @@ fn the_top_cap_can_lie_below_the_bottom_cap() {
 ///
 /// The annulus arm mints band feet: `rim_phase_annulus` pushes
 /// `rec.rim_feet.push((host_feet[ix].0, c.vertex))`
-/// (`sweep/src/fillet/surgery.rs`). This row shows a `BandFoot` on the
+/// (`sweep/src/blend/surgery.rs`). This row shows a `BandFoot` on the
 /// cone-on-cone mouth, where neither support is planar.
 #[test]
 fn a_cone_on_cone_rim_mints_a_band_foot_though_it_has_no_planar_support() {

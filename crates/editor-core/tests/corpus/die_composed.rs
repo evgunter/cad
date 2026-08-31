@@ -15,7 +15,7 @@
 //! "every edge" includes the cap's MERIDIAN seam edges. Two half-cap
 //! faces share ONE sphere surface, so a meridian has no dihedral
 //! wedge, and the battery honestly refuses
-//! `FilletError::TangentialEdge` at a margin of exactly zero. That
+//! `BlendError::TangentialEdge` at a margin of exactly zero. That
 //! refusal is CORRECT — a co-surface seam cannot be blended at any
 //! radius — so the composed die was not unbuildable, it was
 //! UNSAYABLE.

@@ -61,7 +61,10 @@ pub use editor_core::{
 // `DimensionError` is the refusal `Expr`'s constructor doors return
 // (`literal`, the operator builders) — re-exported so a caller can
 // MATCH on it rather than pre-check the conditions it refuses.
-pub use editor_core::{Dimension, DimensionError, Expr, ParamEnv, ParseError, parse_expr};
+// `unparse` is `parse_expr`'s inverse, the text door OUTWARD: the
+// source text an expression reads back from, which is what a panel
+// showing a stored expression needs and cannot otherwise derive.
+pub use editor_core::{Dimension, DimensionError, Expr, ParamEnv, ParseError, parse_expr, unparse};
 
 // The expression READ side: an expression's current value under a
 // document's parameter environment (`Doc::param_env`). A panel that

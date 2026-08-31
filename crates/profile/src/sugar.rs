@@ -107,6 +107,29 @@ pub fn bulge_from_via<T: Real>(a: Point2<T>, via: Point2<T>, b: Point2<T>) -> T 
 /// [`Real::reduce_periodic`]; the bulge is tan(θ/4). Fixed evaluation
 /// order as written (D9).
 ///
+/// **Why the `[0, τ)` window and not the centred one**: the included
+/// angle here is a full authored sweep, not a difference near zero —
+/// `Ccw` means "the long way round if that is what the author drew",
+/// and a centred reduction would silently turn a 350° arc into a −10°
+/// one. The window's jump therefore sits where it belongs, at a sweep
+/// of zero, and the arc that lands on it is the degenerate one: `a` and
+/// `b` coincident as seen from the centre. At interval type a box
+/// straddling that jump encloses both `0` and `τ`, honestly — the two
+/// arcs really are both consistent with the enclosure.
+///
+/// **The guard is DOWNSTREAM, not upstream.** `DegenerateSegment` and
+/// `NearFullArc` are raised by `validate`'s segment pass, which runs
+/// on a loop this function has already contributed a bulge to — the
+/// degenerate bulge is computed and stored first, and refused when the
+/// loop is validated. What makes that safe is not ordering but the
+/// fact that nothing consumes an unvalidated loop: the refusals key
+/// off the very values a degenerate sweep produces, so a bulge that
+/// went through the jump cannot reach a consumer without passing the
+/// pass that rejects it. Moving the jump would not remove it, only
+/// relocate it onto a non-degenerate sweep, so the posture stands —
+/// but it stands on the validation boundary, not on a gate in front of
+/// this formula.
+///
 /// **The center is a hint, not stored data**: the stored segment is
 /// chord + bulge, whose implied center is the perpendicular-bisector
 /// point at the implied radius. If `b` does not lie on the circle
@@ -639,14 +662,23 @@ pub(crate) fn arc_fillet_trims<T: Decide>(
 /// forward sweep by construction and may legitimately exceed π. It is
 /// the WRONG reduction for a setback, which must be able to come out
 /// negative — see [`signed_swept`].
+///
+/// **Its jump sits at a zero extent**, which is a real discontinuity of
+/// the forward representative and not an artifact of the spelling: a
+/// difference of zero is a leg that sweeps nothing or sweeps a whole
+/// turn, and those are different extents. At interval type a box
+/// straddling it therefore widens to the period, honestly. Nothing
+/// reaches it: a zero-extent leg is refused upstream, and a signed
+/// quantity — where a near-zero difference is the interesting case —
+/// goes through [`signed_swept`], which folds the raw difference once
+/// rather than composing on this reduction.
 fn swept<T: Real>(from: T, to: T, turn: T) -> T {
     ((to - from) * turn).reduce_periodic(T::tau())
 }
 
 /// The **signed** angle swept from `from` to `to` in the `turn` sense,
-/// reduced into [−π, π) — [`swept`]'s forward sweep folded so that
-/// "more than half a turn forward" reads as "backward", which is what a
-/// *setback* needs (review MAJOR-1).
+/// reduced into [−π, π) so that "more than half a turn forward" reads
+/// as "backward", which is what a *setback* needs (review MAJOR-1).
 ///
 /// The unsigned [`swept`] cannot express "behind the corner": a tangent
 /// point one degree past the corner reads as a setback of 359°·R. With
@@ -661,26 +693,68 @@ fn swept<T: Real>(from: T, to: T, turn: T) -> T {
 /// A fillet tangent point is never more than half a turn from the
 /// corner. It lies on the ray from the leg's centre O through the
 /// fillet centre P, so its angular offset from the corner is the
-/// *unsigned* angle between `C − O` and `P − O`, which is in [0, π] by
-/// definition. A genuine setback therefore always lies in the kept
+/// *unsigned* angle between `C − O` and `P − O`, which is in [0, π] —
+/// the CLOSED interval, and the closed end is a real configuration
+/// (the tangent point diametrically opposite the corner), not an
+/// excluded limit. A genuine setback therefore always lies in the kept
 /// half, however far the leg itself sweeps — a leg may legitimately
 /// sweep more than π, and its extent still uses the unsigned [`swept`].
+/// What the closed end costs the exactness argument below is stated
+/// there rather than assumed away here.
 ///
-/// # Why the fold, and not `atan2` of the cross/dot
+/// # The raw difference is folded once, and why that is the whole point
 ///
-/// `atan2(τ·(u × w), u · w)` computes the same angle in one call, but as
-/// a *different* floating-point expression from the one [`swept`] uses
-/// for the leg's extent — and the exact-fit rows turn on `extent −
-/// setback` being bit-zero when the tangent point lands on the leg's far
-/// end. The fold below is `x − τ·⌊x/τ + ½⌋`, which for `x ∈ [0, π)`
-/// multiplies τ by a floored zero and returns `x − 0` — **bit-identical
-/// to [`swept`]**. So this changes the value only where the shipped code
-/// was wrong (past the corner), and the knife-edge exactness the fit
-/// gate relies on is preserved by construction rather than by luck.
+/// The angular difference `(to − from)·turn` goes into
+/// [`Real::reduce_periodic_centred`] directly. It is NOT reduced into
+/// `[0, τ)` first and then folded: [`swept`]'s jump is at a difference
+/// of zero, and zero is the value this helper exists to read — a
+/// tangent point coincident with the corner, a derived corner
+/// reproducing an anchor. Folding a quantity through a window whose
+/// discontinuity sits on the interesting value and then folding again
+/// is the shape that makes an interval enclosure of a hairline come
+/// back a whole period wide (twice over, for two composed folds).
+///
+/// # The exact-fit structural zero, and the exact domain it holds on
+///
+/// The fit gate turns on `extent − setback` being bit-zero when the
+/// tangent point lands on the leg's far end. There both quantities are
+/// `radius ·` an angle computed from the SAME difference `d`: the
+/// extent takes `d.reduce_periodic(τ)` and the setback takes
+/// `d.reduce_periodic_centred(τ)`. Both floors return zero, both
+/// reductions are `d − 0`, and the margin is exactly `0` — **for every
+/// `d` whose `fl(fl(d/τ) + ½)` is still below `1`**. That is the
+/// condition to state, and it is NOT all of `[0, π)`:
+///
+/// - `fl(π/τ)` is exactly `0.5` (τ is `2·fl(π)`, and doubling is
+///   exact), so at `d = π` the sum is exactly `1`, the floor is `1`,
+///   and the centred window returns `d − τ`. The margin is `τ`.
+/// - One float lower, `d = nextbelow(π) = 3.1415926535897927`,
+///   `fl(d/τ)` rounds to `0.49999999999999994` and `+ ½` rounds
+///   half-to-even back UP to exactly `1.0`. Same branch, margin `τ`.
+///   Two floats lower, `3.1415926535897922`, the sum is
+///   `0.9999999999999998` and the agreement holds.
+///
+/// So the domain is `[0, π)` **minus its top ulp** — the top TWO
+/// floats of `[0, π]` diverge and every other one agrees — plus one
+/// signed-zero caveat: at `d = −0.0` (reachable, `(+0.0)·turn` with a
+/// clockwise `turn = −1`) the extent window returns `+0.0` and this one
+/// returns `−0.0`. Those are equal in value and the margin is `0`, so
+/// the gate classifies Zero either way; they are not bit-identical.
+///
+/// **None of this is a behaviour change and none of it is reachable as
+/// a wrong answer.** The retired spelling folded the same expression
+/// second and took the same branch at `nextbelow(π)`, so the values are
+/// what they have always been; and the closed end of the ray argument
+/// above is a tangent point diametrically opposite the corner, whose
+/// setback is half the carrier's circumference — a configuration the
+/// reach and fit gates classify long before exactness matters. The
+/// point of writing the domain out is that "by construction" was
+/// claimed for an interval it does not cover, and a knife-edge
+/// guarantee stated one ulp too wide is not a guarantee. Correcting
+/// the claim is the fix; adding an angle branch to evaluation code to
+/// widen it would not be (Q1).
 pub(crate) fn signed_swept<T: Real>(from: T, to: T, turn: T) -> T {
-    let forward = swept(from, to, turn);
-    let tau = T::tau();
-    forward - tau * (forward / tau + T::from_f64(0.5)).floor()
+    ((to - from) * turn).reduce_periodic_centred(T::tau())
 }
 
 /// The +90° rotation of `v` (its left normal).

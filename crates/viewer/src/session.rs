@@ -364,13 +364,10 @@ impl core::fmt::Display for Refusal {
     /// the same rule the feature tree's badges follow: the layer that
     /// raised the failure names it.
     ///
-    /// Two exceptions, both stated rather than hidden. The affordance
-    /// arm's wording is a RATIFIED decision of this layer's, so it is
+    /// One exception, stated rather than hidden: the affordance arm's
+    /// wording is a RATIFIED decision of this layer's, so it is
     /// composed here (and here only — [`Refusal::affordance`] is its
-    /// single home). And `ParseError` has no `Display` in
-    /// `editor-core`, so that one arm still shows a debug rendering;
-    /// the gap is recorded in issue #1103 alongside the unparser, which
-    /// is the same missing surface.
+    /// single home).
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::DrivenByExpression {
@@ -385,7 +382,7 @@ impl core::fmt::Display for Refusal {
             }
             Self::Edit(error) => write!(f, "the edit was refused: {error}"),
             Self::Dimension(error) => write!(f, "{error}"),
-            Self::Parse(error) => write!(f, "the expression did not parse: {error:?}"),
+            Self::Parse(error) => write!(f, "the expression did not parse: {error}"),
             Self::NoGesture => write!(f, "no drag is in progress"),
             Self::GestureInFlight => write!(f, "finish the drag first"),
             Self::Io(error) => write!(f, "{error}"),

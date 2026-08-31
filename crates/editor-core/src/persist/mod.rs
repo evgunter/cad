@@ -528,9 +528,49 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 /// (`git show origin/main:crates/editor-core/src/persist/mod.rs | grep
 /// SCHEMA_VERSION`) that every entry above describes.
 ///
+/// Version 19 is **the half-turn display unit re-spelled `pi rad`**
+/// (GUI units row): the angle row of `quantity::UNITS` whose factor is
+/// π carries the surface symbol `pi rad` where it carried `pi`, so a
+/// unit picker offering it beside `deg` and `rad` reads as "multiples
+/// of π radians" rather than as the number π.
+///
+/// A display unit is FILE data — [`crate::persist::wire::WireExpr`]'s
+/// `Literal` persists the remembered unit as its SYMBOL STRING, and
+/// the rebuild resolves that string through `quantity::unit_by_symbol`
+/// — so the spelling is on the wire and the break is not additive in
+/// EITHER direction. A v18 body says `"pi"`, which a closed v19 table
+/// has no row for; a v19 body says `"pi rad"`, which a v18 table has
+/// no row for. Neither reader can carry the other's angle literals.
+///
+/// Which gate fires is the v18 story exactly: a real v18 file is
+/// refused at the VERSION DOOR first, `SchemaTooOld` with the
+/// regenerate recourse, and never reaches serde. What the number buys
+/// is the HYBRID — a v19 header over a body still saying `"pi"` — and
+/// that one dies typed at the rebuild's own door
+/// ([`crate::expr::Expr::literal_with_unit`]'s symbol lookup), which
+/// is the refusal the wire already had for an unknown symbol.
+///
+/// A migration COULD rewrite `"pi"` to `"pi rad"` — the mapping is
+/// total and meaning-preserving, because the row's quantity and factor
+/// did not move and every v18 literal spelled `"pi"` denotes exactly
+/// the half-turn the v19 spelling denotes. What stops it being written
+/// is the standing rule, not the mapping: no migration machinery
+/// exists (LQ7a), the kernel is unreleased, and every file in this
+/// lineage replays from its own recipe. The mapping is recorded here
+/// because it is the CONTENT of the break, and `pirad_schema_v19.rs`
+/// executes both halves.
+///
+/// A document with no angle literal authored in half-turns writes the
+/// v18 bytes exactly — the degenerate carry, as v15's all-`None`
+/// distributions and v17's measure-less documents were.
+///
+/// Taken by the same by-eye read of main's constant at the re-merge
+/// (`git show origin/main:crates/editor-core/src/persist/mod.rs | grep
+/// SCHEMA_VERSION`) that every entry above describes; it read 18.
+///
 /// Bump ONLY with a ratified format change — plus its
-/// [`migration_step`] entry, or a ratified break like these seventeen.
-pub const SCHEMA_VERSION: u32 = 18;
+/// [`migration_step`] entry, or a ratified break like these eighteen.
+pub const SCHEMA_VERSION: u32 = 19;
 
 /// The serialized body under the header: snapshot + edit log (D1).
 #[derive(serde::Serialize, serde::Deserialize)]

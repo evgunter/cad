@@ -462,7 +462,22 @@ fn span_extent(kv: &KnotVector, span: usize) -> (f64, f64) {
 /// (`offset_fit::channel` is the same extraction in the row-major
 /// slice shape `PatchSpans::decompose` consumes; the two shapes have
 /// different consumers and are bridged rather than unified — see that
-/// function for the argument. Same arithmetic, same order.)
+/// function for the argument.)
+///
+/// **The two no longer share their arithmetic, and the divergence is
+/// deliberate.** This one extracts `w·P`; `offset_fit::channel`
+/// extracts `w·(P − c)` against a whole-patch recentring origin,
+/// because its net feeds polynomial products formed once over the
+/// merged break structure, where the ring's rounding scales with the
+/// coordinate. This site recentres too, but LATER and per cell
+/// ([`window_tilde_hull`]), off the cell's own control window — the
+/// tighter centre, available here because a cell-local hull is what
+/// is being read. So a change to one is no longer automatically a
+/// change to both. What they still share is the ORDER
+/// (`weight · coordinate`), and a change to THAT is a change to both.
+/// Unifying the two centres and the shape they are computed in is the
+/// patch-hull consolidation's (issue 1006, CERT-10), which owns this
+/// seam.
 fn comp_nets(n: &NurbsSurface<f64>, weighted: bool) -> Vec<Net> {
     let (nu, nv) = n.control_counts();
     (0..3)

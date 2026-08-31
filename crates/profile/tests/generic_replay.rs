@@ -210,11 +210,11 @@ fn the_corpus_replays_at_dual_with_bit_identical_values() {
 /// The `Interval` instantiation: the f64 answer lies inside every
 /// emitted enclosure, and the declared structure is the same.
 ///
-/// One corpus row does not reach that comparison at all, and the
-/// census below is deliberately a census rather than a skip — see
-/// [`exactly_one_corpus_row_escalates_at_interval`] for which row, why,
-/// and why the wall is the honest answer rather than a defect this
-/// suite papers over.
+/// Every row reaches that comparison today. That is a fact about the
+/// corpus, not a property of the loop, so the `continue` below is
+/// backed by a census rather than left to be trusted — see
+/// [`no_corpus_row_escalates_at_interval`], which pins the escalating
+/// set as EMPTY and says what a row joining it would mean.
 #[cfg(feature = "interval")]
 #[test]
 fn the_corpus_replays_at_interval_and_encloses_the_f64_lane() {
@@ -223,10 +223,10 @@ fn the_corpus_replays_at_interval_and_encloses_the_f64_lane() {
         let base = replay_at::<f64>(&closed.program);
         // A row that does not reach the comparison is not skipped
         // quietly: the SET of such rows is pinned, by name, in
-        // `exactly_one_corpus_row_escalates_at_interval` below, which
-        // asserts there is exactly one and says which. Without that
-        // companion this `continue` would let the whole corpus fall out
-        // of the enclosure claim one row at a time and still pass.
+        // `no_corpus_row_escalates_at_interval` below, which asserts it
+        // is empty. Without that companion this `continue` would let the
+        // whole corpus fall out of the enclosure claim one row at a time
+        // and still pass.
         let Ok(iv) = try_replay_at::<Interval>(&closed.program) else {
             continue;
         };
@@ -257,95 +257,192 @@ fn the_corpus_replays_at_interval_and_encloses_the_f64_lane() {
     }
 }
 
-/// **The finding this suite was written to surface.** Exactly one
-/// corpus row cannot replay at `Interval`, and its wall is an
-/// ENCLOSURE-QUALITY artifact of the shared angular helpers, not a
-/// hairline geometry it would be honest to call ambiguous.
+/// **The census the interval-lane wall left behind.** No corpus row
+/// escalates at `Interval`: the whole coverage corpus replays, and the
+/// enclosure claim its companion above makes therefore covers all of
+/// it. The set is pinned as EMPTY, and pinned by SHAPE — what this row
+/// watches for is a row JOINING it.
 ///
-/// The row is the rocker eye: one fused `ArcFilletArc` step whose two
+/// # What used to be here, and what closed it
+///
+/// One row escalated: the rocker eye, a fused `ArcFilletArc` whose two
 /// carriers are circles about (∓½, 0) through (0, −√3⁄2). That anchor
 /// is itself one of the pair's two intersections, so the derived corner
 /// list contains the anchor exactly — by design, and bitwise, since the
 /// squared-radius rule makes a derived corner reproduce an authored
-/// one. The incoming advance gate therefore measures the signed swept
-/// angle from the anchor TO the anchor: exactly `0.0` at `f64`, which
-/// classifies definitely Zero, discards that corner, and keeps the
-/// other one. That is the gate working.
-///
-/// At `Interval` the two angular coordinates are `atan2` enclosures of
-/// two separately-rounded points, so their difference straddles zero
-/// with nonzero width — and the swept-angle reduction then passes it
-/// through TWO successive `floor`-based period reductions (`x mod τ`,
-/// then the signed fold `x − τ⌊x/τ + ½⌋`). A box straddling a period
-/// boundary makes the first `floor` span an integer, widening the
-/// reduction toward the whole period; the second one spans an integer
-/// on the widened box in turn. A true value of ~0 comes out as the full
-/// `[−τ, τ]`, which no band can classify — hence the escalation.
-///
-/// Nothing here is fixed by tightening a tolerance, and the obvious
-/// reformulation (fold the RAW difference in one reduction, or take
-/// `atan2` of the cross/dot) changes the `f64` expression and so the
-/// `f64` bits — which the exact-fit rows depend on, by the standing
-/// argument in `signed_swept`'s own docs. The wall is therefore
-/// recorded and pinned rather than repaired here, and the row is a
-/// genuine, corpus-supplied indeterminate case: the shape a guided lane
-/// pass must abort on rather than quietly keep the nominal structure.
+/// one. The incoming advance gate measures the signed swept angle from
+/// the anchor TO the anchor: exactly `0.0` at `f64`, which classifies
+/// definitely Zero and discards that corner. At `Interval` the two
+/// angular coordinates are `atan2` enclosures of two separately-rounded
+/// points, so the difference straddles zero — and the signed sweep used
+/// to pass it through TWO successive `floor`-based reductions, `x mod
+/// τ` and then the signed fold, each of which spans an integer on a box
+/// straddling its own jump. The gate saw `[−τ, τ]` and no band could
+/// classify it. The signed sweep now folds the raw difference ONCE,
+/// through a window whose jump is at ±π rather than at 0
+/// ([`geom_core::Real::reduce_periodic_centred`]), so a hairline
+/// difference comes back a hairline;
+/// [`the_anchor_coincident_corner_reduces_to_input_width_at_interval`]
+/// is the width row that holds it there.
 ///
 /// # The class, stated by SHAPE rather than by helper name
 ///
-/// This is not a fillet defect and not a `signed_swept` defect. The
-/// class is **any floor-based period fold evaluated at `Interval`
-/// whose argument box straddles a period boundary** — `x mod τ`
-/// (`reduce_periodic`), the signed fold `x − τ⌊x/τ + ½⌋`, and every
+/// The class is **any floor-based period fold evaluated at `Interval`
+/// whose argument box straddles a step of the `floor`** — `x mod τ`
+/// (`reduce_periodic`), the centred fold `x − τ⌊x/τ + ½⌋`, and every
 /// open-coded `((a − b)/p + ½).floor()` that means the same thing.
 /// `floor` is a step function, so a box spanning one of its steps
 /// enclosing two integers is not a looseness to be tightened away: it
 /// is the honest enclosure of a discontinuous function, and the
-/// widening is proportional to the PERIOD, not to the input box.
-/// Composing two such folds — which is what `signed_swept` does on top
-/// of `swept` — squares the exposure, which is why the eye lands on
-/// exactly `[−τ, τ]`.
+/// widening is proportional to the PERIOD, not to the input box. What
+/// IS a defect is a fold whose jump has been put where the live values
+/// are — the composition above being the worst form of it, since the
+/// inner fold hands the outer one a box already a period wide.
 ///
-/// Naming it by helper was the first survey's mistake: grepping
-/// `reduce_periodic` alone misses every open-coded fold, and grepping
-/// this crate alone misses `topo`, which carries most of them. The
-/// tree-wide hit list and each site's disposition ride the class issue
-/// filed for it (evgunter/cad#1191), not this comment — a census row should say what shape
-/// it is watching for, and leave the inventory somewhere it can be
-/// updated without editing a test.
+/// So a row joining this set is one of two things, and the diagnostic
+/// says which: an escalation naming an ANGULAR gate is a new instance
+/// of the class, and anything else is an unrelated finding this census
+/// has caught in passing. Naming the class by helper was the first
+/// survey's mistake — grepping `reduce_periodic` alone misses every
+/// open-coded fold, and grepping this crate alone misses `topo`, which
+/// carries most of them. The tree-wide hit list and each site's
+/// disposition ride the class issue filed for it (evgunter/cad#1191),
+/// not this comment.
 #[cfg(feature = "interval")]
 #[test]
-fn exactly_one_corpus_row_escalates_at_interval() {
+fn no_corpus_row_escalates_at_interval() {
     use geom_core::Interval;
-    use profile::{PathError, ReplayErrorKind, Verb};
-    let mut escalated: Vec<(usize, Vec<Verb>)> = Vec::new();
+    use profile::Verb;
+    let mut escalated: Vec<(usize, Vec<Verb>, String)> = Vec::new();
     for (i, closed) in coverage_corpus().into_iter().enumerate() {
         let verbs: Vec<Verb> = closed.program.iter().map(Step::verb).collect();
         let Err(e) = try_replay_at::<Interval>(&closed.program) else {
             continue;
         };
-        match e.kind {
-            ReplayErrorKind::Path(PathError::Escalated { ref source }) => assert_eq!(
-                source.predicate,
-                Some("path_corner_advance_arc"),
-                "row {i}: the escalation must name the angular advance gate"
-            ),
-            ref other => panic!("row {i}: unexpected refusal class at Interval: {other:?}"),
-        }
-        assert_eq!(e.step, 0, "row {i}: the fused step is the whole program");
-        escalated.push((i, verbs));
+        escalated.push((i, verbs, format!("{e}")));
     }
-    assert_eq!(
-        escalated.len(),
-        1,
-        "the interval-lane wall is a ONE-row census; it moved: {escalated:?} \
-         — a row that joined it is a new instance of the reduction-widening \
-         class (see this test's rustdoc), and a row that left it means the \
-         angular helpers changed and the finding needs re-stating"
+    assert!(
+        escalated.is_empty(),
+        "the interval-lane escalating set is pinned EMPTY and a row joined it: \
+         {escalated:#?} — an escalation naming an angular gate is a new instance \
+         of the period-fold widening class (see this test\'s rustdoc); anything \
+         else is an unrelated finding this census caught in passing"
     );
-    assert_eq!(
-        escalated[0].1,
-        vec![Verb::ArcFilletArc],
-        "the escalating row is the one-step fused eye"
-    );
+}
+
+/// **The live instance of issue 1191, driven as a width row.** The
+/// rocker eye's incoming advance gate measures the signed swept angle
+/// from the entry anchor to a derived corner that reproduces that
+/// anchor bitwise. At `Interval` the two `atan2` coordinates are
+/// enclosures of separately-rounded points, so the difference handed to
+/// the fold straddles ZERO — and this row asserts that what comes back
+/// out is a box the width of that difference rather than a box the
+/// width of the period.
+///
+/// # The ceiling is RELATIVE, because the quantity it bounds is
+///
+/// An enclosure width scales with the coordinates it encloses: the same
+/// correct reformulation on a fixture 1000× larger returns boxes 1000×
+/// wider, in metres, having lost nothing. An absolute ceiling would
+/// therefore be a statement about this fixture's size and not about the
+/// fold — it passes at unit scale for a reason that has nothing to do
+/// with what the row claims, and a fixture scaled up would red it
+/// while the kernel was working perfectly. So the ceiling below is a
+/// multiple of the fixture's own scale, and the row runs at three
+/// scales to make the relativity operative rather than merely stated.
+///
+/// It **consults no tolerance** — not an ε, not a band; nothing about
+/// the verdict changes with the tolerance the suite runs at. The
+/// separation it needs is enormous and is what makes the loose constant
+/// safe: an input-width answer is ~1e-16 relative, and a regression to
+/// the composed fold returns a whole period — at unit scale ~6.3, i.e.
+/// sixteen orders up. Any constant in between distinguishes them.
+#[cfg(feature = "interval")]
+#[test]
+fn the_anchor_coincident_corner_reduces_to_input_width_at_interval() {
+    use geom_core::{Bounds, Interval};
+    use profile::Verb;
+
+    /// The eye's one fused step, with every length scaled by `s` — the
+    /// same geometry, read at a different size.
+    fn scaled(step: &Step<f64>, s: f64) -> Step<f64> {
+        use profile::{ArcData, Target};
+        let pt = |p: Point2<f64>| Point2::new(p.x * s, p.y * s);
+        let tgt = |t: Target<f64>| match t {
+            Target::Start => Target::Start,
+            Target::Point(p) => Target::Point(pt(p)),
+        };
+        let spec = |d: ArcData<f64>| match d {
+            ArcData::Center { c, winding, target } => ArcData::Center {
+                c: pt(c),
+                winding,
+                target: tgt(target),
+            },
+            other => panic!("the eye authors a Center-mode arc, got {other:?}"),
+        };
+        match *step {
+            Step::ArcFilletArc {
+                spec: a,
+                radius,
+                spec2,
+            } => Step::ArcFilletArc {
+                spec: spec(a),
+                radius: radius * s,
+                spec2: spec(spec2),
+            },
+            ref other => panic!("the eye is one fused step, got {other:?}"),
+        }
+    }
+
+    let eye = coverage_corpus()
+        .into_iter()
+        .find(|c| c.program.iter().map(Step::verb).eq([Verb::ArcFilletArc]))
+        .expect("the corpus carries the one-step fused eye");
+
+    // Relative: widths are compared against the scale of the geometry
+    // that produced them. A period-width answer is ~6.3 ABSOLUTE and so
+    // fails this at every scale; an input-width answer is ~1e-16
+    // relative and passes at every scale.
+    const RELATIVE_CEILING: f64 = 1e-12;
+    for scale in [1.0f64, 100.0, 1000.0] {
+        let program: Vec<Step<f64>> = eye.program.iter().map(|st| scaled(st, scale)).collect();
+        let iv = try_replay_at::<Interval>(&program).unwrap_or_else(|e| {
+            panic!(
+                "at scale {scale}: the eye must replay at Interval once the signed \
+                 fold stops composing on a [0, tau) reduction: {e}"
+            )
+        });
+        let mut widest = 0.0f64;
+        let mut widest_rel = 0.0f64;
+        for (k, v) in iv.vertices().iter().enumerate() {
+            for (what, enc, is_length) in [
+                ("x", v.pos().x, true),
+                ("y", v.pos().y, true),
+                // The bulge is a TANGENT — dimensionless, so it does not
+                // scale and is measured against 1, not against `scale`.
+                ("bulge", v.bulge(), false),
+            ] {
+                let w = enc.hi() - enc.lo();
+                let unit = if is_length { scale } else { 1.0 };
+                let rel = w / unit;
+                widest = widest.max(w);
+                widest_rel = widest_rel.max(rel);
+                assert!(
+                    rel <= RELATIVE_CEILING,
+                    "at scale {scale}, vertex {k}'s {what} enclosure is {w:e} wide \
+                     ([{}, {}]) = {rel:e} relative — a period-width enclosure, not an \
+                     input-width one",
+                    enc.lo(),
+                    enc.hi()
+                );
+            }
+        }
+        assert!(
+            widest > 0.0,
+            "at scale {scale}: the eye's enclosures are all degenerate"
+        );
+        println!(
+            "eye at scale {scale}: widest absolute {widest:e}, widest relative {widest_rel:e}"
+        );
+    }
 }

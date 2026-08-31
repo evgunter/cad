@@ -366,6 +366,67 @@ landed here: this finding measured the `fmt` job, and a claim about a
 > `k_report.rs` and the falsifier live under `crates/`, which the pin does
 > not reach.
 
+**ADDENDUM, 2026-08-31 — F6's result may have been spent, and this
+entry says so rather than leaving the −1 standing unqualified.** This
+document maintains its billed-minute figures BY HAND, deliberately and
+for the reason given under *Method*: they are not guardable, so the only
+thing that keeps them honest is a change that moves one saying so at the
+entry it moves. The D180/D301 widening (the rustdoc gate's `not(feature)`
+blind spot) has added a **third pass** to `scripts/doc-gate.sh` — one
+`--no-default-features` pass per cargo root that carries a paired
+module, five of the eight roots today.
+
+What is measured:
+
+* **It is a distinct feature unification**, so it is the shape this
+  entry's own superseding note is about: it shares almost no artifacts
+  with the `--all-features` passes and no cache configuration collapses
+  the two. It is not a caching problem and will not be fixed as one.
+* **Warm, gate plus self-test, base against head on one tree**: +33.4 s
+  (4 vCPU, 2026-08-30, with three pass-3 self-test arms), +47.9 s (a
+  second box, 2026-08-31, same arms), and **+58.2 s** (4 vCPU,
+  2026-08-31, after two further arms and a merge of main: 86.9 s →
+  145.1 s, of which +35.7 s is the gate and +22.5 s the mktemp
+  fixtures). **The figure grew on every re-read**, which is the honest
+  headline here: plan against the largest, and re-read rather than
+  quoting the first.
+* **Hosted, COLD**: `rustdoc (gate)` ran 331 s on run `33342678074`
+  against 219/288/299 s on three contemporaneous PR runs whose cache
+  also missed (restore ≤ 2 s in all four). Roughly +20–30%.
+* **Hosted, WARM against WARM — the number this entry turns on, and it
+  is measured rather than owed.** Two PR runs a cache-hit apart, same
+  job shape (the non-gate steps are 69 s in both):
+
+  | | run | cache restore | `rustdoc (gate)` | whole job | billed |
+  |---|---|---|---|---|---|
+  | merge base | `33342571322` | 14 s | 110 s | 179 s | **3** |
+  | with pass 3 | `33346546955` | 13 s | 153 s | 222 s | **4** |
+
+  **+43 s, and +1 billed minute.** The widening costs a minute on every
+  code-tier PR run that reaches this job.
+
+**And the thing that measurement turned up, which matters more than the
+minute.** F6's headline — *"the gate is back inside 2 billed minutes"* —
+had **already lapsed before this change**, for reasons that have nothing
+to do with it: the merge-base job bills **3**, not 2, because the `fmt`
+job has since grown a viewer-toolkit clippy pass (~41 s) and a wasm32
+check (~19 s). F6 measured a 99 s job; the same job at the same warmth
+is 179 s today. So the −1 this entry claims was spent by job growth
+first and by pass 3 second, and the honest reading is that **a
+billed-minute figure in this document is only true as of its own
+measurement** — which is the argument under *Method* for keeping them by
+hand, arriving as a worked example.
+
+Still NOT measured: **the cache entry's size.** F6's +90 MB bought the
+seven roots at ONE selection. Pass 3 adds a second fingerprint set to
+five of them, in the same cached target directories. Nobody has read the
+new figure.
+
+If the minute is worth reclaiming, the lever is pass 3's root set — five
+roots, of which `demos/tour` compiles the whole kernel — and not its
+lint set, which is what makes the pass worth anything. The two job
+growths above are the larger target and are nobody's row yet.
+
 ## What landed
 
 * `db4f7ca` — `test-interval`'s 2x2 matrix (eps x shard) → one job,
@@ -393,7 +454,10 @@ landed here: this finding measured the `fmt` job, and a claim about a
   defaults to (F6). The list is not written into `ci.yml`: a step asks
   `scripts/doc-gate.sh --print-roots`, which runs the gate's own
   derivation, so the cache's scope cannot drift from the gate's coverage.
-  **−1 billed min.**
+  **−1 billed min** — *spent, and then some: measured 2026-08-31 the job
+  bills 3 at that state and 4 with the D180/D301 widening. Job growth
+  unrelated to the gate took the first minute; pass 3 took the second.
+  See F6's addendum.*
 
 ### 2026-08-22, the second pass — and it is a different KIND of change
 
@@ -921,12 +985,20 @@ not a saving, it is a hole.
    > there.
 
    Sampling the rustdoc gate — the entry this replaces — is off the
-   table for now, and F6 is why: the gate is back inside 2 billed
-   minutes without giving up a root. Sampling it *would* be sound (a
-   broken intra-doc link persists in the tree, so a later draw finds it)
-   but it is the wrong tool — the six roots are independent, so sampling
-   them buys latency proportionally rather than exploiting near-certain
-   agreement the way eps does.
+   table for now, and F6 was why: the gate was back inside 2 billed
+   minutes without giving up a root. **That premise is false as of
+   2026-08-31, and the sentence is left standing as the reasoning of its
+   date rather than quietly rewritten**: measured warm against warm, the
+   job bills 3 at the merge base (job growth unrelated to the gate) and
+   4 with the D180/D301 widening's third pass. F6's addendum above
+   carries both readings. What needs re-reading is the conclusion, not
+   the argument.
+   Sampling it *would* be sound (a broken intra-doc link persists in the
+   tree, so a later draw finds it) but it is the wrong tool — the roots
+   are independent, so sampling them buys latency proportionally rather
+   than exploiting near-certain agreement the way eps does. If the
+   widening does cost the minute back, this is the trade to re-open
+   first.
 3. **A scheduled full run on main** — still owed from F3, and now owed
    more: with the push run trimmed and the PR run sampled, no single
    tree is gated at every point by hosted CI. Deliberately not bundled

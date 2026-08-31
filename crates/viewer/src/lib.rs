@@ -60,9 +60,11 @@ pub mod history;
 pub mod input;
 pub mod matetool;
 pub mod pick;
+pub mod prefs;
 pub mod props;
 pub mod scene;
 pub mod session;
+pub mod theme;
 pub mod tree;
 
 #[cfg(feature = "app")]
@@ -88,9 +90,11 @@ pub use pick::{
     Highlight, IdMap, IdMapError, PatchId, PickError, PickIndex, PickIndexError, cursor_projection,
     highlight,
 };
+pub use prefs::{Notice, Prefs, PrefsError, PrefsStore, StoreError};
 pub use props::{SlotDriver, SlotFault, SlotRow, SlotValue};
 pub use scene::{DisplayTolerance, SceneDocError, SceneError, SceneMesh, ScenePart, SceneStats};
 pub use session::{
     DocSession, FaceSelection, Landing, OpOutcome, Refusal, Selection, SessionOp, Standing,
 };
+pub use theme::{Mark, Polarity, Safety, Theme};
 pub use tree::{RowStatus, TreeRow};
