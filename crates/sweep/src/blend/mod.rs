@@ -1,6 +1,7 @@
-//! **Constant-radius rolling-ball fillets** (CURVED-DESIGN C8, OQ6;
-//! M5 PR 12): the validity-predicate battery, the analytic blend
-//! arms, and the typed refusal vocabulary for everything else.
+//! **The edge blends** — constant-radius rolling-ball fillets
+//! (CURVED-DESIGN C8, OQ6; M5 PR 12) and equal-setback chamfers over
+//! the same machinery: the validity-predicate battery, the analytic
+//! blend arms, and the typed refusal vocabulary for everything else.
 //!
 //! Since VERBS-CHAMFER this module is the shared home of BOTH edge
 //! blends: `chamfer_edges` runs the same battery (minus the two
@@ -95,7 +96,7 @@ pub use arms::{BlendArm, CornerBall, EdgeBlend, RimBlend};
 pub use battery::{
     BatteryVerdict, BlendRequest, ChainClosure, Convexity, Link, run_battery, run_battery_for,
 };
-pub use build::{Blended, Filleted, fillet_edges};
+pub use build::{Blended, Chamfered, Filleted, chamfer_edges, fillet_edges};
 pub use naming::{BlendNaming, RimSide};
 
 /// **Which band a request grafts onto its edges.** The battery, the
@@ -175,7 +176,7 @@ pub(crate) fn decide<T: Decide>(
     geom_core::k_stats::decide(name, margin, band)
 }
 
-/// Where a fillet escalation happened — the payload half of the
+/// Where a blend escalation happened — the payload half of the
 /// two-tolerance shape (D4 ¶1 addendum): one message and one recourse
 /// per user situation, margins riding along as data.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -314,7 +315,9 @@ impl CornerConfig {
 impl fmt::Display for CornerConfig {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::ThreeConvexEdges => write!(f, "three convex edges (the sphere-octant corner)"),
+            Self::ThreeConvexEdges => {
+                write!(f, "three convex edges (the built corner configuration)")
+            }
             Self::NEdgeVertex { valence } => write!(f, "a valence-{valence} vertex"),
             Self::MixedConvexity { convex } => {
                 write!(f, "a mixed-convexity vertex ({convex} of 3 edges convex)")
@@ -690,8 +693,9 @@ pub enum BlendError {
         detail: &'static str,
     },
     /// **Frontier** (D2 addendum row 2): the REQUEST does not cover a
-    /// chain termination the way the octant assembly needs — a
-    /// run-out.
+    /// chain termination the way the corner assembly needs (the
+    /// fillet's sphere octant or the chamfer's flat patch, one
+    /// admission door) — a run-out.
     ///
     /// This is deliberately *not* [`BlendError::UnsupportedCorner`],
     /// which is the OQ6 vocabulary for what a corner's own
@@ -724,7 +728,7 @@ pub enum BlendError {
     /// the plan read it** (D2 addendum row 1): a stored reference that
     /// did not resolve, a cycle that did not close, or a verdict whose
     /// keys disagree with the body's own structure. This is not a
-    /// fillet frontier and carries no fillet recourse — the input is
+    /// blend frontier and carries no recourse — the input is
     /// invalid, and the surgery refuses rather than building on it.
     BodyNotIntact {
         /// The entity the plan was reading.
