@@ -1168,3 +1168,47 @@ octant_chart collision loudly (the resolution mapped by the
 reviewer) and adds the concave-arm cross-corner row the
 composition would otherwise lack — queued for BLEND-4's
 adjudication union.
+
+## 2026-08-31 — BLEND-4 reviews concluded (ordinal 606); adjudication + fix-pass dispatch
+
+R2 (slot 2): **MERGEABLE-AFTER-FIXES 0/5/6 + 10 style, rubric
+5/5/4** (~250k / ~55m; probes `blend/paramcorners-r2-probes` @
+1aca8821, 6 rows). VERDICT SPLIT with R1 (MERGEABLE); NO MAJOR
+either arm — no tally candidates; **v6 tally unchanged (1).**
+
+**Correspondence.** The chart-fold coverage question is the
+headline and the arms LADDER on it: R1 attacked dispatched
+mutation C, measured the single pin, and judged it acceptable
+given a doc fix; R2 invented mutation C′ (revert `u_ref` alone,
+keep the axis) and measured ALL 878 ROWS GREEN — half the fold
+pinned by NOTHING — plus the fold's justifying invariant
+measurably FALSE (the pole is the third foot only up to sign, 3
+of 16 octants antipodal; probed). Bilateral: the false chart-pin
+sentence in the volume row (both executed); the production-dead
+`CornerBall.surface`/`.independence` fields (R1 S2 ≡ R2 MIN-5 —
+R2 adding the #644-premise correction: octant_chart never read
+the ball's axis); the Steiner closed-form copy class (differing
+enumerations — the data found what the prose sweep could not);
+deviation 3's unscheduled fixture-builder home; the sibling-
+hazard "metered upstream" oversell (R2's 15-pose wedge grid pins
+the true net: FaceClearanceUncertified before the corner is
+solved). R2 unique: the lost payload-count discipline (variant-
+only match green under relabelling; probe restores); the feet
+unmeasured at oblique (probe closes); the "exactly three places"
+header now six; the "apex" double meaning. **On R2's S-7 (drop
+the fold entirely): DECLINED with argument** — the plan's ratified
+unit text names "octant chart orientation" as part of the one
+change; with R2's seam/quarter-turn probe adopted (red under C
+AND C′) the fold becomes a genuinely pinned contract, answering
+the no-consumer objection without re-litigating the plan.
+
+Fix pass IMPLEMENTER-INHERITED, dispatched: both probe suites as
+merge parents (R1's oblique e2e + degeneracy funnel + chamfer
+bit-differential; R2's six incl. the fold's true pin), the prose
+corrections (chart-pin sentence, chart invariant to what holds,
+metered-upstream scoping, header count, apex disambiguation), the
+dead-fields disposition, the Steiner class declared, deviation 3
+scheduled with an issue, and — LAST, before state-sync — the
+merge of main that resolves the #1359 octant_chart collision
+LOUDLY per T-c's mapped resolution and adds the concave-arm
+cross-corner row the composition would otherwise lack.
