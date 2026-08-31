@@ -1,8 +1,21 @@
-//! **The in-place edge-blend composition surgery** (M6 unit 1): fillet
+//! **The in-place edge-blend composition surgery** (M6 unit 1): blend
 //! a SUBSET of a body's edges by operating on the body itself — split
 //! the support faces along the stored trimlines, excise the edge
 //! strips, and graft the blend walls in — instead of rebuilding a
 //! whole polyhedron from scratch.
+//!
+//! **Both verbs run this one surgery.** The verdict's
+//! [`BlendKind`] is the single discriminant, read exactly where the
+//! two differ: the corner geometry (`corner_plan` grafts the
+//! fillet's sphere octant or the chamfer's flat patch through the
+//! three trimline feet), the band's contact carrier (a fillet's
+//! trimline arc, a chamfer's straight chord), and the closed-chain
+//! door (the rim phases below are the fillet's — a chamfer has no
+//! closed-chain band and refuses there). Everything else in this
+//! module — the splits, the excisions, the ring carry-through, the
+//! naming rows — is one shared walk. Prose below that speaks of the
+//! ball or the octant is describing the fillet's arm of a shared
+//! move, not a fillet-only module.
 //!
 //! This is the unit M5 banked at PR 12 (deviation 1's second door and
 //! deviation 2), sized by that review at one reviewed unit, and
@@ -112,7 +125,7 @@
 //! state is a third (D2 addendum, rows 2, 1 and 4). This module keeps
 //! them apart at every site:
 //!
-//! - **Row 2**, above: valid input, unbuilt door, carries the fillet
+//! - **Row 2**, above: valid input, unbuilt door, carries the
 //!   recourse that is true of it.
 //! - **Row 1**, [`FilletError::BodyNotIntact`]: a stored reference
 //!   that did not resolve, or a cycle that did not close. **This is not a kernel

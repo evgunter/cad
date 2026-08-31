@@ -444,6 +444,13 @@ pub trait Real:
 /// `f64` payload, which is a bracket read. So `T: Decide + Bounds` is
 /// its honest signature.
 ///
+/// Since VERBS-CHAMFER this seam is the one BOTH edge-blend front
+/// doors sit in: `chamfer_edges` is written inside these same three
+/// files deliberately — the chamfer runs the same battery and the
+/// same surgery — rather than allowlisting a fourth file, so
+/// "fillet-battery seam" names the seam's home, and what the
+/// ratification covers is the shared edge-blend lane.
+///
 /// What differed from PR 11 was only the SPLIT, and it differed because
 /// there was nothing to split: no dual-scalar path could reach this
 /// code, since [`Bounds`] had no [`Dual`](crate::Dual) impl. A

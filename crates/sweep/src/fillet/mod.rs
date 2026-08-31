@@ -2,6 +2,15 @@
 //! M5 PR 12): the validity-predicate battery, the analytic blend
 //! arms, and the typed refusal vocabulary for everything else.
 //!
+//! Since VERBS-CHAMFER this module is the shared home of BOTH edge
+//! blends: `chamfer_edges` runs the same battery (minus the two
+//! rolling-ball predicates), the same admission tokens, and the same
+//! composition surgery, discriminated by [`BlendKind`] on the verdict
+//! — and both doors refuse through the one verb-neutral
+//! [`FilletError`], wrapped in a [`BlendRefusal`] that names the verb
+//! once. The rolling-ball prose below is the fillet's arm of that
+//! shared machinery.
+//!
 //! # The banked principle IS the API
 //!
 //! C8's ratified order is binding and it is the whole design: fillet

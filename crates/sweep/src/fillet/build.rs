@@ -1,5 +1,6 @@
-//! **The assembly half of the fillet unit**: turning a
-//! [`BatteryVerdict`](super::BatteryVerdict) into a rounded solid.
+//! **The assembly half of the edge-blend unit** — both verbs' front
+//! doors, turning a [`BatteryVerdict`](super::BatteryVerdict) into a
+//! blended solid.
 //!
 //! # The ordering contract, structurally
 //!
