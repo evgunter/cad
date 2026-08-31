@@ -200,3 +200,44 @@ fn probe_undeclared_aligned_reports_its_outcome() {
         }
     }
 }
+
+/// PROBE 5 — how loose is the 8-ULP additivity assertion?
+///
+/// The unit relaxed fixture (i)'s BITWISE volume oracle to a relative
+/// 8-ULP comparison on the ground that both sides carry pi terms that
+/// no rearrangement cancels. This row reports the ULP distance each of
+/// the unit's own three fixtures actually achieves, so the headroom
+/// between the achieved number and the asserted bound is visible.
+#[test]
+fn probe_reports_actual_additivity_ulps() {
+    let ulps = |v: f64, sum: f64| -> f64 {
+        if v == sum {
+            return 0.0;
+        }
+        (v - sum).abs() / (f64::EPSILON * sum.abs())
+    };
+    // partial engagement
+    {
+        let c = collar();
+        let p = peg_at(0.5, 2.0, 0.0);
+        let d = wall_decls(&c, &p);
+        if let Ok(BooleanResult::Body(bb)) = topo::union_with(&c, &p, &d, Tol::witness()) {
+            let (v, vc, vp) = (volume(&bb.body), volume(&c), volume(&p));
+            println!("PROBE5 partial: {:.3} ULP (v={v:.17e} sum={:.17e})", ulps(v, vc + vp), vc + vp);
+        } else {
+            println!("PROBE5 partial: refused");
+        }
+    }
+    // full engagement
+    {
+        let c = collar();
+        let p = peg_at(1.0, 1.0, 0.0);
+        let d = wall_decls(&c, &p);
+        if let Ok(BooleanResult::Body(bb)) = topo::union_with(&c, &p, &d, Tol::witness()) {
+            let (v, vc, vp) = (volume(&bb.body), volume(&c), volume(&p));
+            println!("PROBE5 full: {:.3} ULP (v={v:.17e} sum={:.17e})", ulps(v, vc + vp), vc + vp);
+        } else {
+            println!("PROBE5 full: refused");
+        }
+    }
+}
