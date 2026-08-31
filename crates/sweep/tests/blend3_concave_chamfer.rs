@@ -13,7 +13,7 @@ use geom::Surface;
 use geom_core::{Affine3, Band, Mat3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use sweep::blend::build::fillet_edges;
-use sweep::blend::{BlendError, CornerConfig, RunOutPolicy};
+use sweep::blend::{BlendError, CornerConfig, FILLET3_CORNER_RECOURSE, RunOutPolicy};
 use sweep::chamfer::chamfer_edges;
 use sweep::test_support::cube;
 use sweep::{Extrusion, extrude};
@@ -306,4 +306,27 @@ fn the_concave_fillet_refuses_at_its_own_corner_door() {
         } => assert_eq!(policy, Some(RunOutPolicy::RunOutStopAtVertex)),
         ref other => panic!("expected a concave-trihedron corner refusal, got {other:?}"),
     }
+}
+
+/// **The sentence that refusal ships is followable, here, as written.**
+///
+/// The corner recourse tells a refused caller that a trivalent corner
+/// of three CONCAVE edges is carved by a chamfer over plane–plane
+/// supports. A recourse that names a door which cannot serve the caller
+/// who was just refused is the defect this standard exists for, so the
+/// row asserts the sentence and then EXECUTES it — same body, same
+/// twelve edges, same size — and requires the promised carve.
+#[test]
+fn the_concave_corner_recourse_is_followable_as_written() {
+    let body = vented_cavity();
+    let edges = cavity_edges(&body);
+    let refused = fillet_edges(&body, &edges, D, band(), Tol::witness())
+        .expect_err("the concave fillet refuses");
+    let text = refused.error.to_string();
+    assert!(
+        text.contains(FILLET3_CORNER_RECOURSE),
+        "the corner refusal must ship the corner recourse, got {text}"
+    );
+    chamfer_edges(&body, &edges, D, band(), Tol::witness())
+        .expect("the door that sentence names must carve the request it was refused for");
 }
