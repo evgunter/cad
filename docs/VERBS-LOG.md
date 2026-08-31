@@ -2741,3 +2741,49 @@ not relaxation, per the #1090/#1091 line; the claims to falsify
 are unchanged both arms). Future briefs carry the rule; the
 brief template's "build and run the full test suite" wording is
 retired.
+## ORDINAL 109 RETURNED AND ADJUDICATED (2026-09-01)
+
+R1 (opus) 1 MAJ / 3 MIN, 5/3/3. R2 (fable, post-correction — its
+full-suite battery was killed mid-run on Evan's method ruling;
+its evidence base is probes + step-verified hosted CI + the
+partial 35-suite/2482-green run, an evidence-source asymmetry
+noted for the coding, correction not relaxation) 0 MAJ / 2 MIN,
+5/4/4. THE UNIT HELD: both arms independently re-derived the
+pinch theorem (R2 attacked it at seven angles including 1°/179°
+and three radii off-axis — survived), verified the door, the
+STOP's three obstacles verbatim at their sites, the re-pose
+bit-for-bit including the 1e-12 escalation payload, deviation 1
+by mutation (all three rows red with the sibling-half-wall miss
+when the old fall-through returns), and the CI table row-for-row.
+Findings:
+- PRINCIPAL, BILATERAL (R1 MAJ-1 = R2 MIN-1, severity
+  disagreement adjudicated toward R1's reading since the PR's
+  lane-request justification leaned on it): the certified-scalar
+  'both arms' pin DOES NOT EXIST — the skew pose stops at the
+  crossing layer and bool_germ_frame_axes_coplanar is never
+  evaluated at Interval anywhere (R1 instrumented the dispatch:
+  no reach at either eps; frame_dispatch_tests is f64-only); the
+  skew row also lacks its re-posed twin. No tally candidate
+  (bilateral).
+- BILATERAL MIN (R1 m2 = R2 MIN-2): same_door_or_escalated is
+  substring-loose AND accepts escalation at eps rows where the
+  measurement shows exact door equality (escalation is real only
+  at 1e-12).
+- R1-only MIN: the door's Display text writes the pinch formula
+  with a NON-UNIT cross product — 0.59 m off at 20° on a 0.9 m
+  fixture — and the suite PINS the wrong string (the theorem is
+  right; the sentence is wrong in the one place a user reads it).
+  Also the widened NoArm matcher losing variant pins for the
+  sphere rows.
+- R2 nits: two line cites off-by-one/two; the nine-row-block
+  sentence; the interval header's 'zero vector by construction'
+  stronger than measured.
+- SPEC TENSION (both arms, routed here): the re-cut's 'steinmetz
+  row retyped' premise is falsified by the PR's own tangency
+  theorem (the pose never reaches the frame) — the spec text
+  corrects orchestrator-side post-merge; deviation 2 stands.
+NO TALLY CANDIDATES — tally 1/8 unchanged; pair COUNTS (R2's
+kill-order asymmetry flagged). Union fix pass out. S-MATE
+coordination (#1417's parallel Placement split) settled
+on-thread: they unify second-to-merge; our fix pass adds the
+cross-reference only.
