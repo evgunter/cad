@@ -1173,9 +1173,10 @@ fn curved_face_arm<T: Decide>(
                     for (w, pw) in [(u, pu), (v, pv)] {
                         match side(pw).map_err(|diag| BooleanError::Escalated { diag })? {
                             Sign::Zero => {
-                                if !vertex_on_curved_face(
+                                if vertex_on_curved_face(
                                     x_is, y, w, pw, face, contacts, band, tol,
-                                )? {
+                                )? != EndpointPlacement::Recorded
+                                {
                                     return Err(frontier());
                                 }
                                 any = true;
@@ -1226,8 +1227,10 @@ fn curved_face_arm<T: Decide>(
         // NEGATIVE partner is a genuine crossing — never the covered
         // posture. Uncovered keeps both frontier doors verbatim.
         (Sign::Zero, Sign::Zero) if covered => {
-            let hu = vertex_on_curved_face(x_is, y, u, pu, face, contacts, band, tol)?;
-            let hv = vertex_on_curved_face(x_is, y, v, pv, face, contacts, band, tol)?;
+            let hu = vertex_on_curved_face(x_is, y, u, pu, face, contacts, band, tol)?
+                == EndpointPlacement::Recorded;
+            let hv = vertex_on_curved_face(x_is, y, v, pv, face, contacts, band, tol)?
+                == EndpointPlacement::Recorded;
             // An endpoint the containment door cannot decide keeps the
             // frontier door.
             if hu && hv {
@@ -1237,14 +1240,18 @@ fn curved_face_arm<T: Decide>(
             }
         }
         (Sign::Zero, Sign::Positive) if covered => {
-            if vertex_on_curved_face(x_is, y, u, pu, face, contacts, band, tol)? {
+            if vertex_on_curved_face(x_is, y, u, pu, face, contacts, band, tol)?
+                == EndpointPlacement::Recorded
+            {
                 Ok(CurvedEvent::Recorded)
             } else {
                 Err(frontier())
             }
         }
         (Sign::Positive, Sign::Zero) if covered => {
-            if vertex_on_curved_face(x_is, y, v, pv, face, contacts, band, tol)? {
+            if vertex_on_curved_face(x_is, y, v, pv, face, contacts, band, tol)?
+                == EndpointPlacement::Recorded
+            {
                 Ok(CurvedEvent::Recorded)
             } else {
                 Err(frontier())
@@ -1281,17 +1288,44 @@ fn curved_face_arm<T: Decide>(
                 }
                 SpanVerdict::NoInterior => {
                     let mut hit = false;
-                    if s1 == Sign::Zero {
-                        hit |= vertex_on_curved_face(x_is, y, u, pu, face, contacts, band, tol)?;
+                    // Every ON endpoint definitely placed OUTSIDE this
+                    // face's trim (see below).
+                    let mut all_elsewhere = true;
+                    for (on, w, pw) in [(s1 == Sign::Zero, u, pu), (s2 == Sign::Zero, v, pv)] {
+                        if !on {
+                            continue;
+                        }
+                        match vertex_on_curved_face(x_is, y, w, pw, face, contacts, band, tol)? {
+                            EndpointPlacement::Recorded => hit = true,
+                            EndpointPlacement::Elsewhere => {}
+                            EndpointPlacement::Undecided => all_elsewhere = false,
+                        }
                     }
-                    if s2 == Sign::Zero {
-                        hit |= vertex_on_curved_face(x_is, y, v, pv, face, contacts, band, tol)?;
-                    }
-                    // An endpoint the containment door cannot place
-                    // keeps the frontier door, exactly as the covered
-                    // rung's endpoint rows do.
                     if hit {
-                        Ok(CurvedEvent::Recorded)
+                        return Ok(CurvedEvent::Recorded);
+                    }
+                    // **No incidence with THIS face, certified.** The
+                    // span's only contacts with the wall's CARRIER are
+                    // this arm's ON endpoint(s): `NoInterior` reports
+                    // two distinct definite roots with none of them
+                    // strictly inside the span AND inside this face's
+                    // trim, and a line meets a cylinder at most twice.
+                    // A face is a subset of its carrier, so an ON
+                    // endpoint the trim places definitely OUT is not
+                    // an incidence of this face — the same sentence
+                    // `wall_crossing` already writes when it steps
+                    // over an interior root the trim puts `Out`. The
+                    // event is a SIBLING face's: a wall pierce mints
+                    // its vertex interior to the face that holds it,
+                    // and the split's fragments are then re-queried
+                    // against every other face of the same carrier.
+                    //
+                    // The `Undecided` half is what keeps this honest.
+                    // An endpoint with no verdict is not evidence of
+                    // absence, so a single one of them takes the whole
+                    // span back to the typed door.
+                    if all_elsewhere {
+                        Ok(CurvedEvent::None)
                     } else {
                         Err(frontier())
                     }
@@ -1317,8 +1351,10 @@ fn curved_face_arm<T: Decide>(
             let (t0, t1) = curve.params();
             match wall_crossing(y, face, &surface, curve.carrier(), t0, t1, band)? {
                 SpanVerdict::NoInterior => {
-                    let hu = vertex_on_curved_face(x_is, y, u, pu, face, contacts, band, tol)?;
-                    let hv = vertex_on_curved_face(x_is, y, v, pv, face, contacts, band, tol)?;
+                    let hu = vertex_on_curved_face(x_is, y, u, pu, face, contacts, band, tol)?
+                        == EndpointPlacement::Recorded;
+                    let hv = vertex_on_curved_face(x_is, y, v, pv, face, contacts, band, tol)?
+                        == EndpointPlacement::Recorded;
                     if hu || hv {
                         Ok(CurvedEvent::Recorded)
                     } else {
@@ -1606,14 +1642,31 @@ enum CurvedEvent<T: geom_core::Real> {
     },
 }
 
+/// Where [`vertex_on_curved_face`] placed an on-carrier endpoint.
+///
+/// The two non-recording answers are kept APART because they license
+/// different things. `Elsewhere` is a definite verdict — the point is
+/// outside this face's trim AND coincides with no vertex of `y`
+/// anywhere — so this face has no incidence to record and a caller
+/// that has also ruled out an interior crossing may conclude "no
+/// event HERE". `Undecided` is the absence of a verdict and licenses
+/// nothing but the caller's typed door.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum EndpointPlacement {
+    /// The incidence was recorded (v-v, split-and-pair, or v-f).
+    Recorded,
+    /// Definitely outside THIS face's trim, and on no vertex of `y`.
+    Elsewhere,
+    /// The containment door decided nothing.
+    Undecided,
+}
+
 /// The declared-cosurface rung's endpoint treatment: classify an
 /// on-carrier vertex of `x` against the CURVED face and record the
 /// planar posture's contact kinds — `OnVertex` ⇒ v-v, `OnEdge` ⇒
 /// split `y`'s boundary edge at the (bitwise-shared) point and pair
 /// the minted vertex, `In` ⇒ the v-f record, exactly as
-/// [`vertex_on_face`] does on a plane. Returns `false` when the
-/// containment door decides nothing (the caller's typed frontier
-/// door).
+/// [`vertex_on_face`] does on a plane.
 #[allow(clippy::too_many_arguments)]
 fn vertex_on_curved_face<T: Decide>(
     x_is: Operand,
@@ -1624,25 +1677,27 @@ fn vertex_on_curved_face<T: Decide>(
     contacts: &mut ContactAcc,
     band: Band,
     tol: Tol,
-) -> Result<bool, BooleanError> {
-    match super::contain::curved_face_containment(y, face, px, band)
-        .map_err(|e| esc(e, x_is.other()))?
-    {
+) -> Result<EndpointPlacement, BooleanError> {
+    // Kept so the two non-recording answers can be told apart below:
+    // `Out` is a verdict, `None` is the absence of one.
+    let placed = super::contain::curved_face_containment(y, face, px, band)
+        .map_err(|e| esc(e, x_is.other()))?;
+    match placed {
         Some(FaceContainment::OnVertex(vy)) => {
             push_vv(contacts, x_is, vx, vy);
-            return Ok(true);
+            return Ok(EndpointPlacement::Recorded);
         }
         Some(FaceContainment::OnEdge(ey)) => {
             let wy = split_other_at_point(y, x_is.other(), ey, px, band, tol)?;
             push_vv(contacts, x_is, vx, wy);
-            return Ok(true);
+            return Ok(EndpointPlacement::Recorded);
         }
         // Strictly inside the curved face's chart trim: the same
         // v-f record the planar sweep writes ([`vertex_on_face`]),
         // now that the trim can say so.
         Some(FaceContainment::In) => {
             contacts.vf(x_is, VfContact { vertex: vx, face });
-            return Ok(true);
+            return Ok(EndpointPlacement::Recorded);
         }
         // Definitely outside this face's trim, or no verdict at all:
         // fall through to the face-free question below.
@@ -1657,9 +1712,18 @@ fn vertex_on_curved_face<T: Decide>(
     // boundaries, never interior to a face, so a vertex hit certifies
     // the endpoint is a boundary site — and the v-v record is
     // face-free, so it is the SAME record the holding face's pair
-    // produces (the accumulator dedups). No hit anywhere leaves the
-    // interior/exterior question, which does not exist on a curved
-    // chart — the caller's typed door.
+    // produces (the accumulator dedups).
+    //
+    // **A miss here is not automatically the frontier, and the reason
+    // is the pierce ring.** The "vertices lie on face boundaries"
+    // premise above holds for an operand's OWN vertices, but a wall
+    // pierce mints a vertex INTERIOR to the pierced face: after such a
+    // split the pierced edge's fragment endpoint sits strictly inside
+    // one face of the carrier and strictly outside every sibling
+    // face, and no vertex of `y` is there to be found. So the two
+    // answers are reported apart — a definite `Out` says "this face
+    // has no incidence", a `None` says "no verdict at all" — and the
+    // caller decides what each licenses.
     for (vy, vertex) in y.vertices() {
         let Some(py) = y.get_point(vertex.point).copied() else {
             continue;
@@ -1667,7 +1731,7 @@ fn vertex_on_curved_face<T: Decide>(
         match decide("bool_contact_vertex", Margin::norm3(px - py), band) {
             Ok(Sign::Zero) => {
                 push_vv(contacts, x_is, vx, vy);
-                return Ok(true);
+                return Ok(EndpointPlacement::Recorded);
             }
             Ok(Sign::Positive) => {}
             Ok(Sign::Negative) => {
@@ -1682,7 +1746,10 @@ fn vertex_on_curved_face<T: Decide>(
             Err(diag) => return Err(BooleanError::Escalated { diag }),
         }
     }
-    Ok(false)
+    Ok(match placed {
+        Some(FaceContainment::Out) => EndpointPlacement::Elsewhere,
+        _ => EndpointPlacement::Undecided,
+    })
 }
 
 fn esc(e: ContainError, operand: Operand) -> BooleanError {

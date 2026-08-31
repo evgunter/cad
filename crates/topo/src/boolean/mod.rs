@@ -907,6 +907,40 @@ pub enum BooleanError {
         /// Its kind — the B half of the germ pair.
         b_kind: geom_brep::SurfaceKind,
     },
+    /// **A germ pair of two cylinder walls whose axes definitely
+    /// INTERSECT** — the frame dispatch's named sub-case of "no
+    /// frame", and the door the intersecting equal-radius family
+    /// (Steinmetz and every re-posed copy of it) stops at.
+    ///
+    /// Two shapes live behind these axes, and the dispatch is allowed
+    /// to name neither:
+    ///
+    /// - **Equal radii.** The section is the two bisector-plane
+    ///   ellipses. They are not two disjoint loci: the bisector
+    ///   planes' common line runs through the axes' meeting point `p`
+    ///   along `â₁ × â₂`, is perpendicular to both axes, and therefore
+    ///   meets BOTH walls at `p ± r·(â₁ × â₂)`. So the two ellipses
+    ///   CROSS at those two points, for every member of the family and
+    ///   at every pose — four arcs meeting at two valence-4 PINCH
+    ///   vertices. A pinch is not a conic frame, and a frame dispatch
+    ///   keyed on surface kinds alone has no point with which to
+    ///   select which branch a germ rides.
+    /// - **Unequal radii.** The locus is a space quartic — canal
+    ///   territory, the general rung — and has no conic frame at all.
+    ///
+    /// Which of the two holds is a RADIUS-equality question, and
+    /// radius equality is structural or declared and never inferred
+    /// from values (`geom_brep::RadiusEvidence`, the coincidence
+    /// ladder). No declaration channel reaches this dispatch, so it
+    /// refuses on the axis relation alone rather than reading the
+    /// radii. Recourse: a chord lane that can walk a self-intersecting
+    /// section, or geometry whose germ pairs are wired.
+    GermFrameCylinderPinch {
+        /// The A-side germ face.
+        a_face: FaceKey,
+        /// The B-side germ face.
+        b_face: FaceKey,
+    },
     /// An underlying Euler operation refused.
     Euler(EulerOpError),
     /// The result body's pcurve mint pass refused (M5 PR 9: curved
@@ -1178,6 +1212,20 @@ impl core::fmt::Display for BooleanError {
                  express the cut with tooling whose germ pairs are wired",
                 a_kind.name(),
                 b_kind.name(),
+            ),
+            Self::GermFrameCylinderPinch { a_face, b_face } => write!(
+                f,
+                "boolean join: the germ pair (face {a_face:?} of A, face {b_face:?} of B) \
+                 is two cylinder walls whose axes definitely intersect, and that pair has \
+                 no section frame to name. With equal radii the section is the two \
+                 bisector-plane ellipses, which CROSS at the two points p ± r·(a1 x a2) \
+                 where the walls are mutually tangent — four arcs at two valence-4 pinch \
+                 vertices, not one conic — and this dispatch is keyed on surface kinds \
+                 alone, so it has no point with which to select a branch. With unequal \
+                 radii the locus is a space quartic and has no conic frame at all. Which \
+                 holds is a radius-equality question, and radius equality is structural or \
+                 declared and never inferred from values. Recourse: a chord lane that walks \
+                 a self-intersecting section, or geometry whose germ pairs are wired",
             ),
             Self::Pcurves { source } => write!(
                 f,
