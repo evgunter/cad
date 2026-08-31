@@ -186,6 +186,55 @@
 //! side, for anchors that are not exact: see
 //! `Mat3::identity_minus_rotation_about`.
 //!
+//! RE-DERIVED AGAIN, INTERVAL ROW ONLY, FOR A FOLD REFORMULATION
+//! (issue 1191). `profile`'s signed swept angle stopped composing a
+//! centred period fold on top of a `[0, τ)` reduction of the same
+//! quantity and now folds the raw difference once; `topo`'s window
+//! recentres were respelled onto the same named reduction. Measured
+//! with the instrument named above, this tree against `ad2f9757`, at
+//! both scalars:
+//!
+//! - **f64 lane: 0 of 3153 coordinates moved**, and no structural line
+//!   changed. The `f64` digest above is UNTOUCHED by this change and
+//!   was not re-derived — it still asserts what it asserted before,
+//!   which is the point of reporting the two lanes separately.
+//! - **Interval lane, structure: two documents stopped refusing.**
+//!   `fixture0` and `fixture1` — the rocker eye and the vesica lens,
+//!   the two fused arc-fillet rows the instrument carries — went
+//!   `refused` → `ok 3`. That is 18 coordinates ADDED to the walk, and
+//!   it is the change's purpose: their advance gate measures a swept
+//!   angle from a point to itself, and the composed fold turned that
+//!   hairline into a whole-period enclosure no band could classify.
+//!   Every other structural line is identical.
+//! - **Interval lane, coordinates: 75 of the 3135 shared coordinates
+//!   moved, and every one got NARROWER** — 0 wider, 0 unchanged, by a
+//!   factor of 1.06× to 1.43×. All 75 are in `die_composed_tour`. The
+//!   largest endpoint move is 2.22e-16 m, one ulp at 1.0
+//!   (0.9999999999999993 → 0.9999999999999994).
+//!
+//! Unlike the rotation-anchor re-derivation above, this one has no
+//! unfavourable half to record: the reformulation removes a rounding
+//! rather than adding one, so the enclosure can only tighten, and the
+//! measurement says it did everywhere it moved at all.
+//!
+//! THE COMPARATOR WAS `ad2f9757`, WHICH IS NOT THAT BRANCH'S MERGE
+//! BASE (`0e0df6a1`) — disclosed because a reader who resolves "the
+//! base" gets the other commit and would be comparing a different
+//! pair. `ad2f9757` is the commit the branch was cut from; main moved
+//! once while the lane ran. The choice cannot affect this measurement
+//! and that is checkable rather than argued: `git diff --name-only
+//! ad2f9757 0e0df6a1 -- 'crates/*/src'` is EMPTY. The gap is a
+//! test-file comment, two render re-baselines and two log files, none
+//! of which the corpus walk executes.
+//!
+//! The f64 row's "0 of 3153 moved" is CORPUS-SCOPED and is not a claim
+//! that the change moves no f64 bits anywhere. The centred respells in
+//! `topo` do move them off this corpus — measured over a 4000-sample
+//! spread of the recentre's argument, 1654 samples (41%) differ in
+//! bits, every one bounded by rounding at 4.44e-16 (2·2⁻⁵²) and none
+//! by a changed branch. What the corpus digest says is that no
+//! document this repo carries observes that difference.
+//!
 //! The `probe` row is ROSTERED into the K-telemetry sweep's executed
 //! floor. Its claim is not a third copy of the `f64` row's: it says the
 //! telemetry scalar has not started changing decisions, which is a
@@ -433,7 +482,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0x9317_961c_97a0_e451, 0x0132_9a19_9f1f_8c15),
+        (0x91f1_96cc_0b84_faf6, 0xb2fd_b741_16c5_1f32),
         "the corpus's Interval evaluation moved"
     );
 }

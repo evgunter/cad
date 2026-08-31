@@ -24,7 +24,7 @@
 use core::f64::consts::{PI, TAU};
 
 use geom::Curve3;
-use geom_core::{Point3, Vec3};
+use geom_core::{Point3, Real, Vec3};
 
 /// A circle in an exactly-orthonormal tilted frame: an integer
 /// orthogonal triple over 3, so the frame is unit and orthogonal to
@@ -297,11 +297,21 @@ fn the_answer_is_the_branch_within_half_a_turn_of_the_anchor() {
 
 /// The seam-anchored longhand, for a row to compare against.
 ///
-/// `θ = atan2(w·v_ref, w·u_ref)`, then `k = floor((near − θ)/τ + ½)`,
+/// `θ = atan2(w·v_ref, w·u_ref)`, then `k = (near − θ).periodic_branch(τ)`,
 /// then `t = θ + k·τ`. This is the retired `replace_face::
 /// invert_carrier` spelling transcribed, and it is a FIXTURE here
 /// rather than a claim: the rows below say where it agrees with
 /// [`Curve3::param_near`] and where it provably does not.
+///
+/// **It reads `Real::periodic_branch` rather than open-coding
+/// `⌊(near − θ)/τ + ½⌋`** — the two are bit-identical (`geom-core`'s
+/// `the_branch_pin_respells_are_bit_identical_by_differential` proves
+/// it over an adversarial sweep, and the retired site was itself
+/// respelled onto the primitive before this unit deleted it). Naming
+/// the kernel's own primitive is the point: this fixture exists so a
+/// future redefinition of "the branch nearest a reference" cannot
+/// happen on one side only, and a hand-rolled copy could drift from
+/// the definition it is supposed to be pinning against.
 fn retired_seam_anchored(carrier: &Curve3<f64>, p: Point3<f64>, near: f64) -> f64 {
     let (center, axis, u_ref) = match *carrier {
         Curve3::Circle {
@@ -315,7 +325,7 @@ fn retired_seam_anchored(carrier: &Curve3<f64>, p: Point3<f64>, near: f64) -> f6
     let v_ref = axis.cross(u_ref);
     let w = p - center;
     let theta = w.dot(v_ref).atan2(w.dot(u_ref));
-    let k = ((near - theta) / TAU + 0.5).floor();
+    let k = <f64 as Real>::periodic_branch(near - theta, TAU);
     theta + k * TAU
 }
 

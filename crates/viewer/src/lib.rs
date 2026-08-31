@@ -63,6 +63,7 @@ pub mod pick;
 pub mod props;
 pub mod scene;
 pub mod session;
+pub mod theme;
 pub mod tree;
 
 #[cfg(feature = "app")]
@@ -93,4 +94,5 @@ pub use scene::{DisplayTolerance, SceneDocError, SceneError, SceneMesh, ScenePar
 pub use session::{
     DocSession, FaceSelection, Landing, OpOutcome, Refusal, Selection, SessionOp, Standing,
 };
+pub use theme::{Mark, Polarity, Safety, Theme};
 pub use tree::{RowStatus, TreeRow};
