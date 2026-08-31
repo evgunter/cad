@@ -2550,3 +2550,15 @@ interval + eps 1e-6, DRAWN), R2 isolated from R1, briefs
 symmetric, no relaxations granted. Implementer difficulty S/M
 (pre-logged in the plan's opening commit, pre-draw; recorded
 numeric M). Sample number at merge. Row at merge.
+
+GAUTH-3 (PR #1376) ordinal FIXED AT DISPATCH (2026-08-31):
+**ordinal 901** (GAUTH band 900–999). v6 dual: slot byte **247**,
+parity 1 ⇒ **R1 FABLE + R2 OPUS**; CONCURRENT on frozen `62c120ae`
+(run 33411906310 verified at dispatch: head SHA matches, all 21
+check runs success/skipped; gate point default + eps 1e-6, DRAWN),
+R2 isolated from R1, briefs symmetric, no relaxations. Dispatched
+at GAUTH-1's review conclusion per the one-dual-at-a-time
+contention posture (GAUTH-1's fix pass runs concurrently — a fix
+lane is not a dual). Implementer difficulty M (pre-logged in the
+plan's opening commit, pre-draw). Sample number at merge. Row at
+merge.
