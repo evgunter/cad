@@ -2540,3 +2540,13 @@ granted (contention is managed by running one dual at a time, per
 the v6 method-relaxation note). Implementer difficulty L
 (pre-logged in the plan's opening commit, pre-draw). Sample number
 at merge. Row at merge.
+
+BOOL-1 (PR #1378) ordinal FIXED AT DISPATCH (2026-08-31):
+**ordinal 1100 — the S-BOOL band's first claim** (band 1100–1199
+per the renumbered allocation above). v6 dual: slot byte **10**,
+parity 0 ⇒ **R1 OPUS + R2 FABLE**; CONCURRENT on frozen
+`3f14f3c4` (PR head green at dispatch — 18 checks, gate point
+interval + eps 1e-6, DRAWN), R2 isolated from R1, briefs
+symmetric, no relaxations granted. Implementer difficulty S/M
+(pre-logged in the plan's opening commit, pre-draw; recorded
+numeric M). Sample number at merge. Row at merge.
