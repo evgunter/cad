@@ -541,6 +541,19 @@ survive-the-vanishing-entity semantics are library surface, owned by
 `docs/SELECT-DESIGN.md` and the naming doc's resolution-failure
 semantics.
 
+**Pick-priority — the first concrete instance (recorded at GAUTH-2).**
+Edge picking made the clause real: a face fills the pixel an edge only
+borders, so an edge is unreachable without a rule that lets it win near
+its own boundary. The rule taken is *proximity in the picture* — an
+edge within `viewer::pick::EDGE_PICK_RADIUS_PX` of the cursor beats the
+face behind it, and everywhere else the face wins. The constant is
+named and lives in that one place, so a later instance of the same
+question cites it rather than minting a second radius; the mechanism
+(seeded by the face pick, occlusion-checked, deterministic) is the
+implementation's business and is documented at its own door. Nothing
+here widens GQ7 — which entity wins is still the GUI's question, and
+the remaining clauses still wait on sketcher/tree design.
+
 ## UI ideas (non-binding sketchpad)
 
 Ideas captured during design conversations — NOT ratified decisions;
