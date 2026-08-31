@@ -220,11 +220,7 @@ impl Rigid {
         let n = (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt();
         let u = [d[0] / n, d[1] / n, d[2] / n];
         let (s, c) = angle.sin_cos();
-        let k = [
-            [0.0, -u[2], u[1]],
-            [u[2], 0.0, -u[0]],
-            [-u[1], u[0], 0.0],
-        ];
+        let k = [[0.0, -u[2], u[1]], [u[2], 0.0, -u[0]], [-u[1], u[0], 0.0]];
         let mut r = [[0.0; 3]; 3];
         let kk = mm(k, k);
         for i in 0..3 {
@@ -237,11 +233,7 @@ impl Rigid {
         let ro = mv(r, origin);
         Rigid {
             r,
-            t: [
-                origin[0] - ro[0],
-                origin[1] - ro[1],
-                origin[2] - ro[2],
-            ],
+            t: [origin[0] - ro[0], origin[1] - ro[1], origin[2] - ro[2]],
         }
     }
     fn compose(self, other: Rigid) -> Rigid {
@@ -250,11 +242,7 @@ impl Rigid {
         let ot = mv(self.r, other.t);
         Rigid {
             r,
-            t: [
-                ot[0] + self.t[0],
-                ot[1] + self.t[1],
-                ot[2] + self.t[2],
-            ],
+            t: [ot[0] + self.t[0], ot[1] + self.t[1], ot[2] + self.t[2]],
         }
     }
     fn inverse(self) -> Rigid {
@@ -352,18 +340,18 @@ fn r2_oblique_circular_conjugation_at_a_placed_cluster_frame() {
     let mate = mate.expect("the mate mints");
 
     let poses = solve_document(&doc, Tol::witness());
-    assert_eq!(poses.fault(mate), None, "the mate solves: {:?}", poses.fault(mate));
+    assert_eq!(
+        poses.fault(mate),
+        None,
+        "the mate solves: {:?}",
+        poses.fault(mate)
+    );
     assert_eq!(poses.role(mate), Some(MateRole::Determining));
 
     let f = Rigid::from_frame(cluster_frame());
     let o1 = Rigid::rotation_about_axis([1.0, 0.0, 0.0], [1.0, 1.0, 1.0], theta);
     let a = Rigid::translation([0.0, 0.0, 1.0]);
-    let expected = f
-        .inverse()
-        .compose(o1)
-        .compose(f)
-        .compose(a)
-        .as_frame();
+    let expected = f.inverse().compose(o1).compose(f).compose(a).as_frame();
     let got = poses.relative(top).expect("the top has a pose");
     assert!(
         near(got, expected, 1e-12),

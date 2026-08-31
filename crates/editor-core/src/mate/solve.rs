@@ -35,6 +35,7 @@ use geom_core::predicate::Band;
 use super::coset::{Coset, FoldStop, Subgroup};
 use super::{Alignment, AxisSense, MateFault, MatePrimitive, MateSide};
 use crate::doc::Doc;
+use crate::eval::SteppedOperands;
 use crate::names::RoleSeg;
 use crate::node::{Datum, Node, PatternKind, RecipeNodeId};
 use crate::placement::Frame;
@@ -181,13 +182,14 @@ fn head_of<P>(
 
 /// **The pattern-derived offset** of a pattern-placed member: the
 /// rigid map the pattern's evaluation composes onto its input's
-/// placement for structural index `i`, derived from the pattern's own
-/// authored slots (document coordinates, LEFT-composed — the same
-/// derivation the evaluation's stepped rule reads, at the document's
-/// own parameter bindings). `None` is the identity: a plain member, or
-/// copy 0, whose map is the identity by the rule's own construction —
-/// kept as absence so the no-pattern solve composes nothing and stays
-/// bit-for-bit what it was.
+/// placement for structural index `i` — THE evaluation's own stepped
+/// rule ([`crate::eval::stepped_rule_map`], the single home of that
+/// math), fed the pattern's authored slots evaluated at the document's
+/// own parameter bindings (document coordinates, LEFT-composed).
+/// `None` is the identity: a plain member, or copy 0, whose map is the
+/// identity by the rule's own construction — kept as absence so the
+/// no-pattern solve composes nothing and stays bit-for-bit what it
+/// was.
 ///
 /// The offset is STATIC: nothing here depends on any solved pose,
 /// which is how a mate to `Instance(i)` can never create per-instance
@@ -236,47 +238,41 @@ fn derived_offset<P>(
     let triple = |es: &[crate::expr::Expr; 3]| -> Result<Vec3<f64>, Box<MateFault>> {
         Ok(Vec3::new(scalar(&es[0])?, scalar(&es[1])?, scalar(&es[2])?))
     };
-    // The one normalization the stepped rules share, decided — never a
-    // raw comparison, never a silent zero direction.
+    // The evaluation's own direction normalization (the shared
+    // `eval_direction_norm` door), decided — never a raw comparison,
+    // never a silent zero direction.
     let unit = |v: Vec3<f64>| -> Result<Vec3<f64>, Box<MateFault>> {
-        match geom_core::k_stats::decide(
-            "mate_pattern_direction_norm",
-            geom_core::predicate::Margin::norm3(v),
-            band,
-        ) {
-            Ok(geom_core::predicate::Sign::Positive) => Ok(v.normalize()),
-            Ok(_) => Err(dangling()),
-            Err(diag) => Err(Box::new(MateFault::Indeterminate {
-                mate,
-                diag: Box::new(diag),
-            })),
-        }
+        crate::eval::unit_direction(v, "pattern direction", band).map_err(|e| match e {
+            crate::eval::NodeErrorKind::Escalated { source, .. } => {
+                Box::new(MateFault::Indeterminate {
+                    mate,
+                    diag: Box::new(source),
+                })
+            }
+            _ => dangling(),
+        })
     };
-    let step = f64::from(i);
-    match kind {
-        PatternKind::Linear { direction, spacing } => {
-            let dir = unit(triple(direction)?)?;
-            let spacing = scalar(spacing)?;
-            Ok(Some(Affine3::translation(dir * (spacing * step))))
-        }
-        PatternKind::Circular { axis, step: angle } => {
+    let ops = match kind {
+        PatternKind::Linear { direction, spacing } => SteppedOperands::Linear {
+            direction: unit(triple(direction)?)?,
+            spacing: scalar(spacing)?,
+        },
+        PatternKind::Circular { axis, step } => {
             let Some(Node::Datum(Datum::Axis { origin, direction })) = doc.node(*axis) else {
                 return Err(dangling());
             };
-            let o = triple(origin)?;
-            let dir = unit(triple(direction)?)?;
-            let angle = scalar(angle)?;
-            Ok(Some(Affine3::rotation_about_axis(
-                Point3::origin() + o,
-                dir,
-                angle * step,
-            )))
+            SteppedOperands::Circular {
+                origin: Point3::origin() + triple(origin)?,
+                dir: unit(triple(direction)?)?,
+                step: scalar(step)?,
+            }
         }
         // The list-rule pattern's count has two spellings, which the
         // pattern node itself refuses; no copy of it has a derived
         // pose to stand a member on.
-        PatternKind::Explicit(_) => Err(dangling()),
-    }
+        PatternKind::Explicit(_) => return Err(dangling()),
+    };
+    Ok(Some(crate::eval::stepped_rule_map(&ops, i64::from(i))))
 }
 
 /// **A12's reading edges**, recomputed from the recipe: `(mate, head)`

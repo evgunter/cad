@@ -25,6 +25,8 @@ mod schedule;
 mod slots;
 mod wire;
 
+pub(crate) use wire::{SteppedOperands, stepped_rule_map, unit as unit_direction};
+
 pub use anchor::{LoopAnchor, ProfileNaming, ProfileValue, embed_profile};
 pub use memo::{ContentBits, ContentKey, KeyHasher, NamingKey};
 
