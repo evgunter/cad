@@ -207,11 +207,20 @@ fn a_granted_crossing_union_with_a_torus_band_is_refused_by_kind_in_containment(
                         "the refusal must name a missing capability, not damage: {msg}"
                     );
                 } else {
+                    // The same movement, one kind later: the plain
+                    // caps are CONE faces, and they were the blocker
+                    // until the containment door grew the ray×cone
+                    // arm. It has one, so the caps answer and the
+                    // refusal moves to the face that still has no
+                    // ray-crossing arm — the TORUS band, which is what
+                    // both branches now name. The row's point is
+                    // unchanged: a capability statement, never a
+                    // corruption claim.
                     assert!(
                         matches!(
                             e,
                             topo::PointInSolidError::KindUnsupported {
-                                kind: geom_brep::SurfaceKind::Cone,
+                                kind: geom_brep::SurfaceKind::Torus,
                                 ..
                             }
                         ),
