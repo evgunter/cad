@@ -2478,3 +2478,15 @@ band; claimed on the orchestrator branch per the #1095 shape,
 tiny docs PR to main at review dispatch). v6 DUAL, parity byte 30
 ⇒ R1 OPUS + R2 FABLE, concurrent, briefs symmetric. Sample
 number assigned AT MERGE in main's order. Row at merge.
+
+CERT-6 (PR #1366) ordinal FIXED AT DISPATCH (2026-08-31):
+**ordinal 706** (S-CERT band). v6 dual: slot byte 108, parity 0 ⇒
+**R1 OPUS + R2 FABLE**; SEQUENTIAL on frozen `ce567bad` (run
+33387882285 green, lane=both + eps=1e-6 BOTH trailer-pinned — the
+issue-1356 practice; the delivered head 1084f764 redded the
+discipline gate on the gauge's x*x spellings, and the tip is a
+four-site orchestrator-direct powi(2) respell, disclosed in the
+method note at cert/ab-state 19c35c5f), R2 isolated from R1.
+Implementer difficulty S/M (logged at spec); the unit's FIRST lane
+died in a container restart with nothing pushed (~50m, recorded).
+Sample number at merge. Row at merge.
