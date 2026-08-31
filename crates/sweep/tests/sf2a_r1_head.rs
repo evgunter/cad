@@ -21,7 +21,7 @@ fn band() -> Band {
 fn chamfered_cube() -> Body<f64> {
     let body = sweep::test_support::cube(1.0, Tol::witness());
     let edges: Vec<topo::EdgeKey> = body.edges().map(|(k, _)| k).collect();
-    sweep::chamfer::chamfer_edges(&body, &edges, 0.1, band(), Tol::witness())
+    sweep::chamfer::chamfer_edges(&body, &edges, 0.1, Tol::witness())
         .expect("a cube chamfers")
         .body
 }

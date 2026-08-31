@@ -22,7 +22,7 @@
 
 use pncad::authoring::{p2, validated};
 use pncad::geom::Curve3;
-use pncad::geom_core::{Band, Tol, Vec2};
+use pncad::geom_core::{Tol, Vec2};
 use pncad::prelude::{BlendError, Open, Start, fillet_edges};
 use pncad::profile::{ArcSweep, Center, ProfileLoop, SketchPlane};
 use pncad::sweep::{Revolution, RevolveAxis, revolve};
@@ -109,9 +109,7 @@ fn t1_wall_6_as_authored_still_refuses_tangential_at_margin_zero() {
     let tol = Tol::witness();
     let lant = lily_lantern(tol);
     let all: Vec<EdgeKey> = lant.edges().map(|(k, _)| k).collect();
-    match fillet_edges(&lant, &all, 0.02, Band::linear(tol).expect("band"), tol)
-        .map_err(|r| r.error)
-    {
+    match fillet_edges(&lant, &all, 0.02, tol).map_err(|r| r.error) {
         Err(BlendError::TangentialEdge { margin, .. }) => {
             assert_eq!(margin, 0.0, "a co-surface seam, not a near-tangency");
         }
@@ -133,7 +131,7 @@ fn t2_the_three_convex_rims_fillet_whole_at_the_named_radii() {
     ] {
         let arcs = rims_of_radius(&lant, rim_r);
         assert_eq!(arcs.len(), 2, "{name} is seam-split into two arcs");
-        let out = fillet_edges(&lant, &arcs, 0.02, Band::linear(tol).expect("band"), tol)
+        let out = fillet_edges(&lant, &arcs, 0.02, tol)
             .unwrap_or_else(|e| panic!("{name} fillets whole at r = 0.02, got {e:?}"));
         pncad::topo::validate_geometric(&out.body, tol)
             .unwrap_or_else(|e| panic!("{name} carves tier-3 valid, got {e:?}"));
@@ -153,9 +151,7 @@ fn t3_the_mouth_rim_refuses_concave() {
     assert!((r_mouth - 0.253).abs() < 5e-4, "the PR's fourth radius");
     let arcs = rims_of_radius(&lant, r_mouth);
     assert_eq!(arcs.len(), 2, "the mouth rim is seam-split too");
-    match fillet_edges(&lant, &arcs, 0.02, Band::linear(tol).expect("band"), tol)
-        .map_err(|r| r.error)
-    {
+    match fillet_edges(&lant, &arcs, 0.02, tol).map_err(|r| r.error) {
         Err(BlendError::UnsupportedChain { detail, .. }) => assert!(
             detail.contains("concave"),
             "the mouth refuses as concave, got {detail}"
@@ -179,15 +175,7 @@ fn t4_one_mouth_arc_gets_the_conditioned_recourse_and_the_rim_refuses_concave() 
     let r_mouth = (GLOBE.powi(2) - MOUTH.powi(2)).sqrt();
     let arcs = rims_of_radius(&lant, r_mouth);
     assert_eq!(arcs.len(), 2);
-    match fillet_edges(
-        &lant,
-        &arcs[..1],
-        0.02,
-        Band::linear(tol).expect("band"),
-        tol,
-    )
-    .map_err(|r| r.error)
-    {
+    match fillet_edges(&lant, &arcs[..1], 0.02, tol).map_err(|r| r.error) {
         Err(BlendError::UnsupportedCorner { corner, .. }) => {
             let shown = format!("{corner}");
             assert!(

@@ -108,8 +108,6 @@ fn the_donut_carries_stored_torus_pcurves_at_rest() {
 /// through the pole with the zero local azimuth lever.
 #[test]
 fn the_die_octants_carry_stored_sphere_pcurves_at_rest() {
-    let tol = Tol::witness().get();
-    let band = geom_core::Band::new(tol.eps, tol.k * tol.eps).expect("band");
     let lp = ProfileLoop::polygon([
         Point2::new(0.0, 0.0),
         Point2::new(1.0, 0.0),
@@ -120,7 +118,7 @@ fn the_die_octants_carry_stored_sphere_pcurves_at_rest() {
         .unwrap()
         .body;
     let rims: Vec<topo::EdgeKey> = blank.edges().map(|(k, _)| k).collect();
-    let filleted = sweep::blend::fillet_edges(&blank, &rims, 0.12, band, Tol::witness())
+    let filleted = sweep::blend::fillet_edges(&blank, &rims, 0.12, Tol::witness())
         .expect("the die blank fillets")
         .body;
     let mut spheres = 0usize;

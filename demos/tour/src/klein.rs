@@ -217,7 +217,7 @@ use core::f64::consts::PI;
 
 use pncad::authoring::{p2, p3, v2, v3, validated};
 use pncad::geom_brep::SurfaceKind;
-use pncad::geom_core::{Affine3, Band, Mat3, Point3, Tol};
+use pncad::geom_core::{Affine3, Mat3, Point3, Tol};
 use pncad::prelude::{Open, ProfileLoop, Start, circle};
 use pncad::profile::SketchPlane;
 use pncad::sweep::blend::{BlendError, fillet_edges};
@@ -785,13 +785,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         1,
         "fillet the neck→flare corner on the FULL revolve at the radius the band \
          authors by hand",
-        fillet_edges(
-            &sharp_full,
-            &[full_edges[0]],
-            band_radius,
-            Band::linear(tol).expect("the run's band"),
-            tol,
-        ),
+        fillet_edges(&sharp_full, &[full_edges[0]], band_radius, tol),
         |e| matches!(e.error, BlendError::RadiusHeadroom { .. }),
         "roll a ball as big as the blend the meridian draws for free",
     );
@@ -799,13 +793,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         "bottle",
         2,
         "fillet the SAME corner on a partial revolve (open rim, honest lever)",
-        fillet_edges(
-            &sharp_part,
-            &[part_edges[0]],
-            band_radius,
-            Band::linear(tol).expect("the run's band"),
-            tol,
-        ),
+        fillet_edges(&sharp_part, &[part_edges[0]], band_radius, tol),
         // The SAME refusal as wall 1, and that is the pair's point: the
         // lever is honest on both rims, the dihedral decides on both,
         // and what stops both is the ball's own size against the neck

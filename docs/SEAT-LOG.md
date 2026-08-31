@@ -32,3 +32,27 @@ reds on the same head were an Actions budget outage, jobs never
 started, nothing repushed). v6 dual dispatches on frozen head
 0b291b29: parity byte 18 → **R1 opus + R2 fable**. Difficulty S was
 logged pre-draw. Full row recorded at merge per protocol.
+
+## SEAT-1 MERGED (2026-08-31, PR 1399)
+
+The band drop landed: the four doors derive Band::linear(tol) at
+operation entry like their siblings, 421 call sites followed, the
+spacer's friction (3) and diechamfer finding 4's Band half retired.
+Dual outcome: ONE bilateral MAJOR (interval-cfg orphans redding the
+lint-interval row — both reviewers executed it independently; fixed
+with both feature graphs verified and the interval lane ASKED for
+at the fix gate), verdict labels divergent at converged findings.
+Pair counts toward the twelve; no tally candidate. Full row:
+MODEL-AB-LOG SEAT1 (ordinal 1000, sample #77 at merge). Issues
+filed at adjudication: 1408 (Band::new spelling class), 1409
+(shell's tolerance: f64 + unguarded acceptance), 1410 (stale
+citation class). Reviewer probes worth keeping were adjudicated
+recorded-not-adopted this unit (the eps=1e308 arm probe — sibling
+precedent, per-target CI cost).
+
+Lesson banked for SEAT-2's brief: a compiler-driven cleanup is only
+as wide as the graphs actually compiled — briefs now say “verify
+under BOTH feature graphs” explicitly.
+
+Next: SEAT-2 (the topo query module + select_where delegation)
+dispatches on the block's next slot.

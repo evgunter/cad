@@ -65,3 +65,34 @@ corrections ride the opening PR (count re-derived after D304's
 arrival; C3/D30's discharged #723 gate; D302 deleted with members
 relocated — Display landed at `types.rs:271`, consumer half is
 #1111's/LIB's, Track U's D47 unblocked for the type).
+
+## MESH-1 merged (2026-08-31) — issue 1362 closed; the walk's loop-area fold is placement-honest
+
+PR 1389 at fix head `014ae4ee` (merged with current main). Gates:
+impl head `f0618c8e` green (interval/default drawn); fix head green
+(default/1e-12 drawn — the two heads span both compile lanes and two
+ε rows; the ε=1e-12 skip-band was checked by hand so the drawn gate
+demonstrably executed the defect fixture). The band_u fold anchors at
+the loop's own bbox centre; the red-first table shows whole-2π branch
+flips at 1e6 and 1e8 under the old spelling; an e2e gate pins the
+door-admitted silent failure (1 µm ball at 1 km: watertight, 16
+orders wrong pre-fix).
+
+**The dual (ordinal 1200, sample at the row)**: R1 A-W-F 4/3/2 — all
+four MAJORs in the sweep/claims layer (the code fix survived both
+lanes digit-for-digit); the no-e2e claim falsified by a built
+fixture; the sweep completed to 16 read hits at fix. R2 APPROVE
+0/2/1 with the donut structural zero confirmed exact. The
+arm-classification conflict on the review_m2_pr5 hits settled by
+reading in R1's favor. R1's MAJORs are v6 tally candidates. Fix pass
+IMPLEMENTER-INHERITED, all 10 items; the direction row closes the
+constant-fold blindness; the lifted oracle's contract restated from
+its derived closed form.
+
+En route findings homed: issue 1396 (structural-zero oracle class,
++ball-quarter member), 1401 (remaining origin-anchored copies, both
+spellings, enumerated), 1402 (azimuth/bbox-anchor idiom homes —
+a natural MESH-4 rider). Two walk.rs style classes recorded there
+rather than widened into this unit. Slate next: MESH-2 (issue 555,
+the sub-floor engineered zeros) interleaved with S-BOOL's BOOL-2;
+walk.rs stays sequenced (MESH-3 #896 before MESH-4 #881).

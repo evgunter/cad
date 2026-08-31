@@ -132,7 +132,7 @@ fn fe_single_call_twelve_open_chains_plus_one_closed_rim() {
     assert_eq!(rims.len(), 2, "the pip rim is two arcs");
     let mut all = box_edges;
     all.extend(rims);
-    let out = fillet_edges(&pipped, &all, R, band(), Tol::witness())
+    let out = fillet_edges(&pipped, &all, R, Tol::witness())
         .expect("one call takes the open chains and the closed rim together");
     assert_eq!(out.blend_faces.len(), 12, "one blend per box edge");
     assert_eq!(out.corner_faces.len(), 8, "one octant per box corner");
@@ -148,7 +148,7 @@ fn every_output_entity_is_a_recorded_mint_or_a_survivor() {
     let (pipped, box_edges, rims) = pipped_die();
     let mut all = box_edges;
     all.extend(rims);
-    let out = fillet_edges(&pipped, &all, R, band(), Tol::witness()).expect("the surgery");
+    let out = fillet_edges(&pipped, &all, R, Tol::witness()).expect("the surgery");
     let rec = out.naming.as_ref().expect("the surgery keeps its records");
 
     let mut minted_f: Vec<_> = rec
@@ -284,7 +284,7 @@ fn the_records_have_the_shape_the_surgery_built() {
     let (pipped, box_edges, rims) = pipped_die();
     let mut all = box_edges;
     all.extend(rims);
-    let out = fillet_edges(&pipped, &all, R, band(), Tol::witness()).expect("the surgery");
+    let out = fillet_edges(&pipped, &all, R, Tol::witness()).expect("the surgery");
     let rec = out.naming.as_ref().expect("records");
     assert_eq!(rec.blends.len(), 12);
     assert_eq!(rec.corners.len(), 8);
@@ -315,7 +315,7 @@ fn the_records_have_the_shape_the_surgery_built() {
 fn the_every_edge_request_records_every_entity_it_mints() {
     let cube0 = cube(DIE_L, Tol::witness());
     let edges: Vec<_> = cube0.edges().map(|(k, _)| k).collect();
-    let out = fillet_edges(&cube0, &edges, R, band(), Tol::witness()).expect("the surgery");
+    let out = fillet_edges(&cube0, &edges, R, Tol::witness()).expect("the surgery");
     let rec = out.naming.as_ref().expect("the surgery keeps its records");
 
     assert_eq!(rec.blends.len(), 12, "one blend per source edge");
@@ -399,7 +399,7 @@ fn the_every_edge_request_records_every_entity_it_mints() {
 fn every_every_edge_record_names_a_source_entity() {
     let cube0 = cube(DIE_L, Tol::witness());
     let edges: Vec<_> = cube0.edges().map(|(k, _)| k).collect();
-    let out = fillet_edges(&cube0, &edges, R, band(), Tol::witness()).expect("the surgery");
+    let out = fillet_edges(&cube0, &edges, R, Tol::witness()).expect("the surgery");
     let rec = out.naming.as_ref().expect("records");
     for (_, src) in &rec.blends {
         assert!(cube0.get_edge(*src).is_some(), "a blend names no source");
@@ -434,8 +434,8 @@ fn every_every_edge_record_names_a_source_entity() {
 fn the_every_edge_fillet_is_deterministic() {
     let cube0 = cube(DIE_L, Tol::witness());
     let edges: Vec<_> = cube0.edges().map(|(k, _)| k).collect();
-    let a = fillet_edges(&cube0, &edges, R, band(), Tol::witness()).expect("the surgery");
-    let b = fillet_edges(&cube0, &edges, R, band(), Tol::witness()).expect("the surgery again");
+    let a = fillet_edges(&cube0, &edges, R, Tol::witness()).expect("the surgery");
+    let b = fillet_edges(&cube0, &edges, R, Tol::witness()).expect("the surgery again");
     assert_eq!(
         format!("{:?}", a.body),
         format!("{:?}", b.body),
