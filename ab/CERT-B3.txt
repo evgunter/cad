@@ -1,0 +1,23 @@
+CERT-B3 (drawn 2026-08-31, v4 block-of-4 rule per MODEL-AB-LOG read
+on main at dispatch: {opus, opus, opus, fable}, byte mod 4 = fable
+position, reject >= 252)
+byte=27 (od /dev/urandom, reject >=252), 27 mod 4 = 3 = fable position
+Both difficulties logged PRE-DRAW at spec (docs/CERT-8-SPEC.md M/L,
+docs/CERT-10-SPEC.md M/L, committed to cert/orchestrator at d90e7441
+before this draw).
+slots: 0=CERT-8 (chart-stretch honesty, issues 501+528),
+1=CERT-10 (patch-hull consolidation, issue 1006 under Q2),
+2..3 unassigned (CERT-M/CERT-N track lanes are the expected
+claimants if they run as implementation lanes).
+Arm for slot 0 = OPUS (byte 27, fable at position 3).
+Arm for slot 1 = OPUS (byte 27, fable at position 3).
+Sequencing note: CERT-8 and CERT-10 dispatch CONCURRENTLY — their
+edit sets are file-disjoint (CERT-8: topo/pcurves.rs,
+topo/chart_region.rs, geom-brep/pcurve_cache.rs; CERT-10:
+geom_core/spline, geom-brep/patch_bound.rs + props/quad.rs +
+offset_fit.rs call sites, mesh/nurbs_cert.rs), with explicit
+cross-lane fences written into both specs; the orchestrator owns
+any collision (CERT-8's export deliberately kept out of
+geom_core::spline).
+Branch-side block record per the v6 convention; reviewers are never
+pointed here.
