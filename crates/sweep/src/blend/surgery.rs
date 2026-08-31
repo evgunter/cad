@@ -131,7 +131,8 @@
 //! - **Row 2**, above: valid input, unbuilt door, carries the
 //!   recourse that is true of it.
 //! - **Row 1**, [`BlendError::BodyNotIntact`]: a stored reference
-//!   that did not resolve, or a cycle that did not close. **This is not a kernel
+//!   that did not resolve, a cycle that did not close, or a verdict
+//!   whose keys disagree with the body's own structure. **This is not a kernel
 //!   bug channel.** A body that fails referential integrity is
 //!   reachable at this door without any kernel bug in the trace —
 //!   `topo::instance::graft_disjoint_all`'s own docs record that a
@@ -151,7 +152,7 @@ use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Vec3};
 use topo::{
     Body, EdgeKey, EntityId, FaceKey, FaceSurface, HalfEdgeKey, LoopKey, MefSite, MevSite,
-    SurfaceKey, VertexKey,
+    ShellKey, SolidKey, SurfaceKey, VertexKey,
 };
 
 use super::admit::{AdmittedOpen, CornerFaces, CornerLinks, RequestedBoundary};
@@ -170,8 +171,12 @@ use geom_core::Tol;
 
 /// **Row 1** — the body or the verdict handed to the surgery does not
 /// hold together where the plan read it: a stored reference that did
-/// not resolve, or a cycle that did not close. Invalid input, not a
-/// frontier.
+/// not resolve, a cycle that did not close, or a verdict whose keys
+/// disagree with the body's own structure. Invalid input, not a
+/// frontier. The third clause is the one the plan's own tokens use —
+/// a link offered to a corner it does not touch, a chart offered
+/// another vertex's faces — and it is why this constructor is not
+/// only about arena reads.
 pub(super) fn not_intact(at: EntityId, detail: &'static str) -> BlendError {
     BlendError::BodyNotIntact { at, detail }
 }
@@ -402,10 +407,21 @@ pub(super) fn blend_surgery<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     band: Band,
     tol: Tol,
 ) -> Result<Blended<T>, BlendError> {
-    let (solids, shells) = (source.solids().count(), source.shells().count());
-    if solids != 1 || shells != 1 {
-        return Err(BlendError::UnsupportedBody { solids, shells });
-    }
+    // **The gate and the reads are one step.** The check that says
+    // "exactly one solid, exactly one shell" BINDS what it counted, so
+    // the mutation phase below adopts the keys the door already saw
+    // instead of re-deriving them ninety lines later and finding a
+    // state the door had ruled out. There is no "the entry check
+    // passed and the read came back empty" left to spell.
+    let solids: Vec<SolidKey> = source.solids().map(|(k, _)| k).collect();
+    let shells: Vec<ShellKey> = source.shells().map(|(k, _)| k).collect();
+    let ([solid], [shell]) = (&solids[..], &shells[..]) else {
+        return Err(BlendError::UnsupportedBody {
+            solids: solids.len(),
+            shells: shells.len(),
+        });
+    };
+    let (solid, shell) = (*solid, *shell);
     let radius = verdict.size;
     let kind = verdict.kind;
 
@@ -516,13 +532,6 @@ pub(super) fn blend_surgery<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     // ---- Mutation, on a clone. From here on every step is an Euler
     // operator or a certified setter; refusals map to Op/Certify. ----
     let mut body = source.clone();
-    let Some((solid, _)) = source.solids().next() else {
-        unreachable!("blend surgery: `solids().count() == 1` was checked at entry")
-    };
-    let Some((shell, _)) = source.shells().next() else {
-        unreachable!("blend surgery: `shells().count() == 1` was checked at entry")
-    };
-
     let mut rec = BlendNaming::default();
     let (blend_faces, corner_faces, mut described) =
         blank_phase(&mut body, &opens, &corners, &supports, &mut rec, tol, kind)?;
@@ -668,6 +677,10 @@ fn corner_plan<'a, T: Decide + Bounds>(
     radius: T,
     kind: BlendKind,
 ) -> Result<Corner<'a, T>, BlendError> {
+    // Both corner tokens are derived from THIS vertex, here: the
+    // faces two statements below, the links in the argument. That
+    // pairing is what `octant_chart`'s agreement check reads, and it
+    // is why that check cannot fire from this call site.
     let vertex = links.vertex();
     // The caller walked this vertex's edge orbit successfully, which
     // proves the orbit half of this walk; the `parent_loop` deref
@@ -877,9 +890,9 @@ fn resolve_rim<'a, T: Decide + Bounds>(
     // ---- The LADDER's discriminant: ONE planar face hosting every
     // link. Anything else is a rim whose supports are half-band walls,
     // which is the annulus. ----
-    let mut plane: Option<FaceKey> = None;
-    let mut mates = Vec::with_capacity(chain.link_count());
-    for link in chain.links() {
+    // One link's (host, mate) split, or `None` where neither support
+    // is a plane — the annulus's discriminant, not a refusal.
+    let split = |link: &Link<T>| -> Result<Option<(FaceKey, FaceKey)>, BlendError> {
         let a_planar = is_plane(link.face_a)
             .ok_or_else(|| not_intact(EntityId::Face(link.face_a), "a rim link's first support"))?;
         // A support that does not RESOLVE is a broken body, not a
@@ -888,24 +901,32 @@ fn resolve_rim<'a, T: Decide + Bounds>(
         let b_planar = is_plane(link.face_b).ok_or_else(|| {
             not_intact(EntityId::Face(link.face_b), "a rim link's second support")
         })?;
-        let (p, s) = if a_planar {
-            (link.face_a, link.face_b)
+        Ok(if a_planar {
+            Some((link.face_a, link.face_b))
         } else if b_planar {
-            (link.face_b, link.face_a)
+            Some((link.face_b, link.face_a))
         } else {
+            None
+        })
+    };
+    // The FIRST link fixes the shared plane, and a chain carries its
+    // first link in a field rather than in a `Vec` — so the host
+    // support is a VALUE here, and "the loop that must have run did
+    // not" is a state this function no longer spells.
+    let Some((plane, first_mate)) = split(link0)? else {
+        return resolve_seam_split_rim(body, chain);
+    };
+    let mut mates = Vec::with_capacity(chain.link_count());
+    mates.push(first_mate);
+    for link in chain.rest() {
+        let Some((p, s)) = split(link)? else {
             return resolve_seam_split_rim(body, chain);
         };
-        if *plane.get_or_insert(p) != p {
+        if p != plane {
             return resolve_seam_split_rim(body, chain);
         }
         mates.push(s);
     }
-    let Some(plane) = plane else {
-        unreachable!(
-            "resolve_rim: the loop above runs at least once (a chain always carries its \
-             first link) and every pass sets `plane`"
-        )
-    };
     let plane_half = host_side_half(body, link0, plane)
         .ok_or_else(|| not_intact(EntityId::Edge(link0.edge), "a rim edge"))?;
     let plane_loop = body
@@ -1642,6 +1663,10 @@ fn ring_circle<T: Decide>(body: &Body<T>, ring: LoopKey) -> Result<(Point3<T>, T
         // ring, which is exact for every ring this kernel mints.
         found.get_or_insert((center, radius));
     }
+    // Row 0 (`D96`): NO — the non-emptiness is `topo::loop_cycle`'s,
+    // and carrying it locally means `loop_walk` returning a split
+    // head/tail through six call sites that index and length it. The
+    // cost is written up in `docs/SMELL-T-LOG.md`'s `T-c` record.
     let Some(circle) = found else {
         unreachable!(
             "ring_circle: `loop_walk` above returned a cycle, and a cycle always \
@@ -2196,18 +2221,24 @@ fn blank_phase<T: Decide + Bounds>(
             if fa.is_some() && fa == fb {
                 if spur.replace(s).is_some() {
                     unreachable!(
-                        "corner fusion: exactly three struts on three distinct supports \
-                         (checked immediately above) fuse to leave exactly one spur"
+                        "corner fusion: a SECOND strut survived the fusion — exactly \
+                         three struts on three distinct supports (checked immediately \
+                         above) fuse to leave exactly one spur"
                     )
                 }
                 continue;
             }
             body.kef(hp).map_err(|e| op("corner-strut kef", e))?;
         }
+        // Row 0 (`D96`): NO, for both spur arms — the premise is a
+        // COUNT this call checked immediately above, but WHICH strut
+        // survives is the outcome of three Euler operators, not a
+        // shape a type carries (`docs/SMELL-T-LOG.md`, `T-c`).
         let Some(s) = spur else {
             unreachable!(
-                "corner fusion: exactly three struts on three distinct supports (checked \
-                 immediately above) fuse to leave exactly one spur"
+                "corner fusion: NO strut survived the fusion — exactly three struts on \
+                 three distinct supports (checked immediately above) fuse to leave \
+                 exactly one spur"
             )
         };
         let Some((hp, hm)) = halves_of(body, s) else {
@@ -2226,6 +2257,10 @@ fn blank_phase<T: Decide + Bounds>(
         body.kev(dying).map_err(|e| op("corner kev", e))?;
         // The corner patch is whatever face the first arc's non-blend
         // half now bounds.
+        // Row 0 (`D96`): YES — `CornerLinks::first` already returns a
+        // link rather than an `Option`, so this state is unrepresentable
+        // one level up. Carrying that into this loop needs a seeded
+        // `sorted` and the mint body hoisted; rowed as `D325`.
         let Some(arc) = first_arc else {
             unreachable!(
                 "corner fusion: a corner's incidence list holds at least the link that \
@@ -2792,6 +2827,9 @@ fn rim_phase<T: Decide + Bounds>(
     }
 
     // The band: the face on the non-cap side of the first sphere trim.
+    // Row 0 (`D96`): NO — one row per `plane_walk` position, so the
+    // non-emptiness is the cycle's, the same cause as `ring_circle`'s
+    // (`docs/SMELL-T-LOG.md`, `T-c`).
     let Some(tb) = tb_edges.first() else {
         unreachable!(
             "rim phase: step (4) mints one sphere trim per `plane_walk` position, and a \
@@ -2817,6 +2855,9 @@ fn rim_phase<T: Decide + Bounds>(
              `mef` mints the trim into two loops and step (6) kills neither"
         ),
     };
+    // Row 0 (`D96`): NO — "exactly one strut reaches the closure case"
+    // is the outcome of a walk over the ring, not a shape a type can
+    // carry to this line (`docs/SMELL-T-LOG.md`, `T-c`).
     let Some(band_surface) = band_surface else {
         unreachable!(
             "rim phase: the ring step (6) walks is closed, so exactly one strut reaches \
@@ -3553,21 +3594,20 @@ mod tests {
     use crate::blend::arms::plane_sphere_blend;
     use crate::test_support::{L, R, all_links, cube};
 
-    /// **The guard for the two cheapest row-4 proofs.**
-    /// `blend_surgery`'s `unreachable!`s at the solid and shell reads
-    /// both say *"checked at entry"* — and the check is ninety lines
-    /// above them. Delete it and those two sentences become lies
-    /// printed inside a panic, on a body that would otherwise be
-    /// silently filleted as if its first solid were the only one. This
-    /// row is what stands there (#720's precedent: a converted site
-    /// owes a row that reddens if the check it rests on is removed).
+    /// **The door's own one-solid, one-shell clause.**
+    /// `blend_surgery` binds the solid and the shell out of the same
+    /// step that counts them, so there is no second read to prove — but
+    /// the refusal is still the only thing standing between a
+    /// multi-solid body and a surgery that would carve it as if its
+    /// first solid were the only one. Delete the clause and this row
+    /// reds.
     ///
-    /// **Its reach, stated:** one grafted body trips both clauses of
+    /// **Its reach, stated:** one grafted body trips both halves of
     /// the gate at once, so this row does not separate them. Splitting
     /// them needs a one-solid, two-shell body — a closed void — and
     /// nothing in the tree builds one today.
     #[test]
-    fn the_entry_gate_is_what_makes_the_solid_and_shell_reads_provable() {
+    fn a_body_that_is_not_one_solid_and_one_shell_is_refused_at_the_door() {
         let mut dst = cube(L, Tol::witness());
         topo::instance::graft_disjoint_all(
             &mut dst,
