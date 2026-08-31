@@ -256,3 +256,61 @@ bookkeeping next.
 
 Block QA-B1 is complete: three units, three duals, ordinals 800-802,
 samples 53/54/56.
+
+## QA-9 merged (2026-08-30)
+
+The slot status line now states only what it can verify: which slots
+THIS request polls (one width-home consulted by loop and status
+alike), which it just tried, what a dead record over a still-busy
+slot actually means (the inherited-fd leak, named), and when the
+blocker has no record at all. The dual earned its keep in miniature:
+both arms independently reproduced the fix's own new line predicting
+"can take it" about a slot the request had just failed to take — the
+issue-1139 class re-minted inside its fix, §D rule 5 for the fourth
+S-QA unit out of four reviewed. Every prediction is gone; the
+transcripts in the PR body are the verification of record, since CI
+deletes local-scripts by design. Issue 1139 closes on this record.
+Two operational notes: a reviewer probe misfired into the REAL lock
+dir once (one stale holder file, orchestrator-cleaned — synthetic
+lock dirs are mandatory and both briefs said so; the classifier
+blocked the reviewer's own cleanup, which is the right failure), and
+the fix pass ran one pattern-match `pkill -x sleep` during cleanup —
+the kill-by-recorded-PIDs rule's exact violation, disclosed, with
+possible clipped sleeps in sibling lanes' poll loops (recoverable;
+none reported damage).
+
+## QA-6 merged (2026-08-31): the sweep's first PR, and the charter biting its own tail
+
+Issue 681's uncontested legs are swept, every claim bucketed at its
+site, and the instrument is committed with its blind spots in its
+own header. The unit's story is the program's thesis in miniature:
+its dual found the sweep unit itself minting the defect it sweeps
+for — a written reason calling a live register a dated write-up, an
+instrument docstring carrying undated counts, a tally taken over
+the wrong tree — and the fix pass then found a SECOND instance of
+the false-reason class unprompted. Merged with one red row,
+established as main's (the k-lint eps=1e-6 probe panic, issues
+1296/1304, M10-3's ground) and deliberately not re-rolled — a
+re-push re-draws the sampled row, and laundering a known red
+through a fresh draw is precisely the class this program closes.
+Issue 681 stays open for PR 2 (the workflows/scripts/tools/tests
+legs), which dispatches once qa/7 and qa/8 land.
+
+## QA-5 merged (2026-08-31)
+
+Q3 is live: tess-lint refuses corpus growth it is not comparing —
+the uncovered scene is a failing finding with its recourse spelled
+out, the baseline carries its cut commit (and refuses a re-stamp of
+unmoved data, so the record cannot age forward silently), and the
+world-check found nothing uncovered on main (VERBS' fold had paid
+it), so the red-first evidence is synthetic plus the hosted pair.
+The dual's sharpest catches were both about promises: a graceful
+fallback that could never execute (dead under errexit) and a lead
+that nothing pinned. The unit also paid the sibling's fourth-copy
+finding: TESS-BUDGET's rule prose now points at tess-lint's module
+docs as the roster of record instead of enumerating a copy that
+drifts. Issue 1038 closes on this record. One orchestrator note for
+the dispatch discipline: both reviewer briefs carried an inverted
+mechanism for the parity fix (my error, both arms caught it) — a
+dispatch is a hypothesis, and the reviewers treating it as one is
+the system working.

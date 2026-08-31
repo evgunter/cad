@@ -46,20 +46,63 @@ use topo::{EdgeKey, FaceKey, VertexKey};
 
 /// Which of a rim band's two supports a trim arc lies on.
 ///
-/// The two variants are the carve's two ROLES — the support whose strip
-/// is merged away, and the one whose strip becomes the band — and on a
-/// LADDER rim they coincide with the kinds they are named for. On an
-/// ANNULUS rim between two CURVED walls they do not: the roles are the
-/// link's own slots, so one trim arc takes [`RimSide::Plane`] while
-/// lying on a cone. The names stay UNIQUE, so nothing collides; making
-/// the vocabulary say what it means is a change to a persisted,
-/// versioned name alphabet and is tracked as #961.
+/// The two variants are the carve's two ROLES, which is what the
+/// surgery decides and therefore all it can record: the supports of a
+/// rim are told apart by the link that resolved them, never by their
+/// surface kinds — a rim between two cones has two supports of the
+/// same kind, and a kind would not tell them apart at all.
+///
+/// [`RimSide::Host`] is the PLANAR support wherever the rim has one
+/// (see [`second_support_is_host`], the one place that rule lives), so a
+/// ladder rim's two arcs keep the sides a caller means by "the flat
+/// one" and "the cap"; a curved-on-curved rim takes the link's own
+/// `face_a` as host.
+///
+/// **The roles are fixed under every edit that does not cross the
+/// PLANARITY boundary, and re-decide across it** — the host is defined
+/// by planarity, so carrying a support from curved to flat swaps which
+/// arc each role addresses while the rim's own name does not change.
+/// Stated because a consumer stores these: the boundary is where a
+/// stored reference silently retargets rather than failing.
+///
+/// # Why this exists beside `editor_core::names::RimSupport`
+///
+/// The two are deliberate twins, and the emitter's identity match
+/// between them is the SEAM, not redundancy. This one is a kernel
+/// birth record: arena keys, no serde, free to change with the
+/// surgery. Its twin is a persisted, VERSIONED name alphabet whose
+/// spelling is file data and cannot move without a schema break. G1
+/// layering forbids the kernel depending on editor-core, and merging
+/// them would either drag serde and a schema version into the kernel
+/// or let a surgery refactor silently re-spell every saved document.
+/// The seam is where a break is absorbed: a rename on this side that
+/// the emitter still maps needs no version bump.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum RimSide {
-    /// The HOST support — the planar one wherever the rim has one.
-    Plane,
-    /// The MATE support — the curved cap on a ladder rim.
-    Sphere,
+    /// The HOST support: the planar one wherever the rim has one, and
+    /// otherwise the link's own `face_a` side.
+    Host,
+    /// The MATE support: the other side of the same rim.
+    Mate,
+}
+
+/// **The host rule, in the one place it lives**: of a rim's two
+/// supports the host is the PLANAR one when exactly one of them is
+/// planar, and otherwise the link's own FIRST slot. Answers `true`
+/// when the second support is the host.
+///
+/// It takes the two planarity verdicts rather than the supports
+/// themselves, because the surgery asks this question holding
+/// different things at each site — the one-link arm holds `FaceKey`s
+/// and the seam-split arm holds `SurfaceKey`s — and the rule is about
+/// neither. Both call here, so the rule has one reading.
+///
+/// This decides a PERSISTED name ([`RimSide`] is what the emitter
+/// turns into `editor_core::names::RimSupport`), which is why it is
+/// worth a home: changing it re-points every stored reference to a
+/// band trimline, silently, at the planarity boundary.
+pub fn second_support_is_host(first_planar: bool, second_planar: bool) -> bool {
+    second_planar && !first_planar
 }
 
 /// The source keys the fillet retired.
@@ -98,14 +141,15 @@ pub struct FilletNaming {
     /// blend the arc bounds).
     pub arcs: Vec<(EdgeKey, VertexKey, EdgeKey)>,
 
-    // ---- The rim phase (closed plane–sphere chains). ----
+    // ---- The rim phase (closed chains). ----
     /// Torus band face ← the closed chain's source edges, sorted.
     pub bands: Vec<(FaceKey, Vec<EdgeKey>)>,
     /// Rim trim arc ← (the source rim edge it replaces, which support
     /// it lies on).
     pub rim_trims: Vec<(EdgeKey, EdgeKey, RimSide)>,
     /// Rim foot vertex ← the source rim vertex it retracts from, on
-    /// the planar support.
+    /// the HOST support (planar wherever the rim has one, and a rim
+    /// between two curved walls still mints these).
     pub rim_feet: Vec<(VertexKey, VertexKey)>,
     /// Meridian split vertex ← the source meridian edge it split.
     pub meridian_splits: Vec<(VertexKey, EdgeKey)>,

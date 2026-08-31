@@ -41,6 +41,27 @@
 # needs a C toolchain: the `interval` feature's backend is the in-repo,
 # pure-Rust `interval-transcendentals`.
 #
+# THE HOSTED FIGURES QUOTED THROUGHOUT THIS FILE ARE UNGUARDED READINGS —
+# billed minutes, job durations, merge frequencies, cache sizes. They are
+# quoted to explain why a row is sited or filtered the way it is, and this
+# script computes with NONE of them: what it runs is derived from ci.yml's
+# job set and from scripts/ci-filter.py's tier, both of which are read at
+# run time. A drifted figure therefore cannot desynchronize the mirror,
+# which is the only property this file is required to keep. The mirror
+# itself IS guarded — scripts/check-ci-mirror-parity.py — and that guard
+# reads the row set, never a duration.
+#
+# WHICH OF THEM A REGISTER RE-TAKES, since the answer is not uniform and
+# "unguardable" is the wrong word for several: the rows below that name
+# docs/perf-data/rebuild-latency/, docs/tess-budget-data/ and
+# docs/K-REPORT.md are pointing at documents a SCHEDULED job refreshes
+# (nightly.yml and ci.yml between them also keep docs/perf-data/criterion/
+# and docs/perf-data/opt-level/ current) — read the register, not the
+# sentence quoting it. What has no register anywhere is the billing and
+# queue arithmetic: billed minutes, a job's wall duration, how often a
+# lane fires across recent merges. Nothing in this repo re-takes those,
+# and nothing here computes with them.
+#
 # BUILD ONCE PER COMPILE MODE (2026-08-03): hosted CI now compiles the
 # test binaries once per feature graph (`build` / `build-interval`, via
 # `cargo nextest archive`) and fans the eps rows out over the archived
@@ -221,6 +242,7 @@ echo "=== change filter: tier=$TIER scope='$SCOPE' (--full forces tier 'all')"
 # HOSTED MIRROR: mirror / probe type-check loop citations
 # HOSTED MIRROR: mirror / CI half parity (both halves name the same checks)
 # HOSTED MIRROR: mirror / change filter selftest (the docs tier fails open)
+# HOSTED MIRROR: mirror / tess-budget cut-stamp selftest (the baseline's provenance)
 # HOSTED MIRROR: mirror / python lint (ruff, every tracked .py and .pyi)
 tier_blind_rows() {
   local rc=0
@@ -230,6 +252,7 @@ tier_blind_rows() {
   python3 scripts/check-ci-mirror-parity.py --selftest || rc=1
   python3 scripts/check-ci-mirror-parity.py || rc=1
   python3 scripts/ci-filter.py --selftest || rc=1
+  scripts/tess_budget_cut.sh --selftest || rc=1
   python3 scripts/check-python-lint.py --selftest || rc=1
   python3 scripts/check-python-lint.py || rc=1
   return $rc
