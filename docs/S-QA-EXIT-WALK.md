@@ -1,9 +1,9 @@
 # S-QA exit walk — criteria vs evidence
 
-**STATUS: DRAFT — awaiting Evan's ratification. Exit walks are
-design conversations (CLAUDE.md's own exception to agent
-self-merge); the program stays open until sign-off, and on
-ratification this document becomes S-QA's done-state of record.**
+**STATUS: RATIFIED — S-QA CLOSED (Evan's approval given directly
+in-session, 2026-08-31, on PR 1341's summary with the row-5
+demos-exclusion honesty note discussed). This document is S-QA's
+done-state of record.**
 S-QA = the gates-that-lie program (`docs/S-QA-PLAN.md` /
 `docs/S-QA-LOG.md`; graduated from `docs/WORK-STREAMS-2026-08.md`
 2026-08-29; A/B band 800–899). Criteria are quoted **verbatim**
