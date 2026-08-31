@@ -1,0 +1,98 @@
+CERT-9 dual (v6), recorded BEFORE R1 dispatch, 2026-08-31
+ordinal: TO BE CLAIMED on main at actual R1 dispatch (S-CERT band;
+next after 704).
+slot byte 131, parity 1 => R1 FABLE + R2 OPUS (cross-model).
+METHOD NOTE (pre-recorded so both arms run identically): reviews run
+SEQUENTIALLY on the frozen head 5593161d (PR 1361's head; dispatch
+CONDITIONAL on its gate concluding green — if it reds, this record
+is amended at the new head). One sibling implementer lane (CERT-6)
+runs concurrently; the build-slot mutex binds. R2 dispatches after
+R1's report with the IDENTICAL stored brief, no access to R1's
+report, findings, or probe branch. Probe branches: cert/9r1-probes,
+cert/9r2-probes. Implementer difficulty S (logged at spec);
+impl phase ~95k tokens, ~65m wall self-est — held for the row.
+
+COMMON BRIEF (stored verbatim; lane plumbing differs per lane):
+---
+You are a blinded adversarial reviewer for unit CERT-9 of the S-CERT
+program (repo evgunter/cad). Review PR 1361 on its FROZEN head
+5593161d — do not review any later commit; if the branch has moved,
+say so and still review 5593161d. This is an S-sized unit — size
+your review to it (target well under your cap), but small is not a
+waiver of execution: the claims below are cheap to execute.
+
+Read first, in order: docs/prompts/reviewer-style-lane.md (binding
+style-lane brief; carry its structural questions and confidence
+vocabulary), the unit's binding spec (git show
+origin/cert/orchestrator:docs/CERT-9-SPEC.md), GitHub issue 303,
+then the PR 1361 diff and body.
+
+CLAIMS TO FALSIFY (each gets a verdict with evidence; execution
+beats inspection; every number is the PR body's claim, not a fact):
+1. THE EXACTNESS ARGUMENT (highest-value item): "over R the
+   closed-mesh divergence sum is translation-invariant — the
+   anchor's extra terms assemble the surface's total area vector,
+   which is zero." Derive it yourself. Then attack the premise:
+   the argument needs a CLOSED mesh — what does signed_volume
+   return on an OPEN mesh (a mesh with boundary) pre- and
+   post-fix, and did the recentring CHANGE the open-mesh answer
+   (the total area vector is nonzero there, so the anchor now
+   matters differently)? If open meshes reach this function
+   through any door, that is a behavior change the PR body does
+   not mention; if they cannot, establish that.
+2. Red-first: both rows fail at cb7714a6 and pass at 3e812778 with
+   the PR's digits (33.333... vs 1e-9; drift 1.7001e-11 vs the
+   1e-11 budget); the budgets' input-ulp arguments hold (~1.5e-5
+   relative slop at 1e8; ~1e2·ulp(offset)/edge); the non-dyadic
+   prism reasoning (a dyadic box hides the defect by pairwise
+   cancellation) is true — check by measuring a dyadic box.
+3. The bbox-centre anchor's own arithmetic: the centre is computed
+   from the positions — does its computation overflow/lose
+   precision at extreme placements (1e300? mixed-sign extents?),
+   and is (p − centre) exact or argued where it is not.
+4. The sweep receipt: the walk.rs:1067 disposition (live, fenced,
+   filed as issue 1362), the two planar.rs not-an-instance
+   arguments, and the out-of-fence list; run your own
+   differently-shaped sweep (raw coordinate products, helpers
+   outside mesh/) — the receipt names that as its blind spot.
+5. The ε/lane posture: the rows genuinely consult no tolerance;
+   signed_volume is genuinely lane-independent (f64-only by
+   ratified judgment — verify the claim's basis); the decision to
+   carry NO CI-Config trailer is right for this diff.
+6. The verification story: resolve the PR's gate run YOURSELF
+   (status AND head SHA = 5593161d) before treating any suite as
+   covered; the claim that no baseline moved in the battery.
+STRUCTURAL (style lane's stance): does the recentred fold mint an
+instance of its own class (the centre subtracted then the fold
+summed — is anything mentioned twice across a cancelling
+difference at Interval-like risk? n/a at f64-only, but say so);
+probe_d's workaround removal — did its old manual recentring
+carry any assertion the new consumption dropped; once, read
+validate.rs end to end (Q8 — it is small enough to actually do).
+
+E2E EXERCISE (required, sized to the unit): author your own body
+at a large placement through the public tessellation door and read
+its volume through signed_volume at both a near and far placement;
+report what a consumer sees.
+
+LOCAL RUNS = UNIQUE SIGNAL ONLY: your own probes, planted
+corruptions (revert the recentring; confirm both rows red),
+merge-base differentials. The unit's suites ride the PR gate —
+verify it ran; do not re-run wholesale.
+
+VERDICT: exactly one of APPROVE / APPROVE-WITH-FIXES /
+NOT-MERGEABLE-AS-IS / REJECT, plus the CODE QUALITY REPORT rubric:
+MAJOR/MINOR/NOTE counts; spec deviations reported vs silent (the
+PR body claims NONE — anything you find is silent); ratings 1-5
+with one line of evidence each for idiom/structure, test quality,
+doc/comment honesty. Findings ranked; ## Style section with
+confidence vocabulary.
+
+LANE ISOLATION AND BLINDING: never state or guess who or what
+model implemented the unit; do not read any other review lane's
+branches, notes, or reports; do not post to GitHub — commit probes
+to your probe branch locally (do NOT push) and deliver findings in
+your report. No Co-Authored-By. Foreground discipline; wrap cargo
+in local-scripts/with-build-slot.sh; take the slot (a sibling lane
+runs) and release promptly. Report <= 100 lines.
+---
