@@ -19,7 +19,7 @@
 //! kept honest structurally rather than by hope:
 //!
 //! - The battery resolves each link's analytic ARM first
-//!   ([`super::blend`]) and refuses typed on any support pair the
+//!   ([`super::arms`]) and refuses typed on any support pair the
 //!   arms do not cover. So "the constructor met a case the battery
 //!   did not consider" cannot happen: the battery enumerates the
 //!   cases.
@@ -41,7 +41,7 @@ use geom_core::{
 };
 use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, SurfaceKey, VertexKey};
 
-use super::blend::{
+use super::arms::{
     BlendArm, EdgeBlend, Meridian, Ruling, chamfer_strip, plane_plane_blend, plane_sphere_blend,
 };
 use super::{BlendError, BlendKind, BlendSite, CornerConfig, decide};
@@ -631,7 +631,7 @@ pub fn corner_config<T: Decide + Bounds>(
 /// face's own boundary, not the same setback algebra), which is
 /// recorded as a numbered deviation rather than guessed at here.
 ///
-/// The setbacks come from [`super::blend`] — the same functions the
+/// The setbacks come from [`super::arms`] — the same functions the
 /// constructor calls.
 ///
 /// # Errors
@@ -800,7 +800,7 @@ fn support_coaxiality<T: Decide + Bounds>(
 ///
 /// The two plane-support rows keep their own closed forms; every curved
 /// pair goes through the shared sheet reduction
-/// ([`super::blend::Meridian`] / [`super::blend::Ruling`]), whose family
+/// ([`super::arms::Meridian`] / [`super::arms::Ruling`]), whose family
 /// is chosen by the RIM CARRIER's own stored shape — a coaxial pair
 /// meets in a circle, a ruled pair in a line.
 ///

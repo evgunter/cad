@@ -56,9 +56,9 @@ use geom::Surface;
 use geom_core::{Band, Point2, Point3, Tol, Vec3};
 use profile::ProfileVertex;
 use sweep::Revolution;
-use sweep::fillet::BlendError;
-use sweep::fillet::blend::{Meridian, SupportTrace, sheet_center};
-use sweep::fillet::build::fillet_edges;
+use sweep::blend::BlendError;
+use sweep::blend::arms::{Meridian, SupportTrace, sheet_center};
+use sweep::blend::build::fillet_edges;
 use sweep::test_support::{revolved_about_y, rim_arcs_at};
 use topo::{Body, EdgeKey, FaceKey, SurfaceKey, VertexKey, mass_properties, validate_geometric};
 

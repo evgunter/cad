@@ -192,7 +192,7 @@ fn t4_one_mouth_arc_gets_the_conditioned_recourse_and_the_rim_refuses_concave() 
         other => panic!("one mouth arc refuses SeamVertex, got {other:?}"),
     }
     // And the sentence it carries does not promise this rim a carve.
-    let shown = pncad::sweep::fillet::FILLET3_SEAM_VERTEX_RECOURSE;
+    let shown = pncad::sweep::blend::FILLET3_SEAM_VERTEX_RECOURSE;
     assert!(
         shown.contains("CONVEX"),
         "the carve half names the side the door serves: {shown}"

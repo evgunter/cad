@@ -13,11 +13,11 @@ use geom_core::Tol;
 use geom_core::{Band, Point2, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
-use sweep::fillet::battery::{
+use sweep::blend::battery::{
     BlendRequest, chain_g1, convexity_at, corner_config, face_clearance, run_battery,
     spine_regularity,
 };
-use sweep::fillet::{BlendError, BlendSite, CornerConfig, RunOutPolicy};
+use sweep::blend::{BlendError, BlendSite, CornerConfig, RunOutPolicy};
 use sweep::{Extrusion, extrude};
 use topo::{Body, EdgeKey, FaceKey, VertexKey};
 
@@ -416,7 +416,7 @@ fn trio_convexity_sign() {
         b,
     )
     .expect("a definite box edge");
-    assert_eq!(convex, sweep::fillet::Convexity::Convex);
+    assert_eq!(convex, sweep::blend::Convexity::Convex);
     assert!(
         (m - 1.0).abs() < 1e-12,
         "the 90° box edge margin is the arm"
@@ -430,7 +430,7 @@ fn trio_convexity_sign() {
         b,
     )
     .expect("the mirrored configuration");
-    assert_eq!(concave, sweep::fillet::Convexity::Concave);
+    assert_eq!(concave, sweep::blend::Convexity::Concave);
     // Exactly on: coplanar supports — a tangential edge with no side
     // for the ball to roll on, refused definitely. (The perturbation
     // below turns the normals ABOUT the edge tangent, which is the
@@ -537,20 +537,20 @@ fn trio_corner_independence() {
 #[test]
 fn every_recourse_sentence_composes_into_a_message() {
     for s in [
-        sweep::fillet::CHAMFER_ARM_RECOURSE,
-        sweep::fillet::FILLET3_RADIUS_RECOURSE,
-        sweep::fillet::FILLET3_CLEARANCE_RECOURSE,
-        sweep::fillet::FILLET3_TANGENTIAL_RECOURSE,
-        sweep::fillet::FILLET3_SPINE_RECOURSE,
-        sweep::fillet::FILLET3_CHAIN_RECOURSE,
-        sweep::fillet::FILLET3_CONVEXITY_RECOURSE,
-        sweep::fillet::FILLET3_CORNER_RECOURSE,
-        sweep::fillet::FILLET3_SEAM_VERTEX_RECOURSE,
-        sweep::fillet::FILLET3_SPINE_KIND_RECOURSE,
-        sweep::fillet::FILLET3_ASSEMBLY_RECOURSE,
-        sweep::fillet::FILLET3_RING_RECOURSE,
-        sweep::fillet::FILLET3_BODY_RECOURSE,
-        sweep::fillet::FILLET3_GEOMETRY_RECOURSE,
+        sweep::blend::CHAMFER_ARM_RECOURSE,
+        sweep::blend::FILLET3_RADIUS_RECOURSE,
+        sweep::blend::FILLET3_CLEARANCE_RECOURSE,
+        sweep::blend::FILLET3_TANGENTIAL_RECOURSE,
+        sweep::blend::FILLET3_SPINE_RECOURSE,
+        sweep::blend::FILLET3_CHAIN_RECOURSE,
+        sweep::blend::FILLET3_CONVEXITY_RECOURSE,
+        sweep::blend::FILLET3_CORNER_RECOURSE,
+        sweep::blend::FILLET3_SEAM_VERTEX_RECOURSE,
+        sweep::blend::FILLET3_SPINE_KIND_RECOURSE,
+        sweep::blend::FILLET3_ASSEMBLY_RECOURSE,
+        sweep::blend::FILLET3_RING_RECOURSE,
+        sweep::blend::FILLET3_BODY_RECOURSE,
+        sweep::blend::FILLET3_GEOMETRY_RECOURSE,
     ] {
         assert!(!s.is_empty(), "a recourse sentence is never empty");
         assert!(

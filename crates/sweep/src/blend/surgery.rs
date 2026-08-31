@@ -152,8 +152,8 @@ use topo::{
 };
 
 use super::admit::{ConvexOpen, CornerFaces, CornerLinks, RequestedBoundary};
+use super::arms::{EdgeBlend, chamfer_corner_patch, corner_ball, line_meet};
 use super::battery::{BatteryVerdict, Chain, ChainClosure, Convexity, Link};
-use super::blend::{EdgeBlend, chamfer_corner_patch, corner_ball, line_meet};
 use super::build::{Blended, face_cycle, outward_of};
 use super::naming::{BlendNaming, RimSide, second_support_is_host};
 use super::{BlendError, BlendKind, BlendSite, CornerConfig, decide};
@@ -775,7 +775,7 @@ fn chamfer_feet<T: Decide + Bounds>(
 /// **Which gates are per-KIND and which are per-SHAPE.** The band a
 /// closed rim replaces is a torus, and that is the only geometric claim
 /// this resolution rests on — so the arm gate asks for a torus arm
-/// ([`super::blend::BlendArm::is_coaxial_torus`]) and not for one pair of kinds. Below
+/// ([`super::arms::BlendArm::is_coaxial_torus`]) and not for one pair of kinds. Below
 /// it the two shapes part company:
 ///
 /// - the ANNULUS is two revolution WALLS and needs no planar support at
@@ -3478,7 +3478,7 @@ mod tests {
     use super::super::battery::{Chain, ChainClosure, Convexity, Link};
     use super::super::build::fillet_edges;
     use super::{BlendError, BlendKind, ConvexOpen, CornerLinks, corner_plan, rim_trim_circles};
-    use crate::fillet::blend::plane_sphere_blend;
+    use crate::blend::arms::plane_sphere_blend;
     use crate::test_support::{L, R, all_links, cube};
 
     /// **The guard for the two cheapest row-4 proofs.**

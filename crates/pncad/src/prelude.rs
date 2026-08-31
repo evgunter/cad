@@ -93,7 +93,7 @@ pub use ::profile::{
 };
 
 // --- 3. The four body operations ------------------------------
-pub use sweep::fillet::{BlendError, Filleted, fillet_edges};
+pub use sweep::blend::{BlendError, Filleted, fillet_edges};
 // The fillet's ruled sibling shares its refusal vocabulary
 // (`BlendError`, above): one verb, one edge-blend front door, the
 // band the only difference.
@@ -104,7 +104,7 @@ pub use sweep::chamfer::{Chamfered, chamfer_edges};
 // `BlendRefusal` is how it crosses at the kernel doors: the refusal
 // both `fillet_edges` and `chamfer_edges` return, the verb attached
 // once around the shared verb-neutral error.
-pub use sweep::fillet::{BlendKind, BlendRefusal};
+pub use sweep::blend::{BlendKind, BlendRefusal};
 pub use sweep::{
     ExtrudeError, Extruded, Extrusion, LoftError, Lofted, Revolution, RevolveAxis, RevolveError,
     Revolved, TubeError, TubeWindow, extrude, loft_body, revolve, sweep_body, tube_along_arc,

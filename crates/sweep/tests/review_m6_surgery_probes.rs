@@ -17,7 +17,7 @@ use geom::Surface;
 use geom_core::Tol;
 use geom_core::{Affine3, Band, Point2, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
-use sweep::fillet::build::fillet_edges;
+use sweep::blend::build::fillet_edges;
 use sweep::test_support::cube;
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
@@ -528,7 +528,7 @@ fn p7_dev1_radius_sweep_margin_is_structurally_zero() {
         let err = fillet_edges(&pipped, &every, r, band(), Tol::witness())
             .expect_err("every-edge on a pipped body must refuse");
         match err.error {
-            sweep::fillet::BlendError::TangentialEdge { margin, .. } => {
+            sweep::blend::BlendError::TangentialEdge { margin, .. } => {
                 assert!(
                     margin == 0.0,
                     "radius {r}: margin {margin} is not structural zero"
@@ -551,7 +551,7 @@ fn p8_duplicate_edge_refuses() {
     // The refusal names the repeated key, not just the situation: the
     // caller can act on it without re-deriving which edge doubled.
     assert!(
-        matches!(err.error, sweep::fillet::BlendError::RepeatedEdge { edge } if edge == box_edges[0]),
+        matches!(err.error, sweep::blend::BlendError::RepeatedEdge { edge } if edge == box_edges[0]),
         "{err}"
     );
 }

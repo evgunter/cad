@@ -157,7 +157,7 @@ fn fit_payload(e: &pncad::geom::FitError) {
 
 // editor_core::NodeErrorKind is the widest payload set in the tree:
 // the document layer's node errors wrap every kernel operation's
-// refusal, including the third buried type, sweep::fillet::BlendError.
+// refusal, including the third buried type, sweep::blend::BlendError.
 fn node_error_payload(e: &pncad::document::NodeErrorKind) {
     match e {
         pncad::document::NodeErrorKind::Blend { error, .. } => named::<&BlendError>(error),

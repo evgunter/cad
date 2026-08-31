@@ -163,7 +163,7 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // mount guard, literal view
     },
     Entry {
-        path: "crates/sweep/src/fillet/admit.rs",
+        path: "crates/sweep/src/blend/admit.rs",
         disposition: Unconverted("Track T — raw `include_str!`, no reader at all"),
     },
     Entry {

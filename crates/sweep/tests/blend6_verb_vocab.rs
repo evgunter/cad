@@ -18,9 +18,9 @@
 
 use geom_core::{Band, Point2, Tol};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use sweep::blend::build::fillet_edges;
+use sweep::blend::{BlendError, BlendRefusal};
 use sweep::chamfer::chamfer_edges;
-use sweep::fillet::build::fillet_edges;
-use sweep::fillet::{BlendError, BlendRefusal};
 use sweep::test_support::cube;
 use sweep::{Extrusion, extrude};
 use topo::{Body, EdgeKey};

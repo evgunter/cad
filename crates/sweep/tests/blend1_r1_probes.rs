@@ -30,8 +30,8 @@ use core::f64::consts::SQRT_2;
 use geom_core::{Band, Point2, Point3, Tol};
 use profile::ProfileVertex;
 use sweep::Revolution;
-use sweep::fillet::build::fillet_edges;
-use sweep::fillet::{BlendError, CornerConfig, FILLET3_SEAM_VERTEX_RECOURSE};
+use sweep::blend::build::fillet_edges;
+use sweep::blend::{BlendError, CornerConfig, FILLET3_SEAM_VERTEX_RECOURSE};
 use sweep::test_support::{cube, revolved_about_y, rim_arcs_at};
 use topo::{Body, EdgeKey, FaceKey, SurfaceKey, mass_properties, validate_geometric};
 

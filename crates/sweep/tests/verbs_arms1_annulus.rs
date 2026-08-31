@@ -40,9 +40,9 @@ use geom::Surface;
 use geom_core::{Band, Tol};
 use profile::ProfileVertex;
 use sweep::Revolution;
-use sweep::fillet::BlendError;
-use sweep::fillet::battery::chain_g1;
-use sweep::fillet::build::fillet_edges;
+use sweep::blend::BlendError;
+use sweep::blend::battery::chain_g1;
+use sweep::blend::build::fillet_edges;
 use sweep::test_support::revolved_about_y;
 use topo::{Body, EdgeKey, FaceSurface, ValidationError, mass_properties, validate_geometric};
 

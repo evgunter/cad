@@ -45,9 +45,9 @@ use geom::Surface;
 use geom_core::{Band, Point2, Point3, Tol, Vec3};
 use profile::ProfileVertex;
 use sweep::Revolution;
-use sweep::fillet::battery::{BlendRequest, run_battery};
-use sweep::fillet::build::fillet_edges;
-use sweep::fillet::{BlendArm, BlendError, CornerConfig};
+use sweep::blend::battery::{BlendRequest, run_battery};
+use sweep::blend::build::fillet_edges;
+use sweep::blend::{BlendArm, BlendError, CornerConfig};
 use sweep::test_support::{revolved_about_y, rim_arcs_at};
 use topo::{Body, EdgeKey, SurfaceKey, VertexKey, validate_geometric};
 
@@ -223,7 +223,7 @@ fn the_equator_takes_the_sphere_sphere_arm_at_zero_departure() {
 /// are written out here, independently of the arm.
 #[test]
 fn the_sphere_sphere_arm_folds_both_sense_bits() {
-    use sweep::fillet::blend::{Meridian, SupportTrace, sheet_center};
+    use sweep::blend::arms::{Meridian, SupportTrace, sheet_center};
     let r = 0.05;
     let sheet = Meridian {
         origin: Point3::new(0.0, 0.0, 0.0),
@@ -349,11 +349,11 @@ fn a_chain_stopping_at_a_seam_vertex_refuses_seam_vertex() {
         ) => {
             let text = e.to_string();
             assert!(
-                text.contains(sweep::fillet::FILLET3_SEAM_VERTEX_RECOURSE),
+                text.contains(sweep::blend::FILLET3_SEAM_VERTEX_RECOURSE),
                 "the seam recourse is the one appended: {text}"
             );
             assert!(
-                !text.contains(sweep::fillet::FILLET3_CORNER_RECOURSE),
+                !text.contains(sweep::blend::FILLET3_CORNER_RECOURSE),
                 "the corner recourse names a door that would not help here: {text}"
             );
             assert!(

@@ -6,8 +6,8 @@ use geom_core::Tol;
 use geom_core::{Affine3, Band, Point2, Point3, Vec2, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
-use sweep::fillet::battery::{BlendRequest, run_battery};
-use sweep::fillet::build::fillet_edges;
+use sweep::blend::battery::{BlendRequest, run_battery};
+use sweep::blend::build::fillet_edges;
 use sweep::test_support::cube;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
@@ -90,7 +90,7 @@ fn probe_a_pipped_cube_all_edges() {
                 v.chains.len(),
                 v.chains
                     .iter()
-                    .filter(|ch| matches!(ch.closure, sweep::fillet::battery::ChainClosure::Closed))
+                    .filter(|ch| matches!(ch.closure, sweep::blend::battery::ChainClosure::Closed))
                     .count()
             );
         }

@@ -24,8 +24,8 @@ use geom::{Curve3, Surface};
 use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec3};
 use profile::ProfileVertex;
 use sweep::Revolution;
-use sweep::fillet::build::fillet_edges;
-use sweep::fillet::{BlendError, CornerConfig, RunOutPolicy};
+use sweep::blend::build::fillet_edges;
+use sweep::blend::{BlendError, CornerConfig, RunOutPolicy};
 use sweep::test_support::revolved_about_y;
 use topo::{Body, EdgeKey, SurfaceKey, transform_rigid, validate_geometric};
 
@@ -323,7 +323,7 @@ fn an_oversized_ball_on_the_lentil_refuses_typed() {
 /// goes negative and the centre is NaN, never a fabricated point.
 #[test]
 fn sheet_center_degrades_to_axis_then_nan_past_tangency() {
-    use sweep::fillet::blend::{Meridian, SupportTrace, sheet_center};
+    use sweep::blend::arms::{Meridian, SupportTrace, sheet_center};
     let sheet = Meridian {
         origin: Point3::new(0.0, 0.0, 0.0),
         axis: Vec3::new(0.0, 1.0, 0.0),

@@ -474,7 +474,7 @@ mod tests {
             "admit.rs must hold exactly one construction site per token type \
              (ConvexOpen, CornerLinks, CornerFaces, RequestedBoundary) — found {literals}"
         );
-        let child = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/fillet/admit");
+        let child = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/blend/admit");
         assert!(
             !child.exists(),
             "a child module of `admit` is inside the privacy boundary and outside the scan \

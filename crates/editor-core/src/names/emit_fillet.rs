@@ -69,7 +69,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
-use sweep::fillet::naming::{BlendNaming, RimSide};
+use sweep::blend::naming::{BlendNaming, RimSide};
 use topo::{Body, EdgeKey, FaceKey, VertexKey};
 
 use super::defer::{TieRows, put as put_row, upstream_name};
@@ -398,7 +398,7 @@ mod tie_tests {
             ent(0, EntityKey::Edge(b)),
         );
 
-        let blended = sweep::fillet::build::fillet_edges(
+        let blended = sweep::blend::build::fillet_edges(
             &body,
             &edges,
             0.125_f64,
@@ -447,7 +447,7 @@ mod tie_tests {
         // The chamfer emitter is the same translation under a
         // different minting id, so the deferral reaches it by
         // construction — asserted, not assumed.
-        let chamfered = sweep::fillet::build::chamfer_edges(
+        let chamfered = sweep::blend::build::chamfer_edges(
             &body,
             &edges,
             0.125_f64,

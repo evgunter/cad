@@ -9,10 +9,10 @@
 use geom::Surface;
 use geom_core::{Band, Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use sweep::blend::arms::chamfer_strip;
+use sweep::blend::build::fillet_edges;
+use sweep::blend::{BlendError, CornerConfig, RunOutPolicy};
 use sweep::chamfer::chamfer_edges;
-use sweep::fillet::blend::chamfer_strip;
-use sweep::fillet::build::fillet_edges;
-use sweep::fillet::{BlendError, CornerConfig, RunOutPolicy};
 use sweep::test_support::cube;
 use sweep::{Extrusion, extrude};
 use topo::{Body, EdgeKey};

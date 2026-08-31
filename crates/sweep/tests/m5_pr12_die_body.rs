@@ -15,7 +15,7 @@ use core::f64::consts::PI;
 use geom_brep::EdgeDescription;
 use geom_core::Band;
 use geom_core::Tol;
-use sweep::fillet::{BlendError, Filleted, fillet_edges};
+use sweep::blend::{BlendError, Filleted, fillet_edges};
 use sweep::test_support::cube;
 use topo::{Body, EdgeKey, FaceKey};
 

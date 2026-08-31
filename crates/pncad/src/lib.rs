@@ -15,7 +15,7 @@
 //!    that whole class rather than one case, at the cost of a longer
 //!    path for the few payloads that sit below their owner's root
 //!    (`geom_core::spline::KnotAlgebraError`,
-//!    `sweep::fillet::BlendError`, `topo::boolean::ContainError`,
+//!    `sweep::blend::BlendError`, `topo::boolean::ContainError`,
 //!    `mesh::validate::MeshError`) — a longer path, never a second
 //!    crate — and it required **zero kernel edits**, which is the
 //!    ruling other crates cite when they need a payload type and find

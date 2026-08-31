@@ -24,9 +24,9 @@ use geom::{Curve3, Surface};
 use geom_core::{Band, Point2, Tol};
 use profile::ProfileVertex;
 use sweep::Revolution;
-use sweep::fillet::battery::{BlendRequest, run_battery};
-use sweep::fillet::build::fillet_edges;
-use sweep::fillet::{BlendError, Convexity};
+use sweep::blend::battery::{BlendRequest, run_battery};
+use sweep::blend::build::fillet_edges;
+use sweep::blend::{BlendError, Convexity};
 use sweep::test_support::revolved_about_y;
 use topo::{Body, EdgeKey};
 

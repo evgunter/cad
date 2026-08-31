@@ -41,9 +41,9 @@ use geom::{Curve3, Surface};
 use geom_core::{Band, Point2, Tol, Vec3};
 use profile::ProfileVertex;
 use sweep::Revolution;
-use sweep::fillet::BlendError;
-use sweep::fillet::battery::{BlendRequest, run_battery};
-use sweep::fillet::build::fillet_edges;
+use sweep::blend::BlendError;
+use sweep::blend::battery::{BlendRequest, run_battery};
+use sweep::blend::build::fillet_edges;
 use sweep::test_support::revolved_about_y;
 use topo::{Body, EdgeKey, FaceSurface, mass_properties, validate_geometric};
 

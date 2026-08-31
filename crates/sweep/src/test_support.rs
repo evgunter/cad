@@ -44,7 +44,7 @@ use geom_core::{Band, Point2};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
 use topo::{Body, EdgeKey};
 
-use crate::fillet::battery::{BlendRequest, Link, run_battery};
+use crate::blend::battery::{BlendRequest, Link, run_battery};
 use crate::{Extrusion, extrude};
 use geom_core::Tol;
 

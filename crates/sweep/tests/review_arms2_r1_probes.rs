@@ -18,8 +18,8 @@ use geom::{Curve3, Surface};
 use geom_core::{Band, Point2, Tol};
 use profile::ProfileVertex;
 use sweep::Revolution;
-use sweep::fillet::BlendError;
-use sweep::fillet::build::fillet_edges;
+use sweep::blend::BlendError;
+use sweep::blend::build::fillet_edges;
 use sweep::test_support::revolved_about_y;
 use topo::{Body, EdgeKey, validate_geometric};
 
@@ -335,7 +335,7 @@ fn a_sphere_sphere_waist_reaches_its_arm_and_refuses_as_a_concave_chain() {
     // The arm door itself is PASSED, and the roster says so: the pair
     // the refusal above no longer names is advertised as implemented.
     assert!(
-        sweep::fillet::battery::arm_roster().contains("sphere–sphere"),
+        sweep::blend::battery::arm_roster().contains("sphere–sphere"),
         "the sphere-sphere arm is advertised"
     );
 }

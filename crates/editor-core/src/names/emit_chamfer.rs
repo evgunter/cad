@@ -42,7 +42,7 @@
 
 use std::sync::Arc;
 
-use sweep::fillet::naming::BlendNaming;
+use sweep::blend::naming::BlendNaming;
 use topo::Body;
 
 use super::emit::NamingError;

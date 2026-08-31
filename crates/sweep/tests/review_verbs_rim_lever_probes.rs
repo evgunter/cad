@@ -51,9 +51,9 @@ use geom::Surface;
 use geom_core::{Band, Point2, Tol};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
-use sweep::fillet::battery::{BlendRequest, run_battery};
-use sweep::fillet::build::fillet_edges;
-use sweep::fillet::{BlendError, Convexity};
+use sweep::blend::battery::{BlendRequest, run_battery};
+use sweep::blend::build::fillet_edges;
+use sweep::blend::{BlendError, Convexity};
 use sweep::test_support::revolved_about_y;
 use sweep::{Extrusion, Revolution, extrude};
 use test_utils::fuzz;
@@ -605,7 +605,7 @@ fn the_tangential_refusal_prose_states_no_geometric_fact() {
         "the refusal should say what it DID establish: {text}"
     );
     assert!(
-        !sweep::fillet::FILLET3_TANGENTIAL_RECOURSE.contains("a tangential join has no wedge"),
+        !sweep::blend::FILLET3_TANGENTIAL_RECOURSE.contains("a tangential join has no wedge"),
         "the recourse still states tangency as the established cause"
     );
 }

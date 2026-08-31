@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use geom_core::k_stats::decide;
 use geom_core::{Affine3, Band, Decide, Margin, Mat3, Point2, Point3, Sign, Tol, Vec2, Vec3};
-use sweep::fillet::BlendKind;
+use sweep::blend::BlendKind;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::splitting::{SplitPart, SplitPlane, split};
 use topo::transform::transform_rigid;
@@ -813,9 +813,9 @@ fn wire_fillet<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     // The kernel door attached the verb; this layer READS it off the
     // refusal rather than re-deriving which door it called — one
     // discrimination point per layer.
-    let filleted = sweep::fillet::build::fillet_edges(&body, &edges, radius, band(tol)?, tol)
+    let filleted = sweep::blend::build::fillet_edges(&body, &edges, radius, band(tol)?, tol)
         .map_err(
-            |sweep::fillet::BlendRefusal { verb, error }| NodeErrorKind::Blend { verb, error },
+            |sweep::blend::BlendRefusal { verb, error }| NodeErrorKind::Blend { verb, error },
         )?;
     // The assembly always keeps records, so `None` is a kernel bug:
     // refuse loudly rather than fall back to an empty table, which
@@ -873,10 +873,10 @@ fn wire_chamfer<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
     let edges = resolve_selection(BlendKind::Chamfer, selection, doc, &target_table)?;
     // As at the fillet door: the verb is read off the kernel's
     // refusal, never re-derived here.
-    let chamfered = sweep::fillet::build::chamfer_edges(&body, &edges, distance, band(tol)?, tol)
-        .map_err(|sweep::fillet::BlendRefusal { verb, error }| {
-        NodeErrorKind::Blend { verb, error }
-    })?;
+    let chamfered = sweep::blend::build::chamfer_edges(&body, &edges, distance, band(tol)?, tol)
+        .map_err(
+            |sweep::blend::BlendRefusal { verb, error }| NodeErrorKind::Blend { verb, error },
+        )?;
     // The assembly always keeps records, so `None` is a kernel bug —
     // the fillet door's argument unchanged: an empty table would leave
     // every downstream reference into this body silently unresolvable.

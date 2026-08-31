@@ -431,10 +431,10 @@ pub trait Real:
 /// **Extension (M5 PR 12, ORCHESTRATOR ruling 2026-08-03, applying
 /// the PR 11 precedent; retroactive Evan review per the self-merge
 /// convention):** the
-/// **fillet-validity battery** — `sweep::fillet::battery`, the M6-1
-/// in-place surgery (`sweep::fillet::surgery` — the same lane, the same
+/// **fillet-validity battery** — `sweep::blend::battery`, the M6-1
+/// in-place surgery (`sweep::blend::surgery` — the same lane, the same
 /// clearance-margin class; extended under the same ruling), and the
-/// assembly it licenses, `sweep::fillet::build` — joins the compound
+/// assembly it licenses, `sweep::blend::build` — joins the compound
 /// allowlist. It is the same class as the quadrature seam on both
 /// counts. It simultaneously decides (its six `fillet3_*` funnel
 /// margins) and CONSUMES ENCLOSURES: the quantities it classifies are

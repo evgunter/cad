@@ -41,7 +41,7 @@
 //! implies, and every one of those calls could refuse above `rim_phase`
 //! with the count unmoved. The floor has to be on an outcome.
 //!
-//! Gating: these are written against `crates/sweep/src/fillet`; run
+//! Gating: these are written against `crates/sweep/src/blend`; run
 //! them when that directory changes.
 //!
 //! **The dial is `test_utils::fuzz`, not one of this suite's own.**
@@ -58,7 +58,7 @@ use core::f64::consts::PI;
 use geom_core::Tol;
 use geom_core::{Affine3, Band, Point2, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
-use sweep::fillet::{BlendError, fillet_edges};
+use sweep::blend::{BlendError, fillet_edges};
 use sweep::test_support::cube;
 use sweep::{Revolution, RevolveAxis, revolve};
 use test_utils::fuzz::{self, Rng};

@@ -20,8 +20,8 @@
 
 use geom_core::Band;
 use geom_core::Tol;
-use sweep::fillet::build::fillet_edges;
-use sweep::fillet::{
+use sweep::blend::build::fillet_edges;
+use sweep::blend::{
     BlendError, FILLET3_ASSEMBLY_RECOURSE, FILLET3_BODY_RECOURSE, FILLET3_CHAIN_RECOURSE,
     FILLET3_CLEARANCE_RECOURSE, FILLET3_CONVEXITY_RECOURSE, FILLET3_CORNER_RECOURSE,
     FILLET3_GEOMETRY_RECOURSE, FILLET3_RADIUS_RECOURSE, FILLET3_RING_RECOURSE,

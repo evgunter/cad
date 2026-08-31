@@ -80,8 +80,8 @@
 //! [`BlendError::UnsupportedRunOut`].
 
 mod admit;
+pub mod arms;
 pub mod battery;
-pub mod blend;
 pub mod build;
 pub mod naming;
 pub mod surgery;
@@ -91,10 +91,10 @@ use core::fmt;
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Sign};
 use topo::{EdgeKey, EntityId, FaceKey, VertexKey};
 
+pub use arms::{BlendArm, CornerBall, EdgeBlend, RimBlend};
 pub use battery::{
     BatteryVerdict, BlendRequest, ChainClosure, Convexity, Link, run_battery, run_battery_for,
 };
-pub use blend::{BlendArm, CornerBall, EdgeBlend, RimBlend};
 pub use build::{Blended, Filleted, fillet_edges};
 pub use naming::{BlendNaming, RimSide};
 

@@ -23,8 +23,8 @@
 use geom::Surface;
 use geom_core::{Band, Point2, Point3, Tol};
 use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use sweep::blend::BlendError;
 use sweep::chamfer::chamfer_edges;
-use sweep::fillet::BlendError;
 use sweep::{Extrusion, extrude};
 use test_utils::fuzz;
 use topo::{Body, EdgeKey};

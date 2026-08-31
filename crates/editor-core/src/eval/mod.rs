@@ -433,7 +433,7 @@ pub enum NodeErrorKind {
     /// numbered predicates, a corner or spine class the in-place
     /// surgery has not been built for, or an escalation. Which door
     /// refused, and what it refused about, is stated on
-    /// [`sweep::fillet::BlendError`]'s own variants and rendered by
+    /// [`sweep::blend::BlendError`]'s own variants and rendered by
     /// its `Display` — this doc names no predicate of its own, so it
     /// cannot drift from one.
     ///
@@ -445,9 +445,9 @@ pub enum NodeErrorKind {
     /// never passes its input body through.
     Blend {
         /// Which blend the refusing node is.
-        verb: sweep::fillet::BlendKind,
+        verb: sweep::blend::BlendKind,
         /// The kernel's own refusal.
-        error: sweep::fillet::BlendError,
+        error: sweep::blend::BlendError,
     },
     /// The boolean op refused.
     Boolean(BooleanError),
@@ -652,7 +652,7 @@ pub enum NodeErrorKind {
     /// a chamfer's refusal says "chamfer".
     BlendSelectionResolve {
         /// Which blend the refusing node is.
-        verb: sweep::fillet::BlendKind,
+        verb: sweep::blend::BlendKind,
         /// The resolution failure (N5's closed trio).
         error: Box<crate::resolve::ResolveError>,
     },
@@ -662,7 +662,7 @@ pub enum NodeErrorKind {
     /// than reinterpreted.
     BlendSelectionKind {
         /// Which blend the refusing node is.
-        verb: sweep::fillet::BlendKind,
+        verb: sweep::blend::BlendKind,
         /// The offending name.
         name: Box<crate::names::StableName>,
         /// What it actually denotes.
@@ -674,7 +674,7 @@ pub enum NodeErrorKind {
     /// input).
     BlendSelectionEmpty {
         /// Which blend the refusing node is.
-        verb: sweep::fillet::BlendKind,
+        verb: sweep::blend::BlendKind,
     },
     /// A sketch node's branch selection refused (SOLVER-DESIGN W3;
     /// M4 PR 4 pins the document semantics — a per-node failure
