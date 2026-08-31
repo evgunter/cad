@@ -527,7 +527,22 @@ jobs:
             echo "draft PR: zeroing every RUN_* flag (the gate runs on ready-for-review)"
             sed -i 's/^\(RUN_[A-Z_]*\)=true$/\1=false/' filter.out
           fi
+          # THE PIPELINE'S VERDICT IS TEE'S, AND THAT IS THE #1204 CLASS FORTY
+          # LINES ABOVE ITS OWN WARNING. `cat filter.out | tee -a
+          # "$GITHUB_OUTPUT"` reports tee's status: a filter.out that is missing
+          # or unreadable publishes an EMPTY output set, and every RUN_* flag
+          # then reads as false — a green run with every gated job skipped,
+          # which is exactly the state the comment above says two experienced
+          # readers misread in opposite directions. These steps run under
+          # `bash -e {0}` without `pipefail`, so nothing else here would catch
+          # it. `PIPESTATUS[0]` is `cat`'s own status and no shell option can
+          # change it; it is read on the line after the pipeline, before
+          # anything can overwrite it.
           cat filter.out | tee -a "$GITHUB_OUTPUT"
+          if [ "${PIPESTATUS[0]}" -ne 0 ]; then
+            echo "ERROR: filter.out could not be read — the classification was NOT published, so every RUN_* flag would be empty and every gated job would skip. This run gates nothing; failing loudly rather than reporting green."
+            exit 1
+          fi
 
       # RECORDED, NEVER SILENT — the same rule RUN_VIEWER_TOOLKIT is held to,
       # and it bites harder here. A skipped row at least leaves a skipped job
@@ -2621,7 +2636,17 @@ jobs:
       - name: assert the oracle stack stays out of the default graph
         working-directory: interval-transcendentals
         run: |
-          if cargo tree | grep -iE 'inari|gmp-mpfr-sys|rug'; then
+          # THE PRODUCER IS TESTED BEFORE ITS OUTPUT IS. `cargo tree | grep`
+          # takes grep's verdict, and grep handed no input finds no match — so
+          # a resolver failure, an unbuildable manifest or a missing subcommand
+          # all read as "the oracle stack is out", which is this tripwire
+          # announcing a pass it never checked. Captured first, so a dead
+          # producer is loud and only a real listing is searched.
+          if ! TREE=$(cargo tree); then
+            echo "ERROR: \`cargo tree\` failed — this tripwire has nothing to search, and an unread graph is not a clean one"
+            exit 1
+          fi
+          if printf '%s\n' "$TREE" | grep -iE 'inari|gmp-mpfr-sys|rug'; then
             echo "ERROR: the default feature set reaches the gmp stack"
             exit 1
           fi

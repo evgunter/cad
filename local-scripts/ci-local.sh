@@ -719,7 +719,15 @@ interval_backend() {
     && cargo fmt --check \
     && cargo clippy --all-targets -- -D warnings \
     && cargo test) || return 1
-  if (cd interval-transcendentals && cargo tree | grep -iE 'inari|gmp-mpfr-sys|rug'); then
+  # The producer is tested before its output is — the argument is at the hosted
+  # copy of this row. `cargo tree | grep` takes grep's verdict, and grep with no
+  # input finds no match, so a failed `cargo tree` reads as a clean graph.
+  local tree
+  if ! tree=$(cd interval-transcendentals && cargo tree); then
+    echo "ERROR: \`cargo tree\` failed in interval-transcendentals — an unread graph is not a clean one"
+    return 1
+  fi
+  if printf '%s\n' "$tree" | grep -iE 'inari|gmp-mpfr-sys|rug'; then
     echo "ERROR: the interval backend's default feature set reaches the gmp stack"
     return 1
   fi
