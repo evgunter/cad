@@ -155,20 +155,23 @@ kind). Each verb impl owns:
 - its **parameter→field flow**: which parameter lands in which
   field of which minted description, as data. This is §3's channel
   and the reason the declaration must sit beside the op — only the
-  op knows its flow;
-- its **content tag**, a stable integer, in one exhaustive match.
+  op knows its flow.
 
-No serde, no `Expr`, no names — the enum is within the §0 lowered
-line.
+No serde, no `Expr`, no names — and no knowledge of Python,
+persistence, memoization or display: the enum is the canonical
+NAME and nothing more, within the §0 lowered line.
 
-**V2 — commitments are exhaustive matches to stable tags, so
-spellings cannot drift.** Every commitment a verb has — the
-content-key tag, the persisted wire spelling, the Python
-constructor name — is an exhaustive match over the one canonical
-enum, mapping variants to stable tags. The compiler forces every
-commitment site to be visited on any variant change (D3, no
-wildcard arms), so kernel and persisted spellings cannot drift
-silently; the tag indirection means a kernel-side rename is a
+**V2 — commitments are exhaustive matches to stable tags, held by
+their owners, so spellings cannot drift.** Every commitment a verb
+has is an exhaustive match over the one canonical enum, mapping
+variants to stable tags — and each match lives in the crate that
+owns the commitment, looking AT the canonical name: the content-key
+tag beside the memo machinery (`editor-core`), the wire spelling in
+`persist`, the Python constructor in `pncad-py`, the tree label in
+`viewer`. The kernel says nothing about any of them. The compiler
+forces every commitment site to be visited on any variant change
+(D3, no wildcard arms), so kernel and persisted spellings cannot
+drift silently; the tag indirection means a kernel-side rename is a
 compile-guided visit to each match, not a re-spelling of saved
 files. (`eval/mod.rs`'s content-tag match is already this shape;
 the `RimSide → RimSupport` emitter match at
@@ -221,28 +224,39 @@ moves).
 ## 3. Lowered parameter identity (issue 1372)
 
 **P1 — the channel is lowered *expression* identity, per stored
-field, in opt-in side records — `GeomSource` one level finer.** A
-`ParamSource` (a lowered structural expression address, the
-`SourceExpr` discipline applied to scalar slots) is attached beside
-the geometry arenas for the stored scalar fields of minted
+field, in opt-in side records — `GeomSource` one level finer and
+MORE opaque, not another mirror.** A `ParamSource` is attached
+beside the geometry arenas for the stored scalar fields of minted
 descriptions — per-kind field slots keyed like the existing
-`surface_sources` table. Identity is syntactic comparison, zero
-numerics; equality-by-provenance, true by construction. Carrying
-expression identity rather than a parameter handle answers the
-issue's offset question by construction: both walls offset by the
-same declared `t` carry the same lowered `r ± t` address and stay
-equal by syntax; `r` vs `r ± t` differ. The scope caveat of
-`topo/src/source.rs` applies verbatim: identity holds per
-evaluation against the current document, never across unaudited
-document mutations.
+`surface_sources` table. To the kernel it is a fully **opaque
+token**: `Eq`/`Ord` and nothing else — no fields the kernel can
+read, no structure it can compose. The single spelling of
+expression identity lives in `editor-core`, which lowers an
+expression address to a deterministic token (D9: the interning is a
+function of the recipe) and inverts it for diagnosis. This is
+deliberately LESS structure than `GeomSource` carries:
+`SourceExpr::Placed` exists in the kernel only because rigid
+placement re-parameterizes a *description*, so whoever runs the op
+must compose the record — a scalar field like a radius is
+motion-invariant, so no kernel op ever composes or interprets its
+source, and no second spelling of expression structure enters the
+kernel. Identity is token equality, zero numerics;
+equality-by-provenance, true by construction. Carrying expression
+identity rather than a parameter handle answers the issue's offset
+question by construction: both walls offset by the same declared
+`t` lower to the same `r ± t` token and stay equal by syntax; `r`
+vs `r ± t` differ. The scope caveat of `topo/src/source.rs` applies
+verbatim: identity holds per evaluation against the current
+document, never across unaudited document mutations.
 
 **P2 — who attaches, who propagates, who consumes.**
 `editor-core`'s lowering attaches sources at mint time, driven by
 the verb's declared parameter→field flow (V1) and the slot's
 expression address — the `set_surface_source` pattern. Kernel ops
-never mint sources; they propagate them exactly as `GeomSource`
-propagates today: survivors keep their records by key identity,
-rigid placement composes (`transform.rs`), kills drop records. A
+never mint, compose or interpret sources; they carry the token
+verbatim: survivors keep their records by key identity, rigid
+placement carries them unchanged (the fields are motion-invariant),
+kills drop records. A
 kernel-computed derived value (e.g. the hollow tube's
 `minor_radius − wall`) carries no source in v1 — identity ends
 where `editor-core` did not evaluate the expression (ledger VS-Q3).
@@ -282,10 +296,15 @@ masquerading as structure, the thing the contract forbids.
   expression algebra below the line §0 draws, and no consumer needs
   it (the tube's inner wall has no equal-radius partner to
   declare).
-- **VS-Q4 — `ParamSource` representation**: structural address
-  (SourceExpr-style) vs content digest. Recommendation: structural
-  address, matching `SourceExpr` — digests would make identity
-  claims hash-collision-shaped and are un-diffable in refusals.
+- **VS-Q4 — `ParamSource` representation.** Recommendation: an
+  opaque interned token, minted deterministically by `editor-core`
+  from the lowered expression address, `Eq`-compared by the kernel
+  and inverted upstairs for diagnosis (P1). Rejected: a
+  SourceExpr-style structural address IN the kernel — a second
+  spelling of expression structure below the line, with no kernel
+  consumer for the structure (nothing composes a motion-invariant
+  field). Rejected: a content digest — identity claims become
+  hash-collision-shaped for no gain over interning.
 - **VS-Q5 — does `RimSide`/`RimSupport` collapse onto V2's
   pattern?** Once a canonical owner exists, the persisted spelling
   can be a stable-tag match over the kernel enum and the twin
