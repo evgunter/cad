@@ -151,7 +151,7 @@ use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Real, Sign, Vec3};
 use topo::{
     Body, EdgeKey, EntityId, FaceKey, FaceSurface, HalfEdgeKey, LoopKey, MefSite, MevSite,
-    SurfaceKey, VertexKey,
+    ShellKey, SolidKey, SurfaceKey, VertexKey,
 };
 
 use super::admit::{AdmittedOpen, CornerFaces, CornerLinks, RequestedBoundary};
@@ -402,10 +402,21 @@ pub(super) fn blend_surgery<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     band: Band,
     tol: Tol,
 ) -> Result<Blended<T>, BlendError> {
-    let (solids, shells) = (source.solids().count(), source.shells().count());
-    if solids != 1 || shells != 1 {
-        return Err(BlendError::UnsupportedBody { solids, shells });
-    }
+    // **The gate and the reads are one step.** The check that says
+    // "exactly one solid, exactly one shell" BINDS what it counted, so
+    // the mutation phase below adopts the keys the door already saw
+    // instead of re-deriving them ninety lines later and finding a
+    // state the door had ruled out. There is no "the entry check
+    // passed and the read came back empty" left to spell.
+    let solids: Vec<SolidKey> = source.solids().map(|(k, _)| k).collect();
+    let shells: Vec<ShellKey> = source.shells().map(|(k, _)| k).collect();
+    let ([solid], [shell]) = (&solids[..], &shells[..]) else {
+        return Err(BlendError::UnsupportedBody {
+            solids: solids.len(),
+            shells: shells.len(),
+        });
+    };
+    let (solid, shell) = (*solid, *shell);
     let radius = verdict.size;
     let kind = verdict.kind;
 
@@ -516,13 +527,6 @@ pub(super) fn blend_surgery<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     // ---- Mutation, on a clone. From here on every step is an Euler
     // operator or a certified setter; refusals map to Op/Certify. ----
     let mut body = source.clone();
-    let Some((solid, _)) = source.solids().next() else {
-        unreachable!("blend surgery: `solids().count() == 1` was checked at entry")
-    };
-    let Some((shell, _)) = source.shells().next() else {
-        unreachable!("blend surgery: `shells().count() == 1` was checked at entry")
-    };
-
     let mut rec = BlendNaming::default();
     let (blend_faces, corner_faces, mut described) =
         blank_phase(&mut body, &opens, &corners, &supports, &mut rec, tol, kind)?;
@@ -877,9 +881,9 @@ fn resolve_rim<'a, T: Decide + Bounds>(
     // ---- The LADDER's discriminant: ONE planar face hosting every
     // link. Anything else is a rim whose supports are half-band walls,
     // which is the annulus. ----
-    let mut plane: Option<FaceKey> = None;
-    let mut mates = Vec::with_capacity(chain.link_count());
-    for link in chain.links() {
+    // One link's (host, mate) split, or `None` where neither support
+    // is a plane — the annulus's discriminant, not a refusal.
+    let split = |link: &Link<T>| -> Result<Option<(FaceKey, FaceKey)>, BlendError> {
         let a_planar = is_plane(link.face_a)
             .ok_or_else(|| not_intact(EntityId::Face(link.face_a), "a rim link's first support"))?;
         // A support that does not RESOLVE is a broken body, not a
@@ -888,24 +892,32 @@ fn resolve_rim<'a, T: Decide + Bounds>(
         let b_planar = is_plane(link.face_b).ok_or_else(|| {
             not_intact(EntityId::Face(link.face_b), "a rim link's second support")
         })?;
-        let (p, s) = if a_planar {
-            (link.face_a, link.face_b)
+        Ok(if a_planar {
+            Some((link.face_a, link.face_b))
         } else if b_planar {
-            (link.face_b, link.face_a)
+            Some((link.face_b, link.face_a))
         } else {
+            None
+        })
+    };
+    // The FIRST link fixes the shared plane, and a chain carries its
+    // first link in a field rather than in a `Vec` — so the host
+    // support is a VALUE here, and "the loop that must have run did
+    // not" is a state this function no longer spells.
+    let Some((plane, first_mate)) = split(link0)? else {
+        return resolve_seam_split_rim(body, chain);
+    };
+    let mut mates = Vec::with_capacity(chain.link_count());
+    mates.push(first_mate);
+    for link in chain.rest() {
+        let Some((p, s)) = split(link)? else {
             return resolve_seam_split_rim(body, chain);
         };
-        if *plane.get_or_insert(p) != p {
+        if p != plane {
             return resolve_seam_split_rim(body, chain);
         }
         mates.push(s);
     }
-    let Some(plane) = plane else {
-        unreachable!(
-            "resolve_rim: the loop above runs at least once (a chain always carries its \
-             first link) and every pass sets `plane`"
-        )
-    };
     let plane_half = host_side_half(body, link0, plane)
         .ok_or_else(|| not_intact(EntityId::Edge(link0.edge), "a rim edge"))?;
     let plane_loop = body
@@ -2196,8 +2208,9 @@ fn blank_phase<T: Decide + Bounds>(
             if fa.is_some() && fa == fb {
                 if spur.replace(s).is_some() {
                     unreachable!(
-                        "corner fusion: exactly three struts on three distinct supports \
-                         (checked immediately above) fuse to leave exactly one spur"
+                        "corner fusion: a SECOND strut survived the fusion — exactly \
+                         three struts on three distinct supports (checked immediately \
+                         above) fuse to leave exactly one spur"
                     )
                 }
                 continue;
@@ -2206,8 +2219,9 @@ fn blank_phase<T: Decide + Bounds>(
         }
         let Some(s) = spur else {
             unreachable!(
-                "corner fusion: exactly three struts on three distinct supports (checked \
-                 immediately above) fuse to leave exactly one spur"
+                "corner fusion: NO strut survived the fusion — exactly three struts on \
+                 three distinct supports (checked immediately above) fuse to leave \
+                 exactly one spur"
             )
         };
         let Some((hp, hm)) = halves_of(body, s) else {
@@ -3553,21 +3567,20 @@ mod tests {
     use crate::blend::arms::plane_sphere_blend;
     use crate::test_support::{L, R, all_links, cube};
 
-    /// **The guard for the two cheapest row-4 proofs.**
-    /// `blend_surgery`'s `unreachable!`s at the solid and shell reads
-    /// both say *"checked at entry"* — and the check is ninety lines
-    /// above them. Delete it and those two sentences become lies
-    /// printed inside a panic, on a body that would otherwise be
-    /// silently filleted as if its first solid were the only one. This
-    /// row is what stands there (#720's precedent: a converted site
-    /// owes a row that reddens if the check it rests on is removed).
+    /// **The door's own one-solid, one-shell clause.**
+    /// `blend_surgery` binds the solid and the shell out of the same
+    /// step that counts them, so there is no second read to prove — but
+    /// the refusal is still the only thing standing between a
+    /// multi-solid body and a surgery that would carve it as if its
+    /// first solid were the only one. Delete the clause and this row
+    /// reds.
     ///
-    /// **Its reach, stated:** one grafted body trips both clauses of
+    /// **Its reach, stated:** one grafted body trips both halves of
     /// the gate at once, so this row does not separate them. Splitting
     /// them needs a one-solid, two-shell body — a closed void — and
     /// nothing in the tree builds one today.
     #[test]
-    fn the_entry_gate_is_what_makes_the_solid_and_shell_reads_provable() {
+    fn a_body_that_is_not_one_solid_and_one_shell_is_refused_at_the_door() {
         let mut dst = cube(L, Tol::witness());
         topo::instance::graft_disjoint_all(
             &mut dst,

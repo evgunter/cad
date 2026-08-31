@@ -64,7 +64,7 @@ use topo::{
 
 use super::admit::{CornerFaces, CornerLinks};
 use super::battery::{BlendRequest, Link, run_battery};
-use super::surgery::{CORNER_SUPPORT_NOT_PLANAR, unbuilt_geometry};
+use super::surgery::{CORNER_SUPPORT_NOT_PLANAR, not_intact, unbuilt_geometry};
 use super::{BlendError, BlendKind, BlendRefusal};
 use geom_core::Tol;
 
@@ -222,15 +222,32 @@ pub(super) fn vertex_faces<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Opti
 /// none does. Returns `(u_ref, axis)` — the seam is the picked
 /// link's first support normal.
 ///
-/// **The pick always yields.** A candidate needs an incident link and
-/// a third support: [`CornerLinks`] carries at least one link, and
-/// [`CornerFaces::third`] is total over three distinct faces, so there
-/// is no "no candidate here" state left to refuse. The two refusals
-/// below both read a stored `Surface` and are the genuine geometric
-/// frontier.
+/// **The pick always yields, over candidates that are this corner's.**
+/// A candidate needs an incident link and a third support:
+/// [`CornerLinks`] carries at least one link, and
+/// [`CornerFaces::third`] is total over the corner's own three
+/// distinct faces — so there is no "no candidate here" state left to
+/// refuse, and what remains to refuse is a candidate that is not this
+/// corner's at all.
+///
+/// **Why that is checked and not assumed.** The two tokens are derived
+/// independently: `faces` from the source body's vertex orbit
+/// ([`vertex_faces`]), `links` from the battery's resolved arms, whose
+/// supports are the blended edge's two half-edge faces. On a body that
+/// holds together they name the same three faces, and
+/// [`CornerLinks`]'s own incidence check does not say so — it proves
+/// each link TERMINATES at the corner, not that its supports are the
+/// corner's. Scoring a pair that is not this corner's yields a chart
+/// aimed at nothing in particular, and **no downstream check can see
+/// it**: the chart is a sphere face's `u_ref`/`axis`, so a wrong one
+/// still closes, still passes tier 1 and 2, and shows up only as a
+/// tier-3 `NotIsoRectangle` at a corner where the geometry was right.
+/// So the disagreement refuses as the body-integrity fault it is.
 ///
 /// # Errors
 ///
+/// [`BlendError::BodyNotIntact`] when an incident link's supports are
+/// not two of this corner's three faces;
 /// [`BlendError::UnsupportedGeometry`] when a support of this corner
 /// is not a plane.
 pub(super) fn octant_chart<T: Decide + Bounds>(
@@ -242,6 +259,16 @@ pub(super) fn octant_chart<T: Decide + Bounds>(
     // along it, scored by how nearly the third support's normal is
     // parallel to its axis.
     let candidate = |l: &Link<T>| -> Result<(f64, Vec3<T>, Vec3<T>), BlendError> {
+        // FIRST, before a normal is read: this link's two supports are
+        // two of THIS corner's three. A stranger pair would be scored
+        // exactly as readily as the right one (rustdoc above).
+        let third = faces.third(l.face_a, l.face_b).ok_or_else(|| {
+            not_intact(
+                EntityId::Vertex(links.vertex()),
+                "a corner's chart candidate carries supports that are not two of this \
+                 corner's own three faces",
+            )
+        })?;
         let planar = |f: FaceKey| {
             outward_of(body, f)
                 .ok_or_else(|| unbuilt_geometry(EntityId::Face(f), CORNER_SUPPORT_NOT_PLANAR))
@@ -250,7 +277,7 @@ pub(super) fn octant_chart<T: Decide + Bounds>(
         let axis = n_a.cross(n_b).normalize();
         // The third support of the corner — the one this edge does not
         // touch.
-        let n_c = planar(faces.third(l.face_a, l.face_b))?;
+        let n_c = planar(third)?;
         Ok((n_c.cross(axis).norm().lo().abs(), n_a, axis))
     };
     let mut best = candidate(links.first().link())?;
@@ -372,4 +399,87 @@ fn chamfer_edges_inner<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     };
     let verdict = super::battery::run_battery_for(&request, band, BlendKind::Chamfer)?;
     super::surgery::blend_surgery(body, &verdict, band, tol)
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+mod tests {
+    use geom_core::Tol;
+
+    use super::super::admit::{AdmittedOpen, CornerFaces, CornerLinks};
+    use super::super::battery::{Chain, ChainClosure, Link};
+    use super::super::{BlendError, BlendKind};
+    use crate::test_support::{L, all_links, cube};
+
+    /// One open chain per link, so the door has something to admit.
+    fn open_chain(link: Link<f64>) -> Chain<f64> {
+        let (head, tail) = (link.start, link.end);
+        Chain::new(
+            link,
+            Vec::new(),
+            Vec::new(),
+            ChainClosure::Open { head, tail },
+        )
+    }
+
+    /// **A chart may not be scored off a corner the links do not
+    /// belong to.**
+    ///
+    /// [`super::octant_chart`] takes two tokens that are derived
+    /// independently — the corner's three faces off the source body's
+    /// vertex orbit, the incident links off the battery's resolved
+    /// arms — and neither type says they describe the same corner.
+    /// Handed a mismatched pair it used to score one anyway, because
+    /// excluding two strangers from three faces still names a face;
+    /// the chart that came back was aimed at a trihedron somewhere
+    /// else on the body.
+    ///
+    /// **Nothing downstream could have caught it**, which is why this
+    /// row exists rather than an acceptance one: the chart is a sphere
+    /// face's `u_ref` and `axis`, so a wrong one closes the same
+    /// shell, passes tiers 1 and 2 unchanged, and surfaces at most as
+    /// a tier-3 `NotIsoRectangle` at a corner whose geometry is right.
+    /// The positive half is asserted in the same row so the refusal
+    /// cannot pass by refusing everything.
+    #[test]
+    fn a_chart_scored_off_another_corner_s_faces_is_refused() {
+        let body = cube(L, Tol::witness());
+        let links = all_links(&body, Tol::witness());
+        let chains: Vec<Chain<f64>> = links.iter().cloned().map(open_chain).collect();
+        let admitted: Vec<AdmittedOpen<'_, f64>> = chains
+            .iter()
+            .map(|c| {
+                AdmittedOpen::admit(c, BlendKind::Fillet)
+                    .expect("a cube's links are convex plane–plane")
+            })
+            .collect();
+        let here = *admitted.first().expect("a cube has requested links");
+        let vertex = here.link().start;
+        let corner = CornerLinks::seed(vertex, here).expect("the seed link terminates here");
+
+        // The corner's OWN faces still chart, so the refusal below is
+        // about the pairing and not about the corner.
+        let mine = CornerFaces::admit(&body, vertex).expect("a cube corner is trivalent");
+        assert!(
+            super::octant_chart(&body, &mine, &corner).is_ok(),
+            "a corner charted against its own three supports must still yield"
+        );
+
+        // A corner sharing NEITHER support of this link — on a cube,
+        // the diagonally opposite one.
+        let elsewhere = body
+            .vertices()
+            .map(|(v, _)| v)
+            .filter_map(|v| CornerFaces::admit(&body, v).ok())
+            .find(|f| !f.contains(here.link().face_a) && !f.contains(here.link().face_b))
+            .expect("a cube has a corner sharing neither of a given edge's supports");
+        assert!(
+            matches!(
+                super::octant_chart(&body, &elsewhere, &corner),
+                Err(BlendError::BodyNotIntact { .. })
+            ),
+            "a chart derived from a link whose supports are not the corner's own must \
+             refuse, not score"
+        );
+    }
 }

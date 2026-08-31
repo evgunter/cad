@@ -164,7 +164,7 @@ const LEDGER: &[Entry] = &[
     },
     Entry {
         path: "crates/sweep/src/blend/admit.rs",
-        disposition: Unconverted("Track T — raw `include_str!`, no reader at all"),
+        disposition: Shared, // token construction sites, code view
     },
     Entry {
         path: "crates/sweep/tests/all.rs",
@@ -337,9 +337,9 @@ fn sites_reading_rust_source(root: &Path) -> Vec<String> {
 /// **The ledger is the tree's set, not a subset of it.**
 ///
 /// A WALK THAT MATCHED NOTHING IS NOT A PASS, and the equality is what
-/// says so: an empty or broken traversal reports all 34 entries as
-/// stale and reds, so this row needs no separate count floor (an
-/// earlier one asserted `found.len() >= 20`, which set equality had
+/// says so: an empty or broken traversal reports every entry in the
+/// ledger as stale and reds, so this row needs no separate count floor
+/// (an earlier one asserted `found.len() >= 20`, which set equality had
 /// already subsumed and which could not fail for the reason it
 /// stated). [`test_utils::source::rust_sources`] panics on an empty
 /// directory underneath it as well.
@@ -434,7 +434,7 @@ fn the_unconverted_readers_are_the_ones_this_tree_still_owes() {
 /// The number of sites still reading Rust source through something
 /// other than [`test_utils::source`]. **Hand-synced with the ledger
 /// above, and it goes one way.**
-const UNCONVERTED_TODAY: usize = 11;
+const UNCONVERTED_TODAY: usize = 10;
 
 /// The languages other than Rust that a guard in this tree reads. **A
 /// `NotRust` line must name one of these**, because free text is what
