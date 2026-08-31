@@ -2,10 +2,14 @@ CERT-6 dual (v6), recorded BEFORE R1 dispatch, 2026-08-31
 ordinal: TO BE CLAIMED on main at actual R1 dispatch (S-CERT band;
 next after 705).
 slot byte 108, parity 0 => R1 OPUS + R2 FABLE (cross-model).
-METHOD NOTE (pre-recorded so both arms run identically): reviews run
-SEQUENTIALLY on the frozen head 1084f764 (PR 1366's head; dispatch
-CONDITIONAL on its gate concluding green — if it reds, amended at
-the new head). No sibling lanes at this writing. R2 after R1 with
+METHOD NOTE (pre-recorded so both arms run identically; AMENDED
+once, pre-R1, per its own rule): reviews run SEQUENTIALLY on the
+frozen head ce567bad — the delivered head 1084f764 redded the
+discipline gate's interval-square-allowlist on the gauge's
+`p_lo * p_lo` spellings, and the tip commit is a four-site
+ORCHESTRATOR-DIRECT powi(2) respell (bit-equal at f64), disclosed
+here; reviewers verify that delta themselves. Dispatch CONDITIONAL
+on ce567bad's gate concluding green. No sibling lanes at this writing. R2 after R1 with
 the IDENTICAL stored brief, isolated. Probe branches:
 cert/6r1-probes, cert/6r2-probes. Implementer difficulty S/M
 (logged at spec); impl ~215k tokens, ~3h wall self-est (the FIRST
@@ -16,8 +20,11 @@ COMMON BRIEF (stored verbatim; lane plumbing differs per lane):
 ---
 You are a blinded adversarial reviewer for unit CERT-6 of the S-CERT
 program (repo evgunter/cad). Review PR 1366 on its FROZEN head
-1084f764 — do not review any later commit; if the branch has moved,
-say so and still review 1084f764.
+ce567bad — do not review any later commit; if the branch has moved,
+say so and still review ce567bad. The tip commit is a four-site
+orchestrator-direct powi(2) respell of the delivered head 1084f764
+(a discipline-gate fix, bit-equal at f64) — verify that delta
+yourself.
 
 Read first, in order: docs/prompts/reviewer-style-lane.md (binding
 style-lane brief; carry its structural questions and confidence
