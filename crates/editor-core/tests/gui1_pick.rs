@@ -378,6 +378,55 @@ fn corrupt_mesh_is_a_typed_build_error() {
     );
 }
 
+/// The edge twin of `patch_names`: one name per drawn boundary
+/// polyline, total, distinct, and denoting the EDGE the polyline was
+/// tessellated from — the door a viewer's edge hit test inverts
+/// through so no `EdgeKey` has to cross into layer 3.
+#[test]
+fn boundary_names_are_total_distinct_and_the_polylines_own() {
+    let doc = ProfileDoc::empty_derived("gui1_pick_edges", Tol::witness());
+    let (doc, ext) = cube_doc_node(doc, 0.0);
+    let ev = run(&doc);
+    let np = editor_core::NodePick::build(&ev, ext, 0, DELTA, Tol::witness())
+        .expect("the box tessellates and indexes");
+    let names = np.boundary_names(&ev);
+    assert_eq!(
+        names.len(),
+        np.mesh().boundaries.len(),
+        "one name per drawn boundary polyline",
+    );
+    assert_eq!(names.len(), 12, "a box draws twelve edges");
+    let mut seen = std::collections::BTreeSet::new();
+    for (position, name) in names.iter().enumerate() {
+        let name = name
+            .as_ref()
+            .expect("naming emission is total, so no drawn edge is unnamed");
+        // The same name the key-taking door answers for the polyline's
+        // own back-reference: the position-in, name-out door is the
+        // key-in one with the key kept inside.
+        let key = np.mesh().boundaries[position].edge;
+        assert_eq!(
+            Some(name),
+            editor_core::edge_name(&ev, ext, 0, key).ok(),
+            "polyline {position} names the edge it was tessellated from",
+        );
+        assert!(seen.insert(name.clone()), "one name per edge");
+        assert!(
+            matches!(
+                resolve(
+                    RunCtx {
+                        doc: &doc,
+                        eval: &ev
+                    },
+                    name
+                ),
+                Resolution::Resolved(_)
+            ),
+            "a just-drawn edge's name resolves in the run it was drawn from",
+        );
+    }
+}
+
 /// The provenance-atomic door (`NodePick`): built against the
 /// evaluation payload itself, its target answers exactly what a
 /// correctly-assembled raw target answers, its mesh is the same

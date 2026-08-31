@@ -1,7 +1,7 @@
 //! Turning a cursor into a selection: the per-generation pick index,
 //! the id↔patch mapping the GPU pass rides on, and the highlight.
 //!
-//! # One index, three consumers
+//! # One index, four consumers
 //!
 //! [`PickIndex`] is built once per evaluation generation and answers
 //! everything the viewport asks about what is under the cursor:
@@ -11,6 +11,11 @@
 //!   nothing itself; it takes a ray (from
 //!   [`crate::Camera::ray_through`]) and hands it to the shipped
 //!   `pick_face` service, whose answer is a `StableName`;
+//! - the **screen path** — [`PickIndex::edge_at_for`] and the
+//!   priority door [`PickIndex::hovered_for`] above it. An edge has no
+//!   area on screen, so it cannot be found by a ray; this half
+//!   projects the drawn edge polylines and measures PIXELS, seeded by
+//!   the ray path's own answer;
 //! - the **id map** — [`PickIndex::ids`], the pure pair
 //!   `id ↔ (node, body, patch)` that the GPU id-buffer pass writes and
 //!   reads back;
@@ -43,8 +48,8 @@
 
 use std::collections::BTreeMap;
 
-use pncad::document::{Doc, Evaluation, ParamName, ProfileProgram, RecipeNodeId};
-use pncad::geom_core::Tol;
+use pncad::document::{Doc, Evaluation, Frame, ParamName, ProfileProgram, RecipeNodeId};
+use pncad::geom_core::{Point3, Tol};
 use pncad::prelude::{NameOrigin, StableName, attribute};
 use pncad::select::{HitTestError, NodePick, NodePickError, PickHit, PickTarget, Ray, pick_face};
 
@@ -53,7 +58,7 @@ use crate::display::DisplayView;
 use crate::evalseam::Generation;
 use crate::input::{PickAction, ViewportSize};
 use crate::scene::{DisplayTolerance, SceneError, SceneMesh, ScenePart};
-use crate::session::{DocSession, FaceSelection, Selection, SessionOp};
+use crate::session::{DocSession, EdgeSelection, FaceSelection, Hovered, Selection, SessionOp};
 
 /// One drawn face patch, addressed the way selection speaks: the node
 /// whose body carries it, which output body, and the patch's position
@@ -72,6 +77,90 @@ pub struct PatchId {
     /// The patch's position in that body's tessellation.
     pub patch: usize,
 }
+
+/// One drawn edge polyline, addressed the way selection speaks: the
+/// node whose body carries it, which output body, and the polyline's
+/// position in that body's tessellation.
+///
+/// The boundary position is a position in a `Mesh`'s boundary list —
+/// a display coordinate, valid for one tessellation — and NOT an arena
+/// key, for exactly the reason [`PatchId`] is not one. **This is what
+/// keeps the edge hit test on the legal side of G1**: the geometry of
+/// the test (project the polyline, measure pixels) is layer-3 work,
+/// and the only thing that crosses back down is a position, which
+/// `NodePick::boundary_names` inverts to a [`StableName`]. The
+/// `topo::EdgeKey` behind it never leaves editor-core.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct EdgeId {
+    /// The node whose evaluated body carries the edge.
+    pub node: RecipeNodeId,
+    /// The output body index within that node's value.
+    pub body: u32,
+    /// The polyline's position in that body's tessellation.
+    pub boundary: usize,
+}
+
+/// Which entity kinds a pick may answer with — the caller's half of
+/// the priority rule.
+///
+/// **Why a tool gets a say at all.** Edge-beats-face is a rule about
+/// what the user is AIMING at, and it is right for a bare cursor. It
+/// is wrong for a tool that can only use one kind: the mate tool takes
+/// faces, and on a real part whole faces are within
+/// [`EDGE_PICK_RADIUS_PX`] of their own boundary everywhere — a narrow
+/// shelf, a small hole's cylindrical wall — so with edges always
+/// winning those faces became unpickable while the tool was open.
+///
+/// **This is deliberately not a filter vocabulary.** It is two
+/// answers to one question the shipped tools actually ask, threaded
+/// through the one door that decides priority so a tool cannot get a
+/// different rule by re-implementing it. Which filters are offered
+/// where — and the third kind an edges-only tool will want — is GQ7's
+/// open clause and issue #1379, and nothing here forecloses it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum PickKinds {
+    /// The bare cursor's rule: an edge within [`EDGE_PICK_RADIUS_PX`]
+    /// beats the face behind it.
+    #[default]
+    Any,
+    /// Faces only: the edge test is not run, so the answer is the
+    /// ray path's face or nothing.
+    FacesOnly,
+}
+
+impl PickKinds {
+    /// Whether an edge may win here.
+    fn edges(self) -> bool {
+        matches!(self, Self::Any)
+    }
+}
+
+/// **How close a cursor must come to a drawn edge for the edge to
+/// beat the face behind it**, in physical pixels.
+///
+/// GQ7 leaves pick-priority — "which entity wins when a click hits
+/// several" — a GUI question, and this is its first concrete
+/// instance: a face fills the pixel an edge only borders, so an edge
+/// is unreachable without a rule that lets it win near its own
+/// boundary. The rule is *proximity in the picture*, because that is
+/// the thing the user is aiming with, and the constant lives here —
+/// one place, named — so a later instance of the same question can
+/// cite it rather than inventing a second radius.
+///
+/// Six pixels is a cursor's-width aim: wide enough to hit a
+/// hairline-thin edge on a dense model without a steady hand, narrow
+/// enough that clicking the middle of a face still selects the face.
+///
+/// **It is a PHYSICAL-pixel radius, and that is a known cost rather
+/// than a benefit.** The viewport hands this crate physical pixels
+/// (`crate::input`'s screen convention), so on a hi-dpi screen six
+/// pixels is a physically smaller ring around the edge and the aim is
+/// strictly harder — the same hand movement covers more of them. What
+/// keeps it acceptable is that a hi-dpi cursor is drawn at the same
+/// physical size and lands with the same physical precision; what
+/// would fix it is scaling by the pane's points-per-pixel, which is a
+/// number this layer is not handed today. Recorded, not solved.
+pub const EDGE_PICK_RADIUS_PX: f64 = 6.0;
 
 /// The GPU id-buffer's alphabet: a bijection between the u32 an
 /// offscreen pass can write into a pixel and the [`PatchId`] it names.
@@ -270,6 +359,17 @@ pub struct PickIndex {
     /// question this index could answer was "which ids share a name",
     /// which is the wrong question whenever a name is drawn twice.
     by_target: BTreeMap<(RecipeNodeId, u32), (usize, usize)>,
+    /// Every drawn edge polyline, in part order then boundary order —
+    /// the edge twin of the patch layout above, and laid out the same
+    /// way so one body's edges are a contiguous run.
+    edges: Vec<EdgeId>,
+    /// Every drawn edge's stable name, parallel to [`PickIndex::edges`]
+    /// — `Err` for the loud unnamed-entity bug arm, which is one
+    /// polyline's problem and not the index's.
+    edge_names: Vec<Result<StableName, HitTestError>>,
+    /// Which entries of [`PickIndex::edges`] belong to each drawn
+    /// (node, body), as a contiguous window.
+    edges_by_target: BTreeMap<(RecipeNodeId, u32), (usize, usize)>,
 }
 
 impl PickIndex {
@@ -333,6 +433,21 @@ impl PickIndex {
             by_target.insert((part.node(), part.body()), (next, patches));
             next += patches;
         }
+        let mut edges: Vec<EdgeId> = Vec::new();
+        let mut edge_names: Vec<Result<StableName, HitTestError>> = Vec::new();
+        let mut edges_by_target: BTreeMap<(RecipeNodeId, u32), (usize, usize)> = BTreeMap::new();
+        for part in &parts {
+            let start = edges.len();
+            for (boundary, name) in part.boundary_names(eval).into_iter().enumerate() {
+                edges.push(EdgeId {
+                    node: part.node(),
+                    body: part.body(),
+                    boundary,
+                });
+                edge_names.push(name);
+            }
+            edges_by_target.insert((part.node(), part.body()), (start, edges.len() - start));
+        }
         Ok(Self {
             generation,
             delta,
@@ -342,6 +457,9 @@ impl PickIndex {
             names,
             by_name,
             by_target,
+            edges,
+            edge_names,
+            edges_by_target,
         })
     }
 
@@ -628,13 +746,452 @@ impl PickIndex {
         }))
     }
 
+    /// Every drawn edge of one (node, body), in boundary order.
+    ///
+    /// A slice rather than a search for the reason
+    /// [`PickIndex::ids_in`] is one: the index lays its parts out in
+    /// root-then-payload order and walks each part's boundaries in
+    /// order, so one body's edges are a contiguous run.
+    pub fn edges_in(&self, node: RecipeNodeId, body: u32) -> &[EdgeId] {
+        let Some(&(start, len)) = self.edges_by_target.get(&(node, body)) else {
+            return &[];
+        };
+        self.edges.get(start..start + len).unwrap_or_default()
+    }
+
+    /// The name of the edge `id` denotes, or the typed reason there is
+    /// none.
+    ///
+    /// **Every way this can fail is a value, and they are not the same
+    /// news.** [`EdgeNameFault::NotDrawn`] is ordinary — a stale or
+    /// foreign selection naming a body this generation does not draw.
+    /// [`EdgeNameFault::OutOfRange`] is not: `EdgeId`s come from
+    /// [`PickIndex::edges_in`], so a boundary past the end of a body
+    /// this index DOES draw is an address minted by hand, and without
+    /// the window check it would read the NEXT body's name — a
+    /// plausible, confidently wrong answer, the #1098 class exactly.
+    /// [`EdgeNameFault::Unnamed`] is the naming-emission bug arm,
+    /// carried verbatim.
+    ///
+    /// # Errors
+    ///
+    /// [`EdgeNameFault`], per arm.
+    pub fn edge_name_of(&self, id: EdgeId) -> Result<&StableName, EdgeNameFault> {
+        let &(start, len) =
+            self.edges_by_target
+                .get(&(id.node, id.body))
+                .ok_or(EdgeNameFault::NotDrawn {
+                    node: id.node,
+                    body: id.body,
+                })?;
+        if id.boundary >= len {
+            return Err(EdgeNameFault::OutOfRange {
+                node: id.node,
+                body: id.body,
+                boundary: id.boundary,
+                drawn: len,
+            });
+        }
+        match self.edge_names.get(start + id.boundary) {
+            Some(Ok(name)) => Ok(name),
+            Some(Err(error)) => Err(EdgeNameFault::Unnamed(*error)),
+            // Unreachable: the window is a range of `edge_names`, and
+            // the two are built in one pass. Reported as the address
+            // fault it would be rather than degraded to a miss.
+            None => Err(EdgeNameFault::OutOfRange {
+                node: id.node,
+                body: id.body,
+                boundary: id.boundary,
+                drawn: len,
+            }),
+        }
+    }
+
+    /// The drawn edges an edge selection denotes: the edges of its own
+    /// (node, body) whose name is its name.
+    ///
+    /// **At most one**, by the name table's bidirectionality — and
+    /// answered as a `Vec` for the reason [`PickIndex::ids_of_target`]
+    /// is: a naming-emission bug that broke the bijection shows as a
+    /// wider answer instead of a silently chosen one.
+    pub fn edges_of_target(&self, edge: &EdgeSelection) -> Vec<EdgeId> {
+        self.edges_in(edge.node, edge.body)
+            .iter()
+            .copied()
+            .filter(|id| matches!(self.edge_name_of(*id), Ok(name) if *name == edge.name))
+            .collect()
+    }
+
+    /// The tessellated part drawing one (node, body).
+    fn part_of(&self, node: RecipeNodeId, body: u32) -> Option<&NodePick> {
+        self.parts
+            .iter()
+            .find(|part| part.node() == node && part.body() == body)
+    }
+
+    /// The world polyline a drawn edge is drawn as, under a display
+    /// view: the tessellation's own chord points, carried through the
+    /// owning instance's free-move probe frame when it has one.
+    ///
+    /// Empty for an id this index did not assign and for an edge whose
+    /// part is hidden — a hidden part is out of the picture, so there
+    /// is nothing to mark, which is the same rule
+    /// [`PickIndex::scene_for`] draws by.
+    pub fn edge_polyline_for(&self, id: EdgeId, display: &DisplayView) -> Vec<Point3<f64>> {
+        if display.hidden_roots.contains(&id.node) {
+            return Vec::new();
+        }
+        let Some(part) = self.part_of(id.node, id.body) else {
+            return Vec::new();
+        };
+        let mesh = part.mesh();
+        let Some(boundary) = mesh.boundaries.get(id.boundary) else {
+            return Vec::new();
+        };
+        let place = placement(display, id.node);
+        boundary
+            .points
+            .iter()
+            .filter_map(|&index| mesh.positions.get(index as usize).copied())
+            .map(place)
+            .collect()
+    }
+
+    /// **The nearest drawn edge to a cursor, when one is near enough
+    /// to beat the face behind it** — the edge half of the pick path,
+    /// as a typed layer-boundary service beside the ray→face one.
+    ///
+    /// # Why this one takes a cursor and not a ray
+    ///
+    /// An edge has no area on screen: a ray through a pixel misses it
+    /// with probability one, so "what the cursor is aiming at" is a
+    /// question about PROXIMITY IN THE PICTURE and cannot be asked of
+    /// a ray. The measure is therefore pixels
+    /// ([`EDGE_PICK_RADIUS_PX`]), which is also what makes the rule
+    /// feel the same on a dense model and a coarse one.
+    ///
+    /// # The mechanism, and what it costs
+    ///
+    /// The cursor's ray picks a face first, and that hit SEEDS the
+    /// search: only the edges of the body the cursor is actually over
+    /// are measured. That is cheap (one body's polylines, not the
+    /// document's) and it is what makes the answer an edge OF the face
+    /// under the cursor rather than of whatever else happens to project
+    /// nearby. The price, stated because it is a real limit rather
+    /// than an oversight: an edge is reachable only where its own body
+    /// is — a cursor just OUTSIDE a silhouette, over the background,
+    /// picks nothing even when the silhouette edge is one pixel away.
+    ///
+    /// **So the catch band is two-sided in the interior and one-sided
+    /// at a silhouette**, which is a real difference in feel rather
+    /// than a rounding detail: an interior edge is catchable across
+    /// `2 x EDGE_PICK_RADIUS_PX` (both sides have body behind them to
+    /// seed the search), a silhouette edge only across
+    /// `EDGE_PICK_RADIUS_PX` on its inward side. Widening it would
+    /// mean offering candidates with no face pick to seed them — a
+    /// search over every drawn body, and a different mechanism.
+    ///
+    /// The nearest candidate is then checked for OCCLUSION, because
+    /// screen distance alone cannot tell the near edge of a box from
+    /// its far one: the ray through the candidate's own pixel is
+    /// re-picked against everything drawn, and a candidate the surface
+    /// hides is rejected rather than selected through the solid.
+    ///
+    /// Determinism: the candidates within the radius are ordered by
+    /// `(pixel distance, boundary position, segment position)` — the
+    /// same shape of total tie-break `pick_face` documents, so two
+    /// edges meeting at the cursor answer the earlier one every time —
+    /// and the answer is the first of them the solid does not hide.
+    ///
+    /// # Errors
+    ///
+    /// [`PickError`]: the camera's refusal for a cursor the viewport
+    /// cannot un-project, or the hit-test service's.
+    pub fn edge_at_for(
+        &self,
+        eval: &Evaluation<f64>,
+        camera: &Camera,
+        viewport: ViewportSize,
+        cursor: [f64; 2],
+        display: &DisplayView,
+    ) -> Result<Option<EdgePick>, PickError> {
+        let Some(hit) = self.seed(eval, camera, viewport, cursor, display)? else {
+            return Ok(None);
+        };
+        self.edge_near(eval, camera, viewport, cursor, display, &hit)
+    }
+
+    /// **The face under a cursor**, whichever entity the priority rule
+    /// would answer with — the ray path's own answer, un-narrowed.
+    ///
+    /// The door the GPU id buffer's cross-check reads
+    /// (`crate::frame::disagreement`): that comparison's subject is the
+    /// PATCH under the cursor, because a patch id is the only thing an
+    /// id buffer can answer, so the ray side has to answer the same
+    /// question. The hover cannot stand in for it — once the priority
+    /// rule can answer with an EDGE, comparing the hover against a
+    /// patch name compares two different questions and reports a
+    /// disagreement that is not one.
+    ///
+    /// # Errors
+    ///
+    /// As [`PickIndex::edge_at_for`].
+    pub fn face_under_cursor(
+        &self,
+        eval: &Evaluation<f64>,
+        camera: &Camera,
+        viewport: ViewportSize,
+        cursor: [f64; 2],
+        display: &DisplayView,
+    ) -> Result<Option<FaceSelection>, PickError> {
+        Ok(self
+            .seed(eval, camera, viewport, cursor, display)?
+            .map(|hit| FaceSelection {
+                name: hit.name,
+                node: hit.node,
+                body: hit.body,
+            }))
+    }
+
+    /// The ray path's answer for a cursor: the un-projection and the
+    /// face pick, in one place because three doors above open with
+    /// exactly these two steps and a fourth spelling is how they come
+    /// to disagree about which ray a cursor names.
+    fn seed(
+        &self,
+        eval: &Evaluation<f64>,
+        camera: &Camera,
+        viewport: ViewportSize,
+        cursor: [f64; 2],
+        display: &DisplayView,
+    ) -> Result<Option<PickHit>, PickError> {
+        let ray = camera
+            .ray_through(cursor, viewport)
+            .map_err(PickError::Camera)?;
+        self.pick_for(eval, &ray, display)
+            .map_err(PickError::HitTest)
+    }
+
+    /// [`PickIndex::edge_at_for`] with nothing hidden or free-moved.
+    ///
+    /// # Errors
+    ///
+    /// As [`PickIndex::edge_at_for`].
+    pub fn edge_at(
+        &self,
+        eval: &Evaluation<f64>,
+        camera: &Camera,
+        viewport: ViewportSize,
+        cursor: [f64; 2],
+    ) -> Result<Option<EdgePick>, PickError> {
+        self.edge_at_for(eval, camera, viewport, cursor, &DisplayView::none())
+    }
+
+    /// **What the cursor is over**: the edge when one is within
+    /// [`EDGE_PICK_RADIUS_PX`] and `kinds` admits edges, else the
+    /// face, else nothing.
+    ///
+    /// The pick-priority rule lives here, in one place, so the hover
+    /// op and the select op cannot disagree about which entity a
+    /// cursor means — and so a tool that needs one kind narrows the
+    /// rule ([`PickKinds`]) instead of re-deciding it.
+    ///
+    /// # Errors
+    ///
+    /// As [`PickIndex::edge_at_for`].
+    pub fn hovered_for(
+        &self,
+        eval: &Evaluation<f64>,
+        camera: &Camera,
+        viewport: ViewportSize,
+        cursor: [f64; 2],
+        display: &DisplayView,
+        kinds: PickKinds,
+    ) -> Result<Option<Hovered>, PickError> {
+        let Some(hit) = self.seed(eval, camera, viewport, cursor, display)? else {
+            return Ok(None);
+        };
+        if kinds.edges()
+            && let Some(edge) = self.edge_near(eval, camera, viewport, cursor, display, &hit)?
+        {
+            return Ok(Some(Hovered::Edge(edge.selection())));
+        }
+        Ok(Some(Hovered::Face(FaceSelection {
+            name: hit.name,
+            node: hit.node,
+            body: hit.body,
+        })))
+    }
+
+    /// [`PickIndex::hovered_for`] with nothing hidden or free-moved.
+    ///
+    /// # Errors
+    ///
+    /// As [`PickIndex::edge_at_for`].
+    pub fn hovered_at(
+        &self,
+        eval: &Evaluation<f64>,
+        camera: &Camera,
+        viewport: ViewportSize,
+        cursor: [f64; 2],
+    ) -> Result<Option<Hovered>, PickError> {
+        self.hovered_for(
+            eval,
+            camera,
+            viewport,
+            cursor,
+            &DisplayView::none(),
+            PickKinds::Any,
+        )
+    }
+
+    /// The nearest edge of the hit body within the pick radius, or
+    /// `None`. See [`PickIndex::edge_at_for`] for the whole argument.
+    fn edge_near(
+        &self,
+        eval: &Evaluation<f64>,
+        camera: &Camera,
+        viewport: ViewportSize,
+        cursor: [f64; 2],
+        display: &DisplayView,
+        hit: &PickHit,
+    ) -> Result<Option<EdgePick>, PickError> {
+        // The caller un-projected a ray through this cursor already,
+        // and that refuses first for a viewport with no area.
+        let Some(aspect) = viewport.aspect() else {
+            return Ok(None);
+        };
+        let Some(part) = self.part_of(hit.node, hit.body) else {
+            return Ok(None);
+        };
+        let mesh = part.mesh();
+        let place = placement(display, hit.node);
+        // One candidate per drawn edge — its own nearest segment —
+        // rather than one per segment: a curved edge's chords all lie
+        // near the cursor together, and the question being asked is
+        // which EDGE the cursor means.
+        let mut candidates: Vec<Candidate> = Vec::new();
+        for id in self.edges_in(hit.node, hit.body) {
+            let Some(boundary) = mesh.boundaries.get(id.boundary) else {
+                continue;
+            };
+            // Each chord point projected once, then the segments
+            // walked over the result: a shared point is projected by
+            // both of its segments otherwise, and the projection is
+            // the expensive half.
+            //
+            // A chord point on or behind the eye plane has no pixel,
+            // so a segment with such an endpoint is not offered:
+            // measuring it would need clipping, and an edge running
+            // through the eye is not something a cursor is aiming at.
+            let mut projected: Vec<Option<(Point3<f64>, [f64; 2])>> =
+                Vec::with_capacity(boundary.points.len());
+            for &index in &boundary.points {
+                let entry = match mesh.positions.get(index as usize) {
+                    Some(&position) => {
+                        let world = place(position);
+                        camera
+                            .project(world, aspect)
+                            .map_err(PickError::Camera)?
+                            .and_then(|ndc| viewport.cursor_of([ndc[0], ndc[1]]))
+                            .map(|pixel| (world, pixel))
+                    }
+                    None => None,
+                };
+                projected.push(entry);
+            }
+            let mut best: Option<Candidate> = None;
+            for (segment, pair) in projected.windows(2).enumerate() {
+                let (Some((a, pixel_a)), Some((b, pixel_b))) = (pair[0], pair[1]) else {
+                    continue;
+                };
+                let (distance, closest) = segment_distance_px(cursor, pixel_a, pixel_b);
+                if distance > EDGE_PICK_RADIUS_PX {
+                    continue;
+                }
+                // Strictly nearer only: a tie keeps the earlier
+                // segment, which is what makes the answer total.
+                if best.as_ref().is_none_or(|best| distance < best.distance) {
+                    best = Some(Candidate {
+                        distance,
+                        boundary: id.boundary,
+                        segment,
+                        pixel: closest,
+                        ends: [a, b],
+                    });
+                }
+            }
+            candidates.extend(best);
+        }
+        // The tie-break, stated once: nearest first, then the earlier
+        // boundary, then the earlier segment — all integers after the
+        // first, and the first is never NaN (a projected distance is
+        // a finite pixel measure).
+        candidates.sort_by(|left, right| {
+            left.distance
+                .partial_cmp(&right.distance)
+                .unwrap_or(core::cmp::Ordering::Equal)
+                .then((left.boundary, left.segment).cmp(&(right.boundary, right.segment)))
+        });
+        for candidate in candidates {
+            // Occlusion: the ray through this candidate's own pixel,
+            // picked against everything drawn. A candidate the solid
+            // hides is not what the cursor is aiming at however near
+            // it projects — and the walk CONTINUES past it, because
+            // the edge behind a face and the edge in front of it are
+            // both near the same cursor exactly when a body is seen
+            // through its own silhouette.
+            let ray = camera
+                .ray_through(candidate.pixel, viewport)
+                .map_err(PickError::Camera)?;
+            let [a, b] = candidate.ends;
+            let (t, point) = ray_segment_closest(&ray, a, b);
+            let hidden = self
+                .pick_for(eval, &ray, display)
+                .map_err(PickError::HitTest)?
+                .is_some_and(|front| front.t < t - OCCLUSION_SLACK_REL * t.abs());
+            if hidden {
+                continue;
+            }
+            let id = EdgeId {
+                node: hit.node,
+                body: hit.body,
+                boundary: candidate.boundary,
+            };
+            // The loud unnamed-entity arm reaches the caller as a
+            // refusal, not as a silent miss. The address arms cannot
+            // fire here — this id was built from `edges_in`'s own
+            // window — and are reported rather than swallowed.
+            let name = match self.edge_name_of(id) {
+                Ok(name) => name.clone(),
+                Err(EdgeNameFault::Unnamed(error)) => return Err(PickError::HitTest(error)),
+                Err(fault) => return Err(PickError::EdgeName(fault)),
+            };
+            return Ok(Some(EdgePick {
+                name,
+                node: id.node,
+                body: id.body,
+                boundary: candidate.boundary,
+                distance_px: candidate.distance,
+                point,
+            }));
+        }
+        Ok(None)
+    }
+
     /// **The whole cursor path, as one function**: a cursor action
     /// becomes the session operation it denotes.
     ///
     /// The chain is un-projection ([`Camera::ray_through`]) → the ray
-    /// service → a typed op. It is one function so that the shipped
-    /// path and the tested path are the same path: a headless test
-    /// names an action and reads the op, exactly as the viewport does.
+    /// service → the edge-priority rule → a typed op. It is one
+    /// function so that the shipped path and the tested path are the
+    /// same path: a headless test names an action and reads the op,
+    /// exactly as the viewport does.
+    ///
+    /// Which entity a cursor denotes is [`PickIndex::hovered_for`]'s
+    /// answer, so hovering and clicking cannot disagree about it: an
+    /// edge within [`EDGE_PICK_RADIUS_PX`] beats the face behind it,
+    /// and everywhere else the face wins.
     ///
     /// A [`PickAction::Select`] that hits nothing clears the
     /// selection — clicking empty space is how a user says "nothing",
@@ -652,12 +1209,24 @@ impl PickIndex {
         viewport: ViewportSize,
         action: PickAction,
     ) -> Result<SessionOp, PickError> {
-        self.op_under(eval, camera, viewport, action, &DisplayView::none())
+        self.op_under(
+            eval,
+            camera,
+            viewport,
+            action,
+            &DisplayView::none(),
+            PickKinds::Any,
+        )
     }
 
-    /// [`PickIndex::op_for`] under a display view — the whole cursor
-    /// path with hide and free-move applied, which is the one the
-    /// application drives.
+    /// [`PickIndex::op_for`] under a display view and a kind filter —
+    /// the whole cursor path with hide, free-move and an open tool's
+    /// needs applied, which is the one the application drives.
+    ///
+    /// `kinds` is the caller's half of the priority rule and reaches
+    /// it through [`PickIndex::hovered_for`], the one door that
+    /// decides which entity a cursor means; see [`PickKinds`] for why
+    /// a tool gets a say.
     ///
     /// # Errors
     ///
@@ -669,26 +1238,189 @@ impl PickIndex {
         viewport: ViewportSize,
         action: PickAction,
         display: &DisplayView,
+        kinds: PickKinds,
     ) -> Result<SessionOp, PickError> {
         let cursor = match action {
             PickAction::ClearHover => return Ok(SessionOp::Hover(None)),
             PickAction::Hover(cursor) | PickAction::Select(cursor) => cursor,
         };
-        let ray = camera
-            .ray_through(cursor, viewport)
-            .map_err(PickError::Camera)?;
-        let face = self
-            .face_at_for(eval, &ray, display)
-            .map_err(PickError::HitTest)?;
+        let hovered = self.hovered_for(eval, camera, viewport, cursor, display, kinds)?;
         Ok(match action {
-            PickAction::Hover(_) => SessionOp::Hover(face),
-            PickAction::Select(_) => SessionOp::Select(match face {
-                Some(face) => Selection::Face(face),
+            PickAction::Hover(_) => SessionOp::Hover(hovered),
+            PickAction::Select(_) => SessionOp::Select(match hovered {
+                Some(hovered) => hovered.selection(),
                 None => Selection::None,
             }),
             PickAction::ClearHover => SessionOp::Hover(None),
         })
     }
+}
+
+/// How far, relative to its own distance from the eye, a candidate
+/// edge may sit BEHIND the surface picked at its own pixel and still
+/// count as visible.
+///
+/// It is a float-noise margin and nothing more. The edge polylines and
+/// the face patches are one tessellation that shares its boundary
+/// positions (the mesh crate's watertightness contract), so a visible
+/// edge and the surface at its pixel agree to the last bits, and the
+/// threshold's job is to sit above that agreement.
+///
+/// **What it is NOT is a guaranteed separation.** The usual hidden
+/// edge sits a whole feature behind its occluder, orders of magnitude
+/// above this margin — but that is typical geometry, not an
+/// invariant. A camera grazing a thin wall shrinks the gap
+/// continuously (a probe at a near-tangent view watched a genuinely
+/// hidden edge close to ~0.3% of its own depth: still 3000x this
+/// margin, but no longer "orders of magnitude"), and in the limit the
+/// two populations meet. What that costs at the limit is one pick
+/// answering the near edge where the far one is a rounding error
+/// away; the failure being traded against is a mark drawn through
+/// solid material, which is the louder of the two.
+const OCCLUSION_SLACK_REL: f64 = 1.0e-6;
+
+/// How far below `|d|^2 |e|^2` the ray/segment denominator counts as
+/// cancellation noise rather than a crossing — see
+/// [`ray_segment_closest`].
+///
+/// Eyeballed at a dozen decimal digits below the operands' own scale,
+/// which leaves f64's ~16 room to spare: it is a floor on "this
+/// arithmetic still means something", not a tuned constant, and the
+/// answer on either side of it is the same segment endpoint.
+const PARALLEL_REL: f64 = 1.0e-12;
+
+/// A successful edge pick: the stable name, where it was drawn, and
+/// how near the cursor came. No arena key — the name IS the reference
+/// selection state holds (G1).
+///
+/// No `PartialEq`: the hit point is float geometry, and `PickHit` — the
+/// face pick this is the twin of — states the same by carrying none.
+#[derive(Clone, Debug)]
+pub struct EdgePick {
+    /// The picked edge's stable name.
+    pub name: StableName,
+    /// The node whose body was hit.
+    pub node: RecipeNodeId,
+    /// The output body index within that node's value.
+    pub body: u32,
+    /// The polyline's position in that body's tessellation — a display
+    /// coordinate, valid for the generation this index was built under.
+    pub boundary: usize,
+    /// How far the cursor was from the drawn edge, in physical pixels.
+    /// At most [`EDGE_PICK_RADIUS_PX`], by construction.
+    pub distance_px: f64,
+    /// The point on the edge the cursor was aiming at.
+    pub point: Point3<f64>,
+}
+
+impl EdgePick {
+    /// This pick's drawn-edge address.
+    pub fn id(&self) -> EdgeId {
+        EdgeId {
+            node: self.node,
+            body: self.body,
+            boundary: self.boundary,
+        }
+    }
+
+    /// This pick as the selection value the session holds.
+    pub fn selection(&self) -> EdgeSelection {
+        EdgeSelection {
+            name: self.name.clone(),
+            node: self.node,
+            body: self.body,
+        }
+    }
+}
+
+/// The best drawn edge segment a cursor found so far: how near it
+/// came in pixels, which segment it was (the tie-break's coordinates),
+/// the pixel to re-pick through for the occlusion check, and the
+/// segment's world endpoints.
+struct Candidate {
+    distance: f64,
+    boundary: usize,
+    segment: usize,
+    pixel: [f64; 2],
+    ends: [Point3<f64>; 2],
+}
+
+/// Where a drawn part's geometry actually lands: its own coordinates,
+/// or those coordinates through the free-move probe frame the display
+/// view puts the owning instance under.
+///
+/// One home for the displacement, because a highlight drawn at the
+/// tessellated placement while the picture draws the probed one is a
+/// mark on empty space.
+fn placement(display: &DisplayView, node: RecipeNodeId) -> impl Fn(Point3<f64>) -> Point3<f64> {
+    let map = display
+        .moved_roots
+        .get(&node)
+        .copied()
+        .map(|frame: Frame| frame.affine::<f64>());
+    move |point| match &map {
+        Some(map) => map.transform_point(point),
+        None => point,
+    }
+}
+
+/// How far `cursor` is from the segment `a`–`b` in pixels, and the
+/// point of the segment it is that far from.
+fn segment_distance_px(cursor: [f64; 2], a: [f64; 2], b: [f64; 2]) -> (f64, [f64; 2]) {
+    let (dx, dy) = (b[0] - a[0], b[1] - a[1]);
+    let length2 = dx.powi(2) + dy.powi(2);
+    // A segment whose endpoints project to one pixel is a point.
+    let t = if length2 > 0.0 {
+        (((cursor[0] - a[0]) * dx + (cursor[1] - a[1]) * dy) / length2).clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    let closest = [a[0] + dx * t, a[1] + dy * t];
+    let distance = ((cursor[0] - closest[0]).powi(2) + (cursor[1] - closest[1]).powi(2)).sqrt();
+    (distance, closest)
+}
+
+/// The point of the segment `a`–`b` nearest `ray`, and its distance
+/// along the ray.
+///
+/// The ray comes from the pixel the segment's own projection is
+/// nearest, so the two very nearly meet; what this answers is where.
+/// A segment pointing at the eye makes the pair near-parallel and the
+/// crossing ill-conditioned — there the answer degrades to the
+/// segment's own start, which is the honest reading of "any point will
+/// do" rather than a division by a number near zero.
+///
+/// **"Near" is measured relatively, and it has to be.** The
+/// denominator `|d|²|e|² − (d·e)²` is a difference of two quantities
+/// of size `|d|²|e|²`, so it loses its significant digits by
+/// cancellation long before it reaches zero: an exact-zero guard runs
+/// the division on a denominator that is pure rounding noise and
+/// hands back a wild parameter, which the clamp then quietly turns
+/// into an endpoint anyway — the right answer for the wrong reason,
+/// and one nothing could observe going wrong. The floor below is that
+/// same magnitude, so the guard fires where the arithmetic actually
+/// stops meaning anything.
+fn ray_segment_closest(ray: &Ray, a: Point3<f64>, b: Point3<f64>) -> (f64, Point3<f64>) {
+    let along = ray.dir;
+    let segment = b - a;
+    let offset = a - ray.origin;
+    let (aa, ab, bb) = (along.dot(along), along.dot(segment), segment.dot(segment));
+    let denominator = aa * bb - ab.powi(2);
+    // Cauchy-Schwarz puts `denominator` in `[0, aa * bb]`, so the
+    // comparison is one-sided and the scale is the product itself.
+    let t_segment = if denominator > aa * bb * PARALLEL_REL && bb > 0.0 {
+        (ab * along.dot(offset) - aa * segment.dot(offset)) / denominator
+    } else {
+        0.0
+    }
+    .clamp(0.0, 1.0);
+    let point = a + segment * t_segment;
+    let t_ray = if aa > 0.0 {
+        along.dot(point - ray.origin) / aa
+    } else {
+        0.0
+    };
+    (t_ray, point)
 }
 
 /// Why a cursor produced no answer (closed enum, D4 ¶3).
@@ -698,7 +1430,67 @@ pub enum PickError {
     Camera(CameraError),
     /// The hit test refused.
     HitTest(HitTestError),
+    /// A drawn edge could not be addressed — the arms of
+    /// [`EdgeNameFault`] that are not somebody else's refusal.
+    EdgeName(EdgeNameFault),
 }
+
+/// Why an [`EdgeId`] names no stable name here (closed enum, D4 ¶3).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EdgeNameFault {
+    /// This index draws no body at that (node, body): an ordinary
+    /// answer for a selection made against another generation, or
+    /// against a body that is no longer produced.
+    NotDrawn {
+        /// The queried node.
+        node: RecipeNodeId,
+        /// The queried output body.
+        body: u32,
+    },
+    /// The boundary position is past the end of a body this index DOES
+    /// draw — an address that did not come from
+    /// [`PickIndex::edges_in`].
+    OutOfRange {
+        /// The queried node.
+        node: RecipeNodeId,
+        /// The queried output body.
+        body: u32,
+        /// The position asked for.
+        boundary: usize,
+        /// How many edges that body actually draws.
+        drawn: usize,
+    },
+    /// The edge is drawn but has no name in its node's table — the
+    /// naming-emission bug arm, carried verbatim.
+    Unnamed(HitTestError),
+}
+
+impl core::fmt::Display for EdgeNameFault {
+    /// The `Unnamed` arm carries `editor-core`'s own value, which has
+    /// no `Display` yet (issue #1111) and so renders as a debug form.
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::NotDrawn { node, body } => write!(
+                f,
+                "this picture draws no body {body} of node {}, so it draws none of its edges",
+                node.0
+            ),
+            Self::OutOfRange {
+                node,
+                body,
+                boundary,
+                drawn,
+            } => write!(
+                f,
+                "edge {boundary} of body {body} on node {}: that body draws {drawn} edges, so                  this address was not one this index handed out",
+                node.0
+            ),
+            Self::Unnamed(error) => write!(f, "a drawn edge has no name: {error:?}"),
+        }
+    }
+}
+
+impl core::error::Error for EdgeNameFault {}
 
 impl core::fmt::Display for PickError {
     /// The rule this crate follows is that the layer which raised a
@@ -712,6 +1504,7 @@ impl core::fmt::Display for PickError {
         match self {
             Self::Camera(error) => write!(f, "the cursor names no ray: {error}"),
             Self::HitTest(error) => write!(f, "the hit test refused: {error:?}"),
+            Self::EdgeName(fault) => write!(f, "the picked edge has no name: {fault}"),
         }
     }
 }
@@ -753,11 +1546,7 @@ pub struct Highlight {
 /// second implementation of them. So does a selection whose name IS
 /// drawn but not on the body it was picked from, which is the same
 /// statement said about a stale index.
-pub fn highlight(
-    index: &PickIndex,
-    selection: &Selection,
-    hover: Option<&FaceSelection>,
-) -> Highlight {
+pub fn highlight(index: &PickIndex, selection: &Selection, hover: Option<&Hovered>) -> Highlight {
     let mark = |face: &FaceSelection| {
         index
             .ids_of_target(face)
@@ -767,8 +1556,126 @@ pub fn highlight(
     };
     Highlight {
         selected: selection.face().map_or(IdMap::NOTHING, mark),
-        hovered: hover.map_or(IdMap::NOTHING, mark),
+        hovered: hover.and_then(Hovered::face).map_or(IdMap::NOTHING, mark),
     }
+}
+
+/// The edge marks a frame draws: the drawn polylines of the selected
+/// and hovered edges, as line-list segment pairs in world space.
+///
+/// **A value, so the marking is checkable without pixels.** A test
+/// asserts which segments a selection lights and where they are; what
+/// colour they come out is the theme's answer and the shader's, and
+/// neither is asserted here.
+///
+/// The buffers are `f32` because that is what a GPU consumes and this
+/// is the display seam — the same cast, at the same boundary, that
+/// [`crate::scene::SceneMesh`] makes.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct EdgeOverlay {
+    /// The selected edge's segments, two positions per segment.
+    pub selected: Vec<[f32; 3]>,
+    /// The hovered edge's segments, two positions per segment.
+    pub hovered: Vec<[f32; 3]>,
+    /// Whether the selected edge belongs to a free-moved instance.
+    ///
+    /// **The base a mark composites over is the same base the shaded
+    /// pass uses**, and on a probed part that base already carries the
+    /// probe tint — G3's honesty requirement, which a mark drawn over
+    /// the un-probed body colour would quietly undo on exactly the
+    /// geometry it is about.
+    ///
+    /// One flag per marked edge rather than per segment, which is
+    /// enough while the marks are single-select. A consumer holding a
+    /// SET spanning several instances wants a flag per member and
+    /// should build its overlay through [`edge_segments`], asking the
+    /// display view per edge as this function does.
+    pub selected_probed: bool,
+    /// Whether the hovered edge belongs to a free-moved instance. See
+    /// [`EdgeOverlay::selected_probed`].
+    pub hovered_probed: bool,
+}
+
+impl EdgeOverlay {
+    /// Whether there is nothing to draw.
+    pub fn is_empty(&self) -> bool {
+        self.selected.is_empty() && self.hovered.is_empty()
+    }
+
+    /// How many line segments this overlay draws.
+    pub fn segments(&self) -> usize {
+        (self.selected.len() + self.hovered.len()) / 2
+    }
+}
+
+/// **The edge half of the highlight**, as a pure function of (index,
+/// display view, selection, hover) — the twin of [`highlight`], which
+/// answers the face half by patch id.
+///
+/// Edges are drawn rather than tinted, so they cannot ride the id
+/// comparison the face marks use: a face mark is a patch the shader
+/// recognises, and an edge mark is geometry that has to be handed to
+/// the renderer. What the two share is the RULE — the mark is scoped
+/// to the selection's own (node, body), so an edge whose name is drawn
+/// twice lights the copy it was picked from and not the other one, and
+/// a selection whose name is not drawn at all lights nothing. That is
+/// the resolution-failure semantics falling out of the same narrowing
+/// rather than being implemented a second time.
+///
+/// A hover on the edge that is already selected draws only the
+/// selected mark: selection is the state the user committed to, which
+/// is the precedence the shader's face path already states.
+pub fn edge_overlay(
+    index: &PickIndex,
+    display: &DisplayView,
+    selection: &Selection,
+    hover: Option<&Hovered>,
+) -> EdgeOverlay {
+    let mark = |edge: &EdgeSelection| edge_segments(index, display, edge);
+    let selected_edge = selection.edge();
+    let hovered_edge = hover.and_then(Hovered::edge).filter(|edge| {
+        // The one already marked as selected is not marked twice.
+        selected_edge != Some(*edge)
+    });
+    let probed = |edge: &EdgeSelection| display.moved_roots.contains_key(&edge.node);
+    EdgeOverlay {
+        selected: selected_edge.map(mark).unwrap_or_default(),
+        hovered: hovered_edge.map(mark).unwrap_or_default(),
+        selected_probed: selected_edge.is_some_and(probed),
+        hovered_probed: hovered_edge.is_some_and(probed),
+    }
+}
+
+/// **One edge selection's drawn segments**, as the line-list pairs a
+/// renderer consumes — the conversion [`edge_overlay`] is built from,
+/// public because the next consumer holds a SET.
+///
+/// A blend tool accumulates edges in tool state and wants all of them
+/// marked; [`EdgeOverlay`]'s fields are public, so it concatenates
+/// these instead of copying the polyline-to-line-list step. The
+/// narrowing is the same one a single selection gets — scoped to the
+/// selection's own (node, body), empty for a name this index does not
+/// draw there — so a set marks exactly the members that still denote
+/// something.
+pub fn edge_segments(
+    index: &PickIndex,
+    display: &DisplayView,
+    edge: &EdgeSelection,
+) -> Vec<[f32; 3]> {
+    index
+        .edges_of_target(edge)
+        .first()
+        .map(|id| segments_of(&index.edge_polyline_for(*id, display)))
+        .unwrap_or_default()
+}
+
+/// A polyline as the line-list pairs a GPU draws.
+fn segments_of(polyline: &[Point3<f64>]) -> Vec<[f32; 3]> {
+    let corner = |point: &Point3<f64>| [point.x as f32, point.y as f32, point.z as f32];
+    polyline
+        .windows(2)
+        .flat_map(|pair| [corner(&pair[0]), corner(&pair[1])])
+        .collect()
 }
 
 /// **What the picture marks because it is what the side panel is
@@ -841,6 +1748,10 @@ pub fn focus(
         // (`FaceSelection::feature`), so a click and a tree selection
         // of one feature mark one set.
         Selection::Face(face) => vec![face.feature()],
+        // The feature the EDGE is, by the same inversion: an edge is
+        // the same kind of picked entity a face is, and selecting one
+        // shows the same feature's rows.
+        Selection::Edge(edge) => vec![edge.feature()],
         // Every node the parameter drives. A parameter is the one
         // selection with no geometry of its own, and the useful
         // question about it is exactly "what does this number move".

@@ -541,6 +541,32 @@ survive-the-vanishing-entity semantics are library surface, owned by
 `docs/SELECT-DESIGN.md` and the naming doc's resolution-failure
 semantics.
 
+**Pick-priority — the first concrete instance (recorded at GAUTH-2).**
+Edge picking made the clause real: a face fills the pixel an edge only
+borders, so an edge is unreachable without a rule that lets it win near
+its own boundary. The rule taken is *proximity in the picture*, scoped
+to the body the cursor is over: the cursor's ray picks a face first,
+and an edge **of that face's own body** within
+`viewer::pick::EDGE_PICK_RADIUS_PX`, not hidden by the solid, beats it.
+Everywhere else the face wins, and off the body nothing wins — the rule
+is not a global "nearest entity in the picture", and stating it that
+way would promise a search this mechanism does not do. The constant is
+named and lives in that one place, so a later instance of the same
+question cites it rather than minting a second radius; the mechanism
+(seeded by the face pick, occlusion-checked, deterministic) is the
+implementation's business and is documented at its own door.
+
+The clause's other half arrived with it: **a tool may narrow which
+kinds it accepts**, because a rule that is right for a bare cursor is
+wrong for a tool that can only use one kind — with edges always
+winning, faces narrower than the radius became unpickable while the
+mate tool was open (`viewer::pick::PickKinds`, issue #1379). What is
+NOT settled here is the filter vocabulary: which filters are offered
+where, and how a tool states what it wants, still wait on sketcher/tree
+design with GAUTH-5's edges-only blend tool as the second data point.
+Nothing here widens GQ7 — which entity wins is still the GUI's
+question.
+
 ## UI ideas (non-binding sketchpad)
 
 Ideas captured during design conversations — NOT ratified decisions;

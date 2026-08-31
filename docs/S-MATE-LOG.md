@@ -1,7 +1,7 @@
 # S-MATE log
 
 Newest entries at the bottom; the tail is the program's live status.
-Plan: `docs/S-MATE-PLAN.md`. A/B band 1200–1299
+Plan: `docs/S-MATE-PLAN.md`. A/B band 1300–1399
 (`docs/MODEL-AB-LOG.md` owns every live experiment number).
 
 ---
@@ -20,3 +20,27 @@ independent units MATE-1 (#945), MATE-2 (#1032) and MATE-3 (#941
 items 1–2) are dispatchable pre-ratification; MATE-4 through MATE-7
 wait on their rulings as scoped. Next: open the design-conversation
 PR for this plan, then dispatch MATE-1.
+
+**2026-08-31 — rulings received (in-chat, same day); PR #1392
+updated in place.** Q1 RULED (minting moves to evaluation —
+measured as a drift-closure against A3's own ratified sentence;
+MATE-6 now dispatchable), Q2(a) RULED (the `ef_bound_backed` rung
+extension — MATE-4's impl half dispatchable), Q2(b) DIRECTED
+(eventual machinery; design pass proposes shape/staging; the
+declared-interpenetration forward constraint recorded), Q4 RULED
+(MATE-7 scheduled last). Q3's dependency question answered (no M10;
+S-CERT #1191 touchpoint recorded at MATE-5); its scheduling half
+awaits confirmation. MATE-1 lane in flight (fable arm, block
+MATE-B1 slot 1, branch `mate/1-member-vocab`).
+
+**2026-08-31 — Q3 scheduling half RULED (in-chat): build now.**
+MATE-5 proceeds as scoped (cylinder-first), sequenced after MATE-2
+and serialized with MATE-4 on `census.rs`.
+
+**2026-08-31 — band renumber 1200→1300 (main-is-authority).**
+While PR #1392 awaited sign-off, SEAT claimed 1000–1099 on main and
+S-MESH renumbered onto 1200–1299, reaching main via PR #1373's
+merge. No S-MATE ordinal had been claimed on main, so only the band
+moves: **S-MATE = 1300–1399**; plan, banding entry and the cut's
+graduation marker all updated in the resolving merge. MATE-1's
+review-dispatch ordinal will claim 1300.
