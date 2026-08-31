@@ -54,6 +54,8 @@ mod issue111_az_needle;
 mod issue303_signed_volume_recentring;
 #[path = "m5_pr11_trimmed.rs"]
 mod m5_pr11_trimmed;
+#[path = "r1_probes_issue303.rs"]
+mod r1_probes_issue303;
 #[path = "m5_s10_face_sense.rs"]
 mod m5_s10_face_sense;
 #[path = "m5_s11_concave_sense.rs"]
