@@ -14,3 +14,13 @@ Draw: /dev/urandom byte **196** (reject-≥252 rule; 196 mod 4 = 0)
 - slot 1 → GAUTH-2 (M, pre-logged): OPUS
 - slot 2 → GAUTH-3 (M, pre-logged): OPUS
 - slot 3 → GAUTH-4 (M, pre-logged): OPUS
+
+## Block GAUTH-B2 (drawn 2026-08-31, at GAUTH-5's dispatch; B1 fully
+## dispatched — its concluded record folds into MODEL-AB-LOG when all
+## four rows are recorded at merge)
+
+Draw: /dev/urandom byte **34** (reject-≥252; 34 mod 4 = 2)
+⇒ fable slot 2; opus slots 0, 1, 3.
+
+- slot 0 → GAUTH-5 (difficulty M, pre-logged): OPUS
+- slots 1–3 → unassigned (follow-up units if any)
