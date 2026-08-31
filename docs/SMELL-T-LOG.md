@@ -41,13 +41,14 @@ it for later lanes if style work should be instrumented.
 | **T-R1** | Serialization vs the S-BLEND implementation slate: BLEND-6 (and later BLEND-3/-4) edit `crates/sweep/src/fillet/`, and BLEND-6's ratified V3 renames the whole module path. | **`fillet/`-touching rows are KEEP-OUT while a BLEND implementation lane is live**: D90 (`fillet/build.rs` + `fillet/surgery.rs`) and D321 (`fillet/admit.rs`) wait, and D321 additionally waits for the V3 rename so its test-utils conversion lands against the final path. Non-fillet rows run in parallel with the BLEND lanes — the partition's own premise (different files). | orchestrator, 2026-08-31 |
 | **T-R2** | D91 spans this track and Track W (`LoftError::SeamStructure`'s shape change reaches `editor-core/tests/lib_doors_node_result.rs`). BLEND-6 is simultaneously reworking the kernel-door refusal surface and will plausibly touch the same door-test file. | **D91 DEFERRED until BLEND-6 merges** — the collision risk is in exactly the file the fence exception names. Not staffed into T-a. | orchestrator, 2026-08-31 |
 | **T-R3** | C-e/H13 carries §D's own instruction: "Verify against #779 before staffing." | Verification dispatched (read-only) 2026-08-31, before T-a's brief was cut; T-a takes the row ONLY if the verdict is OPEN, and otherwise records the verified-closed evidence here and in §D. **VERDICT: CLOSED** (2026-08-31) — the coverage is on `main`, landed by **#779** (merge `db241875`): the containment oracle at `sweep/tests/common/orient.rs`, three helix orientation rows in the long-turn sweep suite (the `min_roll_turn` anti-vacuity floor, the not-orientable-against-the-stacking-chord guard, then walls and caps against the continuity index including the face `sense` bit), and the rational circle-section elbow row in the skin-integrality suite — all aggregated into the default target with no ignore and no `cfg` gate. **The row was not staffed**; it is retired VERIFIED-CLOSED on the §D ledger in T-a's PR, with its own meta-claim corrected: the two contradicting statements were NOT both "in this document" — Track C's FIXED record is in `docs/SMELL-C-LOG.md`, so the contradiction was cross-document, which is why it survived two partitions. | orchestrator, 2026-08-31 |
+| **T-R5** | T-a review mode. | **T-a review mode: STYLE-ONLY per C-R12** (test rows + retirements; a row that reds is visible). Ruled at dispatch 2026-08-31, recorded here at close. | orchestrator, 2026-08-31 |
 | **T-R4** | D320 | Filed-not-takeable ahead of D240, per the row itself. Nothing to decide; recorded so the track's ledger is complete. | orchestrator, 2026-08-31 |
 
 ## Lane state
 
 | lane | rows | state |
 |---|---|---|
-| **T-a** | C20 (turning-path orientation pins), D104 (the two hand-run diff artefacts) | **PR open 2026-08-31**, branch `smellt/a`. C-e/H13 dropped from the lane on T-R3's CLOSED verdict — verified, not staffed. |
+| **T-a** | C20 (turning-path orientation pins), D104 (the two hand-run diff artefacts) | **REVIEWED (style, per T-R5)** — 7 findings, **none correctness**; the lane's mutation table was reproduced 5/5 by the reviewer's own execution, both retirement arguments judged correct, the C20 closure judged honestly scoped. Fix pass taken on `smellt/a`: `main` merged (carrying the #1330 doc-gate fix that was the CI red), three dangling `S110` citations re-aimed and the ledger's own deletion-sweep rule written down, the §D retirement footnote deleted per the delete-don't-annotate rule, the lily-spine exclusion re-argued as the PLANAR-arc class, the unreachable outer floor assert removed, the "must all fit" wording qualified to what it can catch, `C25`'s row extended to schedule the frame-recipe twin, and this log's mutation sentence corrected. Plus the orchestrator's `S390` adjudication (TAKE, by message rather than as a numbered ruling): `S390` discharged in fence by a `# Correspondence` paragraph at both public doors. **PR #1329 open, not merged.** |
 | (unstaffed) | D124 (re-home the struck-lane findings), C25 (the six-times-built swept body — cross-crate homing, fence note owed at dispatch), D96 (ten `unreachable!` arms — file-set to be enumerated before staffing to check the fillet overlap) | queued |
 | (kept out per T-R1/T-R2) | D90, D321, D91 | wait on BLEND-6 (D321 also on V3) |
 | (not takeable) | D320 | waits on D240 |
@@ -66,8 +67,17 @@ each pinned walls-and-caps against `common::orient`'s containment
 oracles, each with an anti-vacuity condition on the shape and a
 HANDEDNESS pin on positions. Red-capability executed, not argued: a
 production sense flip in the loft assembly reddens all three on the
-material-side assertion; mirroring each fixture reddens the handedness
-half while leaving containment green.
+material-side assertion, and mirroring each fixture reddens it on the
+positions half while leaving containment green — but *which* assertion
+in that half fires differs and the summary owes the distinction: the
+mirrored S duct and the mirrored cubic red on their HANDEDNESS pins,
+while the mirrored roll fixture reds one assertion EARLIER, on the
+anti-vacuity turn bar, because mirroring the authored angle also moves
+which vertex is lex-min and the body comes back barely rolled at all.
+The roll row's hand pin was shown red-capable on its own by a separate
+mutation that swaps the two sections — same roll magnitude, opposite
+hand — which reaches the hand assertion. Five mutations, five reds,
+reproduced by the style reviewer.
 
 **D104 — the two hand-run diff artefacts.** Both retired rather than
 promoted, with the reason recorded in the tree: a `Debug`-string hash
@@ -100,7 +110,23 @@ documented kernel behaviour (`loft_geometry`'s "correspondence is BY
 INDEX … the canonical loops are what get skinned", and the profile
 crate's canonical-start rule), so this is not a logic defect and takes
 no issue; the fixture's doc said otherwise and is corrected, and the
-composition is unstated at the `loft_body` door itself. Recorded as a
-finding for the next scan rather than fixed: a public door whose section
-correspondence can silently re-anchor is a doc gap on a door, and the
-door is not this lane's row.
+composition is unstated at the `loft_body` door itself. Filed as ledger finding
+**`S390`** at first push, then **discharged inside the same PR** on the
+orchestrator's adjudication of the reviewer's pushback: the finding's
+own "what is missing" sentence named a doc gap at the door a caller
+reads, the door is `crates/sweep/src/loft.rs` and therefore in fence,
+and the fix is one paragraph. `loft_body` now carries a
+`# Correspondence` section stating that loops are paired canonically by
+index, that a rotated section can be re-anchored, and that the built
+body's roll is the angle between canonical loops rather than the
+authored one — with this lane's own `theta - pi/2` fixture as the
+worked example; `sweep_body` carries the short form (its sections are
+one profile repeated, so the pairing is the identity and only the wall
+order is decided). **`S390` is therefore not in the ledger**: a finding
+whose whole content is discharged by the PR that raised it would be a
+note saying work completed, which §D deletes. The number is spent, not
+reusable. What is deliberately NOT carried forward is the expensive
+alternative the finding mentioned — a door that takes the
+correspondence explicitly — because it was named as an option, not as a
+defect; anyone who wants it is opening a design question for Evan, not
+re-raising this one.

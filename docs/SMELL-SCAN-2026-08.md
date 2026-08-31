@@ -97,6 +97,15 @@ ratified design contract is `docs/DESIGN.md`.
   defect and is a decision for Evan.
 - **`#NNN` is a GitHub PR or issue.**
 
+**Deleting a finding owes a citation sweep of the WHOLE ledger, not of
+the section being edited.** A finding's number is cited from wherever it
+was useful — an open finding's argument, a §C observation's census, a
+track table — and those citations are what a later reader resolves the
+number by. So the deletion is `rg`-over-this-file first, then re-aim or
+annotate every hit, and the count belongs in the deleting PR. Written
+after a lane deleted a closed finding and left three live citations
+behind, two of them inside prose that is still open.
+
 ## How to read a finding
 
 Each finding carries its evidence at `file:line` or, where a fix pass has
@@ -6778,8 +6787,9 @@ H's own ground:
 | `geom-core/tests/review_m0_pr2.rs` | **8** | E0369 ×2, E0277 ×2, E0599 ×3, E0605 |
 | `geom-core/tests/review_m0_pr3.rs` | **3** | E0369, E0599, E0277 |
 
-**Why this is the sharp end of `S110`'s class rather than another member
-of it.** A vacuous assertion passes for a bad reason; a `compile_fail`
+**Why this is the sharp end of the cannot-go-red class — `C21`'s class,
+whose two hand-run-artefact members were `S110`, closed by #1329 —
+rather than another member of it.** A vacuous assertion passes for a bad reason; a `compile_fail`
 block in a `tests/` target **is not run at all**, and what it claims is
 that *the compiler rejects a specific program*. So each of the eleven is
 a negative proof about the type system that **no tier has ever
@@ -7383,45 +7393,6 @@ below is open; the lane that raised it is named in its own lead.
 
 ---
 
-## S390. A rotated section re-anchors, so the loft's roll is not the roll its caller wrote
-
-**Raised by lane T-a while closing `C20`, measured rather than read.** Two
-documented rules compose into a third thing neither states. `Profile::validate`
-rotates every loop to its **lex-min vertex** (the profile crate's canonical
-start), and `loft_geometry` pairs sections **by index over the CANONICAL
-loops** — *"the correspondence is BY INDEX, and there is no honest way to
-guess one that was not given"*. Both are correct and both are written down.
-Together they mean that **a caller who lofts a section onto a ROTATED copy of
-itself does not get a body twisted by the angle it wrote**: the rotation can
-move which vertex is lex-min, and the correspondence then shifts by whole
-segments.
-
-The tree's own fixture is the witness. `sweep/tests/common/approx.rs`'s
-twisted loft is documented as *"a square and the SAME square rotated `theta`
-about its own centre"*, and for `theta` in `(0, pi/2)` the body it builds is
-rolled by **`theta - pi/2`** — a quarter turn of twist that nobody wrote.
-Measured at three angles, and now asserted by the orientation row that reads
-the roll off the body's level rings; the fixture's doc is corrected in the
-same PR.
-
-**What is NOT claimed here.** No kernel logic is wrong and no issue is filed:
-each rule is documented at its own door and the composition is a consequence,
-not a defect. What is missing is the sentence at the door a caller actually
-uses — `loft_body` and `sweep_body` say nothing about canonicalization
-re-anchoring a section — and the consequence is silent: the body builds,
-certifies at every tier, and is simply not the body that was asked for. The
-cheapest honest fix is a `# Correspondence` paragraph on the public doors
-naming the canonical start; the expensive one is a door that takes the
-correspondence explicitly.
-
-**Confidence**: sure (executed). **Where**: `crates/sweep/src/skin.rs`'s
-`loft_geometry` docs, `crates/sweep/src/loft.rs`'s two public doors,
-`crates/profile/src/validate.rs`'s canonical-start rule.
-
-**Verdict:**
-
----
-
 ## S391. `stack_axis` is one wall's chord, and two of its readers want the stack
 
 **Raised by lane T-a.** `sweep/tests/common/orient.rs`'s `stack_axis` returns
@@ -7823,26 +7794,10 @@ options and the measured price are at `S65`; issues #896 and #897 carry what
 | **D124** | Re-home the findings E-g's retirement left untracked — `S111(a)(b)(d)` and `S112(a)` were routed to a lane that landed without them and whose row is struck (S177). Three re-derived from the tree and standing | Track G |
 | **D96** | Thirteen `unreachable!` arms are row-0 candidates — states a type change could stop spelling, `EmptyChain`'s exact shape. **Ten are this track's**; the remainder are filed as rows on the tracks that own their files | Track E |
 | **D91** | `map_err(\|_\| …)` is D29's own disclosed blind spot and D29 never ran it inside its own crate. **Its surviving hit SPANS this track and Track W** — said explicitly rather than split, because the two halves are one edit and neither compiles without the other. `loft.rs`'s `boundary_iso_u(…).map_err(\|_\| LoftError::SeamStructure)?` swallows a `SplineError`, which falsifies `geom_brep::nurbs_iso`'s own `# Errors` section — *"surfaced rather than swallowed (D4 ¶2)"* — one crate below. The payload-preserving fix is `SeamStructure { source: SplineError }`, and changing the variant's shape reaches `editor-core/tests/lib_doors_node_result.rs`, which constructs it as a unit: W's fence. **The in-fence-only alternative is worse, not safer** — keeping the variant unit-shaped leaves `SeamStructure` constructed nowhere in any `src`, i.e. dead but for that one test | Track E |
-| **C25** | One swept body built from scratch six times across three crates, enumerated by #779's class sweep and reported there as COVERAGE rather than as the duplication it is | Track C |
+| **C25** | One swept body built from scratch six times across three crates, enumerated by #779's class sweep and reported there as COVERAGE rather than as the duplication it is. **The path-start FRAME RECIPE rides with it**: the plane-normal-to-the-start-tangent placement every path-swept fixture opens with was a second copy beside the body's, and #1329 folded the two `sweep/tests/` copies into one shared helper — the tour's copy (`demos/tour/src/skinned.rs`, which narrates it) is the remaining twin and is out of that lane's fence, so it lands with the bodies rather than separately | Track C |
 | **D90** | `octant_chart` scores a chart off two faces it never checks belong to the corner, and a wrong chart is the failure mode nothing downstream would catch. **ADV**. **Placed on Track P until 2026-08-29 and moved here on the fence rule** — `octant_chart` is defined at `fillet/build.rs` and consumed from `fillet/surgery.rs`, and no `sweep` path is among Track P's eleven files. Number, mark and provenance unchanged | Track E |
 | **D320** | `sweep/src/skin.rs:774`'s per-variant scalar-lift ladder — the one production copy of `D240`'s class outside `geom/`. **Filed by Track N, not takeable ahead of `D240`**: the shape of this site follows whatever `D240` mints, and closing it first mints a fifth ladder | Track N, filed |
 | **D321** | **`crates/sweep/src/fillet/admit.rs:467` reads its own source with no reader at all** — `include_str!("admit.rs")` counting `Self {`, whose author spliced string literals to avoid self-matching rather than lex. That is the same tell as the reader `S117` calls the class's worst member, and it was outside both of that finding's sweeps. the source-text guard class's shared home is `crates/test-utils/src/source.rs` (one lexer, three views: `code_only`, `code_and_literals`, `comments_only`), and the census that keeps the population honest is `crates/test-utils/tests/reader_census.rs`, whose `Unconverted` ceiling this row lowers by its own member count | `D61` residue |
-
-*(**Three rows retired 2026-08-31, lane T-a.** `C20` (turning-path
-orientation pins) and `D104` (the two hand-run diff artefacts) land with
-that lane's PR and leave this document with it, per §D's rule that a row
-and its finding go together. **`C-e/H13` is retired VERIFIED-CLOSED and
-was never staffed**: the coverage exists on `main`, landed by **#779**
-(merge `db241875`) — the containment oracle at `sweep/tests/common/orient.rs`,
-three helix orientation rows in the long-turn sweep suite, and the
-rational circle-section elbow row in the skin-integrality suite, all
-aggregated into the default target with no ignore and no `cfg` gate. The
-row's own meta-claim was wrong in a way worth correcting rather than
-deleting silently: it said "both statements are in this document", and
-they were not — Track C's FIXED record is in `docs/SMELL-C-LOG.md`, so
-the contradiction was CROSS-document, which is the harder kind to notice
-and the reason the row survived two partitions. The verification and the
-lane record are in `docs/SMELL-T-LOG.md`.)*
 
 ## Track U — the exchange surface and the bindings
 
@@ -8476,7 +8431,9 @@ S63 (same), S68 (`split_edge`'s discards ten lines below the same diff's
 `unreachable!` conversions), S74 (markers deleted at the copy sites), S80,
 S84, S85 (`Enclosure` and `CertifiedEnclosure` corrected, `Bounds`'
 headline not), S101 (the sweep deleted the fact rather than re-aiming
-the pointer), S102, S110(b), S114(f), S116(m).
+the pointer), S102, S110(b), S114(f), S116(m). (`S110` has since
+closed, with #1329; the citation is to what it recorded, which is how
+every closed number in this list reads.)
 
 The mechanism is consistent enough to state as a rule: **a fix pass
 scoped by the finding's citation list sweeps the citations and stops.**
@@ -8545,7 +8502,8 @@ present".
 ## C21. Q3 ("can this test fail?") is carrying the scan
 
 Of ~110 findings, the largest single class is assertions that cannot go
-red: S60, S75, S76, S78, S84, S91, and the ten sites in S110, plus
+red: S60, S75, S76, S78, S84, S91, and the ten sites in S110 (closed,
+#1329 — eight had gone before it), plus
 S66's acceptance suite, S72's pad probes and S73's `ratio`. Several were
 found by *executing* a mutation — the `interval-transcendentals` agent
 set `PAD_ULPS = 64` and `PAD_ULPS = 0` and reduced the rounding helpers

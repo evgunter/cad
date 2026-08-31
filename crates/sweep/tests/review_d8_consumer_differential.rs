@@ -41,9 +41,10 @@
 //! worse — it pins today's arithmetic as a target, which is not a
 //! statement about whether any of these doors is right.
 //!
-//! Each row's anti-vacuity floor is met by the WRITTEN-DOWN fixtures
-//! rather than by the draw, so no floor here is anti-monotone in the
-//! sample count.
+//! No row's anti-vacuity rests on the draw: the first two count over a
+//! written-down fixture set that is there on every run, and the third
+//! asserts its written-down cases one by one. So nothing here is
+//! anti-monotone in the sample count.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -317,11 +318,13 @@ fn make_compatible_still_lands_every_section_on_the_union_vector() {
 // Door 3 — geom: the fit removal sweep + deviation_from (fit.rs)
 // ---------------------------------------------------------------------
 
-/// The `(count, degree, tol)` cases this row's floor rests on, written
-/// down rather than drawn: whether a fit SUCCEEDS is a property of the
-/// case, so a floor counted over drawn cases would be satisfied by luck
-/// and would grow anti-monotone in the sample count — the shape
-/// [`test_utils::fuzz`] warns against mixing into a search.
+/// The `(count, degree, tol)` cases this row does not leave to the
+/// draw, each asserted where it is used rather than counted up
+/// afterwards: whether a fit succeeds is a property of the case, so a
+/// COUNT over drawn cases would be satisfied by luck and would grow
+/// anti-monotone in the sample count — the shape
+/// [`test_utils::fuzz`] warns against mixing into a search. Asserting
+/// per case avoids the count entirely and names the case that broke.
 const WRITTEN_DOWN_FITS: [(usize, usize, f64); 5] = [
     (11, 3, 0.02),
     (16, 2, 0.05),
@@ -336,13 +339,19 @@ const WRITTEN_DOWN_FITS: [(usize, usize, f64); 5] = [
 /// `1..=p` — re-derived here — and the reported bound is finite and
 /// within tolerance on success.
 ///
-/// The written-down cases come first and must all fit; the drawn ones
-/// after them are the search, and a refusal there is a legitimate
-/// answer for a tolerance too tight for the degree.
+/// The written-down cases come first and must all fit — meaning the
+/// door must not REFUSE them; it is not a claim about fit quality, and
+/// it cannot become one here. `approximate` falls back to the degree-1
+/// interpolant rather than refusing, so a written-down case still
+/// answers `Ok` at a tolerance of `1e-13` (measured). What the
+/// written-down half pins is that the door keeps answering on shapes
+/// nobody drew; what the gates below pin is that whatever it answers
+/// has valid structure and a bound inside the tolerance it was given.
+/// The drawn cases after them are the search, and a refusal there is a
+/// legitimate answer for a tolerance too tight for the degree.
 #[test]
 fn the_fit_removal_sweep_still_returns_valid_structure() {
     let mut rng = fuzz::start("d8-consumer-fit");
-    let mut fitted = 0usize;
     let cases: Vec<(usize, usize, f64)> = WRITTEN_DOWN_FITS
         .iter()
         .copied()
@@ -389,11 +398,5 @@ fn the_fit_removal_sweep_still_returns_valid_structure() {
             "case {case}: reported bound {} is not a success within {tol}",
             outcome.bound
         );
-        fitted += 1;
     }
-    assert!(
-        fitted >= WRITTEN_DOWN_FITS.len(),
-        "only {fitted} fits succeeded, fewer than the written-down cases that \
-         open the loop — the floor below this row rests on those, not on the draw"
-    );
 }
