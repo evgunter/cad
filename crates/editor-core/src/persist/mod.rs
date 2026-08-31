@@ -470,9 +470,67 @@ pub use check::{NonFiniteSite, ProgramFault, SnapshotError};
 /// re-merge is what caught it — the constant merged CLEAN at 16
 /// against 16, exactly as every entry above predicts.
 ///
+/// Version 18 is **the rim-support name vocabulary re-spelled onto
+/// the carve's ROLES** (issue #961): [`crate::names::RimSupport`]'s
+/// variants are `Host`/`Mate` where they were `Plane`/`Curved`, so
+/// the persisted [`crate::RoleSeg::BandTrim`] segment names WHICH
+/// SUPPORT a band trimline lies on by the role the annulus surgery
+/// resolved rather than by a kind it guessed. A rim between two cones
+/// has no planar side and no distinguishing kind at all; the roles are
+/// what the surgery decides.
+///
+/// A stable name is FILE data — a node's frozen selection is recipe,
+/// and a selection can name a band trimline — so the spelling is on
+/// the wire and the break is not additive in EITHER direction, which
+/// is why it takes a number rather than riding one.
+///
+/// **Which gate actually fires, stated precisely, because the obvious
+/// answer is wrong.** A real v17 file never reaches serde at all: the
+/// VERSION DOOR refuses it first, `SchemaTooOld` with the regenerate
+/// recourse, exactly as v1–v16 are refused. A file from the future is
+/// refused there too (`UnknownSchema`), so the version header — not
+/// the role vocabulary — is the operative gate in both directions, and
+/// `blend5_r1_probes::a_newer_file_dies_at_the_version_door_not_on_the_role_variant`
+/// pins that ordering.
+///
+/// What the vocabulary itself buys is the case the version door cannot
+/// see: a HYBRID — v18 in the header, a retired variant in the body —
+/// which is what a hand-edited or half-migrated file is. That dies
+/// inside serde on the unknown variant name, and it does so because an
+/// externally-tagged enum rejects a variant it has no name for
+/// UNCONDITIONALLY. `deny_unknown_fields` has nothing to do with it:
+/// on an enum of unit-only variants that attribute is INERT (removing
+/// it leaves every row of the v18 suite green — R1 measured it), since
+/// it governs unknown FIELDS of struct-like variants and these have
+/// none. The earlier claim that it was the mechanism was wrong.
+///
+/// So: v17 and below refuse TYPED at the version door with the
+/// regenerate recourse, the migration table stays empty on the
+/// standing LQ7a disposition, and the number is owed because the
+/// bytes' MEANING moved — not because serde would otherwise let a
+/// stale spelling through.
+///
+/// (The appearance store is NOT the carrier: its door restricts
+/// attributes to face and body names, and a band trimline is an edge.)
+///
+/// A migration COULD rewrite `Plane` to `Host` and `Curved` to `Mate`
+/// — the mapping is total and meaning-preserving, because `Host` is
+/// the planar support wherever a rim has one, which is exactly what
+/// the old spelling claimed on every rim it could name honestly. What
+/// stops it being written is the standing rule, not the mapping: no
+/// migration machinery exists, the kernel is unreleased, and every
+/// file in this lineage replays from its own recipe. The mapping is
+/// recorded here because it is the CONTENT of the break — a v17
+/// document's rim selections mean the same thing under v18, spelled
+/// differently — and `blend5_schema_v18.rs` executes both halves.
+///
+/// Taken by the same by-eye read of main's constant at the re-merge
+/// (`git show origin/main:crates/editor-core/src/persist/mod.rs | grep
+/// SCHEMA_VERSION`) that every entry above describes.
+///
 /// Bump ONLY with a ratified format change — plus its
-/// [`migration_step`] entry, or a ratified break like these sixteen.
-pub const SCHEMA_VERSION: u32 = 17;
+/// [`migration_step`] entry, or a ratified break like these seventeen.
+pub const SCHEMA_VERSION: u32 = 18;
 
 /// The serialized body under the header: snapshot + edit log (D1).
 #[derive(serde::Serialize, serde::Deserialize)]

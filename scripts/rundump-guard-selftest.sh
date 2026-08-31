@@ -25,7 +25,7 @@ root=$(pwd)
 # so a suite added to its table is exercised here and not only in the
 # sweep.
 extract_fn() {
-  sed -n "/^$1() {/,/^}/p" "$root/scripts/k_probe_sweep.sh"
+  sed -n "/^$1() {/,/^}/p" "$root"/scripts/k_probe_sweep.sh
 }
 extract_guards() {
   local f
@@ -40,7 +40,7 @@ extract_guards() {
 # The stated ε `run_plain` pins, extracted for the same reason: a
 # constant copied here would let the two drift.
 extract_const() {
-  grep -E "^$1=" "$root/scripts/k_probe_sweep.sh" | head -1
+  grep -E "^$1=" "$root"/scripts/k_probe_sweep.sh | head -1
 }
 if [ -z "$(extract_const PLAIN_EPS)" ]; then
   echo "SELFTEST FAILED: no PLAIN_EPS in scripts/k_probe_sweep.sh" >&2
