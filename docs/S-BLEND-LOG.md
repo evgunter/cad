@@ -1073,3 +1073,32 @@ vocabulary — the unit's design conversation may fold it, and any
 vocabulary mint goes through Evan per the BLEND-3 adjudication);
 BLEND-3's M1 finding (band sense folds convexity, invisible to
 convex fixtures) as ground truth; measured-first.
+
+## 2026-08-31 — BLEND-4 DELIVERED (~110m for difficulty L); reviews dispatched (ordinal 606, SEQUENTIAL note recorded pre-R1)
+
+Unit delivered: PR #1360, frozen head `fa898277`, gate run 3890
+GREEN at ASKED {interval, 1e-6}. The precondition paid: corner_ball's
+concave arm measured CORRECT before anything moved (committed
+36584840, first); the one change (dfbaaf02) moved ball side, feet
+sign and chart fold together with the two doors, and the issue's
+"arc traversals and sense" half measured as needing NO edit
+(attach_contact side-blind; sense already derived per #640) — the
+door inventory corrected 3→2 (whole_body_links gone; resolve_rim's
+gate is #1244's band frontier, kept). NO design fork: no vocabulary
+mint — the all-concave trihedron now CARVES for the fillet, so
+MixedConvexity{convex:0} became unmintable rather than renamed;
+#1355's landscape re-mapped in a comment, decision still Evan's.
+Mutation table: five folds, none green under its flip (the chart
+fold's single-pin thinness stated honestly — a review attack
+surface). Impl cost ~340k / ~110m (lane-reported).
+
+**Review dispatch (v6 dual, ordinal 606 — claim PR rides this
+dispatch):** parity byte **11** ⇒ parity 1 ⇒ **R1 FABLE +
+R2 OPUS**. **METHOD NOTE, recorded BEFORE R1 runs: SEQUENTIAL
+same-head on frozen `fa898277`** — track T's T-c lane holds one
+build slot, so R1 dispatches now and R2 from the stored brief
+verbatim at R1's report (the standing shape). Briefs
+authored+stored symmetric before this entry, diff-verified
+(orchestrator/blend4-review-brief-{r1,r2}.md). Lanes
+blend-4-r{1,2}; probe branches `blend/paramcorners-r{1,2}-probes`.
+Impl clone kept, target reclaimed.
