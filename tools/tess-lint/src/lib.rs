@@ -85,7 +85,12 @@
 //! opposite of a finding — coverage went up — and that reading is what
 //! let a comparison gate decay in silence: a scene nobody folded is
 //! swept, measured and reported forever while the verdict stays green
-//! by not looking (#1038's measurement: five scenes, 146 face rows).
+//! by not looking (#1038's measurement: five scenes, 146 face rows —
+//! the decay this rule was written from, a reading of the tree on the
+//! day #1038 took it, re-taken by nothing and deliberately so: it is
+//! the SIZE OF ONE PAST EVENT, not a property of the corpus, and the
+//! current answer is what rule 5 itself prints on any sweep whose
+//! baseline has fallen behind).
 //!
 //! The **genuinely new** scene and the scene the baseline **outgrew**
 //! are the same case here, deliberately. Both are a gate with nothing
