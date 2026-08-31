@@ -508,10 +508,10 @@ pub(super) fn blend_surgery<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     // operator or a certified setter; refusals map to Op/Certify. ----
     let mut body = source.clone();
     let Some((solid, _)) = source.solids().next() else {
-        unreachable!("fillet surgery: `solids().count() == 1` was checked at entry")
+        unreachable!("blend surgery: `solids().count() == 1` was checked at entry")
     };
     let Some((shell, _)) = source.shells().next() else {
-        unreachable!("fillet surgery: `shells().count() == 1` was checked at entry")
+        unreachable!("blend surgery: `shells().count() == 1` was checked at entry")
     };
 
     let mut rec = BlendNaming::default();

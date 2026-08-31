@@ -1241,7 +1241,7 @@ mod recourse_tests {
                 ),
                 Recourse::None => assert!(
                     found.is_empty(),
-                    "{seed:?} reports invalid input and must give no fillet recourse: \
+                    "{seed:?} reports invalid input and must give no recourse: \
                      {text}"
                 ),
             }
