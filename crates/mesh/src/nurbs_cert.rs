@@ -2860,6 +2860,81 @@ mod tests {
         }
     }
 
+    /// **The tighter-or-equal claim, randomized.** The two pinned
+    /// fixtures show the gap exists and that a smooth net closes it;
+    /// this row asserts the INEQUALITY over a sweep of random integral
+    /// nets, which is the form the claim is actually made in. Integral
+    /// only, because the rational arm has always been a fold and has
+    /// no whole-net counterpart to be tighter than.
+    #[test]
+    fn cert10_the_fold_never_exceeds_the_whole_net_hull() {
+        let mut rng = fuzz::start("nurbs_cert::cert10_fold_vs_whole_net");
+        fn mk(r: &mut fuzz::Rng, p: usize) -> KnotVector {
+            let spans = 1 + r.below(4);
+            let mut k = vec![0.0; p + 1];
+            for i in 1..spans {
+                #[allow(clippy::cast_precision_loss)]
+                k.push(i as f64 / spans as f64);
+            }
+            k.extend(vec![1.0; p + 1]);
+            KnotVector::clamped(k, p).unwrap()
+        }
+        let mut strict = 0usize;
+        let trials = fuzz::scaled(60);
+        for _ in 0..trials {
+            let (pu, pv) = (1 + rng.below(3), 1 + rng.below(3));
+            let kv_u = mk(&mut rng, pu);
+            let kv_v = mk(&mut rng, pv);
+            let (nu, nv) = (kv_u.control_count(), kv_v.control_count());
+            let control: Vec<Point3<f64>> = (0..nu * nv)
+                .map(|_| {
+                    Point3::new(
+                        rng.range(-4.0, 4.0),
+                        rng.range(-4.0, 4.0),
+                        rng.range(-4.0, 4.0),
+                    )
+                })
+                .collect();
+            let w = vec![1.0; control.len()];
+            let Ok(s) = NurbsSurface::new(kv_u, kv_v, control, w) else {
+                continue;
+            };
+            let (Some(whole), Some(fold)) = (whole_net_bound(&s), fold_bound(&s)) else {
+                continue;
+            };
+            for (what, f, w) in [
+                ("muu", fold.muu, whole.muu),
+                ("muv", fold.muv, whole.muv),
+                ("mvv", fold.mvv, whole.mvv),
+                ("mu1", fold.mu1, whole.mu1),
+                ("mv1", fold.mv1, whole.mv1),
+            ] {
+                assert!(
+                    f <= w,
+                    "the fold EXCEEDED the whole-net hull on {what}: {f:.17e} > \
+                     {w:.17e} — {}",
+                    fuzz::replay()
+                );
+                if f < w {
+                    strict += 1;
+                }
+            }
+        }
+        // COVERAGE FLOOR: an inequality nothing ever makes strict is a
+        // tautology. If a run trips this, RAISE the trial count.
+        assert!(
+            strict > trials,
+            "the sweep must keep producing STRICT gaps: {strict} strict of {} \
+             comparisons — {}",
+            trials * 5,
+            fuzz::replay()
+        );
+        println!(
+            "cert10 fold-vs-whole-net: {strict} strict of {} comparisons",
+            trials * 5
+        );
+    }
+
     /// **CERT-10 red row (issue 1006, the Q2 ruling): the whole-face
     /// bound IS the per-cell fold.** Per-cell-then-union is tighter or
     /// equal — every cell's window is a SUBSET of the whole net's, so

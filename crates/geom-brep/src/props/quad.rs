@@ -1107,8 +1107,17 @@ impl PatchGrid {
             dv: Dir::Kv(kv_v.clone()),
             nu,
             nv,
+            // Entrywise off the row-major control net, so a net that
+            // does not fill the declared extent poisons the SLOTS it
+            // does not reach rather than the whole grid: a shape this
+            // grid cannot index is one caller's error, not a reason to
+            // refuse every hull the other cells could have answered.
             ch: core::array::from_fn(|k| {
-                TensorNet::from_flat(nu, nv, control.iter().map(|c| c[k]).collect())
+                TensorNet::from_fn(nu, nv, |i, j| {
+                    control
+                        .get(i * nv + j)
+                        .map_or_else(RingInterval::poison, |c| c[k])
+                })
             }),
         }
     }
