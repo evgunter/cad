@@ -2726,3 +2726,18 @@ the merge per the known rule, sampled draw safe, the named-point
 record on the prior head. #1290 closes ordinal 108. Tally: the
 unilateral candidate (R2's missing-acceptance-rows MAJ) awaits
 the blinded coding with 107's two.
+## ORDINAL 109 — MID-REVIEW METHOD CORRECTION (2026-08-31, Evan's)
+
+Evan, watching R2's lane burn ~12 CPU-hours: reviewers should NOT
+re-run the REGULAR suite locally — hosted CI (step-verified) is
+the suite evidence; local compute is for the reviewer's OWN
+probes, mutations, and instrumented measurements. R2's full-suite
+battery was killed by the orchestrator (binary 1216417, disclosed
+to R2 in the same message) with instructions to finish from its
+probes + the hosted runs. PAIR NOTE for the blinded coding: R1
+had already completed its local full battery before this
+correction existed — an evidence-source asymmetry (correction,
+not relaxation, per the #1090/#1091 line; the claims to falsify
+are unchanged both arms). Future briefs carry the rule; the
+brief template's "build and run the full test suite" wording is
+retired.
