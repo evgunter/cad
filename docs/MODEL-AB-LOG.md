@@ -2242,6 +2242,16 @@ redacted arm cells in this same commit; BLEND-3's row lands at its
 merge, arm named normally (its dual is concluded — and it carries
 the program's FIRST v6 tally candidate, coded in that row).
 
+BLEND-4 review ordinal fixed at dispatch (2026-08-31, PR #1360
+open — frozen head `fa898277`): **ordinal 606** (BLEND band 600–699;
+claimed on main at review dispatch via this docs branch, per the
+standing shape). v6 DUAL, parity byte 11 ⇒ R1 FABLE + R2 OPUS,
+**SEQUENTIAL same-head** per the method note recorded branch-side
+BEFORE R1 ran (a track-T lane holds one build slot), briefs
+authored+stored symmetric pre-R1, R2 to dispatch from the stored
+brief verbatim at R1's report. Sample number assigned AT MERGE, in
+main's order per #1075. Row at merge.
+
 BLEND-3 review ordinal fixed at dispatch (2026-08-31, PR #1347
 open — frozen head `01f6f41d`): **ordinal 605** (BLEND band 600–699;
 claimed on main at review dispatch via this docs branch, per the
