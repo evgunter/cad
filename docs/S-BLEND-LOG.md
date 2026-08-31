@@ -1137,3 +1137,34 @@ D90's fix + the four deletions (kernel logic; the highest-value
 check named: the D90 guard × BLEND-4's concave chart fold — two
 units edited octant_chart from different branches), style on the
 rest.
+
+## 2026-08-31 — T-c review in (M-A-F, split scope); ORCHESTRATOR ERROR owned; fix pass dispatched
+
+T-c's split-scope review (~155k / ~20m): NO kernel-correctness
+finding — the D90 guard sound and composing with BLEND-4's
+concave fold through LOUD collisions only (1 git conflict + 3
+compile errors, mapped by trial merge; the Option-valued `third`
+is what forces conscious resolution), all four D96 deletions
+verified unrepresentable by construction, D321 proven in both
+reader directions. Two record MAJORs block: (1) **T-R7's premise
+is FALSE, and the false premise was THIS ORCHESTRATOR'S** — the
+T-c dispatch brief said the implementation slate had vacated
+blend/ while the same wake dispatched BLEND-4 INTO blend/ (PR
+#1360 open, editing six files there); T-R7 and the D322–D324
+unblock rest on it. Owned in the fix instruction; the corrected
+ruling states the provenance. (2) The DESIGN.md D2-addendum
+"pointer repair" also added a NORMATIVE sentence backed by a
+quotation that exists nowhere in docs/ (row 0 RANKS dispositions;
+the paraphrase levels them) — reverted to a pure pointer repair,
+the ratification question routed to the PR body for Evan if the
+lane wants it. Also: the guard's rustdoc overclaims (the
+reviewer's probe showed the adjacent-corner admit; the total
+vertex-check is one stored field — take-if-small), the
+unreachability of D90's defect today stated, row-0 "no"s recorded
+at the five sites, BodyNotIntact's third clause synced, count
+attributions fixed. MERGE ORDER RULING: #1359 merges FIRST (its
+round is one fix from done); BLEND-4's fix pass then absorbs the
+octant_chart collision loudly (the resolution mapped by the
+reviewer) and adds the concave-arm cross-corner row the
+composition would otherwise lack — queued for BLEND-4's
+adjudication union.
