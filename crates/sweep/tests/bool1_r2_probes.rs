@@ -50,7 +50,10 @@ fn tier3(body: &Body<f64>, ctx: &str) {
         })
         .map(|(k, _)| k)
         .collect();
-    assert!(scaffolds.is_empty(), "{ctx}: scaffolds at rest {scaffolds:?}");
+    assert!(
+        scaffolds.is_empty(),
+        "{ctx}: scaffolds at rest {scaffolds:?}"
+    );
 }
 
 /// Two notches at DIFFERENT depths (floors y=1 and y=0.5). Split #1 at
@@ -80,12 +83,21 @@ fn two_successive_coplanar_splits_stay_tier3() {
     let body = extruded(vec![profile], 1.0);
     let first = split_at_y(&body, 1.0);
     let below1 = first.below.body().expect("below of split #1");
-    tier3(first.above.body().expect("above of split #1"), "split#1 above");
+    tier3(
+        first.above.body().expect("above of split #1"),
+        "split#1 above",
+    );
     tier3(below1, "split#1 below");
 
     let second = split_at_y(below1, 0.5);
-    tier3(second.above.body().expect("above of split #2"), "split#2 above");
-    tier3(second.below.body().expect("below of split #2"), "split#2 below");
+    tier3(
+        second.above.body().expect("above of split #2"),
+        "split#2 above",
+    );
+    tier3(
+        second.below.body().expect("below of split #2"),
+        "split#2 below",
+    );
 }
 
 /// A transverse re-split of a product whose section-boundary edges the
@@ -159,7 +171,10 @@ fn restated_edges_keep_carrier_bits() {
     let below = result.below.body().expect("below");
     let mut checked = 0usize;
     for (k, e) in below.edges() {
-        let Some(c) = below.get_curve_geom(e.curve).and_then(topo::CurveGeom::certified) else {
+        let Some(c) = below
+            .get_curve_geom(e.curve)
+            .and_then(topo::CurveGeom::certified)
+        else {
             continue;
         };
         // Only edges restated to a chart image by the split's smooth arm.
@@ -181,7 +196,10 @@ fn restated_edges_keep_carrier_bits() {
         );
         checked += 1;
     }
-    assert_eq!(checked, 3, "expected exactly the three restated operand edges");
+    assert_eq!(
+        checked, 3,
+        "expected exactly the three restated operand edges"
+    );
 }
 
 /// The site's unreachability argument, attacked with the input it
