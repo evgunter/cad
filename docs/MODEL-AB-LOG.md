@@ -2700,3 +2700,16 @@ program closed on Evan's in-chat no-exit-walk ruling; slots 1–3
 never dispatched, so the drawn fable slot was never reached. Arm
 restatement per the S-BLEND closed-short precedent: the block
 contributes one OPUS implementation row and no fable row.
+
+MATE-2 (PR #1417) ordinal FIXED AT DISPATCH (2026-08-31):
+**ordinal 1301** (S-MATE band 1300–1399). v6 dual: slot byte
+**212**, parity 0 ⇒ **R1 OPUS + R2 FABLE**; CONCURRENT on frozen
+`c27ecb5a` (run 33439015958 verified at dispatch: the asked-for
+point `test (interval, eps=1e-12)` green both shards and every
+other job green EXCEPT `k-lint (gate)`, which is red REPO-WIDE and
+inherited from main's montage-v3 merge — issue 1418; the red is
+annotated rather than re-rolled, and the unit's merge waits for a
+green head once the owning lane folds the baseline), R2 isolated
+from R1, briefs symmetric, no relaxations granted. Implementer
+difficulty M (pre-logged in the plan's opening commit, pre-draw).
+Sample number at merge. Row at merge.
