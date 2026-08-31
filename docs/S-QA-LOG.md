@@ -364,3 +364,17 @@ record: both arms corrected my conflated fixture-provenance premise,
 the program's fourth dispatch-premise correction; the discipline
 holds. Issue 469 closes on this record. Block QA-B3 is complete:
 QA-6, QA-7, QA-9 — ordinals 804, 807, 803.
+
+## Seam: QA-6 PR 2 dispatched (2026-08-31)
+
+The gate on the remaining legs lifted with QA-7 and QA-8 both
+merged; qa/6-measured-claims-2 branched from main carrying only its
+spec (docs/QA-6-PR2-SPEC.md). Two live legs (workflows+scripts,
+tools provenance) and two written-disposition legs (crates/*/tests
+is Track W's ground with issue 651 as the class home; docs prose
+stays deferred). Unilateral decision, logged: PR 2 runs on the
+QA-6 implementer's arm as a unit continuation — the same rule that
+gives a fix pass its implementer's arm — rather than drawing a
+fresh triple block for one unit; its dual claims ordinal 808 at
+review dispatch. Issue 681 closes at PR 2's merge on the combined
+record.
