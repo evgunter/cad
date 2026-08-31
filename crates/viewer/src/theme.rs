@@ -4,12 +4,12 @@
 //! crate: **the palette is a value, and rendering is a view of it.**
 //! Nothing here names `egui` or `wgpu`, which is what makes this a
 //! non-`app` module — the palette compiles, and is asserted on, in
-//! ordinary headless CI with no toolkit graph present. [`app`] maps a
-//! [`Theme`] onto the chrome and [`gpu`] feeds it to the shader;
-//! neither of them decides what any colour *is*.
-//!
-//! [`app`]: crate::app
-//! [`gpu`]: crate::gpu
+//! ordinary headless CI with no toolkit graph present. `app` maps a
+//! [`Theme`] onto the chrome and `gpu` feeds it to the shader;
+//! neither of them decides what any colour *is*. (Named, not linked:
+//! both modules sit behind the `app` feature, so an intra-doc link to
+//! either breaks rustdoc exactly in the headless pass this header
+//! celebrates — issue #1330.)
 //!
 //! # Where a colour comes from
 //!
