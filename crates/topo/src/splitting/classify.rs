@@ -249,9 +249,16 @@ pub(crate) fn conic_plane_crossing_roots<T: Decide>(
     // Interval floor straddles an integer and the enclosure explodes to
     // a full period. The two anchors are the two windows: the midpoint
     // one is `reduce_periodic_centred` about `mid`, the fallback is
-    // `reduce_periodic` about `t₀`, and their jumps are half a period
-    // apart BY CONSTRUCTION, which is what makes the retry a different
-    // representation rather than a second try at the same one.
+    // `reduce_periodic` about `t₀`. Their bad points are DISTINCT for
+    // every sub-period span, which is what makes the retry a different
+    // representation rather than a second try at the same one — they
+    // sit **(τ − span)/2 apart** on the circle, half the span's
+    // COMPLEMENT (the same quantity `chord_join`'s window recentre
+    // states for itself). Not half a period: that is the span → 0
+    // limit, and the separation SHRINKS as the span grows, reaching
+    // zero only at a full period. So the retry has room exactly when
+    // the span is well under τ, and is degenerate exactly where the
+    // sentence below says it is.
     // Anchored at the span MIDPOINT the bad point is the
     // midpoint's antipode (a definitely-EXTERIOR root — the re-run of a
     // split fragment meets the full circle's opposite intersection

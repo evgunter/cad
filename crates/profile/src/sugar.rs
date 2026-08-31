@@ -686,10 +686,14 @@ fn swept<T: Real>(from: T, to: T, turn: T) -> T {
 /// A fillet tangent point is never more than half a turn from the
 /// corner. It lies on the ray from the leg's centre O through the
 /// fillet centre P, so its angular offset from the corner is the
-/// *unsigned* angle between `C − O` and `P − O`, which is in [0, π] by
-/// definition. A genuine setback therefore always lies in the kept
+/// *unsigned* angle between `C − O` and `P − O`, which is in [0, π] —
+/// the CLOSED interval, and the closed end is a real configuration
+/// (the tangent point diametrically opposite the corner), not an
+/// excluded limit. A genuine setback therefore always lies in the kept
 /// half, however far the leg itself sweeps — a leg may legitimately
 /// sweep more than π, and its extent still uses the unsigned [`swept`].
+/// What the closed end costs the exactness argument below is stated
+/// there rather than assumed away here.
 ///
 /// # The raw difference is folded once, and why that is the whole point
 ///
@@ -703,19 +707,45 @@ fn swept<T: Real>(from: T, to: T, turn: T) -> T {
 /// is the shape that makes an interval enclosure of a hairline come
 /// back a whole period wide (twice over, for two composed folds).
 ///
-/// # The exact-fit structural zero, preserved by construction
+/// # The exact-fit structural zero, and the exact domain it holds on
 ///
 /// The fit gate turns on `extent − setback` being bit-zero when the
 /// tangent point lands on the leg's far end. There both quantities are
 /// `radius ·` an angle computed from the SAME difference `d`: the
 /// extent takes `d.reduce_periodic(τ)` and the setback takes
-/// `d.reduce_periodic_centred(τ)`. Over `d ∈ [0, π)` — the whole of the
-/// domain a genuine fit occupies, since a tangent point is never more
-/// than half a turn from the corner — both floors return zero and both
-/// reductions are `d − 0`, so the two agree bitwise and the margin is
-/// exactly `0`. The knife-edge exactness is a property of the two
-/// windows agreeing on their shared interior, not of a coincidence
-/// between two roundings.
+/// `d.reduce_periodic_centred(τ)`. Both floors return zero, both
+/// reductions are `d − 0`, and the margin is exactly `0` — **for every
+/// `d` whose `fl(fl(d/τ) + ½)` is still below `1`**. That is the
+/// condition to state, and it is NOT all of `[0, π)`:
+///
+/// - `fl(π/τ)` is exactly `0.5` (τ is `2·fl(π)`, and doubling is
+///   exact), so at `d = π` the sum is exactly `1`, the floor is `1`,
+///   and the centred window returns `d − τ`. The margin is `τ`.
+/// - One float lower, `d = nextbelow(π) = 3.1415926535897927`,
+///   `fl(d/τ)` rounds to `0.49999999999999994` and `+ ½` rounds
+///   half-to-even back UP to exactly `1.0`. Same branch, margin `τ`.
+///   Two floats lower, `3.1415926535897922`, the sum is
+///   `0.9999999999999998` and the agreement holds.
+///
+/// So the domain is `[0, π)` **minus its top ulp** — the top TWO
+/// floats of `[0, π]` diverge and every other one agrees — plus one
+/// signed-zero caveat: at `d = −0.0` (reachable, `(+0.0)·turn` with a
+/// clockwise `turn = −1`) the extent window returns `+0.0` and this one
+/// returns `−0.0`. Those are equal in value and the margin is `0`, so
+/// the gate classifies Zero either way; they are not bit-identical.
+///
+/// **None of this is a behaviour change and none of it is reachable as
+/// a wrong answer.** The retired spelling folded the same expression
+/// second and took the same branch at `nextbelow(π)`, so the values are
+/// what they have always been; and the closed end of the ray argument
+/// above is a tangent point diametrically opposite the corner, whose
+/// setback is half the carrier's circumference — a configuration the
+/// reach and fit gates classify long before exactness matters. The
+/// point of writing the domain out is that "by construction" was
+/// claimed for an interval it does not cover, and a knife-edge
+/// guarantee stated one ulp too wide is not a guarantee. Correcting
+/// the claim is the fix; adding an angle branch to evaluation code to
+/// widen it would not be (Q1).
 pub(crate) fn signed_swept<T: Real>(from: T, to: T, turn: T) -> T {
     ((to - from) * turn).reduce_periodic_centred(T::tau())
 }

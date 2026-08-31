@@ -389,8 +389,21 @@ pub trait Real:
     /// which is precisely the value a coincidence gate is built to
     /// recognise. This reduction jumps at half-period offsets instead,
     /// so a difference near zero is in the window's interior and comes
-    /// straight back: `⌊x/p + ½⌋` is a constant `0` over the whole of
-    /// `(−p/2, p/2)`, and the result is `x − p·0 = x`, exactly.
+    /// straight back: `⌊x/p + ½⌋` is `0` there, and the result is
+    /// `x − p·0 = x`, exactly.
+    ///
+    /// **Where "there" ends, in floating point.** The identity holds
+    /// for every `x` with `fl(fl(x/p) + ½) < 1`, which is very nearly
+    /// but not exactly `(−p/2, p/2)`: rounding can carry the sum up to
+    /// `1` a float or two BELOW the half period. At `p = τ` the top two
+    /// floats of `[0, π]` do exactly that — `fl(π/τ)` is exactly `0.5`
+    /// (τ is `2·fl(π)`, doubling is exact) and `nextbelow(π)/τ` rounds
+    /// to `0.49999999999999994`, which `+ ½` rounds half-to-even back
+    /// up to `1.0` — so both return `x − p` rather than `x`. State the
+    /// rounding condition, not the mathematical interval, wherever a
+    /// gate is made to depend on this identity. One further caveat:
+    /// `x = −0.0` returns `−0.0` here and `+0.0` from
+    /// [`Real::reduce_periodic`]; equal in value, different in bits.
     ///
     /// The consequence at interval type is the reason this helper is
     /// named rather than open-coded at each site: an argument box

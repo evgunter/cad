@@ -23,14 +23,19 @@ use geom_core::Real;
 
 const TAU: f64 = core::f64::consts::TAU;
 
-/// The centred window returns its argument **bitwise** across the whole
-/// of `(−π, π)`: the floor's argument is `x/τ + ½ ∈ (0, 1)`, a constant
-/// zero, so the result is `x − τ·0 = x`. That is the structural zero
-/// the fillet fit gate stands on — an exact tangency reads exactly
-/// zero, and reads it by construction rather than by two roundings
-/// cancelling.
+/// The centred window returns its argument **bitwise** on its
+/// interior — and this row pins where that interior actually ENDS,
+/// which is not where the mathematics says.
+///
+/// The identity holds exactly while `fl(fl(x/τ) + ½) < 1`. Rounding
+/// carries that sum up to `1` a float or two below the half period,
+/// so the top of `(−π, π)` is NOT in the identity's domain. The
+/// boundary rows below assert what is true at each named float rather
+/// than sampling a grid that steps over them: a `×0.999_999` grid
+/// never lands within an ulp of π, which is precisely how a claim one
+/// ulp too wide survives a suite.
 #[test]
-fn the_centred_window_is_the_identity_on_its_interior_bitwise() {
+fn the_centred_window_is_the_identity_up_to_its_rounding_boundary() {
     let mut xs = vec![0.0f64, -0.0, 1e-300, -1e-300, f64::EPSILON, -f64::EPSILON];
     for k in 1..2000 {
         let t = f64::from(k) / 2000.0;
@@ -46,14 +51,51 @@ fn the_centred_window_is_the_identity_on_its_interior_bitwise() {
     }
 }
 
-/// The two windows agree **bitwise** on the interior they share,
-/// `[0, π)` — which is the whole domain a fillet's setback occupies, a
-/// tangent point never being more than half a turn from its corner. So
-/// an extent taken with [`Real::reduce_periodic`] and a setback taken
-/// with [`Real::reduce_periodic_centred`] from the SAME difference
-/// subtract to exactly zero.
+/// **The boundary, pinned float by float.** `π`, the float below it and
+/// the float below THAT — the identity fails on the top two and holds
+/// on the third, and the failure is the honest output of the written
+/// formula, not a defect to branch around in evaluation code.
 #[test]
-fn the_two_windows_agree_bitwise_on_their_shared_interior() {
+fn the_centred_windows_identity_ends_two_floats_below_pi() {
+    let pi = core::f64::consts::PI;
+    let below1 = f64::from_bits(pi.to_bits() - 1);
+    let below2 = f64::from_bits(pi.to_bits() - 2);
+
+    // `fl(π/τ)` is exactly ½ — τ is `2·fl(π)` and doubling is exact —
+    // so the sum is exactly 1 and the floor steps.
+    assert_eq!(pi / TAU, 0.5);
+    assert_eq!(pi / TAU + 0.5, 1.0);
+    assert_eq!(<f64 as Real>::periodic_branch(pi, TAU), 1.0);
+    assert_eq!(<f64 as Real>::reduce_periodic_centred(pi, TAU), pi - TAU);
+
+    // One float lower the quotient rounds DOWN, and `+ ½` rounds
+    // half-to-even back up to exactly 1.0. Same branch.
+    assert_eq!(below1 / TAU, 0.499_999_999_999_999_94);
+    assert_eq!(below1 / TAU + 0.5, 1.0);
+    assert_eq!(<f64 as Real>::periodic_branch(below1, TAU), 1.0);
+
+    // Two floats lower it does not, and the identity holds.
+    assert_eq!(below2 / TAU + 0.5, 0.999_999_999_999_999_8);
+    assert_eq!(<f64 as Real>::periodic_branch(below2, TAU), 0.0);
+    assert_eq!(
+        <f64 as Real>::reduce_periodic_centred(below2, TAU).to_bits(),
+        below2.to_bits()
+    );
+}
+
+/// The two windows agree **bitwise** on the interior they share, and
+/// this row states that interior as the rounding condition it really
+/// is: `[0, π)` MINUS its top ulp. An extent taken with
+/// [`Real::reduce_periodic`] and a setback taken with
+/// [`Real::reduce_periodic_centred`] from the SAME difference subtract
+/// to exactly zero there — which is the fillet fit gate's structural
+/// zero — and on the two floats above it they differ by a whole
+/// period, which is what the gate's callers are entitled to know.
+///
+/// The exhaustive half is the point: the grid this row used to be
+/// could not see the boundary at all.
+#[test]
+fn the_two_windows_agree_bitwise_below_the_boundary_and_not_at_it() {
     for k in 0..4000 {
         let x = f64::from(k) / 4000.0 * (TAU / 2.0);
         let extent = <f64 as Real>::reduce_periodic(x, TAU);
@@ -65,6 +107,58 @@ fn the_two_windows_agree_bitwise_on_their_shared_interior() {
             "the fit margin is not structurally zero"
         );
     }
+
+    // Exhaustive over the top 4097 floats of [0, π]: exactly two
+    // diverge, and they are the top two.
+    let pi = core::f64::consts::PI;
+    let mut diverged = Vec::new();
+    for b in (pi.to_bits() - 4096)..=pi.to_bits() {
+        let x = f64::from_bits(b);
+        let extent = <f64 as Real>::reduce_periodic(x, TAU);
+        let signed = <f64 as Real>::reduce_periodic_centred(x, TAU);
+        if extent.to_bits() != signed.to_bits() {
+            diverged.push(x);
+            assert_eq!(
+                extent - signed,
+                TAU,
+                "a divergence at {x:?} that is not a whole period"
+            );
+        }
+    }
+    assert_eq!(
+        diverged,
+        vec![f64::from_bits(pi.to_bits() - 1), pi],
+        "the divergent set is the top two floats of [0, pi] and nothing else"
+    );
+}
+
+/// **The signed-zero caveat**, pinned rather than left to be
+/// rediscovered: the two windows return oppositely-signed zeros at
+/// `−0.0`. Equal in value — so a margin built from them is `0` and
+/// classifies Zero either way — and NOT bit-identical, which is why
+/// the agreement claim above is about `[0, …)` and says "bitwise".
+///
+/// `−0.0` is reachable, not hypothetical: a zero swept angle on a
+/// clockwise leg is `(+0.0)·(−1.0)`.
+#[test]
+fn the_two_windows_return_oppositely_signed_zeros_at_negative_zero() {
+    let neg_zero = 0.0f64 * -1.0f64;
+    assert_eq!(neg_zero.to_bits(), (-0.0f64).to_bits(), "the route is real");
+
+    let extent = <f64 as Real>::reduce_periodic(neg_zero, TAU);
+    let signed = <f64 as Real>::reduce_periodic_centred(neg_zero, TAU);
+    assert_eq!(
+        extent.to_bits(),
+        0.0f64.to_bits(),
+        "the extent window gives +0"
+    );
+    assert_eq!(
+        signed.to_bits(),
+        (-0.0f64).to_bits(),
+        "the centred one gives -0"
+    );
+    assert_eq!(extent, signed, "equal in value");
+    assert_eq!(extent - signed, 0.0, "so the margin is structurally zero");
 }
 
 /// The branch pin: `raw + (near − raw).periodic_branch(p)·p` lands on

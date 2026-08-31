@@ -339,44 +339,110 @@ fn no_corpus_row_escalates_at_interval() {
 /// out is a box the width of that difference rather than a box the
 /// width of the period.
 ///
-/// The observable is the replayed loop itself: the gate classifies, the
-/// eye replays, and every coordinate enclosure is hairline. The ceiling
-/// below is a WIDTH ceiling and **consults no tolerance** — it is not
-/// an ε, not a band, and nothing about the row's verdict changes with
-/// the tolerance the suite runs at. It sits twelve orders under the
-/// period precisely so that "the fold returned its input's width" and
-/// "the fold returned the period" cannot be confused for one another;
-/// the true widths are ~1e-16, and a regression to the composed fold
-/// returns ~6.3, so no intermediate calibration is being smuggled in.
+/// # The ceiling is RELATIVE, because the quantity it bounds is
+///
+/// An enclosure width scales with the coordinates it encloses: the same
+/// correct reformulation on a fixture 1000× larger returns boxes 1000×
+/// wider, in metres, having lost nothing. An absolute ceiling would
+/// therefore be a statement about this fixture's size and not about the
+/// fold — it passes at unit scale for a reason that has nothing to do
+/// with what the row claims, and a fixture scaled up would red it
+/// while the kernel was working perfectly. So the ceiling below is a
+/// multiple of the fixture's own scale, and the row runs at three
+/// scales to make the relativity operative rather than merely stated.
+///
+/// It **consults no tolerance** — not an ε, not a band; nothing about
+/// the verdict changes with the tolerance the suite runs at. The
+/// separation it needs is enormous and is what makes the loose constant
+/// safe: an input-width answer is ~1e-16 relative, and a regression to
+/// the composed fold returns a whole period — at unit scale ~6.3, i.e.
+/// sixteen orders up. Any constant in between distinguishes them.
 #[cfg(feature = "interval")]
 #[test]
 fn the_anchor_coincident_corner_reduces_to_input_width_at_interval() {
     use geom_core::{Bounds, Interval};
     use profile::Verb;
+
+    /// The eye's one fused step, with every length scaled by `s` — the
+    /// same geometry, read at a different size.
+    fn scaled(step: &Step<f64>, s: f64) -> Step<f64> {
+        use profile::{ArcData, Target};
+        let pt = |p: Point2<f64>| Point2::new(p.x * s, p.y * s);
+        let tgt = |t: Target<f64>| match t {
+            Target::Start => Target::Start,
+            Target::Point(p) => Target::Point(pt(p)),
+        };
+        let spec = |d: ArcData<f64>| match d {
+            ArcData::Center { c, winding, target } => ArcData::Center {
+                c: pt(c),
+                winding,
+                target: tgt(target),
+            },
+            other => panic!("the eye authors a Center-mode arc, got {other:?}"),
+        };
+        match *step {
+            Step::ArcFilletArc {
+                spec: a,
+                radius,
+                spec2,
+            } => Step::ArcFilletArc {
+                spec: spec(a),
+                radius: radius * s,
+                spec2: spec(spec2),
+            },
+            ref other => panic!("the eye is one fused step, got {other:?}"),
+        }
+    }
+
     let eye = coverage_corpus()
         .into_iter()
         .find(|c| c.program.iter().map(Step::verb).eq([Verb::ArcFilletArc]))
         .expect("the corpus carries the one-step fused eye");
-    let iv = try_replay_at::<Interval>(&eye.program).unwrap_or_else(|e| {
-        panic!(
-            "the eye must replay at Interval once the signed fold stops \
-             composing on a [0, tau) reduction: {e}"
-        )
-    });
-    const CEILING: f64 = 1e-12;
-    let mut widest = 0.0f64;
-    for (k, v) in iv.vertices().iter().enumerate() {
-        for (what, enc) in [("x", v.pos().x), ("y", v.pos().y), ("bulge", v.bulge())] {
-            let w = enc.hi() - enc.lo();
-            widest = widest.max(w);
-            assert!(
-                w <= CEILING,
-                "vertex {k}'s {what} enclosure is {w:e} wide ([{}, {}]) — a period-width \
-                 enclosure, not an input-width one",
-                enc.lo(),
-                enc.hi()
-            );
+
+    // Relative: widths are compared against the scale of the geometry
+    // that produced them. A period-width answer is ~6.3 ABSOLUTE and so
+    // fails this at every scale; an input-width answer is ~1e-16
+    // relative and passes at every scale.
+    const RELATIVE_CEILING: f64 = 1e-12;
+    for scale in [1.0f64, 100.0, 1000.0] {
+        let program: Vec<Step<f64>> = eye.program.iter().map(|st| scaled(st, scale)).collect();
+        let iv = try_replay_at::<Interval>(&program).unwrap_or_else(|e| {
+            panic!(
+                "at scale {scale}: the eye must replay at Interval once the signed \
+                 fold stops composing on a [0, tau) reduction: {e}"
+            )
+        });
+        let mut widest = 0.0f64;
+        let mut widest_rel = 0.0f64;
+        for (k, v) in iv.vertices().iter().enumerate() {
+            for (what, enc, is_length) in [
+                ("x", v.pos().x, true),
+                ("y", v.pos().y, true),
+                // The bulge is a TANGENT — dimensionless, so it does not
+                // scale and is measured against 1, not against `scale`.
+                ("bulge", v.bulge(), false),
+            ] {
+                let w = enc.hi() - enc.lo();
+                let unit = if is_length { scale } else { 1.0 };
+                let rel = w / unit;
+                widest = widest.max(w);
+                widest_rel = widest_rel.max(rel);
+                assert!(
+                    rel <= RELATIVE_CEILING,
+                    "at scale {scale}, vertex {k}'s {what} enclosure is {w:e} wide \
+                     ([{}, {}]) = {rel:e} relative — a period-width enclosure, not an \
+                     input-width one",
+                    enc.lo(),
+                    enc.hi()
+                );
+            }
         }
+        assert!(
+            widest > 0.0,
+            "at scale {scale}: the eye's enclosures are all degenerate"
+        );
+        println!(
+            "eye at scale {scale}: widest absolute {widest:e}, widest relative {widest_rel:e}"
+        );
     }
-    assert!(widest > 0.0, "the eye's enclosures are not all degenerate");
 }
