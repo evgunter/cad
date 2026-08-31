@@ -209,6 +209,18 @@ fn a_rational_fit_is_certified_as_the_surface_it_is() {
         "hull_sup {} UNDER-reports the sampled max {worst}",
         cert.hull_sup
     );
+    // The ceiling. The door's own `≤ 1e-3` is eleven orders away from
+    // what this fixture actually reaches, so it cannot witness the
+    // claim in the header — that reading the fit's weights certifies
+    // the exact rational offset at ring noise. Measured 2.84e-14;
+    // ceiling 1e-12, ~35x headroom. A hull limb reading the net flat
+    // lands near 1e-1 here.
+    assert!(
+        cert.hull_sup <= 1e-12,
+        "the exact rational offset no longer certifies at ring noise: hull_sup {} \
+         (measured 2.84e-14 when written)",
+        cert.hull_sup
+    );
     eprintln!(
         "exact rational offset: hull_sup={:.3e} sampled={worst:.3e} cells={}",
         cert.hull_sup, cert.cells

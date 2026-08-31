@@ -118,8 +118,9 @@ fn r1_certify_offset_on_a_rational_fit_never_under_reports() {
     let base = quarter_cylinder(1.0, 1.0);
     let d = 0.3;
     let (fit, _) = fit_offset(&base, d, 1e-4, band()).unwrap();
-    // Perturb one interior weight: the surface moves, the unweighted
-    // control net — the only thing the hull limb reads — does not.
+    // Perturb one interior weight: the surface moves, and so does the
+    // homogeneous net the hull limb reads, which is what makes the
+    // certificate below a claim about the surface actually supplied.
     let (cu, cv) = fit.control_counts();
     let mut weights = fit.weights().to_vec();
     weights[(cu / 2) * cv + cv / 2] = 2.0;
@@ -132,20 +133,34 @@ fn r1_certify_offset_on_a_rational_fit_never_under_reports() {
     .unwrap();
     let true_residual = sampled_residual(&base, &warped, d);
     // A tolerance the warped surface's on-locus samples clear, so the
-    // hull limb is the deciding one — and above the bound that limb
-    // reaches on this fixture (measured at 2.49x the sampled max), so
-    // what the row pins is the CERTIFICATE, not a limb refusal.
-    let tol = true_residual * 4.0;
+    // hull limb is the deciding one — and far enough above the bound
+    // that limb reaches that the door's own `≤ tolerance` test is not
+    // what caps the ratio below. The CEILING is this row's, asserted,
+    // and re-taken on every run.
+    let tol = true_residual * 8.0;
     let cert = certify_offset(&base, &warped, d, tol, band()).unwrap_or_else(|e| {
         panic!(
             "certify_offset refused a rational fit it can now bound \
              (true residual {true_residual}): {e}"
         )
     });
+    // Containment is the sound direction, and it is the direction that
+    // a hull limb reading the fit's net flat would break.
     assert!(
         cert.hull_sup >= true_residual,
         "the hull limb UNDER-reports the supplied surface's residual: \
          hull_sup {} < sampled {true_residual}",
+        cert.hull_sup
+    );
+    // **And the ceiling.** `hull_sup ≥ sampled` gets EASIER as the
+    // enclosure degrades, so containment alone cannot tell a tight
+    // certificate from a useless one. The slack measured on this
+    // fixture is 2.49x; the ceiling sits at 5x, i.e. ~2x headroom, so
+    // it reds on a real loss of tightness and not on ring noise.
+    assert!(
+        cert.hull_sup <= true_residual * 5.0,
+        "the hull limb's enclosure has degraded: hull_sup {} is more than 5x \
+         the sampled residual {true_residual} (measured 2.49x when written)",
         cert.hull_sup
     );
     eprintln!(

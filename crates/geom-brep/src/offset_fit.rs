@@ -188,13 +188,23 @@ pub const OFFSET_FIT_SEED_PER_SPAN: usize = 3;
 /// must be dealt with" honesty, as a type.
 pub const OFFSET_FIT_BUDGET: usize = 6;
 
-/// The per-direction cap on sample parameters. A refinement round
-/// bisects every sample interval a worst-carrying cell touches, so an
-/// unreachable tolerance would otherwise double the grid every round
-/// — the cap is the second stopping condition, and it produces the
-/// same typed [`OffsetFitError::BudgetExhausted`] refusal as the
-/// round budget: never an uncertified return, and never an unbounded
-/// amount of work.
+/// The per-direction cap on sample parameters.
+///
+/// A refinement round bisects, in each worst-carrying cell, the
+/// sample intervals of the ONE direction that cell's model-space
+/// extent names — so a direction grows only while the residual keeps
+/// asking for it, and the growth is per direction rather than
+/// uniform. That is why the cap is per direction too: the binding
+/// case is a patch whose error lives wholly in one direction, where
+/// an unreachable tolerance would drive that direction alone toward
+/// an unbounded grid while its partner stands still. The
+/// both-directions fallback the stall guard falls back to can double
+/// both at once, which the same cap bounds.
+///
+/// It is the second stopping condition, and it produces the same
+/// typed [`OffsetFitError::BudgetExhausted`] refusal as the round
+/// budget: never an uncertified return, and never an unbounded amount
+/// of work.
 pub const OFFSET_FIT_SAMPLE_CAP: usize = 48;
 
 /// The per-direction on-locus sample count inside each certificate
@@ -274,6 +284,27 @@ pub enum OffsetFitError {
     /// still had rounds in hand, so more of them will not help: the
     /// tolerance is below what this fit's structure can reach on this
     /// patch.
+    ///
+    /// **D2 classification: row 1** — reachable by input, and invalid
+    /// as a request to this door. Row 0 was answered first and
+    /// answered no: "the bound stopped falling" is a measured numeric
+    /// outcome on admissible input, so no type change can exclude it
+    /// without making convergence a type-level property of
+    /// caller-supplied geometry.
+    ///
+    /// *The minority reading, recorded because it becomes correct.*
+    /// Row 2 (`Unsupported*`, valid-but-unbuilt) was argued on the
+    /// strength of this variant's own wording — the tolerance is
+    /// below what "this fit's structure" can reach, which sounds like
+    /// a capability the kernel has not built. It is not one TODAY:
+    /// the structure is fixed at [`OFFSET_FIT_DEGREE`] with schedule
+    /// refinement as the only lever, so there is nothing unbuilt to
+    /// reach for and the refusal is about the request. The day the
+    /// banked compression half of A9.10 lands (knot removal under
+    /// Eqs. 9.86–9.89, module docs), the door gains a second lever
+    /// over the fitted structure, this refusal starts meaning "the
+    /// structure this door is willing to build cannot reach it", and
+    /// it should be RECLASSIFIED to row 2 then.
     RefinementStalled {
         /// How many refinement rounds ran before the stall.
         rounds: u32,
@@ -408,18 +439,43 @@ pub use geom::OffsetCertificate;
 ///
 /// Refuses — never degrades — on a patch whose chart normal is not
 /// certifiably non-degenerate, on an offset distance that reaches the
-/// patch's curvature reach, and on budget exhaustion.
+/// patch's curvature reach, on budget exhaustion, and on a refinement
+/// loop that stops converging while it still has rounds in hand.
 ///
 /// Geometry only: no `Surface` variant, no storage, no topology. The
 /// base and `d` travel as arguments; the intensional
 /// `Offset { base, d }` description is the integration unit's.
 ///
+/// # How much slack the certificate carries
+///
+/// `hull_sup` is an upper bound, and a consumer sizing a budget from
+/// it will want to know by how much it exceeds the residual actually
+/// achieved. Measured against a dense sample on the shipped fixtures:
+/// **2.1x to 7.3x** (non-analytic bicubic 2.1x, quarter cylinder 2.8x
+/// at both signs, sphere band 4.4x outward and 7.3x inward), and 3.3x
+/// on coarse single-cell schedules. Chart aspect does NOT drive it —
+/// 5:1 and 1:5 quarter cylinders both measure 3.3x, the same as 1:1.
+///
+/// The one regime that departs is small `|d|`: at `d = 1e-6` on a
+/// metre patch the ratio is ~1.6e3, for the reason the module docs
+/// give under recentring — the bound is then dominated by its
+/// `τ²/‖E‖` term through a componentwise lower bound on `‖E‖`, and
+/// that is a property of the bound rather than of the fit, which is
+/// accurate to ~2e-7 there.
+///
+/// No row pins these ratios and none is owed: they are a measurement
+/// of the enclosure's tightness, not a claim the door makes. They are
+/// recorded because a consumer reading `hull_sup` as "the error"
+/// would otherwise over-provision by roughly half an order, and by
+/// three orders at micron offsets.
+///
 /// # Errors
 ///
 /// [`OffsetFitError`] — the two door meters and their escalations,
 /// the patch-bound refusals, the interpolation stack's refusals,
-/// non-finite samples, and [`OffsetFitError::BudgetExhausted`]
-/// carrying the achieved bound.
+/// non-finite samples, [`OffsetFitError::BudgetExhausted`] carrying
+/// the achieved bound, and [`OffsetFitError::RefinementStalled`]
+/// carrying the bound the loop stopped improving on.
 pub fn fit_offset(
     base: &NurbsSurface<f64>,
     d: f64,
@@ -482,37 +538,55 @@ pub fn fit_offset(
         // falls back to marking BOTH directions; a both-directions
         // round that still does not improve is not a budget problem
         // and does not become one — it refuses, named.
-        match stall_verdict(prev_sup, report.hull_sup, marked_both) {
-            Refine::Refuse => {
-                #[allow(clippy::cast_possible_truncation)]
-                return Err(OffsetFitError::RefinementStalled {
-                    rounds: round as u32,
-                    grid: (us.len(), vs.len()),
-                    achieved,
-                    tolerance,
-                });
-            }
-            v => marked_both = v == Refine::BothDirections,
+        #[allow(clippy::cast_possible_truncation)]
+        let stalled = |grid: (usize, usize)| OffsetFitError::RefinementStalled {
+            rounds: round as u32,
+            grid,
+            achieved,
+            tolerance,
+        };
+        let verdict = stall_verdict(prev_sup, report.hull_sup, marked_both);
+        if verdict == Refine::Refuse {
+            return Err(stalled((us.len(), vs.len())));
         }
         prev_sup = report.hull_sup;
-        let (mu, mv) = if marked_both {
-            (
-                mark(&us, report.failing.iter().map(|c| c.0)),
-                mark(&vs, report.failing.iter().map(|c| c.1)),
-            )
-        } else {
-            directional_mark(&us, &vs, &report.failing, reg.speed_u, reg.speed_v)
-        };
-        let next_u = bisect(&us, &mu);
-        let next_v = bisect(&vs, &mv);
-        if (next_u.len() == us.len() && next_v.len() == vs.len())
-            || next_u.len() > OFFSET_FIT_SAMPLE_CAP
-            || next_v.len() > OFFSET_FIT_SAMPLE_CAP
-        {
+        // The mode is CARRIED out of the step that used it, not
+        // inferred from a local set beside it: the refusal's admission
+        // set is "the round whose schedule came from a both-directions
+        // marking", and that is a fact about `next`, not about the
+        // order of two statements.
+        let mut next = refine_schedule(&us, &vs, &report, reg.speed_u, reg.speed_v, verdict);
+        // A directional marking can fail to grow the schedule even
+        // though it marked intervals: `bisect` drops a midpoint that
+        // is not strictly between its endpoints, which is what an
+        // interval narrowed to consecutive floats gives. That is the
+        // same evidence as a round that gained nothing, so it takes
+        // the same fallback rather than escaping to the budget.
+        if !next.grew(&us, &vs) && next.mode == Refine::Directional {
+            next = refine_schedule(
+                &us,
+                &vs,
+                &report,
+                reg.speed_u,
+                reg.speed_v,
+                Refine::BothDirections,
+            );
+        }
+        if next.us.len() > OFFSET_FIT_SAMPLE_CAP || next.vs.len() > OFFSET_FIT_SAMPLE_CAP {
+            // The per-direction cap: a REFINEMENT limit, not a
+            // convergence one, and it keeps its own refusal.
             break;
         }
-        us = next_u;
-        vs = next_v;
+        if !next.grew(&us, &vs) {
+            // Bisecting every failing cell in both directions moved
+            // nothing. No later round can move it either — the
+            // intervals only narrow — so this is the stall, reached
+            // by exhaustion of the schedule rather than of the bound.
+            return Err(stalled((us.len(), vs.len())));
+        }
+        marked_both = next.mode == Refine::BothDirections;
+        us = next.us;
+        vs = next.vs;
     }
     Err(OffsetFitError::BudgetExhausted {
         budget: OFFSET_FIT_BUDGET,
@@ -954,6 +1028,39 @@ enum Refine {
 /// routinely report; a loop on its way from `+∞` to a finite bound is
 /// converging. So the comparison is made only against a FINITE
 /// predecessor, and the guard stays silent until there is one.
+///
+/// # Reachability — a recorded verdict, not an open question
+///
+/// [`Refine::Refuse`] has not been reached through [`fit_offset`]'s
+/// door by any fixture tried: roughly a hundred adversarial requests
+/// across two independent review lanes plus this unit's own seven
+/// fixtures (bumpy, cylinder both signs, sphere both signs, near-reach
+/// sphere, a 1000:1 thin patch, extreme weights at 0.05 and 8.0), over
+/// tolerances from 1e-6 to 1e-15. None stalled.
+///
+/// **That is a property of the predicate's shape, not of the fixtures.**
+/// The test is `hull_sup < prev_sup` with no epsilon, so ANY decrease
+/// counts as improvement — including one in the last bit. Reaching
+/// the refusal therefore needs a bound that fails to fall AT ALL
+/// twice running, on a loop that re-interpolates at a strictly finer
+/// schedule each round. Every round changes the fit, and a changed
+/// fit on a finer schedule essentially always moves the bound
+/// somewhere. So the refusal is close to unreachable BY CONSTRUCTION,
+/// and the guard's practical work is done by its other two arms: the
+/// both-directions fallback (which fires on the shipped cylinder
+/// oracle every run) and the schedule-cannot-grow arm in
+/// [`fit_offset`].
+///
+/// The verdict is recorded rather than resolved because the honest
+/// options are both worse. Widening the test with a relative epsilon
+/// ("improved by less than 1%") would make the refusal reachable, but
+/// it would also refuse loops that are converging slowly and would
+/// certify at a coarser schedule than the caller asked for — a
+/// tolerance the fit CAN reach, refused. Deleting the arm would leave
+/// the non-converging case spending budget silently, which is what
+/// issue 1007 asked to end. So it stays: cheap, total, and pinned by
+/// [`OffsetFitError::RefinementStalled`]'s own row rather than by a
+/// fixture that does not exist.
 fn stall_verdict(prev_sup: f64, hull_sup: f64, marked_both: bool) -> Refine {
     if !prev_sup.is_finite() || hull_sup < prev_sup {
         Refine::Directional
@@ -961,6 +1068,58 @@ fn stall_verdict(prev_sup: f64, hull_sup: f64, marked_both: bool) -> Refine {
         Refine::Refuse
     } else {
         Refine::BothDirections
+    }
+}
+
+/// One refinement round's next sample schedule, together with the
+/// marking mode that produced it.
+///
+/// The mode travels WITH the schedule because it is what the stall
+/// guard's admission set is stated in terms of. Held instead as a
+/// local beside the marking, it records the mode that was *intended*;
+/// held here, it records the mode that actually ran.
+struct Marking {
+    us: Vec<f64>,
+    vs: Vec<f64>,
+    mode: Refine,
+}
+
+impl Marking {
+    /// Whether this schedule is strictly larger than the one it came
+    /// from. A marking that marked intervals can still fail to grow —
+    /// [`bisect`] drops a midpoint that is not strictly inside its
+    /// interval — and "grew" is the property the loop actually needs.
+    fn grew(&self, us: &[f64], vs: &[f64]) -> bool {
+        self.us.len() != us.len() || self.vs.len() != vs.len()
+    }
+}
+
+/// Marks and bisects one refinement round under `mode`.
+///
+/// [`Refine::Refuse`] never reaches here: it is the loop's exit, not a
+/// marking. It is treated as the both-directions marking so that this
+/// function is total, and the loop's own `verdict == Refuse` test is
+/// what makes that arm unreachable.
+fn refine_schedule(
+    us: &[f64],
+    vs: &[f64],
+    report: &Report,
+    speed_u: f64,
+    speed_v: f64,
+    mode: Refine,
+) -> Marking {
+    let (mu, mv) = if mode == Refine::Directional {
+        directional_mark(us, vs, &report.failing, speed_u, speed_v)
+    } else {
+        (
+            mark(us, report.failing.iter().map(|c| c.0)),
+            mark(vs, report.failing.iter().map(|c| c.1)),
+        )
+    };
+    Marking {
+        us: bisect(us, &mu),
+        vs: bisect(vs, &mv),
+        mode,
     }
 }
 
@@ -1087,7 +1246,7 @@ struct Composite {
 /// The ring's outward rounding of `P − centre` is one ulp of the
 /// DIFFERENCE, i.e. of the patch's extent, where the unrecentred net
 /// carried one ulp of the coordinate.
-fn channel(n: &NurbsSurface<f64>, c: usize, weighted: bool, centre: f64) -> Vec<RingInterval> {
+fn channel(n: &NurbsSurface<f64>, c: usize, form: NetForm, origin: &Origin) -> Vec<RingInterval> {
     n.control()
         .iter()
         .zip(n.weights().iter())
@@ -1096,15 +1255,50 @@ fn channel(n: &NurbsSurface<f64>, c: usize, weighted: bool, centre: f64) -> Vec<
                 0 => p.x,
                 1 => p.y,
                 _ => p.z,
-            }) - RingInterval::point(centre);
-            if weighted {
-                RingInterval::point(*w) * x
-            } else {
-                x
+            }) - RingInterval::point(origin.0[c]);
+            match form {
+                NetForm::Homogeneous => RingInterval::point(*w) * x,
+                NetForm::Spatial => x,
             }
         })
         .collect()
 }
+
+/// Which net a [`channel`] extraction produces.
+///
+/// A named form rather than a `bool`: the two differ by whether the
+/// weight multiplies, which is the difference between `A` and `P`, and
+/// a bare `true` at a call site does not say which was meant.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum NetForm {
+    /// `P − c`. Correct only where every weight is `1`, so that the
+    /// spatial net IS the homogeneous one.
+    Spatial,
+    /// `w·(P − c)`, the homogeneous net.
+    Homogeneous,
+}
+
+impl NetForm {
+    /// The form a surface's own weights call for.
+    fn of(n: &NurbsSurface<f64>) -> Self {
+        if is_rational(n) {
+            Self::Homogeneous
+        } else {
+            Self::Spatial
+        }
+    }
+}
+
+/// The composite's recentring origin, carried whole.
+///
+/// It travels as one value and [`channel`] selects the coordinate with
+/// the SAME index it reads the control point by, so a centre cannot be
+/// paired with the wrong channel. Passed as three loose `f64`s that
+/// pairing is a caller obligation, and getting it wrong certifies a
+/// different surface silently: the net still looks like a net, just of
+/// a sheared patch.
+#[derive(Clone, Copy)]
+struct Origin([f64; 3]);
 
 /// The composite's recentring origin: the midpoint of the BASE's
 /// control-net bounding box, per coordinate.
@@ -1121,7 +1315,7 @@ fn channel(n: &NurbsSurface<f64>, c: usize, weighted: bool, centre: f64) -> Vec<
 /// cell. What that would buy over this is the patch extent against
 /// the cell extent, and the measurement that would justify it has not
 /// been taken.
-fn recentre_origin(base: &NurbsSurface<f64>) -> [f64; 3] {
+fn recentre_origin(base: &NurbsSurface<f64>) -> Origin {
     let mut lo = [f64::INFINITY; 3];
     let mut hi = [f64::NEG_INFINITY; 3];
     for p in base.control() {
@@ -1138,7 +1332,7 @@ fn recentre_origin(base: &NurbsSurface<f64>) -> [f64; 3] {
         let m = (lo[c] + hi[c]) * 0.5;
         out[c] = if m.is_finite() { m } else { 0.0 };
     }
-    out
+    Origin(out)
 }
 
 /// A row-major flat net from the `Net` (u-major nested) shape.
@@ -1216,14 +1410,14 @@ impl Composite {
         // product would widen the ring for nothing.
         // The one recentring origin every net below is built against.
         let ctr = recentre_origin(base);
-        let fit_rational = is_rational(fit);
-        let fc = |c: usize| channel(fit, c, fit_rational, ctr[c]);
+        let fit_form = NetForm::of(fit);
+        let fc = |c: usize| channel(fit, c, fit_form, &ctr);
         let f: [PatchSpans; 3] = [
             dec(fit.knots_u(), fit.knots_v(), &fc(0)),
             dec(fit.knots_u(), fit.knots_v(), &fc(1)),
             dec(fit.knots_u(), fit.knots_v(), &fc(2)),
         ];
-        let wf = fit_rational.then(|| {
+        let wf = (fit_form == NetForm::Homogeneous).then(|| {
             let g: Vec<RingInterval> = fit
                 .weights()
                 .iter()
@@ -1232,8 +1426,9 @@ impl Composite {
             dec(fit.knots_u(), fit.knots_v(), &g)
         });
         // The base's homogeneous nets and their first derivatives.
-        let a_grid: Vec<Vec<RingInterval>> =
-            (0..3).map(|c| channel(base, c, rational, ctr[c])).collect();
+        let a_grid: Vec<Vec<RingInterval>> = (0..3)
+            .map(|c| channel(base, c, NetForm::of(base), &ctr))
+            .collect();
         let ku1 = derived_knots(ku)?;
         let kv1 = derived_knots(kv)?;
         let du = |g: &[RingInterval]| flat(&net_d_u(ku, &nest(g, nu, nv)));

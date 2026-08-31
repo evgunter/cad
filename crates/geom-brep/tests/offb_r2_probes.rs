@@ -415,9 +415,11 @@ fn p4_certify_offset_on_a_rational_fit() {
     let d = 0.25;
     let (fit, _) = fit_offset(&base, d, 1e-3, band()).unwrap();
     let (cu, cv) = fit.control_counts();
-    // Same control points and knots; weights perturbed. In ℝ this is a
-    // DIFFERENT surface — but the composite's `Ẽ = F·w − A` reads only
-    // the control points, so limb 2's net is the unperturbed fit's.
+    // Same control points and knots; weights perturbed. In ℝ this is
+    // a DIFFERENT surface, and the composite's `Ẽ = F̃·w − A·w_fit` is
+    // built from the fit's HOMOGENEOUS net, so limb 2 bounds THIS
+    // surface rather than the unit-weight one the control net alone
+    // would describe.
     let mut weights = vec![1.0; cu * cv];
     for (i, w) in weights.iter_mut().enumerate() {
         *w = if i % 2 == 0 { 1.0 } else { 1.6 };
@@ -436,8 +438,10 @@ fn p4_certify_offset_on_a_rational_fit() {
         worst = worst.max((rational_fit.eval(u, v) - target).norm());
     }
     // A tolerance ABOVE the true residual: limb 1 cannot refuse, so
-    // whatever limb 2 reports is what certifies.
-    let tol = worst * 4.0;
+    // whatever limb 2 reports is what certifies — and far enough above
+    // it that the door's own `≤ tolerance` test is not what caps the
+    // ratio below. The ceiling is this row's, and it is re-taken.
+    let tol = worst * 8.0;
     let cert = certify_offset(&base, &rational_fit, d, tol, band()).unwrap_or_else(|e| {
         panic!("P4: certify_offset refused a rational fit it can now bound (residual {worst}): {e}")
     });
@@ -445,6 +449,15 @@ fn p4_certify_offset_on_a_rational_fit() {
         cert.hull_sup >= worst,
         "P4: limb 2 certified a DIFFERENT surface than the one handed in — hull_sup \
          {} under-reports the supplied surface's sampled residual {worst}",
+        cert.hull_sup
+    );
+    // The ceiling: containment alone gets easier as the enclosure
+    // degrades. Slack measured 2.14x on this fixture; ceiling at 4.5x
+    // is ~2.1x headroom.
+    assert!(
+        cert.hull_sup <= worst * 4.5,
+        "P4: limb 2's enclosure has degraded — hull_sup {} is more than 4.5x the \
+         supplied surface's sampled residual {worst} (measured 2.14x when written)",
         cert.hull_sup
     );
     eprintln!(

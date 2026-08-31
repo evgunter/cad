@@ -690,7 +690,7 @@ fn a_zero_or_non_finite_request_refuses_at_the_door() {
 
 /// **The recentring row.** The offset residual is translation
 /// invariant — moving a part does not change how well a surface fits
-/// its own offset — so the certified bound must be too. It was not:
+/// its own offset — so the certified bound should be too. It was not:
 /// the composite's nets were built in world coordinates, so the
 /// ring's rounding on the intermediates scaled with the base's
 /// coordinate magnitude, and a micron offset on a metre part a
@@ -699,53 +699,94 @@ fn a_zero_or_non_finite_request_refuses_at_the_door() {
 ///
 /// The composite now builds every net against one recentring origin
 /// (the base control net's bbox midpoint), which is exact in ℝ and
-/// leaves every claim identical. The row pins the invariance, and
-/// containment at each station so the invariance cannot be bought by
-/// a bound that stopped bounding.
+/// leaves every claim identical.
+///
+/// **The row states its true domain, because the invariance is not
+/// unlimited.** Measured on the decade ladder at `d = 1e-6`:
+///
+/// ```text
+/// 1e0..1e4   3.2215e-4 .. 3.2219e-4   flat to 4 figures
+/// 1e5        3.2288e-4               1.002x the origin
+/// 1e6        3.3078e-4               1.027x
+/// 1e7        4.1422e-4               1.286x
+/// 1e8        4.4346e-7               0.0014x — TIGHTER
+/// 1e9        5.1654e-6
+/// 1e10       refused: BudgetExhausted, achieved inf
+/// ```
+///
+/// So the band is asserted where the claim is meaningful — out to
+/// 1e6, where rounding still tracks the recentred patch — and the
+/// stations beyond it are pinned for what is actually true of them:
+/// containment, which holds at every finite station. It does not hold
+/// that the bound is monotone in the shift. At 1e8 the refinement
+/// loop takes a different trajectory (364 cells over 5 rounds against
+/// 308 over 4) and lands on a better fit, so the bound there is not
+/// comparable with the origin's in either direction. At 1e10 the door
+/// refuses typed rather than return something uncertified, which is
+/// the honest end of the ladder and is pinned as such.
+///
+/// Containment at each station is what stops the invariance being
+/// bought by a bound that stopped bounding.
 #[test]
 fn a_patch_far_from_the_origin_certifies_as_well_as_one_at_it() {
     let d = 1e-6;
     let mut at_origin = f64::NAN;
-    for shift in [0.0_f64, 1.0e3, 1.0e5] {
+    let shifted = |shift: f64| {
         let c = quarter_cylinder(1.0, 1.0);
         let control: Vec<Point3<f64>> = c
             .control()
             .iter()
             .map(|p| Point3::new(p.x + shift, p.y + shift, p.z))
             .collect();
-        let base = NurbsSurface::new(
+        NurbsSurface::new(
             c.knots_u().clone(),
             c.knots_v().clone(),
             control,
             c.weights().to_vec(),
         )
-        .unwrap();
+        .unwrap()
+    };
+    for e in 0..=9 {
+        let shift = if e == 0 { 0.0 } else { 10f64.powi(e) };
+        let base = shifted(shift);
         let (fit, cert) = fit_offset(&base, d, 1e-2, band())
-            .unwrap_or_else(|e| panic!("shift {shift}: a micron offset refused: {e}"));
+            .unwrap_or_else(|err| panic!("shift 1e{e}: a micron offset refused: {err}"));
         let mut worst = 0.0f64;
         for (u, v) in dense_grid() {
             let target = offset_point(&base, d, u, v).unwrap();
             worst = worst.max((fit.eval(u, v) - target).norm());
         }
+        // True at EVERY station, and the assertion the whole row
+        // exists to protect.
         assert!(
             worst <= cert.hull_sup,
-            "shift {shift}: certified sup {} UNDER-reports the sampled max {worst}",
+            "shift 1e{e}: certified sup {} UNDER-reports the sampled max {worst}",
             cert.hull_sup
         );
-        if shift == 0.0 {
+        if e == 0 {
             at_origin = cert.hull_sup;
-        } else {
+        } else if e <= 6 {
+            // The invariance band, where the claim is meaningful.
+            // Measured worst over this range is 1.027x at 1e6.
             assert!(
                 cert.hull_sup <= at_origin * 1.05,
-                "shift {shift}: hull_sup {} is more than 5% above the same patch at the \
+                "shift 1e{e}: hull_sup {} is more than 5% above the same patch at the \
                  origin ({at_origin}) — the composite is reading world coordinates again",
                 cert.hull_sup
             );
         }
         eprintln!(
-            "recentred shift={shift:.0e}: cells={} hull_sup={:.4e} sampled={worst:.3e}",
+            "recentred shift=1e{e}: cells={} hull_sup={:.4e} sampled={worst:.4e}",
             cert.cells, cert.hull_sup
         );
+    }
+    // The honest end of the ladder: a shift the recentring cannot
+    // rescue refuses typed and returns nothing uncertified.
+    match fit_offset(&shifted(1.0e10), d, 1e-2, band()) {
+        Err(OffsetFitError::BudgetExhausted { achieved, .. }) => {
+            eprintln!("recentred shift=1e10: refused typed, achieved={achieved}");
+        }
+        other => panic!("shift 1e10 did not refuse typed at the budget: {other:?}"),
     }
 }
 
@@ -778,15 +819,84 @@ fn refinement_follows_the_anisotropy_on_a_thin_patch() {
         cert.hull_sup
     );
     // The `v` direction needs no refinement at all, so the schedule
-    // must not have paid for any: a both-directions loop reaching
-    // this tolerance would square its cell count against this one.
+    // must not have paid for any. Measured 14 cells; the ceiling is
+    // 28, i.e. 2x headroom — tight enough that a real regression reds
+    // it, since the both-directions loop this replaced reached 308
+    // cells on exactly this fixture: 22x the measurement, 11x the
+    // ceiling.
     assert!(
-        cert.cells <= 64,
-        "the schedule grew in the direction that carries no error: {} cells",
+        cert.cells <= 28,
+        "the schedule grew in the direction that carries no error: {} cells \
+         (measured 14 when written)",
         cert.cells
     );
     eprintln!(
         "anisotropic: cells={} rounds={} hull_sup={:.3e} sampled={worst:.3e}",
         cert.cells, cert.rounds, cert.hull_sup
     );
+}
+
+/// **`RefinementStalled`'s payload and its message**, pinned from
+/// outside the crate.
+///
+/// The refusal is not drivable through `fit_offset`'s door by any
+/// fixture two review lanes and this unit could build — see
+/// `stall_verdict`'s recorded reachability verdict for why that is a
+/// property of the predicate's shape rather than of the fixtures. So
+/// what a consumer can actually see of this variant — its four
+/// fields, and the sentence `Display` writes — is pinned HERE,
+/// through the public type, rather than left to a fixture that does
+/// not exist. Without this row the variant's `Display` arm and every
+/// field but `achieved` are unexecuted outside the crate.
+#[test]
+fn the_stall_refusal_carries_its_grid_rounds_and_bound() {
+    let e = OffsetFitError::RefinementStalled {
+        rounds: 3,
+        grid: (11, 7),
+        achieved: 4.25e-4,
+        tolerance: 1e-6,
+    };
+    let OffsetFitError::RefinementStalled {
+        rounds,
+        grid,
+        achieved,
+        tolerance,
+    } = &e
+    else {
+        panic!("the variant did not match its own shape");
+    };
+    assert_eq!(*rounds, 3);
+    assert_eq!(*grid, (11, 7));
+    assert!((*achieved - 4.25e-4).abs() < f64::EPSILON);
+    assert!((*tolerance - 1e-6).abs() < f64::EPSILON);
+    let msg = e.to_string();
+    // The message must say WHICH refusal this is — a caller that
+    // cannot tell a stall from budget exhaustion cannot tell "more
+    // budget will help" from "it will not".
+    assert!(msg.contains("STALLED"), "{msg}");
+    assert!(
+        msg.contains("11x7"),
+        "the grid is not in the message: {msg}"
+    );
+    assert!(
+        msg.contains("3 rounds"),
+        "the round count is missing: {msg}"
+    );
+    assert!(
+        msg.contains("both directions"),
+        "the message does not say what was tried: {msg}"
+    );
+    assert!(
+        msg.contains("nothing uncertified is returned"),
+        "the fail-loud posture is not stated: {msg}"
+    );
+    // And it is a DIFFERENT sentence from budget exhaustion's.
+    let budget = OffsetFitError::BudgetExhausted {
+        budget: 6,
+        grid: (11, 7),
+        achieved: 4.25e-4,
+        tolerance: 1e-6,
+    };
+    assert_ne!(msg, budget.to_string());
+    eprintln!("stall refusal reads: {msg}");
 }
