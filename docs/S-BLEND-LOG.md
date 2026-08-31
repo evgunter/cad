@@ -589,3 +589,27 @@ mirror-why landed at naming.rs only while the PR body claims both
 declarations. Micro-fix dispatched to the implementer (fixture-or-
 relabel for (a); the role.rs side + PR body corrections for (b)).
 State-sync rides after.
+
+## 2026-08-31 — BLEND-5 MERGED (#1301); BLEND-6 DISPATCHED (block BLEND-B2 slot 2)
+
+PR #1301 merged at `e0aef5c9`; issue 961 closed. Gate of record:
+run 33345044024 GREEN (21 jobs) on the state-sync head `bdf93527`,
+drawn point {default, eps 1e-12} — across the four heads the draw
+covered FOUR of six matrix points including both compile lanes and
+a 1e-12 row. A/B row (ordinal 603, sample hedged #57) rode the
+state-sync; the implementer arm stays branch-side until the block
+closes. Lanes blend-5 / blend-5-r1 / blend-5-r2 reclaimed (28G
+free).
+
+**BLEND-6 dispatched:** lane `blend-6`, branch `blend/verbvocab`
+cut from main at `e0aef5c9` (the serialized-slate rule: same
+files, single-owner order, BLEND-5 in). Arm per the block B2
+branch-side draw (slot 2); difficulty **M** stands pre-logged at
+the draw. No schema seam: refusals are not persisted, and V3's
+fences keep the persisted RoleSeg/RimSupport vocabulary and the
+fillet3_* predicate names untouched. Brief = the ratified
+`docs/BLEND-VOCAB-DESIGN.md` V1-V4 with the three settled choices,
++ the G16 `// #917` marker discharge at `OpGroup::Fillet`, +
+`docs/prompts/implementer-discipline.md` by path; the #1278 rule
+governs every shared recourse constant's re-measurement under both
+verbs.
