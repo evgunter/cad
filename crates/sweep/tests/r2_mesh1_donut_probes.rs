@@ -51,17 +51,26 @@ fn r2_the_donut_fan_is_a_structural_zero() {
     let o = probe_anchor(&t.body);
     let f0 = face_fan(&t.body, t.walls[0][0].unwrap(), o);
     let f1 = face_fan(&t.body, t.walls[0][1].unwrap(), o);
-    println!("local anchor {o:?}: wall0 fan {f0:e}, wall1 fan {f1:e}, sum {:e}", f0 + f1);
+    println!(
+        "local anchor {o:?}: wall0 fan {f0:e}, wall1 fan {f1:e}, sum {:e}",
+        f0 + f1
+    );
     // Mirror cancellation: the sum is zero at rounding scale of the
     // individual fans, and the local-anchor fans themselves are small.
     assert!((f0 + f1).abs() < 1e-12, "fans do not cancel: {:e}", f0 + f1);
     let total = signed_volume(&t.body);
     println!("signed_volume (local anchor): {total:e}");
-    assert!(total.abs() < 1e-12, "signed_volume not structural zero: {total:e}");
+    assert!(
+        total.abs() < 1e-12,
+        "signed_volume not structural zero: {total:e}"
+    );
     // The old spelling, replicated: origin anchor.
     let g0 = face_fan(&t.body, t.walls[0][0].unwrap(), Point3::origin());
     let g1 = face_fan(&t.body, t.walls[0][1].unwrap(), Point3::origin());
-    println!("origin anchor: wall0 {g0:e}, wall1 {g1:e}, sum {:e}", g0 + g1);
+    println!(
+        "origin anchor: wall0 {g0:e}, wall1 {g1:e}, sum {:e}",
+        g0 + g1
+    );
     assert!(
         (g0 + g1).abs() < 1e-13,
         "origin-anchored residue not rounding-scale: {:e}",
@@ -99,8 +108,14 @@ fn r2_the_lifted_oracle_is_sign_sensitive_and_lift_stable() {
     assert!(v > 0.0, "PR lifts not positive: {v}");
     assert!((v - 2.828).abs() < 0.01, "PR lifts magnitude moved: {v}");
     assert!(vs < 0.0, "swapped lifts not negative: {vs}");
-    assert!((v + vs).abs() < 1e-12, "swap is not an exact negation: {v} {vs}");
-    assert!(va > 0.0 && (va - v).abs() < 0.01, "alt lift disagrees: {va} vs {v}");
+    assert!(
+        (v + vs).abs() < 1e-12,
+        "swap is not an exact negation: {v} {vs}"
+    );
+    assert!(
+        va > 0.0 && (va - v).abs() < 0.01,
+        "alt lift disagrees: {va} vs {v}"
+    );
 }
 
 /// The comment's premise, executed: wall 0's probe points span
@@ -122,6 +137,9 @@ fn r2_the_walls_share_their_boundary() {
                 (a.min(y), b.max(y))
             });
         println!("wall {w}: probe y in [{min}, {max}]");
-        assert!(min >= lo - 1e-12 && max <= hi + 1e-12, "wall {w} y span [{min}, {max}]");
+        assert!(
+            min >= lo - 1e-12 && max <= hi + 1e-12,
+            "wall {w} y span [{min}, {max}]"
+        );
     }
 }

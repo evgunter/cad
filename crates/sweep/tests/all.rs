@@ -48,10 +48,10 @@ mod offd2_r1_probes;
 mod offd_r1_probes;
 #[path = "p1b_r1_probes.rs"]
 mod p1b_r1_probes;
-#[path = "r2_mesh1_donut_probes.rs"]
-mod r2_mesh1_donut_probes;
 #[path = "pcurve_p1b_r2_probes.rs"]
 mod pcurve_p1b_r2_probes;
+#[path = "r2_mesh1_donut_probes.rs"]
+mod r2_mesh1_donut_probes;
 #[path = "sf2a_r1.rs"]
 mod sf2a_r1;
 #[path = "sf2a_r1_head.rs"]

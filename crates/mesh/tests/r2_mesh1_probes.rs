@@ -62,7 +62,13 @@ fn band_cycle(r: f64, c: Point3<f64>, a0: f64, a1: f64, n: usize) -> Vec<Point3<
 }
 
 fn placed_band(d: f64) -> Vec<Point3<f64>> {
-    band_cycle(1.3e-3, Point3::new(1.3 * d, -2.7 * d, 0.9 * d), 0.37, 2.27, 8)
+    band_cycle(
+        1.3e-3,
+        Point3::new(1.3 * d, -2.7 * d, 0.9 * d),
+        0.37,
+        2.27,
+        8,
+    )
 }
 
 /// Chart-frame azimuth of an area vector, u_ref = +x, v_ref = +y
@@ -94,7 +100,10 @@ fn r2_the_drift_table_reproduces() {
             "local spelling over budget at {d:e}: {new_drift:e}"
         );
         if d == 1e6 {
-            assert!(old_drift > 3.0, "1e6 row not whole-radians red: {old_drift}");
+            assert!(
+                old_drift > 3.0,
+                "1e6 row not whole-radians red: {old_drift}"
+            );
         }
     }
 }
@@ -138,7 +147,10 @@ fn r2_ordinary_placements_agree_between_anchors() {
             // d = 1 a mm band's origin fold already carries ~7e-11
             // rad of anchor noise — measured — so a bit-agreement
             // budget is not the right assertion here.)
-            assert!(gap < 1e-6, "anchors disagree at ordinary placement: {gap:e}");
+            assert!(
+                gap < 1e-6,
+                "anchors disagree at ordinary placement: {gap:e}"
+            );
         }
     }
 }
