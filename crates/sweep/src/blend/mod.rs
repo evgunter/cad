@@ -67,8 +67,10 @@
 //!
 //! # Scope (OQ6, decided at #85)
 //!
-//! In: closed smooth chains, and open chains terminating in the
-//! three-convex-edge vertex whose corner patch is a sphere octant.
+//! In: closed smooth chains, and open chains terminating in a UNIFORM
+//! trihedron — three convex edges, whose corner patch is a sphere
+//! octant or a flat one; or three CONCAVE edges, which only the flat
+//! patch carves (the ball's is #644).
 //! Out, refused typed with the OQ6 payload vocabulary: every other
 //! corner CONFIGURATION ([`BlendError::UnsupportedCorner`],
 //! carrying a [`CornerConfig`] — the battery's classifier and the
@@ -204,9 +206,9 @@ pub enum BlendSite {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RunOutPolicy {
     /// The blend runs at full radius all the way to the vertex and a
-    /// corner patch fills the junction. The three-convex-edge case of
-    /// this policy — the sphere octant — is the ONE configuration that
-    /// ships.
+    /// corner patch fills the junction. What ships of this policy is
+    /// the UNIFORM trihedron: the sphere octant on the convex side,
+    /// and the chamfer's flat patch on either.
     ///
     /// It is the policy MOST out-of-scope corners name, but not all of
     /// them, and the exceptions are the interesting ones
