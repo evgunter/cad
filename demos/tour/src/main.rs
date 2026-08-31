@@ -702,8 +702,8 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
     }
 
     println!(
-        "\n-- the two-peg plate (M9-3: a declared CYLINDRICAL Rest, and the join \
-         demos/README.md said could not be built) --"
+        "\n-- the two-peg plate (a declared CYLINDRICAL Rest: plate ∪ pegs \
+         mated to plate ∖ bores) --"
     );
     for stop in twopeg::stops(tol) {
         visit(&stop);

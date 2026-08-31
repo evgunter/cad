@@ -7,10 +7,7 @@
 //! it; plate Q is the same plate with two through-bores on the same
 //! centres. Set Q down on P and the two parts touch on THREE declared
 //! contacts: the mating plane, and each peg's wall against its own
-//! bore's wall. One is planar; two are CYLINDRICAL, and until M9-3
-//! that second kind did not exist — a glued peg-in-hole was the join
-//! this tour said out loud it could not build (the "considered and
-//! NOT built" note in `demos/README.md`).
+//! bore's wall. One is planar; two are CYLINDRICAL.
 //!
 //! What the cell shows, at demo altitude:
 //!
