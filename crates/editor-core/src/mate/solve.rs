@@ -398,8 +398,14 @@ pub fn clusters<P>(doc: &Doc<P>) -> Vec<Vec<RecipeNodeId>> {
             )
             && ha.instance != hb.instance
         {
-            adjacency.entry(ha.instance).or_default().insert(hb.instance);
-            adjacency.entry(hb.instance).or_default().insert(ha.instance);
+            adjacency
+                .entry(ha.instance)
+                .or_default()
+                .insert(hb.instance);
+            adjacency
+                .entry(hb.instance)
+                .or_default()
+                .insert(ha.instance);
         }
     }
     components(&instances, &adjacency)

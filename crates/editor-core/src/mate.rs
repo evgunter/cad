@@ -11,8 +11,10 @@
 //! A mate is a **leaf**: its `a`/`b` are instance-qualified stable
 //! names, and name references are not DAG edges (the shipped D3
 //! carve-out, which `Declare` established). What A12 adds on top is
-//! the *reading* edge: the instantiate node each name's head resolves
-//! through, RECOMPUTED from the recipe at need
+//! the *reading* edge: the MEMBER instance each name's head resolves
+//! through — the instantiate node itself, or a pattern's input
+//! instance for an `Instance(i)`-qualified head (A11's member
+//! vocabulary) — RECOMPUTED from the recipe at need
 //! ([`reading_edges`]) and never stored beside it. The partitions
 //! divide on that distinction — A9's relative-freedom components and
 //! A11's placement clusters run over consuming ∪ reading edges, while
@@ -439,9 +441,12 @@ pub enum MateFault {
         /// What survived the fold.
         residual: Subgroup,
     },
-    /// A mate's name head does not resolve to a live instantiate node
-    /// (N5's dangling reference). It contributes no reading edge; the
-    /// solve refuses typed rather than pretending the mate is absent.
+    /// A mate's name head does not resolve to a live MEMBER — a live
+    /// instantiate node, or a pattern-placed instance (the `Pattern`
+    /// node with its `Instance(i)` qualifier at a derivable pose;
+    /// A11's member vocabulary) — N5's dangling reference. It
+    /// contributes no reading edge; the solve refuses typed rather
+    /// than pretending the mate is absent.
     DanglingHead {
         /// The mate.
         mate: RecipeNodeId,
@@ -516,8 +521,8 @@ impl core::fmt::Display for MateFault {
             ),
             Self::DanglingHead { mate, side, head } => write!(
                 f,
-                "mate {}'s {} reference resolves through node {}, which is not a live instance — \
-                 rebind it",
+                "mate {}'s {} reference resolves through node {}, which does not resolve to a \
+                 live member (an instance, or a pattern-placed instance) — rebind it",
                 mate.0,
                 side.name(),
                 head.0

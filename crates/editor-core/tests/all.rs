@@ -234,6 +234,8 @@ mod m9_1_schema_v11;
 mod m9_d1_r1_probes;
 #[path = "m9_d1_r2_probes.rs"]
 mod m9_d1_r2_probes;
+#[path = "mate1_member_vocab.rs"]
+mod mate1_member_vocab;
 #[path = "pirad_schema_v19.rs"]
 mod pirad_schema_v19;
 #[path = "placedunion_schema_v12.rs"]
