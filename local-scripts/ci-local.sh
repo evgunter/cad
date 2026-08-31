@@ -242,6 +242,7 @@ echo "=== change filter: tier=$TIER scope='$SCOPE' (--full forces tier 'all')"
 # HOSTED MIRROR: mirror / probe type-check loop citations
 # HOSTED MIRROR: mirror / CI half parity (both halves name the same checks)
 # HOSTED MIRROR: mirror / change filter selftest (the docs tier fails open)
+# HOSTED MIRROR: mirror / tess-budget cut-stamp selftest (the baseline's provenance)
 # HOSTED MIRROR: mirror / python lint (ruff, every tracked .py and .pyi)
 tier_blind_rows() {
   local rc=0
@@ -251,6 +252,7 @@ tier_blind_rows() {
   python3 scripts/check-ci-mirror-parity.py --selftest || rc=1
   python3 scripts/check-ci-mirror-parity.py || rc=1
   python3 scripts/ci-filter.py --selftest || rc=1
+  scripts/tess_budget_cut.sh --selftest || rc=1
   python3 scripts/check-python-lint.py --selftest || rc=1
   python3 scripts/check-python-lint.py || rc=1
   return $rc
