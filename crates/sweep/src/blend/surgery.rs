@@ -151,7 +151,7 @@ use topo::{
     SurfaceKey, VertexKey,
 };
 
-use super::admit::{ConvexOpen, CornerFaces, CornerLinks, RequestedBoundary};
+use super::admit::{AdmittedOpen, CornerFaces, CornerLinks, RequestedBoundary};
 use super::arms::{EdgeBlend, chamfer_corner_patch, corner_ball, line_meet};
 use super::battery::{BatteryVerdict, Chain, ChainClosure, Convexity, Link};
 use super::build::{Blended, face_cycle, outward_of};
@@ -401,13 +401,13 @@ pub(super) fn blend_surgery<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     let kind = verdict.kind;
 
     // ---- Classify the verdict's chains (structural only). The open
-    // chains go through the door as [`ConvexOpen`], which IS the
+    // chains go through the door as [`AdmittedOpen`], which IS the
     // three-clause admission below. ----
-    let mut opens: Vec<ConvexOpen<'_, T>> = Vec::new();
+    let mut opens: Vec<AdmittedOpen<'_, T>> = Vec::new();
     let mut rims: Vec<RimPlan<'_, T>> = Vec::new();
     for chain in &verdict.chains {
         match chain.closure {
-            ChainClosure::Open { .. } => opens.push(ConvexOpen::admit(chain)?),
+            ChainClosure::Open { .. } => opens.push(AdmittedOpen::admit(chain, kind)?),
             // The band replacement is the rolling ball's torus over a
             // closed rim, whatever kinds its two supports are. A chamfer has no closed-chain band at
             // all — its one arm is plane–plane, whose closed chains
@@ -426,7 +426,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
             },
         }
     }
-    opens.sort_by_key(ConvexOpen::edge);
+    opens.sort_by_key(AdmittedOpen::edge);
     rims.sort_by_key(|r| r.chain.first().edge);
     shared_support_gate(&rims)?;
 
@@ -1731,7 +1731,7 @@ pub fn ring_clearance<T: Decide + Bounds>(
 /// margin, in closed form.
 fn ring_clearance_pass<T: Decide + Bounds>(
     body: &Body<T>,
-    opens: &[ConvexOpen<'_, T>],
+    opens: &[AdmittedOpen<'_, T>],
     rims: &[RimPlan<'_, T>],
     band: Band,
 ) -> Result<(), BlendError> {
@@ -1940,7 +1940,7 @@ type Described<T> = Vec<(EdgeKey, ContactCarrier<T>)>;
 #[allow(clippy::type_complexity)]
 fn blank_phase<T: Decide + Bounds>(
     body: &mut Body<T>,
-    opens: &[ConvexOpen<'_, T>],
+    opens: &[AdmittedOpen<'_, T>],
     corners: &[Corner<'_, T>],
     supports: &[RequestedBoundary<T>],
     rec: &mut BlendNaming,
@@ -3477,7 +3477,7 @@ mod tests {
 
     use super::super::battery::{Chain, ChainClosure, Convexity, Link};
     use super::super::build::fillet_edges;
-    use super::{BlendError, BlendKind, ConvexOpen, CornerLinks, corner_plan, rim_trim_circles};
+    use super::{AdmittedOpen, BlendError, BlendKind, CornerLinks, corner_plan, rim_trim_circles};
     use crate::blend::arms::plane_sphere_blend;
     use crate::test_support::{L, R, all_links, cube};
 
@@ -3581,24 +3581,29 @@ mod tests {
     }
 
     /// **The surgery corner takes its links' orientation bit too**, and
-    /// the concave case never reaches the derivation at all: the door
-    /// refuses it.
+    /// the concave case reaches the derivation for ONE of the two verbs:
+    /// the open-chain door admits it under a ruled strip and refuses it
+    /// under a rolling ball.
     ///
     /// **The concave half of this probe is not a body.** The fixture
     /// FALSIFIES the battery's stored verdict on a cube whose geometry
     /// is untouched — a lie about a convex body, not a concave one.
-    /// What it pins is where that lie is caught: at
-    /// [`ConvexOpen::admit`], so `corner_plan` below cannot be handed
-    /// one and has no convexity refusal left to make.
+    /// What it pins is the DOOR's own answer to that verdict, per verb,
+    /// which is a question about [`AdmittedOpen::admit`] and not about
+    /// the cube. A real concave body carved end to end is the vented
+    /// cavity of the concave-chamfer suite.
     #[test]
     fn a_corner_plan_takes_its_links_convexity() {
         let body = cube(L, Tol::witness());
         let links = all_links(&body, Tol::witness());
         let v = links[0].start;
         let chains: Vec<Chain<f64>> = links.iter().cloned().map(open_chain).collect();
-        let admitted: Vec<ConvexOpen<'_, f64>> = chains
+        let admitted: Vec<AdmittedOpen<'_, f64>> = chains
             .iter()
-            .map(|c| ConvexOpen::admit(c).expect("a cube's links are convex plane–plane"))
+            .map(|c| {
+                AdmittedOpen::admit(c, BlendKind::Fillet)
+                    .expect("a cube's links are convex plane–plane")
+            })
             .collect();
         let mut here = admitted.iter().filter(|o| {
             let l = o.link();
@@ -3618,12 +3623,18 @@ mod tests {
         let mut concave = links[0].clone();
         concave.convexity = Convexity::Concave;
         let chain = open_chain(concave);
-        let Err(err) = ConvexOpen::admit(&chain) else {
-            panic!("a concave chain must be refused at the door, not planned")
+        let Err(err) = AdmittedOpen::admit(&chain, BlendKind::Fillet) else {
+            panic!("a concave chain must be refused at the rolling ball's door, not planned")
         };
         assert!(
             matches!(err, BlendError::UnsupportedChain { .. }),
             "expected the open-chain door's typed refusal, got {err}"
+        );
+        let strip = AdmittedOpen::admit(&chain, BlendKind::Chamfer)
+            .expect("a ruled strip's door admits either convexity");
+        assert!(
+            matches!(strip.convexity(), Convexity::Concave),
+            "the token carries the verdict it was admitted with, not a convex one"
         );
     }
 }
