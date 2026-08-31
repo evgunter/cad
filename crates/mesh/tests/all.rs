@@ -50,6 +50,8 @@ mod fitted_refusals;
 mod genus;
 #[path = "issue111_az_needle.rs"]
 mod issue111_az_needle;
+#[path = "issue303_signed_volume_recentring.rs"]
+mod issue303_signed_volume_recentring;
 #[path = "m5_pr11_trimmed.rs"]
 mod m5_pr11_trimmed;
 #[path = "m5_s10_face_sense.rs"]
