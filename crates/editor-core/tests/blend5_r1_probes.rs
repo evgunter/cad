@@ -114,7 +114,7 @@ fn the_ladder_rim_phase_already_reached_the_emitter_from_the_corpus() {
     assert!(
         band_trims(&ev) > 0,
         "die_composed drives the rim phase through emit_fillet, so the rim-phase \
-         channels did not first reach the emitter from blend5_rim_support.rs"
+         channels did not first reach the emitter from the blend5_rim_support suite"
     );
 }
 
