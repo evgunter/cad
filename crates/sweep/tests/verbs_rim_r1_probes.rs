@@ -285,7 +285,7 @@ fn the_554_pair_decides_its_dihedral_at_any_neck_radius() {
                 "a cone×cylinder corner exists at a = {a}; {}",
                 fuzz::replay()
             );
-            let v = fillet_edges(&body, &rims[..1], 0.05 * a, band(), tol());
+            let v = fillet_edges(&body, &rims[..1], 0.05 * a, band(), tol()).map_err(|r| r.error);
             assert!(
                 !matches!(v, Err(FilletError::TangentialEdge { .. })),
                 "neck {a}, closed = {closed}: a transverse corner is not a tangency, \
@@ -327,7 +327,7 @@ fn a_co_surface_seam_still_refuses_tangential_at_exactly_zero_margin() {
             matches!(a, Surface::Sphere { .. }) && matches!(b, Surface::Sphere { .. })
         });
         assert!(!seams.is_empty(), "a full ball carries a seam meridian");
-        match fillet_edges(&ball, &seams[..1], 0.05 * r, band(), tol()) {
+        match fillet_edges(&ball, &seams[..1], 0.05 * r, band(), tol()).map_err(|r| r.error) {
             Err(FilletError::TangentialEdge { margin, .. }) => {
                 assert_eq!(
                     margin,
@@ -431,7 +431,7 @@ fn a_near_full_period_open_arc_decides_its_sign_at_the_honest_lever() {
         chord < 0.01 * a,
         "the fixture must be in the collapsing regime (endpoint chord {chord})"
     );
-    let v = fillet_edges(&body, &corner[..1], 0.05, band(), tol());
+    let v = fillet_edges(&body, &corner[..1], 0.05, band(), tol()).map_err(|r| r.error);
     assert!(
         !matches!(v, Err(FilletError::TangentialEdge { .. })),
         "the dihedral must decide at the honest lever, not starve: {v:?}"

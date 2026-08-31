@@ -148,7 +148,7 @@ fn a_subset_of_the_edges_refuses_at_the_assembly_front_door() {
     let err = fillet_edges(&body, &edges[..1], 0.15, band(), Tol::witness())
         .expect_err("one edge of a box leaves its corners partly requested");
     assert!(
-        matches!(err, FilletError::UnsupportedRunOut { .. }),
+        matches!(err.error, FilletError::UnsupportedRunOut { .. }),
         "expected the assembly front-door refusal, got {err}",
     );
     assert!(

@@ -3499,7 +3499,7 @@ mod tests {
             .expect_err("a two-solid body is outside the in-place surgery's door");
         assert!(
             matches!(
-                err,
+                err.error,
                 FilletError::UnsupportedBody {
                     solids: 2,
                     shells: 2

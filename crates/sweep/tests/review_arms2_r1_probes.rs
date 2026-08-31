@@ -323,7 +323,7 @@ fn a_sphere_sphere_waist_reaches_its_arm_and_refuses_as_a_concave_chain() {
     assert_eq!(sphere_centres.len(), 2, "two sphere walls");
     assert!((sphere_centres[0]).abs() < 1e-12 && (sphere_centres[1] - 1.2).abs() < 1e-12);
     let waist = closed_rim_at(&source, 0.8, 0.6);
-    match fillet_edges(&source, &[waist], 0.05, band(), tol()) {
+    match fillet_edges(&source, &[waist], 0.05, band(), tol()).map_err(|r| r.error) {
         Err(FilletError::UnsupportedChain { detail, .. }) => {
             assert!(
                 detail.contains("concave"),

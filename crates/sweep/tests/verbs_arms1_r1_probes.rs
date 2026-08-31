@@ -367,14 +367,14 @@ fn near_limit_radii_refuse_typed() {
     // typed refusal.
     let body = bored_dome();
     let rim = rim_at(&body, 0.0);
-    match fillet_edges(&body, &[rim], 0.45, band(), tol()) {
+    match fillet_edges(&body, &[rim], 0.45, band(), tol()).map_err(|r| r.error) {
         Err(FilletError::SpineIrregular { .. } | FilletError::FaceClearanceUncertified { .. }) => {}
         other => panic!("s < r must refuse typed, got {other:?}"),
     }
     // r = 0.51 > (R − depth)/2: no spine circle exists; the poisoned
     // margin escalates (or refuses through an earlier predicate) —
     // loudly either way.
-    match fillet_edges(&body, &[rim], 0.51, band(), tol()) {
+    match fillet_edges(&body, &[rim], 0.51, band(), tol()).map_err(|r| r.error) {
         Err(
             FilletError::Escalated { .. }
             | FilletError::SpineIrregular { .. }
@@ -386,7 +386,7 @@ fn near_limit_radii_refuse_typed() {
     // setback (≈ 0.29) exceeds the ≈ 0.24 gap to the bore rim.
     let narrow = zone(1.7, Revolution::Full);
     let bottom = rim_at(&narrow, -0.5);
-    match fillet_edges(&narrow, &[bottom], 0.35, band(), tol()) {
+    match fillet_edges(&narrow, &[bottom], 0.35, band(), tol()).map_err(|r| r.error) {
         Err(FilletError::FaceClearanceUncertified { .. }) => {}
         other => panic!("a trim circle at the bore must refuse clearance, got {other:?}"),
     }
@@ -425,7 +425,7 @@ fn the_partial_zone_refuses_through_its_own_gates() {
             ps(&a, &b) || ps(&b, &a)
         })
         .expect("an open plane–sphere arc");
-    match fillet_edges(&body, &[open_arc], 0.08, band(), tol()) {
+    match fillet_edges(&body, &[open_arc], 0.08, band(), tol()).map_err(|r| r.error) {
         Err(FilletError::UnsupportedChain { .. } | FilletError::FilletCornerUnsupported { .. }) => {
         }
         other => panic!("the open arc refuses through its own gates, got {other:?}"),

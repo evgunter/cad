@@ -429,7 +429,7 @@ fn a_nonpositive_setback_refuses_as_invalid_input() {
         let err = chamfer_edges(&pad, &edges, d, band(), Tol::witness())
             .expect_err("a nonpositive setback must not mint a body");
         assert!(
-            matches!(err, FilletError::NonpositiveSize { .. }),
+            matches!(err.error, FilletError::NonpositiveSize { .. }),
             "a nonpositive setback names the request, not the corner, at d = {d}: {err:?}"
         );
         let text = format!("{err}");
@@ -487,7 +487,7 @@ fn the_brackets_best_convex_request_still_refuses_typed() {
     let err = chamfer_edges(&bracket, &edges, 0.05, band(), Tol::witness())
         .expect_err("a corner with an unrequested edge cannot be patched");
     assert!(
-        matches!(err, FilletError::ChainNotG1 { .. }),
+        matches!(err.error, FilletError::ChainNotG1 { .. }),
         "today's decided answer is the chain-G1 kink at the omitted edge's ends \
          (see the row doc for why that framing is itself a finding): {err:?}"
     );

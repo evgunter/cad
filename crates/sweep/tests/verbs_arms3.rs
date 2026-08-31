@@ -321,7 +321,7 @@ fn the_seam_vertex_is_two_co_surface_seams_crossing_one_smooth_rim() {
     // The dihedral along a co-surface seam is zero, and the kernel says
     // so on its own metered predicate.
     for seam in seams {
-        match fillet_edges(&body, &[seam], 0.02, band(), tol()) {
+        match fillet_edges(&body, &[seam], 0.02, band(), tol()).map_err(|r| r.error) {
             Err(FilletError::TangentialEdge { margin, .. }) => assert!(
                 margin == 0.0,
                 "a co-surface seam's dihedral is exactly zero, got {margin}"
@@ -339,7 +339,7 @@ fn the_seam_vertex_is_two_co_surface_seams_crossing_one_smooth_rim() {
 fn a_chain_stopping_at_a_seam_vertex_refuses_seam_vertex() {
     let body = lantern();
     let (arcs, _) = mouth(&body);
-    match fillet_edges(&body, &arcs[..1], 0.02, band(), tol()) {
+    match fillet_edges(&body, &arcs[..1], 0.02, band(), tol()).map_err(|r| r.error) {
         Err(
             e @ FilletError::FilletCornerUnsupported {
                 corner: CornerConfig::SeamVertex,

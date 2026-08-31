@@ -121,6 +121,39 @@ impl fmt::Display for BlendKind {
     }
 }
 
+/// **The refusal an edge-blend door returns**: the verb the caller
+/// asked for, attached ONCE where the request entered, around the
+/// shared error both verbs refuse through.
+///
+/// The two doors share one error vocabulary by design (the
+/// near-parallel-enum failure class is what the reuse avoids), so the
+/// inner [`FilletError`]'s prose is verb-neutral and the door is the
+/// one place that knows the verb. This is the kernel-direct twin of
+/// the recipe layer's `Blend { verb, error }` wrapper: one
+/// discrimination point per layer, never a verb field threaded
+/// through twenty variants and never a per-verb enum.
+///
+/// A consumer that re-renders the inner error under its own verb
+/// wording (as the recipe layer does) reads [`BlendRefusal::verb`]
+/// rather than re-deriving which door it called; the inner error
+/// itself never names a verb, so no composition renders the verb
+/// twice.
+#[derive(Clone, Debug)]
+pub struct BlendRefusal {
+    /// Which verb the refusing door is.
+    pub verb: BlendKind,
+    /// The shared refusal, in verb-neutral prose.
+    pub error: FilletError,
+}
+
+impl fmt::Display for BlendRefusal {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}: {}", self.verb, self.error)
+    }
+}
+
+impl core::error::Error for BlendRefusal {}
+
 /// The one classification funnel of this module (the crate pattern):
 /// delegates to [`geom_core::k_stats::decide`], which names the
 /// predicate for the margin-telemetry recorder, classifies through
@@ -290,12 +323,19 @@ impl fmt::Display for CornerConfig {
 /// The recourse sentence for every radius/curvature situation (D4 ¶1
 /// addendum: one recourse per user situation, shared by the definite
 /// and escalated arms so the text can never drift apart).
+///
+/// Ball language kept deliberately: curvature headroom is a
+/// rolling-ball fact, metered on no chamfer run
+/// ([`battery::run_battery_for`] gates the predicate on the kind), so
+/// only a fillet caller ever reads this sentence.
 pub const FILLET3_RADIUS_RECOURSE: &str =
     "reduce the fillet radius, or blend a support with more curvature headroom";
 /// The recourse for a support face whose survival the clearance screen
-/// cannot certify.
+/// cannot certify. Both verbs meter clearance (each on its own
+/// setbacks), so the sentence names the blend size, which is the
+/// fillet's radius or the chamfer's setback.
 pub const FILLET3_CLEARANCE_RECOURSE: &str =
-    "reduce the fillet radius, or enlarge the support face whose clearance is uncertified";
+    "reduce the blend size, or enlarge the support face whose clearance is uncertified";
 /// The clearance recourse when the two uncertified setbacks belong to
 /// two DIFFERENT requested chains — the request is then splittable:
 /// the screen meters both setbacks against the SOURCE face at once,
@@ -303,15 +343,19 @@ pub const FILLET3_CLEARANCE_RECOURSE: &str =
 /// previous carve actually left, which is exact where the one-call
 /// screen is conservative (and refuses with its own exact reason where
 /// the geometry really collides).
-pub const FILLET3_CLEARANCE_SPLIT_RECOURSE: &str = "reduce the fillet radius, enlarge the shared support face, or split the request: \
+pub const FILLET3_CLEARANCE_SPLIT_RECOURSE: &str = "reduce the blend size, enlarge the shared support face, or split the request: \
      the two setbacks belong to two different chains, and SEQUENTIAL calls (the second \
      on the first's result) meter each chain against the face the previous carve \
      actually left";
 /// The recourse for an edge whose dihedral sign decided Zero — no
-/// definite wedge side at the metered lever, at any radius.
+/// definite wedge side at the metered lever, at any size. Both verbs
+/// meter the dihedral (the strip needs a wedge to sit in exactly as
+/// the ball does), so the sentence speaks of the blend, not the ball.
 pub const FILLET3_TANGENTIAL_RECOURSE: &str = "blend an edge whose supports meet at a definite angle; a dihedral with no definite \
-     wedge side gives a rolling ball no side to sit in, at any radius";
+     wedge side gives the blend no side to sit in, at any size";
 /// The recourse for a spine the rolling ball's own envelope folds on.
+/// Ball language kept deliberately: spine regularity is a rolling-ball
+/// fact, metered on no chamfer run.
 pub const FILLET3_SPINE_RECOURSE: &str =
     "reduce the fillet radius below the spine's own curvature radius";
 /// The recourse for a chain that is not G1 (closed) / not classified
@@ -322,10 +366,12 @@ pub const FILLET3_CHAIN_RECOURSE: &str = "supply a connected, tangent-continuous
      again as a run-out — request every edge of the corner instead";
 /// The recourse for a convexity sign flip along a chain.
 pub const FILLET3_CONVEXITY_RECOURSE: &str =
-    "split the chain at the convexity flip and fillet each run separately";
-/// The recourse for a corner the octant patch does not cover — it
-/// names the run-out front door that does not exist yet.
-pub const FILLET3_CORNER_RECOURSE: &str = "fillet a chain that terminates in a three-convex-edge vertex; general run-outs \
+    "split the chain at the convexity flip and blend each run separately";
+/// The recourse for a corner the corner patch does not cover — it
+/// names the run-out front door that does not exist yet. Both verbs
+/// build the same fully-requested trivalent corner (octant or flat
+/// patch), so the door named is true of either.
+pub const FILLET3_CORNER_RECOURSE: &str = "blend a chain that terminates in a three-convex-edge vertex; general run-outs \
      are not implemented";
 /// The recourse for a chain that stops at a CHART SEAM on an otherwise
 /// smooth rim.
@@ -358,36 +404,44 @@ pub const FILLET3_CORNER_RECOURSE: &str = "fillet a chain that terminates in a t
 /// and concave, so neither half can drift alone.
 pub const FILLET3_SEAM_VERTEX_RECOURSE: &str = "request the rim whole — every arc the chart seam split it into — rather than a \
      chain that stops at the seam, which is a chart artifact the surface is smooth \
-     through; where that rim is CONVEX the closed-rim band carves it as one annulus, \
-     and where it is concave the whole-rim request meets the material-side refusal \
-     instead (a concave band adds material, which no closed-rim carve builds)";
+     through; where that rim is CONVEX the fillet's closed-rim band carves it as one \
+     annulus (a chamfer has no closed-chain band), and where it is concave the \
+     whole-rim request meets the material-side refusal instead (a concave band adds \
+     material, which no closed-rim carve builds)";
 /// The recourse for a CHAIN whose shape is outside the front door of
 /// the in-place composition surgery. True of exactly the chain-shape
 /// refusals: what remains outside is junction carry-through, concave
 /// (material-adding) blends, and rims that are not whole circular
-/// plane\u{2013}sphere rings.
-pub const FILLET3_ASSEMBLY_RECOURSE: &str = "fillet a set of edges whose open chains are single convex plane\u{2013}plane links \
-     ending at fully-requested trivalent corners and whose closed chains are \
-     circular plane\u{2013}sphere rims; junction carry-through, run-outs and concave \
-     blends are not implemented";
+/// plane\u{2013}sphere rings. The closed-chain clause is conditioned
+/// by verb because the door it names is the fillet's alone — a
+/// chamfer has no closed-chain band, and telling a chamfer caller to
+/// request a plane\u{2013}sphere rim would name a door that cannot
+/// serve them.
+pub const FILLET3_ASSEMBLY_RECOURSE: &str = "blend a set of edges whose open chains are single convex plane\u{2013}plane links \
+     ending at fully-requested trivalent corners — for a fillet, closed chains that \
+     are circular plane\u{2013}sphere rims also carve (a chamfer has no closed-chain \
+     band); junction carry-through, run-outs and concave blends are not implemented";
 /// The recourse for a BODY the surgery has not been built for. The
 /// surgery operates in place on one solid; multi-solid and shell-less
 /// bodies are a separate door.
-pub const FILLET3_BODY_RECOURSE: &str = "fillet a body that is a single solid with a single shell; filleting across \
+pub const FILLET3_BODY_RECOURSE: &str = "blend a body that is a single solid with a single shell; blending across \
      several solids at once is not implemented";
 /// The recourse for a stored geometry the surgery's closed forms do
 /// not cover. Everything this unit decides is exact and stored — never
 /// sampled — so a carrier outside the covered shapes refuses rather
 /// than approximating.
-pub const FILLET3_GEOMETRY_RECOURSE: &str = "fillet edges whose supports are planes (and, for a rim, a sphere cap) and whose \
-     stored carriers are lines and circles; the surgery's exact forms cover no other \
-     stored shape, and approximating one is not implemented";
+pub const FILLET3_GEOMETRY_RECOURSE: &str = "blend edges whose supports are planes (for a fillet's rim, also a sphere cap) and \
+     whose stored carriers are lines and circles; the surgery's exact forms cover no \
+     other stored shape, and approximating one is not implemented";
 /// The recourse for a ring the blend's trimline would consume (the
 /// surgery's ring carry-through check).
 pub const FILLET3_RING_RECOURSE: &str =
-    "reduce the fillet radius, or move the feature whose ring sits inside the blend's setback";
+    "reduce the blend size, or move the feature whose ring sits inside the blend's setback";
 /// The recourse for a support pair outside the analytic-arm table —
-/// it names the banked unit.
+/// it names the banked unit. Only a fillet caller reads it: the
+/// chamfer's arm table is its own early return
+/// ([`FilletError::ChamferArmUnsupported`]), taken before any
+/// analytic-arm classification.
 pub const FILLET3_SPINE_KIND_RECOURSE: &str = "use a chain whose support pairs have analytic blend arms (plane–plane or \
      plane–sphere); other pairs need the canal-surface approximating blend, which is \
      not implemented";
@@ -399,7 +453,9 @@ pub const FILLET3_SPINE_KIND_RECOURSE: &str = "use a chain whose support pairs h
 pub const CHAMFER_ARM_RECOURSE: &str = "chamfer edges whose two supports are both planes; the chamfer over a curved \
      support is not implemented";
 
-/// A fillet refusal. Closed enum, D3 style. Every variant is one of
+/// The shared edge-blend refusal — both verbs' one error vocabulary,
+/// rendered verb-neutral (the door's [`BlendRefusal`] carries the
+/// verb). Closed enum, D3 style. Every variant is one of
 /// three things, and the D2 addendum row it belongs to is stated on
 /// it: a battery verdict (refused BEFORE construction — the whole
 /// point), a frontier naming a front door that does not exist yet
@@ -713,13 +769,22 @@ impl From<BandError> for FilletError {
     }
 }
 
+/// **Verb-neutral by contract.** No arm here names a verb: the door
+/// that raised the refusal attaches it once ([`BlendRefusal`]), and a
+/// consumer that renders this error under its own verb wording (the
+/// recipe layer) composes it after a verb of its own. An arm that
+/// wrote "fillet" here would render the verb twice on one path and
+/// the WRONG verb on the other. Ball facts are the exception that
+/// proves the rule: an arm only a fillet run can mint (the rolling
+/// ball's headroom and spine) speaks of the ball, because the ball is
+/// the fact, not the verb.
 impl fmt::Display for FilletError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Band(e) => write!(f, "fillet: {e}"),
+            Self::Band(e) => write!(f, "{e}"),
             Self::ChainNotConnected { edge } => write!(
                 f,
-                "fillet chain: the edge sequence is not a connected path at {edge:?} — \
+                "the edge sequence is not a connected path at {edge:?} — \
                  {FILLET3_CHAIN_RECOURSE}"
             ),
             Self::RadiusHeadroom {
@@ -728,7 +793,7 @@ impl fmt::Display for FilletError {
                 radius,
             } => write!(
                 f,
-                "fillet: radius {radius} m exceeds the curvature headroom of support \
+                "radius {radius} m exceeds the curvature headroom of support \
                  {face:?} — margin {margin} m at lever arm {radius} m; \
                  {FILLET3_RADIUS_RECOURSE}"
             ),
@@ -745,7 +810,7 @@ impl fmt::Display for FilletError {
                 };
                 write!(
                     f,
-                    "fillet: the clearance screen cannot certify that support face {face:?} \
+                    "the clearance screen cannot certify that support face {face:?} \
                      survives — two of its boundary features are {gap} m apart and their \
                      blends set back further than that, margin {margin} m. The screen is \
                      conservative by direction and does not assert the face IS consumed; \
@@ -754,13 +819,13 @@ impl fmt::Display for FilletError {
             }
             Self::TangentialEdge { edge, margin } => write!(
                 f,
-                "fillet: edge {edge:?}'s dihedral has no definite wedge side — its sign \
+                "edge {edge:?}'s dihedral has no definite wedge side — its sign \
                  decided Zero at the metered lever (margin {margin} m), as a tangential \
                  join does; {FILLET3_TANGENTIAL_RECOURSE}"
             ),
             Self::SpineIrregular { margin, radius } => write!(
                 f,
-                "fillet: the rolling-ball spine folds at radius {radius} m — margin \
+                "the rolling-ball spine folds at radius {radius} m — margin \
                  {margin} m at lever arm {radius} m; {FILLET3_SPINE_RECOURSE}"
             ),
             Self::ChainNotG1 {
@@ -769,7 +834,7 @@ impl fmt::Display for FilletError {
                 arm,
             } => write!(
                 f,
-                "fillet chain: the links at {vertex:?} are not tangent-continuous — \
+                "the chain's links at {vertex:?} are not tangent-continuous — \
                  margin {margin} m at lever arm {arm} m; {FILLET3_CHAIN_RECOURSE}"
             ),
             Self::ConvexitySignFlip {
@@ -778,7 +843,7 @@ impl fmt::Display for FilletError {
                 chain,
             } => write!(
                 f,
-                "fillet chain: edge {edge:?} is not {chain} like the rest of the chain \
+                "edge {edge:?} is not {chain} like the rest of the chain \
                  — margin {margin} m; {FILLET3_CONVEXITY_RECOURSE}"
             ),
             Self::FilletCornerUnsupported { vertex, corner, .. } => {
@@ -790,20 +855,20 @@ impl fmt::Display for FilletError {
                 match corner.policy() {
                     Some(policy) => write!(
                         f,
-                        "fillet corner: {vertex:?} is {corner}, which only a run-out policy \
+                        "the corner at {vertex:?} is {corner}, which only a run-out policy \
                          would handle ({policy}) — {recourse}"
                     ),
-                    None => write!(f, "fillet corner: {vertex:?} is {corner} — {recourse}"),
+                    None => write!(f, "the corner at {vertex:?} is {corner} — {recourse}"),
                 }
             }
             Self::SpineUnsupported { edge, supports } => write!(
                 f,
-                "fillet: the {supports} support pair at edge {edge:?} has no analytic \
+                "the {supports} support pair at edge {edge:?} has no analytic \
                  blend arm — {FILLET3_SPINE_KIND_RECOURSE}"
             ),
             Self::ChamferArmUnsupported { edge, supports } => write!(
                 f,
-                "chamfer: the {supports} support pair at edge {edge:?} has no ruled \
+                "the {supports} support pair at edge {edge:?} has no ruled \
                  strip — {CHAMFER_ARM_RECOURSE}"
             ),
             Self::Escalated { site, source } => {
@@ -823,22 +888,22 @@ impl fmt::Display for FilletError {
                     other => {
                         return write!(
                             f,
-                            "fillet at {site:?}: {source} — no recourse is recorded for \
+                            "escalated at {site:?}: {source} — no recourse is recorded for \
                              predicate {other:?}; this is a gap in the error table, not \
                              advice to act on"
                         );
                     }
                 };
-                write!(f, "fillet at {site:?}: {source} — {recourse}")
+                write!(f, "escalated at {site:?}: {source} — {recourse}")
             }
             Self::RepeatedEdge { edge } => write!(
                 f,
-                "fillet: the request repeats edge {edge:?} — request each edge once; a \
+                "the request repeats edge {edge:?} — request each edge once; a \
                  repeated edge would double a link in the chain walk"
             ),
             Self::NonpositiveSize { size } => write!(
                 f,
-                "edge blend: the band size {size} m is not definitely positive — supply a \
+                "the band size {size} m is not definitely positive — supply a \
                  positive radius or setback. A nonpositive size has no band to build, and \
                  it also levers the corner and clearance margins that quote it, so it is \
                  refused as the invalid input it is rather than reported as a fact about \
@@ -846,38 +911,36 @@ impl fmt::Display for FilletError {
             ),
             Self::UnsupportedBody { solids, shells } => write!(
                 f,
-                "fillet assembly: the body is {solids} solid(s) and {shells} shell(s), not a \
+                "the body is {solids} solid(s) and {shells} shell(s), not a \
                  single solid with a single shell — {FILLET3_BODY_RECOURSE}"
             ),
             Self::UnsupportedChain { edge, detail } => write!(
                 f,
-                "fillet assembly: {detail} (chain at edge {edge:?}) — \
+                "{detail} (chain at edge {edge:?}) — \
                  {FILLET3_ASSEMBLY_RECOURSE}"
             ),
-            Self::UnsupportedRunOut { at, detail } => write!(
-                f,
-                "fillet assembly: {detail} (at {at}) — {FILLET3_CORNER_RECOURSE}"
-            ),
-            Self::UnsupportedGeometry { at, detail } => write!(
-                f,
-                "fillet assembly: {detail} (at {at}) — {FILLET3_GEOMETRY_RECOURSE}"
-            ),
+            Self::UnsupportedRunOut { at, detail } => {
+                write!(f, "{detail} (at {at}) — {FILLET3_CORNER_RECOURSE}")
+            }
+            Self::UnsupportedGeometry { at, detail } => {
+                write!(f, "{detail} (at {at}) — {FILLET3_GEOMETRY_RECOURSE}")
+            }
             Self::BodyNotIntact { at, detail } => write!(
                 f,
-                "fillet surgery: {detail} — {at} did not resolve. The body handed to the \
-                 surgery does not hold together there; this is invalid input, not a fillet \
-                 frontier, and no fillet recourse applies"
+                "{detail} — {at} did not resolve. The body handed to the \
+                 surgery does not hold together there; this is invalid input, not a blend \
+                 frontier, and no recourse applies"
             ),
             Self::RingClearance { face, margin } => write!(
                 f,
-                "fillet surgery: a ring of support face {face:?} sits within a blend's \
+                "a ring of support face {face:?} sits within a blend's \
                  trimline — margin {margin} m; {FILLET3_RING_RECOURSE}"
             ),
             Self::Certify { site, source } => {
-                write!(f, "fillet: {site} — {source}")
+                write!(f, "{site} — {source}")
             }
             Self::Op { site, source } => {
-                write!(f, "fillet: assembly refused at {site} — {source}")
+                write!(f, "assembly refused at {site} — {source}")
             }
         }
     }

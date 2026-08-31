@@ -527,7 +527,7 @@ fn p7_dev1_radius_sweep_margin_is_structurally_zero() {
     for r in [1e-4, 5e-3, RIM_R, 0.05, DIE_R] {
         let err = fillet_edges(&pipped, &every, r, band(), Tol::witness())
             .expect_err("every-edge on a pipped body must refuse");
-        match err {
+        match err.error {
             sweep::fillet::FilletError::TangentialEdge { margin, .. } => {
                 assert!(
                     margin == 0.0,
@@ -551,7 +551,7 @@ fn p8_duplicate_edge_refuses() {
     // The refusal names the repeated key, not just the situation: the
     // caller can act on it without re-deriving which edge doubled.
     assert!(
-        matches!(err, sweep::fillet::FilletError::RepeatedEdge { edge } if edge == box_edges[0]),
+        matches!(err.error, sweep::fillet::FilletError::RepeatedEdge { edge } if edge == box_edges[0]),
         "{err}"
     );
 }

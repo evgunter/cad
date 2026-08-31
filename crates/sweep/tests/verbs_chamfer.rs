@@ -243,7 +243,7 @@ fn one_edge_of_a_cube_refuses_as_a_run_out() {
     let err = chamfer_edges(&body, &edges[..1], D, band(), Tol::witness())
         .expect_err("a partially-requested corner is a run-out");
     assert!(
-        matches!(err, FilletError::UnsupportedRunOut { .. }),
+        matches!(err.error, FilletError::UnsupportedRunOut { .. }),
         "the request's coverage is what ran out: {err:?}"
     );
     let text = format!("{err}");
@@ -264,7 +264,7 @@ fn a_curved_support_refuses_with_the_chamfers_own_sentence() {
     let err = chamfer_edges(&cyl, &edges, D, band(), Tol::witness())
         .expect_err("a plane–cylinder rim has no ruled strip");
     assert!(
-        matches!(err, FilletError::ChamferArmUnsupported { .. }),
+        matches!(err.error, FilletError::ChamferArmUnsupported { .. }),
         "the arm table is what refused: {err:?}"
     );
     let text = format!("{err}");
@@ -288,7 +288,7 @@ fn an_l_brackets_inner_edge_refuses_on_its_corner_configuration() {
     let inner = concave_edge(&bracket);
     let err = chamfer_edges(&bracket, &[inner], D, band(), Tol::witness())
         .expect_err("v1 does not chamfer a concave edge");
-    match err {
+    match err.error {
         FilletError::FilletCornerUnsupported {
             corner: CornerConfig::MixedConvexity { convex },
             policy,

@@ -444,7 +444,7 @@ fn the_partial_revolve_of_the_bud_still_refuses() {
         })
         .map(|(k, _)| k)
         .expect("the partial bud carries a mouth arc");
-    match fillet_edges(&source, &[arc], R, band(), tol()) {
+    match fillet_edges(&source, &[arc], R, band(), tol()).map_err(|r| r.error) {
         Err(FilletError::UnsupportedChain { .. } | FilletError::FilletCornerUnsupported { .. }) => {
         }
         other => panic!("a partial revolve's open mouth arc must refuse, got {other:?}"),

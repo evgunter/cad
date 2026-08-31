@@ -460,7 +460,7 @@ fn ring_clearance_trio_definite_pass_definite_refuse_in_band_escalate() {
     }
     let text = ring_clearance(face, -0.05, band()).unwrap_err().to_string();
     assert!(
-        text.contains("ring") && text.contains("reduce the fillet radius"),
+        text.contains("ring") && text.contains("reduce the blend size"),
         "refusal names the situation and the recourse: {text}"
     );
     // In band: escalates through the funnel with the SAME recourse.
@@ -472,7 +472,7 @@ fn ring_clearance_trio_definite_pass_definite_refuse_in_band_escalate() {
         other => panic!("expected Escalated, got {other}"),
     }
     assert!(
-        err.to_string().contains("reduce the fillet radius"),
+        err.to_string().contains("reduce the blend size"),
         "the escalated arm shares the definite arm's recourse: {err}"
     );
 }

@@ -522,7 +522,7 @@ fn d2_reached_variants() {
     for (_, body) in corpus() {
         for req in requests(&body, &mut rng, effort()) {
             for r in RADII {
-                match fillet_edges(&body, &req, r, band(), Tol::witness()) {
+                match fillet_edges(&body, &req, r, band(), Tol::witness()).map_err(|r| r.error) {
                     Ok(_) => ok += 1,
                     Err(e) => {
                         let c = class(&e);
@@ -593,7 +593,7 @@ fn d2_a_grafted_destination_is_stopped_at_the_entry_gate() {
         .copied()
         .filter(|k| dst.get_edge(*k).is_some())
         .collect();
-    match fillet_edges(&dst, &after, 0.12, band(), Tol::witness()) {
+    match fillet_edges(&dst, &after, 0.12, band(), Tol::witness()).map_err(|r| r.error) {
         Err(FilletError::UnsupportedBody { solids, shells }) => {
             println!(
                 "d2_a_grafted_destination_is_stopped_at_the_entry_gate: \

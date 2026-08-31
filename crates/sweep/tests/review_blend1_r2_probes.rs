@@ -258,7 +258,7 @@ fn a_strict_subset_of_a_seam_split_rims_arcs_refuses_typed() {
         let arcs = rim_arcs_at(&source, rr, ry);
         assert_eq!(arcs.len(), 2, "{name} is seam-split");
         for one in &arcs {
-            match fillet_edges(&source, &[*one], 0.05, band(), tol()) {
+            match fillet_edges(&source, &[*one], 0.05, band(), tol()).map_err(|r| r.error) {
                 Err(FilletError::FilletCornerUnsupported { .. }) => {}
                 Err(other) => {
                     panic!("{name}: one arc alone should refuse at the seam vertex, got {other:?}")
@@ -517,7 +517,7 @@ fn the_seam_vertex_recourse_names_a_door_that_answers() {
     let arcs = rim_arcs_at(&source, 1.0, 0.0);
     assert_eq!(arcs.len(), 2);
     // The refusal fires...
-    let refused = fillet_edges(&source, &arcs[..1], 0.1, band(), tol());
+    let refused = fillet_edges(&source, &arcs[..1], 0.1, band(), tol()).map_err(|r| r.error);
     match refused {
         Err(e @ FilletError::FilletCornerUnsupported { .. }) => {
             let msg = format!("{e}");
@@ -623,7 +623,8 @@ fn the_seam_vertex_recourse_is_true_at_every_site_the_tag_fires() {
         assert_eq!(arcs.len(), 2, "{name} is seam-split");
 
         // Half one: the tag fires, and shows the conditioned sentence.
-        let Err(one) = fillet_edges(&source, &arcs[..1], 0.05, band(), tol()) else {
+        let Err(one) = fillet_edges(&source, &arcs[..1], 0.05, band(), tol()).map_err(|r| r.error)
+        else {
             panic!("{name}: one arc stops at a seam vertex and must refuse")
         };
         assert!(
@@ -644,7 +645,7 @@ fn the_seam_vertex_recourse_is_true_at_every_site_the_tag_fires() {
         );
 
         // Half two: the request that sentence names, answered.
-        let whole = fillet_edges(&source, &arcs, 0.05, band(), tol());
+        let whole = fillet_edges(&source, &arcs, 0.05, band(), tol()).map_err(|r| r.error);
         if convex {
             let out =
                 whole.unwrap_or_else(|e| panic!("{name}: the promised carve happens, got {e:?}"));

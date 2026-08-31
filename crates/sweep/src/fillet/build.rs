@@ -64,7 +64,7 @@ use topo::{
 use super::admit::{CornerFaces, CornerLinks};
 use super::battery::{FilletRequest, Link, run_battery};
 use super::surgery::{CORNER_SUPPORT_NOT_PLANAR, unbuilt_geometry};
-use super::{BlendKind, FilletError};
+use super::{BlendKind, BlendRefusal, FilletError};
 use geom_core::Tol;
 
 /// A filleted body: the rounded solid plus the keys of the faces the
@@ -111,7 +111,9 @@ pub struct Filleted<T: Real> {
 ///
 /// # Errors
 ///
-/// Any [`FilletError`] the battery produces;
+/// A [`BlendRefusal`] carrying [`BlendKind::Fillet`] — the verb
+/// crosses HERE, once, and the inner [`FilletError`] stays
+/// verb-neutral — around: any refusal the battery produces;
 /// [`FilletError::RepeatedEdge`] when the request names one edge
 /// twice; [`FilletError::UnsupportedBody`],
 /// [`FilletError::UnsupportedChain`], [`FilletError::UnsupportedRunOut`],
@@ -126,6 +128,22 @@ pub struct Filleted<T: Real> {
 /// [`FilletError::Certify`], carrying the pass's own typed refusal,
 /// when the result's pcurve caches cannot be re-minted.
 pub fn fillet_edges<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
+    body: &Body<T>,
+    edges: &[EdgeKey],
+    radius: T,
+    band: Band,
+    tol: Tol,
+) -> Result<Filleted<T>, BlendRefusal> {
+    fillet_edges_inner(body, edges, radius, band, tol).map_err(|error| BlendRefusal {
+        verb: BlendKind::Fillet,
+        error,
+    })
+}
+
+/// [`fillet_edges`] behind the door: the whole request, refusing
+/// through the shared verb-neutral vocabulary. The door above is the
+/// one place the fillet's verb is attached.
+fn fillet_edges_inner<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     body: &Body<T>,
     edges: &[EdgeKey],
     radius: T,
@@ -264,6 +282,9 @@ pub type Chamfered<T> = Filleted<T>;
 ///
 /// # Errors
 ///
+/// A [`BlendRefusal`] carrying [`BlendKind::Chamfer`] — the verb
+/// crosses HERE, once, and the inner [`FilletError`] stays
+/// verb-neutral — around:
 /// [`FilletError::NonpositiveSize`] when `distance` is not definitely
 /// positive; [`FilletError::RepeatedEdge`] when the request names one
 /// edge twice; [`FilletError::ChamferArmUnsupported`] when a requested
@@ -279,6 +300,22 @@ pub type Chamfered<T> = Filleted<T>;
 /// clear a trimline; [`FilletError::Op`] / [`FilletError::Certify`]
 /// carrying an operator's or the pcurve pass's own typed refusal.
 pub fn chamfer_edges<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
+    body: &Body<T>,
+    edges: &[EdgeKey],
+    distance: T,
+    band: Band,
+    tol: Tol,
+) -> Result<Chamfered<T>, BlendRefusal> {
+    chamfer_edges_inner(body, edges, distance, band, tol).map_err(|error| BlendRefusal {
+        verb: BlendKind::Chamfer,
+        error,
+    })
+}
+
+/// [`chamfer_edges`] behind the door: the whole request, refusing
+/// through the shared verb-neutral vocabulary. The door above is the
+/// one place the chamfer's verb is attached.
+fn chamfer_edges_inner<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     body: &Body<T>,
     edges: &[EdgeKey],
     distance: T,

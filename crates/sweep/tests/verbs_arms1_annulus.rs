@@ -427,7 +427,7 @@ fn the_partial_revolve_of_the_same_profile_still_refuses() {
         !arcs.is_empty(),
         "the partial revolve leaves open plane–sphere arcs"
     );
-    match fillet_edges(&body, &arcs[..1], 0.05, band(), tol()) {
+    match fillet_edges(&body, &arcs[..1], 0.05, band(), tol()).map_err(|r| r.error) {
         Err(FilletError::UnsupportedChain { .. } | FilletError::FilletCornerUnsupported { .. }) => {
         }
         other => panic!("expected the open plane–sphere arc's own refusal, got {other:?}"),

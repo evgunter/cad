@@ -396,7 +396,7 @@ fn colliding_bands_on_a_shared_wall_refuse_upfront() {
         one_rim(&body, ZONE_SPHERE_HI),
     ];
     for r in [0.749, 0.8] {
-        match fillet_edges(&body, &rims, r, band(), tol()) {
+        match fillet_edges(&body, &rims, r, band(), tol()).map_err(|r| r.error) {
             Err(
                 e @ FilletError::FaceClearanceUncertified {
                     margin,

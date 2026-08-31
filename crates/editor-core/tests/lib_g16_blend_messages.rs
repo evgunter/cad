@@ -171,19 +171,17 @@ fn the_chamfers_refusal_messages_name_the_chamfer() {
             msg.contains("chamfer"),
             "the chamfer's {label} refusal must name the chamfer: {msg}"
         );
-        // The three SELECTION refusals are this layer's own text, so
-        // "fillet" must not appear in them at all. The `op` row is
-        // exempt on purpose and the exemption is the contract: it
-        // carries `FilletError`'s message UNALTERED (spec D2 — kernel
-        // errors are never stringified over), and the kernel's blend
-        // vocabulary still speaks as the fillet. Renaming THAT is
-        // #917, explicitly not this unit's; what this layer owes is
-        // the wrapper, asserted above.
-        if label != "op" {
-            assert!(
-                !msg.contains("fillet"),
-                "the chamfer's {label} refusal must not say fillet: {msg}"
-            );
-        }
+        // No row says "fillet" — the `op` row included: it carries the
+        // kernel's message UNALTERED (spec D2 — kernel errors are
+        // never stringified over), and the kernel's shared refusal is
+        // verb-neutral, the verb attached once at the door. The one
+        // "fillet" substring a chamfer message may legitimately carry
+        // is a `fillet3_*` predicate NAME (K-corpus roster carriers
+        // both verbs meter under deliberately), stripped before the
+        // check.
+        assert!(
+            !msg.replace("fillet3_", "").contains("fillet"),
+            "the chamfer's {label} refusal must not say fillet: {msg}"
+        );
     }
 }

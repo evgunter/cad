@@ -556,7 +556,7 @@ fn a_concave_seam_split_rim_still_refuses() {
     );
     let arcs = rim_arcs_at(&body, 0.5, 0.5);
     assert_eq!(arcs.len(), 2, "the waist rim is seam-split too");
-    match fillet_edges(&body, &arcs, 0.05, band(), tol()) {
+    match fillet_edges(&body, &arcs, 0.05, band(), tol()).map_err(|r| r.error) {
         Err(FilletError::UnsupportedChain { detail, .. }) => assert!(
             detail.contains("concave"),
             "a concave seam-split rim refuses as concave, got {detail}"

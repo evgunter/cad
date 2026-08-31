@@ -156,7 +156,7 @@ fn p1_the_seam_vertex_tag_fires_without_reading_convexity() {
     ] {
         let arcs = rim_arcs_at(&body, rim_r, rim_y);
         assert_eq!(arcs.len(), 2, "{name} is seam-split");
-        match fillet_edges(&body, &arcs[..1], 0.05, band(), tol()) {
+        match fillet_edges(&body, &arcs[..1], 0.05, band(), tol()).map_err(|r| r.error) {
             Err(FilletError::FilletCornerUnsupported { corner, .. }) => assert!(
                 matches!(corner, CornerConfig::SeamVertex),
                 "{name}: the classifier reads incidence and tags the seam vertex, \
@@ -291,7 +291,7 @@ fn p3_a_petrie_hexagon_cycle_never_assembles_into_a_closed_chain() {
         })
         .collect();
     assert_eq!(edges.len(), 6, "the Petrie hexagon has six edges");
-    match fillet_edges(&body, &edges, 0.1, band(), tol()) {
+    match fillet_edges(&body, &edges, 0.1, band(), tol()).map_err(|r| r.error) {
         Err(FilletError::ChainNotG1 { .. }) => {}
         other => panic!("a sharp-cornered hexagon cycle refuses at assembly, got {other:?}"),
     }
@@ -342,14 +342,14 @@ fn p4_the_repaired_lantern_neck_rim_is_outside_both_closed_rim_doors() {
         planes[0], planes[1],
         "after the repair one plane face hosts both arcs"
     );
-    match fillet_edges(&source, &arcs, 0.05, band(), tol()) {
+    match fillet_edges(&source, &arcs, 0.05, band(), tol()).map_err(|r| r.error) {
         Err(FilletError::UnsupportedChain { detail, .. }) => assert!(
             detail.contains("ring"),
             "the repaired rim routes to the ladder and its ring gate refuses: {detail}"
         ),
         other => panic!("the repaired neck rim refuses typed, got {other:?}"),
     }
-    match fillet_edges(&source, &arcs[..1], 0.05, band(), tol()) {
+    match fillet_edges(&source, &arcs[..1], 0.05, band(), tol()).map_err(|r| r.error) {
         Err(FilletError::FilletCornerUnsupported { corner, .. }) => {
             assert!(
                 !matches!(corner, CornerConfig::SeamVertex),
@@ -384,7 +384,7 @@ fn p5_the_rim_arcs_plus_a_seam_meridian_refuse_at_the_battery() {
         })
         .expect("a full revolve of a pole-touching profile has seam meridians");
     req.push(seam);
-    match fillet_edges(&body, &req, 0.05, band(), tol()) {
+    match fillet_edges(&body, &req, 0.05, band(), tol()).map_err(|r| r.error) {
         Err(FilletError::TangentialEdge { margin, .. }) => {
             assert_eq!(margin, 0.0, "a co-surface seam is tangential exactly");
         }

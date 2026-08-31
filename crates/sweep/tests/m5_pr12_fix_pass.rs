@@ -142,7 +142,7 @@ fn f1_the_clearance_screen_is_conservative_by_direction_on_the_hexagon() {
     let apothem = 3.0_f64.sqrt() / 2.0;
     for r in [0.51, 0.6, 0.8] {
         assert!(r < apothem, "the row is only interesting below the apothem");
-        match fillet_edges(&body, &edges, r, band(), Tol::witness()) {
+        match fillet_edges(&body, &edges, r, band(), Tol::witness()).map_err(|r| r.error) {
             Err(e @ FilletError::FaceClearanceUncertified { margin, gap, .. }) => {
                 assert!(margin < 0.0);
                 assert!(
