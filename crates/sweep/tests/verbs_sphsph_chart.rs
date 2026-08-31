@@ -47,6 +47,50 @@ fn lune(turn: Revolution<f64>) -> Body<f64> {
     revolve(&vp, axis, turn, Tol::witness()).unwrap().body
 }
 
+/// A unit ball pierced by a tiny flat disc at the SOUTH pole, so its
+/// sphere face's one LATITUDE RIM sits at polar angle `pi - u_r` — a
+/// hair off that pole, and genuinely distinct from it.
+///
+/// This is the fixture the §7 planted red needs and the lune cannot be:
+/// a lune's two latitude-window ends are BOTH poles, so both resolve to
+/// `None` and the latitude-margin list is EMPTY — every verdict it
+/// reports comes from the azimuth cosine alone, which is why mutating
+/// the latitude lever leaves it green. Here `lat_hi` is the rim, the
+/// probes straddle it, and the latitude margin is the only thing
+/// deciding them.
+///
+/// The rim is placed at the SOUTH pole rather than the north so the
+/// spherical arc that carries it is nearly a full semicircle rather
+/// than a `u_r`-long sliver: the fixture has to be near-polar in the
+/// PREDICATE's coordinates, not near-degenerate in the constructor's.
+/// (`Profile::validate` refuses a revolve rim closer than ~1e-4 rad to
+/// the axis, which is the floor this construction has to clear;
+/// `u_r = 1e-3` and `1e-2` both clear it comfortably.)
+fn ball_with_a_near_polar_rim(u_r: f64) -> Body<f64> {
+    let (rho, h) = (u_r.sin(), -u_r.cos());
+    let lp = ProfileLoop::new(vec![
+        // On the axis, at the rim's own height: the flat disc's centre.
+        ProfileVertex::new(geom_core::Point2::new(0.0, h), 0.0),
+        // Out to the rim, then the long spherical arc to the north pole
+        // (included angle `pi - u_r`, so nothing here is a sliver).
+        ProfileVertex::new(
+            geom_core::Point2::new(rho, h),
+            ((core::f64::consts::PI - u_r) / 4.0).tan(),
+        ),
+        ProfileVertex::new(geom_core::Point2::new(0.0, 1.0), 0.0),
+    ]);
+    let vp = Profile::new(SketchPlane::xy(), vec![lp])
+        .validate(Tol::witness())
+        .unwrap();
+    let axis = RevolveAxis {
+        origin: geom_core::Point2::new(0.0, 0.0),
+        dir: Vec2::new(0.0, 1.0),
+    };
+    revolve(&vp, axis, Revolution::Full, Tol::witness())
+        .unwrap()
+        .body
+}
+
 fn sphere_faces(body: &Body<f64>) -> Vec<FaceKey> {
     body.faces()
         .filter(|(_, fd)| {
@@ -169,6 +213,101 @@ fn near_polar_probes_stay_definite_where_an_axial_lever_collapses() {
             Some(FaceContainment::Out),
             "outside the quarter at polar angle {polar}"
         );
+    }
+}
+
+/// **The §7 planted red: the latitude margin is what decides, and the
+/// axial lever cannot.** The row above is a statement about the sphere
+/// chart's reach; this one is a statement about the LEVER CHOICE, and
+/// it is the row that goes red if the choice is changed.
+///
+/// The distinction matters because the lune fixture cannot make it: a
+/// lune's latitude window has a pole at BOTH ends, both ends resolve to
+/// `None`, and `point_on_sphere_in_face` collects an EMPTY
+/// latitude-margin list — every verdict it reports there comes from the
+/// azimuth cosine window, so re-spelling `latitude_sine` as the axial
+/// difference `(h_a − h_b)/R` (which is exactly #893's defective lever)
+/// leaves the row green. Measured: with that mutation in place the whole
+/// workspace suite stayed green.
+///
+/// Here the window's far end is a RIM at polar angle `pi − u_r`, and the
+/// probes straddle it by `delta` in ARC LENGTH, with no azimuth question
+/// anywhere near its own boundary. Both levers are computed in the open
+/// below, so the row states its own premise rather than assuming it:
+///
+/// * arc lever `R|sin(v_hi − v_here)| = R sin(delta)`, definite when
+///   `delta >= K*eps`;
+/// * axial lever `R|cos v_here − cos v_hi| ~= R*u_r*delta`, inside the
+///   zero band when `u_r*delta <= eps`.
+///
+/// Both hold simultaneously whenever `u_r <= eps/delta <= 1/K`, i.e. for
+/// every rim within ~0.1 rad of a pole; the two rows below take a
+/// factor-of-ten (`u_r = 1e-3`, `delta = 100 eps`) and a
+/// factor-of-three (`u_r = 1e-2`, `delta = 30 eps`) safety margin on
+/// both sides, and both hold at every eps this repo runs because both
+/// sides scale with eps. `1e-2` is the largest polar angle pinned; the
+/// binding ceiling is the band's own `K`, not the construction.
+#[test]
+fn the_latitude_margin_decides_at_a_near_polar_rim_where_the_axial_lever_cannot() {
+    let (b, eps) = (band(), Tol::witness().get().eps);
+    let (zero, escalate) = (b.zero(), b.escalate());
+    for (u_r, k) in [(1e-3_f64, 100.0_f64), (1e-2, 30.0)] {
+        let delta = k * eps;
+        // The premise, stated in the open at this eps.
+        assert!(
+            delta.sin() >= escalate,
+            "u_r={u_r}: the arc lever must be definite ({} < {escalate})",
+            delta.sin()
+        );
+        let axial = (u_r.cos() - (u_r + delta).cos()).abs();
+        assert!(
+            axial <= zero,
+            "u_r={u_r}: the axial lever must have collapsed ({axial} > {zero})"
+        );
+        let body = ball_with_a_near_polar_rim(u_r);
+        let faces = sphere_faces(&body);
+        assert_eq!(faces.len(), 2, "a full revolve mints two half-bands");
+        let rim_polar = core::f64::consts::PI - u_r;
+        for az in [0.7_f64, 2.4, 3.8, 5.5] {
+            // Inside the rim (nearer the north pole): exactly one band
+            // owns the azimuth, and it must say so DEFINITELY.
+            let verdicts: Vec<_> = faces
+                .iter()
+                .map(|&f| {
+                    topo::curved_face_containment(
+                        &body,
+                        f,
+                        at(chart(&body, f), az, rim_polar - delta, 1.0),
+                        b,
+                    )
+                    .unwrap()
+                })
+                .collect();
+            assert_eq!(
+                verdicts
+                    .iter()
+                    .filter(|v| **v == Some(FaceContainment::In))
+                    .count(),
+                1,
+                "u_r={u_r}, az={az}: one band contains the probe just inside the rim, \
+                 got {verdicts:?}"
+            );
+            // Past the rim, in the disc's own latitude range: BOTH bands
+            // are definitely out, and nothing here is a graze.
+            for &f in &faces {
+                assert_eq!(
+                    topo::curved_face_containment(
+                        &body,
+                        f,
+                        at(chart(&body, f), az, rim_polar + delta, 1.0),
+                        b
+                    )
+                    .unwrap(),
+                    Some(FaceContainment::Out),
+                    "u_r={u_r}, az={az}: past the rim is definitely outside"
+                );
+            }
+        }
     }
 }
 

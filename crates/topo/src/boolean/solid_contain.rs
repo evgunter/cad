@@ -860,9 +860,23 @@ pub(super) fn sphere_chart_trim<T: Decide>(
     let raw = match crate::chord_join::face_azimuth_window(body, &surf, face, band) {
         Ok(Some(w)) => w,
         Ok(None) => return Ok(None),
-        Err(crate::chord_join::SplitJoinError::Escalated { diag, .. }) => {
+        Err(crate::chord_join::SplitJoinError::Escalated { diag, .. })
+        | Err(crate::chord_join::SplitJoinError::OrderEscalated { diag }) => {
             return Err(escalate(diag));
         }
+        // A CORRUPTION-shaped refusal is not a class statement and must
+        // not wear one: `PartialSphereFace`'s message says the body is
+        // healthy and merely outside the served class, and a key the
+        // walk could not resolve, or a boundary that does not close,
+        // would be wearing that sentence falsely. The arena claim keeps
+        // its own door — the same distinction `bool_planar_chord_spec`
+        // draws between a key that does not resolve and a key of the
+        // wrong kind.
+        Err(crate::chord_join::SplitJoinError::Corrupt { .. })
+        | Err(crate::chord_join::SplitJoinError::UnpairedLooseEnds { .. }) => {
+            return Err(PointInSolidError::CorruptFace { face });
+        }
+        // The honest remainder: a walk this chart cannot express.
         Err(_) => return Ok(None),
     };
     // A FULL-PERIOD azimuth window is not an ill-conditioned window
@@ -1651,9 +1665,46 @@ fn at_infinity_side<T: Decide>(
     tol: Tol,
 ) -> Result<SolidContainment, PointInSolidError> {
     // Closed-form lane (M5 PR 11 lane split) — see `volume_backstop`.
-    let _ = faces;
-    let props = crate::props::mass_properties_closed_form(body, band, tol)
-        .map_err(|_| PointInSolidError::VolumeUncertified)?;
+    //
+    // The props refusal is READ, not flattened. `VolumeUncertified`'s
+    // own message asserts "the body is HEALTHY and this door's arms
+    // answered; what is missing is a volume", and two of the props
+    // lane's refusals make that sentence false: an escalation is an
+    // ill-conditioned operand at this ε (with a predicate name and a
+    // band the caller can act on), and the corruption-shaped arms are
+    // arena claims about a BROKEN body. Each keeps its own door.
+    let props = crate::props::mass_properties_closed_form(body, band, tol).map_err(|e| {
+        match e {
+            // An escalation stays an escalation, carrying its
+            // diagnostics and the face it happened on.
+            crate::props::MassPropsError::Face {
+                face,
+                source: geom_brep::props::PropsError::Escalated { cause },
+            } => PointInSolidError::Escalated { face, diag: cause },
+            // Corruption-shaped: a face whose area enclosure will not
+            // certify a positive extent, a key the props walk could not
+            // resolve, or null scaffolding in a body being classified
+            // AT REST. None of these is "healthy body, missing
+            // capability".
+            crate::props::MassPropsError::Face {
+                face,
+                source: geom_brep::props::PropsError::DegenerateFace,
+            } => PointInSolidError::CorruptFace { face },
+            crate::props::MassPropsError::Corrupt { .. }
+            | crate::props::MassPropsError::NullScaffoldEdge { .. } => {
+                PointInSolidError::CorruptFace { face: faces[0] }
+            }
+            // The remainder IS the capability gap the variant
+            // describes: a boundary outside the iso-rectangle
+            // inventory (the standing rimless-lune case), a ring on a
+            // curved face, an unimplemented kind, a quadrature that
+            // would not converge inside its budget, a band that would
+            // not construct. A HEALTHY body, and a missing volume.
+            crate::props::MassPropsError::Band { .. }
+            | crate::props::MassPropsError::RingOnCurvedFace { .. }
+            | crate::props::MassPropsError::Face { .. } => PointInSolidError::VolumeUncertified,
+        }
+    })?;
     let margin = Margin::over_lever(props.volume, props.surface_area);
     match decide("bool_point_in_solid_infinity", margin, band).map_err(|diag| {
         PointInSolidError::Escalated {

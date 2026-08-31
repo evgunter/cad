@@ -775,10 +775,22 @@ pub enum SphereSphereSection<T: Real> {
     /// Zero-residual-by-construction against both surfaces.
     Circle(Curve3<T>),
     /// The spheres touch — externally (`d = r₁ + r₂`) or internally
-    /// (`d = |r₁ − r₂|`) — at the one **point** `c₁ + n̂·r₁`, which both
-    /// configurations share. Classification data, not a constructible
-    /// edge (C7 lineage: tangent loci are not minted as section
-    /// carriers; consumers refuse typed).
+    /// (`d = |r₁ − r₂|`) — at the one **point** `c₁ + n̂·a`: the
+    /// degenerate section circle, at the SAME signed offset
+    /// `a = (d² + r₁² − r₂²)/2d` the [`SphereSphereSection::Circle`]
+    /// arm uses, with radius zero. One formula, three branches.
+    ///
+    /// The sign is load-bearing and is why `a` is not written `r₁`.
+    /// External tangency and internal tangency with `r₁ > r₂` both give
+    /// `a = +r₁`; internal tangency with `r₂ > r₁` — sphere A strictly
+    /// inside sphere B — gives `a = −r₁`, and the contact is
+    /// diametrically opposite, on the `−n̂` side. Substituting `d` into
+    /// `a` gives `+r₁` for two of the three configurations and `−r₁`
+    /// for the third; `|a| = r₁` is what all three share.
+    ///
+    /// Classification data, not a constructible edge (C7 lineage:
+    /// tangent loci are not minted as section carriers; consumers
+    /// refuse typed).
     TangentPoint(Point3<T>),
     /// Definitely separated (`d > r₁ + r₂`) or definitely strictly
     /// nested (`d < |r₁ − r₂|`): no intersection.
@@ -856,6 +868,11 @@ pub fn sphere_sphere_section<T: Decide>(
     let delta = c2 - c1;
     let d = delta.norm();
     let dr = (r1 - r2).abs();
+    // The SIGNED radical-plane offset, one formula for all three
+    // non-empty branches (the 2-D skeleton's shape, `seg.rs:604-616`).
+    // Every branch that reads it has already decided `d` definitely
+    // positive, so the division is safe wherever it is called.
+    let offset = || (d.powi(2) + r1.powi(2) - r2.powi(2)) / (d + d);
     match decide("ss_carrier_identity", Margin::of(d + dr), band)
         .map_err(SectionError::Escalated)?
     {
@@ -866,11 +883,15 @@ pub fn sphere_sphere_section<T: Decide>(
             {
                 Sign::Positive => Ok(SphereSphereSection::Empty),
                 // Externally tangent: `d = r₁ + r₂ ≥` the definite
-                // identity margin, so the division is safe. Both
-                // tangencies touch at `c₁ + n̂·r₁` — substituting
-                // `d = r₁ + r₂` or `d = |r₁ − r₂|` into the section
-                // centre's `a` gives exactly `r₁` either way.
-                Sign::Zero => Ok(SphereSphereSection::TangentPoint(c1 + delta * (r1 / d))),
+                // identity margin, so the division is safe. The contact
+                // is the degenerate section circle, `c₁ + n̂·a` at
+                // radius zero — and `a` must be the SIGNED offset, not
+                // `r₁`. Substituting `d = r₁ + r₂` does give `a = +r₁`
+                // here; the internal branch below is where the sign
+                // matters, and one formula serves both.
+                Sign::Zero => Ok(SphereSphereSection::TangentPoint(
+                    c1 + delta * (offset() / d),
+                )),
                 Sign::Negative => {
                     match decide("ss_carrier_internal", Margin::of(d - dr), band)
                         .map_err(SectionError::Escalated)?
@@ -878,14 +899,25 @@ pub fn sphere_sphere_section<T: Decide>(
                         Sign::Negative => Ok(SphereSphereSection::Empty),
                         // Internally tangent: `d = |Δr|` and the
                         // identity margin `d + |Δr| = 2d` is definite,
-                        // so `d` is bounded away from zero.
-                        Sign::Zero => Ok(SphereSphereSection::TangentPoint(c1 + delta * (r1 / d))),
+                        // so `d` is bounded away from zero. Here the
+                        // SIGN of `a` is the whole answer: substituting
+                        // `d = |r₁ − r₂|` gives `a = +r₁` when `r₁ > r₂`
+                        // (B inside A, contact on the `+n̂` side) and
+                        // `a = −r₁` when `r₂ > r₁` (A inside B, contact
+                        // on the `−n̂` side, diametrically opposite).
+                        // Writing `+r₁` in both orders puts the contact
+                        // point INSIDE the larger ball — for the unit
+                        // sphere at the origin against radius 3 at
+                        // `x = 2` it returns `(1,0,0)`, which is B's own
+                        // centre, and the true contact is `(−1,0,0)`.
+                        Sign::Zero => Ok(SphereSphereSection::TangentPoint(
+                            c1 + delta * (offset() / d),
+                        )),
                         // Proper secant: `d > |Δr|` definitely, so
                         // `d > 0`. The radical-plane closed form.
                         Sign::Positive => {
                             let n = delta / d;
-                            let two_d = d + d;
-                            let a_off = (d.powi(2) + r1.powi(2) - r2.powi(2)) / two_d;
+                            let a_off = offset();
                             Ok(SphereSphereSection::Circle(Curve3::Circle {
                                 center: c1 + n * a_off,
                                 axis: n,

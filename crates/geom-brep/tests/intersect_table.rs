@@ -1020,9 +1020,17 @@ fn sphere_sphere_cut_is_the_exact_circle_zero_residual() {
 /// refuse typed (a whole-sphere REST is a coincidence to declare, never
 /// a section); separated and strictly nested are both `Empty`; external
 /// and internal tangency are both the one POINT (C7 — classification
-/// data, never a carrier), and both land at `c₁ + n̂·r₁`; the in-band
-/// twin of each definite verdict escalates through its own named
-/// predicate (F6), the two-tolerance pair.
+/// data, never a carrier), each at the degenerate section circle's own
+/// signed offset `c₁ + n̂·a`; the in-band twin of each definite verdict
+/// escalates through its own named predicate (F6), the two-tolerance
+/// pair.
+///
+/// **Internal tangency is pinned in BOTH operand orders**, because the
+/// sign of `a` is the only thing that separates them: with `r₁ > r₂`
+/// the contact is at `+n̂·r₁`, with `r₂ > r₁` it is at `−n̂·r₁`, on the
+/// far side of sphere A. Pinning one order only lets a `+r₁` spelling
+/// pass while placing the contact a diameter away — inside the larger
+/// ball — in the other.
 #[test]
 fn sphere_sphere_carrier_trilean_trio() {
     use geom_brep::intersect::{SphereSphereSection, sphere_sphere_section};
@@ -1041,16 +1049,45 @@ fn sphere_sphere_carrier_trilean_trio() {
         sec(0.25, 0.5).unwrap(),
         SphereSphereSection::Empty
     ));
-    // Externally tangent: d = r₁ + r₂, the point at +x on sphere 1.
-    let SphereSphereSection::TangentPoint(p) = sec(1.5, 0.5).unwrap() else {
-        panic!("expected external tangency");
-    };
-    assert!((p - Point3::new(1.0, 0.0, 0.0)).norm() < 1e-15);
-    // Internally tangent: d = |r₁ − r₂|, the SAME point.
-    let SphereSphereSection::TangentPoint(p) = sec(0.5, 0.5).unwrap() else {
-        panic!("expected internal tangency");
-    };
-    assert!((p - Point3::new(1.0, 0.0, 0.0)).norm() < 1e-15);
+    // The tangency rows, EVERY configuration in BOTH operand orders.
+    // The contact is a fact about the two spheres, so it may not move
+    // when the arguments swap — and the near/far distinction the sign
+    // of `a` carries is only visible in the `r₂ > r₁` order.
+    //
+    // Columns: sphere B's centre `x` and radius, and the contact.
+    for (x, r2, want, what) in [
+        // External, r₁ > r₂: d = r₁ + r₂ = 1.5, a = +1.
+        (1.5, 0.5, Point3::new(1.0, 0.0, 0.0), "external r1>r2"),
+        // External, r₂ > r₁: d = 4, a = +1, contact still at +x.
+        (4.0, 3.0, Point3::new(1.0, 0.0, 0.0), "external r2>r1"),
+        // Internal, r₁ > r₂ (B inside A): d = |Δr| = 0.5, a = +1.
+        (0.5, 0.5, Point3::new(1.0, 0.0, 0.0), "internal r1>r2"),
+        // Internal, r₂ > r₁ (A strictly inside B): d = |Δr| = 2,
+        // a = (4 + 1 − 9)/4 = −1, so the contact is at −x — the far
+        // side of A. A `+r₁` spelling returns (1,0,0) here, which is
+        // B's own CENTRE, 1 m inside B.
+        (2.0, 3.0, Point3::new(-1.0, 0.0, 0.0), "internal r2>r1"),
+    ] {
+        let other = at(x, r2);
+        for (a, b, order) in [(&unit, &other, "A,B"), (&other, &unit, "B,A")] {
+            let SphereSphereSection::TangentPoint(p) = sphere_sphere_section(a, b, band()).unwrap()
+            else {
+                panic!("{what} ({order}): expected a tangency");
+            };
+            assert!(
+                (p - want).norm() < 1e-15,
+                "{what} ({order}): contact at {p:?}, want {want:?}"
+            );
+            // The contact is on BOTH carriers — the property the point
+            // exists to state, checked rather than assumed.
+            for s in [a, b] {
+                assert!(
+                    implicit_residual(s, p).abs() < 1e-15,
+                    "{what} ({order}): the contact is off a carrier"
+                );
+            }
+        }
+    }
     // Proper secant between the two tangencies.
     assert!(matches!(
         sec(1.0, 0.5).unwrap(),
