@@ -1032,3 +1032,31 @@ D96-after-enumeration), and BLEND-4 (issue 644) on a NEW block
 draw BLEND-B3 branch-side.
 
 CI-Config: lane=interval eps=1e-6
+
+## 2026-08-31 — BLEND-4 state-sync (rides the unit branch last; merges at #1360)
+
+Unit BLEND-4 (issue 644) complete on head `78ef22dc` plus this
+commit: fillet corners convexity-parametric in one change (ball
+side, feet sign, chart fold, two doors), the arc/sense half
+measured as needing no edit, the #1359 octant_chart collision
+resolved loudly toward BOTH with the concave cross-corner twin.
+Reviews ordinal 606 (R1 FABLE + R2 OPUS, sequential same-head per
+the pre-recorded note): R1 MERGEABLE 0/1/2, R2 M-A-F 0/5/6 — the
+arms laddered on the chart fold (R2's C′ found the half-unpinned
+gap; the fix closed it, R2's probes now the fold's true pin); NO
+MAJOR either arm, no tally candidates, v6 tally unchanged (1).
+Fix pass implementer-inherited; re-verified by an R1-arm DELTA
+lane (fresh agent, disclosed): DELTA-CLEAN, counts exact. Issue
+#1364 filed (shared test-support home). The A/B row (ordinal 606,
+sample #69) rides this commit, arm cell REDACTED — **block
+BLEND-B3 stays OPEN** (slot 1 consumed; slots 2–3 unconsumed;
+the draw record and arm restatement reach main at the block's
+close, an exit-walk item since this is the slate's last unit).
+Also in this commit: **BLEND-3's sample RENUMBERED #66 → #68**
+(collision with CERT-5 found at this state-sync; CERT-5 merged
+first by two minutes and holds #66; #67 already CERT-9's; next
+free per the AZ-1/QA-6B precedent — the note is in the row).
+After this merge: T-R7's NO-LIFT ruling binds; D322–D324's
+keep-out releases (they name #1360).
+
+CI-Config: lane=interval eps=1e-6
