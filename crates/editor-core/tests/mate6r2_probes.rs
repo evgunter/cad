@@ -316,9 +316,13 @@ fn p3_checks_over_the_seam_document() {
     let inner_ref = store.insert(inner, Tol::witness());
     let (outer, _) = row_of("m6r2-p3-row", inner_ref, 3, 4.0);
     let ev = run(&outer, &opts(store));
-    let report = run_checks(&outer, &ev, &ChecksConfig::default(), Tol::witness())
-        .expect("the checks run");
-    println!("P3: findings={} {:?}", report.findings.len(), report.findings);
+    let report =
+        run_checks(&outer, &ev, &ChecksConfig::default(), Tol::witness()).expect("the checks run");
+    println!(
+        "P3: findings={} {:?}",
+        report.findings.len(),
+        report.findings
+    );
 }
 
 /// P4: the checks resident over the single correctly-mated stand.
@@ -330,7 +334,11 @@ fn p4_checks_over_a_correctly_mated_document() {
     let ev = run(&doc, &opts(store));
     let report =
         run_checks(&doc, &ev, &ChecksConfig::default(), Tol::witness()).expect("the checks run");
-    println!("P4: findings={} {:?}", report.findings.len(), report.findings);
+    println!(
+        "P4: findings={} {:?}",
+        report.findings.len(),
+        report.findings
+    );
 }
 
 /// P5: an unmintable (Tangent, and non-touching) mate BEFORE the
@@ -385,7 +393,11 @@ fn p5_checks_with_a_bad_mate_before_a_good_one() {
     let ev = run(&doc, &opts(store));
     let report =
         run_checks(&doc, &ev, &ChecksConfig::default(), Tol::witness()).expect("the checks run");
-    println!("P5: findings={} {:?}", report.findings.len(), report.findings);
+    println!(
+        "P5: findings={} {:?}",
+        report.findings.len(),
+        report.findings
+    );
 }
 
 /// P6: a carried declaration over PENETRATING geometry (inner seat

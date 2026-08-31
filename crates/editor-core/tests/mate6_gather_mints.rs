@@ -23,9 +23,9 @@ use std::sync::Arc;
 
 use editor_core::{
     Alignment, AssemblyError, Attribution, AxisSense, CancelToken, CapEnd, ContactClass, DocEdit,
-    DocRef, DocumentId, EntityKind, EvalOptions, Evaluation, Frame, MateFrame, MatePrimitive, Node,
-    ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg, StableName, assemble,
-    content_pin, evaluate, product_recorded,
+    DocRef, DocumentId, EntityKind, EvalOptions, Evaluation, Frame, MateFrame, MatePrimitive,
+    MintRefusal, Node, ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg, StableName,
+    assemble, content_pin, evaluate, product_recorded,
 };
 use fixture::{desc, insert, len, step};
 use geom_core::Tol;
@@ -158,10 +158,21 @@ fn frame(origin: [f64; 3], axis: [f64; 3]) -> MateFrame {
 /// puts `b`'s bottom exactly on `a`'s top (the unit cube is z ∈ [0,1]);
 /// anything larger leaves a definite gap and the declaration is FALSE.
 fn rest_mate(a: StableName, b: StableName, seat: f64) -> Node<editor_core::ProfileProgram> {
+    classed_mate(a, b, seat, ContactClass::Rest)
+}
+
+/// [`rest_mate`]'s shape at an arbitrary class — the totality rows need
+/// a `Tangent` declaration, whose class mints no record at rest.
+fn classed_mate(
+    a: StableName,
+    b: StableName,
+    seat: f64,
+    class: ContactClass,
+) -> Node<editor_core::ProfileProgram> {
     Node::Mate {
         a,
         b,
-        class: ContactClass::Rest,
+        class,
         alignment: Alignment {
             a: frame([0.0, 0.0, seat], [0.0, 0.0, 1.0]),
             b: frame([0.0, 0.0, 0.0], [0.0, 0.0, 1.0]),
@@ -169,6 +180,25 @@ fn rest_mate(a: StableName, b: StableName, seat: f64) -> Node<editor_core::Profi
             sense: AxisSense::Aligned,
             clocking: None,
         },
+    }
+}
+
+/// A reference that resolves to NO product face: the part's node 1 has
+/// caps, but node 99 does not exist in it at all. The mate is still a
+/// LIVE value — the reference is resolved at the mint door, not the
+/// solve one — so it reaches [`mint`](editor_core::assemble) and is
+/// refused there, which is what the totality rows need.
+fn dangling(instance: RecipeNodeId) -> StableName {
+    StableName {
+        kind: EntityKind::Face,
+        node: instance,
+        path: vec![RoleSeg::InPart {
+            of: Box::new(StableName {
+                kind: EntityKind::Face,
+                node: RecipeNodeId(99),
+                path: vec![RoleSeg::Cap(CapEnd::Top)],
+            }),
+        }],
     }
 }
 
@@ -518,5 +548,212 @@ fn a_class_with_no_at_rest_record_refuses_at_the_gate_not_at_the_gather() {
             assert_eq!(mate, tangent, "naming the mate that declared it");
         }
         other => panic!("the at-rest door refuses a Tangent: {other:?}"),
+    }
+}
+
+// ---- Totality: the guard on `mint`'s two `continue`s ----
+//
+// `mint` is TOTAL over the document's live mates: a mate it cannot mint
+// yields a `MintRefusal` row and the walk CONTINUES. That is the change
+// this branch makes, and it is only a claim if a row can tell it apart
+// from the stop-at-first-bad-mate walk it replaced.
+//
+// Every row ABOVE is blind to the difference, by construction: each
+// places its unmintable mate LAST in document order, so a walk that
+// stops there has already minted everything a total walk would. The
+// three rows below are the guard, and they are split by REFUSAL KIND
+// because `mint` has two independent `continue`s — the unresolved
+// reference and the unmintable class — and a mutation to one is not a
+// mutation to the other. Each row puts its bad mate BEFORE a good one
+// and asserts the good one's record survives.
+
+/// GUARD (`mint`'s reference arm): a mate whose reference resolves to no
+/// product face is recorded and STEPPED OVER — the mate authored after
+/// it still mints. Stopping at the bad reference would drop a
+/// declaration the document really does state, which at the seam is a
+/// contact the consuming document then cannot account for.
+#[test]
+fn a_dangling_reference_before_a_good_mate_does_not_swallow_it() {
+    let mut store = StubStore::default();
+    let part = store.insert(cube_part("mate6-tot-ref-cube"), Tol::witness());
+    let (doc, ids) = row_of("mate6-tot-ref-row", part, 3, 4.0);
+    let (doc, bad) = step(
+        doc,
+        DocEdit::InsertNode {
+            node: rest_mate(dangling(ids[0]), in_part(ids[1], CapEnd::Bottom), 1.0),
+        },
+    );
+    let bad = bad.expect("the dangling mate is still a node");
+    let (doc, good) = step(
+        doc,
+        DocEdit::InsertNode {
+            node: rest_mate(
+                in_part(ids[1], CapEnd::Top),
+                in_part(ids[2], CapEnd::Bottom),
+                1.0,
+            ),
+        },
+    );
+    let good = good.expect("the good mate mints");
+
+    let ev = run(&doc, &opts(store));
+    let gathered = product_recorded(&doc, &ev, Tol::witness()).expect("the gather stands");
+    assert_eq!(
+        gathered.minted.iter().map(|m| m.mate).collect::<Vec<_>>(),
+        vec![good],
+        "the mate AFTER the bad reference still minted"
+    );
+    assert_eq!(
+        gathered.contacts.patches.len(),
+        1,
+        "and its record is in the set the gate will read"
+    );
+    assert_eq!(
+        gathered
+            .unminted
+            .iter()
+            .map(MintRefusal::mate)
+            .collect::<Vec<_>>(),
+        vec![bad],
+        "the bad reference is a ROW, not a stop"
+    );
+    assert!(
+        matches!(gathered.unminted[0], MintRefusal::Reference { .. }),
+        "recorded under the reference arm: {:?}",
+        gathered.unminted
+    );
+}
+
+/// GUARD (`mint`'s class arm): the same claim for the other `continue` —
+/// a class the table gives no at-rest record is recorded and stepped
+/// over, and the mate authored after it still mints.
+#[test]
+fn an_unmintable_class_before_a_good_mate_does_not_swallow_it() {
+    let mut store = StubStore::default();
+    let part = store.insert(cube_part("mate6-tot-class-cube"), Tol::witness());
+    let (doc, ids) = row_of("mate6-tot-class-row", part, 3, 4.0);
+    // Non-touching (seat 1.5) so the Tangent declares without seating
+    // anything: this row is about the mint walk, not about geometry.
+    let (doc, bad) = step(
+        doc,
+        DocEdit::InsertNode {
+            node: classed_mate(
+                in_part(ids[0], CapEnd::Top),
+                in_part(ids[1], CapEnd::Bottom),
+                1.5,
+                ContactClass::Tangent,
+            ),
+        },
+    );
+    let bad = bad.expect("the tangent mate is still a node");
+    let (doc, good) = step(
+        doc,
+        DocEdit::InsertNode {
+            node: rest_mate(
+                in_part(ids[1], CapEnd::Top),
+                in_part(ids[2], CapEnd::Bottom),
+                1.0,
+            ),
+        },
+    );
+    let good = good.expect("the good mate mints");
+
+    let ev = run(&doc, &opts(store));
+    let gathered = product_recorded(&doc, &ev, Tol::witness()).expect("the gather stands");
+    assert_eq!(
+        gathered.minted.iter().map(|m| m.mate).collect::<Vec<_>>(),
+        vec![good],
+        "the mate AFTER the unmintable class still minted"
+    );
+    assert_eq!(gathered.contacts.patches.len(), 1);
+    assert_eq!(
+        gathered
+            .unminted
+            .iter()
+            .map(MintRefusal::mate)
+            .collect::<Vec<_>>(),
+        vec![bad]
+    );
+    assert!(
+        matches!(gathered.unminted[0], MintRefusal::NoAtRestRecord { .. }),
+        "recorded under the class arm: {:?}",
+        gathered.unminted
+    );
+}
+
+/// GUARD (the rows, and their ORDER): a document that refuses BOTH ways
+/// with a good mate between them. The refusal rows are the whole set, in
+/// DOCUMENT ORDER — which is what makes `assemble`'s "raise the first
+/// one" a statement about the document rather than about the walk.
+///
+/// This is the row the stop-at-first-bad-mate walk cannot pass on any
+/// assertion: it would mint nothing, record one refusal, and never reach
+/// the second.
+#[test]
+fn every_unmintable_mate_gets_its_row_in_document_order() {
+    let mut store = StubStore::default();
+    let part = store.insert(cube_part("mate6-tot-order-cube"), Tol::witness());
+    let (doc, ids) = row_of("mate6-tot-order-row", part, 3, 4.0);
+    let (doc, first_bad) = step(
+        doc,
+        DocEdit::InsertNode {
+            node: classed_mate(
+                in_part(ids[0], CapEnd::Top),
+                in_part(ids[1], CapEnd::Bottom),
+                1.5,
+                ContactClass::Tangent,
+            ),
+        },
+    );
+    let first_bad = first_bad.expect("the tangent mate is a node");
+    let (doc, good) = step(
+        doc,
+        DocEdit::InsertNode {
+            node: rest_mate(
+                in_part(ids[1], CapEnd::Top),
+                in_part(ids[2], CapEnd::Bottom),
+                1.0,
+            ),
+        },
+    );
+    let good = good.expect("the good mate mints");
+    let (doc, second_bad) = step(
+        doc,
+        DocEdit::InsertNode {
+            node: rest_mate(dangling(ids[2]), in_part(ids[0], CapEnd::Bottom), 1.0),
+        },
+    );
+    let second_bad = second_bad.expect("the dangling mate is a node");
+
+    let ev = run(&doc, &opts(store));
+    let gathered = product_recorded(&doc, &ev, Tol::witness()).expect("the gather stands");
+    assert_eq!(
+        gathered.minted.iter().map(|m| m.mate).collect::<Vec<_>>(),
+        vec![good],
+        "the good mate between two bad ones still minted"
+    );
+    assert_eq!(gathered.contacts.patches.len(), 1);
+    assert_eq!(
+        gathered
+            .unminted
+            .iter()
+            .map(MintRefusal::mate)
+            .collect::<Vec<_>>(),
+        vec![first_bad, second_bad],
+        "both refusals, in document order"
+    );
+    assert!(
+        matches!(gathered.unminted[0], MintRefusal::NoAtRestRecord { .. })
+            && matches!(gathered.unminted[1], MintRefusal::Reference { .. }),
+        "each under its own arm: {:?}",
+        gathered.unminted
+    );
+    // And the door that raises reads that set head-first, so the verdict
+    // is the FIRST refusal in document order, not merely some refusal.
+    match assemble(&doc, &ev, Tol::witness()) {
+        Err(AssemblyError::NoAtRestRecord { mate, .. }) => {
+            assert_eq!(mate, first_bad, "the first refusal in document order");
+        }
+        other => panic!("expected the first refusal raised, got {other:?}"),
     }
 }
