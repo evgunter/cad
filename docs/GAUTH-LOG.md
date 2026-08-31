@@ -63,3 +63,17 @@ Residue owned by issues: #1374 (face-frame placement arm), #1384
 `--features app`), #1386 (session.rs accretion, cross-unit, all
 four wave-1 reviewers independently). Ledger row: ordinal 900,
 sample #71.
+
+## 2026-08-31 — GAUTH-3 delivered (PR #1376, merged)
+
+The Add part… door landed: instance authoring against the open
+file's own directory, pin minted at commit, typed refusal ladder,
+faults badging from the authored path, and a mated two-instance
+assembly round-tripping to Certified. Dual review APPROVE +
+A-W-F, zero MAJORs; all 11 union items taken, including unifying
+store access through `DirResolver::workspace()` and the
+filename-sorted chooser. Residue owned by issue #1387 (the memo
+key hashes id+pin only, so `Reevaluate` cannot observe any store
+change — the honest sentence now sits at `Save`'s docs; plus the
+save-as seam rebind and the chooser's missing part-vs-assembly
+vocabulary). Ledger row: ordinal 901, sample #72.
