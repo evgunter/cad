@@ -7,6 +7,7 @@ use std::collections::BTreeMap;
 
 use editor_core::{
     Dimension, DimensionError, Expr, ParamEnv, ParamName, ParseError, eval, eval_count, parse_expr,
+    unparse,
 };
 use proptest::prelude::*;
 
@@ -452,5 +453,243 @@ proptest! {
         params.insert(ParamName::new("N"), Dimension::Count);
         let e = parse_expr(&src, &params).expect(&src);
         prop_assert_eq!(e.dim(), dim, "{}", &src);
+    }
+}
+
+// --- The door OUTWARD (issue #1103): `unparse` -----------------
+//
+// The pin is the ROUND TRIP, structurally: `parse_expr(unparse(e))`
+// is `bit_eq` to `e`. `bit_eq` is display-unit-blind by design, so the
+// units get their own assertions rather than riding along.
+
+/// The declared parameters the unparse suites resolve names against.
+fn rt_params() -> BTreeMap<ParamName, Dimension> {
+    [
+        ("w", Dimension::Length),
+        ("a", Dimension::Angle),
+        ("s", Dimension::Scalar),
+        ("n", Dimension::Count),
+    ]
+    .into_iter()
+    .map(|(name, dim)| (ParamName::new(name), dim))
+    .collect()
+}
+
+fn rp(src: &str) -> Expr {
+    parse_expr(src, &rt_params()).expect(src)
+}
+
+/// `e`'s source text, checked to read back as `e` itself.
+fn round_trip(e: &Expr) -> String {
+    let text = unparse(e);
+    let back = parse_expr(&text, &rt_params()).expect(&text);
+    assert!(
+        back.bit_eq(e),
+        "{text:?} reparsed to a different expression:\n  {back:?}\n  {e:?}"
+    );
+    text
+}
+
+#[test]
+fn unparse_round_trips_the_whole_vocabulary() {
+    // Every precedence pairing (each operator family on each side of
+    // each other), the unary arms, the calls, every unit in the table,
+    // params of all four dimensions, and counts.
+    for src in [
+        // Leaves.
+        "25 mm",
+        "1 cm",
+        "0.25 m",
+        "1 in",
+        "90 deg",
+        "1.5 rad",
+        "0.5 pi",
+        "2.0",
+        "1e-9",
+        "7",
+        "w",
+        "a",
+        "s",
+        "n",
+        // Sums, left-nested (the parser's own associativity) and
+        // right-nested (which only parentheses can express).
+        "w + 3 mm",
+        "w - 3 mm - 1 mm",
+        "w - (3 mm - 1 mm)",
+        "w + (3 mm + 1 mm)",
+        "w + 3 mm - 1 mm",
+        // Products against sums, both sides.
+        "(w + 3 mm) * 2.0",
+        "2.0 * (w + 3 mm)",
+        "(w + 3 mm) / 2.0",
+        "w * 2.0 + 3 mm",
+        "3 mm + w * 2.0",
+        // Products against products.
+        "2.0 * 3.0 * 4.0",
+        "2.0 * (3.0 * 4.0)",
+        "24.0 / 2.0 / 3.0",
+        "24.0 / (2.0 * 3.0)",
+        "24.0 / (2.0 / 3.0)",
+        "w / 2.0 * 3.0",
+        // Negation against everything.
+        "-w",
+        "--w",
+        "-(w + 3 mm)",
+        "-(w * 2.0)",
+        "-w * 2.0",
+        "w * -2.0",
+        "w / -2.0",
+        "w - -3 mm",
+        "-7",
+        "-n + 2",
+        // Calls, and calls as operands.
+        "sin(a)",
+        "cos(a) * w",
+        "tan(a + 30 deg)",
+        "atan2(w, 3 mm)",
+        "min(w, 3 mm) + max(1 mm, w)",
+        "scalar(n) * w",
+        "scalar(n + 2) * 2.0",
+        "min(w - 1 mm, -(w + 1 mm))",
+        "sin(atan2(w, 3 mm)) * 2.0",
+        // Counts are their own closed arithmetic.
+        "n * n + 3",
+        "max(n, 4) - 1",
+    ] {
+        let e = rp(src);
+        round_trip(&e);
+    }
+}
+
+#[test]
+fn unparse_parenthesises_exactly_where_the_grammar_needs_it() {
+    // The text is pinned for the shapes where a naive rendering would
+    // reparse to a DIFFERENT tree, and the naive rendering is checked
+    // to actually be wrong — a parenthesis nobody needs is noise, and
+    // one that is missing is a silent edit to the user's document.
+    for (src, expected, naive) in [
+        (
+            "24.0 / (2.0 * 3.0)",
+            "24.0 / (2.0 * 3.0)",
+            "24.0 / 2.0 * 3.0",
+        ),
+        ("-(w + 3 mm)", "-(w + 3 mm)", "-w + 3 mm"),
+        ("w - (3 mm - 1 mm)", "w - (3 mm - 1 mm)", "w - 3 mm - 1 mm"),
+        ("w + (3 mm + 1 mm)", "w + (3 mm + 1 mm)", "w + 3 mm + 1 mm"),
+        ("2.0 * (3.0 * 4.0)", "2.0 * (3.0 * 4.0)", "2.0 * 3.0 * 4.0"),
+        ("(w + 3 mm) * 2.0", "(w + 3 mm) * 2.0", "w + 3 mm * 2.0"),
+        ("-(w * 2.0)", "-(w * 2.0)", "-w * 2.0"),
+    ] {
+        let e = rp(src);
+        assert_eq!(unparse(&e), expected);
+        assert!(
+            !rp(naive).bit_eq(&e),
+            "{naive:?} is not actually a wrong reading of {src:?}"
+        );
+    }
+    // And the ones that need NO parentheses do not grow any: the
+    // parser's own associativity already says them.
+    for src in [
+        "w - 3 mm - 1 mm",
+        "w * 2.0 + 3 mm",
+        "3 mm + w * 2.0",
+        "24.0 / 2.0 / 3.0",
+        "-w * 2.0",
+        "w * -2.0",
+        "sin(a) * 2.0",
+    ] {
+        assert_eq!(unparse(&rp(src)), src);
+    }
+}
+
+#[test]
+fn unparse_writes_a_literal_in_the_unit_it_remembers() {
+    // `bit_eq` is display-unit-blind (D7: the unit is presentation
+    // metadata), so the notation is asserted on its own.
+    for (src, symbol) in [
+        ("25 mm", "mm"),
+        ("2.5 cm", "cm"),
+        ("1 in", "in"),
+        ("0.25 m", "m"),
+        ("90 deg", "deg"),
+        ("1.5 rad", "rad"),
+        ("0.5 pi", "pi"),
+    ] {
+        let e = rp(src);
+        let text = round_trip(&e);
+        assert_eq!(text, src);
+        assert_eq!(
+            parse_expr(&text, &rt_params())
+                .expect(src)
+                .display_unit()
+                .map(|u| u.symbol()),
+            Some(symbol)
+        );
+    }
+    // A literal that remembers NO unit is written canonically and
+    // comes back remembering the canonical one — the suffix is not
+    // optional (a bare real is a Scalar in this grammar), so the round
+    // trip is bit-exact on the value and names `m`/`rad` on the way.
+    let bare = Expr::literal(0.025, Dimension::Length).expect("finite length");
+    assert_eq!(bare.display_unit(), None);
+    let text = round_trip(&bare);
+    assert_eq!(text, "0.025 m");
+    assert_eq!(
+        rp(&text).display_unit().map(|u| u.symbol()),
+        Some("m"),
+        "the canonical suffix is what the reparse remembers"
+    );
+}
+
+#[test]
+fn a_negative_literal_is_the_one_shape_this_grammar_cannot_spell() {
+    // The grammar has no negative number TOKEN — `-` is always an
+    // operator — so a negative literal's own source text reads back as
+    // the negation of its magnitude: same value, one node deeper.
+    // Pinned rather than papered over (`unparse`'s docs state it).
+    let negative = Expr::literal(-0.025, Dimension::Length).expect("finite length");
+    let text = unparse(&negative);
+    assert_eq!(text, "-0.025 m");
+    let back = rp(&text);
+    assert!(!back.bit_eq(&negative));
+    assert_eq!(
+        ev(&back),
+        ev(&negative),
+        "the two spellings evaluate identically"
+    );
+    // The same for a negative count, and `i64::MIN` refuses outright —
+    // its magnitude is one past `i64::MAX`, the corner
+    // `ParseError::IntegerOverflow`'s docs already record.
+    let count = Expr::count(-7);
+    assert_eq!(unparse(&count), "-7");
+    assert!(!rp("-7").bit_eq(&count));
+    assert_eq!(eval_count::<f64>(&rp("-7"), &ParamEnv::default()), Ok(-7));
+    assert!(matches!(
+        parse_expr(&unparse(&Expr::count(i64::MIN)), &rt_params()),
+        Err(ParseError::IntegerOverflow { .. })
+    ));
+}
+
+proptest! {
+    /// The round trip over the grammar's whole generated span: any
+    /// source the generator emits parses, unparses, and reparses to
+    /// the identical tree and the identical literal bits.
+    #[test]
+    fn any_grammar_text_survives_a_parse_unparse_parse(
+        src in prop_oneof![
+            Just(Dimension::Length),
+            Just(Dimension::Angle),
+            Just(Dimension::Scalar),
+            Just(Dimension::Count),
+        ]
+        .prop_flat_map(|dim| arb_text_of(dim, 3)),
+    ) {
+        let mut params = BTreeMap::new();
+        params.insert(ParamName::new("S"), Dimension::Scalar);
+        params.insert(ParamName::new("N"), Dimension::Count);
+        let e = parse_expr(&src, &params).expect(&src);
+        let text = unparse(&e);
+        let back = parse_expr(&text, &params).expect(&text);
+        prop_assert!(back.bit_eq(&e), "{} -> {}", &src, &text);
     }
 }
