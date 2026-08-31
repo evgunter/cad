@@ -8,3 +8,11 @@ before this draw), 1..3 unassigned.
 Arm for slot 0 = OPUS.
 Branch-side block record per the v6 convention; reviewers are never
 pointed here.
+slot 1 = CERT-7 (difficulty M, logged at spec docs/CERT-7-SPEC.md on
+cert/orchestrator before this assignment; block drawn in full at
+creation, same recorded posture). Arm for slot 1 = OPUS (byte 107,
+fable at position 3). Sequencing note (orchestrator decision, logged
+in docs/S-CERT-LOG.md at the next seam): CERT-7 dispatches AHEAD of
+CERT-6 — CERT-6 calibrates the A2 gauge on the area lanes CERT-5's
+unmerged PR rewrites, so it waits for CERT-5 to land; CERT-7's
+offset_fit.rs is disjoint from everything in flight.
