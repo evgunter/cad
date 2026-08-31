@@ -49,6 +49,30 @@ pub fn acts(op: &SessionOp) -> bool {
     !matches!(op, SessionOp::Hover(_))
 }
 
+/// **Whether an operation is a modal tool's one committed edit** — the
+/// rule that closes the tool that authored it, once the edit has
+/// actually landed.
+///
+/// A tool closes on the COMMIT and not on the click: a wrong-kind pick
+/// refusing typed at the session door leaves the tool open with its
+/// picks held, so the correction costs one pick instead of all of
+/// them. The caller applies it only to an operation that refused
+/// nothing.
+///
+/// The mate tool is deliberately absent: it closes at its own click,
+/// before the op is performed, which is the shipped GUI-4 behaviour
+/// and not this rule's to change.
+pub fn commits_a_modal_tool(op: &SessionOp) -> bool {
+    matches!(
+        op,
+        SessionOp::AddRevolve { .. }
+            | SessionOp::AddBoolean { .. }
+            | SessionOp::AddSplit { .. }
+            | SessionOp::AddTransform { .. }
+            | SessionOp::AddPattern { .. }
+    )
+}
+
 /// The status line after a batch: the refusal worth showing, or the
 /// verdict that the line should be cleared or left alone.
 ///

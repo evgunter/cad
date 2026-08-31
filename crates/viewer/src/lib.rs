@@ -52,6 +52,7 @@
 
 pub mod bounds;
 pub mod camera;
+pub mod combine;
 pub mod display;
 pub mod docio;
 pub mod evalseam;
@@ -66,6 +67,7 @@ pub mod revolvetool;
 pub mod scene;
 pub mod session;
 pub mod theme;
+pub mod tools;
 pub mod tree;
 
 #[cfg(feature = "app")]

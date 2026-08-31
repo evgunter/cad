@@ -44,11 +44,12 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use editor_core::appearance::Rgba8;
 use eframe::egui;
 use egui_tiles::{EditAction, Tile, TileId, Tiles, Tree, UiResponse};
-use pncad::document::{Axis3, Dimension, ParamName, RecipeNodeId, SlotId};
+use pncad::document::{Axis3, BooleanOp, Dimension, ParamName, RecipeNodeId, SlotId};
 use pncad::geom_core::Tol;
 use pncad::quantity::UnitDef;
 
 use crate::camera::{self, Camera, CameraOp};
+use crate::combine::{self, CombineToolError, PatternForm, Seat};
 use crate::display::{DisplayView, free_move_check};
 use crate::evalseam::Generation;
 #[cfg(not(target_family = "wasm"))]
@@ -56,16 +57,16 @@ use crate::evalseam::ThreadEvaluator;
 use crate::frame::{self, IdQueryLog, IdStep, StatusUpdate};
 use crate::gpu::{DEPTH_BITS, IdQuery, ViewportCallback, ViewportRenderer};
 use crate::input::{self, InputMap, PointerButton, ViewportEvent, ViewportSize};
-use crate::matetool::{MateChoice, MateTool, MateToolState, admitted_classes};
+use crate::matetool::{MateChoice, MateToolState, admitted_classes};
 use crate::pick::{self, PickCache, PickIndex};
 use crate::prefs::{self, Prefs, PrefsStore};
 use crate::props::{self, SlotDriver, SlotGroup, SlotRow, SlotValue};
-use crate::revolvetool::RevolveTool;
 use crate::scene::{self, DisplayTolerance, SceneMesh};
 use crate::session::{
     BoundsTarget, DatumSpec, DocSession, ProfileShape, Refusal, Selection, SessionOp, Standing,
 };
 use crate::theme::{Polarity, Theme};
+use crate::tools::{ToolKind, Tools};
 use crate::tree::{RowStatus, TreeRow};
 
 /// Where this build keeps preferences.
@@ -271,6 +272,26 @@ struct Drafts {
     extrude_distance: f64,
     /// The revolve tool's angle, radians.
     revolve_angle: f64,
+    /// The boolean tool's operation choice.
+    boolean_op: BooleanOp,
+    /// The transform tool's translation, metres.
+    transform_translation: [f64; 3],
+    /// Its rotation axis (unitless).
+    transform_axis: [f64; 3],
+    /// Its rotation angle, radians.
+    transform_angle: f64,
+    /// The pattern tool's rule choice.
+    pattern_kind: PatternKindChoice,
+    /// Its instance count — an INTEGER all the way from the field,
+    /// because the slot it lands in is Count-typed and a number that
+    /// was rounded on the way could differ from the one on screen.
+    pattern_count: i64,
+    /// The linear rule's step direction (unitless).
+    pattern_direction: [f64; 3],
+    /// The linear rule's spacing, metres.
+    pattern_spacing: f64,
+    /// The circular rule's angular step, radians.
+    pattern_step: f64,
 }
 
 impl Default for Drafts {
@@ -302,9 +323,43 @@ impl Default for Drafts {
             profile_extent: [0.01, 0.01],
             extrude_distance: 0.01,
             revolve_angle: core::f64::consts::TAU,
+            boolean_op: BooleanOp::Union,
+            transform_translation: [0.0; 3],
+            transform_axis: [0.0, 0.0, 1.0],
+            transform_angle: 0.0,
+            pattern_kind: PatternKindChoice::Linear,
+            pattern_count: 3,
+            pattern_direction: [1.0, 0.0, 0.0],
+            pattern_spacing: 0.02,
+            pattern_step: core::f64::consts::FRAC_PI_2,
         }
     }
 }
+
+/// The pattern form's rule choice — the two PARAMETRIC rules, an enum
+/// for the reason [`DatumKind`] is one. `Explicit` is absent by the
+/// plan's ruling: a list of absolute frames is not a form's job.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PatternKindChoice {
+    /// Stepped along a direction.
+    Linear,
+    /// Stepped around a picked datum axis.
+    Circular,
+}
+
+impl PatternKindChoice {
+    /// Every rule with its radio label, in form order.
+    const ALL: [(Self, &'static str); 2] = [(Self::Linear, "linear"), (Self::Circular, "circular")];
+}
+
+/// The boolean operations the form offers, with their labels — the
+/// KERNEL's enum and its own words, so the button a user reads and the
+/// operation the node carries cannot drift into two vocabularies.
+const BOOLEAN_OPS: [(BooleanOp, &str); 3] = [
+    (BooleanOp::Union, "union"),
+    (BooleanOp::Subtract, "subtract"),
+    (BooleanOp::Intersect, "intersect"),
+];
 
 /// The add-datum form's kind choice — one form, the three
 /// [`DatumSpec`] arms. An enum rather than an index into a label
@@ -414,12 +469,11 @@ pub struct ViewerApp {
     /// the number on screen is theirs and the badge would be claiming
     /// a choice it did not make.
     budget_delta: Option<crate::scene::FittedDelta>,
-    /// The modal mate tool, when active. `None` is "not in the mate
-    /// tool"; the tool's own state (the held picks) lives inside it.
-    mate_tool: Option<MateTool>,
-    /// The modal revolve tool, when active — the same shape as the
-    /// mate tool, holding node picks instead of face picks.
-    revolve_tool: Option<RevolveTool>,
+    /// **The modal tools, at most one open** — the mate tool, the
+    /// revolve tool and the four combining tools as one value, with
+    /// the exclusivity rule inside it rather than spread across the
+    /// activation sites ([`crate::tools::Tools`]).
+    tools: Tools,
     camera: Camera,
     input: InputMap,
     /// The palette in force — a USER preference, held in the
@@ -642,8 +696,7 @@ impl ViewerApp {
             // waiting to be a bug.
             fit_delta_on_scene: true,
             budget_delta: None,
-            mate_tool: None,
-            revolve_tool: None,
+            tools: Tools::new(),
             camera,
             input,
             theme,
@@ -669,21 +722,15 @@ impl ViewerApp {
     /// nothing.
     fn sync_scene(&mut self) {
         self.session.pump();
-        // The mate tool's survival step: re-read the held picks
-        // against the landed pair, reporting each typed drop.
-        if let (Some(tool), Some((doc, eval))) =
-            (self.mate_tool.as_mut(), self.session.landed_pair())
+        // **The survival step, once per frame, for whichever tool is
+        // open** — the obligation every tool's module docs put on its
+        // consumer, discharged in the one place that holds them all.
+        // Each notice already names its tool.
+        for notice in self
+            .tools
+            .reconcile(self.session.doc(), self.session.landed_pair())
         {
-            for event in tool.reconcile(doc, eval) {
-                self.status = Some(format!("mate tool: {event}"));
-            }
-        }
-        // The revolve tool's survival step: its picks are nodes, so
-        // the document alone answers whether each is still there.
-        if let Some(tool) = self.revolve_tool.as_mut() {
-            for event in tool.reconcile(self.session.doc()) {
-                self.status = Some(format!("revolve tool: {event}"));
-            }
+            self.status = Some(notice.to_string());
         }
         // **The budget picks the δ a document opens at**, once, before
         // anything is built at the δ in force — so the un-budgeted
@@ -860,7 +907,7 @@ impl ViewerApp {
         for op in ops {
             performed.push(op.clone());
             let opened = matches!(op, SessionOp::Open(_));
-            let revolved = matches!(op, SessionOp::AddRevolve { .. });
+            let tool_edit = frame::commits_a_modal_tool(&op);
             match self.session.perform(op).refusal {
                 Some(next) => refusal = Refusal::preferred(refusal, next),
                 // A replaced document owes a re-frame AND a fresh δ
@@ -874,12 +921,14 @@ impl ViewerApp {
                     self.fit_delta_on_scene = true;
                     self.budget_delta = None;
                 }
-                // The revolve tool closes when its edit actually
+                // A modal tool closes when its edit actually
                 // COMMITS, not when its button is clicked — a refusal
-                // leaves the tool open with its picks held
-                // (`revolve_tool_ui`'s commit arm carries the other
-                // half of this rule).
-                None if revolved => self.revolve_tool = None,
+                // leaves the tool open with its picks held, to be
+                // corrected (each tool panel's commit arm carries the
+                // other half of this rule). One open tool at a time is
+                // what lets this close "the" tool without asking which
+                // op came from which panel.
+                None if tool_edit => self.tools.close(),
                 None => {}
             }
         }
@@ -1201,8 +1250,7 @@ impl eframe::App for ViewerApp {
                 theme: self.theme,
                 drafts: &mut self.drafts,
                 display: &display,
-                mate_tool: &mut self.mate_tool,
-                revolve_tool: &mut self.revolve_tool,
+                tools: &mut self.tools,
                 pending_fit: &mut self.pending_fit,
                 status: &mut self.status,
                 id_answer: &self.id_answer,
@@ -1229,30 +1277,12 @@ impl eframe::App for ViewerApp {
             self.set_delta(delta);
         }
 
-        // The mate tool consumes the selection vocabulary: while the
-        // tool is active, a face pick this frame produced is ALSO held
-        // as a tool pick (the two-sequential-picks ruling — the same
-        // single-select value, copied into tool state).
-        if let Some(tool) = self.mate_tool.as_mut() {
-            for op in &ops {
-                if let SessionOp::Select(Selection::Face(face)) = op {
-                    tool.pick(face.clone());
-                }
-            }
-        }
-        // The revolve tool consumes the same stream at node
-        // resolution: a tree click is a node pick directly, a face
-        // pick reaches the feature it belongs to (`Selection::node`,
-        // the one viewport→tree inversion).
-        if let Some(tool) = self.revolve_tool.as_mut() {
-            for op in &ops {
-                if let SessionOp::Select(selection) = op
-                    && let Some(node) = selection.node()
-                {
-                    tool.pick(node);
-                }
-            }
-        }
+        // The open tool consumes the selection vocabulary: a pick this
+        // frame produced is ALSO held as a tool pick (the
+        // two-sequential-picks ruling — the same single-select value,
+        // copied into tool state). Which vocabulary each tool reads is
+        // `Tools::feed`'s to know.
+        self.tools.feed(&ops);
 
         self.perform_batch(ops);
     }
@@ -1278,10 +1308,8 @@ struct ViewerBehavior<'a> {
     drafts: &'a mut Drafts,
     /// The display snapshot this frame draws and picks under.
     display: &'a DisplayView,
-    /// The modal mate tool, if active.
-    mate_tool: &'a mut Option<MateTool>,
-    /// The modal revolve tool, if active.
-    revolve_tool: &'a mut Option<RevolveTool>,
+    /// The modal tools, at most one open.
+    tools: &'a mut Tools,
     pending_fit: &'a mut bool,
     status: &'a mut Option<String>,
     id_answer: &'a Arc<AtomicU64>,
@@ -1975,13 +2003,12 @@ impl ViewerBehavior<'_> {
         // while pushing ops and closing the tool — the authoritative
         // copy stays in the application and is only ever REPLACED
         // whole (activation, deactivation), never edited here.
-        let Some(tool) = self.mate_tool.clone() else {
+        let Some(tool) = self.tools.mate().cloned() else {
             if ui.button("Mate tool…").clicked() {
-                *self.mate_tool = Some(MateTool::new());
-                // ONE modal tool at a time: both tools consume the
-                // same selection stream, and two open at once would
-                // fill a mate seat and a revolve seat with one click.
-                *self.revolve_tool = None;
+                // ONE modal tool at a time — `Tools::open` closes
+                // whatever was open, the rule and its argument living
+                // in that value rather than at each activation.
+                self.tools.open(ToolKind::Mate);
             }
             return;
         };
@@ -2071,7 +2098,7 @@ impl ViewerBehavior<'_> {
             }
         });
         if close {
-            *self.mate_tool = None;
+            self.tools.close();
         }
         ui.separator();
     }
@@ -2090,6 +2117,18 @@ impl ViewerBehavior<'_> {
             self.extrude_ui(ui);
             ui.separator();
             self.revolve_tool_ui(ui);
+        });
+        // The combining tools sit in their own section (GAUTH-4):
+        // everything above makes a body out of nothing, everything
+        // here takes bodies that exist and makes another one.
+        ui.collapsing("Combine bodies", |ui| {
+            self.boolean_tool_ui(ui);
+            ui.separator();
+            self.split_tool_ui(ui);
+            ui.separator();
+            self.transform_tool_ui(ui);
+            ui.separator();
+            self.pattern_tool_ui(ui);
         });
         ui.separator();
     }
@@ -2277,12 +2316,11 @@ impl ViewerBehavior<'_> {
         // panel takes one: the panel reads it while pushing ops and
         // closing the tool; the authoritative copy is only ever
         // replaced whole.
-        let Some(tool) = *self.revolve_tool else {
+        let Some(tool) = self.tools.revolve() else {
             if ui.button("Revolve tool…").clicked() {
-                *self.revolve_tool = Some(RevolveTool::new());
                 // ONE modal tool at a time — the mate activation
                 // carries the argument.
-                *self.mate_tool = None;
+                self.tools.open(ToolKind::Revolve);
             }
             return;
         };
@@ -2324,7 +2362,183 @@ impl ViewerBehavior<'_> {
             }
         });
         if close {
-            *self.revolve_tool = None;
+            self.tools.close();
+        }
+    }
+
+    /// The boolean tool's panel: activation, the two held picks named
+    /// by ROLE, the operation choice, and the one committed edit.
+    ///
+    /// The role naming is the point of the panel: `subtract` removes
+    /// the second pick from the first, so a user who cannot see which
+    /// is which cannot author the operation they mean.
+    fn boolean_tool_ui(&mut self, ui: &mut egui::Ui) {
+        let Some(tool) = self.tools.boolean() else {
+            if ui.button("Boolean tool…").clicked() {
+                self.tools.open(ToolKind::Boolean);
+            }
+            return;
+        };
+        ui.label("boolean tool: pick the first body, then the second");
+        ui.weak(combine::seat_line(&[
+            (Seat::OperandA, tool.a()),
+            (Seat::OperandB, tool.b()),
+        ]));
+        ui.horizontal(|ui| {
+            ui.label("operation");
+            for (op, label) in BOOLEAN_OPS {
+                ui.radio_value(&mut self.drafts.boolean_op, op, label);
+            }
+        });
+        if self.drafts.boolean_op == BooleanOp::Subtract {
+            ui.weak("subtract removes the second pick from the first");
+        }
+        self.tool_commit_row(ui, "Commit boolean", ToolKind::Boolean, |drafts| {
+            tool.op(drafts.boolean_op)
+        });
+    }
+
+    /// The split tool's panel: a body pick, a datum-plane pick, and
+    /// the one committed edit.
+    fn split_tool_ui(&mut self, ui: &mut egui::Ui) {
+        let Some(tool) = self.tools.split() else {
+            if ui.button("Split tool…").clicked() {
+                self.tools.open(ToolKind::Split);
+            }
+            return;
+        };
+        ui.label("split tool: pick the body, then the datum plane");
+        ui.weak(combine::seat_line(&[
+            (Seat::SplitTarget, tool.target()),
+            (Seat::SplitPlane, tool.plane()),
+        ]));
+        self.tool_commit_row(ui, "Commit split", ToolKind::Split, |_| tool.op());
+    }
+
+    /// The transform tool's panel: one body pick plus the placement
+    /// fields, and the one committed edit.
+    fn transform_tool_ui(&mut self, ui: &mut egui::Ui) {
+        let Some(tool) = self.tools.transform() else {
+            if ui.button("Transform tool…").clicked() {
+                self.tools.open(ToolKind::Transform);
+            }
+            return;
+        };
+        ui.label("transform tool: pick the body to place");
+        ui.weak(combine::seat_line(&[(Seat::TransformBody, tool.input())]));
+        vec3_row(
+            ui,
+            "translation (m)",
+            &mut self.drafts.transform_translation,
+        );
+        vec3_row(ui, "rotation axis", &mut self.drafts.transform_axis);
+        ui.horizontal(|ui| {
+            ui.label("rotation angle (rad)");
+            ui.add(egui::DragValue::new(&mut self.drafts.transform_angle).speed(0.005));
+        });
+        self.tool_commit_row(ui, "Commit transform", ToolKind::Transform, |drafts| {
+            tool.op(
+                drafts.transform_translation,
+                drafts.transform_axis,
+                drafts.transform_angle,
+            )
+        });
+    }
+
+    /// The pattern tool's panel: a body pick, a rule choice with its
+    /// fields, the axis pick the circular rule needs, and the one
+    /// committed edit.
+    fn pattern_tool_ui(&mut self, ui: &mut egui::Ui) {
+        let Some(tool) = self.tools.pattern() else {
+            if ui.button("Pattern tool…").clicked() {
+                self.tools.open(ToolKind::Pattern);
+            }
+            return;
+        };
+        ui.label("pattern tool: pick the body, then (circular) the axis");
+        ui.weak(combine::seat_line(&[
+            (Seat::PatternBody, tool.input()),
+            (Seat::PatternAxis, tool.axis()),
+        ]));
+        ui.horizontal(|ui| {
+            ui.label("rule");
+            for (kind, label) in PatternKindChoice::ALL {
+                ui.radio_value(&mut self.drafts.pattern_kind, kind, label);
+            }
+        });
+        ui.horizontal(|ui| {
+            ui.label("count");
+            // Clamped at one instance: a count is a structural slot
+            // and a non-positive one refuses at evaluation, so the
+            // form does not offer to author a node that cannot build.
+            ui.add(
+                egui::DragValue::new(&mut self.drafts.pattern_count)
+                    .speed(0.1)
+                    .range(1..=1024),
+            );
+        });
+        match self.drafts.pattern_kind {
+            PatternKindChoice::Linear => {
+                vec3_row(ui, "direction", &mut self.drafts.pattern_direction);
+                ui.horizontal(|ui| {
+                    ui.label("spacing (m)");
+                    ui.add(
+                        egui::DragValue::new(&mut self.drafts.pattern_spacing)
+                            .speed(FIELD_DRAG_SPEED),
+                    );
+                });
+            }
+            PatternKindChoice::Circular => {
+                ui.horizontal(|ui| {
+                    ui.label("step (rad)");
+                    ui.add(egui::DragValue::new(&mut self.drafts.pattern_step).speed(0.005));
+                });
+            }
+        }
+        self.tool_commit_row(ui, "Commit pattern", ToolKind::Pattern, |drafts| {
+            let form = match drafts.pattern_kind {
+                PatternKindChoice::Linear => PatternForm::Linear {
+                    direction: drafts.pattern_direction,
+                    spacing: drafts.pattern_spacing,
+                },
+                PatternKindChoice::Circular => PatternForm::Circular {
+                    step: drafts.pattern_step,
+                },
+            };
+            tool.op(drafts.pattern_count, form)
+        });
+    }
+
+    /// **The commit/cancel row every combining tool ends with**, and
+    /// the one place their two halves of the close rule live.
+    ///
+    /// The op is QUEUED and the tool is not closed here: the
+    /// application closes it when the op actually commits
+    /// (`perform_batch`), so a refusal at the session door leaves the
+    /// held picks in place to correct instead of costing all of them.
+    /// Cancel closes immediately, being the door that means "drop
+    /// these picks".
+    fn tool_commit_row(
+        &mut self,
+        ui: &mut egui::Ui,
+        label: &str,
+        kind: ToolKind,
+        op: impl FnOnce(&Drafts) -> Result<SessionOp, CombineToolError>,
+    ) {
+        let mut close = false;
+        ui.horizontal(|ui| {
+            if ui.button(label).clicked() {
+                match op(self.drafts) {
+                    Ok(op) => self.ops.push(op),
+                    Err(error) => *self.status = Some(format!("{}: {error}", kind.label())),
+                }
+            }
+            if ui.button("Cancel").clicked() {
+                close = true;
+            }
+        });
+        if close {
+            self.tools.close();
         }
     }
 
