@@ -195,6 +195,27 @@ pub enum PointInSolidError {
         /// The sphere face the chart rectangle cannot express.
         face: FaceKey,
     },
+    /// A `Cone` face in neither cone class: its surface group does not
+    /// wrap the azimuth, and its own azimuth window is not definitely
+    /// narrower than a period.
+    ///
+    /// The cone chart's apex is a junction no azimuth walk crosses —
+    /// every azimuth maps to the tip — so a face bounded by two
+    /// meridians that MEET there has no closed-form window: the walk
+    /// continues in the direction it was going and reports the whole
+    /// period. Two classes answer around that. A face group with no
+    /// azimuth boundary of its own covers every azimuth of its slant
+    /// window, so the window alone trims it exactly; and a face whose
+    /// azimuth window IS definitely narrower than a period is the case
+    /// the walk gets right, trimmed per face. What reaches here is the
+    /// remainder — a ringed cone face, a group whose members disagree
+    /// on their slant window (two bands stacked on one cone, with
+    /// another surface's face between them), or a wrapped window on a
+    /// face whose group does not wrap.
+    PartialConeFace {
+        /// The cone face neither class expresses.
+        face: FaceKey,
+    },
 }
 
 impl From<PointInLoopError> for PointInSolidError {
@@ -271,6 +292,25 @@ impl core::fmt::Display for PointInSolidError {
                      where a fold over boundary levels never looks. Recourse: bound the \
                      sphere face with rims and meridians meeting AT the poles, keep it \
                      whole, or trim it with the cylinder/plane arms"
+                )
+            }
+            Self::PartialConeFace { face } => {
+                write!(
+                    f,
+                    "point_in_solid: cone face {face:?} is in neither cone class. The body \
+                     is HEALTHY and the containment door HAS a ray-crossing arm for the \
+                     kind; what it cannot pin is this face's azimuth. A cone chart's apex \
+                     is a junction no azimuth walk crosses — every azimuth maps to the tip \
+                     — so a face whose two bounding meridians MEET there has no closed-form \
+                     window, and the walk reports a whole period for a face that covers part \
+                     of one. Two classes answer around that: a face group with no azimuth \
+                     boundary of its own (the full revolve's two bands, which together cover \
+                     every azimuth of their shared slant window), and a face whose window is \
+                     definitely NARROWER than a period. This one is neither: it carries a \
+                     ring, its group's members disagree on their slant window, or its window \
+                     wrapped without its group wrapping. Recourse: bound the cone face so its \
+                     azimuth window closes short of a period, or let its group cover the \
+                     chart"
                 )
             }
         }
@@ -383,9 +423,17 @@ enum FaceGeo<T: geom_core::Real> {
         half_angle: T,
         /// The chart's seam direction.
         u_ref: Vec3<T>,
-        /// The face's azimuth window.
-        az: (T, T),
-        /// The face's slant window, metres along the generator.
+        /// The face's azimuth window, or `None` when the face's cone
+        /// surface group WRAPS the azimuth and the slant window alone
+        /// is the exact trim (see [`cone_chart_trim`]).
+        az: Option<(T, T)>,
+        /// The face the arms act for: the wrapped group's lowest face
+        /// key in arena order, or the face itself when the azimuth
+        /// trims it. Arms no-op on every other member, so one cone
+        /// contributes one crossing per root.
+        representative: FaceKey,
+        /// The slant window, metres along the generator — the
+        /// representative's, which the whole group shares.
         v: (T, T),
         /// Which nappe the face lies on: `true` is the `v > 0` one,
         /// which opens along `+axis`. It fixes the chart normal's sign
@@ -505,16 +553,21 @@ fn face_geo<T: Decide>(
             half_angle,
             u_ref,
         }) => {
-            let (az, v, nappe) = cone_chart_trim(body, face, apex, axis, half_angle, band)?;
+            let (az, representative, v, nappe) =
+                cone_chart_trim(body, face, apex, axis, half_angle, band)?;
             Ok(FaceGeo::Cone {
                 apex,
                 axis,
                 half_angle,
                 u_ref,
                 az,
+                representative,
                 v,
                 nappe,
-                sense: f.sense,
+                sense: body
+                    .get_face(representative)
+                    .ok_or(PointInSolidError::CorruptFace { face })?
+                    .sense,
             })
         }
         Some(&Surface::Sphere {
@@ -627,18 +680,46 @@ pub(super) fn cylinder_chart_trim<T: Decide>(
     Ok((az, h))
 }
 
-/// **A cone wall face's exact chart trim**: the azimuth window from the
-/// outer cycle's closed-form chart images (the S9 machinery the
-/// cylinder arm reads), the SLANT window from its boundary vertices,
-/// and the NAPPE the face lies on.
+/// **A cone wall face's chart trim, and which of the two cone classes
+/// it belongs to.** Answers `(azimuth window, representative, slant
+/// window, nappe)`.
 ///
 /// The slant coordinate is the cone chart's own `v` — metres along the
-/// generator, `v = (p − apex)·axis / cos α` — so the window is the
-/// cylinder height range's analogue and shares its premise: the range
-/// is the face's own for the ISO-BOUNDED wall class, where rims are
-/// slant iso-lines and meridians azimuth iso-lines and both extremes
-/// therefore sit on boundary VERTICES. The fold takes no infinity seed,
-/// for the reason [`cylinder_chart_trim`] states.
+/// generator, `v = (p − apex)·axis / cos α` — so the slant window is
+/// the cylinder height range's analogue and shares its premise: the
+/// range is the face's own for the ISO-BOUNDED wall class, where rims
+/// are slant iso-lines and meridians azimuth iso-lines and both
+/// extremes therefore sit on boundary VERTICES. The fold takes no
+/// infinity seed, for the reason [`cylinder_chart_trim`] states.
+///
+/// # The two classes, and why a cone needs both
+///
+/// A cone's apex is a junction the azimuth walk cannot cross. The
+/// closed-form window ([`crate::chord_join::face_azimuth_window`])
+/// pins each boundary edge's branch by nearest-branch continuity, and
+/// at an apex-closed face's TIP the two bounding meridians meet at a
+/// point every azimuth maps to — so the walk continues in the
+/// direction it was going and reports a FULL PERIOD for a face that
+/// covers half of one. That is the same singular junction the sphere
+/// chart has at its poles, which is why the sphere arm carries a
+/// closed-GROUP class beside its per-face rectangle. The cone carries
+/// the same pair:
+///
+/// - **the azimuth-WRAPPED group** ([`wrapped_cone_group`]): the faces
+///   on this cone surface have no azimuth boundary between them and
+///   the rest of the body, so their union covers every azimuth of the
+///   slant window and there is nothing for an azimuth trim to do. The
+///   answer is `None` for the window and the group's REPRESENTATIVE,
+///   for which alone the arms act — a per-face arm here would fold one
+///   root once per member and tie itself into a permanent graze, the
+///   defect [`FaceGeo::Sphere`] documents.
+/// - **the azimuth-TRIMMED face**: a face whose own window is
+///   definitely narrower than a period, which is exactly the case the
+///   walk gets right. It is served per face, like
+///   [`FaceGeo::SpherePatch`], and is its own representative.
+///
+/// A face in neither class is [`PointInSolidError::PartialConeFace`]:
+/// the honest remainder, never a window that misstates the face.
 ///
 /// # The nappe, decided here rather than at every hit
 ///
@@ -662,9 +743,10 @@ pub(super) fn cylinder_chart_trim<T: Decide>(
 /// # Errors
 ///
 /// [`PointInSolidError::CorruptFace`] for a face whose window or
-/// boundary cannot be resolved; [`PointInSolidError::Escalated`] for an
+/// boundary cannot be resolved; [`PointInSolidError::PartialConeFace`]
+/// for a face in neither class; [`PointInSolidError::Escalated`] for an
 /// in-band nappe posture or a window the premises above reject.
-#[allow(clippy::type_complexity)] // (azimuth window, slant window, nappe) — one chart trim
+#[allow(clippy::type_complexity)] // one chart trim, plus the class it selected
 pub(super) fn cone_chart_trim<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -672,15 +754,15 @@ pub(super) fn cone_chart_trim<T: Decide>(
     axis: Vec3<T>,
     half_angle: T,
     band: Band,
-) -> Result<((T, T), (T, T), bool), PointInSolidError> {
-    let escalate = |diag| PointInSolidError::Escalated { face, diag };
-    let invalid = |predicate| {
-        escalate(geom_core::Indeterminate {
-            margin: geom_core::MarginDiag::Invalid,
-            band,
-            predicate: Some(predicate),
-        })
-    };
+) -> Result<(Option<(T, T)>, FaceKey, (T, T), bool), PointInSolidError> {
+    let cos_a = half_angle.cos();
+    if let Some(representative) = wrapped_cone_group(body, face, apex, axis, cos_a, band)? {
+        let v = cone_slant_window(body, representative, apex, axis, cos_a)?;
+        let nappe = cone_nappe(face, v, band)?;
+        return Ok((None, representative, v, nappe));
+    }
+    let v = cone_slant_window(body, face, apex, axis, cos_a)?;
+    let nappe = cone_nappe(face, v, band)?;
     let f = body
         .get_face(face)
         .ok_or(PointInSolidError::CorruptFace { face })?;
@@ -692,8 +774,37 @@ pub(super) fn cone_chart_trim<T: Decide>(
         .ok()
         .flatten()
         .ok_or(PointInSolidError::CorruptFace { face })?;
-    let cos_a = half_angle.cos();
-    let mut v_range: Option<(T, T)> = None;
+    // The trimmed class is exactly the window the walk gets right. A
+    // window a period wide or wider is the apex junction's wrap, not a
+    // face that covers the chart — and the refusal says so rather than
+    // trimming by an angle that means nothing.
+    match decide(
+        "bool_cone_trim_period",
+        Margin::levered(T::tau() - (az.1 - az.0), v.0.abs().max(v.1.abs())),
+        band,
+    )
+    .map_err(|diag| PointInSolidError::Escalated { face, diag })?
+    {
+        Sign::Positive => Ok((Some(az), face, v, nappe)),
+        Sign::Zero | Sign::Negative => Err(PointInSolidError::PartialConeFace { face }),
+    }
+}
+
+/// The face's slant window, folded over its outer cycle's vertices.
+///
+/// # Errors
+///
+/// [`PointInSolidError::CorruptFace`] — an unwalkable face.
+fn cone_slant_window<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    apex: Point3<T>,
+    axis: Vec3<T>,
+    cos_a: T,
+) -> Result<(T, T), PointInSolidError> {
+    let f = body
+        .get_face(face)
+        .ok_or(PointInSolidError::CorruptFace { face })?;
     let LoopBoundary::Cycle { first } = body
         .get_loop(f.outer)
         .ok_or(PointInSolidError::CorruptFace { face })?
@@ -701,6 +812,7 @@ pub(super) fn cone_chart_trim<T: Decide>(
     else {
         return Err(PointInSolidError::CorruptFace { face });
     };
+    let mut range: Option<(T, T)> = None;
     for he in body
         .loop_cycle(first)
         .ok_or(PointInSolidError::CorruptFace { face })?
@@ -717,12 +829,30 @@ pub(super) fn cone_chart_trim<T: Decide>(
         // conventional domain (0, π/2), so the quotient is a length
         // with no small denominator of its own.
         let v = (p - apex).dot(axis) / cos_a;
-        v_range = Some(match v_range {
+        range = Some(match range {
             None => (v, v),
             Some((lo, hi)) => (lo.min(v), hi.max(v)),
         });
     }
-    let v = v_range.ok_or(PointInSolidError::CorruptFace { face })?;
+    range.ok_or(PointInSolidError::CorruptFace { face })
+}
+
+/// Which nappe a slant window lies on, and the premise that it lies on
+/// one at all (the two predicates [`cone_chart_trim`] documents).
+///
+/// # Errors
+///
+/// [`PointInSolidError::Escalated`] — in-band, or a window the premises
+/// reject.
+fn cone_nappe<T: Decide>(face: FaceKey, v: (T, T), band: Band) -> Result<bool, PointInSolidError> {
+    let escalate = |diag| PointInSolidError::Escalated { face, diag };
+    let invalid = |predicate| {
+        escalate(geom_core::Indeterminate {
+            margin: geom_core::MarginDiag::Invalid,
+            band,
+            predicate: Some(predicate),
+        })
+    };
     match decide(
         "bool_cone_trim_nappe",
         Margin::of(v.0.max(T::zero() - v.1)),
@@ -734,13 +864,117 @@ pub(super) fn cone_chart_trim<T: Decide>(
         Sign::Positive | Sign::Zero => {}
         Sign::Negative => return Err(invalid("bool_cone_trim_nappe")),
     }
-    let nappe =
-        match decide("bool_cone_trim_side", Margin::of(v.0 + v.1), band).map_err(escalate)? {
-            Sign::Positive => true,
-            Sign::Negative => false,
-            Sign::Zero => return Err(invalid("bool_cone_trim_side")),
+    match decide("bool_cone_trim_side", Margin::of(v.0 + v.1), band).map_err(escalate)? {
+        Sign::Positive => Ok(true),
+        Sign::Negative => Ok(false),
+        Sign::Zero => Err(invalid("bool_cone_trim_side")),
+    }
+}
+
+/// The representative of `face`'s cone-surface face group when that
+/// group WRAPS THE FULL AZIMUTH — when no member has a boundary edge
+/// that could trim the azimuth at all, so the union of the group covers
+/// every azimuth of its slant window and the slant window alone is the
+/// exact trim.
+///
+/// # The rule, and why it is structure rather than a margin
+///
+/// Only an edge that CROSSES the slant coordinate can bound a face in
+/// azimuth; a slant ISO-line — a rim — bounds it in `v`, which the
+/// slant window already carries. On a cone the two are told apart by
+/// the carrier's VARIANT: a circle on a cone is centred on the axis
+/// (an oblique plane cuts an ellipse, not a circle), so it is a rim,
+/// and every other carrier crosses `v`. So the rule is: **every
+/// boundary edge that is not a circle must be shared with another
+/// member of the group.** That is [`closed_sphere_group`]'s scan with
+/// rims exempted — arena keys, mate adjacency and curve variants only,
+/// never a margin, so it has no in-band twin and does not move with ε.
+///
+/// The members must also agree on their slant window, decided against
+/// the band. A group whose members' windows DIFFER is two bands stacked
+/// along one cone, and the fold over both would cover whatever lies
+/// between them — which is another surface's face, not this group's. A
+/// disagreeing group answers `None` and takes the typed refusal.
+///
+/// Rings on a cone face make the answer `None` (a ringed face is a
+/// trimmed one, and a ring is an azimuth boundary the scan cannot see).
+///
+/// # Errors
+///
+/// [`PointInSolidError`] — a corrupt member, or an in-band slant-window
+/// comparison between members.
+fn wrapped_cone_group<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    apex: Point3<T>,
+    axis: Vec3<T>,
+    cos_a: T,
+    band: Band,
+) -> Result<Option<FaceKey>, PointInSolidError> {
+    let Some(surface) = body.get_face(face).map(|f| f.surface) else {
+        return Err(PointInSolidError::CorruptFace { face });
+    };
+    let group: Vec<FaceKey> = body
+        .faces()
+        .filter(|(_, f)| f.surface == surface)
+        .map(|(k, _)| k)
+        .collect();
+    for &member in &group {
+        let Some(f) = body.get_face(member) else {
+            return Err(PointInSolidError::CorruptFace { face: member });
         };
-    Ok((az, v, nappe))
+        if !f.rings.is_empty() {
+            return Ok(None);
+        }
+        let Some(LoopBoundary::Cycle { first }) = body.get_loop(f.outer).map(|l| l.boundary) else {
+            return Ok(None);
+        };
+        let Some(cycle) = body.loop_cycle(first) else {
+            return Err(PointInSolidError::CorruptFace { face: member });
+        };
+        for he in cycle {
+            let Some(edge) = body
+                .get_half_edge(he)
+                .and_then(|h| body.get_edge(h.edge))
+                .map(|e| e.curve)
+            else {
+                return Err(PointInSolidError::CorruptFace { face: member });
+            };
+            // A rim bounds the slant window, not the azimuth.
+            if let Some(crate::null::CurveGeom::Certified(c)) = body.get_curve_geom(edge) {
+                if matches!(c.carrier(), geom::Curve3::Circle { .. }) {
+                    continue;
+                }
+            }
+            let Some(neighbour) = body
+                .mate(he)
+                .and_then(|m| body.get_half_edge(m))
+                .and_then(|h| body.get_loop(h.parent_loop))
+                .map(|l| l.face)
+            else {
+                return Err(PointInSolidError::CorruptFace { face: member });
+            };
+            if !group.contains(&neighbour) {
+                return Ok(None);
+            }
+        }
+    }
+    let Some(&representative) = group.first() else {
+        return Err(PointInSolidError::CorruptFace { face });
+    };
+    let reference = cone_slant_window(body, representative, apex, axis, cos_a)?;
+    for &member in &group {
+        let w = cone_slant_window(body, member, apex, axis, cos_a)?;
+        for margin in [w.0 - reference.0, w.1 - reference.1] {
+            if decide("bool_cone_group_slant", Margin::of(margin), band)
+                .map_err(|diag| PointInSolidError::Escalated { face: member, diag })?
+                != Sign::Zero
+            {
+                return Ok(None);
+            }
+        }
+    }
+    Ok(Some(representative))
 }
 
 /// Is the ON-WALL point `p` within the wall face's chart trim?
@@ -868,17 +1102,20 @@ fn chart_azimuth_margin<T: Decide>(
 ///
 /// # The apex, decided here
 ///
-/// **The apex never yields a crossing, and it is refused before any
-/// direction is read off the surface.** The cone has no tangent plane
-/// at its apex — the singularity is the SURFACE's, not the chart's (a
-/// sphere's poles are the other case) — so there is no outward normal
-/// there, and therefore no material side for the closest-hit rule to
-/// consume; a definite answer would have to fabricate the tangent plane
-/// the geometry does not have. `bool_ray_cone_apex` decides `|p − apex|`
-/// FIRST and answers a hit at the apex with `None`: the ray abandons and
-/// the schedule retries, exactly as a tangency does. That ordering is
-/// also what keeps the azimuth arm honest, since the radial component
-/// vanishes at the apex and its normalization would be poison.
+/// **The apex never yields a crossing.** The cone has no tangent plane
+/// there — the singularity is the SURFACE's, not merely the chart's (a
+/// sphere's poles are the other case) — so no outward normal exists and
+/// the closest-hit rule has no material side to consume; a definite
+/// answer would have to fabricate the tangent plane the geometry does
+/// not have. `bool_ray_cone_apex` therefore answers a hit at the apex
+/// with `None`: the ray abandons and the schedule retries, exactly as a
+/// tangency does. Deciding it before the azimuth arm is what keeps that
+/// arm honest, since the radial component vanishes at the apex and its
+/// normalization would be poison.
+///
+/// It is decided AFTER the slant window, not before, because the apex
+/// of a face the window excludes is not this face's apex to graze on —
+/// see the note at the site.
 ///
 /// Away from the apex the two nappes are told apart by
 /// `bool_ray_cone_nappe`, the issue's `(p − apex)·axis` sign taken
@@ -895,7 +1132,7 @@ pub(super) fn point_on_cone_in_face<T: Decide>(
     axis: Vec3<T>,
     half_angle: T,
     u_ref: Vec3<T>,
-    az: (T, T),
+    az: Option<(T, T)>,
     v_win: (T, T),
     nappe: bool,
     p: Point3<T>,
@@ -903,29 +1140,59 @@ pub(super) fn point_on_cone_in_face<T: Decide>(
 ) -> Result<Option<bool>, PointInSolidError> {
     let escalate = |diag| PointInSolidError::Escalated { face, diag };
     let w = p - apex;
-    if decide("bool_ray_cone_apex", Margin::norm3(w), band).map_err(escalate)? == Sign::Zero {
-        return Ok(None); // the apex: no tangent plane, so no answer
-    }
     let h = w.dot(axis);
+    let v = h / half_angle.cos();
+    // **The slant window is asked FIRST, and that order is
+    // load-bearing.** It is the one test that still means something AT
+    // the apex, where the azimuth is undefined; and a face whose window
+    // is clear of the apex — every frustum — must answer a query at its
+    // VIRTUAL apex `Some(false)`, not the graze below. Grazing there
+    // would hand the pre-pass a point of free space, arbitrarily far
+    // outside the solid, as a point ON its boundary.
+    let mut verdict = Some(true);
+    for margin in [Margin::of(v - v_win.0), Margin::of(v_win.1 - v)] {
+        match decide("bool_cone_trim", margin, band).map_err(escalate)? {
+            Sign::Positive => {}
+            Sign::Negative => return Ok(Some(false)),
+            Sign::Zero => verdict = None, // boundary graze
+        }
+    }
+    if decide("bool_ray_cone_apex", Margin::norm3(w), band).map_err(escalate)? == Sign::Zero {
+        // The apex of a face whose window REACHES it (an apex-closed
+        // cone face): no tangent plane, so no material side to read —
+        // the ray abandons and the schedule retries. The boundary
+        // pre-pass reads the same `None` as ON the boundary, which the
+        // apex of such a face is: it is the tip of the solid.
+        return Ok(None);
+    }
     let nappe_h = if nappe { h } else { T::zero() - h };
     match decide("bool_ray_cone_nappe", Margin::of(nappe_h), band).map_err(escalate)? {
         Sign::Positive => {}
         Sign::Negative => return Ok(Some(false)), // the mirror nappe
         Sign::Zero => return Ok(None),
     }
-    let v = h / half_angle.cos();
+    // A WRAPPED group has no azimuth boundary to test: every azimuth of
+    // the slant window is the group's, and the arms act for one member.
+    let Some(az) = az else { return Ok(verdict) };
     let radial = w - axis * h;
+    // The window is stated in CHART azimuth, and on the `v < 0` nappe
+    // the chart's radial is the negation of the physical one (`S` puts
+    // that nappe at azimuth `u + π`). The direction compared against
+    // the window must therefore be the chart's, or the test reads the
+    // window a half-period away from the face it belongs to.
+    let chart_radial = if nappe {
+        radial
+    } else {
+        radial * (T::zero() - T::one())
+    };
     // The local radius IS the lever here: a cone's azimuth window edge
     // moves `ρ` per radian at the point being tested, and `ρ` runs from
     // zero at the apex to the face's widest rim.
-    let azimuth = chart_azimuth_margin(face, axis, u_ref, az, radial, radial.norm(), band)?;
-    let mut verdict = Some(true);
-    for margin in [azimuth, Margin::of(v - v_win.0), Margin::of(v_win.1 - v)] {
-        match decide("bool_cone_trim", margin, band).map_err(escalate)? {
-            Sign::Positive => {}
-            Sign::Negative => return Ok(Some(false)),
-            Sign::Zero => verdict = None, // boundary graze
-        }
+    let azimuth = chart_azimuth_margin(face, axis, u_ref, az, chart_radial, radial.norm(), band)?;
+    match decide("bool_cone_trim", azimuth, band).map_err(escalate)? {
+        Sign::Positive => {}
+        Sign::Negative => return Ok(Some(false)),
+        Sign::Zero => verdict = None, // boundary graze
     }
     Ok(verdict)
 }
@@ -1531,10 +1798,14 @@ pub fn point_in_solid<T: Decide>(
                 half_angle,
                 u_ref,
                 az,
+                representative,
                 v,
                 nappe,
                 sense: _, // residual-vs-Zero and chart trim: orientation-free
             } => {
+                if face != representative {
+                    continue;
+                }
                 let w = q - apex;
                 let h = w.dot(axis);
                 let nappe_h = if nappe { h } else { T::zero() - h };
@@ -1895,10 +2166,14 @@ fn cast_ray<T: Decide>(
                 half_angle,
                 u_ref,
                 az,
+                representative,
                 v,
                 nappe,
                 sense,
             } => {
+                if face != representative {
+                    continue;
+                }
                 let (sin_a, cos_a) = half_angle.sin_cos();
                 let cos2 = cos_a.powi(2);
                 let w0 = q - apex;
@@ -1951,12 +2226,16 @@ fn cast_ray<T: Decide>(
                     let hp = wp.dot(axis);
                     let rad = wp - axis * hp;
                     let rho = rad.norm();
-                    let n_chart = rad / rho * cos_a - axis * sin_a;
-                    let n_chart = if nappe {
-                        n_chart
-                    } else {
-                        n_chart * (T::zero() - T::one())
-                    };
+                    // `radial(u)` in the chart normal is the CHART's
+                    // radial, and on the `v < 0` nappe it is the
+                    // negation of the physical one — `S` places that
+                    // nappe at azimuth `u + π`. Folding the nappe's
+                    // sign into the whole expression would cancel
+                    // twice and point the normal INTO the material;
+                    // what carries it is the axial term alone:
+                    // `r̂·cos α − σ·axis·sin α`.
+                    let axial = if nappe { sin_a } else { T::zero() - sin_a };
+                    let n_chart = rad / rho * cos_a - axis * axial;
                     let outward = oriented(
                         decide(
                             "bool_ray_cone_incidence",
