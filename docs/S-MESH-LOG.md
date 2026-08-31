@@ -23,12 +23,16 @@ decision).
   carries the opening PR and is otherwise unused, per the
   S-CERT/S-QA precedent). The remote's dormant `mesh/*` branches are
   pre-program #284-era work, not this program's.
-- **A/B ordinal band: S-MESH = 900–999**, claimed in
-  `docs/MODEL-AB-LOG.md`'s banding entry in this same commit, per that
-  entry's rule (S-QA holds 800–899; 900 was the next free band at
-  claim time). Implementer blocks are named `MESH-B1, MESH-B2, …`
-  (`MESH-<n>` are unit names). **S-BOOL = 1000–1099 is claimed in the
-  same commit** (same orchestrator, `docs/S-BOOL-LOG.md`).
+- **A/B ordinal band: S-MESH = 1000–1099**, claimed in
+  `docs/MODEL-AB-LOG.md`'s banding entry in this same PR, per that
+  entry's rule. The opening commit claimed 900–999; GAUTH opened
+  concurrently, drew the same band, and its claim reached main first,
+  so S-MESH renumbered to 1000–1099 (and S-BOOL to 1100–1199) under
+  the main-is-authority tiebreak before any ordinal was assigned —
+  the corrected log the banding entry says a collision costs.
+  Implementer blocks are named `MESH-B1, MESH-B2, …` (`MESH-<n>` are
+  unit names). **S-BOOL = 1100–1199 is claimed in the same commit**
+  (same orchestrator, `docs/S-BOOL-LOG.md`).
 - **This session runs in a remote container** (the S-CERT/S-QA/M10/GUI
   precedent): no persistent `~/.local/share/cad-work`, no script
   monitors (PR watching via MCP subscriptions + scheduled self

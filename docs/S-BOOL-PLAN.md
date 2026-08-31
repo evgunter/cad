@@ -13,7 +13,7 @@ Branch prefix (the #396 convention): **`bool/`** — unit branches
 `bool/<unit>-<slug>`, orchestrator branch `bool/orchestrator`.
 Away-channel tag `(S-BOOL orchestrator)` (one orchestrator, two tags —
 the tag names the program a comment speaks for). A/B ordinal band
-**S-BOOL = 1000–1099**, claimed in `docs/MODEL-AB-LOG.md`'s banding
+**S-BOOL = 1100–1199**, claimed in `docs/MODEL-AB-LOG.md`'s banding
 entry in this same PR; implementer blocks are named `BOOL-B1, …`
 (unit names occupy `BOOL-<n>`). Live state is `docs/S-BOOL-LOG.md`'s
 tail, never this file.
@@ -185,7 +185,7 @@ this program's files — see Q3 below.
 
 As S-MESH's, verbatim in substance (`docs/S-MESH-PLAN.md` §Process):
 v6 duals, blocks `BOOL-B<n>`, ordinals claimed on main at review
-dispatch from band 1000–1099, blinding, record-at-merge, hosted CI as
+dispatch from band 1100–1199, blinding, record-at-merge, hosted CI as
 the only gate, the #1356 ε-trailer practice, discipline/reviewer
 prompts by path. Same remote container, same shared lane budget — the
 two programs' dispatches interleave, never double.

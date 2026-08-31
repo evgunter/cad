@@ -12,7 +12,7 @@ Branch prefix (the #396 convention): **`mesh/`** — unit branches
 `mesh/<unit>-<slug>`, orchestrator branch `mesh/orchestrator`. (The
 remote's dormant `mesh/*` branches are the pre-program #284-era work,
 not this program's; no legacy registry, per #396.) Away-channel tag
-`(S-MESH orchestrator)`. A/B ordinal band **S-MESH = 900–999**,
+`(S-MESH orchestrator)`. A/B ordinal band **S-MESH = 1000–1099**,
 claimed in `docs/MODEL-AB-LOG.md`'s banding entry in this same PR, per
 that entry's rule; implementer blocks are named `MESH-B1, MESH-B2, …`
 (unit names occupy `MESH-<n>`). Live state is `docs/S-MESH-LOG.md`'s
@@ -246,7 +246,7 @@ Standard, v6: substrate → binding spec → one implementer + the
 cross-model dual review + union fix pass; implementer arms drawn per
 the current block rule in `docs/MODEL-AB-LOG.md` (read on main at each
 dispatch — that document owns every live number); ordinals claimed on
-main at review dispatch from band 900–999; record-at-merge with
+main at review dispatch from band 1000–1099; record-at-merge with
 per-phase tokens/wall-clock; blinding discipline verbatim (no
 `Co-Authored-By` in lane commits; no arm-naming surface reviewers can
 read). Hosted CI is the only gate; every new row ε-three-outcome

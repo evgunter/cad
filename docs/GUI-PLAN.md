@@ -172,6 +172,9 @@ scope; GUI-5 is DEFERRED post-v1 beside GUI-6 (Evan's ruling,
    made a guarded lane, the cross-origin-isolation serving story,
    open/save via download/upload. Skipping it costs v1 nothing.
 
+Part authoring in the GUI (creation doors, edge picking, blend and
+instance authoring) is its own program: `docs/GAUTH-PLAN.md`.
+
 Banked past v1 (not a v1 unit): **GUI-6 — the history graph +
 sidecar** — the undo tree's branch-graph UI (sketch recorded in
 GUI-DESIGN's undo-tree section) and the separable history sidecar
