@@ -28,3 +28,12 @@ fable in slot 3. Triple: slot 1 OPUS · slot 2 OPUS · slot 3 FABLE.
 MATE-6 dispatch consumes B2 slot 1 (OPUS) — 2026-08-31, difficulty
 M (pre-logged in the plan). Spec docs/MATE-6-SPEC.md on main
 (PR #1414). B2 slots 2–3 unconsumed.
+
+MATE-2 dual METHOD NOTE (recorded 2026-08-31, BEFORE R1 dispatch):
+SEQUENTIAL same-head on frozen c27ecb5a, per the v6 contention
+posture — two sibling implementer lanes (MATE-3, MATE-6) hold the
+machine's stated 3-lane budget, so R1 runs now and R2 dispatches
+from the stored brief VERBATIM at R1's delivery. Briefs symmetric,
+stored at docs/MATE-2-REVIEW-BRIEF.md on this branch pre-R1; only
+the R-label and probe branch name substitute. Byte 212 parity 0 ⇒
+R1 OPUS + R2 FABLE (claimed on main, PR #1419).
