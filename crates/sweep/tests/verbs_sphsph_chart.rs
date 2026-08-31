@@ -67,6 +67,15 @@ fn lune(turn: Revolution<f64>) -> Body<f64> {
 /// the axis, which is the floor this construction has to clear;
 /// `u_r = 1e-3` and `1e-2` both clear it comfortably.)
 fn ball_with_a_near_polar_rim(u_r: f64) -> Body<f64> {
+    rimmed_ball(u_r, Revolution::Full)
+}
+
+/// The same construction at an arbitrary sweep: a unit ball whose one
+/// latitude RIM sits at polar angle `pi - u_r`, swept through `turn`.
+/// A PARTIAL sweep also mints the two meridian seam PLANES, whose
+/// surface keys the planted rows below need for an adjacency-coherent
+/// `Intersection` description.
+fn rimmed_ball(u_r: f64, turn: Revolution<f64>) -> Body<f64> {
     let (rho, h) = (u_r.sin(), -u_r.cos());
     let lp = ProfileLoop::new(vec![
         // On the axis, at the rim's own height: the flat disc's centre.
@@ -86,9 +95,7 @@ fn ball_with_a_near_polar_rim(u_r: f64) -> Body<f64> {
         origin: geom_core::Point2::new(0.0, 0.0),
         dir: Vec2::new(0.0, 1.0),
     };
-    revolve(&vp, axis, Revolution::Full, Tol::witness())
-        .unwrap()
-        .body
+    revolve(&vp, axis, turn, Tol::witness()).unwrap().body
 }
 
 fn sphere_faces(body: &Body<f64>) -> Vec<FaceKey> {
@@ -251,18 +258,31 @@ fn near_polar_probes_stay_definite_where_an_axial_lever_collapses() {
 fn the_latitude_margin_decides_at_a_near_polar_rim_where_the_axial_lever_cannot() {
     let (b, eps) = (band(), Tol::witness().get().eps);
     let (zero, escalate) = (b.zero(), b.escalate());
-    for (u_r, k) in [(1e-3_f64, 100.0_f64), (1e-2, 30.0)] {
+    // ONE planted point, inside a window with a measured floor at both
+    // ends (the doc above). Everything below scales with eps.
+    let (u_r, k) = (1e-2_f64, 30.0_f64);
+    {
         let delta = k * eps;
         // The premise, stated in the open at this eps.
         assert!(
             delta.sin() >= escalate,
-            "u_r={u_r}: the arc lever must be definite ({} < {escalate})",
+            "the arc lever must be definite ({} < {escalate})",
             delta.sin()
         );
         let axial = (u_r.cos() - (u_r + delta).cos()).abs();
         assert!(
             axial <= zero,
-            "u_r={u_r}: the axial lever must have collapsed ({axial} > {zero})"
+            "the axial lever must have collapsed ({axial} > {zero})"
+        );
+        // The constructive floor, measured rather than asserted: the
+        // profile's radial segment meets the spherical arc at a
+        // `carrier_line_circle` margin of about `u_r^2/2`, so a rim
+        // nearer the pole than `sqrt(2*K*eps)` is refused as an
+        // undeclared near-tangency. `1e-2` clears it at every eps the
+        // suite runs (1e-6 -> 4.5e-3, 1e-9 -> 1.4e-4, 1e-12 -> 4.5e-6).
+        assert!(
+            u_r.powi(2) / 2.0 > escalate,
+            "the fixture must clear its own construction floor"
         );
         let body = ball_with_a_near_polar_rim(u_r);
         let faces = sphere_faces(&body);
@@ -289,8 +309,7 @@ fn the_latitude_margin_decides_at_a_near_polar_rim_where_the_axial_lever_cannot(
                     .filter(|v| **v == Some(FaceContainment::In))
                     .count(),
                 1,
-                "u_r={u_r}, az={az}: one band contains the probe just inside the rim, \
-                 got {verdicts:?}"
+                "az={az}: one band contains the probe just inside the rim, got {verdicts:?}"
             );
             // Past the rim, in the disc's own latitude range: BOTH bands
             // are definitely out, and nothing here is a graze.
@@ -304,11 +323,95 @@ fn the_latitude_margin_decides_at_a_near_polar_rim_where_the_axial_lever_cannot(
                     )
                     .unwrap(),
                     Some(FaceContainment::Out),
-                    "u_r={u_r}, az={az}: past the rim is definitely outside"
+                    "az={az}: past the rim is definitely outside"
                 );
             }
         }
     }
+}
+
+/// The boundary-adjacent probes §7 asks for, on both boundary classes:
+/// exactly AT a meridian and exactly AT a latitude rim.
+///
+/// The verdict there is not a graze but a NAMED incidence — the shared
+/// boundary walk runs before the chart trim and answers `OnEdge(e)`
+/// with the edge a split would cut, or `OnVertex` at a corner. The row
+/// pins that, and pins that the edge named is the one the probe is
+/// actually on, so a boundary answer cannot degrade into a coin-flip
+/// interior verdict without the row noticing.
+#[test]
+fn probes_on_the_boundary_land_on_the_boundary_at_a_rim_and_at_a_meridian() {
+    let b = band();
+    // At a MERIDIAN: the lune's own two seam edges, at several
+    // latitudes between the poles.
+    let body = lune(Revolution::Partial(core::f64::consts::FRAC_PI_2));
+    let f = sphere_faces(&body)[0];
+    let ch = chart(&body, f);
+    let meridians: Vec<_> = boundary_edges(&body, f, true);
+    assert_eq!(meridians.len(), 2, "a lune is bounded by two meridians");
+    for az in [0.0_f64, core::f64::consts::FRAC_PI_2] {
+        for polar in [0.05_f64, 0.9, 2.2, 3.0] {
+            let v = topo::curved_face_containment(&body, f, at(ch, az, polar, 1.0), b).unwrap();
+            let Some(FaceContainment::OnEdge(e)) = v else {
+                panic!("on the meridian boundary at az={az}, polar={polar}: {v:?}");
+            };
+            assert!(meridians.contains(&e), "az={az}: names a meridian, got {e:?}");
+        }
+    }
+    // At a RIM: the rimmed ball's own latitude edge. Each band is asked
+    // at the azimuths it owns, so the answer is its own boundary rather
+    // than the other band's exterior.
+    let rimmed = rimmed_ball(1.0, Revolution::Full);
+    let rim_polar = core::f64::consts::PI - 1.0;
+    let mut owned_seen = 0usize;
+    for &f in &sphere_faces(&rimmed) {
+        let ch = chart(&rimmed, f);
+        let rims = boundary_edges(&rimmed, f, false);
+        for az in [0.7_f64, 2.4, 3.8, 5.5] {
+            let inside =
+                topo::curved_face_containment(&rimmed, f, at(ch, az, rim_polar - 0.1, 1.0), b)
+                    .unwrap();
+            if inside != Some(FaceContainment::In) {
+                continue; // the other band's azimuth
+            }
+            owned_seen += 1;
+            let v = topo::curved_face_containment(&rimmed, f, at(ch, az, rim_polar, 1.0), b)
+                .unwrap();
+            let Some(FaceContainment::OnEdge(e)) = v else {
+                panic!("on the owning band's own rim at az={az}: {v:?}");
+            };
+            assert!(rims.contains(&e), "az={az}: names a rim, got {e:?}");
+        }
+    }
+    assert_eq!(owned_seen, 4, "every azimuth is owned by exactly one band");
+}
+
+/// The face's boundary edges of one iso class: meridian great circles
+/// (`meridian`) or latitude rims.
+fn boundary_edges(body: &Body<f64>, face: FaceKey, meridian: bool) -> Vec<topo::EdgeKey> {
+    let fd = body.get_face(face).unwrap();
+    let axis = match body.get_surface(fd.surface) {
+        Some(&geom::Surface::Sphere { axis, .. }) => axis,
+        _ => panic!("a sphere face"),
+    };
+    let topo::LoopBoundary::Cycle { first } = body.get_loop(fd.outer).unwrap().boundary else {
+        panic!("a cycle")
+    };
+    body.loop_cycle(first)
+        .unwrap()
+        .into_iter()
+        .filter_map(|he| {
+            let ed = body.get_edge(body.get_half_edge(he).unwrap().edge).unwrap();
+            let c = body
+                .get_curve_geom(ed.curve)
+                .and_then(topo::null::CurveGeom::certified)?;
+            let geom::Curve3::Circle { axis: n, .. } = *c.carrier() else {
+                return None;
+            };
+            ((n.dot(axis).abs() < 1e-9) == meridian)
+                .then(|| body.get_half_edge(he).unwrap().edge)
+        })
+        .collect()
 }
 
 /// The whole ball's two half-bands are the same class — meridian-bounded
@@ -444,4 +547,342 @@ fn the_refusal_names_the_class_it_needs() {
         assert!(msg.contains(want), "missing {want:?}: {msg}");
     }
     assert!(!msg.contains("chart_mints"), "{msg}");
+}
+
+// ---------------------------------------------------------------------
+// The §7 class-remainder rows.
+//
+// Every row below plants a face the chart rectangle must REFUSE, and
+// each is planted at the layer that can actually produce it. Three of
+// the four are unreachable through a sweep constructor — a revolve mints
+// iso-bounded sphere faces and nothing else, which is the whole point of
+// the class — so they are built by re-attaching one datum of a revolved
+// body through a PUBLIC door (`set_edge_curve`, `set_face_surface`,
+// `kef`, `kfmrh`), never by hand-editing an arena. Each row states which
+// door it used and pins the refusal at BOTH containment doors, because
+// the two doors reach the trim by different routes.
+// ---------------------------------------------------------------------
+
+/// **The §7 pole-in-edge-interior refusal (#723's premise), planted.**
+/// A meridian boundary edge whose span contains a POLE strictly inside
+/// takes the face out of the chart class: latitude stops being monotone
+/// along the edge, so no fold over boundary levels can see the face's
+/// own extreme, and the azimuth image stops being a constant-azimuth
+/// iso-line (it jumps by pi at the pole).
+///
+/// Planted by re-spanning ONE seam meridian the long way round — same
+/// carrier circle, same two vertices, the arc that goes over the far
+/// pole instead of the near side. The control is the same body one call
+/// earlier, which answers definitely; the only difference between the
+/// two is whether the pole is a vertex or interior to an edge.
+#[test]
+fn a_meridian_edge_with_a_pole_strictly_inside_refuses_at_both_doors() {
+    let (b, t) = (band(), Tol::witness());
+    let base = rimmed_ball(1.0, Revolution::Partial(core::f64::consts::FRAC_PI_2));
+    let f = sphere_faces(&base)[0];
+    let ch = chart(&base, f);
+    let (on, inside) = (at(ch, 0.4, 2.0, 1.0), at(ch, 0.4, 2.0, 0.5));
+    // Control: the iso-bounded original is served at both doors.
+    assert_eq!(
+        topo::curved_face_containment(&base, f, on, b).unwrap(),
+        Some(FaceContainment::In)
+    );
+    assert_eq!(point_in_solid(&base, inside, b, t).unwrap(), SolidContainment::In);
+
+    let mut planted = base.clone();
+    let (edge, carrier, plane_key) = seam_meridian(&planted, f);
+    let geom::Curve3::Circle {
+        center,
+        axis,
+        radius,
+        u_ref,
+    } = carrier
+    else {
+        panic!("a meridian great circle")
+    };
+    // The SAME circle, traversed the other way: its seam still sits at
+    // the pole, so the long arc pole -> far pole -> rim is the forward
+    // one. (The attach door certifies a forward, sub-period span:
+    // measured, a decreasing span refuses `IntervalNotForward` and a
+    // span past a full turn refuses `WindingExceeded`, so the reversal
+    // is not a convenience — it is the only spelling the door takes.)
+    let long = geom::Curve3::Circle {
+        center,
+        axis: Vec3::zero() - axis,
+        radius,
+        u_ref,
+    };
+    let width = core::f64::consts::PI + 1.0;
+    planted
+        .set_edge_curve(
+            edge,
+            geom_brep::EdgeCurveSpec {
+                description: geom_brep::EdgeDescriptionSpec::Intersection {
+                    s1: base.get_face(f).unwrap().surface,
+                    s2: plane_key,
+                    witness: long.eval(width * 0.5),
+                },
+                carrier: long,
+                param_start: 0.0,
+                param_end: width,
+            },
+            t,
+        )
+        .expect("the long-way meridian arc certifies: same carrier, same endpoints");
+
+    assert_eq!(
+        topo::curved_face_containment(&planted, f, on, b).unwrap(),
+        None,
+        "the face door reports the honest remainder"
+    );
+    let err = point_in_solid(&planted, inside, b, t).expect_err("out of the chart class");
+    assert!(
+        matches!(err, PointInSolidError::PartialSphereFace { .. }),
+        "{err:?}"
+    );
+    assert!(err.to_string().contains("POLE strictly inside"), "{err}");
+}
+
+/// **The §7 non-iso-bounded refusal, planted**, with its two-tolerance
+/// twin. A boundary circle that is neither a latitude rim (axis parallel
+/// to the polar axis) nor a meridian great circle (axis perpendicular,
+/// centred at the sphere centre) is a face the `[azimuth] x [latitude]`
+/// rectangle does not describe, and the trim says so.
+///
+/// Planted by tilting the disc face's PLANE and re-attaching the shared
+/// rim edge as that plane's section of the sphere — the same two
+/// vertices, a genuinely tilted circle through them. (A `Chart`
+/// description will not carry it: measured, the attach door refuses
+/// `ChartImageUnavailable { chart: "sphere", carrier: "circle" }` for a
+/// general circle, which is the same fact the PR body states about a
+/// meridian through a pole, met from the other side.)
+///
+/// The twin is the same construction at a tilt of `3*eps` radians, where
+/// the class margin `|n x a|*r` lands in the ambiguity band and the door
+/// ESCALATES on its own named predicate instead of guessing a class.
+#[test]
+fn a_boundary_circle_in_neither_iso_class_refuses_and_escalates_in_band() {
+    let (b, t) = (band(), Tol::witness());
+    let eps = t.get().eps;
+    for (tilt, what) in [(0.5_f64, "definite"), (3.0 * eps, "in-band")] {
+        let mut planted = rimmed_ball(1.0, Revolution::Partial(core::f64::consts::FRAC_PI_2));
+        let f = sphere_faces(&planted)[0];
+        let sph_key = planted.get_face(f).unwrap().surface;
+        let ch = chart(&planted, f);
+        let (edge, rim, _) = rim_edge(&planted, f);
+        let (p0, p1) = (rim.eval(0.0), rim.eval(core::f64::consts::FRAC_PI_2));
+        // The pencil of planes through the rim edge's two endpoints,
+        // parameterised by the tilt away from the latitude plane.
+        let e1 = Vec3::new(0.0, 1.0, 0.0);
+        let e2 = (p1 - p0).normalize().cross(e1).normalize();
+        let m = e1 * tilt.cos() + e2 * tilt.sin();
+        let s0 = m.dot(p0 - Point3::origin());
+        let c = Point3::origin() + m * s0;
+        let rad = (1.0 - s0 * s0).sqrt();
+        let u = (p0 - c) * (1.0 / rad);
+        let t1 = (p1 - c).dot(m.cross(u)).atan2((p1 - c).dot(u));
+        let tilted = geom::Curve3::Circle {
+            center: c,
+            axis: m,
+            radius: rad,
+            u_ref: u,
+        };
+        // The disc face carries the tilted circle's own plane, so the
+        // pair the description names IS the edge's adjacent pair.
+        let disc = flat_disc(&planted);
+        let plane_key = planted
+            .set_face_surface(
+                disc,
+                topo::FaceSurface::New(geom::Surface::Plane {
+                    origin: c,
+                    normal: m,
+                    u_ref: u,
+                }),
+            )
+            .unwrap();
+        planted
+            .set_edge_curve(
+                edge,
+                geom_brep::EdgeCurveSpec {
+                    description: geom_brep::EdgeDescriptionSpec::Intersection {
+                        s1: sph_key,
+                        s2: plane_key,
+                        witness: tilted.eval(t1 * 0.5),
+                    },
+                    carrier: tilted,
+                    param_start: 0.0,
+                    param_end: t1,
+                },
+                t,
+            )
+            .expect("a plane section of the sphere certifies");
+        let (on, inside) = (at(ch, 0.4, 2.0, 1.0), at(ch, 0.4, 2.0, 0.5));
+        if what == "definite" {
+            assert_eq!(
+                topo::curved_face_containment(&planted, f, on, b).unwrap(),
+                None,
+                "a tilted boundary circle is outside the served class"
+            );
+            let err = point_in_solid(&planted, inside, b, t).expect_err("out of the class");
+            assert!(
+                matches!(err, PointInSolidError::PartialSphereFace { .. }),
+                "{err:?}"
+            );
+        } else {
+            // The two-tolerance twin: the same question one band-width
+            // away escalates, naming the predicate that could not
+            // decide the class.
+            let err = topo::curved_face_containment(&planted, f, on, b)
+                .expect_err("the class margin is in the ambiguity band");
+            assert!(
+                format!("{err:?}").contains("bool_sphere_iso_rim"),
+                "the escalation names its own predicate: {err:?}"
+            );
+        }
+    }
+}
+
+/// **The §7 full-period-azimuth row**, and the one place the two
+/// containment doors deliberately disagree. A sphere face that attains
+/// EVERY azimuth has no azimuth window to be excluded by: the ray lane
+/// serves it (the latitude window still describes it exactly), while
+/// the face door keeps its typed frontier and answers `None`.
+///
+/// Planted by `kef` on one of a full ball's two seam meridians, which
+/// merges the two half-bands into a single face whose boundary walk
+/// carries a whole turn. The differential IS the row: the same body,
+/// the same face, `None` at one door and a definite verdict at the
+/// other, which is only possible if the trim returned a rectangle whose
+/// azimuth half is `None` — `face_geo` would have refused
+/// `PartialSphereFace` for any other reason the trim declines.
+#[test]
+fn a_full_period_azimuth_window_is_served_by_the_ray_lane_and_refused_by_the_face_door() {
+    let (b, t) = (band(), Tol::witness());
+    let mut planted = rimmed_ball(1.0, Revolution::Full);
+    let seam = seam_meridian(&planted, sphere_faces(&planted)[0]).0;
+    let he = planted.get_edge(seam).unwrap().he_plus;
+    planted.kef(he).expect("the two half-bands merge into one face");
+    let faces = sphere_faces(&planted);
+    assert_eq!(faces.len(), 1, "one sphere face spanning the whole period");
+    let (f, ch) = (faces[0], chart(&planted, faces[0]));
+    assert_eq!(
+        topo::curved_face_containment(&planted, f, at(ch, 0.4, 2.0, 1.0), b).unwrap(),
+        None,
+        "the face door keeps its typed frontier at a full period"
+    );
+    assert_eq!(
+        point_in_solid(&planted, at(ch, 0.4, 2.0, 0.5), b, t).unwrap(),
+        SolidContainment::In,
+        "the ray lane serves it — every azimuth is in the face"
+    );
+    assert_eq!(
+        point_in_solid(&planted, at(ch, 0.4, 2.0, 1.5), b, t).unwrap(),
+        SolidContainment::Out
+    );
+}
+
+/// **The §7 ringed-sphere-face row.** A face with a ring is outside the
+/// class at both doors and for the same reason at both: the rectangle
+/// its outer boundary pins says nothing about the hole.
+///
+/// Planted by `kfmrh`, which re-homes the flat disc's loop as a RING of
+/// the sphere face — the one public door that puts a ring on a curved
+/// face at all.
+#[test]
+fn a_ringed_sphere_face_refuses_at_both_doors() {
+    let (b, t) = (band(), Tol::witness());
+    let mut planted = rimmed_ball(1.0, Revolution::Partial(core::f64::consts::FRAC_PI_2));
+    let f = sphere_faces(&planted)[0];
+    let ch = chart(&planted, f);
+    let disc = flat_disc(&planted);
+    planted.kfmrh(f, disc).expect("the disc's loop re-homes as a ring");
+    assert_eq!(planted.get_face(f).unwrap().rings.len(), 1);
+    assert_eq!(
+        topo::curved_face_containment(&planted, f, at(ch, 0.4, 2.0, 1.0), b).unwrap(),
+        None
+    );
+    let err = point_in_solid(&planted, at(ch, 0.4, 2.0, 0.5), b, t).expect_err("ringed");
+    assert!(
+        matches!(err, PointInSolidError::PartialSphereFace { .. }),
+        "{err:?}"
+    );
+    assert!(err.to_string().contains("ring"), "{err}");
+}
+
+/// The body's one flat disc face — the revolve's cap, whose plane's
+/// normal is the polar axis.
+fn flat_disc(body: &Body<f64>) -> FaceKey {
+    body.faces()
+        .find(|(_, fd)| {
+            matches!(
+                body.get_surface(fd.surface),
+                Some(geom::Surface::Plane { normal, .. }) if normal.y.abs() > 0.9
+            )
+        })
+        .map(|(k, _)| k)
+        .expect("the revolve's flat cap")
+}
+
+/// The sphere face's azimuth-0 meridian seam edge, its carrier, and the
+/// seam PLANE's surface key.
+fn seam_meridian(
+    body: &Body<f64>,
+    face: FaceKey,
+) -> (topo::EdgeKey, geom::Curve3<f64>, topo::SurfaceKey) {
+    boundary_pick(body, face, true)
+}
+
+fn rim_edge(
+    body: &Body<f64>,
+    face: FaceKey,
+) -> (topo::EdgeKey, geom::Curve3<f64>, topo::SurfaceKey) {
+    boundary_pick(body, face, false)
+}
+
+fn boundary_pick(
+    body: &Body<f64>,
+    face: FaceKey,
+    meridian: bool,
+) -> (topo::EdgeKey, geom::Curve3<f64>, topo::SurfaceKey) {
+    let fd = body.get_face(face).unwrap();
+    let axis = match body.get_surface(fd.surface) {
+        Some(&geom::Surface::Sphere { axis, .. }) => axis,
+        _ => panic!("sphere"),
+    };
+    let topo::LoopBoundary::Cycle { first } = body.get_loop(fd.outer).unwrap().boundary else {
+        panic!("cycle")
+    };
+    for he in body.loop_cycle(first).unwrap() {
+        let hed = body.get_half_edge(he).unwrap();
+        let ed = body.get_edge(hed.edge).unwrap();
+        let Some(c) = body
+            .get_curve_geom(ed.curve)
+            .and_then(topo::null::CurveGeom::certified)
+        else {
+            continue;
+        };
+        let geom::Curve3::Circle { axis: n, .. } = *c.carrier() else {
+            continue;
+        };
+        let is_meridian = n.dot(axis).abs() < 1e-9;
+        if is_meridian != meridian {
+            continue;
+        }
+        // Only the half-edge whose he_plus starts at the pole is usable
+        // for a re-span, so prefer the edge whose he_plus is in THIS
+        // loop.
+        if meridian && ed.he_plus != he {
+            continue;
+        }
+        let mate = if ed.he_plus == he {
+            ed.he_minus
+        } else {
+            ed.he_plus
+        };
+        let ml = body.get_half_edge(mate).unwrap().parent_loop;
+        let mf = body.get_loop(ml).unwrap().face;
+        let key = body.get_face(mf).unwrap().surface;
+        return (hed.edge, c.carrier().clone(), key);
+    }
+    panic!("no such boundary edge")
 }
