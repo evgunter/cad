@@ -906,7 +906,10 @@ mod r2_mesh2_probes {
     struct Lcg(u64);
     impl Lcg {
         fn next_f64(&mut self) -> f64 {
-            self.0 = self.0.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
+            self.0 = self
+                .0
+                .wrapping_mul(6_364_136_223_846_793_005)
+                .wrapping_add(1);
             ((self.0 >> 11) as f64) / ((1u64 << 53) as f64)
         }
         fn range(&mut self, lo: f64, hi: f64) -> f64 {
@@ -951,10 +954,15 @@ mod r2_mesh2_probes {
             let rel = if mag > 0.0 { raw.abs() / mag } else { 0.0 };
             if rel > worst {
                 worst = rel;
-                worst_case = format!("trial {trial} scale {scale:e} nu {nu:e} raw {raw:e} mag {mag:e}");
+                worst_case =
+                    format!("trial {trial} scale {scale:e} nu {nu:e} raw {raw:e} mag {mag:e}");
             }
             // The write always emits exactly 0.0 for that point.
-            assert_eq!(f.project(f.far_at)[1], 0.0, "trial {trial}: far v not written");
+            assert_eq!(
+                f.project(f.far_at)[1],
+                0.0,
+                "trial {trial}: far v not written"
+            );
         }
         assert!(
             worst < 1e-14,
@@ -1009,7 +1017,10 @@ mod r2_mesh2_probes {
         let pts = vec![p, p, p, p];
         let f = frame_of(&pts);
         let c = f.project(p);
-        println!("PROBE3: u_ref={:?} v_ref={:?} project={c:?}", f.u_ref, f.v_ref);
+        println!(
+            "PROBE3: u_ref={:?} v_ref={:?} project={c:?}",
+            f.u_ref, f.v_ref
+        );
         assert!(
             !c[0].is_finite() || !c[1].is_finite() || (c[0] == 0.0 && c[1] == 0.0),
             "PROBE3: degenerate frame produced a spade-legal finite nonzero {c:?}"
@@ -1026,7 +1037,10 @@ mod r2_mesh2_probes {
             .collect();
         let f = frame_of(&pts);
         let c = f.project(f.far_at);
-        println!("PROBE4: normal-derived u_ref={:?} project(far)={c:?}", f.u_ref);
+        println!(
+            "PROBE4: normal-derived u_ref={:?} project(far)={c:?}",
+            f.u_ref
+        );
         assert!(
             !c[0].is_finite(),
             "PROBE4: collinear loop yielded a finite u {c:?} while v was written 0.0 — \
@@ -1096,10 +1110,11 @@ mod r2_mesh2_probes {
             let nu = 10f64.powi(exp);
             // Midpoint of the anchor→far diagonal inserted as a real
             // boundary point: (1, 0.5) lies on the (0,0)→(2,1) line.
-            let pts: Vec<Point3<f64>> = [(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 0.5), (0.0, 1.0)]
-                .iter()
-                .map(|&(x, y): &(f64, f64)| Point3::new(x, y, x * nu))
-                .collect();
+            let pts: Vec<Point3<f64>> =
+                [(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 0.5), (0.0, 1.0)]
+                    .iter()
+                    .map(|&(x, y): &(f64, f64)| Point3::new(x, y, x * nu))
+                    .collect();
             let f = frame_of(&pts);
             let c = f.project(pts[3]);
             let sub = c[1] != 0.0 && c[1].abs() < FLOOR;
@@ -1117,7 +1132,13 @@ mod r2_mesh2_probes {
         for _ in 0..500 {
             let n = 3 + (rng.next_f64() * 6.0) as usize;
             let pts: Vec<Point3<f64>> = (0..n)
-                .map(|_| Point3::new(rng.range(-5.0, 5.0), rng.range(-5.0, 5.0), rng.range(-5.0, 5.0)))
+                .map(|_| {
+                    Point3::new(
+                        rng.range(-5.0, 5.0),
+                        rng.range(-5.0, 5.0),
+                        rng.range(-5.0, 5.0),
+                    )
+                })
                 .collect();
             let f = frame_of(&pts);
             let w: Vec3<f64> = f.far_at - f.origin;
@@ -1166,12 +1187,18 @@ mod r2_mesh2_probes_ring {
                     let c = f.project(*p);
                     for (k, x) in c.iter().enumerate() {
                         if *x != 0.0 && x.abs() < FLOOR {
-                            bad.push(format!("{tag}[{i}].{} = {x:e}", if k == 0 { 'u' } else { 'v' }));
+                            bad.push(format!(
+                                "{tag}[{i}].{} = {x:e}",
+                                if k == 0 { 'u' } else { 'v' }
+                            ));
                         }
                     }
                 }
             }
-            println!("PROBE9: nu 1e{exp} far_at={:?} sub-floor coords: {bad:?}", f.far_at);
+            println!(
+                "PROBE9: nu 1e{exp} far_at={:?} sub-floor coords: {bad:?}",
+                f.far_at
+            );
         }
     }
 
@@ -1277,7 +1304,10 @@ mod r2_mesh2_probes_scoping {
             let u = (*p - f.origin).dot(f.u_ref);
             let m = mitigate_underflow(SP::new(u, raw));
             let same = m.y.to_bits() == raw.to_bits() && m.x.to_bits() == u.to_bits();
-            println!("PROBE11: point {i} raw v={raw:e} mitigated={:e} unchanged={same}", m.y);
+            println!(
+                "PROBE11: point {i} raw v={raw:e} mitigated={:e} unchanged={same}",
+                m.y
+            );
             if !same {
                 moved += 1;
             }

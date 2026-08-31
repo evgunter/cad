@@ -37,9 +37,13 @@ fn skewed(nu: f64, loops: Vec<ProfileLoop<f64>>, h: f64) -> Body<f64> {
         Vec3::new(1.0, 0.0, nu),
         Vec3::new(0.0, 1.0, 0.0),
     );
-    extrude(&validated(plane, loops), Extrusion::Distance(h), Tol::witness())
-        .expect("extrude")
-        .body
+    extrude(
+        &validated(plane, loops),
+        Extrusion::Distance(h),
+        Tol::witness(),
+    )
+    .expect("extrude")
+    .body
 }
 
 /// PROBE A — the disclaimed diagonal corner, made SYSTEMATIC rather
@@ -106,19 +110,15 @@ fn r2_annular_cap_with_subfloor_noise() {
 fn r2_what_mitigate_underflow_actually_snaps() {
     use spade::{Point2 as SP, mitigate_underflow};
     for v in [
-        1.0e-30_f64,  // "small but real", far above the floor
-        1.0e-43,      // just under MIN_ALLOWED_VALUE = 1.7936e-43
-        1.0e-48,      // the far point's residue scale in the Klein case
+        1.0e-30_f64, // "small but real", far above the floor
+        1.0e-43,     // just under MIN_ALLOWED_VALUE = 1.7936e-43
+        1.0e-48,     // the far point's residue scale in the Klein case
         2.187_945_638_770_979e-48,
-        1.0e-320,     // subnormal
+        1.0e-320, // subnormal
         0.0,
     ] {
         let out = mitigate_underflow(SP::new(0.5, v));
-        println!(
-            "PROBE-C: v={v:e} -> {:e}  snapped={}",
-            out.y,
-            out.y != v
-        );
+        println!("PROBE-C: v={v:e} -> {:e}  snapped={}", out.y, out.y != v);
     }
     // The load-bearing pair, asserted.
     assert_eq!(
