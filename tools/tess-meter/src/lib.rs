@@ -686,6 +686,24 @@ pub fn divisions(extent: f64, h: f64) -> f64 {
 /// these constants buy and is not theirs to control, which is why the
 /// shipped pair is not even locally best on the cell count.
 ///
+/// **WHERE EACH FIGURE ABOVE COMES FROM, since they are three kinds of
+/// number and only one kind is re-taken.** The closed-form envelopes
+/// and the adjacent-sample-count row (321: 5.88%, 322: 3.64%, …) are
+/// DERIVED — [`unfloored_worst_excess`] and [`floored_worst_excess`]
+/// compute them from `(decades, samples)` alone, so the derivations
+/// suite re-takes them on every run of the row named below and a wrong
+/// one goes red. The two SUPREMA (2.0768% over 400,000 bounds, 2.0918%
+/// over 4.6 M) and the anisotropic member's 5.8824% are SAMPLED: taken
+/// once, off-CI, by random search over the floored class, and re-taken
+/// by nothing — a supremum over drawn bounds is not a property this
+/// crate exposes, and no assertion could hold one without pinning the
+/// draw that produced it. They are left unguarded deliberately, because
+/// what they establish is a DIRECTION: the floored class exceeds the
+/// unfloored bound, and the shipped pair sits outside its consumer's
+/// margin on the `ceil`'d count. That direction is what both levers
+/// below answer to. A re-search returning 2.3% would change nothing
+/// here; one returning 0.5% would, and would itself be a finding.
+///
 /// **The guard on this pair runs on the merge that moves it.** What
 /// boxes these two is this crate's own derivations suite, and the only
 /// k-lint unification that runs that suite is `dev-default` — one of

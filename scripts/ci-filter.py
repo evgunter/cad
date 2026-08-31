@@ -747,12 +747,17 @@ LANES: tuple[str, ...] = ("default", "interval")
 EPS_ROWS: tuple[str, ...] = ("default", "1e-6", "1e-12")
 
 # `k-lint (gate)`'s FIVE FEATURE UNIFICATIONS, sampled one per run
-# (2026-08-22). That job is one of the gate's largest billed line items —
-# docs/CI-MINUTES-2026-08.md's per-job table is the register that carries the
-# figure and ranks it, and the number is deliberately not restated here: this
-# comment and ci.yml's `k-lint` header both used to spell the same range, and a
-# range spelled twice is a second copy nothing keeps in step. The reason it
-# costs that is not one slow
+# (2026-08-22). This comment used to say the job "bills 8-10 minutes", and so
+# did ci.yml's `k-lint` header; both were quoting a PRE-SAMPLING column of
+# docs/CI-MINUTES-2026-08.md as though it were current. It is not: that row is
+# a one-shot reading of one reference run taken before this very ruling landed,
+# the same document's 2026-08-22 section derives this sampling at −7 to −8
+# billed minutes, and its 2026-08-31 addendum says a billed figure there is
+# only true as of the measurement it names a run id for. NO RANGE IS RESTATED
+# HERE — the argument below needs the SHAPE (five unifications sharing almost
+# nothing, so the lever is running fewer of them), not a cost, and ci.yml's
+# header carries the correction rather than a second copy of it. The reason
+# this job is expensive at all is not one slow
 # check: it compiles demos/tour and the kernel crates FIVE TIMES OVER, once
 # per unification below, and those five share almost no artifacts —
 # `--release` and dev are different profiles, and `budget` and `probe` are

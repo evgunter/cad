@@ -25,6 +25,14 @@ if they stopped being true is nothing, and what would notice is any run's
 own summary. `.github/workflows/ci.yml`'s cost-report note points here for
 this reading rather than restating it, for the same reason.
 
+ONE COPY IS NOT IN THIS HEADER, and naming it beats leaving it for the next
+sweep: `render()` below prints the audit's concentration figure ("20 tests
+were 55% … 2,603 together were 1.7%") into the step summary itself, so that
+sentence lives twice in this file and reaches a reader on every run. Same
+one-shot, same disposition — it is the audit's evidence for reporting a HEAD
+rather than a mean, and the table printed directly beneath it is the current
+answer. Nothing keeps the two copies in step; move one and move the other.
+
 THE TWO MEASUREMENT TRAPS THE AUDIT PAID FOR, honoured HERE rather than in
 prose somewhere:
 

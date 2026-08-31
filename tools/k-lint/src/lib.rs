@@ -277,6 +277,21 @@ pub const EPS_COUPLED_PREDICATES: [&str; 1] = ["props_quad_converged"];
 /// distribution change: it wants re-derivation from a larger
 /// population, not a re-rounding — and never a geometry tweak (the
 /// CLI's recourse (1), `main.rs`).
+///
+/// **MEASURED WHEN, AND REFRESHED WHERE — the same half
+/// [`BASELINE_FLOOR_MARGIN`] carries, and this constant needs it more
+/// rather than less.** Cut from the same M7 sweep, committed at
+/// `docs/k-report-data/m7-eps-*.csv.gz`, with the re-argument in
+/// `docs/K-REPORT.md`'s M7 addendum (2026-08-07) beside its sibling's.
+/// Nothing re-takes it on a cadence: CI re-cuts the SWEEP against this
+/// threshold on every run that draws the `dev-probe` unification, so a
+/// moved distribution reds — but the threshold's own derivation is
+/// refreshed only by a human running that runbook, on a fired row. The
+/// paragraph above is what makes that difference operational: the
+/// sibling's P0 sits behind a ten-decade gap and this one's is the
+/// minimum of 108 draws, so a firing here is likelier to be the
+/// threshold than the distribution, and the runbook rather than this
+/// line is where that gets decided.
 pub const EPS_COUPLED_FLOOR_RATIO: f64 = 1.5e2;
 
 /// Whether `predicate` is one of the [`EPS_COUPLED_PREDICATES`].

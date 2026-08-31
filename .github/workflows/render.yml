@@ -293,12 +293,17 @@ jobs:
   # answers this in seconds at any time, so a stale pair here costs a reader
   # one command rather than a wrong decision. What the fold actually rests on
   # is the QUALITATIVE half — the two graphs differ only in each root's own
-  # leaf crate, so the fingerprints match — and that half is watched by the
-  # arrangement itself: if the selections ever part, the second build stops
-  # reusing and this job's wall clock says so. Nothing re-takes the ~10 s
-  # either, and nothing needs to: it is an argument that the folded job's own
-  # work was smaller than the setup around it, which is a statement about
-  # shape, not a budget.
+  # leaf crate, so the fingerprints match. NOTHING WATCHES THAT HALF EITHER,
+  # and the honest version of the sentence that used to stand here is: if the
+  # selections part, the second build silently stops reusing and this job
+  # simply takes longer, which no step reads and no check reds on. Wall clock
+  # is not a watcher. What makes the residue small is that the failure is
+  # PURE COST — the artifacts are correct either way, every lane still
+  # produces every artifact under the same name and still re-baselines its
+  # own cells — and that the one command above re-derives the premise in
+  # seconds. Nothing re-takes the ~10 s either, and nothing needs to: it is
+  # an argument that the folded job's own work was smaller than the setup
+  # around it, which is a statement about shape, not a budget.
   #
   # WHY THAT IS NOT THE `CARGO_TARGET_DIR` LEVER docs/CI-MINUTES-2026-08.md's
   # F6 REJECTED. That one pointed the rustdoc gate's seven roots at one

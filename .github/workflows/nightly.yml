@@ -511,8 +511,13 @@ jobs:
   # It grows with the workspace, and what a guard would have to assert is a
   # runner's free disk, which is not this repository's property and moves
   # with every image bump. The figure is here to size the decision — two
-  # stores fit where one did — and a night that outgrew the disk would fail
-  # in its own voice rather than through a number maintained here.
+  # stores fit where one did. WHAT WOULD NOTICE, named rather than implied:
+  # the measured arm's own build step, which fails outright on a full disk.
+  # The `run_rc` check below then DROPS that arm, and `record` writes the
+  # sample with the remaining ones — so a night that outgrew the disk arrives
+  # as an arm MISSING from docs/perf-data/opt-level/ with a red step behind
+  # it, never as a quiet wrong verdict. That is the whole of the protection
+  # here; nothing watches the figure itself, and nothing should.
   #
   # REPORTING, NEVER GATING (memories/perf-measurement-lane.md). No step here
   # fails on a millisecond. A FLIP — the verdict disagreeing with the tree's

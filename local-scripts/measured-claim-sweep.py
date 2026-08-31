@@ -106,11 +106,17 @@ same reason the script itself is:
     repo's workflows put their reports.
   * THE `.github/` GLOB, and it is a leg's hole rather than a mode's:
     `.github/workflows/*.yml` is the surface issue 681 names, and it
-    MISSES `.github/actions/*/action.yml`. Both live instances were
-    extracted premises that had gone stale — `install-nextest` restating a
-    per-run fetch count the ε sampling cut on 2026-08-22, and
-    `install-sccache` naming `opt-2` after the gate moved to opt-1 on
-    2026-08-25. Sweep both globs; the invocation above does.
+    MISSES `.github/actions/*/action.yml`. The shape to expect there,
+    stated rather than illustrated with today's instances: a composite
+    action's header justifies the action's existence by quoting the
+    WORKFLOW's shape back at it — how many jobs call it, at what profile,
+    against what cost — so its claims are extractions whose premises live
+    in a file it does not sit beside, and a ruling that moves the
+    workflow leaves them behind with nothing pointing at them. The two
+    instances this leg found are in PR #1331's body if a reader wants
+    them; naming them here would be a third copy of a figure that is now
+    corrected in exactly one place. Sweep both globs; the invocation
+    above does.
   * `//` on `tools/`: transfers from the `crates/*/src` leg unchanged, and
     inherits its hole — a claim in an `assert!` or `panic!` message, or in
     a `#[doc = "..."]` attribute, is not a `//` comment and is not read.
