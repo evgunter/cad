@@ -1281,3 +1281,25 @@ Merge sequence on DELTA-CLEAN: state-sync (ordinal 606, sample
 hedged, arm branch-side — B3 stays OPEN, slots 2–3 unconsumed) →
 merge #1360 (Closes #644) → reclaim blend-4* lanes → exit-walk
 draft for Evan.
+
+## 2026-08-31 — BLEND-4 MERGED (#1360); the implementation slate is DONE
+
+PR #1360 merged at `fd421240`; issue 644 closed at merge. Gate of
+record: run 3914 GREEN (trailer-pinned {interval, 1e-6}) on the
+state-sync head `0c3c7674`, which also carried the A/B row
+(ordinal 606, sample #69, arm REDACTED) and the BLEND-3 sample
+renumber #66 → #68 (the CERT-5 collision; note in the row). Lanes
+blend-4 / blend-4-r{1,2} reclaimed (26G free). Rulings now in
+force: **T-R7's NO-LIFT binds** (the keep-out class disarms) and
+**D322–D324's hold releases** — their §D cells name #1360, which
+is on main; the rows are takeable by whoever next works SMELL.
+**Block BLEND-B3 stays OPEN**: slot 1 consumed (arm branch-side),
+slots 2–3 unconsumed; the draw record and slot-1 arm restatement
+reach main at the block's close — carried to the exit walk, since
+this was the slate's last unit.
+
+With this merge all seven S-BLEND units are on main: BLEND-1
+(#1022), BLEND-2 (#935), BLEND-3 (#919), BLEND-4 (#644), BLEND-5
+(#961), BLEND-6 (#917), BLEND-7 (#827) — plus track T executed
+whole. Next and last: the EXIT-WALK draft for Evan's ratification
+(NOT self-merged).
