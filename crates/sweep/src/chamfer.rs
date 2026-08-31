@@ -33,13 +33,22 @@
 //! **Plane–plane support pairs only**, and open chains terminating at
 //! trivalent corners whose three edges are all requested — the same
 //! door the fillet's blank phase carves, since it is the same carve.
+//!
+//! **Either side of the material.** A chain of concave edges ending at
+//! all-concave trihedra carves exactly as a convex one does, because
+//! nothing below picks a side (next section); the two admission doors
+//! take that clause per verb, so the fillet's convex-only ball is
+//! unaffected. What stays outside is a MIXED corner, which is the
+//! run-out question rather than the convexity one.
+//!
 //! Everything else refuses typed and names itself: a curved support
 //! ([`crate::blend::BlendError::ChamferArmUnsupported`] — the chamfer over curved
 //! supports is VERBS-ARMS' machinery), a corner whose CONFIGURATION is
 //! out of scope ([`crate::blend::BlendError::UnsupportedCorner`] with the
 //! OQ6 corner tags), a request that does not cover a supported
 //! corner's other edges ([`crate::blend::BlendError::UnsupportedRunOut`]), and a
-//! CONCAVE chain ([`crate::blend::BlendError::UnsupportedChain`]).
+//! CLOSED chain, which has no ruled ring
+//! ([`crate::blend::BlendError::UnsupportedChain`]).
 //!
 //! The symmetric setback is the whole parameter surface at v1. A
 //! distance–distance or distance–angle chamfer is a widening of this
@@ -56,10 +65,13 @@
 //! edge exactly as on a convex one, and both faces mint with sense
 //! `true` as a derivation rather than an assumption. Convexity enters
 //! the chamfer only where it is a question about the REQUEST: the
-//! battery's sign-constancy predicate, and the surgery's convex-open
-//! admission door. That is what #644 asks of new corner code — the
-//! concave widening moves those doors and leaves this geometry alone,
-//! rather than finding three convex-only constants to derive one of.
+//! battery's sign-constancy predicate, which asks that a chain not
+//! change sides partway.
+//!
+//! That is what #644 asks of new corner code, and it is what let the
+//! concave widening be a change to two admission doors with no line of
+//! this geometry touched: the doors' convexity clause became the
+//! BAND's, and every derivation below them was already both-sided.
 
 // The verb's one public path, mirroring `sweep::fillet`'s: the door is
 // named by its module, not re-exported at the crate root as well.

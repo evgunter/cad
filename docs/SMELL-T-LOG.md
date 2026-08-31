@@ -43,6 +43,7 @@ it for later lanes if style work should be instrumented.
 | **T-R3** | C-e/H13 carries §D's own instruction: "Verify against #779 before staffing." | Verification dispatched (read-only) 2026-08-31, before T-a's brief was cut; T-a takes the row ONLY if the verdict is OPEN, and otherwise records the verified-closed evidence here and in §D. **VERDICT: CLOSED** (2026-08-31) — the coverage is on `main`, landed by **#779** (merge `db241875`): the containment oracle at `sweep/tests/common/orient.rs`, three helix orientation rows in the long-turn sweep suite (the `min_roll_turn` anti-vacuity floor, the not-orientable-against-the-stacking-chord guard, then walls and caps against the continuity index including the face `sense` bit), and the rational circle-section elbow row in the skin-integrality suite — all aggregated into the default target with no ignore and no `cfg` gate. **The row was not staffed**; it is retired VERIFIED-CLOSED on the §D ledger in T-a's PR, with its own meta-claim corrected: the two contradicting statements were NOT both "in this document" — Track C's FIXED record is in `docs/SMELL-C-LOG.md`, so the contradiction was cross-document, which is why it survived two partitions. | orchestrator, 2026-08-31 |
 | **T-R5** | T-a review mode. | **T-a review mode: STYLE-ONLY per C-R12** (test rows + retirements; a row that reds is visible). Ruled at dispatch 2026-08-31, recorded here at close. | orchestrator, 2026-08-31 |
 | **T-R4** | D320 | Filed-not-takeable ahead of D240, per the row itself. Nothing to decide; recorded so the track's ledger is complete. | orchestrator, 2026-08-31 |
+| **T-R7** | Is `T-R1`'s keep-out still live? | **NO LIFT YET — it takes effect at BLEND-4's merge, not BLEND-3's.** This ruling was first recorded here as a LIFT, on the premise — stated in the orchestrator's dispatch brief for `T-c` and carried into the log by the lane without independent check — that the implementation slate had VACATED `crates/sweep/src/blend/` at BLEND-3's merge. **The premise is false**: BLEND-4 was dispatched into that same module in the same hour, and its **PR #1360 is open** against `main`, modifying `admit.rs`, `arms.rs`, `battery.rs`, `build.rs`, `mod.rs` and `surgery.rs`. Caught at `T-c`'s review, corrected here. **What follows:** `T-R1`'s class is still armed, so `D322` (whose `ring_clearance` lives in `surgery.rs`, which #1360 edits), `D323` and `D324` stay HELD until #1360 merges — their §D cells are restored to say so. `T-c`'s own two rows are unaffected: they were dispatched, executed and reviewed as a deliberate exception, and the collision is a merge to resolve rather than a rule to re-argue. **The wording slip the correction also fixes**: `T-R1` names *BLEND-6 (and later BLEND-3/-4)*, so "the last lane of the slate" was never BLEND-3's merge to be. The general lesson is `T-R3`'s in another dress — a keep-out is lifted by observing the module, not by citing the event a brief says vacated it | orchestrator's dispatch brief (erroneous premise), corrected at `T-c` review, 2026-08-31 |
 | **T-R6** | `L5`'s rule half — `S177`'s strike rule (*a lane's row may only be struck once each rides-along it did not close has been re-homed or given its own row*) — is a **document-wide convention**, and T-b filed it as a scheduled item rather than writing it. The style reviewer flagged the same thing from the other side: a lane writing a ledger-wide rule is arguably ratification territory, which is Evan's. | **TAKE IT — write the rule into §D's *"How to read a row"* now, and leave only the WALK on `L5`.** The T-a precedent decides it: that lane landed the deletion-sweep rule in the same conventions section, in a lane PR, without ratification. The distinction that makes it a lane's to write is that this is **not new policy** — it states how §D's existing *live rows only* rule must be applied so it stops destroying what it was never meant to touch. A rule that exists only as a scheduled item does not stop the accrual it describes, and `L5`'s walk has no slot. **The reviewer's reservation is recorded rather than dismissed**, and is noted in the ledger text itself: if Evan reads the convention as policy, it is one paragraph to revert and the walk is unaffected. | orchestrator, 2026-08-31 (T-b review adjudication) |
 
 ## Lane state
@@ -51,8 +52,9 @@ it for later lanes if style work should be instrumented.
 |---|---|---|
 | **T-a** | C20 (turning-path orientation pins), D104 (the two hand-run diff artefacts) | **REVIEWED (style, per T-R5)** — 7 findings, **none correctness**; the lane's mutation table was reproduced 5/5 by the reviewer's own execution, both retirement arguments judged correct, the C20 closure judged honestly scoped. Fix pass taken on `smellt/a`: `main` merged (carrying the #1330 doc-gate fix that was the CI red), three dangling `S110` citations re-aimed and the ledger's own deletion-sweep rule written down, the §D retirement footnote deleted per the delete-don't-annotate rule, the lily-spine exclusion re-argued as the PLANAR-arc class, the unreachable outer floor assert removed, the "must all fit" wording qualified to what it can catch, `C25`'s row extended to schedule the frame-recipe twin, and this log's mutation sentence corrected. Plus the orchestrator's `S390` adjudication (TAKE, by message rather than as a numbered ruling): `S390` discharged in fence by a `# Correspondence` paragraph at both public doors. **PR #1329 open, not merged.** |
 | **T-b** | D124 (re-home the struck-lane findings), C25 (the six-times-built swept body + the frame-recipe twin), D91 (the swallowed `SplineError`) | **PR open, not merged.** All three closed; see the lane record below |
-| (unstaffed) | D96 (ten `unreachable!` arms — file-set to be enumerated before staffing to check the `blend/` overlap), and the three rows D124 re-homed: **D322**, **D323**, **D324**, all inside `crates/sweep/src/blend/` and so held by T-R1's class | queued |
-| (kept out per T-R1/T-R2) | D90, D321 (**D91 taken and closed by T-b** — T-R2's hold was spent, and the door-test collision it feared did not materialize) | **BLEND-6 merged `82a3a424` 2026-08-31**, which is the event all three waited on and which carries the V3 rename D321's conversion needed — so the T-R1/T-R2 hold is spent unless a later BLEND lane re-arms it. Whether `fillet/`-touching rows are takeable now is the orchestrator's call, not this row's; recorded here so the next dispatch starts from the fact rather than re-deriving it. Note the paths moved: the module is `sweep::blend`, so D90's and D321's own file citations read against the old spelling |
+| **T-c** | D90 (the corner chart's unchecked faces — **ADV**), D321 (`admit.rs`'s `include_str!` self-reader), D96 (the `unreachable!` row-0 candidates, enumerated first) | **PR #1359 open, not merged.** All three closed; see the lane record below. `D96` is struck with its out-of-fence members re-homed (`D242`, `D243`, `D304`) and its one unaffordable in-fence arm rowed as `D325` |
+| (kept out per `T-R1`) | **`D322`, `D323`, `D324`** — `D124`'s three re-homes, all inside `crates/sweep/src/blend/` | **HELD until BLEND-4 (#1360) merges** (`T-R7`): that PR is open and edits all six files of the module, `surgery.rs` — `D322`'s own file — included. `D323` and `D324` are the same file as each other and cheaper taken together |
+| (was kept out per `T-R2`) | — | **spent.** `D91` was taken and closed by `T-b`. `D90` and `D321` were taken and closed by `T-c` against a live BLEND-4 — a deliberate exception to `T-R1` rather than a lift of it (`T-R7`) |
 | (not takeable) | D320 | waits on D240 |
 
 ## Lane records
@@ -319,3 +321,164 @@ document-wide citation sweep after a module rename is the shape of an
 `L`-row and the orchestrator owns whether it earns one. Recorded here
 so the next dispatch starts from the hit list rather than rediscovering
 it.
+
+### T-c — D90, D321, D96 (branch `smellt/c`, PR #1359)
+
+**D90 — still live after BLEND-3's rework, and fixed.** The row says
+`octant_chart` scores a chart off two faces it never checks belong to
+the corner. Read against the reworked tree first, because the corner
+path moved: the finding holds **as written**, and the tree had gone one
+step further than the row knew — `CornerFaces::third`'s own rustdoc
+argued the gap away, *"When `a` and `b` are not both among the three the
+answer is still one of them, which is what the octant's scoring wants: a
+candidate axis, never a missing one"*, and a unit row asserted exactly
+that with a `FaceKey::default()` stranger. So the defect was not merely
+unfixed, it was **documented and pinned**.
+
+**The fix went through two versions, and the review changed it.** The
+first was a membership check: `third` became `Option`-valued, answering
+`None` for any pair that is not two DISTINCT supports of this corner.
+The reviewer's probe showed that guard **admits the other endpoint of
+the same edge** — two ends of one edge share BOTH supports and differ
+only in the third, which is precisely the face the score reads — so
+membership is a NECESSARY condition and not the check. The total check
+is now taken: `CornerFaces` stores the vertex it walked (the field it
+already received and discarded), and `octant_chart` refuses
+`BodyNotIntact` unless `faces.vertex() == links.vertex()`. That is this
+lane's own `D96` argument applied to itself — the agreement stops being
+an assumption and becomes a value the type carries. Membership stays
+beneath it as the residual `third` needs to be total, and the refusal
+vocabulary is the one `CornerLinks::incident` already uses.
+
+**Reachability, stated honestly.** The two tokens are derived
+independently — `CornerFaces` from a vertex orbit, the links from the
+battery's resolved arms — and `CornerLinks` proves only that each link
+TERMINATES at its vertex. But **the sole production call site derives
+both from the same vertex two statements apart** (`corner_plan`), so
+neither guard can fire today: this is defence-in-depth against future
+mis-wiring, not a live bug, and the earlier draft of the rustdoc and
+the test doc both read as though it were. Corrected at both, and the
+by-construction pairing is now stated at the call site itself. What
+makes the direction worth guarding is that this value fails silently:
+the chart is a sphere face's `u_ref`/`axis`, so a wrong one still
+closes, still passes tiers 1 and 2, and would surface at most as a
+tier-3 `NotIsoRectangle` at a corner whose geometry is right. **The
+same function's chamfer arm already checks the correspondence** —
+`chamfer_feet` selects trimlines BY support face and refuses
+`UnsupportedRunOut` — so the asymmetry was inside one derivation.
+
+**Red-capability executed, not argued**, and the two guards have
+different guardians, which is worth writing down because it is not what
+one would assume. `a_chart_scored_off_another_corner_s_faces_is_refused`
+carries both mismatches: the far corner (no shared support) and the
+adjacent one (both shared, different third), with the case's
+non-vacuity asserted — the two corners must really share both supports
+and really differ in the third. **Deleting the vertex check reds it on
+the adjacent case**, which is the mismatch membership cannot see.
+**Deleting the membership guard no longer reds that row at all** — with
+the vertex check in place it catches every mismatch this row can
+construct first — and reds `admission_makes_the_third_support_total`
+instead. So membership's guardian is the unit row on `third`, not the
+chart row, and saying otherwise would be the vacuous-pin trap `T-b`
+fixed one lane ago. The positive half is asserted in the same row so
+the refusals cannot pass by refusing everything.
+
+**D321 — converted onto the shared lexer, and the census ceiling is
+10.** `admit.rs`'s guard reads its own source counting `Self {`; the
+reader is now `test_utils::source::code_only` and the spliced
+`["Self", " {"].concat()` is gone. **The splice and the lexer buy
+different things**, which is the row's point: splicing stops the file
+matching itself and does nothing else, while the code view blanks
+comments and literals — so a construction site quoted in prose stops
+counting, and, in the direction that matters, a real site COMMENTED OUT
+stops counting too. Executed: commenting out one live `Ok(Self { link })`
+and leaving its text in the file reds the row now and would not have
+before. The count is unchanged at 4, which is the check that the
+conversion moved the reader and not the claim.
+`crates/test-utils/tests/reader_census`'s entry for this path moves from
+`Unconverted("Track T …")` to `Shared`, and `UNCONVERTED_TODAY` drops
+**11 → 10**, per that ledger's own two-edit convention.
+
+**D96 — enumerated first, then answered per site.** The §D cell said
+*"Ten are this track's"*; **nine are.** The thirteen were 10
+non-empty-by-construction sequences plus 3 small-domain indices, and the
+"ten" is the first of those two counts — one member of it,
+`mesh/src/walk.rs`, is not in this fence. The out-of-fence remainder is
+therefore **four arms, not three**.
+
+`crates/sweep/src/` held **29** `unreachable!` call sites when this lane
+opened, against the 19 the D35 census read at `25175838`; all nine of
+D96's members were still there, none closed by a BLEND lane, and the
+four deletions below leave 25. The other twenty are the arena-lookup and
+this-phase-minted class whose row 0 was answered *no* by #755, and D96
+explicitly does not reach them.
+
+| # | site (today) | row-0 answer |
+|---|---|---|
+| 1 | `blend/surgery.rs` — `solids().next()` after the entry count | **yes, deleted** — the gate now BINDS what it counts |
+| 2 | `blend/surgery.rs` — `shells().next()`, same gate | **yes, deleted** — same step |
+| 3 | `blend/surgery.rs` — `resolve_rim`'s `plane: Option<FaceKey>` | **yes, deleted** — the first link fixes the plane, and a `Chain` carries its first link in a field |
+| 4 | `blend/battery.rs` — the chain walk's `order: Vec<usize>` | **yes, deleted** — the run is its seed plus two directions; both arms of the split are ordinary |
+| 5 | `blend/surgery.rs` — `ring_circle`'s `found` | **no** — non-emptiness is `topo::loop_cycle`'s; locally it would mean `loop_walk` returning a split head/tail, and its six call sites index and length it |
+| 6 | `blend/surgery.rs` — the rim phase's `tb_edges.first()` | **no** — same cause as 5, one row per `plane_walk` position |
+| 7 | `blend/surgery.rs` — the rim phase's `band_surface` | **no** — the state is the outcome of a walk (exactly one strut reaches the closure case), not a shape a type carries |
+| 8 | `blend/surgery.rs` — the corner fusion's `spur` | **no** — the premise is a COUNT this call checked three lines above; the surviving-strut identity is an outcome of three Euler ops |
+| 9 | `blend/surgery.rs` — the corner fusion's `first_arc` | **yes, and unaffordable here** — rowed as `D325` with the cost written down |
+
+**One message defect found in passing and fixed**: sites 8's two arms
+(`spur.replace(…).is_some()` and `let Some(s) = spur`) carried the SAME
+sentence for opposite states — two spurs and none. They now say which.
+
+**The out-of-fence four are re-homed, not struck.** `D96` could not be
+struck while its remaining members lived only inside its own text —
+that is `S177`'s mechanism and §D's *"How to read a row"* now forbids
+it. Each was re-derived against today's tree before being rowed, and
+every one had moved: `geom/src/net.rs:63`/`:88` (read `:64`/`:86`) as
+**`D242`**; `geom-core/src/spline/compose.rs:315` (read `:314`) as
+**`D243`**; `mesh/src/walk.rs:1200` (read `:1132`) as **`D304`**. Those
+files were READ and never edited.
+
+**`docs/DESIGN.md` carried a pointer at `D96`** — the D2 addendum's row-0
+paragraph ends *"thirteen of them, enumerated as … **D96**"* — so
+striking the row would have dangled a citation in the ratified document.
+The sentence is repaired in place with the per-site disposition and the
+four successor rows, and with nothing else: **the first version of this
+repair also added a normative sentence** — *"Row 0's limit is per site,
+so a mixture is the expected outcome of asking it"* — which is this
+lane's own disposition written into a RATIFIED document to legitimise
+itself. Removed at review. What row 0 actually says is a RANKING —
+*"not one disposition among six, but the preferred one wherever it is
+available"* — and a lane's mixture is licensed by its other sentence,
+*"a 'no' is a complete answer and is recorded as the reason a row below
+applies, not as a defeat"*, which claims no parity with a deletion. If
+the per-site sentence deserves ratifying, that is a question for Evan
+and it is asked in the PR, not answered in the doc.
+
+**A second correction of the same shape**, and it is worth recording
+because it is the one a reader cannot check: the PR body originally
+quoted *"a 'no' with its propagation cost stated closes a site exactly
+as well as a deletion does"* as though it were row 0's. It is `D96`'s
+own sentence from its MINTING record (`ef35b12a`), it had already been
+dropped from `§D` before this lane opened, and it claims a parity row 0
+does not grant. Quoting a struck row's history as live authority is the
+citation defect this track keeps finding in other people's files.
+
+**What the lane did not do.** It did not touch `D322`–`D324`, which
+`T-R7` leaves HELD until BLEND-4 (#1360) merges; it did not re-aim the
+eight stale `fillet/` citations `T-b` listed in other tracks' records;
+and it did not take `D320`, which waits on `D240`. **With `D90`, `D321`
+and `D96` closed, this track's takeable rows are done** — the residue is
+`D320` behind `D240`, the three `blend/` rows behind #1360, and the two
+`#1338` rows in `crates/sweep/` that `T-a` flagged as wanting a row if
+the issue outlives them.
+
+**This lane ran against a live BLEND-4, and says so.** `T-c`'s two
+`blend/` rows were dispatched on a premise that proved false (`T-R7`),
+so the honest statement is not that the module was free but that this
+lane worked in it anyway and owes the merge. The overlap is real —
+#1360 edits `admit.rs`, `build.rs` and `surgery.rs`, all three of which
+this lane edits — and the review's judgement is that the two compose,
+because BLEND-4's concave fold meets `CornerFaces` and `octant_chart`
+through changes that fail LOUDLY at compile time rather than silently:
+a new field on `CornerFaces` and an `Option` return on `third` cannot
+be merged away by accident.

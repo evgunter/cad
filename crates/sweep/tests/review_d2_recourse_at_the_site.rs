@@ -86,7 +86,7 @@ fn only_recourse(err: &BlendError, expect: Option<&str>, what: &str) {
 /// **The finding's own complaint, through the front door.** A cube
 /// with one edge requested leaves its two corners partly requested —
 /// a run-out. Before #740 the user was handed the ASSEMBLY recourse
-/// ("…single convex plane–plane links ending at fully-requested
+/// ("…single plane–plane links ending at fully-requested
 /// trivalent corners…") for it. This row goes red if any site on that
 /// path ever re-attaches it.
 #[test]

@@ -1,9 +1,10 @@
 //! **The surgery's front door, as types.**
 //!
 //! [`super::surgery::blend_surgery`] admits a verdict one clause at a
-//! time — this chain is a single convex plane–plane link; this corner
-//! is trivalent with all three edges requested; this support face has
-//! its entire outer cycle requested. Each type here is one of those
+//! time — this chain is a single plane–plane link whose convexity the
+//! requested band carves; this corner is trivalent with all three edges
+//! requested; this support face has its entire outer cycle requested.
+//! Each type here is one of those
 //! clauses, and **holding the value is the fact**: a helper handed one
 //! has no branch left to write about it. A refusal belongs to the door
 //! that decides it, in the plan phase, before any mutation — never to a
@@ -24,8 +25,8 @@
 //! # What these tokens do NOT claim
 //!
 //! They describe the verdict and the source body **as the plan read
-//! them**. [`ConvexOpen`] borrows out of the verdict, which is immutable
-//! for the whole run, so it cannot go stale. [`CornerFaces`] and
+//! them**. [`AdmittedOpen`] borrows out of the verdict, which is
+//! immutable for the whole run, so it cannot go stale. [`CornerFaces`] and
 //! [`RequestedBoundary`] are read off the SOURCE body and consumed
 //! against a clone, so a token may describe a face the carve has since
 //! split — which is what the blank phase wants, and why the walk rides
@@ -40,29 +41,35 @@ use super::surgery::{
     CORNER_SUPPORT_NOT_PLANAR, not_intact, unbuilt_chain, unbuilt_corner_config, unbuilt_geometry,
     unbuilt_run_out,
 };
-use super::{BlendError, CornerConfig};
+use super::{BlendError, BlendKind, CornerConfig};
 
 /// **A chain admitted through the open-chain door**: exactly one link,
-/// plane–plane supports, convex.
+/// plane–plane supports, and a convexity the requesting VERB carves.
 ///
-/// [`ConvexOpen::admit`] is the only way to obtain one, and it is the
+/// [`AdmittedOpen::admit`] is the only way to obtain one, and it is the
 /// door — the three refusals it raises are the surgery's own
-/// open-chain frontier, unchanged. Everything downstream that used to
-/// re-test one of those three properties takes this instead.
-pub(super) struct ConvexOpen<'a, T: Real> {
+/// open-chain frontier. Everything downstream that used to re-test one
+/// of those three properties takes this instead.
+///
+/// The third clause is the verb's, not the token's, which is why the
+/// token does not name a convexity: the chamfer's strip and flat
+/// corner patch carry no convexity parameter and carve either side,
+/// while the rolling ball's band and octant are derived convex-only.
+/// A holder that needs the SIGN reads [`AdmittedOpen::convexity`].
+pub(super) struct AdmittedOpen<'a, T: Real> {
     link: &'a Link<T>,
 }
 
 // Hand-written so the copy does not demand `T: Copy`: the value is one
 // shared reference, and a proof used twice is the same proof.
-impl<T: Real> Clone for ConvexOpen<'_, T> {
+impl<T: Real> Clone for AdmittedOpen<'_, T> {
     fn clone(&self) -> Self {
         *self
     }
 }
-impl<T: Real> Copy for ConvexOpen<'_, T> {}
+impl<T: Real> Copy for AdmittedOpen<'_, T> {}
 
-impl<'a, T: Real> ConvexOpen<'a, T> {
+impl<'a, T: Real> AdmittedOpen<'a, T> {
     /// The open-chain door: admit a chain the battery resolved, or
     /// refuse it through the frontier vocabulary.
     ///
@@ -70,8 +77,9 @@ impl<'a, T: Real> ConvexOpen<'a, T> {
     ///
     /// [`BlendError::UnsupportedChain`] when the chain has more than
     /// one link (junction carry-through), when its supports are not
-    /// plane–plane, or when it is concave.
-    pub(super) fn admit(chain: &'a Chain<T>) -> Result<Self, BlendError> {
+    /// plane–plane, or when it is concave and the band asked for is the
+    /// rolling ball's.
+    pub(super) fn admit(chain: &'a Chain<T>, kind: BlendKind) -> Result<Self, BlendError> {
         let link = chain.first();
         if !chain.rest().is_empty() {
             return Err(unbuilt_chain(
@@ -91,11 +99,25 @@ impl<'a, T: Real> ConvexOpen<'a, T> {
                  corner patch is the only termination built)",
             ));
         }
-        if !matches!(link.convexity, Convexity::Convex) {
+        // The convexity clause is the BAND's. A ruled strip is minted
+        // from the supports' own outward normals and its corner patch
+        // from three trimline crossings, so it sits in a wedge of
+        // material as readily as in a wedge of air; the rolling ball's
+        // cylinder and octant are derived on the convex side, and a
+        // concave request there would ask a half-derived construction
+        // for the other one.
+        // Publicly unreachable today, and kept anyway: a fillet whose
+        // chain is concave refuses one door earlier, at the battery's
+        // corner predicate, so no caller of `fillet_edges` reads this
+        // sentence. It is the door's own clause rather than a message
+        // for a user — the day a concave chain reaches here with its
+        // ends admitted, this is what refuses it instead of a
+        // half-derived band being built.
+        if matches!(kind, BlendKind::Fillet) && !matches!(link.convexity, Convexity::Convex) {
             return Err(unbuilt_chain(
                 link.edge,
-                "a concave chain adds material, which the surgery does not \
-                 build — not implemented",
+                "a concave chain adds material, which the rolling ball's band \
+                 does not build — not implemented",
             ));
         }
         Ok(Self { link })
@@ -111,18 +133,24 @@ impl<'a, T: Real> ConvexOpen<'a, T> {
         self.link.edge
     }
 
-    /// The link's convexity. **`Convex` for every admitted link** —
-    /// [`ConvexOpen::admit`] refuses anything else — which is what
-    /// lets a corner (the fillet's octant; the chamfer's flat patch)
-    /// read its orientation bit off any one of its incident links
-    /// instead of testing that they agree.
+    /// The link's convexity — `Convex` for every link admitted under
+    /// the rolling ball's band, either sign under a ruled strip's.
+    ///
+    /// A corner (the fillet's octant; the chamfer's flat patch) reads
+    /// its orientation bit off any ONE of its incident links rather
+    /// than testing that they agree, and what makes that sound is the
+    /// battery's corner-configuration predicate: a termination is
+    /// admitted only where all three of its edges carry ONE convexity,
+    /// so the three links cannot disagree by the time a corner is
+    /// planned.
     pub(super) fn convexity(&self) -> Convexity {
         self.link.convexity
     }
 }
 
 /// **The admitted open links incident to one corner vertex** — at
-/// least one, every one convex, every one terminating at that vertex.
+/// least one, every one through the open-chain door, every one
+/// terminating at that vertex.
 ///
 /// Non-emptiness is the shape: the seed link lives in its own field, so
 /// [`CornerLinks::first`] returns a link rather than an `Option` and
@@ -132,14 +160,14 @@ impl<'a, T: Real> ConvexOpen<'a, T> {
 /// caller could get wrong.
 pub(super) struct CornerLinks<'a, T: Real> {
     vertex: VertexKey,
-    first: ConvexOpen<'a, T>,
-    rest: Vec<ConvexOpen<'a, T>>,
+    first: AdmittedOpen<'a, T>,
+    rest: Vec<AdmittedOpen<'a, T>>,
 }
 
 impl<'a, T: Real> CornerLinks<'a, T> {
     /// A link terminates at `vertex`, or the plan's own data disagrees
     /// with itself.
-    fn incident(vertex: VertexKey, link: ConvexOpen<'a, T>) -> Result<(), BlendError> {
+    fn incident(vertex: VertexKey, link: AdmittedOpen<'a, T>) -> Result<(), BlendError> {
         let l = link.link();
         if l.start == vertex || l.end == vertex {
             return Ok(());
@@ -156,7 +184,7 @@ impl<'a, T: Real> CornerLinks<'a, T> {
     ///
     /// [`BlendError::BodyNotIntact`] when `first` does not terminate at
     /// `vertex`.
-    pub(super) fn seed(vertex: VertexKey, first: ConvexOpen<'a, T>) -> Result<Self, BlendError> {
+    pub(super) fn seed(vertex: VertexKey, first: AdmittedOpen<'a, T>) -> Result<Self, BlendError> {
         Self::incident(vertex, first)?;
         Ok(Self {
             vertex,
@@ -171,7 +199,7 @@ impl<'a, T: Real> CornerLinks<'a, T> {
     ///
     /// [`BlendError::BodyNotIntact`] when `link` does not terminate at
     /// this corner's vertex.
-    pub(super) fn also(&mut self, link: ConvexOpen<'a, T>) -> Result<(), BlendError> {
+    pub(super) fn also(&mut self, link: AdmittedOpen<'a, T>) -> Result<(), BlendError> {
         Self::incident(self.vertex, link)?;
         self.rest.push(link);
         Ok(())
@@ -183,23 +211,23 @@ impl<'a, T: Real> CornerLinks<'a, T> {
     }
 
     /// The link that discovered this corner — always present.
-    pub(super) fn first(&self) -> ConvexOpen<'a, T> {
+    pub(super) fn first(&self) -> AdmittedOpen<'a, T> {
         self.first
     }
 
     /// The incident links after [`CornerLinks::first`].
-    pub(super) fn rest(&self) -> &[ConvexOpen<'a, T>] {
+    pub(super) fn rest(&self) -> &[AdmittedOpen<'a, T>] {
         &self.rest
     }
 
     /// The incident links in edge-key order — what the corner fusion
     /// walks, ordered here rather than by trusting the order the caller
     /// fed them in.
-    pub(super) fn sorted(&self) -> Vec<ConvexOpen<'a, T>> {
-        let mut all: Vec<ConvexOpen<'a, T>> = core::iter::once(self.first)
+    pub(super) fn sorted(&self) -> Vec<AdmittedOpen<'a, T>> {
+        let mut all: Vec<AdmittedOpen<'a, T>> = core::iter::once(self.first)
             .chain(self.rest.iter().copied())
             .collect();
-        all.sort_by_key(ConvexOpen::edge);
+        all.sort_by_key(AdmittedOpen::edge);
         all
     }
 }
@@ -213,14 +241,21 @@ fn distinct(f0: FaceKey, f1: FaceKey, f2: FaceKey) -> bool {
 }
 
 /// **A trivalent corner's three distinct support faces**, in orbit
-/// order.
+/// order, and the VERTEX they were walked from.
 ///
 /// The array is the claim: three faces, pairwise distinct. That is
-/// what makes [`CornerFaces::third`] total — excluding two of three
-/// distinct faces always leaves one — and it is the fact the octant's
-/// chart pick used to fall off with a run-out refusal it could not
-/// justify.
+/// what makes [`CornerFaces::third`] total **over this corner's own
+/// pairs** — excluding two of three distinct faces always leaves one —
+/// and it is the fact the octant's chart pick used to fall off with a
+/// run-out refusal it could not justify.
+///
+/// **The vertex is kept because the faces alone cannot identify the
+/// corner.** Two ends of one edge share both of its supports and
+/// differ only in the third, so a consumer holding this token beside a
+/// [`CornerLinks`] can check that the two describe the same corner —
+/// and comparing the faces would not tell those two apart.
 pub(super) struct CornerFaces {
+    vertex: VertexKey,
     faces: [FaceKey; 3],
 }
 
@@ -265,8 +300,14 @@ impl CornerFaces {
             ));
         }
         Ok(Self {
+            vertex,
             faces: [f0, f1, f2],
         })
+    }
+
+    /// The vertex whose orbit these faces were walked from.
+    pub(super) fn vertex(&self) -> VertexKey {
+        self.vertex
     }
 
     /// The three faces, in orbit order.
@@ -287,19 +328,29 @@ impl CornerFaces {
     }
 
     /// The corner's remaining support once `a` and `b` are excluded —
-    /// **total**, because three distinct faces cannot all be excluded
-    /// by two keys. When `a` and `b` are not both among the three the
-    /// answer is still one of them, which is what the octant's scoring
-    /// wants: a candidate axis, never a missing one.
-    pub(super) fn third(&self, a: FaceKey, b: FaceKey) -> FaceKey {
+    /// `Some` exactly when `a` and `b` are two DISTINCT supports of
+    /// this corner, where excluding two of three distinct faces always
+    /// leaves one.
+    ///
+    /// **`None` rather than a plausible answer**: excluding a face this
+    /// corner does not hold leaves TWO, and naming either would be a
+    /// support pair that is not this corner's, scored as if it were.
+    /// The consumer derives a CHART from the answer, so a plausible one
+    /// is worse than none. This is a NECESSARY condition and not the
+    /// whole check — the two ends of one edge share both its supports,
+    /// so identifying the corner is [`CornerFaces::vertex`]'s job.
+    pub(super) fn third(&self, a: FaceKey, b: FaceKey) -> Option<FaceKey> {
+        if a == b || !self.contains(a) || !self.contains(b) {
+            return None;
+        }
         let [f0, f1, f2] = self.faces;
-        if f0 != a && f0 != b {
+        Some(if f0 != a && f0 != b {
             f0
         } else if f1 != a && f1 != b {
             f1
         } else {
             f2
-        }
+        })
     }
 }
 
@@ -359,7 +410,7 @@ impl<T: Decide> RequestedBoundary<T> {
     pub(super) fn admit(
         body: &Body<T>,
         face: FaceKey,
-        opens: &[ConvexOpen<'_, T>],
+        opens: &[AdmittedOpen<'_, T>],
         corners: &[(VertexKey, &CornerFaces, [Point3<T>; 3])],
     ) -> Result<Self, BlendError> {
         // Read once so a face that is not a plane refuses at this door
@@ -440,9 +491,9 @@ mod tests {
     use geom_core::Tol;
     use topo::FaceKey;
 
-    use super::super::BlendError;
     use super::super::battery::{Chain, ChainClosure, Link};
-    use super::{ConvexOpen, CornerFaces, CornerLinks};
+    use super::super::{BlendError, BlendKind};
+    use super::{AdmittedOpen, CornerFaces, CornerLinks};
     use crate::test_support::{L, all_links, cube};
 
     /// **What guards the unforgeability claim**, since nothing else
@@ -458,24 +509,34 @@ mod tests {
     ///    privacy boundary *and* outside this file's text — the one
     ///    escape that defeats clause 1 silently.
     ///
-    /// **Blind spot, stated:** clause 1 is a text scan. `Self{…}`
-    /// without the space, a literal written by type name, or a route
-    /// through `Default` escapes it; it catches the accident it is
-    /// aimed at, not a determined evasion, and it cannot judge whether
-    /// a door's check is the RIGHT one. `distinct_faces_is_pairwise`
-    /// and `admission_makes_the_third_support_total` cover that half
-    /// where there is a decision to get wrong.
+    /// **The reader is the shared one** — `test_utils::source`, in its
+    /// CODE view, comments and string literals blanked. That is what
+    /// lets the needles below be spelled plainly: a needle written
+    /// here is a string literal, and a literal is blanked, so the scan
+    /// cannot match itself. What this file used to do instead was
+    /// splice the needle out of pieces at run time, which buys the
+    /// same non-self-matching and no lexing at all — a construction
+    /// site quoted in a doc comment or a message counted as one, and a
+    /// real site commented out went on counting. The census at
+    /// `crates/test-utils/tests/reader_census` is what keeps that
+    /// choice from being made again silently.
+    ///
+    /// **Blind spot, stated:** clause 1 is a text scan over a lexed
+    /// view, not a parse. `Self{…}` without the space, a literal
+    /// written by type name, or a route through `Default` escapes it;
+    /// it catches the accident it is aimed at, not a determined
+    /// evasion, and it cannot judge whether a door's check is the
+    /// RIGHT one. `distinct_faces_is_pairwise` and
+    /// `admission_makes_the_third_support_total` cover that half where
+    /// there is a decision to get wrong.
     #[test]
     fn every_token_type_has_exactly_one_construction_site() {
-        let source = include_str!("admit.rs");
-        // Spelled in pieces so this row does not match itself.
-        let lit = ["Self", " {"].concat();
-        let returns = ["-> ", "Self", " {"].concat();
-        let literals = source.matches(&lit).count() - source.matches(&returns).count();
+        let source = test_utils::source::code_only(include_str!("admit.rs"));
+        let literals = source.matches("Self {").count() - source.matches("-> Self {").count();
         assert_eq!(
             literals, 4,
             "admit.rs must hold exactly one construction site per token type \
-             (ConvexOpen, CornerLinks, CornerFaces, RequestedBoundary) — found {literals}"
+             (AdmittedOpen, CornerLinks, CornerFaces, RequestedBoundary) — found {literals}"
         );
         let child = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/blend/admit");
         assert!(
@@ -501,9 +562,12 @@ mod tests {
         let body = cube(L, Tol::witness());
         let links = all_links(&body, Tol::witness());
         let chains: Vec<Chain<f64>> = links.iter().cloned().map(open_chain).collect();
-        let admitted: Vec<ConvexOpen<'_, f64>> = chains
+        let admitted: Vec<AdmittedOpen<'_, f64>> = chains
             .iter()
-            .map(|c| ConvexOpen::admit(c).expect("a cube's links are convex plane–plane"))
+            .map(|c| {
+                AdmittedOpen::admit(c, BlendKind::Fillet)
+                    .expect("a cube's links are convex plane–plane")
+            })
             .collect();
         let vertex = links[0].start;
         let stranger = *admitted
@@ -561,14 +625,19 @@ mod tests {
         assert!(!super::distinct(f0, f1, f0), "the wrap-around pair");
     }
 
-    /// **The admission is what makes [`CornerFaces::third`] total**, so
-    /// this row exercises both halves against a real corner: the door
-    /// returns three distinct faces, and every exclusion pair over them
-    /// — the three that are members and one that is not — still names a
-    /// face.
+    /// **The admission is what makes [`CornerFaces::third`] total over
+    /// this corner's own pairs**, so this row exercises both halves
+    /// against a real corner: the door returns three distinct faces,
+    /// every exclusion pair drawn from them names the remaining one,
+    /// and a pair drawn from anywhere else is refused rather than
+    /// answered.
     ///
-    /// That is the whole reason the octant's chart pick no longer
-    /// carries a run-out refusal it could not justify.
+    /// The first half is why the octant's chart pick no longer carries
+    /// a run-out refusal it could not justify. **The second is why it
+    /// cannot be scored off a corner it does not belong to**: the
+    /// answer to a stranger pair would be a face this corner holds and
+    /// that pair does not exclude, which reads exactly like a right
+    /// answer and produces a wrong chart.
     #[test]
     fn admission_makes_the_third_support_total() {
         let body = cube(L, Tol::witness());
@@ -583,13 +652,26 @@ mod tests {
             "admission must yield three DISTINCT faces"
         );
         for (a, b) in [(f0, f1), (f1, f2), (f0, f2)] {
-            let t = faces.third(a, b);
+            let t = faces
+                .third(a, b)
+                .expect("a pair of this corner's own supports has a third");
             assert!(t != a && t != b, "the third support excludes both");
             assert!(faces.contains(t), "and is one of the corner's own");
         }
-        // A pair that is not both members: still an answer, never a
-        // missing one.
+        // A pair that is not both members has no third: excluding a
+        // stranger leaves TWO of the corner's faces, and naming either
+        // is a chart scored off a support pair that is not this
+        // corner's.
         let stranger = FaceKey::default();
-        assert!(faces.contains(faces.third(f0, stranger)));
+        assert!(!faces.contains(stranger), "the stranger is not a member");
+        assert!(faces.third(f0, stranger).is_none(), "one stranger");
+        assert!(faces.third(stranger, f1).is_none(), "the other side");
+        assert!(
+            faces.third(stranger, stranger).is_none(),
+            "two strangers, which excludes nothing at all"
+        );
+        // A member paired with ITSELF excludes one face and leaves
+        // two, which is the same defect wearing a member's key.
+        assert!(faces.third(f0, f0).is_none(), "a face against itself");
     }
 }
