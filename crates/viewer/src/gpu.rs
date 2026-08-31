@@ -736,7 +736,8 @@ impl EdgePass {
             self.held = None;
             return;
         }
-        let mut positions: Vec<[f32; 3]> = Vec::with_capacity(overlay.selected.len() + overlay.hovered.len());
+        let mut positions: Vec<[f32; 3]> =
+            Vec::with_capacity(overlay.selected.len() + overlay.hovered.len());
         let mut marks: Vec<u32> = Vec::with_capacity(positions.capacity());
         for (mark, corners) in [
             (EDGE_MARK_SELECTED, &overlay.selected),

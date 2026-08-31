@@ -61,9 +61,7 @@ use crate::pick::{self, PickCache, PickIndex};
 use crate::prefs::{self, Prefs, PrefsStore};
 use crate::props::{self, SlotDriver, SlotGroup, SlotRow, SlotValue};
 use crate::scene::{self, DisplayTolerance, SceneMesh};
-use crate::session::{
-    BoundsTarget, DocSession, Hovered, Refusal, Selection, SessionOp, Standing,
-};
+use crate::session::{BoundsTarget, DocSession, Hovered, Refusal, Selection, SessionOp, Standing};
 use crate::theme::{Polarity, Theme};
 use crate::tree::{RowStatus, TreeRow};
 

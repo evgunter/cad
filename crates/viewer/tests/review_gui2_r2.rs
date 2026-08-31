@@ -899,7 +899,11 @@ fn the_event_stream_drives_selection_and_hover_through_typed_ops() {
         .clone();
     assert_eq!(first.node, extrude);
     assert_eq!(
-        session.hover().expect("the hover landed too").name().clone(),
+        session
+            .hover()
+            .expect("the hover landed too")
+            .name()
+            .clone(),
         first.name
     );
     assert_eq!(session.selection().node(), Some(extrude));

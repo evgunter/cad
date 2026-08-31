@@ -736,9 +736,7 @@ impl PickIndex {
         self.edges_in(edge.node, edge.body)
             .iter()
             .copied()
-            .filter(|id| {
-                matches!(self.edge_name_of(*id), Some(Ok(name)) if *name == edge.name)
-            })
+            .filter(|id| matches!(self.edge_name_of(*id), Some(Ok(name)) if *name == edge.name))
             .collect()
     }
 
@@ -829,7 +827,10 @@ impl PickIndex {
         let ray = camera
             .ray_through(cursor, viewport)
             .map_err(PickError::Camera)?;
-        let Some(hit) = self.pick_for(eval, &ray, display).map_err(PickError::HitTest)? else {
+        let Some(hit) = self
+            .pick_for(eval, &ray, display)
+            .map_err(PickError::HitTest)?
+        else {
             return Ok(None);
         };
         self.edge_near(eval, camera, viewport, cursor, display, &hit)
@@ -871,7 +872,10 @@ impl PickIndex {
         let ray = camera
             .ray_through(cursor, viewport)
             .map_err(PickError::Camera)?;
-        let Some(hit) = self.pick_for(eval, &ray, display).map_err(PickError::HitTest)? else {
+        let Some(hit) = self
+            .pick_for(eval, &ray, display)
+            .map_err(PickError::HitTest)?
+        else {
             return Ok(None);
         };
         if let Some(edge) = self.edge_near(eval, camera, viewport, cursor, display, &hit)? {
@@ -1301,9 +1305,7 @@ pub fn highlight(index: &PickIndex, selection: &Selection, hover: Option<&Hovere
     };
     Highlight {
         selected: selection.face().map_or(IdMap::NOTHING, mark),
-        hovered: hover
-            .and_then(Hovered::face)
-            .map_or(IdMap::NOTHING, mark),
+        hovered: hover.and_then(Hovered::face).map_or(IdMap::NOTHING, mark),
     }
 }
 

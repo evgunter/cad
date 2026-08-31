@@ -30,10 +30,10 @@ use pncad::select::{Resolution, RunCtx, resolve};
 use viewer::camera::Camera;
 use viewer::display::DisplayView;
 use viewer::input::{PickAction, ViewportSize};
+use viewer::pick;
 use viewer::pick::{EDGE_PICK_RADIUS_PX, EdgeId, PickIndex};
 use viewer::scene::{self, PLATE_EXTENT, PLATE_HOLE_RADIUS};
 use viewer::session::{DocSession, EdgeSelection, Hovered, Selection, SessionOp};
-use viewer::pick;
 
 /// The pane every row picks in.
 fn pane() -> ViewportSize {
@@ -115,9 +115,7 @@ fn pixel_of(camera: &Camera, point: Point3<f64>) -> [f64; 2] {
         .project(point, aspect)
         .expect("the projection is defined")
         .expect("a framed point is in front of the eye");
-    pane()
-        .cursor_of([ndc[0], ndc[1]])
-        .expect("a positive area")
+    pane().cursor_of([ndc[0], ndc[1]]).expect("a positive area")
 }
 
 /// A point of the polyline and the two pixels its own segment spans —
@@ -138,13 +136,19 @@ fn offset_from(a: [f64; 2], b: [f64; 2], toward: [f64; 2], offset_px: f64) -> [f
     let mid = [(a[0] + b[0]) * 0.5, (a[1] + b[1]) * 0.5];
     let (dx, dy) = (b[0] - a[0], b[1] - a[1]);
     let length = (dx.powi(2) + dy.powi(2)).sqrt();
-    assert!(length > 0.0, "a segment that projects to a point has no normal");
+    assert!(
+        length > 0.0,
+        "a segment that projects to a point has no normal"
+    );
     let mut normal = [-dy / length, dx / length];
     let to = [toward[0] - mid[0], toward[1] - mid[1]];
     if normal[0] * to[0] + normal[1] * to[1] < 0.0 {
         normal = [-normal[0], -normal[1]];
     }
-    [mid[0] + normal[0] * offset_px, mid[1] + normal[1] * offset_px]
+    [
+        mid[0] + normal[0] * offset_px,
+        mid[1] + normal[1] * offset_px,
+    ]
 }
 
 /// The pane pixel the plate's centre of mass projects to — "into the
@@ -152,10 +156,7 @@ fn offset_from(a: [f64; 2], b: [f64; 2], toward: [f64; 2], offset_px: f64) -> [f
 /// stay over the solid.
 fn plate_centre_px(camera: &Camera) -> [f64; 2] {
     let [width, depth, thickness] = PLATE_EXTENT;
-    pixel_of(
-        camera,
-        Point3::new(width * 0.5, depth * 0.25, thickness),
-    )
+    pixel_of(camera, Point3::new(width * 0.5, depth * 0.25, thickness))
 }
 
 // --- the drawn edges and their names --------------------------------
@@ -184,10 +185,7 @@ fn every_drawn_edge_names_an_edge_that_resolves() {
             .as_ref()
             .expect("naming emission is total, so no drawn edge is unnamed");
         assert!(
-            matches!(
-                resolve(RunCtx { doc, eval }, name),
-                Resolution::Resolved(_)
-            ),
+            matches!(resolve(RunCtx { doc, eval }, name), Resolution::Resolved(_)),
             "a just-drawn edge's name resolves in the run it was drawn from"
         );
         assert!(names.insert(name.clone()), "one name per drawn edge");
@@ -424,22 +422,19 @@ fn an_edge_behind_the_solid_does_not_win_at_its_own_pixel() {
         }
         let at = (points.len() - 1) / 2;
         let (a, b) = (points[at], points[at + 1]);
-        let cursor = pixel_of(&camera, Point3::new(
-            (a.x + b.x) * 0.5,
-            (a.y + b.y) * 0.5,
-            (a.z + b.z) * 0.5,
-        ));
+        let cursor = pixel_of(
+            &camera,
+            Point3::new((a.x + b.x) * 0.5, (a.y + b.y) * 0.5, (a.z + b.z) * 0.5),
+        );
         let ray = camera.ray_through(cursor, pane()).expect("un-projects");
-        let Some(front) = index.pick_for(eval, &ray, &DisplayView::none()).expect("no refusal")
+        let Some(front) = index
+            .pick_for(eval, &ray, &DisplayView::none())
+            .expect("no refusal")
         else {
             continue;
         };
         // How far along the ray the edge's own midpoint sits.
-        let midpoint = Point3::new(
-            (a.x + b.x) * 0.5,
-            (a.y + b.y) * 0.5,
-            (a.z + b.z) * 0.5,
-        );
+        let midpoint = Point3::new((a.x + b.x) * 0.5, (a.y + b.y) * 0.5, (a.z + b.z) * 0.5);
         let depth = ray.dir.dot(midpoint - ray.origin);
         if front.t >= depth * (1.0 - 1.0e-6) {
             continue; // visible at its own pixel — not this row's subject
@@ -592,12 +587,7 @@ fn a_face_selection_marks_no_edge_and_an_edge_selection_marks_no_patch() {
         )
         .expect("no refusal")
         .expect("a ray onto the plate hits it");
-    let overlay = pick::edge_overlay(
-        &index,
-        &DisplayView::none(),
-        &Selection::Face(face),
-        None,
-    );
+    let overlay = pick::edge_overlay(&index, &DisplayView::none(), &Selection::Face(face), None);
     assert!(overlay.is_empty(), "a face selection marks no edge");
 }
 
