@@ -2138,11 +2138,7 @@ pub(crate) fn tier3_local_checks<T: crate::props::PropsQuadLane>(
 /// wedge end. Nor does absence ever certify anything: an empty
 /// declaration list refuses every cusp, which is what makes
 /// [`validate_geometric`]'s signature honest.
-fn declares_tangent_contact(
-    declarations: &[DeclaredContact],
-    a: FaceKey,
-    b: FaceKey,
-) -> bool {
+fn declares_tangent_contact(declarations: &[DeclaredContact], a: FaceKey, b: FaceKey) -> bool {
     declarations.iter().any(|d| {
         d.class == crate::contact::ContactClass::Tangent
             && ((d.a == a && d.b == b) || (d.a == b && d.b == a))
