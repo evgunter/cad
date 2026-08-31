@@ -13,75 +13,11 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Affine3, Point2, Tol, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
-use topo::{
-    Body, BooleanDeclarations, BooleanResult, ContactClass, FacePairDeclaration, mass_properties,
-};
+mod mate2_common;
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
-fn three_arc(radius: f64, deg0: f64) -> ProfileLoop<f64> {
-    let b120 = (core::f64::consts::PI / 6.0).tan();
-    let at = |deg: f64| {
-        let th: f64 = deg.to_radians();
-        p2(radius * th.cos(), radius * th.sin())
-    };
-    ProfileLoop::new(vec![
-        ProfileVertex::new(at(deg0), b120),
-        ProfileVertex::new(at(deg0 + 120.0), b120),
-        ProfileVertex::new(at(deg0 + 240.0), b120),
-    ])
-}
-
-fn extruded(loops: Vec<ProfileLoop<f64>>, z0: f64, h: f64) -> Body<f64> {
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
-    let profile = Profile::new(plane, loops).validate(Tol::witness()).unwrap();
-    sweep::extrude(&profile, sweep::Extrusion::Distance(h), Tol::witness())
-        .unwrap()
-        .body
-}
-
-/// The unit's own collar: annulus (outer 1.5, bore 0.5), z in [1, 2],
-/// bore split at 0/120/240.
-fn collar() -> Body<f64> {
-    extruded(vec![three_arc(1.5, 0.0), three_arc(0.5, 0.0)], 1.0, 1.0)
-}
-
-/// A peg of radius 0.5 whose three-arc split starts at `deg0`.
-fn peg_at(z0: f64, h: f64, deg0: f64) -> Body<f64> {
-    extruded(vec![three_arc(0.5, deg0)], z0, h)
-}
-
-fn walls_at(body: &Body<f64>, r: f64) -> Vec<topo::FaceKey> {
-    body.faces()
-        .filter(|(_, f)| {
-            matches!(
-                body.get_surface(f.surface),
-                Some(geom::Surface::Cylinder { radius, .. }) if (radius - r).abs() < 1e-9
-            )
-        })
-        .map(|(k, _)| k)
-        .collect()
-}
-
-fn wall_decls(a: &Body<f64>, b: &Body<f64>) -> BooleanDeclarations {
-    let mut decls = BooleanDeclarations::none();
-    for &fa in &walls_at(a, 0.5) {
-        for &fb in &walls_at(b, 0.5) {
-            decls
-                .coincident_faces
-                .push(FacePairDeclaration::new(fa, fb, ContactClass::Rest));
-        }
-    }
-    decls
-}
-
-fn volume(b: &Body<f64>) -> f64 {
-    mass_properties(b, Tol::witness()).unwrap().volume
-}
+use geom_core::Tol;
+use mate2_common::*;
+use topo::{BooleanDeclarations, BooleanResult};
 
 /// PROBE 1 — the azimuth splits MISALIGNED by 60 degrees.
 ///
@@ -101,7 +37,7 @@ fn volume(b: &Body<f64>) -> f64 {
 #[test]
 fn probe_misaligned_azimuth_split_reports_its_outcome() {
     let c = collar();
-    let p = peg_at(0.5, 2.0, 60.0);
+    let p = peg_at(60.0, 0.5, 2.0);
     let decls = wall_decls(&c, &p);
     assert_eq!(decls.coincident_faces.len(), 9, "3 bore faces against 3");
     let out = topo::union_with(&c, &p, &decls, Tol::witness());
@@ -140,7 +76,7 @@ fn probe_misaligned_azimuth_split_reports_its_outcome() {
 #[test]
 fn probe_out_by_height_reports_its_outcome() {
     let c = collar();
-    let p = peg_at(1.5, 1.0, 0.0);
+    let p = peg_at(0.0, 1.5, 1.0);
     let decls = wall_decls(&c, &p);
     let out = topo::union_with(&c, &p, &decls, Tol::witness());
     match out {
@@ -175,7 +111,7 @@ fn probe_out_by_height_reports_its_outcome() {
 #[test]
 fn probe_undeclared_misaligned_reports_its_outcome() {
     let c = collar();
-    let p = peg_at(0.5, 2.0, 60.0);
+    let p = peg_at(60.0, 0.5, 2.0);
     let out = topo::union_with(&c, &p, &BooleanDeclarations::none(), Tol::witness());
     match out {
         Err(e) => println!("PROBE3 REFUSED: {e:?}"),
@@ -190,7 +126,7 @@ fn probe_undeclared_misaligned_reports_its_outcome() {
 #[test]
 fn probe_undeclared_aligned_reports_its_outcome() {
     let c = collar();
-    let p = peg_at(0.5, 2.0, 0.0);
+    let p = peg_at(0.0, 0.5, 2.0);
     let out = topo::union_with(&c, &p, &BooleanDeclarations::none(), Tol::witness());
     match out {
         Err(e) => println!("PROBE4 REFUSED: {e:?}"),
@@ -201,29 +137,28 @@ fn probe_undeclared_aligned_reports_its_outcome() {
     }
 }
 
-/// PROBE 5 — how loose is the 8-ULP additivity assertion?
+/// PROBE 5 — how loose is the additivity assertion?
 ///
 /// The unit relaxed fixture (i)'s BITWISE volume oracle to a relative
-/// 8-ULP comparison on the ground that both sides carry pi terms that
+/// comparison on the ground that both sides carry pi terms that
 /// no rearrangement cancels. This row reports the ULP distance each of
 /// the unit's own three fixtures actually achieves, so the headroom
 /// between the achieved number and the asserted bound is visible.
 #[test]
 fn probe_reports_actual_additivity_ulps() {
-    let ulps = |v: f64, sum: f64| -> f64 {
-        if v == sum {
-            return 0.0;
-        }
-        (v - sum).abs() / (f64::EPSILON * sum.abs())
-    };
+    let ulps = additivity_ulps;
     // partial engagement
     {
         let c = collar();
-        let p = peg_at(0.5, 2.0, 0.0);
+        let p = peg_at(0.0, 0.5, 2.0);
         let d = wall_decls(&c, &p);
         if let Ok(BooleanResult::Body(bb)) = topo::union_with(&c, &p, &d, Tol::witness()) {
             let (v, vc, vp) = (volume(&bb.body), volume(&c), volume(&p));
-            println!("PROBE5 partial: {:.3} ULP (v={v:.17e} sum={:.17e})", ulps(v, vc + vp), vc + vp);
+            println!(
+                "PROBE5 partial: {:.3} ULP (v={v:.17e} sum={:.17e})",
+                ulps(v, vc + vp),
+                vc + vp
+            );
         } else {
             println!("PROBE5 partial: refused");
         }
@@ -231,11 +166,15 @@ fn probe_reports_actual_additivity_ulps() {
     // full engagement
     {
         let c = collar();
-        let p = peg_at(1.0, 1.0, 0.0);
+        let p = peg_at(0.0, 1.0, 1.0);
         let d = wall_decls(&c, &p);
         if let Ok(BooleanResult::Body(bb)) = topo::union_with(&c, &p, &d, Tol::witness()) {
             let (v, vc, vp) = (volume(&bb.body), volume(&c), volume(&p));
-            println!("PROBE5 full: {:.3} ULP (v={v:.17e} sum={:.17e})", ulps(v, vc + vp), vc + vp);
+            println!(
+                "PROBE5 full: {:.3} ULP (v={v:.17e} sum={:.17e})",
+                ulps(v, vc + vp),
+                vc + vp
+            );
         } else {
             println!("PROBE5 full: refused");
         }

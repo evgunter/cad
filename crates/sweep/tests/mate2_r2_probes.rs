@@ -9,68 +9,18 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
-use topo::{
-    Body, BooleanDeclarations, BooleanResult, ContactClass, FacePairDeclaration, mass_properties,
-};
+mod mate2_common;
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
-/// A circle at the origin as three 120° arcs, first joint at `deg0`.
-fn three_arc(radius: f64, deg0: f64) -> ProfileLoop<f64> {
-    let b120 = (core::f64::consts::PI / 6.0).tan();
-    let at = |deg: f64| {
-        let th: f64 = deg.to_radians();
-        p2(radius * th.cos(), radius * th.sin())
-    };
-    ProfileLoop::new(vec![
-        ProfileVertex::new(at(deg0), b120),
-        ProfileVertex::new(at(deg0 + 120.0), b120),
-        ProfileVertex::new(at(deg0 + 240.0), b120),
-    ])
-}
-
-fn extruded(loops: Vec<ProfileLoop<f64>>, z0: f64, h: f64) -> Body<f64> {
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
-    let profile = Profile::new(plane, loops).validate(Tol::witness()).unwrap();
-    sweep::extrude(&profile, sweep::Extrusion::Distance(h), Tol::witness())
-        .unwrap()
-        .body
-}
-
-/// The collar of the unit's fixture: annulus outer r = 1.5, bore
-/// r = 0.5, z ∈ [1, 2], both rims three 120° arcs at joints `deg0`.
-fn collar_at(deg0: f64) -> Body<f64> {
-    extruded(vec![three_arc(1.5, deg0), three_arc(0.5, deg0)], 1.0, 1.0)
-}
-
-fn peg_at(deg0: f64, z0: f64, h: f64) -> Body<f64> {
-    extruded(vec![three_arc(0.5, deg0)], z0, h)
-}
-
-fn walls_at(body: &Body<f64>, r: f64) -> Vec<topo::FaceKey> {
-    body.faces()
-        .filter(|(_, f)| {
-            matches!(
-                body.get_surface(f.surface),
-                Some(geom::Surface::Cylinder { radius, .. }) if (radius - r).abs() < 1e-9
-            )
-        })
-        .map(|(k, _)| k)
-        .collect()
-}
-
-fn volume(b: &Body<f64>) -> f64 {
-    mass_properties(b, Tol::witness()).unwrap().volume
-}
+use geom_core::{Point3, Tol, Vec2, Vec3};
+use mate2_common::*;
+use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
+use topo::{Body, BooleanDeclarations, BooleanResult, ContactClass, FacePairDeclaration};
 
 /// The never-silent contract, shared by every row here: refusal is
 /// fine (typed by the error enum's construction); an `Ok` body must be
-/// exactly additive (8-ULP relative, the unit's own oracle) AND
-/// tier-3 valid AND pseudomanifold-clean.
+/// exactly additive (4-ULP relative, the unit's own oracle — tightened
+/// from 8 once these probes measured the real distance) AND tier-3
+/// valid AND pseudomanifold-clean.
 fn never_silent(
     label: &str,
     a: &Body<f64>,
@@ -84,7 +34,7 @@ fn never_silent(
             let sum = volume(a) + volume(b);
             eprintln!("{label}: unioned, v = {v:.17e} vs sum = {sum:.17e}");
             assert!(
-                (v - sum).abs() <= 8.0 * f64::EPSILON * sum.abs(),
+                (v - sum).abs() <= 4.0 * f64::EPSILON * sum.abs(),
                 "{label}: SILENTLY WRONG BODY — {v} vs {sum}"
             );
             if let Err(errs) = topo::validate_geometric(&bb.body, Tol::witness()) {
@@ -264,9 +214,18 @@ fn r2_full_period_bore_still_refuses_typed() {
         }
     }
     let e = never_silent("full-period bore x 3-arc peg", &c, &p, &decls);
+    // HARDENED on adoption (MATE-2 fix pass): this row is now the
+    // unit's only `cargo test` guard that `Undecided` keeps the typed
+    // frontier — the behaviour's other live pin is the lily's tour
+    // probe, which does not run when the render lane is skipped, and a
+    // `reduce.rs`-only change skips it. So the KIND is asserted rather
+    // than noted: the no-verdict endpoint must keep the REDUCTION's
+    // door, not some door further downstream, because a refusal that
+    // moved downstream would mean the widening had swallowed the
+    // no-verdict case after all.
     match e {
         Some(topo::BooleanError::CurvedPierceUnsupported { .. }) => {}
-        Some(other) => eprintln!("NOTE: refused, but not the pinned kind: {other:?}"),
+        Some(other) => panic!("refused, but not at the reduction's door: {other:?}"),
         None => panic!("the narrower-class claim is FALSE: a full-period bore unioned"),
     }
 }
@@ -310,16 +269,26 @@ fn r2_full_period_peg_still_refuses_typed() {
         }
     }
     let e = never_silent("3-arc collar x full-period peg", &c, &p, &decls);
+    // **MEASURED ON ADOPTION, and the row's premise does not hold.**
+    // This scene never reaches the reduction at all: the full revolve
+    // leaves the peg's wall as TWO faces on one carrier, and the
+    // operand gate refuses `NonMaximalFaces` before any sweep runs. So
+    // this is not a full-period pin — the bore row above is the one
+    // that reaches the containment door's period guard — and asserting
+    // `CurvedPierceUnsupported` here would be pinning a door this
+    // configuration cannot get to. What the row does keep is the
+    // never-silent contract, which is unconditional and is exactly
+    // what `never_silent` already checked above.
     match e {
         Some(topo::BooleanError::CurvedPierceUnsupported { .. }) => {}
-        Some(other) => eprintln!("NOTE: refused, but not the pinned kind: {other:?}"),
+        Some(other) => eprintln!("refused before the reduction, as measured: {other:?}"),
         None => panic!("the narrower-class claim is FALSE: a full-period peg unioned"),
     }
 }
 
 /// Claim-7 measurement: how far from BITWISE is the unit's partial-
 /// engagement additivity, in ULPs of the sum? (The unit loosened
-/// fixture (i)'s bitwise oracle to 8-ULP relative on the argument that
+/// fixture (i)'s bitwise oracle to a relative bound on the argument that
 /// the π terms cannot cancel.)
 #[test]
 fn r2_measure_additivity_ulp_gap() {
@@ -334,8 +303,13 @@ fn r2_measure_additivity_ulp_gap() {
         }
     }
     let out = topo::union_with(&c, &p, &decls, Tol::witness()).unwrap();
-    let BooleanResult::Body(bb) = out else { panic!() };
+    let BooleanResult::Body(bb) = out else {
+        panic!()
+    };
     let (v, sum) = (volume(&bb.body), volume(&c) + volume(&p));
     let ulp = (v - sum).abs() / (f64::EPSILON * sum.abs());
-    eprintln!("R2 additivity gap: v = {v:.17e}, sum = {sum:.17e}, gap = {ulp:.3} ULP(s), bitwise = {}", v == sum);
+    eprintln!(
+        "R2 additivity gap: v = {v:.17e}, sum = {sum:.17e}, gap = {ulp:.3} ULP(s), bitwise = {}",
+        v == sum
+    );
 }

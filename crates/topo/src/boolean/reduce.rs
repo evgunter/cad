@@ -952,10 +952,23 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
 /// ([`super::contain::curved_face_containment`] — the boundary walk,
 /// and behind it the cylinder chart trim), producing the same v-v
 /// record family, or the v-f record when the trim places the endpoint
-/// strictly inside. An endpoint that door does not decide keeps the
-/// typed frontier refusal, and UNDECLARED incidences keep
-/// both frontier doors untouched — the door only widens what a
-/// verified declaration unlocks.
+/// strictly inside.
+///
+/// **Each on-carrier endpoint has three outcomes, not two**
+/// ([`Placement`]). It is RECORDED; or the trim certifies it OUT of
+/// this face, in which case it is eventless HERE and the pair's other
+/// endpoint decides; or the door returns no verdict, which keeps the
+/// typed frontier refusal. The middle case is a decision and not a
+/// remainder: a shared carrier is covered by several faces per side, so
+/// an endpoint outside THIS face's window is a site some sibling face
+/// holds, and the sweep reaches that pair on its own visit. A pair with
+/// NO recorded endpoint still refuses — an overlap lying wholly inside
+/// this face's window, with both endpoints beyond it, is an incidence
+/// this arm cannot see, and it stays loud rather than becoming a silent
+/// no-event.
+///
+/// UNDECLARED incidences keep both frontier doors untouched — the door
+/// only widens what a verified declaration unlocks.
 ///
 /// **The pierce ring lane** (the definite-crossing half): a LINE edge
 /// that definitely crosses a cylinder WALL inside that wall's trim is
@@ -1163,20 +1176,48 @@ fn curved_face_arm<T: Decide>(
                 // both doors verbatim.
                 //
                 // **An endpoint the trim places definitely OUT of THIS
-                // face is eventless HERE, not a refusal.** A declared
-                // carrier is shared by several faces on each side, so
-                // an arc's endpoint is a seam site of the other
-                // operand's wall: one face holds it and its neighbours
-                // certify it outside their own windows. Reading that
+                // face is eventless HERE, not a refusal.** Reading that
                 // certificate as the frontier's remainder refuses a
-                // pair that simply has no incidence — and refuses the
-                // whole op, since one refusing pair is enough. What
-                // still keeps the door: a no-verdict endpoint
-                // ([`Placement::Undecided`]), and a pair where NOTHING
-                // was recorded — an arc whose interior crosses this
-                // face's window with both endpoints outside it is a
-                // real incidence this arm cannot see, and it must stay
-                // loud rather than become a silent no-event.
+                // pair that has no incidence to report — and refuses
+                // the whole op, since one refusing pair is enough.
+                //
+                // `Out` has THREE sources, and the argument differs by
+                // source, so it is made per source rather than for the
+                // one that motivated the change:
+                //
+                // - **AZIMUTH** — the endpoint is past this face's
+                //   angular window. On a closed carrier the azimuth is
+                //   covered by the operand's own wall faces, so the
+                //   point is a seam site a SIBLING face holds, and the
+                //   sweep reaches that pair on its own visit. This is
+                //   the case the rest lane is built on.
+                // - **HEIGHT** — the endpoint is past the window in z.
+                //   Here NO sibling need hold it: the carrier simply
+                //   ends, and a floating peg's rim has no face of the
+                //   other operand under it at all.
+                // - **OFF-CARRIER** — the containment door's own first
+                //   test, reachable when the clearance row called the
+                //   arc on-carrier within the band and the point row
+                //   then resolves definitely off it at the same band.
+                //
+                // The last two have no neighbour to appeal to, so the
+                // widening does NOT rest on one existing. What carries
+                // them is the **nothing-recorded guard** below: a pair
+                // whose every on-carrier endpoint came back `Elsewhere`
+                // records nothing and keeps the frontier, whatever the
+                // source. So an all-`Out` pair is exactly as loud as it
+                // was, and only a pair that ALREADY placed an endpoint
+                // on this face — i.e. one with a real, recorded
+                // incidence here — is allowed to stop treating its
+                // other end's absence as a failure.
+                //
+                // Still keeping the door, unchanged: a no-verdict
+                // endpoint ([`Placement::Undecided`]), and the pair
+                // where nothing was recorded — an arc whose interior
+                // crosses this face's window with both endpoints
+                // outside it is a real incidence this arm cannot see,
+                // and it must stay loud rather than become a silent
+                // no-event.
                 Ok(Sign::Zero) if covered => {
                     let side = |p: Point3<T>| {
                         decide(
@@ -1185,23 +1226,22 @@ fn curved_face_arm<T: Decide>(
                             band,
                         )
                     };
-                    let mut any = false;
-                    for (w, pw) in [(u, pu), (v, pv)] {
+                    let mut ends = [None, None];
+                    for (i, (w, pw)) in [(u, pu), (v, pv)].into_iter().enumerate() {
                         match side(pw).map_err(|diag| BooleanError::Escalated { diag })? {
                             Sign::Zero => {
-                                match vertex_on_curved_face(
+                                ends[i] = Some(vertex_on_curved_face(
                                     x_is, y, w, pw, face, contacts, band, tol,
-                                )? {
-                                    Placement::Recorded => any = true,
-                                    Placement::Elsewhere => {}
-                                    Placement::Undecided => return Err(frontier()),
-                                }
+                                )?);
                             }
+                            // Definitely clear at this end: honestly
+                            // eventless, and not an endpoint the rule
+                            // below weighs either way.
                             Sign::Positive => {}
                             Sign::Negative => return Err(frontier()),
                         }
                     }
-                    if any {
+                    if Placement::records_the_pair(ends) {
                         Ok(CurvedEvent::Recorded)
                     } else {
                         Err(frontier())
@@ -1250,27 +1290,23 @@ fn curved_face_arm<T: Decide>(
             // this face is eventless here (the circle rung above
             // carries the argument), and a pair with nothing recorded
             // keeps the door.
-            if hu == Placement::Undecided || hv == Placement::Undecided {
-                Err(frontier())
-            } else if hu == Placement::Recorded || hv == Placement::Recorded {
+            if Placement::records_the_pair([Some(hu), Some(hv)]) {
                 Ok(CurvedEvent::Recorded)
             } else {
                 Err(frontier())
             }
         }
         (Sign::Zero, Sign::Positive) if covered => {
-            if vertex_on_curved_face(x_is, y, u, pu, face, contacts, band, tol)?
-                == Placement::Recorded
-            {
+            let h = vertex_on_curved_face(x_is, y, u, pu, face, contacts, band, tol)?;
+            if Placement::records_the_pair([Some(h), None]) {
                 Ok(CurvedEvent::Recorded)
             } else {
                 Err(frontier())
             }
         }
         (Sign::Positive, Sign::Zero) if covered => {
-            if vertex_on_curved_face(x_is, y, v, pv, face, contacts, band, tol)?
-                == Placement::Recorded
-            {
+            let h = vertex_on_curved_face(x_is, y, v, pv, face, contacts, band, tol)?;
+            if Placement::records_the_pair([Some(h), None]) {
                 Ok(CurvedEvent::Recorded)
             } else {
                 Err(frontier())
@@ -1306,11 +1342,15 @@ fn curved_face_arm<T: Decide>(
                     Err(frontier())
                 }
                 SpanVerdict::NoInterior => {
-                    // UNDECLARED: `Elsewhere` and `Undecided` are read
-                    // as one thing here, deliberately. The widening
-                    // above is what a VERIFIED declaration unlocks;
-                    // outside it both answers keep the frontier, as
-                    // they always have.
+                    // UNDECLARED, so NOT [`Placement::records_the_pair`]:
+                    // `Elsewhere` and `Undecided` are read as one thing
+                    // here, deliberately. The declared rungs' rule is
+                    // bought by a verified declaration — the carrier
+                    // pair was checked, so a sibling face on it is a
+                    // real place for an endpoint's event to live.
+                    // Nothing here has been verified, so a certified
+                    // `Out` licenses no such appeal and both answers
+                    // keep the frontier, as they always have.
                     let mut hit = false;
                     if s1 == Sign::Zero {
                         hit |= vertex_on_curved_face(x_is, y, u, pu, face, contacts, band, tol)?
@@ -1346,13 +1386,27 @@ fn curved_face_arm<T: Decide>(
         // treatment here and the undeclared cosurface question keeps
         // its door untouched (CONTACT-DESIGN C2/C4) — as does a
         // tangency, a trim with no verdict, and every other answer.
+        //
+        // **Where the undeclared arms stand is under active proposal,
+        // and this paragraph is not a ruling on it.** What it argues is
+        // narrow and holds either way: the C2/C4 COSURFACE question
+        // cannot be reached from here, for the structural reason above.
+        // It says nothing about whether a definite `Elsewhere` should
+        // be answered as no-event on an undeclared pair — a separate
+        // question about the TRIM, not about gluing — and an open PR
+        // proposes exactly that. Read this as the fence's derivation,
+        // not as a decision already taken against that proposal.
         (Sign::Zero, Sign::Zero) => {
             let (t0, t1) = curve.params();
             match wall_crossing(y, face, &surface, curve.carrier(), t0, t1, band)? {
                 SpanVerdict::NoInterior => {
-                    // UNDECLARED, as the arm above: only a RECORDED
-                    // endpoint counts, and every other answer keeps the
-                    // frontier door.
+                    // UNDECLARED, as the arm above and for the same
+                    // reason: only a RECORDED endpoint counts, every
+                    // other answer keeps the frontier door, and
+                    // [`Placement::records_the_pair`] — which does let
+                    // an `Elsewhere` end pass beside a recorded one —
+                    // is deliberately NOT applied outside a verified
+                    // declaration.
                     let hu = vertex_on_curved_face(x_is, y, u, pu, face, contacts, band, tol)?;
                     let hv = vertex_on_curved_face(x_is, y, v, pv, face, contacts, band, tol)?;
                     if hu == Placement::Recorded || hv == Placement::Recorded {
@@ -1660,6 +1714,32 @@ enum Placement {
     Elsewhere,
     /// No verdict — the containment door's remainder.
     Undecided,
+}
+
+impl Placement {
+    /// **The declared rungs' one rule**, in one place because all four
+    /// of them apply it: given each of an edge's endpoints as
+    /// `Some(placement)` when the residual put it ON the carrier and
+    /// `None` when it is honestly not this arm's business (definitely
+    /// clear, or the arm has only one on-carrier end), does this pair
+    /// record an event, or keep the typed frontier?
+    ///
+    /// Two conditions, both necessary:
+    ///
+    /// - **no `Undecided`** — an endpoint the containment door could
+    ///   not place leaves the pair unknown, and unknown keeps the door;
+    /// - **at least one `Recorded`** — a pair whose on-carrier ends all
+    ///   came back `Elsewhere` has placed nothing on this face, so it
+    ///   keeps the door too. That is what stops an overlap lying wholly
+    ///   inside this face's window, with both ends beyond it, from
+    ///   turning into a silent no-event.
+    ///
+    /// `Elsewhere` therefore never carries a pair on its own; it only
+    /// stops being fatal beside a sibling end that WAS recorded.
+    fn records_the_pair(ends: [Option<Self>; 2]) -> bool {
+        !ends.iter().flatten().any(|p| *p == Self::Undecided)
+            && ends.iter().flatten().any(|p| *p == Self::Recorded)
+    }
 }
 
 /// The declared-cosurface rung's endpoint treatment: classify an

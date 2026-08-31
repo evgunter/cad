@@ -25,122 +25,12 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Affine3, Point2, Tol, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
-use topo::{
-    Body, BooleanDeclarations, BooleanResult, ContactClass, FacePairDeclaration, mass_properties,
-};
+mod mate2_common;
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
-/// A circle at the origin as three 120° arcs, first joint at `deg0`.
-fn three_arc(radius: f64, deg0: f64) -> ProfileLoop<f64> {
-    let b120 = (core::f64::consts::PI / 6.0).tan();
-    let at = |deg: f64| {
-        let th: f64 = deg.to_radians();
-        p2(radius * th.cos(), radius * th.sin())
-    };
-    ProfileLoop::new(vec![
-        ProfileVertex::new(at(deg0), b120),
-        ProfileVertex::new(at(deg0 + 120.0), b120),
-        ProfileVertex::new(at(deg0 + 240.0), b120),
-    ])
-}
-
-fn extruded(loops: Vec<ProfileLoop<f64>>, z0: f64, h: f64) -> Body<f64> {
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
-    let profile = Profile::new(plane, loops).validate(Tol::witness()).unwrap();
-    sweep::extrude(&profile, sweep::Extrusion::Distance(h), Tol::witness())
-        .unwrap()
-        .body
-}
-
-/// The collar: an annulus (outer r = 1.5, bore r = 0.5), z ∈ [1, 2],
-/// both rims three 120° arcs — so the bore wall is 3 faces.
-fn collar() -> Body<f64> {
-    extruded(vec![three_arc(1.5, 0.0), three_arc(0.5, 0.0)], 1.0, 1.0)
-}
-
-/// The peg: a three-arc cylinder of radius 0.5, z ∈ [z0, z0 + h].
-fn peg(z0: f64, h: f64) -> Body<f64> {
-    extruded(vec![three_arc(0.5, 0.0)], z0, h)
-}
-
-/// The cylinder faces of `body` at radius ≈ `r`.
-fn walls_at(body: &Body<f64>, r: f64) -> Vec<topo::FaceKey> {
-    body.faces()
-        .filter(|(_, f)| {
-            matches!(
-                body.get_surface(f.surface),
-                Some(geom::Surface::Cylinder { radius, .. }) if (radius - r).abs() < 1e-9
-            )
-        })
-        .map(|(k, _)| k)
-        .collect()
-}
-
-/// The planar face at height `z` facing `up`.
-fn plane_face(body: &Body<f64>, z: f64, up: bool) -> topo::FaceKey {
-    let hits: Vec<_> = body
-        .faces()
-        .filter(|(_, f)| match body.get_surface(f.surface) {
-            Some(geom::Surface::Plane { origin, normal, .. }) => {
-                (origin.z - z).abs() < 1e-12 && (normal.z > 0.5) == up
-            }
-            _ => false,
-        })
-        .map(|(k, _)| k)
-        .collect();
-    let [f] = hits[..] else {
-        panic!("expected exactly one z = {z} face (up = {up}), got {hits:?}");
-    };
-    f
-}
-
-/// Every (bore wall × peg wall) pair declared `Rest` — the mate's only
-/// contact unless a caller adds one.
-fn wall_decls(a: &Body<f64>, b: &Body<f64>) -> BooleanDeclarations {
-    let mut decls = BooleanDeclarations::none();
-    for &fa in &walls_at(a, 0.5) {
-        for &fb in &walls_at(b, 0.5) {
-            decls
-                .coincident_faces
-                .push(FacePairDeclaration::new(fa, fb, ContactClass::Rest));
-        }
-    }
-    decls
-}
-
-fn volume(b: &Body<f64>) -> f64 {
-    mass_properties(b, Tol::witness()).unwrap().volume
-}
-
-/// Exact additivity, to the arithmetic these volumes are computed in:
-/// the operand interiors are disjoint, so the union's volume is their
-/// sum. The comparison is relative rather than bitwise because both
-/// sides carry irrational (π) terms that no rearrangement cancels —
-/// fixture (i)'s bitwise oracle exists only because its peg and bore
-/// π-terms cancel against an integer.
-fn assert_additive(v: f64, vp: f64, vq: f64) {
-    let sum = vp + vq;
-    assert!(
-        (v - sum).abs() <= 8.0 * f64::EPSILON * sum.abs(),
-        "exactly additive: {v} vs {vp} + {vq} = {sum}"
-    );
-}
-
-fn body_of(r: BooleanResult<f64>) -> Body<f64> {
-    boolean_body(r).body
-}
-
-fn boolean_body(r: BooleanResult<f64>) -> topo::BooleanBody<f64> {
-    match r {
-        BooleanResult::Body(b) => b,
-        BooleanResult::Empty => panic!("a threaded mate cannot be empty"),
-    }
-}
+use geom_core::Tol;
+use mate2_common::*;
+use profile::{ProfileLoop, RawLoop};
+use topo::{ContactClass, FacePairDeclaration};
 
 /// Spelling (3)/(1): the shaft-in-a-bore mate at fixture (i)'s face
 /// structure, PARTIAL engagement, cylindrical `Rest` the only contact.
