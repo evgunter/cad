@@ -431,3 +431,46 @@ fn p7_seam_gate_by_arm() {
         Err(other) => println!("P7: {other}"),
     }
 }
+
+/// P8: the seam drops the inner document's UNMINTED rows too. An inner
+/// stand whose only mate is an unmintable Tangent over a GAP (seat
+/// 5.0): the inner document's own `assemble` refuses `NoAtRestRecord`,
+/// but instantiated into an outer document the outer gate has nothing
+/// to see — no contact, no declaration, no carried refusal — and
+/// passes. Identical to main by construction (main carried nothing
+/// either); printed here to bound "verification runs once at the
+/// outermost gate": inner MINT REFUSALS do not reach the outer gate.
+#[test]
+fn p8_inner_mint_refusals_stop_at_the_seam() {
+    let mut store = StubStore::default();
+    let part = store.insert(cube_part("m6r2-p8-cube"), Tol::witness());
+    let mut inner = ProfileDoc::empty(DocumentId::derive("m6r2-p8-stand"), Tol::witness());
+    let mut ids = Vec::new();
+    for _ in 0..2 {
+        let (next, id) = insert(inner, Node::instantiate_part(part));
+        inner = next;
+        ids.push(id);
+    }
+    let (inner, _) = step(
+        inner,
+        DocEdit::InsertNode {
+            node: mate_node(
+                in_part(ids[0], CapEnd::Top),
+                in_part(ids[1], CapEnd::Bottom),
+                ContactClass::Tangent,
+                5.0,
+            ),
+        },
+    );
+    let inner_ev = run(&inner, &opts(store.clone()));
+    let inner_result = assemble(&inner, &inner_ev, Tol::witness());
+    let inner_ref = store.insert(inner, Tol::witness());
+    let (outer, _) = row_of("m6r2-p8-row", inner_ref, 1, 4.0);
+    let ev = run(&outer, &opts(store));
+    let outer_result = assemble(&outer, &ev, Tol::witness());
+    println!(
+        "P8: inner={} outer={}",
+        headline(&inner_result),
+        headline(&outer_result)
+    );
+}
