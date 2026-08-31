@@ -1,7 +1,10 @@
 # S-BLEND exit walk — criteria vs evidence
 
-**STATUS: DRAFT — awaiting Evan's ratification. The program closes
-when this walk is ratified; until then S-BLEND-PLAN stays OPEN.**
+**STATUS: RATIFIED — S-BLEND CLOSED (Evan's approval given
+directly in-session, 2026-08-31, on PR #1370's summary with the
+five open items listed; the block-B3 close-short recommendation
+approved and executed in the ratification commit). This document
+is S-BLEND's done-state of record.**
 S-BLEND = fillet/chamfer completion (`docs/S-BLEND-PLAN.md` /
 `docs/S-BLEND-LOG.md`; graduated from `docs/WORK-STREAMS-2026-08.md`
 2026-08-29; A/B band 600–699). The plan has no single exit-shape
@@ -36,7 +39,9 @@ CARRIED (named owner).
   Recommendation: close B3 SHORT at this walk's ratification
   (restate slot 1's arm, land the draw record on main in the
   ratification commit); no successor program consumes the band and
-  the analysis needs the arm. Evan's call.
+  the analysis needs the arm. **Approved and executed at
+  ratification**: the CLOSED SHORT record and BLEND-4's arm
+  restatement land in this walk's ratification commit.
 - **The experiment's yield**: Tally Candidate #1 (ordinal 605,
   BLEND-3) — the v6 unilateral-MAJOR tally moved 0 → 1, coded in
   the row; no other candidates in seven duals (BLEND-4's verdict
