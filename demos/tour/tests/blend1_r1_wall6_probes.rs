@@ -109,7 +109,9 @@ fn t1_wall_6_as_authored_still_refuses_tangential_at_margin_zero() {
     let tol = Tol::witness();
     let lant = lily_lantern(tol);
     let all: Vec<EdgeKey> = lant.edges().map(|(k, _)| k).collect();
-    match fillet_edges(&lant, &all, 0.02, Band::linear(tol).expect("band"), tol) {
+    match fillet_edges(&lant, &all, 0.02, Band::linear(tol).expect("band"), tol)
+        .map_err(|r| r.error)
+    {
         Err(BlendError::TangentialEdge { margin, .. }) => {
             assert_eq!(margin, 0.0, "a co-surface seam, not a near-tangency");
         }
@@ -151,7 +153,9 @@ fn t3_the_mouth_rim_refuses_concave() {
     assert!((r_mouth - 0.253).abs() < 5e-4, "the PR's fourth radius");
     let arcs = rims_of_radius(&lant, r_mouth);
     assert_eq!(arcs.len(), 2, "the mouth rim is seam-split too");
-    match fillet_edges(&lant, &arcs, 0.02, Band::linear(tol).expect("band"), tol) {
+    match fillet_edges(&lant, &arcs, 0.02, Band::linear(tol).expect("band"), tol)
+        .map_err(|r| r.error)
+    {
         Err(BlendError::UnsupportedChain { detail, .. }) => assert!(
             detail.contains("concave"),
             "the mouth refuses as concave, got {detail}"
@@ -181,7 +185,9 @@ fn t4_one_mouth_arc_gets_the_conditioned_recourse_and_the_rim_refuses_concave() 
         0.02,
         Band::linear(tol).expect("band"),
         tol,
-    ) {
+    )
+    .map_err(|r| r.error)
+    {
         Err(BlendError::UnsupportedCorner { corner, .. }) => {
             let shown = format!("{corner}");
             assert!(

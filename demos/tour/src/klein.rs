@@ -792,7 +792,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
             Band::linear(tol).expect("the run's band"),
             tol,
         ),
-        |e| matches!(e, BlendError::RadiusHeadroom { .. }),
+        |e| matches!(e.error, BlendError::RadiusHeadroom { .. }),
         "roll a ball as big as the blend the meridian draws for free",
     );
     crate::walls::wall(
@@ -811,7 +811,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         // and what stops both is the ball's own size against the neck
         // wall's curvature — not the closedness of the rim, and no
         // longer a missing arm.
-        |e| matches!(e, BlendError::RadiusHeadroom { .. }),
+        |e| matches!(e.error, BlendError::RadiusHeadroom { .. }),
         "roll a ball as big as the blend the meridian draws for free",
     );
 

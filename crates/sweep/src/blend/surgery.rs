@@ -649,7 +649,7 @@ fn vertex_edges_of<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Option<Vec<E
 /// **Convexity does not appear in the chamfer's arm.** The feet come
 /// from trimlines whose in-plane direction is read off the traversal,
 /// and the patch's chart normal is folded outward against the supports'
-/// own normal sum; both are stated in [`super::blend`]. So there is no
+/// own normal sum; both are stated in [`super::arms`]. So there is no
 /// convex-only argument here to derive one of and leave the rest
 /// stale (#644's shape): the concave widening moves the ADMISSION
 /// doors and nothing in this derivation.

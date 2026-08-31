@@ -276,7 +276,7 @@ fn p3_the_boundary_refusal_names_the_split_exactly_when_it_is_splittable() {
         "the vase's first one-call refusal (r = {r}) is per-rim; sequential must \
          refuse it too, and a build here means the boundary moved — re-measure"
     );
-    match &err {
+    match &err.error {
         BlendError::FaceClearanceUncertified { cross_chain, .. } => {
             let text = format!("{err}");
             assert_eq!(

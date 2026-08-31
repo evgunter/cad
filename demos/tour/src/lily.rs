@@ -2152,7 +2152,7 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         ),
         // margin EXACTLY zero is the finding: a co-surface seam
         // meridian, not a near-tangency that a tolerance could split.
-        |e| matches!(e, BlendError::TangentialEdge { margin, .. } if *margin == 0.0),
+        |e| matches!(&e.error, BlendError::TangentialEdge { margin, .. } if *margin == 0.0),
         "soften the tepal-tip rim",
     );
 
