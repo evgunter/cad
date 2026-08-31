@@ -115,6 +115,8 @@ fn shape_iii_volume_matches_the_derived_closed_form() {
     let (sections, places) = shape_iii_sections();
     let lofted = loft_body::<f64>(&sections, &places, 2, Tol::witness()).expect("loft builds");
     let m = topo::props::mass_properties(&lofted.body, Tol::witness()).expect("mass properties");
+    // R2 REVIEW PROBE (branch cert/6r2-probes only): pad record.
+    eprintln!("R2M6 area_pad={:e} surface={:e}", m.area_pad, m.surface_area);
     let exact = 9.0;
     assert!(
         (m.volume - exact).abs() <= m.volume_pad + 1e-9,

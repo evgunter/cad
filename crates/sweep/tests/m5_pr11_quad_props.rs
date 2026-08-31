@@ -89,6 +89,11 @@ fn half_area_enclosures_bracket_the_closed_form() {
     let exact = pi * R * R + pi * R * H + pi * R * R / PHI.cos();
     for (label, body) in [("above", &above), ("below", &below)] {
         let m = topo::mass_properties(body, Tol::witness()).unwrap();
+        // R2 REVIEW PROBE (branch cert/6r2-probes only): six-point record.
+        eprintln!(
+            "R2M5 {label} area_pad={:e} volume_pad={:e}",
+            m.area_pad, m.volume_pad
+        );
         assert!(
             m.area_pad > 0.0,
             "{label}: the cut wall's area is a certified enclosure"

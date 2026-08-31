@@ -117,6 +117,41 @@ fn r2_area_enclosure_bits_are_eps_invariant() {
     }
 }
 
+/// Perimeter-bound soundness anchor: a FLAT unit square patch has true
+/// boundary perimeter exactly 4. The certified lower bound must sit at
+/// or below 4 and, with straight edges (chords lie ON the curve),
+/// within ring rounding of it. Read via the R2_GAUGE_TRACE line; this
+/// row asserts through the door only that the face certifies.
+#[test]
+fn r2_flat_square_perimeter_anchor() {
+    let k = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
+    let mut net = Vec::new();
+    for i in 0..3 {
+        for j in 0..3 {
+            #[allow(clippy::cast_precision_loss)]
+            let (x, y) = (i as f64 / 2.0, j as f64 / 2.0);
+            net.push(p3(x, y, 0.0));
+        }
+    }
+    let out = nurbs_patch_face::<f64>(
+        &k,
+        &k,
+        &net,
+        &[1.0; 9],
+        (0.0, 1.0, 0.0, 1.0),
+        4.0,
+        0.0,
+        Tol::witness().get().eps,
+        band(),
+    )
+    .expect("the flat square certifies");
+    println!(
+        "R2 flat square: area [{:e},{:e}] (true 1)",
+        out.area.lo(),
+        out.area.hi()
+    );
+}
+
 /// Claim 5's reachability question: a "balloon" patch whose ENTIRE
 /// rectangle boundary maps to one point (all boundary control points
 /// coincide), with real interior area. If this reaches a certified

@@ -2879,6 +2879,17 @@ fn rational_patch_face<T: Decide>(
             pieces *= 2;
         }
     }
+    // R2 REVIEW PROBE (branch cert/6r2-probes only): rational
+    // refusing-wall trace.
+    if std::env::var_os("R2_GAUGE_TRACE").is_some() {
+        let p_lo = perimeter_lo();
+        eprintln!(
+            "R2GAUGE refused-rational width={:e} plo={:e} g={:e}",
+            area.width(),
+            p_lo,
+            area.width() / (p_lo * p_lo)
+        );
+    }
     Err(PropsError::QuadratureBudget {
         width_len: last_width_len,
         target_len,
