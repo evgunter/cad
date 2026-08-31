@@ -499,9 +499,20 @@ fn the_verdict_is_bit_identical_across_repeats_and_schedules() {
         Tol::witness(),
     )
     .unwrap();
-    // Not a vacuous comparison: this drive has certified leaves, at
-    // least two refusal classes, and hundreds of splits.
+    // Not a vacuous comparison: hundreds of splits and a full frontier
+    // of leaves, compared row for row. It is NOT a drive with certified
+    // leaves — at 256 leaves this fixture certifies none, because the
+    // sign flip keeps every box indeterminate past the frontier bound
+    // (the planted-flip row above pays 4096 leaves for exactly that
+    // reason). What this row pins is that the same subdivision comes
+    // out identical twice and under both schedules, and refusals are
+    // rows like any other.
     assert!(seq.receipt().splits > 8, "{:?}", seq.receipt());
+    assert!(
+        seq.receipt().certified + seq.receipt().refused > 8,
+        "{:?}",
+        seq.receipt()
+    );
     assert_eq!(seq.serialize(), again.serialize());
     assert_eq!(seq.serialize(), par.serialize());
     assert_eq!(seq.content_key(), par.content_key());
