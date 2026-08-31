@@ -120,3 +120,20 @@ remains CONDITIONAL on 1a2574b0's gate concluding green on PR 1398.
 The stored brief's item 1(c) numerical-direction question now has a
 live pointer: the gate itself flagged the rational bracket's square —
 attack the REST of that assembly's rounding the same way.
+
+AMENDMENT 2 (pre-R1, 2026-08-31): frozen review head is now
+bde7b17f — the doc-gate (broken-intra-doc-links, the CERT-7 class)
+redded 1a2574b0 on ONE stale citation the exact_arms→certified_arms
+rename left at chart_region.rs:707; the tip is a one-word
+ORCHESTRATOR-DIRECT link repair, verified with the repo's own
+scripts/doc-gate.sh locally (exit 0). The four "test (eps=1e-12)"
+job failures on 1a2574b0 were failed-by-dependency (4-second jobs,
+no runner assigned — the gate job's red cancelled the matrix), NOT
+test reds: the full workspace passes locally at (default, 1e-12) on
+this head, 4842/4842. Review head total delta from delivered
+085ddf8f: two one-line discipline-gate conformance commits, both
+disclosed. Dispatch remains CONDITIONAL on bde7b17f's gate
+concluding green on PR 1398. Fix-pass note: the lane's own report
+claimed the new rustdoc warnings "match the house pattern; nothing
+is denied" — the doc-gate denied one; reviewers should weigh that
+verification-claim miss.
