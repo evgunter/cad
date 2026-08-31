@@ -59,8 +59,7 @@ use crate::session::{EdgeSelection, SessionOp};
 /// **What the tool's panel says about the freeze**, so the ratified
 /// #217 semantics reach the user at the moment they are committing to
 /// a set rather than only in the node's docs.
-pub const FREEZE_NOTE: &str =
-    "the picked edges freeze at commit: a later edit that adds an edge does not extend this \
+pub const FREEZE_NOTE: &str = "the picked edges freeze at commit: a later edit that adds an edge does not extend this \
      blend, and one that removes a picked edge refuses on the node rather than shrinking it";
 
 /// The drawn body a blend's edges belong to: the node whose value it
@@ -116,7 +115,8 @@ pub enum BlendKindChoice {
 impl BlendKindChoice {
     /// Both kinds with their button labels — the chrome's radio row
     /// and a test that sweeps them.
-    pub const ALL: [(Self, &'static str); 2] = [(Self::Fillet, "fillet"), (Self::Chamfer, "chamfer")];
+    pub const ALL: [(Self, &'static str); 2] =
+        [(Self::Fillet, "fillet"), (Self::Chamfer, "chamfer")];
 
     /// What the one Length field means for this kind, for the field's
     /// own label.
@@ -309,8 +309,9 @@ impl BlendTool {
         target: BlendTarget,
         eval: &Evaluation<f64>,
     ) -> Option<BlendEvent> {
-        let edges: BTreeSet<StableName> =
-            pncad::select::all_edges(eval, target.node).into_iter().collect();
+        let edges: BTreeSet<StableName> = pncad::select::all_edges(eval, target.node)
+            .into_iter()
+            .collect();
         if edges.is_empty() {
             return Some(BlendEvent::NoEdgesOnTarget { target });
         }
