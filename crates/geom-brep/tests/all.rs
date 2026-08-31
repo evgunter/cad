@@ -193,3 +193,12 @@ fn every_suite_file_is_aggregated() {
 mod r2_probes;
 #[path = "review_probes_m8_4.rs"]
 mod review_probes_m8_4;
+
+#[path = "r1_perimeter_probes.rs"]
+mod r1_perimeter_probes;
+
+#[path = "r2_cert6_probes.rs"]
+mod r2_cert6_probes;
+
+#[path = "cert6_gauge_rows.rs"]
+mod cert6_gauge_rows;
