@@ -102,11 +102,12 @@ pub use names::{
     ALL_SURFACE_KINDS, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal, ContactVerdict,
     CurveKind, CurveKindSet, DeclareError, DeclaredContact, Denotation, DuplicateName, EntityKey,
     EntityKind, EntityRef, Entry, FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, GeomPred,
-    InterrogateError, MeridianEnd, NamePat, NameTable, NamingError, OpGroup, ProfileEdgeRef,
-    ProfileVertexRef, Qualifier, RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE, SegPat, SegTag,
-    SelectRefusal, Selector, Side, SideVerdict, SplitHalf, StableName, SurfaceKindSet, TagPat,
-    all_bodies, all_edges, all_faces, all_vertices, declare, declare_all, declare_node, denotation,
-    edge_frame, face_frame, find_flush_candidates, select, select_where, vertex_position,
+    InterrogateError, MeridianEnd, NameOrigin, NamePat, NameTable, NamingError, OpGroup,
+    ProfileEdgeRef, ProfileVertexRef, Qualifier, RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE,
+    SegPat, SegTag, SelectRefusal, Selector, Side, SideVerdict, SplitHalf, StableName,
+    SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces, all_vertices, attribute, declare,
+    declare_all, declare_node, denotation, edge_frame, face_frame, find_flush_candidates, select,
+    select_where, vertex_position,
 };
 pub use node::{
     Axis3, BooleanOp, Datum, InterfaceCrossing, InterfaceRecord, MeasureNodeFault, MeasureRef,
