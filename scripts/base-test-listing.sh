@@ -250,6 +250,18 @@ selftest() {
   PATH="$tmp/bin:$PATH"
   export PATH
 
+  # THE SELFTEST MUST NOT WRITE TO ITS CALLER'S ENVIRONMENT. This row runs in
+  # `discipline`, where `$GITHUB_ENV` is the real job's file: a case that let
+  # the script inherit it appended a genuine `TEST_LIST_TREE=<tree>` to the job
+  # — harmless where there is no upload step, and a publish waiting to happen
+  # where there is one. That was caught by reading a hosted log rather than by
+  # any assertion here, which is why there is one now: every case runs against
+  # a sandbox file, and the caller's is compared at the end.
+  local outer="${GITHUB_ENV:-}" outer_before=""
+  [ -n "$outer" ] && [ -f "$outer" ] && outer_before=$(wc -c < "$outer")
+  export GITHUB_ENV="$tmp/env-sandbox"
+  : > "$GITHUB_ENV"
+
   # The base listing, zipped the way the artifacts API serves one.
   python3 -c '
 import sys
@@ -346,12 +358,24 @@ with zipfile.ZipFile(sys.argv[1], "w") as z:
   # stage that: an assignment to `""` does not trip `set -u`.
   n=$((n + 1))
   cost="$tmp/case-$n"
-  out=$(env -u GITHUB_REPOSITORY GH_TOKEN=x BASE_SHA=deadbeef \
+  env_file="$tmp/env-$n"
+  : > "$env_file"
+  out=$(env -u GITHUB_REPOSITORY GH_TOKEN=x BASE_SHA=deadbeef GITHUB_ENV="$env_file" \
         STUB_LIST_STATUS=0 STUB_LIST_FILE="$FIXTURES/nextest-list-head.json" \
         bash "$0" --archive nextest-x.tar.zst --lane default --job "j" \
                   --cost-dir "$cost" 2>/dev/null)
   want "GITHUB_REPOSITORY is not set" "$out" "case 9 (no repository in the environment)"
   want "What this PR adds to the test suite" "$out" "case 9 printed no block at all"
+
+  # AND THE CALLER'S ENVIRONMENT FILE IS UNTOUCHED — the sandbox absorbed
+  # everything the nine cases wrote.
+  if [ -n "$outer" ] && [ -f "$outer" ]; then
+    local outer_after
+    outer_after=$(wc -c < "$outer")
+    if [ "$outer_after" != "$outer_before" ]; then
+      fail "the selftest wrote to its CALLER's \$GITHUB_ENV ($outer grew from $outer_before to $outer_after bytes) — a selftest may not set variables in the job that runs it"
+    fi
+  fi
 
   if [ "$SELFTEST_FAILURES" -ne 0 ]; then
     echo "base-test-listing selftest FAILED ($SELFTEST_FAILURES)" >&2
