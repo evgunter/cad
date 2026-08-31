@@ -170,9 +170,17 @@ fn fuzz_found_two_survivor_corners_pick_the_dominant_candidate() {
 mod dominance {
     use std::f64::consts::TAU;
 
+    /// The oracle's own signed sweep. Spelled HERE rather than called
+    /// from `sugar.rs` on purpose — this suite's oracles are written
+    /// from the geometry, and an oracle that calls the code it checks
+    /// checks nothing. What it must not be is the shape the production
+    /// helper retired: reducing into `[0, τ)` first and folding that
+    /// puts a jump at a difference of zero, which is the value this
+    /// function exists to read, and an oracle carrying the retired
+    /// shape is a copy waiting to be cited as precedent.
     pub(super) fn signed_swept(from: f64, to: f64, turn: f64) -> f64 {
-        let s = ((to - from) * turn).rem_euclid(TAU);
-        s - TAU * (s / TAU + 0.5).floor()
+        let d = (to - from) * turn;
+        d - TAU * (d / TAU + 0.5).floor()
     }
 
     /// `+1` or `−1` with equal probability.

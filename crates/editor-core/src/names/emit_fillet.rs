@@ -207,8 +207,8 @@ pub(super) fn name_blend<T: geom_core::Real>(
             RoleSeg::BandTrim {
                 edge: b(e.name),
                 support: match side {
-                    RimSide::Plane => RimSupport::Plane,
-                    RimSide::Sphere => RimSupport::Curved,
+                    RimSide::Host => RimSupport::Host,
+                    RimSide::Mate => RimSupport::Mate,
                 },
             },
             tied,

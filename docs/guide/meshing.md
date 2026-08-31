@@ -136,7 +136,11 @@ assert abs(exact - math.pi * (1.5**2 - 0.5**2) * 2.0) < 1e-9
 
 # The error is first order in the budget: the mesh is inscribed, so
 # it under-measures, and quartering delta buys roughly a quarter of
-# the error back.
+# the error back. "Roughly a quarter" is the shape of the curve, not
+# what the assertion checks: that is a CONVERGENCE floor — each
+# quartering must buy at least a factor of two — left deliberately
+# looser than the rate, because asserting a rate would pin the
+# tessellator's internals rather than the geometry.
 errors = []
 for budget in (20 * mm, 5 * mm, 1 * mm):
     mesh = body.tessellate(budget)

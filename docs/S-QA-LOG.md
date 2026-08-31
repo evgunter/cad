@@ -278,3 +278,64 @@ the fix pass ran one pattern-match `pkill -x sleep` during cleanup —
 the kill-by-recorded-PIDs rule's exact violation, disclosed, with
 possible clipped sleeps in sibling lanes' poll loops (recoverable;
 none reported damage).
+
+## QA-6 merged (2026-08-31): the sweep's first PR, and the charter biting its own tail
+
+Issue 681's uncontested legs are swept, every claim bucketed at its
+site, and the instrument is committed with its blind spots in its
+own header. The unit's story is the program's thesis in miniature:
+its dual found the sweep unit itself minting the defect it sweeps
+for — a written reason calling a live register a dated write-up, an
+instrument docstring carrying undated counts, a tally taken over
+the wrong tree — and the fix pass then found a SECOND instance of
+the false-reason class unprompted. Merged with one red row,
+established as main's (the k-lint eps=1e-6 probe panic, issues
+1296/1304, M10-3's ground) and deliberately not re-rolled — a
+re-push re-draws the sampled row, and laundering a known red
+through a fresh draw is precisely the class this program closes.
+Issue 681 stays open for PR 2 (the workflows/scripts/tools/tests
+legs), which dispatches once qa/7 and qa/8 land.
+
+## QA-5 merged (2026-08-31)
+
+Q3 is live: tess-lint refuses corpus growth it is not comparing —
+the uncovered scene is a failing finding with its recourse spelled
+out, the baseline carries its cut commit (and refuses a re-stamp of
+unmoved data, so the record cannot age forward silently), and the
+world-check found nothing uncovered on main (VERBS' fold had paid
+it), so the red-first evidence is synthetic plus the hosted pair.
+The dual's sharpest catches were both about promises: a graceful
+fallback that could never execute (dead under errexit) and a lead
+that nothing pinned. The unit also paid the sibling's fourth-copy
+finding: TESS-BUDGET's rule prose now points at tess-lint's module
+docs as the roster of record instead of enumerating a copy that
+drifts. Issue 1038 closes on this record. One orchestrator note for
+the dispatch discipline: both reviewer briefs carried an inverted
+mechanism for the parity fix (my error, both arms caught it) — a
+dispatch is a hypothesis, and the reviewers treating it as one is
+the system working.
+
+## QA-8 merged (2026-08-31): Track J is empty
+
+The doc gate now derives what it cannot see: every crate declaring a
+`not(feature)`-family module gets its inert half re-documented, the
+root set greps the tree instead of trusting a roster, and the three
+mesh link errors that no instrument had ever compiled were shown red
+under the widened gate before being fixed. The dual's keep was
+double: both arms mutation-proved the selftest arms can actually
+fail, and both caught the unit's new pinned measurement already
+drifted from the run — the header's own doctrine applied to its own
+new section (§D rule 5, again). The fix pass twice beat its
+instructions: it found F6's billed-minutes claim had lapsed before
+this PR existed (fmt-job growth, not pass 3, took the first minute),
+and its new selftest arm overturned the header's own claim about the
+default-features root. Issue #1317 registers the two blind-spot axes
+with measurements. Operationally the unit closed the loop on the
+program's thesis: its run was the first code-tier CI since BLEND-5
+merged, which is the only reason anyone learned main was latently
+red (`reader_census` tripping on prose in an assertion message —
+every intervening run was docs-tier). Evan fixed that directly
+(#1323) within the hour; the k-lint 1-of-5 row remains row-dependent
+red on main per issues 1296/1304, M10's ground. Track J: 3→0, rows
+deleted, fence kept; D301 leaves Track R. With this merge the QA-B2
+block's A/B slots are all recorded.

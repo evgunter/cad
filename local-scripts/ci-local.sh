@@ -41,6 +41,27 @@
 # needs a C toolchain: the `interval` feature's backend is the in-repo,
 # pure-Rust `interval-transcendentals`.
 #
+# THE HOSTED FIGURES QUOTED THROUGHOUT THIS FILE ARE UNGUARDED READINGS —
+# billed minutes, job durations, merge frequencies, cache sizes. They are
+# quoted to explain why a row is sited or filtered the way it is, and this
+# script computes with NONE of them: what it runs is derived from ci.yml's
+# job set and from scripts/ci-filter.py's tier, both of which are read at
+# run time. A drifted figure therefore cannot desynchronize the mirror,
+# which is the only property this file is required to keep. The mirror
+# itself IS guarded — scripts/check-ci-mirror-parity.py — and that guard
+# reads the row set, never a duration.
+#
+# WHICH OF THEM A REGISTER RE-TAKES, since the answer is not uniform and
+# "unguardable" is the wrong word for several: the rows below that name
+# docs/perf-data/rebuild-latency/, docs/tess-budget-data/ and
+# docs/K-REPORT.md are pointing at documents a SCHEDULED job refreshes
+# (nightly.yml and ci.yml between them also keep docs/perf-data/criterion/
+# and docs/perf-data/opt-level/ current) — read the register, not the
+# sentence quoting it. What has no register anywhere is the billing and
+# queue arithmetic: billed minutes, a job's wall duration, how often a
+# lane fires across recent merges. Nothing in this repo re-takes those,
+# and nothing here computes with them.
+#
 # BUILD ONCE PER COMPILE MODE (2026-08-03): hosted CI now compiles the
 # test binaries once per feature graph (`build` / `build-interval`, via
 # `cargo nextest archive`) and fans the eps rows out over the archived
@@ -221,6 +242,7 @@ echo "=== change filter: tier=$TIER scope='$SCOPE' (--full forces tier 'all')"
 # HOSTED MIRROR: mirror / probe type-check loop citations
 # HOSTED MIRROR: mirror / CI half parity (both halves name the same checks)
 # HOSTED MIRROR: mirror / change filter selftest (the docs tier fails open)
+# HOSTED MIRROR: mirror / tess-budget cut-stamp selftest (the baseline's provenance)
 # HOSTED MIRROR: mirror / python lint (ruff, every tracked .py and .pyi)
 tier_blind_rows() {
   local rc=0
@@ -230,6 +252,7 @@ tier_blind_rows() {
   python3 scripts/check-ci-mirror-parity.py --selftest || rc=1
   python3 scripts/check-ci-mirror-parity.py || rc=1
   python3 scripts/ci-filter.py --selftest || rc=1
+  scripts/tess_budget_cut.sh --selftest || rc=1
   python3 scripts/check-python-lint.py --selftest || rc=1
   python3 scripts/check-python-lint.py || rc=1
   return $rc
@@ -820,11 +843,15 @@ klint_gate() {
 # hygiene + tests, then the fresh per-face sweep + the GATE.
 #
 # The gate compares against docs/tess-budget-data/, and it compares
-# DIFFERENCES, not absolute slack — a scene whose mesh grew, a face
-# whose sizing got wastefuller, or a scene that dropped out of the
-# sweep. On a failure read the tool's message: coarsening a demo's
-# delta to get the number down is the one forbidden move. What the
-# absolute factors currently are, and why: docs/TESS-BUDGET.md.
+# DIFFERENCES, not absolute slack. WHAT THE RULES ARE is rostered in
+# `tools/tess-lint`'s module docs and nowhere else, this file included:
+# the enumeration that used to stand here read THREE for as long as
+# rule 4 had existed, and the correction to four was stale within a day
+# when the uncovered-scene rule landed as rule 5. A pointer cannot go
+# stale; a roster kept beside the thing it describes drifts at that
+# thing's rate. On a failure read the tool's message: coarsening a
+# demo's delta to get the number down is the one forbidden move. What
+# the absolute factors currently are, and why: docs/TESS-BUDGET.md.
 tesslint_tool() {
   # No `cargo doc` here: it used to carry a copy of one, because
   # doc-gate.sh was `cargo doc --workspace` and could not see a
@@ -862,10 +889,14 @@ budget_meter() {
 }
 # HOSTED MIRROR: k-lint / tessellation-budget sweep (every tour scene, per face)
 # HOSTED MIRROR: k-lint / tessellation-budget lint (gate — a grown budget fails this row)
-# `--sizing-only` mirrors ci.yml: the gate reads triangle counts and
-# the sizing columns, never `worst_dev`, so the default sweep's
-# per-triangle resampling (tens of millions of surface evaluations)
-# would be paid for nothing. Re-cutting the baseline drops the flag.
+# `--sizing-only` mirrors ci.yml: the gate never reads `worst_dev`, so
+# the default sweep's per-triangle resampling (tens of millions of
+# surface evaluations) would be paid for nothing. What it does read is
+# narrower than "the sizing columns" — `triangles` per scene and
+# `grid_cells / span_opt_cells` per face are what it COMPARES, and
+# `chart`, whether the row carries the sizing block at all, and
+# `u0`-`v1` / `nu` / `nv` are what it JOINS on. Re-cutting the baseline
+# drops the flag.
 tesslint_gate() {
   scripts/tess_budget_sweep.sh target/tess-budget-fresh.csv --sizing-only || return 1
   (cd tools/tess-lint && cargo run -- \
