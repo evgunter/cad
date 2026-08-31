@@ -485,3 +485,21 @@ commit; the implementer arm stays branch-side until block BLEND-B2
 closes at BLEND-3's conclusion. Next: BLEND-3 (issue 919, block B2
 slot 3) cuts AFTER this merges — it edits the renamed
 sweep/src/blend/ tree.
+
+## 2026-08-31 — the state-sync head drew two main-red rows at once; pin note
+
+Run 33356901517 on `112a003d` drew {interval, eps 1e-12} AND the
+dev-probe k-lint row — both red for MAIN's reasons, neither this
+PR's: the two test shards fail exactly #1338's three rows (the
+moved measured constant; proven identical on clean origin/main by
+the T-a lane's diagnosis hours earlier), and k-lint fails exactly
+#1296 (M10-3's driver "nothing certified, nothing to sample" at
+eps=1e-6 — the red BLEND-2's census repair first exposed, still
+unfixed on main). No fix exists to port for either (a re-measure
+adjudication is owed for #1338; #1296 is M10's). Standing-down
+comment on the PR; this commit pins the merge gate BY NAME to rows
+proven green on this content — lane=default eps=default (run
+33356... predecessor e0974c18's 21/21) and klint=dev-budget (the
+BLEND-2-precedent row, gating this tree's own demos changes).
+
+CI-Config: lane=default eps=default klint=dev-budget
