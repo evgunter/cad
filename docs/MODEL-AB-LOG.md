@@ -2275,3 +2275,49 @@ report or probes. Implementer difficulty S/M (pre-drawn at spec).
 Sample number at merge, per the banding entry's rule. Row at merge.
 
 | QA-3 | 2026-08-30 | QA-3 (PR #1297; spec docs/QA-3-SPEC.md; Evan's Q1 ruling executed — issue 1023's lever + D183): `_forces_klint` pins the k-lint row that runs the changed tool crate's own suite ahead of the draw (`tools/` scope; `demos/` excluded per the ruling, argued and selftest-enforced), precedence invocation > trailer > pin > draw mirroring the lane, announced via `klint:pinned` + the notices relay; the three owed sentence corrections taken by re-deriving the CLAIMS (the debt's phrase-grep citations pointed at one true sentence and missed two false ones — the class named in the PR); D183 deleted from Track J with the count re-derived | S/M (pre-draw) | OPUS (block QA-B1 slot 3 — the block's last) | **DUAL (ordinal 802; sample #56 at merge; parity byte 20 ⇒ R1 OPUS + R2 FABLE, concurrent, separate checkouts, frozen `59d305a2`; v5 instrument; identical briefs, no relaxations).** Filter behavior HELD under both arms' mutation batteries (R1 ten mutations + a planted tools/ member; R2 four; both re-derived the hosted draws from the SHAs with the tree's own `_sample` and confirmed the dev-probe counterfactual). R1 unique + UNILATERAL, two record-integrity MAJORs: the mapping's written derivation false at its named case ("no other row compiles tess-meter" — demos/tour takes it as a plain un-gated dependency, so four rows compile it; the CHOSEN row right for the right reason, the prose wrong at seven sites including the notice readers see); the unit's new debt-resolution pointer vouching for a still-false ci.yml step comment — the discharge-by-line-number class recurring inside the unit's own correction. R2 unique: the mangled pin-reason sentence live in hosted output; the prose-only-tools-file notice case. Bilateral: the ci.yml-half rot risk disclosed-but-unscheduled; the sibling-contract asymmetry; the duplicated notice wording; the unguarded firing-rate figures (independently re-measured 9.2% and ~11% against the ruling's ~7% — same conclusion, unguardable class). TALLY CANDIDATES: R1's two unilateral MAJORs, both record/derivation-class (no execution-class MAJOR either arm) | fix pass (implementer's agent): all nine union items taken, none declined — the verb corrected at seven+ sites with the compiles-vs-runs distinction now leading the table; the false step comment rewritten and the miss named in the correction's own voice; `KLINT_PIN_ROOTS` derived from the table's keys (a widening can no longer be silently inert — mutation-proved); the ci.yml half gained `_selftest_klint_workflow`, a bounded parse holding the mapping, the row roster, and the fallback superlative (three mutations red) — the mechanical guard taken over the issue-filing fallback; one notice composer replacing the twice-written wording, the siblings aligned to one contract; the firing rates disclosed as unguardable (merge-traffic property) with the ruling's record as their home | impl CI: 33337133317 (all drawn: interval/1e-6/release-budget), 33337847763 + 33338670220 (klint:pinned dev-default, lane/eps drawn; both SHAs would have drawn dev-probe — D183's failure shape caught live); fix CI 33340257731 GREEN (interval/default drawn, klint:pinned; the SHA would have drawn release-budget — builds the crate, runs none of its tests: F1's distinction visible in the demonstrating run) | impl ~247K / ~68m; fix ~297K / ~24m; R1 ~180K / ~13m; R2 ~180K / ~10m |
+
+QA-9 (PR #1307) ordinal FIXED AT DISPATCH (2026-08-30):
+**ordinal 803** (S-QA band 800–899). v6 dual: slot byte 251, parity
+1 ⇒ **R1 FABLE + R2 OPUS**; CONCURRENT on frozen `c00c072e`,
+separate checkouts (shell-only lane). Identical stored briefs; R2
+gets no access to R1's report or probes. Implementer difficulty XS
+(pre-drawn at spec). Sample number at merge. Row at merge.
+
+CERT-4 (PR #1303) ordinal FIXED AT DISPATCH (2026-08-30):
+**ordinal 702** (S-CERT band 700–799; the band's last prior claim is
+701 — CERT-3's dual ran WITHOUT A/B logging per Evan's in-chat
+handoff instruction 2026-08-30, so no ordinal was ever claimed for
+it and 702 goes to this pair; the gap is deliberate and recorded in
+docs/S-CERT-LOG.md). v6 dual: slot byte 130, parity 0 ⇒
+**R1 OPUS + R2 FABLE**; SEQUENTIAL on frozen `f2eb5a96` (PR 1303's
+gated head, run 33341476463 green at lane=both), R2 isolated from
+R1, identical stored briefs (method note + brief PRE-R1 on
+cert/ab-state at 8da8f3b0). Implementer difficulty L (logged at
+spec). Sample number at merge, per the banding entry's rule. Row at
+merge.
+
+| QA-9 | 2026-08-30 | QA-9 (PR #1307; spec docs/QA-9-SPEC.md; issue 1139): the build-slot status line made reader-relative — `polls_slot`/`tried_slot_now` answer per (MODE, WIDTH, PHASE), every acquirability PREDICTION removed in favour of verifiable facts, held-by-this-request detected, the absent-record blocker named, WIDTH validated once with the width test given one home; the full 12-site output audit dispositioned | XS (pre-draw) | FABLE (block QA-B3 slot 3) | **DUAL (ordinal 803; sample #57 at merge; parity byte 251 ⇒ R1 FABLE + R2 OPUS, concurrent, separate checkouts, frozen `c00c072e`; v5 instrument).** BILATERAL MAJOR, independently reproduced by both arms with the same leak-seat construction: the new "can take it" clause prints only AFTER the request failed flock on that slot, so it is false exactly when it persists (the file's own documented fd-leak the standing trigger) — the issue-1139 class re-created inside its own fix, more confidently worded than the line it replaced; R2 supplied the structural diagnosis (the predicate answered "ever polls" where the call sites need now-actionable states) and three unique MINORs (exclusive phase seats incl. self-in-blocker-list; the stderr-without-echo sweep blind spot with the diff's own new bash-noise site; the partial-record seat); R1 unique: the stale header "-x acquires ALL slots" reaching two dispatch briefs; an R1 probe misfire polluted the real lock dir with one stale holder (orchestrator-cleaned, disclosed). TALLY: no unilateral MAJOR (the MAJOR bilateral) | fix pass (implementer's agent): all seven union items, no declines — predictions removed for per-seat facts (state table rewritten), pid==$$ self-detection, startup WIDTH validation naming the variable, `shared_polls_slot2` as the single width home consulted by loop and predicate both, absent-record blocker named, article/width phrasing fixed, header corrected, PR-body record fixes. Fix-pass incident disclosed: one `pkill -x sleep` during demo cleanup (pattern-match kill, the standing rule's exact violation) possibly clipped sibling lanes' poll sleeps; subsequent cleanup PID-targeted | impl CI 33341684907 SUCCESS (docs tier, honestly non-code); fix CI 33342455109 SUCCESS (docs tier). The demonstration transcripts in the PR body are the verification of record — CI deletes local-scripts by design | impl ~84K / ~10m; fix ~120K / ~6m; R1 ~83K / ~8m; R2 ~84K / ~8m |
+
+QA-6 (PR #1311) ordinal FIXED AT DISPATCH (2026-08-31):
+**ordinal 804** (S-QA band 800–899). v6 dual: slot byte 72, parity
+0 ⇒ **R1 OPUS + R2 FABLE**; CONCURRENT on frozen `91364029`,
+separate checkouts (sweep lane: python/toml/prose, no cargo).
+Identical stored briefs; R2 gets no access to R1's report or probes.
+Implementer difficulty M/L (pre-drawn at spec). Sample number at
+merge. Row at merge.
+
+QA-5 (PR #1310) ordinal FIXED AT DISPATCH (2026-08-31):
+**ordinal 805** (S-QA band 800–899). v6 dual: slot byte 117, parity
+1 ⇒ **R1 FABLE + R2 OPUS**; CONCURRENT on frozen `8f0c9aee`,
+separate checkouts (tess-lint tool crate — small cargo per
+reviewer, targets deleted at report). Identical stored briefs; R2
+gets no access to R1's report or probes. Implementer difficulty M
+(pre-drawn at spec). Sample number at merge. Row at merge.
+
+QA-8 (PR #1313) ordinal FIXED AT DISPATCH (2026-08-31):
+**ordinal 806** (S-QA band 800–899). v6 dual: slot byte 237, parity
+1 ⇒ **R1 FABLE + R2 OPUS**; CONCURRENT on frozen `ecce0ca0`,
+separate checkouts (doc-gate lane: shell + one mesh doc build per
+reviewer, targets deleted at report). Identical stored briefs; R2
+gets no access to R1's report or probes. Implementer difficulty S/M
+(pre-drawn at spec). Sample number at merge. Row at merge.
