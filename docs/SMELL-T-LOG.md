@@ -43,6 +43,7 @@ it for later lanes if style work should be instrumented.
 | **T-R3** | C-e/H13 carries §D's own instruction: "Verify against #779 before staffing." | Verification dispatched (read-only) 2026-08-31, before T-a's brief was cut; T-a takes the row ONLY if the verdict is OPEN, and otherwise records the verified-closed evidence here and in §D. **VERDICT: CLOSED** (2026-08-31) — the coverage is on `main`, landed by **#779** (merge `db241875`): the containment oracle at `sweep/tests/common/orient.rs`, three helix orientation rows in the long-turn sweep suite (the `min_roll_turn` anti-vacuity floor, the not-orientable-against-the-stacking-chord guard, then walls and caps against the continuity index including the face `sense` bit), and the rational circle-section elbow row in the skin-integrality suite — all aggregated into the default target with no ignore and no `cfg` gate. **The row was not staffed**; it is retired VERIFIED-CLOSED on the §D ledger in T-a's PR, with its own meta-claim corrected: the two contradicting statements were NOT both "in this document" — Track C's FIXED record is in `docs/SMELL-C-LOG.md`, so the contradiction was cross-document, which is why it survived two partitions. | orchestrator, 2026-08-31 |
 | **T-R5** | T-a review mode. | **T-a review mode: STYLE-ONLY per C-R12** (test rows + retirements; a row that reds is visible). Ruled at dispatch 2026-08-31, recorded here at close. | orchestrator, 2026-08-31 |
 | **T-R4** | D320 | Filed-not-takeable ahead of D240, per the row itself. Nothing to decide; recorded so the track's ledger is complete. | orchestrator, 2026-08-31 |
+| **T-R6** | `L5`'s rule half — `S177`'s strike rule (*a lane's row may only be struck once each rides-along it did not close has been re-homed or given its own row*) — is a **document-wide convention**, and T-b filed it as a scheduled item rather than writing it. The style reviewer flagged the same thing from the other side: a lane writing a ledger-wide rule is arguably ratification territory, which is Evan's. | **TAKE IT — write the rule into §D's *"How to read a row"* now, and leave only the WALK on `L5`.** The T-a precedent decides it: that lane landed the deletion-sweep rule in the same conventions section, in a lane PR, without ratification. The distinction that makes it a lane's to write is that this is **not new policy** — it states how §D's existing *live rows only* rule must be applied so it stops destroying what it was never meant to touch. A rule that exists only as a scheduled item does not stop the accrual it describes, and `L5`'s walk has no slot. **The reviewer's reservation is recorded rather than dismissed**, and is noted in the ledger text itself: if Evan reads the convention as policy, it is one paragraph to revert and the walk is unaffected. | orchestrator, 2026-08-31 (T-b review adjudication) |
 
 ## Lane state
 
@@ -266,3 +267,55 @@ and had been riding inside a Track T row.
 prism is the same class and eleven copies wide across four crates and
 the tour. `sweep::test_support` is now reachable cross-crate, so the
 next lane pays a delegation rather than a new mechanism.
+
+**T-b fix pass (style review: 7 findings, none correctness).** The
+commissioned claims were verified by the reviewer's own execution —
+golden bytes on three legs, all five constructors proven equivalent,
+every citation live — so the pass is corrections, not rework. The
+sharpest finding is worth keeping because it is a general trap:
+
+**The D91 pin was vacuous and the roster row could not see it.** The
+suite derived its expectation with `K::Loft(e) => e.to_string()` — the
+same `Display` under test — so an arm that silently stopped rendering
+its `source` would shorten both sides of the `ends_with` equally and
+stay green. The pin asserted forwarding at ONE layer while reading as
+if it asserted the payload. Fixed by a second row,
+`a_nested_source_under_a_payload_arm_survives_into_the_message`, whose
+oracle is built from the innermost payload's own type and never
+through a wrapper. **Executed, not argued**: dropping `: {source}`
+from `SeamStructure`'s arm reds the new row and leaves the old one
+green (mutation A), and the same mutation on `StackingEscalated` reds
+it too (mutation B) — two mutations, two reds, and the old row blind
+to both. The suite's third source-carrying nesting, the `Split` →
+`SplitFinishError` → `BandError` chain the roster already carried, was
+equally vacuous and is covered by the same row.
+
+**The other six.** `S392`'s count was wrong and the way it was wrong
+is now written into the finding: the sweep behind *"eleven copies"*
+was piped through `head -20` and the truncation was read as the
+population, and `--include=*.rs` excluded a Python member — a claim
+wearing a receipt's clothes, committed inside a finding about
+duplication, which is `S131`'s warning exactly. Corrected to **18 live
+constructions** across six crates, the tour and `tools/tess-meter`,
+with the routing consequence stated (the population now crosses Track
+J's Python fence and Track K's `tools/`). A stay-argument in
+`m5_s11_concave_sense.rs` that said the fixture is *"re-typed rather
+than shared"* was falsified by this lane's own delegation three lines
+below it and is rewritten. `D90`'s and `D321`'s `fillet/` citations
+are re-aimed to the `blend/` spelling — the discipline this lane's
+`D124` chapter applies, now applied to the rows the lane did not take.
+Both `Cargo.toml` dev-dep comments are rounded honestly (five of six
+delegate; the sixth is deliberately independent). One over-wide
+comment in the tour rewrapped.
+
+**Filed, not fixed: the rename left stale `fillet/` citations well
+past `D90` and `D321`.** Re-aiming those two exposed eight more in
+other tracks' records — `docs/SMELL-SCAN-2026-08.md` lines 1252, 2796,
+2797, 2945, 3882, 3977, 3978, 3996 — plus the historical
+re-derivation quoted at `S177`, which this lane's own `D124` chapter
+corrects in place rather than editing the quotation. They are other
+tracks' rows and findings, so this lane did not re-aim them; a
+document-wide citation sweep after a module rename is the shape of an
+`L`-row and the orchestrator owns whether it earns one. Recorded here
+so the next dispatch starts from the hit list rather than rediscovering
+it.

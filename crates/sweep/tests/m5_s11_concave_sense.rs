@@ -990,12 +990,11 @@ fn the_level_set_oracle_agrees_with_the_extruded_twin() {
 /// anywhere asked whether a swept wall faces out; this row asks it
 /// with the probe and the oracle the loft rows above use.
 ///
-/// The fixture is `m7_skin_integral`'s elbow — a square section of
-/// half-width ¼ swept along a quarter circle of radius 3 through nine
-/// stations at `v_degree = 3`. It is re-typed rather than shared: that
-/// suite is a skin-integrality pin in another file, and `all.rs`
-/// requires each aggregated file to behave as it did when it was its
-/// own crate root.
+/// The fixture is the corpus elbow — a square section of half-width ¼
+/// swept along a quarter circle of radius 3 through nine stations at
+/// `v_degree = 3` — taken from `sweep::test_support`, which is where it
+/// is built once for every suite that meters it. This row wants the
+/// wall keys as well as the body, so it takes the whole handoff.
 ///
 /// # This does NOT close the class for `sweep_body`
 ///

@@ -41,8 +41,10 @@ test-utils = { path = "../test-utils" }
 profile = { path = "../profile" }
 # `test-support` ON: the corpus swept elbow this crate exports is
 # `sweep::test_support`'s rather than a per-crate rebuild of the same
-# six constants. Dev-only by construction, so it reaches no shipped
-# build of this crate (that module's own docs).
+# six constants. NOT every construction here: `examples/` keeps an
+# independent rebuild on purpose, because its whole question is whether
+# one reaches the committed bytes. Dev-only by construction, so the
+# feature reaches no shipped build of this crate (that module's docs).
 sweep = { path = "../sweep", features = ["test-support"] }
 # Float-printer round-trip property tests.
 proptest = { workspace = true }

@@ -75,9 +75,11 @@ spade = { workspace = true }
 test-utils = { path = "../test-utils" }
 profile = { path = "../profile" }
 # `test-support` ON: the corpus swept elbow this crate's rows tessellate
-# is `sweep::test_support`'s, so the six re-derivations of its six
-# constants are one. The feature is dev-only by construction, so it
-# reaches no shipped build of this crate (that module's own docs).
+# is `sweep::test_support`'s. Five of the body's six constructions now
+# delegate to it; the sixth, a `step-export` review probe, re-derives
+# the constants deliberately and says so at the site. The feature is
+# dev-only by construction, so it reaches no shipped build of this
+# crate (that module's own docs).
 sweep = { path = "../sweep", features = ["test-support"] }
 
 # ONE test binary for the whole suite (see tests/all.rs). Each extra test

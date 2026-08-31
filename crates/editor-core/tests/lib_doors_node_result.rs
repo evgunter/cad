@@ -376,6 +376,85 @@ fn a_kernel_payload_arm_forwards_the_payloads_own_message() {
     }
 }
 
+/// **A payload's own nested SOURCE reaches the message — asserted
+/// against an oracle none of the wrappers can move.**
+///
+/// The roster row above cannot see this and it is worth saying why,
+/// because the shape is easy to rebuild by accident. That test derives
+/// its expectation with `K::Loft(e) => e.to_string()` — the very
+/// `Display` under test — so an arm that quietly stopped rendering its
+/// `source` would shorten BOTH sides equally and `ends_with` would
+/// still hold. It pins forwarding at ONE layer and is vacuous about
+/// every layer below.
+///
+/// So each case here builds the INNERMOST payload's message directly
+/// from its own type, never through the enum that wraps it, and asks
+/// the fully rendered node error to contain it. Dropping the `source`
+/// interpolation from any arm below reddens this immediately.
+///
+/// The three cases are the workspace's source-carrying nestings:
+/// `LoftError`'s two (`SeamStructure`'s `SplineError` — the
+/// `boundary_iso_u` refusal whose own `# Errors` section promises it is
+/// *surfaced rather than swallowed* — and `StackingEscalated`'s
+/// `Indeterminate`), plus the three-layer `Split` chain the roster
+/// already carries and was equally vacuous about.
+#[test]
+fn a_nested_source_under_a_payload_arm_survives_into_the_message() {
+    use editor_core::NodeErrorKind as K;
+
+    // Built from their own types. Nothing below is reached through
+    // `LoftError`, `SplitError` or `NodeErrorKind`.
+    let spline = geom_core::spline::SplineError::ControlCountMismatch {
+        control: 3,
+        expected: 4,
+    };
+    let escalation = geom_core::Indeterminate {
+        margin: geom_core::MarginDiag::Value(2e-10),
+        band: geom_core::Band::linear(geom_core::Tol::witness()).expect("a witness band forms"),
+        predicate: Some("loft_stacking"),
+    };
+    let band = geom_core::BandError::Empty {
+        zero: 1.0,
+        escalate: 0.5,
+    };
+
+    let cases: Vec<(K, String)> = vec![
+        (
+            K::Loft(sweep::LoftError::SeamStructure {
+                source: spline.clone(),
+            }),
+            spline.to_string(),
+        ),
+        (
+            K::Loft(sweep::LoftError::StackingEscalated { source: escalation }),
+            escalation.to_string(),
+        ),
+        (
+            K::Split(topo::SplitError::Finish(topo::SplitFinishError::Band(band))),
+            band.to_string(),
+        ),
+    ];
+
+    for (kind, inner) in cases {
+        // ANTI-VACUITY: a payload whose own `Display` renders nothing
+        // would satisfy `contains` for free.
+        assert!(
+            inner.len() > 20,
+            "the oracle must be a real message: {inner:?}"
+        );
+        let rendered = kind.to_string();
+        assert!(
+            rendered.contains(&inner),
+            "the nested source did not reach the message: rendered {rendered:?}, \
+             source {inner:?}"
+        );
+        assert!(
+            rendered.len() > inner.len(),
+            "the wrappers must still name what failed: {rendered:?}"
+        );
+    }
+}
+
 /// **The document layer's own payload types render their own story**
 /// (the D54 set: `EvalError`, `ResolveError`, `WitnessBifurcation`,
 /// `PlacementRuleFault`) — each message states the problem in prose,

@@ -162,6 +162,39 @@ table when it lands, and its finding leaves this document with it** — the merg
 PR is the record, and a note here saying the work completed is itself a thing to
 delete.
 
+**Two things must be true before a row may be struck**, and the second is
+the one that was being skipped.
+
+1. The work the row names has landed.
+2. **Every finding that was routed to the row after it was written — every
+   rides-along — has either landed with it, or has been re-homed: given a
+   row of its own, with citations re-derived against the tree as it is
+   now.** A rides-along has no other index. It is tracked by the row that
+   names it and by nothing else, so striking the row deletes it, whether or
+   not the lane touched it, and prose elsewhere pointing at a struck row is
+   not a schedule. The landing report is where this gets checked, because
+   the report is where the rides-along were listed.
+
+This is `S177`'s rule, and it is written here rather than left as a finding
+because the mechanism is structural: rides-along exist so a late finding
+reaches a lane already reading those files, and the same *live rows only*
+discipline that keeps this table honest is what deletes them. It will
+recur on every track that routes work to an open lane until the check is
+part of striking a row. **`D124` executed the re-homing for the one
+instance `S177` enumerated** (Track E's `E-g`: four members — one verified
+closed, three re-homed as `D322`–`D324`); **`L5` is the walk of every
+other struck row**, which no one has done and which this rule stops
+growing.
+
+*Ruled by the SMELL-T orchestrator at lane T-b's review adjudication,
+2026-08-31, on the T-a precedent that landed the deletion-sweep rule in
+this section. The style reviewer's reservation is recorded and was
+considered: a document-wide convention is arguably Evan's ratification
+territory rather than a lane's. The precedent decides it — this is a
+statement of how the existing* live rows only *rule must be applied, not
+a new policy, and it is the half of `L5` that stops the accrual while the
+walk waits for a slot.*
+
 ## Contents
 
 **The findings**, grouped by the scan or wave that raised them — the grouping
@@ -7449,38 +7482,69 @@ re-arguing and neither is broken.
 
 ---
 
-## S392. The loft prism is the elbow's class, eleven copies wide, and nothing rows it
+## S392. The loft prism is the elbow's class, eighteen copies wide, and nothing rows it
 
 **Raised by lane T-b**, which closed `C25` — one swept body built from
 scratch six times across three crates — and found the sibling body is
 worse. `C25`'s own text scopes it to the elbow; this is the receipt for
 what that scope could not match.
 
-The prism's NON-AFFINE middle section, the constant that makes its walls
-genuinely curved in v, is spelled `[(-1.375, -1.0), (1.375, -1.0), (1.0,
-1.0), (-1.0, 1.0)]` in **eleven** places, in four crates and the tour:
-`crates/sweep/tests/{m6_loft_body,m7_skin_integral,review_m6_3_loft_probes,s16_box_soundness}.rs`,
-`crates/mesh/tests/{probe_review,budget_meter,m7_nurbs_trimmed,fitted_refusals}.rs`,
-`crates/step-import/tests/review_probes_m7_3.rs`,
-`crates/step-export/tests/common/mod.rs` (`PRISM_TRAPEZOID`), and
-`demos/tour/src/skinned.rs` (`PRISM_TRAPEZOID`) — plus a twelfth in a
-rustdoc example at `crates/sweep/src/skin.rs:1000`. Several of them
-carry a comment saying they are a copy, which is the same
-duplication-reported-as-documentation that `C25` names.
+**The count was wrong when first filed, and how it was wrong is part of
+the finding.** It read *"eleven copies"* over four crates and the tour.
+The sweep behind that number was `grep -rn "1.375" --include=*.rs crates/
+demos/ tools/ | head -20`, and it was unsound twice over: `--include=*.rs`
+excluded a Python member outright, and **the result was piped through
+`head -20` and the truncation was read as the population**. That is this
+document's own recurring failure — a claim wearing a receipt's clothes
+(`S131`: the grep is a candidate list, not a count) — committed inside a
+finding about duplication. Corrected below by the style reviewer's
+enumeration plus an untruncated re-run, which found two sites past the
+reviewer's list as well.
+
+**The full population**, `grep -rn -- "-1\.375"` over `crates/ demos/
+tools/ scripts/`, no filename filter and no truncation: **18 live
+constructions** of the prism's non-affine trapezoid — the constant that
+makes its walls genuinely curved in v — plus one rustdoc example.
+
+- `crates/sweep/tests/{m6_loft_body,m7_skin_integral,review_m6_3_loft_probes,s16_box_soundness,lib_u3_sections,p1b_r1_probes}.rs`
+  and `pcurve_p1b_r2_probes.rs` **twice** (`:190`, `:471`) — seven files,
+  eight sites
+- `crates/mesh/tests/{probe_review,budget_meter,m7_nurbs_trimmed,fitted_refusals}.rs`
+- `crates/editor-core/tests/corpus/loft_prism.rs:55`
+- `crates/step-export/tests/common/mod.rs:788` (`PRISM_TRAPEZOID`)
+- `crates/step-import/tests/review_probes_m7_3.rs:38`
+- `crates/pncad-py/tests/test_north_star.py:654` — **Python**, and its own
+  comment says *"`demos/tour/src/skinned.rs::PRISM_SQUARE` /
+  `PRISM_TRAPEZOID`, verbatim"*
+- `demos/tour/src/skinned.rs:252` (`PRISM_TRAPEZOID`)
+- `tools/tess-meter/tests/rows.rs:30`
+- plus the rustdoc example at `crates/sweep/src/skin.rs:1000`, and three
+  prose restatements in two committed golden fixtures
+  (`step-export/tests/fixtures/{loft_prism,nonuniform_loft}.expect`)
+
+**Six crates, the tour, and a tool.** Several members carry a comment
+saying they are a copy, which is the same
+duplication-reported-as-documentation `C25` names.
 
 **The mechanism to close it now exists and was not spent here.**
 `sweep::test_support` is reachable from another crate's suites as of
-`C25`'s lane, so the prism is a delegation rather than a new home. It is
-filed rather than taken because it is a second body, larger than the
-row's, and a lane that quietly takes it has grown its own scope after
+`C25`'s lane, so most of these are a delegation rather than a new home.
+It is filed rather than taken because it is a second body, larger than
+the row's, and a lane that quietly takes it has grown its own scope after
 dispatch.
 
-Two members are NOT the same shape and a taker should not assume them:
-the `step-import` hit rebuilds the prism to import it back, and the
-tour's is a façade-crate copy that cannot link a dev-gated home at all
-(the `C25` disposition for the tour's frame recipe applies unchanged).
+**Four members are NOT one lane's to convert and a taker should not
+assume them.** `crates/step-import/`'s hit rebuilds the prism in order to
+import it back. `demos/tour`'s is a façade-crate copy that cannot link a
+dev-gated home at all (the `C25` disposition for the tour's frame recipe
+applies unchanged), and `pncad-py`'s Python copy is downstream of the
+tour's, so it moves only when the tour's does — **and every `*.py` in the
+repo is Track J's**. `tools/tess-meter/` is **Track K's**. So the row this
+becomes is cross-track by its own population, exactly as `C25` was, and
+that should be said at dispatch rather than discovered.
 
-**Confidence**: sure (grep receipt above). **Where**: the eleven sites.
+**Confidence**: sure (untruncated grep receipt above, every site read).
+**Where**: the eighteen sites.
 
 **Verdict:**
 
@@ -7933,12 +7997,12 @@ options and the measured price are at `S65`; issues #896 and #897 carry what
 | # | What | Was |
 |---|---|---|
 | **D96** | Thirteen `unreachable!` arms are row-0 candidates — states a type change could stop spelling, `EmptyChain`'s exact shape. **Ten are this track's**; the remainder are filed as rows on the tracks that own their files | Track E |
-| **D90** | `octant_chart` scores a chart off two faces it never checks belong to the corner, and a wrong chart is the failure mode nothing downstream would catch. **ADV**. **Placed on Track P until 2026-08-29 and moved here on the fence rule** — `octant_chart` is defined at `fillet/build.rs` and consumed from `fillet/surgery.rs`, and no `sweep` path is among Track P's eleven files. Number, mark and provenance unchanged | Track E |
+| **D90** | `octant_chart` scores a chart off two faces it never checks belong to the corner, and a wrong chart is the failure mode nothing downstream would catch. **ADV**. **Placed on Track P until 2026-08-29 and moved here on the fence rule** — `octant_chart` is defined at `blend/build.rs` and consumed from `blend/surgery.rs`, and no `sweep` path is among Track P's eleven files. Number, mark and provenance unchanged. **Paths re-aimed to the BLEND-6 spelling** (they read `fillet/` until 2026-08-31); the sites themselves did not move | Track E |
 | **D322** | **`crates/sweep/src/blend/surgery.rs:1712`'s `pub fn ring_clearance` is production API with no production caller** (`S111(b)`, re-homed by `D124`; verified standing 2026-08-31 against the renamed tree). Its only caller outside the module is `crates/sweep/tests/m6_surgery.rs:447`, and its own doc says so — *"Public for exactly that trio"*. Every other item in that file is `pub(super)` or private. **The remedy already exists in this crate**: `S111(b)`'s own text names the `feature = "test-support"` gate, and `crates/sweep/src/test_support.rs` is now the cross-crate home for exactly this shape, so the conversion is a visibility change plus a re-export rather than a new mechanism. **Blocked while a BLEND lane is live in `blend/`** (T-R1's class) | `S111(b)`, via `D124` |
 | **D323** | **`blend::naming::Retired` still has no face channel** (`S111(d)`, re-homed by `D124`; verified standing). `crates/sweep/src/blend/naming.rs:115` carries `edges` and `vertices` only, so the one thing the record exists to catch — a source entity destroyed without a record — is structurally uncatchable for faces, which is `S15`'s hole unchanged. **What is new since the finding was written** is that the consumer now argues the hole away rather than leaving it silent: `crates/editor-core/src/names/emit_blend.rs:259-262` says *"Faces are never retired — a support shrinks, it does not die"*. So the row is a decision, not a patch: either that argument is the answer and belongs at `Retired` itself, or it is not and the channel is owed. **Cheaper taken with `D324`** — same file, same subject. **Blocked while a BLEND lane is live in `blend/`** | `S111(d)`, via `D124` |
 | **D324** | **`naming.rs`'s *"What consumes these rows"* header is false about its one consumer** (`S112(a)`, re-homed by `D124`; verified standing, and the rename moved the name it cites). `crates/sweep/src/blend/naming.rs:38-40` says `editor-core`'s `names::emit_blend` *"reads every field EXCEPT [`Retired`]"*; `crates/editor-core/src/names/emit_blend.rs:242-243,259-260` builds `retired_e`/`retired_v` out of `rec.dead` and consults them on every row. **Sharper than the finding recorded**: the consuming site cites *"(module docs)"* straight back at the paragraph that denies it, so the two halves of one claim contradict each other across the crate boundary and each points at the other as its authority. One paragraph, and it is the same file as `D323`. **Blocked while a BLEND lane is live in `blend/`** | `S112(a)`, via `D124` |
 | **D320** | `sweep/src/skin.rs:774`'s per-variant scalar-lift ladder — the one production copy of `D240`'s class outside `geom/`. **Filed by Track N, not takeable ahead of `D240`**: the shape of this site follows whatever `D240` mints, and closing it first mints a fifth ladder | Track N, filed |
-| **D321** | **`crates/sweep/src/fillet/admit.rs:467` reads its own source with no reader at all** — `include_str!("admit.rs")` counting `Self {`, whose author spliced string literals to avoid self-matching rather than lex. That is the same tell as the reader `S117` calls the class's worst member, and it was outside both of that finding's sweeps. the source-text guard class's shared home is `crates/test-utils/src/source.rs` (one lexer, three views: `code_only`, `code_and_literals`, `comments_only`), and the census that keeps the population honest is `crates/test-utils/tests/reader_census.rs`, whose `Unconverted` ceiling this row lowers by its own member count | `D61` residue |
+| **D321** | **`crates/sweep/src/blend/admit.rs` reads its own source with no reader at all** (path re-aimed to the BLEND-6 spelling 2026-08-31; it read `fillet/admit.rs:467`, and the line is cited by target rather than number per `S176(a)` because the rename moved it) — an `include_str!` of the module's own file counting `Self {`, whose author spliced string literals to avoid self-matching rather than lex. That is the same tell as the reader `S117` calls the class's worst member, and it was outside both of that finding's sweeps. the source-text guard class's shared home is `crates/test-utils/src/source.rs` (one lexer, three views: `code_only`, `code_and_literals`, `comments_only`), and the census that keeps the population honest is `crates/test-utils/tests/reader_census.rs`, whose `Unconverted` ceiling this row lowers by its own member count | `D61` residue |
 
 ## Track U — the exchange surface and the bindings
 
@@ -8052,7 +8116,7 @@ orchestrator without breaking the partition.
 | **L1** | **S36** — comb-and-rename, **per suite**, never a rename pass. | A PR-numbered name currently *carries signal*: it marks a suite not yet combed. Renaming first converts a visible backlog into an invisible one. Needs an owner and a slot, not just permission — the 2026-08-13 retirement licence has produced zero deletions. |
 | **L2** | **S38** — comment trimming. | Must follow every deletion above; trimming comments on code about to be deleted is pure waste. Note the pressure runs the other way too: three fix passes this week added prose because a finding demanded a claim-site reason that did not exist. |
 | **L3** | Remaining **S35** roll-up rows. | Lowest value density; several will be resolved incidentally. |
-| **L5** | **`S177`'s remainder — walk every OTHER struck lane row for rides-along that left with it.** `D124` executed the sweep for the one instance `S177` enumerated (Track E's `E-g`: four members, one closed, three re-homed as `D322`–`D324`) and deliberately did not touch the rest. Every closed lane on every track has the same exposure, and the mechanism keeps producing it because the cheap fix `S177` proposes — **a lane's row may only be struck once each rides-along it did not close has been re-homed or given its own row** — is still unadopted. Two deliverables, and the second is the one that stops the accrual: the walk, and that rule written into *"How to read a row"*. | Document-wide, and it audits this document's own history rather than any track's files — a rides-along is only visible from a landed lane's report, so the walk crosses every track's log and can be scoped to no fence. |
+| **L5** | **`S177`'s remainder — walk every OTHER struck lane row for rides-along that left with it.** `D124` executed the sweep for the one instance `S177` enumerated (Track E's `E-g`: four members, one closed, three re-homed as `D322`–`D324`) and deliberately did not touch the rest. Every closed lane on every track has the same exposure, and the mechanism keeps producing it because the cheap fix `S177` proposes — **a lane's row may only be struck once each rides-along it did not close has been re-homed or given its own row** — is still unadopted. **Its rule half has landed** — the strike rule is now written into *"How to read a row"* (orchestrator ruling, T-b's review adjudication), so the accrual is stopped going forward. **What is left is the walk**: every row struck BEFORE that rule existed, which is all of them. | Document-wide, and it audits this document's own history rather than any track's files — a rides-along is only visible from a landed lane's report, so the walk crosses every track's log and can be scoped to no fence. |
 | **L4** | **Re-check every disposition in this document that reasoned about a gate's direction from ONE side.** `S120(a)`'s second clause, and the only half of it that never found a home: a fallback inside a *comparison* has two sides, and a sweep that dispositioned one of them — *"a broken reading shrinks the denominator, so the gate is MORE likely to fire"* — answered half the question while reading as if it had answered all of it. That reasoning appears throughout this file. | Document-wide, and it audits **this document's own dispositions** rather than any track's files — so it collides with every track exactly as `L1`–`L3` do, and it cannot be scoped to a fence. `D105` closed the two `tess-meter` instances; the population is the rest. |
 
 ---

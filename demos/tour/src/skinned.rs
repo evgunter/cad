@@ -193,11 +193,12 @@ pub fn narration(tol: Tol) {
 // THE COPIES. Their other home is `step-export/tests/common/mod.rs`
 // (and, for the elbow, `sweep::test_support`, which that fixture and
 // the tessellation suites all delegate to), which is another crate's
-// TEST-SUPPORT module: gated behind a dev-only feature, not published,
-// and not something a user of this library could import. A demo exists to show the library the way
-// a user would meet it, so reaching into a test module would make this
-// file worse evidence, not better — and there is no public door that
-// hands out corpus fixtures.
+// TEST-SUPPORT module: gated behind a dev-only feature, not
+// published, and not something a user of this library could import. A
+// demo exists to show the library the way a user would meet it, so
+// reaching into a test module would make this file worse evidence,
+// not better — and there is no public door that hands out corpus
+// fixtures.
 //
 // What that costs is exactly one thing: these numbers can drift apart
 // from the corpus's silently. So the cross-link is pinned where it is
