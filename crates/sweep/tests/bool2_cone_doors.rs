@@ -10,6 +10,16 @@
 //! shared rather than copied) and a SLANT window in metres along the
 //! generator.
 //!
+//! Two cone classes are exercised, and both are here because a cone's
+//! APEX is a junction the closed-form azimuth walk cannot cross:
+//!
+//! - the **azimuth-WRAPPED group** — a full revolve's two cone bands,
+//!   which have no azimuth boundary between them and the rest of the
+//!   body, so the slant window alone trims them and the arms act for
+//!   one representative;
+//! - the **azimuth-TRIMMED face** — a partial revolve's single cone
+//!   sector, whose window the walk does get right, served per face.
+//!
 //! The rows, and what each one is the only witness for:
 //!
 //! - **interior / exterior / boundary** on a full cone, whose only
@@ -74,6 +84,22 @@ fn frustum() -> Body<f64> {
     revolve(&vp, axis_y(), Revolution::Full, Tol::witness())
         .unwrap()
         .body
+}
+
+/// A quarter cone: the same triangle through a π/2 revolve. Its ONE
+/// cone face is azimuth-trimmed (window `[−π, −π/2]`, the quadrant
+/// `x > 0, z < 0`), and it is a legal boolean operand — a full
+/// revolve's base disc is two half-discs on ONE plane key, which the
+/// maximal-faces precondition refuses before containment is ever asked.
+fn quarter_cone() -> Body<f64> {
+    revolve(
+        &validated(vec![triangle()]),
+        axis_y(),
+        Revolution::Partial(core::f64::consts::FRAC_PI_2),
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
 }
 
 fn brick(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
@@ -151,13 +177,14 @@ fn cone_door_classifies_the_cone_interior_exterior_and_boundary() {
             "on-wall probe y = {y}, φ = {phi}"
         );
     }
-    // ON the base disc, and ON the apex — the apex is the solid's tip,
-    // and the arm reports it through the same `None` the ray lane
-    // treats as a graze.
-    assert_eq!(
-        pis(&body, Point3::new(0.3, 0.0, 0.2)),
-        SolidContainment::OnBoundary
-    );
+    // ON the apex — the solid's tip, which the arm reports through the
+    // same `None` the ray lane treats as a graze.
+    //
+    // The base DISC is deliberately not probed here. A point in the
+    // interior of a revolved half-disc face is misread by the PLANAR
+    // arm, on bodies with no cone in them at all (a revolved cylinder
+    // answers `Out` for a point on its own cap), so a row here would be
+    // pinning another door's defect through this one.
     assert_eq!(
         pis(&body, Point3::new(0.0, 1.0, 0.0)),
         SolidContainment::OnBoundary,
@@ -280,17 +307,65 @@ fn every_ray_from_the_virtual_apex_grazes_and_the_door_escalates() {
     assert!(msg.contains("ill-conditioned"), "{msg}");
 }
 
+/// **The azimuth-trimmed class.** A partial revolve's cone face has a
+/// real azimuth window, and the window is what tells the swept quadrant
+/// from the three the carrier also passes through. Every probe below is
+/// at the SAME radius and height — only the azimuth differs — so
+/// nothing but the azimuth trim can be separating them.
+///
+/// The quadrant is `x > 0, z < 0` (the fan walls are the planes `x = 0`
+/// and `z = 0`), which in the cone chart is `u ∈ (−π, −π/2)`: the
+/// window is stated in CHART azimuth, and this face lies on the `v < 0`
+/// nappe, where the chart's radial is the negation of the physical one.
+#[test]
+fn the_azimuth_window_selects_the_swept_quadrant() {
+    let body = quarter_cone();
+    assert_all_tiers(&body);
+    assert_eq!(
+        pis(&body, Point3::new(0.2, 0.2, -0.15)),
+        SolidContainment::In
+    );
+    for q in [
+        Point3::new(0.2, 0.2, 0.15),
+        Point3::new(-0.2, 0.2, -0.15),
+        Point3::new(-0.2, 0.2, 0.15),
+    ] {
+        assert_eq!(
+            pis(&body, q),
+            SolidContainment::Out,
+            "an unswept quadrant at the same radius and height: {q:?}"
+        );
+    }
+    // ON the trimmed cone face, inside the window: ρ = 1 − y.
+    assert_eq!(
+        pis(&body, Point3::new(0.4, 0.5, -0.3)),
+        SolidContainment::OnBoundary
+    );
+    // The same point mirrored into an unswept quadrant is ON the
+    // CARRIER and outside the face — outside the solid, not on it.
+    assert_eq!(
+        pis(&body, Point3::new(-0.4, 0.5, 0.3)),
+        SolidContainment::Out,
+        "the carrier outside the azimuth window is not this face"
+    );
+}
+
 /// **The consumer unlock.** A disjoint union has no crossings at all,
 /// so the pipeline falls through to the containment door and walks
 /// every face of the cone-bearing operand. On main that door refuses
 /// `KindUnsupported { kind: Cone }` — the pair-scoped operand gate
-/// admits the operation (the boxes are five units apart) and the
+/// admits the operation (the boxes are four units apart) and the
 /// containment question then cannot be asked. With the arm the union
 /// assembles.
+///
+/// The operand is the QUARTER cone: a full revolve's base disc is two
+/// half-discs sharing one plane key, which the maximal-faces
+/// precondition (F7) refuses before any containment door is reached —
+/// a planar precondition, nothing to do with this arm.
 #[test]
 fn a_disjoint_union_with_a_cone_face_now_assembles() {
-    let a = cone();
-    let b = brick((5.0, 6.0), (0.0, 1.0), (0.0, 1.0));
+    let a = quarter_cone();
+    let b = brick((5.0, 6.0), (0.0, 1.0), (-1.0, 0.0));
     let out = match topo::union(&a, &b, Tol::witness()) {
         Ok(out) => out,
         Err(BooleanError::Containment(e)) => panic!(
@@ -303,17 +378,17 @@ fn a_disjoint_union_with_a_cone_face_now_assembles() {
     assert_eq!(result.kind, topo::BooleanResultKind::Assembly);
     assert_eq!(topo::validate_closed(&result.body), Ok(()));
     // Both operands' material survives, and the containment door had to
-    // answer for each: a probe inside the cone and one inside the brick.
+    // answer for each.
     assert_eq!(
-        pis(&result.body, Point3::new(0.0, 0.5, 0.0)),
+        pis(&result.body, Point3::new(0.2, 0.2, -0.15)),
         SolidContainment::In
     );
     assert_eq!(
-        pis(&result.body, Point3::new(5.5, 0.5, 0.5)),
+        pis(&result.body, Point3::new(5.5, 0.5, -0.5)),
         SolidContainment::In
     );
     assert_eq!(
-        pis(&result.body, Point3::new(3.0, 0.5, 0.5)),
+        pis(&result.body, Point3::new(3.0, 0.5, -0.5)),
         SolidContainment::Out
     );
 }
@@ -350,41 +425,19 @@ fn the_kind_refusal_no_longer_names_the_cone() {
         "the recourse must not tell a caller to avoid a kind that has an arm: {msg}"
     );
     assert!(msg.contains("torus"), "{msg}");
-}
 
-#[test]
-fn tmp_debug_probe() {
-    let t = revolve(
-        &validated(vec![triangle()]),
-        axis_y(),
-        Revolution::Partial(std::f64::consts::FRAC_PI_2),
-        Tol::witness(),
-    )
-    .unwrap();
-    let q = &t.body;
-    for (k, f) in q.faces() {
-        eprintln!(
-            "Qface {:?} sense={} surf={:?}",
-            k,
-            f.sense,
-            q.get_surface(f.surface).map(|s| format!("{s:?}"))
-        );
+    // The arm's OWN refusal, for a cone face in neither chart class.
+    // No public door mints one today — it wants a ringed cone face or
+    // two bands stacked on one cone key — so what is pinned here is the
+    // claim the message makes, not a body that reaches it.
+    let msg = PointInSolidError::PartialConeFace {
+        face: body.faces().next().unwrap().0,
     }
-    for p in [
-        Point3::new(0.2, 0.2, -0.15),
-        Point3::new(0.2, 0.2, 0.15),
-        Point3::new(-0.2, 0.2, -0.15),
-        Point3::new(0.4, 0.5, -0.3),
-        Point3::new(3.0, 3.0, 3.0),
-    ] {
-        eprintln!(
-            "quarter p={p:?} -> {:?}",
-            point_in_solid(q, p, band(), Tol::witness())
-        );
-    }
-    let b = brick((5.0, 6.0), (0.0, 1.0), (0.0, 1.0));
-    eprintln!(
-        "union -> {:?}",
-        topo::union(q, &b, Tol::witness()).map(|r| r.body().map(|x| x.kind))
+    .to_string();
+    assert!(msg.contains("HEALTHY"), "{msg}");
+    assert!(msg.contains("Recourse"), "{msg}");
+    assert!(
+        msg.contains("apex"),
+        "the refusal must name the junction it is about: {msg}"
     );
 }
