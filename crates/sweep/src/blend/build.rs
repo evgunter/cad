@@ -219,8 +219,22 @@ pub(super) fn vertex_faces<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Opti
 /// links, ORDER-FREE — it finds the admitting edge whenever one
 /// exists and degrades to "no chart admits this trihedron" (the
 /// genuinely oblique case, tier-3 `VolumeUncomputable`) only when
-/// none does. Returns `(u_ref, axis)` — the seam is the picked
-/// link's first support normal.
+/// none does. Returns `(u_ref, axis)`.
+///
+/// **The chart follows the corner's convexity.** A convex octant's
+/// feet lie along `+n_i` from the ball centre, so the picked link's
+/// chart is `(u_ref, axis) = (n_a, n_a × n_b)`: the seam meridian is
+/// the foot on the first support and the pole is the apex foot. A
+/// concave octant's feet lie along `−n_i`, and its chart is the same
+/// derivation under the mirror substitution `(n_a, n_b, n_c) ↦
+/// (−n_b, −n_a, −n_c)` — a relabelling that preserves every dot
+/// product and the triple product's sign — giving
+/// `(−n_b, n_b × n_a)`. Both charts therefore stand in the SAME
+/// relation to their own feet: apex at the pole, one foot on the
+/// seam, the third a quarter-turn along the equator, so the patch is
+/// the same iso-rectangle in either chart and everything downstream
+/// (the pcurve images, the props inventory's rectangle check) reads
+/// one configuration.
 ///
 /// **The pick always yields.** A candidate needs an incident link and
 /// a third support: [`CornerLinks`] carries at least one link, and
@@ -237,21 +251,28 @@ pub(super) fn octant_chart<T: Decide + Bounds>(
     body: &Body<T>,
     faces: &CornerFaces,
     links: &CornerLinks<'_, T>,
+    convexity: super::battery::Convexity,
 ) -> Result<(Vec3<T>, Vec3<T>), BlendError> {
+    let convex = matches!(convexity, super::battery::Convexity::Convex);
     // `(score, u_ref, axis)` for one candidate edge: the chart aimed
     // along it, scored by how nearly the third support's normal is
-    // parallel to its axis.
+    // parallel to its axis. The score is side-blind (`|n_c × axis|`
+    // is even in `axis`), so the pick and the fold commute.
     let candidate = |l: &Link<T>| -> Result<(f64, Vec3<T>, Vec3<T>), BlendError> {
         let planar = |f: FaceKey| {
             outward_of(body, f)
                 .ok_or_else(|| unbuilt_geometry(EntityId::Face(f), CORNER_SUPPORT_NOT_PLANAR))
         };
         let (n_a, n_b) = (planar(l.face_a)?, planar(l.face_b)?);
-        let axis = n_a.cross(n_b).normalize();
         // The third support of the corner — the one this edge does not
         // touch.
         let n_c = planar(faces.third(l.face_a, l.face_b))?;
-        Ok((n_c.cross(axis).norm().lo().abs(), n_a, axis))
+        let (u_ref, axis) = if convex {
+            (n_a, n_a.cross(n_b).normalize())
+        } else {
+            (-n_b, n_b.cross(n_a).normalize())
+        };
+        Ok((n_c.cross(axis).norm().lo().abs(), u_ref, axis))
     };
     let mut best = candidate(links.first().link())?;
     for l in links.rest() {
@@ -260,8 +281,8 @@ pub(super) fn octant_chart<T: Decide + Bounds>(
             best = next;
         }
     }
-    let (_, n_a, axis) = best;
-    Ok((n_a, axis))
+    let (_, u_ref, axis) = best;
+    Ok((u_ref, axis))
 }
 
 /// A planar face's OUTWARD normal: the stored plane normal folded

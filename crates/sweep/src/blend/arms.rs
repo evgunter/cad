@@ -105,15 +105,16 @@ pub struct EdgeBlend<T: Real> {
     pub trim_b: (Curve3<T>, T),
 }
 
-/// The corner ball of a three-convex-edge vertex: a sphere patch (the
+/// The corner ball of a uniform trihedral vertex: a sphere patch (the
 /// spherical triangle bounded by the three contact circles with the
-/// three incident edge cylinders).
+/// three incident edge cylinders), resting inside the material at a
+/// convex corner and in the void at a concave one.
 #[derive(Clone, Debug)]
 pub struct CornerBall<T: Real> {
     /// The sphere the octant patch lies on.
     pub surface: Surface<T>,
-    /// The ball centre — the point at distance `r` inside all three
-    /// support planes.
+    /// The ball centre — the point at distance `r` from all three
+    /// support planes, on the side the corner's convexity picks.
     pub center: Point3<T>,
     /// `|det(n₁, n₂, n₃)|` for the three outward support normals —
     /// the independence margin predicate 6 classifies (times the
@@ -865,14 +866,16 @@ impl<T: Real> Ruling<T> {
     }
 }
 
-/// **The corner ball** of a three-convex-edge vertex: the sphere of
-/// radius `r` tangent to all three support planes from inside the
-/// material.
+/// **The corner ball** of a uniform trihedral vertex: the sphere of
+/// radius `r` tangent to all three support planes — from inside the
+/// material at a convex corner, from inside the VOID at a concave one.
 ///
-/// The centre solves `(c − p_i)·n_i = −r` for the three outward
-/// normals; the solution is `c = p + N⁻¹·(…)` written here as the
-/// Cramer expansion so `|det(n₁, n₂, n₃)|` — the independence margin
-/// predicate 6 classifies — falls out of the same computation.
+/// The centre solves `(c − p_i)·n_i = ∓r` for the three outward
+/// normals (`−r` convex, `+r` concave: the outward normals point into
+/// the void, and the concave rest is on that side); the solution is
+/// `c = p + N⁻¹·(…)` written here as the Cramer expansion so
+/// `|det(n₁, n₂, n₃)|` — the independence margin predicate 6
+/// classifies — falls out of the same computation, side-blind.
 ///
 /// The patch is bounded by three CIRCLES, one per incident edge
 /// cylinder: the ball centre lies ON each cylinder's axis (the axis
@@ -881,7 +884,16 @@ impl<T: Real> Ruling<T> {
 /// `r`, so sphere and cylinder are tangent along a full circle. That
 /// is the configuration the jet certificate's circle arm certifies,
 /// and its `κ_rel` is `1/r` — the sphere curves transverse to the
-/// contact circle where the cylinder is flat along its ruling.
+/// contact circle where the cylinder is flat along its ruling. All of
+/// it holds on either side: only which side of each plane the tangency
+/// circles sit on follows the sign.
+///
+/// **The stored chart follows the side too.** The patch's apex foot —
+/// the contact point opposite the walls' mean — lies along `+Σn` from
+/// the centre at a convex corner and along `−Σn` at a concave one, so
+/// the chart's pole aims at `±Σn` with the same sign as the feet: a
+/// chart whose pole is antipodal to the patch it charts is the
+/// half-derived corner issue 644 names.
 #[must_use]
 pub fn corner_ball<T: Real>(
     verts: [Point3<T>; 3],
@@ -901,12 +913,16 @@ pub fn corner_ball<T: Real>(
     // Cramer: c = (rhs₁·(n₂×n₃) + rhs₂·(n₃×n₁) + rhs₃·(n₁×n₂)) / det.
     let num = n2.cross(n3) * rhs[0] + n3.cross(n1) * rhs[1] + n1.cross(n2) * rhs[2];
     let c = Point3::new(num.x / det, num.y / det, num.z / det);
+    // The apex direction: toward the feet, which lie along `n_i` at a
+    // convex rest and along `−n_i` at a concave one — the same fold as
+    // the centre's, `−signed/r`.
+    let apex = ((n1 + n2 + n3) * (-signed / radius)).normalize();
     CornerBall {
         surface: Surface::Sphere {
             center: c,
             radius,
-            axis: (n1 + n2 + n3).normalize(),
-            u_ref: perp_unit(n1, (n1 + n2 + n3).normalize()),
+            axis: apex,
+            u_ref: perp_unit(n1, apex),
         },
         center: c,
         independence: det.abs(),
