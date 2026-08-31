@@ -1197,7 +1197,7 @@ kernel-direct only: unreachable from a document, minting no
   (`crates/sweep/src/fillet/build.rs:281`, re-exported
   `crates/sweep/src/chamfer.rs:66`, prelude'd at
   `crates/pncad/src/prelude.rs:100`). Filed as **#918**.
-- **shell / shell_open** — `crates/topo/src/shell.rs:463` and `:485`,
+- **shell / shell_open** — `crates/topo/src/shell.rs:484` and `:507`,
   recorded SHIPPED at #1048 in `docs/KERNEL-VERBS.md`, with the
   teapot (`demos/tour/src/teapot.rs`) built on it. NOT filed.
 - **tube** — `tube_along_arc` (`crates/sweep/src/revolve/tube.rs:265`)
