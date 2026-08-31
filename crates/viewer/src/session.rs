@@ -40,8 +40,8 @@ use pncad::document::{
     apply, assemble, cascade_delete_order, evaluate, parse_expr, product, run_checks,
 };
 use pncad::geom_core::Tol;
-use pncad::profile::SketchPlane;
 use pncad::prelude::{StableName, attribute};
+use pncad::profile::SketchPlane;
 use pncad::quantity::UnitDef;
 use pncad::select::{ContactClass, Resolution, RunCtx, resolve};
 
@@ -412,7 +412,10 @@ impl core::fmt::Display for Refusal {
                 write!(f, "{}", Self::exists_wording(name, *dimension))
             }
             Self::EmptyName => {
-                write!(f, "a new document needs a name; its identity is derived from it")
+                write!(
+                    f,
+                    "a new document needs a name; its identity is derived from it"
+                )
             }
             Self::EmptyProfile => {
                 write!(f, "a profile needs at least one loop (the outer boundary)")
