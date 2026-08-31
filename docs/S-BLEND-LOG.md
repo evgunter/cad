@@ -568,3 +568,24 @@ re-run, the seam-split row, the ladder ruling re-checked against
 the gate clauses, the decline's argument judged, tip-state trailer
 spot-check). State-sync (A/B row ordinal 603 + unit log) rides the
 unit branch LAST after the delta, then the merge sequence.
+
+## 2026-08-31 — Delta verdict: 6/8 CONFIRMED; two record residues sent back
+
+R1's delta (~80k / ~40m; cumulative ~285k / ~95m): items 1, 2, 4,
+5, 6, 8 CONFIRMED by execution — the M1 mutation reproduced the
+fix pass's red/green table EXACTLY (both R2 rows + both covariance
+probes red, the disclosed fixture-lucky invariant row green); the
+#1308 partial decline judged SOUND on three checks; the ladder
+ruling CONFIRMED with R1 reversing its own S9 judgment against the
+gate clauses (no kind test anywhere in the admission span;
+Surface::Sphere occurs once in surgery.rs, minting the octant
+patch — R2's dispute was right); tip trailer state clean. TWO
+residues, both record accuracy: (a) the new seam-split row claims
+a per-link-slot discrimination it lacks (M2 mutation survives all
+21 rows; reachability witness shows the else branch never fires on
+the fixture) — the fix pass's own fixture-luck diagnosis repeated
+in the same commit, asserted instead of disclosed; (b) the
+mirror-why landed at naming.rs only while the PR body claims both
+declarations. Micro-fix dispatched to the implementer (fixture-or-
+relabel for (a); the role.rs side + PR body corrections for (b)).
+State-sync rides after.
