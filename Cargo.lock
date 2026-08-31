@@ -4087,6 +4087,7 @@ version = "0.0.0"
 dependencies = [
  "bvh",
  "bytemuck",
+ "editor-core",
  "eframe",
  "egui",
  "egui-wgpu",
