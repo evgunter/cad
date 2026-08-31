@@ -124,33 +124,38 @@ fn the_vented_cavity_is_one_shell_with_twelve_cavity_edges() {
     assert_eq!(cavity_edges(&body).len(), 12, "the cavity's twelve edges");
 }
 
-/// **The refusal both verbs give this request, measured**: the corner
-/// configuration door reads three concave edges at a trivalent vertex
-/// and calls it a MIXED-convexity corner — `convex: 0` of 3 — whose
-/// recourse is the run-out door that does not exist.
-///
-/// This is the row the widening flips. It is written for both verbs
-/// against one shared expectation, so the day one of them changes, the
-/// row says which.
+/// **The chamfer clears the corner door and stops at the next one.**
+/// With the corner-configuration classifier widened, the all-concave
+/// trihedron is admitted and the request reaches the surgery's own
+/// open-chain admission, which refuses it as material-adding.
 #[test]
-fn a_concave_corner_reads_as_mixed_convexity_at_both_doors() {
+fn the_concave_chamfer_now_refuses_at_the_open_chain_door() {
     let body = vented_cavity();
     let edges = cavity_edges(&body);
-    let chamfer = chamfer_edges(&body, &edges, D, band(), Tol::witness())
-        .expect_err("the concave chamfer refuses");
-    let fillet = fillet_edges(&body, &edges, D, band(), Tol::witness())
+    let err = chamfer_edges(&body, &edges, D, band(), Tol::witness())
+        .expect_err("the open-chain door still refuses");
+    match err.error {
+        BlendError::UnsupportedChain { .. } => {}
+        ref other => panic!("expected the chain admission's refusal, got {other:?}"),
+    }
+}
+
+/// **The fillet keeps refusing, under the tag that is true of it.** Its
+/// corner ball, feet and octant chart are derived on the convex side,
+/// so the concave trihedron is named for what it is rather than
+/// reported as a mixed corner it is not.
+#[test]
+fn the_concave_fillet_refuses_at_its_own_corner_door() {
+    let body = vented_cavity();
+    let edges = cavity_edges(&body);
+    let err = fillet_edges(&body, &edges, D, band(), Tol::witness())
         .expect_err("the concave fillet refuses");
-    for (verb, err) in [("chamfer", &chamfer), ("fillet", &fillet)] {
-        match err.error {
-            BlendError::UnsupportedCorner {
-                corner: CornerConfig::MixedConvexity { convex },
-                policy,
-                ..
-            } => {
-                assert_eq!(convex, 0, "{verb}: none of the three edges is convex");
-                assert_eq!(policy, Some(RunOutPolicy::RunOutFeather));
-            }
-            ref other => panic!("{verb}: expected a corner-configuration refusal, got {other:?}"),
-        }
+    match err.error {
+        BlendError::UnsupportedCorner {
+            corner: CornerConfig::ThreeConcaveEdges,
+            policy,
+            ..
+        } => assert_eq!(policy, Some(RunOutPolicy::RunOutStopAtVertex)),
+        ref other => panic!("expected a concave-trihedron corner refusal, got {other:?}"),
     }
 }

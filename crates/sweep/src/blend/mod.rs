@@ -232,15 +232,37 @@ impl fmt::Display for RunOutPolicy {
     }
 }
 
-/// The corner-configuration tags C8's scope box enumerates. Exactly
-/// one — [`CornerConfig::ThreeConvexEdges`] with independent support
-/// normals — is constructible at M5; the rest are the refusal
+/// The corner-configuration tags C8's scope box enumerates. Two —
+/// [`CornerConfig::ThreeConvexEdges`] and
+/// [`CornerConfig::ThreeConcaveEdges`], each with independent support
+/// normals — describe corners a verb builds; the rest are the refusal
 /// taxonomy, each pinned by a fixture that reaches it.
+///
+/// **A tag describes the CORNER, not the verb's verdict on it.** The
+/// concave trihedron is one configuration, and which verb carves it is
+/// the verb's own scope: the chamfer's flat patch has no side to pick
+/// and carves both, the rolling ball's octant is derived convex-only
+/// and carves one. So the tag is a refusal payload for a fillet and
+/// never reached by a chamfer, which is a property of the doors and
+/// not of the corner.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CornerConfig {
     /// Three edges, all definitely convex, support normals definitely
-    /// independent: the sphere-octant corner patch. IN SCOPE.
+    /// independent: the sphere-octant corner patch, or the chamfer's
+    /// flat one. IN SCOPE for both verbs.
     ThreeConvexEdges,
+    /// Three edges, all definitely concave, support normals definitely
+    /// independent — the mirror of [`Self::ThreeConvexEdges`], and a
+    /// wedge of material rather than a wedge of air.
+    ///
+    /// IN SCOPE for the chamfer, whose corner patch is the plane
+    /// through three trimline crossings and carries no convexity
+    /// parameter. Out of scope for the fillet, whose corner ball,
+    /// contact feet and octant chart are all derived on the convex
+    /// side; that is the widening tracked as evgunter/cad issue 644,
+    /// and until it lands a fillet request refuses HERE rather than
+    /// building a half-derived corner.
+    ThreeConcaveEdges,
     /// A vertex of valence other than three. The rolling ball's
     /// contact set is not a spherical triangle there, so the corner
     /// patch is not one sphere octant.
@@ -250,16 +272,19 @@ pub enum CornerConfig {
         /// derivation, which agree on a manifold body.
         valence: usize,
     },
-    /// Three edges, but their convexity signs do not agree: the
-    /// rolling ball would have to change sides mid-corner.
+    /// Three edges, but their convexity signs do not agree — one or
+    /// two of the three convex: the blend would have to change sides
+    /// mid-corner. A UNIFORM sign is one of the two trihedron tags
+    /// above, whichever side it is on.
     MixedConvexity {
-        /// How many of the three edges classified convex.
+        /// How many of the three edges classified convex — never 0 or
+        /// 3, which are the uniform trihedra.
         convex: usize,
     },
-    /// Three edges, all convex, but the support normals are
+    /// Three edges of one convexity, but the support normals are
     /// definitely dependent (a flat or degenerate trihedron): the
-    /// ball centre is not determined by the three distance
-    /// conditions.
+    /// corner's three distance conditions do not determine a centre,
+    /// and its three trimline crossings do not determine a patch.
     DependentNormals,
     /// A vertex where a CHART SEAM crosses an otherwise smooth rim: the
     /// two edges continuing the rim carry the same support pair, and the
@@ -318,6 +343,11 @@ impl fmt::Display for CornerConfig {
             Self::ThreeConvexEdges => {
                 write!(f, "three convex edges (the built corner configuration)")
             }
+            Self::ThreeConcaveEdges => write!(
+                f,
+                "three concave edges (a corner of material, which the flat corner patch \
+                 carves and the rolling ball's octant does not)"
+            ),
             Self::NEdgeVertex { valence } => write!(f, "a valence-{valence} vertex"),
             Self::MixedConvexity { convex } => {
                 write!(f, "a mixed-convexity vertex ({convex} of 3 edges convex)")
@@ -380,11 +410,20 @@ pub const FILLET3_CHAIN_RECOURSE: &str = "supply a connected, tangent-continuous
 pub const FILLET3_CONVEXITY_RECOURSE: &str =
     "split the chain at the convexity flip and blend each run separately";
 /// The recourse for a corner the corner patch does not cover — it
-/// names the run-out front door that does not exist yet. Both verbs
-/// build the same fully-requested trivalent corner (octant or flat
-/// patch), so the door named is true of either.
-pub const FILLET3_CORNER_RECOURSE: &str = "blend a chain that terminates in a three-convex-edge vertex; general run-outs \
-     are not implemented";
+/// names the corner configurations that DO carve, and then the run-out
+/// front door that does not exist yet.
+///
+/// The convex clause is true of either verb: both build the
+/// fully-requested convex trivalent corner (octant or flat patch). The
+/// concave clause is CONDITIONED by verb, for the same reason the
+/// assembly recourse's closed-chain clause is: the flat corner patch
+/// carries no convexity parameter and carves that corner, while the
+/// rolling ball's octant is derived on the convex side alone, so
+/// telling a fillet caller to keep the corner and drop the convexity
+/// would name a door that cannot serve them.
+pub const FILLET3_CORNER_RECOURSE: &str = "blend a chain that terminates in a trivalent vertex whose three edges are all \
+     convex — or, for a CHAMFER over plane\u{2013}plane supports, all concave, which its flat \
+     corner patch carves; general run-outs are not implemented";
 /// The recourse for a chain that stops at a CHART SEAM on an otherwise
 /// smooth rim.
 ///
@@ -702,9 +741,9 @@ pub enum BlendError {
     /// CONFIGURATION is (valence, convexity mix) and which every such
     /// refusal here does use. A corner whose shape is exactly the
     /// supported one, with only some of its edges requested, has no
-    /// [`CornerConfig`] arm: the only one that fits is
-    /// [`CornerConfig::ThreeConvexEdges`], which renders as the
-    /// configuration that IS built. Minting an arm for it would extend
+    /// [`CornerConfig`] arm: the only ones that fit are the uniform
+    /// trihedron tags, which render as configurations that ARE built.
+    /// Minting an arm for it would extend
     /// a vocabulary decided at #85, which is a design change rather
     /// than an execution.
     UnsupportedRunOut {
@@ -1211,6 +1250,7 @@ mod recourse_tests {
     fn a_corner_tag_names_a_policy_exactly_when_its_recourse_is_the_run_out_one() {
         for corner in [
             CornerConfig::ThreeConvexEdges,
+            CornerConfig::ThreeConcaveEdges,
             CornerConfig::NEdgeVertex { valence: 4 },
             CornerConfig::MixedConvexity { convex: 1 },
             CornerConfig::DependentNormals,

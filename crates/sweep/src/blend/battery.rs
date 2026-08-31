@@ -544,10 +544,10 @@ pub fn chain_g1<T: Decide + Bounds>(
 // Predicate 6 — corner configuration.
 // ---------------------------------------------------------------
 
-/// **`fillet3_corner_independence`** — is a chain termination the ONE
-/// corner configuration M5 ships (OQ6): a valence-three vertex whose
-/// three incident edges are all convex and whose three support
-/// normals are definitely independent?
+/// **`fillet3_corner_independence`** — is a chain termination a corner
+/// configuration the running verb builds (OQ6): a valence-three vertex
+/// whose three incident edges carry ONE convexity the verb covers, and
+/// whose three support normals are definitely independent?
 ///
 /// Margin: `|det(n₁, n₂, n₃)|·r` in METERS at lever arm `r`. The
 /// determinant is what makes the corner ball's centre a well-posed
@@ -562,6 +562,25 @@ pub fn chain_g1<T: Decide + Bounds>(
 /// and nothing more: zero constructor surface, refusal-payload
 /// vocabulary only.
 ///
+/// # Which convexities each verb admits, and why they differ
+///
+/// A UNIFORM trihedron is one configuration on either side of the
+/// material, and the convexity gate is the VERB's, not the corner's:
+///
+/// - the **chamfer** admits both. Its corner patch is the plane
+///   through three trimline crossings, folded outward against the
+///   supports' own normal sum, and its strips' trimlines are read off
+///   the half-edge traversal — no term in either derivation takes a
+///   convexity argument, so there is no convex-only constant here to
+///   leave half-derived;
+/// - the **fillet** admits the convex side only, because its corner
+///   ball, contact feet and octant chart are each derived there
+///   (evgunter/cad issue 644 is that widening, and it moves those three
+///   together or not at all).
+///
+/// A MIXED trihedron is out of scope for both, and for the same reason
+/// as ever: the band would change sides mid-corner.
+///
 /// # Errors
 ///
 /// [`BlendError::UnsupportedCorner`] with the tag and policy;
@@ -572,6 +591,7 @@ pub fn corner_config<T: Decide + Bounds>(
     convex: usize,
     normals: [Vec3<T>; 3],
     radius: T,
+    kind: BlendKind,
     band: Band,
 ) -> Result<(), BlendError> {
     // Which run-out policy (if any) an out-of-scope configuration names
@@ -581,8 +601,12 @@ pub fn corner_config<T: Decide + Bounds>(
     if valence != 3 {
         return Err(refuse(CornerConfig::NEdgeVertex { valence }));
     }
-    if convex != 3 {
-        return Err(refuse(CornerConfig::MixedConvexity { convex }));
+    match (convex, kind) {
+        // The uniform trihedra the running verb builds; the
+        // independence margin below is the remaining question.
+        (3, _) | (0, BlendKind::Chamfer) => {}
+        (0, BlendKind::Fillet) => return Err(refuse(CornerConfig::ThreeConcaveEdges)),
+        _ => return Err(refuse(CornerConfig::MixedConvexity { convex })),
     }
     let det = normals[0].dot(normals[1].cross(normals[2]));
     let margin = Margin::levered(det.abs(), radius);
@@ -1391,6 +1415,7 @@ fn corner_at<T: Decide + Bounds>(
             0,
             [Vec3::new(T::zero(), T::zero(), T::zero()); 3],
             radius,
+            kind,
             band,
         );
     }
@@ -1441,7 +1466,7 @@ fn corner_at<T: Decide + Bounds>(
         return Err(indeterminate());
     };
     if faces.len() != 3 {
-        return corner_config(vertex, faces.len(), convex, normals, radius, band);
+        return corner_config(vertex, faces.len(), convex, normals, radius, kind, band);
     }
     for (i, f) in faces.iter().enumerate() {
         // A support whose outward normal does not resolve leaves a
@@ -1450,7 +1475,7 @@ fn corner_at<T: Decide + Bounds>(
         // pass. Documented rather than silent (fix pass F6).
         normals[i] = outward(body, *f, *p).unwrap_or(Vec3::new(T::zero(), T::zero(), T::zero()));
     }
-    corner_config(vertex, valence, convex, normals, radius, band)
+    corner_config(vertex, valence, convex, normals, radius, kind, band)
 }
 
 /// Predicate 2's sweep: for each support face, every pair of its
