@@ -70,7 +70,7 @@
 //! In: closed smooth chains, and open chains terminating in a UNIFORM
 //! trihedron — three convex edges, whose corner patch is a sphere
 //! octant or a flat one; or three CONCAVE edges, which only the flat
-//! patch carves (the ball's is #644).
+//! patch carves (the ball's concave corner is #644).
 //! Out, refused typed with the OQ6 payload vocabulary: every other
 //! corner CONFIGURATION ([`BlendError::UnsupportedCorner`],
 //! carrying a [`CornerConfig`] — the battery's classifier and the
@@ -260,13 +260,24 @@ pub enum CornerConfig {
         /// derivation, which agree on a manifold body.
         valence: usize,
     },
-    /// Three edges, but their convexity signs do not agree — one or
-    /// two of the three convex: the blend would have to change sides
-    /// mid-corner. A UNIFORM sign is one of the two trihedron tags
-    /// above, whichever side it is on.
+    /// **A trivalent corner the running band's convexity clause does
+    /// not admit**, `convex` saying how it was read.
+    ///
+    /// At `1` or `2` the tag is literal and holds for every band
+    /// there is: the signs do not agree, so the blend would have to
+    /// change sides mid-corner. At `0` the signs DO agree and the
+    /// name is a poor fit — that is the uniform concave trihedron,
+    /// which a ruled strip carves and a rolling ball does not, so
+    /// only the ball's refusal reaches it. Naming it properly needs a
+    /// tag this vocabulary does not have, which is a corner-taxonomy
+    /// decision OQ6 reserves for Evan (evgunter/cad issue 1355);
+    /// until then the honest thing is that the payload says `0` and
+    /// this doc says what `0` means.
+    ///
+    /// `3` never appears: that is [`Self::ThreeConvexEdges`].
     MixedConvexity {
-        /// How many of the three edges classified convex — never 0 or
-        /// 3, which are the uniform trihedra.
+        /// How many of the three edges classified convex — `0`, `1`
+        /// or `2`.
         convex: usize,
     },
     /// Three edges of one convexity, but the support normals are

@@ -106,6 +106,13 @@ impl<'a, T: Real> AdmittedOpen<'a, T> {
         // cylinder and octant are derived on the convex side, and a
         // concave request there would ask a half-derived construction
         // for the other one.
+        // Publicly unreachable today, and kept anyway: a fillet whose
+        // chain is concave refuses one door earlier, at the battery's
+        // corner predicate, so no caller of `fillet_edges` reads this
+        // sentence. It is the door's own clause rather than a message
+        // for a user — the day a concave chain reaches here with its
+        // ends admitted, this is what refuses it instead of a
+        // half-derived band being built.
         if matches!(kind, BlendKind::Fillet) && !matches!(link.convexity, Convexity::Convex) {
             return Err(unbuilt_chain(
                 link.edge,

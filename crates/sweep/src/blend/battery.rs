@@ -545,9 +545,9 @@ pub fn chain_g1<T: Decide + Bounds>(
 // ---------------------------------------------------------------
 
 /// **`fillet3_corner_independence`** — is a chain termination a corner
-/// configuration the running verb builds (OQ6): a valence-three vertex
-/// whose three incident edges carry ONE convexity the verb covers, and
-/// whose three support normals are definitely independent?
+/// configuration some band builds (OQ6): a valence-three vertex whose
+/// three incident edges carry ONE convexity, either side, and whose
+/// three support normals are definitely independent?
 ///
 /// Margin: `|det(n₁, n₂, n₃)|·r` in METERS at lever arm `r`. The
 /// determinant is what makes the corner ball's centre a well-posed

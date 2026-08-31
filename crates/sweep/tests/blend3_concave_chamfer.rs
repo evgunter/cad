@@ -82,6 +82,25 @@ fn rod(center: Point2<f64>, r: f64, z0: f64, z1: f64) -> Body<f64> {
 /// else in the body touches them — the vent pierces the ceiling face's
 /// interior — so the twelve are a whole component of the edge graph,
 /// which is what makes the request a complete one.
+///
+/// # Why the fixture is a vented cavity, and what that does not claim
+///
+/// The requirement is a CLASS, not this shape. A concave request must
+/// be a whole component of the edge graph, and two doors say so from
+/// different sides: a subset with loose ends refuses where those ends
+/// are read, and a subset with NO ends never gets that far — the
+/// pocket floor's four edges close into a sharp-cornered ring and
+/// refuse at the G1 door, because the trivalent-ends clause only
+/// speaks once a chain has ends at all. A concave component that
+/// reaches the surface always ends at mixed corners, so it must
+/// enclose; an enclosed void is two shells, which the body door
+/// refuses; hence a vented cavity.
+///
+/// **That argument does not make this the smallest such body, and an
+/// earlier draft of this doc wrongly said it was.** A triangular
+/// prism cavity carves the same way with nine edges and six corners.
+/// Both probe suites hold the bound: the pocket attacks and the
+/// nine-edge cavity carves.
 fn vented_cavity() -> Body<f64> {
     let block = brick(Point3::new(0.0, 0.0, 0.0), Point3::new(4.0, 4.0, 4.0));
     let vent = rod(Point2::new(2.0, 2.0), 0.5, 2.5, 5.0);
@@ -149,6 +168,13 @@ fn the_vented_cavity_is_one_shell_with_twelve_cavity_edges() {
 }
 
 /// **The volume a chamfered cavity of side `a` encloses.**
+///
+/// The `6ad² − 16⁄3 d³` term is the chamfered cube's removed volume,
+/// and this is the FIFTH copy of it in the suite tree — the others
+/// live in the chamfer acceptance suite, twice in the r1 chamfer
+/// probes, and once in the sf2a r2 probes. Naming them here rather
+/// than adding a sixth silently: the class is declared, and a shared
+/// home for it is a test-support change no row in this unit needs.
 ///
 /// The chamfer of a concave edge ADDS material, and what it adds is
 /// congruent to what the same chamfer removes from a convex block:
